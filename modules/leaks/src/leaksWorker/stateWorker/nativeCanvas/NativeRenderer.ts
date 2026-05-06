@@ -49,8 +49,13 @@ export class NativeRenderer {
     }
 
     setHighlightData(highlightData: StateDataHoverResult | StateDataHoverResult[] | null): this {
-        const resolvedHighlightData = Array.isArray(highlightData) ? (highlightData[0] ?? null) : highlightData;
-        this.painter.processHighlightData(resolvedHighlightData);
+        this.painter.processHighlightData(highlightData);
+        this.renderFrame();
+        return this;
+    }
+
+    setBaseDimmed(dimBase: boolean): this {
+        this.painter.setBaseDimmed(dimBase);
         this.renderFrame();
         return this;
     }

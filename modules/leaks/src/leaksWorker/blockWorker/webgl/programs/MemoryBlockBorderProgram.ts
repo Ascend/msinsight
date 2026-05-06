@@ -26,9 +26,9 @@ export class MemoryBlockBorderProgram extends Program {
     bindBuffer(): void {
         const gl = this.gl;
         if (this.instanceBuffer) {
-            this.gl.deleteBuffer(this.instanceBuffer);
+            gl.deleteBuffer(this.instanceBuffer);
         }
-        this.instanceBuffer = this.createBuffer(4 * this.glInstanceDataSize);
+        this.instanceBuffer = this.createBuffer(4 * Math.max(this.glInstanceDataSize, 1));
         gl.bindVertexArray(this.vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
         const stride = 5 * 4;
@@ -41,60 +41,50 @@ export class MemoryBlockBorderProgram extends Program {
         gl.enableVertexAttribArray(2);
         gl.vertexAttribPointer(2, 1, gl.FLOAT, false, stride, 16);
         gl.vertexAttribDivisor(2, 1);
-        gl.bindVertexArray(null);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
-    }
-
-    updateSubBuffer(): void {
-        const gl = this.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.glInstanceData.subarray(0, this.glInstanceDataSize));
+        this.cleanupGL();
     }
 
     processData(data: RenderData['blocks']): void {
-        const totalLength = (data[0] === undefined ? 0 : data[0].path.length + 2) * 5; // +2是为了额外计入左边界和右边界
-
-        const needRealloc = !this.glInstanceData || this.glInstanceData.length < totalLength;
-
-        let instanceData: Float32Array;
-        if (needRealloc) {
-            // 创建新的buffer
-            instanceData = new Float32Array(totalLength);
-        } else {
-            // 复用已有buffer，但只清空/覆盖前 totalLength 个元素
-            instanceData = this.glInstanceData;
+        let totalLength = 0;
+        for (let i = 0; i < data.length; i++) {
+            totalLength += Math.max(data[i].path.length + 1, 0) * 5;
         }
 
+        const needRealloc = !this.glInstanceData || this.glInstanceData.length < totalLength;
+        const instanceData = needRealloc ? new Float32Array(totalLength) : this.glInstanceData;
+
         let offset = 0;
-        if (data[0] !== undefined) {
-            const pathLength = data[0].path.length;
-            for (let i = 0; i < pathLength - 1; i++) {
-                instanceData[offset++] = data[0].path[i][0];
-                instanceData[offset++] = data[0].path[i][1];
-                instanceData[offset++] = data[0].path[i + 1][0];
-                instanceData[offset++] = data[0].path[i + 1][1];
-                instanceData[offset++] = data[0].size;
+        for (let i = 0; i < data.length; i++) {
+            const { path, size } = data[i];
+            if (path.length < 1) {
+                continue;
             }
-            // 左边界
-            instanceData[offset++] = data[0].path[0][0];
-            instanceData[offset++] = data[0].path[0][1];
-            instanceData[offset++] = data[0].path[0][0];
-            instanceData[offset++] = data[0].path[0][1] + data[0].size;
+            for (let j = 0; j < path.length - 1; j++) {
+                instanceData[offset++] = path[j][0];
+                instanceData[offset++] = path[j][1];
+                instanceData[offset++] = path[j + 1][0];
+                instanceData[offset++] = path[j + 1][1];
+                instanceData[offset++] = size;
+            }
+            instanceData[offset++] = path[0][0];
+            instanceData[offset++] = path[0][1];
+            instanceData[offset++] = path[0][0];
+            instanceData[offset++] = path[0][1] + size;
             instanceData[offset++] = 0;
-            // 右边界
-            instanceData[offset++] = data[0].path[pathLength - 1][0];
-            instanceData[offset++] = data[0].path[pathLength - 1][1];
-            instanceData[offset++] = data[0].path[pathLength - 1][0];
-            instanceData[offset++] = data[0].path[pathLength - 1][1] + data[0].size;
+            const lastPoint = path[path.length - 1];
+            instanceData[offset++] = lastPoint[0];
+            instanceData[offset++] = lastPoint[1];
+            instanceData[offset++] = lastPoint[0];
+            instanceData[offset++] = lastPoint[1] + size;
             instanceData[offset++] = 0;
         }
 
         this.glInstanceData = instanceData;
-        this.glInstanceDataSize = totalLength;
-        if (needRealloc) {
+        this.glInstanceDataSize = offset;
+        if (needRealloc || this.instanceBuffer === null) {
             this.bindBuffer();
         } else {
-            this.updateSubBuffer();
+            this.updateSubBuffer(this.glInstanceData, this.glInstanceDataSize);
         }
         this.hasBuffer = true;
     }
@@ -104,19 +94,13 @@ export class MemoryBlockBorderProgram extends Program {
             return;
         }
         const gl = this.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
-        gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.glInstanceData, 0);
+        this.updateSubBuffer(this.glInstanceData, this.glInstanceDataSize);
         const instanceCount = this.glInstanceDataSize / 5;
-        const uniformData = this.uniformData;
         gl.useProgram(this.program);
-        gl.uniform2f(this.uniformLoc.uScale, uniformData[0], uniformData[1]);
-        gl.uniform2f(this.uniformLoc.uTranslate, uniformData[2], uniformData[3]);
-        gl.uniform2f(this.uniformLoc.uResolution, uniformData[4], uniformData[5]);
-        gl.uniform2f(this.uniformLoc.uZoom, uniformData[6], uniformData[7]);
-        gl.uniform1f(this.uniformLoc.uOffset, uniformData[8]);
+        this.setBaseUniforms();
+        gl.uniform1f(this.uniformLoc.uOffset, this.uniformData[8]);
         gl.bindVertexArray(this.vao);
         gl.drawArraysInstanced(gl.LINES, 0, 4, instanceCount);
-        gl.bindVertexArray(null);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+        this.cleanupGL();
     }
 }

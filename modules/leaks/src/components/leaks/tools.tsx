@@ -269,22 +269,29 @@ export const HoverItem = observer(({ session }: { session: Session }): JSX.Eleme
 
 export const StateHoverItem = observer(({ session, point }: { session: Session; point: { x: number; y: number } }): JSX.Element => {
     const { stateWorkerInfo: { hoverItem, renderOptions: { viewport } } } = session;
-    if (point.x < 0 || point.y < 0 || hoverItem === null) {
-        return <></>;
-    }
     const left = point.x + RIGHT_MARGIN > viewport.width ? point.x - RIGHT_MARGIN : point.x + 20;
     const top = point.y + BOTTOM_MARGIN > viewport.height ? point.y - BOTTOM_MARGIN : point.y;
-    const block = hoverItem.data.blocks.length > 0 ? hoverItem.data.blocks[0] : undefined;
-    const size = hoverItem.type === 'block' && block !== undefined ? block.size : hoverItem.data.size;
+    const block = hoverItem?.data.blocks[0];
+    const size = hoverItem?.type === 'block' && block !== undefined ? block.size : hoverItem?.data.size;
 
-    return <HoverItemContainer style={{ left, top }}>
-        <div>Type: {hoverItem.type}</div>
-        <div>Addr: {hoverItem.data.address}</div>
-        <div>Size: {formatBytes(size)}</div>
-        <div>Stream: {hoverItem.data.stream}</div>
-        <div>Event: {hoverItem.data.allocOrMapEventId}</div>
-        {block === undefined ? <></> : <div>Offset: {formatBytes(block.offset)}</div>}
-    </HoverItemContainer>;
+    return <>
+        {
+            point.x < 0 || point.y < 0 || hoverItem === null
+                ? <></>
+                : <HoverItemContainer style={{ left, top }}>
+                    <div>Type: {hoverItem.type}</div>
+                    <div>Addr: {hoverItem.data.address}</div>
+                    <div>Size: {formatBytes(size ?? 0)}</div>
+                    <div>Stream: {hoverItem.data.stream}</div>
+                    <div>Event: {hoverItem.data.allocOrMapEventId}</div>
+                    {
+                        block === undefined
+                            ? <></>
+                            : <div>Offset: {formatBytes(block.offset)}</div>
+                    }
+                </HoverItemContainer>
+        }
+    </>;
 });
 
 const LoadingContainer = styled.div`

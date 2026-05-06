@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { getColorStringByAddr } from '@/leaksWorker/tools/color';
+import { getColorStringByAddr, getDimmedColorStringByAddr } from '@/leaksWorker/tools/color';
 
 export class Painter {
     readonly canvas: HTMLCanvasElement;
@@ -24,6 +24,7 @@ export class Painter {
     private context: CanvasRenderingContext2D | null = null;
     private data: RenderData['blocks'] = [];
     private highlightData: RenderData['blocks'] = [];
+    private dimBase: boolean = false;
 
     constructor(canvas: HTMLCanvasElement, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -42,6 +43,18 @@ export class Painter {
         this.highlightData = highlightData;
     }
 
+    setBaseDimmed(dimBase: boolean): void {
+        this.dimBase = dimBase;
+    }
+
+    private getScaleX(transform: RenderOptions['transform']): number {
+        return transform.scaleX ?? transform.scale;
+    }
+
+    private getScaleY(transform: RenderOptions['transform']): number {
+        return transform.scaleY ?? transform.scale;
+    }
+
     render(options: RenderOptions): void {
         if (this.context === null) {
             return;
@@ -50,38 +63,61 @@ export class Painter {
         this.context.resetTransform();
         this.context.clearRect(0, 0, viewport.width, viewport.height);
         this.context.translate(transform.x, viewport.height - transform.y);
-        this.context.scale(transform.scale, -transform.scale);
+        this.context.scale(this.getScaleX(transform), -this.getScaleY(transform));
         this.context.save();
-        this.renderData(this.data, options);
+        this.renderData(this.data, options, false, this.dimBase);
+        this.renderData(this.highlightData, options);
         this.renderData(this.highlightData, options, true);
     }
 
-    renderData(data: RenderData['blocks'], options: RenderOptions, isHighlight: boolean = false): void {
+    renderData(data: RenderData['blocks'], options: RenderOptions, isHighlight: boolean = false, dimBase: boolean = false): void {
         for (let i = 0; i < data.length; i++) {
             const { path, size, addr } = data[i];
-            for (let j = 0; j < path.length - 1; j++) {
-                this.drawShape(path[j], path[j + 1], size, addr, options, isHighlight);
-            }
             if (isHighlight) {
-                this.drawShape(path[0], [path[0][0], path[0][1] + size], 0, addr, options, isHighlight);
-                this.drawShape(path[path.length - 1], [path[path.length - 1][0], path[path.length - 1][1] + size], 0, addr, options, isHighlight);
+                this.drawBlockOutline(path, size, addr, options);
+                continue;
+            }
+            for (let j = 0; j < path.length - 1; j++) {
+                this.drawShape(path[j], path[j + 1], size, addr, options, dimBase);
             }
         }
     }
 
-    drawShape(p0: [number, number], p1: [number, number], size: number, addr: string, options: RenderOptions, isHighlight: boolean): void {
+    drawBlockOutline(path: Array<[number, number]>, size: number, addr: string, options: RenderOptions): void {
+        if (this.context === null || path.length < 1) {
+            return;
+        }
+        const { zoom } = options;
+        const toX = (point: [number, number]): number => (point[0] - zoom.offset) * zoom.x;
+        const toY = (point: [number, number]): number => point[1] * zoom.y;
+
+        this.context.beginPath();
+        this.context.moveTo(toX(path[0]), toY(path[0]));
+        for (let i = 1; i < path.length; i++) {
+            this.context.lineTo(toX(path[i]), toY(path[i]));
+        }
+        for (let i = path.length - 1; i >= 0; i--) {
+            this.context.lineTo(toX(path[i]), (path[i][1] + size) * zoom.y);
+        }
+        this.context.closePath();
+        this.context.strokeStyle = getColorStringByAddr(addr, true);
+        this.context.lineWidth = 2 / Math.max(this.getScaleX(options.transform), this.getScaleY(options.transform));
+        this.context.stroke();
+    }
+
+    drawShape(p0: [number, number], p1: [number, number], size: number, addr: string, options: RenderOptions, dimBase: boolean): void {
         if (this.context === null) {
             return;
         }
-        const { zoom, transform } = options;
+        const { zoom } = options;
 
         const lx = (p0[0] - zoom.offset) * zoom.x;
         const ly = p0[1] * zoom.y;
-        const rx = (p1[0] - zoom.offset) * zoom.x;
+        const minWidth = 1 / this.getScaleX(options.transform);
+        const rx = Math.max((p1[0] - zoom.offset) * zoom.x, lx + minWidth);
         const ry = p1[1] * zoom.y;
         const h = size * zoom.y;
 
-        // 绘制四边形
         this.context.beginPath();
         this.context.moveTo(lx, ly);
         this.context.lineTo(lx, ly + h);
@@ -89,19 +125,7 @@ export class Painter {
         this.context.lineTo(rx, ry);
         this.context.closePath();
 
-        this.context.fillStyle = getColorStringByAddr(addr, isHighlight); // 填充颜色
-        this.context.fill(); // 填充图形
-        if (isHighlight) {
-            this.context.strokeStyle = '#000000';
-            this.context.lineWidth = 2 / transform.scale;
-            this.context.beginPath();
-            this.context.moveTo(lx, ly);
-            this.context.lineTo(rx, ry);
-            this.context.stroke();
-            this.context.beginPath();
-            this.context.moveTo(lx, ly + h);
-            this.context.lineTo(rx, ry + h);
-            this.context.stroke();
-        }
+        this.context.fillStyle = dimBase ? getDimmedColorStringByAddr(addr) : getColorStringByAddr(addr);
+        this.context.fill();
     }
 }

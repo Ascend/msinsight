@@ -46,14 +46,14 @@ export class Painter {
         if (gl === null) { throw new Error('WebGL2 not supported'); }
         this.gl = gl;
         this.memoryBlockProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
-        this.memoryBlockHightlightProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, true);
+        this.memoryBlockHightlightProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
         this.memoryBlockBorderHightlightProgram = new MemoryBlockBorderProgram(this.gl, this.uniformData, shaders.memoryBlockBorder);
     }
 
     private updateUniformData(options: RenderOptions): void {
         const { transform, viewport, zoom } = options;
-        this.uniformData[0] = transform.scale;
-        this.uniformData[1] = transform.scale;
+        this.uniformData[0] = transform.scaleX ?? transform.scale;
+        this.uniformData[1] = transform.scaleY ?? transform.scale;
         this.uniformData[2] = transform.x;
         this.uniformData[3] = transform.y;
         this.uniformData[4] = viewport.width;

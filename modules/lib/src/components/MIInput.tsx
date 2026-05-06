@@ -85,7 +85,7 @@ export const MIInputSplit = styled(MIInput)`
     }
 `;
 
-export const MIInputGroup = React.forwardRef((props: GroupProps) => (
+export const MIInputGroup = React.forwardRef((props: GroupProps, _ref: React.ForwardedRef<unknown>) => (
     <Input.Group {...props} />
 ));
 

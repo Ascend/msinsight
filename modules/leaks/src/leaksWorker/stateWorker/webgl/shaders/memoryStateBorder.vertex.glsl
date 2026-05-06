@@ -36,7 +36,7 @@ const float HEIGHT = 40.0f;
 void main() {
     float vx = x * uScale.x * uZoom.x + uTranslate.x;
     float vy = y * uScale.y * uZoom.y + uTranslate.y;
-    float w = width * uScale.x * uZoom.x;
+    float w = max(width * uScale.x * uZoom.x, 1.0f);
     float h = HEIGHT * uScale.y * uZoom.y;
 
     vec2 pos;

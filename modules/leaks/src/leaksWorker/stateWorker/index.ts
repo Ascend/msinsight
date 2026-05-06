@@ -91,17 +91,18 @@ const hoverItemHandler = (payload: HoverItemPayload): void => {
 // 通过这个方法，优先高亮hover数据
 const renderHighlintData = (): void => {
     const result = getHighlightData();
+    renderer?.setBaseDimmed(clickItem !== null);
     renderer?.setHighlightData(result);
 };
 
-const isSameHighlightItem = (leftItem: StateDataHoverResult | null, rightItem: StateDataHoverResult | null): boolean => {
-    if (leftItem === null || rightItem === null || leftItem.type !== rightItem.type) {
+const isSameHighlightItem = (a: StateDataHoverResult | null, b: StateDataHoverResult | null): boolean => {
+    if (a === null || b === null || a.type !== b.type) {
         return false;
     }
-    if (leftItem.type === 'segment') {
-        return leftItem.data.allocOrMapEventId === rightItem.data.allocOrMapEventId;
+    if (a.type === 'segment') {
+        return a.data.allocOrMapEventId === b.data.allocOrMapEventId;
     }
-    return leftItem.data.blocks[0]?.id === rightItem.data.blocks[0]?.id;
+    return a.data.blocks[0]?.id === b.data.blocks[0]?.id;
 };
 
 const getHighlightData = (): StateDataHoverResult[] => {
@@ -125,8 +126,7 @@ const destroyHandler = (): void => {
     renderer?.setData([]).setTransform(transform).setZoom(zoom);
 };
 
-type StateWorkerPayloadType = 'initCanvas' | 'setMemoryStateData' | 'resizeCanvas' | 'transform' | 'hoverItem' | 'clickItem' | 'selectStateItem' | 'destroy';
-const Handlers: PayloadHandlers<StateWorkerPayloadType> = {
+const Handlers: PayloadHandlers = {
     initCanvas: initCanvasHandler,
     setMemoryStateData: setMemoryStateDataHandler,
     resizeCanvas: resizeCanvasHandler,
@@ -139,6 +139,13 @@ const Handlers: PayloadHandlers<StateWorkerPayloadType> = {
 
 self.onmessage = async (ev: MessageEvent<Payload>): Promise<void> => {
     const payload = ev.data;
-    const handler = Handlers[payload.type as StateWorkerPayloadType] as ((payload: Payload) => void) | undefined;
-    await handler?.(payload);
+    const handler = Handlers[payload.type];
+    if (typeof handler === 'function') {
+        try {
+            await handler(payload);
+        } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('State worker handler error:', error);
+        }
+    }
 };

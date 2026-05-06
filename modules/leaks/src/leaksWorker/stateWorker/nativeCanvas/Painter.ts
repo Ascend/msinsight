@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { getColorStringByIndex } from '@/leaksWorker/tools/color';
+import { getColorStringByIndex, getDimmedColorStringByIndex } from '@/leaksWorker/tools/color';
 
 export class Painter {
     readonly canvas: HTMLCanvasElement;
@@ -24,7 +24,8 @@ export class Painter {
     readonly itemHeight = 40;
     private context: CanvasRenderingContext2D | null = null;
     private data: Segment[] = [];
-    private highlightData: StateDataHoverResult | null = null;
+    private highlightData: StateDataHoverResult[] = [];
+    private dimBase: boolean = false;
 
     constructor(canvas: HTMLCanvasElement, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -39,8 +40,20 @@ export class Painter {
         this.data = data;
     }
 
-    processHighlightData(highlightData: StateDataHoverResult | null): void {
-        this.highlightData = highlightData;
+    processHighlightData(highlightData: StateDataHoverResult | StateDataHoverResult[] | null): void {
+        this.highlightData = highlightData === null ? [] : Array.isArray(highlightData) ? highlightData : [highlightData];
+    }
+
+    setBaseDimmed(dimBase: boolean): void {
+        this.dimBase = dimBase;
+    }
+
+    private getScaleX(transform: RenderOptions['transform']): number {
+        return transform.scaleX ?? transform.scale;
+    }
+
+    private getScaleY(transform: RenderOptions['transform']): number {
+        return transform.scaleY ?? transform.scale;
     }
 
     render(options: RenderOptions): void {
@@ -51,27 +64,50 @@ export class Painter {
         this.context.resetTransform();
         this.context.clearRect(0, 0, viewport.width, viewport.height);
         this.context.translate(transform.x, transform.y);
-        this.context.scale(transform.scale, transform.scale);
+        this.context.scale(this.getScaleX(transform), this.getScaleY(transform));
         this.context.save();
-        this.renderData(this.data, options);
+        this.renderData(this.data, options, this.dimBase);
+        this.renderHighlightFillData(this.highlightData, options);
         this.renderHighlightData(this.highlightData, options);
     }
 
-    renderData(data: Segment[], options: RenderOptions): void {
+    renderData(data: Segment[], options: RenderOptions, dimBase: boolean = false): void {
         for (let i = 0; i < data.length; i++) {
             const { size, offsetX, offsetY, blocks } = data[i];
             for (let j = 0; j < blocks.length; j++) {
-                const color = getColorStringByIndex(j);
+                const colorIndex = blocks[j].colorIndex ?? j;
+                const color = dimBase ? getDimmedColorStringByIndex(colorIndex) : getColorStringByIndex(colorIndex);
                 this.drawShape(offsetX + blocks[j].offset, offsetY, blocks[j].size, options, color);
             }
             this.drawShape(offsetX, offsetY, size, options, '#000000', true);
         }
     }
 
-    renderHighlightData(hightData: StateDataHoverResult | null, options: RenderOptions): void {
-        if (hightData === null) {
+    renderHighlightFillData(hightData: StateDataHoverResult[], options: RenderOptions): void {
+        for (let i = 0; i < hightData.length; i++) {
+            this.renderSingleHighlightFillData(hightData[i], options);
+        }
+    }
+
+    renderSingleHighlightFillData(hightData: StateDataHoverResult, options: RenderOptions): void {
+        const { type, data } = hightData;
+        const { offsetX, offsetY, blocks } = data;
+        if (type === 'segment') {
+            for (let j = 0; j < blocks.length; j++) {
+                this.drawShape(offsetX + blocks[j].offset, offsetY, blocks[j].size, options, getColorStringByIndex(j));
+            }
             return;
         }
+        this.drawShape(offsetX + blocks[0].offset, offsetY, blocks[0].size, options, getColorStringByIndex(blocks[0].colorIndex ?? 0));
+    }
+
+    renderHighlightData(hightData: StateDataHoverResult[], options: RenderOptions): void {
+        for (let i = 0; i < hightData.length; i++) {
+            this.renderSingleHighlightData(hightData[i], options);
+        }
+    }
+
+    renderSingleHighlightData(hightData: StateDataHoverResult, options: RenderOptions): void {
         const { type, data } = hightData;
         const { size, offsetX, offsetY, blocks } = data;
         if (type === 'segment') {
@@ -89,12 +125,12 @@ export class Painter {
 
         const lx = x * zoom.x;
         const ly = y * zoom.y;
-        const w = size * zoom.x;
+        const w = Math.max(size * zoom.x, 1 / this.getScaleX(transform));
         const h = this.itemHeight * zoom.y;
 
         if (isBorder) {
             this.context.strokeStyle = color;
-            this.context.lineWidth = 2 / transform.scale;
+            this.context.lineWidth = 2 / Math.max(this.getScaleX(transform), this.getScaleY(transform));
             this.context.strokeRect(lx, ly, w, h);
             return;
         }

@@ -25,6 +25,8 @@ export class WebGLRenderer {
     readonly painter: Painter;
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };
+    private data: Segment[] = [];
+    private dimBase: boolean = false;
 
     constructor(canvas: OffscreenCanvas, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -43,15 +45,26 @@ export class WebGLRenderer {
     }
 
     setData(data: Segment[] = []): this {
-        this.painter.memoryStateProgram?.processData(data);
+        this.data = data;
+        this.painter.memoryStateProgram?.processData(data, this.dimBase);
         this.painter.memoryStateBorderProgram?.processData(data);
         this.renderFrame();
         return this;
     }
 
+    setBaseDimmed(dimBase: boolean): this {
+        if (this.dimBase === dimBase) {
+            return this;
+        }
+        this.dimBase = dimBase;
+        this.painter.memoryStateProgram?.processData(this.data, this.dimBase);
+        this.renderFrame();
+        return this;
+    }
+
     setHighlightData(highlightData: StateDataHoverResult | StateDataHoverResult[] | null): this {
-        const resolvedHighlightData = Array.isArray(highlightData) ? (highlightData[0] ?? null) : highlightData;
-        this.painter.memoryStateHighlightProgram?.processHighlightData(resolvedHighlightData);
+        this.painter.memoryStateHighlightFillProgram?.processData(this.getHighlightSegments(highlightData));
+        this.painter.memoryStateHighlightProgram?.processHighlightData(highlightData);
         this.renderFrame();
         return this;
     }

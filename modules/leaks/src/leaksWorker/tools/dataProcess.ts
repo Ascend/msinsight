@@ -314,11 +314,14 @@ const searchBlockDataWithLinearSnap = (
     return pickUniqueSnapBlock(candidates);
 };
 
-const getBlockSearchParams = (
+export const searchBlockDataByPoint = (
+    data: RenderData | RenderData['blocks'],
     { clientX, clientY }: Omit<HoverItemPayload, 'type'>,
     transform: RenderOptions['transform'],
     zoom: RenderOptions['zoom'],
-): { x: number; y: number; absoluteX: number; minHitWidth: number; snapHitWidth: number } => {
+): Block | null => {
+    const blocks = Array.isArray(data) ? data : data.blocks;
+    const hitIndex = Array.isArray(data) ? undefined : (data as IndexedRenderData).blockHitIndex;
     // 将鼠标点击位置转换为真实坐标
     const x = (clientX - transform.x) / zoom.x / getTransformScaleX(transform);
     const y = (clientY - transform.y) / zoom.y / getTransformScaleY(transform);
@@ -326,30 +329,10 @@ const getBlockSearchParams = (
     const scaleX = getTransformScaleX(transform);
     const minHitWidth = zoom.x * scaleX > 0 ? 1 / zoom.x / scaleX : 0;
     const snapHitWidth = zoom.x * scaleX > 0 ? BLOCK_SNAP_TARGET_WIDTH_PX / zoom.x / scaleX : 0;
-    return { x, y, absoluteX, minHitWidth, snapHitWidth };
-};
 
-export const searchBlockDataByPointWithIndex = (
-    data: RenderData,
-    payload: Omit<HoverItemPayload, 'type'>,
-    transform: RenderOptions['transform'],
-    zoom: RenderOptions['zoom'],
-): Block | null => {
-    const hitIndex = (data as IndexedRenderData).blockHitIndex;
-    if (hitIndex === undefined) {
-        return searchBlockDataByPoint(data.blocks, payload, transform, zoom);
+    if (hitIndex !== undefined) {
+        return searchBlockDataWithIndex(blocks, hitIndex, absoluteX, y, minHitWidth, snapHitWidth);
     }
-    const { y, absoluteX, minHitWidth, snapHitWidth } = getBlockSearchParams(payload, transform, zoom);
-    return searchBlockDataWithIndex(data.blocks, hitIndex, absoluteX, y, minHitWidth, snapHitWidth);
-};
-
-export const searchBlockDataByPoint = (
-    blocks: RenderData['blocks'],
-    payload: Omit<HoverItemPayload, 'type'>,
-    transform: RenderOptions['transform'],
-    zoom: RenderOptions['zoom'],
-): Block | null => {
-    const { x, y, absoluteX, minHitWidth, snapHitWidth } = getBlockSearchParams(payload, transform, zoom);
 
     for (let i = 0; i < blocks.length; i++) {
         const block = blocks[i];
@@ -473,7 +456,7 @@ export const buildBlockViewPath = (blockView: SetMemoryBlocksDataPayload['data']
             { eventAction: MemoryEventAction.Free, time: block._endTimestamp, blockPtr: block },
         );
     }
-    sortedEvents.sort((leftEvent, rightEvent) => leftEvent.time - rightEvent.time);
+    sortedEvents.sort((a, b) => a.time - b.time);
 
     const currentBlocks: Block[] = [];
     let currentTotalSize = 0;

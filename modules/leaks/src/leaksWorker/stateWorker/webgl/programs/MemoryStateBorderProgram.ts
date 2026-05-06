@@ -41,7 +41,7 @@ export class MemoryStateBorderProgram extends Program {
         if (this.instanceBuffer) {
             gl.deleteBuffer(this.instanceBuffer);
         }
-        this.instanceBuffer = this.createBuffer(4 * this.glInstanceDataSize);
+        this.instanceBuffer = this.createBuffer(4 * Math.max(this.glInstanceDataSize, 1));
         gl.bindVertexArray(this.vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
         const strideBytes = this.stride * 4;
@@ -75,7 +75,7 @@ export class MemoryStateBorderProgram extends Program {
 
         this.glInstanceData = instanceData;
         this.glInstanceDataSize = totalLength;
-        if (needRealloc) {
+        if (needRealloc || this.instanceBuffer === null) {
             this.bindBuffer();
         } else {
             this.updateSubBuffer(instanceData, totalLength);
@@ -83,35 +83,46 @@ export class MemoryStateBorderProgram extends Program {
         this.hasBuffer = true;
     }
 
-    processHighlightData(highlightData: StateDataHoverResult | null): void {
+    processHighlightData(highlightData: StateDataHoverResult | StateDataHoverResult[] | null): void {
         if (this.renderType !== RenderType.highlightBorder) {
             return;
         }
-        if (this.glInstanceDataSize < this.stride) {
-            this.glInstanceData = new Float32Array(this.stride);
-            this.glInstanceDataSize = this.stride;
-            this.bindBuffer();
+        const highlightList = highlightData === null ? [] : Array.isArray(highlightData) ? highlightData : [highlightData];
+        const totalLength = Math.max(highlightList.length, 1) * this.stride;
+        const needRealloc = !this.glInstanceData || this.glInstanceData.length < totalLength;
+        const instanceData = needRealloc ? new Float32Array(totalLength) : this.glInstanceData;
+        let offset = 0;
+
+        for (let i = 0; i < highlightList.length; i++) {
+            const item = highlightList[i];
+            if (item.type === 'segment') {
+                const segment = item.data;
+                instanceData[offset++] = segment.offsetX;
+                instanceData[offset++] = segment.offsetY;
+                instanceData[offset++] = segment.size;
+            } else {
+                const segment = item.data;
+                const block = segment.blocks[0];
+                instanceData[offset++] = segment.offsetX + block.offset;
+                instanceData[offset++] = segment.offsetY;
+                instanceData[offset++] = block.size;
+            }
         }
 
-        const instanceData = this.glInstanceData;
-        if (highlightData?.type === 'segment') {
-            const segment = highlightData.data;
-            instanceData[0] = segment.offsetX;
-            instanceData[1] = segment.offsetY;
-            instanceData[2] = segment.size;
-            this.highlightAlpha = 1;
-        } else if (highlightData?.type === 'block') {
-            const segment = highlightData.data;
-            const block = segment.blocks[0];
-            instanceData[0] = segment.offsetX + block.offset;
-            instanceData[1] = segment.offsetY;
-            instanceData[2] = block.size;
-            this.highlightAlpha = 1;
-        } else {
+        if (highlightList.length === 0) {
             instanceData[0] = 0;
             instanceData[1] = 0;
             instanceData[2] = 0;
-            this.highlightAlpha = 0;
+            offset = this.stride;
+        }
+
+        this.highlightAlpha = highlightList.length > 0 ? 1 : 0;
+        this.glInstanceData = instanceData;
+        this.glInstanceDataSize = offset;
+        if (needRealloc || this.instanceBuffer === null) {
+            this.bindBuffer();
+        } else {
+            this.updateSubBuffer(instanceData, offset);
         }
         this.hasBuffer = true;
     }

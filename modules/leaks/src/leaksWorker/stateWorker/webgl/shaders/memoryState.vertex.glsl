@@ -39,7 +39,7 @@ const float HEIGHT = 40.0f;
 void main() {
     float lx = x * uScale.x * uZoom.x + uTranslate.x;
     float ly = y * uScale.y * uZoom.y + uTranslate.y;
-    float rx = (x + width) * uScale.x * uZoom.x + uTranslate.x;
+    float rx = max((x + width) * uScale.x * uZoom.x + uTranslate.x, lx + 1.0f);
     float ry = y * uScale.y * uZoom.y + uTranslate.y;
     float h = HEIGHT * uScale.y * uZoom.y;
 

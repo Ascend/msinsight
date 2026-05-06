@@ -25,6 +25,8 @@ export class WebGLRenderer {
     readonly painter: Painter;
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };
+    private data: RenderData['blocks'] = [];
+    private dimBase: boolean = false;
 
     constructor(canvas: OffscreenCanvas, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -43,7 +45,8 @@ export class WebGLRenderer {
     }
 
     setData(data: RenderData['blocks'] = []): this {
-        this.painter.memoryBlockProgram?.processData(data);
+        this.data = data;
+        this.painter.memoryBlockProgram?.processData(data, this.dimBase);
         this.renderFrame();
         return this;
     }
@@ -51,6 +54,16 @@ export class WebGLRenderer {
     setHighlightData(highlightData: RenderData['blocks'] = []): this {
         this.painter.memoryBlockHightlightProgram?.processData(highlightData);
         this.painter.memoryBlockBorderHightlightProgram?.processData(highlightData);
+        this.renderFrame();
+        return this;
+    }
+
+    setBaseDimmed(dimBase: boolean): this {
+        if (this.dimBase === dimBase) {
+            return this;
+        }
+        this.dimBase = dimBase;
+        this.painter.memoryBlockProgram?.processData(this.data, this.dimBase);
         this.renderFrame();
         return this;
     }
