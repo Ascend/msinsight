@@ -31,6 +31,9 @@ interface AxisTick {
     value: string;
 }
 
+const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX ?? transform.scale;
+const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY ?? transform.scale;
+
 export const Axis = observer(({ session }: { session: Session }): JSX.Element => {
     const { sizeInfo, renderOptions: { zoom, transform, viewport } } = session.leaksWorkerInfo;
     const [axisY, setAxisY] = useState<AxisTick[]>([]);
@@ -42,8 +45,9 @@ export const Axis = observer(({ session }: { session: Session }): JSX.Element =>
         const { height } = viewport;
         if (minSize === maxSize) return [];
 
-        const visibleRange = (maxSize - minSize) / transform.scale;
-        const visibleMinSize = minSize - transform.y / transform.scale / zoom.y;
+        const scaleY = getTransformScaleY(transform);
+        const visibleRange = (maxSize - minSize) / scaleY;
+        const visibleMinSize = minSize - transform.y / scaleY / zoom.y;
 
         const ticks = [];
 
@@ -64,8 +68,9 @@ export const Axis = observer(({ session }: { session: Session }): JSX.Element =>
         const { minTimestamp, maxTimestamp } = sizeInfo;
         const { width } = viewport;
         if (minTimestamp === maxTimestamp) return [];
-        const visibleRange = (maxTimestamp - minTimestamp) / transform.scale;
-        const visibleMinSize = minTimestamp - transform.x / transform.scale / zoom.x;
+        const scaleX = getTransformScaleX(transform);
+        const visibleRange = (maxTimestamp - minTimestamp) / scaleX;
+        const visibleMinSize = minTimestamp - transform.x / scaleX / zoom.x;
         const visibleMaxSize = visibleMinSize + visibleRange;
 
         const ticks = [];
@@ -171,8 +176,9 @@ export const MarkLineBlock = observer(({ session }: { session: Session }): JSX.E
     const getCurrentTime = (): void => {
         const { minTimestamp, maxTimestamp } = sizeInfo;
         const { width } = viewport;
-        const visibleRange = (maxTimestamp - minTimestamp) / transform.scale;
-        const visibleMinSize = minTimestamp - transform.x / transform.scale / zoom.x;
+        const scaleX = getTransformScaleX(transform);
+        const visibleRange = (maxTimestamp - minTimestamp) / scaleX;
+        const visibleMinSize = minTimestamp - transform.x / scaleX / zoom.x;
         const ratio = block.x / width;
         const currentTimestamp = visibleMinSize + visibleRange * ratio;
 
@@ -188,8 +194,9 @@ export const MarkLineBlock = observer(({ session }: { session: Session }): JSX.E
     useEffect(() => {
         const { minTimestamp, maxTimestamp } = sizeInfo;
         const { width } = viewport;
-        const visibleRange = (maxTimestamp - minTimestamp) / transform.scale;
-        const visibleMinSize = minTimestamp - transform.x / transform.scale / zoom.x;
+        const scaleX = getTransformScaleX(transform);
+        const visibleRange = (maxTimestamp - minTimestamp) / scaleX;
+        const visibleMinSize = minTimestamp - transform.x / scaleX / zoom.x;
 
         const ratio = (currentTimestamp - visibleMinSize) / visibleRange;
         const offset = width * ratio;
@@ -260,6 +267,26 @@ export const HoverItem = observer(({ session }: { session: Session }): JSX.Eleme
     </>;
 });
 
+export const StateHoverItem = observer(({ session, point }: { session: Session; point: { x: number; y: number } }): JSX.Element => {
+    const { stateWorkerInfo: { hoverItem, renderOptions: { viewport } } } = session;
+    if (point.x < 0 || point.y < 0 || hoverItem === null) {
+        return <></>;
+    }
+    const left = point.x + RIGHT_MARGIN > viewport.width ? point.x - RIGHT_MARGIN : point.x + 20;
+    const top = point.y + BOTTOM_MARGIN > viewport.height ? point.y - BOTTOM_MARGIN : point.y;
+    const block = hoverItem.data.blocks.length > 0 ? hoverItem.data.blocks[0] : undefined;
+    const size = hoverItem.type === 'block' && block !== undefined ? block.size : hoverItem.data.size;
+
+    return <HoverItemContainer style={{ left, top }}>
+        <div>Type: {hoverItem.type}</div>
+        <div>Addr: {hoverItem.data.address}</div>
+        <div>Size: {formatBytes(size)}</div>
+        <div>Stream: {hoverItem.data.stream}</div>
+        <div>Event: {hoverItem.data.allocOrMapEventId}</div>
+        {block === undefined ? <></> : <div>Offset: {formatBytes(block.offset)}</div>}
+    </HoverItemContainer>;
+});
+
 const LoadingContainer = styled.div`
     display: flex;
     justify-content: center;
@@ -277,3 +304,35 @@ export const Loading = ({ size = 'default', style = {}, loading }: { size?: 'sma
         }
     </>;
 };
+
+export const GraphToolbar = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    min-height: 30px;
+    margin-bottom: 6px;
+
+    button {
+        height: 24px;
+        min-width: 74px;
+        padding: 0 8px;
+        color: #222;
+        font-size: 12px;
+        line-height: 22px;
+        white-space: nowrap;
+        background: #fff;
+        border: 1px solid rgba(0, 0, 0, 0.22);
+        border-radius: 4px;
+        cursor: pointer;
+    }
+
+    button:hover {
+        background: #f5f5f5;
+        border-color: rgba(0, 0, 0, 0.36);
+    }
+
+    button:active {
+        background: #e8e8e8;
+    }
+`;

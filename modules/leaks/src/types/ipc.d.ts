@@ -46,6 +46,16 @@ interface HoverItemPayload {
     clientY: number;
 };
 
+interface SelectBlockItemPayload {
+    type: 'selectBlockItem';
+    item: Block | null;
+};
+
+interface SelectStateItemPayload {
+    type: 'selectStateItem';
+    item: StateDataHoverResult | null;
+};
+
 interface SetMemoryStateDataPayload {
     type: 'setMemoryState';
     data: Segment[];
@@ -57,8 +67,12 @@ type Payload =
     | ResizeCanvasPayload
     | TransformPayload
     | HoverItemPayload
+    | SelectBlockItemPayload
+    | SelectStateItemPayload
     | SetMemoryStateDataPayload;
 
-type PayloadHandlers = {
+type PayloadHandlerMap = {
     [K in Payload['type']]: (payload: Extract<Payload, { type: K }>) => void;
 };
+
+type PayloadHandlers<K extends Payload['type'] = Payload['type']> = Pick<PayloadHandlerMap, K>;

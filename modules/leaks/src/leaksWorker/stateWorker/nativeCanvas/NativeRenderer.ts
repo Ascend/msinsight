@@ -21,7 +21,7 @@ import { Painter } from './Painter';
 export class NativeRenderer {
     readonly canvas: HTMLCanvasElement;
     readonly devicePixelRatio: number;
-    private transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1 };
+    private transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
     readonly painter: Painter;
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };
@@ -48,8 +48,9 @@ export class NativeRenderer {
         return this;
     }
 
-    setHighlightData(highlightData: StateDataHoverResult | null): this {
-        this.painter.processHighlightData(highlightData);
+    setHighlightData(highlightData: StateDataHoverResult | StateDataHoverResult[] | null): this {
+        const resolvedHighlightData = Array.isArray(highlightData) ? (highlightData[0] ?? null) : highlightData;
+        this.painter.processHighlightData(resolvedHighlightData);
         this.renderFrame();
         return this;
     }

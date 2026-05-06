@@ -21,6 +21,8 @@ interface RenderOptions {
         x: number;
         y: number;
         scale: number;
+        scaleX?: number;
+        scaleY?: number;
     };
     viewport: {
         width: number;
@@ -73,6 +75,7 @@ interface StateBlock {
     offset: number;
     id: number;
     size: number;
+    colorIndex?: number;
 }
 
 type Theme = 'light' | 'dark';

@@ -16,20 +16,20 @@
  * -------------------------------------------------------------------------
  */
 
-import { buildBlockViewPath, getZoom, searchBlockDataByPoint } from '../tools/dataProcess';
+import { buildBlockViewPath, getZoom, searchBlockDataByPointWithIndex } from '../tools/dataProcess';
 import { debounce } from 'lodash';
 import { NativeRenderer } from './nativeCanvas/NativeRenderer';
 import { store } from '@/store';
 import { Session } from '@/entity/session';
 import { runInAction } from 'mobx';
+
 export class MainThreadRender {
     canvas: HTMLCanvasElement = document.createElement('canvas');
     memoryBlockData: RenderData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
-    transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1 };
+    transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
     viewport: RenderOptions['viewport'] = { width: 0, height: 0 };
     zoom: RenderOptions['zoom'] = { x: 1, y: 1, offset: 0 };
     renderer: NativeRenderer | null = null;
-
     hoverItem: Block | null = null;
     clickItem: Block | null = null;
     session: Session;
@@ -47,8 +47,8 @@ export class MainThreadRender {
     };
 
     setMemoryBlockDataHandler(payload: Omit<SetMemoryBlocksDataPayload, 'type'>): void {
-        this.clickItem = null;
         this.hoverItem = null;
+        this.clickItem = null;
         this.memoryBlockData = buildBlockViewPath(payload.data);
         const { maxTimestamp, minTimestamp, maxSize, minSize } = this.memoryBlockData;
         this.zoom = getZoom(this.memoryBlockData, this.canvas);
@@ -62,6 +62,7 @@ export class MainThreadRender {
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
         });
         this.renderer?.setZoom(this.zoom).setData(this.memoryBlockData.blocks);
+        this.renderHighlightData();
         this.renderer?.updateCanvasSize(this.viewport);
         runInAction(() => {
             this.session.loadingBlocks = false;
@@ -85,7 +86,7 @@ export class MainThreadRender {
 
     debouncedSearchBlockData = debounce((payload: Omit<HoverItemPayload, 'type'>): void => {
         if (this.memoryBlockData?.blocks?.length > 0) {
-            this.hoverItem = searchBlockDataByPoint(this.memoryBlockData.blocks, payload, this.transform, this.zoom);
+            this.hoverItem = searchBlockDataByPointWithIndex(this.memoryBlockData, payload, this.transform, this.zoom);
             this.renderHighlightData();
             runInAction(() => {
                 this.session.leaksWorkerInfo.hoverItem = this.hoverItem;
@@ -94,7 +95,15 @@ export class MainThreadRender {
     }, 10);
 
     clickItemHandler(payload: Omit<HoverItemPayload, 'type'>): void {
-        this.clickItem = searchBlockDataByPoint(this.memoryBlockData.blocks, payload, this.transform, this.zoom);
+        this.clickItem = searchBlockDataByPointWithIndex(this.memoryBlockData, payload, this.transform, this.zoom);
+        runInAction(() => {
+            this.session.leaksWorkerInfo.clickItem = this.clickItem;
+        });
+        this.renderHighlightData();
+    };
+
+    selectItemHandler(payload: Omit<SelectBlockItemPayload, 'type'>): void {
+        this.clickItem = payload.item;
         this.renderHighlightData();
         runInAction(() => {
             this.session.leaksWorkerInfo.clickItem = this.clickItem;
@@ -105,19 +114,23 @@ export class MainThreadRender {
         this.debouncedSearchBlockData(payload);
     };
 
-    // 通过这个方法，优先高亮hover数据
     renderHighlightData(): void {
-        const result = this.hoverItem === null ? this.clickItem : this.hoverItem;
-        this.renderer?.setHighlightData(result === null ? [] : [result]);
+        const result: Block[] = [];
+        if (this.clickItem !== null) {
+            result.push(this.clickItem);
+        }
+        if (this.hoverItem !== null && this.hoverItem.id !== this.clickItem?.id) {
+            result.push(this.hoverItem);
+        }
+        this.renderer?.setHighlightData(result);
     };
 
     destroyHandler(): void {
         this.memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
-        this.transform = { x: 0, y: 0, scale: 1 };
+        this.transform = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
         this.zoom = { x: 1, y: 1, offset: 0 };
-        this.clickItem = null;
         this.hoverItem = null;
-        this.renderHighlightData();
+        this.clickItem = null;
         runInAction(() => {
             this.session.leaksWorkerInfo.sizeInfo = {
                 maxTimestamp: 0,
@@ -127,7 +140,9 @@ export class MainThreadRender {
             };
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
             this.session.leaksWorkerInfo.clickItem = null;
+            this.session.leaksWorkerInfo.hoverItem = null;
         });
+        this.renderHighlightData();
         this.renderer?.setData([]).setTransform(this.transform).setZoom(this.zoom);
     };
 }

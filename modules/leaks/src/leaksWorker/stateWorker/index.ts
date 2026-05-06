@@ -22,7 +22,7 @@ import { debounce } from 'lodash';
 
 let canvas: OffscreenCanvas;
 let memoryStateData: Segment[];
-let transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1 };
+let transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
 let viewport: RenderOptions['viewport'];
 let zoom: RenderOptions['zoom'];
 let renderer: WebGLRenderer | null;
@@ -74,6 +74,12 @@ const debouncedSearchBlockData = debounce((payload: HoverItemPayload): void => {
 
 const clickItemHandler = (payload: HoverItemPayload): void => {
     clickItem = searchStateDataByPoint(memoryStateData, payload, transform, zoom);
+    self.postMessage({ type: 'clickItemResult', result: clickItem });
+    renderHighlintData();
+};
+
+const selectItemHandler = (payload: SelectStateItemPayload): void => {
+    clickItem = payload.item;
     renderHighlintData();
     self.postMessage({ type: 'clickItemResult', result: clickItem });
 };
@@ -84,13 +90,34 @@ const hoverItemHandler = (payload: HoverItemPayload): void => {
 
 // 通过这个方法，优先高亮hover数据
 const renderHighlintData = (): void => {
-    const result = hoverItem === null ? clickItem : hoverItem;
+    const result = getHighlightData();
     renderer?.setHighlightData(result);
+};
+
+const isSameHighlightItem = (leftItem: StateDataHoverResult | null, rightItem: StateDataHoverResult | null): boolean => {
+    if (leftItem === null || rightItem === null || leftItem.type !== rightItem.type) {
+        return false;
+    }
+    if (leftItem.type === 'segment') {
+        return leftItem.data.allocOrMapEventId === rightItem.data.allocOrMapEventId;
+    }
+    return leftItem.data.blocks[0]?.id === rightItem.data.blocks[0]?.id;
+};
+
+const getHighlightData = (): StateDataHoverResult[] => {
+    const result: StateDataHoverResult[] = [];
+    if (clickItem !== null) {
+        result.push(clickItem);
+    }
+    if (hoverItem !== null && !isSameHighlightItem(hoverItem, clickItem)) {
+        result.push(hoverItem);
+    }
+    return result;
 };
 
 const destroyHandler = (): void => {
     memoryStateData = [];
-    transform = { x: 0, y: 0, scale: 1 };
+    transform = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
     zoom = { x: 1, y: 1, offset: 0 };
     clickItem = null;
     hoverItem = null;
@@ -98,20 +125,20 @@ const destroyHandler = (): void => {
     renderer?.setData([]).setTransform(transform).setZoom(zoom);
 };
 
-const Handlers: PayloadHandlers = {
+type StateWorkerPayloadType = 'initCanvas' | 'setMemoryStateData' | 'resizeCanvas' | 'transform' | 'hoverItem' | 'clickItem' | 'selectStateItem' | 'destroy';
+const Handlers: PayloadHandlers<StateWorkerPayloadType> = {
     initCanvas: initCanvasHandler,
     setMemoryStateData: setMemoryStateDataHandler,
     resizeCanvas: resizeCanvasHandler,
     transform: transformHandler,
     hoverItem: hoverItemHandler,
     clickItem: clickItemHandler,
+    selectStateItem: selectItemHandler,
     destroy: destroyHandler,
 };
 
 self.onmessage = async (ev: MessageEvent<Payload>): Promise<void> => {
     const payload = ev.data;
-    const handler: (payload: any) => void | Promise<void> = Handlers[payload.type];
-    if (typeof handler === 'function') {
-        await handler(payload);
-    }
+    const handler = Handlers[payload.type as StateWorkerPayloadType] as ((payload: Payload) => void) | undefined;
+    await handler?.(payload);
 };
