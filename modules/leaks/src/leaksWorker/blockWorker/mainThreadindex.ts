@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { buildBlockViewPath, getZoom, searchBlockDataByPointWithIndex } from '../tools/dataProcess';
+import { buildBlockViewPath, getZoom, searchBlockDataByPoint } from '../tools/dataProcess';
 import { debounce } from 'lodash';
 import { NativeRenderer } from './nativeCanvas/NativeRenderer';
 import { store } from '@/store';
@@ -86,7 +86,7 @@ export class MainThreadRender {
 
     debouncedSearchBlockData = debounce((payload: Omit<HoverItemPayload, 'type'>): void => {
         if (this.memoryBlockData?.blocks?.length > 0) {
-            this.hoverItem = searchBlockDataByPointWithIndex(this.memoryBlockData, payload, this.transform, this.zoom);
+            this.hoverItem = searchBlockDataByPoint(this.memoryBlockData, payload, this.transform, this.zoom);
             this.renderHighlightData();
             runInAction(() => {
                 this.session.leaksWorkerInfo.hoverItem = this.hoverItem;
@@ -95,7 +95,7 @@ export class MainThreadRender {
     }, 10);
 
     clickItemHandler(payload: Omit<HoverItemPayload, 'type'>): void {
-        this.clickItem = searchBlockDataByPointWithIndex(this.memoryBlockData, payload, this.transform, this.zoom);
+        this.clickItem = searchBlockDataByPoint(this.memoryBlockData, payload, this.transform, this.zoom);
         runInAction(() => {
             this.session.leaksWorkerInfo.clickItem = this.clickItem;
         });
@@ -122,6 +122,7 @@ export class MainThreadRender {
         if (this.hoverItem !== null && this.hoverItem.id !== this.clickItem?.id) {
             result.push(this.hoverItem);
         }
+        this.renderer?.setBaseDimmed(this.clickItem !== null);
         this.renderer?.setHighlightData(result);
     };
 

@@ -24,13 +24,14 @@ export class MemoryStateProgram extends Program {
     protected glInstanceDataSize: number = 0;
     hasBuffer = false;
     protected stride = 4;
+    private dimBase: boolean = false;
 
     bindBuffer(): void {
         const gl = this.gl;
         if (this.instanceBuffer) {
             gl.deleteBuffer(this.instanceBuffer);
         }
-        this.instanceBuffer = this.createBuffer(4 * this.glInstanceDataSize);
+        this.instanceBuffer = this.createBuffer(4 * Math.max(this.glInstanceDataSize, 1));
         gl.bindVertexArray(this.vao);
         gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
         const strideBytes = this.stride * 4;
@@ -49,7 +50,8 @@ export class MemoryStateProgram extends Program {
         this.cleanupGL();
     }
 
-    processData(data: Segment[]): void {
+    processData(data: Segment[], dimBase: boolean = false): void {
+        this.dimBase = dimBase;
         let totalLength = 0;
         for (let i = 0; i < data.length; i++) {
             totalLength += data[i].blocks.length * this.stride;
@@ -63,16 +65,17 @@ export class MemoryStateProgram extends Program {
             const segment = data[i];
             for (let j = 0; j < segment.blocks.length; j++) {
                 const block = segment.blocks[j];
+                const colorIndex = block.colorIndex ?? j;
                 instanceData[offset++] = segment.offsetX + block.offset;
                 instanceData[offset++] = segment.offsetY;
                 instanceData[offset++] = block.size;
-                instanceData[offset++] = j % GL_COLORS.length;
+                instanceData[offset++] = colorIndex % GL_COLORS.length;
             }
         }
 
         this.glInstanceData = instanceData;
         this.glInstanceDataSize = totalLength;
-        if (needRealloc) {
+        if (needRealloc || this.instanceBuffer === null) {
             this.bindBuffer();
         } else {
             this.updateSubBuffer(instanceData, totalLength);
@@ -88,7 +91,7 @@ export class MemoryStateProgram extends Program {
         this.updateSubBuffer(this.glInstanceData, this.glInstanceDataSize);
         gl.useProgram(this.program);
         this.setBaseUniforms();
-        this.setColorUniforms();
+        this.setColorUniforms(this.dimBase ? 'dimmed' : 'normal');
         gl.bindVertexArray(this.vao);
         gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.glInstanceDataSize / this.stride);
         this.cleanupGL();

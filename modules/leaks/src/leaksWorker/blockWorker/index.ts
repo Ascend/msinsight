@@ -17,7 +17,7 @@
  */
 
 import { WebGLRenderer } from './webgl/WebGLRenderer';
-import { buildBlockViewPath, getZoom, searchBlockDataByPointWithIndex } from '../tools/dataProcess';
+import { buildBlockViewPath, getZoom, searchBlockDataByPoint } from '../tools/dataProcess';
 import { debounce } from 'lodash';
 
 let canvas: OffscreenCanvas;
@@ -86,14 +86,14 @@ const transformHandler = (payload: TransformPayload): void => {
 
 const debouncedSearchBlockData = debounce((payload: HoverItemPayload): void => {
     if (memoryBlockData?.blocks?.length > 0) {
-        hoverItem = searchBlockDataByPointWithIndex(memoryBlockData, payload, transform, zoom);
+        hoverItem = searchBlockDataByPoint(memoryBlockData, payload, transform, zoom);
         renderHighlightData();
         self.postMessage({ type: 'hoverItemResult', result: hoverItem });
     }
 }, 10);
 
 const clickItemHandler = (payload: HoverItemPayload): void => {
-    clickItem = searchBlockDataByPointWithIndex(memoryBlockData, payload, transform, zoom);
+    clickItem = searchBlockDataByPoint(memoryBlockData, payload, transform, zoom);
     self.postMessage({ type: 'clickItemResult', result: clickItem });
     renderHighlightData();
 };
@@ -116,6 +116,7 @@ const renderHighlightData = (): void => {
     if (hoverItem !== null && hoverItem.id !== clickItem?.id) {
         result.push(hoverItem);
     }
+    renderer?.setBaseDimmed(clickItem !== null);
     renderer?.setHighlightData(result);
 };
 
@@ -140,8 +141,7 @@ const destroyHandler = (): void => {
     renderer?.setData([]).setTransform(transform).setZoom(zoom);
 };
 
-type BlockWorkerPayloadType = 'initCanvas' | 'setMemoryBlockData' | 'resizeCanvas' | 'transform' | 'hoverItem' | 'clickItem' | 'selectBlockItem' | 'destroy';
-const Handlers: PayloadHandlers<BlockWorkerPayloadType> = {
+const Handlers: PayloadHandlers = {
     initCanvas: initCanvasHandler,
     setMemoryBlockData: setMemoryBlockDataHandler,
     resizeCanvas: resizeCanvasHandler,
@@ -154,6 +154,13 @@ const Handlers: PayloadHandlers<BlockWorkerPayloadType> = {
 
 self.onmessage = async (ev: MessageEvent<Payload>): Promise<void> => {
     const payload = ev.data;
-    const handler = Handlers[payload.type as BlockWorkerPayloadType] as ((payload: Payload) => void) | undefined;
-    await handler?.(payload);
+    const handler = Handlers[payload.type];
+    if (typeof handler === 'function') {
+        try {
+            await handler(payload);
+        } catch (error) {
+            // eslint-disable-next-line no-console
+            console.error('Block worker handler error:', error);
+        }
+    }
 };

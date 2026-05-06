@@ -24,6 +24,7 @@ export class Painter {
     private gl: WebGL2RenderingContext | null = null;
     readonly canvas: OffscreenCanvas;
     memoryStateProgram: MemoryStateProgram | null = null;
+    memoryStateHighlightFillProgram: MemoryStateProgram | null = null;
     memoryStateBorderProgram: MemoryStateBorderProgram | null = null;
     memoryStateHighlightProgram: MemoryStateBorderProgram | null = null;
     private uniformData: Float32Array;
@@ -46,14 +47,15 @@ export class Painter {
         if (gl === null) { throw new Error('WebGL2 not supported'); }
         this.gl = gl;
         this.memoryStateProgram = new MemoryStateProgram(this.gl, this.uniformData, shaders.memoryState);
+        this.memoryStateHighlightFillProgram = new MemoryStateProgram(this.gl, this.uniformData, shaders.memoryState);
         this.memoryStateBorderProgram = new MemoryStateBorderProgram(this.gl, this.uniformData, shaders.memoryStateBorder);
         this.memoryStateHighlightProgram = new MemoryStateBorderProgram(this.gl, this.uniformData, shaders.memoryStateBorder, RenderType.highlightBorder);
     }
 
     private updateUniformData(options: RenderOptions): void {
         const { transform, viewport, zoom } = options;
-        this.uniformData[0] = transform.scale;
-        this.uniformData[1] = transform.scale;
+        this.uniformData[0] = transform.scaleX ?? transform.scale;
+        this.uniformData[1] = transform.scaleY ?? transform.scale;
         this.uniformData[2] = transform.x;
         this.uniformData[3] = transform.y;
         this.uniformData[4] = viewport.width;
@@ -74,6 +76,7 @@ export class Painter {
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         this.updateUniformData(options);
         this.memoryStateProgram?.render(options);
+        this.memoryStateHighlightFillProgram?.render(options);
         this.memoryStateBorderProgram?.render(options);
         this.memoryStateHighlightProgram?.render(options);
         gl.disable(gl.BLEND);

@@ -21,6 +21,7 @@ import { Program } from './Program';
 
 export class MemoryBlockProgram extends Program {
     readonly isHighlight: boolean;
+    private dimBase: boolean = false;
     protected batches: Float32Array[] = [];
     protected maxInstanceDataSize: number = 10000000;
     hasBuffer = false;
@@ -54,8 +55,9 @@ export class MemoryBlockProgram extends Program {
         this.cleanupGL();
     }
 
-    processData(data: RenderData['blocks']): void {
+    processData(data: RenderData['blocks'], dimBase: boolean = false): void {
         this.batches = [];
+        this.dimBase = dimBase;
         let batch: number[] = [];
         for (let i = 0; i < data.length; i++) {
             const { path, size, addr } = data[i];
@@ -81,7 +83,7 @@ export class MemoryBlockProgram extends Program {
         gl.useProgram(this.program);
         this.setBaseUniforms();
         gl.uniform1f(this.uniformLoc.uOffset, this.uniformData[8]);
-        this.setColorUniforms(this.isHighlight);
+        this.setColorUniforms(this.isHighlight ? 'highlight' : this.dimBase ? 'dimmed' : 'normal');
         gl.bindVertexArray(this.vao);
         for (let i = 0; i < this.batches.length; i++) {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);

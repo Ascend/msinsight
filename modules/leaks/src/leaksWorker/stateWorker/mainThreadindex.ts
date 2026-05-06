@@ -106,17 +106,18 @@ export class MainThreadRender {
     // 通过这个方法，优先高亮hover数据
     renderHighlightData(): void {
         const result = this.getHighlightData();
+        this.renderer?.setBaseDimmed(this.clickItem !== null);
         this.renderer?.setHighlightData(result);
     };
 
-    isSameHighlightItem(leftItem: StateDataHoverResult | null, rightItem: StateDataHoverResult | null): boolean {
-        if (leftItem === null || rightItem === null || leftItem.type !== rightItem.type) {
+    isSameHighlightItem(a: StateDataHoverResult | null, b: StateDataHoverResult | null): boolean {
+        if (a === null || b === null || a.type !== b.type) {
             return false;
         }
-        if (leftItem.type === 'segment') {
-            return leftItem.data.allocOrMapEventId === rightItem.data.allocOrMapEventId;
+        if (a.type === 'segment') {
+            return a.data.allocOrMapEventId === b.data.allocOrMapEventId;
         }
-        return leftItem.data.blocks[0]?.id === rightItem.data.blocks[0]?.id;
+        return a.data.blocks[0]?.id === b.data.blocks[0]?.id;
     };
 
     getHighlightData(): StateDataHoverResult[] {

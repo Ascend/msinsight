@@ -54,6 +54,12 @@ export class NativeRenderer {
         return this;
     }
 
+    setBaseDimmed(dimBase: boolean): this {
+        this.painter.setBaseDimmed(dimBase);
+        this.renderFrame();
+        return this;
+    }
+
     setTransform(transform: RenderOptions['transform']): this {
         this.transform = transform;
         this.requestRender();

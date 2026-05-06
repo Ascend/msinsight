@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 
-import { GL_COLORS, GL_HIGHLIGHT_COLORS } from '@/leaksWorker/tools/color';
+import { GL_COLORS, GL_DIMMED_COLORS, GL_HIGHLIGHT_COLORS } from '@/leaksWorker/tools/color';
+
+type ColorMode = 'normal' | 'highlight' | 'dimmed';
 
 export abstract class Program {
     readonly uniformLoc: Record<string, WebGLUniformLocation | null> = {};
@@ -101,12 +103,18 @@ export abstract class Program {
         gl.uniform2f(this.uniformLoc.uZoom, d[6], d[7]);
     }
 
-    setColorUniforms(isHighlight: boolean = false): void {
+    setColorUniforms(mode: ColorMode = 'normal'): void {
         const gl = this.gl;
-        const colors = isHighlight ? GL_HIGHLIGHT_COLORS : GL_COLORS;
+        const colors = mode === 'highlight' ? GL_HIGHLIGHT_COLORS : mode === 'dimmed' ? GL_DIMMED_COLORS : GL_COLORS;
         for (let i = 0; i < colors.length; i++) {
             gl.uniform4f(this.uniformLoc[`uColors[${i}]`], colors[i][0], colors[i][1], colors[i][2], colors[i][3]);
         }
+    }
+
+    updateSubBuffer(data: Float32Array, size: number): void {
+        const gl = this.gl;
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.instanceBuffer);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.subarray(0, size));
     }
 
     cleanupGL(): void {

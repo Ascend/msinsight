@@ -23,7 +23,7 @@ import type { DataNode } from 'rc-tree/lib/interface';
 
 const InternalMITree = forwardRef(function MITree<T extends BasicDataNode | DataNode = DataNode>(props: React.PropsWithChildren<TreeProps<T>> & {
     ref?: React.Ref<RcTree>;
-}) {
+}, _ref: React.ForwardedRef<RcTree>) {
     return (
         <Tree {...props} />
     );

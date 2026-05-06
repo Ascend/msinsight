@@ -71,8 +71,6 @@ type Payload =
     | SelectStateItemPayload
     | SetMemoryStateDataPayload;
 
-type PayloadHandlerMap = {
+type PayloadHandlers = Partial<{
     [K in Payload['type']]: (payload: Extract<Payload, { type: K }>) => void;
-};
-
-type PayloadHandlers<K extends Payload['type'] = Payload['type']> = Pick<PayloadHandlerMap, K>;
+}>;

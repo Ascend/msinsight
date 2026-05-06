@@ -37,7 +37,7 @@ export interface ResizeTableRef {
 }
 
 const Support = React.forwardRef(
-    (props: ResizeTableProps<any>) => {
+    (props: ResizeTableProps<any>, _ref: React.ForwardedRef<unknown>) => {
         return <Table {...props} />;
     },
 );

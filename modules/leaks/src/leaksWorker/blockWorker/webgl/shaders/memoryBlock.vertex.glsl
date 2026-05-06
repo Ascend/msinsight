@@ -38,7 +38,7 @@ out vec4 vColor;
 void main() {
     float lx = (p0.x - uOffset) * uScale.x * uZoom.x + uTranslate.x;
     float ly = (p0.y) * uScale.y * uZoom.y + uTranslate.y;
-    float rx = (p1.x - uOffset) * uScale.x * uZoom.x + uTranslate.x;
+    float rx = max((p1.x - uOffset) * uScale.x * uZoom.x + uTranslate.x, lx + 1.0f);
     float ry = (p1.y) * uScale.y * uZoom.y + uTranslate.y;
     float h = height * uScale.y * uZoom.y;
 
