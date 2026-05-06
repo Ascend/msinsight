@@ -44,6 +44,9 @@ const WorkerBackend = {
     clickItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'clickItem', clientX, clientY });
     },
+    selectItem({ item }: Omit<SelectBlockItemPayload, 'type'>): void {
+        BlockWorker.postMessage({ type: 'selectBlockItem', item });
+    },
     destroy(): void {
         BlockWorker.postMessage({ type: 'destroy' });
     },
@@ -71,6 +74,9 @@ const MainThreadBackend = {
     clickItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         mainThreadRender.clickItemHandler({ clientX, clientY });
     },
+    selectItem({ item }: Omit<SelectBlockItemPayload, 'type'>): void {
+        mainThreadRender.selectItemHandler({ item });
+    },
     destroy(): void {
         mainThreadRender.destroyHandler();
     },
@@ -86,4 +92,5 @@ export const workerResizeCanvas = backend.resizeCanvas;
 export const workerTransform = backend.transform;
 export const workerHoverItem = backend.hoverItem;
 export const workerClickItem = backend.clickItem;
+export const workerSelectItem = backend.selectItem;
 export const workerDestroy = backend.destroy;

@@ -24,6 +24,7 @@ import {
     workerHoverItem,
     workerClickItem,
 } from '@/leaksWorker/blockWorker/worker';
+import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
 import { Session } from '@/entity/session';
 import { runInAction } from 'mobx';
 import { Axis, HoverItem, Loading, MarkLineBlock } from './tools';
@@ -186,6 +187,11 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
         if (isClick.current) {
             isClick.current = false;
             const rect = ref.current.getBoundingClientRect();
+            workerSelectStateItem({ item: null });
+            runInAction(() => {
+                session.stateWorkerInfo.clickItem = null;
+                session.clickEventItem = null;
+            });
             workerClickItem({ clientX: ev.clientX - rect.left, clientY: rect.height - (ev.clientY - rect.top) });
             if (session.markLineInfo.block.x > -1) {
                 runInAction(() => {

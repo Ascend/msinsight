@@ -21,7 +21,7 @@ import { Painter } from './Painter';
 export class WebGLRenderer {
     readonly canvas: OffscreenCanvas;
     readonly devicePixelRatio: number;
-    private transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1 };
+    private transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
     readonly painter: Painter;
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };
@@ -49,10 +49,30 @@ export class WebGLRenderer {
         return this;
     }
 
-    setHighlightData(highlightData: StateDataHoverResult | null): this {
-        this.painter.memoryStateHighlightProgram?.processHighlightData(highlightData);
+    setHighlightData(highlightData: StateDataHoverResult | StateDataHoverResult[] | null): this {
+        const resolvedHighlightData = Array.isArray(highlightData) ? (highlightData[0] ?? null) : highlightData;
+        this.painter.memoryStateHighlightProgram?.processHighlightData(resolvedHighlightData);
         this.renderFrame();
         return this;
+    }
+
+    private getHighlightSegments(highlightData: StateDataHoverResult | StateDataHoverResult[] | null): Segment[] {
+        if (highlightData === null) {
+            return [];
+        }
+        if (Array.isArray(highlightData)) {
+            return highlightData.flatMap(item => this.getHighlightSegments(item));
+        }
+        const { type, data } = highlightData;
+        if (type === 'segment') {
+            return [data];
+        }
+        return [{
+            ...data,
+            size: data.blocks[0]?.size ?? 0,
+            offsetX: data.offsetX + (data.blocks[0]?.offset ?? 0),
+            blocks: data.blocks.length > 0 ? [{ ...data.blocks[0], offset: 0, colorIndex: data.blocks[0].colorIndex ?? 0 }] : [],
+        }];
     }
 
     setTransform(transform: RenderOptions['transform']): this {

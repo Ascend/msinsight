@@ -25,7 +25,7 @@ import { runInAction } from 'mobx';
 export class MainThreadRender {
     canvas: HTMLCanvasElement = document.createElement('canvas');
     memoryStateData: Segment[] = [];
-    transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1 };
+    transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
     viewport: RenderOptions['viewport'] = { width: 0, height: 0 };
     zoom: RenderOptions['zoom'] = { x: 1, y: 1, offset: 0 };
     renderer: NativeRenderer | null = null;
@@ -85,6 +85,14 @@ export class MainThreadRender {
 
     clickItemHandler(payload: Omit<HoverItemPayload, 'type'>): void {
         this.clickItem = searchStateDataByPoint(this.memoryStateData, payload, this.transform, this.zoom);
+        runInAction(() => {
+            this.session.stateWorkerInfo.clickItem = this.clickItem;
+        });
+        this.renderHighlightData();
+    };
+
+    selectItemHandler(payload: Omit<SelectStateItemPayload, 'type'>): void {
+        this.clickItem = payload.item;
         this.renderHighlightData();
         runInAction(() => {
             this.session.stateWorkerInfo.clickItem = this.clickItem;
@@ -97,13 +105,34 @@ export class MainThreadRender {
 
     // 通过这个方法，优先高亮hover数据
     renderHighlightData(): void {
-        const result = this.hoverItem === null ? this.clickItem : this.hoverItem;
+        const result = this.getHighlightData();
         this.renderer?.setHighlightData(result);
+    };
+
+    isSameHighlightItem(leftItem: StateDataHoverResult | null, rightItem: StateDataHoverResult | null): boolean {
+        if (leftItem === null || rightItem === null || leftItem.type !== rightItem.type) {
+            return false;
+        }
+        if (leftItem.type === 'segment') {
+            return leftItem.data.allocOrMapEventId === rightItem.data.allocOrMapEventId;
+        }
+        return leftItem.data.blocks[0]?.id === rightItem.data.blocks[0]?.id;
+    };
+
+    getHighlightData(): StateDataHoverResult[] {
+        const result: StateDataHoverResult[] = [];
+        if (this.clickItem !== null) {
+            result.push(this.clickItem);
+        }
+        if (this.hoverItem !== null && !this.isSameHighlightItem(this.hoverItem, this.clickItem)) {
+            result.push(this.hoverItem);
+        }
+        return result;
     };
 
     destroyHandler(): void {
         this.memoryStateData = [];
-        this.transform = { x: 0, y: 0, scale: 1 };
+        this.transform = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
         this.zoom = { x: 1, y: 1, offset: 0 };
         this.clickItem = null;
         this.hoverItem = null;

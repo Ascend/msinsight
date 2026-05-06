@@ -25,7 +25,9 @@ import {
     workerHoverItem,
     workerClickItem,
     workerSetMemoryStateData,
+    workerSelectItem as workerSelectStateItem,
 } from '@/leaksWorker/stateWorker/worker';
+import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { Session } from '@/entity/session';
 import { Input, Progress, ResizeTable, ResizeTableRef, SearchIcon } from '@insight/lib';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
@@ -35,7 +37,7 @@ import { type EvenItem, getMemoryStateData, getSnapshotEvent } from '@/utils/Req
 import { observer } from 'mobx-react';
 import { useTranslation } from 'react-i18next';
 import styled from '@emotion/styled/macro';
-import { Loading } from './tools';
+import { Loading, StateHoverItem } from './tools';
 
 export const MemoryStateDiagram = ({ session }: { session: Session }): JSX.Element => {
     return <div style={{ display: 'flex', height: 800 }}>
@@ -254,7 +256,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
             <div style={{ paddingLeft: 10 }} />
         </div>
         <ProgressLine currentCount={dataSource.length} total={dataTotal} />
-        <ResizeTable className="table-slice-list" ref={tableRef} virtual scroll={{ y: 760 }} dataSource={dataSource} columns={columns} showHeader={false}
+        <ResizeTable className="table-slice-list" ref={tableRef} virtual scroll={{ y: 760 }} dataSource={dataSource} rowKey={(row: EvenItem & { index: number }): string => `${row.id}_${row.index}`} columns={columns} showHeader={false}
             resetScroll={false} loading={dataSource.length < 1} rowClassName={(row: any): string => {
                 if (currentSelectRow === row.index) {
                     return 'click-select';
@@ -264,7 +266,11 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
             onRow={(row): React.HTMLAttributes<any> => ({
                 onClick: (): void => {
                     setCurrentSelectRow(row.index);
+                    workerSelectBlockItem({ item: null });
+                    workerSelectStateItem({ item: null });
                     runInAction(() => {
+                        session.leaksWorkerInfo.clickItem = null;
+                        session.stateWorkerInfo.clickItem = null;
                         session.clickEventItem = row;
                     });
                 },
@@ -299,6 +305,7 @@ const ProgressLine = ({ currentCount, total }: { currentCount: number; total: nu
 const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Element => {
     const containerRef = useRef<HTMLDivElement>(null);
     const ref = useRef<HTMLCanvasElement>(null);
+    const [hoverPoint, setHoverPoint] = useState({ x: -1, y: -1 });
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
@@ -377,6 +384,8 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
     const handleMouseLeave = (): void => {
         isDragging.current = false;
         isClick.current = false;
+        setHoverPoint({ x: -1, y: -1 });
+        workerHoverItem({ clientX: -1, clientY: -1 });
     };
 
     const handleMouseMove = (ev: MouseEvent): void => {
@@ -397,8 +406,10 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         }
         if (!isDragging.current) {
             workerHoverItem({ clientX: currentX, clientY: currentY });
+            setHoverPoint({ x: currentX, y: currentY });
             return;
         }
+        setHoverPoint({ x: -1, y: -1 });
 
         const currentTransform = session.stateWorkerInfo.renderOptions.transform;
 
@@ -430,6 +441,11 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         if (isClick.current) {
             isClick.current = false;
             const rect = ref.current.getBoundingClientRect();
+            workerSelectBlockItem({ item: null });
+            runInAction(() => {
+                session.leaksWorkerInfo.clickItem = null;
+                session.clickEventItem = null;
+            });
             workerClickItem({ clientX: ev.clientX - rect.left, clientY: ev.clientY - rect.top });
         }
     };
@@ -486,6 +502,7 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
             ref={ref}
             style={{ position: 'absolute', top: 0, imageRendering: 'pixelated', touchAction: 'none' }}
         />
+        <StateHoverItem session={session} point={hoverPoint} />
         <Loading style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} loading={session.loadingState} />
     </div>;
 });

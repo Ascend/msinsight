@@ -17,16 +17,15 @@
  */
 
 import { WebGLRenderer } from './webgl/WebGLRenderer';
-import { buildBlockViewPath, getZoom, searchBlockDataByPoint } from '../tools/dataProcess';
+import { buildBlockViewPath, getZoom, searchBlockDataByPointWithIndex } from '../tools/dataProcess';
 import { debounce } from 'lodash';
 
 let canvas: OffscreenCanvas;
 let memoryBlockData: RenderData;
-let transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1 };
+let transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
 let viewport: RenderOptions['viewport'];
 let zoom: RenderOptions['zoom'];
 let renderer: WebGLRenderer | null;
-
 let hoverItem: Block | null = null;
 let clickItem: Block | null = null;
 
@@ -38,8 +37,8 @@ const initCanvasHandler = async (payload: InitCanvasPayload): Promise<void> => {
 };
 
 const setMemoryBlockDataHandler = (payload: SetMemoryBlocksDataPayload): void => {
-    clickItem = null;
     hoverItem = null;
+    clickItem = null;
     memoryBlockData = buildBlockViewPath(payload.data);
     const { maxTimestamp, minTimestamp, maxSize, minSize } = memoryBlockData;
     zoom = getZoom(memoryBlockData, canvas);
@@ -54,6 +53,7 @@ const setMemoryBlockDataHandler = (payload: SetMemoryBlocksDataPayload): void =>
         zoom,
     });
     renderer?.setZoom(zoom).setData(memoryBlockData.blocks);
+    renderHighlightData();
     renderer?.updateCanvasSize(viewport);
     self.postMessage({ type: 'renderCompleted' });
 };
@@ -86,14 +86,20 @@ const transformHandler = (payload: TransformPayload): void => {
 
 const debouncedSearchBlockData = debounce((payload: HoverItemPayload): void => {
     if (memoryBlockData?.blocks?.length > 0) {
-        hoverItem = searchBlockDataByPoint(memoryBlockData.blocks, payload, transform, zoom);
+        hoverItem = searchBlockDataByPointWithIndex(memoryBlockData, payload, transform, zoom);
         renderHighlightData();
         self.postMessage({ type: 'hoverItemResult', result: hoverItem });
     }
 }, 10);
 
 const clickItemHandler = (payload: HoverItemPayload): void => {
-    clickItem = searchBlockDataByPoint(memoryBlockData.blocks, payload, transform, zoom);
+    clickItem = searchBlockDataByPointWithIndex(memoryBlockData, payload, transform, zoom);
+    self.postMessage({ type: 'clickItemResult', result: clickItem });
+    renderHighlightData();
+};
+
+const selectItemHandler = (payload: SelectBlockItemPayload): void => {
+    clickItem = payload.item;
     renderHighlightData();
     self.postMessage({ type: 'clickItemResult', result: clickItem });
 };
@@ -102,19 +108,23 @@ const hoverItemHandler = (payload: HoverItemPayload): void => {
     debouncedSearchBlockData(payload);
 };
 
-// 通过这个方法，优先高亮hover数据
 const renderHighlightData = (): void => {
-    const result = hoverItem === null ? clickItem : hoverItem;
-    renderer?.setHighlightData(result === null ? [] : [result]);
+    const result: Block[] = [];
+    if (clickItem !== null) {
+        result.push(clickItem);
+    }
+    if (hoverItem !== null && hoverItem.id !== clickItem?.id) {
+        result.push(hoverItem);
+    }
+    renderer?.setHighlightData(result);
 };
 
 const destroyHandler = (): void => {
     memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
-    transform = { x: 0, y: 0, scale: 1 };
+    transform = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
     zoom = { x: 1, y: 1, offset: 0 };
-    clickItem = null;
     hoverItem = null;
-    renderHighlightData();
+    clickItem = null;
     self.postMessage({
         type: 'dataInfo',
         sizeInfo: {
@@ -126,23 +136,24 @@ const destroyHandler = (): void => {
         zoom,
     });
     self.postMessage({ type: 'clickItemResult', result: null });
+    renderHighlightData();
     renderer?.setData([]).setTransform(transform).setZoom(zoom);
 };
 
-const Handlers: PayloadHandlers = {
+type BlockWorkerPayloadType = 'initCanvas' | 'setMemoryBlockData' | 'resizeCanvas' | 'transform' | 'hoverItem' | 'clickItem' | 'selectBlockItem' | 'destroy';
+const Handlers: PayloadHandlers<BlockWorkerPayloadType> = {
     initCanvas: initCanvasHandler,
     setMemoryBlockData: setMemoryBlockDataHandler,
     resizeCanvas: resizeCanvasHandler,
     transform: transformHandler,
     hoverItem: hoverItemHandler,
     clickItem: clickItemHandler,
+    selectBlockItem: selectItemHandler,
     destroy: destroyHandler,
 };
 
 self.onmessage = async (ev: MessageEvent<Payload>): Promise<void> => {
     const payload = ev.data;
-    const handler: (payload: any) => void | Promise<void> = Handlers[payload.type];
-    if (typeof handler === 'function') {
-        await handler(payload);
-    }
+    const handler = Handlers[payload.type as BlockWorkerPayloadType] as ((payload: Payload) => void) | undefined;
+    await handler?.(payload);
 };
