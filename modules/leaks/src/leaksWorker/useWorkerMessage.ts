@@ -43,6 +43,9 @@ const useWorkerMessage = (): void => {
                     });
                     break;
                 case 'clickItemResult':
+                    if (ev.data.selectionVersion !== undefined && ev.data.selectionVersion !== session.selectionVersion) {
+                        return;
+                    }
                     runInAction(() => {
                         session.leaksWorkerInfo.clickItem = ev.data.result;
                     });
@@ -68,6 +71,9 @@ const useWorkerMessage = (): void => {
                     });
                     break;
                 case 'clickItemResult':
+                    if (ev.data.selectionVersion !== undefined && ev.data.selectionVersion !== session.selectionVersion) {
+                        return;
+                    }
                     runInAction(() => {
                         session.stateWorkerInfo.clickItem = ev.data.result;
                     });

@@ -158,6 +158,7 @@ export class Session {
     } = STATE_WORKER_INFO_DEFAULT;
 
     clickEventItem: EvenItem | null = null;
+    selectionVersion: number = 0;
 
     loadingBlocks: boolean = false;
     loadingState: boolean = false;

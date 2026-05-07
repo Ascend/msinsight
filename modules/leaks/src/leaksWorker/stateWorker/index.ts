@@ -74,14 +74,14 @@ const debouncedSearchBlockData = debounce((payload: HoverItemPayload): void => {
 
 const clickItemHandler = (payload: HoverItemPayload): void => {
     clickItem = searchStateDataByPoint(memoryStateData, payload, transform, zoom);
-    self.postMessage({ type: 'clickItemResult', result: clickItem });
+    self.postMessage({ type: 'clickItemResult', result: clickItem, selectionVersion: payload.selectionVersion });
     renderHighlintData();
 };
 
 const selectItemHandler = (payload: SelectStateItemPayload): void => {
     clickItem = payload.item;
     renderHighlintData();
-    self.postMessage({ type: 'clickItemResult', result: clickItem });
+    self.postMessage({ type: 'clickItemResult', result: clickItem, selectionVersion: payload.selectionVersion });
 };
 
 const hoverItemHandler = (payload: HoverItemPayload): void => {

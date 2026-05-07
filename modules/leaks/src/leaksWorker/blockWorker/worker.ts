@@ -41,11 +41,11 @@ const WorkerBackend = {
     hoverItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'hoverItem', clientX, clientY });
     },
-    clickItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
-        BlockWorker.postMessage({ type: 'clickItem', clientX, clientY });
+    clickItem({ clientX, clientY, selectionVersion }: Omit<HoverItemPayload, 'type'>): void {
+        BlockWorker.postMessage({ type: 'clickItem', clientX, clientY, selectionVersion });
     },
-    selectItem({ item }: Omit<SelectBlockItemPayload, 'type'>): void {
-        BlockWorker.postMessage({ type: 'selectBlockItem', item });
+    selectItem({ item, selectionVersion }: Omit<SelectBlockItemPayload, 'type'>): void {
+        BlockWorker.postMessage({ type: 'selectBlockItem', item, selectionVersion });
     },
     destroy(): void {
         BlockWorker.postMessage({ type: 'destroy' });
