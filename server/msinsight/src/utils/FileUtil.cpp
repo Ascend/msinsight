@@ -280,23 +280,14 @@ bool FileUtil::CheckPathComm(const std::string &path, CheckResult &result)
         Dic::Common::SetCommonError(Dic::Common::ErrorCode::FILE_NOT_READ_ACCESS);
         return false;
     }
-    // 后端启动时如果传入了--notStrict选项，导入文件时不要求权限和属主校验通过，仅在日志中提示
     if (!CheckPathOwner(dir)) {
-        if (strictMode) {
-            result.Set(false, "The path's owner is not current user.");
-            Dic::Common::SetCommonError(Dic::Common::ErrorCode::PATH_OWNER_ERROR);
-            return false;
-        } else {
-            Server::ServerLog::Warn("Path: ", path, ", the path's owner is not current user.");
-        }
+        result.Set(false, "The path's owner is not current user.");
+        Dic::Common::SetCommonError(Dic::Common::ErrorCode::PATH_OWNER_ERROR);
+        return false;
     }
     if (!CheckWritableByOther(dir)) {
-        if (strictMode) {
-            result.Set(false, "The path could be written by other user.");
-            return false;
-        } else {
-            Server::ServerLog::Warn("Path: ", path, ", the path could be written by other user.");
-        }
+        result.Set(false, "The path could be written by other user.");
+        return false;
     }
 
     return true;
@@ -757,16 +748,23 @@ bool FileUtil::CheckWritableByOther(const std::string &filePath)
 #ifdef _WIN32
     return true;
 #else
+    // 后端启动时如果传入了--notStrict选项，导入文件时不要求权限和属主校验通过，仅在日志中提示
     struct stat fileStat{};
     if (stat(filePath.c_str(), &fileStat) != 0) {
         Server::ServerLog::Warn("Get file info failed when check owner");
-        return false;
+        if (strictMode) {
+            return false;
+        }
+        return true;
     }
     if (geteuid() == 0) {
         return true;
     }
     if ((fileStat.st_mode & S_IWOTH) != 0) {
-        return false;
+        Server::ServerLog::Warn("The path could be written by other user.");
+        if (strictMode) {
+            return false;
+        }
     }
     return true;
 #endif
@@ -797,10 +795,14 @@ bool FileUtil::CheckPathOwner(const std::string &filePath)
 #ifdef _WIN32
     return true;
 #else
+    // 后端启动时如果传入了--notStrict选项，导入文件时不要求权限和属主校验通过，仅在日志中提示
     struct stat fileStat{};
     if (stat(filePath.c_str(), &fileStat) != 0) {
         Server::ServerLog::Warn("Get file info failed when check owner");
-        return false;
+        if (strictMode) {
+            return false;
+        }
+        return true;
     }
     if (geteuid() == 0) {
         return true;
@@ -810,7 +812,14 @@ bool FileUtil::CheckPathOwner(const std::string &filePath)
     }
     uid_t fileOwner = fileStat.st_uid;
     uid_t currentUser = geteuid();
-    return fileOwner == currentUser;
+    bool result = (fileOwner == currentUser);
+    if (!result) {
+        Server::ServerLog::Warn("The path's owner is not current user.");
+        if (strictMode) {
+            return false;
+        }
+    }
+    return true;
 #endif
 }
 
