@@ -10,7 +10,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 
 **软件包下载**<a id="软件包下载"></a>
 
-单击获取[软件包](https://gitcode.com/Ascend/msinsight/releases)，确认版本信息后获取如[**表 1**  软件包清单](#软件包清单)所示软件包。
+单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases)，确认版本信息后获取如[**表 1**  软件包清单](#软件包清单)所示软件包。
 
 下载本软件即表示您同意《[华为企业业务最终用户许可协议（EULA）](https://e.huawei.com/cn/about/eula)》的条款和条件。
 
@@ -28,7 +28,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 
 为了防止软件包在传递过程或存储期间被恶意篡改，下载软件包时需下载对应软件包的.sha256文件用于完整性校验。
 
-请单击[数字签名文件](https://gitcode.com/Ascend/msinsight/releases)获取对应软件包的sha256文件，并对[下载的软件包](#软件包下载)进行完整性校验。如果校验失败，请不要使用该软件包，需要支持与服务请在论坛求助或提交技术工单。
+单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases)获取对应软件包的哈希校验文件（.sha256），并对[下载的软件包](#软件包下载)进行完整性校验。如果校验失败，请不要使用该软件包，需要支持与服务请在论坛求助或提交技术工单。
 
 具体校验方法如下：
 
@@ -52,7 +52,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
     sha256sum 软件包名
     ```
 
-2. 打开查看对应sha256文件中的校验码和获取到的校验码（不区分大小写）进行比较，如果一致，则说明软件包通过完整性校验。
+2. 打开查看对应哈希校验文件中的校验码和获取到的校验码（不区分大小写）进行比较，如果一致，则说明软件包通过完整性校验。
 
 ## 安装MindStudio Insight
 
