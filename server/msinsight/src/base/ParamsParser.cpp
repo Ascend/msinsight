@@ -71,6 +71,10 @@ bool ParamsParser::ParseField(const std::string &data)
         ParseScan(data.substr(pos + symbolScanPort.length()));
         return true;
     }
+    if (data == symbolNotStrict) {
+        option.strictMode = false;
+        return true;
+    }
     error = "ERROR: " + data + " has not been supported.";
     return false;
 }

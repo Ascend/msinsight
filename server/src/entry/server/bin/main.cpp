@@ -78,12 +78,13 @@ void ParamsOptionInfo()
     ServerLog::Info("Server Log Path: ", option.logPath);
     ServerLog::Info("Server Log Max Size: ", option.logSize / mbSize, "MB");
     ServerLog::Info("Server Log Level: ", option.logLevel);
+    ServerLog::Info("Strict Mode: ", option.strictMode);
 }
 
 void StartServer(const ParamsOption &option)
 {
     ServerLog::Info("=============================== Server Start ===============================");
-    WsServer server(option.host, option.wsPort);
+    WsServer server(option.host, option.wsPort, option.strictMode);
     server.Start();
     const int checkInterval = 1000;
     while (server.IsStart()) {

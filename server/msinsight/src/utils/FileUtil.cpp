@@ -51,6 +51,8 @@ const std::string_view MSVP_SLASH = "/";
 #endif
 }
 
+bool FileUtil::strictMode = true;
+
 #ifdef _WIN32
 std::string FileUtil::ConvertToLongPath(const std::string &path)
 {
@@ -278,17 +280,30 @@ bool FileUtil::CheckPathComm(const std::string &path, CheckResult &result)
         Dic::Common::SetCommonError(Dic::Common::ErrorCode::FILE_NOT_READ_ACCESS);
         return false;
     }
+    // 后端启动时如果传入了--notStrict选项，导入文件时不要求权限和属主校验通过，仅在日志中提示
     if (!CheckPathOwner(dir)) {
-        result.Set(false, "The path's owner is not current user.");
-        Dic::Common::SetCommonError(Dic::Common::ErrorCode::PATH_OWNER_ERROR);
-        return false;
+        if (strictMode) {
+            result.Set(false, "The path's owner is not current user.");
+            Dic::Common::SetCommonError(Dic::Common::ErrorCode::PATH_OWNER_ERROR);
+            return false;
+        } else {
+            Server::ServerLog::Warn("Path: ", path, ", the path's owner is not current user.");
+        }
     }
     if (!CheckWritableByOther(dir)) {
-        result.Set(false, "The path could be writen by other user.");
-        return false;
+        if (strictMode) {
+            result.Set(false, "The path could be written by other user.");
+            return false;
+        } else {
+            Server::ServerLog::Warn("Path: ", path, ", the path could be written by other user.");
+        }
     }
 
     return true;
+}
+
+void FileUtil::SetStrictMode(bool strictModeValue) {
+    strictMode = strictModeValue;
 }
 
 bool FileUtil::CheckFilePathExist(const std::string& filePath)
