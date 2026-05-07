@@ -32,7 +32,7 @@ namespace Dic {
 namespace Server {
 class WsServer : public BaseServer {
 public:
-    WsServer(const std::string &host, int port);
+    WsServer(const std::string &host, int port, bool strictMode = true);
 
     ~WsServer() noexcept override = default;
 
@@ -60,6 +60,7 @@ protected:
     std::mutex resultMutex;
     std::condition_variable resultCv;
     const int resultTimeout = 2000;
+    bool strictMode = true;
 };
 } // end of namespace Server
 } // end of namespace Dic

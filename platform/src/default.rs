@@ -81,9 +81,11 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
     #[cfg(windows)]
     server_command.creation_flags(NO_WINDOW_FLAG);
 
+    // 通过Rust底座拉起后端时，为本地使用场景，不涉及远程通信，传入--notStrict选项，导入文件时不要求权限和属主校验通过
     match server_command
         .arg(format!("--wsPort={port}"))
         .arg(format!("--logPath={}", cache_path.display()))
+        .arg("--notStrict")
         .spawn()
     {
         Ok(child) => unsafe {

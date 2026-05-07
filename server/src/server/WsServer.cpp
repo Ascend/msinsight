@@ -27,10 +27,12 @@
 
 namespace Dic {
 namespace Server {
-WsServer::WsServer(const std::string &host, int port) : BaseServer(host, port) {}
+WsServer::WsServer(const std::string &host, int port, bool strictMode) : BaseServer(host, port),
+    strictMode(strictMode) {}
 
 bool WsServer::Start()
 {
+    FileUtil::SetStrictMode(strictMode);
     listenStart = false;
     Dic::Core::PluginsManager::LoadPlugins();
     PreLoadEventDir();

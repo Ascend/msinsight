@@ -518,8 +518,10 @@ public:
     static bool IsAbsolutePath(const std::string &path);
     static bool IsRegularFile(const std::string &filePath);
     static CheckResult CheckPathSecurity(const std::string &path, int mode = PathCheckSense::CHECK_DIR_READ);
+    static void SetStrictMode(bool strictModeValue);
 protected:
     static bool CheckPathComm(const std::string& path, CheckResult& result);
+    static bool strictMode;
 public:
     static bool CheckFilePathExist(const std::string& filePath);
     static bool CheckFilePathLength(const std::string& filePath);
