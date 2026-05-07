@@ -18,14 +18,14 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Spin, Tabs } from 'antd';
-import { DrawerButton, Resizer, Button } from '@insight/lib';
+import { DrawerButton, Resizer } from '@insight/lib';
 import { type Theme, useTheme } from '@emotion/react';
 import { useTranslation } from 'react-i18next';
 import MemoryTable from '../MemoryTable';
 import { Session } from '../../entity/session';
 import { observer } from 'mobx-react';
 import styled from '@emotion/styled/macro';
-import { getSnapshotDetail } from '@/utils/RequestUtils';
+import { getSnapshotDetail, type EvenItem } from '@/utils/RequestUtils';
 import { runInAction } from 'mobx';
 import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
@@ -96,52 +96,76 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
 });
 
 const TabContentWrapper = ({ children, height }: { children: React.ReactNode; height: number }): JSX.Element => {
-    return <div style={{ overflowY: 'auto', height: height - 50, padding: '0 25px' }}>
+    return <div style={{
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+        overflow: 'hidden',
+        height: height - 50,
+        padding: '0 24px 8px',
+    }}>
         {children}
     </div>;
 };
-
-const SliceDetailItem = styled.div`
-    font-size: 14px;
-    display: flex;
-    color: ${(props): string => props.theme.tableTextColor};
-    .sliceDetailName {
-        width: 220px;
-        font-weight: bold;
-    }
-    .sliceDetailValue {
-        white-space: pre-wrap;
-        flex: 1;
-    }
-`;
 
 const NoData = styled.div`
     font-size: 14px;
     color: ${(props): string => props.theme.tableTextColor};
 `;
+
 const DetailTabsWrapper = styled.div`
     position: relative;
     display: flex;
     flex-direction: column;
     min-height: 0;
     height: 100%;
+
     > .ant-tabs {
         display: flex;
         flex: 1;
         flex-direction: column;
         min-height: 0;
     }
+
+    > .ant-tabs > .ant-tabs-nav {
+        margin-bottom: 6px;
+    }
+
     > .ant-tabs > .ant-tabs-content-holder {
         flex: 1;
         min-height: 0;
-        overflow: auto;
+        overflow: hidden;
     }
+
+    > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content {
+        height: 100%;
+    }
+
+    > .ant-tabs > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
+        height: 100%;
+        overflow: hidden;
+    }
+
     .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
         padding: 2px 8px;
+        border-color: ${(props): string => props.theme.borderColorLight};
+        background: ${(props): string => props.theme.bgColor};
         font-size: 12px;
         line-height: 20px;
+        transition: transform 160ms ease, background-color 160ms ease, opacity 160ms ease;
+    }
+
+    .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active {
+        background: ${(props): string => props.theme.bgColorLight};
+    }
+
+    .ant-tabs-tab-remove {
+        margin-left: 4px;
+        font-size: 10px;
     }
 `;
+
 const DetailContextMenu = styled.div`
     position: fixed;
     z-index: 1000;
@@ -152,26 +176,24 @@ const DetailContextMenu = styled.div`
     background: ${(props): string => props.theme.contextMenuBgColor};
     box-shadow: ${(props): string => props.theme.boxShadowLight};
 `;
+
 const DetailContextMenuItem = styled.div`
     padding: 5px 12px;
     color: ${(props): string => props.theme.textColorPrimary};
     cursor: pointer;
     white-space: nowrap;
+
     &:hover {
         color: #ffffff;
         background: ${(props): string => props.theme.primaryColorHover};
     }
 `;
-const DetailLoading = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 120px;
-`;
 
 const DetailTabLabel = styled.span`
+    position: relative;
     display: inline-flex;
     align-items: center;
+    max-width: 120px;
     overflow: hidden;
     cursor: default;
     text-overflow: ellipsis;
@@ -202,11 +224,302 @@ const DetailTabLabel = styled.span`
     }
 `;
 
-const hiddenList = ['_firstAccessTimestamp', '_lastAccessTimestamp', '_startTimestamp', '_endTimestamp',
-    'maxAccessInterval', 'lazyUsed', 'delayedFree', 'longIdle', 'path'];
+const DetailPanel = styled.div`
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    height: 100%;
+    gap: 0;
+    padding: 2px 0 8px;
+    color: ${(props): string => props.theme.tableTextColor};
+`;
 
-interface DetailEntry {
+const DetailLoading = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 120px;
+`;
+
+const DetailSection = styled.section`
+    min-height: 0;
+    padding: 8px 0;
+    border-top: 1px solid ${(props): string => props.theme.borderColorLight};
+
+    &:first-of-type {
+        padding-top: 0;
+        border-top: 0;
+    }
+`;
+
+const DetailMainLayout = styled.div`
+    display: grid;
+    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+    gap: 14px;
+    align-items: stretch;
+
+    @media (max-width: 920px) {
+        grid-template-columns: 1fr;
+    }
+`;
+
+const DetailCard = styled.div`
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid ${(props): string => props.theme.borderColorLight};
+    border-radius: 4px;
+    background: ${(props): string => props.theme.bgColorLight};
+`;
+
+const DetailColumn = styled.div`
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: auto;
+`;
+
+const DetailSectionTitle = styled.div`
+    margin-bottom: 8px;
+    color: ${(props): string => props.theme.textColorSecondary};
+    font-size: 12px;
+    font-weight: 600;
+`;
+
+const NoFramesNotice = styled.div`
+    box-sizing: border-box;
+    min-width: 0;
+    max-width: 720px;
+    color: ${(props): string => props.theme.tableTextColor};
+    font-size: 13px;
+    line-height: 20px;
+`;
+
+const NoFramesNoticeLine = styled.div`
+    &:not(:first-of-type) {
+        margin-top: 4px;
+    }
+`;
+
+const DetailFieldList = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    --detail-label-width: minmax(168px, 48%);
+`;
+
+const DetailField = styled.div`
+    display: grid;
+    grid-template-columns: var(--detail-label-width) minmax(0, 1fr);
+    column-gap: 12px;
+    min-width: 0;
+    align-items: start;
+    font-size: 13px;
+    line-height: 20px;
+
+    @media (max-width: 720px) {
+        --detail-label-width: 1fr;
+        grid-template-columns: 1fr;
+        row-gap: 2px;
+    }
+`;
+
+const DetailFieldName = styled.div`
+    min-width: 0;
+    overflow: hidden;
+    color: ${(props): string => props.theme.textColorSecondary};
+    text-overflow: ellipsis;
+    white-space: nowrap;
+`;
+
+const DetailFieldValue = styled.div`
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+`;
+
+const EventTabsWrapper = styled.div`
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 14px;
+    min-height: 0;
+    height: 100%;
+
+    @media (max-width: 920px) {
+        grid-template-columns: 1fr;
+    }
+`;
+
+const EventTypeList = styled.div`
+    display: flex;
+    flex-direction: column;
+    align-self: start;
+    width: max-content;
+    max-width: 154px;
+    padding: 3px;
+    border: 1px solid ${(props): string => props.theme.borderColorLight};
+    border-radius: 4px;
+    background: ${(props): string => props.theme.bgColor};
+`;
+
+const EventTypeButton = styled.button`
+    max-width: 150px;
+    min-height: 26px;
+    padding: 0 10px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0 3px 3px 0;
+    background: transparent;
+    color: ${(props): string => props.theme.textColorSecondary};
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 24px;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &[data-active='true'] {
+        background: ${(props): string => props.theme.bgColorLight};
+        color: ${(props): string => props.theme.textColorPrimary};
+        box-shadow: inset 2px 0 0 ${(props): string => props.theme.primaryColor};
+    }
+
+    &:hover {
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+`;
+
+const EventTabContent = styled.div`
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    padding: 10px 12px;
+    overflow: auto;
+    border: 1px solid ${(props): string => props.theme.borderColorLight};
+    border-radius: 4px;
+    background: ${(props): string => props.theme.bgColorLight};
+`;
+
+const EventDetailLayout = styled.div`
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    gap: 14px;
+    align-items: stretch;
+
+    @media (max-width: 920px) {
+        grid-template-columns: 1fr;
+    }
+`;
+
+const EventDetailSingleColumn = styled.div`
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+`;
+
+const DetailPre = styled.pre`
+    box-sizing: border-box;
+    max-height: 100%;
+    margin: 0;
+    padding: 6px 8px;
+    overflow: auto;
+    border: 1px solid ${(props): string => props.theme.borderColorLight};
+    border-radius: 4px;
+    background: ${(props): string => props.theme.bgColor};
+    color: ${(props): string => props.theme.tableTextColor};
+    font-size: 12px;
+    line-height: 18px;
+    white-space: pre-wrap;
+    word-break: break-word;
+`;
+
+const CallStackViewer = styled.div`
+    box-sizing: border-box;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+    border: 1px solid ${(props): string => props.theme.borderColorLight};
+    border-radius: 4px;
+    background: ${(props): string => props.theme.bgColor};
+`;
+
+const CallStackGroup = styled.div`
+    &:not(:first-of-type) {
+        border-top: 1px solid ${(props): string => props.theme.borderColorLight};
+    }
+`;
+
+const CallStackGroupTitle = styled.div`
+    padding: 5px 8px;
+    color: ${(props): string => props.theme.textColorSecondary};
+    font-size: 12px;
+    font-weight: 600;
+`;
+
+const CallStackLine = styled.div`
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr);
+    min-width: 0;
+    padding: 1px 8px 1px 0;
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 17px;
+`;
+
+const CallStackLineNumber = styled.div`
+    color: ${(props): string => props.theme.textColorSecondary};
+    text-align: right;
+    user-select: none;
+`;
+
+const CallStackLineText = styled.div`
+    min-width: 0;
+    padding-left: 8px;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+`;
+
+const SNAPSHOT_EVENT_KEYS = ['Alloc Event', 'Free Requested Event', 'Free Completed Event'];
+const CALL_STACK_KEYS = ['CallStack', 'Callstack'];
+const SNAPSHOT_NESTED_KEYS = new Set([...SNAPSHOT_EVENT_KEYS, ...CALL_STACK_KEYS]);
+const LEGACY_LOCAL_BLOCK_HIDDEN_KEYS = new Set([
+    '_firstAccessTimestamp',
+    '_lastAccessTimestamp',
+    '_startTimestamp',
+    '_endTimestamp',
+    'maxAccessInterval',
+    'lazyUsed',
+    'delayedFree',
+    'longIdle',
+    'path',
+]);
+
+type SliceDetailKind = 'localBlock' | 'snapshotBlock' | 'snapshotEvent' | 'stateBlock' | 'stateEvent';
+type SnapshotDetailData = { [key: string]: any };
+interface DetailFieldEntry {
     key: string;
+    value: React.ReactNode;
+    label?: string;
+}
+
+interface DetailEventTab {
+    key: string;
+    label: string;
     value: any;
 }
 
@@ -214,19 +527,56 @@ interface SliceDetailTab {
     key: string;
     label: string;
     titleId?: number;
-    detailList: DetailEntry[];
-    noData?: boolean;
+    kind: SliceDetailKind;
     loading?: boolean;
+    detailData?: SnapshotDetailData;
+    block?: Block;
+    state?: StateDataHoverResult;
+    event?: EvenItem;
     selection?: {
         type: 'block' | 'state' | 'event';
-        block?: Block | null;
-        state?: StateDataHoverResult | null;
-        event?: any;
+        block?: Block;
+        state?: StateDataHoverResult;
+        event?: EvenItem;
     };
 }
 
+const EventDetailSwitcher = ({
+    events,
+    renderContent,
+}: {
+    events: DetailEventTab[];
+    renderContent: (event: DetailEventTab) => JSX.Element;
+}): JSX.Element => {
+    const [activeKey, setActiveKey] = useState(events[0]?.key ?? '');
+    const resolvedActiveKey = events.some(item => item.key === activeKey) ? activeKey : (events[0]?.key ?? '');
+    const activeEvent = events.find(item => item.key === resolvedActiveKey);
+
+    if (activeEvent === undefined) {
+        return <></>;
+    }
+
+    return <EventTabsWrapper>
+        <EventTypeList role="tablist">
+            {events.map(item => <EventTypeButton
+                key={item.key}
+                type="button"
+                role="tab"
+                aria-selected={item.key === resolvedActiveKey}
+                data-active={item.key === resolvedActiveKey}
+                title={item.label}
+                onClick={(): void => setActiveKey(item.key)}
+            >
+                {item.label}
+            </EventTypeButton>)}
+        </EventTypeList>
+        <EventTabContent>{renderContent(activeEvent)}</EventTabContent>
+    </EventTabsWrapper>;
+};
+
 const SliceDetail = observer(({ session }: { session: Session }): JSX.Element => {
     const { t } = useTranslation('leaks', { keyPrefix: 'slice' });
+    const [noData, setNoData] = useState(false);
     const [detailTabs, setDetailTabs] = useState<SliceDetailTab[]>([]);
     const [activeDetailTabKey, setActiveDetailTabKey] = useState('');
     const [dragDetailTabKey, setDragDetailTabKey] = useState('');
@@ -263,35 +613,19 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         };
     };
 
-    const getSnapshotDetailInfo = async (type: string, id: number, deviceId: string): Promise<DetailEntry[]> => {
-        const data = await getSnapshotDetail({ type, id, deviceId });
-        const result: DetailEntry[] = [];
-        Object.entries(data).forEach(([key, value]) => {
-            if (typeof value === 'object') {
-                if (Object.keys(value).length < 1) {
-                    return;
-                }
-                result.push({ key, value: <SliceDetailObjectItem data={value} /> });
-            } else {
-                result.push({ key, value });
-            }
-        });
-        return result;
+    const getSnapshotDetailData = async (type: string, id: number, deviceId: string): Promise<SnapshotDetailData> => {
+        return getSnapshotDetail({ type, id, deviceId });
     };
 
     const upsertDetailTab = (tab: SliceDetailTab, options?: { activate?: boolean }): void => {
-        const nextTab = { ...tab, loading: tab.loading ?? false };
         setDetailTabs(tabs => {
-            const index = tabs.findIndex(item => item.key === nextTab.key);
-            if (index < 0) {
-                return [...tabs, nextTab];
+            if (tabs.some(item => item.key === tab.key)) {
+                return tabs.map(item => item.key === tab.key ? tab : item);
             }
-            const nextTabs = [...tabs];
-            nextTabs[index] = { ...nextTabs[index], ...nextTab };
-            return nextTabs;
+            return [...tabs, tab];
         });
         if (options?.activate === true) {
-            setActiveDetailTabKey(nextTab.key);
+            setActiveDetailTabKey(tab.key);
         }
     };
 
@@ -303,6 +637,27 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             return [...tabs, tab];
         });
         setActiveDetailTabKey(tab.key);
+    };
+
+    const upsertNoFramesStateTab = (stateSelection: StateDataHoverResult): void => {
+        const { type, data } = stateSelection;
+        const block = data.blocks[0];
+        const tabKeyParts = [
+            type,
+            data.address,
+            data.stream,
+            data.offsetX,
+            block?.offset ?? '',
+            block?.size ?? data.size,
+        ];
+        upsertDetailTab({
+            key: `snapshot_state_no_frames_${tabKeyParts.map(String).join('_')}`,
+            label: type === 'segment' ? t('exceptionEvent') : t('exceptionBlock'),
+            kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
+            detailData: {},
+            state: stateSelection,
+            selection: { type: 'state', state: stateSelection },
+        }, { activate: true });
     };
 
     const applyTabSelection = (tab: SliceDetailTab | undefined): void => {
@@ -337,25 +692,13 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             session.selectionVersion = selectionVersion;
             session.leaksWorkerInfo.clickItem = null;
             session.stateWorkerInfo.clickItem = null;
-            session.clickEventItem = tab?.selection?.event ?? null;
+            session.clickEventItem = null;
         });
     };
 
     const selectDetailTab = (targetKey: string): void => {
         setActiveDetailTabKey(targetKey);
         applyTabSelection(detailTabs.find(item => item.key === targetKey));
-    };
-
-    const closeDetailTab = (targetKey: string): void => {
-        const targetIndex = detailTabs.findIndex(tab => tab.key === targetKey);
-        const nextTabs = detailTabs.filter(tab => tab.key !== targetKey);
-        if (activeDetailTabKey === targetKey) {
-            const nextActive = nextTabs[Math.max(0, targetIndex - 1)]?.key ?? nextTabs[0]?.key ?? '';
-            setActiveDetailTabKey(nextActive);
-            applyTabSelection(nextTabs.find(tab => tab.key === nextActive));
-        }
-        setDetailTabs(nextTabs);
-        setContextMenu(menu => ({ ...menu, visible: false }));
     };
 
     const getDetailTabElement = (tabKey: string): HTMLElement | null => {
@@ -448,9 +791,22 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         setDragOverDetailTabKey('');
     };
 
+    const removeDetailTab = (targetKey: string): void => {
+        const targetIndex = detailTabs.findIndex(tab => tab.key === targetKey);
+        const nextTabs = detailTabs.filter(tab => tab.key !== targetKey);
+        if (activeDetailTabKey === targetKey) {
+            const nextActive = nextTabs[Math.max(0, targetIndex - 1)]?.key ?? nextTabs[0]?.key ?? '';
+            setActiveDetailTabKey(nextActive);
+            applyTabSelection(nextTabs.find(tab => tab.key === nextActive));
+        }
+        setDetailTabs(nextTabs);
+        setContextMenu(menu => ({ ...menu, visible: false }));
+    };
+
     const closeOtherDetailTabs = (targetKey: string): void => {
         const targetTab = detailTabs.find(tab => tab.key === targetKey);
-        setDetailTabs(targetTab === undefined ? detailTabs : [targetTab]);
+        const nextTabs = targetTab === undefined ? detailTabs : [targetTab];
+        setDetailTabs(nextTabs);
         setActiveDetailTabKey(targetKey);
         applyTabSelection(targetTab);
         setContextMenu(menu => ({ ...menu, visible: false }));
@@ -474,68 +830,335 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         setContextMenu(menu => ({ ...menu, visible: false }));
     };
 
-    const renderDetailContent = (tab: SliceDetailTab): JSX.Element => {
-        if (tab.loading === true) {
-            return <DetailLoading><Spin size="small" /></DetailLoading>;
+    const isRecordValue = (value: any): value is SnapshotDetailData => {
+        return value !== null && typeof value === 'object' && !Array.isArray(value);
+    };
+
+    const hasVisibleValue = (value: any): boolean => {
+        if (value === null || value === undefined || value === '') {
+            return false;
         }
-        if (tab.noData === true) {
-            return <NoData>{(t('noData', { returnObjects: true }) as string[]).map((item, index) => <div key={index}>{item}</div>)}</NoData>;
+        if (Array.isArray(value)) {
+            return value.length > 0;
+        }
+        if (isRecordValue(value)) {
+            return Object.keys(value).length > 0;
+        }
+        return true;
+    };
+
+    const isStructuredValue = (value: any): boolean => {
+        return Array.isArray(value) || isRecordValue(value);
+    };
+
+    const formatDetailValue = (value: any): string => {
+        if (value === null || value === undefined || value === '') {
+            return '-';
+        }
+        if (isStructuredValue(value)) {
+            return JSON.stringify(value, null, 2);
+        }
+        return String(value);
+    };
+
+    const renderFieldList = (entries: DetailFieldEntry[]): JSX.Element => {
+        if (entries.length < 1) {
+            return <NoData>{t('empty')}</NoData>;
+        }
+        return <DetailFieldList>
+            {entries.map((item, index) => <DetailField key={`${item.key}_${index}`}>
+                <DetailFieldName title={item.label ?? t(item.key)}>{item.label ?? t(item.key)}</DetailFieldName>
+                <DetailFieldValue>{item.value}</DetailFieldValue>
+            </DetailField>)}
+        </DetailFieldList>;
+    };
+
+    const renderContentSection = (title: string, children: React.ReactNode, visible: boolean = true): JSX.Element => {
+        if (!visible) {
+            return <></>;
+        }
+        return <DetailSection>
+            <DetailSectionTitle>{title}</DetailSectionTitle>
+            {children}
+        </DetailSection>;
+    };
+
+    const renderNoFramesNotice = (): JSX.Element => {
+        return <NoFramesNotice>
+            {(t('noData', { returnObjects: true }) as string[]).map((item, index) => (
+                <NoFramesNoticeLine key={index}>{item}</NoFramesNoticeLine>
+            ))}
+        </NoFramesNotice>;
+    };
+
+    const getSnapshotOverviewEntries = (data?: SnapshotDetailData): DetailFieldEntry[] => {
+        if (data === undefined) {
+            return [];
+        }
+        return Object.entries(data)
+            .filter(([key, value]) => !SNAPSHOT_NESTED_KEYS.has(key) && !isStructuredValue(value) && hasVisibleValue(value))
+            .map(([key, value]) => ({ key, value: formatDetailValue(value) }));
+    };
+
+    const getSnapshotExtraEntries = (data?: SnapshotDetailData): Array<{ key: string; value: any }> => {
+        if (data === undefined) {
+            return [];
+        }
+        return Object.entries(data)
+            .filter(([key, value]) => !SNAPSHOT_NESTED_KEYS.has(key) && isStructuredValue(value) && hasVisibleValue(value))
+            .map(([key, value]) => ({ key, value }));
+    };
+
+    const getRecordFieldEntries = (data: SnapshotDetailData, excludedKeys: Set<string> = new Set()): DetailFieldEntry[] => {
+        return Object.entries(data)
+            .filter(([key, value]) => !excludedKeys.has(key) && hasVisibleValue(value))
+            .map(([key, value]) => ({
+                key,
+                value: isStructuredValue(value) ? <DetailPre>{formatDetailValue(value)}</DetailPre> : formatDetailValue(value),
+            }));
+    };
+
+    const renderObjectValue = (key: string, value: any): JSX.Element => {
+        if (!isRecordValue(value)) {
+            return <DetailPre>{formatDetailValue(value)}</DetailPre>;
+        }
+        const scalarEntries = getRecordFieldEntries(value);
+        return renderFieldList(scalarEntries.length > 0 ? scalarEntries : [{ key, value: '-' }]);
+    };
+
+    const getCallStackValue = (data?: SnapshotDetailData): any => {
+        return CALL_STACK_KEYS.map(key => data?.[key]).find(value => hasVisibleValue(value));
+    };
+
+    const normalizeCallStackLines = (value: any): string[] => {
+        if (!hasVisibleValue(value)) {
+            return [];
+        }
+        if (typeof value === 'string') {
+            return value.split(/\r?\n/).map(item => item.trim()).filter(item => item.length > 0);
+        }
+        if (Array.isArray(value)) {
+            return value.flatMap(item => normalizeCallStackLines(item));
+        }
+        if (isRecordValue(value)) {
+            return [Object.entries(value)
+                .map(([key, item]) => `${t(key)}: ${formatDetailValue(item)}`)
+                .join('  ')];
+        }
+        return [formatDetailValue(value)];
+    };
+
+    const renderCallStackValue = (value: any): JSX.Element => {
+        const groups = isRecordValue(value)
+            ? Object.entries(value)
+                .filter(([, item]) => hasVisibleValue(item))
+                .map(([key, item]) => ({ key, label: t(key), lines: normalizeCallStackLines(item) }))
+                .filter(group => group.lines.length > 0)
+            : [{ key: 'callStack', label: t('callStack'), lines: normalizeCallStackLines(value) }];
+
+        if (groups.length < 1) {
+            return <NoData>{t('empty')}</NoData>;
+        }
+
+        return <CallStackViewer>
+            {groups.map(group => <CallStackGroup key={group.key}>
+                <CallStackGroupTitle>{group.label}</CallStackGroupTitle>
+                {group.lines.map((line, index) => <CallStackLine key={`${group.key}_${index}`}>
+                    <CallStackLineNumber>{index + 1}</CallStackLineNumber>
+                    <CallStackLineText>{line}</CallStackLineText>
+                </CallStackLine>)}
+            </CallStackGroup>)}
+        </CallStackViewer>;
+    };
+
+    const getRelatedEvents = (data?: SnapshotDetailData): Array<{ key: string; value: any }> => {
+        return SNAPSHOT_EVENT_KEYS
+            .map(key => ({ key, value: data?.[key] }))
+            .filter(item => hasVisibleValue(item.value));
+    };
+
+    const renderEventDetailContent = (value: any): JSX.Element => {
+        if (!isRecordValue(value)) {
+            return <DetailPre>{formatDetailValue(value)}</DetailPre>;
+        }
+        const callStackValue = getCallStackValue(value);
+        const fieldEntries = getRecordFieldEntries(value, new Set(CALL_STACK_KEYS));
+        const fieldsContent = fieldEntries.length > 0 ? renderFieldList(fieldEntries) : <></>;
+        if (!hasVisibleValue(callStackValue)) {
+            return <EventDetailSingleColumn>{fieldsContent}</EventDetailSingleColumn>;
+        }
+        return <EventDetailLayout>
+            <DetailColumn>{fieldsContent}</DetailColumn>
+            <DetailColumn>{renderCallStackValue(callStackValue)}</DetailColumn>
+        </EventDetailLayout>;
+    };
+
+    const getRelatedEventTabs = (data?: SnapshotDetailData): DetailEventTab[] => {
+        return getRelatedEvents(data).map(item => ({
+            key: item.key,
+            label: t(item.key),
+            value: item.value,
+        }));
+    };
+
+    const renderDirectEventContent = (data?: SnapshotDetailData): JSX.Element => {
+        const callStackValue = getCallStackValue(data);
+        if (!hasVisibleValue(callStackValue)) {
+            return renderNoFramesNotice();
+        }
+        return renderCallStackValue(callStackValue);
+    };
+
+    const renderSnapshotEventObject = (item: { key: string; value: any }): JSX.Element => {
+        if (!isRecordValue(item.value)) {
+            return renderObjectValue(item.key, item.value);
+        }
+        const callStackValue = getCallStackValue(item.value);
+        const fieldEntries = getRecordFieldEntries(item.value, new Set(CALL_STACK_KEYS));
+        if (!hasVisibleValue(callStackValue)) {
+            return <EventDetailSingleColumn>{fieldEntries.length > 0 ? renderFieldList(fieldEntries) : <></>}</EventDetailSingleColumn>;
+        }
+        return <EventDetailLayout>
+            <DetailColumn>{renderFieldList(fieldEntries)}</DetailColumn>
+            <DetailColumn>{renderCallStackValue(callStackValue)}</DetailColumn>
+        </EventDetailLayout>;
+    };
+
+    const renderExtraSnapshotData = (extraEntries: Array<{ key: string; value: any }>): JSX.Element => {
+        if (extraEntries.length < 1) {
+            return <></>;
         }
         return <>
-            {tab.detailList.map(item => (<SliceDetailItem key={item.key} >
-                <div className="sliceDetailName">{t(item.key)}</div>
-                <div className="sliceDetailValue">{item.value}</div>
-            </SliceDetailItem>))}
+            {extraEntries.map(item => renderContentSection(t(item.key), renderSnapshotEventObject(item)))}
         </>;
     };
 
+    const getLocalBlockEntries = (block: Block): DetailFieldEntry[] => {
+        return Object.entries(block)
+            .filter(([key, value]) => !LEGACY_LOCAL_BLOCK_HIDDEN_KEYS.has(key) && hasVisibleValue(value))
+            .map(([key, value]) => ({ key, value: formatDetailValue(value) }));
+    };
+
+    const getBasicInfoEntries = (tab: SliceDetailTab): DetailFieldEntry[] => {
+        return getSnapshotOverviewEntries(tab.detailData);
+    };
+
+    const renderEventInfo = (tab: SliceDetailTab, type: 'block' | 'event', extraEntries: Array<{ key: string; value: any }>): JSX.Element => {
+        if (type === 'block') {
+            return <>
+                {renderDirectEventContent(tab.detailData)}
+                {renderExtraSnapshotData(extraEntries)}
+            </>;
+        }
+        return <>
+            {renderDirectEventContent(tab.detailData)}
+            {renderExtraSnapshotData(extraEntries)}
+        </>;
+    };
+
+    const renderSnapshotDetail = (tab: SliceDetailTab, type: 'block' | 'event'): JSX.Element => {
+        if (tab.loading === true) {
+            return <DetailPanel>
+                <DetailCard>
+                    <DetailLoading><Spin size="small" /></DetailLoading>
+                </DetailCard>
+            </DetailPanel>;
+        }
+        const basicEntries = getBasicInfoEntries(tab);
+        const extraEntries = getSnapshotExtraEntries(tab.detailData);
+        const hasCallStack = hasVisibleValue(getCallStackValue(tab.detailData));
+        const relatedEventTabs = type === 'block' ? getRelatedEventTabs(tab.detailData) : [];
+        const hasRelatedEvents = relatedEventTabs.length > 0;
+        const hasEventInfo = hasRelatedEvents || hasCallStack || extraEntries.length > 0;
+        const hasAnyDetail = basicEntries.length > 0 || hasEventInfo;
+        if (!hasAnyDetail) {
+            return <DetailPanel><DetailCard>{renderNoFramesNotice()}</DetailCard></DetailPanel>;
+        }
+        if (hasRelatedEvents) {
+            return <DetailPanel>
+                <DetailMainLayout>
+                    <DetailCard>{renderFieldList(basicEntries)}</DetailCard>
+                    <DetailColumn>
+                        <EventDetailSwitcher
+                            events={relatedEventTabs}
+                            renderContent={(item): JSX.Element => <>
+                                {renderEventDetailContent(item.value)}
+                                {renderExtraSnapshotData(extraEntries)}
+                            </>}
+                        />
+                    </DetailColumn>
+                </DetailMainLayout>
+            </DetailPanel>;
+        }
+        if (!hasEventInfo && basicEntries.length > 0) {
+            return <DetailPanel>
+                <DetailMainLayout>
+                    <DetailCard>{renderFieldList(basicEntries)}</DetailCard>
+                    <DetailCard>{renderNoFramesNotice()}</DetailCard>
+                </DetailMainLayout>
+            </DetailPanel>;
+        }
+        return <DetailPanel>
+            {hasEventInfo
+                ? <DetailMainLayout>
+                    <DetailCard>{renderFieldList(basicEntries)}</DetailCard>
+                    <DetailCard>{renderEventInfo(tab, type, extraEntries)}</DetailCard>
+                </DetailMainLayout>
+                : renderFieldList(basicEntries)}
+        </DetailPanel>;
+    };
+
+    const renderDetailContent = (tab: SliceDetailTab): JSX.Element => {
+        if (tab.kind === 'localBlock' && tab.block !== undefined) {
+            return <DetailPanel><DetailCard>{renderFieldList(getLocalBlockEntries(tab.block))}</DetailCard></DetailPanel>;
+        }
+        if (tab.kind === 'snapshotBlock' || tab.kind === 'stateBlock') {
+            return renderSnapshotDetail(tab, 'block');
+        }
+        return renderSnapshotDetail(tab, 'event');
+    };
+
     useEffect(() => {
+        setNoData(false);
+        const block = cloneBlock(session.leaksWorkerInfo.clickItem);
+        if (block === null) {
+            return;
+        }
         if (session.module === 'leaks') {
-            if (session.leaksWorkerInfo.clickItem === null) {
-                return;
-            }
-            const block = cloneBlock(session.leaksWorkerInfo.clickItem);
-            const result: DetailEntry[] = [];
-            Object.entries(session.leaksWorkerInfo.clickItem).forEach(([key, value]) => {
-                if (hiddenList.includes(key)) {
-                    return;
-                }
-                result.push({ key, value });
-            });
             upsertDetailTab({
-                key: `local_block_${session.leaksWorkerInfo.clickItem.id}`,
-                label: `${t('block')} #${session.leaksWorkerInfo.clickItem.id}`,
-                titleId: session.leaksWorkerInfo.clickItem.id,
-                detailList: result,
+                key: `block_${block.id}`,
+                label: `${t('block')} #${block.id}`,
+                titleId: block.id,
+                kind: 'localBlock',
+                block,
                 selection: { type: 'block', block },
             }, { activate: true });
             return;
         }
-        const block = cloneBlock(session.leaksWorkerInfo.clickItem);
-        const id = block?.id;
-        if (id === undefined) {
-            return;
-        }
         let cancelled = false;
         const requestDeviceId = session.deviceId;
-        const tabKey = `snapshot_block_${id}`;
+        const tabKey = `snapshot_block_${block.id}`;
         openPendingDetailTab({
             key: tabKey,
-            label: `${t('block')} #${id}`,
-            titleId: id,
-            detailList: [],
+            label: `${t('block')} #${block.id}`,
+            titleId: block.id,
+            kind: 'snapshotBlock',
             loading: true,
+            block,
             selection: { type: 'block', block },
         });
-        getSnapshotDetailInfo('block', id, session.deviceId).then(result => {
+        getSnapshotDetailData('block', block.id, session.deviceId).then(result => {
             if (cancelled || session.deviceId !== requestDeviceId) {
                 return;
             }
             upsertDetailTab({
                 key: tabKey,
-                label: `${t('block')} #${id}`,
-                titleId: id,
-                detailList: result,
+                label: `${t('block')} #${block.id}`,
+                titleId: block.id,
+                kind: 'snapshotBlock',
+                loading: false,
+                detailData: result,
+                block,
                 selection: { type: 'block', block },
             });
         }).catch(() => {
@@ -544,10 +1167,12 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             }
             upsertDetailTab({
                 key: tabKey,
-                label: `${t('block')} #${id}`,
-                titleId: id,
-                detailList: [],
-                noData: true,
+                label: `${t('block')} #${block.id}`,
+                titleId: block.id,
+                kind: 'snapshotBlock',
+                loading: false,
+                detailData: {},
+                block,
                 selection: { type: 'block', block },
             });
         });
@@ -557,6 +1182,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
     }, [session.leaksWorkerInfo.clickItem]);
 
     useEffect(() => {
+        setNoData(false);
         const stateSelection = cloneStateSelection(session.stateWorkerInfo.clickItem);
         if (stateSelection === null) {
             return;
@@ -564,14 +1190,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         const { type, data } = stateSelection;
         const id = type === 'segment' ? data.allocOrMapEventId : (data.blocks[0]?.id ?? -1);
         if (id < 0) {
-            const noDataKey = `snapshot_state_no_frames_${type}_${Date.now()}`;
-            upsertDetailTab({
-                key: noDataKey,
-                label: type === 'segment' ? t('exceptionEvent') : t('exceptionBlock'),
-                detailList: [],
-                noData: true,
-                selection: { type: 'state', state: stateSelection },
-            }, { activate: true });
+            upsertNoFramesStateTab(stateSelection);
             return;
         }
         let cancelled = false;
@@ -582,11 +1201,12 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             key: tabKey,
             label: `${detailType === 'event' ? t('event') : t('block')} #${id}`,
             titleId: id,
-            detailList: [],
+            kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
             loading: true,
+            state: stateSelection,
             selection: { type: 'state', state: stateSelection },
         });
-        getSnapshotDetailInfo(detailType, id, session.deviceId).then(result => {
+        getSnapshotDetailData(detailType, id, session.deviceId).then(result => {
             if (cancelled || session.deviceId !== requestDeviceId) {
                 return;
             }
@@ -594,7 +1214,10 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
                 key: tabKey,
                 label: `${detailType === 'event' ? t('event') : t('block')} #${id}`,
                 titleId: id,
-                detailList: result,
+                kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
+                loading: false,
+                detailData: result,
+                state: stateSelection,
                 selection: { type: 'state', state: stateSelection },
             });
         }).catch(() => {
@@ -605,8 +1228,10 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
                 key: tabKey,
                 label: `${detailType === 'event' ? t('event') : t('block')} #${id}`,
                 titleId: id,
-                detailList: [],
-                noData: true,
+                kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
+                loading: false,
+                detailData: {},
+                state: stateSelection,
                 selection: { type: 'state', state: stateSelection },
             });
         });
@@ -616,6 +1241,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
     }, [session.stateWorkerInfo.clickItem]);
 
     useEffect(() => {
+        setNoData(false);
         if (session.clickEventItem === null) {
             return;
         }
@@ -627,11 +1253,12 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             key: tabKey,
             label: `${t('event')} #${event.id}`,
             titleId: event.id,
-            detailList: [],
+            kind: 'snapshotEvent',
             loading: true,
+            event,
             selection: { type: 'event', event },
         });
-        getSnapshotDetailInfo('event', event.id, session.deviceId).then(result => {
+        getSnapshotDetailData('event', event.id, session.deviceId).then(result => {
             if (cancelled || session.deviceId !== requestDeviceId) {
                 return;
             }
@@ -639,7 +1266,10 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
                 key: tabKey,
                 label: `${t('event')} #${event.id}`,
                 titleId: event.id,
-                detailList: result,
+                kind: 'snapshotEvent',
+                loading: false,
+                detailData: result,
+                event,
                 selection: { type: 'event', event },
             });
         }).catch(() => {
@@ -650,8 +1280,10 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
                 key: tabKey,
                 label: `${t('event')} #${event.id}`,
                 titleId: event.id,
-                detailList: [],
-                noData: true,
+                kind: 'snapshotEvent',
+                loading: false,
+                detailData: {},
+                event,
                 selection: { type: 'event', event },
             });
         });
@@ -661,6 +1293,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
     }, [session.clickEventItem]);
 
     useEffect(() => {
+        setNoData(false);
         setDetailTabs([]);
         setActiveDetailTabKey('');
     }, [session.deviceId]);
@@ -698,53 +1331,34 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         return <DetailTabsWrapper onClick={(): void => setContextMenu(menu => ({ ...menu, visible: false }))}>
             <Tabs
                 type="editable-card"
-                size="small"
                 hideAdd
+                size="small"
                 activeKey={activeDetailTabKey}
                 items={tabItems}
                 destroyInactiveTabPane
                 onChange={selectDetailTab}
                 onEdit={(targetKey, action): void => {
                     if (action === 'remove') {
-                        closeDetailTab(String(targetKey));
+                        removeDetailTab(String(targetKey));
                     }
                 }}
             />
             {contextMenu.visible
                 ? <DetailContextMenu style={{ left: contextMenu.x, top: contextMenu.y }}>
-                    <DetailContextMenuItem onClick={(): void => closeDetailTab(contextMenu.key)}>{t('close')}</DetailContextMenuItem>
+                    <DetailContextMenuItem onClick={(): void => removeDetailTab(contextMenu.key)}>{t('close')}</DetailContextMenuItem>
                     <DetailContextMenuItem onClick={(): void => closeOtherDetailTabs(contextMenu.key)}>{t('closeOthers')}</DetailContextMenuItem>
                     <DetailContextMenuItem onClick={(): void => closeRightDetailTabs(contextMenu.key)}>{t('closeToRight')}</DetailContextMenuItem>
                     <DetailContextMenuItem onClick={closeAllDetailTabs}>{t('closeAll')}</DetailContextMenuItem>
                 </DetailContextMenu>
-                : null}
+                : <></>}
         </DetailTabsWrapper>;
     }
 
-    return <NoData>{t('selectDetailTip')}</NoData>;
-});
-const SliceDetailObjectItem = observer(({ data }: { data: { [key: string]: any } }): JSX.Element => {
-    const { t } = useTranslation('leaks', { keyPrefix: 'slice' });
-    const [isExpand, setIsExpand] = useState(false);
-    const dataList: Array<{ key: string; value: string }> = [];
-    Object.entries(data).forEach(([key, value]) => {
-        if (typeof value === 'object') {
-            dataList.push({ key, value: JSON.stringify(value) });
-        } else {
-            dataList.push({ key, value });
-        }
-    });
-
     return <>
-        <Button type="link" size="small" style={{ padding: 0, minWidth: 0 }}
-            onClick={() => setIsExpand(oVal => !oVal)} >
-            {`${isExpand ? '-' : '+'} ${t('detail')}`}
-        </Button>
         {
-            isExpand && dataList.map(item => (<SliceDetailItem key={item.key} >
-                <div className="sliceDetailName">{t(item.key)}</div>
-                <div className="sliceDetailValue">{item.value}</div>
-            </SliceDetailItem>))
+            noData
+                ? <NoData>{(t('noData', { returnObjects: true }) as string[]).map((item, index) => <div key={index}>{item}</div>)}</NoData>
+                : <NoData>{t('selectDetailTip')}</NoData>
         }
     </>;
 });
