@@ -266,9 +266,11 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
             onRow={(row): React.HTMLAttributes<any> => ({
                 onClick: (): void => {
                     setCurrentSelectRow(row.index);
-                    workerSelectBlockItem({ item: null });
-                    workerSelectStateItem({ item: null });
+                    const selectionVersion = session.selectionVersion + 1;
+                    workerSelectBlockItem({ item: null, selectionVersion });
+                    workerSelectStateItem({ item: null, selectionVersion });
                     runInAction(() => {
+                        session.selectionVersion = selectionVersion;
                         session.leaksWorkerInfo.clickItem = null;
                         session.stateWorkerInfo.clickItem = null;
                         session.clickEventItem = row;
@@ -441,12 +443,14 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         if (isClick.current) {
             isClick.current = false;
             const rect = ref.current.getBoundingClientRect();
-            workerSelectBlockItem({ item: null });
+            const selectionVersion = session.selectionVersion + 1;
+            workerSelectBlockItem({ item: null, selectionVersion });
             runInAction(() => {
+                session.selectionVersion = selectionVersion;
                 session.leaksWorkerInfo.clickItem = null;
                 session.clickEventItem = null;
             });
-            workerClickItem({ clientX: ev.clientX - rect.left, clientY: ev.clientY - rect.top });
+            workerClickItem({ clientX: ev.clientX - rect.left, clientY: ev.clientY - rect.top, selectionVersion });
         }
     };
 

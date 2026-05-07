@@ -187,12 +187,14 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
         if (isClick.current) {
             isClick.current = false;
             const rect = ref.current.getBoundingClientRect();
-            workerSelectStateItem({ item: null });
+            const selectionVersion = session.selectionVersion + 1;
+            workerSelectStateItem({ item: null, selectionVersion });
             runInAction(() => {
+                session.selectionVersion = selectionVersion;
                 session.stateWorkerInfo.clickItem = null;
                 session.clickEventItem = null;
             });
-            workerClickItem({ clientX: ev.clientX - rect.left, clientY: rect.height - (ev.clientY - rect.top) });
+            workerClickItem({ clientX: ev.clientX - rect.left, clientY: rect.height - (ev.clientY - rect.top), selectionVersion });
             if (session.markLineInfo.block.x > -1) {
                 runInAction(() => {
                     session.memoryStamp = Math.round(session.markLineInfo.currentTimestamp);

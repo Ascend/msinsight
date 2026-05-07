@@ -44,16 +44,19 @@ interface HoverItemPayload {
     type: 'hoverItem';
     clientX: number;
     clientY: number;
+    selectionVersion?: number;
 };
 
 interface SelectBlockItemPayload {
     type: 'selectBlockItem';
     item: Block | null;
+    selectionVersion?: number;
 };
 
 interface SelectStateItemPayload {
     type: 'selectStateItem';
     item: StateDataHoverResult | null;
+    selectionVersion?: number;
 };
 
 interface SetMemoryStateDataPayload {

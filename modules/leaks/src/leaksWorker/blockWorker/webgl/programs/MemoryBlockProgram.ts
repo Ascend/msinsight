@@ -75,6 +75,10 @@ export class MemoryBlockProgram extends Program {
         this.hasBuffer = true;
     }
 
+    setDimBase(dimBase: boolean): void {
+        this.dimBase = dimBase;
+    }
+
     render(options: RenderOptions): void {
         if (!this.hasBuffer || this.instanceBuffer === null) {
             return;

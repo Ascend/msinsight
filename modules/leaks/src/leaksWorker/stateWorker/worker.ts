@@ -42,11 +42,11 @@ const WorkerBackend = {
     hoverItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         StateWorker.postMessage({ type: 'hoverItem', clientX, clientY });
     },
-    clickItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
-        StateWorker.postMessage({ type: 'clickItem', clientX, clientY });
+    clickItem({ clientX, clientY, selectionVersion }: Omit<HoverItemPayload, 'type'>): void {
+        StateWorker.postMessage({ type: 'clickItem', clientX, clientY, selectionVersion });
     },
-    selectItem({ item }: Omit<SelectStateItemPayload, 'type'>): void {
-        StateWorker.postMessage({ type: 'selectStateItem', item });
+    selectItem({ item, selectionVersion }: Omit<SelectStateItemPayload, 'type'>): void {
+        StateWorker.postMessage({ type: 'selectStateItem', item, selectionVersion });
     },
     destroy(): void {
         StateWorker.postMessage({ type: 'destroy' });

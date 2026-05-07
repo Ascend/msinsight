@@ -57,7 +57,7 @@ export class WebGLRenderer {
             return this;
         }
         this.dimBase = dimBase;
-        this.painter.memoryStateProgram?.processData(this.data, this.dimBase);
+        this.painter.memoryStateProgram?.setDimBase(this.dimBase);
         this.renderFrame();
         return this;
     }
