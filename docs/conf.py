@@ -34,6 +34,7 @@ extensions = [
     'sphinx.ext.autodoc',    # 自动生成代码文档
     'sphinx.ext.napoleon',   # 支持 Google/Numpy 风格的注释
     'myst_parser',           # 支持 Markdown 文件
+    'sphinx_design',         # 支持 {dropdown} 等 UI 组件
     'sphinx.ext.todo',       # 支持 TODO 标记
     'sphinx.ext.intersphinx', # 支持跨文档引用
     'sphinx.ext.imgconverter', # 支持图片格式转换
@@ -59,9 +60,10 @@ myst_enable_extensions = [
     'linkify',
     'html_image',
     'smartquotes',
+    'replacements',
+    'colon_fence',           # 必须开启：支持 ::: 语法
     'dollarmath',            # 支持 $ 分隔的数学公式
     'html_admonition',       # 支持 HTML 警告框
-    'replacements',          # 支持文本替换
 ]
 
 # 配置 Mermaid 输出格式
