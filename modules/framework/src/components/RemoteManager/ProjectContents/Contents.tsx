@@ -79,10 +79,6 @@ const ContentsContainer = styled.div`
         align-items: center;
         padding-right: 6px;
     }
-    .content-name {
-        display:block;
-        width: 100%;
-    }
     .content-text {
         overflow: hidden;
         white-space: nowrap;
@@ -103,8 +99,9 @@ const ContentsContainer = styled.div`
     .btn-box {
         align-items: center;
         justify-content: end;
-        width: 30px;
-        display: none;
+        width: 40px;
+        display: flex;
+        visibility: hidden;
     }
     .btn-box.leaf {
         width: 16px;
@@ -114,11 +111,13 @@ const ContentsContainer = styled.div`
         background: ${(props): string => props.theme.selectedBgColor};
 
         .btn-box {
-            display: flex;
+            visibility: visible;
         }
-        .content-name {
-            width: calc(100% - 30px);
-        }
+    }
+    // 名称区域始终预留按钮空间，避免hover跳变
+    .content-name {
+        display:block;
+        width: calc(100% - 40px);
     }
     // 比对数据
     .baseline{
@@ -153,7 +152,7 @@ const handleRightClick = (file: File): void => {
 function ImportDataBtn({ projectName, session }: {projectName: string;session: Session}): JSX.Element {
     const { t } = useTranslation('framework');
     return <Tooltip placement="bottom" title={t('Import Data')} destroyTooltipOnHide={{ keepParent: false }}>
-        <AddIcon onClick={(): void => { session.actionListener = { type: SessionAction.ADD_DATA_UNDER_PROJECT, value: projectName }; }}/>
+        <AddIcon style={{ marginRight: 4 }} onClick={(): void => { session.actionListener = { type: SessionAction.ADD_DATA_UNDER_PROJECT, value: projectName }; }}/>
     </Tooltip>;
 }
 
