@@ -27,46 +27,9 @@ export const getZoom = (data: RenderData, canvas: OffscreenCanvas | HTMLCanvasEl
 const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX ?? transform.scale;
 const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY ?? transform.scale;
 
-interface BlockHitEntry {
-    blockIndex: number;
-    pathIndex: number;
-    start: number;
-    end: number;
-    minY: number;
-    maxY: number;
-}
-
-interface BlockHitIndex {
-    minTime: number;
-    maxTime: number;
-    bucketSize: number;
-    buckets: number[][];
-    wideEntries: number[];
-    entries: BlockHitEntry[];
-}
-
-interface IndexedRenderData extends RenderData {
-    blockHitIndex?: BlockHitIndex;
-}
-
-interface StateHitRow {
-    yStart: number;
-    yEnd: number;
-    segments: number[];
-}
-
-interface StateHitIndex {
-    rows: StateHitRow[];
-    blockOrders: number[][];
-}
-
-const BLOCK_HIT_TARGET_BUCKET_SIZE = 64;
-const BLOCK_HIT_MAX_BUCKET_COUNT = 2048;
-const BLOCK_HIT_MAX_BUCKET_SPAN = 128;
 const BLOCK_SNAP_TARGET_WIDTH_PX = 6;
 const blockViewPathCache = new WeakMap<SetMemoryBlocksDataPayload['data'], RenderData>();
 const stateRenderDataCache = new WeakMap<Segment[], Segment[]>();
-const stateHitIndexCache = new WeakMap<Segment[], StateHitIndex>();
 
 const getNow = (): number => typeof performance === 'undefined' ? Date.now() : performance.now();
 
@@ -97,84 +60,6 @@ const upperBound = <T>(data: T[], value: number, getter: (item: T) => number): n
         }
     }
     return left;
-};
-
-const getBucketIndex = (time: number, index: BlockHitIndex): number => {
-    if (index.buckets.length <= 1 || index.bucketSize <= 0) {
-        return 0;
-    }
-    const bucketIndex = Math.floor((time - index.minTime) / index.bucketSize);
-    return Math.max(0, Math.min(index.buckets.length - 1, bucketIndex));
-};
-
-const sortBlockHitEntries = (hitIndex: BlockHitIndex, entryIndexes: Iterable<number>): number[] => {
-    return Array.from(entryIndexes).sort((left, right) => {
-        const leftEntry = hitIndex.entries[left];
-        const rightEntry = hitIndex.entries[right];
-        return leftEntry.blockIndex - rightEntry.blockIndex || leftEntry.pathIndex - rightEntry.pathIndex;
-    });
-};
-
-const collectBlockHitEntryIndexes = (hitIndex: BlockHitIndex, startTime: number, endTime: number): number[] => {
-    const candidateEntryIndexes = new Set<number>();
-    const startBucket = getBucketIndex(startTime, hitIndex);
-    const endBucket = getBucketIndex(endTime, hitIndex);
-    for (let bucketIndex = startBucket; bucketIndex <= endBucket; bucketIndex++) {
-        for (const entryIndex of hitIndex.buckets[bucketIndex]) {
-            candidateEntryIndexes.add(entryIndex);
-        }
-    }
-    for (const entryIndex of hitIndex.wideEntries) {
-        candidateEntryIndexes.add(entryIndex);
-    }
-    return sortBlockHitEntries(hitIndex, candidateEntryIndexes);
-};
-
-const buildBlockHitIndex = (renderData: RenderData): BlockHitIndex | undefined => {
-    const { blocks, minTimestamp, maxTimestamp } = renderData;
-    if (blocks.length < 1 || maxTimestamp <= minTimestamp) {
-        return undefined;
-    }
-    const entries: BlockHitEntry[] = [];
-    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-        const block = blocks[blockIndex];
-        for (let pathIndex = 0; pathIndex < block.path.length - 1; pathIndex++) {
-            const startPoint = block.path[pathIndex];
-            const endPoint = block.path[pathIndex + 1];
-            entries.push({
-                blockIndex,
-                pathIndex,
-                start: Math.min(startPoint[0], endPoint[0]),
-                end: Math.max(startPoint[0], endPoint[0]),
-                minY: Math.min(startPoint[1], endPoint[1]),
-                maxY: Math.max(startPoint[1], endPoint[1]) + block.size,
-            });
-        }
-    }
-    if (entries.length < 1) {
-        return undefined;
-    }
-    const bucketCount = Math.max(1, Math.min(BLOCK_HIT_MAX_BUCKET_COUNT, Math.ceil(entries.length / BLOCK_HIT_TARGET_BUCKET_SIZE)));
-    const index: BlockHitIndex = {
-        minTime: minTimestamp,
-        maxTime: maxTimestamp,
-        bucketSize: (maxTimestamp - minTimestamp) / bucketCount,
-        buckets: Array.from({ length: bucketCount }, () => []),
-        wideEntries: [],
-        entries,
-    };
-    entries.forEach((entry, entryIndex) => {
-        const startBucket = getBucketIndex(entry.start, index);
-        const endBucket = getBucketIndex(entry.end, index);
-        if (endBucket - startBucket > BLOCK_HIT_MAX_BUCKET_SPAN) {
-            index.wideEntries.push(entryIndex);
-            return;
-        }
-        for (let bucketIndex = startBucket; bucketIndex <= endBucket; bucketIndex++) {
-            index.buckets[bucketIndex].push(entryIndex);
-        }
-    });
-    return index;
 };
 
 const isPointInBlockEntry = (
@@ -243,65 +128,55 @@ const pickUniqueSnapBlock = (candidates: Array<{ block: Block; distance: number;
     return candidate === undefined ? null : candidate.block;
 };
 
-const searchBlockDataWithIndex = (
-    blocks: RenderData['blocks'],
-    hitIndex: BlockHitIndex,
-    absoluteX: number,
-    y: number,
-    minHitWidth: number,
-    snapHitWidth: number,
-): Block | null => {
-    const exactCandidates = collectBlockHitEntryIndexes(hitIndex, absoluteX - minHitWidth, absoluteX);
-    for (const entryIndex of exactCandidates) {
-        const entry = hitIndex.entries[entryIndex];
-        if (absoluteX < entry.start || absoluteX > Math.max(entry.end, entry.start + minHitWidth) || y < entry.minY || y > entry.maxY) {
-            continue;
-        }
-        const block = blocks[entry.blockIndex];
-        if (isPointInBlockEntry(block, entry.pathIndex, absoluteX, y, minHitWidth)) {
-            return block;
-        }
-    }
-
-    if (snapHitWidth <= minHitWidth) {
-        return null;
-    }
-
-    const snapCandidates: Array<{ block: Block; distance: number; order: number }> = [];
-    const snapEntryIndexes = collectBlockHitEntryIndexes(hitIndex, absoluteX - snapHitWidth, absoluteX + snapHitWidth);
-    for (const entryIndex of snapEntryIndexes) {
-        const entry = hitIndex.entries[entryIndex];
-        if (y < entry.minY || y > entry.maxY) {
-            continue;
-        }
-        const candidate = getBlockSnapCandidate(blocks[entry.blockIndex], entry.pathIndex, absoluteX, y, minHitWidth, snapHitWidth);
-        if (candidate !== null) {
-            snapCandidates.push({
-                ...candidate,
-                order: entry.blockIndex * 1000000 + entry.pathIndex,
-            });
-        }
-    }
-    return pickUniqueSnapBlock(snapCandidates);
-};
-
-const searchBlockDataWithLinearSnap = (
+const searchBlockDataDynamically = (
     blocks: RenderData['blocks'],
     absoluteX: number,
     y: number,
     minHitWidth: number,
     snapHitWidth: number,
 ): Block | null => {
-    if (snapHitWidth <= minHitWidth) {
-        return null;
-    }
-    const candidates: Array<{ block: Block; distance: number; order: number }> = [];
-    for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+    const exactStart = absoluteX - minHitWidth;
+    const exactEnd = absoluteX;
+    const exactBlockLimit = upperBound(blocks, exactEnd, block => block._startTimestamp);
+    for (let blockIndex = 0; blockIndex < exactBlockLimit; blockIndex++) {
         const block = blocks[blockIndex];
-        if (block.path.length <= 1) {
+        if (block._endTimestamp < exactStart || block.path.length <= 1) {
             continue;
         }
-        for (let pathIndex = 0; pathIndex < block.path.length - 1; pathIndex++) {
+        const firstPathIndex = Math.max(0, upperBound(block.path, exactStart, point => point[0]) - 2);
+        const lastPathIndex = Math.min(block.path.length - 2, upperBound(block.path, exactEnd, point => point[0]));
+        for (let pathIndex = firstPathIndex; pathIndex <= lastPathIndex; pathIndex++) {
+            const startPoint = block.path[pathIndex];
+            const endPoint = block.path[pathIndex + 1];
+            const start = Math.min(startPoint[0], endPoint[0]);
+            const end = Math.max(endPoint[0], startPoint[0] + minHitWidth);
+            const minY = Math.min(startPoint[1], endPoint[1]);
+            const maxY = Math.max(startPoint[1], endPoint[1]) + block.size;
+            if (absoluteX < start || absoluteX > end || y < minY || y > maxY) {
+                continue;
+            }
+            if (isPointInBlockEntry(block, pathIndex, absoluteX, y, minHitWidth)) {
+                return block;
+            }
+        }
+    }
+
+    if (snapHitWidth <= minHitWidth) {
+        return null;
+    }
+
+    const snapStart = absoluteX - snapHitWidth;
+    const snapEnd = absoluteX + snapHitWidth;
+    const snapBlockLimit = upperBound(blocks, snapEnd, block => block._startTimestamp);
+    const candidates: Array<{ block: Block; distance: number; order: number }> = [];
+    for (let blockIndex = 0; blockIndex < snapBlockLimit; blockIndex++) {
+        const block = blocks[blockIndex];
+        if (block._endTimestamp < snapStart || block.path.length <= 1) {
+            continue;
+        }
+        const firstPathIndex = Math.max(0, upperBound(block.path, snapStart, point => point[0]) - 2);
+        const lastPathIndex = Math.min(block.path.length - 2, upperBound(block.path, snapEnd, point => point[0]));
+        for (let pathIndex = firstPathIndex; pathIndex <= lastPathIndex; pathIndex++) {
             const candidate = getBlockSnapCandidate(block, pathIndex, absoluteX, y, minHitWidth, snapHitWidth);
             if (candidate !== null) {
                 candidates.push({
@@ -321,66 +196,14 @@ export const searchBlockDataByPoint = (
     zoom: RenderOptions['zoom'],
 ): Block | null => {
     const blocks = Array.isArray(data) ? data : data.blocks;
-    const hitIndex = Array.isArray(data) ? undefined : (data as IndexedRenderData).blockHitIndex;
-    // 将鼠标点击位置转换为真实坐标
     const x = (clientX - transform.x) / zoom.x / getTransformScaleX(transform);
     const y = (clientY - transform.y) / zoom.y / getTransformScaleY(transform);
     const absoluteX = x + zoom.offset;
     const scaleX = getTransformScaleX(transform);
     const minHitWidth = zoom.x * scaleX > 0 ? 1 / zoom.x / scaleX : 0;
     const snapHitWidth = zoom.x * scaleX > 0 ? BLOCK_SNAP_TARGET_WIDTH_PX / zoom.x / scaleX : 0;
-
-    if (hitIndex !== undefined) {
-        return searchBlockDataWithIndex(blocks, hitIndex, absoluteX, y, minHitWidth, snapHitWidth);
-    }
-
-    for (let i = 0; i < blocks.length; i++) {
-        const block = blocks[i];
-        const blockLx = block._startTimestamp - zoom.offset;
-        const blockRx = Math.max(block._endTimestamp - zoom.offset, blockLx + minHitWidth);
-        if (x < blockLx) {
-            const snapBlock = searchBlockDataWithLinearSnap(blocks, absoluteX, y, minHitWidth, snapHitWidth);
-            if (snapBlock !== null) {
-                return snapBlock;
-            }
-            return null; // 之后的所有数据都不会被选中
-        }
-        if (x > blockRx) {
-            continue;
-        }
-        if (block.path.length > 1) {
-            for (let j = 0; j < block.path.length - 1; j++) {
-                const startPt = block.path[j];
-                const endPt = block.path[j + 1];
-                // 坐标调零
-                const lx = (startPt[0] - zoom.offset);
-                const ly = startPt[1];
-                const rx = Math.max((endPt[0] - zoom.offset), lx + minHitWidth);
-                const ry = endPt[1];
-                const h = block.size;
-                if (x < lx) {
-                    const snapBlock = searchBlockDataWithLinearSnap(blocks, absoluteX, y, minHitWidth, snapHitWidth);
-                    if (snapBlock !== null) {
-                        return snapBlock;
-                    }
-                    return null; // 之后的所有数据都不会被选中
-                }
-                if (y > ly + h) {
-                    break; // 当前block中的数据都不会被选中
-                }
-                if (isPointInExtrudedSegment(x, y, lx, ly, rx, ry, h)) {
-                    return block;
-                }
-            }
-        }
-    }
-    const snapBlock = searchBlockDataWithLinearSnap(blocks, absoluteX, y, minHitWidth, snapHitWidth);
-    if (snapBlock !== null) {
-        return snapBlock;
-    }
-    return null; // 没有找到匹配的数据块
+    return searchBlockDataDynamically(blocks, absoluteX, y, minHitWidth, snapHitWidth);
 };
-
 // 射线法计算点是否在四边形（矩形/平行四边形）范围内
 const isPointInExtrudedSegment = (px: number, py: number, sx1: number, sy1: number, sx2: number, sy2: number, h: number): boolean => {
     const p0 = [sx1, sy1];
@@ -500,11 +323,9 @@ export const buildBlockViewPath = (blockView: SetMemoryBlocksDataPayload['data']
         currentTotalSize -= currentBlocks[i].size;
         addPathPoint(currentBlocks[i], blockView.maxTimestamp, currentTotalSize);
     }
-    (blockView as IndexedRenderData).blockHitIndex = buildBlockHitIndex(blockView);
     blockViewPathCache.set(blockView, blockView);
     tracePerf('buildBlockViewPath', startedAt, {
         blocks: blockView.blocks.length,
-        hitEntries: (blockView as IndexedRenderData).blockHitIndex?.entries.length ?? 0,
     });
     return blockView;
 };
@@ -542,159 +363,99 @@ export const getMemoryStateRenderData = (data: Segment[]): Segment[] => {
             currentRowSum = segment.size + X_GAP * 2;
         }
     }
-    stateHitIndexCache.set(stateRenderData, buildStateHitIndex(stateRenderData));
     stateRenderDataCache.set(data, stateRenderData);
     tracePerf('getMemoryStateRenderData', startedAt, {
         segments: stateRenderData.length,
-        rows: stateHitIndexCache.get(stateRenderData)?.rows.length ?? 0,
     });
     return stateRenderData;
 };
 
-const buildStateHitIndex = (data: Segment[]): StateHitIndex => {
-    const rows: StateHitRow[] = [];
-    const rowIndexes = new Map<number, StateHitRow>();
-    const blockOrders: number[][] = [];
-    data.forEach((segment, segmentIndex) => {
-        let row = rowIndexes.get(segment.offsetY);
-        if (row === undefined) {
-            row = {
-                yStart: segment.offsetY,
-                yEnd: segment.offsetY + LINE_HEIGHT,
-                segments: [],
-            };
-            rowIndexes.set(segment.offsetY, row);
-            rows.push(row);
-        }
-        row.segments.push(segmentIndex);
-        blockOrders[segmentIndex] = segment.blocks
-            .map((block, blockIndex) => ({ block, blockIndex }))
-            .sort((left, right) => left.block.offset - right.block.offset)
-            .map(item => item.blockIndex);
-    });
-    rows.sort((left, right) => left.yStart - right.yStart);
-    rows.forEach(row => row.segments.sort((left, right) => data[left].offsetX - data[right].offsetX));
-    return { rows, blockOrders };
-};
+const isSameStateRow = (segment: Segment, y: number): boolean => y >= segment.offsetY && y <= segment.offsetY + LINE_HEIGHT;
 
-const findStateHitRow = (rows: StateHitRow[], y: number): StateHitRow | null => {
-    let left = 0;
-    let right = rows.length - 1;
-    while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        const row = rows[mid];
-        if (y < row.yStart) {
-            right = mid - 1;
-        } else if (y > row.yEnd) {
-            left = mid + 1;
-        } else {
-            return row;
-        }
-    }
-    return null;
-};
-
-const findStateSegmentIndex = (data: Segment[], row: StateHitRow, x: number, minHitWidth: number): number => {
-    const upperIndex = upperBound(row.segments, x, segmentIndex => data[segmentIndex].offsetX) - 1;
-    for (let i = upperIndex; i >= 0; i--) {
-        const segment = data[row.segments[i]];
-        const segmentRight = Math.max(segment.offsetX + segment.size, segment.offsetX + minHitWidth);
-        if (x > segmentRight) {
-            break;
-        }
-        if (x >= segment.offsetX) {
-            return row.segments[i];
-        }
-    }
-    return -1;
-};
-
-const findStateSegmentIndexSnap = (data: Segment[], row: StateHitRow, x: number, minHitWidth: number, snapHitWidth: number): number => {
-    if (snapHitWidth <= minHitWidth) {
-        return -1;
-    }
-    const candidates: Array<{ segmentIndex: number; distance: number }> = [];
-    for (const segmentIndex of row.segments) {
-        const segment = data[segmentIndex];
-        const visibleStart = segment.offsetX;
-        const visibleEnd = Math.max(segment.offsetX + segment.size, segment.offsetX + minHitWidth);
-        const visibleWidth = visibleEnd - visibleStart;
-        if (visibleWidth >= snapHitWidth || (x >= visibleStart && x <= visibleEnd)) {
-            continue;
-        }
-        const extraWidth = (snapHitWidth - visibleWidth) / 2;
-        if (x < visibleStart - extraWidth || x > visibleEnd + extraWidth) {
-            continue;
-        }
-        candidates.push({
-            segmentIndex,
-            distance: Math.min(Math.abs(x - visibleStart), Math.abs(x - visibleEnd)),
-        });
-    }
-    if (candidates.length !== 1) {
-        return -1;
-    }
-    return candidates[0].segmentIndex;
-};
-
-const findStateBlock = (segment: Segment, blockOrder: number[] | undefined, x: number, minHitWidth: number): StateBlock | null => {
-    const localX = x - segment.offsetX;
-    const orderedBlockIndexes = blockOrder ?? segment.blocks.map((_block, index) => index);
-    const upperIndex = upperBound(orderedBlockIndexes, localX, blockIndex => segment.blocks[blockIndex].offset) - 1;
-    for (let i = upperIndex; i >= 0; i--) {
-        const block = segment.blocks[orderedBlockIndexes[i]];
-        const blockRight = Math.max(block.offset + block.size, block.offset + minHitWidth);
-        if (localX > blockRight) {
-            break;
-        }
-        if (localX >= block.offset) {
-            return { ...block, colorIndex: orderedBlockIndexes[i] };
-        }
-    }
-    return null;
-};
-
-const findStateBlockSnap = (
-    segment: Segment,
-    blockOrder: number[] | undefined,
-    x: number,
+const getStateBlockSnapCandidate = (
+    block: StateBlock,
+    blockIndex: number,
+    localX: number,
     minHitWidth: number,
     snapHitWidth: number,
-): StateBlock | null => {
-    if (snapHitWidth <= minHitWidth) {
+): { block: StateBlock; distance: number; order: number } | null => {
+    const visibleStart = block.offset;
+    const visibleEnd = Math.max(block.offset + block.size, block.offset + minHitWidth);
+    const visibleWidth = visibleEnd - visibleStart;
+    if (snapHitWidth <= minHitWidth || visibleWidth >= snapHitWidth || (localX >= visibleStart && localX <= visibleEnd)) {
         return null;
     }
-    const localX = x - segment.offsetX;
-    const orderedBlockIndexes = blockOrder ?? segment.blocks.map((_block, index) => index);
-    const candidatesByBlockId = new Map<number, { block: StateBlock; distance: number; order: number }>();
-    for (const blockIndex of orderedBlockIndexes) {
-        const block = segment.blocks[blockIndex];
-        const visibleStart = block.offset;
-        const visibleEnd = Math.max(block.offset + block.size, block.offset + minHitWidth);
-        const visibleWidth = visibleEnd - visibleStart;
-        if (visibleWidth >= snapHitWidth || (localX >= visibleStart && localX <= visibleEnd)) {
+    const extraWidth = (snapHitWidth - visibleWidth) / 2;
+    if (localX < visibleStart - extraWidth || localX > visibleEnd + extraWidth) {
+        return null;
+    }
+    return {
+        block: { ...block, colorIndex: blockIndex },
+        distance: Math.min(Math.abs(localX - visibleStart), Math.abs(localX - visibleEnd)),
+        order: blockIndex,
+    };
+};
+
+const searchStateDataDynamically = (
+    data: Segment[],
+    x: number,
+    y: number,
+    minHitWidth: number,
+    snapHitWidth: number,
+): StateDataHoverResult | null => {
+    const segmentSnapCandidates: Array<{ segment: Segment; distance: number; order: number }> = [];
+    for (let segmentIndex = 0; segmentIndex < data.length; segmentIndex++) {
+        const segment = data[segmentIndex];
+        if (!isSameStateRow(segment, y)) {
+            continue;
+        }
+        const segmentEnd = Math.max(segment.offsetX + segment.size, segment.offsetX + minHitWidth);
+        if (x >= segment.offsetX && x <= segmentEnd) {
+            const localX = x - segment.offsetX;
+            for (let blockIndex = 0; blockIndex < segment.blocks.length; blockIndex++) {
+                const block = segment.blocks[blockIndex];
+                const blockEnd = Math.max(block.offset + block.size, block.offset + minHitWidth);
+                if (localX >= block.offset && localX <= blockEnd) {
+                    const { blocks, ...newSegment } = segment;
+                    return { type: 'block', data: { ...newSegment, blocks: [{ ...block, colorIndex: blockIndex }] } };
+                }
+            }
+            const { blocks, ...newSegment } = segment;
+            return { type: 'segment', data: { ...newSegment, blocks: [] } };
+        }
+        if (snapHitWidth <= minHitWidth) {
+            continue;
+        }
+        const visibleWidth = segmentEnd - segment.offsetX;
+        if (visibleWidth >= snapHitWidth) {
             continue;
         }
         const extraWidth = (snapHitWidth - visibleWidth) / 2;
-        if (localX < visibleStart - extraWidth || localX > visibleEnd + extraWidth) {
-            continue;
-        }
-        const distance = Math.min(Math.abs(localX - visibleStart), Math.abs(localX - visibleEnd));
-        const existing = candidatesByBlockId.get(block.id);
-        if (existing === undefined || distance < existing.distance ||
-            (distance === existing.distance && blockIndex < existing.order)) {
-            candidatesByBlockId.set(block.id, {
-                block: { ...block, colorIndex: blockIndex },
-                distance,
-                order: blockIndex,
+        if (x >= segment.offsetX - extraWidth && x <= segmentEnd + extraWidth) {
+            segmentSnapCandidates.push({
+                segment,
+                distance: Math.min(Math.abs(x - segment.offsetX), Math.abs(x - segmentEnd)),
+                order: segmentIndex,
             });
         }
     }
-    if (candidatesByBlockId.size !== 1) {
+    if (segmentSnapCandidates.length !== 1) {
         return null;
     }
-    const candidate = candidatesByBlockId.values().next().value;
-    return candidate === undefined ? null : candidate.block;
+    const segment = segmentSnapCandidates[0].segment;
+    const localX = x - segment.offsetX;
+    const blockSnapCandidates: Array<{ block: StateBlock; distance: number; order: number }> = [];
+    for (let blockIndex = 0; blockIndex < segment.blocks.length; blockIndex++) {
+        const candidate = getStateBlockSnapCandidate(segment.blocks[blockIndex], blockIndex, localX, minHitWidth, snapHitWidth);
+        if (candidate !== null) {
+            blockSnapCandidates.push(candidate);
+        }
+    }
+    const { blocks, ...newSegment } = segment;
+    if (blockSnapCandidates.length === 1) {
+        return { type: 'block', data: { ...newSegment, blocks: [blockSnapCandidates[0].block] } };
+    }
+    return { type: 'segment', data: { ...newSegment, blocks: [] } };
 };
 
 export const getMemoryStateZoom = (data: Segment[], canvas: OffscreenCanvas | HTMLCanvasElement): RenderOptions['zoom'] => {
@@ -718,52 +479,10 @@ export const searchStateDataByPoint = (
     transform: RenderOptions['transform'],
     zoom: RenderOptions['zoom'],
 ): StateDataHoverResult | null => {
-    // 将鼠标点击位置转换为真实坐标
     const x = (clientX - transform.x) / zoom.x / getTransformScaleX(transform);
     const y = (clientY - transform.y) / zoom.y / getTransformScaleY(transform);
     const scaleX = getTransformScaleX(transform);
     const minHitWidth = zoom.x * scaleX > 0 ? 1 / zoom.x / scaleX : 0;
     const snapHitWidth = zoom.x * scaleX > 0 ? BLOCK_SNAP_TARGET_WIDTH_PX / zoom.x / scaleX : 0;
-    const stateHitIndex = stateHitIndexCache.get(data);
-
-    if (stateHitIndex !== undefined) {
-        const row = findStateHitRow(stateHitIndex.rows, y);
-        if (row === null) {
-            return null;
-        }
-        let segmentIndex = findStateSegmentIndex(data, row, x, minHitWidth);
-        if (segmentIndex < 0) {
-            segmentIndex = findStateSegmentIndexSnap(data, row, x, minHitWidth, snapHitWidth);
-        }
-        if (segmentIndex < 0) {
-            return null;
-        }
-        const segment = data[segmentIndex];
-        const block = findStateBlock(segment, stateHitIndex.blockOrders[segmentIndex], x, minHitWidth) ??
-            findStateBlockSnap(segment, stateHitIndex.blockOrders[segmentIndex], x, minHitWidth, snapHitWidth);
-        const { blocks, ...newSegment } = segment;
-        if (block !== null) {
-            return { type: 'block', data: { ...newSegment, blocks: [block] } };
-        }
-        return { type: 'segment', data: { ...newSegment, blocks: [] } };
-    }
-
-    for (let i = 0; i < data.length; i++) {
-        const segment = data[i];
-        if (x < segment.offsetX || x > Math.max(segment.offsetX + segment.size, segment.offsetX + minHitWidth) || y < segment.offsetY || y > segment.offsetY + LINE_HEIGHT) {
-            continue;
-        }
-        for (let j = 0; j < segment.blocks.length; j++) {
-            const block = segment.blocks[j];
-            const start = segment.offsetX + block.offset;
-            if (x < start || x > Math.max(start + block.size, start + minHitWidth)) {
-                continue;
-            }
-            const { blocks, ...newSegment } = segment;
-            return { type: 'block', data: { ...newSegment, blocks: [{ ...block, colorIndex: j }] } };
-        }
-        const { blocks, ...newSegment } = segment; // 去除blocks属性
-        return { type: 'segment', data: { ...newSegment, blocks: [] } };
-    }
-    return null; // 没有找到匹配的数据块
+    return searchStateDataDynamically(data, x, y, minHitWidth, snapHitWidth);
 };
