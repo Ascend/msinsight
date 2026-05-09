@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import * as React from 'react';
+import { flushSync } from 'react-dom';
 import styled from '@emotion/styled';
 import cls from 'classnames';
 import { isEmpty } from 'lodash';
@@ -642,16 +643,25 @@ export const UnitInfo = observer(({ session, unit, laneInfoWidth, hasExpandIcon,
         left: onMouseLeft,
         right: onMouseRight,
     });
+
+    const handleMouseEnter = React.useCallback(() => {
+        flushSync(() => {
+            setIsHovered(true);
+        });
+    }, []);
+
+    const handleMouseLeave = React.useCallback(() => {
+        flushSync(() => {
+            setIsHovered(false);
+        });
+    }, []);
+
     return <UnitInfoContainer
         className={`unit-info ${className ?? ''}`}
         unit={unit}
         laneInfoWidth={laneInfoWidth}
-        onMouseOver={(): void => {
-            if (!isHovered) {
-                setIsHovered(true);
-            }
-        }}
-        onMouseLeave={(): void => { setIsHovered(false); }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         onMouseDown={onMouseDown}
         onMouseUp={onUnitInfoContainerMouseUp}
     >
