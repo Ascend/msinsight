@@ -4,12 +4,12 @@
   <p>🚀 <b>昇腾 AI 全流程可视化调优利器</b></p>
   
   [![Ask DeepWiki](https://badgen.net/badge/Ask/DeepWiki/blue)](https://deepwiki.com/qianxiaoxixixi/MsInsightForEveryOne/ ) [![Ask ZRead](https://badgen.net/badge/Ask/ZRead/orange)](https://zread.ai/qianxiaoxixixi/MsInsightForEveryOne) [![doc](https://badgen.net/badge/doc/readthedocs/green)](https://msinsight.readthedocs.io/zh-cn/latest/)
-  [![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](https://raw.gitcode.com/Ascend/msinsight/files/master/License) [![Version](https://badgen.net/badge/Version/8.3.0/green)](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_8.3.0) [![Ascend](https://img.shields.io/badge/Hardware-Ascend-orange.svg)](https://www.hiascend.com/)
+  [![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](https://raw.gitcode.com/Ascend/msinsight/files/master/License) [![Version](https://badgen.net/badge/Version/26.0.0/green)](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_26.0.0.B120_0012) [![Ascend](https://img.shields.io/badge/Hardware-Ascend-orange.svg)](https://www.hiascend.com/)
 </div>
 
 ## 📢 最新动态
 
-- **[2026.2.04]** 🎉 **MindStudio Insight 26.0.0-alpha.1版本上线！** 聚焦**hostbound**问题定位跟**RL**性能分析优化，开启昇腾 AI 调优新体验。
+- **[2026.4.29]** 🎉 **MindStudio Insight 26.0.0 版本上线！** 聚焦**hostbound**问题定位跟**RL**性能分析优化,snapshot内存大数据分析，开启昇腾 AI 调优新体验。
 
 ## 📌 简介
 
@@ -25,7 +25,9 @@
 
 | 发布版本 | 发布时间        | 发布Tag       | 兼容性说明    |
 | ------- | --------------- | ------------- | ------------- |
-| 26.0.0-alpha.1 | 2026/02/04  | tag_MindStudio_26.0.0-alpha.1 | 兼容昇腾CANN 8.5.0及以前版本。请参考[CANN安装指南](https://www.hiascend.com/cann)获取CANN安装包。 |
+| 26.0.0 | 2026/04/29  | tag_MindStudio_26.0.0.B120_0012 | 兼容昇腾CANN 9.0.0及以前版本。请参考[CANN快速安装](https://www.hiascend.com/cann/download?version=683&filter=)获取CANN安装包。 |
+| 26.0.0-alpha.1 | 2026/02/04  | tag_MindStudio_26.0.0-alpha.1 | 兼容昇腾CANN 8.5.0及以前版本。请参考[CANN快速安装](https://www.hiascend.com/cann/download)获取CANN安装包。 |
+| 26.0.0-beta.1 | 2026/04/08  | tag_MindStudio_26.0.T2.B100_001 | 兼容昇腾CANN 8.5.0及以前版本。请参考[CANN快速安装](https://www.hiascend.com/cann/download)获取CANN安装包。 |
 
 ## 🛠️ 安装
 
