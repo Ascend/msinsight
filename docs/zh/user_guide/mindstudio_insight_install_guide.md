@@ -66,7 +66,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 
 ### 详细软件包清单
 
-如需历史版本或其他版本，单击获取[软件包](https://gitcode.host/Ascend/msinsight/releases)，确认版本信息后获取如[**表 1**  软件包清单](#软件包清单)所示软件包。
+单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases)，确认版本信息后获取如[**表 1**  软件包清单](#软件包清单)所示软件包。
 
 **表 1**  软件包清单<a id="软件包清单"></a>
 
@@ -81,30 +81,31 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 
 为了防止软件包在传递过程或存储期间被恶意篡改，下载软件包时需下载对应软件包的.sha256文件用于完整性验证。
 
-请单击[数字签名文件](https://gitcode.host/Ascend/msinsight/releases)获取对应软件包的.sha256文件，对下载的软件包进行完整性校验。如果校验失败，请不要使用该软件包，访问支持与服务在论坛求助或提交技术工单。
+单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases)获取对应软件包的哈希校验文件（.sha256），并对[下载的软件包](#软件包下载)进行完整性校验。如果校验失败，请不要使用该软件包，需要支持与服务请在论坛求助或提交技术工单。
+
 具体校验方法如下：
 
-1. 在本地计算软件包的sha256值
+1. 在本地获取软件包的sha256校验码
 
-    Windows系统,使用如下命令获取对应软件包的sha256值
+    Windows系统，使用如下命令获取对应软件包的sha256校验码
 
     ```powershell
     certutil -hashfile 软件包名 SHA256
     ```
 
-    MacOS系统,使用如下命令获取对应软件包的sha256值
+    MacOS系统，使用如下命令获取对应软件包的sha256校验码
 
     ```shell
     shasum -a 256 软件包名
     ```
 
-    Linux系统,使用如下命令获取对应软件包的sha256值
+    Linux系统，使用如下命令获取对应软件包的sha256检验码
 
     ```bash
     sha256sum 软件包名
     ```
 
-2. 将获取到的值和官方提供的.sha256文件中的值（不区分大小写）进行比较，如果一致，则说明软件包没有被篡改。
+2. 打开查看对应哈希校验文件中的校验码和获取到的校验码（不区分大小写）进行比较，如果一致，则说明软件包通过完整性校验。
 
 <br>
 
