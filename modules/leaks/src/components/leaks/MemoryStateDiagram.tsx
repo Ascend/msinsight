@@ -257,7 +257,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         </div>
         <ProgressLine currentCount={dataSource.length} total={dataTotal} />
         <ResizeTable className="table-slice-list" ref={tableRef} virtual scroll={{ y: 760 }} dataSource={dataSource} rowKey={(row: EvenItem & { index: number }): string => `${row.id}_${row.index}`} columns={columns} showHeader={false}
-            resetScroll={false} loading={dataSource.length < 1} rowClassName={(row: any): string => {
+            resetScroll={false} loading={dataSource.length < 1} allowCopy={false} rowClassName={(row: any): string => {
                 if (currentSelectRow === row.index) {
                     return 'click-select';
                 }

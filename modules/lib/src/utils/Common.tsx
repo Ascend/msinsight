@@ -16,6 +16,8 @@
  * -------------------------------------------------------------------------
  */
 import * as React from 'react';
+import { createRoot } from 'react-dom/client';
+import { flushSync } from 'react-dom';
 import styled from '@emotion/styled';
 import Index from '../components/BaseContainer';
 import { MIDescriptions, MIDescriptionsItem } from '../components/MIDescriptions';
@@ -756,13 +758,41 @@ const getTableData = (columns: any[], dataSource: any[]): TableHeaderAndData['da
     return data;
 };
 
+const getTextFromReactElement = (element: React.ReactElement): string => {
+    const container = document.createElement('div');
+    container.style.display = 'none';
+    document.body.appendChild(container);
+    
+    let root: ReturnType<typeof createRoot> | null = null;
+    try {
+        root = createRoot(container);
+        flushSync(() => {
+            root?.render(element);
+        });
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+        const textParts: string[] = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const text = node.textContent?.trim();
+            if (text) {
+                textParts.push(text);
+            }
+        }
+        return textParts.join(' ');
+    } finally {
+        root?.unmount();
+        container.remove();
+    }
+};
+
 const getColData = (obj: ObjectKeyString, data: ObjectKeyString, col: any): void => {
     const dataKey = col.dataIndex ?? col.key;
     if (col.render === undefined || col.render.name === 'useTextColor') {
         obj[dataKey] = data[dataKey];
     } else {
         const itemData = col.render(data[dataKey], data, 0);
-        if (typeof itemData !== 'object') {
+        if (React.isValidElement(itemData)) {
+            obj[dataKey] = getTextFromReactElement(itemData);
+        } else if (typeof itemData !== 'object') {
             obj[dataKey] = itemData;
         } else {
             const { content = undefined, children = [] } = { ...itemData, ...(itemData.props ?? {}) };
