@@ -153,3 +153,20 @@ endif()
 if (${_PROJECT_TYPE} MATCHES "fuzz")
     add_subdirectory(fuzz)
 endif ()
+
+# Split debug info from insight_test.exe in Debug build on Windows to avoid
+# PE loader failure caused by excessively large executable (>1.9GB).
+if (CMAKE_BUILD_TYPE MATCHES "Debug" AND CMAKE_SYSTEM_NAME MATCHES "Windows")
+    add_custom_command(TARGET insight_test POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:insight_test> $<TARGET_FILE:insight_test>.debug
+        COMMAND ${CMAKE_STRIP} --strip-debug $<TARGET_FILE:insight_test>
+        COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=$<TARGET_FILE:insight_test>.debug $<TARGET_FILE:insight_test>
+        COMMENT "Splitting debug info from insight_test.exe"
+    )
+    add_custom_command(TARGET insight_performance POST_BUILD
+        COMMAND ${CMAKE_OBJCOPY} --only-keep-debug $<TARGET_FILE:insight_performance> $<TARGET_FILE:insight_performance>.debug
+        COMMAND ${CMAKE_STRIP} --strip-debug $<TARGET_FILE:insight_performance>
+        COMMAND ${CMAKE_OBJCOPY} --add-gnu-debuglink=$<TARGET_FILE:insight_performance>.debug $<TARGET_FILE:insight_performance>
+        COMMENT "Splitting debug info from insight_performance.exe"
+    )
+endif()
