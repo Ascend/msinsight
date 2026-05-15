@@ -5,6 +5,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+  jobs:
+    pre_build:
+      - python docs/scripts/pre_build.py
 
 # 配置使用 sphinx 构建
 sphinx:

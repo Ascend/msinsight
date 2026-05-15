@@ -171,6 +171,19 @@ img {
         display: none;
     }
 }
+
+.text-center {
+    text-align: center !important;
+}
+
+.text-left {
+    text-align: left !important;
+}
+
+td>p {
+    line-height: 24px !important;
+}
+
 /* 折叠内容样式 */
 details {
     margin: 12px 0 !important;
