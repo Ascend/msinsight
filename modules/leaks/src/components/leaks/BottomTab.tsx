@@ -39,13 +39,18 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
     const [containerHeight, setContainerHeight] = useState(HEIGHT_DEFAULT);
     const [activeTab, setActiveTab] = useState('sliceDetail');
     const theme: Theme = useTheme();
+    const autoExpandedKeysRef = useRef(new Set<string>());
+    const detailContextKey = `${session.module}_${session.deviceId}_${session.eventType}`;
 
     useEffect(() => {
         if (session.leaksWorkerInfo.clickItem !== null || session.stateWorkerInfo.clickItem !== null || session.clickEventItem !== null) {
-            setIsExpand(true);
-            setActiveTab('sliceDetail');
+            if (!autoExpandedKeysRef.current.has(detailContextKey)) {
+                autoExpandedKeysRef.current.add(detailContextKey);
+                setIsExpand(true);
+                setActiveTab('sliceDetail');
+            }
         }
-    }, [session.leaksWorkerInfo.clickItem, session.stateWorkerInfo.clickItem, session.clickEventItem]);
+    }, [detailContextKey, session.leaksWorkerInfo.clickItem, session.stateWorkerInfo.clickItem, session.clickEventItem]);
 
     const changeHeight = (_: number, moveY: number): void => {
         if (!isExpand) {
@@ -67,7 +72,7 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
         {
             label: t('sliceDetail'),
             key: 'sliceDetail',
-            children: <TabContentWrapper height={containerHeight}><SliceDetail session={session} /></TabContentWrapper>,
+            children: <TabContentWrapper height={containerHeight}><SliceDetail session={session} detailContextKey={detailContextKey} /></TabContentWrapper>,
         },
         {
             label: t('systemView'),
@@ -541,6 +546,11 @@ interface SliceDetailTab {
     };
 }
 
+interface SliceDetailState {
+    tabs: SliceDetailTab[];
+    activeKey: string;
+}
+
 const EventDetailSwitcher = ({
     events,
     renderContent,
@@ -574,7 +584,7 @@ const EventDetailSwitcher = ({
     </EventTabsWrapper>;
 };
 
-const SliceDetail = observer(({ session }: { session: Session }): JSX.Element => {
+const SliceDetail = observer(({ session, detailContextKey }: { session: Session; detailContextKey: string }): JSX.Element => {
     const { t } = useTranslation('leaks', { keyPrefix: 'slice' });
     const [noData, setNoData] = useState(false);
     const [detailTabs, setDetailTabs] = useState<SliceDetailTab[]>([]);
@@ -583,6 +593,11 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
     const [dragOverDetailTabKey, setDragOverDetailTabKey] = useState('');
     const detailTabLabelRefs = useRef(new Map<string, HTMLSpanElement>());
     const detailTabPositionsRef = useRef(new Map<string, DOMRect>());
+    const detailStateCacheRef = useRef(new Map<string, SliceDetailState>());
+    const detailContextKeyRef = useRef(detailContextKey);
+    const detailTabsRef = useRef<SliceDetailTab[]>([]);
+    const activeDetailTabKeyRef = useRef('');
+    const deviceIdRef = useRef(session.deviceId);
     const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; key: string }>({
         visible: false,
         x: 0,
@@ -634,6 +649,22 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
     const getSnapshotDetailData = async (type: string, id: number, deviceId: string): Promise<SnapshotDetailData> => {
         return getSnapshotDetail({ type, id, deviceId });
     };
+
+    useEffect(() => {
+        detailTabsRef.current = detailTabs;
+        detailStateCacheRef.current.set(detailContextKeyRef.current, {
+            tabs: detailTabs,
+            activeKey: activeDetailTabKeyRef.current,
+        });
+    }, [detailTabs]);
+
+    useEffect(() => {
+        activeDetailTabKeyRef.current = activeDetailTabKey;
+        detailStateCacheRef.current.set(detailContextKeyRef.current, {
+            tabs: detailTabsRef.current,
+            activeKey: activeDetailTabKey,
+        });
+    }, [activeDetailTabKey]);
 
     const upsertDetailTab = (tab: SliceDetailTab, options?: { activate?: boolean }): void => {
         setDetailTabs(tabs => {
@@ -718,6 +749,38 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         setActiveDetailTabKey(targetKey);
         applyTabSelection(detailTabs.find(item => item.key === targetKey));
     };
+
+    useLayoutEffect(() => {
+        const previousContextKey = detailContextKeyRef.current;
+        if (previousContextKey === detailContextKey) {
+            return;
+        }
+        detailStateCacheRef.current.set(previousContextKey, {
+            tabs: detailTabsRef.current,
+            activeKey: activeDetailTabKeyRef.current,
+        });
+
+        const cachedState = detailStateCacheRef.current.get(detailContextKey) ?? { tabs: [], activeKey: '' };
+        const nextActiveKey = cachedState.tabs.some(tab => tab.key === cachedState.activeKey)
+            ? cachedState.activeKey
+            : (cachedState.tabs[0]?.key ?? '');
+        detailContextKeyRef.current = detailContextKey;
+        setNoData(false);
+        setContextMenu(menu => ({ ...menu, visible: false }));
+        setDetailTabs(cachedState.tabs);
+        setActiveDetailTabKey(nextActiveKey);
+        applyTabSelection(cachedState.tabs.find(tab => tab.key === nextActiveKey));
+    }, [detailContextKey]);
+
+    useEffect(() => {
+        if (session.loadingBlocks || session.loadingState) {
+            return;
+        }
+        const activeTab = detailTabs.find(tab => tab.key === activeDetailTabKey);
+        if (activeTab !== undefined) {
+            applyTabSelection(activeTab);
+        }
+    }, [detailContextKey, session.loadingBlocks, session.loadingState]);
 
     const getDetailTabElement = (tabKey: string): HTMLElement | null => {
         return (detailTabLabelRefs.current.get(tabKey)?.closest('.ant-tabs-tab') as HTMLElement | null) ?? null;
@@ -1155,6 +1218,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         }
         let cancelled = false;
         const requestDeviceId = session.deviceId;
+        const requestDetailContextKey = detailContextKeyRef.current;
         const tabKey = `snapshot_block_${block.id}`;
         openPendingDetailTab({
             key: tabKey,
@@ -1166,7 +1230,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             selection: { type: 'block', block },
         });
         getSnapshotDetailData('block', block.id, session.deviceId).then(result => {
-            if (cancelled || session.deviceId !== requestDeviceId) {
+            if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
                 return;
             }
             upsertDetailTab({
@@ -1180,7 +1244,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
                 selection: { type: 'block', block },
             });
         }).catch(() => {
-            if (cancelled || session.deviceId !== requestDeviceId) {
+            if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
                 return;
             }
             upsertDetailTab({
@@ -1213,6 +1277,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         }
         let cancelled = false;
         const requestDeviceId = session.deviceId;
+        const requestDetailContextKey = detailContextKeyRef.current;
         const detailType = type === 'segment' ? 'event' : 'block';
         const tabKey = `snapshot_${detailType}_${id}`;
         openPendingDetailTab({
@@ -1225,7 +1290,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             selection: { type: 'state', state: stateSelection },
         });
         getSnapshotDetailData(detailType, id, session.deviceId).then(result => {
-            if (cancelled || session.deviceId !== requestDeviceId) {
+            if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
                 return;
             }
             upsertDetailTab({
@@ -1239,7 +1304,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
                 selection: { type: 'state', state: stateSelection },
             });
         }).catch(() => {
-            if (cancelled || session.deviceId !== requestDeviceId) {
+            if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
                 return;
             }
             upsertDetailTab({
@@ -1266,6 +1331,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         const event = { ...session.clickEventItem };
         let cancelled = false;
         const requestDeviceId = session.deviceId;
+        const requestDetailContextKey = detailContextKeyRef.current;
         const tabKey = `snapshot_event_${event.id}`;
         openPendingDetailTab({
             key: tabKey,
@@ -1277,7 +1343,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             selection: { type: 'event', event },
         });
         getSnapshotDetailData('event', event.id, session.deviceId).then(result => {
-            if (cancelled || session.deviceId !== requestDeviceId) {
+            if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
                 return;
             }
             upsertDetailTab({
@@ -1291,7 +1357,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
                 selection: { type: 'event', event },
             });
         }).catch(() => {
-            if (cancelled || session.deviceId !== requestDeviceId) {
+            if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
                 return;
             }
             upsertDetailTab({
@@ -1311,6 +1377,10 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
     }, [session.clickEventItem]);
 
     useEffect(() => {
+        if (deviceIdRef.current !== session.deviceId) {
+            detailStateCacheRef.current.clear();
+            deviceIdRef.current = session.deviceId;
+        }
         setNoData(false);
         setDetailTabs([]);
         setActiveDetailTabKey('');
