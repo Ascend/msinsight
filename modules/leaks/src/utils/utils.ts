@@ -79,3 +79,17 @@ export const formatBytes = (bytes: number): string => {
     const value = (bytes / thresholds[unitIndex]).toFixed(3);
     return `${value} ${units[unitIndex]}`;
 };
+
+export const addAddressOffset = (address: string, offset: number): string => {
+    try {
+        const value = BigInt(address) + BigInt(Math.trunc(offset));
+        if (/^0x/i.test(address)) {
+            return `0x${value.toString(16)}`;
+        }
+        return value.toString();
+    } catch (_error) {
+        return address;
+    }
+};
+
+export const convertBytesToMBytes = (bytes: number): number => bytes / 1024 / 1024;

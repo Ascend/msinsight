@@ -23,7 +23,7 @@ import React, { useEffect, useState } from 'react';
 import { type Theme, useTheme } from '@emotion/react';
 import { runInAction } from 'mobx';
 import styled from '@emotion/styled/macro';
-import { formatBytes, formatTime } from '@/utils/utils';
+import { addAddressOffset, formatBytes, formatTime } from '@/utils/utils';
 import { Spin } from '@insight/lib';
 
 interface AxisTick {
@@ -273,6 +273,9 @@ export const StateHoverItem = observer(({ session, point }: { session: Session; 
     const top = point.y + BOTTOM_MARGIN > viewport.height ? point.y - BOTTOM_MARGIN : point.y;
     const block = hoverItem?.data.blocks[0];
     const size = hoverItem?.type === 'block' && block !== undefined ? block.size : hoverItem?.data.size;
+    const address = hoverItem?.type === 'block' && block !== undefined
+        ? addAddressOffset(hoverItem.data.address, block.offset)
+        : hoverItem?.data.address;
 
     return <>
         {
@@ -280,7 +283,7 @@ export const StateHoverItem = observer(({ session, point }: { session: Session; 
                 ? <></>
                 : <HoverItemContainer style={{ left, top }}>
                     <div>Type: {hoverItem.type}</div>
-                    <div>Addr: {hoverItem.data.address}</div>
+                    <div>Addr: {address}</div>
                     <div>Size: {formatBytes(size ?? 0)}</div>
                     <div>Stream: {hoverItem.data.stream}</div>
                     <div>Event: {hoverItem.data.allocOrMapEventId}</div>
