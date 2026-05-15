@@ -590,6 +590,24 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
         key: '',
     });
 
+    const getDetailTabTitle = (tab: SliceDetailTab): string => {
+        if (tab.titleId !== undefined) {
+            const labelKey = tab.kind === 'snapshotEvent' || tab.kind === 'stateEvent' ? 'event' : 'block';
+            return `${t(labelKey)} #${tab.titleId}`;
+        }
+        if (tab.kind === 'stateEvent') {
+            return t('exceptionEvent');
+        }
+        if (tab.kind === 'stateBlock') {
+            return t('exceptionBlock');
+        }
+        return tab.label;
+    };
+
+    const getDetailTabLabel = (tab: SliceDetailTab): string => {
+        return tab.titleId !== undefined ? `#${tab.titleId}` : getDetailTabTitle(tab);
+    };
+
     const cloneBlock = (block: Block | null | undefined): Block | null => {
         if (block === null || block === undefined) {
             return null;
@@ -1311,7 +1329,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             draggable
             data-dragging={dragDetailTabKey === tab.key}
             data-drag-over={dragOverDetailTabKey === tab.key}
-            title={tab.label}
+            title={getDetailTabTitle(tab)}
             onDragStart={(ev): void => dragDetailTabStart(ev, tab.key)}
             onDragEnter={(ev): void => dragDetailTabEnter(ev, tab.key)}
             onDragOver={dragDetailTabOver}
@@ -1323,7 +1341,7 @@ const SliceDetail = observer(({ session }: { session: Session }): JSX.Element =>
             onContextMenu={(ev): void => {
                 ev.preventDefault();
                 setContextMenu({ visible: true, x: ev.clientX, y: ev.clientY, key: tab.key });
-            }}>{tab.titleId !== undefined ? `#${tab.titleId}` : tab.label}</DetailTabLabel>,
+            }}>{getDetailTabLabel(tab)}</DetailTabLabel>,
         children: tab.key === activeDetailTabKey ? renderDetailContent(tab) : null,
     }));
 
