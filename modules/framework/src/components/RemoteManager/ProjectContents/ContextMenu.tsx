@@ -216,7 +216,7 @@ const Menu = ({ session }: IProps): JSX.Element => {
         event.preventDefault();
         event.stopPropagation();
         const targetElement = event.target as HTMLElement;
-        if (targetElement?.matches('.can-right-click')) {
+        if (targetElement?.closest('.can-right-click')) {
             setMousePosition({ x: event.clientX, y: event.clientY });
             setMenuPosition({ x: event.clientX, y: event.clientY });
             openMenu(session);
