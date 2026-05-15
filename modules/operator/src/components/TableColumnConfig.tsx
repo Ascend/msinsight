@@ -19,7 +19,7 @@ import React from 'react';
 import type { ColumnsType } from 'antd/es/table';
 import { useTranslation } from 'react-i18next';
 import { fetchColumnFilterProps } from '@insight/lib/resize';
-import { useTheme } from '@emotion/react';
+import { themeInstance } from '@insight/lib/theme';
 
 export const enum OperatorGroup {
     OPERATOR = 'Operator',
@@ -41,7 +41,7 @@ export const useCompareSourceColumn = (): ColumnsType<any> => {
 };
 
 const useTextColor = (value: string | number): JSX.Element => {
-    const theme = useTheme();
+    const theme = themeInstance.themeObject;
     return <div style={{ color: Number(value) >= 0 ? theme.successColor : theme.dangerColor }}>{value}</div>;
 };
 
