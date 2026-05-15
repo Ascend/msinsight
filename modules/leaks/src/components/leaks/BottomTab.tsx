@@ -29,6 +29,7 @@ import { getSnapshotDetail, type EvenItem } from '@/utils/RequestUtils';
 import { runInAction } from 'mobx';
 import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
+import { addAddressOffset, convertBytesToMBytes } from '@/utils/utils';
 
 const MARGIN = 38;
 const HEIGHT_DEFAULT = 300;
@@ -648,6 +649,21 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
 
     const getSnapshotDetailData = async (type: string, id: number, deviceId: string): Promise<SnapshotDetailData> => {
         return getSnapshotDetail({ type, id, deviceId });
+    };
+
+    const normalizeStateBlockDetailData = (detailData: SnapshotDetailData, stateSelection: StateDataHoverResult): SnapshotDetailData => {
+        if (stateSelection.type !== 'block') {
+            return detailData;
+        }
+        const block = stateSelection.data.blocks[0];
+        if (block === undefined) {
+            return detailData;
+        }
+        return {
+            ...detailData,
+            Address: addAddressOffset(stateSelection.data.address, block.offset),
+            'Size(MBytes)': convertBytesToMBytes(block.size),
+        };
     };
 
     useEffect(() => {
@@ -1299,7 +1315,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
                 titleId: id,
                 kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
                 loading: false,
-                detailData: result,
+                detailData: normalizeStateBlockDetailData(result, stateSelection),
                 state: stateSelection,
                 selection: { type: 'state', state: stateSelection },
             });
@@ -1313,7 +1329,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
                 titleId: id,
                 kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
                 loading: false,
-                detailData: {},
+                detailData: normalizeStateBlockDetailData({}, stateSelection),
                 state: stateSelection,
                 selection: { type: 'state', state: stateSelection },
             });
