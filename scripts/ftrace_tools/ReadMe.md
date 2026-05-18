@@ -101,7 +101,7 @@ ftrace_record_start(cpu_mask=None, bf_size=DEFAULT_TRACE_BUFFER_SIZE, event_cfg:
 | 参数 | 说明 | 默认值 |
 |-----|-----|-----|
 | `cpu_mask` | cpu_mask 列表，指定采集的 CPU 核心。支持 `List[int]` 或字符串（如 `"0-3,8"`）| None，采集 **全部** CPU 核心 |
-| `bf_size` | trace-cmd 使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=4096` | `2820` |
+| `bf_size` | trace-cmd 使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=4096` |
 |`event_cfg`| 事件采集配置（`TraceEventConfig`），用于控制采集事件类型：`sched`（调度）、`irq`（中断）。`1`表示打开，`0`表示关闭。|`TraceEventConfig(sched=1, irq=1)`|
 
 **注意：推荐CPU采集核心数不超过64，采集时长30s左右，否则采集数据量可能过大，解析落盘耗时较长，需耐心等待。**
