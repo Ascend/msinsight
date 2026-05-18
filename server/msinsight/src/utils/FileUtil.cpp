@@ -29,20 +29,15 @@ namespace {
 // Windows long path support: paths up to 4096 characters with \\?\ prefix
 constexpr size_t WINDOWS_LONG_PATH_MAX = 4096;
 
-const std::unordered_map<std::string, std::string> INVALID_CHAR = {
-    {"\n", "\\n"}, {"\f", "\\f"}, {"\r", "\\r"}, {"\b", "\\b"},
-    {"\t", "\\t"}, {"\v", "\\v"}, {"\x7F", "\\x7F"}, {"\u007F", "\\u007F"},
-    {"\"", "\\\""}, {"\'", "\\\'"}, {"%", "\\%"}, {">", "\\>"}, {"<", "\\<"},
-    {"|", "\\|"}, {"&", "\\&"}, {"$", "\\$"}, {";", "\\;"}, {"`", "\\`"}
-};
+const std::unordered_map<std::string, std::string> INVALID_CHAR = {{"\n", "\\n"}, {"\f", "\\f"}, {"\r", "\\r"},
+    {"\b", "\\b"}, {"\t", "\\t"}, {"\v", "\\v"}, {"\x7F", "\\x7F"}, {"\u007F", "\\u007F"}, {"\"", "\\\""},
+    {"\'", "\\\'"}, {"%", "\\%"}, {">", "\\>"}, {"<", "\\<"}, {"|", "\\|"}, {"&", "\\&"}, {"$", "\\$"}, {";", "\\;"},
+    {"`", "\\`"}};
 #else
-const std::unordered_map<std::string, std::string> INVALID_CHAR = {
-    {"\n", "\\n"}, {"\f", "\\f"}, {"\r", "\\r"}, {"\b", "\\b"},
-    {"\t", "\\t"}, {"\v", "\\v"}, {"\x7F", "\\x7F"}, {"\u007F", "\\u007F"},
-    {"\"", "\\\""}, {"\'", "\\\'"}, {"%", "\\%"}, {">", "\\>"}, {"<", "\\<"},
-    {"|", "\\|"}, {"&", "\\&"}, {"$", "\\$"}, {";", "\\;"}, {"`", "\\`"},
-    {"\\", "\\\\"}
-};
+const std::unordered_map<std::string, std::string> INVALID_CHAR = {{"\n", "\\n"}, {"\f", "\\f"}, {"\r", "\\r"},
+    {"\b", "\\b"}, {"\t", "\\t"}, {"\v", "\\v"}, {"\x7F", "\\x7F"}, {"\u007F", "\\u007F"}, {"\"", "\\\""},
+    {"\'", "\\\'"}, {"%", "\\%"}, {">", "\\>"}, {"<", "\\<"}, {"|", "\\|"}, {"&", "\\&"}, {"$", "\\$"}, {";", "\\;"},
+    {"`", "\\`"}, {"\\", "\\\\"}};
 #endif
 #ifdef _WIN32
 const std::string_view MSVP_SLASH = "";
@@ -54,8 +49,7 @@ const std::string_view MSVP_SLASH = "/";
 bool FileUtil::strictMode = true;
 
 #ifdef _WIN32
-std::string FileUtil::ConvertToLongPath(const std::string &path)
-{
+std::string FileUtil::ConvertToLongPath(const std::string &path) {
     if (path.empty()) {
         return path;
     }
@@ -80,15 +74,13 @@ std::string FileUtil::ConvertToLongPath(const std::string &path)
     return path;
 }
 
-std::wstring FileUtil::ConvertToLongPathW(const std::string &path)
-{
+std::wstring FileUtil::ConvertToLongPathW(const std::string &path) {
     std::string longPath = ConvertToLongPath(path);
     return StringUtil::String2WString(longPath);
 }
 #endif
 
-std::string FileUtil::GetCurrPath()
-{
+std::string FileUtil::GetCurrPath() {
     std::string strCurPath;
 #ifdef _WIN32
     // Use wide character API for long path support
@@ -97,7 +89,7 @@ std::string FileUtil::GetCurrPath()
     if (len > 0 && len < wCurPath.size()) {
         wCurPath[len] = L'\0';
         // Find the last backslash and null terminate after it
-        wchar_t* lastSlash = wcsrchr(wCurPath.data(), L'\\');
+        wchar_t *lastSlash = wcsrchr(wCurPath.data(), L'\\');
         if (lastSlash != nullptr) {
             lastSlash[1] = L'\0';
         }
@@ -122,8 +114,7 @@ std::string FileUtil::GetCurrPath()
     return strCurPath;
 }
 
-bool FileUtil::IsAbsolutePath(const std::string &path)
-{
+bool FileUtil::IsAbsolutePath(const std::string &path) {
 #ifdef _WIN32
     if (path.length() < 2) { // 2表示两个字符 d: 小于两个就一定不是绝对路径
         return false;
@@ -141,8 +132,7 @@ bool FileUtil::IsAbsolutePath(const std::string &path)
 }
 
 // 这里需要修改，windows和linux下不一样，另外日志也不太能帮助定义，
-std::string FileUtil::GetAbsPath(const std::string &path)
-{
+std::string FileUtil::GetAbsPath(const std::string &path) {
     if (path.empty()) {
         return "";
     }
@@ -157,8 +147,7 @@ std::string FileUtil::GetAbsPath(const std::string &path)
     return curPath + std::string(MSVP_SLASH) + path;
 }
 
-std::vector<std::string> FileUtil::SplitFilePath(std::string &path)
-{
+std::vector<std::string> FileUtil::SplitFilePath(std::string &path) {
     if (path.empty()) {
         return {};
     }
@@ -169,13 +158,11 @@ std::vector<std::string> FileUtil::SplitFilePath(std::string &path)
 #endif
 }
 
-bool FileUtil::IsSoftLink(const std::string &path)
-{
+bool FileUtil::IsSoftLink(const std::string &path) {
 #ifdef _WIN32
     std::wstring widePath = ConvertToLongPathW(path);
     DWORD attributes = GetFileAttributesW(widePath.c_str());
-    return (attributes != INVALID_FILE_ATTRIBUTES) &&
-           (attributes & FILE_ATTRIBUTE_REPARSE_POINT);
+    return (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_REPARSE_POINT);
 #else
     struct stat fileStat;
     if (lstat(path.c_str(), &fileStat) != 0) {
@@ -186,8 +173,7 @@ bool FileUtil::IsSoftLink(const std::string &path)
 #endif
 }
 
-bool FileUtil::IsRegularFile(const std::string &filePath)
-{
+bool FileUtil::IsRegularFile(const std::string &filePath) {
 #ifdef _WIN32
     std::wstring widePath = ConvertToLongPathW(filePath);
     DWORD fileAttributes = GetFileAttributesW(widePath.c_str());
@@ -204,11 +190,8 @@ bool FileUtil::IsRegularFile(const std::string &filePath)
 #endif
 }
 
-CheckResult FileUtil::CheckPathSecurity(const std::string& path, int mode)
-{
-    auto Enable = [mode]( PathCheckSense sense) {
-        return (mode & sense) == sense;
-    };
+CheckResult FileUtil::CheckPathSecurity(const std::string &path, int mode) {
+    auto Enable = [mode](PathCheckSense sense) { return (mode & sense) == sense; };
     CheckResult result;
     if (!CheckPathComm(path, result)) {
         Server::ServerLog::Error("The file path is insecure, error msg=", result.errMsg);
@@ -233,8 +216,7 @@ CheckResult FileUtil::CheckPathSecurity(const std::string& path, int mode)
     return result;
 }
 
-bool FileUtil::IsFilePathExist(const std::string &filePath)
-{
+bool FileUtil::IsFilePathExist(const std::string &filePath) {
 #ifdef _WIN32
     std::wstring widePath = ConvertToLongPathW(filePath);
     DWORD fileAttributes = GetFileAttributesW(widePath.c_str());
@@ -245,8 +227,7 @@ bool FileUtil::IsFilePathExist(const std::string &filePath)
 #endif
 }
 
-bool FileUtil::CheckPathComm(const std::string &path, CheckResult &result)
-{
+bool FileUtil::CheckPathComm(const std::string &path, CheckResult &result) {
     if (path.empty()) {
         result.Set(false, "The path is empty");
         Dic::Common::SetCommonError(Dic::Common::ErrorCode::FILE_PATH_IS_EMPTY);
@@ -293,12 +274,9 @@ bool FileUtil::CheckPathComm(const std::string &path, CheckResult &result)
     return true;
 }
 
-void FileUtil::SetStrictMode(bool strictModeValue) {
-    strictMode = strictModeValue;
-}
+void FileUtil::SetStrictMode(bool strictModeValue) { strictMode = strictModeValue; }
 
-bool FileUtil::CheckFilePathExist(const std::string& filePath)
-{
+bool FileUtil::CheckFilePathExist(const std::string &filePath) {
     if (access(filePath.c_str(), R_OK) == -1) {
         Server::ServerLog::Error("Check file path exist cannot read file path");
         return false;
@@ -306,20 +284,20 @@ bool FileUtil::CheckFilePathExist(const std::string& filePath)
     return true;
 }
 
-
-bool FileUtil::CheckFilePathLength(const std::string& filePath)
-{
+bool FileUtil::CheckFilePathLength(const std::string &filePath) {
 #ifdef _WIN32
     if (filePath.size() >= WINDOWS_LONG_PATH_MAX) {
         Server::ServerLog::Error("The path length of % exceeds the maximum allowed length of % characters."
-                                 "The file size is % MB", filePath, WINDOWS_LONG_PATH_MAX, filePath.size());
+                                 "The file size is % MB",
+            filePath, WINDOWS_LONG_PATH_MAX, filePath.size());
         Dic::Common::SetCommonError(Dic::Common::ErrorCode::SUB_FILE_PATH_LENGTH_EXCEEDS);
         return false;
     }
 #else
     if (filePath.size() >= PATH_MAX) {
         Server::ServerLog::Error("The path length of % exceeds the maximum allowed length of % characters."
-                                 "The file size is % MB", filePath, PATH_MAX, filePath.size());
+                                 "The file size is % MB",
+            filePath, PATH_MAX, filePath.size());
         Dic::Common::SetCommonError(Dic::Common::ErrorCode::SUB_FILE_PATH_LENGTH_EXCEEDS);
         return false;
     }
@@ -327,8 +305,7 @@ bool FileUtil::CheckFilePathLength(const std::string& filePath)
     return true;
 }
 
-uint32_t FileUtil::GetFilePathLengthLimit()
-{
+uint32_t FileUtil::GetFilePathLengthLimit() {
 #ifdef _WIN32
     return WINDOWS_LONG_PATH_MAX;
 #else
@@ -336,8 +313,7 @@ uint32_t FileUtil::GetFilePathLengthLimit()
 #endif
 }
 
-void FileUtil::CalculateDirSize(const std::string &path, long long int &size, int depth)
-{
+void FileUtil::CalculateDirSize(const std::string &path, long long int &size, int depth) {
     std::vector<std::string> matchedFiles;
     if (!FileUtil::IsFolder(path)) {
         return;
@@ -352,12 +328,12 @@ void FileUtil::CalculateDirSize(const std::string &path, long long int &size, in
         Server::ServerLog::Error("Directory size calculation aborted. Reason: " + error);
         return;
     }
-    for (std::string& folder: folders) {
+    for (std::string &folder : folders) {
         std::string spliceFile = SplicePath(path, folder);
         CalculateDirSize(spliceFile, size, depth + 1);
     }
     std::string gbkPath(path);
-    for (std::string& file: files) {
+    for (std::string &file : files) {
         std::string spliceFile = SplicePath(gbkPath, file);
         if (std::strcmp(DATABASE_FILE_NAME.c_str(), file.c_str()) != 0 &&
             std::strcmp("cluster.db", file.c_str()) != 0) {
@@ -366,8 +342,7 @@ void FileUtil::CalculateDirSize(const std::string &path, long long int &size, in
     }
 }
 
-std::string FileUtil::GetProfilerFileId(const std::string &filePath)
-{
+std::string FileUtil::GetProfilerFileId(const std::string &filePath) {
     std::string fileId = FileUtil::GetFileName(filePath);
     std::string grandparentPath = FileUtil::GetParentPath(FileUtil::GetParentPath(filePath));
     if (fileId.empty() || grandparentPath.empty()) {
@@ -380,10 +355,10 @@ std::string FileUtil::GetProfilerFileId(const std::string &filePath)
     }
     if (std::find(folders.begin(), folders.end(), ASCEND_PROFILER_OUTPUT) != folders.end()) {
         // 如果是ASCEND_PROFILER_OUTPUT，则优先匹配profiler_info_x.json，否则取_ascend_pt
-        for (const auto& file : files) {
+        for (const auto &file : files) {
             if (std::regex_match(file, std::regex(PROFILER_INFO_FILE_REG))) {
                 return file.substr(PROFILER_INFO_FILE_PREFIX.length(),
-                                   file.length() - PROFILER_INFO_FILE_PREFIX.length() - JSON_FILE_SUFFIX.length());
+                    file.length() - PROFILER_INFO_FILE_PREFIX.length() - JSON_FILE_SUFFIX.length());
             }
         }
         fileId = FileUtil::GetFileName(grandparentPath);
@@ -398,8 +373,7 @@ std::string FileUtil::GetProfilerFileId(const std::string &filePath)
     return fileId;
 }
 
-std::string FileUtil::GetRootPath(const std::string& filePath)
-{
+std::string FileUtil::GetRootPath(const std::string &filePath) {
     std::string suffix;
 #ifdef _WIN32
     size_t pos = filePath.find_first_of("\\");
@@ -410,7 +384,7 @@ std::string FileUtil::GetRootPath(const std::string& filePath)
     suffix = "\\";
 #else
     size_t pos = filePath.find_first_of("\\/");
-suffix = "/";
+    suffix = "/";
 #endif
     if (pos != std::string::npos) {
         return filePath.substr(0, pos) + suffix;
@@ -418,19 +392,20 @@ suffix = "/";
     return "";
 }
 
-std::shared_ptr<std::string> FileUtil::GetRelativePath(const std::string& targetFilePath,
-                                                       const std::string& sourceFilePath)
-{
+std::shared_ptr<std::string> FileUtil::GetRelativePath(
+    const std::string &targetFilePath, const std::string &sourceFilePath) {
     // 注意：返回结果可能为空指针，需要进行判断
     std::shared_ptr<std::string> result = nullptr;
     // 对文件目录进行切割，获取两个路径列表
     std::vector<std::string> targetPath = StringUtil::Split(targetFilePath, "[\\\\/]");
     std::vector<std::string> sourcePath = StringUtil::Split(sourceFilePath, "[\\\\/]");
     // 去除列表中空字符串
-    targetPath.erase(std::remove_if(targetPath.begin(), targetPath.end(),
-        [](const std::string &str) {return str.empty();}), targetPath.end());
-    sourcePath.erase(std::remove_if(sourcePath.begin(), sourcePath.end(),
-        [](const std::string &str) {return str.empty();}), sourcePath.end());
+    targetPath.erase(
+        std::remove_if(targetPath.begin(), targetPath.end(), [](const std::string &str) { return str.empty(); }),
+        targetPath.end());
+    sourcePath.erase(
+        std::remove_if(sourcePath.begin(), sourcePath.end(), [](const std::string &str) { return str.empty(); }),
+        sourcePath.end());
 
     // 如果目标路径层级比源路径小，说明目标路径不包含源路径，返回空指针
     if (targetPath.size() < sourcePath.size()) {
@@ -447,17 +422,13 @@ std::shared_ptr<std::string> FileUtil::GetRelativePath(const std::string& target
 
     if (i == sourcePath.size()) {
         targetPath.erase(targetPath.begin(), targetPath.begin() + i);
-        result = std::make_shared<std::string>(std::accumulate(targetPath.begin(),
-            targetPath.end(), std::string(),
-            [&](const std::string &a, const std::string &b) -> std::string {
-                return a.empty() ? b : a + "/" + b;
-            }));
+        result = std::make_shared<std::string>(std::accumulate(targetPath.begin(), targetPath.end(), std::string(),
+            [&](const std::string &a, const std::string &b) -> std::string { return a.empty() ? b : a + "/" + b; }));
     }
     return result;
 }
 
-bool FileUtil::ModifyFilePermissions(const std::string &filePath, const mode_t &mode)
-{
+bool FileUtil::ModifyFilePermissions(const std::string &filePath, const mode_t &mode) {
     if (!FileUtil::IsFilePathExist(filePath)) {
         // 文件不存在，返回错误代码或抛出异常
         return false;
@@ -465,8 +436,7 @@ bool FileUtil::ModifyFilePermissions(const std::string &filePath, const mode_t &
     return chmod(filePath.c_str(), mode) == 0;
 }
 
-bool FileUtil::ConvertToRealPath(std::string &errorMsg, std::vector<std::string> &path)
-{
+bool FileUtil::ConvertToRealPath(std::string &errorMsg, std::vector<std::string> &path) {
     for (auto it = path.begin(); it != path.end(); ++it) {
         if (!ConvertToRealPath(errorMsg, *it)) {
             return false;
@@ -475,22 +445,18 @@ bool FileUtil::ConvertToRealPath(std::string &errorMsg, std::vector<std::string>
     return true;
 }
 
-bool FileUtil::ConvertToRealPath(std::string &errorMsg, std::string &path)
-{
-
+bool FileUtil::ConvertToRealPath(std::string &errorMsg, std::string &path) {
     std::string realPath = GetRealPath(path);
     if (realPath.empty()) {
-        errorMsg = "The conversion of the " + path +
-                   "path to an absolute path has failed.";
+        errorMsg = "The conversion of the " + path + "path to an absolute path has failed.";
         return false;
     }
     path = realPath;
     return true;
 }
 
-void FileUtil::RecursionFindFilesByRegex(std::vector<std::string> &result, const std::string &path, int depth,
-                                         const std::regex &fileRegex)
-{
+void FileUtil::RecursionFindFilesByRegex(
+    std::vector<std::string> &result, const std::string &path, int depth, const std::regex &fileRegex) {
     std::string error;
     // 递归限制判断
     if (!IsWithinRecursionLimit(result, depth, error)) {
@@ -503,7 +469,7 @@ void FileUtil::RecursionFindFilesByRegex(std::vector<std::string> &result, const
         return;
     }
     // 遍历文件夹，进一步递归
-    for (const auto &folder: folders) {
+    for (const auto &folder : folders) {
         std::string tmpPath = FileUtil::SplicePath(path, folder);
         RecursionFindFilesByRegex(result, tmpPath, depth + 1, fileRegex);
     }
@@ -516,8 +482,7 @@ void FileUtil::RecursionFindFilesByRegex(std::vector<std::string> &result, const
         result.push_back(tmpPath);
     }
 }
-std::vector<std::string> FileUtil::FindAllFilesByRegex(const std::string &path, const std::regex &fileRegex)
-{
+std::vector<std::string> FileUtil::FindAllFilesByRegex(const std::string &path, const std::regex &fileRegex) {
     std::vector<std::string> matchedFiles = {};
     if (!FileUtil::IsFolder(path)) {
         if (std::regex_match(FileUtil::GetFileName(path), fileRegex)) {
@@ -529,16 +494,13 @@ std::vector<std::string> FileUtil::FindAllFilesByRegex(const std::string &path, 
     return matchedFiles;
 }
 
-bool FileUtil::FindIfDbTypeByRegex(const std::string &path, const std::regex &jsonRegex,
-                                   const std::regex &dbRegex)
-{
+bool FileUtil::FindIfDbTypeByRegex(const std::string &path, const std::regex &jsonRegex, const std::regex &dbRegex) {
     int dbFound = 2;
     return FileUtil::FindDbOrJsonType(path, 0, jsonRegex, dbRegex) == dbFound;
 }
 
-int FileUtil::FindDbOrJsonType(const std::string &path, int depth,
-                               const std::regex &jsonRegex, const std::regex &dbRegex)
-{
+int FileUtil::FindDbOrJsonType(
+    const std::string &path, int depth, const std::regex &jsonRegex, const std::regex &dbRegex) {
     int jsonFound = 1;
     int dbFound = 2;
     int maxDepth = 5;
@@ -552,23 +514,22 @@ int FileUtil::FindDbOrJsonType(const std::string &path, int depth,
     }
     // db优先:如果text和db数据共存，则优先判断为db
     bool hasJson = false;
-    for (const auto &file: files) {
+    for (const auto &file : files) {
         if (std::regex_match(file, dbRegex)) {
             return dbFound;
         }
         hasJson = hasJson || std::regex_match(file, jsonRegex);
     }
     // Ascend 目录优先
-    bool ascendFolderExist = std::any_of(folders.begin(), folders.end(), [](const std::string &folder) {
-        return folder.find(ASCEND_PROFILER_OUTPUT) != std::string::npos;
-    });
+    bool ascendFolderExist = std::any_of(folders.begin(), folders.end(),
+        [](const std::string &folder) { return folder.find(ASCEND_PROFILER_OUTPUT) != std::string::npos; });
     if (ascendFolderExist) {
         folders.erase(
-            std::remove_if(folders.begin(), folders.end(), [](const std::string &folder) {
-                return folder.find(ASCEND_PROFILER_OUTPUT) == std::string::npos;
-            }), folders.end());
+            std::remove_if(folders.begin(), folders.end(),
+                [](const std::string &folder) { return folder.find(ASCEND_PROFILER_OUTPUT) == std::string::npos; }),
+            folders.end());
     }
-    for (const auto &folder: folders) {
+    for (const auto &folder : folders) {
         std::string tmpPath = FileUtil::SplicePath(path, folder);
         int result = FindDbOrJsonType(tmpPath, depth + 1, jsonRegex, dbRegex);
         if (result == dbFound) {
@@ -582,8 +543,7 @@ int FileUtil::FindDbOrJsonType(const std::string &path, int depth,
 }
 
 // 递归查找函数
-std::vector<std::string> FileUtil::FindFirstByRegex(const std::string &path, int depth, const std::regex &fileRegex)
-{
+std::vector<std::string> FileUtil::FindFirstByRegex(const std::string &path, int depth, const std::regex &fileRegex) {
     std::vector<std::string> matchedFiles;
     int maxDepth = 5;
     if (depth > maxDepth) {
@@ -595,14 +555,14 @@ std::vector<std::string> FileUtil::FindFirstByRegex(const std::string &path, int
         return matchedFiles;
     }
     sort(files.begin(), files.end(), std::greater<std::string>());
-    for (const auto &file: files) {
+    for (const auto &file : files) {
         if (std::regex_match(file, fileRegex)) {
             auto aimFile = FileUtil::SplicePath(path, file);
             matchedFiles.push_back(aimFile);
             return matchedFiles;
         }
     }
-    for (const auto &folder: folders) {
+    for (const auto &folder : folders) {
         std::string tmpPath = FileUtil::SplicePath(path, folder);
         auto foundFiles = FindFirstByRegex(tmpPath, depth + 1, fileRegex);
         if (!foundFiles.empty()) {
@@ -613,8 +573,7 @@ std::vector<std::string> FileUtil::FindFirstByRegex(const std::string &path, int
     return matchedFiles;
 }
 
-bool FileUtil::CheckFileSize(const std::string &filePath, bool emptyAllow, size_t fileMaxSize)
-{
+bool FileUtil::CheckFileSize(const std::string &filePath, bool emptyAllow, size_t fileMaxSize) {
     constexpr size_t fileMinSize = 0;
 #ifdef _WIN32
     std::wstring wFilePath = ConvertToLongPathW(filePath);
@@ -627,8 +586,7 @@ bool FileUtil::CheckFileSize(const std::string &filePath, bool emptyAllow, size_
             return false;
         }
         if (fileSize > fileMaxSize) {
-            Server::ServerLog::Error("The size limit for the file located at % has been exceeded.",
-                                     filePath);
+            Server::ServerLog::Error("The size limit for the file located at % has been exceeded.", filePath);
             return false;
         }
         return true;
@@ -647,8 +605,7 @@ bool FileUtil::CheckFileSize(const std::string &filePath, bool emptyAllow, size_
             return false;
         }
         if (fileSize > fileMaxSize) {
-            Server::ServerLog::Error("The size limit for the file located at % has been exceeded.",
-                                     filePath);
+            Server::ServerLog::Error("The size limit for the file located at % has been exceeded.", filePath);
             return false;
         }
         return true;
@@ -657,20 +614,18 @@ bool FileUtil::CheckFileSize(const std::string &filePath, bool emptyAllow, size_
     return false;
 }
 
-std::string FileUtil::GetDbPath(const std::string &filePath, const std::string &fileId)
-{
+std::string FileUtil::GetDbPath(const std::string &filePath, const std::string &fileId) {
     std::string dbPath = GetDbPath(filePath);
     std::string tmpFileId = GetProfilerFileId(filePath);
     if (tmpFileId.length() < fileId.length() && fileId.find(tmpFileId) == 0) {
         // 修改db文件名为mindstudio_insight_data_xxx.db
-        dbPath = dbPath.substr(0, dbPath.length() - DB_FILE_SUFFIX.length()) +
-                 fileId.substr(tmpFileId.length()) + DB_FILE_SUFFIX;
+        dbPath = dbPath.substr(0, dbPath.length() - DB_FILE_SUFFIX.length()) + fileId.substr(tmpFileId.length()) +
+            DB_FILE_SUFFIX;
     }
     return dbPath;
 }
 
-long long FileUtil::GetFileSize(const char *fileName)
-{
+long long FileUtil::GetFileSize(const char *fileName) {
     if (!fileName) {
         return 0;
     }
@@ -689,16 +644,15 @@ long long FileUtil::GetFileSize(const char *fileName)
     return 0;
 #else
     struct stat st;
-        long long size = 0;
-        if (stat(fileName, &st) == 0) {
-            size = st.st_size;
-        }
-        return size;
+    long long size = 0;
+    if (stat(fileName, &st) == 0) {
+        size = st.st_size;
+    }
+    return size;
 #endif
 }
 
-std::string FileUtil::GetSingleFileIdWithDb(const std::string &filePath)
-{
+std::string FileUtil::GetSingleFileIdWithDb(const std::string &filePath) {
     // 导入单个json csv bin文件时db文件名添加上对应文件除拓展名外的部分，使得单目录导入两个json或者csv或者bin后db文件不会相互覆盖
     std::string fileNameWithoutEx = FileUtil::StemFile(filePath);
     std::string dbFileName = StringUtil::StrJoin(fileNameWithoutEx, "_mindstudio_insight_data.db");
@@ -706,8 +660,7 @@ std::string FileUtil::GetSingleFileIdWithDb(const std::string &filePath)
     return FileUtil::SplicePath(dir, dbFileName);
 }
 
-std::string FileUtil::GetDbPath(const std::string &filePath)
-{
+std::string FileUtil::GetDbPath(const std::string &filePath) {
     if (StringUtil::EndWith(filePath, ".bin")) {
         return FileUtil::GetSingleFileIdWithDb(filePath);
     }
@@ -731,8 +684,7 @@ std::string FileUtil::GetDbPath(const std::string &filePath)
 
     return FileUtil::SplicePath(FileUtil::GetParentPath(filePath), DATABASE_FILE_NAME);
 }
-bool FileUtil::CheckPathInvalidChar(const std::string &filePath)
-{
+bool FileUtil::CheckPathInvalidChar(const std::string &filePath) {
     for (auto &item : INVALID_CHAR) {
         if (filePath.find(item.first) != std::string::npos) {
             Server::ServerLog::Error("The path: % contains invalid character: %.", filePath, item.second);
@@ -743,13 +695,12 @@ bool FileUtil::CheckPathInvalidChar(const std::string &filePath)
     return false;
 }
 
-bool FileUtil::CheckWritableByOther(const std::string &filePath)
-{
+bool FileUtil::CheckWritableByOther(const std::string &filePath) {
 #ifdef _WIN32
     return true;
 #else
     // 后端启动时如果传入了--notStrict选项，导入文件时不要求权限和属主校验通过，仅在日志中提示
-    struct stat fileStat{};
+    struct stat fileStat {};
     if (stat(filePath.c_str(), &fileStat) != 0) {
         Server::ServerLog::Warn("Get file info failed when check owner");
         if (strictMode) {
@@ -770,12 +721,11 @@ bool FileUtil::CheckWritableByOther(const std::string &filePath)
 #endif
 }
 
-bool FileUtil::CheckWritableByOtherOrGroup(const std::string &filePath)
-{
+bool FileUtil::CheckWritableByOtherOrGroup(const std::string &filePath) {
 #ifdef _WIN32
     return true;
 #else
-    struct stat fileStat{};
+    struct stat fileStat {};
     if (stat(filePath.c_str(), &fileStat) != 0) {
         Server::ServerLog::Warn("Get file info failed when check owner");
         return false;
@@ -790,13 +740,12 @@ bool FileUtil::CheckWritableByOtherOrGroup(const std::string &filePath)
 #endif
 }
 
-bool FileUtil::CheckPathOwner(const std::string &filePath)
-{
+bool FileUtil::CheckPathOwner(const std::string &filePath) {
 #ifdef _WIN32
     return true;
 #else
     // 后端启动时如果传入了--notStrict选项，导入文件时不要求权限和属主校验通过，仅在日志中提示
-    struct stat fileStat{};
+    struct stat fileStat {};
     if (stat(filePath.c_str(), &fileStat) != 0) {
         Server::ServerLog::Warn("Get file info failed when check owner");
         if (strictMode) {
@@ -804,14 +753,12 @@ bool FileUtil::CheckPathOwner(const std::string &filePath)
         }
         return true;
     }
-    if (geteuid() == 0) {
-        return true;
-    }
-    if (fileStat.st_uid == 0) {
+    uid_t currentUser = geteuid();
+    // root用户属主校验默认通过
+    if (currentUser == 0) {
         return true;
     }
     uid_t fileOwner = fileStat.st_uid;
-    uid_t currentUser = geteuid();
     bool result = (fileOwner == currentUser);
     if (!result) {
         Server::ServerLog::Warn("The path's owner is not current user.");
@@ -823,8 +770,7 @@ bool FileUtil::CheckPathOwner(const std::string &filePath)
 #endif
 }
 
-bool FileUtil::CheckPathPermission(const std::string &filePath, fs::perms permission)
-{
+bool FileUtil::CheckPathPermission(const std::string &filePath, fs::perms permission) {
 #ifdef _WIN32
     return true;
 #endif
@@ -848,8 +794,7 @@ bool FileUtil::CheckPathPermission(const std::string &filePath, fs::perms permis
     }
 }
 
-std::vector<std::string> FileUtil::GetSubDirs(const std::string &filePath)
-{
+std::vector<std::string> FileUtil::GetSubDirs(const std::string &filePath) {
     if (!FileUtil::IsFolder(filePath)) {
         return {};
     }
@@ -858,16 +803,15 @@ std::vector<std::string> FileUtil::GetSubDirs(const std::string &filePath)
     FileUtil::FindFolders(filePath, folders, files);
     return folders;
 }
-bool FileUtil::IsSubDir(const std::string &parent, const std::string &children)
-{
+bool FileUtil::IsSubDir(const std::string &parent, const std::string &children) {
     std::vector<std::string> parentPath = StringUtil::Split(parent, "[\\\\/]");
     std::vector<std::string> childrenPath = StringUtil::Split(children, "[\\\\/]");
-    parentPath.erase(std::remove_if(parentPath.begin(), parentPath.end(), [](const std::string &str) {
-            return str.empty();
-        }), parentPath.end());
-    childrenPath.erase(std::remove_if(childrenPath.begin(), childrenPath.end(), [](const std::string &str) {
-            return str.empty();
-        }), childrenPath.end());
+    parentPath.erase(
+        std::remove_if(parentPath.begin(), parentPath.end(), [](const std::string &str) { return str.empty(); }),
+        parentPath.end());
+    childrenPath.erase(
+        std::remove_if(childrenPath.begin(), childrenPath.end(), [](const std::string &str) { return str.empty(); }),
+        childrenPath.end());
     if (childrenPath.size() < parentPath.size()) {
         return false;
     }
@@ -880,8 +824,7 @@ bool FileUtil::IsSubDir(const std::string &parent, const std::string &children)
 }
 
 static std::regex msprofRegex(R"(msprof_[0-9]{1,16}\.db$)");
-std::vector<std::string> FileUtil::FindFilesWithFilter(const std::string &path, const std::regex &fileRegex)
-{
+std::vector<std::string> FileUtil::FindFilesWithFilter(const std::string &path, const std::regex &fileRegex) {
     std::vector<std::string> matchedFiles = {};
     if (!FileUtil::IsFolder(path)) {
         if (std::regex_match(FileUtil::GetFileName(path), fileRegex)) {
@@ -890,8 +833,8 @@ std::vector<std::string> FileUtil::FindFilesWithFilter(const std::string &path, 
         return matchedFiles;
     }
     std::string error;
-    std::function<void(const std::string &, int)> find = [&find, &matchedFiles, &fileRegex,
-            &error](const std::string &path, int depth) {
+    std::function<void(const std::string &, int)> find = [&find, &matchedFiles, &fileRegex, &error](
+                                                             const std::string &path, int depth) {
         if (!std::empty(error)) {
             return;
         }
@@ -904,22 +847,21 @@ std::vector<std::string> FileUtil::FindFilesWithFilter(const std::string &path, 
             return;
         }
         // msprof db
-        bool findMsprofDb = std::any_of(files.begin(), files.end(), [](const std::string &file) {
-            return std::regex_match(file, msprofRegex);
-        });
+        bool findMsprofDb = std::any_of(
+            files.begin(), files.end(), [](const std::string &file) { return std::regex_match(file, msprofRegex); });
         if (!files.empty() && findMsprofDb) {
             return CollectMatchdFiles(fileRegex, matchedFiles, path, files);
         }
 
-        auto dirs = {FileUtil::SplicePath(path, ASCEND_PROFILER_OUTPUT),
-                     FileUtil::SplicePath(path, MINDSTUDIO_PROFILER_OUTPUT)};
-        for (const auto &dir: dirs) {
+        auto dirs = {
+            FileUtil::SplicePath(path, ASCEND_PROFILER_OUTPUT), FileUtil::SplicePath(path, MINDSTUDIO_PROFILER_OUTPUT)};
+        for (const auto &dir : dirs) {
             if (FileUtil::IsFolder(dir)) {
                 find(dir, depth + 1);
                 return;
             }
         }
-        for (const auto &folder: folders) {
+        for (const auto &folder : folders) {
             std::string tmpPath = FileUtil::SplicePath(path, folder);
             find(tmpPath, depth + 1);
         }
@@ -933,8 +875,7 @@ std::vector<std::string> FileUtil::FindFilesWithFilter(const std::string &path, 
 }
 
 void FileUtil::CollectMatchdFiles(const std::regex &fileRegex, std::vector<std::string> &matchedFiles,
-                                  const std::string &path, std::vector<std::string> &files)
-{
+    const std::string &path, std::vector<std::string> &files) {
     sort(files.begin(), files.end(), std::greater<std::string>());
     for (const auto &file : files) {
         std::string tmpPath = SplicePath(path, file);
@@ -950,8 +891,7 @@ void FileUtil::CollectMatchdFiles(const std::regex &fileRegex, std::vector<std::
 }
 
 // 这个函数主要复用了FindFilesWithFilter的逻辑，不能直接使用的原因是FindFilesWithFilter对于多个匹配的文件只会找最新的一个
-std::vector<std::string> FileUtil::FindNPUMonitorFiles(const std::string &path)
-{
+std::vector<std::string> FileUtil::FindNPUMonitorFiles(const std::string &path) {
     std::vector<std::string> matchedFiles;
     std::regex fileRegex(R"(msmonitor_\d+_\d+_(-1|\d+)\.db)");
     if (!FileUtil::IsFolder(path)) {
@@ -962,8 +902,8 @@ std::vector<std::string> FileUtil::FindNPUMonitorFiles(const std::string &path)
     }
 
     std::string error;
-    std::function<void(const std::string &, int)> find = [&find, &matchedFiles, &fileRegex,
-            &error](const std::string &path, int depth) {
+    std::function<void(const std::string &, int)> find = [&find, &matchedFiles, &fileRegex, &error](
+                                                             const std::string &path, int depth) {
         if (!std::empty(error)) {
             return;
         }
@@ -976,7 +916,7 @@ std::vector<std::string> FileUtil::FindNPUMonitorFiles(const std::string &path)
             return;
         }
 
-        for (const auto &folder: folders) {
+        for (const auto &folder : folders) {
             std::string tmpPath = FileUtil::SplicePath(path, folder);
             find(tmpPath, depth + 1);
         }
