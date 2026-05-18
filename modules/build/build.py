@@ -41,7 +41,7 @@ MODULES_MAP = {
     'compute': 'Compute',
     'statistic': 'Statistic',
     'leaks': 'Leaks',
-    'memory-on-chip': 'memoryOnChip',
+    'memory-on-chip': 'MemoryOnChip',
     'timeline': 'Timeline',
 }
 
@@ -60,11 +60,11 @@ def clean():
 
 
 def execute_cmd(module, module_dir, cmd):
-    proc = subprocess.Popen(cmd, cwd=module_dir, stdout=subprocess.PIPE)
-    for line in iter(proc.stdout.readline, b''):
-        logging.info('[%s]%s', module, line.decode('utf-8').strip())
-    proc.communicate(timeout=600)
-    return proc.returncode
+    with subprocess.Popen(cmd, cwd=module_dir, stdout=subprocess.PIPE) as proc:
+        for line in iter(proc.stdout.readline, b''):
+            logging.info('[%s]%s', module, line.decode('utf-8').strip())
+        proc.communicate(timeout=600)
+        return proc.returncode
 
 
 def build_module(module):
@@ -108,10 +108,8 @@ def parallel_build():
         return 1
 
     modules = list(MODULES_MAP.keys())
-    pool = multiprocessing.Pool(processes=BUILD_PROCESS_COUNT)
-    results = pool.map(build_module, modules)
-    pool.close()
-    pool.join()
+    with multiprocessing.Pool(processes=BUILD_PROCESS_COUNT) as pool:
+        results = pool.map(build_module, modules)
 
     for _, result in enumerate(results):
         if result != 0:
