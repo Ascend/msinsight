@@ -282,6 +282,7 @@ const useRankColumns = (handleAction: VoidFunction[], conditions: ConditionDataT
         },
         {
             title: t('tableHead.Source'),
+            dataIndex: 'source',
             ...commonColumnConfig,
             render: (_: any, data: DataType): React.ReactNode => (<div>
                 {tableLevel === TableLevel.DIFF_SOURCE && <ExpandIcon expanded={data.expanded} onClick={(): void => { handleExpand(data); }}/>}
