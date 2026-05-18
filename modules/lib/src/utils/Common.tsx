@@ -739,7 +739,7 @@ export const copyObjectToClipboard = async (
 const getTableHeader = (columns: any[]): TableHeaderAndData['header'] => {
     const header = columns.map(col => {
         return {
-            title: col.title,
+            title: React.isValidElement(col.title) ? getTextFromReactElement(col.title) : col.title,
             key: col.dataIndex ?? col.key,
         };
     });
@@ -762,7 +762,7 @@ const getTextFromReactElement = (element: React.ReactElement): string => {
     const container = document.createElement('div');
     container.style.display = 'none';
     document.body.appendChild(container);
-    
+
     let root: ReturnType<typeof createRoot> | null = null;
     try {
         root = createRoot(container);
