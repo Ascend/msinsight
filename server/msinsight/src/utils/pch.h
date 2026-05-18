@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 
-
 #ifndef PROFILER_SERVER_PCH_H
 #define PROFILER_SERVER_PCH_H
 #include <vector>
@@ -53,7 +52,6 @@
 #include "StringUtil.h"
 #include "NumberUtil.h"
 #include "sys/stat.h"
-#include "CmdUtil.h"
 #include "RegexUtil.h"
 #include "rapidjson.h"
 #include "document.h"
