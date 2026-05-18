@@ -25,9 +25,9 @@
 namespace Dic {
 constexpr int CMD_RESULT_BUF_SIZE = 1024;
 class ExecUtil {
-public:
-    static inline std::string Exec(const std::string &command)
-    {
+  public:
+    // 该方法调用前需校验command参数，避免命令注入
+    static inline std::string Exec(const std::string &command) {
         std::string result;
         char buffer[CMD_RESULT_BUF_SIZE] = {0};
         FILE *ptr;
@@ -41,8 +41,7 @@ public:
         return result;
     }
 
-    static inline std::string SelectFolder()
-    {
+    static inline std::string SelectFolder() {
         std::string command;
 #ifdef _WIN32
         command = "PowerShell -Command "
