@@ -19,7 +19,8 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
-"""build for Insight"""
+import argparse
+import json
 import logging
 import multiprocessing
 import os
@@ -27,19 +28,11 @@ import platform
 import re
 import shutil
 import subprocess
-import stat
 import sys
 from datetime import datetime, timezone
-import argparse
-import json
-import zipfile
 from typing import List
-from enum import Enum
 
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-WORKSPACE_PATH = os.getenv("OCTOPUS_WORKSPACE")
-if WORKSPACE_PATH is not None:
-    PLUGIN_INSTALL_TMP_PATH = os.path.join(WORKSPACE_PATH, "PluginInstallCache")
 
 
 class Const:
@@ -58,7 +51,6 @@ class Const:
     MANIFEST_DIR = 'manifest'
     DEPENDENCY_DIR = 'dependency'
     CONFIG_INI = 'config.ini'
-    VSCODE_PLUGINS_DIR = os.path.join('plugins', 'vscode')
     JUPYTERLAB_PLUGINS_DIR = os.path.join('plugins', 'jupyterlab')
     PLATFORM_DIR = os.path.join(PROJECT_PATH, 'platform')
     PLATFORM_PREVIEW_DIR = os.path.join(PLATFORM_DIR, 'preview')
@@ -72,7 +64,7 @@ class Const:
         # MacOS下的app dmg安装包
         MAC_OS: '.dmg',
         # Linux下压缩文件
-        LINUX_OS: '.zip'
+        LINUX_OS: '.zip',
     }
     PACKAGE_SUFFIX = PRODUCT_FORMAT.get(platform.system(), '.zip')
     MAC_OS_APPNAME = 'MindStudioInsight.app'
@@ -86,6 +78,13 @@ class Const:
     PLUGINS_VERSION_PLACEHOLDER = '{plugins_version}'
     # 证书设置为“-”代表缺省临时签名，需要使用签名证书时通过环境变量INSIGHT_APP_SIGN指定签名证书名或证书id
     MAC_SIGNATURE_CERTIFICATE_ID = "-"
+
+
+class BuildContext:
+    def __init__(self, build_version: str, whl_version: str, os_tag: str):
+        self.build_version = build_version
+        self.whl_version = whl_version
+        self.os_tag = os_tag
 
 
 def init():
@@ -107,8 +106,19 @@ def clean():
     framework_dist = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.FRAMEWORK_DIR, 'build')
     if os.path.exists(framework_dist):
         shutil.rmtree(framework_dist)
-    modules = ['cluster', 'memory', 'timeline', 'compute', 'jupyter', 'operator', 'lib', 'statistic', 'leaks',
-               'reinforcement-learning', 'memory-on-chip']
+    modules = [
+        'cluster',
+        'memory',
+        'timeline',
+        'compute',
+        'jupyter',
+        'operator',
+        'lib',
+        'statistic',
+        'leaks',
+        'reinforcement-learning',
+        'memory-on-chip',
+    ]
     for module in modules:
         build_dir = os.path.join(PROJECT_PATH, Const.MODULES_DIR, module, Const.BUILD_DIR)
         if os.path.exists(build_dir):
@@ -122,10 +132,10 @@ def download_dependency_background() -> bool:
     platform_dir = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR)
     build_platform = [Const.CARGO, 'fetch']
     try:
-        subprocess.Popen(build_modules, cwd=modules_dir, stdout=subprocess.PIPE)
-        logging.info('[download dependency]Start to download dependency for modules in background.')
-        subprocess.Popen(build_platform, cwd=platform_dir, stdout=subprocess.PIPE)
-        logging.info('[download dependency]Start to download dependency for platform in background.')
+        with subprocess.Popen(build_modules, cwd=modules_dir, stdout=subprocess.PIPE):
+            logging.info('[download dependency]Start to download dependency for modules in background.')
+        with subprocess.Popen(build_platform, cwd=platform_dir, stdout=subprocess.PIPE):
+            logging.info('[download dependency]Start to download dependency for platform in background.')
         return True
     except Exception as e:
         logging.error('[download dependency] Failed to start to download dependency in background. %s.', e)
@@ -197,38 +207,6 @@ def set_npm_config():
     os.putenv('npm_config_registry', 'https://registry.npmmirror.com/')
 
 
-def build_vscode(vscode_version, os_name):
-    # Linux和MacOS上默认不编译vscode插件
-    if platform.system() != Const.WINDOWS_OS and os.getenv('NO_BUILD_VSCODE'):
-        logging.info('The VSCode plugin is not compiled because NO_BUILD_VSCODE is set.')
-        return 0
-
-    set_npm_config()
-
-    plugin_path = os.path.join(PROJECT_PATH, Const.VSCODE_PLUGINS_DIR)
-    result = exec_command([Const.NPM, 'install', '--force'], plugin_path, 'vscode_plugin')
-    if result != 0:
-        return 1
-
-    result = exec_command([Const.NPM, 'run', 'vsce:package'], plugin_path, 'vscode_plugin')
-    if result != 0:
-        return 1
-
-    # copy vscode plugin to out directory
-    plugin_name = 'mindstudio-insight-extension_' + vscode_version + '_' + os_name + '.vsix'
-    dst_file = os.path.join(PROJECT_PATH, Const.OUT_DIR, plugin_name)
-    for file in os.listdir(plugin_path):
-        if file.endswith('.vsix'):
-            shutil.copy(os.path.join(plugin_path, file), dst_file)
-
-    # zip server and frontend files for huaweicloud
-    zip_name = 'mindstudio-insight_' + vscode_version + '_' + os_name
-    dst_file = os.path.join(PROJECT_PATH, Const.PRODUCT_DIR, zip_name)
-    profiler_path = os.path.join(plugin_path, 'dist', 'profiler')
-    shutil.make_archive(dst_file, 'zip', profiler_path)
-    return 0
-
-
 def update_jupyterlab_plugin_version(jupyterlab_version, plugin_path):
     package_json_path = os.path.join(plugin_path, 'package.json')
     if not os.path.exists(package_json_path):
@@ -282,8 +260,22 @@ def build_jupyterlab(jupyterlab_version, os_name):
     requirements_path = os.path.join(plugin_path, 'requirements.txt')
 
     # 下载构建依赖
-    result = exec_command([Const.PIP, 'install', '-i', 'https://pypi.org/simple', '-r', requirements_path],
-                            plugin_path, 'jupyterlab_plugin')
+    result = exec_command(
+        [
+            Const.PIP,
+            'install',
+            '--retries',
+            '5',
+            '--timeout',
+            '120',
+            '-i',
+            'https://pypi.org/simple',
+            '-r',
+            requirements_path,
+        ],
+        plugin_path,
+        'jupyterlab_plugin',
+    )
     if result != 0:
         return 1
 
@@ -304,17 +296,21 @@ def build_jupyterlab(jupyterlab_version, os_name):
         return 1
     # 2. 构建whl包
     setup_path, output_path = 'setup.py', 'output'
-    result = exec_command([Const.PYTHON, setup_path, 'bdist_wheel',
-                            '--plat-name=' + get_os_platform(), '--dist-dir', output_path],
-                            plugin_path, 'jupyterlab_plugin')
+    result = exec_command(
+        [Const.PYTHON, setup_path, 'bdist_wheel', '--plat-name=' + get_os_platform(), '--dist-dir', output_path],
+        plugin_path,
+        'jupyterlab_plugin',
+    )
     if result != 0:
         return 1
 
     # 3. 此处暂时需要构建两次
     setup_path, output_path = 'setup.py', 'output'
-    result = exec_command([Const.PYTHON, setup_path, 'bdist_wheel',
-                            '--plat-name=' + get_os_platform(), '--dist-dir', output_path],
-                            plugin_path, 'jupyterlab_plugin')
+    result = exec_command(
+        [Const.PYTHON, setup_path, 'bdist_wheel', '--plat-name=' + get_os_platform(), '--dist-dir', output_path],
+        plugin_path,
+        'jupyterlab_plugin',
+    )
     if result != 0:
         return 1
 
@@ -329,6 +325,20 @@ def build_jupyterlab(jupyterlab_version, os_name):
     return 0
 
 
+def assemble_profiler_runtime(profiler_path):
+    shutil.copytree(
+        os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.FRAMEWORK_DIR, 'build'),
+        os.path.join(profiler_path, 'frontend'),
+    )
+    shutil.copytree(
+        os.path.join(PROJECT_PATH, Const.SERVER_DIR, 'output', 'build', 'server'), os.path.join(profiler_path, 'server')
+    )
+    shutil.copyfile(
+        os.path.join(PROJECT_PATH, "build", "plugin_install.py"), os.path.join(profiler_path, "plugin_install.py")
+    )
+    shutil.copytree(os.path.join(PROJECT_PATH, Const.SCRIPT_DIR), os.path.join(profiler_path, Const.SCRIPT_DIR))
+
+
 def copy_resource_in_jupyterlab(plugin_path):
     # 拷贝前后端资源
     jupyterlab_path = 'mindstudio_insight_jupyterlab'
@@ -339,46 +349,31 @@ def copy_resource_in_jupyterlab(plugin_path):
     profiler_path = os.path.join(resources_path, "profiler")
     if not os.path.exists(profiler_path):
         os.makedirs(profiler_path, 0o750)
-    shutil.copytree(os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.FRAMEWORK_DIR, 'build'),
-                    os.path.join(profiler_path, 'frontend'))
-    shutil.copytree(os.path.join(PROJECT_PATH, Const.SERVER_DIR, 'output', 'build', 'server'),
-                    os.path.join(profiler_path, 'server'))
-    shutil.copyfile(os.path.join(PROJECT_PATH, "build", "plugin_install.py"),
-                    os.path.join(profiler_path, "plugin_install.py"))
-    shutil.copytree(os.path.join(PROJECT_PATH, Const.SCRIPT_DIR), os.path.join(profiler_path, Const.SCRIPT_DIR))
+    assemble_profiler_runtime(profiler_path)
 
 
 def build_package(version, os_name):
-    return build_light_package(version, os_name, False) & build_light_package(version, os_name, True)
-
-
-def build_light_package(version, os_name, is_huaweicloud):
-    if is_huaweicloud and 'linux' not in os_name:
-        return 0
     os.putenv('CARGO_REGISTRY', 'https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index')
     if os.getenv('BEPHOME') is not None:  # 规避目前cargo不能跑bep问题
         os.putenv('LD_PRELOAD', '')
 
+    preview_dir = Const.PLATFORM_PREVIEW_DIR
+    target_dir = Const.PLATFORM_TARGET_DIR
+    os.putenv('CARGO_TARGET_DIR', target_dir)
+
     # 清理构建缓存
     resource_dir = 'resources'
-    build_cache_paths = [Const.PLATFORM_PREVIEW_DIR, Const.PLATFORM_TARGET_DIR]
+    build_cache_paths = [preview_dir, target_dir]
     for tmp_path in build_cache_paths:
         if os.path.exists(tmp_path):
             traverse_folder_and_chmod(tmp_path, 0o750, 0o750)
             shutil.rmtree(tmp_path)
-        os.mkdir(tmp_path)
+        os.makedirs(tmp_path, exist_ok=True)
     # 拷贝前后端文件
-    shutil.copytree(os.path.join(Const.PLATFORM_DIR, resource_dir),
-                    os.path.join(Const.PLATFORM_PREVIEW_DIR, resource_dir))
-    profiler_path = os.path.join(Const.PLATFORM_PREVIEW_DIR, resource_dir, 'profiler')
+    shutil.copytree(os.path.join(Const.PLATFORM_DIR, resource_dir), os.path.join(preview_dir, resource_dir))
+    profiler_path = os.path.join(preview_dir, resource_dir, 'profiler')
     os.mkdir(profiler_path, 0o750)
-    shutil.copytree(os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.FRAMEWORK_DIR, 'build'),
-                    os.path.join(profiler_path, 'frontend'))
-    shutil.copytree(os.path.join(PROJECT_PATH, Const.SERVER_DIR, 'output', 'build', 'server'),
-                    os.path.join(profiler_path, 'server'))
-    # 华为云构建将插件一并打包
-    if is_huaweicloud:
-        huaweicloud_install_plugin(profiler_path=profiler_path)
+    assemble_profiler_runtime(profiler_path)
     # 在macos下使用cargo bundle --release直接构建为app
     if platform.system() == Const.MAC_OS:
         cmd_list = [Const.CARGO, 'bundle', '--release']
@@ -386,60 +381,48 @@ def build_light_package(version, os_name, is_huaweicloud):
     else:
         cmd_list = [Const.CARGO, 'build', '--release']
     package_name = Const.ASCEND_INSIGHT_PREFIX + '_' + version + '_' + os_name + Const.PACKAGE_SUFFIX
-    if is_huaweicloud:
-        shutil.copytree(os.path.join(PROJECT_PATH, "plugins", "ProfilerServerProxy"),
-                        os.path.join(profiler_path, "ProfilerServerProxy"))
-        shutil.copyfile(os.path.join(PROJECT_PATH, "build", "huaweicloud_proxy_start_script.py"),
-                        os.path.join(profiler_path, "start_script.py"))
-        cmd_list = cmd_list + ["--no-default-features"]
-        package_name = Const.ASCEND_INSIGHT_PREFIX + '_huaweicloud_' + version + '_' + os_name + Const.PACKAGE_SUFFIX
-
-    shutil.copyfile(os.path.join(PROJECT_PATH, "build", "plugin_install.py"),
-                    os.path.join(profiler_path, "plugin_install.py"))
-    shutil.copytree(os.path.join(PROJECT_PATH, Const.SCRIPT_DIR), os.path.join(profiler_path, Const.SCRIPT_DIR))
 
     result = exec_command(cmd_list, Const.PLATFORM_DIR, 'bin_package')
     if result != 0:
         return 1
-    return zip_package(profiler_path, package_name)
+    return zip_package(profiler_path, package_name, preview_dir, target_dir)
 
 
 file_names = {
     (Const.WINDOWS_OS, 'bin'): 'MindStudioInsight.exe',
     (Const.WINDOWS_OS, 'target'): 'MindStudio-Insight.exe',
-    (Const.MAC_OS, 'target'): 'MindStudio Insight'
+    (Const.MAC_OS, 'target'): 'MindStudio Insight',
 }
 
 
-def package_win(dst_file: str) -> bool:
+def package_win(dst_file: str, preview_dir: str) -> bool:
     """
         Windows版本打包，输出件为单一的MindStudio-Insight_{版本}_win.exe
     :param dst_file: 目标文件
     :return: 是否成功
     """
-    shutil.copytree(os.path.join(Const.PLATFORM_DIR, 'config'),
-                    os.path.join(Const.PLATFORM_PREVIEW_DIR, 'config'))  # 仅Windows需要
+    shutil.copytree(os.path.join(Const.PLATFORM_DIR, 'config'), os.path.join(preview_dir, 'config'))  # 仅Windows需要
     bundle_path = os.path.join(Const.PLATFORM_DIR, 'bundle')
-    shutil.copyfile(os.path.join(bundle_path, 'installer.nsi'),
-                    os.path.join(Const.PLATFORM_PREVIEW_DIR, 'installer.nsi'))
+    shutil.copyfile(os.path.join(bundle_path, 'installer.nsi'), os.path.join(preview_dir, 'installer.nsi'))
     NSIS_PATH = os.getenv('NSIS_PATH', 'C:\\Program Files (x86)\\NSIS')
     nsis_cmd = os.path.join(NSIS_PATH, 'bin', 'makensis.exe')
-    result = exec_command([nsis_cmd, os.path.join('preview', 'installer.nsi')], Const.PLATFORM_DIR, 'bin_package')
+    result = exec_command(
+        [nsis_cmd, os.path.join('preview', 'installer.nsi')], os.path.dirname(preview_dir), 'bin_package'
+    )
     if result != 0:
         return False
 
     # 将产物拷贝到目标文件
-    for tmp in os.listdir(Const.PLATFORM_PREVIEW_DIR):
+    for tmp in os.listdir(preview_dir):
         if not tmp.startswith(Const.ASCEND_INSIGHT_PREFIX + '_'):
             continue
-        shutil.copyfile(os.path.join(Const.PLATFORM_PREVIEW_DIR, tmp), dst_file)
+        shutil.copyfile(os.path.join(preview_dir, tmp), dst_file)
         return True
     # 如果没找到insight.exe产物则返回false
     return False
 
 
-
-def package_linux(dst_file: str) -> bool:
+def package_linux(dst_file: str, preview_dir: str) -> bool:
     """
         Linux版本打包，输出件为MindStudio-Insight_{版本}_linux_{arch}.zip压缩包
     :param dst_file: 目标文件
@@ -447,25 +430,25 @@ def package_linux(dst_file: str) -> bool:
     """
     system = platform.system()
     target_file = file_names.get((system, 'target'), 'MindStudio-Insight')
-    insight_bin_file = os.path.join(Const.PLATFORM_PREVIEW_DIR, target_file)
+    insight_bin_file = os.path.join(preview_dir, target_file)
     if not os.path.exists(insight_bin_file):
-        logging.error('[%s] %s', 'bin_package_linux',
-                      f'Linux packaging failed: executable file {insight_bin_file} not found.')
+        logging.error(
+            '[%s] %s', 'bin_package_linux', f'Linux packaging failed: executable file {insight_bin_file} not found.'
+        )
         return False
     os.chmod(insight_bin_file, 0o550)  # 将ascend_insight二进制赋权为550
-    shutil.make_archive(dst_file[:-4], 'zip', Const.PLATFORM_PREVIEW_DIR)
+    shutil.make_archive(dst_file[:-4], 'zip', preview_dir)
     return True
 
 
-def package_mac(dst_file: str, package_name: str, is_cluster_source: bool) -> bool:
+def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: str) -> bool:
     system = platform.system()
     bin_file = file_names.get((system, 'bin'), 'MindStudioInsight')
-    app_dir = os.path.join(Const.PLATFORM_TARGET_DIR, 'release', 'bundle', 'osx', Const.MAC_OS_APPNAME)
+    app_dir = os.path.join(target_dir, 'release', 'bundle', 'osx', Const.MAC_OS_APPNAME)
     app_bin_file_dir = os.path.join(app_dir, 'Contents', 'MacOS')
-    preview_app = os.path.join(PROJECT_PATH, Const.PLATFORM_PREVIEW_DIR, Const.MAC_OS_APPNAME)
+    preview_app = os.path.join(preview_dir, Const.MAC_OS_APPNAME)
     os.chmod(os.path.join(app_bin_file_dir, bin_file), 0o550)  # 4、app内二进制文件 ascend_insight 550
-    shutil.copytree(os.path.join(Const.PLATFORM_PREVIEW_DIR, 'resources'),
-                    os.path.join(app_bin_file_dir, 'resources'))
+    shutil.copytree(os.path.join(preview_dir, 'resources'), os.path.join(app_bin_file_dir, 'resources'))
     python_src_dir = os.path.join(app_bin_file_dir, 'resources', 'profiler', 'server', 'python')
     python_dst_dir = os.path.join(app_dir, 'Contents', 'Resources', 'python')
     if os.path.exists(python_dst_dir):
@@ -473,7 +456,7 @@ def package_mac(dst_file: str, package_name: str, is_cluster_source: bool) -> bo
     shutil.move(python_src_dir, python_dst_dir)
     shutil.move(app_dir, preview_app)
     # 签名app
-    if "aarch64" in package_name and not resign_mac_app(preview_app, is_cluster_source):
+    if "aarch64" in package_name and not resign_mac_app(preview_app):
         return False
     if not chmod_mac_app(preview_app, 'aarch64' if 'aarch64' in package_name else 'x86_64'):
         return False
@@ -486,38 +469,25 @@ def package_mac(dst_file: str, package_name: str, is_cluster_source: bool) -> bo
     return True
 
 
-class CLUSTER_ANALYZE_TYPE(Enum):
-    BINARY = 0
-    SOURCE = 1
-    UNKNOWN = 2
-
-
-def get_cluster_analyze_type(server_dir: str) -> CLUSTER_ANALYZE_TYPE:
+def build_platform_package(dst_file: str, package_name: str, preview_dir: str, target_dir: str) -> bool:
     system = platform.system()
-    binary_name = "cluster_analysis.exe" if system == Const.WINDOWS_OS else "cluster_analysis" # pyinstaller打包件
-    source_name = "msprof_analyze" # 源码引入
-    # 优先检查是否存在cluster_analysis二进制
-    if os.path.exists(os.path.join(server_dir, binary_name)):
-        return CLUSTER_ANALYZE_TYPE.BINARY
-    if os.path.exists(os.path.join(server_dir, source_name)):
-        return CLUSTER_ANALYZE_TYPE.SOURCE
-    return CLUSTER_ANALYZE_TYPE.UNKNOWN
+    if system == Const.WINDOWS_OS:
+        return package_win(dst_file, preview_dir)
+    if system == Const.MAC_OS:
+        return package_mac(dst_file, package_name, preview_dir, target_dir)
+    return package_linux(dst_file, preview_dir)
 
 
-def zip_package(profiler_path, package_name):
+def zip_package(profiler_path, package_name, preview_dir: str, target_dir: str):
     system = platform.system()
     bin_file = file_names.get((system, 'bin'), 'MindStudioInsight')
     target_file = file_names.get((system, 'target'), 'MindStudio-Insight')
     # MacOs通过cargo bundle打包后的产物为app, 不拷贝二进制可执行文件
     if not system == Const.MAC_OS:
-        shutil.copyfile(os.path.join(Const.PLATFORM_TARGET_DIR, 'release', bin_file),
-                        os.path.join(Const.PLATFORM_PREVIEW_DIR, target_file))
+        shutil.copyfile(os.path.join(target_dir, 'release', bin_file), os.path.join(preview_dir, target_file))
     # 打包
     dst_file = os.path.join(PROJECT_PATH, Const.OUT_DIR, package_name)
-    if system == Const.WINDOWS_OS:
-        return 0 if package_win(dst_file) else 1
-    """
-    此时目录preview/下的目录结构
+    # 此时目录preview/下的目录结构
     # MindStudio-Insight        rust底座打包二进制
     # resources                 资源目录
     # -- images                 icns等图片资源
@@ -530,30 +500,21 @@ def zip_package(profiler_path, package_name):
     # ------ libsqlite          profiler_server库文件
     # ------ profiler_server    后端二进制
     # ------ {cluster_analyze}  可能为源码引入或二进制
-    """
-    # 判断cluster_analyze类型
     server_dir = os.path.join(profiler_path, Const.SERVER_DIR)
-    cluster_analyze_type = get_cluster_analyze_type(server_dir)
-    if cluster_analyze_type == CLUSTER_ANALYZE_TYPE.UNKNOWN:
-        logging.error('[%s] %s', 'bin_package', f"Unsupported type for cluster analyze.")
+    msprof_analyze_dir = os.path.join(server_dir, "msprof_analyze")
+    traverse_folder_and_chmod(preview_dir, 0o750, 0o440)
+    traverse_folder_and_chmod(server_dir, 0o750, 0o550)
+    if not os.path.isdir(msprof_analyze_dir):
+        logging.error('msprof_analyze runtime directory not found: %s', msprof_analyze_dir)
         return 1
-    # 最小权限
-    traverse_folder_and_chmod(Const.PLATFORM_PREVIEW_DIR, 0o750, 0o440)  # 1、统一修改为文件夹750，文件440
-    traverse_folder_and_chmod(server_dir, 0o750, 0o550)  # 2、server下的文件550
-    is_cluster_source = cluster_analyze_type == CLUSTER_ANALYZE_TYPE.SOURCE
-    if is_cluster_source:
-        # 源码引入时的mstt源码文件统一修改为440
-        traverse_folder_and_chmod(os.path.join(server_dir, "msprof_analyze"), 0o750, 0o440)
-    # linux打包
-    if system != Const.MAC_OS:
-        return 0 if package_linux(dst_file) else 1
-    # macos打包
-    return 0 if package_mac(dst_file, package_name, is_cluster_source) else 1
+    traverse_folder_and_chmod(msprof_analyze_dir, 0o750, 0o440)
+    return 0 if build_platform_package(dst_file, package_name, preview_dir, target_dir) else 1
 
 
-def resign_mac_app(preview_app: str, is_cluster_resource: bool):
+def resign_mac_app(preview_app: str):
     resources_dir = os.path.join(preview_app, "Contents/MacOS/resources")
     server_dir = os.path.join(resources_dir, "profiler/server")
+    msprof_analyze_dir = os.path.join(server_dir, "msprof_analyze")
     # 签名前设置resources权限, 否则无法签名通过
     traverse_folder_and_chmod(resources_dir, 0o750, 0o640)
     # 重签
@@ -563,23 +524,26 @@ def resign_mac_app(preview_app: str, is_cluster_resource: bool):
     # 签名后重新设置resources最小权限
     traverse_folder_and_chmod(resources_dir, 0o750, 0o440)
     traverse_folder_and_chmod(server_dir, 0o750, 0o550)
-    if is_cluster_resource:
-        traverse_folder_and_chmod(os.path.join(server_dir, "msprof_analyze"), 0o750, 0o440)
+    if not os.path.isdir(msprof_analyze_dir):
+        logging.error('msprof_analyze runtime directory not found: %s', msprof_analyze_dir)
+        return False
+    traverse_folder_and_chmod(msprof_analyze_dir, 0o750, 0o440)
     return True
 
 
 def chmod_mac_app(app_path: str, arch: str) -> bool:
     path_list = get_mac_app_structure(app_path, arch)
     if not path_list:
-        logging.warning(f'Failed to get structure of {app_path}, '
-                        f'no further permission modification actions will be performed.')
+        logging.warning(
+            'Failed to get structure of %s, no further permission modification actions will be performed.', app_path
+        )
         return False
     # 非递归地将目录设置为750, 文件设置为440
     for path in path_list:
         try:
             os.chmod(path, 0o750 if os.path.isdir(path) else 0o440)
         except Exception as e:
-            logging.error(f'An exception occurred while performing chmod.Path:{path}, Error: {e}')
+            logging.error('An exception occurred while performing chmod. Path:%s, Error:%s', path, e)
             return False
     return True
 
@@ -603,7 +567,7 @@ def get_mac_app_structure(app_path: str, arch: str) -> list:
         app_structure_paths.extend([sign_dir, sign_file])
     for path in app_structure_paths:
         if not os.path.exists(path):
-            logging.warning(f'{path} not found.')
+            logging.warning('%s not found.', path)
             return []
     return app_structure_paths
 
@@ -611,11 +575,9 @@ def get_mac_app_structure(app_path: str, arch: str) -> list:
 def sign_mac_app(app_path: str, certificate_id: str = Const.MAC_SIGNATURE_CERTIFICATE_ID) -> bool:
     if not os.path.exists(app_path):
         return False
-    logging.info('[%s] %s', 'bin_package',
-                 'Start to sign/resign MacOS application, using certificate %s' % certificate_id)
-    sign_cmd_list = ["codesign", "--force", "-s", certificate_id,
-                     "--deep", "--timestamp=none", app_path]
-    result = exec_command(sign_cmd_list, os.path.join(PROJECT_PATH, Const.PLATFORM_PREVIEW_DIR), 'bin_package')
+    logging.info('[%s] Start to sign/resign MacOS application, using certificate %s', 'bin_package', certificate_id)
+    sign_cmd_list = ["codesign", "--force", "-s", certificate_id, "--deep", "--timestamp=none", app_path]
+    result = exec_command(sign_cmd_list, os.path.dirname(app_path), 'bin_package')
     if result != 0:
         logging.error('[%s] %s', 'bin_package', 'MacOS application signed failed.')
         return False
@@ -623,7 +585,7 @@ def sign_mac_app(app_path: str, certificate_id: str = Const.MAC_SIGNATURE_CERTIF
 
 
 def build_dmg_for_mac_app(dst_file) -> bool:
-    cmd_list = ["dmgbuild", "-s", "macos_dmg_settings.json", '\"MindStudio Installer\"', dst_file]
+    cmd_list = ["dmgbuild", "-s", "macos_dmg_settings.json", '"MindStudio Installer"', dst_file]
     result = exec_command(cmd_list, os.path.join(PROJECT_PATH, Const.PLATFORM_DIR, 'bundle'), 'bin_package')
     if result != 0:
         return False
@@ -632,13 +594,14 @@ def build_dmg_for_mac_app(dst_file) -> bool:
 
 def exec_command(command, path, module_name):
     logging.basicConfig(level=logging.INFO)
-    process = subprocess.Popen(command, cwd=path, stdout=subprocess.PIPE)
-    for line in iter(process.stdout.readline, b''):
-        logging.info('[%s]%s', module_name, line.decode('utf-8').strip())
-    process.communicate(timeout=600)
+    with subprocess.Popen(command, cwd=path, stdout=subprocess.PIPE) as process:
+        for line in iter(process.stdout.readline, b''):
+            logging.info('[%s]%s', module_name, line.decode('utf-8').strip())
+        process.communicate(timeout=600)
     if process.returncode != 0:
         logging.error('[%s]Failed to execute %s.', module_name, ' '.join(command))
     return process.returncode
+
 
 # 加载版本相关信息，参数为默认的版本数据
 def init_version_info(build_version: str):
@@ -649,15 +612,13 @@ def init_version_info(build_version: str):
     # 3. 【产物】设置产物版本信息文件
     update_app_version(build_version)
 
+
 # 创建、修改版本信息文件，文件目录在framework/src/下，文件名为version_info.json
 def update_frontend_version(version, build_time):
     output_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.FRAMEWORK_DIR, Const.SRC_DIR, 'version_info.json')
-    # os.O_WRONLY表示只写入，os.O_CREAT在文件不存在时会创建文件，os.O_TRUNC会清空原文件内容
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    mode = stat.S_IWUSR
-    with os.fdopen(os.open(output_path, flags, mode), "w") as f:
+    with open(output_path, 'w', encoding='utf-8') as file:
         data = {'version': version, 'modifyTime': build_time}
-        f.write(json.dumps(data))
+        file.write(json.dumps(data))
 
 
 def extract_numeric_part(version: str) -> List:
@@ -683,17 +644,19 @@ def replace_version_block(content: str, version_info: str, version_info_value: s
         stripped = line.strip()
 
         if stripped.startswith("FILEVERSION"):
-            new_lines.append(re.sub(r'^(\s*)FILEVERSION\s+[\d,\s]+$',
-                                    f'\\1FILEVERSION {version_info}', line))
+            new_lines.append(re.sub(r'^(\s*)FILEVERSION\s+[\d,\s]+$', f'\\1FILEVERSION {version_info}', line))
         elif stripped.startswith("PRODUCTVERSION"):
-            new_lines.append(re.sub(r'^(\s*)PRODUCTVERSION\s+[\d,\s]+$',
-                                    f'\\1PRODUCTVERSION {version_info}', line))
+            new_lines.append(re.sub(r'^(\s*)PRODUCTVERSION\s+[\d,\s]+$', f'\\1PRODUCTVERSION {version_info}', line))
         elif re.match(r'^\s*VALUE\s+"FileVersion"', line):
-            new_lines.append(re.sub(r'^(\s*)VALUE\s+"FileVersion",\s*".*?"$',
-                                    f'\\1VALUE "FileVersion", "{version_info_value}"', line))
+            new_lines.append(
+                re.sub(
+                    r'^(\s*)VALUE\s+"FileVersion",\s*".*?"$', f'\\1VALUE "FileVersion", "{version_info_value}"', line
+                )
+            )
         elif re.match(r'^\s*VALUE\s+"ProductVersion"', line):
-            new_lines.append(re.sub(r'^(\s*)VALUE\s+"ProductVersion",\s*".*?"$',
-                                    f'\\1VALUE "ProductVersion", "{version}"', line))
+            new_lines.append(
+                re.sub(r'^(\s*)VALUE\s+"ProductVersion",\s*".*?"$', f'\\1VALUE "ProductVersion", "{version}"', line)
+            )
         elif re.match(r'^\s*VALUE\s+"LegalCopyright"', line):
             new_lines.append(re.sub(r'(\d{4})-\d{4}', rf'\1-{current_year}', line))
         else:
@@ -726,23 +689,17 @@ def update_winexe_version_info(version: str) -> None:
         logging.error('Failed to write main.rc because %s', e)
 
 
-def build_product_parallel(vscode_version, build_version, whl_version, os_name):
+def build_product_parallel(build_version, whl_version, os_name):
     logging.info('Start to build products')
     funcs = [build_package, build_jupyterlab]
-    args_list = [
-        (build_version, os_name),
-        (whl_version, os_name)
-    ]
-    if os.getenv('BUILD_VSCODE'):
-        funcs.append(build_vscode)
-        args_list.append((vscode_version, os_name))
+    args_list = [(build_version, os_name), (whl_version, os_name)]
 
-    pool = multiprocessing.Pool(processes=min(multiprocessing.cpu_count(), len(funcs)))
-    results = []
-    for func, args in zip(funcs, args_list):
-        results.append(pool.apply_async(func, args))
-    pool.close()
-    pool.join()
+    with multiprocessing.Pool(processes=min(multiprocessing.cpu_count(), len(funcs))) as pool:
+        results = []
+        for func, args in zip(funcs, args_list):
+            results.append(pool.apply_async(func, args))
+        pool.close()
+        pool.join()
 
     for func, result in zip(funcs, results):
         if result.get() != 0:
@@ -755,7 +712,7 @@ def build_product_parallel(vscode_version, build_version, whl_version, os_name):
 
 # 替换文件内容，对文件内容中的占位符使用指定内容替换
 def replace_placeholders_in_file(file_path, placeholder, replacement):
-    with os.fdopen(os.open(file_path, os.O_RDWR, stat.S_IWUSR), "r+", encoding='utf-8') as file:
+    with open(file_path, 'r+', encoding='utf-8') as file:
         # 读取文件内容
         content = file.read()
         # 进行占位符替换
@@ -775,73 +732,6 @@ def update_app_version(build_version):
     # 替换Cargo.toml中的版本信息
     cargo_toml_path = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR, "Cargo.toml")
     replace_placeholders_in_file(cargo_toml_path, Const.PLUGINS_VERSION_PLACEHOLDER, build_version)
-
-
-def huaweicloud_install_plugin(profiler_path):
-    if WORKSPACE_PATH is None:
-        return
-    plugins_dir = os.path.join(WORKSPACE_PATH, "Msi_plugin_package")
-    if not os.path.exists(plugins_dir):
-        logging.warning("Plugin dir not found")
-        return
-    for item in os.listdir(plugins_dir):
-        logging.info("Install plugin:{}".format(item))
-        item_path = os.path.join(plugins_dir, item)
-        plugin_install_init(plugin_zip=item_path)
-        install_opt = read_plugin_install_opt()
-        if install_opt is None:
-            continue
-        plugin_name = install_opt.get('pluginName')
-        if not plugin_install_frontend(profiler_path, plugin_name, install_opt):
-            continue
-        plugin_install_backend(profiler_path, plugin_name, install_opt)
-
-
-def plugin_install_init(plugin_zip):
-    if os.path.exists(PLUGIN_INSTALL_TMP_PATH):
-        shutil.rmtree(PLUGIN_INSTALL_TMP_PATH)
-    with zipfile.ZipFile(plugin_zip, "r") as zip_file:
-        zip_file.extractall(PLUGIN_INSTALL_TMP_PATH)
-
-
-def read_plugin_install_opt():
-    config_path = os.path.join(PLUGIN_INSTALL_TMP_PATH, "config.json")
-    if not os.path.exists(config_path):
-        logging.error("Config file not found in plugin")
-        return None
-    try:
-        with open(config_path) as file:
-            return json.load(file)
-    except IOError:
-        logging.error("Failed open config file")
-        return None
-
-
-def plugin_install_frontend(profiler_path, plugin_name, config):
-    front_dir = os.path.join(profiler_path, 'frontend')
-    front_dis_dir = os.path.join(front_dir, "plugins", plugin_name)
-    os.makedirs(front_dis_dir, exist_ok=True)
-    front_zip = os.path.join(PLUGIN_INSTALL_TMP_PATH, config['frontend'])
-    try:
-        with zipfile.ZipFile(front_zip, 'r') as zip_file:
-            zip_file.extractall(front_dis_dir)
-    except Exception as _:
-        logging.error("Extract failed")
-        return False
-    return True
-
-
-def plugin_install_backend(profiler_path, plugin_name, config):
-    backend_dir = os.path.join(profiler_path, 'server')
-    os_info = platform.platform()
-    backend_so = config['backend_x86'] if os_info.find('x86_64') > -1 else config['backend_arm']
-    os.makedirs(os.path.join(backend_dir, "plugins", plugin_name), exist_ok=True)
-    backend_dist = os.path.join(backend_dir, "plugins", plugin_name, backend_so)
-    if not os.path.exists(os.path.join(PLUGIN_INSTALL_TMP_PATH, backend_so)):
-        logging.error("Target plugin library not exist")
-        return False
-    shutil.copyfile(os.path.join(PLUGIN_INSTALL_TMP_PATH, backend_so), backend_dist)
-    return True
 
 
 def set_mac_app_signature_certificate_id():
@@ -864,37 +754,89 @@ def clean_build_cache():
     return 0
 
 
-def main():
-    logging.basicConfig(level=logging.INFO)
+def parse_args():
     parser = argparse.ArgumentParser(description='Build for Insight')
-    parser.add_argument('-r', '--revision', type=str, default=None,
-                        help='Specify the revision version')
-    parser.add_argument('-b', '--build_version', type=str, default=None,
-                        help='Specify the build version')
-    parser.add_argument('-w', '--whl_version', type=str, default=None,
-                        help='Specify the whl version')
-    parser.add_argument('type', nargs='?', default=None,
-                        help='Optional type, e.g. clean')
-    args, unknown = parser.parse_known_args()
-    if unknown:
-        logging.warning('[%s] Ignoring unrecognized argument(s): %s', 'main', ' '.join(unknown))
-    if args.type and args.type.lower() == 'clean':
-        return clean_build_cache()
+    parser.add_argument('-r', '--revision', type=str, default=None, help='Specify the revision version')
+    parser.add_argument('-b', '--build_version', type=str, default=None, help='Specify the build version')
+    parser.add_argument('-w', '--whl_version', type=str, default=None, help='Specify the whl version')
+    parser.add_argument('type', nargs='?', default=None, help='Optional type, e.g. clean')
+    return parser.parse_known_args()
+
+
+def is_clean_command(args) -> bool:
+    return bool(args.type and args.type.lower() == 'clean')
+
+
+def build_context_from_args(args) -> BuildContext:
     build_version = args.build_version or Const.DEFAULT_BUILD_VERSION
     whl_version = args.whl_version or Const.DEFAULT_BUILD_VERSION
-    init_version_info(build_version)
-    # vscode_version不允许存在字母，因此这里做进一步处理，将字母内容去掉
-    vscode_version = ''.join(ch for ch in whl_version if not ch.isalpha())
+    return BuildContext(
+        build_version=build_version,
+        whl_version=whl_version,
+        os_tag=get_os_tag(),
+    )
+
+
+def prepare(context: BuildContext):
+    init_version_info(context.build_version)
     init()
-    result = build_server()
+
+
+def run_parallel_functions(named_functions):
+    if not named_functions:
+        return 0
+
+    with multiprocessing.Pool(processes=min(multiprocessing.cpu_count(), len(named_functions))) as pool:
+        results = []
+        for name, func in named_functions:
+            results.append((name, pool.apply_async(func)))
+        pool.close()
+        pool.join()
+
+    for name, result in results:
+        if result.get() != 0:
+            logging.error('Failed to build %s.', name)
+            return 1
+    return 0
+
+
+def build_core_artifacts(context: BuildContext):
+    return run_parallel_functions(
+        [
+            ('server', build_server),
+            ('frontend', build_frontend),
+        ]
+    )
+
+
+def build_optional_artifacts(context: BuildContext):
+    return 0
+
+
+def package_products(context: BuildContext):
+    return build_product_parallel(context.build_version, context.whl_version, context.os_tag)
+
+
+def main():
+    logging.basicConfig(level=logging.INFO)
+    args, unknown = parse_args()
+    if unknown:
+        logging.warning('[%s] Ignoring unrecognized argument(s): %s', 'main', ' '.join(unknown))
+    if is_clean_command(args):
+        return clean_build_cache()
+
+    context = build_context_from_args(args)
+    prepare(context)
+
+    result = build_core_artifacts(context)
     if result != 0:
-        logging.error('Failed to build server.')
-        return 1
-    result = build_frontend()
+        return result
+
+    result = build_optional_artifacts(context)
     if result != 0:
-        logging.error('Failed to build frontend.')
-        return 1
-    return build_product_parallel(vscode_version, build_version, whl_version, get_os_tag())
+        return result
+
+    return package_products(context)
 
 
 if __name__ == "__main__":
