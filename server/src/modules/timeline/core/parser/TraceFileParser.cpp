@@ -94,7 +94,9 @@ bool TraceFileParser::InitParser(const std::vector<std::string> &filePathArr,
     std::string statusInfo = ComputeStatusInfoFromPathArr(filePathArr);
     if ((database->HasFinishedParseLastTime(statusInfo) &&
         !Global::BaselineManager::Instance().IsBaselineRankId(rankId)) ||
-        StringUtil::EndWith(filePathArr[0], "profiler.db") || StringUtil::EndWith(filePathArr[0], "ms_service_parsed.db")) {
+        StringUtil::EndWith(filePathArr[0], "profiler.db") ||
+        StringUtil::EndWith(filePathArr[0], "ms_service_parsed.db") ||
+        StringUtil::EndWith(filePathArr[0], "ftrace_mindstudio_insight_data.db")) {
         uint64_t min = UINT64_MAX;
         uint64_t max = 0;
         if (!database->QueryExtremumTimestamp(min, max)) {

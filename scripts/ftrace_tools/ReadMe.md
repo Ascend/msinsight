@@ -9,7 +9,7 @@
 ## 特性
 
 + 支持**命令行**和**API接口**两种方式的ftrace数据采集
-+ 支持将ftrace格式数据转换为Chrome Trace Json格式，**联合Profiling数据导入**MindStudio Insight，进行可视化展示
++ 支持将ftrace格式数据转换为SQLite DB格式（默认）或Chrome Trace Json格式，**联合Profiling数据导入**MindStudio Insight，进行可视化展示
 + 支持**容器内**运行模型，宿主机采集Linux Kernel ftrace数据，并进行无缝PID映射
 
 ## Host Bound问题定位思路
@@ -101,7 +101,7 @@ ftrace_record_start(cpu_mask=None, bf_size=DEFAULT_TRACE_BUFFER_SIZE, event_cfg:
 | 参数 | 说明 | 默认值 |
 |-----|-----|-----|
 | `cpu_mask` | cpu_mask 列表，指定采集的 CPU 核心。支持 `List[int]` 或字符串（如 `"0-3,8"`）| None，采集 **全部** CPU 核心 |
-| `bf_size` | trace-cmd 使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=4096` | `2820` |
+| `bf_size` | trace-cmd 使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=2820` |
 |`event_cfg`| 事件采集配置（`TraceEventConfig`），用于控制采集事件类型：`sched`（调度）、`irq`（中断）。`1`表示打开，`0`表示关闭。|`TraceEventConfig(sched=1, irq=1)`|
 
 **注意：推荐CPU采集核心数不超过64，采集时长30s左右，否则采集数据量可能过大，解析落盘耗时较长，需耐心等待。**
@@ -140,13 +140,13 @@ def train():
 
 ### 4. 数据采集后处理
 
-`trace_convert.py`脚本用于将原始 ftrace 数据转换为 Chrome Trace JSON 格式，并与所采集的profiling数据时间轴对齐，以便导入 MindStudio Insight 可视化工具联合展示与分析。
-> 请注意Profiling采集配置。当前仅支持ftrace与Text类型的Profiling联合展示，暂不支持与DB类型的Profiling数据联合展示。
+`trace_convert.py`脚本用于将原始 ftrace 数据转换为 SQLite DB 格式（默认）或 Chrome Trace JSON 格式，并与所采集的profiling数据时间轴对齐，以便导入 MindStudio Insight 可视化工具联合展示与分析。
+> 请注意Profiling采集配置。当前仅支持ftrace与Text类型的Profiling联合展示，暂不支持与DB类型的Profiling数据联合展示。当ftrace导出为db格式时，如果需要与Text类型的Profiling联合分析，请使用 `--format=json` 回退到 JSON 格式。
 
 **使用方法**
 
 ```bash
-python trace_convert.py [-h] [--input INPUT] [--output OUTPUT][--profiling_data PROFILING_DATA]
+python trace_convert.py [-h] [--input INPUT] [--output OUTPUT] [--format FORMAT] [--profiling_data PROFILING_DATA] [--pid_mapping PID_MAPPING]
 ```
 
 **参数说明**
@@ -154,7 +154,8 @@ python trace_convert.py [-h] [--input INPUT] [--output OUTPUT][--profiling_data 
 | 参数 | 说明 | 示例值 | 默认值 |
 |------|------|--------|--------|
 | `--input` | 输入的原始 trace 文件路径，通过 `trace_record.py` 生成 | `/path/to/trace_data.dat` | `trace.dat` |
-| `--output` | 输出的 JSON 文件路径 | `trace.json` | `output.json` |
+| `--output` | 输出的文件路径 | `trace.db` 或 `trace.json` | `ftrace_mindstudio_insight_data.db` |
+| `--format` | 指定输出的数据格式，支持 `db` 或 `json` | `json` | `db` |
 | `--profiling_data` | 同步采集的Profiling数据文件路径，用于时间轴对齐，以便导入MindStudio Insight联合分析 | `/profiling/xxxx_ascend_pt` | - |
 | `--pid_mapping` | 容器场景下，可传入pid映射文件路径，进行容器与宿主机PID转换，详见[容器内外PID命名空间隔离场景下采集](#5-容器内外pid命名空间隔离场景下采集) | `pid_mapping.json`| - |
 
@@ -364,13 +365,13 @@ python trace_convert.py --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid
 
 > 多卡场景下，`--profiling_data`可指定为包含多卡的上级目录，或任意单卡数据目录。
 
-转换结果`output.json`默认保存在当前目录下。可将其导入MindStudio Insight，进行可视化分析。
+转换结果`ftrace_mindstudio_insight_data.db`默认保存在当前目录下。可将其导入MindStudio Insight，进行可视化分析。
 
 ```bash
 .
 ├── ftrace_tools
 │   ├── trace.dat
-│   ├── output.json # ftrace转换结果
+│   ├── ftrace_mindstudio_insight_data.db # ftrace转换结果
 │   ├── pid_mapping.json
 │   ├── trace_convert.py
 │   └── trace_record.py
@@ -416,7 +417,9 @@ Process Scheduling泳道，可查看特定进程的调度状态。
 ![](./assets/joint_import_failure.png)
 
 **答：**
-当前暂不支持Text类型数据与DB类型数据混合显示。若Profiling为Text和DB混合场景，需要提前删除其中的DB交付件`analysis.db`与`ascend_pytorch_profiler_x.db`。
+当前暂不支持Text类型数据与DB类型数据混合显示。由于 ftrace 数据默认导出为 DB 格式，如果此时您导入的 Profiling 数据仅为 Text 类型，则会产生格式冲突。
+
+**解决方案**：若 Profiling 为 Text 和 DB 混合场景，需要提前删除 Profiling 中的 DB 交付件 `analysis.db` 与 `ascend_pytorch_profiler_x.db`，并在转换 ftrace 数据时，使用 `--format=json` 回退到 JSON 格式。
 ![Text与DB混合数据](./assets/hybrid_text_db_data.png)
 
 ### 2. 采集后ftrace数据部分CPU核存在大面积空白

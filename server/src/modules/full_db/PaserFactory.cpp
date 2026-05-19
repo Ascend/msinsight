@@ -46,6 +46,7 @@
 #include "MemScopeParser.h"
 #include "MemSnapshotParser.h"
 #include "ProjectParserTriton.h"
+#include "ProjectParserFtrace.h"
 
 namespace Dic::Module {
 using namespace Dic;
@@ -71,6 +72,9 @@ std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::strin
     }
     if (!FileUtil::IsFolder(path) && std::regex_match(filename, std::regex(npumonitorDBReg))) {
         return std::make_pair(path, ParserType::DB_NPUMONITOR);
+    }
+    if (!FileUtil::IsFolder(path) && std::regex_match(filename, std::regex(ftraceDbReg))) {
+        return std::make_pair(path, ParserType::DB_FTRACE);
     }
     if (StringUtil::EndWith(path, computeBinSuffix)) {
         return std::make_pair(path, ParserType::BIN);
@@ -120,6 +124,9 @@ std::shared_ptr<ProjectParserBase> ParserFactory::GetProjectParser(ParserType al
             break;
         case ParserType::TRITON_MEMORY:
             alloc = std::make_shared<ProjectParserTriton>();
+            break;
+        case ParserType::DB_FTRACE:
+            alloc = std::make_shared<ProjectParserFtrace>();
             break;
         default:
             alloc = std::make_shared<ProjectParserBase>();

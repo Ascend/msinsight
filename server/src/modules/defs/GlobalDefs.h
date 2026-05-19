@@ -44,6 +44,7 @@ enum class ParserType {
     DB_MEMSCOPE = 7,
     PKL_MEM_SNAPSHOT = 8,
     TRITON_MEMORY = 9,
+    DB_FTRACE = 10,
     OTHER = 20
 };
 
@@ -77,6 +78,7 @@ enum class ProjectTypeEnum {
     DB_MEMSCOPE = 10,
     PKL_MEM_SNAPSHOT = 11,
     TRITON = 12,
+    DB_FTRACE = 13,
     OTHER = 100
 };
 
@@ -130,6 +132,8 @@ static inline ParserType coverProjectTypeToParserType(ProjectTypeEnum projectTyp
             return ParserType::PKL_MEM_SNAPSHOT;
         case ProjectTypeEnum::TRITON:
             return ParserType::TRITON_MEMORY;
+        case ProjectTypeEnum::DB_FTRACE:
+            return ParserType::DB_FTRACE;
         default:
             return ParserType::JSON;
     }

@@ -68,6 +68,7 @@ struct ImportActionResBody {
     bool isIE = false;
     bool isMultiDevice{false};
     bool isTriton{false};
+    bool isFtrace{false};
 };
 
 struct ImportActionResponse : public Response {
