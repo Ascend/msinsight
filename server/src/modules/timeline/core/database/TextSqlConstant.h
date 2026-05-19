@@ -25,6 +25,7 @@
 #include "TimelineProtocolRequest.h"
 #include "TableDefs.h"
 // LCOV_EXCL_BR_START
+// clang-format off
 namespace Dic::Module::Timeline {
 const int CACHE_SIZE = 1000;
 const std::string SLICE_TABLE = "slice";
@@ -148,7 +149,7 @@ public:
     static std::string GetSearchSliceNameCountSql(bool isMatchExact, bool isMatchCase)
     {
         std::string nameMatch = GetSearchNameSqlSuffix(isMatchExact, isMatchCase);
-        return "SELECT count(*) FROM " + SLICE_TABLE + " WHERE " + nameMatch;
+        return "SELECT count(*) as count FROM " + SLICE_TABLE + " WHERE " + nameMatch;
     }
     static std::string GetSearchSliceNameSql(bool isMatchExact, bool isMatchCase)
     {
@@ -319,6 +320,79 @@ public:
         std::string sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
             " s.id as id, t.tid as tid, t.pid as pid FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
             " t on s.track_id = t.track_id WHERE " + nameMatch + orderBy + " limit ? offset ?";
+        return sql;
+    }
+
+    static std::string GetSearchSliceDetailWithFilterSql(bool isMatchExact, bool isMatchCase, const std::string& order,
+        const std::string& orderByField)
+    {
+        std::string orderBy = " ORDER BY " + orderByField + (order == "descend" ? " DESC" : " ASC");
+        std::string nameMatch = GetSearchNameSqlSuffix(isMatchExact, isMatchCase);
+        // 二级筛选：nameFilter 模糊匹配
+        std::string nameFilterMatch = "lower(s.name) LIKE lower('%'||?||'%')";
+        std::string sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
+            " s.id as id, t.tid as tid, t.pid as pid FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
+            " t on s.track_id = t.track_id WHERE " + nameMatch + " AND " + nameFilterMatch + orderBy + " limit ? offset ?";
+        return sql;
+    }
+
+    static std::string GetSearchSliceCountWithFilterSql(bool isMatchExact, bool isMatchCase)
+    {
+        std::string nameMatch;
+        if (isMatchExact && isMatchCase) {
+            nameMatch = "s.name like ?";
+        } else if (isMatchExact) {
+            nameMatch = "lower(s.name) like lower(?)";
+        } else if (isMatchCase) {
+            nameMatch = "s.name like '%'||?||'%'";
+        } else {
+            nameMatch = "lower(s.name) like lower('%'||?||'%')";
+        }
+        std::string nameFilterMatch = "lower(s.name) LIKE lower('%'||?||'%')";
+        std::string sql = "SELECT count(1) as count FROM " + SLICE_TABLE + " s WHERE " + nameMatch + " AND " + nameFilterMatch;
+        return sql;
+    }
+
+    // 款选场景下带二级筛选的SQL
+    static std::string GetSearchSliceDetailWithLockRangeAndFilterSql(bool isMatchExact, bool isMatchCase,
+        const std::string& order, const std::string& orderByField)
+    {
+        std::string orderBy = " ORDER BY " + orderByField + (order == "descend" ? " DESC" : " ASC");
+        std::string nameMatch;
+        if (isMatchExact && isMatchCase) {
+            nameMatch = "s.name like ?";
+        } else if (isMatchExact) {
+            nameMatch = "lower(s.name) like lower(?)";
+        } else if (isMatchCase) {
+            nameMatch = "s.name like '%'||?||'%'";
+        } else {
+            nameMatch = "lower(s.name) like lower('%'||?||'%')";
+        }
+        // 二级筛选：nameFilter 模糊匹配
+        std::string nameFilterMatch = "lower(s.name) LIKE lower('%'||?||'%')";
+        std::string sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
+            " s.id as id, t.tid as tid, t.pid as pid FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
+            " t on s.track_id = t.track_id WHERE " + nameMatch + " AND " + nameFilterMatch +
+            " AND s.track_id = ? AND s.timestamp >= ? AND s.end_time <= ?" + orderBy + " limit ? offset ?";
+        return sql;
+    }
+
+    // 款选场景下带二级筛选的计数SQL
+    static std::string GetSearchSliceCountWithLockRangeAndFilterSql(bool isMatchExact, bool isMatchCase)
+    {
+        std::string nameMatch;
+        if (isMatchExact && isMatchCase) {
+            nameMatch = "s.name like ?";
+        } else if (isMatchExact) {
+            nameMatch = "lower(s.name) like lower(?)";
+        } else if (isMatchCase) {
+            nameMatch = "s.name like '%'||?||'%'";
+        } else {
+            nameMatch = "lower(s.name) like lower('%'||?||'%')";
+        }
+        std::string nameFilterMatch = "lower(s.name) LIKE lower('%'||?||'%')";
+        std::string sql = "SELECT count(1) as count FROM " + SLICE_TABLE + " s WHERE " + nameMatch + " AND " + nameFilterMatch +
+            " AND s.track_id = ? AND s.timestamp >= ? AND s.end_time <= ?";
         return sql;
     }
 
@@ -511,6 +585,7 @@ private:
     }
 };
 }
+// clang-format on
 // LCOV_EXCL_BR_STOP
 
 #endif // PROFILER_SERVER_TEXTSQLCONSTANT_H
