@@ -49,11 +49,6 @@ export type SelectedData = Record<string, unknown> & {
     sourceUnit?: InsightUnit;
 };
 
-export type DataWithHeight<T> = T & { height?: number };
-export interface LinkedDataWithHeight<T> {
-    data: DataWithHeight<T>;
-    datas: Array<DataWithHeight<T>>;
-}
 export type ValidSession = Session & { startRecordTime: TimeStamp; phase: Exclude<Phase, 'configuring'> };
 
 export function isValidSession(session?: Session): session is ValidSession {
@@ -99,6 +94,7 @@ export interface SelectedDataType extends Pick<ThreadTrace, 'duration' | 'startT
     cardId?: SliceMeta['cardId'];
     dbPath?: string;
     metaType?: ThreadMetaData['metaType'];
+    rawStartTime?: string;
     color?: keyof Theme['colorPalette'] | Array<[ number, keyof Theme['colorPalette'] ]>;
     startRecordTime?: number;
     showSelectedData?: boolean;

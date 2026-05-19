@@ -188,10 +188,9 @@ export interface OperatorDispatchResult extends OperatorDispatchResultItem {
 
 export const queryFtraceStat = async (param: {
     rankId: string; dbPath: string; dataType: number; current: number; pageSize: number;
-}): Promise<{ headers: string[]; data: Record<string, number>[]; pageParam: { current: number; pageSize: number; total: number } }> => {
+}): Promise<{ headers: string[]; data: Array<Record<string, number>>; pageParam: { current: number; pageSize: number; total: number } }> => {
     return window.requestData('systemView/systemViewFtraceStat', param, 'timeline');
 };
-
 
 export interface EventViewParams {
     currentPage: number;
@@ -310,4 +309,28 @@ export interface FlowItem {
 
 export interface GetUnitFlowsResult {
     unitAllFlows: FlowItem[];
+}
+
+export type TimelineAlignmentType = 'LEFT' | 'RIGHT';
+
+export interface QueryTimelineOffsetParams {
+    sliceName: string;
+    rankId: string;
+    fileId: string;
+    pid: string;
+    metaType: string;
+    startTime: string;
+    duration: number;
+    alignType: TimelineAlignmentType;
+}
+
+export interface TimelineOffsetItem {
+    rankId: string;
+    offset: number;
+    processId: string[];
+}
+
+export interface QueryTimelineOffsetResult {
+    result: TimelineOffsetItem[];
+    baseOffset: number;
 }

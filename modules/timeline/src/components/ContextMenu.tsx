@@ -48,6 +48,7 @@ import {
     actionRecoverDefaultOffset,
     actionResetZoom,
     actionSetBenchmarkSlice,
+    actionAlignByOperator,
     actionShowFlagEvents,
     actionShowHiddenUnits,
     actionShowInEventsView,
@@ -130,6 +131,23 @@ const MenuItem = styled.div`
     }
 
     .menu-item__shortcut {
+        opacity: 0.6;
+    }
+
+    .menu-item__shortcut-area {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 4px;
+    }
+
+    .menu-item__arrow {
+        display: inline-block;
+        width: 5px;
+        height: 5px;
+        border-top: 1.5px solid currentColor;
+        border-right: 1.5px solid currentColor;
+        transform: rotate(45deg);
         opacity: 0.6;
     }
 `;
@@ -240,6 +258,7 @@ const contextMenuItems: ContextMenuItem[] = [
     // 泳道偏移（对齐）
     actionSetBenchmarkSlice,
     actionClearBenchmarkSlice,
+    actionAlignByOperator,
     actionRecoverDefaultOffset,
     CONTEXT_MENU_SEPARATOR,
     // 泳道收缩
@@ -344,7 +363,10 @@ const getMenuItems = (props: Props, t: TFunction, menuItems: ContextMenuItem[]):
                     onMouseLeave={(): void => { mouseLeaveEvent(session, item); }}
                 >
                     <div className="menu-item__label">{label}</div>
-                    <kbd className="menu-item__shortcut">{item.name ? getShortcutFromShortcutName(item.name as ShortcutName) : ''}</kbd>
+                    <div className="menu-item__shortcut-area">
+                        <kbd className="menu-item__shortcut">{item.name ? getShortcutFromShortcutName(item.name as ShortcutName) : ''}</kbd>
+                        {item.subMode && <span className="menu-item__arrow" />}
+                    </div>
                     {subMenuIsVisible ? <SubMenu style={item.style ?? {}} session={session} subMenus={subMenus}></SubMenu> : <></>}
                 </MenuItem>;
             })

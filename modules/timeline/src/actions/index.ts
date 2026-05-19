@@ -41,6 +41,11 @@ export {
     actionAlignToBenchmarkLeft,
     actionAlignToBenchmarkRight,
 } from './actionSetBenchmarkSlice';
+export {
+    actionAlignByOperator,
+    actionAlignByOperatorLeft,
+    actionAlignByOperatorRight,
+} from './actionAlignByOperator';
 export { actionPanLeft, actionPanRight } from './actionPan';
 export { actionToggleSelection } from './actionToggleSelection';
 export { actionScrollDown, actionScrollUp } from './actionScroll';
