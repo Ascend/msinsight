@@ -227,7 +227,7 @@ const ViewSelect = observer((props: any) => {
 });
 
 // eslint-disable-next-line max-lines-per-function
-export const RankFilter = observer((props: { session: Session; viewOption?: number; handleChange: (v: SelectedCardInfo) => void }): JSX.Element => {
+export const RankFilter = observer((props: { session: Session; viewOption?: number; handleChange: (v: SelectedCardInfo) => void; defaultRankId?: string }): JSX.Element => {
     const [rankCondition, setRankCondition] = useState<ConditionType<CardRankInfo, number | undefined>>({ options: [], value: undefined });
     const [hostCondition, setHostCondition] = useState<HostConditionType>({ options: [], value: '' });
     const { t } = useTranslation('timeline');
@@ -240,13 +240,33 @@ export const RankFilter = observer((props: { session: Session; viewOption?: numb
             }
         }
         const { hosts, cardsMap }: { hosts: string[]; cardsMap: Map<string, CardRankInfo[]> } = GroupCardRankInfosByHost(cardList);
-        setHostCondition({ options: hosts, value: hosts[0] ?? '', cardsMap });
-    }, [props.session.rankCardInfoMap.size]);
+
+        // 如果有 defaultRankId，找到对应的 host
+        let initialHost = hosts[0] ?? '';
+        if (props.defaultRankId !== undefined && props.defaultRankId !== 'ALL') {
+            for (const [host, cards] of cardsMap.entries()) {
+                if (cards.some(card => card.rankInfo.rankId === props.defaultRankId)) {
+                    initialHost = host;
+                    break;
+                }
+            }
+        }
+        setHostCondition({ options: hosts, value: initialHost, cardsMap });
+    }, [props.session.rankCardInfoMap.size, props.defaultRankId]);
 
     useEffect(() => {
         const rankOptions = hostCondition.cardsMap?.get(hostCondition.value) ?? [];
-        setRankCondition({ options: rankOptions, value: rankOptions.length > 0 ? 0 : undefined });
-    }, [hostCondition]);
+
+        // 如果有 defaultRankId，找到对应的 index
+        let initialIndex = rankOptions.length > 0 ? 0 : undefined;
+        if (props.defaultRankId !== undefined && props.defaultRankId !== 'ALL') {
+            const foundIndex = rankOptions.findIndex(card => card.rankInfo.rankId === props.defaultRankId);
+            if (foundIndex !== -1) {
+                initialIndex = foundIndex;
+            }
+        }
+        setRankCondition({ options: rankOptions, value: initialIndex });
+    }, [hostCondition, props.defaultRankId]);
 
     useEffect(() => {
         if (rankCondition.value === undefined) {

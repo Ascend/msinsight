@@ -165,7 +165,7 @@ export const FindDetailView = observer((props: { session: Session; bottomHeight:
     };
     return (
         <FindDetailContainer>
-            <RankFilter session={props.session} handleChange={handleChange}></RankFilter>
+            <RankFilter session={props.session} handleChange={handleChange} defaultRankId={props.session.searchData?.rankId}></RankFilter>
             <ChartErrorBoundary>
                 <FindDetail card={conditions} session={props.session} bottomHeight={props.bottomHeight}></FindDetail>
             </ChartErrorBoundary>

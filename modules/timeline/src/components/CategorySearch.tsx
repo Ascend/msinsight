@@ -15,12 +15,12 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { useTheme } from '@emotion/react';
+import { Global, css, useTheme } from '@emotion/react';
 import styled from '@emotion/styled';
-import { Button, Input, Tooltip } from '@insight/lib/components';
+import { Button, Input, Select, Tooltip } from '@insight/lib/components';
 import { message } from 'antd';
 import { observer } from 'mobx-react';
-import React, { type ChangeEvent, useEffect, useState } from 'react';
+import React, { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { SearchIcon } from '@insight/lib/icon';
 import { ReactComponent as AntdCloseIcon } from '../assets/images/insights/ic_close_filled.svg';
 import type { Session } from '../entity/session';
@@ -37,12 +37,14 @@ const CloseIcon = AntdCloseIcon as SvgType;
 
 const RANGE_MULTIPLE = 10;
 
+const ALL_RANK_ID = 'ALL';
+
 const CustomDiv = styled.div`
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 1px 7px 1px 10px;
-    min-width: 300px;
+    min-width: 380px;
     height: 32px;
     .searchResult {
         font-size: 12px;
@@ -64,6 +66,9 @@ const CustomDiv = styled.div`
     }
     button.ant-btn.ant-btn-default {
         font-size: 12px;
+    }
+    .ant-select-selector {
+        min-width: 100px !important;
     }
 `;
 
@@ -105,7 +110,7 @@ const getLockRangeMetaList = (session: Session): any => {
 };
 
 // 获取搜索的结果数量
-const queryDataCount = async (session: Session, searchContent: string, isMatchCase: boolean, isMatchExact: boolean): Promise<number> => {
+const queryDataCount = async (session: Session, searchContent: string, isMatchCase: boolean, isMatchExact: boolean, selectedRankId?: string): Promise<number> => {
     if (searchContent === undefined || searchContent === '') {
         return 0;
     }
@@ -117,6 +122,10 @@ const queryDataCount = async (session: Session, searchContent: string, isMatchCa
             continue;
         }
         const metadata = unit.metadata as any;
+        // 如果选择了具体的 rankId，则只检索对应的 unit
+        if (selectedRankId !== undefined && selectedRankId !== ALL_RANK_ID && metadata.cardId !== selectedRankId) {
+            continue;
+        }
         const res = await window.request(metadata.dataSource, {
             command: 'search/count',
             params: { rankId: metadata.cardId, dbPath: metadata.dbPath, searchContent, isMatchCase, isMatchExact, metadataList },
@@ -218,9 +227,34 @@ const CategorySearchContent = (session: Session): JSX.Element => {
     const [isMatchExact, setIsMatchExact] = useState(false);
     const [isSearching, setIsSearching] = useState(false);
 
+    // 获取所有可用的 rankId 列表
+    const rankIdOptions = useMemo(() => {
+        const rankIdSet = new Set<string>();
+        for (const unit of session.units) {
+            if (!unit.isDisplay || unit.isMultiDeviceHidden) {
+                continue;
+            }
+            const metadata = unit.metadata as any;
+            if (metadata.cardId !== undefined) {
+                rankIdSet.add(metadata.cardId);
+            }
+        }
+        const options = Array.from(rankIdSet);
+        options.push(ALL_RANK_ID); // ALL 放在最后
+        return options;
+    }, [session.units]);
+
+    // 选中的 rankId，默认为第一个
+    const [selectedRankId, setSelectedRankId] = useState<string>(() => {
+        return rankIdOptions.length > 1 ? rankIdOptions[0] : ALL_RANK_ID;
+    });
+
     useEffect(action(() => {
         setSearchIconVisible(true); setSearchContent(''); setInputSearchContent(''); setIsMatchCase(false); setIsMatchExact(false);
         updatePaginationData({ current: 1, total: 0 }); session.searchData = undefined;
+        // 切换数据源时，重置为新数据源的第一个 rankId
+        const newRankId = rankIdOptions.length > 1 ? rankIdOptions[0] : ALL_RANK_ID;
+        setSelectedRankId(newRankId);
     }), [session, session.units]);
     const onPageChange = (current: number): void => {
         if (isSearching) {
@@ -232,7 +266,7 @@ const CategorySearchContent = (session: Session): JSX.Element => {
     const onInputPressEnter = async (): Promise<void> => {
         if (searchContent === '') { return; }
         setSearchingStatus(true);
-        const totalCnt = await queryDataCount(session, searchContent, isMatchCase, isMatchExact);
+        const totalCnt = await queryDataCount(session, searchContent, isMatchCase, isMatchExact, selectedRankId);
         if (totalCnt > 0) {
             updatePaginationData({ current: 1, total: totalCnt });
             jumpSlice({ session, searchContent, index: 1, isMatchCase, isMatchExact, setIsSearching });
@@ -279,10 +313,17 @@ const CategorySearchContent = (session: Session): JSX.Element => {
     const doSearchList = (): void => {
         runInAction(() => {
             if (session.searchData !== null && session.searchData !== undefined) {
-                session.searchData = { ...session.searchData, content: searchContent, isMatchCase, isMatchExact };
+                session.searchData = { ...session.searchData, content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId };
             }
             session.doContextSearch = !session.doContextSearch;
         });
+    };
+
+    const onRankIdChange = (value: string): void => {
+        setSelectedRankId(value);
+        // 切换 rankId 时重置搜索状态
+        setSearchIconVisible(true);
+        updatePaginationData({ current: 1, total: 0 });
     };
 
     let dom;
@@ -313,14 +354,32 @@ const CategorySearchContent = (session: Session): JSX.Element => {
     }
 
     return (
-        <CustomDiv theme={theme} onClick={(e): void => { e.stopPropagation(); }}>
-            { contextHolder}
-            <Input allowClear={{ clearIcon: <CloseIcon fill={theme.buttonColor.enableClickColor} /> }} disabled={searchingStatus || isSearching} maxLength={200}
-                size="large" value={inputSearchContent} onChange={onInputChange} onPressEnter={onInputPressEnter} ></Input>
-            <div className="searchResult">
-                {dom}
-            </div>
-        </CustomDiv>
+        <>
+            <Global
+                styles={css`
+                    .rank-id-select-dropdown {
+                        z-index: 9999 !important;
+                    }
+                `}
+            />
+            <CustomDiv theme={theme} onClick={(e): void => { e.stopPropagation(); }}>
+                { contextHolder}
+                <Select
+                    value={selectedRankId}
+                    onChange={onRankIdChange}
+                    options={rankIdOptions.map(rankId => ({ value: rankId, label: rankId }))}
+                    size="small"
+                    style={{ minWidth: 100, marginRight: 8 }}
+                    disabled={searchingStatus || isSearching}
+                    popupClassName="rank-id-select-dropdown"
+                />
+                <Input allowClear={{ clearIcon: <CloseIcon fill={theme.buttonColor.enableClickColor} /> }} disabled={searchingStatus || isSearching} maxLength={200}
+                    size="large" value={inputSearchContent} onChange={onInputChange} onPressEnter={onInputPressEnter} ></Input>
+                <div className="searchResult">
+                    {dom}
+                </div>
+            </CustomDiv>
+        </>
     );
 };
 

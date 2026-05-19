@@ -199,7 +199,7 @@ export class Session {
         },
     };
 
-    searchData?: { [x: string]: unknown; content: string; isMatchCase: boolean; isMatchExact: boolean };
+    searchData?: { content: string; isMatchCase: boolean; isMatchExact: boolean; rankId?: string };
     doContextSearch?: boolean;
     showEvent?: boolean;
     linkLines: LinkLines = {};
