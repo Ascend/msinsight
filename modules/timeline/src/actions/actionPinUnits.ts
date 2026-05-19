@@ -19,39 +19,64 @@
 import { register } from './register';
 import type { Session } from '../entity/session';
 import { runInAction } from 'mobx';
+import { message } from 'antd';
+import i18n from '@insight/lib/i18n';
 import { isPinned, switchPinned } from '../components/ChartContainer/unitPin';
 import type { InsightUnit } from '../entity/insight';
-import type { ThreadMetaData } from '../entity/data';
+import type { CardMetaData, CounterMetaData, ProcessMetaData, ThreadMetaData } from '../entity/data';
 import { getAutoKey } from '../utils/dataAutoKey';
 import { preOrderFlatten } from '../entity/common';
 import { getRootUnit } from '../utils';
 
+// 限制单次置顶最大数量，防止过多泳道导致渲染性能下降
+const MAX_PIN_UNIT_COUNT = 100;
+
+const hasStringValue = (str: string = ''): boolean => str !== '';
+
+function getUnitLevelName(unit: InsightUnit): string {
+    const md = unit.metadata;
+    const threadId = (md as ThreadMetaData)?.threadId;
+    if (hasStringValue(threadId)) {
+        return (md as ThreadMetaData).threadName ?? '';
+    }
+    if (unit.name === 'Counter') {
+        return (md as CounterMetaData)?.threadName ?? '';
+    }
+    const processId = (md as ProcessMetaData)?.processId;
+    if (hasStringValue(processId)) {
+        return (md as ProcessMetaData).processName ?? '';
+    }
+    return (md as CardMetaData)?.cardName ?? '';
+}
+
 interface SelectedUnitStatus {
     isThreadNameStartWithGroup: boolean;
-    isGroupCommunicationUnit: boolean;
     groupNameValue: string;
+    unitLevel: string;
+    unitLevelName: string;
     isPinned: boolean;
+    isLeafUnit: boolean;
 }
 
 interface SelectedUnitListStatus {
     isAllThreadNameStartWithGroup: boolean;
-    isAllGroupCommunicationUnit: boolean;
     isSameGroupNameValue: boolean;
-    groupNameValue: string;
+    isSameUnitLevelName: boolean;
+    unitLevelName: string;
     isAllPinned: boolean;
     isAllUnpinned: boolean;
+    isAllLeafUnit: boolean;
 }
 
 function calculateSelectedUnitStatus(selectedUnit: InsightUnit): SelectedUnitStatus {
-    const hasStringValue = (str: string = ''): boolean => {
-        return str !== '';
-    };
     const metadata = selectedUnit.metadata as ThreadMetaData;
     return {
         isThreadNameStartWithGroup: metadata?.threadName?.includes('Group') ?? false,
-        isGroupCommunicationUnit: hasStringValue(metadata?.groupNameValue),
-        groupNameValue: (selectedUnit.metadata as ThreadMetaData)?.groupNameValue ?? '',
+        groupNameValue: metadata?.groupNameValue ?? '',
+        unitLevel: selectedUnit.name,
+        unitLevelName: getUnitLevelName(selectedUnit),
         isPinned: isPinned(selectedUnit),
+        isLeafUnit: !selectedUnit.children || selectedUnit.children.length === 0,
     };
 }
 
@@ -59,22 +84,28 @@ export function calculateSelectedUnitListStatus(selectedUnits: InsightUnit[]): S
     const selectedUnitStatuses = selectedUnits.map(calculateSelectedUnitStatus);
     const isAllThreadNameStartWithGroup = selectedUnitStatuses
         .every(({ isThreadNameStartWithGroup }) => isThreadNameStartWithGroup);
-    const isAllGroupCommunicationUnit = selectedUnitStatuses
-        .every(({ isGroupCommunicationUnit }) => isGroupCommunicationUnit);
 
     const isAllPinned = selectedUnitStatuses.every((status) => status.isPinned);
     const isAllUnpinned = selectedUnitStatuses.every((status) => !status.isPinned);
+    const isAllLeafUnit = selectedUnitStatuses.every((status) => status.isLeafUnit);
 
     const groupNameValue = selectedUnitStatuses?.[0]?.groupNameValue ?? '';
-    const isSameGroupNameValue = isAllGroupCommunicationUnit && selectedUnitStatuses
-        .reduce((acc, curr) => acc && curr.groupNameValue === groupNameValue, true);
+    const isSameGroupNameValue = hasStringValue(groupNameValue) && selectedUnitStatuses
+        .every((status) => status.groupNameValue === groupNameValue);
+
+    const unitLevelName = selectedUnitStatuses?.[0]?.unitLevelName ?? '';
+    const isSameUnitLevelName = selectedUnitStatuses
+        .every(({ unitLevel, unitLevelName: name }) =>
+            unitLevel === selectedUnitStatuses[0]?.unitLevel && name === selectedUnitStatuses[0]?.unitLevelName);
+
     return {
         isAllThreadNameStartWithGroup,
-        isAllGroupCommunicationUnit,
         isSameGroupNameValue,
-        groupNameValue,
+        isSameUnitLevelName,
+        unitLevelName,
         isAllPinned,
         isAllUnpinned,
+        isAllLeafUnit,
     };
 }
 
@@ -86,26 +117,43 @@ function unpinAll(session: Session): void {
     });
 }
 
-function getSameGroupNameUnits(session: Session): InsightUnit[] {
+function getSameLevelUnits(session: Session): InsightUnit[] {
     if (session.selectedUnits.length === 0) {
         return [];
     }
-    const selectedGroupNameValue = (session.selectedUnits[0].metadata as ThreadMetaData).groupNameValue;
+    const selectedUnit = session.selectedUnits[0];
+    const selectedGroupNameValue = (selectedUnit.metadata as ThreadMetaData)?.groupNameValue;
     const flattenUnits = preOrderFlatten(getRootUnit(session.units), 0);
-    return flattenUnits
-        .filter(({ metadata }) => (metadata as ThreadMetaData)?.groupNameValue === selectedGroupNameValue);
+    // 优先按 groupNameValue 匹配（兼容老数据）
+    if (hasStringValue(selectedGroupNameValue)) {
+        return flattenUnits.filter((unit) => (unit.metadata as ThreadMetaData)?.groupNameValue === selectedGroupNameValue);
+    }
+    const selectedName = getUnitLevelName(selectedUnit);
+    if (!hasStringValue(selectedName)) {
+        return [];
+    }
+    const selectedLevel = selectedUnit.name;
+    return flattenUnits.filter((unit) => unit.name === selectedLevel && getUnitLevelName(unit) === selectedName);
 }
 
-function pinAllSameGroupNameValue(session: Session): void {
+function showMaxPinWarning(count: number): void {
+    message.warning(i18n.t('timeline:contextMenu.Pin Unit Max Warning', { count, max: MAX_PIN_UNIT_COUNT }));
+}
+
+function pinAllSameLevel(session: Session): void {
     if (session.selectedUnits.length === 0) {
         return;
     }
-    const sameGroupNameValueUnits = getSameGroupNameUnits(session);
-    if (sameGroupNameValueUnits.length === 0) {
+    const sameLevelUnits = getSameLevelUnits(session);
+    if (sameLevelUnits.length === 0) {
         return;
     }
+    if (sameLevelUnits.length > MAX_PIN_UNIT_COUNT) {
+        showMaxPinWarning(sameLevelUnits.length);
+    }
+    const targetUnits = sameLevelUnits.slice(0, MAX_PIN_UNIT_COUNT);
     const pinnedUnitKeys = session.pinnedUnits.map((item) => getAutoKey(item));
-    const addUnits = sameGroupNameValueUnits.reduce<InsightUnit[]>((acc, curr): InsightUnit[] => {
+    const addUnits = targetUnits.reduce<InsightUnit[]>((acc, curr): InsightUnit[] => {
         const key = getAutoKey(curr);
         if (pinnedUnitKeys.includes(key)) {
             return acc;
@@ -120,14 +168,18 @@ function pinAllSameGroupNameValue(session: Session): void {
     });
 }
 
-function unpinAllSameGroupNameValue(session: Session): void {
-    const sameGroupNameValueUnits = getSameGroupNameUnits(session);
-    if (sameGroupNameValueUnits.length === 0) {
+function unpinAllSameLevel(session: Session): void {
+    const sameLevelUnits = getSameLevelUnits(session);
+    if (sameLevelUnits.length === 0) {
         return;
     }
+    if (sameLevelUnits.length > MAX_PIN_UNIT_COUNT) {
+        showMaxPinWarning(sameLevelUnits.length);
+    }
+    const targetUnits = sameLevelUnits.slice(0, MAX_PIN_UNIT_COUNT);
     const { pinnedUnits } = session;
     const pinnedUnitKeys = pinnedUnits.map((item) => getAutoKey(item));
-    const subtractUnits = sameGroupNameValueUnits.reduce<InsightUnit[]>((acc, curr): InsightUnit[] => {
+    const subtractUnits = targetUnits.reduce<InsightUnit[]>((acc, curr): InsightUnit[] => {
         const key = getAutoKey(curr);
         const findIdx = pinnedUnitKeys.findIndex((pinnedKey: string): boolean => pinnedKey === key);
         if (findIdx < 0) {
@@ -157,32 +209,34 @@ export const actionUnpinAll = register({
     },
 });
 
-export const actionPinByGroupNameValue = register({
-    name: 'pinByGroupNameValue',
+export const actionPinByUnitName = register({
+    name: 'pinByUnitName',
     label: (session, t) => {
         const selectedUnitListStatus = calculateSelectedUnitListStatus(session.selectedUnits);
-        return t('timeline:contextMenu.Pin by Group Communication Unit Name', { name: selectedUnitListStatus.groupNameValue });
+        return t('timeline:contextMenu.Pin by Unit Name', { name: selectedUnitListStatus.unitLevelName });
     },
     visible: (session) => {
         const selectedUnitListStatus = calculateSelectedUnitListStatus(session.selectedUnits);
-        return selectedUnitListStatus.isAllUnpinned && selectedUnitListStatus.isSameGroupNameValue;
+        return selectedUnitListStatus.isAllUnpinned && selectedUnitListStatus.isAllLeafUnit &&
+            (selectedUnitListStatus.isSameGroupNameValue || selectedUnitListStatus.isSameUnitLevelName);
     },
     perform: (session): void => {
-        pinAllSameGroupNameValue(session);
+        pinAllSameLevel(session);
     },
 });
 
-export const actionUnpinByGroupNameValue = register({
-    name: 'unpinByGroupNameValue',
+export const actionUnpinByUnitName = register({
+    name: 'unpinByUnitName',
     label: (session, t) => {
         const selectedUnitListStatus = calculateSelectedUnitListStatus(session.selectedUnits);
-        return t('timeline:contextMenu.Unpin by Group Communication Unit Name', { name: selectedUnitListStatus.groupNameValue });
+        return t('timeline:contextMenu.Unpin by Unit Name', { name: selectedUnitListStatus.unitLevelName });
     },
     visible: (session) => {
         const selectedUnitListStatus = calculateSelectedUnitListStatus(session.selectedUnits);
-        return selectedUnitListStatus.isAllPinned && selectedUnitListStatus.isSameGroupNameValue;
+        return selectedUnitListStatus.isAllPinned && selectedUnitListStatus.isAllLeafUnit &&
+            (selectedUnitListStatus.isSameGroupNameValue || selectedUnitListStatus.isSameUnitLevelName);
     },
     perform: (session): void => {
-        unpinAllSameGroupNameValue(session);
+        unpinAllSameLevel(session);
     },
 });

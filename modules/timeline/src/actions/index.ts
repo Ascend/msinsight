@@ -25,8 +25,8 @@ export { actionGenerateCurve, actionGenerateBubbleCurve } from './actionGenerate
 export { actionUndoZoom, actionResetZoom, actionZoomIn, actionZoomOut } from './actionZoom';
 export {
     actionUnpinAll,
-    actionPinByGroupNameValue,
-    actionUnpinByGroupNameValue,
+    actionPinByUnitName,
+    actionUnpinByUnitName,
 } from './actionPinUnits';
 export { actionShowHiddenUnits, actionHideUnits } from './actionHideUnits';
 export { actionShowInEventsView } from './actionShowInEventsView';
