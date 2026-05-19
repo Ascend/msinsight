@@ -58,8 +58,8 @@ import {
     actionUnpinAll,
     actionZoomIntoSelection,
     actionSetCardAlias,
-    actionPinByGroupNameValue,
-    actionUnpinByGroupNameValue,
+    actionPinByUnitName,
+    actionUnpinByUnitName,
     actionParseCardsOfRelatedGroup,
     actionMergeUnits,
     actionUnmergeUnits,
@@ -252,8 +252,8 @@ const contextMenuItems: ContextMenuItem[] = [
     CONTEXT_MENU_SEPARATOR,
     // 泳道置顶
     actionUnpinAll,
-    actionPinByGroupNameValue,
-    actionUnpinByGroupNameValue,
+    actionPinByUnitName,
+    actionUnpinByUnitName,
     CONTEXT_MENU_SEPARATOR,
     // 泳道偏移（对齐）
     actionSetBenchmarkSlice,
