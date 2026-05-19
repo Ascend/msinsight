@@ -25,6 +25,7 @@
 #include "TrackInfoManager.h"
 #include "TextTraceDatabase.h"
 
+// clang-format off
 namespace {
 Trace::Slice ConvertSliceDtoToTraceSlice(const SliceDto &dto) {
     Trace::Slice slice;
@@ -1011,7 +1012,7 @@ uint32_t TextTraceDatabase::SearchSliceNameCount(const Protocol::SearchCountPara
         return 0;
     }
     if (resultSet->Next()) {
-        result = resultSet->GetUint32(resultStartIndex);
+        result = resultSet->GetUint32("count");
     }
     return result;
 }
@@ -1025,8 +1026,14 @@ uint32_t TextTraceDatabase::SearchSliceNameCount(
     if (trackQuery.empty()) {
         return SearchSliceNameCount(params);
     }
-    std::string sql = TextSqlConstant::GetSearchSliceNameCountSql(params.isMatchExact, params.isMatchCase);
-    sql += " AND track_id = ? AND timestamp >= ? AND end_time <= ? ";
+    std::string sql;
+    // 根据是否有二级筛选，生成不同的SQL
+    if (!params.nameFilter.empty()) {
+        sql = TextSqlConstant::GetSearchSliceCountWithLockRangeAndFilterSql(params.isMatchExact, params.isMatchCase);
+    } else {
+        sql = TextSqlConstant::GetSearchSliceNameCountSql(params.isMatchExact, params.isMatchCase);
+        sql += " AND track_id = ? AND timestamp >= ? AND end_time <= ? ";
+    }
     std::vector<std::string> sqls(trackQuery.size(), sql);
     sql = StringUtil::join(sqls, " UNION ALL ");
     auto stmt = CreatPreparedStatement(sql);
@@ -1034,8 +1041,15 @@ uint32_t TextTraceDatabase::SearchSliceNameCount(
         ServerLog::Error("Query slice name count failed!.");
         return 0;
     }
-    for (const auto &item : trackQuery) {
-        stmt->BindParams(params.searchContent, item.trackId, item.startTime, item.endTime);
+    // 根据是否有二级筛选，绑定不同的参数
+    if (!params.nameFilter.empty()) {
+        for (const auto &item : trackQuery) {
+            stmt->BindParams(params.searchContent, params.nameFilter, item.trackId, item.startTime, item.endTime);
+        }
+    } else {
+        for (const auto &item : trackQuery) {
+            stmt->BindParams(params.searchContent, item.trackId, item.startTime, item.endTime);
+        }
     }
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
@@ -1043,7 +1057,7 @@ uint32_t TextTraceDatabase::SearchSliceNameCount(
         return 0;
     }
     while (resultSet->Next()) {
-        const uint32_t count = resultSet->GetUint32(resultStartIndex);
+        const uint32_t count = resultSet->GetUint32("count");
         if (result > UINT32_MAX - count) {
             ServerLog::Warn("Sum of searching slice name count is overflow.");
             break;
@@ -1849,8 +1863,15 @@ bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSlicePar
         ServerLog::Error("Search all slices details failed!.");
         return false;
     }
-    for (const auto &item : trackQueryVec) {
-        stmt->BindParams(params.searchContent, item.trackId, item.startTime, item.endTime);
+    // 根据是否有二级筛选，绑定不同的参数
+    if (!params.nameFilter.empty()) {
+        for (const auto &item: trackQueryVec) {
+            stmt->BindParams(params.searchContent, params.nameFilter, item.trackId, item.startTime, item.endTime);
+        }
+    } else {
+        for (const auto &item: trackQueryVec) {
+            stmt->BindParams(params.searchContent, item.trackId, item.startTime, item.endTime);
+        }
     }
     stmt->BindParams(params.pageSize, offset);
     auto resultSet = stmt->ExecuteQuery();
@@ -1866,6 +1887,7 @@ bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSlicePar
     searchCountParams.isMatchCase = params.isMatchCase;
     searchCountParams.isMatchExact = params.isMatchExact;
     searchCountParams.rankId = params.rankId;
+    searchCountParams.nameFilter = params.nameFilter;
     body.count = SearchSliceNameCount(searchCountParams, trackQueryVec);
     return true;
 }
@@ -1900,32 +1922,64 @@ std::string TextTraceDatabase::GetSearchAllSliceWithLockRangeSql(
     } else {
         orderBy = " ORDER BY " + params.orderBy + " ASC";
     }
-    std::string nameMatch = TextSqlConstant::GetSearchNameSqlSuffix(params.isMatchExact, params.isMatchCase);
-    nameMatch += " AND s.track_id = ? AND s.timestamp >= ? AND s.end_time <= ?";
-    std::string sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
-                      " s.id as id, t.tid as tid, t.pid as pid"
-                      " FROM " +
-        SLICE_TABLE + " s JOIN " + THREAD_TABLE +
-        " t on s.track_id = t.track_id "
-        "WHERE " +
-        nameMatch;
+    // 生成带别名s.的name匹配条件
+    std::string nameMatch;
+    if (params.isMatchExact && params.isMatchCase) {
+        nameMatch = "s.name like ?";
+    } else if (params.isMatchExact) {
+        nameMatch = "lower(s.name) like lower(?)";
+    } else if (params.isMatchCase) {
+        nameMatch = "s.name like '%'||?||'%'";
+    } else {
+        nameMatch = "lower(s.name) like lower('%'||?||'%')";
+    }
+    std::string sql;
+    // 根据是否有二级筛选，生成不同的SQL
+    if (!params.nameFilter.empty()) {
+        std::string nameFilterMatch = "lower(s.name) LIKE lower('%'||?||'%')";
+        sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
+            " s.id as id, t.tid as tid, t.pid as pid"
+            " FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
+            " t on s.track_id = t.track_id "
+            "WHERE " + nameMatch + " AND " + nameFilterMatch + " AND s.track_id = ? AND s.timestamp >= ? AND s.end_time <= ?";
+    } else {
+        sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
+            " s.id as id, t.tid as tid, t.pid as pid"
+            " FROM " + SLICE_TABLE + " s JOIN " + THREAD_TABLE +
+            " t on s.track_id = t.track_id "
+            "WHERE " + nameMatch + " AND s.track_id = ? AND s.timestamp >= ? AND s.end_time <= ?";
+    }
     std::vector<std::string> sqls(trackQueryVec.size(), sql);
     sql = StringUtil::join(sqls, " UNION ALL ");
     sql += orderBy + " limit ? offset ?";
     return sql;
 }
 
-bool TextTraceDatabase::SearchAllSlicesDetails(
-    const Protocol::SearchAllSliceParams &params, Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp) {
-    std::string sql =
-        TextSqlConstant::GetSearchSliceDetailSql(params.isMatchExact, params.isMatchCase, params.order, params.orderBy);
+bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params,
+    Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp)
+{
+    std::string sql;
+    if (!params.nameFilter.empty()) {
+        sql = TextSqlConstant::GetSearchSliceDetailWithFilterSql(params.isMatchExact, params.isMatchCase,
+            params.order, params.orderBy);
+    } else {
+        sql = TextSqlConstant::GetSearchSliceDetailSql(params.isMatchExact, params.isMatchCase, params.order, params.orderBy);
+    }
+
     uint64_t offset = (params.current - 1) * params.pageSize;
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Search all slices details failed!.");
         return false;
     }
-    auto resultSet = stmt->ExecuteQuery(params.searchContent, params.pageSize, offset);
+
+    std::unique_ptr<SqliteResultSet> resultSet;
+    if (!params.nameFilter.empty()) {
+        resultSet = stmt->ExecuteQuery(params.searchContent, params.nameFilter, params.pageSize, offset);
+    } else {
+        resultSet = stmt->ExecuteQuery(params.searchContent, params.pageSize, offset);
+    }
+
     if (resultSet == nullptr) {
         ServerLog::Error("Search all slices details. Failed to get result set.", stmt->GetErrorMessage());
         return false;
@@ -1950,12 +2004,25 @@ bool TextTraceDatabase::SearchAllSlicesDetails(
     }
     body.currentPage = params.current;
     body.pageSize = params.pageSize;
-    Protocol::SearchCountParams searchCountParams;
-    searchCountParams.searchContent = params.searchContent;
-    searchCountParams.isMatchCase = params.isMatchCase;
-    searchCountParams.isMatchExact = params.isMatchExact;
-    searchCountParams.rankId = params.rankId;
-    body.count = SearchSliceNameCount(searchCountParams, {});
+
+    // 计算总数
+    if (!params.nameFilter.empty()) {
+        auto countStmt = CreatPreparedStatement(
+            TextSqlConstant::GetSearchSliceCountWithFilterSql(params.isMatchExact, params.isMatchCase));
+        if (countStmt != nullptr) {
+            auto countResult = countStmt->ExecuteQuery(params.searchContent, params.nameFilter);
+            if (countResult != nullptr && countResult->Next()) {
+                body.count = countResult->GetUint64("count");
+            }
+        }
+    } else {
+        Protocol::SearchCountParams searchCountParams;
+        searchCountParams.searchContent = params.searchContent;
+        searchCountParams.isMatchCase = params.isMatchCase;
+        searchCountParams.isMatchExact = params.isMatchExact;
+        searchCountParams.rankId = params.rankId;
+        body.count = SearchSliceNameCount(searchCountParams, {});
+    }
     return true;
 }
 
@@ -2137,4 +2204,93 @@ std::vector<std::pair<std::string, std::string>> TextTraceDatabase::QueryTableDa
     }
     return res;
 }
+
+bool TextTraceDatabase::LoadSliceCache(LightSliceCache& cache,
+    const Protocol::SearchAllSliceParams& params, uint64_t minTimestamp)
+{
+    cache.clear();
+    cache.rankId = params.rankId;
+    cache.primarySearchContent = params.searchContent;
+
+    // TextTraceDatabase 的 slice 表直接存储名称，字段是 timestamp 和 duration
+    // 时间戳需要减去 minTimestamp 转换为相对时间
+    std::string nameMatch = TextSqlConstant::GetSearchNameSqlSuffix(params.isMatchExact, params.isMatchCase);
+    std::string sql = "SELECT ROWID as rowId, name, timestamp - " + std::to_string(minTimestamp) +
+                      " as startTime, duration FROM " + sliceTable + " WHERE " + nameMatch;
+
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Error("LoadSliceCache: Failed to prepare sql.");
+        return false;
+    }
+
+    auto result = stmt->ExecuteQuery(params.searchContent);
+    if (result == nullptr) {
+        ServerLog::Error("LoadSliceCache: Failed to execute query.");
+        return false;
+    }
+
+    int32_t stringIdCounter = 0;
+    while (result->Next()) {
+        std::string name = result->GetString("name");
+        int32_t stringId = stringIdCounter++;
+
+        cache.dictMap[stringId] = name;
+        cache.tableTypes.push_back(static_cast<int8_t>(SliceTableType::TASK));
+        cache.rowIds.push_back(result->GetUint64("rowId"));
+        cache.stringIds.push_back(stringId);
+        cache.timestamps.push_back(result->GetUint64("startTime"));
+        cache.durations.push_back(result->GetUint64("duration"));
+    }
+
+    SearchSliceCacheManager::InitializeSortedIndices(cache);
+    return cache.size() > 0;
+}
+
+bool TextTraceDatabase::FetchSliceDetails(const LightSliceCache& cache,
+    const std::vector<TargetRow>& rows,
+    const Protocol::SearchAllSliceParams& params,
+    Protocol::SearchAllSlicesBody& body, uint64_t minTimestamp)
+{
+    if (rows.empty()) return true;
+
+    // 构建查询 SQL
+    // 时间戳需要减去 minTimestamp 转换为相对时间
+    std::string idList;
+    for (size_t i = 0; i < rows.size(); ++i) {
+        if (i > 0) idList += ",";
+        idList += std::to_string(rows[i].rowId);
+    }
+
+    std::string sql = "SELECT s.ROWID as rowId, s.name, s.timestamp - " + std::to_string(minTimestamp) +
+                      " as startTime, s.duration, t.tid, t.pid FROM " + sliceTable + " s" +
+                      " JOIN " + threadTable + " t ON s.track_id = t.track_id" +
+                      " WHERE s.ROWID IN (" + idList + ")";
+
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) return false;
+
+    auto result = stmt->ExecuteQuery();
+    if (result == nullptr) return false;
+
+    while (result->Next()) {
+        Protocol::SearchAllSlices slice{};
+        slice.fileId = params.fileId;
+        slice.name = result->GetString("name");
+        slice.timestamp = result->GetUint64("startTime");
+        slice.duration = result->GetUint64("duration");
+        slice.id = std::to_string(result->GetUint64("rowId"));
+        slice.tid = result->GetString("tid");
+        slice.pid = result->GetString("pid");
+        slice.depth = 0;  // TextTraceDatabase 通常没有 depth
+        slice.rankId = params.rankId;
+        slice.deviceId = params.rankId;
+
+        body.searchAllSlices.push_back(slice);
+    }
+
+    return true;
+}
+
 } // end of namespace Dic::Module::Timeline
+// clang-format on

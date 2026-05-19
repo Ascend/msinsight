@@ -32,6 +32,7 @@
 #include "DataBaseManager.h"
 #include "StringUtil.h"
 
+// clang-format off
 namespace Dic::Module::Timeline {
 using namespace Protocol;
 const std::string LANE_FP_BP = "FP/BP";
@@ -329,7 +330,7 @@ private:
 
     static std::string GetSingleSearchNameWithLockRangeSql(const std::string &path, const TrackQuery &singleQuery);
 
-    static std::string GetSingleLockRangeSql(const TrackQuery &item);
+    static std::string GetSingleLockRangeSql(const TrackQuery &item, const std::string &filterJoin = "");
 
     static void BindSingleTrackStmt(const SearchCountParams &params, std::unique_ptr<SqlitePreparedStatement> &stmt,
         const std::string &deviceId, const TrackQuery &item);
@@ -360,5 +361,6 @@ private:
         std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams);
 };
 };
+// clang-format on
 
 #endif // PROFILER_SERVER_TRACEDATABASEHELPER_H

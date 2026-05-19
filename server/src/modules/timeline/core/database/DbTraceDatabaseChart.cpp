@@ -18,6 +18,8 @@
 
 #include "DbTraceDataBase.h"
 #include "TraceDatabaseHelper.h"
+
+// clang-format off
 namespace Dic::Module::FullDb {
 using namespace Server;
 
@@ -71,31 +73,34 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
     return sql;
 }
 
-std::string DbTraceDataBase::GetSearchAllSlicesDetailsSql(bool isMatchExact, bool isMatchCase,
-    const std::string &order, const std::string &orderByField, const std::string &rankId)
+std::string DbTraceDataBase::GetSearchAllSlicesDetailsSql(const SearchSliceSqlParams &params)
 {
-    std::string sql;
+    std::string orderKey = params.orderByField == "timestamp" ? "startTime" : params.orderByField;
+    std::string orderBy = " ORDER BY " + orderKey + (params.order == "descend" ? " DESC" : " ASC");
+
     std::string nameMatch;
-    std::string orderBy;
-    std::string orderKey = orderByField == "timestamp" ? "startTime" : orderByField;
-    if (order == "descend") {
-        orderBy = " ORDER BY " + orderKey + " DESC";
-    } else {
-        orderBy = " ORDER BY " + orderKey + " ASC";
-    }
-    if (isMatchExact && isMatchCase) {
+    if (params.isMatchExact && params.isMatchCase) {
         nameMatch = "select id, value from STRING_IDS where value like ?";
-    } else if (isMatchExact) {
+    } else if (params.isMatchExact) {
         nameMatch = "select id, value from STRING_IDS where lower(value) like lower(?)";
-    } else if (isMatchCase) {
+    } else if (params.isMatchCase) {
         nameMatch = "select id, value from STRING_IDS where value like '%'||?||'%'";
     } else {
         nameMatch = "select id, value from STRING_IDS where lower(value) like lower('%'||?||'%')";
     }
-    std::string communicationOpSql = TraceDatabaseHelper::GetComOpSliceDetailsSql(rankId);
+
+    std::string communicationOpSql = TraceDatabaseHelper::GetComOpSliceDetailsSql(params.rankId);
     std::string mstxEventsSql = TraceDatabaseHelper::GetMsTxEventsSliceDetailSql();
-    sql = "with ids as (" + nameMatch +
-          "), minTime as (select ? as value),\n"
+
+    std::string filterCte;
+    std::string filterJoin;
+    if (!params.nameFilter.empty()) {
+        filterCte = ", filterIds as (select id from STRING_IDS where lower(value) like lower('%'||?||'%'))";
+        filterJoin = " join filterIds on filterIds.id = allNames.name";
+    }
+
+    std::string sql = "with ids as (" + nameMatch + ")" + filterCte +
+          ", minTime as (select ? as value),\n"
           " tasks as (select deviceId, TASK.ROWID, globalTaskId, taskType, 'Ascend Hardware' as pid, streamId as tid, "
           " startNs - minTime.value as startTime,endNs - startNs as duration,depth,connectionId from TASK join minTime "
           " where deviceId = ? ORDER BY startTime),\n"
@@ -119,58 +124,13 @@ std::string DbTraceDataBase::GetSearchAllSlicesDetailsSql(bool isMatchExact, boo
           "PYTORCH_API JOIN minTime "
           "UNION ALL SELECT '' AS deviceId, name, globalTid AS pid, 'HOST' AS metaType, 'OSRT_API' AS tid, "
           "startNs - minTime.value AS startTime, endNs - startNs AS duration, 0 AS depth, osrt.ROWID AS id FROM " +
-          TABLE_OSRT_API + " osrt JOIN minTime) allNames join ids on ids.id = allNames.name" + orderBy +
+          TABLE_OSRT_API + " osrt JOIN minTime) allNames join ids on ids.id = allNames.name" + filterJoin + orderBy +
           " LIMIT ? OFFSET ?";
     return sql;
 }
 
-std::string DbTraceDataBase::GetSearchSliceNameCountSql(bool isMatchExact, bool isMatchCase, const std::string& rankId)
+std::string DbTraceDataBase::GetSearchSliceNameCountSql(const SearchSliceSqlParams &params)
 {
-    std::string sql;
-    std::string nameMatch;
-    if (isMatchExact && isMatchCase) {
-        nameMatch = "select id from STRING_IDS where value like ?";
-    } else if (isMatchExact) {
-        nameMatch = "select id from STRING_IDS where lower(value) like lower(?)";
-    } else if (isMatchCase) {
-        nameMatch = "select id from STRING_IDS where value like '%'||?||'%'";
-    } else {
-        nameMatch = "select id from STRING_IDS where lower(value) like lower('%'||?||'%')";
-    }
-    std::string hostSql = "select name from " + TABLE_CANN_API + " union all select message from  " +
-                          TABLE_MSTX_EVENTS + " union all select name from  " + TABLE_API +
-                          " UNION ALL SELECT name FROM " + TABLE_OSRT_API;
-
-    std::string communicationOpSql;
-    if (!TraceDatabaseHelper::IsDeviceIdUnique(rankId)) {
-        communicationOpSql = "select opName as name from COMMUNICATION_OP op "
-                             " join tasks on op.connectionId = tasks.connectionId group by opId";
-    } else {
-        communicationOpSql = "select opName as name from COMMUNICATION_OP op";
-    }
-    sql = "with ids as (" + nameMatch +
-          "), "
-          "     tasks as (select globalTaskId, taskType, connectionId from TASK where deviceId = ?), "
-          "     com as (select opId, info.globalTaskId,info.taskType as name from COMMUNICATION_TASK_INFO info "
-          " join tasks on  info.globalTaskId = tasks.globalTaskId), "
-          "     compute as (select info.globalTaskId, name from COMPUTE_TASK_INFO info join tasks "
-          " on  info.globalTaskId = tasks.globalTaskId), "
-          " schedule as (select info.globalTaskId, name from COMMUNICATION_SCHEDULE_TASK_INFO info left join tasks "
-          " on info.globalTaskId = tasks.globalTaskId)"
-          "select count(1) from ( "
-          "    select coalesce(compute.name, schedule.name, main.taskType) as name from tasks main "
-          "         left join compute on compute.globalTaskId = main.globalTaskId "
-          " left join schedule ON main.globalTaskId = schedule.globalTaskId"
-          "    union ALL select name from com "
-          "    union ALL " +
-          communicationOpSql + " union ALL " + hostSql + ") allNames join ids on id = allNames.name;";
-    return sql;
-}
-
-std::string DbTraceDataBase::GetSearchCountWithLockSql(const SearchCountParams &params,
-                                                       const std::vector<TrackQuery> &trackQuery)
-{
-    std::string sql;
     std::string nameMatch;
     if (params.isMatchExact && params.isMatchCase) {
         nameMatch = "select id from STRING_IDS where value like ?";
@@ -181,7 +141,64 @@ std::string DbTraceDataBase::GetSearchCountWithLockSql(const SearchCountParams &
     } else {
         nameMatch = "select id from STRING_IDS where lower(value) like lower('%'||?||'%')";
     }
-    sql = "with ids as (" + nameMatch + ") ";
+
+    std::string hostSql = "select name from " + TABLE_CANN_API + " union all select message from  " +
+                          TABLE_MSTX_EVENTS + " union all select name from  " + TABLE_API +
+                          " UNION ALL SELECT name FROM " + TABLE_OSRT_API;
+
+    std::string communicationOpSql;
+    if (!TraceDatabaseHelper::IsDeviceIdUnique(params.rankId)) {
+        communicationOpSql = "select opName as name from COMMUNICATION_OP op "
+                             " join tasks on op.connectionId = tasks.connectionId group by opId";
+    } else {
+        communicationOpSql = "select opName as name from COMMUNICATION_OP op";
+    }
+
+    std::string filterCte;
+    std::string filterJoin;
+    if (!params.nameFilter.empty()) {
+        filterCte = ", filterIds as (select id from STRING_IDS where lower(value) like lower('%'||?||'%'))";
+        filterJoin = " join filterIds on filterIds.id = allNames.name";
+    }
+
+    std::string sql = "with ids as (" + nameMatch + ")" + filterCte +
+          ", tasks as (select globalTaskId, taskType, connectionId from TASK where deviceId = ?), "
+          " com as (select opId, info.globalTaskId,info.taskType as name from COMMUNICATION_TASK_INFO info "
+          " join tasks on  info.globalTaskId = tasks.globalTaskId), "
+          " compute as (select info.globalTaskId, name from COMPUTE_TASK_INFO info join tasks "
+          " on  info.globalTaskId = tasks.globalTaskId), "
+          " schedule as (select info.globalTaskId, name from COMMUNICATION_SCHEDULE_TASK_INFO info left join tasks "
+          " on info.globalTaskId = tasks.globalTaskId)"
+          "select count(1) as count from ( "
+          "    select coalesce(compute.name, schedule.name, main.taskType) as name from tasks main "
+          "         left join compute on compute.globalTaskId = main.globalTaskId "
+          " left join schedule ON main.globalTaskId = schedule.globalTaskId"
+          "    union ALL select name from com "
+          "    union ALL " +
+          communicationOpSql + " union ALL " + hostSql + ") allNames join ids on id = allNames.name" + filterJoin + ";";
+    return sql;
+}
+
+std::string DbTraceDataBase::GetSearchCountWithLockSql(const SearchCountParams &params,
+                                                       const std::vector<TrackQuery> &trackQuery)
+{
+    std::string nameMatch;
+    if (params.isMatchExact && params.isMatchCase) {
+        nameMatch = "select id from STRING_IDS where value like ?";
+    } else if (params.isMatchExact) {
+        nameMatch = "select id from STRING_IDS where lower(value) like lower(?)";
+    } else if (params.isMatchCase) {
+        nameMatch = "select id from STRING_IDS where value like '%'||?||'%'";
+    } else {
+        nameMatch = "select id from STRING_IDS where lower(value) like lower('%'||?||'%')";
+    }
+
+    std::string filterCte;
+    if (!params.nameFilter.empty()) {
+        filterCte = ", filterIds as (select id from STRING_IDS where lower(value) like lower('%'||?||'%'))";
+    }
+
+    std::string sql = "with ids as (" + nameMatch + ")" + filterCte + " ";
     std::vector<std::string> sqls;
     for (const auto &item: trackQuery) {
         std::string tempSql = GetSingleSearchCountLockRangeSql(params, item);
@@ -196,21 +213,37 @@ std::string DbTraceDataBase::GetSearchCountWithLockSql(const SearchCountParams &
 std::string DbTraceDataBase::GetSingleSearchCountLockRangeSql(const SearchCountParams &params, const TrackQuery &item)
 {
     PROCESS_TYPE type = STR_TO_ENUM<PROCESS_TYPE>(item.metaType).value();
+    std::string filterJoin;
+    if (!params.nameFilter.empty()) {
+        filterJoin = " join filterIds on filterIds.id = ";
+    }
+
     std::string tempSql;
+    // 当filterJoin非空时，需要补上具体的字段名；为空时不需要追加
+    std::string filterSuffix = filterJoin.empty() ? "" : filterJoin;
     if (type == PROCESS_TYPE::API) {
-        tempSql = "SELECT count(1) FROM (SELECT name from " + TABLE_API +
-                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) api join ids on id = api.name ";
+        filterSuffix += filterJoin.empty() ? "" : "api.name";
+        tempSql = "SELECT count(1) as count FROM (SELECT name from " + TABLE_API +
+                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) api join ids on id = api.name" +
+                  filterSuffix + " ";
     } else if (type == PROCESS_TYPE::CANN_API) {
-        tempSql = "SELECT count(1) FROM (SELECT name from " + TABLE_CANN_API +
-                  " WHERE globalTid = ? AND type = ? AND startNs >= ? AND endNs <= ?) cann join ids on id = cann.name ";
+        filterSuffix += filterJoin.empty() ? "" : "cann.name";
+        tempSql = "SELECT count(1) as count FROM (SELECT name from " + TABLE_CANN_API +
+                  " WHERE globalTid = ? AND type = ? AND startNs >= ? AND endNs <= ?) cann join ids on id = cann.name" +
+                  filterSuffix + " ";
     } else if (type == PROCESS_TYPE::MS_TX) {
-        tempSql = "SELECT count(1) FROM (SELECT message from " + TABLE_MSTX_EVENTS +
-                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) mstx join ids on id = mstx.message ";
+        filterSuffix += filterJoin.empty() ? "" : "mstx.message";
+        tempSql = "SELECT count(1) as count FROM (SELECT message from " + TABLE_MSTX_EVENTS +
+                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) mstx join ids on id = mstx.message" +
+                  filterSuffix + " ";
     } else if (type == PROCESS_TYPE::OSRT_API) {
-        tempSql = "SELECT count(1) FROM (SELECT name from " + TABLE_OSRT_API +
-                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) osrt join ids on id = osrt.name ";
+        filterSuffix += filterJoin.empty() ? "" : "osrt.name";
+        tempSql = "SELECT count(1) as count FROM (SELECT name from " + TABLE_OSRT_API +
+                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) osrt join ids on id = osrt.name" +
+                  filterSuffix + " ";
     } else if (type == PROCESS_TYPE::ASCEND_HARDWARE) {
-        tempSql = "SELECT count(1) FROM (SELECT coalesce(c.name, m.message, s.name, main.taskType) as "
+        filterSuffix += filterJoin.empty() ? "" : "hadware.name";
+        tempSql = "SELECT count(1) as count FROM (SELECT coalesce(c.name, m.message, s.name, main.taskType) as "
                   "name FROM " + TABLE_TASK +
                   " main "
                   " left join " + TABLE_COMPUTE_TASK_INFO +
@@ -220,18 +253,23 @@ std::string DbTraceDataBase::GetSingleSearchCountLockRangeSql(const SearchCountP
                   " (m.connectionId = main.connectionId and  m.connectionId != " +
                   WRONG_DATA + " ) left join " + TABLE_COMMUNICATION_SCHEDULE_TASK +
                   " s on main.globalTaskId = s.globalTaskId WHERE main.deviceId = ? AND main.streamId = ? AND "
-                  "main.startNs >= ? AND main.endNs <= ?) hadware  join ids on id = hadware.name ";
+                  "main.startNs >= ? AND main.endNs <= ?) hadware  join ids on id = hadware.name" +
+                  filterSuffix + " ";
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
-            tempSql = "SELECT count(1) FROM (SELECT opName as name from " + TABLE_COMMUNICATION_OP +
-                      " WHERE groupName = ? AND startNs >= ? AND endNs <= ?) op join ids on id = op.name ";
+            filterSuffix += filterJoin.empty() ? "" : "op.name";
+            tempSql = "SELECT count(1) as count FROM (SELECT opName as name from " + TABLE_COMMUNICATION_OP +
+                      " WHERE groupName = ? AND startNs >= ? AND endNs <= ?) op join ids on id = op.name" +
+                      filterSuffix + " ";
         } else {
-            tempSql = "SELECT count(1) FROM (SELECT ci.taskType as name from TASK main left join " +
+            filterSuffix += filterJoin.empty() ? "" : "info.name";
+            tempSql = "SELECT count(1) as count FROM (SELECT ci.taskType as name from TASK main left join " +
                       TABLE_COMMUNICATION_TASK_INFO + " ci on ci.globalTaskId = main.globalTaskId " +
                       " WHERE main.deviceId = ? and ci.groupName = ? AND ci.planeId = ? AND main.startNs >= ? AND "
-                      "main.endNs <= ?) info join ids on id = info.name ";
+                      "main.endNs <= ?) info join ids on id = info.name" + filterSuffix + " ";
         }
     }
     return tempSql;
 }
 }
+// clang-format on

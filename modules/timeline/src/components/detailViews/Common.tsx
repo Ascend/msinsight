@@ -303,6 +303,7 @@ export const queryOneKernel = async (param: {
 export const searchAllSlices = async (param: {
     rankId: string; dbPath: string; pageSize: number; current: number; orderBy: string; order: string;
     searchContent?: string; isMatchCase?: boolean; isMatchExact?: boolean; metadataList: any;
+    nameFilter?: string;
 }): Promise<any> => {
     return window.requestData('search/all/slices', param, 'timeline');
 };

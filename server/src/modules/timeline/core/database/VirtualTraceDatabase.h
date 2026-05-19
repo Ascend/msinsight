@@ -36,7 +36,9 @@
 #include "DominQuery.h"
 #include "ClusterDef.h"
 #include "AdvisorProtocolResponse.h"
+#include "SearchSliceCacheManager.h"
 
+// clang-format off
 namespace Dic::Module::Timeline {
 const uint64_t AICPU_OP_DURATION_THRESHOLD = 20000; // 20us
 
@@ -118,6 +120,17 @@ class VirtualTraceDatabase : public Database {
     virtual OneKernelData QueryKernelTid(uint64_t trackId) = 0;
     virtual bool SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params,
         Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec) = 0;
+
+    // 【新增】加载 SoA 缓存
+    virtual bool LoadSliceCache(LightSliceCache& cache,
+        const Protocol::SearchAllSliceParams& params, uint64_t minTimestamp) = 0;
+
+    // 【新增】根据 TargetRow 查询明细数据（使用 SQL 模板工厂）
+    // cache 用于获取名称映射（dictMap）
+    virtual bool FetchSliceDetails(const LightSliceCache& cache,
+        const std::vector<TargetRow>& rows,
+        const Protocol::SearchAllSliceParams& params,
+        Protocol::SearchAllSlicesBody& body, uint64_t minTimestamp) = 0;
     virtual bool QueryAffinityOptimizer(const Protocol::KernelDetailsParams &params, const std::string &optimizers,
         std::vector<Protocol::ThreadTraces> &data, uint64_t minTimestamp) = 0;
     virtual bool QueryThreadSameOperatorsDetails(const Protocol::UnitThreadsOperatorsParams &requestParams,
@@ -295,4 +308,6 @@ class VirtualTraceDatabase : public Database {
         const CommunicationSummaryInfoByGroup &data, SystemViewOverallHelper &overallHelper);
 };
 }
+// clang-format on
+
 #endif // PROFILER_SERVER_TRACE_DATABASE_H

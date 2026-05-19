@@ -23,6 +23,7 @@
 #include "TraceDatabaseHelper.h"
 #include "TrackInfoManager.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
+// clang-format off
 using namespace Dic::Global::PROFILER::MockUtil;
 using namespace Dic::Module::Timeline;
 class DbTraceDatabaseTest : public ::testing::Test {
@@ -1834,7 +1835,7 @@ TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenHardWare)
         "COMPUTE_TASK_INFO c on c.globalTaskId = main.globalTaskId left join MSTX_EVENTS m on (m.connectionId = "
         "main.connectionId and  m.connectionId != 4294967295 ) left join COMMUNICATION_SCHEDULE_TASK_INFO s on "
         "main.globalTaskId = s.globalTaskId WHERE main.deviceId = ? AND main.streamId = ? AND main.startNs >= ? AND "
-        "main.endNs <= ?) hadware  join ids on ids.id = hadware.name  ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
+        "main.endNs <= ?) hadware  join ids on ids.id = hadware.name ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
 }
 
 TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenGroup)
@@ -2012,8 +2013,8 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenPython)
     params.isMatchExact = true;
     params.rankId = "ll Host";
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
-    EXPECT_EQ(sql, "with ids as (select id from STRING_IDS where value like ?) SELECT count(1) FROM (SELECT name from "
-        "PYTORCH_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) api join ids on id = api.name ");
+    EXPECT_EQ(sql, "with ids as (select id from STRING_IDS where value like ?) SELECT count(1) as count FROM (SELECT "
+        "name from PYTORCH_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) api join ids on id = api.name ");
 }
 
 TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenCann)
@@ -2030,8 +2031,9 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenCann)
     params.rankId = "ll Host";
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
     EXPECT_EQ(sql,
-        "with ids as (select id from STRING_IDS where value like '%'||?||'%') SELECT count(1) FROM (SELECT name from "
-        "CANN_API WHERE globalTid = ? AND type = ? AND startNs >= ? AND endNs <= ?) cann join ids on id = cann.name ");
+        "with ids as (select id from STRING_IDS where value like '%'||?||'%') SELECT count(1) as count FROM (SELECT "
+        "name from CANN_API WHERE globalTid = ? AND type = ? AND startNs >= ? AND endNs <= ?) cann join ids on "
+        "id = cann.name ");
 }
 
 TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenMstx)
@@ -2048,7 +2050,7 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenMstx)
     params.rankId = "ll Host";
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
     EXPECT_EQ(sql, "with ids as (select id from STRING_IDS where lower(value) like lower('%'||?||'%')) SELECT count(1) "
-        "FROM (SELECT message from MSTX_EVENTS WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) mstx "
+        "as count FROM (SELECT message from MSTX_EVENTS WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) mstx "
         "join ids on id = mstx.message ");
 }
 
@@ -2067,8 +2069,8 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenOsrt)
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
     EXPECT_EQ(sql,
         "with ids as (select id from STRING_IDS where lower(value) like lower('%'||?||'%')) "
-        "SELECT count(1) FROM (SELECT name from OSRT_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) osrt "
-        "join ids on id = osrt.name ");
+        "SELECT count(1) as count FROM (SELECT name from OSRT_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) "
+        "osrt join ids on id = osrt.name ");
 }
 
 TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenHardWare)
@@ -2083,8 +2085,8 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenHardWare)
     params.isMatchExact = false;
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
     EXPECT_EQ(sql,
-        "with ids as (select id from STRING_IDS where lower(value) like lower('%'||?||'%')) SELECT count(1) FROM "
-        "(SELECT coalesce(c.name, m.message, s.name, main.taskType) as name FROM TASK main  left join "
+        "with ids as (select id from STRING_IDS where lower(value) like lower('%'||?||'%')) SELECT count(1) as count "
+        "FROM (SELECT coalesce(c.name, m.message, s.name, main.taskType) as name FROM TASK main  left join "
         "COMPUTE_TASK_INFO c on c.globalTaskId = main.globalTaskId  left join MSTX_EVENTS m on  (m.connectionId = "
         "main.connectionId and  m.connectionId != 4294967295 ) left join COMMUNICATION_SCHEDULE_TASK_INFO s on "
         "main.globalTaskId = s.globalTaskId WHERE main.deviceId = ? AND main.streamId = ? AND main.startNs >= ? AND "
@@ -2104,7 +2106,7 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenHccl)
     params.isMatchExact = false;
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
     EXPECT_EQ(sql, "with ids as (select id from STRING_IDS where lower(value) like lower('%'||?||'%')) SELECT count(1) "
-        "FROM (SELECT opName as name from COMMUNICATION_OP WHERE groupName = ? AND startNs >= ? AND endNs "
+        "as count FROM (SELECT opName as name from COMMUNICATION_OP WHERE groupName = ? AND startNs >= ? AND endNs "
         "<= ?) op join ids on id = op.name ");
 }
 
@@ -2143,3 +2145,4 @@ TEST_F(DbTraceDatabaseTest, ProcessByteAlignmentAnalyzerDataForDbTest)
     ASSERT_EQ(result[1].memcpyTasks.size(), 1);
     ASSERT_EQ(result[1].reduceInlineTasks.size(), 0);
 }
+// clang-format on

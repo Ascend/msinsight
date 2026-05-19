@@ -31,6 +31,7 @@
 #include "ProtocolMessage.h"
 #include "TimelineErrorManager.h"
 
+// clang-format off
 namespace Dic {
 namespace Protocol {
 using namespace Dic::Module::Timeline;
@@ -222,6 +223,7 @@ struct SearchCountParams {
     bool isMatchExact = false;
     std::string rankId;
     std::string searchContent;
+    std::string nameFilter;  // 二级筛选关键字
     std::vector<Metadata> metadataList;
     bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         for (const auto &item : metadataList) {
@@ -618,5 +620,6 @@ struct RankOffsetRequest : public Request {
 };
 } // end of namespace Protocol
 } // end of namespace Dic
+// clang-format on
 
 #endif // DIC_TIMELINE_PROTOCOL_REQUEST_H

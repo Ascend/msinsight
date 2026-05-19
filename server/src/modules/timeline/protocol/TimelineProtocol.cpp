@@ -22,6 +22,7 @@
 #include "TimelineProtocolResponse.h"
 #include "TimelineProtocol.h"
 
+// clang-format off
 namespace Dic {
 namespace Protocol {
 void TimelineProtocol::RegisterJsonToRequestFuncs() {
@@ -632,6 +633,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchAllSlicesRequest(const Dic::j
     JsonUtil::SetByJsonKeyValue(reqPtr->params.isMatchExact, json["params"], "isMatchExact");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.searchContent, json["params"], "searchContent");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.nameFilter, json["params"], "nameFilter");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.orderBy, json["params"], "orderBy");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.order, json["params"], "order");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.current, json["params"], "current");
@@ -915,3 +917,4 @@ std::optional<document_t> TimelineProtocol::ToSystemViewFtraceStatResponseJson(c
 #pragma endregion
 } // namespace Protocol
 } // namespace Dic
+// clang-format on
