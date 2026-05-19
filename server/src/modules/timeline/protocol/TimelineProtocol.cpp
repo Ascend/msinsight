@@ -24,8 +24,7 @@
 
 namespace Dic {
 namespace Protocol {
-void TimelineProtocol::RegisterJsonToRequestFuncs()
-{
+void TimelineProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_IMPORT_ACTION, ToImportActionRequest);
     jsonToReqFactory.emplace(REQ_RES_PARSE_CARDS, ToParseCardsRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_THREAD_TRACES, ToUnitThreadTracesRequest);
@@ -58,10 +57,10 @@ void TimelineProtocol::RegisterJsonToRequestFuncs()
     jsonToReqFactory.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, ToExpAnaAICoreFreqRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMCPY_OVERALL, ToMemcpyOverallRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMCPY_DETAIL, ToSystemViewOverallMoreDetailsRequest);
+    jsonToReqFactory.emplace(REQ_RES_RANK_OFFSET, ToRankOffsetRequest);
 }
 
-void TimelineProtocol::RegisterResponseToJsonFuncs()
-{
+void TimelineProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_IMPORT_ACTION, ToImportActionResponseJson);
     resToJsonFactory.emplace(REQ_RES_UNIT_THREAD_TRACES, ToUnitThreadTracesResponseJson);
     resToJsonFactory.emplace(REQ_RES_UNIT_THREAD_TRACES_SUMMARY, ToUnitThreadTracesSummaryResponseJson);
@@ -94,10 +93,10 @@ void TimelineProtocol::RegisterResponseToJsonFuncs()
     resToJsonFactory.emplace(REQ_RES_CREATE_CURVE, ToCreateCurveResponseJson);
     resToJsonFactory.emplace(REQ_RES_MEMCPY_OVERALL, ToMemcpyOverallListResponseJson);
     resToJsonFactory.emplace(REQ_RES_MEMCPY_DETAIL, ToMemcpyDetailListResponseJson);
+    resToJsonFactory.emplace(REQ_RES_RANK_OFFSET, ToRankOffsetResponseJson);
 }
 
-void TimelineProtocol::RegisterEventToJsonFuncs()
-{
+void TimelineProtocol::RegisterEventToJsonFuncs() {
     eventToJsonFactory.emplace(EVENT_PARSE_SUCCESS, ToParseSuccessEventJson);
     eventToJsonFactory.emplace(EVENT_PARSE_FAIL, ToParseFailEventJson);
     eventToJsonFactory.emplace(EVENT_PARSE_CLUSTER_COMPLETED, ToParseClusterCompletedEventJson);
@@ -111,8 +110,7 @@ void TimelineProtocol::RegisterEventToJsonFuncs()
 
 #pragma region << Json To Request>>
 
-std::unique_ptr<Request> TimelineProtocol::ToImportActionRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToImportActionRequest(const json_t &json, std::string &error) {
     std::unique_ptr<ImportActionRequest> reqPtr = std::make_unique<ImportActionRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -139,8 +137,7 @@ std::unique_ptr<Request> TimelineProtocol::ToImportActionRequest(const json_t &j
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToParseCardsRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToParseCardsRequest(const json_t &json, std::string &error) {
     std::unique_ptr<ParseCardsRequest> reqPtr = std::make_unique<ParseCardsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -159,8 +156,7 @@ std::unique_ptr<Request> TimelineProtocol::ToParseCardsRequest(const json_t &jso
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesRequest(const json_t &json, std::string &error) {
     std::unique_ptr<UnitThreadTracesRequest> reqPtr = std::make_unique<UnitThreadTracesRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -183,15 +179,14 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesRequest(const json_
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToCreateCurveRequest(const json_t& json, std::string& error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToCreateCurveRequest(const json_t &json, std::string &error) {
     std::unique_ptr<CreateCurveRequest> reqPtr = std::make_unique<CreateCurveRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
         return nullptr;
     }
     if (json["params"].HasMember("y") && json["params"]["y"].IsArray()) {
-        for (const auto& item : json["params"]["y"].GetArray()) {
+        for (const auto &item : json["params"]["y"].GetArray()) {
             reqPtr->params.y.emplace_back(JsonUtil::GetStringWithoutKey(item));
         }
     }
@@ -203,8 +198,7 @@ std::unique_ptr<Request> TimelineProtocol::ToCreateCurveRequest(const json_t& js
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesSummaryRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesSummaryRequest(const json_t &json, std::string &error) {
     std::unique_ptr<UnitThreadTracesSummaryRequest> reqPtr = std::make_unique<UnitThreadTracesSummaryRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -219,8 +213,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesSummaryRequest(cons
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsRequest(const json_t &json, std::string &error) {
     std::unique_ptr<UnitThreadsRequest> reqPtr = std::make_unique<UnitThreadsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -232,12 +225,10 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsRequest(const json_t &js
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startDepth, json["params"], "startDepth");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.endDepth, json["params"], "endDepth");
     if (json["params"].HasMember("metadataList") && json["params"]["metadataList"].IsArray()) {
-        for (const auto &metaData: json["params"]["metadataList"].GetArray()) {
-            Metadata data{
-                    .tid = JsonUtil::GetString(metaData, "tid"),
-                    .pid = JsonUtil::GetString(metaData, "pid"),
-                    .metaType = JsonUtil::GetString(metaData, "metaType")
-            };
+        for (const auto &metaData : json["params"]["metadataList"].GetArray()) {
+            Metadata data{.tid = JsonUtil::GetString(metaData, "tid"),
+                .pid = JsonUtil::GetString(metaData, "pid"),
+                .metaType = JsonUtil::GetString(metaData, "metaType")};
             JsonUtil::SetByJsonKeyValue(data.hidePythonFunction, metaData, "hidePythonFunction");
             reqPtr->params.metadataList.emplace_back(std::move(data));
         }
@@ -245,8 +236,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsRequest(const json_t &js
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToThreadDetailRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToThreadDetailRequest(const json_t &json, std::string &error) {
     std::unique_ptr<ThreadDetailRequest> reqPtr = std::make_unique<ThreadDetailRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -262,8 +252,7 @@ std::unique_ptr<Request> TimelineProtocol::ToThreadDetailRequest(const json_t &j
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToUnitFlowsRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToUnitFlowsRequest(const json_t &json, std::string &error) {
     std::unique_ptr<UnitFlowsRequest> reqPtr = std::make_unique<UnitFlowsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -280,8 +269,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitFlowsRequest(const json_t &json
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToSetCardAliasRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSetCardAliasRequest(const json_t &json, std::string &error) {
     std::unique_ptr<SetCardAliasRequest> reqPtr = std::make_unique<SetCardAliasRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -292,8 +280,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSetCardAliasRequest(const json_t &j
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToResetWindowRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToResetWindowRequest(const json_t &json, std::string &error) {
     std::unique_ptr<ResetWindowRequest> reqPtr = std::make_unique<ResetWindowRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -302,8 +289,7 @@ std::unique_ptr<Request> TimelineProtocol::ToResetWindowRequest(const json_t &js
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToSearchCountRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSearchCountRequest(const json_t &json, std::string &error) {
     std::unique_ptr<SearchCountRequest> reqPtr = std::make_unique<SearchCountRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -314,12 +300,12 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchCountRequest(const json_t &js
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.searchContent, json["params"], "searchContent");
     if (json["params"].HasMember("metadataList") && json["params"]["metadataList"].IsArray()) {
-        for (const auto &metaData: json["params"]["metadataList"].GetArray()) {
+        for (const auto &metaData : json["params"]["metadataList"].GetArray()) {
             Metadata data{
-                    .tid = JsonUtil::GetString(metaData, "tid"),
-                    .pid = JsonUtil::GetString(metaData, "pid"),
-                    .metaType = JsonUtil::GetString(metaData, "metaType"),
-                    .rankId = JsonUtil::GetString(metaData, "rankId"),
+                .tid = JsonUtil::GetString(metaData, "tid"),
+                .pid = JsonUtil::GetString(metaData, "pid"),
+                .metaType = JsonUtil::GetString(metaData, "metaType"),
+                .rankId = JsonUtil::GetString(metaData, "rankId"),
             };
             JsonUtil::SetByJsonKeyValue(data.lockStartTime, metaData, "lockStartTime");
             JsonUtil::SetByJsonKeyValue(data.lockEndTime, metaData, "lockEndTime");
@@ -329,8 +315,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchCountRequest(const json_t &js
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToSearchSliceRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSearchSliceRequest(const json_t &json, std::string &error) {
     std::unique_ptr<SearchSliceRequest> reqPtr = std::make_unique<SearchSliceRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -342,12 +327,12 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchSliceRequest(const json_t &js
     JsonUtil::SetByJsonKeyValue(reqPtr->params.searchContent, json["params"], "searchContent");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.index, json["params"], "index");
     if (json["params"].HasMember("metadataList") && json["params"]["metadataList"].IsArray()) {
-        for (const auto &metaData: json["params"]["metadataList"].GetArray()) {
+        for (const auto &metaData : json["params"]["metadataList"].GetArray()) {
             Metadata data{
-                    .tid = JsonUtil::GetString(metaData, "tid"),
-                    .pid = JsonUtil::GetString(metaData, "pid"),
-                    .metaType = JsonUtil::GetString(metaData, "metaType"),
-                    .rankId = JsonUtil::GetString(metaData, "rankId"),
+                .tid = JsonUtil::GetString(metaData, "tid"),
+                .pid = JsonUtil::GetString(metaData, "pid"),
+                .metaType = JsonUtil::GetString(metaData, "metaType"),
+                .rankId = JsonUtil::GetString(metaData, "rankId"),
             };
             JsonUtil::SetByJsonKeyValue(data.lockStartTime, metaData, "lockStartTime");
             JsonUtil::SetByJsonKeyValue(data.lockEndTime, metaData, "lockEndTime");
@@ -357,8 +342,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchSliceRequest(const json_t &js
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToRemoteDeleteRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToRemoteDeleteRequest(const json_t &json, std::string &error) {
     std::unique_ptr<RemoteDeleteRequest> reqPtr = std::make_unique<RemoteDeleteRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -372,8 +356,7 @@ std::unique_ptr<Request> TimelineProtocol::ToRemoteDeleteRequest(const json_t &j
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryListRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryListRequest(const json_t &json, std::string &error) {
     std::unique_ptr<FlowCategoryListRequest> reqPtr = std::make_unique<FlowCategoryListRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -383,8 +366,7 @@ std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryListRequest(const json_
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryEventsRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryEventsRequest(const json_t &json, std::string &error) {
     std::unique_ptr<FlowCategoryEventsRequest> reqPtr = std::make_unique<FlowCategoryEventsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -398,12 +380,10 @@ std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryEventsRequest(const jso
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
     if (json["params"].HasMember("metadataList") && json["params"]["metadataList"].IsArray()) {
-        for (const auto &metaData: json["params"]["metadataList"].GetArray()) {
-            Metadata data{
-                    .tid = JsonUtil::GetString(metaData, "tid"),
-                    .pid = JsonUtil::GetString(metaData, "pid"),
-                    .metaType = JsonUtil::GetString(metaData, "metaType")
-            };
+        for (const auto &metaData : json["params"]["metadataList"].GetArray()) {
+            Metadata data{.tid = JsonUtil::GetString(metaData, "tid"),
+                .pid = JsonUtil::GetString(metaData, "pid"),
+                .metaType = JsonUtil::GetString(metaData, "metaType")};
             reqPtr->params.metadataList.emplace_back(std::move(data));
         }
     }
@@ -412,8 +392,7 @@ std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryEventsRequest(const jso
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToUnitCounterRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToUnitCounterRequest(const json_t &json, std::string &error) {
     std::unique_ptr<UnitCounterRequest> reqPtr = std::make_unique<UnitCounterRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -429,8 +408,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitCounterRequest(const json_t &js
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToSystemViewRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSystemViewRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<SystemViewRequest> reqPtr = std::make_unique<SystemViewRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -450,8 +428,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewRequest(const Dic::json_t
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToExpAnaAICoreFreqRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToExpAnaAICoreFreqRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<ExpAnaAICoreFreqRequest> reqPtr = std::make_unique<ExpAnaAICoreFreqRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -461,8 +438,7 @@ std::unique_ptr<Request> TimelineProtocol::ToExpAnaAICoreFreqRequest(const Dic::
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToEventsViewRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToEventsViewRequest(const Dic::json_t &json, std::string &error) {
     auto reqPtr = std::make_unique<EventsViewRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -504,8 +480,7 @@ std::unique_ptr<Request> TimelineProtocol::ToEventsViewRequest(const Dic::json_t
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToKernelDetailRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToKernelDetailRequest(const json_t &json, std::string &error) {
     std::unique_ptr<KernelDetailsRequest> reqPtr = std::make_unique<KernelDetailsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -539,8 +514,7 @@ std::unique_ptr<Request> TimelineProtocol::ToKernelDetailRequest(const json_t &j
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToCommunicationKernelRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToCommunicationKernelRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<CommunicationKernelRequest> reqPtr = std::make_unique<CommunicationKernelRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -552,9 +526,7 @@ std::unique_ptr<Request> TimelineProtocol::ToCommunicationKernelRequest(const Di
     return reqPtr;
 }
 
-
-std::unique_ptr<Request> TimelineProtocol::ToOneKernelRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToOneKernelRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<KernelRequest> reqPtr = std::make_unique<KernelRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -567,8 +539,7 @@ std::unique_ptr<Request> TimelineProtocol::ToOneKernelRequest(const Dic::json_t 
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToTableDataNameListRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToTableDataNameListRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<TableDataNameListRequest> reqPtr = std::make_unique<TableDataNameListRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -579,8 +550,7 @@ std::unique_ptr<Request> TimelineProtocol::ToTableDataNameListRequest(const Dic:
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToTableDataDetailRequest(const Dic::json_t& json, std::string& error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToTableDataDetailRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<TableDataDetailRequest> reqPtr = std::make_unique<TableDataDetailRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -612,8 +582,7 @@ std::unique_ptr<Request> TimelineProtocol::ToTableDataDetailRequest(const Dic::j
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsOperatorsRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsOperatorsRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<UnitThreadsOperatorsRequest> reqPtr = std::make_unique<UnitThreadsOperatorsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -653,8 +622,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsOperatorsRequest(const D
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToSearchAllSlicesRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSearchAllSlicesRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<SearchAllSlicesRequest> reqPtr = std::make_unique<SearchAllSlicesRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -669,12 +637,12 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchAllSlicesRequest(const Dic::j
     JsonUtil::SetByJsonKeyValue(reqPtr->params.current, json["params"], "current");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pageSize, json["params"], "pageSize");
     if (json["params"].HasMember("metadataList") && json["params"]["metadataList"].IsArray()) {
-        for (const auto &metaData: json["params"]["metadataList"].GetArray()) {
+        for (const auto &metaData : json["params"]["metadataList"].GetArray()) {
             Metadata data{
-                    .tid = JsonUtil::GetString(metaData, "tid"),
-                    .pid = JsonUtil::GetString(metaData, "pid"),
-                    .metaType = JsonUtil::GetString(metaData, "metaType"),
-                    .rankId = JsonUtil::GetString(metaData, "rankId"),
+                .tid = JsonUtil::GetString(metaData, "tid"),
+                .pid = JsonUtil::GetString(metaData, "pid"),
+                .metaType = JsonUtil::GetString(metaData, "metaType"),
+                .rankId = JsonUtil::GetString(metaData, "rankId"),
             };
             JsonUtil::SetByJsonKeyValue(data.lockStartTime, metaData, "lockStartTime");
             JsonUtil::SetByJsonKeyValue(data.lockEndTime, metaData, "lockEndTime");
@@ -684,8 +652,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchAllSlicesRequest(const Dic::j
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToSystemViewOverallRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSystemViewOverallRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<SystemViewOverallRequest> reqPtr = std::make_unique<SystemViewOverallRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info for system view overall command.";
@@ -699,9 +666,8 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewOverallRequest(const Dic:
     return reqPtr;
 }
 
-std::unique_ptr<Request>TimelineProtocol::ToSystemViewOverallMoreDetailsRequest(const Dic::json_t &json,
-                                                                                std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSystemViewOverallMoreDetailsRequest(
+    const Dic::json_t &json, std::string &error) {
     std::unique_ptr<SystemViewOverallMoreDetailsRequest> reqPtr =
         std::make_unique<SystemViewOverallMoreDetailsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
@@ -724,8 +690,7 @@ std::unique_ptr<Request>TimelineProtocol::ToSystemViewOverallMoreDetailsRequest(
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToSystemViewFtraceStatRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToSystemViewFtraceStatRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<SystemViewFtraceStatRequest> reqPtr = std::make_unique<SystemViewFtraceStatRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info for system view ftrace stat command.";
@@ -739,8 +704,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewFtraceStatRequest(const D
     return reqPtr;
 }
 
-std::unique_ptr<Request> TimelineProtocol::ToMemcpyOverallRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> TimelineProtocol::ToMemcpyOverallRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<MemcpyOverallRequest> reqPtr = std::make_unique<MemcpyOverallRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info for memcpy overall command.";
@@ -754,217 +718,198 @@ std::unique_ptr<Request> TimelineProtocol::ToMemcpyOverallRequest(const Dic::jso
     return reqPtr;
 }
 
+std::unique_ptr<Request> TimelineProtocol::ToRankOffsetRequest(const Dic::json_t &json, std::string &error) {
+    std::unique_ptr<RankOffsetRequest> reqPtr = std::make_unique<RankOffsetRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+        error = "Failed to set request base info for rank offset command.";
+        return nullptr;
+    }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceName, json["params"], "sliceName");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.fileId, json["params"], "fileId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.pid, json["params"], "pid");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.metaType, json["params"], "metaType");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.alignType, json["params"], "alignType");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.id, json["params"], "id");
+    std::string startTime = JsonUtil::GetString(json["params"], "startTime");
+    reqPtr->params.startTime = NumberUtil::StringToLongLong(startTime);
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.duration, json["params"], "duration");
+    return reqPtr;
+}
+
 #pragma endregion
 
 #pragma region << Response To Json>>
 
-std::optional<document_t> TimelineProtocol::ToImportActionResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToImportActionResponseJson(const Response &response) {
     return ToResponseJson<ImportActionResponse>(dynamic_cast<const ImportActionResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToUnitThreadTracesResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToUnitThreadTracesResponseJson(const Response &response) {
     return ToResponseJson<UnitThreadTracesResponse>(dynamic_cast<const UnitThreadTracesResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToUnitThreadTracesSummaryResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToUnitThreadTracesSummaryResponseJson(const Response &response) {
     return ToResponseJson<UnitThreadTracesSummaryResponse>(
         dynamic_cast<const UnitThreadTracesSummaryResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToUnitThreadsResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToUnitThreadsResponseJson(const Response &response) {
     return ToResponseJson<UnitThreadsResponse>(dynamic_cast<const UnitThreadsResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToThreadDetailResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToThreadDetailResponseJson(const Response &response) {
     return ToResponseJson<UnitThreadDetailResponse>(dynamic_cast<const UnitThreadDetailResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToUnitFlowsResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToUnitFlowsResponseJson(const Response &response) {
     return ToResponseJson<UnitFlowsResponse>(dynamic_cast<const UnitFlowsResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToSetCardAliasResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToSetCardAliasResponseJson(const Response &response) {
     return ToResponseJson<SetCardAliasResponse>(dynamic_cast<const SetCardAliasResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToResetWindowResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToResetWindowResponseJson(const Response &response) {
     return ToResponseJson<ResetWindowResponse>(dynamic_cast<const ResetWindowResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToSearchCountResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToSearchCountResponseJson(const Response &response) {
     return ToResponseJson<SearchCountResponse>(dynamic_cast<const SearchCountResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToCreateCurveResponseJson(const Response& response)
-{
-    return ToResponseJson<CreateCurveResponse>(dynamic_cast<const CreateCurveResponse&>(response));
+std::optional<document_t> TimelineProtocol::ToCreateCurveResponseJson(const Response &response) {
+    return ToResponseJson<CreateCurveResponse>(dynamic_cast<const CreateCurveResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToSearchSliceResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToSearchSliceResponseJson(const Response &response) {
     return ToResponseJson<SearchSliceResponse>(dynamic_cast<const SearchSliceResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToRemoteDeleteResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToRemoteDeleteResponseJson(const Response &response) {
     return ToResponseJson<RemoteDeleteResponse>(dynamic_cast<const RemoteDeleteResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToFlowCategoryListResponse(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToFlowCategoryListResponse(const Response &response) {
     return ToResponseJson<FlowCategoryListResponse>(dynamic_cast<const FlowCategoryListResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToFlowCategoryEventsResponse(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToFlowCategoryEventsResponse(const Response &response) {
     return ToResponseJson<FlowCategoryEventsResponse>(dynamic_cast<const FlowCategoryEventsResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToUnitCounterResponse(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToUnitCounterResponse(const Response &response) {
     return ToResponseJson<UnitCounterResponse>(dynamic_cast<const UnitCounterResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToSystemViewResponseJson(const Dic::Protocol::Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToSystemViewResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<SystemViewResponse>(dynamic_cast<const SystemViewResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToExpAnaAICoreFreqResponseJson(
-    const Dic::Protocol::Response &response)
-{
-    return ToResponseJson<ExpAnaAICoreFreqResponse>
-        (dynamic_cast<const ExpAnaAICoreFreqResponse &>(response));
+std::optional<document_t> TimelineProtocol::ToExpAnaAICoreFreqResponseJson(const Dic::Protocol::Response &response) {
+    return ToResponseJson<ExpAnaAICoreFreqResponse>(dynamic_cast<const ExpAnaAICoreFreqResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToEventsViewResponseJson(const Dic::Protocol::Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToEventsViewResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<EventsViewResponse>(dynamic_cast<const EventsViewResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToKernelDetailResponseJson(const Dic::Protocol::Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToKernelDetailResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<KernelDetailsResponse>(dynamic_cast<const KernelDetailsResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToOneKernelResponseJson(const Dic::Protocol::Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToOneKernelResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<OneKernelResponse>(dynamic_cast<const OneKernelResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToCommunicationKernelResponseJson(const Dic::Protocol::Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToCommunicationKernelResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<CommunicationKernelResponse>(dynamic_cast<const CommunicationKernelResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToUnitThreadsOperatorsResponseJson(const Dic::Protocol::Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToUnitThreadsOperatorsResponseJson(
+    const Dic::Protocol::Response &response) {
     return ToResponseJson<UnitThreadsOperatorsResponse>(dynamic_cast<const UnitThreadsOperatorsResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToSearchAllSlicesResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToSearchAllSlicesResponseJson(const Response &response) {
     return ToResponseJson<SearchAllSlicesResponse>(dynamic_cast<const SearchAllSlicesResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToTableDataNameListResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToTableDataNameListResponseJson(const Response &response) {
     return ToResponseJson<TableDataNameListResponse>(dynamic_cast<const TableDataNameListResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToTableDataDetailResponseJson(const Response& response)
-{
-    return ToResponseJson<TableDataDetailResponse>(dynamic_cast<const TableDataDetailResponse&>(response));
+std::optional<document_t> TimelineProtocol::ToTableDataDetailResponseJson(const Response &response) {
+    return ToResponseJson<TableDataDetailResponse>(dynamic_cast<const TableDataDetailResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseCardsResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToParseCardsResponseJson(const Response &response) {
     return ToResponseJson<ParseCardsResponse>(dynamic_cast<const ParseCardsResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToMemcpyOverallListResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToMemcpyOverallListResponseJson(const Response &response) {
     return ToResponseJson<MemcpyOverallResponse>(dynamic_cast<const MemcpyOverallResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToMemcpyDetailListResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToMemcpyDetailListResponseJson(const Response &response) {
     return ToResponseJson<MemcpyDetailResponse>(dynamic_cast<const MemcpyDetailResponse &>(response));
+}
+
+std::optional<document_t> TimelineProtocol::ToRankOffsetResponseJson(const Response &response) {
+    return ToResponseJson<RankOffsetResponse>(dynamic_cast<const RankOffsetResponse &>(response));
 }
 #pragma endregion
 
 #pragma region << Event To Json>>
-std::optional<document_t> TimelineProtocol::ToParseSuccessEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseSuccessEventJson(const Event &event) {
     return ToEventJson<ParseSuccessEvent>(dynamic_cast<const ParseSuccessEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseFailEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseFailEventJson(const Event &event) {
     return ToEventJson<ParseFailEvent>(dynamic_cast<const ParseFailEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseClusterCompletedEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseClusterCompletedEventJson(const Event &event) {
     return ToEventJson<ParseClusterCompletedEvent>(dynamic_cast<const ParseClusterCompletedEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToAllSuccessEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToAllSuccessEventJson(const Event &event) {
     return ToEventJson<AllSuccessEvent>(dynamic_cast<const AllSuccessEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseClusterStep2CompletedEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseClusterStep2CompletedEventJson(const Event &event) {
     return ToEventJson<ParseClusterStep2CompletedEvent>(dynamic_cast<const ParseClusterStep2CompletedEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseMemoryCompletedEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseMemoryCompletedEventJson(const Event &event) {
     return ToEventJson<ParseMemoryCompletedEvent>(dynamic_cast<const ParseMemoryCompletedEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToModuleResetEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToModuleResetEventJson(const Event &event) {
     return ToEventJson<ModuleResetEvent>(dynamic_cast<const ModuleResetEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseProgressEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseProgressEventJson(const Event &event) {
     return ToEventJson<ParseProgressEvent>(dynamic_cast<const ParseProgressEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseHeatmapCompletedEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseHeatmapCompletedEventJson(const Event &event) {
     return ToEventJson<ParseHeatmapCompletedEvent>(dynamic_cast<const ParseHeatmapCompletedEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToParseUnitCompletedEventJson(const Event &event)
-{
+std::optional<document_t> TimelineProtocol::ToParseUnitCompletedEventJson(const Event &event) {
     return ToEventJson<ParseUnitCompletedEvent>(dynamic_cast<const ParseUnitCompletedEvent &>(event));
 }
 
-std::optional<document_t> TimelineProtocol::ToSystemViewOverallResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToSystemViewOverallResponseJson(const Response &response) {
     return ToResponseJson<SystemViewOverallResponse>(dynamic_cast<const SystemViewOverallResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToOverallMoreDetailsResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToOverallMoreDetailsResponseJson(const Response &response) {
     return ToResponseJson<UnitThreadsOperatorsResponse>(dynamic_cast<const UnitThreadsOperatorsResponse &>(response));
 }
 
-std::optional<document_t> TimelineProtocol::ToSystemViewFtraceStatResponseJson(const Response &response)
-{
+std::optional<document_t> TimelineProtocol::ToSystemViewFtraceStatResponseJson(const Response &response) {
     return ToResponseJson<SystemViewFtraceStatResponse>(dynamic_cast<const SystemViewFtraceStatResponse &>(response));
 }
 #pragma endregion

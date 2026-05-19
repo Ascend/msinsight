@@ -106,9 +106,7 @@ struct CreateCurveBody {
 };
 
 struct CreateCurveResponse : public Response {
-    CreateCurveResponse() : Response(REQ_RES_CREATE_CURVE)
-    {
-    }
+    CreateCurveResponse() : Response(REQ_RES_CREATE_CURVE) {}
     CreateCurveBody body;
 };
 
@@ -195,11 +193,10 @@ struct UnitFlowsResponse : public Response {
     UnitFlowsBody body;
 };
 
-struct SetCardAliasBody {
-};
+struct SetCardAliasBody {};
 
 struct SetCardAliasResponse : public Response {
-    SetCardAliasResponse() : Response(REQ_RES_UNIT_SET_CARD_ALIAS){};
+    SetCardAliasResponse() : Response(REQ_RES_UNIT_SET_CARD_ALIAS) {};
     SetCardAliasBody body;
 };
 
@@ -207,8 +204,7 @@ struct ResetWindowResponse : public Response {
     ResetWindowResponse() : Response(REQ_RES_RESET_WINDOW) {}
 };
 
-inline bool CompareLess(uint32_t depth1, uint32_t depth2, uint64_t time1, uint64_t time2)
-{
+inline bool CompareLess(uint32_t depth1, uint32_t depth2, uint64_t time1, uint64_t time2) {
     if (depth1 < depth2) {
         return true;
     }
@@ -227,8 +223,7 @@ struct RowThreadTrace {
     int64_t traceId = 0;
     std::string name;
     std::string cname;
-    bool operator < (const RowThreadTrace &right) const
-    {
+    bool operator<(const RowThreadTrace &right) const {
         return CompareLess(depth, right.depth, startTime, right.startTime);
     }
 };
@@ -248,13 +243,11 @@ struct SimpleSlice {
     std::string tid;
     std::string pid;
     std::string metaType;
-    bool operator < (const SimpleSlice &right) const
-    {
+    bool operator<(const SimpleSlice &right) const {
         return CompareLess(depth, right.depth, timestamp, right.timestamp);
     }
 
-    bool operator > (const SimpleSlice &right) const
-    {
+    bool operator>(const SimpleSlice &right) const {
         if (depth > right.depth) {
             return true;
         }
@@ -362,8 +355,8 @@ struct SystemViewResponse : public Response {
 };
 
 struct SystemViewAICoreFreqDetail {
-    double frequency;  // 频率
-    double timestamp;  // 时间戳
+    double frequency; // 频率
+    double timestamp; // 时间戳
 };
 
 struct ExpAnaAICoreFreqBody {
@@ -391,8 +384,7 @@ struct SystemViewOverallRes {
     uint32_t level{1};
     std::string id;
 
-    void ValidateValues()
-    {
+    void ValidateValues() {
         max = (max == -std::numeric_limits<double>::infinity()) ? 0.0 : max;
         min = (min == std::numeric_limits<double>::infinity()) ? 0.0 : min;
     }
@@ -407,16 +399,15 @@ struct CommunicationSummaryInfoByThread {
     uint64_t uncoveredWaitTime{};
     uint64_t uncoveredTransmitTime{};
 
-    void UpdateData(bool waitFlag, uint64_t completeTime, uint64_t uncoveredTime)
-    {
+    void UpdateData(bool waitFlag, uint64_t completeTime, uint64_t uncoveredTime) {
         if (waitFlag) {
             completeWaitTime = completeWaitTime > UINT64_MAX - completeTime ? 0 : completeWaitTime + completeTime;
             uncoveredWaitTime = uncoveredWaitTime > UINT64_MAX - uncoveredTime ? 0 : uncoveredWaitTime + uncoveredTime;
         } else {
-            completeTransmitTime = completeTransmitTime > UINT64_MAX - completeTime ? 0 :
-                completeTransmitTime + completeTime;
-            uncoveredTransmitTime = uncoveredTransmitTime > UINT64_MAX - uncoveredTime ? 0 :
-                uncoveredTransmitTime + uncoveredTime;
+            completeTransmitTime =
+                completeTransmitTime > UINT64_MAX - completeTime ? 0 : completeTransmitTime + completeTime;
+            uncoveredTransmitTime =
+                uncoveredTransmitTime > UINT64_MAX - uncoveredTime ? 0 : uncoveredTransmitTime + uncoveredTime;
         }
     }
 };
@@ -436,12 +427,12 @@ struct SystemViewOverallResponse : public Response {
 
 struct SystemViewFtraceStatResponse : public Response {
     SystemViewFtraceStatResponse() : Response(REQ_RES_SYSTEM_VIEW_FTRACE_STAT) {}
-    std::vector<std::unordered_map<std::string, std::string>> data;  // 查询结果数据
+    std::vector<std::unordered_map<std::string, std::string>> data; // 查询结果数据
     PageParam pageParam;
 };
 
 class EventDetail {
-public:
+  public:
     virtual ~EventDetail() = default;
     virtual void Base() {}
     std::string id;
@@ -454,13 +445,13 @@ public:
 };
 
 class HostEventDetail : public EventDetail {
-public:
+  public:
     std::string tid;
     std::string pid;
 };
 
 class DeviceEventDetail : public EventDetail {
-public:
+  public:
     std::string threadName;
     std::string rankId;
 };
@@ -585,19 +576,19 @@ struct TableDataDetailResponse : public Response {
 };
 
 struct MemcpyOverallRes {
-    std::string key;          // 唯一标识符
-    std::string name;         // 显示名称 (threadId 或 memcpy type)
-    uint64_t totalSize{};     // 总大小
-    double totalTime{};       // 总时间
-    uint32_t number{};        // 数量
-    double avgSize{};         // 平均大小
-    uint64_t minSize{};       // 最小大小
-    uint64_t maxSize{};       // 最大大小
-    double avgTime{};         // 平均时间
-    double minTime{};         // 最小时间
-    double maxTime{};         // 最大时间
-    int level{};              // 层级 (1: thread, 2: memcpy type)
-    std::vector<MemcpyOverallRes> children;  // 子项 (memcpy types for thread)
+    std::string key; // 唯一标识符
+    std::string name; // 显示名称 (threadId 或 memcpy type)
+    uint64_t totalSize{}; // 总大小
+    double totalTime{}; // 总时间
+    uint32_t number{}; // 数量
+    double avgSize{}; // 平均大小
+    uint64_t minSize{}; // 最小大小
+    uint64_t maxSize{}; // 最大大小
+    double avgTime{}; // 平均时间
+    double minTime{}; // 最小时间
+    double maxTime{}; // 最大时间
+    int level{}; // 层级 (1: thread, 2: memcpy type)
+    std::vector<MemcpyOverallRes> children; // 子项 (memcpy types for thread)
 };
 
 struct MemcpyOverallResponse : public Response {
@@ -609,6 +600,28 @@ struct MemcpyOverallResponse : public Response {
 struct MemcpyDetailResponse : public Response {
     MemcpyDetailResponse() : Response(REQ_RES_MEMCPY_DETAIL) {}
     MemcpyDetailsBody body;
+};
+
+struct RankOffsetItem {
+    std::string rankId;
+    int64_t offset = 0;
+    std::vector<std::string> processId;
+};
+
+struct RankOffsetError {
+    int32_t code = 0;
+    std::string message;
+};
+
+struct RankOffsetBody {
+    std::vector<RankOffsetItem> successList;
+    uint64_t baseOffset = 0;
+    RankOffsetError error;
+};
+
+struct RankOffsetResponse : public Response {
+    RankOffsetResponse() : Response(REQ_RES_RANK_OFFSET) {}
+    RankOffsetBody body;
 };
 } // end of namespace Protocol
 } // end of namespace Dic

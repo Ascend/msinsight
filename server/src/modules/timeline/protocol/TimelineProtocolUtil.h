@@ -25,18 +25,17 @@
 
 namespace Dic {
 namespace Protocol {
-void SetBodyAtt(const ImportActionResponse& response, MemoryPoolAllocator<::rapidjson::CrtAllocator>& allocator,
-                json_t& body);
+void SetBodyAtt(
+    const ImportActionResponse &response, MemoryPoolAllocator<::rapidjson::CrtAllocator> &allocator, json_t &body);
 // response
 template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response);
-template <>
-std::optional<document_t> ToResponseJson<ImportActionResponse>(const ImportActionResponse &response);
+template <> std::optional<document_t> ToResponseJson<ImportActionResponse>(const ImportActionResponse &response);
 template <>
 std::optional<document_t> ToResponseJson<UnitThreadTracesResponse>(const UnitThreadTracesResponse &response);
-template <> std::optional<document_t> ToResponseJson<UnitThreadTracesSummaryResponse>(
-    const UnitThreadTracesSummaryResponse &response);
 template <>
-std::optional<document_t> ToResponseJson<CreateCurveResponse>(const CreateCurveResponse& response);
+std::optional<document_t> ToResponseJson<UnitThreadTracesSummaryResponse>(
+    const UnitThreadTracesSummaryResponse &response);
+template <> std::optional<document_t> ToResponseJson<CreateCurveResponse>(const CreateCurveResponse &response);
 template <> std::optional<document_t> ToResponseJson<UnitThreadsResponse>(const UnitThreadsResponse &response);
 template <>
 std::optional<document_t> ToResponseJson<UnitThreadDetailResponse>(const UnitThreadDetailResponse &response);
@@ -51,25 +50,26 @@ std::optional<document_t> ToResponseJson<FlowCategoryListResponse>(const FlowCat
 template <>
 std::optional<document_t> ToResponseJson<FlowCategoryEventsResponse>(const FlowCategoryEventsResponse &response);
 template <> std::optional<document_t> ToResponseJson<UnitCounterResponse>(const UnitCounterResponse &response);
-template<> std::optional<document_t> ToResponseJson<SystemViewResponse>(const SystemViewResponse &response);
-template <> std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>
-        (const ExpAnaAICoreFreqResponse &response);
-template<> std::optional<document_t> ToResponseJson<EventsViewResponse>(const EventsViewResponse &response);
-template<> std::optional<document_t> ToResponseJson<KernelDetailsResponse>(const KernelDetailsResponse &response);
-template<> std::optional<document_t> ToResponseJson<OneKernelResponse>(const OneKernelResponse &response);
-template<> std::optional<document_t> ToResponseJson<UnitThreadsOperatorsResponse>
-        (const UnitThreadsOperatorsResponse &response);
-template<> std::optional<document_t> ToResponseJson<SearchAllSlicesResponse>(const SearchAllSlicesResponse &response);
+template <> std::optional<document_t> ToResponseJson<SystemViewResponse>(const SystemViewResponse &response);
 template <>
-std::optional<document_t> ToResponseJson<TableDataNameListResponse>(const TableDataNameListResponse& response);
-template<> std::optional<document_t> ToResponseJson<TableDataDetailResponse>(const TableDataDetailResponse &response);
-template<> std::optional<document_t> ToResponseJson<ParseCardsResponse>(const ParseCardsResponse &response);
-template<>
+std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>(const ExpAnaAICoreFreqResponse &response);
+template <> std::optional<document_t> ToResponseJson<EventsViewResponse>(const EventsViewResponse &response);
+template <> std::optional<document_t> ToResponseJson<KernelDetailsResponse>(const KernelDetailsResponse &response);
+template <> std::optional<document_t> ToResponseJson<OneKernelResponse>(const OneKernelResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<UnitThreadsOperatorsResponse>(const UnitThreadsOperatorsResponse &response);
+template <> std::optional<document_t> ToResponseJson<SearchAllSlicesResponse>(const SearchAllSlicesResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<TableDataNameListResponse>(const TableDataNameListResponse &response);
+template <> std::optional<document_t> ToResponseJson<TableDataDetailResponse>(const TableDataDetailResponse &response);
+template <> std::optional<document_t> ToResponseJson<ParseCardsResponse>(const ParseCardsResponse &response);
+template <>
 std::optional<document_t> ToResponseJson<CommunicationKernelResponse>(const CommunicationKernelResponse &response);
-template<>
+template <>
 std::optional<document_t> ToResponseJson<SystemViewOverallResponse>(const SystemViewOverallResponse &response);
-template<>
+template <>
 std::optional<document_t> ToResponseJson<SystemViewFtraceStatResponse>(const SystemViewFtraceStatResponse &response);
+template <> std::optional<document_t> ToResponseJson<RankOffsetResponse>(const RankOffsetResponse &response);
 // event
 template <typename EVENT> std::optional<document_t> ToEventJson(const EVENT &event);
 template <> std::optional<document_t> ToEventJson<ParseSuccessEvent>(const ParseSuccessEvent &event);

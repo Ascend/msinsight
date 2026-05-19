@@ -24,15 +24,13 @@ namespace Protocol {
 using namespace Dic::Server;
 using namespace rapidjson;
 #pragma region << Response to json>>
-template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response)
-{
+template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response) {
     ServerLog::Warn("ToResponseJson is not implemented. command:", response.command);
     return std::nullopt;
 }
 
-static void BuildImportActionJson(const std::vector<Action> &actions,
-                                  json_t &result, RAPIDJSON_DEFAULT_ALLOCATOR &allocator)
-{
+static void BuildImportActionJson(
+    const std::vector<Action> &actions, json_t &result, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
     for (const Action &action : actions) {
         json_t actionJson(kObjectType);
         JsonUtil::AddMember(actionJson, "cardName", action.cardName, allocator);
@@ -43,7 +41,7 @@ static void BuildImportActionJson(const std::vector<Action> &actions,
         JsonUtil::AddMember(actionJson, "cluster", action.cluster, allocator);
         JsonUtil::AddMember(actionJson, "projectType", action.projectType, allocator);
         json_t dataPathList(kArrayType);
-        for (const auto &item: action.dataPathList) {
+        for (const auto &item : action.dataPathList) {
             dataPathList.PushBack(json_t().SetString(item.c_str(), allocator), allocator);
         }
         JsonUtil::AddMember(actionJson, "dataPathList", dataPathList, allocator);
@@ -52,8 +50,7 @@ static void BuildImportActionJson(const std::vector<Action> &actions,
     }
 }
 
-template <> std::optional<document_t> ToResponseJson<ImportActionResponse>(const ImportActionResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<ImportActionResponse>(const ImportActionResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -78,7 +75,7 @@ template <> std::optional<document_t> ToResponseJson<ImportActionResponse>(const
     }
     JsonUtil::AddMember(body, "subdirectoryList", subdirectoryList, allocator);
     json_t projectFileTree(kArrayType);
-    for (const auto& fileTree : response.body.projectFileTree) {
+    for (const auto &fileTree : response.body.projectFileTree) {
         projectFileTree.PushBack(fileTree->SerializeToJson(allocator), allocator);
     }
     JsonUtil::AddMember(body, "children", projectFileTree, allocator);
@@ -89,9 +86,8 @@ template <> std::optional<document_t> ToResponseJson<ImportActionResponse>(const
     return std::optional<document_t>{std::move(json)};
 }
 
-void SetBodyAtt(const ImportActionResponse& response, MemoryPoolAllocator<::rapidjson::CrtAllocator>& allocator,
-                json_t& body)
-{
+void SetBodyAtt(
+    const ImportActionResponse &response, MemoryPoolAllocator<::rapidjson::CrtAllocator> &allocator, json_t &body) {
     JsonUtil::AddMember(body, "isOnlyTraceJson", response.body.isOnlyTraceJson, allocator);
     JsonUtil::AddMember(body, "isCluster", response.body.isCluster, allocator);
     JsonUtil::AddMember(body, "reset", response.body.reset, allocator);
@@ -107,8 +103,8 @@ void SetBodyAtt(const ImportActionResponse& response, MemoryPoolAllocator<::rapi
     JsonUtil::AddMember(body, "isTriton", response.body.isTriton, allocator);
 }
 
-template <> std::optional<document_t> ToResponseJson<UnitThreadTracesResponse>(const UnitThreadTracesResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<UnitThreadTracesResponse>(const UnitThreadTracesResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -139,11 +135,9 @@ template <> std::optional<document_t> ToResponseJson<UnitThreadTracesResponse>(c
     return std::optional<document_t>{std::move(json)};
 }
 
-template <>
-std::optional<document_t> ToResponseJson<CreateCurveResponse>(const CreateCurveResponse& response)
-{
+template <> std::optional<document_t> ToResponseJson<CreateCurveResponse>(const CreateCurveResponse &response) {
     document_t json(kObjectType);
-    auto& allocator = json.GetAllocator();
+    auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     JsonUtil::AddMember(body, "curveName", response.body.curveName, allocator);
@@ -153,8 +147,7 @@ std::optional<document_t> ToResponseJson<CreateCurveResponse>(const CreateCurveR
 
 template <>
 std::optional<document_t> ToResponseJson<UnitThreadTracesSummaryResponse>(
-    const UnitThreadTracesSummaryResponse &response)
-{
+    const UnitThreadTracesSummaryResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -171,8 +164,7 @@ std::optional<document_t> ToResponseJson<UnitThreadTracesSummaryResponse>(
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<UnitThreadsResponse>(const UnitThreadsResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<UnitThreadsResponse>(const UnitThreadsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -189,11 +181,11 @@ template <> std::optional<document_t> ToResponseJson<UnitThreadsResponse>(const 
         JsonUtil::AddMember(threadsJson, "minWallDuration", sliceGroupItem.minWallDuration, allocator);
         JsonUtil::AddMember(threadsJson, "selfTime", sliceGroupItem.selfTime, allocator);
         json_t processesJson(kArrayType);
-        for (const auto &[key, value]: sliceGroupItem.processMap) {
+        for (const auto &[key, value] : sliceGroupItem.processMap) {
             json_t processJson(kObjectType);
             JsonUtil::AddMember(processJson, "pid", key, allocator);
             json_t tidJson(kArrayType);
-            for (const auto &item: value) {
+            for (const auto &item : value) {
                 tidJson.PushBack(json_t().SetString(item.c_str(), allocator), allocator);
             }
             JsonUtil::AddMember(processJson, "tidList", tidJson, allocator);
@@ -209,8 +201,8 @@ template <> std::optional<document_t> ToResponseJson<UnitThreadsResponse>(const 
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<UnitThreadDetailResponse>(const UnitThreadDetailResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<UnitThreadDetailResponse>(const UnitThreadDetailResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -236,8 +228,7 @@ template <> std::optional<document_t> ToResponseJson<UnitThreadDetailResponse>(c
     return std::optional<document_t>{std::move(json)};
 }
 
-json_t FlowLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAULT_ALLOCATOR &allocator)
-{
+json_t FlowLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
     json_t json(kObjectType);
     JsonUtil::AddMember(json, "pid", flowLocation.pid, allocator);
     JsonUtil::AddMember(json, "tid", flowLocation.tid, allocator);
@@ -251,18 +242,17 @@ json_t FlowLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAULT_AL
     return json;
 }
 
-template <> std::optional<document_t> ToResponseJson<UnitFlowsResponse>(const UnitFlowsResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<UnitFlowsResponse>(const UnitFlowsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t unitAllFlows(kArrayType);
-    for (const auto &item: response.body.unitAllFlows) {
+    for (const auto &item : response.body.unitAllFlows) {
         json_t unitCatFlows(kObjectType);
         JsonUtil::AddMember(unitCatFlows, "cat", item.cat, allocator);
         json_t flows(kArrayType);
-        for (const auto &flow: item.flows) {
+        for (const auto &flow : item.flows) {
             json_t flowJson(kObjectType);
             JsonUtil::AddMember(flowJson, "title", flow.title, allocator);
             JsonUtil::AddMember(flowJson, "cat", flow.cat, allocator);
@@ -279,8 +269,7 @@ template <> std::optional<document_t> ToResponseJson<UnitFlowsResponse>(const Un
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<SetCardAliasResponse>(const SetCardAliasResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<SetCardAliasResponse>(const SetCardAliasResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -289,9 +278,7 @@ template <> std::optional<document_t> ToResponseJson<SetCardAliasResponse>(const
     return std::optional<document_t>(std::move(json));
 }
 
-
-template <> std::optional<document_t> ToResponseJson<ResetWindowResponse>(const ResetWindowResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<ResetWindowResponse>(const ResetWindowResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
@@ -299,8 +286,7 @@ template <> std::optional<document_t> ToResponseJson<ResetWindowResponse>(const 
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<SearchCountResponse>(const SearchCountResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<SearchCountResponse>(const SearchCountResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -319,8 +305,7 @@ template <> std::optional<document_t> ToResponseJson<SearchCountResponse>(const 
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<SearchSliceResponse>(const SearchSliceResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<SearchSliceResponse>(const SearchSliceResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -337,8 +322,7 @@ template <> std::optional<document_t> ToResponseJson<SearchSliceResponse>(const 
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<RemoteDeleteResponse>(const RemoteDeleteResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<RemoteDeleteResponse>(const RemoteDeleteResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -349,8 +333,8 @@ template <> std::optional<document_t> ToResponseJson<RemoteDeleteResponse>(const
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<FlowCategoryListResponse>(const FlowCategoryListResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<FlowCategoryListResponse>(const FlowCategoryListResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -364,8 +348,7 @@ template <> std::optional<document_t> ToResponseJson<FlowCategoryListResponse>(c
     return std::optional<document_t>{std::move(json)};
 }
 
-json_t FlowEventLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAULT_ALLOCATOR &allocator)
-{
+json_t FlowEventLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
     json_t json(kObjectType);
     JsonUtil::AddMember(json, "pid", flowLocation.pid, allocator);
     JsonUtil::AddMember(json, "tid", flowLocation.tid, allocator);
@@ -376,8 +359,7 @@ json_t FlowEventLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAU
 }
 
 template <>
-std::optional<document_t> ToResponseJson<FlowCategoryEventsResponse>(const FlowCategoryEventsResponse &response)
-{
+std::optional<document_t> ToResponseJson<FlowCategoryEventsResponse>(const FlowCategoryEventsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -395,8 +377,7 @@ std::optional<document_t> ToResponseJson<FlowCategoryEventsResponse>(const FlowC
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<UnitCounterResponse>(const UnitCounterResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<UnitCounterResponse>(const UnitCounterResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -420,8 +401,7 @@ template <> std::optional<document_t> ToResponseJson<UnitCounterResponse>(const 
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<SystemViewResponse>(const SystemViewResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<SystemViewResponse>(const SystemViewResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -446,9 +426,8 @@ template <> std::optional<document_t> ToResponseJson<SystemViewResponse>(const S
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>
-    (const ExpAnaAICoreFreqResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>(const ExpAnaAICoreFreqResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -462,14 +441,13 @@ template <> std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<EventsViewResponse>(const EventsViewResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<EventsViewResponse>(const EventsViewResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t eventsDetailList(kArrayType);
-    for (const auto &item: response.body.eventDetailList) {
+    for (const auto &item : response.body.eventDetailList) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "id", item->id, allocator);
         JsonUtil::AddMember(itemJson, "name", item->name, allocator);
@@ -478,12 +456,12 @@ template <> std::optional<document_t> ToResponseJson<EventsViewResponse>(const E
         JsonUtil::AddMember(itemJson, "depth", item->depth, allocator);
         JsonUtil::AddMember(itemJson, "threadId", item->threadId, allocator);
         JsonUtil::AddMember(itemJson, "processId", item->processId, allocator);
-        if (dynamic_cast<HostEventDetail*>(item.get())) {
-            auto detail = dynamic_cast<HostEventDetail*>(item.get());
+        if (dynamic_cast<HostEventDetail *>(item.get())) {
+            auto detail = dynamic_cast<HostEventDetail *>(item.get());
             JsonUtil::AddMember(itemJson, "tid", detail->tid, allocator);
             JsonUtil::AddMember(itemJson, "pid", detail->pid, allocator);
-        } else if (dynamic_cast<DeviceEventDetail*>(item.get())) {
-            auto detail = dynamic_cast<DeviceEventDetail*>(item.get());
+        } else if (dynamic_cast<DeviceEventDetail *>(item.get())) {
+            auto detail = dynamic_cast<DeviceEventDetail *>(item.get());
             JsonUtil::AddMember(itemJson, "threadName", detail->threadName, allocator);
             JsonUtil::AddMember(itemJson, "rankId", detail->rankId, allocator);
         } else {
@@ -493,7 +471,7 @@ template <> std::optional<document_t> ToResponseJson<EventsViewResponse>(const E
         eventsDetailList.PushBack(itemJson, allocator);
     }
     json_t columnList(kArrayType);
-    for (const auto &item: response.body.columnList) {
+    for (const auto &item : response.body.columnList) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "name", item.name, allocator);
         JsonUtil::AddMember(itemJson, "type", item.type, allocator);
@@ -509,8 +487,7 @@ template <> std::optional<document_t> ToResponseJson<EventsViewResponse>(const E
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<ParseCardsResponse>(const ParseCardsResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<ParseCardsResponse>(const ParseCardsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -520,8 +497,7 @@ template <> std::optional<document_t> ToResponseJson<ParseCardsResponse>(const P
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<KernelDetailsResponse>(const KernelDetailsResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<KernelDetailsResponse>(const KernelDetailsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -560,8 +536,7 @@ template <> std::optional<document_t> ToResponseJson<KernelDetailsResponse>(cons
 }
 
 template <>
-std::optional<document_t> ToResponseJson<CommunicationKernelResponse>(const CommunicationKernelResponse &response)
-{
+std::optional<document_t> ToResponseJson<CommunicationKernelResponse>(const CommunicationKernelResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -578,8 +553,7 @@ std::optional<document_t> ToResponseJson<CommunicationKernelResponse>(const Comm
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<OneKernelResponse>(const OneKernelResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<OneKernelResponse>(const OneKernelResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -597,8 +571,7 @@ template <> std::optional<document_t> ToResponseJson<OneKernelResponse>(const On
 }
 
 template <>
-std::optional<document_t> ToResponseJson<UnitThreadsOperatorsResponse>(const UnitThreadsOperatorsResponse &response)
-{
+std::optional<document_t> ToResponseJson<UnitThreadsOperatorsResponse>(const UnitThreadsOperatorsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -612,7 +585,7 @@ std::optional<document_t> ToResponseJson<UnitThreadsOperatorsResponse>(const Uni
         if (!sameOperators.id.empty()) { // depth用于支持选中列表功能
             JsonUtil::AddMember(itemJson, "depth", sameOperators.depth, allocator);
             JsonUtil::AddMember(itemJson, "id", sameOperators.id, allocator);
-        } else {  // name、rankId用于支持overall metric more details列表
+        } else { // name、rankId用于支持overall metric more details列表
             JsonUtil::AddMember(itemJson, "name", sameOperators.name, allocator);
             JsonUtil::AddMember(itemJson, "id", index++, allocator);
         }
@@ -631,8 +604,7 @@ std::optional<document_t> ToResponseJson<UnitThreadsOperatorsResponse>(const Uni
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<SearchAllSlicesResponse>(const SearchAllSlicesResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<SearchAllSlicesResponse>(const SearchAllSlicesResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -662,14 +634,13 @@ template <> std::optional<document_t> ToResponseJson<SearchAllSlicesResponse>(co
 }
 
 template <>
-std::optional<document_t> ToResponseJson<TableDataNameListResponse>(const TableDataNameListResponse& response)
-{
+std::optional<document_t> ToResponseJson<TableDataNameListResponse>(const TableDataNameListResponse &response) {
     document_t json(kObjectType);
-    auto& allocator = json.GetAllocator();
+    auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t layers(kArrayType);
-    for (const auto& item : response.body.layers) {
+    for (const auto &item : response.body.layers) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "name", item.first, allocator);
         JsonUtil::AddMember(itemJson, "description", item.second, allocator);
@@ -680,9 +651,7 @@ std::optional<document_t> ToResponseJson<TableDataNameListResponse>(const TableD
     return std::optional<document_t>{std::move(json)};
 }
 
-template <>
-std::optional<document_t> ToResponseJson<TableDataDetailResponse>(const TableDataDetailResponse& response)
-{
+template <> std::optional<document_t> ToResponseJson<TableDataDetailResponse>(const TableDataDetailResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
@@ -711,12 +680,11 @@ std::optional<document_t> ToResponseJson<TableDataDetailResponse>(const TableDat
     JsonUtil::AddMember(body, "tableData", tableData, allocator);
     JsonUtil::AddMember(body, "columnAttr", columnAttr, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
-    return std::optional<document_t>{ std::move(json) };
+    return std::optional<document_t>{std::move(json)};
 }
 
-json_t SystemViewOverallResToJson(const SystemViewOverallRes &res,
-                                  RAPIDJSON_DEFAULT_ALLOCATOR &allocator, uint64_t depth = 1)
-{
+json_t SystemViewOverallResToJson(
+    const SystemViewOverallRes &res, RAPIDJSON_DEFAULT_ALLOCATOR &allocator, uint64_t depth = 1) {
     json_t json(kObjectType);
     JsonUtil::AddMember(json, "totalTime", res.totalTime, allocator);
     JsonUtil::AddMember(json, "ratio", res.ratio, allocator);
@@ -747,14 +715,13 @@ json_t SystemViewOverallResToJson(const SystemViewOverallRes &res,
 }
 
 template <>
-std::optional<document_t> ToResponseJson<SystemViewOverallResponse>(const SystemViewOverallResponse &response)
-{
+std::optional<document_t> ToResponseJson<SystemViewOverallResponse>(const SystemViewOverallResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t data(kArrayType);
-    for (const auto& item : response.details) {
+    for (const auto &item : response.details) {
         data.PushBack(SystemViewOverallResToJson(item, allocator), allocator);
     }
     JsonUtil::AddMember(body, "data", data, allocator);
@@ -766,9 +733,8 @@ std::optional<document_t> ToResponseJson<SystemViewOverallResponse>(const System
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<SystemViewFtraceStatResponse>(const SystemViewFtraceStatResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<SystemViewFtraceStatResponse>(const SystemViewFtraceStatResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -794,9 +760,7 @@ std::optional<document_t> ToResponseJson<SystemViewFtraceStatResponse>(const Sys
     return std::optional<document_t>{std::move(json)};
 }
 
-json_t MemcpyOverallResToJson(const MemcpyOverallRes &res,
-                                  RAPIDJSON_DEFAULT_ALLOCATOR &allocator, uint64_t depth = 1)
-{
+json_t MemcpyOverallResToJson(const MemcpyOverallRes &res, RAPIDJSON_DEFAULT_ALLOCATOR &allocator, uint64_t depth = 1) {
     json_t json(kObjectType);
     JsonUtil::AddMember(json, "key", res.key, allocator);
     JsonUtil::AddMember(json, "name", res.name, allocator);
@@ -822,15 +786,13 @@ json_t MemcpyOverallResToJson(const MemcpyOverallRes &res,
     return json;
 }
 
-template <>
-std::optional<document_t> ToResponseJson<MemcpyOverallResponse>(const MemcpyOverallResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<MemcpyOverallResponse>(const MemcpyOverallResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t data(kArrayType);
-    for (const auto& item : response.details) {
+    for (const auto &item : response.details) {
         data.PushBack(MemcpyOverallResToJson(item, allocator), allocator);
     }
     JsonUtil::AddMember(body, "data", data, allocator);
@@ -842,9 +804,7 @@ std::optional<document_t> ToResponseJson<MemcpyOverallResponse>(const MemcpyOver
     return std::optional<document_t>{std::move(json)};
 }
 
-template <>
-std::optional<document_t> ToResponseJson<MemcpyDetailResponse>(const MemcpyDetailResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<MemcpyDetailResponse>(const MemcpyDetailResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -875,16 +835,39 @@ std::optional<document_t> ToResponseJson<MemcpyDetailResponse>(const MemcpyDetai
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }
+
+template <> std::optional<document_t> ToResponseJson<RankOffsetResponse>(const RankOffsetResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t successArray(kArrayType);
+    for (const auto &item : response.body.successList) {
+        json_t itemJson(kObjectType);
+        JsonUtil::AddMember(itemJson, "rankId", item.rankId, allocator);
+        JsonUtil::AddMember(itemJson, "offset", item.offset, allocator);
+        json_t pidArray(kArrayType);
+        for (const auto &pid : item.processId) {
+            pidArray.PushBack(rapidjson::Value(pid.c_str(), allocator), allocator);
+        }
+        JsonUtil::AddMember(itemJson, "processId", pidArray, allocator);
+        successArray.PushBack(itemJson, allocator);
+    }
+    json_t body(kObjectType);
+    JsonUtil::AddMember(body, "result", successArray, allocator);
+    JsonUtil::AddMember(body, "baseOffset", response.body.baseOffset, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    json_t error(kObjectType);
+    JsonUtil::AddMember(error, "code", response.body.error.code, allocator);
+    JsonUtil::AddMember(error, "message", response.body.error.message, allocator);
+    JsonUtil::AddMember(json, "error", error, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
 #pragma endregion
 
 #pragma region << Event to json>>
-template <typename EVENT> std::optional<document_t> ToEventJson(const EVENT &event)
-{
-    return std::nullopt;
-}
+template <typename EVENT> std::optional<document_t> ToEventJson(const EVENT &event) { return std::nullopt; }
 
-json_t UnitTrackToJson(const UnitTrack &unitTrack, RAPIDJSON_DEFAULT_ALLOCATOR &allocator, uint32_t depth)
-{
+json_t UnitTrackToJson(const UnitTrack &unitTrack, RAPIDJSON_DEFAULT_ALLOCATOR &allocator, uint32_t depth) {
     const static int MAX_DEPTH = 20; // 限制最大递归次数
     json_t json(kObjectType);
     if (depth > MAX_DEPTH) {
@@ -916,8 +899,7 @@ json_t UnitTrackToJson(const UnitTrack &unitTrack, RAPIDJSON_DEFAULT_ALLOCATOR &
     return json;
 }
 
-template <> std::optional<document_t> ToEventJson<ParseSuccessEvent>(const ParseSuccessEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ParseSuccessEvent>(const ParseSuccessEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -943,12 +925,12 @@ template <> std::optional<document_t> ToEventJson<ParseSuccessEvent>(const Parse
     JsonUtil::AddMember(body, "unit", unit, allocator);
     // 创建 unit 结束
     json_t rankList(kArrayType);
-    for (const auto& rank : event.body.rankList) {
+    for (const auto &rank : event.body.rankList) {
         rankList.PushBack(rank.SerializationToJson(allocator), allocator);
     }
     JsonUtil::AddMember(body, "rankList", rankList, allocator);
     json_t threadGroupList(kArrayType);
-    for (const auto& threads : event.body.threadGroupList) {
+    for (const auto &threads : event.body.threadGroupList) {
         threadGroupList.PushBack(threads.SerializationToJson(allocator), allocator);
     }
     JsonUtil::AddMember(body, "threadGroupList", threadGroupList, allocator);
@@ -957,8 +939,7 @@ template <> std::optional<document_t> ToEventJson<ParseSuccessEvent>(const Parse
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<ParseFailEvent>(const ParseFailEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ParseFailEvent>(const ParseFailEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -969,8 +950,7 @@ template <> std::optional<document_t> ToEventJson<ParseFailEvent>(const ParseFai
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<ParseClusterCompletedEvent>(const ParseClusterCompletedEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ParseClusterCompletedEvent>(const ParseClusterCompletedEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -983,8 +963,7 @@ template <> std::optional<document_t> ToEventJson<ParseClusterCompletedEvent>(co
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<AllSuccessEvent>(const AllSuccessEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<AllSuccessEvent>(const AllSuccessEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -1004,8 +983,7 @@ template <> std::optional<document_t> ToEventJson<AllSuccessEvent>(const AllSucc
 }
 
 template <>
-std::optional<document_t> ToEventJson<ParseClusterStep2CompletedEvent>(const ParseClusterStep2CompletedEvent &event)
-{
+std::optional<document_t> ToEventJson<ParseClusterStep2CompletedEvent>(const ParseClusterStep2CompletedEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -1017,8 +995,7 @@ std::optional<document_t> ToEventJson<ParseClusterStep2CompletedEvent>(const Par
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<ParseMemoryCompletedEvent>(const ParseMemoryCompletedEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ParseMemoryCompletedEvent>(const ParseMemoryCompletedEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -1039,8 +1016,7 @@ template <> std::optional<document_t> ToEventJson<ParseMemoryCompletedEvent>(con
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<ModuleResetEvent>(const ModuleResetEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ModuleResetEvent>(const ModuleResetEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -1050,8 +1026,7 @@ template <> std::optional<document_t> ToEventJson<ModuleResetEvent>(const Module
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<ParseProgressEvent>(const ParseProgressEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ParseProgressEvent>(const ParseProgressEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -1064,8 +1039,7 @@ template <> std::optional<document_t> ToEventJson<ParseProgressEvent>(const Pars
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<ParseHeatmapCompletedEvent>(const ParseHeatmapCompletedEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ParseHeatmapCompletedEvent>(const ParseHeatmapCompletedEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -1076,8 +1050,7 @@ template <> std::optional<document_t> ToEventJson<ParseHeatmapCompletedEvent>(co
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToEventJson<ParseUnitCompletedEvent>(const ParseUnitCompletedEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ParseUnitCompletedEvent>(const ParseUnitCompletedEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
