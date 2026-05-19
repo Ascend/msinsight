@@ -37,6 +37,8 @@ import {
     CreateCurveParams, CreateCurveResult, GetUnitFlowsParams, GetUnitFlowsResult,
     GetOverallMetricsMoreListResultItem,
     GetMemcpyOverallMetricsMoreListResultItem,
+    QueryTimelineOffsetParams,
+    QueryTimelineOffsetResult,
 } from './interface';
 import connector from '../connection';
 
@@ -145,4 +147,8 @@ export async function createCurve(params: CreateCurveParams): Promise<CreateCurv
 
 export async function getUnitFlows(params: GetUnitFlowsParams): Promise<GetUnitFlowsResult> {
     return window.requestData('unit/flows', params, 'timeline');
+}
+
+export async function queryTimelineOffset(params: QueryTimelineOffsetParams): Promise<QueryTimelineOffsetResult> {
+    return window.requestData('timeline/rankOffset', params, 'timeline');
 }

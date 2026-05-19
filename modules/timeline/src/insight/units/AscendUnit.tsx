@@ -213,6 +213,11 @@ const singleSliceDetail = singleData({
             depth: selectedSliceData?.depth,
             ...res,
         };
+        if (data.rawStartTime !== undefined && session.selectedData?.id === selectedSliceData.id) {
+            runInAction(() => {
+                (session.selectedData as SelectedDataType).rawStartTime = data.rawStartTime;
+            });
+        }
         return data;
     },
 });
