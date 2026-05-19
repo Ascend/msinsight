@@ -109,6 +109,7 @@ const std::string REQ_RES_TABLE_DATA_NAME_LIST = "tableData/nameList";
 const std::string REQ_RES_TABLE_DATA_DETAIL = "tableData/detail";
 const std::string REQ_RES_MEMCPY_OVERALL = "memcpy/total/list";
 const std::string REQ_RES_MEMCPY_DETAIL = "memcpy/detail/list";
+const std::string REQ_RES_RANK_OFFSET = "timeline/rankOffset";
 
 // communication
 const std::string REQ_RES_COMMUNICATION_OPERATOR_DETAILS = "communication/operatorDetails";
@@ -179,13 +180,12 @@ const std::string REQ_RES_OPERATOR_CATEGORY_INFO = "operator/category";
 const std::string REQ_RES_OPERATOR_COMPUTE_UNIT_INFO = "operator/compute_unit";
 const std::string REQ_RES_OPERATOR_STATISTIC_INFO = "operator/statistic";
 const std::string REQ_RES_OPERATOR_DETAIL_INFO = "operator/details";
-const std::string REQ_RES_OPERATOR_MORE_INFO  = "operator/more_info";
+const std::string REQ_RES_OPERATOR_MORE_INFO = "operator/more_info";
 const std::string REQ_RES_OPERATOR_EXPORT_DETAILS = "operator/exportDetails";
 
 // Operator Event
 const std::string EVENT_PARSE_OPERATOR_STATUS = "parse/operatorCompleted";
 const std::string EVENT_PARSE_OPERATOR_CLEAR = "parse/operatorClear";
-
 
 // Source Request
 const std::string REQ_RES_SOURCE_CODE_FILE = "source/code/file";
@@ -220,8 +220,7 @@ const std::string REQ_REQ_RL_PIPELINE = "RL/pipeline";
 const std::string KEY_BODY = "body";
 #pragma endregion
 
-template<typename T>
-struct CompareData {
+template <typename T> struct CompareData {
     T baseline;
     T compare;
     T diff;

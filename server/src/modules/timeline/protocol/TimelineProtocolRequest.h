@@ -34,19 +34,14 @@
 namespace Dic {
 namespace Protocol {
 using namespace Dic::Module::Timeline;
-enum class ProjectActionEnum {
-    TRANSFER_PROJECT = 0,
-    ADD_FILE,
-    UNKNOWN
-};
+enum class ProjectActionEnum { TRANSFER_PROJECT = 0, ADD_FILE, UNKNOWN };
 
 struct ImportActionParams {
     std::string projectName;
     std::vector<std::string> path;
     ProjectActionEnum projectAction = ProjectActionEnum::UNKNOWN;
     bool isConflict = false;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (this->projectName.empty()) {
             errorMsg = "Import project is empty.";
             return false;
@@ -57,8 +52,7 @@ struct ImportActionParams {
         }
         return true;
     }
-    bool ConvertToRealPath(std::string &errorMsg)
-    {
+    bool ConvertToRealPath(std::string &errorMsg) {
         // 导入新文件时验证，路径不允许为空
         if (this->path.empty()) {
             errorMsg = "Import file path is empty.";
@@ -66,8 +60,7 @@ struct ImportActionParams {
             return false;
         }
         bool isSafePath = std::all_of(path.begin(), path.end(), [](const std::string &p) {
-            if (FileUtil::IsFolder(p))
-            {
+            if (FileUtil::IsFolder(p)) {
                 return FileUtil::CheckPathSecurity(p);
             } else {
                 return FileUtil::CheckPathSecurity(p, CHECK_FILE_READ);
@@ -99,7 +92,7 @@ struct ImportActionParams {
 };
 
 struct ImportActionRequest : public Request {
-    ImportActionRequest() : Request(REQ_RES_IMPORT_ACTION){};
+    ImportActionRequest() : Request(REQ_RES_IMPORT_ACTION) {};
     ImportActionParams params;
 };
 struct ParseCardsParams {
@@ -107,7 +100,7 @@ struct ParseCardsParams {
     std::vector<std::string> fileIds;
 };
 struct ParseCardsRequest : public Request {
-    ParseCardsRequest() : Request(REQ_RES_PARSE_CARDS){};
+    ParseCardsRequest() : Request(REQ_RES_PARSE_CARDS) {};
     ParseCardsParams params;
 };
 
@@ -122,8 +115,7 @@ struct UnitThreadTracesParams {
     double timePerPx = 0; // totalTime / pixel
     bool isFilterPythonFunction = false;
     bool isHideFlagEvents = false;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
             warnMsg = "unit thread traces start time is bigger than end time";
             return false;
@@ -137,7 +129,7 @@ struct UnitThreadTracesParams {
 };
 
 struct UnitThreadTracesRequest : public Request {
-    UnitThreadTracesRequest() : Request(REQ_RES_UNIT_THREAD_TRACES){};
+    UnitThreadTracesRequest() : Request(REQ_RES_UNIT_THREAD_TRACES) {};
     UnitThreadTracesParams params;
 };
 
@@ -148,8 +140,7 @@ struct UnitThreadTracesSummaryParams {
     std::string unitType;
     uint64_t startTime = 0;
     uint64_t endTime = 0;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
             warnMsg = "unit threads start time is bigger than end time";
             return false;
@@ -163,7 +154,7 @@ struct UnitThreadTracesSummaryParams {
 };
 
 struct UnitThreadTracesSummaryRequest : public Request {
-    UnitThreadTracesSummaryRequest() : Request(REQ_RES_UNIT_THREAD_TRACES_SUMMARY){};
+    UnitThreadTracesSummaryRequest() : Request(REQ_RES_UNIT_THREAD_TRACES_SUMMARY) {};
     UnitThreadTracesSummaryParams params;
 };
 
@@ -178,12 +169,12 @@ struct UnitThreadsParams {
 };
 
 struct UnitThreadsRequest : public Request {
-    UnitThreadsRequest() : Request(REQ_RES_UNIT_THREADS){};
+    UnitThreadsRequest() : Request(REQ_RES_UNIT_THREADS) {};
     UnitThreadsParams params;
 };
 
 struct ThreadDetailRequest : public Request {
-    ThreadDetailRequest() : Request(REQ_RES_UNIT_THREAD_DETAIL){};
+    ThreadDetailRequest() : Request(REQ_RES_UNIT_THREAD_DETAIL) {};
     ThreadDetailParams params;
 };
 
@@ -196,8 +187,7 @@ struct UnitFlowsParams {
     uint64_t startTime = 0;
     uint64_t endTime = 0;
     bool isSimulation = false;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
             warnMsg = "unit flows start time is bigger than end time";
             return false;
@@ -211,19 +201,19 @@ struct UnitFlowsParams {
 };
 
 struct UnitFlowsRequest : public Request {
-    UnitFlowsRequest() : Request(REQ_RES_UNIT_FLOWS){};
+    UnitFlowsRequest() : Request(REQ_RES_UNIT_FLOWS) {};
     UnitFlowsParams params;
 };
 
 struct SetCardAliasRequest : public Request {
-    SetCardAliasRequest() : Request(REQ_RES_UNIT_SET_CARD_ALIAS){};
+    SetCardAliasRequest() : Request(REQ_RES_UNIT_SET_CARD_ALIAS) {};
     SetCardAliasParams params;
 };
 
 struct ResetWindowParams {};
 
 struct ResetWindowRequest : public Request {
-    ResetWindowRequest() : Request(REQ_RES_RESET_WINDOW){};
+    ResetWindowRequest() : Request(REQ_RES_RESET_WINDOW) {};
     ResetWindowParams params;
 };
 
@@ -233,9 +223,8 @@ struct SearchCountParams {
     std::string rankId;
     std::string searchContent;
     std::vector<Metadata> metadataList;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
-        for (const auto &item: metadataList) {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
+        for (const auto &item : metadataList) {
             if (item.lockStartTime > item.lockEndTime) {
                 warnMsg = "Search count lock start time is bigger than lock end time";
                 return false;
@@ -250,7 +239,7 @@ struct SearchCountParams {
 };
 
 struct SearchCountRequest : public Request {
-    SearchCountRequest() : Request(REQ_RES_SEARCH_COUNT){};
+    SearchCountRequest() : Request(REQ_RES_SEARCH_COUNT) {};
     SearchCountParams params;
 };
 
@@ -261,9 +250,8 @@ struct SearchSliceParams {
     std::string searchContent;
     int index = 0;
     std::vector<Metadata> metadataList;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
-        for (const auto &item: metadataList) {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
+        for (const auto &item : metadataList) {
             if (item.lockStartTime > item.lockEndTime) {
                 warnMsg = "Search slice lock start time is bigger than lock end time";
                 return false;
@@ -282,7 +270,7 @@ struct SearchSliceParams {
 };
 
 struct SearchSliceRequest : public Request {
-    SearchSliceRequest() : Request(REQ_RES_SEARCH_SLICE){};
+    SearchSliceRequest() : Request(REQ_RES_SEARCH_SLICE) {};
     SearchSliceParams params;
 };
 
@@ -291,7 +279,7 @@ struct RemoteDeleteParams {
 };
 
 struct RemoteDeleteRequest : public Request {
-    RemoteDeleteRequest() : Request(REQ_RES_REMOTE_DELETE){};
+    RemoteDeleteRequest() : Request(REQ_RES_REMOTE_DELETE) {};
     RemoteDeleteParams params;
 };
 
@@ -300,7 +288,7 @@ struct FlowCategoryListParams {
 };
 
 struct FlowCategoryListRequest : public Request {
-    FlowCategoryListRequest() : Request(REQ_RES_FLOW_CATEGORY_LIST){};
+    FlowCategoryListRequest() : Request(REQ_RES_FLOW_CATEGORY_LIST) {};
     FlowCategoryListParams params;
 };
 
@@ -315,8 +303,7 @@ struct FlowCategoryEventsParams {
     std::vector<Metadata> metadataList;
     uint64_t lockStartTime = 0;
     uint64_t lockEndTime = 0;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
             warnMsg = "flow category events start time is bigger than end time";
             return false;
@@ -338,7 +325,7 @@ struct FlowCategoryEventsParams {
 };
 
 struct FlowCategoryEventsRequest : public Request {
-    FlowCategoryEventsRequest() : Request(REQ_RES_FLOW_CATEGORY_EVENTS){};
+    FlowCategoryEventsRequest() : Request(REQ_RES_FLOW_CATEGORY_EVENTS) {};
     FlowCategoryEventsParams params;
 };
 
@@ -350,8 +337,7 @@ struct UnitCounterParams {
     uint64_t startTime = 0;
     uint64_t endTime = 0;
     std::string metaType;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
             warnMsg = "unit counter start time is bigger than end time";
             return false;
@@ -365,7 +351,7 @@ struct UnitCounterParams {
 };
 
 struct UnitCounterRequest : public Request {
-    UnitCounterRequest() : Request(REQ_RES_UNIT_COUNTER){};
+    UnitCounterRequest() : Request(REQ_RES_UNIT_COUNTER) {};
     UnitCounterParams params;
 };
 
@@ -379,7 +365,7 @@ struct CreateCurveParams {
 };
 
 struct CreateCurveRequest : public Request {
-    CreateCurveRequest() : Request(REQ_RES_CREATE_CURVE){};
+    CreateCurveRequest() : Request(REQ_RES_CREATE_CURVE) {};
     CreateCurveParams params;
 };
 
@@ -406,14 +392,13 @@ struct SystemViewOverallMoreDetailsRequest : public Request {
 };
 
 struct SystemViewFtraceStatParams {
-    std::string layer;  // 前端传递的layer字符串
+    std::string layer; // 前端传递的layer字符串
     FtraceDataType dataType = FtraceDataType::UNKOWN;
     uint64_t current = 0;
     uint64_t pageSize = 0;
     std::string rankId;
 
-    void SetDataType()
-    {
+    void SetDataType() {
         static const std::unordered_map<std::string, FtraceDataType> layerToDataType = {
             {"Ftrace Time Consuming", FtraceDataType::TIME},
             {"Ftrace IRQ", FtraceDataType::IRQ},
@@ -448,7 +433,7 @@ struct SystemViewParams {
 };
 
 struct SystemViewRequest : public Request {
-    SystemViewRequest() : Request(REQ_RES_UNIT_SYSTEM_VIEW){};
+    SystemViewRequest() : Request(REQ_RES_UNIT_SYSTEM_VIEW) {};
     SystemViewParams params;
 };
 
@@ -458,7 +443,7 @@ struct SystemViewAICoreFreqParams {
 };
 
 struct ExpAnaAICoreFreqRequest : public Request {
-    ExpAnaAICoreFreqRequest() : Request(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ){};
+    ExpAnaAICoreFreqRequest() : Request(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ) {};
     SystemViewAICoreFreqParams params;
 };
 
@@ -481,7 +466,7 @@ struct EventsViewParams {
 };
 
 struct EventsViewRequest : public Request {
-    EventsViewRequest() : Request(REQ_RES_UNIT_EVENTS_VIEW){};
+    EventsViewRequest() : Request(REQ_RES_UNIT_EVENTS_VIEW) {};
     EventsViewParams params;
 };
 
@@ -501,7 +486,7 @@ struct KernelDetailsParams {
 };
 
 struct KernelDetailsRequest : public Request {
-    KernelDetailsRequest() : Request(REQ_RES_UNIT_KERNEL_DETAILS){};
+    KernelDetailsRequest() : Request(REQ_RES_UNIT_KERNEL_DETAILS) {};
     KernelDetailsParams params;
 };
 
@@ -510,8 +495,7 @@ struct KernelParams {
     std::string name;
     uint64_t timestamp = 0;
     uint64_t duration = 0;
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (timestamp > UINT64_MAX - minTime) {
             warnMsg = "kernel time is invalid";
             return false;
@@ -521,7 +505,7 @@ struct KernelParams {
 };
 
 struct KernelRequest : public Request {
-    KernelRequest() : Request(REQ_RES_ONE_KERNEL_DETAILS){};
+    KernelRequest() : Request(REQ_RES_ONE_KERNEL_DETAILS) {};
     KernelParams params;
 };
 
@@ -532,7 +516,7 @@ struct CommunicationKernelParams {
 };
 
 struct CommunicationKernelRequest : public Request {
-    CommunicationKernelRequest() : Request(REQ_RES_COMMUNICATION_KERNEL_DETAIL){};
+    CommunicationKernelRequest() : Request(REQ_RES_COMMUNICATION_KERNEL_DETAIL) {};
     CommunicationKernelParams params;
 };
 
@@ -558,27 +542,27 @@ struct UnitThreadsOperatorsParams {
 };
 
 struct UnitThreadsOperatorsRequest : public Request {
-    UnitThreadsOperatorsRequest() : Request(REQ_RES_SAME_OPERATORS_DURATION){};
+    UnitThreadsOperatorsRequest() : Request(REQ_RES_SAME_OPERATORS_DURATION) {};
     UnitThreadsOperatorsParams params;
 };
 
 struct SearchAllSlicesRequest : public Request {
-    SearchAllSlicesRequest() : Request(REQ_RES_SEARCH_ALL_SLICES){};
+    SearchAllSlicesRequest() : Request(REQ_RES_SEARCH_ALL_SLICES) {};
     SearchAllSliceParams params;
 };
 
 struct TableDataNameListRequest : public Request {
-    TableDataNameListRequest() : Request(REQ_RES_TABLE_DATA_NAME_LIST){};
+    TableDataNameListRequest() : Request(REQ_RES_TABLE_DATA_NAME_LIST) {};
     TableDataNameListParams params;
 };
 
 struct TableDataDetailRequest : public Request {
-    TableDataDetailRequest() : Request(REQ_RES_TABLE_DATA_DETAIL){};
+    TableDataDetailRequest() : Request(REQ_RES_TABLE_DATA_DETAIL) {};
     TableDataDetailParams params;
 };
 
 struct MemcpyOverallRequest : public Request {
-    MemcpyOverallRequest() : Request(REQ_RES_MEMCPY_OVERALL){};
+    MemcpyOverallRequest() : Request(REQ_RES_MEMCPY_OVERALL) {};
     struct Params {
         std::string rankId;
         std::string deviceId;
@@ -587,6 +571,50 @@ struct MemcpyOverallRequest : public Request {
         uint64_t endTime = 0; // time range analysis mode while startTime not equal to endTime
         bool CheckParams(uint64_t minTime, std::string &errMsg) const;
     } params;
+};
+
+struct RankOffsetParams {
+    std::string sliceName;
+    std::string rankId;
+    std::string fileId;
+    std::string pid;
+    std::string metaType;
+    std::string alignType;
+    std::string id;
+    uint64_t startTime = 0;
+    uint64_t duration = 0;
+    bool CheckParams(std::string &errorMsg) const {
+        if (sliceName.empty()) {
+            errorMsg = "Rank offset request sliceName is empty.";
+            return false;
+        }
+        if (rankId.empty()) {
+            errorMsg = "Rank offset request rankId is empty.";
+            return false;
+        }
+        if (fileId.empty()) {
+            errorMsg = "Rank offset request fileId is empty.";
+            return false;
+        }
+        if (pid.empty()) {
+            errorMsg = "Rank offset request pid is empty.";
+            return false;
+        }
+        if (metaType.empty()) {
+            errorMsg = "Rank offset request metaType is empty.";
+            return false;
+        }
+        if (alignType != "LEFT" && alignType != "RIGHT") {
+            errorMsg = "Rank offset request alignType is not LEFT or RIGHT.";
+            return false;
+        }
+        return true;
+    }
+};
+
+struct RankOffsetRequest : public Request {
+    RankOffsetRequest() : Request(REQ_RES_RANK_OFFSET) {};
+    RankOffsetParams params;
 };
 } // end of namespace Protocol
 } // end of namespace Dic
