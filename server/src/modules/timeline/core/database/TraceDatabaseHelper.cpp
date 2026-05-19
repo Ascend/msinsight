@@ -25,6 +25,7 @@
 #include "FullDbEnumUtil.h"
 #include "TraceDatabaseSqlConst.h"
 
+// clang-format off
 namespace Dic::Module::Timeline {
 std::map<std::string, PROCESS_TYPE> metaTypeMap = {
     {"Python", PROCESS_TYPE::API},
@@ -1763,10 +1764,19 @@ std::string TraceDatabaseHelper::GetLockRangeSql(const SearchAllSliceParams &par
     } else {
         nameMatch = "select id, value from STRING_IDS where lower(value) like lower('%'||?||'%')";
     }
-    sql = "with ids as (" + nameMatch + ") ";
+
+    // 二级筛选 CTE
+    std::string filterCte;
+    std::string filterJoin;
+    if (!params.nameFilter.empty()) {
+        filterCte = ", filterIds as (select id from STRING_IDS where lower(value) like lower('%'||?||'%'))";
+        filterJoin = " join filterIds on filterIds.id = ";
+    }
+
+    sql = "with ids as (" + nameMatch + ")" + filterCte + " ";
     std::vector<std::string> sqls;
     for (const auto &item : trackQueryVec) {
-        std::string tempSql = GetSingleLockRangeSql(item);
+        std::string tempSql = GetSingleLockRangeSql(item, filterJoin);
         if (!tempSql.empty()) {
             sqls.emplace_back(tempSql);
         }
@@ -1777,29 +1787,41 @@ std::string TraceDatabaseHelper::GetLockRangeSql(const SearchAllSliceParams &par
     return sql;
 }
 
-std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item)
+std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, const std::string &filterJoin)
 {
     PROCESS_TYPE type = STR_TO_ENUM<PROCESS_TYPE>(item.metaType).value_or(PROCESS_TYPE::NONE);
     std::string tempSql;
+    // filterJoin 格式: " join filterIds on filterIds.id = " 或空字符串
+    // 当非空时，需要补上具体的字段名来完成JOIN条件
+    std::string filterSuffix = filterJoin.empty() ? "" : filterJoin;
     if (type == PROCESS_TYPE::API) {
+        filterSuffix += filterJoin.empty() ? "" : "api.name";
         tempSql = " SELECT api.ROWID as id, 'pytorch' as tid, api.globalTid as pid, api.startNs as timestamp, "
             "api.endNs as endTime, api.depth, '' as deviceId, ids.value as value from " + TABLE_API +
-            "  api join ids on ids.id = api.name WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? ";
+            "  api join ids on ids.id = api.name" + filterSuffix +
+            " WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? ";
     } else if (type == PROCESS_TYPE::CANN_API) {
+        filterSuffix += filterJoin.empty() ? "" : "cann.name";
         tempSql = " SELECT cann.connectionId as id, cann.globalTid as pid, cann.type as tid, cann.startNs as "
             "timestamp, cann.endNs as endTime, cann.depth, '' as deviceId, ids.value from " +
             TABLE_CANN_API +
-            "  cann join ids on ids.id = cann.name WHERE globalTid = ? AND type = ? AND startNs >= ? AND endNs <= ? ";
+            "  cann join ids on ids.id = cann.name" + filterSuffix +
+            " WHERE globalTid = ? AND type = ? AND startNs >= ? AND endNs <= ? ";
     } else if (type == PROCESS_TYPE::MS_TX) {
+        filterSuffix += filterJoin.empty() ? "" : "mstx.message";
         tempSql = " SELECT mstx.ROWID as id, mstx.globalTid as pid, mstx.domainId as tid, mstx.startNs as timestamp, "
             "mstx.endNs as endTime, mstx.depth, '' as deviceId, ids.value from " +
             TABLE_MSTX_EVENTS +
-            "  mstx join ids on ids.id = mstx.message WHERE globalTid = ? AND startNs >= ? AND endNs <= ? ";
+            "  mstx join ids on ids.id = mstx.message" + filterSuffix +
+            " WHERE globalTid = ? AND startNs >= ? AND endNs <= ? ";
     } else if (type == PROCESS_TYPE::OSRT_API) {
+        filterSuffix += filterJoin.empty() ? "" : "osrt.name";
         tempSql = " SELECT osrt.ROWID AS id, 'OSRT_API' AS tid, osrt.globalTid AS pid, osrt.startNs AS timestamp, "
             "osrt.endNs AS endTime, 0 AS depth, '' AS deviceId, ids.value AS value FROM " + TABLE_OSRT_API +
-            "  osrt JOIN ids ON ids.id = osrt.name WHERE osrt.globalTid = ? AND osrt.startNs >= ? AND osrt.endNs <= ? ";
+            "  osrt JOIN ids ON ids.id = osrt.name" + filterSuffix +
+            " WHERE osrt.globalTid = ? AND osrt.startNs >= ? AND osrt.endNs <= ? ";
     } else if (type == PROCESS_TYPE::ASCEND_HARDWARE) {
+        filterSuffix += filterJoin.empty() ? "" : "hadware.name";
         tempSql = "SELECT hadware.id as id, hadware.pid as pid, hadware.tid as tid, hadware.timestamp as "
             "timestamp, hadware.endTime as endTime, hadware.depth as depth, hadware.deviceId as deviceId, "
             "ids.value  FROM (SELECT coalesce(c.name, m.message, s.name, main.taskType) as "
@@ -1810,18 +1832,21 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item)
             " m on (m.connectionId = main.connectionId and  m.connectionId != " +
             WRONG_DATA + " ) left join " + TABLE_COMMUNICATION_SCHEDULE_TASK +
             " s on main.globalTaskId = s.globalTaskId WHERE main.deviceId = ? AND main.streamId = ? AND "
-            "main.startNs >= ? AND main.endNs <= ?) hadware  join ids on ids.id = hadware.name ";
+            "main.startNs >= ? AND main.endNs <= ?) hadware  join ids on ids.id = hadware.name" + filterSuffix;
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
+            filterSuffix += filterJoin.empty() ? "" : "op.opName";
             tempSql = " SELECT op.opId as id, 'HCCL' as pid, op.groupName||'group' as tid, op.startNs as "
                 "timestamp, op.endNs as endTime, 0 as depth, '0' as deviceId, ids.value from " +
                 TABLE_COMMUNICATION_OP +
-                " op join ids on id = op.opName WHERE op.groupName = ? AND op.startNs >= ? AND op.endNs <= ? ";
+                " op join ids on id = op.opName" + filterSuffix +
+                " WHERE op.groupName = ? AND op.startNs >= ? AND op.endNs <= ? ";
         } else {
+            filterSuffix += filterJoin.empty() ? "" : "ci.taskType";
             tempSql = "SELECT main.ROWID as id, 'HCCL' as pid, ci.groupName||'_'||ci.planeId as tid, main.startNs "
                 "as timestamp, main.endNs as endTime, main.depth, main.deviceId as deviceId, ids.value from "
                 "TASK main join " + TABLE_COMMUNICATION_TASK_INFO +
-                " ci on ci.globalTaskId = main.globalTaskId join ids on ids.id = ci.taskType" +
+                " ci on ci.globalTaskId = main.globalTaskId join ids on ids.id = ci.taskType" + filterSuffix +
                 " WHERE main.deviceId = ? and ci.groupName = ? AND ci.planeId = ? AND main.startNs >= ? AND "
                 "main.endNs <= ?";
         }
@@ -1834,6 +1859,10 @@ void TraceDatabaseHelper::SearchAllSliceWithLockRangeBindStmt(const SearchAllSli
     const std::string &deviceId)
 {
     stmt->BindParams(params.searchContent);
+    // 如果有二级筛选，绑定 nameFilter 参数
+    if (!params.nameFilter.empty()) {
+        stmt->BindParams(params.nameFilter);
+    }
     for (const auto &item : trackQueryVec) {
         BindSearchAllSliceSingleTrack(stmt, deviceId, item);
     }
@@ -1996,6 +2025,10 @@ void TraceDatabaseHelper::SearchCountWithLockRangeBindStmt(const SearchCountPara
     const std::string &deviceId)
 {
     stmt->BindParams(params.searchContent);
+    // 如果有二级筛选，绑定 nameFilter 参数
+    if (!params.nameFilter.empty()) {
+        stmt->BindParams(params.nameFilter);
+    }
     for (const auto &item : trackQuery) {
         BindSingleTrackStmt(params, stmt, deviceId, item);
     }
@@ -2084,3 +2117,4 @@ void TraceDatabaseHelper::ComputeTree(std::vector<std::unique_ptr<Protocol::Unit
     }
 }
 }
+// clang-format on

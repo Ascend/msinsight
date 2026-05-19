@@ -29,6 +29,7 @@
 #include "MetaDataCacheManager.h"
 #include "CounterEventHelper.h"
 
+// clang-format off
 namespace Dic::Module::FullDb {
 using namespace Server;
 std::map<std::string, std::map<std::string, std::string>> DbTraceDataBase::stringsCache = {};
@@ -169,7 +170,12 @@ std::string DbTraceDataBase::QueryCardAlias() {
 
 uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams &params) {
     uint32_t result = 0;
-    const std::string &sql = GetSearchSliceNameCountSql(params.isMatchExact, params.isMatchCase, params.rankId);
+    SearchSliceSqlParams sqlParams;
+    sqlParams.isMatchExact = params.isMatchExact;
+    sqlParams.isMatchCase = params.isMatchCase;
+    sqlParams.rankId = params.rankId;
+
+    const std::string &sql = GetSearchSliceNameCountSql(sqlParams);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query slice name count failed!.");
@@ -181,7 +187,7 @@ uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams
         return 0;
     }
     if (resultSet->Next()) {
-        result = resultSet->GetUint32(resultStartIndex);
+        result = resultSet->GetUint32("count");
     }
     return result;
 }
@@ -208,7 +214,7 @@ uint32_t DbTraceDataBase::SearchSliceNameCount(
     }
     uint32_t result = 0;
     while (resultSet->Next()) {
-        const uint32_t count = resultSet->GetUint32(resultStartIndex);
+        const uint32_t count = resultSet->GetUint32("count");
         if (result > UINT32_MAX - count) {
             ServerLog::Warn("Sum of searching slice name count is overflow.");
             break;
@@ -1750,15 +1756,32 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
     const Protocol::SearchAllSliceParams &params, Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp) {
     uint64_t count = 0;
     uint64_t offset = (params.current - 1) * params.pageSize;
-    const std::string &sql = GetSearchAllSlicesDetailsSql(
-        params.isMatchExact, params.isMatchCase, params.order, params.orderBy, params.rankId);
+
+    SearchSliceSqlParams sqlParams;
+    sqlParams.isMatchExact = params.isMatchExact;
+    sqlParams.isMatchCase = params.isMatchCase;
+    sqlParams.order = params.order;
+    sqlParams.orderByField = params.orderBy;
+    sqlParams.rankId = params.rankId;
+    sqlParams.nameFilter = params.nameFilter;
+
+    std::string sql = GetSearchAllSlicesDetailsSql(sqlParams);
+
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query slice name failed!.");
         return false;
     }
-    auto resultSet =
-        stmt->ExecuteQuery(params.searchContent, minTimestamp, GetDeviceId(params.rankId), params.pageSize, offset);
+
+    std::unique_ptr<SqliteResultSet> resultSet;
+    if (!params.nameFilter.empty()) {
+        resultSet = stmt->ExecuteQuery(params.searchContent, params.nameFilter, minTimestamp,
+            GetDeviceId(params.rankId), params.pageSize, offset);
+    } else {
+        resultSet = stmt->ExecuteQuery(params.searchContent, minTimestamp, GetDeviceId(params.rankId),
+            params.pageSize, offset);
+    }
+
     if (resultSet == nullptr) {
         ServerLog::Error("search All slices details. Failed to get result set.", stmt->GetErrorMessage());
         return false;
@@ -1780,12 +1803,20 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
     }
     body.currentPage = params.current;
     body.pageSize = params.pageSize;
-    Protocol::SearchCountParams searchCountParams;
-    searchCountParams.searchContent = params.searchContent;
-    searchCountParams.isMatchCase = params.isMatchCase;
-    searchCountParams.isMatchExact = params.isMatchExact;
-    searchCountParams.rankId = params.rankId;
-    count += SearchSliceNameCount(searchCountParams, {});
+
+    // 计算总数
+    auto countStmt = CreatPreparedStatement(GetSearchSliceNameCountSql(sqlParams));
+    if (countStmt != nullptr) {
+        std::unique_ptr<SqliteResultSet> countResult;
+        if (!params.nameFilter.empty()) {
+            countResult = countStmt->ExecuteQuery(params.searchContent, params.nameFilter, GetDeviceId(params.rankId));
+        } else {
+            countResult = countStmt->ExecuteQuery(params.searchContent, GetDeviceId(params.rankId));
+        }
+        if (countResult != nullptr && countResult->Next()) {
+            count = countResult->GetUint64("count");
+        }
+    }
     body.count = count;
     return true;
 }
@@ -1836,6 +1867,7 @@ bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParam
     searchCountParams.isMatchCase = params.isMatchCase;
     searchCountParams.isMatchExact = params.isMatchExact;
     searchCountParams.rankId = params.rankId;
+    searchCountParams.nameFilter = params.nameFilter;
     count += SearchSliceNameCount(searchCountParams, trackQueryVec);
     body.count = count;
     return true;
@@ -1900,4 +1932,217 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
 
 void DbTraceDataBase::Reset() { stringsCache.clear(); }
 
+bool DbTraceDataBase::FillDictMap(LightSliceCache& cache, const Protocol::SearchAllSliceParams& params, std::unordered_set<int32_t>& matchedIds)
+{
+    std::string nameMatch;
+    if (params.isMatchExact && params.isMatchCase) {
+        nameMatch = "value like ?";
+    } else if (params.isMatchExact) {
+        nameMatch = "lower(value) like lower(?)";
+    } else if (params.isMatchCase) {
+        nameMatch = "value like '%'||?||'%'";
+    } else {
+        nameMatch = "lower(value) like lower('%'||?||'%')";
+    }
+    std::string dictSql = "SELECT id, value FROM STRING_IDS WHERE " + nameMatch;
+
+    auto dictStmt = CreatPreparedStatement(dictSql);
+    if (dictStmt == nullptr) {
+        ServerLog::Error("LoadSliceCache: Failed to prepare dict sql.");
+        return false;
+    }
+
+    auto dictResult = dictStmt->ExecuteQuery(params.searchContent);
+    if (dictResult == nullptr) {
+        ServerLog::Error("LoadSliceCache: Failed to execute dict query.");
+        return false;
+    }
+
+    while (dictResult->Next()) {
+        int32_t id = dictResult->GetInt32("id");
+        std::string name = dictResult->GetString("value");
+        matchedIds.insert(id);
+        cache.dictMap[id] = name;
+    }
+    return !matchedIds.empty();
 }
+
+void DbTraceDataBase::LoadTableData(LightSliceCache& cache, const std::unordered_set<int32_t>& matchedIds, bool isExist, const std::string& sql, SliceTableType tableType)
+{
+    if (!isExist) return;
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) return;
+    auto result = stmt->ExecuteQuery();
+    if (result == nullptr) return;
+
+    while (result->Next()) {
+        int32_t stringId = result->GetInt32("nameId");
+        if (matchedIds.count(stringId) == 0) continue;
+
+        cache.tableTypes.push_back(static_cast<int8_t>(tableType));
+        cache.rowIds.push_back(result->GetUint64("rowId"));
+        cache.stringIds.push_back(stringId);
+        cache.timestamps.push_back(result->GetUint64("startTime"));
+        cache.durations.push_back(result->GetUint64("duration"));
+    }
+}
+
+bool DbTraceDataBase::LoadSliceCache(LightSliceCache& cache,
+    const Protocol::SearchAllSliceParams& params, uint64_t minTimestamp)
+{
+    cache.clear();
+    cache.rankId = params.rankId;
+    cache.primarySearchContent = params.searchContent;
+
+    // Step 1: 查询 STRING_IDS 获取匹配的 id 和名称
+    std::unordered_set<int32_t> matchedIds;
+    if (!FillDictMap(cache, params, matchedIds)) {
+        return true;  // 无匹配结果，缓存为空
+    }
+
+    // Step 2: 查询各业务表获取轻量数据
+    // 注意：时间戳需要减去 minTimestamp 转换为相对时间
+    std::string deviceId = GetDeviceId(params.rankId);
+
+    // 2.1 加载 TASK 表数据
+    std::string taskSql = "SELECT main.ROWID as rowId, "
+        "coalesce(compute.name, schedule.name, main.taskType) as nameId, "
+        "main.startNs - " + std::to_string(minTimestamp) + " as startTime, "
+        "main.endNs - main.startNs as duration "
+        "FROM TASK main "
+        "LEFT JOIN COMPUTE_TASK_INFO compute ON compute.globalTaskId = main.globalTaskId "
+        "LEFT JOIN COMMUNICATION_SCHEDULE_TASK_INFO schedule ON main.globalTaskId = schedule.globalTaskId";
+    if (!deviceId.empty()) {
+        taskSql += " WHERE main.deviceId = '" + deviceId + "'";
+    }
+    LoadTableData(cache, matchedIds, isExistTask, taskSql, SliceTableType::TASK);
+
+    // 2.2 加载 CANN_API 表数据
+    std::string cannSql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
+                          " as startTime, endNs - startNs as duration FROM CANN_API";
+    LoadTableData(cache, matchedIds, isExistCann, cannSql, SliceTableType::CANN_API);
+
+    // 2.3 加载 PYTORCH_API 表数据
+    std::string pytorchSql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
+                             " as startTime, endNs - startNs as duration FROM PYTORCH_API";
+    LoadTableData(cache, matchedIds, isExistPytorch, pytorchSql, SliceTableType::PYTORCH_API);
+
+    // 2.4 加载 COMMUNICATION_OP 表数据
+    std::string commSql = "SELECT ROWID as rowId, opName as nameId, startNs - " + std::to_string(minTimestamp) +
+                          " as startTime, endNs - startNs as duration FROM COMMUNICATION_OP";
+    LoadTableData(cache, matchedIds, isExistCommOp, commSql, SliceTableType::COMMUNICATION_OP);
+
+    // 2.5 加载 MSTX_EVENTS 表数据
+    std::string mstxSql = "SELECT ROWID as rowId, message as nameId, startNs - " + std::to_string(minTimestamp) +
+                          " as startTime, endNs - startNs as duration FROM MSTX_EVENTS";
+    LoadTableData(cache, matchedIds, isExistMstx, mstxSql, SliceTableType::MSTX);
+
+    // Step 3: 初始化排序索引
+    SearchSliceCacheManager::InitializeSortedIndices(cache);
+
+    return cache.size() > 0;
+}
+
+std::string DbTraceDataBase::BuildIdList(const std::vector<uint64_t>& ids)
+{
+    std::string result;
+    for (size_t i = 0; i < ids.size(); ++i) {
+        if (i > 0) result += ",";
+        result += std::to_string(ids[i]);
+    }
+    return result;
+}
+
+std::string DbTraceDataBase::GetSliceDetailSql(SliceTableType type, uint64_t minTimestamp, const std::string& idList)
+{
+    std::string minTimeStr = std::to_string(minTimestamp);
+    switch (type) {
+        case SliceTableType::TASK:
+            return "SELECT main.ROWID as rowId, coalesce(compute.name, schedule.name, main.taskType) as nameId, "
+                   "main.startNs - " + minTimeStr + " as startTime, main.endNs - main.startNs as duration, "
+                   "main.streamId as tid, 'Ascend Hardware' as pid, main.depth, main.deviceId "
+                   "FROM TASK main "
+                   "LEFT JOIN COMPUTE_TASK_INFO compute ON compute.globalTaskId = main.globalTaskId "
+                   "LEFT JOIN COMMUNICATION_SCHEDULE_TASK_INFO schedule ON main.globalTaskId = schedule.globalTaskId "
+                   "WHERE main.ROWID IN (" + idList + ")";
+        case SliceTableType::CANN_API:
+            return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
+                   "type as tid, globalTid as pid, depth, '' as deviceId "
+                   "FROM CANN_API WHERE ROWID IN (" + idList + ")";
+        case SliceTableType::PYTORCH_API:
+            return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
+                   "'pytorch' as tid, globalTid as pid, depth, '' as deviceId "
+                   "FROM PYTORCH_API WHERE ROWID IN (" + idList + ")";
+        case SliceTableType::COMMUNICATION_OP:
+            return "SELECT ROWID as rowId, opName as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
+                   "groupName||'group' as tid, 'HCCL' as pid, 0 as depth, '' as deviceId "
+                   "FROM COMMUNICATION_OP WHERE ROWID IN (" + idList + ")";
+        case SliceTableType::MSTX:
+            return "SELECT ROWID as rowId, message as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
+                   "domainId as tid, globalTid as pid, depth, '' as deviceId "
+                   "FROM MSTX_EVENTS WHERE ROWID IN (" + idList + ")";
+        default:
+            return "";
+    }
+}
+
+void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache, const Protocol::SearchAllSliceParams& params,
+    SqliteResultSet* result, Protocol::SearchAllSlicesBody& body)
+{
+    while (result->Next()) {
+        Protocol::SearchAllSlices slice{};
+        slice.fileId = params.fileId;
+
+        int32_t nameId = result->GetInt32("nameId");
+        auto it = cache.dictMap.find(nameId);
+        if (it != cache.dictMap.end()) {
+            slice.name = it->second;
+        }
+
+        slice.timestamp = result->GetUint64("startTime");
+        slice.duration = result->GetUint64("duration");
+        slice.id = std::to_string(result->GetUint64("rowId"));
+        slice.tid = result->GetString("tid");
+        slice.pid = result->GetString("pid");
+        slice.depth = result->GetUint64("depth");
+        slice.rankId = params.rankId;
+        auto deviceId = result->GetString("deviceId");
+        slice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
+
+        body.searchAllSlices.push_back(slice);
+    }
+}
+
+bool DbTraceDataBase::FetchSliceDetails(const LightSliceCache& cache,
+    const std::vector<TargetRow>& rows,
+    const Protocol::SearchAllSliceParams& params,
+    Protocol::SearchAllSlicesBody& body, uint64_t minTimestamp)
+{
+    if (rows.empty()) return true;
+
+    // 按表类型分组
+    std::unordered_map<SliceTableType, std::vector<uint64_t>> groupedRows;
+    for (const auto& row : rows) {
+        groupedRows[row.tableType].push_back(row.rowId);
+    }
+
+    // 分别查询各表
+    for (const auto& [tableType, rowIds] : groupedRows) {
+        std::string idList = BuildIdList(rowIds);
+        std::string sql = GetSliceDetailSql(tableType, minTimestamp, idList);
+        if (sql.empty()) continue;
+
+        auto stmt = CreatPreparedStatement(sql);
+        if (stmt == nullptr) continue;
+
+        auto result = stmt->ExecuteQuery();
+        if (result == nullptr) continue;
+
+        FillSearchAllSlices(cache, params, result.get(), body);
+    }
+
+    return true;
+}
+
+}
+// clang-format on

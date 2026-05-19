@@ -26,7 +26,9 @@
 #include "BaselineManager.h"
 #include "TrackInfoManager.h"
 #include "DataBaseManager.h"
+#include "SearchSliceCacheManager.h"
 
+// clang-format off
 namespace Dic {
 namespace Module {
 namespace Timeline {
@@ -207,6 +209,11 @@ void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
     if (summary != summaryDatabaseMap.end()) {
         summaryDatabaseMap.erase(summary);
     }
+    // 清理对应的缓存
+    std::string rankId = GetRankIdByFileId(fileId);
+    if (!rankId.empty()) {
+        SearchSliceCacheManager::Instance().clear(rankId);
+    }
 }
 
 bool DataBaseManager::HasRankId(DatabaseType type, const std::string &rankId)
@@ -277,6 +284,8 @@ void DataBaseManager::Clear()
     dataTypeMap.clear();
     fileTypeMap.clear();
     rankIdToDeviceIdMap.clear();
+    // 清理所有缓存
+    SearchSliceCacheManager::Instance().clearAll();
 }
 
 void DataBaseManager::Clear(DatabaseType type)
@@ -634,3 +643,4 @@ DataType DataBaseManager::GetDataTypeByRank(const std::string &rankId)
 } // end of namespace Timeline
 } // end of namespace Module
 } // end of namespace Dic
+// clang-format on

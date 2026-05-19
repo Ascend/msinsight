@@ -21,6 +21,8 @@
 #include <string>
 #include <vector>
 #include <set>
+
+// clang-format off
 namespace Dic::Protocol {
 struct Filtercondition {
     std::string col;
@@ -75,6 +77,7 @@ struct SearchAllSliceParams {
     bool isMatchExact = false;
     std::string rankId;
     std::string searchContent;
+    std::string nameFilter;  // 二级筛选关键字
     std::string orderBy;
     std::string order;
     std::string fileId;
@@ -101,5 +104,6 @@ struct SearchAllSliceParams {
     }
 };
 }  // namespace Dic::Protocol
+// clang-format on
 
-#endif  // PROFILER_SERVER_TIMELINEPARAMSTRCUT_H
+#endif // PROFILER_SERVER_TIMELINEPARAMSTRCUT_H

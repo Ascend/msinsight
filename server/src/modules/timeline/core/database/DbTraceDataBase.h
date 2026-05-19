@@ -28,8 +28,20 @@
 #include "SliceAnalyzer.h"
 #include "FlowAnalyzer.h"
 
+// clang-format off
 namespace Dic::Module::FullDb {
 using namespace Dic::Module::Timeline;
+
+// SQL 查询参数结构体
+struct SearchSliceSqlParams {
+    bool isMatchExact = false;
+    bool isMatchCase = false;
+    std::string order;
+    std::string orderByField;
+    std::string rankId;
+    std::string nameFilter;  // 二级筛选，空表示无筛选
+};
+
 struct TASK_INFO {
     uint64_t start = 0;
     uint64_t end = 0;
@@ -127,6 +139,17 @@ class DbTraceDataBase : public VirtualTraceDatabase {
 
     bool SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params, Protocol::SearchAllSlicesBody &body,
         uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec) override;
+
+    // 【新增】加载 SoA 缓存
+    bool LoadSliceCache(LightSliceCache& cache,
+        const Protocol::SearchAllSliceParams& params, uint64_t minTimestamp) override;
+
+    // 【新增】根据 TargetRow 查询明细数据（使用 SQL 模板工厂）
+    bool FetchSliceDetails(const LightSliceCache& cache,
+        const std::vector<TargetRow>& rows,
+        const Protocol::SearchAllSliceParams& params,
+        Protocol::SearchAllSlicesBody& body, uint64_t minTimestamp) override;
+
     bool QueryThreadSameOperatorsDetails(const Protocol::UnitThreadsOperatorsParams &requestParams,
         Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp,
         const std::vector<uint64_t> &trackIdList) override;
@@ -193,10 +216,9 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     static std::string GetSearchSliceNameSql(
         bool isMatchExact, bool isMatchCase, const std::string &rankId, const std::string &path);
 
-    static std::string GetSearchAllSlicesDetailsSql(bool isMatchExact, bool isMatchCase, const std::string &order,
-        const std::string &orderByField, const std::string &rankId);
+    static std::string GetSearchAllSlicesDetailsSql(const SearchSliceSqlParams &params);
 
-    static std::string GetSearchSliceNameCountSql(bool isMatchExact, bool isMatchCase, const std::string &rankId);
+    static std::string GetSearchSliceNameCountSql(const SearchSliceSqlParams &params);
 
     static std::string GetSearchCountWithLockSql(
         const SearchCountParams &params, const std::vector<TrackQuery> &trackQuery);
@@ -321,7 +343,17 @@ class DbTraceDataBase : public VirtualTraceDatabase {
 
     static void UpdateAscendHardwareFlowLocationName(
         const std::string &rankId, std::vector<FlowLocation> &flowLocations);
+    bool FillDictMap(
+        LightSliceCache& cache, const Protocol::SearchAllSliceParams& params, std::unordered_set<int32_t>& matchedIds);
+    void LoadTableData(LightSliceCache& cache, const std::unordered_set<int32_t>& matchedIds,
+        bool isExist, const std::string& sql, SliceTableType tableType);
+
+    static std::string GetSliceDetailSql(SliceTableType type, uint64_t minTimestamp, const std::string& idList);
+    static std::string BuildIdList(const std::vector<uint64_t>& ids);
+    void FillSearchAllSlices(const LightSliceCache& cache, const Protocol::SearchAllSliceParams& params,
+        SqliteResultSet* result, Protocol::SearchAllSlicesBody& body);
 };
 }
+// clang-format on
 
 #endif // PROFILER_SERVER_DBTRACEDATABASE_H

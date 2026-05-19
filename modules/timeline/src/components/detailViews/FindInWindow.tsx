@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next';
 import { observer } from 'mobx-react';
 import { Button } from '@insight/lib/components';
 import { getDefaultColumData, getPageData, queryOneKernel, searchAllSlices } from './Common';
-import { ResizeTable } from '@insight/lib/resize';
+import { ResizeTable, fetchColumnFilterProps } from '@insight/lib/resize';
 import { ChartErrorBoundary } from '../error/ChartErrorBoundary';
 import styled from '@emotion/styled';
 import { DEFAULT_CARD_VALUE, RankFilter, SelectedCardInfo } from './SystemView';
@@ -149,10 +149,15 @@ export function useFindDetail(session: Session, bottomHeight: number): any {
     };
 }
 
-const useColumns = (): any => {
+const useColumns = (onFilter: (value: string) => void): any => {
     const { t } = useTranslation('timeline', { keyPrefix: 'tableHead' });
     return [
-        { title: t('Name'), dataIndex: 'name', ...getDefaultColumData('name') },
+        {
+            title: t('Name'),
+            dataIndex: 'name',
+            ...getDefaultColumData('name'),
+            ...fetchColumnFilterProps('name', 'Name', false, undefined, onFilter),
+        },
         { title: t('Start Time'), dataIndex: 'startTime', ...getDefaultColumData('startTime') },
         { title: t('Duration(ns)'), dataIndex: 'duration', ...getDefaultColumData('duration') },
     ];
@@ -187,6 +192,7 @@ interface AllConditionType {
     page: typeof defaultPage;
     sorter: typeof defaultSorter;
     selectCard: SelectedCardInfo;
+    nameFilter: string;
 }
 
 // eslint-disable-next-line max-lines-per-function
@@ -196,11 +202,16 @@ const FindDetail = observer((props: FindDetailProps) => {
     const [sorter, setSorter] = useState(defaultSorter);
     const [isLoading, setLoading] = useState(false);
     const [rowData, setRowData] = useState<Partial<SearchAllSlicesDetails>>({});
+    const [nameFilter, setNameFilter] = useState<string>('');
     const [allCondition, setAllCondition] = useState<AllConditionType>(
-        { doContextSearch: props.session.doContextSearch, page, sorter, selectCard: props.card });
+        { doContextSearch: props.session.doContextSearch, page, sorter, selectCard: props.card, nameFilter: '' });
     const { t } = useTranslation('timeline', { keyPrefix: 'tableHead' });
-    let columns = [];
-    columns = [...useColumns(), {
+
+    const handleNameFilter = (value: string): void => {
+        setNameFilter(value);
+    };
+
+    const columns = [...useColumns(handleNameFilter), {
         title: t('Click To Timeline'),
         dataIndex: 'click',
         ellipsis: true,
@@ -220,9 +231,14 @@ const FindDetail = observer((props: FindDetailProps) => {
     }, [props.session.doContextSearch, props.card.cardId]);
 
     useEffect(() => {
+        setAllCondition({ ...allCondition, nameFilter, page: defaultPage });
+        setPage(defaultPage);
+    }, [nameFilter]);
+
+    useEffect(() => {
         updateData(allCondition.page, allCondition.sorter, props);
     }, [allCondition.sorter, allCondition.selectCard.cardId, allCondition.page.current,
-        allCondition.page.pageSize, allCondition.doContextSearch, props.session.doReset]);
+        allCondition.page.pageSize, allCondition.doContextSearch, allCondition.nameFilter, props.session.doReset]);
 
     useEffect(() => {
         if (rowData.name === null || rowData.name === undefined) {
@@ -247,7 +263,7 @@ const FindDetail = observer((props: FindDetailProps) => {
             return;
         }
         setLoading(true);
-        const res = await searchData(pages, sorters, prop).finally(() => setLoading(false));
+        const res = await searchData(pages, sorters, prop, allCondition.nameFilter).finally(() => setLoading(false));
         const timestampoffset = getTimeOffset(props.session, props.card);
         const data = res.searchAllSlicesDetails.map(item => {
             item.startTime = getDetailTimeDisplay(item.timestamp - timestampoffset);
@@ -277,7 +293,7 @@ const FindDetail = observer((props: FindDetailProps) => {
     </CONTAINER>;
 });
 
-const searchData = async(pages: any, sorters: {field: string;order: string}, prop: FindDetailProps): Promise<SearchTableData> => {
+const searchData = async(pages: any, sorters: {field: string;order: string}, prop: FindDetailProps, nameFilter?: string): Promise<SearchTableData> => {
     const metadataList = (prop.session.lockUnit as InsightUnit[]).map(selectUnit => {
         const { threadId, processId, metaType, cardId } = selectUnit?.metadata as ThreadMetaData ?? {};
         const timestampOffset = getTimeOffset(prop.session, selectUnit?.metadata as ProcessMetaData);
@@ -303,6 +319,7 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
         isMatchCase: prop.session.searchData?.isMatchCase,
         isMatchExact: prop.session.searchData?.isMatchExact,
         metadataList,
+        nameFilter,
     });
     return res;
 };

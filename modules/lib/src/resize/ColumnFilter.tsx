@@ -181,11 +181,25 @@ const filterRange = (params: FilterProps, filterOptions?: FilterOptions) => {
 };
 
 export function fetchColumnFilterProps(columnDataIndex: string, columnTitle: string, showRange: boolean = false,
-    filterOptions?: FilterOptions): ColumnType<any> {
+    filterOptions?: FilterOptions, onFilter?: (value: string) => void): ColumnType<any> {
     const getColumnFilterProps = (dataIndex: string): ColumnType<any> => ({
         filterDropdown: ({ setSelectedKeys, selectedKeys, confirm, clearFilters }): React.ReactNode => {
             const params = { setSelectedKeys, selectedKeys, confirm, clearFilters, dataIndex };
-            return showRange ? filterRange(params, filterOptions) : filterSearch(params, columnTitle);
+            const handleSearchWithCallback = (keys: string[], conf: FilterDropdownProps['confirm'], idx: string, setKeys?: (selectedKeys: Key[]) => void): void => {
+                handleSearch(keys, conf, idx, setKeys);
+                if (onFilter && keys[0]) {
+                    onFilter(keys[0].trim());
+                }
+            };
+            const handleResetWithCallback = (clear: () => void, conf: FilterDropdownProps['confirm'], keys: string[], idx: string): void => {
+                handleReset(clear, conf, keys, idx);
+                if (onFilter) {
+                    onFilter('');
+                }
+            };
+            return showRange
+                ? filterRange(params, filterOptions)
+                : filterSearchWithCallback(params, columnTitle, handleSearchWithCallback, handleResetWithCallback);
         },
         filterIcon: () => (
             <ColumnFilterIcon />
@@ -198,3 +212,37 @@ export function fetchColumnFilterProps(columnDataIndex: string, columnTitle: str
     });
     return getColumnFilterProps(columnDataIndex);
 }
+
+const filterSearchWithCallback = (
+    params: FilterProps,
+    columnTitle: string,
+    onSearch: (keys: string[], conf: FilterDropdownProps['confirm'], idx: string, setKeys?: (selectedKeys: Key[]) => void) => void,
+    onReset: (clear: () => void, conf: FilterDropdownProps['confirm'], keys: string[], idx: string) => void,
+): React.ReactNode => {
+    const { setSelectedKeys, selectedKeys, confirm, clearFilters, dataIndex } = params;
+    return (
+        < div style={{ padding: 8 }} onKeyDown={(e): void => e.stopPropagation()}>
+            <Input
+                ref={(node): void => {
+                    state.searchInput = node as null;
+                }}
+                placeholder={`${i18n.t('buttonText:Search')} ${i18n.t(`filterColumnName:${columnTitle}`)}`}
+                value={selectedKeys[0]}
+                onChange={(e): void => setSelectedKeys(e.target.value ? [e.target.value] : [])}
+                onPressEnter={(): void => onSearch(selectedKeys as string[], confirm, dataIndex, setSelectedKeys)}
+                style={{ marginBottom: 8, display: 'block' }}
+            />
+            <ButtonGroup>
+                <Button
+                    type="primary"
+                    onClick={(): void => onSearch(selectedKeys as string[], confirm, dataIndex, setSelectedKeys)}
+                    icon={<SearchOutlined />} size="small" style={{ marginRight: 8 }}
+                >{i18n.t('buttonText:Search')}</Button>
+                <Button
+                    onClick={(): void => clearFilters && onReset(clearFilters, confirm, selectedKeys as string[], dataIndex)}
+                    size="small"
+                >{i18n.t('buttonText:Reset')}</Button>
+            </ButtonGroup>
+        </div >
+    );
+};

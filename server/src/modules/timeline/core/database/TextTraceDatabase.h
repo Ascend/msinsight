@@ -22,13 +22,14 @@
 #include <unordered_map>
 #include "ClusterDef.h"
 #include "VirtualTraceDatabase.h"
-#include "SliceCacheManager.h"
+#include "SearchSliceCacheManager.h"
 #include "SliceAnalyzer.h"
 #include "FlowAnalyzer.h"
 #include "TextSqlConstant.h"
 #include "TimelineProtocolRequest.h"
 #include "GlobalDefs.h"
 
+// clang-format off
 namespace Dic::Module::Timeline {
 /*
  * 解析原始的traceView.json文件以及其他csv文件情况下的数据库处理类
@@ -122,6 +123,16 @@ class TextTraceDatabase : public VirtualTraceDatabase {
 
     bool SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params, Protocol::SearchAllSlicesBody &body,
         uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec) override;
+
+    // 【新增】加载 SoA 缓存
+    bool LoadSliceCache(LightSliceCache& cache,
+        const Protocol::SearchAllSliceParams& params, uint64_t minTimestamp) override;
+
+    // 【新增】根据 TargetRow 查询明细数据
+    bool FetchSliceDetails(const LightSliceCache& cache,
+        const std::vector<TargetRow>& rows,
+        const Protocol::SearchAllSliceParams& params,
+        Protocol::SearchAllSlicesBody& body, uint64_t minTimestamp) override;
 
     bool QueryThreadSameOperatorsDetails(const Protocol::UnitThreadsOperatorsParams &requestParams,
         Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp,
@@ -248,5 +259,6 @@ class TextTraceDatabase : public VirtualTraceDatabase {
 } // end of namespace Timeline
 // end of namespace Module
 // end of namespace Dic
+// clang-format on
 
 #endif // PROFILER_SERVER_JSON_TRACE_DATABASE_H
