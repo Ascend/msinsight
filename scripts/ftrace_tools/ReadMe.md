@@ -9,7 +9,7 @@
 ## 特性
 
 + 支持**命令行**和**API接口**两种方式的ftrace数据采集
-+ 支持将ftrace格式数据转换为SQLite DB格式（默认）或Chrome Trace Json格式，**联合Profiling数据导入**MindStudio Insight，进行可视化展示
++ 支持将ftrace格式数据转换为SQLite DB格式（默认）或Chrome Trace JSON格式，**联合Profiling数据导入**MindStudio Insight，进行可视化展示
 + 支持**容器内**运行模型，宿主机采集Linux Kernel ftrace数据，并进行无缝PID映射
 
 ## Host Bound问题定位思路
@@ -44,6 +44,8 @@ trace-cmd是一个命令行工具，它封装了trace采集的过程，提供了
 
 + 获取仓库中提供的采集、转换脚本`trace_record.py`，`trace_convert.py`，推荐profiling和ftrace数据同步采集。
 
+> 若目标环境不支持安装trace-cmd，可使用脚本内置的tracefs/debugfs采集模式。该模式直接通过内核 tracing 文件系统配置 ftrace，并输出文本格式 trace 文件，使用差异详见下文[tracefs/debugfs模式支持](#tracefsdebugfs模式支持)。
+
 ### 3. ftrace数据采集
 
 支持**命令行**和**API接口**两种方式的ftrace数据采集。
@@ -57,12 +59,13 @@ trace-cmd是一个命令行工具，它封装了trace采集的过程，提供了
 | 参数 | 说明 | 示例 | 默认值 |
 |-----|-----|-----|-----|
 | `--cpu` | cpu_mask 列表，指定采集的 CPU 核心。支持单个数字、逗号分隔及连字符范围。| `--cpu=0,1,4 (指定核)`<br>`--cpu=0-3,8 (混合写法)`<br>`--cpu=0-15 (范围写法)` | None，采集 **全部** CPU 核心 |
-| `--output` | 输出文件路径与文件名 | `--output=my_trace_data.dat` | `trace.dat` |
-| `--record_time` | 采集持续时间（单位：秒）<br>• 正值：采集指定秒数后自动停止<br>• ≤0：持续采集，需 `Ctrl+C` 手动终止，长时间采集请注意磁盘空间占用 | `--record_time=30` | 30 |
-| `--bf_size` | trace-cmd 使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=4096` | `2820` |
+| `--output` | 输出文件路径与文件名。 | `--output=my_trace_data.dat` | `trace.dat` |
+| `--record_time` | 采集持续时间（单位：秒）。<br>• 正值：采集指定秒数后自动停止；<br>• ≤0：持续采集，需 `Ctrl+C` 手动终止，长时间采集请注意磁盘空间占用。 | `--record_time=30` | 30 |
+| `--bf_size` | 脚本使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失**；若发生覆盖，采集结束打印回显会告警，tracefs/debugfs模式推荐配置为大于40960KB。 | `--bf_size=40960` | `40960` |
+| `--backend` | ftrace采集后端。<br>• `auto`默认模式，表示优先使用trace-cmd，trace-cmd不可用时自动回退到tracefs/debugfs；<br>• `trace-cmd`表示强制使用trace-cmd；<br>• `debugfs`表示强制使用tracefs/debugfs模式 | `--backend=debugfs` | `auto` |
 | `--sched` | 是否采集 **CPU 调度相关事件**，包括任务切换、唤醒、新任务启动等（如 `sched_switch`、`sched_wakeup`、`sched_wakeup_new`）。<br>主要用于分析 **调度延迟、任务切换频率、线程唤醒关系**。<br>• `1`：开启<br>• `0`：关闭 | `--sched=1`<br>`--sched=0` | `1`（开启） |
 | `--irq` | 是否采集 **中断 / 软中断相关事件**，包括硬中断与 softirq 的进入、退出及触发行为。<br>主要用于分析 **中断负载、软中断抖动、CPU 被中断打断的情况**。<br>• `1`：开启<br>• `0`：关闭 | `--irq=1`<br>`--irq=0` | `1`（开启） |
-| `--NSpid` | 容器场景下开启该开关，用于获取容器与宿主机 PID 映射关系，详见[容器内外PID命名空间隔离场景下采集](#5-容器内外pid命名空间隔离场景下采集) | `--NSpid` | 关闭 |
+| `--NSpid` | 容器场景下开启该开关，用于获取容器与宿主机 PID 映射关系，详见[容器内外PID命名空间隔离场景下采集](#5-容器内外pid命名空间隔离场景下采集)。 | `--NSpid` | 关闭 |
 
 **使用示例:**
 
@@ -86,6 +89,8 @@ python train.py
 
 脚本运行30秒后自动停止，默认生成 `trace.dat` 文件（或通过 --output 参数指定文件名）。
 
+> **tracefs/debugfs模式说明：** 当使用`--backend=debugfs`（或使用默认`--backend=auto`且环境中没有trace-cmd时），脚本输出会自动调整为文本格式trace文件，默认生成 `trace.txt` 文件（或通过 --output 参数指定文件名）。
+
 #### 方式二：API接口采集模式
 
 `trace_record.py`中提供两个接口，分别控制ftrace采集的启停，允许开发者将数据采集逻辑精细地嵌入到应用程序中。这种方式适合需要动态控制采集时机、条件触发采集或与业务逻辑深度集成的场景。
@@ -93,7 +98,7 @@ python train.py
 **1. 开始采集接口**
 
 ```python
-ftrace_record_start(cpu_mask=None, bf_size=DEFAULT_TRACE_BUFFER_SIZE, event_cfg: TraceEventConfig = None, args=None)
+ftrace_record_start(cpu_mask=None, output="trace.dat", bf_size=DEFAULT_TRACE_BUFFER_SIZE, event_cfg: TraceEventConfig = None, args=None, backend="auto")
 ```
 
 **参数说明**
@@ -101,7 +106,9 @@ ftrace_record_start(cpu_mask=None, bf_size=DEFAULT_TRACE_BUFFER_SIZE, event_cfg:
 | 参数 | 说明 | 默认值 |
 |-----|-----|-----|
 | `cpu_mask` | cpu_mask 列表，指定采集的 CPU 核心。支持 `List[int]` 或字符串（如 `"0-3,8"`）| None，采集 **全部** CPU 核心 |
-| `bf_size` | trace-cmd 使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=2820` |
+| `bf_size` | 脚本使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=40960` |
+| `backend` | ftrace采集后端，可选`auto`、`trace-cmd`、`debugfs`。其中`debugfs`表示使用tracefs/debugfs模式。 | `auto` |
+| `output` | 输出文件路径与文件名。 | `trace.dat` |
 |`event_cfg`| 事件采集配置（`TraceEventConfig`），用于控制采集事件类型：`sched`（调度）、`irq`（中断）。`1`表示打开，`0`表示关闭。|`TraceEventConfig(sched=1, irq=1)`|
 
 **注意：推荐CPU采集核心数不超过64，采集时长30s左右，否则采集数据量可能过大，解析落盘耗时较长，需耐心等待。**
@@ -109,7 +116,7 @@ ftrace_record_start(cpu_mask=None, bf_size=DEFAULT_TRACE_BUFFER_SIZE, event_cfg:
 **2. 停止采集并保存数据接口**
 
 ```python
-def ftrace_record_stop(output: str)
+def ftrace_record_stop(output=None)
 ```
 
 **参数说明**
@@ -123,18 +130,18 @@ def ftrace_record_stop(output: str)
 ```python
 import trace_record
 
-def train(): 
+def train():
     # 方式一：传入字符串范围（可混合）
-    trace_record.ftrace_record_start(cpu_mask="0-4,7,10") 
-    
+    trace_record.ftrace_record_start(cpu_mask="0-4,7,10")
+
     # 方式二：传入列表
-    trace_record.ftrace_record_start(cpu_mask=[0,1,2,3,4]) 
-    
-    profiling_start() 
+    trace_record.ftrace_record_start(cpu_mask=[0,1,2,3,4])
+
+    profiling_start()
 
     # 模型运行...
 
-    profiling_stop() 
+    profiling_stop()
     trace_record.ftrace_record_stop(output="trace.dat")
 ```
 
@@ -169,6 +176,8 @@ python trace_convert.py [-h] [--input INPUT] [--output OUTPUT] [--format FORMAT]
 # --input默认为trace.dat
 python trace_convert.py --profiling_data=result_dir/xxxx_ascend_pt
 ```
+
+> tracefs/debugfs模式使用 `.txt` 文件作为输入时，**需要显式指定输入文件**，例如 --input=trace.txt 。
 
 多卡场景下，`--profiling_data`可指定为包含多卡的上级目录，或任意单卡数据目录。
 
@@ -220,7 +229,7 @@ vllm-Ascend文档：<https://docs.vllm.ai/projects/ascend/zh-cn/v0.11.0-dev/quic
 
 + Ubuntu安装命令：sudo apt-get install trace-cmd
 
-+ CentOs安装命令：sudo yum install trace-cmd
++ CentOS安装命令：sudo yum install trace-cmd
 
 **获取ftrace采集与转换脚本**
 
@@ -270,7 +279,7 @@ llm = LLM(
 llm.start_profile()
 outputs = llm.generate(prompts, sampling_params)
 # 停止profiling采集
-llm.start_profile()
+llm.stop_profile()
 for output in outputs:
     prompt = output.prompt
     generated_text = output.outputs[0].text
@@ -287,7 +296,7 @@ cd /home/xxx/msinsight/scripts/ftrace_tools
 
 # record_time为-1代表持续采集，需Ctrl+C手动终止
 # 针对CPU0-15核采集，打开容器内外PID映射开关
-python trace_record.py --record_time=-1 --cpu=0-15 --NSpid 
+python trace_record.py --record_time=-1 --cpu=0-15 --NSpid
 ```
 
 ftrace采集期间，同步在**容器中**运行推理脚本：
@@ -327,6 +336,8 @@ Prompt: 'The future of AI is', Generated text: ' a topic that has been widely di
 
 ftrace采集成功打屏回显如下：
 
+trace-cmd模式：
+
 ```bash
 ......
 [2026-02-11 08:16:24,486] [INFO]:Ending record, cleaning up...
@@ -337,12 +348,24 @@ ftrace采集成功打屏回显如下：
 [2026-02-11 08:16:30,912] [INFO]:Cleanup finished
 ```
 
+tracefs/debugfs模式：
+
+```bash
+......
+[2026-05-15 06:26:38,839] [INFO]:Ending record, cleaning up...
+[2026-05-15 06:26:38,840] [INFO]:debugfs tracing disabled in 0.000s
+[2026-05-15 06:27:22,020] [INFO]:debugfs trace snapshot copy finished: output=debugfs_5cpu_snapshot.txt, bytes=183936388, duration=43.180s
+[2026-05-15 06:27:23,180] [INFO]:Trace data saved to debugfs_5cpu_snapshot.txt
+[2026-05-15 06:27:23,180] [INFO]:Cleanup finished
+```
+
 得到如下形式的ftrace采集结果（默认保存在ftrace脚本同级目录下）：
 
 ```bash
 .
 ├── ftrace_tools
 │   ├── trace.dat # trace-cmd record采集结果
+│   ├── trace.txt # tracefs/debugfs模式采集结果，与trace.dat二选一
 │   ├── pid_mapping.json #容器内外PID映射信息
 │   ├── trace_convert.py
 │   └── trace_record.py
@@ -371,6 +394,7 @@ python trace_convert.py --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid
 .
 ├── ftrace_tools
 │   ├── trace.dat
+│   ├── trace.txt
 │   ├── ftrace_mindstudio_insight_data.db # ftrace转换结果
 │   ├── pid_mapping.json
 │   ├── trace_convert.py
@@ -378,7 +402,7 @@ python trace_convert.py --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid
 ```
 
 ### 4. 导入MindStudio Insight联合分析
->
+
 >**注意**：当前暂不支持Text类型数据与DB类型数据混合显示。若Profiling为Text和DB混合场景，需要提前删除其中的DB交付件`analysis.db`与`ascend_pytorch_profiler_x.db`。
 ![](./assets/hybrid_text_db_data.png)
 
@@ -410,6 +434,67 @@ Process Scheduling泳道，可查看特定进程的调度状态。
 
 一般而言，若在Profiling中观察到下发瓶颈点，可先通过CPU Scheduling泳道，概览性地观察该时间段内，下发流水中的热点线程，如Pytorch主线程、前向算子下发、反向算子下发、PTA二级流水下发（aclThread）等，是否存在进程抢占、软中断等情况。随后，观察特定进程的Process Scheduling泳道，进一步了解进程状态。最后，根据分析结果，进行针对性优化，例如改进绑核方案、核隔离、流水优化等。
 
+## tracefs/debugfs模式支持
+
+部分用户的目标环境无法安装或使用 trace-cmd。为覆盖这类场景，`trace_record.py` 提供 tracefs/debugfs 后端，直接通过内核 tracing 文件系统配置 ftrace，并将采集结果保存为文本格式 trace 文件。
+
+### 1. 启动采集命令差异
+
+trace-cmd模式：
+
+```bash
+# --backend默认为auto，自动优先使用trace-cmd
+python trace_record.py --record_time=30 --cpu=0-15 --output=trace.dat --NSpid
+```
+
+tracefs/debugfs模式：
+
+```bash
+# 未安装 trace-cmd 时 auto 会自动回退到 tracefs/debugfs；如需强制使用该模式，可显式指定 --backend=debugfs
+python trace_record.py --backend=debugfs --record_time=30 --cpu=0-15 --output=trace.txt --NSpid
+```
+
+### 2. 转换命令差异
+
+trace-cmd模式：
+
+```bash
+python trace_convert.py --input=trace.dat --output=tracecmd.json --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
+```
+
+tracefs/debugfs模式：
+
+```bash
+# 需要显式指定--input。
+python trace_convert.py --input=trace.txt --output=debugfs.json --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
+```
+
+> tracefs/debugfs模式的输出文件通常为`trace.txt`。若同目录下仍存在默认文件名`trace.dat`，且转换时未显式指定`--input=trace.txt`，`trace_convert.py`可能会按默认输入读取`trace.dat`，导致转换的不是本次tracefs/debugfs采集结果。
+
+### 3. 性能效率差异
+
+tracefs/debugfs 后端输出文本格式 trace 文件，停止采集后的落盘耗时和后续 `trace_convert.py` 解析耗时会受 CPU 采集范围、事件量、业务负载和磁盘性能影响。采集范围较大或事件量较高时，耗时可能明显增加。
+
+### 4. 采集结果对比
+
+除输出格式和使用方式差异外，tracefs/debugfs 模式采集的事件范围与 trace-cmd 模式保持一致，转换后的可视化结果整体接近。
+
+#### CPU Scheduling泳道对比
+
+trace-cmd模式:
+![](./assets/tracecmd_CPU_scheduling_compare.png)
+
+debugfs模式:
+![](./assets/debugfs_CPU_scheduling_compare.png)
+
+#### Process Scheduling泳道对比
+
+trace-cmd模式:
+![](./assets/tracecmd_process_scheduling_compare.png)
+
+debugfs模式:
+![](./assets/debugfs_process_scheduling_compare.png)
+
 ## 常见问题FAQ
 
 ### 1. Profiling数据与ftrace数据联合导入失败，报错`File Conflict`
@@ -426,9 +511,15 @@ Process Scheduling泳道，可查看特定进程的调度状态。
 
 ![](./assets/partial_cpu_core_blank.png)
 
-**可能性1**：ftrace采用环形缓冲区，这意味着缓冲区满后新数据会覆盖旧数据，可以在脚本`trace_record.py`中调整缓冲区大小`buffer_size`，例如调整至`buffer_size = '4096'`
+**可能性1**：ftrace采用环形缓冲区，这意味着缓冲区满后新数据会覆盖旧数据，可以在脚本`trace_record.py`中调整缓冲区大小`buffer_size`，例如调整至`--bf_size=4096'`，tracefs/debugfs模式建议调整至大于`40960`KB。
 
-**可能性2**：该核在此时段确实没有数据（可能性较小）
+另外，当前脚本会在采集停止时读取tracefs per-CPU stats。如果日志中出现如下告警，说明本次采集过程中已经感知到环形缓冲区覆盖或事件丢失，建议增大`--bf_size`（优先）、缩短采集时长、减少采集事件或缩小CPU采集范围后重新采集。
+
+```bash
+tracefs stats report lost/overwritten events before reset: total_loss_counters=123. Consider increasing --bf-size
+```
+
+**可能性2**：该核在此时段没有目标事件，或未被业务实际使用（可能性较小）
 
 ### 3. trace-cmd record 停止超时
 
