@@ -27,7 +27,9 @@ import argparse
 import glob
 import time
 import subprocess
-from typing import Dict, Deque
+from typing import Dict, Deque, List, Any
+
+from exporters import ExportStrategy, JsonExport, DbExport
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s]:%(message)s')
 CPU_SCHED_PID = "CPU Scheduling"
@@ -649,6 +651,10 @@ class TraceConverter:
         for parser in self.parse_func_map:
             result.extend(parser.get_result())
         return result
+    
+    def export(self, strategy: ExportStrategy, output_path: str):
+        data = self.parse()
+        strategy.export(data, output_path)
 
     def get_lines_from_trace_cmd(self):
         cmd = ["trace-cmd", "report", "-i", self.trace_file_path]
@@ -695,20 +701,28 @@ class TraceConverter:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--input', type=str, default='trace.dat')
-    parser.add_argument('--output', type=str, default='output.json')
-    parser.add_argument('--profiling_data', type=str, help='use profiling data to adjust start time')
-    parser.add_argument('--pid_mapping', type=str, help='container pid map file')
+    parser = argparse.ArgumentParser(description='Convert ftrace data to JSON or DB format')
+    parser.add_argument('--input', type=str, default='trace.dat', help='Input trace file (.dat or .txt)')
+    parser.add_argument('--output', type=str, default='ftrace_mindstudio_insight_data.db', help='Output file path')
+    parser.add_argument('--format', type=str, choices=['json', 'db'], default='db', 
+                        help='Output format: json or db (default: db)')
+    parser.add_argument('--profiling_data', type=str, help='Use profiling data to adjust start time')
+    parser.add_argument('--pid_mapping', type=str, help='Container pid map file')
     args = parser.parse_args()
 
     t_start = time.perf_counter()
-    con = TraceConverter(args.input, args.profiling_data, args.pid_mapping)
-    trace_event = con.parse()
-    logging.info("Parse End, Start Write to file....")
-
-    with open(args.output, 'w') as f:
-        json.dump(trace_event, f, indent=2)
+    converter = TraceConverter(args.input, args.profiling_data, args.pid_mapping)
+    
+    if args.format == 'json':
+        strategy = JsonExport()
+    elif args.format == 'db':
+        strategy = DbExport()
+    else:
+        logging.error(f"Unsupported format: {args.format}")
+        exit(1)
+    
+    logging.info(f"Start converting {args.input} to {args.format} format...")
+    converter.export(strategy, args.output)
 
     t_end = time.perf_counter()
     logging.info(f"Total convert time: {t_end - t_start:.3f}s")
