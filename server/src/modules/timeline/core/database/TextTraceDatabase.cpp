@@ -26,27 +26,26 @@
 #include "TextTraceDatabase.h"
 
 namespace {
-    Trace::Slice ConvertSliceDtoToTraceSlice(const SliceDto& dto) {
-        Trace::Slice slice;
-        slice.ts = dto.timestamp;          // timestamp → ts
-        slice.dur = dto.duration;          // duration → dur
-        slice.name = dto.name;
-        slice.trackId = dto.trackId;       // trackId → trackId
-        slice.cat = dto.cat.empty() ? std::nullopt : std::optional(dto.cat); // 处理 optional
-        slice.args = dto.args.empty() ? std::nullopt : std::optional(dto.args);
-        slice.cname = "";                  // 根据实际需求填充（原 InsertSQL 有 cname）
-        slice.end = dto.timestamp + dto.duration; // end_time = timestamp + duration
-        slice.flagId = dto.flagId;
-        // 注：pid/tid/cardId/metaType 等未在 InsertSQL 中使用，按需扩展
-        return slice;
-    }
+Trace::Slice ConvertSliceDtoToTraceSlice(const SliceDto &dto) {
+    Trace::Slice slice;
+    slice.ts = dto.timestamp; // timestamp → ts
+    slice.dur = dto.duration; // duration → dur
+    slice.name = dto.name;
+    slice.trackId = dto.trackId; // trackId → trackId
+    slice.cat = dto.cat.empty() ? std::nullopt : std::optional(dto.cat); // 处理 optional
+    slice.args = dto.args.empty() ? std::nullopt : std::optional(dto.args);
+    slice.cname = ""; // 根据实际需求填充（原 InsertSQL 有 cname）
+    slice.end = dto.timestamp + dto.duration; // end_time = timestamp + duration
+    slice.flagId = dto.flagId;
+    // 注：pid/tid/cardId/metaType 等未在 InsertSQL 中使用，按需扩展
+    return slice;
+}
 }
 
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
 using namespace Dic::Protocol;
-TextTraceDatabase::TextTraceDatabase(std::recursive_mutex &sqlMutex) : VirtualTraceDatabase(sqlMutex)
-{
+TextTraceDatabase::TextTraceDatabase(std::recursive_mutex &sqlMutex) : VirtualTraceDatabase(sqlMutex) {
     if (sliceAnalyzerPtr == nullptr) {
         sliceAnalyzerPtr = std::make_unique<SliceAnalyzer>();
     }
@@ -55,28 +54,25 @@ TextTraceDatabase::TextTraceDatabase(std::recursive_mutex &sqlMutex) : VirtualTr
     }
 }
 
-TextTraceDatabase::~TextTraceDatabase()
-{
+TextTraceDatabase::~TextTraceDatabase() {
     try {
         CommitData();
         ReleaseStmt();
         sliceAnalyzerPtr = nullptr;
         flowAnalyzerPtr = nullptr;
-    } catch (const std::exception&) {
+    } catch (const std::exception &) {
         // do nothing
     }
 }
 
-bool TextTraceDatabase::OpenDb(const std::string &dbPath, bool clearAllTable)
-{
+bool TextTraceDatabase::OpenDb(const std::string &dbPath, bool clearAllTable) {
     if (!Database::OpenDb(dbPath, clearAllTable)) {
         return false;
     }
     return SetConfig() && CheckAndResetDatabaseOnVersionChange();
 }
 
-bool TextTraceDatabase::InitStmt()
-{
+bool TextTraceDatabase::InitStmt() {
     if (initStmt) {
         return true;
     }
@@ -84,8 +80,7 @@ bool TextTraceDatabase::InitStmt()
     return InitSliceFlowCounterStmt() && InitProcessThreadStmt();
 }
 
-bool TextTraceDatabase::InitSliceFlowCounterStmt()
-{
+bool TextTraceDatabase::InitSliceFlowCounterStmt() {
     std::string sql = TextSqlConstant::GetInsertSliceSql();
     insertSliceStmt = CreatPreparedStatement(sql);
     sql = TextSqlConstant::GetInsertFlowSql();
@@ -99,8 +94,7 @@ bool TextTraceDatabase::InitSliceFlowCounterStmt()
     return true;
 }
 
-bool TextTraceDatabase::InitProcessThreadStmt()
-{
+bool TextTraceDatabase::InitProcessThreadStmt() {
     std::string sql = UPDATE_PROCESS_NAME_SQL;
     updateProcessNameStmt = CreatPreparedStatement(sql);
     sql = UPDATE_PROCESS_LABLE_SQL;
@@ -125,8 +119,7 @@ bool TextTraceDatabase::InitProcessThreadStmt()
     return true;
 }
 
-void TextTraceDatabase::ReleaseStmt()
-{
+void TextTraceDatabase::ReleaseStmt() {
     if (!initStmt) {
         return;
     }
@@ -145,14 +138,12 @@ void TextTraceDatabase::ReleaseStmt()
     insertFtraceStatStmt = nullptr;
 }
 
-bool TextTraceDatabase::SetConfig()
-{
+bool TextTraceDatabase::SetConfig() {
     // PRAGMA case_sensitive_like=1; 设置数据库大小写敏感。 不会写入数据库的配置，不会造成死锁
     return Database::SetConfig() && ExecSql("PRAGMA case_sensitive_like=1;");
 }
 
-bool TextTraceDatabase::CreateTable()
-{
+bool TextTraceDatabase::CreateTable() {
     if (!isOpen) {
         ServerLog::Error("Failed to set config. Database is not open.");
         return false;
@@ -162,15 +153,13 @@ bool TextTraceDatabase::CreateTable()
     return ExecSql(sql);
 }
 
-bool TextTraceDatabase::DropTable() const
-{
-    std::vector<std::string> tables = { sliceTable, threadTable, processTable, flowTable, counterTable };
+bool TextTraceDatabase::DropTable() const {
+    std::vector<std::string> tables = {sliceTable, threadTable, processTable, flowTable, counterTable};
     std::unique_lock<std::recursive_mutex> lock(mutex);
     return DropSomeTables(tables);
 }
 
-bool TextTraceDatabase::CreateIndex()
-{
+bool TextTraceDatabase::CreateIndex() {
     auto start = std::chrono::system_clock::now();
     if (!isOpen) {
         ServerLog::Error("Failed to creat index. Database is not open.");
@@ -184,8 +173,7 @@ bool TextTraceDatabase::CreateIndex()
     return true;
 }
 
-bool TextTraceDatabase::InsertSlice(const Trace::Slice &event)
-{
+bool TextTraceDatabase::InsertSlice(const Trace::Slice &event) {
     sliceCache.emplace_back(event);
     if (sliceCache.size() == CACHE_SIZE) {
         InsertSliceList(sliceCache);
@@ -194,9 +182,7 @@ bool TextTraceDatabase::InsertSlice(const Trace::Slice &event)
     return true;
 }
 
-
-bool TextTraceDatabase::InsertSliceList(const std::vector<Trace::Slice> &eventList)
-{
+bool TextTraceDatabase::InsertSliceList(const std::vector<Trace::Slice> &eventList) {
     std::unique_ptr<SqlitePreparedStatement> stmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> &refStmt = (eventList.size() == CACHE_SIZE) ? insertSliceStmt : stmt;
     if (refStmt == nullptr) {
@@ -210,23 +196,28 @@ bool TextTraceDatabase::InsertSliceList(const std::vector<Trace::Slice> &eventLi
     }
     for (const auto &event : eventList) {
         // 这里需要极限性能，所以直接调用原生接口
-        sqlite3_bind_int64(refStmt->stmt, refStmt->bindIndex++, event.ts);  // 第1个参数
+        sqlite3_bind_int64(refStmt->stmt, refStmt->bindIndex++, event.ts); // 第1个参数
         sqlite3_bind_int64(refStmt->stmt, refStmt->bindIndex++, event.dur); // 第2个参数
-        sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.name.c_str(), event.name.size(), SQLITE_STATIC); // 第3个参数
+        sqlite3_bind_text(
+            refStmt->stmt, refStmt->bindIndex++, event.name.c_str(), event.name.size(), SQLITE_STATIC); // 第3个参数
         sqlite3_bind_int64(refStmt->stmt, refStmt->bindIndex++, static_cast<int64_t>(event.trackId)); // 第4个参数
         if (event.cat.has_value()) {
-            sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.cat.value().c_str(), event.cat.value().size(), SQLITE_STATIC); // 第5个参数
+            sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.cat.value().c_str(), event.cat.value().size(),
+                SQLITE_STATIC); // 第5个参数
         } else {
-            sqlite3_bind_null(refStmt->stmt, refStmt->bindIndex++);  // 第5个参数
+            sqlite3_bind_null(refStmt->stmt, refStmt->bindIndex++); // 第5个参数
         }
         if (event.args.has_value()) {
-            sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.args.value().c_str(), event.args.value().size(), SQLITE_STATIC); // 第6个参数
-        } else  {
+            sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.args.value().c_str(),
+                event.args.value().size(), SQLITE_STATIC); // 第6个参数
+        } else {
             sqlite3_bind_null(refStmt->stmt, refStmt->bindIndex++); // 第6个参数
         }
-        sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.cname.c_str(), event.cname.size(), SQLITE_STATIC); // 第7个参数
+        sqlite3_bind_text(
+            refStmt->stmt, refStmt->bindIndex++, event.cname.c_str(), event.cname.size(), SQLITE_STATIC); // 第7个参数
         sqlite3_bind_int64(refStmt->stmt, refStmt->bindIndex++, event.end); // 第8个参数
-        sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.flagId.c_str(), event.flagId.size(), SQLITE_STATIC); // 第9个参数
+        sqlite3_bind_text(
+            refStmt->stmt, refStmt->bindIndex++, event.flagId.c_str(), event.flagId.size(), SQLITE_STATIC); // 第9个参数
     }
     std::unique_lock<std::recursive_mutex> lock(mutex);
     if (!refStmt->Execute()) {
@@ -236,11 +227,11 @@ bool TextTraceDatabase::InsertSliceList(const std::vector<Trace::Slice> &eventLi
     return true;
 }
 
-bool TextTraceDatabase::ReplaceAllSlices(const std::vector<SliceDto>& slices) {
+bool TextTraceDatabase::ReplaceAllSlices(const std::vector<SliceDto> &slices) {
     // ===== 1. 预转换（锁外执行，减少锁持有时间）=====
     std::vector<Trace::Slice> traceSlices;
     traceSlices.reserve(slices.size());
-    for (const auto& dto : slices) {
+    for (const auto &dto : slices) {
         traceSlices.emplace_back(ConvertSliceDtoToTraceSlice(dto)); // 见下方转换函数
     }
 
@@ -264,10 +255,7 @@ bool TextTraceDatabase::ReplaceAllSlices(const std::vector<SliceDto>& slices) {
     const size_t total = traceSlices.size();
     for (size_t i = 0; i < total && allSuccess; i += CACHE_SIZE) {
         size_t batchEnd = std::min(i + CACHE_SIZE, total);
-        std::vector<Trace::Slice> batch(
-            traceSlices.begin() + i,
-            traceSlices.begin() + batchEnd
-        );
+        std::vector<Trace::Slice> batch(traceSlices.begin() + i, traceSlices.begin() + batchEnd);
         if (!InsertSliceList(batch)) { // 直接复用现有高性能插入
             allSuccess = false;
         }
@@ -284,8 +272,7 @@ bool TextTraceDatabase::ReplaceAllSlices(const std::vector<SliceDto>& slices) {
     return false;
 }
 
-std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetSliceStmt(uint64_t paramLen)
-{
+std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetSliceStmt(uint64_t paramLen) {
     std::string sql = "INSERT INTO " + sliceTable +
         " (timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id) VALUES (?,?,?,?,?,?,?,?,?)";
     for (uint64_t i = 0; i < paramLen - 1; ++i) {
@@ -294,8 +281,7 @@ std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetSliceStmt(uint64_
     return CreatPreparedStatement(sql);
 }
 
-bool TextTraceDatabase::UpdateProcessName(const Trace::MetaData &event)
-{
+bool TextTraceDatabase::UpdateProcessName(const Trace::MetaData &event) {
     if (updateProcessNameStmt == nullptr) {
         ServerLog::Error("Update process name fail. ");
         return false;
@@ -309,8 +295,7 @@ bool TextTraceDatabase::UpdateProcessName(const Trace::MetaData &event)
     return true;
 }
 
-bool TextTraceDatabase::UpdateProcessLabel(const Trace::MetaData &event)
-{
+bool TextTraceDatabase::UpdateProcessLabel(const Trace::MetaData &event) {
     if (updateProcessLabelStmt == nullptr) {
         ServerLog::Error("Update process label fail. ");
         return false;
@@ -324,8 +309,7 @@ bool TextTraceDatabase::UpdateProcessLabel(const Trace::MetaData &event)
     return true;
 }
 
-bool TextTraceDatabase::UpdateProcessSortIndex(const Trace::MetaData &event)
-{
+bool TextTraceDatabase::UpdateProcessSortIndex(const Trace::MetaData &event) {
     if (updateProcessSortIndexStmt == nullptr) {
         ServerLog::Error("Update process sort index fail. ");
         return false;
@@ -339,20 +323,17 @@ bool TextTraceDatabase::UpdateProcessSortIndex(const Trace::MetaData &event)
     return true;
 }
 
-bool TextTraceDatabase::AddSimulationThreadCache(Trace::ThreadEvent &&event)
-{
+bool TextTraceDatabase::AddSimulationThreadCache(Trace::ThreadEvent &&event) {
     simulationThreadInfoCache.insert(std::move(event));
     return true;
 }
 
-bool TextTraceDatabase::AddSimulationProcessCache(Trace::ProcessEvent &&event)
-{
+bool TextTraceDatabase::AddSimulationProcessCache(Trace::ProcessEvent &&event) {
     simulationProcessInfoCache.insert(std::move(event));
     return true;
 }
 
-bool TextTraceDatabase::InsertSimulationThreadList()
-{
+bool TextTraceDatabase::InsertSimulationThreadList() {
     if (simulationInsertThreadNameStmt == nullptr) {
         ServerLog::Error("Insert thread info fail. ");
         return false;
@@ -360,8 +341,8 @@ bool TextTraceDatabase::InsertSimulationThreadList()
     for (const auto &item : simulationThreadInfoCache) {
         simulationInsertThreadNameStmt->Reset();
         std::unique_lock<std::recursive_mutex> lock(mutex);
-        if (!simulationInsertThreadNameStmt->Execute(item.trackId, item.tid, item.pid, item.threadName,
-            item.threadSortIndex)) {
+        if (!simulationInsertThreadNameStmt->Execute(
+                item.trackId, item.tid, item.pid, item.threadName, item.threadSortIndex)) {
             ServerLog::Error("Insert thread info fail. ", simulationInsertThreadNameStmt->GetErrorMessage());
             return false;
         }
@@ -369,8 +350,7 @@ bool TextTraceDatabase::InsertSimulationThreadList()
     return true;
 }
 
-bool TextTraceDatabase::InsertSimulationProcessList()
-{
+bool TextTraceDatabase::InsertSimulationProcessList() {
     if (simulationInsertProcessNameStmt == nullptr) {
         ServerLog::Error("Update process info fail. ");
         return false;
@@ -386,8 +366,7 @@ bool TextTraceDatabase::InsertSimulationProcessList()
     return true;
 }
 
-bool TextTraceDatabase::UpdateThreadName(const Trace::MetaData &event)
-{
+bool TextTraceDatabase::UpdateThreadName(const Trace::MetaData &event) {
     if (updateThreadNameStmt == nullptr) {
         ServerLog::Error("Update thread name fail. ");
         return false;
@@ -401,8 +380,7 @@ bool TextTraceDatabase::UpdateThreadName(const Trace::MetaData &event)
     return true;
 }
 
-bool TextTraceDatabase::UpdateThreadSortIndex(const Trace::MetaData &event)
-{
+bool TextTraceDatabase::UpdateThreadSortIndex(const Trace::MetaData &event) {
     if (updateThreadSortIndexStmt == nullptr) {
         ServerLog::Error("Update thread sort index fail. ");
         return false;
@@ -416,8 +394,7 @@ bool TextTraceDatabase::UpdateThreadSortIndex(const Trace::MetaData &event)
     return true;
 }
 
-bool TextTraceDatabase::InsertFlow(const Trace::Flow &event)
-{
+bool TextTraceDatabase::InsertFlow(const Trace::Flow &event) {
     flowCache.emplace_back(event);
     if (flowCache.size() == CACHE_SIZE) {
         InsertFlowList(flowCache);
@@ -426,8 +403,7 @@ bool TextTraceDatabase::InsertFlow(const Trace::Flow &event)
     return true;
 }
 
-bool TextTraceDatabase::InsertFlowList(const std::vector<Trace::Flow> &eventList)
-{
+bool TextTraceDatabase::InsertFlowList(const std::vector<Trace::Flow> &eventList) {
     std::unique_ptr<SqlitePreparedStatement> stmt;
     std::unique_ptr<SqlitePreparedStatement> &refStmt = (eventList.size() == CACHE_SIZE) ? insertFlowStmt : stmt;
     if (refStmt == nullptr) {
@@ -450,8 +426,7 @@ bool TextTraceDatabase::InsertFlowList(const std::vector<Trace::Flow> &eventList
     return true;
 }
 
-std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetFlowStmt(uint64_t paramLen)
-{
+std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetFlowStmt(uint64_t paramLen) {
     std::string sql =
         "INSERT INTO " + flowTable + " (flow_id, name, track_id, timestamp, cat, type)" + " VALUES (?,?,?,?,?,?)";
     for (uint64_t i = 0; i < paramLen - 1; ++i) {
@@ -460,8 +435,7 @@ std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetFlowStmt(uint64_t
     return CreatPreparedStatement(sql);
 }
 
-bool TextTraceDatabase::InsertCounter(const Trace::Counter &event)
-{
+bool TextTraceDatabase::InsertCounter(const Trace::Counter &event) {
     counterCache.emplace_back(event);
     if (counterCache.size() == CACHE_SIZE) {
         InsertCounterList(counterCache);
@@ -470,8 +444,7 @@ bool TextTraceDatabase::InsertCounter(const Trace::Counter &event)
     return true;
 }
 
-bool TextTraceDatabase::InsertCounterList(const std::vector<Trace::Counter> &eventList)
-{
+bool TextTraceDatabase::InsertCounterList(const std::vector<Trace::Counter> &eventList) {
     std::unique_ptr<SqlitePreparedStatement> stmt;
     std::unique_ptr<SqlitePreparedStatement> &refStmt = (eventList.size() == CACHE_SIZE) ? insertCounterStmt : stmt;
     if (refStmt == nullptr) {
@@ -494,8 +467,7 @@ bool TextTraceDatabase::InsertCounterList(const std::vector<Trace::Counter> &eve
     return true;
 }
 
-std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetCounterStmt(uint64_t paramLen)
-{
+std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetCounterStmt(uint64_t paramLen) {
     std::string sql = "INSERT INTO " + counterTable + " (name, pid, timestamp, cat, args)" + " VALUES (?,?,?,?,?)";
     for (uint64_t i = 0; i < paramLen - 1; ++i) {
         sql.append(",(?,?,?,?,?)");
@@ -504,10 +476,10 @@ std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetCounterStmt(uint6
 }
 
 bool TextTraceDatabase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesSummaryParams &requestParams,
-    Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp)
-{
+    Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp) {
     const int64_t maxDataCount = 30000;
-    uint64_t unitTime = (requestParams.endTime - requestParams.startTime) / maxDataCount; // 校验过保证 endTime > startTime
+    uint64_t unitTime =
+        (requestParams.endTime - requestParams.startTime) / maxDataCount; // 校验过保证 endTime > startTime
     unitTime = unitTime == 0 ? 1 : unitTime;
     std::vector<uint64_t> trackIds = QueryAllTrackIdsByPid(requestParams.processId);
     std::string sql = TextSqlConstant::GetSummarySliceSql(trackIds.size());
@@ -529,8 +501,7 @@ bool TextTraceDatabase::QueryThreadTracesSummary(const Protocol::UnitThreadTrace
 }
 
 bool TextTraceDatabase::QueryThreads(const Protocol::UnitThreadsParams &requestParams,
-    Protocol::UnitThreadsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList)
-{
+    Protocol::UnitThreadsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList) {
     std::vector<CompeteSliceDomain> competeSliceVec;
     std::map<std::string, uint64_t> selfTimeKeyValue;
     SliceQuery sliceQuery;
@@ -565,8 +536,7 @@ bool TextTraceDatabase::QueryThreads(const Protocol::UnitThreadsParams &requestP
     return true;
 }
 
-std::vector<FlowDetailDto> TextTraceDatabase::QuerySingleFlowDetail(const std::string &flowId)
-{
+std::vector<FlowDetailDto> TextTraceDatabase::QuerySingleFlowDetail(const std::string &flowId) {
     std::vector<FlowDetailDto> flowDetailVec;
     auto stmt = CreatPreparedStatement(QUERY_FLOW_BY_FLOWID_SQL);
     if (stmt == nullptr) {
@@ -591,8 +561,7 @@ std::vector<FlowDetailDto> TextTraceDatabase::QuerySingleFlowDetail(const std::s
     return flowDetailVec;
 }
 
-std::map<uint64_t, std::pair<std::string, std::string>> TextTraceDatabase::QueryAllThreadMap()
-{
+std::map<uint64_t, std::pair<std::string, std::string>> TextTraceDatabase::QueryAllThreadMap() {
     auto threadStmt = CreatPreparedStatement(QUERY_ALL_THREAD_SQL);
     std::map<uint64_t, std::pair<std::string, std::string>> threadMap;
     if (threadStmt == nullptr) {
@@ -615,8 +584,7 @@ std::map<uint64_t, std::pair<std::string, std::string>> TextTraceDatabase::Query
 }
 
 bool TextTraceDatabase::QueryUnitFlows(const Protocol::UnitFlowsParams &requestParams,
-    Protocol::UnitFlowsBody &responseBody, uint64_t minTimestamp, uint64_t trackId)
-{
+    Protocol::UnitFlowsBody &responseBody, uint64_t minTimestamp, uint64_t trackId) {
     if (requestParams.isSimulation) {
         QuerySimulationUintFlows(requestParams, responseBody, minTimestamp);
         return true;
@@ -653,9 +621,8 @@ bool TextTraceDatabase::QueryUnitFlows(const Protocol::UnitFlowsParams &requestP
     return true;
 }
 
-bool TextTraceDatabase::SetCardAlias(const Protocol::SetCardAliasParams &requestParams,
-                                     Protocol::SetCardAliasBody &responseBody)
-{
+bool TextTraceDatabase::SetCardAlias(
+    const Protocol::SetCardAliasParams &requestParams, Protocol::SetCardAliasBody &responseBody) {
     if (!CreateMetaDataTableForText()) {
         ServerLog::Error("Failed to create meta data table for text.");
         return false;
@@ -663,8 +630,7 @@ bool TextTraceDatabase::SetCardAlias(const Protocol::SetCardAliasParams &request
     return UpdateMetaDataTable(cardAliasName, requestParams.cardAlias);
 }
 
-std::string TextTraceDatabase::QueryCardAlias()
-{
+std::string TextTraceDatabase::QueryCardAlias() {
     std::string cardAlias = GetValueFromMetaDataTable(cardAliasName);
     if (cardAlias.empty()) {
         return "";
@@ -672,9 +638,8 @@ std::string TextTraceDatabase::QueryCardAlias()
     return cardAlias;
 }
 
-void TextTraceDatabase::QuerySimulationUintFlows(const UnitFlowsParams &requestParams, UnitFlowsBody &responseBody,
-    uint64_t minTimestamp)
-{
+void TextTraceDatabase::QuerySimulationUintFlows(
+    const UnitFlowsParams &requestParams, UnitFlowsBody &responseBody, uint64_t minTimestamp) {
     SliceDto sliceDto;
     std::set<std::string> flowIdSet;
     QuerySliceDtoById(requestParams.id, sliceDto);
@@ -705,8 +670,7 @@ void TextTraceDatabase::QuerySimulationUintFlows(const UnitFlowsParams &requestP
     responseBody.unitAllFlows = unitAllFlow;
 }
 
-bool TextTraceDatabase::QuerySliceDtoById(const std::string &sliceId, SliceDto &sliceDto)
-{
+bool TextTraceDatabase::QuerySliceDtoById(const std::string &sliceId, SliceDto &sliceDto) {
     std::string sliceSql = QUERY_SLICE_BY_ID_SQL;
     auto sliceStmt = CreatPreparedStatement(sliceSql);
     if (sliceStmt == nullptr) {
@@ -726,10 +690,9 @@ bool TextTraceDatabase::QuerySliceDtoById(const std::string &sliceId, SliceDto &
     return true;
 }
 
-bool TextTraceDatabase::QuerySliceDtoList(std::vector<SliceDto> &sliceDtoList)
-{
+bool TextTraceDatabase::QuerySliceDtoList(std::vector<SliceDto> &sliceDtoList) {
     const std::string sliceSql = "select id, timestamp, duration, depth, track_id,"
-                                    "name, args, cat, flag_id from slice";
+                                 "name, args, cat, flag_id from slice";
     const auto sliceStmt = CreatPreparedStatement(sliceSql);
     if (sliceStmt == nullptr) {
         ServerLog::Error("Query slice list failed to prepare sql.");
@@ -742,7 +705,7 @@ bool TextTraceDatabase::QuerySliceDtoList(std::vector<SliceDto> &sliceDtoList)
     }
     while (sliceSet->Next()) {
         int col = resultStartIndex;
-        sliceDtoList.push_back(SliceDto {
+        sliceDtoList.push_back(SliceDto{
             .id = sliceSet->GetUint64(col++),
             .timestamp = sliceSet->GetUint64(col++),
             .duration = sliceSet->GetUint64(col++),
@@ -757,9 +720,8 @@ bool TextTraceDatabase::QuerySliceDtoList(std::vector<SliceDto> &sliceDtoList)
     return true;
 }
 
-std::vector<SimpleSlice> TextTraceDatabase::QuerySimpleSliceByFlagAndTrackId(const std::string &flagId,
-    uint64_t trackId)
-{
+std::vector<SimpleSlice> TextTraceDatabase::QuerySimpleSliceByFlagAndTrackId(
+    const std::string &flagId, uint64_t trackId) {
     std::string sliceSql = QUERY_SLICE_BY_FLAG_ID_SQL;
     auto sliceStmt = CreatPreparedStatement(sliceSql);
     std::vector<SimpleSlice> simpleSliceVec;
@@ -769,8 +731,8 @@ std::vector<SimpleSlice> TextTraceDatabase::QuerySimpleSliceByFlagAndTrackId(con
     }
     auto sliceSet = sliceStmt->ExecuteQuery(flagId, trackId);
     if (sliceSet == nullptr) {
-        ServerLog::Error("Query simple slice by flag and trackId failed to get result set.",
-            sliceStmt->GetErrorMessage());
+        ServerLog::Error(
+            "Query simple slice by flag and trackId failed to get result set.", sliceStmt->GetErrorMessage());
         return simpleSliceVec;
     }
     SliceQuery sliceQuery;
@@ -788,14 +750,13 @@ std::vector<SimpleSlice> TextTraceDatabase::QuerySimpleSliceByFlagAndTrackId(con
     return simpleSliceVec;
 }
 
-bool TextTraceDatabase::QueryUnitsMetadata(const std::string &fileId,
-    std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+bool TextTraceDatabase::QueryUnitsMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     std::vector<Process> processes = QueryAllProcess();
     std::map<std::string, std::vector<Thread>> threads = QueryAllThreadInfo();
     std::map<std::pair<std::string, std::string>, std::string> counters = QueryAllCounterInfo();
     std::vector<std::unique_ptr<Protocol::UnitTrack>> tempMetaData;
-    for (const auto &item: processes) {
+    for (const auto &item : processes) {
         std::unique_ptr<Protocol::UnitTrack> process = std::make_unique<Protocol::UnitTrack>();
         process->type = "process";
         process->metaData.processName = item.name;
@@ -803,8 +764,8 @@ bool TextTraceDatabase::QueryUnitsMetadata(const std::string &fileId,
         process->metaData.cardId = fileId;
         process->metaData.processId = item.pid;
         process->metaData.parentProcessId = item.parentPid;
-        std::vector<Thread> pthreads= threads[item.pid];
-        for (const auto &tThread: pthreads) {
+        std::vector<Thread> pthreads = threads[item.pid];
+        for (const auto &tThread : pthreads) {
             AddThreadTrack(fileId, counters, process, tThread);
         }
         tempMetaData.emplace_back(std::move(process));
@@ -815,11 +776,10 @@ bool TextTraceDatabase::QueryUnitsMetadata(const std::string &fileId,
 
 void TextTraceDatabase::AddThreadTrack(const std::string &fileId,
     std::map<std::pair<std::string, std::string>, std::string> &counters, std::unique_ptr<Protocol::UnitTrack> &process,
-    const Thread &tThread)
-{
+    const Thread &tThread) {
     std::unique_ptr<UnitTrack> thread = std::make_unique<UnitTrack>();
     thread->metaData.metaType = "TEXT";
-    auto it = counters.find({ tThread.pid, tThread.threadName });
+    auto it = counters.find({tThread.pid, tThread.threadName});
     if (it == counters.end()) { // thread
         thread->type = "thread";
         thread->metaData.cardId = fileId;
@@ -844,8 +804,7 @@ void TextTraceDatabase::AddThreadTrack(const std::string &fileId,
     process->children.emplace_back(std::move(thread));
 }
 
-std::vector<Process> TextTraceDatabase::QueryAllProcess()
-{
+std::vector<Process> TextTraceDatabase::QueryAllProcess() {
     std::vector<Process> res;
     std::string sql = "SELECT pid, process_name, label, process_sort_index, parentPid FROM process ORDER BY "
                       "process_sort_index ASC, process_name ASC";
@@ -880,8 +839,7 @@ std::vector<Process> TextTraceDatabase::QueryAllProcess()
     return res;
 }
 
-std::map<std::string, std::vector<Thread>> TextTraceDatabase::QueryAllThreadInfo()
-{
+std::map<std::string, std::vector<Thread>> TextTraceDatabase::QueryAllThreadInfo() {
     std::map<std::string, std::vector<Thread>> res;
     std::string sql = "select track_id,tid, pid, thread_name, thread_sort_index FROM thread where pid is not null "
                       "ORDER BY pid ASC, thread_sort_index ASC, thread_name ASC";
@@ -907,13 +865,12 @@ std::map<std::string, std::vector<Thread>> TextTraceDatabase::QueryAllThreadInfo
     return res;
 }
 
-std::map<std::string, std::string> TextTraceDatabase::QueryAllModelIdOfAscendHardwareThreads()
-{
+std::map<std::string, std::string> TextTraceDatabase::QueryAllModelIdOfAscendHardwareThreads() {
     std::map<std::string, std::string> res;
     // INSTR: 比 like 语句更快的子字符串搜索方法
     const std::string sql = "select thread.tid, thread.track_id, slice.args from slice join thread on "
-        "slice.track_id = thread.track_id where INSTR(LOWER(slice.args), 'model id') > 0 "
-        "and thread.thread_name like 'Stream%' group by thread.track_id;";
+                            "slice.track_id = thread.track_id where INSTR(LOWER(slice.args), 'model id') > 0 "
+                            "and thread.thread_name like 'Stream%' group by thread.track_id;";
     const auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query all model id of ascend hardware thread failed!.");
@@ -921,8 +878,8 @@ std::map<std::string, std::string> TextTraceDatabase::QueryAllModelIdOfAscendHar
     }
     const auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
-        ServerLog::Error("Query all model id of ascend hardware thread failed to get result set.",
-            stmt->GetErrorMessage());
+        ServerLog::Error(
+            "Query all model id of ascend hardware thread failed to get result set.", stmt->GetErrorMessage());
         return res;
     }
     while (resultSet->Next()) {
@@ -945,8 +902,7 @@ std::map<std::string, std::string> TextTraceDatabase::QueryAllModelIdOfAscendHar
     return res;
 }
 
-std::map<std::pair<std::string, std::string>, std::string> TextTraceDatabase::QueryAllCounterInfo()
-{
+std::map<std::pair<std::string, std::string>, std::string> TextTraceDatabase::QueryAllCounterInfo() {
     std::map<std::pair<std::string, std::string>, std::string> res;
     std::string sql = "SELECT pid,name, args FROM counter group by pid, name";
     auto stmt = CreatPreparedStatement(sql);
@@ -968,8 +924,7 @@ std::map<std::pair<std::string, std::string>, std::string> TextTraceDatabase::Qu
     return res;
 }
 
-std::vector<std::string> TextTraceDatabase::GetCounterDataType(const std::string &args)
-{
+std::vector<std::string> TextTraceDatabase::GetCounterDataType(const std::string &args) {
     std::vector<std::string> type{};
     if (args.empty()) {
         return type;
@@ -996,8 +951,7 @@ std::vector<std::string> TextTraceDatabase::GetCounterDataType(const std::string
     return type;
 }
 
-bool TextTraceDatabase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max)
-{
+bool TextTraceDatabase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) {
     std::string sql = QUERY_EXETREME_TIME_SQL;
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1016,8 +970,7 @@ bool TextTraceDatabase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max)
     return true;
 }
 
-void TextTraceDatabase::CommitData()
-{
+void TextTraceDatabase::CommitData() {
     if (!sliceCache.empty()) {
         InsertSliceList(sliceCache);
         sliceCache.clear();
@@ -1044,8 +997,7 @@ void TextTraceDatabase::CommitData()
     }
 }
 
-uint32_t TextTraceDatabase::SearchSliceNameCount(const Protocol::SearchCountParams &params)
-{
+uint32_t TextTraceDatabase::SearchSliceNameCount(const Protocol::SearchCountParams &params) {
     uint32_t result = 0;
     std::string sql = TextSqlConstant::GetSearchSliceNameCountSql(params.isMatchExact, params.isMatchCase);
     auto stmt = CreatPreparedStatement(sql);
@@ -1064,9 +1016,8 @@ uint32_t TextTraceDatabase::SearchSliceNameCount(const Protocol::SearchCountPara
     return result;
 }
 
-uint32_t TextTraceDatabase::SearchSliceNameCount(const Protocol::SearchCountParams &params,
-    const std::vector<TrackQuery> &trackQuery)
-{
+uint32_t TextTraceDatabase::SearchSliceNameCount(
+    const Protocol::SearchCountParams &params, const std::vector<TrackQuery> &trackQuery) {
     uint32_t result = 0;
     if (trackQuery.empty() && !params.metadataList.empty()) {
         return result;
@@ -1103,8 +1054,7 @@ uint32_t TextTraceDatabase::SearchSliceNameCount(const Protocol::SearchCountPara
 }
 
 bool TextTraceDatabase::SearchSliceNameWithOutLock(const Protocol::SearchSliceParams &params, int index,
-    uint64_t minTimestamp, Protocol::SearchSliceBody &responseBody)
-{
+    uint64_t minTimestamp, Protocol::SearchSliceBody &responseBody) {
     std::string sql = TextSqlConstant::GetSearchSliceNameSql(params.isMatchExact, params.isMatchCase);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1136,15 +1086,14 @@ bool TextTraceDatabase::SearchSliceNameWithOutLock(const Protocol::SearchSlicePa
 }
 
 bool TextTraceDatabase::SearchSliceName(const Protocol::SearchSliceParams &params, int index, uint64_t minTimestamp,
-    Protocol::SearchSliceBody &responseBody, const std::vector<TrackQuery> &trackQuery)
-{
+    Protocol::SearchSliceBody &responseBody, const std::vector<TrackQuery> &trackQuery) {
     if (std::empty(trackQuery)) {
         return SearchSliceNameWithOutLock(params, index, minTimestamp, responseBody);
     }
     std::string nameMatch = TextSqlConstant::GetSearchNameSqlSuffix(params.isMatchExact, params.isMatchCase);
     nameMatch += " AND track_id = ? AND timestamp >= ? AND end_time <= ?";
     std::string sql = "SELECT id, pid, tid, timestamp - ? as startTime, duration, track_id AS trackId"
-        " FROM " +
+                      " FROM " +
         SLICE_TABLE + " JOIN " + THREAD_TABLE + " USING (track_id) WHERE " + nameMatch;
     std::vector<std::string> sqls(trackQuery.size(), sql);
     sql = StringUtil::join(sqls, " UNION ALL ");
@@ -1154,7 +1103,7 @@ bool TextTraceDatabase::SearchSliceName(const Protocol::SearchSliceParams &param
         ServerLog::Error("Query slice name failed!.");
         return false;
     }
-    for (const auto &item: trackQuery) {
+    for (const auto &item : trackQuery) {
         stmt->BindParams(minTimestamp, params.searchContent, item.trackId, item.startTime, item.endTime);
     }
     stmt->BindParams(index);
@@ -1182,8 +1131,49 @@ bool TextTraceDatabase::SearchSliceName(const Protocol::SearchSliceParams &param
     return true;
 }
 
-bool TextTraceDatabase::QueryFlowCategoryList(std::vector<std::string> &categories, const std::string &rankId)
-{
+bool TextTraceDatabase::QueryHostSlicesByName(const std::string &sliceName, const std::string &metaType,
+    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    return true;
+}
+
+bool TextTraceDatabase::QueryDeviceSlicesByName(const std::string &rankId, const std::string &sliceName,
+    const std::string &metaType, std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    return true;
+}
+
+bool TextTraceDatabase::QueryTextSlicesByName(const std::string &sliceName, const std::string &metaType,
+    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    if (metaType != "TEXT") {
+        return true;
+    }
+
+    std::string sql = "SELECT slice.id, thread.pid, slice.timestamp, slice.duration FROM " + sliceTable +
+        " slice JOIN " + threadTable + " thread ON slice.track_id = thread.track_id WHERE slice.name = ?";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Error("Query text slices by name failed to prepare sql.");
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery(sliceName);
+    if (resultSet == nullptr) {
+        ServerLog::Error("Query text slices by name failed to get result set.", stmt->GetErrorMessage());
+        return false;
+    }
+    while (resultSet->Next()) {
+        Protocol::SimpleSlice slice;
+        slice.name = sliceName;
+        slice.pid = resultSet->GetString("pid");
+        slice.metaType = metaType;
+        slice.timestamp = resultSet->GetUint64("timestamp");
+        slice.duration = resultSet->GetUint64("duration");
+        slice.id = resultSet->GetUint64("id");
+        result.emplace_back(slice);
+        processIds.insert(slice.pid);
+    }
+    return true;
+}
+
+bool TextTraceDatabase::QueryFlowCategoryList(std::vector<std::string> &categories, const std::string &rankId) {
     std::string sql = "SELECT cat FROM flow GROUP BY cat";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1201,8 +1191,7 @@ bool TextTraceDatabase::QueryFlowCategoryList(std::vector<std::string> &categori
     return true;
 }
 
-std::vector<uint64_t> TextTraceDatabase::QueryAllTrackIdsByPid(std::string pid)
-{
+std::vector<uint64_t> TextTraceDatabase::QueryAllTrackIdsByPid(std::string pid) {
     std::vector<uint64_t> trackIds;
     std::string sql = "Select track_id AS trackId from " + threadTable + " where pid = ? ;";
     auto stmt = CreatPreparedStatement(sql);
@@ -1223,9 +1212,8 @@ std::vector<uint64_t> TextTraceDatabase::QueryAllTrackIdsByPid(std::string pid)
     return trackIds;
 }
 
-bool TextTraceDatabase::QueryUnitCounter(Protocol::UnitCounterParams &params, uint64_t minTimestamp,
-    std::vector<Protocol::UnitCounterData> &dataList)
-{
+bool TextTraceDatabase::QueryUnitCounter(
+    Protocol::UnitCounterParams &params, uint64_t minTimestamp, std::vector<Protocol::UnitCounterData> &dataList) {
     std::string sql = QUERY_UNIT_COUNTER_SQL;
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1254,9 +1242,8 @@ bool TextTraceDatabase::QueryUnitCounter(Protocol::UnitCounterParams &params, ui
     return true;
 }
 
-bool TextTraceDatabase::QueryComputeStatisticsData(const Protocol::SummaryStatisticParams &requestParams,
-    Protocol::SummaryStatisticsBody &responseBody)
-{
+bool TextTraceDatabase::QueryComputeStatisticsData(
+    const Protocol::SummaryStatisticParams &requestParams, Protocol::SummaryStatisticsBody &responseBody) {
     std::string sql = TextSqlConstant::GetComputeStatisticsSQL(requestParams.stepId);
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
@@ -1285,9 +1272,8 @@ bool TextTraceDatabase::QueryComputeStatisticsData(const Protocol::SummaryStatis
     return true;
 }
 
-bool TextTraceDatabase::QueryCommunicationStatisticsData(const Protocol::SummaryStatisticParams &requestParams,
-    Protocol::SummaryStatisticsBody &responseBody)
-{
+bool TextTraceDatabase::QueryCommunicationStatisticsData(
+    const Protocol::SummaryStatisticParams &requestParams, Protocol::SummaryStatisticsBody &responseBody) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     uint64_t min;
@@ -1326,8 +1312,7 @@ bool TextTraceDatabase::QueryCommunicationStatisticsData(const Protocol::Summary
     return true;
 }
 
-bool TextTraceDatabase::QueryStepDuration(const std::string &stepId, uint64_t &min, uint64_t &max)
-{
+bool TextTraceDatabase::QueryStepDuration(const std::string &stepId, uint64_t &min, uint64_t &max) {
     std::string profileName = "ProfilerStep#" + stepId;
     std::string sql = "select timestamp, duration from " + sliceTable + " where name=?";
     sqlite3_stmt *stmt = nullptr;
@@ -1352,8 +1337,8 @@ bool TextTraceDatabase::QueryStepDuration(const std::string &stepId, uint64_t &m
     return true;
 }
 
-bool TextTraceDatabase::QueryEventsViewData(const EventsViewParams &params, EventsViewBody &body, uint64_t minTimestamp)
-{
+bool TextTraceDatabase::QueryEventsViewData(
+    const EventsViewParams &params, EventsViewBody &body, uint64_t minTimestamp) {
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
         return false;
@@ -1362,10 +1347,10 @@ bool TextTraceDatabase::QueryEventsViewData(const EventsViewParams &params, Even
 }
 
 bool TextTraceDatabase::QuerySystemViewData(const Protocol::SystemViewParams &requestParams,
-    Protocol::SystemViewBody &responseBody, const uint64_t &minTimestamp)
-{
+    Protocol::SystemViewBody &responseBody, const uint64_t &minTimestamp) {
     std::string searchName = "%" + requestParams.searchName + "%";
-    const std::string &timeCondSql = TextSqlConstant::AppendTextTimeRangeConditionSql(requestParams.startTime, requestParams.endTime);
+    const std::string &timeCondSql =
+        TextSqlConstant::AppendTextTimeRangeConditionSql(requestParams.startTime, requestParams.endTime);
     const LayerStatData &data = QueryLayerData(requestParams, searchName, minTimestamp, timeCondSql);
     double layerOperatorTime = data.allOperatorTime;
     if (!StringUtil::CheckSqlValid(requestParams.orderBy)) {
@@ -1373,8 +1358,10 @@ bool TextTraceDatabase::QuerySystemViewData(const Protocol::SystemViewParams &re
         return false;
     }
     const std::vector<std::string> layers = (requestParams.layer == "HCCL" || requestParams.layer == "COMMUNICATION")
-        ? std::vector<std::string>{"hccl", "communication"} : std::vector{StringUtil::ToLower(requestParams.layer)};
-    std::string sql = TextSqlConstant::GetQueryPythonViewDataSql(requestParams.order, requestParams.orderBy, layers, timeCondSql);
+        ? std::vector<std::string>{"hccl", "communication"}
+        : std::vector{StringUtil::ToLower(requestParams.layer)};
+    std::string sql =
+        TextSqlConstant::GetQueryPythonViewDataSql(requestParams.order, requestParams.orderBy, layers, timeCondSql);
     uint64_t offset = (requestParams.current - 1) * requestParams.pageSize;
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1382,21 +1369,22 @@ bool TextTraceDatabase::QuerySystemViewData(const Protocol::SystemViewParams &re
         return false;
     }
     std::unique_ptr<SqliteResultSet> resultSet;
-    if (std::find(layers.begin(), layers.end(), "python") == layers.end()
-        && std::find(layers.begin(), layers.end(), "cann") == layers.end()) {
+    if (std::find(layers.begin(), layers.end(), "python") == layers.end() &&
+        std::find(layers.begin(), layers.end(), "cann") == layers.end()) {
         int deviceId = StringUtil::StringToInt(requestParams.deviceId);
         if (requestParams.startTime == requestParams.endTime) {
             resultSet = stmt->ExecuteQuery(layerOperatorTime, searchName, deviceId, requestParams.pageSize, offset);
         } else {
-            resultSet = stmt->ExecuteQuery(layerOperatorTime, searchName, deviceId, requestParams.startTime + minTimestamp,
-                                           requestParams.endTime + minTimestamp, requestParams.pageSize, offset);
+            resultSet =
+                stmt->ExecuteQuery(layerOperatorTime, searchName, deviceId, requestParams.startTime + minTimestamp,
+                    requestParams.endTime + minTimestamp, requestParams.pageSize, offset);
         }
     } else {
         if (requestParams.startTime == requestParams.endTime) {
             resultSet = stmt->ExecuteQuery(layerOperatorTime, searchName, requestParams.pageSize, offset);
         } else {
             resultSet = stmt->ExecuteQuery(layerOperatorTime, searchName, requestParams.startTime + minTimestamp,
-                                           requestParams.endTime + minTimestamp, requestParams.pageSize, offset);
+                requestParams.endTime + minTimestamp, requestParams.pageSize, offset);
         }
     }
     if (resultSet == nullptr) {
@@ -1408,9 +1396,8 @@ bool TextTraceDatabase::QuerySystemViewData(const Protocol::SystemViewParams &re
 }
 
 bool TextTraceDatabase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICoreFreqParams &requestParams,
-    Protocol::ExpAnaAICoreFreqBody &responseBody,
-    std::vector<std::pair<uint64_t, uint64_t>> &freqs, uint64_t &maxFreq, uint64_t &minFreq)
-{
+    Protocol::ExpAnaAICoreFreqBody &responseBody, std::vector<std::pair<uint64_t, uint64_t>> &freqs, uint64_t &maxFreq,
+    uint64_t &minFreq) {
     std::string sql = TextSqlConstant::GetAICoreViewDataSql();
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1449,8 +1436,7 @@ bool TextTraceDatabase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICo
 }
 
 LayerStatData TextTraceDatabase::QueryLayerData(const Protocol::SystemViewParams &requestParams,
-    const std::string &name, const uint64_t &minTimestamp, const std::string &timeCondSql)
-{
+    const std::string &name, const uint64_t &minTimestamp, const std::string &timeCondSql) {
     LayerStatData layerStatData;
     std::vector<std::string> layerList = (requestParams.layer == "HCCL" || requestParams.layer == "COMMUNICATION")
         ? std::vector<std::string>{"hccl", "communication"}
@@ -1462,19 +1448,21 @@ LayerStatData TextTraceDatabase::QueryLayerData(const Protocol::SystemViewParams
         return layerStatData;
     }
     std::unique_ptr<SqliteResultSet> resultSet;
-    if (std::find(layerList.begin(), layerList.end(), "python") == layerList.end()
-        && std::find(layerList.begin(), layerList.end(), "cann") == layerList.end()) {
+    if (std::find(layerList.begin(), layerList.end(), "python") == layerList.end() &&
+        std::find(layerList.begin(), layerList.end(), "cann") == layerList.end()) {
         int deviceId = StringUtil::StringToInt(requestParams.deviceId);
         if (requestParams.startTime == requestParams.endTime) {
             resultSet = stmt->ExecuteQuery(name, deviceId);
         } else {
-            resultSet = stmt->ExecuteQuery(name, deviceId, requestParams.startTime + minTimestamp, requestParams.endTime + minTimestamp);
+            resultSet = stmt->ExecuteQuery(
+                name, deviceId, requestParams.startTime + minTimestamp, requestParams.endTime + minTimestamp);
         }
     } else {
         if (requestParams.startTime == requestParams.endTime) {
             resultSet = stmt->ExecuteQuery(name);
         } else {
-            resultSet = stmt->ExecuteQuery(name, requestParams.startTime + minTimestamp, requestParams.endTime + minTimestamp);
+            resultSet =
+                stmt->ExecuteQuery(name, requestParams.startTime + minTimestamp, requestParams.endTime + minTimestamp);
         }
     }
     if (resultSet == nullptr) {
@@ -1488,8 +1476,7 @@ LayerStatData TextTraceDatabase::QueryLayerData(const Protocol::SystemViewParams
     return layerStatData;
 }
 
-std::vector<std::string> TextTraceDatabase::QueryCoreType()
-{
+std::vector<std::string> TextTraceDatabase::QueryCoreType() {
     std::vector<std::string> acceleratorCoreList;
     std::string sql = QUERY_QUERY_TYPE_SQL;
     auto stmt = CreatPreparedStatement(sql);
@@ -1509,10 +1496,11 @@ std::vector<std::string> TextTraceDatabase::QueryCoreType()
     return acceleratorCoreList;
 }
 
-uint64_t TextTraceDatabase::QueryTotalKernel(const Protocol::KernelDetailsParams &requestParams, uint64_t minTimestamp)
-{
+uint64_t TextTraceDatabase::QueryTotalKernel(
+    const Protocol::KernelDetailsParams &requestParams, uint64_t minTimestamp) {
     uint64_t total = 0;
-    std::string sql = "SELECT count(*) FROM ("
+    std::string sql =
+        "SELECT count(*) FROM ("
         "    SELECT name, op_type AS type, accelerator_core AS acceleratorCore, "
         "    input_shapes AS inputShapes, input_data_types AS inputDataTypes, input_formats AS inputFormats, "
         "    output_shapes AS outputShapes, output_data_types AS outputDataTypes, "
@@ -1559,8 +1547,7 @@ uint64_t TextTraceDatabase::QueryTotalKernel(const Protocol::KernelDetailsParams
 }
 
 bool TextTraceDatabase::QueryKernelDetailData(const Protocol::KernelDetailsParams &requestParams,
-    Protocol::KernelDetailsBody &responseBody, uint64_t minTimestamp)
-{
+    Protocol::KernelDetailsBody &responseBody, uint64_t minTimestamp) {
     if (!StringUtil::CheckSqlValid(requestParams.orderBy)) {
         ServerLog::Error("Query kernel detail data is an SQL injection attack");
         return false;
@@ -1597,9 +1584,8 @@ bool TextTraceDatabase::QueryKernelDetailData(const Protocol::KernelDetailsParam
     return true;
 }
 
-bool TextTraceDatabase::QueryCommunicationKernelInfo(const std::string &name, const std::string &rankId,
-    CommunicationKernelBody &body)
-{
+bool TextTraceDatabase::QueryCommunicationKernelInfo(
+    const std::string &name, const std::string &rankId, CommunicationKernelBody &body) {
     std::string sql = "SELECT id, track_id, timestamp FROM " + sliceTable + " WHERE name = ?";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1621,9 +1607,9 @@ bool TextTraceDatabase::QueryCommunicationKernelInfo(const std::string &name, co
         sliceQuery.rankId = rankId;
         sliceQuery.trackId = trackId;
         body.id = std::to_string(id);
-        body.startTime = startTime > Timeline::TraceTime::Instance().GetStartTime() ?
-            startTime - Timeline::TraceTime::Instance().GetStartTime() :
-            startTime;
+        body.startTime = startTime > Timeline::TraceTime::Instance().GetStartTime()
+            ? startTime - Timeline::TraceTime::Instance().GetStartTime()
+            : startTime;
     }
     const OneKernelData &data = QueryKernelTid(trackId);
     body.threadId = data.threadId;
@@ -1632,10 +1618,10 @@ bool TextTraceDatabase::QueryCommunicationKernelInfo(const std::string &name, co
     return true;
 }
 
-bool TextTraceDatabase::QueryKernelDepthAndThread(const Protocol::KernelParams &params,
-    Protocol::OneKernelBody &responseBody, uint64_t minTimestamp)
-{
-    std::string sql = "SELECT id, duration, track_id FROM " + sliceTable + " WHERE name = ? AND timestamp > ? AND timestamp < ?";
+bool TextTraceDatabase::QueryKernelDepthAndThread(
+    const Protocol::KernelParams &params, Protocol::OneKernelBody &responseBody, uint64_t minTimestamp) {
+    std::string sql =
+        "SELECT id, duration, track_id FROM " + sliceTable + " WHERE name = ? AND timestamp > ? AND timestamp < ?";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query kernel depth and thread, fail to prepare sql.");
@@ -1676,8 +1662,7 @@ bool TextTraceDatabase::QueryKernelDepthAndThread(const Protocol::KernelParams &
     return true;
 }
 
-OneKernelData TextTraceDatabase::QueryKernelTid(const uint64_t trackId)
-{
+OneKernelData TextTraceDatabase::QueryKernelTid(const uint64_t trackId) {
     std::string sql = "SELECT tid, pid FROM " + threadTable + " WHERE track_id = ? ";
     auto stmt = CreatPreparedStatement(sql);
     OneKernelData oneKernel;
@@ -1698,13 +1683,11 @@ OneKernelData TextTraceDatabase::QueryKernelTid(const uint64_t trackId)
 }
 
 bool TextTraceDatabase::QueryThreadSameOperatorsDetails(const Protocol::UnitThreadsOperatorsParams &requestParams,
-    Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp,
-    const std::vector<uint64_t> &trackIdList)
-{
+    Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList) {
     uint64_t startTime = requestParams.startTime + minTimestamp;
     uint64_t endTime = requestParams.endTime + minTimestamp;
-    std::string sql = TextSqlConstant::GetThreadSameOperatorsDetailsSql(requestParams.order, requestParams.orderBy,
-                                                                        trackIdList);
+    std::string sql =
+        TextSqlConstant::GetThreadSameOperatorsDetailsSql(requestParams.order, requestParams.orderBy, trackIdList);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query thread same operators details. Failed to prepare sql.", sqlite3_errmsg(db));
@@ -1722,12 +1705,12 @@ bool TextTraceDatabase::QueryThreadSameOperatorsDetails(const Protocol::UnitThre
     return true;
 }
 
-void TextTraceDatabase::ExecuteQueryThreadSameOperatorsDetails(const std::unique_ptr<SqliteResultSet>& resultSet,
+void TextTraceDatabase::ExecuteQueryThreadSameOperatorsDetails(const std::unique_ptr<SqliteResultSet> &resultSet,
     uint64_t minTimestamp, const Protocol::UnitThreadsOperatorsParams &requestParams,
-    Protocol::UnitThreadsOperatorsBody &responseBody)
-{
-    uint64_t offset = (requestParams.current - 1) > UINT64_MAX / requestParams.pageSize ? 0 :
-                      (requestParams.current - 1) * requestParams.pageSize;
+    Protocol::UnitThreadsOperatorsBody &responseBody) {
+    uint64_t offset = (requestParams.current - 1) > UINT64_MAX / requestParams.pageSize
+        ? 0
+        : (requestParams.current - 1) * requestParams.pageSize;
     uint64_t count = 0;
     std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> trackIdDepthCache;
     while (resultSet->Next()) {
@@ -1759,7 +1742,7 @@ void TextTraceDatabase::ExecuteQueryThreadSameOperatorsDetails(const std::unique
         sameOperatorsDetail.pid = trackInfo.processId;
         if (!requestParams.startDepth.empty() && !requestParams.endDepth.empty() &&
             !(sameOperatorsDetail.depth >= NumberUtil::StringToUint32(requestParams.startDepth) &&
-            sameOperatorsDetail.depth <= NumberUtil::StringToUint32(requestParams.endDepth))) {
+                sameOperatorsDetail.depth <= NumberUtil::StringToUint32(requestParams.endDepth))) {
             continue;
         }
         if (++count <= offset) {
@@ -1772,13 +1755,14 @@ void TextTraceDatabase::ExecuteQueryThreadSameOperatorsDetails(const std::unique
     }
 }
 
-uint64_t TextTraceDatabase::SameOperatorsCount(const std::string &name, const std::vector<uint64_t> &trackIdList,
-                                               uint64_t &startTime, uint64_t &endTime)
-{
+uint64_t TextTraceDatabase::SameOperatorsCount(
+    const std::string &name, const std::vector<uint64_t> &trackIdList, uint64_t &startTime, uint64_t &endTime) {
     uint64_t total = 0;
     std::string trackIdPlaceholders = StringUtil::join(trackIdList, ", ");
-    std::string sql = "SELECT count(*) FROM " + sliceTable + " WHERE name = ? AND "
-        " track_id in (" + trackIdPlaceholders + ") AND timestamp <= ? AND timestamp + duration >= ?;";
+    std::string sql = "SELECT count(*) FROM " + sliceTable +
+        " WHERE name = ? AND "
+        " track_id in (" +
+        trackIdPlaceholders + ") AND timestamp <= ? AND timestamp + duration >= ?;";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Fail to prepare sql for same operators count.", sqlite3_errmsg(db));
@@ -1797,8 +1781,7 @@ uint64_t TextTraceDatabase::SameOperatorsCount(const std::string &name, const st
 
 bool TextTraceDatabase::QueryAICpuOpCanBeOptimized(const Protocol::KernelDetailsParams &params,
     const std::vector<std::string> &replace, const std::map<std::string, Timeline::AICpuCheckDataType> &dataType,
-    std::vector<Protocol::KernelBaseInfo> &data, uint64_t minTimestamp)
-{
+    std::vector<Protocol::KernelBaseInfo> &data, uint64_t minTimestamp) {
     if (!CheckTableExist(sliceTable) || !CheckTableExist(TABLE_KERNEL)) {
         return false;
     }
@@ -1835,19 +1818,16 @@ bool TextTraceDatabase::QueryAICpuOpCanBeOptimized(const Protocol::KernelDetails
     return true;
 }
 
-bool TextTraceDatabase::UpdateParseStatus(const std::string &status)
-{
+bool TextTraceDatabase::UpdateParseStatus(const std::string &status) {
     return UpdateValueIntoStatusInfoTable(timelineParseStatus, status);
 }
 
-bool TextTraceDatabase::HasFinishedParseLastTime(const std::string &statuInfo)
-{
+bool TextTraceDatabase::HasFinishedParseLastTime(const std::string &statuInfo) {
     return CheckValueFromStatusInfoTable(timelineParseStatus, statuInfo);
 }
 
 bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params,
-    Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec)
-{
+    Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec) {
     if (!params.metadataList.empty() && trackQueryVec.empty()) {
         body.currentPage = params.current;
         body.pageSize = params.pageSize;
@@ -1869,7 +1849,7 @@ bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSlicePar
         ServerLog::Error("Search all slices details failed!.");
         return false;
     }
-    for (const auto &item: trackQueryVec) {
+    for (const auto &item : trackQueryVec) {
         stmt->BindParams(params.searchContent, item.trackId, item.startTime, item.endTime);
     }
     stmt->BindParams(params.pageSize, offset);
@@ -1891,8 +1871,7 @@ bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSlicePar
 }
 
 void TextTraceDatabase::GetSearchAllSliceData(const SearchAllSliceParams &params, SearchAllSlicesBody &body,
-    uint64_t minTimestamp, std::unique_ptr<SqliteResultSet> &resultSet) const
-{
+    uint64_t minTimestamp, std::unique_ptr<SqliteResultSet> &resultSet) const {
     while (resultSet->Next()) {
         int col = resultStartIndex;
         SearchAllSlices searchAllSlice{};
@@ -1913,9 +1892,8 @@ void TextTraceDatabase::GetSearchAllSliceData(const SearchAllSliceParams &params
     }
 }
 
-std::string TextTraceDatabase::GetSearchAllSliceWithLockRangeSql(const SearchAllSliceParams &params,
-    const std::vector<TrackQuery> &trackQueryVec) const
-{
+std::string TextTraceDatabase::GetSearchAllSliceWithLockRangeSql(
+    const SearchAllSliceParams &params, const std::vector<TrackQuery> &trackQueryVec) const {
     std::string orderBy;
     if (params.order == "descend") {
         orderBy = " ORDER BY " + params.orderBy + " DESC";
@@ -1925,8 +1903,8 @@ std::string TextTraceDatabase::GetSearchAllSliceWithLockRangeSql(const SearchAll
     std::string nameMatch = TextSqlConstant::GetSearchNameSqlSuffix(params.isMatchExact, params.isMatchCase);
     nameMatch += " AND s.track_id = ? AND s.timestamp >= ? AND s.end_time <= ?";
     std::string sql = "SELECT s.name as name, s.timestamp as timestamp, s.duration as duration,"
-        " s.id as id, t.tid as tid, t.pid as pid"
-        " FROM " +
+                      " s.id as id, t.tid as tid, t.pid as pid"
+                      " FROM " +
         SLICE_TABLE + " s JOIN " + THREAD_TABLE +
         " t on s.track_id = t.track_id "
         "WHERE " +
@@ -1937,9 +1915,8 @@ std::string TextTraceDatabase::GetSearchAllSliceWithLockRangeSql(const SearchAll
     return sql;
 }
 
-bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params,
-    Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp)
-{
+bool TextTraceDatabase::SearchAllSlicesDetails(
+    const Protocol::SearchAllSliceParams &params, Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp) {
     std::string sql =
         TextSqlConstant::GetSearchSliceDetailSql(params.isMatchExact, params.isMatchCase, params.order, params.orderBy);
     uint64_t offset = (params.current - 1) * params.pageSize;
@@ -1983,8 +1960,7 @@ bool TextTraceDatabase::SearchAllSlicesDetails(const Protocol::SearchAllSlicePar
 }
 
 bool TextTraceDatabase::QueryAclnnOpCountExceedThreshold(const KernelDetailsParams &params, uint64_t threshold,
-    std::vector<Protocol::KernelBaseInfo> &data, uint64_t minTimestamp)
-{
+    std::vector<Protocol::KernelBaseInfo> &data, uint64_t minTimestamp) {
     auto stmt = CreatPreparedStatement(TextSqlConstant::GenerateAclnnQueryTextSql(params));
     if (stmt == nullptr) {
         ServerLog::Error("Fail to prepare sql for Aclnn Op Exceed Threshold.");
@@ -1995,7 +1971,8 @@ bool TextTraceDatabase::QueryAclnnOpCountExceedThreshold(const KernelDetailsPara
     if (params.startTime == params.endTime) {
         resultSet = stmt->ExecuteQuery(minTimestamp, deviceId, threshold);
     } else {
-        resultSet = stmt->ExecuteQuery(minTimestamp, deviceId, params.startTime + minTimestamp, params.endTime + minTimestamp, threshold);
+        resultSet = stmt->ExecuteQuery(
+            minTimestamp, deviceId, params.startTime + minTimestamp, params.endTime + minTimestamp, threshold);
     }
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set for Aclnn Op Exceed Threshold.", stmt->GetErrorMessage());
@@ -2015,8 +1992,7 @@ bool TextTraceDatabase::QueryAclnnOpCountExceedThreshold(const KernelDetailsPara
 }
 
 bool TextTraceDatabase::QueryOperatorDispatchData(const Protocol::KernelDetailsParams &params,
-    std::vector<Protocol::KernelBaseInfo> &data, uint64_t minTimestamp, uint64_t threshold)
-{
+    std::vector<Protocol::KernelBaseInfo> &data, uint64_t minTimestamp, uint64_t threshold) {
     auto stmt = CreatPreparedStatement(TextSqlConstant::GenerateOperatorDispatchQueryTextSql(params));
     if (stmt == nullptr) {
         ServerLog::Error("Fail to prepare sql for Operator Dispatch data.");
@@ -2044,23 +2020,20 @@ bool TextTraceDatabase::QueryOperatorDispatchData(const Protocol::KernelDetailsP
     }
     if (data.size() > 0 && data.size() < threshold) {
         ServerLog::Error(
-            "Failed to get Operator Dispatch data because the total count should greater than or equal to "
-            + std::to_string(threshold) + " ."
-        );
+            "Failed to get Operator Dispatch data because the total count should greater than or equal to " +
+            std::to_string(threshold) + " .");
         data.clear();
     }
     return true;
 }
 
-std::string TextTraceDatabase::QueryHostInfo()
-{
+std::string TextTraceDatabase::QueryHostInfo() {
     std::string host;
     return host;
 }
 
 bool TextTraceDatabase::QueryFwdBwdDataByFlow(const std::string &rankId, uint64_t offset,
-    const Protocol::ExtremumTimestamp &range, std::vector<Protocol::ThreadTraces> &fwdBwdData)
-{
+    const Protocol::ExtremumTimestamp &range, std::vector<Protocol::ThreadTraces> &fwdBwdData) {
     std::vector<std::string> tableList = {SLICE_TABLE, FLOW_TABLE};
     if (!CheckTablesExist(tableList)) {
         ServerLog::Error("Failed to check dependent table for query fwdbwd data in the TEXT scenario.");
@@ -2080,8 +2053,7 @@ bool TextTraceDatabase::QueryFwdBwdDataByFlow(const std::string &rankId, uint64_
 }
 
 bool TextTraceDatabase::QueryP2PCommunicationOpData(const std::string &rankId, uint64_t offset,
-    const ExtremumTimestamp &range, std::vector<Protocol::ThreadTraces> &p2pOpData)
-{
+    const ExtremumTimestamp &range, std::vector<Protocol::ThreadTraces> &p2pOpData) {
     auto stmt = CreatPreparedStatement(QUERY_P2P_COMMUNICATION_OP_TEXT_SQL);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query p2p communication op data in the TEXT scenario.");
@@ -2090,8 +2062,7 @@ bool TextTraceDatabase::QueryP2PCommunicationOpData(const std::string &rankId, u
     return TraceDatabaseHelper::ExecuteQueryP2POpData(std::move(stmt), rankId, offset, range, p2pOpData);
 }
 
-bool TextTraceDatabase::QueryByteAlignmentAnalyzerData(std::vector<CommunicationLargeOperatorInfo> &data)
-{
+bool TextTraceDatabase::QueryByteAlignmentAnalyzerData(std::vector<CommunicationLargeOperatorInfo> &data) {
     std::vector<std::pair<std::string, std::string>> rawData;
     if (!QueryByteAlignmentAnalyzerRawData(rawData)) {
         return false;
@@ -2100,8 +2071,7 @@ bool TextTraceDatabase::QueryByteAlignmentAnalyzerData(std::vector<Communication
     return true;
 }
 
-bool TextTraceDatabase::QueryByteAlignmentAnalyzerRawData(std::vector<std::pair<std::string, std::string>> &rawData)
-{
+bool TextTraceDatabase::QueryByteAlignmentAnalyzerRawData(std::vector<std::pair<std::string, std::string>> &rawData) {
     std::string sql = QUERY_BYTE_ALIGNMENT_ANALYZER_DATA_SQL;
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -2120,38 +2090,35 @@ bool TextTraceDatabase::QueryByteAlignmentAnalyzerRawData(std::vector<std::pair<
     return true;
 }
 
-bool TextTraceDatabase::DeleteEmptyThread()
-{
+bool TextTraceDatabase::DeleteEmptyThread() {
     if (!isOpen) {
         ServerLog::Error("Failed to delete empty thread. Database is not open.");
         return false;
     }
     std::string sql = "DELETE FROM thread "
-        " WHERE NOT EXISTS ("
-        "    SELECT 1 FROM slice WHERE slice.track_id = thread.track_id"
-        ") AND NOT EXISTS (SELECT 1 FROM counter WHERE counter.name = thread.tid);";
+                      " WHERE NOT EXISTS ("
+                      "    SELECT 1 FROM slice WHERE slice.track_id = thread.track_id"
+                      ") AND NOT EXISTS (SELECT 1 FROM counter WHERE counter.name = thread.tid);";
     std::unique_lock<std::recursive_mutex> lock(mutex);
     ExecSql(sql);
     return true;
 }
 
-bool TextTraceDatabase::DeleteEmptyFlow()
-{
+bool TextTraceDatabase::DeleteEmptyFlow() {
     if (!isOpen) {
         ServerLog::Error("Failed to delete empty flow. Database is not open.");
         return false;
     }
     std::string sql = "DELETE FROM flow "
-        " WHERE NOT EXISTS ("
-        "    SELECT 1 FROM slice WHERE slice.track_id = flow.track_id"
-        ");";
+                      " WHERE NOT EXISTS ("
+                      "    SELECT 1 FROM slice WHERE slice.track_id = flow.track_id"
+                      ");";
     std::unique_lock<std::recursive_mutex> lock(mutex);
     ExecSql(sql);
     return true;
 }
 
-std::vector<std::pair<std::string, std::string>> TextTraceDatabase::QueryTableDataNameList()
-{
+std::vector<std::pair<std::string, std::string>> TextTraceDatabase::QueryTableDataNameList() {
     std::string sql = "Select name, view_name from data_table Order BY id;";
     auto stmt = CreatPreparedStatement(sql);
     if (!TryOpt(stmt, "Query table data name failed!")) {

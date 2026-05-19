@@ -33,8 +33,7 @@ namespace Dic::Module::FullDb {
 using namespace Server;
 std::map<std::string, std::map<std::string, std::string>> DbTraceDataBase::stringsCache = {};
 
-DbTraceDataBase::DbTraceDataBase(std::recursive_mutex &sqlMutex) : VirtualTraceDatabase(sqlMutex)
-{
+DbTraceDataBase::DbTraceDataBase(std::recursive_mutex &sqlMutex) : VirtualTraceDatabase(sqlMutex) {
     if (sliceAnalyzerPtr == nullptr) {
         sliceAnalyzerPtr = std::make_unique<SliceAnalyzer>();
     }
@@ -43,8 +42,7 @@ DbTraceDataBase::DbTraceDataBase(std::recursive_mutex &sqlMutex) : VirtualTraceD
     }
 }
 
-DbTraceDataBase::~DbTraceDataBase()
-{
+DbTraceDataBase::~DbTraceDataBase() {
     updateCannApiDepthStmt = nullptr;
     insertOverlapStmt = nullptr;
     updateApiDepthStmt = nullptr;
@@ -54,16 +52,15 @@ DbTraceDataBase::~DbTraceDataBase()
 }
 
 bool DbTraceDataBase::QueryThreads(const Protocol::UnitThreadsParams &requestParams,
-    Protocol::UnitThreadsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList)
-{
+    Protocol::UnitThreadsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList) {
     uint64_t startTime = requestParams.startTime + minTimestamp;
     uint64_t endTime = requestParams.endTime + minTimestamp;
     // 遍历metadataList,这里不用union all,方便后续返回中拼接pid和tid等信息用于前端过滤
     std::vector<SimpleSlice> simpleSliceVec;
     std::map<std::string, uint64_t> selfTimeKeyValue;
-    for (auto &&metadata: requestParams.metadataList) {
-        std::vector<Protocol::SimpleSlice> completeSlice = QueryThreadByPid(metadata, startTime, endTime, requestParams.rankId,
-                                                                            selfTimeKeyValue);
+    for (auto &&metadata : requestParams.metadataList) {
+        std::vector<Protocol::SimpleSlice> completeSlice =
+            QueryThreadByPid(metadata, startTime, endTime, requestParams.rankId, selfTimeKeyValue);
         simpleSliceVec.insert(simpleSliceVec.end(), completeSlice.begin(), completeSlice.end());
     }
     // process data
@@ -78,17 +75,18 @@ bool DbTraceDataBase::QueryThreads(const Protocol::UnitThreadsParams &requestPar
     return true;
 }
 
-std::map<std::string, std::string> DbTraceDataBase::QueryAllModelIdOfAscendHardwareThreads()
-{
+std::map<std::string, std::string> DbTraceDataBase::QueryAllModelIdOfAscendHardwareThreads() {
     std::map<std::string, std::string> res;
     // Device侧的非MSTX事件和MSTX事件分开显示，其中MSTX事件会分domainId展示，且摆放在非MSTX事件的上方
     // 非MSTX事件的threadId是其Stream编号，MSTX事件的threadId是{Stream编号}_{domain编号}
     // 非MSTX事件查询时必须使用connectionId NOT IN显式排除MSTX事件，否则会将MSTX事件同时查询
     // 因为TASK表没有字段表征该事件是否为MSTX事件，所以需要和MSTX_EVENTS表连接，和MSTX_EVENTS表中具有相同connectionId的事件才是Device侧的MSTX事件
     // 因为DbTraceDataBase在执行OpenDb()方法时当MSTX_EVENTS表不存在时，会创建临时表MSTX_EVENTS，所以可以默认MSTX_EVENTS表在操作数据库时存在
-    const std::string sql =
-        "select main.streamId as tid, main.modelId as modelId from " + TABLE_TASK + " main "
-        " where main.connectionId not in (select connectionId from " + TABLE_MSTX_EVENTS + ")"
+    const std::string sql = "select main.streamId as tid, main.modelId as modelId from " + TABLE_TASK +
+        " main "
+        " where main.connectionId not in (select connectionId from " +
+        TABLE_MSTX_EVENTS +
+        ")"
         " group by main.streamId;";
     const auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -97,8 +95,8 @@ std::map<std::string, std::string> DbTraceDataBase::QueryAllModelIdOfAscendHardw
     }
     const auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
-        ServerLog::Error("Query all model id of ascend hardware thread failed to get result set.",
-            stmt->GetErrorMessage());
+        ServerLog::Error(
+            "Query all model id of ascend hardware thread failed to get result set.", stmt->GetErrorMessage());
         return res;
     }
     while (resultSet->Next()) {
@@ -109,9 +107,8 @@ std::map<std::string, std::string> DbTraceDataBase::QueryAllModelIdOfAscendHardw
     return res;
 }
 
-bool DbTraceDataBase::QueryUnitsMetadata(const std::string &fileId,
-    std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+bool DbTraceDataBase::QueryUnitsMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     QueryHostMetadata(fileId, metaData);
     bool existOverlapAnalysis = false;
     if (CheckTableExist(TABLE_TASK)) {
@@ -132,17 +129,15 @@ bool DbTraceDataBase::QueryUnitsMetadata(const std::string &fileId,
     return false;
 }
 
-bool DbTraceDataBase::GenerateOverlapAnalysisMetadata(const std::string &fileId,
-                                                      std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+bool DbTraceDataBase::GenerateOverlapAnalysisMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     auto metaType = ENUM_TO_STR(PROCESS_TYPE::OVERLAP_ANALYSIS).value_or("");
     auto overlap_analysis = GenerateBaseUnitTrack("process", fileId, metaType, "Overlap Analysis", metaType);
     if (stringsCache.find(path) == stringsCache.end()) {
         stringsCache[path] = {}; // 初始化空的映射
     }
     for (size_t index = 0; index < OVERLAP_TYPES.size(); index++) {
-        auto thread = GenerateBaseUnitTrack("thread", fileId,
-                                            overlap_analysis->metaData.processId, "", metaType);
+        auto thread = GenerateBaseUnitTrack("thread", fileId, overlap_analysis->metaData.processId, "", metaType);
         thread->metaData.threadId = std::to_string(index);
         thread->metaData.threadName = OVERLAP_TYPES[index];
         thread->metaData.maxDepth = 1;
@@ -153,14 +148,10 @@ bool DbTraceDataBase::GenerateOverlapAnalysisMetadata(const std::string &fileId,
     return true;
 }
 
-bool DbTraceDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max)
-{
-    return true;
-}
+bool DbTraceDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) { return true; }
 
-bool DbTraceDataBase::SetCardAlias(const Protocol::SetCardAliasParams &requestParams,
-                                   Protocol::SetCardAliasBody &responseBody)
-{
+bool DbTraceDataBase::SetCardAlias(
+    const Protocol::SetCardAliasParams &requestParams, Protocol::SetCardAliasBody &responseBody) {
     if (!CheckTableExist(metaDataTable)) {
         ServerLog::Error("Failed to set card alias because table is not exist.");
         return false;
@@ -168,8 +159,7 @@ bool DbTraceDataBase::SetCardAlias(const Protocol::SetCardAliasParams &requestPa
     return UpdateMetaDataTableWithNoPrimaryKey(cardAliasName, requestParams.cardAlias);
 }
 
-std::string DbTraceDataBase::QueryCardAlias()
-{
+std::string DbTraceDataBase::QueryCardAlias() {
     std::string cardAlias = GetValueFromMetaDataTable(cardAliasName);
     if (cardAlias.empty()) {
         return "";
@@ -177,11 +167,9 @@ std::string DbTraceDataBase::QueryCardAlias()
     return cardAlias;
 }
 
-uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams &params)
-{
+uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams &params) {
     uint32_t result = 0;
-    const std::string &sql =
-        GetSearchSliceNameCountSql(params.isMatchExact, params.isMatchCase, params.rankId);
+    const std::string &sql = GetSearchSliceNameCountSql(params.isMatchExact, params.isMatchCase, params.rankId);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query slice name count failed!.");
@@ -198,9 +186,8 @@ uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams
     return result;
 }
 
-uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams &params,
-    const std::vector<TrackQuery> &trackQuery)
-{
+uint32_t DbTraceDataBase::SearchSliceNameCount(
+    const Protocol::SearchCountParams &params, const std::vector<TrackQuery> &trackQuery) {
     if (trackQuery.empty() && !params.metadataList.empty()) {
         return 0;
     }
@@ -231,8 +218,7 @@ uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams
     return result;
 }
 
-bool DbTraceDataBase::QueryFlowCategoryList(std::vector<std::string> &categories, const std::string& rankId)
-{
+bool DbTraceDataBase::QueryFlowCategoryList(std::vector<std::string> &categories, const std::string &rankId) {
     auto stmt = CreatPreparedStatement("select cat from connectionCats group by cat");
     if (stmt == nullptr) {
         return false;
@@ -248,10 +234,8 @@ bool DbTraceDataBase::QueryFlowCategoryList(std::vector<std::string> &categories
 }
 
 bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params, int index, uint64_t minTimestamp,
-    Protocol::SearchSliceBody &responseBody)
-{
-    std::string sql =
-        GetSearchSliceNameSql(params.isMatchExact, params.isMatchCase, responseBody.rankId, path);
+    Protocol::SearchSliceBody &responseBody) {
+    std::string sql = GetSearchSliceNameSql(params.isMatchExact, params.isMatchCase, responseBody.rankId, path);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query slice name failed!.");
@@ -269,14 +253,13 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
     responseBody.id = resultSet->GetString("id");
     std::string metaType = resultSet->GetString("metaType");
     SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, responseBody.tid,
-                                                           metaType, responseBody.startTime, responseBody.duration});
+        metaType, responseBody.startTime, responseBody.duration});
     responseBody.depth = GetSliceDepthForJump(sliceQuery, NumberUtil::StringToUnsignedLongLong(responseBody.id));
     return true;
 }
 
 bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params, int index, uint64_t minTimestamp,
-    Protocol::SearchSliceBody &responseBody, const std::vector<TrackQuery> &trackQuery)
-{
+    Protocol::SearchSliceBody &responseBody, const std::vector<TrackQuery> &trackQuery) {
     if (trackQuery.empty() && !params.metadataList.empty()) {
         return true;
     }
@@ -289,8 +272,8 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
         ServerLog::Error("Query slice name failed!.");
         return false;
     }
-    TraceDatabaseHelper::SearchSliceNameWithLockRangeBindStmt(params, trackQuery, stmt, path,
-        GetDeviceId(params.rankId));
+    TraceDatabaseHelper::SearchSliceNameWithLockRangeBindStmt(
+        params, trackQuery, stmt, path, GetDeviceId(params.rankId));
     auto resultSet = stmt->ExecuteQuery(index);
     if (resultSet == nullptr || !resultSet->Next()) {
         ServerLog::Error("Query_slice_name. Failed to get result set.", stmt->GetErrorMessage());
@@ -304,17 +287,196 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
     responseBody.startTime -= minTimestamp; // 业务上 minTimestamp 是最小的时间，一定有 item.timestamp > minTimestamp
     responseBody.id = resultSet->GetString("id");
     std::string metaType = resultSet->GetString("metaType");
-    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid,
-        responseBody.tid, metaType, responseBody.startTime, responseBody.duration});
+    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, responseBody.tid,
+        metaType, responseBody.startTime, responseBody.duration});
     responseBody.depth = GetSliceDepthForJump(sliceQuery, NumberUtil::StringToUnsignedLongLong(responseBody.id));
     return true;
 }
 
-bool DbTraceDataBase::QueryComputeStatisticsData(const Protocol::SummaryStatisticParams &requestParams,
-    Protocol::SummaryStatisticsBody &responseBody)
-{
+bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const std::string &metaType,
+    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    if (!CheckTableExist(TABLE_STRING_IDS)) {
+        return true;
+    }
+
+    std::string sql;
+    std::string processSql;
+    if (metaType == TABLE_CANN_API && CheckTableExist(TABLE_CANN_API)) {
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, cann.globalTid as pid, 'CANN_API' as metaType, "
+              "cann.startNs as startTime, cann.endNs - cann.startNs as duration, "
+              "cann.ROWID as id from " +
+            TABLE_CANN_API + " cann join ids on ids.id = cann.name";
+        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_CANN_API;
+    } else if (metaType == TABLE_API && CheckTableExist(TABLE_API)) {
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, python.globalTid as pid, 'PYTORCH_API' as metaType, "
+              "python.startNs as startTime, python.endNs - python.startNs as duration, "
+              "python.ROWID as id from " +
+            TABLE_API + " python join ids on ids.id = python.name";
+        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_API;
+    } else if (metaType == TABLE_MSTX_EVENTS && CheckTableExist(TABLE_MSTX_EVENTS)) {
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, mstx.globalTid as pid, 'MSTX_EVENTS' as metaType, "
+              "mstx.startNs as startTime, mstx.endNs - mstx.startNs as duration, "
+              "mstx.ROWID as id from " +
+            TABLE_MSTX_EVENTS + " mstx join ids on ids.id = mstx.message";
+        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_MSTX_EVENTS;
+    } else if (metaType == TABLE_OSRT_API && CheckTableExist(TABLE_OSRT_API)) {
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, osrt.globalTid as pid, 'OSRT_API' as metaType, "
+              "osrt.startNs as startTime, osrt.endNs - osrt.startNs as duration, "
+              "osrt.ROWID as id from " +
+            TABLE_OSRT_API + " osrt join ids on ids.id = osrt.name";
+        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_OSRT_API;
+    }
+
+    if (!sql.empty()) {
+        auto stmt = CreatPreparedStatement(sql);
+        if (stmt == nullptr) {
+            ServerLog::Error("Query host slices by name failed to prepare sql.");
+            return false;
+        }
+        auto resultSet = stmt->ExecuteQuery(sliceName);
+        if (resultSet == nullptr) {
+            ServerLog::Error("Query host slices by name failed to get result set.", stmt->GetErrorMessage());
+            return false;
+        }
+        while (resultSet->Next()) {
+            Protocol::SimpleSlice slice;
+            slice.name = resultSet->GetString("name");
+            slice.pid = resultSet->GetString("pid");
+            slice.metaType = resultSet->GetString("metaType");
+            slice.timestamp = resultSet->GetUint64("startTime");
+            slice.duration = resultSet->GetUint64("duration");
+            slice.id = resultSet->GetUint64("id");
+            result.emplace_back(slice);
+        }
+    }
+
+    if (processSql.empty()) {
+        return true;
+    }
+    auto processStmt = CreatPreparedStatement(processSql);
+    if (processStmt == nullptr) {
+        ServerLog::Error("Query host rank offset process ids failed to prepare sql.");
+        return false;
+    }
+    auto processResultSet = processStmt->ExecuteQuery();
+    if (processResultSet == nullptr) {
+        ServerLog::Error(
+            "Query host rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
+        return false;
+    }
+    while (processResultSet->Next()) {
+        processIds.insert(processResultSet->GetString("pid"));
+    }
+    return true;
+}
+
+bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const std::string &sliceName,
+    const std::string &metaType, std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    if (!CheckTableExist(TABLE_STRING_IDS)) {
+        return true;
+    }
+
+    std::string sql;
+    std::string processSql;
+    std::string deviceId = GetDeviceId(rankId);
+    bool bindDeviceIdForSlice = false;
+    bool bindDeviceIdForProcess = false;
+    if (metaType == "Ascend Hardware" && CheckTableExist(TABLE_TASK)) {
+        bool hasCompute = CheckTableExist(TABLE_COMPUTE_TASK_INFO);
+        bool hasSchedule = CheckTableExist(TABLE_COMMUNICATION_SCHEDULE_TASK);
+        std::string taskNameExpr = "main.taskType";
+        std::string taskJoinSql;
+        if (hasCompute) {
+            taskJoinSql += " left join COMPUTE_TASK_INFO compute on compute.globalTaskId = main.globalTaskId ";
+            taskNameExpr = "coalesce(compute.name, " + taskNameExpr + ")";
+        }
+        if (hasSchedule) {
+            taskJoinSql += " left join COMMUNICATION_SCHEDULE_TASK_INFO schedule "
+                           "on main.globalTaskId = schedule.globalTaskId ";
+            taskNameExpr = "coalesce(schedule.name, " + taskNameExpr + ")";
+        }
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, 'Ascend Hardware' as pid, 'Ascend Hardware' as metaType, "
+              "main.startNs as startTime, main.endNs - main.startNs as duration, "
+              "main.ROWID as id from TASK main" +
+            taskJoinSql + " join ids on ids.id = " + taskNameExpr + " where main.deviceId = ?";
+        processSql = "SELECT DISTINCT 'Ascend Hardware' AS pid FROM TASK WHERE deviceId = ?";
+        bindDeviceIdForSlice = true;
+        bindDeviceIdForProcess = true;
+    } else if (metaType == "HCCL" && CheckTableExist(TABLE_COMMUNICATION_OP)) {
+        std::string associationTaskSql;
+        if (CheckTableExist(TABLE_TASK) && !TraceDatabaseHelper::IsDeviceIdUnique(path)) {
+            associationTaskSql = " join TASK associatedTask on op.connectionId = associatedTask.connectionId "
+                                 "and associatedTask.deviceId = ? ";
+            bindDeviceIdForSlice = true;
+        }
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, 'HCCL' as pid, 'HCCL' as metaType, "
+              "op.startNs as startTime, op.endNs - op.startNs as duration, op.ROWID as id "
+              "from COMMUNICATION_OP op" +
+            associationTaskSql + " join ids on ids.id = op.opName group by op.opId";
+        processSql = "SELECT DISTINCT 'HCCL' AS pid FROM COMMUNICATION_OP";
+    }
+
+    if (!sql.empty()) {
+        auto stmt = CreatPreparedStatement(sql);
+        if (stmt == nullptr) {
+            ServerLog::Error("Query device slices by name failed to prepare sql.");
+            return false;
+        }
+        std::unique_ptr<SqliteResultSet> resultSet =
+            bindDeviceIdForSlice ? stmt->ExecuteQuery(sliceName, deviceId) : stmt->ExecuteQuery(sliceName);
+        if (resultSet == nullptr) {
+            ServerLog::Error("Query device slices by name failed to get result set.", stmt->GetErrorMessage());
+            return false;
+        }
+        while (resultSet->Next()) {
+            Protocol::SimpleSlice slice;
+            slice.name = resultSet->GetString("name");
+            slice.pid = resultSet->GetString("pid");
+            slice.metaType = resultSet->GetString("metaType");
+            slice.timestamp = resultSet->GetUint64("startTime");
+            slice.duration = resultSet->GetUint64("duration");
+            slice.id = resultSet->GetUint64("id");
+            result.emplace_back(slice);
+        }
+    }
+
+    if (processSql.empty()) {
+        return true;
+    }
+    auto processStmt = CreatPreparedStatement(processSql);
+    if (processStmt == nullptr) {
+        ServerLog::Error("Query device rank offset process ids failed to prepare sql.");
+        return false;
+    }
+    std::unique_ptr<SqliteResultSet> processResultSet =
+        bindDeviceIdForProcess ? processStmt->ExecuteQuery(deviceId) : processStmt->ExecuteQuery();
+    if (processResultSet == nullptr) {
+        ServerLog::Error(
+            "Query device rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
+        return false;
+    }
+    while (processResultSet->Next()) {
+        processIds.insert(processResultSet->GetString("pid"));
+    }
+    return true;
+}
+
+bool DbTraceDataBase::QueryTextSlicesByName(const std::string &sliceName, const std::string &metaType,
+    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    return true;
+}
+
+bool DbTraceDataBase::QueryComputeStatisticsData(
+    const Protocol::SummaryStatisticParams &requestParams, Protocol::SummaryStatisticsBody &responseBody) {
     sqlite3_stmt *stmt = nullptr;
-    std::string sql = "SELECT round(sum(endNs - startNs) / 1000.0, 2) as duration, TASKTYPE.value as acceleratorCore "
+    std::string sql =
+        "SELECT round(sum(endNs - startNs) / 1000.0, 2) as duration, TASKTYPE.value as acceleratorCore "
         "FROM COMPUTE_TASK_INFO JOIN TASK ON COMPUTE_TASK_INFO.globalTaskId = TASK.globalTaskId "
         "JOIN STRING_IDS AS TASKTYPE ON TASKTYPE.id = COMPUTE_TASK_INFO.taskType "
         "WHERE acceleratorCore in ('AI_CPU','AI_CORE', 'AI_VECTOR_CORE', 'MIX_AIC', 'MIX_AIV', 'FFTS_PLUS') "
@@ -341,26 +503,22 @@ bool DbTraceDataBase::QueryComputeStatisticsData(const Protocol::SummaryStatisti
     return true;
 }
 
-bool DbTraceDataBase::QueryCommunicationStatisticsData(const Protocol::SummaryStatisticParams &requestParams,
-    Protocol::SummaryStatisticsBody &responseBody)
-{
+bool DbTraceDataBase::QueryCommunicationStatisticsData(
+    const Protocol::SummaryStatisticParams &requestParams, Protocol::SummaryStatisticsBody &responseBody) {
     return false;
 }
 
-bool DbTraceDataBase::QueryStepDuration(const std::string &stepId, uint64_t &min, uint64_t &max)
-{
-    return false;
-}
+bool DbTraceDataBase::QueryStepDuration(const std::string &stepId, uint64_t &min, uint64_t &max) { return false; }
 
 bool DbTraceDataBase::QuerySystemViewData(const Protocol::SystemViewParams &requestParams,
-    Protocol::SystemViewBody &responseBody, const uint64_t &minTimestamp)
-{
+    Protocol::SystemViewBody &responseBody, const uint64_t &minTimestamp) {
     auto stmt = CreatPreparedStatement(); // 这里不需要判断空指针，TraceDatabaseHelper里面统一进行了判空操作
     std::unique_ptr<SqliteResultSet> resultSet;
     try {
-        const std::string &timeCondSql = TraceDatabaseSqlConst::AppendDbTimeRangeConditionSql(requestParams.startTime, requestParams.endTime);
-        resultSet = TraceDatabaseHelper::QuerySystemViewData(stmt, requestParams,
-            GetDeviceId(requestParams.rankId), minTimestamp, timeCondSql);
+        const std::string &timeCondSql =
+            TraceDatabaseSqlConst::AppendDbTimeRangeConditionSql(requestParams.startTime, requestParams.endTime);
+        resultSet = TraceDatabaseHelper::QuerySystemViewData(
+            stmt, requestParams, GetDeviceId(requestParams.rankId), minTimestamp, timeCondSql);
     } catch (DatabaseException &e) {
         ServerLog::Error("Query system view data failed, ", e.What());
         return false;
@@ -386,9 +544,8 @@ bool DbTraceDataBase::QuerySystemViewData(const Protocol::SystemViewParams &requ
 }
 
 bool DbTraceDataBase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICoreFreqParams &requestParams,
-    Protocol::ExpAnaAICoreFreqBody &responseBody,
-    std::vector<std::pair<uint64_t, uint64_t>> &freqs, uint64_t &maxFreq, uint64_t &minFreq)
-{
+    Protocol::ExpAnaAICoreFreqBody &responseBody, std::vector<std::pair<uint64_t, uint64_t>> &freqs, uint64_t &maxFreq,
+    uint64_t &minFreq) {
     std::unique_ptr<SqliteResultSet> resultSet;
     std::string sql = "SELECT timestampNs, freq FROM AICORE_FREQ "
                       "WHERE deviceId = ? ORDER BY timestampNs ASC;";
@@ -417,21 +574,21 @@ bool DbTraceDataBase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICore
 }
 
 bool DbTraceDataBase::QueryKernelDetailData(const Protocol::KernelDetailsParams &requestParams,
-    Protocol::KernelDetailsBody &responseBody, uint64_t minTimestamp)
-{
-    const std::string blockNumColumnName = (CheckColumnExist(TABLE_COMPUTE_TASK_INFO, "blockNum") ? "blockNum" : "blockDim");
+    Protocol::KernelDetailsBody &responseBody, uint64_t minTimestamp) {
+    const std::string blockNumColumnName =
+        (CheckColumnExist(TABLE_COMPUTE_TASK_INFO, "blockNum") ? "blockNum" : "blockDim");
     std::string sql = GetKernelDetailSql(requestParams, blockNumColumnName);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         Server::ServerLog::Error("Fail to prepare sql to query kernel detail data.");
         return false;
     }
-    for (const auto& filter : requestParams.filters) {  // 第一次绑定filter
+    for (const auto &filter : requestParams.filters) { // 第一次绑定filter
         std::string bindFilter = "%" + filter.second + "%";
         stmt->BindParams(bindFilter);
     }
     stmt->BindParams(StringUtil::StringToInt(requestParams.deviceId));
-    for (const auto& filter : requestParams.filters) {  // 第二次绑定filter
+    for (const auto &filter : requestParams.filters) { // 第二次绑定filter
         std::string bindFilter = "%" + filter.second + "%";
         stmt->BindParams(bindFilter);
     }
@@ -449,10 +606,10 @@ bool DbTraceDataBase::QueryKernelDetailData(const Protocol::KernelDetailsParams 
 
 bool DbTraceDataBase::ExcecuteQueryKernelDetailData(std::unique_ptr<SqlitePreparedStatement> &stmt,
     const Protocol::KernelDetailsParams &requestParams, Protocol::KernelDetailsBody &responseBody,
-    uint64_t minTimestamp, const std::string &blockNumColumnName)
-{
-    uint64_t offset = (requestParams.current - 1) > UINT64_MAX / requestParams.pageSize ? 0 :
-        (requestParams.current - 1) * requestParams.pageSize;
+    uint64_t minTimestamp, const std::string &blockNumColumnName) {
+    uint64_t offset = (requestParams.current - 1) > UINT64_MAX / requestParams.pageSize
+        ? 0
+        : (requestParams.current - 1) * requestParams.pageSize;
     auto resultSet = stmt->ExecuteQuery(requestParams.pageSize, offset);
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set to query kernel detail data.", stmt->GetErrorMessage());
@@ -487,8 +644,7 @@ bool DbTraceDataBase::ExcecuteQueryKernelDetailData(std::unique_ptr<SqlitePrepar
     return true;
 }
 
-uint64_t DbTraceDataBase::QueryTotalKernel(const Protocol::KernelDetailsParams &requestParams, uint64_t minTimestamp)
-{
+uint64_t DbTraceDataBase::QueryTotalKernel(const Protocol::KernelDetailsParams &requestParams, uint64_t minTimestamp) {
     std::string sql = "SELECT count(1) as num FROM " + TABLE_COMPUTE_TASK_INFO;
     if (!requestParams.coreType.empty()) {
         sql += " AND accelerator_core = ? ";
@@ -513,9 +669,8 @@ uint64_t DbTraceDataBase::QueryTotalKernel(const Protocol::KernelDetailsParams &
     return total;
 }
 
-bool DbTraceDataBase::QueryCommunicationKernelInfo(const std::string &name, const std::string &rankId,
-                                                   CommunicationKernelBody &body)
-{
+bool DbTraceDataBase::QueryCommunicationKernelInfo(
+    const std::string &name, const std::string &rankId, CommunicationKernelBody &body) {
     std::string sql = "SELECT info.ROWID as id, info.groupName||'group' as tid, info.opName as name, 'HCCL' as pid, "
                       "info.startNs from COMMUNICATION_OP info ";
     auto getDeviceStmt = CreatPreparedStatement();
@@ -533,8 +688,8 @@ bool DbTraceDataBase::QueryCommunicationKernelInfo(const std::string &name, cons
         return false;
     }
     std::string deviceId = GetDeviceId(rankId);
-    std::unique_ptr<SqliteResultSet> resultSet = isDeviceIdUnique ? stmt->ExecuteQuery(name) :
-        stmt->ExecuteQuery(name, deviceId);
+    std::unique_ptr<SqliteResultSet> resultSet =
+        isDeviceIdUnique ? stmt->ExecuteQuery(name) : stmt->ExecuteQuery(name, deviceId);
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set to query kernel depth and thread.", stmt->GetErrorMessage());
         return false;
@@ -546,15 +701,15 @@ bool DbTraceDataBase::QueryCommunicationKernelInfo(const std::string &name, cons
         body.pid = resultSet->GetString("pid");
         body.rankId = QueryHostInfo() + rankId;
         body.startTime = resultSet->GetUint64("startNs");
-        body.startTime = body.startTime > Timeline::TraceTime::Instance().GetStartTime() ?
-                         body.startTime - Timeline::TraceTime::Instance().GetStartTime() : body.startTime;
+        body.startTime = body.startTime > Timeline::TraceTime::Instance().GetStartTime()
+            ? body.startTime - Timeline::TraceTime::Instance().GetStartTime()
+            : body.startTime;
     }
     return true;
 }
 
-bool DbTraceDataBase::QueryKernelDepthAndThread(const Protocol::KernelParams &params,
-    Protocol::OneKernelBody &responseBody, uint64_t minTimestamp)
-{
+bool DbTraceDataBase::QueryKernelDepthAndThread(
+    const Protocol::KernelParams &params, Protocol::OneKernelBody &responseBody, uint64_t minTimestamp) {
     // 精度缺失，设置500的浮动区间
     std::string sql = QUERY_KERNEL_SQL;
     auto stmt = CreatPreparedStatement(sql);
@@ -587,13 +742,11 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(const Protocol::KernelParams &pa
 }
 
 LayerStatData DbTraceDataBase::QueryLayerData(const Protocol::SystemViewParams &requestParams, const std::string &name,
-    const uint64_t &minTimestamp, const std::string &timeRangeConditionSql)
-{
+    const uint64_t &minTimestamp, const std::string &timeRangeConditionSql) {
     return LayerStatData();
 }
 
-std::vector<std::string> DbTraceDataBase::QueryCoreType()
-{
+std::vector<std::string> DbTraceDataBase::QueryCoreType() {
     std::vector<std::string> acceleratorCoreList;
     std::string sql = "SELECT DISTINCT TASKTYPE.value as accelerator_core FROM " + TABLE_COMPUTE_TASK_INFO +
         " JOIN STRING_IDS AS TASKTYPE ON TASKTYPE.id = COMPUTE_TASK_INFO.taskType ORDER BY accelerator_core";
@@ -614,14 +767,10 @@ std::vector<std::string> DbTraceDataBase::QueryCoreType()
     return acceleratorCoreList;
 }
 
-OneKernelData DbTraceDataBase::QueryKernelTid(uint64_t trackId)
-{
-    return OneKernelData();
-}
+OneKernelData DbTraceDataBase::QueryKernelTid(uint64_t trackId) { return OneKernelData(); }
 
 bool DbTraceDataBase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesSummaryParams &requestParams,
-    Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp)
-{
+    Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp) {
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql to query thread traces summary. ", sqlite3_errmsg(db));
@@ -629,8 +778,8 @@ bool DbTraceDataBase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesS
     }
     std::unique_ptr<SqliteResultSet> resultSet;
     try {
-        resultSet = TraceDatabaseHelper::QueryThreadTracesSummary(GetDeviceId(requestParams.cardId),
-                                                                  minTimestamp, stmt, requestParams);
+        resultSet = TraceDatabaseHelper::QueryThreadTracesSummary(
+            GetDeviceId(requestParams.cardId), minTimestamp, stmt, requestParams);
     } catch (DatabaseException &e) {
         ServerLog::Error("Query thread traces summary failed, ", e.What());
         return false;
@@ -645,8 +794,7 @@ bool DbTraceDataBase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesS
     TraceDatabaseHelper::ComputeSummarySlice(resultSet, unitTime, responseBody);
     return true;
 }
-void DbTraceDataBase::UpdateStartTime(const std::string &fileId)
-{
+void DbTraceDataBase::UpdateStartTime(const std::string &fileId) {
     sqlite3_stmt *stmt = nullptr;
     std::string sql;
     if (CheckTableExist(TABLE_API) && !CheckTableExist(TABLE_SESSION_TIME_INFO)) {
@@ -676,9 +824,8 @@ void DbTraceDataBase::UpdateStartTime(const std::string &fileId)
     sqlite3_finalize(stmt);
 }
 
-std::vector<OVERLAP_INFO> DbTraceDataBase::BuildOverlapInfoList(const std::vector<OVERLAP_INFO> &timeInfoList,
-                                                                const std::string &deviceId)
-{
+std::vector<OVERLAP_INFO> DbTraceDataBase::BuildOverlapInfoList(
+    const std::vector<OVERLAP_INFO> &timeInfoList, const std::string &deviceId) {
     std::vector<OVERLAP_INFO> overlapInfoList;
 
     // 客户要求Free的跨度从TASK表的最早开始时间到TASK表的最晚结束时间，这样TASK表开始和结束时非计算或通信的算子也显示为Free时间
@@ -689,12 +836,11 @@ std::vector<OVERLAP_INFO> DbTraceDataBase::BuildOverlapInfoList(const std::vecto
     }
     // 记录当前最大截结束时间对应的覆盖区块
     // 此处为了添加第一块数据
-    OVERLAP_INFO curBlock = OVERLAP_INFO(timeInfoList.begin()->startNs, timeInfoList.begin()->startNs,
-                                         -1);
-    for (const auto &timeInfo: timeInfoList) {
+    OVERLAP_INFO curBlock = OVERLAP_INFO(timeInfoList.begin()->startNs, timeInfoList.begin()->startNs, -1);
+    for (const auto &timeInfo : timeInfoList) {
         if (curBlock.type == 1) { // Communication = 1
-            overlapInfoList.emplace_back(curBlock.startNs,  // Communication(Not Overlapped) = 2
-                                         timeInfo.startNs > curBlock.endNs ? curBlock.endNs : timeInfo.startNs, 2);
+            overlapInfoList.emplace_back(curBlock.startNs, // Communication(Not Overlapped) = 2
+                timeInfo.startNs > curBlock.endNs ? curBlock.endNs : timeInfo.startNs, 2);
         }
         if (timeInfo.startNs > curBlock.endNs) {
             overlapInfoList.emplace_back(curBlock.endNs, timeInfo.startNs, 3); // Free = 3
@@ -709,8 +855,8 @@ std::vector<OVERLAP_INFO> DbTraceDataBase::BuildOverlapInfoList(const std::vecto
     }
     // 此处为了添加最后一块数据
     if (curBlock.type == 1) { // Communication = 1
-        overlapInfoList.emplace_back(curBlock.startNs,  // Communication(Not Overlapped) = 2
-                                     curBlock.endNs, 2);
+        overlapInfoList.emplace_back(curBlock.startNs, // Communication(Not Overlapped) = 2
+            curBlock.endNs, 2);
     }
 
     if (isQuerySuccess && curBlock.endNs < taskEarliestTimeAndLatestTime.second) {
@@ -719,13 +865,13 @@ std::vector<OVERLAP_INFO> DbTraceDataBase::BuildOverlapInfoList(const std::vecto
     return overlapInfoList;
 }
 
-bool DbTraceDataBase::QueryTaskEarliestAndLatestTimeExcludingCertainEvent(std::pair<int64_t, int64_t> &time,
-                                                                          const std::string &deviceId)
-{
+bool DbTraceDataBase::QueryTaskEarliestAndLatestTimeExcludingCertainEvent(
+    std::pair<int64_t, int64_t> &time, const std::string &deviceId) {
     // 查询TASK表的最早开始时间和最晚结束时间会排除特定类型事件，text和db保持一致，text由profiling保证
     sqlite3_stmt *stmt = nullptr;
     std::string sql = "SELECT min(main.startNs), max(main.endNs) FROM " + TABLE_TASK + " AS main INNER JOIN " +
-        TABLE_STRING_IDS + " AS si ON main.taskType = si.id "
+        TABLE_STRING_IDS +
+        " AS si ON main.taskType = si.id "
         "WHERE si.value NOT IN ('PROFILING_ENABLE', 'PROFILING_DISABLE', "
         "'FFTS_PLUS', 'KERNEL_AICORE', 'KERNEL_AIVEC', 'KERNEL_MIX_AIC', 'KERNEL_MIX_AIV') AND main.deviceId = ?";
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -756,8 +902,7 @@ bool DbTraceDataBase::QueryTaskEarliestAndLatestTimeExcludingCertainEvent(std::p
     return true;
 }
 
-bool DbTraceDataBase::GenerateOverlapAnalysis()
-{
+bool DbTraceDataBase::GenerateOverlapAnalysis() {
     {
         std::unique_lock<std::recursive_mutex> lockGuard(mutex);
         ExecSql("delete from OVERLAP_ANALYSIS where 1 = 1");
@@ -766,7 +911,7 @@ bool DbTraceDataBase::GenerateOverlapAnalysis()
     // 考虑到PyTorch多Device场景，这里需要遍历所有deviceId
     // NPU_INFO表除了纯Host数据没有，其它场景保证有，它的id列保存了所有的deviceId
     std::vector<uint64_t> deviceIdList = TraceDatabaseHelper::GetDeviceIdList(path);
-    for (const auto deviceIdNum: deviceIdList) {
+    for (const auto deviceIdNum : deviceIdList) {
         std::string deviceId = std::to_string(deviceIdNum);
         std::vector<OVERLAP_INFO> timeInfoList; // 包含computing,Communication 覆盖数据
         QueryTaskTimeInfo(true, timeInfoList, deviceId);
@@ -776,7 +921,8 @@ bool DbTraceDataBase::GenerateOverlapAnalysis()
         }
         std::sort(timeInfoList.begin(), timeInfoList.end(), std::less<OVERLAP_INFO>());
         const std::vector<OVERLAP_INFO> overlapInfoList = BuildOverlapInfoList(timeInfoList, deviceId);
-        if (!InsertOverlapAnalysisInfo(timeInfoList, deviceId) || !InsertOverlapAnalysisInfo(overlapInfoList, deviceId)) {
+        if (!InsertOverlapAnalysisInfo(timeInfoList, deviceId) ||
+            !InsertOverlapAnalysisInfo(overlapInfoList, deviceId)) {
             Server::ServerLog::Error("Failed to generate overlap analysis.");
             return false;
         }
@@ -785,9 +931,8 @@ bool DbTraceDataBase::GenerateOverlapAnalysis()
     return true;
 }
 
-bool DbTraceDataBase::InsertOverlapAnalysisInfo(const std::vector<OVERLAP_INFO> &overlapInfoList,
-                                                const std::string &rankId)
-{
+bool DbTraceDataBase::InsertOverlapAnalysisInfo(
+    const std::vector<OVERLAP_INFO> &overlapInfoList, const std::string &rankId) {
     std::lock_guard<std::recursive_mutex> lockGuard(mutex);
     if (!insertOverlapStmt) {
         ServerLog::Error("Failed to InsertOverlap due to invalid pointer.");
@@ -808,8 +953,8 @@ bool DbTraceDataBase::InsertOverlapAnalysisInfo(const std::vector<OVERLAP_INFO> 
         }
         for (size_t tmpIndex = start; tmpIndex < start + length; tmpIndex++) {
             insertOverlapStmt->Reset();
-            insertOverlapStmt->BindParams(rankId, overlapInfoList[tmpIndex].startNs,
-                                          overlapInfoList[tmpIndex].endNs, overlapInfoList[tmpIndex].type);
+            insertOverlapStmt->BindParams(rankId, overlapInfoList[tmpIndex].startNs, overlapInfoList[tmpIndex].endNs,
+                overlapInfoList[tmpIndex].type);
             if (!insertOverlapStmt->Execute()) {
                 ServerLog::Error("Failed to InsertOverlap");
                 result = false;
@@ -824,9 +969,8 @@ bool DbTraceDataBase::InsertOverlapAnalysisInfo(const std::vector<OVERLAP_INFO> 
     return result;
 }
 
-void DbTraceDataBase::QueryTaskTimeInfo(bool isComputing, std::vector<OVERLAP_INFO> &timeInfoList,
-                                        const std::string &deviceId)
-{
+void DbTraceDataBase::QueryTaskTimeInfo(
+    bool isComputing, std::vector<OVERLAP_INFO> &timeInfoList, const std::string &deviceId) {
     std::string sql;
     bool isUniqueDevice = TraceDatabaseHelper::IsDeviceIdUnique(path);
     if (isComputing) {
@@ -841,9 +985,9 @@ void DbTraceDataBase::QueryTaskTimeInfo(bool isComputing, std::vector<OVERLAP_IN
     }
     auto stmt = CreatPreparedStatement();
     try {
-        auto resultSet = (!isComputing && isUniqueDevice) ? TraceDatabaseHelper::ExecuteQuery(stmt, sql) :
-            TraceDatabaseHelper::ExecuteQuery(stmt, sql, deviceId);
-        OVERLAP_INFO curInfo {};
+        auto resultSet = (!isComputing && isUniqueDevice) ? TraceDatabaseHelper::ExecuteQuery(stmt, sql)
+                                                          : TraceDatabaseHelper::ExecuteQuery(stmt, sql, deviceId);
+        OVERLAP_INFO curInfo{};
         bool hasCurInfo = false;
         while (resultSet->Next()) { // Computing = 0, Communication = 1
             auto info = OVERLAP_INFO(resultSet->GetInt64("startNs"), resultSet->GetInt64("endNs"), isComputing ? 0 : 1);
@@ -866,8 +1010,7 @@ void DbTraceDataBase::QueryTaskTimeInfo(bool isComputing, std::vector<OVERLAP_IN
     }
 }
 
-void DbTraceDataBase::UpdateWaitTime()
-{
+void DbTraceDataBase::UpdateWaitTime() {
     auto stmt = CreatPreparedStatement(FULL_DB_UPDATE_TIME); // 查询数据
     auto updateComputeStmt = CreatPreparedStatement("UPDATE COMPUTE_TASK_INFO SET waitNs = ? WHERE ROWID = ?;");
     auto updateCommunicationStmt = CreatPreparedStatement("UPDATE COMMUNICATION_OP SET waitNs = ? WHERE ROWID = ?;");
@@ -910,8 +1053,7 @@ void DbTraceDataBase::UpdateWaitTime()
 }
 
 bool DbTraceDataBase::UpdateTaskInfoWaitTime(std::unique_ptr<SqlitePreparedStatement> &updateComputeStmt,
-                                             std::unique_ptr<SqlitePreparedStatement> &updateCommunicationStmt)
-{
+    std::unique_ptr<SqlitePreparedStatement> &updateCommunicationStmt) {
     std::lock_guard<std::recursive_mutex> lockGuard(mutex);
     if (!StartTransaction()) {
         ServerLog::Error("Failed to start Transaction.");
@@ -919,8 +1061,8 @@ bool DbTraceDataBase::UpdateTaskInfoWaitTime(std::unique_ptr<SqlitePreparedState
     }
     auto result = true;
     for (const auto &item : taskWaitTimeCache) {
-        std::unique_ptr<SqlitePreparedStatement> &refStmt = item.type == "compute" ?
-                updateComputeStmt : updateCommunicationStmt;
+        std::unique_ptr<SqlitePreparedStatement> &refStmt =
+            item.type == "compute" ? updateComputeStmt : updateCommunicationStmt;
         refStmt->Reset();
         refStmt->BindParams(item.waitTime, item.id);
         if (!refStmt->Execute()) {
@@ -937,45 +1079,43 @@ bool DbTraceDataBase::UpdateTaskInfoWaitTime(std::unique_ptr<SqlitePreparedState
     return result;
 }
 
-    std::unordered_map<std::string, std::string> DbTraceDataBase::QueryRankIdAndDeviceMap()
-    {
-        std::unordered_map<std::string, std::string> rankAndDeviceMap;
-        sqlite3_stmt *stmt = nullptr;
-        std::string sql;
-        FileType type = DataBaseManager::Instance().GetFileType(path);
-        if (type == FileType::MS_PROF || !CheckTableDataInvalid(TABLE_PYTORCH_INFO)) {
-            return rankAndDeviceMap;
-        } else if (type == FileType::PYTORCH) {
-            sql = "SELECT DISTINCT deviceId, rankId FROM " + TABLE_PYTORCH_INFO;
-        }
-        int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-        if (result != SQLITE_OK) {
-            Server::ServerLog::Error("Failed to query rank id device map. Msg: ", sqlite3_errmsg(db), " ", result);
-            sqlite3_finalize(stmt);
-            return rankAndDeviceMap;
-        }
-
-        // PyTorch多Device场景，map实际保存deviceId到自身的映射，其它场景保存rankId到deviceId的映射
-        // NPU_INFO表除了纯Host数据没有，其它场景保证有，它的id列保存了所有的deviceId
-        bool isMultiDevice = TraceDatabaseHelper::GetDeviceIdList(path).size() > 1;
-        while (sqlite3_step(stmt) == SQLITE_ROW) {
-            std::string deviceId = sqlite3_column_string(stmt, resultStartIndex);
-            std::string rankId = sqlite3_column_string(stmt, resultStartIndex + 1);
-            // rankId存在多个映射值时取较大值，为-1时丢弃
-            if (deviceId == "-1") {
-                continue;
-            }
-            if (isMultiDevice) {
-                rankId = deviceId;
-            }
-            rankAndDeviceMap[rankId] = StringUtil::StrNumMax(deviceId, rankAndDeviceMap[rankId]);
-        }
+std::unordered_map<std::string, std::string> DbTraceDataBase::QueryRankIdAndDeviceMap() {
+    std::unordered_map<std::string, std::string> rankAndDeviceMap;
+    sqlite3_stmt *stmt = nullptr;
+    std::string sql;
+    FileType type = DataBaseManager::Instance().GetFileType(path);
+    if (type == FileType::MS_PROF || !CheckTableDataInvalid(TABLE_PYTORCH_INFO)) {
+        return rankAndDeviceMap;
+    } else if (type == FileType::PYTORCH) {
+        sql = "SELECT DISTINCT deviceId, rankId FROM " + TABLE_PYTORCH_INFO;
+    }
+    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (result != SQLITE_OK) {
+        Server::ServerLog::Error("Failed to query rank id device map. Msg: ", sqlite3_errmsg(db), " ", result);
         sqlite3_finalize(stmt);
         return rankAndDeviceMap;
     }
 
-std::string DbTraceDataBase::GetDeviceId(const std::string &rankIdWithHost)
-{
+    // PyTorch多Device场景，map实际保存deviceId到自身的映射，其它场景保存rankId到deviceId的映射
+    // NPU_INFO表除了纯Host数据没有，其它场景保证有，它的id列保存了所有的deviceId
+    bool isMultiDevice = TraceDatabaseHelper::GetDeviceIdList(path).size() > 1;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        std::string deviceId = sqlite3_column_string(stmt, resultStartIndex);
+        std::string rankId = sqlite3_column_string(stmt, resultStartIndex + 1);
+        // rankId存在多个映射值时取较大值，为-1时丢弃
+        if (deviceId == "-1") {
+            continue;
+        }
+        if (isMultiDevice) {
+            rankId = deviceId;
+        }
+        rankAndDeviceMap[rankId] = StringUtil::StrNumMax(deviceId, rankAndDeviceMap[rankId]);
+    }
+    sqlite3_finalize(stmt);
+    return rankAndDeviceMap;
+}
+
+std::string DbTraceDataBase::GetDeviceId(const std::string &rankIdWithHost) {
     auto hostStr = QueryHostInfo();
     auto rankAndDeviceMap = QueryRankIdAndDeviceMap();
     std::string realRankId = rankIdWithHost;
@@ -989,13 +1129,9 @@ std::string DbTraceDataBase::GetDeviceId(const std::string &rankIdWithHost)
     return realRankId;
 }
 
-std::string DbTraceDataBase::QueryHostInfo()
-{
-    return DbTraceDataBase::QueryHostInfoWithHostPath(hostPath);
-}
+std::string DbTraceDataBase::QueryHostInfo() { return DbTraceDataBase::QueryHostInfoWithHostPath(hostPath); }
 
-std::string DbTraceDataBase::QueryHostInfoWithHostPath(const std::string &path)
-{
+std::string DbTraceDataBase::QueryHostInfoWithHostPath(const std::string &path) {
     if (!host.empty() || !CheckTableDataInvalid(TABLE_HOST_INFO)) {
         return host;
     }
@@ -1033,8 +1169,7 @@ std::string DbTraceDataBase::QueryHostInfoWithHostPath(const std::string &path)
     return host;
 }
 
-std::vector<std::string> DbTraceDataBase::QueryRankId()
-{
+std::vector<std::string> DbTraceDataBase::QueryRankId() {
     if (!rankIds.empty()) {
         return rankIds;
     }
@@ -1069,8 +1204,7 @@ std::vector<std::string> DbTraceDataBase::QueryRankId()
     return rankIds;
 }
 
-bool DbTraceDataBase::CheckTableDataInvalid(std::string tableName)
-{
+bool DbTraceDataBase::CheckTableDataInvalid(std::string tableName) {
     if (!CheckTableExist(tableName)) {
         return false;
     }
@@ -1090,14 +1224,12 @@ bool DbTraceDataBase::CheckTableDataInvalid(std::string tableName)
     return count != 0;
 }
 
-bool DbTraceDataBase::OpenDb(const std::string &dbPath, bool clearAllTable)
-{
+bool DbTraceDataBase::OpenDb(const std::string &dbPath, bool clearAllTable) {
     this->hostPath = DbTraceDataBase::GetHostPath(dbPath);
     return Database::OpenDb(dbPath, clearAllTable) && QueryMetaVersion() && SetConfig();
 }
 
-std::string DbTraceDataBase::GetHostPath(const std::string &filePath)
-{
+std::string DbTraceDataBase::GetHostPath(const std::string &filePath) {
     if (std::empty(filePath)) {
         return "";
     }
@@ -1107,8 +1239,7 @@ std::string DbTraceDataBase::GetHostPath(const std::string &filePath)
     std::string result;
     // 查找第一个出现的以 "PROF_" 开头或以 "_ascend_pt" 或 "_ascend_ms" 结尾的部分
     for (const auto &fileStr : pathList) {
-        if (StringUtil::StartWith(fileStr, "PROF_") ||
-            StringUtil::EndWith(fileStr, "_ascend_pt") ||
+        if (StringUtil::StartWith(fileStr, "PROF_") || StringUtil::EndWith(fileStr, "_ascend_pt") ||
             StringUtil::EndWith(fileStr, "_ascend_ms")) {
             return result;
         }
@@ -1118,26 +1249,18 @@ std::string DbTraceDataBase::GetHostPath(const std::string &filePath)
     return "";
 }
 
-bool DbTraceDataBase::InitConnectionCats()
-{
-    return ExecSql(DbSqlDefs::GetConnectionCatSql());
-}
+bool DbTraceDataBase::InitConnectionCats() { return ExecSql(DbSqlDefs::GetConnectionCatSql()); }
 
-std::string DbTraceDataBase::GetStringCacheValue(const std::string& path, const std::string& key)
-{
+std::string DbTraceDataBase::GetStringCacheValue(const std::string &path, const std::string &key) {
     if (stringsCache.count(path) == 0 || stringsCache.at(path).count(key) == 0) {
         return key;
     }
     return stringsCache.at(path)[key];
 }
 
-void DbTraceDataBase::ClearStringsCache()
-{
-    stringsCache = {};
-}
+void DbTraceDataBase::ClearStringsCache() { stringsCache = {}; }
 
-void DbTraceDataBase::InitStringsCache()
-{
+void DbTraceDataBase::InitStringsCache() {
     if (!stringsCache[path].empty()) {
         return;
     }
@@ -1157,8 +1280,7 @@ void DbTraceDataBase::InitStringsCache()
     }
 }
 
-void DbTraceDataBase::InitMetaDataInfo()
-{
+void DbTraceDataBase::InitMetaDataInfo() {
     if (CheckTableExist(TABLE_META_DATA)) {
         std::string groupInfoStr = QueryValueFromMetaDataByName("parallel_group_info");
         auto groupInfoList = MetaDataParser::ParserParallelGroupInfoByText(groupInfoStr);
@@ -1166,19 +1288,17 @@ void DbTraceDataBase::InitMetaDataInfo()
     }
 }
 
-void DbTraceDataBase::CreateTemporaryTable()
-{
+void DbTraceDataBase::CreateTemporaryTable() {
     std::lock_guard<std::recursive_mutex> lock(mutex);
     // 初始化所有全量查询功能需要的表，空表不影响展示，方便sql扩展
-    for (const auto &item: FULL_DB_TABLE_MAP) {
+    for (const auto &item : FULL_DB_TABLE_MAP) {
         if (!CheckTableExist(item.first)) {
             ExecSql(item.second);
         }
     }
 }
 
-void DbTraceDataBase::AddHelperColumnsAndSetStatus()
-{
+void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
     auto isVersionChange = IsDatabaseVersionChange();
     if (!isVersionChange) {
         return;
@@ -1213,8 +1333,7 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus()
     }
     AddColumns2Table(isExistPytorch, TABLE_API, std::string(PytorchApiColumn::DEPTH), "integer");
     AddColumns2Table(isExistCann, TABLE_CANN_API, std::string(PytorchApiColumn::DEPTH), "integer");
-    AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "waitNs",
-                     "INTEGER");
+    AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "waitNs", "INTEGER");
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "waitNs", "integer");
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "opConnectionId", "TEXT");
     for (const auto &status : DB_STATUS_LIST) {
@@ -1222,8 +1341,7 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus()
     }
 }
 
-bool DbTraceDataBase::InitStmt()
-{
+bool DbTraceDataBase::InitStmt() {
     if (initStmt) {
         return true;
     }
@@ -1265,8 +1383,7 @@ bool DbTraceDataBase::InitStmt()
     return true;
 }
 
-bool DbTraceDataBase::SetConfig()
-{
+bool DbTraceDataBase::SetConfig() {
     if (!Database::SetConfig()) {
         return false;
     }
@@ -1282,40 +1399,39 @@ bool DbTraceDataBase::SetConfig()
     return ExecSql("PRAGMA case_sensitive_like=1;");
 }
 
-void DbTraceDataBase::AddColumns2Table(const bool isExist, const std::string &tableName, const std::string &columnName,
-                                       const std::string &columnType)
-{
+void DbTraceDataBase::AddColumns2Table(
+    const bool isExist, const std::string &tableName, const std::string &columnName, const std::string &columnType) {
     if (isExist && !CheckColumnExist(tableName, columnName)) {
         ExecSql("alter table " + tableName + " add column " + columnName + " " + columnType + ";");
     }
 }
 
-bool DbTraceDataBase::QueryHostMetadata(const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+bool DbTraceDataBase::QueryHostMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     PROCESS_TYPE types[] = {PROCESS_TYPE::CANN_API, PROCESS_TYPE::API, PROCESS_TYPE::OSRT_API, PROCESS_TYPE::MS_TX,
-                            PROCESS_TYPE::PYTHON_GC};
+        PROCESS_TYPE::PYTHON_GC};
     std::map<std::string, std::vector<MetaDataDto>> threadMap;
     for (const auto &type : types) {
         auto typeName = ENUM_TO_STR(type).value_or("");
         std::string sql;
         switch (type) {
-            case PROCESS_TYPE::CANN_API:
-                sql = QUERY_HOST_METADATA_CANN_SQL;
-                break;
-            case PROCESS_TYPE::API:
-                sql = QUERY_HOST_METADATA_PYTORCH_SQL;
-                break;
-            case PROCESS_TYPE::OSRT_API:
-                sql = QUERY_HOST_METADATA_OSRT_SQL;
-                break;
-            case PROCESS_TYPE::MS_TX:
-                sql = QUERY_HOST_METADATA_MSTX_SQL;
-                break;
-            case PROCESS_TYPE::PYTHON_GC:
-                sql = QUERY_HOST_METADATA_PYTHONGC_SQL;
-                break;
-            default:
-                return false;
+        case PROCESS_TYPE::CANN_API:
+            sql = QUERY_HOST_METADATA_CANN_SQL;
+            break;
+        case PROCESS_TYPE::API:
+            sql = QUERY_HOST_METADATA_PYTORCH_SQL;
+            break;
+        case PROCESS_TYPE::OSRT_API:
+            sql = QUERY_HOST_METADATA_OSRT_SQL;
+            break;
+        case PROCESS_TYPE::MS_TX:
+            sql = QUERY_HOST_METADATA_MSTX_SQL;
+            break;
+        case PROCESS_TYPE::PYTHON_GC:
+            sql = QUERY_HOST_METADATA_PYTHONGC_SQL;
+            break;
+        default:
+            return false;
         }
         auto stmt = CreatPreparedStatement();
         try {
@@ -1337,9 +1453,9 @@ bool DbTraceDataBase::QueryHostMetadata(const std::string &fileId, std::vector<s
     return true;
 }
 
-void DbTraceDataBase::DealHostMetadata(const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData,
-                                       std::map<std::string, std::vector<MetaDataDto>> &threadMap)
-{
+void DbTraceDataBase::DealHostMetadata(const std::string &fileId,
+    std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData,
+    std::map<std::string, std::vector<MetaDataDto>> &threadMap) {
     uint64_t curPid = 0;
     std::unique_ptr<UnitTrack> process;
     for (auto &thread : threadMap) {
@@ -1351,7 +1467,7 @@ void DbTraceDataBase::DealHostMetadata(const std::string &fileId, std::vector<st
                 metaData.emplace_back(std::move(process));
             }
             process = GenerateBaseUnitTrack("process", fileId, thread.first, "Process " + std::to_string(pid),
-            ENUM_TO_STR(PROCESS_TYPE::PROCESS).value());
+                ENUM_TO_STR(PROCESS_TYPE::PROCESS).value());
             curPid = pid;
         }
         auto threadUnit = GenerateBaseUnitTrack("process", fileId, thread.first, "Thread " + std::to_string(tid),
@@ -1392,8 +1508,7 @@ void DbTraceDataBase::DealHostMetadata(const std::string &fileId, std::vector<st
 
 std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateBaseUnitTrack(const std::string &type,
     const std::string &cardId, const std::string &processId, const std::string &processName,
-    const std::string &metaType)
-{
+    const std::string &metaType) {
     std::unique_ptr<Protocol::UnitTrack> unitTrack = std::make_unique<Protocol::UnitTrack>();
     unitTrack->type = type;
     unitTrack->metaData.cardId = cardId;
@@ -1403,38 +1518,38 @@ std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateBaseUnitTrack(cons
     return unitTrack;
 }
 
-std::string DbTraceDataBase::GetHcclOperatorMetaData(const std::string &fileId)
-{
+std::string DbTraceDataBase::GetHcclOperatorMetaData(const std::string &fileId) {
     // 这里COMMUNICATION_TASK_INFO和COMMUNICATION_OP表关联后，按照planeId和groupName分组，
     // 理论上每一组都会有很多globalTaskId，但是我们只需要任意一个globalTaskId即可，就能够根据这个信息去Task表关联判断deviceId的信息
     // 这里仍然使用关联TASK表去判断deviceId是为了兼容老数据，后续可以完全使用COMMUNICATION_OP表进行判断
     // 届时可以去掉这里globalTaskId的逻辑
     std::string sql = "with main as (SELECT groupTemp.planeId, groupTemp.groupName ,sids.value AS groupNameValue FROM "
-       " (SELECT info.planeId, op.groupName, info.globalTaskId FROM COMMUNICATION_TASK_INFO info "
-       " JOIN COMMUNICATION_OP op ON op.opId = info.opId GROUP BY info.planeId,op.groupName ) groupTemp "
-       " LEFT JOIN TASK task ON task.globalTaskId = groupTemp.globalTaskId "
-       " LEFT JOIN STRING_IDS sids ON groupTemp.groupName = sids.id "
-       " WHERE task.deviceId = ?) "
-       " select 'Plane ' || planeId as name, groupName || '_' || planeId as tid, 0 as maxDepth, "
-       " groupName, groupNameValue, planeId from main group by planeId, groupName union ";
+                      " (SELECT info.planeId, op.groupName, info.globalTaskId FROM COMMUNICATION_TASK_INFO info "
+                      " JOIN COMMUNICATION_OP op ON op.opId = info.opId GROUP BY info.planeId,op.groupName ) groupTemp "
+                      " LEFT JOIN TASK task ON task.globalTaskId = groupTemp.globalTaskId "
+                      " LEFT JOIN STRING_IDS sids ON groupTemp.groupName = sids.id "
+                      " WHERE task.deviceId = ?) "
+                      " select 'Plane ' || planeId as name, groupName || '_' || planeId as tid, 0 as maxDepth, "
+                      " groupName, groupNameValue, planeId from main group by planeId, groupName union ";
     if (!TraceDatabaseHelper::IsDeviceIdUnique(fileId)) {
         // deviceId不唯一，走老逻辑
         sql += "select 'Group ' || ((row_number() over ()) -1) || ' Communication' as name, "
-           " groupName || 'group' as tid, 0 as maxDepth, groupName, groupNameValue, -1 as planeId from main "
-           " group by groupName order by groupName ASC, planeId ASC";
+               " groupName || 'group' as tid, 0 as maxDepth, groupName, groupNameValue, -1 as planeId from main "
+               " group by groupName order by groupName ASC, planeId ASC";
     } else {
         // deviceId唯一，走新逻辑
         sql += "SELECT 'Group ' || ( ( row_number() OVER () ) - 1 ) || ' Communication' AS name, "
-           "groupName || 'group' AS tid, 0 AS maxDepth, groupName, sids.value as groupNameValue, - 1 AS planeId FROM " +
-           TABLE_COMMUNICATION_OP + " op left join STRING_IDS sids on op.groupName = sids.id GROUP BY groupName "
-           "order by groupName ASC, planeId ASC";
+               "groupName || 'group' AS tid, 0 AS maxDepth, groupName, sids.value as groupNameValue, - 1 AS planeId "
+               "FROM " +
+            TABLE_COMMUNICATION_OP +
+            " op left join STRING_IDS sids on op.groupName = sids.id GROUP BY groupName "
+            "order by groupName ASC, planeId ASC";
     }
     return sql;
 }
 
-bool DbTraceDataBase::QueryAscendHardwareOperatorMetadata(const std::string &fileId,
-                                                          std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+bool DbTraceDataBase::QueryAscendHardwareOperatorMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     // 这个函数会将Device侧的非MSTX事件和MSTX事件分开显示，其中MSTX事件会分domainId展示，且摆放在非MSTX事件的上方
     // 因为TASK表没有字段表征该事件是否为MSTX事件，所以需要和MSTX_EVENTS表连接，和MSTX_EVENTS表中具有相同connectionId的事件才是Device侧的MSTX事件
     // 因为DbTraceDataBase在执行OpenDb()方法时当MSTX_EVENTS表不存在时，会创建临时表MSTX_EVENTS，所以可以默认MSTX_EVENTS表在操作数据库时存在
@@ -1443,11 +1558,17 @@ bool DbTraceDataBase::QueryAscendHardwareOperatorMetadata(const std::string &fil
     // 非MSTX事件的threadId是其Stream编号，MSTX事件的threadId是{Stream编号}_{domain编号}
     PROCESS_TYPE type = PROCESS_TYPE::ASCEND_HARDWARE;
     std::string sql = "SELECT table1.streamId AS tid, table2.domainId AS did, "
-        "table3.value AS dname, MAX(table1.depth) AS maxDepth "
-        "FROM " + TABLE_TASK + " AS table1 "
-        "LEFT JOIN " + TABLE_MSTX_EVENTS + " AS table2 "
+                      "table3.value AS dname, MAX(table1.depth) AS maxDepth "
+                      "FROM " +
+        TABLE_TASK +
+        " AS table1 "
+        "LEFT JOIN " +
+        TABLE_MSTX_EVENTS +
+        " AS table2 "
         "ON table1.connectionId = table2.connectionId "
-        "LEFT JOIN " + TABLE_STRING_IDS + " AS table3 "
+        "LEFT JOIN " +
+        TABLE_STRING_IDS +
+        " AS table3 "
         "ON table2.domainId = table3.id "
         "WHERE table1.deviceId = ? "
         "GROUP BY table1.streamId, table2.domainId, table3.value "
@@ -1494,9 +1615,8 @@ bool DbTraceDataBase::QueryAscendHardwareOperatorMetadata(const std::string &fil
     return true;
 }
 
-bool DbTraceDataBase::QueryHCCLOperatorMetadata(const std::string &fileId,
-                                                std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+bool DbTraceDataBase::QueryHCCLOperatorMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     PROCESS_TYPE type = PROCESS_TYPE::HCCL;
     std::string sql = GetHcclOperatorMetaData(fileId);
     auto stmt = CreatPreparedStatement();
@@ -1523,9 +1643,8 @@ bool DbTraceDataBase::QueryHCCLOperatorMetadata(const std::string &fileId,
 }
 
 // 这是一个补丁，后续需要修改掉
-void DbTraceDataBase::UpdataCommucationThreadName(const PROCESS_TYPE &type,
-    std::unique_ptr<Protocol::UnitTrack> &process) const
-{
+void DbTraceDataBase::UpdataCommucationThreadName(
+    const PROCESS_TYPE &type, std::unique_ptr<Protocol::UnitTrack> &process) const {
     const std::string suffix = "group";
     if (!std::empty(metaVersion) && !StringUtil::StartWith(metaVersion, "1.0") && type == PROCESS_TYPE::HCCL) {
         for (auto &item : process->children) {
@@ -1542,8 +1661,7 @@ void DbTraceDataBase::UpdataCommucationThreadName(const PROCESS_TYPE &type,
 
 void DbTraceDataBase::ProcessThreadUnit(std::unique_ptr<Protocol::UnitTrack> &process,
     std::unique_ptr<SqliteResultSet> &resultSet, std::unique_ptr<Protocol::UnitTrack> &thread,
-    const std::string &threadId, const PROCESS_TYPE &type) const
-{
+    const std::string &threadId, const PROCESS_TYPE &type) const {
     const static std::string WRONG_THREAD_ID = std::to_string(UINT32_MAX);
     // hccl的plane泳道约定一个异常数据不做展示
     if (threadId.find(WRONG_THREAD_ID) != std::string::npos) {
@@ -1564,12 +1682,11 @@ void DbTraceDataBase::ProcessThreadUnit(std::unique_ptr<Protocol::UnitTrack> &pr
     process->children.emplace_back(std::move(thread));
 }
 
-bool DbTraceDataBase::QueryCounterMetadata(const std::string &fileId,
-    std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+bool DbTraceDataBase::QueryCounterMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     PROCESS_TYPE types[] = {PROCESS_TYPE::HBM, PROCESS_TYPE::LLC, PROCESS_TYPE::SAMPLE_PMU, PROCESS_TYPE::QOS,
-                            PROCESS_TYPE::NIC, PROCESS_TYPE::PCIE, PROCESS_TYPE::HCCS, PROCESS_TYPE::AI_CORE,
-                            PROCESS_TYPE::ACC_PMU, PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC, PROCESS_TYPE::NPU_MEM};
+        PROCESS_TYPE::NIC, PROCESS_TYPE::PCIE, PROCESS_TYPE::HCCS, PROCESS_TYPE::AI_CORE, PROCESS_TYPE::ACC_PMU,
+        PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC, PROCESS_TYPE::NPU_MEM};
     for (const auto &type : types) {
         std::string processName;
         std::string metaType;
@@ -1609,8 +1726,7 @@ bool DbTraceDataBase::QueryCounterMetadata(const std::string &fileId,
 }
 
 bool DbTraceDataBase::QueryCounterMetadataGenerateInfo(const Dic::Module::Timeline::PROCESS_TYPE &type,
-    std::string &processName, std::string &metaType, std::string &sql)
-{
+    std::string &processName, std::string &metaType, std::string &sql) {
     std::string tableName;
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
@@ -1630,13 +1746,12 @@ bool DbTraceDataBase::QueryCounterMetadataGenerateInfo(const Dic::Module::Timeli
     return true;
 }
 
-bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params,
-    Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp)
-{
+bool DbTraceDataBase::SearchAllSlicesDetails(
+    const Protocol::SearchAllSliceParams &params, Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp) {
     uint64_t count = 0;
     uint64_t offset = (params.current - 1) * params.pageSize;
-    const std::string &sql = GetSearchAllSlicesDetailsSql(params.isMatchExact, params.isMatchCase,
-        params.order, params.orderBy, params.rankId);
+    const std::string &sql = GetSearchAllSlicesDetailsSql(
+        params.isMatchExact, params.isMatchCase, params.order, params.orderBy, params.rankId);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query slice name failed!.");
@@ -1676,8 +1791,7 @@ bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParam
 }
 
 bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParams &params,
-    Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec)
-{
+    Protocol::SearchAllSlicesBody &body, uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec) {
     if (trackQueryVec.empty() && !params.metadataList.empty()) {
         return true;
     }
@@ -1703,7 +1817,8 @@ bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParam
         searchAllSlice.fileId = params.fileId;
         searchAllSlice.name = resultSet->GetString("value");
         searchAllSlice.timestamp = resultSet->GetUint64("timestamp");
-        searchAllSlice.duration = resultSet->GetUint64("endTime") - searchAllSlice.timestamp; // 保证 endTime > timestamp
+        searchAllSlice.duration =
+            resultSet->GetUint64("endTime") - searchAllSlice.timestamp; // 保证 endTime > timestamp
         searchAllSlice.timestamp -= minTimestamp; // 业务上 minTimestamp 是最小时间，保证 timestamp > minTimestamp
         searchAllSlice.id = resultSet->GetString("id");
         searchAllSlice.tid = resultSet->GetString("tid");
@@ -1727,18 +1842,16 @@ bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParam
 }
 
 // LCOV_EXCL_BR_STOP
-bool DbTraceDataBase::QueryEventsViewData(const Protocol::EventsViewParams &params, Protocol::EventsViewBody &body,
-    uint64_t minTimestamp)
-{
+bool DbTraceDataBase::QueryEventsViewData(
+    const Protocol::EventsViewParams &params, Protocol::EventsViewBody &body, uint64_t minTimestamp) {
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
         return false;
     }
     return TraceDatabaseHelper::QueryEventsViewData4Db(stmt, params, body, minTimestamp, GetDeviceId(params.rankId));
 }
-std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metadata &metaData,
-    uint64_t startTime, uint64_t endTime, const std::string &rankId, std::map<std::string, uint64_t> &selfTimeKeyValue)
-{
+std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metadata &metaData, uint64_t startTime,
+    uint64_t endTime, const std::string &rankId, std::map<std::string, uint64_t> &selfTimeKeyValue) {
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
         ServerLog::Error("Query_threads. Failed to prepare sql.", sqlite3_errmsg(db));
@@ -1785,9 +1898,6 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
     return completeSlice;
 }
 
-void DbTraceDataBase::Reset()
-{
-    stringsCache.clear();
-}
+void DbTraceDataBase::Reset() { stringsCache.clear(); }
 
 }
