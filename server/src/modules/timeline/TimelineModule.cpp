@@ -53,22 +53,16 @@
 #include "QueryMemcpyDetailHandler.h"
 #include "QueryMemcpyOverallHandler.h"
 #include "QuerySystemViewFtraceStatHandler.h"
+#include "RankOffsetHandler.h"
 
 namespace Dic {
 namespace Module {
 using namespace Dic::Module::Timeline;
-TimelineModule::TimelineModule() : BaseModule()
-{
-    moduleName = MODULE_TIMELINE;
-}
+TimelineModule::TimelineModule() : BaseModule() { moduleName = MODULE_TIMELINE; }
 
-TimelineModule::~TimelineModule()
-{
-    requestHandlerMap.clear();
-}
+TimelineModule::~TimelineModule() { requestHandlerMap.clear(); }
 
-void TimelineModule::RegisterRequestHandlers()
-{
+void TimelineModule::RegisterRequestHandlers() {
     requestHandlerMap.clear();
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
@@ -111,19 +105,17 @@ void TimelineModule::RegisterRequestHandlers()
     requestHandlerMap.emplace(REQ_RES_SEARCH_ALL_SLICES, std::make_unique<SearchAllSlicesHandler>());
     requestHandlerMap.emplace(REQ_RES_UNIT_EVENTS_VIEW, std::make_unique<QueryEventsViewHandler>());
     requestHandlerMap.emplace(REQ_RES_SYSTEM_VIEW_OVERALL, std::make_unique<QuerySystemViewOverallHandler>());
-    requestHandlerMap.emplace(REQ_RES_SYSTEM_VIEW_OVERALL_MORE_DETAILS,
-                              std::make_unique<QueryOverallMoreDetailsHandler>());
-    requestHandlerMap.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ,
-                              std::make_unique<QueryExpAnaAICoreFreqHandler>());
-    requestHandlerMap.emplace(REQ_RES_CREATE_CURVE,
-                              std::make_unique<CreateCurveHandler>());
+    requestHandlerMap.emplace(
+        REQ_RES_SYSTEM_VIEW_OVERALL_MORE_DETAILS, std::make_unique<QueryOverallMoreDetailsHandler>());
+    requestHandlerMap.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, std::make_unique<QueryExpAnaAICoreFreqHandler>());
+    requestHandlerMap.emplace(REQ_RES_CREATE_CURVE, std::make_unique<CreateCurveHandler>());
     requestHandlerMap.emplace(REQ_RES_MEMCPY_OVERALL, std::make_unique<QueryMemcpyOverallHandler>());
     requestHandlerMap.emplace(REQ_RES_MEMCPY_DETAIL, std::make_unique<QueryMemcpyDetailHandler>());
     requestHandlerMap.emplace(REQ_RES_SYSTEM_VIEW_FTRACE_STAT, std::make_unique<QuerySystemViewFtraceStatHandler>());
+    requestHandlerMap.emplace(REQ_RES_RANK_OFFSET, std::make_unique<RankOffsetHandler>());
 }
 
-void TimelineModule::OnRequest(std::unique_ptr<Protocol::Request> request)
-{
+void TimelineModule::OnRequest(std::unique_ptr<Protocol::Request> request) {
     BaseModule::OnRequest(std::move(request));
 };
 } // end of namespace Module
