@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+// clang-format off
 namespace Dic {
     const static std::string MSPROF_PREFIX = "[MSPROF]";
     const static std::string MSPROF_CONNECT = "__";
@@ -41,7 +42,7 @@ namespace Dic {
     R"((((trace_view|msprof(_slice_[0-9]{1,2})?_[0-9]{1,14})\.json)|)"
     R"((operator_memory|operator_memory(_slice_[0-9]{1,2})?_[0-9]{1,14})\.csv)$)";
     const std::string clusterReg = R"(cluster_analysis_output$)";
-    const std::string ftraceDbReg = R"(^ftrace_mindstudio_insight_data[0-9]*\.db$)";
+    const std::string ftraceDbReg = R"(^ftrace_data[0-9]*\.db$)";
     const std::string DBReg =
             R"((msprof_[0-9]{1,16}|((ascend_pytorch_profiler)(_[0-9]{1,16}){0,1})|cluster_analysis)\.db$)";
     const std::string msprofDBReg = R"(msprof_[0-9]{1,16}\.db$)";
@@ -67,5 +68,6 @@ namespace Dic {
     const static std::string WAIT_TIME = "Wait Time";
     const static std::string TRANSMIT_TIME = "Transmit Time";
 }
+// clang-format on
 
 #endif // PROFILER_SERVER_COMMONDEFS_H

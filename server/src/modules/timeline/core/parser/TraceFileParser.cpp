@@ -27,10 +27,12 @@
 #include "TrackInfoManager.h"
 #include "BaselineManager.h"
 #include "TraceFileParser.h"
+#include "CommonDefs.h"
 #include <algorithm>
 
 #include "ParseUnitManager.h"
 
+// clang-format off
 namespace Dic {
 namespace Module {
 namespace Timeline {
@@ -96,7 +98,7 @@ bool TraceFileParser::InitParser(const std::vector<std::string> &filePathArr,
         !Global::BaselineManager::Instance().IsBaselineRankId(rankId)) ||
         StringUtil::EndWith(filePathArr[0], "profiler.db") ||
         StringUtil::EndWith(filePathArr[0], "ms_service_parsed.db") ||
-        StringUtil::EndWith(filePathArr[0], "ftrace_mindstudio_insight_data.db")) {
+        RegexUtil::RegexMatch(FileUtil::GetFileName(filePathArr[0]), ftraceDbReg).has_value()) {
         uint64_t min = UINT64_MAX;
         uint64_t max = 0;
         if (!database->QueryExtremumTimestamp(min, max)) {
@@ -362,3 +364,4 @@ void TraceFileParser::DeleteParseFiles(const std::vector<std::string> &rankIds)
 } // end of namespace Timeline
 } // end of namespace Module
 } // end of namespace Dic
+// clang-format on

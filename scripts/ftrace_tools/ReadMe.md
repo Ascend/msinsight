@@ -161,7 +161,7 @@ python trace_convert.py [-h] [--input INPUT] [--output OUTPUT] [--format FORMAT]
 | 参数 | 说明 | 示例值 | 默认值 |
 |------|------|--------|--------|
 | `--input` | 输入的原始 trace 文件路径，通过 `trace_record.py` 生成 | `/path/to/trace_data.dat` | `trace.dat` |
-| `--output` | 输出的文件路径 | `trace.db` 或 `trace.json` | `ftrace_mindstudio_insight_data.db` |
+| `--output` | 输出的文件路径 | `trace.db` 或 `trace.json` | `ftrace_data.db` |
 | `--format` | 指定输出的数据格式，支持 `db` 或 `json` | `json` | `db` |
 | `--profiling_data` | 同步采集的Profiling数据文件路径，用于时间轴对齐，以便导入MindStudio Insight联合分析 | `/profiling/xxxx_ascend_pt` | - |
 | `--pid_mapping` | 容器场景下，可传入pid映射文件路径，进行容器与宿主机PID转换，详见[容器内外PID命名空间隔离场景下采集](#5-容器内外pid命名空间隔离场景下采集) | `pid_mapping.json`| - |
@@ -388,14 +388,14 @@ python trace_convert.py --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid
 
 > 多卡场景下，`--profiling_data`可指定为包含多卡的上级目录，或任意单卡数据目录。
 
-转换结果`ftrace_mindstudio_insight_data.db`默认保存在当前目录下。可将其导入MindStudio Insight，进行可视化分析。
+转换结果`ftrace_data.db`默认保存在当前目录下。可将其导入MindStudio Insight，进行可视化分析。
 
 ```bash
 .
 ├── ftrace_tools
 │   ├── trace.dat
-│   ├── trace.txt
-│   ├── ftrace_mindstudio_insight_data.db # ftrace转换结果
+│   ├── trace.txt
+│   ├── ftrace_data.db # ftrace转换结果
 │   ├── pid_mapping.json
 │   ├── trace_convert.py
 │   └── trace_record.py
