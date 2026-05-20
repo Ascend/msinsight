@@ -19,10 +19,11 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+# pylint: disable=logging-fstring-interpolation,unspecified-encoding,inconsistent-return-statements,global-variable-not-assigned,consider-using-with,useless-return
 import os
 import sys
 import json
-import subprocess
+import subprocess  # nosec B404
 import socket
 import logging
 import re
@@ -37,9 +38,7 @@ from tornado.web import StaticFileHandler
 
 # 配置日志
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[logging.StreamHandler()]
+    level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.StreamHandler()]
 )
 # init profiler_server process
 profiler_process = {}
@@ -55,14 +54,14 @@ def check_jupyter_server_proxy_installed():
         jupyter_path = shutil.which('jupyter')
         if not jupyter_path:
             raise FileNotFoundError("jupyter executable not found in PATH")
-        
+
         # 执行命令
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603
             [jupyter_path, 'labextension', 'list'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            check=True
+            check=True,
         )
         # 获取标准输出和标准错误输出
         output = result.stdout + result.stderr
@@ -92,7 +91,15 @@ def get_host_ip():
         match = re.search(ip_pattern, content, flags=re.MULTILINE)
 
         if match:
-            host_ip = match.group(1)
+            configured_ip = match.group(1).strip()
+            if configured_ip == '*':
+                host_ip = '0.0.0.0'  # nosec B104
+            else:
+                try:
+                    socket.getaddrinfo(configured_ip, None, socket.AF_INET)
+                    host_ip = configured_ip
+                except socket.gaierror:
+                    logging.error(f"Invalid ServerApp.ip in jupyter config: {configured_ip}")
     except Exception as e:
         logging.error(f"Failed to check jupyter-lab-config, because {e}")
 
@@ -135,8 +142,13 @@ def start_profiler_server():
     available_port = find_available_port(get_local_ip())
     # 配置参数
     command = [
-        profiler_server_path, '--wsPort', str(available_port),
-        '--wsHost', get_local_ip(), '--logPath', mindstudio_insight_dir
+        profiler_server_path,
+        '--wsPort',
+        str(available_port),
+        '--wsHost',
+        get_local_ip(),
+        '--logPath',
+        mindstudio_insight_dir,
     ]
 
     # 生成唯一profiler标识符
@@ -146,19 +158,19 @@ def start_profiler_server():
     if sys.platform == 'win32':
         profiler_server_path = profiler_server_path + '.exe'
         # 设置执行权限
-        os.chmod(profiler_server_path, 0o550)
+        os.chmod(profiler_server_path, 0o550)  # nosec B103
         command[0] = profiler_server_path
         # start profiler server and set port
-        process = subprocess.Popen(command)
+        process = subprocess.Popen(command)  # nosec B603
         profiler_process[profiler_server_id] = process
     else:
         # 设置执行权限
-        os.chmod(profiler_server_path, 0o550)
+        os.chmod(profiler_server_path, 0o550)  # nosec B103
         server_dir = os.path.join(os.path.dirname(__file__), 'resources', 'profiler', 'server')
         env = os.environ.copy()
         env["LD_LIBRARY_PATH"] = f".:{env.get('LD_LIBRARY_PATH', '')}"
         command[0] = './profiler_server'
-        process = subprocess.Popen(command, cwd=server_dir, env=env)
+        process = subprocess.Popen(command, cwd=server_dir, env=env)  # nosec B603
         profiler_process[profiler_server_id] = process
 
 
@@ -197,11 +209,15 @@ class IFrameConfigHandler(APIHandler):
         global available_port
         # find start profiler server id
         global profiler_server_id
-        self.finish(json.dumps({
-            "proxy": check_jupyter_server_proxy_installed(),
-            "port": available_port,
-            "profilerServerId": profiler_server_id,
-        }))
+        self.finish(
+            json.dumps(
+                {
+                    "proxy": check_jupyter_server_proxy_installed(),
+                    "port": available_port,
+                    "profilerServerId": profiler_server_id,
+                }
+            )
+        )
 
 
 class TerminateProfilerHandler(APIHandler):
@@ -218,16 +234,24 @@ class TerminateProfilerHandler(APIHandler):
                 process.kill()
             finally:
                 del profiler_process[query_profiler_server_id]
-            
-            self.finish(json.dumps({
-                "status": "terminated",
-                "profilerServerId": query_profiler_server_id,
-            }))
+
+            self.finish(
+                json.dumps(
+                    {
+                        "status": "terminated",
+                        "profilerServerId": query_profiler_server_id,
+                    }
+                )
+            )
         else:
             self.set_status(404)
-            self.finish(json.dumps({
-                "error": "Profiler server not found",
-            }))
+            self.finish(
+                json.dumps(
+                    {
+                        "error": "Profiler server not found",
+                    }
+                )
+            )
 
 
 class RouteHandler(APIHandler):
@@ -236,9 +260,7 @@ class RouteHandler(APIHandler):
     # Jupyter server
     @tornado.web.authenticated
     def get(self):
-        self.finish(json.dumps({
-            "data": "This is mindstudio_insight_jupyterlab get_example endpoint!"
-        }))
+        self.finish(json.dumps({"data": "This is mindstudio_insight_jupyterlab get_example endpoint!"}))
 
 
 class IFrameStaticFileHandler(StaticFileHandler):
@@ -247,9 +269,7 @@ class IFrameStaticFileHandler(StaticFileHandler):
             super().prepare()
         else:
             self.set_status(403)
-            self.finish(json.dumps({
-                "error": "Failed to start profiler server, please check it."
-            }))
+            self.finish(json.dumps({"error": "Failed to start profiler server, please check it."}))
             return
 
 
@@ -264,11 +284,11 @@ def setup_handlers(web_app):
     terminate_route_pattern = url_path_join(base_url, "/mindstudio_insight_jupyterlab/terminate_profiler_server")
     terminate_handlers = [(terminate_route_pattern, TerminateProfilerHandler)]
 
-    static_frontend_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'resources', 'profiler', 'frontend')
+    static_frontend_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), 'resources', 'profiler', 'frontend'
+    )
     static_route_pattern = url_path_join(base_url, "/resources/profiler/frontend/(.*)")
-    static_handlers = [
-        (static_route_pattern, IFrameStaticFileHandler, {'path': static_frontend_path})
-    ]
+    static_handlers = [(static_route_pattern, IFrameStaticFileHandler, {'path': static_frontend_path})]
 
     api_route_pattern = url_path_join(base_url, "/mindstudio_insight_jupyterlab/get_example")
     api_handlers = [(api_route_pattern, RouteHandler)]

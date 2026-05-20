@@ -21,17 +21,6 @@ document.addEventListener("DOMContentLoaded", function() {
     if (!network_container) return;
 
     var network = window.network;
-    if (!network) {
-        // 尝试从页面脚本获取 network 实例
-        var scripts = document.getElementsByTagName("script");
-        for (var i = 0; i < scripts.length; i++) {
-            if (scripts[i].text && scripts[i].text.includes("new vis.Network")) {
-                eval(scripts[i].text);
-                network = window.network;
-                break;
-            }
-        }
-    }
     if (!network) return;
 
     var NPU_NODE_PREFIX = "NPU_";
@@ -59,7 +48,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 });
             }
         });
-        
+
         var allNodes = network.body.data.nodes.get();
         allNodes.forEach(function(node) {
             if (node.id.toString().startsWith(NPU_NODE_PREFIX)) {
@@ -74,8 +63,8 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // 判断是否为 NPU-NPU 边
     function isNpuEdge(edge) {
-        return edge.from && edge.to && 
-            edge.from.toString().startsWith(NPU_NODE_PREFIX) && 
+        return edge.from && edge.to &&
+            edge.from.toString().startsWith(NPU_NODE_PREFIX) &&
             edge.to.toString().startsWith(NPU_NODE_PREFIX);
     }
 
@@ -84,7 +73,7 @@ document.addEventListener("DOMContentLoaded", function() {
         // 高亮相连节点
         var connectedNodes = [];
         var connectedEdges = network.getConnectedEdges(nodeId);
-        
+
         connectedEdges.forEach(function(edgeId) {
             var edge = network.body.data.edges.get(edgeId);
             if (edge && isNpuEdge(edge)) {
@@ -98,7 +87,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         dashes: origEdge.dashes
                     });
                 }
-                
+
                 // 获取相连节点
                 var otherNode = edge.from == nodeId ? edge.to : edge.from;
                 connectedNodes.push(otherNode);
