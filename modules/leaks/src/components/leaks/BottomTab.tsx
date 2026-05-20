@@ -53,6 +53,14 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
         }
     }, [detailContextKey, session.leaksWorkerInfo.clickItem, session.stateWorkerInfo.clickItem, session.clickEventItem]);
 
+    useEffect(() => {
+        if (session.deviceId !== '' || Object.keys(session.deviceIds).length > 0) {
+            return;
+        }
+        autoExpandedKeysRef.current.clear();
+        setActiveTab('sliceDetail');
+    }, [session.deviceId, session.deviceIds]);
+
     const changeHeight = (_: number, moveY: number): void => {
         if (!isExpand) {
             return;
@@ -766,6 +774,21 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         applyTabSelection(detailTabs.find(item => item.key === targetKey));
     };
 
+    const clearDetailState = (): void => {
+        detailStateCacheRef.current.clear();
+        detailTabLabelRefs.current.clear();
+        detailTabPositionsRef.current.clear();
+        detailTabsRef.current = [];
+        activeDetailTabKeyRef.current = '';
+        setNoData(false);
+        setContextMenu(menu => ({ ...menu, visible: false, key: '' }));
+        setDragDetailTabKey('');
+        setDragOverDetailTabKey('');
+        setDetailTabs([]);
+        setActiveDetailTabKey('');
+        applyTabSelection(undefined);
+    };
+
     useLayoutEffect(() => {
         const previousContextKey = detailContextKeyRef.current;
         if (previousContextKey === detailContextKey) {
@@ -1397,9 +1420,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             detailStateCacheRef.current.clear();
             deviceIdRef.current = session.deviceId;
         }
-        setNoData(false);
-        setDetailTabs([]);
-        setActiveDetailTabKey('');
+        clearDetailState();
     }, [session.deviceId]);
 
     const tabItems = detailTabs.map(tab => ({
