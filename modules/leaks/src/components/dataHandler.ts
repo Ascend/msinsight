@@ -65,16 +65,16 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
     });
     try {
         const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
-        const blockDatas = await getBlocksRequest(param);
+        const blockData = await getBlocksRequest(param);
         const transform = { x: 0, y: 0, scale: 1 };
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
         workerTransform({ transform });
-        workerSetMemoryBlockData({ data: blockDatas });
-        const allocationDatas = await getAllocationRequest(param);
+        workerSetMemoryBlockData({ data: blockData });
+        const allocationData = await getAllocationRequest(param);
         runInAction(() => {
-            session.allocationData = allocationDatas;
+            session.allocationData = allocationData;
         });
     } catch (error: any) {
         message.error(error.message);

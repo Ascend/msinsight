@@ -22,13 +22,12 @@
 #include "MemSnapshotProtocolResponse.h"
 
 class MemSnapshotProtocolTest : public ::testing::Test {
-public:
+  public:
     static void SetUpTestSuite() {}
     static void TearDownTestSuite() {}
 };
 
-TEST_F(MemSnapshotProtocolTest, BuildBlocksTableRequestFromJson)
-{
+TEST_F(MemSnapshotProtocolTest, BuildBlocksTableRequestFromJson) {
     std::string jsonStr = "{"
                           "  \"id\": 21, "
                           "  \"moduleName\": \"leaks\", "
@@ -75,8 +74,7 @@ TEST_F(MemSnapshotProtocolTest, BuildBlocksTableRequestFromJson)
     EXPECT_TRUE(request.isTable);
 }
 
-TEST_F(MemSnapshotProtocolTest, BuildBlocksViewRequestFromJson)
-{
+TEST_F(MemSnapshotProtocolTest, BuildBlocksViewRequestFromJson) {
     std::string jsonStr = "{"
                           "  \"id\": 22, "
                           "  \"moduleName\": \"leaks\", "
@@ -107,8 +105,7 @@ TEST_F(MemSnapshotProtocolTest, BuildBlocksViewRequestFromJson)
     EXPECT_EQ(request.params.orderBy, "allocEventId");
 }
 
-TEST_F(MemSnapshotProtocolTest, BuildEventsTableRequestFromJson)
-{
+TEST_F(MemSnapshotProtocolTest, BuildEventsTableRequestFromJson) {
     std::string jsonStr = "{"
                           "  \"id\": 23, "
                           "  \"moduleName\": \"leaks\", "
@@ -149,8 +146,7 @@ TEST_F(MemSnapshotProtocolTest, BuildEventsTableRequestFromJson)
     EXPECT_TRUE(request.isTable);
 }
 
-TEST_F(MemSnapshotProtocolTest, BuildEventsListRequestFromJson)
-{
+TEST_F(MemSnapshotProtocolTest, BuildEventsListRequestFromJson) {
     std::string jsonStr = "{"
                           "  \"id\": 24, "
                           "  \"moduleName\": \"leaks\", "
@@ -186,8 +182,7 @@ TEST_F(MemSnapshotProtocolTest, BuildEventsListRequestFromJson)
     EXPECT_EQ(request.params.endEventIdx, 0);
 }
 
-TEST_F(MemSnapshotProtocolTest, BuildAllocationsRequestFromJson)
-{
+TEST_F(MemSnapshotProtocolTest, BuildAllocationsRequestFromJson) {
     std::string jsonStr = "{"
                           "  \"id\": 25, "
                           "  \"moduleName\": \"leaks\", "
@@ -213,8 +208,7 @@ TEST_F(MemSnapshotProtocolTest, BuildAllocationsRequestFromJson)
     EXPECT_EQ(request.params.eventType, "PTA");
 }
 
-TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonCheckInvalidMinSize)
-{
+TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonCheckInvalidMinSize) {
     std::string jsonStr = "{"
                           "  \"id\": 26, "
                           "  \"moduleName\": \"leaks\", "
@@ -241,8 +235,7 @@ TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonCheckInvalidMinSize)
     EXPECT_TRUE(errMsg.find("minSize") != std::string::npos);
 }
 
-TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonlyCheckInvalidEventIdx)
-{
+TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonlyCheckInvalidEventIdx) {
     std::string jsonStr = "{"
                           "  \"id\": 27, "
                           "  \"moduleName\": \"leaks\", "
@@ -269,8 +262,7 @@ TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonlyCheckInvalidEventIdx)
     EXPECT_TRUE(errMsg.find("start idx") != std::string::npos);
 }
 
-TEST_F(MemSnapshotProtocolTest, BlocksRequestMissingRequiredParams)
-{
+TEST_F(MemSnapshotProtocolTest, BlocksRequestMissingRequiredParams) {
     std::string jsonStr = "{"
                           "  \"id\": 28, "
                           "  \"moduleName\": \"leaks\", "
@@ -291,8 +283,7 @@ TEST_F(MemSnapshotProtocolTest, BlocksRequestMissingRequiredParams)
     EXPECT_TRUE(errMsg.find("deviceId") != std::string::npos);
 }
 
-TEST_F(MemSnapshotProtocolTest, EventsRequestMissingRequiredParams)
-{
+TEST_F(MemSnapshotProtocolTest, EventsRequestMissingRequiredParams) {
     std::string jsonStr = "{"
                           "  \"id\": 29, "
                           "  \"moduleName\": \"leaks\", "
@@ -312,8 +303,7 @@ TEST_F(MemSnapshotProtocolTest, EventsRequestMissingRequiredParams)
     EXPECT_TRUE(errMsg.find("deviceId") != std::string::npos);
 }
 
-TEST_F(MemSnapshotProtocolTest, AllocationsRequestMissingRequiredParams)
-{
+TEST_F(MemSnapshotProtocolTest, AllocationsRequestMissingRequiredParams) {
     std::string jsonStr = "{"
                           "  \"id\": 30, "
                           "  \"moduleName\": \"leaks\", "
@@ -334,8 +324,7 @@ TEST_F(MemSnapshotProtocolTest, AllocationsRequestMissingRequiredParams)
     EXPECT_TRUE(errMsg.find("eventType") != std::string::npos);
 }
 
-TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithPagination)
-{
+TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithPagination) {
     std::string jsonStr = "{"
                           "  \"id\": 31, "
                           "  \"moduleName\": \"leaks\", "
@@ -371,8 +360,7 @@ TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithPagination)
     EXPECT_EQ(request.params.endEventIdx, 10000);
 }
 
-TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithSizeRange)
-{
+TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithSizeRange) {
     std::string jsonStr = "{"
                           "  \"id\": 32, "
                           "  \"moduleName\": \"leaks\", "
@@ -404,8 +392,7 @@ TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithSizeRange)
     EXPECT_EQ(request.params.orderBy, "size");
 }
 
-TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithMultipleFilters)
-{
+TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithMultipleFilters) {
     std::string jsonStr = "{"
                           "  \"id\": 33, "
                           "  \"moduleName\": \"leaks\", "
@@ -437,8 +424,7 @@ TEST_F(MemSnapshotProtocolTest, QueryBlocksTableWithMultipleFilters)
     EXPECT_EQ(request.params.orderBy, "allocEventId");
 }
 
-TEST_F(MemSnapshotProtocolTest, BuildDetailRequestBlockFromJson)
-{
+TEST_F(MemSnapshotProtocolTest, BuildDetailRequestBlockFromJson) {
     std::string jsonStr = "{"
                           "  \"id\": 34, "
                           "  \"moduleName\": \"leaks\", "
@@ -465,8 +451,7 @@ TEST_F(MemSnapshotProtocolTest, BuildDetailRequestBlockFromJson)
     EXPECT_EQ(request.params.id, 123);
 }
 
-TEST_F(MemSnapshotProtocolTest, BuildDetailRequestEventFromJson)
-{
+TEST_F(MemSnapshotProtocolTest, BuildDetailRequestEventFromJson) {
     std::string jsonStr = "{"
                           "  \"id\": 35, "
                           "  \"moduleName\": \"leaks\", "
@@ -493,8 +478,7 @@ TEST_F(MemSnapshotProtocolTest, BuildDetailRequestEventFromJson)
     EXPECT_EQ(request.params.id, 456);
 }
 
-TEST_F(MemSnapshotProtocolTest, DetailRequestInvalidType)
-{
+TEST_F(MemSnapshotProtocolTest, DetailRequestInvalidType) {
     std::string jsonStr = "{"
                           "  \"id\": 36, "
                           "  \"moduleName\": \"leaks\", "
@@ -519,8 +503,7 @@ TEST_F(MemSnapshotProtocolTest, DetailRequestInvalidType)
     EXPECT_FALSE(errMsg.empty());
 }
 
-TEST_F(MemSnapshotProtocolTest, DetailRequestMissingParams)
-{
+TEST_F(MemSnapshotProtocolTest, DetailRequestMissingParams) {
     std::string jsonStr = "{"
                           "  \"id\": 37, "
                           "  \"moduleName\": \"leaks\", "
@@ -541,8 +524,7 @@ TEST_F(MemSnapshotProtocolTest, DetailRequestMissingParams)
     EXPECT_TRUE(errMsg.find("id") != std::string::npos);
 }
 
-TEST_F(MemSnapshotProtocolTest, BlocksRequestWithRangeFilters)
-{
+TEST_F(MemSnapshotProtocolTest, BlocksRequestWithRangeFilters) {
     std::string jsonStr = "{"
                           "  \"id\": 38, "
                           "  \"moduleName\": \"leaks\", "
@@ -573,8 +555,7 @@ TEST_F(MemSnapshotProtocolTest, BlocksRequestWithRangeFilters)
     EXPECT_EQ(request.params.rangeFilters.size(), 1);
 }
 
-TEST_F(MemSnapshotProtocolTest, EventsRequestWithRangeFilters)
-{
+TEST_F(MemSnapshotProtocolTest, EventsRequestWithRangeFilters) {
     std::string jsonStr = "{"
                           "  \"id\": 39, "
                           "  \"moduleName\": \"leaks\", "
@@ -604,8 +585,7 @@ TEST_F(MemSnapshotProtocolTest, EventsRequestWithRangeFilters)
     EXPECT_EQ(request.params.rangeFilters.size(), 1);
 }
 
-TEST_F(MemSnapshotProtocolTest, BlocksRequestInvalidEndIdx)
-{
+TEST_F(MemSnapshotProtocolTest, BlocksRequestInvalidEndIdx) {
     std::string jsonStr = "{"
                           "  \"id\": 40, "
                           "  \"moduleName\": \"leaks\", "

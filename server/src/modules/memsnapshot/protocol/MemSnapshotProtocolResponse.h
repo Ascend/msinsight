@@ -45,10 +45,9 @@ struct MemSnapshotBlocksResponse : public JsonResponse {
 
     ColumnBounds rangeFiltersBoundsMap;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t jsonBlocks(kArrayType);
@@ -59,7 +58,7 @@ struct MemSnapshotBlocksResponse : public JsonResponse {
         JsonUtil::AddMember(body, "total", total, allocator);
         if (isTable) {
             json_t jsonHeaders(kArrayType);
-            for (const auto& header : BlockTableColumn::FIELD_FULL_COLUMNS) {
+            for (const auto &header : BlockTableColumn::FIELD_FULL_COLUMNS) {
                 if (!header.visible) {
                     continue;
                 }
@@ -71,12 +70,12 @@ struct MemSnapshotBlocksResponse : public JsonResponse {
                 jsonHeaders.PushBack(headerJson, allocator);
             }
             JsonUtil::AddMember(body, "headers", jsonHeaders, allocator);
-            for (const auto& block : tableBlocks) {
+            for (const auto &block : tableBlocks) {
                 auto blockJson = block.ToJson(allocator);
                 jsonBlocks.PushBack(blockJson, allocator);
             }
         } else {
-            for (auto& block : viewBlocks) {
+            for (auto &block : viewBlocks) {
                 if (block.allocEventId >= 0 && block.freeEventId >= 0) {
                     auto blockJson = block.ToJson(allocator);
                     jsonBlocks.PushBack(blockJson, allocator);
@@ -106,10 +105,9 @@ struct MemSnapshotEventsResponse : public JsonResponse {
 
     bool isTable{false};
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t jsonEntries(kArrayType);
@@ -118,16 +116,18 @@ struct MemSnapshotEventsResponse : public JsonResponse {
         JsonUtil::AddMember(body, "total", total, allocator);
         json_t jsonHeaders(kArrayType);
         if (isTable) {
-            for (const auto& header : TraceEntryTableColumn::FIELD_FULL_COLUMNS) {
-                if (header.visible) { jsonHeaders.PushBack(header.ToTableHeaderJson(allocator), allocator); }
+            for (const auto &header : TraceEntryTableColumn::FIELD_FULL_COLUMNS) {
+                if (header.visible) {
+                    jsonHeaders.PushBack(header.ToTableHeaderJson(allocator), allocator);
+                }
             }
             JsonUtil::AddMember(body, "headers", jsonHeaders, allocator);
-            for (const auto& entry : tableEntries) {
+            for (const auto &entry : tableEntries) {
                 auto entryJson = entry.ToJson(allocator);
                 jsonEntries.PushBack(entryJson, allocator);
             }
         } else {
-            for (const auto& entry : listEntries) {
+            for (const auto &entry : listEntries) {
                 auto entryJson = entry.ToJson(allocator);
                 jsonEntries.PushBack(entryJson, allocator);
             }
@@ -144,16 +144,15 @@ struct MemSnapshotAllocationsResponse : public JsonResponse {
     uint64_t maxEventId{0};
     std::vector<AllocationRecordDTO> records;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t recordsJson(kArrayType);
         JsonUtil::AddMember(body, "minTimestamp", minEventId, allocator);
         JsonUtil::AddMember(body, "maxTimestamp", maxEventId, allocator);
-        for (const auto& record : records) {
+        for (const auto &record : records) {
             auto recordJson = record.ToJson(allocator);
             recordsJson.PushBack(recordJson, allocator);
         }
@@ -168,10 +167,9 @@ struct MemSnapshotDetailResponse : public JsonResponse {
     std::string type;
     std::optional<std::unique_ptr<JsonSerializable>> detail;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         if (detail.has_value()) {
             auto detailJson = detail.value()->ToJson(allocator);
@@ -185,14 +183,13 @@ struct MemSnapshotStateResponse : public JsonResponse {
     MemSnapshotStateResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_STATE) {}
     std::vector<SegmentItemDTO> segments;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t segmentsJson(kArrayType);
-        for (const auto& segment : segments) {
+        for (const auto &segment : segments) {
             segmentsJson.PushBack(segment.ToJson(allocator), allocator);
         }
         JsonUtil::AddMember(body, "segments", segmentsJson, allocator);
@@ -201,4 +198,4 @@ struct MemSnapshotStateResponse : public JsonResponse {
     }
 };
 }
-#endif  // PROFILER_SERVER_MEM_SNAPSHOT_PROTOCOL_RESPONSE_H
+#endif // PROFILER_SERVER_MEM_SNAPSHOT_PROTOCOL_RESPONSE_H
