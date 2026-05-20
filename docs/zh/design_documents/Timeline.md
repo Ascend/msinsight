@@ -898,7 +898,7 @@ resp:
 }
 ```
 
-</details> 
+</details>
 
 #### 4.5.2 DB 场景
 
@@ -1030,7 +1030,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 {
   "timestamp": 20534090,
   "value": {
-    "Mata Bw Level": 115726466
+    "Meta Bw Level": 115726466
   }
 }
 ```
@@ -1040,7 +1040,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 **processName:**
 
 1. `L2 Buffer Bw Level`
-2. `Mata Bw Level`
+2. `Meta Bw Level`
 
 ###### 5. ACC_PMU 类型
 
@@ -1215,9 +1215,9 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
    ```cpp
    void EventParser::CounterEventsHandle(std::unique_ptr<Trace::Event> eventPtr)
-   
+
    bool TextTraceDatabase::InsertCounter(const Trace::CounterResultDescription &event)
-   
+
    bool TextTraceDatabase::InsertCounterList(const std::vector<Trace::CounterResultDescription> &eventList)
    ```
 
@@ -1231,9 +1231,9 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
    ```tson
    {"processName": "APP/DDR", "ts": "1707359574357536.879", "pid": 1717664, "tid": 0, "args": {"KB": 0.0}, "ph": "C"}
-   
+
    {"processName": "APP/HBM", "ts": "1707359574357536.879", "pid": 1717664, "tid": 0, "args": {"KB": 9069036.0}, "ph": "C"}
-   
+
    {"processName": "write_ost", "ts": "1707359579320538.120", "pid": 512, "tid": 0, "args": {"value": 0, "acc_id": 2}, "ph": "C"}
    ```
 

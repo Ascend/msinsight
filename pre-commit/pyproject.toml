@@ -97,6 +97,28 @@ disable = [
   "import-error",
 ]
 
+[tool.pylint.main]
+init-hook = '''
+import sys
+from pathlib import Path
+root = Path.cwd()
+for path in [
+    root,
+    root / "plugins/ProfilerServerProxy",
+    root / "plugins/ProfilerServerProxy/core",
+    root / "plugins/ProfilerServerProxy/test",
+    root / "scripts/MemSnapDump",
+    root / "scripts/MemSnapDump/test",
+    root / "server",
+    root / "server/build",
+    root / "test",
+    root / "test/performance",
+]:
+    value = str(path)
+    if value not in sys.path:
+        sys.path.insert(0, value)
+'''
+
 # ==============================================
 # Bandit 安全检查 业界标准配置（企业通用）
 # ==============================================

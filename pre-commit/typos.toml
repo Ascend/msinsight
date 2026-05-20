@@ -1,6 +1,9 @@
 [files]
 # these files may be written in non english words
-extend-exclude = []
+extend-exclude = [
+  "modules/pnpm-lock.yaml",
+  "server/src/test/test_data/**",
+]
 ignore-hidden = true
 ignore-files = true
 ignore-dot = true
