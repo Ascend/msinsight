@@ -32,18 +32,11 @@
 using namespace Dic::Module::MemScope;
 
 namespace Dic::Module {
-MemScopeModule::MemScopeModule()
-{
-    moduleName = MODULE_MEM_SCOPE;
-}
+MemScopeModule::MemScopeModule() { moduleName = MODULE_MEM_SCOPE; }
 
-MemScopeModule::~MemScopeModule()
-{
-    requestHandlerMap.clear();
-}
+MemScopeModule::~MemScopeModule() { requestHandlerMap.clear(); }
 
-void MemScopeModule::RegisterRequestHandlers()
-{
+void MemScopeModule::RegisterRequestHandlers() {
     requestHandlerMap.clear();
     requestHandlerMap.emplace(REQ_RES_MEM_SCOPE_MEMORY_ALLOCATIONS, std::make_unique<QueryMemScopeAllocationHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SCOPE_MEMORY_BLOCKS, std::make_unique<QueryMemScopeBlockHandler>());
@@ -57,8 +50,7 @@ void MemScopeModule::RegisterRequestHandlers()
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_STATE, std::make_unique<QueryMemSnapshotStateHandler>());
 }
 
-void MemScopeModule::OnRequest(std::unique_ptr<Protocol::Request> request)
-{
+void MemScopeModule::OnRequest(std::unique_ptr<Protocol::Request> request) {
     BaseModule::OnRequest(std::move(request));
 }
 } // end of namespace Dic::Module

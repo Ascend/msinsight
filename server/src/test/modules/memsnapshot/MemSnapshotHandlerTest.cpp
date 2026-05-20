@@ -33,21 +33,17 @@ using namespace Dic::Protocol;
 using namespace Dic;
 
 class MemSnapshotHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         testDbPath = TestSuit::GetTestDataFile("snapshot", "snapshot_with_multi_devices.pkl.db");
         auto snapshotDb = DataBaseManager::Instance().GetMemSnapshotDatabase(testDbPath);
         ASSERT_TRUE(snapshotDb != nullptr);
         ASSERT_TRUE(snapshotDb->OpenDbReadOnly(testDbPath));
     }
 
-    static void TearDownTestSuite()
-    {
-        DataBaseManager::Instance().Clear(DatabaseType::MEM_SNAPSHOT);
-    }
+    static void TearDownTestSuite() { DataBaseManager::Instance().Clear(DatabaseType::MEM_SNAPSHOT); }
 
-protected:
+  protected:
     static std::string testDbPath;
 };
 
@@ -55,8 +51,7 @@ std::string MemSnapshotHandlerTest::testDbPath;
 
 // ============== QueryMemSnapshotBlockHandler Tests ==============
 
-TEST_F(MemSnapshotHandlerTest, QueryBlocksTableWithValidParams)
-{
+TEST_F(MemSnapshotHandlerTest, QueryBlocksTableWithValidParams) {
     QueryMemSnapshotBlockHandler handler;
     std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -72,8 +67,7 @@ TEST_F(MemSnapshotHandlerTest, QueryBlocksTableWithValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryBlocksViewWithValidParams)
-{
+TEST_F(MemSnapshotHandlerTest, QueryBlocksViewWithValidParams) {
     QueryMemSnapshotBlockHandler handler;
     std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -86,8 +80,7 @@ TEST_F(MemSnapshotHandlerTest, QueryBlocksViewWithValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryBlocksWithInvalidEventIdxRange)
-{
+TEST_F(MemSnapshotHandlerTest, QueryBlocksWithInvalidEventIdxRange) {
     QueryMemSnapshotBlockHandler handler;
     std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -104,8 +97,7 @@ TEST_F(MemSnapshotHandlerTest, QueryBlocksWithInvalidEventIdxRange)
 
 // ============== QueryMemSnapshotEventHandler Tests ==============
 
-TEST_F(MemSnapshotHandlerTest, QueryEventsTableWithValidParams)
-{
+TEST_F(MemSnapshotHandlerTest, QueryEventsTableWithValidParams) {
     QueryMemSnapshotEventHandler handler;
     std::unique_ptr<MemSnapshotEventsRequest> requestPtr = std::make_unique<MemSnapshotEventsRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -120,8 +112,7 @@ TEST_F(MemSnapshotHandlerTest, QueryEventsTableWithValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryEventsViewWithValidParams)
-{
+TEST_F(MemSnapshotHandlerTest, QueryEventsViewWithValidParams) {
     QueryMemSnapshotEventHandler handler;
     std::unique_ptr<MemSnapshotEventsRequest> requestPtr = std::make_unique<MemSnapshotEventsRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -135,8 +126,7 @@ TEST_F(MemSnapshotHandlerTest, QueryEventsViewWithValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryEventsWithInvalidEventIdxRange)
-{
+TEST_F(MemSnapshotHandlerTest, QueryEventsWithInvalidEventIdxRange) {
     QueryMemSnapshotEventHandler handler;
     std::unique_ptr<MemSnapshotEventsRequest> requestPtr = std::make_unique<MemSnapshotEventsRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -150,8 +140,7 @@ TEST_F(MemSnapshotHandlerTest, QueryEventsWithInvalidEventIdxRange)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryEventsWithFilters)
-{
+TEST_F(MemSnapshotHandlerTest, QueryEventsWithFilters) {
     QueryMemSnapshotEventHandler handler;
     std::unique_ptr<MemSnapshotEventsRequest> requestPtr = std::make_unique<MemSnapshotEventsRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -169,8 +158,7 @@ TEST_F(MemSnapshotHandlerTest, QueryEventsWithFilters)
 
 // ============== QueryMemSnapshotAllocationHandler Tests ==============
 
-TEST_F(MemSnapshotHandlerTest, QueryAllocationsWithValidParams)
-{
+TEST_F(MemSnapshotHandlerTest, QueryAllocationsWithValidParams) {
     QueryMemSnapshotAllocationHandler handler;
     std::unique_ptr<MemSnapshotAllocationsRequest> requestPtr = std::make_unique<MemSnapshotAllocationsRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -184,8 +172,7 @@ TEST_F(MemSnapshotHandlerTest, QueryAllocationsWithValidParams)
 
 // ============== QueryMemSnapshotDetailHandler Tests ==============
 
-TEST_F(MemSnapshotHandlerTest, QueryBlockDetailWithValidParams)
-{
+TEST_F(MemSnapshotHandlerTest, QueryBlockDetailWithValidParams) {
     QueryMemSnapshotDetailHandler handler;
     std::unique_ptr<MemSnapshotDetailRequest> requestPtr = std::make_unique<MemSnapshotDetailRequest>();
     requestPtr->params.deviceId = "0";
@@ -198,8 +185,7 @@ TEST_F(MemSnapshotHandlerTest, QueryBlockDetailWithValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryEventDetailWithValidParams)
-{
+TEST_F(MemSnapshotHandlerTest, QueryEventDetailWithValidParams) {
     QueryMemSnapshotDetailHandler handler;
     std::unique_ptr<MemSnapshotDetailRequest> requestPtr = std::make_unique<MemSnapshotDetailRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -211,8 +197,7 @@ TEST_F(MemSnapshotHandlerTest, QueryEventDetailWithValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryDetailWithInvalidType)
-{
+TEST_F(MemSnapshotHandlerTest, QueryDetailWithInvalidType) {
     QueryMemSnapshotDetailHandler handler;
     std::unique_ptr<MemSnapshotDetailRequest> requestPtr = std::make_unique<MemSnapshotDetailRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -224,8 +209,7 @@ TEST_F(MemSnapshotHandlerTest, QueryDetailWithInvalidType)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryBlockDetailWithNonExistentId)
-{
+TEST_F(MemSnapshotHandlerTest, QueryBlockDetailWithNonExistentId) {
     QueryMemSnapshotDetailHandler handler;
     std::unique_ptr<MemSnapshotDetailRequest> requestPtr = std::make_unique<MemSnapshotDetailRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -237,8 +221,7 @@ TEST_F(MemSnapshotHandlerTest, QueryBlockDetailWithNonExistentId)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryEventDetailWithNonExistentId)
-{
+TEST_F(MemSnapshotHandlerTest, QueryEventDetailWithNonExistentId) {
     QueryMemSnapshotDetailHandler handler;
     std::unique_ptr<MemSnapshotDetailRequest> requestPtr = std::make_unique<MemSnapshotDetailRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -252,8 +235,7 @@ TEST_F(MemSnapshotHandlerTest, QueryEventDetailWithNonExistentId)
 
 // ============== Combined Filter Tests ==============
 
-TEST_F(MemSnapshotHandlerTest, QueryBlocksWithMultipleFilters)
-{
+TEST_F(MemSnapshotHandlerTest, QueryBlocksWithMultipleFilters) {
     QueryMemSnapshotBlockHandler handler;
     std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;
@@ -274,8 +256,7 @@ TEST_F(MemSnapshotHandlerTest, QueryBlocksWithMultipleFilters)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemSnapshotHandlerTest, QueryEventsWithEventIdxRange)
-{
+TEST_F(MemSnapshotHandlerTest, QueryEventsWithEventIdxRange) {
     QueryMemSnapshotEventHandler handler;
     std::unique_ptr<MemSnapshotEventsRequest> requestPtr = std::make_unique<MemSnapshotEventsRequest>();
     requestPtr->moduleName = MODULE_MEM_SCOPE;

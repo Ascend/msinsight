@@ -21,8 +21,7 @@
 #include "ServerLog.h"
 
 namespace Dic::Module::FullDb {
-bool MemSnapshotDatabase::CheckAllTableExist()
-{
+bool MemSnapshotDatabase::CheckAllTableExist() {
     blockTableNames = QueryTableNamesByPrefix(blockTablePrefix);
     if (blockTableNames.empty()) {
         Server::ServerLog::Error(LOG_TAG + "Check table exist: The snapshot database does not have block table.");
@@ -35,15 +34,15 @@ bool MemSnapshotDatabase::CheckAllTableExist()
     }
     // 解析时block表与trace_entry表根据deviceId配对生成，因此数量必须一致
     if (blockTableNames.size() != traceEntryTableNames.size()) {
-        Server::ServerLog::Error(LOG_TAG + "Check table exist: The snapshot database block table number "
-                                           "is not equal to trace entry table number.");
+        Server::ServerLog::Error(LOG_TAG +
+            "Check table exist: The snapshot database block table number "
+            "is not equal to trace entry table number.");
         return false;
     }
     return Database::CheckTableExist({dictionaryTable});
 }
 
-bool MemSnapshotDatabase::OpenDbReadOnly(const std::string& dbPath)
-{
+bool MemSnapshotDatabase::OpenDbReadOnly(const std::string &dbPath) {
     if (isOpen) {
         Server::ServerLog::Warn(LOG_TAG + "The database connection has been opened. Nothing to do.");
         return true;
@@ -65,9 +64,8 @@ bool MemSnapshotDatabase::OpenDbReadOnly(const std::string& dbPath)
     return true;
 }
 
-std::string MemSnapshotDatabase::GetRealValueInTableDictionaryMap(const std::string& tableName,
-                                                                  const std::string& colName, int intVal)
-{
+std::string MemSnapshotDatabase::GetRealValueInTableDictionaryMap(
+    const std::string &tableName, const std::string &colName, int intVal) {
     std::string colTag = GetTableColumnTag(tableName, colName);
     if (tableDictionaryMap.find(colTag) == tableDictionaryMap.end()) {
         return std::to_string(intVal);
@@ -78,58 +76,50 @@ std::string MemSnapshotDatabase::GetRealValueInTableDictionaryMap(const std::str
     return tableDictionaryMap[colTag][intVal];
 }
 
-int MemSnapshotDatabase::GetKeyInTableDictionaryMap(const std::string& tableName, const std::string& colName,
-                                                    const std::string& realVal)
-{
+int MemSnapshotDatabase::GetKeyInTableDictionaryMap(
+    const std::string &tableName, const std::string &colName, const std::string &realVal) {
     std::string colTag = GetTableColumnTag(tableName, colName);
     if (tableDictionaryMap.find(colTag) == tableDictionaryMap.end()) {
         Server::ServerLog::Warn(LOG_TAG + "Failed to get key in table dictionary map, table: %s, col: %s",
-                                tableName.c_str(), colName.c_str());
+            tableName.c_str(), colName.c_str());
         return -1;
     }
-    for (auto& [key, val] : tableDictionaryMap[colTag]) {
+    for (auto &[key, val] : tableDictionaryMap[colTag]) {
         if (val == realVal) {
             return key;
         }
     }
     Server::ServerLog::Warn(LOG_TAG + "Failed to get key in table dictionary map, table: %s, col: %s, val: %s",
-                                tableName.c_str(), colName.c_str(), realVal.c_str());
+        tableName.c_str(), colName.c_str(), realVal.c_str());
     return -1;
 }
 
-bool MemSnapshotDatabase::IsDeviceIdValid(const std::string& deviceId)
-{
+bool MemSnapshotDatabase::IsDeviceIdValid(const std::string &deviceId) {
     return deviceMaxEntryIdMap.find(deviceId) != deviceMaxEntryIdMap.end();
 }
 
-std::vector<std::string> MemSnapshotDatabase::GetDeviceIds()
-{
+std::vector<std::string> MemSnapshotDatabase::GetDeviceIds() {
     std::vector<std::string> deviceIds;
     deviceIds.reserve(deviceMaxEntryIdMap.size());
-    for (auto& [deviceId, maxEntryId] : deviceMaxEntryIdMap) {
+    for (auto &[deviceId, maxEntryId] : deviceMaxEntryIdMap) {
         deviceIds.push_back(deviceId);
     }
     return deviceIds;
 }
 
-std::string MemSnapshotDatabase::GetBlockTableNameByDeviceId(const std::string& deviceId)
-{
+std::string MemSnapshotDatabase::GetBlockTableNameByDeviceId(const std::string &deviceId) {
     return blockTablePrefix + deviceId;
 }
 
-std::string MemSnapshotDatabase::GetTraceEntryTableNameByDeviceId(const std::string& deviceId)
-{
+std::string MemSnapshotDatabase::GetTraceEntryTableNameByDeviceId(const std::string &deviceId) {
     return traceEntryTablePrefix + deviceId;
 }
 
-template<typename T>
-bool MemSnapshotDatabase::QueryAllBlocks(std::vector<T>& blocks, const std::string& deviceId)
-{
+template <typename T> bool MemSnapshotDatabase::QueryAllBlocks(std::vector<T> &blocks, const std::string &deviceId) {
     std::string querySql = "SELECT * FROM {} ORDER BY {}";
-    querySql = StringUtil::FormatString(querySql,
-                                        GetBlockTableNameByDeviceId(deviceId),
-                                        BlockTableColumn::ALLOC_EVENT_ID);
-    sqlite3_stmt* stmt = nullptr;
+    querySql =
+        StringUtil::FormatString(querySql, GetBlockTableNameByDeviceId(deviceId), BlockTableColumn::ALLOC_EVENT_ID);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed to prepared query block sql, error: ", sqlite3_errmsg(db));
@@ -150,20 +140,17 @@ bool MemSnapshotDatabase::QueryAllBlocks(std::vector<T>& blocks, const std::stri
  * @param entries 事件列表
  * @return 事件数量
  */
-int64_t MemSnapshotDatabase::QueryTraceEntriesList(const PaginationParam& paginationParam,
-                                                   const std::string& deviceId,
-                                                   std::vector<TraceEntryListItemDTO>& entries)
-{
+int64_t MemSnapshotDatabase::QueryTraceEntriesList(
+    const PaginationParam &paginationParam, const std::string &deviceId, std::vector<TraceEntryListItemDTO> &entries) {
     if (!IsDeviceIdValid(deviceId)) {
         ServerLog::Error(LOG_TAG + "Failed to query trace entries list by pagination: invalid device.");
         return -1;
     }
     std::string querySql = "SELECT {}, {}, {}, {}, {} FROM {} WHERE {} >= 0 LIMIT ? OFFSET ?;";
     querySql = StringUtil::FormatString(querySql, TraceEntryTableColumn::ID, TraceEntryTableColumn::ACTION,
-                                        TraceEntryTableColumn::ADDRESS, TraceEntryTableColumn::SIZE,
-                                        TraceEntryTableColumn::STREAM,
-                                        GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID);
-    sqlite3_stmt* stmt = nullptr;
+        TraceEntryTableColumn::ADDRESS, TraceEntryTableColumn::SIZE, TraceEntryTableColumn::STREAM,
+        GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed to prepared query trace entry sql, error: ", sqlite3_errmsg(db));
@@ -176,9 +163,8 @@ int64_t MemSnapshotDatabase::QueryTraceEntriesList(const PaginationParam& pagina
         TraceEntryListItemDTO entry;
         int col = resultStartIndex;
         entry.id = sqlite3_column_int64(stmt, col++);
-        entry.action = GetRealValueInTableDictionaryMap(traceEntryTablePrefix,
-                                                        std::string(TraceEntryTableColumn::ACTION),
-                                                        sqlite3_column_int(stmt, col++));
+        entry.action = GetRealValueInTableDictionaryMap(
+            traceEntryTablePrefix, std::string(TraceEntryTableColumn::ACTION), sqlite3_column_int(stmt, col++));
         entry.address = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
         entry.size = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
         entry.stream = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
@@ -189,13 +175,10 @@ int64_t MemSnapshotDatabase::QueryTraceEntriesList(const PaginationParam& pagina
     return GetDeviceMaxEntryId(deviceId) + 1;
 }
 
-std::optional<Block> MemSnapshotDatabase::QueryBlockById(const int64_t blockId, const std::string& deviceId)
-{
+std::optional<Block> MemSnapshotDatabase::QueryBlockById(const int64_t blockId, const std::string &deviceId) {
     std::string querySql = "SELECT * FROM {} WHERE {} = ?;";
-    querySql = StringUtil::FormatString(querySql,
-                                        GetBlockTableNameByDeviceId(deviceId),
-                                        BlockTableColumn::ID);
-    sqlite3_stmt* stmt = nullptr;
+    querySql = StringUtil::FormatString(querySql, GetBlockTableNameByDeviceId(deviceId), BlockTableColumn::ID);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed prepared query block sql, error: ", sqlite3_errmsg(db));
@@ -212,8 +195,7 @@ std::optional<Block> MemSnapshotDatabase::QueryBlockById(const int64_t blockId, 
     return std::nullopt;
 }
 
-int64_t MemSnapshotDatabase::GetDeviceMaxEntryId(const std::string& deviceId) const
-{
+int64_t MemSnapshotDatabase::GetDeviceMaxEntryId(const std::string &deviceId) const {
     if (deviceMaxEntryIdMap.find(deviceId) != deviceMaxEntryIdMap.end()) {
         return deviceMaxEntryIdMap.at(deviceId);
     }
@@ -221,10 +203,8 @@ int64_t MemSnapshotDatabase::GetDeviceMaxEntryId(const std::string& deviceId) co
     return -1;
 }
 
-void MemSnapshotDatabase::QueryBlockIdRangeByDeviceIdLazy(const std::string& deviceId,
-                                                          int64_t& minBlockId,
-                                                          int64_t& maxBlockId)
-{
+void MemSnapshotDatabase::QueryBlockIdRangeByDeviceIdLazy(
+    const std::string &deviceId, int64_t &minBlockId, int64_t &maxBlockId) {
     // 如果缓存中找到了则直接返回
     if (blockIdRangeMap.find(deviceId) != blockIdRangeMap.end()) {
         minBlockId = blockIdRangeMap.at(deviceId).first;
@@ -232,10 +212,9 @@ void MemSnapshotDatabase::QueryBlockIdRangeByDeviceIdLazy(const std::string& dev
         return;
     }
     // 未找到则需要重新初始化
-    const auto querySql = StringUtil::FormatString("SELECT MIN({}), MAX({}) FROM {};",
-                                                   BlockTableColumn::ID, BlockTableColumn::ID,
-                                                   GetBlockTableNameByDeviceId(deviceId));
-    sqlite3_stmt* stmt = nullptr;
+    const auto querySql = StringUtil::FormatString("SELECT MIN({}), MAX({}) FROM {};", BlockTableColumn::ID,
+        BlockTableColumn::ID, GetBlockTableNameByDeviceId(deviceId));
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed prepared query block id range sql, error: ", sqlite3_errmsg(db));
@@ -250,11 +229,10 @@ void MemSnapshotDatabase::QueryBlockIdRangeByDeviceIdLazy(const std::string& dev
     sqlite3_finalize(stmt);
 }
 
-void MemSnapshotDatabase::Reset()
-{
+void MemSnapshotDatabase::Reset() {
     Server::ServerLog::Info(LOG_TAG + "MemSnapshot db reset.");
     auto databaseList = Timeline::DataBaseManager::Instance().GetAllMemSnapshotDatabase();
-    for (auto& db : databaseList) {
+    for (auto &db : databaseList) {
         if (db != nullptr && db->IsOpen()) {
             db->CloseDb();
         }
@@ -262,22 +240,21 @@ void MemSnapshotDatabase::Reset()
     Timeline::DataBaseManager::Instance().Clear(Timeline::DatabaseType::MEM_SNAPSHOT);
 }
 
-bool MemSnapshotDatabase::InitTableDictionaryMap()
-{
+bool MemSnapshotDatabase::InitTableDictionaryMap() {
     if (!isOpen) {
         Server::ServerLog::Error(LOG_TAG +
-                                 "Failed to initialize table dictionary map; "
-                                 "database connection has not been established.");
+            "Failed to initialize table dictionary map; "
+            "database connection has not been established.");
         return false;
     }
     const std::string queryDictionaryTableSql = "SELECT * FROM dictionary;";
-    sqlite3_stmt* stmt = nullptr;
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, queryDictionaryTableSql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG +
-                                     "Failed to initialize table dictionary map; "
-                                     "failed to prepare sql. Error: ",
-                                 sqlite3_errmsg(db));
+                "Failed to initialize table dictionary map; "
+                "failed to prepare sql. Error: ",
+            sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
         return false;
     }
@@ -299,18 +276,19 @@ bool MemSnapshotDatabase::InitTableDictionaryMap()
     return true;
 }
 
-bool MemSnapshotDatabase::InitDeviceIdsAndMaxEntryIdMap()
-{
-    for (const auto& tableName : traceEntryTableNames) {
+bool MemSnapshotDatabase::InitDeviceIdsAndMaxEntryIdMap() {
+    for (const auto &tableName : traceEntryTableNames) {
         if (!StringUtil::StartWith(tableName, traceEntryTablePrefix)) {
-            Server::ServerLog::Error(LOG_TAG + "Failed initialize device max entry id map, "
-                                               "trace entry table name is not valid: %", tableName);
+            Server::ServerLog::Error(LOG_TAG +
+                    "Failed initialize device max entry id map, "
+                    "trace entry table name is not valid: %",
+                tableName);
             return false;
         }
         const std::string deviceId = tableName.substr(traceEntryTablePrefix.size());
-        const std::string querySql = StringUtil::FormatString("SELECT MAX({}) FROM {};",
-                                                              TraceEntryTableColumn::ID, tableName);
-        sqlite3_stmt* stmt = nullptr;
+        const std::string querySql =
+            StringUtil::FormatString("SELECT MAX({}) FROM {};", TraceEntryTableColumn::ID, tableName);
+        sqlite3_stmt *stmt = nullptr;
         int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
         if (result != SQLITE_OK) {
             Server::ServerLog::Error(LOG_TAG + "Failed prepared query max entry id sql, error: ", sqlite3_errmsg(db));
@@ -327,13 +305,12 @@ bool MemSnapshotDatabase::InitDeviceIdsAndMaxEntryIdMap()
     return true;
 }
 
-bool MemSnapshotDatabase::InitContext()
-{
+bool MemSnapshotDatabase::InitContext() {
     // 初始化dictionary
     if (!InitTableDictionaryMap()) {
         Server::ServerLog::Error(LOG_TAG +
-                                 "Failed to initialize mem snapshot database context; "
-                                 "failed to initialize table dictionary map.");
+            "Failed to initialize mem snapshot database context; "
+            "failed to initialize table dictionary map.");
         return false;
     }
     // 初始化maxEntryId及device
@@ -344,44 +321,40 @@ bool MemSnapshotDatabase::InitContext()
     return true;
 }
 
-template<typename T>
-T MemSnapshotDatabase::QueryBlockByStep(sqlite3_stmt* stmt, int startIdx)
-{
+template <typename T> T MemSnapshotDatabase::QueryBlockByStep(sqlite3_stmt *stmt, int startIdx) {
     int col = startIdx;
     T block;
     block.id = sqlite3_column_int64(stmt, col++);
     block.address = static_cast<uint64_t>(sqlite3_column_int64(stmt, col++));
     block.size = static_cast<uint64_t>(sqlite3_column_int64(stmt, col++));
     block.requestedSize = static_cast<uint64_t>(sqlite3_column_int64(stmt, col++));
-    block.state = GetRealValueInTableDictionaryMap(blockTablePrefix, std::string(BlockTableColumn::STATE),
-                                                   sqlite3_column_int(stmt, col++));
+    block.state = GetRealValueInTableDictionaryMap(
+        blockTablePrefix, std::string(BlockTableColumn::STATE), sqlite3_column_int(stmt, col++));
     block.allocEventId = sqlite3_column_int64(stmt, col++);
     block.freeEventId = sqlite3_column_int64(stmt, col++);
     return block;
 }
 
-BlockTableItemDTO MemSnapshotDatabase::QueryBlockTableItemByStep(sqlite3_stmt* stmt)
-{
+BlockTableItemDTO MemSnapshotDatabase::QueryBlockTableItemByStep(sqlite3_stmt *stmt) {
     BlockTableItemDTO block;
     int col = resultStartIndex;
     block.id = sqlite3_column_int64(stmt, col++);
     block.address = static_cast<uint64_t>(sqlite3_column_int64(stmt, col++));
     block.size = sqlite3_column_double(stmt, col++);
     block.requestedSize = sqlite3_column_double(stmt, col++);
-    block.state = GetRealValueInTableDictionaryMap(blockTablePrefix, std::string(BlockTableColumn::STATE),
-                                                   sqlite3_column_int(stmt, col++));
+    block.state = GetRealValueInTableDictionaryMap(
+        blockTablePrefix, std::string(BlockTableColumn::STATE), sqlite3_column_int(stmt, col++));
     block.allocEventId = sqlite3_column_int64(stmt, col++);
     block.freeEventId = sqlite3_column_int64(stmt, col++);
     return block;
 }
 
-TraceEntry MemSnapshotDatabase::QueryTraceEntryByStep(sqlite3_stmt* stmt, const int startIdx)
-{
+TraceEntry MemSnapshotDatabase::QueryTraceEntryByStep(sqlite3_stmt *stmt, const int startIdx) {
     int col = startIdx;
     TraceEntry entry;
     entry.id = sqlite3_column_int64(stmt, col++);
-    entry.action = GetRealValueInTableDictionaryMap(traceEntryTablePrefix, std::string(TraceEntryTableColumn::ACTION),
-                                                    sqlite3_column_int(stmt, col++));
+    entry.action = GetRealValueInTableDictionaryMap(
+        traceEntryTablePrefix, std::string(TraceEntryTableColumn::ACTION), sqlite3_column_int(stmt, col++));
     entry.address = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
     entry.size = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
     entry.stream = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
@@ -392,13 +365,12 @@ TraceEntry MemSnapshotDatabase::QueryTraceEntryByStep(sqlite3_stmt* stmt, const 
     return entry;
 }
 
-TraceEntryTableItemDTO MemSnapshotDatabase::QueryTraceEntryTableItemByStep(sqlite3_stmt* stmt)
-{
+TraceEntryTableItemDTO MemSnapshotDatabase::QueryTraceEntryTableItemByStep(sqlite3_stmt *stmt) {
     TraceEntryTableItemDTO entry;
     int col = resultStartIndex;
     entry.id = sqlite3_column_int64(stmt, col++);
-    entry.action = GetRealValueInTableDictionaryMap(traceEntryTablePrefix, std::string(TraceEntryTableColumn::ACTION),
-                                                    sqlite3_column_int(stmt, col++));
+    entry.action = GetRealValueInTableDictionaryMap(
+        traceEntryTablePrefix, std::string(TraceEntryTableColumn::ACTION), sqlite3_column_int(stmt, col++));
     entry.address = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
     entry.size = sqlite3_column_double(stmt, col++);
     entry.stream = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
@@ -409,9 +381,9 @@ TraceEntryTableItemDTO MemSnapshotDatabase::QueryTraceEntryTableItemByStep(sqlit
     return entry;
 }
 
-std::string MemSnapshotDatabase::GetTableColumnTag(const std::string& tableName, const std::string& colName)
-{ return StringUtil::FormatString("{}.{}", tableName, colName); }
-
+std::string MemSnapshotDatabase::GetTableColumnTag(const std::string &tableName, const std::string &colName) {
+    return StringUtil::FormatString("{}.{}", tableName, colName);
+}
 
 /**
  * 用于为MemSnapshot数据库中的表进行查询时，根据查询参数构建WHERE子句的SQL语句
@@ -420,11 +392,11 @@ std::string MemSnapshotDatabase::GetTableColumnTag(const std::string& tableName,
  * @param tableName 表名
  * @return 构建好的WHERE子句SQL语句
  */
-std::string MemSnapshotDatabase::BuildMemSnapshotFiltersParamSql(FiltersParam& queryParams, const std::string& tableName)
-{
+std::string MemSnapshotDatabase::BuildMemSnapshotFiltersParamSql(
+    FiltersParam &queryParams, const std::string &tableName) {
     SearchMap normalFilters; // 普通字段过滤设置，可使用Database中的公用方法
     std::string filtersSql;
-    for (const auto& [colKey, targetStr] : queryParams.filters) {
+    for (const auto &[colKey, targetStr] : queryParams.filters) {
         std::string colTag = GetTableColumnTag(tableName, colKey);
         // 不在字典映射表缓存中，则认为是普通字段
         if (tableDictionaryMap.find(colTag) == tableDictionaryMap.end()) {
@@ -432,9 +404,9 @@ std::string MemSnapshotDatabase::BuildMemSnapshotFiltersParamSql(FiltersParam& q
             continue;
         }
         // 需要额外处理的场景，此处替换为"{colKey} in ({containTargetKeys})"的形式
-        const auto& valueMap = tableDictionaryMap[colTag];
+        const auto &valueMap = tableDictionaryMap[colTag];
         std::vector<int> containTargetKeys;
-        for (const auto& [key, value] : valueMap) {
+        for (const auto &[key, value] : valueMap) {
             if (StringUtil::ContainsIgnoreCase(value, targetStr)) {
                 containTargetKeys.push_back(key);
             }
@@ -454,11 +426,10 @@ std::string MemSnapshotDatabase::BuildMemSnapshotFiltersParamSql(FiltersParam& q
  * @param queryParams 范围查询参数，注意！！！此处原列会被替换为计算列，需要使用copy
  * @return 构建好的WHERE子句SQL语句
  */
-std::string MemSnapshotDatabase::BuildMemSnapshotRangeFiltersParamSql(RangeFiltersParam& queryParams)
-{
+std::string MemSnapshotDatabase::BuildMemSnapshotRangeFiltersParamSql(RangeFiltersParam &queryParams) {
     RangeMap withCalculatedColRangeFilters;
     std::string sql;
-    for (const auto& [colKey, bounds] : queryParams.rangeFilters) {
+    for (const auto &[colKey, bounds] : queryParams.rangeFilters) {
         // 不在计算列定义中
         if (CALCULATED_COLUMN_MAP.find(colKey) == CALCULATED_COLUMN_MAP.end()) {
             withCalculatedColRangeFilters[colKey] = bounds;
@@ -472,15 +443,14 @@ std::string MemSnapshotDatabase::BuildMemSnapshotRangeFiltersParamSql(RangeFilte
     return BuildQueryRangeFiltersConditionSql(queryParams.rangeFilters);
 }
 
-int64_t MemSnapshotDatabase::QueryBlocksTable(const MemSnapshotBlockParams& queryParams,
-                                              std::vector<BlockTableItemDTO>& blocks)
-{
+int64_t MemSnapshotDatabase::QueryBlocksTable(
+    const MemSnapshotBlockParams &queryParams, std::vector<BlockTableItemDTO> &blocks) {
     const int64_t count = QueryBlocksTableCount(queryParams);
     if (count <= 0) {
         return count;
     }
     const std::string queryColumns = GetSelectBlocksTableFullColumns();
-    sqlite3_stmt* stmt = BuildQueryBlocksTableByQueryParamsAndBindParam(queryColumns, queryParams);
+    sqlite3_stmt *stmt = BuildQueryBlocksTableByQueryParamsAndBindParam(queryColumns, queryParams);
     if (stmt == nullptr) {
         Server::ServerLog::Error(LOG_TAG + "Failed to query blocks table: failed to prepare sql.");
         return -1;
@@ -492,11 +462,10 @@ int64_t MemSnapshotDatabase::QueryBlocksTable(const MemSnapshotBlockParams& quer
     return count;
 }
 
-int64_t MemSnapshotDatabase::QueryBlocksTableCount(const MemSnapshotBlockParams& queryParams)
-{
+int64_t MemSnapshotDatabase::QueryBlocksTableCount(const MemSnapshotBlockParams &queryParams) {
     int64_t count = 0;
     const std::string queryColumns = " COUNT(*) ";
-    sqlite3_stmt* stmt = BuildQueryBlocksTableByQueryParamsAndBindParam(queryColumns, queryParams, false);
+    sqlite3_stmt *stmt = BuildQueryBlocksTableByQueryParamsAndBindParam(queryColumns, queryParams, false);
     if (stmt == nullptr) {
         Server::ServerLog::Error(LOG_TAG + "Failed to count blocks table with params: failed to prepare sql.");
         return -1;
@@ -508,8 +477,7 @@ int64_t MemSnapshotDatabase::QueryBlocksTableCount(const MemSnapshotBlockParams&
     return count;
 }
 
-std::string MemSnapshotDatabase::GetSelectBlocksTableFullColumns()
-{
+std::string MemSnapshotDatabase::GetSelectBlocksTableFullColumns() {
     std::string columns;
     for (auto &columnObj : BlockTableColumn::FIELD_FULL_COLUMNS) {
         if (!columns.empty()) {
@@ -524,25 +492,21 @@ std::string MemSnapshotDatabase::GetSelectBlocksTableFullColumns()
     return columns;
 }
 
-std::string MemSnapshotDatabase::BuildQueryBlocksTableConditionSqlByParams(MemSnapshotBlockParams& params,
-                                                                           bool& eventIdxRangeCondition,
-                                                                           bool& filtersCondition)
-{
+std::string MemSnapshotDatabase::BuildQueryBlocksTableConditionSqlByParams(
+    MemSnapshotBlockParams &params, bool &eventIdxRangeCondition, bool &filtersCondition) {
     std::string conditionSql = " where 1=1 ";
     // 构造Size参数
     if (params.maxSize > 0) {
         conditionSql.append(StringUtil::FormatString(" AND ({} BETWEEN {} AND {}) ", BlockTableColumn::SIZE,
-                                                     std::to_string(params.minSize),
-                                                     std::to_string(params.maxSize)));
+            std::to_string(params.minSize), std::to_string(params.maxSize)));
     }
     // 构造事件索引范围参数
     if (params.endEventIdx >= params.startEventIdx && params.endEventIdx > 0) {
         eventIdxRangeCondition = true;
         // allocEventId < 0 时视为无限小，freeEventId < 0 时视为无限大
         conditionSql.append(StringUtil::FormatString(" AND (({} < 0 OR {} >= ?) AND ({} < 0 OR {} <= ?)) ",
-                                                     BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID,
-                                                     BlockTableColumn::ALLOC_EVENT_ID, BlockTableColumn::ALLOC_EVENT_ID
-        ));
+            BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::ALLOC_EVENT_ID,
+            BlockTableColumn::ALLOC_EVENT_ID));
     }
     // 构造过滤参数
     if (!params.filters.empty() || !params.rangeFilters.empty()) {
@@ -555,20 +519,15 @@ std::string MemSnapshotDatabase::BuildQueryBlocksTableConditionSqlByParams(MemSn
     return conditionSql;
 }
 
-sqlite3_stmt* MemSnapshotDatabase::BuildQueryBlocksTableByQueryParamsAndBindParam(const std::string& selectColumns,
-    const MemSnapshotBlockParams& queryParams,
-    const bool withPagination)
-{
+sqlite3_stmt *MemSnapshotDatabase::BuildQueryBlocksTableByQueryParamsAndBindParam(
+    const std::string &selectColumns, const MemSnapshotBlockParams &queryParams, const bool withPagination) {
     bool eventIdxRangeCondition = false;
     bool filtersCondition = false;
     auto paramsCopy = queryParams;
-    std::string conditionSql = BuildQueryBlocksTableConditionSqlByParams(paramsCopy,
-                                                                         eventIdxRangeCondition,
-                                                                         filtersCondition);
-    std::string sql = StringUtil::FormatString("select {} from {} {} ",
-                                               selectColumns,
-                                               GetBlockTableNameByDeviceId(queryParams.deviceId),
-                                               conditionSql);
+    std::string conditionSql =
+        BuildQueryBlocksTableConditionSqlByParams(paramsCopy, eventIdxRangeCondition, filtersCondition);
+    std::string sql = StringUtil::FormatString(
+        "select {} from {} {} ", selectColumns, GetBlockTableNameByDeviceId(queryParams.deviceId), conditionSql);
     // 构造排序参数
     if (!paramsCopy.orderBy.empty()) {
         sql.append(Database::BuildQueryOrderSql(paramsCopy.orderBy, paramsCopy.desc));
@@ -600,19 +559,13 @@ sqlite3_stmt* MemSnapshotDatabase::BuildQueryBlocksTableByQueryParamsAndBindPara
     return stmt;
 }
 
-void MemSnapshotDatabase::QueryMemoryRecords(const MemSnapshotAllocationParams& queryParams,
-                                             std::vector<MemoryRecord>& records)
-{
+void MemSnapshotDatabase::QueryMemoryRecords(
+    const MemSnapshotAllocationParams &queryParams, std::vector<MemoryRecord> &records) {
     std::string querySql = "SELECT {}, {}, {}, {} FROM {} WHERE {} >= 0 ORDER BY {} ASC";
-    querySql = StringUtil::FormatString(querySql,
-                                        TraceEntryTableColumn::ID,
-                                        TraceEntryTableColumn::ALLOCATED,
-                                        TraceEntryTableColumn::RESERVED,
-                                        TraceEntryTableColumn::ACTIVE,
-                                        GetTraceEntryTableNameByDeviceId(queryParams.deviceId),
-                                        TraceEntryTableColumn::ID,
-                                        TraceEntryTableColumn::ID);
-    sqlite3_stmt* stmt = nullptr;
+    querySql = StringUtil::FormatString(querySql, TraceEntryTableColumn::ID, TraceEntryTableColumn::ALLOCATED,
+        TraceEntryTableColumn::RESERVED, TraceEntryTableColumn::ACTIVE,
+        GetTraceEntryTableNameByDeviceId(queryParams.deviceId), TraceEntryTableColumn::ID, TraceEntryTableColumn::ID);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed to prepared query memory records sql, error: ", sqlite3_errmsg(db));
@@ -631,15 +584,12 @@ void MemSnapshotDatabase::QueryMemoryRecords(const MemSnapshotAllocationParams& 
     sqlite3_finalize(stmt);
 }
 
-void MemSnapshotDatabase::QueryMemoryAllocations(const std::string& deviceId, std::vector<AllocationRecordDTO>& records)
-{
+void MemSnapshotDatabase::QueryMemoryAllocations(
+    const std::string &deviceId, std::vector<AllocationRecordDTO> &records) {
     std::string querySql = "SELECT {}, {} FROM {} WHERE {} >= 0";
-    querySql = StringUtil::FormatString(querySql,
-                                        TraceEntryTableColumn::ID,
-                                        TraceEntryTableColumn::ALLOCATED,
-                                        GetTraceEntryTableNameByDeviceId(deviceId),
-                                        TraceEntryTableColumn::ID);
-    sqlite3_stmt* stmt = nullptr;
+    querySql = StringUtil::FormatString(querySql, TraceEntryTableColumn::ID, TraceEntryTableColumn::ALLOCATED,
+        GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed to prepared query memory records sql, error: ", sqlite3_errmsg(db));
@@ -648,20 +598,19 @@ void MemSnapshotDatabase::QueryMemoryAllocations(const std::string& deviceId, st
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         records.emplace_back(sqlite3_column_int64(stmt, resultStartIndex),
-                             NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, resultStartIndex + 1)));
+            NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, resultStartIndex + 1)));
     }
     sqlite3_finalize(stmt);
 }
 
-int64_t MemSnapshotDatabase::QueryTraceEntriesTable(const MemSnapshotEventParams& queryParams,
-                                                    std::vector<TraceEntryTableItemDTO>& entries)
-{
+int64_t MemSnapshotDatabase::QueryTraceEntriesTable(
+    const MemSnapshotEventParams &queryParams, std::vector<TraceEntryTableItemDTO> &entries) {
     const int64_t count = QueryTraceEntriesTableCount(queryParams);
     if (count <= 0) {
         return count;
     }
     const std::string queryColumns = GetSelectTraceEntriesTableFullColumns();
-    sqlite3_stmt* stmt = BuildQueryTraceEntriesTableByQueryParamsAndBindParam(queryColumns, queryParams);
+    sqlite3_stmt *stmt = BuildQueryTraceEntriesTableByQueryParamsAndBindParam(queryColumns, queryParams);
     if (stmt == nullptr) {
         Server::ServerLog::Error(LOG_TAG + "Failed to query trace entries table: failed to prepare sql.");
         return -1;
@@ -673,11 +622,10 @@ int64_t MemSnapshotDatabase::QueryTraceEntriesTable(const MemSnapshotEventParams
     return count;
 }
 
-int64_t MemSnapshotDatabase::QueryTraceEntriesTableCount(const MemSnapshotEventParams& queryParams)
-{
+int64_t MemSnapshotDatabase::QueryTraceEntriesTableCount(const MemSnapshotEventParams &queryParams) {
     int64_t count = 0;
     std::string queryColumns = " COUNT(*) ";
-    sqlite3_stmt* stmt = BuildQueryTraceEntriesTableByQueryParamsAndBindParam(queryColumns, queryParams, false);
+    sqlite3_stmt *stmt = BuildQueryTraceEntriesTableByQueryParamsAndBindParam(queryColumns, queryParams, false);
     if (stmt == nullptr) {
         Server::ServerLog::Error(LOG_TAG + "Failed to query trace entries table: failed to prepare sql.");
         return -1;
@@ -689,8 +637,7 @@ int64_t MemSnapshotDatabase::QueryTraceEntriesTableCount(const MemSnapshotEventP
     return count;
 }
 
-std::string MemSnapshotDatabase::GetSelectTraceEntriesTableFullColumns()
-{
+std::string MemSnapshotDatabase::GetSelectTraceEntriesTableFullColumns() {
     std::string columns;
     for (auto &columnObj : TraceEntryTableColumn::FIELD_FULL_COLUMNS) {
         if (!columns.empty()) {
@@ -705,10 +652,8 @@ std::string MemSnapshotDatabase::GetSelectTraceEntriesTableFullColumns()
     return columns;
 }
 
-std::string MemSnapshotDatabase::BuildQueryTraceEntriesTableConditionSqlByParams(MemSnapshotEventParams& queryParams,
-                                                                                 bool& eventIdxRangeCondition,
-                                                                                 bool& filtersCondition)
-{
+std::string MemSnapshotDatabase::BuildQueryTraceEntriesTableConditionSqlByParams(
+    MemSnapshotEventParams &queryParams, bool &eventIdxRangeCondition, bool &filtersCondition) {
     std::string conditionSql = StringUtil::FormatString(" WHERE  {} >= 0 ", TraceEntryTableColumn::ID);
     // 构造事件索引范围参数
     if (queryParams.endEventIdx >= queryParams.startEventIdx && queryParams.endEventIdx > 0) {
@@ -726,16 +671,15 @@ std::string MemSnapshotDatabase::BuildQueryTraceEntriesTableConditionSqlByParams
     return conditionSql;
 }
 
-sqlite3_stmt* MemSnapshotDatabase::BuildQueryTraceEntriesTableByQueryParamsAndBindParam(const std::string& selectColumns,
-                                                                                        const MemSnapshotEventParams& queryParams,
-                                                                                        const bool withPagination)
-{
+sqlite3_stmt *MemSnapshotDatabase::BuildQueryTraceEntriesTableByQueryParamsAndBindParam(
+    const std::string &selectColumns, const MemSnapshotEventParams &queryParams, const bool withPagination) {
     bool eventIdxRangeCondition = false;
     bool filtersCondition = false;
     auto paramsCopy = queryParams;
-    std::string conditionSql = BuildQueryTraceEntriesTableConditionSqlByParams(paramsCopy, eventIdxRangeCondition, filtersCondition);
-    std::string sql = StringUtil::FormatString("select {} from {} {} ", selectColumns,
-                                               GetTraceEntryTableNameByDeviceId(queryParams.deviceId), conditionSql);
+    std::string conditionSql =
+        BuildQueryTraceEntriesTableConditionSqlByParams(paramsCopy, eventIdxRangeCondition, filtersCondition);
+    std::string sql = StringUtil::FormatString(
+        "select {} from {} {} ", selectColumns, GetTraceEntryTableNameByDeviceId(queryParams.deviceId), conditionSql);
     // 构造排序参数
     if (!paramsCopy.orderBy.empty()) {
         sql.append(Database::BuildQueryOrderSql(paramsCopy.orderBy, paramsCopy.desc));
@@ -767,11 +711,11 @@ sqlite3_stmt* MemSnapshotDatabase::BuildQueryTraceEntriesTableByQueryParamsAndBi
     return stmt;
 }
 
-std::optional<TraceEntry> MemSnapshotDatabase::QueryTraceEntryById(const int64_t eventId, const std::string& deviceId)
-{
+std::optional<TraceEntry> MemSnapshotDatabase::QueryTraceEntryById(const int64_t eventId, const std::string &deviceId) {
     std::string querySql = "SELECT * FROM {} WHERE {} = ?;";
-    querySql = StringUtil::FormatString(querySql, GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID);
-    sqlite3_stmt* stmt = nullptr;
+    querySql =
+        StringUtil::FormatString(querySql, GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed prepared query trace entry sql, error: ", sqlite3_errmsg(db));
@@ -788,15 +732,12 @@ std::optional<TraceEntry> MemSnapshotDatabase::QueryTraceEntryById(const int64_t
     return std::nullopt;
 }
 
-std::optional<TraceEntry> MemSnapshotDatabase::QueryFreeRequestedTraceEntryByBlock(const Block& block,
-                                                                                   const std::string& deviceId)
-{
+std::optional<TraceEntry> MemSnapshotDatabase::QueryFreeRequestedTraceEntryByBlock(
+    const Block &block, const std::string &deviceId) {
     std::string querySql = StringUtil::FormatString("SELECT * FROM {} WHERE {} > ? AND {} = ? AND {} = ?;",
-                                                    GetTraceEntryTableNameByDeviceId(deviceId),
-                                                    TraceEntryTableColumn::ID,
-                                                    TraceEntryTableColumn::ADDRESS,
-                                                    TraceEntryTableColumn::ACTION);
-    sqlite3_stmt* stmt = nullptr;
+        GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID, TraceEntryTableColumn::ADDRESS,
+        TraceEntryTableColumn::ACTION);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed prepared query trace entry sql, error: ", sqlite3_errmsg(db));
@@ -807,9 +748,8 @@ std::optional<TraceEntry> MemSnapshotDatabase::QueryFreeRequestedTraceEntryByBlo
     sqlite3_bind_int64(stmt, bindIdx++, block.allocEventId);
     sqlite3_bind_int64(stmt, bindIdx++, block.address);
     // 涉及到使用dictionary，则使用prefix
-    int freeRequestedActionKey = GetKeyInTableDictionaryMap(traceEntryTablePrefix,
-                                                            std::string(TraceEntryTableColumn::ACTION),
-                                                            TRACE_ENTRY_ACTION_FREE_REQUESTED);
+    int freeRequestedActionKey = GetKeyInTableDictionaryMap(
+        traceEntryTablePrefix, std::string(TraceEntryTableColumn::ACTION), TRACE_ENTRY_ACTION_FREE_REQUESTED);
     if (freeRequestedActionKey < 0) {
         Server::ServerLog::Error(LOG_TAG + "Failed to get free requested action key.");
         sqlite3_finalize(stmt);
@@ -825,14 +765,12 @@ std::optional<TraceEntry> MemSnapshotDatabase::QueryFreeRequestedTraceEntryByBlo
     return std::nullopt;
 }
 
-bool MemSnapshotDatabase::QuerySegmentEventsUntil(const int64_t eventId,
-                                                  const std::string& deviceId,
-                                                  std::vector<TraceEntry>& events)
-{
+bool MemSnapshotDatabase::QuerySegmentEventsUntil(
+    const int64_t eventId, const std::string &deviceId, std::vector<TraceEntry> &events) {
     std::string querySql = "SELECT * FROM {} WHERE {} <= ? AND {} BETWEEN 0 AND 3;";
-    querySql = StringUtil::FormatString(querySql, GetTraceEntryTableNameByDeviceId(deviceId),
-                                        TraceEntryTableColumn::ID, TraceEntryTableColumn::ACTION);
-    sqlite3_stmt* stmt = nullptr;
+    querySql = StringUtil::FormatString(
+        querySql, GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID, TraceEntryTableColumn::ACTION);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
         Server::ServerLog::Error(LOG_TAG + "Failed to prepare query segment events sql, error: ", sqlite3_errmsg(db));
@@ -847,19 +785,16 @@ bool MemSnapshotDatabase::QuerySegmentEventsUntil(const int64_t eventId,
     return true;
 }
 
-bool MemSnapshotDatabase::QueryActiveBlocksByEventId(const int64_t eventId,
-                                                     const std::string& deviceId,
-                                                     std::vector<Block>& blocks)
-{
+bool MemSnapshotDatabase::QueryActiveBlocksByEventId(
+    const int64_t eventId, const std::string &deviceId, std::vector<Block> &blocks) {
     std::string querySql = "SELECT * FROM {} WHERE {} <= ? AND ({} > ? OR {} < 0);";
-    querySql = StringUtil::FormatString(querySql, GetBlockTableNameByDeviceId(deviceId),
-                                        BlockTableColumn::ID,
-                                        BlockTableColumn::FREE_EVENT_ID,
-                                        BlockTableColumn::FREE_EVENT_ID);
-    sqlite3_stmt* stmt = nullptr;
+    querySql = StringUtil::FormatString(querySql, GetBlockTableNameByDeviceId(deviceId), BlockTableColumn::ID,
+        BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID);
+    sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
-        Server::ServerLog::Error(LOG_TAG + "Failed to prepare query blocks by event id sql, error: ", sqlite3_errmsg(db));
+        Server::ServerLog::Error(
+            LOG_TAG + "Failed to prepare query blocks by event id sql, error: ", sqlite3_errmsg(db));
         sqlite3_finalize(stmt);
         return false;
     }
@@ -873,6 +808,7 @@ bool MemSnapshotDatabase::QueryActiveBlocksByEventId(const int64_t eventId,
     return true;
 }
 
-template bool MemSnapshotDatabase::QueryAllBlocks<Block>(std::vector<Block>&, const std::string&);
-template bool MemSnapshotDatabase::QueryAllBlocks<BlockViewItemDTO>(std::vector<BlockViewItemDTO>&, const std::string&);
+template bool MemSnapshotDatabase::QueryAllBlocks<Block>(std::vector<Block> &, const std::string &);
+template bool MemSnapshotDatabase::QueryAllBlocks<BlockViewItemDTO>(
+    std::vector<BlockViewItemDTO> &, const std::string &);
 } // namespace Dic::Module::FullDb
