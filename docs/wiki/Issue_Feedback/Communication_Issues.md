@@ -100,18 +100,18 @@ A3四卡8die的作业，通信域中有异常大的值，工具版本8.2.RC1
 +        msprof_tx=False,
 +    )
 +
-+    activites = []
++    activities = []
 +    if option.with_npu:
-+        activites.append(torch_npu.profiler.ProfilerActivity.NPU)
++        activities.append(torch_npu.profiler.ProfilerActivity.NPU)
 +    if option.with_cpu:
-+        activites.append(torch_npu.profiler.ProfilerActivity.CPU)
++        activities.append(torch_npu.profiler.ProfilerActivity.CPU)
 +
 +    prof = torch_npu.profiler.profile(
 +        with_modules=option.with_module,
 +        with_stack=option.with_stack,
 +        record_shapes=option.record_shapes,
 +        profile_memory=option.with_memory,
-+        activities=activites,
++        activities=activities,
 +        on_trace_ready=torch_npu.profiler.tensorboard_trace_handler(profile_save_path, analyse_flag=option.analysis),
 +        experimental_config=experimental_config,
 +    )
@@ -131,7 +131,7 @@ A3四卡8die的作业，通信域中有异常大的值，工具版本8.2.RC1
 
 ---
 
-## hcom_send应如何找到对端 
+## hcom_send应如何找到对端
 
 ### 问题描述
 
