@@ -20,6 +20,7 @@
 #include "TimelineProtocol.h"
 #include "MemScopeProtocolRequest.h"
 #include "MemSnapshotProtocolRequest.h"
+#include "MemSnapshotProtocolEvent.h"
 #include "MemScopeProtocol.h"
 
 namespace Dic::Protocol {
@@ -61,5 +62,6 @@ void MemScopeProtocolUtil::RegisterEventToJsonFuncs() {
     eventToJsonFactory.emplace(EVENT_PARSE_MEM_SCOPE_COMPLETED, ProtocolUtil::CommonEventToJson);
     eventToJsonFactory.emplace(EVENT_MODULE_RESET, TimelineProtocol::ToModuleResetEventJson);
     eventToJsonFactory.emplace(EVENT_ALL_SUCCESS, TimelineProtocol::ToAllSuccessEventJson);
+    eventToJsonFactory.emplace(EVENT_PARSE_MEM_SNAPSHOT_PROGRESS, ProtocolUtil::CommonEventToJson);
 }
 } // end of namespace Dic::Protocol
