@@ -174,6 +174,7 @@ const std::string REQ_RES_MEM_SNAPSHOT_ALLOCATIONS = "Memory/snapshot/allocation
 const std::string REQ_RES_MEM_SNAPSHOT_EVENTS = "Memory/snapshot/events";
 const std::string REQ_RES_MEM_SNAPSHOT_DETAIL = "Memory/snapshot/detail";
 const std::string REQ_RES_MEM_SNAPSHOT_STATE = "Memory/snapshot/state";
+const std::string REQ_RES_MEM_SNAPSHOT_LEAK_STATS = "Memory/snapshot/leakStats";
 
 // Operator Request
 const std::string REQ_RES_OPERATOR_CATEGORY_INFO = "operator/category";

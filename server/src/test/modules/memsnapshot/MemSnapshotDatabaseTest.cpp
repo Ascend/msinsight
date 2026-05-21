@@ -284,6 +284,85 @@ TEST_F(MemSnapshotDatabaseTest, QueryBlocksTableWithDescOrder) {
     }
 }
 
+// 测试查询潜在泄漏blocks表
+TEST_F(MemSnapshotDatabaseTest, QueryBlocksTableOnlyUnreleasedInRange) {
+    MemSnapshotBlockParams params;
+    params.deviceId = "0";
+    params.eventType = "BLOCK";
+    params.currentPage = 1;
+    params.pageSize = 10;
+    params.startEventIdx = 100;
+    params.endEventIdx = 1000;
+    params.orderBy = "allocEventId";
+    params.onlyUnreleasedInRange = true;
+
+    std::vector<BlockTableItemDTO> blocks;
+    int64_t totalCount = snapshotDb->QueryBlocksTable(params, blocks);
+
+    EXPECT_EQ(totalCount, 146);
+    ASSERT_EQ(blocks.size(), params.pageSize);
+    for (const auto &block : blocks) {
+        EXPECT_GE(block.allocEventId, params.startEventIdx);
+        EXPECT_LE(block.allocEventId, params.endEventIdx);
+        EXPECT_TRUE(block.freeEventId < 0 || static_cast<uint64_t>(block.freeEventId) > params.endEventIdx);
+    }
+}
+
+// 测试查询潜在泄漏blocks表与普通过滤条件叠加
+TEST_F(MemSnapshotDatabaseTest, QueryBlocksTableOnlyUnreleasedInRangeWithFilters) {
+    MemSnapshotBlockParams params;
+    params.deviceId = "0";
+    params.eventType = "BLOCK";
+    params.currentPage = 1;
+    params.pageSize = 10;
+    params.startEventIdx = 100;
+    params.endEventIdx = 1000;
+    params.orderBy = "allocEventId";
+    params.onlyUnreleasedInRange = true;
+    params.filters["state"] = BLOCK_STATE_ACTIVE_ALLOC;
+    params.rangeFilters["allocEventId"] = {100, 500};
+
+    std::vector<BlockTableItemDTO> blocks;
+    int64_t totalCount = snapshotDb->QueryBlocksTable(params, blocks);
+
+    EXPECT_EQ(totalCount, 78);
+    ASSERT_EQ(blocks.size(), params.pageSize);
+    for (const auto &block : blocks) {
+        EXPECT_EQ(block.state, BLOCK_STATE_ACTIVE_ALLOC);
+        EXPECT_GE(block.allocEventId, 100);
+        EXPECT_LE(block.allocEventId, 500);
+        EXPECT_TRUE(block.freeEventId < 0 || static_cast<uint64_t>(block.freeEventId) > params.endEventIdx);
+    }
+}
+
+// 测试查询潜在泄漏聚合统计
+TEST_F(MemSnapshotDatabaseTest, QueryPotentialLeakStats) {
+    MemSnapshotLeakStatsParams params;
+    params.deviceId = "0";
+    params.startEventIdx = 100;
+    params.endEventIdx = 1000;
+
+    MemSnapshotLeakStatsDTO stats;
+    EXPECT_TRUE(snapshotDb->QueryPotentialLeakStats(params, stats));
+    EXPECT_EQ(stats.totalSize, 108473.0);
+    EXPECT_EQ(stats.maxSize, 9216.5);
+    EXPECT_EQ(stats.minSize, 0.5);
+}
+
+// 测试查询无匹配潜在泄漏聚合统计
+TEST_F(MemSnapshotDatabaseTest, QueryPotentialLeakStatsWithoutMatches) {
+    MemSnapshotLeakStatsParams params;
+    params.deviceId = "0";
+    params.startEventIdx = 0;
+    params.endEventIdx = 0;
+
+    MemSnapshotLeakStatsDTO stats;
+    EXPECT_TRUE(snapshotDb->QueryPotentialLeakStats(params, stats));
+    EXPECT_EQ(stats.totalSize, 0);
+    EXPECT_EQ(stats.maxSize, 0);
+    EXPECT_EQ(stats.minSize, 0);
+}
+
 // 测试查询trace entries表
 TEST_F(MemSnapshotDatabaseTest, QueryTraceEntriesTable) {
     MemSnapshotEventParams params;

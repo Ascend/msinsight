@@ -26,6 +26,7 @@ import {
     getSnapshotBlockTable,
     getSnapshotEvent,
     getSnapshotAllocations,
+    getSnapshotLeakStats,
 } from '../utils/RequestUtils';
 import { message } from 'antd';
 import { runInAction } from 'mobx';
@@ -147,6 +148,9 @@ export const getBlockTableData = async (session: any): Promise<void> => {
         if (session.onlyInefficient) {
             blockParam.onlyInefficient = true;
         }
+        if (session.autoFilterPotentialLeaks) {
+            blockParam.onlyUnreleasedInRange = true;
+        }
         handleThreshold(blockParam, session);
         const blockTableData = await request(blockParam);
         runInAction(() => {
@@ -155,6 +159,33 @@ export const getBlockTableData = async (session: any): Promise<void> => {
             session.blocksTotal = blockTableData.total;
         });
     } catch (error: any) {
+        message.error(error.message);
+    }
+};
+export const getPotentialLeakStats = async (session: any): Promise<void> => {
+    if (session.module !== 'memsnapshot' || session.deviceId === '' || session.maxTime === 0 || session.maxTime === undefined) return;
+    const requestId = session.leakStats.requestId + 1;
+    runInAction(() => {
+        session.leakStats.loading = true;
+        session.leakStats.error = false;
+        session.leakStats.requestId = requestId;
+    });
+    try {
+        const leakStats = await getSnapshotLeakStats({
+            deviceId: session.deviceId,
+            startTimestamp: session.minTime,
+            endTimestamp: session.maxTime,
+        });
+        runInAction(() => {
+            if (session.leakStats.requestId !== requestId) return;
+            session.leakStats = { ...leakStats, loading: false, error: false, requestId };
+        });
+    } catch (error: any) {
+        runInAction(() => {
+            if (session.leakStats.requestId !== requestId) return;
+            session.leakStats.loading = false;
+            session.leakStats.error = true;
+        });
         message.error(error.message);
     }
 };

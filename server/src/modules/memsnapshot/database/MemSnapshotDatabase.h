@@ -44,6 +44,7 @@ class MemSnapshotDatabase : public Database {
     bool QueryActiveBlocksByEventId(int64_t eventId, const std::string &deviceId, std::vector<Block> &blocks);
     // 查询blocks表格数据，支持分页、过滤、排序等
     int64_t QueryBlocksTable(const MemSnapshotBlockParams &queryParams, std::vector<BlockTableItemDTO> &blocks);
+    bool QueryPotentialLeakStats(const MemSnapshotLeakStatsParams &queryParams, MemSnapshotLeakStatsDTO &stats);
 
     static void Reset();
 

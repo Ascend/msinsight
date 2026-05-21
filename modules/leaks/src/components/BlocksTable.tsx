@@ -93,6 +93,7 @@ const BlocksTable = observer(({ session }: { session: Session }): React.ReactEle
         blocksCurrentPage, blocksPageSize, blocksTotal, blocksOrder, blocksOrderBy,
         blocksFilters, blocksRangeFilters, maxTime, minTime,
         lazyUsedThreshold, delayedFreeThreshold, longIdleThreshold, onlyInefficient,
+        autoFilterPotentialLeaks,
     } = session;
     const [loading, setLoading] = useState(false);
     const defaultDataSource = (process.env.NODE_ENV === 'development' ? [{}] : []);
@@ -126,7 +127,7 @@ const BlocksTable = observer(({ session }: { session: Session }): React.ReactEle
     }, [deviceId, eventType, maxTime, minTime, blocksCurrentPage,
         blocksPageSize, blocksOrder, blocksOrderBy, JSON.stringify(blocksFilters), JSON.stringify(blocksRangeFilters),
         JSON.stringify(lazyUsedThreshold), JSON.stringify(delayedFreeThreshold), JSON.stringify(longIdleThreshold),
-        onlyInefficient,
+        onlyInefficient, autoFilterPotentialLeaks,
     ]);
     return (
         <>

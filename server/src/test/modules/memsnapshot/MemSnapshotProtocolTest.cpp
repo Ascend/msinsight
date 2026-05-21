@@ -45,6 +45,7 @@ TEST_F(MemSnapshotProtocolTest, BuildBlocksTableRequestFromJson) {
                           "    \"maxSize\": 1048576, "
                           "    \"currentPage\": 1, "
                           "    \"pageSize\": 10, "
+                          "    \"onlyUnreleasedInRange\": true, "
                           "    \"desc\": false, "
                           "    \"orderBy\": \"allocEventId\", "
                           "    \"filters\": { "
@@ -72,6 +73,7 @@ TEST_F(MemSnapshotProtocolTest, BuildBlocksTableRequestFromJson) {
     EXPECT_EQ(request.params.deviceId, "1");
     EXPECT_EQ(request.params.eventType, "PTA");
     EXPECT_TRUE(request.isTable);
+    EXPECT_TRUE(request.params.onlyUnreleasedInRange);
 }
 
 TEST_F(MemSnapshotProtocolTest, BuildBlocksViewRequestFromJson) {
@@ -103,6 +105,49 @@ TEST_F(MemSnapshotProtocolTest, BuildBlocksViewRequestFromJson) {
     EXPECT_EQ(request.params.eventType, "PTA");
     EXPECT_FALSE(request.isTable);
     EXPECT_EQ(request.params.orderBy, "allocEventId");
+}
+
+TEST_F(MemSnapshotProtocolTest, BuildLeakStatsRequestFromJson) {
+    std::string jsonStr = "{"
+                          "  \"id\": 31, "
+                          "  \"moduleName\": \"leaks\", "
+                          "  \"type\": \"request\", "
+                          "  \"command\": \"Memory/snapshot/leakStats\", "
+                          "  \"fileId\": \"\", "
+                          "  \"projectName\": \"/home/test/data/memsnapshot/test.db\", "
+                          "  \"params\": { "
+                          "    \"deviceId\": \"1\", "
+                          "    \"startTimestamp\": 1000, "
+                          "    \"endTimestamp\": 50000 "
+                          "  } "
+                          "}";
+    std::string errMsg;
+    auto json = JsonUtil::TryParse(jsonStr, errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    EXPECT_FALSE(json->HasParseError());
+    EXPECT_TRUE(json.has_value());
+    auto requestPtr = Dic::Protocol::MemSnapshotLeakStatsRequest::FromJson(json.value(), errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    auto &request = dynamic_cast<Dic::Protocol::MemSnapshotLeakStatsRequest &>(*requestPtr);
+    EXPECT_TRUE(request.params.CommonCheck(errMsg));
+    EXPECT_EQ(request.params.deviceId, "1");
+    EXPECT_EQ(request.params.startEventIdx, 1000);
+    EXPECT_EQ(request.params.endEventIdx, 50000);
+}
+
+TEST_F(MemSnapshotProtocolTest, LeakStatsResponseToJson) {
+    Dic::Protocol::MemSnapshotLeakStatsResponse response;
+    response.totalSize = 108473.0;
+    response.maxSize = 9216.5;
+    response.minSize = 0.5;
+
+    auto json = response.ToJson();
+    ASSERT_TRUE(json.has_value());
+    ASSERT_TRUE(json->HasMember("body"));
+    const auto &body = (*json)["body"];
+    EXPECT_DOUBLE_EQ(body["totalSize"].GetDouble(), 108473.0);
+    EXPECT_DOUBLE_EQ(body["maxSize"].GetDouble(), 9216.5);
+    EXPECT_DOUBLE_EQ(body["minSize"].GetDouble(), 0.5);
 }
 
 TEST_F(MemSnapshotProtocolTest, BuildEventsTableRequestFromJson) {

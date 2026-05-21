@@ -24,6 +24,12 @@
 
 namespace Dic::Protocol {
 using namespace Dic::Module::MemSnapshot;
+struct MemSnapshotLeakStatsDTO {
+    double totalSize{0.0};
+    double maxSize{0.0};
+    double minSize{0.0};
+};
+
 /**
  * @brief 内存生命周期图-内存块项
  */
