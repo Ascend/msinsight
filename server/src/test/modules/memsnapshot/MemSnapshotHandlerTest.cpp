@@ -24,6 +24,7 @@
 #include "QueryMemSnapshotEventHandler.h"
 #include "QueryMemSnapshotAllocationHandler.h"
 #include "QueryMemSnapshotDetailHandler.h"
+#include "QueryMemSnapshotLeakStatsHandler.h"
 #include "DataBaseManager.h"
 #include "TestSuit.h"
 
@@ -168,6 +169,34 @@ TEST_F(MemSnapshotHandlerTest, QueryAllocationsWithValidParams) {
 
     bool result = handler.HandleRequest(std::move(requestPtr));
     EXPECT_TRUE(result);
+}
+
+// ============== QueryMemSnapshotLeakStatsHandler Tests ==============
+
+TEST_F(MemSnapshotHandlerTest, QueryLeakStatsWithValidParams) {
+    QueryMemSnapshotLeakStatsHandler handler;
+    std::unique_ptr<MemSnapshotLeakStatsRequest> requestPtr = std::make_unique<MemSnapshotLeakStatsRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->projectName = testDbPath;
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.startEventIdx = 100;
+    requestPtr->params.endEventIdx = 1000;
+
+    bool result = handler.HandleRequest(std::move(requestPtr));
+    EXPECT_TRUE(result);
+}
+
+TEST_F(MemSnapshotHandlerTest, QueryLeakStatsWithInvalidEventIdxRange) {
+    QueryMemSnapshotLeakStatsHandler handler;
+    std::unique_ptr<MemSnapshotLeakStatsRequest> requestPtr = std::make_unique<MemSnapshotLeakStatsRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->projectName = testDbPath;
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.startEventIdx = 5000;
+    requestPtr->params.endEventIdx = 100;
+
+    bool result = handler.HandleRequest(std::move(requestPtr));
+    EXPECT_FALSE(result);
 }
 
 // ============== QueryMemSnapshotDetailHandler Tests ==============

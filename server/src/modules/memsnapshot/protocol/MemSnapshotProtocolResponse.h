@@ -32,6 +32,22 @@ using namespace Dic::Module;
 using namespace Dic::Module::MemSnapshot;
 using ColumnBounds = std::unordered_map<std::string_view, std::pair<int64_t, int64_t>>;
 
+struct MemSnapshotLeakStatsResponse : public JsonResponse, MemSnapshotLeakStatsDTO {
+    MemSnapshotLeakStatsResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_LEAK_STATS) {}
+
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
+        document_t json(kObjectType);
+        auto &allocator = json.GetAllocator();
+        ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
+        json_t body(kObjectType);
+        JsonUtil::AddMember(body, "totalSize", totalSize, allocator);
+        JsonUtil::AddMember(body, "maxSize", maxSize, allocator);
+        JsonUtil::AddMember(body, "minSize", minSize, allocator);
+        JsonUtil::AddMember(json, "body", body, allocator);
+        return std::optional<document_t>{std::move(json)};
+    }
+};
+
 struct MemSnapshotBlocksResponse : public JsonResponse {
     MemSnapshotBlocksResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_BLOCKS) {}
     std::vector<BlockTableItemDTO> tableBlocks;

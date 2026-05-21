@@ -159,6 +159,16 @@ export class Session {
 
     clickEventItem: EvenItem | null = null;
     selectionVersion: number = 0;
+    leakStats: { totalSize: number; maxSize: number; minSize: number; loading: boolean; error: boolean; requestId: number } = {
+        totalSize: 0,
+        maxSize: 0,
+        minSize: 0,
+        loading: false,
+        error: false,
+        requestId: 0,
+    };
+
+    autoFilterPotentialLeaks: boolean = false;
 
     loadingBlocks: boolean = false;
     loadingState: boolean = false;

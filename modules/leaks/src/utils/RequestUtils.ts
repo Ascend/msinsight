@@ -84,6 +84,17 @@ export interface BlockParam {
     delayedFreeThreshold?: ThreShold;
     longIdleThreshold?: ThreShold;
     onlyInefficient?: boolean;
+    onlyUnreleasedInRange?: boolean;
+}
+export interface LeakStatsParam {
+    deviceId: string;
+    startTimestamp: number;
+    endTimestamp: number;
+}
+export interface LeakStatsData {
+    totalSize: number;
+    maxSize: number;
+    minSize: number;
 }
 export interface EventParam {
     deviceId: string;
@@ -199,6 +210,10 @@ export const getBlockDetails = async (params: BlockParam): Promise<BlocksTableDa
 
 export const getSnapshotBlockTable = async (params: BlockParam): Promise<BlocksTableData> => {
     return window.request({ command: 'Memory/snapshot/blocks', params: { ...params } });
+};
+
+export const getSnapshotLeakStats = async (params: LeakStatsParam): Promise<LeakStatsData> => {
+    return window.request({ command: 'Memory/snapshot/leakStats', params: { ...params } });
 };
 
 /**

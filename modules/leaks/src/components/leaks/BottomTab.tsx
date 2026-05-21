@@ -32,12 +32,12 @@ import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWo
 import { addAddressOffset, convertBytesToMBytes } from '@/utils/utils';
 
 const MARGIN = 38;
-const HEIGHT_DEFAULT = 300;
+const HEIGHT_DEFAULT = 420;
 
 export const BottomTab = observer(({ session }: { session: Session }): JSX.Element => {
     const { t } = useTranslation('leaks');
     const [isExpand, setIsExpand] = useState(false);
-    const [containerHeight, setContainerHeight] = useState(HEIGHT_DEFAULT);
+    const [containerHeight, setContainerHeight] = useState(Math.min(HEIGHT_DEFAULT, window.innerHeight - 70));
     const [activeTab, setActiveTab] = useState('sliceDetail');
     const theme: Theme = useTheme();
     const autoExpandedKeysRef = useRef(new Set<string>());

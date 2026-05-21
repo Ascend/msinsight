@@ -29,6 +29,28 @@
 namespace Dic::Protocol {
 using namespace Dic::Module::MemSnapshot;
 
+struct MemSnapshotLeakStatsParams {
+    uint64_t startEventIdx{0};
+    uint64_t endEventIdx{0};
+    std::string deviceId;
+
+    bool CommonCheck(std::string &errorMsg) const {
+        if (startEventIdx > endEventIdx) {
+            errorMsg = "The start idx should be less than the end idx.";
+            return false;
+        }
+        if (endEventIdx > INT64_MAX) {
+            errorMsg = "Invalid idx, detail: exceeds the maximum limit of " + std::to_string(INT64_MAX);
+            return false;
+        }
+        if (!CheckStrParamValid(deviceId, errorMsg)) {
+            errorMsg = "Invalid deviceId, detail: " + errorMsg;
+            return false;
+        }
+        return true;
+    }
+};
+
 struct MemSnapshotBlockParams : public CommonTableParams {
     uint64_t startEventIdx{0};
     uint64_t endEventIdx{0};
@@ -38,6 +60,7 @@ struct MemSnapshotBlockParams : public CommonTableParams {
     std::string eventType;
     // 标识是否仅请求start、end区间内申请或释放的block
     bool onlyAllocOrFreeInRange{false};
+    bool onlyUnreleasedInRange{false};
 
     bool CommonCheck(std::string &errorMsg) const {
         if (minSize > maxSize) {
@@ -105,6 +128,28 @@ struct MemSnapshotEventParams : public CommonTableParams {
     }
 };
 
+struct MemSnapshotLeakStatsRequest : Request {
+    MemSnapshotLeakStatsRequest() : Request(REQ_RES_MEM_SNAPSHOT_LEAK_STATS) {}
+    MemSnapshotLeakStatsParams params;
+
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
+        std::unique_ptr<MemSnapshotLeakStatsRequest> reqPtr = std::make_unique<MemSnapshotLeakStatsRequest>();
+        if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+            error = "Failed to set request base info, command is: " + reqPtr->command;
+            return nullptr;
+        }
+        if (!json.HasMember("params") || !json["params"].HasMember("deviceId")) {
+            error = "Request[requestId=" + std::to_string(reqPtr->id) + "] json lacks member params or deviceId.";
+            return nullptr;
+        }
+        const json_t &param_json = json["params"];
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.startEventIdx, param_json, "startTimestamp");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.endEventIdx, param_json, "endTimestamp");
+        return reqPtr;
+    }
+};
+
 struct MemSnapshotBlocksRequest : Request {
     MemSnapshotBlocksRequest() : Request(REQ_RES_MEM_SNAPSHOT_BLOCKS) {}
     MemSnapshotBlockParams params;
@@ -130,6 +175,7 @@ struct MemSnapshotBlocksRequest : Request {
         JsonUtil::SetByJsonKeyValue(reqPtr->params.maxSize, param_json, "maxSize");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.eventType, param_json, "eventType");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.onlyUnreleasedInRange, param_json, "onlyUnreleasedInRange");
         if (reqPtr->isTable) {
             if (!reqPtr->params.SetFromJson(param_json, BlockTableColumn::FIELD_FULL_COLUMNS, error)) {
                 Server::ServerLog::Error("Failed set common table params from json param: %", error);

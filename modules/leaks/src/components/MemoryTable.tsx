@@ -17,18 +17,32 @@
  */
 import React, { useState } from 'react';
 import { type RadioChangeEvent } from 'antd';
+import type { CheckboxChangeEvent } from 'antd/lib/checkbox';
 import { useTranslation } from 'react-i18next';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react';
-import { Radio, Button } from '@insight/lib/components';
+import { Radio, Button, Checkbox } from '@insight/lib/components';
 import { Session } from '../entity/session';
 import BlocksTable from './BlocksTable';
 import EventsTable from './EventsTable';
 import ThresholdModal from './ThresholdModal';
 const MemoryTable = observer(({ session }: { session: Session }): React.ReactElement => {
     const { t } = useTranslation('leaks');
-    const { tableType, module } = session;
+    const { tableType, module, autoFilterPotentialLeaks } = session;
     const [open, setOpen] = useState(false);
+    const closeAutoFilter = (): void => {
+        runInAction(() => {
+            session.autoFilterPotentialLeaks = false;
+            session.blocksCurrentPage = 1;
+        });
+    };
+    const autoFilterChange = (event: CheckboxChangeEvent): void => {
+        if (event.target.checked) {
+            runInAction(() => { session.autoFilterPotentialLeaks = true; });
+            return;
+        }
+        closeAutoFilter();
+    };
     const radioChange = (e: RadioChangeEvent): void => {
         runInAction(() => {
             const type = e.target.value;
@@ -71,6 +85,9 @@ const MemoryTable = observer(({ session }: { session: Session }): React.ReactEle
                         data-testid={'eventViewRadio'} value={'events'}>{t('Event View')}</Radio>
                 </Radio.Group>
                 {tableType === 'blocks' && module === 'leaks' ? <Button type="primary" onClick={() => { setOpen(true); }}>{t('setThreshold')}</Button> : <></>}
+                {tableType === 'blocks' && module === 'memsnapshot'
+                    ? <Checkbox checked={autoFilterPotentialLeaks} onChange={autoFilterChange}>{t('autoFilterPotentialLeaks')}</Checkbox>
+                    : <></>}
             </div>
             {tableType === 'blocks' ? <><BlocksTable session={session} /><ThresholdModal session={session} open={open} setOpen={setOpen} /></> : <EventsTable session={session} />}
         </>

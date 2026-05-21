@@ -501,7 +501,11 @@ std::string MemSnapshotDatabase::BuildQueryBlocksTableConditionSqlByParams(
             std::to_string(params.minSize), std::to_string(params.maxSize)));
     }
     // 构造事件索引范围参数
-    if (params.endEventIdx >= params.startEventIdx && params.endEventIdx > 0) {
+    if (params.onlyUnreleasedInRange) {
+        eventIdxRangeCondition = true;
+        conditionSql.append(StringUtil::FormatString(" AND ({} BETWEEN ? AND ?) AND ({} < 0 OR {} > ?) ",
+            BlockTableColumn::ALLOC_EVENT_ID, BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID));
+    } else if (params.endEventIdx >= params.startEventIdx && params.endEventIdx > 0) {
         eventIdxRangeCondition = true;
         // allocEventId < 0 时视为无限小，freeEventId < 0 时视为无限大
         conditionSql.append(StringUtil::FormatString(" AND (({} < 0 OR {} >= ?) AND ({} < 0 OR {} <= ?)) ",
@@ -544,8 +548,14 @@ sqlite3_stmt *MemSnapshotDatabase::BuildQueryBlocksTableByQueryParamsAndBindPara
     int bindIdx = bindStartIndex;
     // 绑定事件索引范围参数
     if (eventIdxRangeCondition) {
-        sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.startEventIdx);
-        sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.endEventIdx);
+        if (paramsCopy.onlyUnreleasedInRange) {
+            sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.startEventIdx);
+            sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.endEventIdx);
+            sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.endEventIdx);
+        } else {
+            sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.startEventIdx);
+            sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.endEventIdx);
+        }
     }
     // 绑定filters参数
     if (filtersCondition) {
@@ -557,6 +567,37 @@ sqlite3_stmt *MemSnapshotDatabase::BuildQueryBlocksTableByQueryParamsAndBindPara
         Database::CommonBindPaginationParams(paramsCopy.pageSize, paramsCopy.currentPage, stmt, bindIdx);
     }
     return stmt;
+}
+
+bool MemSnapshotDatabase::QueryPotentialLeakStats(
+    const MemSnapshotLeakStatsParams &queryParams, MemSnapshotLeakStatsDTO &stats) {
+    std::string querySql = "SELECT COALESCE(ROUND(SUM({}) / 1024.0, 3), 0), "
+                           "COALESCE(ROUND(MAX({}) / 1024.0, 3), 0), "
+                           "COALESCE(ROUND(MIN({}) / 1024.0, 3), 0) FROM {} "
+                           "WHERE {} BETWEEN ? AND ? AND ({} < 0 OR {} > ?)";
+    querySql = StringUtil::FormatString(querySql, BlockTableColumn::SIZE, BlockTableColumn::SIZE,
+        BlockTableColumn::SIZE, GetBlockTableNameByDeviceId(queryParams.deviceId), BlockTableColumn::ALLOC_EVENT_ID,
+        BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID);
+    sqlite3_stmt *stmt = nullptr;
+    int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
+    if (result != SQLITE_OK) {
+        Server::ServerLog::Error(
+            LOG_TAG + "Failed to prepare query potential leak stats sql, error: ", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    int bindIdx = bindStartIndex;
+    sqlite3_bind_int64(stmt, bindIdx++, queryParams.startEventIdx);
+    sqlite3_bind_int64(stmt, bindIdx++, queryParams.endEventIdx);
+    sqlite3_bind_int64(stmt, bindIdx++, queryParams.endEventIdx);
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        int col = resultStartIndex;
+        stats.totalSize = sqlite3_column_double(stmt, col++);
+        stats.maxSize = sqlite3_column_double(stmt, col++);
+        stats.minSize = sqlite3_column_double(stmt, col++);
+    }
+    sqlite3_finalize(stmt);
+    return true;
 }
 
 void MemSnapshotDatabase::QueryMemoryRecords(

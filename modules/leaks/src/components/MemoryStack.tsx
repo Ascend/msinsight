@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Select, Checkbox, CollapsiblePanel } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import { observer } from 'mobx-react';
@@ -24,21 +24,47 @@ import type { CheckboxChangeEvent } from 'antd/lib/checkbox';
 import MemorySliceChart from './MemorySliceChart';
 import MemoryFunctionCall from './MemoryFunctionCall';
 import { Label } from './Common';
-import { getFuncNewData, getBarNewData } from './dataHandler';
+import { getFuncNewData, getBarNewData, getBlockTableData, getEventTableData, getPotentialLeakStats } from './dataHandler';
 import { convertNanoseconds } from '../utils/utils';
 import { MemoryBlockDiagram } from './leaks/MemoryBlockDiagram';
 import MemoryDataZoom from './MemoryDataZoom';
 import { workerTransform } from '@/leaksWorker/blockWorker/worker';
 import { MemoryStateDiagram } from './leaks/MemoryStateDiagram';
+import PotentialLeakStats from './PotentialLeakStats';
 
 const MemoryStack = observer(({ session }: { session: any }): React.ReactElement => {
     const { t } = useTranslation('leaks');
     const [zoomData, setZoomData] = useState<Array<[number, number]>>([]);
     const [zoomMinTime, setZoomMinTime] = useState<number>(Number.MAX_SAFE_INTEGER);
     const [zoomMaxTime, setZoomMaxTime] = useState<number>(Number.MIN_SAFE_INTEGER);
+    const leakStatsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const refreshPotentialLeakStats = (): void => {
+        if (leakStatsTimer.current !== null) {
+            clearTimeout(leakStatsTimer.current);
+        }
+        leakStatsTimer.current = setTimeout(() => {
+            getPotentialLeakStats(session);
+            leakStatsTimer.current = null;
+        }, 300);
+    };
 
     const selectedZoomChange = (range: [number, number]): void => {
         getFuncNewData(session, range[0], range[1]);
+        if (session.module === 'memsnapshot') {
+            runInAction(() => {
+                session.minTime = range[0];
+                session.maxTime = range[1];
+                if (session.autoFilterPotentialLeaks) {
+                    session.blocksCurrentPage = 1;
+                    session.eventsCurrentPage = 1;
+                }
+            });
+            refreshPotentialLeakStats();
+            if (session.autoFilterPotentialLeaks) {
+                getBlockTableData(session);
+                getEventTableData(session);
+            }
+        }
 
         const { sizeInfo, renderOptions } = session.leaksWorkerInfo;
         const newScale = range[1] - range[0] === 0 ? Number.MAX_SAFE_INTEGER : (sizeInfo.maxTimestamp - sizeInfo.minTimestamp) / (range[1] - range[0]);
@@ -50,6 +76,12 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         });
         workerTransform({ transform });
     };
+
+    useEffect(() => () => {
+        if (leakStatsTimer.current !== null) {
+            clearTimeout(leakStatsTimer.current);
+        }
+    }, []);
 
     useEffect(() => {
         const newIdOpts = Object.keys(session.deviceIds).map((id: string) => ({ label: id, value: id }));
@@ -88,6 +120,9 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
             session.maxTime = maxTime;
             session.minTime = minTime;
         });
+        if (session.module === 'memsnapshot') {
+            refreshPotentialLeakStats();
+        }
     }, [session.allocationData.allocations]);
 
     return (
@@ -161,6 +196,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                     }}
                     options={session.typeOpts}
                 />
+                {session.module === 'memsnapshot' ? <PotentialLeakStats session={session} /> : <></>}
                 <div id="barContent" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
                     <MemoryBlockDiagram session={session} />
                     <MemoryDataZoom
