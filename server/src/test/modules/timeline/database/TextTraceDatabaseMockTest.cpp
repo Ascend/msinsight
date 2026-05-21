@@ -24,17 +24,17 @@
 #include "CounterTable.h"
 #include "TimelineProtocolResponse.h"
 #include "TraceDatabaseHelper.h"
+#include "TraceTime.h"
 #include "TextTraceDatabase.h"
 
 using namespace Dic::Global::PROFILER::MockUtil;
 using namespace Dic::Module::Timeline;
 class TextTraceDatabaseMockTest : public ::testing::Test {
-protected:
+  protected:
     class MockDatabase : public Dic::Module::Timeline::TextTraceDatabase {
-    public:
+      public:
         explicit MockDatabase(std::recursive_mutex &sqlMutex) : TextTraceDatabase(sqlMutex) {}
-        void SetDbPtr(sqlite3 *dbPtr)
-        {
+        void SetDbPtr(sqlite3 *dbPtr) {
             isOpen = true;
             db = dbPtr;
             path = ":memory:";
@@ -49,11 +49,11 @@ protected:
         "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
         "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT);";
     const std::string threadTableSql = "CREATE TABLE thread (track_id INTEGER PRIMARY KEY, tid TEXT, pid TEXT, "
-        "thread_name TEXT, thread_sort_index INTEGER);";
+                                       "thread_name TEXT, thread_sort_index INTEGER);";
     const std::string flowTableSql = "CREATE TABLE flow (id INTEGER PRIMARY KEY AUTOINCREMENT, flow_id TEXT, name "
-        "TEXT, cat TEXT, track_id INTEGER, timestamp INTEGER, type TEXT);";
+                                     "TEXT, cat TEXT, track_id INTEGER, timestamp INTEGER, type TEXT);";
     const std::string counterTableSql = "CREATE TABLE counter (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, pid "
-        "TEXT,timestamp INTEGER, cat TEXT, args TEXT);";
+                                        "TEXT,timestamp INTEGER, cat TEXT, args TEXT);";
     const std::string processSql =
         "CREATE TABLE process (pid TEXT PRIMARY KEY, process_name TEXT, label TEXT, process_sort_index INTEGER);";
     const std::string kernelSql =
@@ -71,19 +71,70 @@ protected:
 /**
  * text场景创建表,如果db未打开，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestCreateTableWhenDbNotOpenThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestCreateTableWhenDbNotOpenThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     Dic::Module::Timeline::TextTraceDatabase database(sqlMutex);
     bool success = database.CreateTable();
     EXPECT_EQ(success, false);
 }
 
+TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetHostSlicesReturnsOnlyMatchingTextSlices) {
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+        "(100, '1', '10', 'thread_10', 0), (200, '2', '20', 'thread_20', 0);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
+        "VALUES (1, 100, 30, 'rank_offset_target', 0, 100, '', '', '', 130, ''), "
+        "(2, 200, 40, 'rank_offset_other', 0, 200, '', '', '', 240, '');");
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+    Dic::Module::Timeline::TraceTime::Instance().Reset();
+    Dic::Module::Timeline::TraceTime::Instance().UpdateTime(20, 300);
+
+    std::vector<Dic::Protocol::SimpleSlice> slices;
+    std::set<std::string> processIds;
+    bool result = database.QueryTextSlicesByName("rank_offset_target", "TEXT", slices, processIds);
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(slices.size(), 1);
+    EXPECT_EQ(slices.front().pid, "10");
+    EXPECT_EQ(slices.front().timestamp, 100);
+    EXPECT_EQ(processIds.count("10"), 1);
+    Dic::Module::Timeline::TraceTime::Instance().Reset();
+}
+
+TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetHostProcessIdsReturnsAllTextProcessIds) {
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (track_id, name, timestamp, duration) VALUES "
+        "(100, 'op1', 100, 50), (200, 'op2', 200, 60);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+        "(100, '1', '10', 'thread_10', 0), (200, '2', '20', 'thread_20', 0);");
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+
+    std::vector<Dic::Protocol::SimpleSlice> slices;
+    std::set<std::string> processIds;
+    bool result = database.QueryTextSlicesByName("op1", "TEXT", slices, processIds);
+
+    ASSERT_TRUE(result);
+    EXPECT_EQ(processIds.count("10"), 1);
+}
+
 /**
  * text场景创建表,如果db打开，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestCreateTableWhenDbOpenThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestCreateTableWhenDbOpenThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -91,10 +142,10 @@ TEST_F(TextTraceDatabaseMockTest, TestCreateTableWhenDbOpenThenReturnTrue)
     database.SetDbPtr(dbPtr);
     bool success = database.CreateTable();
     std::string sliceSql = "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", "
-        "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (1, "
-        "1726717581355878760, 9470, 'Node@launch', NULL, 1, NULL, '{\"Thread "
-        "Id\":\"206468\",\"Mode\":\"launch\",\"level\":\"node\",\"id\":\"0\",\"item_id\":\"aclnnCat_"
-        "ConcatD_ConcatD\",\"connection_id\":\"63052\"}', '', 1726717581355888230, '');";
+                           "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (1, "
+                           "1726717581355878760, 9470, 'Node@launch', NULL, 1, NULL, '{\"Thread "
+                           "Id\":\"206468\",\"Mode\":\"launch\",\"level\":\"node\",\"id\":\"0\",\"item_id\":\"aclnnCat_"
+                           "ConcatD_ConcatD\",\"connection_id\":\"63052\"}', '', 1726717581355888230, '');";
     DatabaseTestCaseMockUtil::InsertData(dbPtr, sliceSql);
     EXPECT_EQ(success, true);
     SliceTable sliceTable;
@@ -109,8 +160,7 @@ TEST_F(TextTraceDatabaseMockTest, TestCreateTableWhenDbOpenThenReturnTrue)
 /**
  * text场景删除表,如果db没打开，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestDropTableWhenDbNotOpenThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDropTableWhenDbNotOpenThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     Dic::Module::Timeline::TextTraceDatabase database(sqlMutex);
     bool success = database.DropTable();
@@ -120,8 +170,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDropTableWhenDbNotOpenThenReturnFalse)
 /**
  * text场景删除表,如果db打开，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestDropTableWhenDbOpenThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDropTableWhenDbOpenThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -129,10 +178,10 @@ TEST_F(TextTraceDatabaseMockTest, TestDropTableWhenDbOpenThenReturnTrue)
     database.SetDbPtr(dbPtr);
     database.CreateTable();
     std::string sliceSql = "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", "
-        "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (1, "
-        "1726717581355878760, 9470, 'Node@launch', NULL, 1, NULL, '{\"Thread "
-        "Id\":\"206468\",\"Mode\":\"launch\",\"level\":\"node\",\"id\":\"0\",\"item_id\":\"aclnnCat_"
-        "ConcatD_ConcatD\",\"connection_id\":\"63052\"}', '', 1726717581355888230, '');";
+                           "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (1, "
+                           "1726717581355878760, 9470, 'Node@launch', NULL, 1, NULL, '{\"Thread "
+                           "Id\":\"206468\",\"Mode\":\"launch\",\"level\":\"node\",\"id\":\"0\",\"item_id\":\"aclnnCat_"
+                           "ConcatD_ConcatD\",\"connection_id\":\"63052\"}', '', 1726717581355888230, '');";
     DatabaseTestCaseMockUtil::InsertData(dbPtr, sliceSql);
     bool success = database.DropTable();
     EXPECT_EQ(success, true);
@@ -146,8 +195,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDropTableWhenDbOpenThenReturnTrue)
 /**
  * text场景创建索引,如果db没打开，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbNotOpenThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbNotOpenThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     Dic::Module::Timeline::TextTraceDatabase database(sqlMutex);
     bool success = database.CreateIndex();
@@ -157,8 +205,7 @@ TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbNotOpenThenReturnFalse)
 /**
  * text场景创建索引,如果db打开，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbOpenThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbOpenThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -171,8 +218,7 @@ TEST_F(TextTraceDatabaseMockTest, TestCreateIndexWhenDbOpenThenReturnTrue)
 /**
  * text场景插入1000条数据，数据库里有1000条
  */
-TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000SliceThenDbHave1000count)
-{
+TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000SliceThenDbHave1000count) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -192,8 +238,7 @@ TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000SliceThenDbHave10
 /**
  * text场景插入999条数据，数据库里有0条
  */
-TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999SliceThenDbHave0count)
-{
+TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999SliceThenDbHave0count) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -213,8 +258,7 @@ TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999SliceThenDbHave0co
 /**
  * text场景插入flow1000条数据，数据库里有1000条
  */
-TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000FlowThenDbHave1000count)
-{
+TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000FlowThenDbHave1000count) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -236,8 +280,7 @@ TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000FlowThenDbHave100
 /**
  * text场景插入flow999条数据，数据库里有0条
  */
-TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999FlowThenDbHave0count)
-{
+TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999FlowThenDbHave0count) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -257,8 +300,7 @@ TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999FlowThenDbHave0cou
 /**
  * text场景插入counter1000条数据，数据库里有1000条
  */
-TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000counterThenDbHave1000count)
-{
+TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000counterThenDbHave1000count) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -280,8 +322,7 @@ TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000counterThenDbHave
 /**
  * text场景插入counter999条数据，数据库里有0条
  */
-TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999counterThenDbHave0count)
-{
+TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999counterThenDbHave0count) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -302,15 +343,14 @@ TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert999counterThenDbHave0
 /**
  * text场景修改线程名，如果未初始化返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenNotInitThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenNotInitThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
     std::string threadDataSql = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
-        "\"thread_sort_index\") VALUES (4, '15', '207552992', 'Plane 3', 15);";
+                                "\"thread_sort_index\") VALUES (4, '15', '207552992', 'Plane 3', 15);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadDataSql);
     Trace::MetaData event;
@@ -320,8 +360,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenNotInitThenReturnFalse
 /**
  * text场景修改线程名，如果初始化了，但表不存在，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenTableNotExistThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenTableNotExistThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -342,8 +381,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenTableNotExistThenRetur
 /**
  * text场景修改线程名，如果初始化了，表也存在啊，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenNormalThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenNormalThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -353,7 +391,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenNormalThenReturnTrue)
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, counterTableSql);
     std::string threadDataSql = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
-        "\"thread_sort_index\") VALUES (4, '15', '207552992', 'Plane 3', 15);";
+                                "\"thread_sort_index\") VALUES (4, '15', '207552992', 'Plane 3', 15);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadDataSql);
     database.InitStmt();
@@ -389,8 +427,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadNameWhenNormalThenReturnTrue)
 /**
  * text场景修改线程顺序，如果未初始化返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenNotInitThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenNotInitThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -404,8 +441,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenNotInitThenReturn
 /**
  * text场景修改线程顺序，如果初始化了，但表不存在，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenTableNotExistThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenTableNotExistThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -426,8 +462,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenTableNotExistThen
 /**
  * text场景修改线程名，如果初始化了，表也存在啊，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenNormalThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenNormalThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -437,7 +472,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenNormalThenReturnT
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, counterTableSql);
     std::string threadDataSql = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
-        "\"thread_sort_index\") VALUES (4, '15', '207552992', 'Plane 3', 15);";
+                                "\"thread_sort_index\") VALUES (4, '15', '207552992', 'Plane 3', 15);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadDataSql);
     database.InitStmt();
@@ -467,15 +502,14 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateThreadSortIndexWhenNormalThenReturnT
 /**
  * text场景修改进程名，如果未初始化返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenNotInitThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenNotInitThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
     std::string processDataSql = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
+                                 "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, processDataSql);
     Trace::MetaData event;
@@ -486,8 +520,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenNotInitThenReturnFals
 /**
  * text场景修改进程名，如果初始化了，但表不存在，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenTableNotExistThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenTableNotExistThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -508,8 +541,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenTableNotExistThenRetu
 /**
  * text场景修改进程名，如果初始化了，表也存在啊，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenNormalThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenNormalThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -519,7 +551,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenNormalThenReturnTrue)
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, counterTableSql);
     std::string processDataSql = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
+                                 "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, processDataSql);
     database.InitStmt();
@@ -548,15 +580,14 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessNameWhenNormalThenReturnTrue)
 /**
  * text场景修改进程label，如果未初始化返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenNotInitThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenNotInitThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
     std::string processDataSql = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
+                                 "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, processDataSql);
     Trace::MetaData event;
@@ -567,8 +598,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenNotInitThenReturnFal
 /**
  * text场景修改进程label，如果初始化了，但表不存在，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenTableNotExistThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenTableNotExistThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -589,8 +619,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenTableNotExistThenRet
 /**
  * text场景修改进程label，如果初始化了，表也存在啊，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenNormalThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenNormalThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -600,7 +629,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenNormalThenReturnTrue
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, counterTableSql);
     std::string processDataSql = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
+                                 "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, processDataSql);
     database.InitStmt();
@@ -629,15 +658,14 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessLabelWhenNormalThenReturnTrue
 /**
  * text场景修改进程顺序，如果未初始化返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenNotInitThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenNotInitThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
     std::string processDataSql = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
+                                 "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, processDataSql);
     Trace::MetaData event;
@@ -648,8 +676,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenNotInitThenReturnFals
 /**
  * text场景修改进程label，如果初始化了，但表不存在，返回false
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenTableNotExistThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenTableNotExistThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -670,8 +697,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenTableNotExistThenRetu
 /**
  * text场景修改进程label，如果初始化了，表也存在啊，返回true
  */
-TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenNormalThenReturnTrue)
-{
+TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenNormalThenReturnTrue) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -681,7 +707,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenNormalThenReturnTrue)
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
     DatabaseTestCaseMockUtil::CreateTable(dbPtr, counterTableSql);
     std::string processDataSql = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
+                                 "\"process_sort_index\") VALUES ('20', 'SCALARLDST', 'kkk', 20);";
     database.SetDbPtr(dbPtr);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, processDataSql);
     database.InitStmt();
@@ -710,8 +736,7 @@ TEST_F(TextTraceDatabaseMockTest, TestUpdateProcessSortWhenNormalThenReturnTrue)
 /**
  * 算子调优场景测试CommitData，未初始化，插入失败
  */
-TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenNotInitThenInsertFailed)
-{
+TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenNotInitThenInsertFailed) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -741,8 +766,7 @@ TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenNotInitThenInsertF
 /**
  * 算子调优场景测试CommitData，初始化了，插入成功
  */
-TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenInitThenInsertSuccess)
-{
+TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenInitThenInsertSuccess) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -779,8 +803,7 @@ TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenInitThenInsertSucc
 /**
  * 先对线程泳道排序，再补充线程泳道信息，数据完整
  */
-TEST_F(TextTraceDatabaseMockTest, TestFirstOrderThreadThenUpdataThreadInfo)
-{
+TEST_F(TextTraceDatabaseMockTest, TestFirstOrderThreadThenUpdataThreadInfo) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -822,8 +845,7 @@ TEST_F(TextTraceDatabaseMockTest, TestFirstOrderThreadThenUpdataThreadInfo)
 /* *
  * 算子调优场景测试CommitData，初始化了，但表不存在，插入失败
  */
-TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenInitAndTableNotExistThenInsertFailed)
-{
+TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenInitAndTableNotExistThenInsertFailed) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -857,8 +879,7 @@ TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenInitAndTableNotExi
 /**
  * 算子调优场景进程数据测试CommitData，未初始化，插入失败
  */
-TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessNotInitThenInsertFailed)
-{
+TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessNotInitThenInsertFailed) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -883,8 +904,7 @@ TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessNotInitThen
 /**
  * 算子调优场景测试进程数据CommitData，初始化了，插入成功
  */
-TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessInitThenInsertSuccess)
-{
+TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessInitThenInsertSuccess) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -913,8 +933,7 @@ TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessInitThenIns
 /**
  * 先对进程泳道排序，再补充进程泳道信息，数据完整
  */
-TEST_F(TextTraceDatabaseMockTest, TestFirstOrderProcessThenUpdataProcessInfo)
-{
+TEST_F(TextTraceDatabaseMockTest, TestFirstOrderProcessThenUpdataProcessInfo) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -937,8 +956,8 @@ TEST_F(TextTraceDatabaseMockTest, TestFirstOrderProcessThenUpdataProcessInfo)
     database.CommitData();
     std::vector<ProcessPO> processPOS;
     processTable.Select(ProcessColumn::PID, ProcessColumn::PROCESS_NAME)
-            .Select(ProcessColumn::LABEL, ProcessColumn::PROCESS_SORT_INDEX)
-            .ExcuteQuery(dbPtr, processPOS);
+        .Select(ProcessColumn::LABEL, ProcessColumn::PROCESS_SORT_INDEX)
+        .ExcuteQuery(dbPtr, processPOS);
     const uint64_t expectSize = 1;
     EXPECT_EQ(processPOS.size(), expectSize);
     EXPECT_EQ(processPOS[0].processName, "mm");
@@ -949,8 +968,7 @@ TEST_F(TextTraceDatabaseMockTest, TestFirstOrderProcessThenUpdataProcessInfo)
 /**
  * 算子调优场景测试进程数据CommitData，初始化了，但表不存在，插入失败
  */
-TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessInitAndTableNotExistThenInsertFailed)
-{
+TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessInitAndTableNotExistThenInsertFailed) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -979,8 +997,7 @@ TEST_F(TextTraceDatabaseMockTest, TestSimulationCommitDataWhenProcessInitAndTabl
 /**
  * 删除多余空泳道，存在多余空泳道的情况
  */
-TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyThread)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyThread) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1002,7 +1019,8 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyThread)
         "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", \"track_id\", "
         "\"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (4, 1726830796027905922, 20, 'Free', NULL, 3, "
         "NULL, NULL, '', 1726830796027905942, '');";
-    std::string threadSql = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    std::string threadSql =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (1, '0', '42506633', 'Computing', NULL);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (2, '3', '42506505', 'Stream 3', 3);\n"
@@ -1031,8 +1049,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyThread)
 /**
  * 删除多余空泳道，不存在多余空泳道的情况
  */
-TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyThread)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyThread) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1054,7 +1071,8 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyThread)
         "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", \"track_id\", "
         "\"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (4, 1726830796027905922, 20, 'Free', NULL, 3, "
         "NULL, NULL, '', 1726830796027905942, '');";
-    std::string threadSql = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    std::string threadSql =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (1, '0', '42506633', 'Computing', NULL);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (2, '3', '42506505', 'Stream 3', 3);\n"
@@ -1081,8 +1099,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyThread)
 /**
  * 删除多余空泳道，数据库未打开
  */
-TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenDbNotOpenThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenDbNotOpenThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1094,8 +1111,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenDbNotOpenThenReturnFa
 /**
  * 删除多余空连线，数据库未打开
  */
-TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyFlowWhenDbNotOpenThenReturnFalse)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyFlowWhenDbNotOpenThenReturnFalse) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1107,8 +1123,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyFlowWhenDbNotOpenThenReturnFals
 /**
  * 删除多余空泳道，存在多余空连线的情况
  */
-TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyFlow)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyFlow) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1127,7 +1142,8 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyFlow)
         "'DynamicQuant', NULL, 2, NULL, '{\"Model Id\":\"4294967295\",\"Task Type\":\"AI_CORE\",\"Physic Stream "
         "Id\":\"3\",\"Task Id\":\"3923\",\"Batch Id\":\"0\",\"Subtask "
         "Id\":\"4294967295\",\"connection_id\":\"64685\"}', '', 1726830796027913022, '');";
-    std::string flowSql = "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
+    std::string flowSql =
+        "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
         "\"timestamp\", \"type\") VALUES (3, '56444740029741268992', "
         "'HostToDevice56444740029741268992', 'HostToDevice', 2, 1726830796027914803, 'f');\n"
         "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", \"timestamp\", \"type\") "
@@ -1149,8 +1165,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenExistEmptyFlow)
 /**
  * 删除多余空泳道，不存在多余空连线的情况
  */
-TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyFlow)
-{
+TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyFlow) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1169,7 +1184,8 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyFlow)
         "'DynamicQuant', NULL, 2, NULL, '{\"Model Id\":\"4294967295\",\"Task Type\":\"AI_CORE\",\"Physic Stream "
         "Id\":\"3\",\"Task Id\":\"3923\",\"Batch Id\":\"0\",\"Subtask "
         "Id\":\"4294967295\",\"connection_id\":\"64685\"}', '', 1726830796027913022, '');";
-    std::string flowSql = "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
+    std::string flowSql =
+        "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
         "\"timestamp\", \"type\") VALUES (3, '56444740029741268992', "
         "'HostToDevice56444740029741268992', 'HostToDevice', 2, 1726830796027914803, 'f');\n"
         "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", \"timestamp\", \"type\") "
@@ -1190,8 +1206,7 @@ TEST_F(TextTraceDatabaseMockTest, TestDeleteEmptyThreadWhenNotExistEmptyFlow)
     EXPECT_EQ(result[one].trackId, three);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryP2PCommunicationOpDataWhenDbNotOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryP2PCommunicationOpDataWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const std::string rankId;
@@ -1202,8 +1217,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryP2PCommunicationOpDataWhenDbNotOpen)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbNotOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const Dic::Protocol::KernelDetailsParams params;
@@ -1215,8 +1229,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbNotOpen)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1243,7 +1256,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbOpen)
         "Id\":\"3\",\"Task Id\":\"3923\",\"Batch Id\":\"0\",\"Subtask "
         "Id\":\"4294967295\",\"connection_id\":\"64685\"}', '', 1726830796027913022, '');";
     std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
-        "\"thread_sort_index\") VALUES (2, '41725', '42506313', 'Thread 41725', 41725);";
+                             "\"thread_sort_index\") VALUES (2, '41725', '42506313', 'Thread 41725', 41725);";
     database.SetDbPtr(dbPtr);
     database.CreateTable();
     DatabaseTestCaseMockUtil::InsertData(dbPtr, kerData);
@@ -1260,16 +1273,14 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFusibleOpDataWhenDbOpen)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryHostInfo)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryHostInfo) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     std::string result = database.QueryHostInfo();
     EXPECT_EQ(std::empty(result), true);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryFwdBwdDataByFlowWhenDbNotOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryFwdBwdDataByFlowWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const std::string rankId;
@@ -1280,8 +1291,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFwdBwdDataByFlowWhenDbNotOpen)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryFwdBwdDataByFlowWhenDbOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryFwdBwdDataByFlowWhenDbOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1297,7 +1307,8 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFwdBwdDataByFlowWhenDbOpen)
         "'MulF16Tactic', NULL, 51, 'cpu_op', '{\"Model Id\":\"4294967295\",\"Task Type\":\"AI_CORE\",\"Physic Stream "
         "Id\":\"3\",\"Task Id\":\"3922\",\"Batch Id\":\"0\",\"Subtask "
         "Id\":\"4294967295\",\"connection_id\":\"64679\"}', '', 1726830796027907822, '');";
-    std::string flowData = "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
+    std::string flowData =
+        "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
         "\"timestamp\", \"type\") VALUES (34353, '100205096003960831', "
         "'HostToDevice100205096003960831', 'fwdbwd', 34, 1726830772807463934, 'f');\n"
         "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", \"timestamp\", \"type\") "
@@ -1318,8 +1329,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryFwdBwdDataByFlowWhenDbOpen)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryAffinityAPIDataWhenDbNotOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryAffinityAPIDataWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const Dic::Protocol::KernelDetailsParams params;
@@ -1331,8 +1341,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryAffinityAPIDataWhenDbNotOpen)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryAclnnOpCountExceedThresholdWhenDbNotOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryAclnnOpCountExceedThresholdWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const Dic::Protocol::KernelDetailsParams params;
@@ -1343,8 +1352,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryAclnnOpCountExceedThresholdWhenDbNotO
     EXPECT_EQ(result, false);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryAclnnOpCountExceedThresholdWhenDbOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryAclnnOpCountExceedThresholdWhenDbOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1358,7 +1366,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryAclnnOpCountExceedThresholdWhenDbOpen
         "Id\":\"4294967295\",\"Task Type\":\"MIX_AIC\",\"Physic Stream Id\":\"3\",\"Task Id\":\"3924\",\"Batch "
         "Id\":\"0\",\"Subtask Id\":\"0\",\"connection_id\":\"64693\"}', '', 1726830796027963145, '');";
     std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
-        "\"thread_sort_index\") VALUES (2, '4', '42506507', 'Stream 4', 4);";
+                             "\"thread_sort_index\") VALUES (2, '4', '42506507', 'Stream 4', 4);";
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, sliceData);
     Dic::Protocol::KernelDetailsParams params;
@@ -1371,8 +1379,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryAclnnOpCountExceedThresholdWhenDbOpen
     EXPECT_EQ(result, true);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryStepDurationWhenDbNotOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryStepDurationWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const std::string stepId;
@@ -1384,8 +1391,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryStepDurationWhenDbNotOpen)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryStepDurationWhenDbOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryStepDurationWhenDbOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1408,18 +1414,19 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryStepDurationWhenDbOpen)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_InvalidModelId)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_InvalidModelId) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (54, '2', '3513236896', 'Stream 2', 2), (55, '6', '3513236896', 'Stream 6', 6),"
         " (56, '3', '3513236896', 'Stream 3', 3);";
-    std::string sliceData = "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\","
+    std::string sliceData =
+        "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\","
         " \"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES"
         " (26553, 1764246877086724740, 10160, 'aclnnMuls_MulAiCore_Mul', NULL, 54, NULL, "
         "'{\"Model Id\":\"4294967295\",\"Task Type\":\"AI_VECTOR_CORE\"}', '', 1764246877084183180, ''),"
@@ -1436,25 +1443,25 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_InvalidM
     EXPECT_EQ(groups.size(), 0);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_ValidModelId)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_ValidModelId) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (54, '2', '3513236896', 'Stream 2', 2), (55, '6', '3513236896', 'Stream 6', 6),"
         " (56, '3', '3513236896', 'Stream 3', 3);";
     std::string sliceData = "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\","
-        " \"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES"
-        " (26553, 1764246877086724740, 10160, 'aclnnMuls_MulAiCore_Mul', NULL, 54, NULL, "
-        "'{\"Model Id\":\"1\",\"Task Type\":\"AI_VECTOR_CORE\"}', '', 1764246877084183180, ''),"
-        " (26494, 1764246877076775260, 20, 'EVENT_WAIT', NULL, 55, NULL, "
-        "'{\"Model Id\":\"1\",\"Task Type\":\"AI_VECTOR_CORE\"}', '', 1764246877084183180, ''),"
-        " (26537, 1764246877083361500, 821680, 'EVENT_WAIT', NULL, 56, NULL, "
-        "'{\"Model Id\":\"2\",\"Task Type\":\"AI_VECTOR_CORE\"}', '', 1764246877084183180, '');";
+                            " \"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES"
+                            " (26553, 1764246877086724740, 10160, 'aclnnMuls_MulAiCore_Mul', NULL, 54, NULL, "
+                            "'{\"Model Id\":\"1\",\"Task Type\":\"AI_VECTOR_CORE\"}', '', 1764246877084183180, ''),"
+                            " (26494, 1764246877076775260, 20, 'EVENT_WAIT', NULL, 55, NULL, "
+                            "'{\"Model Id\":\"1\",\"Task Type\":\"AI_VECTOR_CORE\"}', '', 1764246877084183180, ''),"
+                            " (26537, 1764246877083361500, 821680, 'EVENT_WAIT', NULL, 56, NULL, "
+                            "'{\"Model Id\":\"2\",\"Task Type\":\"AI_VECTOR_CORE\"}', '', 1764246877084183180, '');";
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, sliceData);
     const std::string fileId = "9";
@@ -1469,8 +1476,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryGroupedAscendHardwareThreads_ValidMod
     EXPECT_EQ(groups[1].threadIds[0], "3");
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadatanWhenDbNotOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadatanWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const std::string fileId = "9";
@@ -1479,21 +1485,22 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadatanWhenDbNotOpen)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadatanWhenDbOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadatanWhenDbOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
+    std::string processData =
+        "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
         "\"process_sort_index\") VALUES ('42506507', 'Ascend Hardware', 'NPU', 8);\n"
         "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", \"process_sort_index\") VALUES "
         "('42506731', 'HCCL', 'NPU', 15);\n"
         "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", \"process_sort_index\") VALUES "
         "('42506539', 'AI Core Freq', 'NPU', 9);";
-    std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (23, '3', '42506507', 'Stream 3', 3);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (39, '1', '42506731', 'Plane 0', 1);";
@@ -1509,22 +1516,23 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadatanWhenDbOpen)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithGroupNameValueWhenDbOpen)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithGroupNameValueWhenDbOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    const std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
+    const std::string processData =
+        "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
         "\"process_sort_index\") VALUES ('42506507', 'Ascend Hardware', 'NPU', 8);\n"
         "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", \"process_sort_index\") VALUES "
         "('42506731', 'HCCL', 'NPU', 15);\n"
         "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", \"process_sort_index\") VALUES "
         "('42506539', 'AI Core Freq', 'NPU', 9);";
     const std::string groupNameValue = "90.90.97.96%enp194s0f0_60008_8_1735556595505601";
-    const std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    const std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (23, '3', '42506507', 'Stream 3', 3);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (39, '1', '42506731', 'Group " +
@@ -1548,19 +1556,20 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithGroupNameValueWhenDb
     EXPECT_EQ(metaData[third]->children[first]->metaData.groupNameValue, groupNameValue);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounter)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounter) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    const std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
+    const std::string processData =
+        "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
         "\"process_sort_index\") VALUES ('1', '1', NULL, NULL);\n"
         "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", \"process_sort_index\") VALUES "
         "('319667', '319667', NULL, NULL);";
-    const std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    const std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (1, 'http', '319667', 'http', 0);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (16, 'CPU Usage', '1', 'CPU Usage', 0);\n"
@@ -1595,8 +1604,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounter)
     EXPECT_EQ(metaData[second]->children[second]->type, "thread");
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounterInvalidJSON)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounterInvalidJSON) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1604,19 +1612,22 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounterInvalidJSON)
     database.SetDbPtr(dbPtr);
     database.CreateTable();
     const std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('1', '1', NULL, NULL);";
+                                    "\"process_sort_index\") VALUES ('1', '1', NULL, NULL);";
     const std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\","
-        " \"thread_sort_index\") VALUES (17, 'NPU Usage', '1', 'NPU Usage', 0);\n"
-        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\","
-        " \"thread_sort_index\") VALUES (18, 'CPU Usage', '1', 'CPU Usage', 0);\n"
-        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\","
-        " \"thread_sort_index\") VALUES (19, 'CPU1 Usage', '1', 'CPU1 Usage', 0);";
+                                   " \"thread_sort_index\") VALUES (17, 'NPU Usage', '1', 'NPU Usage', 0);\n"
+                                   "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\","
+                                   " \"thread_sort_index\") VALUES (18, 'CPU Usage', '1', 'CPU Usage', 0);\n"
+                                   "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\","
+                                   " \"thread_sort_index\") VALUES (19, 'CPU1 Usage', '1', 'CPU1 Usage', 0);";
     const std::string counterData = "INSERT INTO \"main\".\"counter\" (\"id\", \"name\", \"pid\", \"timestamp\","
-        " \"cat\", \"args\") VALUES (749, 'NPU Usage', '1', 1735124807612323800, NULL, '');\n" // counter args 为空
-        "INSERT INTO \"main\".\"counter\" (\"id\", \"name\", \"pid\", \"timestamp\","
-        " \"cat\", \"args\") VALUES (750, 'CPU Usage', '1', 1735124807612323800, NULL, '{1:\"0.0\"}');\n"
-        "INSERT INTO \"main\".\"counter\" (\"id\", \"name\", \"pid\", \"timestamp\","
-        " \"cat\", \"args\") VALUES (751, 'CPU1 Usage', '1', 1735124807612323800, NULL, '[1,\"0.0\"]');"; // counter args 中 key 不为字符串
+                                    " \"cat\", \"args\") VALUES (749, 'NPU Usage', '1', 1735124807612323800, NULL, "
+                                    "'');\n" // counter args 为空
+                                    "INSERT INTO \"main\".\"counter\" (\"id\", \"name\", \"pid\", \"timestamp\","
+                                    " \"cat\", \"args\") VALUES (750, 'CPU Usage', '1', 1735124807612323800, NULL, "
+                                    "'{1:\"0.0\"}');\n"
+                                    "INSERT INTO \"main\".\"counter\" (\"id\", \"name\", \"pid\", \"timestamp\","
+                                    " \"cat\", \"args\") VALUES (751, 'CPU1 Usage', '1', 1735124807612323800, NULL, "
+                                    "'[1,\"0.0\"]');"; // counter args 中 key 不为字符串
     DatabaseTestCaseMockUtil::InsertData(dbPtr, processData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, counterData);
@@ -1633,19 +1644,20 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounterInvalidJSON)
     EXPECT_EQ(metaData[first]->children[2]->metaData.dataType, expectedDataType);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsSame)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsSame) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    const std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
+    const std::string processData =
+        "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
         "\"process_sort_index\") VALUES ('1', '1', NULL, NULL);\n"
         "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", \"process_sort_index\") VALUES "
         "('319667', '319667', NULL, NULL);";
-    const std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    const std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (1, 'http', '319667', 'http', 0);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (16, 'CPU Usage', '1', 'CPU Usage', 0);\n"
@@ -1677,8 +1689,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsS
     EXPECT_EQ(metaData[second]->metaData.processName, "319667");
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithMutiLayerProcess)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithMutiLayerProcess) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1716,19 +1727,20 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithMutiLayerProcess)
     EXPECT_EQ(metaData[second]->children[second]->metaData.processName, "259836");
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsNotSame)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsNotSame) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    const std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
+    const std::string processData =
+        "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
         "\"process_sort_index\") VALUES ('1', 'wwf', NULL, NULL);\n"
         "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", \"process_sort_index\") VALUES "
         "('319667', 'nnm', NULL, NULL);";
-    const std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    const std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (1, 'http', '319667', 'http', 0);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (16, 'CPU Usage', '1', 'CPU Usage', 0);\n"
@@ -1760,25 +1772,27 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsN
     EXPECT_EQ(metaData[second]->metaData.processName, "wwf (1)");
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQuerySimulationUintFlows)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQuerySimulationUintFlows) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
-    std::string sliceData = "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", "
+    std::string sliceData =
+        "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", "
         "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (24463, "
         "31081, 0, 'SET_FLAG', NULL, 15, NULL, '', 'thread_state_running', 31081, '99');\n"
         "INSERT INTO \"main\".\"slice\" (\"id\", \"timestamp\", \"duration\", \"name\", \"depth\", \"track_id\", "
         "\"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES (24674, 31249, 0, 'WAIT_FLAG', NULL, 16, "
         "NULL, '', 'thread_state_iowait', 31249, '99');";
-    std::string threadData = "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+    std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
         "\"thread_sort_index\") VALUES (15, 'MTE1', 'core0.cubecore0', 'MTE1', 3);\n"
         "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
         "VALUES (16, 'MTE2', 'core0.cubecore0', 'MTE2', 6);";
-    std::string flowData = "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
+    std::string flowData =
+        "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", "
         "\"timestamp\", \"type\") VALUES (769, '99', 'flow', 'MTE1ToMTE2', 15, 31081, 's');\n"
         "INSERT INTO \"main\".\"flow\" (\"id\", \"flow_id\", \"name\", \"cat\", \"track_id\", \"timestamp\", \"type\") "
         "VALUES (770, '99', 'flow', 'MTE1ToMTE2', 16, 31249, 't');";
@@ -1795,8 +1809,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQuerySimulationUintFlows)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestGetTableList)
-{
+TEST_F(TextTraceDatabaseMockTest, TestGetTableList) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1809,8 +1822,7 @@ TEST_F(TextTraceDatabaseMockTest, TestGetTableList)
     EXPECT_EQ(tableList.size(), expectSize);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryCounter)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryCounter) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     sqlite3 *dbPtr = nullptr;
@@ -1851,11 +1863,10 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryCounter)
     EXPECT_EQ(dataList.size(), expectSize);
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryTableDataNameListNormal)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryTableDataNameListNormal) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
@@ -1877,11 +1888,10 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryTableDataNameListNormal)
     EXPECT_EQ(res.back().second, "kvcache");
 }
 
-TEST_F(TextTraceDatabaseMockTest, TestQueryTableDataNameListErr)
-{
+TEST_F(TextTraceDatabaseMockTest, TestQueryTableDataNameListErr) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     database.CreateTable();
@@ -1901,16 +1911,17 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryTableDataNameListErr)
     EXPECT_EQ(res.size(), expectSize);
 }
 
-TEST_F(TextTraceDatabaseMockTest, ProcessByteAlignmentAnalyzerDataForTextTest)
-{
+TEST_F(TextTraceDatabaseMockTest, ProcessByteAlignmentAnalyzerDataForTextTest) {
     std::vector<Dic::Module::CommunicationLargeOperatorInfo> result;
     std::vector<std::pair<std::string, std::string>> rawData;
-    const std::string argsStringMemcpy = "{\"notify_id\": 1.8446744073709552e+19,"
+    const std::string argsStringMemcpy =
+        "{\"notify_id\": 1.8446744073709552e+19,"
         " \"duration estimated(us)\": 0.6020725388601036, \"stream id\": 22, \"task id\": 224, \"context id\": 0,"
         " \"task type\": \"Memcpy\", \"src rank\": 0, \"dst rank\": 0, \"transport type\": \"SDMA\","
         " \"size(Byte)\": \"40\", \"data type\": \"INVALID_TYPE\", \"link type\": \"ON_CHIP\","
         " \"bandwidth(GB/s)\": 0.04082706706962131}";
-    const std::string argsStringReduceInline = "{\"notify_id\": 0, \"duration estimated(us)\": 1087.2072538860102,"
+    const std::string argsStringReduceInline =
+        "{\"notify_id\": 0, \"duration estimated(us)\": 1087.2072538860102,"
         " \"stream id\": 22, \"task id\": 234, \"context id\": 15, \"task type\": \"Reduce_Inline\", \"src rank\": 0,"
         " \"dst rank\": 1, \"transport type\": \"SDMA\", \"size(Byte)\": \"20971520\", \"data type\": \"INT8\","
         " \"link type\": \"HCCS\", \"bandwidth(GB/s)\": 18.109199702033724}";
@@ -1953,11 +1964,11 @@ TEST_F(TextTraceDatabaseMockTest, ProcessByteAlignmentAnalyzerDataForTextTest)
     ASSERT_EQ(result[3].reduceInlineTasks.size(), 0);
 }
 
-TEST_F(TextTraceDatabaseMockTest, ProcessByteAlignmentAnalyzerDataForTextTestInvalidJson)
-{
+TEST_F(TextTraceDatabaseMockTest, ProcessByteAlignmentAnalyzerDataForTextTestInvalidJson) {
     std::vector<Dic::Module::CommunicationLargeOperatorInfo> result;
     std::vector<std::pair<std::string, std::string>> rawData;
-    const std::string argsStringMemcpy = "{\"notify_id\": 1.8446744073709552e+19,"
+    const std::string argsStringMemcpy =
+        "{\"notify_id\": 1.8446744073709552e+19,"
         " \"duration estimated(us)\": 0.6020725388601036, \"stream id\": 22, \"task id\": 224, \"context id\": 0,"
         " \"task type\": \"Memcpy\", \"src rank\": 0, \"dst rank\": 0, \"transport type\": \"SDMA\","
         " \"data type\": \"INVALID_TYPE\", \"link type\": \"ON_CHIP\","

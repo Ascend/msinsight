@@ -19,8 +19,7 @@
 #include "TimelineProtocolRequest.h"
 class TimelineProtocolRequestTest : public ::testing::Test {};
 
-TEST_F(TimelineProtocolRequestTest, TestImportActionParams)
-{
+TEST_F(TimelineProtocolRequestTest, TestImportActionParams) {
     Dic::Protocol::ImportActionParams params;
     params.projectName = "ll";
     params.projectAction = Dic::Protocol::ProjectActionEnum::UNKNOWN;
@@ -37,8 +36,7 @@ TEST_F(TimelineProtocolRequestTest, TestImportActionParams)
     EXPECT_EQ(res, false);
 }
 
-TEST_F(TimelineProtocolRequestTest, TestUnitThreadTracesParams)
-{
+TEST_F(TimelineProtocolRequestTest, TestUnitThreadTracesParams) {
     Dic::Protocol::UnitThreadTracesParams params;
     const uint64_t st = 9;
     const uint64_t en = 2;
@@ -57,8 +55,7 @@ TEST_F(TimelineProtocolRequestTest, TestUnitThreadTracesParams)
     EXPECT_EQ(res, true);
 }
 
-TEST_F(TimelineProtocolRequestTest, UnitThreadTracesSummaryParams)
-{
+TEST_F(TimelineProtocolRequestTest, UnitThreadTracesSummaryParams) {
     Dic::Protocol::UnitThreadTracesSummaryParams params;
     const uint64_t st = 9;
     const uint64_t en = 2;
@@ -77,8 +74,7 @@ TEST_F(TimelineProtocolRequestTest, UnitThreadTracesSummaryParams)
     EXPECT_EQ(res, true);
 }
 
-TEST_F(TimelineProtocolRequestTest, UnitThreadsParams)
-{
+TEST_F(TimelineProtocolRequestTest, UnitThreadsParams) {
     Dic::Protocol::UnitThreadsParams params;
     const uint64_t st = 9;
     const uint64_t en = 2;
@@ -101,8 +97,7 @@ TEST_F(TimelineProtocolRequestTest, UnitThreadsParams)
     EXPECT_EQ(res, true);
 }
 
-TEST_F(TimelineProtocolRequestTest, UnitFlowsParams)
-{
+TEST_F(TimelineProtocolRequestTest, UnitFlowsParams) {
     Dic::Protocol::UnitFlowsParams params;
     const uint64_t st = 9;
     const uint64_t en = 2;
@@ -121,8 +116,7 @@ TEST_F(TimelineProtocolRequestTest, UnitFlowsParams)
     EXPECT_EQ(res, true);
 }
 
-TEST_F(TimelineProtocolRequestTest, FlowCategoryEventsParams)
-{
+TEST_F(TimelineProtocolRequestTest, FlowCategoryEventsParams) {
     Dic::Protocol::FlowCategoryEventsParams params;
     const uint64_t st = 9;
     const uint64_t en = 2;
@@ -141,8 +135,7 @@ TEST_F(TimelineProtocolRequestTest, FlowCategoryEventsParams)
     EXPECT_EQ(res, true);
 }
 
-TEST_F(TimelineProtocolRequestTest, TestUnitCounterParams)
-{
+TEST_F(TimelineProtocolRequestTest, TestUnitCounterParams) {
     Dic::Protocol::UnitCounterParams params;
     const uint64_t st = 9;
     const uint64_t en = 2;
@@ -161,9 +154,7 @@ TEST_F(TimelineProtocolRequestTest, TestUnitCounterParams)
     EXPECT_EQ(res, true);
 }
 
-
-TEST_F(TimelineProtocolRequestTest, EventsViewParams)
-{
+TEST_F(TimelineProtocolRequestTest, EventsViewParams) {
     Dic::Protocol::EventsViewParams params;
     params.pid = "test";
     params.pageSize = 0;
@@ -182,8 +173,7 @@ TEST_F(TimelineProtocolRequestTest, EventsViewParams)
     EXPECT_EQ(res, false);
 }
 
-TEST_F(TimelineProtocolRequestTest, SystemViewOverallReqParams)
-{
+TEST_F(TimelineProtocolRequestTest, SystemViewOverallReqParams) {
     Dic::Protocol::SystemViewOverallReqParam params;
     params.page.pageSize = 0;
     std::string msg;
@@ -200,8 +190,7 @@ TEST_F(TimelineProtocolRequestTest, SystemViewOverallReqParams)
     EXPECT_EQ(res, false);
 }
 
-TEST_F(TimelineProtocolRequestTest, TestUnitThreadsOperatorsParams)
-{
+TEST_F(TimelineProtocolRequestTest, TestUnitThreadsOperatorsParams) {
     Dic::Protocol::UnitThreadsOperatorsParams params;
     const uint64_t st = 9;
     const uint64_t en = 2;
@@ -218,4 +207,115 @@ TEST_F(TimelineProtocolRequestTest, TestUnitThreadsOperatorsParams)
     params.endTime = mi;
     res = params.CheckParams(min, errorMsg);
     EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsValidInput) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.rankId = "0";
+    params.fileId = "file_0";
+    params.pid = "1234";
+    params.metaType = "Ascend Hardware";
+    params.alignType = "LEFT";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, true);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsMissingSliceName) {
+    Dic::Protocol::RankOffsetParams params;
+    params.rankId = "0";
+    params.fileId = "file_0";
+    params.pid = "1234";
+    params.metaType = "Ascend Hardware";
+    params.alignType = "LEFT";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsMissingRankId) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.fileId = "file_0";
+    params.pid = "1234";
+    params.metaType = "Ascend Hardware";
+    params.alignType = "LEFT";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsMissingFileId) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.rankId = "0";
+    params.pid = "1234";
+    params.metaType = "Ascend Hardware";
+    params.alignType = "LEFT";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsMissingPid) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.rankId = "0";
+    params.fileId = "file_0";
+    params.metaType = "Ascend Hardware";
+    params.alignType = "LEFT";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsMissingMetaType) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.rankId = "0";
+    params.fileId = "file_0";
+    params.pid = "1234";
+    params.alignType = "LEFT";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsMissingAlignType) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.rankId = "0";
+    params.fileId = "file_0";
+    params.pid = "1234";
+    params.metaType = "Ascend Hardware";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsInvalidAlignType) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.rankId = "0";
+    params.fileId = "file_0";
+    params.pid = "1234";
+    params.metaType = "Ascend Hardware";
+    params.alignType = "TOP";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, false);
+}
+
+TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsRightAlign) {
+    Dic::Protocol::RankOffsetParams params;
+    params.sliceName = "MatMul";
+    params.rankId = "0";
+    params.fileId = "file_0";
+    params.pid = "1234";
+    params.metaType = "PYTORCH_API";
+    params.alignType = "RIGHT";
+    std::string errorMsg;
+    bool res = params.CheckParams(errorMsg);
+    EXPECT_EQ(res, true);
 }
