@@ -1,7 +1,7 @@
 /*
  * -------------------------------------------------------------------------
  * This file is part of the MindStudio project.
- * Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
  *
  * MindStudio is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -35,10 +35,9 @@ struct MemScopeParseSuccessEvent : public JsonEvent {
     MemScopeParseSuccessEventBody body;
     std::string errMsg;
 
-    static bool BuildMemScopeParseSuccessEventDeviceIdsJson(const MemScopeParseSuccessEvent &event, json_t &deviceIds,
-                                                            RAPIDJSON_DEFAULT_ALLOCATOR &allocator)
-    {
-        for (auto &devicePair: event.body.deviceIds) {
+    static bool BuildMemScopeParseSuccessEventDeviceIdsJson(
+        const MemScopeParseSuccessEvent &event, json_t &deviceIds, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
+        for (auto &devicePair : event.body.deviceIds) {
             json_t eventTypes(kArrayType);
             for (auto &eventType : devicePair.second) {
                 eventTypes.PushBack(json_t().SetString(eventType.c_str(), allocator), allocator);
@@ -48,8 +47,7 @@ struct MemScopeParseSuccessEvent : public JsonEvent {
         return true;
     }
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
         auto &allocator = json.GetAllocator();
         ProtocolUtil::SetEventJsonBaseInfo(*this, json);
@@ -74,4 +72,4 @@ struct MemScopeParseSuccessEvent : public JsonEvent {
 };
 }
 
-#endif  // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_EVENT_H
+#endif // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_EVENT_H

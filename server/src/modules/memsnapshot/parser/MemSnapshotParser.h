@@ -21,6 +21,7 @@
 #include "pch.h"
 #include "TimelineProtocolEvent.h"
 #include "MemScopeProtocolEvent.h"
+#include "MemSnapshotProtocolEvent.h"
 #include "ThreadPool.h"
 
 namespace Dic::Module {
@@ -34,7 +35,7 @@ enum class ParserState {
 };
 
 struct MemSnapshotParserContext {
-public:
+  public:
     MemSnapshotParserContext() = default;
     void Reset(std::string nPicklePath = "", std::string nLogPath = "", std::string nOutputPath = "");
     bool IsFinished() const;
@@ -43,12 +44,13 @@ public:
     std::string GetLogPath() const;
     std::string GetOutputDbPath() const;
     ParserState GetState() const;
-    void SetState(const ParserState& newState);
+    void SetState(const ParserState &newState);
     uint8_t GetProgress() const;
     void SetProgress(uint8_t newProgress);
     std::string GetWorkDir() const;
+    static void SendParseProgressEvent(int progress);
 
-private:
+  private:
     std::string picklePath{};
     std::string logPath{};
     std::string outputDbPath{};
@@ -60,17 +62,18 @@ private:
 };
 
 class MemSnapshotParser {
-public:
-    MemSnapshotParser(const MemSnapshotParser&) = delete;
-    MemSnapshotParser& operator=(const MemSnapshotParser&) = delete;
-    static MemSnapshotParser& Instance();
+  public:
+    MemSnapshotParser(const MemSnapshotParser &) = delete;
+    MemSnapshotParser &operator=(const MemSnapshotParser &) = delete;
+    static MemSnapshotParser &Instance();
     void Reset();
     // 异步解析Pickle文件API
-    void AsyncParseMemSnapshotPickle(const std::string& pickleFilePath);
-    MemSnapshotParserContext& GetParseContext();
+    void AsyncParseMemSnapshotPickle(const std::string &pickleFilePath);
+    MemSnapshotParserContext &GetParseContext();
     // 用于检查是否需要解析或重新解析pickle文件
-    static bool CheckIfParsingNeed(const MemSnapshotParserContext& context);
-private:
+    static bool CheckIfParsingNeed(const MemSnapshotParserContext &context);
+
+  private:
     MemSnapshotParser();
     ~MemSnapshotParser();
     // 解析线程，将解析结果重定向到logPath日志文件
@@ -82,7 +85,7 @@ private:
     bool TryOpenParsingResultDbAndSetVersion() const;
     // 构造解析响应事件
     std::unique_ptr<MemScopeParseSuccessEvent> BuildParseSuccessEventFromContext() const;
-    std::unique_ptr<ParseFailEvent> BuildParseFailEventFromContext(const std::string& errMsg) const;
+    std::unique_ptr<ParseFailEvent> BuildParseFailEventFromContext(const std::string &errMsg) const;
     std::unique_ptr<ThreadPool> _threadPool;
     MemSnapshotParserContext parseContext = MemSnapshotParserContext();
 };
