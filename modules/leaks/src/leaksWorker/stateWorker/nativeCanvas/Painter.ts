@@ -83,14 +83,14 @@ export class Painter {
         }
     }
 
-    renderHighlightFillData(hightData: StateDataHoverResult[], options: RenderOptions): void {
-        for (let i = 0; i < hightData.length; i++) {
-            this.renderSingleHighlightFillData(hightData[i], options);
+    renderHighlightFillData(highlightData: StateDataHoverResult[], options: RenderOptions): void {
+        for (let i = 0; i < highlightData.length; i++) {
+            this.renderSingleHighlightFillData(highlightData[i], options);
         }
     }
 
-    renderSingleHighlightFillData(hightData: StateDataHoverResult, options: RenderOptions): void {
-        const { type, data } = hightData;
+    renderSingleHighlightFillData(highlightData: StateDataHoverResult, options: RenderOptions): void {
+        const { type, data } = highlightData;
         const { offsetX, offsetY, blocks } = data;
         if (type === 'segment') {
             for (let j = 0; j < blocks.length; j++) {
@@ -101,14 +101,14 @@ export class Painter {
         this.drawShape(offsetX + blocks[0].offset, offsetY, blocks[0].size, options, getColorStringByIndex(blocks[0].colorIndex ?? 0));
     }
 
-    renderHighlightData(hightData: StateDataHoverResult[], options: RenderOptions): void {
-        for (let i = 0; i < hightData.length; i++) {
-            this.renderSingleHighlightData(hightData[i], options);
+    renderHighlightData(highlightData: StateDataHoverResult[], options: RenderOptions): void {
+        for (let i = 0; i < highlightData.length; i++) {
+            this.renderSingleHighlightData(highlightData[i], options);
         }
     }
 
-    renderSingleHighlightData(hightData: StateDataHoverResult, options: RenderOptions): void {
-        const { type, data } = hightData;
+    renderSingleHighlightData(highlightData: StateDataHoverResult, options: RenderOptions): void {
+        const { type, data } = highlightData;
         const { size, offsetX, offsetY, blocks } = data;
         if (type === 'segment') {
             this.drawShape(offsetX, offsetY, size, options, '#ff0000', true);
