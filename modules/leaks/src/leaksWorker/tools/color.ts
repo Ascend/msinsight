@@ -61,8 +61,8 @@ const hexToRgbaString = (hex: string, opacity: number = 1): string => {
     return `rgba(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)}, ${a})`;
 };
 
-export const getColorStringByAddr = (addr: string, isHightlight: boolean = false, opacity: number = 1): string => {
-    if (isHightlight) {
+export const getColorStringByAddr = (addr: string, isHighlight: boolean = false, opacity: number = 1): string => {
+    if (isHighlight) {
         return opacity >= 1 ? '#000000' : hexToRgbaString('#000000', opacity);
     }
     const index = hashHexAddressToIndex(addr);
@@ -76,8 +76,8 @@ export const getDimmedColorStringByAddr = (addr: string, opacity: number = 1): s
     return opacity >= 1 ? color : hexToRgbaString(color, opacity);
 };
 
-export const getColorStringByIndex = (index: number, isHightlight: boolean = false): string => {
-    return isHightlight ? highlightColors[index % GL_COLORS.length] : colors[index % GL_COLORS.length];
+export const getColorStringByIndex = (index: number, isHighlight: boolean = false): string => {
+    return isHighlight ? highlightColors[index % GL_COLORS.length] : colors[index % GL_COLORS.length];
 };
 
 export const getDimmedColorStringByIndex = (index: number): string => {

@@ -38,21 +38,21 @@ export const getFuncNewData = async (session: any, startTimestamp?: number, endT
             funcParam.startTimestamp = startTimestamp;
             funcParam.endTimestamp = endTimestamp;
         }
-        const funcDatas = await getFuncData(funcParam);
+        const funcData = await getFuncData(funcParam);
 
         runInAction(() => {
-            session.funcData = funcDatas;
-            session.funcOptions = [...new Set(funcDatas.traces.map(trace => trace.func))].map(func => ({ label: func, value: func }));
+            session.funcData = funcData;
+            session.funcOptions = [...new Set(funcData.traces.map(trace => trace.func))].map(func => ({ label: func, value: func }));
             const funcSet = new Set(session.searchFunc);
             session.searchFunc = funcSet.size ? session.funcOptions.filter((item: any) => funcSet.has(item.value)).map((i: any) => i.value) : [];
             if (startTimestamp !== undefined && endTimestamp !== undefined) {
                 session.maxTime = endTimestamp;
                 session.minTime = startTimestamp;
             } else {
-                session.maxTime = funcDatas.maxTimestamp;
-                session.minTime = funcDatas.minTimestamp;
+                session.maxTime = funcData.maxTimestamp;
+                session.minTime = funcData.minTimestamp;
             }
-            session.maxDepth = funcDatas.maxDepth;
+            session.maxDepth = funcData.maxDepth;
         });
     } catch (error: any) {
         message.error(error.message);
@@ -83,9 +83,9 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
 };
 export const getNewDetailData = async (session: any): Promise<void> => {
     try {
-        const memoryDatas = await getMemoryDetailData(session.deviceId, session.memoryStamp, session.eventType);
+        const memoryData = await getMemoryDetailData(session.deviceId, session.memoryStamp, session.eventType);
         runInAction(() => {
-            session.memoryData = memoryDatas;
+            session.memoryData = memoryData;
         });
     } catch (error: any) {
         message.error(error.message);
