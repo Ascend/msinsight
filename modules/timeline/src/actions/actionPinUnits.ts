@@ -56,6 +56,8 @@ interface SelectedUnitStatus {
     unitLevelName: string;
     isPinned: boolean;
     isLeafUnit: boolean;
+    isHiddenUnit: boolean;
+    isMergedUnit: boolean;
 }
 
 interface SelectedUnitListStatus {
@@ -66,6 +68,8 @@ interface SelectedUnitListStatus {
     isAllPinned: boolean;
     isAllUnpinned: boolean;
     isAllLeafUnit: boolean;
+    isAllVisibleUnits: boolean;
+    isAllUnmergedUnits: boolean;
 }
 
 function calculateSelectedUnitStatus(selectedUnit: InsightUnit): SelectedUnitStatus {
@@ -77,6 +81,8 @@ function calculateSelectedUnitStatus(selectedUnit: InsightUnit): SelectedUnitSta
         unitLevelName: getUnitLevelName(selectedUnit),
         isPinned: isPinned(selectedUnit),
         isLeafUnit: !selectedUnit.children || selectedUnit.children.length === 0,
+        isHiddenUnit: selectedUnit.name === 'Empty',
+        isMergedUnit: Array.isArray(metadata?.threadIdList) && metadata.threadIdList.length > 0,
     };
 }
 
@@ -88,6 +94,8 @@ export function calculateSelectedUnitListStatus(selectedUnits: InsightUnit[]): S
     const isAllPinned = selectedUnitStatuses.every((status) => status.isPinned);
     const isAllUnpinned = selectedUnitStatuses.every((status) => !status.isPinned);
     const isAllLeafUnit = selectedUnitStatuses.every((status) => status.isLeafUnit);
+    const isAllVisibleUnits = selectedUnitStatuses.every((status) => !status.isHiddenUnit);
+    const isAllUnmergedUnits = selectedUnitStatuses.every((status) => !status.isMergedUnit);
 
     const groupNameValue = selectedUnitStatuses?.[0]?.groupNameValue ?? '';
     const isSameGroupNameValue = hasStringValue(groupNameValue) && selectedUnitStatuses
@@ -106,6 +114,8 @@ export function calculateSelectedUnitListStatus(selectedUnits: InsightUnit[]): S
         isAllPinned,
         isAllUnpinned,
         isAllLeafUnit,
+        isAllVisibleUnits,
+        isAllUnmergedUnits,
     };
 }
 
@@ -218,6 +228,7 @@ export const actionPinByUnitName = register({
     visible: (session) => {
         const selectedUnitListStatus = calculateSelectedUnitListStatus(session.selectedUnits);
         return selectedUnitListStatus.isAllUnpinned && selectedUnitListStatus.isAllLeafUnit &&
+            selectedUnitListStatus.isAllVisibleUnits && selectedUnitListStatus.isAllUnmergedUnits &&
             (selectedUnitListStatus.isSameGroupNameValue || selectedUnitListStatus.isSameUnitLevelName);
     },
     perform: (session): void => {
@@ -234,6 +245,7 @@ export const actionUnpinByUnitName = register({
     visible: (session) => {
         const selectedUnitListStatus = calculateSelectedUnitListStatus(session.selectedUnits);
         return selectedUnitListStatus.isAllPinned && selectedUnitListStatus.isAllLeafUnit &&
+            selectedUnitListStatus.isAllVisibleUnits && selectedUnitListStatus.isAllUnmergedUnits &&
             (selectedUnitListStatus.isSameGroupNameValue || selectedUnitListStatus.isSameUnitLevelName);
     },
     perform: (session): void => {
