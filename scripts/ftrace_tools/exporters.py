@@ -61,6 +61,8 @@ class DbExport(ExportStrategy):
 
             self._create_counter_table(cursor)
 
+            self._create_flow_table(cursor)
+
             conn.commit()
             logging.info("Exported to SQLite: %s", output_path)
         except sqlite3.Error as e:
@@ -249,3 +251,17 @@ class DbExport(ExportStrategy):
                 args TEXT
             )
         ''')
+
+    def _create_flow_table(self, cursor):
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS flow (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                flow_id TEXT,
+                name TEXT,
+                cat TEXT,
+                track_id INTEGER,
+                timestamp INTEGER,
+                type TEXT
+            )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS flow_id_time_index ON flow (cat, type)')
