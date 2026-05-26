@@ -21,7 +21,6 @@ import { MIChart, type ChartsHandle } from '@insight/lib/components';
 import type { EChartsOption, GridComponentOption as GridOption, YAXisComponentOption as YAXisOption, DataZoomComponentOption as DataZoomOption } from 'echarts';
 import { observer } from 'mobx-react';
 import { type Theme, useTheme } from '@emotion/react';
-import { debounce, type DebouncedFunc } from 'lodash';
 import { formatTime } from '@/utils/utils';
 
 /** 时间范围 */
@@ -45,6 +44,7 @@ type DataZoomProps = {
     offsetLeft?: number; // dataZoom 左侧偏移量(与独立的主图左对齐)
     offsetRight?: number; // dataZoom 右侧偏移量(与独立的主图右对齐)
     selectedZoomChange?: (range: Range) => void; // dataZoom 选中范围改变回调
+    selectedRange?: Range;
     module: 'leaks' | 'memsnapshot'; // 数据类型，影响时间戳转化
 };
 
@@ -163,24 +163,13 @@ const MemoryDataZoom = observer(
         maxTime,
         module,
         selectedZoomChange,
+        selectedRange,
     }: DataZoomProps): React.ReactElement => {
         const theme = useTheme();
         const chartRef = useRef<ChartsHandle | null>(null);
         const dataZoomRef = useRef<ChartsHandle | null>(null);
         const timeRangeRef = useRef<Range>([minTime, maxTime]);
-        const debounceRef = useRef<DebouncedFunc<(start: number, end: number, _minTime: number, _maxTime: number) => void> | null>(null);
-
-        if (selectedZoomChange && !debounceRef.current) {
-            debounceRef.current = debounce(
-                (start: number, end: number, _minTime: number, _maxTime: number) => {
-                    const offsetTime = _maxTime - _minTime;
-                    const startTime = _minTime + Math.floor(offsetTime * start / 100);
-                    const endTime = _minTime + Math.floor(offsetTime * end / 100);
-                    selectedZoomChange([startTime, endTime]);
-                },
-                200,
-            );
-        }
+        const syncingRef = useRef(false);
 
         /**
          * 趋势图配置项
@@ -193,16 +182,28 @@ const MemoryDataZoom = observer(
          * 缩略图配置项
          */
         const dataZoomOptions: EChartsOption = useMemo(() => {
-            return getOptions({ dataSource, minTime, maxTime, isDataZoom: true, height: 0, dataZoomHeight, offsetLeft, offsetRight, theme, module });
-        }, [dataSource, dataZoomHeight, offsetLeft, offsetRight, maxTime, minTime, theme, module]);
+            const options = getOptions({ dataSource, minTime, maxTime, isDataZoom: true, height: 0, dataZoomHeight, offsetLeft, offsetRight, theme, module });
+            if (selectedRange !== undefined && minTime < maxTime && Array.isArray(options.dataZoom)) {
+                const offsetTime = maxTime - minTime;
+                const start = Math.max(0, Math.min(100, (selectedRange[0] - minTime) / offsetTime * 100));
+                const end = Math.max(0, Math.min(100, (selectedRange[1] - minTime) / offsetTime * 100));
+                options.dataZoom = options.dataZoom.map(item => ({ ...item, start, end }));
+            }
+            return options;
+        }, [dataSource, dataZoomHeight, offsetLeft, offsetRight, maxTime, minTime, selectedRange?.[0], selectedRange?.[1], theme, module]);
 
         const handleDataZoom = (params: any): void => {
+            if (syncingRef.current) return;
             const { start, end, batch } = params as DataZoomItem;
             const batchItem = batch?.[0];
             const _start = batchItem?.start ?? start;
             const _end = batchItem?.end ?? end;
             if (_start === undefined || _end === undefined) return;
-            debounceRef.current?.(_start, _end, ...timeRangeRef.current);
+            const [_minTime, _maxTime] = timeRangeRef.current;
+            const offsetTime = _maxTime - _minTime;
+            const startTime = _minTime + Math.floor(offsetTime * _start / 100);
+            const endTime = _minTime + Math.floor(offsetTime * _end / 100);
+            selectedZoomChange?.([startTime, endTime]);
         };
 
         useEffect(() => {
@@ -229,8 +230,6 @@ const MemoryDataZoom = observer(
 
             return (): void => {
                 disposed = true;
-                debounceRef.current?.cancel();
-                debounceRef.current = null;
                 chartInstance?.off('dataZoom', handleDataZoom);
             };
         }, []);
@@ -241,6 +240,20 @@ const MemoryDataZoom = observer(
             chartInstance?.off('dataZoom', handleDataZoom);
             chartInstance?.on('dataZoom', handleDataZoom);
         }, [dataSource, maxTime, minTime]);
+
+        useEffect(() => {
+            if (selectedRange === undefined || minTime >= maxTime) return;
+            const chartInstance = dataZoomRef.current?.getInstance();
+            if (!chartInstance) return;
+            const offsetTime = maxTime - minTime;
+            const start = Math.max(0, Math.min(100, (selectedRange[0] - minTime) / offsetTime * 100));
+            const end = Math.max(0, Math.min(100, (selectedRange[1] - minTime) / offsetTime * 100));
+            syncingRef.current = true;
+            chartInstance.dispatchAction({ type: 'dataZoom', start, end });
+            requestAnimationFrame(() => {
+                syncingRef.current = false;
+            });
+        }, [selectedRange?.[0], selectedRange?.[1], minTime, maxTime]);
 
         return (
             dataSource.length > 0

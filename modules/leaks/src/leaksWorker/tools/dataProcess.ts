@@ -24,8 +24,8 @@ export const getZoom = (data: RenderData, canvas: OffscreenCanvas | HTMLCanvasEl
     };
 };
 
-const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX ?? transform.scale;
-const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY ?? transform.scale;
+const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX;
+const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY;
 
 const BLOCK_SNAP_TARGET_WIDTH_PX = 6;
 const blockViewPathCache = new WeakMap<SetMemoryBlocksDataPayload['data'], RenderData>();

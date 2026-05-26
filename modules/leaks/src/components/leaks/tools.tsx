@@ -20,19 +20,21 @@
 import { observer } from 'mobx-react';
 import { Session } from '../../entity/session';
 import React, { useEffect, useState } from 'react';
-import { type Theme, useTheme } from '@emotion/react';
+import { css, Global, type Theme, useTheme } from '@emotion/react';
 import { runInAction } from 'mobx';
 import styled from '@emotion/styled/macro';
 import { addAddressOffset, formatBytes, formatTime } from '@/utils/utils';
 import { Spin } from '@insight/lib';
+import { ReactComponent as MouseMiddleClickSvg } from '@/assets/mouse-middle-click.svg';
+import { ReactComponent as MouseWheelScrollSvg } from '@/assets/mouse-wheel-scroll.svg';
 
 interface AxisTick {
     position: number;
     value: string;
 }
 
-const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX ?? transform.scale;
-const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY ?? transform.scale;
+const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX;
+const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY;
 
 export const Axis = observer(({ session }: { session: Session }): JSX.Element => {
     const { sizeInfo, renderOptions: { zoom, transform, viewport } } = session.leaksWorkerInfo;
@@ -316,33 +318,172 @@ export const Loading = ({ size = 'default', style = {}, loading }: { size?: 'sma
 };
 
 export const GraphToolbar = styled.div`
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 3;
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 6px;
+    gap: 2px;
     min-height: 30px;
-    margin-bottom: 6px;
 
     button {
-        height: 24px;
-        min-width: 74px;
-        padding: 0 8px;
-        color: #222;
-        font-size: 12px;
-        line-height: 22px;
-        white-space: nowrap;
-        background: #fff;
-        border: 1px solid rgba(0, 0, 0, 0.22);
-        border-radius: 4px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        color: ${(props): string => props.theme.icon};
+        font-size: 15px;
+        line-height: 1;
+        background: transparent;
+        border: none;
+        border-radius: 3px;
         cursor: pointer;
+        transition: color 0.12s ease, background-color 0.12s ease;
+    }
+
+    button svg {
+        width: 16px;
+        height: 16px;
     }
 
     button:hover {
-        background: #f5f5f5;
-        border-color: rgba(0, 0, 0, 0.36);
+        color: ${(props): string => props.theme.primaryColor};
+        background: ${(props): string => props.theme.bgColorLight};
+    }
+
+    button.active {
+        color: ${(props): string => props.theme.primaryColor};
+        background: ${(props): string => props.theme.primaryColorLight5};
     }
 
     button:active {
-        background: #e8e8e8;
+        background: ${(props): string => props.theme.primaryColorLight4};
     }
+
+    button:focus-visible {
+        outline: 1px solid ${(props): string => props.theme.primaryColor};
+        outline-offset: -1px;
+    }
+`;
+
+export const graphToolbarTooltipClassName = 'leaks-graph-toolbar-tooltip';
+
+export const GraphToolbarTooltipStyle = (): JSX.Element => <Global styles={css`
+    .${graphToolbarTooltipClassName}.ant-tooltip-placement-top,
+    .${graphToolbarTooltipClassName}.ant-tooltip-placement-topRight {
+        padding-bottom: 2px;
+    }
+
+    .${graphToolbarTooltipClassName} {
+        max-width: none;
+        pointer-events: none;
+    }
+
+    .${graphToolbarTooltipClassName} .ant-tooltip-content {
+        width: max-content;
+        max-width: calc(100vw - 24px);
+    }
+
+    .${graphToolbarTooltipClassName} .ant-tooltip-inner {
+        width: max-content;
+        max-width: calc(100vw - 24px);
+        overflow: hidden;
+        box-sizing: border-box;
+    }
+
+    .${graphToolbarTooltipClassName} .ant-tooltip-arrow {
+        display: none;
+    }
+`} />;
+
+export const GraphShortcutTip = styled.div`
+    width: max-content;
+    max-width: 220px;
+    color: ${(props): string => props.theme.textColor};
+    font-size: 12px;
+    line-height: 18px;
+`;
+
+export const GraphShortcutTitle = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 4px;
+    color: ${(props): string => props.theme.textColor};
+    font-weight: 600;
+`;
+
+export const GraphShortcutRow = styled.div`
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    white-space: nowrap;
+
+    & + & {
+        margin-top: 3px;
+    }
+`;
+
+export const GraphKeycap = styled.span`
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 14px;
+    padding: 0 4px;
+    color: ${(props): string => props.theme.textColor};
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    background: ${(props): string => props.theme.bgColorLight};
+    border: 1px solid ${(props): string => props.theme.borderColor};
+    border-bottom-color: ${(props): string => props.theme.icon};
+    border-radius: 3px;
+    box-shadow: 0 1px 0 ${(props): string => props.theme.borderColor};
+`;
+
+export const GraphWheelCombo = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+    padding: 2px 4px;
+    color: ${(props): string => props.theme.textColor};
+    background: ${(props): string => props.theme.bgColorLighter};
+    border: 1px solid ${(props): string => props.theme.borderColor};
+    border-radius: 5px;
+`;
+
+export const GraphShortcutActions = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    flex: 0 0 auto;
+    padding: 2px 4px;
+    color: ${(props): string => props.theme.textColor};
+    background: ${(props): string => props.theme.bgColorLighter};
+    border: 1px solid ${(props): string => props.theme.borderColor};
+    border-radius: 5px;
+`;
+
+export const GraphMouseIcon = styled(MouseMiddleClickSvg)`
+    width: 13px;
+    height: 15px;
+    color: ${(props): string => props.theme.icon};
+    --mouse-bg: ${(props): string => props.theme.bgColorCommon};
+    --mouse-wheel-active: ${(props): string => props.theme.primaryColor};
+`;
+
+export const GraphWheelIcon = styled(MouseWheelScrollSvg)`
+    width: 19px;
+    height: 15px;
+    color: ${(props): string => props.theme.icon};
+    --mouse-bg: ${(props): string => props.theme.bgColorCommon};
+    --mouse-wheel-active: ${(props): string => props.theme.primaryColor};
 `;

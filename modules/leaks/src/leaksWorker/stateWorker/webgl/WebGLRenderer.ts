@@ -21,7 +21,7 @@ import { Painter } from './Painter';
 export class WebGLRenderer {
     readonly canvas: OffscreenCanvas;
     readonly devicePixelRatio: number;
-    private transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
+    private transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     readonly painter: Painter;
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };

@@ -759,6 +759,18 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             });
             return;
         }
+        if (tab?.selection?.type === 'event') {
+            const event = tab.selection.event === undefined ? null : { ...tab.selection.event };
+            workerSelectBlockItem({ item: null, selectionVersion });
+            workerSelectStateItem({ item: null, selectionVersion });
+            runInAction(() => {
+                session.selectionVersion = selectionVersion;
+                session.leaksWorkerInfo.clickItem = null;
+                session.stateWorkerInfo.clickItem = null;
+                session.clickEventItem = event;
+            });
+            return;
+        }
         workerSelectBlockItem({ item: null, selectionVersion });
         workerSelectStateItem({ item: null, selectionVersion });
         runInAction(() => {

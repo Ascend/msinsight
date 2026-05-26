@@ -43,7 +43,8 @@ export const LEAKS_WORKER_INFO_DEFAULT = {
         transform: {
             x: 0,
             y: 0,
-            scale: 1,
+            scaleX: 1,
+            scaleY: 1,
         },
         viewport: {
             width: 0,
@@ -71,7 +72,7 @@ export const MARK_LINE_POSITION_DEFAULT = {
 
 export const STATE_WORKER_INFO_DEFAULT = {
     renderOptions: {
-        transform: { x: 0, y: 0, scale: 1 },
+        transform: { x: 0, y: 0, scaleX: 1, scaleY: 1 },
         viewport: { width: 0, height: 0 },
         zoom: { x: 1, y: 1, offset: 0 },
     },
@@ -171,6 +172,7 @@ export class Session {
     autoFilterPotentialLeaks: boolean = false;
 
     loadingBlocks: boolean = false;
+    loadingFunc: boolean = false;
     loadingState: boolean = false;
 
     constructor() {

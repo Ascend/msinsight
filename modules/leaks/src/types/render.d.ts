@@ -20,9 +20,8 @@ interface RenderOptions {
     transform: {
         x: number;
         y: number;
-        scale: number;
-        scaleX?: number;
-        scaleY?: number;
+        scaleX: number;
+        scaleY: number;
     };
     viewport: {
         width: number;

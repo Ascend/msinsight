@@ -31,7 +31,21 @@ import {
 import { message } from 'antd';
 import { runInAction } from 'mobx';
 
-export const getFuncNewData = async (session: any, startTimestamp?: number, endTimestamp?: number): Promise<void> => {
+const funcDataRequestSeqMap = new WeakMap<object, number>();
+
+export const getFuncNewData = async (
+    session: any,
+    startTimestamp?: number,
+    endTimestamp?: number,
+    shouldApply: () => boolean = () => true,
+): Promise<void> => {
+    const requestSeq = (funcDataRequestSeqMap.get(session) ?? 0) + 1;
+    funcDataRequestSeqMap.set(session, requestSeq);
+    const isLatestRequest = (): boolean => funcDataRequestSeqMap.get(session) === requestSeq && shouldApply();
+
+    runInAction(() => {
+        session.loadingFunc = true;
+    });
     try {
         const funcParam: FuncParam = { deviceId: session.deviceId, relativeTime: true, threadId: session.threadId, allowTrim: session.allowTrim };
         if (startTimestamp !== undefined && endTimestamp !== undefined) {
@@ -39,6 +53,9 @@ export const getFuncNewData = async (session: any, startTimestamp?: number, endT
             funcParam.endTimestamp = endTimestamp;
         }
         const funcData = await getFuncData(funcParam);
+        if (!isLatestRequest()) {
+            return;
+        }
 
         runInAction(() => {
             session.funcData = funcData;
@@ -53,8 +70,15 @@ export const getFuncNewData = async (session: any, startTimestamp?: number, endT
                 session.minTime = funcData.minTimestamp;
             }
             session.maxDepth = funcData.maxDepth;
+            session.loadingFunc = false;
         });
     } catch (error: any) {
+        if (!isLatestRequest()) {
+            return;
+        }
+        runInAction(() => {
+            session.loadingFunc = false;
+        });
         message.error(error.message);
     }
 };
@@ -67,7 +91,7 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
     try {
         const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
         const blockData = await getBlocksRequest(param);
-        const transform = { x: 0, y: 0, scale: 1 };
+        const transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
@@ -83,9 +107,9 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
 };
 export const getNewDetailData = async (session: any): Promise<void> => {
     try {
-        const memoryData = await getMemoryDetailData(session.deviceId, session.memoryStamp, session.eventType);
+        const memoryDatas = await getMemoryDetailData(session.deviceId, session.memoryStamp, session.eventType);
         runInAction(() => {
-            session.memoryData = memoryData;
+            session.memoryData = memoryDatas;
         });
     } catch (error: any) {
         message.error(error.message);
@@ -162,8 +186,10 @@ export const getBlockTableData = async (session: any): Promise<void> => {
         message.error(error.message);
     }
 };
-export const getPotentialLeakStats = async (session: any): Promise<void> => {
-    if (session.module !== 'memsnapshot' || session.deviceId === '' || session.maxTime === 0 || session.maxTime === undefined) return;
+export const getPotentialLeakStats = async (session: any, range?: [number, number]): Promise<void> => {
+    const startTimestamp = range?.[0] ?? session.minTime;
+    const endTimestamp = range?.[1] ?? session.maxTime;
+    if (session.module !== 'memsnapshot' || session.deviceId === '' || endTimestamp === 0 || endTimestamp === undefined) return;
     const requestId = session.leakStats.requestId + 1;
     runInAction(() => {
         session.leakStats.loading = true;
@@ -173,8 +199,8 @@ export const getPotentialLeakStats = async (session: any): Promise<void> => {
     try {
         const leakStats = await getSnapshotLeakStats({
             deviceId: session.deviceId,
-            startTimestamp: session.minTime,
-            endTimestamp: session.maxTime,
+            startTimestamp,
+            endTimestamp,
         });
         runInAction(() => {
             if (session.leakStats.requestId !== requestId) return;

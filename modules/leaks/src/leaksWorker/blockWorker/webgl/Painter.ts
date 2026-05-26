@@ -52,8 +52,8 @@ export class Painter {
 
     private updateUniformData(options: RenderOptions): void {
         const { transform, viewport, zoom } = options;
-        this.uniformData[0] = transform.scaleX ?? transform.scale;
-        this.uniformData[1] = transform.scaleY ?? transform.scale;
+        this.uniformData[0] = transform.scaleX;
+        this.uniformData[1] = transform.scaleY;
         this.uniformData[2] = transform.x;
         this.uniformData[3] = transform.y;
         this.uniformData[4] = viewport.width;

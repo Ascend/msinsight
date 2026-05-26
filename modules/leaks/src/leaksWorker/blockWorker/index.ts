@@ -22,7 +22,7 @@ import { debounce } from 'lodash';
 
 let canvas: OffscreenCanvas;
 let memoryBlockData: RenderData;
-let transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
+let transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 let viewport: RenderOptions['viewport'];
 let zoom: RenderOptions['zoom'];
 let renderer: WebGLRenderer | null;
@@ -122,7 +122,7 @@ const renderHighlightData = (): void => {
 
 const destroyHandler = (): void => {
     memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
-    transform = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
+    transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     zoom = { x: 1, y: 1, offset: 0 };
     hoverItem = null;
     clickItem = null;
