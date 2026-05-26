@@ -140,6 +140,9 @@ async function alignByOperator(session: Session, alignType: TimelineAlignmentTyp
 }
 
 const isOperatorAlignVisible = (session: Session): boolean => {
+    if (session.isSimulation || session.isIE) {
+        return false;
+    }
     return Boolean(session.selectedData?.name) && getSelectedUnit(session) !== undefined;
 };
 
