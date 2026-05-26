@@ -24,14 +24,14 @@
 namespace Dic {
 namespace Module {
 class MemScopeModule : public BaseModule {
-public:
+  public:
     MemScopeModule();
     ~MemScopeModule() override;
 
     void RegisterRequestHandlers() override;
     void OnRequest(std::unique_ptr<Protocol::Request> request) override;
 };
-}  // end of namespace Module
-}  // end of namespace Dic
+} // end of namespace Module
+} // end of namespace Dic
 
-#endif  // PROFILER_SERVER_MEM_SCOPE_MODULE_H
+#endif // PROFILER_SERVER_MEM_SCOPE_MODULE_H

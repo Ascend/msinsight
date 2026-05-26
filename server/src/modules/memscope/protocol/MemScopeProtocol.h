@@ -20,17 +20,16 @@
 #define PROFILER_SERVER_MEM_SCOPE_PROTOCOL_H
 #include "ProtocolMessage.h"
 
-
 namespace Dic::Protocol {
 class MemScopeProtocolUtil : public ProtocolUtil {
-public:
+  public:
     MemScopeProtocolUtil() = default;
     ~MemScopeProtocolUtil() override = default;
 
-private:
+  private:
     void RegisterJsonToRequestFuncs() override;
     void RegisterResponseToJsonFuncs() override;
     void RegisterEventToJsonFuncs() override;
 };
 } // end of namespace Dic::Protocol
-#endif  // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_H
+#endif // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_H

@@ -26,13 +26,10 @@ namespace Dic {
 namespace Module {
 namespace MemScope {
 class BuildDetailTreeContext {
-public:
-    BuildDetailTreeContext(const std::string& deviceId, const uint64_t timestamp, const std::string& eventType,
-                           const bool relativeTime) :
-        deviceId(deviceId),
-        timestamp(timestamp),
-        eventType(eventType),
-        relativeTime(relativeTime) {}
+  public:
+    BuildDetailTreeContext(
+        const std::string &deviceId, const uint64_t timestamp, const std::string &eventType, const bool relativeTime)
+        : deviceId(deviceId), timestamp(timestamp), eventType(eventType), relativeTime(relativeTime) {}
 
     std::string deviceId;
     uint64_t timestamp{0};
@@ -41,15 +38,15 @@ public:
 };
 
 class MemScopeService {
-public:
-    static bool BuildMemoryAllocDetailTreeByContext(std::unique_ptr<MemScopeMemoryDetailTreeNode>& detailTreePtr,
-                                                    BuildDetailTreeContext& buildCtx);
+  public:
+    static bool BuildMemoryAllocDetailTreeByContext(
+        std::unique_ptr<MemScopeMemoryDetailTreeNode> &detailTreePtr, BuildDetailTreeContext &buildCtx);
 
     // 判断eventType是否合法
-    static bool IsValidMemoryEventType(const std::string& event, const std::string& eventType);
+    static bool IsValidMemoryEventType(const std::string &event, const std::string &eventType);
 };
 } // Memory
 } // Module
 } // Dic
 
-#endif  // PROFILER_SERVER_MEM_SCOPE_SERVICE_H
+#endif // PROFILER_SERVER_MEM_SCOPE_SERVICE_H

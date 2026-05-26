@@ -32,18 +32,17 @@
 
 namespace Dic::Module::MemScope {
 class MemScopeRequestHandler : public ModuleRequestHandler {
-public:
-    MemScopeRequestHandler()
-    {
+  public:
+    MemScopeRequestHandler() {
         moduleName = MODULE_MEM_SCOPE;
         async = false;
     }
     ~MemScopeRequestHandler() override = default;
 
-protected:
-  inline static const std::string REQUEST_ERROR_UNKNOWN = "An unknown exception occurred while querying data. "
-                                                          "Please check whether your data contains anomalies or "
-                                                          "review the logs for more information.";
+  protected:
+    inline static const std::string REQUEST_ERROR_UNKNOWN = "An unknown exception occurred while querying data. "
+                                                            "Please check whether your data contains anomalies or "
+                                                            "review the logs for more information.";
 };
 } // namespace Dic::Module::MemScope
-#endif  // PROFILER_SERVER_MEM_SCOPE_REQUEST_HANDLER_H
+#endif // PROFILER_SERVER_MEM_SCOPE_REQUEST_HANDLER_H

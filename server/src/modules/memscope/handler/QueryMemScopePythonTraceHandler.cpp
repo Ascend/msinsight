@@ -22,8 +22,7 @@
 namespace Dic {
 namespace Module {
 namespace MemScope {
-bool QueryMemScopePythonTraceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemScopePythonTraceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MemScopePythonTraceRequest &>(*requestPtr);
     std::unique_ptr<MemScopePythonTracesResponse> responsePtr = std::make_unique<MemScopePythonTracesResponse>();
     auto &response = *responsePtr;

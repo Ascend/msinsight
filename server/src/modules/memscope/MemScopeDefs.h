@@ -57,26 +57,22 @@ struct MEM_SCOPE_DUMP_EVENT_TYPE {
 };
 // 内存事件 - 类型映射表
 const std::unordered_map<std::string, std::set<std::string>> EVENT_TYPE_MAP = {
-    {MEM_SCOPE_DUMP_EVENT::MALLOC, {MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA,
-                                    MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_MINDSPORE,
-                                    MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_ATB,
-                                    MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HAL,
-                                    MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA_WORKSPACE}},
-    {MEM_SCOPE_DUMP_EVENT::FREE, {MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA,
-                                  MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_MINDSPORE,
-                                  MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_ATB,
-                                  MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HAL,
-                                  MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA_WORKSPACE}},
-    {MEM_SCOPE_DUMP_EVENT::ACCESS, {MEM_SCOPE_DUMP_EVENT_TYPE::ACCESS_READ,
-                                    MEM_SCOPE_DUMP_EVENT_TYPE::ACCESS_WRITE}},
-    {MEM_SCOPE_DUMP_EVENT::OP_LAUNCH, {MEM_SCOPE_DUMP_EVENT_TYPE::OP_LAUNCH_ATEN_START,
-                                       MEM_SCOPE_DUMP_EVENT_TYPE::OP_LAUNCH_ATEN_END}},
-    {MEM_SCOPE_DUMP_EVENT::KERNEL_LAUNCH, {MEM_SCOPE_DUMP_EVENT_TYPE::KERNEL_LAUNCH,
-                                           MEM_SCOPE_DUMP_EVENT_TYPE::KERNEL_LAUNCH_START,
-                                           MEM_SCOPE_DUMP_EVENT_TYPE::KERNEL_LAUNCH_END}},
-    {MEM_SCOPE_DUMP_EVENT::SYSTEM, {MEM_SCOPE_DUMP_EVENT_TYPE::SYSTEM_ACL_INIT,
-                                    MEM_SCOPE_DUMP_EVENT_TYPE::SYSTEM_ACL_FINI}}
-};
+    {MEM_SCOPE_DUMP_EVENT::MALLOC,
+        {MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_MINDSPORE,
+            MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_ATB, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HAL,
+            MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA_WORKSPACE}},
+    {MEM_SCOPE_DUMP_EVENT::FREE,
+        {MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_MINDSPORE,
+            MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_ATB, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HAL,
+            MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA_WORKSPACE}},
+    {MEM_SCOPE_DUMP_EVENT::ACCESS, {MEM_SCOPE_DUMP_EVENT_TYPE::ACCESS_READ, MEM_SCOPE_DUMP_EVENT_TYPE::ACCESS_WRITE}},
+    {MEM_SCOPE_DUMP_EVENT::OP_LAUNCH,
+        {MEM_SCOPE_DUMP_EVENT_TYPE::OP_LAUNCH_ATEN_START, MEM_SCOPE_DUMP_EVENT_TYPE::OP_LAUNCH_ATEN_END}},
+    {MEM_SCOPE_DUMP_EVENT::KERNEL_LAUNCH,
+        {MEM_SCOPE_DUMP_EVENT_TYPE::KERNEL_LAUNCH, MEM_SCOPE_DUMP_EVENT_TYPE::KERNEL_LAUNCH_START,
+            MEM_SCOPE_DUMP_EVENT_TYPE::KERNEL_LAUNCH_END}},
+    {MEM_SCOPE_DUMP_EVENT::SYSTEM,
+        {MEM_SCOPE_DUMP_EVENT_TYPE::SYSTEM_ACL_INIT, MEM_SCOPE_DUMP_EVENT_TYPE::SYSTEM_ACL_FINI}}};
 
 struct MemScopeEvent {
     uint64_t id{0};
@@ -103,14 +99,10 @@ struct MemoryAllocation {
     bool optimized{false};
 
     MemoryAllocation() = default;
-    MemoryAllocation(uint64_t timestamp, uint64_t totalSize, std::string deviceId, std::string eventType,
-                     bool optimized)
-        : id(0),
-          timestamp(timestamp),
-          totalSize(totalSize),
-          deviceId(std::move(deviceId)),
-          eventType(std::move(eventType)),
-          optimized(optimized) {}
+    MemoryAllocation(
+        uint64_t timestamp, uint64_t totalSize, std::string deviceId, std::string eventType, bool optimized)
+        : id(0), timestamp(timestamp), totalSize(totalSize), deviceId(std::move(deviceId)),
+          eventType(std::move(eventType)), optimized(optimized) {}
 };
 
 struct MemoryBlock {
@@ -136,18 +128,10 @@ struct MemoryBlock {
     MemoryBlock() = default;
     virtual ~MemoryBlock() = default;
     MemoryBlock(std::string ptr, std::string deviceId, uint64_t size, uint64_t startTs, uint64_t endTs,
-                std::string owner, std::string eventType, std::string attrJsonString, uint64_t pid, uint64_t tid)
-        : id(0),
-          ptr(std::move(ptr)),
-          deviceId(std::move(deviceId)),
-          size(size),
-          startTimestamp(startTs),
-          endTimestamp(endTs),
-          owner(std::move(owner)),
-          eventType(std::move(eventType)),
-          attrJsonString(std::move(attrJsonString)),
-          processId(pid),
-          threadId(tid) {}
+        std::string owner, std::string eventType, std::string attrJsonString, uint64_t pid, uint64_t tid)
+        : id(0), ptr(std::move(ptr)), deviceId(std::move(deviceId)), size(size), startTimestamp(startTs),
+          endTimestamp(endTs), owner(std::move(owner)), eventType(std::move(eventType)),
+          attrJsonString(std::move(attrJsonString)), processId(pid), threadId(tid) {}
 };
-}  // namespace Dic::Module::MemScope
-#endif  // PROFILER_SERVER_MEM_SCOPE_DEFS_H
+} // namespace Dic::Module::MemScope
+#endif // PROFILER_SERVER_MEM_SCOPE_DEFS_H

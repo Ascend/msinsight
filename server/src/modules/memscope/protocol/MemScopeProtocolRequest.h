@@ -35,9 +35,8 @@ const uint64_t MAX_MEM_SCOPE_MEMORY_BLOCK_SIZE = 1 * 1024 * 1024 * 1024;
 const int64_t COMMON_RANGE_VALUE_MAX = 1000000000000;
 const int64_t COMMON_RANGE_VALUE_MIN = 0;
 
-
 struct Threshold {
-public:
+  public:
     uint32_t perT{0};
     uint64_t valueT{0};
 
@@ -46,15 +45,9 @@ public:
     static const uint64_t MAX_VALUE = INT64_MAX;
     static const uint64_t MIN_VALUE = 0;
 
-    bool CheckValid() const
-    {
-        return perT <= MAX_PER && valueT < MAX_VALUE;
-    }
+    bool CheckValid() const { return perT <= MAX_PER && valueT < MAX_VALUE; }
 
-    std::string GetPerStr() const
-    {
-        return StringUtil::DoubleToStringWithTwoDecimalPlaces(perT/100.0f);
-    }
+    std::string GetPerStr() const { return StringUtil::DoubleToStringWithTwoDecimalPlaces(perT / 100.0f); }
 };
 
 struct MemScopeMemoryBlockParams : PaginationParam, FiltersParam, OrderByParam, RangeFiltersParam {
@@ -76,15 +69,14 @@ struct MemScopeMemoryBlockParams : PaginationParam, FiltersParam, OrderByParam, 
 
     MemScopeMemoryBlockParams() : startTimestamp(0), endTimestamp(0), minSize(0), maxSize(0), relativeTime(false) {}
 
-    bool CommonCheck(std::string& errorMsg) const
-    {
+    bool CommonCheck(std::string &errorMsg) const {
         if (minSize > maxSize) {
             errorMsg = "[minSize] must be less than [maxSize].";
             return false;
         }
         if (maxSize > MAX_MEM_SCOPE_MEMORY_BLOCK_SIZE) {
             errorMsg = "The maximum size (maxSize = " + std::to_string(maxSize) + ") exceeds " +
-                       std::to_string(MAX_MEM_SCOPE_MEMORY_BLOCK_SIZE) + ".";
+                std::to_string(MAX_MEM_SCOPE_MEMORY_BLOCK_SIZE) + ".";
             return false;
         }
         if (startTimestamp > endTimestamp) {
@@ -129,8 +121,7 @@ struct MemScopeMemoryAllocationParams {
 
     MemScopeMemoryAllocationParams() : startTimestamp(0), endTimestamp(0), optimized(false), relativeTime(false) {}
 
-    bool CommonCheck(std::string& errorMsg) const
-    {
+    bool CommonCheck(std::string &errorMsg) const {
         if (startTimestamp > endTimestamp) {
             errorMsg = "The start timestamp (startTimestamp) should be less than the end timestamp (endTimestamp).";
             return false;
@@ -159,8 +150,7 @@ struct MemScopeMemoryDetailParams {
 
     MemScopeMemoryDetailParams() : timestamp(0), relativeTime(false) {}
 
-    bool CommonCheck(std::string& errorMsg) const
-    {
+    bool CommonCheck(std::string &errorMsg) const {
         if (!CheckStrParamValid(deviceId, errorMsg)) {
             errorMsg = "Invalid deviceId, detail: " + errorMsg;
             return false;
@@ -186,8 +176,7 @@ struct MemScopeThreadPythonTraceParams {
 
     MemScopeThreadPythonTraceParams() : startTimestamp(0), endTimestamp(0), relativeTime(false), threadId(0) {}
 
-    bool CommonCheck(std::string& errorMsg) const
-    {
+    bool CommonCheck(std::string &errorMsg) const {
         if (!CheckStrParamValid(deviceId, errorMsg)) {
             errorMsg = "Invalid deviceId, detail: " + errorMsg;
             return false;
@@ -216,8 +205,7 @@ struct MemScopeEventParams : public PaginationParam, FiltersParam, OrderByParam,
 
     MemScopeEventParams() = default;
 
-    bool CommonCheck(std::string& errorMsg) const
-    {
+    bool CommonCheck(std::string &errorMsg) const {
         if (!CheckStrParamValid(deviceId, errorMsg)) {
             errorMsg = "Invalid deviceId, detail: " + errorMsg;
             return false;
@@ -227,21 +215,21 @@ struct MemScopeEventParams : public PaginationParam, FiltersParam, OrderByParam,
             return false;
         }
         if (endTimestamp > INT64_MAX) {
-            errorMsg = StringUtil::FormatString("Invalid timestamp, detail: exceeds the range of [{},{}]",
-                                                "0", std::to_string(INT64_MAX));
+            errorMsg = StringUtil::FormatString(
+                "Invalid timestamp, detail: exceeds the range of [{},{}]", "0", std::to_string(INT64_MAX));
             return false;
         }
-        for (const auto&  [colName, rangePair] : rangeFilters) {
+        for (const auto &[colName, rangePair] : rangeFilters) {
             (void)(colName);
             if (rangePair.first < COMMON_RANGE_VALUE_MIN || rangePair.second < COMMON_RANGE_VALUE_MIN) {
-                errorMsg = StringUtil::FormatString("Invalid range value, detail: less than ",
-                                                    std::to_string(COMMON_RANGE_VALUE_MIN));
+                errorMsg = StringUtil::FormatString(
+                    "Invalid range value, detail: less than ", std::to_string(COMMON_RANGE_VALUE_MIN));
                 return false;
             }
 
             if (rangePair.first > COMMON_RANGE_VALUE_MAX || rangePair.second > COMMON_RANGE_VALUE_MAX) {
-                errorMsg = StringUtil::FormatString("Invalid range value, detail: greater than ",
-                                                    std::to_string(COMMON_RANGE_VALUE_MAX));
+                errorMsg = StringUtil::FormatString(
+                    "Invalid range value, detail: greater than ", std::to_string(COMMON_RANGE_VALUE_MAX));
                 return false;
             }
         }
@@ -254,8 +242,7 @@ struct MemScopeMemoryBlockRequest : public Request {
     MemScopeMemoryBlockParams params;
     bool isTable{};
 
-    void SetThresholdsFromJson(const json_t& json)
-    {
+    void SetThresholdsFromJson(const json_t &json) {
         if (json.HasMember("lazyUsedThreshold") && json["lazyUsedThreshold"].IsObject()) {
             JsonUtil::SetByJsonKeyValue(params.lazyUsedThreshold.perT, json["lazyUsedThreshold"], "perT");
             JsonUtil::SetByJsonKeyValue(params.lazyUsedThreshold.valueT, json["lazyUsedThreshold"], "valueT");
@@ -270,8 +257,7 @@ struct MemScopeMemoryBlockRequest : public Request {
         }
     }
 
-    static std::unique_ptr<Request> FromJson(const json_t& json, std::string& error)
-    {
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
         std::unique_ptr<MemScopeMemoryBlockRequest> reqPtr = std::make_unique<MemScopeMemoryBlockRequest>();
         if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
             error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -280,14 +266,14 @@ struct MemScopeMemoryBlockRequest : public Request {
         if (!json.HasMember("params") || !json["params"].HasMember("deviceId") ||
             !json["params"].HasMember("eventType")) {
             error = "Request[requestId=" + std::to_string(reqPtr->id) +
-                    "] json lacks member params or deviceId or eventType.";
+                "] json lacks member params or deviceId or eventType.";
             return nullptr;
         }
-        const json_t& param_json = json["params"];
+        const json_t &param_json = json["params"];
         JsonUtil::SetByJsonKeyValue(reqPtr->isTable, param_json, "isTable");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.onlyInefficient, param_json, "onlyInefficient");
-        JsonUtil::SetByJsonKeyValue(reqPtr->params.onlyAllocOrFreeInTimeRange, param_json,
-            "onlyAllocOrFreeInTimeRange");
+        JsonUtil::SetByJsonKeyValue(
+            reqPtr->params.onlyAllocOrFreeInTimeRange, param_json, "onlyAllocOrFreeInTimeRange");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.startTimestamp, param_json, "startTimestamp");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.endTimestamp, param_json, "endTimestamp");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.minSize, param_json, "minSize");
@@ -322,8 +308,7 @@ struct MemScopeMemoryAllocationRequest : public Request {
     MemScopeMemoryAllocationRequest() : Request(REQ_RES_MEM_SCOPE_MEMORY_ALLOCATIONS) {};
     MemScopeMemoryAllocationParams params;
 
-    static std::unique_ptr<Request> FromJson(const json_t& json, std::string& error)
-    {
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
         std::unique_ptr<MemScopeMemoryAllocationRequest> reqPtr = std::make_unique<MemScopeMemoryAllocationRequest>();
         if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
             error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -332,10 +317,10 @@ struct MemScopeMemoryAllocationRequest : public Request {
         if (!json.HasMember("params") || !json["params"].HasMember("deviceId") ||
             !json["params"].HasMember("eventType")) {
             error = "Request[requestId=" + std::to_string(reqPtr->id) +
-                    "] json lacks member params or deviceId or eventType.";
+                "] json lacks member params or deviceId or eventType.";
             return nullptr;
         }
-        const json_t& param_json = json["params"];
+        const json_t &param_json = json["params"];
         JsonUtil::SetByJsonKeyValue(reqPtr->params.startTimestamp, param_json, "startTimestamp");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.endTimestamp, param_json, "endTimestamp");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
@@ -350,8 +335,7 @@ struct MemScopeMemoryDetailRequest : public Request {
     MemScopeMemoryDetailRequest() : Request(REQ_RES_MEM_SCOPE_MEMORY_DETAILS) {};
     MemScopeMemoryDetailParams params;
 
-    static std::unique_ptr<Request> FromJson(const json_t& json, std::string& error)
-    {
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
         std::unique_ptr<MemScopeMemoryDetailRequest> reqPtr = std::make_unique<MemScopeMemoryDetailRequest>();
         if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
             error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -360,10 +344,10 @@ struct MemScopeMemoryDetailRequest : public Request {
         if (!json.HasMember("params") || !json["params"].HasMember("deviceId") ||
             !json["params"].HasMember("timestamp") || !json["params"].HasMember("eventType")) {
             error = "Request[requestId=" + std::to_string(reqPtr->id) +
-                    "] json lacks member params or deviceId or timestamp or eventType.";
+                "] json lacks member params or deviceId or timestamp or eventType.";
             return nullptr;
         }
-        const json_t& param_json = json["params"];
+        const json_t &param_json = json["params"];
         JsonUtil::SetByJsonKeyValue(reqPtr->params.timestamp, param_json, "timestamp");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.relativeTime, param_json, "relativeTime");
@@ -377,8 +361,7 @@ struct MemScopePythonTraceRequest : public Request {
     MemScopeThreadPythonTraceParams params;
     bool allowTrim{false};
 
-    static std::unique_ptr<Request> FromJson(const json_t& json, std::string& error)
-    {
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
         std::unique_ptr<MemScopePythonTraceRequest> reqPtr = std::make_unique<MemScopePythonTraceRequest>();
         if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
             error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -387,10 +370,10 @@ struct MemScopePythonTraceRequest : public Request {
         if (!json.HasMember("params") || !json["params"].HasMember("deviceId") ||
             !json["params"].HasMember("threadId")) {
             error = "Request[requestId=" + std::to_string(reqPtr->id) +
-                    "] json lacks member params or deviceId or threadId.";
+                "] json lacks member params or deviceId or threadId.";
             return nullptr;
         }
-        const json_t& param_json = json["params"];
+        const json_t &param_json = json["params"];
         JsonUtil::SetByJsonKeyValue(reqPtr->params.startTimestamp, param_json, "startTimestamp");
         JsonUtil::SetByJsonKeyValue(reqPtr->allowTrim, param_json, "allowTrim");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.endTimestamp, param_json, "endTimestamp");
@@ -405,17 +388,15 @@ struct MemScopeEventRequest : public Request {
     MemScopeEventRequest() : Request(REQ_RES_MEM_SCOPE_EVENTS) {}
     MemScopeEventParams params;
 
-    static std::unique_ptr<Request> FromJson(const json_t& json, std::string& error)
-    {
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
         std::unique_ptr<MemScopeEventRequest> reqPtr = std::make_unique<MemScopeEventRequest>();
         if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
             error = "Failed to set request base info, command is: " + reqPtr->command;
             return nullptr;
         }
-        const json_t& param_json = json["params"];
+        const json_t &param_json = json["params"];
         if (param_json.IsNull() || !param_json.HasMember("deviceId")) {
-            error = "Request[requestId=" + std::to_string(reqPtr->id) +
-                    "] json lacks member params or deviceId.";
+            error = "Request[requestId=" + std::to_string(reqPtr->id) + "] json lacks member params or deviceId.";
             return nullptr;
         }
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
@@ -438,5 +419,5 @@ struct MemScopeEventRequest : public Request {
         return reqPtr;
     }
 };
-}  // end of namespace Dic::Protocol
-#endif  // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_REQUEST_H
+} // end of namespace Dic::Protocol
+#endif // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_REQUEST_H

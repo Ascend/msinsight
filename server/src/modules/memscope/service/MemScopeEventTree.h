@@ -26,7 +26,7 @@ namespace Module {
 namespace MemScope {
 // memscope owner可能的表达前缀
 // 为便于构造树形结构逻辑Owner, 实际不存在
-const std::string MEM_SCOPE_ALLOC_OWNER_HAL= "HAL";
+const std::string MEM_SCOPE_ALLOC_OWNER_HAL = "HAL";
 const std::string MEM_SCOPE_ALLOC_OWNER_HAL_NAME = "Process_Total_Memory_Allocation";
 const std::string MEM_SCOPE_ALLOC_OWNER_CANN = "CANN";
 const std::string MEM_SCOPE_ALLOC_OWNER_CANN_NAME = "CANN_Total_Memory_Allocation";
@@ -59,29 +59,14 @@ const std::string MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE = "PTA_WORKSPACE";
 const std::string MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE_NAME = "PTA_Workspace";
 // 缺省名
 const std::string MEM_SCOPE_ALLOC_OWNER_DEFAULT_NAME = "Other";
-const std::set<std::string> MEM_SCOPE_ALLOC_OWNER_FIXED_TAGS = {
-    MEM_SCOPE_ALLOC_OWNER_HAL,
-    MEM_SCOPE_ALLOC_OWNER_CANN,
-    MEM_SCOPE_ALLOC_OWNER_ATB,
-    MEM_SCOPE_ALLOC_OWNER_MINDSPORE,
-    MEM_SCOPE_ALLOC_OWNER_PTA,
-    MEM_SCOPE_ALLOC_OWNER_PTA_OPS,
-    MEM_SCOPE_ALLOC_OWNER_PTA_OPS_ATEN,
-    MEM_SCOPE_ALLOC_OWNER_PTA_MODEL,
-    MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_OPTIMIZER,
-    MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_WEIGHT,
-    MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_GRADIENT,
-    MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE
-};
-const std::set<std::string> MEM_SCOPE_ALLOC_OWNER_FRAMEWORK_BASE_TAGS = {
-    MEM_SCOPE_ALLOC_OWNER_ATB,
-    MEM_SCOPE_ALLOC_OWNER_MINDSPORE,
-    MEM_SCOPE_ALLOC_OWNER_PTA,
-    MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE
-};
-const std::set<std::string> MEM_SCOPE_ALLOC_OWNER_CANN_BASE_TAGS = {
-    MEM_SCOPE_ALLOC_OWNER_CANN
-};
+const std::set<std::string> MEM_SCOPE_ALLOC_OWNER_FIXED_TAGS = {MEM_SCOPE_ALLOC_OWNER_HAL, MEM_SCOPE_ALLOC_OWNER_CANN,
+    MEM_SCOPE_ALLOC_OWNER_ATB, MEM_SCOPE_ALLOC_OWNER_MINDSPORE, MEM_SCOPE_ALLOC_OWNER_PTA,
+    MEM_SCOPE_ALLOC_OWNER_PTA_OPS, MEM_SCOPE_ALLOC_OWNER_PTA_OPS_ATEN, MEM_SCOPE_ALLOC_OWNER_PTA_MODEL,
+    MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_OPTIMIZER, MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_WEIGHT,
+    MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_GRADIENT, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE};
+const std::set<std::string> MEM_SCOPE_ALLOC_OWNER_FRAMEWORK_BASE_TAGS = {MEM_SCOPE_ALLOC_OWNER_ATB,
+    MEM_SCOPE_ALLOC_OWNER_MINDSPORE, MEM_SCOPE_ALLOC_OWNER_PTA, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE};
+const std::set<std::string> MEM_SCOPE_ALLOC_OWNER_CANN_BASE_TAGS = {MEM_SCOPE_ALLOC_OWNER_CANN};
 const std::unordered_map<std::string, std::string> MEM_SCOPE_ALLOC_OWNER_NAME_MAP = {
     {MEM_SCOPE_ALLOC_OWNER_HAL, MEM_SCOPE_ALLOC_OWNER_HAL_NAME},
     {MEM_SCOPE_ALLOC_OWNER_ATB, MEM_SCOPE_ALLOC_OWNER_ATB_NAME},
@@ -94,14 +79,13 @@ const std::unordered_map<std::string, std::string> MEM_SCOPE_ALLOC_OWNER_NAME_MA
     {MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_OPTIMIZER, MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_OPTIMIZER_NAME},
     {MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_WEIGHT, MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_WEIGHT_NAME},
     {MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_GRADIENT, MEM_SCOPE_ALLOC_OWNER_PTA_MODEL_GRADIENT_NAME},
-    {MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE_NAME}
-};
+    {MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE_NAME}};
 // 树最大深度
 const int MAX_TREE_DEPTH = 20;
 
 // 基于标签生成的内存分类分级树
 class MemScopeMemoryDetailTreeNode {
-public:
+  public:
     explicit MemScopeMemoryDetailTreeNode(std::string nodeTag);
     std::string name;
     uint64_t size{0};
@@ -109,8 +93,8 @@ public:
     std::vector<std::unique_ptr<MemScopeMemoryDetailTreeNode>> children;
 
     static std::vector<std::unique_ptr<MemScopeMemoryDetailTreeNode>> BuildForestByOrderedTags(
-        const std::set<std::string>& sortedTags);
-    static std::string GetNodeNameByTag(const std::string& tag);
+        const std::set<std::string> &sortedTags);
+    static std::string GetNodeNameByTag(const std::string &tag);
 };
 } // Memory
 } // Module

@@ -37,13 +37,13 @@ struct ParseEventContext {
     bool CheckDeviceIdValid(const std::string &deviceId);
 };
 class MemScopeParser {
-public:
-    MemScopeParser(const MemScopeParser&) = delete;
-    MemScopeParser& operator=(const MemScopeParser&) = delete;
-    static MemScopeParser& Instance();
+  public:
+    MemScopeParser(const MemScopeParser &) = delete;
+    MemScopeParser &operator=(const MemScopeParser &) = delete;
+    static MemScopeParser &Instance();
     void Reset() const;
-    void AsyncParseMemScopeDbFile(const std::string& dbPath) const;
-    static void ParseMemScopeDbTask(const std::string& dbPath);
+    void AsyncParseMemScopeDbFile(const std::string &dbPath) const;
+    static void ParseMemScopeDbTask(const std::string &dbPath);
 
     static std::optional<ParseEventContext> BuildParseContext(std::shared_ptr<FullDb::MemScopeDatabase> &db);
     static bool ParseMemoryMemScopeDumpEventsAndPythonTraces(const std::string &fileId);
@@ -53,17 +53,16 @@ public:
     // 传入slices必须为已按照startTimestamp升序排序的数组
     static bool ParseThreadPythonTrace(MemScopePythonTrace &trace, ParseEventContext &context);
 
-    static bool SingleDeviceEventParse(const MemScopeEvent &event,
-                                       ParseEventContext &context);
-    static void SetMemoryBlockExtendByEventGroup(MemoryBlock& block, const uint64_t groupId,
-                                                 ParseEventContext &context);
+    static bool SingleDeviceEventParse(const MemScopeEvent &event, ParseEventContext &context);
+    static void SetMemoryBlockExtendByEventGroup(
+        MemoryBlock &block, const uint64_t groupId, ParseEventContext &context);
 
     static void ParseRemainMallocEvents(ParseEventContext &context);
 
+    static void ParserEnd(const std::string &dbPath, bool result);
+    static void ParseCallBack(const std::string &dbPath, bool result, const std::string &msg);
 
-    static void ParserEnd(const std::string& dbPath, bool result);
-    static void ParseCallBack(const std::string& dbPath, bool result, const std::string& msg);
-private:
+  private:
     MemScopeParser();
     ~MemScopeParser();
     std::unique_ptr<ThreadPool> _threadPool;

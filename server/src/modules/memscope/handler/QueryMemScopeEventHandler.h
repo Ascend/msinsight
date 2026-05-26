@@ -22,10 +22,10 @@
 
 namespace Dic::Module::MemScope {
 class QueryMemScopeEventHandler : public MemScopeRequestHandler {
-public:
+  public:
     QueryMemScopeEventHandler() { command = Protocol::REQ_RES_MEM_SCOPE_EVENTS; }
     ~QueryMemScopeEventHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
-}  // namespace Dic::Module::MemScope
-#endif  // PROFILER_SERVER_QUERY_MEM_SCOPE_EVENT_HANDLER_H
+} // namespace Dic::Module::MemScope
+#endif // PROFILER_SERVER_QUERY_MEM_SCOPE_EVENT_HANDLER_H

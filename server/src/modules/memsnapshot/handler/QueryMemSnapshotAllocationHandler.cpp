@@ -19,13 +19,11 @@
 #include "ProjectExplorerManager.h"
 #include "QueryMemSnapshotAllocationHandler.h"
 
-
 namespace Dic::Module::MemSnapshot {
-bool QueryMemSnapshotAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto& request = dynamic_cast<MemSnapshotAllocationsRequest&>(*requestPtr);
+bool QueryMemSnapshotAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<MemSnapshotAllocationsRequest &>(*requestPtr);
     std::unique_ptr<MemSnapshotAllocationsResponse> responsePtr = std::make_unique<MemSnapshotAllocationsResponse>();
-    MemSnapshotAllocationsResponse& response = *responsePtr;
+    MemSnapshotAllocationsResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     std::string errorMsg;
     if (!request.params.CommonCheck(errorMsg)) {

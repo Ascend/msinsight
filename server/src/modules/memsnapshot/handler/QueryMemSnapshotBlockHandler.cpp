@@ -22,11 +22,10 @@
 using namespace Dic::Module::MemSnapshot;
 
 namespace Dic::Module::MemSnapshot {
-bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto& request = dynamic_cast<MemSnapshotBlocksRequest&>(*requestPtr);
+bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<MemSnapshotBlocksRequest &>(*requestPtr);
     std::unique_ptr<MemSnapshotBlocksResponse> responsePtr = std::make_unique<MemSnapshotBlocksResponse>();
-    auto& response = *responsePtr;
+    auto &response = *responsePtr;
     response.isTable = request.isTable;
     SetBaseResponse(request, response);
     std::string errMsg;
@@ -63,10 +62,8 @@ bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     return true;
 }
 
-void QueryMemSnapshotBlockHandler::BuildBlockTableResponseColumnsBounds(const std::string& deviceId,
-                                                                        const std::shared_ptr<MemSnapshotDatabase>& database,
-                                                                        Dic::Protocol::ColumnBounds& colBounds)
-{
+void QueryMemSnapshotBlockHandler::BuildBlockTableResponseColumnsBounds(const std::string &deviceId,
+    const std::shared_ptr<MemSnapshotDatabase> &database, Dic::Protocol::ColumnBounds &colBounds) {
     if (database == nullptr || !database->IsOpen()) {
         return;
     }

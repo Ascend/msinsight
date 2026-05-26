@@ -27,18 +27,17 @@ namespace Dic::Module::MemSnapshot {
 
 /**
  * @brief 处理内存池状态查询请求
- * 
+ *
  * 执行流程：
  * 1. 验证请求参数
  * 2. 获取数据库连接
  * 3. 调用MemSnapshotService获取segments状态
  * 4. 转换为响应格式并返回
  */
-bool QueryMemSnapshotStateHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    const auto& request = dynamic_cast<MemSnapshotStateRequest&>(*requestPtr);
+bool QueryMemSnapshotStateHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    const auto &request = dynamic_cast<MemSnapshotStateRequest &>(*requestPtr);
     auto responsePtr = std::make_unique<MemSnapshotStateResponse>();
-    auto& response = *responsePtr;
+    auto &response = *responsePtr;
     SetBaseResponse(request, response);
     std::string errMsg;
     if (!request.params.CommonCheck(errMsg)) {
@@ -57,17 +56,16 @@ bool QueryMemSnapshotStateHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     return true;
 }
 
-void QueryMemSnapshotStateHandler::BuildSegmentsStateInfoFromSegments(const std::vector<Segment>& segments,
-                                                                      std::vector<SegmentItemDTO>& stateInfos)
-{
-    for (const auto& segment : segments) {
+void QueryMemSnapshotStateHandler::BuildSegmentsStateInfoFromSegments(
+    const std::vector<Segment> &segments, std::vector<SegmentItemDTO> &stateInfos) {
+    for (const auto &segment : segments) {
         SegmentItemDTO stateInfo;
         stateInfo.address = segment.address;
         stateInfo.stream = segment.stream;
         stateInfo.size = segment.totalSize;
         stateInfo.allocated = segment.allocated;
         stateInfo.allocOrMapEventId = segment.allocOrMapEventId;
-        for (const auto& block : segment.blocks) {
+        for (const auto &block : segment.blocks) {
             SegmentBlockItemDTO blockInfo;
             blockInfo.id = block.id;
             blockInfo.size = block.size;

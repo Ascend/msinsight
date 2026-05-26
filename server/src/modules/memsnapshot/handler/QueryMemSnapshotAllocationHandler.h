@@ -25,14 +25,14 @@ namespace Dic {
 namespace Module {
 namespace MemSnapshot {
 class QueryMemSnapshotAllocationHandler : public MemSnapshotRequestHandler {
-public:
+  public:
     QueryMemSnapshotAllocationHandler() { command = Protocol::REQ_RES_MEM_SNAPSHOT_ALLOCATIONS; }
     ~QueryMemSnapshotAllocationHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
 
-}  // namespace MemSnapshot
-}  // namespace Module
-}  // namespace Dic
+} // namespace MemSnapshot
+} // namespace Module
+} // namespace Dic
 
-#endif  // PROFILER_SERVER_QUERY_MEM_SNAPSHOT_ALLOCATION_HANDLER_H
+#endif // PROFILER_SERVER_QUERY_MEM_SNAPSHOT_ALLOCATION_HANDLER_H

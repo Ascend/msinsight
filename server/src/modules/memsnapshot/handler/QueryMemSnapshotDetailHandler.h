@@ -23,18 +23,16 @@
 
 namespace Dic::Module::MemSnapshot {
 class QueryMemSnapshotDetailHandler : public MemSnapshotRequestHandler {
-public:
+  public:
     QueryMemSnapshotDetailHandler() { command = Protocol::REQ_RES_MEM_SNAPSHOT_DETAIL; }
     ~QueryMemSnapshotDetailHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-private:
+  private:
     const std::string LOG_TAG = "[MemSnapshotDetailHandler] ";
-    static void BuildBlockDetailDTO(BlockDetailDTO& blockDetail,
-                                    const std::string& deviceId,
-                                    const std::shared_ptr<FullDb::MemSnapshotDatabase>& database);
+    static void BuildBlockDetailDTO(BlockDetailDTO &blockDetail, const std::string &deviceId,
+        const std::shared_ptr<FullDb::MemSnapshotDatabase> &database);
 };
 } // namespace Dic::Module::MemSnapshot
 
-
-#endif  // PROFILER_SERVER_QUERY_MEM_SNAPSHOT_DETAIL_HANDLER_H
+#endif // PROFILER_SERVER_QUERY_MEM_SNAPSHOT_DETAIL_HANDLER_H

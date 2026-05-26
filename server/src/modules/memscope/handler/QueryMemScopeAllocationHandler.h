@@ -25,18 +25,18 @@ namespace Dic {
 namespace Module {
 namespace MemScope {
 class QueryMemScopeAllocationHandler : public MemScopeRequestHandler {
-public:
+  public:
     QueryMemScopeAllocationHandler() { command = Protocol::REQ_RES_MEM_SCOPE_MEMORY_ALLOCATIONS; }
     ~QueryMemScopeAllocationHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-private:
-    void PaddingAllocations(std::vector<MemoryAllocation>& allocations,
-                            const MemScopeMemoryAllocationParams& queryParams);
+  private:
+    void PaddingAllocations(
+        std::vector<MemoryAllocation> &allocations, const MemScopeMemoryAllocationParams &queryParams);
 };
 
-}  // namespace MemScope
-}  // namespace Module
-}  // namespace Dic
+} // namespace MemScope
+} // namespace Module
+} // namespace Dic
 
-#endif  // PROFILER_SERVER_QUERY_MEM_SCOPE_ALLOCATION_HANDLER_H
+#endif // PROFILER_SERVER_QUERY_MEM_SCOPE_ALLOCATION_HANDLER_H

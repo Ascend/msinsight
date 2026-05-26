@@ -20,8 +20,7 @@
 #include "QueryMemScopeBlockHandler.h"
 
 namespace Dic::Module::MemScope {
-bool QueryMemScopeBlockHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemScopeBlockHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MemScopeMemoryBlockRequest &>(*requestPtr);
     std::unique_ptr<MemScopeMemoryBlocksResponse> responsePtr = std::make_unique<MemScopeMemoryBlocksResponse>();
     auto &response = *responsePtr;

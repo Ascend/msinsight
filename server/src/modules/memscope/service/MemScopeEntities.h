@@ -35,10 +35,7 @@ struct PythonTraceSlice {
 
     PythonTraceSlice() = default;
     PythonTraceSlice(std::string func, uint64_t startTimestamp, uint64_t endTimestamp, int depth)
-        : func(std::move(func)),
-          startTimestamp(startTimestamp),
-          endTimestamp(endTimestamp),
-          depth(depth) {}
+        : func(std::move(func)), startTimestamp(startTimestamp), endTimestamp(endTimestamp), depth(depth) {}
 };
 /***
  * 调用栈消减策略:
@@ -67,7 +64,7 @@ struct MemScopePythonTrace {
      */
     void Trim(const PythonTrimCompressStrategy &strategy);
 
-private:
+  private:
     [[nodiscard]] bool IsSmallSlice(const PythonTraceSlice &slice) const;
     void DoCompress(std::vector<PythonTraceSlice> &waitForCompressSlices, const bool filterOutSmallFunc);
     void DoCompressByDepth(std::vector<PythonTraceSlice> &depthSlices, const bool filterOutSmallFunc);
@@ -84,7 +81,7 @@ inline const std::string ACCESS_EVENT_ATTR_TYPE = "type";
 inline const std::string ACCESS_EVENT_ATTR_DTYPE = "dtype";
 inline const std::string ACCESS_EVENT_ATTR_SHAPE = "shape";
 struct MemoryEventBaseAttrs {
-    virtual ~MemoryEventBaseAttrs()  = default;
+    virtual ~MemoryEventBaseAttrs() = default;
     int64_t size{0}; // 对应内存事件涉及的内存大小, 如申请、释放大小；访问时tensor大小
     uint64_t groupId{0};
 
@@ -99,7 +96,7 @@ struct MallocFreeEventAttrs : public MemoryEventBaseAttrs {
     void SetByJson(const json_t &json) override;
 };
 
-struct AccessEventAttrs : public  MemoryEventBaseAttrs {
+struct AccessEventAttrs : public MemoryEventBaseAttrs {
     std::string type;
     std::string dtype;
     std::string shape;
@@ -113,11 +110,9 @@ struct AccessEventAttrs : public  MemoryEventBaseAttrs {
  * @param jsonString
  * @return
  */
-template <typename T>
-std::optional<T> BuildEventAttrsFromJson(const std::string &jsonString)
-{
+template <typename T> std::optional<T> BuildEventAttrsFromJson(const std::string &jsonString) {
     static_assert(std::is_base_of_v<MemoryEventBaseAttrs, T>,
-                  "T must be derived from MemoryEventBaseAttrs or be MemoryEventBaseAttrs itself");
+        "T must be derived from MemoryEventBaseAttrs or be MemoryEventBaseAttrs itself");
     if (jsonString.empty()) {
         Server::ServerLog::Warn("Invalid json string: empty string.");
         return std::nullopt;
@@ -176,4 +171,4 @@ struct EventGroup {
 // [EVENT]
 } // Dic::Module::MemScope
 
-#endif  // PROFILER_SERVER_MEM_SCOPE_ENTITIES_H
+#endif // PROFILER_SERVER_MEM_SCOPE_ENTITIES_H

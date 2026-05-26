@@ -53,15 +53,12 @@ constexpr std::string_view REQUESTED_SIZE = "requestedSize";
 constexpr std::string_view STATE = "state";
 constexpr std::string_view ALLOC_EVENT_ID = "allocEventId";
 constexpr std::string_view FREE_EVENT_ID = "freeEventId";
-inline const std::vector<Dic::Protocol::TableViewColumn> FIELD_FULL_COLUMNS = {
-    {"ID", ID, true, true, false, true},
+inline const std::vector<Dic::Protocol::TableViewColumn> FIELD_FULL_COLUMNS = {{"ID", ID, true, true, false, true},
     {"Address", ADDRESS, true, true, true, false},
     {"Size(KBytes)", SIZE, true, true, false, true}, // 实际内存块大小，单位KBytes
     {"Requested Size(KBytes)", REQUESTED_SIZE, true, true, false, true}, // 分配事件请求内存大小，单位KBytes
-    {"State", STATE, true, true, true, false},
-    {"Alloc Event ID", ALLOC_EVENT_ID, true, true, false, true},
-    {"Free Event ID", FREE_EVENT_ID, true, true, false, true}
-};
+    {"State", STATE, true, true, true, false}, {"Alloc Event ID", ALLOC_EVENT_ID, true, true, false, true},
+    {"Free Event ID", FREE_EVENT_ID, true, true, false, true}};
 }
 }
 #endif //PROFILER_SERVER_MEMSNAPSHOTTABLECOLUMN_H

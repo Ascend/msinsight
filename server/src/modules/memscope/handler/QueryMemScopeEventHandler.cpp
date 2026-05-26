@@ -20,8 +20,7 @@
 #include "QueryMemScopeEventHandler.h"
 
 namespace Dic::Module::MemScope {
-bool QueryMemScopeEventHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemScopeEventHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MemScopeEventRequest &>(*requestPtr);
     std::unique_ptr<MemScopeEventResponse> responsePtr = std::make_unique<MemScopeEventResponse>();
     auto &response = *responsePtr;
@@ -49,4 +48,4 @@ bool QueryMemScopeEventHandler::HandleRequest(std::unique_ptr<Protocol::Request>
     SendResponse(std::move(responsePtr), true);
     return true;
 }
-}  // namespace Dic::Module::MemScope
+} // namespace Dic::Module::MemScope
