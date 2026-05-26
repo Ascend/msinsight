@@ -30,8 +30,7 @@ namespace Module {
 namespace Memory {
 using namespace Dic::Server;
 using namespace Timeline;
-bool QueryMemoryOperatorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemoryOperatorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     MemoryOperatorRequest &request = dynamic_cast<MemoryOperatorRequest &>(*requestPtr.get());
     std::unique_ptr<MemoryOperatorComparisonResponse> responsePtr =
         std::make_unique<MemoryOperatorComparisonResponse>();
@@ -79,16 +78,14 @@ bool QueryMemoryOperatorHandler::HandleRequest(std::unique_ptr<Protocol::Request
 }
 
 bool QueryMemoryOperatorHandler::GetRespectiveDataNotCompare(std::shared_ptr<VirtualMemoryDataBase> database,
-                                                             MemoryOperatorRequest &request,
-                                                             MemoryOperatorComparisonResponse &response)
-{
+    MemoryOperatorRequest &request, MemoryOperatorComparisonResponse &response) {
     std::vector<MemoryOperator> opDetails;
     response.totalNum = database->QueryOperatorDetail(request.params, opDetails);
     if (response.totalNum < 0) {
         SetMemoryError(ErrorCode::QUERY_MEMORY_OPERATOR_FAILED);
         return false;
     }
-    for (const auto& item : opDetails) {
+    for (const auto &item : opDetails) {
         MemoryOperatorComparison element = {item, {}, {}};
         response.operatorDiffDetails.emplace_back(element);
     }
@@ -96,10 +93,8 @@ bool QueryMemoryOperatorHandler::GetRespectiveDataNotCompare(std::shared_ptr<Vir
 }
 
 bool QueryMemoryOperatorHandler::GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database,
-                                                   std::vector<MemoryOperator> &compareData,
-                                                   std::vector<MemoryOperator> &baselineData,
-                                                   MemoryOperatorRequest &request, std::string &errorMsg)
-{
+    std::vector<MemoryOperator> &compareData, std::vector<MemoryOperator> &baselineData, MemoryOperatorRequest &request,
+    std::string &errorMsg) {
     std::string baselineId = Global::BaselineManager::Instance().GetBaselineId();
     if (baselineId == "") {
         errorMsg = "Failed to get baseline id.";
@@ -112,7 +107,8 @@ bool QueryMemoryOperatorHandler::GetRespectiveData(std::shared_ptr<VirtualMemory
         SetMemoryError(ErrorCode::CONNECT_DATABASE_FAILED);
         return false;
     }
-    uint64_t offsetTimeCompare = Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp(request.params.rankId);
+    uint64_t offsetTimeCompare =
+        Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp(request.params.rankId);
     if (!database->QueryEntireOperatorTable(request.params, compareData, offsetTimeCompare)) {
         errorMsg = "Failed to query memory operator compare data.";
         SetMemoryError(ErrorCode::QUERY_MEMORY_OPERATOR_COMPARE_FAILED);
@@ -130,17 +126,14 @@ bool QueryMemoryOperatorHandler::GetRespectiveData(std::shared_ptr<VirtualMemory
 
 void QueryMemoryOperatorHandler::ExecuteComparisonAlgorithm(const std::vector<MemoryOperator> &compareData,
     const std::vector<MemoryOperator> &baselineData, Dic::Protocol::MemoryOperatorRequest &request,
-    MemoryOperatorComparisonResponse &response)
-{
+    MemoryOperatorComparisonResponse &response) {
     std::vector<MemoryOperatorComparison> fullDiffResult;
     GetOperatorDiff(compareData, baselineData, fullDiffResult);
     SelectDiffResult(request, response, fullDiffResult);
 }
 
 void QueryMemoryOperatorHandler::GetOperatorDiff(const std::vector<MemoryOperator> &compareData,
-                                                 const std::vector<MemoryOperator> &baselineData,
-                                                 std::vector<MemoryOperatorComparison> &diffData)
-{
+    const std::vector<MemoryOperator> &baselineData, std::vector<MemoryOperatorComparison> &diffData) {
     std::set<std::string> opName;
     std::map<std::string, std::vector<MemoryOperator>> compareList;
     std::map<std::string, std::vector<MemoryOperator>> baselineList;
@@ -155,7 +148,7 @@ void QueryMemoryOperatorHandler::GetOperatorDiff(const std::vector<MemoryOperato
         baselineList[item.name].push_back(item);
     }
     std::vector<MemoryOperator> emptyVec;
-    for (const auto &name: opName) {
+    for (const auto &name : opName) {
         if (compareList.find(name) == compareList.end()) {
             VectorMerge(emptyVec, baselineList[name], diffData);
             continue;
@@ -171,8 +164,7 @@ void QueryMemoryOperatorHandler::GetOperatorDiff(const std::vector<MemoryOperato
 }
 
 void QueryMemoryOperatorHandler::VectorMerge(std::vector<MemoryOperator> &compareVec,
-    std::vector<MemoryOperator> &baselineVec, std::vector<MemoryOperatorComparison> &diffData)
-{
+    std::vector<MemoryOperator> &baselineVec, std::vector<MemoryOperatorComparison> &diffData) {
     const MemoryOperator emptyOperator = {"", 0, "NA", "NA", 0, "NA", 0, 0, 0, 0, 0, 0, 0, "", ""};
     for (size_t i = 0; i < std::min(compareVec.size(), baselineVec.size()); ++i) {
         MemoryOperatorComparison element = {compareVec[i], baselineVec[i], {}};
@@ -191,8 +183,7 @@ void QueryMemoryOperatorHandler::VectorMerge(std::vector<MemoryOperator> &compar
     }
 }
 
-void QueryMemoryOperatorHandler::Subtract(Dic::Protocol::MemoryOperatorComparison &element)
-{
+void QueryMemoryOperatorHandler::Subtract(Dic::Protocol::MemoryOperatorComparison &element) {
     const int precision = 3;
     if (!element.compare.name.empty()) {
         element.diff.name = element.compare.name;
@@ -200,16 +191,15 @@ void QueryMemoryOperatorHandler::Subtract(Dic::Protocol::MemoryOperatorCompariso
         element.diff.name = element.baseline.name;
     }
     element.diff.size = NumberUtil::DoubleReservedNDigits(element.compare.size - element.baseline.size, precision);
-    element.diff.allocationTime = NumberUtil::StringDoubleMinus(element.compare.allocationTime,
-                                                                element.baseline.allocationTime);
-    element.diff.releaseTime =
-        NumberUtil::StringDoubleMinus(element.compare.releaseTime, element.baseline.releaseTime);
-    element.diff.duration = NumberUtil::DoubleReservedNDigits(element.compare.duration - element.baseline.duration,
-                                                              precision);
-    element.diff.activeReleaseTime = NumberUtil::StringDoubleMinus(element.compare.activeReleaseTime,
-                                                                   element.baseline.activeReleaseTime);
-    element.diff.activeDuration = NumberUtil::DoubleReservedNDigits(
-        element.compare.activeDuration - element.baseline.activeDuration, precision);
+    element.diff.allocationTime =
+        NumberUtil::StringDoubleMinus(element.compare.allocationTime, element.baseline.allocationTime);
+    element.diff.releaseTime = NumberUtil::StringDoubleMinus(element.compare.releaseTime, element.baseline.releaseTime);
+    element.diff.duration =
+        NumberUtil::DoubleReservedNDigits(element.compare.duration - element.baseline.duration, precision);
+    element.diff.activeReleaseTime =
+        NumberUtil::StringDoubleMinus(element.compare.activeReleaseTime, element.baseline.activeReleaseTime);
+    element.diff.activeDuration =
+        NumberUtil::DoubleReservedNDigits(element.compare.activeDuration - element.baseline.activeDuration, precision);
     element.diff.allocationAllocated = NumberUtil::DoubleReservedNDigits(
         element.compare.allocationAllocated - element.baseline.allocationAllocated, precision);
     element.diff.allocationReserved = NumberUtil::DoubleReservedNDigits(
@@ -220,24 +210,23 @@ void QueryMemoryOperatorHandler::Subtract(Dic::Protocol::MemoryOperatorCompariso
         element.compare.releaseAllocated - element.baseline.releaseAllocated, precision);
     element.diff.releaseReserved = NumberUtil::DoubleReservedNDigits(
         element.compare.releaseReserved - element.baseline.releaseReserved, precision);
-    element.diff.releaseActive = NumberUtil::DoubleReservedNDigits(
-        element.compare.releaseActive - element.baseline.releaseActive, precision);
+    element.diff.releaseActive =
+        NumberUtil::DoubleReservedNDigits(element.compare.releaseActive - element.baseline.releaseActive, precision);
     element.diff.streamId = "";
     element.diff.deviceType = "";
 }
 
 void QueryMemoryOperatorHandler::SelectDiffResult(MemoryOperatorRequest &request,
-    MemoryOperatorComparisonResponse &response,
-    std::vector<MemoryOperatorComparison> &fullDiffResult)
-{
+    MemoryOperatorComparisonResponse &response, std::vector<MemoryOperatorComparison> &fullDiffResult) {
     MemoryOperatorComparisonResponse filteredDiffResult;
-    for (const auto &item: fullDiffResult) {
+    for (const auto &item : fullDiffResult) {
         if (IsSelected(request, item)) {
             filteredDiffResult.operatorDiffDetails.push_back(item);
         }
     }
     SortResult(request, filteredDiffResult);
-    uint64_t pageSize = request.params.pageSize <= 0 ? DEFAULT_PAGE_SIZE : static_cast<uint64_t>(request.params.pageSize);
+    uint64_t pageSize =
+        request.params.pageSize <= 0 ? DEFAULT_PAGE_SIZE : static_cast<uint64_t>(request.params.pageSize);
     uint64_t currentPage = request.params.currentPage < 1 ? 0 : static_cast<uint64_t>(request.params.currentPage - 1);
     uint64_t offset = currentPage * pageSize;
     if (offset != 0 && offset >= filteredDiffResult.operatorDiffDetails.size()) {
@@ -251,13 +240,11 @@ void QueryMemoryOperatorHandler::SelectDiffResult(MemoryOperatorRequest &request
     }
 }
 
-bool QueryMemoryOperatorHandler::IsWithinInterval(const long double num, const double start, const double end)
-{
+bool QueryMemoryOperatorHandler::IsWithinInterval(const long double num, const double start, const double end) {
     return num >= start && num <= end;
 }
 
-bool QueryMemoryOperatorHandler::IsSelected(MemoryOperatorRequest &request, const MemoryOperatorComparison &op)
-{
+bool QueryMemoryOperatorHandler::IsSelected(MemoryOperatorRequest &request, const MemoryOperatorComparison &op) {
     bool filter = true;
     filter = filter && (op.diff.name.find(request.params.searchName) != std::string::npos);
     if (request.params.minSize != std::numeric_limits<int64_t>::min()) {
@@ -274,18 +261,17 @@ bool QueryMemoryOperatorHandler::IsSelected(MemoryOperatorRequest &request, cons
         if (request.params.isOnlyShowAllocatedOrReleasedWithinInterval) {
             // 要求compare对象的在这段时间分配或释放了内存，且baseline对象的开始和结束时间也在这段时间分配或释放了内存。
             filter = filter &&
-                (QueryMemoryOperatorHandler::IsWithinInterval(compareAlloTime,
-                    request.params.startTime, request.params.endTime) ||
-                 QueryMemoryOperatorHandler::IsWithinInterval(compareReleTime,
-                     request.params.startTime, request.params.endTime)) &&
-                (QueryMemoryOperatorHandler::IsWithinInterval(baselineAlloTime,
-                    request.params.startTime, request.params.endTime) ||
-                 QueryMemoryOperatorHandler::IsWithinInterval(baselineReleTime,
-                     request.params.startTime, request.params.endTime));
+                (QueryMemoryOperatorHandler::IsWithinInterval(
+                     compareAlloTime, request.params.startTime, request.params.endTime) ||
+                    QueryMemoryOperatorHandler::IsWithinInterval(
+                        compareReleTime, request.params.startTime, request.params.endTime)) &&
+                (QueryMemoryOperatorHandler::IsWithinInterval(
+                     baselineAlloTime, request.params.startTime, request.params.endTime) ||
+                    QueryMemoryOperatorHandler::IsWithinInterval(
+                        baselineReleTime, request.params.startTime, request.params.endTime));
         } else {
             // 要求compare对象的开始和结束时间有一个在startTime endTime内或在这段时间一直存在，且baseline对象的开始和结束时间也有一个在startTime endTime内或在这段时间一直存在。
-            filter = filter &&
-                (compareReleTime == 0 || compareReleTime >= request.params.startTime) &&
+            filter = filter && (compareReleTime == 0 || compareReleTime >= request.params.startTime) &&
                 (compareAlloTime <= request.params.endTime) &&
                 (baselineReleTime == 0 || baselineReleTime >= request.params.startTime) &&
                 (baselineAlloTime <= request.params.endTime);
@@ -294,16 +280,15 @@ bool QueryMemoryOperatorHandler::IsSelected(MemoryOperatorRequest &request, cons
     return filter;
 }
 
-void QueryMemoryOperatorHandler::SortResult(MemoryOperatorRequest &request, MemoryOperatorComparisonResponse &result)
-{
+void QueryMemoryOperatorHandler::SortResult(MemoryOperatorRequest &request, MemoryOperatorComparisonResponse &result) {
     if (request.params.orderBy.empty()) {
         return;
     }
     auto comparator = OperatorMemoryService::GetComparatorByColumn(request.params.orderBy, request.params.desc);
     std::sort(result.operatorDiffDetails.begin(), result.operatorDiffDetails.end(),
-              [comparator](const MemoryOperatorComparison& op1, const MemoryOperatorComparison& op2) {
-                  return comparator(op1.diff, op2.diff);
-              });
+        [comparator](const MemoryOperatorComparison &op1, const MemoryOperatorComparison &op2) {
+            return comparator(op1.diff, op2.diff);
+        });
 }
 } // end of namespace Memory
 } // end of namespace Module

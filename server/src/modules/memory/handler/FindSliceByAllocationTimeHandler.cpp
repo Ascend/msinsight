@@ -22,11 +22,10 @@
 namespace Dic::Module::Memory {
 using namespace Dic::Server;
 
-bool FindSliceByAllocationTimeHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    MemoryFindSliceRequest& request = dynamic_cast<MemoryFindSliceRequest&>(*requestPtr.get());
+bool FindSliceByAllocationTimeHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    MemoryFindSliceRequest &request = dynamic_cast<MemoryFindSliceRequest &>(*requestPtr.get());
     std::unique_ptr<MemoryFindSliceResponse> responsePtr = std::make_unique<MemoryFindSliceResponse>();
-    MemoryFindSliceResponse& response = *responsePtr.get();
+    MemoryFindSliceResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     std::string paramCheckErrMsg;
     if (!request.params.CommonCheck(paramCheckErrMsg)) {
@@ -48,8 +47,8 @@ bool FindSliceByAllocationTimeHandler::HandleRequest(std::unique_ptr<Protocol::R
         ServerLog::Warn("Failed to query memory operator!");
         return false;
     }
-    Timeline::CompeteSliceDomain slice = renderEngine->FindSliceByTimePoint(request.params.rankId, request.params.name,
-                                                                            target.allocationTime, target.metaType);
+    Timeline::CompeteSliceDomain slice = renderEngine->FindSliceByTimePoint(
+        request.params.rankId, request.params.name, target.allocationTime, target.metaType);
     if (std::empty(slice.tid) && std::empty(slice.pid)) {
         SetMemoryError(ErrorCode::QUERY_SLICE_IN_TIMELINE_FAILED);
         SendResponse(std::move(responsePtr), false);
@@ -59,7 +58,7 @@ bool FindSliceByAllocationTimeHandler::HandleRequest(std::unique_ptr<Protocol::R
     auto projects = ProjectExplorerManager::Instance().QueryProjectExplorer(request.projectName, {});
     if (!projects.empty() && projects[0].projectType != static_cast<int>(ProjectTypeEnum::DB)) {
         auto deviceInfos = projects[0].GetDeviceInfos();
-        std::sort(deviceInfos.begin(), deviceInfos.end(), [](auto& l, auto& r) { return l->deviceId < r->deviceId; });
+        std::sort(deviceInfos.begin(), deviceInfos.end(), [](auto &l, auto &r) { return l->deviceId < r->deviceId; });
         if (!deviceInfos.empty()) {
             slice.cardId = deviceInfos[0]->rankId;
         }
@@ -69,9 +68,8 @@ bool FindSliceByAllocationTimeHandler::HandleRequest(std::unique_ptr<Protocol::R
     return true;
 }
 
-void FindSliceByAllocationTimeHandler::populateResponseData(MemoryFindSliceResponse& response, OperatorDomain& target,
-                                                            Timeline::CompeteSliceDomain& slice)
-{
+void FindSliceByAllocationTimeHandler::populateResponseData(
+    MemoryFindSliceResponse &response, OperatorDomain &target, Timeline::CompeteSliceDomain &slice) {
     response.data.metaType = target.metaType;
     response.data.depth = slice.depth;
     response.data.processId = slice.pid;
@@ -81,4 +79,4 @@ void FindSliceByAllocationTimeHandler::populateResponseData(MemoryFindSliceRespo
     response.data.id = std::to_string(slice.id);
     response.data.duration = slice.duration;
 }
-}  // namespace Dic::Module::Memory
+} // namespace Dic::Module::Memory

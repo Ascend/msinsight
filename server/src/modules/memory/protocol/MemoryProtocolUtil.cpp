@@ -28,9 +28,9 @@ namespace Protocol {
 using namespace rapidjson;
 using namespace Dic::Module::Memory;
 #pragma region <<Response to json>>
-template <> std::optional<document_t> ToResponseJson<MemoryOperatorComparisonResponse>(
-    const MemoryOperatorComparisonResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<MemoryOperatorComparisonResponse>(
+    const MemoryOperatorComparisonResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
@@ -57,7 +57,7 @@ template <> std::optional<document_t> ToResponseJson<MemoryOperatorComparisonRes
         headers.PushBack(headerJson, allocator);
     }
     json_t operatorDiffDetail(kArrayType);
-    for (const MemoryOperatorComparison& anOperator : response.operatorDiffDetails) {
+    for (const MemoryOperatorComparison &anOperator : response.operatorDiffDetails) {
         json_t basicJson = json_t(kObjectType);
         std::optional<document_t> jsonCompare = ToMemoryOperatorJson(anOperator.compare, allocator);
         std::optional<document_t> jsonBaseline = ToMemoryOperatorJson(anOperator.baseline, allocator);
@@ -80,8 +80,7 @@ template <> std::optional<document_t> ToResponseJson<MemoryOperatorComparisonRes
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> ToMemoryOperatorJson(const MemoryOperator &op, Document::AllocatorType &allocator)
-{
+std::optional<document_t> ToMemoryOperatorJson(const MemoryOperator &op, Document::AllocatorType &allocator) {
     document_t json(kObjectType);
     JsonUtil::AddMember(json, "id", op.id, allocator);
     JsonUtil::AddMember(json, OpMemoryColumn::NAME, op.name.empty() ? "Unknown" : op.name, allocator);
@@ -101,9 +100,9 @@ std::optional<document_t> ToMemoryOperatorJson(const MemoryOperator &op, Documen
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<MemoryComponentComparisonResponse>(
-    const MemoryComponentComparisonResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<MemoryComponentComparisonResponse>(
+    const MemoryComponentComparisonResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
@@ -140,8 +139,7 @@ template <> std::optional<document_t> ToResponseJson<MemoryComponentComparisonRe
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> ToMemoryComponentJson(const MemoryComponent &component, Document::AllocatorType &allocator)
-{
+std::optional<document_t> ToMemoryComponentJson(const MemoryComponent &component, Document::AllocatorType &allocator) {
     document_t json(kObjectType);
     if (component.component.empty()) {
         JsonUtil::AddMember(json, "component", "Unknown", allocator);
@@ -154,20 +152,19 @@ std::optional<document_t> ToMemoryComponentJson(const MemoryComponent &component
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<MemoryViewResponse>(const MemoryViewResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<MemoryViewResponse>(const MemoryViewResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
     json_t body(kObjectType);
     json_t legends(kArrayType);
-    for (const auto& legend : response.data.legends) {
+    for (const auto &legend : response.data.legends) {
         legends.PushBack(json_t().SetString(legend.c_str(), allocator), allocator);
     }
     json_t linesList(kArrayType);
-    for (const auto &lines: response.data.lines) {
+    for (const auto &lines : response.data.lines) {
         json_t lineArr(kArrayType);
-        for (const auto &line: lines) {
+        for (const auto &line : lines) {
             lineArr.PushBack(json_t().SetString(line.c_str(), allocator), allocator);
         }
         linesList.PushBack(lineArr, allocator);
@@ -180,9 +177,8 @@ template <> std::optional<document_t> ToResponseJson<MemoryViewResponse>(const M
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<MemoryOperatorSizeResponse>(const MemoryOperatorSizeResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<MemoryOperatorSizeResponse>(const MemoryOperatorSizeResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -193,9 +189,7 @@ std::optional<document_t> ToResponseJson<MemoryOperatorSizeResponse>(const Memor
     return std::optional<document_t>{std::move(json)};
 }
 
-
-template <> std::optional<document_t> ToResponseJson<MemoryFindSliceResponse>(const MemoryFindSliceResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<MemoryFindSliceResponse>(const MemoryFindSliceResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -212,14 +206,13 @@ template <> std::optional<document_t> ToResponseJson<MemoryFindSliceResponse>(co
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<MemoryTypeResponse>(const MemoryTypeResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<MemoryTypeResponse>(const MemoryTypeResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t graphIdList(kArrayType);
-    for (const auto &graphId: response.graphId) {
+    for (const auto &graphId : response.graphId) {
         graphIdList.PushBack(json_t().SetString(graphId.c_str(), allocator), allocator);
     }
     JsonUtil::AddMember(body, "type", response.type, allocator);
@@ -228,9 +221,8 @@ template <> std::optional<document_t> ToResponseJson<MemoryTypeResponse>(const M
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<MemoryResourceTypeResponse>(const MemoryResourceTypeResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<MemoryResourceTypeResponse>(const MemoryResourceTypeResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -240,22 +232,21 @@ std::optional<document_t> ToResponseJson<MemoryResourceTypeResponse>(const Memor
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<MemoryStaticOperatorGraphResponse>
-        (const MemoryStaticOperatorGraphResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<MemoryStaticOperatorGraphResponse>(
+    const MemoryStaticOperatorGraphResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t legends(kArrayType);
-    for (const auto& legend : response.data.legends) {
+    for (const auto &legend : response.data.legends) {
         legends.PushBack(json_t().SetString(legend.c_str(), allocator), allocator);
     }
     json_t linesList(kArrayType);
-    for (const auto &lines: response.data.lines) {
+    for (const auto &lines : response.data.lines) {
         json_t lineArr(kArrayType);
-        for (const auto &line: lines) {
+        for (const auto &line : lines) {
             lineArr.PushBack(json_t().SetString(line.c_str(), allocator), allocator);
         }
         linesList.PushBack(lineArr, allocator);
@@ -266,10 +257,9 @@ std::optional<document_t> ToResponseJson<MemoryStaticOperatorGraphResponse>
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<MemoryStaticOperatorSizeResponse>
-    (const MemoryStaticOperatorSizeResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<MemoryStaticOperatorSizeResponse>(
+    const MemoryStaticOperatorSizeResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);

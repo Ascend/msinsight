@@ -29,18 +29,14 @@
 
 namespace Dic {
 namespace Protocol {
-namespace  NSStaticOpTableView = Module::Memory::StaticOpTableView;
+namespace NSStaticOpTableView = Module::Memory::StaticOpTableView;
 const std::string MEMORY_OVERALL_GROUP = "Overall";
 const std::string MEMORY_STREAM_GROUP = "Stream";
 const std::string MEMORY_COMPONENT_GROUP = "Component";
-const std::vector<std::string> operatorTableColumn = {
-    "name", "size", "allocation_time", "release_time", "duration", "active_release_time", "active_duration",
-    "allocation_allocated", "allocation_reserve", "allocation_active", "release_allocated", "release_reserve",
-    "release_active", "stream", "device_type"
-};
-const std::vector<std::string> componentTableColumn = {
-    "component", "timestamp", "totalReserved", "device"
-};
+const std::vector<std::string> operatorTableColumn = {"name", "size", "allocation_time", "release_time", "duration",
+    "active_release_time", "active_duration", "allocation_allocated", "allocation_reserve", "allocation_active",
+    "release_allocated", "release_reserve", "release_active", "stream", "device_type"};
+const std::vector<std::string> componentTableColumn = {"component", "timestamp", "totalReserved", "device"};
 
 struct MemoryOperatorParams : OrderByParam, PaginationParam, FiltersParam, RangeFiltersParam {
     std::string rankId;
@@ -53,8 +49,7 @@ struct MemoryOperatorParams : OrderByParam, PaginationParam, FiltersParam, Range
     double endTime = 0.0;
     bool isCompare = false;
     bool isOnlyShowAllocatedOrReleasedWithinInterval = false;
-    bool CommonCheck(std::string &errorMsg, uint64_t minTimeStamp)
-    {
+    bool CommonCheck(std::string &errorMsg, uint64_t minTimeStamp) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             return false;
         }
@@ -86,8 +81,7 @@ struct MemoryOperatorSizeParams {
     std::string deviceId;
     std::string type;
     bool isCompare = false;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             return false;
         }
@@ -115,8 +109,7 @@ struct StaticOperatorListParams : OrderByParam, PaginationParam {
     int64_t startNodeIndex = 0;
     int64_t endNodeIndex = 0;
     bool isCompare = false;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             return false;
         }
@@ -146,8 +139,7 @@ struct StaticOperatorGraphParams {
     std::string modelName;
     std::string graphId;
     bool isCompare = false;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             return false;
         }
@@ -165,8 +157,7 @@ struct StaticOperatorSizeParams {
     std::string rankId;
     std::string graphId;
     bool isCompare = false;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             return false;
         }
@@ -205,8 +196,7 @@ struct MemoryComponentParams {
     std::string orderBy;
     std::string order;
     bool isCompare = false;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             return false;
         }
@@ -217,12 +207,13 @@ struct MemoryComponentParams {
             return false;
         }
         if (!order.empty() && order != "ascend" && order != "descend") {
-            errorMsg = "Order parameter is not legal: Order parameter is " + order +
-                ", it should be ascend or descend.";
+            errorMsg =
+                "Order parameter is not legal: Order parameter is " + order + ", it should be ascend or descend.";
             return false;
         }
-        if (!orderBy.empty() && std::find(componentTableColumn.begin(), componentTableColumn.end(),
-                                          orderBy) == componentTableColumn.end()) {
+        if (!orderBy.empty() &&
+            std::find(componentTableColumn.begin(), componentTableColumn.end(), orderBy) ==
+                componentTableColumn.end()) {
             errorMsg = "Order By parameter is not legal: Order By parameter is " + orderBy +
                 ", it should be one of the column names";
             return false;
@@ -243,8 +234,7 @@ struct MemoryViewParams {
     std::string start;
     std::string end;
     bool isCompare = false;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             return false;
         }
@@ -262,8 +252,7 @@ struct MemoryViewParams {
         return true;
     }
 
-    std::string GetRequestKey()
-    {
+    std::string GetRequestKey() {
         std::string res = rankId + "@@@@" + type + "@@@@";
         if (isCompare) {
             res += "IsCompare";
@@ -278,8 +267,7 @@ struct MemoryFindSliceParams {
     std::string rankId;
     std::string id;
     std::string name;
-    bool CommonCheck(std::string &errorMsg)
-    {
+    bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(rankId, errorMsg)) {
             errorMsg = "The value of request param [fileId] is invalid, detail:" + errorMsg;
             return false;
@@ -293,7 +281,7 @@ struct MemoryFindSliceParams {
 };
 
 struct MemoryFindSliceRequest : public Request {
-    MemoryFindSliceRequest() : Request(REQ_RES_MEMORY_FIND_SLICE){};
+    MemoryFindSliceRequest() : Request(REQ_RES_MEMORY_FIND_SLICE) {};
     MemoryFindSliceParams params;
 };
 
@@ -311,8 +299,7 @@ struct MemoryStaticOperatorListRequest : public Request {
     MemoryStaticOperatorListRequest() : Request(REQ_RES_MEMORY_STATIC_OP_MEMORY_LIST) {};
     StaticOperatorListParams params;
 
-    static std::unique_ptr<Request> FromJson(const json_t& json, std::string& error)
-    {
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
         std::unique_ptr<MemoryStaticOperatorListRequest> reqPtr = std::make_unique<MemoryStaticOperatorListRequest>();
         if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
             error = "Failed to set request base info, command is: " + reqPtr->command;

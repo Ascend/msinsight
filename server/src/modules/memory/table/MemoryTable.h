@@ -23,16 +23,14 @@
 #include "Table.h"
 namespace Dic::Module::Memory {
 template <typename T> class MemoryTable : public Timeline::Table<T> {
-public:
-    virtual std::vector<T> ExcuteQuery(const std::string &fileId)
-    {
+  public:
+    virtual std::vector<T> ExcuteQuery(const std::string &fileId) {
         std::vector<T> result;
         ExcuteQuery(fileId, result);
         return result;
     }
 
-    virtual void ExcuteQuery(const std::string &fileId, std::vector<T> &result)
-    {
+    virtual void ExcuteQuery(const std::string &fileId, std::vector<T> &result) {
         auto database = FullDb::DataBaseManager::Instance().GetMemoryDatabaseByRankId(fileId);
         if (database == nullptr) {
             this->ClearThreadLocal();
@@ -72,8 +70,7 @@ public:
         this->ClearThreadLocal();
     }
 
-    virtual void ExcuteQuery(sqlite3 *db, std::vector<T> &result)
-    {
+    virtual void ExcuteQuery(sqlite3 *db, std::vector<T> &result) {
         auto stmt = std::make_unique<SqlitePreparedStatement>(db);
         if (stmt == nullptr) {
             Dic::Server::ServerLog::Warn(this->GetTableName() + " Failed to get stmt.");
@@ -113,8 +110,7 @@ public:
         this->ClearThreadLocal();
     }
 
-    virtual uint64_t Count(const std::string &fileId)
-    {
+    virtual uint64_t Count(const std::string &fileId) {
         auto database = FullDb::DataBaseManager::Instance().GetMemoryDatabaseByRankId(fileId);
         if (database == nullptr) {
             this->ClearThreadLocal();

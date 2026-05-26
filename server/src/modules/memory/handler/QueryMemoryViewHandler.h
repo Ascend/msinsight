@@ -25,28 +25,24 @@ namespace Dic {
 namespace Module {
 namespace Memory {
 class QueryMemoryViewHandler : public MemoryRequestHandler {
-public:
-    QueryMemoryViewHandler()
-    {
+  public:
+    QueryMemoryViewHandler() {
         async = true;
         command = Protocol::REQ_RES_MEMORY_VIEW;
     };
     ~QueryMemoryViewHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-    bool GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database,
-                           MemoryViewData &compareData, MemoryViewData &baselineData,
-                           MemoryViewRequest &request, std::string &errorMsg);
-    void ExecuteComparisonAlgorithm(const MemoryViewData &compareData, const MemoryViewData &baselineData,
-                                    MemoryViewResponse &response);
-    void GetCompareGraphLines(const Protocol::MemoryViewData &compareData,
-                              const Protocol::MemoryViewData &baselineData,
-                              Protocol::MemoryViewData &resultData);
+    bool GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database, MemoryViewData &compareData,
+        MemoryViewData &baselineData, MemoryViewRequest &request, std::string &errorMsg);
+    void ExecuteComparisonAlgorithm(
+        const MemoryViewData &compareData, const MemoryViewData &baselineData, MemoryViewResponse &response);
+    void GetCompareGraphLines(const Protocol::MemoryViewData &compareData, const Protocol::MemoryViewData &baselineData,
+        Protocol::MemoryViewData &resultData);
     void GetCompareGraphLegends(const Protocol::MemoryViewData &compareData,
-                                const Protocol::MemoryViewData &baselineData,
-                                Protocol::MemoryViewData &resultData);
+        const Protocol::MemoryViewData &baselineData, Protocol::MemoryViewData &resultData);
 
     bool QueryCurveData(MemoryViewResponse &response, std::string &errorMsg, MemoryViewRequest &request,
-                        std::unique_ptr<MemoryViewResponse> &responsePtr);
+        std::unique_ptr<MemoryViewResponse> &responsePtr);
 
     void AddBaseLineData(const MemoryViewData &baselineData, MemoryViewData &resultData, size_t indexBaseline) const;
 };

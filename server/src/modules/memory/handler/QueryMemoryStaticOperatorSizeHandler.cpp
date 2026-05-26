@@ -24,8 +24,7 @@ namespace Dic {
 namespace Module {
 namespace Memory {
 using namespace Dic::Server;
-bool QueryMemoryStaticOperatorSizeHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemoryStaticOperatorSizeHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     MemoryStaticOperatorSizeRequest &request = dynamic_cast<MemoryStaticOperatorSizeRequest &>(*requestPtr);
     std::unique_ptr<MemoryStaticOperatorSizeResponse> responsePtr =
         std::make_unique<MemoryStaticOperatorSizeResponse>();
@@ -67,11 +66,8 @@ bool QueryMemoryStaticOperatorSizeHandler::HandleRequest(std::unique_ptr<Protoco
 }
 
 bool QueryMemoryStaticOperatorSizeHandler::GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database,
-                                                             Dic::Protocol::StaticOperatorSize &compareData,
-                                                             Dic::Protocol::StaticOperatorSize &baselineData,
-                                                             Dic::Protocol::MemoryStaticOperatorSizeRequest &request,
-                                                             std::string &errorMsg)
-{
+    Dic::Protocol::StaticOperatorSize &compareData, Dic::Protocol::StaticOperatorSize &baselineData,
+    Dic::Protocol::MemoryStaticOperatorSizeRequest &request, std::string &errorMsg) {
     std::string baselineId = Global::BaselineManager::Instance().GetBaselineId();
     if (baselineId.empty()) {
         errorMsg = "Failed to get baseline id.";
@@ -99,8 +95,7 @@ bool QueryMemoryStaticOperatorSizeHandler::GetRespectiveData(std::shared_ptr<Vir
 
 void QueryMemoryStaticOperatorSizeHandler::ExecuteComparisonAlgorithm(
     const Dic::Protocol::StaticOperatorSize &compareData, const Dic::Protocol::StaticOperatorSize &baselineData,
-    Dic::Protocol::MemoryStaticOperatorSizeResponse &response)
-{
+    Dic::Protocol::MemoryStaticOperatorSizeResponse &response) {
     response.size.minSize = compareData.minSize - baselineData.maxSize;
     response.size.maxSize = compareData.maxSize - baselineData.minSize;
 }

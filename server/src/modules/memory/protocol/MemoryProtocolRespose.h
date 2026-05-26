@@ -176,14 +176,13 @@ struct MemoryStaticOperatorListCompResponse : public JsonResponse {
     int64_t totalNum{0};
     bool isCompare{false};
 
-    [[nodiscard]]std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
         auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         std::vector<TableViewColumn> copyHeaders = {};
-        for (auto &header: StaticOpTableView::FIELD_FULL_COLUMNS) {
+        for (auto &header : StaticOpTableView::FIELD_FULL_COLUMNS) {
             copyHeaders.push_back(header);
             if (isCompare && header.key == StaticOpColumn::OP_NAME) {
                 copyHeaders.push_back(TABLE_VIEW_COMPARE_COLUMN);
@@ -191,7 +190,7 @@ struct MemoryStaticOperatorListCompResponse : public JsonResponse {
         }
         auto headers = TableViewColumn::CommonBuildTableHeadersJson(allocator, copyHeaders);
         json_t operatorDiffDetail(kArrayType);
-        for (const StaticOperatorCompItem& anOperator : operatorDiffDetails) {
+        for (const StaticOperatorCompItem &anOperator : operatorDiffDetails) {
             json_t basicJson = json_t(kObjectType);
             std::optional<document_t> jsonCompare = ToMemoryStaticOperatorJson(anOperator.compare, allocator);
             std::optional<document_t> jsonBaseline = ToMemoryStaticOperatorJson(anOperator.baseline, allocator);
@@ -214,9 +213,8 @@ struct MemoryStaticOperatorListCompResponse : public JsonResponse {
         return std::optional<document_t>{std::move(json)};
     }
 
-    static std::optional<document_t> ToMemoryStaticOperatorJson(const StaticOperatorItem &op,
-        Document::AllocatorType &allocator)
-    {
+    static std::optional<document_t> ToMemoryStaticOperatorJson(
+        const StaticOperatorItem &op, Document::AllocatorType &allocator) {
         document_t json(kObjectType);
         JsonUtil::AddMember(json, StaticOpColumn::DEVICE_ID, op.deviceId, allocator);
         JsonUtil::AddMember(json, StaticOpColumn::OP_NAME, op.opName, allocator);

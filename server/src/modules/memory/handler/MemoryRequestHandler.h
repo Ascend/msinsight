@@ -28,9 +28,8 @@ namespace Dic {
 namespace Module {
 namespace Memory {
 class MemoryRequestHandler : public ModuleRequestHandler {
-public:
-    MemoryRequestHandler()
-    {
+  public:
+    MemoryRequestHandler() {
         moduleName = MODULE_MEMORY;
         async = true;
     }
