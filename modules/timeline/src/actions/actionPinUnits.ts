@@ -183,9 +183,7 @@ function unpinAllSameLevel(session: Session): void {
     if (sameLevelUnits.length === 0) {
         return;
     }
-    if (sameLevelUnits.length > MAX_PIN_UNIT_COUNT) {
-        showMaxPinWarning(sameLevelUnits.length);
-    }
+
     const targetUnits = sameLevelUnits.slice(0, MAX_PIN_UNIT_COUNT);
     const { pinnedUnits } = session;
     const pinnedUnitKeys = pinnedUnits.map((item) => getAutoKey(item));
