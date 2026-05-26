@@ -22,64 +22,55 @@
 #include "DataBaseManager.h"
 #include "TextMemoryDataBase.h"
 
-
 namespace Dic {
 namespace Module {
 namespace Memory {
 using namespace Server;
 TextMemoryDataBase::TextMemoryDataBase(std::recursive_mutex &sqlMutex) : VirtualMemoryDataBase(sqlMutex) {}
 
-TextMemoryDataBase::~TextMemoryDataBase()
-{
+TextMemoryDataBase::~TextMemoryDataBase() {
     if (hasInitStmt) {
         ReleaseStmt();
         hasInitStmt = false;
     }
     CloseDb();
 }
-bool TextMemoryDataBase::OpenDb(const std::string &dbPath, bool clearAllTable)
-{
+bool TextMemoryDataBase::OpenDb(const std::string &dbPath, bool clearAllTable) {
     if (!Database::OpenDb(dbPath, clearAllTable)) {
         return false;
     }
     return SetConfig() && CheckAndResetDatabaseOnVersionChange();
 }
-bool TextMemoryDataBase::SetConfig()
-{
-    return Database::SetConfig();
-}
+bool TextMemoryDataBase::SetConfig() { return Database::SetConfig(); }
 
-bool TextMemoryDataBase::CreateTable()
-{
+bool TextMemoryDataBase::CreateTable() {
     if (!isOpen) {
         ServerLog::Error("Failed to set config. Database is not open.");
         return false;
     }
-    std::string sql = GetCreateOperatorMemoryTableSql() +
-        "CREATE TABLE " + recordTable + " (id INTEGER PRIMARY KEY AUTOINCREMENT, component TEXT, " +
+    std::string sql = GetCreateOperatorMemoryTableSql() + "CREATE TABLE " + recordTable +
+        " (id INTEGER PRIMARY KEY AUTOINCREMENT, component TEXT, " +
         "total_allocated INTEGER, total_reserve INTEGER, total_active INTEGER, "
         "deviceId TEXT, stream TEXT, timestamp INTEGER);" +
-        GetCreateStaticOpTableSql() +
-        "CREATE TABLE " + componentTable + " (id INTEGER PRIMARY KEY AUTOINCREMENT, component TEXT, " +
+        GetCreateStaticOpTableSql() + "CREATE TABLE " + componentTable +
+        " (id INTEGER PRIMARY KEY AUTOINCREMENT, component TEXT, " +
         "timestamp INTEGER, total_reserved INTEGER, deviceId TEXT);";
     std::unique_lock<std::recursive_mutex> lock(mutex);
     return ExecSql(sql);
 }
 
-bool TextMemoryDataBase::DropTable()
-{
+bool TextMemoryDataBase::DropTable() {
     std::vector<std::string> tables = {operatorTable, recordTable, staticOpTable, componentTable};
     std::unique_lock<std::recursive_mutex> lock(mutex);
     return DropSomeTables(tables);
 }
 
-bool TextMemoryDataBase::InitStmt()
-{
+bool TextMemoryDataBase::InitStmt() {
     if (hasInitStmt) {
         return true;
     }
     std::string sql = StringUtil::FormatString("INSERT INTO {} ({}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                                               operatorTable, StringUtil::GenerateColumnString(OpMemoryColumn::FULL_COLUMNS_WITHOUT_ID));
+        operatorTable, StringUtil::GenerateColumnString(OpMemoryColumn::FULL_COLUMNS_WITHOUT_ID));
     for (size_t i = 0; i < cacheSize - 1; ++i) {
         sql.append(",(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
     }
@@ -89,8 +80,8 @@ bool TextMemoryDataBase::InitStmt()
     }
 
     sql = "INSERT INTO " + recordTable +
-            " (component, total_allocated, total_reserve, total_active, deviceId, stream, timestamp)" +
-            " VALUES (?,?,?,?,?,?,?)";
+        " (component, total_allocated, total_reserve, total_active, deviceId, stream, timestamp)" +
+        " VALUES (?,?,?,?,?,?,?)";
     for (size_t i = 0; i < cacheSize - 1; ++i) {
         sql.append(",(?,?,?,?,?,?,?)");
     }
@@ -108,9 +99,7 @@ bool TextMemoryDataBase::InitStmt()
         return false;
     }
 
-    sql = "INSERT INTO " + componentTable +
-        " (component, timestamp, total_reserved, deviceId)" +
-        " VALUES (?,?,?,?)";
+    sql = "INSERT INTO " + componentTable + " (component, timestamp, total_reserved, deviceId)" + " VALUES (?,?,?,?)";
     for (size_t i = 0; i < cacheSize - 1; ++i) {
         sql.append(",(?,?,?,?)");
     }
@@ -123,8 +112,7 @@ bool TextMemoryDataBase::InitStmt()
     return true;
 }
 
-void TextMemoryDataBase::ReleaseStmt()
-{
+void TextMemoryDataBase::ReleaseStmt() {
     if (insertOperatorStmt != nullptr) {
         sqlite3_finalize(insertOperatorStmt);
         insertOperatorStmt = nullptr;
@@ -143,8 +131,7 @@ void TextMemoryDataBase::ReleaseStmt()
     }
 }
 
-void TextMemoryDataBase::InsertOperatorDetailList(const std::vector<Operator> &eventList)
-{
+void TextMemoryDataBase::InsertOperatorDetailList(const std::vector<Operator> &eventList) {
     sqlite3_stmt *stmt = GetOperatorStmt(eventList.size());
     if (stmt == nullptr) {
         ServerLog::Error("Failed to get operator stmt.");
@@ -178,8 +165,7 @@ void TextMemoryDataBase::InsertOperatorDetailList(const std::vector<Operator> &e
     }
 }
 
-void TextMemoryDataBase::InsertOperatorDetail(const Operator &event)
-{
+void TextMemoryDataBase::InsertOperatorDetail(const Operator &event) {
     std::lock_guard lock(mutex);
     operatorCache.emplace_back(event);
     if (operatorCache.size() == cacheSize) {
@@ -188,8 +174,7 @@ void TextMemoryDataBase::InsertOperatorDetail(const Operator &event)
     }
 }
 
-void TextMemoryDataBase::InsertRecordDetailList(const std::vector<Record> &eventList)
-{
+void TextMemoryDataBase::InsertRecordDetailList(const std::vector<Record> &eventList) {
     sqlite3_stmt *stmt = GetRecordStmt(eventList.size());
     if (stmt == nullptr) {
         ServerLog::Error("Failed to get Record stmt.");
@@ -215,8 +200,7 @@ void TextMemoryDataBase::InsertRecordDetailList(const std::vector<Record> &event
     }
 }
 
-void TextMemoryDataBase::InsertStaticOpDetailList(const std::vector<StaticOp> &eventList)
-{
+void TextMemoryDataBase::InsertStaticOpDetailList(const std::vector<StaticOp> &eventList) {
     sqlite3_stmt *stmt = GetStaticOpStmt(eventList.size());
     if (stmt == nullptr) {
         ServerLog::Error("Failed to get Record stmt.");
@@ -242,8 +226,7 @@ void TextMemoryDataBase::InsertStaticOpDetailList(const std::vector<StaticOp> &e
     }
 }
 
-void TextMemoryDataBase::InsertRecordDetail(const Record &event)
-{
+void TextMemoryDataBase::InsertRecordDetail(const Record &event) {
     std::lock_guard lock(mutex);
     recordCache.emplace_back(event);
     if (recordCache.size() == cacheSize) {
@@ -252,8 +235,7 @@ void TextMemoryDataBase::InsertRecordDetail(const Record &event)
     }
 }
 
-void TextMemoryDataBase::InsertStaticOpDetail(const StaticOp &event)
-{
+void TextMemoryDataBase::InsertStaticOpDetail(const StaticOp &event) {
     std::lock_guard lock(mutex);
     staticOpCache.emplace_back(event);
     if (staticOpCache.size() == cacheSize) {
@@ -262,8 +244,7 @@ void TextMemoryDataBase::InsertStaticOpDetail(const StaticOp &event)
     }
 }
 
-void TextMemoryDataBase::InsertComponentDetailList(const std::vector<Component> &eventList)
-{
+void TextMemoryDataBase::InsertComponentDetailList(const std::vector<Component> &eventList) {
     sqlite3_stmt *stmt = GetComponentStmt(eventList.size());
     if (stmt == nullptr) {
         ServerLog::Error("Failed to get Component Stmt.");
@@ -286,8 +267,7 @@ void TextMemoryDataBase::InsertComponentDetailList(const std::vector<Component> 
     }
 }
 
-void TextMemoryDataBase::InsertComponentDetail(const Component &event)
-{
+void TextMemoryDataBase::InsertComponentDetail(const Component &event) {
     std::lock_guard lock(mutex);
     componentCache.emplace_back(event);
     if (componentCache.size() == cacheSize) {
@@ -296,20 +276,17 @@ void TextMemoryDataBase::InsertComponentDetail(const Component &event)
     }
 }
 
-bool TextMemoryDataBase::UpdateParseStatus(const std::string& status)
-{
+bool TextMemoryDataBase::UpdateParseStatus(const std::string &status) {
     return UpdateValueIntoStatusInfoTable(memoryParseStatus, status);
 }
 
-bool TextMemoryDataBase::HasFinishedParseLastTime()
-{
+bool TextMemoryDataBase::HasFinishedParseLastTime() {
     return CheckValueFromStatusInfoTable(memoryParseStatus, FINISH_STATUS);
 }
 
-uint64_t TextMemoryDataBase::QueryMinOperatorAllocationTime()
-{
-    std::string sql = StringUtil::FormatString("SELECT MIN({}) FROM {} WHERE {} != 0",
-                                               OpMemoryColumn::ALLOCATION_TIME, operatorTable, OpMemoryColumn::ALLOCATION_TIME);
+uint64_t TextMemoryDataBase::QueryMinOperatorAllocationTime() {
+    std::string sql = StringUtil::FormatString("SELECT MIN({}) FROM {} WHERE {} != 0", OpMemoryColumn::ALLOCATION_TIME,
+        operatorTable, OpMemoryColumn::ALLOCATION_TIME);
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -330,8 +307,7 @@ uint64_t TextMemoryDataBase::QueryMinOperatorAllocationTime()
     return min;
 }
 
-uint64_t TextMemoryDataBase::QueryMinRecordTimestamp()
-{
+uint64_t TextMemoryDataBase::QueryMinRecordTimestamp() {
     std::string sql = "Select MIN(timestamp) FROM " + recordTable + " WHERE timestamp != 0";
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -339,7 +315,7 @@ uint64_t TextMemoryDataBase::QueryMinRecordTimestamp()
         ServerLog::Error("Failed to prepare sql for query min record timestamp. Error: ", sqlite3_errmsg(db));
         return 0;
     }
-    uint64_t min  = 0;
+    uint64_t min = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int col = resultStartIndex;
         int64_t result = sqlite3_column_int64(stmt, col++);
@@ -353,8 +329,7 @@ uint64_t TextMemoryDataBase::QueryMinRecordTimestamp()
     return min;
 }
 
-uint64_t TextMemoryDataBase::QueryMinComponentTimestamp()
-{
+uint64_t TextMemoryDataBase::QueryMinComponentTimestamp() {
     std::string sql = "Select MIN(timestamp) FROM " + componentTable + " WHERE timestamp != 0";
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -362,7 +337,7 @@ uint64_t TextMemoryDataBase::QueryMinComponentTimestamp()
         ServerLog::Error("Failed to prepare sql for query min component timestamp. Error: ", sqlite3_errmsg(db));
         return 0;
     }
-    uint64_t min  = 0;
+    uint64_t min = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int col = resultStartIndex;
         int64_t result = sqlite3_column_int64(stmt, col++);
@@ -376,8 +351,7 @@ uint64_t TextMemoryDataBase::QueryMinComponentTimestamp()
     return min;
 }
 
-std::string  TextMemoryDataBase::GetOperatorSql(Protocol::MemoryOperatorParams &requestParams)
-{
+std::string TextMemoryDataBase::GetOperatorSql(Protocol::MemoryOperatorParams &requestParams) {
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
     uint64_t offsetTime = Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp(requestParams.rankId);
     // 溢出防护
@@ -385,28 +359,27 @@ std::string  TextMemoryDataBase::GetOperatorSql(Protocol::MemoryOperatorParams &
         ServerLog::Error("Failed to calculate relative to the reference time due to integer overflow.");
         return "";
     }
-    std::string selectColumns = GetSelectOperatorMemoryFullColumnsWithCount(startTime+offsetTime);
+    std::string selectColumns = GetSelectOperatorMemoryFullColumnsWithCount(startTime + offsetTime);
     // 在 text 情况下 allocation_time release_time 不可能为 null，不用再判断
-    std::string sql = StringUtil::FormatString(" SELECT {} FROM {} WHERE {} = ? ",
-                                               selectColumns, operatorTable, OpMemoryColumn::DEVICE_ID);
+    std::string sql = StringUtil::FormatString(
+        " SELECT {} FROM {} WHERE {} = ? ", selectColumns, operatorTable, OpMemoryColumn::DEVICE_ID);
     AddOperatorSql(requestParams, sql);
     return sql;
 }
 
-std::string TextMemoryDataBase::GetStaticOperatorSql(Protocol::StaticOperatorListParams &requestParams)
-{
+std::string TextMemoryDataBase::GetStaticOperatorSql(Protocol::StaticOperatorListParams &requestParams) {
     std::string sql = StringUtil::FormatString("SELECT COUNT(*) OVER(), {}, {}, {}, {}, {} FROM {} WHERE {} LIKE ? AND "
-                                               "{} <> 'TOTAL' ", StaticOpColumn::DEVICE_ID, StaticOpColumn::OP_NAME,
-                                               StaticOpColumn::NODE_INDEX_START, StaticOpColumn::NODE_INDEX_END,
-                                               StringUtil::FormatString("ROUND({}/1024.0, 2) AS {}", StaticOpColumn::SIZE, StaticOpColumn::SIZE),
-                                               staticOpTable, StaticOpColumn::OP_NAME, StaticOpColumn::OP_NAME);
+                                               "{} <> 'TOTAL' ",
+        StaticOpColumn::DEVICE_ID, StaticOpColumn::OP_NAME, StaticOpColumn::NODE_INDEX_START,
+        StaticOpColumn::NODE_INDEX_END,
+        StringUtil::FormatString("ROUND({}/1024.0, 2) AS {}", StaticOpColumn::SIZE, StaticOpColumn::SIZE),
+        staticOpTable, StaticOpColumn::OP_NAME, StaticOpColumn::OP_NAME);
     AddStableOperatorSql(requestParams, sql);
     return sql;
 }
 
-void TextMemoryDataBase::GenerateGetStaticGraphNodeIndexSql(Protocol::StaticOperatorGraphParams &requestParams,
-    std::string &startSql, std::string &endSql)
-{
+void TextMemoryDataBase::GenerateGetStaticGraphNodeIndexSql(
+    Protocol::StaticOperatorGraphParams &requestParams, std::string &startSql, std::string &endSql) {
     std::string pattern = "SELECT {}, {} FROM {} WHERE {} <> 'TOTAL' AND {} <> 0 AND {} = ?";
     startSql = StringUtil::FormatString(pattern, StaticOpColumn::NODE_INDEX_START, StaticOpColumn::SIZE, staticOpTable,
         StaticOpColumn::OP_NAME, StaticOpColumn::SIZE, StaticOpColumn::GRAPH_ID);
@@ -421,27 +394,23 @@ void TextMemoryDataBase::GenerateGetStaticGraphNodeIndexSql(Protocol::StaticOper
     endSql += StringUtil::FormatString(" ORDER BY {} ASC ", StaticOpColumn::NODE_INDEX_END);
 }
 
-bool TextMemoryDataBase::QueryMemoryType(std::string &type, std::vector<std::string> &graphId)
-{
+bool TextMemoryDataBase::QueryMemoryType(std::string &type, std::vector<std::string> &graphId) {
     return ExecuteMemoryType(graphId, type);
 }
 
-bool TextMemoryDataBase::QueryMemoryResourceType(std::string &type)
-{
+bool TextMemoryDataBase::QueryMemoryResourceType(std::string &type) {
     std::string sql = "SELECT count(*) as nums FROM " + recordTable + " WHERE component = 'MindSpore'";
     return ExecuteMemoryResourceType(type, sql);
 }
 
-int64_t TextMemoryDataBase::QueryOperatorDetail(Protocol::MemoryOperatorParams &requestParams,
-                                                std::vector<Protocol::MemoryOperator> &opDetails)
-{
+int64_t TextMemoryDataBase::QueryOperatorDetail(
+    Protocol::MemoryOperatorParams &requestParams, std::vector<Protocol::MemoryOperator> &opDetails) {
     std::string sql = GetOperatorSql(requestParams);
     return ExecuteOperatorDetail(requestParams, opDetails, sql);
 }
 
 bool TextMemoryDataBase::QueryEntireOperatorTable(Protocol::MemoryOperatorParams &requestParams,
-    std::vector<Protocol::MemoryOperator> &opDetails, uint64_t offsetTime)
-{
+    std::vector<Protocol::MemoryOperator> &opDetails, uint64_t offsetTime) {
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
     // 溢出防护
     if (startTime > std::numeric_limits<uint64_t>::max() - offsetTime) {
@@ -450,25 +419,22 @@ bool TextMemoryDataBase::QueryEntireOperatorTable(Protocol::MemoryOperatorParams
     }
     // 在 text 情况下 allocation_time release_time 不可能为 null，不用再判断
     std::string sql = StringUtil::FormatString("SELECT {} FROM {} WHERE {} = ? ",
-                                               GetSelectOperatorMemoryFullColumnsWithCount(startTime + offsetTime),
-                                               operatorTable, OpMemoryColumn::DEVICE_ID);
+        GetSelectOperatorMemoryFullColumnsWithCount(startTime + offsetTime), operatorTable, OpMemoryColumn::DEVICE_ID);
     return ExecuteQueryEntireOperatorTable(requestParams, opDetails, sql);
 }
 
 bool TextMemoryDataBase::QueryComponentDetail(Protocol::MemoryComponentParams &requestParams,
-                                              std::vector<Protocol::MemoryTableColumnAttr> &columnAttr,
-                                              std::vector<Protocol::MemoryComponent> &componentDetails)
-{
+    std::vector<Protocol::MemoryTableColumnAttr> &columnAttr,
+    std::vector<Protocol::MemoryComponent> &componentDetails) {
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
     uint64_t offsetTime = Timeline::TraceTime::Instance().GetOffsetByFileIdUsingMinTimestamp(requestParams.rankId);
     // 内层SQL根据组件名分组取出内存占用峰值大于100M的那些组件，外层SQL和内层SQL的查询结果根据组件名和内存占用值做一次连接
     // 外层再做一次分组的原因是可能有多个时刻内存占用为峰值，只需要时刻最小的那个
-    std::string sql =
-        "SELECT t1.component AS componentColumn, ROUND(t1.total_reserved, 2) as totalReservedColumn,"
-        " MIN(ROUND((t1.timestamp - " + std::to_string(startTime + offsetTime) +
-        ") / (1000.0 * 1000.0), 3)) AS timestampColumn FROM " + componentTable + " AS t1 JOIN " +
-        "(SELECT component, MAX(total_reserved) AS max_total_reserved FROM " + componentTable +
-        " GROUP BY component HAVING max_total_reserved >= " + std::to_string(componentThresholdMb) +
+    std::string sql = "SELECT t1.component AS componentColumn, ROUND(t1.total_reserved, 2) as totalReservedColumn,"
+                      " MIN(ROUND((t1.timestamp - " +
+        std::to_string(startTime + offsetTime) + ") / (1000.0 * 1000.0), 3)) AS timestampColumn FROM " +
+        componentTable + " AS t1 JOIN " + "(SELECT component, MAX(total_reserved) AS max_total_reserved FROM " +
+        componentTable + " GROUP BY component HAVING max_total_reserved >= " + std::to_string(componentThresholdMb) +
         ") AS t2 ON t1.component = t2.component AND t1.total_reserved = t2.max_total_reserved "
         "WHERE t1.deviceId = ? "
         "GROUP BY t1.component, t1.total_reserved";
@@ -485,27 +451,23 @@ bool TextMemoryDataBase::QueryComponentDetail(Protocol::MemoryComponentParams &r
 }
 
 bool TextMemoryDataBase::QueryEntireComponentTable(Protocol::MemoryComponentParams &requestParams,
-    std::vector<Protocol::MemoryComponent> &componentDetails, uint64_t offsetTime)
-{
+    std::vector<Protocol::MemoryComponent> &componentDetails, uint64_t offsetTime) {
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
-    std::string sql =
-        "SELECT t1.component, t1.total_reserved, MIN(ROUND((t1.timestamp - " +
-        std::to_string(startTime + offsetTime) +
-        ") / (1000.0 * 1000.0), 3)) AS timestamp_maxsize FROM " + componentTable + " AS t1 JOIN " +
-        "(SELECT component, MAX(total_reserved) AS max_total_reserved FROM " + componentTable +
-        " GROUP BY component HAVING max_total_reserved >= " + std::to_string(componentThresholdMb) +
+    std::string sql = "SELECT t1.component, t1.total_reserved, MIN(ROUND((t1.timestamp - " +
+        std::to_string(startTime + offsetTime) + ") / (1000.0 * 1000.0), 3)) AS timestamp_maxsize FROM " +
+        componentTable + " AS t1 JOIN " + "(SELECT component, MAX(total_reserved) AS max_total_reserved FROM " +
+        componentTable + " GROUP BY component HAVING max_total_reserved >= " + std::to_string(componentThresholdMb) +
         ") AS t2 ON t1.component = t2.component AND t1.total_reserved = t2.max_total_reserved "
         "WHERE t1.deviceId = ? "
         "GROUP BY t1.component, t1.total_reserved";
     return ExecuteQueryEntireComponentTable(requestParams, componentDetails, sql);
 }
 
-bool TextMemoryDataBase::QueryMemoryView(Protocol::MemoryViewParams &requestParams,
-                                         Protocol::MemoryViewData &operatorBody, uint64_t offsetTime)
-{
+bool TextMemoryDataBase::QueryMemoryView(
+    Protocol::MemoryViewParams &requestParams, Protocol::MemoryViewData &operatorBody, uint64_t offsetTime) {
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
-    std::string sql = "SELECT component, ROUND((timestamp - " + std::to_string(startTime) +
-        " - " + std::to_string(offsetTime) +
+    std::string sql = "SELECT component, ROUND((timestamp - " + std::to_string(startTime) + " - " +
+        std::to_string(offsetTime) +
         ") / (1000.0 * 1000.0), 3) as timestamp, "
         "ROUND(total_allocated, 2) as total_allocated, ROUND(total_reserve, 2) as total_reserve, "
         "ROUND(total_active, 2) as total_active, stream FROM " +
@@ -518,19 +480,17 @@ bool TextMemoryDataBase::QueryMemoryView(Protocol::MemoryViewParams &requestPara
     return ExecuteQueryMemoryViewGetGraph(requestParams, componentDtoVec, streams, operatorBody);
 }
 
-int64_t TextMemoryDataBase::QueryStaticOperatorList(Protocol::StaticOperatorListParams &requestParams,
-    std::vector<Protocol::StaticOperatorItem> &opDetails)
-{
+int64_t TextMemoryDataBase::QueryStaticOperatorList(
+    Protocol::StaticOperatorListParams &requestParams, std::vector<Protocol::StaticOperatorItem> &opDetails) {
     std::string sql = GetStaticOperatorSql(requestParams);
     return ExecuteStaticOperatorDetail(requestParams, opDetails, sql);
 }
 
-bool TextMemoryDataBase::QueryEntireStaticOperatorTable(Protocol::StaticOperatorListParams& requestParams,
-                                                        std::vector<Protocol::StaticOperatorItem>& opDetails)
-{
+bool TextMemoryDataBase::QueryEntireStaticOperatorTable(
+    Protocol::StaticOperatorListParams &requestParams, std::vector<Protocol::StaticOperatorItem> &opDetails) {
     const std::string pattern = "SELECT {},{},{},{},{} FROM {} WHERE {} <> 'TOTAL' ";
-    std::string sql = StringUtil::FormatString(pattern,
-        StaticOpColumn::DEVICE_ID, StaticOpColumn::OP_NAME, StaticOpColumn::NODE_INDEX_START, StaticOpColumn::NODE_INDEX_END,
+    std::string sql = StringUtil::FormatString(pattern, StaticOpColumn::DEVICE_ID, StaticOpColumn::OP_NAME,
+        StaticOpColumn::NODE_INDEX_START, StaticOpColumn::NODE_INDEX_END,
         StringUtil::FormatString("ROUND({}/1024.0, 2) as {} ", StaticOpColumn::SIZE, StaticOpColumn::SIZE),
         staticOpTable, StaticOpColumn::OP_NAME);
     if (!requestParams.graphId.empty()) {
@@ -539,9 +499,8 @@ bool TextMemoryDataBase::QueryEntireStaticOperatorTable(Protocol::StaticOperator
     return ExecuteQueryEntireStaticOperatorTable(requestParams, opDetails, sql);
 }
 
-bool TextMemoryDataBase::QueryStaticOperatorGraph(Protocol::StaticOperatorGraphParams &requestParams,
-                                                  Protocol::StaticOperatorGraphItem &graphItem)
-{
+bool TextMemoryDataBase::QueryStaticOperatorGraph(
+    Protocol::StaticOperatorGraphParams &requestParams, Protocol::StaticOperatorGraphItem &graphItem) {
     std::string totalSql = StringUtil::FormatString("SELECT {} FROM {} WHERE {} = 'TOTAL' AND {} = ? ",
         StaticOpColumn::SIZE, staticOpTable, StaticOpColumn::OP_NAME, StaticOpColumn::GRAPH_ID);
     if (!requestParams.modelName.empty()) {
@@ -553,40 +512,35 @@ bool TextMemoryDataBase::QueryStaticOperatorGraph(Protocol::StaticOperatorGraphP
     return ExecuteStaticOperatorGraph(requestParams, graphItem, totalSql, graphStartSql, graphEndSql);
 }
 
-void TextMemoryDataBase::SaveOperatorDetail()
-{
+void TextMemoryDataBase::SaveOperatorDetail() {
     if (operatorCache.size() > 0) {
         InsertOperatorDetailList(operatorCache);
         operatorCache.clear();
     }
 }
 
-void TextMemoryDataBase::SaveRecordDetail()
-{
+void TextMemoryDataBase::SaveRecordDetail() {
     if (recordCache.size() > 0) {
         InsertRecordDetailList(recordCache);
         recordCache.clear();
     }
 }
 
-void TextMemoryDataBase::SaveStaticOpDetail()
-{
+void TextMemoryDataBase::SaveStaticOpDetail() {
     if (staticOpCache.size() > 0) {
         InsertStaticOpDetailList(staticOpCache);
         staticOpCache.clear();
     }
 }
 
-void TextMemoryDataBase::SaveComponentDetail()
-{
+void TextMemoryDataBase::SaveComponentDetail() {
     if (componentCache.size() > 0) {
         InsertComponentDetailList(componentCache);
         componentCache.clear();
     }
 }
 
-sqlite3_stmt *TextMemoryDataBase::GetOperatorStmt(uint64_t paramLen)
-{
+sqlite3_stmt *TextMemoryDataBase::GetOperatorStmt(uint64_t paramLen) {
     sqlite3_stmt *stmt = nullptr;
     if (paramLen == 0) {
         return stmt;
@@ -598,7 +552,7 @@ sqlite3_stmt *TextMemoryDataBase::GetOperatorStmt(uint64_t paramLen)
         sqlite3_reset(stmt);
     } else {
         std::string sql = StringUtil::FormatString("INSERT INTO {} ({}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                                                   operatorTable, StringUtil::GenerateColumnString(OpMemoryColumn::FULL_COLUMNS_WITHOUT_ID));
+            operatorTable, StringUtil::GenerateColumnString(OpMemoryColumn::FULL_COLUMNS_WITHOUT_ID));
         for (uint64_t i = 0; i < paramLen - 1; ++i) {
             sql.append(",(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
         }
@@ -610,8 +564,7 @@ sqlite3_stmt *TextMemoryDataBase::GetOperatorStmt(uint64_t paramLen)
     return stmt;
 }
 
-sqlite3_stmt *TextMemoryDataBase::GetRecordStmt(uint64_t paramLen)
-{
+sqlite3_stmt *TextMemoryDataBase::GetRecordStmt(uint64_t paramLen) {
     sqlite3_stmt *stmt = nullptr;
     if (paramLen == 0) {
         return stmt;
@@ -620,8 +573,8 @@ sqlite3_stmt *TextMemoryDataBase::GetRecordStmt(uint64_t paramLen)
         sqlite3_reset(stmt);
     } else {
         std::string sql = "INSERT INTO " + recordTable +
-                " (component, total_allocated, total_reserve, total_active, deviceId, stream, timestamp)"
-                " VALUES (?,?,?,?,?,?,?)";
+            " (component, total_allocated, total_reserve, total_active, deviceId, stream, timestamp)"
+            " VALUES (?,?,?,?,?,?,?)";
         for (uint64_t i = 0; i < paramLen - 1; ++i) {
             sql.append(",(?,?,?,?,?,?,?)");
         }
@@ -633,8 +586,7 @@ sqlite3_stmt *TextMemoryDataBase::GetRecordStmt(uint64_t paramLen)
     return stmt;
 }
 
-sqlite3_stmt *TextMemoryDataBase::GetStaticOpStmt(uint64_t paramLen)
-{
+sqlite3_stmt *TextMemoryDataBase::GetStaticOpStmt(uint64_t paramLen) {
     sqlite3_stmt *stmt = nullptr;
     if (paramLen == 0) {
         return stmt;
@@ -655,8 +607,7 @@ sqlite3_stmt *TextMemoryDataBase::GetStaticOpStmt(uint64_t paramLen)
     return stmt;
 }
 
-sqlite3_stmt *TextMemoryDataBase::GetComponentStmt(uint64_t paramLen)
-{
+sqlite3_stmt *TextMemoryDataBase::GetComponentStmt(uint64_t paramLen) {
     sqlite3_stmt *stmt = nullptr;
     if (paramLen == 0) {
         return stmt;
@@ -665,9 +616,8 @@ sqlite3_stmt *TextMemoryDataBase::GetComponentStmt(uint64_t paramLen)
         stmt = insertComponentStmt;
         sqlite3_reset(stmt);
     } else {
-        std::string sql = "INSERT INTO " + componentTable +
-            " (component, timestamp, total_reserved, deviceId)" +
-            " VALUES (?,?,?,?)";
+        std::string sql =
+            "INSERT INTO " + componentTable + " (component, timestamp, total_reserved, deviceId)" + " VALUES (?,?,?,?)";
         for (uint64_t i = 0; i < paramLen - 1; ++i) {
             sql.append(",(?,?,?,?)");
         }
@@ -679,36 +629,34 @@ sqlite3_stmt *TextMemoryDataBase::GetComponentStmt(uint64_t paramLen)
     return stmt;
 }
 
-bool TextMemoryDataBase::QueryComponentsTotalNum(Protocol::MemoryComponentParams &requestParams, int64_t &totalNum)
-{
+bool TextMemoryDataBase::QueryComponentsTotalNum(Protocol::MemoryComponentParams &requestParams, int64_t &totalNum) {
     std::string sql = "SELECT count(*) FROM (SELECT component FROM " + componentTable +
         " WHERE deviceId = ? "
-        " GROUP BY component HAVING MAX(total_reserved) >= " + std::to_string(componentThresholdMb) + ") AS t3";
+        " GROUP BY component HAVING MAX(total_reserved) >= " +
+        std::to_string(componentThresholdMb) + ") AS t3";
     return ExecuteComponentTotalNum(requestParams, totalNum, sql);
 }
 
-bool TextMemoryDataBase::QueryOperatorSize(Protocol::MemoryOperatorSizeParams &requestParams, double &min, double &max)
-{
-    std::string sql = StringUtil::FormatString("SELECT min({}), max({}) FROM {} WHERE {} = ?",
-                                               OpMemoryColumn::SIZE, OpMemoryColumn::SIZE, operatorTable, OpMemoryColumn::DEVICE_ID);
+bool TextMemoryDataBase::QueryOperatorSize(
+    Protocol::MemoryOperatorSizeParams &requestParams, double &min, double &max) {
+    std::string sql = StringUtil::FormatString("SELECT min({}), max({}) FROM {} WHERE {} = ?", OpMemoryColumn::SIZE,
+        OpMemoryColumn::SIZE, operatorTable, OpMemoryColumn::DEVICE_ID);
     return ExecuteOperatorSize(requestParams, min, max, sql);
 }
 
-bool TextMemoryDataBase::QueryStaticOperatorSize(Protocol::StaticOperatorSizeParams &requestParams,
-                                                 double &min, double &max)
-{
+bool TextMemoryDataBase::QueryStaticOperatorSize(
+    Protocol::StaticOperatorSizeParams &requestParams, double &min, double &max) {
     std::string sql = StringUtil::FormatString("SELECT min({}) as minSize, max({}) as maxSize FROM {} "
-                                               "WHERE {} <> 'TOTAL'", StaticOpColumn::SIZE, StaticOpColumn::SIZE,
-                                               staticOpTable, StaticOpColumn::OP_NAME);
+                                               "WHERE {} <> 'TOTAL'",
+        StaticOpColumn::SIZE, StaticOpColumn::SIZE, staticOpTable, StaticOpColumn::OP_NAME);
     if (!requestParams.graphId.empty()) {
         sql += StringUtil::FormatString(" AND {} = ? ", StaticOpColumn::GRAPH_ID);
     }
     return ExecuteStaticOperatorSize(requestParams, min, max, sql);
 }
 
-void TextMemoryDataBase::GetSelectOperatorMemoryColumnAndAlias(std::string_view columnKey, uint64_t baseTimestamp,
-                                                               std::string& column, std::string& alias)
-{
+void TextMemoryDataBase::GetSelectOperatorMemoryColumnAndAlias(
+    std::string_view columnKey, uint64_t baseTimestamp, std::string &column, std::string &alias) {
     // id列，从db中的rowid查出并别名为id
     if (columnKey == "id") {
         column = StringUtil::FormatString("{}.{}", operatorTable, OpMemoryColumn::ID);
@@ -738,8 +686,7 @@ void TextMemoryDataBase::GetSelectOperatorMemoryColumnAndAlias(std::string_view 
     column = std::string(columnKey);
 }
 
-std::string TextMemoryDataBase::GetCreateOperatorMemoryTableSql()
-{
+std::string TextMemoryDataBase::GetCreateOperatorMemoryTableSql() {
     return StringUtil::FormatString("CREATE TABLE {} ("
                                     "{} TEXT,"
                                     "{} INTEGER,"
@@ -756,16 +703,15 @@ std::string TextMemoryDataBase::GetCreateOperatorMemoryTableSql()
                                     "{} INTEGER,"
                                     "{} TEXT,"
                                     "{} TEXT"
-                                    ");", operatorTable, OpMemoryColumn::NAME, OpMemoryColumn::SIZE,
-                                    OpMemoryColumn::ALLOCATION_TIME, OpMemoryColumn::RELEASE_TIME, OpMemoryColumn::ACTIVE_RELEASE_TIME,
-                                    OpMemoryColumn::DURATION, OpMemoryColumn::ACTIVE_DURATION,
-                                    OpMemoryColumn::ALLOCATION_ALLOCATED, OpMemoryColumn::ALLOCATION_RESERVE, OpMemoryColumn::ALLOCATION_ACTIVE,
-                                    OpMemoryColumn::RELEASE_ALLOCATED, OpMemoryColumn::RELEASE_RESERVE, OpMemoryColumn::RELEASE_ACTIVE,
-                                    OpMemoryColumn::STREAM, OpMemoryColumn::DEVICE_ID);
+                                    ");",
+        operatorTable, OpMemoryColumn::NAME, OpMemoryColumn::SIZE, OpMemoryColumn::ALLOCATION_TIME,
+        OpMemoryColumn::RELEASE_TIME, OpMemoryColumn::ACTIVE_RELEASE_TIME, OpMemoryColumn::DURATION,
+        OpMemoryColumn::ACTIVE_DURATION, OpMemoryColumn::ALLOCATION_ALLOCATED, OpMemoryColumn::ALLOCATION_RESERVE,
+        OpMemoryColumn::ALLOCATION_ACTIVE, OpMemoryColumn::RELEASE_ALLOCATED, OpMemoryColumn::RELEASE_RESERVE,
+        OpMemoryColumn::RELEASE_ACTIVE, OpMemoryColumn::STREAM, OpMemoryColumn::DEVICE_ID);
 }
 
-std::string TextMemoryDataBase::GetCreateStaticOpTableSql() const
-{
+std::string TextMemoryDataBase::GetCreateStaticOpTableSql() const {
     return StringUtil::FormatString("CREATE TABLE {} ("
                                     "{} INTEGER PRIMARY KEY AUTOINCREMENT,"
                                     "{} TEXT,"
@@ -775,13 +721,13 @@ std::string TextMemoryDataBase::GetCreateStaticOpTableSql() const
                                     "{} INTEGER,"
                                     "{} INTEGER,"
                                     "{} INTEGER"
-                                    ");", staticOpTable, StaticOpColumn::ID, StaticOpColumn::DEVICE_ID,
-                                    StaticOpColumn::OP_NAME, StaticOpColumn::MODEL_NAME, StaticOpColumn::GRAPH_ID,
-                                    StaticOpColumn::NODE_INDEX_START, StaticOpColumn::NODE_INDEX_END, StaticOpColumn::SIZE);
+                                    ");",
+        staticOpTable, StaticOpColumn::ID, StaticOpColumn::DEVICE_ID, StaticOpColumn::OP_NAME,
+        StaticOpColumn::MODEL_NAME, StaticOpColumn::GRAPH_ID, StaticOpColumn::NODE_INDEX_START,
+        StaticOpColumn::NODE_INDEX_END, StaticOpColumn::SIZE);
 }
 
-MemoryDataBaseContext TextMemoryDataBase::GetMemoryDbContext()
-{
+MemoryDataBaseContext TextMemoryDataBase::GetMemoryDbContext() {
     if (!initContextFlag) {
         memDbContext.withMemoryRecord = CheckTableExist(recordTable);
         memDbContext.withOperatorMemory = CheckTableExist(operatorTable);
