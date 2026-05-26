@@ -29,7 +29,7 @@ namespace Module {
 namespace Memory {
 using componentDtoVector = std::vector<Protocol::ComponentDto>;
 class TextMemoryDataBase : public VirtualMemoryDataBase {
-public:
+  public:
     explicit TextMemoryDataBase(std::recursive_mutex &sqlMutex);
     ~TextMemoryDataBase() override;
 
@@ -51,19 +51,19 @@ public:
 
     bool QueryMemoryType(std::string &type, std::vector<std::string> &graphId) override;
     bool QueryMemoryResourceType(std::string &type) override;
-    int64_t QueryOperatorDetail(Protocol::MemoryOperatorParams &requestParams,
-                                std::vector<Protocol::MemoryOperator> &opDetails) override;
+    int64_t QueryOperatorDetail(
+        Protocol::MemoryOperatorParams &requestParams, std::vector<Protocol::MemoryOperator> &opDetails) override;
     bool QueryComponentDetail(Protocol::MemoryComponentParams &requestParams,
-                              std::vector<Protocol::MemoryTableColumnAttr> &columnAttr,
-                              std::vector<Protocol::MemoryComponent> &componentDetails) override;
-    bool QueryMemoryView(Protocol::MemoryViewParams &requestParams,
-                         Protocol::MemoryViewData &operatorBody, uint64_t offsetTime) override;
+        std::vector<Protocol::MemoryTableColumnAttr> &columnAttr,
+        std::vector<Protocol::MemoryComponent> &componentDetails) override;
+    bool QueryMemoryView(Protocol::MemoryViewParams &requestParams, Protocol::MemoryViewData &operatorBody,
+        uint64_t offsetTime) override;
 
     int64_t QueryStaticOperatorList(Protocol::StaticOperatorListParams &requestParams,
         std::vector<Protocol::StaticOperatorItem> &opDetails) override;
 
-    bool QueryStaticOperatorGraph(Protocol::StaticOperatorGraphParams &requestParams,
-                             Protocol::StaticOperatorGraphItem &graphItem) override;
+    bool QueryStaticOperatorGraph(
+        Protocol::StaticOperatorGraphParams &requestParams, Protocol::StaticOperatorGraphItem &graphItem) override;
 
     void SaveRecordDetail();
     void SaveOperatorDetail();
@@ -72,25 +72,24 @@ public:
 
     bool QueryComponentsTotalNum(Protocol::MemoryComponentParams &requestParams, int64_t &totalNum) override;
     bool QueryOperatorSize(Protocol::MemoryOperatorSizeParams &requestParams, double &min, double &max) override;
-    bool QueryStaticOperatorSize(Protocol::StaticOperatorSizeParams &requestParams,
-                                 double &min, double &max) override;
+    bool QueryStaticOperatorSize(Protocol::StaticOperatorSizeParams &requestParams, double &min, double &max) override;
     bool QueryEntireOperatorTable(Protocol::MemoryOperatorParams &requestParams,
         std::vector<Protocol::MemoryOperator> &opDetails, uint64_t offsetTime) override;
     bool QueryEntireComponentTable(Protocol::MemoryComponentParams &requestParams,
         std::vector<Protocol::MemoryComponent> &componentDetails, uint64_t offsetTime) override;
-    bool QueryEntireStaticOperatorTable(Protocol::StaticOperatorListParams& requestParams,
-                                        std::vector<Protocol::StaticOperatorItem>& opDetails) override;
+    bool QueryEntireStaticOperatorTable(Protocol::StaticOperatorListParams &requestParams,
+        std::vector<Protocol::StaticOperatorItem> &opDetails) override;
     uint64_t QueryMinOperatorAllocationTime();
     uint64_t QueryMinRecordTimestamp();
     uint64_t QueryMinComponentTimestamp();
 
-    bool UpdateParseStatus(const std::string& status);
+    bool UpdateParseStatus(const std::string &status);
     bool HasFinishedParseLastTime();
-    void GetSelectOperatorMemoryColumnAndAlias(std::string_view columnKey, uint64_t baseTimestamp,
-                                               std::string& column, std::string& alias) override;
+    void GetSelectOperatorMemoryColumnAndAlias(
+        std::string_view columnKey, uint64_t baseTimestamp, std::string &column, std::string &alias) override;
     MemoryDataBaseContext GetMemoryDbContext() override;
 
-private:
+  private:
     // 动态图表格数据在数据库中存储表名为operator，全量DB对应表名OP_MEMORY
     const std::string operatorTable = "operator";
     // 动态图折线图数据在数据库中存储表名为record，全量DB对应表名MEMORY_RECORD
@@ -120,8 +119,8 @@ private:
 
     std::string GetOperatorSql(Protocol::MemoryOperatorParams &requestParams);
     std::string GetStaticOperatorSql(Protocol::StaticOperatorListParams &requestParams);
-    void GenerateGetStaticGraphNodeIndexSql(Protocol::StaticOperatorGraphParams &requestParams,
-        std::string &startSql, std::string &endSql);
+    void GenerateGetStaticGraphNodeIndexSql(
+        Protocol::StaticOperatorGraphParams &requestParams, std::string &startSql, std::string &endSql);
 
     std::string GetCreateOperatorMemoryTableSql();
     std::string GetCreateStaticOpTableSql() const;

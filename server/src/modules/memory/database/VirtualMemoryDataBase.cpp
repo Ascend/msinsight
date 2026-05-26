@@ -26,22 +26,24 @@ namespace Memory {
 using namespace Server;
 using namespace Dic::Module::Timeline;
 
-std::vector<std::string> VirtualMemoryDataBase::GetStreamLists(std::string deviceId, std::string deviceIdColumnName)
-{
+std::vector<std::string> VirtualMemoryDataBase::GetStreamLists(std::string deviceId, std::string deviceIdColumnName) {
     std::vector<std::string> streams = {};
     DataType type = DataBaseManager::Instance().GetDataType(path);
     std::string sql = "";
     if (type == DataType::TEXT) {
-        sql += "SELECT stream FROM " + recordTable + " WHERE deviceId = ? AND stream <> '' "
+        sql += "SELECT stream FROM " + recordTable +
+            " WHERE deviceId = ? AND stream <> '' "
             "Group BY stream ORDER BY timestamp ASC";
     } else if (type == DataType::DB) {
         FileType fileType = DataBaseManager::Instance().GetFileType(path);
         if (fileType == FileType::PYTORCH) {
             std::string streamPtrColumnName = "streamPtr";
             std::string timeColumnName = "timestamp";
-            sql += "SELECT " + streamPtrColumnName + " FROM " + TABLE_MEMORY_RECORD +
-                " WHERE " + deviceIdColumnName + " = ? AND " + streamPtrColumnName + " <> ''"
-                " Group BY " + streamPtrColumnName + " ORDER BY " + timeColumnName + " ASC";
+            sql += "SELECT " + streamPtrColumnName + " FROM " + TABLE_MEMORY_RECORD + " WHERE " + deviceIdColumnName +
+                " = ? AND " + streamPtrColumnName +
+                " <> ''"
+                " Group BY " +
+                streamPtrColumnName + " ORDER BY " + timeColumnName + " ASC";
         } else {
             ServerLog::Error("Memory tab does not support msprof data.");
             return streams;
@@ -63,15 +65,14 @@ std::vector<std::string> VirtualMemoryDataBase::GetStreamLists(std::string devic
     return streams;
 }
 
-bool VirtualMemoryDataBase::ExecuteMemoryType(std::vector<std::string> &graphId, std::string &type)
-{
+bool VirtualMemoryDataBase::ExecuteMemoryType(std::vector<std::string> &graphId, std::string &type) {
     if (!Database::CheckTableContainData(TABLE_STATIC_OPERATOR)) {
         type = Module::Memory::MEMORY_TYPE_DYNAMIC;
         return true;
     }
     type = Module::Memory::MEMORY_TYPE_STATIC;
-    std::string sql = StringUtil::FormatString("SELECT DISTINCT {} as graphId FROM {};",
-        StaticOpColumn::GRAPH_ID, TABLE_STATIC_OPERATOR);
+    std::string sql = StringUtil::FormatString(
+        "SELECT DISTINCT {} as graphId FROM {};", StaticOpColumn::GRAPH_ID, TABLE_STATIC_OPERATOR);
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -87,8 +88,7 @@ bool VirtualMemoryDataBase::ExecuteMemoryType(std::vector<std::string> &graphId,
     return true;
 }
 
-bool VirtualMemoryDataBase::ExecuteMemoryResourceType(std::string &type, std::string sql)
-{
+bool VirtualMemoryDataBase::ExecuteMemoryResourceType(std::string &type, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -104,9 +104,8 @@ bool VirtualMemoryDataBase::ExecuteMemoryResourceType(std::string &type, std::st
     return true;
 }
 
-bool VirtualMemoryDataBase::ExecuteOperatorSize(Protocol::MemoryOperatorSizeParams &requestParams, double &min,
-    double &max, std::string sql)
-{
+bool VirtualMemoryDataBase::ExecuteOperatorSize(
+    Protocol::MemoryOperatorSizeParams &requestParams, double &min, double &max, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -129,9 +128,8 @@ bool VirtualMemoryDataBase::ExecuteOperatorSize(Protocol::MemoryOperatorSizePara
     return true;
 }
 
-bool VirtualMemoryDataBase::ExecuteStaticOperatorSize(Protocol::StaticOperatorSizeParams &requestParams,
-                                                      double &min, double &max, const std::string &sql)
-{
+bool VirtualMemoryDataBase::ExecuteStaticOperatorSize(
+    Protocol::StaticOperatorSizeParams &requestParams, double &min, double &max, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -151,9 +149,8 @@ bool VirtualMemoryDataBase::ExecuteStaticOperatorSize(Protocol::StaticOperatorSi
     return true;
 }
 
-bool VirtualMemoryDataBase::ExecuteComponentTotalNum(Protocol::MemoryComponentParams &requestParams, int64_t &totalNum,
-                                                     std::string &sql)
-{
+bool VirtualMemoryDataBase::ExecuteComponentTotalNum(
+    Protocol::MemoryComponentParams &requestParams, int64_t &totalNum, std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -176,10 +173,8 @@ bool VirtualMemoryDataBase::ExecuteComponentTotalNum(Protocol::MemoryComponentPa
     return true;
 }
 
-bool VirtualMemoryDataBase::ExecuteStaticOperatorListTotalNum(Protocol::StaticOperatorListParams &requestParams,
-                                                              int64_t &totalNum,
-                                                              std::string sql)
-{
+bool VirtualMemoryDataBase::ExecuteStaticOperatorListTotalNum(
+    Protocol::StaticOperatorListParams &requestParams, int64_t &totalNum, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -206,9 +201,8 @@ bool VirtualMemoryDataBase::ExecuteStaticOperatorListTotalNum(Protocol::StaticOp
 }
 
 bool VirtualMemoryDataBase::ExecuteQueryMemoryViewExecuteSql(Protocol::MemoryViewParams &requestParams,
-    std::vector<Protocol::ComponentDto> &componentDtoVec, std::vector<std::string> &streams,
-    std::string &sql, std::string deviceIdColumnName)
-{
+    std::vector<Protocol::ComponentDto> &componentDtoVec, std::vector<std::string> &streams, std::string &sql,
+    std::string deviceIdColumnName) {
     sql = GetCurveSql(requestParams, sql);
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
@@ -243,8 +237,8 @@ bool VirtualMemoryDataBase::ExecuteQueryMemoryViewExecuteSql(Protocol::MemoryVie
         }
         componentDtoVec.push_back(std::move(componentDto));
     }
-    streams.erase(remove_if(streams.begin(), streams.end(), [](const std::string& s) { return s.empty(); }),
-                  streams.end());
+    streams.erase(
+        remove_if(streams.begin(), streams.end(), [](const std::string &s) { return s.empty(); }), streams.end());
     sqlite3_finalize(stmt);
     if (onlyGe) {
         isInference = true;
@@ -252,8 +246,7 @@ bool VirtualMemoryDataBase::ExecuteQueryMemoryViewExecuteSql(Protocol::MemoryVie
     return true;
 }
 
-std::string VirtualMemoryDataBase::GetCurveSql(const MemoryViewParams& requestParams, std::string& sql) const
-{
+std::string VirtualMemoryDataBase::GetCurveSql(const MemoryViewParams &requestParams, std::string &sql) const {
     if (requestParams.type == MEMORY_OVERALL_GROUP) {
         sql += " AND component != '" + COMPONENT_PTA + "' ";
     }
@@ -265,10 +258,8 @@ std::string VirtualMemoryDataBase::GetCurveSql(const MemoryViewParams& requestPa
 }
 
 bool VirtualMemoryDataBase::ExecuteQueryMemoryViewGetGraph(Protocol::MemoryViewParams &requestParams,
-                                                           std::vector<Protocol::ComponentDto> &componentDtoVec,
-                                                           std::vector<std::string> &streams,
-                                                           Protocol::MemoryViewData &operatorBody)
-{
+    std::vector<Protocol::ComponentDto> &componentDtoVec, std::vector<std::string> &streams,
+    Protocol::MemoryViewData &operatorBody) {
     Protocol::MemoryPeak peak;
     if (requestParams.type == Protocol::MEMORY_OVERALL_GROUP) {
         GetOverallLines(componentDtoVec, operatorBody.tempData, operatorBody.legends, peak, streams);
@@ -282,10 +273,8 @@ bool VirtualMemoryDataBase::ExecuteQueryMemoryViewGetGraph(Protocol::MemoryViewP
     return true;
 }
 
-int64_t VirtualMemoryDataBase::ExecuteOperatorDetail(Protocol::MemoryOperatorParams &requestParams,
-                                                     std::vector<Protocol::MemoryOperator> &opDetails,
-                                                     std::string &sql)
-{
+int64_t VirtualMemoryDataBase::ExecuteOperatorDetail(
+    Protocol::MemoryOperatorParams &requestParams, std::vector<Protocol::MemoryOperator> &opDetails, std::string &sql) {
     int64_t pageSize = requestParams.pageSize <= 0 ? defaultPageSize : requestParams.pageSize;
     int64_t currentPage = requestParams.currentPage - 1;
     currentPage = currentPage < 0 ? 0 : currentPage;
@@ -318,9 +307,8 @@ int64_t VirtualMemoryDataBase::ExecuteOperatorDetail(Protocol::MemoryOperatorPar
     return QueryOperatorDetailByStepWithCount(stmt, opDetails);
 }
 
-int64_t VirtualMemoryDataBase::QueryOperatorDetailByStepWithCount(sqlite3_stmt *stmt,
-                                                                  std::vector<Protocol::MemoryOperator> &operators)
-{
+int64_t VirtualMemoryDataBase::QueryOperatorDetailByStepWithCount(
+    sqlite3_stmt *stmt, std::vector<Protocol::MemoryOperator> &operators) {
     int64_t count = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int col = resultStartIndex;
@@ -348,8 +336,7 @@ int64_t VirtualMemoryDataBase::QueryOperatorDetailByStepWithCount(sqlite3_stmt *
 }
 
 bool VirtualMemoryDataBase::ExecuteQueryEntireOperatorTable(Protocol::MemoryOperatorParams &requestParams,
-    std::vector<Protocol::MemoryOperator> &opDetails, const std::string &sql)
-{
+    std::vector<Protocol::MemoryOperator> &opDetails, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -392,10 +379,8 @@ bool VirtualMemoryDataBase::ExecuteQueryEntireOperatorTable(Protocol::MemoryOper
 }
 
 bool VirtualMemoryDataBase::ExecuteComponentDetail(Protocol::MemoryComponentParams &requestParams,
-                                                   std::vector<Protocol::MemoryTableColumnAttr> &columnAttr,
-                                                   std::vector<Protocol::MemoryComponent> &componentDetails,
-                                                   std::string &sql)
-{
+    std::vector<Protocol::MemoryTableColumnAttr> &columnAttr, std::vector<Protocol::MemoryComponent> &componentDetails,
+    std::string &sql) {
     int64_t pageSize = requestParams.pageSize == 0 ? defaultPageSize : requestParams.pageSize;
     int64_t currentPage = requestParams.currentPage - 1;
     currentPage = currentPage < 0 ? 0 : currentPage;
@@ -434,8 +419,7 @@ bool VirtualMemoryDataBase::ExecuteComponentDetail(Protocol::MemoryComponentPara
 }
 
 bool VirtualMemoryDataBase::ExecuteQueryEntireComponentTable(Protocol::MemoryComponentParams &requestParams,
-    std::vector<Protocol::MemoryComponent> &componentDetails, std::string &sql)
-{
+    std::vector<Protocol::MemoryComponent> &componentDetails, std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -463,9 +447,8 @@ bool VirtualMemoryDataBase::ExecuteQueryEntireComponentTable(Protocol::MemoryCom
     return true;
 }
 
-bool VirtualMemoryDataBase::ExecuteStaticGraphTotalSize(Protocol::StaticOperatorGraphParams &requestParams,
-                                                        const std::string& totalSql, double &totalSize)
-{
+bool VirtualMemoryDataBase::ExecuteStaticGraphTotalSize(
+    Protocol::StaticOperatorGraphParams &requestParams, const std::string &totalSql, double &totalSize) {
     sqlite3_stmt *totalStmt = nullptr;
     int totalResult = sqlite3_prepare_v2(db, totalSql.c_str(), -1, &totalStmt, nullptr);
     if (totalResult != SQLITE_OK) {
@@ -486,9 +469,7 @@ bool VirtualMemoryDataBase::ExecuteStaticGraphTotalSize(Protocol::StaticOperator
 }
 
 bool VirtualMemoryDataBase::ExecuteStaticGraphStartIndex(Protocol::StaticOperatorGraphParams &requestParams,
-                                                         const std::string& graphStartSql,
-                                                         std::map<int64_t, double> &graphSizeMap, int64_t &maxIndex)
-{
+    const std::string &graphStartSql, std::map<int64_t, double> &graphSizeMap, int64_t &maxIndex) {
     sqlite3_stmt *startStmt = nullptr;
     int graphStartResult = sqlite3_prepare_v2(db, graphStartSql.c_str(), -1, &startStmt, nullptr);
     if (graphStartResult != SQLITE_OK) {
@@ -521,9 +502,7 @@ bool VirtualMemoryDataBase::ExecuteStaticGraphStartIndex(Protocol::StaticOperato
 }
 
 bool VirtualMemoryDataBase::ExecuteStaticGraphEndIndex(Protocol::StaticOperatorGraphParams &requestParams,
-                                                       const std::string& graphEndSql,
-                                                       std::map<int64_t, double> &graphSizeMap, int64_t &maxIndex)
-{
+    const std::string &graphEndSql, std::map<int64_t, double> &graphSizeMap, int64_t &maxIndex) {
     sqlite3_stmt *endStmt = nullptr;
     int graphEndResult = sqlite3_prepare_v2(db, graphEndSql.c_str(), -1, &endStmt, nullptr);
     if (graphEndResult != SQLITE_OK) {
@@ -556,11 +535,8 @@ bool VirtualMemoryDataBase::ExecuteStaticGraphEndIndex(Protocol::StaticOperatorG
 }
 
 bool VirtualMemoryDataBase::ExecuteStaticOperatorGraph(Protocol::StaticOperatorGraphParams &requestParams,
-                                                       Protocol::StaticOperatorGraphItem &graphItem,
-                                                       const std::string& totalSql,
-                                                       const std::string& graphStartSql,
-                                                       const std::string& graphEndSql)
-{
+    Protocol::StaticOperatorGraphItem &graphItem, const std::string &totalSql, const std::string &graphStartSql,
+    const std::string &graphEndSql) {
     double totalSize = staticDefaultTotalSize;
     if (!ExecuteStaticGraphTotalSize(requestParams, totalSql, totalSize)) {
         return false;
@@ -584,7 +560,8 @@ bool VirtualMemoryDataBase::ExecuteStaticOperatorGraph(Protocol::StaticOperatorG
     // 组装图例和图像数据
     graphItem.legends.insert(graphItem.legends.end(), staticGraphLegends.begin(), staticGraphLegends.end());
     double size = 0;
-    std::string totalSizeStr = StringUtil::DoubleToStringWithTwoDecimalPlaces(totalSize / kbSizeDouble); // 结果保留两位有效数字
+    std::string totalSizeStr =
+        StringUtil::DoubleToStringWithTwoDecimalPlaces(totalSize / kbSizeDouble); // 结果保留两位有效数字
     for (auto it = graphSizeMap.begin(); it != graphSizeMap.end(); ++it) {
         std::vector<std::string> points = {};
         size += it->second; // 遍历有序map，逐点计算总需分配内存
@@ -593,7 +570,8 @@ bool VirtualMemoryDataBase::ExecuteStaticOperatorGraph(Protocol::StaticOperatorG
         } else {
             points.emplace_back(std::to_string(maxIndex + 1)); // 存储值为maxUnsignedInt时，Node Index = maxIndex + 1
         }
-        points.emplace_back(StringUtil::DoubleToStringWithTwoDecimalPlaces(size / kbSizeDouble)); // Size，结果保留两位有效数字
+        points.emplace_back(
+            StringUtil::DoubleToStringWithTwoDecimalPlaces(size / kbSizeDouble)); // Size，结果保留两位有效数字
         points.emplace_back(totalSizeStr); // Total Size
         graphItem.lines.emplace_back(points);
     }
@@ -602,9 +580,7 @@ bool VirtualMemoryDataBase::ExecuteStaticOperatorGraph(Protocol::StaticOperatorG
 }
 
 int64_t VirtualMemoryDataBase::ExecuteStaticOperatorDetail(Protocol::StaticOperatorListParams &requestParams,
-                                                        std::vector<Protocol::StaticOperatorItem> &opDetails,
-                                                        const std::string& sql)
-{
+    std::vector<Protocol::StaticOperatorItem> &opDetails, const std::string &sql) {
     int64_t pageSize = requestParams.pageSize;
     if (pageSize == 0) {
         pageSize = defaultPageSize;
@@ -646,10 +622,8 @@ int64_t VirtualMemoryDataBase::ExecuteStaticOperatorDetail(Protocol::StaticOpera
     return totalNum;
 }
 
-bool VirtualMemoryDataBase::ExecuteQueryEntireStaticOperatorTable(Protocol::StaticOperatorListParams& requestParams,
-                                                                  std::vector<Protocol::StaticOperatorItem>& opDetails,
-                                                                  const std::string& sql)
-{
+bool VirtualMemoryDataBase::ExecuteQueryEntireStaticOperatorTable(Protocol::StaticOperatorListParams &requestParams,
+    std::vector<Protocol::StaticOperatorItem> &opDetails, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -676,8 +650,7 @@ bool VirtualMemoryDataBase::ExecuteQueryEntireStaticOperatorTable(Protocol::Stat
     return true;
 }
 
-std::string VirtualMemoryDataBase::BuildQueryOperatorMemoryTimeCondition(const MemoryOperatorParams& requestParams)
-{
+std::string VirtualMemoryDataBase::BuildQueryOperatorMemoryTimeCondition(const MemoryOperatorParams &requestParams) {
     std::string timeCondition;
     if (requestParams.startTime != -1 && requestParams.endTime != -1) {
         std::string startTimeStr = std::to_string(requestParams.startTime);
@@ -685,20 +658,18 @@ std::string VirtualMemoryDataBase::BuildQueryOperatorMemoryTimeCondition(const M
         // 仅展示在区间内申请或释放的算子
         if (requestParams.isOnlyShowAllocatedOrReleasedWithinInterval) {
             timeCondition = StringUtil::FormatString(" AND (_{} BETWEEN {} AND {} OR _{} BETWEEN {} AND {}) ",
-                                                     OpMemoryColumn::ALLOCATION_TIME, startTimeStr, endTimeStr,
-                                                     OpMemoryColumn::RELEASE_TIME, startTimeStr, endTimeStr);
+                OpMemoryColumn::ALLOCATION_TIME, startTimeStr, endTimeStr, OpMemoryColumn::RELEASE_TIME, startTimeStr,
+                endTimeStr);
         } else { // 所有与区间有交集的算子; 注意判空需要用原列而不是别名列
             timeCondition = StringUtil::FormatString(" AND (({} IS NULL OR {} = 0 OR _{} >= {}) AND _{} <= {}) ",
-                                                     OpMemoryColumn::RELEASE_TIME, OpMemoryColumn::RELEASE_TIME,
-                                                     OpMemoryColumn::RELEASE_TIME, startTimeStr,
-                                                     OpMemoryColumn::ALLOCATION_TIME, endTimeStr);
+                OpMemoryColumn::RELEASE_TIME, OpMemoryColumn::RELEASE_TIME, OpMemoryColumn::RELEASE_TIME, startTimeStr,
+                OpMemoryColumn::ALLOCATION_TIME, endTimeStr);
         }
     }
     return timeCondition;
 }
 
-std::string VirtualMemoryDataBase::BuildQueryFiltersCondition(const FiltersParam& requestParams)
-{
+std::string VirtualMemoryDataBase::BuildQueryFiltersCondition(const FiltersParam &requestParams) {
     std::string filtersCondition;
     for (auto &filterPair : requestParams.filters) {
         filtersCondition.append(StringUtil::FormatString(" AND _{} LIKE ? ", filterPair.first));
@@ -706,40 +677,36 @@ std::string VirtualMemoryDataBase::BuildQueryFiltersCondition(const FiltersParam
     return filtersCondition;
 }
 
-std::string VirtualMemoryDataBase::BuildQueryRangeFiltersCondition(const RangeFiltersParam& requestParams)
-{
+std::string VirtualMemoryDataBase::BuildQueryRangeFiltersCondition(const RangeFiltersParam &requestParams) {
     std::string rangeFiltersCondition;
-    for (const auto& [colName, rangePair] : requestParams.rangeFilters) {
+    for (const auto &[colName, rangePair] : requestParams.rangeFilters) {
         (void)(rangePair);
         rangeFiltersCondition.append(StringUtil::FormatString(" AND (_{} BETWEEN ? AND ?) ", colName));
     }
     return rangeFiltersCondition;
 }
 
-std::string VirtualMemoryDataBase::BuildQueryOrderByCondition(const OrderByParam& orderParam)
-{
+std::string VirtualMemoryDataBase::BuildQueryOrderByCondition(const OrderByParam &orderParam) {
     if (orderParam.orderBy.empty()) {
         return "";
     }
     std::string order = orderParam.desc ? "DESC" : "ASC";
     // 释放时间戳参数, 需要基于原始列而不是带_的别名列, 为NULL或0实际含义为无限大
-    if (orderParam.orderBy == OpMemoryColumn::RELEASE_TIME || orderParam.orderBy == OpMemoryColumn::ACTIVE_RELEASE_TIME) {
+    if (orderParam.orderBy == OpMemoryColumn::RELEASE_TIME ||
+        orderParam.orderBy == OpMemoryColumn::ACTIVE_RELEASE_TIME) {
         return StringUtil::FormatString(" ORDER BY CASE WHEN {} IS NULL OR {} = 0 THEN 1 ELSE 0 END {}, _{} {} ",
-                                        orderParam.orderBy, orderParam.orderBy, order,
-                                        orderParam.orderBy, order);
+            orderParam.orderBy, orderParam.orderBy, order, orderParam.orderBy, order);
     }
     // 申请时间戳参数, 需要基于原始列而不是带_的别名列, 为NULL或0实际含义为无限小
     if (orderParam.orderBy == OpMemoryColumn::ALLOCATION_TIME) {
         return StringUtil::FormatString(" ORDER BY CASE WHEN {} IS NULL OR {} = 0 THEN 0 ELSE 1 END {}, _{} {} ",
-                                        orderParam.orderBy, orderParam.orderBy, order,
-                                        orderParam.orderBy, order);
+            orderParam.orderBy, orderParam.orderBy, order, orderParam.orderBy, order);
     }
     // 其余字段正常排序
     return StringUtil::FormatString(" ORDER BY _{} {} ", orderParam.orderBy, order);
 }
 
-void VirtualMemoryDataBase::SqlBindQueryFilters(sqlite3_stmt* stmt, int& bindIndex, const FiltersParam& params)
-{
+void VirtualMemoryDataBase::SqlBindQueryFilters(sqlite3_stmt *stmt, int &bindIndex, const FiltersParam &params) {
     if (stmt == nullptr) {
         ServerLog::Error("Failed to bind query filters param, empty stmt");
         return;
@@ -750,12 +717,11 @@ void VirtualMemoryDataBase::SqlBindQueryFilters(sqlite3_stmt* stmt, int& bindInd
     }
     for (auto &filterPair : params.filters) {
         std::string filterPattern = StringUtil::FormatString("%{}%", filterPair.second);
-        sqlite3_bind_text(stmt, bindIndex++, filterPattern.c_str(),
-                          filterPattern.length(), SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, bindIndex++, filterPattern.c_str(), filterPattern.length(), SQLITE_TRANSIENT);
     }
 }
-void VirtualMemoryDataBase::SqlBindQueryRangeFilters(sqlite3_stmt* stmt, int& bindIndex, const RangeFiltersParam& params)
-{
+void VirtualMemoryDataBase::SqlBindQueryRangeFilters(
+    sqlite3_stmt *stmt, int &bindIndex, const RangeFiltersParam &params) {
     if (stmt == nullptr) {
         ServerLog::Error("Failed to bind query range filters param, empty stmt");
         return;
@@ -764,15 +730,14 @@ void VirtualMemoryDataBase::SqlBindQueryRangeFilters(sqlite3_stmt* stmt, int& bi
         ServerLog::Error("Failed to bind query range filters param, over limit.");
         return;
     }
-    for (const auto& [colName, rangePair] : params.rangeFilters) {
+    for (const auto &[colName, rangePair] : params.rangeFilters) {
         (void)(colName);
         sqlite3_bind_double(stmt, bindIndex++, rangePair.first);
         sqlite3_bind_double(stmt, bindIndex++, rangePair.second);
     }
 }
 
-void VirtualMemoryDataBase::AddOperatorSql(Protocol::MemoryOperatorParams requestParams, std::string &sql)
-{
+void VirtualMemoryDataBase::AddOperatorSql(Protocol::MemoryOperatorParams requestParams, std::string &sql) {
     if (requestParams.type == Protocol::MEMORY_STREAM_GROUP) {
         // Stream不为空
         sql = StringUtil::StrJoin(sql, StringUtil::FormatString(" AND _{} <> '' ", OpMemoryColumn::STREAM));
@@ -781,43 +746,36 @@ void VirtualMemoryDataBase::AddOperatorSql(Protocol::MemoryOperatorParams reques
     std::string filtersCondition = BuildQueryFiltersCondition(requestParams);
     std::string rangeFiltersCondition = BuildQueryRangeFiltersCondition(requestParams);
     std::string orderByCondition = BuildQueryOrderByCondition(requestParams);
-    sql = StringUtil::StrJoin(sql, timeCondition, filtersCondition,
-                              rangeFiltersCondition, orderByCondition, " LIMIT ? OFFSET ? ");
+    sql = StringUtil::StrJoin(
+        sql, timeCondition, filtersCondition, rangeFiltersCondition, orderByCondition, " LIMIT ? OFFSET ? ");
 }
 
-void VirtualMemoryDataBase::AddStableOperatorSql(Protocol::StaticOperatorListParams requestParams, std::string &sql)
-{
+void VirtualMemoryDataBase::AddStableOperatorSql(Protocol::StaticOperatorListParams requestParams, std::string &sql) {
     if (!requestParams.graphId.empty()) {
         sql += StringUtil::FormatString(" AND {} = ? ", StaticOpColumn::GRAPH_ID);
     }
     if (requestParams.startNodeIndex >= 0 && requestParams.endNodeIndex >= requestParams.startNodeIndex) {
         std::string tmpBetweenAndSql = StringUtil::FormatString("BETWEEN {} AND {}",
             std::to_string(requestParams.startNodeIndex), std::to_string(requestParams.endNodeIndex));
-        sql += StringUtil::FormatString(" AND ({} {} OR {} {}) ",
-            StaticOpColumn::NODE_INDEX_START, tmpBetweenAndSql,
+        sql += StringUtil::FormatString(" AND ({} {} OR {} {}) ", StaticOpColumn::NODE_INDEX_START, tmpBetweenAndSql,
             StaticOpColumn::NODE_INDEX_END, tmpBetweenAndSql);
     }
 
     if (requestParams.minSize != std::numeric_limits<int64_t>::min()) {
-        sql += StringUtil::FormatString(" AND {} >= {} ",
-            StaticOpColumn::SIZE, std::to_string(requestParams.minSize));
+        sql += StringUtil::FormatString(" AND {} >= {} ", StaticOpColumn::SIZE, std::to_string(requestParams.minSize));
     }
     if (requestParams.maxSize != std::numeric_limits<int64_t>::max()) {
-        sql += StringUtil::FormatString(" AND {} <= {} ",
-            StaticOpColumn::SIZE, std::to_string(requestParams.maxSize));
+        sql += StringUtil::FormatString(" AND {} <= {} ", StaticOpColumn::SIZE, std::to_string(requestParams.maxSize));
     }
     if (!requestParams.orderBy.empty()) {
-        std::string ascend = requestParams.desc? "DESC" : "ASC";
+        std::string ascend = requestParams.desc ? "DESC" : "ASC";
         sql += StringUtil::FormatString(" ORDER BY {} {} ", requestParams.orderBy, ascend);
     }
     sql += " LIMIT ? offset ?";
 }
 
 void VirtualMemoryDataBase::BuildOverallLinesComponentPoints(const Protocol::ComponentDto &item,
-                                                             const std::vector<std::string> &streams,
-                                                             Protocol::MemoryPeak &peak,
-                                                             std::vector<double> &lines)
-{
+    const std::vector<std::string> &streams, Protocol::MemoryPeak &peak, std::vector<double> &lines) {
     peak.appReserved = std::max(peak.appReserved, item.totalReserved);
     if (peak.hasPtaGe) {
         lines.emplace_back(std::numeric_limits<double>::quiet_NaN());
@@ -836,10 +794,7 @@ void VirtualMemoryDataBase::BuildOverallLinesComponentPoints(const Protocol::Com
 }
 
 void VirtualMemoryDataBase::BuildOverallLinesFrameworkPoints(const Protocol::ComponentDto &item,
-                                                             const std::vector<std::string> &streams,
-                                                             Protocol::MemoryPeak &peak,
-                                                             std::vector<double> &lines)
-{
+    const std::vector<std::string> &streams, Protocol::MemoryPeak &peak, std::vector<double> &lines) {
     peak.ptaGeAllocated = std::max(peak.ptaGeAllocated, item.totalAllocated);
     peak.ptaGeReserved = std::max(peak.ptaGeReserved, item.totalReserved);
     peak.ptaGeActivated = std::max(peak.ptaGeActivated, item.totalActivated);
@@ -857,10 +812,7 @@ void VirtualMemoryDataBase::BuildOverallLinesFrameworkPoints(const Protocol::Com
 }
 
 void VirtualMemoryDataBase::BuildOverallLinesWorkspacePoints(const Protocol::ComponentDto &item,
-                                                             const std::vector<std::string> &streams,
-                                                             Protocol::MemoryPeak &peak,
-                                                             std::vector<double> &lines)
-{
+    const std::vector<std::string> &streams, Protocol::MemoryPeak &peak, std::vector<double> &lines) {
     if (peak.hasPtaGe) {
         lines.emplace_back(std::numeric_limits<double>::quiet_NaN());
     }
@@ -883,19 +835,17 @@ void VirtualMemoryDataBase::BuildOverallLinesWorkspacePoints(const Protocol::Com
  * 如果整组数据中某个标签的数据都不存在，不仅在标签中删除，也在[x,y,y,y,y]中删除该元素。
  * 如果只是部分时间上某些标签的数据不存在，则补NULL。
  */
-void VirtualMemoryDataBase::GetOverallLines(const componentDtoVector &componentDtoVec,
-    std::vector<double> &lines, std::vector<std::string> &legends, Protocol::MemoryPeak &peak,
-    const std::vector<std::string> &streams)
-{
+void VirtualMemoryDataBase::GetOverallLines(const componentDtoVector &componentDtoVec, std::vector<double> &lines,
+    std::vector<std::string> &legends, Protocol::MemoryPeak &peak, const std::vector<std::string> &streams) {
     GetOverallLinesLegends(componentDtoVec, legends, peak, streams);
-    for (auto &item: componentDtoVec) {
+    for (auto &item : componentDtoVec) {
         if (item.component == COMPONENT_APP) {
             lines.emplace_back(item.timesTamp);
             BuildOverallLinesComponentPoints(item, streams, peak, lines);
             continue;
         }
-        if (item.component == COMPONENT_PTA_AND_GE || item.component == MIND_SPORE_GE
-            || (isInference && item.component == COMPONENT_GE)) {
+        if (item.component == COMPONENT_PTA_AND_GE || item.component == MIND_SPORE_GE ||
+            (isInference && item.component == COMPONENT_GE)) {
             lines.emplace_back(item.timesTamp);
             BuildOverallLinesFrameworkPoints(item, streams, peak, lines);
             continue;
@@ -908,16 +858,14 @@ void VirtualMemoryDataBase::GetOverallLines(const componentDtoVector &componentD
 }
 
 void VirtualMemoryDataBase::GetOverallLinesLegends(const componentDtoVector &componentDtoVec,
-    std::vector<std::string> &legends, Protocol::MemoryPeak &peak,
-    const std::vector<std::string> &streams)
-{
-    for (auto &item: componentDtoVec) {
+    std::vector<std::string> &legends, Protocol::MemoryPeak &peak, const std::vector<std::string> &streams) {
+    for (auto &item : componentDtoVec) {
         if (item.component == COMPONENT_WORKSPACE) {
             peak.hasWorkspace = true;
             continue;
         }
-        if (item.component == COMPONENT_PTA_AND_GE || item.component == MIND_SPORE_GE
-            || (isInference && item.component == COMPONENT_GE)) {
+        if (item.component == COMPONENT_PTA_AND_GE || item.component == MIND_SPORE_GE ||
+            (isInference && item.component == COMPONENT_GE)) {
             peak.hasPtaGe = true;
             continue;
         }
@@ -926,7 +874,7 @@ void VirtualMemoryDataBase::GetOverallLinesLegends(const componentDtoVector &com
         }
     }
 
-    for (const auto& legend : baseLegends) {
+    for (const auto &legend : baseLegends) {
         if (!peak.hasPtaGe && legend == "Operators Allocated") {
             continue;
         }
@@ -947,14 +895,12 @@ void VirtualMemoryDataBase::GetOverallLinesLegends(const componentDtoVector &com
 }
 
 void VirtualMemoryDataBase::GetComponentLines(const Dic::Module::Memory::componentDtoVector &componentDtoVec,
-                                              std::vector<double> &lines,
-                                              std::vector<std::string> &legends, Protocol::MemoryPeak &peak,
-                                              const std::vector<std::string> &streams)
-{
+    std::vector<double> &lines, std::vector<std::string> &legends, Protocol::MemoryPeak &peak,
+    const std::vector<std::string> &streams) {
     GetComponentLinesLegends(componentDtoVec, legends, peak);
     // 3表示无PTA数据或无GE数据插入3个NULL
     const int sizeMembers = 3;
-    for (auto &item: componentDtoVec) {
+    for (auto &item : componentDtoVec) {
         if (item.component == COMPONENT_PTA) {
             peak.ptaAllocated = std::max(peak.ptaAllocated, item.totalAllocated);
             peak.ptaReserved = std::max(peak.ptaReserved, item.totalReserved);
@@ -993,22 +939,19 @@ void VirtualMemoryDataBase::GetComponentLines(const Dic::Module::Memory::compone
     }
 }
 
-void VirtualMemoryDataBase::InsertSize(std::vector<double> &points, const Protocol::ComponentDto &item)
-{
+void VirtualMemoryDataBase::InsertSize(std::vector<double> &points, const Protocol::ComponentDto &item) {
     points.emplace_back(item.totalAllocated);
     points.emplace_back(item.totalActivated);
     points.emplace_back(item.totalReserved);
 }
 
-void VirtualMemoryDataBase::InsertStringNull(std::vector<double> &points, const int times)
-{
+void VirtualMemoryDataBase::InsertStringNull(std::vector<double> &points, const int times) {
     points.insert(points.end(), times, std::numeric_limits<double>::quiet_NaN());
 }
 
 void VirtualMemoryDataBase::GetComponentLinesLegends(const Dic::Module::Memory::componentDtoVector &componentDtoVec,
-                                                     std::vector<std::string> &legends, Protocol::MemoryPeak &peak)
-{
-    for (auto &item: componentDtoVec) {
+    std::vector<std::string> &legends, Protocol::MemoryPeak &peak) {
+    for (auto &item : componentDtoVec) {
         if (item.component == COMPONENT_PTA) {
             peak.hasPta = true;
         } else if (item.component == COMPONENT_GE) {
@@ -1031,29 +974,27 @@ void VirtualMemoryDataBase::GetComponentLinesLegends(const Dic::Module::Memory::
     }
 }
 
-void VirtualMemoryDataBase::GetStreamLines(const componentDtoVector &componentDtoVec,
-    std::vector<double> &lines, std::vector<std::string> &legends, Protocol::MemoryPeak &peak,
-    const std::vector<std::string> &streams)
-{
+void VirtualMemoryDataBase::GetStreamLines(const componentDtoVector &componentDtoVec, std::vector<double> &lines,
+    std::vector<std::string> &legends, Protocol::MemoryPeak &peak, const std::vector<std::string> &streams) {
     // 组装图例
     if (componentDtoVec.empty() && streams.empty()) {
         legends.insert(legends.end(), baseLegends.begin(), baseLegends.end());
     } else {
         legends.emplace_back(baseLegends[0]);
     }
-    for (const auto& stream : streams) {
+    for (const auto &stream : streams) {
         legends.emplace_back("Allocated of " + stream);
         legends.emplace_back("Activated of " + stream);
         legends.emplace_back("Reserved of " + stream);
     }
     // 组装数据点
-    for (auto &item: componentDtoVec) {
+    for (auto &item : componentDtoVec) {
         if (item.component != COMPONENT_PTA_AND_GE) {
             continue;
         }
         lines.emplace_back(item.timesTamp);
         std::string streamId = item.streamId;
-        for (const auto& stream : streams) {
+        for (const auto &stream : streams) {
             if (stream == streamId) {
                 lines.emplace_back(item.totalAllocated);
                 lines.emplace_back(item.totalActivated);
@@ -1065,9 +1006,8 @@ void VirtualMemoryDataBase::GetStreamLines(const componentDtoVector &componentDt
     }
 }
 
-std::string VirtualMemoryDataBase::GetPeakMemory(const Protocol::MemoryPeak &peak,
-    const std::vector<std::string> &streams)
-{
+std::string VirtualMemoryDataBase::GetPeakMemory(
+    const Protocol::MemoryPeak &peak, const std::vector<std::string> &streams) {
     std::string peakMemory = "Peak Memory Usage: ";
     const size_t decimalPlacesNum = 4;
     if (peak.hasPtaGe) {
@@ -1085,9 +1025,9 @@ std::string VirtualMemoryDataBase::GetPeakMemory(const Protocol::MemoryPeak &pea
         peakMemory.append(" | Operator Reserved: ").append(ptaGeRe).append("MB");
     }
     if (peak.hasPta) {
-        std::string ptaAllo = std::to_string(peak.ptaAllocated);
-        ptaAllo = ptaAllo.substr(0, ptaAllo.length() - decimalPlacesNum);
-        peakMemory.append("PTA Allocated: ").append(ptaAllo).append("MB");
+        std::string ptaAllocatedText = std::to_string(peak.ptaAllocated);
+        ptaAllocatedText = ptaAllocatedText.substr(0, ptaAllocatedText.length() - decimalPlacesNum);
+        peakMemory.append("PTA Allocated: ").append(ptaAllocatedText).append("MB");
         std::string ptaActi = std::to_string(peak.ptaActivated);
         ptaActi = ptaActi.substr(0, ptaActi.length() - decimalPlacesNum);
         peakMemory.append(" | PTA Activated: ").append(ptaActi).append("MB");
@@ -1107,15 +1047,14 @@ std::string VirtualMemoryDataBase::GetPeakMemory(const Protocol::MemoryPeak &pea
         peakMemory.append(" | GE Reserved: ").append(geRes).append("MB");
     }
     if (peak.hasApp) {
-        std::string appAllo = std::to_string(peak.appReserved);
-        appAllo = appAllo.substr(0, appAllo.length() - decimalPlacesNum);
-        peakMemory.append(" | APP Reserved: ").append(appAllo).append("MB");
+        std::string appReservedText = std::to_string(peak.appReserved);
+        appReservedText = appReservedText.substr(0, appReservedText.length() - decimalPlacesNum);
+        peakMemory.append(" | APP Reserved: ").append(appReservedText).append("MB");
     }
     return peakMemory;
 }
 
-std::string VirtualMemoryDataBase::GetSelectOperatorMemoryFullColumnsWithCount(uint64_t baseTimestamp)
-{
+std::string VirtualMemoryDataBase::GetSelectOperatorMemoryFullColumnsWithCount(uint64_t baseTimestamp) {
     std::string columns = "COUNT(*) OVER() AS countOver";
 
     for (const auto &columnObj : OperatorMemoryTableView::FIELD_FULL_COLUMNS) {
@@ -1128,8 +1067,7 @@ std::string VirtualMemoryDataBase::GetSelectOperatorMemoryFullColumnsWithCount(u
     return columns;
 }
 
-std::string VirtualMemoryDataBase::ConvertTimestampStr(const std::string& timestampStr)
-{
+std::string VirtualMemoryDataBase::ConvertTimestampStr(const std::string &timestampStr) {
     std::string result = timestampStr;
     if (timestampStr.empty() || timestampStr[0] == '-') {
         result = "N/A";
@@ -1137,9 +1075,8 @@ std::string VirtualMemoryDataBase::ConvertTimestampStr(const std::string& timest
     return result;
 }
 
-void VirtualMemoryDataBase::GetStaticOperatorColumns(std::vector<Protocol::MemoryTableColumnAttr> &copyTo)
-{
-    for (const auto &col: staticOpTableColumnAttr) {
+void VirtualMemoryDataBase::GetStaticOperatorColumns(std::vector<Protocol::MemoryTableColumnAttr> &copyTo) {
+    for (const auto &col : staticOpTableColumnAttr) {
         copyTo.push_back(col);
     }
 }
