@@ -30,21 +30,36 @@ import {
 import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { Session } from '@/entity/session';
 import { Input, Progress, ResizeTable, ResizeTableRef, SearchIcon } from '@insight/lib';
-import { LeftOutlined, RightOutlined } from '@ant-design/icons';
+import { ColumnWidthOutlined, LeftOutlined, OneToOneOutlined, RightOutlined } from '@ant-design/icons';
+import { Tooltip } from '@insight/lib/components';
 import { type Theme, useTheme } from '@emotion/react';
 import { formatBytes } from '@/utils/utils';
 import { type EvenItem, getMemoryStateData, getSnapshotEvent } from '@/utils/RequestUtils';
 import { observer } from 'mobx-react';
 import { useTranslation } from 'react-i18next';
 import styled from '@emotion/styled/macro';
-import { Loading, StateHoverItem } from './tools';
+import {
+    graphToolbarTooltipClassName,
+    GraphKeycap,
+    GraphMouseIcon,
+    GraphShortcutActions,
+    GraphShortcutRow,
+    GraphShortcutTip,
+    GraphShortcutTitle,
+    GraphToolbar,
+    GraphToolbarTooltipStyle,
+    GraphWheelCombo,
+    GraphWheelIcon,
+    Loading,
+    StateHoverItem,
+} from './tools';
 
 export const MemoryStateDiagram = ({ session }: { session: Session }): JSX.Element => {
     return <div style={{ display: 'flex', height: 800 }}>
         <div style={{ width: 350 }}>
             <EventList session={session} />
         </div>
-        <div style={{ flex: 1, padding: '0 30px' }}>
+        <div style={{ flex: 1, paddingLeft: 30 }}>
             <StateDiagramCanvas session={session} />
         </div>
     </div>;
@@ -304,13 +319,37 @@ const ProgressLine = ({ currentCount, total }: { currentCount: number; total: nu
     </>;
 };
 
+const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+const STATE_X_ZOOM_STEP_MULTIPLIER = 3;
+const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX;
+const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY;
+
 const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Element => {
+    const { t } = useTranslation('leaks');
     const containerRef = useRef<HTMLDivElement>(null);
     const ref = useRef<HTMLCanvasElement>(null);
     const [hoverPoint, setHoverPoint] = useState({ x: -1, y: -1 });
+    const [xZoomMode, setXZoomMode] = useState(true);
+    const xZoomModeRef = useRef(true);
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
+
+    const resetTransform = (): void => {
+        runInAction(() => {
+            session.stateWorkerInfo.renderOptions.transform = { ...DEFAULT_TRANSFORM };
+        });
+        workerTransform({ transform: { ...DEFAULT_TRANSFORM } });
+        workerHoverItem({ clientX: -1, clientY: -1 });
+    };
+
+    const toggleXZoomMode = (): void => {
+        setXZoomMode(mode => {
+            const nextMode = !mode;
+            xZoomModeRef.current = nextMode;
+            return nextMode;
+        });
+    };
 
     const handleResize = (): void => {
         if (containerRef.current === null) {
@@ -340,26 +379,30 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
 
         // 获取当前变换参数
         const currentTransform = session.stateWorkerInfo.renderOptions.transform;
+        const currentScaleX = getTransformScaleX(currentTransform);
+        const currentScaleY = getTransformScaleY(currentTransform);
+        const onlyScaleX = ev.shiftKey || (!ev.ctrlKey && xZoomModeRef.current);
 
         // 计算缩放前鼠标在实际内容中的相对位置（相对于画布原点）
-        const originalContentMouseX = (mouseX - currentTransform.x) / currentTransform.scale;
-        const originalContentMouseY = (mouseY - currentTransform.y) / currentTransform.scale;
+        const originalContentMouseX = (mouseX - currentTransform.x) / currentScaleX;
+        const originalContentMouseY = (mouseY - currentTransform.y) / currentScaleY;
 
         // 计算新的缩放值
-        const deltaScale = ev.deltaY > 0 ? -0.1 : 0.1;
-        const newScale = Math.max(0.1, currentTransform.scale + deltaScale);
+        const deltaScale = (ev.deltaY > 0 ? -0.1 : 0.1) * (onlyScaleX ? STATE_X_ZOOM_STEP_MULTIPLIER : 1);
+        const newScaleX = Math.max(0.1, currentScaleX + deltaScale);
+        const newScaleY = onlyScaleX ? currentScaleY : Math.max(0.1, currentScaleY + deltaScale);
 
         const maxRangeX = rect.width;
-        const minRangeX = -rect.width * newScale;
+        const minRangeX = -rect.width * newScaleX;
         const maxRangeY = rect.height;
-        const minRangeY = -rect.height * newScale;
+        const minRangeY = -rect.height * newScaleY;
         // 计算缩放后的新偏移，使鼠标下的内容位置不变
         // 原始偏移距离 + (内容相对位置 * (新缩放 - 旧缩放))
-        const newX = Math.min(Math.max(mouseX - originalContentMouseX * newScale, minRangeX), maxRangeX);
-        const newY = Math.min(Math.max(mouseY - originalContentMouseY * newScale, minRangeY), maxRangeY);
+        const newX = Math.min(Math.max(mouseX - originalContentMouseX * newScaleX, minRangeX), maxRangeX);
+        const newY = onlyScaleX ? currentTransform.y : Math.min(Math.max(mouseY - originalContentMouseY * newScaleY, minRangeY), maxRangeY);
 
         // 更新变换参数
-        const transform = { x: newX, y: newY, scale: newScale };
+        const transform = { x: newX, y: newY, scaleX: newScaleX, scaleY: newScaleY };
         runInAction(() => {
             session.stateWorkerInfo.renderOptions.transform = transform;
         });
@@ -368,9 +411,19 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
     };
 
     const handleMouseDown = (ev: MouseEvent): void => {
-        if (ev.button !== 0 || ref.current === null) {
+        if (ref.current === null) {
             return;
         }
+        if (ev.button === 1) {
+            ev.preventDefault();
+            ref.current.focus({ preventScroll: true });
+            resetTransform();
+            return;
+        }
+        if (ev.button !== 0) {
+            return;
+        }
+        ref.current.focus({ preventScroll: true });
         isClick.current = true;
         const rect = ref.current.getBoundingClientRect();
         dragStartPoint.current = {
@@ -388,6 +441,9 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         isClick.current = false;
         setHoverPoint({ x: -1, y: -1 });
         workerHoverItem({ clientX: -1, clientY: -1 });
+        runInAction(() => {
+            session.stateWorkerInfo.hoverItem = null;
+        });
     };
 
     const handleMouseMove = (ev: MouseEvent): void => {
@@ -414,13 +470,15 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         setHoverPoint({ x: -1, y: -1 });
 
         const currentTransform = session.stateWorkerInfo.renderOptions.transform;
+        const currentScaleX = getTransformScaleX(currentTransform);
+        const currentScaleY = getTransformScaleY(currentTransform);
 
         const deltaX = currentX - dragStartPoint.current.x;
         const deltaY = currentY - dragStartPoint.current.y;
         const maxRangeX = rect.width;
-        const minRangeX = -rect.width * currentTransform.scale;
+        const minRangeX = -rect.width * currentScaleX;
         const maxRangeY = rect.height;
-        const minRangeY = -rect.height * currentTransform.scale;
+        const minRangeY = -rect.height * currentScaleY;
 
         const transform = {
             ...currentTransform,
@@ -454,11 +512,76 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         }
     };
 
+    const handleKeyDown = (ev: KeyboardEvent): void => {
+        if (ref.current !== null && (ev.ctrlKey || ev.shiftKey) && ['+', '=', '-', '_'].includes(ev.key)) {
+            ev.preventDefault();
+            const rect = ref.current.getBoundingClientRect();
+            const direction = ev.key === '-' || ev.key === '_' ? -1 : 1;
+            const onlyScaleX = ev.shiftKey && !ev.ctrlKey;
+            const mouseX = rect.width / 2;
+            const mouseY = rect.height / 2;
+            const currentTransform = session.stateWorkerInfo.renderOptions.transform;
+            const currentScaleX = getTransformScaleX(currentTransform);
+            const currentScaleY = getTransformScaleY(currentTransform);
+            const originalContentMouseX = (mouseX - currentTransform.x) / currentScaleX;
+            const originalContentMouseY = (mouseY - currentTransform.y) / currentScaleY;
+            const deltaScale = 0.1 * direction;
+            const newScaleX = Math.max(0.1, currentScaleX + deltaScale);
+            const newScaleY = onlyScaleX ? currentScaleY : Math.max(0.1, currentScaleY + deltaScale);
+            const maxRangeX = rect.width;
+            const minRangeX = -rect.width * newScaleX;
+            const maxRangeY = rect.height;
+            const minRangeY = -rect.height * newScaleY;
+            const transform = {
+                x: Math.min(Math.max(mouseX - originalContentMouseX * newScaleX, minRangeX), maxRangeX),
+                y: onlyScaleX ? currentTransform.y : Math.min(Math.max(mouseY - originalContentMouseY * newScaleY, minRangeY), maxRangeY),
+                scaleX: newScaleX,
+                scaleY: newScaleY,
+            };
+            runInAction(() => {
+                session.stateWorkerInfo.renderOptions.transform = transform;
+            });
+            workerTransform({ transform });
+            return;
+        }
+        if (ev.key.toLowerCase() === 'r') {
+            resetTransform();
+            return;
+        }
+        if (ev.key.toLowerCase() === 'h') {
+            toggleXZoomMode();
+        }
+    };
+
+    useEffect(() => {
+        xZoomModeRef.current = xZoomMode;
+    }, [xZoomMode]);
+
+    const renderXZoomTooltip = (): JSX.Element => <GraphShortcutTip>
+        <GraphShortcutTitle>{t('enableDisableXZoom')}<GraphShortcutActions><GraphKeycap>H</GraphKeycap></GraphShortcutActions></GraphShortcutTitle>
+        <GraphShortcutRow>
+            <span>{t('equalZoomHelp')}</span>
+            <GraphWheelCombo><GraphKeycap>Ctrl</GraphKeycap><span>+</span><GraphWheelIcon /><span>/</span><GraphKeycap>+</GraphKeycap><GraphKeycap>-</GraphKeycap></GraphWheelCombo>
+        </GraphShortcutRow>
+        <GraphShortcutRow>
+            <span>{t('xZoomWheelHelp')}</span>
+            <GraphWheelCombo><GraphKeycap>Shift</GraphKeycap><span>+</span><GraphWheelIcon /><span>/</span><GraphKeycap>+</GraphKeycap><GraphKeycap>-</GraphKeycap></GraphWheelCombo>
+        </GraphShortcutRow>
+    </GraphShortcutTip>;
+
+    const renderResetTooltip = (): JSX.Element => <GraphShortcutTip>
+        <GraphShortcutTitle>
+            {t('resetView')}
+            <GraphShortcutActions><GraphKeycap>R</GraphKeycap><span>/</span><GraphMouseIcon /></GraphShortcutActions>
+        </GraphShortcutTitle>
+    </GraphShortcutTip>;
+
     useEffect(() => {
         if (ref.current === null || containerRef.current === null) {
             return;
         }
         const canvas = ref.current;
+        canvas.tabIndex = 0;
         try {
             const containerRect = containerRef.current.getBoundingClientRect();
             const width = containerRect.width;
@@ -484,29 +607,54 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
 
         canvas.addEventListener('wheel', handleWheel, { passive: false, capture: true });
         canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('auxclick', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseLeave);
         canvas.addEventListener('click', handleClick);
+        canvas.addEventListener('keydown', handleKeyDown);
 
         return () => {
             window.removeEventListener('resize', handleResize);
 
             canvas.removeEventListener('wheel', handleWheel, { capture: true });
             canvas.removeEventListener('mousedown', handleMouseDown);
+            canvas.removeEventListener('auxclick', handleMouseDown);
             canvas.removeEventListener('mousemove', handleMouseMove);
             canvas.removeEventListener('mouseup', handleMouseUp);
             canvas.removeEventListener('mouseleave', handleMouseLeave);
             canvas.removeEventListener('click', handleClick);
+            canvas.removeEventListener('keydown', handleKeyDown);
         };
     }, []);
 
-    return <div data-testid="stateDiagram" ref={containerRef} style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>
-        <canvas
-            ref={ref}
-            style={{ position: 'absolute', top: 0, imageRendering: 'pixelated', touchAction: 'none' }}
-        />
-        <StateHoverItem session={session} point={hoverPoint} />
-        <Loading style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} loading={session.loadingState} />
+    return <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', width: '100%', height: '100%', paddingTop: 36 }}>
+        <GraphToolbarTooltipStyle />
+        <GraphToolbar>
+            <Tooltip title={renderResetTooltip()} placement="topRight" overlayClassName={graphToolbarTooltipClassName} mouseEnterDelay={0} mouseLeaveDelay={0}>
+                <button type="button" aria-label={`${t('resetView')}`} onClick={resetTransform}>
+                    <OneToOneOutlined />
+                </button>
+            </Tooltip>
+            <Tooltip title={renderXZoomTooltip()} placement="topRight" overlayClassName={graphToolbarTooltipClassName} mouseEnterDelay={0} mouseLeaveDelay={0}>
+                <button
+                    type="button"
+                    className={xZoomMode ? 'active' : undefined}
+                    aria-label={xZoomMode ? t('disableXZoom') : t('enableXZoom')}
+                    aria-pressed={xZoomMode}
+                    onClick={toggleXZoomMode}
+                >
+                    <ColumnWidthOutlined />
+                </button>
+            </Tooltip>
+        </GraphToolbar>
+        <div data-testid="stateDiagram" ref={containerRef} style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
+            <canvas
+                ref={ref}
+                style={{ position: 'absolute', top: 0, imageRendering: 'pixelated', touchAction: 'none', outline: 'none' }}
+            />
+            <StateHoverItem session={session} point={hoverPoint} />
+            <Loading style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} loading={session.loadingState} />
+        </div>
     </div>;
 });

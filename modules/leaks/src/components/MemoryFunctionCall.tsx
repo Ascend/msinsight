@@ -26,7 +26,7 @@ import { observer } from 'mobx-react';
 import { getFuncNewData } from './dataHandler';
 import { chartResize } from '../utils/utils';
 import { useTheme, type Theme } from '@emotion/react';
-import { MarkLineStack } from './leaks/tools';
+import { Loading, MarkLineStack } from './leaks/tools';
 import { runInAction } from 'mobx';
 const colorTypes: string[] = ['#8fd3e8', '#d95850', '#eb8146', '#ffb248', '#f2d643', '#ebdba4', '#fcce10', '#b5c334', '#1bca93'];
 const transData = (data: any, min: number, max: number): any => {
@@ -153,7 +153,6 @@ const getOptions = (session: Session, theme: Theme): EChartsOption => {
 const MemoryFunctionCall = observer(({ session }: { session: Session }): React.ReactElement => {
     const chartRef = useRef<ChartsHandle>(null);
     const markLineRef = useRef<HTMLDivElement>(null);
-    const [loading, setLoading] = useState(false);
     const [chartOptions, setChartOptions] = useState<EChartsOption>({});
     const { funcData, deviceId, eventType, threadId, searchFunc, threadFlag } = session;
     const [markLineContainerWidth, setMarkLineContainerWidth] = useState(0);
@@ -193,14 +192,12 @@ const MemoryFunctionCall = observer(({ session }: { session: Session }): React.R
 
     useEffect(() => {
         if (deviceId === '' || threadFlag) return;
-        setLoading(true);
         getFuncNewData(session);
-        setLoading(false);
     }, [deviceId, eventType, threadId]);
     useEffect(() => {
         setChartOptions(getOptions(session, theme));
         chartResize(chartRef?.current?.getInstance());
-    }, [deviceId, eventType, threadId, funcData, searchFunc, theme.mode]);
+    }, [deviceId, eventType, threadId, funcData, searchFunc, theme.mode, session.minTime, session.maxTime]);
 
     useEffect(() => {
         if (markLineRef.current === null) {
@@ -222,9 +219,10 @@ const MemoryFunctionCall = observer(({ session }: { session: Session }): React.R
         <MIChart
             ref={chartRef}
             height="100%"
-            loading={loading}
+            loading={false}
             options={chartOptions}
         />
+        <Loading style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} loading={session.loadingFunc} />
         <div ref={markLineRef}
             style={{ position: 'absolute', top: 60, left: 80, width: 'calc(100% - 140px)', height: 'calc(100% - 130px)', pointerEvents: 'none' }}
         >

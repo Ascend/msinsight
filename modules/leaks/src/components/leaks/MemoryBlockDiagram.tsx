@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     workerInitCanvas,
     workerResizeCanvas,
@@ -27,18 +27,73 @@ import {
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
 import { Session } from '@/entity/session';
 import { runInAction } from 'mobx';
-import { Axis, HoverItem, Loading, MarkLineBlock } from './tools';
+import {
+    Axis,
+    graphToolbarTooltipClassName,
+    GraphKeycap,
+    GraphMouseIcon,
+    GraphShortcutActions,
+    GraphShortcutRow,
+    GraphShortcutTip,
+    GraphShortcutTitle,
+    GraphToolbar,
+    GraphToolbarTooltipStyle,
+    GraphWheelCombo,
+    GraphWheelIcon,
+    HoverItem,
+    Loading,
+    MarkLineBlock,
+} from './tools';
 import { observer } from 'mobx-react';
+import { useTranslation } from 'react-i18next';
+import { Tooltip } from '@insight/lib/components';
+import { ColumnWidthOutlined, OneToOneOutlined } from '@ant-design/icons';
 
 const BASE_ZOOM_STEP = 0.1;
 const BASE_MOVE_STEP = 5;
+const TOOLBAR_HEIGHT = 36;
+const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
 
-export const MemoryBlockDiagram = observer(({ session }: { session: Session }): JSX.Element => {
+const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX;
+const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY;
+
+export const MemoryBlockDiagram = observer(({
+    session,
+    onResetTransform,
+    onTransformChange,
+}: {
+    session: Session;
+    onResetTransform?: () => void;
+    onTransformChange?: (transform: RenderOptions['transform'], source?: TransformChangeSource) => void;
+}): JSX.Element => {
+    const { t } = useTranslation('leaks');
     const containerRef = useRef<HTMLDivElement>(null);
     const ref = useRef<HTMLCanvasElement>(null);
+    const [xZoomMode, setXZoomMode] = useState(true);
+    const xZoomModeRef = useRef(true);
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
+
+    const resetTransform = (): void => {
+        runInAction(() => {
+            session.leaksWorkerInfo.renderOptions.transform = { ...DEFAULT_TRANSFORM };
+            session.markLineInfo.block = { x: -1, y: -1 };
+            session.markLineInfo.stack = { x: -1, y: -1 };
+        });
+        workerTransform({ transform: { ...DEFAULT_TRANSFORM } });
+        workerHoverItem({ clientX: -1, clientY: -1 });
+        onResetTransform?.();
+    };
+
+    const toggleXZoomMode = (): void => {
+        setXZoomMode(mode => {
+            const nextMode = !mode;
+            xZoomModeRef.current = nextMode;
+            return nextMode;
+        });
+    };
 
     const handleResize = (): void => {
         if (ref.current === null || containerRef.current === null) {
@@ -68,44 +123,63 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
 
         // 获取当前变换参数
         const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
+        const currentScaleX = getTransformScaleX(currentTransform);
+        const currentScaleY = getTransformScaleY(currentTransform);
+        const onlyScaleX = ev.shiftKey || (!ev.ctrlKey && xZoomModeRef.current);
 
         // 计算缩放前鼠标在实际内容中的相对位置（相对于画布原点）
-        const originalContentMouseX = (mouseX - currentTransform.x) / currentTransform.scale;
-        const originalContentMouseY = (mouseY - currentTransform.y) / currentTransform.scale;
+        const originalContentMouseX = (mouseX - currentTransform.x) / currentScaleX;
+        const originalContentMouseY = (mouseY - currentTransform.y) / currentScaleY;
 
         // 计算新的缩放值
         const direction = ev.deltaY > 0 ? -1 : 1; // -1: 缩小, +1: 放大
 
         // 动态步长：离 1 越远，变化越快
-        const distanceFromOne = Math.abs(currentTransform.scale - 1) + 1; // 避免为0
+        const baseScale = onlyScaleX ? currentScaleX : Math.max(currentScaleX, currentScaleY);
+        const distanceFromOne = Math.abs(baseScale - 1) + 1; // 避免为0
         const dynamicStep = BASE_ZOOM_STEP * distanceFromOne;
 
-        let newScale = currentTransform.scale + direction * dynamicStep;
+        let newScaleX = currentScaleX + direction * dynamicStep;
+        let newScaleY = onlyScaleX ? currentScaleY : currentScaleY + direction * dynamicStep;
 
         // 限制最小缩放
-        newScale = Math.max(0.1, newScale);
+        newScaleX = Math.max(0.1, newScaleX);
+        newScaleY = Math.max(0.1, newScaleY);
 
         const maxRangeX = rect.width;
-        const minRangeX = -rect.width * newScale;
+        const minRangeX = -rect.width * newScaleX;
         const maxRangeY = rect.height;
-        const minRangeY = -rect.height * newScale;
+        const minRangeY = -rect.height * newScaleY;
         // 计算缩放后的新偏移，使鼠标下的内容位置不变
         // 原始偏移距离 + (内容相对位置 * (新缩放 - 旧缩放))
-        const newX = Math.min(Math.max(mouseX - originalContentMouseX * newScale, minRangeX), maxRangeX);
-        const newY = Math.min(Math.max(mouseY - originalContentMouseY * newScale, minRangeY), maxRangeY);
+        const newX = Math.min(Math.max(mouseX - originalContentMouseX * newScaleX, minRangeX), maxRangeX);
+        const newY = onlyScaleX
+            ? currentTransform.y
+            : Math.min(Math.max(mouseY - originalContentMouseY * newScaleY, minRangeY), maxRangeY);
 
         // 更新变换参数
-        const transform = { x: newX, y: newY, scale: newScale };
+        const transform = { x: newX, y: newY, scaleX: newScaleX, scaleY: newScaleY };
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
         workerTransform({ transform });
+        onTransformChange?.(transform, 'wheel');
     };
 
     const handleMouseDown = (ev: MouseEvent): void => {
-        if (ev.button !== 0 || ref.current === null) {
+        if (ref.current === null) {
             return;
         }
+        if (ev.button === 1) {
+            ev.preventDefault();
+            ref.current.focus({ preventScroll: true });
+            resetTransform();
+            return;
+        }
+        if (ev.button !== 0) {
+            return;
+        }
+        ref.current.focus({ preventScroll: true });
         isClick.current = true;
         const rect = ref.current.getBoundingClientRect();
         dragStartPoint.current = {
@@ -158,13 +232,15 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
         });
 
         const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
+        const currentScaleX = getTransformScaleX(currentTransform);
+        const currentScaleY = getTransformScaleY(currentTransform);
 
         const deltaX = currentX - dragStartPoint.current.x;
         const deltaY = currentY - dragStartPoint.current.y;
         const maxRangeX = rect.width;
-        const minRangeX = -rect.width * currentTransform.scale;
+        const minRangeX = -rect.width * currentScaleX;
         const maxRangeY = rect.height;
-        const minRangeY = -rect.height * currentTransform.scale;
+        const minRangeY = -rect.height * currentScaleY;
 
         const transform = {
             ...currentTransform,
@@ -176,6 +252,9 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
         });
 
         workerTransform({ transform });
+        if (deltaX !== 0) {
+            onTransformChange?.(transform, 'drag');
+        }
 
         dragStartPoint.current = { x: currentX, y: currentY };
     };
@@ -209,28 +288,71 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
         }
 
         const rect = ref.current.getBoundingClientRect();
+        if ((ev.ctrlKey || ev.shiftKey) && ['+', '=', '-', '_'].includes(ev.key)) {
+            ev.preventDefault();
+            const direction = ev.key === '-' || ev.key === '_' ? -1 : 1;
+            const onlyScaleX = ev.shiftKey && !ev.ctrlKey;
+            const mouseX = rect.width / 2;
+            const mouseY = rect.height / 2;
+            const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
+            const currentScaleX = getTransformScaleX(currentTransform);
+            const currentScaleY = getTransformScaleY(currentTransform);
+            const originalContentMouseX = (mouseX - currentTransform.x) / currentScaleX;
+            const originalContentMouseY = (mouseY - currentTransform.y) / currentScaleY;
+            const baseScale = Math.max(currentScaleX, currentScaleY);
+            const dynamicStep = BASE_ZOOM_STEP * (Math.abs(baseScale - 1) + 1);
+            const newScaleX = Math.max(0.1, currentScaleX + direction * dynamicStep);
+            const newScaleY = onlyScaleX ? currentScaleY : Math.max(0.1, currentScaleY + direction * dynamicStep);
+            const maxRangeX = rect.width;
+            const minRangeX = -rect.width * newScaleX;
+            const maxRangeY = rect.height;
+            const minRangeY = -rect.height * newScaleY;
+            const transform = {
+                x: Math.min(Math.max(mouseX - originalContentMouseX * newScaleX, minRangeX), maxRangeX),
+                y: onlyScaleX ? currentTransform.y : Math.min(Math.max(mouseY - originalContentMouseY * newScaleY, minRangeY), maxRangeY),
+                scaleX: newScaleX,
+                scaleY: newScaleY,
+            };
+            runInAction(() => {
+                session.leaksWorkerInfo.renderOptions.transform = transform;
+            });
+            workerTransform({ transform });
+            onTransformChange?.(transform, 'keyboard');
+            return;
+        }
+        if (ev.key.toLowerCase() === 'r') {
+            resetTransform();
+            return;
+        }
+        if (ev.key.toLowerCase() === 'h') {
+            toggleXZoomMode();
+            return;
+        }
+
         const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
+        const currentScaleX = getTransformScaleX(currentTransform);
+        const currentScaleY = getTransformScaleY(currentTransform);
         const maxRangeX = rect.width;
-        const minRangeX = -rect.width * currentTransform.scale;
+        const minRangeX = -rect.width * currentScaleX;
         const maxRangeY = rect.height;
-        const minRangeY = -rect.height * currentTransform.scale;
+        const minRangeY = -rect.height * currentScaleY;
         let newTransformX = 0;
         let newTransformY = 0;
         switch (ev.key.toLowerCase()) {
             case 'w':
-                newTransformY = BASE_MOVE_STEP * currentTransform.scale;
+                newTransformY = BASE_MOVE_STEP * currentScaleY;
                 break;
             case 's':
-                newTransformY = -BASE_MOVE_STEP * currentTransform.scale;
+                newTransformY = -BASE_MOVE_STEP * currentScaleY;
                 break;
             case 'a':
-                newTransformX = BASE_MOVE_STEP * currentTransform.scale;
+                newTransformX = BASE_MOVE_STEP * currentScaleX;
                 break;
             case 'd':
-                newTransformX = -BASE_MOVE_STEP * currentTransform.scale;
+                newTransformX = -BASE_MOVE_STEP * currentScaleX;
                 break;
             default:
-                break;
+                return;
         }
 
         const currentMousePosition = session.markLineInfo.block;
@@ -249,7 +371,33 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
         });
 
         workerTransform({ transform });
+        if (newTransformX !== 0) {
+            onTransformChange?.(transform, 'keyboard');
+        }
     };
+
+    useEffect(() => {
+        xZoomModeRef.current = xZoomMode;
+    }, [xZoomMode]);
+
+    const renderXZoomTooltip = (): JSX.Element => <GraphShortcutTip>
+        <GraphShortcutTitle>{t('enableDisableXZoom')}<GraphShortcutActions><GraphKeycap>H</GraphKeycap></GraphShortcutActions></GraphShortcutTitle>
+        <GraphShortcutRow>
+            <span>{t('equalZoomHelp')}</span>
+            <GraphWheelCombo><GraphKeycap>Ctrl</GraphKeycap><span>+</span><GraphWheelIcon /><span>/</span><GraphKeycap>+</GraphKeycap><GraphKeycap>-</GraphKeycap></GraphWheelCombo>
+        </GraphShortcutRow>
+        <GraphShortcutRow>
+            <span>{t('xZoomWheelHelp')}</span>
+            <GraphWheelCombo><GraphKeycap>Shift</GraphKeycap><span>+</span><GraphWheelIcon /><span>/</span><GraphKeycap>+</GraphKeycap><GraphKeycap>-</GraphKeycap></GraphWheelCombo>
+        </GraphShortcutRow>
+    </GraphShortcutTip>;
+
+    const renderResetTooltip = (): JSX.Element => <GraphShortcutTip>
+        <GraphShortcutTitle>
+            {t('resetView')}
+            <GraphShortcutActions><GraphKeycap>R</GraphKeycap><span>/</span><GraphMouseIcon /></GraphShortcutActions>
+        </GraphShortcutTitle>
+    </GraphShortcutTip>;
 
     useEffect(() => {
         if (ref.current === null || containerRef.current === null) {
@@ -282,6 +430,7 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
 
         canvas.addEventListener('wheel', handleWheel, { passive: false, capture: true });
         canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('auxclick', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseLeave);
@@ -293,6 +442,7 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
 
             canvas.removeEventListener('wheel', handleWheel, { capture: true });
             canvas.removeEventListener('mousedown', handleMouseDown);
+            canvas.removeEventListener('auxclick', handleMouseDown);
             canvas.removeEventListener('mousemove', handleMouseMove);
             canvas.removeEventListener('mouseup', handleMouseUp);
             canvas.removeEventListener('mouseleave', handleMouseLeave);
@@ -301,16 +451,39 @@ export const MemoryBlockDiagram = observer(({ session }: { session: Session }): 
         };
     }, []);
 
-    return <div ref={containerRef} style={{ width: 'calc(100% - 100px)', height: 500, paddingLeft: 100, paddingTop: 20 }}>
-        <div style={{ position: 'relative' }}>
-            <Axis session={session} />
-            <canvas
-                ref={ref}
-                style={{ imageRendering: 'pixelated', touchAction: 'none', outline: 'none' }}
-            />
-            <MarkLineBlock session={session} />
-            <HoverItem session={session} />
-            <Loading style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} loading={session.loadingBlocks} />
+    return <div style={{ width: '100%', height: 530 + TOOLBAR_HEIGHT, boxSizing: 'border-box' }}>
+        <GraphToolbarTooltipStyle />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', height: TOOLBAR_HEIGHT }}>
+            <GraphToolbar style={{ position: 'static' }}>
+                <Tooltip title={renderResetTooltip()} placement="topRight" overlayClassName={graphToolbarTooltipClassName} mouseEnterDelay={0} mouseLeaveDelay={0}>
+                    <button type="button" aria-label={`${t('resetView')}`} onClick={resetTransform}>
+                        <OneToOneOutlined />
+                    </button>
+                </Tooltip>
+                <Tooltip title={renderXZoomTooltip()} placement="topRight" overlayClassName={graphToolbarTooltipClassName} mouseEnterDelay={0} mouseLeaveDelay={0}>
+                    <button
+                        type="button"
+                        className={xZoomMode ? 'active' : undefined}
+                        aria-label={xZoomMode ? t('disableXZoom') : t('enableXZoom')}
+                        aria-pressed={xZoomMode}
+                        onClick={toggleXZoomMode}
+                    >
+                        <ColumnWidthOutlined />
+                    </button>
+                </Tooltip>
+            </GraphToolbar>
+        </div>
+        <div ref={containerRef} style={{ width: '100%', height: 530, paddingLeft: 100, paddingTop: 20, boxSizing: 'border-box' }}>
+            <div style={{ position: 'relative' }}>
+                <Axis session={session} />
+                <canvas
+                    ref={ref}
+                    style={{ imageRendering: 'pixelated', touchAction: 'none', outline: 'none' }}
+                />
+                <MarkLineBlock session={session} />
+                <HoverItem session={session} />
+                <Loading style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} loading={session.loadingBlocks} />
+            </div>
         </div>
     </div>;
 });

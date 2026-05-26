@@ -26,7 +26,7 @@ import { runInAction } from 'mobx';
 export class MainThreadRender {
     canvas: HTMLCanvasElement = document.createElement('canvas');
     memoryBlockData: RenderData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
-    transform: RenderOptions['transform'] = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
+    transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     viewport: RenderOptions['viewport'] = { width: 0, height: 0 };
     zoom: RenderOptions['zoom'] = { x: 1, y: 1, offset: 0 };
     renderer: NativeRenderer | null = null;
@@ -128,7 +128,7 @@ export class MainThreadRender {
 
     destroyHandler(): void {
         this.memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
-        this.transform = { x: 0, y: 0, scale: 1, scaleX: 1, scaleY: 1 };
+        this.transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         this.zoom = { x: 1, y: 1, offset: 0 };
         this.hoverItem = null;
         this.clickItem = null;

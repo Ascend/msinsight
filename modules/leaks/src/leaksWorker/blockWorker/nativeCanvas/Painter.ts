@@ -48,11 +48,11 @@ export class Painter {
     }
 
     private getScaleX(transform: RenderOptions['transform']): number {
-        return transform.scaleX ?? transform.scale;
+        return transform.scaleX;
     }
 
     private getScaleY(transform: RenderOptions['transform']): number {
-        return transform.scaleY ?? transform.scale;
+        return transform.scaleY;
     }
 
     render(options: RenderOptions): void {
