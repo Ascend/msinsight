@@ -78,9 +78,9 @@ struct Component {
 };
 
 // Type类型字段
-const std::string MEMORY_TYPE_DYNAMIC = "dynamic";  // 纯动态图数据
-const std::string MEMORY_TYPE_STATIC = "static";    // 纯静态图数据
-const std::string MEMORY_TYPE_MIX = "mix";          // 存在动态图数据以及静态子图数据
+const std::string MEMORY_TYPE_DYNAMIC = "dynamic"; // 纯动态图数据
+const std::string MEMORY_TYPE_STATIC = "static"; // 纯静态图数据
+const std::string MEMORY_TYPE_MIX = "mix"; // 存在动态图数据以及静态子图数据
 
 // Resource Type类型字段
 const std::string MEMORY_RESOURCE_TYPE_PYTORCH = "Pytorch";
@@ -116,8 +116,7 @@ const std::string TOTAL_RESERVED_KB = "Total Reserved(KB)";
 const std::string TOTAL_ACTIVE_KB = "Total Active(KB)";
 const std::vector<std::string> RECORD_CSV = {COMPONENT, TIMESTAMP, DEVICETYPE, TOTAL_ALLOCATED_MB, TOTAL_RESERVED_MB};
 const std::vector<std::string> RECORD_CSV_MSPROF = {
-    COMPONENT, TIMESTAMP, DEVICE, TOTAL_ALLOCATED_KB, TOTAL_RESERVED_KB
-};
+    COMPONENT, TIMESTAMP, DEVICE, TOTAL_ALLOCATED_KB, TOTAL_RESERVED_KB};
 
 // field in memory_record
 const std::string OP_NAME = "Op Name";
@@ -127,30 +126,21 @@ const std::string NODE_INDEX_START = "Node Index Start";
 const std::string NODE_INDEX_END = "Node Index End";
 const std::string SIZE_KB = "Size(KB)";
 const std::vector<std::string> STATIC_OP_MEM_CSV = {
-    DEVICE_ID, OP_NAME, MODEL_NAME, GRAPH_ID, NODE_INDEX_START, NODE_INDEX_END, SIZE_KB
-};
+    DEVICE_ID, OP_NAME, MODEL_NAME, GRAPH_ID, NODE_INDEX_START, NODE_INDEX_END, SIZE_KB};
 
 // field in npu_module_mem
-const std::vector<std::string> NPU_MODULE_MEM_CSV_PYTORCH = {
-    COMPONENT, TIMESTAMP, TOTAL_RESERVED_MB, DEVICE
-};
-const std::vector<std::string> NPU_MODULE_MEM_CSV_MINDSPORE = {
-    COMPONENT, TIMESTAMP, TOTAL_RESERVED_KB, DEVICE
-};
+const std::vector<std::string> NPU_MODULE_MEM_CSV_PYTORCH = {COMPONENT, TIMESTAMP, TOTAL_RESERVED_MB, DEVICE};
+const std::vector<std::string> NPU_MODULE_MEM_CSV_MINDSPORE = {COMPONENT, TIMESTAMP, TOTAL_RESERVED_KB, DEVICE};
 
 // table header
 const std::vector<std::string> MEMORY_RECORD_HEADER = {
-    COMPONENT, TIMESTAMP, TOTAL_ALLOCATED_MB, TOTAL_RESERVED_MB, TOTAL_ACTIVE_MB, DEVICETYPE, STREAM_PTR
-};
-const std::vector<std::string> OPERATOR_MEMORY_HEADER = {
-    NAME, SIZE, ALLOCATION_TIME, RELEASE_TIME, DURATION, ACTIVE_RELEASE_TIME, ACTIVE_DURATION,
-    ALLOCATION_ALLOCATED_MB, ALLOCATION_RESERVED_MB, ALLOCATION_ACTIVE_MB,
-    RELEASE_ALLOCATED_MB, RELEASE_RESERVED_MB, RELEASE_ACTIVE_MB,
-    STREAM_PTR, DEVICETYPE
-};
+    COMPONENT, TIMESTAMP, TOTAL_ALLOCATED_MB, TOTAL_RESERVED_MB, TOTAL_ACTIVE_MB, DEVICETYPE, STREAM_PTR};
+const std::vector<std::string> OPERATOR_MEMORY_HEADER = {NAME, SIZE, ALLOCATION_TIME, RELEASE_TIME, DURATION,
+    ACTIVE_RELEASE_TIME, ACTIVE_DURATION, ALLOCATION_ALLOCATED_MB, ALLOCATION_RESERVED_MB, ALLOCATION_ACTIVE_MB,
+    RELEASE_ALLOCATED_MB, RELEASE_RESERVED_MB, RELEASE_ACTIVE_MB, STREAM_PTR, DEVICETYPE};
 
 // default page size
 const uint64_t DEFAULT_PAGE_SIZE = 10;
-}  // end of namespace Dic::Module::Memory
+} // end of namespace Dic::Module::Memory
 
-#endif  // PROFILER_SERVER_MEMORYDEF_H
+#endif // PROFILER_SERVER_MEMORYDEF_H

@@ -38,12 +38,9 @@ constexpr std::string_view RELEASE_ACTIVE = "releaseTotalActive";
 constexpr std::string_view STREAM = "streamPtr";
 constexpr std::string_view DEVICE_ID = "deviceId";
 
-constexpr std::string_view FULL_COLUMNS_WITHOUT_ID[] = {NAME, SIZE,
-                                                        ALLOCATION_TIME, RELEASE_TIME, ACTIVE_RELEASE_TIME,
-                                                        DURATION, ACTIVE_DURATION,
-                                                        ALLOCATION_ALLOCATED, ALLOCATION_RESERVE, ALLOCATION_ACTIVE,
-                                                        RELEASE_ALLOCATED, RELEASE_RESERVE, RELEASE_ACTIVE,
-                                                        STREAM, DEVICE_ID };
+constexpr std::string_view FULL_COLUMNS_WITHOUT_ID[] = {NAME, SIZE, ALLOCATION_TIME, RELEASE_TIME, ACTIVE_RELEASE_TIME,
+    DURATION, ACTIVE_DURATION, ALLOCATION_ALLOCATED, ALLOCATION_RESERVE, ALLOCATION_ACTIVE, RELEASE_ALLOCATED,
+    RELEASE_RESERVE, RELEASE_ACTIVE, STREAM, DEVICE_ID};
 } // namespace OpMemoryColumn
 
 namespace StaticOpColumn {
@@ -57,8 +54,7 @@ constexpr std::string_view NODE_INDEX_END = "nodeIndexEnd";
 constexpr std::string_view SIZE = "size";
 
 constexpr std::string_view FULL_COLUMNS_WITHOUT_ID[] = {
-  DEVICE_ID, OP_NAME, MODEL_NAME, GRAPH_ID, NODE_INDEX_START, NODE_INDEX_END, SIZE
-};
+    DEVICE_ID, OP_NAME, MODEL_NAME, GRAPH_ID, NODE_INDEX_START, NODE_INDEX_END, SIZE};
 } // namespace StaticOpColumn
 } // namespace Dic::Module::Memory
 #endif // PROFILER_SERVER_MEMORY_TABLECOLUMN_H

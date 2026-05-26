@@ -40,36 +40,34 @@ struct OpMemoryPO {
     uint64_t deviceId = 0;
 };
 class OpMemoryTable : public MemoryTable<OpMemoryPO> {
-public:
+  public:
     OpMemoryTable() = default;
     ~OpMemoryTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { OpMemoryColumn::ID, SetId },
-            { OpMemoryColumn::NAME, SetName },
-            { OpMemoryColumn::SIZE, SetSize },
-            { OpMemoryColumn::ALLOCATION_TIME, SetAllocationTime },
-            { OpMemoryColumn::RELEASE_TIME, SetReleaseTime },
-            { OpMemoryColumn::DURATION, SetDuration },
-            { OpMemoryColumn::ACTIVE_RELEASE_TIME, SetActiveReleaseTime },
-            { OpMemoryColumn::ACTIVE_DURATION, SetActiveDuration },
-            { OpMemoryColumn::ALLOCATION_ALLOCATED, SetAllocationAllocated },
-            { OpMemoryColumn::ALLOCATION_RESERVE, SetAllocationReserve },
-            { OpMemoryColumn::ALLOCATION_ACTIVE, SetAllocationActive },
-            { OpMemoryColumn::RELEASE_ALLOCATED, SetReleaseAllocated },
-            { OpMemoryColumn::RELEASE_RESERVE, SetReleaseReserve },
-            { OpMemoryColumn::RELEASE_ACTIVE, SetReleaseActive },
-            { OpMemoryColumn::STREAM, SetStream },
-            { OpMemoryColumn::DEVICE_ID, SetDevice },
+            {OpMemoryColumn::ID, SetId},
+            {OpMemoryColumn::NAME, SetName},
+            {OpMemoryColumn::SIZE, SetSize},
+            {OpMemoryColumn::ALLOCATION_TIME, SetAllocationTime},
+            {OpMemoryColumn::RELEASE_TIME, SetReleaseTime},
+            {OpMemoryColumn::DURATION, SetDuration},
+            {OpMemoryColumn::ACTIVE_RELEASE_TIME, SetActiveReleaseTime},
+            {OpMemoryColumn::ACTIVE_DURATION, SetActiveDuration},
+            {OpMemoryColumn::ALLOCATION_ALLOCATED, SetAllocationAllocated},
+            {OpMemoryColumn::ALLOCATION_RESERVE, SetAllocationReserve},
+            {OpMemoryColumn::ALLOCATION_ACTIVE, SetAllocationActive},
+            {OpMemoryColumn::RELEASE_ALLOCATED, SetReleaseAllocated},
+            {OpMemoryColumn::RELEASE_RESERVE, SetReleaseReserve},
+            {OpMemoryColumn::RELEASE_ACTIVE, SetReleaseActive},
+            {OpMemoryColumn::STREAM, SetStream},
+            {OpMemoryColumn::DEVICE_ID, SetDevice},
         };
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "OP_MEMORY";
         return tableName;
     }

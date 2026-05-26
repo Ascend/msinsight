@@ -25,18 +25,14 @@ namespace Dic {
 namespace Module {
 namespace Memory {
 class QueryMemoryStaticOperatorSizeHandler : public MemoryRequestHandler {
-public:
-    QueryMemoryStaticOperatorSizeHandler()
-    {
-        command = Protocol::REQ_RES_MEMORY_STATIC_OP_MEMORY_MIN_MAX;
-    };
+  public:
+    QueryMemoryStaticOperatorSizeHandler() { command = Protocol::REQ_RES_MEMORY_STATIC_OP_MEMORY_MIN_MAX; };
     ~QueryMemoryStaticOperatorSizeHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-    bool GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database,
-                           StaticOperatorSize &compareData, StaticOperatorSize &baselineData,
-                           MemoryStaticOperatorSizeRequest &request, std::string &errorMsg);
+    bool GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database, StaticOperatorSize &compareData,
+        StaticOperatorSize &baselineData, MemoryStaticOperatorSizeRequest &request, std::string &errorMsg);
     void ExecuteComparisonAlgorithm(const StaticOperatorSize &compareData, const StaticOperatorSize &baselineData,
-                                    MemoryStaticOperatorSizeResponse &response);
+        MemoryStaticOperatorSizeResponse &response);
 };
 
 } // end of namespace Memory

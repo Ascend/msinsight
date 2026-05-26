@@ -26,8 +26,7 @@
 
 namespace Dic {
 namespace Protocol {
-void MemoryProtocol::RegisterJsonToRequestFuncs()
-{
+void MemoryProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_MEMORY_TYPE, ToMemoryTypeRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMORY_RESOURCE_TYPE, ToMemoryResourceTypeRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMORY_OPERATOR, ToMemoryOperatorRequest);
@@ -36,12 +35,12 @@ void MemoryProtocol::RegisterJsonToRequestFuncs()
     jsonToReqFactory.emplace(REQ_RES_MEMORY_VIEW, ToMemoryViewRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMORY_OPERATOR_MIN_MAX, ToMemoryOperatorSizeRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMORY_STATIC_OP_MEMORY_GRAPH, ToMemoryStaticOperatorGraphRequest);
-    jsonToReqFactory.emplace(REQ_RES_MEMORY_STATIC_OP_MEMORY_LIST, BuildRequestFromJson<MemoryStaticOperatorListRequest>);
+    jsonToReqFactory.emplace(
+        REQ_RES_MEMORY_STATIC_OP_MEMORY_LIST, BuildRequestFromJson<MemoryStaticOperatorListRequest>);
     jsonToReqFactory.emplace(REQ_RES_MEMORY_STATIC_OP_MEMORY_MIN_MAX, ToMemoryStaticOperatorSizeRequest);
 }
 
-void MemoryProtocol::RegisterResponseToJsonFuncs()
-{
+void MemoryProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_MEMORY_TYPE, ToMemoryTypeResponseJson);
     resToJsonFactory.emplace(REQ_RES_MEMORY_RESOURCE_TYPE, ToMemoryResourceTypeResponseJson);
     resToJsonFactory.emplace(REQ_RES_MEMORY_OPERATOR, ToMemoryOperatorResponseJson);
@@ -54,16 +53,14 @@ void MemoryProtocol::RegisterResponseToJsonFuncs()
     resToJsonFactory.emplace(REQ_RES_MEMORY_STATIC_OP_MEMORY_MIN_MAX, ToMemoryStaticOperatorSizeResponseJson);
 }
 
-void MemoryProtocol::RegisterEventToJsonFuncs()
-{
+void MemoryProtocol::RegisterEventToJsonFuncs() {
     eventToJsonFactory.emplace(EVENT_MODULE_RESET, TimelineProtocol::ToModuleResetEventJson);
     eventToJsonFactory.emplace(EVENT_ALL_SUCCESS, TimelineProtocol::ToAllSuccessEventJson);
 }
 
 #pragma region << Json To Request>>
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryTypeRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryTypeRequest(const json_t &json, std::string &error) {
     std::unique_ptr<MemoryTypeRequest> reqPtr = std::make_unique<MemoryTypeRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -73,8 +70,7 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryTypeRequest(const json_t &json,
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryResourceTypeRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryResourceTypeRequest(const json_t &json, std::string &error) {
     std::unique_ptr<MemoryResourceTypeRequest> reqPtr = std::make_unique<MemoryResourceTypeRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -84,8 +80,7 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryResourceTypeRequest(const json_
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryOperatorRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryOperatorRequest(const json_t &json, std::string &error) {
     std::unique_ptr<MemoryOperatorRequest> reqPtr = std::make_unique<MemoryOperatorRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -116,8 +111,8 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryOperatorRequest(const json_t &j
         reqPtr->params.maxSize = std::numeric_limits<int64_t>::max();
     }
 
-    JsonUtil::SetByJsonKeyValue(reqPtr->params.isOnlyShowAllocatedOrReleasedWithinInterval,
-        json["params"], "isOnlyShowAllocatedOrReleasedWithinInterval");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.isOnlyShowAllocatedOrReleasedWithinInterval, json["params"],
+        "isOnlyShowAllocatedOrReleasedWithinInterval");
     reqPtr->params.SetPaginationParamFromJson(json["params"]);
     if (!reqPtr->params.SetFiltersFromJson(json["params"], OperatorMemoryTableView::FIELD_FULL_COLUMNS, error)) {
         Server::ServerLog::Error("Failed set filters from json param: %", error);
@@ -136,8 +131,7 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryOperatorRequest(const json_t &j
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryComponentRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryComponentRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<MemoryComponentRequest> reqPtr = std::make_unique<MemoryComponentRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -156,8 +150,7 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryComponentRequest(const Dic::jso
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryViewRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryViewRequest(const json_t &json, std::string &error) {
     std::unique_ptr<MemoryViewRequest> reqPtr = std::make_unique<MemoryViewRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -171,8 +164,7 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryViewRequest(const json_t &json,
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryFindSliceRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryFindSliceRequest(const json_t &json, std::string &error) {
     std::unique_ptr<MemoryFindSliceRequest> reqPtr = std::make_unique<MemoryFindSliceRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -184,8 +176,7 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryFindSliceRequest(const json_t &
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryOperatorSizeRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryOperatorSizeRequest(const json_t &json, std::string &error) {
     std::unique_ptr<MemoryOperatorSizeRequest> reqPtr = std::make_unique<MemoryOperatorSizeRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -197,8 +188,7 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryOperatorSizeRequest(const json_
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryStaticOperatorGraphRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryStaticOperatorGraphRequest(const json_t &json, std::string &error) {
     std::unique_ptr<MemoryStaticOperatorGraphRequest> reqPtr = std::make_unique<MemoryStaticOperatorGraphRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -211,8 +201,8 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryStaticOperatorGraphRequest(cons
     return reqPtr;
 }
 
-std::unique_ptr<Request> MemoryProtocol::ToMemoryStaticOperatorSizeRequest(const Dic::json_t &json, std::string &error)
-{
+std::unique_ptr<Request> MemoryProtocol::ToMemoryStaticOperatorSizeRequest(
+    const Dic::json_t &json, std::string &error) {
     std::unique_ptr<MemoryStaticOperatorSizeRequest> reqPtr = std::make_unique<MemoryStaticOperatorSizeRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -228,51 +218,42 @@ std::unique_ptr<Request> MemoryProtocol::ToMemoryStaticOperatorSizeRequest(const
 
 #pragma region << Response To Json>>
 
-std::optional<document_t> MemoryProtocol::ToMemoryTypeResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryTypeResponseJson(const Response &response) {
     return ToResponseJson<MemoryTypeResponse>(dynamic_cast<const MemoryTypeResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryResourceTypeResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryResourceTypeResponseJson(const Response &response) {
     return ToResponseJson<MemoryResourceTypeResponse>(dynamic_cast<const MemoryResourceTypeResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryOperatorResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryOperatorResponseJson(const Response &response) {
     return ToResponseJson<MemoryOperatorComparisonResponse>(
         dynamic_cast<const MemoryOperatorComparisonResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryComponentResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryComponentResponseJson(const Response &response) {
     return ToResponseJson<MemoryComponentComparisonResponse>(
         dynamic_cast<const MemoryComponentComparisonResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryViewResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryViewResponseJson(const Response &response) {
     return ToResponseJson<MemoryViewResponse>(dynamic_cast<const MemoryViewResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryFindSliceResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryFindSliceResponseJson(const Response &response) {
     return ToResponseJson<MemoryFindSliceResponse>(dynamic_cast<const MemoryFindSliceResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryOperatorSizeResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryOperatorSizeResponseJson(const Response &response) {
     return ToResponseJson<MemoryOperatorSizeResponse>(dynamic_cast<const MemoryOperatorSizeResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryStaticOperatorGraphResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryStaticOperatorGraphResponseJson(const Response &response) {
     return ToResponseJson<MemoryStaticOperatorGraphResponse>(
         dynamic_cast<const MemoryStaticOperatorGraphResponse &>(response));
 }
 
-std::optional<document_t> MemoryProtocol::ToMemoryStaticOperatorSizeResponseJson(const Response &response)
-{
+std::optional<document_t> MemoryProtocol::ToMemoryStaticOperatorSizeResponseJson(const Response &response) {
     return ToResponseJson<MemoryStaticOperatorSizeResponse>(
         dynamic_cast<const MemoryStaticOperatorSizeResponse &>(response));
 }

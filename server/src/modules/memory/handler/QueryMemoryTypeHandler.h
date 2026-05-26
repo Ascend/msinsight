@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Memory {
 class QueryMemoryTypeHandler : public MemoryRequestHandler {
-public:
-    QueryMemoryTypeHandler()
-    {
-        command = Protocol::REQ_RES_MEMORY_TYPE;
-    };
+  public:
+    QueryMemoryTypeHandler() { command = Protocol::REQ_RES_MEMORY_TYPE; };
     ~QueryMemoryTypeHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

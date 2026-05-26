@@ -25,25 +25,25 @@
 namespace Dic::Module::Memory {
 struct CurveView {
     std::vector<std::string> legends;
-    std::vector<std::vector<std::string>> datas;
+    std::vector<std::vector<std::string>> dataLines;
     std::vector<double> tempData;
     std::string title;
 };
 class CurveContainer {
-public:
-    CurveView ComputeCurve(double xMin, double xMax, const std::string& input);
-    void PutCurve(const std::string& inputKey, CurveView& curve);
-    bool Exist(const std::string& inputKey);
+  public:
+    CurveView ComputeCurve(double xMin, double xMax, const std::string &input);
+    void PutCurve(const std::string &inputKey, CurveView &curve);
+    bool Exist(const std::string &inputKey);
     void Clear();
-private:
+
+  private:
     std::mutex mutex;
     std::vector<double> flatData;
     std::vector<std::string> legends;
     std::string title;
     std::string key;
 
-    static inline std::string DoubleToString(double value)
-    {
+    static inline std::string DoubleToString(double value) {
         if (value > INT_MAX || value < 0) {
             return {};
         }
@@ -93,11 +93,11 @@ private:
         return result;
     }
 
-    std::vector<int> ComputeDataIndex(const std::vector<size_t>& indices, size_t m, uint64_t bucketSize, int b);
+    std::vector<int> ComputeDataIndex(const std::vector<size_t> &indices, size_t m, uint64_t bucketSize, int b);
 
-    void AddCompeteData(CurveView& res, std::vector<int>& indexRes);
+    void AddCompeteData(CurveView &res, std::vector<int> &indexRes);
 
-    void GetAllPoint(CurveView& res, std::vector<size_t>& indices);
+    void GetAllPoint(CurveView &res, std::vector<size_t> &indices);
 };
-}  // namespace Dic::Module::Memory
-#endif  // PROFILER_SERVER_CURVECONTAINER_H
+} // namespace Dic::Module::Memory
+#endif // PROFILER_SERVER_CURVECONTAINER_H

@@ -18,8 +18,7 @@
 #include "NumberUtil.h"
 #include "CurveContainer.h"
 namespace Dic::Module::Memory {
-CurveView CurveContainer::ComputeCurve(double xMin, double xMax, const std::string& input)
-{
+CurveView CurveContainer::ComputeCurve(double xMin, double xMax, const std::string &input) {
     std::unique_lock<std::mutex> lock(mutex);
     CurveView res;
     if (key != input || legends.empty()) {
@@ -33,7 +32,7 @@ CurveView CurveContainer::ComputeCurve(double xMin, double xMax, const std::stri
     res.title = title;
     res.legends = legends;
     const uint16_t numBuckets = 1000;
-    size_t n = flatData.size() / legends.size();  // 行数
+    size_t n = flatData.size() / legends.size(); // 行数
     if (n == 0) {
         return res;
     }
@@ -62,8 +61,7 @@ CurveView CurveContainer::ComputeCurve(double xMin, double xMax, const std::stri
     return res;
 }
 
-void CurveContainer::PutCurve(const std::string& inputKey, CurveView& curve)
-{
+void CurveContainer::PutCurve(const std::string &inputKey, CurveView &curve) {
     std::unique_lock<std::mutex> lock(mutex);
     key = inputKey;
     title = curve.title;
@@ -71,14 +69,12 @@ void CurveContainer::PutCurve(const std::string& inputKey, CurveView& curve)
     flatData = curve.tempData;
 }
 
-bool CurveContainer::Exist(const std::string& inputKey)
-{
+bool CurveContainer::Exist(const std::string &inputKey) {
     std::unique_lock<std::mutex> lock(mutex);
     return inputKey == key;
 }
 
-void CurveContainer::Clear()
-{
+void CurveContainer::Clear() {
     std::unique_lock<std::mutex> lock(mutex);
     key.clear();
     title.clear();
@@ -86,9 +82,8 @@ void CurveContainer::Clear()
     flatData.clear();
 }
 
-std::vector<int> CurveContainer::ComputeDataIndex(const std::vector<size_t>& indices, size_t m, uint64_t bucketSize,
-                                                  int b)
-{
+std::vector<int> CurveContainer::ComputeDataIndex(
+    const std::vector<size_t> &indices, size_t m, uint64_t bucketSize, int b) {
     uint64_t start = static_cast<size_t>(b) * bucketSize;
     uint64_t tempM = m;
     uint64_t end = std::min(tempM, start + bucketSize);
@@ -126,35 +121,33 @@ std::vector<int> CurveContainer::ComputeDataIndex(const std::vector<size_t>& ind
     return indexRes;
 }
 
-void CurveContainer::AddCompeteData(CurveView& res, std::vector<int>& indexRes)
-{
-    for (const auto& item : indexRes) {
-        res.datas.emplace_back();
-        res.datas.reserve(legends.size());
+void CurveContainer::AddCompeteData(CurveView &res, std::vector<int> &indexRes) {
+    for (const auto &item : indexRes) {
+        res.dataLines.emplace_back();
+        res.dataLines.reserve(legends.size());
         uint64_t startIndex = legends.size() * item;
         for (size_t i = 0; i < legends.size(); ++i) {
             if (std::isnan(flatData[startIndex + i])) {
-                res.datas.back().emplace_back("NULL");
+                res.dataLines.back().emplace_back("NULL");
                 continue;
             }
-            res.datas.back().emplace_back(DoubleToString(flatData[startIndex + i]));
+            res.dataLines.back().emplace_back(DoubleToString(flatData[startIndex + i]));
         }
     }
 }
 
-void CurveContainer::GetAllPoint(CurveView& res, std::vector<size_t>& indices)
-{  // 直接返回范围内的数据
+void CurveContainer::GetAllPoint(CurveView &res, std::vector<size_t> &indices) { // 直接返回范围内的数据
     for (size_t idx : indices) {
-        res.datas.emplace_back();
-        res.datas.reserve(legends.size());
+        res.dataLines.emplace_back();
+        res.dataLines.reserve(legends.size());
         uint64_t start = legends.size() * idx;
         for (size_t i = 0; i < legends.size(); ++i) {
             if (std::isnan(flatData[start + i])) {
-                res.datas.back().emplace_back("NULL");
+                res.dataLines.back().emplace_back("NULL");
                 continue;
             }
-            res.datas.back().emplace_back(DoubleToString(flatData[start + i]));
+            res.dataLines.back().emplace_back(DoubleToString(flatData[start + i]));
         }
     }
 }
-}  // namespace Dic::Module::Memory
+} // namespace Dic::Module::Memory

@@ -28,35 +28,28 @@ namespace Dic {
 namespace Module {
 namespace Memory {
 class QueryMemoryComponentHandler : public MemoryRequestHandler {
-public:
-    QueryMemoryComponentHandler()
-    {
-        command = Protocol::REQ_RES_MEMORY_COMPONENT;
-    }
+  public:
+    QueryMemoryComponentHandler() { command = Protocol::REQ_RES_MEMORY_COMPONENT; }
     ~QueryMemoryComponentHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-    bool GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database,
-        std::vector<MemoryComponent> &compareData, std::vector<MemoryComponent> &baselineData,
-        MemoryComponentRequest &request, std::string &errorMsg);
+    bool GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database, std::vector<MemoryComponent> &compareData,
+        std::vector<MemoryComponent> &baselineData, MemoryComponentRequest &request, std::string &errorMsg);
     void ExecuteComparisonAlgorithm(const std::vector<MemoryComponent> &compareData,
-        const std::vector<MemoryComponent> &baselineData,
-        MemoryComponentRequest &request, MemoryComponentComparisonResponse &response);
+        const std::vector<MemoryComponent> &baselineData, MemoryComponentRequest &request,
+        MemoryComponentComparisonResponse &response);
     void GetComponentDiff(const std::vector<MemoryComponent> &compareData,
         const std::vector<MemoryComponent> &baselineData, std::vector<MemoryComponentComparison> &diffData);
-    void SelectResult(MemoryComponentRequest &request,
-        MemoryComponentComparisonResponse &response,
+    void SelectResult(MemoryComponentRequest &request, MemoryComponentComparisonResponse &response,
         std::vector<MemoryComponentComparison> &fullDiffResult);
     void SortResult(MemoryComponentRequest &request, std::vector<MemoryComponentComparison> &result);
-private:
-    void Merge(MemoryComponent &componentCompare, MemoryComponent &componentBaseline,
-        MemoryComponentComparison &mergeResult);
+
+  private:
+    void Merge(
+        MemoryComponent &componentCompare, MemoryComponent &componentBaseline, MemoryComponentComparison &mergeResult);
     void SortAscend(MemoryComponentRequest &request, std::vector<MemoryComponentComparison> &result);
     void SortDescend(MemoryComponentRequest &request, std::vector<MemoryComponentComparison> &result);
-    const std::vector<Protocol::MemoryTableColumnAttr> tableColumnAttr = {
-        {"Component", "string", "component"},
-        {"Peak Memory Reserved(MB)", "number", "totalReserved"},
-        {"Timestamp(ms)", "number", "timestamp"}
-    };
+    const std::vector<Protocol::MemoryTableColumnAttr> tableColumnAttr = {{"Component", "string", "component"},
+        {"Peak Memory Reserved(MB)", "number", "totalReserved"}, {"Timestamp(ms)", "number", "timestamp"}};
 };
 } // end of namespace Memory
 } // end of namespace Module

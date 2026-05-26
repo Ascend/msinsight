@@ -24,7 +24,7 @@
 namespace Dic {
 namespace Module {
 class MemoryModule : public BaseModule {
-public:
+  public:
     MemoryModule();
     ~MemoryModule() override;
 

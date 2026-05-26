@@ -26,11 +26,10 @@ namespace Dic {
 namespace Module {
 namespace Memory {
 using namespace Dic::Server;
-bool QueryMemoryStaticOperatorListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemoryStaticOperatorListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MemoryStaticOperatorListRequest &>(*requestPtr.get());
     std::unique_ptr<MemoryStaticOperatorListCompResponse> responsePtr =
-            std::make_unique<MemoryStaticOperatorListCompResponse>();
+        std::make_unique<MemoryStaticOperatorListCompResponse>();
     MemoryStaticOperatorListCompResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     std::string errorMsg;
@@ -54,7 +53,7 @@ bool QueryMemoryStaticOperatorListHandler::HandleRequest(std::unique_ptr<Protoco
             SendResponse(std::move(responsePtr), false, "Failed to query memory static operator data.");
             return false;
         }
-        for (const auto &item: opDetails) {
+        for (const auto &item : opDetails) {
             StaticOperatorCompItem element = {item, {}, {}};
             response.operatorDiffDetails.emplace_back(element);
         }
@@ -73,8 +72,7 @@ bool QueryMemoryStaticOperatorListHandler::HandleRequest(std::unique_ptr<Protoco
 
 bool QueryMemoryStaticOperatorListHandler::GetRespectiveData(std::shared_ptr<VirtualMemoryDataBase> database,
     std::vector<StaticOperatorItem> &compareData, std::vector<StaticOperatorItem> &baselineData,
-    Dic::Protocol::MemoryStaticOperatorListRequest &request, std::string &errorMsg)
-{
+    Dic::Protocol::MemoryStaticOperatorListRequest &request, std::string &errorMsg) {
     std::string baselineId = Global::BaselineManager::Instance().GetBaselineId();
     if (baselineId == "") {
         errorMsg = "Failed to get baseline id.";
@@ -102,16 +100,14 @@ bool QueryMemoryStaticOperatorListHandler::GetRespectiveData(std::shared_ptr<Vir
 
 void QueryMemoryStaticOperatorListHandler::ExecuteComparisonAlgorithm(
     const std::vector<StaticOperatorItem> &compareData, const std::vector<StaticOperatorItem> &baselineData,
-    Dic::Protocol::MemoryStaticOperatorListRequest &request, MemoryStaticOperatorListCompResponse &response)
-{
+    Dic::Protocol::MemoryStaticOperatorListRequest &request, MemoryStaticOperatorListCompResponse &response) {
     std::vector<StaticOperatorCompItem> fullDiffResult;
     GetOperatorDiff(compareData, baselineData, fullDiffResult);
     SelectDiffResult(request, response, fullDiffResult);
 }
 
 void QueryMemoryStaticOperatorListHandler::GetOperatorDiff(const std::vector<StaticOperatorItem> &compareData,
-    const std::vector<StaticOperatorItem> &baselineData, std::vector<StaticOperatorCompItem> &diffData)
-{
+    const std::vector<StaticOperatorItem> &baselineData, std::vector<StaticOperatorCompItem> &diffData) {
     std::set<std::string> opNameSet;
     std::map<std::string, std::vector<StaticOperatorItem>> compareList;
     std::map<std::string, std::vector<StaticOperatorItem>> baselineList;
@@ -126,7 +122,7 @@ void QueryMemoryStaticOperatorListHandler::GetOperatorDiff(const std::vector<Sta
         baselineList[item.opName].push_back(item);
     }
     std::vector<StaticOperatorItem> emptyVec;
-    for (const auto &name: opNameSet) {
+    for (const auto &name : opNameSet) {
         if (compareList.find(name) == compareList.end()) {
             VectorMerge(emptyVec, baselineList[name], diffData);
             continue;
@@ -142,8 +138,7 @@ void QueryMemoryStaticOperatorListHandler::GetOperatorDiff(const std::vector<Sta
 }
 
 void QueryMemoryStaticOperatorListHandler::VectorMerge(std::vector<StaticOperatorItem> &compareVec,
-    std::vector<StaticOperatorItem> &baselineVec, std::vector<StaticOperatorCompItem> &diffData)
-{
+    std::vector<StaticOperatorItem> &baselineVec, std::vector<StaticOperatorCompItem> &diffData) {
     const StaticOperatorItem emptyStaticOp = {"", "", 0, 0, 0};
     for (size_t i = 0; i < std::min(compareVec.size(), baselineVec.size()); ++i) {
         StaticOperatorCompItem element = {compareVec[i], baselineVec[i], {}};
@@ -162,8 +157,7 @@ void QueryMemoryStaticOperatorListHandler::VectorMerge(std::vector<StaticOperato
     }
 }
 
-void QueryMemoryStaticOperatorListHandler::Subtract(Dic::Protocol::StaticOperatorCompItem &element)
-{
+void QueryMemoryStaticOperatorListHandler::Subtract(Dic::Protocol::StaticOperatorCompItem &element) {
     const int precision = 3;
     element.diff.deviceId = element.compare.deviceId;
     if (!element.compare.opName.empty()) {
@@ -177,17 +171,16 @@ void QueryMemoryStaticOperatorListHandler::Subtract(Dic::Protocol::StaticOperato
 }
 
 void QueryMemoryStaticOperatorListHandler::SelectDiffResult(MemoryStaticOperatorListRequest &request,
-    MemoryStaticOperatorListCompResponse &response,
-    std::vector<StaticOperatorCompItem> &fullDiffResult)
-{
+    MemoryStaticOperatorListCompResponse &response, std::vector<StaticOperatorCompItem> &fullDiffResult) {
     MemoryStaticOperatorListCompResponse filteredDiffResult;
-    for (const auto &item: fullDiffResult) {
+    for (const auto &item : fullDiffResult) {
         if (IsSelected(request, item)) {
             filteredDiffResult.operatorDiffDetails.push_back(item);
         }
     }
     SortResult(request, filteredDiffResult);
-    uint64_t pageSize = request.params.pageSize <= 0 ? DEFAULT_PAGE_SIZE : static_cast<uint64_t>(request.params.pageSize);
+    uint64_t pageSize =
+        request.params.pageSize <= 0 ? DEFAULT_PAGE_SIZE : static_cast<uint64_t>(request.params.pageSize);
     uint64_t currentPage = request.params.currentPage < 1 ? 0 : static_cast<uint64_t>(request.params.currentPage - 1);
     uint64_t offset = currentPage * pageSize;
     if (offset != 0 && offset >= filteredDiffResult.operatorDiffDetails.size()) {
@@ -201,9 +194,8 @@ void QueryMemoryStaticOperatorListHandler::SelectDiffResult(MemoryStaticOperator
     }
 }
 
-bool QueryMemoryStaticOperatorListHandler::IsSelected(MemoryStaticOperatorListRequest &request,
-                                                      const StaticOperatorCompItem &op)
-{
+bool QueryMemoryStaticOperatorListHandler::IsSelected(
+    MemoryStaticOperatorListRequest &request, const StaticOperatorCompItem &op) {
     bool filter = true;
     filter = filter && (op.diff.opName.find(request.params.searchName) != std::string::npos);
     if (request.params.minSize != std::numeric_limits<int64_t>::min()) {
@@ -215,21 +207,20 @@ bool QueryMemoryStaticOperatorListHandler::IsSelected(MemoryStaticOperatorListRe
     if (request.params.startNodeIndex != -1 && request.params.endNodeIndex != -1) {
         // 要求compare对象的开始和结束时间有一个在startTime endTime内，且baseline对象的开始和结束时间也有一个在startTime endTime内。
         filter = filter &&
-            ((op.compare.nodeIndexStart >= request.params.startNodeIndex && op.compare.nodeIndexStart <= request.params.
-                    endNodeIndex) ||
-                (op.compare.nodeIndexEnd >= request.params.startNodeIndex && op.compare.nodeIndexEnd <= request.params.
-                    endNodeIndex)) &&
-            ((op.baseline.nodeIndexStart >= request.params.startNodeIndex && op.baseline.nodeIndexStart <= request.
-                    params.endNodeIndex) ||
-                (op.baseline.nodeIndexEnd >= request.params.startNodeIndex && op.baseline.nodeIndexEnd <= request.params
-                    .endNodeIndex));
+            ((op.compare.nodeIndexStart >= request.params.startNodeIndex &&
+                 op.compare.nodeIndexStart <= request.params.endNodeIndex) ||
+                (op.compare.nodeIndexEnd >= request.params.startNodeIndex &&
+                    op.compare.nodeIndexEnd <= request.params.endNodeIndex)) &&
+            ((op.baseline.nodeIndexStart >= request.params.startNodeIndex &&
+                 op.baseline.nodeIndexStart <= request.params.endNodeIndex) ||
+                (op.baseline.nodeIndexEnd >= request.params.startNodeIndex &&
+                    op.baseline.nodeIndexEnd <= request.params.endNodeIndex));
     }
     return filter;
 }
 
-void QueryMemoryStaticOperatorListHandler::SortResult(MemoryStaticOperatorListRequest &request,
-    MemoryStaticOperatorListCompResponse &result)
-{
+void QueryMemoryStaticOperatorListHandler::SortResult(
+    MemoryStaticOperatorListRequest &request, MemoryStaticOperatorListCompResponse &result) {
     if (request.params.orderBy.empty()) {
         return;
     }
@@ -240,14 +231,15 @@ void QueryMemoryStaticOperatorListHandler::SortResult(MemoryStaticOperatorListRe
     }
 }
 
-void QueryMemoryStaticOperatorListHandler::SortAscend(MemoryStaticOperatorListRequest &request,
-    MemoryStaticOperatorListCompResponse &result)
-{
+void QueryMemoryStaticOperatorListHandler::SortAscend(
+    MemoryStaticOperatorListRequest &request, MemoryStaticOperatorListCompResponse &result) {
     std::map<std::string, bool (*)(StaticOperatorCompItem &, StaticOperatorCompItem &)> compFunc = {
-        {std::string(StaticOpColumn::DEVICE_ID), [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
-            return op1.diff.deviceId < op2.diff.deviceId;}},
-        {std::string(StaticOpColumn::OP_NAME), [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
-            return op1.diff.opName < op2.diff.opName;}},
+        {std::string(StaticOpColumn::DEVICE_ID),
+            [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
+                return op1.diff.deviceId < op2.diff.deviceId;
+            }},
+        {std::string(StaticOpColumn::OP_NAME),
+            [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) { return op1.diff.opName < op2.diff.opName; }},
         {std::string(StaticOpColumn::NODE_INDEX_START),
             [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
                 return op1.diff.nodeIndexStart < op2.diff.nodeIndexStart;
@@ -256,22 +248,23 @@ void QueryMemoryStaticOperatorListHandler::SortAscend(MemoryStaticOperatorListRe
             [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
                 return op1.diff.nodeIndexEnd < op2.diff.nodeIndexEnd;
             }},
-        {std::string(StaticOpColumn::SIZE), [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
-            return op1.diff.size < op2.diff.size;}}};
+        {std::string(StaticOpColumn::SIZE),
+            [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) { return op1.diff.size < op2.diff.size; }}};
     if (compFunc.find(request.params.orderBy) != compFunc.end()) {
-        std::sort(result.operatorDiffDetails.begin(), result.operatorDiffDetails.end(),
-            compFunc[request.params.orderBy]);
+        std::sort(
+            result.operatorDiffDetails.begin(), result.operatorDiffDetails.end(), compFunc[request.params.orderBy]);
     }
 }
 
-void QueryMemoryStaticOperatorListHandler::SortDescend(MemoryStaticOperatorListRequest &request,
-    MemoryStaticOperatorListCompResponse &result)
-{
+void QueryMemoryStaticOperatorListHandler::SortDescend(
+    MemoryStaticOperatorListRequest &request, MemoryStaticOperatorListCompResponse &result) {
     std::map<std::string, bool (*)(StaticOperatorCompItem &, StaticOperatorCompItem &)> compFunc = {
-        {std::string(StaticOpColumn::DEVICE_ID), [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
-            return op1.diff.deviceId > op2.diff.deviceId;}},
-        {std::string(StaticOpColumn::OP_NAME), [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
-            return op1.diff.opName > op2.diff.opName;}},
+        {std::string(StaticOpColumn::DEVICE_ID),
+            [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
+                return op1.diff.deviceId > op2.diff.deviceId;
+            }},
+        {std::string(StaticOpColumn::OP_NAME),
+            [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) { return op1.diff.opName > op2.diff.opName; }},
         {std::string(StaticOpColumn::NODE_INDEX_START),
             [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
                 return op1.diff.nodeIndexStart > op2.diff.nodeIndexStart;
@@ -281,12 +274,10 @@ void QueryMemoryStaticOperatorListHandler::SortDescend(MemoryStaticOperatorListR
                 return op1.diff.nodeIndexEnd > op2.diff.nodeIndexEnd;
             }},
         {std::string(StaticOpColumn::SIZE),
-            [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) {
-                return op1.diff.size > op2.diff.size;
-            }}};
+            [](StaticOperatorCompItem &op1, StaticOperatorCompItem &op2) { return op1.diff.size > op2.diff.size; }}};
     if (compFunc.find(request.params.orderBy) != compFunc.end()) {
-        std::sort(result.operatorDiffDetails.begin(), result.operatorDiffDetails.end(),
-            compFunc[request.params.orderBy]);
+        std::sort(
+            result.operatorDiffDetails.begin(), result.operatorDiffDetails.end(), compFunc[request.params.orderBy]);
     }
 }
 } // end of namespace Memory

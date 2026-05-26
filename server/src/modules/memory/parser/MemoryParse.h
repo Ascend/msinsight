@@ -36,15 +36,13 @@ namespace Module {
 namespace Memory {
 
 class MemoryParse : public FileParser {
-public:
+  public:
     static MemoryParse &Instance();
     MemoryParse();
 
     ~MemoryParse() override;
-    bool Parse(const std::vector<std::string> &filePaths,
-               const std::string &rankId,
-               const std::string &selectedFolder,
-               const std::string &fileId) override;
+    bool Parse(const std::vector<std::string> &filePaths, const std::string &rankId, const std::string &selectedFolder,
+        const std::string &fileId) override;
     bool Parse(const RankEntry &rankEntry);
     void Reset() override;
     bool OperatorParse(const std::string &filePath, const std::string &rankId);
@@ -53,20 +51,19 @@ public:
     bool ComponentParse(const std::string &filePath, const std::string &fileId);
 
     static bool CheckRequiredColumnsAndBuildDataMapFromHeaderRow(const std::vector<std::string> &headerRow,
-                                                                 const std::vector<std::string> &requiredHeaders,
-                                                                 std::map<std::string, size_t> &dataMap);
+        const std::vector<std::string> &requiredHeaders, std::map<std::string, size_t> &dataMap);
 
     static bool NeedInterrupt(const std::string &fileId);
 
-    static bool ParseOperatorHeaderLine(std::map<std::string, size_t>& dataMap, const std::vector<std::string>& row);
+    static bool ParseOperatorHeaderLine(std::map<std::string, size_t> &dataMap, const std::vector<std::string> &row);
 
-    static Operator ParseOperatorDataLine(std::map<std::string, size_t>& dataMap, std::vector<std::string> &row);
+    static Operator ParseOperatorDataLine(std::map<std::string, size_t> &dataMap, std::vector<std::string> &row);
     MemoryFilePairs GetMemoryFile(const std::string &path);
     CurveView ComputeCurve(double xMin, double xMax, const std::string &input);
     void PutCurve(const std::string &inputKey, CurveView &curve);
-    bool Exist(const std::string& inputKey);
+    bool Exist(const std::string &inputKey);
 
-private:
+  private:
     const uint32_t maxThreadNum = 4;
     const double mbToKb = 1024.0;
     std::map<std::string, Protocol::MemorySuccess> ranks;
@@ -83,24 +80,19 @@ private:
     Component mapperToComponentDetail(std::map<std::string, size_t> dataMap, std::vector<std::string>);
 
     static bool GetMapValid(const std::vector<std::string> &vec, const std::map<std::string, size_t> &dataMap);
-    std::vector<std::string> GetPeerDirOperatorFile(const std::string& operatorFile, const std::string &reg);
-    std::map<std::string, MemoryFilePairs>
-    GetMemoryFiles(const std::vector<std::string> &paths, const std::string &rankId,
-                   const std::string &fileId);
-    std::vector<std::string> GetMemoryRecordFileLists(const std::vector<std::string>& paths);
+    std::vector<std::string> GetPeerDirOperatorFile(const std::string &operatorFile, const std::string &reg);
+    std::map<std::string, MemoryFilePairs> GetMemoryFiles(
+        const std::vector<std::string> &paths, const std::string &rankId, const std::string &fileId);
+    std::vector<std::string> GetMemoryRecordFileLists(const std::vector<std::string> &paths);
     static void SetParseCallBack();
-    static void ParseEndCallBack(const std::string &rankId,
-                                 const std::string &fileId,
-                                 bool result,
-                                 const std::string &message);
-    static void ParseCallBack(const std::string &rankId,
-                              const std::string &fileId,
-                              bool result,
-                              const std::string &msg);
+    static void ParseEndCallBack(
+        const std::string &rankId, const std::string &fileId, bool result, const std::string &message);
+    static void ParseCallBack(
+        const std::string &rankId, const std::string &fileId, bool result, const std::string &msg);
 
-    static void PreParseTask(const MemoryFilePairs& filePair, const std::string& fileId);
-    static bool ParseTask(const MemoryFilePairs& filePair, const std::string& rankId, std::string &message);
-    static bool InitParser(const MemoryFilePairs& filePair, const std::string& fileId, std::string &message);
+    static void PreParseTask(const MemoryFilePairs &filePair, const std::string &fileId);
+    static bool ParseTask(const MemoryFilePairs &filePair, const std::string &rankId, std::string &message);
+    static bool InitParser(const MemoryFilePairs &filePair, const std::string &fileId, std::string &message);
     static std::string DeleteNPUPrefix(const std::string &str);
 };
 } // end of namespace Memory

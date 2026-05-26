@@ -39,35 +39,33 @@ struct OperatorPO {
     std::string stream;
 };
 class OperatorTable : public MemoryTable<OperatorPO> {
-public:
+  public:
     OperatorTable() = default;
     ~OperatorTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { OpMemoryColumn::ID, SetId },
-            { OpMemoryColumn::NAME, SetName },
-            { OpMemoryColumn::SIZE, SetSize },
-            { OpMemoryColumn::ALLOCATION_TIME, SetAllocationTime },
-            { OpMemoryColumn::RELEASE_TIME, SetReleaseTime },
-            { OpMemoryColumn::DURATION, SetDuration },
-            { OpMemoryColumn::ACTIVE_RELEASE_TIME, SetActiveReleaseTime },
-            { OpMemoryColumn::ACTIVE_DURATION, SetActiveDuration },
-            { OpMemoryColumn::ALLOCATION_ALLOCATED, SetAllocationAllocated },
-            { OpMemoryColumn::ALLOCATION_RESERVE, SetAllocationReserve },
-            { OpMemoryColumn::ALLOCATION_ACTIVE, SetAllocationActive },
-            { OpMemoryColumn::RELEASE_ALLOCATED, SetReleaseAllocated },
-            { OpMemoryColumn::RELEASE_RESERVE, SetReleaseReserve },
-            { OpMemoryColumn::RELEASE_ACTIVE, SetReleaseActive },
-            { OpMemoryColumn::STREAM, SetStream },
+            {OpMemoryColumn::ID, SetId},
+            {OpMemoryColumn::NAME, SetName},
+            {OpMemoryColumn::SIZE, SetSize},
+            {OpMemoryColumn::ALLOCATION_TIME, SetAllocationTime},
+            {OpMemoryColumn::RELEASE_TIME, SetReleaseTime},
+            {OpMemoryColumn::DURATION, SetDuration},
+            {OpMemoryColumn::ACTIVE_RELEASE_TIME, SetActiveReleaseTime},
+            {OpMemoryColumn::ACTIVE_DURATION, SetActiveDuration},
+            {OpMemoryColumn::ALLOCATION_ALLOCATED, SetAllocationAllocated},
+            {OpMemoryColumn::ALLOCATION_RESERVE, SetAllocationReserve},
+            {OpMemoryColumn::ALLOCATION_ACTIVE, SetAllocationActive},
+            {OpMemoryColumn::RELEASE_ALLOCATED, SetReleaseAllocated},
+            {OpMemoryColumn::RELEASE_RESERVE, SetReleaseReserve},
+            {OpMemoryColumn::RELEASE_ACTIVE, SetReleaseActive},
+            {OpMemoryColumn::STREAM, SetStream},
         };
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "operator";
         return tableName;
     }
