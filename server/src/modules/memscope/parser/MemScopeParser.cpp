@@ -23,30 +23,25 @@
 #include "MemScopeParser.h"
 
 namespace Dic::Module {
-bool ParseEventContext::CheckDeviceIdValid(const std::string& deviceId)
-{
+bool ParseEventContext::CheckDeviceIdValid(const std::string &deviceId) {
     return deviceIds.find(deviceId) != deviceIds.end();
 }
 
-MemScopeParser& MemScopeParser::Instance()
-{
+MemScopeParser &MemScopeParser::Instance() {
     static MemScopeParser instance;
     return instance;
 }
 
-void MemScopeParser::Reset() const
-{
+void MemScopeParser::Reset() const {
     FullDb::MemScopeDatabase::Reset();
     _threadPool->Reset();
 }
 
-void MemScopeParser::AsyncParseMemScopeDbFile(const std::string& dbPath) const
-{
+void MemScopeParser::AsyncParseMemScopeDbFile(const std::string &dbPath) const {
     _threadPool->AddTask(ParseMemScopeDbTask, TraceIdManager::GetTraceId(), dbPath);
 }
 
-void MemScopeParser::ParseMemScopeDbTask(const std::string& dbPath)
-{
+void MemScopeParser::ParseMemScopeDbTask(const std::string &dbPath) {
     auto database = Timeline::DataBaseManager::Instance().GetMemScopeDatabase(dbPath);
     if (database == nullptr || !database->OpenDb(dbPath, false)) {
         const std::string err = "Failed to get memscope database";
@@ -57,7 +52,7 @@ void MemScopeParser::ParseMemScopeDbTask(const std::string& dbPath)
     }
     if (!database->CheckTableExist(TABLE_LEAKS_DUMP) && !database->CheckTableExist(TABLE_MEM_SCOPE_DUMP)) {
         const std::string err = "The 'leaks_dump' table or 'memscope_dump' table should exist in the memscope "
-            "database at a minimum.";
+                                "database at a minimum.";
         Server::ServerLog::Error(err);
         ParserEnd(dbPath, false);
         ParseCallBack(dbPath, false, err);
@@ -66,19 +61,17 @@ void MemScopeParser::ParseMemScopeDbTask(const std::string& dbPath)
     if (ParseMemoryMemScopeDumpEventsAndPythonTraces(dbPath)) {
         ParserEnd(dbPath, true);
         ParseCallBack(dbPath, true, "");
-    }
-    else {
+    } else {
         Server::ServerLog::Error("Failed to connect or open memscope memory database.");
         ParserEnd(dbPath, false);
         ParseCallBack(dbPath, false,
-                      "An exception occurred while parsing the DB data: "
-                      "Please check the logs for details.");
+            "An exception occurred while parsing the DB data: "
+            "Please check the logs for details.");
     }
     Timeline::ParserStatusManager::Instance().SetParserStatus(dbPath, Timeline::ParserStatus::FINISH_ALL);
 }
 
-std::optional<ParseEventContext> MemScopeParser::BuildParseContext(std::shared_ptr<FullDb::MemScopeDatabase>& db)
-{
+std::optional<ParseEventContext> MemScopeParser::BuildParseContext(std::shared_ptr<FullDb::MemScopeDatabase> &db) {
     if (db == nullptr) {
         Server::ServerLog::Error("Cannot get memscope db connections from database manager");
         return std::nullopt;
@@ -94,8 +87,7 @@ std::optional<ParseEventContext> MemScopeParser::BuildParseContext(std::shared_p
     return context;
 }
 
-bool MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces(const std::string& fileId)
-{
+bool MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces(const std::string &fileId) {
     auto database = Timeline::DataBaseManager::Instance().GetMemScopeDatabase("");
     if (database == nullptr) {
         Server::ServerLog::Error("Cannot get memscope db connections from database manager");
@@ -110,7 +102,7 @@ bool MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces(const std::str
         !database->UpdateParseStatus(NOT_FINISH_STATUS)) {
         Server::ServerLog::Error("Cannot create memory allocation and memory block table.");
         return false;
-        }
+    }
     auto context = BuildParseContext(database);
     if (!context.has_value()) {
         Server::ServerLog::Error("Parse failed: build parse context failed.");
@@ -139,8 +131,7 @@ bool MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces(const std::str
     return true;
 }
 
-uint64_t SafeCalculateAllocationSize(uint64_t currentSize, int64_t eventSize)
-{
+uint64_t SafeCalculateAllocationSize(uint64_t currentSize, int64_t eventSize) {
     uint64_t tmpSize;
     if (eventSize >= 0) {
         tmpSize = static_cast<uint64_t>(eventSize);
@@ -154,11 +145,10 @@ uint64_t SafeCalculateAllocationSize(uint64_t currentSize, int64_t eventSize)
     if (currentSize > tmpSize) {
         return currentSize - tmpSize;
     }
-    return  0;
+    return 0;
 }
 
-void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext& context)
-{
+void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext &context) {
     if (context.db == nullptr) {
         Server::ServerLog::Error("Cannot parse event to blocks and allocations: invalid db connections");
         return;
@@ -173,15 +163,17 @@ void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext& context
             context.eventGroupMap[eventAttrs->groupId].groupId = static_cast<int64_t>(eventAttrs->groupId);
             context.eventGroupMap[eventAttrs->groupId].AddEvent(event);
         }
-        if (!SingleDeviceEventParse(event, context)) continue;
+        if (!SingleDeviceEventParse(event, context)) {
+            continue;
+        }
         if (event.event == MEM_SCOPE_DUMP_EVENT::FREE) {
             eventAttrs->size = -std::abs(eventAttrs->size);
         }
         context.deviceTotalSize[event.deviceId + event.eventType] =
-                SafeCalculateAllocationSize(context.deviceTotalSize[event.deviceId + event.eventType], eventAttrs->size);
+            SafeCalculateAllocationSize(context.deviceTotalSize[event.deviceId + event.eventType], eventAttrs->size);
         // 构造allocation折线图元素
         MemoryAllocation allocation(event.timestamp, context.deviceTotalSize[event.deviceId + event.eventType],
-                                    event.deviceId, event.eventType, false);
+            event.deviceId, event.eventType, false);
         context.db->InsertMemoryAllocation(allocation);
     }
     ParseRemainMallocEvents(context);
@@ -190,8 +182,7 @@ void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext& context
     context.db->UpdateParseStatus(FINISH_STATUS);
 }
 
-bool MemScopeParser::ParseThreadPythonTrace(MemScopePythonTrace& trace, ParseEventContext& context)
-{
+bool MemScopeParser::ParseThreadPythonTrace(MemScopePythonTrace &trace, ParseEventContext &context) {
     if (context.db == nullptr) {
         Server::ServerLog::Warn("Failed to parse thread python trace: cannot get db connection.");
         return false;
@@ -217,8 +208,7 @@ bool MemScopeParser::ParseThreadPythonTrace(MemScopePythonTrace& trace, ParseEve
     return true;
 }
 
-bool MemScopeParser::SingleDeviceEventParse(const MemScopeEvent& event, ParseEventContext& context)
-{
+bool MemScopeParser::SingleDeviceEventParse(const MemScopeEvent &event, ParseEventContext &context) {
     if (event.event != MEM_SCOPE_DUMP_EVENT::MALLOC && event.event != MEM_SCOPE_DUMP_EVENT::FREE) {
         return false;
     }
@@ -226,8 +216,8 @@ bool MemScopeParser::SingleDeviceEventParse(const MemScopeEvent& event, ParseEve
     auto attrs = BuildEventAttrsFromJson<MallocFreeEventAttrs>(event.attr);
     if (!attrs.has_value() || attrs->size == 0) {
         Server::ServerLog::Warn("An invalid memory allocation/free event[" + event.ptr +
-                                "] was detected: cannot get the 'size' "
-                                "attribute from the 'attr' field.");
+            "] was detected: cannot get the 'size' "
+            "attribute from the 'attr' field.");
         return false;
     }
     // 如果是分配事件
@@ -235,7 +225,8 @@ bool MemScopeParser::SingleDeviceEventParse(const MemScopeEvent& event, ParseEve
         // 已存在则忽略, 可能为重复申请
         if (allocMap.find(event.ptr + event.eventType) != allocMap.end()) {
             Server::ServerLog::Warn(StringUtil::FormatString("Invalid memory allocation event[{}]: the address "
-                                                             "was already allocated and not released.", event.ptr));
+                                                             "was already allocated and not released.",
+                event.ptr));
             return false;
         }
         // 加入申请表
@@ -246,15 +237,15 @@ bool MemScopeParser::SingleDeviceEventParse(const MemScopeEvent& event, ParseEve
         // 内存分配表中未找到匹配的分配事件，则忽略
         if (allocMap.find(event.ptr + event.eventType) == allocMap.end()) {
             Server::ServerLog::Warn(StringUtil::FormatString("Invalid memory free event[{}]: "
-                                                             "no corresponding allocation.", event.ptr));
+                                                             "no corresponding allocation.",
+                event.ptr));
             return false;
         }
         auto &allocEvent = allocMap[event.ptr + event.eventType];
         auto allocAttrs = BuildEventAttrsFromJson<MallocFreeEventAttrs>(allocEvent->attr);
         // 构造block
-        MemoryBlock block(event.ptr, event.deviceId, std::abs(allocAttrs->size), allocEvent->timestamp,
-                          event.timestamp, allocAttrs->owner, event.eventType,
-                          allocEvent->attr, event.processId, event.threadId);
+        MemoryBlock block(event.ptr, event.deviceId, std::abs(allocAttrs->size), allocEvent->timestamp, event.timestamp,
+            allocAttrs->owner, event.eventType, allocEvent->attr, event.processId, event.threadId);
         // 构造block扩展属性
         SetMemoryBlockExtendByEventGroup(block, allocAttrs->groupId, context);
         context.db->InsertMemoryBlock(block);
@@ -264,9 +255,8 @@ bool MemScopeParser::SingleDeviceEventParse(const MemScopeEvent& event, ParseEve
     return true;
 }
 
-void MemScopeParser::SetMemoryBlockExtendByEventGroup(MemoryBlock& block, const uint64_t groupId,
-                                                      ParseEventContext& context)
-{
+void MemScopeParser::SetMemoryBlockExtendByEventGroup(
+    MemoryBlock &block, const uint64_t groupId, ParseEventContext &context) {
     MemoryBlockAttrs blockAttrs;
     blockAttrs.groupId = groupId;
     block.attrJsonString = blockAttrs.ToJsonString();
@@ -289,8 +279,7 @@ void MemScopeParser::SetMemoryBlockExtendByEventGroup(MemoryBlock& block, const 
     block.maxAccessInterval = maxInterval;
 }
 
-void MemScopeParser::ParseRemainMallocEvents(ParseEventContext& context)
-{
+void MemScopeParser::ParseRemainMallocEvents(ParseEventContext &context) {
     for (auto &devicePair : context.deviceMallocMap) {
         std::string deviceId = devicePair.first;
         std::map<std::string, const MemScopeEvent *> allocMap = devicePair.second;
@@ -305,7 +294,7 @@ void MemScopeParser::ParseRemainMallocEvents(ParseEventContext& context)
             }
             // 构造block
             MemoryBlock block(event->ptr, event->deviceId, eventAttrs->size, event->timestamp, maxTimestamp,
-                              eventAttrs->owner, event->eventType, event->attr, event->processId, event->threadId);
+                eventAttrs->owner, event->eventType, event->attr, event->processId, event->threadId);
             // 构造block扩展属性
             auto blockAttrs = MemoryBlockAttrs::FromJson(event->attr);
             SetMemoryBlockExtendByEventGroup(block, blockAttrs->groupId, context);
@@ -315,8 +304,7 @@ void MemScopeParser::ParseRemainMallocEvents(ParseEventContext& context)
     }
 }
 
-void MemScopeParser::ParserEnd(const std::string& dbPath, const bool result)
-{
+void MemScopeParser::ParserEnd(const std::string &dbPath, const bool result) {
     if (!result) {
         Server::ServerLog::Error("[MemScope]memscope database parser failed, filepath: ", dbPath);
         return;
@@ -324,15 +312,13 @@ void MemScopeParser::ParserEnd(const std::string& dbPath, const bool result)
     Server::ServerLog::Info("[MemScope]memscope Dumps Parser ends, filepath: ", dbPath);
 }
 
-void MemScopeParser::ParseCallBack(const std::string& dbPath, bool result, const std::string& msg)
-{
+void MemScopeParser::ParseCallBack(const std::string &dbPath, bool result, const std::string &msg) {
     auto event = std::make_unique<Protocol::MemScopeParseSuccessEvent>();
     event->moduleName = Protocol::MODULE_MEM_SCOPE;
     if (dbPath.empty()) {
         event->result = true;
         SendEvent(std::move(event));
-    }
-    else {
+    } else {
         event->result = result;
         Protocol::MemScopeParseSuccessEventBody body;
         if (event->result) {
@@ -347,8 +333,9 @@ void MemScopeParser::ParseCallBack(const std::string& dbPath, bool result, const
             memoryDatabase->QueryMallocOrFreeEventTypeWithDeviceId(body.deviceIds);
             memoryDatabase->QueryThreadIds(body.threadIds);
             memoryDatabase->SetDataBaseVersion();
+        } else {
+            event->errMsg = msg;
         }
-        else { event->errMsg = msg; }
         body.fileId = dbPath;
         body.module = Protocol::MODULE_MEM_SCOPE;
         event->body = body;
@@ -356,11 +343,14 @@ void MemScopeParser::ParseCallBack(const std::string& dbPath, bool result, const
     }
 }
 
-MemScopeParser::MemScopeParser()
-{
+MemScopeParser::MemScopeParser() {
     // MemScopedb为单文件单线程解析
     _threadPool = std::make_unique<ThreadPool>(1);
 }
 
-MemScopeParser::~MemScopeParser() { if (_threadPool != nullptr) { _threadPool->ShutDown(); } }
+MemScopeParser::~MemScopeParser() {
+    if (_threadPool != nullptr) {
+        _threadPool->ShutDown();
+    }
+}
 }

@@ -82,12 +82,9 @@ struct Segment {
     Segment() = default;
 
     Segment(const uint64_t address = 0, const uint64_t totalSize = 0, const uint64_t stream = 0,
-            const int64_t allocOrMapEventId = -1, const int64_t freeOrUnmapEventId = -1) :
-        address(address),
-        totalSize(totalSize),
-        stream(stream),
-        allocOrMapEventId(allocOrMapEventId),
-        freeOrUnmapEventId(freeOrUnmapEventId) {}
+        const int64_t allocOrMapEventId = -1, const int64_t freeOrUnmapEventId = -1)
+        : address(address), totalSize(totalSize), stream(stream), allocOrMapEventId(allocOrMapEventId),
+          freeOrUnmapEventId(freeOrUnmapEventId) {}
 };
 }
 #endif // PROFILER_SERVER_MEMSNAPSHOTDEFS_H

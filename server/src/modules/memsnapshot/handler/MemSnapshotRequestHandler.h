@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 
-
 #ifndef PROFILER_SERVER_MEM_SNAPSHOT_REQUEST_HANDLER_H
 #define PROFILER_SERVER_MEM_SNAPSHOT_REQUEST_HANDLER_H
 
@@ -31,26 +30,24 @@
 
 namespace Dic::Module::MemSnapshot {
 class MemSnapshotRequestHandler : public ModuleRequestHandler {
-public:
-    MemSnapshotRequestHandler()
-    {
+  public:
+    MemSnapshotRequestHandler() {
         moduleName = MODULE_MEM_SCOPE; // Snapshot与MemScope为同一模块下的两种类型，为了方便处理，这里统一为MemScope
         async = false;
     }
 
     ~MemSnapshotRequestHandler() override = default;
 
-protected:
+  protected:
     inline static const std::string REQUEST_ERROR_UNKNOWN = "An unknown exception occurred while querying data. "
-        "Please check whether your data contains anomalies or "
-        "review the logs for more information.";
+                                                            "Please check whether your data contains anomalies or "
+                                                            "review the logs for more information.";
 
-    static inline std::shared_ptr<FullDb::MemSnapshotDatabase>
-    GetMemSnapshotDatabaseByRequest(const Protocol::Request& request)
-    {
+    static inline std::shared_ptr<FullDb::MemSnapshotDatabase> GetMemSnapshotDatabaseByRequest(
+        const Protocol::Request &request) {
         return Timeline::DataBaseManager::Instance().GetMemSnapshotDatabase(
             request.fileId.empty() ? request.projectName : request.fileId);
     }
 };
 } // namespace Dic::Module::MemSnapshot
-#endif  // PROFILER_SERVER_MEM_SNAPSHOT_REQUEST_HANDLER_H
+#endif // PROFILER_SERVER_MEM_SNAPSHOT_REQUEST_HANDLER_H

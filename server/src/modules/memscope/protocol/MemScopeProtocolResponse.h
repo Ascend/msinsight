@@ -31,9 +31,7 @@ namespace Dic::Protocol {
 using namespace Dic::Module;
 using namespace Dic::Module::MemScope;
 
-static document_t ToMemScopeMemoryBlockJson(const MemoryBlock& block,
-                                            Document::AllocatorType& allocator)
-{
+static document_t ToMemScopeMemoryBlockJson(const MemoryBlock &block, Document::AllocatorType &allocator) {
     document_t json(kObjectType);
     JsonUtil::AddMember(json, "id", block.id, allocator);
     JsonUtil::AddMember(json, "addr", block.ptr, allocator);
@@ -64,10 +62,9 @@ struct MemScopeMemoryBlocksResponse : public JsonResponse {
     uint64_t maxSize{};
     uint64_t total{};
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t jsonBlocks(kArrayType);
@@ -77,12 +74,12 @@ struct MemScopeMemoryBlocksResponse : public JsonResponse {
         JsonUtil::AddMember(body, "maxSize", maxSize, allocator);
         JsonUtil::AddMember(body, "total", total, allocator);
         json_t jsonHeaders(kArrayType);
-        for (const auto& header : BLOCK_TABLE::FIELD_FULL_COLUMNS) {
+        for (const auto &header : BLOCK_TABLE::FIELD_FULL_COLUMNS) {
             if (header.visible) {
                 jsonHeaders.PushBack(header.ToTableHeaderJson(allocator), allocator);
             }
         }
-        for (const auto& block : blocks) {
+        for (const auto &block : blocks) {
             auto blockJson = ToMemScopeMemoryBlockJson(block, allocator);
             jsonBlocks.PushBack(blockJson, allocator);
         }
@@ -99,16 +96,15 @@ struct MemScopeMemoryAllocationsResponse : public JsonResponse {
     uint64_t maxTimestamp{};
     std::vector<MemoryAllocation> allocations;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t allocationsJson(kArrayType);
         JsonUtil::AddMember(body, "minTimestamp", minTimestamp, allocator);
         JsonUtil::AddMember(body, "maxTimestamp", maxTimestamp, allocator);
-        for (const auto& allocation : allocations) {
+        for (const auto &allocation : allocations) {
             auto allocationJson = ToMemScopeMemoryAllocationJson(allocation, allocator);
             if (allocationJson.has_value()) {
                 allocationsJson.PushBack(allocationJson.value(), allocator);
@@ -119,9 +115,8 @@ struct MemScopeMemoryAllocationsResponse : public JsonResponse {
         return std::optional<document_t>{std::move(json)};
     }
 
-    static std::optional<document_t> ToMemScopeMemoryAllocationJson(const MemoryAllocation& allocation,
-                                                                    Document::AllocatorType& allocator)
-    {
+    static std::optional<document_t> ToMemScopeMemoryAllocationJson(
+        const MemoryAllocation &allocation, Document::AllocatorType &allocator) {
         document_t json(kObjectType);
         JsonUtil::AddMember(json, "id", allocation.id, allocator);
         JsonUtil::AddMember(json, "timestamp", allocation.timestamp, allocator);
@@ -135,10 +130,9 @@ struct MemScopeMemoryDetailsResponse : public JsonResponse {
     uint64_t timestamp{};
     std::unique_ptr<MemScopeMemoryDetailTreeNode> detail;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         auto body_json = ToMemScopeDetailTreeJson(detail.get(), allocator);
         if (!body_json.has_value()) {
@@ -149,18 +143,21 @@ struct MemScopeMemoryDetailsResponse : public JsonResponse {
     }
 
     // 此处转json存在递归，但treeNode在构造时确保了层数不超过8
-    static std::optional<document_t> ToMemScopeDetailTreeJson(MemScopeMemoryDetailTreeNode* treeNode,
-                                                              Document::AllocatorType& allocator)
-    {
-        if (treeNode == nullptr) { return std::nullopt; }
+    static std::optional<document_t> ToMemScopeDetailTreeJson(
+        MemScopeMemoryDetailTreeNode *treeNode, Document::AllocatorType &allocator) {
+        if (treeNode == nullptr) {
+            return std::nullopt;
+        }
         document_t json(kObjectType);
         JsonUtil::AddMember(json, "name", treeNode->name, allocator);
         JsonUtil::AddMember(json, "tag", treeNode->tag, allocator);
         JsonUtil::AddMember(json, "size", treeNode->size, allocator);
         json_t subNodes(kArrayType);
-        for (auto& subNode : treeNode->children) {
+        for (auto &subNode : treeNode->children) {
             auto subNodeJson = ToMemScopeDetailTreeJson(subNode.get(), allocator);
-            if (subNodeJson.has_value()) { subNodes.PushBack(subNodeJson.value(), allocator); }
+            if (subNodeJson.has_value()) {
+                subNodes.PushBack(subNodeJson.value(), allocator);
+            }
         }
         JsonUtil::AddMember(json, "subNodes", subNodes, allocator);
         return std::optional<document_t>{std::move(json)};
@@ -170,10 +167,9 @@ struct MemScopeMemoryDetailsResponse : public JsonResponse {
 struct MemScopePythonTracesResponse : public JsonResponse {
     MemScopePythonTracesResponse() : JsonResponse(REQ_RES_MEM_SCOPE_PYTHON_TRACES) {}
     MemScopePythonTrace trace;
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         document_t body(kObjectType);
         auto tracesJson = ToMemScopePythonTracesJson(trace.slices, allocator);
@@ -189,11 +185,10 @@ struct MemScopePythonTracesResponse : public JsonResponse {
         return std::optional<document_t>{std::move(json)};
     }
 
-    static std::optional<document_t> ToMemScopePythonTracesJson(const std::vector<PythonTraceSlice>& slices,
-                                                                Document::AllocatorType& allocator)
-    {
+    static std::optional<document_t> ToMemScopePythonTracesJson(
+        const std::vector<PythonTraceSlice> &slices, Document::AllocatorType &allocator) {
         document_t json(kArrayType);
-        for (auto& slice : slices) {
+        for (auto &slice : slices) {
             document_t traceJson(kObjectType);
             JsonUtil::AddMember(traceJson, "func", slice.func, allocator);
             JsonUtil::AddMember(traceJson, "startTimestamp", slice.startTimestamp, allocator);
@@ -213,10 +208,9 @@ struct MemScopeEventResponse : public JsonResponse {
     bool withCallStackC = false;
     bool withCallStackPython = false;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
-        auto& allocator = json.GetAllocator();
+        auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t headers(kArrayType);
@@ -239,8 +233,7 @@ struct MemScopeEventResponse : public JsonResponse {
         return std::optional<document_t>{std::move(json)};
     }
 
-    document_t ToTableDataJson(Document::AllocatorType& allocator) const
-    {
+    document_t ToTableDataJson(Document::AllocatorType &allocator) const {
         document_t dataJson(kArrayType);
         for (auto &event : events) {
             document_t eventJson(kObjectType);
@@ -265,5 +258,5 @@ struct MemScopeEventResponse : public JsonResponse {
         return dataJson;
     }
 };
-}  // end of namespace Dic::Protocol
-#endif  // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_RESPONSE_H
+} // end of namespace Dic::Protocol
+#endif // PROFILER_SERVER_MEM_SCOPE_PROTOCOL_RESPONSE_H

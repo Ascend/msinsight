@@ -22,10 +22,10 @@
 namespace Dic {
 namespace Module {
 namespace MemScope {
-bool QueryMemScopeAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemScopeAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MemScopeMemoryAllocationRequest &>(*requestPtr.get());
-    std::unique_ptr<MemScopeMemoryAllocationsResponse> responsePtr = std::make_unique<MemScopeMemoryAllocationsResponse>();
+    std::unique_ptr<MemScopeMemoryAllocationsResponse> responsePtr =
+        std::make_unique<MemScopeMemoryAllocationsResponse>();
     MemScopeMemoryAllocationsResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     std::string errorMsg;
@@ -57,9 +57,8 @@ bool QueryMemScopeAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Req
     return true;
 }
 
-void QueryMemScopeAllocationHandler::PaddingAllocations(std::vector<MemoryAllocation> &allocations,
-                                                        const MemScopeMemoryAllocationParams &queryParams)
-{
+void QueryMemScopeAllocationHandler::PaddingAllocations(
+    std::vector<MemoryAllocation> &allocations, const MemScopeMemoryAllocationParams &queryParams) {
     auto memoryDatabase = Timeline::DataBaseManager::Instance().GetMemScopeDatabase("");
     if (memoryDatabase == nullptr) {
         Server::ServerLog::Error("Get memscope memory database failed when padding allocations.");
@@ -69,26 +68,20 @@ void QueryMemScopeAllocationHandler::PaddingAllocations(std::vector<MemoryAlloca
     if (queryParams.relativeTime) {
         minTimestamp = memoryDatabase->GetGlobalMinTimestamp();
     }
-    auto beforeAllocation = memoryDatabase->QueryLatestAllocationWithinTimestamp(queryParams.deviceId,
-                                                                                 queryParams.eventType,
-                                                                                 queryParams.startTimestamp + minTimestamp);
+    auto beforeAllocation = memoryDatabase->QueryLatestAllocationWithinTimestamp(
+        queryParams.deviceId, queryParams.eventType, queryParams.startTimestamp + minTimestamp);
     if (!beforeAllocation.has_value()) {
-        beforeAllocation = std::make_optional<MemoryAllocation>(queryParams.startTimestamp, 0,
-                                                                queryParams.deviceId, queryParams.eventType,
-                                                                queryParams.optimized);
+        beforeAllocation = std::make_optional<MemoryAllocation>(
+            queryParams.startTimestamp, 0, queryParams.deviceId, queryParams.eventType, queryParams.optimized);
     } else {
         beforeAllocation.value().timestamp = queryParams.startTimestamp;
     }
     allocations.insert(allocations.begin(), beforeAllocation.value());
-    auto afterAllocation = memoryDatabase->QueryNextAllocationAfterTimestamp(queryParams.deviceId,
-                                                                             queryParams.eventType,
-                                                                             queryParams.endTimestamp + minTimestamp);
+    auto afterAllocation = memoryDatabase->QueryNextAllocationAfterTimestamp(
+        queryParams.deviceId, queryParams.eventType, queryParams.endTimestamp + minTimestamp);
     if (!afterAllocation.has_value()) {
-        afterAllocation =  std::make_optional<MemoryAllocation>(queryParams.endTimestamp,
-                                                                allocations.back().totalSize,
-                                                                queryParams.deviceId,
-                                                                queryParams.eventType,
-                                                                queryParams.optimized);
+        afterAllocation = std::make_optional<MemoryAllocation>(queryParams.endTimestamp, allocations.back().totalSize,
+            queryParams.deviceId, queryParams.eventType, queryParams.optimized);
     } else {
         afterAllocation.value().timestamp = queryParams.endTimestamp;
     }

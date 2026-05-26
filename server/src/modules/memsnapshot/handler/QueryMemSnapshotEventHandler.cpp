@@ -22,11 +22,10 @@
 using namespace Dic::Module::MemSnapshot;
 
 namespace Dic::Module::MemSnapshot {
-bool QueryMemSnapshotEventHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto& request = dynamic_cast<MemSnapshotEventsRequest&>(*requestPtr);
+bool QueryMemSnapshotEventHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<MemSnapshotEventsRequest &>(*requestPtr);
     std::unique_ptr<MemSnapshotEventsResponse> responsePtr = std::make_unique<MemSnapshotEventsResponse>();
-    auto& response = *responsePtr;
+    auto &response = *responsePtr;
     response.isTable = request.isTable;
     SetBaseResponse(request, response);
     std::string errMsg;
@@ -46,8 +45,9 @@ bool QueryMemSnapshotEventHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const int64_t total = request.isTable ? database->QueryTraceEntriesTable(request.params, response.tableEntries)
-                              : database->QueryTraceEntriesList(request.params, request.params.deviceId, response.listEntries);
+    const int64_t total = request.isTable
+        ? database->QueryTraceEntriesTable(request.params, response.tableEntries)
+        : database->QueryTraceEntriesList(request.params, request.params.deviceId, response.listEntries);
     if (total < 0) {
         errMsg = LOG_TAG + "Failed to query events: query db failed.";
         SendResponse(std::move(responsePtr), false, errMsg);
@@ -59,10 +59,9 @@ bool QueryMemSnapshotEventHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     return true;
 }
 
-bool QueryMemSnapshotEventHandler::CheckEventsPaginationParamsOnListRequest(const PaginationParam& params,
-                                                                             std::string& errorMsg) const
-{
-    if (params.currentPage < 0 || params.pageSize <=0) {
+bool QueryMemSnapshotEventHandler::CheckEventsPaginationParamsOnListRequest(
+    const PaginationParam &params, std::string &errorMsg) const {
+    if (params.currentPage < 0 || params.pageSize <= 0) {
         errorMsg = LOG_TAG + "Invalid params: pageSize and currentPage must be greater than 0";
         return false;
     }

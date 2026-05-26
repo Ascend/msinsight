@@ -25,21 +25,20 @@ namespace Dic::Module::MemSnapshot {
 
 /**
  * @brief 内存池状态查询处理器
- * 
+ *
  * 用于查询某个事件id发生后的内存池状态，返回segments及其blocks信息。
  */
 class QueryMemSnapshotStateHandler : public MemSnapshotRequestHandler {
-public:
+  public:
     QueryMemSnapshotStateHandler() { command = Protocol::REQ_RES_MEM_SNAPSHOT_STATE; }
     ~QueryMemSnapshotStateHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-private:
+  private:
     const std::string LOG_TAG = "[MemSnapshotStateHandler] ";
-    static void BuildSegmentsStateInfoFromSegments(const std::vector<Segment>& segments,
-                                                   std::vector<SegmentItemDTO>& stateInfos);
+    static void BuildSegmentsStateInfoFromSegments(
+        const std::vector<Segment> &segments, std::vector<SegmentItemDTO> &stateInfos);
 };
 } // namespace Dic::Module::MemSnapshot
 
-
-#endif  // PROFILER_SERVER_QUERY_MEM_SNAPSHOT_STATE_HANDLER_H
+#endif // PROFILER_SERVER_QUERY_MEM_SNAPSHOT_STATE_HANDLER_H

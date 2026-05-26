@@ -25,17 +25,17 @@ namespace Dic {
 namespace Module {
 namespace MemScope {
 class QueryMemScopePythonTraceHandler : public MemScopeRequestHandler {
-public:
+  public:
     QueryMemScopePythonTraceHandler() { command = Protocol::REQ_RES_MEM_SCOPE_PYTHON_TRACES; }
     ~QueryMemScopePythonTraceHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-private:
+  private:
     const size_t TRIM_THRESHOLD = 20000;
     const PythonTrimCompressStrategy DEFAULT_TRIM_STRATEGY = PythonTrimCompressStrategy::COMPRESS_SMALL_FUNCTIONS;
 };
-}  // namespace MemScope
-}  // namespace Module
-}  // namespace Dic
+} // namespace MemScope
+} // namespace Module
+} // namespace Dic
 
-#endif  // PROFILER_SERVER_QUERY_MEM_SCOPE_PYTHON_TRACE_HANDLER_H
+#endif // PROFILER_SERVER_QUERY_MEM_SCOPE_PYTHON_TRACE_HANDLER_H

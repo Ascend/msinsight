@@ -24,11 +24,10 @@
 using namespace Dic::Module::MemSnapshot;
 
 namespace Dic::Module::MemSnapshot {
-bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto& request = dynamic_cast<MemSnapshotDetailRequest&>(*requestPtr);
+bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<MemSnapshotDetailRequest &>(*requestPtr);
     std::unique_ptr<MemSnapshotDetailResponse> responsePtr = std::make_unique<MemSnapshotDetailResponse>();
-    auto& response = *responsePtr;
+    auto &response = *responsePtr;
     response.type = request.params.type;
     SetBaseResponse(request, response);
     std::string errMsg;
@@ -42,11 +41,12 @@ bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Requ
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    
+
     if (request.params.type == DETAIL_TYPE_BLOCK) {
         auto block = database->QueryBlockById(request.params.id, request.params.deviceId);
         if (!block.has_value()) {
-            errMsg = LOG_TAG + "Failed to query block detail: block not found with id " + std::to_string(request.params.id);
+            errMsg =
+                LOG_TAG + "Failed to query block detail: block not found with id " + std::to_string(request.params.id);
             SendResponse(std::move(responsePtr), false, errMsg);
             return false;
         }
@@ -56,21 +56,20 @@ bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Requ
     } else if (request.params.type == DETAIL_TYPE_EVENT) {
         auto event = database->QueryTraceEntryById(request.params.id, request.params.deviceId);
         if (!event.has_value()) {
-            errMsg = LOG_TAG + "Failed to query event detail: event not found with id " + std::to_string(request.params.id);
+            errMsg =
+                LOG_TAG + "Failed to query event detail: event not found with id " + std::to_string(request.params.id);
             SendResponse(std::move(responsePtr), false, errMsg);
             return false;
         }
         response.detail = std::make_unique<TraceEntryDetailDTO>(event.value());
     }
-    
+
     SendResponse(std::move(responsePtr), true);
     return true;
 }
 
-void QueryMemSnapshotDetailHandler::BuildBlockDetailDTO(BlockDetailDTO& blockDetail,
-                                                        const std::string& deviceId,
-                                                        const std::shared_ptr<FullDb::MemSnapshotDatabase>& database)
-{
+void QueryMemSnapshotDetailHandler::BuildBlockDetailDTO(BlockDetailDTO &blockDetail, const std::string &deviceId,
+    const std::shared_ptr<FullDb::MemSnapshotDatabase> &database) {
     if (blockDetail.allocEventId > 0) {
         if (auto allocEntry = database->QueryTraceEntryById(blockDetail.allocEventId, deviceId);
             allocEntry.has_value()) {

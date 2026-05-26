@@ -25,17 +25,16 @@ namespace Dic {
 namespace Module {
 namespace MemScope {
 class QueryMemScopeBlockHandler : public MemScopeRequestHandler {
-public:
+  public:
     QueryMemScopeBlockHandler() { command = Protocol::REQ_RES_MEM_SCOPE_MEMORY_BLOCKS; }
     ~QueryMemScopeBlockHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-    static bool HandleBlocksTableRequest(MemScopeMemoryBlockRequest& request,
-                                         MemScopeMemoryBlocksResponse& response,
-                                         std::string &errorMsg);
+    static bool HandleBlocksTableRequest(
+        MemScopeMemoryBlockRequest &request, MemScopeMemoryBlocksResponse &response, std::string &errorMsg);
 };
-}  // namespace MemScope
-}  // namespace Module
-}  // namespace Dic
+} // namespace MemScope
+} // namespace Module
+} // namespace Dic
 
-#endif  // PROFILER_SERVER_QUERY_MEM_SCOPE_BLOCK_HANDLER_H
+#endif // PROFILER_SERVER_QUERY_MEM_SCOPE_BLOCK_HANDLER_H
