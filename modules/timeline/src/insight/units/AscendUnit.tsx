@@ -265,6 +265,19 @@ const drawRectBorder = (selectedData: SliceData,
     });
 };
 
+const PYTHON_STACK_THREAD_ID_PREFIX = 'python_stack:';
+
+function isSameThreadId(selectedThreadId: string, currentMeta: ThreadMetaData): boolean {
+    if (currentMeta.threadIdList) {
+        return currentMeta.threadIdList.includes(selectedThreadId);
+    }
+    if (selectedThreadId === currentMeta.threadId) {
+        return true;
+    }
+    return currentMeta.threadId.startsWith(PYTHON_STACK_THREAD_ID_PREFIX) &&
+        currentMeta.threadId.slice(PYTHON_STACK_THREAD_ID_PREFIX.length) === selectedThreadId;
+}
+
 interface DrawBorderArgs {
     item?: SliceData;
     threadMetaData: ThreadMetaData;
@@ -282,7 +295,8 @@ const drawSingleAlignSlice = ({ item, threadMetaData, session, xScale, yScale, c
     const singleMeta = item as unknown as SliceMeta;
     const alignCheck = singleMeta.cardId === threadMetaData.cardId &&
         singleMeta.processId === threadMetaData.processId &&
-        singleMeta.threadId === threadMetaData.threadId;
+        singleMeta.metaType === threadMetaData.metaType &&
+        isSameThreadId(singleMeta.threadId, threadMetaData);
     if (alignCheck) {
         drawRectBorder(singleSliceData, session, xScale, yScale, ctx);
     }
@@ -312,9 +326,10 @@ function isSameUnit(selectedMeta?: SelectedDataType, currentMeta?: ThreadMetaDat
         return false;
     }
 
-    return Boolean(currentMeta.threadIdList ? currentMeta.threadIdList?.includes(selectedMeta.threadId) : selectedMeta?.threadId === currentMeta.threadId) &&
+    return isSameThreadId(selectedMeta.threadId, currentMeta) &&
         selectedMeta.processId === currentMeta.processId &&
-        selectedMeta.cardId === currentMeta.cardId;
+        selectedMeta.cardId === currentMeta.cardId &&
+        selectedMeta.metaType === currentMeta.metaType;
 }
 
 /**
@@ -435,7 +450,8 @@ export const ThreadUnit = unit<ThreadMetaData>({
                     const benchMarkMeta = session.benchMarkData as SliceMeta;
                     const benchCheck = benchMarkMeta.cardId === threadMetaData.cardId &&
                         benchMarkMeta.processId === threadMetaData.processId &&
-                        benchMarkMeta.threadId === threadMetaData.threadId;
+                        benchMarkMeta.metaType === threadMetaData.metaType &&
+                        isSameThreadId(benchMarkMeta.threadId, threadMetaData);
                     if (benchCheck) {
                         drawRectBorder(benchMarkData, session, xScale, yScale, ctx);
                     }
@@ -881,6 +897,7 @@ export const SameOperatorsList = observer(({ session, metadata, updater }: { ses
                             name: slice?.name,
                             cardId: (metadata as ThreadMetaData).cardId,
                             dbPath: (metadata as ThreadMetaData).dbPath,
+                            metaType: (metadata as ThreadMetaData).metaType,
                         });
                         setSelectedRowKey(record.id);
                     },

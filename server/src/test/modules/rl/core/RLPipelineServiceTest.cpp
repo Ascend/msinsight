@@ -23,36 +23,31 @@
 #include "DataEngine.h"
 #include "RenderEngine.h"
 
-
 using namespace Dic::Module::FullDb;
 using namespace Dic::Module::RL;
 using namespace Dic::Module;
 class RLPipelineServiceTest : public ::testing::Test {
-    void SetUp() override
-    {
-        class DataEngineMock : public DataEngine {
-        public:
-            bool QuerySliceDetailInfoByNameList(const SliceQueryByNameList &params,
-                                                std::vector<CompeteSliceDomain> &res) override
-            {
-                CompeteSliceDomain domain1;
-                domain1.name = "generate_sequences";
-                domain1.timestamp = 100;
-                domain1.endTime = 1000;
-                res.push_back(domain1);
-                return true;
-            }
-        };
-        auto renderEngine = RenderEngine::Instance();
-        std::shared_ptr<DataEngineMock> dataEngineMock = std::make_unique<DataEngineMock>();
-        renderEngine->SetDataEngineInterface(dataEngineMock);
-        DataBaseManager::Instance().SetDataType(DataType::DB, "dbPath");
-        DataBaseManager::Instance().CreateTraceConnectionPool("uboot14286042774212449010_0 0", "dbPath");
-    }
+  public:
+    class DataEngineMock : public DataEngine {
+        bool QuerySliceDetailInfoByNameList(
+            const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) override {
+            CompeteSliceDomain domain1;
+            domain1.name = "generate_sequences";
+            domain1.timestamp = 100;
+            domain1.endTime = 1000;
+            res.push_back(domain1);
+            return true;
+        }
+    };
 };
 
-TEST_F(RLPipelineServiceTest, GetPipelineInfoSuccess)
-{
+TEST_F(RLPipelineServiceTest, GetPipelineInfoSuccess) {
+    auto renderEngine = RenderEngine::Instance();
+    std::shared_ptr<DataEngineMock> dataEngineMock = std::make_shared<DataEngineMock>();
+    DataBaseManager::Instance().Clear();
+    renderEngine->SetDataEngineInterface(dataEngineMock);
+    DataBaseManager::Instance().SetDataType(DataType::DB, "dbPath");
+    DataBaseManager::Instance().CreateTraceConnectionPool("uboot14286042774212449010_0 0", "dbPath");
     Protocol::RLPipelineResponse response;
     bool res = Dic::Module::RL::RLPipelineService::Instance().GetPipelineInfo(response);
     const uint64_t expectMinTime = 100;

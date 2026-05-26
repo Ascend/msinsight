@@ -30,16 +30,14 @@ struct SliceDomain {
     uint64_t timestamp = 0;
     uint64_t endTime = 0;
     uint32_t depth = 0;
-    bool operator < (const SliceDomain &right) const
-    {
+    bool operator<(const SliceDomain &right) const {
         if (depth < right.depth) {
             return true;
         }
         return depth == right.depth && timestamp < right.timestamp;
     }
 
-    static bool CompareTimestampASC(const SliceDomain &first, const SliceDomain &second)
-    {
+    static bool CompareTimestampASC(const SliceDomain &first, const SliceDomain &second) {
         if (first.timestamp < second.timestamp) {
             return true;
         }
@@ -74,13 +72,12 @@ struct CompeteSliceDomain {
     std::string metaType;
     std::string flagId;
     SliceShape sliceShape;
-    uint64_t dataSize {};
+    uint64_t dataSize{};
     std::string memcpyDirection;
     std::string bandwidth;
     std::string args;
     std::string cardId;
-    bool operator < (const CompeteSliceDomain &right) const
-    {
+    bool operator<(const CompeteSliceDomain &right) const {
         if (depth < right.depth) {
             return true;
         }
@@ -117,8 +114,7 @@ struct FlowPoint {
     std::string tid;
     std::string pid;
     std::string rankId;
-    bool operator < (const FlowPoint &right) const
-    {
+    bool operator<(const FlowPoint &right) const {
         if (trackId < right.trackId) {
             return true;
         }
@@ -134,8 +130,7 @@ struct FlowPoint {
         return timestamp == right.timestamp && id < right.id;
     }
 
-    static bool CompareTimestampASC(const FlowPoint &first, const FlowPoint &second)
-    {
+    static bool CompareTimestampASC(const FlowPoint &first, const FlowPoint &second) {
         if (first.timestamp == second.timestamp) {
             return first.trackId < second.trackId;
         }
@@ -172,6 +167,7 @@ enum class PROCESS_TYPE {
     NONE,
     DB,
     PYTHON_GC,
+    PYTHON_STACK,
     PROCESS,
 };
 
@@ -188,10 +184,10 @@ enum class PYTHON_FUNCTION_STATUS {
 };
 
 enum class FtraceDataType : int8_t {
-    TIME = 0,      // 耗时信息
-    IRQ = 1,       // 中断信息
-    SCHED = 2,     // 上下文切换信息
-    UNKOWN = 3,    //未知
+    TIME = 0, // 耗时信息
+    IRQ = 1, // 中断信息
+    SCHED = 2, // 上下文切换信息
+    UNKOWN = 3, //未知
 };
 
 struct FtraceStatisticsData {
@@ -200,19 +196,12 @@ struct FtraceStatisticsData {
     std::unordered_map<std::string, std::string> data;
 
     // 获取JSON字符串（兼容旧接口）
-    std::string GetArgs() const
-    {
-        return JsonUtil::MapToJsonStr(data);
-    };
+    std::string GetArgs() const { return JsonUtil::MapToJsonStr(data); };
     // 设置JSON字符串（兼容旧接口）
-    void SetArgs(const std::string &jsonStr)
-    {
-        data = JsonUtil::JsonStrToMap(jsonStr);
-    };
+    void SetArgs(const std::string &jsonStr) { data = JsonUtil::JsonStrToMap(jsonStr); };
 };
 
-struct FtraceStatistics
-{
+struct FtraceStatistics {
     int64_t totalCount = 0;
     std::vector<FtraceStatisticsData> data;
 };

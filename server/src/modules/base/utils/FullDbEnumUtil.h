@@ -29,45 +29,24 @@ namespace Dic {
 namespace Protocol {
 using namespace Module::Timeline;
 template <typename ENUM> using EnumStrMap = std::map<ENUM, std::string>;
-const EnumStrMap<PROCESS_TYPE> PROCESS_TYPE_ES = { { PROCESS_TYPE::ASCEND_HARDWARE, "Ascend Hardware" },
-                                                   { PROCESS_TYPE::HCCL, "HCCL" },
-                                                   { PROCESS_TYPE::OVERLAP_ANALYSIS, "OVERLAP_ANALYSIS"},
-                                                   { PROCESS_TYPE::CANN_API, "CANN_API" },
-                                                   { PROCESS_TYPE::API, "PYTORCH_API" },
-                                                   { PROCESS_TYPE::OSRT_API, "OSRT_API"},
-                                                   { PROCESS_TYPE::LLC, "LLC" },
-                                                   { PROCESS_TYPE::PCIE, "PCIE" },
-                                                   { PROCESS_TYPE::NIC, "NIC" },
-                                                   { PROCESS_TYPE::SAMPLE_PMU, "SAMPLE_PMU_TIMELINE" },
-                                                   { PROCESS_TYPE::HCCS, "HCCS" },
-                                                   { PROCESS_TYPE::DDR, "DDR" },
-                                                   { PROCESS_TYPE::QOS, "QOS" },
-                                                   { PROCESS_TYPE::ACC_PMU, "ACC_PMU" },
-                                                   { PROCESS_TYPE::AI_CORE, "AICORE_FREQ" },
-                                                   { PROCESS_TYPE::NPU_MEM, "NPU_MEM" },
-                                                   { PROCESS_TYPE::STARS_SOC, "SOC_BANDWIDTH_LEVEL" },
-                                                   { PROCESS_TYPE::CPU_USAGE, "CPU_USAGE"},
-                                                   { PROCESS_TYPE::HOST_DISK_USAGE, "HOST_DISK_USAGE"},
-                                                   { PROCESS_TYPE::HOST_MEM_USAGE, "HOST_MEM_USAGE"},
-                                                   { PROCESS_TYPE::HOST_NETWORK_USAGE, "HOST_NETWORK_USAGE"},
-                                                   { PROCESS_TYPE::MS_TX, "MSTX_EVENTS" },
-                                                   { PROCESS_TYPE::HBM, "HBM" },
-                                                   { PROCESS_TYPE::TEXT, "TEXT" },
-                                                   { PROCESS_TYPE::PYTHON_GC, "GC_RECORD" },
-                                                   { PROCESS_TYPE::PROCESS, "PROCESS" }};
+const EnumStrMap<PROCESS_TYPE> PROCESS_TYPE_ES = {{PROCESS_TYPE::ASCEND_HARDWARE, "Ascend Hardware"},
+    {PROCESS_TYPE::HCCL, "HCCL"}, {PROCESS_TYPE::OVERLAP_ANALYSIS, "OVERLAP_ANALYSIS"},
+    {PROCESS_TYPE::CANN_API, "CANN_API"}, {PROCESS_TYPE::API, "PYTORCH_API"}, {PROCESS_TYPE::OSRT_API, "OSRT_API"},
+    {PROCESS_TYPE::LLC, "LLC"}, {PROCESS_TYPE::PCIE, "PCIE"}, {PROCESS_TYPE::NIC, "NIC"},
+    {PROCESS_TYPE::SAMPLE_PMU, "SAMPLE_PMU_TIMELINE"}, {PROCESS_TYPE::HCCS, "HCCS"}, {PROCESS_TYPE::DDR, "DDR"},
+    {PROCESS_TYPE::QOS, "QOS"}, {PROCESS_TYPE::ACC_PMU, "ACC_PMU"}, {PROCESS_TYPE::AI_CORE, "AICORE_FREQ"},
+    {PROCESS_TYPE::NPU_MEM, "NPU_MEM"}, {PROCESS_TYPE::STARS_SOC, "SOC_BANDWIDTH_LEVEL"},
+    {PROCESS_TYPE::CPU_USAGE, "CPU_USAGE"}, {PROCESS_TYPE::HOST_DISK_USAGE, "HOST_DISK_USAGE"},
+    {PROCESS_TYPE::HOST_MEM_USAGE, "HOST_MEM_USAGE"}, {PROCESS_TYPE::HOST_NETWORK_USAGE, "HOST_NETWORK_USAGE"},
+    {PROCESS_TYPE::MS_TX, "MSTX_EVENTS"}, {PROCESS_TYPE::HBM, "HBM"}, {PROCESS_TYPE::TEXT, "TEXT"},
+    {PROCESS_TYPE::PYTHON_GC, "GC_RECORD"}, {PROCESS_TYPE::PYTHON_STACK, "PYTORCH_API_PYTHON_STACK"},
+    {PROCESS_TYPE::PROCESS, "PROCESS"}};
 
-template <typename E> std::optional<std::string> ENUM_TO_STR(const E &e)
-{
-    return std::nullopt;
-}
+template <typename E> std::optional<std::string> ENUM_TO_STR(const E &e) { return std::nullopt; }
 
-template <typename E> std::optional<E> STR_TO_ENUM(const std::string &s)
-{
-    return std::nullopt;
-}
+template <typename E> std::optional<E> STR_TO_ENUM(const std::string &s) { return std::nullopt; }
 
-template <typename E, typename M> std::optional<E> TryGetEnum(const M &map, const std::string &s)
-{
+template <typename E, typename M> std::optional<E> TryGetEnum(const M &map, const std::string &s) {
     for (const auto &iter : map) {
         if (iter.second == s) {
             return iter.first;
@@ -76,27 +55,21 @@ template <typename E, typename M> std::optional<E> TryGetEnum(const M &map, cons
     return std::nullopt;
 }
 
-template <> inline std::optional<std::string> ENUM_TO_STR<PROCESS_TYPE>(const PROCESS_TYPE &e)
-{
+template <> inline std::optional<std::string> ENUM_TO_STR<PROCESS_TYPE>(const PROCESS_TYPE &e) {
     if (PROCESS_TYPE_ES.count(e) == 0) {
         return std::nullopt;
     }
     return PROCESS_TYPE_ES.at(e);
 }
 
-template <> inline std::optional<PROCESS_TYPE> STR_TO_ENUM<PROCESS_TYPE>(const std::string &s)
-{
+template <> inline std::optional<PROCESS_TYPE> STR_TO_ENUM<PROCESS_TYPE>(const std::string &s) {
     return TryGetEnum<PROCESS_TYPE>(PROCESS_TYPE_ES, s);
 }
 
-
 const std::map<std::string, PROCESS_TYPE> PROCESS_NAME_MAP_TO_PROCESS_TYPE = {
-    { "Ascend Hardware", PROCESS_TYPE::ASCEND_HARDWARE },
-    { "CANN", PROCESS_TYPE::CANN_API }
-};
+    {"Ascend Hardware", PROCESS_TYPE::ASCEND_HARDWARE}, {"CANN", PROCESS_TYPE::CANN_API}};
 
-inline PROCESS_TYPE PROCESS_NAME_TO_TYPE(const std::string &processName)
-{
+inline PROCESS_TYPE PROCESS_NAME_TO_TYPE(const std::string &processName) {
     if (PROCESS_NAME_MAP_TO_PROCESS_TYPE.count(processName) == 0) {
         return PROCESS_TYPE::NONE;
     }

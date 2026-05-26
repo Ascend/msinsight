@@ -518,9 +518,12 @@ export function checkIsSameUnit(referenceMetadata?: ThreadMetaData, comparisonMe
     if (!referenceMetadata || !comparisonMetadata) {
         return false;
     }
+    const isSameBase = referenceMetadata.processId === comparisonMetadata.processId &&
+        referenceMetadata.cardId === comparisonMetadata.cardId &&
+        referenceMetadata.metaType === comparisonMetadata.metaType;
     return Array.isArray(referenceMetadata.threadIdList)
-        ? referenceMetadata?.threadIdList.toString() === comparisonMetadata.threadIdList?.toString() && referenceMetadata.processId === comparisonMetadata.processId
-        : referenceMetadata.threadId === comparisonMetadata.threadId && referenceMetadata.processId === comparisonMetadata.processId;
+        ? isSameBase && referenceMetadata?.threadIdList.toString() === comparisonMetadata.threadIdList?.toString()
+        : isSameBase && referenceMetadata.threadId === comparisonMetadata.threadId;
 }
 
 export const UnitInfo = observer(({ session, unit, laneInfoWidth, hasExpandIcon, className, ...props }: UnitInfoProps): JSX.Element => {

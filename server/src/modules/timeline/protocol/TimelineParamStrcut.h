@@ -70,6 +70,7 @@ struct Metadata {
     uint64_t lockStartTime = 0;
     uint64_t lockEndTime = 0;
     bool hidePythonFunction = false;
+    bool isPythonStack = false;
 };
 
 struct SearchAllSliceParams {
