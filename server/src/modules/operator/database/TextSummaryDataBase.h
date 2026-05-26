@@ -27,7 +27,7 @@ namespace Module {
 namespace Summary {
 using namespace Dic::Protocol;
 class TextSummaryDataBase : public VirtualSummaryDataBase {
-public:
+  public:
     explicit TextSummaryDataBase(std::recursive_mutex &sqlMutex);
     ~TextSummaryDataBase() override;
 
@@ -46,27 +46,27 @@ public:
     bool QueryComputeOpDetail(ComputeDetailParams params, std::vector<ComputeDetail> &computeDetails) override;
     bool QueryTotalNumByAcceleratorCore(std::string name, int64_t &totalNum) override;
 
-    bool QueryCommunicationOpDetail(CommunicationDetailParams params,
-        std::vector<CommunicationDetail> &computeDetails) override;
+    bool QueryCommunicationOpDetail(
+        CommunicationDetailParams params, std::vector<CommunicationDetail> &computeDetails) override;
 
-    bool QueryOperatorDurationInfo(OperatorDurationReqParams &reqParams, QueryType type,
-                                   std::vector<OperatorDurationRes> &datas) override;
+    bool QueryOperatorDurationInfo(
+        OperatorDurationReqParams &reqParams, QueryType type, std::vector<OperatorDurationRes> &data) override;
 
-    bool QueryOperatorStatisticInfo(OperatorStatisticReqParams &reqParams,
-                                    OperatorStatisticInfoResponse &response) override;
+    bool QueryOperatorStatisticInfo(
+        OperatorStatisticReqParams &reqParams, OperatorStatisticInfoResponse &response) override;
 
-    bool QueryOperatorDetailInfo(OperatorStatisticReqParams &reqParams, OperatorDetailInfoResponse& response) override;
+    bool QueryOperatorDetailInfo(OperatorStatisticReqParams &reqParams, OperatorDetailInfoResponse &response) override;
 
-    bool QueryOperatorMoreInfo(OperatorMoreInfoReqParams &reqParams, OperatorMoreInfoResponse& response) override;
+    bool QueryOperatorMoreInfo(OperatorMoreInfoReqParams &reqParams, OperatorMoreInfoResponse &response) override;
 
-    bool UpdateParseStatus(const std::string& status);
+    bool UpdateParseStatus(const std::string &status);
     bool HasFinishedParseLastTime();
-    bool QueryAllOperatorStatisticInfo(OperatorStatisticReqParams &reqParams,
-                                       std::vector<Protocol::OperatorStatisticInfoRes> &res) override;
+    bool QueryAllOperatorStatisticInfo(
+        OperatorStatisticReqParams &reqParams, std::vector<Protocol::OperatorStatisticInfoRes> &res) override;
 
     bool QueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res) override;
 
-private:
+  private:
     const std::string kernelParseState = "Kernel files parsing status";
     bool hasInitStmt = false;
     sqlite3_stmt *insertKernelStmt = nullptr;
@@ -102,22 +102,20 @@ private:
 
     void BindSqliteParam(sqlite3_stmt *stmt, Protocol::OperatorMoreInfoReqParams &reqParams);
 
-    template <typename T>
-    void GenerateQueryFiltersSql(T &reqParams, std::string &sql);
-    template <typename T>
-    void BindQueryFilters(T &reqParams, sqlite3_stmt *stmt, int &index);
+    template <typename T> void GenerateQueryFiltersSql(T &reqParams, std::string &sql);
+    template <typename T> void BindQueryFilters(T &reqParams, sqlite3_stmt *stmt, int &index);
 
     bool IsOperatorGroupInType(OperatorGroupConverter::OperatorGroup operatorGroup);
     std::set<std::string> FetchPmuColumnNames();
     std::string GetQueryDetailBaseSql(Protocol::OperatorStatisticReqParams &reqParams, bool isLimit);
     std::string GetQuerySqlNofilter(Protocol::OperatorStatisticReqParams &reqParams, const bool isCommunication,
-                                    const std::string &group, const std::string &name);
+        const std::string &group, const std::string &name);
     bool ExecSqlGetDetailInfo(std::string sql, Protocol::OperatorStatisticReqParams &reqParams,
-                              std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level);
+        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level);
     bool ExecSqlGetRes(sqlite3_stmt *stmt, std::vector<Protocol::OperatorDetailInfoRes> &res);
     std::vector<Protocol::OperatorDetailInfoRes> ExecSqlGetMoreInfo(sqlite3_stmt *stmt);
     bool QueryAllOperatorDetailInfo(Protocol::OperatorStatisticReqParams &reqParams,
-                                    std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level) override;
+        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level) override;
 };
 
 } // end of namespace Summary

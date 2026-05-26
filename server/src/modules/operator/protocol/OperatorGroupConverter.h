@@ -23,7 +23,7 @@
 
 namespace Dic::Protocol {
 class OperatorGroupConverter {
-public:
+  public:
     enum class OperatorGroup {
         OP_TYPE_GROUP,
         OP_NAME_GROUP,
@@ -40,12 +40,9 @@ public:
         OperatorGroupInfo(OperatorGroup t, bool f) : group(t), hccl(f) {}
     };
 
-    OperatorGroupConverter()
-    {
-    }
+    OperatorGroupConverter() {}
 
-    static OperatorGroup ToEnum(const std::string &type)
-    {
+    static OperatorGroup ToEnum(const std::string &type) {
         InitTypeMap();
         std::map<std::string, OperatorGroupInfo>::const_iterator it = typeMap.find(type);
         if (it != typeMap.end()) {
@@ -54,8 +51,7 @@ public:
         return OperatorGroup::UNKNOWN;
     }
 
-    static bool IsCommunication(const std::string &type)
-    {
+    static bool IsCommunication(const std::string &type) {
         InitTypeMap();
         std::map<std::string, OperatorGroupInfo>::const_iterator it = typeMap.find(type);
         if (it != typeMap.end()) {
@@ -65,16 +61,15 @@ public:
         return false;
     }
 
-private:
+  private:
     static std::map<std::string, OperatorGroupInfo> typeMap;
 
-    static void InitTypeMap()
-    {
-        typeMap = { { "Operator Type", OperatorGroupInfo(OperatorGroup::OP_TYPE_GROUP, false) },
-                    { "Operator", OperatorGroupInfo(OperatorGroup::OP_NAME_GROUP, false) },
-                    { "Input Shape", OperatorGroupInfo(OperatorGroup::OP_INPUT_SHAPE_GROUP, false) },
-                    { "Communication Operator Type", OperatorGroupInfo(OperatorGroup::COMMUNICATION_TYPE_GROUP, true) },
-                    { "Communication Operator", OperatorGroupInfo(OperatorGroup::COMMUNICATION_NAME_GROUP, true) } };
+    static void InitTypeMap() {
+        typeMap = {{"Operator Type", OperatorGroupInfo(OperatorGroup::OP_TYPE_GROUP, false)},
+            {"Operator", OperatorGroupInfo(OperatorGroup::OP_NAME_GROUP, false)},
+            {"Input Shape", OperatorGroupInfo(OperatorGroup::OP_INPUT_SHAPE_GROUP, false)},
+            {"Communication Operator Type", OperatorGroupInfo(OperatorGroup::COMMUNICATION_TYPE_GROUP, true)},
+            {"Communication Operator", OperatorGroupInfo(OperatorGroup::COMMUNICATION_NAME_GROUP, true)}};
     }
 };
 }

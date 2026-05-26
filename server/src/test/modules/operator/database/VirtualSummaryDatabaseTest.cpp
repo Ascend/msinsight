@@ -36,7 +36,7 @@ DbSummaryDataBase fullDbRank0 = DbSummaryDataBase(db0Mutex);
 TextSummaryDataBase textDbRank0 = TextSummaryDataBase(text0Mutex);
 
 class RequestGroup {
-public:
+  public:
     static inline const std::string OP_TYPE = "Operator Type";
     static inline const std::string OP = "Operator";
     static inline const std::string INPUT_SHAPE = "Input Shape";
@@ -45,9 +45,8 @@ public:
 };
 
 class VirtualSummaryDatabaseTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         std::string operatorDataPath = TestSuit::GetTestDataFile("operator_st");
         std::string dbPathRank0 = FileUtil::SplicePath(operatorDataPath, "db_rank_0.dat");
         std::string textPathRank0 = FileUtil::SplicePath(operatorDataPath, "text_rank_0.dat");
@@ -70,14 +69,12 @@ public:
         ASSERT_TRUE(textDbRank0.OpenDb(textPathRank0, false));
     }
 
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         fullDbRank0.CloseDb();
         textDbRank0.CloseDb();
     }
 
-    static void SetDatabaseVersion(std::string &dbPath)
-    {
+    static void SetDatabaseVersion(std::string &dbPath) {
         std::recursive_mutex mutex;
         Database db = Database(mutex);
         db.SetDbPath(dbPath);
@@ -86,24 +83,22 @@ public:
         ASSERT_NO_THROW(db.CloseDb());
     }
 
-    static bool CompareOperatorStatisticInfoRes(const OperatorStatisticInfoRes& res1,
-                                                const OperatorStatisticInfoRes& res2)
-    {
+    static bool CompareOperatorStatisticInfoRes(
+        const OperatorStatisticInfoRes &res1, const OperatorStatisticInfoRes &res2) {
         return res1.count == res2.count && res1.avgTime == res2.avgTime && res1.maxTime == res2.maxTime &&
-               res1.minTime == res2.minTime && res1.totalTime == res2.totalTime;
+            res1.minTime == res2.minTime && res1.totalTime == res2.totalTime;
     }
 
-    static bool CompareOperatorStatisticInfoResponse(const OperatorStatisticInfoResponse& resp1,
-                                                     const OperatorStatisticInfoResponse& resp2)
-    {
+    static bool CompareOperatorStatisticInfoResponse(
+        const OperatorStatisticInfoResponse &resp1, const OperatorStatisticInfoResponse &resp2) {
         bool res = resp1.total == resp2.total;
-        res = res && resp1.datas.size() == resp2.datas.size();
+        res = res && resp1.data.size() == resp2.data.size();
         if (!res) {
             return false;
         }
-        size_t size = resp1.datas.size();
+        size_t size = resp1.data.size();
         for (size_t i = 0; i < size; i++) {
-            res = CompareOperatorStatisticInfoRes(resp1.datas[i].baseline, resp2.datas[i].baseline);
+            res = CompareOperatorStatisticInfoRes(resp1.data[i].baseline, resp2.data[i].baseline);
             if (!res) {
                 return false;
             }
@@ -112,8 +107,7 @@ public:
     }
 };
 
-TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithNoFilter)
-{
+TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithNoFilter) {
     // 无过滤请求计算算子top15, 10分页
     OperatorStatisticReqParams commonQueryParams;
     commonQueryParams.group = RequestGroup::OP_TYPE;
@@ -125,7 +119,7 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithNoFil
     OperatorStatisticInfoResponse dbResponse = {};
     textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
     fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-    EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(), commonQueryParams.pageSize * 2);
+    EXPECT_EQ(textResponse.data.size() + dbResponse.data.size(), commonQueryParams.pageSize * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
     // 无过滤请求计算算子top15, 100分页
     commonQueryParams.pageSize = 100;
@@ -133,7 +127,7 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithNoFil
     dbResponse = {};
     textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
     fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-    EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(), commonQueryParams.topK * 2);
+    EXPECT_EQ(textResponse.data.size() + dbResponse.data.size(), commonQueryParams.topK * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
     // 无过滤请求计算算子topAll, 100分页
     commonQueryParams.topK = -1;
@@ -141,7 +135,7 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithNoFil
     dbResponse = {};
     textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
     fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-    EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(), textResponse.total * 2);
+    EXPECT_EQ(textResponse.data.size() + dbResponse.data.size(), textResponse.total * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
     // 无过滤请求计算算子topAll, 10分页
     commonQueryParams.pageSize = 10;
@@ -149,13 +143,12 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithNoFil
     dbResponse = {};
     textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
     fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-    EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(), commonQueryParams.pageSize * 2);
+    EXPECT_EQ(textResponse.data.size() + dbResponse.data.size(), commonQueryParams.pageSize * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
 }
 
 // 测试所有可排序列的在top15, 10分页的情况下的db和text; 暂无实际的排序是否按顺序的验证手段，后续重构加入排序结果验证UT
-TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithWithAllOrderCol)
-{
+TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithWithAllOrderCol) {
     // 请求计算算子top15, 10分页
     OperatorStatisticReqParams commonQueryParams;
     commonQueryParams.group = RequestGroup::OP_TYPE;
@@ -166,14 +159,14 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithWithA
     commonQueryParams.topK = 15;
     OperatorStatisticInfoResponse textResponse;
     OperatorStatisticInfoResponse dbResponse;
-    for (auto orderCol: OperatorStatisticView::VALID_ORDER_COLS) {
+    for (auto orderCol : OperatorStatisticView::VALID_ORDER_COLS) {
         commonQueryParams.orderBy = std::string(orderCol);
         textResponse = {};
         dbResponse = {};
         textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
         fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-        EXPECT_FALSE(textResponse.datas.empty());
-        EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(), commonQueryParams.pageSize * 2);
+        EXPECT_FALSE(textResponse.data.empty());
+        EXPECT_EQ(textResponse.data.size() + dbResponse.data.size(), commonQueryParams.pageSize * 2);
         EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
     }
 }
@@ -182,8 +175,7 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithWithA
  * 以下为operator/statistic接口的过滤测试, 包含计算算子类型、计算算子名及输入shape、通信算子类型三个分组
  */
 // 计算算子类型分组时，可过滤type,accCore  请求计算算子topALL, 100分页
-TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithWithFilter)
-{
+TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithWithFilter) {
     OperatorStatisticReqParams commonQueryParams;
     commonQueryParams.group = RequestGroup::OP_TYPE;
     commonQueryParams.pageSize = 10;
@@ -200,14 +192,13 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorTypeWithWithF
     OperatorStatisticInfoResponse dbResponse = {};
     textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
     fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-    EXPECT_FALSE(textResponse.datas.empty());
-    EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(),
-              min(textResponse.total, commonQueryParams.pageSize) * 2);
+    EXPECT_FALSE(textResponse.data.empty());
+    EXPECT_EQ(
+        textResponse.data.size() + dbResponse.data.size(), min(textResponse.total, commonQueryParams.pageSize) * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
 }
 // 计算算子名及输入shape分组时，可过滤name和accCore
-TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorNameAndInputShapeWithFilter)
-{
+TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorNameAndInputShapeWithFilter) {
     OperatorStatisticReqParams commonQueryParams;
     commonQueryParams.group = RequestGroup::INPUT_SHAPE;
     commonQueryParams.pageSize = 10;
@@ -224,14 +215,13 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForComputeOperatorNameAndInputS
     OperatorStatisticInfoResponse dbResponse = {};
     textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
     fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-    EXPECT_FALSE(textResponse.datas.empty());
-    EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(),
-              min(textResponse.total, commonQueryParams.pageSize) * 2);
+    EXPECT_FALSE(textResponse.data.empty());
+    EXPECT_EQ(
+        textResponse.data.size() + dbResponse.data.size(), min(textResponse.total, commonQueryParams.pageSize) * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
 }
 // 通信算子类型分组时, 可过滤type
-TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForCommunicationOpTypeWithFilter)
-{
+TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForCommunicationOpTypeWithFilter) {
     OperatorStatisticReqParams commonQueryParams;
     commonQueryParams.group = RequestGroup::COMM_OP_TYPE;
     commonQueryParams.pageSize = 10;
@@ -247,8 +237,8 @@ TEST_F(VirtualSummaryDatabaseTest, QueryStatisticForCommunicationOpTypeWithFilte
     OperatorStatisticInfoResponse dbResponse = {};
     textDbRank0.QueryOperatorStatisticInfo(commonQueryParams, textResponse);
     fullDbRank0.QueryOperatorStatisticInfo(commonQueryParams, dbResponse);
-    EXPECT_FALSE(textResponse.datas.empty());
-    EXPECT_EQ(textResponse.datas.size() + dbResponse.datas.size(),
-              min(textResponse.total, commonQueryParams.pageSize) * 2);
+    EXPECT_FALSE(textResponse.data.empty());
+    EXPECT_EQ(
+        textResponse.data.size() + dbResponse.data.size(), min(textResponse.total, commonQueryParams.pageSize) * 2);
     EXPECT_TRUE(CompareOperatorStatisticInfoResponse(textResponse, dbResponse));
 }

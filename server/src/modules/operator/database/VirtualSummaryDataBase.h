@@ -35,39 +35,37 @@ namespace Dic::Module::Summary {
 using namespace Dic::Server;
 
 class VirtualSummaryDataBase : public Database {
-public:
+  public:
     bool levelIsL0 = true;
 
     explicit VirtualSummaryDataBase(std::recursive_mutex &sqlMutex) : Database(sqlMutex) {};
     ~VirtualSummaryDataBase() override = default;
 
-    virtual bool QueryComputeOpDetail(Protocol::ComputeDetailParams params,
-        std::vector<Protocol::ComputeDetail> &computeDetails) = 0;
+    virtual bool QueryComputeOpDetail(
+        Protocol::ComputeDetailParams params, std::vector<Protocol::ComputeDetail> &computeDetails) = 0;
     virtual bool QueryTotalNumByAcceleratorCore(std::string name, int64_t &totalNum) = 0;
 
-    virtual bool QueryCommunicationOpDetail(Protocol::CommunicationDetailParams params,
-        std::vector<Protocol::CommunicationDetail> &computeDetails) = 0;
+    virtual bool QueryCommunicationOpDetail(
+        Protocol::CommunicationDetailParams params, std::vector<Protocol::CommunicationDetail> &computeDetails) = 0;
 
     virtual bool QueryOperatorDurationInfo(Protocol::OperatorDurationReqParams &reqParams, Protocol::QueryType type,
-                                   std::vector<Protocol::OperatorDurationRes> &datas) = 0;
+        std::vector<Protocol::OperatorDurationRes> &data) = 0;
 
-    virtual bool QueryOperatorStatisticInfo(Protocol::OperatorStatisticReqParams &reqParams,
-                                    Protocol::OperatorStatisticInfoResponse &response) = 0;
+    virtual bool QueryOperatorStatisticInfo(
+        Protocol::OperatorStatisticReqParams &reqParams, Protocol::OperatorStatisticInfoResponse &response) = 0;
 
-    virtual bool QueryOperatorDetailInfo(Protocol::OperatorStatisticReqParams &reqParams,
-                                 Protocol::OperatorDetailInfoResponse& response) = 0;
+    virtual bool QueryOperatorDetailInfo(
+        Protocol::OperatorStatisticReqParams &reqParams, Protocol::OperatorDetailInfoResponse &response) = 0;
     virtual bool QueryAllOperatorDetailInfo(Protocol::OperatorStatisticReqParams &reqParams,
-                                            std::vector<Protocol::OperatorDetailInfoRes> &res,
-                                            std::string &level) = 0;
+        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level) = 0;
 
-    virtual bool QueryOperatorMoreInfo(Protocol::OperatorMoreInfoReqParams &reqParams,
-                               Protocol::OperatorMoreInfoResponse& response) = 0;
-    virtual bool QueryAllOperatorStatisticInfo(Protocol::OperatorStatisticReqParams &reqParams,
-                                               std::vector<Protocol::OperatorStatisticInfoRes> &res) = 0;
+    virtual bool QueryOperatorMoreInfo(
+        Protocol::OperatorMoreInfoReqParams &reqParams, Protocol::OperatorMoreInfoResponse &response) = 0;
+    virtual bool QueryAllOperatorStatisticInfo(
+        Protocol::OperatorStatisticReqParams &reqParams, std::vector<Protocol::OperatorStatisticInfoRes> &res) = 0;
 
     virtual bool QueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res) = 0;
-    bool ExecuteQueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res, std::string &sql)
-    {
+    bool ExecuteQueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res, std::string &sql) {
         sqlite3_stmt *stmt = nullptr;
         int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
         if (result != SQLITE_OK) {
@@ -87,8 +85,7 @@ public:
     }
 
     uint64_t QueryMinStartTime();
-    static inline std::string GetFileIdFromCombinationId(const std::string& str)
-    {
+    static inline std::string GetFileIdFromCombinationId(const std::string &str) {
         auto len = MSPROF_PREFIX.length();
         if (str.length() <= len || str.compare(0, len, MSPROF_PREFIX) != 0) {
             return str;
@@ -102,8 +99,7 @@ public:
         return str.substr(len, index - len - 1);
     }
 
-    static inline std::string GetDeviceIdFromCombinationId(const std::string& str)
-    {
+    static inline std::string GetDeviceIdFromCombinationId(const std::string &str) {
         auto len = MSPROF_PREFIX.length();
         if (str.length() <= len || str.compare(0, len, MSPROF_PREFIX) != 0) {
             return str;
@@ -117,8 +113,7 @@ public:
         return str.substr(index + MSPROF_CONNECT.length() - 1);
     }
 
-    std::string OperatorGetLevel(const std::vector<Protocol::OperatorDetailInfoRes> &res)
-    {
+    std::string OperatorGetLevel(const std::vector<Protocol::OperatorDetailInfoRes> &res) {
         std::string level;
         if (res.empty()) {
             level = levelIsL0 ? "l0" : "l1";
@@ -132,8 +127,7 @@ public:
         return level;
     }
 
-    std::string JoinExtraColName(const std::vector<std::string> &cols)
-    {
+    std::string JoinExtraColName(const std::vector<std::string> &cols) {
         std::string pmuColumnNames;
         if (!cols.empty()) {
             pmuColumnNames = ",";
@@ -142,10 +136,7 @@ public:
         return pmuColumnNames;
     }
 
-    const std::set<std::string>& GetPmuColumns() const
-    {
-        return pmuColumns_;
-    }
+    const std::set<std::string> &GetPmuColumns() const { return pmuColumns_; }
     // kernelparser解析的时候赋值
     std::set<std::string> pmuColumns_;
 };

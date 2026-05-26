@@ -24,17 +24,16 @@
 #include "OperatorErrorManager.h"
 
 namespace Dic::Module::Operator {
-    class OperatorRequestHandler : public ModuleRequestHandler {
-    public:
-        OperatorRequestHandler()
-        {
-            moduleName = MODULE_OPERATOR;
-            async = false;
-        }
+class OperatorRequestHandler : public ModuleRequestHandler {
+  public:
+    OperatorRequestHandler() {
+        moduleName = MODULE_OPERATOR;
+        async = false;
+    }
 
-        ~OperatorRequestHandler() override = default;
+    ~OperatorRequestHandler() override = default;
 
-        bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override { return true; }
-    };
+    bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override { return true; }
+};
 }
 #endif // PROFILER_SERVER_OPERATORREQUESTHANDLER_H

@@ -23,10 +23,9 @@
 #include "QueryOpCategoryInfoHandler.h"
 
 namespace Dic::Module::Operator {
-    using namespace Dic::Server;
+using namespace Dic::Server;
 
-    bool QueryOpCategoryInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryOpCategoryInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     OperatorCategoryInfoRequest &request = dynamic_cast<OperatorCategoryInfoRequest &>(*requestPtr);
     std::unique_ptr<OperatorCategoryInfoResponse> responsePtr = std::make_unique<OperatorCategoryInfoResponse>();
     OperatorCategoryInfoResponse &response = *responsePtr;
@@ -38,8 +37,7 @@ namespace Dic::Module::Operator {
     }
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
     auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
-    if (!database)
-    {
+    if (!database) {
         ServerLog::Warn("[Operator]Not exist operator database. Fail to get op category info.");
         return true;
     }
@@ -51,7 +49,7 @@ namespace Dic::Module::Operator {
         return false;
     }
     request.params.deviceId = deviceId;
-    if (!database->QueryOperatorDurationInfo(request.params, QueryType::CATEGORY, response.datas)) {
+    if (!database->QueryOperatorDurationInfo(request.params, QueryType::CATEGORY, response.data)) {
         ServerLog::Error("[Operator]Failed to query Category Info by rankId.");
         SetOperatorError(ErrorCode::QUERY_DURATION_FAILED);
         SendResponse(std::move(responsePtr), false);
@@ -61,14 +59,13 @@ namespace Dic::Module::Operator {
     return true;
 }
 
-    bool QueryOpCategoryInfoHandler::CheckRequestParam(OperatorDurationReqParams params)
-    {
-        std::string errMsg;
-        if (!params.CommonCheck(errMsg)) {
-            ServerLog::Warn(errMsg);
-            SetOperatorError(ErrorCode::PARAMS_ERROR);
-            return false;
-        }
-        return true;
+bool QueryOpCategoryInfoHandler::CheckRequestParam(OperatorDurationReqParams params) {
+    std::string errMsg;
+    if (!params.CommonCheck(errMsg)) {
+        ServerLog::Warn(errMsg);
+        SetOperatorError(ErrorCode::PARAMS_ERROR);
+        return false;
     }
+    return true;
+}
 }
