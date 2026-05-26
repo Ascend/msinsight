@@ -26,8 +26,7 @@
 
 namespace Dic::Module::RL {
 using namespace Dic::Module::Timeline;
-void RLPipelineService::Clear()
-{
+void RLPipelineService::Clear() {
     std::lock_guard<std::mutex> lock(mtx);
     minTime = UINT64_MAX;
     maxTime = 0;
@@ -38,8 +37,7 @@ void RLPipelineService::Clear()
     framework.clear();
 }
 
-std::vector<Protocol::RLPipelineNode> RLPipelineService::SearchNode(const std::string &rankId)
-{
+std::vector<Protocol::RLPipelineNode> RLPipelineService::SearchNode(const std::string &rankId) {
     // 查找mstx数据
     FullDb::DataType dataType = Timeline::DataBaseManager::Instance().GetDataTypeByRank(rankId);
     std::vector<std::string> taskNameList = RLMstxConfigManager::Instance().GetMstxTaskNameList();
@@ -52,7 +50,7 @@ std::vector<Protocol::RLPipelineNode> RLPipelineService::SearchNode(const std::s
     std::set<std::string> stageTypeListTemp;
     uint64_t minTimeTemp = UINT64_MAX;
     uint64_t maxTimeTemp = 0;
-    for (const auto &item: mstxSliceList) {
+    for (const auto &item : mstxSliceList) {
         uint64_t duration = NumberSafe::Sub(item.endTime, item.timestamp);
         std::string stageType = RLMstxConfigManager::Instance().GetTaskTypeByName(item.name);
         Protocol::RLPipelineNode node{rankId, "Task", item.timestamp, duration, item.name, stageType};
@@ -71,9 +69,7 @@ std::vector<Protocol::RLPipelineNode> RLPipelineService::SearchNode(const std::s
 }
 
 void RLPipelineService::FillPipelineMap(const std::string &originHostName, const std::string &rankId,
-                                        const std::vector<Protocol::RLPipelineNode> &pipeline,
-                                        std::unordered_map<std::string, RLPipelineItem> &targetMap)
-{
+    const std::vector<Protocol::RLPipelineNode> &pipeline, std::unordered_map<std::string, RLPipelineItem> &targetMap) {
     std::string key = originHostName + " " + rankId;
     std::lock_guard<std::mutex> lock(mtx);
     auto taskIt = targetMap.find(key);
@@ -85,47 +81,43 @@ void RLPipelineService::FillPipelineMap(const std::string &originHostName, const
     }
 }
 
-void RLPipelineService::QueryPipelineByRankId(const std::string &rankIdWithHost)
-{
+void RLPipelineService::QueryPipelineByRankId(const std::string &rankIdWithHost) {
     std::string fileId = FullDb::DataBaseManager::Instance().GetFileIdByRankId(rankIdWithHost);
     std::vector<std::string> rankIdWithHostAfterSplit = StringUtil::Split(rankIdWithHost, " ");
     // 获取host，如果rankIdWithHost按空格分割后长度大于1，则倒数第二个是host，否则赋值为空
-    std::string hostName = rankIdWithHostAfterSplit.size() > 1 ?
-                           rankIdWithHostAfterSplit[rankIdWithHostAfterSplit.size() - 2] : "";
+    std::string hostName =
+        rankIdWithHostAfterSplit.size() > 1 ? rankIdWithHostAfterSplit[rankIdWithHostAfterSplit.size() - 2] : "";
     std::string originHostName = StringUtil::GetOriginHostName(hostName);
     // 获取rankId，如果rankIdWithHost按空格分割后长度大于1，则最后一个是rankId，否则就是rankIdWithHost本身
-    std::string rankId = rankIdWithHostAfterSplit.size() > 1 ?
-                         rankIdWithHostAfterSplit[rankIdWithHostAfterSplit.size() - 1] : rankIdWithHost;
+    std::string rankId = rankIdWithHostAfterSplit.size() > 1
+        ? rankIdWithHostAfterSplit[rankIdWithHostAfterSplit.size() - 1]
+        : rankIdWithHost;
 
     // 查询任务维度的数据
+    ServerLog::Warn("Start query the rankId:", rankId);
     std::vector<Protocol::RLPipelineNode> taskPipelineNodeList = SearchNode(rankIdWithHost);
     FillPipelineMap(originHostName, rankId, taskPipelineNodeList, taskPipelineMap);
 
     // 查询microBatch维度数据
     std::vector<std::string> taskNames;
     std::transform(taskPipelineNodeList.begin(), taskPipelineNodeList.end(), std::back_inserter(taskNames),
-                   [](const RLPipelineNode &node) {
-                       return node.name;
-                   });
+        [](const RLPipelineNode &node) { return node.name; });
     auto rlMstxConfig = RLMstxConfigManager::Instance().GetMstxConfigByTaskName(taskNames);
     framework = rlMstxConfig.framework;
-    std::vector<Protocol::RLPipelineNode> microBatchNodeList = QueryMicroBatchByTask(fileId,
-                                                                                     taskPipelineNodeList,
-                                                                                     rlMstxConfig);
+    ServerLog::Warn("Start query microbatch, framework:", framework, ", size of task:", taskNames.size());
+    std::vector<Protocol::RLPipelineNode> microBatchNodeList =
+        QueryMicroBatchByTask(fileId, taskPipelineNodeList, rlMstxConfig);
     FillPipelineMap(originHostName, rankId, microBatchNodeList, microBatchPipelineMap);
 }
 
-bool RLPipelineService::GetPipelineInfo(Protocol::RLPipelineResponse &response)
-{
+bool RLPipelineService::GetPipelineInfo(Protocol::RLPipelineResponse &response) {
     Clear();
     static ThreadPool threadPool = ThreadPool(std::thread::hardware_concurrency());
-    for (const auto &rankIdWithHost: FullDb::DataBaseManager::Instance().GetAllRankId()) {
+    for (const auto &rankIdWithHost : FullDb::DataBaseManager::Instance().GetAllRankId()) {
         if (rlBackEndType == RLBackEndType::Unknown) {
             rlBackEndType = GetBackendType(rankIdWithHost);
         }
-        threadPool.AddTask([this](std::string rankIdWithHost) {
-            QueryPipelineByRankId(rankIdWithHost);
-            },
+        threadPool.AddTask([this](std::string rankIdWithHost) { QueryPipelineByRankId(rankIdWithHost); },
             TraceIdManager::GetTraceId(), rankIdWithHost);
     }
     threadPool.WaitForAllTasks();
@@ -141,31 +133,27 @@ bool RLPipelineService::GetPipelineInfo(Protocol::RLPipelineResponse &response)
     return true;
 }
 
-std::vector<Protocol::RLPipelineNode> RLPipelineService::QueryMicroBatchByTask(const std::string &fileId,
-    const std::vector<Protocol::RLPipelineNode> &taskList, const RLMstxConfig &taskConfig)
-{
+std::vector<Protocol::RLPipelineNode> RLPipelineService::QueryMicroBatchByTask(
+    const std::string &fileId, const std::vector<Protocol::RLPipelineNode> &taskList, const RLMstxConfig &taskConfig) {
     std::vector<Protocol::RLPipelineNode> microBatchNodeList;
-    for (const auto &item: taskList) {
-        auto microBatchUnderTask = QueryMicroBatch(fileId,
-            taskConfig, item);
-        std::transform(microBatchUnderTask.begin(), microBatchUnderTask.end(), std::back_inserter(microBatchNodeList), [](const auto& item) {
-            return item;
-        });
+    for (const auto &item : taskList) {
+        auto microBatchUnderTask = QueryMicroBatch(fileId, taskConfig, item);
+        std::transform(microBatchUnderTask.begin(), microBatchUnderTask.end(), std::back_inserter(microBatchNodeList),
+            [](const auto &item) { return item; });
     }
     return microBatchNodeList;
 }
 
-void RLPipelineService::FillAndProcessPipelineData(std::unordered_map<std::string, RLPipelineItem> &pipelineMap,
-                                                   std::vector<RLPipelineItem> &pipelineData)
-{
-    for (const auto &item: pipelineMap) {
+void RLPipelineService::FillAndProcessPipelineData(
+    std::unordered_map<std::string, RLPipelineItem> &pipelineMap, std::vector<RLPipelineItem> &pipelineData) {
+    for (const auto &item : pipelineMap) {
         if (item.second.lists.empty()) {
             continue;
         }
         pipelineData.push_back(item.second);
     }
-    std::sort(pipelineData.begin(), pipelineData.end(),
-        [](const RLPipelineItem &pipelineA, const RLPipelineItem &pipelineB) {
+    std::sort(
+        pipelineData.begin(), pipelineData.end(), [](const RLPipelineItem &pipelineA, const RLPipelineItem &pipelineB) {
             if (pipelineA.hostName != pipelineB.hostName) {
                 return pipelineA.hostName > pipelineB.hostName;
             }
@@ -177,10 +165,8 @@ void RLPipelineService::FillAndProcessPipelineData(std::unordered_map<std::strin
         });
 }
 
-std::vector<Protocol::RLPipelineNode> RLPipelineService::QueryMicroBatch(const std::string &fileId,
-                                                                         const RLMstxConfig &config,
-                                                                         const RLPipelineNode &node)
-{
+std::vector<Protocol::RLPipelineNode> RLPipelineService::QueryMicroBatch(
+    const std::string &fileId, const RLMstxConfig &config, const RLPipelineNode &node) {
     auto classifier = RLMicroBatchClassifierFactory::GetClassifier(rlBackEndType);
     if (classifier == nullptr) {
         return {};
@@ -188,14 +174,12 @@ std::vector<Protocol::RLPipelineNode> RLPipelineService::QueryMicroBatch(const s
     return classifier->GetClassifiedMicroBatch(fileId, config, node);
 }
 
-RLPipelineService &RLPipelineService::Instance()
-{
+RLPipelineService &RLPipelineService::Instance() {
     static RLPipelineService service;
     return service;
 }
 
-RLBackEndType RLPipelineService::GetBackendType(const std::string &rankId)
-{
+RLBackEndType RLPipelineService::GetBackendType(const std::string &rankId) {
     SliceQuery query;
     query.rankId = rankId;
     query.name = "FullyShardedDataParallel.forward";

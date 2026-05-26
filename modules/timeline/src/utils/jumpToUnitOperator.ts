@@ -26,6 +26,17 @@ import type { OpDetail } from '../api/interface';
 import { store } from '../store';
 import { InsightUnit } from '../entity/insight';
 
+const PYTHON_STACK_THREAD_ID_PREFIX = 'python_stack:';
+
+const isSameThread = (unitMetaData: ThreadMetaData, tid: string): boolean => {
+    const { threadId, threadIdList } = unitMetaData;
+    if (threadId === tid || threadIdList?.includes(tid)) {
+        return true;
+    }
+    return threadId.startsWith(PYTHON_STACK_THREAD_ID_PREFIX) &&
+        threadId.slice(PYTHON_STACK_THREAD_ID_PREFIX.length) === tid;
+};
+
 /**
  * 在泳道中选中特定算子
  * @param {OpDetail} opDetail 算子详情信息
@@ -51,15 +62,17 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
             target: (unit: InsightUnit): boolean => {
                 if (!(unit instanceof ThreadUnit)) { return false; }
 
-                const { cardId, threadId, threadIdList, processId } = unit.metadata;
-                const isSameUnit = Boolean(processId === pid && (threadId === tid || threadIdList?.includes(tid)));
+                const { cardId, processId } = unit.metadata;
+                const isSameMetaType = metaType === undefined || metaType === unit.metadata.metaType;
+                const isSameUnit = Boolean(processId === pid && isSameThread(unit.metadata, tid) && isSameMetaType);
                 if (cid && cardId) {
                     return cid === cardId && isSameUnit;
                 }
                 return isSameUnit;
             },
             onSuccess: (unit): void => {
-                const startTime = timestamp - getTimeOffset(session, unit.metadata as ThreadMetaData);
+                const unitMetaData = unit.metadata as ThreadMetaData;
+                const startTime = timestamp - getTimeOffset(session, unitMetaData);
                 const [rangeStart, rangeEnd] = calculateDomainRange(session, startTime, duration);
                 session.domainRange = { domainStart: rangeStart, domainEnd: rangeEnd };
                 session.selectedData = {
@@ -69,13 +82,13 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                     color: colorPalette[hashToNumber(name, colorPalette.length)],
                     duration,
                     depth,
-                    threadId: tid,
+                    threadId: unitMetaData.threadId,
                     processId: pid,
                     cardId: cid,
                     dbPath,
                     startRecordTime: session.startRecordTime,
                     showSelectedData: true,
-                    metaType: metaType ?? (unit.metadata as ThreadMetaData).metaType,
+                    metaType: metaType ?? unitMetaData.metaType,
                 };
             },
             showDetail: false,

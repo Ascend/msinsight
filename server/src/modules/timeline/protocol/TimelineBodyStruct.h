@@ -49,6 +49,7 @@ struct SearchAllSlices {
     std::string rankId;
     std::string deviceId;
     std::string fileId;
+    std::string metaType;
 };
 
 struct SearchAllSlicesBody {
@@ -59,11 +60,10 @@ struct SearchAllSlicesBody {
     uint64_t currentPage{};
 };
 
-template<typename RecordType>
-struct PaginatedBody {
+template <typename RecordType> struct PaginatedBody {
     std::vector<RecordType> sameOperatorsDetails; // 记录
     std::string rankId;
-    uint64_t count{};                // 记录总数
+    uint64_t count{}; // 记录总数
     uint64_t pageSize{};
     uint64_t currentPage{};
 };
@@ -107,5 +107,5 @@ struct ThreadDetail {
     std::string outputFormats;
     std::string attrInfo;
 };
-}  // namespace Dic::Protocol
-#endif  // PROFILER_SERVER_TIMELINEBODYSTRUCT_H
+} // namespace Dic::Protocol
+#endif // PROFILER_SERVER_TIMELINEBODYSTRUCT_H

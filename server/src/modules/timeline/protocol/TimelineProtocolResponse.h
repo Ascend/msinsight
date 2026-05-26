@@ -283,6 +283,7 @@ struct SearchSliceBody {
     uint64_t startTime = 0;
     uint64_t duration = 0;
     uint32_t depth = 0;
+    std::string metaType;
 };
 
 struct SearchSliceResponse : public Response {

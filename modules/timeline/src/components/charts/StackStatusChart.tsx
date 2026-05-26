@@ -131,11 +131,11 @@ const drawRect = (ctx: CanvasRenderingContext2D, dataObj: { data: StackStatusDat
 };
 
 function dealDataColor(theme: Theme, dataColor: Map<keyof Theme['colorPalette'], StackStatusData[]>,
-    dataMultiColor: StackStatusData[], datas: StackStatusData[][]): void {
+    dataMultiColor: StackStatusData[], dataList: StackStatusData[][]): void {
     Object.keys(theme.colorPalette).forEach(key => {
         dataColor.set(key as keyof Theme['colorPalette'], []);
     });
-    datas.forEach(it => it.forEach(data => {
+    dataList.forEach(it => it.forEach(data => {
         // 目前只支持最多2种背景颜色的情况，下面绘制多色背景时for循环两次也是这样原因
         if (data.color instanceof Array) {
             if (data.color.length === 2) {
@@ -149,7 +149,7 @@ function dealDataColor(theme: Theme, dataColor: Map<keyof Theme['colorPalette'],
 
 interface DrawParams {
     ctx: CanvasRenderingContext2D | null;
-    datas: StackStatusData[][];
+    dataList: StackStatusData[][];
     xScale: Scale;
     yScale: Scale;
     theme: Theme;
@@ -158,7 +158,7 @@ interface DrawParams {
     textConfig?: TextConfig;
 }
 
-const draw = ({ ctx, datas, xScale, yScale, theme, right, isSimulation, textConfig }: DrawParams): void => {
+const draw = ({ ctx, dataList, xScale, yScale, theme, right, isSimulation, textConfig }: DrawParams): void => {
     if (!ctx) {
         return;
     }
@@ -171,7 +171,7 @@ const draw = ({ ctx, datas, xScale, yScale, theme, right, isSimulation, textConf
     // change fillstyle as less as possible
     const dataColor = new Map<keyof Theme['colorPalette'], StackStatusData[]>();
     const dataMultiColor: StackStatusData[] = [];
-    dealDataColor(theme, dataColor, dataMultiColor, datas);
+    dealDataColor(theme, dataColor, dataMultiColor, dataList);
     const height = yScale(1) - yScale(0);
     const textToDraw: DrawTextType = [];
     const func = (arr: StackStatusData[], key: keyof Theme['colorPalette']): void => {
@@ -207,15 +207,15 @@ const draw = ({ ctx, datas, xScale, yScale, theme, right, isSimulation, textConf
     }
 };
 
-const findDataByXY = (mousePos: { x: number; y: number } | undefined, datas: StackStatusData[][],
+const findDataByXY = (mousePos: { x: number; y: number } | undefined, dataList: StackStatusData[][],
     rangeAndDomain: Array<[number, number]>, depthHeight: number, endTime: number): StackStatusData | undefined => {
-    if (mousePos === undefined || datas.length === 0 || rangeAndDomain.length < 2) {
+    if (mousePos === undefined || dataList.length === 0 || rangeAndDomain.length < 2) {
         return undefined;
     }
     const mouseTime = d3.scaleLinear().range(rangeAndDomain[1]).domain(rangeAndDomain[0]).clamp(false)(mousePos.x);
     const range = d3.scaleLinear().range(rangeAndDomain[1]).domain(rangeAndDomain[0]).clamp(false)(CHEVRON_WIDTH / 2);
     const depth = Math.floor(mousePos.y / depthHeight);
-    const data = datas[depth];
+    const data = dataList[depth];
     if (data === undefined || data.length === 0) {
         return undefined;
     }
@@ -241,9 +241,9 @@ const findDataByXY = (mousePos: { x: number; y: number } | undefined, datas: Sta
     return undefined;
 };
 
-const findDataByXXRange = ([downX, upX]: number[], datas: StackStatusData[][],
+const findDataByXXRange = ([downX, upX]: number[], dataList: StackStatusData[][],
     rangeAndDomain: Array<[number, number]>): StackStatusData[] | undefined => {
-    const isUndefinedOrEmpty = downX === undefined || upX === undefined || datas.length === 0 || rangeAndDomain.length === 0;
+    const isUndefinedOrEmpty = downX === undefined || upX === undefined || dataList.length === 0 || rangeAndDomain.length === 0;
     if (isUndefinedOrEmpty) {
         return undefined;
     }
@@ -253,7 +253,7 @@ const findDataByXXRange = ([downX, upX]: number[], datas: StackStatusData[][],
     const mouseETime = d3.scaleLinear().range(rangeAndDomain[1]).domain(rangeAndDomain[0]).clamp(false)(eX);
 
     const result = [] as StackStatusData[];
-    datas.forEach((data) => {
+    dataList.forEach((data) => {
         data.forEach((elem) => {
             if (elem.startTime < mouseETime && elem.startTime + elem.duration > mouseSTime) {
                 result.push(elem);
@@ -280,7 +280,7 @@ const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, metada
         session.selectedData = clickedData
             ? {
                 ...clickedData,
-                threadId: clickedData.threadId ?? (metadata as ThreadMetaData).threadId ?? '',
+                threadId: (metadata as ThreadMetaData).threadId ?? clickedData.threadId ?? '',
                 processId: (metadata as ThreadMetaData).processId ?? '',
                 timestamp: clickedData.originalStartTime as number,
                 metaType: (metadata as ThreadMetaData).metaType ?? '',
@@ -294,10 +294,19 @@ const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, metada
     });
 };
 
-const mouseMoveUpFunc = ([downX, upX]: number[], datasState: StackStatusData[][], rangeAndDomain: Array<[number, number]>, session: Session): void => {
+const mouseMoveUpFunc = ([downX, upX]: number[], datasState: StackStatusData[][], rangeAndDomain: Array<[number, number]>,
+    session: Session, metadata: unknown): void => {
     const selectedRangeData = findDataByXXRange([downX, upX], datasState, rangeAndDomain);
+    const threadMetaData = metadata as ThreadMetaData;
     runInAction(() => {
-        session.selectedRangeData = selectedRangeData;
+        session.selectedRangeData = selectedRangeData?.map(item => ({
+            ...item,
+            threadId: threadMetaData.threadId ?? item.threadId,
+            processId: threadMetaData.processId ?? '',
+            cardId: threadMetaData.cardId,
+            dbPath: threadMetaData.dbPath,
+            metaType: threadMetaData.metaType ?? '',
+        }));
     });
 };
 
@@ -334,7 +343,7 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
             onClick,
         });
     };
-    const handleMouseMoveUp = ([downX, upX]: number[]): void => { mouseMoveUpFunc([downX, upX], datasState, rangeAndDomain, session); };
+    const handleMouseMoveUp = ([downX, upX]: number[]): void => { mouseMoveUpFunc([downX, upX], datasState, rangeAndDomain, session, metadata); };
     useEffect(() => onHover?.(hoveredData, session, metadata), [hoveredData, metadata]);
     useClick({ canvasContainer, datasState, rangeAndDomain, session, metadata, handleMouseUp, handleMouseMoveUp });
     const yScale = isCollapse ? d3.scaleLinear().range([0, height]).domain([0, maxDepth as number]) : (depth: number): number => depth * rowHeight;
@@ -349,12 +358,12 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
         ctx?.resetTransform();
         ctx?.scale(devicePixelRatio, devicePixelRatio);
         ctx?.clearRect(0, 0, width, height);
-        draw({ ctx, datas: datasState, xScale, yScale, theme, right: session.endTimeAll ?? 0, isSimulation: session.isSimulation, textConfig });
+        draw({ ctx, dataList: datasState, xScale, yScale, theme, right: session.endTimeAll ?? 0, isSimulation: session.isSimulation, textConfig });
         drawExt({
             context: ctx,
             draw: (data, xScaleExt, yScaleExt) => draw({
                 ctx,
-                datas: data,
+                dataList: data,
                 xScale: xScaleExt,
                 yScale: yScaleExt,
                 theme,

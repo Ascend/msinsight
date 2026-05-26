@@ -58,8 +58,7 @@ struct SliceQuery {
     std::string startDepth;
     std::string endDepth;
     bool isFilterPythonFunction = false;
-    bool QueryThreadsCheck(std::string &error) const
-    {
+    bool QueryThreadsCheck(std::string &error) const {
         if (startTime > endTime) {
             error = "start time is bigger than end time";
             return false;
@@ -142,6 +141,8 @@ struct TrackQuery {
      * 线程泳道属于哪个类型
      */
     std::string metaType;
+    std::string displayMetaType;
+    bool isPythonStack = false;
 
     /**
      * 泳道开始时间

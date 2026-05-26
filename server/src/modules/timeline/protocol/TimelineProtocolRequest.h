@@ -35,7 +35,13 @@
 namespace Dic {
 namespace Protocol {
 using namespace Dic::Module::Timeline;
-enum class ProjectActionEnum { TRANSFER_PROJECT = 0, ADD_FILE, UNKNOWN };
+const std::string PYTHON_STACK_THREAD_ID_PREFIX = "python_stack:";
+const std::string PYTHON_API_THREAD_ID = "pytorch";
+enum class ProjectActionEnum {
+    TRANSFER_PROJECT = 0,
+    ADD_FILE,
+    UNKNOWN
+};
 
 struct ImportActionParams {
     std::string projectName;
@@ -115,6 +121,7 @@ struct UnitThreadTracesParams {
     uint64_t endTime = 0;
     double timePerPx = 0; // totalTime / pixel
     bool isFilterPythonFunction = false;
+    bool isPythonStack = false;
     bool isHideFlagEvents = false;
     bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
@@ -464,6 +471,7 @@ struct EventsViewParams {
     uint64_t endTime = 0;
     std::vector<std::string> threadIdList;
     std::vector<std::pair<std::string, std::string>> filters;
+    bool isPythonStack = false;
     bool CheckParams(uint64_t minTime, std::string &warnMsg) const;
 };
 

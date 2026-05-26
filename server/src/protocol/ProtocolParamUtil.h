@@ -26,8 +26,7 @@ namespace Dic::Protocol {
 struct OrderParam {
     std::string orderBy;
     std::string orderType;
-    std::string NormalizeOrderType(const std::string& type) const
-    {
+    std::string NormalizeOrderType(const std::string &type) const {
         if (type == "ascend" || type == "Ascend") {
             return "ASC";
         } else {
@@ -35,18 +34,11 @@ struct OrderParam {
         }
     }
 
-    std::string GetNormalizeOrderType() const
-    {
-        return NormalizeOrderType(orderType);
-    }
+    std::string GetNormalizeOrderType() const { return NormalizeOrderType(orderType); }
 
-    bool CheckOrderByInjection() const
-    {
-        return false;
-    }
+    bool CheckOrderByInjection() const { return false; }
 
-    std::string GenerateSql() const
-    {
+    std::string GenerateSql() const {
         std::string sql = " ";
         if (!orderBy.empty() && !orderType.empty()) {
             sql = " ORDER BY " + orderBy + " " + GetNormalizeOrderType() + " ";
@@ -74,8 +66,8 @@ struct ThreadDetailParams {
     std::string metaType;
     uint64_t startTime = 0;
     uint32_t depth = 0;
-    bool CheckParams(std::string &errMsg) const
-    {
+    bool isPythonStack = false;
+    bool CheckParams(std::string &errMsg) const {
         if (!StringUtil::CheckSqlValid(id)) {
             errMsg = "Id Invalid!";
             return false;
@@ -87,8 +79,7 @@ struct ThreadDetailParams {
 struct SetCardAliasParams {
     std::string rankId;
     std::string cardAlias;
-    bool CheckParams(std::string alias, std::string &errMsg) const
-    {
+    bool CheckParams(std::string alias, std::string &errMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(alias, paramError)) {
             errMsg = "[Timeline]Failed to check card alias, " + paramError;

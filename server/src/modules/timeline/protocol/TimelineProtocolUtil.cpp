@@ -318,6 +318,7 @@ template <> std::optional<document_t> ToResponseJson<SearchSliceResponse>(const 
     JsonUtil::AddMember(body, "startTime", response.body.startTime, allocator);
     JsonUtil::AddMember(body, "duration", response.body.duration, allocator);
     JsonUtil::AddMember(body, "depth", response.body.depth, allocator);
+    JsonUtil::AddMember(body, "metaType", response.body.metaType, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }
@@ -622,6 +623,7 @@ template <> std::optional<document_t> ToResponseJson<SearchAllSlicesResponse>(co
         JsonUtil::AddMember(itemJson, "rankId", searchAllSlices.rankId, allocator);
         JsonUtil::AddMember(itemJson, "deviceId", searchAllSlices.deviceId, allocator);
         JsonUtil::AddMember(itemJson, "dbPath", searchAllSlices.fileId, allocator);
+        JsonUtil::AddMember(itemJson, "metaType", searchAllSlices.metaType, allocator);
         searchAllSlicesDetails.PushBack(itemJson, allocator);
     }
     JsonUtil::AddMember(body, "searchAllSlicesDetails", searchAllSlicesDetails, allocator);
