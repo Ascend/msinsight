@@ -25,22 +25,22 @@
 #include "ProtocolMessage.h"
 
 namespace Dic::Protocol {
-    struct OperatorRank {
-        std::string rankId;
-        bool status{false};
-        std::string error;
-    };
+struct OperatorRank {
+    std::string rankId;
+    bool status{false};
+    std::string error;
+};
 
-    struct OperatorParseStatusEvent : public Event {
-        OperatorParseStatusEvent() : Event(EVENT_PARSE_OPERATOR_STATUS) {}
-        OperatorRank data;
-        std::string fileId;
-        std::vector<RankInfo> rankList;
-    };
+struct OperatorParseStatusEvent : public Event {
+    OperatorParseStatusEvent() : Event(EVENT_PARSE_OPERATOR_STATUS) {}
+    OperatorRank data;
+    std::string fileId;
+    std::vector<RankInfo> rankList;
+};
 
-    struct OperatorParseClearEvent : public Event {
-        OperatorParseClearEvent() : Event(EVENT_PARSE_OPERATOR_CLEAR) {}
-    };
+struct OperatorParseClearEvent : public Event {
+    OperatorParseClearEvent() : Event(EVENT_PARSE_OPERATOR_CLEAR) {}
+};
 }
 
 #endif // PROFILER_SERVER_OPERATORPROTOCOLEVENT_H

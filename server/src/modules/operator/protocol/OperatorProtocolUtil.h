@@ -24,35 +24,29 @@
 #include "OperatorProtocolResponse.h"
 
 namespace Dic::Protocol {
-template<typename RESPONSE>
-std::optional<document_t> ToResponseJson(const RESPONSE &response);
+template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response);
 
-template<>
+template <>
 std::optional<document_t> ToResponseJson<OperatorCategoryInfoResponse>(const OperatorCategoryInfoResponse &res);
 
-template<>
+template <>
 std::optional<document_t> ToResponseJson<OperatorComputeUnitInfoResponse>(const OperatorComputeUnitInfoResponse &res);
 
-template<>
+template <>
 std::optional<document_t> ToResponseJson<OperatorStatisticInfoResponse>(const OperatorStatisticInfoResponse &res);
 
-template<>
-std::optional<document_t> ToResponseJson<OperatorDetailInfoResponse>(const OperatorDetailInfoResponse &res);
+template <> std::optional<document_t> ToResponseJson<OperatorDetailInfoResponse>(const OperatorDetailInfoResponse &res);
 
-template<>
-std::optional<document_t> ToResponseJson<OperatorMoreInfoResponse>(const OperatorMoreInfoResponse &res);
+template <> std::optional<document_t> ToResponseJson<OperatorMoreInfoResponse>(const OperatorMoreInfoResponse &res);
 
-template<>
+template <>
 std::optional<document_t> ToResponseJson<OperatorExportDetailsResponse>(const OperatorExportDetailsResponse &res);
 
-template<typename EVENT>
-std::optional<document_t> ToEventJson(const EVENT &event);
+template <typename EVENT> std::optional<document_t> ToEventJson(const EVENT &event);
 
-template<>
-std::optional<document_t> ToEventJson<OperatorParseStatusEvent>(const OperatorParseStatusEvent &event);
+template <> std::optional<document_t> ToEventJson<OperatorParseStatusEvent>(const OperatorParseStatusEvent &event);
 
-template<>
-std::optional<document_t> ToEventJson<OperatorParseClearEvent>(const OperatorParseClearEvent &event);
+template <> std::optional<document_t> ToEventJson<OperatorParseClearEvent>(const OperatorParseClearEvent &event);
 }
 
 #endif // PROFILER_SERVER_OPERATORPROTOCOLUTIL_H

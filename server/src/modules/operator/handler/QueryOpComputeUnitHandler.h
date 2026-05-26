@@ -24,20 +24,17 @@
 #include "OperatorProtocolRequest.h"
 
 namespace Dic::Module::Operator {
-    class QueryOpComputeUnitHandler : public OperatorRequestHandler {
-    public:
-        QueryOpComputeUnitHandler()
-        {
-            command = Protocol::REQ_RES_OPERATOR_COMPUTE_UNIT_INFO;
-        }
+class QueryOpComputeUnitHandler : public OperatorRequestHandler {
+  public:
+    QueryOpComputeUnitHandler() { command = Protocol::REQ_RES_OPERATOR_COMPUTE_UNIT_INFO; }
 
-        ~QueryOpComputeUnitHandler() override = default;
+    ~QueryOpComputeUnitHandler() override = default;
 
-        bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
+    bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-    private:
-        bool CheckRequestParam(OperatorDurationReqParams params);
-    };
+  private:
+    bool CheckRequestParam(OperatorDurationReqParams params);
+};
 }
 
 #endif // PROFILER_SERVER_QUERYOPCOMPUTEUNITHANDLER_H

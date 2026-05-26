@@ -25,10 +25,9 @@
 #include "QueryOpMoreInfoHandler.h"
 
 namespace Dic::Module::Operator {
-    using namespace Dic::Server;
+using namespace Dic::Server;
 
-    bool QueryOpMoreInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryOpMoreInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     OperatorMoreInfoRequest &request = dynamic_cast<OperatorMoreInfoRequest &>(*requestPtr);
     std::unique_ptr<OperatorMoreInfoResponse> responsePtr = std::make_unique<OperatorMoreInfoResponse>();
     OperatorMoreInfoResponse &response = *responsePtr;

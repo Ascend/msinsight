@@ -21,15 +21,14 @@
 
 namespace Dic::Protocol {
 using namespace rapidjson;
-template<>
-std::optional<document_t> ToResponseJson<OperatorCategoryInfoResponse>(const OperatorCategoryInfoResponse &res)
-{
+template <>
+std::optional<document_t> ToResponseJson<OperatorCategoryInfoResponse>(const OperatorCategoryInfoResponse &res) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(res, json);
     json_t body(kObjectType);
     json_t data(kArrayType);
-    for (const OperatorDurationRes& ele : res.datas) {
+    for (const OperatorDurationRes &ele : res.data) {
         json_t dataJson(kObjectType);
         JsonUtil::AddMember(dataJson, "name", ele.name, allocator);
         JsonUtil::AddMember(dataJson, "duration", ele.duration, allocator);
@@ -40,15 +39,14 @@ std::optional<document_t> ToResponseJson<OperatorCategoryInfoResponse>(const Ope
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<OperatorComputeUnitInfoResponse>(const OperatorComputeUnitInfoResponse &res)
-{
+template <>
+std::optional<document_t> ToResponseJson<OperatorComputeUnitInfoResponse>(const OperatorComputeUnitInfoResponse &res) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(res, json);
     json_t body(kObjectType);
     json_t data(kArrayType);
-    for (const OperatorDurationRes& ele : res.datas) {
+    for (const OperatorDurationRes &ele : res.data) {
         json_t dataJson(kObjectType);
         JsonUtil::AddMember(dataJson, "name", ele.name, allocator);
         JsonUtil::AddMember(dataJson, "duration", ele.duration, allocator);
@@ -59,9 +57,8 @@ std::optional<document_t> ToResponseJson<OperatorComputeUnitInfoResponse>(const 
     return std::optional<document_t>{std::move(json)};
 }
 
-void AddStatisticMemberWithLabel(rapidjson::Value& parent, const char* label, const OperatorStatisticInfoRes& ele,
-                                 rapidjson::Document::AllocatorType& allocator)
-{
+void AddStatisticMemberWithLabel(rapidjson::Value &parent, const char *label, const OperatorStatisticInfoRes &ele,
+    rapidjson::Document::AllocatorType &allocator) {
     rapidjson::Value dataJson(rapidjson::kObjectType);
     JsonUtil::AddMember(dataJson, "opType", ele.opType, allocator);
     JsonUtil::AddMember(dataJson, "opName", ele.opName, allocator);
@@ -75,9 +72,8 @@ void AddStatisticMemberWithLabel(rapidjson::Value& parent, const char* label, co
     parent.AddMember(rapidjson::Value(label, allocator).Move(), dataJson, allocator);
 }
 
-template<>
-std::optional<document_t> ToResponseJson<OperatorStatisticInfoResponse>(const OperatorStatisticInfoResponse &res)
-{
+template <>
+std::optional<document_t> ToResponseJson<OperatorStatisticInfoResponse>(const OperatorStatisticInfoResponse &res) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(res, json);
@@ -86,7 +82,7 @@ std::optional<document_t> ToResponseJson<OperatorStatisticInfoResponse>(const Op
 
     rapidjson::Document data;
     data.SetArray();
-    for (const OperatorStatisticCmpInfoRes& eles : res.datas) {
+    for (const OperatorStatisticCmpInfoRes &eles : res.data) {
         rapidjson::Value cmpResJson(rapidjson::kObjectType);
         AddStatisticMemberWithLabel(cmpResJson, "diff", eles.diff, allocator);
         AddStatisticMemberWithLabel(cmpResJson, "baseline", eles.baseline, allocator);
@@ -98,9 +94,8 @@ std::optional<document_t> ToResponseJson<OperatorStatisticInfoResponse>(const Op
     return std::optional<document_t>{std::move(json)};
 }
 
-void AdDetaildMemberWithLabel(rapidjson::Value& parent, const char* label, const OperatorDetailInfoRes& ele,
-                              rapidjson::Document::AllocatorType& allocator)
-{
+void AdDetaildMemberWithLabel(rapidjson::Value &parent, const char *label, const OperatorDetailInfoRes &ele,
+    rapidjson::Document::AllocatorType &allocator) {
     rapidjson::Value dataJson(rapidjson::kObjectType);
     JsonUtil::AddMember(dataJson, "name", ele.name, allocator);
     JsonUtil::AddMember(dataJson, "type", ele.type, allocator);
@@ -115,17 +110,16 @@ void AdDetaildMemberWithLabel(rapidjson::Value& parent, const char* label, const
     JsonUtil::AddMember(dataJson, "outputShape", ele.outputShape, allocator);
     JsonUtil::AddMember(dataJson, "outputType", ele.outputType, allocator);
     JsonUtil::AddMember(dataJson, "outputFormat", ele.outputFormat, allocator);
-    for (auto& [colName, pmuValue] : ele.pmuDatas) {
+    for (auto &[colName, pmuValue] : ele.pmuDatas) {
         rapidjson::Value key(colName.c_str(), allocator);
         rapidjson::Value value(pmuValue.c_str(), allocator);
         dataJson.AddMember(key, value, allocator);
     }
     parent.AddMember(rapidjson::Value(label, allocator).Move(), dataJson, allocator);
 }
- 
-template<>
-std::optional<document_t> ToResponseJson<OperatorDetailInfoResponse>(const OperatorDetailInfoResponse &res)
-{
+
+template <>
+std::optional<document_t> ToResponseJson<OperatorDetailInfoResponse>(const OperatorDetailInfoResponse &res) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(res, json);
@@ -135,7 +129,7 @@ std::optional<document_t> ToResponseJson<OperatorDetailInfoResponse>(const Opera
     // 创建一个JSON数组存储pmuHeaders的数据
     Value pmuHeaders(kArrayType);
     // 将vector中的元素逐个添加到JSON数组中
-    for (const auto& header : res.pmuHeaders) {
+    for (const auto &header : res.pmuHeaders) {
         Value headerValue;
         headerValue.SetString(header.c_str(), header.length(), allocator);
         pmuHeaders.PushBack(headerValue, allocator);
@@ -144,7 +138,7 @@ std::optional<document_t> ToResponseJson<OperatorDetailInfoResponse>(const Opera
 
     rapidjson::Document data;
     data.SetArray();
-    for (const OperatorDetailCmpInfoRes& eles : res.datas) {
+    for (const OperatorDetailCmpInfoRes &eles : res.data) {
         rapidjson::Value cmpResJson(rapidjson::kObjectType);
         AdDetaildMemberWithLabel(cmpResJson, "diff", eles.diff, allocator);
         AdDetaildMemberWithLabel(cmpResJson, "baseline", eles.baseline, allocator);
@@ -156,9 +150,7 @@ std::optional<document_t> ToResponseJson<OperatorDetailInfoResponse>(const Opera
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<OperatorMoreInfoResponse>(const OperatorMoreInfoResponse &res)
-{
+template <> std::optional<document_t> ToResponseJson<OperatorMoreInfoResponse>(const OperatorMoreInfoResponse &res) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(res, json);
@@ -168,14 +160,14 @@ std::optional<document_t> ToResponseJson<OperatorMoreInfoResponse>(const Operato
     // 创建一个JSON数组存储pmuHeaders的数据
     Value pmuHeaders(kArrayType);
     // 将vector中的元素逐个添加到JSON数组中
-    for (const auto& header : res.pmuHeaders) {
+    for (const auto &header : res.pmuHeaders) {
         Value headerValue;
         headerValue.SetString(header.c_str(), header.length(), allocator);
         pmuHeaders.PushBack(headerValue, allocator);
     }
     JsonUtil::AddMember(body, "pmuHeaders", pmuHeaders, allocator);
     json_t data(kArrayType);
-    for (const OperatorDetailInfoRes& ele : res.datas) {
+    for (const OperatorDetailInfoRes &ele : res.data) {
         json_t dataJson(kObjectType);
         JsonUtil::AddMember(dataJson, "name", ele.name, allocator);
         JsonUtil::AddMember(dataJson, "type", ele.type, allocator);
@@ -190,7 +182,7 @@ std::optional<document_t> ToResponseJson<OperatorMoreInfoResponse>(const Operato
         JsonUtil::AddMember(dataJson, "outputShape", ele.outputShape, allocator);
         JsonUtil::AddMember(dataJson, "outputType", ele.outputType, allocator);
         JsonUtil::AddMember(dataJson, "outputFormat", ele.outputFormat, allocator);
-        for (auto& [colName, pmuValue] : ele.pmuDatas) {
+        for (auto &[colName, pmuValue] : ele.pmuDatas) {
             rapidjson::Value key(colName.c_str(), allocator);
             rapidjson::Value value(pmuValue.c_str(), allocator);
             dataJson.AddMember(key, value, allocator);
@@ -202,9 +194,8 @@ std::optional<document_t> ToResponseJson<OperatorMoreInfoResponse>(const Operato
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToResponseJson<OperatorExportDetailsResponse>(const OperatorExportDetailsResponse &res)
-{
+template <>
+std::optional<document_t> ToResponseJson<OperatorExportDetailsResponse>(const OperatorExportDetailsResponse &res) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(res, json);
@@ -215,9 +206,7 @@ std::optional<document_t> ToResponseJson<OperatorExportDetailsResponse>(const Op
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToEventJson<OperatorParseStatusEvent>(const OperatorParseStatusEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<OperatorParseStatusEvent>(const OperatorParseStatusEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
@@ -227,7 +216,7 @@ std::optional<document_t> ToEventJson<OperatorParseStatusEvent>(const OperatorPa
     JsonUtil::AddMember(body, "error", event.data.error, allocator);
     JsonUtil::AddMember(body, "dbPath", event.fileId, allocator);
     json_t rankList(kArrayType);
-    for (const auto &rank: event.rankList) {
+    for (const auto &rank : event.rankList) {
         rankList.PushBack(rank.SerializationToJson(allocator), allocator);
     }
     JsonUtil::AddMember(body, "rankList", rankList, allocator);
@@ -235,9 +224,7 @@ std::optional<document_t> ToEventJson<OperatorParseStatusEvent>(const OperatorPa
     return std::optional<document_t>{std::move(json)};
 }
 
-template<>
-std::optional<document_t> ToEventJson<OperatorParseClearEvent>(const OperatorParseClearEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<OperatorParseClearEvent>(const OperatorParseClearEvent &event) {
     document_t json(kObjectType);
     ProtocolUtil::SetEventJsonBaseInfo(event, json);
     return std::optional<document_t>{std::move(json)};

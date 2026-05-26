@@ -36,8 +36,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_ALL_DETAIL_FAILED, "Failed to query all operator detail info"},
 };
 
-const std::string& GetErrorMessage(ErrorCode code)
-{
+const std::string &GetErrorMessage(ErrorCode code) {
     auto it = errorMessages.find(code);
     if (it != errorMessages.end()) {
         return it->second;
@@ -46,8 +45,7 @@ const std::string& GetErrorMessage(ErrorCode code)
     }
 }
 
-void SetOperatorError(ErrorCode code)
-{
+void SetOperatorError(ErrorCode code) {
     ModuleRequestHandler::SetRequestContextError({.code = static_cast<int>(code), .message = GetErrorMessage(code)});
 }
-}  // namespace Dic::Module::Operator
+} // namespace Dic::Module::Operator
