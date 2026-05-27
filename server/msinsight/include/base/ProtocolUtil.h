@@ -40,9 +40,7 @@ struct ErrorMessage {
     std::string message;
 };
 struct ProtocolMessage {
-    enum class Type : int {
-        REQUEST = 0, RESPONSE, EVENT, NONE
-    };
+    enum class Type : int { REQUEST = 0, RESPONSE, EVENT, NONE };
     virtual ~ProtocolMessage() = default;
     unsigned int id = 0;
     ProtocolMessage::Type type = Type::NONE;
@@ -50,12 +48,8 @@ struct ProtocolMessage {
     std::optional<int> resultCallbackId;
 };
 struct Request : public ProtocolMessage {
-    explicit Request(const std::string &command) : command(command)
-    {
-        type = ProtocolMessage::Type::REQUEST;
-    }
-    explicit Request(std::string_view command) : command(std::string(command))
-    {
+    explicit Request(const std::string &command) : command(command) { type = ProtocolMessage::Type::REQUEST; }
+    explicit Request(std::string_view command) : command(std::string(command)) {
         type = ProtocolMessage::Type::REQUEST;
     }
     ~Request() override = default;
@@ -65,10 +59,7 @@ struct Request : public ProtocolMessage {
 };
 struct Response : public ProtocolMessage {
     Response() = default;
-    explicit Response(const std::string &command) : command(command)
-    {
-        type = ProtocolMessage::Type::RESPONSE;
-    }
+    explicit Response(const std::string &command) : command(command) { type = ProtocolMessage::Type::RESPONSE; }
     ~Response() override = default;
     unsigned int requestId = 0;
     bool result = false;
@@ -80,15 +71,12 @@ struct JsonResponse : public Response {
     [[nodiscard]] virtual std::optional<document_t> ToJson() const = 0;
 };
 struct JsonSerializable {
-public:
+  public:
     virtual ~JsonSerializable() = default;
     [[nodiscard]] virtual json_t ToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const = 0;
 };
 struct Event : public ProtocolMessage {
-    explicit Event(const std::string &e) : event(e)
-    {
-        type = ProtocolMessage::Type::EVENT;
-    }
+    explicit Event(const std::string &e) : event(e) { type = ProtocolMessage::Type::EVENT; }
     ~Event() override = default;
     std::string event;
     bool result = false;
@@ -98,7 +86,7 @@ struct JsonEvent : public Event {
     [[nodiscard]] virtual std::optional<document_t> ToJson() const = 0;
 };
 class ProtocolUtil {
-public:
+  public:
     ProtocolUtil() = default;
     virtual ~ProtocolUtil() = default;
 
@@ -119,33 +107,31 @@ public:
 
     // common json to request
     template <class SubRequest>
-    static std::unique_ptr<Request> BuildRequestFromJson(const json_t &json, std::string &error)
-    {
+    static std::unique_ptr<Request> BuildRequestFromJson(const json_t &json, std::string &error) {
         static_assert(std::is_same_v<std::unique_ptr<Request>, decltype(SubRequest::FromJson(json, error))>,
-                      "SubRequest must have a static FromJson method returning std::unique_ptr<Request>");
+            "SubRequest must have a static FromJson method returning std::unique_ptr<Request>");
         return SubRequest::FromJson(json, error);
     }
     // response to json
-    static std::optional<document_t> CommonResponseToJson(const Response &response)
-    {
+    static std::optional<document_t> CommonResponseToJson(const Response &response) {
         try {
-            const auto& jsonResponse = dynamic_cast<const JsonResponse&>(response);
+            const auto &jsonResponse = dynamic_cast<const JsonResponse &>(response);
             return jsonResponse.ToJson();
-        } catch (const std::bad_cast& e) {
+        } catch (const std::bad_cast &e) {
             return std::nullopt;
         }
     }
     // event to json
-    static std::optional<document_t> CommonEventToJson(const Event &event)
-    {
+    static std::optional<document_t> CommonEventToJson(const Event &event) {
         try {
-            const auto& jsonResponse = dynamic_cast<const JsonEvent&>(event);
+            const auto &jsonResponse = dynamic_cast<const JsonEvent &>(event);
             return jsonResponse.ToJson();
-        } catch (const std::bad_cast& e) {
+        } catch (const std::bad_cast &e) {
             return std::nullopt;
         }
     }
-protected:
+
+  protected:
     std::mutex mutex;
     using JsonToRequestFunc = std::function<std::unique_ptr<Request>(const json_t &, std::string &error)>;
     using ResponseToJsonFunc = std::function<std::optional<document_t>(const Response &)>;
@@ -154,7 +140,7 @@ protected:
     std::map<std::string, ResponseToJsonFunc> resToJsonFactory;
     std::map<std::string, EventToJsonFunc> eventToJsonFactory;
 
-private:
+  private:
     virtual void RegisterJsonToRequestFuncs() = 0;
     virtual void RegisterResponseToJsonFuncs() = 0;
     virtual void RegisterEventToJsonFuncs() = 0;

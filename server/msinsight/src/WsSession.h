@@ -20,12 +20,8 @@
 #include "ProtocolUtil.h"
 namespace Dic::Server {
 class WsSession {
-public:
-    enum class Status {
-        INIT,
-        STARTED,
-        CLOSED
-    };
+  public:
+    enum class Status { INIT, STARTED, CLOSED };
     virtual ~WsSession() = default;
     virtual void Start() = 0;
     virtual Status GetStatus() const = 0;

@@ -24,17 +24,17 @@
 #include "../utils/SpinLockGuard.h"
 namespace Dic::Server {
 class RequestFilter {
-public:
-    static RequestFilter& Instance();
+  public:
+    static RequestFilter &Instance();
     RequestFilter(const RequestFilter &) = delete;
-    RequestFilter &operator = (const RequestFilter &) = delete;
+    RequestFilter &operator=(const RequestFilter &) = delete;
     RequestFilter(RequestFilter &&) = delete;
-    RequestFilter &operator = (RequestFilter &&) = delete;
+    RequestFilter &operator=(RequestFilter &&) = delete;
     void SetRequestId(const std::string &key, unsigned int id);
     bool IsNeedFilter(const std::string &key, unsigned int id);
     void ClearKey(const std::string &key, unsigned int id);
 
-private:
+  private:
     RequestFilter() = default;
     ~RequestFilter() = default;
     std::unordered_map<std::string, unsigned int> filterMap;

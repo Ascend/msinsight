@@ -22,17 +22,14 @@
 #include <mutex>
 
 namespace Dic {
-template <typename T>
-class SafeQueue {
-public:
-    void Push(T &t)
-    {
+template <typename T> class SafeQueue {
+  public:
+    void Push(T &t) {
         std::unique_lock<std::mutex> lock(mutex);
         deque.emplace_back(std::forward<T>(t));
     }
 
-    bool Pop(T &t)
-    {
+    bool Pop(T &t) {
         std::unique_lock<std::mutex> lock(mutex);
         if (deque.empty()) {
             return false;
@@ -42,26 +39,22 @@ public:
         return true;
     }
 
-    bool Empty()
-    {
+    bool Empty() {
         std::unique_lock<std::mutex> lock(mutex);
         return deque.empty();
     }
 
-    size_t Size()
-    {
+    size_t Size() {
         std::unique_lock<std::mutex> lock(mutex);
         return deque.size();
     }
 
-    void Clear()
-    {
+    void Clear() {
         std::unique_lock<std::mutex> lock(mutex);
         deque.clear();
     }
 
-    SafeQueue &operator << (T t)
-    {
+    SafeQueue &operator<<(T t) {
         std::unique_lock<std::mutex> lock(mutex);
         if (t != nullptr) {
             deque.emplace_back(std::move(t));
@@ -69,7 +62,7 @@ public:
         return *this;
     }
 
-private:
+  private:
     std::deque<T> deque;
     std::mutex mutex;
 };

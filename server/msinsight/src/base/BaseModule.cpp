@@ -25,8 +25,7 @@ namespace Dic {
 namespace Module {
 using namespace Dic::Server;
 using namespace Dic::Protocol;
-void BaseModule::OnRequest(std::unique_ptr<Protocol::Request> request)
-{
+void BaseModule::OnRequest(std::unique_ptr<Protocol::Request> request) {
     static constexpr int MIN_SIZE = 20;
     static ThreadPool threadPool(MIN_SIZE);
     std::string command = request->command;
@@ -37,9 +36,11 @@ void BaseModule::OnRequest(std::unique_ptr<Protocol::Request> request)
     auto &requestHandler = requestHandlerMap.at(command);
     RequestFilter::Instance().SetRequestId(requestHandler->GetRequestKey(*request), request->id);
     if (requestHandler->IsAsync()) {
-        threadPool.AddTask([&requestHandler, requestPtr = request.release()]() {
-            requestHandler->HandleRequestEntrance(std::unique_ptr<Protocol::Request>(requestPtr));
-            }, "");
+        threadPool.AddTask(
+            [&requestHandler, requestPtr = request.release()]() {
+                requestHandler->HandleRequestEntrance(std::unique_ptr<Protocol::Request>(requestPtr));
+            },
+            "");
     } else {
         TraceIdManager::SetTraceId(TraceIdManager::GenerateTraceId());
         requestHandler->HandleRequestEntrance(std::move(request));

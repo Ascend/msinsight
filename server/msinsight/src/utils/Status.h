@@ -20,26 +20,22 @@
 #include <string>
 namespace Dic {
 class Status {
-public:
+  public:
     Status() = default;
-    Status(bool s, std::string errMsg): isOk(s), errMsg(std::move(errMsg)) {};
-    Status(bool s, std::string && errMsg): isOk(s), errMsg(std::move(errMsg)) {};
+    Status(bool s, std::string errMsg) : isOk(s), errMsg(std::move(errMsg)) {};
+    Status(bool s, std::string &&errMsg) : isOk(s), errMsg(std::move(errMsg)) {};
     explicit Status(bool s) : isOk(s) {};
     inline bool Ok() const { return isOk; }
     inline void SetOk() { isOk = true; }
     inline void SetErr() { isOk = false; }
-    inline void SetErr(const std::string& msg)
-    {
+    inline void SetErr(const std::string &msg) {
         isOk = false;
         errMsg = msg;
     }
 
-    inline operator bool() const
-    {
-        return isOk;
-    }
+    inline operator bool() const { return isOk; }
 
-private:
+  private:
     bool isOk{true};
     std::string errMsg;
 };

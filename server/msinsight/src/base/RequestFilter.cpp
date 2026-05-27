@@ -18,40 +18,36 @@
 #include "RequestFilter.h"
 
 namespace Dic::Server {
-    void RequestFilter::SetRequestId(const std::string &key, unsigned int id)
-    {
-        SpinLockGuard lock(mutex);
-        auto it = filterMap.find(key);
-        if (it == filterMap.end() || id > it->second) {
-            filterMap[key] = id;
-        }
+void RequestFilter::SetRequestId(const std::string &key, unsigned int id) {
+    SpinLockGuard lock(mutex);
+    auto it = filterMap.find(key);
+    if (it == filterMap.end() || id > it->second) {
+        filterMap[key] = id;
     }
+}
 
-    bool RequestFilter::IsNeedFilter(const std::string &key, unsigned int id)
-    {
-        SpinLockGuard lock(mutex);
-        auto it = filterMap.find(key);
-        if (it == filterMap.end()) {
-            return false;
-        }
-        if (it->second > id) {
-            return true;
-        }
+bool RequestFilter::IsNeedFilter(const std::string &key, unsigned int id) {
+    SpinLockGuard lock(mutex);
+    auto it = filterMap.find(key);
+    if (it == filterMap.end()) {
         return false;
     }
-
-    void RequestFilter::ClearKey(const std::string &key, unsigned int id)
-    {
-        SpinLockGuard lock(mutex);
-        auto it = filterMap.find(key);
-        if (it != filterMap.end() && it->second == id) {
-            filterMap.erase(key);
-        }
+    if (it->second > id) {
+        return true;
     }
+    return false;
+}
 
-    RequestFilter &RequestFilter::Instance()
-    {
-        static RequestFilter requestFilter;
-        return requestFilter;
+void RequestFilter::ClearKey(const std::string &key, unsigned int id) {
+    SpinLockGuard lock(mutex);
+    auto it = filterMap.find(key);
+    if (it != filterMap.end() && it->second == id) {
+        filterMap.erase(key);
     }
+}
+
+RequestFilter &RequestFilter::Instance() {
+    static RequestFilter requestFilter;
+    return requestFilter;
+}
 }

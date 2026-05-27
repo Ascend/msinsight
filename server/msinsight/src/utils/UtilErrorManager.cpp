@@ -22,8 +22,7 @@
 #endif
 
 namespace Dic::Common {
-uint32_t GetFilePathLengthLimit()
-{
+uint32_t GetFilePathLengthLimit() {
 #ifdef _WIN32
     return MAX_PATH;
 #else
@@ -50,7 +49,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::FILE_NOT_EXIST, "File not exist"},
     {ErrorCode::FILE_PATH_IS_EMPTY, "The path is empty"},
     {ErrorCode::SUB_FILE_PATH_LENGTH_EXCEEDS,
-     "The sub-file path length exceeds " + std::to_string(GetFilePathLengthLimit())},
+        "The sub-file path length exceeds " + std::to_string(GetFilePathLengthLimit())},
     {ErrorCode::FILE_PATH_CONTAINS_INVALID_CHAR, "The path contains invalid character"},
     {ErrorCode::FILE_PATH_IS_SOFT_LINK, "The path is soft link"},
     {ErrorCode::FILE_NOT_READ_ACCESS, "The path has no read access"},
@@ -58,13 +57,12 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::OTHER_CAN_WRITE, "The path is writeable by other user"},
     {ErrorCode::OPEN_DIR_FAILED, "open dir failed"},
     {ErrorCode::IMPORT_FILE_OTHER_TYPE,
-     "No parsable files found, Possible reasons:; 1.File not exist; 2.The nesting "
-     "depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
-         std::to_string(GetFilePathLengthLimit())},
+        "No parsable files found, Possible reasons:; 1.File not exist; 2.The nesting "
+        "depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
+            std::to_string(GetFilePathLengthLimit())},
 };
 
-const std::string& GetErrorMessage(ErrorCode code)
-{
+const std::string &GetErrorMessage(ErrorCode code) {
     auto it = errorMessages.find(code);
     if (it != errorMessages.end()) {
         return it->second;
@@ -73,8 +71,8 @@ const std::string& GetErrorMessage(ErrorCode code)
     }
 }
 
-void SetCommonError(ErrorCode code)
-{
-    Module::ModuleRequestHandler::SetRequestContextError({.code = static_cast<int>(code), .message = GetErrorMessage(code)});
+void SetCommonError(ErrorCode code) {
+    Module::ModuleRequestHandler::SetRequestContextError(
+        {.code = static_cast<int>(code), .message = GetErrorMessage(code)});
 }
-}  // namespace Dic::Common
+} // namespace Dic::Common

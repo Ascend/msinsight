@@ -20,15 +20,17 @@
 #include "BasePlugin.h"
 namespace Dic::Core {
 class PluginsManager {
-public:
+  public:
     static PluginsManager &Instance();
     bool RegisterPlugin(std::unique_ptr<BasePlugin> plugin);
-    std::map<std::string, std::unique_ptr<BasePlugin>>& GetAllPlugins();
+    std::map<std::string, std::unique_ptr<BasePlugin>> &GetAllPlugins();
     static void LoadPlugins();
-private:
+
+  private:
     PluginsManager() = default;
     ~PluginsManager() = default;
-private:
+
+  private:
     std::map<std::string, std::unique_ptr<BasePlugin>> pluginsMap_;
 };
 }

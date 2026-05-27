@@ -22,17 +22,16 @@
 namespace Dic::Core {
 #ifdef _WIN32
 #include <windows.h>
-    const static std::string EXT = ".dll";
+const static std::string EXT = ".dll";
 #else
-    #ifdef __APPLE__
-        const static std::string EXT = ".dylib";
-    #else
-        const static std::string EXT = ".so";
-    #endif
+#ifdef __APPLE__
+const static std::string EXT = ".dylib";
+#else
+const static std::string EXT = ".so";
+#endif
 #endif
 
-void AddPathEnv(const std::string &newDir)
-{
+void AddPathEnv(const std::string &newDir) {
 #ifdef _WIN32
     char buffer[32767]; // PATH 的最大长度通常为 32767 字符
     DWORD length = GetEnvironmentVariable("PATH", buffer, sizeof(buffer));
@@ -58,21 +57,18 @@ void AddPathEnv(const std::string &newDir)
 #endif
 }
 
-PluginsManager &PluginsManager::Instance()
-{
+PluginsManager &PluginsManager::Instance() {
     static PluginsManager instance;
     return instance;
 }
-bool PluginsManager::RegisterPlugin(std::unique_ptr<BasePlugin> plugin)
-{
+bool PluginsManager::RegisterPlugin(std::unique_ptr<BasePlugin> plugin) {
     if (pluginsMap_.count(plugin->GetPluginName()) != 0) {
         return false;
     }
     pluginsMap_.emplace(plugin->GetPluginName(), std::move(plugin));
     return true;
 }
-void PluginsManager::LoadPlugins()
-{
+void PluginsManager::LoadPlugins() {
     std::string tempPath = StringUtil::ToUtf8Str(FileUtil::SplicePath(FileUtil::GetCurrPath(), "plugins"));
     if (!FileUtil::CheckPathSecurity(StringUtil::ToLocalStr(tempPath))) {
         return;
@@ -91,7 +87,8 @@ void PluginsManager::LoadPlugins()
         }
         for (auto &file : fs::directory_iterator(dir)) {
             std::string filePath = StringUtil::ToLocalStr(file.path().string());
-            if (is_directory(file) || file.path().extension().string() != EXT || !FileUtil::CheckPathSecurity(filePath, CHECK_FILE_READ) ||
+            if (is_directory(file) || file.path().extension().string() != EXT ||
+                !FileUtil::CheckPathSecurity(filePath, CHECK_FILE_READ) ||
                 !FileUtil::CheckWritableByOtherOrGroup(filePath)) {
                 continue;
             }
@@ -108,13 +105,8 @@ void PluginsManager::LoadPlugins()
         }
     }
 }
-std::map<std::string, std::unique_ptr<BasePlugin>>& PluginsManager::GetAllPlugins()
-{
-    return pluginsMap_;
-}
-PluginRegister::PluginRegister(std::unique_ptr<BasePlugin> plugin)
-{
+std::map<std::string, std::unique_ptr<BasePlugin>> &PluginsManager::GetAllPlugins() { return pluginsMap_; }
+PluginRegister::PluginRegister(std::unique_ptr<BasePlugin> plugin) {
     PluginsManager::Instance().RegisterPlugin(std::move(plugin));
 }
 }
-

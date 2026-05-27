@@ -27,7 +27,7 @@
 namespace Dic {
 namespace Server {
 class WsSessionManager {
-public:
+  public:
     static WsSessionManager &Instance();
 
     void AddSession(std::unique_ptr<WsSession> newSession);
@@ -35,7 +35,7 @@ public:
     WsSession *GetSession();
     bool CheckSession();
 
-private:
+  private:
     WsSessionManager() = default;
     ~WsSessionManager() = default;
 

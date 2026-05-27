@@ -21,17 +21,15 @@
 
 namespace Dic {
 using namespace Dic::Server;
-void ThreadPool::ThreadFunc(ThreadPool &threadPool, int index)
-{
+void ThreadPool::ThreadFunc(ThreadPool &threadPool, int index) {
     bool hasTask = false;
     while (threadPool.running) {
         std::function<void()> func;
         {
             std::unique_lock<std::mutex> lock(threadPool.taskMutex);
             if (threadPool.taskQueue.Empty()) {
-                threadPool.taskCv.wait(lock, [&threadPool]() {
-                    return !threadPool.running || !threadPool.taskQueue.Empty();
-                });
+                threadPool.taskCv.wait(
+                    lock, [&threadPool]() { return !threadPool.running || !threadPool.taskQueue.Empty(); });
             }
             hasTask = threadPool.taskQueue.Pop(func);
         }
@@ -47,29 +45,23 @@ void ThreadPool::ThreadFunc(ThreadPool &threadPool, int index)
     ServerLog::Info("[Thread worker] worker ", index, " exit.");
 }
 
-ThreadPool::ThreadPool(uint32_t threadCount)
-{
+ThreadPool::ThreadPool(uint32_t threadCount) {
     ServerLog::Info("[Thread pool] Init. thread count:", threadCount);
     for (uint32_t i = 0; i < threadCount; i++) {
         threads.emplace_back(ThreadPool::ThreadFunc, std::ref(*this), i);
     }
 }
 
-ThreadPool::~ThreadPool()
-{
-    ShutDown();
-}
+ThreadPool::~ThreadPool() { ShutDown(); }
 
-void ThreadPool::Reset()
-{
+void ThreadPool::Reset() {
     ServerLog::Info("[Thread pool] Reset.");
     taskQueue.Clear();
     WaitForAllTasks();
     ServerLog::Info("[Thread pool] Reset end.");
 }
 
-void ThreadPool::ShutDown()
-{
+void ThreadPool::ShutDown() {
     ServerLog::Info("[Thread pool] Shut down.");
     if (running) {
         WaitForAllTasks();
@@ -86,8 +78,7 @@ void ThreadPool::ShutDown()
     ServerLog::Info("[Thread pool] Shut down end.");
 }
 
-void ThreadPool::WaitForAllTasks()
-{
+void ThreadPool::WaitForAllTasks() {
     ServerLog::Info("[Thread pool] Wait for all tasks to complete.");
     std::unique_lock<std::mutex> lock(taskMutex);
     waiting = true;
@@ -95,8 +86,7 @@ void ThreadPool::WaitForAllTasks()
     waiting = false;
     ServerLog::Info("[Thread pool] All tasks completed.");
 }
-ThreadPool& ThreadPool::Instance()
-{
+ThreadPool &ThreadPool::Instance() {
     auto maxThreadCount = std::thread::hardware_concurrency();
     static ThreadPool pool(maxThreadCount);
     return pool;

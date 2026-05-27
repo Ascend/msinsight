@@ -21,12 +21,12 @@
 #include <string>
 namespace Dic {
 class TraceIdManager {
-public:
+  public:
     static std::string GetTraceId();
     static void SetTraceId(const std::string &traceId);
     static std::string GenerateTraceId();
 
-private:
+  private:
     static thread_local std::string threadLocalTraceId;
 };
 }
