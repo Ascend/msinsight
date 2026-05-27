@@ -26,9 +26,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class SourceRequestHandler : public ModuleRequestHandler {
-public:
-    SourceRequestHandler()
-    {
+  public:
+    SourceRequestHandler() {
         moduleName = MODULE_SOURCE;
         async = false;
     }

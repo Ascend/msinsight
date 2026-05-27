@@ -27,8 +27,7 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 
-bool QueryApiLineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryApiLineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SourceApiLineRequest &>(*requestPtr);
     std::unique_ptr<SourceApiLineResponse> responsePtr = std::make_unique<SourceApiLineResponse>();
     SourceApiLineResponse &response = *responsePtr;
@@ -38,11 +37,11 @@ bool QueryApiLineHandler::HandleRequest(std::unique_ptr<Protocol::Request> reque
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const std::vector<SourceFileLine> &lines = SourceFileParser::Instance().GetApiLinesByCoreAndSource(
-        request.params.coreName, request.params.sourceName);
+    const std::vector<SourceFileLine> &lines =
+        SourceFileParser::Instance().GetApiLinesByCoreAndSource(request.params.coreName, request.params.sourceName);
 
     std::vector<SourceFileLineRes> lineResArray;
-    for (auto line: lines) {
+    for (auto line : lines) {
         SourceFileLineRes lineRes;
         lineRes.line = line.line;
         if (!line.cycles.empty()) {

@@ -27,8 +27,7 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 
-bool QueryApiInstructionsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryApiInstructionsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SourceApiInstrRequest &>(*requestPtr);
     std::unique_ptr<SourceApiInstrResponse> responsePtr = std::make_unique<SourceApiInstrResponse>();
     SourceApiInstrResponse &response = *responsePtr;

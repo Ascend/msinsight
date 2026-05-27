@@ -25,8 +25,7 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 
-bool QueryApiLineDynamicHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryApiLineDynamicHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SourceApiLineDynamicRequest &>(*requestPtr);
     std::unique_ptr<SourceApiLineDynamicResponse> responsePtr = std::make_unique<SourceApiLineDynamicResponse>();
     SourceApiLineDynamicResponse &response = *responsePtr;
@@ -41,17 +40,16 @@ bool QueryApiLineDynamicHandler::HandleRequest(std::unique_ptr<Protocol::Request
     return true;
 }
 
-void QueryApiLineDynamicHandler::SetResponseBody(SourceApiLineDynamicResponse &response,
-                                                 SourceApiLineDynamicRequest &request)
-{
+void QueryApiLineDynamicHandler::SetResponseBody(
+    SourceApiLineDynamicResponse &response, SourceApiLineDynamicRequest &request) {
     auto linesDynamic =
-            SourceFileParser::Instance().GetApiLinesDynamic(request.params.coreName, request.params.sourceName);
+        SourceFileParser::Instance().GetApiLinesDynamic(request.params.coreName, request.params.sourceName);
     response.body.columnNameMap = SourceFileParser::Instance().GetSourceLineColumnTypeMap();
     if (response.body.columnNameMap.empty()) { // 如果列名映射表为空，说明是老版本数据
-        const std::vector<SourceFileLine> &lines = SourceFileParser::Instance().GetApiLinesByCoreAndSource(
-            request.params.coreName, request.params.sourceName);
+        const std::vector<SourceFileLine> &lines =
+            SourceFileParser::Instance().GetApiLinesByCoreAndSource(request.params.coreName, request.params.sourceName);
         std::vector<SourceFileLineRes> lineResArray;
-        for (const auto &line: lines) {
+        for (const auto &line : lines) {
             SourceFileLineRes lineRes;
             lineRes.line = line.line;
             if (!line.cycles.empty()) {
@@ -67,7 +65,7 @@ void QueryApiLineDynamicHandler::SetResponseBody(SourceApiLineDynamicResponse &r
         response.body.lines = lineResArray;
         return;
     }
-    for (const auto &item: linesDynamic) {
+    for (const auto &item : linesDynamic) {
         SourceFileLineDynamic line;
         line.addressRange = item.addressRange;
         TransformColumnData(item.floatColumnMap, line.columnValueMap.floatMap);
@@ -78,10 +76,10 @@ void QueryApiLineDynamicHandler::SetResponseBody(SourceApiLineDynamicResponse &r
     }
 }
 
-template<typename T> void QueryApiLineDynamicHandler::TransformColumnData(
-    const std::unordered_map<std::string, std::vector<T>> &source, std::unordered_map<std::string, T> &target)
-{
-    for (const auto &innerItem: source) {
+template <typename T>
+void QueryApiLineDynamicHandler::TransformColumnData(
+    const std::unordered_map<std::string, std::vector<T>> &source, std::unordered_map<std::string, T> &target) {
+    for (const auto &innerItem : source) {
         if (innerItem.second.empty()) {
             continue;
         }

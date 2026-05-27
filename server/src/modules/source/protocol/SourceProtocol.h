@@ -28,18 +28,18 @@
 namespace Dic {
 namespace Protocol {
 class SourceProtocol : public ProtocolUtil {
-public:
+  public:
     SourceProtocol() = default;
     ~SourceProtocol() override = default;
 
-private:
+  private:
     void RegisterJsonToRequestFuncs() override;
     void RegisterResponseToJsonFuncs() override;
     void RegisterEventToJsonFuncs() override;
 
     // json to request
-    static std::unique_ptr<Request> ToNoParamsRequest(const json_t &json, std::string &error,
-                                                      const std::string &command);
+    static std::unique_ptr<Request> ToNoParamsRequest(
+        const json_t &json, std::string &error, const std::string &command);
     static std::unique_ptr<Request> ToCodeFileRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToApiLineRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToApiLineDynamicRequest(const json_t &json, std::string &error);

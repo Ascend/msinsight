@@ -27,20 +27,18 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class QueryApiLineDynamicHandler : public SourceRequestHandler {
-public:
-    QueryApiLineDynamicHandler()
-    {
-        command = Protocol::REQ_RES_SOURCE_API_LINE_DYNAMIC;
-    }
+  public:
+    QueryApiLineDynamicHandler() { command = Protocol::REQ_RES_SOURCE_API_LINE_DYNAMIC; }
 
     ~QueryApiLineDynamicHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-protected:
+
+  protected:
     void SetResponseBody(SourceApiLineDynamicResponse &response, SourceApiLineDynamicRequest &request);
-    template<typename T>
-    void TransformColumnData(const std::unordered_map<std::string, std::vector<T>> &source,
-                             std::unordered_map<std::string, T> &target);
+    template <typename T>
+    void TransformColumnData(
+        const std::unordered_map<std::string, std::vector<T>> &source, std::unordered_map<std::string, T> &target);
 };
 } // Source
 } // Module

@@ -37,29 +37,24 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class SourceFileParser : public FileParser {
-public:
+  public:
     const static uint16_t reverseConst = 0x5a5a;
     static SourceFileParser &Instance();
 
     SourceFileParser();
     ~SourceFileParser() override;
 
-    bool Parse(const std::vector<std::string> &filePaths,
-               const std::string &rankId,
-               const std::string &selectedFile,
-               const std::string &fileId) override;
+    bool Parse(const std::vector<std::string> &filePaths, const std::string &rankId, const std::string &selectedFile,
+        const std::string &fileId) override;
     void Reset() override;
     bool CheckOperatorBinary(const std::string &selectedFilePath, std::string &errMsg);
     static void PreParseTask(const std::string &rankId, const std::string &fileId);
     static bool InitParser(const std::string &rankId, const std::string &fileId);
-    static void ParseEndCallBack(const std::string &rankId,
-                                 bool result,
-                                 const std::string &message,
-                                 const std::string &fileId);
+    static void ParseEndCallBack(
+        const std::string &rankId, bool result, const std::string &message, const std::string &fileId);
     static void ParseTask(const std::string &rankId, std::pair<int64_t, int64_t> pos, const std::string &fileId);
-    static void EndParseTask(const std::string &rankId,
-                             std::shared_ptr<std::vector<std::future<void>>> futures,
-                             const std::string &fileId);
+    static void EndParseTask(
+        const std::string &rankId, std::shared_ptr<std::vector<std::future<void>>> futures, const std::string &fileId);
     std::vector<std::string> GetCoreList();
     std::vector<std::string> GetSourceList();
     std::vector<SourceFileLine> GetApiLinesByCoreAndSource(const std::string &core, const std::string &sourceName);
@@ -72,12 +67,12 @@ public:
     std::string GetSourceByName(std::string &sourceName);
     bool GetDetailsBaseInfo(Protocol::DetailsBaseInfoResBody &responseBody, bool isBaseline);
     bool GetDetailsLoadInfo(Protocol::DetailsLoadInfoResBody &responseBody, bool isBaseline);
-    bool GetDetailsMemoryGraph(const std::string& targetBlockId, bool isBaseline,
-                               Protocol::DetailsMemoryGraphResBody &responseBody);
-    bool GetDetailsMemoryTable(const std::string& targetBlockId, bool isBaseline,
-                               Protocol::DetailsMemoryTableResBody &responseBody);
+    bool GetDetailsMemoryGraph(
+        const std::string &targetBlockId, bool isBaseline, Protocol::DetailsMemoryGraphResBody &responseBody);
+    bool GetDetailsMemoryTable(
+        const std::string &targetBlockId, bool isBaseline, Protocol::DetailsMemoryTableResBody &responseBody);
     void ConvertToData();
-    bool GetDetailsInterCoreLoadAnalysisGraph(Protocol::DetailsInterCoreLoadGraphBody& responseBody, bool isBaseline);
+    bool GetDetailsInterCoreLoadAnalysisGraph(Protocol::DetailsInterCoreLoadGraphBody &responseBody, bool isBaseline);
     bool GetDetailsRoofline(Protocol::DetailsRooflineBody &responseBody);
     void SetFilePath(const std::string &inputFilePath);
     void SetBaselineFilePath(const std::string &inputFilePath);
@@ -88,7 +83,8 @@ public:
     bool HasCachelineRecords();
     int8_t GetInstrVersion() const;
     std::string GetFilePath();
-private:
+
+  private:
     std::string filePath;
     std::map<int, std::vector<Position>> dataBlockMap;
     std::map<std::string, std::pair<int64_t, int64_t>> traceFiles;
@@ -116,7 +112,7 @@ private:
 
     const int dataSizeLen = 8; // 数据类型字段距离数据大小字段的偏移
     const int dataTypeLen = 1; // 填充长度字段距离数据类型字段的偏移
-    const int paddingLen = 1;  // 填充长度字段距离数据类型字段的偏移
+    const int paddingLen = 1; // 填充长度字段距离数据类型字段的偏移
     /* 实际数据距离填充长度字段的偏移,在25年3月迭代高八位用作版本标识
     ** 0标识新版本，地址用AscendC Inner Code做映射
     ** 0x5a 老版本，用addressrange 做映射
@@ -126,12 +122,11 @@ private:
     const int reserveLen = 1;
     const int filePathLen = 4096;
 
-    bool ParseDataBlocks(std::ifstream &file, long long fileSize,
-                         std::map<int, std::vector<Position>> &curDataBlockMap);
+    bool ParseDataBlocks(
+        std::ifstream &file, long long fileSize, std::map<int, std::vector<Position>> &curDataBlockMap);
 };
 } // end of namespace Summary
 } // end of namespace Module
 } // end of namespace Dic
-
 
 #endif // PROFILER_SERVER_SOURCEFILEPARSER_H

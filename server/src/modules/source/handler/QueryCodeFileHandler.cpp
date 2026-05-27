@@ -27,14 +27,13 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 
-bool QueryCodeFileHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryCodeFileHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SourceCodeFileRequest &>(*requestPtr);
     std::unique_ptr<SourceCodeFileResponse> responsePtr = std::make_unique<SourceCodeFileResponse>();
     SourceCodeFileResponse &response = *responsePtr;
     SetBaseResponse(request, response);
-    if (auto [isVaild, errMsg] = request.params.Valid(); isVaild == false) {
-        ServerLog::Error("Parameter of command ", request.command, "is invaild, error:", errMsg);
+    if (auto [isValid, errMsg] = request.params.Valid(); isValid == false) {
+        ServerLog::Error("Parameter of command ", request.command, "is invalid, error:", errMsg);
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }

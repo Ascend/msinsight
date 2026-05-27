@@ -26,8 +26,7 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 
-bool QueryDetailsBaseInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryDetailsBaseInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SourceDetailBaseInfoRequest &>(*requestPtr);
     std::unique_ptr<DetailsBaseInfoResponse> responsePtr = std::make_unique<DetailsBaseInfoResponse>();
     DetailsBaseInfoResponse &response = *responsePtr;

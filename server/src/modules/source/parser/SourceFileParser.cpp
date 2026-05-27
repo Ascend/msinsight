@@ -44,26 +44,16 @@ using namespace Dic::Server;
 using namespace Dic::Protocol;
 using namespace Dic::Module::FullDb;
 
-SourceFileParser &SourceFileParser::Instance()
-{
+SourceFileParser &SourceFileParser::Instance() {
     static SourceFileParser instance;
     return instance;
 }
-SourceFileParser::SourceFileParser()
-{
-    threadPool = std::make_unique<ThreadPool>(SourceFileParser::maxThreadNum);
-}
+SourceFileParser::SourceFileParser() { threadPool = std::make_unique<ThreadPool>(SourceFileParser::maxThreadNum); }
 
-SourceFileParser::~SourceFileParser()
-{
-    threadPool->ShutDown();
-}
+SourceFileParser::~SourceFileParser() { threadPool->ShutDown(); }
 
-bool SourceFileParser::Parse(const std::vector<std::string> &filePaths,
-                             const std::string &rankId,
-                             const std::string &selectedFile,
-                             const std::string &fileId)
-{
+bool SourceFileParser::Parse(const std::vector<std::string> &filePaths, const std::string &rankId,
+    const std::string &selectedFile, const std::string &fileId) {
     if (!FileUtil::CheckFilePathLength(selectedFile)) {
         ServerLog::Error("Parse bin file failed cause path length is too long.");
         return false;
@@ -77,8 +67,8 @@ bool SourceFileParser::Parse(const std::vector<std::string> &filePaths,
     }
 
     // 获取目标数据对象的应用，下面对数据进行改动时会影响
-    auto &curDataBlockMap = Global::BaselineManager::Instance().IsBaselineRankId(rankId) ?
-        baselineDataBlockMap : dataBlockMap;
+    auto &curDataBlockMap =
+        Global::BaselineManager::Instance().IsBaselineRankId(rankId) ? baselineDataBlockMap : dataBlockMap;
     auto fileSize = FileUtil::GetFileSize(selectedFile.c_str());
     if (fileSize <= 0) {
         ServerLog::Error("Check size of bin file failed when parse data blocks, the size is ", fileSize);
@@ -98,9 +88,8 @@ bool SourceFileParser::Parse(const std::vector<std::string> &filePaths,
     return true;
 }
 
-bool SourceFileParser::ParseDataBlocks(std::ifstream &file, long long fileSize,
-                                       std::map<int, std::vector<Position>> &curDataBlockMap)
-{
+bool SourceFileParser::ParseDataBlocks(
+    std::ifstream &file, long long fileSize, std::map<int, std::vector<Position>> &curDataBlockMap) {
     while (!file.eof()) {
         uint64_t dataSize;
         uint8_t dataType;
@@ -156,8 +145,7 @@ bool SourceFileParser::ParseDataBlocks(std::ifstream &file, long long fileSize,
     return true;
 }
 
-void SourceFileParser::PreParseTask(const std::string &rankId, const std::string &fileId)
-{
+void SourceFileParser::PreParseTask(const std::string &rankId, const std::string &fileId) {
     ParserStatusManager::Instance().WaitStartParse();
     ServerLog::Info("Start to parse simulation timeline file. file id: ", rankId);
     if (!InitParser(rankId, fileId)) {
@@ -165,8 +153,7 @@ void SourceFileParser::PreParseTask(const std::string &rankId, const std::string
     }
 }
 
-bool SourceFileParser::InitParser(const std::string &rankId, const std::string &fileId)
-{
+bool SourceFileParser::InitParser(const std::string &rankId, const std::string &fileId) {
     if (!Timeline::ParserStatusManager::Instance().SetRunningStatus(rankId)) {
         ServerLog::Info("Pre task skip this file cause set running status failed: ", rankId);
         return true;
@@ -182,10 +169,10 @@ bool SourceFileParser::InitParser(const std::string &rankId, const std::string &
         return false;
     }
     auto &instance = SourceFileParser::Instance();
-    auto curDataBlockMap = Global::BaselineManager::Instance().IsBaselineRankId(rankId) ?
-        instance.baselineDataBlockMap :  instance.dataBlockMap;
-    std::string curFilePath = Global::BaselineManager::Instance().IsBaselineRankId(rankId) ?
-        instance.baselineFilePath : instance.filePath;
+    auto curDataBlockMap = Global::BaselineManager::Instance().IsBaselineRankId(rankId) ? instance.baselineDataBlockMap
+                                                                                        : instance.dataBlockMap;
+    std::string curFilePath =
+        Global::BaselineManager::Instance().IsBaselineRankId(rankId) ? instance.baselineFilePath : instance.filePath;
     std::vector<Position> &traceFilePos = curDataBlockMap[static_cast<int>(DataTypeEnum::TRACE)];
     std::ifstream file = OpenReadFileSafely(curFilePath, std::ios::in | std::ios::binary);
     if (!file) {
@@ -220,8 +207,7 @@ bool SourceFileParser::InitParser(const std::string &rankId, const std::string &
     return true;
 }
 
-uint64_t SourceFileParser::CalculateTotalSize(std::vector<std::pair<int64_t, int64_t>> &filePos)
-{
+uint64_t SourceFileParser::CalculateTotalSize(std::vector<std::pair<int64_t, int64_t>> &filePos) {
     // 计算待解析的文件大小
     uint64_t totalSize = 0;
     for (const auto &pos : filePos) {
@@ -240,10 +226,8 @@ uint64_t SourceFileParser::CalculateTotalSize(std::vector<std::pair<int64_t, int
     return totalSize;
 }
 
-void SourceFileParser::EndParseTask(const std::string &rankId,
-                                    std::shared_ptr<std::vector<std::future<void>>> futures,
-                                    const std::string &fileId)
-{
+void SourceFileParser::EndParseTask(
+    const std::string &rankId, std::shared_ptr<std::vector<std::future<void>>> futures, const std::string &fileId) {
     if (Timeline::ParserStatusManager::Instance().GetParserStatus(rankId) != Timeline::ParserStatus::RUNNING) {
         ServerLog::Info("End parse task skip this file cause timeline parser status is not running: ", rankId);
         return;
@@ -271,25 +255,23 @@ void SourceFileParser::EndParseTask(const std::string &rankId,
     ProjectParserBase::SendUnitFinishNotify(fileId, true, CONNECTION_UNIT);
 }
 
-void SourceFileParser::ParseTask(const std::string &rankId,
-                                 std::pair<int64_t, int64_t> pos,
-                                 const std::string &fileId)
-{
+void SourceFileParser::ParseTask(
+    const std::string &rankId, std::pair<int64_t, int64_t> pos, const std::string &fileId) {
     if (Timeline::ParserStatusManager::Instance().GetParserStatus(rankId) != Timeline::ParserStatus::RUNNING) {
         ServerLog::Info("Parse task skip this file cause timeline parser status is not running. ID:", rankId);
         return;
     }
     ServerLog::Info("Start parse timeline from bin file:", rankId);
     auto &instance = SourceFileParser::Instance();
-    std::string curFilePath = Global::BaselineManager::Instance().IsBaselineRankId(rankId) ? instance.baselineFilePath :
-                              instance.filePath;
+    std::string curFilePath =
+        Global::BaselineManager::Instance().IsBaselineRankId(rankId) ? instance.baselineFilePath : instance.filePath;
     auto db = DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
     if (db == nullptr) {
         ServerLog::Warn("Failed to get connection when parse bin json,ID: ", rankId);
         return;
     }
     std::shared_ptr<TextTraceDatabase> databasePtr =
-            std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
+        std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
     if (databasePtr == nullptr) {
         ServerLog::Warn("Failed to get text connection when parse bin json,ID: ", rankId);
         return;
@@ -297,7 +279,7 @@ void SourceFileParser::ParseTask(const std::string &rankId,
     Timeline::EventParser eventParser(curFilePath, rankId, databasePtr);
     eventParser.SetSimulationStatus(true);
     // 先将文件内容切片，避免一次解析的数据量过大
-    for (const auto& pair : JsonFileProcess::SplitFile(curFilePath, pos)) {
+    for (const auto &pair : JsonFileProcess::SplitFile(curFilePath, pos)) {
         if (!eventParser.Parse(pair.first, pair.second)) {
             if (Timeline::ParserStatusManager::Instance().SetTerminateStatus(rankId) ==
                 Timeline::ParserStatus::RUNNING) {
@@ -310,15 +292,12 @@ void SourceFileParser::ParseTask(const std::string &rankId,
         std::unique_ptr<FileProgress> &curFileProgress = instance.fileProgressMap[rankId];
         curFileProgress->AddToParsedSize(NumberSafe::Sub(pair.second, pair.first));
         instance.parseProgressCallback(rankId, curFileProgress->GetParsedSize(), curFileProgress->GetTotalSize(),
-                                       curFileProgress->GetProgressPercentage());
+            curFileProgress->GetProgressPercentage());
     }
 }
 
-void SourceFileParser::ParseEndCallBack(const std::string &rankId,
-                                        bool result,
-                                        const std::string &message,
-                                        const std::string &fileId)
-{
+void SourceFileParser::ParseEndCallBack(
+    const std::string &rankId, bool result, const std::string &message, const std::string &fileId) {
     if (!(result && Timeline::ParserStatusManager::Instance().SetFinishStatus(rankId))) {
         result = false;
     }
@@ -328,8 +307,7 @@ void SourceFileParser::ParseEndCallBack(const std::string &rankId,
     }
 }
 
-void SourceFileParser::Reset()
-{
+void SourceFileParser::Reset() {
     std::unique_lock<std::mutex> lock(mutex);
     ServerLog::Info("Reset file parser and wait task completed.");
     Timeline::ParserStatusManager::Instance().SetAllTerminateStatus();
@@ -357,8 +335,7 @@ void SourceFileParser::Reset()
     ServerLog::Info("End reset file parser.");
 }
 
-bool SourceFileParser::CheckOperatorBinary(const std::string &selectedFilePath, std::string &errMsg)
-{
+bool SourceFileParser::CheckOperatorBinary(const std::string &selectedFilePath, std::string &errMsg) {
     if (!FileUtil::CheckFilePathLength(selectedFilePath)) {
         ServerLog::Error("File path length check failed.");
         return false;
@@ -389,98 +366,83 @@ bool SourceFileParser::CheckOperatorBinary(const std::string &selectedFilePath, 
     return isBinary;
 }
 
-std::vector<std::string> SourceFileParser::GetCoreList()
-{
+std::vector<std::string> SourceFileParser::GetCoreList() {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetCoreList();
 }
 
-std::vector<std::string> SourceFileParser::GetSourceList()
-{
+std::vector<std::string> SourceFileParser::GetSourceList() {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetSourceList();
 }
 
-std::vector<SourceFileLine> SourceFileParser::GetApiLinesByCoreAndSource(const std::string &core,
-                                                                         const std::string &sourceName)
-{
+std::vector<SourceFileLine> SourceFileParser::GetApiLinesByCoreAndSource(
+    const std::string &core, const std::string &sourceName) {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetApiLinesByCoreAndSource(core, sourceName);
 }
 
-std::string SourceFileParser::GetInstr()
-{
+std::string SourceFileParser::GetInstr() {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetInstr(filePath);
 }
 
-std::vector<SourceApiInstruction> SourceFileParser::GetInstructions(std::string &coreName)
-{
+std::vector<SourceApiInstruction> SourceFileParser::GetInstructions(std::string &coreName) {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetInstructions(coreName);
 }
 
-std::vector<SourceFileInstructionDynamicCol> SourceFileParser::GetInstrDynamic(std::string &coreName)
-{
+std::vector<SourceFileInstructionDynamicCol> SourceFileParser::GetInstrDynamic(std::string &coreName) {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetInstrDynamic(coreName);
 }
 
-std::map<std::string, int> SourceFileParser::GetInstructionColumnTypeMap()
-{
+std::map<std::string, int> SourceFileParser::GetInstructionColumnTypeMap() {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetInstructionColumnTypeMap();
 }
 
-std::map<std::string, int> SourceFileParser::GetSourceLineColumnTypeMap()
-{
+std::map<std::string, int> SourceFileParser::GetSourceLineColumnTypeMap() {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetSourceLineColumnTypeMap();
 }
 
-std::string SourceFileParser::GetSourceByName(std::string &sourceName)
-{
+std::string SourceFileParser::GetSourceByName(std::string &sourceName) {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetSourceByName(sourceName, filePath);
 }
 
-bool SourceFileParser::GetDetailsBaseInfo(Protocol::DetailsBaseInfoResBody &responseBody, bool isBaseline)
-{
+bool SourceFileParser::GetDetailsBaseInfo(Protocol::DetailsBaseInfoResBody &responseBody, bool isBaseline) {
     DetailsMemoryParser parser;
     std::string curFilePath = isBaseline ? baselineFilePath : filePath;
     std::map<int, std::vector<Position>> curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
     return parser.GetDetailsBaseInfo(responseBody, curFilePath, curBlockMap);
 }
 
-
-bool SourceFileParser::GetDetailsLoadInfo(Protocol::DetailsLoadInfoResBody &responseBody, bool isBaseline)
-{
+bool SourceFileParser::GetDetailsLoadInfo(Protocol::DetailsLoadInfoResBody &responseBody, bool isBaseline) {
     DetailsMemoryParser parser;
     std::string curFilePath = isBaseline ? baselineFilePath : filePath;
-    std::map<int, std::vector<Position>>& curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
+    std::map<int, std::vector<Position>> &curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
     return parser.GetDetailsLoadInfo(responseBody, curFilePath, curBlockMap);
 }
 
-bool SourceFileParser::GetDetailsMemoryGraph(const std::string& targetBlockId, bool isBaseline,
-                                             Protocol::DetailsMemoryGraphResBody &responseBody)
-{
+bool SourceFileParser::GetDetailsMemoryGraph(
+    const std::string &targetBlockId, bool isBaseline, Protocol::DetailsMemoryGraphResBody &responseBody) {
     DetailsMemoryParser parser;
     std::string curFilePath = isBaseline ? baselineFilePath : filePath;
     std::map<int, std::vector<Position>> curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
     return parser.GetDetailsMemoryGraph(targetBlockId, responseBody, curFilePath, curBlockMap);
 }
 
-bool SourceFileParser::GetDetailsMemoryTable(const std::string& targetBlockId, bool isBaseline,
-                                             Protocol::DetailsMemoryTableResBody &responseBody)
-{
+bool SourceFileParser::GetDetailsMemoryTable(
+    const std::string &targetBlockId, bool isBaseline, Protocol::DetailsMemoryTableResBody &responseBody) {
     DetailsMemoryParser parser;
     std::string curFilePath = isBaseline ? baselineFilePath : filePath;
     std::map<int, std::vector<Position>> curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
     return parser.GetDetailsMemoryTable(targetBlockId, responseBody, curFilePath, curBlockMap);
 }
 
-void SourceFileParser::ConvertToData()
-{
+void SourceFileParser::ConvertToData() {
     std::unique_lock<std::mutex> lock(mutex);
     std::vector<Position> &sourceFilePos = dataBlockMap[static_cast<int>(DataTypeEnum::SOURCE)];
     std::vector<Position> &apiFilePos = dataBlockMap[static_cast<int>(DataTypeEnum::API_FILE)];
@@ -488,13 +450,12 @@ void SourceFileParser::ConvertToData()
     sourceInstructionParser.ConvertToData(filePath, sourceFilePos, apiFilePos, apiInstrPosArray);
 }
 
-bool SourceFileParser::GetDetailsInterCoreLoadAnalysisGraph(Protocol::DetailsInterCoreLoadGraphBody &responseBody,
-                                                            bool isBaseline)
-{
+bool SourceFileParser::GetDetailsInterCoreLoadAnalysisGraph(
+    Protocol::DetailsInterCoreLoadGraphBody &responseBody, bool isBaseline) {
     std::string curFilePath = isBaseline ? baselineFilePath : filePath;
     InterCoreLoadGraphParser parser;
     std::ifstream file = OpenReadFileSafely(curFilePath, std::ios::binary);
-    const std::map<int, std::vector<Position>>& curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
+    const std::map<int, std::vector<Position>> &curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
     std::string json =
         BinFileParseUtil::GetSingleContentStrByDataType(file, DataTypeEnum::DETAILS_INTER_CORE_LOAD_GRAPH, curBlockMap);
     if (json.empty()) {
@@ -504,8 +465,7 @@ bool SourceFileParser::GetDetailsInterCoreLoadAnalysisGraph(Protocol::DetailsInt
     return parser.GetInterCoreLoadAnalysisInfo(json, responseBody);
 }
 
-bool SourceFileParser::GetDetailsRoofline(Protocol::DetailsRooflineBody &responseBody)
-{
+bool SourceFileParser::GetDetailsRoofline(Protocol::DetailsRooflineBody &responseBody) {
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary);
     if (!file.is_open()) {
         return false;
@@ -525,19 +485,14 @@ bool SourceFileParser::GetDetailsRoofline(Protocol::DetailsRooflineBody &respons
     return parser.GetDetailsRoofline(jsonStr, responseBody);
 }
 
-void SourceFileParser::SetFilePath(const std::string &inputFilePath)
-{
+void SourceFileParser::SetFilePath(const std::string &inputFilePath) {
     std::unique_lock<std::mutex> lock(mutex);
     this->filePath = FileUtil::PathPreprocess(inputFilePath);
 }
 
-std::string SourceFileParser::GetFilePath()
-{
-    return this->filePath;
-}
+std::string SourceFileParser::GetFilePath() { return this->filePath; }
 
-std::vector<Position> SourceFileParser::GetPositionByType(DataTypeEnum type)
-{
+std::vector<Position> SourceFileParser::GetPositionByType(DataTypeEnum type) {
     std::unique_lock<std::mutex> lock(mutex);
     auto it = dataBlockMap.find(static_cast<int>(type));
     if (it != dataBlockMap.end()) {
@@ -547,8 +502,7 @@ std::vector<Position> SourceFileParser::GetPositionByType(DataTypeEnum type)
     }
 }
 
-bool SourceFileParser::HasCachelineRecords()
-{
+bool SourceFileParser::HasCachelineRecords() {
     std::unique_lock<std::mutex> lock(mutex);
     auto it = dataBlockMap.find(static_cast<int>(Module::Source::DataTypeEnum::DISPLAY_CACHE));
     if (it != dataBlockMap.end()) {
@@ -557,42 +511,34 @@ bool SourceFileParser::HasCachelineRecords()
     return false;
 }
 
-int8_t SourceFileParser::GetInstrVersion() const
-{
-    return  instrVersion;
-}
+int8_t SourceFileParser::GetInstrVersion() const { return instrVersion; }
 
-void SourceFileParser::SetBaselineFilePath(const std::string &inputFilePath)
-{
+void SourceFileParser::SetBaselineFilePath(const std::string &inputFilePath) {
     std::unique_lock<std::mutex> lock(mutex);
     this->baselineFilePath = FileUtil::PathPreprocess(inputFilePath);
 }
 
-bool SourceFileParser::IsBaselineParsed(const std::string &inputFilePath)
-{
+bool SourceFileParser::IsBaselineParsed(const std::string &inputFilePath) {
     if (inputFilePath == this->filePath && !this->dataBlockMap.empty()) {
         return true;
     }
     return false;
 }
 
-void SourceFileParser::SynchronizeBaselineInfo()
-{
+void SourceFileParser::SynchronizeBaselineInfo() {
     std::unique_lock<std::mutex> lock(mutex);
     this->baselineFilePath = this->filePath;
     this->baselineDataBlockMap = this->dataBlockMap;
 }
 
-void SourceFileParser::ResetBaseline()
-{
+void SourceFileParser::ResetBaseline() {
     std::unique_lock<std::mutex> lock(mutex);
     this->baselineFilePath = "";
     this->baselineDataBlockMap.clear();
 }
 
 std::vector<SourceFileLineDynamicCol> SourceFileParser::GetApiLinesDynamic(
-    const std::string &core, const std::string &sourceName)
-{
+    const std::string &core, const std::string &sourceName) {
     std::unique_lock<std::mutex> lock(mutex);
     return sourceInstructionParser.GetApiLinesDynamic(core, sourceName);
 }

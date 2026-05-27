@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 
-
 #ifndef PROFILER_SERVER_QUERYDETAILSROOFLINEHANDLER_H
 #define PROFILER_SERVER_QUERYDETAILSROOFLINEHANDLER_H
 
@@ -24,17 +23,13 @@
 
 namespace Dic::Module::Source {
 class QueryDetailsRooflineHandler : public SourceRequestHandler {
-public:
-    QueryDetailsRooflineHandler()
-    {
-        command = Protocol::REQ_RES_DETAILS_ROOFLINE;
-    }
+  public:
+    QueryDetailsRooflineHandler() { command = Protocol::REQ_RES_DETAILS_ROOFLINE; }
 
     ~QueryDetailsRooflineHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
 }
-
 
 #endif // PROFILER_SERVER_QUERYDETAILSROOFLINEHANDLER_H

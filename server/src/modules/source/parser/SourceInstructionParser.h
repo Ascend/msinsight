@@ -24,7 +24,6 @@
 #include "SourceProtocol.h"
 #include "SourceDefs.h"
 
-
 namespace Dic::Module::Source {
 struct SourceFileLine {
     int line;
@@ -61,14 +60,14 @@ struct SourceFileLineDynamicCol : public DynamicColumn {
 };
 
 class GRPStatusHelper {
-public:
-    GRPProgress UpdateGRPStatus(const std::string& grpName, int lifeTime, GRPStatus status);
-    int GetRegisterLifeTime(const std::string& grpName, int lifeTime) const;
-    int GetIndex(const std::string& grpName);
-    void ResetGRP(const std::string& grpName);
+  public:
+    GRPProgress UpdateGRPStatus(const std::string &grpName, int lifeTime, GRPStatus status);
+    int GetRegisterLifeTime(const std::string &grpName, int lifeTime) const;
+    int GetIndex(const std::string &grpName);
+    void ResetGRP(const std::string &grpName);
     void Reset();
 
-private:
+  private:
     std::map<std::string, int> grpStatusMap_;
     std::map<std::string, int> grpLifeTimeMap_;
     std::map<std::string, int> grpIndex_;
@@ -76,10 +75,10 @@ private:
 };
 
 class SourceInstructionParser {
-public:
+  public:
     SourceInstructionParser() = default;
     bool ConvertToData(std::string &filePath, std::vector<Position> &sourceFilePos, std::vector<Position> &apiFilePos,
-                       std::vector<Position> &apiInstrPosArray);
+        std::vector<Position> &apiInstrPosArray);
     std::vector<std::string> GetCoreList();
     std::vector<std::string> GetSourceList();
     std::vector<SourceFileLine> GetApiLinesByCoreAndSource(const std::string &core, const std::string &sourceName);
@@ -93,40 +92,28 @@ public:
 
     void Reset();
 
-protected:
+  protected:
     void ConvertApiInstr(const std::string &jsonStr);
     void ConvertApiInstrDynamic(const std::string &jsonStr);
     void ParseInstruction(rapidjson::Value &instr);
-    template <typename T>
-    void ProcessColumnDataArray(const Value& value, std::vector<T>& columnDataList);
-    template <typename T>
-    void ProcessColumnData(const Value& value, std::vector<T>& columnDataList);
-    void ProcessColumnDataTypePercentageAndDetails(const Value& value, PercentageAndDetails &item);
+    template <typename T> void ProcessColumnDataArray(const Value &value, std::vector<T> &columnDataList);
+    template <typename T> void ProcessColumnData(const Value &value, std::vector<T> &columnDataList);
+    void ProcessColumnDataTypePercentageAndDetails(const Value &value, PercentageAndDetails &item);
     void ConvertApiFile(const std::string &jsonStr);
     void ConvertApiFileDynamic(const std::string &jsonStr);
     void ParseFile(rapidjson::Value &file);
     void ParseSourceLineAddressRange(const Value &line, SourceFileLineDynamicCol &sourceFileLine);
     std::map<std::string, std::vector<SourceFileLine>> ConvertToFileMap(rapidjson::Value &fileArray);
     std::vector<SourceFileLine> ConvertToLineArray(rapidjson::Value &lineArray);
-    template<typename T>
+    template <typename T>
     void GetValueInTargetCore(const std::unordered_map<std::string, std::vector<T>> &sourceMap,
-                              std::unordered_map<std::string, std::vector<T>> &targetMap, size_t index);
-    std::vector<SourceFileInstructionDynamicCol>& GetInstructionList()
-    {
-        return instructionList;
-    }
-    std::unordered_map<std::string, std::vector<SourceFileLineDynamicCol>>& GetSourceLinesMap()
-    {
+        std::unordered_map<std::string, std::vector<T>> &targetMap, size_t index);
+    std::vector<SourceFileInstructionDynamicCol> &GetInstructionList() { return instructionList; }
+    std::unordered_map<std::string, std::vector<SourceFileLineDynamicCol>> &GetSourceLinesMap() {
         return sourceLinesMap;
     }
-    std::vector<SourceApiInstruction>& GetApiInstructionList()
-    {
-        return apiInstructionList;
-    }
-    std::map<std::string, std::vector<SourceFileLine>>& GetApiFiles()
-    {
-        return apiFiles;
-    }
+    std::vector<SourceApiInstruction> &GetApiInstructionList() { return apiInstructionList; }
+    std::map<std::string, std::vector<SourceFileLine>> &GetApiFiles() { return apiFiles; }
 
     /**
      * @brief 对instruction字段做预处理
@@ -134,7 +121,7 @@ protected:
      */
     void PreprocessInstr(document_t &doc);
 
-private:
+  private:
     const static uint16_t filePathLengthConst = 4096;
     const static uint16_t addressRangeSize = 2;
     std::map<std::string, Position> sourceFiles;

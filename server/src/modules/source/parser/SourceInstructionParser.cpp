@@ -28,8 +28,7 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 bool SourceInstructionParser::ConvertToData(std::string &filePath, std::vector<Position> &sourceFilePos,
-                                            std::vector<Position> &apiFilePos, std::vector<Position> &apiInstrPosArray)
-{
+    std::vector<Position> &apiFilePos, std::vector<Position> &apiInstrPosArray) {
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary);
     if (!file) {
         ServerLog::Error("Can't open file, please check file exist or not, file name: ", filePath);
@@ -41,7 +40,7 @@ bool SourceInstructionParser::ConvertToData(std::string &filePath, std::vector<P
         int64_t end = pos.endPos;
         if ((start < 0) || (filePathLengthConst > INT64_MAX - start)) {
             ServerLog::Error(std::string("Start position: ") + std::to_string(start) +
-                             std::string(" is illegal at covert to data in source file."));
+                std::string(" is illegal at covert to data in source file."));
             return false;
         }
         file.seekg(start, std::ios::beg);
@@ -106,8 +105,7 @@ json示例
   ]
 }
  */
-void SourceInstructionParser::ConvertApiInstrDynamic(const std::string &jsonStr)
-{
+void SourceInstructionParser::ConvertApiInstrDynamic(const std::string &jsonStr) {
     std::string errMsg;
     auto optional = JsonUtil::TryParse(jsonStr, errMsg);
     if (!optional.has_value() || !errMsg.empty()) {
@@ -135,15 +133,14 @@ void SourceInstructionParser::ConvertApiInstrDynamic(const std::string &jsonStr)
         return;
     }
     PreprocessInstr(d);
-    for (auto& instr : d["Instructions"].GetArray()) {
+    for (auto &instr : d["Instructions"].GetArray()) {
         ParseInstruction(instr);
     }
 }
 
-void SourceInstructionParser::ParseInstruction(Value &instr)
-{
+void SourceInstructionParser::ParseInstruction(Value &instr) {
     SourceFileInstructionDynamicCol sourceFileInstruction;
-    for (const auto &columnType: instructionColumnTypeMap) {
+    for (const auto &columnType : instructionColumnTypeMap) {
         std::string columnName = columnType.first;
         int type = columnType.second;
         if (!instr.HasMember(columnName.c_str())) {
@@ -152,47 +149,45 @@ void SourceInstructionParser::ParseInstruction(Value &instr)
         // 处理不同数据类型的列
         auto &columnData = instr[columnName.c_str()];
         switch (type) {
-            case ColumnDataType::STRING:
-                ProcessColumnDataArray<std::string>(columnData, sourceFileInstruction.stringColumnMap[columnName]);
-                break;
-            case ColumnDataType::INT:
-                ProcessColumnDataArray<int>(columnData, sourceFileInstruction.intColumnMap[columnName]);
-                break;
-            case ColumnDataType::FLOAT:
-            case ColumnDataType::PERCENTAGE:
-                ProcessColumnDataArray<float>(columnData, sourceFileInstruction.floatColumnMap[columnName]);
-                break;
-            case ColumnDataType::JSON_STR:
-                sourceFileInstruction.jsonStringColumnMap[columnName].push_back(JsonUtil::JsonDump(columnData));
-                break;
-            case ColumnDataType::PERCENTAGEANDDETAIL:
-                ProcessColumnDataTypePercentageAndDetails(columnData,
-                    sourceFileInstruction.percentAndDetailsColumnMap[columnName]);
-                break;
-            default:
-                break;
+        case ColumnDataType::STRING:
+            ProcessColumnDataArray<std::string>(columnData, sourceFileInstruction.stringColumnMap[columnName]);
+            break;
+        case ColumnDataType::INT:
+            ProcessColumnDataArray<int>(columnData, sourceFileInstruction.intColumnMap[columnName]);
+            break;
+        case ColumnDataType::FLOAT:
+        case ColumnDataType::PERCENTAGE:
+            ProcessColumnDataArray<float>(columnData, sourceFileInstruction.floatColumnMap[columnName]);
+            break;
+        case ColumnDataType::JSON_STR:
+            sourceFileInstruction.jsonStringColumnMap[columnName].push_back(JsonUtil::JsonDump(columnData));
+            break;
+        case ColumnDataType::PERCENTAGEANDDETAIL:
+            ProcessColumnDataTypePercentageAndDetails(
+                columnData, sourceFileInstruction.percentAndDetailsColumnMap[columnName]);
+            break;
+        default:
+            break;
         }
     }
     instructionList.emplace_back(std::move(sourceFileInstruction));
 }
 
 template <typename T>
-void SourceInstructionParser::ProcessColumnDataArray(const Value& value, std::vector<T>& columnDataList)
-{
+void SourceInstructionParser::ProcessColumnDataArray(const Value &value, std::vector<T> &columnDataList) {
     if (!value.IsArray()) {
         // 如果不是数组，直接处理单一值
         ProcessColumnData(value, columnDataList);
         return;
     }
     // 如果是数组，遍历数组中的每一项并处理
-    for (const auto& item : value.GetArray()) {
+    for (const auto &item : value.GetArray()) {
         ProcessColumnData(item, columnDataList);
     }
 }
 
 template <typename T>
-void SourceInstructionParser::ProcessColumnData(const Value& value, std::vector<T>& columnDataList)
-{
+void SourceInstructionParser::ProcessColumnData(const Value &value, std::vector<T> &columnDataList) {
     if constexpr (std::is_same<T, std::string>::value) {
         columnDataList.emplace_back(value.IsString() ? value.GetString() : "");
     } else if constexpr (std::is_same<T, int>::value) {
@@ -202,8 +197,8 @@ void SourceInstructionParser::ProcessColumnData(const Value& value, std::vector<
     }
 }
 
-void SourceInstructionParser::ProcessColumnDataTypePercentageAndDetails(const Value &value, PercentageAndDetails &item)
-{
+void SourceInstructionParser::ProcessColumnDataTypePercentageAndDetails(
+    const Value &value, PercentageAndDetails &item) {
     if (!value.IsObject()) {
         return;
     }
@@ -220,19 +215,17 @@ void SourceInstructionParser::ProcessColumnDataTypePercentageAndDetails(const Va
     }
 }
 
-void SetStringDataOfInstruction(const Value &instruction, std::string &target, const std::string &fieldName)
-{
+void SetStringDataOfInstruction(const Value &instruction, std::string &target, const std::string &fieldName) {
     if (instruction.HasMember(fieldName.c_str()) && instruction[fieldName.c_str()].IsString()) {
         target = instruction[fieldName.c_str()].GetString();
     }
 }
 
-void SetIntArrayOfInstruction(const Value &instruction, std::vector<int> &target, std::string &&fieldName)
-{
+void SetIntArrayOfInstruction(const Value &instruction, std::vector<int> &target, std::string &&fieldName) {
     if (!JsonUtil::IsJsonArray(instruction, fieldName)) {
         return;
     }
-    for (const auto &item: instruction[fieldName.c_str()].GetArray()) {
+    for (const auto &item : instruction[fieldName.c_str()].GetArray()) {
         if (item.IsInt()) {
             target.emplace_back(item.GetInt());
         }
@@ -267,8 +260,7 @@ json示例
   ]
 }
  */
-void SourceInstructionParser::ConvertApiInstr(const std::string &jsonStr)
-{
+void SourceInstructionParser::ConvertApiInstr(const std::string &jsonStr) {
     Document d;
     try {
         d.Parse(jsonStr.c_str());
@@ -288,7 +280,7 @@ void SourceInstructionParser::ConvertApiInstr(const std::string &jsonStr)
             return;
         }
         Value &instructions = d["Instructions"];
-        for (const auto &instruction: instructions.GetArray()) {
+        for (const auto &instruction : instructions.GetArray()) {
             if (!instruction.IsObject()) {
                 continue;
             }
@@ -343,8 +335,7 @@ json示例
   ]
 }
  */
-void SourceInstructionParser::ConvertApiFileDynamic(const std::string &jsonStr)
-{
+void SourceInstructionParser::ConvertApiFileDynamic(const std::string &jsonStr) {
     std::string errMsg;
     auto optional = JsonUtil::TryParse(jsonStr, errMsg);
     if (!optional.has_value() || !errMsg.empty()) {
@@ -375,8 +366,7 @@ void SourceInstructionParser::ConvertApiFileDynamic(const std::string &jsonStr)
     }
 }
 
-void SourceInstructionParser::ParseFile(Value &file)
-{
+void SourceInstructionParser::ParseFile(Value &file) {
     if (!JsonUtil::IsJsonArray(file, "Lines") || !file.HasMember("Source")) {
         return;
     }
@@ -384,13 +374,13 @@ void SourceInstructionParser::ParseFile(Value &file)
     if (sourceName.empty()) {
         return;
     }
-    for (const auto &line: file["Lines"].GetArray()) {
+    for (const auto &line : file["Lines"].GetArray()) {
         // 根据列信息动态解析Lines数据
         SourceFileLineDynamicCol sourceFileLine;
         // 这里Address Range字段不支持动态解析，需要手动解析
         ParseSourceLineAddressRange(line, sourceFileLine);
         // 根据前面获取到的列名信息，从json中解析列名对应的字段数据
-        for (const auto &columnType: sourceLineColumnTypeMap) {
+        for (const auto &columnType : sourceLineColumnTypeMap) {
             std::string columnName = columnType.first;
             int type = columnType.second;
             if (!line.HasMember(columnName.c_str())) {
@@ -399,22 +389,22 @@ void SourceInstructionParser::ParseFile(Value &file)
             // 处理不同数据类型的列
             auto &columnData = line[columnName.c_str()];
             switch (type) {
-                case ColumnDataType::STRING:
-                    ProcessColumnDataArray<std::string>(columnData, sourceFileLine.stringColumnMap[columnName]);
-                    break;
-                case ColumnDataType::INT:
-                    ProcessColumnDataArray<int>(columnData, sourceFileLine.intColumnMap[columnName]);
-                    break;
-                case ColumnDataType::FLOAT:
-                case ColumnDataType::PERCENTAGE:
-                    ProcessColumnDataArray<float>(columnData, sourceFileLine.floatColumnMap[columnName]);
-                    break;
-                case ColumnDataType::PERCENTAGEANDDETAIL:
-                    ProcessColumnDataTypePercentageAndDetails(columnData,
-                        sourceFileLine.percentAndDetailsColumnMap[columnName]);
-                    break;
-                default:
-                    break;
+            case ColumnDataType::STRING:
+                ProcessColumnDataArray<std::string>(columnData, sourceFileLine.stringColumnMap[columnName]);
+                break;
+            case ColumnDataType::INT:
+                ProcessColumnDataArray<int>(columnData, sourceFileLine.intColumnMap[columnName]);
+                break;
+            case ColumnDataType::FLOAT:
+            case ColumnDataType::PERCENTAGE:
+                ProcessColumnDataArray<float>(columnData, sourceFileLine.floatColumnMap[columnName]);
+                break;
+            case ColumnDataType::PERCENTAGEANDDETAIL:
+                ProcessColumnDataTypePercentageAndDetails(
+                    columnData, sourceFileLine.percentAndDetailsColumnMap[columnName]);
+                break;
+            default:
+                break;
             }
         }
 
@@ -422,8 +412,7 @@ void SourceInstructionParser::ParseFile(Value &file)
     }
 }
 
-void SourceInstructionParser::ParseSourceLineAddressRange(const Value &line, SourceFileLineDynamicCol &sourceFileLine)
-{
+void SourceInstructionParser::ParseSourceLineAddressRange(const Value &line, SourceFileLineDynamicCol &sourceFileLine) {
     if (!line.HasMember("Address Range") || !line["Address Range"].IsArray()) {
         return;
     }
@@ -468,8 +457,7 @@ json示例
   ]
 }
  */
-void SourceInstructionParser::ConvertApiFile(const std::string &jsonStr)
-{
+void SourceInstructionParser::ConvertApiFile(const std::string &jsonStr) {
     Document d;
     try {
         d.Parse(jsonStr.c_str());
@@ -487,8 +475,7 @@ void SourceInstructionParser::ConvertApiFile(const std::string &jsonStr)
     }
 }
 
-std::map<std::string, std::vector<SourceFileLine>> SourceInstructionParser::ConvertToFileMap(Value &fileArray)
-{
+std::map<std::string, std::vector<SourceFileLine>> SourceInstructionParser::ConvertToFileMap(Value &fileArray) {
     std::map<std::string, std::vector<SourceFileLine>> sourceLinesMap;
 
     for (auto &file : fileArray.GetArray()) {
@@ -514,8 +501,7 @@ std::map<std::string, std::vector<SourceFileLine>> SourceInstructionParser::Conv
     return sourceLinesMap;
 }
 
-std::vector<SourceFileLine> SourceInstructionParser::ConvertToLineArray(Value &lineArray)
-{
+std::vector<SourceFileLine> SourceInstructionParser::ConvertToLineArray(Value &lineArray) {
     std::vector<SourceFileLine> sourceFileLines;
 
     for (auto &line : lineArray.GetArray()) {
@@ -575,34 +561,32 @@ std::vector<SourceFileLine> SourceInstructionParser::ConvertToLineArray(Value &l
     return sourceFileLines;
 }
 
-void SourceInstructionParser::PreprocessInstr(document_t& doc)
-{
-    auto& instructions = doc["Instructions"];
+void SourceInstructionParser::PreprocessInstr(document_t &doc) {
+    auto &instructions = doc["Instructions"];
     // 利用缓存，计算次数从 2NlogN -> N
-    std::unordered_map<const char*, uint64_t> addrCache;
-    std::sort(instructions.GetArray().Begin(),
-              instructions.GetArray().End(),
-              [&addrCache](const Value& a, const Value& b) {
-                  auto parseAddr = [&addrCache](const char* str) -> uint64_t {
-                      if (!str) {
-                          return 0;
-                      }
-                      auto it = addrCache.find(str);
-                      if (it != addrCache.end()) {
-                          return it->second;
-                      }
-                      uint64_t addr = std::stoull(str, nullptr, 16);
-                      addrCache[str] = addr;
-                      return addr;
-                  };
-                  if (!a.HasMember("Address") || !b.HasMember("Address")) {
-                      return false;
-                  }
-                  const char* addrA = a["Address"].GetString();
-                  const char* addrB = b["Address"].GetString();
-                  return parseAddr(addrA) < parseAddr(addrB);
-              });
-    for (json_t& instruction : instructions.GetArray()) {
+    std::unordered_map<const char *, uint64_t> addrCache;
+    std::sort(
+        instructions.GetArray().Begin(), instructions.GetArray().End(), [&addrCache](const Value &a, const Value &b) {
+            auto parseAddr = [&addrCache](const char *str) -> uint64_t {
+                if (!str) {
+                    return 0;
+                }
+                auto it = addrCache.find(str);
+                if (it != addrCache.end()) {
+                    return it->second;
+                }
+                uint64_t addr = std::stoull(str, nullptr, 16);
+                addrCache[str] = addr;
+                return addr;
+            };
+            if (!a.HasMember("Address") || !b.HasMember("Address")) {
+                return false;
+            }
+            const char *addrA = a["Address"].GetString();
+            const char *addrB = b["Address"].GetString();
+            return parseAddr(addrA) < parseAddr(addrB);
+        });
+    for (json_t &instruction : instructions.GetArray()) {
         if (!instruction.IsObject()) {
             continue;
         }
@@ -611,7 +595,7 @@ void SourceInstructionParser::PreprocessInstr(document_t& doc)
         }
         std::vector<GRPInfo> grpInfos;
         int maxIndex = -1;
-        for (json_t& grpInfo : instruction["GPR Status"].GetArray()) {
+        for (json_t &grpInfo : instruction["GPR Status"].GetArray()) {
             GRPInfo info;
             JsonUtil::SetByJsonKeyValue(info.regName, grpInfo, "regIndex");
             JsonUtil::SetByJsonKeyValue(info.lifeTime, grpInfo, "survivalTime");
@@ -624,19 +608,16 @@ void SourceInstructionParser::PreprocessInstr(document_t& doc)
             info.progress = grpStatusHelper.UpdateGRPStatus(info.regName, info.lifeTime, info.status);
             grpInfos.emplace_back(std::move(info));
         }
-        std::sort(grpInfos.begin(),
-                  grpInfos.end(),
-                  [](const GRPInfo& a, const GRPInfo& b) {
-                      return a.index < b.index;
-                  });
+        std::sort(
+            grpInfos.begin(), grpInfos.end(), [](const GRPInfo &a, const GRPInfo &b) { return a.index < b.index; });
         std::vector<GRPInfo> resultInfos(maxIndex + 1);
-        for (const auto& info : grpInfos) {
+        for (const auto &info : grpInfos) {
             grpStatusHelper.ResetGRP(info.regName);
             resultInfos[info.index] = info;
         }
-        auto& allocator = doc.GetAllocator();
+        auto &allocator = doc.GetAllocator();
         json_t grpStatusList(kArrayType);
-        for (const auto& info : resultInfos) {
+        for (const auto &info : resultInfos) {
             json_t status(kObjectType);
             JsonUtil::AddMember(status, "name", info.regName, allocator);
             JsonUtil::AddMember(status, "state", static_cast<int>(info.status), allocator);
@@ -648,8 +629,7 @@ void SourceInstructionParser::PreprocessInstr(document_t& doc)
     }
 }
 
-void SourceInstructionParser::Reset()
-{
+void SourceInstructionParser::Reset() {
     sourceFiles.clear();
     apiFiles.clear();
     apiInstructionList.clear();
@@ -662,13 +642,9 @@ void SourceInstructionParser::Reset()
     grpStatusHelper.Reset();
 }
 
-std::vector<std::string> SourceInstructionParser::GetCoreList()
-{
-    return {this->apiCores};
-}
+std::vector<std::string> SourceInstructionParser::GetCoreList() { return {this->apiCores}; }
 
-std::vector<std::string> SourceInstructionParser::GetSourceList()
-{
+std::vector<std::string> SourceInstructionParser::GetSourceList() {
     std::vector<std::string> sourceList;
     for (const auto &entry : sourceFiles) {
         sourceList.push_back(entry.first);
@@ -676,9 +652,8 @@ std::vector<std::string> SourceInstructionParser::GetSourceList()
     return sourceList;
 }
 
-std::vector<SourceFileLine> SourceInstructionParser::GetApiLinesByCoreAndSource(const std::string &core,
-                                                                                const std::string &sourceName)
-{
+std::vector<SourceFileLine> SourceInstructionParser::GetApiLinesByCoreAndSource(
+    const std::string &core, const std::string &sourceName) {
     std::vector<SourceFileLine> result;
 
     auto it = std::find(apiCores.begin(), apiCores.end(), core);
@@ -717,8 +692,7 @@ std::vector<SourceFileLine> SourceInstructionParser::GetApiLinesByCoreAndSource(
     return result;
 }
 
-std::string SourceInstructionParser::GetInstr(std::string &filePath)
-{
+std::string SourceInstructionParser::GetInstr(std::string &filePath) {
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary);
     if (!file) {
         ServerLog::Error("Failed to open file when parse source instructions, file name is ", filePath);
@@ -730,23 +704,21 @@ std::string SourceInstructionParser::GetInstr(std::string &filePath)
     return content;
 }
 
-void SetInstrDataOfTargetCore(const std::vector<int> &sourceList, std::vector<int> &targetList, size_t index)
-{
+void SetInstrDataOfTargetCore(const std::vector<int> &sourceList, std::vector<int> &targetList, size_t index) {
     if (sourceList.empty()) {
         return;
     }
     targetList.emplace_back(sourceList[index < sourceList.size() ? index : 0]);
 }
 
-std::vector<SourceApiInstruction> SourceInstructionParser::GetInstructions(std::string &coreName)
-{
+std::vector<SourceApiInstruction> SourceInstructionParser::GetInstructions(std::string &coreName) {
     std::vector<SourceApiInstruction> result;
     auto targetCore = std::find(apiCores.begin(), apiCores.end(), coreName);
     if (targetCore == apiCores.end()) {
         targetCore = apiCores.begin();
     }
     size_t index = static_cast<size_t>(std::distance(apiCores.begin(), targetCore)); // never below zero
-    for (const auto &item: apiInstructionList) {
+    for (const auto &item : apiInstructionList) {
         SourceApiInstruction temp;
         temp.pipe = item.pipe;
         temp.ascendCInnerCode = item.ascendCInnerCode;
@@ -762,8 +734,7 @@ std::vector<SourceApiInstruction> SourceInstructionParser::GetInstructions(std::
     return result;
 }
 
-std::vector<SourceFileInstructionDynamicCol> SourceInstructionParser::GetInstrDynamic(std::string &coreName)
-{
+std::vector<SourceFileInstructionDynamicCol> SourceInstructionParser::GetInstrDynamic(std::string &coreName) {
     std::vector<SourceFileInstructionDynamicCol> list;
     auto targetCore = std::find(apiCores.begin(), apiCores.end(), coreName);
     if (targetCore == apiCores.end()) {
@@ -771,7 +742,7 @@ std::vector<SourceFileInstructionDynamicCol> SourceInstructionParser::GetInstrDy
     }
     // never below zero
     size_t index = static_cast<size_t>(std::distance(apiCores.begin(), targetCore));
-    for (const auto &item: instructionList) {
+    for (const auto &item : instructionList) {
         SourceFileInstructionDynamicCol col;
         GetValueInTargetCore(item.intColumnMap, col.intColumnMap, index);
         GetValueInTargetCore(item.floatColumnMap, col.floatColumnMap, index);
@@ -784,13 +755,10 @@ std::vector<SourceFileInstructionDynamicCol> SourceInstructionParser::GetInstrDy
     return list;
 }
 
-template<typename T>
-void SourceInstructionParser::GetValueInTargetCore(
-    const std::unordered_map<std::string, std::vector<T>> &sourceMap,
-    std::unordered_map<std::string, std::vector<T>> &targetMap,
-    size_t index)
-{
-    for (const auto &sourceItem: sourceMap) {
+template <typename T>
+void SourceInstructionParser::GetValueInTargetCore(const std::unordered_map<std::string, std::vector<T>> &sourceMap,
+    std::unordered_map<std::string, std::vector<T>> &targetMap, size_t index) {
+    for (const auto &sourceItem : sourceMap) {
         if (sourceItem.second.empty()) {
             continue;
         }
@@ -801,15 +769,14 @@ void SourceInstructionParser::GetValueInTargetCore(
 }
 
 std::vector<SourceFileLineDynamicCol> SourceInstructionParser::GetApiLinesDynamic(
-    const std::string &core, const std::string &sourceName)
-{
+    const std::string &core, const std::string &sourceName) {
     std::vector<SourceFileLineDynamicCol> list;
     auto targetCore = std::find(apiCores.begin(), apiCores.end(), core);
     if (targetCore == apiCores.end()) {
         targetCore = apiCores.begin();
     }
     size_t index = static_cast<size_t>(std::distance(apiCores.begin(), targetCore)); // never below zero
-    for (const auto &item: sourceLinesMap[sourceName]) {
+    for (const auto &item : sourceLinesMap[sourceName]) {
         SourceFileLineDynamicCol col;
         GetValueInTargetCore(item.stringColumnMap, col.stringColumnMap, index);
         GetValueInTargetCore(item.intColumnMap, col.intColumnMap, index);
@@ -822,8 +789,7 @@ std::vector<SourceFileLineDynamicCol> SourceInstructionParser::GetApiLinesDynami
     return list;
 }
 
-std::string SourceInstructionParser::GetSourceByName(std::string &sourceName, const std::string &filePath) const
-{
+std::string SourceInstructionParser::GetSourceByName(std::string &sourceName, const std::string &filePath) const {
     if (sourceFiles.count(sourceName) == 0) {
         ServerLog::Warn("Don't exist the specified file ", sourceName);
         return "";
@@ -841,25 +807,19 @@ std::string SourceInstructionParser::GetSourceByName(std::string &sourceName, co
     return content;
 }
 
-std::map<std::string, int> SourceInstructionParser::GetInstructionColumnTypeMap() const
-{
+std::map<std::string, int> SourceInstructionParser::GetInstructionColumnTypeMap() const {
     return instructionColumnTypeMap;
 }
 
-std::map<std::string, int> SourceInstructionParser::GetSourceLineColumnTypeMap() const
-{
+std::map<std::string, int> SourceInstructionParser::GetSourceLineColumnTypeMap() const {
     return sourceLineColumnTypeMap;
 }
 
-GRPProgress GRPStatusHelper::UpdateGRPStatus(const std::string& grpName,
-                                             const int lifeTime,
-                                             GRPStatus status)
-{
+GRPProgress GRPStatusHelper::UpdateGRPStatus(const std::string &grpName, const int lifeTime, GRPStatus status) {
     // 当前寄存器在map中，分为两种情况：1. 寄存器生命周期未过期，2. 寄存器生命周期已过期
     if (grpStatusMap_.find(grpName) != grpStatusMap_.end()) {
         grpStatusMap_[grpName]--;
         if (grpStatusMap_[grpName] == 0) {
-
             return GRPProgress::END;
         }
         return GRPProgress::IN_USE;
@@ -869,12 +829,11 @@ GRPProgress GRPStatusHelper::UpdateGRPStatus(const std::string& grpName,
     return GRPProgress::BEGIN;
 }
 
-int GRPStatusHelper::GetRegisterLifeTime(const std::string& grpName, int lifeTime) const{
+int GRPStatusHelper::GetRegisterLifeTime(const std::string &grpName, int lifeTime) const {
     return grpLifeTimeMap_.find(grpName) != grpLifeTimeMap_.end() ? grpLifeTimeMap_.at(grpName) : lifeTime;
 }
 
-int GRPStatusHelper::GetIndex(const std::string& grpName)
-{
+int GRPStatusHelper::GetIndex(const std::string &grpName) {
     /*
      * 优先从map中找寻缓存，如果没有则扫描第一个可用的位置
      */
@@ -893,9 +852,8 @@ int GRPStatusHelper::GetIndex(const std::string& grpName)
     grpIndex_[grpName] = index;
     return index;
 }
-void GRPStatusHelper::ResetGRP(const std::string& grpName)
-{
-    if (grpStatusMap_[grpName] != 0 ) {
+void GRPStatusHelper::ResetGRP(const std::string &grpName) {
+    if (grpStatusMap_[grpName] != 0) {
         return;
     }
     grpStatusMap_.erase(grpName);
@@ -904,8 +862,7 @@ void GRPStatusHelper::ResetGRP(const std::string& grpName)
     grpIndex_.erase(grpName);
 }
 
-void GRPStatusHelper::Reset()
-{
+void GRPStatusHelper::Reset() {
     grpStatusMap_.clear();
     grpLifeTimeMap_.clear();
     grpIndex_.clear();

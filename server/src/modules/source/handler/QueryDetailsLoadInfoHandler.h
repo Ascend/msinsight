@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class QueryDetailsLoadInfoHandler : public SourceRequestHandler {
-public:
-    QueryDetailsLoadInfoHandler()
-    {
-        command = Protocol::REQ_RES_DETAILS_COMPUTE_LOAD_INFO;
-    }
+  public:
+    QueryDetailsLoadInfoHandler() { command = Protocol::REQ_RES_DETAILS_COMPUTE_LOAD_INFO; }
     ~QueryDetailsLoadInfoHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

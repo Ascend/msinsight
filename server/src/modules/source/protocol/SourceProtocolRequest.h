@@ -29,8 +29,7 @@ namespace Dic {
 namespace Protocol {
 struct SourceCodeFileParams {
     std::string sourceName;
-    std::tuple<bool, std::string> Valid()
-    {
+    std::tuple<bool, std::string> Valid() {
         std::string errMsg;
         bool res = CheckStrParamValid(sourceName, errMsg);
         return {res, errMsg};
@@ -45,8 +44,7 @@ struct SourceCodeFileRequest : public Request {
 struct SourceApiLineParams {
     std::string coreName;
     std::string sourceName;
-    std::tuple<bool, std::string> Valid()
-    {
+    std::tuple<bool, std::string> Valid() {
         std::string errMsg;
         bool res = CheckStrParamValid(coreName, errMsg);
         if (!res) {
@@ -69,8 +67,7 @@ struct SourceApiLineDynamicRequest : public Request {
 
 struct SourceApiInstrParams {
     std::string coreName;
-    std::tuple<bool, std::string> Valid()
-    {
+    std::tuple<bool, std::string> Valid() {
         std::string errMsg;
         bool res = CheckStrParamValid(coreName, errMsg);
         if (!res) {
@@ -102,7 +99,7 @@ struct SourceDetailLoadInfoParams {
     bool isCompared = false;
 };
 
-struct SourceDetailsLoadInfoRequest: public Request {
+struct SourceDetailsLoadInfoRequest : public Request {
     SourceDetailsLoadInfoRequest() : Request(REQ_RES_DETAILS_COMPUTE_LOAD_INFO) {};
     SourceDetailLoadInfoParams params;
 };
@@ -110,20 +107,19 @@ struct SourceDetailsLoadInfoRequest: public Request {
 struct DetailsMemoryInfoParams {
     std::string blockId;
     bool isCompared = false;
-    std::tuple<bool, std::string> Vaild()
-    {
+    std::tuple<bool, std::string> Valid() {
         std::string errMsg;
         bool res = CheckStrParamValid(blockId, errMsg);
         return {res, errMsg};
     }
 };
 
-struct DetailsMemoryGraphRequest: public Request {
+struct DetailsMemoryGraphRequest : public Request {
     DetailsMemoryGraphRequest() : Request(REQ_RES_DETAILS_COMPUTE_MEMORY_GRAPH) {};
     DetailsMemoryInfoParams params;
 };
 
-struct DetailsMemoryTableRequest: public Request {
+struct DetailsMemoryTableRequest : public Request {
     DetailsMemoryTableRequest() : Request(REQ_RES_DETAILS_COMPUTE_MEMORY_TABLE) {};
     DetailsMemoryInfoParams params;
 };
@@ -132,16 +128,15 @@ struct DetailsInterCoreLoadGraphParams {
     bool isCompared = false;
 };
 
-struct DetailsInterCoreLoadGraphRequest: public Request {
+struct DetailsInterCoreLoadGraphRequest : public Request {
     DetailsInterCoreLoadGraphRequest() : Request(REQ_RES_DETAILS_INTER_CORE_LOAD_GRAPH) {};
     DetailsInterCoreLoadGraphParams params;
 };
 
-struct DetailsRooflineParams {
-};
+struct DetailsRooflineParams {};
 
-struct DetailsRooflineRequest: public Request {
-    DetailsRooflineRequest(): Request(REQ_RES_DETAILS_ROOFLINE) {};
+struct DetailsRooflineRequest : public Request {
+    DetailsRooflineRequest() : Request(REQ_RES_DETAILS_ROOFLINE) {};
     DetailsRooflineParams params;
 };
 
