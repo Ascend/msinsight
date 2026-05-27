@@ -23,70 +23,62 @@
 #include "RLMstxConfigManager.h"
 
 namespace Dic::Module::RL {
-    RLMstxConfigManager &RLMstxConfigManager::Instance()
-    {
-        static RLMstxConfigManager instance;
-        return instance;
-    }
+RLMstxConfigManager &RLMstxConfigManager::Instance() {
+    static RLMstxConfigManager instance;
+    return instance;
+}
 
-    std::vector<RLMstxConfig> RLMstxConfigManager::GetRLMstxConfig()
-    {
-        return config;
-    }
+std::vector<RLMstxConfig> RLMstxConfigManager::GetRLMstxConfig() { return config; }
 
-    std::vector<std::string> RLMstxConfigManager::GetMstxTaskNameList()
-    {
-        std::set<std::string> resSet;
-        for (const auto &item: config) {
-            for (const auto &task: item.taskConfigs) {
-                resSet.insert(task.taskName);
+std::vector<std::string> RLMstxConfigManager::GetMstxTaskNameList() {
+    std::set<std::string> resSet;
+    for (const auto &item : config) {
+        for (const auto &task : item.taskConfigs) {
+            resSet.insert(task.taskName);
+        }
+    }
+    return std::vector<std::string>(resSet.begin(), resSet.end());
+}
+
+std::string RLMstxConfigManager::GetTaskTypeByName(const std::string &name) {
+    std::string type = "";
+    for (const auto &item : config) {
+        for (const auto &task : item.taskConfigs) {
+            if (name == task.taskName) {
+                return task.roleName;
             }
         }
-        return std::vector<std::string>(resSet.begin(), resSet.end());
     }
+    return type;
+}
 
-    std::string RLMstxConfigManager::GetTaskTypeByName(const std::string &name)
-    {
-        std::string type = "";
-        for (const auto &item: config) {
-            for (const auto &task: item.taskConfigs) {
-                if (name == task.taskName) {
-                    return task.roleName;
-                }
+RLMstxConfig RLMstxConfigManager::GetMstxConfigByTaskName(const std::vector<std::string> &taskNames) {
+    std::unordered_set<std::string> taskNameSet{taskNames.begin(), taskNames.end()};
+    auto it = std::find_if(config.begin(), config.end(), [&taskNameSet](const RLMstxConfig &configItem) {
+        for (const auto &taskConfig : configItem.taskConfigs) {
+            if (taskNameSet.count(taskConfig.taskName) == 0) {
+                return false;
             }
         }
-        return type;
-    }
-
-    RLMstxConfig RLMstxConfigManager::GetMstxConfigByTaskName(const std::vector<std::string> &taskNames)
-    {
-        std::unordered_set<std::string> taskNameSet{taskNames.begin(), taskNames.end()};
-        auto it = std::find_if(config.begin(), config.end(), [&taskNameSet](const RLMstxConfig &configItem) {
-            for (const auto &taskConfig: configItem.taskConfigs) {
-                if (taskNameSet.count(taskConfig.taskName) == 0) {
-                    return false;
-                }
+        return true;
+    });
+    if (it == config.end()) {
+        // can't find total match config
+        Server::ServerLog::Warn("No total matching config could be found");
+        for (const std::string &taskName : taskNameSet) {
+            auto iterator = std::find_if(config.begin(), config.end(), [&taskName](const RLMstxConfig &configItem) {
+                return configItem.taskConfigMap.find(taskName) != configItem.taskConfigMap.end();
+            });
+            if (iterator != config.end()) {
+                return *iterator;
             }
-            return true;
-        });
-        if (it == config.end()) {
-            // can't find total match config
-            Server::ServerLog::Warn("No total matching config could be found");
-            for (const std::string &taskName: taskNameSet) {
-                auto iterator = std::find_if(config.begin(), config.end(), [&taskName](const RLMstxConfig &configItem) {
-                    return configItem.taskConfigMap.find(taskName) != configItem.taskConfigMap.end();
-                });
-                if (iterator != config.end()) {
-                    return *iterator;
-                }
-            }
-            return {};
         }
-        return *it;
+        return {};
     }
+    return *it;
+}
 
-void RLMstxConfigManager::InitConfig()
-{
+void RLMstxConfigManager::InitConfig() {
     RLMstxConfigReader reader;
     config = reader.ReadConfigFile();
     // config file not exist or empty, add default one
@@ -95,23 +87,18 @@ void RLMstxConfigManager::InitConfig()
     }
 }
 
-RLMstxConfigManager::RLMstxConfigManager()
-{
-    InitConfig();
-}
+RLMstxConfigManager::RLMstxConfigManager() { InitConfig(); }
 
-void RLMstxConfigManager::InitDefaultConf()
-{
+void RLMstxConfigManager::InitDefaultConf() {
     InitVerlGrpoConf();
     InitMindspeedRlGrpoConf();
 }
-void RLMstxConfigManager::InitVerlGrpoConf()
-{
+void RLMstxConfigManager::InitVerlGrpoConf() {
     RLMstxConfig defaultConf = {
         .framework = "verl",
         .algorithm = "GRPO",
     };
-    TaskConfig gs{.roleName = "ActorRollout", .taskName= "generate_sequences"};
+    TaskConfig gs{.roleName = "ActorRollout", .taskName = "generate_sequences"};
     TaskConfig reward{.roleName = "Reward", .taskName = "compute_log_prob"};
     MicroBatchConfig fp{.batchName = "TransformerBlock", .type = "FP"};
     MicroBatchConfig bp{.batchName = "TransformerLayer", .type = "BP"};
@@ -133,13 +120,12 @@ void RLMstxConfigManager::InitVerlGrpoConf()
     defaultConf.AddTaskConfig(std::move(refLog));
     config.push_back(defaultConf);
 }
-void RLMstxConfigManager::InitMindspeedRlGrpoConf()
-{
+void RLMstxConfigManager::InitMindspeedRlGrpoConf() {
     RLMstxConfig mindSpeedRlConf = {
         .framework = "MindSpeed-RL",
         .algorithm = "GRPO",
     };
-    TaskConfig mindSpeedGS{.roleName = "ActorRollout", .taskName= "ActorHybridWorkerBase.generate_sequences"};
+    TaskConfig mindSpeedGS{.roleName = "ActorRollout", .taskName = "ActorHybridWorkerBase.generate_sequences"};
     MicroBatchConfig fp{.batchName = "TransformerBlock", .type = "FP"};
     MicroBatchConfig bp{.batchName = "TransformerLayer", .type = "BP"};
     mindSpeedGS.AddMicroBatchConf(std::move(fp));

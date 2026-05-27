@@ -20,14 +20,12 @@
 #include "FileUtil.h"
 
 namespace Dic::Module::RL {
-RLMstxConfigReader::RLMstxConfigReader()
-{
+RLMstxConfigReader::RLMstxConfigReader() {
     configPath = FileUtil::SplicePath(FileUtil::GetCurrPath(), "configs", "RLMstxConfig.json");
     Server::ServerLog::Info("RL config reader init, config path:", configPath);
 }
 
-std::vector<RLMstxConfig> RLMstxConfigReader::ReadConfigFile()
-{
+std::vector<RLMstxConfig> RLMstxConfigReader::ReadConfigFile() {
     // check path
     if (configPath.empty() || !FileUtil::CheckPathSecurity(configPath, CHECK_FILE_READ)) {
         Server::ServerLog::Info("No rl config file load into");
@@ -43,9 +41,8 @@ std::vector<RLMstxConfig> RLMstxConfigReader::ReadConfigFile()
     }
     json_t &configs = configJson["config"];
     std::vector<RLMstxConfig> res;
-    std::for_each(configs.Begin(), configs.End(), [&res, this](const json_t &config) {
-        res.push_back(ParseMstxConfig(config));
-    });
+    std::for_each(
+        configs.Begin(), configs.End(), [&res, this](const json_t &config) { res.push_back(ParseMstxConfig(config)); });
     return res;
 }
 
@@ -53,8 +50,7 @@ std::vector<RLMstxConfig> RLMstxConfigReader::ReadConfigFile()
  * @param doc
  * @return
  */
-bool RLMstxConfigReader::ConfigFormatValid(document_t &doc)
-{
+bool RLMstxConfigReader::ConfigFormatValid(document_t &doc) {
     if (doc.IsNull()) {
         return false;
     }
@@ -71,9 +67,7 @@ bool RLMstxConfigReader::ConfigFormatValid(document_t &doc)
     return std::all_of(configs.Begin(), configs.End(), RLMstxConfigReader::MstxConfigCheck);
 }
 
-
-bool RLMstxConfigReader::TaskConfigCheck(const json_t &taskConfJson)
-{
+bool RLMstxConfigReader::TaskConfigCheck(const json_t &taskConfJson) {
     if (!taskConfJson.HasMember("roleName") || !taskConfJson["roleName"].IsString()) {
         Server::ServerLog::Error("RL config parse failed, stage lost roleName field");
         return false;
@@ -87,11 +81,10 @@ bool RLMstxConfigReader::TaskConfigCheck(const json_t &taskConfJson)
         return false;
     }
     return std::all_of(taskConfJson["microBatches"].Begin(), taskConfJson["microBatches"].End(),
-                       RLMstxConfigReader::MicroBatchConfigCheck);
+        RLMstxConfigReader::MicroBatchConfigCheck);
 }
 
-RLMstxConfig RLMstxConfigReader::ParseMstxConfig(const json_t &config)
-{
+RLMstxConfig RLMstxConfigReader::ParseMstxConfig(const json_t &config) {
     RLMstxConfig mstxConf;
     mstxConf.framework = config["framework"].GetString();
     mstxConf.algorithm = config["algorithm"].GetString();
@@ -103,13 +96,9 @@ RLMstxConfig RLMstxConfigReader::ParseMstxConfig(const json_t &config)
     return mstxConf;
 }
 
-void RLMstxConfigReader::SetConfigPath(const std::string &path)
-{
-    configPath = path;
-}
+void RLMstxConfigReader::SetConfigPath(const std::string &path) { configPath = path; }
 
-bool RLMstxConfigReader::MicroBatchConfigCheck(const json_t &microBatchJson)
-{
+bool RLMstxConfigReader::MicroBatchConfigCheck(const json_t &microBatchJson) {
     if (!microBatchJson.HasMember("name") || !microBatchJson["name"].IsString()) {
         Server::ServerLog::Error("field microBatchName needs, and it should be string type");
         return false;
@@ -126,8 +115,7 @@ bool RLMstxConfigReader::MicroBatchConfigCheck(const json_t &microBatchJson)
     return true;
 }
 
-bool RLMstxConfigReader::MstxConfigCheck(const json_t &mstxConfigJson)
-{
+bool RLMstxConfigReader::MstxConfigCheck(const json_t &mstxConfigJson) {
     if (!mstxConfigJson.HasMember("framework") || !mstxConfigJson["framework"].IsString()) {
         Server::ServerLog::Error("RL config parse failed, framework field not found");
         return false;
@@ -140,24 +128,22 @@ bool RLMstxConfigReader::MstxConfigCheck(const json_t &mstxConfigJson)
         Server::ServerLog::Error("RL config parse failed, taskStage field not found");
         return false;
     }
-    return std::all_of(mstxConfigJson["tasks"].Begin(), mstxConfigJson["tasks"].End(),
-                       RLMstxConfigReader::TaskConfigCheck);
+    return std::all_of(
+        mstxConfigJson["tasks"].Begin(), mstxConfigJson["tasks"].End(), RLMstxConfigReader::TaskConfigCheck);
 }
 
-TaskConfig RLMstxConfigReader::ParseTaskConfig(const json_t &taskConfJson)
-{
+TaskConfig RLMstxConfigReader::ParseTaskConfig(const json_t &taskConfJson) {
     TaskConfig taskConf;
     taskConf.taskName = taskConfJson["taskName"].GetString();
     taskConf.roleName = taskConfJson["roleName"].GetString();
     std::for_each(taskConfJson["microBatches"].Begin(), taskConfJson["microBatches"].End(),
-                  [this, &taskConf](const json_t &microBatchConfJson) {
-                      taskConf.AddMicroBatchConf(ParseMicroBatchConfig(microBatchConfJson));
-                  });
+        [this, &taskConf](const json_t &microBatchConfJson) {
+            taskConf.AddMicroBatchConf(ParseMicroBatchConfig(microBatchConfJson));
+        });
     return taskConf;
 }
 
-MicroBatchConfig RLMstxConfigReader::ParseMicroBatchConfig(const json_t &microBatchConfJson)
-{
+MicroBatchConfig RLMstxConfigReader::ParseMicroBatchConfig(const json_t &microBatchConfJson) {
     MicroBatchConfig microBatchConf;
     microBatchConf.batchName = microBatchConfJson["name"].GetString();
     microBatchConf.type = microBatchConfJson["type"].GetString();

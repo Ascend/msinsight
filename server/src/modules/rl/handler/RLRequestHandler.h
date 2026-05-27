@@ -24,9 +24,8 @@
 
 namespace Dic::Module::RL {
 class RLRequestHandler : public ModuleRequestHandler {
-public:
-    RLRequestHandler()
-    {
+  public:
+    RLRequestHandler() {
         moduleName = MODULE_RL;
         async = false;
     }

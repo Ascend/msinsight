@@ -31,24 +31,25 @@
 
 namespace Dic::Module::RL {
 class RLPipelineService {
-public:
-    static RLPipelineService& Instance();
+  public:
+    static RLPipelineService &Instance();
     bool GetPipelineInfo(Protocol::RLPipelineResponse &response);
-private:
+
+  private:
     void Clear();
     std::vector<Protocol::RLPipelineNode> SearchNode(const std::string &rankId);
     std::vector<Protocol::RLPipelineNode> QueryMicroBatchByTask(const std::string &fileId,
-            const std::vector<Protocol::RLPipelineNode> &taskList, const RLMstxConfig &taskConfig);
+        const std::vector<Protocol::RLPipelineNode> &taskList, const RLMstxConfig &taskConfig);
     void QueryPipelineByRankId(const std::string &rankIdWithHost);
     void FillPipelineMap(const std::string &originHostName, const std::string &rankId,
-                                const std::vector<Protocol::RLPipelineNode> &pipeline,
-                                std::unordered_map<std::string, RLPipelineItem> &targetMap);
-    void FillAndProcessPipelineData(std::unordered_map<std::string, RLPipelineItem> &pipelineMap,
-                                           std::vector<RLPipelineItem> &pipelineData);
-    std::vector<Protocol::RLPipelineNode> QueryMicroBatch(const std::string &fileId, const RLMstxConfig &config,
-            const Protocol::RLPipelineNode &node);
+        const std::vector<Protocol::RLPipelineNode> &pipeline,
+        std::unordered_map<std::string, RLPipelineItem> &targetMap);
+    void FillAndProcessPipelineData(
+        std::unordered_map<std::string, RLPipelineItem> &pipelineMap, std::vector<RLPipelineItem> &pipelineData);
+    std::vector<Protocol::RLPipelineNode> QueryMicroBatch(
+        const std::string &fileId, const RLMstxConfig &config, const Protocol::RLPipelineNode &node);
 
-    RLBackEndType GetBackendType(const std::string& rankId);
+    RLBackEndType GetBackendType(const std::string &rankId);
     std::mutex mtx;
     uint64_t minTime;
     uint64_t maxTime;

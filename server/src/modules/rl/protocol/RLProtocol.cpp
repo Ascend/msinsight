@@ -23,23 +23,14 @@
 #include "RLProtocolUtil.h"
 
 namespace Dic::Protocol {
-void RLProtocol::RegisterJsonToRequestFuncs()
-{
-    jsonToReqFactory.emplace(REQ_REQ_RL_PIPELINE, ToRLPipelineRequest);
-}
+void RLProtocol::RegisterJsonToRequestFuncs() { jsonToReqFactory.emplace(REQ_REQ_RL_PIPELINE, ToRLPipelineRequest); }
 
-void RLProtocol::RegisterResponseToJsonFuncs()
-{
-    resToJsonFactory.emplace(REQ_REQ_RL_PIPELINE, ToRLPipelineResponse);
-}
+void RLProtocol::RegisterResponseToJsonFuncs() { resToJsonFactory.emplace(REQ_REQ_RL_PIPELINE, ToRLPipelineResponse); }
 
-void RLProtocol::RegisterEventToJsonFuncs()
-{
-}
+void RLProtocol::RegisterEventToJsonFuncs() {}
 
 #pragma region <<Json To Request>>
-std::unique_ptr<Request> RLProtocol::ToRLPipelineRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> RLProtocol::ToRLPipelineRequest(const json_t &json, std::string &error) {
     auto reqPtr = std::make_unique<RLPipelineRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -52,8 +43,7 @@ std::unique_ptr<Request> RLProtocol::ToRLPipelineRequest(const json_t &json, std
 
 #pragma region <<Reponse To Json>>
 
-std::optional<document_t> RLProtocol::ToRLPipelineResponse(const Response &response)
-{
+std::optional<document_t> RLProtocol::ToRLPipelineResponse(const Response &response) {
     return ToResponseJson<RLPipelineResponse>(dynamic_cast<const RLPipelineResponse &>(response));
 }
 

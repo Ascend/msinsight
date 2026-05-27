@@ -23,8 +23,7 @@ using namespace Dic;
 using namespace Dic::Module::Timeline;
 
 std::vector<Protocol::RLPipelineNode> Dic::Module::RL::RLMicroBatchFSDPClassifier::QueryMicroBatchSlices(
-    const std::string &fileId, const RLMstxConfig &config, const Protocol::RLPipelineNode &taskNode)
-{
+    const std::string &fileId, const RLMstxConfig &config, const Protocol::RLPipelineNode &taskNode) {
     if (config.taskConfigMap.find(taskNode.name) == config.taskConfigMap.end()) {
         return {};
     }
@@ -39,30 +38,29 @@ std::vector<Protocol::RLPipelineNode> Dic::Module::RL::RLMicroBatchFSDPClassifie
 }
 
 std::vector<Protocol::RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::MicroBatchClassifier(
-    std::vector<Protocol::RLPipelineNode> &nodes)
-{
+    std::vector<Protocol::RLPipelineNode> &nodes) {
     if (nodes.empty()) {
         return {};
     }
     std::vector<Protocol::RLPipelineNode> res;
     for (const auto &node : nodes) {
         switch (state) {
-            case State::Init: {
-                ProcessInitState(node, res);
-                break;
-            }
-            case State::FP: {
-                ProcessFPState(node, res);
-                break;
-            }
-            case State::BP: {
-                ProcessBPState(node, res);
-                break;
-            }
-            case State::Communication: {
-                ProcessCommunicationState(node, res);
-                break;
-            }
+        case State::Init: {
+            ProcessInitState(node, res);
+            break;
+        }
+        case State::FP: {
+            ProcessFPState(node, res);
+            break;
+        }
+        case State::BP: {
+            ProcessBPState(node, res);
+            break;
+        }
+        case State::Communication: {
+            ProcessCommunicationState(node, res);
+            break;
+        }
         }
     }
     if (state != State::Communication) {
@@ -71,9 +69,8 @@ std::vector<Protocol::RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::Mi
     return res;
 }
 
-void Module::RL::RLMicroBatchFSDPClassifier::ProcessInitState(const RLPipelineNode &node,
-                                                              std::vector<RLPipelineNode> &res)
-{
+void Module::RL::RLMicroBatchFSDPClassifier::ProcessInitState(
+    const RLPipelineNode &node, std::vector<RLPipelineNode> &res) {
     if (node.nodeType == "FP") {
         current = node;
         state = State::FP;
@@ -82,10 +79,9 @@ void Module::RL::RLMicroBatchFSDPClassifier::ProcessInitState(const RLPipelineNo
     }
 }
 
-void Module::RL::RLMicroBatchFSDPClassifier::ProcessFPState(const RLPipelineNode &node,
-                                                            std::vector<RLPipelineNode> &res)
-{
-    if (node.nodeType == "FP") {  // 正向算子存在时间掩盖
+void Module::RL::RLMicroBatchFSDPClassifier::ProcessFPState(
+    const RLPipelineNode &node, std::vector<RLPipelineNode> &res) {
+    if (node.nodeType == "FP") { // 正向算子存在时间掩盖
         if (node.startTime >= current.startTime + current.duration) {
             res.push_back(current);
             current = node;
@@ -100,9 +96,8 @@ void Module::RL::RLMicroBatchFSDPClassifier::ProcessFPState(const RLPipelineNode
     }
 }
 
-void Module::RL::RLMicroBatchFSDPClassifier::ProcessBPState(const RLPipelineNode &node,
-                                                            std::vector<RLPipelineNode> &res)
-{
+void Module::RL::RLMicroBatchFSDPClassifier::ProcessBPState(
+    const RLPipelineNode &node, std::vector<RLPipelineNode> &res) {
     if (node.nodeType == "FP") {
         res.push_back(current);
         current = node;
@@ -119,9 +114,8 @@ void Module::RL::RLMicroBatchFSDPClassifier::ProcessBPState(const RLPipelineNode
     }
 }
 
-std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::QueryFPSlices(const std::string &rankId,
-                                                                                  const RLPipelineNode &taskNode)
-{
+std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::QueryFPSlices(
+    const std::string &rankId, const RLPipelineNode &taskNode) {
     PythonApiRepo pythonApiRepo;
     SliceQuery query;
     query.rankId = rankId;
@@ -133,9 +127,8 @@ std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::QueryFPSlice
     return TransSliceToNodes(fpSlices, taskNode, FP_MICRO_BATCH_NAME, "FP");
 }
 
-std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::QueryBPSlices(const std::string &rankId,
-                                                                                  const RLPipelineNode &taskNode)
-{
+std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::QueryBPSlices(
+    const std::string &rankId, const RLPipelineNode &taskNode) {
     // 反向算子需要找出autograd::engine,并以 event_record作为结束
     PythonApiRepo pythonApiRepo;
     SliceQuery query;
@@ -153,31 +146,29 @@ std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::QueryBPSlice
     std::vector<CompeteSliceDomain> eventSlices;
     query.name = BP_MICRO_BATCH_END_NAME;
     pythonApiRepo.QuerySliceByVagueNameAndTime(query, eventSlices);
-    std::vector<RLPipelineNode> eventNodes = TransSliceToNodes(eventSlices, taskNode,  BP_MICRO_BATCH_END_NAME, "BP");
+    std::vector<RLPipelineNode> eventNodes = TransSliceToNodes(eventSlices, taskNode, BP_MICRO_BATCH_END_NAME, "BP");
     return NodeSortMerge(bpNodes, eventNodes);
 }
 
 std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::TransSliceToNodes(
     const std::vector<CompeteSliceDomain> &slices, const RLPipelineNode &task, const std::string &name,
-    const std::string &nodeType)
-{
+    const std::string &nodeType) {
     std::vector<RLPipelineNode> res;
     std::transform(slices.begin(), slices.end(), std::back_inserter(res),
-                   [&task, &name, &nodeType](const CompeteSliceDomain &slice) {
-                       RLPipelineNode node;
-                       node.name = name;
-                       node.nodeType = nodeType;
-                       node.stageType = task.stageType;
-                       node.startTime = slice.timestamp;
-                       node.duration = slice.endTime - slice.timestamp;
-                       return node;
-                   });
+        [&task, &name, &nodeType](const CompeteSliceDomain &slice) {
+            RLPipelineNode node;
+            node.name = name;
+            node.nodeType = nodeType;
+            node.stageType = task.stageType;
+            node.startTime = slice.timestamp;
+            node.duration = slice.endTime - slice.timestamp;
+            return node;
+        });
     return res;
 }
 
 std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::NodeSortMerge(
-    const std::vector<RLPipelineNode> &left, const std::vector<RLPipelineNode> &right)
-{
+    const std::vector<RLPipelineNode> &left, const std::vector<RLPipelineNode> &right) {
     auto itLeft = left.begin();
     auto itRight = right.begin();
     std::vector<RLPipelineNode> res;
@@ -201,9 +192,8 @@ std::vector<RLPipelineNode> Module::RL::RLMicroBatchFSDPClassifier::NodeSortMerg
     return res;
 }
 
-bool Module::RL::RLMicroBatchFSDPClassifier::IsHappenBefore(std::vector<RLPipelineNode>::const_iterator left,
-                                                            std::vector<RLPipelineNode>::const_iterator right)
-{
+bool Module::RL::RLMicroBatchFSDPClassifier::IsHappenBefore(
+    std::vector<RLPipelineNode>::const_iterator left, std::vector<RLPipelineNode>::const_iterator right) {
     if (left->startTime != right->startTime) {
         return left->startTime < right->startTime;
     } else {
@@ -211,9 +201,8 @@ bool Module::RL::RLMicroBatchFSDPClassifier::IsHappenBefore(std::vector<RLPipeli
     }
 }
 
-void Module::RL::RLMicroBatchFSDPClassifier::ProcessCommunicationState(const RLPipelineNode &node,
-                                                                       std::vector<RLPipelineNode> &res)
-{
+void Module::RL::RLMicroBatchFSDPClassifier::ProcessCommunicationState(
+    const RLPipelineNode &node, std::vector<RLPipelineNode> &res) {
     if (node.nodeType == "FP") {
         current = node;
         state = State::FP;

@@ -24,14 +24,12 @@ namespace Dic::Protocol {
 using namespace Dic::Server;
 using namespace rapidjson;
 #pragma region <<Response to json>>
-template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response)
-{
+template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response) {
     ServerLog::Warn("Function to response json is not implemented. command:", response.command);
     return std::nullopt;
 }
 
-template<> std::optional<document_t> ToResponseJson<RLPipelineResponse>(const RLPipelineResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<RLPipelineResponse>(const RLPipelineResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -49,16 +47,15 @@ template<> std::optional<document_t> ToResponseJson<RLPipelineResponse>(const RL
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> RLPipelineListToJson(const std::vector<RLPipelineItem> &pipelineList,
-                                               Document::AllocatorType &allocator)
-{
+std::optional<document_t> RLPipelineListToJson(
+    const std::vector<RLPipelineItem> &pipelineList, Document::AllocatorType &allocator) {
     document_t data(kArrayType);
-    for (const auto &item: pipelineList) {
+    for (const auto &item : pipelineList) {
         json_t pipelineItem(kObjectType);
         JsonUtil::AddMember(pipelineItem, "rankId", item.rankId, allocator);
         JsonUtil::AddMember(pipelineItem, "hostName", item.hostName, allocator);
         json_t nodeList(kArrayType);
-        for (const auto &node: item.lists) {
+        for (const auto &node : item.lists) {
             json_t nodeJson(kObjectType);
             JsonUtil::AddMember(nodeJson, "fileId", node.fileId, allocator);
             JsonUtil::AddMember(nodeJson, "nodeType", node.nodeType, allocator);

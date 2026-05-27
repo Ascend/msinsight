@@ -22,7 +22,7 @@
 #include "RLDomainObject.h"
 namespace Dic::Module::RL {
 class RLMstxConfigManager {
-public:
+  public:
     static RLMstxConfigManager &Instance();
     RLMstxConfigManager(const RLMstxConfigManager &) = delete;
     RLMstxConfigManager &operator=(const RLMstxConfigManager &) = delete;
@@ -37,7 +37,8 @@ public:
      * @brief 根据taskname获取匹配的配置项
      */
     RLMstxConfig GetMstxConfigByTaskName(const std::vector<std::string> &taskNames);
-private:
+
+  private:
     void InitConfig();
     void InitDefaultConf();
     void InitVerlGrpoConf();
