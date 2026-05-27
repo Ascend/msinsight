@@ -1,0 +1,32 @@
+# tracer: nop
+#
+# entries-in-buffer/entries-written: 100/100  #P:4
+#
+#                              _-----=> irqs-off
+#                             / _----=> need-resched
+#                            | / _---=> hardirq/softirq
+#                            || / _--=> preempt-depth
+#                            ||| / _-=> migrate-depth
+#                            |||| /     delay
+#           TASK-PID   CPU#  ||||    TIMESTAMP  FUNCTION
+#              | |       |   ||||       |         |
+python-123  [000] .... 123456.789001: sched_switch: prev_comm=python prev_pid=123 prev_prio=120 prev_state=R ==> next_comm=bash next_pid=456 next_prio=100
+bash-456    [000] .... 123456.789002: sched_wakeup: comm=python pid=123 prio=120 success=1 CPU:0
+python-123  [000] .... 123456.789003: sched_stat_runtime: comm=python pid=123 runtime=500000 vruntime=12345 prio=120
+bash-456    [000] d... 123456.789004: irq_handler_entry: irq=12 name=eth0
+bash-456    [000] d... 123456.789005: irq_handler_exit: irq=12 ret=handled
+bash-456    [000] .... 123456.789006: sched_switch: prev_comm=bash prev_pid=456 prev_prio=100 prev_state=S ==> next_comm=python next_pid=123 next_prio=120
+python-123  [000] .... 123456.789007: softirq_entry: vec=1 [action=TIMER]
+python-123  [000] .... 123456.789008: softirq_exit: vec=1 [action=TIMER]
+python-123  [001] .... 123456.789009: sched_wakeup_new: comm=test pid=789 prio=100 success=1 CPU:1
+test-789    [001] .... 123456.789010: sched_switch: prev_comm=test prev_pid=789 prev_prio=100 prev_state=R ==> next_comm=app next_pid=800 next_prio=100
+test-789    [001] .... 123456.789011: sched_process_exec: filename=/usr/bin/python pid=789 old_pid=789
+python-123  [000] .... 123456.789012: sched_process_exit: comm=python pid=123 prio=120
+python-124  [000] .... 123456.789013: sched_switch: prev_comm=python prev_pid=124 prev_prio=120 prev_state=S ==> next_comm=python next_pid=125 next_prio=120
+python-125  [000] .... 123456.789014: irq_handler_entry: irq=14 name=scheduler
+python-125  [000] d.h. 123456.789015: irq_handler_exit: irq=14 ret=handled
+python-125  [000] d.s. 123456.789016: softirq_raise: vec=9 [action=RCU]
+python-125  [000] d.s. 123456.789017: softirq_entry: vec=9 [action=RCU]
+python-125  [000] d.s. 123456.789018: softirq_exit: vec=9 [action=RCU]
+python-125  [001] .... 123456.789019: sched_migrate_task: pid=125 orig_cpu=0 dest_cpu=1 prio=120
+python-125  [001] .... 123456.789020: sched_switch: prev_comm=python prev_pid=125 prev_prio=120 prev_state=D ==> next_comm=server next_pid=500 next_prio=100
