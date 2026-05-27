@@ -19,6 +19,13 @@
 declare global {
     interface Window {
         requestData: (method: string, params: any, module?: string, requestOptions?: RequestOptions) => Promise<any>;
+        /** 防抖版本 requestData，默认保留最后一次请求（trailing），可通过 options 配置为保留第一次（leading） */
+        requestDataDebounced: ((method: string, params: any, module?: string, requestOptions?: RequestOptions) => Promise<any>) & {
+            cancel(key?: string): void;
+            flush(key?: string): void;
+            getPendingCount(): number;
+            getPendingKeys(): string[];
+        };
     }
 }
 
