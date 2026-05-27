@@ -24,14 +24,12 @@
 #include "ProjectExplorerManager.h"
 #include "WsServer.h"
 
-
 namespace Dic {
 namespace Server {
-WsServer::WsServer(const std::string &host, int port, bool strictMode) : BaseServer(host, port),
-    strictMode(strictMode) {}
+WsServer::WsServer(const std::string &host, int port, bool strictMode)
+    : BaseServer(host, port), strictMode(strictMode) {}
 
-bool WsServer::Start()
-{
+bool WsServer::Start() {
     FileUtil::SetStrictMode(strictMode);
     listenStart = false;
     Dic::Core::PluginsManager::LoadPlugins();
@@ -46,8 +44,7 @@ bool WsServer::Start()
     return listenStart;
 }
 
-bool WsServer::Stop()
-{
+bool WsServer::Stop() {
     listenStart = false;
     if (wsApp) {
         wsApp->close();
@@ -58,18 +55,11 @@ bool WsServer::Stop()
     return true;
 }
 
-bool WsServer::IsStart() const
-{
-    return listenStart;
-}
+bool WsServer::IsStart() const { return listenStart; }
 
-void WsServer::ListenThreadFunc(WsServer &server)
-{
-    server.StartListen();
-}
+void WsServer::ListenThreadFunc(WsServer &server) { server.StartListen(); }
 
-void WsServer::StartListen()
-{
+void WsServer::StartListen() {
     ServerLog::Info("Start server listen");
     wsApp = std::make_unique<uWS::App>();
     uWS::App::WebSocketBehavior<WsUserData> behavior = CreateWsBehavior();
@@ -80,13 +70,11 @@ void WsServer::StartListen()
     wsApp->run();
 }
 
-uWS::App::WebSocketBehavior<WsUserData> WsServer::CreateWsBehavior()
-{
+uWS::App::WebSocketBehavior<WsUserData> WsServer::CreateWsBehavior() {
     const int maxPayLoadSize = 16 * 1024 * 1024;
     const int idleTimeout = 120;
     const int maxBackPressureSize = 100 * 1024 * 1024;
-    uWS::App::WebSocketBehavior<WsUserData> wsBehavior = {
-        .compression = uWS::SHARED_COMPRESSOR,
+    uWS::App::WebSocketBehavior<WsUserData> wsBehavior = {.compression = uWS::SHARED_COMPRESSOR,
         .maxPayloadLength = maxPayLoadSize,
         .idleTimeout = idleTimeout,
         .maxBackpressure = maxBackPressureSize,
@@ -97,26 +85,22 @@ uWS::App::WebSocketBehavior<WsUserData> WsServer::CreateWsBehavior()
         .upgrade =
             [](auto *res, uWS::HttpRequest *req, auto *context) {
                 std::string_view url = req->getUrl();
-                res->template upgrade<WsUserData>(
-                    { .reqUrl = url.data() },
-                    req->getHeader("sec-websocket-key"), req->getHeader("sec-websocket-protocol"),
-                    req->getHeader("sec-websocket-extensions"), context);
+                res->template upgrade<WsUserData>({.reqUrl = url.data()}, req->getHeader("sec-websocket-key"),
+                    req->getHeader("sec-websocket-protocol"), req->getHeader("sec-websocket-extensions"), context);
             },
         .open = std::bind(&WsServer::OnOpenCb, this, std::placeholders::_1),
-        .message = std::bind(&WsServer::OnMessageCb, this, std::placeholders::_1, std::placeholders::_2,
-                             std::placeholders::_3),
+        .message = std::bind(
+            &WsServer::OnMessageCb, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3),
         .drain = nullptr,
         .ping = nullptr,
         .pong = nullptr,
         .subscription = nullptr,
         .close =
-            std::bind(&WsServer::OnCloseCb, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)
-    };
+            std::bind(&WsServer::OnCloseCb, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3)};
     return wsBehavior;
 }
 
-void WsServer::ListenCb(us_listen_socket_t *listenSocket)
-{
+void WsServer::ListenCb(us_listen_socket_t *listenSocket) {
     if (listenSocket == nullptr) {
         ServerLog::Error("Failed to start server, listen error.");
         return;
@@ -126,8 +110,7 @@ void WsServer::ListenCb(us_listen_socket_t *listenSocket)
     ServerLog::Info("Start server successfully.");
 }
 
-void WsServer::OnOpenCb(WsChannel *ws)
-{
+void WsServer::OnOpenCb(WsChannel *ws) {
     ServerLog::Info("Accept new session, channel = ", ws);
     if (ws == nullptr) {
         ServerLog::Info("Accept new session, channel is null ");
@@ -145,12 +128,11 @@ void WsServer::OnOpenCb(WsChannel *ws)
         ServerLog::Error("Not Connect, already connecting");
         return;
     }
-    std::unique_ptr<WsSessionImpl> session = std::make_unique<WsSessionImpl>(ws);
-    WsSessionManager::Instance().AddSession(std::move(session));
+    auto session = std::make_shared<WsSessionImpl>(ws);
+    WsSessionManager::Instance().AddSession(session);
 }
 
-void WsServer::OnCloseCb(WsChannel *ws, int code, std::string_view message)
-{
+void WsServer::OnCloseCb(WsChannel *ws, int code, std::string_view message) {
     ServerLog::Info("Session close, channel = ", ws, ", code = ", code, ", message = ", message);
     if (ws == nullptr) {
         return;
@@ -164,8 +146,7 @@ void WsServer::OnCloseCb(WsChannel *ws, int code, std::string_view message)
     }
 }
 
-void WsServer::OnMessageCb(WsChannel *ws, std::string_view message, uWS::OpCode opCode)
-{
+void WsServer::OnMessageCb(WsChannel *ws, std::string_view message, uWS::OpCode opCode) {
     if (ws == nullptr) {
         return;
     }
@@ -177,11 +158,10 @@ void WsServer::OnMessageCb(WsChannel *ws, std::string_view message, uWS::OpCode 
     session->OnRequestMessage(std::string(message));
 }
 
-void WsServer::LoadHandlers()
-{
-    auto& pluginManager = Dic::Core::PluginsManager::Instance();
-    for (const auto &[key, plugin]: pluginManager.GetAllPlugins()) {
-        for (const auto &[prefix, handler]: plugin->GetAllHandlers()) {
+void WsServer::LoadHandlers() {
+    auto &pluginManager = Dic::Core::PluginsManager::Instance();
+    for (const auto &[key, plugin] : pluginManager.GetAllPlugins()) {
+        for (const auto &[prefix, handler] : plugin->GetAllHandlers()) {
             if (handler->GetApiType() == Core::API_TYPE::GET) {
                 AddGetHandler("/" + key + "/" + prefix, handler);
             } else {
@@ -191,8 +171,7 @@ void WsServer::LoadHandlers()
     }
 }
 
-void WsServer::AddGetHandler(const std::string& key, std::shared_ptr<Core::ApiHandler> handler)
-{
+void WsServer::AddGetHandler(const std::string &key, std::shared_ptr<Core::ApiHandler> handler) {
     wsApp->get(key.data(), [handler](uWS::HttpResponse<false> *res, uWS::HttpRequest *req) {
         // add coc
         res->writeHeader("Access-Control-Allow-Origin", "*");
@@ -204,13 +183,9 @@ void WsServer::AddGetHandler(const std::string& key, std::shared_ptr<Core::ApiHa
     });
 }
 
-void WsServer::AddPostHandler(const std::string& key, std::shared_ptr<Core::ApiHandler> handler)
-{
+void WsServer::AddPostHandler(const std::string &key, std::shared_ptr<Core::ApiHandler> handler) {
     wsApp->post(key.data(), [handler](uWS::HttpResponse<false> *res, auto *req) {
-        res->onAborted([]() {
-            uWS::Loop::get()->defer([]() {
-            });
-        });
+        res->onAborted([]() { uWS::Loop::get()->defer([]() {}); });
         res->onData([res, handler, bodyBuffer = std::string()](std::string_view data, bool isEnd) mutable {
             bodyBuffer.append(data);
             if (isEnd) {
@@ -227,14 +202,13 @@ void WsServer::AddPostHandler(const std::string& key, std::shared_ptr<Core::ApiH
     });
 }
 
-void WsServer::PreLoadEventDir()
-{
-    const auto& opt = ParamsParser::Instance().GetOption();
+void WsServer::PreLoadEventDir() {
+    const auto &opt = ParamsParser::Instance().GetOption();
     std::string eventDir = opt.eventDir;
     if (eventDir.empty()) {
         return;
     }
-    if (!FileUtil::IsFolder(eventDir) ||  !FileUtil::CheckPathSecurity(eventDir, CHECK_FILE_READ)) {
+    if (!FileUtil::IsFolder(eventDir) || !FileUtil::CheckPathSecurity(eventDir, CHECK_FILE_READ)) {
         return;
     }
     std::vector<Dic::Module::Global::ProjectExplorerInfo> projectExplorerInfos;

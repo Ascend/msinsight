@@ -21,7 +21,7 @@ WsSessionManager &WsSessionManager::Instance() {
     static WsSessionManager instance;
     return instance;
 }
-void WsSessionManager::AddSession(std::unique_ptr<WsSession> newSession) {
+void WsSessionManager::AddSession(std::shared_ptr<WsSession> newSession) {
     std::unique_lock<std::mutex> lock(sessionMutex);
     if (!session) {
         newSession->Start();
@@ -35,6 +35,10 @@ void WsSessionManager::RemoveSession() {
 WsSession *WsSessionManager::GetSession() {
     std::unique_lock<std::mutex> lock(sessionMutex);
     return session.get();
+}
+std::shared_ptr<WsSession> WsSessionManager::GetSessionPtr() {
+    std::unique_lock<std::mutex> lock(sessionMutex);
+    return session;
 }
 bool WsSessionManager::CheckSession() { return session && session->GetStatus() != WsSession::Status::CLOSED; }
 } // end of namespace Dic

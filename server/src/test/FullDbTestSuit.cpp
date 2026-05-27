@@ -35,15 +35,12 @@ using namespace Dic::Module;
 using namespace Dic;
 
 class FullDbTestSuit : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         FullDb::FullDbParser::Instance().Reset();
         std::string currPath = Dic::FileUtil::GetCurrPath();
         const ParamsOption &option = ParamsParser::Instance().GetOption();
         ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, to_string(option.wsPort));
-        std::unique_ptr<Dic::Server::WsSession> session = std::make_unique<Dic::Server::WsSessionImpl>(nullptr);
-        WsSessionManager::Instance().AddSession(std::move(session));
         auto respotoryFactory = RepositoryFactory::Instance();
         auto dataEngine = DataEngine::Instance();
         dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -81,14 +78,5 @@ public:
         }
     }
 
-    static void TearDownTestSuite()
-    {
-        FullDbParser::Instance().Reset();
-        auto session = Dic::Server::WsSessionManager::Instance().GetSession();
-        if (session != nullptr) {
-            session->SetStatus(Dic::Server::WsSession::Status::CLOSED);
-            session->WaitForExit();
-            Dic::Server::WsSessionManager::Instance().RemoveSession();
-        }
-    }
+    static void TearDownTestSuite() { FullDbParser::Instance().Reset(); }
 };

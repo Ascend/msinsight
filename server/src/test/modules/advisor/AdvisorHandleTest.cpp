@@ -24,8 +24,6 @@
 #include "QueryFusedOpAdviceHandler.h"
 #include "QueryOperatorDispatchHandler.h"
 #include "AdvisorProtocolRequest.h"
-#include "WsSessionManager.h"
-#include "WsSessionImpl.h"
 #include "../../TestSuit.h"
 
 using namespace Dic::Server;
@@ -33,31 +31,14 @@ using namespace Dic::Protocol;
 using namespace Dic::Module::Advisor;
 
 class AdvisorHandleTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-        Server::WsChannel *ws;
-        std::unique_ptr<Server::WsSessionImpl> session = std::make_unique<Server::WsSessionImpl>(ws);
-        Server::WsSessionManager::Instance().AddSession(std::move(session));
-    }
-    static void TearDownTestSuite()
-    {
-        auto session = Server::WsSessionManager::Instance().GetSession();
-        if (session != nullptr) {
-            session->SetStatus(WsSession::Status::CLOSED);
-            session->WaitForExit();
-            Server::WsSessionManager::Instance().RemoveSession();
-        }
-    }
-    static int Main(int argc, char** argv)
-    {
+  public:
+    static int Main(int argc, char **argv) {
         ::testing::InitGoogleTest(&argc, argv);
         return RUN_ALL_TESTS();
     }
 };
 
-TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInvalidPageSize)
-{
+TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInvalidPageSize) {
     QueryAclnnOpAdvisorHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AclnnOperatorRequest>();
     auto &request = dynamic_cast<AclnnOperatorRequest &>(*requestPtr);
@@ -66,8 +47,7 @@ TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInvalidPa
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInvalidCurrentPage)
-{
+TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInvalidCurrentPage) {
     QueryAclnnOpAdvisorHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AclnnOperatorRequest>();
     auto &request = dynamic_cast<AclnnOperatorRequest &>(*requestPtr);
@@ -76,8 +56,7 @@ TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInvalidCu
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenEmptyRankId)
-{
+TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenEmptyRankId) {
     QueryAclnnOpAdvisorHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AclnnOperatorRequest>();
     auto &request = dynamic_cast<AclnnOperatorRequest &>(*requestPtr);
@@ -88,8 +67,7 @@ TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenEmptyRank
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenRankIdContainsIllegalChars)
-{
+TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenRankIdContainsIllegalChars) {
     QueryAclnnOpAdvisorHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AclnnOperatorRequest>();
     auto &request = dynamic_cast<AclnnOperatorRequest &>(*requestPtr);
@@ -100,8 +78,7 @@ TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenRankIdCon
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenOrderByContainsIllegalChars)
-{
+TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenOrderByContainsIllegalChars) {
     QueryAclnnOpAdvisorHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AclnnOperatorRequest>();
     auto &request = dynamic_cast<AclnnOperatorRequest &>(*requestPtr);
@@ -113,8 +90,7 @@ TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenOrderByCo
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenOrderTypeIsTooLong)
-{
+TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenOrderTypeIsTooLong) {
     QueryAclnnOpAdvisorHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AclnnOperatorRequest>();
     auto &request = dynamic_cast<AclnnOperatorRequest &>(*requestPtr);
@@ -128,36 +104,31 @@ TEST_F(AdvisorHandleTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenOrderType
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandleTest, QueryAffinityAPIAdvice)
-{
+TEST_F(AdvisorHandleTest, QueryAffinityAPIAdvice) {
     QueryAffinityAPIAdvice handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AffinityAPIRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(AdvisorHandleTest, QueryAffinityOptimizerAdvice)
-{
+TEST_F(AdvisorHandleTest, QueryAffinityOptimizerAdvice) {
     QueryAffinityOptimizerAdvice handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AffinityOptimizerRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(AdvisorHandleTest, QueryAiCpuOpAdviceHandler)
-{
+TEST_F(AdvisorHandleTest, QueryAiCpuOpAdviceHandler) {
     QueryAiCpuOpAdviceHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<AICpuOperatorRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(AdvisorHandleTest, QueryFusedOpAdviceHandler)
-{
+TEST_F(AdvisorHandleTest, QueryFusedOpAdviceHandler) {
     QueryFusedOpAdviceHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<OperatorFusionRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(AdvisorHandleTest, QueryOperatorDispatchHandler)
-{
+TEST_F(AdvisorHandleTest, QueryOperatorDispatchHandler) {
     QueryOperatorDispatchHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<OperatorDispatchRequest>();
     handler.HandleRequest(std::move(requestPtr));

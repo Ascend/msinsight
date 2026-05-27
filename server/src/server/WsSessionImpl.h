@@ -30,10 +30,10 @@
 
 namespace Dic {
 namespace Server {
-class WsSessionImpl : public WsSession {
-public:
+class WsSessionImpl : public WsSession, public std::enable_shared_from_this<WsSessionImpl> {
+  public:
     explicit WsSessionImpl(WsChannel *channel);
-    virtual ~WsSessionImpl(){};
+    virtual ~WsSessionImpl() {};
     const WsChannel *GetChannel() const;
     Status GetStatus() const override;
     void SetStatus(Status sessionStatus) override;
@@ -58,7 +58,7 @@ public:
     std::string GetBundleName() const;
     void SetBundleName(const std::string &bundle);
 
-protected:
+  protected:
     static void OnHandleMsgBuffer(WsSessionImpl &session);
     static void OnHandleResponseQueue(WsSessionImpl &session);
     void OnNotifyExit();
@@ -77,7 +77,8 @@ protected:
     std::condition_variable onExitCv;
     // response queue
     const bool useResponseQueue = false; // do not use response queue
-    SafeQueue<std::unique_ptr<Protocol::Response>> responseQueue;;
+    SafeQueue<std::unique_ptr<Protocol::Response>> responseQueue;
+    ;
     std::unique_ptr<std::thread> onHandleResponseThread = nullptr;
     std::mutex responseQueueMutex;
     std::condition_variable responseQueueCv;
