@@ -25,11 +25,8 @@ namespace Module {
 namespace Source {
 
 class QueryInterCoreLoadAnalysisGraphHandler : public SourceRequestHandler {
-public:
-    QueryInterCoreLoadAnalysisGraphHandler()
-    {
-        command = Protocol::REQ_RES_DETAILS_INTER_CORE_LOAD_GRAPH;
-    }
+  public:
+    QueryInterCoreLoadAnalysisGraphHandler() { command = Protocol::REQ_RES_DETAILS_INTER_CORE_LOAD_GRAPH; }
     ~QueryInterCoreLoadAnalysisGraphHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override;

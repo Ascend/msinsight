@@ -29,10 +29,9 @@ namespace Dic::Module::Source {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool DetailsMemoryParser::GetDetailsMemoryTable(const std::string& targetBlockId,
-    Protocol::DetailsMemoryTableResBody &responseBody,
-    std::string& curFilePath, std::map<int, std::vector<Position>>& curBlockMap)
-{
+bool DetailsMemoryParser::GetDetailsMemoryTable(const std::string &targetBlockId,
+    Protocol::DetailsMemoryTableResBody &responseBody, std::string &curFilePath,
+    std::map<int, std::vector<Position>> &curBlockMap) {
     if (targetBlockId.empty()) {
         ServerLog::Info("Block id is empty when get details memory table.");
         return true;
@@ -57,7 +56,7 @@ bool DetailsMemoryParser::GetDetailsMemoryTable(const std::string& targetBlockId
             return false;
         }
         Value &tableList = tableJson.value()["table_per_block"];
-        for (const auto &item: tableList.GetArray()) {
+        for (const auto &item : tableList.GetArray()) {
             if (targetBlockId != JsonUtil::GetString(item, "block_id")) {
                 continue;
             }
@@ -73,8 +72,7 @@ bool DetailsMemoryParser::GetDetailsMemoryTable(const std::string& targetBlockId
     }
 }
 
-Protocol::MemoryTable DetailsMemoryParser::ParseJsonToMemoryTable(const json_t &json)
-{
+Protocol::MemoryTable DetailsMemoryParser::ParseJsonToMemoryTable(const json_t &json) {
     Protocol::MemoryTable result;
     result.blockId = JsonUtil::GetString(json, "block_id");
     result.tableOpType = JsonUtil::GetString(json, "table_op_type");
@@ -87,7 +85,7 @@ Protocol::MemoryTable DetailsMemoryParser::ParseJsonToMemoryTable(const json_t &
     if (!tableDetailJson.IsArray()) {
         return result;
     }
-    for (auto &item: tableDetailJson.GetArray()) {
+    for (auto &item : tableDetailJson.GetArray()) {
         Protocol::TableDetail<Protocol::CompareData<Protocol::TableRow>> tableDetail;
         tableDetail.tableName = JsonUtil::GetString(item, "table_name");
         tableDetail.size = JsonUtil::GetVector<std::string>(item, "size");
@@ -99,7 +97,7 @@ Protocol::MemoryTable DetailsMemoryParser::ParseJsonToMemoryTable(const json_t &
         if (!row.IsArray()) {
             continue;
         }
-        for (const auto &dataRow: row.GetArray()) {
+        for (const auto &dataRow : row.GetArray()) {
             Protocol::TableRow memoryTableRow;
             memoryTableRow.name = JsonUtil::GetString(dataRow, "name");
             memoryTableRow.value = JsonUtil::GetVector<std::string>(dataRow, "value");
@@ -112,10 +110,9 @@ Protocol::MemoryTable DetailsMemoryParser::ParseJsonToMemoryTable(const json_t &
     return result;
 }
 
-bool DetailsMemoryParser::GetDetailsMemoryGraph(const std::string& targetBlockId,
-    Protocol::DetailsMemoryGraphResBody& responseBody, std::string& curFilePath,
-    std::map<int, std::vector<Position>>& curBlockMap)
-{
+bool DetailsMemoryParser::GetDetailsMemoryGraph(const std::string &targetBlockId,
+    Protocol::DetailsMemoryGraphResBody &responseBody, std::string &curFilePath,
+    std::map<int, std::vector<Position>> &curBlockMap) {
     if (targetBlockId.empty()) {
         ServerLog::Error("Block id is empty when get details memory graph.");
         return true;
@@ -141,7 +138,7 @@ bool DetailsMemoryParser::GetDetailsMemoryGraph(const std::string& targetBlockId
             return false;
         }
         Value &coreMemoryList = graphJson.value()["core_memory_map"];
-        for (const auto &item: coreMemoryList.GetArray()) {
+        for (const auto &item : coreMemoryList.GetArray()) {
             if (targetBlockId != JsonUtil::GetString(item, "core_no")) {
                 continue;
             }
@@ -158,8 +155,7 @@ bool DetailsMemoryParser::GetDetailsMemoryGraph(const std::string& targetBlockId
     }
 }
 
-Protocol::UtilizationRate DetailsMemoryParser::ParseJsonToUtilizationRate(const json_t &json)
-{
+Protocol::UtilizationRate DetailsMemoryParser::ParseJsonToUtilizationRate(const json_t &json) {
     Protocol::UtilizationRate utilizationRate;
     utilizationRate.cycle = JsonUtil::GetString(json, "cycle");
     utilizationRate.ratio = JsonUtil::GetString(json, "ratio");
@@ -167,8 +163,7 @@ Protocol::UtilizationRate DetailsMemoryParser::ParseJsonToUtilizationRate(const 
     return utilizationRate;
 }
 
-Protocol::MemoryGraph DetailsMemoryParser::ParseJsonToMemoryGraph(const json_t &json)
-{
+Protocol::MemoryGraph DetailsMemoryParser::ParseJsonToMemoryGraph(const json_t &json) {
     Protocol::MemoryGraph temp;
     temp.blockId = JsonUtil::GetString(json, "core_no");
     temp.blockType = JsonUtil::GetString(json, "op_type");
@@ -177,7 +172,7 @@ Protocol::MemoryGraph DetailsMemoryParser::ParseJsonToMemoryGraph(const json_t &
 
     if (json.HasMember("memory_unit") && json["memory_unit"].IsArray()) {
         auto &memoryUnit = const_cast<Value &>(json["memory_unit"]);
-        for (auto &unit: memoryUnit.GetArray()) {
+        for (auto &unit : memoryUnit.GetArray()) {
             Protocol::MemoryUnit memoryUnitTemp;
             memoryUnitTemp.memoryPath = JsonUtil::GetString(unit, "memory_path");
             memoryUnitTemp.request = JsonUtil::GetString(unit, "request");
@@ -213,9 +208,8 @@ Protocol::MemoryGraph DetailsMemoryParser::ParseJsonToMemoryGraph(const json_t &
     return temp;
 }
 
-bool DetailsMemoryParser::GetDetailsBaseInfo(Protocol::DetailsBaseInfoResBody &responseBody, std::string& curFilePath,
-    std::map<int, std::vector<Position>>& curBlockMap)
-{
+bool DetailsMemoryParser::GetDetailsBaseInfo(Protocol::DetailsBaseInfoResBody &responseBody, std::string &curFilePath,
+    std::map<int, std::vector<Position>> &curBlockMap) {
     std::ifstream file = OpenReadFileSafely(curFilePath, std::ios::binary);
     if (!file) {
         ServerLog::Error("Open file failed when get details base info.");
@@ -243,8 +237,7 @@ bool DetailsMemoryParser::GetDetailsBaseInfo(Protocol::DetailsBaseInfoResBody &r
     }
 }
 
-Protocol::DetailsBaseInfoResBody DetailsMemoryParser::ParseJsonToBaseInfo(const document_t &json)
-{
+Protocol::DetailsBaseInfoResBody DetailsMemoryParser::ParseJsonToBaseInfo(const document_t &json) {
     Protocol::DetailsBaseInfoResBody baseInfoRes;
     baseInfoRes.name = JsonUtil::GetString(json, "name");
     baseInfoRes.soc = JsonUtil::GetString(json, "soc");
@@ -258,8 +251,9 @@ Protocol::DetailsBaseInfoResBody DetailsMemoryParser::ParseJsonToBaseInfo(const 
     if (!json.HasMember("mix_block_detail") && !json.HasMember("block_detail")) {
         return baseInfoRes;
     }
-    const Value& blockDetailsValue = baseInfoRes.opType == "mix" && json.HasMember("mix_block_detail") ?
-                                     json["mix_block_detail"] : json["block_detail"];
+    const Value &blockDetailsValue = baseInfoRes.opType == "mix" && json.HasMember("mix_block_detail")
+        ? json["mix_block_detail"]
+        : json["block_detail"];
     if (!blockDetailsValue.IsObject()) {
         return baseInfoRes;
     }
@@ -268,7 +262,7 @@ Protocol::DetailsBaseInfoResBody DetailsMemoryParser::ParseJsonToBaseInfo(const 
     tableDetail.headerName = JsonUtil::GetVector<std::string>(blockDetailsValue, "head_name");
     if (blockDetailsValue.HasMember("row") && blockDetailsValue["row"].IsArray()) {
         const Value &row = blockDetailsValue["row"];
-        for (const auto &dataRow: row.GetArray()) {
+        for (const auto &dataRow : row.GetArray()) {
             Protocol::TableRow memoryTableRow;
             memoryTableRow.value = JsonUtil::GetVector<std::string>(dataRow, "value");
             tableDetail.row.push_back(memoryTableRow);
@@ -278,9 +272,8 @@ Protocol::DetailsBaseInfoResBody DetailsMemoryParser::ParseJsonToBaseInfo(const 
     return baseInfoRes;
 }
 
-bool DetailsMemoryParser::GetDetailsLoadInfo(Protocol::DetailsLoadInfoResBody & responseBody, std::string& curFilePath,
-    std::map<int, std::vector<Position>>& curBlockMap)
-{
+bool DetailsMemoryParser::GetDetailsLoadInfo(Protocol::DetailsLoadInfoResBody &responseBody, std::string &curFilePath,
+    std::map<int, std::vector<Position>> &curBlockMap) {
     // 从文件获取内容
     std::ifstream file = OpenReadFileSafely(curFilePath, std::ios::binary);
     if (!file) {
@@ -308,18 +301,17 @@ bool DetailsMemoryParser::GetDetailsLoadInfo(Protocol::DetailsLoadInfoResBody & 
 
     // 获取blockid列表(以compare数据为准)
     std::unordered_set<std::string> blockIdSet;
-    for (const auto &item: responseBody.chartData.detailDataList) {
+    for (const auto &item : responseBody.chartData.detailDataList) {
         blockIdSet.insert(item.compare.blockId);
     }
-    for (const auto &item: responseBody.tableData.detailDataList) {
+    for (const auto &item : responseBody.tableData.detailDataList) {
         blockIdSet.insert(item.compare.blockId);
     }
     std::copy(blockIdSet.begin(), blockIdSet.end(), std::back_inserter(responseBody.blockIdList));
     return true;
 }
 
-std::optional<Protocol::SubBlockData> DetailsMemoryParser::ConvertStrToSubBlockData(const std::string& str)
-{
+std::optional<Protocol::SubBlockData> DetailsMemoryParser::ConvertStrToSubBlockData(const std::string &str) {
     if (str.empty()) {
         return std::nullopt;
     }
@@ -347,8 +339,7 @@ std::optional<Protocol::SubBlockData> DetailsMemoryParser::ConvertStrToSubBlockD
     return blockData;
 }
 
-Protocol::CompareData<Protocol::SubBlockUnitData> DetailsMemoryParser::ParseSubBlockUnitData(const json_t &item)
-{
+Protocol::CompareData<Protocol::SubBlockUnitData> DetailsMemoryParser::ParseSubBlockUnitData(const json_t &item) {
     Protocol::SubBlockUnitData unitData;
     unitData.blockId = JsonUtil::GetString(item, "block_id");
     unitData.blockType = JsonUtil::GetString(item, "block_type");
@@ -362,14 +353,9 @@ Protocol::CompareData<Protocol::SubBlockUnitData> DetailsMemoryParser::ParseSubB
 }
 
 static inline std::map<int64_t, std::string> unitTypeMapping = {
-    {0, "Duration(μs)"},
-    {1, "Instructions"},
-    {2, "Data Volume(byte)"},
-    {3, "PRE"}
-};
+    {0, "Duration(μs)"}, {1, "Instructions"}, {2, "Data Volume(byte)"}, {3, "PRE"}};
 
-std::string DetailsMemoryParser::GetUnitType(int64_t unitTypeNumber)
-{
+std::string DetailsMemoryParser::GetUnitType(int64_t unitTypeNumber) {
     if (unitTypeMapping.find(unitTypeNumber) != unitTypeMapping.end()) {
         std::string localStr = StringUtil::ToLocalStr(unitTypeMapping[unitTypeNumber]);
         return localStr;

@@ -22,14 +22,13 @@
 #include "SourceProtocolResponse.h"
 #include "SourceFileParser.h"
 #include "QueryCachelineRecordHandler.h"
- 
+
 namespace Dic {
 namespace Module {
 namespace Source {
 using namespace Dic::Server;
- 
-bool QueryCachelineRecordHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+
+bool QueryCachelineRecordHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     std::unique_ptr<CachelineRecordResponse> responsePtr = std::make_unique<CachelineRecordResponse>();
     CachelineRecordResponse &response = *responsePtr;
     SetBaseResponse(*requestPtr, response);
@@ -39,8 +38,7 @@ bool QueryCachelineRecordHandler::HandleRequest(std::unique_ptr<Protocol::Reques
     return true;
 }
 
-std::string QueryCachelineRecordHandler::QueryCachelineRecord(const std::string& filePath)
-{
+std::string QueryCachelineRecordHandler::QueryCachelineRecord(const std::string &filePath) {
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary);
     if (!file) {
         ServerLog::Error("Can't open file, please check file exist or not, file name: ", filePath);
@@ -54,7 +52,7 @@ std::string QueryCachelineRecordHandler::QueryCachelineRecord(const std::string&
     Module::Source::Position &pair = cacheLinePos.at(0);
     return BinFileParseUtil::GetContentStr(file, pair);
 }
- 
+
 } // Source
 } // Module
 } // Dic

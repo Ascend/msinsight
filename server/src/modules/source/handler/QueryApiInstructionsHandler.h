@@ -19,18 +19,14 @@
 #ifndef PROFILER_SERVER_QUERY_API_INSTRUCTIONS_H
 #define PROFILER_SERVER_QUERY_API_INSTRUCTIONS_H
 
-
 #include "SourceRequestHandler.h"
 
 namespace Dic {
 namespace Module {
 namespace Source {
 class QueryApiInstructionsHandler : public SourceRequestHandler {
-public:
-    QueryApiInstructionsHandler()
-    {
-        command = Protocol::REQ_RES_SOURCE_API_INSTRUCTIONS;
-    }
+  public:
+    QueryApiInstructionsHandler() { command = Protocol::REQ_RES_SOURCE_API_INSTRUCTIONS; }
 
     ~QueryApiInstructionsHandler() override = default;
 

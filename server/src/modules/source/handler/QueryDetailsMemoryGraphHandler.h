@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class QueryDetailsMemoryGraphHandler : public SourceRequestHandler {
-public:
-    QueryDetailsMemoryGraphHandler()
-    {
-        command = Protocol::REQ_RES_DETAILS_COMPUTE_MEMORY_GRAPH;
-    }
+  public:
+    QueryDetailsMemoryGraphHandler() { command = Protocol::REQ_RES_DETAILS_COMPUTE_MEMORY_GRAPH; }
     ~QueryDetailsMemoryGraphHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

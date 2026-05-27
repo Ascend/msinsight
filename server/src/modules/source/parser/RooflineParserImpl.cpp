@@ -22,8 +22,7 @@
 namespace Dic::Module::Source {
 using namespace Server;
 using namespace Protocol;
-bool RooflineParserImpl::GetDetailsRoofline(const std::string& jsonStr, Protocol::DetailsRooflineBody &responseBody)
-{
+bool RooflineParserImpl::GetDetailsRoofline(const std::string &jsonStr, Protocol::DetailsRooflineBody &responseBody) {
     std::optional<Protocol::RooflineData> rooflineData = ConvertStrToRooflineData(jsonStr);
     if (rooflineData.has_value()) {
         responseBody.advice = rooflineData->advice;
@@ -33,8 +32,7 @@ bool RooflineParserImpl::GetDetailsRoofline(const std::string& jsonStr, Protocol
     return false;
 }
 
-std::optional<Protocol::RooflineData> RooflineParserImpl::ConvertStrToRooflineData(const std::string &json)
-{
+std::optional<Protocol::RooflineData> RooflineParserImpl::ConvertStrToRooflineData(const std::string &json) {
     if (json.empty()) {
         return std::nullopt;
     }
@@ -52,17 +50,15 @@ std::optional<Protocol::RooflineData> RooflineParserImpl::ConvertStrToRooflineDa
     }
     Value &multiRoofline = jsonParsed.value()["multiple_rooflines"];
     if (!multiRoofline.IsArray()) {
-        ServerLog::Error("Invaild data format, roofline graph should be array");
+        ServerLog::Error("Invalid data format, roofline graph should be array");
         return std::nullopt;
     }
     std::transform(multiRoofline.GetArray().begin(), multiRoofline.GetArray().end(),
-                   std::back_inserter(rooflineData.multipleRooflines),
-                   RooflineParserImpl::ParseRooflineData);
+        std::back_inserter(rooflineData.multipleRooflines), RooflineParserImpl::ParseRooflineData);
     return rooflineData;
 }
 
-Protocol::RooflineGraph RooflineParserImpl::ParseRooflineData(const json_t &item)
-{
+Protocol::RooflineGraph RooflineParserImpl::ParseRooflineData(const json_t &item) {
     Protocol::RooflineGraph rooflineData;
     rooflineData.title = JsonUtil::GetString(item, "title");
     if (!item.HasMember("rooflines")) {
@@ -73,13 +69,12 @@ Protocol::RooflineGraph RooflineParserImpl::ParseRooflineData(const json_t &item
     if (!rooflines.IsArray()) {
         return rooflineData;
     }
-    std::transform(rooflines.GetArray().begin(), rooflines.GetArray().end(),
-                   std::back_inserter(rooflineData.rooflines), RooflineParserImpl::ParseRoofline);
+    std::transform(rooflines.GetArray().begin(), rooflines.GetArray().end(), std::back_inserter(rooflineData.rooflines),
+        RooflineParserImpl::ParseRoofline);
     return rooflineData;
 }
 
-Protocol::Roofline RooflineParserImpl::ParseRoofline(const json_t &item)
-{
+Protocol::Roofline RooflineParserImpl::ParseRoofline(const json_t &item) {
     Protocol::Roofline roofline;
     roofline.bw = JsonUtil::GetString(item, "bw");
     roofline.bwName = JsonUtil::GetString(item, "bw_name");

@@ -27,8 +27,7 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 
-bool QueryApiInstructionsDynamicHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryApiInstructionsDynamicHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SourceApiInstrDynamicRequest &>(*requestPtr);
     std::unique_ptr<SourceApiInstrDynamicResponse> responsePtr = std::make_unique<SourceApiInstrDynamicResponse>();
     SourceApiInstrDynamicResponse &response = *responsePtr;
@@ -45,15 +44,14 @@ bool QueryApiInstructionsDynamicHandler::HandleRequest(std::unique_ptr<Protocol:
     return true;
 }
 
-void QueryApiInstructionsDynamicHandler::SetResponseBody(SourceApiInstrDynamicResponse &response,
-                                                         SourceApiInstrDynamicRequest &request)
-{
+void QueryApiInstructionsDynamicHandler::SetResponseBody(
+    SourceApiInstrDynamicResponse &response, SourceApiInstrDynamicRequest &request) {
     auto instructions = SourceFileParser::Instance().GetInstrDynamic(request.params.coreName);
     auto columNameMap = SourceFileParser::Instance().GetInstructionColumnTypeMap();
     response.body.coreName = request.params.coreName;
     if (columNameMap.empty()) { // 如果列名映射表为空，说明是老版本数据
         const auto &vector = SourceFileParser::Instance().GetInstructions(request.params.coreName);
-        for (const auto &item: vector) {
+        for (const auto &item : vector) {
             SourceApiInstrRes temp;
             temp.pipe = item.pipe;
             temp.ascendCInnerCode = item.ascendCInnerCode;
@@ -70,7 +68,7 @@ void QueryApiInstructionsDynamicHandler::SetResponseBody(SourceApiInstrDynamicRe
     // 组装每一列的表头信息
     response.body.columnNameMap = columNameMap;
     // 组装每一列的数据
-    for (const auto &item: instructions) {
+    for (const auto &item : instructions) {
         SourceColumnValueMap col;
         TransformColumnData(item.floatColumnMap, col.floatMap);
         TransformColumnData(item.intColumnMap, col.intMap);
@@ -81,12 +79,10 @@ void QueryApiInstructionsDynamicHandler::SetResponseBody(SourceApiInstrDynamicRe
     }
 }
 
-template<typename T>
+template <typename T>
 void QueryApiInstructionsDynamicHandler::TransformColumnData(
-    const std::unordered_map<std::string, std::vector<T>> &source,
-    std::unordered_map<std::string, T> &target)
-{
-    for (const auto &innerItem: source) {
+    const std::unordered_map<std::string, std::vector<T>> &source, std::unordered_map<std::string, T> &target) {
+    for (const auto &innerItem : source) {
         if (innerItem.second.empty()) {
             continue;
         }

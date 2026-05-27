@@ -34,27 +34,13 @@ struct ColumnDataType {
     };
 };
 
-enum class GRPStatus{
-    SPACE = 0,
-    READ = 1,
-    WRITE = 2,
-    READ_WRITE = 3,
-    IN_USE = 4
-};
+enum class GRPStatus { SPACE = 0, READ = 1, WRITE = 2, READ_WRITE = 3, IN_USE = 4 };
 
-inline GRPStatus GetGRPStatus(int status) {
-    return static_cast<GRPStatus>(status);
-}
+inline GRPStatus GetGRPStatus(int status) { return static_cast<GRPStatus>(status); }
 
-inline int GetGRPStatus2Int(GRPStatus status) {
-    return static_cast<int>(status);
-}
+inline int GetGRPStatus2Int(GRPStatus status) { return static_cast<int>(status); }
 
-enum class GRPProgress {
-    BEGIN = 0,
-    END = 1,
-    IN_USE = 2
-};
+enum class GRPProgress { BEGIN = 0, END = 1, IN_USE = 2 };
 
 struct GRPInfo {
     std::string regName;

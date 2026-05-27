@@ -25,8 +25,7 @@
 namespace Dic::Module::Source {
 using namespace Dic::Server;
 
-bool QueryDetailsRooflineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryDetailsRooflineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<DetailsRooflineRequest &>(*requestPtr);
     auto responsePtr = std::make_unique<DetailsRooflineResponse>();
     DetailsRooflineResponse &response = *responsePtr;

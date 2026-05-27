@@ -24,11 +24,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class QueryDetailsMemoryTableHandler : public SourceRequestHandler {
-public:
-    QueryDetailsMemoryTableHandler()
-    {
-        command = Protocol::REQ_RES_DETAILS_COMPUTE_MEMORY_TABLE;
-    }
+  public:
+    QueryDetailsMemoryTableHandler() { command = Protocol::REQ_RES_DETAILS_COMPUTE_MEMORY_TABLE; }
     ~QueryDetailsMemoryTableHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

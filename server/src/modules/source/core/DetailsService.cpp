@@ -25,9 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 
-bool DetailsService::QueryDetailsLoadInfo(const SourceDetailsLoadInfoRequest &request,
-    DetailsLoadInfoResponse &response)
-{
+bool DetailsService::QueryDetailsLoadInfo(
+    const SourceDetailsLoadInfoRequest &request, DetailsLoadInfoResponse &response) {
     DetailsLoadInfoResBody compareBody;
     bool result = SourceFileParser::Instance().GetDetailsLoadInfo(compareBody, false);
     if (!result) {
@@ -51,11 +50,10 @@ bool DetailsService::QueryDetailsLoadInfo(const SourceDetailsLoadInfoRequest &re
     return true;
 }
 
-SubBlockData DetailsService::MergeSubBlockData(const SubBlockData &compare, const SubBlockData &baseline)
-{
+SubBlockData DetailsService::MergeSubBlockData(const SubBlockData &compare, const SubBlockData &baseline) {
     std::unordered_map<std::string, CompareData<SubBlockUnitData>> subBlockDataMap;
     // 将对比数据存入map中
-    for (const auto &item: compare.detailDataList) {
+    for (const auto &item : compare.detailDataList) {
         std::string key = GetSubBlockDataKey(item.compare);
         if (key.empty()) {
             continue;
@@ -65,7 +63,7 @@ SubBlockData DetailsService::MergeSubBlockData(const SubBlockData &compare, cons
         subBlockDataMap[key].diff.BaseInfoClone(subBlockDataMap[key].compare);
     }
     // 遍历baseline，将baseline数据也存入map中
-    for (const auto &item: baseline.detailDataList) {
+    for (const auto &item : baseline.detailDataList) {
         std::string key = GetSubBlockDataKey(item.compare);
         if (key.empty()) {
             continue;
@@ -89,19 +87,17 @@ SubBlockData DetailsService::MergeSubBlockData(const SubBlockData &compare, cons
     }
     // 将map内容收集并返回合并的结果
     SubBlockData res;
-    for (const auto &item: subBlockDataMap) {
+    for (const auto &item : subBlockDataMap) {
         res.detailDataList.push_back(item.second);
     }
     return res;
 }
 
-std::string DetailsService::GetSubBlockDataKey(const SubBlockUnitData& data)
-{
+std::string DetailsService::GetSubBlockDataKey(const SubBlockUnitData &data) {
     return data.blockId + underline + data.blockType + data.name;
 }
 
-bool DetailsService::QueryMemoryGraph(const DetailsMemoryGraphRequest &request, DetailsMemoryGraphResponse &response)
-{
+bool DetailsService::QueryMemoryGraph(const DetailsMemoryGraphRequest &request, DetailsMemoryGraphResponse &response) {
     DetailsMemoryGraphResBody compareBody;
     bool result = SourceFileParser::Instance().GetDetailsMemoryGraph(request.params.blockId, false, compareBody);
     if (!result) {
@@ -124,15 +120,14 @@ bool DetailsService::QueryMemoryGraph(const DetailsMemoryGraphRequest &request, 
     return true;
 }
 
-std::vector<MemoryGraph> DetailsService::MergeMemoryGraph(const std::vector<MemoryGraph> &compare,
-                                                          const std::vector<MemoryGraph> &baseline)
-{
+std::vector<MemoryGraph> DetailsService::MergeMemoryGraph(
+    const std::vector<MemoryGraph> &compare, const std::vector<MemoryGraph> &baseline) {
     std::unordered_map<std::string, MemoryGraph> subMemoryGraphMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         subMemoryGraphMap[item.blockId] = item;
     }
 
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         // 直接从map中取对应blockId的对象，如果数据不存在，此处会自动新建一个空对象
         MemoryGraph &compareGraph = subMemoryGraphMap[item.blockId];
         if (compareGraph.blockId.empty()) {
@@ -151,32 +146,32 @@ std::vector<MemoryGraph> DetailsService::MergeMemoryGraph(const std::vector<Memo
 
     std::vector<MemoryGraph> res;
     res.reserve(subMemoryGraphMap.size());
-    for (const auto &item: subMemoryGraphMap) {
+    for (const auto &item : subMemoryGraphMap) {
         res.push_back(item.second);
     }
     return res;
 }
 
 std::vector<CompareData<MemoryUnit>> DetailsService::MergeMemoryUnit(
-    const std::vector<CompareData<MemoryUnit>> &compare, const std::vector<CompareData<MemoryUnit>> &baseline)
-{
+    const std::vector<CompareData<MemoryUnit>> &compare, const std::vector<CompareData<MemoryUnit>> &baseline) {
     std::unordered_map<std::string, CompareData<MemoryUnit>> memoryUnitMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         memoryUnitMap[item.compare.memoryPath] = item;
     }
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         MemoryUnit baselineMemoryUnit = item.compare;
         if (memoryUnitMap.find(baselineMemoryUnit.memoryPath) != memoryUnitMap.end()) {
             MemoryUnit compareMemoryUnit = memoryUnitMap[baselineMemoryUnit.memoryPath].compare;
             MemoryUnit diff;
             diff.memoryPath = baselineMemoryUnit.memoryPath;
-            diff.request = NumberUtil::StringUnsignedLongLongMinus(compareMemoryUnit.request, baselineMemoryUnit.request);
+            diff.request =
+                NumberUtil::StringUnsignedLongLongMinus(compareMemoryUnit.request, baselineMemoryUnit.request);
             diff.requestSuffix = compareMemoryUnit.requestSuffix;
-            diff.bandwidth = NumberUtil::StringDoubleMinusWithoutTrailingZero(compareMemoryUnit.bandwidth,
-                                                                              baselineMemoryUnit.bandwidth);
+            diff.bandwidth = NumberUtil::StringDoubleMinusWithoutTrailingZero(
+                compareMemoryUnit.bandwidth, baselineMemoryUnit.bandwidth);
             diff.bandwidthSuffix = compareMemoryUnit.bandwidthSuffix;
-            diff.peakRatio = NumberUtil::StringDoubleMinusWithoutTrailingZero(compareMemoryUnit.peakRatio,
-                                                                              baselineMemoryUnit.peakRatio);
+            diff.peakRatio = NumberUtil::StringDoubleMinusWithoutTrailingZero(
+                compareMemoryUnit.peakRatio, baselineMemoryUnit.peakRatio);
             // 线的数据是否展示以compare数据为准
             diff.display = compareMemoryUnit.display;
             memoryUnitMap[baselineMemoryUnit.memoryPath].diff = diff;
@@ -185,40 +180,37 @@ std::vector<CompareData<MemoryUnit>> DetailsService::MergeMemoryUnit(
     }
     std::vector<CompareData<MemoryUnit>> res;
     res.reserve(memoryUnitMap.size());
-    for (const auto &item: memoryUnitMap) {
+    for (const auto &item : memoryUnitMap) {
         res.push_back(item.second);
     }
     return res;
 }
 
-CompareData<Protocol::L2Cache> DetailsService::MergeL2Cache(const L2Cache &compare, const L2Cache &baseline)
-{
+CompareData<Protocol::L2Cache> DetailsService::MergeL2Cache(const L2Cache &compare, const L2Cache &baseline) {
     CompareData<L2Cache> res;
     res.compare = compare;
     res.baseline = baseline;
-    res.diff.totalRequest = NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.totalRequest,
-                                                                             res.baseline.totalRequest);
+    res.diff.totalRequest =
+        NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.totalRequest, res.baseline.totalRequest);
     res.diff.miss = NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.miss, res.baseline.miss);
     res.diff.hit = NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.hit, res.baseline.hit);
     res.diff.hitRatio = NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.hitRatio, res.baseline.hitRatio);
     return res;
 }
 
-CompareData<UtilizationRate> DetailsService::MergeUtilizationRate(const UtilizationRate &compare,
-                                                                  const UtilizationRate &baseline)
-{
+CompareData<UtilizationRate> DetailsService::MergeUtilizationRate(
+    const UtilizationRate &compare, const UtilizationRate &baseline) {
     CompareData<UtilizationRate> res;
     res.compare = compare;
     res.baseline = baseline;
     res.diff.ratio = NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.ratio, res.baseline.ratio);
-    res.diff.totalCycles = NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.totalCycles,
-                                                                            res.baseline.totalCycles);
+    res.diff.totalCycles =
+        NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.totalCycles, res.baseline.totalCycles);
     res.diff.cycle = NumberUtil::StringDoubleMinusWithoutTrailingZero(res.compare.cycle, res.baseline.cycle);
     return res;
 }
 
-bool DetailsService::QueryMemoryTable(const DetailsMemoryTableRequest& request, DetailsMemoryTableResponse &response)
-{
+bool DetailsService::QueryMemoryTable(const DetailsMemoryTableRequest &request, DetailsMemoryTableResponse &response) {
     DetailsMemoryTableResBody compareBody;
     bool result = SourceFileParser::Instance().GetDetailsMemoryTable(request.params.blockId, false, compareBody);
     if (!result) {
@@ -241,15 +233,14 @@ bool DetailsService::QueryMemoryTable(const DetailsMemoryTableRequest& request, 
     return true;
 }
 
-std::vector<MemoryTable> DetailsService::MergeMemoryTables(const std::vector<MemoryTable> &compare,
-                                                           const std::vector<MemoryTable> &baseline)
-{
+std::vector<MemoryTable> DetailsService::MergeMemoryTables(
+    const std::vector<MemoryTable> &compare, const std::vector<MemoryTable> &baseline) {
     std::unordered_map<std::string, MemoryTable> memoryTableMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         memoryTableMap[item.blockId] = item;
         memoryTableMap[item.blockId].FillBaseInfoFromCompare();
     }
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         MemoryTable &table = memoryTableMap[item.blockId];
         if (table.blockId.empty()) {
             table.blockId = item.blockId;
@@ -260,7 +251,7 @@ std::vector<MemoryTable> DetailsService::MergeMemoryTables(const std::vector<Mem
     }
     std::vector<MemoryTable> res;
     res.reserve(memoryTableMap.size());
-    for (const auto &item: memoryTableMap) {
+    for (const auto &item : memoryTableMap) {
         res.push_back(item.second);
     }
     return res;
@@ -268,14 +259,13 @@ std::vector<MemoryTable> DetailsService::MergeMemoryTables(const std::vector<Mem
 
 std::vector<TableDetail<CompareData<TableRow>>> DetailsService::MergeCompareTableList(
     const std::vector<TableDetail<CompareData<TableRow>>> &compare,
-    const std::vector<TableDetail<CompareData<TableRow>>> &baseline)
-{
+    const std::vector<TableDetail<CompareData<TableRow>>> &baseline) {
     std::unordered_map<std::string, TableDetail<CompareData<TableRow>>> memoryTableDetailMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         memoryTableDetailMap[item.tableName] = item;
     }
 
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         // 以compare的数据为准，如果compare有数据 baseline没数据，则不显示
         if (memoryTableDetailMap.count(item.tableName) == 0) {
             continue;
@@ -283,28 +273,27 @@ std::vector<TableDetail<CompareData<TableRow>>> DetailsService::MergeCompareTabl
         TableDetail<CompareData<TableRow>> &tableDetail = memoryTableDetailMap[item.tableName];
         tableDetail.row = MergeCompareRows(memoryTableDetailMap[item.tableName].row, item.row);
         // 表格内容合并后，重置表格大小
-        std::vector<std::string> newSize = {std::to_string(tableDetail.headerName.size()),
-                                            std::to_string(tableDetail.row.size())};
+        std::vector<std::string> newSize = {
+            std::to_string(tableDetail.headerName.size()), std::to_string(tableDetail.row.size())};
         tableDetail.size = newSize;
     }
     std::vector<TableDetail<CompareData<TableRow>>> res;
     res.reserve(memoryTableDetailMap.size());
-    for (const auto &item: memoryTableDetailMap) {
+    for (const auto &item : memoryTableDetailMap) {
         res.push_back(item.second);
     }
     return res;
 }
 
-std::vector<CompareData<TableRow>> DetailsService::MergeCompareRows(const std::vector<CompareData<TableRow>> &compare,
-                                                                    const std::vector<CompareData<TableRow>> &baseline)
-{
+std::vector<CompareData<TableRow>> DetailsService::MergeCompareRows(
+    const std::vector<CompareData<TableRow>> &compare, const std::vector<CompareData<TableRow>> &baseline) {
     std::vector<CompareData<TableRow>> res;
     std::unordered_map<std::string, CompareData<TableRow>> tableRowMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         tableRowMap[item.compare.name] = item;
     }
 
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         std::string rowName = item.compare.name;
         if (tableRowMap.find(rowName) != tableRowMap.end()) {
             unsigned long long colNum = std::min(tableRowMap[rowName].compare.value.size(), item.compare.value.size());
@@ -318,15 +307,14 @@ std::vector<CompareData<TableRow>> DetailsService::MergeCompareRows(const std::v
     }
 
     res.reserve(tableRowMap.size());
-    for (const auto &item: tableRowMap) {
+    for (const auto &item : tableRowMap) {
         res.push_back(item.second);
     }
     return res;
 }
 
-bool DetailsService::QueryCoreLoadAnalysisGraph(const DetailsInterCoreLoadGraphRequest &request,
-                                                DetailsInterCoreLoadGraphResponse &response)
-{
+bool DetailsService::QueryCoreLoadAnalysisGraph(
+    const DetailsInterCoreLoadGraphRequest &request, DetailsInterCoreLoadGraphResponse &response) {
     DetailsInterCoreLoadGraphBody compareBody;
     bool result = SourceFileParser::Instance().GetDetailsInterCoreLoadAnalysisGraph(compareBody, false);
     if (!result) {
@@ -351,24 +339,23 @@ bool DetailsService::QueryCoreLoadAnalysisGraph(const DetailsInterCoreLoadGraphR
 
 std::vector<DetailsInterCoreLoadOpDetail> DetailsService::MergeCoreLoadOpDetail(
     const std::vector<DetailsInterCoreLoadOpDetail> &compare,
-    const std::vector<DetailsInterCoreLoadOpDetail> &baseline)
-{
+    const std::vector<DetailsInterCoreLoadOpDetail> &baseline) {
     std::unordered_map<uint8_t, DetailsInterCoreLoadOpDetail> opDetailMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         opDetailMap[item.coreId] = item;
     }
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         // 这里会查找compare中是否存在数据，如果存在才会记录baseline的信息，否则不对这条数据进行合并
         if (opDetailMap.find(item.coreId) == opDetailMap.end()) {
             continue;
         }
-        opDetailMap[item.coreId].subCoreDetails = MergeCoreDetail(opDetailMap[item.coreId].subCoreDetails,
-                                                                  item.subCoreDetails);
+        opDetailMap[item.coreId].subCoreDetails =
+            MergeCoreDetail(opDetailMap[item.coreId].subCoreDetails, item.subCoreDetails);
     }
 
     std::vector<DetailsInterCoreLoadOpDetail> result;
     result.reserve(opDetailMap.size());
-    for (const auto &item: opDetailMap) {
+    for (const auto &item : opDetailMap) {
         result.push_back(item.second);
     }
     return result;
@@ -376,14 +363,13 @@ std::vector<DetailsInterCoreLoadOpDetail> DetailsService::MergeCoreLoadOpDetail(
 
 std::vector<DetailsInterCoreLoadSubCoreDetail> DetailsService::MergeCoreDetail(
     const std::vector<DetailsInterCoreLoadSubCoreDetail> &compare,
-    const std::vector<DetailsInterCoreLoadSubCoreDetail> &baseline)
-{
+    const std::vector<DetailsInterCoreLoadSubCoreDetail> &baseline) {
     std::unordered_map<std::string, DetailsInterCoreLoadSubCoreDetail> coreDetailMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         coreDetailMap[item.subCoreName] = item;
     }
 
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         if (coreDetailMap.find(item.subCoreName) == coreDetailMap.end()) {
             continue;
         }
@@ -393,12 +379,12 @@ std::vector<DetailsInterCoreLoadSubCoreDetail> DetailsService::MergeCoreDetail(
         detail.throughput.value.baseline = item.throughput.value.compare;
         detail.throughput.value.diff = NumberSafe::Sub(item.throughput.value.compare, detail.throughput.value.baseline);
         detail.cacheHitRate.value.baseline = item.cacheHitRate.value.compare;
-        detail.cacheHitRate.value.diff = NumberSafe::Sub(item.cacheHitRate.value.compare,
-                                                         detail.cacheHitRate.value.baseline);
+        detail.cacheHitRate.value.diff =
+            NumberSafe::Sub(item.cacheHitRate.value.compare, detail.cacheHitRate.value.baseline);
     }
     std::vector<DetailsInterCoreLoadSubCoreDetail> result;
     result.reserve(coreDetailMap.size());
-    for (const auto &item: coreDetailMap) {
+    for (const auto &item : coreDetailMap) {
         result.push_back(item.second);
     }
     return result;

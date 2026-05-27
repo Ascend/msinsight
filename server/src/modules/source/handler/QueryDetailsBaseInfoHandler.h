@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class QueryDetailsBaseInfoHandler : public SourceRequestHandler {
-public:
-    QueryDetailsBaseInfoHandler()
-    {
-        command = Protocol::REQ_RES_DETAILS_BASE_INFO;
-    }
+  public:
+    QueryDetailsBaseInfoHandler() { command = Protocol::REQ_RES_DETAILS_BASE_INFO; }
     ~QueryDetailsBaseInfoHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

@@ -53,13 +53,9 @@ struct InterCoreLoadAnalysisDetail {
     std::map<std::string, uint64_t> minThroughputMap;
     std::map<std::string, float> maxHitRateMap;
 
-    void AddOpDetail(InterCoreOpDetail&& opDetail)
-    {
-        opDetails.emplace_back(std::move(opDetail));
-    }
+    void AddOpDetail(InterCoreOpDetail &&opDetail) { opDetails.emplace_back(std::move(opDetail)); }
 
-    void SetMinCycle(const std::string &subCoreType, uint64_t cycle)
-    {
+    void SetMinCycle(const std::string &subCoreType, uint64_t cycle) {
         if (cycle == 0) {
             return;
         }
@@ -71,8 +67,7 @@ struct InterCoreLoadAnalysisDetail {
         minCycle = std::min(minCycle, cycle);
     }
 
-    void SetMinThroughput(const std::string &subCoreType, uint64_t throughput)
-    {
+    void SetMinThroughput(const std::string &subCoreType, uint64_t throughput) {
         if (throughput == 0) {
             return;
         }
@@ -84,8 +79,7 @@ struct InterCoreLoadAnalysisDetail {
         minThroughput = std::min(minThroughput, throughput);
     }
 
-    void SetMaxHitRate(const std::string &subCoreType, float hitRate)
-    {
+    void SetMaxHitRate(const std::string &subCoreType, float hitRate) {
         float &maxHitRate = maxHitRateMap[subCoreType];
         maxHitRate = (NumberUtil::IsGreater(hitRate, maxHitRate) ? hitRate : maxHitRate);
     }
@@ -94,15 +88,13 @@ struct InterCoreLoadAnalysisDetail {
 /**
  * @brief  用于辅助计算核间负载的归一化值, 内部计算使用long double类型
  */
-class SigmodStatHelper
-{
-public:
+class SigmodStatHelper {
+  public:
     long double average = {};
     int64_t count = {}; // normally the count
     long double sigma = 0.0;
     std::vector<long double> data; // copy the data
-    void  CalculateSigma()
-    {
+    void CalculateSigma() {
         if (data.empty()) {
             return;
         }
@@ -112,7 +104,7 @@ public:
         average = sum / static_cast<long double>(count);
         if (count <= 1) {
             sigma = 0.0;
-            return ;
+            return;
         }
 
         // 2. 计算平方差之和
@@ -128,11 +120,11 @@ public:
 };
 
 class InterCoreLoadGraphParser {
-public:
-    bool GetInterCoreLoadAnalysisInfo(const std::string& json, Dic::Protocol::DetailsInterCoreLoadGraphBody& body);
+  public:
+    bool GetInterCoreLoadAnalysisInfo(const std::string &json, Dic::Protocol::DetailsInterCoreLoadGraphBody &body);
 
-private:
-    std::optional<InterCoreLoadAnalysisDetail> ParseInterCoreLoadAnalysisInfo(const std::string& json);
+  private:
+    std::optional<InterCoreLoadAnalysisDetail> ParseInterCoreLoadAnalysisInfo(const std::string &json);
     void ParseJsonOpDetailArray(InterCoreLoadAnalysisDetail &analysisDetail, const json_t &jsonOpDetailArray);
     void TransformAnalysisDetail(InterCoreLoadAnalysisDetail &analysisDetail);
     void Try2MoveSubCoreDetails(InterCoreOpDetail &source, InterCoreOpDetail &dest, uint8_t subCoreIndex);
@@ -143,7 +135,7 @@ private:
     const uint8_t SUB_CORE_INDEX_0 = 0;
     const uint8_t SUB_CORE_INDEX_1 = 1;
     std::unordered_map<std::string, SigmodStatHelper> cacheHitRatioSigmodStats;
-    std::unordered_map<std::string , SigmodStatHelper> cyclesSigmodStats;
+    std::unordered_map<std::string, SigmodStatHelper> cyclesSigmodStats;
     std::unordered_map<std::string, SigmodStatHelper> throughputSigmodStats;
     std::unordered_map<std::string, SigmodStatHelper> simtVfInstructionSigmodStats;
 };

@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class QueryApiLineHandler : public SourceRequestHandler {
-public:
-    QueryApiLineHandler()
-    {
-        command = Protocol::REQ_RES_SOURCE_API_LINE;
-    }
+  public:
+    QueryApiLineHandler() { command = Protocol::REQ_RES_SOURCE_API_LINE; }
 
     ~QueryApiLineHandler() override = default;
 

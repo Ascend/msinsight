@@ -26,8 +26,7 @@
 namespace Dic::Module::Source {
 using namespace Dic::Server;
 
-bool QueryInterCoreLoadAnalysisGraphHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr)
-{
+bool QueryInterCoreLoadAnalysisGraphHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<DetailsInterCoreLoadGraphRequest &>(*requestPtr);
     std::unique_ptr<DetailsInterCoreLoadGraphResponse> responsePtr =
         std::make_unique<DetailsInterCoreLoadGraphResponse>();

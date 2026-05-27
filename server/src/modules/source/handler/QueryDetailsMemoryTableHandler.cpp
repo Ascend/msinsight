@@ -26,15 +26,13 @@ namespace Module {
 namespace Source {
 using namespace Dic::Server;
 
-bool QueryDetailsMemoryTableHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryDetailsMemoryTableHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<DetailsMemoryTableRequest &>(*requestPtr);
-    std::unique_ptr<DetailsMemoryTableResponse> responsePtr =
-            std::make_unique<DetailsMemoryTableResponse>();
+    std::unique_ptr<DetailsMemoryTableResponse> responsePtr = std::make_unique<DetailsMemoryTableResponse>();
     DetailsMemoryTableResponse &response = *responsePtr;
     SetBaseResponse(request, response);
-    if (auto [isVaild, errMsg] = request.params.Vaild(); isVaild == false) {
-        ServerLog::Error("Parameter of command ", request.command, " is invaild, error:", errMsg);
+    if (auto [isValid, errMsg] = request.params.Valid(); isValid == false) {
+        ServerLog::Error("Parameter of command ", request.command, " is invalid, error:", errMsg);
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }

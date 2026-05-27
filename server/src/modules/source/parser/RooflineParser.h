@@ -25,22 +25,19 @@
 
 namespace Dic::Module::Source {
 class RooflineParser {
-public:
-    RooflineParser() : impl(std::make_unique<RooflineParserImpl>())
-    {};
+  public:
+    RooflineParser() : impl(std::make_unique<RooflineParserImpl>()) {};
 
-    bool GetDetailsRoofline(const std::string &jsonStr, Protocol::DetailsRooflineBody &responseBody)
-    {
+    bool GetDetailsRoofline(const std::string &jsonStr, Protocol::DetailsRooflineBody &responseBody) {
         if (impl != nullptr) {
             return impl->GetDetailsRoofline(jsonStr, responseBody);
         }
         return false;
     }
 
-private:
+  private:
     std::unique_ptr<RooflineParserImpl> impl;
 };
 }
-
 
 #endif // PROFILER_SERVER_ROOFLINEPARSER_H

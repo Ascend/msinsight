@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Source {
 class QueryCodeFileHandler : public SourceRequestHandler {
-public:
-    QueryCodeFileHandler()
-    {
-        command = Protocol::REQ_RES_SOURCE_CODE_FILE;
-    }
+  public:
+    QueryCodeFileHandler() { command = Protocol::REQ_RES_SOURCE_CODE_FILE; }
     ~QueryCodeFileHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

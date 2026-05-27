@@ -23,9 +23,8 @@ namespace Dic::Module::Source {
 using namespace Dic::Protocol;
 using namespace Dic::Server;
 
-bool InterCoreLoadGraphParser::GetInterCoreLoadAnalysisInfo(const std::string &json,
-                                                            Protocol::DetailsInterCoreLoadGraphBody &body)
-{
+bool InterCoreLoadGraphParser::GetInterCoreLoadAnalysisInfo(
+    const std::string &json, Protocol::DetailsInterCoreLoadGraphBody &body) {
     std::optional<InterCoreLoadAnalysisDetail> analysisDetailOpt = ParseInterCoreLoadAnalysisInfo(json);
     if (!analysisDetailOpt.has_value()) {
         return false;
@@ -40,24 +39,24 @@ bool InterCoreLoadGraphParser::GetInterCoreLoadAnalysisInfo(const std::string &j
         for (const auto &subCoreDetail : opDetail.subCoreDetails) {
             DetailsInterCoreLoadSubCoreDetail bodySubCoreDetail;
             bodySubCoreDetail.SetCyclesDimension(static_cast<int64_t>(subCoreDetail.cycles),
-                                                 cyclesSigmodStats[subCoreDetail.subCoreType].average,
-                                                 cyclesSigmodStats[subCoreDetail.subCoreType].sigma);
+                cyclesSigmodStats[subCoreDetail.subCoreType].average,
+                cyclesSigmodStats[subCoreDetail.subCoreType].sigma);
             bodySubCoreDetail.SetThroughputDimension(static_cast<int64_t>(subCoreDetail.throughput),
-                                                     throughputSigmodStats[subCoreDetail.subCoreType].average,
-                                                     throughputSigmodStats[subCoreDetail.subCoreType].sigma);
+                throughputSigmodStats[subCoreDetail.subCoreType].average,
+                throughputSigmodStats[subCoreDetail.subCoreType].sigma);
             bodySubCoreDetail.SetCacheHitRateDimension(subCoreDetail.hitRate,
-                                                       cacheHitRatioSigmodStats[subCoreDetail.subCoreType].average,
-                                                       cacheHitRatioSigmodStats[subCoreDetail.subCoreType].sigma);
+                cacheHitRatioSigmodStats[subCoreDetail.subCoreType].average,
+                cacheHitRatioSigmodStats[subCoreDetail.subCoreType].sigma);
             bodySubCoreDetail.SetSimtVfInstruction(subCoreDetail.simtVfInstructions,
-                                                   simtVfInstructionSigmodStats[subCoreDetail.subCoreType].average,
-                                                   simtVfInstructionSigmodStats[subCoreDetail.subCoreType].sigma);
+                simtVfInstructionSigmodStats[subCoreDetail.subCoreType].average,
+                simtVfInstructionSigmodStats[subCoreDetail.subCoreType].sigma);
             bodySubCoreDetail.SetSimtVfInstructionPerCycle(subCoreDetail.simtVfInstructionPerCycle);
             bodySubCoreDetail.SetSubCoreName(subCoreDetail.subCoreType, subCoreDetail.subCoreIndex);
             bodyOpDetail.AddSubCoreDetail(std::move(bodySubCoreDetail));
         }
         body.AddOpDetail(std::move(bodyOpDetail));
     }
-    
+
     return true;
 }
 
@@ -83,8 +82,7 @@ bool InterCoreLoadGraphParser::GetInterCoreLoadAnalysisInfo(const std::string &j
         }
 */
 std::optional<InterCoreLoadAnalysisDetail> InterCoreLoadGraphParser::ParseInterCoreLoadAnalysisInfo(
-    const std::string &json)
-{
+    const std::string &json) {
     if (json.empty()) {
         ServerLog::Warn("Inter core load analysis json string is empty.");
         return std::nullopt;
@@ -93,9 +91,7 @@ std::optional<InterCoreLoadAnalysisDetail> InterCoreLoadGraphParser::ParseInterC
     InterCoreLoadAnalysisDetail analysisDetail;
     try {
         std::string errorStr;
-        const std::optional<document_t> &jsonInfo = JsonUtil::TryParse<kParseNumbersAsStringsFlag>(
-            json,
-            errorStr);
+        const std::optional<document_t> &jsonInfo = JsonUtil::TryParse<kParseNumbersAsStringsFlag>(json, errorStr);
         if (!errorStr.empty() || !jsonInfo.has_value()) {
             ServerLog::Error("Try to parse inter core load analysis json string failed, error is ", errorStr);
             return std::nullopt;
@@ -107,8 +103,7 @@ std::optional<InterCoreLoadAnalysisDetail> InterCoreLoadGraphParser::ParseInterC
 
         // 解析op detail数组
         if (!JsonUtil::IsJsonArray(jsonInfoDoc, "op_detail")) {
-            ServerLog::Warn(
-                "Try to parse inter core load analysis json failed cause op detail is not an array.");
+            ServerLog::Warn("Try to parse inter core load analysis json failed cause op detail is not an array.");
             return std::nullopt;
         }
         const json_t &jsonOpDetailArray = jsonInfoDoc["op_detail"];
@@ -121,9 +116,8 @@ std::optional<InterCoreLoadAnalysisDetail> InterCoreLoadGraphParser::ParseInterC
     return {std::move(analysisDetail)};
 }
 
-void InterCoreLoadGraphParser::ParseJsonOpDetailArray(InterCoreLoadAnalysisDetail &analysisDetail,
-                                                      const json_t &jsonOpDetailArray)
-{
+void InterCoreLoadGraphParser::ParseJsonOpDetailArray(
+    InterCoreLoadAnalysisDetail &analysisDetail, const json_t &jsonOpDetailArray) {
     std::string_view errMsg;
 
     for (auto &jsonOpDetail : jsonOpDetailArray.GetArray()) {
@@ -151,7 +145,7 @@ void InterCoreLoadGraphParser::ParseJsonOpDetailArray(InterCoreLoadAnalysisDetai
             subCoreDetail.throughput = tmp < 0 ? 0 : static_cast<uint64_t>(tmp);
             subCoreDetail.hitRate = JsonUtil::GetFloat(jsonCoreDetail, "L2cache_hit_rate");
             if (jsonCoreDetail.HasMember("simt_vf_instructions") && jsonCoreDetail["simt_vf_instructions"].IsObject()) {
-                auto& simt = jsonCoreDetail["simt_vf_instructions"];
+                auto &simt = jsonCoreDetail["simt_vf_instructions"];
                 subCoreDetail.simtVfInstructions = JsonUtil::GetInteger(simt, "instructions");
                 subCoreDetail.simtVfInstructionPerCycle = JsonUtil::GetFloat(simt, "instruction_per_cycle");
             }
@@ -167,16 +161,12 @@ void InterCoreLoadGraphParser::ParseJsonOpDetailArray(InterCoreLoadAnalysisDetai
     TransformAnalysisDetail(analysisDetail);
 }
 
-void InterCoreLoadGraphParser::TransformAnalysisDetail(InterCoreLoadAnalysisDetail &analysisDetail)
-{
+void InterCoreLoadGraphParser::TransformAnalysisDetail(InterCoreLoadAnalysisDetail &analysisDetail) {
     if (analysisDetail.opType != "vector") {
         return;
     }
-    std::sort(analysisDetail.opDetails.begin(),
-              analysisDetail.opDetails.end(),
-              [](const InterCoreOpDetail &a, const InterCoreOpDetail &b) {
-                  return a.coreId < b.coreId;
-              });
+    std::sort(analysisDetail.opDetails.begin(), analysisDetail.opDetails.end(),
+        [](const InterCoreOpDetail &a, const InterCoreOpDetail &b) { return a.coreId < b.coreId; });
 
     std::vector<InterCoreOpDetail> newOpDetails;
     uint8_t index = 0;
@@ -195,46 +185,29 @@ void InterCoreLoadGraphParser::TransformAnalysisDetail(InterCoreLoadAnalysisDeta
     analysisDetail.opDetails = std::move(newOpDetails);
 }
 
-void InterCoreLoadGraphParser::Try2MoveSubCoreDetails(InterCoreOpDetail &source,
-                                                      InterCoreOpDetail &dest,
-                                                      uint8_t subCoreIndex)
-{
+void InterCoreLoadGraphParser::Try2MoveSubCoreDetails(
+    InterCoreOpDetail &source, InterCoreOpDetail &dest, uint8_t subCoreIndex) {
     if (!source.subCoreDetails.empty()) {
         auto subCoreDetail = source.subCoreDetails[0];
         subCoreDetail.subCoreIndex = subCoreIndex;
         dest.subCoreDetails.emplace_back(subCoreDetail);
     }
 }
-void InterCoreLoadGraphParser::UpdateSigmodStats(const InterCoreSubCoreDetail &detail)
-{
+void InterCoreLoadGraphParser::UpdateSigmodStats(const InterCoreSubCoreDetail &detail) {
     // 依次更新ratio，cycle，throught, core type
     cyclesSigmodStats[detail.subCoreType].data.push_back(static_cast<long double>(detail.cycles));
     throughputSigmodStats[detail.subCoreType].data.push_back(static_cast<long double>(detail.throughput));
     cacheHitRatioSigmodStats[detail.subCoreType].data.push_back(static_cast<long double>(detail.hitRate));
-    simtVfInstructionSigmodStats[detail.subCoreType].data.
-        push_back(static_cast<long double>(detail.simtVfInstructions));
+    simtVfInstructionSigmodStats[detail.subCoreType].data.push_back(
+        static_cast<long double>(detail.simtVfInstructions));
 }
-void InterCoreLoadGraphParser::FinishSigmodStats()
-{
-    std::for_each(cyclesSigmodStats.begin(),
-                  cyclesSigmodStats.end(),
-                  [](auto &item) {
-                      item.second.CalculateSigma();
-                  });
-    std::for_each(throughputSigmodStats.begin(),
-                  throughputSigmodStats.end(),
-                  [](auto &item) {
-                      item.second.CalculateSigma();
-                  });
-    std::for_each(cacheHitRatioSigmodStats.begin(),
-                  cacheHitRatioSigmodStats.end(),
-                  [](auto &item) {
-                      item.second.CalculateSigma();
-                  });
-    std::for_each(simtVfInstructionSigmodStats.begin(),
-                  simtVfInstructionSigmodStats.end(),
-                  [](auto& item) {
-                      item.second.CalculateSigma();
-                  });
+void InterCoreLoadGraphParser::FinishSigmodStats() {
+    std::for_each(cyclesSigmodStats.begin(), cyclesSigmodStats.end(), [](auto &item) { item.second.CalculateSigma(); });
+    std::for_each(
+        throughputSigmodStats.begin(), throughputSigmodStats.end(), [](auto &item) { item.second.CalculateSigma(); });
+    std::for_each(cacheHitRatioSigmodStats.begin(), cacheHitRatioSigmodStats.end(),
+        [](auto &item) { item.second.CalculateSigma(); });
+    std::for_each(simtVfInstructionSigmodStats.begin(), simtVfInstructionSigmodStats.end(),
+        [](auto &item) { item.second.CalculateSigma(); });
 }
 }

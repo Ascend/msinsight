@@ -122,8 +122,7 @@ struct TableRow {
     std::string name;
     std::vector<std::string> value;
 
-    void BaseInfoClone(const TableRow &row)
-    {
+    void BaseInfoClone(const TableRow &row) {
         name = row.name;
         value.clear();
         for (size_t i = 0; i < row.value.size(); ++i) {
@@ -132,8 +131,7 @@ struct TableRow {
     }
 };
 
-template<typename R>
-struct TableDetail {
+template <typename R> struct TableDetail {
     std::string tableName;
     std::vector<std::string> size;
     std::vector<std::string> headerName;
@@ -165,8 +163,7 @@ struct SubBlockUnitData {
     std::string unit;
     std::string value = "-";
     std::string originValue = "-";
-    void BaseInfoClone(const SubBlockUnitData &origin)
-    {
+    void BaseInfoClone(const SubBlockUnitData &origin) {
         blockId = origin.blockId;
         blockType = origin.blockType;
         name = origin.name;
@@ -175,12 +172,12 @@ struct SubBlockUnitData {
 };
 
 struct Roofline {
-    std::string bw;   // 理论带宽
+    std::string bw; // 理论带宽
     std::string bwName;
-    std::string computility;  // 屋顶算力
-    std::string computilityName;    // 算力名称
-    std::vector<std::string> point;  // 坐标
-    std::string ratio;      // 百分比
+    std::string computility; // 屋顶算力
+    std::string computilityName; // 算力名称
+    std::vector<std::string> point; // 坐标
+    std::string ratio; // 百分比
 };
 
 struct RooflineGraph {
@@ -251,8 +248,7 @@ struct MemoryTable {
     std::vector<TableDetail<CompareData<TableRow>>> tableDetail;
     std::vector<std::string> advice;
 
-    void FillBaseInfoFromCompare()
-    {
+    void FillBaseInfoFromCompare() {
         for (auto &item : tableDetail) {
             for (auto &row : item.row) {
                 TableRow &baseline = row.baseline;
@@ -281,8 +277,7 @@ struct DetailsMemoryTableResponse : public Response {
     DetailsMemoryTableResBody body;
 };
 
-template<typename T>
-struct DetailsInterCoreLoadDimension {
+template <typename T> struct DetailsInterCoreLoadDimension {
     CompareData<T> value;
     int level = 0;
 };
@@ -296,8 +291,7 @@ struct DetailsInterCoreLoadSubCoreDetail {
     DetailsInterCoreLoadDimension<uint64_t> simtVfInstructions = {{0, 0, 0}};
     DetailsInterCoreLoadDimension<float> simtVfInstructionPerCycle = {{0, 0, 0}};
 
-    void SetCyclesDimension(const int64_t curCycles, const long double average, long double sigma)
-    {
+    void SetCyclesDimension(const int64_t curCycles, const long double average, long double sigma) {
         cycles.value.compare = curCycles;
         if (std::abs(sigma) < std::numeric_limits<long double>::epsilon()) {
             cycles.level = 0;
@@ -309,8 +303,7 @@ struct DetailsInterCoreLoadSubCoreDetail {
         cycles.level = result;
     }
 
-    void SetThroughputDimension(int64_t curThroughput, long double average, long double sigma)
-    {
+    void SetThroughputDimension(int64_t curThroughput, long double average, long double sigma) {
         throughput.value.compare = curThroughput;
         if (std::abs(sigma) < std::numeric_limits<long double>::epsilon()) {
             throughput.level = 0;
@@ -322,8 +315,7 @@ struct DetailsInterCoreLoadSubCoreDetail {
         throughput.level = result;
     }
 
-    void SetCacheHitRateDimension(float curRate, long double averageRate, long double sigma)
-    {
+    void SetCacheHitRateDimension(float curRate, long double averageRate, long double sigma) {
         cacheHitRate.value.compare = curRate;
         if (std::abs(sigma) < std::numeric_limits<long double>::epsilon()) {
             cacheHitRate.level = 0;
@@ -335,25 +327,22 @@ struct DetailsInterCoreLoadSubCoreDetail {
         cacheHitRate.level = result;
     }
 
-    void SetSubCoreName(const std::string& type, uint8_t id)
-    {
-        subCoreName = type + std::to_string(id);
-    }
+    void SetSubCoreName(const std::string &type, uint8_t id) { subCoreName = type + std::to_string(id); }
 
-    void SetSimtVfInstruction(uint64_t curSimtVfInstructions, long double averageSimtVfInstructions, long double sigmaSimtVfInstructions)
-    {
+    void SetSimtVfInstruction(
+        uint64_t curSimtVfInstructions, long double averageSimtVfInstructions, long double sigmaSimtVfInstructions) {
         simtVfInstructions.value.compare = curSimtVfInstructions;
         if (std::abs(sigmaSimtVfInstructions) < std::numeric_limits<long double>::epsilon()) {
             simtVfInstructions.level = 0;
             return;
         }
-        const long double core = (static_cast<long double>(curSimtVfInstructions) - averageSimtVfInstructions) / sigmaSimtVfInstructions;
+        const long double core =
+            (static_cast<long double>(curSimtVfInstructions) - averageSimtVfInstructions) / sigmaSimtVfInstructions;
         const long double sigmod = static_cast<long double>(1) / (static_cast<long double>(1) + std::exp(-core));
         const int result = static_cast<int>(sigmod * 10);
         simtVfInstructions.level = result;
     }
-    void SetSimtVfInstructionPerCycle(float curSimtVfInstructionPerCycle)
-    {
+    void SetSimtVfInstructionPerCycle(float curSimtVfInstructionPerCycle) {
         simtVfInstructionPerCycle.value.compare = curSimtVfInstructionPerCycle;
     }
 };
@@ -362,8 +351,7 @@ struct DetailsInterCoreLoadOpDetail {
     uint8_t coreId = 0;
     std::vector<DetailsInterCoreLoadSubCoreDetail> subCoreDetails = {};
 
-    void AddSubCoreDetail(DetailsInterCoreLoadSubCoreDetail&& subCoreDetail)
-    {
+    void AddSubCoreDetail(DetailsInterCoreLoadSubCoreDetail &&subCoreDetail) {
         subCoreDetails.emplace_back(std::move(subCoreDetail));
     }
 };
@@ -374,10 +362,7 @@ struct DetailsInterCoreLoadGraphBody {
     std::string advice;
     std::vector<DetailsInterCoreLoadOpDetail> opDetails = {};
 
-    void AddOpDetail(DetailsInterCoreLoadOpDetail&& opDetail)
-    {
-        opDetails.emplace_back(std::move(opDetail));
-    }
+    void AddOpDetail(DetailsInterCoreLoadOpDetail &&opDetail) { opDetails.emplace_back(std::move(opDetail)); }
 };
 
 struct DetailsInterCoreLoadGraphResponse : public Response {
@@ -399,7 +384,7 @@ struct DetailsRooflineResponse : public Response {
 struct CacheLineRecordResBody {
     std::string cachelineRecords;
 };
- 
+
 struct CachelineRecordResponse : public Response {
     CachelineRecordResponse() : Response(std::string(REQ_RES_CACHELINE_RECORD)) {}
     CacheLineRecordResBody body;

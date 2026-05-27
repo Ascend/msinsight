@@ -23,7 +23,7 @@
 #include "SourceProtocolUtil.h"
 namespace Dic::Module::Source {
 class RooflineParserImpl {
-public:
+  public:
     bool GetDetailsRoofline(const std::string &jsonStr, Protocol::DetailsRooflineBody &responseBody);
 
     static Protocol::SubBlockUnitData ParseSubBlockUnitData(const json_t &item);
@@ -35,6 +35,5 @@ public:
     static std::optional<Protocol::RooflineData> ConvertStrToRooflineData(const std::string &json);
 };
 }
-
 
 #endif // PROFILER_SERVER_ROOFLINEPARSERIMPL_H

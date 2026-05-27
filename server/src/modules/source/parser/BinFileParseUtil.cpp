@@ -23,16 +23,15 @@
 
 namespace Dic::Module::Source {
 using namespace Dic::Server;
-std::string BinFileParseUtil::GetContentStr(std::ifstream& file, const Position& position, uint64_t maxSize)
-{
+std::string BinFileParseUtil::GetContentStr(std::ifstream &file, const Position &position, uint64_t maxSize) {
     if (!file) {
         return "";
     }
     int64_t start = position.startPos;
     int64_t end = position.endPos;
     if (start >= end || start < 0) {
-        ServerLog::Error("Invalid start position % and end position % when get content string from bin file",
-            start, end);
+        ServerLog::Error(
+            "Invalid start position % and end position % when get content string from bin file", start, end);
         return "";
     }
     int64_t dataSize = NumberSafe::Sub(end, start);
@@ -54,15 +53,12 @@ std::string BinFileParseUtil::GetContentStr(std::ifstream& file, const Position&
     return jsonStr;
 }
 
-bool BinFileParseUtil::IsDataSizeExceedUpperLimit(uint64_t realSize, uint64_t upperLimit)
-{
+bool BinFileParseUtil::IsDataSizeExceedUpperLimit(uint64_t realSize, uint64_t upperLimit) {
     return realSize > upperLimit;
 }
 
-std::string BinFileParseUtil::GetSingleContentStrByDataType(std::ifstream &file,
-                                                            DataTypeEnum dataTypeEnum,
-                                                            const std::map<int, std::vector<Position>> &curBlockMap)
-{
+std::string BinFileParseUtil::GetSingleContentStrByDataType(
+    std::ifstream &file, DataTypeEnum dataTypeEnum, const std::map<int, std::vector<Position>> &curBlockMap) {
     if (!file.is_open()) {
         return "";
     }
