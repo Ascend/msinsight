@@ -46,14 +46,15 @@ using namespace Protocol;
  *      对应在反向传播阶段 一个microBatch对应n个transformerLayer
  */
 class RLMicroBatchMegatronClassifier : public RLMicroBatchClassifierBase {
-public:
+  public:
     virtual ~RLMicroBatchMegatronClassifier() = default;
-protected:
+
+  protected:
     /**
      * @brief 查询数据
      */
-    std::vector<Protocol::RLPipelineNode> QueryMicroBatchSlices(const std::string &fileId, const RLMstxConfig &config,
-        const Protocol::RLPipelineNode &taskNode) override;
+    std::vector<Protocol::RLPipelineNode> QueryMicroBatchSlices(
+        const std::string &fileId, const RLMstxConfig &config, const Protocol::RLPipelineNode &taskNode) override;
 
     /**
      * @brief: 分类聚合
@@ -62,7 +63,7 @@ protected:
 
     void Clear();
 
-private:
+  private:
     /**
      * @brief 封装前向传播microBatch的生成
      */
@@ -84,10 +85,10 @@ private:
 
     void BPStateProcess(std::vector<Protocol::RLPipelineNode> &res, const RLPipelineNode &node);
 
-private:
-    State state = Init;      // 当前的状态
-    std::queue<int> countQue;   // 记录每个microBatch反向算子聚合的数量
-    int count = 0;      // 记录当前microBatch需要聚合的数量
+  private:
+    State state = Init; // 当前的状态
+    std::queue<int> countQue; // 记录每个microBatch反向算子聚合的数量
+    int count = 0; // 记录当前microBatch需要聚合的数量
     RLPipelineNode current; // 当前节点
 };
 }

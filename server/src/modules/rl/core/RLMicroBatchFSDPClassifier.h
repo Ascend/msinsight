@@ -22,11 +22,12 @@
 namespace Dic::Module::RL {
 using namespace Dic::Module::Timeline;
 class RLMicroBatchFSDPClassifier : public RLMicroBatchClassifierBase {
-public:
+  public:
     virtual ~RLMicroBatchFSDPClassifier() = default;
-protected:
-    std::vector<Protocol::RLPipelineNode> QueryMicroBatchSlices(const std::string &fileId, const RLMstxConfig &config,
-                                                                const Protocol::RLPipelineNode &taskNode) override;
+
+  protected:
+    std::vector<Protocol::RLPipelineNode> QueryMicroBatchSlices(
+        const std::string &fileId, const RLMstxConfig &config, const Protocol::RLPipelineNode &taskNode) override;
 
     std::vector<Protocol::RLPipelineNode> MicroBatchClassifier(std::vector<Protocol::RLPipelineNode> &nodes) override;
 
@@ -34,15 +35,14 @@ protected:
 
     std::vector<RLPipelineNode> QueryBPSlices(const std::string &rankId, const RLPipelineNode &taskNode);
 
-    std::vector<RLPipelineNode> TransSliceToNodes(
-        const std::vector<CompeteSliceDomain> &slices, const RLPipelineNode &task, const std::string &name,
-        const std::string &nodeType);
+    std::vector<RLPipelineNode> TransSliceToNodes(const std::vector<CompeteSliceDomain> &slices,
+        const RLPipelineNode &task, const std::string &name, const std::string &nodeType);
 
-    std::vector<RLPipelineNode> NodeSortMerge(const std::vector<RLPipelineNode> &left,
-                                              const std::vector<RLPipelineNode> &right);
+    std::vector<RLPipelineNode> NodeSortMerge(
+        const std::vector<RLPipelineNode> &left, const std::vector<RLPipelineNode> &right);
 
-    bool IsHappenBefore(std::vector<RLPipelineNode>::const_iterator left,
-                        std::vector<RLPipelineNode>::const_iterator right);
+    bool IsHappenBefore(
+        std::vector<RLPipelineNode>::const_iterator left, std::vector<RLPipelineNode>::const_iterator right);
 
     void ProcessInitState(const RLPipelineNode &node, std::vector<RLPipelineNode> &res);
 

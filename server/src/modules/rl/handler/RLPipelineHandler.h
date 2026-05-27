@@ -23,11 +23,8 @@
 
 namespace Dic::Module::RL {
 class RLPipelineHandler : public RLRequestHandler {
-public:
-    RLPipelineHandler()
-    {
-        command = Protocol::REQ_REQ_RL_PIPELINE;
-    }
+  public:
+    RLPipelineHandler() { command = Protocol::REQ_REQ_RL_PIPELINE; }
     ~RLPipelineHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

@@ -22,8 +22,7 @@
 #include "RLPipelineService.h"
 
 namespace Dic::Module::RL {
-bool RLPipelineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool RLPipelineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<Protocol::RLPipelineRequest &>(*requestPtr);
     std::unique_ptr<Protocol::RLPipelineResponse> responsePtr = std::make_unique<Protocol::RLPipelineResponse>();
     RLPipelineResponse &response = *responsePtr;

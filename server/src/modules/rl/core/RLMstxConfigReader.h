@@ -27,14 +27,14 @@
 
 namespace Dic::Module::RL {
 class RLMstxConfigReader {
-public:
+  public:
     explicit RLMstxConfigReader();
 
     std::vector<RLMstxConfig> ReadConfigFile();
 
     void SetConfigPath(const std::string &path);
 
-private:
+  private:
     bool ConfigFormatValid(document_t &doc);
 
     static bool MstxConfigCheck(const json_t &mstxConfigJson);

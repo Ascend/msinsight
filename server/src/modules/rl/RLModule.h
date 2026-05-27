@@ -23,7 +23,7 @@
 
 namespace Dic::Module {
 class RLModule : public BaseModule {
-public:
+  public:
     RLModule();
     ~RLModule() override;
 

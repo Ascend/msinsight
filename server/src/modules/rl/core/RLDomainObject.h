@@ -23,52 +23,45 @@
 #include <unordered_map>
 
 namespace Dic::Module::RL {
-    enum class RLBackEndType {
-        Megatron,
-        FSDP,
-        Unknown
-    };
+enum class RLBackEndType { Megatron, FSDP, Unknown };
 
-    inline std::string RLBackendToStr(enum RLBackEndType type)
-    {
-        switch (type) {
-            case RLBackEndType::Megatron:
-                return "Megatron";
-            case RLBackEndType::FSDP:
-                return "fsdp";
-            case RLBackEndType::Unknown:
-                return "unknown";
-        }
-        return "";
+inline std::string RLBackendToStr(enum RLBackEndType type) {
+    switch (type) {
+    case RLBackEndType::Megatron:
+        return "Megatron";
+    case RLBackEndType::FSDP:
+        return "fsdp";
+    case RLBackEndType::Unknown:
+        return "unknown";
     }
+    return "";
+}
 
-    struct MicroBatchConfig {
-        std::string batchName;
-        std::string type;
-    };
+struct MicroBatchConfig {
+    std::string batchName;
+    std::string type;
+};
 
-    struct TaskConfig {
-        std::string roleName;
-        std::string taskName;
-        std::vector<MicroBatchConfig> microBatchConfigs;
-        std::unordered_map<std::string, MicroBatchConfig> microBatchConfigMap;
-        void AddMicroBatchConf(MicroBatchConfig&& config)
-        {
-            microBatchConfigs.push_back(config);
-            microBatchConfigMap[config.batchName] = config;
-        }
-    };
+struct TaskConfig {
+    std::string roleName;
+    std::string taskName;
+    std::vector<MicroBatchConfig> microBatchConfigs;
+    std::unordered_map<std::string, MicroBatchConfig> microBatchConfigMap;
+    void AddMicroBatchConf(MicroBatchConfig &&config) {
+        microBatchConfigs.push_back(config);
+        microBatchConfigMap[config.batchName] = config;
+    }
+};
 
-    struct RLMstxConfig {
-        std::string framework;
-        std::string algorithm;
-        std::vector<TaskConfig> taskConfigs;
-        std::unordered_map<std::string, TaskConfig> taskConfigMap;
-        void AddTaskConfig(TaskConfig&& config)
-        {
-            taskConfigs.push_back(config);
-            taskConfigMap[config.taskName] = config;
-        }
-    };
+struct RLMstxConfig {
+    std::string framework;
+    std::string algorithm;
+    std::vector<TaskConfig> taskConfigs;
+    std::unordered_map<std::string, TaskConfig> taskConfigMap;
+    void AddTaskConfig(TaskConfig &&config) {
+        taskConfigs.push_back(config);
+        taskConfigMap[config.taskName] = config;
+    }
+};
 }
 #endif // PROFILER_SERVER_RLDOMAINOBJECT_H

@@ -23,10 +23,11 @@
 
 namespace Dic::Protocol {
 class RLProtocol : public ProtocolUtil {
-public:
+  public:
     RLProtocol() = default;
     ~RLProtocol() override = default;
-private:
+
+  private:
     void RegisterJsonToRequestFuncs() override;
     void RegisterResponseToJsonFuncs() override;
     void RegisterEventToJsonFuncs() override;

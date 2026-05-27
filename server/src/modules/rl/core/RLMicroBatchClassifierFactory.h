@@ -24,17 +24,16 @@
 #include "RLMicroBatchFSDPClassifier.h"
 namespace Dic::Module::RL {
 class RLMicroBatchClassifierFactory {
-public:
-    static std::shared_ptr<RLMicroBatchClassifierBase> GetClassifier(RLBackEndType type)
-    {
+  public:
+    static std::shared_ptr<RLMicroBatchClassifierBase> GetClassifier(RLBackEndType type) {
         switch (type) {
-            case RLBackEndType::Megatron:
-                return std::make_shared<RLMicroBatchMegatronClassifier>();
-            case RLBackEndType::FSDP:
-                return std::make_shared<RLMicroBatchFSDPClassifier>();
-            case RLBackEndType::Unknown:
-            default:
-                return nullptr;
+        case RLBackEndType::Megatron:
+            return std::make_shared<RLMicroBatchMegatronClassifier>();
+        case RLBackEndType::FSDP:
+            return std::make_shared<RLMicroBatchFSDPClassifier>();
+        case RLBackEndType::Unknown:
+        default:
+            return nullptr;
         }
     }
 };
