@@ -22,12 +22,12 @@
 #include "DbTraceDataBase.h"
 namespace Dic::Module::FullDb {
 class WaitTimeParseUnit : public AbstractParseUnit<DbTraceDataBase> {
-protected:
+  protected:
     std::string GetUnitName() const override;
-    bool PreCheck(const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database,
-                  std::string &error) override;
-    bool HandleParseProcess(const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database,
-                            std::string &error) override;
+    bool PreCheck(
+        const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database, std::string &error) override;
+    bool HandleParseProcess(
+        const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database, std::string &error) override;
 };
 }
 #endif // PROFILER_SERVER_WAITTIMEPARSEUNIT_H

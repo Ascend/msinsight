@@ -22,9 +22,7 @@
 #include "TextTraceDatabase.h"
 
 namespace Dic::Module::FullDb {
-template<typename DatabaseType>
-bool AbstractParseUnit<DatabaseType>::Handle(const ParseUnitParams &params)
-{
+template <typename DatabaseType> bool AbstractParseUnit<DatabaseType>::Handle(const ParseUnitParams &params) {
     std::string error;
     bool res = Parse(params, error);
     SendNotify(params, res, error);
@@ -34,9 +32,8 @@ bool AbstractParseUnit<DatabaseType>::Handle(const ParseUnitParams &params)
     return res;
 }
 
-template<typename DatabaseType>
-bool AbstractParseUnit<DatabaseType>::Parse(const ParseUnitParams &params, std::string &error)
-{
+template <typename DatabaseType>
+bool AbstractParseUnit<DatabaseType>::Parse(const ParseUnitParams &params, std::string &error) {
     // get unit name
     std::string unitName = GetUnitName();
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.dbId);
@@ -44,14 +41,14 @@ bool AbstractParseUnit<DatabaseType>::Parse(const ParseUnitParams &params, std::
         error = StringUtil::FormatString("Failed to parse unit, the database is not exist. Unit name:{}", unitName);
         return false;
     }
-    
+
     // 类型转换为指定的数据库类型
     auto typedDatabase = std::dynamic_pointer_cast<DatabaseType>(database);
     if (!typedDatabase) {
         error = StringUtil::FormatString("Failed to cast database to expected type. Unit name:{}", unitName);
         return false;
     }
-    
+
     // check unit status
     if (typedDatabase->CheckValueFromStatusInfoTable(unitName, FINISH_STATUS)) { // 已更新数据，跳过更新
         ServerLog::Info("The parser unit status is completed, skip paring, unit name:", unitName);
@@ -71,9 +68,9 @@ bool AbstractParseUnit<DatabaseType>::Parse(const ParseUnitParams &params, std::
     return true;
 }
 
-template<typename DatabaseType>
-void AbstractParseUnit<DatabaseType>::SendNotify(const ParseUnitParams &params, bool parseRes, const std::string &error)
-{
+template <typename DatabaseType>
+void AbstractParseUnit<DatabaseType>::SendNotify(
+    const ParseUnitParams &params, bool parseRes, const std::string &error) {
     auto event = std::make_unique<ParseUnitCompletedEvent>();
     event->body.parseResult = parseRes;
     event->body.unitName = GetUnitName();

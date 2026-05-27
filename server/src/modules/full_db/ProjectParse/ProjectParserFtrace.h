@@ -24,27 +24,26 @@
 namespace Dic::Module {
 
 class ProjectParserFtrace : public ProjectParserBase {
-public:
+  public:
     ProjectParserFtrace() = default;
     ~ProjectParserFtrace() override = default;
 
-    void Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos,
-                ImportActionRequest &request,
-                ImportActionResponse &response) final;
+    void Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
+        ImportActionResponse &response) final;
 
-    ProjectTypeEnum GetProjectType(const std::string& dataPath) final;
+    ProjectTypeEnum GetProjectType(const std::string &dataPath) final;
 
-    std::vector<std::string> GetParseFileByImportFile(const std::string& importFile, std::string& error) override;
+    std::vector<std::string> GetParseFileByImportFile(const std::string &importFile, std::string &error) override;
 
-    static void BuildProjectExploreInfo(ProjectExplorerInfo& projectInfo, const std::vector<std::string>& parsedFiles);
+    static void BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles);
 
-    static bool IsFtraceDbFile(const std::string& filename);
+    static bool IsFtraceDbFile(const std::string &filename);
 
-private:
-    static void FillBaseResponseInfo(const ImportActionRequest& request, ImportActionResponse& response,
-                                     const std::vector<ProjectExplorerInfo>& projectInfos);
+  private:
+    static void FillBaseResponseInfo(const ImportActionRequest &request, ImportActionResponse &response,
+        const std::vector<ProjectExplorerInfo> &projectInfos);
 
-    static void ParserFtraceData(const std::unordered_map<std::string, std::string>& rankListMap);
+    static void ParserFtraceData(const std::unordered_map<std::string, std::string> &rankListMap);
 
     void SetParseCallBack();
 };

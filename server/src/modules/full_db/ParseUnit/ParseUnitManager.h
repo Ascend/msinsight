@@ -23,7 +23,7 @@
 #include "AbstractParseUnit.h"
 namespace Dic::Module::FullDb {
 class ParseUnitManager {
-public:
+  public:
     using Creator = std::function<std::unique_ptr<IAbstractParseUnit>()>;
     static ParseUnitManager &Instance();
 
@@ -33,22 +33,18 @@ public:
     ParseUnitManager &operator=(ParseUnitManager &&) = delete;
 
     void ExecuteUnitList(const ParseUnitParams &params, const std::vector<std::string> &unitNameList);
-    void RegisterUnit(const std::string& name, Creator unit);
+    void RegisterUnit(const std::string &name, Creator unit);
 
-private:
+  private:
     ParseUnitManager() = default;
     ~ParseUnitManager() = default;
     std::map<std::string, Creator> unitMap;
 };
 
-template <typename T>
-class ParseUnitRegistrar {
-public:
-    explicit ParseUnitRegistrar(const std::string &name)
-    {
-        ParseUnitManager::Instance().RegisterUnit(name, []() {
-            return std::make_unique<T>();
-        });
+template <typename T> class ParseUnitRegistrar {
+  public:
+    explicit ParseUnitRegistrar(const std::string &name) {
+        ParseUnitManager::Instance().RegisterUnit(name, []() { return std::make_unique<T>(); });
     }
 };
 }

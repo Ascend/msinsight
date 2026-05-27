@@ -22,10 +22,8 @@
 #include "ProjectParserMemSnapshot.h"
 
 namespace Dic::Module {
-void ProjectParserMemSnapshot::Parser(const std::vector<ProjectExplorerInfo>& projectInfos,
-                                      ImportActionRequest& request,
-                                      ImportActionResponse& response)
-{
+void ProjectParserMemSnapshot::Parser(const std::vector<ProjectExplorerInfo> &projectInfos,
+    ImportActionRequest &request, ImportActionResponse &response) {
     ModuleRequestHandler::SetBaseResponse(request, response);
     if (std::empty(projectInfos)) {
         SendParseFailEvent("", "", "Project explorer info is not existed.");
@@ -43,31 +41,31 @@ void ProjectParserMemSnapshot::Parser(const std::vector<ProjectExplorerInfo>& pr
         return;
     }
     // 导入Snapshot单文件时，只会有二层文件树，且二级目录数量为1，因此这里直接对rankId进行赋值
-    for (auto& item : projectInfos[0].projectFileTree) {
-        for (auto& subItem : item->subParseFile) { subItem->rankId = subItem->parseFilePath; }
+    for (auto &item : projectInfos[0].projectFileTree) {
+        for (auto &subItem : item->subParseFile) {
+            subItem->rankId = subItem->parseFilePath;
+        }
     }
     ModuleRequestHandler::SetResponseResult(response, true);
-    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(projectInfos[0].projectName,
-                                                                        projectInfos[0].subParseFileInfo)) {
+    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(
+            projectInfos[0].projectName, projectInfos[0].subParseFileInfo)) {
         Server::ServerLog::Error("Failed to update project in parsing");
         response.result = false;
         return;
     }
     response.body.projectFileTree = projectInfos[0].projectFileTree;
     SetBaseActionOfResponse(response, projectInfos[0].fileName, projectInfos[0].fileName, projectInfos[0].fileName,
-                            {projectInfos[0].fileName}, static_cast<int64_t>(ProjectTypeEnum::DB_MEMSCOPE));
+        {projectInfos[0].fileName}, static_cast<int64_t>(ProjectTypeEnum::DB_MEMSCOPE));
     MemSnapshotParser::Instance().AsyncParseMemSnapshotPickle(projectInfos[0].fileName);
     response.result = true;
 }
 
-ProjectTypeEnum ProjectParserMemSnapshot::GetProjectType(const std::string& dataPath)
-{
+ProjectTypeEnum ProjectParserMemSnapshot::GetProjectType(const std::string &dataPath) {
     return ProjectTypeEnum::PKL_MEM_SNAPSHOT;
 }
 
-std::vector<std::string> ProjectParserMemSnapshot::GetParseFileByImportFile(const std::string& importFile,
-                                                                            std::string& error)
-{
+std::vector<std::string> ProjectParserMemSnapshot::GetParseFileByImportFile(
+    const std::string &importFile, std::string &error) {
     // 注意importfile为完整路径
     if (FileUtil::IsFolder(importFile) || !FileUtil::CheckPathSecurity(importFile)) {
         error = "Supports import only from a single-file snapshot pickle.";
@@ -76,11 +74,10 @@ std::vector<std::string> ProjectParserMemSnapshot::GetParseFileByImportFile(cons
     return {importFile};
 }
 
-void ProjectParserMemSnapshot::BuildProjectExploreInfo(ProjectExplorerInfo& projectInfo,
-                                                       const std::vector<std::string>& parsedFiles)
-{
+void ProjectParserMemSnapshot::BuildProjectExploreInfo(
+    ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles) {
     ProjectParserBase::BuildProjectExploreInfo(projectInfo, parsedFiles);
-    for (const auto& parsedFile : parsedFiles) {
+    for (const auto &parsedFile : parsedFiles) {
         // snapshot类型没有上层结构
         auto parseFileInfo = std::make_shared<ParseFileInfo>();
         parseFileInfo->parseFilePath = parsedFile;
@@ -94,8 +91,7 @@ void ProjectParserMemSnapshot::BuildProjectExploreInfo(ProjectExplorerInfo& proj
     }
 }
 
-bool ProjectParserMemSnapshot::IsSnapshotPickleFile(const std::string& filename)
-{
+bool ProjectParserMemSnapshot::IsSnapshotPickleFile(const std::string &filename) {
     const std::string lowerFileName = StringUtil::ToLower(filename);
     return StringUtil::EndWith(lowerFileName, pickleSuffix) ||
         StringUtil::EndWith(lowerFileName, pickleAbbreviationSuffix);

@@ -16,7 +16,6 @@
 //  * -------------------------------------------------------------------------
 //  *
 
-
 #include "ProjectParserTriton.h"
 #include <string_view>
 #include "ProjectAnalyze.h"
@@ -24,12 +23,9 @@
 #include "TritonParser.h"
 #include "ThreadPool.h"
 
-
 namespace Dic::Module {
-void ProjectParserTriton::Parser(const std::vector<Global::ProjectExplorerInfo>& projectInfos,
-                                 ImportActionRequest& request,
-                                 ImportActionResponse& response)
-{
+void ProjectParserTriton::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos,
+    ImportActionRequest &request, ImportActionResponse &response) {
     ModuleRequestHandler::SetBaseResponse(request, response);
     if (projectInfos.empty()) {
         SendParseFailEvent("", "", "Project explorer info is not existed.");
@@ -42,32 +38,24 @@ void ProjectParserTriton::Parser(const std::vector<Global::ProjectExplorerInfo>&
     response.body.subParseFileInfo = projectInfos[0].subParseFileInfo;
     response.body.isTriton = true;
     ModuleRequestHandler::SetResponseResult(response, true);
-    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(projectInfos[0].projectName, projectInfos[0].subParseFileInfo)) {
+    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(
+            projectInfos[0].projectName, projectInfos[0].subParseFileInfo)) {
         Server::ServerLog::Error("Failed to update project in parsing");
         response.result = false;
         SendParseFailEvent("", "", "Failed to update project in parsing");
         return;
     }
     response.body.projectFileTree = projectInfos[0].projectFileTree;
-    SetBaseActionOfResponse(response,
-                            projectInfos[0].fileName,
-                            projectInfos[0].fileName,
-                            projectInfos[0].fileName,
-                            {projectInfos[0].fileName},
-                            static_cast<int64_t>(ProjectTypeEnum::TRITON));
-    ThreadPool::Instance().AddTask([](const std::string& parseFile) {
-        Dic::Module::Triton::TritonParser::Instance().Parse(parseFile);
-    }, TraceIdManager::GetTraceId(), projectInfos[0].subParseFileInfo[0]->parseFilePath);
+    SetBaseActionOfResponse(response, projectInfos[0].fileName, projectInfos[0].fileName, projectInfos[0].fileName,
+        {projectInfos[0].fileName}, static_cast<int64_t>(ProjectTypeEnum::TRITON));
+    ThreadPool::Instance().AddTask(
+        [](const std::string &parseFile) { Dic::Module::Triton::TritonParser::Instance().Parse(parseFile); },
+        TraceIdManager::GetTraceId(), projectInfos[0].subParseFileInfo[0]->parseFilePath);
 }
-ProjectTypeEnum ProjectParserTriton::GetProjectType(const std::string& dataPath)
-{
-    return ProjectTypeEnum::TRITON;
-}
+ProjectTypeEnum ProjectParserTriton::GetProjectType(const std::string &dataPath) { return ProjectTypeEnum::TRITON; }
 
-
-std::vector<std::string> ProjectParserTriton::GetParseFileByImportFile(const std::string& importFile,
-                                                                       std::string& error)
-{
+std::vector<std::string> ProjectParserTriton::GetParseFileByImportFile(
+    const std::string &importFile, std::string &error) {
     if (FileUtil::IsFolder(importFile)) {
         Server::ServerLog::Error("Import file is a folder, please select a file.");
         return {};
@@ -78,11 +66,10 @@ std::vector<std::string> ProjectParserTriton::GetParseFileByImportFile(const std
     return {};
 }
 
-void ProjectParserTriton::BuildProjectExploreInfo(ProjectExplorerInfo& projectInfo,
-                                                  const std::vector<std::string>& parsedFiles)
-{
+void ProjectParserTriton::BuildProjectExploreInfo(
+    ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles) {
     ProjectParserBase::BuildProjectExploreInfo(projectInfo, parsedFiles);
-    for (const auto& parsedFile : parsedFiles) {
+    for (const auto &parsedFile : parsedFiles) {
         auto parsefileInfo = std::make_shared<ParseFileInfo>();
         parsefileInfo->parseFilePath = parsedFile;
         parsefileInfo->type = ParseFileType::RANK;
@@ -93,11 +80,10 @@ void ProjectParserTriton::BuildProjectExploreInfo(ProjectExplorerInfo& projectIn
         projectInfo.AddSubParseFileInfo(parsefileInfo);
     }
 }
-bool ProjectParserTriton::IsTritonMemoryFile(const std::string& file)
-{
+bool ProjectParserTriton::IsTritonMemoryFile(const std::string &file) {
     const std::string filename{"memory_info.json"};
     return file.find(filename) != std::string::npos;
 }
- static ProjectAnalyzeRegister<ProjectParserTriton> pRegTriton(ParserType::TRITON_MEMORY);
+static ProjectAnalyzeRegister<ProjectParserTriton> pRegTriton(ParserType::TRITON_MEMORY);
 // Module
 } // Dic

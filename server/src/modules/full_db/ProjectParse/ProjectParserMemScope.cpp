@@ -28,9 +28,8 @@
 namespace Dic::Module {
 using namespace Dic::Server;
 
-void ProjectParserMemScope::Parser(const std::vector<ProjectExplorerInfo>& projectInfos, ImportActionRequest& request,
-                                   ImportActionResponse& response)
-{
+void ProjectParserMemScope::Parser(const std::vector<ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
+    ImportActionResponse &response) {
     ModuleRequestHandler::SetBaseResponse(request, response);
     if (std::empty(projectInfos)) {
         SendParseFailEvent("", "", "Project explorer info is not existed.");
@@ -43,12 +42,14 @@ void ProjectParserMemScope::Parser(const std::vector<ProjectExplorerInfo>& proje
     response.body.subParseFileInfo = projectInfos[0].subParseFileInfo;
     response.body.isLeaks = true;
     // 导入MemScope单文件时，只会有二层文件树，且二级目录数量为1，因此这里直接对rankId进行赋值
-    for (auto& item : projectInfos[0].projectFileTree) {
-        for (auto& subItem : item->subParseFile) { subItem->rankId = subItem->parseFilePath; }
+    for (auto &item : projectInfos[0].projectFileTree) {
+        for (auto &subItem : item->subParseFile) {
+            subItem->rankId = subItem->parseFilePath;
+        }
     }
     ModuleRequestHandler::SetResponseResult(response, true);
-    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(projectInfos[0].projectName,
-                                                                        projectInfos[0].subParseFileInfo)) {
+    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(
+            projectInfos[0].projectName, projectInfos[0].subParseFileInfo)) {
         ServerLog::Error("Failed to update project in parsing");
         response.result = false;
         return;
@@ -56,18 +57,16 @@ void ProjectParserMemScope::Parser(const std::vector<ProjectExplorerInfo>& proje
     response.body.projectFileTree = projectInfos[0].projectFileTree;
     MemScopeParser::Instance().AsyncParseMemScopeDbFile(projectInfos[0].fileName);
     SetBaseActionOfResponse(response, projectInfos[0].fileName, projectInfos[0].fileName, projectInfos[0].fileName,
-                            {projectInfos[0].fileName}, static_cast<int64_t>(ProjectTypeEnum::DB_MEMSCOPE));
+        {projectInfos[0].fileName}, static_cast<int64_t>(ProjectTypeEnum::DB_MEMSCOPE));
 }
 
-ProjectTypeEnum ProjectParserMemScope::GetProjectType(const std::string& dataPath)
-{
+ProjectTypeEnum ProjectParserMemScope::GetProjectType(const std::string &dataPath) {
     return ProjectTypeEnum::DB_MEMSCOPE;
 }
 
 // 1. projectParser识别导入目录下可解析的文件
 std::vector<std::string> ProjectParserMemScope::GetParseFileByImportFile(
-    const std::string& importFile, std::string& error)
-{
+    const std::string &importFile, std::string &error) {
     // 注意importfile为完整路径
     if (FileUtil::IsFolder(importFile) || !FileUtil::CheckPathSecurity(importFile)) {
         error = "Supports import only from a single-file memscope database.";
@@ -78,11 +77,10 @@ std::vector<std::string> ProjectParserMemScope::GetParseFileByImportFile(
 
 // 2. 先于parser被调用，用于组织出一个完整的项目，该部分可能控制在前端目录树的展示
 // parsedFiles = 待解析的所有文件或文件目录。
-void ProjectParserMemScope::BuildProjectExploreInfo(ProjectExplorerInfo& projectInfo,
-                                                    const std::vector<std::string>& parsedFiles)
-{
+void ProjectParserMemScope::BuildProjectExploreInfo(
+    ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles) {
     ProjectParserBase::BuildProjectExploreInfo(projectInfo, parsedFiles);
-    for (const auto& parsedFile : parsedFiles) {
+    for (const auto &parsedFile : parsedFiles) {
         // memscope类型没有上层结构
         auto parseFileInfo = std::make_shared<ParseFileInfo>();
         parseFileInfo->parseFilePath = parsedFile; // 原始导入数据目录
@@ -96,8 +94,7 @@ void ProjectParserMemScope::BuildProjectExploreInfo(ProjectExplorerInfo& project
     }
 }
 
-bool ProjectParserMemScope::IsMemScopeDbFile(const std::string& filename)
-{
+bool ProjectParserMemScope::IsMemScopeDbFile(const std::string &filename) {
     return std::regex_match(filename, std::regex(memScopeDbReg));
 }
 

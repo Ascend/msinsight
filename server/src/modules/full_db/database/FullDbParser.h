@@ -26,21 +26,19 @@
 
 namespace Dic::Module::FullDb {
 class FullDbParser : public FileParser {
-public:
+  public:
     static FullDbParser &Instance();
     FullDbParser();
 
     ~FullDbParser() override;
-    bool Parse(const std::vector<std::string> &fileIds,
-               const std::string &filePath,
-               const std::string &selectedFolder,
-               const std::string &fileId) override;
+    bool Parse(const std::vector<std::string> &fileIds, const std::string &filePath, const std::string &selectedFolder,
+        const std::string &fileId) override;
     void Reset() override;
     static void InitOpenDb(const std::string &filePath, const std::vector<std::string> &rankId);
 
     bool Parse(const std::vector<std::string> &rankIds, const std::string &fileId);
 
-private:
+  private:
     std::unique_ptr<ThreadPool> threadPool;
     const int maxThreadNum = 4;
 
@@ -50,10 +48,10 @@ private:
     static void ParserCallBack(std::string rankId, const std::string &fileId, bool result);
     static std::shared_ptr<DbTraceDataBase> GetTraceDatabase(const std::string &filePath);
     static void EndParseTask(const std::vector<std::string> &rankIds, const std::string &filePath,
-                             const std::shared_ptr<std::vector<std::future<void>>>& futures,
-                             std::chrono::time_point<std::chrono::high_resolution_clock> start);
-    static void BuildProfilingInitTask(std::shared_ptr<std::vector<std::future<void>>> &futures, std::string &dbId,
-                                       std::unique_ptr<ThreadPool> &pool);
+        const std::shared_ptr<std::vector<std::future<void>>> &futures,
+        std::chrono::time_point<std::chrono::high_resolution_clock> start);
+    static void BuildProfilingInitTask(
+        std::shared_ptr<std::vector<std::future<void>>> &futures, std::string &dbId, std::unique_ptr<ThreadPool> &pool);
 };
 }
 

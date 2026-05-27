@@ -31,33 +31,31 @@ struct ParseUnitParams {
 
 // 非模板的基类接口，用于注册和管理
 class IAbstractParseUnit {
-public:
+  public:
     virtual ~IAbstractParseUnit() = default;
     virtual bool Handle(const ParseUnitParams &params) = 0;
     virtual std::string GetUnitName() const = 0;
 };
 
-template<typename DatabaseType = Timeline::VirtualTraceDatabase>
-class AbstractParseUnit : public IAbstractParseUnit {
-public:
+template <typename DatabaseType = Timeline::VirtualTraceDatabase> class AbstractParseUnit : public IAbstractParseUnit {
+  public:
     AbstractParseUnit() = default;
     virtual ~AbstractParseUnit() = default;
     bool Handle(const ParseUnitParams &params) override;
 
-protected:
+  protected:
     // 获取解析单元名称
     std::string GetUnitName() const override = 0;
     // 前置校验
-    virtual bool PreCheck(const ParseUnitParams &params, const std::shared_ptr<DatabaseType> &database,
-                          std::string &error) = 0;
+    virtual bool PreCheck(
+        const ParseUnitParams &params, const std::shared_ptr<DatabaseType> &database, std::string &error) = 0;
     // 处理解析流程
-    virtual bool HandleParseProcess(const ParseUnitParams &params, const std::shared_ptr<DatabaseType> &database,
-                                    std::string &error) = 0;
+    virtual bool HandleParseProcess(
+        const ParseUnitParams &params, const std::shared_ptr<DatabaseType> &database, std::string &error) = 0;
     // 发送通知:默认实现 有特殊要求 请在子类进行覆盖
-    virtual void SendNotify(const ParseUnitParams &params, bool parseRes,
-                            const std::string &error);
+    virtual void SendNotify(const ParseUnitParams &params, bool parseRes, const std::string &error);
 
-private:
+  private:
     bool Parse(const ParseUnitParams &params, std::string &error);
 };
 extern template class AbstractParseUnit<Timeline::VirtualTraceDatabase>;

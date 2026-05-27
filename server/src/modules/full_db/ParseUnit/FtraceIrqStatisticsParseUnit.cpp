@@ -23,29 +23,22 @@
 
 namespace Dic::Module::FullDb {
 
-std::string FtraceIrqStatisticsParseUnit::GetUnitName() const
-{
-    return Dic::FTRACE_IRQ_STATISTICS_UNIT;
-}
+std::string FtraceIrqStatisticsParseUnit::GetUnitName() const { return Dic::FTRACE_IRQ_STATISTICS_UNIT; }
 
-bool FtraceIrqStatisticsParseUnit::PreCheck(const ParseUnitParams &params,
-                                             const std::shared_ptr<Timeline::TextTraceDatabase> &database,
-                                             std::string &error)
-{
+bool FtraceIrqStatisticsParseUnit::PreCheck(
+    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     return database->CreateFtraceTable();
 }
 
 void FtraceIrqStatisticsParseUnit::AddIrqInfo(uint64_t trackId, const std::string &irqType, uint64_t duration,
-    std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> &trackIdMap)
-{
+    std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> &trackIdMap) {
     auto initStatData = []() {
         return std::unordered_map<std::string, uint64_t>{
-                {"soft_irq_count", 0}, {"soft_irq_duration", 0},
-                {"hard_irq_count", 0}, {"hard_irq_duration", 0}
-        };
+            {"soft_irq_count", 0}, {"soft_irq_duration", 0}, {"hard_irq_count", 0}, {"hard_irq_duration", 0}};
     };
 
-    auto addIrqStat = [](std::unordered_map<std::string, uint64_t> &statData, const std::string &irqType, uint64_t duration) {
+    auto addIrqStat = [](std::unordered_map<std::string, uint64_t> &statData, const std::string &irqType,
+                          uint64_t duration) {
         if (irqType == "softirq") {
             statData["soft_irq_count"]++;
             statData["soft_irq_duration"] += duration;
@@ -61,14 +54,13 @@ void FtraceIrqStatisticsParseUnit::AddIrqInfo(uint64_t trackId, const std::strin
     addIrqStat(trackIdMap[trackId], irqType, duration);
 }
 
-bool FtraceIrqStatisticsParseUnit::HandleParseProcess(const ParseUnitParams &params,
-                                                       const std::shared_ptr<Timeline::TextTraceDatabase> &database,
-                                                       std::string &error)
-{
+bool FtraceIrqStatisticsParseUnit::HandleParseProcess(
+    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     std::vector<std::string> nameList = {"irq", "softirq"};
     auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
-    auto allIrqSlice = RenderEngine::Instance()->QuerySliceDetailByNameList(params.dbId, DataType::TEXT, "CPU Scheduling", nameList);
-    
+    auto allIrqSlice =
+        RenderEngine::Instance()->QuerySliceDetailByNameList(params.dbId, DataType::TEXT, "CPU Scheduling", nameList);
+
     std::unordered_map<std::string, uint64_t> tidToTrackId;
     for (const auto &pair : threadInfoMap) {
         tidToTrackId[pair.second.second] = pair.first;
@@ -76,8 +68,7 @@ bool FtraceIrqStatisticsParseUnit::HandleParseProcess(const ParseUnitParams &par
 
     std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> trackIdMap;
 
-    for (const auto &slice : allIrqSlice)
-    {
+    for (const auto &slice : allIrqSlice) {
         uint64_t trackId = slice.trackId;
         std::string irqType = slice.name;
         uint64_t duration = slice.duration;

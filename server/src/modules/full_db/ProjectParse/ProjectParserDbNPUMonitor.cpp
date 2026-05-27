@@ -28,19 +28,17 @@ namespace Module {
 using namespace Server;
 using namespace FullDb;
 
-ProjectTypeEnum ProjectParserDbNPUMonitor::GetProjectType(const std::string &dataPath)
-{
+ProjectTypeEnum ProjectParserDbNPUMonitor::GetProjectType(const std::string &dataPath) {
     return ProjectTypeEnum::DB_NPUMONITOR;
 }
 
-std::vector<std::string> ProjectParserDbNPUMonitor::GetParseFileByImportFile(const std::string &importFile,
-                                                                             std::string &error)
-{
+std::vector<std::string> ProjectParserDbNPUMonitor::GetParseFileByImportFile(
+    const std::string &importFile, std::string &error) {
     std::vector<std::string> npuMonitorFiles = FileUtil::FindNPUMonitorFiles(importFile);
     if (npuMonitorFiles.empty()) {
         error = "No parsable db files found, Possible reasons:; 1.File not exist; "
                 "2.The nesting depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
-                std::to_string(FileUtil::GetFilePathLengthLimit());
+            std::to_string(FileUtil::GetFilePathLengthLimit());
         ServerLog::Info(error);
         return {importFile};
     }
@@ -49,9 +47,8 @@ std::vector<std::string> ProjectParserDbNPUMonitor::GetParseFileByImportFile(con
     return npuMonitorFiles;
 }
 
-void ProjectParserDbNPUMonitor::BuildProjectExploreInfo(Dic::Module::Global::ProjectExplorerInfo &info,
-                                                        const std::vector<std::string> &parsedFiles)
-{
+void ProjectParserDbNPUMonitor::BuildProjectExploreInfo(
+    Dic::Module::Global::ProjectExplorerInfo &info, const std::vector<std::string> &parsedFiles) {
     ProjectParserBase::BuildProjectExploreInfo(info, parsedFiles);
     for (const auto &parsedFile : parsedFiles) {
         auto parseFileInfoRank = std::make_shared<ParseFileInfo>();
@@ -65,9 +62,8 @@ void ProjectParserDbNPUMonitor::BuildProjectExploreInfo(Dic::Module::Global::Pro
     }
 }
 
-void ProjectParserDbNPUMonitor::ParserBaseline(const Global::ProjectExplorerInfo &projectInfo,
-                                               Global::BaselineInfo &baselineInfo)
-{
+void ProjectParserDbNPUMonitor::ParserBaseline(
+    const Global::ProjectExplorerInfo &projectInfo, Global::BaselineInfo &baselineInfo) {
     // 该函数主要复用ProjectParserDb::ParserBaseline()的逻辑，除去了找文件的步骤，因为npumonitor数据的parsedFilePath就是db文件的路径，不需要额外查找
     if (projectInfo.fileInfoMap.empty()) {
         return;
@@ -95,15 +91,15 @@ void ProjectParserDbNPUMonitor::ParserBaseline(const Global::ProjectExplorerInfo
     baselineInfo.host = hostInfoMap.begin()->first;
     baselineInfo.fileId = baselineInfo.parsedFilePath;
     Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
-    if (!Timeline::DataBaseManager::Instance().CreateTraceConnectionPool(baselineInfo.rankId, baselineInfo.parsedFilePath)) {
+    if (!Timeline::DataBaseManager::Instance().CreateTraceConnectionPool(
+            baselineInfo.rankId, baselineInfo.parsedFilePath)) {
         ServerLog::Error("Failed to create baseline connection pool for NPU monitor. ");
     }
     if (isParsed) {
         ServerLog::Warn("Baseline has been parsed.");
         return;
     }
-    FullDb::FullDbParser::Instance().Parse(std::vector<std::string>{ baselineInfo.rankId },
-        baselineInfo.parsedFilePath);
+    FullDb::FullDbParser::Instance().Parse(std::vector<std::string>{baselineInfo.rankId}, baselineInfo.parsedFilePath);
 }
 
 ProjectAnalyzeRegister<ProjectParserDbNPUMonitor> pRegDBNPUMonitor(ParserType::DB_NPUMONITOR);

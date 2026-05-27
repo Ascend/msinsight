@@ -24,13 +24,13 @@
 namespace Dic {
 namespace Module {
 class ProjectParserDbNPUMonitor : public ProjectParserDb {
-public:
+  public:
     ProjectParserDbNPUMonitor() = default;
     ~ProjectParserDbNPUMonitor() override = default;
 
     ProjectTypeEnum GetProjectType(const std::string &dataPath) final;
     std::vector<std::string> GetParseFileByImportFile(const std::string &importFile, std::string &error) final;
-    static void BuildProjectExploreInfo(ProjectExplorerInfo& info, const std::vector<std::string>& parsedFiles);
+    static void BuildProjectExploreInfo(ProjectExplorerInfo &info, const std::vector<std::string> &parsedFiles);
     void ParserBaseline(const Global::ProjectExplorerInfo &projectInfo, Global::BaselineInfo &baselineInfo) final;
 };
 } // end of namespace Module
