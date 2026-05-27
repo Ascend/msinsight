@@ -18,8 +18,6 @@
 
 #include <gtest/gtest.h>
 #include "FileUtil.h"
-#include "WsSessionImpl.h"
-#include "WsSessionManager.h"
 #include "DataBaseManager.h"
 #include "AdvisorProtocolRequest.h"
 #include "QueryAclnnOpAdvisorHandler.h"
@@ -34,32 +32,18 @@ using namespace Dic::Module::Advisor;
 using namespace Dic::Protocol;
 using namespace Dic::Module::Timeline;
 class AdvisorHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-        std::string dbPath = FileUtil::SplicePath(TestSuit::GetRootTestPath(),
-                "data", "pytorch", "db", "level1", "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler_0.db");
-        Dic::Server::WsChannel *ws;
-        std::unique_ptr<Dic::Server::WsSessionImpl> session = std::make_unique<Dic::Server::WsSessionImpl>(ws);
-        Dic::Server::WsSessionManager::Instance().AddSession(std::move(session));
+  public:
+    static void SetUpTestSuite() {
+        std::string dbPath = FileUtil::SplicePath(TestSuit::GetRootTestPath(), "data", "pytorch", "db", "level1",
+            "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler_0.db");
         DataBaseManager::Instance().SetDataType(DataType::DB, dbPath);
         DataBaseManager::Instance().SetFileType(FileType::PYTORCH, dbPath);
         DataBaseManager::Instance().CreateTraceConnectionPool("0", dbPath);
         DataBaseManager::Instance().UpdateRankIdToDeviceId(dbPath, "0", "0");
     }
-    static void TearDownTestSuite()
-    {
-        auto session = Dic::Server::WsSessionManager::Instance().GetSession();
-        if (session != nullptr) {
-            session->SetStatus(Dic::Server::WsSession::Status::CLOSED);
-            session->WaitForExit();
-            Dic::Server::WsSessionManager::Instance().RemoveSession();
-        }
-        DataBaseManager::Instance().Clear();
-    }
+    static void TearDownTestSuite() { DataBaseManager::Instance().Clear(); }
 
-    static void SetDefaultAPITypeParamsWithExistRankId(APITypeParams &param)
-    {
+    static void SetDefaultAPITypeParamsWithExistRankId(APITypeParams &param) {
         param.pageSize = Dic::DEFAULT_PAGESIZE;
         param.currentPage = 1;
         param.rankId = "0";
@@ -67,15 +51,13 @@ public:
         param.orderType = "ascend";
     }
 
-    static void SetDefaultAPITypeParamsWithNotExistRankId(APITypeParams &param)
-    {
+    static void SetDefaultAPITypeParamsWithNotExistRankId(APITypeParams &param) {
         SetDefaultAPITypeParamsWithExistRankId(param);
         param.rankId = "1";
     }
 };
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMinPageSize)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMinPageSize) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     request->params.pageSize = Dic::MIN_PAGESIZE;
     QueryAclnnOpAdvisorHandler handler;
@@ -83,8 +65,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMinPageS
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMaxPageSize)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMaxPageSize) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     request->params.pageSize = Dic::MAX_PAGESIZE + 1;
     QueryAclnnOpAdvisorHandler handler;
@@ -92,8 +73,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMaxPageS
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMinCurrentPage)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMinCurrentPage) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     request->params.pageSize = Dic::MAX_PAGESIZE;
     request->params.currentPage = Dic::MIN_CURRENT_PAGE;
@@ -102,8 +82,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMinCurre
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMaxCurrentPage)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMaxCurrentPage) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     request->params.pageSize = Dic::MAX_PAGESIZE;
     request->params.currentPage = (uint32_t)Dic::MAX_CURRENT_PAGE + 1;
@@ -112,9 +91,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenMaxCurre
     EXPECT_EQ(result, false);
 }
 
-
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenEmptyRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenEmptyRankId) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     request->params.pageSize = Dic::DEFAULT_PAGESIZE;
     request->params.currentPage = 1;
@@ -124,8 +101,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenEmptyRan
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInjectRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInjectRankId) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     request->params.pageSize = Dic::DEFAULT_PAGESIZE;
     request->params.currentPage = 1;
@@ -135,8 +111,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenInjectRa
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenLongRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenLongRankId) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     request->params.pageSize = Dic::DEFAULT_PAGESIZE;
     request->params.currentPage = 1;
@@ -147,8 +122,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenLongRank
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnTrue)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnTrue) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     SetDefaultAPITypeParamsWithExistRankId(request->params);
 
@@ -157,8 +131,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnTrue)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenNotExistRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenNotExistRankId) {
     auto request = std::make_unique<AclnnOperatorRequest>();
     SetDefaultAPITypeParamsWithNotExistRankId(request->params);
     QueryAclnnOpAdvisorHandler handler;
@@ -166,8 +139,7 @@ TEST_F(AdvisorHandlerTest, QueryAclnnOpAdvisorHandlerTestReturnFalseWhenNotExist
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAffinityAPIAdviceTestReturnTrue)
-{
+TEST_F(AdvisorHandlerTest, QueryAffinityAPIAdviceTestReturnTrue) {
     auto request = std::make_unique<AffinityAPIRequest>();
     SetDefaultAPITypeParamsWithExistRankId(request->params);
     QueryAffinityAPIAdvice handler;
@@ -175,8 +147,7 @@ TEST_F(AdvisorHandlerTest, QueryAffinityAPIAdviceTestReturnTrue)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAffinityAPIAdviceTestReturnFalseWhenNotExistRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryAffinityAPIAdviceTestReturnFalseWhenNotExistRankId) {
     auto request = std::make_unique<AffinityAPIRequest>();
     SetDefaultAPITypeParamsWithNotExistRankId(request->params);
     QueryAffinityAPIAdvice handler;
@@ -184,8 +155,7 @@ TEST_F(AdvisorHandlerTest, QueryAffinityAPIAdviceTestReturnFalseWhenNotExistRank
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAffinityOptimizerAdviceTestReturnTrue)
-{
+TEST_F(AdvisorHandlerTest, QueryAffinityOptimizerAdviceTestReturnTrue) {
     auto request = std::make_unique<AffinityOptimizerRequest>();
     SetDefaultAPITypeParamsWithExistRankId(request->params);
     QueryAffinityOptimizerAdvice handler;
@@ -193,8 +163,7 @@ TEST_F(AdvisorHandlerTest, QueryAffinityOptimizerAdviceTestReturnTrue)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAffinityOptimizerAdviceReturnFalseWhenNotExistRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryAffinityOptimizerAdviceReturnFalseWhenNotExistRankId) {
     auto request = std::make_unique<AffinityOptimizerRequest>();
     SetDefaultAPITypeParamsWithNotExistRankId(request->params);
     QueryAffinityOptimizerAdvice handler;
@@ -202,8 +171,7 @@ TEST_F(AdvisorHandlerTest, QueryAffinityOptimizerAdviceReturnFalseWhenNotExistRa
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAiCpuOpAdviceHandlerTestReturnTrue)
-{
+TEST_F(AdvisorHandlerTest, QueryAiCpuOpAdviceHandlerTestReturnTrue) {
     auto request = std::make_unique<AICpuOperatorRequest>();
     SetDefaultAPITypeParamsWithExistRankId(request->params);
     QueryAiCpuOpAdviceHandler handler;
@@ -211,8 +179,7 @@ TEST_F(AdvisorHandlerTest, QueryAiCpuOpAdviceHandlerTestReturnTrue)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(AdvisorHandlerTest, QueryAiCpuOpAdviceHandlerReturnFalseWhenNotExistRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryAiCpuOpAdviceHandlerReturnFalseWhenNotExistRankId) {
     auto request = std::make_unique<AICpuOperatorRequest>();
     SetDefaultAPITypeParamsWithNotExistRankId(request->params);
     QueryAiCpuOpAdviceHandler handler;
@@ -220,8 +187,7 @@ TEST_F(AdvisorHandlerTest, QueryAiCpuOpAdviceHandlerReturnFalseWhenNotExistRankI
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryFusedOpAdviceHandlerTestReturnTrue)
-{
+TEST_F(AdvisorHandlerTest, QueryFusedOpAdviceHandlerTestReturnTrue) {
     auto request = std::make_unique<OperatorFusionRequest>();
     SetDefaultAPITypeParamsWithExistRankId(request->params);
     QueryFusedOpAdviceHandler handler;
@@ -229,8 +195,7 @@ TEST_F(AdvisorHandlerTest, QueryFusedOpAdviceHandlerTestReturnTrue)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(AdvisorHandlerTest, QueryFusedOpAdviceHandlerReturnFalseWhenNotExistRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryFusedOpAdviceHandlerReturnFalseWhenNotExistRankId) {
     auto request = std::make_unique<OperatorFusionRequest>();
     SetDefaultAPITypeParamsWithNotExistRankId(request->params);
     QueryFusedOpAdviceHandler handler;
@@ -238,8 +203,7 @@ TEST_F(AdvisorHandlerTest, QueryFusedOpAdviceHandlerReturnFalseWhenNotExistRankI
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMinPageSize)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMinPageSize) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     request->params.pageSize = Dic::MIN_PAGESIZE;
     QueryOperatorDispatchHandler handler;
@@ -247,8 +211,7 @@ TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhe
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMaxPageSize)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMaxPageSize) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     request->params.pageSize = Dic::MAX_PAGESIZE + 1;
     QueryOperatorDispatchHandler handler;
@@ -256,8 +219,7 @@ TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhe
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMinCurrentPage)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMinCurrentPage) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     request->params.pageSize = Dic::MAX_PAGESIZE;
     request->params.currentPage = Dic::MIN_CURRENT_PAGE;
@@ -266,8 +228,7 @@ TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhe
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMaxCurrentPage)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenMaxCurrentPage) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     request->params.pageSize = Dic::MAX_PAGESIZE;
     request->params.currentPage = (uint32_t)Dic::MAX_CURRENT_PAGE + 1;
@@ -276,8 +237,7 @@ TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhe
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenEmptyRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenEmptyRankId) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     request->params.pageSize = Dic::DEFAULT_PAGESIZE;
     request->params.currentPage = 1;
@@ -287,8 +247,7 @@ TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhe
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenInjectRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenInjectRankId) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     request->params.pageSize = Dic::DEFAULT_PAGESIZE;
     request->params.currentPage = 1;
@@ -298,8 +257,7 @@ TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhe
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenLongRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenLongRankId) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     request->params.pageSize = Dic::DEFAULT_PAGESIZE;
     request->params.currentPage = 1;
@@ -310,8 +268,7 @@ TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhe
     EXPECT_EQ(result, false);
 }
 
-TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenNotExistRankId)
-{
+TEST_F(AdvisorHandlerTest, QueryOperatorDispatchAdvisorHandlerTestReturnFalseWhenNotExistRankId) {
     auto request = std::make_unique<OperatorDispatchRequest>();
     SetDefaultAPITypeParamsWithNotExistRankId(request->params);
     QueryOperatorDispatchHandler handler;

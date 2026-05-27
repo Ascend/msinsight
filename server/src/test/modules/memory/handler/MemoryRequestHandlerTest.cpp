@@ -18,8 +18,6 @@
 
 #include <gtest/gtest.h>
 #include <mockcpp/mockcpp.hpp>
-#include <WsSessionManager.h>
-#include "WsSessionImpl.h"
 #include "QueryMemoryComponentHandler.h"
 #include "QueryMemoryOperatorHandler.h"
 #include "QueryMemoryResourceTypeHandler.h"
@@ -41,12 +39,8 @@ using namespace Dic::Module::FullDb;
 using namespace Dic;
 
 class MemoryRequestHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-        Dic::Server::WsChannel *ws;
-        std::unique_ptr<Dic::Server::WsSession> session = std::make_unique<Dic::Server::WsSessionImpl>(ws);
-        Dic::Server::WsSessionManager::Instance().AddSession(std::move(session));
+  public:
+    static void SetUpTestSuite() {
         std::string currPath = Dic::FileUtil::GetCurrPath();
         int index = currPath.find("server");
         currPath = currPath.substr(0, index);
@@ -59,22 +53,14 @@ public:
         DataBaseManager::Instance().UpdateRankIdToDeviceId(dbPathFull, "0", "0");
         memoryDatabase->OpenDb(dbPathFull, false);
     }
-    static void TearDownTestSuite()
-    {
-        auto session = Dic::Server::WsSessionManager::Instance().GetSession();
-        if (session != nullptr) {
-            session->SetStatus(Dic::Server::WsSession::Status::CLOSED);
-            session->WaitForExit();
-            Dic::Server::WsSessionManager::Instance().RemoveSession();
-        }
+    static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemoryDatabaseByRankId("0");
         memoryDatabase->CloseDb();
         DataBaseManager::Instance().Clear();
     }
 };
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerNormalTest) {
     const int64_t defaultPageSize = 10;
     Dic::Module::Memory::QueryMemoryComponentHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryComponentRequest> requestPtr =
@@ -86,12 +72,11 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerNormalTest)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerInvalidParamTest) {
     const int64_t defaultPageSize = 10;
     Dic::Module::Memory::QueryMemoryComponentHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryComponentRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemoryComponentRequest>();
+        std::make_unique<Dic::Protocol::MemoryComponentRequest>();
     requestPtr.get()->params.rankId = "0";
     requestPtr.get()->params.currentPage = 1;
     requestPtr.get()->params.pageSize = defaultPageSize;
@@ -101,12 +86,9 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerInvalidParamTest)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffCompareEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffCompareEmptyTest) {
     const std::vector<MemoryComponent> compareData;
-    const std::vector<MemoryComponent> baselineData = {
-        {"SLOG", "196.327", 259.36, ""}, {"TSYNC", "12.789", 10.65, ""}
-    };
+    const std::vector<MemoryComponent> baselineData = {{"SLOG", "196.327", 259.36, ""}, {"TSYNC", "12.789", 10.65, ""}};
     std::vector<MemoryComponentComparison> diffData;
     Dic::Module::Memory::QueryMemoryComponentHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryComponentRequest> requestPtr =
@@ -120,16 +102,13 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffComp
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffBaselineEmptyTest)
-{
-    const std::vector<MemoryComponent> compareData = {
-        {"SLOG", "196.327", 259.36, ""}, {"TSYNC", "12.789", 10.65, ""}
-    };
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffBaselineEmptyTest) {
+    const std::vector<MemoryComponent> compareData = {{"SLOG", "196.327", 259.36, ""}, {"TSYNC", "12.789", 10.65, ""}};
     const std::vector<MemoryComponent> baselineData;
     std::vector<MemoryComponentComparison> diffData;
     Dic::Module::Memory::QueryMemoryComponentHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryComponentRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemoryComponentRequest>();
+        std::make_unique<Dic::Protocol::MemoryComponentRequest>();
     handler.GetComponentDiff(compareData, baselineData, diffData);
     ASSERT_EQ(diffData.size(), compareData.size());
     for (size_t i = 0; i < diffData.size(); ++i) {
@@ -139,34 +118,28 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffBase
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffBothNotEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerGetComponentDiffBothNotEmptyTest) {
     const int precision = 3;
-    const std::vector<MemoryComponent> compareData = {
-        {"SLOG", "196.327", 259.36, ""}, {"TSYNC", "12.789", 10.65, ""}
-    };
-    const std::vector<MemoryComponent> baselineData = {
-        {"SLOG", "25.397", 1285.27, ""}, {"TSYNC", "21.569", 22.67, ""}
-    };
+    const std::vector<MemoryComponent> compareData = {{"SLOG", "196.327", 259.36, ""}, {"TSYNC", "12.789", 10.65, ""}};
+    const std::vector<MemoryComponent> baselineData = {{"SLOG", "25.397", 1285.27, ""}, {"TSYNC", "21.569", 22.67, ""}};
     std::vector<MemoryComponentComparison> diffData;
     Dic::Module::Memory::QueryMemoryComponentHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryComponentRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemoryComponentRequest>();
+        std::make_unique<Dic::Protocol::MemoryComponentRequest>();
     handler.GetComponentDiff(compareData, baselineData, diffData);
     ASSERT_EQ(diffData.size(), compareData.size());
     ASSERT_EQ(diffData.size(), baselineData.size());
     for (size_t i = 0; i < diffData.size(); ++i) {
         EXPECT_EQ(diffData[i].diff.component, compareData[i].component);
         EXPECT_EQ(diffData[i].diff.component, baselineData[i].component);
-        EXPECT_EQ(diffData[i].diff.timestamp, NumberUtil::StringDoubleMinus(compareData[i].timestamp,
-            baselineData[i].timestamp));
-        EXPECT_EQ(diffData[i].diff.totalReserved, NumberUtil::DoubleReservedNDigits(
-            compareData[i].totalReserved - baselineData[i].totalReserved, precision));
+        EXPECT_EQ(diffData[i].diff.timestamp,
+            NumberUtil::StringDoubleMinus(compareData[i].timestamp, baselineData[i].timestamp));
+        EXPECT_EQ(diffData[i].diff.totalReserved,
+            NumberUtil::DoubleReservedNDigits(compareData[i].totalReserved - baselineData[i].totalReserved, precision));
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSelectResultEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSelectResultEmptyTest) {
     std::vector<MemoryComponentComparison> fullDiffResult(10, {{}, {}, {"TSYNC", "125.697", 45.98, ""}});
     MemoryComponentRequest request;
     request.params.pageSize = 10; // page size = 10
@@ -181,8 +154,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSelectResultEmptyTes
     EXPECT_EQ(responsePtr.get()->componentDiffDetails.size(), expectSize);
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSelectResultNotEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSelectResultNotEmptyTest) {
     std::vector<MemoryComponentComparison> fullDiffResult(135, {{}, {}, {"TSYNC", "125.697", 45.98, ""}});
     MemoryComponentRequest request;
     request.params.pageSize = 10; // page size = 10
@@ -197,8 +169,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSelectResultNotEmpty
     EXPECT_EQ(responsePtr.get()->componentDiffDetails.size(), expectSize);
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSortResultAscendTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSortResultAscendTest) {
     std::vector<MemoryComponentComparison> result;
     MemoryComponent componentFirst = {"SLOG", "189.657", 29.67, ""};
     MemoryComponent componentSecond = {"APP", "29.301", 89.14, ""};
@@ -227,8 +198,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSortResultAscendTest
     EXPECT_EQ(result[second].diff.component, "PTA");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSortResultDescendTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSortResultDescendTest) {
     std::vector<MemoryComponentComparison> result;
     MemoryComponent componentFirst = {"SLOG", "189.657", 29.67, ""};
     MemoryComponent componentSecond = {"APP", "29.301", 89.14, ""};
@@ -257,8 +227,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryComponentHandlerSortResultDescendTes
     EXPECT_EQ(result[second].diff.component, "SLOG");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerNormalTest) {
     const int64_t defaultPageSize = 10;
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryOperatorRequest> requestPtr =
@@ -270,8 +239,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerNormalTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerInvalidParamTest) {
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryOperatorRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryOperatorRequest>();
@@ -281,12 +249,11 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerInvalidParamTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonGroupByStreamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonGroupByStreamTest) {
     const int64_t defaultPageSize = 10;
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryOperatorRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemoryOperatorRequest>();
+        std::make_unique<Dic::Protocol::MemoryOperatorRequest>();
     requestPtr.get()->params.rankId = "0";
     requestPtr.get()->params.type = "Stream";
     requestPtr.get()->params.currentPage = 1;
@@ -295,8 +262,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonGroupByStre
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonTestReturnFalse)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonTestReturnFalse) {
     const int64_t defaultPageSize = 10;
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
     MOCKER(&QueryMemoryOperatorHandler::GetRespectiveData).expects(once()).will(returnValue(false));
@@ -315,15 +281,13 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerComparisonTestReturnF
     GlobalMockObject::verify();
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffCompareEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffCompareEmptyTest) {
     std::vector<MemoryOperator> compareData;
     std::vector<MemoryOperator> baselineData;
     std::vector<MemoryOperatorComparison> diffData;
-    MemoryOperator operatorFirst = {"aten::empty_strided", 100, "0.000", "0.000", 1000, "0.000",
-        1000, 1000, 1000, 1000, 1000, 1000, 1000, "", ""};
-    MemoryOperator operatorSecond = {"matmul", 1000, "0.000", "0.000", 25, "0.000",
-        25, 25, 25, 25, 25, 25, 25, "", ""};
+    MemoryOperator operatorFirst = {
+        "aten::empty_strided", 100, "0.000", "0.000", 1000, "0.000", 1000, 1000, 1000, 1000, 1000, 1000, 1000, "", ""};
+    MemoryOperator operatorSecond = {"matmul", 1000, "0.000", "0.000", 25, "0.000", 25, 25, 25, 25, 25, 25, 25, "", ""};
     baselineData.push_back(operatorFirst);
     baselineData.push_back(operatorSecond);
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
@@ -348,15 +312,13 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffCompar
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffBaselineEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffBaselineEmptyTest) {
     std::vector<MemoryOperator> compareData;
     std::vector<MemoryOperator> baselineData;
     std::vector<MemoryOperatorComparison> diffData;
-    MemoryOperator operatorFirst = {"aten::empty_strided", 100, "0.000", "0.000", 1000, "0.000",
-        1000, 1000, 1000, 1000, 1000, 1000, 1000, "", ""};
-    MemoryOperator operatorSecond = {"matmul", 1000, "0.000", "0.000", 25, "0.000",
-        25, 25, 25, 25, 25, 25, 25, "", ""};
+    MemoryOperator operatorFirst = {
+        "aten::empty_strided", 100, "0.000", "0.000", 1000, "0.000", 1000, 1000, 1000, 1000, 1000, 1000, 1000, "", ""};
+    MemoryOperator operatorSecond = {"matmul", 1000, "0.000", "0.000", 25, "0.000", 25, 25, 25, 25, 25, 25, 25, "", ""};
     compareData.push_back(operatorFirst);
     compareData.push_back(operatorSecond);
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
@@ -381,21 +343,20 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffBaseli
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffBothNotEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffBothNotEmptyTest) {
     std::vector<MemoryOperator> compareData;
     std::vector<MemoryOperator> baselineData;
     std::vector<MemoryOperatorComparison> diffData;
-    MemoryOperator operatorCompareFirst = {"aten::empty_strided", 100, "19.235", "21.478", 2, "21.477",
-        2, 100, 100, 100, 100, 100, 100, "4589", ""};
-    MemoryOperator operatorCompareSecond = {"matmul", 1000, "178.254", "199.375", 20, "199.372",
-        20, 1000, 1000, 1000, 1000, 1000, 1000, "2733", ""};
+    MemoryOperator operatorCompareFirst = {
+        "aten::empty_strided", 100, "19.235", "21.478", 2, "21.477", 2, 100, 100, 100, 100, 100, 100, "4589", ""};
+    MemoryOperator operatorCompareSecond = {
+        "matmul", 1000, "178.254", "199.375", 20, "199.372", 20, 1000, 1000, 1000, 1000, 1000, 1000, "2733", ""};
     compareData.push_back(operatorCompareFirst);
     compareData.push_back(operatorCompareSecond);
-    MemoryOperator operatorBaselineFirst = {"aten::empty_strided", 173, "33.980", "49.211", 16, "49.210",
-        16, 173, 173, 173, 173, 173, 173, "3011", ""};
-    MemoryOperator operatorBaselineSecond = {"matmul", 477, "1.230", "120.211", 119, "120.210",
-        119, 477, 477, 477, 477, 477, 477, "8924", ""};
+    MemoryOperator operatorBaselineFirst = {
+        "aten::empty_strided", 173, "33.980", "49.211", 16, "49.210", 16, 173, 173, 173, 173, 173, 173, "3011", ""};
+    MemoryOperator operatorBaselineSecond = {
+        "matmul", 477, "1.230", "120.211", 119, "120.210", 119, 477, 477, 477, 477, 477, 477, "8924", ""};
     baselineData.push_back(operatorBaselineFirst);
     baselineData.push_back(operatorBaselineSecond);
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
@@ -407,13 +368,13 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffBothNo
         EXPECT_EQ(result.name, compareData[i].name);
         EXPECT_EQ(result.name, baselineData[i].name);
         EXPECT_EQ(result.size, compareData[i].size - baselineData[i].size);
-        EXPECT_EQ(result.allocationTime, NumberUtil::StringDoubleMinus(compareData[i].allocationTime,
-            baselineData[i].allocationTime));
-        EXPECT_EQ(result.releaseTime, NumberUtil::StringDoubleMinus(compareData[i].releaseTime,
-            baselineData[i].releaseTime));
+        EXPECT_EQ(result.allocationTime,
+            NumberUtil::StringDoubleMinus(compareData[i].allocationTime, baselineData[i].allocationTime));
+        EXPECT_EQ(
+            result.releaseTime, NumberUtil::StringDoubleMinus(compareData[i].releaseTime, baselineData[i].releaseTime));
         EXPECT_EQ(result.duration, compareData[i].duration - baselineData[i].duration);
-        EXPECT_EQ(result.activeReleaseTime, NumberUtil::StringDoubleMinus(compareData[i].activeReleaseTime,
-            baselineData[i].activeReleaseTime));
+        EXPECT_EQ(result.activeReleaseTime,
+            NumberUtil::StringDoubleMinus(compareData[i].activeReleaseTime, baselineData[i].activeReleaseTime));
         EXPECT_EQ(result.activeDuration, compareData[i].activeDuration - baselineData[i].activeDuration);
         EXPECT_EQ(result.allocationAllocated, compareData[i].allocationAllocated - baselineData[i].allocationAllocated);
         EXPECT_EQ(result.allocationReserved, compareData[i].allocationReserved - baselineData[i].allocationReserved);
@@ -426,8 +387,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerGetOperatorDiffBothNo
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelectNameAndSizeTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelectNameAndSizeTest) {
     std::vector<MemoryOperatorComparison> fullDiffResult;
     MemoryOperator opCompareFirst = {"aten::ge", 50, "190.235", "211.478", 0, "", 0, 0, 0, 0, 0, 0, 0, "", ""};
     MemoryOperator opBaselineFirst = {"aten::ge", -150, "186.235", "215.478", 0, "", 0, 0, 0, 0, 0, 0, 0, "", ""};
@@ -454,15 +414,14 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelec
     request.params.currentPage = 1;
     request.params.orderBy = "";
     std::unique_ptr<MemoryOperatorComparisonResponse> responsePtr =
-            std::make_unique<MemoryOperatorComparisonResponse>();
+        std::make_unique<MemoryOperatorComparisonResponse>();
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
     handler.SelectDiffResult(request, *responsePtr.get(), fullDiffResult);
     ASSERT_EQ(responsePtr.get()->totalNum, 1);
     EXPECT_EQ(responsePtr.get()->operatorDiffDetails[0].diff.name, "matmulv3");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelectStartTimeAndEndTimeTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelectStartTimeAndEndTimeTest) {
     std::vector<MemoryOperatorComparison> fullDiffResult;
     MemoryOperator opCompareFirst = {"aten::ge", 50, "190.235", "211.478", 0, "", 0, 0, 0, 0, 0, 0, 0, "", ""};
     MemoryOperator opBaselineFirst = {"aten::ge", -150, "186.235", "215.478", 0, "", 0, 0, 0, 0, 0, 0, 0, "", ""};
@@ -489,7 +448,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelec
     request.params.currentPage = 1;
     request.params.orderBy = "";
     std::unique_ptr<MemoryOperatorComparisonResponse> responsePtr =
-            std::make_unique<MemoryOperatorComparisonResponse>();
+        std::make_unique<MemoryOperatorComparisonResponse>();
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
     handler.SelectDiffResult(request, *responsePtr.get(), fullDiffResult);
     const int expectNum = 2;
@@ -499,9 +458,8 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelec
 }
 
 // 测试框选了开始时间、结束时间，且只显示在选中时间区间内分配、释放内存的数据查询是否正确
-TEST_F(MemoryRequestHandlerTest,
-    QueryMemoryOperatorHandlerSelectDiffResultSelectStartTimeAndEndTimeOnlyShowWithinTest)
-{
+TEST_F(
+    MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSelectStartTimeAndEndTimeOnlyShowWithinTest) {
     std::vector<MemoryOperatorComparison> fullDiffResult;
     MemoryOperator opCompareFirst = {"aten::ge", 50, "190.235", "211.478", 0, "", 0, 0, 0, 0, 0, 0, 0, "", ""};
     MemoryOperator opBaselineFirst = {"aten::ge", -150, "136.235", "216.478", 0, "", 0, 0, 0, 0, 0, 0, 0, "", ""};
@@ -529,7 +487,7 @@ TEST_F(MemoryRequestHandlerTest,
     request.params.currentPage = 1;
     request.params.orderBy = "";
     std::unique_ptr<MemoryOperatorComparisonResponse> responsePtr =
-            std::make_unique<MemoryOperatorComparisonResponse>();
+        std::make_unique<MemoryOperatorComparisonResponse>();
     Dic::Module::Memory::QueryMemoryOperatorHandler handler;
     handler.SelectDiffResult(request, *responsePtr.get(), fullDiffResult);
     const int expectNum = 1;
@@ -537,16 +495,15 @@ TEST_F(MemoryRequestHandlerTest,
     EXPECT_EQ(responsePtr.get()->operatorDiffDetails[0].diff.name, "matmulv3");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortAscendTestPartOne)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortAscendTestPartOne) {
     MemoryOperatorComparisonResponse result;
     std::vector<MemoryOperatorComparison> opDiffDetails;
-    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253",
-        898.74, -25.897, -111.28, 44.9, 18.7, 25.39, -19.36, "1213", "NA2"};
-    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780",
-        -714.28, 14.289, 10.3, -25.1, 19.6, 20.95, 22.3, "1210", "NA1"};
-    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962",
-        1.025, 0.213, -20.1, -776.9, 16.1, 27.011, 100, "1212", "NA"};
+    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253", 898.74, -25.897, -111.28, 44.9,
+        18.7, 25.39, -19.36, "1213", "NA2"};
+    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780", -714.28, 14.289, 10.3, -25.1,
+        19.6, 20.95, 22.3, "1210", "NA1"};
+    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962", 1.025, 0.213, -20.1, -776.9, 16.1,
+        27.011, 100, "1212", "NA"};
     opDiffDetails.push_back({{}, {}, opDiffFirst});
     opDiffDetails.push_back({{}, {}, opDiffSecond});
     opDiffDetails.push_back({{}, {}, opDiffThird});
@@ -587,16 +544,15 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortA
     EXPECT_EQ(result.operatorDiffDetails[second].diff.name, "aten::ge");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortAscendTestPartTwo)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortAscendTestPartTwo) {
     MemoryOperatorComparisonResponse result;
     std::vector<MemoryOperatorComparison> opDiffDetails;
-    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253",
-                                  898.74, -25.897, -111.28, 44.9, 18.7, 25.39, -19.36, "1213", "NA2"};
-    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780",
-                                   -714.28, 14.289, 10.3, -25.1, 19.6, 20.95, 22.3, "1210", "NA1"};
-    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962",
-                                  1.025, 0.213, -20.1, -776.9, 16.1, 27.011, 100, "1212", "NA"};
+    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253", 898.74, -25.897, -111.28, 44.9,
+        18.7, 25.39, -19.36, "1213", "NA2"};
+    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780", -714.28, 14.289, 10.3, -25.1,
+        19.6, 20.95, 22.3, "1210", "NA1"};
+    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962", 1.025, 0.213, -20.1, -776.9, 16.1,
+        27.011, 100, "1212", "NA"};
     opDiffDetails.push_back({{}, {}, opDiffFirst});
     opDiffDetails.push_back({{}, {}, opDiffSecond});
     opDiffDetails.push_back({{}, {}, opDiffThird});
@@ -637,16 +593,15 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortA
     EXPECT_EQ(result.operatorDiffDetails[second].diff.name, "matmulv3");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortAscendTestPartThree)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortAscendTestPartThree) {
     MemoryOperatorComparisonResponse result;
     std::vector<MemoryOperatorComparison> opDiffDetails;
-    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253",
-                                  898.74, -25.897, -111.28, 44.9, 18.7, 25.39, -19.36, "1213", "NA2"};
-    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780",
-                                   -714.28, 14.289, 10.3, -25.1, 19.6, 20.95, 22.3, "1210", "NA1"};
-    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962",
-                                  1.025, 0.213, -20.1, -776.9, 16.1, 27.011, 100, "1212", "NA"};
+    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253", 898.74, -25.897, -111.28, 44.9,
+        18.7, 25.39, -19.36, "1213", "NA2"};
+    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780", -714.28, 14.289, 10.3, -25.1,
+        19.6, 20.95, 22.3, "1210", "NA1"};
+    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962", 1.025, 0.213, -20.1, -776.9, 16.1,
+        27.011, 100, "1212", "NA"};
     opDiffDetails.push_back({{}, {}, opDiffFirst});
     opDiffDetails.push_back({{}, {}, opDiffSecond});
     opDiffDetails.push_back({{}, {}, opDiffThird});
@@ -672,16 +627,15 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortA
     EXPECT_EQ(result.operatorDiffDetails[second].diff.name, "aten::ge");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortDescendTestPartOne)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortDescendTestPartOne) {
     MemoryOperatorComparisonResponse result;
     std::vector<MemoryOperatorComparison> opDiffDetails;
-    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253",
-                                  898.74, -25.897, -111.28, 44.9, 18.7, 25.39, -19.36, "1213", "NA2"};
-    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780",
-                                   -714.28, 14.289, 10.3, -25.1, 19.6, 20.95, 22.3, "1210", "NA1"};
-    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962",
-                                  1.025, 0.213, -20.1, -776.9, 16.1, 27.011, 100, "1212", "NA"};
+    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253", 898.74, -25.897, -111.28, 44.9,
+        18.7, 25.39, -19.36, "1213", "NA2"};
+    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780", -714.28, 14.289, 10.3, -25.1,
+        19.6, 20.95, 22.3, "1210", "NA1"};
+    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962", 1.025, 0.213, -20.1, -776.9, 16.1,
+        27.011, 100, "1212", "NA"};
     opDiffDetails.push_back({{}, {}, opDiffFirst});
     opDiffDetails.push_back({{}, {}, opDiffSecond});
     opDiffDetails.push_back({{}, {}, opDiffThird});
@@ -722,16 +676,15 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortD
     EXPECT_EQ(result.operatorDiffDetails[second].diff.name, "matmul");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortDescendTestPartTwo)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortDescendTestPartTwo) {
     MemoryOperatorComparisonResponse result;
     std::vector<MemoryOperatorComparison> opDiffDetails;
-    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253",
-                                  898.74, -25.897, -111.28, 44.9, 18.7, 25.39, -19.36, "1213", "NA2"};
-    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780",
-                                   -714.28, 14.289, 10.3, -25.1, 19.6, 20.95, 22.3, "1210", "NA1"};
-    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962",
-                                  1.025, 0.213, -20.1, -776.9, 16.1, 27.011, 100, "1212", "NA"};
+    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253", 898.74, -25.897, -111.28, 44.9,
+        18.7, 25.39, -19.36, "1213", "NA2"};
+    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780", -714.28, 14.289, 10.3, -25.1,
+        19.6, 20.95, 22.3, "1210", "NA1"};
+    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962", 1.025, 0.213, -20.1, -776.9, 16.1,
+        27.011, 100, "1212", "NA"};
     opDiffDetails.push_back({{}, {}, opDiffFirst});
     opDiffDetails.push_back({{}, {}, opDiffSecond});
     opDiffDetails.push_back({{}, {}, opDiffThird});
@@ -772,16 +725,15 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortD
     EXPECT_EQ(result.operatorDiffDetails[second].diff.name, "matmul");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortDescendTestPartThree)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortDescendTestPartThree) {
     MemoryOperatorComparisonResponse result;
     std::vector<MemoryOperatorComparison> opDiffDetails;
-    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253",
-                                  898.74, -25.897, -111.28, 44.9, 18.7, 25.39, -19.36, "1213", "NA2"};
-    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780",
-                                   -714.28, 14.289, 10.3, -25.1, 19.6, 20.95, 22.3, "1210", "NA1"};
-    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962",
-                                  1.025, 0.213, -20.1, -776.9, 16.1, 27.011, 100, "1212", "NA"};
+    MemoryOperator opDiffFirst = {"aten::ge", -100, "4.000", "-4.000", 12.4, "100.253", 898.74, -25.897, -111.28, 44.9,
+        18.7, 25.39, -19.36, "1213", "NA2"};
+    MemoryOperator opDiffSecond = {"matmul", 100, "7.58", "25.003", -10.8, "-15.780", -714.28, 14.289, 10.3, -25.1,
+        19.6, 20.95, 22.3, "1210", "NA1"};
+    MemoryOperator opDiffThird = {"matmulv3", 36.4, "120.000", "-3.000", 3, "21.962", 1.025, 0.213, -20.1, -776.9, 16.1,
+        27.011, 100, "1212", "NA"};
     opDiffDetails.push_back({{}, {}, opDiffFirst});
     opDiffDetails.push_back({{}, {}, opDiffSecond});
     opDiffDetails.push_back({{}, {}, opDiffThird});
@@ -807,8 +759,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorHandlerSelectDiffResultSortD
     EXPECT_EQ(result.operatorDiffDetails[second].diff.name, "matmulv3");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryResourceTypeHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryResourceTypeHandlerNormalTest) {
     Dic::Module::Memory::QueryMemoryResourceTypeHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryResourceTypeRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryResourceTypeRequest>();
@@ -816,8 +767,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryResourceTypeHandlerNormalTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryResourceTypeHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryResourceTypeHandlerInvalidParamTest) {
     const int invalidLength = 600;
     Dic::Module::Memory::QueryMemoryResourceTypeHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryResourceTypeRequest> requestPtr =
@@ -827,8 +777,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryResourceTypeHandlerInvalidParamTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerNormalTest) {
     Dic::Module::Memory::QueryMemoryStaticOperatorGraphHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryStaticOperatorGraphRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryStaticOperatorGraphRequest>();
@@ -836,8 +785,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerNormalTest
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerInvalidParamTest) {
     Dic::Module::Memory::QueryMemoryStaticOperatorGraphHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryStaticOperatorGraphRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryStaticOperatorGraphRequest>();
@@ -845,8 +793,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerInvalidPar
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLegendsTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLegendsTest) {
     StaticOperatorGraphItem compareData{{"Node Index", "Size", "Total Size"}, {}};
     StaticOperatorGraphItem baselineData{{"Node Index", "Size", "Total Size"}, {}};
     StaticOperatorGraphItem resultData;
@@ -862,11 +809,10 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompare
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLinesCompareEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLinesCompareEmptyTest) {
     StaticOperatorGraphItem compareData{{"Node Index", "Size", "Total Size"}, {}};
-    StaticOperatorGraphItem baselineData{{"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"},
-        {"256", "3657.89", "106974.58"}}};
+    StaticOperatorGraphItem baselineData{
+        {"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"}, {"256", "3657.89", "106974.58"}}};
     StaticOperatorGraphItem resultData;
     QueryMemoryStaticOperatorGraphHandler handler;
     handler.GetCompareGraphLines(compareData, baselineData, resultData);
@@ -883,10 +829,9 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompare
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLinesBaselineEmptyTest)
-{
-    StaticOperatorGraphItem compareData{{"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"},
-        {"256", "3657.89", "106974.58"}}};
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLinesBaselineEmptyTest) {
+    StaticOperatorGraphItem compareData{
+        {"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"}, {"256", "3657.89", "106974.58"}}};
     StaticOperatorGraphItem baselineData{{"Node Index", "Size", "Total Size"}, {}};
     StaticOperatorGraphItem resultData;
     QueryMemoryStaticOperatorGraphHandler handler;
@@ -904,12 +849,11 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompare
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLinesBothNotEmptyTest)
-{
-    StaticOperatorGraphItem compareData{{"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"},
-        {"256", "3657.89", "106974.58"}}};
-    StaticOperatorGraphItem baselineData{{"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"},
-        {"256", "3657.89", "106974.58"}}};
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompareGraphLinesBothNotEmptyTest) {
+    StaticOperatorGraphItem compareData{
+        {"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"}, {"256", "3657.89", "106974.58"}}};
+    StaticOperatorGraphItem baselineData{
+        {"Node Index", "Size", "Total Size"}, {{"100", "2311.25", "106974.58"}, {"256", "3657.89", "106974.58"}}};
     StaticOperatorGraphItem resultData;
     QueryMemoryStaticOperatorGraphHandler handler;
     handler.GetCompareGraphLines(compareData, baselineData, resultData);
@@ -927,8 +871,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorGraphHandlerGetCompare
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerNormalTest) {
     const int64_t defaultPageSize = 10;
     Dic::Module::Memory::QueryMemoryStaticOperatorListHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryStaticOperatorListRequest> requestPtr =
@@ -939,8 +882,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerNormalTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerInvalidParamTest) {
     Dic::Module::Memory::QueryMemoryStaticOperatorListHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryStaticOperatorListRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryStaticOperatorListRequest>();
@@ -950,8 +892,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerInvalidPara
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperatorDiffCompareEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperatorDiffCompareEmptyTest) {
     std::vector<StaticOperatorItem> compareData;
     std::vector<StaticOperatorItem> baselineData;
     std::vector<StaticOperatorCompItem> diffData;
@@ -971,8 +912,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperator
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperatorDiffBaselineEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperatorDiffBaselineEmptyTest) {
     std::vector<StaticOperatorItem> compareData;
     std::vector<StaticOperatorItem> baselineData;
     std::vector<StaticOperatorCompItem> diffData;
@@ -992,8 +932,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperator
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperatorDiffBothNotEmptyTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperatorDiffBothNotEmptyTest) {
     std::vector<StaticOperatorItem> compareData;
     std::vector<StaticOperatorItem> baselineData;
     std::vector<StaticOperatorCompItem> diffData;
@@ -1015,13 +954,12 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerGetOperator
         EXPECT_EQ(diffData[i].diff.opName, compareData[i].opName);
         EXPECT_EQ(diffData[i].diff.nodeIndexStart, compareData[i].nodeIndexStart - baselineData[i].nodeIndexStart);
         EXPECT_EQ(diffData[i].diff.nodeIndexEnd, compareData[i].nodeIndexEnd - baselineData[i].nodeIndexEnd);
-        EXPECT_EQ(diffData[i].diff.size, NumberUtil::DoubleReservedNDigits(compareData[i].size - baselineData[i].size,
-            precision));
+        EXPECT_EQ(diffData[i].diff.size,
+            NumberUtil::DoubleReservedNDigits(compareData[i].size - baselineData[i].size, precision));
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSelectNameAndSizeTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSelectNameAndSizeTest) {
     std::vector<StaticOperatorCompItem> fullDiffResult;
     StaticOperatorItem opCompareFirst = {"host", "RmsNorm-op8", 198, 328, 16.031};
     StaticOperatorItem opBaselineFirst = {"host", "RmsNorm-op8", 105, 300, 15.000};
@@ -1055,8 +993,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffR
     EXPECT_EQ(responsePtr.get()->operatorDiffDetails[0].diff.opName, "RmsNorm-op8");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSelectNodeIndexTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSelectNodeIndexTest) {
     std::vector<StaticOperatorCompItem> fullDiffResult;
     StaticOperatorItem opCompareFirst = {"host", "RmsNorm-op8", 198, 328, 16.031};
     StaticOperatorItem opBaselineFirst = {"host", "RmsNorm-op8", 105, 300, 15.000};
@@ -1090,8 +1027,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffR
     EXPECT_EQ(responsePtr.get()->operatorDiffDetails[0].diff.opName, "ReduceMax-op6");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSortAscendTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSortAscendTest) {
     MemoryStaticOperatorListCompResponse result;
     std::vector<StaticOperatorCompItem> opDiffDetails;
     StaticOperatorItem opDiffFirst = {"host", "RmsNorm-op8", 93, 28, 1.031};
@@ -1132,8 +1068,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffR
     EXPECT_EQ(result.operatorDiffDetails[second].diff.opName, "ReduceMax-op6");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSortDescendTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffResultSortDescendTest) {
     MemoryStaticOperatorListCompResponse result;
     std::vector<StaticOperatorCompItem> opDiffDetails;
     StaticOperatorItem opDiffFirst = {"host", "RmsNorm-op8", 93, 28, 1.031};
@@ -1174,8 +1109,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorListHandlerSelectDiffR
     EXPECT_EQ(result.operatorDiffDetails[second].diff.opName, "OneHot-op8");
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerNormalTest) {
     Dic::Module::Memory::QueryMemoryStaticOperatorSizeHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryStaticOperatorSizeRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryStaticOperatorSizeRequest>();
@@ -1184,8 +1118,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerNormalTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerInvalidParamTest) {
     Dic::Module::Memory::QueryMemoryStaticOperatorSizeHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryStaticOperatorSizeRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryStaticOperatorSizeRequest>();
@@ -1194,8 +1127,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerInvalidPara
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerExecuteComparisonAlgorithmTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerExecuteComparisonAlgorithmTest) {
     Protocol::StaticOperatorSize compareData{120.14, 259.99};
     Protocol::StaticOperatorSize baselineData{12.30, 558.97};
     Protocol::MemoryStaticOperatorSizeResponse response;
@@ -1205,50 +1137,41 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryStaticOperatorSizeHandlerExecuteComp
     EXPECT_EQ(response.size.maxSize, compareData.maxSize - baselineData.minSize);
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryTypeHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryTypeHandlerNormalTest) {
     Dic::Module::Memory::QueryMemoryTypeHandler handler;
-    std::unique_ptr<Dic::Protocol::MemoryTypeRequest> requestPtr =
-        std::make_unique<Dic::Protocol::MemoryTypeRequest>();
+    std::unique_ptr<Dic::Protocol::MemoryTypeRequest> requestPtr = std::make_unique<Dic::Protocol::MemoryTypeRequest>();
     requestPtr.get()->rankId = "0";
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryTypeHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryTypeHandlerInvalidParamTest) {
     Dic::Module::Memory::QueryMemoryTypeHandler handler;
-    std::unique_ptr<Dic::Protocol::MemoryTypeRequest> requestPtr =
-        std::make_unique<Dic::Protocol::MemoryTypeRequest>();
+    std::unique_ptr<Dic::Protocol::MemoryTypeRequest> requestPtr = std::make_unique<Dic::Protocol::MemoryTypeRequest>();
     requestPtr.get()->rankId = "0&";
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerNormalTest) {
     Dic::Module::Memory::QueryMemoryViewHandler handler;
-    std::unique_ptr<Dic::Protocol::MemoryViewRequest> requestPtr =
-        std::make_unique<Dic::Protocol::MemoryViewRequest>();
+    std::unique_ptr<Dic::Protocol::MemoryViewRequest> requestPtr = std::make_unique<Dic::Protocol::MemoryViewRequest>();
     requestPtr.get()->params.rankId = "0";
     requestPtr.get()->params.type = "Overall";
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerInvalidParamTest) {
     Dic::Module::Memory::QueryMemoryViewHandler handler;
-    std::unique_ptr<Dic::Protocol::MemoryViewRequest> requestPtr =
-        std::make_unique<Dic::Protocol::MemoryViewRequest>();
+    std::unique_ptr<Dic::Protocol::MemoryViewRequest> requestPtr = std::make_unique<Dic::Protocol::MemoryViewRequest>();
     requestPtr.get()->params.rankId = "0";
     requestPtr.get()->params.type = "Invalid";
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLegendsTest)
-{
-    MemoryViewData compareData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {}};
-    MemoryViewData baselineData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {}};
+TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLegendsTest) {
+    MemoryViewData compareData{
+        "", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"}, {}};
+    MemoryViewData baselineData{
+        "", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"}, {}};
     MemoryViewData resultData;
     QueryMemoryViewHandler handler;
     handler.GetCompareGraphLegends(compareData, baselineData, resultData);
@@ -1263,13 +1186,12 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLegendsTes
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesCompareEmptyTest)
-{
-    MemoryViewData compareData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {}};
-    MemoryViewData baselineData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {{"10.032", "25.37", "13.22", "101.29", "1000.28"},
-        {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
+TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesCompareEmptyTest) {
+    MemoryViewData compareData{
+        "", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"}, {}};
+    MemoryViewData baselineData{"",
+        {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"},
+        {{"10.032", "25.37", "13.22", "101.29", "1000.28"}, {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
     MemoryViewData resultData;
     QueryMemoryViewHandler handler;
     handler.GetCompareGraphLines(compareData, baselineData, resultData);
@@ -1286,13 +1208,12 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesCompa
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesBaselineEmptyTest)
-{
-    MemoryViewData compareData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {{"10.032", "25.37", "13.22", "101.29", "1000.28"},
-        {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
-    MemoryViewData baselineData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {}};
+TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesBaselineEmptyTest) {
+    MemoryViewData compareData{"",
+        {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"},
+        {{"10.032", "25.37", "13.22", "101.29", "1000.28"}, {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
+    MemoryViewData baselineData{
+        "", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"}, {}};
     MemoryViewData resultData;
     QueryMemoryViewHandler handler;
     handler.GetCompareGraphLines(compareData, baselineData, resultData);
@@ -1309,14 +1230,13 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesBasel
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesBothNotEmptyTest)
-{
-    MemoryViewData compareData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {{"10.032", "25.37", "13.22", "101.29", "1000.28"},
-        {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
-    MemoryViewData baselineData{"", {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved",
-        "App Reserved"}, {{"10.032", "25.37", "13.22", "101.29", "1000.28"},
-        {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
+TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesBothNotEmptyTest) {
+    MemoryViewData compareData{"",
+        {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"},
+        {{"10.032", "25.37", "13.22", "101.29", "1000.28"}, {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
+    MemoryViewData baselineData{"",
+        {"Time (ms)", "Operators Allocated", "Operators Activated", "Operators Reserved", "App Reserved"},
+        {{"10.032", "25.37", "13.22", "101.29", "1000.28"}, {"21.389", "100.88", "94.63", "150.32", "2000.01"}}};
     MemoryViewData resultData;
     QueryMemoryViewHandler handler;
     handler.GetCompareGraphLines(compareData, baselineData, resultData);
@@ -1334,8 +1254,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryViewHandlerGetCompareGraphLinesBothN
     }
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerNormalTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerNormalTest) {
     Dic::Module::Memory::QueryMemoryOperatorSizeHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryOperatorSizeRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryOperatorSizeRequest>();
@@ -1344,8 +1263,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerNormalTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerInvalidParamTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerInvalidParamTest) {
     Dic::Module::Memory::QueryMemoryOperatorSizeHandler handler;
     std::unique_ptr<Dic::Protocol::MemoryOperatorSizeRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemoryOperatorSizeRequest>();
@@ -1354,8 +1272,7 @@ TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerInvalidParamTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerExecuteComparisonAlgorithmTest)
-{
+TEST_F(MemoryRequestHandlerTest, QueryMemoryOperatorSizeHandlerExecuteComparisonAlgorithmTest) {
     Protocol::OperatorSize compareData{120.14, 259.99};
     Protocol::OperatorSize baselineData{12.30, 558.97};
     Protocol::MemoryOperatorSizeResponse response;

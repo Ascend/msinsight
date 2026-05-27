@@ -16,8 +16,6 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
-#include "WsSessionImpl.h"
-#include "WsSessionManager.h"
 #include "OperatorMemoryService.h"
 #include "RenderEngine.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
@@ -26,47 +24,25 @@
 
 using namespace Dic::Module::Memory;
 class MemoryHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-        Dic::Server::WsChannel *ws;
-        std::unique_ptr<Dic::Server::WsSessionImpl> session = std::make_unique<Dic::Server::WsSessionImpl>(ws);
-        Dic::Server::WsSessionManager::Instance().AddSession(std::move(session));
-    }
-    static void TearDownTestSuite()
-    {
-        auto session = Dic::Server::WsSessionManager::Instance().GetSession();
-        if (session != nullptr) {
-            session->SetStatus(Dic::Server::WsSession::Status::CLOSED);
-            session->WaitForExit();
-            Dic::Server::WsSessionManager::Instance().RemoveSession();
-        }
-    }
-
-protected:
+  protected:
     class MemoryTableDefaultMock {
-    public:
-        void SetDb(sqlite3 *dbPtr)
-        {
-            db = dbPtr;
-        }
+      public:
+        void SetDb(sqlite3 *dbPtr) { db = dbPtr; }
 
-    protected:
+      protected:
         sqlite3 *db = nullptr;
     };
     class OperatorTableMock : public OperatorTable, public MemoryTableDefaultMock {
-    protected:
-        void ExcuteQuery(const std::string &fileId, std::vector<OperatorPO> &result) override
-        {
+      protected:
+        void ExcuteQuery(const std::string &fileId, std::vector<OperatorPO> &result) override {
             OperatorTable::ExcuteQuery(db, result);
             ClearThreadLocal();
         }
     };
 
     class OpMemoryTableMock : public OpMemoryTable, public MemoryTableDefaultMock {
-    protected:
-        void ExcuteQuery(const std::string &fileId, std::vector<OpMemoryPO> &result) override
-        {
+      protected:
+        void ExcuteQuery(const std::string &fileId, std::vector<OpMemoryPO> &result) override {
             OpMemoryTable::ExcuteQuery(db, result);
             ClearThreadLocal();
         }
@@ -81,8 +57,7 @@ protected:
 /**
  * timeline不存在
  */
-TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenTimelineNotExist)
-{
+TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenTimelineNotExist) {
     FindSliceByAllocationTimeHandler handler(nullptr);
     std::unique_ptr<Dic::Protocol::MemoryFindSliceRequest> request =
         std::make_unique<Dic::Protocol::MemoryFindSliceRequest>();
@@ -90,8 +65,7 @@ TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenTimelineNotExi
     EXPECT_EQ(res, false);
 }
 
-TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenMemoryDataNotExist)
-{
+TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenMemoryDataNotExist) {
     class RenderEngineMock : public Dic::Module::Timeline::RenderEngine {};
     std::unique_ptr<RenderEngineMock> renderEngineMockMock = std::make_unique<RenderEngineMock>();
     FindSliceByAllocationTimeHandler handler(std::move(renderEngineMockMock));
@@ -101,8 +75,7 @@ TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerWhenMemoryDataNotE
     EXPECT_EQ(res, false);
 }
 
-TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerNormal)
-{
+TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerNormal) {
     std::unique_ptr<OperatorTableMock> operatorTable = std::make_unique<OperatorTableMock>();
     std::unique_ptr<OpMemoryTableMock> opMemoryTable = std::make_unique<OpMemoryTableMock>();
     sqlite3 *db = nullptr;
@@ -121,10 +94,9 @@ TEST_F(MemoryHandlerTest, TestFindSliceByAllocationTimeHandlerNormal)
     std::unique_ptr<OperatorMemoryService> service =
         std::make_unique<OperatorMemoryService>(std::move(operatorTable), std::move(opMemoryTable));
     class RenderEngineMock : public Dic::Module::Timeline::RenderEngine {
-    public:
+      public:
         Dic::Module::Timeline::CompeteSliceDomain FindSliceByTimePoint(const std::string &fileId,
-            const std::string &name, uint64_t timePoint, const std::string &metaType) override
-        {
+            const std::string &name, uint64_t timePoint, const std::string &metaType) override {
             Dic::Module::Timeline::CompeteSliceDomain slice;
             slice.pid = "kk";
             slice.tid = "kk";

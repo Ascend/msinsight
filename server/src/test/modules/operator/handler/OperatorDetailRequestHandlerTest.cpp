@@ -17,14 +17,12 @@
  */
 
 #include <gtest/gtest.h>
-#include <WsSessionManager.h>
 #include "BaselineManagerService.h"
 #include "DataBaseManager.h"
 #include "QueryOpCategoryInfoHandler.h"
 #include "QueryOpDetailInfoHandler.h"
 #include "ParamsParser.h"
 #include "ProjectExplorerManager.h"
-#include "WsSessionImpl.h"
 #include "FileUtil.h"
 #include "../../../FullDbTestSuit.cpp"
 #include "../../../TestSuit.h"
@@ -34,34 +32,17 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::Module::FullDb;
 using namespace Dic::Module::Global;
 class OperatorDetailRequestHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-        Dic::Server::WsChannel *ws;
-        std::unique_ptr<WsSessionImpl> session = std::make_unique<WsSessionImpl>(ws);
-        Dic::Server::WsSessionManager::Instance().AddSession(std::move(session));
-        SetBaseLineManager();
-    }
+  public:
+    static void SetUpTestSuite() { SetBaseLineManager(); }
 
-    static void TearDownTestSuite()
-    {
-        auto session = Dic::Server::WsSessionManager::Instance().GetSession();
-        if (session != nullptr) {
-            session->SetStatus(Dic::Server::WsSession::Status::CLOSED);
-            session->WaitForExit();
-            Dic::Server::WsSessionManager::Instance().RemoveSession();
-        }
-        ClearProjectExplorerData();
-    }
+    static void TearDownTestSuite() { ClearProjectExplorerData(); }
 
-    static void InitBaseLineManager()
-    {
+    static void InitBaseLineManager() {
         ProjectExplorerManager::Instance().InitSystemMemoryDbPath(testDataDir);
         InitProjectExplorerData();
     }
 
-    static bool SetBaseLineManager()
-    {
+    static bool SetBaseLineManager() {
         InitBaseLineManager();
         // 创建DB场景的baseline基线manager
         std::string filePathText = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0", "ASCEND_PROFILER_OUTPUT");
@@ -83,27 +64,22 @@ public:
         return result;
     }
 
-    static void ClearProjectExplorerData()
-    {
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject",
-                                                                    std::vector<std::string>());
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProjectDb",
-                                                                    std::vector<std::string>());
+    static void ClearProjectExplorerData() {
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject", std::vector<std::string>());
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProjectDb", std::vector<std::string>());
     }
 
-protected:
+  protected:
     inline static std::string testDataDir = TestSuit::GetTestDataFile();
     inline static int retry = 2;
     static ProjectExplorerInfo CreateProjectData(const std::string &projectName, const std::string &fileName,
-                                                 const std::string &importType, Dic::ProjectTypeEnum projectType,
-                                                 const std::vector<std::string> parseFileList)
-    {
+        const std::string &importType, Dic::ProjectTypeEnum projectType, const std::vector<std::string> parseFileList) {
         ProjectExplorerInfo info;
         info.projectName = projectName;
         info.fileName = fileName;
         info.importType = importType;
         info.projectType = static_cast<int64_t>(projectType);
-        for (const auto &item: parseFileList) {
+        for (const auto &item : parseFileList) {
             auto parseFileInfo = std::make_shared<ParseFileInfo>();
             parseFileInfo->parseFilePath = item;
             parseFileInfo->subId = item;
@@ -113,32 +89,28 @@ protected:
         return info;
     }
 
-    static void InitProjectExplorerData()
-    {
+    static void InitProjectExplorerData() {
         std::string filePathText = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0", "ASCEND_PROFILER_OUTPUT");
         std::string filePathDb = Dic::FileUtil::SplicePath(testDataDir, "full_db", "ascend_pytorch_profiler.db");
         std::vector<ProjectExplorerInfo> infos;
-        std::vector<std::string> parseFileList {filePathText};
-        ProjectExplorerInfo info = CreateProjectData("testProject", "projectFilePath",
-                                                     "import", Dic::ProjectTypeEnum::TEXT_CLUSTER, parseFileList);
+        std::vector<std::string> parseFileList{filePathText};
+        ProjectExplorerInfo info = CreateProjectData(
+            "testProject", "projectFilePath", "import", Dic::ProjectTypeEnum::TEXT_CLUSTER, parseFileList);
         infos.push_back(info);
-        std::for_each(infos.begin(), infos.end(), [](const auto& item) {
-            ProjectExplorerManager::Instance().SaveProjectExplorer(item, false);
-        });
+        std::for_each(infos.begin(), infos.end(),
+            [](const auto &item) { ProjectExplorerManager::Instance().SaveProjectExplorer(item, false); });
 
         std::vector<ProjectExplorerInfo> dbInfos;
-        std::vector<std::string> parseDbFileList {filePathDb};
-        ProjectExplorerInfo dbInfo = CreateProjectData("testProjectDb", "projectFilePathDb",
-                                                       "import", Dic::ProjectTypeEnum::DB, parseDbFileList);
+        std::vector<std::string> parseDbFileList{filePathDb};
+        ProjectExplorerInfo dbInfo = CreateProjectData(
+            "testProjectDb", "projectFilePathDb", "import", Dic::ProjectTypeEnum::DB, parseDbFileList);
         dbInfos.push_back(dbInfo);
-        std::for_each(dbInfos.begin(), dbInfos.end(), [](const auto& item) {
-            ProjectExplorerManager::Instance().SaveProjectExplorer(item, false);
-        });
+        std::for_each(dbInfos.begin(), dbInfos.end(),
+            [](const auto &item) { ProjectExplorerManager::Instance().SaveProjectExplorer(item, false); });
     }
 };
 
-TEST_F(OperatorDetailRequestHandlerTest, QueryOpDetailInfoHandlerFailedWhenBsesLineIsSetAndCompareIsTrue)
-{
+TEST_F(OperatorDetailRequestHandlerTest, QueryOpDetailInfoHandlerFailedWhenBsesLineIsSetAndCompareIsTrue) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.rankId = "1";

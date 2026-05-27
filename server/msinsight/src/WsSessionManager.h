@@ -30,9 +30,10 @@ class WsSessionManager {
   public:
     static WsSessionManager &Instance();
 
-    void AddSession(std::unique_ptr<WsSession> newSession);
+    void AddSession(std::shared_ptr<WsSession> newSession);
     void RemoveSession();
     WsSession *GetSession();
+    std::shared_ptr<WsSession> GetSessionPtr();
     bool CheckSession();
 
   private:
@@ -40,7 +41,7 @@ class WsSessionManager {
     ~WsSessionManager() = default;
 
     std::mutex sessionMutex;
-    std::unique_ptr<WsSession> session = nullptr;
+    std::shared_ptr<WsSession> session = nullptr;
 };
 } // end of namespace Server
 } // end of namespace Dic
