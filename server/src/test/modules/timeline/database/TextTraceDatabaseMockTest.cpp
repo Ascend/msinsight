@@ -1644,6 +1644,44 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounterInvalidJSON) 
     EXPECT_EQ(metaData[first]->children[2]->metaData.dataType, expectedDataType);
 }
 
+TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithMultiplePythonStacks) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    database.SetDbPtr(dbPtr);
+    database.CreateTable();
+    const std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
+                                    "\"process_sort_index\") VALUES ('100', 'Python', NULL, 1);";
+    const std::string threadData =
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
+        "\"thread_sort_index\") VALUES (1, '100', '100', 'MainThread', 1);\n"
+        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
+        "VALUES (2, '22', '100', 'Thread 22', 2);";
+    const std::string sliceData = "INSERT INTO \"main\".\"slice\" (\"timestamp\", \"duration\", \"name\", \"depth\", "
+                                  "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES "
+                                  "(10, 5, 'main', 0, 1, 'python_function', '{}', '', 15, ''),"
+                                  "(20, 5, 'bwd', 0, 2, 'python_function', '{}', '', 25, '');";
+    DatabaseTestCaseMockUtil::InsertData(dbPtr, processData);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr, sliceData);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    EXPECT_EQ(database.QueryUnitsMetadata("9", metaData), true);
+    ASSERT_EQ(metaData.size(), 1);
+    ASSERT_EQ(metaData[0]->children.size(), 2);
+    std::set<std::string> pythonStackThreadIds;
+    std::set<std::string> pythonStackThreadNames;
+    for (const auto &thread : metaData[0]->children) {
+        for (const auto &child : thread->children) {
+            pythonStackThreadIds.emplace(child->metaData.threadId);
+            pythonStackThreadNames.emplace(child->metaData.threadName);
+        }
+    }
+    EXPECT_EQ(pythonStackThreadIds, std::set<std::string>({"python_stack:text:100", "python_stack:text:22"}));
+    EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 100", "Python Stack 22"}));
+}
+
 TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsSame) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);

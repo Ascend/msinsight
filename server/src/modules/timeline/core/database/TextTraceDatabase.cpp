@@ -23,6 +23,7 @@
 #include "TraceDatabaseSqlConst.h"
 #include "TraceTime.h"
 #include "TrackInfoManager.h"
+#include "FullDbEnumUtil.h"
 #include "TextTraceDatabase.h"
 
 // clang-format off
@@ -41,6 +42,8 @@ Trace::Slice ConvertSliceDtoToTraceSlice(const SliceDto &dto) {
     // 注：pid/tid/cardId/metaType 等未在 InsertSQL 中使用，按需扩展
     return slice;
 }
+
+const std::string TEXT_PYTHON_STACK_THREAD_ID_PREFIX = Dic::Protocol::PYTHON_STACK_THREAD_ID_PREFIX + "text:";
 }
 
 namespace Dic::Module::Timeline {
@@ -526,7 +529,15 @@ bool TextTraceDatabase::QueryThreads(const Protocol::UnitThreadsParams &requestP
             ServerLog::Error(error);
             continue;
         }
-        sliceAnalyzerPtr->ComputeSliceDomainVecAndSelfTimeByTimeRange(sliceQuery, competeSliceVec, selfTimeKeyValue);
+        size_t sliceStartIndex = competeSliceVec.size();
+        sliceAnalyzerPtr->ComputeSliceDomainVecAndSelfTimeByTimeRange(sliceQuery, competeSliceVec, selfTimeKeyValue,
+                                                                      metadata.isPythonStack);
+        if (metadata.isPythonStack) {
+            std::string pythonStackMetaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+            for (size_t index = sliceStartIndex; index < competeSliceVec.size(); ++index) {
+                competeSliceVec[index].metaType = pythonStackMetaType;
+            }
+        }
     }
 
     if (competeSliceVec.empty()) {
@@ -753,6 +764,18 @@ std::vector<SimpleSlice> TextTraceDatabase::QuerySimpleSliceByFlagAndTrackId(
 
 bool TextTraceDatabase::QueryUnitsMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
+    std::map<std::string, std::set<std::string>> pythonThreadMap;
+    std::string pythonPidSql = "SELECT DISTINCT t.pid, t.tid FROM slice s JOIN thread t ON s.track_id = t.track_id "
+                               "WHERE s.cat = 'python_function'";
+    auto pythonStmt = CreatPreparedStatement(pythonPidSql);
+    if (pythonStmt != nullptr) {
+        auto pythonRs = pythonStmt->ExecuteQuery();
+        while (pythonRs != nullptr && pythonRs->Next()) {
+            pythonThreadMap[pythonRs->GetString("pid")].emplace(pythonRs->GetString("tid"));
+        }
+    }
+    std::string pythonStackMetaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+
     std::vector<Process> processes = QueryAllProcess();
     std::map<std::string, std::vector<Thread>> threads = QueryAllThreadInfo();
     std::map<std::pair<std::string, std::string>, std::string> counters = QueryAllCounterInfo();
@@ -768,6 +791,24 @@ bool TextTraceDatabase::QueryUnitsMetadata(
         std::vector<Thread> pthreads = threads[item.pid];
         for (const auto &tThread : pthreads) {
             AddThreadTrack(fileId, counters, process, tThread);
+        }
+        auto pythonThreadIt = pythonThreadMap.find(item.pid);
+        if (pythonThreadIt != pythonThreadMap.end()) {
+            for (auto &child : process->children) {
+                if (child->type != "thread" ||
+                    pythonThreadIt->second.count(child->metaData.threadId) == 0) {
+                    continue;
+                }
+                auto pythonStack = std::make_unique<UnitTrack>();
+                pythonStack->type = "thread";
+                pythonStack->metaData.metaType = pythonStackMetaType;
+                pythonStack->metaData.cardId = fileId;
+                pythonStack->metaData.processId = item.pid;
+                pythonStack->metaData.threadId = TEXT_PYTHON_STACK_THREAD_ID_PREFIX + child->metaData.threadId;
+                pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
+                pythonStack->metaData.maxDepth = 1;
+                child->children.emplace_back(std::move(pythonStack));
+            }
         }
         tempMetaData.emplace_back(std::move(process));
     }

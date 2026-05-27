@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include "PythonStackHelper.h"
 #include "TimelineProtocolRequest.h"
 class TimelineProtocolRequestTest : public ::testing::Test {};
 
@@ -318,4 +319,32 @@ TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsRightAlign) {
     std::string errorMsg;
     bool res = params.CheckParams(errorMsg);
     EXPECT_EQ(res, true);
+}
+
+TEST_F(TimelineProtocolRequestTest, RestoreTextPythonStackThreadTracesParamsWhenPidEqualsTid) {
+    Dic::Protocol::UnitThreadTracesParams params;
+    params.processId = "100";
+    params.threadId = "python_stack:text:100";
+    params.metaType = "PYTORCH_API_PYTHON_STACK";
+
+    bool restored = Dic::Module::Timeline::PythonStackHelper::RestoreThreadTracesParams(params);
+
+    EXPECT_EQ(restored, true);
+    EXPECT_EQ(params.isPythonStack, true);
+    EXPECT_EQ(params.threadId, "100");
+    EXPECT_EQ(params.metaType, "TEXT");
+}
+
+TEST_F(TimelineProtocolRequestTest, RestoreFullDbPythonStackThreadTracesParams) {
+    Dic::Protocol::UnitThreadTracesParams params;
+    params.processId = "4294967297";
+    params.threadId = "python_stack:4294967297";
+    params.metaType = "PYTORCH_API_PYTHON_STACK";
+
+    bool restored = Dic::Module::Timeline::PythonStackHelper::RestoreThreadTracesParams(params);
+
+    EXPECT_EQ(restored, true);
+    EXPECT_EQ(params.isPythonStack, true);
+    EXPECT_EQ(params.threadId, "pytorch");
+    EXPECT_EQ(params.metaType, "PYTORCH_API");
 }

@@ -31,27 +31,25 @@ namespace Dic::Module::Timeline {
 static constexpr uint64_t MINUTE_NS = 60ULL * 1000ULL * 1000ULL * 1000ULL;
 
 class SliceCacheManager {
-public:
-    static SliceCacheManager &Instance()
-    {
+  public:
+    static SliceCacheManager &Instance() {
         static SliceCacheManager sliceCacheManager;
         return sliceCacheManager;
     }
     SliceCacheManager(const SliceCacheManager &) = delete;
-    SliceCacheManager &operator = (const SliceCacheManager &) = delete;
+    SliceCacheManager &operator=(const SliceCacheManager &) = delete;
     SliceCacheManager(SliceCacheManager &&) = delete;
-    SliceCacheManager &operator = (SliceCacheManager &&) = delete;
+    SliceCacheManager &operator=(SliceCacheManager &&) = delete;
     /* *
      * 全量DB场景下, 获取对应泳道的[start, end]时间区间内的算子
      * @param trackId
      * @param fileId
      * @return 返回的vector是先按timestamp升序，再按照id升序
      */
-    std::vector<SliceDomain> GetSliceDomainVec(const std::string &trackId, const std::string &fileId,
-                                               const SliceQuery &sliceQuery)
-    {
+    std::vector<SliceDomain> GetSliceDomainVec(
+        const std::string &trackId, const std::string &rankId, const SliceQuery &sliceQuery) {
         SpinLockGuard lock(mutex);
-        std::string key = fileId + "@" + trackId;
+        std::string key = rankId + "@" + trackId;
         std::vector<SliceDomain> emptyValue;
         auto it = cache.find(key);
         if (it == cache.end()) {
@@ -79,9 +77,8 @@ public:
      * @param depthInfo
      * @return
      */
-    bool QueryDepthInfoWithoutTimeRange(const std::string &trackId, const std::string &fileId,
-                                        std::unordered_map<uint64_t, uint32_t> &depthInfo)
-    {
+    bool QueryDepthInfoWithoutTimeRange(
+        const std::string &trackId, const std::string &fileId, std::unordered_map<uint64_t, uint32_t> &depthInfo) {
         SpinLockGuard lock(mutex);
         std::string key = fileId + "@" + trackId;
         auto it = cache.find(key);
@@ -102,8 +99,7 @@ public:
      * @param depthInfo
      * @return
      */
-    bool QueryDepthInfo(std::unordered_map<uint64_t, uint32_t> &depthInfo, const SliceQuery &sliceQuery)
-    {
+    bool QueryDepthInfo(std::unordered_map<uint64_t, uint32_t> &depthInfo, const SliceQuery &sliceQuery) {
         SpinLockGuard lock(mutex);
         // key: filedId @ trackId
         std::string key = sliceQuery.rankId + "@" + std::to_string(sliceQuery.trackId);
@@ -135,9 +131,8 @@ public:
      * @param trackId 对应泳道的trackId
      * @param value 对应泳道所有的简单算子信息，该vector先按照timestamp排序，再按照id排序
      */
-    void UpdateSliceCache(const std::string &trackId, const std::vector<SliceDomain> &value,
-                          const SliceQuery &slicePagedQuery)
-    {
+    void UpdateSliceCache(
+        const std::string &trackId, const std::vector<SliceDomain> &value, const SliceQuery &slicePagedQuery) {
         SpinLockGuard lock(mutex);
         if (std::empty(value)) {
             return;
@@ -163,11 +158,10 @@ public:
             cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
         }
         Touch(it);
-        cache[key] = { value, used.begin() };
+        cache[key] = {value, used.begin()};
     }
 
-    static SliceQuery GetSlicePagedQuery(const SliceQuery &sliceQuery)
-    {
+    static SliceQuery GetSlicePagedQuery(const SliceQuery &sliceQuery) {
         if (sliceQuery.metaType == PROCESS_TYPE::TEXT) {
             SliceQuery result = sliceQuery;
             result.startTime = 0;
@@ -183,10 +177,9 @@ public:
      * @param sliceQuery 前端传回起止区间，用于从缓存中查询算子信息, 其起止时间区间通常小于slicePagedQuery
      * @return slicePagedQuery 用于从数据库中查询算子信息，更新分页缓存, 时长5min
      */
-    static SliceQuery GetSlicePagedQueryForDb(const SliceQuery &sliceQuery)
-    {
-        const uint64_t threshold = 5 * MINUTE_NS;        // 5 minutes
-        const uint64_t halfThreshold = threshold / 2;    // 2.5 minutes
+    static SliceQuery GetSlicePagedQueryForDb(const SliceQuery &sliceQuery) {
+        const uint64_t threshold = 5 * MINUTE_NS; // 5 minutes
+        const uint64_t halfThreshold = threshold / 2; // 2.5 minutes
         SliceQuery result = sliceQuery;
 
         // 取离区间中点最近且合法的3min
@@ -201,13 +194,8 @@ public:
         return result;
     }
 
-    std::vector<uint64_t> GetPythonFunctionIdVec(const std::string &key, const SliceQuery &sliceQuery)
-    {
+    std::vector<uint64_t> GetPythonFunctionIdVec(const std::string &key, const SliceQuery &sliceQuery) {
         SpinLockGuard lock(mutex);
-        if (pythonFilterSet.count(key) == 0) {
-            std::vector<uint64_t> emptyValue;
-            return emptyValue;
-        }
         auto it = pythonFunctionIDCache.find(key);
         std::vector<uint64_t> emptyValue;
         if (it == pythonFunctionIDCache.end()) {
@@ -226,9 +214,8 @@ public:
         return it->second.first;
     }
 
-    void PutPythonFunctionIdVec(const std::string &key, const std::vector<uint64_t> &value,
-                                const SliceQuery &slicePagedQuery = SliceQuery())
-    {
+    void PutPythonFunctionIdVec(
+        const std::string &key, const std::vector<uint64_t> &value, const SliceQuery &slicePagedQuery = SliceQuery()) {
         SpinLockGuard lock(mutex);
         auto it = pythonFunctionIDCache.find(key);
         if (it != pythonFunctionIDCache.end()) {
@@ -240,15 +227,14 @@ public:
             }
             pythonFunctionIdUsed.push_front(key);
         }
-        pythonFunctionIDCache[key] = { value, pythonFunctionIdUsed.begin() };
+        pythonFunctionIDCache[key] = {value, pythonFunctionIdUsed.begin()};
         // 仅当slicePagedQuery中有内容时，更新pythonCacheDuration[key]
         if (slicePagedQuery.endTime != 0) {
             pythonCacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
         }
     }
 
-    PYTHON_FUNCTION_STATUS GetPythonFunctionStatus(const uint64_t trackId)
-    {
+    PYTHON_FUNCTION_STATUS GetPythonFunctionStatus(const uint64_t trackId) {
         SpinLockGuard lock(mutex);
         if (trackIdAndPythonFunctionMap.count(trackId) > 0) {
             return trackIdAndPythonFunctionMap[trackId];
@@ -256,53 +242,23 @@ public:
         return PYTHON_FUNCTION_STATUS::UNKNOWN;
     }
 
-    void SetPythonFunctionStatus(const uint64_t trackId, PYTHON_FUNCTION_STATUS status)
-    {
+    void SetPythonFunctionStatus(const uint64_t trackId, PYTHON_FUNCTION_STATUS status) {
         SpinLockGuard lock(mutex);
         trackIdAndPythonFunctionMap[trackId] = status;
     }
 
-    bool GetPythonFunctionFilterStatus(const uint64_t trackId)
-    {
-        SpinLockGuard lock(mutex);
-        if (pythonFunctionFilterStatus.count(trackId) > 0) {
-            return pythonFunctionFilterStatus[trackId];
-        }
-        // python调用栈默认不过滤
-        return false;
-    }
-
-    void SetPythonFunctionFilterStatus(const uint64_t trackId, bool status)
-    {
-        SpinLockGuard lock(mutex);
-        pythonFunctionFilterStatus[trackId] = status;
-    }
-
-    void UpdatePythonFilterSet(const std::string &key, bool isFilter)
-    {
-        SpinLockGuard lock(mutex);
-        if (isFilter) {
-            pythonFilterSet.emplace(key);
-        } else {
-            pythonFilterSet.erase(key);
-        }
-    }
-
-    void Clear()
-    {
+    void Clear() {
         SpinLockGuard lock(mutex);
         cache.clear();
         cacheDuration.clear();
         pythonCacheDuration.clear();
         used.clear();
         trackIdAndPythonFunctionMap.clear();
-        pythonFunctionFilterStatus.clear();
         pythonFunctionIDCache.clear();
         pythonFunctionIdUsed.clear();
-        pythonFilterSet.clear();
     }
 
-private:
+  private:
     SliceCacheManager() = default;
     ~SliceCacheManager() = default;
     using VisitOrderList = std::list<std::string>;
@@ -334,14 +290,9 @@ private:
     VisitOrderList pythonFunctionIdUsed;
     // 算子调用栈id缓存大小
     const size_t pythonCapacity = 3;
-    // 过滤了python function的trackId集合
-    std::set<std::string> pythonFilterSet;
-    // python调用栈是否显示的状态信息
-    std::unordered_map<uint64_t, bool> pythonFunctionFilterStatus;
 
     // 更新算子缓存使用记录
-    void Touch(CacheMap::iterator it)
-    {
+    void Touch(CacheMap::iterator it) {
         std::string key = it->first;
         used.erase(it->second.second);
         used.push_front(key);
@@ -349,8 +300,7 @@ private:
     }
 
     // 更新算子缓存使用记录
-    void Touch(PythonFunctionMap::iterator it)
-    {
+    void Touch(PythonFunctionMap::iterator it) {
         std::string key = it->first;
         pythonFunctionIdUsed.erase(it->second.second);
         pythonFunctionIdUsed.push_front(key);

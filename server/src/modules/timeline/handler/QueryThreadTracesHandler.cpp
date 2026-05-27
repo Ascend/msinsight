@@ -19,14 +19,15 @@
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
 #include "DataBaseManager.h"
+#include "PythonStackHelper.h"
 #include "QueryThreadTracesHandler.h"
 
 namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+
+bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     UnitThreadTracesRequest &request = dynamic_cast<UnitThreadTracesRequest &>(*requestPtr.get());
     std::unique_ptr<UnitThreadTracesResponse> responsePtr = std::make_unique<UnitThreadTracesResponse>();
     UnitThreadTracesResponse &response = *responsePtr.get();
@@ -59,9 +60,11 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
         return false;
     }
     if (std::empty(request.params.threadIdList)) {
-        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(request.params.cardId, request.params.processId,
-                                                                   request.params.threadId);
-        renderEngine->QueryThreadTraces(request.params, response.body, minTimestamp, trackId);
+        UnitThreadTracesParams queryParams = request.params;
+        PythonStackHelper::RestoreThreadTracesParams(queryParams);
+        uint64_t trackId =
+            TrackInfoManager::Instance().GetTrackId(queryParams.cardId, queryParams.processId, queryParams.threadId);
+        renderEngine->QueryThreadTraces(queryParams, response.body, minTimestamp, trackId);
     } else {
         QueryTracesByTrackIds(request, response, minTimestamp);
     }
@@ -69,22 +72,22 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
     return true;
 }
 
-std::string QueryThreadTracesHandler::GetRequestKey(Request &requestPtr)
-{
+std::string QueryThreadTracesHandler::GetRequestKey(Request &requestPtr) {
     UnitThreadTracesRequest &request = dynamic_cast<UnitThreadTracesRequest &>(requestPtr);
     std::vector<std::string> keyContentList = {request.command, request.params.processId, request.params.threadId};
     return StringUtil::join(keyContentList, "_");
 }
 
-void QueryThreadTracesHandler::QueryTracesByTrackIds(UnitThreadTracesRequest& request,
-                                                     UnitThreadTracesResponse& response, uint64_t minTimestamp)
-{
-    for (const auto& threadId : request.params.threadIdList) {
+void QueryThreadTracesHandler::QueryTracesByTrackIds(
+    UnitThreadTracesRequest &request, UnitThreadTracesResponse &response, uint64_t minTimestamp) {
+    for (const auto &threadId : request.params.threadIdList) {
         UnitThreadTracesBody tempBody;
-        request.params.threadId = threadId;
-        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(request.params.cardId, request.params.processId,
-                                                                   request.params.threadId);
-        renderEngine->QueryThreadTraces(request.params, tempBody, minTimestamp, trackId);
+        UnitThreadTracesParams queryParams = request.params;
+        queryParams.threadId = threadId;
+        PythonStackHelper::RestoreThreadTracesParams(queryParams);
+        uint64_t trackId =
+            TrackInfoManager::Instance().GetTrackId(queryParams.cardId, queryParams.processId, queryParams.threadId);
+        renderEngine->QueryThreadTraces(queryParams, tempBody, minTimestamp, trackId);
         for (size_t i = 0; i < tempBody.data.size(); ++i) {
             while (response.body.data.size() <= i) {
                 response.body.data.emplace_back();
@@ -94,8 +97,8 @@ void QueryThreadTracesHandler::QueryTracesByTrackIds(UnitThreadTracesRequest& re
         response.body.maxDepth = std::max(tempBody.maxDepth, response.body.maxDepth);
         response.body.currentMaxDepth = std::max(tempBody.currentMaxDepth, response.body.currentMaxDepth);
     }
-    for (auto& item : response.body.data) {
-        std::sort(item.begin(), item.end(), [](const ThreadTraces& first, const ThreadTraces& second) {
+    for (auto &item : response.body.data) {
+        std::sort(item.begin(), item.end(), [](const ThreadTraces &first, const ThreadTraces &second) {
             if (first.startTime != second.startTime) {
                 return first.startTime < second.startTime;
             }
@@ -106,6 +109,6 @@ void QueryThreadTracesHandler::QueryTracesByTrackIds(UnitThreadTracesRequest& re
         });
     }
 }
-}  // namespace Timeline
-}  // namespace Module
-}  // namespace Dic
+} // namespace Timeline
+} // namespace Module
+} // namespace Dic

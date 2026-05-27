@@ -1456,7 +1456,45 @@ bool DbTraceDataBase::QueryHostMetadata(
         }
     }
     DealHostMetadata(fileId, metaData, threadMap);
+    AddPythonStackMetadata(fileId, metaData);
     return true;
+}
+
+void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
+    std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
+{
+    if (!isExistPytorch && !CheckTableExist(TABLE_API)) {
+        return;
+    }
+    std::string sql = "SELECT DISTINCT globalTid FROM PYTORCH_API WHERE type = 50003";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        return;
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr) {
+        return;
+    }
+    std::set<std::string> globalTidsWithPythonFunc;
+    while (resultSet->Next()) {
+        globalTidsWithPythonFunc.insert(resultSet->GetString("globalTid"));
+    }
+    if (globalTidsWithPythonFunc.empty()) {
+        return;
+    }
+    auto pythonStackMetaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+    for (auto &process : metaData) {
+        for (auto &child : process->children) {
+            if (globalTidsWithPythonFunc.count(child->metaData.processId)) {
+                auto pythonStack = GenerateBaseUnitTrack("thread", fileId, child->metaData.processId,
+                    "", pythonStackMetaType);
+                pythonStack->metaData.threadId = Protocol::PYTHON_STACK_THREAD_ID_PREFIX + child->metaData.processId;
+                pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
+                pythonStack->metaData.maxDepth = 1;
+                child->children.emplace_back(std::move(pythonStack));
+            }
+        }
+    }
 }
 
 void DbTraceDataBase::DealHostMetadata(const std::string &fileId,
@@ -1905,7 +1943,8 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
             simpleSlice.depth = resultSet->GetUint32(col++);
             simpleSlice.tid = metaData.tid;
             simpleSlice.pid = metaData.pid;
-            simpleSlice.metaType = metaData.metaType;
+            simpleSlice.metaType = metaData.isPythonStack ?
+                ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("") : metaData.metaType;
             uint64_t trackId = TrackInfoManager::Instance().GetTrackId(rankId, metaData.pid, metaData.tid);
             SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
             auto item = trackIdDepthCache.find(trackId);

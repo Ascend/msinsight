@@ -30,8 +30,7 @@
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
 using namespace Dic::Protocol;
-bool VirtualTraceDatabase::QueryGroupedAscendHardwareThreadsByModelId(std::vector<ThreadGroup> &threadGroupList)
-{
+bool VirtualTraceDatabase::QueryGroupedAscendHardwareThreadsByModelId(std::vector<ThreadGroup> &threadGroupList) {
     std::map<std::string, std::string> tId2ModelIdMap = QueryAllModelIdOfAscendHardwareThreads();
     // 检查是否有数据
     if (tId2ModelIdMap.empty()) {
@@ -46,7 +45,7 @@ bool VirtualTraceDatabase::QueryGroupedAscendHardwareThreadsByModelId(std::vecto
     const std::string uintMaxModelId = std::to_string(UINT_MAX); // 通常为"4294967295"
 
     // 遍历所有线程，按ModelID分组
-    for (const auto&[threadId, modelId] : tId2ModelIdMap) {
+    for (const auto &[threadId, modelId] : tId2ModelIdMap) {
         if (modelId == emptyModelId || modelId == uintMaxModelId) {
             ServerLog::Warn("Invalid ModelId when querying grouped ascend hardware threads.");
             continue;
@@ -66,16 +65,15 @@ bool VirtualTraceDatabase::QueryGroupedAscendHardwareThreadsByModelId(std::vecto
     threadGroupList.reserve(modelIdToThreadsMap.size());
 
     // 将map中的所有ThreadGroup添加到输出列表
-    for (const auto&[modelId, threadGroup] : modelIdToThreadsMap) {
+    for (const auto &[modelId, threadGroup] : modelIdToThreadsMap) {
         threadGroupList.push_back(threadGroup);
     }
 
     return true; // 操作成功
 }
 
-uint64_t VirtualTraceDatabase::CalculateUncoveredTime(const std::vector<Protocol::ThreadTraces> &uncovered,
-    size_t &index, const ThreadTraces &element)
-{
+uint64_t VirtualTraceDatabase::CalculateUncoveredTime(
+    const std::vector<Protocol::ThreadTraces> &uncovered, size_t &index, const ThreadTraces &element) {
     uint64_t totalUncoveredTime = 0;
     if (uncovered.empty() || index >= uncovered.size()) {
         return totalUncoveredTime;
@@ -114,25 +112,25 @@ uint64_t VirtualTraceDatabase::CalculateUncoveredTime(const std::vector<Protocol
 }
 
 void VirtualTraceDatabase::ExecuteQueryCommunicationSummaryData(
-    std::map<std::string, Protocol::CommunicationSummaryInfoByGroup>& summaryInfoMap,
-    const std::unique_ptr<SqliteResultSet>& resultSet, const std::map<std::string, std::string> &groupInfoMap,
-    const std::vector<Protocol::ThreadTraces> &uncovered)
-{
+    std::map<std::string, Protocol::CommunicationSummaryInfoByGroup> &summaryInfoMap,
+    const std::unique_ptr<SqliteResultSet> &resultSet, const std::map<std::string, std::string> &groupInfoMap,
+    const std::vector<Protocol::ThreadTraces> &uncovered) {
     size_t index = 0;
     while (resultSet->Next()) {
-        Protocol::ThreadTraces ele = {
-            .name = resultSet->GetString("name"), .duration = resultSet->GetUint64("duration"),
-            .startTime = resultSet->GetUint64("startTime"), .endTime = resultSet->GetUint64("endTime"),
+        Protocol::ThreadTraces ele = {.name = resultSet->GetString("name"),
+            .duration = resultSet->GetUint64("duration"),
+            .startTime = resultSet->GetUint64("startTime"),
+            .endTime = resultSet->GetUint64("endTime"),
             .depth = resultSet->GetUint32("type"), // Use to save "type" temporarily
             .threadId = std::to_string(resultSet->GetInt64("plane")),
             .pid = std::to_string(resultSet->GetUint64("groupName")),
-            .id = ele.pid + "@" + ele.threadId, .cname = resultSet->GetString("threadName")
-        };
+            .id = ele.pid + "@" + ele.threadId,
+            .cname = resultSet->GetString("threadName")};
         uint64_t flag = resultSet->GetUint64("flag");
         if (groupInfoMap.find(ele.id) == groupInfoMap.end()) {
             continue;
         }
-        const std::string& group = groupInfoMap.at(ele.id);
+        const std::string &group = groupInfoMap.at(ele.id);
         // SQL查询保证数据按通信组排序，不同通信组检查是否通信未掩盖,从0开始
         if (summaryInfoMap.count(group) == 0) {
             CommunicationSummaryInfoByGroup tmp = {group, {group, "", "", 0, 0, 0, 0}, {}};
@@ -169,8 +167,7 @@ void VirtualTraceDatabase::ExecuteQueryCommunicationSummaryData(
  * @param str "Group {groupNameValue} Communication"
  * @return {groupNameValue}
  */
-std::string VirtualTraceDatabase::ExtractGroupNameValue(const std::string& str)
-{
+std::string VirtualTraceDatabase::ExtractGroupNameValue(const std::string &str) {
     // 静态初始化正则表达式，确保只编译一次
     static const std::regex expr(R"(Group ([\S]+(\s\w*)?) Communication)");
 
@@ -183,13 +180,17 @@ std::string VirtualTraceDatabase::ExtractGroupNameValue(const std::string& str)
 }
 
 SystemViewOverallRes VirtualTraceDatabase::CollectCommunicationGroupMetrics(
-    const CommunicationSummaryInfoByGroup &data, SystemViewOverallHelper &overallHelper)
-{
-    Protocol::SystemViewOverallRes group = {
-        .totalTime = 0, .ratio = 0, .nums = 0, .avg = 0, .max = 0, .min = 0,
-        .name = data.groupName, .children = {}, .level = 2, // level 2
-        .id = std::to_string(overallHelper.idCounter++)
-    };
+    const CommunicationSummaryInfoByGroup &data, SystemViewOverallHelper &overallHelper) {
+    Protocol::SystemViewOverallRes group = {.totalTime = 0,
+        .ratio = 0,
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = data.groupName,
+        .children = {},
+        .level = 2, // level 2
+        .id = std::to_string(overallHelper.idCounter++)};
     // 获取 {groupNameValue}, 因为MetaDataCacheManager以groupNameValue作为键值
     std::string groupNameValue = ExtractGroupNameValue(group.name);
 
@@ -202,52 +203,61 @@ SystemViewOverallRes VirtualTraceDatabase::CollectCommunicationGroupMetrics(
         group.name = groupInfoOpt.value().groupName + ":" + data.groupName;
     }
     group.totalTime = NumberUtil::DoubleReservedNDigits(data.op.uncoveredTransmitTime * NS_TO_US, TWO);
-    group.ratio = NumberUtil::DoubleReservedNDigits(
-        group.totalTime / overallHelper.e2eTime * PERCENTAGE_RATIO_SCALE, TWO);
+    group.ratio =
+        NumberUtil::DoubleReservedNDigits(group.totalTime / overallHelper.e2eTime * PERCENTAGE_RATIO_SCALE, TWO);
     return group;
 }
 
 void VirtualTraceDatabase::ComputeCommunicationWaitAndTransmitTimeByGroup(
     const std::map<std::string, CommunicationSummaryInfoByGroup> &summaryData, SystemViewOverallHelper &overallHelper,
-    Protocol::SystemViewOverallRes &result)
-{
+    Protocol::SystemViewOverallRes &result) {
     if (summaryData.empty() || overallHelper.e2eTime <= 0) {
         return;
     }
     for (auto &item : summaryData) {
         CommunicationSummaryInfoByGroup data = item.second;
         SystemViewOverallRes group = CollectCommunicationGroupMetrics(data, overallHelper);
-        Protocol::SystemViewOverallRes wait = {
-            .totalTime = 0, .ratio = 0, .nums = 0, .avg = 0, .max = 0, .min = 0,
-            .name = WAIT_TIME, .children = {}, .level = 3, // level 3
-            .id = std::to_string(overallHelper.idCounter++)
-        };
+        Protocol::SystemViewOverallRes wait = {.totalTime = 0,
+            .ratio = 0,
+            .nums = 0,
+            .avg = 0,
+            .max = 0,
+            .min = 0,
+            .name = WAIT_TIME,
+            .children = {},
+            .level = 3, // level 3
+            .id = std::to_string(overallHelper.idCounter++)};
         uint64_t minWait = UINT64_MAX;
         for (auto &tmpItem : data.taskMap) {
             minWait = std::min(minWait, tmpItem.second.uncoveredWaitTime);
         }
         wait.totalTime = NumberUtil::DoubleReservedNDigits(minWait * NS_TO_US, TWO);
-        wait.ratio = NumberUtil::DoubleReservedNDigits(
-            wait.totalTime / overallHelper.e2eTime * PERCENTAGE_RATIO_SCALE, TWO);
-        Protocol::SystemViewOverallRes transmit = {
-            .totalTime = 0, .ratio = 0, .nums = 0, .avg = 0, .max = 0, .min = 0,
-            .name = TRANSMIT_TIME, .children = {}, .level = 3, // level 3
-            .id = std::to_string(overallHelper.idCounter++)
-        };
+        wait.ratio =
+            NumberUtil::DoubleReservedNDigits(wait.totalTime / overallHelper.e2eTime * PERCENTAGE_RATIO_SCALE, TWO);
+        Protocol::SystemViewOverallRes transmit = {.totalTime = 0,
+            .ratio = 0,
+            .nums = 0,
+            .avg = 0,
+            .max = 0,
+            .min = 0,
+            .name = TRANSMIT_TIME,
+            .children = {},
+            .level = 3, // level 3
+            .id = std::to_string(overallHelper.idCounter++)};
         if (data.op.uncoveredTransmitTime > minWait) {
             transmit.totalTime =
                 NumberUtil::DoubleReservedNDigits((data.op.uncoveredTransmitTime - minWait) * NS_TO_US, TWO);
         }
-        transmit.ratio = NumberUtil::DoubleReservedNDigits(
-            transmit.totalTime / overallHelper.e2eTime * PERCENTAGE_RATIO_SCALE, TWO);
+        transmit.ratio =
+            NumberUtil::DoubleReservedNDigits(transmit.totalTime / overallHelper.e2eTime * PERCENTAGE_RATIO_SCALE, TWO);
         group.children.emplace_back(wait);
         group.children.emplace_back(transmit);
         result.children.emplace_back(group);
     }
 }
 
-std::vector<UnitCounterData> VirtualTraceDatabase::DownSampleUnitCounterData(const std::vector<UnitCounterData>& dataList, size_t targetSize)
-{
+std::vector<UnitCounterData> VirtualTraceDatabase::DownSampleUnitCounterData(
+    const std::vector<UnitCounterData> &dataList, size_t targetSize) {
     if (targetSize == 0) {
         return dataList;
     }
@@ -279,8 +289,7 @@ std::vector<UnitCounterData> VirtualTraceDatabase::DownSampleUnitCounterData(con
     return sampledData;
 }
 
-SliceQuery VirtualTraceDatabase::CreateSliceQueryWithTimeRange(const SliceBaseInfo &sliceInfo)
-{
+SliceQuery VirtualTraceDatabase::CreateSliceQueryWithTimeRange(const SliceBaseInfo &sliceInfo) {
     auto curTrackId = TrackInfoManager::Instance().GetTrackId(sliceInfo.rankId, sliceInfo.pid, sliceInfo.tid);
     SliceQuery sliceQuery;
     sliceQuery.trackId = curTrackId;
@@ -294,13 +303,11 @@ SliceQuery VirtualTraceDatabase::CreateSliceQueryWithTimeRange(const SliceBaseIn
     sliceQuery.minTimestamp = TraceTime::Instance().GetStartTime();
     sliceQuery.startTime = sliceInfo.startTime;
     sliceQuery.endTime = sliceInfo.startTime + sliceInfo.duration;
-    sliceQuery.isFilterPythonFunction = SliceCacheManager::Instance().GetPythonFunctionFilterStatus(curTrackId);
     SliceQuery newSliceQuery = SliceCacheManager::GetSlicePagedQueryForDb(sliceQuery);
     return newSliceQuery;
 }
 
-uint64_t VirtualTraceDatabase::GetSliceDepthForJump(const SliceQuery &params, uint64_t sliceId)
-{
+uint64_t VirtualTraceDatabase::GetSliceDepthForJump(const SliceQuery &params, uint64_t sliceId) {
     SliceAnalyzer sliceAnalyzer;
     auto repositoryFactory = RepositoryFactory::Instance();
     auto repo = repositoryFactory->GetSliceRespo(params.metaType);

@@ -17,6 +17,7 @@
  */
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
+#include "PythonStackHelper.h"
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
 #include "QueryThreadsHandler.h"
@@ -25,8 +26,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryThreadsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+
+bool QueryThreadsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     UnitThreadsRequest &request = dynamic_cast<UnitThreadsRequest &>(*requestPtr.get());
     std::unique_ptr<UnitThreadsResponse> responsePtr = std::make_unique<UnitThreadsResponse>();
     UnitThreadsResponse &response = *responsePtr.get();
@@ -46,14 +47,15 @@ bool QueryThreadsHandler::HandleRequest(std::unique_ptr<Protocol::Request> reque
         SendResponse(std::move(responsePtr), false);
         return false;
     }
+    UnitThreadsParams queryParams = request.params;
     std::vector<uint64_t> trackIdList;
-    trackIdList.reserve(request.params.metadataList.size());
-    for (const auto &metadata: request.params.metadataList) {
-        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(request.params.rankId, metadata.pid, metadata.tid);
+    trackIdList.reserve(queryParams.metadataList.size());
+    for (auto &metadata : queryParams.metadataList) {
+        PythonStackHelper::RestoreMetadata(metadata);
+        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(queryParams.rankId, metadata.pid, metadata.tid);
         trackIdList.push_back(trackId);
     }
-    bool result = database->QueryThreads(request.params, response.body, minTimestamp,
-                                         trackIdList);
+    bool result = database->QueryThreads(queryParams, response.body, minTimestamp, trackIdList);
     if (!result) {
         SetTimelineError(ErrorCode::QUERY_THREAD_FAILED);
     }

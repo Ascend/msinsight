@@ -458,7 +458,9 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryThreadsByPid(std::uni
             return ExecuteQuery(stmt, CANN_API_THREADS_BY_PID, metaData.tid, metaData.pid,
                                 startTime, endTime);
         case PROCESS_TYPE::API:
-            if (metaData.hidePythonFunction) {
+            if (metaData.isPythonStack) {
+                return ExecuteQuery(stmt, API_THREADS_BY_PID_AND_PYTHON_FUNCTION, metaData.pid, startTime, endTime);
+            } else if (metaData.hidePythonFunction) {
                 return ExecuteQuery(stmt, API_THREADS_BY_PID_AND_NO_PYTHON_FUNCTION, metaData.pid, startTime, endTime);
             } else {
                 return ExecuteQuery(stmt, API_THREADS_BY_PID, metaData.pid, startTime, endTime);

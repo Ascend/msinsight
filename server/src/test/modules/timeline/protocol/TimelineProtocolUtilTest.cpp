@@ -29,7 +29,6 @@ TEST_F(TimelineProtocolUtilTest, TestThreadTracesResponseToJsonNormal) {
     const uint64_t curDep = 1;
     response.result = true;
     response.body.currentMaxDepth = curDep;
-    response.body.havePythonFunction = true;
     const uint64_t maxDep = 2;
     response.body.maxDepth = maxDep;
     Dic::Protocol::ThreadTraces trace;
@@ -55,7 +54,7 @@ TEST_F(TimelineProtocolUtilTest, TestThreadTracesResponseToJsonNormal) {
     const std::string jsonStr =
         "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":true,\"command\":\"unit/"
         "threadTraces\",\"moduleName\":\"unknown\",\"body\":{\"maxDepth\":2,\"currentMaxDepth\":1,"
-        "\"havePythonFunction\":true,\"isLoading\":false,\"data\":[[{\"name\":\"kkk\",\"duration\":777,"
+        "\"havePythonFunction\":false,\"isLoading\":false,\"data\":[[{\"name\":\"kkk\",\"duration\":777,"
         "\"startTime\":444,\"endTime\":4444,"
         "\"depth\":1,\"threadId\":\"lll\",\"cname\":\"qqq\",\"id\":\"hhh\"}]]}}";
     EXPECT_EQ(json, jsonStr);

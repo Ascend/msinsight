@@ -17,6 +17,7 @@
  */
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
+#include "PythonStackHelper.h"
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
 #include "QueryFlowsBySliceInfoHandler.h"
@@ -24,8 +25,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryFlowsBySliceInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryFlowsBySliceInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     UnitFlowsRequest &request = dynamic_cast<UnitFlowsRequest &>(*requestPtr.get());
     std::unique_ptr<UnitFlowsResponse> responsePtr = std::make_unique<UnitFlowsResponse>();
     UnitFlowsResponse &response = *responsePtr.get();
@@ -45,11 +45,12 @@ bool QueryFlowsBySliceInfoHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    uint64_t trackId =
-        TrackInfoManager::Instance().GetTrackId(request.params.rankId, request.params.pid, request.params.tid);
+    UnitFlowsParams queryParams = request.params;
+    PythonStackHelper::RestoreUnitFlowsParams(queryParams);
+    uint64_t trackId = TrackInfoManager::Instance().GetTrackId(queryParams.rankId, queryParams.pid, queryParams.tid);
     try {
-        database->QueryUnitFlows(request.params, response.body, minTimestamp, trackId);
-    }  catch (DatabaseException &e) {
+        database->QueryUnitFlows(queryParams, response.body, minTimestamp, trackId);
+    } catch (DatabaseException &e) {
         e.Log("Query flows by slice info Fail, ");
         SetTimelineError(ErrorCode::QUERY_UNIT_FLOWS_FAILED);
         SendResponse(std::move(responsePtr), false);
