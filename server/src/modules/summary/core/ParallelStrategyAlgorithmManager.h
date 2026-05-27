@@ -26,19 +26,20 @@
 namespace Dic::Module::Summary {
 
 class ParallelStrategyAlgorithmManager {
-public:
+  public:
     static ParallelStrategyAlgorithmManager &Instance();
     void Reset();
-    bool AddOrUpdateAlgorithm(const std::string& projectName, const ParallelStrategyConfig& config,
-        std::string& errMsg);
+    bool AddOrUpdateAlgorithm(
+        const std::string &projectName, const ParallelStrategyConfig &config, std::string &errMsg);
     bool DeleteAlgorithm(const std::string &projectName);
     std::shared_ptr<BaseParallelStrategyAlgorithm> GetAlgorithmByProjectName(const std::string &projectName);
     ParallelStrategyConfig GetParallelStrategyConfig(const std::string &key);
-private:
+
+  private:
     ParallelStrategyAlgorithmManager() = default;
     ~ParallelStrategyAlgorithmManager() = default;
-    static bool IsSameAlgorithm(const std::string& algorithm1, const std::string& algorithm2);
-    static std::shared_ptr<BaseParallelStrategyAlgorithm> CreateAlgorithm(const std::string& algorithm);
+    static bool IsSameAlgorithm(const std::string &algorithm1, const std::string &algorithm2);
+    static std::shared_ptr<BaseParallelStrategyAlgorithm> CreateAlgorithm(const std::string &algorithm);
 
     std::recursive_mutex mutex;
     std::map<std::string, std::shared_ptr<BaseParallelStrategyAlgorithm>> algorithmMap;

@@ -22,8 +22,7 @@
 #include "QueryParallelismPerformanceHandler.h"
 
 namespace Dic::Module::Summary {
-bool QueryParallelismPerformanceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryParallelismPerformanceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<QueryParallelismPerformanceRequest &>(*requestPtr);
     std::unique_ptr<ParallelismPerformanceResponse> responsePtr = std::make_unique<ParallelismPerformanceResponse>();
     ParallelismPerformanceResponse &response = *responsePtr;

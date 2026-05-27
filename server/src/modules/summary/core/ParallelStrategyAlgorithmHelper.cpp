@@ -22,7 +22,7 @@
 #include "SummaryErrorManager.h"
 
 namespace Dic::Module::Summary {
- /**
+/**
   * 生成当前rank groups
   * @param token 涉及rank groups的并行域，例如['tp', 'dp']
   * @param parallelSize parallelSize 并行策略参数，例如对于order: ['tp','cp', dp','pp'], 有parallelSize: [2, 2, 3, 4]
@@ -30,9 +30,8 @@ namespace Dic::Module::Summary {
   * @param worldSize 总卡数，例如对于parallelSize: [2, 2, 3, 4], 有worldSize = 2*2*3*4 = 48
   * @return
   */
-allGroupsType ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(const std::vector<std::string>& token,
-    const std::vector<uint32_t>& parallelSize, const std::vector<std::string>& order, uint32_t worldSize)
-{
+allGroupsType ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(const std::vector<std::string> &token,
+    const std::vector<uint32_t> &parallelSize, const std::vector<std::string> &order, uint32_t worldSize) {
     std::vector<bool> mask = GetMask(order, token);
     if (mask.empty()) {
         // GetMask已有日志报错
@@ -47,9 +46,8 @@ allGroupsType ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(const st
  * @param token 涉及rank groups的并行域，例如['tp', 'dp']
  * @return 当前rank groups的掩模, 例如[true, false, false, false, true]
  */
-std::vector<bool> ParallelStrategyAlgorithmHelper::GetMask(const std::vector<std::string>& order,
-                                                           const std::vector<std::string>& token)
-{
+std::vector<bool> ParallelStrategyAlgorithmHelper::GetMask(
+    const std::vector<std::string> &order, const std::vector<std::string> &token) {
     std::vector<bool> mask(order.size(), false);
     if (token.size() > order.size()) {
         Server::ServerLog::Error("Failed to get mask for generate orthogonal rank groups. Unexpected order or token.");
@@ -63,9 +61,8 @@ std::vector<bool> ParallelStrategyAlgorithmHelper::GetMask(const std::vector<std
     return mask;
 }
 
-std::vector<uint32_t> ParallelStrategyAlgorithmHelper::prefixProduct(const std::vector<uint32_t>& sizeList,
-                                                                     uint32_t init = 1)
-{
+std::vector<uint32_t> ParallelStrategyAlgorithmHelper::prefixProduct(
+    const std::vector<uint32_t> &sizeList, uint32_t init = 1) {
     std::vector<uint32_t> result(sizeList.size() + 1, init);
     for (size_t i = 0; i < sizeList.size(); ++i) {
         // 并行策略参数，前端入参已校验，无整数溢出风险
@@ -74,8 +71,7 @@ std::vector<uint32_t> ParallelStrategyAlgorithmHelper::prefixProduct(const std::
     return result;
 }
 
-uint32_t ParallelStrategyAlgorithmHelper::innerProduct(const std::vector<uint32_t>& x, const std::vector<uint32_t>& y)
-{
+uint32_t ParallelStrategyAlgorithmHelper::innerProduct(const std::vector<uint32_t> &x, const std::vector<uint32_t> &y) {
     if (x.size() != y.size()) {
         Server::ServerLog::Error("Failed to get inner product for generate orthogonal rank groups. "
                                  "Input vectors are not of the same length.");
@@ -95,8 +91,7 @@ uint32_t ParallelStrategyAlgorithmHelper::innerProduct(const std::vector<uint32_
  * @param shape 令stride = prefixProduct(shape)
  * @return 求解idx
  */
-std::vector<uint32_t> ParallelStrategyAlgorithmHelper::Decompose(uint32_t index, const std::vector<uint32_t>& shape)
-{
+std::vector<uint32_t> ParallelStrategyAlgorithmHelper::Decompose(uint32_t index, const std::vector<uint32_t> &shape) {
     std::vector<uint32_t> stride = prefixProduct(shape);
     std::vector<uint32_t> idx(shape.size());
     for (size_t i = 0; i < shape.size(); i++) {
@@ -114,8 +109,7 @@ std::vector<uint32_t> ParallelStrategyAlgorithmHelper::Decompose(uint32_t index,
  *         ranks = [[0, 1, 4, 5, 8, 9], [2, 3, 6, 7, 10, 11], ..., [38, 39, 42, 43, 46, 47]]
  */
 allGroupsType ParallelStrategyAlgorithmHelper::GenerateMaskedOrthogonalRankGroups(
-    const std::vector<uint32_t>& parallelSize, const std::vector<bool>& mask, uint32_t wordSize)
-{
+    const std::vector<uint32_t> &parallelSize, const std::vector<bool> &mask, uint32_t wordSize) {
     if (parallelSize.size() != mask.size()) {
         Server::ServerLog::Error("Failed to generate orthogonal rank groups. Unexpected parallel size or "
                                  "rank groups mask.");
@@ -161,8 +155,8 @@ allGroupsType ParallelStrategyAlgorithmHelper::GenerateMaskedOrthogonalRankGroup
             std::vector<uint32_t> decomposedRankIdx = Decompose(rankInGroup, maskedShape);
             // 以并行顺序'tp-cp-dp-pp'为例,
             // globalRankIndex 等于 tpIndex + cpIndex * tpSize + dpIndex * tpCpSize + ppIndex * tpCpDpSize
-            uint32_t globalRankIndex = innerProduct(decomposedRankIdx, maskedStride)
-                + innerProduct(decomposedGroupIdx, unmaskedStride);
+            uint32_t globalRankIndex =
+                innerProduct(decomposedRankIdx, maskedStride) + innerProduct(decomposedGroupIdx, unmaskedStride);
             rank.push_back(globalRankIndex);
         }
         ranks.push_back(rank);

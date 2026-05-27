@@ -65,7 +65,6 @@ struct SummaryTopRankResponse : public Response {
     SummaryTopRankResBody body;
 };
 
-
 struct SummaryStatisticsItem {
     std::string acceleratorCore;
     std::string overlapType;
@@ -176,8 +175,7 @@ struct QueryParallelStrategyResponse : public Response {
     Module::ParallelStrategyConfig config;
     std::string level;
     const uint32_t validValue = 1;
-    bool IsValid() const
-    {
+    bool IsValid() const {
         if (config.ppSize < validValue || config.tpSize < validValue || config.dpSize < validValue) {
             return false;
         }
@@ -191,8 +189,7 @@ struct QueryParallelStrategyResponse : public Response {
         return true;
     }
 
-    void SetDefault()
-    {
+    void SetDefault() {
         config.tpSize = std::max(validValue, config.tpSize);
         config.dpSize = std::max(validValue, config.dpSize);
         config.ppSize = std::max(validValue, config.ppSize);

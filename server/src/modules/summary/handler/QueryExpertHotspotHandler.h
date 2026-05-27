@@ -24,11 +24,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class QueryExpertHotspotHandler : public SummaryRequestHandler {
-public:
-    QueryExpertHotspotHandler()
-    {
-        command = Protocol::REQ_RES_QUERY_EXPERT_HOTSPOT;
-    }
+  public:
+    QueryExpertHotspotHandler() { command = Protocol::REQ_RES_QUERY_EXPERT_HOTSPOT; }
     ~QueryExpertHotspotHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

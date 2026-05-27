@@ -23,8 +23,7 @@
 namespace Dic {
 namespace Module {
 namespace Summary {
-bool ImportExpertDataHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool ImportExpertDataHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<ImportExpertDataRequest &>(*requestPtr);
     std::unique_ptr<ImportExpertDataResponse> responsePtr = std::make_unique<ImportExpertDataResponse>();
     ImportExpertDataResponse &response = *responsePtr;
@@ -36,8 +35,8 @@ bool ImportExpertDataHandler::HandleRequest(std::unique_ptr<Protocol::Request> r
         return false;
     }
 
-    if (!ExpertHotspotManager::InitExpertHotspotData(request.params.filePath, request.params.version, errorMsg,
-                                                     request.params.clusterPath)) {
+    if (!ExpertHotspotManager::InitExpertHotspotData(
+            request.params.filePath, request.params.version, errorMsg, request.params.clusterPath)) {
         SendResponse(std::move(responsePtr), false);
         return false;
     }

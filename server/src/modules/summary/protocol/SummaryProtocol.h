@@ -24,11 +24,11 @@
 namespace Dic {
 namespace Protocol {
 class SummaryProtocol : public ProtocolUtil {
-public:
+  public:
     SummaryProtocol() = default;
     ~SummaryProtocol() override = default;
 
-private:
+  private:
     void RegisterJsonToRequestFuncs() override;
     void RegisterResponseToJsonFuncs() override;
     void RegisterEventToJsonFuncs() override;

@@ -21,8 +21,7 @@
 #include "SummaryErrorManager.h"
 
 namespace Dic::Module::Summary {
-ModelGenConfig ModelGenConfigParser::ParserModelGenConfigByFilePath(const std::string &filePath, std::string &error)
-{
+ModelGenConfig ModelGenConfigParser::ParserModelGenConfigByFilePath(const std::string &filePath, std::string &error) {
     FileReader reader;
     std::string fileContext = reader.ReadJsonArray(filePath, 0, 0);
     ModelGenConfig res;

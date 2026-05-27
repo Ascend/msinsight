@@ -46,16 +46,17 @@ struct ExtractHeatMapParams {
 };
 
 class ExpertHotspotManager {
-public:
-    static bool InitExpertHotspotData(const std::string &filePath, const std::string &version,
-            std::string &errorMsg, const std::string &clusterPath);
-    static std::vector<ExpertHotspotStruct> QueryExpertHotspotData(const std::string &clusterPath,
-            const std::string &modelStage, const std::string &version);
+  public:
+    static bool InitExpertHotspotData(
+        const std::string &filePath, const std::string &version, std::string &errorMsg, const std::string &clusterPath);
+    static std::vector<ExpertHotspotStruct> QueryExpertHotspotData(
+        const std::string &clusterPath, const std::string &modelStage, const std::string &version);
     static ModelInfo GetModelInfo(const std::string &clusterPath);
     static bool UpdateModelInfo(const std::string &clusterPath, ModelInfo &newModelInfo, std::string &errorMsg);
-    static bool UpdateHeatMapFromProfiling(std::string &errorMsg, const std::string &clusterPath,
-                                           const std::vector<std::string> &rankIdList);
-private:
+    static bool UpdateHeatMapFromProfiling(
+        std::string &errorMsg, const std::string &clusterPath, const std::vector<std::string> &rankIdList);
+
+  private:
     // CANN层，每一个layer执行API
     const static inline std::vector<std::string> layerExecuteApiNameList = {"Prefill_layer::Execute",
         "AscendCL@Decoder_layer::Execute", "AscendCL@Prefill_layer::Execute", "Decoder_layer::Execute"};
@@ -69,7 +70,7 @@ private:
         "aclnnGroupedMatmulV4_GroupedMatmul_GroupedMatmul",
         "aclnnGroupedMatmulSwiglu_GroupedMatmulSwiglu_GroupedMatmulSwiglu"};
     static bool FillExpertInfo(std::vector<ExpertHotspotStruct> &hotspotInfos, const ModelInfo &modelInfo,
-                               const std::vector<ExpertDeploymentStruct> &deployment);
+        const std::vector<ExpertDeploymentStruct> &deployment);
     static std::map<std::string, ModelInfo> ParseHotspotData(const std::vector<std::string> &hotspotFiles,
         std::string &errorMsg, std::shared_ptr<VirtualClusterDatabase> &database, const std::string &version,
         const ModelGenConfig &config);
@@ -83,10 +84,10 @@ private:
     static bool FillHotspotData(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params);
     static bool FillDeploymentData(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params);
     static void FillDenseLayerInfo(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params);
-    static bool ExtractHeatMapFromTraceDb(const ExtractHeatMapParams &params, ModelInfo &modelInfo,
-                                          std::string &errorMsg);
-    static std::map<std::string, ExpertHotspotStruct> CalHeatMap(
-        const int &rankId, const std::vector<FullDb::CompeteSliceDomain> &cannApiSliceList,
+    static bool ExtractHeatMapFromTraceDb(
+        const ExtractHeatMapParams &params, ModelInfo &modelInfo, std::string &errorMsg);
+    static std::map<std::string, ExpertHotspotStruct> CalHeatMap(const int &rankId,
+        const std::vector<FullDb::CompeteSliceDomain> &cannApiSliceList,
         const std::vector<FullDb::CompeteSliceDomain> &hardwareSliceList, ModelInfo &modelInfo);
 };
 }

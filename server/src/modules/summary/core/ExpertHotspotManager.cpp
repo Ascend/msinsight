@@ -35,8 +35,7 @@ namespace Summary {
 
 std::map<std::string, ModelInfo> ExpertHotspotManager::ParseHotspotData(const std::vector<std::string> &hotspotFiles,
     std::string &errorMsg, std::shared_ptr<VirtualClusterDatabase> &database, const std::string &version,
-    const ModelGenConfig &config)
-{
+    const ModelGenConfig &config) {
     // 清空老数据
     if (!database->DeleteExpertHotspot("", version)) {
         errorMsg = "Failed to clear old expert hotspot data, version:" + version;
@@ -44,7 +43,7 @@ std::map<std::string, ModelInfo> ExpertHotspotManager::ParseHotspotData(const st
         return {};
     }
     ExpertHotspotParser parser(database, config);
-    for (const auto &item: hotspotFiles) {
+    for (const auto &item : hotspotFiles) {
         // 文件解析，单个文件解析失败不影响最终结果
         if (!parser.Parse(item, version)) {
             ServerLog::Warn("Fail to parser file:", item);
@@ -56,8 +55,7 @@ std::map<std::string, ModelInfo> ExpertHotspotManager::ParseHotspotData(const st
 
 std::map<std::string, ModelInfo> ExpertHotspotManager::ParseDeploymentData(
     const std::vector<std::string> &deploymentFiles, std::string &errorMsg,
-    std::shared_ptr<VirtualClusterDatabase> &database, const std::string version)
-{
+    std::shared_ptr<VirtualClusterDatabase> &database, const std::string version) {
     // 清空老数据
     if (!database->DeleteDeployment("", version)) {
         errorMsg = "Failed to clear old expert deployment data, version:" + version;
@@ -66,7 +64,7 @@ std::map<std::string, ModelInfo> ExpertHotspotManager::ParseDeploymentData(
     }
     // 文件解析
     ExpertDeploymentParser parser(database);
-    for (const auto &item: deploymentFiles) {
+    for (const auto &item : deploymentFiles) {
         if (!parser.Parse(item, version)) {
             ServerLog::Warn("Fail to parser file:", item);
         }
@@ -76,8 +74,7 @@ std::map<std::string, ModelInfo> ExpertHotspotManager::ParseDeploymentData(
 }
 
 bool ExpertHotspotManager::MergeAndSaveModelInfo(const std::map<std::string, ModelInfo> &hotspotModelInfo,
-    const std::map<std::string, ModelInfo> &deploymentModelInfo, std::shared_ptr<VirtualClusterDatabase> &database)
-{
+    const std::map<std::string, ModelInfo> &deploymentModelInfo, std::shared_ptr<VirtualClusterDatabase> &database) {
     // 获取当前db中已保存的modelInfo信息,稠密层列表从老数据中直接保留，模型总层数取当前值和新导入数据的最大值
     ModelInfo curModelInfo = GetModelInfo(database);
     ModelInfo hotspot = hotspotModelInfo.empty() ? ModelInfo() : hotspotModelInfo.begin()->second;
@@ -94,8 +91,8 @@ bool ExpertHotspotManager::MergeAndSaveModelInfo(const std::map<std::string, Mod
     if (!hotspotModelInfo.empty()) {
         // 计算总层数，从以下两个数据中取大的数据：1.导入数据的moe层数+已配置的稠密层数；2.已配置的总层数
         uint64_t totalModelLayerCeil = NumberSafe::Add(hotspot.moeLayer, curModelInfo.denseLayerList.size());
-        int totalModelLayer = static_cast<int>(NumberUtil::CeilingClamp(totalModelLayerCeil,
-                                                                        static_cast<uint64_t>(INT_MAX)));
+        int totalModelLayer =
+            static_cast<int>(NumberUtil::CeilingClamp(totalModelLayerCeil, static_cast<uint64_t>(INT_MAX)));
         finalModelInfo.modelLayer = std::max(totalModelLayer, finalModelInfo.modelLayer);
         finalModelInfo.rankNumber = hotspot.rankNumber;
         finalModelInfo.moeLayer = hotspot.moeLayer;
@@ -104,8 +101,8 @@ bool ExpertHotspotManager::MergeAndSaveModelInfo(const std::map<std::string, Mod
 
     if (!deploymentModelInfo.empty()) {
         uint64_t totalModelLayerCeil = NumberSafe::Add(deployment.moeLayer, curModelInfo.denseLayerList.size());
-        int totalModelLayer = static_cast<int>(NumberUtil::CeilingClamp(totalModelLayerCeil,
-                                                                        static_cast<uint64_t>(INT_MAX)));
+        int totalModelLayer =
+            static_cast<int>(NumberUtil::CeilingClamp(totalModelLayerCeil, static_cast<uint64_t>(INT_MAX)));
         finalModelInfo.modelLayer = std::max(totalModelLayer, finalModelInfo.modelLayer);
         finalModelInfo.rankNumber = deployment.rankNumber;
         finalModelInfo.moeLayer = deployment.moeLayer;
@@ -115,9 +112,8 @@ bool ExpertHotspotManager::MergeAndSaveModelInfo(const std::map<std::string, Mod
     return SaveModelInfo(finalModelInfo, database);
 }
 
-bool ExpertHotspotManager::InitExpertHotspotData(const std::string &filePath, const std::string &version,
-                                                 std::string &errorMsg, const std::string &clusterPath)
-{
+bool ExpertHotspotManager::InitExpertHotspotData(
+    const std::string &filePath, const std::string &version, std::string &errorMsg, const std::string &clusterPath) {
     // 参数校验，ConvertToRealPath方法中会调用CheckDirValid方法对文件进行校验
     std::string realFilePath = filePath;
     if (!FileUtil::ConvertToRealPath(errorMsg, realFilePath)) {
@@ -166,8 +162,7 @@ bool ExpertHotspotManager::InitExpertHotspotData(const std::string &filePath, co
     return true;
 }
 
-bool ExpertHotspotManager::SaveModelInfo(const ModelInfo &modelInfo, std::shared_ptr<VirtualClusterDatabase> &db)
-{
+bool ExpertHotspotManager::SaveModelInfo(const ModelInfo &modelInfo, std::shared_ptr<VirtualClusterDatabase> &db) {
     std::map<std::string, std::string> modelInfoMap;
     modelInfoMap[KEY_DENSE_LAYER_LIST] = StringUtil::join(modelInfo.denseLayerList, ",");
     // 只有数据不为0才展示
@@ -186,9 +181,8 @@ bool ExpertHotspotManager::SaveModelInfo(const ModelInfo &modelInfo, std::shared
     return db->InsertDuplicateUpdateBaseInfo(modelInfoMap);
 }
 
-bool ExpertHotspotManager::UpdateModelInfo(const std::string &clusterPath, ModelInfo &newModelInfo,
-                                           std::string &errorMsg)
-{
+bool ExpertHotspotManager::UpdateModelInfo(
+    const std::string &clusterPath, ModelInfo &newModelInfo, std::string &errorMsg) {
     // 获取db
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (database == nullptr) {
@@ -217,9 +211,8 @@ bool ExpertHotspotManager::UpdateModelInfo(const std::string &clusterPath, Model
     return SaveModelInfo(curModelInfo, database);
 }
 
-ModelInfo ExpertHotspotManager::GetModelInfo(const std::string &clusterPath)
-{
-     // 获取db
+ModelInfo ExpertHotspotManager::GetModelInfo(const std::string &clusterPath) {
+    // 获取db
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (database == nullptr) {
         ServerLog::Error("Fail to get model info, database not exist.");
@@ -228,34 +221,32 @@ ModelInfo ExpertHotspotManager::GetModelInfo(const std::string &clusterPath)
     return GetModelInfo(database);
 }
 
-ModelInfo ExpertHotspotManager::GetModelInfo(std::shared_ptr<VirtualClusterDatabase> &db)
-{
-    std::vector<std::string> keys = {KEY_DENSE_LAYER_LIST, KEY_MOE_LAYER, KEY_RANK_NUMBER, KEY_EXPERT_NUMBER,
-                                     KEY_MODEL_LAYER};
+ModelInfo ExpertHotspotManager::GetModelInfo(std::shared_ptr<VirtualClusterDatabase> &db) {
+    std::vector<std::string> keys = {
+        KEY_DENSE_LAYER_LIST, KEY_MOE_LAYER, KEY_RANK_NUMBER, KEY_EXPERT_NUMBER, KEY_MODEL_LAYER};
     std::map<std::string, std::string> modelInfoMap = db->QueryBaseInfoByKeys(keys);
     std::string defaultZeroStr = "0";
     ModelInfo modelInfo;
-    std::string denseLayerListStr = CollectionUtil::FindValueByKey(modelInfoMap, KEY_DENSE_LAYER_LIST,
-                                                                   CollectionUtil::EMPTY_STRING);
+    std::string denseLayerListStr =
+        CollectionUtil::FindValueByKey(modelInfoMap, KEY_DENSE_LAYER_LIST, CollectionUtil::EMPTY_STRING);
     if (!denseLayerListStr.empty()) {
-        for (const auto &item: StringUtil::Split(denseLayerListStr, ",")) {
+        for (const auto &item : StringUtil::Split(denseLayerListStr, ",")) {
             modelInfo.denseLayerList.push_back(StringUtil::StringToInt(item));
         }
     }
-    modelInfo.expertNumber = StringUtil::StringToInt(
-        CollectionUtil::FindValueByKey(modelInfoMap, KEY_EXPERT_NUMBER, defaultZeroStr));
-    modelInfo.rankNumber = StringUtil::StringToInt(
-        CollectionUtil::FindValueByKey(modelInfoMap, KEY_RANK_NUMBER, defaultZeroStr));
-    modelInfo.moeLayer = StringUtil::StringToInt(
-        CollectionUtil::FindValueByKey(modelInfoMap, KEY_MOE_LAYER, defaultZeroStr));
-    modelInfo.modelLayer = StringUtil::StringToInt(
-        CollectionUtil::FindValueByKey(modelInfoMap, KEY_MODEL_LAYER, defaultZeroStr));
+    modelInfo.expertNumber =
+        StringUtil::StringToInt(CollectionUtil::FindValueByKey(modelInfoMap, KEY_EXPERT_NUMBER, defaultZeroStr));
+    modelInfo.rankNumber =
+        StringUtil::StringToInt(CollectionUtil::FindValueByKey(modelInfoMap, KEY_RANK_NUMBER, defaultZeroStr));
+    modelInfo.moeLayer =
+        StringUtil::StringToInt(CollectionUtil::FindValueByKey(modelInfoMap, KEY_MOE_LAYER, defaultZeroStr));
+    modelInfo.modelLayer =
+        StringUtil::StringToInt(CollectionUtil::FindValueByKey(modelInfoMap, KEY_MODEL_LAYER, defaultZeroStr));
     return modelInfo;
 }
 
-std::vector<int> ExpertHotspotManager::CalMoeLayerMapping(const ModelInfo &modelInfo,
-                                                          const std::set<int> &denseLayerSet)
-{
+std::vector<int> ExpertHotspotManager::CalMoeLayerMapping(
+    const ModelInfo &modelInfo, const std::set<int> &denseLayerSet) {
     // 计算从moe层映射到整体层的映射
     std::vector<int> moeLayerMapping(modelInfo.moeLayer);
     int moeLayerIndex = 0;
@@ -271,22 +262,20 @@ std::vector<int> ExpertHotspotManager::CalMoeLayerMapping(const ModelInfo &model
     return moeLayerMapping;
 }
 
-bool ExpertHotspotManager::FillHotspotData(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params)
-{
-    for (auto &item: params.hotspotInfos) {
+bool ExpertHotspotManager::FillHotspotData(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params) {
+    for (auto &item : params.hotspotInfos) {
         if (item.layer >= params.modelInfo.moeLayer || item.rankId >= params.modelInfo.rankNumber) {
             ServerLog::Error("Invalid hotspot data.");
             return false;
         }
         // 更新layer为全局layer（包含稠密层的情况）
         item.layer = params.moeLayerMapping[item.layer];
-        uint64_t expertId = NumberSafe::Add(NumberSafe::Muls(item.rankId, params.expertNumberPerRank),
-                                            item.localExpertId);
-        uint64_t expertIndex =  NumberSafe::Add(NumberSafe::Muls(item.rankId, params.expertNumberPerRank),
-                                                item.localExpertId);
+        uint64_t expertId =
+            NumberSafe::Add(NumberSafe::Muls(item.rankId, params.expertNumberPerRank), item.localExpertId);
+        uint64_t expertIndex =
+            NumberSafe::Add(NumberSafe::Muls(item.rankId, params.expertNumberPerRank), item.localExpertId);
         item.expertId = static_cast<int>(NumberUtil::CeilingClamp(expertId, static_cast<uint64_t>(INT_MAX)));
-        item.expertIndex =
-            static_cast<int>(NumberUtil::CeilingClamp(expertIndex, static_cast<uint64_t>(INT_MAX)));
+        item.expertIndex = static_cast<int>(NumberUtil::CeilingClamp(expertIndex, static_cast<uint64_t>(INT_MAX)));
         int index = NumberSafe::Add(item.expertIndex, NumberSafe::Muls(item.layer, params.colNumber));
         if (index >= NumberSafe::Muls(params.colNumber, params.modelInfo.modelLayer)) {
             return false;
@@ -296,9 +285,8 @@ bool ExpertHotspotManager::FillHotspotData(std::vector<ExpertHotspotStruct> &res
     return true;
 }
 
-bool ExpertHotspotManager::FillDeploymentData(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params)
-{
-    for (const auto &item: params.deployment) {
+bool ExpertHotspotManager::FillDeploymentData(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params) {
+    for (const auto &item : params.deployment) {
         if (item.layer >= params.modelInfo.moeLayer || item.deviceId >= params.modelInfo.rankNumber) {
             ServerLog::Error("Invalid deployment data.");
             return false;
@@ -306,12 +294,12 @@ bool ExpertHotspotManager::FillDeploymentData(std::vector<ExpertHotspotStruct> &
         int aclLayer = params.moeLayerMapping[item.layer];
         for (size_t i = 0; i < item.expertList.size(); ++i) {
             uint64_t expertIndex = NumberSafe::Add(i, NumberSafe::Muls(params.expertNumberPerRank, item.deviceId));
-            uint64_t index =  NumberSafe::Add(expertIndex, NumberSafe::Muls(aclLayer, params.colNumber));
+            uint64_t index = NumberSafe::Add(expertIndex, NumberSafe::Muls(aclLayer, params.colNumber));
             if (index >= static_cast<uint64_t>(NumberSafe::Muls(params.colNumber, params.modelInfo.modelLayer))) {
                 return false;
             }
-            res[index].expertIndex = static_cast<int>(NumberUtil::CeilingClamp(expertIndex,
-                                                                               static_cast<uint64_t>(INT_MAX)));
+            res[index].expertIndex =
+                static_cast<int>(NumberUtil::CeilingClamp(expertIndex, static_cast<uint64_t>(INT_MAX)));
             res[index].layer = aclLayer;
             res[index].expertId = item.expertList[i];
             res[index].rankId = item.deviceId;
@@ -320,8 +308,7 @@ bool ExpertHotspotManager::FillDeploymentData(std::vector<ExpertHotspotStruct> &
     return true;
 }
 
-void ExpertHotspotManager::FillDenseLayerInfo(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params)
-{
+void ExpertHotspotManager::FillDenseLayerInfo(std::vector<ExpertHotspotStruct> &res, FillExpertDataParams &params) {
     for (int item = 0; item < params.modelInfo.modelLayer; ++item) {
         int startIndex = NumberSafe::Muls(item, params.colNumber);
         if (startIndex == 0 && item != 0 && params.colNumber != 0) {
@@ -335,34 +322,32 @@ void ExpertHotspotManager::FillDenseLayerInfo(std::vector<ExpertHotspotStruct> &
             res[index].layer = item;
             if (params.expertNumberPerRank != 0) {
                 // rankId计算（向下取整）：列数 ÷ 每个rank的专家数
-                res[index].rankId = static_cast<int>(NumberUtil::CeilingClamp(static_cast<uint64_t>(i) /
-                    params.expertNumberPerRank, static_cast<uint64_t>(INT_MAX)));
+                res[index].rankId = static_cast<int>(NumberUtil::CeilingClamp(
+                    static_cast<uint64_t>(i) / params.expertNumberPerRank, static_cast<uint64_t>(INT_MAX)));
             }
         }
     }
 }
 
-bool ExpertHotspotManager::FillExpertInfo(std::vector<ExpertHotspotStruct> &hotspotInfos,
-                                          const ModelInfo &modelInfo,
-                                          const std::vector<ExpertDeploymentStruct> &deployment)
-{
+bool ExpertHotspotManager::FillExpertInfo(std::vector<ExpertHotspotStruct> &hotspotInfos, const ModelInfo &modelInfo,
+    const std::vector<ExpertDeploymentStruct> &deployment) {
     // 获取每个rank的专家数，以及热力图的列数目
     uint64_t expertNumberPerRank = 0;
     int colNumber = 0;
     if (!hotspotInfos.empty()) {
         std::vector<ExpertHotspotStruct> filteredHotspots;
         std::copy_if(hotspotInfos.begin(), hotspotInfos.end(), std::back_inserter(filteredHotspots),
-            [hotspotInfos](const ExpertHotspotStruct& info) {
+            [hotspotInfos](const ExpertHotspotStruct &info) {
                 return info.layer == hotspotInfos[0].layer && info.rankId == hotspotInfos[0].rankId;
             });
         expertNumberPerRank = filteredHotspots.size();
-        colNumber = static_cast<int>(NumberUtil::CeilingClamp(expertNumberPerRank * modelInfo.rankNumber,
-                                                              static_cast<uint64_t>(INT_MAX)));
+        colNumber = static_cast<int>(
+            NumberUtil::CeilingClamp(expertNumberPerRank * modelInfo.rankNumber, static_cast<uint64_t>(INT_MAX)));
     } else if (!deployment.empty()) {
         // 如果有配置文件，则专家数直接取自数据内
         expertNumberPerRank = deployment[0].expertList.size();
-        colNumber = static_cast<int>(NumberUtil::CeilingClamp(expertNumberPerRank * modelInfo.rankNumber,
-                                                              static_cast<uint64_t>(INT_MAX)));
+        colNumber = static_cast<int>(
+            NumberUtil::CeilingClamp(expertNumberPerRank * modelInfo.rankNumber, static_cast<uint64_t>(INT_MAX)));
     } else {
         colNumber = modelInfo.expertNumber;
     }
@@ -374,8 +359,8 @@ bool ExpertHotspotManager::FillExpertInfo(std::vector<ExpertHotspotStruct> &hots
     // 计算从moe层映射到整体层的映射
     std::vector<int> moeLayerMapping = CalMoeLayerMapping(modelInfo, denseLayerSet);
 
-    FillExpertDataParams params{modelInfo, hotspotInfos, deployment, moeLayerMapping,
-                                colNumber, expertNumberPerRank, denseLayerSet};
+    FillExpertDataParams params{
+        modelInfo, hotspotInfos, deployment, moeLayerMapping, colNumber, expertNumberPerRank, denseLayerSet};
     // 所有数据填充空内容
     FillDenseLayerInfo(res, params);
 
@@ -392,10 +377,8 @@ bool ExpertHotspotManager::FillExpertInfo(std::vector<ExpertHotspotStruct> &hots
     return true;
 }
 
-std::vector<ExpertHotspotStruct> ExpertHotspotManager::QueryExpertHotspotData(const std::string &clusterPath,
-                                                                              const std::string &modelStage,
-                                                                              const std::string &version)
-{
+std::vector<ExpertHotspotStruct> ExpertHotspotManager::QueryExpertHotspotData(
+    const std::string &clusterPath, const std::string &modelStage, const std::string &version) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (database == nullptr) {
         return {};
@@ -409,9 +392,8 @@ std::vector<ExpertHotspotStruct> ExpertHotspotManager::QueryExpertHotspotData(co
     return hotspotRes;
 }
 
-bool ExpertHotspotManager::ExtractHeatMapFromTraceDb(const ExtractHeatMapParams &params, ModelInfo &modelInfo,
-                                                     std::string &errorMsg)
-{
+bool ExpertHotspotManager::ExtractHeatMapFromTraceDb(
+    const ExtractHeatMapParams &params, ModelInfo &modelInfo, std::string &errorMsg) {
     if (params.rankId.empty()) {
         errorMsg = "Fail to get extract heat map, file id is empty.";
         return false;
@@ -422,14 +404,16 @@ bool ExpertHotspotManager::ExtractHeatMapFromTraceDb(const ExtractHeatMapParams 
         return false;
     }
     // 获取cann层数据内容
-    std::vector<FullDb::CompeteSliceDomain> cannApiSliceList = FullDb::RenderEngine::Instance()->
-        QuerySliceDetailByNameList(params.rankId, params.dataType, "CANN", params.cannApiList);
+    std::vector<FullDb::CompeteSliceDomain> cannApiSliceList =
+        FullDb::RenderEngine::Instance()->QuerySliceDetailByNameList(
+            params.rankId, params.dataType, "CANN", params.cannApiList);
     if (cannApiSliceList.empty()) {
         return false;
     }
     // 获取计算算子数据内容
-    std::vector<FullDb::CompeteSliceDomain> hardwareSliceList = FullDb::RenderEngine::Instance()->
-        QuerySliceDetailByNameList(params.rankId, params.dataType, "Ascend Hardware", params.hardwareOperatorList);
+    std::vector<FullDb::CompeteSliceDomain> hardwareSliceList =
+        FullDb::RenderEngine::Instance()->QuerySliceDetailByNameList(
+            params.rankId, params.dataType, "Ascend Hardware", params.hardwareOperatorList);
     if (hardwareSliceList.empty()) {
         return false;
     }
@@ -440,17 +424,16 @@ bool ExpertHotspotManager::ExtractHeatMapFromTraceDb(const ExtractHeatMapParams 
     }
     modelInfo.rankNumber = std::max(rankId + 1, modelInfo.rankNumber);
     auto heatMapData = CalHeatMap(rankId, cannApiSliceList, hardwareSliceList, modelInfo);
-    for (const auto &item: heatMapData) {
+    for (const auto &item : heatMapData) {
         clusterDb->InsertExpertHotspotDataForCache(item.second);
     }
     clusterDb->SaveExpertHotspot();
     return true;
 }
 
-std::map<std::string, ExpertHotspotStruct> ExpertHotspotManager::CalHeatMap(
-    const int &rankId, const std::vector<FullDb::CompeteSliceDomain> &cannApiSliceList,
-    const std::vector<FullDb::CompeteSliceDomain> &hardwareSliceList, ModelInfo &modelInfo)
-{
+std::map<std::string, ExpertHotspotStruct> ExpertHotspotManager::CalHeatMap(const int &rankId,
+    const std::vector<FullDb::CompeteSliceDomain> &cannApiSliceList,
+    const std::vector<FullDb::CompeteSliceDomain> &hardwareSliceList, ModelInfo &modelInfo) {
     // 遍历数据并映射
     std::vector<int> denseLayerList;
     int layer = -1;
@@ -498,9 +481,8 @@ std::map<std::string, ExpertHotspotStruct> ExpertHotspotManager::CalHeatMap(
     return res;
 }
 
-bool ExpertHotspotManager::UpdateHeatMapFromProfiling(std::string &errorMsg, const std::string &clusterPath,
-                                                      const std::vector<std::string> &rankIdList)
-{
+bool ExpertHotspotManager::UpdateHeatMapFromProfiling(
+    std::string &errorMsg, const std::string &clusterPath, const std::vector<std::string> &rankIdList) {
     if (clusterPath.empty() || rankIdList.empty()) {
         errorMsg = "Fail to update heatmap from profiling, invalid params.";
         return false;
@@ -522,7 +504,7 @@ bool ExpertHotspotManager::UpdateHeatMapFromProfiling(std::string &errorMsg, con
     cannApiList.insert(cannApiList.end(), layerExecuteApiNameList.begin(), layerExecuteApiNameList.end());
     cannApiList.insert(cannApiList.end(), groupedMatmulApiNameList.begin(), groupedMatmulApiNameList.end());
     cannApiList.insert(cannApiList.end(), lmHeadApiNameList.begin(), lmHeadApiNameList.end());
-    for (const auto &rankId: rankIdList) {
+    for (const auto &rankId : rankIdList) {
         ExtractHeatMapParams params{rankId, dataType, cannApiList, groupedMatmulComputeNameList, clusterPath};
         if (!ExtractHeatMapFromTraceDb(params, modelInfo, errorMsg)) {
             return false;

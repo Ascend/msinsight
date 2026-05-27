@@ -25,26 +25,24 @@
 
 namespace Dic::Module::Summary {
 class MindIELLMParallelStrategyAlgorithm : public BaseParallelStrategyAlgorithm {
-public:
+  public:
     static const std::unordered_map<std::string, std::string> tokenExceptEp;
     static const std::unordered_map<std::string, std::string> tokenWithEp;
     MindIELLMParallelStrategyAlgorithm();
     ~MindIELLMParallelStrategyAlgorithm() override;
-    bool UpdateParallelDimension(const std::string& tmpDimension,
-                                 const ParallelStrategyConfig& tmpConfig, std::string& err) override;
+    bool UpdateParallelDimension(
+        const std::string &tmpDimension, const ParallelStrategyConfig &tmpConfig, std::string &err) override;
     bool GenerateArrangementByDimension(std::string &err) override;
     bool GetPerformanceIndicatorByDimension(const GetPerformanceIndicatorParam &performanceParams,
-                                            const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-                                            std::vector<IndicatorDataStruct> &indicatorData, std::string& err) override;
+        const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
+        std::vector<IndicatorDataStruct> &indicatorData, std::string &err) override;
     void CalAdviceInfo(const std::string &dimension, std::vector<std::string> &advices,
-                       std::vector<IndicatorDataStruct> &indicatorData) override;
+        std::vector<IndicatorDataStruct> &indicatorData) override;
     std::vector<Connection> GetAllCommunicationGroups(std::string &err) override;
     CommInfoMap GetCommInfoByDimension(const CommInfoMap &expandCommInfos, const std::string &dimension) override;
-private:
-    enum class ParaMode {
-        TP_DP_PP,
-        MOE_TP_EP_PP
-    };
+
+  private:
+    enum class ParaMode { TP_DP_PP, MOE_TP_EP_PP };
     void UpdateOrderAndParallelSize();
     void SetIndicatorAttr();
     void GetPerArrangement(uint32_t index, std::unordered_map<std::string, uint32_t> &indexAttributes);

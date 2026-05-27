@@ -23,15 +23,11 @@
 #include "SummaryRequestHandler.h"
 namespace Dic::Module::Summary {
 class SummarySlowRankAdvisorHandler : public SummaryRequestHandler {
-public:
-    SummarySlowRankAdvisorHandler()
-    {
-        command = Protocol::REQ_RES_SUMMARY_SLOW_RANK_ADVISOR;
-    }
+  public:
+    SummarySlowRankAdvisorHandler() { command = Protocol::REQ_RES_SUMMARY_SLOW_RANK_ADVISOR; }
     ~SummarySlowRankAdvisorHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
 }
-
 
 #endif // PROFILER_SERVER_SUMMARYSLOWRANKADVISORHANDLER_H

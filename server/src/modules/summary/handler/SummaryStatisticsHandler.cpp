@@ -27,12 +27,10 @@ namespace Summary {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool SummaryStatisticsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    Protocol::SummaryStatisticRequest &request =
-            dynamic_cast<Protocol::SummaryStatisticRequest &>(*requestPtr.get());
+bool SummaryStatisticsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    Protocol::SummaryStatisticRequest &request = dynamic_cast<Protocol::SummaryStatisticRequest &>(*requestPtr.get());
     std::unique_ptr<Protocol::SummaryStatisticsResponse> responsePtr =
-            std::make_unique<Protocol::SummaryStatisticsResponse>();
+        std::make_unique<Protocol::SummaryStatisticsResponse>();
     SummaryStatisticsResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     // check request parameters
@@ -44,7 +42,8 @@ bool SummaryStatisticsHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
     }
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByFileId(request.fileId);
     if (database == nullptr) {
-        database = Timeline::DataBaseManager::Instance().GetTraceDatabaseInCluster(request.params.clusterPath, request.params.rankId);
+        database = Timeline::DataBaseManager::Instance().GetTraceDatabaseInCluster(
+            request.params.clusterPath, request.params.rankId);
         if (database == nullptr) {
             // 若Timeline数据尚未加载，后端返回为空，此时前端不应弹出报错提示，因此此处SendResponse需返回true
             SendResponse(std::move(responsePtr), true);

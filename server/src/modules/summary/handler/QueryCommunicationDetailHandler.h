@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 
-
 #ifndef PROFILER_SERVER_QUERY_COMMUNICATIONDETAIL_HANDLER_H
 #define PROFILER_SERVER_QUERY_COMMUNICATIONDETAIL_HANDLER_H
 
@@ -26,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class QueryCommunicationDetailHandler : public SummaryRequestHandler {
-public:
-    QueryCommunicationDetailHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_DETAIL;
-    }
+  public:
+    QueryCommunicationDetailHandler() { command = Protocol::REQ_RES_COMMUNICATION_DETAIL; }
     ~QueryCommunicationDetailHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

@@ -21,8 +21,7 @@
 #include "SummarySlowRankAdvisorHandler.h"
 
 namespace Dic::Module::Summary {
-bool SummarySlowRankAdvisorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool SummarySlowRankAdvisorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<QueryParallelismArrangementRequest &>(*requestPtr);
     std::unique_ptr<SummarySlowRankAdvisorResponse> responsePtr = std::make_unique<SummarySlowRankAdvisorResponse>();
     SummarySlowRankAdvisorResponse &response = *responsePtr;

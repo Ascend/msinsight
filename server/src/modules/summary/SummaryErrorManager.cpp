@@ -27,7 +27,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
 
     {ErrorCode::GET_ALGORITHM_FAILED, "Failed to get algorithm"},
     {ErrorCode::GET_ALGORITHM_CONNECTIONS_FAILED,
-     "Failed to get connections. Parallel strategy configs have not been updated yet"},
+        "Failed to get connections. Parallel strategy configs have not been updated yet"},
     {ErrorCode::GET_MASK_FAILED, "Failed to get mask for generate orthogonal rank groups. Unexpected order or token"},
     {ErrorCode::GET_RANK_ID_FAILED, "Failed to get rank ids"},
     {ErrorCode::GET_REAL_PATH_FAILED, "Failed to get real path"},
@@ -45,9 +45,10 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::UPDATE_PARALLEL_SHOW_MAP_FAILED, "Failed to update show map for parallel view. Unexpected dimension"},
     {ErrorCode::UPDATE_PARALLEL_VIEW_FAILED, "Failed to update parallel view"},
     {ErrorCode::UPDATE_MODEL_INFO_MODIFY_FAILED,
-     "Failed to update model info, the number of expert number can't be modify"},
-    {ErrorCode::UPDATE_MODEL_INFO_NOT_EQUAL_FAILED, "Failed to update model info, the sum of moe and dense layers is "
-                                                    "less than the total number of layers in the model"},
+        "Failed to update model info, the number of expert number can't be modify"},
+    {ErrorCode::UPDATE_MODEL_INFO_NOT_EQUAL_FAILED,
+        "Failed to update model info, the sum of moe and dense layers is "
+        "less than the total number of layers in the model"},
     {ErrorCode::MERGE_AND_SAVE_MODEL_INFO_FAILED, "Failed to merge and save model info"},
     {ErrorCode::ADD_ALGORITHM_FAILED, "Failed to add algorithm to manager. Unexpected algorithm"},
     {ErrorCode::CLEAR_EXPERT_HOTSPOT_FAILED, "Failed to clear old expert hotspot data"},
@@ -58,8 +59,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::READ_MODEL_GEN_CONFIG_FILE_FAILED, "Failed to read model gen config file"},
 };
 
-const std::string& GetErrorMessage(ErrorCode code)
-{
+const std::string &GetErrorMessage(ErrorCode code) {
     auto it = errorMessages.find(code);
     if (it != errorMessages.end()) {
         return it->second;
@@ -68,9 +68,9 @@ const std::string& GetErrorMessage(ErrorCode code)
     }
 }
 
-void SetSummaryError(ErrorCode code, const std::string& extendedMessage)
-{
-    std::string message = extendedMessage.size() > 0 ? StringUtil::StrJoin(GetErrorMessage(code), ":", extendedMessage) : GetErrorMessage(code);
+void SetSummaryError(ErrorCode code, const std::string &extendedMessage) {
+    std::string message = extendedMessage.size() > 0 ? StringUtil::StrJoin(GetErrorMessage(code), ":", extendedMessage)
+                                                     : GetErrorMessage(code);
     ModuleRequestHandler::SetRequestContextError({.code = static_cast<int>(code), .message = message});
 }
-}  // namespace Dic::Module::Summary
+} // namespace Dic::Module::Summary

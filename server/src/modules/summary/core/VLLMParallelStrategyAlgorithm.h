@@ -25,24 +25,25 @@
 
 namespace Dic::Module::Summary {
 class VLLMParallelStrategyAlgorithm : public BaseParallelStrategyAlgorithm {
-public:
+  public:
     static const std::unordered_map<std::string, std::string> tokenExceptEp;
     static const std::unordered_map<std::string, std::string> tokenWithEp;
 
     VLLMParallelStrategyAlgorithm();
     ~VLLMParallelStrategyAlgorithm() override;
-    bool UpdateParallelDimension(const std::string& tmpDimension,
-                                 const ParallelStrategyConfig& tmpConfig, std::string& err) override;
-    void SetStrategyConfig(const ParallelStrategyConfig& config) override;
+    bool UpdateParallelDimension(
+        const std::string &tmpDimension, const ParallelStrategyConfig &tmpConfig, std::string &err) override;
+    void SetStrategyConfig(const ParallelStrategyConfig &config) override;
     bool GenerateArrangementByDimension(std::string &err) override;
     bool GetPerformanceIndicatorByDimension(const GetPerformanceIndicatorParam &performanceParams,
         const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-        std::vector<IndicatorDataStruct> &indicatorData, std::string& err) override;
+        std::vector<IndicatorDataStruct> &indicatorData, std::string &err) override;
     std::vector<Connection> GetAllCommunicationGroups(std::string &err) override;
     CommInfoMap GetCommInfoByDimension(const CommInfoMap &expandCommInfos, const std::string &dimension) override;
     void CalAdviceInfo(const std::string &dimension, std::vector<std::string> &advices,
         std::vector<IndicatorDataStruct> &indicatorData) override;
-private:
+
+  private:
     void UpdateOrderAndParallelSize();
     void SetIndicatorAttr();
     void GetPerArrangement(uint32_t index, std::unordered_map<std::string, uint32_t> &indexAttributes);

@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class SummaryTopRankHandler : public SummaryRequestHandler {
-public:
-    SummaryTopRankHandler()
-    {
-        command = Protocol::REQ_RES_SUMMARY_QUERY_TOP_DATA;
-    };
+  public:
+    SummaryTopRankHandler() { command = Protocol::REQ_RES_SUMMARY_QUERY_TOP_DATA; };
     ~SummaryTopRankHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

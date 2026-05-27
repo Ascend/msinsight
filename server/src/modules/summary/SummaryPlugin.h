@@ -22,16 +22,10 @@
 #include "SummaryProtocol.h"
 namespace Dic::Module::Summary {
 class SummaryPlugin : public Core::BasePlugin {
-public:
+  public:
     SummaryPlugin() : Core::BasePlugin(MODULE_SUMMARY) {};
-    std::unique_ptr<Module::BaseModule> GetModule() override
-    {
-        return std::make_unique<SummaryModule>();
-    }
-    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override
-    {
-        return std::make_unique<SummaryProtocol>();
-    }
+    std::unique_ptr<Module::BaseModule> GetModule() override { return std::make_unique<SummaryModule>(); }
+    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override { return std::make_unique<SummaryProtocol>(); }
 };
 }
 #endif // PROFILER_SERVER_SummaryPLUGIN_H

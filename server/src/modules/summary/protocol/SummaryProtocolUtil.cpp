@@ -26,22 +26,20 @@ using namespace Dic::Server;
 using namespace Dic::Module;
 using namespace rapidjson;
 #pragma region <<Response to json>>
-template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response)
-{
+template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response) {
     ServerLog::Warn("Function to response json is not implemented. command:", response.command);
     return std::nullopt;
 }
 
-std::optional<document_t> BaseInfoToJson(const SummaryBaseInfo &baseInfo, Document::AllocatorType &allocator)
-{
+std::optional<document_t> BaseInfoToJson(const SummaryBaseInfo &baseInfo, Document::AllocatorType &allocator) {
     document_t json(kObjectType);
     json_t stepList(kArrayType);
-    for (const auto &item: baseInfo.stepList) {
+    for (const auto &item : baseInfo.stepList) {
         stepList.PushBack(json_t().SetString(item.c_str(), allocator), allocator);
     }
     JsonUtil::AddMember(json, "stepList", stepList, allocator);
     json_t rankList(kArrayType);
-    for (const auto &item: baseInfo.rankList) {
+    for (const auto &item : baseInfo.rankList) {
         rankList.PushBack(json_t().SetString(item.c_str(), allocator), allocator);
     }
     JsonUtil::AddMember(json, "rankList", rankList, allocator);
@@ -54,8 +52,7 @@ std::optional<document_t> BaseInfoToJson(const SummaryBaseInfo &baseInfo, Docume
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<SummaryTopRankResponse>(const SummaryTopRankResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<SummaryTopRankResponse>(const SummaryTopRankResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -72,8 +69,7 @@ template <> std::optional<document_t> ToResponseJson<SummaryTopRankResponse>(con
 }
 
 template <>
-std::optional<document_t> ToResponseJson<SummaryStatisticsResponse>(const SummaryStatisticsResponse &response)
-{
+std::optional<document_t> ToResponseJson<SummaryStatisticsResponse>(const SummaryStatisticsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -92,8 +88,7 @@ std::optional<document_t> ToResponseJson<SummaryStatisticsResponse>(const Summar
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<ComputeDetailResponse>(const ComputeDetailResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<ComputeDetailResponse>(const ComputeDetailResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -122,8 +117,7 @@ template <> std::optional<document_t> ToResponseJson<ComputeDetailResponse>(cons
 }
 
 template <>
-std::optional<document_t> ToResponseJson<CommunicationDetailResponse>(const CommunicationDetailResponse &response)
-{
+std::optional<document_t> ToResponseJson<CommunicationDetailResponse>(const CommunicationDetailResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -145,8 +139,7 @@ std::optional<document_t> ToResponseJson<CommunicationDetailResponse>(const Comm
 }
 
 template <>
-std::optional<document_t> ToResponseJson<QueryParallelStrategyResponse>(const QueryParallelStrategyResponse &response)
-{
+std::optional<document_t> ToResponseJson<QueryParallelStrategyResponse>(const QueryParallelStrategyResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -164,8 +157,7 @@ std::optional<document_t> ToResponseJson<QueryParallelStrategyResponse>(const Qu
 }
 
 template <>
-std::optional<document_t> ToResponseJson<SetParallelStrategyResponse>(const SetParallelStrategyResponse &response)
-{
+std::optional<document_t> ToResponseJson<SetParallelStrategyResponse>(const SetParallelStrategyResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -177,8 +169,7 @@ std::optional<document_t> ToResponseJson<SetParallelStrategyResponse>(const SetP
 }
 
 template <>
-std::optional<document_t> ToResponseJson<ImportExpertDataResponse>(const ImportExpertDataResponse &response)
-{
+std::optional<document_t> ToResponseJson<ImportExpertDataResponse>(const ImportExpertDataResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -190,14 +181,13 @@ std::optional<document_t> ToResponseJson<ImportExpertDataResponse>(const ImportE
 }
 
 template <>
-std::optional<document_t> ToResponseJson<QueryExpertHotspotResponse>(const QueryExpertHotspotResponse &response)
-{
+std::optional<document_t> ToResponseJson<QueryExpertHotspotResponse>(const QueryExpertHotspotResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t hotspotInfosArray(kArrayType);
-    for (const auto &item: response.body.hotspotInfos) {
+    for (const auto &item : response.body.hotspotInfos) {
         json_t hotspot(kObjectType);
         JsonUtil::AddMember(hotspot, "rankId", item.rankId, allocator);
         JsonUtil::AddMember(hotspot, "visits", item.visits, allocator);
@@ -211,9 +201,7 @@ std::optional<document_t> ToResponseJson<QueryExpertHotspotResponse>(const Query
     return std::optional<document_t>{std::move(json)};
 }
 
-template <>
-std::optional<document_t> ToResponseJson<QueryModelInfoResponse>(const QueryModelInfoResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<QueryModelInfoResponse>(const QueryModelInfoResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -226,8 +214,8 @@ std::optional<document_t> ToResponseJson<QueryModelInfoResponse>(const QueryMode
 }
 
 template <>
-std::optional<document_t> ToResponseJson<PipelineFwdBwdTimelineResponse>(const PipelineFwdBwdTimelineResponse &response)
-{
+std::optional<document_t> ToResponseJson<PipelineFwdBwdTimelineResponse>(
+    const PipelineFwdBwdTimelineResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -273,13 +261,12 @@ std::optional<document_t> ToResponseJson<PipelineFwdBwdTimelineResponse>(const P
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> FlowListInfoToJson(const std::vector<FlowInfo> &flowList,
-                                             Document::AllocatorType &allocator)
-{
+std::optional<document_t> FlowListInfoToJson(
+    const std::vector<FlowInfo> &flowList, Document::AllocatorType &allocator) {
     document_t flowListJson(kArrayType);
-    for (const auto &flow: flowList) {
+    for (const auto &flow : flowList) {
         json_t flowPointList(kArrayType);
-        for (const auto &point: flow.flowPointList) {
+        for (const auto &point : flow.flowPointList) {
             json_t pointJson(kObjectType);
             JsonUtil::AddMember(pointJson, "rankId", point.rankId, allocator);
             JsonUtil::AddMember(pointJson, "startTime", point.startTime, allocator);
@@ -291,11 +278,10 @@ std::optional<document_t> FlowListInfoToJson(const std::vector<FlowInfo> &flowLi
     return std::optional<document_t>(std::move(flowListJson));
 }
 
-void GetArrangementsJson(const ParallelismArrangementResponse& response, document_t& json, json_t& body)
-{
+void GetArrangementsJson(const ParallelismArrangementResponse &response, document_t &json, json_t &body) {
     json_t arrangements(kArrayType);
     auto &allocator = json.GetAllocator();
-    for (const auto& arrangement : response.arrangeData.arrangements) {
+    for (const auto &arrangement : response.arrangeData.arrangements) {
         json_t arrangementJson(kObjectType);
         JsonUtil::AddMember(arrangementJson, "index", arrangement.index, allocator);
         JsonUtil::AddMember(arrangementJson, "name", arrangement.name, allocator);
@@ -304,7 +290,7 @@ void GetArrangementsJson(const ParallelismArrangementResponse& response, documen
         JsonUtil::AddMember(positionJson, "y", arrangement.position.y, allocator);
         JsonUtil::AddMember(arrangementJson, "position", positionJson, allocator);
         json_t attributeJson(kObjectType);
-        for (const auto& indexAttr : arrangement.indexAttributes) {
+        for (const auto &indexAttr : arrangement.indexAttributes) {
             JsonUtil::AddMember(attributeJson, indexAttr.first, indexAttr.second, allocator);
         }
         JsonUtil::AddMember(arrangementJson, "attribute", attributeJson, allocator);
@@ -316,8 +302,8 @@ void GetArrangementsJson(const ParallelismArrangementResponse& response, documen
 }
 
 template <>
-std::optional<document_t> ToResponseJson<ParallelismArrangementResponse>(const ParallelismArrangementResponse &response)
-{
+std::optional<document_t> ToResponseJson<ParallelismArrangementResponse>(
+    const ParallelismArrangementResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -325,7 +311,7 @@ std::optional<document_t> ToResponseJson<ParallelismArrangementResponse>(const P
     JsonUtil::AddMember(body, "size", response.arrangeData.size, allocator);
     GetArrangementsJson(response, json, body);
     json_t indicators(kArrayType);
-    for (const auto& indicator : response.arrangeData.indicators) {
+    for (const auto &indicator : response.arrangeData.indicators) {
         json_t indicatorJson(kObjectType);
         JsonUtil::AddMember(indicatorJson, "key", indicator.key, allocator);
         JsonUtil::AddMember(indicatorJson, "name", indicator.name, allocator);
@@ -339,7 +325,7 @@ std::optional<document_t> ToResponseJson<ParallelismArrangementResponse>(const P
     }
     JsonUtil::AddMember(body, "indicators", indicators, allocator);
     json_t rankDbPathListJson(kArrayType);
-    for (const auto &item: response.arrangeData.rankDbPathList) {
+    for (const auto &item : response.arrangeData.rankDbPathList) {
         json_t rankMap(kObjectType);
         JsonUtil::AddMember(rankMap, "rankId", item.rankId, allocator);
         JsonUtil::AddMember(rankMap, "dbPath", item.dbPath, allocator);
@@ -347,11 +333,11 @@ std::optional<document_t> ToResponseJson<ParallelismArrangementResponse>(const P
     }
     JsonUtil::AddMember(body, "rankDbPathList", rankDbPathListJson, allocator);
     json_t connections(kArrayType);
-    for (const auto& connection : response.arrangeData.connections) {
+    for (const auto &connection : response.arrangeData.connections) {
         json_t connectionJson(kObjectType);
         JsonUtil::AddMember(connectionJson, "type", connection.type, allocator);
         json_t listJson(kArrayType);
-        for (const auto& index : connection.indexes) {
+        for (const auto &index : connection.indexes) {
             uint32_t tmpIdx = index;
             listJson.PushBack(json_t().SetInt(tmpIdx), allocator);
         }
@@ -364,25 +350,24 @@ std::optional<document_t> ToResponseJson<ParallelismArrangementResponse>(const P
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> IndicatorsInfoToJson(const std::unordered_map<std::string, double> &indicators,
-                                               Document::AllocatorType &allocator)
-{
+std::optional<document_t> IndicatorsInfoToJson(
+    const std::unordered_map<std::string, double> &indicators, Document::AllocatorType &allocator) {
     document_t dataJson(kObjectType);
-    for (const auto& indicator :indicators) {
+    for (const auto &indicator : indicators) {
         JsonUtil::AddMember(dataJson, indicator.first, indicator.second, allocator);
     }
     return std::optional<document_t>(std::move(dataJson));
 }
 
 template <>
-std::optional<document_t> ToResponseJson<ParallelismPerformanceResponse>(const ParallelismPerformanceResponse &response)
-{
+std::optional<document_t> ToResponseJson<ParallelismPerformanceResponse>(
+    const ParallelismPerformanceResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t performance(kArrayType);
-    for (const auto& data : response.indicatorData.performanceData) {
+    for (const auto &data : response.indicatorData.performanceData) {
         json_t dataJson(kObjectType);
         JsonUtil::AddMember(dataJson, "index", data.index, allocator);
         json_t indicatorsJson(kObjectType);
@@ -411,14 +396,14 @@ std::optional<document_t> ToResponseJson<ParallelismPerformanceResponse>(const P
 }
 
 template <>
-std::optional<document_t> ToResponseJson<SummarySlowRankAdvisorResponse>(const SummarySlowRankAdvisorResponse &response)
-{
+std::optional<document_t> ToResponseJson<SummarySlowRankAdvisorResponse>(
+    const SummarySlowRankAdvisorResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t topNElements(kArrayType);
-    for (const auto& data : response.body.topNElements) {
+    for (const auto &data : response.body.topNElements) {
         json_t dataJson(kObjectType);
         JsonUtil::AddMember(dataJson, "index", data.index, allocator);
         JsonUtil::AddMember(dataJson, "name", data.name, allocator);

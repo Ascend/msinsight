@@ -27,9 +27,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class SummaryRequestHandler : public ModuleRequestHandler {
-public:
-    SummaryRequestHandler()
-    {
+  public:
+    SummaryRequestHandler() {
         moduleName = MODULE_SUMMARY;
         async = true;
     }
