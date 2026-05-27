@@ -24,7 +24,7 @@
 
 namespace Dic {
 class PythonUtil {
-public:
+  public:
     // 执行Python脚本，scriptPath是相对于profiler_server所在目录的相对路径，arguments是脚本的参数
     static int ExecuteScript(const std::string &scriptPath, const std::vector<std::string> &arguments);
     static std::string GetPythonCommand();

@@ -37,112 +37,91 @@
 #include "StringUtil.h"
 
 namespace Dic {
-enum class LogOutType : int {
-    TERMINAL = 0, FILE, BOTH
-};
+enum class LogOutType : int { TERMINAL = 0, FILE, BOTH };
 class LogPrefix {
-public:
-    static LogPrefix &Instance()
-    {
+  public:
+    static LogPrefix &Instance() {
         static LogPrefix instance;
         return instance;
     }
 
-    inline const std::string TimePrefix(const TimeStyle &style = TimeStyle::WITH_MILLI_SEC) const
-    {
+    inline const std::string TimePrefix(const TimeStyle &style = TimeStyle::WITH_MILLI_SEC) const {
         return TimeUtil::Instance().NowStr(style);
     }
 
-    inline const std::string LevelPrefix(const LogLevel &level) const
-    {
-        static std::map<LogLevel, std::string> map = { { LogLevel::L_INFO, "[Info]" },
-                                                       { LogLevel::L_WARN, "[Warn]" },
-                                                       { LogLevel::L_ERROR, "[Error]" },
-                                                       { LogLevel::L_FATAL, "[Fatal]" },
-                                                       { LogLevel::L_DEBUG, "[Debug]" } };
+    inline const std::string LevelPrefix(const LogLevel &level) const {
+        static std::map<LogLevel, std::string> map = {{LogLevel::L_INFO, "[Info]"}, {LogLevel::L_WARN, "[Warn]"},
+            {LogLevel::L_ERROR, "[Error]"}, {LogLevel::L_FATAL, "[Fatal]"}, {LogLevel::L_DEBUG, "[Debug]"}};
         if (map.count(level) == 0) {
             return map[LogLevel::L_INFO];
         }
         return map[level];
     }
 
-    inline const std::string LocationPrefix(const std::string &file, const std::string &func, const int &line) const
-    {
+    inline const std::string LocationPrefix(const std::string &file, const std::string &func, const int &line) const {
         std::stringstream ss;
         ss << " (" << file << ", " << func << ", line: " << line << ") |";
         return ss.str();
     }
 
-private:
+  private:
     LogPrefix() = default;
     ~LogPrefix() = default;
 };
 
 class LogUtil {
-public:
+  public:
     LogUtil(const LogOutType &type, const std::string &filePath, const std::string &wsPort)
-        : originFilePath(filePath), outType(type), wsPort(wsPort)
-    {
+        : originFilePath(filePath), outType(type), wsPort(wsPort) {
         Initialize();
     }
 
     LogUtil(const LogOutType &type, const std::string &filePath, const std::string &wsPort, int maxSize)
-        : maxSize(maxSize), originFilePath(filePath), outType(type), wsPort(wsPort)
-    {
+        : maxSize(maxSize), originFilePath(filePath), outType(type), wsPort(wsPort) {
         Initialize();
     }
 
-    ~LogUtil()
-    {
-        Destroy();
-    }
+    ~LogUtil() { Destroy(); }
 
-    inline LogUtil &SetOutType(const LogOutType &type)
-    {
+    inline LogUtil &SetOutType(const LogOutType &type) {
         if (this->outType != type) {
             this->outType = type;
         }
         return *this;
     }
 
-    inline LogUtil &SetFilePath(const std::string &logFilePath)
-    {
+    inline LogUtil &SetFilePath(const std::string &logFilePath) {
         if (this->filePath != logFilePath) {
             this->filePath = logFilePath;
         }
         return *this;
     }
 
-    inline LogUtil &SetLogLevel(const LogLevel &logLevel)
-    {
+    inline LogUtil &SetLogLevel(const LogLevel &logLevel) {
         if (this->level != logLevel) {
             this->level = logLevel;
         }
         return *this;
     }
 
-    inline LogUtil &SetWsPort(const std::string &port)
-    {
+    inline LogUtil &SetWsPort(const std::string &port) {
         this->wsPort = port;
         return *this;
     }
 
-    inline LogUtil &SetMaxSize(const int logMaxSize)
-    {
+    inline LogUtil &SetMaxSize(const int logMaxSize) {
         if (this->maxSize != logMaxSize) {
             this->maxSize = logMaxSize;
         }
         return *this;
     }
 
-    template <typename... ARGS> inline LogUtil &operator << (const ARGS... args)
-    {
+    template <typename... ARGS> inline LogUtil &operator<<(const ARGS... args) {
         LogT(args...);
         return *this;
     }
 
-    void LogT(const LogLevel &logLevel, const std::string &head, std::vector<std::string> &logStrList)
-    {
+    void LogT(const LogLevel &logLevel, const std::string &head, std::vector<std::string> &logStrList) {
         if (logLevel < level) {
             return;
         }
@@ -150,36 +129,29 @@ public:
         if (!logStrList.empty() && logStrList[0].find('%') != std::string::npos) {
             str += FormatString(logStrList);
         } else {
-            for (const auto &item: logStrList) {
+            for (const auto &item : logStrList) {
                 str.append(item);
             }
         }
         LogStr(str);
     }
 
-    inline std::string GetLogFilePath() const
-    {
-        return this->filePath;
-    }
+    inline std::string GetLogFilePath() const { return this->filePath; }
 
-    template <typename T, typename... ARGS> inline void LogT(const LogLevel &logLevel, const T &t, const ARGS... args)
-    {
+    template <typename T, typename... ARGS> inline void LogT(const LogLevel &logLevel, const T &t, const ARGS... args) {
         if (logLevel < level) {
             return;
         }
         FormatLogT(t, args...);
     }
 
-    template<typename Head, typename Format>
-    inline void FormatLogT(const Head &head, const Format &format)
-    {
+    template <typename Head, typename Format> inline void FormatLogT(const Head &head, const Format &format) {
         std::string str = GetString(head, format);
         LogStr(str);
     }
 
     template <typename Head, typename Format, typename... ARGS>
-    inline void FormatLogT(const Head &head, const Format &format, const ARGS... args)
-    {
+    inline void FormatLogT(const Head &head, const Format &format, const ARGS... args) {
         std::string str = GetString(head);
         std::string formatStr = GetString(format);
         if (formatStr.find('%') != std::string::npos) {
@@ -190,78 +162,102 @@ public:
         LogStr(str);
     }
 
-    static LogLevel GetLogLevel(const std::string &logLevel)
-    {
-        static std::map<std::string, LogLevel> map = { { "INFO", LogLevel::L_INFO },
-                                                       { "WARN", LogLevel::L_WARN },
-                                                       { "ERROR", LogLevel::L_ERROR },
-                                                       { "FATAL", LogLevel::L_FATAL },
-                                                       { "DEBUG", LogLevel::L_DEBUG } };
+    static LogLevel GetLogLevel(const std::string &logLevel) {
+        static std::map<std::string, LogLevel> map = {{"INFO", LogLevel::L_INFO}, {"WARN", LogLevel::L_WARN},
+            {"ERROR", LogLevel::L_ERROR}, {"FATAL", LogLevel::L_FATAL}, {"DEBUG", LogLevel::L_DEBUG}};
         if (map.count(logLevel) != 0) {
             return map.at(logLevel);
         }
         return LogLevel::L_INFO;
     }
 
-private:
-    bool IsSoftLink(const std::string &path)
-    {
-    #ifdef _WIN32
+  private:
+    bool IsSoftLink(const std::string &path) {
+#ifdef _WIN32
         std::wstring widePath(path.begin(), path.end());
         DWORD attributes = GetFileAttributesW(widePath.c_str());
-        return (attributes != INVALID_FILE_ATTRIBUTES) &&
-            (attributes & FILE_ATTRIBUTE_REPARSE_POINT);
-    #else
+        return (attributes != INVALID_FILE_ATTRIBUTES) && (attributes & FILE_ATTRIBUTE_REPARSE_POINT);
+#else
         struct stat fileStat;
         if (lstat(path.c_str(), &fileStat) != 0) {
             return false;
         }
         return S_ISLNK(fileStat.st_mode);
-    #endif
+#endif
     }
 
-    void Initialize()
-    {
+    void Initialize() {
         // read the last write log file and the count
         while (outType != LogOutType::TERMINAL && CheckRotating()) {
             RotatingLogFile();
         }
     }
 
-    inline std::string SanitizeLogMessage(const std::string &message) const
-    {
+    inline std::string SanitizeLogMessage(const std::string &message) const {
         std::string sanitized;
         for (char c : message) {
             switch (c) {
-                case '\n': sanitized += "\\n"; break;
-                case '\r': sanitized += "\\r"; break;
-                case '\f': sanitized += "\\f"; break;
-                case '\b': sanitized += "\\b"; break;
-                case '\v': sanitized += "\\v"; break;
-                case '\u007F': sanitized += "\\u007F"; break;
-                case '\t': sanitized += "\\t"; break;
-                case '"': sanitized += "\\\""; break;
-                case '\'': sanitized += "\\'"; break;
-                case '\\': sanitized += "\\\\"; break;
-                case '%': sanitized += "\\%"; break;
-                case '<': sanitized += "\\<"; break;
-                case '>': sanitized += "\\>"; break;
-                case '|': sanitized += "\\|"; break;
-                case '&': sanitized += "\\&"; break;
-                case '$': sanitized += "\\$"; break;
-                default: sanitized += c; break;
+            case '\n':
+                sanitized += "\\n";
+                break;
+            case '\r':
+                sanitized += "\\r";
+                break;
+            case '\f':
+                sanitized += "\\f";
+                break;
+            case '\b':
+                sanitized += "\\b";
+                break;
+            case '\v':
+                sanitized += "\\v";
+                break;
+            case '\u007F':
+                sanitized += "\\u007F";
+                break;
+            case '\t':
+                sanitized += "\\t";
+                break;
+            case '"':
+                sanitized += "\\\"";
+                break;
+            case '\'':
+                sanitized += "\\'";
+                break;
+            case '\\':
+                sanitized += "\\\\";
+                break;
+            case '%':
+                sanitized += "\\%";
+                break;
+            case '<':
+                sanitized += "\\<";
+                break;
+            case '>':
+                sanitized += "\\>";
+                break;
+            case '|':
+                sanitized += "\\|";
+                break;
+            case '&':
+                sanitized += "\\&";
+                break;
+            case '$':
+                sanitized += "\\$";
+                break;
+            default:
+                sanitized += c;
+                break;
             }
         }
         return sanitized;
     }
 
     // Function to format the string with multiple parameters
-    template<typename... Args>
-    inline std::string FormatString(const std::string& format, Args... args)
-    {
+    template <typename... Args> inline std::string FormatString(const std::string &format, Args... args) {
         std::ostringstream oss;
         std::array<std::string, sizeof...(args)> arr = {GetString(args)...};
-        for (auto& arg : arr) {
+        for (auto &arg : arr) {
             arg = SanitizeLogMessage(arg);
         }
         size_t start = 0;
@@ -278,11 +274,10 @@ private:
         return oss.str();
     }
 
-    inline std::string FormatString(std::vector<std::string> &logStrList)
-    {
+    inline std::string FormatString(std::vector<std::string> &logStrList) {
         std::ostringstream oss;
         std::string format = logStrList[0];
-        for (auto& arg : logStrList) {
+        for (auto &arg : logStrList) {
             arg = SanitizeLogMessage(arg);
         }
         size_t start = 0;
@@ -299,29 +294,25 @@ private:
         return oss.str();
     }
 
-    void Destroy()
-    {
+    void Destroy() {
         if (ofs.is_open()) {
             ofs.close();
         }
     }
 
-    template <typename T> inline std::string GetString(const T &t) const
-    {
+    template <typename T> inline std::string GetString(const T &t) const {
         std::stringstream ss;
         ss << t;
         return ss.str();
     }
 
-    template <typename T, typename... ARGS> inline std::string GetString(const T &t, const ARGS... args) const
-    {
+    template <typename T, typename... ARGS> inline std::string GetString(const T &t, const ARGS... args) const {
         std::string str = GetString(t);
         str += GetString(args...);
         return str;
     }
 
-    static inline int GetFileSize(const std::string &path)
-    {
+    static inline int GetFileSize(const std::string &path) {
         std::ifstream fr;
         fr.open(path, std::ios::in | std::ios::binary);
         int result = 0;
@@ -333,8 +324,7 @@ private:
         return result;
     }
 
-    inline void RotatingLogFile()
-    {
+    inline void RotatingLogFile() {
         if (ofs.is_open()) {
             ofs.close();
         }
@@ -353,8 +343,9 @@ private:
         }
 #ifdef __APPLE__
         ofs.close(); // 关闭文件以设置权限
-        std::filesystem::permissions(filePath, std::filesystem::perms::owner_read |
-                std::filesystem::perms::owner_write | std::filesystem::perms::group_read);
+        std::filesystem::permissions(filePath,
+            std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
+                std::filesystem::perms::group_read);
         ofs.open(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
 #elif __linux__
         ofs.close();
@@ -363,8 +354,7 @@ private:
 #endif
     }
 
-    inline bool CheckRotating() const
-    {
+    inline bool CheckRotating() const {
         // count == 0 is true when init
         return (count == 0) || currentSize >= maxSize;
     }
@@ -372,8 +362,7 @@ private:
     /**
      * @brief force flush the log content to disk
      */
-    inline void Flush()
-    {
+    inline void Flush() {
         if (!wsPort.empty() && wsPort != "-1" && ofs.is_open()) {
             ofs.close();
             currentSize = GetFileSize(filePath);
@@ -381,8 +370,7 @@ private:
         }
     }
 
-    inline void Append(const std::string &str)
-    {
+    inline void Append(const std::string &str) {
         if (ofs.is_open()) {
             ofs << str << std::endl;
             ofs.flush();
@@ -396,8 +384,7 @@ private:
         }
     }
 
-    inline void LogStr(const std::string &str)
-    {
+    inline void LogStr(const std::string &str) {
         if (outType == LogOutType::BOTH || outType == LogOutType::TERMINAL) {
             (*outMap[level]) << str << std::endl;
         }
@@ -414,10 +401,7 @@ private:
         }
     }
 
-    template <typename T> inline void LogT(const T &t)
-    {
-        LogStr(GetString(t));
-    }
+    template <typename T> inline void LogT(const T &t) { LogStr(GetString(t)); }
 
     int maxSize = 10 * 1024 * 1024;
     const int maxCount = 10;
@@ -430,11 +414,8 @@ private:
     LogOutType outType = LogOutType::BOTH;
     LogLevel level = LogLevel::L_INFO;
     std::string wsPort;
-    std::map<LogLevel, std::ostream *> outMap = { { LogLevel::L_INFO, &std::cout },
-                                                  { LogLevel::L_WARN, &std::cout },
-                                                  { LogLevel::L_DEBUG, &std::cout },
-                                                  { LogLevel::L_ERROR, &std::cerr },
-                                                  { LogLevel::L_FATAL, &std::cerr } };
+    std::map<LogLevel, std::ostream *> outMap = {{LogLevel::L_INFO, &std::cout}, {LogLevel::L_WARN, &std::cout},
+        {LogLevel::L_DEBUG, &std::cout}, {LogLevel::L_ERROR, &std::cerr}, {LogLevel::L_FATAL, &std::cerr}};
 };
 } // end of namespace Dic
 

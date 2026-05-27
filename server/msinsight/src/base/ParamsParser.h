@@ -42,12 +42,13 @@ struct ParamsOption {
 };
 
 class ParamsParser {
-public:
+  public:
     static ParamsParser &Instance();
     const ParamsOption &GetOption() const;
     const std::string &GetError() const;
     bool Parse(const vector<string> &args);
-private:
+
+  private:
     ParamsParser() = default;
     ~ParamsParser() = default;
 

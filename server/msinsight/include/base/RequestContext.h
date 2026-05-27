@@ -25,41 +25,31 @@
 namespace Dic {
 namespace Server {
 class RequestContext {
-public:
+  public:
     // 获取当前线程的请求上下文
-    static RequestContext& GetInstance()
-    {
+    static RequestContext &GetInstance() {
         static thread_local RequestContext instance;
         return instance;
     }
 
-    void ResetError()
-    {
-        error_ = {};
-    }
+    void ResetError() { error_ = {}; }
 
-    void SetError(Protocol::ErrorMessage error)
-    {
-        error_ = error;
-    }
+    void SetError(Protocol::ErrorMessage error) { error_ = error; }
 
     // 获取响应信息
-    Protocol::ErrorMessage GetError()
-    {
-        return error_;
-    }
+    Protocol::ErrorMessage GetError() { return error_; }
 
-private:
+  private:
     RequestContext() = default;
     ~RequestContext() = default;
 
     // 禁止拷贝和赋值
-    RequestContext(const RequestContext&) = delete;
-    RequestContext& operator=(const RequestContext&) = delete;
+    RequestContext(const RequestContext &) = delete;
+    RequestContext &operator=(const RequestContext &) = delete;
 
     Protocol::ErrorMessage error_;
 };
-}  // namespace Server
-}  // namespace Dic
+} // namespace Server
+} // namespace Dic
 
-#endif  // PROFILER_SERVER_REQUESTCONTEXT_H
+#endif // PROFILER_SERVER_REQUESTCONTEXT_H

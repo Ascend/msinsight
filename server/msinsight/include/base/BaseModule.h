@@ -21,12 +21,13 @@
 #include "ModuleRequestHandler.h"
 namespace Dic::Module {
 class BaseModule {
-public:
+  public:
     BaseModule() = default;
     virtual ~BaseModule() = default;
     virtual void RegisterRequestHandlers() = 0;
     virtual void OnRequest(std::unique_ptr<Protocol::Request> request);
-protected:
+
+  protected:
     std::string moduleName = MODULE_UNKNOWN;
     std::map<std::string, std::unique_ptr<ModuleRequestHandler>> requestHandlerMap;
 };

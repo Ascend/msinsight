@@ -23,24 +23,16 @@ namespace Dic {
 namespace Server {
 const int INVALID_NUMBER = 0xffffffff;
 
-ParamsParser &ParamsParser::Instance()
-{
+ParamsParser &ParamsParser::Instance() {
     static ParamsParser instance;
     return instance;
 }
 
-const ParamsOption &ParamsParser::GetOption() const
-{
-    return option;
-}
+const ParamsOption &ParamsParser::GetOption() const { return option; }
 
-const std::string &ParamsParser::GetError() const
-{
-    return error;
-}
+const std::string &ParamsParser::GetError() const { return error; }
 
-bool ParamsParser::ParseField(const std::string &data)
-{
+bool ParamsParser::ParseField(const std::string &data) {
     std::string::size_type pos = data.find(symbolWsPort);
     if (pos != std::string::npos) {
         return ParseWsPort(data.substr(pos + symbolWsPort.length()));
@@ -79,16 +71,15 @@ bool ParamsParser::ParseField(const std::string &data)
     return false;
 }
 
-bool ParamsParser::Parse(const vector<string> &args)
-{
+bool ParamsParser::Parse(const vector<string> &args) {
     if (args.size() <= 1) {
         error = "ERROR: Startup parameter count is not enough.";
         return false;
     }
     for (uint32_t i = 1; i < args.size(); i++) {
         std::string data = args.at(i);
-        if (!StringUtil::Contains(args.at(i), EQUAL) && i < args.size() - 1
-            && !StringUtil::StartWith(args.at(i + 1), SYMBOL_PREFIX)) {
+        if (!StringUtil::Contains(args.at(i), EQUAL) && i < args.size() - 1 &&
+            !StringUtil::StartWith(args.at(i + 1), SYMBOL_PREFIX)) {
             data.append(EQUAL).append(args.at(++i));
         }
         if (!this->ParseField(data)) {
@@ -98,8 +89,7 @@ bool ParamsParser::Parse(const vector<string> &args)
     return true;
 }
 
-int ParamsParser::TryGetPort(const std::string &portStr) const
-{
+int ParamsParser::TryGetPort(const std::string &portStr) const {
     int port = NumberUtil::TryParseInt(portStr);
     if ((port < minPortNum) || (port > maxPortNum)) {
         return -1;
@@ -107,8 +97,7 @@ int ParamsParser::TryGetPort(const std::string &portStr) const
     return port;
 }
 
-bool ParamsParser::ParseWsPort(const std::string &wsPortStr)
-{
+bool ParamsParser::ParseWsPort(const std::string &wsPortStr) {
     int port = TryGetPort(wsPortStr);
     if (port <= 0) {
         error =
@@ -119,8 +108,7 @@ bool ParamsParser::ParseWsPort(const std::string &wsPortStr)
     return true;
 }
 
-bool ParamsParser::ParseWsHost(const std::string &wsHostStr)
-{
+bool ParamsParser::ParseWsHost(const std::string &wsHostStr) {
     if (RegexUtil::RegexMatch(wsHostStr, IP_PATTERN)) {
         option.host = wsHostStr;
         return true;
@@ -129,16 +117,14 @@ bool ParamsParser::ParseWsHost(const std::string &wsHostStr)
     return false;
 }
 
-bool ParamsParser::ParseLogPath(const std::string &logPath)
-{
+bool ParamsParser::ParseLogPath(const std::string &logPath) {
     if (!logPath.empty()) {
         option.logPath = logPath;
     }
     return true;
 }
 
-bool ParamsParser::ParseLogSize(const std::string &logSize)
-{
+bool ParamsParser::ParseLogSize(const std::string &logSize) {
     int size = NumberUtil::TryParseInt(logSize);
     if (size != INVALID_NUMBER) {
         option.logSize = size;
@@ -146,24 +132,21 @@ bool ParamsParser::ParseLogSize(const std::string &logSize)
     return true;
 }
 
-bool ParamsParser::ParseLogLevel(const std::string &logLevel)
-{
+bool ParamsParser::ParseLogLevel(const std::string &logLevel) {
     if (!logLevel.empty()) {
         option.logLevel = logLevel;
     }
     return true;
 }
 
-bool ParamsParser::ParseEventDir(const string &eventDir)
-{
+bool ParamsParser::ParseEventDir(const string &eventDir) {
     if (!eventDir.empty()) {
         option.eventDir = eventDir;
     }
     return true;
 }
 
-void ParamsParser::ParseScan(const string &scan)
-{
+void ParamsParser::ParseScan(const string &scan) {
     if (!scan.empty()) {
         option.scanPort = NumberUtil::TryParseInt(scan);
     }

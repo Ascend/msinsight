@@ -24,7 +24,7 @@
 
 namespace Dic::Core {
 class BasePlugin {
-public:
+  public:
     explicit BasePlugin(std::string pluginName) : pluginName_(pluginName) {};
     virtual ~BasePlugin() = default;
     std::string GetPluginName() { return pluginName_; }
@@ -33,7 +33,8 @@ public:
     virtual std::map<std::string, std::shared_ptr<ApiHandler>> GetAllHandlers() { return {}; };
     virtual std::vector<std::string> GetModuleConfig() { return {}; };
     virtual uint8_t GetOrder() { return UINT8_MAX; };
-protected:
+
+  protected:
     std::string pluginName_;
 };
 struct PluginRegister {

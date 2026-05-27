@@ -24,24 +24,21 @@ namespace Dic {
 namespace Protocol {
 using namespace Dic::Server;
 using namespace rapidjson;
-void ProtocolUtil::Register()
-{
+void ProtocolUtil::Register() {
     std::lock_guard<std::mutex> lock(mutex);
     RegisterJsonToRequestFuncs();
     RegisterResponseToJsonFuncs();
     RegisterEventToJsonFuncs();
 }
 
-void ProtocolUtil::UnRegister()
-{
+void ProtocolUtil::UnRegister() {
     std::lock_guard<std::mutex> lock(mutex);
     jsonToReqFactory.clear();
     resToJsonFactory.clear();
     eventToJsonFactory.clear();
 }
 
-std::unique_ptr<Request> ProtocolUtil::FromJson(const json_t &requestJson, std::string &error)
-{
+std::unique_ptr<Request> ProtocolUtil::FromJson(const json_t &requestJson, std::string &error) {
     if (!IsRequest(requestJson)) {
         ServerLog::Warn("Json is not request type.");
         return nullptr;
@@ -54,8 +51,7 @@ std::unique_ptr<Request> ProtocolUtil::FromJson(const json_t &requestJson, std::
     return func.value()(requestJson, error);
 }
 
-std::optional<document_t> ProtocolUtil::ToJson(const Response &response, std::string &error)
-{
+std::optional<document_t> ProtocolUtil::ToJson(const Response &response, std::string &error) {
     std::string command = response.command;
     std::optional<ProtocolUtil::ResponseToJsonFunc> func = GetResponseToJsonFunc(command);
     if (!func.has_value()) {
@@ -70,13 +66,11 @@ std::optional<document_t> ProtocolUtil::ToJson(const Response &response, std::st
     }
 }
 
-std::optional<document_t> ProtocolUtil::ToJson(const Event &event, std::string &error)
-{
+std::optional<document_t> ProtocolUtil::ToJson(const Event &event, std::string &error) {
     std::string eventString = event.event;
     std::optional<ProtocolUtil::EventToJsonFunc> func = GetEventToJsonFunc(eventString);
     if (!func.has_value()) {
-        error = "Failed to find event target function, event = " + eventString +
-            ", module:" + event.moduleName;
+        error = "Failed to find event target function, event = " + eventString + ", module:" + event.moduleName;
         return std::nullopt;
     }
     try {
@@ -87,8 +81,7 @@ std::optional<document_t> ProtocolUtil::ToJson(const Event &event, std::string &
     }
 }
 
-bool ProtocolUtil::SetRequestBaseInfo(Request &request, const json_t &json)
-{
+bool ProtocolUtil::SetRequestBaseInfo(Request &request, const json_t &json) {
     if (!JsonUtil::IsJsonKeyValid(json, "id") || !JsonUtil::IsJsonKeyValid(json, "type") ||
         !JsonUtil::IsJsonKeyValid(json, "command")) {
         return false;
@@ -111,8 +104,7 @@ bool ProtocolUtil::SetRequestBaseInfo(Request &request, const json_t &json)
     return true;
 }
 
-void ProtocolUtil::SetResponseJsonBaseInfo(const Response &response, document_t &json)
-{
+void ProtocolUtil::SetResponseJsonBaseInfo(const Response &response, document_t &json) {
     auto &allocator = json.GetAllocator();
     JsonUtil::AddMember(json, "type", RESPONSE_NAME, allocator);
     json.AddMember("id", response.id, allocator);
@@ -131,8 +123,7 @@ void ProtocolUtil::SetResponseJsonBaseInfo(const Response &response, document_t 
     }
 }
 
-void ProtocolUtil::SetEventJsonBaseInfo(const Event &event, document_t &json)
-{
+void ProtocolUtil::SetEventJsonBaseInfo(const Event &event, document_t &json) {
     auto &allocator = json.GetAllocator();
     JsonUtil::AddMember(json, "type", EVENT_NAME, allocator);
     json.AddMember("id", event.id, allocator);
@@ -143,8 +134,7 @@ void ProtocolUtil::SetEventJsonBaseInfo(const Event &event, document_t &json)
     }
 }
 
-bool ProtocolUtil::IsRequest(const json_t &jsonRequest)
-{
+bool ProtocolUtil::IsRequest(const json_t &jsonRequest) {
     if (!jsonRequest.HasMember("type")) {
         return false;
     }
@@ -154,16 +144,14 @@ bool ProtocolUtil::IsRequest(const json_t &jsonRequest)
     return jsonRequest["type"].GetString() == REQUEST_NAME;
 }
 
-std::string ProtocolUtil::Command(const json_t &jsonRequest)
-{
+std::string ProtocolUtil::Command(const json_t &jsonRequest) {
     if (jsonRequest.HasMember("command") && jsonRequest["command"].IsString()) {
         return jsonRequest["command"].GetString();
     }
     return "";
 }
 
-std::optional<ProtocolUtil::JsonToRequestFunc> ProtocolUtil::GetJsonToRequestFunc(const std::string &command)
-{
+std::optional<ProtocolUtil::JsonToRequestFunc> ProtocolUtil::GetJsonToRequestFunc(const std::string &command) {
     std::lock_guard<std::mutex> lock(mutex);
     if (jsonToReqFactory.count(command) == 0) {
         ServerLog::Warn("The json to request function is not found. command is: ", command);
@@ -172,8 +160,7 @@ std::optional<ProtocolUtil::JsonToRequestFunc> ProtocolUtil::GetJsonToRequestFun
     return jsonToReqFactory[command];
 }
 
-std::optional<ProtocolUtil::ResponseToJsonFunc> ProtocolUtil::GetResponseToJsonFunc(const std::string &command)
-{
+std::optional<ProtocolUtil::ResponseToJsonFunc> ProtocolUtil::GetResponseToJsonFunc(const std::string &command) {
     std::lock_guard<std::mutex> lock(mutex);
     if (resToJsonFactory.count(command) == 0) {
         ServerLog::Warn("The response to json function is not found. command:", command);
@@ -182,8 +169,7 @@ std::optional<ProtocolUtil::ResponseToJsonFunc> ProtocolUtil::GetResponseToJsonF
     return resToJsonFactory[command];
 }
 
-std::optional<ProtocolUtil::EventToJsonFunc> ProtocolUtil::GetEventToJsonFunc(const std::string &event)
-{
+std::optional<ProtocolUtil::EventToJsonFunc> ProtocolUtil::GetEventToJsonFunc(const std::string &event) {
     std::lock_guard<std::mutex> lock(mutex);
     if (eventToJsonFactory.count(event) == 0) {
         return std::nullopt;

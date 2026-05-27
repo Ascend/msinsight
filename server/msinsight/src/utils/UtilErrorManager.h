@@ -56,9 +56,9 @@ enum class ErrorCode {
 // 错误信息映射
 extern const std::map<ErrorCode, std::string> errorMessages;
 
-const std::string& GetErrorMessage(ErrorCode code);
+const std::string &GetErrorMessage(ErrorCode code);
 void SetCommonError(ErrorCode code);
 uint32_t GetFilePathLengthLimit();
-}  // namespace Dic::Common
+} // namespace Dic::Common
 
-#endif  // PROFILER_SERVER_UTILERRORMANAGER_H
+#endif // PROFILER_SERVER_UTILERRORMANAGER_H

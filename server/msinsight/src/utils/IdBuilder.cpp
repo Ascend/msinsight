@@ -16,36 +16,30 @@
  * -------------------------------------------------------------------------
  */
 
-
 #include "IdBuilder.h"
 
 namespace Dic {
-IdBuilder &IdBuilder::RequestIdBuilder()
-{
+IdBuilder &IdBuilder::RequestIdBuilder() {
     static IdBuilder builder;
     return builder;
 }
 
-IdBuilder &IdBuilder::ResponseIdBuilder()
-{
+IdBuilder &IdBuilder::ResponseIdBuilder() {
     static IdBuilder builder;
     return builder;
 }
 
-IdBuilder &IdBuilder::EventIdBuilder()
-{
+IdBuilder &IdBuilder::EventIdBuilder() {
     static IdBuilder builder;
     return builder;
 }
 
-IdBuilder &IdBuilder::SessionIdBuilder()
-{
+IdBuilder &IdBuilder::SessionIdBuilder() {
     static IdBuilder builder;
     return builder;
 }
 
-int IdBuilder::Build()
-{
+int IdBuilder::Build() {
     std::unique_lock<std::mutex> lock(idMutex);
     if (id >= maxId) {
         id = 0;

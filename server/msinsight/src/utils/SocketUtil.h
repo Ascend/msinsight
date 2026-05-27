@@ -28,9 +28,8 @@
 
 namespace Dic {
 class SocketUtil {
-public:
-    static bool PortIsUsed(int port)
-    {
+  public:
+    static bool PortIsUsed(int port) {
 #ifdef _WIN32
         WSADATA wsaData;
         static const int VERSION_HIGH = 2;
@@ -46,13 +45,13 @@ public:
 #ifdef _WIN32
         sin.sin_addr.S_un.S_addr = INADDR_ANY;
         int flag = 1;
-        setsockopt(soc, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char *) &flag, sizeof(flag));
-        auto res = bind(soc, (struct sockaddr *) &sin, sizeof(sin));
+        setsockopt(soc, SOL_SOCKET, SO_EXCLUSIVEADDRUSE, (const char *)&flag, sizeof(flag));
+        auto res = bind(soc, (struct sockaddr *)&sin, sizeof(sin));
         closesocket(soc);
         WSACleanup();
 #else
         sin.sin_addr.s_addr = INADDR_ANY;
-        auto res = bind(soc, (struct sockaddr*)&sin, sizeof(sin));
+        auto res = bind(soc, (struct sockaddr *)&sin, sizeof(sin));
         close(soc);
 #endif
         return res == -1;

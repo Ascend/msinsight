@@ -28,22 +28,20 @@
 #include <cmath>
 
 namespace NumberSafe {
-template<typename T>
-struct BaseType {
+template <typename T> struct BaseType {
     using type = typename std::remove_cv<typename std::remove_reference_t<T>>::type;
 };
 
-template<typename T>
-using BaseType_t = typename BaseType<T>::type;
+template <typename T> using BaseType_t = typename BaseType<T>::type;
 
 /**
  * @brief 通过位运算比较的s中是否有超出T类型内存返回的值
  */
-template<typename S, typename T>
-bool bitUpper(S &&s)
-{
+template <typename S, typename T> bool bitUpper(S &&s) {
     static_assert(std::is_integral_v<S> && std::is_integral_v<T>, "Only used on two int");
-    if constexpr (sizeof(S) <= sizeof(T)) return false;
+    if constexpr (sizeof(S) <= sizeof(T)) {
+        return false;
+    }
     using SType = BaseType_t<S>;
     using DType = BaseType_t<T>;
     if constexpr (std::is_unsigned_v<DType>) {
@@ -56,12 +54,10 @@ bool bitUpper(S &&s)
 /**
  * @brief 检查符号位是否为0
  */
-template<typename T>
-bool IsSignBitZero(T &&a)
-{
+template <typename T> bool IsSignBitZero(T &&a) {
     using BaseType = BaseType_t<T>;
     if constexpr (std::is_unsigned_v<BaseType>) {
-        return  a <= std::numeric_limits<BaseType>::max() / 2;
+        return a <= std::numeric_limits<BaseType>::max() / 2;
     } else {
         return a >= 0;
     }
@@ -70,14 +66,12 @@ bool IsSignBitZero(T &&a)
 /**
  * @brief 检查整型转浮点类型是否成功
  */
-template<typename S, typename D>
-bool IsIntegralFloatConversionSafe(const S &&src)
-{
+template <typename S, typename D> bool IsIntegralFloatConversionSafe(const S &&src) {
     using SS = BaseType_t<S>;
     using DD = BaseType_t<D>;
     if constexpr (std::is_integral_v<SS> && std::is_floating_point_v<DD>) {
-        return static_cast<D>(src) >= -std::numeric_limits<D>::max()
-               && static_cast<D>(src) <= std::numeric_limits<D>::max();
+        return static_cast<D>(src) >= -std::numeric_limits<D>::max() &&
+            static_cast<D>(src) <= std::numeric_limits<D>::max();
     }
     return false;
 }
@@ -85,18 +79,20 @@ bool IsIntegralFloatConversionSafe(const S &&src)
 /**
  * @brief 检查浮点类型之间的转换
  */
-template<typename S, typename D>
-bool IsFloatFloatConversionSafe(const S &&src)
-{
+template <typename S, typename D> bool IsFloatFloatConversionSafe(const S &&src) {
     using SS = BaseType_t<S>;
     using DD = BaseType_t<D>;
     if constexpr (std::is_floating_point_v<SS> && std::is_floating_point_v<DD>) {
-        if (std::isnan(src) || std::isinf(src)) return false;
-        if (std::numeric_limits<SS>::digits < std::numeric_limits<DD>::digits
-            && std::numeric_limits<SS>::max_exponent < std::numeric_limits<DD>::max_exponent)
+        if (std::isnan(src) || std::isinf(src)) {
+            return false;
+        }
+        if (std::numeric_limits<SS>::digits < std::numeric_limits<DD>::digits &&
+            std::numeric_limits<SS>::max_exponent < std::numeric_limits<DD>::max_exponent) {
             return true;
-        if (sizeof(SS) > sizeof(DD))
+        }
+        if (sizeof(SS) > sizeof(DD)) {
             return src <= (std::numeric_limits<DD>::max()) || src >= std::numeric_limits<DD>::min();
+        }
     }
     return false;
 }
@@ -104,23 +100,29 @@ bool IsFloatFloatConversionSafe(const S &&src)
 /**
  * @brief 检查S类型的参数能否被安全转换为T类型, 安全指不发生溢出，回绕，其它未定义行为，精度损失不在此列
  */
-template<typename F, typename T>
-bool IsSafeCast(const F &s)
-{
+template <typename F, typename T> bool IsSafeCast(const F &s) {
     using S = BaseType_t<F>;
     using D = BaseType_t<T>;
     auto src = static_cast<S>(s);
-    (void) src;
-    if constexpr (std::is_same_v<S, D>) return true;
-    if constexpr (std::is_unsigned_v<S> && std::is_unsigned_v<D>) {   // 两个类型都为非负整型
-        if (sizeof(S) < sizeof(D)) return true;     // 源数据类型大小小于模板大小,必定安全转换
-        return !bitUpper<S, D>(std::forward<S>(src));   // 检查是否有超出目标类型大小范围的非0位，检查是否会丢失数据
+    (void)src;
+    if constexpr (std::is_same_v<S, D>) {
+        return true;
     }
-    if constexpr ((std::is_integral_v<S> && std::is_unsigned_v<D>)       // 整型和非负整型
-                  || (std::is_unsigned_v<S> && std::is_integral_v<D>)) {
-        if (sizeof(S) < sizeof(D)) return true;         //  同上
-        if (!IsSignBitZero<S>(std::forward<S>(src))) return false;  // 符号位/最高位为1, 转换失败
-        return !bitUpper<S, D>(std::forward<S>(src));   // 检查是否有超出目标类型大小的非0位
+    if constexpr (std::is_unsigned_v<S> && std::is_unsigned_v<D>) { // 两个类型都为非负整型
+        if (sizeof(S) < sizeof(D)) {
+            return true; // 源数据类型大小小于模板大小,必定安全转换
+        }
+        return !bitUpper<S, D>(std::forward<S>(src)); // 检查是否有超出目标类型大小范围的非0位，检查是否会丢失数据
+    }
+    if constexpr ((std::is_integral_v<S> && std::is_unsigned_v<D>) // 整型和非负整型
+        || (std::is_unsigned_v<S> && std::is_integral_v<D>)) {
+        if (sizeof(S) < sizeof(D)) {
+            return true; //  同上
+        }
+        if (!IsSignBitZero<S>(std::forward<S>(src))) {
+            return false; // 符号位/最高位为1, 转换失败
+        }
+        return !bitUpper<S, D>(std::forward<S>(src)); // 检查是否有超出目标类型大小的非0位
     }
     if (IsFloatFloatConversionSafe<S, D>(std::forward<S>(src))) {
         return true;
@@ -134,9 +136,7 @@ bool IsSafeCast(const F &s)
 /**
  * @brief: 翻转符号位
  */
-template<typename T>
-auto Flip(T &&a)
-{
+template <typename T> auto Flip(T &&a) {
     using BType = BaseType_t<T>;
     static_assert(std::is_integral_v<BType>, "Only integral type can flip");
     static_assert(!std::is_unsigned_v<BType>, "Unsigned type can't flip");
@@ -149,29 +149,23 @@ auto Flip(T &&a)
     return num;
 }
 
-template<typename T, typename F>
-struct OpInter {
+template <typename T, typename F> struct OpInter {
     using addType = decltype(std::declval<T>() + std::declval<F>());
     using mulType = decltype(std::declval<T>() * std::declval<F>());
     using divType = decltype(std::declval<T>() / std::declval<F>());
 };
 
-template<typename T, typename F>
-using OpInterAddType = typename OpInter<T, F>::addType;
+template <typename T, typename F> using OpInterAddType = typename OpInter<T, F>::addType;
 
-template<typename T, typename F>
-using OpInterMulType = typename OpInter<T, F>::mulType;
+template <typename T, typename F> using OpInterMulType = typename OpInter<T, F>::mulType;
 
-template<typename T, typename F>
-using OpInterDivType = typename OpInter<T, F>::divType;
+template <typename T, typename F> using OpInterDivType = typename OpInter<T, F>::divType;
 
 /**
  * @brief 加法
  * @attention 0 作为异常时的返回值
  */
-template<typename T, typename F>
-static inline auto Add(T &&a, F &&b)
-{
+template <typename T, typename F> static inline auto Add(T &&a, F &&b) {
     using LType = BaseType_t<T>;
     using RType = BaseType_t<F>;
     using InterType = OpInterAddType<LType, RType>;
@@ -189,17 +183,17 @@ static inline auto Add(T &&a, F &&b)
     return temp;
 }
 
-template<typename T, typename F>
-static inline auto Sub(const T &a, const F &b)
-{
+template <typename T, typename F> static inline auto Sub(const T &a, const F &b) {
     using LType = BaseType_t<T>;
     using RType = BaseType_t<F>;
     using InterType = OpInterAddType<LType, RType>;
-    if constexpr (std::is_unsigned_v<LType> && std::is_unsigned_v<RType>) {   // 两个非负数相减，比较大小
-        if (static_cast<InterType>(a) < static_cast<InterType>(b)) return static_cast<InterType>(0);
+    if constexpr (std::is_unsigned_v<LType> && std::is_unsigned_v<RType>) { // 两个非负数相减，比较大小
+        if (static_cast<InterType>(a) < static_cast<InterType>(b)) {
+            return static_cast<InterType>(0);
+        }
         return static_cast<InterType>(a - b);
     }
-    if constexpr (std::is_floating_point_v<InterType>) {   // 浮点数
+    if constexpr (std::is_floating_point_v<InterType>) { // 浮点数
         return Add(static_cast<InterType>(a), static_cast<InterType>(-1 * b));
     }
     if constexpr ((std::is_integral_v<RType> && !std::is_unsigned_v<RType>) || std::is_floating_point_v<RType>) {
@@ -223,9 +217,7 @@ static inline auto Sub(const T &a, const F &b)
     return res;
 }
 
-template<typename T, typename F>
-static inline auto Division(T &&a, F &&b)
-{
+template <typename T, typename F> static inline auto Division(T &&a, F &&b) {
     using LType = BaseType_t<T>;
     using RType = BaseType_t<F>;
     using InterType = OpInterMulType<LType, RType>;
@@ -254,9 +246,7 @@ static inline auto Division(T &&a, F &&b)
     return tmp;
 }
 
-template<typename T, typename F>
-static inline auto Muls(T &&a, F &&b)
-{
+template <typename T, typename F> static inline auto Muls(T &&a, F &&b) {
     using LType = BaseType_t<T>;
     using RType = BaseType_t<F>;
     using InterType = OpInterMulType<LType, RType>;
@@ -287,10 +277,9 @@ static inline auto Muls(T &&a, F &&b)
     return tmp;
 }
 
-static inline int64_t SafeCastSizeTypeToInt64(size_t sizeTypeNum)
-{
-    return static_cast<uint64_t>(sizeTypeNum) > static_cast<uint64_t>(INT64_MAX) ?
-        INT64_MAX : static_cast<int64_t>(sizeTypeNum);
+static inline int64_t SafeCastSizeTypeToInt64(size_t sizeTypeNum) {
+    return static_cast<uint64_t>(sizeTypeNum) > static_cast<uint64_t>(INT64_MAX) ? INT64_MAX
+                                                                                 : static_cast<int64_t>(sizeTypeNum);
 }
 }
 #endif // PROFILER_SERVER_NUMBERSAFEUTIL_H

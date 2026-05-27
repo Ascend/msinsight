@@ -22,7 +22,7 @@
 namespace Dic::Module {
 using namespace Dic::Protocol;
 class ModuleRequestHandler {
-public:
+  public:
     ModuleRequestHandler() = default;
     virtual ~ModuleRequestHandler() = default;
     bool HandleRequestEntrance(std::unique_ptr<Request> requestPtr);
@@ -31,12 +31,13 @@ public:
     virtual bool IsAsync();
     virtual std::string GetRequestKey(Request &requestPtr);
     static void SetBaseResponse(const Request &request, Response &response);
-    static void SetResponseResult(Response &response, bool result, const std::string &errorMsg = "",
-                                  const int errorCode = UNKNOW_ERROR);
+    static void SetResponseResult(
+        Response &response, bool result, const std::string &errorMsg = "", const int errorCode = UNKNOW_ERROR);
     static void SetResponseErrorFromRequestContext(Response &response);
     static void SetRequestContextError(ErrorMessage error);
     static void ResetRequestContextError();
-protected:
+
+  protected:
     std::string command;
     std::string error;
     std::string moduleName = MODULE_UNKNOWN;

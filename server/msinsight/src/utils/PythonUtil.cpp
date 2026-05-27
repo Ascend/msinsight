@@ -25,13 +25,13 @@
 #if defined(__linux__)
 #include <unistd.h>
 extern "C" {
-    extern char **environ;
+extern char **environ;
 }
 #endif
 #if defined(__APPLE__)
 #include <crt_externs.h>
 extern "C" {
-    extern char ***_NSGetEnviron();
+extern char ***_NSGetEnviron();
 }
 #endif
 #endif
@@ -41,8 +41,7 @@ extern "C" {
 #include "PythonUtil.h"
 
 namespace Dic {
-int PythonUtil::ExecuteScript(const std::string &scriptPath, const std::vector<std::string> &arguments)
-{
+int PythonUtil::ExecuteScript(const std::string &scriptPath, const std::vector<std::string> &arguments) {
     std::string pythonCommand = GetPythonCommand();
     std::vector<std::string> commandArguments;
 #if defined(_WIN32) || defined(__APPLE__)
@@ -56,8 +55,7 @@ int PythonUtil::ExecuteScript(const std::string &scriptPath, const std::vector<s
     return ExecuteCommand(pythonCommand, commandArguments);
 }
 
-std::string PythonUtil::GetPythonCommand()
-{
+std::string PythonUtil::GetPythonCommand() {
 #if defined(__linux__)
     // Linux系统上Python解释器由用户自主安装，调用方式为直接使用"python3"命令，Linux不用加上-I选项
     return "python3";

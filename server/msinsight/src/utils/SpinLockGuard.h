@@ -22,45 +22,34 @@
 
 namespace Dic {
 class SpinLock {
-public:
+  public:
     SpinLock() : flag(false) {}
 
-    void lock()
-    {
+    void lock() {
         while (flag.test_and_set(std::memory_order_acquire)) {
             // 自旋等待，直到锁被释放
         }
     }
 
-    void unlock()
-    {
-        flag.clear(std::memory_order_release);
-    }
+    void unlock() { flag.clear(std::memory_order_release); }
 
-private:
+  private:
     std::atomic_flag flag;
 };
 
 class SpinLockGuard {
-public:
-    explicit SpinLockGuard(SpinLock &spinLock) : spinLock(spinLock)
-    {
-        spinLock.lock();
-    }
+  public:
+    explicit SpinLockGuard(SpinLock &spinLock) : spinLock(spinLock) { spinLock.lock(); }
 
-    ~SpinLockGuard()
-    {
-        spinLock.unlock();
-    }
+    ~SpinLockGuard() { spinLock.unlock(); }
 
     // 禁用复制和赋值
     SpinLockGuard(const SpinLockGuard &) = delete;
-    SpinLockGuard &operator = (const SpinLockGuard &) = delete;
+    SpinLockGuard &operator=(const SpinLockGuard &) = delete;
 
-private:
+  private:
     SpinLock &spinLock;
 };
 }
-
 
 #endif // PROFILER_SERVER_SPINLOCKGARD_H

@@ -45,15 +45,13 @@ enum class TimeStyle : int {
 };
 
 class TimeUtil {
-public:
-    static TimeUtil &Instance()
-    {
+  public:
+    static TimeUtil &Instance() {
         static TimeUtil instance;
         return instance;
     }
 
-    const Time Now() const
-    {
+    const Time Now() const {
         using namespace std::chrono;
         constexpr int sinceYear = 1900;
         constexpr int sinceMonth = 1;
@@ -67,15 +65,13 @@ public:
 #else
         localtime_r(&tt, &nowTime);
 #endif
-        Time time = {
-            .year = nowTime.tm_year + sinceYear,
+        Time time = {.year = nowTime.tm_year + sinceYear,
             .month = nowTime.tm_mon + sinceMonth,
             .day = nowTime.tm_mday,
             .hour = nowTime.tm_hour,
             .minute = nowTime.tm_min,
             .second = nowTime.tm_sec,
-            .millisecond = static_cast<int>(durationInMs.count() % msDuration)
-        };
+            .millisecond = static_cast<int>(durationInMs.count() % msDuration)};
         return time;
     }
 
@@ -85,32 +81,28 @@ public:
      *
      * @return UTC seconds
      */
-    uint32_t NowUTC() const
-    {
+    uint32_t NowUTC() const {
         using std::chrono::system_clock;
         system_clock::time_point now = system_clock::now();
         time_t tt = system_clock::to_time_t(now);
         return tt;
     }
 
-    const std::string NowStr(const TimeStyle &style = TimeStyle::WITH_MILLI_SEC) const
-    {
+    const std::string NowStr(const TimeStyle &style = TimeStyle::WITH_MILLI_SEC) const {
         using TimeStyleFunc = std::function<std::string(const Time &time)>;
-        static std::map<TimeStyle, TimeStyleFunc> funcMap = {
-            { TimeStyle::WITH_MILLI_SEC, GetTimeStyleWithMilliSec },
-            { TimeStyle::WITH_SEC_NO_SPLIT, &GetTimeStyleWithSecNoSplit } };
+        static std::map<TimeStyle, TimeStyleFunc> funcMap = {{TimeStyle::WITH_MILLI_SEC, GetTimeStyleWithMilliSec},
+            {TimeStyle::WITH_SEC_NO_SPLIT, &GetTimeStyleWithSecNoSplit}};
         if (funcMap.count(style) == 0) {
             return "";
         }
         return funcMap[style](Now());
     }
 
-private:
+  private:
     TimeUtil() = default;
     ~TimeUtil() = default;
 
-    static const std::string GetTimeStyleWithMilliSec(const Time &time)
-    {
+    static const std::string GetTimeStyleWithMilliSec(const Time &time) {
         std::string timeStr = StringUtil::IntToString(time.year, 4) + "-" + StringUtil::IntToString(time.month, 2) +
             "-" + StringUtil::IntToString(time.day, 2) + " " + StringUtil::IntToString(time.hour, 2) + ":" +
             StringUtil::IntToString(time.minute, 2) + ":" + StringUtil::IntToString(time.second, 2) + "." +
@@ -118,8 +110,7 @@ private:
         return timeStr;
     }
 
-    static std::string GetTimeStyleWithSecNoSplit(const Time &time)
-    {
+    static std::string GetTimeStyleWithSecNoSplit(const Time &time) {
         std::string timeStr = StringUtil::IntToString(time.year, 4) + StringUtil::IntToString(time.month, 2) +
             StringUtil::IntToString(time.day, 2) + StringUtil::IntToString(time.hour, 2) +
             StringUtil::IntToString(time.minute, 2) + StringUtil::IntToString(time.second, 2) +

@@ -23,14 +23,14 @@
 
 namespace Dic {
 class IdBuilder {
-public:
+  public:
     static IdBuilder &RequestIdBuilder();
     static IdBuilder &ResponseIdBuilder();
     static IdBuilder &EventIdBuilder();
     static IdBuilder &SessionIdBuilder();
     int Build();
 
-private:
+  private:
     IdBuilder() = default;
     ~IdBuilder() = default;
 

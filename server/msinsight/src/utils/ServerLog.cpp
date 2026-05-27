@@ -31,9 +31,8 @@ const std::string_view PATH_SLASH = "\\";
 const std::string_view PATH_SLASH = "/";
 #endif
 
-void ServerLog::Initialize(const std::string &logPath, const int &logSize, const std::string &logLevelStr,
-                           std::string wsPortStr)
-{
+void ServerLog::Initialize(
+    const std::string &logPath, const int &logSize, const std::string &logLevelStr, std::string wsPortStr) {
     ServerLog &serverLog = Instance();
     serverLog.wsPort = wsPortStr;
     if (printInstance == nullptr) {
@@ -47,8 +46,7 @@ void ServerLog::Initialize(const std::string &logPath, const int &logSize, const
         recordInstance->SetLogLevel(logLevel);
     }
 }
-void ServerLog::Initialize(const LogLevel &level)
-{
+void ServerLog::Initialize(const LogLevel &level) {
     if (recordInstance == nullptr) {
         std::vector<std::string> paths = {".", "profiler_server.log"};
         std::string logPath = StringUtil::join(paths, PATH_SLASH);
@@ -62,43 +60,36 @@ void ServerLog::Initialize(const LogLevel &level)
     }
 }
 
-std::string ServerLog::GetCurrentLogPath()
-{
+std::string ServerLog::GetCurrentLogPath() {
     std::lock_guard<std::mutex> lock(ServerLog::currentLogPathMutex);
     return ServerLog::currentLogPath;
 }
 
-void ServerLog::SetCurrentLogPath(const std::string& path)
-{
+void ServerLog::SetCurrentLogPath(const std::string &path) {
     std::lock_guard<std::mutex> lock(ServerLog::currentLogPathMutex);
     ServerLog::currentLogPath = path;
 }
 
-const std::string ServerLog::GetLogHead(const LogLevel &level)
-{
+const std::string ServerLog::GetLogHead(const LogLevel &level) {
     std::string head;
     std::string traceId = TraceIdManager::GetTraceId();
-    head.append(LogPrefix::Instance().TimePrefix()).append("|")
-        .append(LogPrefix::Instance().LevelPrefix(level));
+    head.append(LogPrefix::Instance().TimePrefix()).append("|").append(LogPrefix::Instance().LevelPrefix(level));
     if (!traceId.empty()) {
         head.append("[TraceId=").append(traceId).append("]");
     }
     head.append(" ");
     return head;
 }
-void ServerLog::RecordImpl(const LogLevel &level, std::vector<std::string> &logStrList)
-{
+void ServerLog::RecordImpl(const LogLevel &level, std::vector<std::string> &logStrList) {
     recordInstance->LogT(level, GetLogHead(level), logStrList);
     std::string path = recordInstance->GetLogFilePath();
     SetCurrentLogPath(path);
 }
 
-void ServerLog::PrintImpl(const LogLevel &level, std::vector<std::string> &logStrList)
-{
+void ServerLog::PrintImpl(const LogLevel &level, std::vector<std::string> &logStrList) {
     printInstance->LogT(level, GetLogHead(level), logStrList);
 }
-ServerLog &ServerLog::Instance()
-{
+ServerLog &ServerLog::Instance() {
     static ServerLog instance;
     return instance;
 }

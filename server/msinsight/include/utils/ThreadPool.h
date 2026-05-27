@@ -31,8 +31,8 @@
 
 namespace Dic {
 class ThreadPool {
-public:
-    static ThreadPool& Instance();
+  public:
+    static ThreadPool &Instance();
     explicit ThreadPool(uint32_t threadCount);
     ~ThreadPool();
     ThreadPool(const ThreadPool &) = delete;
@@ -47,9 +47,8 @@ public:
      * @param args: the task argument
      * @return the future of the result, future.get() throw exception of the task.
      */
-    template<class F, class ...Args>
-    auto AddTask(F &&f, const std::string &parentTraceId, Args &&...args) -> std::future<decltype(f(args...))>
-    {
+    template <class F, class... Args>
+    auto AddTask(F &&f, const std::string &parentTraceId, Args &&...args) -> std::future<decltype(f(args...))> {
         std::function<decltype(f(args...))()> func = std::bind(std::forward<F>(f), std::forward<Args>(args)...);
         auto task = std::make_shared<std::packaged_task<decltype(f(args...))()>>(func);
         std::function<void()> wrapperFunc = [task, parentTraceId]() {
@@ -79,7 +78,7 @@ public:
      */
     void ShutDown();
 
-private:
+  private:
     bool running = true;
     bool waiting = false;
     std::atomic<int> runningTasks{0};

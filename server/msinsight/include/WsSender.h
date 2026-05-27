@@ -19,8 +19,8 @@
 #define MSINSIGHT_WSSENDER_H
 #include "ProtocolUtil.h"
 namespace Dic {
-    void SendEvent(std::unique_ptr<Dic::Protocol::Event> eventPtr);
-    void SendResponse(std::unique_ptr<Protocol::Response> responsePtr, bool result,
-                      const std::string &errorMsg = "", const int errorCode = UNKNOW_ERROR);
+void SendEvent(std::unique_ptr<Dic::Protocol::Event> eventPtr);
+void SendResponse(std::unique_ptr<Protocol::Response> responsePtr, bool result, const std::string &errorMsg = "",
+    const int errorCode = UNKNOW_ERROR);
 }
 #endif // MSINSIGHT_WSSENDER_H

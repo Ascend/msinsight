@@ -25,9 +25,8 @@
 
 namespace Dic {
 class RegexUtil {
-public:
-    static inline std::optional<std::smatch> RegexSearch(const std::string &data, const std::string &pattern)
-    {
+  public:
+    static inline std::optional<std::smatch> RegexSearch(const std::string &data, const std::string &pattern) {
         try {
             std::regex regex(pattern);
             std::smatch result;
@@ -40,8 +39,7 @@ public:
         }
     }
 
-    static inline std::optional<std::smatch> RegexMatch(const std::string &data, const std::string &pattern)
-    {
+    static inline std::optional<std::smatch> RegexMatch(const std::string &data, const std::string &pattern) {
         try {
             std::regex regex(pattern);
             std::smatch result;

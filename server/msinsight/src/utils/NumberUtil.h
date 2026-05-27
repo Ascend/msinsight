@@ -41,9 +41,8 @@ const double PERCENTAGE_RATIO_SCALE = 100.0;
 const int64_t MAX = pow(10, 12);
 constexpr int MAX_RESERVED_DIGITS = 6;
 class NumberUtil {
-public:
-    static inline int TryParseInt(const std::string &intStr)
-    {
+  public:
+    static inline int TryParseInt(const std::string &intStr) {
         int ret;
         try {
             ret = std::stoi(intStr);
@@ -57,8 +56,7 @@ public:
         return ret;
     }
 
-    static inline unsigned long long TryParseUnsignedLongLong(const std::string &longLongStr)
-    {
+    static inline unsigned long long TryParseUnsignedLongLong(const std::string &longLongStr) {
         unsigned long long ret;
         try {
             ret = std::stoull(longLongStr);
@@ -72,23 +70,20 @@ public:
         return ret;
     }
 
-    static inline std::string Uint64ToHexString(uint64_t number)
-    {
+    static inline std::string Uint64ToHexString(uint64_t number) {
         std::ostringstream ss;
         ss << "0x" << std::hex << number;
         return ss.str();
     }
 
-    static inline double ConvertBytesToMBytes(const uint64_t bytes)
-    {
+    static inline double ConvertBytesToMBytes(const uint64_t bytes) {
         constexpr double factor = 1024.0 * 1024.0;
         double mb = static_cast<double>(bytes) / factor;
         mb = std::round(mb * 1000.0) / 1000.0;
         return mb;
     }
 
-    static inline int HexadecimalStrToDecimalInt(const std::string &hexadecimalStr)
-    {
+    static inline int HexadecimalStrToDecimalInt(const std::string &hexadecimalStr) {
         try {
             int size = std::stoi(hexadecimalStr, nullptr, HEXADECIMAL);
             return size;
@@ -101,8 +96,7 @@ public:
         }
     }
 
-    static inline int64_t ConvertNumberUsStrToNanoseconds(const std::string& usString, const char* p)
-    {
+    static inline int64_t ConvertNumberUsStrToNanoseconds(const std::string &usString, const char *p) {
         int64_t integerPart = 0;
         int64_t fractionalPart = 0;
         int fractionalLength = 0;
@@ -128,7 +122,7 @@ public:
         }
         // 如果遇到小数点，解析小数部分
         if (*p == '.') {
-            ++p;  // 跳过小数点
+            ++p; // 跳过小数点
             while (*p >= '0' && *p <= '9' && fractionalLength < decimalPlaces) {
                 fractionalPart = fractionalPart * tenthPlace + (*p - '0');
                 ++p;
@@ -151,7 +145,7 @@ public:
         }
         // 检查是否有非法字符（不是数字或小数点）
         if (*p != '\0' && (*p < '0' || *p > '9')) {
-            return 0;  // 如果遇到非数字或小数点字符，返回 0
+            return 0; // 如果遇到非数字或小数点字符，返回 0
         }
         if (integerPart > integerPartLimit) {
             return 0;
@@ -165,13 +159,12 @@ public:
      * @param usString
      * @return
      */
-    static inline int64_t ConvertUsStrToNanoseconds(const std::string& usString)
-    {
-        const char* str = usString.c_str();
-        const char* p = str;
+    static inline int64_t ConvertUsStrToNanoseconds(const std::string &usString) {
+        const char *str = usString.c_str();
+        const char *p = str;
         // 检查字符串是否为空或负数
         if (*p == '-' || *p == '\0') {
-            return 0;  // 如果是负数或空字符串，返回0
+            return 0; // 如果是负数或空字符串，返回0
         }
         size_t ePos = usString.find_first_of("eE");
         if (ePos == std::string::npos) {
@@ -186,8 +179,7 @@ public:
         }
     }
 
-    static inline int64_t TimestampUsToNs(long double us)
-    {
+    static inline int64_t TimestampUsToNs(long double us) {
         // 当数字非常大时使用乘法，部分数字会损失精度，故改为字符串操作
         if (us < MAX) {
             return llroundl(us * THOUSAND);
@@ -195,8 +187,7 @@ public:
         return TimestampUsToNs(std::to_string(us));
     }
 
-    static inline int64_t TimestampUsToNs(std::string us)
-    {
+    static inline int64_t TimestampUsToNs(std::string us) {
         auto str = us.append(THOUSAND_SUFFIX);
         auto index = str.find('.');
         if (index != std::string::npos) {
@@ -214,8 +205,7 @@ public:
         }
     }
 
-    static inline int64_t TimestampUsToNsStable(std::string us)
-    {
+    static inline int64_t TimestampUsToNsStable(std::string us) {
         us.erase(0, us.find_first_not_of(" \t\n\r"));
         us.erase(us.find_last_not_of(" \t\n\r") + 1);
         if (us.empty()) {
@@ -262,8 +252,7 @@ public:
      * @param numericStr 待预处理字符串
      * @return 预处理后字符串
      */
-    static inline std::string TrimNumericString(const std::string &numericStr)
-    {
+    static inline std::string TrimNumericString(const std::string &numericStr) {
         if (numericStr.empty()) {
             return "0";
         }
@@ -285,8 +274,7 @@ public:
         return numericStr.substr(start, end - start);
     }
 
-    static inline double StringToDouble(const std::string& usStr, bool trim = false)
-    {
+    static inline double StringToDouble(const std::string &usStr, bool trim = false) {
         if (usStr.empty()) {
             return 0;
         }
@@ -297,24 +285,22 @@ public:
         }
     }
 
-    static inline long double StringToLongDouble(const std::string& usStr, bool trim = false)
-    {
+    static inline long double StringToLongDouble(const std::string &usStr, bool trim = false) {
         if (usStr.empty()) {
             return 0;
         }
         try {
             return std::stold(trim ? TrimNumericString(usStr) : usStr);
-        } catch (std::invalid_argument& e) {
+        } catch (std::invalid_argument &e) {
             Server::ServerLog::Error("Value out of range: ", e.what());
             return 0;
-        } catch (std::out_of_range& e) {
+        } catch (std::out_of_range &e) {
             Server::ServerLog::Error("Out of range: ", e.what());
             return 0;
         }
     }
 
-    static inline int StringToInt(const std::string& usStr)
-    {
+    static inline int StringToInt(const std::string &usStr) {
         if (usStr.empty()) {
             return 0;
         }
@@ -325,8 +311,7 @@ public:
         }
     }
 
-    static inline long StringToLong(const std::string& usStr)
-    {
+    static inline long StringToLong(const std::string &usStr) {
         if (usStr.empty()) {
             return 0;
         }
@@ -337,8 +322,7 @@ public:
         }
     }
 
-    static inline long long StringToLongLong(const std::string& usStr)
-    {
+    static inline long long StringToLongLong(const std::string &usStr) {
         if (usStr.empty()) {
             return 0;
         }
@@ -349,8 +333,7 @@ public:
         }
     }
 
-    static inline unsigned long long StringToUnsignedLongLong(const std::string& usStr)
-    {
+    static inline unsigned long long StringToUnsignedLongLong(const std::string &usStr) {
         if (usStr.empty()) {
             return 0;
         }
@@ -361,8 +344,7 @@ public:
         }
     }
 
-    static std::string StringUnsignedLongLongMinus(const std::string &str1, const std::string &str2)
-    {
+    static std::string StringUnsignedLongLongMinus(const std::string &str1, const std::string &str2) {
         uint64_t num1 = StringToUnsignedLongLong(str1);
         uint64_t num2 = StringToUnsignedLongLong(str2);
         if (num1 >= num2 && num1 - num2 > static_cast<uint64_t>(INT64_MAX)) {
@@ -380,8 +362,7 @@ public:
         return std::to_string(res);
     }
 
-    static inline uint32_t StringToUint32(const std::string& usStr)
-    {
+    static inline uint32_t StringToUint32(const std::string &usStr) {
         if (usStr.empty()) {
             return 0;
         }
@@ -396,8 +377,7 @@ public:
         }
     }
 
-    static inline std::string StringDoubleMinus(const std::string &str1, const std::string &str2, int precision = 3)
-    {
+    static inline std::string StringDoubleMinus(const std::string &str1, const std::string &str2, int precision = 3) {
         long double num1 = StringToLongDouble(str1);
         long double num2 = StringToLongDouble(str2);
         long double difference = num1 - num2;
@@ -413,9 +393,8 @@ public:
      * @param precision 有效数字保留位数
      * @return 减法结果
      */
-    static inline std::string StringDoubleMinusKeepSf(const std::string &str1, const std::string &str2,
-                                                      int precision = 3)
-    {
+    static inline std::string StringDoubleMinusKeepSf(
+        const std::string &str1, const std::string &str2, int precision = 3) {
         long double num1 = StringToLongDouble(str1);
         long double num2 = StringToLongDouble(str2);
         long double difference = num1 - num2;
@@ -441,8 +420,7 @@ public:
      * @param numStr 浮点数字符串
      * @return 去除后缀0的结果
      */
-    static inline std::string RemoveTrailingZerosAndDecimal(const std::string &numStr)
-    {
+    static inline std::string RemoveTrailingZerosAndDecimal(const std::string &numStr) {
         // 找到最后一个非零字符的位置
         size_t pos = numStr.find_last_not_of('0');
         // 如末尾没有零字符，直接返回
@@ -468,19 +446,17 @@ public:
      * @param maxPrecision 最大保留位数
      * @return 减法结果
      */
-    static inline std::string StringDoubleMinusWithoutTrailingZero(const std::string &str1, const std::string &str2,
-                                                                   int maxPrecision = 3)
-    {
+    static inline std::string StringDoubleMinusWithoutTrailingZero(
+        const std::string &str1, const std::string &str2, int maxPrecision = 3) {
         if (str1.empty() || str2.empty()) {
             return "";
         }
-        std::string minusRes =  StringDoubleMinusKeepSf(str1, str2, maxPrecision);
+        std::string minusRes = StringDoubleMinusKeepSf(str1, str2, maxPrecision);
         return RemoveTrailingZerosAndDecimal(minusRes);
     }
 
     // 只处理1~6位小数位的截尾
-    static inline double DoubleReservedNDigits(double data, int n = 6)
-    {
+    static inline double DoubleReservedNDigits(double data, int n = 6) {
         if (n <= 0 || n > MAX_RESERVED_DIGITS) { // 最多处理6位小数位
             return data;
         }
@@ -492,15 +468,13 @@ public:
         return static_cast<double>(std::round(data * ratio) / ratio);
     }
 
-    static inline bool IsDouble(const std::string& str)
-    {
+    static inline bool IsDouble(const std::string &str) {
         std::istringstream iss(str);
         double d;
         return (iss >> d) && (iss.eof());
     }
 
-    inline static bool IsStr2DoubleDesc(const std::string& a, const std::string& b)
-    {
+    inline static bool IsStr2DoubleDesc(const std::string &a, const std::string &b) {
         bool isADouble = IsDouble(a);
         bool isBDouble = IsDouble(b);
         // 如果都是数字，则按数值排序
@@ -518,8 +492,7 @@ public:
         return false;
     }
 
-    static bool IsStr2DoubleAsce(const std::string& a, const std::string& b)
-    {
+    static bool IsStr2DoubleAsce(const std::string &a, const std::string &b) {
         bool isADouble = IsDouble(a);
         bool isBDouble = IsDouble(b);
         // 如果都是数字，则按数值排序
@@ -537,19 +510,17 @@ public:
         return false;
     }
 
-    static inline double Sub(double a, double b)
-    {
+    static inline double Sub(double a, double b) {
         return DoubleReservedNDigits(DoubleReservedNDigits(a) - DoubleReservedNDigits(b));
     }
 
-    static inline std::string StrReservedNDigits(const std::string& data, int n)
-    {
+    static inline std::string StrReservedNDigits(const std::string &data, int n) {
         if (n <= 0 || n > MAX_RESERVED_DIGITS) {
             return data;
         }
-        auto pos  = data.find_last_of('.');
+        auto pos = data.find_last_of('.');
         if (pos != std::string::npos) {
-            std::string sub =  data.substr(0, pos + n + 1);
+            std::string sub = data.substr(0, pos + n + 1);
             // 保留小数后为零
             bool isZero = std::all_of(sub.begin(), sub.end(), [](char c) { return (c == '0' || c == '.'); });
             return isZero ? data : sub;
@@ -557,8 +528,7 @@ public:
         return data;
     }
 
-    static inline bool IsGreater(float a, float b, float epsilon = 1e-9)
-    {
+    static inline bool IsGreater(float a, float b, float epsilon = 1e-9) {
         if (std::fabs(a - b) < epsilon) { // 如何两个浮点数只差小于epsilon, 则认为两数相等
             return false;
         } else {
@@ -566,19 +536,13 @@ public:
         }
     }
 
-    static inline bool IsDoubleEqual(double a, double b, double epsilon = 1e-9)
-    {
-        return std::fabs(a - b) < epsilon;
-    }
+    static inline bool IsDoubleEqual(double a, double b, double epsilon = 1e-9) { return std::fabs(a - b) < epsilon; }
 
-    static inline bool IsEqual(float a, float b, float epsilon = 1e-9)
-    {
+    static inline bool IsEqual(float a, float b, float epsilon = 1e-9) {
         return std::fabs(a - b) < epsilon; // 如何两个浮点数只差小于epsilon, 则认为两数相等
     }
 
-    template <typename T>
-    static inline T CeilingClamp(T value, T bound = std::numeric_limits<T>::max())
-    {
+    template <typename T> static inline T CeilingClamp(T value, T bound = std::numeric_limits<T>::max()) {
         // 此处为条件预测，能提高效率
         if (__builtin_expect(bound > value, 1)) {
             return value;
@@ -587,8 +551,7 @@ public:
         }
     }
     // 此方法用于取数值类型的整数部分(主要为浮点数,整数部分不可超过INT64范围)
-    static std::string TruncateNumberString(const std::string& numberStr)
-    {
+    static std::string TruncateNumberString(const std::string &numberStr) {
         std::string s = numberStr;
         // 去除前后空格
         s.erase(0, s.find_first_not_of(" \t\n\r"));
@@ -613,16 +576,14 @@ public:
         return "0";
     }
 
-    static inline uint32_t IntToUint32(const int num)
-    {
+    static inline uint32_t IntToUint32(const int num) {
         if (num < 0) {
             return 0;
         }
         return static_cast<uint32_t>(num);
     }
 
-    static inline uint64_t Int64ToUint64(const int64_t num)
-    {
+    static inline uint64_t Int64ToUint64(const int64_t num) {
         if (num < 0) {
             return 0;
         }

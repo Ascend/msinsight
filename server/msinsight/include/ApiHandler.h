@@ -19,28 +19,26 @@
 #define MSINSIGHT_APIHANDLER_H
 #include "string"
 namespace Dic::Core {
-enum class API_TYPE {
-    GET,
-    POST
-};
+enum class API_TYPE { GET, POST };
 class ApiHandler {
-public:
-    ApiHandler(API_TYPE type): apiType_(type) {};
+  public:
+    ApiHandler(API_TYPE type) : apiType_(type) {};
     virtual ~ApiHandler() = default;
     virtual bool run(std::string_view data, std::string &result) = 0;
     API_TYPE GetApiType() { return apiType_; };
-protected:
+
+  protected:
     API_TYPE apiType_;
 };
 class GetHandler : public ApiHandler {
-public:
-    GetHandler(): ApiHandler(API_TYPE::GET) {};
+  public:
+    GetHandler() : ApiHandler(API_TYPE::GET) {};
     virtual ~GetHandler() = default;
     virtual bool run(std::string_view data, std::string &result) = 0;
 };
 class PostHandler : public ApiHandler {
-public:
-    PostHandler(): ApiHandler(API_TYPE::POST) {};
+  public:
+    PostHandler() : ApiHandler(API_TYPE::POST) {};
     virtual ~PostHandler() = default;
     virtual bool run(std::string_view data, std::string &result) = 0;
 };
