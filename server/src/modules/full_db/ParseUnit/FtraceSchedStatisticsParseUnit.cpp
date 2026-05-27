@@ -23,24 +23,18 @@
 
 namespace Dic::Module::FullDb {
 
-std::string FtraceSchedStatisticsParseUnit::GetUnitName() const
-{
-    return Dic::FTRACE_SCHED_STATISTICS_UNIT;
-}
+std::string FtraceSchedStatisticsParseUnit::GetUnitName() const { return Dic::FTRACE_SCHED_STATISTICS_UNIT; }
 
-bool FtraceSchedStatisticsParseUnit::PreCheck(const ParseUnitParams &params,
-                                              const std::shared_ptr<Timeline::TextTraceDatabase> &database,
-                                              std::string &error)
-{
+bool FtraceSchedStatisticsParseUnit::PreCheck(
+    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     return database->CreateFtraceTable();
 }
 
-bool FtraceSchedStatisticsParseUnit::HandleParseProcess(const ParseUnitParams &params,
-                                                        const std::shared_ptr<Timeline::TextTraceDatabase> &database,
-                                                        std::string &error)
-{
+bool FtraceSchedStatisticsParseUnit::HandleParseProcess(
+    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     std::vector<std::string> nameList = {"sched_switch"};
-    auto allSchedSlice = RenderEngine::Instance()->QuerySliceDetailByNameList(params.dbId, DataType::TEXT, "CPU Scheduling", nameList);
+    auto allSchedSlice =
+        RenderEngine::Instance()->QuerySliceDetailByNameList(params.dbId, DataType::TEXT, "CPU Scheduling", nameList);
     auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
 
     std::unordered_map<std::string, uint64_t> tidToTrackId;
@@ -48,8 +42,7 @@ bool FtraceSchedStatisticsParseUnit::HandleParseProcess(const ParseUnitParams &p
         tidToTrackId[pair.second.second] = pair.first;
     }
     std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> trackIdMap;
-    for (const auto &slice : allSchedSlice)
-    {
+    for (const auto &slice : allSchedSlice) {
         std::unordered_map<std::string, std::string> argsMap = JsonUtil::JsonStrToMap(slice.args);
         std::string prevComm = argsMap["prev_comm"];
         std::string prevPid = argsMap["prev_pid"];

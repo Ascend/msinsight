@@ -16,26 +16,26 @@
 //  * -------------------------------------------------------------------------
 //  *
 
-
 #ifndef PROFILER_SERVER_PROJECTPARSERTRITON_H
 #define PROFILER_SERVER_PROJECTPARSERTRITON_H
 #include <string_view>
 #include "ProjectParserFactory.h"
 namespace Dic::Module {
-class ProjectParserTriton :public ProjectParserBase {
-public:
+class ProjectParserTriton : public ProjectParserBase {
+  public:
     ProjectParserTriton() = default;
     ~ProjectParserTriton() override = default;
 
-    void Parser(const std::vector<Global::ProjectExplorerInfo>& projectInfos, ImportActionRequest& request, ImportActionResponse& response) override;
+    void Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
+        ImportActionResponse &response) override;
 
-    ProjectTypeEnum GetProjectType(const std::string& dataPath) override;
+    ProjectTypeEnum GetProjectType(const std::string &dataPath) override;
 
-    std::vector<std::string> GetParseFileByImportFile(const std::string& importFile, std::string& error) override;
+    std::vector<std::string> GetParseFileByImportFile(const std::string &importFile, std::string &error) override;
 
-    static void BuildProjectExploreInfo(ProjectExplorerInfo& projectInfo, const std::vector<std::string>& parsedFiles);
+    static void BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles);
 
-    bool IsTritonMemoryFile(const std::string& file);
+    bool IsTritonMemoryFile(const std::string &file);
 };
 }
 

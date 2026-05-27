@@ -19,28 +19,21 @@
 #include "ConstantDefs.h"
 #include "ServerLog.h"
 namespace Dic::Module::FullDb {
-    ParseUnitManager &ParseUnitManager::Instance()
-    {
-        static ParseUnitManager instance;
-        return instance;
-    }
+ParseUnitManager &ParseUnitManager::Instance() {
+    static ParseUnitManager instance;
+    return instance;
+}
 
-    void ParseUnitManager::RegisterUnit(const std::string& name, Creator unit)
-    {
-        unitMap[name] = unit;
-    }
+void ParseUnitManager::RegisterUnit(const std::string &name, Creator unit) { unitMap[name] = unit; }
 
-    void ParseUnitManager::ExecuteUnitList(const ParseUnitParams &params, const std::vector<std::string> &unitNameList)
-    {
-        for (const auto& unit_name : unitNameList)
-        {
-            auto it = unitMap.find(unit_name);
-            if (it != unitMap.end())
-            {
-                Server::ServerLog::Info("Start execute parse unit, unit name:", it->first);
-                bool res = it->second()->Handle(params);
-                Server::ServerLog::Info("End execute parse unit, unit name:", it->first, ", result:", res);
-            }
+void ParseUnitManager::ExecuteUnitList(const ParseUnitParams &params, const std::vector<std::string> &unitNameList) {
+    for (const auto &unit_name : unitNameList) {
+        auto it = unitMap.find(unit_name);
+        if (it != unitMap.end()) {
+            Server::ServerLog::Info("Start execute parse unit, unit name:", it->first);
+            bool res = it->second()->Handle(params);
+            Server::ServerLog::Info("End execute parse unit, unit name:", it->first, ", result:", res);
         }
     }
+}
 }

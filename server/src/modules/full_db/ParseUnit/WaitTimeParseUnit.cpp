@@ -23,29 +23,24 @@
 #include "TableDefs.h"
 
 namespace Dic::Module::FullDb {
-    std::string WaitTimeParseUnit::GetUnitName() const
-    {
-        return WAIT_TIME_UNIT;
-    }
+std::string WaitTimeParseUnit::GetUnitName() const { return WAIT_TIME_UNIT; }
 
-    bool WaitTimeParseUnit::PreCheck(const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database,
-                                     std::string &error)
-    {
-        bool checkRes = (database->CheckTableExist(TABLE_COMPUTE_TASK_INFO)
-            || database->CheckTableExist(TABLE_COMMUNICATION_OP))
-            && database->CheckTableDataInvalid(TABLE_TASK);
-        if (!checkRes) {
-            error = "Update wait time:Table is not exist or table data invalid.";
-        }
-        return checkRes;
+bool WaitTimeParseUnit::PreCheck(
+    const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database, std::string &error) {
+    bool checkRes =
+        (database->CheckTableExist(TABLE_COMPUTE_TASK_INFO) || database->CheckTableExist(TABLE_COMMUNICATION_OP)) &&
+        database->CheckTableDataInvalid(TABLE_TASK);
+    if (!checkRes) {
+        error = "Update wait time:Table is not exist or table data invalid.";
     }
+    return checkRes;
+}
 
-    bool WaitTimeParseUnit::HandleParseProcess(const ParseUnitParams &params,
-                                               const std::shared_ptr<DbTraceDataBase> &database, std::string &error)
-    {
-        database->UpdateWaitTime();
-        return true;
-    }
+bool WaitTimeParseUnit::HandleParseProcess(
+    const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database, std::string &error) {
+    database->UpdateWaitTime();
+    return true;
+}
 
-    ParseUnitRegistrar<WaitTimeParseUnit> unitRegWaitTime(WAIT_TIME_UNIT);
+ParseUnitRegistrar<WaitTimeParseUnit> unitRegWaitTime(WAIT_TIME_UNIT);
 }

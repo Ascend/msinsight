@@ -30,10 +30,8 @@ using namespace Timeline;
 using namespace Dic::Server;
 ParserIE::~ParserIE() = default;
 
-void ParserIE::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos,
-                      ImportActionRequest &request,
-                      ImportActionResponse &response)
-{
+void ParserIE::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
+    ImportActionResponse &response) {
     Timeline::DataBaseManager::Instance().SetDataType(Timeline::DataType::TEXT, request.params.path[0]);
     // 基础信息填充
     FillBaseResponseInfo(request, response, projectInfos);
@@ -47,8 +45,7 @@ void ParserIE::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInf
         }
         std::string cardPath = FileUtil::GetRankIdFromPath(rankEntry.second);
         SetBaseActionOfResponse(response, rankEntry.first, rankEntry.second, cardPath,
-                                {FileUtil::GetParentPath(folders)},
-                                static_cast<int>(ProjectTypeEnum::IE));
+            {FileUtil::GetParentPath(folders)}, static_cast<int>(ProjectTypeEnum::IE));
     }
     // 解析内容
     SetParseCallBack(Timeline::JsonFileParserManager::GetTraceFileParser());
@@ -62,20 +59,17 @@ void ParserIE::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInf
 }
 
 void ParserIE::FillBaseResponseInfo(const ImportActionRequest &request, ImportActionResponse &response,
-                                    const std::vector<ProjectExplorerInfo> &projectInfos)
-{
+    const std::vector<ProjectExplorerInfo> &projectInfos) {
     ModuleRequestHandler::SetBaseResponse(request, response);
     response.body.subParseFileInfo.insert(response.body.subParseFileInfo.end(),
-                                          projectInfos[0].subParseFileInfo.begin(),
-                                          projectInfos[0].subParseFileInfo.end());
+        projectInfos[0].subParseFileInfo.begin(), projectInfos[0].subParseFileInfo.end());
     MergeFileTree(response.body.projectFileTree, projectInfos[0].projectFileTree);
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
     response.moduleName = MODULE_TIMELINE;
 }
 
 std::unordered_map<std::string, std::string> ParserIE::GetRankListMap(
-    const std::vector<Global::ProjectExplorerInfo> &projectInfos)
-{
+    const std::vector<Global::ProjectExplorerInfo> &projectInfos) {
     // 获取单卡文件，并根据单卡所在目录获取其单卡信息
     std::unordered_map<std::string, std::string> rankToTraceMap;
     for (const auto &project : projectInfos) {
@@ -109,8 +103,7 @@ std::unordered_map<std::string, std::string> ParserIE::GetRankListMap(
     return rankToTraceMap;
 }
 
-void ParserIE::ParserTraceData(const std::unordered_map<std::string, std::string> &rankListMap)
-{
+void ParserIE::ParserTraceData(const std::unordered_map<std::string, std::string> &rankListMap) {
     // 对metadata数据进行解析
     ParserStatusManager::Instance().WaitStartParse();
     auto serverApi = std::make_shared<IE::ServitizationOpenApi>();
@@ -118,35 +111,30 @@ void ParserIE::ParserTraceData(const std::unordered_map<std::string, std::string
     bool isParseTraceJson = rankListMap.size() < PENDIND_CRITICAL_VALUE;
     for (const auto &rankEntry : rankListMap) {
         if (!isParseTraceJson) {
-            ParserStatusManager::Instance().SetPendingStatus(rankEntry.first,
-                { ProjectTypeEnum::IE, { rankEntry.second } });
+            ParserStatusManager::Instance().SetPendingStatus(
+                rankEntry.first, {ProjectTypeEnum::IE, {rankEntry.second}});
             continue;
         }
-        Timeline::JsonFileParserManager::GetTraceFileParser().Parse({rankEntry.second},
-                                                    rankEntry.first,
-                                                    rankEntry.second,
-                                                    rankEntry.second);
+        Timeline::JsonFileParserManager::GetTraceFileParser().Parse(
+            {rankEntry.second}, rankEntry.first, rankEntry.second, rankEntry.second);
     }
-    Timeline::EventNotifyThreadPoolExecutor::Instance().GetThreadPool()->AddTask(SendAllParseSuccess,
-                                                                                 TraceIdManager::GetTraceId());
+    Timeline::EventNotifyThreadPoolExecutor::Instance().GetThreadPool()->AddTask(
+        SendAllParseSuccess, TraceIdManager::GetTraceId());
 }
 
-void ParserIE::SetParseCallBack(FileParser &fileParser)
-{
-    std::function<void(const std::string, const std::string, bool, const std::string)> func =
-        std::bind(ParseEndCallBack, std::placeholders::_1, std::placeholders::_2,
-                  std::placeholders::_3, std::placeholders::_4);
+void ParserIE::SetParseCallBack(FileParser &fileParser) {
+    std::function<void(const std::string, const std::string, bool, const std::string)> func = std::bind(
+        ParseEndCallBack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
     fileParser.SetParseEndCallBack(func);
 
     // 复用解析完成回调函数设置逻辑
     std::function<void(const std::string, uint64_t parsedSize, uint64_t totalSize, int progress)> progressFunc =
         std::bind(ParseProgressCallBack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                  std::placeholders::_4);
+            std::placeholders::_4);
     fileParser.SetParseProgressCallBack(progressFunc);
 }
 
-std::vector<std::string> ParserIE::FindIEFile(const std::string &path)
-{
+std::vector<std::string> ParserIE::FindIEFile(const std::string &path) {
     std::vector<IE::TaskInfo> tasks = servitizationOpenApi->ComputeTaskInfo(path);
     std::vector<std::string> res;
     for (const auto &item : tasks) {
@@ -155,13 +143,9 @@ std::vector<std::string> ParserIE::FindIEFile(const std::string &path)
     return res;
 }
 
-ProjectTypeEnum ParserIE::GetProjectType(const std::string &dataPath)
-{
-    return ProjectTypeEnum::IE;
-}
+ProjectTypeEnum ParserIE::GetProjectType(const std::string &dataPath) { return ProjectTypeEnum::IE; }
 
-std::vector<std::string> ParserIE::GetParseFileByImportFile(const std::string &importFile, std::string &error)
-{
+std::vector<std::string> ParserIE::GetParseFileByImportFile(const std::string &importFile, std::string &error) {
     // 如果是文件，直接返回
     if (!FileUtil::IsFolder(importFile)) {
         return {importFile};
@@ -184,8 +168,7 @@ std::vector<std::string> ParserIE::GetParseFileByImportFile(const std::string &i
     return result;
 }
 
-bool ParserIE::ExistIEFile(const std::string &file)
-{
+bool ParserIE::ExistIEFile(const std::string &file) {
     if (file.empty()) {
         return false;
     }
@@ -193,8 +176,7 @@ bool ParserIE::ExistIEFile(const std::string &file)
     return !res.empty();
 }
 
-void ParserIE::BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles)
-{
+void ParserIE::BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles) {
     ProjectParserBase::BuildProjectExploreInfo(projectInfo, parsedFiles);
     std::for_each(parsedFiles.begin(), parsedFiles.end(), [&projectInfo](const std::string &file) {
         auto parseFileInfoRank = std::make_shared<ParseFileInfo>();

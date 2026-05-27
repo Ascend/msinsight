@@ -22,16 +22,16 @@
 
 namespace Dic::Module {
 class ProjectParserMemSnapshot : public ProjectParserBase {
-public:
+  public:
     ProjectParserMemSnapshot() = default;
     ~ProjectParserMemSnapshot() override = default;
-    void Parser(const std::vector<ProjectExplorerInfo>& projectInfos,
-                ImportActionRequest& request, ImportActionResponse& response) override;
-    ProjectTypeEnum GetProjectType(const std::string& dataPath) override;
-    std::vector<std::string> GetParseFileByImportFile(const std::string& importFile, std::string& error) override;
+    void Parser(const std::vector<ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
+        ImportActionResponse &response) override;
+    ProjectTypeEnum GetProjectType(const std::string &dataPath) override;
+    std::vector<std::string> GetParseFileByImportFile(const std::string &importFile, std::string &error) override;
     // 覆盖重写
-    static void BuildProjectExploreInfo(ProjectExplorerInfo& projectInfo, const std::vector<std::string>& parsedFiles);
-    static bool IsSnapshotPickleFile(const std::string& filename);
+    static void BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles);
+    static bool IsSnapshotPickleFile(const std::string &filename);
 };
 } // namespace Dic::Module
 #endif //PROFILER_SERVER_PROJECTPARSERSNAPSHOT_H

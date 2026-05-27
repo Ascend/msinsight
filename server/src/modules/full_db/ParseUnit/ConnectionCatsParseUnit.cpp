@@ -23,27 +23,21 @@
 #include "TableDefs.h"
 
 namespace Dic::Module::FullDb {
-    std::string ConnectionCatsParseUnit::GetUnitName() const
-    {
-        return CONNECTION_UNIT;
-    }
+std::string ConnectionCatsParseUnit::GetUnitName() const { return CONNECTION_UNIT; }
 
-    bool ConnectionCatsParseUnit::PreCheck(const ParseUnitParams &params,
-                                           const std::shared_ptr<DbTraceDataBase> &database, std::string &error)
-    {
-        return true;
-    }
+bool ConnectionCatsParseUnit::PreCheck(
+    const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database, std::string &error) {
+    return true;
+}
 
-    bool ConnectionCatsParseUnit::HandleParseProcess(const ParseUnitParams &params,
-                                                     const std::shared_ptr<DbTraceDataBase> &database,
-                                                     std::string &error)
-    {
-        bool res = database->InitConnectionCats();
-        if (!res) {
-            error = "Fail to init connection category.";
-        }
-        return res;
+bool ConnectionCatsParseUnit::HandleParseProcess(
+    const ParseUnitParams &params, const std::shared_ptr<DbTraceDataBase> &database, std::string &error) {
+    bool res = database->InitConnectionCats();
+    if (!res) {
+        error = "Fail to init connection category.";
     }
+    return res;
+}
 
-    ParseUnitRegistrar<ConnectionCatsParseUnit> unitRegConnection(CONNECTION_UNIT);
+ParseUnitRegistrar<ConnectionCatsParseUnit> unitRegConnection(CONNECTION_UNIT);
 }

@@ -55,8 +55,7 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::Module::Global;
 // 静态变量 锁初始化
 std::mutex ParserFactory::mutex;
-std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::string &path)
-{
+std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::string &path) {
     // 判别顺序是优先判别只支持单个文件导入的memscope(leaks)/pickle bin ipynb npumonitor aclGraph_debug文件，然后判别服务化调优数据，最后判别系统调优数据
     // 判别系统调优数据时，优先db，然后text，都没有再寻找npumonitor数据
     const std::string filename = FileUtil::GetFileName(path);
@@ -94,49 +93,47 @@ std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::strin
     return std::make_pair(path, ParserType::OTHER);
 }
 
-std::shared_ptr<ProjectParserBase> ParserFactory::GetProjectParser(ParserType allocType)
-{
+std::shared_ptr<ProjectParserBase> ParserFactory::GetProjectParser(ParserType allocType) {
     std::shared_ptr<ProjectParserBase> alloc;
     switch (allocType) {
-        case ParserType::DB:
-            alloc = std::make_shared<ProjectParserDb>();
-            break;
-        case ParserType::BIN:
-            alloc = std::make_shared<ProjectParserBin>();
-            break;
-        case ParserType::ACLGRPAH_DEBUG_JSON:
-            alloc = std::make_shared<ProjectParserJson>(JsonFileParserManager::GetACLGraphDebugParser());
-            break;
-        case ParserType::JSON:
-            alloc = std::make_shared<ProjectParserJson>(JsonFileParserManager::GetTraceFileParser());
-            break;
-        case ParserType::IE:
-            alloc = std::make_shared<ParserIE>();
-            break;
-        case ParserType::DB_NPUMONITOR:
-            alloc = std::make_shared<ProjectParserDbNPUMonitor>();
-            break;
-        case ParserType::DB_MEMSCOPE:
-            alloc = std::make_shared<ProjectParserMemScope>();
-            break;
-        case ParserType::PKL_MEM_SNAPSHOT:
-            alloc = std::make_shared<ProjectParserMemSnapshot>();
-            break;
-        case ParserType::TRITON_MEMORY:
-            alloc = std::make_shared<ProjectParserTriton>();
-            break;
-        case ParserType::DB_FTRACE:
-            alloc = std::make_shared<ProjectParserFtrace>();
-            break;
-        default:
-            alloc = std::make_shared<ProjectParserBase>();
-            break;
+    case ParserType::DB:
+        alloc = std::make_shared<ProjectParserDb>();
+        break;
+    case ParserType::BIN:
+        alloc = std::make_shared<ProjectParserBin>();
+        break;
+    case ParserType::ACLGRPAH_DEBUG_JSON:
+        alloc = std::make_shared<ProjectParserJson>(JsonFileParserManager::GetACLGraphDebugParser());
+        break;
+    case ParserType::JSON:
+        alloc = std::make_shared<ProjectParserJson>(JsonFileParserManager::GetTraceFileParser());
+        break;
+    case ParserType::IE:
+        alloc = std::make_shared<ParserIE>();
+        break;
+    case ParserType::DB_NPUMONITOR:
+        alloc = std::make_shared<ProjectParserDbNPUMonitor>();
+        break;
+    case ParserType::DB_MEMSCOPE:
+        alloc = std::make_shared<ProjectParserMemScope>();
+        break;
+    case ParserType::PKL_MEM_SNAPSHOT:
+        alloc = std::make_shared<ProjectParserMemSnapshot>();
+        break;
+    case ParserType::TRITON_MEMORY:
+        alloc = std::make_shared<ProjectParserTriton>();
+        break;
+    case ParserType::DB_FTRACE:
+        alloc = std::make_shared<ProjectParserFtrace>();
+        break;
+    default:
+        alloc = std::make_shared<ProjectParserBase>();
+        break;
     }
     return alloc;
 }
 
-void ParserFactory::Reset()
-{
+void ParserFactory::Reset() {
     std::lock_guard<std::mutex> lock(mutex);
     std::shared_ptr<IE::ServitizationOpenApi> openApi = std::make_shared<IE::ServitizationOpenApi>();
     openApi->Reset();
@@ -149,13 +146,8 @@ void ParserFactory::Reset()
     MemSnapshotParser::Instance().Reset();
 }
 
-void ProjectParserBase::SetBaseActionOfResponse(ImportActionResponse &response,
-                                                const std::string &rankId,
-                                                const std::string &fileId,
-                                                const std::string &cardPath,
-                                                std::vector<std::string> dataPath,
-                                                int64_t projectType)
-{
+void ProjectParserBase::SetBaseActionOfResponse(ImportActionResponse &response, const std::string &rankId,
+    const std::string &fileId, const std::string &cardPath, std::vector<std::string> dataPath, int64_t projectType) {
     auto rankList = TrackInfoManager::Instance().GetRankListByFileId(fileId, rankId);
     Action action;
     if (!rankList.empty()) {
@@ -173,9 +165,7 @@ void ProjectParserBase::SetBaseActionOfResponse(ImportActionResponse &response,
     response.body.result.emplace_back(action);
 }
 
-void ProjectParserBase::ParseClusterEndProcess(std::string result, bool isShowCluster,
-                                               const std::string &clusterId)
-{
+void ProjectParserBase::ParseClusterEndProcess(std::string result, bool isShowCluster, const std::string &clusterId) {
     ServerLog::Info("Parse Cluster File end, send event");
     auto event = std::make_unique<ParseClusterCompletedEvent>();
     event->moduleName = MODULE_TIMELINE;
@@ -186,11 +176,8 @@ void ProjectParserBase::ParseClusterEndProcess(std::string result, bool isShowCl
     SendEvent(std::move(event));
 }
 
-void ProjectParserBase::ParseEndCallBack(const std::string &rankId,
-                                         const std::string &fileId,
-                                         bool result,
-                                         const std::string &message)
-{
+void ProjectParserBase::ParseEndCallBack(
+    const std::string &rankId, const std::string &fileId, bool result, const std::string &message) {
     ServerLog::Info("Parse end, fileId:", rankId, ", result:", result);
     if (result) {
         SendParseSuccessEvent(rankId, fileId);
@@ -199,9 +186,8 @@ void ProjectParserBase::ParseEndCallBack(const std::string &rankId,
     }
 }
 
-void ProjectParserBase::ParseProgressCallBack(const std::string &fileId, uint64_t parsedSize, uint64_t totalSize,
-    int progress)
-{
+void ProjectParserBase::ParseProgressCallBack(
+    const std::string &fileId, uint64_t parsedSize, uint64_t totalSize, int progress) {
     auto event = std::make_unique<ParseProgressEvent>();
     event->moduleName = MODULE_TIMELINE;
     event->result = true;
@@ -212,8 +198,7 @@ void ProjectParserBase::ParseProgressCallBack(const std::string &fileId, uint64_
     SendEvent(std::move(event));
 }
 
-void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const std::string &fileId)
-{
+void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const std::string &fileId) {
     auto event = std::make_unique<ParseSuccessEvent>();
     event->moduleName = MODULE_TIMELINE;
     event->result = true;
@@ -243,9 +228,8 @@ void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const s
     event->body.fileId = fileId;
     event->body.isFullDb = Timeline::DataBaseManager::Instance().GetDataType(fileId) == DataType::DB;
     std::vector<std::string> taskNameList = RL::RLMstxConfigManager::Instance().GetMstxTaskNameList();
-    auto mstxSliceList = FullDb::RenderEngine::Instance()->QueryMstxRLDetail(rankId,
-        Timeline::DataBaseManager::Instance().GetDataType(fileId),
-        taskNameList);
+    auto mstxSliceList = FullDb::RenderEngine::Instance()->QueryMstxRLDetail(
+        rankId, Timeline::DataBaseManager::Instance().GetDataType(fileId), taskNameList);
     event->body.isRl = !mstxSliceList.empty();
     event->body.rankList = TrackInfoManager::Instance().GetRankListByFileId(fileId, rankId);
     SearchMetaData(rankId, fileId, event->body.unit.children);
@@ -253,10 +237,8 @@ void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const s
     SendEvent(std::move(event));
 }
 
-void ProjectParserBase::SendParseFailEvent(const std::string &rankId,
-                                           const std::string &fileId,
-                                           const std::string &message)
-{
+void ProjectParserBase::SendParseFailEvent(
+    const std::string &rankId, const std::string &fileId, const std::string &message) {
     auto event = std::make_unique<ParseFailEvent>();
     event->moduleName = MODULE_TIMELINE;
     event->result = true;
@@ -266,8 +248,7 @@ void ProjectParserBase::SendParseFailEvent(const std::string &rankId,
     SendEvent(std::move(event));
 }
 
-bool ProjectParserBase::IsNeedReset(const ImportActionRequest &request)
-{
+bool ProjectParserBase::IsNeedReset(const ImportActionRequest &request) {
     // 如果是切换项目，则必须重置
     if (request.params.projectAction == ProjectActionEnum::TRANSFER_PROJECT) {
         return true;
@@ -280,9 +261,8 @@ bool ProjectParserBase::IsNeedReset(const ImportActionRequest &request)
     return false;
 }
 
-void ProjectParserBase::SearchGroupedAscendHardwareThreads(const std::string &fileId,
-    const Unit &unit, std::vector<ThreadGroup> &groupedThreads)
-{
+void ProjectParserBase::SearchGroupedAscendHardwareThreads(
+    const std::string &fileId, const Unit &unit, std::vector<ThreadGroup> &groupedThreads) {
     const auto database = DataBaseManager::Instance().GetTraceDatabaseByFileId(fileId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection. fileId:", fileId);
@@ -298,7 +278,7 @@ void ProjectParserBase::SearchGroupedAscendHardwareThreads(const std::string &fi
         std::unordered_set<std::string> threadIdSet;
         // 预分配空间，避免多次rehash，提升性能
         threadIdSet.reserve(item->children.size());
-        for (const auto& threadPtr : item->children) {
+        for (const auto &threadPtr : item->children) {
             // 直接插入提取出的 threadId
             threadIdSet.insert(threadPtr->metaData.threadId);
         }
@@ -308,7 +288,7 @@ void ProjectParserBase::SearchGroupedAscendHardwareThreads(const std::string &fi
                 continue;
             }
             const bool matched = std::any_of(groupedThread.threadIds.begin(), groupedThread.threadIds.end(),
-                [&](const std::string& id) { return threadIdSet.find(id) != threadIdSet.end(); });
+                [&](const std::string &id) { return threadIdSet.find(id) != threadIdSet.end(); });
             if (matched) {
                 groupedThread.processId = item->metaData.processId;
                 groupedThread.cardId = unit.metadata.cardId;
@@ -319,9 +299,8 @@ void ProjectParserBase::SearchGroupedAscendHardwareThreads(const std::string &fi
     }
 }
 
-void ProjectParserBase::SearchMetaData(const std::string &rankId, const std::string &fileId,
-                                       std::vector<std::unique_ptr<UnitTrack>> &metaData)
-{
+void ProjectParserBase::SearchMetaData(
+    const std::string &rankId, const std::string &fileId, std::vector<std::unique_ptr<UnitTrack>> &metaData) {
     auto database = DataBaseManager::Instance().GetTraceDatabaseByFileId(fileId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection. fileId:", fileId);
@@ -331,10 +310,9 @@ void ProjectParserBase::SearchMetaData(const std::string &rankId, const std::str
     ProcessMetadata(metaData);
 }
 
-void ProjectParserBase::ProcessMetadata(std::vector<std::unique_ptr<UnitTrack>> &metaData)
-{
-    for (const auto &item: metaData) {
-        for (const auto &thread: item->children) {
+void ProjectParserBase::ProcessMetadata(std::vector<std::unique_ptr<UnitTrack>> &metaData) {
+    for (const auto &item : metaData) {
+        for (const auto &thread : item->children) {
             if (thread->metaData.groupNameValue.empty()) {
                 continue;
             }
@@ -352,8 +330,7 @@ void ProjectParserBase::ProcessMetadata(std::vector<std::unique_ptr<UnitTrack>> 
     }
 }
 
-std::string ProjectParserBase::GetRankIdFromPath(const std::string &filePath, const std::string &importPath)
-{
+std::string ProjectParserBase::GetRankIdFromPath(const std::string &filePath, const std::string &importPath) {
     std::string fileId = FileUtil::GetRankIdFromFile(filePath);
     int i = 1;
     std::string result = fileId;
@@ -379,8 +356,7 @@ std::string ProjectParserBase::GetRankIdFromPath(const std::string &filePath, co
     return result;
 }
 
-std::string ProjectParserBase::GetDbPath(const std::string &filePath, const int index)
-{
+std::string ProjectParserBase::GetDbPath(const std::string &filePath, const int index) {
     std::string path(filePath);
     std::string suffix = DB_FILE_SUFFIX;
     if (index != 1) {
@@ -395,17 +371,17 @@ std::string ProjectParserBase::GetDbPath(const std::string &filePath, const int 
     return path;
 }
 
-bool ProjectParserBase::ParseHeatMapToCluster(const std::vector<std::shared_ptr<ParseFileInfo>> &clusterInfos)
-{
+bool ProjectParserBase::ParseHeatMapToCluster(const std::vector<std::shared_ptr<ParseFileInfo>> &clusterInfos) {
     bool res = false;
     // 全量db和json场景需要存储集群和单卡的映射关系
-    for (const auto &cluster: clusterInfos) {
+    for (const auto &cluster : clusterInfos) {
         std::vector<std::string> rankIdList;
-        for (const auto &child: cluster->subParseFile) {
+        for (const auto &child : cluster->subParseFile) {
             rankIdList.push_back(child->rankId);
         }
         std::string errorMsg;
-        bool tempRes = Summary::ExpertHotspotManager::UpdateHeatMapFromProfiling(errorMsg, cluster->parseFilePath, rankIdList);
+        bool tempRes =
+            Summary::ExpertHotspotManager::UpdateHeatMapFromProfiling(errorMsg, cluster->parseFilePath, rankIdList);
         if (!tempRes) {
             ServerLog::Warn(errorMsg, " cluster path:", cluster->parseFilePath);
         }
@@ -415,12 +391,11 @@ bool ProjectParserBase::ParseHeatMapToCluster(const std::vector<std::shared_ptr<
     return res;
 }
 
-void ProjectParserBase::ParsePostProcess(const std::vector<std::shared_ptr<ParseFileInfo>> &clusterInfos)
-{
+void ProjectParserBase::ParsePostProcess(const std::vector<std::shared_ptr<ParseFileInfo>> &clusterInfos) {
     ParserStatusManager::Instance().WaitStartParse();
     // 全量db和json场景需要存储集群和单卡的映射关系
-    for (const auto &cluster: clusterInfos) {
-        for (const auto &child: cluster->subParseFile) {
+    for (const auto &cluster : clusterInfos) {
+        for (const auto &child : cluster->subParseFile) {
             TrackInfoManager::Instance().UpdateClusterDbToFileIdMap(cluster->parseFilePath, child->fileId);
         }
     }
@@ -443,8 +418,7 @@ void ProjectParserBase::ParsePostProcess(const std::vector<std::shared_ptr<Parse
     SendEvent(std::move(event));
 }
 
-void ProjectParserBase::SendAllParseSuccess()
-{
+void ProjectParserBase::SendAllParseSuccess() {
     ParserStatusManager::Instance().WaitStartParse();
     std::string notFinishTask = "";
     const int maxSleepTimeMs = 2000;
@@ -462,7 +436,7 @@ void ProjectParserBase::SendAllParseSuccess()
     event->result = true;
     event->body.isAllPageParsed = true;
     for (const auto &item : TraceTime::Instance().ComputeCardMinTimeInfo()) {
-        CardOffset cardOffset = { item.first, item.second };
+        CardOffset cardOffset = {item.first, item.second};
         event->body.cardOffsets.emplace_back(cardOffset);
     }
     event->body.minTime = TraceTime::Instance().GetStartTime();
@@ -470,9 +444,8 @@ void ProjectParserBase::SendAllParseSuccess()
     SendEvent(std::move(event));
 }
 
-void ProjectParserBase::SaveDbPath(const std::string &curProjectName,
-    std::map<std::string, std::vector<std::string>> &dataPathToDbMap)
-{
+void ProjectParserBase::SaveDbPath(
+    const std::string &curProjectName, std::map<std::string, std::vector<std::string>> &dataPathToDbMap) {
     Global::ProjectExplorerManager::Instance().UpdateProjectDbPath(curProjectName, dataPathToDbMap);
 }
 
@@ -484,9 +457,8 @@ void ProjectParserBase::SaveDbPath(const std::string &curProjectName,
  * @param projectName 项目名
  * @return 是否要打开集群标签
  */
-bool ProjectParserBase::CheckIsOpenClusterTag(ProjectActionEnum action, ProjectTypeEnum curType,
-    const std::string &projectName)
-{
+bool ProjectParserBase::CheckIsOpenClusterTag(
+    ProjectActionEnum action, ProjectTypeEnum curType, const std::string &projectName) {
     // 如果当前类型是集群，则直接返回true
     if (curType == ProjectTypeEnum::TEXT_CLUSTER || curType == ProjectTypeEnum::DB_CLUSTER) {
         return true;
@@ -502,9 +474,8 @@ bool ProjectParserBase::CheckIsOpenClusterTag(ProjectActionEnum action, ProjectT
     return (projectType == ProjectTypeEnum::TEXT_CLUSTER || projectType == ProjectTypeEnum::DB_CLUSTER);
 }
 
-void ProjectParserBase::BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo,
-                                                const std::vector<std::string> &parsedFiles)
-{
+void ProjectParserBase::BuildProjectExploreInfo(
+    ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles) {
     // 默认将import path加入
     auto parseInfo = std::make_shared<ParseFileInfo>();
     parseInfo->type = ParseFileType::PROJECT;
@@ -516,13 +487,9 @@ void ProjectParserBase::BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo
     projectInfo.fileInfoMap.emplace(parseInfo->subId, parseInfo);
 }
 
-bool ProjectParserBase::IsParsedFile(const std::string &file)
-{
-    return false;
-}
+bool ProjectParserBase::IsParsedFile(const std::string &file) { return false; }
 
-std::vector<std::string> ProjectParserBase::GetParentFileList(const std::string &prefix, const std::string &filePath)
-{
+std::vector<std::string> ProjectParserBase::GetParentFileList(const std::string &prefix, const std::string &filePath) {
     std::vector<std::string> res;
     if (prefix == filePath) {
         return res;
@@ -535,21 +502,19 @@ std::vector<std::string> ProjectParserBase::GetParentFileList(const std::string 
     return res;
 }
 
-std::tuple<std::string, std::string> ProjectParserBase::GetClusterInfo(const std::vector<std::string> &folders)
-{
+std::tuple<std::string, std::string> ProjectParserBase::GetClusterInfo(const std::vector<std::string> &folders) {
     if (folders.empty()) {
         return {"", ""};
     }
     return {folders.back(), folders.back()};
 }
 
-std::vector<std::string> ProjectParserBase::SearchDeviceInfo(const std::string &searchPath)
-{
+std::vector<std::string> ProjectParserBase::SearchDeviceInfo(const std::string &searchPath) {
     // 在PROF_目录下寻找device_x
     static std::regex profRegex("^PROF_");
     static std::regex deviceRegex("^device_([0-9]+)$");
     std::string profDir;
-    for (const auto &folder: FileUtil::GetSubDirs(searchPath)) {
+    for (const auto &folder : FileUtil::GetSubDirs(searchPath)) {
         std::string folderName = FileUtil::GetFileName(folder);
         if (std::regex_search(folderName, profRegex)) {
             profDir = folder;
@@ -558,9 +523,9 @@ std::vector<std::string> ProjectParserBase::SearchDeviceInfo(const std::string &
     }
     std::smatch match;
     std::vector<std::string> res;
-    auto subDir = profDir.empty() ? FileUtil::GetSubDirs(searchPath) :
-            FileUtil::GetSubDirs(FileUtil::SplicePath(searchPath, profDir));
-    for (const auto &dir: subDir) {
+    auto subDir = profDir.empty() ? FileUtil::GetSubDirs(searchPath)
+                                  : FileUtil::GetSubDirs(FileUtil::SplicePath(searchPath, profDir));
+    for (const auto &dir : subDir) {
         std::string fileName = dir;
         if (!std::regex_search(fileName, match, deviceRegex)) {
             continue;
@@ -573,8 +538,7 @@ std::vector<std::string> ProjectParserBase::SearchDeviceInfo(const std::string &
     return res;
 }
 
-void ProjectParserBase::AddRankDeviceParseFileInfo(ProjectExplorerInfo &info, std::shared_ptr<ParseFileInfo> rankInfo)
-{
+void ProjectParserBase::AddRankDeviceParseFileInfo(ProjectExplorerInfo &info, std::shared_ptr<ParseFileInfo> rankInfo) {
     auto deviceIdsGetFromDir = ProjectParserBase::SearchDeviceInfo(FileUtil::GetParentPath(rankInfo->parseFilePath));
     auto deviceIdsFromFile = ProjectParserBase::ParseDeviceInfo(info, rankInfo->parseFilePath);
     if (deviceIdsGetFromDir.size() < 2 || deviceIdsFromFile.size() < 2) { // deviceIds size > 2, multi device
@@ -589,24 +553,21 @@ void ProjectParserBase::AddRankDeviceParseFileInfo(ProjectExplorerInfo &info, st
         return;
     }
     std::vector<std::string> deviceId = deviceIdsFromFile;
-    std::for_each(deviceId.begin(),
-                  deviceId.end(),
-                  [&info, &rankInfo](const std::string &deviceId) {
-                      auto deviceInfo = std::make_shared<ParseFileInfo>();
-                      deviceInfo->subId = FileUtil::SplicePath(rankInfo->subId, deviceId);
-                      deviceInfo->parseFilePath = rankInfo->parseFilePath;
-                      deviceInfo->type = ParseFileType::DEVICE_CHIP;
-                      deviceInfo->rankId = deviceId;
-                      deviceInfo->fileId = rankInfo->fileId;
-                      deviceInfo->clusterId = rankInfo->clusterId;
-                      deviceInfo->deviceId = deviceId;
-                      deviceInfo->projectType = info.projectType;
-                      info.AddSubParseFileInfo(deviceInfo);
-                  });
+    std::for_each(deviceId.begin(), deviceId.end(), [&info, &rankInfo](const std::string &deviceId) {
+        auto deviceInfo = std::make_shared<ParseFileInfo>();
+        deviceInfo->subId = FileUtil::SplicePath(rankInfo->subId, deviceId);
+        deviceInfo->parseFilePath = rankInfo->parseFilePath;
+        deviceInfo->type = ParseFileType::DEVICE_CHIP;
+        deviceInfo->rankId = deviceId;
+        deviceInfo->fileId = rankInfo->fileId;
+        deviceInfo->clusterId = rankInfo->clusterId;
+        deviceInfo->deviceId = deviceId;
+        deviceInfo->projectType = info.projectType;
+        info.AddSubParseFileInfo(deviceInfo);
+    });
 }
 
-bool ProjectParserBase::IsMindFormsRankData(const std::vector<std::string> &parentFolders)
-{
+bool ProjectParserBase::IsMindFormsRankData(const std::vector<std::string> &parentFolders) {
     // mindforms profiling data:   rank_xx/xxx_acend_ms
     if (parentFolders.empty()) {
         return false;
@@ -614,9 +575,8 @@ bool ProjectParserBase::IsMindFormsRankData(const std::vector<std::string> &pare
     return RegexUtil::RegexSearch(FileUtil::GetFileName(parentFolders.back()), "^rank_[0-9]+$").has_value();
 }
 
-void ProjectParserBase::SendUnitFinishNotify(const std::string &fileId, bool res, const std::string &unitName,
-                                             const std::string &error)
-{
+void ProjectParserBase::SendUnitFinishNotify(
+    const std::string &fileId, bool res, const std::string &unitName, const std::string &error) {
     auto event = std::make_unique<ParseUnitCompletedEvent>();
     event->body.parseResult = res;
     event->body.unitName = unitName;
@@ -627,8 +587,8 @@ void ProjectParserBase::SendUnitFinishNotify(const std::string &fileId, bool res
     SendEvent(std::move(event));
 }
 
-std::vector<std::string> ProjectParserBase::ParseDeviceInfo(Dic::Module::Global::ProjectExplorerInfo &info, const std::string &searchPath)
-{
+std::vector<std::string> ProjectParserBase::ParseDeviceInfo(
+    Dic::Module::Global::ProjectExplorerInfo &info, const std::string &searchPath) {
     if (info.projectType == static_cast<int64_t>(ProjectTypeEnum::DB_CLUSTER) ||
         info.projectType == static_cast<int64_t>(ProjectTypeEnum::DB)) {
         std::vector<std::string> dbFiles = FileUtil::FindFilesWithFilter(searchPath, std::regex{"analysis.db"});
@@ -638,7 +598,8 @@ std::vector<std::string> ProjectParserBase::ParseDeviceInfo(Dic::Module::Global:
         std::set<std::string> deviceIds = ProjectParserBase::ParseDeviceIdSetFromDb(dbFiles[0]);
         return std::vector<std::string>(deviceIds.begin(), deviceIds.end());
     }
-    std::vector<std::string> stepTraceTimeCsvFiles = FileUtil::FindFirstFileByRegex(searchPath, std::regex("^step_trace_time.csv$"));
+    std::vector<std::string> stepTraceTimeCsvFiles =
+        FileUtil::FindFirstFileByRegex(searchPath, std::regex("^step_trace_time.csv$"));
     if (stepTraceTimeCsvFiles.empty()) {
         return {};
     }
@@ -647,8 +608,7 @@ std::vector<std::string> ProjectParserBase::ParseDeviceInfo(Dic::Module::Global:
     return std::vector<std::string>(deviceIdSet.begin(), deviceIdSet.end());
 }
 
-std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromCsv(const std::string &filePath)
-{
+std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromCsv(const std::string &filePath) {
     auto file = OpenReadFileSafely(filePath);
     if (!file.is_open()) {
         ServerLog::Error("Failed to open step_trace_time.csv.");
@@ -677,8 +637,7 @@ std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromCsv(const std::stri
     return deviceIds;
 }
 
-std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromDb(const std::string &dbPath)
-{
+std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromDb(const std::string &dbPath) {
     std::recursive_mutex mutex;
     auto database = std::make_shared<DbTraceDataBase>(mutex);
     std::set<std::string> deviceId;
@@ -691,8 +650,8 @@ std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromDb(const std::strin
     }
     return deviceId;
 }
-void ProjectParserBase::MergeFileTree(std::vector<std::shared_ptr<ParseFileInfo>> &rootTree, const std::vector<std::shared_ptr<ParseFileInfo>> &childrenTree)
-{
+void ProjectParserBase::MergeFileTree(std::vector<std::shared_ptr<ParseFileInfo>> &rootTree,
+    const std::vector<std::shared_ptr<ParseFileInfo>> &childrenTree) {
     if (rootTree.empty()) {
         rootTree = childrenTree;
         return;
@@ -701,19 +660,18 @@ void ProjectParserBase::MergeFileTree(std::vector<std::shared_ptr<ParseFileInfo>
         return;
     }
     if (rootTree[0]->subId == childrenTree[0]->subId) {
-        rootTree[0]->subParseFile.insert(rootTree[0]->subParseFile.begin(),
-                                         childrenTree[0]->subParseFile.begin(),
-                                         childrenTree[0]->subParseFile.end());
+        rootTree[0]->subParseFile.insert(rootTree[0]->subParseFile.begin(), childrenTree[0]->subParseFile.begin(),
+            childrenTree[0]->subParseFile.end());
     } else {
         rootTree.insert(rootTree.end(), childrenTree.begin(), childrenTree.end());
     }
 }
 
-void ProjectParserBase::SendImportActionRes(std::unique_ptr<ImportActionResponse> responsePtr)
-{
-    std::sort(responsePtr->body.result.begin(), responsePtr->body.result.end(), [](const Action& a, const Action& b) {
-        if (a.cardName.size() != b.cardName.size())
+void ProjectParserBase::SendImportActionRes(std::unique_ptr<ImportActionResponse> responsePtr) {
+    std::sort(responsePtr->body.result.begin(), responsePtr->body.result.end(), [](const Action &a, const Action &b) {
+        if (a.cardName.size() != b.cardName.size()) {
             return a.cardName.size() < b.cardName.size();
+        }
 
         return a.cardName < b.cardName;
     });

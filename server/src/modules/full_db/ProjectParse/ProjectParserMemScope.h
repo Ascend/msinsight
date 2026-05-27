@@ -24,20 +24,20 @@
 
 namespace Dic::Module {
 class ProjectParserMemScope : public ProjectParserBase {
-public:
+  public:
     ProjectParserMemScope() = default;
     // 需要被实现
-    void Parser(const std::vector<ProjectExplorerInfo>& projectInfos,
-                ImportActionRequest& request, ImportActionResponse& response) override;
-    ProjectTypeEnum GetProjectType(const std::string& dataPath) override;
-    std::vector<std::string> GetParseFileByImportFile(const std::string& importFile, std::string& error) override;
+    void Parser(const std::vector<ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
+        ImportActionResponse &response) override;
+    ProjectTypeEnum GetProjectType(const std::string &dataPath) override;
+    std::vector<std::string> GetParseFileByImportFile(const std::string &importFile, std::string &error) override;
     // 覆盖重写
-    static void BuildProjectExploreInfo(ProjectExplorerInfo& projectInfo, const std::vector<std::string>& parsedFiles);
+    static void BuildProjectExploreInfo(ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles);
 
     // API
-    static bool IsMemScopeDbFile(const std::string& filename);
+    static bool IsMemScopeDbFile(const std::string &filename);
 
-private:
+  private:
     inline static std::string LOG_TAG = "[MemScope]";
 };
 } // namespace Dic::Module

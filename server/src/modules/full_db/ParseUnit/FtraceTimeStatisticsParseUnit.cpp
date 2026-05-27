@@ -23,32 +23,25 @@
 
 namespace Dic::Module::FullDb {
 
-std::string FtraceTimeStatisticsParseUnit::GetUnitName() const
-{
-    return Dic::FTRACE_TIME_STATISTICS_UNIT;
-}
+std::string FtraceTimeStatisticsParseUnit::GetUnitName() const { return Dic::FTRACE_TIME_STATISTICS_UNIT; }
 
-bool FtraceTimeStatisticsParseUnit::PreCheck(const ParseUnitParams &params,
-                                              const std::shared_ptr<Timeline::TextTraceDatabase> &database,
-                                              std::string &error)
-{
+bool FtraceTimeStatisticsParseUnit::PreCheck(
+    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     return database->CreateFtraceTable();
 }
 
-bool FtraceTimeStatisticsParseUnit::HandleParseProcess(const ParseUnitParams &params,
-                                                        const std::shared_ptr<Timeline::TextTraceDatabase> &database,
-                                                        std::string &error)
-{
+bool FtraceTimeStatisticsParseUnit::HandleParseProcess(
+    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     std::vector<std::string> nameList = {"Sleeping", "Runnable", "Running"};
-    auto allTimeSlice = RenderEngine::Instance()->QuerySliceDetailByNameList(params.dbId, DataType::TEXT, "Process Scheduling", nameList);
+    auto allTimeSlice = RenderEngine::Instance()->QuerySliceDetailByNameList(
+        params.dbId, DataType::TEXT, "Process Scheduling", nameList);
 
     auto initStatData = []() {
-        return std::unordered_map<std::string, uint64_t>{
-            {"runnable", 0}, {"running", 0}, {"sleeping", 0}
-        };
+        return std::unordered_map<std::string, uint64_t>{{"runnable", 0}, {"running", 0}, {"sleeping", 0}};
     };
 
-    auto addTimeStat = [](std::unordered_map<std::string, uint64_t> &statData, const std::string &timeType, uint64_t duration) {
+    auto addTimeStat = [](std::unordered_map<std::string, uint64_t> &statData, const std::string &timeType,
+                           uint64_t duration) {
         if (timeType == "Runnable") {
             statData["runnable"] += duration;
         } else if (timeType == "Running") {
@@ -60,8 +53,7 @@ bool FtraceTimeStatisticsParseUnit::HandleParseProcess(const ParseUnitParams &pa
 
     std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> statsMap;
 
-    for (const auto &slice : allTimeSlice)
-    {
+    for (const auto &slice : allTimeSlice) {
         uint64_t trackId = slice.trackId;
         std::string timeType = slice.name;
         uint64_t duration = slice.duration;

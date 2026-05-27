@@ -34,9 +34,7 @@ using namespace Dic::Server;
 using namespace Dic::Module::Global;
 
 void ProjectParserBin::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos,
-                              ImportActionRequest &request,
-                              ImportActionResponse &response)
-{
+    ImportActionRequest &request, ImportActionResponse &response) {
     ModuleRequestHandler::SetBaseResponse(request, response);
     if (std::empty(projectInfos)) {
         SendParseFailEvent("", "", "Project explorer info is not existed.");
@@ -50,14 +48,14 @@ void ProjectParserBin::Parser(const std::vector<Global::ProjectExplorerInfo> &pr
     response.body.reset = true;
     response.body.subParseFileInfo = projectInfos[0].subParseFileInfo;
     // 导入bin文件时，只会有二层文件树，且二级目录数量为1，因此这里直接对rankId进行赋值
-    for (auto &item: projectInfos[0].projectFileTree) {
-        for (auto &subItem: item->subParseFile) {
+    for (auto &item : projectInfos[0].projectFileTree) {
+        for (auto &subItem : item->subParseFile) {
             subItem->rankId = subItem->parseFilePath;
             Timeline::DataBaseManager::Instance().SetDataType(Timeline::DataType::TEXT, subItem->parseFilePath);
         }
     }
-    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(projectInfos[0].projectName,
-                                                                        projectInfos[0].subParseFileInfo)) {
+    if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(
+            projectInfos[0].projectName, projectInfos[0].subParseFileInfo)) {
         ServerLog::Error("Failed to update project in parsing");
     }
     response.body.projectFileTree = projectInfos[0].projectFileTree;
@@ -82,8 +80,7 @@ void ProjectParserBin::Parser(const std::vector<Global::ProjectExplorerInfo> &pr
     }
 }
 
-void ProjectParserBin::HandleCompute(ImportActionResponse &response, const std::string &selectedFolder)
-{
+void ProjectParserBin::HandleCompute(ImportActionResponse &response, const std::string &selectedFolder) {
     ServerLog::Info("Start parser source binary.");
     Source::SourceFileParser &sourceFileParser = Source::SourceFileParser::Instance();
     sourceFileParser.Reset();
@@ -106,17 +103,13 @@ void ProjectParserBin::HandleCompute(ImportActionResponse &response, const std::
     RankInfo rankInfo("", "", rankId, rankId, rankId);
     Timeline::TrackInfoManager::Instance().SetRankListByFileId(fileId, rankInfo);
     sourceFileParser.Parse(empty, rankId, selectedFolder, fileId);
-    for (const auto &rankEntry: rankListMap) {
+    for (const auto &rankEntry : rankListMap) {
         if (rankEntry.second.empty()) {
             continue;
         }
         std::string cardPath = FileUtil::GetRankIdFromPath(rankEntry.second[0]);
-        SetBaseActionOfResponse(response,
-                                rankEntry.second[0],
-                                fileId,
-                                cardPath,
-                                std::vector<std::string>{},
-                                static_cast<int>(ProjectTypeEnum::BIN));
+        SetBaseActionOfResponse(response, rankEntry.second[0], fileId, cardPath, std::vector<std::string>{},
+            static_cast<int>(ProjectTypeEnum::BIN));
     }
     ModuleRequestHandler::SetResponseResult(response, true);
     response.body.isBinary = true;
@@ -127,9 +120,7 @@ void ProjectParserBin::HandleCompute(ImportActionResponse &response, const std::
 }
 
 std::vector<std::pair<std::string, std::string>> ProjectParserBin::GetSimulationTraceFiles(
-    const std::string &selectFilePath,
-    ImportActionResBody &body)
-{
+    const std::string &selectFilePath, ImportActionResBody &body) {
     body.isCluster = false;
     std::vector<std::pair<std::string, std::string>> files;
     std::string fileId = FileUtil::GetSingleFileIdWithDb(selectFilePath);
@@ -141,29 +132,22 @@ std::vector<std::pair<std::string, std::string>> ProjectParserBin::GetSimulation
     return files;
 }
 
-void ProjectParserBin::SetParseCallBack(FileParser &fileParser)
-{
-    std::function<void(const std::string, const std::string, bool, const std::string)> func =
-            std::bind(ParseEndCallBack, std::placeholders::_1, std::placeholders::_2,
-                      std::placeholders::_3,
-                      std::placeholders::_4);
+void ProjectParserBin::SetParseCallBack(FileParser &fileParser) {
+    std::function<void(const std::string, const std::string, bool, const std::string)> func = std::bind(
+        ParseEndCallBack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
     fileParser.SetParseEndCallBack(func);
 
     // 复用解析完成回调函数设置逻辑
     std::function<void(const std::string, uint64_t parsedSize, uint64_t totalSize, int progress)> progressFunc =
-            std::bind(ParseProgressCallBack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
-                      std::placeholders::_4);
+        std::bind(ParseProgressCallBack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+            std::placeholders::_4);
     fileParser.SetParseProgressCallBack(progressFunc);
 }
 
-ProjectTypeEnum ProjectParserBin::GetProjectType(const std::string &dataPath)
-{
-    return ProjectTypeEnum::BIN;
-}
+ProjectTypeEnum ProjectParserBin::GetProjectType(const std::string &dataPath) { return ProjectTypeEnum::BIN; }
 
-void ProjectParserBin::ParserBaseline(const Global::ProjectExplorerInfo &projectInfo,
-    Global::BaselineInfo &baselineInfo)
-{
+void ProjectParserBin::ParserBaseline(
+    const Global::ProjectExplorerInfo &projectInfo, Global::BaselineInfo &baselineInfo) {
     if (projectInfo.fileInfoMap.empty()) {
         return;
     }
@@ -171,7 +155,7 @@ void ProjectParserBin::ParserBaseline(const Global::ProjectExplorerInfo &project
     std::string fileId = FileUtil::GetSingleFileIdWithDb(filePath);
     std::string originalRankId = filePath;
     std::string rankId = "Baseline_" + originalRankId;
-    baselineInfo.rankId =  rankId;
+    baselineInfo.rankId = rankId;
     baselineInfo.cardName = "Baseline_" + rankId;
     baselineInfo.fileId = fileId;
     Timeline::TrackInfoManager::Instance().SetRankListByFileId(fileId, {"", "", rankId, rankId, rankId});
@@ -197,17 +181,15 @@ void ProjectParserBin::ParserBaseline(const Global::ProjectExplorerInfo &project
     }
 }
 
-void ProjectParserBin::BuildProjectExploreInfo(Dic::Module::Global::ProjectExplorerInfo &projectInfo,
-    const std::vector<std::string> &parsedFiles)
-{
+void ProjectParserBin::BuildProjectExploreInfo(
+    Dic::Module::Global::ProjectExplorerInfo &projectInfo, const std::vector<std::string> &parsedFiles) {
     ProjectParserBase::BuildProjectExploreInfo(projectInfo, parsedFiles);
     std::for_each(parsedFiles.begin(), parsedFiles.end(), [&projectInfo](const std::string &parseFile) {
         ProjectParserBin::BuildProjectInfoFromParseFile(projectInfo, parseFile);
     });
 }
 
-void ProjectParserBin::BuildProjectInfoFromParseFile(ProjectExplorerInfo &projectInfo, const std::string &parsedFile)
-{
+void ProjectParserBin::BuildProjectInfoFromParseFile(ProjectExplorerInfo &projectInfo, const std::string &parsedFile) {
     // bin类型没有上层结构
     auto parseFileInfo = std::make_shared<ParseFileInfo>();
     parseFileInfo->parseFilePath = parsedFile;
