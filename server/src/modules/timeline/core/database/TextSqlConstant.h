@@ -229,7 +229,7 @@ public:
     {
         return "SELECT timestamp, args, process.pid as pid, thread.tid as tid "
             "FROM counter JOIN process ON counter.pid = process.pid JOIN thread ON process.pid = thread.pid "
-            "WHERE (process.pid & 0x1f) = ? AND counter.name = 'AI Core Freq' ORDER BY timestamp ASC ";
+            "WHERE (process.pid & 0x1f) = ? AND counter.name LIKE '%AI Core Freq%' ORDER BY timestamp ASC ";
     }
 
     static std::string GetOverlapAnalysisTextSqlByType(const SystemViewOverallReqParam &params)
