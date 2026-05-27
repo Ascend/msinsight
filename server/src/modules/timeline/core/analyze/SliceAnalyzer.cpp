@@ -18,20 +18,17 @@
 #include "pch.h"
 #include "SliceAnalyzer.h"
 namespace Dic::Module::Timeline {
-SliceAnalyzer::SliceAnalyzer()
-{
+SliceAnalyzer::SliceAnalyzer() {
     if (repository == nullptr) {
         repository = std::make_shared<TextRepository>();
     }
 };
 
-void SliceAnalyzer::SetRepository(std::shared_ptr<IBaseSliceRepo> repositoryDependency)
-{
+void SliceAnalyzer::SetRepository(std::shared_ptr<IBaseSliceRepo> repositoryDependency) {
     repository = repositoryDependency;
 }
 
-SliceAnalyzer::~SliceAnalyzer()
-{
+SliceAnalyzer::~SliceAnalyzer() {
     if (repository != nullptr) {
         repository = nullptr;
     }
@@ -39,8 +36,7 @@ SliceAnalyzer::~SliceAnalyzer()
 
 std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeResultIds(uint64_t startTime, uint64_t endTime,
     std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
-    const std::vector<uint64_t> &pythonFunctionIds)
-{
+    const std::vector<uint64_t> &pythonFunctionIds) {
     // 根据开始时间结束时间把屏幕平均分成1000份
     const int maxDataCount = 1000;
     uint64_t unitTime = (endTime - startTime) / maxDataCount; // 前端传入做了校验保证 startTime <= endTime
@@ -54,7 +50,7 @@ std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeResultIds(uint64_t
             continue;
         }
         for (item.depth = 0; item.depth < endList.size() && endList[item.depth].endTime > item.timestamp;
-            item.depth++) {
+             item.depth++) {
         }
         if (item.depth < endList.size()) {
             endList[item.depth].endTime = item.endTime;
@@ -104,8 +100,7 @@ std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeResultIds(uint64_t
  */
 std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeSmallScreenIds(uint64_t startTime, uint64_t endTime,
     std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
-    const std::vector<uint64_t> &pythonFunctionIds)
-{
+    const std::vector<uint64_t> &pythonFunctionIds) {
     std::set<std::pair<uint64_t, uint32_t>> ids;
     for (auto &item : sliceDomain) {
         if (!std::empty(pythonFunctionIds) &&
@@ -113,7 +108,7 @@ std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeSmallScreenIds(uin
             continue;
         }
         for (item.depth = 0; item.depth < endList.size() && endList[item.depth].endTime > item.timestamp;
-            item.depth++) {
+             item.depth++) {
         }
         if (item.depth < endList.size()) {
             endList[item.depth].endTime = item.endTime;
@@ -129,14 +124,12 @@ std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeSmallScreenIds(uin
     return ids;
 }
 
-void SliceAnalyzer::SortByTimestampASC(std::vector<SliceDomain> &cacheSlices)
-{
+void SliceAnalyzer::SortByTimestampASC(std::vector<SliceDomain> &cacheSlices) {
     std::sort(cacheSlices.begin(), cacheSlices.end(), SliceAnalyzer::CompareTimestampASC);
 }
 
-uint32_t SliceAnalyzer::ComputeFlowPointDepth(std::vector<SliceDomain> &cacheSlices, std::string &type,
-    uint64_t timestamp)
-{
+uint32_t SliceAnalyzer::ComputeFlowPointDepth(
+    std::vector<SliceDomain> &cacheSlices, std::string &type, uint64_t timestamp) {
     SliceDomain cacheSlice;
     cacheSlice.timestamp = timestamp;
     cacheSlice.id = 0;
@@ -171,9 +164,8 @@ uint32_t SliceAnalyzer::ComputeFlowPointDepth(std::vector<SliceDomain> &cacheSli
  * @param rows 所有算子
  * @param selfTimeKeyValue 计算结果
  */
-void SliceAnalyzer::CalculateSelfTime(std::vector<CompeteSliceDomain> &rows,
-    std::map<std::string, uint64_t> &selfTimeKeyValue)
-{
+void SliceAnalyzer::CalculateSelfTime(
+    std::vector<CompeteSliceDomain> &rows, std::map<std::string, uint64_t> &selfTimeKeyValue) {
     size_t length = rows.size();
     // offset变量用来优化性能
     uint64_t offset = 0;
@@ -212,12 +204,10 @@ void SliceAnalyzer::CalculateSelfTime(std::vector<CompeteSliceDomain> &rows,
     }
 }
 
-void SliceAnalyzer::ComputeScreenSliceIds(const SliceQuery &sliceQuery, std::set<uint64_t> &ids, uint64_t &maxDepth,
-    bool &havePythonFunction, std::map<uint64_t, uint32_t> &depthMap)
-{
+void SliceAnalyzer::ComputeScreenSliceIds(
+    const SliceQuery &sliceQuery, std::set<uint64_t> &ids, uint64_t &maxDepth, std::map<uint64_t, uint32_t> &depthMap) {
     std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
     auto &instance = SliceCacheManager::Instance();
-    instance.UpdatePythonFilterSet(sliceCacheKey, sliceQuery.isFilterPythonFunction);
     std::vector<SliceDomain> sliceDomainVec = instance.GetSliceDomainVec(sliceCacheKey, sliceQuery.rankId, sliceQuery);
     // 用于分页缓存的查询参数, 只有未命中缓存时，会被赋值；命中缓存时，其为空值，可以作为后续是否刷新cacheDuration的判断依据
     SliceQuery slicePagedQuery;
@@ -227,7 +217,6 @@ void SliceAnalyzer::ComputeScreenSliceIds(const SliceQuery &sliceQuery, std::set
         repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceDomainVec);
     }
     std::vector<uint64_t> pythonFunctionIds;
-    SliceCacheManager::Instance().SetPythonFunctionFilterStatus(sliceQuery.trackId, sliceQuery.isFilterPythonFunction);
     QueryPythonFuncIds(sliceQuery, pythonFunctionIds);
     std::vector<DepthHelper> endList;
     std::set<std::pair<uint64_t, uint32_t>> idPairVec = ComputeResultIds(sliceQuery.startTime + sliceQuery.minTimestamp,
@@ -247,24 +236,71 @@ void SliceAnalyzer::ComputeScreenSliceIds(const SliceQuery &sliceQuery, std::set
         ids.erase(0);
     }
     maxDepth = endList.size();
-    havePythonFunction = instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::EXIST;
-    // 此处不管是否命中缓存，都需要刷新，是因为显示/隐藏python调用栈时，depth信息可能会被更新, 而QueryDepthInfo会查询缓存中的depth信息
-    // todo: 后续可以将python调用栈单独提取出一个泳道，以避免depth反复刷新
+    // 此处不管是否命中缓存，都需要刷新，是因为depth信息可能会被更新, 而QueryDepthInfo会查询缓存中的depth信息
     instance.UpdateSliceCache(sliceCacheKey, sliceDomainVec, slicePagedQuery);
 }
 
-void SliceAnalyzer::QueryPythonFuncIds(const SliceQuery &sliceQuery, std::vector<uint64_t> &pythonFunctionIds)
-{
+void SliceAnalyzer::ComputePythonFunctionSliceIds(
+    const SliceQuery &sliceQuery, std::set<uint64_t> &ids, uint64_t &maxDepth, std::map<uint64_t, uint32_t> &depthMap) {
+    std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
+    auto &instance = SliceCacheManager::Instance();
+    std::vector<SliceDomain> sliceDomainVec = instance.GetSliceDomainVec(sliceCacheKey, sliceQuery.rankId, sliceQuery);
+    SliceQuery slicePagedQuery;
+    bool isHitCache = !std::empty(sliceDomainVec);
+    if (!isHitCache) {
+        slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
+        repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceDomainVec);
+    }
+
+    std::vector<uint64_t> pythonFunctionIds;
+    if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::UNKNOWN) {
+        const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
+        uint64_t count = pythonFuncRepo != nullptr ? pythonFuncRepo->QueryPythonFunctionCountByTrackId(sliceQuery) : 0;
+        instance.SetPythonFunctionStatus(
+            sliceQuery.trackId, count == 0 ? PYTHON_FUNCTION_STATUS::NOT_EXIST : PYTHON_FUNCTION_STATUS::EXIST);
+    }
+    if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::EXIST) {
+        pythonFunctionIds = instance.GetPythonFunctionIdVec(sliceCacheKey, sliceQuery);
+        if (std::empty(pythonFunctionIds)) {
+            QueryPythonFuncFromDBAndUpdateCache(sliceCacheKey, sliceQuery, pythonFunctionIds);
+        }
+    }
+
+    std::vector<SliceDomain> pythonSlices;
+    for (auto &item : sliceDomainVec) {
+        if (std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
+            pythonSlices.emplace_back(item);
+        }
+    }
+
+    if (std::empty(pythonSlices)) {
+        maxDepth = 0;
+        return;
+    }
+
+    std::vector<DepthHelper> endList;
+    std::set<std::pair<uint64_t, uint32_t>> idPairVec = ComputeResultIds(sliceQuery.startTime + sliceQuery.minTimestamp,
+        sliceQuery.endTime + sliceQuery.minTimestamp, pythonSlices, endList, {});
+    for (const auto &item : idPairVec) {
+        ids.emplace(item.first);
+        depthMap[item.first] = item.second;
+    }
+    if (ids.count(0) > 0) {
+        ids.erase(0);
+    }
+    maxDepth = endList.size();
+}
+
+void SliceAnalyzer::QueryPythonFuncIds(const SliceQuery &sliceQuery, std::vector<uint64_t> &pythonFunctionIds) {
     auto &instance = SliceCacheManager::Instance();
     std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
-    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice*>(repository.get());
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
     if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::UNKNOWN) {
         uint64_t count = pythonFuncRepo != nullptr ? pythonFuncRepo->QueryPythonFunctionCountByTrackId(sliceQuery) : 0;
         PYTHON_FUNCTION_STATUS status = count == 0 ? PYTHON_FUNCTION_STATUS::NOT_EXIST : PYTHON_FUNCTION_STATUS::EXIST;
         instance.SetPythonFunctionStatus(sliceQuery.trackId, status);
     }
-    if (sliceQuery.isFilterPythonFunction &&
-        instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::EXIST) {
+    if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::EXIST) {
         pythonFunctionIds = instance.GetPythonFunctionIdVec(sliceCacheKey, sliceQuery);
         if (std::empty(pythonFunctionIds)) {
             QueryPythonFuncFromDBAndUpdateCache(sliceCacheKey, sliceQuery, pythonFunctionIds);
@@ -273,10 +309,10 @@ void SliceAnalyzer::QueryPythonFuncIds(const SliceQuery &sliceQuery, std::vector
 }
 
 void SliceAnalyzer::ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery &sliceQuery,
-    std::vector<CompeteSliceDomain> &sliceDomainVec, std::map<std::string, uint64_t> &selfTimeKeyValue)
-{
+    std::vector<CompeteSliceDomain> &sliceDomainVec, std::map<std::string, uint64_t> &selfTimeKeyValue,
+    bool isPythonStack) {
     std::vector<CompeteSliceDomain> allCompeteSliceVec;
-    const auto textRepo = dynamic_cast<ITextSlice*>(repository.get());
+    const auto textRepo = dynamic_cast<ITextSlice *>(repository.get());
     if (textRepo == nullptr) {
         return;
     }
@@ -295,9 +331,10 @@ void SliceAnalyzer::ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery
     }
     std::unordered_map<uint64_t, uint32_t> depthInfo;
     ComputeDepthInfoByTrackId(sliceQuery, depthInfo);
-    // 过滤python function
+    // 普通泳道过滤 python function；Python Stack 泳道只保留 python function。
     for (auto &item : allCompeteSliceVec) {
-        if (std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
+        bool isPythonFunction = std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id);
+        if (isPythonFunction != isPythonStack) {
             continue;
         }
         item.depth = depthInfo[item.id];
@@ -325,9 +362,8 @@ void SliceAnalyzer::ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery
     }
 }
 
-void SliceAnalyzer::ComputeDepthInfoByTrackId(const SliceQuery &sliceQuery,
-    std::unordered_map<uint64_t, uint32_t> &depthInfo)
-{
+void SliceAnalyzer::ComputeDepthInfoByTrackId(
+    const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo) {
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
     bool cacheIsExist = sliceCacheManager.QueryDepthInfo(depthInfo, sliceQuery);
     if (!cacheIsExist) {
@@ -335,22 +371,20 @@ void SliceAnalyzer::ComputeDepthInfoByTrackId(const SliceQuery &sliceQuery,
     }
 }
 
-void SliceAnalyzer::ComputeSliceDomainVecByTrackId(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec)
-{
+void SliceAnalyzer::ComputeSliceDomainVecByTrackId(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
     sliceVec = sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId, sliceQuery);
     if (std::empty(sliceVec)) {
         std::unordered_map<uint64_t, uint32_t> depthInfo;
         ComputeDepthInfoFromDB(sliceQuery, depthInfo);
-        sliceVec = sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId,
-                                                       sliceQuery);
+        sliceVec =
+            sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId, sliceQuery);
     }
 }
 
-void SliceAnalyzer::QueryPythonFuncFromDBAndUpdateCache(const std::string &key, const SliceQuery &sliceQuery,
-                                                        std::vector<uint64_t> &pythonFunctionIds)
-{
-    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice*>(repository.get());
+void SliceAnalyzer::QueryPythonFuncFromDBAndUpdateCache(
+    const std::string &key, const SliceQuery &sliceQuery, std::vector<uint64_t> &pythonFunctionIds) {
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
     SliceCacheManager &sliceCache = SliceCacheManager::Instance();
     SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
     if (pythonFuncRepo != nullptr) {
@@ -359,9 +393,8 @@ void SliceAnalyzer::QueryPythonFuncFromDBAndUpdateCache(const std::string &key, 
     sliceCache.PutPythonFunctionIdVec(key, pythonFunctionIds, slicePagedQuery);
 }
 
-void SliceAnalyzer::ComputeDepthInfoFromDB(const SliceQuery &sliceQuery,
-    std::unordered_map<uint64_t, uint32_t> &depthInfo)
-{
+void SliceAnalyzer::ComputeDepthInfoFromDB(
+    const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo) {
     std::vector<SliceDomain> sliceVec;
     SliceCacheManager &simpleSliceCache = SliceCacheManager::Instance();
     std::string pythonFunctionKey = std::to_string(sliceQuery.trackId);
@@ -389,9 +422,8 @@ void SliceAnalyzer::ComputeDepthInfoFromDB(const SliceQuery &sliceQuery,
     simpleSliceCache.UpdateSliceCache(std::to_string(sliceQuery.trackId), sliceVec, slicePagedQuery);
 }
 
-void SliceAnalyzer::AddData(std::map<std::string, uint64_t> &selfTimeKeyValue, const std::string &name,
-    uint64_t tmpSelfTime)
-{
+void SliceAnalyzer::AddData(
+    std::map<std::string, uint64_t> &selfTimeKeyValue, const std::string &name, uint64_t tmpSelfTime) {
     if (selfTimeKeyValue.find(name) != selfTimeKeyValue.end()) {
         selfTimeKeyValue.at(name) = selfTimeKeyValue.at(name) + tmpSelfTime;
     } else {
@@ -399,8 +431,7 @@ void SliceAnalyzer::AddData(std::map<std::string, uint64_t> &selfTimeKeyValue, c
     }
 }
 
-bool SliceAnalyzer::CompareTimestampASC(const SliceDomain &first, const SliceDomain &second)
-{
+bool SliceAnalyzer::CompareTimestampASC(const SliceDomain &first, const SliceDomain &second) {
     if (first.timestamp < second.timestamp) {
         return true;
     }
@@ -410,10 +441,9 @@ bool SliceAnalyzer::CompareTimestampASC(const SliceDomain &first, const SliceDom
     return false;
 }
 
-void SliceAnalyzer::ComputeAllThreadInfo(const ThreadQuery &flowQuery,
-    std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo)
-{
-    const auto textRepo = dynamic_cast<ITextSlice*>(repository.get());
+void SliceAnalyzer::ComputeAllThreadInfo(
+    const ThreadQuery &flowQuery, std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo) {
+    const auto textRepo = dynamic_cast<ITextSlice *>(repository.get());
     if (textRepo != nullptr) {
         textRepo->QueryAllThreadInfo(flowQuery, threadInfo);
     }

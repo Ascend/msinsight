@@ -17,6 +17,7 @@
  */
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
+#include "PythonStackHelper.h"
 #include "TraceTime.h"
 #include "QueryEventsViewHandler.h"
 
@@ -25,8 +26,7 @@ namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 
-bool QueryEventsViewHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryEventsViewHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     EventsViewRequest &request = dynamic_cast<EventsViewRequest &>(*requestPtr.get());
 
     std::unique_ptr<EventsViewResponse> responsePtr = std::make_unique<EventsViewResponse>();
@@ -47,10 +47,12 @@ bool QueryEventsViewHandler::HandleRequest(std::unique_ptr<Protocol::Request> re
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    if (!request.params.tid.empty()) {
-        request.params.threadIdList.emplace_back(request.params.tid);
+    EventsViewParams queryParams = request.params;
+    PythonStackHelper::RestoreEventsViewParams(queryParams);
+    if (!queryParams.tid.empty()) {
+        queryParams.threadIdList.emplace_back(queryParams.tid);
     }
-    if (!database->QueryEventsViewData(request.params, responsePtr->body, minTimestamp)) {
+    if (!database->QueryEventsViewData(queryParams, responsePtr->body, minTimestamp)) {
         ServerLog::Warn("Failed to get events view table response data.");
         SetTimelineError(ErrorCode::QUERY_EVENTS_VIEW_DATA_FAILED);
         SendResponse(std::move(responsePtr), false);

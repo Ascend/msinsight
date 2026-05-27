@@ -24,24 +24,21 @@ class SliceAnalyzerTest : public ::testing::Test {};
 /**
  * 测试过滤pf的框选功能
  */
-TEST_F(SliceAnalyzerTest, test_ComputeSliceDomainVecAndSelfTimeByTimeRange_filter_python_function)
-{
+TEST_F(SliceAnalyzerTest, test_ComputeSliceDomainVecAndSelfTimeByTimeRange_filter_python_function) {
     // 对Repository进行mock数据
     class RepositoryMock : public Dic::Module::Timeline::TextRepository {
-    public:
-        void QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery &sliceQuery,
-            std::vector<CompeteSliceDomain> &sliceVec) override
-        {
+      public:
+        void QueryCompeteSliceVecByTimeRangeAndTrackId(
+            const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) override {
             QueryCompeteSliceVecByTimeRangeAndTrackId_mock(sliceQuery, sliceVec);
         }
     };
     std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
     SliceAnalyzer sliceAnalyzer;
     sliceAnalyzer.SetRepository(ptr);
-    SliceQuery sliceQuery = { 3, 0, 23, 2 };
+    SliceQuery sliceQuery = {3, 0, 23, 2};
     SliceCacheFliterPythonMock();
-    SliceCacheManager::Instance().PutPythonFunctionIdVec(std::to_string(sliceQuery.trackId), { 1 }, sliceQuery);
-    SliceCacheManager::Instance().UpdatePythonFilterSet(std::to_string(sliceQuery.trackId), true);
+    SliceCacheManager::Instance().PutPythonFunctionIdVec(std::to_string(sliceQuery.trackId), {1}, sliceQuery);
     std::vector<CompeteSliceDomain> sliceDomainVec;
     std::map<std::string, uint64_t> selfTimeKeyValue;
     sliceAnalyzer.ComputeSliceDomainVecAndSelfTimeByTimeRange(sliceQuery, sliceDomainVec, selfTimeKeyValue);
@@ -58,21 +55,19 @@ TEST_F(SliceAnalyzerTest, test_ComputeSliceDomainVecAndSelfTimeByTimeRange_filte
 /**
  * 测试不过滤过滤pf的框选功能
  */
-TEST_F(SliceAnalyzerTest, test_ComputeSliceDomainVecAndSelfTimeByTimeRange_not_filter_python_function)
-{
+TEST_F(SliceAnalyzerTest, test_ComputeSliceDomainVecAndSelfTimeByTimeRange_not_filter_python_function) {
     // 对Repository进行mock数据
     class RepositoryMock : public Dic::Module::Timeline::TextRepository {
-    public:
-        void QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery &sliceQuery,
-            std::vector<CompeteSliceDomain> &sliceVec) override
-        {
+      public:
+        void QueryCompeteSliceVecByTimeRangeAndTrackId(
+            const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) override {
             QueryCompeteSliceVecByTimeRangeAndTrackId_mock(sliceQuery, sliceVec);
         }
     };
     std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
     SliceAnalyzer sliceAnalyzer;
     sliceAnalyzer.SetRepository(ptr);
-    SliceQuery sliceQuery = {3, 0, 23, 2 };
+    SliceQuery sliceQuery = {3, 0, 23, 2};
     SliceCacheNotFliterPythonMock();
     std::vector<CompeteSliceDomain> sliceDomainVec;
     std::map<std::string, uint64_t> selfTimeKeyValue;
@@ -92,26 +87,23 @@ TEST_F(SliceAnalyzerTest, test_ComputeSliceDomainVecAndSelfTimeByTimeRange_not_f
 /**
  * 测试简单算子过期后不过滤过滤pf的框选功能
  */
-TEST_F(SliceAnalyzerTest, test_ComputeSelfTimeByTimeRange_cache_isExpire_not_filter_python_function)
-{
+TEST_F(SliceAnalyzerTest, test_ComputeSelfTimeByTimeRange_cache_isExpire_not_filter_python_function) {
     // 对Repository进行mock数据
     class RepositoryMock : public Dic::Module::Timeline::TextRepository {
-    public:
-        void QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery &sliceQuery,
-            std::vector<CompeteSliceDomain> &sliceVec) override
-        {
+      public:
+        void QueryCompeteSliceVecByTimeRangeAndTrackId(
+            const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) override {
             QueryCompeteSliceVecByTimeRangeAndTrackId_mock(sliceQuery, sliceVec);
         }
-        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-            std::vector<SliceDomain> &sliceVec) override
-        {
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
             QuerySimpleSliceWithOutNameByTrackId_mock(sliceQuery, sliceVec);
         }
     };
     std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
     SliceAnalyzer sliceAnalyzer;
     sliceAnalyzer.SetRepository(ptr);
-    SliceQuery sliceQuery = {3, 0, 23, 2 };
+    SliceQuery sliceQuery = {3, 0, 23, 2};
     std::vector<CompeteSliceDomain> sliceDomainVec;
     std::map<std::string, uint64_t> selfTimeKeyValue;
     sliceAnalyzer.ComputeSliceDomainVecAndSelfTimeByTimeRange(sliceQuery, sliceDomainVec, selfTimeKeyValue);
@@ -124,5 +116,35 @@ TEST_F(SliceAnalyzerTest, test_ComputeSelfTimeByTimeRange_cache_isExpire_not_fil
     EXPECT_EQ(selfTimeKeyValue["slice1"], expectSlice1SelfTime);
     EXPECT_EQ(selfTimeKeyValue["slice2"], expectSlice2SelfTime);
     EXPECT_EQ(selfTimeKeyValue["slice3"], expectSlice3SelfTime);
+    CacheManager::Instance().ClearAll();
+}
+
+TEST_F(SliceAnalyzerTest, test_ComputePythonFunctionSliceIdsWithoutFilterFlag) {
+    class RepositoryMock : public Dic::Module::Timeline::TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            QuerySimpleSliceWithOutNameByTrackId_mock(sliceQuery, sliceVec);
+        }
+
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override { return 1; }
+
+        void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override {
+            sliceIds.emplace_back(2);
+        }
+    };
+    std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
+    SliceAnalyzer sliceAnalyzer;
+    sliceAnalyzer.SetRepository(ptr);
+    SliceQuery sliceQuery = {3, 0, 23, 2};
+    sliceQuery.isFilterPythonFunction = false;
+    std::set<uint64_t> ids;
+    uint64_t maxDepth = 0;
+    std::map<uint64_t, uint32_t> depthMap;
+
+    sliceAnalyzer.ComputePythonFunctionSliceIds(sliceQuery, ids, maxDepth, depthMap);
+
+    EXPECT_EQ(ids, std::set<uint64_t>({2}));
+    EXPECT_EQ(maxDepth, 1);
     CacheManager::Instance().ClearAll();
 }

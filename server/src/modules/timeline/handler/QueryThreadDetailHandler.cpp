@@ -17,6 +17,7 @@
  */
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
+#include "PythonStackHelper.h"
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
 #include "QueryThreadDetailHandler.h"
@@ -25,8 +26,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryThreadDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+
+bool QueryThreadDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     ThreadDetailRequest &request = dynamic_cast<ThreadDetailRequest &>(*requestPtr.get());
     std::unique_ptr<UnitThreadDetailResponse> responsePtr = std::make_unique<UnitThreadDetailResponse>();
     UnitThreadDetailResponse &response = *responsePtr.get();
@@ -43,9 +44,10 @@ bool QueryThreadDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    uint64_t trackId =
-        TrackInfoManager::Instance().GetTrackId(request.params.rankId, request.params.pid, request.params.tid);
-    renderEngine->QueryThreadDetail(request.params, response.body, trackId);
+    ThreadDetailParams queryParams = request.params;
+    PythonStackHelper::RestoreThreadDetailParams(queryParams);
+    uint64_t trackId = TrackInfoManager::Instance().GetTrackId(queryParams.rankId, queryParams.pid, queryParams.tid);
+    renderEngine->QueryThreadDetail(queryParams, response.body, trackId);
     SendResponse(std::move(responsePtr), true);
     return true;
 }

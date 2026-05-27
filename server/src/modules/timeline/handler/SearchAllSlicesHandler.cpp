@@ -17,6 +17,7 @@
  */
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
+#include "PythonStackHelper.h"
 #include "TraceTime.h"
 #include "TrackInfoManager.h"
 #include "SearchAllSlicesHandler.h"
@@ -33,15 +34,21 @@ std::vector<TrackQuery> SearchAllSlicesHandler::BuildTrackQueryVec(
 {
     std::vector<TrackQuery> trackQueryVec;
     for (const auto& item : params.metadataList) {
-        if ((params.rankId == item.rankId || item.rankId == dbPath) && !item.pid.empty() && !item.tid.empty()) {
+        Protocol::Metadata metadata = item;
+        bool isPythonStack = PythonStackHelper::RestoreMetadata(metadata);
+        if ((params.rankId == metadata.rankId || metadata.rankId == dbPath) &&
+            !metadata.pid.empty() && !metadata.tid.empty()) {
             TrackQuery trackQuery;
             trackQuery.rankId = params.rankId;
-            trackQuery.processId = item.pid;
-            trackQuery.threadId = item.tid;
-            trackQuery.trackId = TrackInfoManager::Instance().GetTrackId(params.rankId, item.pid, item.tid);
-            trackQuery.startTime = item.lockStartTime + minTimestamp;
-            trackQuery.endTime = item.lockEndTime + minTimestamp;
-            trackQuery.metaType = item.metaType;
+            trackQuery.processId = metadata.pid;
+            trackQuery.threadId = metadata.tid;
+            trackQuery.trackId = TrackInfoManager::Instance().GetTrackId(params.rankId, metadata.pid, metadata.tid);
+            trackQuery.startTime = metadata.lockStartTime + minTimestamp;
+            trackQuery.endTime = metadata.lockEndTime + minTimestamp;
+            trackQuery.metaType = metadata.metaType;
+            trackQuery.displayMetaType = isPythonStack ? PythonStackHelper::GetPythonStackDisplayMetaType() :
+                metadata.metaType;
+            trackQuery.isPythonStack = isPythonStack;
             trackQueryVec.emplace_back(trackQuery);
         }
     }

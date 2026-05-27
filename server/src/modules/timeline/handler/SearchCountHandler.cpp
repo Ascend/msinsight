@@ -18,6 +18,7 @@
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
 #include "DominQuery.h"
+#include "PythonStackHelper.h"
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
 #include "SearchCountHandler.h"
@@ -26,8 +27,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool SearchCountHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool SearchCountHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     SearchCountRequest &request = dynamic_cast<SearchCountRequest &>(*requestPtr.get());
     std::unique_ptr<SearchCountResponse> responsePtr = std::make_unique<SearchCountResponse>();
     SearchCountResponse &response = *responsePtr.get();
@@ -66,21 +66,26 @@ bool SearchCountHandler::HandleRequest(std::unique_ptr<Protocol::Request> reques
     return true;
 }
 
-std::vector<TrackQuery> SearchCountHandler::GetTrackQueryVec(SearchCountRequest &request, uint64_t minTimestamp) const
-{
+std::vector<TrackQuery> SearchCountHandler::GetTrackQueryVec(SearchCountRequest &request, uint64_t minTimestamp) const {
     std::vector<TrackQuery> trackQueryVec;
     for (const auto &item : request.params.metadataList) {
-        if ((request.params.rankId == item.rankId ||
-            !DataBaseManager::Instance().GetDbPathByHost(request.params.rankId).empty()) &&
-            !item.pid.empty() && !item.tid.empty()) {
+        Protocol::Metadata metadata = item;
+        bool isPythonStack = PythonStackHelper::RestoreMetadata(metadata);
+        if ((request.params.rankId == metadata.rankId ||
+                !DataBaseManager::Instance().GetDbPathByHost(request.params.rankId).empty()) &&
+            !metadata.pid.empty() && !metadata.tid.empty()) {
             TrackQuery trackQuery;
-            trackQuery.rankId = item.rankId;
-            trackQuery.processId = item.pid;
-            trackQuery.threadId = item.tid;
-            trackQuery.trackId = TrackInfoManager::Instance().GetTrackId(request.params.rankId, item.pid, item.tid);
-            trackQuery.startTime = item.lockStartTime + minTimestamp; // 校验过，保证 lockStartTime < lockEndTime
-            trackQuery.endTime = item.lockEndTime + minTimestamp; // 校验过，保证 lockEndTime + minTime < UINT64_MAX
-            trackQuery.metaType = item.metaType;
+            trackQuery.rankId = metadata.rankId;
+            trackQuery.processId = metadata.pid;
+            trackQuery.threadId = metadata.tid;
+            trackQuery.trackId =
+                TrackInfoManager::Instance().GetTrackId(request.params.rankId, metadata.pid, metadata.tid);
+            trackQuery.startTime = metadata.lockStartTime + minTimestamp; // 校验过，保证 lockStartTime < lockEndTime
+            trackQuery.endTime = metadata.lockEndTime + minTimestamp; // 校验过，保证 lockEndTime + minTime < UINT64_MAX
+            trackQuery.metaType = metadata.metaType;
+            trackQuery.displayMetaType =
+                isPythonStack ? PythonStackHelper::GetPythonStackDisplayMetaType() : metadata.metaType;
+            trackQuery.isPythonStack = isPythonStack;
             trackQueryVec.emplace_back(trackQuery);
         }
     }

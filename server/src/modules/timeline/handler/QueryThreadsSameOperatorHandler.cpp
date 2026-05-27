@@ -17,6 +17,7 @@
  */
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
+#include "PythonStackHelper.h"
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
 #include "QueryThreadsSameOperatorHandler.h"
@@ -25,8 +26,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryThreadsSameOperatorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+
+bool QueryThreadsSameOperatorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     UnitThreadsOperatorsRequest &request = dynamic_cast<UnitThreadsOperatorsRequest &>(*requestPtr.get());
     std::unique_ptr<UnitThreadsOperatorsResponse> responsePtr = std::make_unique<UnitThreadsOperatorsResponse>();
     UnitThreadsOperatorsResponse &response = *responsePtr.get();
@@ -46,14 +47,16 @@ bool QueryThreadsSameOperatorHandler::HandleRequest(std::unique_ptr<Protocol::Re
         SendResponse(std::move(responsePtr), false);
         return false;
     }
+    UnitThreadsOperatorsParams queryParams = request.params;
+    PythonStackHelper::RestoreSameOperatorParams(queryParams);
     std::vector<uint64_t> trackIdList;
     auto &TrackInfoManagerIns = TrackInfoManager::Instance();
-    for (const auto& process : request.params.processes) {
-        for (const auto& tid : process.tidList) {
-            trackIdList.emplace_back(TrackInfoManagerIns.GetTrackId(request.params.rankId, process.pid, tid));
+    for (const auto &process : queryParams.processes) {
+        for (const auto &tid : process.tidList) {
+            trackIdList.emplace_back(TrackInfoManagerIns.GetTrackId(queryParams.rankId, process.pid, tid));
         }
     }
-    bool result = db->QueryThreadSameOperatorsDetails(request.params, response.body, minTimestamp, trackIdList);
+    bool result = db->QueryThreadSameOperatorsDetails(queryParams, response.body, minTimestamp, trackIdList);
     if (!result) {
         SetTimelineError(ErrorCode::QUERY_THREAD_SAME_OPERATORS_DETAIL_FAILED);
     }

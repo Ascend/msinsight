@@ -206,6 +206,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
         std::vector<ByteAlignmentAnalyzerSmallOperatorInfo> &smallOpInfo);
     static std::string GetHostPath(const std::string &filePath);
 
+    void AddPythonStackMetadata(const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     void ProcessHostCounterEventsMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     void QueryDeviceIdInStepTraceTime(std::set<std::string> &deviceIds);

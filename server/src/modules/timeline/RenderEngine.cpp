@@ -21,18 +21,18 @@
 #include "FlowAnalyzer.h"
 #include "TrackInfoManager.h"
 #include "FullDbEnumUtil.h"
+#include "PythonStackHelper.h"
+#include "SliceCacheManager.h"
 #include "RenderEngine.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
 using namespace Dic::Protocol;
-void RenderEngine::SetDataEngineInterface(std::shared_ptr<DataEngineInterface> dataEngineInterface)
-{
+void RenderEngine::SetDataEngineInterface(std::shared_ptr<DataEngineInterface> dataEngineInterface) {
     dataEngine = dataEngineInterface;
 }
 
 void RenderEngine::QueryThreadTraces(const Protocol::UnitThreadTracesParams &requestParams,
-    Protocol::UnitThreadTracesBody &responseBody, uint64_t minTimestamp, uint64_t traceId)
-{
+    Protocol::UnitThreadTracesBody &responseBody, uint64_t minTimestamp, uint64_t traceId) {
     SliceQuery sliceQuery;
     sliceQuery.startTime = requestParams.startTime;
     sliceQuery.endTime = requestParams.endTime;
@@ -42,13 +42,18 @@ void RenderEngine::QueryThreadTraces(const Protocol::UnitThreadTracesParams &req
     sliceQuery.trackId = traceId;
     sliceQuery.rankId = requestParams.cardId;
     sliceQuery.metaType = Protocol::STR_TO_ENUM<PROCESS_TYPE>(requestParams.metaType).value();
-    uint64_t maxDepth = 0;
-    bool havePythonFunction = false;
-    std::set<uint64_t> ids;
-    std::map<uint64_t, uint32_t> depthMap;
+
     std::unique_ptr<SliceAnalyzer> sliceAnalyzerPtr = std::make_unique<SliceAnalyzer>();
     sliceAnalyzerPtr->SetRepository(dataEngine);
-    sliceAnalyzerPtr->ComputeScreenSliceIds(sliceQuery, ids, maxDepth, havePythonFunction, depthMap);
+
+    uint64_t maxDepth = 0;
+    std::set<uint64_t> ids;
+    std::map<uint64_t, uint32_t> depthMap;
+    if (requestParams.isPythonStack) {
+        sliceAnalyzerPtr->ComputePythonFunctionSliceIds(sliceQuery, ids, maxDepth, depthMap);
+    } else {
+        sliceAnalyzerPtr->ComputeScreenSliceIds(sliceQuery, ids, maxDepth, depthMap);
+    }
     std::vector<CompeteSliceDomain> competeSliceVec;
     std::vector<uint64_t> sliceIds(ids.begin(), ids.end());
     dataEngine->QueryCompeteSliceByIds(sliceQuery, sliceIds, competeSliceVec);
@@ -80,12 +85,12 @@ void RenderEngine::QueryThreadTraces(const Protocol::UnitThreadTracesParams &req
     }
     responseBody.maxDepth = maxDepth;
     responseBody.currentMaxDepth = responseBody.data.size();
-    responseBody.havePythonFunction = havePythonFunction;
+    responseBody.havePythonFunction =
+        SliceCacheManager::Instance().GetPythonFunctionStatus(traceId) == PYTHON_FUNCTION_STATUS::EXIST;
 }
 
 bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &params, uint64_t minTimestamp,
-    std::vector<std::unique_ptr<Protocol::UnitSingleFlow>> &flowDetailList)
-{
+    std::vector<std::unique_ptr<Protocol::UnitSingleFlow>> &flowDetailList) {
     std::vector<FlowPoint> flowPointResult;
     std::vector<FlowPoint> flowEventsVec;
     FlowQuery flowQuery;
@@ -131,16 +136,17 @@ bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &p
     return true;
 }
 
-std::vector<FlowPoint> RenderEngine::ComputeLockRangePoints(FlowCategoryEventsParams &params,
-    std::vector<FlowPoint> &flowEventsVec) const
-{
+std::vector<FlowPoint> RenderEngine::ComputeLockRangePoints(
+    FlowCategoryEventsParams &params, std::vector<FlowPoint> &flowEventsVec) const {
     ServerLog::Info("flowEventsVec size is: ", flowEventsVec.size());
     std::unordered_set<uint64_t> trackIdSet;
     for (const auto &metadata : params.metadataList) {
         if (std::empty(metadata.pid) || std::empty(metadata.tid)) {
             continue;
         }
-        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(params.rankId, metadata.pid, metadata.tid);
+        Protocol::Metadata queryMetadata = metadata;
+        PythonStackHelper::RestoreMetadata(queryMetadata);
+        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(params.rankId, queryMetadata.pid, queryMetadata.tid);
         trackIdSet.emplace(trackId);
     }
     if (std::empty(trackIdSet)) {
@@ -164,8 +170,7 @@ std::vector<FlowPoint> RenderEngine::ComputeLockRangePoints(FlowCategoryEventsPa
 }
 
 void RenderEngine::ComputeSimulationFlows(const FlowCategoryEventsParams &params,
-    std::vector<std::unique_ptr<Protocol::UnitSingleFlow>> &flowDetailList, std::vector<FlowPoint> &flowPointResult)
-{
+    std::vector<std::unique_ptr<Protocol::UnitSingleFlow>> &flowDetailList, std::vector<FlowPoint> &flowPointResult) {
     TrackInfo trackInfo;
     std::unique_ptr<FlowAnalyzer> flowAnalyzerPtr = std::make_unique<FlowAnalyzer>();
     std::unique_ptr<SliceAnalyzer> sliceAnalyzerPtr = std::make_unique<SliceAnalyzer>();
@@ -202,8 +207,7 @@ void RenderEngine::ComputeSimulationFlows(const FlowCategoryEventsParams &params
 }
 
 std::vector<CompeteSliceDomain> RenderEngine::QuerySliceDetailByNameList(const std::string &fileId,
-    const DataType &type, const std::string &processName, const std::vector<std::string> &nameList)
-{
+    const DataType &type, const std::string &processName, const std::vector<std::string> &nameList) {
     if (processName.empty() || nameList.empty()) {
         ServerLog::Warn("Fail to query slice detail by name list");
         return {};
@@ -216,8 +220,7 @@ std::vector<CompeteSliceDomain> RenderEngine::QuerySliceDetailByNameList(const s
 }
 
 std::vector<CompeteSliceDomain> RenderEngine::QueryMstxRLDetail(const std::string &rankId, const DataType &type,
-    const std::vector<std::string> &nameList, uint64_t startTime, uint64_t endTime)
-{
+    const std::vector<std::string> &nameList, uint64_t startTime, uint64_t endTime) {
     if (nameList.empty()) {
         ServerLog::Warn("Fail to query mstx rl detail.");
         return {};
@@ -233,10 +236,8 @@ std::vector<CompeteSliceDomain> RenderEngine::QueryMstxRLDetail(const std::strin
 }
 
 std::unordered_map<uint64_t, std::pair<std::string, std::string>> RenderEngine::GetAllThreadInfo(
-    const ThreadQuery& query)
-{
-    if (query.metaType != PROCESS_TYPE::TEXT)
-    {
+    const ThreadQuery &query) {
+    if (query.metaType != PROCESS_TYPE::TEXT) {
         ServerLog::Warn("GetAllThreadInfo only implemented for text process type");
         return {};
     }
@@ -245,9 +246,8 @@ std::unordered_map<uint64_t, std::pair<std::string, std::string>> RenderEngine::
     return res;
 }
 
-void RenderEngine::QueryThreadDetail(const ThreadDetailParams &requestParams, UnitThreadDetailBody &responseBody,
-                                     uint64_t trackId)
-{
+void RenderEngine::QueryThreadDetail(
+    const ThreadDetailParams &requestParams, UnitThreadDetailBody &responseBody, uint64_t trackId) {
     CompeteSliceDomain competeSliceDomain;
     SliceQuery sliceQuery;
     sliceQuery.trackId = trackId;
@@ -270,22 +270,57 @@ void RenderEngine::QueryThreadDetail(const ThreadDetailParams &requestParams, Un
     sliceQuery.startTime = competeSliceDomain.timestamp;
     sliceQuery.endTime = competeSliceDomain.endTime;
     SliceAnalyzer sliceAnalyzer;
+    sliceAnalyzer.SetRepository(dataEngine);
     std::vector<SliceDomain> sliceVec;
-    sliceAnalyzer.ComputeSliceDomainVecByTrackId(sliceQuery, sliceVec);
-    SliceDomain target;
-    target.id = competeSliceDomain.id;
-    target.timestamp = competeSliceDomain.timestamp;
-    auto it = std::lower_bound(sliceVec.begin(), sliceVec.end(), target, SliceDomain::CompareTimestampASC);
-    if (it == sliceVec.end()) {
+    uint32_t targetDepth = 0;
+    auto targetIt = sliceVec.end();
+    if (requestParams.isPythonStack) {
+        std::vector<uint64_t> sliceIds;
+        dataEngine->QuerySliceIdsByCat(sliceQuery, sliceIds);
+        std::unordered_map<uint64_t, uint32_t> depthMap;
+        sliceAnalyzer.ComputeDepthInfoByTrackId(sliceQuery, depthMap);
+        std::vector<CompeteSliceDomain> competeSliceVec;
+        dataEngine->QueryCompeteSliceByIds(sliceQuery, sliceIds, competeSliceVec);
+        sliceVec.reserve(competeSliceVec.size());
+        for (const auto &item : competeSliceVec) {
+            SliceDomain sliceDomain;
+            sliceDomain.id = item.id;
+            sliceDomain.timestamp = item.timestamp;
+            sliceDomain.endTime = item.endTime;
+            sliceDomain.depth = depthMap[item.id];
+            sliceVec.emplace_back(sliceDomain);
+        }
+        std::sort(sliceVec.begin(), sliceVec.end(), SliceDomain::CompareTimestampASC);
+        if (depthMap.count(competeSliceDomain.id) == 0) {
+            return;
+        }
+        targetDepth = depthMap[competeSliceDomain.id] + 1;
+        SliceDomain target;
+        target.id = competeSliceDomain.id;
+        target.timestamp = competeSliceDomain.timestamp;
+        targetIt = std::lower_bound(sliceVec.begin(), sliceVec.end(), target, SliceDomain::CompareTimestampASC);
+    } else {
+        sliceAnalyzer.ComputeSliceDomainVecByTrackId(sliceQuery, sliceVec);
+        SliceDomain target;
+        target.id = competeSliceDomain.id;
+        target.timestamp = competeSliceDomain.timestamp;
+        auto it = std::lower_bound(sliceVec.begin(), sliceVec.end(), target, SliceDomain::CompareTimestampASC);
+        if (it == sliceVec.end()) {
+            return;
+        }
+        targetDepth = it->depth + 1;
+        targetIt = it;
+    }
+    if (targetIt == sliceVec.end()) {
         return;
     }
-    const uint32_t targetDepth = it->depth + 1;
     const uint64_t targetTimestamp = competeSliceDomain.timestamp;
     const uint64_t targetEndTime = competeSliceDomain.endTime;
     uint64_t nextDepthTime = 0;
-    for (auto item = it; item != sliceVec.end(); ++item) {
+    for (auto item = targetIt; item != sliceVec.end(); ++item) {
         if (item->timestamp >= targetTimestamp && item->endTime <= targetEndTime && item->depth == targetDepth) {
-            nextDepthTime += item->endTime - item->timestamp; // 从数据库查询得到。业务上保证 item->endTime >= item->timestamp
+            nextDepthTime +=
+                item->endTime - item->timestamp; // 从数据库查询得到。业务上保证 item->endTime >= item->timestamp
         }
     }
     if (nextDepthTime > 0 && nextDepthTime <= responseBody.data.duration) {
@@ -293,9 +328,8 @@ void RenderEngine::QueryThreadDetail(const ThreadDetailParams &requestParams, Un
     }
 }
 
-CompeteSliceDomain RenderEngine::FindSliceByTimePoint(const std::string &fileId, const std::string &name,
-    uint64_t timePoint, const std::string &metaType)
-{
+CompeteSliceDomain RenderEngine::FindSliceByTimePoint(
+    const std::string &fileId, const std::string &name, uint64_t timePoint, const std::string &metaType) {
     SliceQuery sliceQuery;
     CompeteSliceDomain slice;
     sliceQuery.rankId = fileId;

@@ -1010,6 +1010,46 @@ TEST_F(DbTraceDatabaseTest, TestGetCounterUnitsAndDataTypesWhenACCPMU) {
     EXPECT_EQ(result, false);
 }
 
+TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithMultiplePythonStacks)
+{
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_PYTORCH_API, TableName::DB_STRING_IDS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    const std::string pyData =
+        "INSERT INTO \"main\".\"PYTORCH_API\" (\"startNs\", \"endNs\", \"globalTid\", \"connectionId\", \"name\", "
+        "\"sequenceNumber\", \"fwdThreadId\", \"inputDtypes\", \"inputShapes\", \"callchainId\", \"type\", \"depth\") "
+        "VALUES "
+        "(100, 150, 4294967297, 0, 1, NULL, NULL, NULL, NULL, NULL, 50002, 0),"
+        "(110, 140, 4294967297, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 1),"
+        "(200, 260, 4294967298, 0, 1, NULL, NULL, NULL, NULL, NULL, 50002, 0),"
+        "(210, 250, 4294967298, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 1);";
+    const std::string stringData = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (1, 'PyTorch');";
+    DatabaseTestCaseMockUtil::InsertData(db, pyData);
+    DatabaseTestCaseMockUtil::InsertData(db, stringData);
+    database.SetDbPtr(db);
+    database.InitMetaDataInfo();
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    database.QueryUnitsMetadata("9", metaData);
+    ASSERT_EQ(metaData.size(), 1);
+    ASSERT_EQ(metaData[0]->children.size(), 2);
+    std::set<std::string> pythonStackThreadIds;
+    std::set<std::string> pythonStackThreadNames;
+    for (const auto &thread : metaData[0]->children) {
+        for (const auto &child : thread->children) {
+            if (child->metaData.metaType == "PYTORCH_API_PYTHON_STACK") {
+                pythonStackThreadIds.emplace(child->metaData.threadId);
+                pythonStackThreadNames.emplace(child->metaData.threadName);
+            }
+        }
+    }
+    EXPECT_EQ(pythonStackThreadIds, std::set<std::string>({"python_stack:4294967297", "python_stack:4294967298"}));
+    EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 1", "Python Stack 2"}));
+}
+
 TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsWhenConnectionIdIsEmptyThenReturnFalse) {
     std::recursive_mutex testMutex;
     MockDatabase2 database(testMutex);
