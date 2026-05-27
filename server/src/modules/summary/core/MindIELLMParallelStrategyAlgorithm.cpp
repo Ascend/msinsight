@@ -25,8 +25,7 @@ const std::unordered_map<std::string, std::string> MindIELLMParallelStrategyAlgo
 const std::unordered_map<std::string, std::string> MindIELLMParallelStrategyAlgorithm::tokenWithEp = {
     {MOE_TP_GROUP, MOE_TP_GROUP_NAME}, {EP_GROUP, EP_GROUP_NAME}};
 
-MindIELLMParallelStrategyAlgorithm::MindIELLMParallelStrategyAlgorithm()
-{
+MindIELLMParallelStrategyAlgorithm::MindIELLMParallelStrategyAlgorithm() {
     commInfoHandlers[DIMENSIONS_TP] =
         std::bind(&MindIELLMParallelStrategyAlgorithm::ReduceCommTpDimensionDef, this, std::placeholders::_1);
     commInfoHandlers[DIMENSIONS_PP] =
@@ -35,9 +34,8 @@ MindIELLMParallelStrategyAlgorithm::MindIELLMParallelStrategyAlgorithm()
 
 MindIELLMParallelStrategyAlgorithm::~MindIELLMParallelStrategyAlgorithm() = default;
 
-bool MindIELLMParallelStrategyAlgorithm::UpdateParallelDimension(const std::string& tmpDimension,
-    const ParallelStrategyConfig &tmpConfig, std::string &err)
-{
+bool MindIELLMParallelStrategyAlgorithm::UpdateParallelDimension(
+    const std::string &tmpDimension, const ParallelStrategyConfig &tmpConfig, std::string &err) {
     // MindIE-LLM也可复用Base类中的计算逻辑，等价于cpSize恒为1
     CalStrategyConfig(tmpDimension, tmpConfig);
     if (tmpConfig.algorithm == MINDIE_LLM_TP_DP_EP_PP_MOETP_ALG) {
@@ -58,15 +56,14 @@ bool MindIELLMParallelStrategyAlgorithm::UpdateParallelDimension(const std::stri
     return res;
 }
 
-void MindIELLMParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
-{
+void MindIELLMParallelStrategyAlgorithm::UpdateOrderAndParallelSize() {
     // 根据 paraDetailsMap[para].isShown 删除size = 1的通信域
     updatedOrder = paraOrder;
-    updatedOrder.erase(std::remove_if(updatedOrder.begin(), updatedOrder.end(), [this](const std::string& group) {
-        return !(paraDetailsMap[group].isShown);
-        }), updatedOrder.end());
+    updatedOrder.erase(std::remove_if(updatedOrder.begin(), updatedOrder.end(),
+                           [this](const std::string &group) { return !(paraDetailsMap[group].isShown); }),
+        updatedOrder.end());
     parallelSize.clear();
-    for (const auto& para : updatedOrder) {
+    for (const auto &para : updatedOrder) {
         parallelSize.push_back(paraDetailsMap[para].size);
     }
     if (!paraDetailsMap[EP_PARA].isShown) {
@@ -76,16 +73,15 @@ void MindIELLMParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
     // 此处不应将TP/DP纳入，以免影响后续连线生成
     updatedOrderWithEp = {MOE_TP_PARA, EP_PARA, PP_PARA};
     updatedOrderWithEp.erase(std::remove_if(updatedOrderWithEp.begin(), updatedOrderWithEp.end(),
-        [this](const std::string& group) { return !(paraDetailsMap[group].isShown); }),
+                                 [this](const std::string &group) { return !(paraDetailsMap[group].isShown); }),
         updatedOrderWithEp.end());
     parallelSizeWithEp.clear();
-    for (const auto& para : updatedOrderWithEp) {
+    for (const auto &para : updatedOrderWithEp) {
         parallelSizeWithEp.push_back(paraDetailsMap[para].size);
     }
 }
 
-void MindIELLMParallelStrategyAlgorithm::SetIndicatorAttr()
-{
+void MindIELLMParallelStrategyAlgorithm::SetIndicatorAttr() {
     if (dimension == DIMENSIONS_TP) {
         SetTpIndicatorAttr();
     } else if (dimension == DIMENSIONS_PP) {
@@ -98,12 +94,11 @@ void MindIELLMParallelStrategyAlgorithm::SetIndicatorAttr()
 }
 
 void MindIELLMParallelStrategyAlgorithm::UpdateIndexAttributes(
-    std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+    std::unordered_map<std::string, uint32_t> &indexAttributes) {
     // 由低层次到高层次遍历各并行域，依次检查是否需要进位
     std::string curIndex;
     // 先更新TP DP PP Index
-    for (const auto& curPara : paraOrder) {
+    for (const auto &curPara : paraOrder) {
         // 未达到size-1，无需进位
         if (indexAttributes[curPara + STR_INDEX] < paraDetailsMap[curPara].size - 1) {
             indexAttributes[curPara + STR_INDEX]++;
@@ -119,7 +114,7 @@ void MindIELLMParallelStrategyAlgorithm::UpdateIndexAttributes(
         return;
     }
     static std::vector<std::string> updateIndexListForMoe = {MOE_TP_PARA, EP_PARA};
-    for (const auto& curPara : updateIndexListForMoe) {
+    for (const auto &curPara : updateIndexListForMoe) {
         // 未达到size-1，无需进位
         if (indexAttributes[curPara + STR_INDEX] < paraDetailsMap[curPara].size - 1) {
             indexAttributes[curPara + STR_INDEX]++;
@@ -130,9 +125,8 @@ void MindIELLMParallelStrategyAlgorithm::UpdateIndexAttributes(
     }
 }
 
-void MindIELLMParallelStrategyAlgorithm::GetPerArrangement(uint32_t index,
-    std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+void MindIELLMParallelStrategyAlgorithm::GetPerArrangement(
+    uint32_t index, std::unordered_map<std::string, uint32_t> &indexAttributes) {
     Element element;
     element.index = index;
     if (index != 0) {
@@ -145,8 +139,7 @@ void MindIELLMParallelStrategyAlgorithm::GetPerArrangement(uint32_t index,
     data.arrangements.push_back(element);
 }
 
-bool MindIELLMParallelStrategyAlgorithm::GetConnectionsByToken(std::string &err, ParaMode mode)
-{
+bool MindIELLMParallelStrategyAlgorithm::GetConnectionsByToken(std::string &err, ParaMode mode) {
     std::unordered_map<std::string, std::string> tmpToken;
     if (mode == ParaMode::TP_DP_PP) {
         tmpToken = tokenExceptEp;
@@ -154,10 +147,10 @@ bool MindIELLMParallelStrategyAlgorithm::GetConnectionsByToken(std::string &err,
         tmpToken = tokenWithEp;
     }
     // 按paraDetailsMap[group].isShown去除不存在的通信域
-    for (const auto& [token, groupName] : tmpToken) {
+    for (const auto &[token, groupName] : tmpToken) {
         bool hasTokenGroup = true;
         std::vector<std::string> parallelGroups = StringUtil::Split(token, "-");
-        for (const auto& group : parallelGroups) {
+        for (const auto &group : parallelGroups) {
             if (!paraDetailsMap[group].isShown) {
                 // 不存在当前含有当前并行域的通信组
                 hasTokenGroup = false;
@@ -170,26 +163,25 @@ bool MindIELLMParallelStrategyAlgorithm::GetConnectionsByToken(std::string &err,
         allGroupsType ranks{};
         if (mode == ParaMode::TP_DP_PP) {
             // 计算tp/dp/pp相关通信域
-            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(parallelGroups, parallelSize,
-                                                                              updatedOrder, wordSize);
+            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(
+                parallelGroups, parallelSize, updatedOrder, wordSize);
         } else {
             // 计算moeTp/ep/pp相关通信域, pp参与连线计算，但不重复添加
-            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(parallelGroups, parallelSizeWithEp,
-                                                                              updatedOrderWithEp, wordSize);
+            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(
+                parallelGroups, parallelSizeWithEp, updatedOrderWithEp, wordSize);
         }
         if (ranks.empty()) {
             err = "Failed to get connections by token list for Megatron. Group name: " + groupName;
             return false;
         }
-        for (const auto& rank : ranks) {
+        for (const auto &rank : ranks) {
             data.connections.emplace_back(groupName, rank, std::vector<std::string>{});
         }
     }
     return true;
 }
 
-bool MindIELLMParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &err)
-{
+bool MindIELLMParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &err) {
     if (wordSize == 1) {
         err = "Failed to get connections for the MindIE-LLM. Parallel strategy configs have not been updated yet.";
         SetSummaryError(ErrorCode::GET_ALGORITHM_CONNECTIONS_FAILED);
@@ -210,15 +202,14 @@ bool MindIELLMParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &
     return true;
 }
 
-bool MindIELLMParallelStrategyAlgorithm::GenerateArrangementByDimension(std::string &err)
-{
+bool MindIELLMParallelStrategyAlgorithm::GenerateArrangementByDimension(std::string &err) {
     ClearArrangementData();
     SetIndicatorAttr();
     // 记录并行域坐标，例如dpIndex、tpIndex、ppIndex等
     std::unordered_map<std::string, uint32_t> indexAttributes;
 
     // tp/dp/pp
-    for (const auto& para : paraOrder) {
+    for (const auto &para : paraOrder) {
         indexAttributes[para + STR_INDEX] = 0;
     }
     // moeTp/ep
@@ -239,9 +230,8 @@ bool MindIELLMParallelStrategyAlgorithm::GenerateArrangementByDimension(std::str
 
 bool MindIELLMParallelStrategyAlgorithm::GetPerformanceIndicatorByDimension(
     const GetPerformanceIndicatorParam &performanceParams,
-    const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-    std::vector<IndicatorDataStruct> &indicatorData, std::string& err)
-{
+    const std::unordered_map<std::uint32_t, StepStatistic> &statistic, std::vector<IndicatorDataStruct> &indicatorData,
+    std::string &err) {
     if (!(strategyConfig == performanceParams.config)) {
         err = "Failed to get parallelism performance indicator for the MindIE-LLM. Unexpected parallel config.";
         return false;
@@ -271,34 +261,32 @@ bool MindIELLMParallelStrategyAlgorithm::GetPerformanceIndicatorByDimension(
     return false;
 }
 
-void MindIELLMParallelStrategyAlgorithm::CalAdviceInfo(const std::string &dimension, std::vector<std::string> &advices,
-    std::vector<IndicatorDataStruct> &indicatorData)
-{
+void MindIELLMParallelStrategyAlgorithm::CalAdviceInfo(
+    const std::string &dimension, std::vector<std::string> &advices, std::vector<IndicatorDataStruct> &indicatorData) {
     BaseParallelStrategyAlgorithm::CalAdviceInfo(dimension, advices, indicatorData);
 }
 
-std::vector<Connection> MindIELLMParallelStrategyAlgorithm::GetAllCommunicationGroups(std::string &err)
-{
+std::vector<Connection> MindIELLMParallelStrategyAlgorithm::GetAllCommunicationGroups(std::string &err) {
     if (allCommunicationGroups.empty() && !GetConnectionsByTokenList(err)) {
         return {};
     }
     return allCommunicationGroups;
 }
 
-CommInfoMap MindIELLMParallelStrategyAlgorithm::GetCommInfoByDimension(const CommInfoMap &expandCommInfos,
-    const std::string &dimension)
-{
-    auto res =  BaseParallelStrategyAlgorithm::GetCommInfoByDimension(expandCommInfos, dimension);
+CommInfoMap MindIELLMParallelStrategyAlgorithm::GetCommInfoByDimension(
+    const CommInfoMap &expandCommInfos, const std::string &dimension) {
+    auto res = BaseParallelStrategyAlgorithm::GetCommInfoByDimension(expandCommInfos, dimension);
     if (dimension == DIMENSIONS_TP) {
         return res;
     }
     // 折叠场景暂不展示按moeTP/ep拆解通信时间结果
-    for (auto& item : res) {
-        auto& commInfo = item.second;
+    for (auto &item : res) {
+        auto &commInfo = item.second;
         commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(),
-            [](const CommInfoUnderRank& info) {
-                return (info.pgName == MOE_TP_GROUP_NAME) || (info.pgName == EP_GROUP_NAME);
-            }), commInfo.end());
+                           [](const CommInfoUnderRank &info) {
+                               return (info.pgName == MOE_TP_GROUP_NAME) || (info.pgName == EP_GROUP_NAME);
+                           }),
+            commInfo.end());
     }
     return res;
 }

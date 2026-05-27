@@ -25,11 +25,8 @@
 
 namespace Dic::Module::Summary {
 class QueryParallelStrategyConfigHandler : public SummaryRequestHandler {
-public:
-    QueryParallelStrategyConfigHandler()
-    {
-        command = Protocol::REQ_RES_SUMMARY_QUERY_PARALLEL_STRATEGY;
-    }
+  public:
+    QueryParallelStrategyConfigHandler() { command = Protocol::REQ_RES_SUMMARY_QUERY_PARALLEL_STRATEGY; }
     ~QueryParallelStrategyConfigHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

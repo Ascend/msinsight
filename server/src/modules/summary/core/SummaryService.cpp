@@ -28,8 +28,8 @@ using namespace Dic::Module::Global;
 using namespace Dic::Protocol;
 using namespace Dic::Module;
 
-bool SummaryService::UpdateStartTimeAndDuration(SummaryBaseInfo &baseInfo, std::shared_ptr<VirtualClusterDatabase> &db)
-{
+bool SummaryService::UpdateStartTimeAndDuration(
+    SummaryBaseInfo &baseInfo, std::shared_ptr<VirtualClusterDatabase> &db) {
     uint64_t min = UINT64_MAX;
     uint64_t max = 0;
     db->QueryExtremumTimestamp(min, max); // time unit of min, max: ns
@@ -46,8 +46,9 @@ bool SummaryService::UpdateStartTimeAndDuration(SummaryBaseInfo &baseInfo, std::
     std::unordered_map<std::uint32_t, StepStatistic> rankStepTraceData{}; // key: rankId, value: step trace data
     db->QueryAllPerformanceDataByStep("All", rankStepTraceData);
     for (const auto &stepTraceData : rankStepTraceData) {
-        baseInfo.collectDuration = stepTraceData.second.npuTotalTime > baseInfo.collectDuration ?
-            stepTraceData.second.npuTotalTime : baseInfo.collectDuration;
+        baseInfo.collectDuration = stepTraceData.second.npuTotalTime > baseInfo.collectDuration
+            ? stepTraceData.second.npuTotalTime
+            : baseInfo.collectDuration;
     }
     if (!db->UpdateCollectTimeInfo(baseInfo)) {
         ServerLog::Warn("Failed to update database for cluster base info.");
@@ -56,8 +57,7 @@ bool SummaryService::UpdateStartTimeAndDuration(SummaryBaseInfo &baseInfo, std::
     return true;
 }
 
-bool SummaryService::QuerySummaryBaseInfo(SummaryBaseInfo &baseInfo, std::shared_ptr<VirtualClusterDatabase> &db)
-{
+bool SummaryService::QuerySummaryBaseInfo(SummaryBaseInfo &baseInfo, std::shared_ptr<VirtualClusterDatabase> &db) {
     // db在外层进行校验 必不为空
     if (!db->QueryBaseInfo(baseInfo)) {
         ServerLog::Warn("Fail to query summary base info.");
@@ -70,8 +70,8 @@ bool SummaryService::QuerySummaryBaseInfo(SummaryBaseInfo &baseInfo, std::shared
     }
     return true;
 }
-void SummaryService::QueryCompareSummaryBaseInfo(const SummaryTopRankRequest &request, SummaryTopRankResponse &response)
-{
+void SummaryService::QueryCompareSummaryBaseInfo(
+    const SummaryTopRankRequest &request, SummaryTopRankResponse &response) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(request.params.clusterPath);
     if (database == nullptr || !QuerySummaryBaseInfo(response.body.baseInfo.compare, database)) {
         ServerLog::Warn("Fail to query compare summary base info");
@@ -81,16 +81,15 @@ void SummaryService::QueryCompareSummaryBaseInfo(const SummaryTopRankRequest &re
         return;
     }
 
-    auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(
-        BaselineManager::Instance().GetBaseLineClusterPath());
+    auto baselineDatabase =
+        Timeline::DataBaseManager::Instance().GetClusterDatabase(BaselineManager::Instance().GetBaseLineClusterPath());
     if (baselineDatabase == nullptr || !QuerySummaryBaseInfo(response.body.baseInfo.baseline, baselineDatabase)) {
         ServerLog::Warn("Fail to query baseline summary base info");
     }
 }
 
 std::vector<IndicatorDataStruct> SummaryService::GetPerformanceDataByDimension(
-    std::shared_ptr<VirtualClusterDatabase> &database,  const GetPerformanceIndicatorParam &params)
-{
+    std::shared_ptr<VirtualClusterDatabase> &database, const GetPerformanceIndicatorParam &params) {
     std::vector<IndicatorDataStruct> indicatorData;
     if (database == nullptr) {
         ServerLog::Warn("Fail to query compare parallelism info");
@@ -107,7 +106,8 @@ std::vector<IndicatorDataStruct> SummaryService::GetPerformanceDataByDimension(
     // 允许在未设置并行策略时，直接返回计算通信概览, 最多允许展示64卡
     if (worldSize == 1 && stepStatisticData.size() > maxRankCountForSummaryWithoutConfig) {
         ServerLog::Warn("When no parallel strategy is configured, computation/communication overview is limited to "
-                        "a maximum of " + std::to_string(maxRankCountForSummaryWithoutConfig) + " cards.");
+                        "a maximum of " +
+            std::to_string(maxRankCountForSummaryWithoutConfig) + " cards.");
         return indicatorData;
     }
     auto algPtr = ParallelStrategyAlgorithmManager::Instance().GetAlgorithmByProjectName(database->GetDbPath());
@@ -125,42 +125,39 @@ std::vector<IndicatorDataStruct> SummaryService::GetPerformanceDataByDimension(
 }
 
 std::unordered_map<std::string, double> SummaryService::CalDiffIndicators(
-    std::unordered_map<std::string, double> &compare, std::unordered_map<std::string, double> &baseline)
-{
+    std::unordered_map<std::string, double> &compare, std::unordered_map<std::string, double> &baseline) {
     std::set<std::string> keySet;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         keySet.insert(item.first);
     }
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         keySet.insert(item.first);
     }
     std::unordered_map<std::string, double> diff;
     // 数据保留三位小数
     int precision = 3;
-    for (const auto &item: keySet) {
+    for (const auto &item : keySet) {
         diff[item] = NumberUtil::DoubleReservedNDigits(compare[item] - baseline[item], precision);
     }
     return diff;
 }
 
 void SummaryService::MergeParallelismPerformance(std::vector<IndicatorDataStruct> &compare,
-                                                 std::vector<IndicatorDataStruct> &baseline,
-                                                 PerformanceIndicatorData &indicatorData)
-{
+    std::vector<IndicatorDataStruct> &baseline, PerformanceIndicatorData &indicatorData) {
     std::set<uint32_t> indexList;
     std::map<uint32_t, IndicatorDataStruct> compareMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         indexList.insert(item.index);
         compareMap[item.index] = item;
     }
 
     std::map<uint32_t, IndicatorDataStruct> baselineMap;
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         indexList.insert(item.index);
         baselineMap[item.index] = item;
     }
 
-    for (const auto &item: indexList) {
+    for (const auto &item : indexList) {
         IndicatorDataStructVo indicatorDataStructVo;
         indicatorDataStructVo.index = item;
         if (compareMap.count(item)) {
@@ -169,20 +166,18 @@ void SummaryService::MergeParallelismPerformance(std::vector<IndicatorDataStruct
         if (baselineMap.count(item)) {
             indicatorDataStructVo.indicators.baseline = baselineMap[item].indicators;
         }
-        indicatorDataStructVo.indicators.diff = CalDiffIndicators(indicatorDataStructVo.indicators.compare,
-                                                                  indicatorDataStructVo.indicators.baseline);
+        indicatorDataStructVo.indicators.diff =
+            CalDiffIndicators(indicatorDataStructVo.indicators.compare, indicatorDataStructVo.indicators.baseline);
         indicatorData.performanceData.push_back(indicatorDataStructVo);
     }
 }
 
-bool SummaryService::QueryParallelismPerformanceInfo(const ParallelismPerformance &params,
-                                                     PerformanceIndicatorData &indicatorData)
-{
+bool SummaryService::QueryParallelismPerformanceInfo(
+    const ParallelismPerformance &params, PerformanceIndicatorData &indicatorData) {
     // 查询compare数据
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
-    GetPerformanceIndicatorParam indicatorParam{params.step,  params.dimension, params.config};
-    std::vector<IndicatorDataStruct> compareIndicatorData = GetPerformanceDataByDimension(database,
-                                                                                          indicatorParam);
+    GetPerformanceIndicatorParam indicatorParam{params.step, params.dimension, params.config};
+    std::vector<IndicatorDataStruct> compareIndicatorData = GetPerformanceDataByDimension(database, indicatorParam);
     CommInfoMap compareCommInTpDimension;
     CommInfoMap compareCommInfo = QueryParallelismCommTime(database, indicatorParam, compareCommInTpDimension);
     // 查询baseline数据
@@ -206,8 +201,7 @@ bool SummaryService::QueryParallelismPerformanceInfo(const ParallelismPerformanc
     MergeCommDataPerformance(compareCommInfo, baselineCommInfo, indicatorData);
     // 非对比状态下，才计算专家建议信息
     if (!params.isCompare && database != nullptr) {
-        auto algPtr =
-            ParallelStrategyAlgorithmManager::Instance().GetAlgorithmByProjectName(database->GetDbPath());
+        auto algPtr = ParallelStrategyAlgorithmManager::Instance().GetAlgorithmByProjectName(database->GetDbPath());
         if (algPtr != nullptr) {
             algPtr->CalAdviceInfo(params.dimension, indicatorData.advices, compareIndicatorData);
             if (!algPtr->CalAdviceInfoByCommInfo(compareCommInTpDimension)) {
@@ -220,24 +214,23 @@ bool SummaryService::QueryParallelismPerformanceInfo(const ParallelismPerformanc
 }
 
 void SummaryService::MergeCommDataPerformance(std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &compare,
-    std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &baseline, PerformanceIndicatorData &indicatorData)
-{
-    for (auto &item: indicatorData.performanceData) {
+    std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &baseline,
+    PerformanceIndicatorData &indicatorData) {
+    for (auto &item : indicatorData.performanceData) {
         std::string key = std::to_string(item.index);
         MergeCommInfo(compare[key], baseline[key], item.commTimeIndicator);
     }
 }
 
 void SummaryService::MergeCommInfo(std::vector<CommInfoUnderRank> compare, std::vector<CommInfoUnderRank> baseline,
-                                   CompareData<std::unordered_map<std::string, double>> &commRes)
-{
+    CompareData<std::unordered_map<std::string, double>> &commRes) {
     std::unordered_map<std::string, double> compareMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         compareMap[item.pgName] = item.commTime;
     }
 
     std::unordered_map<std::string, double> baselineMap;
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         baselineMap[item.pgName] = item.commTime;
     }
 
@@ -248,14 +241,12 @@ void SummaryService::MergeCommInfo(std::vector<CommInfoUnderRank> compare, std::
 
 std::unordered_map<std::string, std::vector<CommInfoUnderRank>> SummaryService::QueryParallelismCommTime(
     const std::shared_ptr<VirtualClusterDatabase> &database, const GetPerformanceIndicatorParam &params,
-    CommInfoMap &commInTpDimension)
-{
+    CommInfoMap &commInTpDimension) {
     if (database == nullptr) {
         ServerLog::Warn("Fail to query parallelism communication info, database not exist.");
         return {};
     }
-    auto algPtr =
-            ParallelStrategyAlgorithmManager::Instance().GetAlgorithmByProjectName(database->GetDbPath());
+    auto algPtr = ParallelStrategyAlgorithmManager::Instance().GetAlgorithmByProjectName(database->GetDbPath());
     if (algPtr == nullptr) {
         ServerLog::Warn("Failed to get algorithm by project name for query parallelism communication info.");
         return {};
@@ -274,7 +265,7 @@ std::unordered_map<std::string, std::vector<CommInfoUnderRank>> SummaryService::
         return {};
     }
     // 按rank划分数据
-    for (auto &item: commTimeForRankDim) {
+    for (auto &item : commTimeForRankDim) {
         // pgName不存在时不返回按通信域拆解通信时间
         if (item.pgName.empty()) {
             continue;

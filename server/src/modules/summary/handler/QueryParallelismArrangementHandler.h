@@ -22,18 +22,18 @@
 #include "SummaryProtocolResponse.h"
 #include "SummaryRequestHandler.h"
 namespace Dic::Module::Summary {
-class QueryParallelismArrangementHandler : public SummaryRequestHandler  {
-public:
-    QueryParallelismArrangementHandler()
-    {
+class QueryParallelismArrangementHandler : public SummaryRequestHandler {
+  public:
+    QueryParallelismArrangementHandler() {
         command = Protocol::REQ_RES_PARALLELISM_ARRANGEMENT_ALL;
         async = false;
     }
     ~QueryParallelismArrangementHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-private:
-    static bool QueryArrangementByDimension(const std::string& projectName, std::string& err,
-        const QueryParallelismArrangementRequest& request, ParallelismArrangementResponse& response);
+
+  private:
+    static bool QueryArrangementByDimension(const std::string &projectName, std::string &err,
+        const QueryParallelismArrangementRequest &request, ParallelismArrangementResponse &response);
 };
 }
 #endif // PROFILER_SERVER_SERVER_SRC_MODULES_SUMMARY_HANDLER_QUERYPARALLELISMARRANGEMENTHANDLER_H

@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class QueryComputeDetailInfoHandler : public SummaryRequestHandler {
-public:
-    QueryComputeDetailInfoHandler()
-    {
-        command = Protocol::REQ_RES_COMPUTE_DETAIL;
-    }
+  public:
+    QueryComputeDetailInfoHandler() { command = Protocol::REQ_RES_COMPUTE_DETAIL; }
     ~QueryComputeDetailInfoHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

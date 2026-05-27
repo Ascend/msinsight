@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class SummaryStatisticsHandler : public SummaryRequestHandler {
-public:
-    SummaryStatisticsHandler()
-    {
-        command = Protocol::REQ_RES_SUMMARY_STATISTIC;
-    };
+  public:
+    SummaryStatisticsHandler() { command = Protocol::REQ_RES_SUMMARY_STATISTIC; };
     ~SummaryStatisticsHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

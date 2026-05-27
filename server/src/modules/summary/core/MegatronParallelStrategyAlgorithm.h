@@ -26,25 +26,26 @@
 
 namespace Dic::Module::Summary {
 class MegatronParallelStrategyAlgorithm : public BaseParallelStrategyAlgorithm {
-public:
+  public:
     static const std::unordered_map<std::string, std::string> tokenExceptEp;
     static const std::unordered_map<std::string, std::string> tokenWithEp;
 
     MegatronParallelStrategyAlgorithm();
     ~MegatronParallelStrategyAlgorithm() override;
 
-    bool UpdateParallelDimension(const std::string &tmpDimension,
-                                 const ParallelStrategyConfig &tmpConfig, std::string &err) override;
+    bool UpdateParallelDimension(
+        const std::string &tmpDimension, const ParallelStrategyConfig &tmpConfig, std::string &err) override;
 
     bool GenerateArrangementByDimension(std::string &err) override;
     bool GetPerformanceIndicatorByDimension(const GetPerformanceIndicatorParam &performanceParams,
         const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-        std::vector<IndicatorDataStruct> &indicatorData, std::string& err) override;
+        std::vector<IndicatorDataStruct> &indicatorData, std::string &err) override;
     void CalAdviceInfo(const std::string &dimension, std::vector<std::string> &advices,
-                       std::vector<IndicatorDataStruct> &indicatorData) override;
+        std::vector<IndicatorDataStruct> &indicatorData) override;
     // get all communication groups
     std::vector<Connection> GetAllCommunicationGroups(std::string &err) override;
-private:
+
+  private:
     // get arrangements
     void SetIndicatorAttr();
     void GetPerArrangement(uint32_t index, std::unordered_map<std::string, uint32_t> &indexAttributes);

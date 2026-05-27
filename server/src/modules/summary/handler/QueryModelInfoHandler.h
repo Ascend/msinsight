@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class QueryModelInfoHandler : public SummaryRequestHandler {
-public:
-    QueryModelInfoHandler()
-    {
-        command = Protocol::REQ_RES_QUERY_MODEL_INFO;
-    }
+  public:
+    QueryModelInfoHandler() { command = Protocol::REQ_RES_QUERY_MODEL_INFO; }
     ~QueryModelInfoHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

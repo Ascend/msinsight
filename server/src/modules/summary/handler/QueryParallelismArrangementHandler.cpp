@@ -22,8 +22,7 @@
 #include "TrackInfoManager.h"
 #include "QueryParallelismArrangementHandler.h"
 namespace Dic::Module::Summary {
-bool QueryParallelismArrangementHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryParallelismArrangementHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<QueryParallelismArrangementRequest &>(*requestPtr);
     std::unique_ptr<ParallelismArrangementResponse> responsePtr = std::make_unique<ParallelismArrangementResponse>();
     ParallelismArrangementResponse &response = *responsePtr;
@@ -46,17 +45,16 @@ bool QueryParallelismArrangementHandler::HandleRequest(std::unique_ptr<Protocol:
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    for (const auto &item: FullDb::TrackInfoManager::Instance().GetRankIdToFileIdByClusterDb(
-        request.params.clusterPath)) {
+    for (const auto &item :
+        FullDb::TrackInfoManager::Instance().GetRankIdToFileIdByClusterDb(request.params.clusterPath)) {
         response.arrangeData.rankDbPathList.push_back({item.first, item.second});
     }
     SendResponse(std::move(responsePtr), true);
     return true;
 }
 
-bool QueryParallelismArrangementHandler::QueryArrangementByDimension(const std::string& projectName, std::string& err,
-    const QueryParallelismArrangementRequest& request, ParallelismArrangementResponse& response)
-{
+bool QueryParallelismArrangementHandler::QueryArrangementByDimension(const std::string &projectName, std::string &err,
+    const QueryParallelismArrangementRequest &request, ParallelismArrangementResponse &response) {
     if (!ParallelStrategyAlgorithmManager::Instance().AddOrUpdateAlgorithm(projectName, request.params.config, err)) {
         return false;
     }

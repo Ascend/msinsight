@@ -22,8 +22,7 @@
 #include "SummaryProtocolResponse.h"
 
 namespace Dic::Module::Summary {
-bool QueryExpertHotspotHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryExpertHotspotHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<QueryExpertHotspotRequest &>(*requestPtr);
     std::unique_ptr<QueryExpertHotspotResponse> responsePtr = std::make_unique<QueryExpertHotspotResponse>();
     QueryExpertHotspotResponse &response = *responsePtr;
@@ -42,9 +41,8 @@ bool QueryExpertHotspotHandler::HandleRequest(std::unique_ptr<Protocol::Request>
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    response.body.hotspotInfos = ExpertHotspotManager::QueryExpertHotspotData(request.params.clusterPath,
-                                                                              request.params.modelStage,
-                                                                              request.params.version);
+    response.body.hotspotInfos = ExpertHotspotManager::QueryExpertHotspotData(
+        request.params.clusterPath, request.params.modelStage, request.params.version);
     SendResponse(std::move(responsePtr), true);
     return true;
 }

@@ -22,7 +22,7 @@
 #include "ClusterDef.h"
 namespace Dic::Module::Summary {
 class ModelGenConfigParser {
-public:
+  public:
     static ModelGenConfig ParserModelGenConfigByFilePath(const std::string &filePath, std::string &error);
 };
 }

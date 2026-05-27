@@ -24,7 +24,7 @@
 namespace Dic {
 namespace Module {
 class SummaryModule : public BaseModule {
-public:
+  public:
     SummaryModule();
     ~SummaryModule() override;
 

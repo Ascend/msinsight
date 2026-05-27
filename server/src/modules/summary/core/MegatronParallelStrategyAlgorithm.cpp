@@ -22,15 +22,14 @@
 namespace Dic::Module::Summary {
 
 const std::unordered_map<std::string, std::string> MegatronParallelStrategyAlgorithm::tokenExceptEp = {
-    {DP_GROUP, DP_GROUP}, {CP_GROUP, CP_GROUP}, {TP_GROUP, TP_GROUP}, {PP_GROUP, PP_GROUP},
-    {DP_CP_GROUP, DP_CP_GROUP}, {MP_GROUP, MP_GROUP_NAME}, {TP_DP_CP_GROUP, TP_DP_CP_GROUP},
-    {TP_DP_GROUP, TP_DP_GROUP}, {TP_CP_GROUP, TP_CP_GROUP}};
+    {DP_GROUP, DP_GROUP}, {CP_GROUP, CP_GROUP}, {TP_GROUP, TP_GROUP}, {PP_GROUP, PP_GROUP}, {DP_CP_GROUP, DP_CP_GROUP},
+    {MP_GROUP, MP_GROUP_NAME}, {TP_DP_CP_GROUP, TP_DP_CP_GROUP}, {TP_DP_GROUP, TP_DP_GROUP},
+    {TP_CP_GROUP, TP_CP_GROUP}};
 const std::unordered_map<std::string, std::string> MegatronParallelStrategyAlgorithm::tokenWithEp = {
     {EP_GROUP, EP_GROUP_NAME}, {TP_EP_GROUP, TP_EP_GROUP_NAME}, {DP_MODULO_EP_GROUP, DP_MODULO_EP_GROUP_NAME},
     {DP_CP_MODULO_EP_GROUP, DP_CP_MODULO_EP_GROUP_NAME}, {MP_EP_GROUP, MP_EP_GROUP_NAME}};
 
-MegatronParallelStrategyAlgorithm::MegatronParallelStrategyAlgorithm()
-{
+MegatronParallelStrategyAlgorithm::MegatronParallelStrategyAlgorithm() {
     commInfoHandlers[DIMENSIONS_TP] =
         std::bind(&MegatronParallelStrategyAlgorithm::ReduceCommTpDimensionDef, this, std::placeholders::_1);
     commInfoHandlers[DIMENSIONS_CP] =
@@ -41,14 +40,13 @@ MegatronParallelStrategyAlgorithm::MegatronParallelStrategyAlgorithm()
 
 MegatronParallelStrategyAlgorithm::~MegatronParallelStrategyAlgorithm() = default;
 
-void MegatronParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
-{
+void MegatronParallelStrategyAlgorithm::UpdateOrderAndParallelSize() {
     updatedOrder = paraOrder;
-    updatedOrder.erase(std::remove_if(updatedOrder.begin(), updatedOrder.end(), [this](const std::string& group) {
-        return !(paraDetailsMap[group].isShown);
-        }), updatedOrder.end());
+    updatedOrder.erase(std::remove_if(updatedOrder.begin(), updatedOrder.end(),
+                           [this](const std::string &group) { return !(paraDetailsMap[group].isShown); }),
+        updatedOrder.end());
     parallelSize.clear();
-    for (const auto& para : updatedOrder) {
+    for (const auto &para : updatedOrder) {
         parallelSize.push_back(paraDetailsMap[para].size);
     }
     if (!paraDetailsMap[EP_PARA].isShown) {
@@ -57,10 +55,10 @@ void MegatronParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
     // 仅影响连线生成，不影响布局
     updatedOrderWithEp = paraOrderWithEp;
     updatedOrderWithEp.erase(std::remove_if(updatedOrderWithEp.begin(), updatedOrderWithEp.end(),
-        [this](const std::string& group) { return !(paraDetailsMap[group].isShown); }),
+                                 [this](const std::string &group) { return !(paraDetailsMap[group].isShown); }),
         updatedOrderWithEp.end());
     parallelSizeWithEp.clear();
-    for (const auto& para : updatedOrderWithEp) {
+    for (const auto &para : updatedOrderWithEp) {
         if (para == DP_PARA) {
             // 前端入参已校验
             parallelSizeWithEp.push_back(paraDetailsMap[DP_PARA].size / paraDetailsMap[EP_PARA].size);
@@ -70,9 +68,8 @@ void MegatronParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
     }
 }
 
-bool MegatronParallelStrategyAlgorithm::UpdateParallelDimension(const std::string &tmpDimension,
-    const ParallelStrategyConfig &tmpConfig, std::string &err)
-{
+bool MegatronParallelStrategyAlgorithm::UpdateParallelDimension(
+    const std::string &tmpDimension, const ParallelStrategyConfig &tmpConfig, std::string &err) {
     CalStrategyConfig(tmpDimension, tmpConfig);
     if (tmpConfig.algorithm == MEGATRON_LM_TP_CP_EP_DP_PP_ALG) {
         paraOrder = {TP_PARA, CP_PARA, DP_PARA, PP_PARA};
@@ -100,12 +97,11 @@ bool MegatronParallelStrategyAlgorithm::UpdateParallelDimension(const std::strin
     return res;
 }
 
-bool MegatronParallelStrategyAlgorithm::GenerateArrangementByDimension(std::string &err)
-{
+bool MegatronParallelStrategyAlgorithm::GenerateArrangementByDimension(std::string &err) {
     ClearArrangementData();
     SetIndicatorAttr();
     std::unordered_map<std::string, uint32_t> indexAttributes;
-    for (const auto& para : paraOrderWithEp) {
+    for (const auto &para : paraOrderWithEp) {
         indexAttributes[para + STR_INDEX] = 0;
     }
     // get arrangements
@@ -123,8 +119,7 @@ bool MegatronParallelStrategyAlgorithm::GenerateArrangementByDimension(std::stri
     return true;
 }
 
-void MegatronParallelStrategyAlgorithm::SetIndicatorAttr()
-{
+void MegatronParallelStrategyAlgorithm::SetIndicatorAttr() {
     if (dimension == DIMENSIONS_TP) {
         SetTpIndicatorAttr();
     } else if (dimension == DIMENSIONS_CP) {
@@ -136,9 +131,8 @@ void MegatronParallelStrategyAlgorithm::SetIndicatorAttr()
     }
 }
 
-void MegatronParallelStrategyAlgorithm::GetPerArrangement(uint32_t index,
-    std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+void MegatronParallelStrategyAlgorithm::GetPerArrangement(
+    uint32_t index, std::unordered_map<std::string, uint32_t> &indexAttributes) {
     Element element;
     element.index = index;
     if (index != 0) {
@@ -152,11 +146,10 @@ void MegatronParallelStrategyAlgorithm::GetPerArrangement(uint32_t index,
 }
 
 void MegatronParallelStrategyAlgorithm::UpdateIndexAttributes(
-    std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+    std::unordered_map<std::string, uint32_t> &indexAttributes) {
     // 由低层次到高层次遍历各并行域，依次检查是否需要进位
     std::string curIndex;
-    for (const auto& curPara : paraOrder) {
+    for (const auto &curPara : paraOrder) {
         // 未达到size-1，无需进位
         if (indexAttributes[curPara + STR_INDEX] < paraDetailsMap[curPara].size - 1) {
             indexAttributes[curPara + STR_INDEX]++;
@@ -177,21 +170,19 @@ void MegatronParallelStrategyAlgorithm::UpdateIndexAttributes(
  * need UpdateParallelDimension first
  * @return
  */
-std::vector<Connection> MegatronParallelStrategyAlgorithm::GetAllCommunicationGroups(std::string &err)
-{
+std::vector<Connection> MegatronParallelStrategyAlgorithm::GetAllCommunicationGroups(std::string &err) {
     if (allCommunicationGroups.empty() && !GetConnectionsByTokenList(err)) {
         return {};
     }
     return allCommunicationGroups;
 }
 
-bool MegatronParallelStrategyAlgorithm::GetConnectionsByMegatronToken(std::string &err, bool independentEp = false)
-{
+bool MegatronParallelStrategyAlgorithm::GetConnectionsByMegatronToken(std::string &err, bool independentEp = false) {
     std::unordered_map<std::string, std::string> tmpToken = independentEp ? tokenWithEp : tokenExceptEp;
-    for (const auto& [token, groupName] : tmpToken) {
+    for (const auto &[token, groupName] : tmpToken) {
         bool hasTokenGroup = true;
         std::vector<std::string> parallelGroups = StringUtil::Split(token, "-");
-        for (const auto& group : parallelGroups) {
+        for (const auto &group : parallelGroups) {
             if (!paraDetailsMap[group].isShown) {
                 // 不存在当前含有当前并行域的通信组
                 hasTokenGroup = false;
@@ -204,26 +195,25 @@ bool MegatronParallelStrategyAlgorithm::GetConnectionsByMegatronToken(std::strin
         allGroupsType ranks{};
         if (independentEp) {
             // 计算并行通信域时需考虑ep
-            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(parallelGroups, parallelSizeWithEp,
-                                                                              updatedOrderWithEp, wordSize);
+            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(
+                parallelGroups, parallelSizeWithEp, updatedOrderWithEp, wordSize);
         } else {
             // 计算并行通信域时无需考虑ep
-            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(parallelGroups, parallelSize,
-                                                                              updatedOrder, wordSize);
+            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(
+                parallelGroups, parallelSize, updatedOrder, wordSize);
         }
         if (ranks.empty()) {
             err = "Failed to get connections by token list for Megatron. Group name: " + groupName;
             return false;
         }
-        for (const auto& rank : ranks) {
+        for (const auto &rank : ranks) {
             data.connections.emplace_back(groupName, rank, std::vector<std::string>{});
         }
     }
     return true;
 }
 
-bool MegatronParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &err)
-{
+bool MegatronParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &err) {
     if (wordSize == 1) {
         err = "Failed to get connections for Megatron. Parallel strategy configs have not been updated yet.";
         SetSummaryError(ErrorCode::GET_ALGORITHM_CONNECTIONS_FAILED);
@@ -243,19 +233,16 @@ bool MegatronParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &e
     return true;
 }
 
-void MegatronParallelStrategyAlgorithm::CalAdviceInfo(const std::string &dimension, std::vector<std::string> &advices,
-                                                      std::vector<IndicatorDataStruct> &indicatorData)
-{
+void MegatronParallelStrategyAlgorithm::CalAdviceInfo(
+    const std::string &dimension, std::vector<std::string> &advices, std::vector<IndicatorDataStruct> &indicatorData) {
     BaseParallelStrategyAlgorithm::CalAdviceInfo(dimension, advices, indicatorData);
 }
 
 bool MegatronParallelStrategyAlgorithm::GetPerformanceIndicatorByDimension(
     const GetPerformanceIndicatorParam &performanceParams,
-    const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-    std::vector<IndicatorDataStruct> &indicatorData,
-    std::string& err)
-{
-    if (!(strategyConfig==performanceParams.config)) {
+    const std::unordered_map<std::uint32_t, StepStatistic> &statistic, std::vector<IndicatorDataStruct> &indicatorData,
+    std::string &err) {
+    if (!(strategyConfig == performanceParams.config)) {
         err = "Failed to get parallelism performance indicator for Megatron-LM. Unexpected parallel config.";
         return false;
     }

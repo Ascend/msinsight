@@ -29,8 +29,7 @@ namespace Summary {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool SummaryTopRankHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool SummaryTopRankHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SummaryTopRankRequest &>(*requestPtr);
     std::unique_ptr<SummaryTopRankResponse> responsePtr = std::make_unique<SummaryTopRankResponse>();
     SummaryTopRankResponse &response = *responsePtr;

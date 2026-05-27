@@ -23,8 +23,7 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 using namespace Dic::Server;
-bool QueryCommunicationDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryCommunicationDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     CommunicationDetailRequest &request = dynamic_cast<CommunicationDetailRequest &>(*requestPtr.get());
     std::unique_ptr<CommunicationDetailResponse> responsePtr = std::make_unique<CommunicationDetailResponse>();
     CommunicationDetailResponse &response = *responsePtr.get();

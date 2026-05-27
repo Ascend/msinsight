@@ -30,8 +30,7 @@
 namespace Dic::Module::Summary {
 using namespace Dic::Server;
 using namespace Dic::Module::Global;
-bool SetParallelStrategyConfigHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool SetParallelStrategyConfigHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SetParallelStrategyRequest &>(*requestPtr);
     std::unique_ptr<SetParallelStrategyResponse> responsePtr = std::make_unique<SetParallelStrategyResponse>();
     SetParallelStrategyResponse &response = *responsePtr;
@@ -53,15 +52,16 @@ bool SetParallelStrategyConfigHandler::HandleRequest(std::unique_ptr<Protocol::R
     }
     std::string errMsg;
     if (!ParallelStrategyAlgorithmManager::Instance().AddOrUpdateAlgorithm(
-        database->GetDbPath(), request.params.config, errMsg)) {
+            database->GetDbPath(), request.params.config, errMsg)) {
         SendResponse(std::move(responsePtr), false);
         return false;
     }
     // 如果存在baseline，则对baseline进行同样的设置
-    auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(
-        BaselineManager::Instance().GetBaseLineClusterPath());
-    if (baselineDatabase != nullptr && !ParallelStrategyAlgorithmManager::Instance().AddOrUpdateAlgorithm(
-        baselineDatabase->GetDbPath(), request.params.config, errMsg)) {
+    auto baselineDatabase =
+        Timeline::DataBaseManager::Instance().GetClusterDatabase(BaselineManager::Instance().GetBaseLineClusterPath());
+    if (baselineDatabase != nullptr &&
+        !ParallelStrategyAlgorithmManager::Instance().AddOrUpdateAlgorithm(
+            baselineDatabase->GetDbPath(), request.params.config, errMsg)) {
         SendResponse(std::move(responsePtr), false);
         return false;
     }

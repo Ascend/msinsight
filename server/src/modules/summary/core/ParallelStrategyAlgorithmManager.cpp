@@ -26,22 +26,19 @@
 #include "SummaryErrorManager.h"
 using namespace Dic::Server;
 namespace Dic::Module::Summary {
-ParallelStrategyAlgorithmManager &ParallelStrategyAlgorithmManager::Instance()
-{
+ParallelStrategyAlgorithmManager &ParallelStrategyAlgorithmManager::Instance() {
     static ParallelStrategyAlgorithmManager instance;
     return instance;
 }
 
-void ParallelStrategyAlgorithmManager::Reset()
-{
+void ParallelStrategyAlgorithmManager::Reset() {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     algorithmMap.clear();
 }
 
-bool ParallelStrategyAlgorithmManager::IsSameAlgorithm(const std::string& algorithm1, const std::string& algorithm2)
-{
-    if (algorithm1 == algorithm2 || (StringUtil::Contains(algorithm1, MEGATRON_ALG) &&
-        StringUtil::Contains(algorithm2, MEGATRON_ALG))) {
+bool ParallelStrategyAlgorithmManager::IsSameAlgorithm(const std::string &algorithm1, const std::string &algorithm2) {
+    if (algorithm1 == algorithm2 ||
+        (StringUtil::Contains(algorithm1, MEGATRON_ALG) && StringUtil::Contains(algorithm2, MEGATRON_ALG))) {
         return true;
     }
     return false;
@@ -49,26 +46,25 @@ bool ParallelStrategyAlgorithmManager::IsSameAlgorithm(const std::string& algori
 
 // algorithmFactoryTable算法映射表，用于按照算法名称创建对应类型算法实例 key: matcher, value: creator
 using AlgorithmCreator = std::function<std::shared_ptr<BaseParallelStrategyAlgorithm>()>;
-const std::vector<std::pair<std::function<bool(const std::string&)>, AlgorithmCreator>> algorithmFactoryTable = {
-    { [](const std::string& alg) {
-        return alg == MEGATRON_LM_TP_CP_EP_DP_PP_ALG || alg == MEGATRON_LM_TP_CP_PP_EP_DP_ALG; },
-        []() { return std::make_shared<MegatronParallelStrategyAlgorithm>(); } },
+const std::vector<std::pair<std::function<bool(const std::string &)>, AlgorithmCreator>> algorithmFactoryTable = {
+    {[](const std::string &alg) {
+         return alg == MEGATRON_LM_TP_CP_EP_DP_PP_ALG || alg == MEGATRON_LM_TP_CP_PP_EP_DP_ALG;
+     },
+        []() { return std::make_shared<MegatronParallelStrategyAlgorithm>(); }},
 
-    { [](const std::string& alg) { return alg == MINDSPEED_TP_CP_EP_DP_PP_ALG; },
-        []() { return std::make_shared<MindSpeedParallelStrategyAlgorithm>(); } },
+    {[](const std::string &alg) { return alg == MINDSPEED_TP_CP_EP_DP_PP_ALG; },
+        []() { return std::make_shared<MindSpeedParallelStrategyAlgorithm>(); }},
 
-    { [](const std::string& alg) { return alg == MINDIE_LLM_TP_DP_EP_PP_MOETP_ALG; },
-        []() { return std::make_shared<MindIELLMParallelStrategyAlgorithm>(); } },
+    {[](const std::string &alg) { return alg == MINDIE_LLM_TP_DP_EP_PP_MOETP_ALG; },
+        []() { return std::make_shared<MindIELLMParallelStrategyAlgorithm>(); }},
 
-    { [](const std::string& alg) { return alg == VLLM_TP_PP_DP_EP_ALG; },
-        []() { return std::make_shared<VLLMParallelStrategyAlgorithm>(); } }
-};
+    {[](const std::string &alg) { return alg == VLLM_TP_PP_DP_EP_ALG; },
+        []() { return std::make_shared<VLLMParallelStrategyAlgorithm>(); }}};
 
 std::shared_ptr<BaseParallelStrategyAlgorithm> ParallelStrategyAlgorithmManager::CreateAlgorithm(
-    const std::string& algorithm)
-{
+    const std::string &algorithm) {
     std::string lowerAlg = StringUtil::ToLower(algorithm);
-    for (const auto& [matcher, creator] : algorithmFactoryTable) {
+    for (const auto &[matcher, creator] : algorithmFactoryTable) {
         if (matcher(lowerAlg)) {
             return creator();
         }
@@ -76,9 +72,8 @@ std::shared_ptr<BaseParallelStrategyAlgorithm> ParallelStrategyAlgorithmManager:
     return nullptr;
 }
 
-bool ParallelStrategyAlgorithmManager::AddOrUpdateAlgorithm(const std::string& projectName,
-    const ParallelStrategyConfig& config, std::string& errMsg)
-{
+bool ParallelStrategyAlgorithmManager::AddOrUpdateAlgorithm(
+    const std::string &projectName, const ParallelStrategyConfig &config, std::string &errMsg) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     auto it = algorithmMap.find(projectName);
     if (it != algorithmMap.end()) {
@@ -104,8 +99,7 @@ bool ParallelStrategyAlgorithmManager::AddOrUpdateAlgorithm(const std::string& p
     return true;
 }
 
-ParallelStrategyConfig ParallelStrategyAlgorithmManager::GetParallelStrategyConfig(const std::string &key)
-{
+ParallelStrategyConfig ParallelStrategyAlgorithmManager::GetParallelStrategyConfig(const std::string &key) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     ParallelStrategyConfig config;
     auto it = algorithmMap.find(key);
@@ -116,8 +110,7 @@ ParallelStrategyConfig ParallelStrategyAlgorithmManager::GetParallelStrategyConf
     return config;
 }
 
-bool ParallelStrategyAlgorithmManager::DeleteAlgorithm(const std::string &projectName)
-{
+bool ParallelStrategyAlgorithmManager::DeleteAlgorithm(const std::string &projectName) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     // 若不存在该project，则删除失败
     auto it = algorithmMap.find(projectName);
@@ -129,8 +122,7 @@ bool ParallelStrategyAlgorithmManager::DeleteAlgorithm(const std::string &projec
 }
 
 std::shared_ptr<BaseParallelStrategyAlgorithm> ParallelStrategyAlgorithmManager::GetAlgorithmByProjectName(
-    const std::string &projectName)
-{
+    const std::string &projectName) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     if (algorithmMap.count(projectName) == 0) {
         SetSummaryError(ErrorCode::GET_ALGORITHM_FAILED);

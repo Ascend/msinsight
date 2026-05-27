@@ -20,8 +20,7 @@
 
 namespace Dic::Module::Summary {
 
-double GetTotalSynchronizeTime(const AdviceInfoForSlowRank &info)
-{
+double GetTotalSynchronizeTime(const AdviceInfoForSlowRank &info) {
     double total = 0.0;
     for (const auto &[pg, t] : info.synchronizeTime) {
         (void)(pg);
@@ -30,14 +29,14 @@ double GetTotalSynchronizeTime(const AdviceInfoForSlowRank &info)
     return total;
 }
 
-void TopNAdviceMaintainer::Insert(const AdviceInfoForSlowRank &info)
-{
+void TopNAdviceMaintainer::Insert(const AdviceInfoForSlowRank &info) {
     queue.push(info);
-    if (queue.size() > length) queue.pop();
+    if (queue.size() > length) {
+        queue.pop();
+    }
 }
 
-std::vector<AdviceInfoForSlowRank> TopNAdviceMaintainer::GetTopNSlowest(uint32_t topN) const
-{
+std::vector<AdviceInfoForSlowRank> TopNAdviceMaintainer::GetTopNSlowest(uint32_t topN) const {
     // 拷贝堆内容
     std::vector<AdviceInfoForSlowRank> all;
     auto tempQueue = queue;
@@ -54,8 +53,5 @@ std::vector<AdviceInfoForSlowRank> TopNAdviceMaintainer::GetTopNSlowest(uint32_t
     return all;
 }
 
-bool TopNAdviceMaintainer::IsEmpty() const
-{
-    return queue.empty();
-}
+bool TopNAdviceMaintainer::IsEmpty() const { return queue.empty(); }
 }

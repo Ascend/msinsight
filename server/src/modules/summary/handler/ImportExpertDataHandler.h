@@ -23,11 +23,8 @@ namespace Dic {
 namespace Module {
 namespace Summary {
 class ImportExpertDataHandler : public SummaryRequestHandler {
-public:
-    ImportExpertDataHandler()
-    {
-        command = Protocol::REQ_RES_IMPORT_EXPERT_DATA;
-    }
+  public:
+    ImportExpertDataHandler() { command = Protocol::REQ_RES_IMPORT_EXPERT_DATA; }
     ~ImportExpertDataHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

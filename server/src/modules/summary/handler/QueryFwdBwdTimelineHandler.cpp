@@ -27,8 +27,7 @@ namespace Dic::Module::Summary {
 using namespace Dic::Server;
 using namespace Dic::Module::Timeline;
 std::map<std::string, PipelineFwdBwdTimelineByRank> QueryFwdBwdTimelineHandler::dataMap;
-bool QueryFwdBwdTimelineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryFwdBwdTimelineHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<PipelineFwdBwdTimelineRequest &>(*requestPtr.get());
     std::unique_ptr<PipelineFwdBwdTimelineResponse> responsePtr = std::make_unique<PipelineFwdBwdTimelineResponse>();
     PipelineFwdBwdTimelineResponse &response = *responsePtr.get();
@@ -53,8 +52,8 @@ bool QueryFwdBwdTimelineHandler::HandleRequest(std::unique_ptr<Protocol::Request
         response.body.rankLists.push_back(rankId);
         PipelineFwdBwdTimelineByRank rank = {rankId, {}, {}};
         dataMap.emplace(rankId, rank);
-        threadPool.AddTask(QueryFwdBwdTimelineByRank, TraceIdManager::GetTraceId(),
-                           rankId, request.params.stepId, request.params.clusterPath);
+        threadPool.AddTask(QueryFwdBwdTimelineByRank, TraceIdManager::GetTraceId(), rankId, request.params.stepId,
+            request.params.clusterPath);
     }
 
     threadPool.WaitForAllTasks();
@@ -85,9 +84,8 @@ bool QueryFwdBwdTimelineHandler::HandleRequest(std::unique_ptr<Protocol::Request
     return true;
 }
 
-bool QueryFwdBwdTimelineHandler::QueryFwdBwdTimelineByRank(const std::string &rankId, const std::string &stepId,
-                                                           const std::string &clusterPath)
-{
+bool QueryFwdBwdTimelineHandler::QueryFwdBwdTimelineByRank(
+    const std::string &rankId, const std::string &stepId, const std::string &clusterPath) {
     if (dataMap.find(rankId) == dataMap.end()) {
         return false;
     }
@@ -108,8 +106,7 @@ bool QueryFwdBwdTimelineHandler::QueryFwdBwdTimelineByRank(const std::string &ra
 }
 
 bool QueryFwdBwdTimelineHandler::QueryFwdBwdTimelineFromMstx(const std::string &rankId, const std::string &stepId,
-    const std::shared_ptr<Dic::Module::Timeline::VirtualTraceDatabase> &database)
-{
+    const std::shared_ptr<Dic::Module::Timeline::VirtualTraceDatabase> &database) {
     // 校验表格是否存在，表格不存在，则直接返回，该表不存在属于正常现象
     if (!database->CheckTableExist(TABLE_STEP_TASK_INFO)) {
         ServerLog::Warn("The table of step task is not exist, skip to query fwd/bwd info from mstx.");
@@ -134,19 +131,18 @@ bool QueryFwdBwdTimelineHandler::QueryFwdBwdTimelineFromMstx(const std::string &
     return true;
 }
 
-void QueryFwdBwdTimelineHandler::CalFlowInfo(std::vector<FlowInfo> &flowList, const std::vector<std::string> &rankIds)
-{
+void QueryFwdBwdTimelineHandler::CalFlowInfo(std::vector<FlowInfo> &flowList, const std::vector<std::string> &rankIds) {
     std::map<std::string, std::vector<FlowPointInfo>> pointMap;
-    for (const auto &rank: rankIds) {
+    for (const auto &rank : rankIds) {
         auto pipeline = dataMap[rank];
         std::vector<Protocol::ThreadTraces> p2pTraceList;
-        for (auto &item: pipeline.componentDataList) {
+        for (auto &item : pipeline.componentDataList) {
             if (item.component == LANE_P2P_OP) {
                 p2pTraceList = item.traceList;
                 break;
             }
         }
-        for (const auto &item: p2pTraceList) {
+        for (const auto &item : p2pTraceList) {
             if (item.opConnectionId.empty()) {
                 continue;
             }
@@ -155,7 +151,7 @@ void QueryFwdBwdTimelineHandler::CalFlowInfo(std::vector<FlowInfo> &flowList, co
         }
     }
     const size_t flowPointNumber = 2;
-    for (auto &item: pointMap) {
+    for (auto &item : pointMap) {
         if (item.second.size() != flowPointNumber) {
             continue;
         }
@@ -164,8 +160,12 @@ void QueryFwdBwdTimelineHandler::CalFlowInfo(std::vector<FlowInfo> &flowList, co
         // 连线节点排序，保证send算子在前，receive算子在后
         std::sort(flowInfo.flowPointList.begin(), flowInfo.flowPointList.end(),
             [](const FlowPointInfo &pointA, const FlowPointInfo &pointB) {
-                if (StringUtil::Contains(StringUtil::ToLower(pointA.opName), "send")) return true;
-                if (StringUtil::Contains(StringUtil::ToLower(pointB.opName), "receive")) return true;
+                if (StringUtil::Contains(StringUtil::ToLower(pointA.opName), "send")) {
+                    return true;
+                }
+                if (StringUtil::Contains(StringUtil::ToLower(pointB.opName), "receive")) {
+                    return true;
+                }
                 return false;
             });
         flowList.push_back(flowInfo);
@@ -173,8 +173,7 @@ void QueryFwdBwdTimelineHandler::CalFlowInfo(std::vector<FlowInfo> &flowList, co
 }
 
 bool QueryFwdBwdTimelineHandler::QueryFwdBwdTimelineFromFlow(const std::string &rankId, const std::string &stepId,
-    const std::shared_ptr<Dic::Module::Timeline::VirtualTraceDatabase> &database)
-{
+    const std::shared_ptr<Dic::Module::Timeline::VirtualTraceDatabase> &database) {
     uint64_t offset = Timeline::TraceTime::Instance().GetStartTime();
     auto rank = &dataMap.at(rankId);
     Protocol::ExtremumTimestamp range = {offset, (uint64_t)INT64_MAX};

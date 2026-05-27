@@ -23,8 +23,7 @@
 #include "BaseParallelStrategyAlgorithm.h"
 
 namespace Dic::Module::Summary {
-void BaseParallelStrategyAlgorithm::ClearStrategyConfigCache()
-{
+void BaseParallelStrategyAlgorithm::ClearStrategyConfigCache() {
     // arrangements data
     orderIsTpPpDp = false;
     data.size = 0;
@@ -60,24 +59,14 @@ void BaseParallelStrategyAlgorithm::ClearStrategyConfigCache()
     slowRankAdvice.clear();
 }
 
-void BaseParallelStrategyAlgorithm::SetStrategyConfig(const ParallelStrategyConfig& config)
-{
-    strategyConfig = config;
-}
+void BaseParallelStrategyAlgorithm::SetStrategyConfig(const ParallelStrategyConfig &config) { strategyConfig = config; }
 
-ParallelStrategyConfig BaseParallelStrategyAlgorithm::GetStrategyConfig()
-{
-    return strategyConfig;
-}
+ParallelStrategyConfig BaseParallelStrategyAlgorithm::GetStrategyConfig() { return strategyConfig; }
 
-ArrangementAndConnectionData BaseParallelStrategyAlgorithm::GetArrangementData()
-{
-    return data;
-}
+ArrangementAndConnectionData BaseParallelStrategyAlgorithm::GetArrangementData() { return data; }
 
-void BaseParallelStrategyAlgorithm::CalStrategyConfig(const std::string &tmpDimension,
-    const ParallelStrategyConfig &tmpConfig)
-{
+void BaseParallelStrategyAlgorithm::CalStrategyConfig(
+    const std::string &tmpDimension, const ParallelStrategyConfig &tmpConfig) {
     strategyConfig = tmpConfig;
     static std::vector<std::string> algTpPpDpList = {MEGATRON_LM_TP_CP_PP_EP_DP_ALG, VLLM_TP_PP_DP_EP_ALG};
     if (std::find(algTpPpDpList.begin(), algTpPpDpList.end(), strategyConfig.algorithm) != algTpPpDpList.end()) {
@@ -92,8 +81,7 @@ void BaseParallelStrategyAlgorithm::CalStrategyConfig(const std::string &tmpDime
     wordSize = tpCpSize * tmpConfig.dpSize * tmpConfig.ppSize;
 }
 
-uint32_t BaseParallelStrategyAlgorithm::GetParallelSizeByType(const std::string& type) const
-{
+uint32_t BaseParallelStrategyAlgorithm::GetParallelSizeByType(const std::string &type) const {
     if (type == DP_PARA) {
         return strategyConfig.dpSize;
     } else if (type == EP_PARA) {
@@ -111,10 +99,9 @@ uint32_t BaseParallelStrategyAlgorithm::GetParallelSizeByType(const std::string&
     return 1;
 }
 
-bool BaseParallelStrategyAlgorithm::UpdateShowMap(std::string &err)
-{
+bool BaseParallelStrategyAlgorithm::UpdateShowMap(std::string &err) {
     // 按层次关闭showMap, 被关闭的层次size置1，接下来就不用感知区别不同层次size的影响了
-    for (const auto& para : paraOrderWithEp) {
+    for (const auto &para : paraOrderWithEp) {
         paraDetailsMap[para].isShown = false;
         paraDetailsMap[para].size = 1;
     }
@@ -142,8 +129,7 @@ bool BaseParallelStrategyAlgorithm::UpdateShowMap(std::string &err)
     return false;
 }
 
-void BaseParallelStrategyAlgorithm::SetParaDetail(const std::string &para, uint32_t size)
-{
+void BaseParallelStrategyAlgorithm::SetParaDetail(const std::string &para, uint32_t size) {
     // 参数为1，该并行域未生效
     if (size == 1) {
         return;
@@ -152,8 +138,7 @@ void BaseParallelStrategyAlgorithm::SetParaDetail(const std::string &para, uint3
     paraDetailsMap[para].size = size;
 }
 
-void BaseParallelStrategyAlgorithm::UpdateElementSize()
-{
+void BaseParallelStrategyAlgorithm::UpdateElementSize() {
     // 前端入参已校验，无整数溢出风险
     foldedTpSize = paraDetailsMap[TP_PARA].size;
     foldedTpCpSize = foldedTpSize * paraDetailsMap[CP_PARA].size;
@@ -163,11 +148,9 @@ void BaseParallelStrategyAlgorithm::UpdateElementSize()
     data.size = elementSize;
 }
 
-std::string BaseParallelStrategyAlgorithm::GetElementName(
-    std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+std::string BaseParallelStrategyAlgorithm::GetElementName(std::unordered_map<std::string, uint32_t> &indexAttributes) {
     std::string name;
-    for (const auto& para : LAYOUT) {
+    for (const auto &para : LAYOUT) {
         if (paraDetailsMap.find(para) == paraDetailsMap.end()) {
             continue;
         }
@@ -184,26 +167,23 @@ std::string BaseParallelStrategyAlgorithm::GetElementName(
 }
 
 Position BaseParallelStrategyAlgorithm::GetElementPosition(
-    std::unordered_map<std::string, uint32_t>& indexAttributes) const
-{
+    std::unordered_map<std::string, uint32_t> &indexAttributes) const {
     Position position;
     // 前端入参已校验，无整数溢出风险
-    position.x = indexAttributes[DP_INDEX] * foldedTpCpSize + indexAttributes[CP_INDEX] * foldedTpSize
-                 + indexAttributes[TP_INDEX];
+    position.x = indexAttributes[DP_INDEX] * foldedTpCpSize + indexAttributes[CP_INDEX] * foldedTpSize +
+        indexAttributes[TP_INDEX];
     position.y = indexAttributes[PP_INDEX];
     return position;
 }
 
-void BaseParallelStrategyAlgorithm::ClearArrangementData()
-{
+void BaseParallelStrategyAlgorithm::ClearArrangementData() {
     data.indicators.clear();
     data.arrangements.clear();
     data.connections.clear();
 }
 
 // 对于TP View，展示全部原始数据，及step_trace_time中的内容
-void BaseParallelStrategyAlgorithm::SetTpIndicatorAttr()
-{
+void BaseParallelStrategyAlgorithm::SetTpIndicatorAttr() {
     uint8_t index = 0;
     // 总计算、总通信不在柱状图中显示，而是通过掩盖和未掩盖的堆叠形成
     data.indicators.push_back(
@@ -212,12 +192,12 @@ void BaseParallelStrategyAlgorithm::SetTpIndicatorAttr()
         {index++, KEY_TOTAL_COMMUNICATION, VALUE_TOTAL_COMMUNICATION, true, false, true, BAR_CHART, "", TIME_AXIS});
 
     // 参与stack堆叠：预处理、纯计算、重叠、纯通信、下发
-    data.indicators.push_back({index++, KEY_PURE_COMPUTING_TIME, VALUE_COMPUTING_NOT_OVERLAPPED,
-                                 true, true, true, BAR_CHART, TIME_STACK, TIME_AXIS});
-    data.indicators.push_back({index++, KEY_COMMUNICATION_OVERLAPPED, VALUE_COMMUNICATION_OVERLAPPED,
-                                 true, true, true, BAR_CHART, TIME_STACK, TIME_AXIS});
-    data.indicators.push_back({index++, KEY_COMMUNICATION_NOT_OVERLAPPED, VALUE_COMMUNICATION_NOT_OVERLAPPED,
-                                 true, true, true, BAR_CHART, TIME_STACK, TIME_AXIS});
+    data.indicators.push_back({index++, KEY_PURE_COMPUTING_TIME, VALUE_COMPUTING_NOT_OVERLAPPED, true, true, true,
+        BAR_CHART, TIME_STACK, TIME_AXIS});
+    data.indicators.push_back({index++, KEY_COMMUNICATION_OVERLAPPED, VALUE_COMMUNICATION_OVERLAPPED, true, true, true,
+        BAR_CHART, TIME_STACK, TIME_AXIS});
+    data.indicators.push_back({index++, KEY_COMMUNICATION_NOT_OVERLAPPED, VALUE_COMMUNICATION_NOT_OVERLAPPED, true,
+        true, true, BAR_CHART, TIME_STACK, TIME_AXIS});
     data.indicators.push_back(
         {index++, KEY_FREE_TIME, VALUE_FREE_TIME, true, true, true, BAR_CHART, TIME_STACK, TIME_AXIS});
     data.indicators.push_back(
@@ -243,33 +223,32 @@ void BaseParallelStrategyAlgorithm::SetTpIndicatorAttr()
 // 对于CP Dimension，通过展示一个TP域内计算/通信等时间的统计值，包括最大值、最小值、极差，来分析CP域的性能瓶颈
 // 对于通信，可关注最小值，有时通信最小的点，才是瓶颈所在
 // 通过极差，可以反映TP域内各卡计算、通信是否均衡，尤其是计算
-void BaseParallelStrategyAlgorithm::SetCpIndicatorAttr()
-{
+void BaseParallelStrategyAlgorithm::SetCpIndicatorAttr() {
     uint8_t index = 0;
     data.indicators.push_back({index++, KEY_TOTAL_COMPUTING_TIME + KEY_MAX_SUFFIX,
         VALUE_MAX + VALUE_TOTAL_COMPUTING_TIME, true, true, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MAX_SUFFIX,
-        VALUE_MAX + VALUE_TOTAL_COMMUNICATION, true, true, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_FREE_TIME,
+    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_TOTAL_COMMUNICATION,
         true, true, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_NPU_TIME,
-        true, true, false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_FREE_TIME, true, true, true,
+        BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_NPU_TIME, true, true, false,
+        BAR_CHART, "", TIME_AXIS});
     data.indicators.push_back({index++, KEY_TOTAL_COMPUTING_TIME + KEY_MIN_SUFFIX,
         VALUE_MIN + VALUE_TOTAL_COMPUTING_TIME, true, false, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MIN_SUFFIX,
-        VALUE_MIN + VALUE_TOTAL_COMMUNICATION, true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_FREE_TIME,
+    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_TOTAL_COMMUNICATION,
         true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_NPU_TIME,
-        true, false, false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_FREE_TIME, true, false, false,
+        BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_NPU_TIME, true, false, false,
+        BAR_CHART, "", TIME_AXIS});
     data.indicators.push_back({index++, KEY_TOTAL_COMPUTING_TIME + KEY_RANGE_SUFFIX,
         VALUE_TOTAL_COMPUTING_TIME + VALUE_RANGE, true, false, true, BAR_CHART, "", TIME_AXIS});
     data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_RANGE_SUFFIX,
         VALUE_TOTAL_COMMUNICATION + VALUE_RANGE, true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_RANGE_SUFFIX, VALUE_FREE_TIME + VALUE_RANGE,
-        true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_RANGE_SUFFIX, VALUE_NPU_TIME + VALUE_RANGE,
-        true, false, false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_RANGE_SUFFIX, VALUE_FREE_TIME + VALUE_RANGE, true, false,
+        false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_RANGE_SUFFIX, VALUE_NPU_TIME + VALUE_RANGE, true, false,
+        false, BAR_CHART, "", TIME_AXIS});
 
     // 通信掩盖、通信未掩盖
     data.indicators.push_back({index++, KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MAX_SUFFIX,
@@ -281,34 +260,33 @@ void BaseParallelStrategyAlgorithm::SetCpIndicatorAttr()
 // 对于PP Dimension，通过展示一个TP&CP域内计算/通信等时间的统计值，包括最大值、最小值、极差，来分析PP域的性能瓶颈
 // 对于通信，可关注最小值，有时通信最小的点，才是瓶颈所在
 // 通过极差，可以反映TP&CP域内各卡计算、通信是否均衡，尤其是计算
-void BaseParallelStrategyAlgorithm::SetPpIndicatorAttr()
-{
+void BaseParallelStrategyAlgorithm::SetPpIndicatorAttr() {
     uint8_t index = 0;
     // 总计算、总通信、下发、npu总时间, 默认显示总计算
     data.indicators.push_back({index++, KEY_TOTAL_COMPUTING_TIME + KEY_MAX_SUFFIX,
         VALUE_MAX + VALUE_TOTAL_COMPUTING_TIME, true, true, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MAX_SUFFIX,
-        VALUE_MAX + VALUE_TOTAL_COMMUNICATION, true, true, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_FREE_TIME,
+    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_TOTAL_COMMUNICATION,
         true, true, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_NPU_TIME,
-        true, true, false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_FREE_TIME, true, true, true,
+        BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MAX_SUFFIX, VALUE_MAX + VALUE_NPU_TIME, true, true, false,
+        BAR_CHART, "", TIME_AXIS});
     data.indicators.push_back({index++, KEY_TOTAL_COMPUTING_TIME + KEY_MIN_SUFFIX,
         VALUE_MIN + VALUE_TOTAL_COMPUTING_TIME, true, false, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MIN_SUFFIX,
-        VALUE_MIN + VALUE_TOTAL_COMMUNICATION, true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_FREE_TIME,
+    data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_TOTAL_COMMUNICATION,
         true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_NPU_TIME,
-        true, false, false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_FREE_TIME, true, false, false,
+        BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_MIN_SUFFIX, VALUE_MIN + VALUE_NPU_TIME, true, false, false,
+        BAR_CHART, "", TIME_AXIS});
     data.indicators.push_back({index++, KEY_TOTAL_COMPUTING_TIME + KEY_RANGE_SUFFIX,
         VALUE_TOTAL_COMPUTING_TIME + VALUE_RANGE, true, false, true, BAR_CHART, "", TIME_AXIS});
     data.indicators.push_back({index++, KEY_TOTAL_COMMUNICATION + KEY_RANGE_SUFFIX,
         VALUE_TOTAL_COMMUNICATION + VALUE_RANGE, true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_RANGE_SUFFIX, VALUE_FREE_TIME + VALUE_RANGE,
-        true, false, false, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_RANGE_SUFFIX, VALUE_NPU_TIME + VALUE_RANGE,
-        true, false, false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_FREE_TIME + KEY_RANGE_SUFFIX, VALUE_FREE_TIME + VALUE_RANGE, true, false,
+        false, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, KEY_NPU_TIME + KEY_RANGE_SUFFIX, VALUE_NPU_TIME + VALUE_RANGE, true, false,
+        false, BAR_CHART, "", TIME_AXIS});
 
     // 通信掩盖、通信未掩盖
     data.indicators.push_back({index++, KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MAX_SUFFIX,
@@ -318,16 +296,15 @@ void BaseParallelStrategyAlgorithm::SetPpIndicatorAttr()
 }
 
 // 对于DP Dimension，通过展示一个TP&CP域内计算/通信等时间的统计值，包括最大值、最小值、极差，来分析PP域的性能瓶颈
-void BaseParallelStrategyAlgorithm::SetDpIndicatorAttr()
-{
+void BaseParallelStrategyAlgorithm::SetDpIndicatorAttr() {
     uint8_t index = 0;
     // 总计算、总通信, 默认显示总计算
     data.indicators.push_back({index++, VALUE_SUM_OF_MAX + KEY_TOTAL_COMPUTING_TIME,
         VALUE_SUM_OF_MAX + VALUE_TOTAL_COMPUTING_TIME, true, true, true, BAR_CHART, "", TIME_AXIS});
     data.indicators.push_back({index++, VALUE_SUM_OF_MAX + KEY_TOTAL_COMMUNICATION,
         VALUE_SUM_OF_MAX + VALUE_TOTAL_COMMUNICATION, true, true, true, BAR_CHART, "", TIME_AXIS});
-    data.indicators.push_back({index++, VALUE_SUM_OF_MAX + KEY_FREE_TIME, VALUE_SUM_OF_MAX + VALUE_FREE_TIME,
-        true, true, true, BAR_CHART, "", TIME_AXIS});
+    data.indicators.push_back({index++, VALUE_SUM_OF_MAX + KEY_FREE_TIME, VALUE_SUM_OF_MAX + VALUE_FREE_TIME, true,
+        true, true, BAR_CHART, "", TIME_AXIS});
     // 通信掩盖、通信未掩盖、下发
     data.indicators.push_back({index++, VALUE_SUM_OF_MAX + KEY_COMMUNICATION_NOT_OVERLAPPED,
         VALUE_SUM_OF_MAX + VALUE_COMMUNICATION_NOT_OVERLAPPED, true, false, false, BAR_CHART, "", TIME_AXIS});
@@ -335,12 +312,10 @@ void BaseParallelStrategyAlgorithm::SetDpIndicatorAttr()
 
 void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithTpDimension(
     const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-    std::vector<IndicatorDataStruct> &indicatorData)
-{
+    std::vector<IndicatorDataStruct> &indicatorData) {
     uint32_t maxRankId = 0;
-    auto it = std::max_element(statistic.begin(), statistic.end(), [](const auto&a, const auto&b) {
-        return a.first < b.first;
-    });
+    auto it = std::max_element(
+        statistic.begin(), statistic.end(), [](const auto &a, const auto &b) { return a.first < b.first; });
     if (it != statistic.end()) {
         maxRankId = NumberSafe::Add(it->first, 1);
     }
@@ -353,18 +328,17 @@ void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithTpDimension(
         IndicatorDataStruct one{};
         one.index = i;
         const StepStatistic &item = statistic.at(i);
-        one.indicators.emplace(KEY_PREPARING_TIME,
-                               NumberUtil::DoubleReservedNDigits(item.prepareTime, reservedNum));
-        one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME,
-                               NumberUtil::DoubleReservedNDigits(item.computingTime, reservedNum));
+        one.indicators.emplace(KEY_PREPARING_TIME, NumberUtil::DoubleReservedNDigits(item.prepareTime, reservedNum));
+        one.indicators.emplace(
+            KEY_TOTAL_COMPUTING_TIME, NumberUtil::DoubleReservedNDigits(item.computingTime, reservedNum));
         one.indicators.emplace(KEY_PURE_COMPUTING_TIME,
             NumberUtil::DoubleReservedNDigits(item.computingTime - item.overlapCommunicationTime, reservedNum));
-        one.indicators.emplace(KEY_TOTAL_COMMUNICATION,
-                               NumberUtil::DoubleReservedNDigits(item.communicationTime, reservedNum));
+        one.indicators.emplace(
+            KEY_TOTAL_COMMUNICATION, NumberUtil::DoubleReservedNDigits(item.communicationTime, reservedNum));
         one.indicators.emplace(KEY_COMMUNICATION_OVERLAPPED,
-                               NumberUtil::DoubleReservedNDigits(item.overlapCommunicationTime, reservedNum));
+            NumberUtil::DoubleReservedNDigits(item.overlapCommunicationTime, reservedNum));
         one.indicators.emplace(KEY_COMMUNICATION_NOT_OVERLAPPED,
-                               NumberUtil::DoubleReservedNDigits(item.pureCommunicationTime, reservedNum));
+            NumberUtil::DoubleReservedNDigits(item.pureCommunicationTime, reservedNum));
         one.indicators.emplace(KEY_COMMUNICATION_NOT_OVERLAPPED_AND_RECEIVE,
             NumberUtil::DoubleReservedNDigits(item.pureCommunicationExcludeReceiveTime, reservedNum));
         one.indicators.emplace(KEY_FREE_TIME, NumberUtil::DoubleReservedNDigits(item.freeTime, reservedNum));
@@ -372,17 +346,20 @@ void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithTpDimension(
         one.indicators.emplace(KEY_BUBBLE_TIME, NumberUtil::DoubleReservedNDigits(item.bubbleTime, reservedNum));
         double e2eTime = item.computingTime + item.pureCommunicationTime + item.freeTime;
         e2eTime += std::max(0.0, item.prepareTime);
-        one.indicators.emplace(KEY_COMPUTING_RATIO, e2eTime == 0 ? 0 :
-            NumberUtil::DoubleReservedNDigits(item.computingTime / e2eTime * PERCENTAGE_RATIO_SCALE, reservedNum));
-        one.indicators.emplace(KEY_COMMUNICATION_RATIO, e2eTime == 0 ? 0 :
-            NumberUtil::DoubleReservedNDigits(item.communicationTime / e2eTime * PERCENTAGE_RATIO_SCALE, reservedNum));
+        one.indicators.emplace(KEY_COMPUTING_RATIO,
+            e2eTime == 0 ? 0
+                         : NumberUtil::DoubleReservedNDigits(
+                               item.computingTime / e2eTime * PERCENTAGE_RATIO_SCALE, reservedNum));
+        one.indicators.emplace(KEY_COMMUNICATION_RATIO,
+            e2eTime == 0 ? 0
+                         : NumberUtil::DoubleReservedNDigits(
+                               item.communicationTime / e2eTime * PERCENTAGE_RATIO_SCALE, reservedNum));
         indicatorData.emplace_back(one);
     }
 }
 
 void BaseParallelStrategyAlgorithm::ReduceTpPerformance(
-    const std::unordered_map<std::uint32_t, StepStatistic> &statistic)
-{
+    const std::unordered_map<std::uint32_t, StepStatistic> &statistic) {
     uint32_t idx = 0;
     for (uint32_t i = 0; i < wordSize; i += tpSize) {
         // 若已经计算过，则不用重复计算
@@ -391,8 +368,8 @@ void BaseParallelStrategyAlgorithm::ReduceTpPerformance(
             continue;
         }
         StepStatistic maxTpOne;
-        StepStatistic minTpOne = {"", "", "",
-            DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 0, 0, 0};
+        StepStatistic minTpOne = {"", "", "", DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX,
+            DBL_MAX, DBL_MAX, 0, 0, 0};
         for (uint32_t j = i; j < i + tpSize && j < wordSize; j++) {
             // 跳过空数据卡
             if (statistic.find(j) == statistic.end()) {
@@ -402,16 +379,16 @@ void BaseParallelStrategyAlgorithm::ReduceTpPerformance(
             maxTpOne.computingTime = std::max(maxTpOne.computingTime, item.computingTime);
             maxTpOne.communicationTime = std::max(maxTpOne.communicationTime, item.communicationTime);
             maxTpOne.pureCommunicationTime = std::max(maxTpOne.pureCommunicationTime, item.pureCommunicationTime);
-            maxTpOne.overlapCommunicationTime = std::max(maxTpOne.overlapCommunicationTime,
-                                                         item.overlapCommunicationTime);
+            maxTpOne.overlapCommunicationTime =
+                std::max(maxTpOne.overlapCommunicationTime, item.overlapCommunicationTime);
             maxTpOne.freeTime = std::max(maxTpOne.freeTime, item.freeTime);
             maxTpOne.npuTotalTime = std::max(maxTpOne.npuTotalTime, item.npuTotalTime);
 
             minTpOne.computingTime = std::min(minTpOne.computingTime, item.computingTime);
             minTpOne.communicationTime = std::min(minTpOne.communicationTime, item.communicationTime);
             minTpOne.pureCommunicationTime = std::min(minTpOne.pureCommunicationTime, item.pureCommunicationTime);
-            minTpOne.overlapCommunicationTime = std::min(minTpOne.overlapCommunicationTime,
-                                                         item.overlapCommunicationTime);
+            minTpOne.overlapCommunicationTime =
+                std::min(minTpOne.overlapCommunicationTime, item.overlapCommunicationTime);
             minTpOne.freeTime = std::min(minTpOne.freeTime, item.freeTime);
             minTpOne.npuTotalTime = std::min(minTpOne.npuTotalTime, item.npuTotalTime);
         }
@@ -425,8 +402,7 @@ void BaseParallelStrategyAlgorithm::ReduceTpPerformance(
 }
 
 // 折叠CP域，形成DP+PP视图的性能数据，根据TP折叠后的最大/小值进一步计算最大值、最小值、极差等统计值
-void BaseParallelStrategyAlgorithm::ReduceCpPerformance()
-{
+void BaseParallelStrategyAlgorithm::ReduceCpPerformance() {
     uint32_t idx = 0;
     for (uint32_t i = 0; i < wordSize / strategyConfig.tpSize; i += strategyConfig.cpSize) {
         // 若已经计算过，则不用重复计算
@@ -435,8 +411,8 @@ void BaseParallelStrategyAlgorithm::ReduceCpPerformance()
             continue;
         }
         StepStatistic maxCpOne;
-        StepStatistic minCpOne = {"", "", "",
-                                  DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 0, 0, 0, 0, DBL_MAX, 0, 0, 0};
+        StepStatistic minCpOne = {
+            "", "", "", DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, DBL_MAX, 0, 0, 0, 0, DBL_MAX, 0, 0, 0};
         for (uint32_t j = i; j < i + strategyConfig.cpSize && j < wordSize; j++) {
             // 跳过空数据卡，此处不判断reduceTpMin，因为它与reduceTpMax总是成对出现
             if (reduceTpMax.find(j) == reduceTpMax.end()) {
@@ -467,8 +443,7 @@ void BaseParallelStrategyAlgorithm::ReduceCpPerformance()
 }
 
 void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithCpDimension(
-    std::vector<IndicatorDataStruct> &indicatorData)
-{
+    std::vector<IndicatorDataStruct> &indicatorData) {
     // 前面的逻辑保证tpSize不为0
     for (uint32_t i = 0; i < wordSize / tpSize; ++i) {
         if (reduceTpMax.find(i) == reduceTpMax.end()) {
@@ -480,20 +455,19 @@ void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithCpDimension(
         auto &min = reduceTpMin.at(i);
         one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_MAX_SUFFIX, max.computingTime);
         one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_MIN_SUFFIX, min.computingTime);
-        one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.computingTime - min.computingTime));
+        one.indicators.emplace(
+            KEY_TOTAL_COMPUTING_TIME + KEY_RANGE_SUFFIX, Reserved3DecimalPlaces(max.computingTime - min.computingTime));
         one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_MAX_SUFFIX, max.communicationTime);
         one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_MIN_SUFFIX, min.communicationTime);
         one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.communicationTime - min.communicationTime));
+            Reserved3DecimalPlaces(max.communicationTime - min.communicationTime));
         one.indicators.emplace(KEY_FREE_TIME + KEY_MAX_SUFFIX, max.freeTime);
         one.indicators.emplace(KEY_FREE_TIME + KEY_MIN_SUFFIX, min.freeTime);
-        one.indicators.emplace(KEY_FREE_TIME + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.freeTime - min.freeTime));
+        one.indicators.emplace(KEY_FREE_TIME + KEY_RANGE_SUFFIX, Reserved3DecimalPlaces(max.freeTime - min.freeTime));
         one.indicators.emplace(KEY_NPU_TIME + KEY_MAX_SUFFIX, Reserved3DecimalPlaces(max.npuTotalTime));
         one.indicators.emplace(KEY_NPU_TIME + KEY_MIN_SUFFIX, Reserved3DecimalPlaces(min.npuTotalTime));
-        one.indicators.emplace(KEY_NPU_TIME + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.npuTotalTime - min.npuTotalTime));
+        one.indicators.emplace(
+            KEY_NPU_TIME + KEY_RANGE_SUFFIX, Reserved3DecimalPlaces(max.npuTotalTime - min.npuTotalTime));
         one.indicators.emplace(KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MAX_SUFFIX, max.pureCommunicationTime);
         one.indicators.emplace(KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MIN_SUFFIX, min.pureCommunicationTime);
         indicatorData.emplace_back(one);
@@ -501,8 +475,7 @@ void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithCpDimension(
 }
 
 void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithPpDimension(
-    std::vector<IndicatorDataStruct> &indicatorData)
-{
+    std::vector<IndicatorDataStruct> &indicatorData) {
     // 前面的逻辑保证tpCpSize不为0
     for (uint32_t i = 0; i < wordSize / tpCpSize; ++i) {
         if (reduceCpMax.find(i) == reduceCpMax.end()) {
@@ -512,45 +485,37 @@ void BaseParallelStrategyAlgorithm::CalculatePerformanceDataWithPpDimension(
         one.index = i;
         auto &max = reduceCpMax.at(i);
         auto &min = reduceCpMin.at(i);
-        one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_MAX_SUFFIX,
-                               Reserved3DecimalPlaces(max.computingTime));
-        one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_MIN_SUFFIX,
-                               Reserved3DecimalPlaces(min.computingTime));
-        one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.computingTime - min.computingTime));
-        one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_MAX_SUFFIX,
-                               Reserved3DecimalPlaces(max.communicationTime));
-        one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_MIN_SUFFIX,
-                               Reserved3DecimalPlaces(min.communicationTime));
+        one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_MAX_SUFFIX, Reserved3DecimalPlaces(max.computingTime));
+        one.indicators.emplace(KEY_TOTAL_COMPUTING_TIME + KEY_MIN_SUFFIX, Reserved3DecimalPlaces(min.computingTime));
+        one.indicators.emplace(
+            KEY_TOTAL_COMPUTING_TIME + KEY_RANGE_SUFFIX, Reserved3DecimalPlaces(max.computingTime - min.computingTime));
+        one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_MAX_SUFFIX, Reserved3DecimalPlaces(max.communicationTime));
+        one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_MIN_SUFFIX, Reserved3DecimalPlaces(min.communicationTime));
         one.indicators.emplace(KEY_TOTAL_COMMUNICATION + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.communicationTime - min.communicationTime));
-        one.indicators.emplace(KEY_FREE_TIME + KEY_MAX_SUFFIX,
-                               Reserved3DecimalPlaces(max.freeTime));
+            Reserved3DecimalPlaces(max.communicationTime - min.communicationTime));
+        one.indicators.emplace(KEY_FREE_TIME + KEY_MAX_SUFFIX, Reserved3DecimalPlaces(max.freeTime));
         one.indicators.emplace(KEY_FREE_TIME + KEY_MIN_SUFFIX, Reserved3DecimalPlaces(min.freeTime));
-        one.indicators.emplace(KEY_FREE_TIME + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.freeTime - min.freeTime));
+        one.indicators.emplace(KEY_FREE_TIME + KEY_RANGE_SUFFIX, Reserved3DecimalPlaces(max.freeTime - min.freeTime));
         one.indicators.emplace(KEY_NPU_TIME + KEY_MAX_SUFFIX, Reserved3DecimalPlaces(max.npuTotalTime));
         one.indicators.emplace(KEY_NPU_TIME + KEY_MIN_SUFFIX, Reserved3DecimalPlaces(min.npuTotalTime));
-        one.indicators.emplace(KEY_NPU_TIME + KEY_RANGE_SUFFIX,
-                               Reserved3DecimalPlaces(max.npuTotalTime - min.npuTotalTime));
-        one.indicators.emplace(KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MAX_SUFFIX,
-                               Reserved3DecimalPlaces(max.pureCommunicationTime));
-        one.indicators.emplace(KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MIN_SUFFIX,
-                               Reserved3DecimalPlaces(min.pureCommunicationTime));
+        one.indicators.emplace(
+            KEY_NPU_TIME + KEY_RANGE_SUFFIX, Reserved3DecimalPlaces(max.npuTotalTime - min.npuTotalTime));
+        one.indicators.emplace(
+            KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MAX_SUFFIX, Reserved3DecimalPlaces(max.pureCommunicationTime));
+        one.indicators.emplace(
+            KEY_COMMUNICATION_NOT_OVERLAPPED + KEY_MIN_SUFFIX, Reserved3DecimalPlaces(min.pureCommunicationTime));
         indicatorData.emplace_back(one);
     }
 }
 
-void BaseParallelStrategyAlgorithm::ReducePpPerformanceForDpLast()
-{
+void BaseParallelStrategyAlgorithm::ReducePpPerformanceForDpLast() {
     uint32_t dpGroupIdx = 0;
     for (uint32_t i = 0; i < wordSize / tpCpSize; i += strategyConfig.ppSize) {
         ReducePpPerformance(i, 1, dpGroupIdx);
     }
 }
 
-void BaseParallelStrategyAlgorithm::ReducePpPerformanceForPpLast()
-{
+void BaseParallelStrategyAlgorithm::ReducePpPerformanceForPpLast() {
     uint32_t dpGroupIdx = 0;
     // 规约后共有dp_size个数据，且规约时步长为dp_size
     for (uint32_t i = 0; i < strategyConfig.dpSize; i++) {
@@ -558,8 +523,7 @@ void BaseParallelStrategyAlgorithm::ReducePpPerformanceForPpLast()
     }
 }
 
-void BaseParallelStrategyAlgorithm::ReducePpPerformance(uint32_t startIndex, uint32_t step, uint32_t& dpGroupIdx)
-{
+void BaseParallelStrategyAlgorithm::ReducePpPerformance(uint32_t startIndex, uint32_t step, uint32_t &dpGroupIdx) {
     // 若已经计算过，则不用重复计算
     if (reducePpStatistic.find(dpGroupIdx) != reducePpStatistic.end()) {
         dpGroupIdx++;
@@ -587,25 +551,23 @@ void BaseParallelStrategyAlgorithm::ReducePpPerformance(uint32_t startIndex, uin
 
 void BaseParallelStrategyAlgorithm::GetPerformanceResponseDataWithDpDimension(
     const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-    std::vector<IndicatorDataStruct> &indicatorData)
-{
-    for (const auto& item : statistic) {
+    std::vector<IndicatorDataStruct> &indicatorData) {
+    for (const auto &item : statistic) {
         IndicatorDataStruct one{};
         one.index = item.first;
         StepStatistic indicator = item.second;
-        one.indicators.emplace(VALUE_SUM_OF_MAX + KEY_TOTAL_COMPUTING_TIME,
-                               Reserved3DecimalPlaces(indicator.computingTime));
-        one.indicators.emplace(VALUE_SUM_OF_MAX + KEY_TOTAL_COMMUNICATION,
-                               Reserved3DecimalPlaces(indicator.communicationTime));
+        one.indicators.emplace(
+            VALUE_SUM_OF_MAX + KEY_TOTAL_COMPUTING_TIME, Reserved3DecimalPlaces(indicator.computingTime));
+        one.indicators.emplace(
+            VALUE_SUM_OF_MAX + KEY_TOTAL_COMMUNICATION, Reserved3DecimalPlaces(indicator.communicationTime));
         one.indicators.emplace(VALUE_SUM_OF_MAX + KEY_COMMUNICATION_NOT_OVERLAPPED,
-                               Reserved3DecimalPlaces(indicator.pureCommunicationTime));
+            Reserved3DecimalPlaces(indicator.pureCommunicationTime));
         one.indicators.emplace(VALUE_SUM_OF_MAX + KEY_FREE_TIME, Reserved3DecimalPlaces(indicator.freeTime));
         indicatorData.emplace_back(one);
     }
 }
 
-double BaseParallelStrategyAlgorithm::Reserved3DecimalPlaces(double num)
-{
+double BaseParallelStrategyAlgorithm::Reserved3DecimalPlaces(double num) {
     if (NumberUtil::IsDoubleEqual(num, 0.0) || NumberUtil::IsDoubleEqual(num, DBL_MAX)) {
         return 0.0;
     }
@@ -613,39 +575,36 @@ double BaseParallelStrategyAlgorithm::Reserved3DecimalPlaces(double num)
 }
 
 void BaseParallelStrategyAlgorithm::AnalyzePerformanceAdviceWithDpCpPpTpDimension(Protocol::TraceStatistic &max,
-    Protocol::TraceStatistic &min, double meanE2ETime, std::vector<std::string> &advices)
-{
+    Protocol::TraceStatistic &min, double meanE2ETime, std::vector<std::string> &advices) {
     constexpr double threshold = 0.05;
     Protocol::TraceStatistic diff = {
-        max.computeDiff - min.computeDiff,
-        max.communicationDiff - min.communicationDiff,
-        max.freeDiff - min.freeDiff
-    };
+        max.computeDiff - min.computeDiff, max.communicationDiff - min.communicationDiff, max.freeDiff - min.freeDiff};
     if (diff.computeDiff / meanE2ETime > threshold) {
         advices.emplace_back("Computing has some issues, because the max difference of \"Computing\" "
-                             "has reached " + std::to_string(Reserved3DecimalPlaces(diff.computeDiff)) + "us.");
+                             "has reached " +
+            std::to_string(Reserved3DecimalPlaces(diff.computeDiff)) + "us.");
     }
     if (diff.communicationDiff / meanE2ETime > threshold) {
         advices.emplace_back("Communication has some issues, because the max difference of "
                              "\"Communication(Not Overlapped)\" has reached " +
-                             std::to_string(Reserved3DecimalPlaces(diff.communicationDiff)) + "us.");
+            std::to_string(Reserved3DecimalPlaces(diff.communicationDiff)) + "us.");
     }
     if (diff.freeDiff / meanE2ETime > threshold) {
         advices.emplace_back("Free has some issues, because the max difference of \"Free\" "
-                             "has reached " + std::to_string(Reserved3DecimalPlaces(diff.freeDiff)) + "us.");
+                             "has reached " +
+            std::to_string(Reserved3DecimalPlaces(diff.freeDiff)) + "us.");
     }
 }
 
 void BaseParallelStrategyAlgorithm::CalAdviceInfo(const std::string &tmpDimension, std::vector<std::string> &advices,
-    std::vector<IndicatorDataStruct> &indicatorData)
-{
+    std::vector<IndicatorDataStruct> &indicatorData) {
     if (tmpDimension != DIMENSIONS_TP) {
         return;
     }
     Protocol::TraceStatistic max{};
     Protocol::TraceStatistic min = {DBL_MAX, DBL_MAX, DBL_MAX};
     double sum = 0;
-    for (auto &item: indicatorData) {
+    for (auto &item : indicatorData) {
         max.computeDiff = std::max(max.computeDiff, item.indicators[KEY_TOTAL_COMPUTING_TIME]);
         max.communicationDiff = std::max(max.communicationDiff, item.indicators[KEY_COMMUNICATION_NOT_OVERLAPPED]);
         max.freeDiff = std::max(max.freeDiff, item.indicators[KEY_FREE_TIME]);
@@ -653,7 +612,7 @@ void BaseParallelStrategyAlgorithm::CalAdviceInfo(const std::string &tmpDimensio
         min.communicationDiff = std::min(min.communicationDiff, item.indicators[KEY_COMMUNICATION_NOT_OVERLAPPED]);
         min.freeDiff = std::min(min.freeDiff, item.indicators[KEY_FREE_TIME]);
         sum += item.indicators[KEY_TOTAL_COMPUTING_TIME] + item.indicators[KEY_COMMUNICATION_NOT_OVERLAPPED] +
-               item.indicators[KEY_FREE_TIME];
+            item.indicators[KEY_FREE_TIME];
         sum += std::max(0.0, item.indicators[KEY_PREPARING_TIME]);
     }
     if (!indicatorData.empty() && sum != 0) {
@@ -667,8 +626,7 @@ void BaseParallelStrategyAlgorithm::CalAdviceInfo(const std::string &tmpDimensio
  * @return 当前并行策略参数是否能正确按通信域拆解出通信时间
  * (若当前并行策略参数与实际模型训练参数不一致，可能无法正确按通信域拆解出通信时间，无法给出慢卡专家建议)
  */
-bool BaseParallelStrategyAlgorithm::CalAdviceInfoByCommInfo(CommInfoMap &commInTpDimension)
-{
+bool BaseParallelStrategyAlgorithm::CalAdviceInfoByCommInfo(CommInfoMap &commInTpDimension) {
     slowRankAdvice.clear();
     commMatchSuccess = true;
     if (dimension == DIMENSIONS_DP) {
@@ -689,15 +647,13 @@ bool BaseParallelStrategyAlgorithm::CalAdviceInfoByCommInfo(CommInfoMap &commInT
     return commMatchSuccess;
 }
 
-std::vector<AdviceInfoForSlowRank> BaseParallelStrategyAlgorithm::GetTopNAdviceInfo(bool &matchSuccess)
-{
+std::vector<AdviceInfoForSlowRank> BaseParallelStrategyAlgorithm::GetTopNAdviceInfo(bool &matchSuccess) {
     matchSuccess = commMatchSuccess;
     return slowRankAdvice;
 }
 
-void BaseParallelStrategyAlgorithm::CalTpDimAdviceInfoWithoutDpCpAdvice(const ParallelStrategyConfig &tmpConfig,
-    CommInfoMap &commInTpDimension, TopNAdviceMaintainer& topNAdviceForTpDim)
-{
+void BaseParallelStrategyAlgorithm::CalTpDimAdviceInfoWithoutDpCpAdvice(
+    const ParallelStrategyConfig &tmpConfig, CommInfoMap &commInTpDimension, TopNAdviceMaintainer &topNAdviceForTpDim) {
     // 若没有DP+PP+CP维度TopN慢分组，则遍历当前维度所有TP通信域
     for (uint32_t dpIndex = 0; dpIndex < strategyConfig.dpSize; dpIndex++) {
         for (uint32_t ppIndex = 0; ppIndex < strategyConfig.ppSize; ppIndex++) {
@@ -713,25 +669,24 @@ void BaseParallelStrategyAlgorithm::CalTpDimAdviceInfoWithoutDpCpAdvice(const Pa
     }
 }
 
-TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByTpDim(const TopNAdviceMaintainer& topNAdviceForCpDim,
-    CommInfoMap &commInTpDimension)
-{
+TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByTpDim(
+    const TopNAdviceMaintainer &topNAdviceForCpDim, CommInfoMap &commInTpDimension) {
     if (strategyConfig.tpSize == 1) {
         return topNAdviceForCpDim;
     }
     ParallelStrategyConfig tmpConfig = strategyConfig;
     // 根据DP-PP-CP-TP维度通信指标,过滤出TP-通信时间
-    for (auto& item : commInTpDimension) {
-        auto& commInfo = item.second;
-        commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(), [](const CommInfoUnderRank& info) {
-            return info.pgName != TP_GROUP;
-            }), commInfo.end());
+    for (auto &item : commInTpDimension) {
+        auto &commInfo = item.second;
+        commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(),
+                           [](const CommInfoUnderRank &info) { return info.pgName != TP_GROUP; }),
+            commInfo.end());
     }
     TopNAdviceMaintainer topNAdviceForTpDim(maxLengthOfAdvice);
     // 若所有元素都不含TP-通信时间，则当前并行策略参数与实际模型训练参数不一致，无法正确按通信域拆解出通信时间，无法给出慢卡专家建议
     commMatchSuccess = false;
-    for (auto& item : commInTpDimension) {
-        auto& commInfo = item.second;
+    for (auto &item : commInTpDimension) {
+        auto &commInfo = item.second;
         if (!commInfo.empty()) {
             commMatchSuccess = true;
         }
@@ -745,16 +700,15 @@ TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByTpDim(const T
     } else {
         // 否则，根据DP+PP+CP维度TopN慢分组进一步排查
         std::vector<AdviceInfoForSlowRank> adviceListForCp = topNAdviceForCpDim.GetTopNSlowest(topN);
-        for (auto& adviceForCp : adviceListForCp) {
+        for (auto &adviceForCp : adviceListForCp) {
             CalSynchronizeTime(TP_PARA, adviceForCp, tmpConfig, commInTpDimension, topNAdviceForTpDim);
         }
     }
     return topNAdviceForTpDim;
 }
 
-TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByCpDim(const TopNAdviceMaintainer& topNAdviceForPpDim,
-    const CommInfoMap &commInTpDimension)
-{
+TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByCpDim(
+    const TopNAdviceMaintainer &topNAdviceForPpDim, const CommInfoMap &commInTpDimension) {
     if (strategyConfig.cpSize == 1) {
         return topNAdviceForPpDim;
     }
@@ -764,17 +718,17 @@ TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByCpDim(const T
     // 得到DP-PP-CP维度通信指标
     CommInfoMap commInCpDimension = GetCommInfoByDimension(commInTpDimension, DIMENSIONS_CP);
     // 过滤出CP-通信时间
-    for (auto& item : commInCpDimension) {
-        auto& commInfo = item.second;
-        commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(), [](const CommInfoUnderRank& info) {
-            return info.pgName != CP_GROUP;
-            }), commInfo.end());
+    for (auto &item : commInCpDimension) {
+        auto &commInfo = item.second;
+        commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(),
+                           [](const CommInfoUnderRank &info) { return info.pgName != CP_GROUP; }),
+            commInfo.end());
     }
     TopNAdviceMaintainer topNAdviceForCpDim(maxLengthOfAdvice);
     // 若所有元素都不含CP-通信时间，则当前并行策略参数与实际模型训练参数不一致，无法正确按通信域拆解出通信时间，无法给出慢卡专家建议
     commMatchSuccess = false;
-    for (auto& item : commInCpDimension) {
-        auto& commInfo = item.second;
+    for (auto &item : commInCpDimension) {
+        auto &commInfo = item.second;
         if (!commInfo.empty()) {
             commMatchSuccess = true;
         }
@@ -797,15 +751,14 @@ TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByCpDim(const T
     } else {
         // 否则，根据DP+PP维度TopN慢分组进一步排查
         std::vector<AdviceInfoForSlowRank> adviceListForPp = topNAdviceForPpDim.GetTopNSlowest(topN);
-        for (auto& adviceForPp : adviceListForPp) {
+        for (auto &adviceForPp : adviceListForPp) {
             CalSynchronizeTime(CP_PARA, adviceForPp, tmpConfig, commInCpDimension, topNAdviceForCpDim);
         }
     }
     return topNAdviceForCpDim;
 }
 
-TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByPpDim(const CommInfoMap &commInTpDimension)
-{
+TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByPpDim(const CommInfoMap &commInTpDimension) {
     TopNAdviceMaintainer topNAdviceForPpDim(maxLengthOfAdvice);
     if (strategyConfig.dpSize == 1) {
         return topNAdviceForPpDim;
@@ -816,16 +769,16 @@ TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByPpDim(const C
     // 得到DP-PP维度通信指标
     CommInfoMap commInPpDimension = GetCommInfoByDimension(commInTpDimension, DIMENSIONS_PP);
     // 过滤出DP-通信时间
-    for (auto& item : commInPpDimension) {
-        auto& commInfo = item.second;
-        commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(), [](const CommInfoUnderRank& info) {
-            return info.pgName != DP_GROUP;
-            }), commInfo.end());
+    for (auto &item : commInPpDimension) {
+        auto &commInfo = item.second;
+        commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(),
+                           [](const CommInfoUnderRank &info) { return info.pgName != DP_GROUP; }),
+            commInfo.end());
     }
     // 若所有元素都不含DP-通信时间，则当前并行策略参数与实际模型训练参数不一致，无法正确按通信域拆解出通信时间，无法给出慢卡专家建议
     commMatchSuccess = false;
-    for (auto& item : commInPpDimension) {
-        auto& commInfo = item.second;
+    for (auto &item : commInPpDimension) {
+        auto &commInfo = item.second;
         if (!commInfo.empty()) {
             commMatchSuccess = true;
         }
@@ -845,9 +798,8 @@ TopNAdviceMaintainer BaseParallelStrategyAlgorithm::CalAdviceInfoByPpDim(const C
 }
 
 // 求当前通信域每张卡的XX组间同步平均时间(最大XX通信时间-该Element XX通信时间)
-void BaseParallelStrategyAlgorithm::CalSynchronizeTime(const std::string& para, AdviceInfoForSlowRank &adviceInfo,
-    const ParallelStrategyConfig &tmpConfig, CommInfoMap &commInDimension, TopNAdviceMaintainer& topNAdvice)
-{
+void BaseParallelStrategyAlgorithm::CalSynchronizeTime(const std::string &para, AdviceInfoForSlowRank &adviceInfo,
+    const ParallelStrategyConfig &tmpConfig, CommInfoMap &commInDimension, TopNAdviceMaintainer &topNAdvice) {
     double maxCommTime = 0.0;
     uint32_t paraSize = GetParallelSizeByType(para);
     // 遍历当前XX-通信域，找到最大XX-通信时间
@@ -877,15 +829,15 @@ void BaseParallelStrategyAlgorithm::CalSynchronizeTime(const std::string& para, 
         adviceInfoForSlowRank.name = GetElementNameForTopNAdvice(tmpConfig, adviceInfo.indexAttributes);
         adviceInfoForSlowRank.indexAttributes = adviceInfo.indexAttributes;
         adviceInfoForSlowRank.maxCommTime[para] = maxCommTime;
-        adviceInfoForSlowRank.synchronizeTime[para] = NumberUtil::DoubleReservedNDigits(
-            maxCommTime - commInfoList[0].commTime, reservedNum);
+        adviceInfoForSlowRank.synchronizeTime[para] =
+            NumberUtil::DoubleReservedNDigits(maxCommTime - commInfoList[0].commTime, reservedNum);
         // 任一类型通信同步时间超过阈值，视为慢卡/慢分组，需插入专家建议堆, 837行已确保maxCommTime不为0
         bool needInsert = false;
         if ((adviceInfoForSlowRank.synchronizeTime[para] / maxCommTime) > thresholdForSlowRankAdvice) {
             needInsert = true;
         }
         // 添加对应所属分组DP-通信时间、CP通信时间
-        for (const auto& item : commTimeListForAdvice) {
+        for (const auto &item : commTimeListForAdvice) {
             if (adviceInfo.synchronizeTime.find(item) != adviceInfo.synchronizeTime.end()) {
                 adviceInfoForSlowRank.synchronizeTime[item] = adviceInfo.synchronizeTime[item];
                 adviceInfoForSlowRank.maxCommTime[item] = adviceInfo.maxCommTime[item];
@@ -898,9 +850,8 @@ void BaseParallelStrategyAlgorithm::CalSynchronizeTime(const std::string& para, 
     }
 }
 
-uint32_t BaseParallelStrategyAlgorithm::GetElementIndex(std::unordered_map<std::string, uint32_t> &indexAttributes,
-                                                        const ParallelStrategyConfig &tmpConfig) const
-{
+uint32_t BaseParallelStrategyAlgorithm::GetElementIndex(
+    std::unordered_map<std::string, uint32_t> &indexAttributes, const ParallelStrategyConfig &tmpConfig) const {
     // 前端入参已校验，无乘法整数溢出风险
     uint32_t curTpSize = tmpConfig.tpSize;
     uint32_t curTpCpSize = curTpSize * tmpConfig.cpSize;
@@ -909,20 +860,19 @@ uint32_t BaseParallelStrategyAlgorithm::GetElementIndex(std::unordered_map<std::
 
     uint32_t eleIndex{};
     if (orderIsTpPpDp) {
-        eleIndex = curTpCpPpSize * indexAttributes[DP_PARA] + curTpCpSize * indexAttributes[PP_PARA]
-            + curTpSize * indexAttributes[CP_PARA] + indexAttributes[TP_PARA];
+        eleIndex = curTpCpPpSize * indexAttributes[DP_PARA] + curTpCpSize * indexAttributes[PP_PARA] +
+            curTpSize * indexAttributes[CP_PARA] + indexAttributes[TP_PARA];
     } else {
-        eleIndex = curTpCpDpSize * indexAttributes[PP_PARA] + curTpCpSize * indexAttributes[DP_PARA]
-                   + curTpSize * indexAttributes[CP_PARA] + indexAttributes[TP_PARA];
+        eleIndex = curTpCpDpSize * indexAttributes[PP_PARA] + curTpCpSize * indexAttributes[DP_PARA] +
+            curTpSize * indexAttributes[CP_PARA] + indexAttributes[TP_PARA];
     }
     return eleIndex;
 }
 
-std::string BaseParallelStrategyAlgorithm::GetElementNameForTopNAdvice(const ParallelStrategyConfig& tmpConfig,
-    std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+std::string BaseParallelStrategyAlgorithm::GetElementNameForTopNAdvice(
+    const ParallelStrategyConfig &tmpConfig, std::unordered_map<std::string, uint32_t> &indexAttributes) {
     std::string name;
-    for (const auto& para : LAYOUT) {
+    for (const auto &para : LAYOUT) {
         if (GetTempParallelSizeByTypeForTopNAdvice(para, tmpConfig) > 1) {
             name = StringUtil::StrJoin(name, para, std::to_string(indexAttributes[para]), "-");
         }
@@ -933,9 +883,8 @@ std::string BaseParallelStrategyAlgorithm::GetElementNameForTopNAdvice(const Par
     return name;
 }
 
-uint32_t BaseParallelStrategyAlgorithm::GetTempParallelSizeByTypeForTopNAdvice(const std::string& type,
-    const ParallelStrategyConfig& config)
-{
+uint32_t BaseParallelStrategyAlgorithm::GetTempParallelSizeByTypeForTopNAdvice(
+    const std::string &type, const ParallelStrategyConfig &config) {
     if (type == DP_PARA) {
         return config.dpSize;
     }
@@ -952,9 +901,8 @@ uint32_t BaseParallelStrategyAlgorithm::GetTempParallelSizeByTypeForTopNAdvice(c
     return 1;
 }
 
-CommInfoMap BaseParallelStrategyAlgorithm::GetCommInfoByDimension(const CommInfoMap &expandCommInfos,
-    const std::string &curDimension)
-{
+CommInfoMap BaseParallelStrategyAlgorithm::GetCommInfoByDimension(
+    const CommInfoMap &expandCommInfos, const std::string &curDimension) {
     // 查找对应的处理函数
     auto it = commInfoHandlers.find(curDimension);
     // 如果找到了对应的处理函数，则调用它
@@ -974,8 +922,7 @@ CommInfoMap BaseParallelStrategyAlgorithm::GetCommInfoByDimension(const CommInfo
  * @return
  */
 std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStrategyAlgorithm::ReduceCommDefaultFunc(
-    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &input, uint32_t w, uint32_t h)
-{
+    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &input, uint32_t w, uint32_t h) {
     if (input.empty()) {
         Server::ServerLog::Error("Fail to reduce communication data, input is empty.");
         return {};
@@ -993,7 +940,7 @@ std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStra
     std::unordered_map<std::string, std::unordered_map<std::string, double>> resMap;
     // 求和的同时统计个数，格式为{"序号-通信域名": 累加的个数}
     std::unordered_map<std::string, int> countMap;
-    for (const auto &item: input) {
+    for (const auto &item : input) {
         // 开始计算折叠后的下标：获取原始下表
         uint32_t index = StringUtil::StringToUint32(item.first);
         // 二维数组维度，计算元素的目标位置（折叠后该点数据应该被计算在第curRow行，curColumn列的点中）
@@ -1004,7 +951,7 @@ std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStra
         // 计算折叠后序号：所在行号 * 行数据个数 + 所在列号
         uint32_t curIndex = curRow * (tpCpDpSize / w) + curColumn;
         std::string finalIndexStr = std::to_string(curIndex);
-        for (const auto &commInfo: item.second) {
+        for (const auto &commInfo : item.second) {
             resMap[finalIndexStr][commInfo.pgName] += commInfo.commTime;
             countMap[finalIndexStr + "-" + commInfo.pgName]++;
         }
@@ -1012,9 +959,9 @@ std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStra
 
     // 求平均
     std::unordered_map<std::string, std::vector<CommInfoUnderRank>> res;
-    for (const auto &item: resMap) {
+    for (const auto &item : resMap) {
         std::vector<CommInfoUnderRank> commInfos;
-        for (const auto &info: item.second) {
+        for (const auto &info : item.second) {
             // 这里从countMap的key值就是由resMap的两层key值拼接成的，不会出现0的情况
             double avgComm =
                 NumberUtil::DoubleReservedNDigits(info.second / countMap[item.first + "-" + info.first], reservedNum);
@@ -1026,37 +973,31 @@ std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStra
 }
 
 std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStrategyAlgorithm::ReduceCommTpDimensionDef(
-    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>>& expendData)
-{
+    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &expendData) {
     return expendData;
 }
 
 std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStrategyAlgorithm::ReduceCommCpDimensionDef(
-    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>>& expendData)
-{
+    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &expendData) {
     return ReduceCommDefaultFunc(expendData, tpSize, 1);
 }
 
 std::unordered_map<std::string, std::vector<CommInfoUnderRank>> BaseParallelStrategyAlgorithm::ReduceCommPpDimensionDef(
-    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>>& expendData)
-{
+    const std::unordered_map<std::string, std::vector<CommInfoUnderRank>> &expendData) {
     return ReduceCommDefaultFunc(expendData, tpCpSize, 1);
 }
-
 
 /**
  * 折叠视图下，计算每个折叠分组中的rank set
  * @return
  */
 uint32_t BaseParallelStrategyAlgorithm::CalculateContainingRanksByAttrs(
-    uint32_t dpIndex, uint32_t ppIndex, uint32_t cpIndex, uint32_t tpIndex) const
-{
-    return orderIsTpPpDp ? tpCpPpSize * dpIndex + tpCpSize * ppIndex + tpSize * cpIndex + tpIndex :
-           tpCpDpSize * ppIndex + tpCpSize * dpIndex + tpSize * cpIndex + tpIndex;
+    uint32_t dpIndex, uint32_t ppIndex, uint32_t cpIndex, uint32_t tpIndex) const {
+    return orderIsTpPpDp ? tpCpPpSize * dpIndex + tpCpSize * ppIndex + tpSize * cpIndex + tpIndex
+                         : tpCpDpSize * ppIndex + tpCpSize * dpIndex + tpSize * cpIndex + tpIndex;
 }
 
-std::string BaseParallelStrategyAlgorithm::FormatRanksForInterval(uint32_t start, uint32_t end)
-{
+std::string BaseParallelStrategyAlgorithm::FormatRanksForInterval(uint32_t start, uint32_t end) {
     std::stringstream formatRanks;
     if (start > end) {
         return "";
@@ -1070,11 +1011,10 @@ std::string BaseParallelStrategyAlgorithm::FormatRanksForInterval(uint32_t start
     return formatRanks.str();
 }
 
-std::string BaseParallelStrategyAlgorithm::FormatRanksForSeveralIntervals(const std::vector<std::string>& intervals)
-{
+std::string BaseParallelStrategyAlgorithm::FormatRanksForSeveralIntervals(const std::vector<std::string> &intervals) {
     std::stringstream tmpResult;
     std::string formattedRankSet;
-    for (const auto& interval : intervals) {
+    for (const auto &interval : intervals) {
         tmpResult << interval << ",";
     }
     formattedRankSet = tmpResult.str();
@@ -1085,8 +1025,7 @@ std::string BaseParallelStrategyAlgorithm::FormatRanksForSeveralIntervals(const 
 }
 
 std::vector<uint32_t> BaseParallelStrategyAlgorithm::GetElementContainFormattedRanks(
-    std::unordered_map<std::string, uint32_t> &attrs, std::string &formattedRanks, const ElementRankDetails& details)
-{
+    std::unordered_map<std::string, uint32_t> &attrs, std::string &formattedRanks, const ElementRankDetails &details) {
     uint32_t rankStart = 0;
     uint32_t rankEnd = 0;
     std::vector<uint32_t> ranks{};
@@ -1094,10 +1033,9 @@ std::vector<uint32_t> BaseParallelStrategyAlgorithm::GetElementContainFormattedR
     if (details.ppIndexMax != details.ppIndexMin && !orderIsTpPpDp) {
         std::vector<std::string> formatRanksForDpDimension;
         for (uint32_t ppIndex = details.ppIndexMin; ppIndex <= details.ppIndexMax; ++ppIndex) {
-            rankStart = CalculateContainingRanksByAttrs(attrs[DP_INDEX], ppIndex, details.cpIndexMin,
-                                                        details.tpIndexMin);
-            rankEnd = CalculateContainingRanksByAttrs(attrs[DP_INDEX], ppIndex, details.cpIndexMax,
-                                                      details.tpIndexMax);
+            rankStart =
+                CalculateContainingRanksByAttrs(attrs[DP_INDEX], ppIndex, details.cpIndexMin, details.tpIndexMin);
+            rankEnd = CalculateContainingRanksByAttrs(attrs[DP_INDEX], ppIndex, details.cpIndexMax, details.tpIndexMax);
             formatRanksForDpDimension.push_back(FormatRanksForInterval(rankStart, rankEnd));
             for (uint32_t rankIndex = rankStart; rankIndex <= rankEnd; ++rankIndex) {
                 ranks.push_back(rankIndex);
@@ -1108,16 +1046,16 @@ std::vector<uint32_t> BaseParallelStrategyAlgorithm::GetElementContainFormattedR
     }
     if (details.ppIndexMax == details.ppIndexMin) {
         // 若不涉及pp折叠，则tp折叠或cp折叠一定是一串连续序号，用一个区间表示即可
-        rankStart = CalculateContainingRanksByAttrs(attrs[DP_INDEX], attrs[PP_INDEX], details.cpIndexMin,
-                                                    details.tpIndexMin);
-        rankEnd = CalculateContainingRanksByAttrs(attrs[DP_INDEX], attrs[PP_INDEX], details.cpIndexMax,
-                                                  details.tpIndexMax);
+        rankStart =
+            CalculateContainingRanksByAttrs(attrs[DP_INDEX], attrs[PP_INDEX], details.cpIndexMin, details.tpIndexMin);
+        rankEnd =
+            CalculateContainingRanksByAttrs(attrs[DP_INDEX], attrs[PP_INDEX], details.cpIndexMax, details.tpIndexMax);
     } else if (orderIsTpPpDp) {
         // 若涉及pp折叠，且算法排布顺序为TP-PP-DP类型, 则tp/cp/pp折叠卡序号都为一个连续区间
-        rankStart = CalculateContainingRanksByAttrs(attrs[DP_INDEX], details.ppIndexMin, details.cpIndexMin,
-                                                    details.tpIndexMin);
-        rankEnd = CalculateContainingRanksByAttrs(attrs[DP_INDEX], details.ppIndexMax, details.cpIndexMax,
-                                                  details.tpIndexMax);
+        rankStart = CalculateContainingRanksByAttrs(
+            attrs[DP_INDEX], details.ppIndexMin, details.cpIndexMin, details.tpIndexMin);
+        rankEnd = CalculateContainingRanksByAttrs(
+            attrs[DP_INDEX], details.ppIndexMax, details.cpIndexMax, details.tpIndexMax);
     }
     formattedRanks = FormatRanksForInterval(rankStart, rankEnd);
     for (uint32_t rankIndex = rankStart; rankIndex <= rankEnd; ++rankIndex) {
@@ -1132,9 +1070,8 @@ std::vector<uint32_t> BaseParallelStrategyAlgorithm::GetElementContainFormattedR
  * @param attrs 元素并行坐标，即dpIndex、ppIndex等
  * @return
  */
-std::vector<uint32_t> BaseParallelStrategyAlgorithm::GetElementContainRanks(uint32_t index,
-    std::unordered_map<std::string, uint32_t> &attrs, std::string &formattedRanks)
-{
+std::vector<uint32_t> BaseParallelStrategyAlgorithm::GetElementContainRanks(
+    uint32_t index, std::unordered_map<std::string, uint32_t> &attrs, std::string &formattedRanks) {
     std::vector<uint32_t> ranks{};
     std::stringstream formatRanks;
     if (wordSize <= 1) {

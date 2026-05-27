@@ -25,11 +25,12 @@
 
 namespace Dic::Module::Summary {
 class ExpertDeploymentParser {
-public:
+  public:
     explicit ExpertDeploymentParser(std::shared_ptr<VirtualClusterDatabase> &database) : db(database) {}
     bool Parse(const std::string &filePath, const std::string &version);
     std::map<std::string, ModelInfo> GetModelInfoMap();
-private:
+
+  private:
     const static int regexMatchNumber = 2;
     std::shared_ptr<VirtualClusterDatabase> db = nullptr;
     std::map<std::string, ModelInfo> modelInfoMap;

@@ -25,11 +25,8 @@
 
 namespace Dic::Module::Summary {
 class SetParallelStrategyConfigHandler : public SummaryRequestHandler {
-public:
-    SetParallelStrategyConfigHandler()
-    {
-        command = Protocol::REQ_RES_SUMMARY_SET_PARALLEL_STRATEGY;
-    }
+  public:
+    SetParallelStrategyConfigHandler() { command = Protocol::REQ_RES_SUMMARY_SET_PARALLEL_STRATEGY; }
     ~SetParallelStrategyConfigHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

@@ -25,8 +25,7 @@ const std::unordered_map<std::string, std::string> VLLMParallelStrategyAlgorithm
 const std::unordered_map<std::string, std::string> VLLMParallelStrategyAlgorithm::tokenWithEp = {
     {VLLM_EP_GROUP, VLLM_EP_GROUP_NAME}};
 
-VLLMParallelStrategyAlgorithm::VLLMParallelStrategyAlgorithm()
-{
+VLLMParallelStrategyAlgorithm::VLLMParallelStrategyAlgorithm() {
     commInfoHandlers[DIMENSIONS_TP] =
         std::bind(&VLLMParallelStrategyAlgorithm::ReduceCommTpDimensionDef, this, std::placeholders::_1);
     commInfoHandlers[DIMENSIONS_PP] =
@@ -35,9 +34,8 @@ VLLMParallelStrategyAlgorithm::VLLMParallelStrategyAlgorithm()
 
 VLLMParallelStrategyAlgorithm::~VLLMParallelStrategyAlgorithm() = default;
 
-bool VLLMParallelStrategyAlgorithm::UpdateParallelDimension(const std::string& tmpDimension,
-    const ParallelStrategyConfig &tmpConfig, std::string &err)
-{
+bool VLLMParallelStrategyAlgorithm::UpdateParallelDimension(
+    const std::string &tmpDimension, const ParallelStrategyConfig &tmpConfig, std::string &err) {
     // vLLM也可复用Base类中的计算逻辑，等价于cpSize恒为1
     CalStrategyConfig(tmpDimension, tmpConfig);
     if (tmpConfig.algorithm == VLLM_TP_PP_DP_EP_ALG) {
@@ -68,8 +66,7 @@ bool VLLMParallelStrategyAlgorithm::UpdateParallelDimension(const std::string& t
     前端入参已校验, tp_size * dp_size能被ep_size整除，且ep_size能被tp_size整除
  * @param config
  */
-void VLLMParallelStrategyAlgorithm::SetStrategyConfig(const ParallelStrategyConfig& config)
-{
+void VLLMParallelStrategyAlgorithm::SetStrategyConfig(const ParallelStrategyConfig &config) {
     BaseParallelStrategyAlgorithm::SetStrategyConfig(config);
     // 未开启EP, 直接返回
     if (config.epSize == 1) {
@@ -80,8 +77,7 @@ void VLLMParallelStrategyAlgorithm::SetStrategyConfig(const ParallelStrategyConf
     externalDpSize = static_cast<uint32_t>(config.dpSize / innerDpSize);
 }
 
-void VLLMParallelStrategyAlgorithm::SetIndicatorAttr()
-{
+void VLLMParallelStrategyAlgorithm::SetIndicatorAttr() {
     if (dimension == DIMENSIONS_TP) {
         SetTpIndicatorAttr();
     } else if (dimension == DIMENSIONS_PP) {
@@ -93,12 +89,11 @@ void VLLMParallelStrategyAlgorithm::SetIndicatorAttr()
     }
 }
 
-bool VLLMParallelStrategyAlgorithm::GenerateArrangementByDimension(std::string &err)
-{
+bool VLLMParallelStrategyAlgorithm::GenerateArrangementByDimension(std::string &err) {
     ClearArrangementData();
     SetIndicatorAttr();
     std::unordered_map<std::string, uint32_t> indexAttributes;
-    for (const auto& para : paraOrderWithEp) {
+    for (const auto &para : paraOrderWithEp) {
         indexAttributes[para + STR_INDEX] = 0;
     }
     // 与其余算法保持统一，返回cpIndex=0
@@ -114,16 +109,14 @@ bool VLLMParallelStrategyAlgorithm::GenerateArrangementByDimension(std::string &
     return true;
 }
 
-std::vector<Connection> VLLMParallelStrategyAlgorithm::GetAllCommunicationGroups(std::string &err)
-{
+std::vector<Connection> VLLMParallelStrategyAlgorithm::GetAllCommunicationGroups(std::string &err) {
     if (allCommunicationGroups.empty() && !GetConnectionsByTokenList(err)) {
         return {};
     }
     return allCommunicationGroups;
 }
 
-bool VLLMParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &err)
-{
+bool VLLMParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &err) {
     if (wordSize == 1) {
         err = "Failed to get connections for vLLM. Parallel strategy configs have not been updated yet.";
         SetSummaryError(ErrorCode::GET_ALGORITHM_CONNECTIONS_FAILED);
@@ -143,11 +136,10 @@ bool VLLMParallelStrategyAlgorithm::GetConnectionsByTokenList(std::string &err)
     return true;
 }
 
-bool VLLMParallelStrategyAlgorithm::GetConnectionsByToken(std::string &err, bool independentEp = false)
-{
+bool VLLMParallelStrategyAlgorithm::GetConnectionsByToken(std::string &err, bool independentEp = false) {
     std::unordered_map<std::string, std::string> tmpToken;
     // EP相关连线信息在折叠视图不返回
-    if (independentEp && dimension==DIMENSIONS_TP) {
+    if (independentEp && dimension == DIMENSIONS_TP) {
         tmpToken = tokenWithEp;
     } else if (!independentEp) {
         tmpToken = tokenExceptEp;
@@ -159,32 +151,31 @@ bool VLLMParallelStrategyAlgorithm::GetConnectionsByToken(std::string &err, bool
             }
         }
     }
-    for (const auto& [token, groupName] : tmpToken) {
+    for (const auto &[token, groupName] : tmpToken) {
         std::vector<std::string> parallelGroups = StringUtil::Split(token, "-");
         allGroupsType ranks{};
         if (independentEp) {
             // 计算并行通信域时需考虑ep
-            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(parallelGroups, parallelSizeWithEp,
-                                                                              updatedOrderWithEp, wordSize);
+            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(
+                parallelGroups, parallelSizeWithEp, updatedOrderWithEp, wordSize);
         } else {
             // 计算并行通信域时无需考虑ep
-            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(parallelGroups, parallelSize,
-                                                                              updatedOrder, wordSize);
+            ranks = ParallelStrategyAlgorithmHelper::GetAllGroupsRanksByToken(
+                parallelGroups, parallelSize, updatedOrder, wordSize);
         }
         if (ranks.empty()) {
             err = "Failed to get connections by token list for Megatron. Group name: " + groupName;
             return false;
         }
-        for (const auto& rank : ranks) {
+        for (const auto &rank : ranks) {
             data.connections.emplace_back(groupName, rank, std::vector<std::string>{});
         }
     }
     return true;
 }
 
-void VLLMParallelStrategyAlgorithm::GetPerArrangement(uint32_t index,
-                                                      std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+void VLLMParallelStrategyAlgorithm::GetPerArrangement(
+    uint32_t index, std::unordered_map<std::string, uint32_t> &indexAttributes) {
     Element element;
     element.index = index;
     if (index != 0) {
@@ -197,11 +188,10 @@ void VLLMParallelStrategyAlgorithm::GetPerArrangement(uint32_t index,
     data.arrangements.push_back(element);
 }
 
-void VLLMParallelStrategyAlgorithm::UpdateIndexAttributes(std::unordered_map<std::string, uint32_t> &indexAttributes)
-{
+void VLLMParallelStrategyAlgorithm::UpdateIndexAttributes(std::unordered_map<std::string, uint32_t> &indexAttributes) {
     // 由低层次到高层次遍历各并行域，依次检查是否需要进位
     std::string curIndex;
-    for (const auto& curPara : paraOrder) {
+    for (const auto &curPara : paraOrder) {
         // 未达到size-1，无需进位
         if (indexAttributes[curPara + STR_INDEX] < paraDetailsMap[curPara].size - 1) {
             indexAttributes[curPara + STR_INDEX]++;
@@ -218,19 +208,18 @@ void VLLMParallelStrategyAlgorithm::UpdateIndexAttributes(std::unordered_map<std
     }
     // 添加epIndex, 前端入参已校验，分母不可能为零, dpSize * tpSize 一定能被epSize整除
     uint32_t epScale = paraDetailsMap[DP_PARA].size * paraDetailsMap[TP_PARA].size / paraDetailsMap[EP_PARA].size;
-    indexAttributes[EP_INDEX] = (indexAttributes[TP_INDEX] +
-                                 paraDetailsMap[TP_PARA].size * indexAttributes[DP_INDEX]) / epScale;
+    indexAttributes[EP_INDEX] =
+        (indexAttributes[TP_INDEX] + paraDetailsMap[TP_PARA].size * indexAttributes[DP_INDEX]) / epScale;
 }
 
-void VLLMParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
-{
+void VLLMParallelStrategyAlgorithm::UpdateOrderAndParallelSize() {
     // 根据 paraDetailsMap[para].isShown 删除size = 1的通信域
     updatedOrder = paraOrder;
-    updatedOrder.erase(std::remove_if(updatedOrder.begin(), updatedOrder.end(), [this](const std::string& group) {
-        return !(paraDetailsMap[group].isShown);
-        }), updatedOrder.end());
+    updatedOrder.erase(std::remove_if(updatedOrder.begin(), updatedOrder.end(),
+                           [this](const std::string &group) { return !(paraDetailsMap[group].isShown); }),
+        updatedOrder.end());
     parallelSize.clear();
-    for (const auto& para : updatedOrder) {
+    for (const auto &para : updatedOrder) {
         parallelSize.push_back(paraDetailsMap[para].size);
     }
     if (!paraDetailsMap[EP_PARA].isShown) {
@@ -241,10 +230,10 @@ void VLLMParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
     updatedOrderWithEp = {TP_PARA, PP_PARA};
     // 根据 paraDetailsMap[para].isShown删除size = 1的通信域
     updatedOrderWithEp.erase(std::remove_if(updatedOrderWithEp.begin(), updatedOrderWithEp.end(),
-        [this](const std::string& group) { return !(paraDetailsMap[group].isShown); }),
+                                 [this](const std::string &group) { return !(paraDetailsMap[group].isShown); }),
         updatedOrderWithEp.end());
     parallelSizeWithEp.clear();
-    for (const auto& para : updatedOrderWithEp) {
+    for (const auto &para : updatedOrderWithEp) {
         parallelSizeWithEp.push_back(paraDetailsMap[para].size);
     }
     updatedOrderWithEp.push_back(INNER_DP_GROUP);
@@ -255,9 +244,8 @@ void VLLMParallelStrategyAlgorithm::UpdateOrderAndParallelSize()
 
 bool VLLMParallelStrategyAlgorithm::GetPerformanceIndicatorByDimension(
     const GetPerformanceIndicatorParam &performanceParams,
-    const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-    std::vector<IndicatorDataStruct> &indicatorData, std::string& err)
-{
+    const std::unordered_map<std::uint32_t, StepStatistic> &statistic, std::vector<IndicatorDataStruct> &indicatorData,
+    std::string &err) {
     if (!(strategyConfig == performanceParams.config)) {
         err = "Failed to get parallelism performance indicator for the vLLM. Unexpected parallel config.";
         return false;
@@ -287,27 +275,24 @@ bool VLLMParallelStrategyAlgorithm::GetPerformanceIndicatorByDimension(
     return false;
 }
 
-CommInfoMap VLLMParallelStrategyAlgorithm::GetCommInfoByDimension(const CommInfoMap &expandCommInfos,
-    const std::string &dimension)
-{
-    auto res =  BaseParallelStrategyAlgorithm::GetCommInfoByDimension(expandCommInfos, dimension);
+CommInfoMap VLLMParallelStrategyAlgorithm::GetCommInfoByDimension(
+    const CommInfoMap &expandCommInfos, const std::string &dimension) {
+    auto res = BaseParallelStrategyAlgorithm::GetCommInfoByDimension(expandCommInfos, dimension);
     if (dimension == DIMENSIONS_TP) {
         return res;
     }
     // 折叠场景暂不展示按ep拆解通信时间结果
-    for (auto& item : res) {
-        auto& commInfo = item.second;
+    for (auto &item : res) {
+        auto &commInfo = item.second;
         commInfo.erase(std::remove_if(commInfo.begin(), commInfo.end(),
-            [](const CommInfoUnderRank& info) {
-                return info.pgName == VLLM_EP_GROUP_NAME;
-            }), commInfo.end());
+                           [](const CommInfoUnderRank &info) { return info.pgName == VLLM_EP_GROUP_NAME; }),
+            commInfo.end());
     }
     return res;
 }
 
-void VLLMParallelStrategyAlgorithm::CalAdviceInfo(const std::string &dimension, std::vector<std::string> &advices,
-    std::vector<IndicatorDataStruct> &indicatorData)
-{
+void VLLMParallelStrategyAlgorithm::CalAdviceInfo(
+    const std::string &dimension, std::vector<std::string> &advices, std::vector<IndicatorDataStruct> &indicatorData) {
     BaseParallelStrategyAlgorithm::CalAdviceInfo(dimension, advices, indicatorData);
 }
 }

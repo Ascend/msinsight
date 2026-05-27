@@ -27,16 +27,14 @@
 namespace Dic::Module::Summary {
 
 class QueryFwdBwdTimelineHandler : public SummaryRequestHandler {
-public:
-    QueryFwdBwdTimelineHandler()
-    {
-        command = Protocol::REQ_RES_PIPELINE_FWD_BWD_TIMELINE;
-    }
+  public:
+    QueryFwdBwdTimelineHandler() { command = Protocol::REQ_RES_PIPELINE_FWD_BWD_TIMELINE; }
     ~QueryFwdBwdTimelineHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-private:
-    static bool QueryFwdBwdTimelineByRank(const std::string &rankId, const std::string &stepId,
-                                          const std::string &clusterPath);
+
+  private:
+    static bool QueryFwdBwdTimelineByRank(
+        const std::string &rankId, const std::string &stepId, const std::string &clusterPath);
     static std::map<std::string, PipelineFwdBwdTimelineByRank> dataMap;
     static bool QueryFwdBwdTimelineFromFlow(const std::string &rankId, const std::string &stepId,
         const std::shared_ptr<Dic::Module::Timeline::VirtualTraceDatabase> &database);

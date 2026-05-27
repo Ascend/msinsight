@@ -24,8 +24,7 @@
 #include "ExpertDeploymentParser.h"
 
 namespace Dic::Module::Summary {
-bool ExpertDeploymentParser::Parse(const std::string &filePath, const std::string &version)
-{
+bool ExpertDeploymentParser::Parse(const std::string &filePath, const std::string &version) {
     if (db == nullptr) {
         return false;
     }
@@ -43,7 +42,7 @@ bool ExpertDeploymentParser::Parse(const std::string &filePath, const std::strin
     // 读取文件内容
     std::string fileContent;
     std::copy(std::istream_iterator<unsigned char>(expertDeployment), std::istream_iterator<unsigned char>(),
-              back_inserter(fileContent));
+        back_inserter(fileContent));
     if (fileContent.empty()) {
         return false;
     }
@@ -61,28 +60,25 @@ bool ExpertDeploymentParser::Parse(const std::string &filePath, const std::strin
         return false;
     }
     std::vector<ExpertDeploymentStruct> res;
-    for (const auto &item: jsonInfo["layer_list"].GetArray()) {
+    for (const auto &item : jsonInfo["layer_list"].GetArray()) {
         int layerId = JsonUtil::GetInteger(item, "layer_id");
         modelInfoMap[modelStage].rankNumber = JsonUtil::GetInteger(item, "device_count");
         if (!item.HasMember("device_list") || !item["device_list"].IsArray()) {
             return false;
         }
-        for (const auto &deviceInfo: item["device_list"].GetArray()) {
+        for (const auto &deviceInfo : item["device_list"].GetArray()) {
             int deviceId = JsonUtil::GetInteger(deviceInfo, "device_id");
             std::vector<int> expertList = JsonUtil::GetVector<int>(deviceInfo, "device_expert");
             if (expertList.empty()) {
                 return false;
             }
             db->InsertExpertDeploymentForCache({deviceId, expertList, layerId, modelStage, version});
-            modelInfoMap[modelStage].expertNumber = std::max(modelInfoMap[modelStage].expertNumber,
-                 *std::max_element(expertList.begin(), expertList.end()) + 1);
+            modelInfoMap[modelStage].expertNumber = std::max(
+                modelInfoMap[modelStage].expertNumber, *std::max_element(expertList.begin(), expertList.end()) + 1);
         }
     }
     return true;
 }
 
-std::map<std::string, ModelInfo> ExpertDeploymentParser::GetModelInfoMap()
-{
-    return modelInfoMap;
-}
+std::map<std::string, ModelInfo> ExpertDeploymentParser::GetModelInfoMap() { return modelInfoMap; }
 }

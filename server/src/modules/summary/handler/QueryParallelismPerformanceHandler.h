@@ -23,9 +23,8 @@
 #include "SummaryRequestHandler.h"
 namespace Dic::Module::Summary {
 class QueryParallelismPerformanceHandler : public SummaryRequestHandler {
-public:
-    QueryParallelismPerformanceHandler()
-    {
+  public:
+    QueryParallelismPerformanceHandler() {
         command = Protocol::REQ_RES_PARALLELISM_PERFORMANCE_DATA;
         async = false;
     }
