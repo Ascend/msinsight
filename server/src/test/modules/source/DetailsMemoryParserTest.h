@@ -22,7 +22,7 @@
 #include <gtest/gtest.h>
 
 class DetailsMemoryParserTest : public ::testing::Test {
-protected:
+  protected:
     const std::string VALID_DETAILS_BASE_INFO_JSON = R"JSON(
 {
 	"advice" : ["The current frequency is lower than the rated frequency"],

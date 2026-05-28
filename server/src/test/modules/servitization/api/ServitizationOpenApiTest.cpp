@@ -21,17 +21,12 @@
 #include "ServitizationOpenApi.h"
 #include "ServitizationContext.h"
 using namespace Dic::Module::IE;
-class ServitizationOpenApiTest : public ::testing::Test
-{
-public:
-    void SetUp() override
-    {
-        Dic::Module::Timeline::ParserStatusManager::Instance().NotifyStartParse();
-    }
+class ServitizationOpenApiTest : public ::testing::Test {
+  public:
+    void SetUp() override { Dic::Module::Timeline::ParserStatusManager::Instance().NotifyStartParse(); }
 };
 
-TEST_F(ServitizationOpenApiTest, InitDataBaseTest)
-{
+TEST_F(ServitizationOpenApiTest, InitDataBaseTest) {
     std::shared_ptr<ServitizationOpenApi> openApi = std::make_shared<ServitizationOpenApi>();
     std::string folder = Dic::FileUtil::GetCurrPath();
     std::string tempFileName = Dic::FileUtil::SplicePath(folder, "profiler.db");
@@ -40,12 +35,11 @@ TEST_F(ServitizationOpenApiTest, InitDataBaseTest)
     std::ofstream tempFile(tempFileName, std::ios::out | std::ios::trunc);
     std::ofstream tempErrFile(tempErrFileName, std::ios::out | std::ios::trunc);
     auto res = openApi->ComputeTaskInfo(folder);
-    EXPECT_EQ(res.size(), 1);  // 1
+    EXPECT_EQ(res.size(), 1); // 1
     openApi->Reset();
 }
 
-TEST_F(ServitizationOpenApiTest, ParseTest)
-{
+TEST_F(ServitizationOpenApiTest, ParseTest) {
     std::shared_ptr<ServitizationOpenApi> openApi = std::make_shared<ServitizationOpenApi>();
     std::string folder = Dic::FileUtil::GetCurrPath();
     std::string tempFileName = Dic::FileUtil::SplicePath(Dic::FileUtil::GetCurrPath(), "profiler.db");
@@ -67,8 +61,7 @@ TEST_F(ServitizationOpenApiTest, ParseTest)
     openApi->Reset();
 }
 
-TEST_F(ServitizationOpenApiTest, ParseMsTest)
-{
+TEST_F(ServitizationOpenApiTest, ParseMsTest) {
     std::shared_ptr<ServitizationOpenApi> openApi = std::make_shared<ServitizationOpenApi>();
     std::string folder = Dic::FileUtil::GetCurrPath();
     std::string tempFileName = Dic::FileUtil::SplicePath(Dic::FileUtil::GetCurrPath(), "ms_service_parsed.db");

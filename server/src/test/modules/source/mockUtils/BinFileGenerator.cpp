@@ -19,20 +19,18 @@
 #include "BinFileGenerator.h"
 
 namespace Dic::Module::Source::Test {
-void BinFileGenerator::Generate(const std::string& outputPath)
-{
+void BinFileGenerator::Generate(const std::string &outputPath) {
     this->filePath = outputPath;
     std::ofstream outFile(outputPath, std::ios::binary);
     if (!outFile) {
         return;
     }
-    for (const auto &item: dataBlocks) {
+    for (const auto &item : dataBlocks) {
         item->Write2File(outFile);
     }
     outFile.close();
 }
-bool BinFileGenerator::RemoveFile(const std::string& path)
-{
+bool BinFileGenerator::RemoveFile(const std::string &path) {
     if (std::remove(path.c_str()) != 0) {
         std::cout << "remove bin file failed: " + path << std::endl;
         return false;
@@ -42,10 +40,7 @@ bool BinFileGenerator::RemoveFile(const std::string& path)
     }
 }
 
-bool BinFileGenerator::RemoveFile()
-{
-    return RemoveFile(filePath);
-}
+bool BinFileGenerator::RemoveFile() { return RemoveFile(filePath); }
 }
 
 using namespace Dic::Module::Source::Test;

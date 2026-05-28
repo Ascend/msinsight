@@ -31,15 +31,13 @@ using namespace Dic::Module::Source::Test;
 class QueryApiLineDynamicHandlerTest {};
 
 class HandlerDerived : public QueryApiLineDynamicHandler {
-public:
-    void SetResponseBody(SourceApiLineDynamicResponse &response, SourceApiLineDynamicRequest &request)
-    {
+  public:
+    void SetResponseBody(SourceApiLineDynamicResponse &response, SourceApiLineDynamicRequest &request) {
         QueryApiLineDynamicHandler::SetResponseBody(response, request);
     }
 };
 
-TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiLineDynamicHandlerRequestWithValidData)
-{
+TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiLineDynamicHandlerRequestWithValidData) {
     QueryApiLineDynamicHandler handler;
     auto ptr = std::make_unique<SourceApiLineDynamicRequest>();
     ptr->params.sourceName = SOURCE_NAME;
@@ -49,8 +47,7 @@ TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiLineDynamicHandlerRe
     handler.HandleRequest(std::move(ptr));
 }
 
-TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiLineDynamicHandlerSetResponseBodyWithValidData)
-{
+TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiLineDynamicHandlerSetResponseBodyWithValidData) {
     SourceApiLineDynamicRequest request;
     request.params.sourceName = SOURCE_NAME;
     request.params.coreName = CORE_NAME;
@@ -79,8 +76,7 @@ TEST_F(ComputeQuerySourceApiDynamicHandlerTest, testQueryApiLineDynamicHandlerSe
     EXPECT_EQ(map.intMap["Line"], 32); // line is 32
 }
 
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineDynamicHandlerRequestWithoutDtype)
-{
+TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineDynamicHandlerRequestWithoutDtype) {
     QueryApiLineDynamicHandler handler;
     auto ptr = std::make_unique<SourceApiLineDynamicRequest>();
     ptr->params.sourceName = SOURCE_NAME;
@@ -90,8 +86,7 @@ TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineDynamicHandlerRequestWi
     handler.HandleRequest(std::move(ptr));
 }
 
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineDynamicHandlerSetResponseBodyWithoutDtype)
-{
+TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineDynamicHandlerSetResponseBodyWithoutDtype) {
     SourceApiLineDynamicRequest request;
     request.params.sourceName = SOURCE_NAME;
     request.params.coreName = CORE_NAME;

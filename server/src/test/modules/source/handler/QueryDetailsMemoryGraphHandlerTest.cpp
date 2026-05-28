@@ -34,9 +34,8 @@ using namespace Dic::Module::Source::Test;
 static const std::string BIN_FILE_PATH = "query_details_memory_graph_test.bin";
 class QueryDetailsMemoryGraphHandlerTest {};
 class ComputeQueryDetailsMemoryGraphHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         // generate bin file
         auto graph = std::make_unique<NormalDataBlock>(DataTypeEnum::DETAILS_MEMORY_GRAPH, DETAILS_MEMORY_GRAPH_JSON);
         auto table = std::make_unique<NormalDataBlock>(DataTypeEnum::DETAILS_MEMORY_TABLE, DETAILS_MEMORY_TABLE_JSON);
@@ -49,11 +48,9 @@ public:
         // init parser
         SourceFileParser::Instance().SetFilePath(BIN_FILE_PATH);
         SourceFileParser::Instance().Parse({BIN_FILE_PATH}, BIN_FILE_PATH, BIN_FILE_PATH, "");
-
     }
 
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         // remove bin file
         Dic::Module::Source::Test::BinFileGenerator::RemoveFile(BIN_FILE_PATH);
 
@@ -62,16 +59,14 @@ public:
     }
 };
 
-TEST_F(ComputeQueryDetailsMemoryGraphHandlerTest, testQueryDetailsMemoryGraphHandlerWithValidData)
-{
+TEST_F(ComputeQueryDetailsMemoryGraphHandlerTest, testQueryDetailsMemoryGraphHandlerWithValidData) {
     QueryDetailsMemoryGraphHandler handler;
     auto ptr = std::make_unique<DetailsMemoryGraphRequest>();
     ptr->params.blockId = "0";
     handler.HandleRequest(std::move(ptr));
 }
 
-TEST_F(ComputeQueryDetailsMemoryGraphHandlerTest, testQueryDetailsMemoryTableHandlerWithValidData)
-{
+TEST_F(ComputeQueryDetailsMemoryGraphHandlerTest, testQueryDetailsMemoryTableHandlerWithValidData) {
     QueryDetailsMemoryTableHandler handler;
     auto ptr = std::make_unique<DetailsMemoryTableRequest>();
     ptr->params.blockId = "0";

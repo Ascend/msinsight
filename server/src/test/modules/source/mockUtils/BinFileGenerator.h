@@ -27,17 +27,14 @@
 namespace Dic::Module::Source::Test {
 
 class BinFileGenerator {
-public:
-    void AddDataBlock(std::unique_ptr<DataBlock> blockPtr)
-    {
-        dataBlocks.push_back(std::move(blockPtr));
-    }
+  public:
+    void AddDataBlock(std::unique_ptr<DataBlock> blockPtr) { dataBlocks.push_back(std::move(blockPtr)); }
 
     void Generate(const std::string &outputPath);
     static bool RemoveFile(const std::string &path);
     bool RemoveFile();
 
-private:
+  private:
     std::vector<std::unique_ptr<DataBlock>> dataBlocks;
     std::string filePath;
 };

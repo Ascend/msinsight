@@ -24,9 +24,8 @@ using namespace Dic::Module;
 using namespace Dic;
 
 class MemSnapshotParserTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         // 创建临时测试目录
         testDir = TestSuit::GetTestDataFile("snapshot");
 
@@ -44,8 +43,7 @@ public:
         ASSERT_TRUE(parser != nullptr);
     }
 
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         // 重置解析器
         parser->Reset();
 
@@ -54,23 +52,22 @@ public:
         FileUtil::RemoveFile(testOutputDbPath);
     }
 
-protected:
+  protected:
     static std::string testDir;
     static std::string testPicklePath;
     static std::string testLogPath;
     static std::string testOutputDbPath;
-    static MemSnapshotParser* parser;
+    static MemSnapshotParser *parser;
 };
 
 std::string MemSnapshotParserTest::testDir;
 std::string MemSnapshotParserTest::testPicklePath;
 std::string MemSnapshotParserTest::testLogPath;
 std::string MemSnapshotParserTest::testOutputDbPath;
-MemSnapshotParser* MemSnapshotParserTest::parser = nullptr;
+MemSnapshotParser *MemSnapshotParserTest::parser = nullptr;
 
 // 测试解析器重置功能
-TEST_F(MemSnapshotParserTest, Reset)
-{
+TEST_F(MemSnapshotParserTest, Reset) {
     // 先设置一些状态
     parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath);
     parser->GetParseContext().SetState(ParserState::Processing);
@@ -88,8 +85,7 @@ TEST_F(MemSnapshotParserTest, Reset)
 }
 
 // 测试解析上下文管理
-TEST_F(MemSnapshotParserTest, ParseContextManagement)
-{
+TEST_F(MemSnapshotParserTest, ParseContextManagement) {
     // 测试重置上下文
     parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath);
 
@@ -119,8 +115,7 @@ TEST_F(MemSnapshotParserTest, ParseContextManagement)
 }
 
 // 测试是否需要解析的检查逻辑
-TEST_F(MemSnapshotParserTest, CheckIfParsingNeed)
-{
+TEST_F(MemSnapshotParserTest, CheckIfParsingNeed) {
     // 重置解析器
     parser->Reset();
 

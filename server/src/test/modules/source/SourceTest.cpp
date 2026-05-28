@@ -26,20 +26,19 @@
 #include "SourceTest.h"
 
 namespace {
-    std::string g_apiFileData = "apiFileData.bin";
-    std::string g_loadData = "memory_data.bin";
-    std::string g_memoryData = "base_info.bin";
-    std::string g_baseInfo = "load_data.bin";
-    std::string g_rooflineDataFile = "roofline_data.bin";
+std::string g_apiFileData = "apiFileData.bin";
+std::string g_loadData = "memory_data.bin";
+std::string g_memoryData = "base_info.bin";
+std::string g_baseInfo = "load_data.bin";
+std::string g_rooflineDataFile = "roofline_data.bin";
 }
 
 using namespace std;
 using namespace Dic;
 using namespace Dic::Module::Source::Test;
 class SourceTest : public ::testing::Test {
-protected:
-    static void SetUpTestCase()
-    {
+  protected:
+    static void SetUpTestCase() {
         BinFileGenerator dataFileGenerator;
         // add source code
         SourceDataBlock sourceDataBlock1(FOREACH_TILLING_DEF_H, FOREACH_TILLING_DEF_H_PATH);
@@ -76,12 +75,12 @@ protected:
 
         BinFileGenerator loadDataGenerator;
         // add compute load graph json
-        NormalDataBlock computeLoadGraphDataBlock(DataTypeEnum::DETAILS_COMPUTE_LOAD_GRAPH,
-                                                  DETAILS_COMPUTE_LOAD_GRAPH_JSON);
+        NormalDataBlock computeLoadGraphDataBlock(
+            DataTypeEnum::DETAILS_COMPUTE_LOAD_GRAPH, DETAILS_COMPUTE_LOAD_GRAPH_JSON);
         loadDataGenerator.AddDataBlock(std::make_unique<NormalDataBlock>(computeLoadGraphDataBlock));
         // add compute load table json
-        NormalDataBlock computeLoadTableDataBlock(DataTypeEnum::DETAILS_COMPUTE_LOAD_TABLE,
-                                                  DETAILS_COMPUTE_LOAD_TABLE_JSON);
+        NormalDataBlock computeLoadTableDataBlock(
+            DataTypeEnum::DETAILS_COMPUTE_LOAD_TABLE, DETAILS_COMPUTE_LOAD_TABLE_JSON);
         loadDataGenerator.AddDataBlock(std::make_unique<NormalDataBlock>(computeLoadTableDataBlock));
         // generate file
         loadDataGenerator.Generate(g_loadData);
@@ -95,8 +94,7 @@ protected:
         roofLineDataGenerator.Generate(g_rooflineDataFile);
     }
 
-    static void TearDownTestCase()
-    {
+    static void TearDownTestCase() {
         // remove temprary bin files
         BinFileGenerator::RemoveFile(g_apiFileData);
         BinFileGenerator::RemoveFile(g_loadData);
@@ -106,8 +104,7 @@ protected:
     }
 };
 
-TEST_F(SourceTest, CheckOperatorBinarySuccessfulWithFixedPath)
-{
+TEST_F(SourceTest, CheckOperatorBinarySuccessfulWithFixedPath) {
     Module::Source::SourceFileParser &parser = Dic::Module::Source::SourceFileParser::Instance();
     std::string errMsg;
     EXPECT_EQ(true, parser.CheckOperatorBinary(g_apiFileData, errMsg));
@@ -115,8 +112,7 @@ TEST_F(SourceTest, CheckOperatorBinarySuccessfulWithFixedPath)
     EXPECT_EQ(true, parser.CheckOperatorBinary(g_baseInfo, errMsg));
 }
 
-TEST_F(SourceTest, CheckOperatorBinaryFailedWithSpecificPath)
-{
+TEST_F(SourceTest, CheckOperatorBinaryFailedWithSpecificPath) {
     Module::Source::SourceFileParser &parser = Dic::Module::Source::SourceFileParser::Instance();
 #ifdef _WIN32
     const int pathLen = MAX_PATH;
@@ -140,8 +136,7 @@ TEST_F(SourceTest, CheckOperatorBinaryFailedWithSpecificPath)
     EXPECT_EQ(false, parser.CheckOperatorBinary(path, errMsg));
 }
 
-static Module::Source::SourceFileParser &InitParser(const string& dataPath)
-{
+static Module::Source::SourceFileParser &InitParser(const string &dataPath) {
     Module::Source::SourceFileParser &parser = Dic::Module::Source::SourceFileParser::Instance();
     std::string errMsg;
     EXPECT_EQ(true, parser.CheckOperatorBinary(dataPath, errMsg));
@@ -150,14 +145,9 @@ static Module::Source::SourceFileParser &InitParser(const string& dataPath)
     return parser;
 }
 
-static void CleanParser(Module::Source::SourceFileParser &parser)
-{
-    parser.Reset();
-}
+static void CleanParser(Module::Source::SourceFileParser &parser) { parser.Reset(); }
 
-
-TEST_F(SourceTest, GetCoreList)
-{
+TEST_F(SourceTest, GetCoreList) {
     auto &parser = InitParser(g_apiFileData);
     const vector<std::string> &coreList = parser.GetCoreList();
     int coreListSize = 3;
@@ -168,8 +158,7 @@ TEST_F(SourceTest, GetCoreList)
     CleanParser(parser);
 }
 
-TEST_F(SourceTest, GetSourceList)
-{
+TEST_F(SourceTest, GetSourceList) {
     auto &parser = InitParser(g_apiFileData);
     const vector<std::string> &sourceList = parser.GetSourceList();
     int sourceListSize = 3;
@@ -180,22 +169,18 @@ TEST_F(SourceTest, GetSourceList)
     CleanParser(parser);
 }
 
-
-TEST_F(SourceTest, GetApiLinesByCoreAndSource)
-{
+TEST_F(SourceTest, GetApiLinesByCoreAndSource) {
     auto &parser = InitParser(g_apiFileData);
     vector<Dic::Module::Source::SourceFileLine> apiLines = parser.GetApiLinesByCoreAndSource(
-        "core0.cubecore",
-        "/home/test/workspace/foreach/common/foreach/foreach_tiling_def.h");
+        "core0.cubecore", "/home/test/workspace/foreach/common/foreach/foreach_tiling_def.h");
     EXPECT_EQ(apiLines.size(), 0);
 
     apiLines = parser.GetApiLinesByCoreAndSource(
-        "core0.veccore0",
-        "/home/test/workspace/foreach/common/foreach/foreach_tiling.h");
+        "core0.veccore0", "/home/test/workspace/foreach/common/foreach/foreach_tiling.h");
     EXPECT_EQ(apiLines.size(), 0);
 
     const vector<Dic::Module::Source::SourceFileLine> &linesByCoreAndSource = parser.GetApiLinesByCoreAndSource(
-        
+
         "core0.veccore0", "/home/test/workspace/foreach/common/foreach/foreach_tiling_def.h");
     int linesByCoreAndSourceSize = 2;
     EXPECT_EQ(linesByCoreAndSource.size(), linesByCoreAndSourceSize);
@@ -215,8 +200,7 @@ TEST_F(SourceTest, GetApiLinesByCoreAndSource)
     CleanParser(parser);
 }
 
-TEST_F(SourceTest, GetInstr)
-{
+TEST_F(SourceTest, GetInstr) {
     auto &parser = InitParser(g_apiFileData);
     const string &instr = parser.GetInstr();
     EXPECT_TRUE(!instr.empty());
@@ -227,8 +211,7 @@ TEST_F(SourceTest, GetInstr)
     CleanParser(parser);
 }
 
-TEST_F(SourceTest, GetSourceByName)
-{
+TEST_F(SourceTest, GetSourceByName) {
     auto &parser = InitParser(g_apiFileData);
     std::string foreachTillingPath = "/home/test/workspace/foreach/common/foreach/foreach_tiling.h";
     const string notExistsource = parser.GetSourceByName(foreachTillingPath);
@@ -244,9 +227,7 @@ TEST_F(SourceTest, GetSourceByName)
     CleanParser(parser);
 }
 
-
-TEST_F(SourceTest, QueryBaseInfo)
-{
+TEST_F(SourceTest, QueryBaseInfo) {
     auto &parser = InitParser(g_baseInfo);
     Protocol::DetailsBaseInfoResBody resBody;
     bool res = parser.GetDetailsBaseInfo(resBody, false);
@@ -258,8 +239,7 @@ TEST_F(SourceTest, QueryBaseInfo)
     parser.Reset();
 }
 
-TEST_F(SourceTest, QueryBaseInfoWhenOpTypeIsMix)
-{
+TEST_F(SourceTest, QueryBaseInfoWhenOpTypeIsMix) {
     auto &parser = InitParser(g_rooflineDataFile);
     Protocol::DetailsBaseInfoResBody resBody;
     bool res = parser.GetDetailsBaseInfo(resBody, false);
@@ -274,8 +254,7 @@ TEST_F(SourceTest, QueryBaseInfoWhenOpTypeIsMix)
     parser.Reset();
 }
 
-TEST_F(SourceTest, GetDetailsLoadInfo)
-{
+TEST_F(SourceTest, GetDetailsLoadInfo) {
     auto &parser = InitParser(g_loadData);
     Protocol::DetailsLoadInfoResBody responseBody;
     bool res = parser.GetDetailsLoadInfo(responseBody, false);
@@ -284,8 +263,7 @@ TEST_F(SourceTest, GetDetailsLoadInfo)
     parser.Reset();
 }
 
-TEST_F(SourceTest, GetDetailsMemoryGraph)
-{
+TEST_F(SourceTest, GetDetailsMemoryGraph) {
     auto &parser = InitParser(g_memoryData);
     Protocol::DetailsMemoryGraphResBody resBody;
     bool res = parser.GetDetailsMemoryGraph("0", false, resBody);
@@ -293,8 +271,7 @@ TEST_F(SourceTest, GetDetailsMemoryGraph)
     parser.Reset();
 }
 
-TEST_F(SourceTest, GetDetailsMemoryTable)
-{
+TEST_F(SourceTest, GetDetailsMemoryTable) {
     auto &parser = InitParser(g_memoryData);
     Protocol::DetailsMemoryTableResBody resBody;
     bool res = parser.GetDetailsMemoryTable("", false, resBody);
@@ -311,8 +288,7 @@ TEST_F(SourceTest, GetDetailsMemoryTable)
     parser.Reset();
 }
 
-TEST_F(SourceTest, GetRoofline)
-{
+TEST_F(SourceTest, GetRoofline) {
     auto &parser = InitParser(g_rooflineDataFile);
     Protocol::DetailsRooflineBody resBody;
     bool res = parser.GetDetailsRoofline(resBody);

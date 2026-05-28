@@ -29,55 +29,33 @@ using namespace Dic::Module::Source::Test;
 class SourceInstructionParserTest : public ::testing::Test {};
 
 class SourceInstructionParserDerived : public SourceInstructionParser {
-public:
-    void ConvertApiInstr(std::string &json)
-    {
-        SourceInstructionParser::ConvertApiInstr(json);
-    }
+  public:
+    void ConvertApiInstr(std::string &json) { SourceInstructionParser::ConvertApiInstr(json); }
 
-    void ConvertApiInstrDynamic(std::string &json)
-    {
-        SourceInstructionParser::ConvertApiInstrDynamic(json);
-    }
+    void ConvertApiInstrDynamic(std::string &json) { SourceInstructionParser::ConvertApiInstrDynamic(json); }
 
-    std::vector<SourceFileInstructionDynamicCol>& GetInstructionList()
-    {
+    std::vector<SourceFileInstructionDynamicCol> &GetInstructionList() {
         return SourceInstructionParser::GetInstructionList();
     }
 
-    void ConvertApiFile(std::string &json)
-    {
-        SourceInstructionParser::ConvertApiFile(json);
-    }
+    void ConvertApiFile(std::string &json) { SourceInstructionParser::ConvertApiFile(json); }
 
-    void ConvertApiFileDynamic(std::string &json)
-    {
-        SourceInstructionParser::ConvertApiFileDynamic(json);
-    }
+    void ConvertApiFileDynamic(std::string &json) { SourceInstructionParser::ConvertApiFileDynamic(json); }
 
-    std::unordered_map<std::string, std::vector<SourceFileLineDynamicCol>>& GetSourceLinesMap()
-    {
+    std::unordered_map<std::string, std::vector<SourceFileLineDynamicCol>> &GetSourceLinesMap() {
         return SourceInstructionParser::GetSourceLinesMap();
     }
 
-    std::vector<SourceApiInstruction>& GetApiInstructionList()
-    {
+    std::vector<SourceApiInstruction> &GetApiInstructionList() {
         return SourceInstructionParser::GetApiInstructionList();
     }
 
-    std::map<std::string, std::vector<SourceFileLine>>& GetApiFiles()
-    {
-        return SourceInstructionParser::GetApiFiles();
-    }
+    std::map<std::string, std::vector<SourceFileLine>> &GetApiFiles() { return SourceInstructionParser::GetApiFiles(); }
 
-    void PreprocessInstrWrapper(document_t &doc)
-    {
-        SourceInstructionParser::PreprocessInstr(doc);
-    }
+    void PreprocessInstrWrapper(document_t &doc) { SourceInstructionParser::PreprocessInstr(doc); }
 };
 
-TEST(SourceInstructionParserTest, testConvertApiInstrNewWithValidJsonData)
-{
+TEST(SourceInstructionParserTest, testConvertApiInstrNewWithValidJsonData) {
     SourceInstructionParserDerived parser;
     std::string json = std::string(SOURCE_INSTRUCTIONS_JSON);
     parser.ConvertApiInstrDynamic(json);
@@ -97,8 +75,7 @@ TEST(SourceInstructionParserTest, testConvertApiInstrNewWithValidJsonData)
     EXPECT_EQ(instr.floatColumnMap["float list"].size(), 2);
 }
 
-TEST(SourceInstructionParserTest, testConvertApiFileNewWithValidJsonData)
-{
+TEST(SourceInstructionParserTest, testConvertApiFileNewWithValidJsonData) {
     SourceInstructionParserDerived parser;
     std::string json = std::string(SOURCE_API_FILE_JSON);
     parser.ConvertApiFileDynamic(json);
@@ -126,8 +103,7 @@ TEST(SourceInstructionParserTest, testConvertApiFileNewWithValidJsonData)
     EXPECT_TRUE(NumberUtil::IsEqual(line.floatColumnMap["float list"][1], 12.2));
 }
 
-TEST(SourceInstructionParserTest, testConvertApiInstrNewWithoutDtype)
-{
+TEST(SourceInstructionParserTest, testConvertApiInstrNewWithoutDtype) {
     SourceInstructionParserDerived parser;
     std::string json = std::string(INSTR_FILE);
     parser.ConvertApiInstr(json);
@@ -148,8 +124,7 @@ TEST(SourceInstructionParserTest, testConvertApiInstrNewWithoutDtype)
     EXPECT_EQ(line.instructionsExecuted[0], 4); // value is 4
 }
 
-TEST(SourceInstructionParserTest, testConvertApiFileNewWithoutDtype)
-{
+TEST(SourceInstructionParserTest, testConvertApiFileNewWithoutDtype) {
     SourceInstructionParserDerived parser;
     std::string json = std::string(API_FILE);
     std::string sourceName = "/test/vec_add1_simt.cpp";
@@ -168,8 +143,7 @@ TEST(SourceInstructionParserTest, testConvertApiFileNewWithoutDtype)
     EXPECT_EQ(line.addressRange[0].second, "0x1134e4d8");
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperProgressAndReset)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperProgressAndReset) {
     GRPStatusHelper helper;
     EXPECT_EQ(helper.UpdateGRPStatus("R0", 3, GRPStatus::READ), GRPProgress::BEGIN);
     EXPECT_EQ(helper.UpdateGRPStatus("R0", 3, GRPStatus::READ), GRPProgress::IN_USE);
@@ -179,8 +153,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperProgressAndReset)
     EXPECT_EQ(helper.UpdateGRPStatus("R0", 2, GRPStatus::WRITE), GRPProgress::BEGIN);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeBasic)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeBasic) {
     GRPStatusHelper helper;
 
     helper.UpdateGRPStatus("R0", 5, GRPStatus::READ);
@@ -194,15 +167,13 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeBasic)
     EXPECT_EQ(helper.GetRegisterLifeTime("R0", 0), 5);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeForNonExistent)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeForNonExistent) {
     GRPStatusHelper helper;
     EXPECT_EQ(helper.GetRegisterLifeTime("NonExistent", 10), 10);
     EXPECT_EQ(helper.GetRegisterLifeTime("R999", 7), 7);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeAfterEnd)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeAfterEnd) {
     GRPStatusHelper helper;
 
     helper.UpdateGRPStatus("R0", 3, GRPStatus::READ);
@@ -213,8 +184,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperGetRegisterLifeTimeAfterEnd
     EXPECT_EQ(helper.GetRegisterLifeTime("R0", 5), 3);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexBasic)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexBasic) {
     GRPStatusHelper helper;
 
     int index0 = helper.GetIndex("R0");
@@ -230,8 +200,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexBasic)
     EXPECT_EQ(index0Again, 0);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexWithReuse)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexWithReuse) {
     GRPStatusHelper helper;
 
     int idx0 = helper.GetIndex("R0");
@@ -250,8 +219,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexWithReuse)
     EXPECT_EQ(idx3, 3);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexAfterReset)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexAfterReset) {
     GRPStatusHelper helper;
 
     helper.GetIndex("R0");
@@ -267,8 +235,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperGetIndexAfterReset)
     EXPECT_EQ(idx1, 1);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperResetClearsAllMaps)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperResetClearsAllMaps) {
     GRPStatusHelper helper;
 
     helper.UpdateGRPStatus("R0", 5, GRPStatus::READ);
@@ -288,8 +255,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperResetClearsAllMaps)
     EXPECT_EQ(newIdx, 0);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperCompleteLifecycleWithIndex)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperCompleteLifecycleWithIndex) {
     GRPStatusHelper helper;
 
     int idx = helper.GetIndex("R0");
@@ -312,8 +278,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperCompleteLifecycleWithIndex)
     EXPECT_EQ(newIdx, 1);
 }
 
-TEST(SourceInstructionParserTest, testGRPStatusHelperMultipleRegistersWithIndices)
-{
+TEST(SourceInstructionParserTest, testGRPStatusHelperMultipleRegistersWithIndices) {
     GRPStatusHelper helper;
 
     int idx0 = helper.GetIndex("R0");
@@ -337,8 +302,7 @@ TEST(SourceInstructionParserTest, testGRPStatusHelperMultipleRegistersWithIndice
     EXPECT_EQ(helper.GetIndex("R2"), idx2);
 }
 
-TEST(SourceInstructionParserTest, testPreprocessInstrSortsAndUpdatesGRPStatus)
-{
+TEST(SourceInstructionParserTest, testPreprocessInstrSortsAndUpdatesGRPStatus) {
     SourceInstructionParserDerived parser;
     document_t doc;
     doc.Parse(R"(
@@ -388,8 +352,7 @@ TEST(SourceInstructionParserTest, testPreprocessInstrSortsAndUpdatesGRPStatus)
     EXPECT_EQ(secondStatus[0]["length"].GetInt(), 2);
 }
 
-TEST(SourceInstructionParserTest, testPreprocessInstrMultipleRegistersWithDifferentCostTimes)
-{
+TEST(SourceInstructionParserTest, testPreprocessInstrMultipleRegistersWithDifferentCostTimes) {
     SourceInstructionParserDerived parser;
     document_t doc;
     doc.Parse(R"(
@@ -434,8 +397,7 @@ TEST(SourceInstructionParserTest, testPreprocessInstrMultipleRegistersWithDiffer
     EXPECT_EQ(secondInstrStatus[1]["progress"].GetInt(), static_cast<int>(GRPProgress::IN_USE));
 }
 
-TEST(SourceInstructionParserTest, testPreprocessInstrSortsByCostTimeThenRegName)
-{
+TEST(SourceInstructionParserTest, testPreprocessInstrSortsByCostTimeThenRegName) {
     SourceInstructionParserDerived parser;
     document_t doc;
     doc.Parse(R"(
@@ -472,8 +434,7 @@ TEST(SourceInstructionParserTest, testPreprocessInstrSortsByCostTimeThenRegName)
     EXPECT_STREQ(secondInstrStatus[2]["name"].GetString(), "R1");
 }
 
-TEST(SourceInstructionParserTest, testPreprocessInstrWithCompleteLifecycle)
-{
+TEST(SourceInstructionParserTest, testPreprocessInstrWithCompleteLifecycle) {
     SourceInstructionParserDerived parser;
     document_t doc;
     doc.Parse(R"(
@@ -529,8 +490,7 @@ TEST(SourceInstructionParserTest, testPreprocessInstrWithCompleteLifecycle)
     EXPECT_EQ(instr3Status[0]["length"].GetInt(), 4);
 }
 
-TEST(SourceInstructionParserTest, testPreprocessInstrWithEmptyGPRStatus)
-{
+TEST(SourceInstructionParserTest, testPreprocessInstrWithEmptyGPRStatus) {
     SourceInstructionParserDerived parser;
     document_t doc;
     doc.Parse(R"(
@@ -553,8 +513,7 @@ TEST(SourceInstructionParserTest, testPreprocessInstrWithEmptyGPRStatus)
     EXPECT_EQ(status.Size(), 0);
 }
 
-TEST(SourceInstructionParserTest, testPreprocessInstrWithoutGPRStatus)
-{
+TEST(SourceInstructionParserTest, testPreprocessInstrWithoutGPRStatus) {
     SourceInstructionParserDerived parser;
     document_t doc;
     doc.Parse(R"(
@@ -578,8 +537,7 @@ TEST(SourceInstructionParserTest, testPreprocessInstrWithoutGPRStatus)
     EXPECT_STREQ(instructions[1]["Address"].GetString(), "0x200");
 }
 
-TEST(SourceInstructionParserTest, testPreprocessInstrRegisterReusageAfterLifecycleEnd)
-{
+TEST(SourceInstructionParserTest, testPreprocessInstrRegisterReusageAfterLifecycleEnd) {
     SourceInstructionParserDerived parser;
     document_t doc;
     doc.Parse(R"(

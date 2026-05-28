@@ -34,14 +34,13 @@
 
 using namespace Dic::Module::FullDb;
 class ExpertHotspotManagerTest : public ::testing::Test {
-protected:
+  protected:
     std::string filePath;
     std::string baselineFilePath;
     std::string hotspotPath;
     std::string deploymentPath;
     std::string heatMapProfilingPath;
-    void SetUp() override
-    {
+    void SetUp() override {
         filePath = TestSuit::GetTestDataFile("cluster_analysis_output");
         baselineFilePath = TestSuit::GetTestDataFile("baseline_cluster", "cluster_analysis_output");
         hotspotPath = TestSuit::GetTestDataFile("expert_hotspot");
@@ -49,21 +48,19 @@ protected:
         heatMapProfilingPath = TestSuit::GetTestDataFile("heatMap");
     }
 
-    void InitParser(const std::string &dataPath)
-    {
+    void InitParser(const std::string &dataPath) {
         // 集群解析，如果集群已解析，则只会初始化db，然后结束流程
         // database直接传空指针，建立连接池的动作在ParseClusterFiles中
-        Dic::Module::FullDb::ClusterFileParser clusterFileParser(dataPath, nullptr,
-                                                                 dataPath + Dic::TimeUtil::Instance().NowStr());
+        Dic::Module::FullDb::ClusterFileParser clusterFileParser(
+            dataPath, nullptr, dataPath + Dic::TimeUtil::Instance().NowStr());
         clusterFileParser.ParseClusterFiles();
         clusterFileParser.ParseClusterStep2Files();
     }
 
-    static void WaitParseEnd(std::vector<std::string> statusList)
-    {
+    static void WaitParseEnd(std::vector<std::string> statusList) {
         while (true) {
             size_t i = 0;
-            for (const auto& tmp : statusList) {
+            for (const auto &tmp : statusList) {
                 if (ParserStatusManager::Instance().GetParserStatus(tmp) != ParserStatus::FINISH) {
                     break;
                 } else {
@@ -79,8 +76,7 @@ protected:
         }
     }
 
-    static void InitProfiling(const std::string &filePath)
-    {
+    static void InitProfiling(const std::string &filePath) {
         const std::string dbPath = filePath + "mindstudio_insight_data.db";
         DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath);
         DataBaseManager::Instance().CreateTraceConnectionPool("100", dbPath);
@@ -88,8 +84,7 @@ protected:
         WaitParseEnd({"100"});
     }
 
-   void Clear()
-    {
+    void Clear() {
         auto db = Dic::Module::FullDb::DataBaseManager::Instance().GetClusterDatabase(filePath);
         if (db != nullptr) {
             // 清空热点数据
@@ -111,8 +106,7 @@ protected:
     }
 };
 
-TEST_F(ExpertHotspotManagerTest, InitExpertHotspotDataSuccess)
-{
+TEST_F(ExpertHotspotManagerTest, InitExpertHotspotDataSuccess) {
     InitParser(filePath);
     std::string error;
     Dic::Module::Summary::ExpertHotspotManager::InitExpertHotspotData(hotspotPath, "1", error, filePath);
@@ -122,8 +116,7 @@ TEST_F(ExpertHotspotManagerTest, InitExpertHotspotDataSuccess)
     Clear();
 }
 
-TEST_F(ExpertHotspotManagerTest, UpdateModelInfoSuccess)
-{
+TEST_F(ExpertHotspotManagerTest, UpdateModelInfoSuccess) {
     InitParser(filePath);
     std::string error;
     Dic::Module::Summary::ExpertHotspotManager::InitExpertHotspotData(hotspotPath, "1", error, filePath);
@@ -144,8 +137,7 @@ TEST_F(ExpertHotspotManagerTest, UpdateModelInfoSuccess)
     Clear();
 }
 
-TEST_F(ExpertHotspotManagerTest, QueryWithoutHotspotData)
-{
+TEST_F(ExpertHotspotManagerTest, QueryWithoutHotspotData) {
     InitParser(filePath);
     std::string error;
     Dic::Module::ModelInfo modelInfo{{0, 2}, 0, 0, 4, 61};
@@ -158,8 +150,7 @@ TEST_F(ExpertHotspotManagerTest, QueryWithoutHotspotData)
     Clear();
 }
 
-TEST_F(ExpertHotspotManagerTest, InitExpertDeploymentDataSuccess)
-{
+TEST_F(ExpertHotspotManagerTest, InitExpertDeploymentDataSuccess) {
     InitParser(filePath);
     std::string error;
     Dic::Module::Summary::ExpertHotspotManager::InitExpertHotspotData(deploymentPath, "1", error, filePath);
@@ -169,8 +160,7 @@ TEST_F(ExpertHotspotManagerTest, InitExpertDeploymentDataSuccess)
     Clear();
 }
 
-TEST_F(ExpertHotspotManagerTest, ParseHeatMapFromProfilingWithoutTraceDb)
-{
+TEST_F(ExpertHotspotManagerTest, ParseHeatMapFromProfilingWithoutTraceDb) {
     Dic::Module::ParserFactory::Reset();
     InitParser(filePath);
     auto respotoryFactory = RepositoryFactory::Instance();

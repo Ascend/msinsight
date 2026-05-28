@@ -22,30 +22,25 @@
 #include "OpMemoryTable.h"
 using namespace Dic::Module::Memory;
 class OperatorMemoryServiceTest : public ::testing::Test {
-protected:
+  protected:
     class MemoryTableDefaultMock {
-    public:
-        void SetDb(sqlite3 *dbPtr)
-        {
-            db = dbPtr;
-        }
+      public:
+        void SetDb(sqlite3 *dbPtr) { db = dbPtr; }
 
-    protected:
+      protected:
         sqlite3 *db = nullptr;
     };
     class OperatorTableMock : public OperatorTable, public MemoryTableDefaultMock {
-    protected:
-        void ExcuteQuery(const std::string &fileId, std::vector<OperatorPO> &result) override
-        {
+      protected:
+        void ExcuteQuery(const std::string &fileId, std::vector<OperatorPO> &result) override {
             OperatorTable::ExcuteQuery(db, result);
             ClearThreadLocal();
         }
     };
 
     class OpMemoryTableMock : public OpMemoryTable, public MemoryTableDefaultMock {
-    protected:
-        void ExcuteQuery(const std::string &fileId, std::vector<OpMemoryPO> &result) override
-        {
+      protected:
+        void ExcuteQuery(const std::string &fileId, std::vector<OpMemoryPO> &result) override {
             OpMemoryTable::ExcuteQuery(db, result);
             ClearThreadLocal();
         }
@@ -66,18 +61,20 @@ protected:
 /**
  * text场景根据id查询算子内存分配信息
  */
-TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenTextSceneThenReturnTextData)
-{
+TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenTextSceneThenReturnTextData) {
     std::unique_ptr<OperatorTableMock> operatorTable = std::make_unique<OperatorTableMock>();
     sqlite3 *db = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(db);
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::CreateTable(db, operatorSql);
     const std::string operatorData =
         "INSERT INTO \"main\".\"operator\" (\"name\", \"size\", \"allocationTime\", \"releaseTime\", "
-        "\"activeReleaseTime\", \"duration\", \"activeDuration\", \"allocationTotalAllocated\", \"allocationTotalReserved\", "
-        "\"allocationTotalActive\", \"releaseTotalAllocated\", \"releaseTotalReserved\", \"releaseTotalActive\", \"streamPtr\", "
+        "\"activeReleaseTime\", \"duration\", \"activeDuration\", \"allocationTotalAllocated\", "
+        "\"allocationTotalReserved\", "
+        "\"allocationTotalActive\", \"releaseTotalAllocated\", \"releaseTotalReserved\", \"releaseTotalActive\", "
+        "\"streamPtr\", "
         "\"deviceId\") VALUES ('aten::empty_strided', 32.5, 1724670453465053360, 1724670453467680330, 2626.97, "
-        "1724670453467680020, 2626.66, 18180.814453125, 25750, 18180.814453125, 18181.8559570313, 25750, 18181.8559570313, "
+        "1724670453467680020, 2626.66, 18180.814453125, 25750, 18180.814453125, 18181.8559570313, 25750, "
+        "18181.8559570313, "
         "'187651271017536', '0');";
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(db, operatorData);
     operatorTable->SetDb(db);
@@ -91,8 +88,7 @@ TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenTextSceneThen
 /**
  * db场景根据id查询算子内存分配信息
  */
-TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenDbSceneThenReturnDbData)
-{
+TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenDbSceneThenReturnDbData) {
     std::unique_ptr<OperatorTableMock> operatorTable = std::make_unique<OperatorTableMock>();
     std::unique_ptr<OpMemoryTableMock> opMemoryTable = std::make_unique<OpMemoryTableMock>();
     sqlite3 *db = nullptr;
@@ -118,8 +114,7 @@ TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenDbSceneThenRe
 /**
  * 都不存在
  */
-TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenDataNotExistThenMetaTypeIsEmpty)
-{
+TEST_F(OperatorMemoryServiceTest, TestComputeAllocationTimeByIdWhenDataNotExistThenMetaTypeIsEmpty) {
     std::unique_ptr<OperatorTableMock> operatorTable = std::make_unique<OperatorTableMock>();
     std::unique_ptr<OpMemoryTableMock> opMemoryTable = std::make_unique<OpMemoryTableMock>();
     sqlite3 *db = nullptr;

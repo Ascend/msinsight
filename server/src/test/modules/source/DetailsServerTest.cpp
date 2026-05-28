@@ -30,14 +30,10 @@ const int NUMBER_SIXTEEN = 16;
 const int NUMBER_TWENTY = 20;
 const int NUMBER_SIXTY_EIGHT = 68;
 class DetailsServerTest : public ::testing::Test {
-protected:
+  protected:
     std::string filePath;
-    void SetUp() override
-    {
-        filePath = TestSuit::GetTestDataFile("test_bin_mix", "visualize_data.bin");
-    }
-    static Dic::Module::Source::SourceFileParser &InitParser(const std::string &dataPath, const std::string &fileId)
-    {
+    void SetUp() override { filePath = TestSuit::GetTestDataFile("test_bin_mix", "visualize_data.bin"); }
+    static Dic::Module::Source::SourceFileParser &InitParser(const std::string &dataPath, const std::string &fileId) {
         Dic::Module::Global::BaselineInfo baselineInfo{"", "baseline", "", ""};
         Dic::Module::Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
         Dic::Module::Source::SourceFileParser &parser = Dic::Module::Source::SourceFileParser::Instance();
@@ -53,8 +49,7 @@ protected:
     }
 };
 
-TEST_F(DetailsServerTest, QueryDetailsLoadInfoWithBaseline)
-{
+TEST_F(DetailsServerTest, QueryDetailsLoadInfoWithBaseline) {
     InitParser(filePath, "");
     InitParser(filePath, "baseline");
     Dic::Protocol::SourceDetailsLoadInfoRequest request;
@@ -64,7 +59,7 @@ TEST_F(DetailsServerTest, QueryDetailsLoadInfoWithBaseline)
     EXPECT_EQ(res, true);
     EXPECT_EQ(response.body.chartData.detailDataList.size(), NUMBER_TWELVE);
     CompareData<SubBlockUnitData> compareData;
-    for (const auto &item: response.body.chartData.detailDataList) {
+    for (const auto &item : response.body.chartData.detailDataList) {
         if (item.diff.name == "Vector All Active1") {
             compareData = item;
             break;
@@ -75,8 +70,7 @@ TEST_F(DetailsServerTest, QueryDetailsLoadInfoWithBaseline)
     EXPECT_EQ(response.body.tableData.detailDataList.size(), NUMBER_SIXTY_EIGHT);
 }
 
-TEST_F(DetailsServerTest, QueryMemoryGraphWithBaseline)
-{
+TEST_F(DetailsServerTest, QueryMemoryGraphWithBaseline) {
     InitParser(filePath, "");
     InitParser(filePath, "baseline");
     Dic::Protocol::DetailsMemoryGraphRequest request;
@@ -91,8 +85,7 @@ TEST_F(DetailsServerTest, QueryMemoryGraphWithBaseline)
     EXPECT_EQ(response.body.coreMemory[0].l2Cache.baseline.hit, "66845");
 }
 
-TEST_F(DetailsServerTest, QueryMemoryTableWithBaseline)
-{
+TEST_F(DetailsServerTest, QueryMemoryTableWithBaseline) {
     InitParser(filePath, "");
     InitParser(filePath, "baseline");
     Dic::Protocol::DetailsMemoryTableRequest request;
@@ -105,7 +98,7 @@ TEST_F(DetailsServerTest, QueryMemoryTableWithBaseline)
     EXPECT_EQ(response.body.memoryTable[0].tableOpType, "mix");
     EXPECT_EQ(response.body.memoryTable[0].tableDetail.size(), NUMBER_SIXTEEN);
     TableDetail<CompareData<TableRow>> compareData;
-    for (const auto &item: response.body.memoryTable[0].tableDetail) {
+    for (const auto &item : response.body.memoryTable[0].tableDetail) {
         if (item.tableName == "Vector Core1") {
             compareData = item;
             break;
@@ -115,8 +108,7 @@ TEST_F(DetailsServerTest, QueryMemoryTableWithBaseline)
     EXPECT_EQ(compareData.tableName, "Vector Core1");
 }
 
-TEST_F(DetailsServerTest, QueryCoreLoadAnalysisGraphWithBaseline)
-{
+TEST_F(DetailsServerTest, QueryCoreLoadAnalysisGraphWithBaseline) {
     InitParser(filePath, "");
     InitParser(filePath, "baseline");
     Dic::Protocol::DetailsInterCoreLoadGraphRequest request;

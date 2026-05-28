@@ -21,12 +21,11 @@
 #include "IECurveTableDatailHandler.h"
 using namespace Dic::Module::IE;
 class IECurveTableDatailHandlerTest : public ::testing::Test {
-protected:
+  protected:
     class MockRepo : public Dic::Module::IE::CurveRepo {
-    public:
-        std::vector<Dic::Module::ColumnAtt> QueryTableInfoByName(const std::string& fileId,
-                                                                 const std::string& tableName)
-        {
+      public:
+        std::vector<Dic::Module::ColumnAtt> QueryTableInfoByName(
+            const std::string &fileId, const std::string &tableName) {
             std::vector<Dic::Module::ColumnAtt> res;
             Dic::Module::ColumnAtt col1;
             col1.key = "lll";
@@ -38,8 +37,7 @@ protected:
         }
 
         std::vector<std::map<std::string, std::string>> QueryDataByColumnPage(
-            const Dic::Module::PageQuery& query, const std::vector<Dic::Module::ColumnAtt>& columns)
-        {
+            const Dic::Module::PageQuery &query, const std::vector<Dic::Module::ColumnAtt> &columns) {
             std::vector<std::map<std::string, std::string>> res;
             std::map<std::string, std::string> data1;
             data1["lll"] = "mmm1";
@@ -53,23 +51,18 @@ protected:
             return res;
         }
 
-        uint64_t QueryCountByTableName(const Dic::Module::PageQuery& query, const std::string& abscissa = "")
-        {
-            return 1;  // 1
+        uint64_t QueryCountByTableName(const Dic::Module::PageQuery &query, const std::string &abscissa = "") {
+            return 1; // 1
         }
     };
 
     class MockIECurveTableDatailHandler : public Dic::Module::IE::IECurveTableDatailHandler {
-    public:
-        void SetRepo(std::shared_ptr<CurveRepo> mockRepo)
-        {
-            repo = std::move(mockRepo);
-        }
+      public:
+        void SetRepo(std::shared_ptr<CurveRepo> mockRepo) { repo = std::move(mockRepo); }
     };
 };
 
-TEST_F(IECurveTableDatailHandlerTest, TestHandler)
-{
+TEST_F(IECurveTableDatailHandlerTest, TestHandler) {
     std::shared_ptr<MockRepo> mockRepo = std::make_shared<MockRepo>();
     std::shared_ptr<MockIECurveTableDatailHandler> handler = std::make_shared<MockIECurveTableDatailHandler>();
     std::unique_ptr<Dic::Protocol::IETableRequest> request = std::make_unique<Dic::Protocol::IETableRequest>();

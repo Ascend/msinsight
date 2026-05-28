@@ -30,9 +30,8 @@ using namespace Dic::Module::Source;
 using namespace Dic::Protocol;
 
 class InterCoreLoadTest : public ::testing::Test {
-protected:
-    document_t GeneratorBigCoreDetail(size_t len)
-    {
+  protected:
+    document_t GeneratorBigCoreDetail(size_t len) {
         document_t doc(kObjectType);
         auto &allocator = doc.GetAllocator();
         JsonUtil::AddMember(doc, "soc", "910B", allocator);
@@ -51,8 +50,7 @@ protected:
     }
 };
 
-TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_normal_json_of_vector_op_type)
-{
+TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_normal_json_of_vector_op_type) {
     InterCoreLoadGraphParser parser;
     DetailsInterCoreLoadGraphBody body;
     parser.GetInterCoreLoadAnalysisInfo(INTER_CORE_LOAD_ANALYSIS_OF_VECTOR_JSON, body);
@@ -83,8 +81,7 @@ TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_normal_json_of_
     EXPECT_EQ(subCoreDetail.cacheHitRate.level, hitRateLevel);
 }
 
-TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_normal_json)
-{
+TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_normal_json) {
     InterCoreLoadGraphParser parser;
     DetailsInterCoreLoadGraphBody body;
     parser.GetInterCoreLoadAnalysisInfo(INTER_CORE_LOAD_ANALYSIS_JSON, body);
@@ -115,31 +112,11 @@ TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_normal_json)
     EXPECT_EQ(subCoreDetail.cacheHitRate.level, hitRateLevel);
 }
 
-TEST_F(InterCoreLoadTest, test_response_to_json)
-{
+TEST_F(InterCoreLoadTest, test_response_to_json) {
     DetailsInterCoreLoadGraphResponse response;
-    response.body = {
-        "soc",
-        "optype",
-        "advice"
-    };
+    response.body = {"soc", "optype", "advice"};
     DetailsInterCoreLoadOpDetail opDetail0 = {
-        0,
-        {
-            {
-                "cube0",
-                {100, 8},
-                {10, 9},
-                {98.8, 10}
-            },
-            {
-                "vector0",
-                {99, 7},
-                {9, 8},
-                {97.8, 9}
-            }
-        }
-    };
+        0, {{"cube0", {100, 8}, {10, 9}, {98.8, 10}}, {"vector0", {99, 7}, {9, 8}, {97.8, 9}}}};
 
     response.body.opDetails.emplace_back(opDetail0);
     const std::optional<document_t> &docOpt = ToResponseJson<DetailsInterCoreLoadGraphResponse>(response);
@@ -154,8 +131,7 @@ TEST_F(InterCoreLoadTest, test_response_to_json)
     EXPECT_TRUE(StringUtil::StartWith(docString, INTER_CORE_LOAD_ANALYSIS_RESPONSE_JSON));
 }
 
-TEST_F(InterCoreLoadTest, test_op_detail_array_size_bigger_than_uint8_max)
-{
+TEST_F(InterCoreLoadTest, test_op_detail_array_size_bigger_than_uint8_max) {
     InterCoreLoadGraphParser parser;
     DetailsInterCoreLoadGraphBody body;
     auto json = GeneratorBigCoreDetail(static_cast<size_t>(std::numeric_limits<uint8_t>::max()) * 2);
@@ -167,8 +143,7 @@ TEST_F(InterCoreLoadTest, test_op_detail_array_size_bigger_than_uint8_max)
 // 验证点：1) simt_vf_instructions 字段被正确解析
 //         2) simtVfInstructionPerCycle 字段被正确解析
 //         3) simtVfInstructions 的 level 字段根据 sigmoid 函数正确计算
-TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_simt_vf_instructions)
-{
+TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_simt_vf_instructions) {
     InterCoreLoadGraphParser parser;
     DetailsInterCoreLoadGraphBody body;
     parser.GetInterCoreLoadAnalysisInfo(INTER_CORE_LOAD_ANALYSIS_WITH_SIMT_JSON, body);
@@ -198,8 +173,7 @@ TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_with_simt_vf_instruc
 // 验证点：1) 解析过程不会崩溃或抛出异常
 //         2) simtVfInstructions 和 simtVfInstructionPerCycle 使用默认值（0 和 0.0）
 //         3) 其他字段正常解析
-TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_without_simt_vf_instructions)
-{
+TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_without_simt_vf_instructions) {
     InterCoreLoadGraphParser parser;
     DetailsInterCoreLoadGraphBody body;
     // 验证解析过程不抛出异常
@@ -236,28 +210,18 @@ TEST_F(InterCoreLoadTest, test_GetInterCoreLoadAnalysisInfo_without_simt_vf_inst
 // 验证点：1) 生成的 JSON 包含 simtVfInstructions 字段
 //         2) 生成的 JSON 包含 simtVfInstructions_per_cycle 字段
 //         3) JSON 结构正确且可序列化
-TEST_F(InterCoreLoadTest, test_response_to_json_with_simt_vf_instructions)
-{
+TEST_F(InterCoreLoadTest, test_response_to_json_with_simt_vf_instructions) {
     DetailsInterCoreLoadGraphResponse response;
-    response.body = {
-        "Ascend910B4",
-        "vector",
-        "test advice"
-    };
+    response.body = {"Ascend910B4", "vector", "test advice"};
 
-    DetailsInterCoreLoadOpDetail opDetail0 = {
-        0,
-        {
-            {
-                "vector0",
-                {10000, 5},      // cycles
-                {512, 8},        // throughput
-                {85.5, 9},       // cacheHitRate
-                {25600, 7},      // simtVfInstructions
-                {2.5, 0}         // simtVfInstructionPerCycle (使用 2.5 而非 2.56，可被二进制精确表示)
-            }
-        }
-    };
+    DetailsInterCoreLoadOpDetail opDetail0 = {0,
+        {{
+            "vector0", {10000, 5}, // cycles
+            {512, 8}, // throughput
+            {85.5, 9}, // cacheHitRate
+            {25600, 7}, // simtVfInstructions
+            {2.5, 0} // simtVfInstructionPerCycle (使用 2.5 而非 2.56，可被二进制精确表示)
+        }}};
 
     response.body.opDetails.emplace_back(opDetail0);
     const std::optional<document_t> &docOpt = ToResponseJson<DetailsInterCoreLoadGraphResponse>(response);
@@ -277,7 +241,7 @@ TEST_F(InterCoreLoadTest, test_response_to_json_with_simt_vf_instructions)
     EXPECT_TRUE(docString.find("simtVfInstructionPerCycle") != std::string::npos);
 
     // 验证具体数值被正确序列化
-    EXPECT_TRUE(docString.find("25600") != std::string::npos);  // instructions 值
-    EXPECT_TRUE(docString.find("2.5") != std::string::npos);    // instructions_per_cycle 值（精确表示）
+    EXPECT_TRUE(docString.find("25600") != std::string::npos); // instructions 值
+    EXPECT_TRUE(docString.find("2.5") != std::string::npos); // instructions_per_cycle 值（精确表示）
 }
 }

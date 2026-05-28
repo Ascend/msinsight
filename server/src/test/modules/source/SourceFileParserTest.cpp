@@ -26,20 +26,18 @@ using namespace std;
 using namespace Dic::Module::Source;
 
 class SourceFileParserTest : public ::testing::Test {
-public:
+  public:
     static std::string dataPath;
     static std::string dbPath;
 
-    static void SetUpTestCase()
-    {
+    static void SetUpTestCase() {
         dataPath = TestSuit::GetTestDataFile("data.bin");
         dbPath = TestSuit::GetTestDataFile("compute_mindstudio_insight_data.db");
         DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath);
         DataBaseManager::Instance().CreateTraceConnectionPool(dataPath, dbPath);
     }
 
-    static void TearDownTestCase()
-    {
+    static void TearDownTestCase() {
         SourceFileParser::Instance().Reset();
         DataBaseManager::Instance().Clear();
         DataBaseManager::Instance().ReleaseDatabaseByRankId(dbPath);
@@ -54,14 +52,13 @@ public:
 std::string SourceFileParserTest::dataPath;
 std::string SourceFileParserTest::dbPath;
 
-static void WaitParseEnd(std::vector<std::string>&& statusList)
-{
+static void WaitParseEnd(std::vector<std::string> &&statusList) {
     if (statusList.empty()) {
         return;
     }
     while (true) {
         size_t i = 0;
-        for (const auto& tmp : statusList) {
+        for (const auto &tmp : statusList) {
             if (ParserStatusManager::Instance().GetParserStatus(tmp) != ParserStatus::FINISH) {
                 break;
             } else {
@@ -77,9 +74,8 @@ static void WaitParseEnd(std::vector<std::string>&& statusList)
     }
 }
 
-TEST_F(SourceFileParserTest, Parse)
-{
-    auto& parser = SourceFileParser::Instance();
+TEST_F(SourceFileParserTest, Parse) {
+    auto &parser = SourceFileParser::Instance();
     parser.SetFilePath(dataPath);
     parser.Parse(std::vector<std::string>(), dataPath, dataPath, dbPath);
     // 等待解析任务完成

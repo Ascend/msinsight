@@ -25,8 +25,7 @@ using namespace Dic::Module::Source;
 using namespace Dic::Protocol;
 using namespace Dic::Module::Source::Test;
 
-TEST_F(DetailsMemoryParserTest, testGetDetailsBaseInfoWithValidData)
-{
+TEST_F(DetailsMemoryParserTest, testGetDetailsBaseInfoWithValidData) {
     // 构建bin文件
     std::string binFilePath = "validDetailsBaseInfo.bin";
     NormalDataBlock dataBlock(DataTypeEnum::DETAILS_BASE_INFO, VALID_DETAILS_BASE_INFO_JSON);

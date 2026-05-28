@@ -22,8 +22,7 @@
 using namespace Dic::Module::Memory;
 class OpMemoryTableTest : public ::testing::Test {};
 
-TEST_F(OpMemoryTableTest, TestOpMemoryTableColumnMaping)
-{
+TEST_F(OpMemoryTableTest, TestOpMemoryTableColumnMaping) {
     sqlite3 *db = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(db);
     std::string sql =

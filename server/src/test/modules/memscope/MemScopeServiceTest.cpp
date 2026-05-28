@@ -32,26 +32,23 @@ using namespace Dic::Module::MemScope;
 using namespace Dic;
 
 class MemScopeServiceTest : public ::testing::Test {
-public:
+  public:
     const static uint64_t SECOND = 1000000000;
 
-    static void SetUpTestSuite()
-    {
+    static void SetUpTestSuite() {
         std::string dbPath = TestSuit::GetTestDataFile("full_db", "leaks_dump_20250806.dat");
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         ASSERT_TRUE(memoryDatabase->OpenDb(dbPath, false));
         MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces("0");
     }
 
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
         DataBaseManager::Instance().Clear();
     }
 
-    static void ExpectTreeEQ(MemScopeMemoryDetailTreeNode* origin, MemScopeMemoryDetailTreeNode* target)
-    {
+    static void ExpectTreeEQ(MemScopeMemoryDetailTreeNode *origin, MemScopeMemoryDetailTreeNode *target) {
         EXPECT_EQ(origin->tag, target->tag);
         EXPECT_EQ(origin->children.size(), target->children.size());
         if (origin->children.size() != target->children.size()) {
@@ -67,8 +64,7 @@ public:
  * 用于测试当时间戳非法时（如出现负值，或超出最大时间戳时），通过非法时间戳构建内存拆解树的情况
  * 预期：无报错，能够构建出根节点HAL节点，但无子节点
  */
-TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeWithInvalidTimestamp)
-{
+TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeWithInvalidTimestamp) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     ASSERT_TRUE(memoryDatabase != nullptr);
     std::unique_ptr<MemScopeMemoryDetailTreeNode> tree{};
@@ -87,8 +83,7 @@ TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeWithInvalidTimestamp)
  *  用于测试当查询无实际数据时构建内存拆解树的情况
  *  预期：无报错，能够构建出根节点HAL节点，但无子节点
  */
-TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeWhenDataEmpty)
-{
+TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeWhenDataEmpty) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     ASSERT_TRUE(memoryDatabase != nullptr);
     std::unique_ptr<MemScopeMemoryDetailTreeNode> tree{};
@@ -107,8 +102,7 @@ TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeWhenDataEmpty)
  *  用于测试常规场景构建内存拆解树的情况
  *  预期：内存拆解树符合预期
  */
-TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeNormal)
-{
+TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeNormal) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     ASSERT_TRUE(memoryDatabase != nullptr);
     std::unique_ptr<MemScopeMemoryDetailTreeNode> tree{};
@@ -151,15 +145,13 @@ TEST_F(MemScopeServiceTest, BuildMemoryAllocDetailTreeNormal)
 *                         |func031|
 */
 
-
 /***
 *    ====测试仅过滤  Trim后如下=====
 *   |--------------------------------------func0---------------------------------------------|
 *                   |-------func03-------|               |--------------func04--------------|
  *
 */
-TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyFilter)
-{
+TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyFilter) {
     // 构造测试数据
     MemScopePythonTrace trace;
     // 模拟时间范围在100000ns的情况
@@ -177,9 +169,8 @@ TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyFilter)
     trace.Trim(PythonTrimCompressStrategy::ONLY_FILTER_OUT_SMALL_FUNCTIONS);
     EXPECT_EQ(trace.slices.size(), 3);
     // 按照开始时间进行排序
-    std::sort(trace.slices.begin(), trace.slices.end(), [](const PythonTraceSlice& a, const PythonTraceSlice& b){
-        return a.startTimestamp < b.startTimestamp;
-    });
+    std::sort(trace.slices.begin(), trace.slices.end(),
+        [](const PythonTraceSlice &a, const PythonTraceSlice &b) { return a.startTimestamp < b.startTimestamp; });
     EXPECT_EQ(trace.slices[0].func, "func0");
     EXPECT_EQ(trace.slices[1].func, "func03");
     EXPECT_EQ(trace.slices[2].func, "func04");
@@ -191,8 +182,7 @@ TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyFilter)
 *    |---Merged---||-------func03-------|                 |--------------func04-------------|
 *                       |func031|
 */
-TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyCompress)
-{
+TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyCompress) {
     // 构造测试数据
     MemScopePythonTrace trace;
     trace.maxTimestamp = 100000;
@@ -209,9 +199,8 @@ TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyCompress)
     trace.Trim(PythonTrimCompressStrategy::COMPRESS_SMALL_FUNCTIONS);
     EXPECT_EQ(trace.slices.size(), 5);
     // 按照开始时间进行排序
-    std::sort(trace.slices.begin(), trace.slices.end(), [](const PythonTraceSlice& a, const PythonTraceSlice& b){
-        return a.startTimestamp < b.startTimestamp;
-    });
+    std::sort(trace.slices.begin(), trace.slices.end(),
+        [](const PythonTraceSlice &a, const PythonTraceSlice &b) { return a.startTimestamp < b.startTimestamp; });
     EXPECT_EQ(trace.slices[0].func, "func0");
     std::string MERGED_LINK = " -> ";
     EXPECT_EQ(trace.slices[1].func, StringUtil::StrJoin("Merged: ", "func01", MERGED_LINK, "func02"));
@@ -226,8 +215,7 @@ TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesOnlyCompress)
 *    |---Merged---||-------func03-------|                 |--------------func14-------------|
 *
 */
-TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesCompressAndFilter)
-{
+TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesCompressAndFilter) {
     // 构造测试数据
     MemScopePythonTrace trace;
     trace.maxTimestamp = 100000;
@@ -244,9 +232,8 @@ TEST_F(MemScopeServiceTest, TestTrimPythonTraceSlicesCompressAndFilter)
     trace.Trim(PythonTrimCompressStrategy::COMPRESS_AND_FILTER_SMALL_FUNCTIONS);
     EXPECT_EQ(trace.slices.size(), 4);
     // 按照开始时间进行排序
-    std::sort(trace.slices.begin(), trace.slices.end(), [](const PythonTraceSlice& a, const PythonTraceSlice& b){
-        return a.startTimestamp < b.startTimestamp;
-    });
+    std::sort(trace.slices.begin(), trace.slices.end(),
+        [](const PythonTraceSlice &a, const PythonTraceSlice &b) { return a.startTimestamp < b.startTimestamp; });
     EXPECT_EQ(trace.slices[0].func, "func0");
     std::string MERGED_LINK = " -> ";
     EXPECT_EQ(trace.slices[1].func, StringUtil::StrJoin("Merged: ", "func01", MERGED_LINK, "func02"));

@@ -20,11 +20,9 @@
 
 using namespace Dic::Module::IE;
 
-class IEConnectionPoolTest : public testing::Test {
-};
+class IEConnectionPoolTest : public testing::Test {};
 
-TEST_F(IEConnectionPoolTest, AllFunc)
-{
+TEST_F(IEConnectionPoolTest, AllFunc) {
     std::recursive_mutex mutex;
     IEConnectionPool pool("test", mutex);
     EXPECT_EQ(pool.GetDbPath(), "test");

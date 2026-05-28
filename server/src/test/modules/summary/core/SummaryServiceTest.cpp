@@ -30,36 +30,30 @@ const int NUMBER_ZERO = 0;
 const int NUMBER_SIXTEEN = 16;
 
 class SummaryServiceTest : public ::testing::Test {
-protected:
+  protected:
     std::string filePath;
     std::string baselineFilePath;
     std::string dbPath;
 
-    void SetUp() override
-    {
+    void SetUp() override {
         filePath = TestSuit::GetTestDataFile("cluster_analysis_output");
         baselineFilePath = TestSuit::GetTestDataFile("baseline_cluster", "cluster_analysis_output");
         dbPath = filePath + FILE_SEPARATOR + "cluster.db";
     }
 
-    void InitParser(const std::string &dataPath)
-    {
+    void InitParser(const std::string &dataPath) {
         // 集群解析，如果集群已解析，则只会初始化db，然后结束流程
         // database直接传空指针，建立连接池的动作在ParseClusterFiles中
-        Dic::Module::FullDb::ClusterFileParser clusterFileParser(dataPath, nullptr,
-                                                                 dataPath + Dic::TimeUtil::Instance().NowStr());
+        Dic::Module::FullDb::ClusterFileParser clusterFileParser(
+            dataPath, nullptr, dataPath + Dic::TimeUtil::Instance().NowStr());
         clusterFileParser.ParseClusterFiles();
         clusterFileParser.ParseClusterStep2Files();
     }
 
-    void Clear()
-    {
-        Dic::Module::FullDb::DataBaseManager::Instance().ClearClusterDb();
-    }
+    void Clear() { Dic::Module::FullDb::DataBaseManager::Instance().ClearClusterDb(); }
 };
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoAllFail)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoAllFail) {
     Clear();
     SummaryTopRankRequest request;
     request.params.isCompare = false;
@@ -69,8 +63,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoAllFail)
     EXPECT_EQ(response.body.baseInfo.baseline.filePath, "");
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoAllSuccess)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoAllSuccess) {
     Clear();
     InitParser(filePath);
     InitParser(baselineFilePath);
@@ -85,8 +78,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoAllSuccess)
     Clear();
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoOnlyCompareSuccess)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoOnlyCompareSuccess) {
     Clear();
     InitParser(filePath);
     SummaryTopRankRequest request;
@@ -99,8 +91,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoOnlyCompareSuccess)
     Clear();
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoOnlyBaselineSuccess)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoOnlyBaselineSuccess) {
     Clear();
     InitParser(baselineFilePath);
     SummaryTopRankRequest request;
@@ -113,8 +104,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryBaseInfoOnlyBaselineSuccess)
     Clear();
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategyWithAlgIsNull)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategyWithAlgIsNull) {
     Clear();
     InitParser(baselineFilePath);
     InitParser(filePath);
@@ -127,8 +117,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategyWithAlgIsNull)
     EXPECT_EQ(indicatorData.indicators.size(), NUMBER_ZERO);
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWhenIsCompare)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWhenIsCompare) {
     Clear();
     InitParser(baselineFilePath);
     InitParser(filePath);
@@ -153,8 +142,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWhenIsCompa
     EXPECT_EQ(indicatorData.performanceData.size(), NUMBER_SIXTEEN);
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithDpDimWhenIsNotCompare)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithDpDimWhenIsNotCompare) {
     Clear();
     InitParser(baselineFilePath);
     InitParser(filePath);
@@ -180,8 +168,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithDpDimWh
     EXPECT_EQ(indicatorData.performanceData.size(), 2); // 2 for dpSize
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithPpDimWhenIsNotCompare)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithPpDimWhenIsNotCompare) {
     Clear();
     InitParser(baselineFilePath);
     InitParser(filePath);
@@ -207,8 +194,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithPpDimWh
     EXPECT_EQ(indicatorData.performanceData.size(), 4); // 4 for dpSize * ppSize
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithCpDimWhenIsNotCompare)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithCpDimWhenIsNotCompare) {
     Clear();
     InitParser(baselineFilePath);
     InitParser(filePath);
@@ -234,9 +220,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithCpDimWh
     EXPECT_EQ(indicatorData.performanceData.size(), 8); // 8 for dpSize * ppSize * cpSize
 }
 
-
-TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithTpDimWhenIsNotCompare)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithTpDimWhenIsNotCompare) {
     Clear();
     InitParser(baselineFilePath);
     InitParser(filePath);
@@ -262,8 +246,7 @@ TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithTpDimWh
     EXPECT_EQ(indicatorData.performanceData.size(), 16); // 16 for dpSize * ppSize * cpSize * tpSize
 }
 
-TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithoutConfigWhenIsNotCompare)
-{
+TEST_F(SummaryServiceTest, QueryCompareSummaryParallelStrategySuccessWithoutConfigWhenIsNotCompare) {
     Clear();
     InitParser(baselineFilePath);
     InitParser(filePath);

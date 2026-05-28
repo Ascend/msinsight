@@ -22,39 +22,33 @@
 using namespace Dic::Module;
 using namespace Dic::Module::Summary;
 class ParallelStrategyAlgorithmManagerTest : public ::testing::Test {
-public:
-    void SetUp() override
-    {
-        ParallelStrategyAlgorithmManager::Instance().Reset();
-    }
+  public:
+    void SetUp() override { ParallelStrategyAlgorithmManager::Instance().Reset(); }
 
-    void TearDown() override
-    {
-        ParallelStrategyAlgorithmManager::Instance().Reset();
-    }
+    void TearDown() override { ParallelStrategyAlgorithmManager::Instance().Reset(); }
 };
 
 class MockParallelStrategyAlgorithm : public BaseParallelStrategyAlgorithm {
-public:
-    bool UpdateParallelDimension(const std::string &dimension,
-                                 const ParallelStrategyConfig &tmpConfig, std::string &err) override { return true; }
+  public:
+    bool UpdateParallelDimension(
+        const std::string &dimension, const ParallelStrategyConfig &tmpConfig, std::string &err) override {
+        return true;
+    }
     bool GenerateArrangementByDimension(std::string &err) override { return true; }
     bool GetPerformanceIndicatorByDimension(const GetPerformanceIndicatorParam &params,
-                                            const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
-                                            std::vector<IndicatorDataStruct> &indicatorData, std::string &err) override
-    {
+        const std::unordered_map<std::uint32_t, StepStatistic> &statistic,
+        std::vector<IndicatorDataStruct> &indicatorData, std::string &err) override {
         return true;
     }
     void CalAdviceInfo(const std::string &dimension, std::vector<std::string> &advices,
-                       std::vector<IndicatorDataStruct> &indicatorData) override {}
+        std::vector<IndicatorDataStruct> &indicatorData) override {}
     std::vector<Connection> GetAllCommunicationGroups(std::string &err) override { return {}; }
 
-private:
+  private:
     ArrangementAndConnectionData data;
 };
 
-TEST_F(ParallelStrategyAlgorithmManagerTest, AddAlgorithm_ShouldReturnTrue_WhenProjectAlreadyExists)
-{
+TEST_F(ParallelStrategyAlgorithmManagerTest, AddAlgorithm_ShouldReturnTrue_WhenProjectAlreadyExists) {
     std::string projectName = "testProject";
     ParallelStrategyConfig config;
     std::string errMsg;
@@ -64,16 +58,14 @@ TEST_F(ParallelStrategyAlgorithmManagerTest, AddAlgorithm_ShouldReturnTrue_WhenP
     EXPECT_TRUE(res);
 }
 
-TEST_F(ParallelStrategyAlgorithmManagerTest, DeleteAlgorithm_ShouldReturnFalse_DeleteAlgWhenProjectNotExist)
-{
+TEST_F(ParallelStrategyAlgorithmManagerTest, DeleteAlgorithm_ShouldReturnFalse_DeleteAlgWhenProjectNotExist) {
     std::string projectName = "NonExistentProject";
     ParallelStrategyConfig config;
     bool result = ParallelStrategyAlgorithmManager::Instance().DeleteAlgorithm(projectName);
     EXPECT_FALSE(result);
 }
 
-TEST_F(ParallelStrategyAlgorithmManagerTest, DeleteAlgorithm_ShouldReturnTrue_DeleteAlgWhenProjectExist)
-{
+TEST_F(ParallelStrategyAlgorithmManagerTest, DeleteAlgorithm_ShouldReturnTrue_DeleteAlgWhenProjectExist) {
     std::string projectName = "ExistentProject";
     ParallelStrategyConfig config;
     auto algPtr = std::make_shared<MockParallelStrategyAlgorithm>();
@@ -83,16 +75,14 @@ TEST_F(ParallelStrategyAlgorithmManagerTest, DeleteAlgorithm_ShouldReturnTrue_De
     EXPECT_TRUE(result);
 }
 
-TEST_F(ParallelStrategyAlgorithmManagerTest, GetAlgorithmByProjectName_ShouldReturnNull_WhenProjectNameNotExist)
-{
+TEST_F(ParallelStrategyAlgorithmManagerTest, GetAlgorithmByProjectName_ShouldReturnNull_WhenProjectNameNotExist) {
     std::string err;
     std::shared_ptr<BaseParallelStrategyAlgorithm> result =
-            ParallelStrategyAlgorithmManager::Instance().GetAlgorithmByProjectName("NonExistentProject");
+        ParallelStrategyAlgorithmManager::Instance().GetAlgorithmByProjectName("NonExistentProject");
     EXPECT_EQ(result, nullptr);
 }
 
-TEST_F(ParallelStrategyAlgorithmManagerTest, GetAlgorithmByProjectName_ShouldReturnAlgorithm_WhenProjectNameExist)
-{
+TEST_F(ParallelStrategyAlgorithmManagerTest, GetAlgorithmByProjectName_ShouldReturnAlgorithm_WhenProjectNameExist) {
     std::string err;
     std::shared_ptr<BaseParallelStrategyAlgorithm> algPtr = std::make_shared<MockParallelStrategyAlgorithm>();
     std::string projectName = "ExistentProject";

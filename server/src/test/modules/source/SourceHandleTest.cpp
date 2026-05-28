@@ -34,78 +34,64 @@ using namespace Dic::Server;
 using namespace Dic::Protocol;
 
 class SourceHandleTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-    }
-    static void TearDownTestSuite()
-    {
-    }
-    static int Main(int argc, char** argv)
-    {
+  public:
+    static void SetUpTestSuite() {}
+    static void TearDownTestSuite() {}
+    static int Main(int argc, char **argv) {
         ::testing::InitGoogleTest(&argc, argv);
         return RUN_ALL_TESTS();
     }
 };
 
-TEST_F(SourceHandleTest, QueryApiInstructionsHandlerTest)
-{
+TEST_F(SourceHandleTest, QueryApiInstructionsHandlerTest) {
     Dic::Module::Source::QueryApiInstructionsHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<SourceApiInstrRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryApiLineHandler)
-{
+TEST_F(SourceHandleTest, QueryApiLineHandler) {
     Dic::Module::Source::QueryApiLineHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<SourceApiLineRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryCodeFileHandler)
-{
+TEST_F(SourceHandleTest, QueryCodeFileHandler) {
     Dic::Module::Source::QueryCodeFileHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<SourceCodeFileRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryDetailsBaseInfoHandler)
-{
+TEST_F(SourceHandleTest, QueryDetailsBaseInfoHandler) {
     Dic::Module::Source::QueryDetailsBaseInfoHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<SourceDetailBaseInfoRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryDetailsLoadInfoHandler)
-{
+TEST_F(SourceHandleTest, QueryDetailsLoadInfoHandler) {
     Dic::Module::Source::QueryDetailsLoadInfoHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<SourceDetailsLoadInfoRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryDetailsMemoryGraphHandler)
-{
+TEST_F(SourceHandleTest, QueryDetailsMemoryGraphHandler) {
     Dic::Module::Source::QueryDetailsMemoryGraphHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<DetailsMemoryGraphRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryDetailsMemoryTableHandler)
-{
+TEST_F(SourceHandleTest, QueryDetailsMemoryTableHandler) {
     Dic::Module::Source::QueryDetailsMemoryTableHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<DetailsMemoryTableRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryInterCoreLoadAnalysisGraphHandler)
-{
+TEST_F(SourceHandleTest, QueryInterCoreLoadAnalysisGraphHandler) {
     Dic::Module::Source::QueryInterCoreLoadAnalysisGraphHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<DetailsInterCoreLoadGraphRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
 
-TEST_F(SourceHandleTest, QueryDetailsRooflineHandler)
-{
+TEST_F(SourceHandleTest, QueryDetailsRooflineHandler) {
     Dic::Module::Source::QueryDetailsRooflineHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<DetailsRooflineRequest>();
     handler.HandleRequest(std::move(requestPtr));

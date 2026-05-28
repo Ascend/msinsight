@@ -21,8 +21,7 @@
 
 #include <string>
 
-const std::string FOREACH_TILLING_DEF_H_PATH =
-        "/home/test/workspace/foreach/common/foreach/foreach_tiling_def.h";
+const std::string FOREACH_TILLING_DEF_H_PATH = "/home/test/workspace/foreach/common/foreach/foreach_tiling_def.h";
 const std::string FOREACH_TILLING_DEF_H = R"(
 #ifndef __FOREACH_TILING_DEF_H__
 #define __FOREACH_TILING_DEF_H__
@@ -92,8 +91,8 @@ GET_TILING_DATA(tilingData, tilingPointer)                                      
 #endif
 )";
 
-const std::string KERNEL_FOREACH_BASE_H_PATH
-    = "/home/test/workspace/foreach/common/foreach/op_kernel/kernel_foreach_base.h";
+const std::string KERNEL_FOREACH_BASE_H_PATH =
+    "/home/test/workspace/foreach/common/foreach/op_kernel/kernel_foreach_base.h";
 const std::string KERNEL_FOREACH_BASE_H = R"(
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2023-2023. All rights reserved.
@@ -195,7 +194,7 @@ const std::string FOREACH_SUB_SCALAR_LIST_CPP_PATH = "/home/test/workspace/forea
 const std::string FOREACH_SUB_SCALAR_LIST_CPP = R"(
 /*
  * Copyright (c) Huawei Technologies Co., Ltd. 2022-2023. All rights reserved.
- * This file constains code of cpu debug and npu code.We read data from bin file
+ * This file contains code of cpu debug and npu code. We read data from bin file
  * and write result to file.
  */
 

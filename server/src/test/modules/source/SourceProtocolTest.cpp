@@ -25,74 +25,61 @@
 using namespace Dic::Protocol;
 
 class SourceProtocolTest : public ::testing::Test {
-protected:
+  protected:
     ProtocolManager *manager;
     std::string error;
 
-protected:
-    void SetUp() override
-    {
-        manager = &ProtocolManager::Instance();
-    }
+  protected:
+    void SetUp() override { manager = &ProtocolManager::Instance(); }
 };
 
-TEST_F(SourceProtocolTest, ToCodeFileRequest)
-{
+TEST_F(SourceProtocolTest, ToCodeFileRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_CODE_FILE_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToApiLineRequest)
-{
+TEST_F(SourceProtocolTest, ToApiLineRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_API_LINE_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToApiInstrRequest)
-{
+TEST_F(SourceProtocolTest, ToApiInstrRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_API_INSTR_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsBaseInfoRequest)
-{
+TEST_F(SourceProtocolTest, ToDetailsBaseInfoRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_BASE_INFO_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsLoadInfoRequest)
-{
+TEST_F(SourceProtocolTest, ToDetailsLoadInfoRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_LOAD_INFO_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsMemoryGraphRequest)
-{
+TEST_F(SourceProtocolTest, ToDetailsMemoryGraphRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_MEMORY_GRAPH_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsMemoryTableRequest)
-{
+TEST_F(SourceProtocolTest, ToDetailsMemoryTableRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_MEMORY_TABLE_REQ_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsInterCoreLoadGraphRequest)
-{
+TEST_F(SourceProtocolTest, ToDetailsInterCoreLoadGraphRequest) {
     const std::unique_ptr<Request> &ptr = manager->FromJson(TO_INTER_CORE_LOAD_GRAPH_JSON, error);
     EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
 }
 
-TEST_F(SourceProtocolTest, ToCodeFileResponse)
-{
+TEST_F(SourceProtocolTest, ToCodeFileResponse) {
     SourceCodeFileResponse response;
     response.moduleName = MODULE_SOURCE;
     manager->ToJson(response, error);
 }
 
-TEST_F(SourceProtocolTest, ToApiLineResponse)
-{
+TEST_F(SourceProtocolTest, ToApiLineResponse) {
     SourceApiLineResponse response;
     SourceFileLineRes lineRes;
     std::pair<std::string, std::string> pair = {"1", "10"};
@@ -102,22 +89,19 @@ TEST_F(SourceProtocolTest, ToApiLineResponse)
     manager->ToJson(response, error);
 }
 
-TEST_F(SourceProtocolTest, ToApiInstrResponse)
-{
+TEST_F(SourceProtocolTest, ToApiInstrResponse) {
     SourceApiInstrResponse response;
     response.moduleName = MODULE_SOURCE;
     manager->ToJson(response, error);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsBaseInfoResponse)
-{
+TEST_F(SourceProtocolTest, ToDetailsBaseInfoResponse) {
     DetailsBaseInfoResponse response;
     response.moduleName = MODULE_SOURCE;
     manager->ToJson(response, error);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsLoadInfoResponse)
-{
+TEST_F(SourceProtocolTest, ToDetailsLoadInfoResponse) {
     DetailsLoadInfoResponse response;
     SubBlockUnitData subBlockUnitData;
     CompareData<SubBlockUnitData> blockCompareData;
@@ -128,8 +112,7 @@ TEST_F(SourceProtocolTest, ToDetailsLoadInfoResponse)
     manager->ToJson(response, error);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsMemoryGraphResponse)
-{
+TEST_F(SourceProtocolTest, ToDetailsMemoryGraphResponse) {
     DetailsMemoryGraphResponse response;
     MemoryGraph memoryGraph;
     MemoryUnit memoryUnit;
@@ -141,8 +124,7 @@ TEST_F(SourceProtocolTest, ToDetailsMemoryGraphResponse)
     manager->ToJson(response, error);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsMemoryTableResponse)
-{
+TEST_F(SourceProtocolTest, ToDetailsMemoryTableResponse) {
     DetailsMemoryTableResponse response;
     MemoryTable memoryTable;
     TableDetail<CompareData<TableRow>> tableDetail;
@@ -156,8 +138,7 @@ TEST_F(SourceProtocolTest, ToDetailsMemoryTableResponse)
     manager->ToJson(response, error);
 }
 
-TEST_F(SourceProtocolTest, ToDetailsInterCoreLoadGraphResponse)
-{
+TEST_F(SourceProtocolTest, ToDetailsInterCoreLoadGraphResponse) {
     DetailsInterCoreLoadGraphResponse response;
     DetailsInterCoreLoadOpDetail opDetail;
     DetailsInterCoreLoadSubCoreDetail subCoreDetail;
