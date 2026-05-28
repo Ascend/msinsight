@@ -20,13 +20,11 @@
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
 
-
 namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool SetCardAliasHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool SetCardAliasHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     SetCardAliasRequest &request = dynamic_cast<SetCardAliasRequest &>(*requestPtr.get());
     std::unique_ptr<SetCardAliasResponse> responsePtr = std::make_unique<SetCardAliasResponse>();
     SetCardAliasResponse &response = *responsePtr.get();

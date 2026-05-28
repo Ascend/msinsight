@@ -40,7 +40,7 @@ enum class ParserStatus {
 };
 
 class ParserStatusManager {
-public:
+  public:
     static ParserStatusManager &Instance();
     ParserStatusManager(const ParserStatusManager &) = delete;
     ParserStatusManager &operator=(const ParserStatusManager &) = delete;
@@ -63,8 +63,8 @@ public:
     bool IsAllFinished(std::string &notFinishTask);
     bool IsFinished(const std::string &fileId);
     bool IsKernelAndMemoryFinished(const std::string &fileId);
-    void SetPendingStatus(const std::string &fileId,
-        const std::pair<ProjectTypeEnum, std::vector<std::string>> &filePathPair);
+    void SetPendingStatus(
+        const std::string &fileId, const std::pair<ProjectTypeEnum, std::vector<std::string>> &filePathPair);
     std::pair<ProjectTypeEnum, std::vector<std::string>> QueryPendingFilePath(const std::string &fileId);
 
     void WaitStartParse();
@@ -73,14 +73,14 @@ public:
 
     void ResetParse();
 
-private:
+  private:
     ParserStatusManager() = default;
     ~ParserStatusManager() = default;
 
     static bool SetStatusToInit(const std::string &uniqueKey, std::map<std::string, ParserStatus> &statusMap);
     static bool SetStatusToRunning(const std::string &uniqueKey, std::map<std::string, ParserStatus> &statusMap);
-    static bool SetStatusToFinalState(const std::string &uniqueKey, ParserStatus parserStatus,
-                                      std::map<std::string, ParserStatus> &statusMap);
+    static bool SetStatusToFinalState(
+        const std::string &uniqueKey, ParserStatus parserStatus, std::map<std::string, ParserStatus> &statusMap);
 
     std::shared_mutex mutex;
     std::map<std::string, ParserStatus> statusMap;
@@ -88,11 +88,10 @@ private:
     std::map<std::string, ParserStatus> clusterStatusMap;
     std::condition_variable_any parseCv;
     const std::vector<ParserStatus> finalStateList = {
-        ParserStatus::FINISH, ParserStatus::FINISH_ALL, ParserStatus::TERMINATE
-    };
+        ParserStatus::FINISH, ParserStatus::FINISH_ALL, ParserStatus::TERMINATE};
     std::condition_variable importResCv;
     std::mutex importMutex;
-    std::atomic<bool> importRes{true};  // 默认为true， UT中无需设置
+    std::atomic<bool> importRes{true}; // 默认为true， UT中无需设置
 };
 } // end of namespace Timeline
 } // end of namespace Module

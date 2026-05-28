@@ -25,16 +25,15 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class RemoteDeleteHandler : public TimelineRequestHandler {
-public:
-    RemoteDeleteHandler()
-    {
+  public:
+    RemoteDeleteHandler() {
         command = Protocol::REQ_RES_REMOTE_DELETE;
         async = false;
     };
     ~RemoteDeleteHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-private:
+  private:
     static void GetUpdateTime(RemoteDeleteBody &body);
 };
 } // end of namespace Timeline

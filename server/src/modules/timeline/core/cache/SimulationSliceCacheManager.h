@@ -28,19 +28,17 @@
 
 namespace Dic::Module::Timeline {
 class SimulationSliceCacheManager {
-public:
-    static SimulationSliceCacheManager &Instance()
-    {
+  public:
+    static SimulationSliceCacheManager &Instance() {
         static SimulationSliceCacheManager simulationSliceCacheManager;
         return simulationSliceCacheManager;
     }
     SimulationSliceCacheManager(const SimulationSliceCacheManager &) = delete;
-    SimulationSliceCacheManager &operator = (const SimulationSliceCacheManager &) = delete;
+    SimulationSliceCacheManager &operator=(const SimulationSliceCacheManager &) = delete;
     SimulationSliceCacheManager(SimulationSliceCacheManager &&) = delete;
-    SimulationSliceCacheManager &operator = (SimulationSliceCacheManager &&) = delete;
+    SimulationSliceCacheManager &operator=(SimulationSliceCacheManager &&) = delete;
     std::vector<Trace::Slice> GetCompeteSlice(const std::map<std::string, Trace::Slice> setFlagSliceMap,
-        std::map<std::string, Trace::Slice> waitFlagSliceMap, std::string field)
-    {
+        std::map<std::string, Trace::Slice> waitFlagSliceMap, std::string field) {
         SpinLockGuard lock(mutex);
         std::vector<Trace::Slice> result;
         std::map<std::string, Trace::Slice> filedSetFlagSliceMap = allSetFlagSliceMap[field];
@@ -52,23 +50,21 @@ public:
         return result;
     }
 
-    void ClearAll()
-    {
+    void ClearAll() {
         SpinLockGuard lock(mutex);
         allSetFlagSliceMap.clear();
         allWaitFlagSliceMap.clear();
     }
 
-    void ClearCacheByFileId(const std::string &fileId)
-    {
+    void ClearCacheByFileId(const std::string &fileId) {
         SpinLockGuard lock(mutex);
         allSetFlagSliceMap.erase(fileId);
         allWaitFlagSliceMap.erase(fileId);
     }
-protected:
+
+  protected:
     void ProcessFlagMap(const std::map<std::string, Trace::Slice> &flagSliceMap, std::vector<Trace::Slice> &result,
-        std::map<std::string, Trace::Slice> &filedFlagSliceMap) const
-    {
+        std::map<std::string, Trace::Slice> &filedFlagSliceMap) const {
         for (const auto &item : flagSliceMap) {
             if (filedFlagSliceMap.count(item.first) == 0) {
                 filedFlagSliceMap[item.first] = item.second;
@@ -76,21 +72,22 @@ protected:
             }
             if (item.second.type == "SB") {
                 Trace::Slice slice = item.second;
-                slice.dur = filedFlagSliceMap[item.first].ts > slice.ts ?
-                    filedFlagSliceMap[item.first].ts - slice.ts : 0;
+                slice.dur =
+                    filedFlagSliceMap[item.first].ts > slice.ts ? filedFlagSliceMap[item.first].ts - slice.ts : 0;
                 result.emplace_back(slice);
                 filedFlagSliceMap.erase(item.first);
             }
             if (item.second.type == "SE") {
                 Trace::Slice slice = filedFlagSliceMap[item.first];
-                slice.dur = slice.ts > filedFlagSliceMap[item.first].ts ?
-                    slice.ts - filedFlagSliceMap[item.first].ts : 0;
+                slice.dur =
+                    slice.ts > filedFlagSliceMap[item.first].ts ? slice.ts - filedFlagSliceMap[item.first].ts : 0;
                 result.emplace_back(slice);
                 filedFlagSliceMap.erase(item.first);
             }
         }
     }
-private:
+
+  private:
     SimulationSliceCacheManager() = default;
     ~SimulationSliceCacheManager() = default;
 
@@ -99,6 +96,5 @@ private:
     SpinLock mutex;
 };
 }
-
 
 #endif // PROFILER_SERVER_SIMULATIONSLICECACHEMANAGER_H

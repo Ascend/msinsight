@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QuerySystemViewHandler : public TimelineRequestHandler {
-public:
-    QuerySystemViewHandler()
-    {
-        command = Protocol::REQ_RES_UNIT_SYSTEM_VIEW;
-    };
+  public:
+    QuerySystemViewHandler() { command = Protocol::REQ_RES_UNIT_SYSTEM_VIEW; };
 
     ~QuerySystemViewHandler() override = default;
 

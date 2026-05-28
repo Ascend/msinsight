@@ -25,12 +25,9 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class CreateCurveHandler : public TimelineRequestHandler {
-public:
+  public:
     std::shared_ptr<IE::ServitizationOpenApi> openApi = std::make_shared<IE::ServitizationOpenApi>();
-    CreateCurveHandler()
-    {
-        command = Protocol::REQ_RES_CREATE_CURVE;
-    };
+    CreateCurveHandler() { command = Protocol::REQ_RES_CREATE_CURVE; };
     ~CreateCurveHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
@@ -38,7 +35,7 @@ public:
 
     std::string CreateBubbleCurve(const CreateCurveRequest &request);
 };
-}  // end of namespace Timeline
-}  // end of namespace Module
-}  // end of namespace Dic
-#endif  // PROFILER_SERVER_CREATECURVEHANDLER_H
+} // end of namespace Timeline
+} // end of namespace Module
+} // end of namespace Dic
+#endif // PROFILER_SERVER_CREATECURVEHANDLER_H

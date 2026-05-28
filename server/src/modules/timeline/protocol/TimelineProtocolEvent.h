@@ -37,13 +37,13 @@ struct UnitTrackMetaData {
     std::string processId;
     std::string parentProcessId = "0";
     std::string processName; // type = process
-    std::string label;       // type = process
-    std::string threadId;    // type = thread
-    std::string threadName;  // type = thread, counter
-    std::string groupNameValue;   // type = thread, DB 在 PROCESS_TYPE::HCCL 时赋值；TEXT 看 threadName 形式符合赋值
+    std::string label; // type = process
+    std::string threadId; // type = thread
+    std::string threadName; // type = thread, counter
+    std::string groupNameValue; // type = thread, DB 在 PROCESS_TYPE::HCCL 时赋值；TEXT 看 threadName 形式符合赋值
     std::vector<std::string> rankList; // type = thread, 为HCCL中group甬道时赋值，内容为通信域内所有rankId信息
     std::string metaType;
-    int maxDepth = 0;                  // type = thread
+    int maxDepth = 0; // type = thread
     std::vector<std::string> dataType; // type = counter
 };
 
@@ -64,16 +64,13 @@ struct ThreadGroup {
     std::string processId;
     std::vector<std::string> threadIds;
 
-    void push(const std::string &threadId) {
-        threadIds.push_back(threadId);
-    }
+    void push(const std::string &threadId) { threadIds.push_back(threadId); }
 
-    json_t SerializationToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const
-    {
+    json_t SerializationToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const {
         json_t group(kObjectType);
         JsonUtil::AddMember(group, "cardId", cardId, allocator);
         JsonUtil::AddMember(group, "processId", processId, allocator);
-        json_t list(kArrayType) ;
+        json_t list(kArrayType);
         for (const auto &thread : threadIds) {
             list.PushBack(json_t().SetString(thread.c_str(), allocator), allocator);
         }
@@ -92,7 +89,7 @@ struct ParseSuccessEventBody {
     uint64_t startTime = 0;
     uint64_t offset = 0;
     std::string fileId;
-    std::vector<RankInfo> rankList;  // 值为 cluster + host + rankId + deviceId 拼接
+    std::vector<RankInfo> rankList; // 值为 cluster + host + rankId + deviceId 拼接
 };
 
 struct ParseSuccessEvent : public Event {

@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryFlowCategoryEventsHandler : public TimelineRequestHandler {
-public:
-    QueryFlowCategoryEventsHandler()
-    {
-        command = Protocol::REQ_RES_FLOW_CATEGORY_EVENTS;
-    };
+  public:
+    QueryFlowCategoryEventsHandler() { command = Protocol::REQ_RES_FLOW_CATEGORY_EVENTS; };
     ~QueryFlowCategoryEventsHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

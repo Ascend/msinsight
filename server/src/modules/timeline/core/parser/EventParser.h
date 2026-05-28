@@ -31,17 +31,18 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class EventParser {
-public:
-    EventParser(const std::string &filePath, const std::string &fileId,
-        std::shared_ptr<TextTraceDatabase> textDatabase);
+  public:
+    EventParser(
+        const std::string &filePath, const std::string &fileId, std::shared_ptr<TextTraceDatabase> textDatabase);
     ~EventParser() = default;
     bool Parse(int64_t startPosition, int64_t endPosition);
     std::string GetError() const;
     void SetSimulationStatus(const bool &isSimulation);
-protected:
+
+  protected:
     std::unique_ptr<IFileReader> fileReader = nullptr;
 
-private:
+  private:
     std::string filePath;
     std::string fileId;
     std::string error;
@@ -49,18 +50,18 @@ private:
     int ignoreCount = 0;
     bool m_isSimulation = false;
     std::shared_ptr<TextTraceDatabase> database;
-    std::map<std::string, std::function<void(Trace::Event*)>> eventHandleMap;
+    std::map<std::string, std::function<void(Trace::Event *)>> eventHandleMap;
 
     void EventHandle(const rapidjson::Value &json);
     void InitEventHandle();
-    void MetaDataHandle(Trace::Event* eventPtr);
-    void CompleteEventsHandle(Trace::Event* eventPtr);
-    void SimulationBeginEventHandle(Trace::Event* eventPtr);
-    void SimulationEndEventHandle(Trace::Event* eventPtr);
-    void SimulationEventHandle(Trace::Event* eventPtr);
-    void FlowEventsHandle(Trace::Event* eventPtr);
-    void SimulationFlowEventsHandle(Trace::Event* eventPtr);
-    void CounterEventsHandle(Trace::Event* eventPtr);
+    void MetaDataHandle(Trace::Event *eventPtr);
+    void CompleteEventsHandle(Trace::Event *eventPtr);
+    void SimulationBeginEventHandle(Trace::Event *eventPtr);
+    void SimulationEndEventHandle(Trace::Event *eventPtr);
+    void SimulationEventHandle(Trace::Event *eventPtr);
+    void FlowEventsHandle(Trace::Event *eventPtr);
+    void SimulationFlowEventsHandle(Trace::Event *eventPtr);
+    void CounterEventsHandle(Trace::Event *eventPtr);
     std::map<std::string, uint64_t> trackIdMap;
     std::map<std::string, Trace::Slice> setFlagSliceMap;
     std::map<std::string, Trace::Slice> waitFlagSliceMap;

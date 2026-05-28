@@ -63,12 +63,8 @@ bool QueryMemcpyDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
     return true;
 }
 
-bool QueryMemcpyDetailHandler::QueryMemcpyDetails(
-    const SystemViewOverallMoreDetailsRequest& request,
-    MemcpyDetailResponse& response,
-    std::string& error,
-    const std::shared_ptr<VirtualTraceDatabase>& database)
-{
+bool QueryMemcpyDetailHandler::QueryMemcpyDetails(const SystemViewOverallMoreDetailsRequest &request,
+    MemcpyDetailResponse &response, std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database) {
     try {
         // ===== 参数提取 =====
         uint64_t startTime = request.params.startTime;
@@ -95,8 +91,8 @@ bool QueryMemcpyDetailHandler::QueryMemcpyDetails(
         uint64_t total = 0;
 
         // 调用分页查询（内部处理 startTime==endTime 的全量逻辑）
-        if (!accesser.GetMemcpyDetailRecordsPaged(startTime, endTime, tid, memcpyType,
-                currentPage, pageSize, orderParam, records, total)) {
+        if (!accesser.GetMemcpyDetailRecordsPaged(
+                startTime, endTime, tid, memcpyType, currentPage, pageSize, orderParam, records, total)) {
             error = "Failed to query memcpy detail records";
             return false;
         }
@@ -105,8 +101,8 @@ bool QueryMemcpyDetailHandler::QueryMemcpyDetails(
         std::vector<SameMemcpyDetails> results;
         results.reserve(records.size());
         // 直接字段映射（两个结构体字段完全对齐）
-        for (const auto& rec : records) {
-            results.emplace_back(SameMemcpyDetails{ rec.timestamp, rec.duration, rec.size, rec.id, rec.name });
+        for (const auto &rec : records) {
+            results.emplace_back(SameMemcpyDetails{rec.timestamp, rec.duration, rec.size, rec.id, rec.name});
         }
 
         response.body.sameOperatorsDetails = std::move(results); // 避免拷贝
@@ -114,7 +110,7 @@ bool QueryMemcpyDetailHandler::QueryMemcpyDetails(
         response.body.currentPage = currentPage;
         response.body.pageSize = pageSize;
         return true;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         error = "Database error: " + std::string(e.what());
         return false;
     } catch (...) {

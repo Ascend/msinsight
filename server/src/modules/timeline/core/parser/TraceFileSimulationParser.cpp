@@ -30,37 +30,27 @@ namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 
-TraceFileSimulationParser &TraceFileSimulationParser::Instance()
-{
+TraceFileSimulationParser &TraceFileSimulationParser::Instance() {
     static TraceFileSimulationParser instance;
     return instance;
 }
 
-TraceFileSimulationParser::TraceFileSimulationParser()
-{
+TraceFileSimulationParser::TraceFileSimulationParser() {
     threadPool = std::make_unique<ThreadPool>(TraceFileSimulationParser::maxThreadNum);
 }
 
-TraceFileSimulationParser::~TraceFileSimulationParser()
-{
-    threadPool->ShutDown();
-}
+TraceFileSimulationParser::~TraceFileSimulationParser() { threadPool->ShutDown(); }
 
-bool TraceFileSimulationParser::Parse(const std::vector<std::string> &filePathArr,
-                                      const std::string &rankId,
-                                      const std::string &selectedFolder,
-                                      const std::string &fileId)
-{
+bool TraceFileSimulationParser::Parse(const std::vector<std::string> &filePathArr, const std::string &rankId,
+    const std::string &selectedFolder, const std::string &fileId) {
     ServerLog::Info("start parse. file id:", rankId);
     ParserStatusManager::Instance().SetParserStatus(rankId, ParserStatus::INIT);
     threadPool->AddTask(PreParseTask, TraceIdManager::GetTraceId(), filePathArr, rankId, fileId);
     return true;
 }
 
-void TraceFileSimulationParser::PreParseTask(const std::vector<std::string> &filePathArr,
-                                             const std::string &rankId,
-                                             const std::string &fileId)
-{
+void TraceFileSimulationParser::PreParseTask(
+    const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId) {
     ParserStatusManager::Instance().WaitStartParse();
     if (!InitParser(filePathArr, rankId, fileId)) {
         auto msg = "Failed to open db. Please delete dbFile and try again or see logs.";
@@ -68,10 +58,8 @@ void TraceFileSimulationParser::PreParseTask(const std::vector<std::string> &fil
     }
 }
 
-bool TraceFileSimulationParser::InitParser(const std::vector<std::string> &filePathArr,
-                                           const std::string &rankId,
-                                           const std::string &fileId)
-{
+bool TraceFileSimulationParser::InitParser(
+    const std::vector<std::string> &filePathArr, const std::string &rankId, const std::string &fileId) {
     if (!ParserStatusManager::Instance().SetRunningStatus(rankId)) {
         ServerLog::Info("Pre task skip this file.");
         return false;
@@ -105,19 +93,18 @@ bool TraceFileSimulationParser::InitParser(const std::vector<std::string> &fileP
         }
 
         for (const auto &pos : splitFile) {
-            auto future = instance.threadPool->AddTask(ParseTask, TraceIdManager::GetTraceId(), filePath, rankId, fileId, pos);
+            auto future =
+                instance.threadPool->AddTask(ParseTask, TraceIdManager::GetTraceId(), filePath, rankId, fileId, pos);
             futures->emplace_back(std::move(future));
         }
     }
-    instance.threadPool->AddTask(EndParseTask, TraceIdManager::GetTraceId(), rankId, filePathArr, futures, start, fileId);
+    instance.threadPool->AddTask(
+        EndParseTask, TraceIdManager::GetTraceId(), rankId, filePathArr, futures, start, fileId);
     return true;
 }
 
-void TraceFileSimulationParser::ParseTask(const std::string &filePath,
-                                          const std::string &rankId,
-                                          const std::string &fileId,
-                                          std::pair<int64_t, int64_t> pos)
-{
+void TraceFileSimulationParser::ParseTask(const std::string &filePath, const std::string &rankId,
+    const std::string &fileId, std::pair<int64_t, int64_t> pos) {
     if (ParserStatusManager::Instance().GetParserStatus(rankId) != ParserStatus::RUNNING) {
         ServerLog::Info("Parse task skip this file. ID:", rankId);
         return;
@@ -128,7 +115,7 @@ void TraceFileSimulationParser::ParseTask(const std::string &filePath,
         return;
     }
     std::shared_ptr<TextTraceDatabase> databasePtr =
-            std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
+        std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
     if (databasePtr == nullptr) {
         ServerLog::Warn("Failed to get text connection when parse simulation json,ID: ", rankId);
         return;
@@ -146,15 +133,12 @@ void TraceFileSimulationParser::ParseTask(const std::string &filePath,
     std::unique_ptr<FileProgress> &curFileProgress = instance.fileProgressMap[rankId];
     curFileProgress->AddToParsedSize(pos.second - pos.first);
     instance.parseProgressCallback(rankId, curFileProgress->GetParsedSize(), curFileProgress->GetTotalSize(),
-                                   curFileProgress->GetProgressPercentage());
+        curFileProgress->GetProgressPercentage());
 }
 
-void TraceFileSimulationParser::EndParseTask(const std::string &rankId,
-                                             const std::vector<std::string> &filePathArr,
-                                             std::shared_ptr<std::vector<std::future<void>>> futures,
-                                             std::chrono::time_point<std::chrono::high_resolution_clock> start,
-                                             const std::string &fileId)
-{
+void TraceFileSimulationParser::EndParseTask(const std::string &rankId, const std::vector<std::string> &filePathArr,
+    std::shared_ptr<std::vector<std::future<void>>> futures,
+    std::chrono::time_point<std::chrono::high_resolution_clock> start, const std::string &fileId) {
     if (ParserStatusManager::Instance().GetParserStatus(rankId) != ParserStatus::RUNNING) {
         ParserStatusManager::Instance().SetFinishStatus(rankId);
         ServerLog::Info("End parse task skip this file. ID:", rankId);
@@ -166,7 +150,7 @@ void TraceFileSimulationParser::EndParseTask(const std::string &rankId,
     }
     auto end = std::chrono::high_resolution_clock::now();
     ServerLog::Info("Parse completed. ID:", rankId,
-                    " Cost time(ms): ", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+        " Cost time(ms): ", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
     auto database = std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(
         DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId));
     if (database == nullptr) {
@@ -183,11 +167,8 @@ void TraceFileSimulationParser::EndParseTask(const std::string &rankId,
     ProjectParserBase::SendUnitFinishNotify(fileId, true, CONNECTION_UNIT);
 }
 
-void TraceFileSimulationParser::ParseEndCallBack(const std::string &rankId,
-                                                 const std::string &fileId,
-                                                 bool result,
-                                                 const std::string &message)
-{
+void TraceFileSimulationParser::ParseEndCallBack(
+    const std::string &rankId, const std::string &fileId, bool result, const std::string &message) {
     auto oldStatus = ParserStatusManager::Instance().GetParserStatus(rankId);
     ParserStatusManager::Instance().SetFinishStatus(rankId);
     auto &instance = TraceFileSimulationParser::Instance();
@@ -197,8 +178,8 @@ void TraceFileSimulationParser::ParseEndCallBack(const std::string &rankId,
     }
 }
 
-int64_t TraceFileSimulationParser::GetTrackId(const std::string &fileId, const std::string &pid, const std::string &tid)
-{
+int64_t TraceFileSimulationParser::GetTrackId(
+    const std::string &fileId, const std::string &pid, const std::string &tid) {
     std::unique_lock<std::mutex> lock(trackMutex);
     auto item = std::make_pair(pid, tid);
     if (trackIdMap[fileId].count(item) > 0) {
@@ -211,8 +192,7 @@ int64_t TraceFileSimulationParser::GetTrackId(const std::string &fileId, const s
     return trackId;
 }
 
-void TraceFileSimulationParser::Reset()
-{
+void TraceFileSimulationParser::Reset() {
     ServerLog::Info("Reset. wait task completed.");
     ParserStatusManager::Instance().SetAllTerminateStatus();
     threadPool->Reset();
@@ -231,8 +211,7 @@ void TraceFileSimulationParser::Reset()
     ServerLog::Info("End Reset trace Parser");
 }
 
-void TraceFileSimulationParser::DeleteParseFiles(const std::vector<std::string> &fileIds)
-{
+void TraceFileSimulationParser::DeleteParseFiles(const std::vector<std::string> &fileIds) {
     for (const auto &fileId : fileIds) {
         auto status = ParserStatusManager::Instance().SetTerminateStatus(fileId);
         ServerLog::Info("Before delete file. id:", fileId, ", status:", static_cast<int>(status));

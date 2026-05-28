@@ -23,8 +23,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryFlowCategoryListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryFlowCategoryListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     FlowCategoryListRequest &request = dynamic_cast<FlowCategoryListRequest &>(*requestPtr.get());
     std::unique_ptr<FlowCategoryListResponse> responsePtr = std::make_unique<FlowCategoryListResponse>();
     FlowCategoryListResponse &response = *responsePtr.get();

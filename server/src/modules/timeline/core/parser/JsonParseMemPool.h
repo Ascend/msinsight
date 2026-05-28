@@ -26,21 +26,18 @@ namespace Dic {
 namespace Module {
 
 class JsonParseMemPool {
-public:
-    static JsonParseMemPool &Instance()
-    {
+  public:
+    static JsonParseMemPool &Instance() {
         static JsonParseMemPool pool;
         return pool;
     }
 
-    void Clear()
-    {
+    void Clear() {
         std::unique_lock lock(mutex);
         memPoolMap.clear();
     }
 
-    std::shared_ptr<rapidjson::MemoryPoolAllocator<>> GetMemBuff(std::thread::id threadId)
-    {
+    std::shared_ptr<rapidjson::MemoryPoolAllocator<>> GetMemBuff(std::thread::id threadId) {
         constexpr size_t memoryPoolSize = 5 * 1024 * 1024;
         std::unique_lock lock(mutex);
         if (memPoolMap.find(threadId) == memPoolMap.end()) {
@@ -48,7 +45,8 @@ public:
         }
         return memPoolMap[threadId];
     }
-private:
+
+  private:
     JsonParseMemPool() = default;
     ~JsonParseMemPool() = default;
     std::mutex mutex;

@@ -23,8 +23,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryExpAnaAICoreFreqHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryExpAnaAICoreFreqHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     const uint64_t percentLimit = 5;
     ExpAnaAICoreFreqRequest &request = dynamic_cast<ExpAnaAICoreFreqRequest &>(*requestPtr.get());
 
@@ -49,8 +48,7 @@ bool QueryExpAnaAICoreFreqHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     uint64_t maxFreq = 0;
     uint64_t minFreq = UINT64_MAX;
     std::vector<std::pair<uint64_t, uint64_t>> freqs;
-    if (!database->QueryExpAnaAICoreFreqData(request.params, response.body, freqs, maxFreq, minFreq)
-        || freqs.empty()) {
+    if (!database->QueryExpAnaAICoreFreqData(request.params, response.body, freqs, maxFreq, minFreq) || freqs.empty()) {
         SetTimelineError(ErrorCode::QUERY_AI_CORE_FREQ_FAILED);
         SetResponseResult(response, false);
         ServerLog::Error("Failed to get system view AI core freq table response data.");

@@ -25,8 +25,7 @@
 
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
-bool QuerySystemViewOverallHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QuerySystemViewOverallHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SystemViewOverallRequest &>(*requestPtr);
     std::unique_ptr<SystemViewOverallResponse> responsePtr = std::make_unique<SystemViewOverallResponse>();
     SystemViewOverallResponse &response = *responsePtr;
@@ -74,8 +73,7 @@ bool QuerySystemViewOverallHandler::HandleRequest(std::unique_ptr<Protocol::Requ
 }
 
 bool QuerySystemViewOverallHandler::CalOverallData(SystemViewOverallRequest &request,
-    SystemViewOverallResponse &response, std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database)
-{
+    SystemViewOverallResponse &response, std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database) {
     SystemViewOverallHelper overallHelper;
     std::string deviceId = DataBaseManager::Instance().GetDeviceIdFromRankId(request.params.rankId);
     if (deviceId.empty()) {
@@ -100,7 +98,8 @@ bool QuerySystemViewOverallHandler::CalOverallData(SystemViewOverallRequest &req
     }
     // Computing拆解
     if (!repoPtr->QueryDataForComputingOverallMetric(request.params, overallHelper, database)) {
-        ServerLog::Warn("Failed to get computing data for system view overall.");  // Computing部分失败，但是继续剩下的查询
+        ServerLog::Warn(
+            "Failed to get computing data for system view overall."); // Computing部分失败，但是继续剩下的查询
     }
     if (!overallHelper.kernelEvents.empty()) {
         // 若kernel details含有效pmu数据，则进行Computing Overall统计，否则跳过Computing拆解
@@ -114,8 +113,7 @@ bool QuerySystemViewOverallHandler::CalOverallData(SystemViewOverallRequest &req
 
 double QuerySystemViewOverallHandler::GetOverlapAnalysisData(SystemViewOverallHelper &overallHelper,
     const std::shared_ptr<VirtualTraceDatabase> &database, const SystemViewOverallRequest &request,
-    std::vector<SystemViewOverallRes> &responseBody)
-{
+    std::vector<SystemViewOverallRes> &responseBody) {
     double e2eTime{};
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(request.fileId));
@@ -140,25 +138,53 @@ double QuerySystemViewOverallHandler::GetOverlapAnalysisData(SystemViewOverallHe
         return e2eTime;
     }
     double computingRatio = NumberUtil::DoubleReservedNDigits(PERCENTAGE_RATIO_SCALE * computingTime / e2eTime, TWO);
-    double communicationRatio = NumberUtil::DoubleReservedNDigits(
-        PERCENTAGE_RATIO_SCALE * communicationNotOverlapped / e2eTime, TWO);
+    double communicationRatio =
+        NumberUtil::DoubleReservedNDigits(PERCENTAGE_RATIO_SCALE * communicationNotOverlapped / e2eTime, TWO);
     double freeRatio = NumberUtil::DoubleReservedNDigits(PERCENTAGE_RATIO_SCALE * freeTime / e2eTime, TWO);
     double e2eRatio = PERCENTAGE_RATIO_SCALE;
     // 组装一层级数据
-    Protocol::SystemViewOverallRes tmpRes = { .totalTime = computingTime, .ratio = computingRatio, .nums = 0,
-        .avg = 0, .max = 0, .min = UINT32_MAX, .name = COMPUTING_TIME, .children = {}, .level = 1,
+    Protocol::SystemViewOverallRes tmpRes = {.totalTime = computingTime,
+        .ratio = computingRatio,
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = UINT32_MAX,
+        .name = COMPUTING_TIME,
+        .children = {},
+        .level = 1,
         .id = std::to_string(overallHelper.idCounter++)};
     responseBody.emplace_back(tmpRes);
-    tmpRes = {.totalTime = communicationNotOverlapped, .ratio = communicationRatio, .nums = 0, .avg = 0, .max = 0,
-        .min = 0, .name = COMMUNICATION_NOT_OVERLAP_TIME, .children = {}, .level = 1,
+    tmpRes = {.totalTime = communicationNotOverlapped,
+        .ratio = communicationRatio,
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = COMMUNICATION_NOT_OVERLAP_TIME,
+        .children = {},
+        .level = 1,
         .id = std::to_string(overallHelper.idCounter++)};
     responseBody.emplace_back(tmpRes);
-    tmpRes = {.totalTime = freeTime, .ratio = freeRatio, .nums = 0, .avg = 0, .max = 0,
-        .min = 0, .name = FREE_TIME, .children = {}, .level = 1,
+    tmpRes = {.totalTime = freeTime,
+        .ratio = freeRatio,
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = FREE_TIME,
+        .children = {},
+        .level = 1,
         .id = std::to_string(overallHelper.idCounter++)};
     responseBody.emplace_back(tmpRes);
-    tmpRes = {.totalTime = NumberUtil::DoubleReservedNDigits(e2eTime, TWO), .ratio = e2eRatio, .nums = 0, .avg = 0,
-              .max = 0, .min = 0, .name = E2E_TIME, .children = {}, .level = 1,
+    tmpRes = {.totalTime = NumberUtil::DoubleReservedNDigits(e2eTime, TWO),
+        .ratio = e2eRatio,
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = E2E_TIME,
+        .children = {},
+        .level = 1,
         .id = std::to_string(overallHelper.idCounter++)};
     responseBody.emplace_back(tmpRes);
     return e2eTime;

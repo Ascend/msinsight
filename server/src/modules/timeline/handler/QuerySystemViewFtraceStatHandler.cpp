@@ -20,8 +20,7 @@
 #include "RenderEngine.h"
 
 namespace Dic::Module::Timeline {
-bool QuerySystemViewFtraceStatHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QuerySystemViewFtraceStatHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SystemViewFtraceStatRequest &>(*requestPtr);
     auto responsePtr = std::make_unique<SystemViewFtraceStatResponse>();
     auto &response = *responsePtr;
@@ -46,15 +45,16 @@ bool QuerySystemViewFtraceStatHandler::HandleRequest(std::unique_ptr<Protocol::R
     uint64_t offset = (request.params.current - 1) * request.params.pageSize;
 
     // 查询数据
-    auto ftraceStat = textDb->QueryFtraceStatistics(
-        request.params.dataType, offset, request.params.pageSize);
+    auto ftraceStat = textDb->QueryFtraceStatistics(request.params.dataType, offset, request.params.pageSize);
     auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({request.params.rankId, PROCESS_TYPE::TEXT});
     // 转换数据为map格式
     for (const auto &item : ftraceStat.data) {
         std::unordered_map<std::string, std::string> row;
         row["track_id"] = std::to_string(item.trackId);
         auto it = threadInfoMap.find(item.trackId);
-        if (it == threadInfoMap.end()) { continue; }
+        if (it == threadInfoMap.end()) {
+            continue;
+        }
         row["process"] = it->second.first;
         row["thread"] = it->second.second;
         for (const auto &kv : item.data) {

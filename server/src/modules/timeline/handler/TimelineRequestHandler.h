@@ -31,19 +31,15 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class TimelineRequestHandler : public ModuleRequestHandler {
-public:
-    TimelineRequestHandler()
-    {
-        moduleName = MODULE_TIMELINE;
-    }
+  public:
+    TimelineRequestHandler() { moduleName = MODULE_TIMELINE; }
     ~TimelineRequestHandler() override = default;
-    bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override{ return true; };
-    void SetRenderEngine(std::shared_ptr<RenderEngineInterface> renderEngineInterface)
-    {
+    bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override { return true; };
+    void SetRenderEngine(std::shared_ptr<RenderEngineInterface> renderEngineInterface) {
         renderEngine = std::move(renderEngineInterface);
     };
 
-protected:
+  protected:
     std::shared_ptr<RenderEngineInterface> renderEngine = nullptr;
 };
 } // end of namespace Timeline

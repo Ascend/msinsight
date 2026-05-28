@@ -25,9 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class ResetWindowHandler : public TimelineRequestHandler {
-public:
-    ResetWindowHandler()
-    {
+  public:
+    ResetWindowHandler() {
         command = Protocol::REQ_RES_RESET_WINDOW;
         async = false;
     };

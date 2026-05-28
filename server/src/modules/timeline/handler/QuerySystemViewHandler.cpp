@@ -24,8 +24,7 @@ namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 
-bool QuerySystemViewHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QuerySystemViewHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     SystemViewRequest &request = dynamic_cast<SystemViewRequest &>(*requestPtr.get());
 
     std::unique_ptr<SystemViewResponse> responsePtr = std::make_unique<SystemViewResponse>();

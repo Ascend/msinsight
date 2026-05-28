@@ -23,27 +23,19 @@ namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 
-ClusterParseThreadPoolExecutor &ClusterParseThreadPoolExecutor::Instance()
-{
+ClusterParseThreadPoolExecutor &ClusterParseThreadPoolExecutor::Instance() {
     static ClusterParseThreadPoolExecutor instance;
     return instance;
 }
 
-ClusterParseThreadPoolExecutor::ClusterParseThreadPoolExecutor()
-{
+ClusterParseThreadPoolExecutor::ClusterParseThreadPoolExecutor() {
     singleThreadPool = std::make_shared<ThreadPool>(1);
     ServerLog::Info("single thread pool init success");
 }
 
-ClusterParseThreadPoolExecutor::~ClusterParseThreadPoolExecutor()
-{
-    singleThreadPool->ShutDown();
-}
+ClusterParseThreadPoolExecutor::~ClusterParseThreadPoolExecutor() { singleThreadPool->ShutDown(); }
 
-std::shared_ptr<ThreadPool> ClusterParseThreadPoolExecutor::GetThreadPool()
-{
-    return singleThreadPool;
-}
+std::shared_ptr<ThreadPool> ClusterParseThreadPoolExecutor::GetThreadPool() { return singleThreadPool; }
 
 } // end of namespace Timeline
 } // end of namespace Module

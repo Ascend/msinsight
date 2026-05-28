@@ -23,11 +23,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryFlowsBySliceInfoHandler : public TimelineRequestHandler {
-public:
-    QueryFlowsBySliceInfoHandler()
-    {
-        command = Protocol::REQ_RES_UNIT_FLOWS;
-    };
+  public:
+    QueryFlowsBySliceInfoHandler() { command = Protocol::REQ_RES_UNIT_FLOWS; };
 
     ~QueryFlowsBySliceInfoHandler() override = default;
 

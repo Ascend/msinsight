@@ -25,10 +25,11 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class ClusterParseThreadPoolExecutor {
-public:
+  public:
     static ClusterParseThreadPoolExecutor &Instance();
     std::shared_ptr<ThreadPool> GetThreadPool();
-private:
+
+  private:
     ClusterParseThreadPoolExecutor();
     ~ClusterParseThreadPoolExecutor();
     std::shared_ptr<ThreadPool> singleThreadPool;

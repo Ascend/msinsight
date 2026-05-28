@@ -33,15 +33,13 @@ namespace Dic::Module::Timeline {
  * 支持按线程ID、拷贝类型、时间范围过滤
  */
 class QueryMemcpyDetailHandler : public TimelineRequestHandler {
-public:
-    QueryMemcpyDetailHandler() {
-        command = Protocol::REQ_RES_MEMCPY_DETAIL;
-    }
+  public:
+    QueryMemcpyDetailHandler() { command = Protocol::REQ_RES_MEMCPY_DETAIL; }
     ~QueryMemcpyDetailHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-private:
+  private:
     /**
      * 执行数据库查询
      * @param request 查询参数
@@ -50,12 +48,8 @@ private:
      * @param database 数据库连接
      * @return 操作是否成功
      */
-    static bool QueryMemcpyDetails(
-        const SystemViewOverallMoreDetailsRequest& request,
-        MemcpyDetailResponse& response,
-        std::string& error,
-        const std::shared_ptr<VirtualTraceDatabase>& database
-    );
+    static bool QueryMemcpyDetails(const SystemViewOverallMoreDetailsRequest &request, MemcpyDetailResponse &response,
+        std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database);
 };
 
 } // namespace Dic::Module::Timeline

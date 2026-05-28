@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class SearchCountHandler : public TimelineRequestHandler {
-public:
-    SearchCountHandler()
-    {
-        command = Protocol::REQ_RES_SEARCH_COUNT;
-    };
+  public:
+    SearchCountHandler() { command = Protocol::REQ_RES_SEARCH_COUNT; };
     ~SearchCountHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 

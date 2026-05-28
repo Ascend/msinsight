@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class SetCardAliasHandler : public TimelineRequestHandler {
-public:
-    SetCardAliasHandler()
-    {
-        command = Protocol::REQ_RES_UNIT_SET_CARD_ALIAS;
-    };
+  public:
+    SetCardAliasHandler() { command = Protocol::REQ_RES_UNIT_SET_CARD_ALIAS; };
     ~SetCardAliasHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

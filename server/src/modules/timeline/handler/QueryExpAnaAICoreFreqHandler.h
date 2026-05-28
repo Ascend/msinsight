@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryExpAnaAICoreFreqHandler : public TimelineRequestHandler {
-public:
-    QueryExpAnaAICoreFreqHandler()
-    {
-        command = Protocol::REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ;
-    };
+  public:
+    QueryExpAnaAICoreFreqHandler() { command = Protocol::REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ; };
 
     ~QueryExpAnaAICoreFreqHandler() override = default;
 

@@ -23,8 +23,7 @@
 
 namespace Dic::Module::Timeline {
 
-bool QueryMemcpyOverallHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryMemcpyOverallHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MemcpyOverallRequest &>(*requestPtr);
     std::unique_ptr<MemcpyOverallResponse> responsePtr = std::make_unique<MemcpyOverallResponse>();
     MemcpyOverallResponse &response = *responsePtr;
@@ -64,15 +63,14 @@ bool QueryMemcpyOverallHandler::HandleRequest(std::unique_ptr<Protocol::Request>
     return true;
 }
 
-void BuildMemcpyOverallResult(const std::vector<MemcpyRecord>& records, MemcpyOverallResponse& response,
-    uint32_t current, uint32_t pageSize)
-{
+void BuildMemcpyOverallResult(
+    const std::vector<MemcpyRecord> &records, MemcpyOverallResponse &response, uint32_t current, uint32_t pageSize) {
     // std::map 自带排序
     std::map<std::string, StatsAccumulator> threadMap;
     std::map<std::string, std::map<std::string, StatsAccumulator>> typeMap;
     std::map<std::string, std::string> threadNameMap;
 
-    for (const auto& rec : records) {
+    for (const auto &rec : records) {
         threadMap[rec.threadId].Update(rec.size, rec.duration);
         threadNameMap[rec.threadId] = rec.threadName;
         typeMap[rec.threadId][rec.memcpyType].Update(rec.size, rec.duration);
@@ -81,7 +79,7 @@ void BuildMemcpyOverallResult(const std::vector<MemcpyRecord>& records, MemcpyOv
     std::vector<MemcpyOverallRes> result;
     result.reserve(threadMap.size());
 
-    for (auto& [tid, tStat] : threadMap) {
+    for (auto &[tid, tStat] : threadMap) {
         MemcpyOverallRes ts;
         ts.key = tid;
         ts.name = threadNameMap.at(tid);
@@ -98,7 +96,7 @@ void BuildMemcpyOverallResult(const std::vector<MemcpyRecord>& records, MemcpyOv
 
         if (auto it = typeMap.find(tid); it != typeMap.end()) {
             ts.children.reserve(it->second.size());
-            for (auto& [mtype, mStat] : it->second) {
+            for (auto &[mtype, mStat] : it->second) {
                 MemcpyOverallRes tts;
                 tts.key = mtype;
                 tts.name = mtype;
@@ -123,8 +121,7 @@ void BuildMemcpyOverallResult(const std::vector<MemcpyRecord>& records, MemcpyOv
 }
 
 bool QueryMemcpyOverallHandler::CalMemcpyData(MemcpyOverallRequest &request, MemcpyOverallResponse &response,
-                      std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database)
-{
+    std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database) {
     const MemcpyOverallDatabaseAccesser accesser(database, request.fileId);
 
     std::vector<MemcpyRecord> records;

@@ -20,11 +20,8 @@
 #include "TimelineRequestHandler.h"
 namespace Dic::Module::Timeline {
 class QueryTableDataNameListHandler : public TimelineRequestHandler {
-public:
-    QueryTableDataNameListHandler()
-    {
-        command = Protocol::REQ_RES_TABLE_DATA_NAME_LIST;
-    };
+  public:
+    QueryTableDataNameListHandler() { command = Protocol::REQ_RES_TABLE_DATA_NAME_LIST; };
 
     ~QueryTableDataNameListHandler() override = default;
 

@@ -25,11 +25,12 @@
 
 namespace Dic::Module::Timeline {
 class MetaDataParser {
-public:
+  public:
     static std::vector<ParallelGroupInfo> ParserParallelGroupInfoByFilePath(const std::string &filePath);
     static std::vector<ParallelGroupInfo> ParserParallelGroupInfoByText(const std::string &text);
     static std::optional<DistributedArgs> ParserDistributedArgsByFilePath(const std::string &filePath);
-private:
+
+  private:
     const static inline std::string GLOBAL_RANKS = "global_ranks";
     const static inline std::string GLOBAL_NAME = "group_name";
     static std::vector<ParallelGroupInfo> ConvertGroupInfoJsonToObject(const document_t &json);

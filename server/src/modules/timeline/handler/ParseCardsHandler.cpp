@@ -25,8 +25,7 @@
 namespace Dic::Module::Timeline {
 using namespace Dic;
 using namespace Dic::Server;
-bool Dic::Module::Timeline::ParseCardsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool Dic::Module::Timeline::ParseCardsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     ParseCardsRequest &request = dynamic_cast<ParseCardsRequest &>(*requestPtr.get());
     for (size_t i = 0; i < request.params.cards.size() && i < request.params.fileIds.size(); i++) {
         std::string item = request.params.cards[i];
@@ -37,14 +36,15 @@ bool Dic::Module::Timeline::ParseCardsHandler::HandleRequest(std::unique_ptr<Pro
             continue;
         }
         if (filePathPair.first == ProjectTypeEnum::ACLGRAPH_DEBUG) {
-            JsonFileParserManager::GetACLGraphDebugParser().Parse(filePathPair.second, item, "", request.params.fileIds[i]);
+            JsonFileParserManager::GetACLGraphDebugParser().Parse(
+                filePathPair.second, item, "", request.params.fileIds[i]);
             continue;
         }
         if (filePathPair.first == ProjectTypeEnum::TRACE) {
             JsonFileParserManager::GetTraceFileParser().Parse(filePathPair.second, item, "", request.params.fileIds[i]);
             continue;
         }
-        FullDb::FullDbParser::Instance().Parse({ item }, filePathPair.second[0]);
+        FullDb::FullDbParser::Instance().Parse({item}, filePathPair.second[0]);
     }
     std::unique_ptr<ParseCardsResponse> responsePtr = std::make_unique<ParseCardsResponse>();
     ParseCardsResponse &response = *responsePtr.get();

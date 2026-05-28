@@ -28,11 +28,8 @@ namespace Module {
 namespace Timeline {
 
 class QuerySystemViewFtraceStatHandler : public TimelineRequestHandler {
-public:
-    QuerySystemViewFtraceStatHandler()
-    {
-        command = Protocol::REQ_RES_SYSTEM_VIEW_FTRACE_STAT;
-    };
+  public:
+    QuerySystemViewFtraceStatHandler() { command = Protocol::REQ_RES_SYSTEM_VIEW_FTRACE_STAT; };
 
     ~QuerySystemViewFtraceStatHandler() override = default;
 

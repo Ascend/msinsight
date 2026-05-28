@@ -27,13 +27,11 @@
 #include "ParserStatusManager.h"
 #include "ImportActionHandler.h"
 
-
 using namespace Dic;
 using namespace Dic::Server;
 using namespace Dic::Module::Global;
 using namespace Dic::Module::Timeline;
-bool ImportActionHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool ImportActionHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<ImportActionRequest &>(*requestPtr);
     ServerLog::Info("Import action request handler start");
     std::unique_ptr<ImportActionResponse> responsePtr = std::make_unique<ImportActionResponse>();
@@ -68,8 +66,7 @@ bool ImportActionHandler::HandleRequest(std::unique_ptr<Protocol::Request> reque
     return true;
 }
 
-void ImportActionHandler::SendParseFailEvent(const std::string &message)
-{
+void ImportActionHandler::SendParseFailEvent(const std::string &message) {
     auto event = std::make_unique<ParseFailEvent>();
     event->moduleName = MODULE_TIMELINE;
     event->result = false;
@@ -77,8 +74,7 @@ void ImportActionHandler::SendParseFailEvent(const std::string &message)
     SendEvent(std::move(event));
 }
 
-void ImportActionHandler::LogIfFileNotExist(const Global::ProjectExplorerInfo &projectExplorerInfo)
-{
+void ImportActionHandler::LogIfFileNotExist(const Global::ProjectExplorerInfo &projectExplorerInfo) {
     // 拖拽的文件原始文件不会保存在本地，因此不需要对拖拽的文件路径进行校验
     if (projectExplorerInfo.importType == "drag") {
         return;
@@ -89,22 +85,21 @@ void ImportActionHandler::LogIfFileNotExist(const Global::ProjectExplorerInfo &p
     }
 }
 
-bool ImportActionHandler::TransferProject(ImportActionRequest &request)
-{
+bool ImportActionHandler::TransferProject(ImportActionRequest &request) {
     // 切换项目时，会对一级目录下所有内容进行加载
-    std::vector<Global::ProjectExplorerInfo> projectExplorerInfo = Global::ProjectExplorerManager::Instance()
-            .QueryProjectExplorer(request.params.projectName, std::vector<std::string>());
+    std::vector<Global::ProjectExplorerInfo> projectExplorerInfo =
+        Global::ProjectExplorerManager::Instance().QueryProjectExplorer(
+            request.params.projectName, std::vector<std::string>());
     if (projectExplorerInfo.empty()) {
         ServerLog::Warn("params error, project explorer info is not existed.");
         SetTimelineError(ErrorCode::PROJECT_EXPLORER_NOT_EXISTED);
         return false;
     }
-    std::for_each(projectExplorerInfo.begin(), projectExplorerInfo.end(), [](const auto& project) {
-        ImportActionHandler::LogIfFileNotExist(project);
-    });
+    std::for_each(projectExplorerInfo.begin(), projectExplorerInfo.end(),
+        [](const auto &project) { ImportActionHandler::LogIfFileNotExist(project); });
     auto invalid = std::any_of(projectExplorerInfo.begin(), projectExplorerInfo.end(), [](const auto &project) {
-        return (project.projectType < static_cast<int>(ProjectTypeEnum::DB)
-            || project.projectType > static_cast<int>(ProjectTypeEnum::OTHER));
+        return (project.projectType < static_cast<int>(ProjectTypeEnum::DB) ||
+            project.projectType > static_cast<int>(ProjectTypeEnum::OTHER));
     });
     if (invalid) {
         ServerLog::Warn("Project type invalid!");
@@ -127,8 +122,7 @@ bool ImportActionHandler::TransferProject(ImportActionRequest &request)
     return true;
 }
 
-bool ImportActionHandler::ImportFile(ImportActionRequest &request, std::string &warnMsg)
-{
+bool ImportActionHandler::ImportFile(ImportActionRequest &request, std::string &warnMsg) {
     // 如果入参的文件内容不为空，则通过文件判断文件类型获取工厂
     std::string importPath = request.params.path[0];
     auto parserList = GetParserTypeList(importPath);
@@ -158,8 +152,7 @@ bool ImportActionHandler::ImportFile(ImportActionRequest &request, std::string &
     return true;
 }
 
-std::vector<ParserType> ImportActionHandler::GetParserTypeList(const std::string &importPath)
-{
+std::vector<ParserType> ImportActionHandler::GetParserTypeList(const std::string &importPath) {
     std::vector<ParserType> result;
     std::unique_ptr<ParserIE> ie = std::make_unique<Dic::Module::ParserIE>();
     bool existIE = ie->ExistIEFile(importPath);
@@ -175,10 +168,8 @@ std::vector<ParserType> ImportActionHandler::GetParserTypeList(const std::string
     return result;
 }
 
-std::optional<ProjectExplorerInfo> ImportActionHandler::BuildProjectInfo(ParserType allocType,
-                                                                         ImportActionRequest &request,
-                                                                         std::string &warnMsg)
-{
+std::optional<ProjectExplorerInfo> ImportActionHandler::BuildProjectInfo(
+    ParserType allocType, ImportActionRequest &request, std::string &warnMsg) {
     std::string importPath = request.params.path[0];
     std::shared_ptr<ProjectParserBase> projectParser = ParserFactory::GetProjectParser(allocType);
     // 路径列表不为空，需要进行文件目录的新增、覆盖
@@ -209,15 +200,13 @@ std::optional<ProjectExplorerInfo> ImportActionHandler::BuildProjectInfo(ParserT
     project.importType = "import";
     project.accessTime = TimeUtil::Instance().NowStr();
     ProjectAnalyze::Instance().ProjectExportInfoBuild(allocType, parseFileList, project);
-    if (!Global::ProjectExplorerManager::Instance().SaveProjectExplorer({project},
-                                                                        request.params.isConflict)) {
+    if (!Global::ProjectExplorerManager::Instance().SaveProjectExplorer({project}, request.params.isConflict)) {
         return std::nullopt;
     }
     LogIfFileNotExist(project);
     return project;
 }
-bool ImportActionHandler::IsNeedReset(const Protocol::ImportActionRequest &request)
-{
+bool ImportActionHandler::IsNeedReset(const Protocol::ImportActionRequest &request) {
     // 如果是切换项目，则必须重置
     if (request.params.projectAction == ProjectActionEnum::TRANSFER_PROJECT) {
         return true;

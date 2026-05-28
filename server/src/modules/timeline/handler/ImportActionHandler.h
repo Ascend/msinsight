@@ -27,12 +27,10 @@
 #include "FileParser.h"
 #include "GlobalDefs.h"
 
-
 namespace Dic::Module::Timeline {
 class ImportActionHandler : public TimelineRequestHandler {
-public:
-    ImportActionHandler()
-    {
+  public:
+    ImportActionHandler() {
         command = Protocol::REQ_RES_IMPORT_ACTION;
         async = false;
     };
@@ -41,7 +39,7 @@ public:
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
-private:
+  private:
     static void SendParseFailEvent(const std::string &message);
 
     static void LogIfFileNotExist(const Global::ProjectExplorerInfo &projectExplorerInfo);
@@ -55,10 +53,10 @@ private:
     /**
      * @brief 处理单个数据类型的导入事件
      */
-    static std::optional<ProjectExplorerInfo> BuildProjectInfo(ParserType allocType, ImportActionRequest &request,
-                                 std::string &warnMsg);
+    static std::optional<ProjectExplorerInfo> BuildProjectInfo(
+        ParserType allocType, ImportActionRequest &request, std::string &warnMsg);
 
-    static bool IsNeedReset(const ImportActionRequest& request);
+    static bool IsNeedReset(const ImportActionRequest &request);
 };
 } // end of namespace Dic::Module::Global
 

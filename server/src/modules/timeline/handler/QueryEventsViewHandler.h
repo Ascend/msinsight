@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryEventsViewHandler : public TimelineRequestHandler {
-public:
-    QueryEventsViewHandler()
-    {
-        command = Protocol::REQ_RES_UNIT_EVENTS_VIEW;
-    };
+  public:
+    QueryEventsViewHandler() { command = Protocol::REQ_RES_UNIT_EVENTS_VIEW; };
     ~QueryEventsViewHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
