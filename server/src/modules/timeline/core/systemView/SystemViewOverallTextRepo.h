@@ -22,7 +22,7 @@
 using namespace Dic::Protocol;
 namespace Dic::Module::Timeline {
 class SystemViewOverallTextRepo : public SystemViewOverallRepoInterface {
-public:
+  public:
     ~SystemViewOverallTextRepo() override = default;
     std::vector<OverallTmpInfo> QueryOverlapAnalysisDataForOverallMetric(
         const Protocol::SystemViewOverallReqParam &requestParams,
@@ -35,17 +35,18 @@ public:
     bool QueryCommunicationOpsTimeDataByGroupName(const SystemViewOverallReqParam &params, uint64_t offset,
         const std::vector<Protocol::ThreadTraces> &notOverlapData, std::vector<SameOperatorsDetails> &opsDetails,
         const std::shared_ptr<VirtualTraceDatabase> &database) override;
-private:
+
+  private:
     static bool CheckDataForSystemViewOverall(const std::shared_ptr<VirtualTraceDatabase> &database);
     static std::map<uint64_t, uint64_t> QueryFlowDict(const Protocol::SystemViewOverallReqParam &requestParams,
         const std::shared_ptr<VirtualTraceDatabase> &database);
     static std::vector<CpuCubeOpInfo> QueryCpuCubeOp(const Protocol::SystemViewOverallReqParam &requestParams,
         const std::shared_ptr<VirtualTraceDatabase> &database);
     static std::vector<OverallTmpInfo> QueryKernelEventsForSystemViewOverall(
-        const Protocol::SystemViewOverallReqParam &requestParams,
-        const std::map<uint64_t, uint64_t> &flowDict, const std::shared_ptr<VirtualTraceDatabase> &database);
-    static void QueryBwdTrackIdForComputingOverall(uint64_t& bwdTrackId,
+        const Protocol::SystemViewOverallReqParam &requestParams, const std::map<uint64_t, uint64_t> &flowDict,
         const std::shared_ptr<VirtualTraceDatabase> &database);
+    static void QueryBwdTrackIdForComputingOverall(
+        uint64_t &bwdTrackId, const std::shared_ptr<VirtualTraceDatabase> &database);
 };
 }
 

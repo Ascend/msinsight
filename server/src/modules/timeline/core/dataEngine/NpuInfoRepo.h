@@ -25,12 +25,12 @@
 #include "MstxEventsTable.h"
 namespace Dic::Module::Timeline {
 class NpuInfoRepo {
-public:
+  public:
     virtual ~NpuInfoRepo() = default;
     virtual std::vector<uint64_t> QueryDeviceIdByFileId(const std::string &fileId);
     void SetNpuInfoTable(std::unique_ptr<NpuInfoTable> npuInfoTablePtr);
 
-protected:
+  protected:
     std::unique_ptr<NpuInfoTable> npuInfoTable = std::make_unique<NpuInfoTable>();
 };
 }

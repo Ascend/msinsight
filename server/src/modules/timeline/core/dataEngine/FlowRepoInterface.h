@@ -23,7 +23,7 @@
 #include "DomainObject.h"
 namespace Dic::Module::Timeline {
 class FlowRepoInterface {
-public:
+  public:
     virtual ~FlowRepoInterface() = default;
     /* *
      * 根据连线类别查询所有连线

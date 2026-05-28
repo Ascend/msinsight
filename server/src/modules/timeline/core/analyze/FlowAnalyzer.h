@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 
-
 #ifndef PROFILER_SERVER_FLOWANALYZER_H
 #define PROFILER_SERVER_FLOWANALYZER_H
 #include <vector>
@@ -51,7 +50,7 @@ struct FlowPointSampleStruct {
     uint64_t curEndStartTime = 0;
 };
 class FlowAnalyzer {
-public:
+  public:
     explicit FlowAnalyzer();
     ~FlowAnalyzer() = default;
     void SetRepository(std::unique_ptr<FlowRepoInterface> repositoryDependency);
@@ -68,41 +67,39 @@ public:
      * @param sliceId
      * @return
      */
-    std::unordered_set<std::string> ComputeOnSliceFlowPointBySliceId(const FlowQuery &flowQuery,
-        const std::string &sliceId);
+    std::unordered_set<std::string> ComputeOnSliceFlowPointBySliceId(
+        const FlowQuery &flowQuery, const std::string &sliceId);
     void ComputeCategoryAndFlowMap(const std::vector<FlowDetailDto> &flowDetailVec,
         std::map<std::string, std::vector<Protocol::UnitSingleFlow>> &flowMap, uint64_t minTimestamp);
     void SortByTrackIdASC(std::vector<FlowPoint> &FlowCategoryEventsDtoVec);
     static void SortByFlowIdAndTimestampASC(std::vector<FlowPoint> &flowCategoryEventsDtoVec);
-    void ComputeScreenFlowPoint(const std::vector<FlowPoint> &flowEventsVec, uint64_t startTime,
-        uint64_t endTime, std::vector<FlowPoint> &flowIdResult);
+    void ComputeScreenFlowPoint(const std::vector<FlowPoint> &flowEventsVec, uint64_t startTime, uint64_t endTime,
+        std::vector<FlowPoint> &flowIdResult);
     static void ComputeUintFlows(const std::vector<FlowPoint> &flowEventsVec, const std::string &category,
-                                 std::vector<std::unique_ptr<Protocol::UnitSingleFlow>> &flowDetailList);
+        std::vector<std::unique_ptr<Protocol::UnitSingleFlow>> &flowDetailList);
     /* *
      * 根据连线点计算点所在的算子
      * @param flowPoint
      * @param sliceVec
      * @return
      */
-    std::vector<SliceDomain>::const_iterator ComputeSliceByFlowPoint(const FlowPoint &flowPoint,
-        const std::vector<SliceDomain> &sliceVec) const;
+    std::vector<SliceDomain>::const_iterator ComputeSliceByFlowPoint(
+        const FlowPoint &flowPoint, const std::vector<SliceDomain> &sliceVec) const;
 
-private:
+  private:
     std::unique_ptr<FlowRepoInterface> repository;
     static bool CompareTrackIdASC(const FlowPoint &first, const FlowPoint &second);
     static bool CompareFlowIdAndTimestampASC(const FlowPoint &first, const FlowPoint &second);
-    static void GroupSampleFlowPoint(const std::vector<FlowPoint> &flowEventsVec, uint64_t startTime,
-        uint64_t endTime, FlowPointSampleStruct &flowPointSampleStruct);
-    static void ComputePointOnScreen(FlowPointSampleStruct &flowPointSampleStruct, uint64_t uintTime,
-        const FlowPoint &flowPoint);
-    void OfferFlowPointPair(const std::vector<FlowPoint> &flowEventsVec,
-        std::vector<FlowPoint> &flowIdResult, FlowPointSampleStruct &flowPointSampleStruct,
-        const std::string &flowId, uint64_t unitTime) const;
+    static void GroupSampleFlowPoint(const std::vector<FlowPoint> &flowEventsVec, uint64_t startTime, uint64_t endTime,
+        FlowPointSampleStruct &flowPointSampleStruct);
+    static void ComputePointOnScreen(
+        FlowPointSampleStruct &flowPointSampleStruct, uint64_t uintTime, const FlowPoint &flowPoint);
+    void OfferFlowPointPair(const std::vector<FlowPoint> &flowEventsVec, std::vector<FlowPoint> &flowIdResult,
+        FlowPointSampleStruct &flowPointSampleStruct, const std::string &flowId, uint64_t unitTime) const;
 
-    static Protocol::FlowLocation& ComputeLocation(Protocol::FlowLocation& location, const FlowPoint& flow,
-                                                   const std::string& type);
+    static Protocol::FlowLocation &ComputeLocation(
+        Protocol::FlowLocation &location, const FlowPoint &flow, const std::string &type);
 };
 }
-
 
 #endif // PROFILER_SERVER_FLOWANALYZER_H
