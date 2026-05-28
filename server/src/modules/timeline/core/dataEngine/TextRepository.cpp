@@ -25,9 +25,8 @@
 #include "TextRepository.h"
 
 namespace Dic::Module::Timeline {
-void TextRepository::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-    std::vector<SliceDomain> &sliceVec)
-{
+void TextRepository::QuerySimpleSliceWithOutNameByTrackId(
+    const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
     auto &instance = TrackInfoManager::Instance();
     const bool isSuccess = instance.GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
@@ -50,8 +49,7 @@ void TextRepository::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &slic
     }
 }
 
-void TextRepository::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds)
-{
+void TextRepository::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -69,8 +67,7 @@ void TextRepository::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vecto
     }
 }
 
-uint64_t TextRepository::QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery)
-{
+uint64_t TextRepository::QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -83,9 +80,8 @@ uint64_t TextRepository::QueryPythonFunctionCountByTrackId(const SliceQuery &sli
     return count;
 }
 
-void TextRepository::QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery &sliceQuery,
-    std::vector<CompeteSliceDomain> &sliceVec)
-{
+void TextRepository::QueryCompeteSliceVecByTimeRangeAndTrackId(
+    const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -110,8 +106,7 @@ void TextRepository::QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery 
     }
 }
 
-void TextRepository::QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void TextRepository::QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(flowQuery.trackId, trackInfo, flowQuery.fileId);
     if (!isSuccess) {
@@ -134,8 +129,7 @@ void TextRepository::QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::
     }
 }
 
-void TextRepository::QueryFlowPointByFlowId(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void TextRepository::QueryFlowPointByFlowId(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(flowQuery.trackId, trackInfo, flowQuery.fileId);
     if (!isSuccess) {
@@ -162,9 +156,8 @@ void TextRepository::QueryFlowPointByFlowId(const FlowQuery &flowQuery, std::vec
     }
 }
 
-void TextRepository::QueryAllThreadInfo(const ThreadQuery &threadQuery,
-    std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo)
-{
+void TextRepository::QueryAllThreadInfo(
+    const ThreadQuery &threadQuery, std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo) {
     ThreadTable threadTable;
     std::vector<ThreadPO> threadPOVec;
     threadTable.Select(ThreadColumn::TRACK_ID, ThreadColumn::PID, ThreadColumn::TID)
@@ -175,8 +168,7 @@ void TextRepository::QueryAllThreadInfo(const ThreadQuery &threadQuery,
 }
 
 void TextRepository::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
-    std::vector<CompeteSliceDomain> &competeSliceVec)
-{
+    std::vector<CompeteSliceDomain> &competeSliceVec) {
     if (std::empty(sliceIds)) {
         return;
     }
@@ -202,8 +194,7 @@ void TextRepository::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const 
     }
 }
 
-void TextRepository::QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void TextRepository::QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     FlowTable flowTable;
     std::vector<FlowPO> flowPOVec;
     flowTable.Select(FlowColumn::ID, FlowColumn::TRACK_ID, FlowColumn::FLOW_ID, FlowColumn::TYPE)
@@ -226,9 +217,8 @@ void TextRepository::QueryFlowPointByCategory(const FlowQuery &flowQuery, std::v
     }
 }
 
-void TextRepository::QueryAllFlagSlice(const SliceQuery &sliceQuery,
-    std::vector<CompeteSliceDomain> &competeSliceDomainVec)
-{
+void TextRepository::QueryAllFlagSlice(
+    const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &competeSliceDomainVec) {
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::FLAGID)
@@ -243,8 +233,7 @@ void TextRepository::QueryAllFlagSlice(const SliceQuery &sliceQuery,
     }
 }
 
-bool TextRepository::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain)
-{
+bool TextRepository::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
     bool success = QuerySliceDetailById(sliceQuery, competeSliceDomain);
     if (success) {
         QueryShapeInfoBySlice(sliceQuery, competeSliceDomain);
@@ -252,9 +241,8 @@ bool TextRepository::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteS
     return success;
 }
 
-bool TextRepository::QuerySliceDetailInfoByNameList(const SliceQueryByNameList &params,
-                                                    std::vector<CompeteSliceDomain> &res)
-{
+bool TextRepository::QuerySliceDetailInfoByNameList(
+    const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) {
     // 从process表查询pid
     ProcessTable processTable;
     std::vector<ProcessPO> processPOS;
@@ -279,27 +267,27 @@ bool TextRepository::QuerySliceDetailInfoByNameList(const SliceQueryByNameList &
     // 根据pid去查询track_id列表
     ThreadTable threadTable;
     std::vector<ThreadPO> threadPOVec;
-    threadTable.Select(ThreadColumn::TRACK_ID).In(ThreadColumn::PID, pidList)
-        .ExcuteQuery(params.rankId, threadPOVec);
+    threadTable.Select(ThreadColumn::TRACK_ID).In(ThreadColumn::PID, pidList).ExcuteQuery(params.rankId, threadPOVec);
     if (threadPOVec.empty()) {
         return false;
     }
     std::vector<uint64_t> trackIdList;
     std::transform(threadPOVec.begin(), threadPOVec.end(), std::back_inserter(trackIdList),
-                   [](ThreadPO thread) { return thread.trackId; });
+        [](ThreadPO thread) { return thread.trackId; });
 
     // 根据track id和算子名查询结果数据
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
-    sliceTable.Select(SliceColumn::TIMESTAMP, SliceColumn::DURATION, SliceColumn::NAME, SliceColumn::ENDTIME,
-        SliceColumn::TRACKID, SliceColumn::ARGS).In(SliceColumn::TRACKID, trackIdList)
+    sliceTable
+        .Select(SliceColumn::TIMESTAMP, SliceColumn::DURATION, SliceColumn::NAME, SliceColumn::ENDTIME,
+            SliceColumn::TRACKID, SliceColumn::ARGS)
+        .In(SliceColumn::TRACKID, trackIdList)
         .In(SliceColumn::NAME, params.nameList);
     if (params.startTime < params.endTime) {
         sliceTable.GreaterEq(SliceColumn::TIMESTAMP, params.startTime).LessEq(SliceColumn::ENDTIME, params.endTime);
     }
-    sliceTable.OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC)
-        .ExcuteQuery(params.rankId, slicePOVec);
-    for (const auto &item: slicePOVec) {
+    sliceTable.OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC).ExcuteQuery(params.rankId, slicePOVec);
+    for (const auto &item : slicePOVec) {
         CompeteSliceDomain domain;
         domain.timestamp = item.timestamp;
         domain.name = item.name;
@@ -312,8 +300,7 @@ bool TextRepository::QuerySliceDetailInfoByNameList(const SliceQueryByNameList &
     return true;
 }
 
-bool TextRepository::QuerySliceDetailById(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) const
-{
+bool TextRepository::QuerySliceDetailById(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) const {
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP)
@@ -334,8 +321,7 @@ bool TextRepository::QuerySliceDetailById(const SliceQuery &sliceQuery, CompeteS
     return true;
 }
 
-void TextRepository::QueryShapeInfoBySlice(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) const
-{
+void TextRepository::QueryShapeInfoBySlice(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) const {
     KernelDetailTable kernelDetailTable;
     std::vector<KernelDetailPO> kernelDetailPOs;
     kernelDetailTable.Select(KernelDetailColumn::OUTPUT_FORMATS, KernelDetailColumn::INPUT_SHAPES)
@@ -358,8 +344,8 @@ void TextRepository::QueryShapeInfoBySlice(const SliceQuery &sliceQuery, Compete
     competeSliceDomain.sliceShape.inputShapes = kernelDetailPo.inputShapes;
 }
 
-bool TextRepository::QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain)
-{
+bool TextRepository::QuerySliceByTimepointAndName(
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
     SliceTable sliceTable;
     std::vector<SlicePO> slicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP)

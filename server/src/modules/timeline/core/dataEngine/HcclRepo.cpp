@@ -21,8 +21,7 @@
 #include "MetaDataCacheManager.h"
 #include "HcclRepo.h"
 namespace Dic::Module::Timeline {
-void HcclRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec)
-{
+void HcclRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -36,9 +35,8 @@ void HcclRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery
     }
 }
 
-void HcclRepo::QuerySimpleSliceFromPlaneTrack(std::vector<SliceDomain> &sliceVec, TrackInfo &trackInfo,
-                                              const SliceQuery &sliceQuery)
-{
+void HcclRepo::QuerySimpleSliceFromPlaneTrack(
+    std::vector<SliceDomain> &sliceVec, TrackInfo &trackInfo, const SliceQuery &sliceQuery) {
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPoVec;
     std::string groupName = trackInfo.threadId;
     std::string threadId = trackInfo.threadId;
@@ -72,17 +70,16 @@ void HcclRepo::QuerySimpleSliceFromPlaneTrack(std::vector<SliceDomain> &sliceVec
 }
 
 void HcclRepo::QuerySimpleSliceFromGroupTrack(std::vector<SliceDomain> &sliceVec, const TrackInfo &trackInfo,
-    const std::string &suffix, const SliceQuery &sliceQuery)
-{
+    const std::string &suffix, const SliceQuery &sliceQuery) {
     // 获取设备id列表
     std::vector<uint64_t> deviceIdList = npuInfoRepo->QueryDeviceIdByFileId(trackInfo.cardId);
     std::vector<CommucationTaskOpPO> commucationTaskOpPOVec;
     std::string tid = trackInfo.threadId.substr(0, trackInfo.threadId.size() - suffix.size());
     commucationOpTable->Select(CommucationTaskOpColumn::TIMESTAMP, CommucationTaskOpColumn::ENDTIME)
-            .Select(CommucationTaskOpColumn::OP_ID)
-            .Eq(CommucationTaskOpColumn::GROUPNAME, tid)
-            .LessEq(CommucationTaskOpColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
-            .Greater(CommucationTaskOpColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp);
+        .Select(CommucationTaskOpColumn::OP_ID)
+        .Eq(CommucationTaskOpColumn::GROUPNAME, tid)
+        .LessEq(CommucationTaskOpColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
+        .Greater(CommucationTaskOpColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp);
     if (deviceIdList.size() != 1) {
         // 设备id不唯一，走老逻辑，通过communication_task_info作为中间表查询对应deviceId下大算子数据
         std::vector<uint64_t> globalIds = QueryGlobalTaskIdsByRank(trackInfo);
@@ -99,9 +96,8 @@ void HcclRepo::QuerySimpleSliceFromGroupTrack(std::vector<SliceDomain> &sliceVec
     }
 }
 
-std::vector<uint64_t> HcclRepo::QueryOpIdsByGlabalTaskIds(const TrackInfo &trackInfo,
-    const std::vector<uint64_t> &globalIds)
-{
+std::vector<uint64_t> HcclRepo::QueryOpIdsByGlabalTaskIds(
+    const TrackInfo &trackInfo, const std::vector<uint64_t> &globalIds) {
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPoVec;
     commucationTaskInfoTable->Select(CommucationTaskInfoColumn::OP_ID)
         .In(CommucationTaskInfoColumn::GLOBAL_TASK_ID, globalIds)
@@ -113,21 +109,19 @@ std::vector<uint64_t> HcclRepo::QueryOpIdsByGlabalTaskIds(const TrackInfo &track
     return opIds;
 }
 
-std::vector<uint64_t> HcclRepo::QueryGlobalTaskIdsByRank(const TrackInfo &trackInfo)
-{
+std::vector<uint64_t> HcclRepo::QueryGlobalTaskIdsByRank(const TrackInfo &trackInfo) {
     std::vector<TaskPO> taskPoVec;
     taskTable->Select(TaskColumn::GLOBAL_TASK_ID)
         .Eq(TaskColumn::DECICED_ID, trackInfo.deviceId)
         .ExcuteQuery(trackInfo.cardId, taskPoVec);
     std::vector<uint64_t> globalIds(taskPoVec.size());
-    std::transform(taskPoVec.begin(), taskPoVec.end(), globalIds.begin(),
-        [](const TaskPO &item) { return item.globalTaskId; });
+    std::transform(
+        taskPoVec.begin(), taskPoVec.end(), globalIds.begin(), [](const TaskPO &item) { return item.globalTaskId; });
     return globalIds;
 }
 
 void HcclRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
-    std::vector<CompeteSliceDomain> &competeSliceVec)
-{
+    std::vector<CompeteSliceDomain> &competeSliceVec) {
     if (std::empty(sliceIds)) {
         return;
     }
@@ -145,8 +139,7 @@ void HcclRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::v
 }
 
 void HcclRepo::QueryPlaneSliceByIds(const std::vector<uint64_t> &sliceIds,
-    std::vector<CompeteSliceDomain> &competeSliceVec, const TrackInfo &trackInfo)
-{
+    std::vector<CompeteSliceDomain> &competeSliceVec, const TrackInfo &trackInfo) {
     std::vector<TaskPO> taskPoVec;
     taskTable->Select(TaskColumn::ROW_ID, TaskColumn::TIMESTAMP)
         .Select(TaskColumn::ENDTIME, TaskColumn::GLOBAL_TASK_ID)
@@ -154,8 +147,8 @@ void HcclRepo::QueryPlaneSliceByIds(const std::vector<uint64_t> &sliceIds,
         .ExcuteQuery(trackInfo.cardId, taskPoVec);
     std::string nameKey = taskTable->GetDbPath(trackInfo.cardId);
     std::vector<uint64_t> globalIds(taskPoVec.size());
-    std::transform(taskPoVec.begin(), taskPoVec.end(), globalIds.begin(),
-        [](const TaskPO &item) { return item.globalTaskId; });
+    std::transform(
+        taskPoVec.begin(), taskPoVec.end(), globalIds.begin(), [](const TaskPO &item) { return item.globalTaskId; });
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPoVec;
     commucationTaskInfoTable->Select(CommucationTaskInfoColumn::GLOBAL_TASK_ID)
         .Select(CommucationTaskInfoColumn::TASK_TYPE)
@@ -177,8 +170,7 @@ void HcclRepo::QueryPlaneSliceByIds(const std::vector<uint64_t> &sliceIds,
 }
 
 void HcclRepo::QueryGroupSliceByIds(const std::vector<uint64_t> &sliceIds,
-    std::vector<CompeteSliceDomain> &competeSliceVec, const TrackInfo &trackInfo)
-{
+    std::vector<CompeteSliceDomain> &competeSliceVec, const TrackInfo &trackInfo) {
     std::vector<CommucationTaskOpPO> commucationTaskOpPOVec;
     commucationOpTable->Select(CommucationTaskOpColumn::OP_ID, CommucationTaskOpColumn::TIMESTAMP)
         .Select(CommucationTaskOpColumn::ENDTIME, CommucationTaskOpColumn::OP_NAME)
@@ -195,36 +187,31 @@ void HcclRepo::QueryGroupSliceByIds(const std::vector<uint64_t> &sliceIds,
     }
 }
 
-void HcclRepo::SetTaskTable(std::unique_ptr<TaskTable> taskTablePtr)
-{
+void HcclRepo::SetTaskTable(std::unique_ptr<TaskTable> taskTablePtr) {
     if (taskTablePtr != nullptr) {
         taskTable = std::move(taskTablePtr);
     }
 }
 
-void HcclRepo::SetCommucationOpTable(std::unique_ptr<CommucationOpTable> commucationOpTablePtr)
-{
+void HcclRepo::SetCommucationOpTable(std::unique_ptr<CommucationOpTable> commucationOpTablePtr) {
     if (commucationOpTablePtr != nullptr) {
         commucationOpTable = std::move(commucationOpTablePtr);
     }
 }
 
-void HcclRepo::SetNpuInfoRepo(std::unique_ptr<NpuInfoRepo> npuInfoRepoPtr)
-{
+void HcclRepo::SetNpuInfoRepo(std::unique_ptr<NpuInfoRepo> npuInfoRepoPtr) {
     if (npuInfoRepoPtr != nullptr) {
         npuInfoRepo = std::move(npuInfoRepoPtr);
     }
 }
 
-void HcclRepo::SetCommucationTaskInfoTable(std::unique_ptr<CommucationTaskInfoTable> commucationTaskInfoTablePtr)
-{
+void HcclRepo::SetCommucationTaskInfoTable(std::unique_ptr<CommucationTaskInfoTable> commucationTaskInfoTablePtr) {
     if (commucationTaskInfoTablePtr != nullptr) {
         commucationTaskInfoTable = std::move(commucationTaskInfoTablePtr);
     }
 }
 
-bool HcclRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain)
-{
+bool HcclRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -238,8 +225,7 @@ bool HcclRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDo
     }
 }
 
-bool HcclRepo::QueryPlaneSliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain)
-{
+bool HcclRepo::QueryPlaneSliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
     std::vector<TaskPO> taskPOs;
     taskTable->Select(TaskColumn::ROW_ID, TaskColumn::TASK_TYPE)
         .Select(TaskColumn::TIMESTAMP, TaskColumn::ENDTIME)
@@ -268,7 +254,7 @@ bool HcclRepo::QueryPlaneSliceDetailInfo(const SliceQuery &sliceQuery, CompeteSl
         return false;
     }
     CommucationTaskInfoPO infoPo = commucationTaskInfoPOs[0];
-    std::vector<uint64_t> strIds = { infoPo.taskType };
+    std::vector<uint64_t> strIds = {infoPo.taskType};
     std::unordered_map<uint64_t, std::string> strMap = stringIdsTable->QueryStrMap(strIds, sliceQuery.rankId);
     if (strMap.find(infoPo.taskType) == strMap.end()) {
         ServerLog::Warn("Failed to query plane slice name.");
@@ -280,8 +266,7 @@ bool HcclRepo::QueryPlaneSliceDetailInfo(const SliceQuery &sliceQuery, CompeteSl
 }
 
 void HcclRepo::SetPlaneSliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-    const TaskPO &targetPO, CommucationTaskInfoPO &targetTaskInfo)
-{
+    const TaskPO &targetPO, CommucationTaskInfoPO &targetTaskInfo) {
     std::string notifyId = std::to_string(targetTaskInfo.notifyId);
     std::string streamId = std::to_string(targetPO.streamId);
     std::string taskId = std::to_string(targetPO.taskId);
@@ -304,8 +289,7 @@ void HcclRepo::SetPlaneSliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomai
     JsonUtil::AddConstMember(json, TaskColumn::TASK_TYPE, taskType, allocator);
     JsonUtil::AddConstMember(json, CommucationTaskInfoColumn::SRC_RANK, srcRank, allocator);
     JsonUtil::AddConstMember(json, CommucationTaskInfoColumn::DST_RANK, dstRank, allocator);
-    std::optional<ParallelGroupInfo> groupInfo = GetGroupInfoByGroupNameId(targetTaskInfo.groupName,
-                                                                           sliceQuery.rankId);
+    std::optional<ParallelGroupInfo> groupInfo = GetGroupInfoByGroupNameId(targetTaskInfo.groupName, sliceQuery.rankId);
     if (groupInfo.has_value()) {
         std::vector<std::string> ranks = groupInfo.value().globalRanks;
         JsonUtil::AddConstMember(json, globalSrcRank, GetRealRankByLocalRank(targetTaskInfo.srcRank, ranks), allocator);
@@ -320,19 +304,17 @@ void HcclRepo::SetPlaneSliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomai
     competeSliceDomain.args = JsonUtil::JsonDump(json);
 }
 
-std::string HcclRepo::GetRealRankByLocalRank(uint64_t localRank, std::vector<std::string> &realRankList)
-{
+std::string HcclRepo::GetRealRankByLocalRank(uint64_t localRank, std::vector<std::string> &realRankList) {
     if (realRankList.size() <= localRank) {
         return "-1";
     }
     return realRankList[localRank];
 }
 
-std::optional<ParallelGroupInfo> HcclRepo::GetGroupInfoByGroupNameId(const uint64_t groupNameId,
-                                                                     const std::string &fileId)
-{
-    std::unordered_map<uint64_t, std::string> strMap = stringIdsTable->QueryStrMap(
-        std::vector<uint64_t>{groupNameId}, fileId);
+std::optional<ParallelGroupInfo> HcclRepo::GetGroupInfoByGroupNameId(
+    const uint64_t groupNameId, const std::string &fileId) {
+    std::unordered_map<uint64_t, std::string> strMap =
+        stringIdsTable->QueryStrMap(std::vector<uint64_t>{groupNameId}, fileId);
     auto groupNameItr = strMap.find(groupNameId);
     if (groupNameItr == strMap.end()) {
         return std::nullopt;
@@ -340,10 +322,9 @@ std::optional<ParallelGroupInfo> HcclRepo::GetGroupInfoByGroupNameId(const uint6
     return MetaDataCacheManager::Instance().GetParallelGroupInfo(groupNameItr->second);
 }
 
-std::string HcclRepo::QueryBandwidth(const SliceQuery &sliceQuery, const TaskPO &targetPO)
-{
+std::string HcclRepo::QueryBandwidth(const SliceQuery &sliceQuery, const TaskPO &targetPO) {
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPOs =
-            commucationTaskInfoTable->Select(CommucationTaskInfoColumn::BANDWIDTH)
+        commucationTaskInfoTable->Select(CommucationTaskInfoColumn::BANDWIDTH)
             .Eq(CommucationTaskInfoColumn::GLOBAL_TASK_ID, targetPO.globalTaskId)
             .ExcuteQuery(sliceQuery.rankId);
     std::string bandwidth;
@@ -353,8 +334,7 @@ std::string HcclRepo::QueryBandwidth(const SliceQuery &sliceQuery, const TaskPO 
     return bandwidth;
 }
 
-std::string HcclRepo::QueryRdmaTypeName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo)
-{
+std::string HcclRepo::QueryRdmaTypeName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo) {
     std::vector<EnumHcclRdmaTypePO> rdmaTypes = enumHcclRdmaTypeTable->Select(EnumHcclRdmaTypeClumn::NAME)
                                                     .Eq(EnumHcclRdmaTypeClumn::ID, targetTaskInfo.rdmaType)
                                                     .ExcuteQuery(sliceQuery.rankId);
@@ -365,8 +345,7 @@ std::string HcclRepo::QueryRdmaTypeName(const SliceQuery &sliceQuery, Commucatio
     return ramaTypeName;
 }
 
-std::string HcclRepo::QueryLinkTypeName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo)
-{
+std::string HcclRepo::QueryLinkTypeName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo) {
     std::vector<EnumHcclLinkTypePO> linkTypes = enumHcclLinkTypeTable->Select(EnumHcclLinkTypeClumn::NAME)
                                                     .Eq(EnumHcclLinkTypeClumn::ID, targetTaskInfo.linkType)
                                                     .ExcuteQuery(sliceQuery.rankId);
@@ -377,8 +356,7 @@ std::string HcclRepo::QueryLinkTypeName(const SliceQuery &sliceQuery, Commucatio
     return linkTypeName;
 }
 
-std::string HcclRepo::QueryDataTypeName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo)
-{
+std::string HcclRepo::QueryDataTypeName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo) {
     std::vector<EnumHcclDataTypePO> dataTypes = enumHcclDataTypeTable->Select(EnumHcclDataTypeClumn::NAME)
                                                     .Eq(EnumHcclDataTypeClumn::ID, targetTaskInfo.dataType)
                                                     .ExcuteQuery(sliceQuery.rankId);
@@ -389,8 +367,7 @@ std::string HcclRepo::QueryDataTypeName(const SliceQuery &sliceQuery, Commucatio
     return dataTypeName;
 }
 
-std::string HcclRepo::QueryTransportName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo)
-{
+std::string HcclRepo::QueryTransportName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo) {
     std::vector<EnumHcclTransportTypePO> transportTypes =
         enumHcclTransportTypeTable->Select(EnumHcclTransportTypeClumn::NAME)
             .Eq(EnumHcclTransportTypeClumn::ID, targetTaskInfo.transportType)
@@ -402,9 +379,8 @@ std::string HcclRepo::QueryTransportName(const SliceQuery &sliceQuery, Commucati
     return transportName;
 }
 
-bool HcclRepo::QueryGroupSliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-    const TrackInfo &trackInfo)
-{
+bool HcclRepo::QueryGroupSliceDetailInfo(
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TrackInfo &trackInfo) {
     std::vector<CommucationTaskOpPO> commucationTaskOpPOVec;
     commucationOpTable->Select(CommucationTaskOpColumn::TIMESTAMP, CommucationTaskOpColumn::ENDTIME)
         .Select(CommucationTaskOpColumn::OP_NAME, CommucationTaskOpColumn::CONNECTION_ID)

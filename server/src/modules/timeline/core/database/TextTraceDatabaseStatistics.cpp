@@ -20,6 +20,6 @@
 #include "TextTraceDatabase.h"
 
 namespace Dic::Module::Timeline {
-    using namespace Dic::Server;
-    using namespace Dic::Protocol;
+using namespace Dic::Server;
+using namespace Dic::Protocol;
 }

@@ -36,23 +36,11 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Module::FullDb;
-enum class DatabaseType {
-    TRACE,
-    SUMMARY,
-    MEMORY,
-    MEM_SCOPE,
-    MEM_SNAPSHOT
-};
-enum class DataType {
-    TEXT,
-    DB
-};
-enum class FileType {
-    MS_PROF,
-    PYTORCH
-};
+enum class DatabaseType { TRACE, SUMMARY, MEMORY, MEM_SCOPE, MEM_SNAPSHOT };
+enum class DataType { TEXT, DB };
+enum class FileType { MS_PROF, PYTORCH };
 class DataBaseManager {
-public:
+  public:
     static DataBaseManager &Instance();
     DataBaseManager(const DataBaseManager &) = delete;
     DataBaseManager &operator=(const DataBaseManager &) = delete;
@@ -61,7 +49,7 @@ public:
 
     bool CreateTraceConnectionPool(const std::string &rankId, const std::string &dbPath);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByRankId(const std::string &rankId);
-    std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByFileId(const std::string& fileId);
+    std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByFileId(const std::string &fileId);
 
     std::vector<DBConnectionPool<VirtualTraceDatabase> *> GetAllTraceDatabase();
     std::vector<std::string> GetAllRankId();
@@ -70,47 +58,46 @@ public:
     void EraseClusterDb(const std::string &uniqueKey);
     void ClearClusterDb();
     void ReleaseDatabaseByRankId(const std::string &rankId);
-    void ReleaseDatabaseByFileId(const std::string& fileId);
+    void ReleaseDatabaseByFileId(const std::string &fileId);
     bool HasRankId(DatabaseType type, const std::string &rankId);
     void CreateClusterConnectionPool(const std::string &projectPath, const std::string &dbPath, DataType type);
     std::shared_ptr<VirtualClusterDatabase> GetClusterDatabase(const std::string &uniqueKey);
     std::vector<std::shared_ptr<VirtualClusterDatabase>> GetAllClusterDatabase();
 
-    std::shared_ptr<Memory::VirtualMemoryDataBase> CreateMemoryDataBase(const std::string &rankId,
-                                                                        const std::string &dbPath);
+    std::shared_ptr<Memory::VirtualMemoryDataBase> CreateMemoryDataBase(
+        const std::string &rankId, const std::string &dbPath);
     std::shared_ptr<Memory::VirtualMemoryDataBase> GetMemoryDatabaseByRankId(const std::string &rankId);
-    std::shared_ptr<Memory::VirtualMemoryDataBase> GetMemoryDatabaseByFileId(const std::string& fileId);
+    std::shared_ptr<Memory::VirtualMemoryDataBase> GetMemoryDatabaseByFileId(const std::string &fileId);
 
     std::vector<Memory::VirtualMemoryDataBase *> GetAllMemoryDatabase();
 
     std::shared_ptr<FullDb::MemScopeDatabase> GetMemScopeDatabase(const std::string &fileId);
     std::shared_ptr<FullDb::MemSnapshotDatabase> GetMemSnapshotDatabase(const std::string &fileId);
-    std::vector<FullDb::MemScopeDatabase*> GetAllMemScopeDatabase();
-    std::vector<FullDb::MemSnapshotDatabase*> GetAllMemSnapshotDatabase();
+    std::vector<FullDb::MemScopeDatabase *> GetAllMemScopeDatabase();
+    std::vector<FullDb::MemSnapshotDatabase *> GetAllMemSnapshotDatabase();
     std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseByRankId(const std::string &rankId);
-    std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseWithCluster(const std::string &cluster,
-                                                                                   const std::string &rankId);
+    std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseWithCluster(
+        const std::string &cluster, const std::string &rankId);
     std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDataBaseByFileId(const std::string &fileId);
-    std::shared_ptr<Summary::VirtualSummaryDataBase> CreateSummaryDatabase(const std::string &rankId,
-                                                                           const std::string &dbPath);
+    std::shared_ptr<Summary::VirtualSummaryDataBase> CreateSummaryDatabase(
+        const std::string &rankId, const std::string &dbPath);
     std::vector<Summary::VirtualSummaryDataBase *> GetAllSummaryDatabase();
 
     std::string GetDbPathByRankId(const std::string &rankId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseWithOutHost(const std::string &rankId);
-    std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseInCluster(const std::string& clusterPath,
-                                                                    const std::string &rankId);
+    std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseInCluster(
+        const std::string &clusterPath, const std::string &rankId);
     DataType GetDataType(const std::string &fileId);
-    DataType GetDataTypeByRank(const std::string& rankId);
+    DataType GetDataTypeByRank(const std::string &rankId);
     void SetDataType(DataType type, const std::string &fileId);
     FileType GetFileType(const std::string &fileId);
     FileType GetFileTypeByRankId(const std::string &rankId);
     void SetFileType(FileType type, const std::string &fileId);
     bool ResetBaseline(bool force);
-    void SetDbPathMapping(const std::string& rankId, const std::string& dbPath, const std::string& hostId);
-    bool IsContainDatabasePath(const std::string& databasePath);
+    void SetDbPathMapping(const std::string &rankId, const std::string &dbPath, const std::string &hostId);
+    bool IsContainDatabasePath(const std::string &databasePath);
     std::string GetDeviceIdFromRankId(const std::string &rankId);
-    inline std::vector<std::string> GetDbPathByHost(const std::string& id)
-    {
+    inline std::vector<std::string> GetDbPathByHost(const std::string &id) {
         if (host2DbPath.find(id) != host2DbPath.end()) {
             return host2DbPath[id];
         }
@@ -120,14 +107,12 @@ public:
 
     std::string GetAnyTraceDatabaseId();
 
-    std::string GetFileIdByRankId(const std::string& rankId) const;
+    std::string GetFileIdByRankId(const std::string &rankId) const;
 
-    void UpdateRankIdToDeviceId(const std::string &fileId,
-                                const std::string &rankId,
-                                const std::string &deviceId);
+    void UpdateRankIdToDeviceId(const std::string &fileId, const std::string &rankId, const std::string &deviceId);
     void SetRankIdFileIdMapping(const std::string &rankId, const std::string &fileId);
 
-private:
+  private:
     using RankId = std::string;
     using FileId = std::string;
     using DbPath = FileId;
@@ -157,7 +142,7 @@ private:
     std::map<RankId, std::shared_ptr<Memory::VirtualMemoryDataBase>> memoryBaselineDatabaseMap;
     std::map<RankId, std::shared_ptr<Summary::VirtualSummaryDataBase>> summaryBaselineDatabaseMap;
 
-    std::map<std::string, std::string> rankIdToDeviceIdMap;  // key: fileId + rankId , value: deviceId
+    std::map<std::string, std::string> rankIdToDeviceIdMap; // key: fileId + rankId , value: deviceId
     std::recursive_mutex &GetDbMutex(const std::string &fileId);
     void SetClusterProjectDbPathMapping(const std::string &projectPath, const std::string &dbPath);
 };

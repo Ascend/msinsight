@@ -26,15 +26,16 @@
 namespace Dic::Module::Timeline {
 using Stmt = std::unique_ptr<SqlitePreparedStatement>;
 class HardWareRepo : public IBaseSliceRepo, public IFindSliceByNameList {
-public:
-    void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-        std::vector<SliceDomain> &sliceVec) override;
+  public:
+    void QuerySimpleSliceWithOutNameByTrackId(
+        const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
         std::vector<CompeteSliceDomain> &CompeteSliceVec) override;
     bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override;
-    bool QuerySliceDetailInfoByNameList(const SliceQueryByNameList &params,
-                                        std::vector<CompeteSliceDomain> &res) override;
-protected:
+    bool QuerySliceDetailInfoByNameList(
+        const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) override;
+
+  protected:
     std::unique_ptr<TaskTable> taskTable = std::make_unique<TaskTable>();
     std::unique_ptr<TaskPmuInfoTable> taskPmuInfoTable = std::make_unique<TaskPmuInfoTable>();
     std::unique_ptr<ComputeTaskInfoTable> computeTaskInfoTable = std::make_unique<ComputeTaskInfoTable>();
@@ -44,14 +45,13 @@ protected:
     std::string GetDbPath(const SliceQuery &sliceQuery);
     void QuerySliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
 
-    void
-    QuerySliceShape(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
-    void QuerySlicePmuInfo(const SliceQuery& sliceQuery, CompeteSliceDomain& competeSliceDomain,
-                           uint64_t globalTaskId);
-    bool QueryMemoryInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-                         const TaskPO &targetTask);
+    void QuerySliceShape(
+        const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
+    void QuerySlicePmuInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, uint64_t globalTaskId);
+    bool QueryMemoryInfo(
+        const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
     static std::unique_ptr<SqlitePreparedStatement> PrepareStmtForQuerySimpleSliceWithOutNameByTrackId(
-        const TrackInfo &trackInfo, const std::shared_ptr<VirtualTraceDatabase>& database,
+        const TrackInfo &trackInfo, const std::shared_ptr<VirtualTraceDatabase> &database,
         const SliceQuery &sliceQuery);
 };
 }
