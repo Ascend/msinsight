@@ -17,19 +17,16 @@
  */
 #include "StringIdsTable.h"
 namespace Dic::Module::Timeline {
-void StringIdsTable::SetId(StringIdsPO &stringIdsPO, const std::unique_ptr<SqliteResultSet> &resultSet)
-{
+void StringIdsTable::SetId(StringIdsPO &stringIdsPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     stringIdsPO.id = resultSet->GetUint64(StringIdsColumn::ID);
 }
 
-void StringIdsTable::SetValue(StringIdsPO &stringIdsPO, const std::unique_ptr<SqliteResultSet> &resultSet)
-{
+void StringIdsTable::SetValue(StringIdsPO &stringIdsPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     stringIdsPO.value = resultSet->GetString(StringIdsColumn::VALUE);
 }
 
-std::unordered_map<uint64_t, std::string> StringIdsTable::QueryStrMap(const std::vector<uint64_t> &ids,
-    const std::string &fileId)
-{
+std::unordered_map<uint64_t, std::string> StringIdsTable::QueryStrMap(
+    const std::vector<uint64_t> &ids, const std::string &fileId) {
     std::unordered_map<uint64_t, std::string> res;
     std::vector<StringIdsPO> stringIdsPOs;
     Select(StringIdsColumn::ID, StringIdsColumn::VALUE).In(StringIdsColumn::ID, ids).ExcuteQuery(fileId, stringIdsPOs);
@@ -39,9 +36,8 @@ std::unordered_map<uint64_t, std::string> StringIdsTable::QueryStrMap(const std:
     return res;
 }
 
-std::unordered_map<uint64_t, std::string> StringIdsTable::QueryStrMapByValues(const std::vector<std::string> &values,
-                                                                              const std::string &fileId)
-{
+std::unordered_map<uint64_t, std::string> StringIdsTable::QueryStrMapByValues(
+    const std::vector<std::string> &values, const std::string &fileId) {
     std::unordered_map<uint64_t, std::string> res;
     std::vector<StringIdsPO> stringIdsPOs;
     Select(StringIdsColumn::ID, StringIdsColumn::VALUE)

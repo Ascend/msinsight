@@ -28,23 +28,21 @@ struct PytorchCallchainsPO {
 };
 
 class PytorchCallchainsTable : public Table<PytorchCallchainsPO> {
-public:
+  public:
     PytorchCallchainsTable() = default;
     ~PytorchCallchainsTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { PytorchCallchainsColumn::ID, SetId },
-            { PytorchCallchainsColumn::STACK, SetStack },
-            { PytorchCallchainsColumn::STACK_DEPTH, SetStackDepth },
+            {PytorchCallchainsColumn::ID, SetId},
+            {PytorchCallchainsColumn::STACK, SetStack},
+            {PytorchCallchainsColumn::STACK_DEPTH, SetStackDepth},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "PYTORCH_CALLCHAINS";
         return tableName;
     }

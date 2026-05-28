@@ -42,10 +42,9 @@ struct SqlStruct {
     std::string selectStr;
 };
 template <typename T> class Table {
-public:
+  public:
     Table() noexcept = default;
-    Table &Select(std::string_view str)
-    {
+    Table &Select(std::string_view str) {
         if (std::empty(SelectStr())) {
             SelectStr() = "SELECT " + std::string(str);
         } else {
@@ -60,8 +59,7 @@ public:
         return *this;
     }
 
-    template <typename... Args> Table &Select(std::string_view str, const Args &... args)
-    {
+    template <typename... Args> Table &Select(std::string_view str, const Args &...args) {
         if (std::empty(SelectStr())) {
             SelectStr() = "SELECT " + std::string(str);
         } else {
@@ -77,65 +75,53 @@ public:
         return *this;
     }
 
-    Table &Eq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value)
-    {
+    Table &Eq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
         ConditionStr() += " AND " + std::string(str) + " = ? ";
         Values().emplace_back(value);
         return *this;
     }
 
-    Table &NotEq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value)
-    {
+    Table &NotEq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
         ConditionStr() += " AND " + std::string(str) + " != ? ";
         Values().emplace_back(value);
         return *this;
     }
 
-    Table &Less(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value)
-    {
+    Table &Less(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
         ConditionStr() += " AND " + std::string(str) + " < ? ";
         Values().emplace_back(value);
         return *this;
     }
 
-    Table &LessEq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value)
-    {
+    Table &LessEq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
         ConditionStr() += " AND " + std::string(str) + " <= ? ";
         Values().emplace_back(value);
         return *this;
     }
 
-    Table &Greater(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value)
-    {
+    Table &Greater(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
         ConditionStr() += " AND " + std::string(str) + " > ? ";
         Values().emplace_back(value);
         return *this;
     }
 
-    Table &GreaterEq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value)
-    {
+    Table &GreaterEq(std::string_view str, std::variant<uint32_t, uint64_t, std::string> value) {
         ConditionStr() += " AND " + std::string(str) + " >= ? ";
         Values().emplace_back(value);
         return *this;
     }
 
-    Table &Like(std::string_view str, std::string value)
-    {
+    Table &Like(std::string_view str, std::string value) {
         ConditionStr() += " AND " + std::string(str) + " LIKE ? ";
         Values().emplace_back(value);
         return *this;
     }
 
-    template<typename Y>
-    static inline constexpr bool is_one_of_basic_types = std::disjunction_v<
-            std::is_same<Y, uint32_t>,
-            std::is_same<Y, uint64_t>,
-            std::is_same<Y, std::string>
-    >;
+    template <typename Y>
+    static inline constexpr bool is_one_of_basic_types =
+        std::disjunction_v<std::is_same<Y, uint32_t>, std::is_same<Y, uint64_t>, std::is_same<Y, std::string>>;
 
-    template<typename Y>
-    std::string SaveParamListAndGetPlaceholderStr(const std::vector<Y> &inputList)
-    {
+    template <typename Y> std::string SaveParamListAndGetPlaceholderStr(const std::vector<Y> &inputList) {
         static_assert(is_one_of_basic_types<Y>, "Fail to save param and get placeholder str, unknown type.");
         std::string res;
         for (size_t i = 0; i < inputList.size(); ++i) {
@@ -155,26 +141,21 @@ public:
      * @param inputs
      * @return
      */
-    template<typename Y>
-    Table &In(std::string_view str, const std::vector<Y> &inputs)
-    {
+    template <typename Y> Table &In(std::string_view str, const std::vector<Y> &inputs) {
         ConditionStr() += " AND " + std::string(str) + " IN ( ";
         std::string placeholderStr = SaveParamListAndGetPlaceholderStr(inputs);
         ConditionStr() += placeholderStr + " ) ";
         return *this;
     }
 
-    template<typename Y>
-    Table &NotIn(std::string_view str, const std::vector<Y> &inputs)
-    {
+    template <typename Y> Table &NotIn(std::string_view str, const std::vector<Y> &inputs) {
         ConditionStr() += " AND " + std::string(str) + " NOT IN ( ";
         std::string placeholderStr = SaveParamListAndGetPlaceholderStr(inputs);
         ConditionStr() += placeholderStr + " ) ";
         return *this;
     }
 
-    Table &OrderBy(std::string_view columnName, TableOrder order)
-    {
+    Table &OrderBy(std::string_view columnName, TableOrder order) {
         if (std::empty(OrderByStr())) {
             OrderByStr() = " ORDER BY " + std::string(columnName);
         } else {
@@ -188,8 +169,7 @@ public:
         return *this;
     }
 
-    Table &GroupBy(std::string_view columnName)
-    {
+    Table &GroupBy(std::string_view columnName) {
         if (std::empty(GroupByStr())) {
             GroupByStr() = " GROUP BY " + std::string(columnName);
         } else {
@@ -198,15 +178,13 @@ public:
         return *this;
     }
 
-    virtual std::vector<T> ExcuteQuery(const std::string &fileId)
-    {
+    virtual std::vector<T> ExcuteQuery(const std::string &fileId) {
         std::vector<T> result;
         ExcuteQuery(fileId, result);
         return result;
     }
 
-    virtual void ExcuteQuery(const std::string &fileId, std::vector<T> &result)
-    {
+    virtual void ExcuteQuery(const std::string &fileId, std::vector<T> &result) {
         auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(fileId);
         if (database == nullptr) {
             ClearThreadLocal();
@@ -246,8 +224,7 @@ public:
         ClearThreadLocal();
     }
 
-    virtual void ExcuteQuery(sqlite3 *db, std::vector<T> &result)
-    {
+    virtual void ExcuteQuery(sqlite3 *db, std::vector<T> &result) {
         auto stmt = std::make_unique<SqlitePreparedStatement>(db);
         if (stmt == nullptr) {
             ServerLog::Warn(GetTableName() + " Failed to get stmt.");
@@ -287,8 +264,7 @@ public:
         ClearThreadLocal();
     }
 
-    virtual uint64_t Count(const std::string &fileId)
-    {
+    virtual uint64_t Count(const std::string &fileId) {
         auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(fileId);
         if (database == nullptr) {
             ClearThreadLocal();
@@ -325,8 +301,7 @@ public:
         return count;
     }
 
-    virtual std::string GetDbPath(const std::string &fileId)
-    {
+    virtual std::string GetDbPath(const std::string &fileId) {
         auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(fileId);
         if (database == nullptr) {
             std::string empty;
@@ -338,43 +313,28 @@ public:
 
     virtual ~Table() = default;
 
-protected:
+  protected:
     using assign = std::function<void(T &, const std::unique_ptr<SqliteResultSet> &)>;
 
-    inline std::string &SelectStr() const
-    {
-        return GetSqlStruct().selectStr;
-    }
+    inline std::string &SelectStr() const { return GetSqlStruct().selectStr; }
 
-    inline std::string &ConditionStr() const
-    {
-        return GetSqlStruct().conditionStr;
-    }
+    inline std::string &ConditionStr() const { return GetSqlStruct().conditionStr; }
 
-    inline std::string &OrderByStr() const
-    {
-        return GetSqlStruct().orderByStr;
-    }
+    inline std::string &OrderByStr() const { return GetSqlStruct().orderByStr; }
 
-    inline std::string &GroupByStr() const
-    {
-        return GetSqlStruct().groupByStr;
-    }
+    inline std::string &GroupByStr() const { return GetSqlStruct().groupByStr; }
 
-    inline SqlStruct &GetSqlStruct() const
-    {
+    inline SqlStruct &GetSqlStruct() const {
         thread_local SqlStruct sqlStruct;
         return sqlStruct;
     }
 
-    std::vector<std::variant<uint32_t, uint64_t, std::string>> &Values()
-    {
+    std::vector<std::variant<uint32_t, uint64_t, std::string>> &Values() {
         thread_local std::vector<std::variant<uint32_t, uint64_t, std::string>> values;
         return values;
     }
 
-    std::vector<assign> &AssignFuncs()
-    {
+    std::vector<assign> &AssignFuncs() {
         thread_local std::vector<assign> assignFuncs;
         return assignFuncs;
     }
@@ -382,8 +342,7 @@ protected:
     /* *
      * 每次调用完成需要重置threadlocal变量
      */
-    void ClearThreadLocal()
-    {
+    void ClearThreadLocal() {
         AssignFuncs().clear();
         Values().clear();
         ConditionStr().clear();
@@ -396,6 +355,5 @@ protected:
     virtual const std::string &GetTableName() = 0;
 };
 }
-
 
 #endif // PROFILER_SERVER_TABLE_H

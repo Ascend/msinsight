@@ -26,23 +26,21 @@ struct EnumMstxEventTypePO {
     std::string name;
 };
 class EnumMstxEventTypeTable : public Table<EnumMstxEventTypePO> {
-public:
+  public:
     EnumMstxEventTypeTable() = default;
     ~EnumMstxEventTypeTable() override = default;
     std::unordered_map<uint64_t, std::string> QueryStrMap(const std::vector<uint64_t> &ids, const std::string &fileId);
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { EnumMstxEventTypeColumn::ID, SetId },
-            { EnumMstxEventTypeColumn::NAME, SetName },
+            {EnumMstxEventTypeColumn::ID, SetId},
+            {EnumMstxEventTypeColumn::NAME, SetName},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "ENUM_MSTX_EVENT_TYPE";
         return tableName;
     }

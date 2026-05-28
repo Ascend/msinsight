@@ -34,29 +34,21 @@ struct SlicePO {
     std::string cname;
 };
 class SliceTable : public Table<SlicePO> {
-public:
+  public:
     SliceTable() = default;
     ~SliceTable() = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign>& GetAssignMap() override
-    {
-        static std::unordered_map<std::string_view, assign> assignMap = {
-            { SliceColumn::ID, IdHandle },
-            { SliceColumn::TIMESTAMP, TimeStampHandle },
-            { SliceColumn::DURATION, DurationHandle },
-            { SliceColumn::NAME, NameHandle },
-            { SliceColumn::TRACKID, TrackIdHandle },
-            { SliceColumn::CAT, CatHandle },
-            { SliceColumn::ARGS, ArgsHandle },
-            { SliceColumn::CNAME, CnameHandle },
-            { SliceColumn::ENDTIME, EndTimeHandle },
-            { SliceColumn::FLAGID, FlagIdHandle } };
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
+        static std::unordered_map<std::string_view, assign> assignMap = {{SliceColumn::ID, IdHandle},
+            {SliceColumn::TIMESTAMP, TimeStampHandle}, {SliceColumn::DURATION, DurationHandle},
+            {SliceColumn::NAME, NameHandle}, {SliceColumn::TRACKID, TrackIdHandle}, {SliceColumn::CAT, CatHandle},
+            {SliceColumn::ARGS, ArgsHandle}, {SliceColumn::CNAME, CnameHandle}, {SliceColumn::ENDTIME, EndTimeHandle},
+            {SliceColumn::FLAGID, FlagIdHandle}};
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "slice";
         return tableName;
     }
@@ -72,6 +64,5 @@ protected:
     static void FlagIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
-
 
 #endif // PROFILER_SERVER_SLICETABLE_H

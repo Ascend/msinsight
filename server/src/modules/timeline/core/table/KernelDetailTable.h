@@ -41,36 +41,34 @@ struct KernelDetailPO {
 };
 
 class KernelDetailTable : public Table<KernelDetailPO> {
-public:
+  public:
     KernelDetailTable() = default;
     ~KernelDetailTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { KernelDetailColumn::ID, SetId },
-            { KernelDetailColumn::RANK_ID, SetRankId },
-            { KernelDetailColumn::STEP_ID, SetStepId },
-            { KernelDetailColumn::NAME, SetName },
-            { KernelDetailColumn::OP_TYPE, SetOpType },
-            { KernelDetailColumn::ACCELERATOR_CORE, SetAcceleratorCore },
-            { KernelDetailColumn::START_TIME, SetStartTime },
-            { KernelDetailColumn::DURATION, SetDuration },
-            { KernelDetailColumn::WAIT_TIME, SetWaitTime },
-            { KernelDetailColumn::BLOCK_DIM, SetBlockDim },
-            { KernelDetailColumn::INPUT_SHAPES, SetInputShapes },
-            { KernelDetailColumn::INPUT_DATA_TYPES, SetInputDataTypes },
-            { KernelDetailColumn::INPUT_FORMATS, SetInputFormats },
-            { KernelDetailColumn::OUTPUT_SHAPES, SetOutPutShapes },
-            { KernelDetailColumn::OUTPUT_DATA_TYPES, SetOutPutDataTypes },
-            { KernelDetailColumn::OUTPUT_FORMATS, SetOutPutFormats },
+            {KernelDetailColumn::ID, SetId},
+            {KernelDetailColumn::RANK_ID, SetRankId},
+            {KernelDetailColumn::STEP_ID, SetStepId},
+            {KernelDetailColumn::NAME, SetName},
+            {KernelDetailColumn::OP_TYPE, SetOpType},
+            {KernelDetailColumn::ACCELERATOR_CORE, SetAcceleratorCore},
+            {KernelDetailColumn::START_TIME, SetStartTime},
+            {KernelDetailColumn::DURATION, SetDuration},
+            {KernelDetailColumn::WAIT_TIME, SetWaitTime},
+            {KernelDetailColumn::BLOCK_DIM, SetBlockDim},
+            {KernelDetailColumn::INPUT_SHAPES, SetInputShapes},
+            {KernelDetailColumn::INPUT_DATA_TYPES, SetInputDataTypes},
+            {KernelDetailColumn::INPUT_FORMATS, SetInputFormats},
+            {KernelDetailColumn::OUTPUT_SHAPES, SetOutPutShapes},
+            {KernelDetailColumn::OUTPUT_DATA_TYPES, SetOutPutDataTypes},
+            {KernelDetailColumn::OUTPUT_FORMATS, SetOutPutFormats},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "kernel_detail";
         return tableName;
     }

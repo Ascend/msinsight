@@ -17,20 +17,18 @@
  */
 #include "PytorchCallchainsTable.h"
 namespace Dic::Module::Timeline {
-void PytorchCallchainsTable::SetId(PytorchCallchainsPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet)
-{
+void PytorchCallchainsTable::SetId(
+    PytorchCallchainsPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     pytorchApiPO.id = resultSet->GetUint64(PytorchCallchainsColumn::ID);
 }
 
-void PytorchCallchainsTable::SetStack(PytorchCallchainsPO &pytorchApiPO,
-    const std::unique_ptr<SqliteResultSet> &resultSet)
-{
+void PytorchCallchainsTable::SetStack(
+    PytorchCallchainsPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     pytorchApiPO.stack = resultSet->GetUint64(PytorchCallchainsColumn::STACK);
 }
 
-void PytorchCallchainsTable::SetStackDepth(PytorchCallchainsPO &pytorchApiPO,
-    const std::unique_ptr<SqliteResultSet> &resultSet)
-{
+void PytorchCallchainsTable::SetStackDepth(
+    PytorchCallchainsPO &pytorchApiPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     pytorchApiPO.stackDepth = resultSet->GetUint64(PytorchCallchainsColumn::STACK_DEPTH);
 }
 }

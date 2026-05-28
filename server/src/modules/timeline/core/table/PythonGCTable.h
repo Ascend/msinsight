@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
- 
+
 #ifndef PROFILER_SERVER_PYTHON_GC_TABLE_H
 #define PROFILER_SERVER_PYTHON_GC_TABLE_H
 #include "TextTableColum.h"
@@ -27,23 +27,21 @@ struct PythonGCPO {
     uint64_t endTime = 0;
 };
 class PythonGCTable : public Table<PythonGCPO> {
-public:
+  public:
     PythonGCTable() = default;
     ~PythonGCTable() override = default;
- 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { PythonGCColumn::ID, SetId },
-            { PythonGCColumn::TIMESTAMP, SetTimestamp },
-            { PythonGCColumn::ENDTIME, SetEndTime },
+            {PythonGCColumn::ID, SetId},
+            {PythonGCColumn::TIMESTAMP, SetTimestamp},
+            {PythonGCColumn::ENDTIME, SetEndTime},
         };
         return assignMap;
     }
- 
-    const std::string &GetTableName() override
-    {
+
+    const std::string &GetTableName() override {
         static std::string tableName = "GC_RECORD";
         return tableName;
     }

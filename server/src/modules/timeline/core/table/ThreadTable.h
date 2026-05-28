@@ -29,24 +29,19 @@ struct ThreadPO {
     uint64_t threadSortIndex = 0;
 };
 class ThreadTable : public Table<ThreadPO> {
-public:
+  public:
     ThreadTable() = default;
     ~ThreadTable() = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign>& GetAssignMap() override
-    {
-        static std::unordered_map<std::string_view, assign> assignMap = {
-            { ThreadColumn::TRACK_ID, TrackIdHandle },
-            { ThreadColumn::TID, TidHandle },
-            { ThreadColumn::PID, PidHandle },
-            { ThreadColumn::THREAD_NAME, ThreadNameHandle },
-            { ThreadColumn::THREAD_SORT_INDEX, ThreadSortIndexHandle } };
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
+        static std::unordered_map<std::string_view, assign> assignMap = {{ThreadColumn::TRACK_ID, TrackIdHandle},
+            {ThreadColumn::TID, TidHandle}, {ThreadColumn::PID, PidHandle},
+            {ThreadColumn::THREAD_NAME, ThreadNameHandle}, {ThreadColumn::THREAD_SORT_INDEX, ThreadSortIndexHandle}};
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "thread";
         return tableName;
     }

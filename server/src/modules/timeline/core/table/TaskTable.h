@@ -37,31 +37,23 @@ struct TaskPO {
     uint64_t domainId = 0;
 };
 class TaskTable : public Table<TaskPO> {
-public:
+  public:
     TaskTable() = default;
     virtual ~TaskTable() = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
-        static std::unordered_map<std::string_view, assign> assignMap = {
-            { TaskColumn::ROW_ID, IdHandle },
-            { TaskColumn::TIMESTAMP, TimestampHandle },
-            { TaskColumn::ENDTIME, EndTimeHandle },
-            { TaskColumn::DECICED_ID, DeviceIdHandle },
-            { TaskColumn::CONNECTION_ID, ConnectionIdHandle },
-            { TaskColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle },
-            { TaskColumn::GLOBAL_PID, GlobalPidHandle },
-            { TaskColumn::TASK_TYPE, TaskTypeHandle },
-            { TaskColumn::CONTEXT_ID, ContextIdHandle },
-            { TaskColumn::STREAM_ID, StreamIdHandle },
-            { TaskColumn::TASK_ID, TaskIdHandle },
-            { TaskColumn::MODEL_ID, ModelIdHandle } };
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
+        static std::unordered_map<std::string_view, assign> assignMap = {{TaskColumn::ROW_ID, IdHandle},
+            {TaskColumn::TIMESTAMP, TimestampHandle}, {TaskColumn::ENDTIME, EndTimeHandle},
+            {TaskColumn::DECICED_ID, DeviceIdHandle}, {TaskColumn::CONNECTION_ID, ConnectionIdHandle},
+            {TaskColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle}, {TaskColumn::GLOBAL_PID, GlobalPidHandle},
+            {TaskColumn::TASK_TYPE, TaskTypeHandle}, {TaskColumn::CONTEXT_ID, ContextIdHandle},
+            {TaskColumn::STREAM_ID, StreamIdHandle}, {TaskColumn::TASK_ID, TaskIdHandle},
+            {TaskColumn::MODEL_ID, ModelIdHandle}};
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "TASK";
         return tableName;
     }

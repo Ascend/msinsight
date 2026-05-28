@@ -57,24 +57,23 @@ struct TrackInfo {
     uint64_t trackId = 0;
 };
 class TrackInfoManager {
-public:
-    static TrackInfoManager &Instance()
-    {
+  public:
+    static TrackInfoManager &Instance() {
         static TrackInfoManager instance;
         return instance;
     }
     TrackInfoManager(const TrackInfoManager &) = delete;
-    TrackInfoManager &operator = (const TrackInfoManager &) = delete;
+    TrackInfoManager &operator=(const TrackInfoManager &) = delete;
     TrackInfoManager(TrackInfoManager &&) = delete;
-    TrackInfoManager &operator = (TrackInfoManager &&) = delete;
+    TrackInfoManager &operator=(TrackInfoManager &&) = delete;
     uint64_t GetTrackId(const std::string &cardId, const std::string &pid, const std::string &tid);
     bool GetTrackInfo(uint64_t trackId, TrackInfo &trackInfo, const std::string &fileId);
     void UpdateHost(const std::string &cardId, const std::string &host);
     void UpdateHostCardId(const std::string &cardId, const std::string &hostCardId);
     void UpdateDeviceMap(const std::string &cardId, const std::unordered_map<std::string, std::string> deviceMap);
     void UpdateDeviceToRankIdMap(const std::string &cardId, const std::string &rankId);
-    void UpdateTrackIdMap(const std::string &fileId,
-        const std::map<uint64_t, std::pair<std::string, std::string>> &threadMap);
+    void UpdateTrackIdMap(
+        const std::string &fileId, const std::map<uint64_t, std::pair<std::string, std::string>> &threadMap);
     std::string GetRankId(const std::string &host, const std::string &deviceId);
     void Reset();
     std::string GetDeviceId(const std::string &cardId);
@@ -83,18 +82,19 @@ public:
 
     std::vector<RankInfo> GetRankListByFileId(const std::string &fileId, const std::string &rankId);
 
-    void SetRankListByFileId(const std::string& fileId, const RankInfo& rank);
+    void SetRankListByFileId(const std::string &fileId, const RankInfo &rank);
 
-    std::string GetClusterByFileId(const std::string& fileId);
+    std::string GetClusterByFileId(const std::string &fileId);
 
-    void SetClusterByFileId(const std::string& fileId, const std::string& cluster);
+    void SetClusterByFileId(const std::string &fileId, const std::string &cluster);
 
     std::string GetFileIdByClusterDbAndRankId(const std::string &clusterDb, const std::string &rankId);
 
-    void AddRankToCluster(const std::string& clusterId, const std::string& rank);
+    void AddRankToCluster(const std::string &clusterId, const std::string &rank);
 
-    std::string GetRankInCluster(const std::string& clusterId, const std::string& rank);
-private:
+    std::string GetRankInCluster(const std::string &clusterId, const std::string &rank);
+
+  private:
     TrackInfoManager() = default;
     ~TrackInfoManager() = default;
     std::mutex trackMutex;

@@ -28,23 +28,19 @@ struct TaskPmuInfoPO {
 };
 
 class TaskPmuInfoTable : public Table<TaskPmuInfoPO> {
-public:
+  public:
     TaskPmuInfoTable() = default;
     virtual ~TaskPmuInfoTable() = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { TaskPmuInfoColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle },
-            { TaskPmuInfoColumn::NAME_ID, NameHandle },
-            { TaskPmuInfoColumn::VALUE_ID, ValueHandle }
-        };
+            {TaskPmuInfoColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle}, {TaskPmuInfoColumn::NAME_ID, NameHandle},
+            {TaskPmuInfoColumn::VALUE_ID, ValueHandle}};
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "TASK_PMU_INFO";
         return tableName;
     }

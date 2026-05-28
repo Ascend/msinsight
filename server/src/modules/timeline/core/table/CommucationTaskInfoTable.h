@@ -40,70 +40,64 @@ struct CommucationTaskInfoPO {
     uint64_t opId = 0;
 };
 class CommucationTaskInfoTable : public Table<CommucationTaskInfoPO> {
-public:
+  public:
     CommucationTaskInfoTable() = default;
     ~CommucationTaskInfoTable() = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
-        static std::unordered_map<std::string_view, assign> assignMap = {
-            { CommucationTaskInfoColumn::ROW_ID, IdHandle },
-            { CommucationTaskInfoColumn::NAME, NameHandle },
-            { CommucationTaskInfoColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle },
-            { CommucationTaskInfoColumn::TASK_TYPE, TaskTypeHandle },
-            { CommucationTaskInfoColumn::PLANE_ID, PlaneIdHandle },
-            { CommucationTaskInfoColumn::GROUPNAME, GroupNameHandle },
-            { CommucationTaskInfoColumn::NOTIFY_ID, NotifyIdHandle },
-            { CommucationTaskInfoColumn::RDMA_TYPE, RdmaTypeHandle },
-            { CommucationTaskInfoColumn::SRC_RANK, SrcRankHandle },
-            { CommucationTaskInfoColumn::DST_RANK, DstRankHandle },
-            { CommucationTaskInfoColumn::TRANSPORT_TYPE, TransportTypeHandle },
-            { CommucationTaskInfoColumn::SIZE, SizeHandle },
-            { CommucationTaskInfoColumn::DATA_TYPE, DataTypeHandle },
-            { CommucationTaskInfoColumn::LINK_TYPE, LinkTypeHandle },
-            { CommucationTaskInfoColumn::BANDWIDTH, BandwidthHandle },
-            { CommucationTaskInfoColumn::OP_ID, OpIdHandle } };
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
+        static std::unordered_map<std::string_view, assign> assignMap = {{CommucationTaskInfoColumn::ROW_ID, IdHandle},
+            {CommucationTaskInfoColumn::NAME, NameHandle},
+            {CommucationTaskInfoColumn::GLOBAL_TASK_ID, GlobalTaskIdHandle},
+            {CommucationTaskInfoColumn::TASK_TYPE, TaskTypeHandle},
+            {CommucationTaskInfoColumn::PLANE_ID, PlaneIdHandle},
+            {CommucationTaskInfoColumn::GROUPNAME, GroupNameHandle},
+            {CommucationTaskInfoColumn::NOTIFY_ID, NotifyIdHandle},
+            {CommucationTaskInfoColumn::RDMA_TYPE, RdmaTypeHandle},
+            {CommucationTaskInfoColumn::SRC_RANK, SrcRankHandle}, {CommucationTaskInfoColumn::DST_RANK, DstRankHandle},
+            {CommucationTaskInfoColumn::TRANSPORT_TYPE, TransportTypeHandle},
+            {CommucationTaskInfoColumn::SIZE, SizeHandle}, {CommucationTaskInfoColumn::DATA_TYPE, DataTypeHandle},
+            {CommucationTaskInfoColumn::LINK_TYPE, LinkTypeHandle},
+            {CommucationTaskInfoColumn::BANDWIDTH, BandwidthHandle}, {CommucationTaskInfoColumn::OP_ID, OpIdHandle}};
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "COMMUNICATION_TASK_INFO";
         return tableName;
     }
-    static void IdHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void NameHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void GlobalTaskIdHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void TaskTypeHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void PlaneIdHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void GroupNameHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void NotifyIdHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void RdmaTypeHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SrcRankHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void DstRankHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void TransportTypeHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SizeHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void DataTypeHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void LinkTypeHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void OpIdHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void BandwidthHandle(CommucationTaskInfoPO &commucationTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void IdHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void NameHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void GlobalTaskIdHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void TaskTypeHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void PlaneIdHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void GroupNameHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void NotifyIdHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void RdmaTypeHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SrcRankHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void DstRankHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void TransportTypeHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SizeHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void DataTypeHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void LinkTypeHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void OpIdHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void BandwidthHandle(
+        CommucationTaskInfoPO &commucationTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
 #endif // PROFILER_SERVER_COMMUCATIONTASKINFO_H

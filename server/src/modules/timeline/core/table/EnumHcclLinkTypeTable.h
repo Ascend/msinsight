@@ -26,23 +26,21 @@ struct EnumHcclLinkTypePO {
     std::string name;
 };
 class EnumHcclLinkTypeTable : public Table<EnumHcclLinkTypePO> {
-public:
+  public:
     EnumHcclLinkTypeTable() = default;
     ~EnumHcclLinkTypeTable() override = default;
     std::unordered_map<uint64_t, std::string> QueryStrMap(const std::vector<uint64_t> &ids, const std::string &fileId);
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { EnumHcclLinkTypeClumn::ID, SetId },
-            { EnumHcclLinkTypeClumn::NAME, SetName },
+            {EnumHcclLinkTypeClumn::ID, SetId},
+            {EnumHcclLinkTypeClumn::NAME, SetName},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "ENUM_HCCL_LINK_TYPE";
         return tableName;
     }

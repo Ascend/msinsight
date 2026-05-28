@@ -36,32 +36,30 @@ struct MstxEventsPO {
     uint64_t depth = 0;
 };
 class MstxEventsTable : public Table<MstxEventsPO> {
-public:
+  public:
     MstxEventsTable() = default;
     ~MstxEventsTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { MstxEventsColumn::ID, SetId },
-            { MstxEventsColumn::TIMESTAMP, SetTimestamp },
-            { MstxEventsColumn::ENDTIME, SetEndTime },
-            { MstxEventsColumn::EVENT_TYPE, SetEventType },
-            { MstxEventsColumn::RANG_ID, SetRangeId },
-            { MstxEventsColumn::CATEGORY, SetCategory },
-            { MstxEventsColumn::MESSAGE, SetMessage },
-            { MstxEventsColumn::GLOBAL_TID, SetGlobalTid },
-            { MstxEventsColumn::END_GLOBAL_TID, SetEndGlobalTid },
-            { MstxEventsColumn::DOMAIN_ID, SetDomainId },
-            { MstxEventsColumn::CONNECTION_ID, SetConnectionId },
-            { MstxEventsColumn::DEPTH, SetDepth },
+            {MstxEventsColumn::ID, SetId},
+            {MstxEventsColumn::TIMESTAMP, SetTimestamp},
+            {MstxEventsColumn::ENDTIME, SetEndTime},
+            {MstxEventsColumn::EVENT_TYPE, SetEventType},
+            {MstxEventsColumn::RANG_ID, SetRangeId},
+            {MstxEventsColumn::CATEGORY, SetCategory},
+            {MstxEventsColumn::MESSAGE, SetMessage},
+            {MstxEventsColumn::GLOBAL_TID, SetGlobalTid},
+            {MstxEventsColumn::END_GLOBAL_TID, SetEndGlobalTid},
+            {MstxEventsColumn::DOMAIN_ID, SetDomainId},
+            {MstxEventsColumn::CONNECTION_ID, SetConnectionId},
+            {MstxEventsColumn::DEPTH, SetDepth},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "MSTX_EVENTS";
         return tableName;
     }
