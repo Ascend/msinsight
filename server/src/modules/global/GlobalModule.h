@@ -24,7 +24,7 @@
 namespace Dic {
 namespace Module {
 class GlobalModule : public BaseModule {
-public:
+  public:
     GlobalModule();
     ~GlobalModule() override;
 

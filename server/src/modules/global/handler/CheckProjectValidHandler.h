@@ -31,15 +31,13 @@ namespace Dic {
 namespace Module {
 
 class CheckProjectValidHandler : public GlobalHandler {
-public:
-    CheckProjectValidHandler()
-    {
-        command = REQ_RES_PROJECT_VALID_CHECK;
-    }
+  public:
+    CheckProjectValidHandler() { command = REQ_RES_PROJECT_VALID_CHECK; }
     ~CheckProjectValidHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Request> requestPtr) override;
-private:
+
+  private:
     static bool CheckRequestParamsValid(ProjectCheckParams &params, ProjectErrorType &error);
     static bool CheckProjectFile(ProjectCheckParams &params, const fs::path &filePath, ProjectErrorType &error);
     static bool CheckFileSize(const fs::path &filePath);

@@ -25,11 +25,8 @@
 namespace Dic {
 namespace Module {
 class HeartCheckHandler : public GlobalHandler {
-public:
-    HeartCheckHandler()
-    {
-        command = REQ_RES_HEART_CHECK;
-    }
+  public:
+    HeartCheckHandler() { command = REQ_RES_HEART_CHECK; }
     ~HeartCheckHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Request> requestPtr) override;

@@ -27,26 +27,26 @@ namespace Dic {
 namespace Module {
 namespace Global {
 class SystemMemoryDatabase : public Database {
-public:
+  public:
     explicit SystemMemoryDatabase(std::recursive_mutex &sqlMutex) : Database(sqlMutex) {};
     ~SystemMemoryDatabase() override = default;
 
     bool SetConfig() override;
     bool CreateTable();
-    std::vector<ProjectExplorerInfo> QueryProjectExplorerData(const std::vector<std::string> &projectNameList,
-                                                              const std::vector<std::string>& fileNameList);
+    std::vector<ProjectExplorerInfo> QueryProjectExplorerData(
+        const std::vector<std::string> &projectNameList, const std::vector<std::string> &fileNameList);
     bool InsertDuplicateUpdateProject(const ProjectExplorerInfo &projectExplorerInfo);
     bool InsertDuplicateUpdateParsedFile(const std::vector<std::shared_ptr<ParseFileInfo>> &parseFileInfoList);
     bool UpdateProjectName(const std::string &oldProjectName, const std::string &newProjectName);
     bool UpdateProjectDbPath(const std::string &projectName, const std::string &fileName, const std::string &dbPath);
     bool DropTable();
-    bool DeleteFileMenu(const std::vector<std::string> &projectNameList, const std::vector<int64_t>& projectIdList);
+    bool DeleteFileMenu(const std::vector<std::string> &projectNameList, const std::vector<int64_t> &projectIdList);
     bool DeleteParsedFile(const std::vector<int64_t> &projectIdList, const std::vector<int64_t> &idList);
 
-    std::map<int64_t, std::vector<std::shared_ptr<ParseFileInfo>>>
-    QueryParseFileInfo(const std::vector<int64_t> &projectExplorerIdList,
-                       const std::vector<std::string> &parsePathList);
-private:
+    std::map<int64_t, std::vector<std::shared_ptr<ParseFileInfo>>> QueryParseFileInfo(
+        const std::vector<int64_t> &projectExplorerIdList, const std::vector<std::string> &parsePathList);
+
+  private:
     const std::string projectExplorerTable = "project_explorer";
     const std::string parseFileInfoTable = "parse_file_info";
 };

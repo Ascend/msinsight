@@ -48,19 +48,18 @@ enum class ParserType {
     OTHER = 20
 };
 
-inline std::string CastParserTypeToStr(ParserType type)
-{
+inline std::string CastParserTypeToStr(ParserType type) {
     switch (type) {
-        case ParserType::DB:
-            return "DB";
-        case ParserType::BIN:
-            return "BIN";
-        case ParserType::JSON:
-            return "JSON";
-        case ParserType::OTHER:
-            return "OTHER";
-        default:
-            return "";
+    case ParserType::DB:
+        return "DB";
+    case ParserType::BIN:
+        return "BIN";
+    case ParserType::JSON:
+        return "JSON";
+    case ParserType::OTHER:
+        return "OTHER";
+    default:
+        return "";
     }
     return "";
 }
@@ -92,55 +91,46 @@ inline std::vector<ProjectTypeEnum> projectTypeSupportCompare = {
     ProjectTypeEnum::BIN,
 };
 
-static inline bool IsSupportCompareType(ProjectTypeEnum projectTypeEnum)
-{
-    auto it = std::find(projectTypeSupportCompare.begin(), projectTypeSupportCompare.end(),
-                        projectTypeEnum);
+static inline bool IsSupportCompareType(ProjectTypeEnum projectTypeEnum) {
+    auto it = std::find(projectTypeSupportCompare.begin(), projectTypeSupportCompare.end(), projectTypeEnum);
     if (it != projectTypeSupportCompare.end()) {
         return true;
     }
     return false;
 }
 
-inline std::unordered_map<ProjectTypeEnum, uint8_t> projectTypeGroup = {
-    {ProjectTypeEnum::DB, 1},
-    {ProjectTypeEnum::TEXT_CLUSTER, 2},
-    {ProjectTypeEnum::SIMULATION, 3},
-    {ProjectTypeEnum::TRACE, 2},
-    {ProjectTypeEnum::DB_CLUSTER, 1},
-    {ProjectTypeEnum::DB_NPUMONITOR, 1}
-};
+inline std::unordered_map<ProjectTypeEnum, uint8_t> projectTypeGroup = {{ProjectTypeEnum::DB, 1},
+    {ProjectTypeEnum::TEXT_CLUSTER, 2}, {ProjectTypeEnum::SIMULATION, 3}, {ProjectTypeEnum::TRACE, 2},
+    {ProjectTypeEnum::DB_CLUSTER, 1}, {ProjectTypeEnum::DB_NPUMONITOR, 1}};
 
-static inline ParserType coverProjectTypeToParserType(ProjectTypeEnum projectTypeEnum)
-{
+static inline ParserType coverProjectTypeToParserType(ProjectTypeEnum projectTypeEnum) {
     switch (projectTypeEnum) {
-        case ProjectTypeEnum::DB_CLUSTER:
-            return ParserType::DB;
-        case ProjectTypeEnum::DB:
-            return ParserType::DB;
-        case ProjectTypeEnum::DB_NPUMONITOR:
-            return ParserType::DB_NPUMONITOR;
-        case ProjectTypeEnum::BIN:
-            return ParserType::BIN;
-        case ProjectTypeEnum::IE:
-            return ParserType::IE;
-        case ProjectTypeEnum::ACLGRAPH_DEBUG:
-            return ParserType::ACLGRPAH_DEBUG_JSON;
-        case ProjectTypeEnum::DB_MEMSCOPE:
-            return ParserType::DB_MEMSCOPE;
-        case ProjectTypeEnum::PKL_MEM_SNAPSHOT:
-            return ParserType::PKL_MEM_SNAPSHOT;
-        case ProjectTypeEnum::TRITON:
-            return ParserType::TRITON_MEMORY;
-        case ProjectTypeEnum::DB_FTRACE:
-            return ParserType::DB_FTRACE;
-        default:
-            return ParserType::JSON;
+    case ProjectTypeEnum::DB_CLUSTER:
+        return ParserType::DB;
+    case ProjectTypeEnum::DB:
+        return ParserType::DB;
+    case ProjectTypeEnum::DB_NPUMONITOR:
+        return ParserType::DB_NPUMONITOR;
+    case ProjectTypeEnum::BIN:
+        return ParserType::BIN;
+    case ProjectTypeEnum::IE:
+        return ParserType::IE;
+    case ProjectTypeEnum::ACLGRAPH_DEBUG:
+        return ParserType::ACLGRPAH_DEBUG_JSON;
+    case ProjectTypeEnum::DB_MEMSCOPE:
+        return ParserType::DB_MEMSCOPE;
+    case ProjectTypeEnum::PKL_MEM_SNAPSHOT:
+        return ParserType::PKL_MEM_SNAPSHOT;
+    case ProjectTypeEnum::TRITON:
+        return ParserType::TRITON_MEMORY;
+    case ProjectTypeEnum::DB_FTRACE:
+        return ParserType::DB_FTRACE;
+    default:
+        return ParserType::JSON;
     }
 }
 
-static inline bool isFileConflict(ProjectTypeEnum oldProjectType, ProjectTypeEnum newProjectType)
-{
+static inline bool isFileConflict(ProjectTypeEnum oldProjectType, ProjectTypeEnum newProjectType) {
     if (projectTypeGroup.count(oldProjectType) == 0 || projectTypeGroup.count(newProjectType) == 0) {
         return true;
     }
@@ -150,8 +140,7 @@ static inline bool isFileConflict(ProjectTypeEnum oldProjectType, ProjectTypeEnu
     return true;
 }
 
-static inline bool IsComparable(const ProjectTypeEnum &baselineProjectType, const ProjectTypeEnum &curProjectType)
-{
+static inline bool IsComparable(const ProjectTypeEnum &baselineProjectType, const ProjectTypeEnum &curProjectType) {
     if (baselineProjectType == curProjectType) {
         return true;
     }
@@ -161,17 +150,11 @@ static inline bool IsComparable(const ProjectTypeEnum &baselineProjectType, cons
 struct RankInfo {
     RankInfo() = default;
     RankInfo(std::string cluster, std::string host, std::string rankId, std::string deviceId, std::string rankName)
-        :cluster(std::move(cluster)),
-        host(std::move(host)),
-        rankId(std::move(rankId)),
-        deviceId(std::move(deviceId)),
-        rankName(std::move(rankName))
-    {
-    }
+        : cluster(std::move(cluster)), host(std::move(host)), rankId(std::move(rankId)), deviceId(std::move(deviceId)),
+          rankName(std::move(rankName)) {}
 
-    json_t SerializationToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const
-    {
-        json_t rankInfo(kObjectType) ;
+    json_t SerializationToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const {
+        json_t rankInfo(kObjectType);
         JsonUtil::AddMember(rankInfo, "clusterId", cluster, allocator);
         JsonUtil::AddMember(rankInfo, "host", host, allocator);
         JsonUtil::AddMember(rankInfo, "rankId", rankId, allocator);
@@ -189,12 +172,11 @@ struct RankInfo {
 struct RankEntry {
     RankEntry() = default;
     RankEntry(std::string fileId, std::string rankId, std::string parseFolder)
-        :fileId(std::move(fileId)), rankId(std::move(rankId)), parseFolder(std::move(parseFolder))
-    {}
+        : fileId(std::move(fileId)), rankId(std::move(rankId)), parseFolder(std::move(parseFolder)) {}
     std::string fileId;
     std::string rankId;
     std::string deviceId;
-    std::vector<RankInfo> rankInfo;  // rankInfo：cluster + host + rankId + deviceId
+    std::vector<RankInfo> rankInfo; // rankInfo：cluster + host + rankId + deviceId
     std::string parseFolder;
     std::vector<std::string> parseFileList;
     bool isDevice{false};

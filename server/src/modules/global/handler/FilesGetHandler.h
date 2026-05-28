@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Global {
 class FilesGetHandler : public GlobalHandler {
-public:
-    FilesGetHandler()
-    {
-        command = REQ_RES_FILES_GET;
-    }
+  public:
+    FilesGetHandler() { command = REQ_RES_FILES_GET; }
     ~FilesGetHandler() override = default;
     bool HandleRequest(std::unique_ptr<Request> requestPtr) override;
 };

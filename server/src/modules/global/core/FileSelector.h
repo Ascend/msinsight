@@ -28,17 +28,16 @@ namespace Dic {
 namespace Module {
 namespace Global {
 class FileSelector {
-public:
+  public:
     FileSelector() = default;
     ~FileSelector() = default;
 
     static void GetFoldersAndFiles(const std::string &path,
-                                   std::vector<std::unique_ptr<Protocol::Folder>> &childrenFolders,
-                                   std::vector<std::unique_ptr<Protocol::File>> &childrenFiles,
-                                   bool &exist);
+        std::vector<std::unique_ptr<Protocol::Folder>> &childrenFolders,
+        std::vector<std::unique_ptr<Protocol::File>> &childrenFiles, bool &exist);
 
-private:
-    static bool CompareStrIgnoreCase(const std::string& s1, const std::string& s2);
+  private:
+    static bool CompareStrIgnoreCase(const std::string &s1, const std::string &s2);
 };
 } // end of namespace Global
 } // end of namespace Module

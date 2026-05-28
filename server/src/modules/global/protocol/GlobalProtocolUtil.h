@@ -29,13 +29,17 @@ namespace Protocol {
 template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response);
 template <> std::optional<document_t> ToResponseJson<FilesGetResponse>(const FilesGetResponse &response);
 template <> std::optional<document_t> ToResponseJson<TokenHeartCheckResponse>(const TokenHeartCheckResponse &response);
-template <> std::optional<document_t> ToResponseJson<ProjectExplorerInfoUpdateResponse>(
+template <>
+std::optional<document_t> ToResponseJson<ProjectExplorerInfoUpdateResponse>(
     const ProjectExplorerInfoUpdateResponse &response);
-template <> std::optional<document_t> ToResponseJson<ProjectExplorerInfoGetResponse>(
+template <>
+std::optional<document_t> ToResponseJson<ProjectExplorerInfoGetResponse>(
     const ProjectExplorerInfoGetResponse &response);
-template <> std::optional<document_t> ToResponseJson<ProjectExplorerInfoDeleteResponse>(
+template <>
+std::optional<document_t> ToResponseJson<ProjectExplorerInfoDeleteResponse>(
     const ProjectExplorerInfoDeleteResponse &response);
-template <> std::optional<document_t> ToResponseJson<ProjectExplorerInfoClearResponse>(
+template <>
+std::optional<document_t> ToResponseJson<ProjectExplorerInfoClearResponse>(
     const ProjectExplorerInfoClearResponse &response);
 template <>
 std::optional<document_t> ToResponseJson<ProjectCheckValidResponse>(const ProjectCheckValidResponse &response);

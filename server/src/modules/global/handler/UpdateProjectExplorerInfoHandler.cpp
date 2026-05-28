@@ -25,15 +25,14 @@ namespace Module {
 using namespace Dic::Server;
 using namespace Global;
 
-bool UpdateProjectExplorerInfoHandler::HandleRequest(std::unique_ptr<Request> requestPtr)
-{
+bool UpdateProjectExplorerInfoHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     auto &request = dynamic_cast<ProjectExplorerInfoUpdateRequest &>(*requestPtr.get());
     std::unique_ptr<ProjectExplorerInfoUpdateResponse> responsePtr =
-            std::make_unique<ProjectExplorerInfoUpdateResponse>();
+        std::make_unique<ProjectExplorerInfoUpdateResponse>();
     ProjectExplorerInfoUpdateResponse &response = *responsePtr;
     SetBaseResponse(request, response);
-    bool res = ProjectExplorerManager::Instance().UpdateProjectName(request.params.oldProjectName,
-                                                                    request.params.newProjectName);
+    bool res = ProjectExplorerManager::Instance().UpdateProjectName(
+        request.params.oldProjectName, request.params.newProjectName);
     SendResponse(std::move(responsePtr), res);
     return res;
 }

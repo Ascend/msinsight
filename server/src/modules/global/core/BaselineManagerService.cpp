@@ -28,8 +28,7 @@ using namespace Dic::Module::Summary;
 namespace Dic {
 namespace Module {
 namespace Global {
-void BaselineManagerService::ResetBaseline(bool force)
-{
+void BaselineManagerService::ResetBaseline(bool force) {
     // 没有解析进程时才可以reset
     auto baselineId = Dic::Module::Timeline::BaselineManager::Instance().GetBaselineId();
     Dic::Module::Timeline::ParserStatusManager::Instance().WaitAllFinished({baselineId});
@@ -39,9 +38,7 @@ void BaselineManagerService::ResetBaseline(bool force)
 }
 
 bool BaselineManagerService::CheckIsSupportCompare(const std::vector<ProjectExplorerInfo> &baseline,
-                                                   const std::vector<ProjectExplorerInfo> &cur,
-                                                   std::string &errorMsg, const std::string &filePath)
-{
+    const std::vector<ProjectExplorerInfo> &cur, std::string &errorMsg, const std::string &filePath) {
     if (baseline.empty() || cur.empty()) {
         return false;
     }
@@ -51,22 +48,19 @@ bool BaselineManagerService::CheckIsSupportCompare(const std::vector<ProjectExpl
         return false;
     }
     // 多device场景不允许设置基线
-    bool isAllSamePath = std::all_of(baseline[0].subParseFileInfo.begin(),
-                                     baseline[0].subParseFileInfo.end(),
-                                     [&filePath](const auto &fileInfo) {
-                                         return fileInfo->parseFilePath == filePath;
-                                     });
+    bool isAllSamePath = std::all_of(baseline[0].subParseFileInfo.begin(), baseline[0].subParseFileInfo.end(),
+        [&filePath](const auto &fileInfo) { return fileInfo->parseFilePath == filePath; });
     if (baseline[0].subParseFileInfo.size() > 1 && isAllSamePath) {
         errorMsg = "Multi device scenario does not support setting comparison.";
         return false;
     }
     // MemScope不支持对比
-    bool isBaselineMemScope = std::any_of(baseline[0].subParseFileInfo.begin(), baseline[0].subParseFileInfo.end(),
-        [](const auto &fileInfo) {
+    bool isBaselineMemScope =
+        std::any_of(baseline[0].subParseFileInfo.begin(), baseline[0].subParseFileInfo.end(), [](const auto &fileInfo) {
             return std::regex_match(FileUtil::GetFileName(fileInfo->parseFilePath), std::regex(memScopeDbReg));
         });
-    auto isCurMemScope = std::any_of(cur[0].subParseFileInfo.begin(), cur[0].subParseFileInfo.end(),
-        [](const auto &fileInfo) {
+    auto isCurMemScope =
+        std::any_of(cur[0].subParseFileInfo.begin(), cur[0].subParseFileInfo.end(), [](const auto &fileInfo) {
             return std::regex_match(FileUtil::GetFileName(fileInfo->parseFilePath), std::regex(memScopeDbReg));
         });
     if (isBaselineMemScope || isCurMemScope) {
@@ -93,9 +87,8 @@ bool BaselineManagerService::CheckIsSupportCompare(const std::vector<ProjectExpl
     return true;
 }
 
-bool BaselineManagerService::InitBaselineData(const Protocol::BaselineSettingRequest &request,
-                                              BaselineInfo &baselineInfo)
-{
+bool BaselineManagerService::InitBaselineData(
+    const Protocol::BaselineSettingRequest &request, BaselineInfo &baselineInfo) {
     ResetBaseline(true);
     // 查询详细数据
     std::vector<std::string> filePathList;
@@ -135,9 +128,7 @@ bool BaselineManagerService::InitBaselineData(const Protocol::BaselineSettingReq
 }
 
 bool BaselineManagerService::IsClusterBaseline(ProjectTypeEnum projectTypeEnum,
-                                               const std::vector<ProjectExplorerInfo> &projectInfoList,
-                                               const std::string &filePath)
-{
+    const std::vector<ProjectExplorerInfo> &projectInfoList, const std::string &filePath) {
     // 如果非text和db场景，则直接判断为非集群场景，返回false
     if (projectTypeEnum != ProjectTypeEnum::TEXT_CLUSTER && projectTypeEnum != ProjectTypeEnum::DB_CLUSTER) {
         return false;
@@ -147,10 +138,10 @@ bool BaselineManagerService::IsClusterBaseline(ProjectTypeEnum projectTypeEnum,
         if (cluster.empty()) {
             return false;
         }
-        return std::any_of(cluster.begin(), cluster.end(),
-                           [&filePath](const std::shared_ptr<ParseFileInfo> &clusterInfo) {
-                               return clusterInfo->parseFilePath == filePath;
-                           });
+        return std::any_of(
+            cluster.begin(), cluster.end(), [&filePath](const std::shared_ptr<ParseFileInfo> &clusterInfo) {
+                return clusterInfo->parseFilePath == filePath;
+            });
     });
     if (isCluster) {
         return true;
@@ -163,8 +154,7 @@ bool BaselineManagerService::IsClusterBaseline(ProjectTypeEnum projectTypeEnum,
     return false;
 }
 
-void BaselineManagerService::InitBaselineParallelStrategy(const std::string &compareClusterPath)
-{
+void BaselineManagerService::InitBaselineParallelStrategy(const std::string &compareClusterPath) {
     // 初始化baseline的并行策略，通过同步当前compare数据的并行策略
     auto database = FullDb::DataBaseManager::Instance().GetClusterDatabase(compareClusterPath);
     if (database == nullptr) {
@@ -172,8 +162,8 @@ void BaselineManagerService::InitBaselineParallelStrategy(const std::string &com
     }
     auto config = ParallelStrategyAlgorithmManager::Instance().GetParallelStrategyConfig(database->GetDbPath());
     std::string errMsg;
-    auto baselineDb = FullDb::DataBaseManager::Instance().GetClusterDatabase(
-        BaselineManager::Instance().GetBaseLineClusterPath());
+    auto baselineDb =
+        FullDb::DataBaseManager::Instance().GetClusterDatabase(BaselineManager::Instance().GetBaseLineClusterPath());
     if (baselineDb == nullptr) {
         return;
     }

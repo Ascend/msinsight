@@ -24,11 +24,8 @@
 namespace Dic {
 namespace Module {
 class ClearProjectExplorerHandler : public GlobalHandler {
-public:
-    ClearProjectExplorerHandler()
-    {
-        command = REQ_RES_PROJECT_EXPLORER_CLEAR;
-    }
+  public:
+    ClearProjectExplorerHandler() { command = REQ_RES_PROJECT_EXPLORER_CLEAR; }
     ~ClearProjectExplorerHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Request> requestPtr) override;

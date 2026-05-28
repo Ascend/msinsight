@@ -24,8 +24,7 @@ namespace Dic {
 namespace Module {
 using namespace Dic::Server;
 
-bool HeartCheckHandler::HandleRequest(std::unique_ptr<Request> requestPtr)
-{
+bool HeartCheckHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     auto &request = dynamic_cast<HeartCheckRequest &>(*requestPtr.get());
     std::unique_ptr<TokenHeartCheckResponse> responsePtr = std::make_unique<TokenHeartCheckResponse>();
     TokenHeartCheckResponse &response = *responsePtr;

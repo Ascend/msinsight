@@ -22,11 +22,8 @@
 namespace Dic {
 namespace Module {
 class CancelBaselineHandler : public GlobalHandler {
-public:
-    CancelBaselineHandler()
-    {
-        command = REQ_RES_PROJECT_CANCEL_BASELINE;
-    }
+  public:
+    CancelBaselineHandler() { command = REQ_RES_PROJECT_CANCEL_BASELINE; }
 
     ~CancelBaselineHandler() override = default;
 

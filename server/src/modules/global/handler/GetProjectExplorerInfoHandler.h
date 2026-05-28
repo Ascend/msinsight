@@ -25,11 +25,8 @@
 namespace Dic {
 namespace Module {
 class GetProjectExplorerInfoHandler : public GlobalHandler {
-public:
-    GetProjectExplorerInfoHandler()
-    {
-        command = REQ_RES_PROJECT_EXPLORER_INFO_GET;
-    }
+  public:
+    GetProjectExplorerInfoHandler() { command = REQ_RES_PROJECT_EXPLORER_INFO_GET; }
     ~GetProjectExplorerInfoHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Request> requestPtr) override;

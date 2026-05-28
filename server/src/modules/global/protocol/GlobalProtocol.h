@@ -24,11 +24,11 @@
 namespace Dic {
 namespace Protocol {
 class GlobalProtocol : public ProtocolUtil {
-public:
+  public:
     GlobalProtocol() = default;
     ~GlobalProtocol() override = default;
 
-private:
+  private:
     void RegisterJsonToRequestFuncs() override;
     void RegisterResponseToJsonFuncs() override;
     void RegisterEventToJsonFuncs() override;

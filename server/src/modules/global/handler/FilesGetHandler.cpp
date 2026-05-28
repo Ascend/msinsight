@@ -24,18 +24,15 @@ namespace Dic {
 namespace Module {
 namespace Global {
 using namespace Dic::Server;
-bool FilesGetHandler::HandleRequest(std::unique_ptr<Request> requestPtr)
-{
+bool FilesGetHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     FilesGetRequest &request = dynamic_cast<FilesGetRequest &>(*requestPtr.get());
     ServerLog::Info("Files get start");
     std::unique_ptr<FilesGetResponse> responsePtr = std::make_unique<FilesGetResponse>();
     FilesGetResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     response.body.path = request.params.path;
-    FileSelector::GetFoldersAndFiles(request.params.path,
-                                     response.body.childrenFolders,
-                                     response.body.childrenFiles,
-                                     response.body.exist);
+    FileSelector::GetFoldersAndFiles(
+        request.params.path, response.body.childrenFolders, response.body.childrenFiles, response.body.exist);
     SendResponse(std::move(responsePtr), true);
     return true;
 }

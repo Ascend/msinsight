@@ -24,21 +24,18 @@ namespace Protocol {
 using namespace Dic::Server;
 using namespace rapidjson;
 #pragma region <<Response to json>>
-template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response)
-{
+template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response) {
     ServerLog::Warn("The func that transfomer response to json is not implemented. command:", response.command);
     return std::nullopt;
 }
 
-template <> std::optional<document_t> ToResponseJson<TokenHeartCheckResponse>(const TokenHeartCheckResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<TokenHeartCheckResponse>(const TokenHeartCheckResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     return std::optional<document_t>{std::move(json)};
 }
 
-json_t FolderToJson(const std::unique_ptr<Folder> &folder, RAPIDJSON_DEFAULT_ALLOCATOR &allocator)
-{
+json_t FolderToJson(const std::unique_ptr<Folder> &folder, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
     json_t json(kObjectType);
     JsonUtil::AddMember(json, "name", folder->name, allocator);
     JsonUtil::AddMember(json, "path", folder->path, allocator);
@@ -58,8 +55,7 @@ json_t FolderToJson(const std::unique_ptr<Folder> &folder, RAPIDJSON_DEFAULT_ALL
     return json;
 }
 
-template <> std::optional<document_t> ToResponseJson<FilesGetResponse>(const FilesGetResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<FilesGetResponse>(const FilesGetResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -85,8 +81,7 @@ template <> std::optional<document_t> ToResponseJson<FilesGetResponse>(const Fil
 
 template <>
 std::optional<document_t> ToResponseJson<ProjectExplorerInfoUpdateResponse>(
-    const ProjectExplorerInfoUpdateResponse &response)
-{
+    const ProjectExplorerInfoUpdateResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -96,23 +91,23 @@ std::optional<document_t> ToResponseJson<ProjectExplorerInfoUpdateResponse>(
 }
 
 template <>
-std::optional<document_t> ToResponseJson<ProjectExplorerInfoGetResponse>(const ProjectExplorerInfoGetResponse &response)
-{
+std::optional<document_t> ToResponseJson<ProjectExplorerInfoGetResponse>(
+    const ProjectExplorerInfoGetResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
     json_t projectDirectoryJson(kArrayType);
-    for (const auto &item: response.body.projectDirectoryList) {
+    for (const auto &item : response.body.projectDirectoryList) {
         json_t temp(kObjectType);
         JsonUtil::AddMember(temp, "projectName", item.projectName, allocator);
         json_t fileNameListJson(kArrayType);
-        for (const auto &fileNameItem: item.fileName) {
+        for (const auto &fileNameItem : item.fileName) {
             fileNameListJson.PushBack(json_t().SetString(fileNameItem->parseFilePath.c_str(), allocator), allocator);
         }
         JsonUtil::AddMember(temp, "fileName", fileNameListJson, allocator);
         json_t children(kArrayType);
-        for (const auto& fileItem : item.projectTree) {
+        for (const auto &fileItem : item.projectTree) {
             children.PushBack(fileItem->SerializeToJson(allocator), allocator);
         }
         JsonUtil::AddMember(temp, "children", children, allocator);
@@ -125,8 +120,7 @@ std::optional<document_t> ToResponseJson<ProjectExplorerInfoGetResponse>(const P
 
 template <>
 std::optional<document_t> ToResponseJson<ProjectExplorerInfoDeleteResponse>(
-    const ProjectExplorerInfoDeleteResponse &response)
-{
+    const ProjectExplorerInfoDeleteResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -137,8 +131,7 @@ std::optional<document_t> ToResponseJson<ProjectExplorerInfoDeleteResponse>(
 
 template <>
 std::optional<document_t> ToResponseJson<ProjectExplorerInfoClearResponse>(
-    const ProjectExplorerInfoClearResponse &response)
-{
+    const ProjectExplorerInfoClearResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -148,8 +141,7 @@ std::optional<document_t> ToResponseJson<ProjectExplorerInfoClearResponse>(
 }
 
 template <>
-std::optional<document_t> ToResponseJson<ProjectCheckValidResponse>(const ProjectCheckValidResponse &response)
-{
+std::optional<document_t> ToResponseJson<ProjectCheckValidResponse>(const ProjectCheckValidResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -159,8 +151,7 @@ std::optional<document_t> ToResponseJson<ProjectCheckValidResponse>(const Projec
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<BaselineSettingResponse>(const BaselineSettingResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<BaselineSettingResponse>(const BaselineSettingResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -175,8 +166,7 @@ template <> std::optional<document_t> ToResponseJson<BaselineSettingResponse>(co
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<BaselineCancelResponse>(const BaselineCancelResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<BaselineCancelResponse>(const BaselineCancelResponse &response) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -188,8 +178,7 @@ template <> std::optional<document_t> ToResponseJson<BaselineCancelResponse>(con
 #pragma endregion
 
 #pragma region <<Event to json>>
-template <> std::optional<document_t> ToEventJson<ReadFileFailEvent>(const ReadFileFailEvent &event)
-{
+template <> std::optional<document_t> ToEventJson<ReadFileFailEvent>(const ReadFileFailEvent &event) {
     document_t json(kObjectType);
     json_t body(kObjectType);
     ProtocolUtil::SetEventJsonBaseInfo(event, json);

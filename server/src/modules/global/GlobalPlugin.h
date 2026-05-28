@@ -22,16 +22,10 @@
 #include "GlobalProtocol.h"
 namespace Dic::Module::Global {
 class GlobalPlugin : public Core::BasePlugin {
-public:
+  public:
     GlobalPlugin() : Core::BasePlugin(MODULE_GLOBAL) {};
-    std::unique_ptr<Module::BaseModule> GetModule() override
-    {
-        return std::make_unique<GlobalModule>();
-    }
-    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override
-    {
-        return std::make_unique<GlobalProtocol>();
-    }
+    std::unique_ptr<Module::BaseModule> GetModule() override { return std::make_unique<GlobalModule>(); }
+    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override { return std::make_unique<GlobalProtocol>(); }
 };
 }
 #endif // PROFILER_SERVER_GLOBALPLUGIN_H

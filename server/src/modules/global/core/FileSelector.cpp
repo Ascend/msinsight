@@ -22,20 +22,17 @@ namespace Dic {
 namespace Module {
 namespace Global {
 using namespace Protocol;
-bool FileSelector::CompareStrIgnoreCase(const std::string &s1, const std::string &s2)
-{
+bool FileSelector::CompareStrIgnoreCase(const std::string &s1, const std::string &s2) {
     std::string str1(s1);
     std::string str2(s2);
-    std::transform(str1.begin(), str1.end(), str1.begin(), [](unsigned char c) { return std::tolower(c);});
-    std::transform(str2.begin(), str2.end(), str2.begin(), [](unsigned char c) { return std::tolower(c);});
+    std::transform(str1.begin(), str1.end(), str1.begin(), [](unsigned char c) { return std::tolower(c); });
+    std::transform(str2.begin(), str2.end(), str2.begin(), [](unsigned char c) { return std::tolower(c); });
     return str1 < str2;
 }
 
 void FileSelector::GetFoldersAndFiles(const std::string &path,
-                                      std::vector<std::unique_ptr<Protocol::Folder>> &childrenFolders,
-                                      std::vector<std::unique_ptr<Protocol::File>> &childrenFiles,
-                                      bool &exist)
-{
+    std::vector<std::unique_ptr<Protocol::Folder>> &childrenFolders,
+    std::vector<std::unique_ptr<Protocol::File>> &childrenFiles, bool &exist) {
     std::vector<std::string> folders;
     std::vector<std::string> files;
     // 处理中文路径

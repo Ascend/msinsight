@@ -20,8 +20,7 @@
 #include "WsSender.h"
 
 namespace Dic::Protocol {
-void SendReadFileFailEvent(const std::string &filePath, const std::string &errMsg)
-{
+void SendReadFileFailEvent(const std::string &filePath, const std::string &errMsg) {
     auto event = std::make_unique<ReadFileFailEvent>();
     event->body.filePath = filePath;
     event->body.error = errMsg;
