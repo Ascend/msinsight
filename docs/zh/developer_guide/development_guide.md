@@ -135,6 +135,8 @@ pre-commit run
 
 检查过程中，格式化类问题（如代码缩进、换行等）会被自动修复，修复后需重新 `git add`。未能自动修复的错误请根据提示人工修复。
 
+前端 `modules` 目录下暂存的 `js/jsx/ts/tsx` 文件会在 pre-commit 阶段执行 ESLint 检查。pre-commit 只检查暂存文件，不能替代 CI 中的全量 `cd modules && pnpm lint`。
+
 **4. 提交代码**
 
 钩子安装成功后，正常提交代码即可，pre-commit 会自动运行。若自动修复后无其他问题，提交将直接成功。
