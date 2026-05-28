@@ -36,32 +36,30 @@ struct PytorchApiPO {
     uint64_t type = 0;
 };
 class PytorchApiTable : public Table<PytorchApiPO> {
-public:
+  public:
     PytorchApiTable() = default;
     ~PytorchApiTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { PytorchApiColumn::ID, SetId },
-            { PytorchApiColumn::TIMESTAMP, SetTimestamp },
-            { PytorchApiColumn::ENDTIME, SetEndTime },
-            { PytorchApiColumn::GLOBAL_TID, SetGlobalTid },
-            { PytorchApiColumn::CONNECTIONID, SetConnectionId },
-            { PytorchApiColumn::NAME, SetName },
-            { PytorchApiColumn::SEQUENCE_NUMBER, SetSequenceNumber },
-            { PytorchApiColumn::FWD_THREAD_ID, SetFwdThreadId },
-            { PytorchApiColumn::INPUT_DTYPES, SetInputDtypes },
-            { PytorchApiColumn::INPUT_SHAPES, SetInputShapes },
-            { PytorchApiColumn::CALL_CHAIN_ID, SetCallchainId },
-            { PytorchApiColumn::TYPE, SetType },
+            {PytorchApiColumn::ID, SetId},
+            {PytorchApiColumn::TIMESTAMP, SetTimestamp},
+            {PytorchApiColumn::ENDTIME, SetEndTime},
+            {PytorchApiColumn::GLOBAL_TID, SetGlobalTid},
+            {PytorchApiColumn::CONNECTIONID, SetConnectionId},
+            {PytorchApiColumn::NAME, SetName},
+            {PytorchApiColumn::SEQUENCE_NUMBER, SetSequenceNumber},
+            {PytorchApiColumn::FWD_THREAD_ID, SetFwdThreadId},
+            {PytorchApiColumn::INPUT_DTYPES, SetInputDtypes},
+            {PytorchApiColumn::INPUT_SHAPES, SetInputShapes},
+            {PytorchApiColumn::CALL_CHAIN_ID, SetCallchainId},
+            {PytorchApiColumn::TYPE, SetType},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "PYTORCH_API";
         return tableName;
     }

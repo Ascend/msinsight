@@ -38,55 +38,53 @@ struct ComputeTaskInfoPO {
     uint64_t waitNs = 0;
 };
 class ComputeTaskInfoTable : public Table<ComputeTaskInfoPO> {
-public:
+  public:
     ComputeTaskInfoTable() = default;
     ~ComputeTaskInfoTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { ComputeTaskInfoColumn::NAME, SetName },
-            { ComputeTaskInfoColumn::GLOBAL_TASK_ID, SetGlobalTaskId },
-            { ComputeTaskInfoColumn::BLOCK_DIM, SetBlockDim },
-            { ComputeTaskInfoColumn::MIX_BLOCK_DIM, SetMixBlockDim },
-            { ComputeTaskInfoColumn::TASK_TYPE, SetTaskType },
-            { ComputeTaskInfoColumn::OP_TYPE, SetOpType },
-            { ComputeTaskInfoColumn::INPUT_FORMATS, SetInputFormats },
-            { ComputeTaskInfoColumn::INPUT_DATA_TYPES, SetInputDataTypes },
-            { ComputeTaskInfoColumn::INPUT_SHAPES, SetInputShapes },
-            { ComputeTaskInfoColumn::OUTOUT_FORMATS, SetOutputFormats },
-            { ComputeTaskInfoColumn::OUTPUT_DATA_TYPES, SetOutputDataTypes },
-            { ComputeTaskInfoColumn::OUTPUT_SHAPES, SetOutputShapes },
-            { ComputeTaskInfoColumn::ATTRINFO, SetAttrInfo },
-            { ComputeTaskInfoColumn::WAIT_NS, SetWaitNs },
+            {ComputeTaskInfoColumn::NAME, SetName},
+            {ComputeTaskInfoColumn::GLOBAL_TASK_ID, SetGlobalTaskId},
+            {ComputeTaskInfoColumn::BLOCK_DIM, SetBlockDim},
+            {ComputeTaskInfoColumn::MIX_BLOCK_DIM, SetMixBlockDim},
+            {ComputeTaskInfoColumn::TASK_TYPE, SetTaskType},
+            {ComputeTaskInfoColumn::OP_TYPE, SetOpType},
+            {ComputeTaskInfoColumn::INPUT_FORMATS, SetInputFormats},
+            {ComputeTaskInfoColumn::INPUT_DATA_TYPES, SetInputDataTypes},
+            {ComputeTaskInfoColumn::INPUT_SHAPES, SetInputShapes},
+            {ComputeTaskInfoColumn::OUTOUT_FORMATS, SetOutputFormats},
+            {ComputeTaskInfoColumn::OUTPUT_DATA_TYPES, SetOutputDataTypes},
+            {ComputeTaskInfoColumn::OUTPUT_SHAPES, SetOutputShapes},
+            {ComputeTaskInfoColumn::ATTRINFO, SetAttrInfo},
+            {ComputeTaskInfoColumn::WAIT_NS, SetWaitNs},
         };
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "COMPUTE_TASK_INFO";
         return tableName;
     }
     static void SetName(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SetGlobalTaskId(ComputeTaskInfoPO &computeTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetGlobalTaskId(
+        ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetBlockDim(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetMixBlockDim(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetTaskType(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetOpType(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SetInputFormats(ComputeTaskInfoPO &computeTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SetInputDataTypes(ComputeTaskInfoPO &computeTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetInputFormats(
+        ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetInputDataTypes(
+        ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetInputShapes(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SetOutputFormats(ComputeTaskInfoPO &computeTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SetOutputDataTypes(ComputeTaskInfoPO &computeTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SetOutputShapes(ComputeTaskInfoPO &computeTaskInfoPO,
-        const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetOutputFormats(
+        ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetOutputDataTypes(
+        ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetOutputShapes(
+        ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetAttrInfo(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetWaitNs(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
 };

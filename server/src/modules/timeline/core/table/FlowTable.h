@@ -32,26 +32,20 @@ struct FlowPO {
 };
 
 class FlowTable : public Table<FlowPO> {
-public:
+  public:
     FlowTable() = default;
     ~FlowTable() = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign>& GetAssignMap() override
-    {
-        static std::unordered_map<std::string_view, assign> assignMap = {
-            { FlowColumn::ID, IdHandle },
-            { FlowColumn::FLOW_ID, FlowIdHandle },
-            { FlowColumn::NAME, NameHandle },
-            { FlowColumn::CAT, CatHandle },
-            { FlowColumn::TRACK_ID, TrackIdHandle },
-            { FlowColumn::TIMESTAMP, TimeStampHandle },
-            { FlowColumn::TYPE, TypeHandle } };
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
+        static std::unordered_map<std::string_view, assign> assignMap = {{FlowColumn::ID, IdHandle},
+            {FlowColumn::FLOW_ID, FlowIdHandle}, {FlowColumn::NAME, NameHandle}, {FlowColumn::CAT, CatHandle},
+            {FlowColumn::TRACK_ID, TrackIdHandle}, {FlowColumn::TIMESTAMP, TimeStampHandle},
+            {FlowColumn::TYPE, TypeHandle}};
 
         return assignMap;
     }
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "flow";
         return tableName;
     }

@@ -26,23 +26,21 @@ struct EnumApiTypePO {
     std::string name;
 };
 class EnumApiTypeTable : public Table<EnumApiTypePO> {
-public:
+  public:
     EnumApiTypeTable() = default;
     ~EnumApiTypeTable() override = default;
     std::unordered_map<uint64_t, std::string> QueryStrMap(const std::vector<uint64_t> &ids, const std::string &fileId);
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { EnumApiTypeColumn::ID, SetId },
-            { EnumApiTypeColumn::NAME, SetName },
+            {EnumApiTypeColumn::ID, SetId},
+            {EnumApiTypeColumn::NAME, SetName},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "ENUM_API_TYPE";
         return tableName;
     }

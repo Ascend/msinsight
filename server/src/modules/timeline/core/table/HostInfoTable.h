@@ -26,23 +26,21 @@ struct HostInfoPO {
     std::string hostName;
 };
 class HostInfoTable : public Table<HostInfoPO> {
-public:
+  public:
     HostInfoTable() = default;
     ~HostInfoTable() override = default;
     std::string GetHost(const std::string &fileId);
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { HostInfoColumn::HOST_UID, SetHostUid },
-            { HostInfoColumn::HOST_NAME, SetHostName },
+            {HostInfoColumn::HOST_UID, SetHostUid},
+            {HostInfoColumn::HOST_NAME, SetHostName},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "HOST_INFO";
         return tableName;
     }

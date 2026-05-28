@@ -29,24 +29,22 @@ struct ProcessPO {
 };
 
 class ProcessTable : public Table<ProcessPO> {
-public:
+  public:
     ProcessTable() = default;
     ~ProcessTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { ProcessColumn::PID, SetPid },
-            { ProcessColumn::PROCESS_NAME, SetProcessName },
-            { ProcessColumn::LABEL, SetLabel },
-            { ProcessColumn::PROCESS_SORT_INDEX, SetProcessSortIndex },
+            {ProcessColumn::PID, SetPid},
+            {ProcessColumn::PROCESS_NAME, SetProcessName},
+            {ProcessColumn::LABEL, SetLabel},
+            {ProcessColumn::PROCESS_SORT_INDEX, SetProcessSortIndex},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "process";
         return tableName;
     }

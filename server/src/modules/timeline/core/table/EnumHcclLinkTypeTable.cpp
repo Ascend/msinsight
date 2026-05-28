@@ -17,21 +17,18 @@
  */
 #include "EnumHcclLinkTypeTable.h"
 namespace Dic::Module::Timeline {
-void EnumHcclLinkTypeTable::SetId(EnumHcclLinkTypePO &enumHcclLinkTypePO,
-    const std::unique_ptr<SqliteResultSet> &resultSet)
-{
+void EnumHcclLinkTypeTable::SetId(
+    EnumHcclLinkTypePO &enumHcclLinkTypePO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     enumHcclLinkTypePO.id = resultSet->GetUint64(EnumHcclLinkTypeClumn::ID);
 }
 
-void EnumHcclLinkTypeTable::SetName(EnumHcclLinkTypePO &enumHcclLinkTypePO,
-    const std::unique_ptr<SqliteResultSet> &resultSet)
-{
+void EnumHcclLinkTypeTable::SetName(
+    EnumHcclLinkTypePO &enumHcclLinkTypePO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     enumHcclLinkTypePO.name = resultSet->GetString(EnumHcclLinkTypeClumn::NAME);
 }
 
-std::unordered_map<uint64_t, std::string> EnumHcclLinkTypeTable::QueryStrMap(const std::vector<uint64_t> &ids,
-    const std::string &fileId)
-{
+std::unordered_map<uint64_t, std::string> EnumHcclLinkTypeTable::QueryStrMap(
+    const std::vector<uint64_t> &ids, const std::string &fileId) {
     std::unordered_map<uint64_t, std::string> res;
     std::vector<EnumHcclLinkTypePO> enumHcclLinkTypePO;
     Select(EnumHcclLinkTypeClumn::ID, EnumHcclLinkTypeClumn::NAME)

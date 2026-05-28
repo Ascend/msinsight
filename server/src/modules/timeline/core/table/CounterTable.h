@@ -30,23 +30,24 @@ struct CounterPO {
 };
 
 class CounterTable : public Table<CounterPO> {
-public:
+  public:
     CounterTable() = default;
     ~CounterTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { CounterColumn::ID, SetId },   { CounterColumn::NAME, SetName },
-            { CounterColumn::PID, SetPid }, { CounterColumn::TIMESTAMP, SetTimestamp },
-            { CounterColumn::CAT, SetCat }, { CounterColumn::ARGS, SetArgs },
+            {CounterColumn::ID, SetId},
+            {CounterColumn::NAME, SetName},
+            {CounterColumn::PID, SetPid},
+            {CounterColumn::TIMESTAMP, SetTimestamp},
+            {CounterColumn::CAT, SetCat},
+            {CounterColumn::ARGS, SetArgs},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "counter";
         return tableName;
     }

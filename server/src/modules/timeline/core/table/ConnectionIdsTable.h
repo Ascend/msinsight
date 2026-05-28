@@ -26,22 +26,20 @@ struct ConnectionIdsPO {
     uint64_t connectionId = 0;
 };
 class ConnectionIdsTable : public Table<ConnectionIdsPO> {
-public:
+  public:
     ConnectionIdsTable() = default;
     ~ConnectionIdsTable() override = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { ConnectionIdsColumn::ID, SetId },
-            { ConnectionIdsColumn::CONNECTIONID, SetConnectionId },
+            {ConnectionIdsColumn::ID, SetId},
+            {ConnectionIdsColumn::CONNECTIONID, SetConnectionId},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "CONNECTION_IDS";
         return tableName;
     }

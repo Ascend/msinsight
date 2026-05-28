@@ -26,24 +26,23 @@ struct StringIdsPO {
     std::string value;
 };
 class StringIdsTable : public Table<StringIdsPO> {
-public:
+  public:
     StringIdsTable() = default;
     ~StringIdsTable() override = default;
     std::unordered_map<uint64_t, std::string> QueryStrMap(const std::vector<uint64_t> &ids, const std::string &fileId);
-    std::unordered_map<uint64_t, std::string> QueryStrMapByValues(const std::vector<std::string> &values,
-                                                                  const std::string &fileId);
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+    std::unordered_map<uint64_t, std::string> QueryStrMapByValues(
+        const std::vector<std::string> &values, const std::string &fileId);
+
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { StringIdsColumn::ID, SetId },
-            { StringIdsColumn::VALUE, SetValue },
+            {StringIdsColumn::ID, SetId},
+            {StringIdsColumn::VALUE, SetValue},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "STRING_IDS";
         return tableName;
     }

@@ -26,23 +26,21 @@ struct EnumHcclRdmaTypePO {
     std::string name;
 };
 class EnumHcclRdmaTypeTable : public Table<EnumHcclRdmaTypePO> {
-public:
+  public:
     EnumHcclRdmaTypeTable() = default;
     ~EnumHcclRdmaTypeTable() override = default;
     std::unordered_map<uint64_t, std::string> QueryStrMap(const std::vector<uint64_t> &ids, const std::string &fileId);
 
-protected:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { EnumHcclRdmaTypeClumn::ID, SetId },
-            { EnumHcclRdmaTypeClumn::NAME, SetName },
+            {EnumHcclRdmaTypeClumn::ID, SetId},
+            {EnumHcclRdmaTypeClumn::NAME, SetName},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "ENUM_HCCL_RDMA_TYPE";
         return tableName;
     }

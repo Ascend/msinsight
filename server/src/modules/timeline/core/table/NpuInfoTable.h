@@ -29,21 +29,20 @@ struct NpuInfoPo {
 };
 
 class NpuInfoTable : public Table<NpuInfoPo> {
-public:
+  public:
     NpuInfoTable() = default;
     ~NpuInfoTable() override = default;
-private:
-    const std::unordered_map<std::string_view, assign> &GetAssignMap() override
-    {
+
+  private:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
         static std::unordered_map<std::string_view, assign> assignMap = {
-            { NpuInfoColumn::ID, SetId },
-            { NpuInfoColumn::NAME, SetName },
+            {NpuInfoColumn::ID, SetId},
+            {NpuInfoColumn::NAME, SetName},
         };
         return assignMap;
     }
 
-    const std::string &GetTableName() override
-    {
+    const std::string &GetTableName() override {
         static std::string tableName = "NPU_INFO";
         return tableName;
     }

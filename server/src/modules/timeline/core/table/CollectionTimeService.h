@@ -28,19 +28,17 @@ struct HostTimeStruct {
     uint32_t mark = 0;
 };
 class CollectionTimeService {
-public:
-    static CollectionTimeService &Instance()
-    {
+  public:
+    static CollectionTimeService &Instance() {
         static CollectionTimeService instance;
         return instance;
     }
     CollectionTimeService(const CollectionTimeService &) = delete;
-    CollectionTimeService &operator = (const CollectionTimeService &) = delete;
+    CollectionTimeService &operator=(const CollectionTimeService &) = delete;
     CollectionTimeService(CollectionTimeService &&) = delete;
-    CollectionTimeService &operator = (CollectionTimeService &&) = delete;
-    std::string ComputeMarkHost(std::string &hostWithOutMark, const std::string &hostPath,
-        uint64_t startTime, uint64_t endTime)
-    {
+    CollectionTimeService &operator=(CollectionTimeService &&) = delete;
+    std::string ComputeMarkHost(
+        std::string &hostWithOutMark, const std::string &hostPath, uint64_t startTime, uint64_t endTime) {
         std::unique_lock<std::mutex> lock(mutex);
         std::string result = hostWithOutMark;
         bool isAddHostTime = true;
@@ -61,20 +59,19 @@ public:
             }
         }
         if (isAddHostTime) {
-            HostTimeStruct temp = { hostWithOutMark, hostPath, startTime, endTime, mark };
+            HostTimeStruct temp = {hostWithOutMark, hostPath, startTime, endTime, mark};
             hostTimeVec.emplace_back(temp);
         }
         result = result + "_" + std::to_string(mark) + " ";
         return result;
     }
 
-    void Reset()
-    {
+    void Reset() {
         std::unique_lock<std::mutex> lock(mutex);
         hostTimeVec.clear();
     }
 
-private:
+  private:
     CollectionTimeService() = default;
     ~CollectionTimeService() = default;
     std::vector<HostTimeStruct> hostTimeVec;
