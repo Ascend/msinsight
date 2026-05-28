@@ -24,16 +24,13 @@
 namespace Dic::Protocol {
 constexpr inline std::string_view EVENT_PARSE_TRITON_COMPLETED = "parse/tritonCompleted";
 
-struct TritonParseSuccessEventBody {
-};
+struct TritonParseSuccessEventBody {};
 
 struct TritonParseSuccessEvent : public JsonEvent {
-    TritonParseSuccessEvent() : JsonEvent(std::string(EVENT_PARSE_TRITON_COMPLETED))
-    {}
+    TritonParseSuccessEvent() : JsonEvent(std::string(EVENT_PARSE_TRITON_COMPLETED)) {}
     TritonParseSuccessEventBody body;
 
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
         auto &allocator = json.GetAllocator();
         ProtocolUtil::SetEventJsonBaseInfo(*this, json);

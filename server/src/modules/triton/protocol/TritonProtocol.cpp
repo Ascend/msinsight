@@ -26,23 +26,19 @@
 #include "TritonProtocolResponse.h"
 
 namespace Dic::Protocol {
-void TritonProtocolUtil::RegisterJsonToRequestFuncs()
-{
-    jsonToReqFactory.emplace(REQ_RES_TRITON_MEMORY_BLOCKS,
-                             ProtocolUtil::BuildRequestFromJson<TritonMemoryBlocksRequest>);
-    jsonToReqFactory.emplace(REQ_RES_TRITON_MEMORY_BASIC_INFO,
-                             ProtocolUtil::BuildRequestFromJson<TritonBasicInfoRequest>);
-    jsonToReqFactory.emplace(REQ_RES_TRITON_MEMORY_USAGE,
-                             ProtocolUtil::BuildRequestFromJson<TritonMemoryUsageRequest>);
+void TritonProtocolUtil::RegisterJsonToRequestFuncs() {
+    jsonToReqFactory.emplace(
+        REQ_RES_TRITON_MEMORY_BLOCKS, ProtocolUtil::BuildRequestFromJson<TritonMemoryBlocksRequest>);
+    jsonToReqFactory.emplace(
+        REQ_RES_TRITON_MEMORY_BASIC_INFO, ProtocolUtil::BuildRequestFromJson<TritonBasicInfoRequest>);
+    jsonToReqFactory.emplace(REQ_RES_TRITON_MEMORY_USAGE, ProtocolUtil::BuildRequestFromJson<TritonMemoryUsageRequest>);
 }
-void TritonProtocolUtil::RegisterResponseToJsonFuncs()
-{
+void TritonProtocolUtil::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_TRITON_MEMORY_BLOCKS, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_TRITON_MEMORY_BASIC_INFO, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_TRITON_MEMORY_USAGE, ProtocolUtil::CommonResponseToJson);
 }
-void TritonProtocolUtil::RegisterEventToJsonFuncs()
-{
+void TritonProtocolUtil::RegisterEventToJsonFuncs() {
     eventToJsonFactory.emplace(std::string(EVENT_PARSE_TRITON_COMPLETED), ProtocolUtil::CommonEventToJson);
 }
 } // namespace Dic::Protocol

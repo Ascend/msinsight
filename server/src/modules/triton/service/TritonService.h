@@ -31,29 +31,32 @@
 namespace Dic::Module::Triton {
 
 class TritonService {
-public:
-    static TritonService& Instance();
-    TritonService(const TritonService&) = delete;
-    TritonService(TritonService&&) = delete;
-    TritonService& operator=(const TritonService&) = delete;
+  public:
+    static TritonService &Instance();
+    TritonService(const TritonService &) = delete;
+    TritonService(TritonService &&) = delete;
+    TritonService &operator=(const TritonService &) = delete;
     void Reset();
     void UpdateRecord(std::map<std::string, TritonRecord> &&records);
-    void SetHeader(TritonMemeHeader&& header);
-    bool ContainsMemDataOf(const std::string& memType) const;
+    void SetHeader(TritonMemeHeader &&header);
+    bool ContainsMemDataOf(const std::string &memType) const;
     [[nodiscard]] TritonMemeHeader GetHeader() const { return header_; }
-    [[nodiscard]] std::vector<TritonTensorSegment> QuerySegmentsContainRange(const std::string &scopeType, uint64_t timestamp) const;
-    [[nodiscard]] std::vector<TritonTensorBlock> QueryBlocksContainRange(const std::string &scopeType, uint64_t start, uint64_t end) const;
-    void UpdateCompileInfo(const std::string& scopeType, std::pair<std::string, std::string>&& compileInfo);
-    [[nodiscard]] std::string GetCompileStatus(const std::string& scopeType) const;
-    [[nodiscard]] std::string GetCompileErrMsg(const std::string& scopeType) const;
+    [[nodiscard]] std::vector<TritonTensorSegment> QuerySegmentsContainRange(
+        const std::string &scopeType, uint64_t timestamp) const;
+    [[nodiscard]] std::vector<TritonTensorBlock> QueryBlocksContainRange(
+        const std::string &scopeType, uint64_t start, uint64_t end) const;
+    void UpdateCompileInfo(const std::string &scopeType, std::pair<std::string, std::string> &&compileInfo);
+    [[nodiscard]] std::string GetCompileStatus(const std::string &scopeType) const;
+    [[nodiscard]] std::string GetCompileErrMsg(const std::string &scopeType) const;
 
-private:
+  private:
     TritonService();
     ~TritonService();
     uint64_t GetMemorySize(std::string_view kernelName, std::string_view scopeType);
     TritonMemeHeader header_;
     std::map<std::string, TritonRecord> records_;
-    std::map<std::string, std::pair<std::string, std::string>> compileInfo_; // scopeType -- compileStatus, compileErrMsg
+    std::map<std::string, std::pair<std::string, std::string>>
+        compileInfo_; // scopeType -- compileStatus, compileErrMsg
     std::map<std::string, std::unique_ptr<VirtualAddressManager>> addressManager_; // memoryTpe -- manager
 };
 }

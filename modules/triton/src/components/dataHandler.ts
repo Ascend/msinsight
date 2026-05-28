@@ -26,13 +26,13 @@ import { runInAction } from 'mobx';
 export const getBarNewData = async (session: any, startTimestamp?: number, endTimestamp?: number): Promise<void> => {
     try {
         const param: GraphParam = { startTimestamp, endTimestamp };
-        const blockDatas = await getBlocksGraphData(param);
+        const blockData = await getBlocksGraphData(param);
         const transform = { x: 0, y: 0, scale: 1 };
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
         workerTransform({ transform });
-        workerSetMemoryBlockData({ data: blockDatas });
+        workerSetMemoryBlockData({ data: blockData });
     } catch (error: any) {
         message.error(error.message);
     }

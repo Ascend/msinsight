@@ -20,7 +20,7 @@
 #include "TritonRequestHandler.h"
 namespace Dic::Module::Triton {
 class QueryTritonBasicInfoHandler : public TritonRequestHandler {
-public:
+  public:
     QueryTritonBasicInfoHandler() { command = Protocol::REQ_RES_TRITON_MEMORY_BASIC_INFO; }
     ~QueryTritonBasicInfoHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;

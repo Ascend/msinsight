@@ -45,22 +45,22 @@ const hashHexAddressToIndex = (addr: string): number => {
     return hash % colors.length;
 };
 
-export const getColorByAddr = (addr: string, isHightlight: boolean = false, opacity: number = 1): [number, number, number, number] => {
+export const getColorByAddr = (addr: string, isHighlight: boolean = false, opacity: number = 1): [number, number, number, number] => {
     const index = hashHexAddressToIndex(addr);
-    return hexToRgba(isHightlight ? highlightColors[index] : colors[index], opacity);
+    return hexToRgba(isHighlight ? highlightColors[index] : colors[index], opacity);
 };
 
-export const getColorStringByAddr = (addr: string, isHightlight: boolean = false): string => {
+export const getColorStringByAddr = (addr: string, isHighlight: boolean = false): string => {
     const index = hashHexAddressToIndex(addr);
-    return isHightlight ? highlightColors[index] : colors[index];
+    return isHighlight ? highlightColors[index] : colors[index];
 };
 
-export const getColorByIndex = (index: number, isHightlight: boolean = false, opacity: number = 1): [number, number, number, number] => {
+export const getColorByIndex = (index: number, isHighlight: boolean = false, opacity: number = 1): [number, number, number, number] => {
     const colorNum = colors.length;
-    return hexToRgba(isHightlight ? highlightColors[index % colorNum] : colors[index % colorNum], opacity);
+    return hexToRgba(isHighlight ? highlightColors[index % colorNum] : colors[index % colorNum], opacity);
 };
 
-export const getColorStringByIndex = (index: number, isHightlight: boolean = false): string => {
+export const getColorStringByIndex = (index: number, isHighlight: boolean = false): string => {
     const colorNum = colors.length;
-    return isHightlight ? highlightColors[index % colorNum] : colors[index % colorNum];
+    return isHighlight ? highlightColors[index % colorNum] : colors[index % colorNum];
 };

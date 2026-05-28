@@ -21,15 +21,17 @@
 #include "ProtocolDefs.h"
 namespace Dic::Module::Triton {
 class TritonRequestHandler : public ModuleRequestHandler {
-public:
-    TritonRequestHandler()
-    {
+  public:
+    TritonRequestHandler() {
         moduleName = MODULE_TRITON;
         async = false;
     }
     ~TritonRequestHandler() override = default;
-protected:
-    inline static const std::string REQUEST_ERROR_UNKNOWN = "An unknown exception occurred while querying data. Please check whether your data contains anomalies or review the logs for more information.";
+
+  protected:
+    inline static const std::string REQUEST_ERROR_UNKNOWN =
+        "An unknown exception occurred while querying data. Please check whether your data contains anomalies or "
+        "review the logs for more information.";
 };
 }
 #endif

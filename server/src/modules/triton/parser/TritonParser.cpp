@@ -34,9 +34,7 @@ namespace Dic::Module::Triton {
 using namespace Dic::Server;
 
 namespace {
-template<size_t N>
-bool HasExpectedMembers(const json_t &jsonObj, const std::array<const char *, N> &expectedKeys)
-{
+template <size_t N> bool HasExpectedMembers(const json_t &jsonObj, const std::array<const char *, N> &expectedKeys) {
     if (!jsonObj.IsObject()) {
         return false;
     }
@@ -45,22 +43,19 @@ bool HasExpectedMembers(const json_t &jsonObj, const std::array<const char *, N>
 }
 } // namespace
 
-TritonParser &TritonParser::Instance()
-{
+TritonParser &TritonParser::Instance() {
     static TritonParser instance;
     return instance;
 }
-void TritonParser::Parse(const std::string &parseDir)
-{
+void TritonParser::Parse(const std::string &parseDir) {
     Timeline::ParserStatusManager::Instance().WaitStartParse();
     BeforeParse(parseDir);
-    auto future = ThreadPool::Instance().AddTask([this, parseDir]() { return ParseImpl(parseDir); },
-                                                 TraceIdManager::GetTraceId());
+    auto future = ThreadPool::Instance().AddTask(
+        [this, parseDir]() { return ParseImpl(parseDir); }, TraceIdManager::GetTraceId());
     auto result = future.get();
     AfterParse(result);
 }
-bool TritonParser::IsParsed(const std::string &filePath) const
-{
+bool TritonParser::IsParsed(const std::string &filePath) const {
     if (filePath.empty()) {
         return false;
     }
@@ -71,8 +66,7 @@ bool TritonParser::IsParsed(const std::string &filePath) const
     return fileName == tritonMemFileName;
 }
 
-void TritonParser::BeforeParse(const std::string &parsedDir)
-{
+void TritonParser::BeforeParse(const std::string &parsedDir) {
     TritonService::Instance().Reset();
     if (!FileUtil::CheckPathSecurity(parsedDir, CHECK_FILE_READ)) {
         ServerLog::Error("Triton file dir is not safe, please check log for more information");
@@ -82,8 +76,7 @@ void TritonParser::BeforeParse(const std::string &parsedDir)
     parsedFiles.push_back(parsedDir);
 }
 
-void TritonParser::AfterParse(const ParseResult &result) const
-{
+void TritonParser::AfterParse(const ParseResult &result) const {
     if (!result) {
         auto event = std::make_unique<Protocol::ParseFailEvent>();
         event->moduleName = Protocol::MODULE_TIMELINE;
@@ -103,21 +96,18 @@ void TritonParser::AfterParse(const ParseResult &result) const
     Dic::SendEvent(std::move(event));
 }
 
-ParseResult TritonParser::ParseImpl(const std::string &parsedDir)
-{
+ParseResult TritonParser::ParseImpl(const std::string &parsedDir) {
     if (parsedFiles.empty()) {
         ServerLog::Error("Not found need parsed File.");
 
         return {false, "Not found triton file"};
     }
-    std::for_each(parsedFiles.begin(), parsedFiles.end(), [this](const std::string &filePath) {
-        auto result = ParseOneTriton(filePath);
-    });
+    std::for_each(parsedFiles.begin(), parsedFiles.end(),
+        [this](const std::string &filePath) { auto result = ParseOneTriton(filePath); });
     return {true, "success"};
 }
 
-bool TritonParser::CheckFileValid(const std::string &fileName, std::string &error)
-{
+bool TritonParser::CheckFileValid(const std::string &fileName, std::string &error) {
     if (fileName.empty()) {
         error = "Triton file name is required";
         return false;
@@ -129,8 +119,7 @@ bool TritonParser::CheckFileValid(const std::string &fileName, std::string &erro
     return true;
 }
 
-ParseResult TritonParser::ParseOneTriton(const std::string &memFile)
-{
+ParseResult TritonParser::ParseOneTriton(const std::string &memFile) {
     document_t jsonDoc = JsonUtil::ReadJsonFromFile(memFile);
     if (!CheckDataValid(jsonDoc)) {
         return {false, "Invalid Data"};
@@ -141,7 +130,7 @@ ParseResult TritonParser::ParseOneTriton(const std::string &memFile)
 
     std::map<std::string, TritonRecord> scopeMap;
     auto &jsonRecord = jsonDoc["Record"];
-    
+
     for (const json_t &recordItem : jsonRecord.GetArray()) {
         TritonRecord tritonRecord;
         std::string status, errMsg, scope;
@@ -152,13 +141,13 @@ ParseResult TritonParser::ParseOneTriton(const std::string &memFile)
         header.memTypes.push_back(scope);
         auto &memInfoArray = recordItem["memory_info_array"];
         tritonRecord.segments.reserve(memInfoArray.Size());
-    for (const json_t &memInfo : memInfoArray.GetArray()) {
+        for (const json_t &memInfo : memInfoArray.GetArray()) {
             TritonTensorSegment segment;
             JsonUtil::SetByJsonKeyValue(segment.allocate, memInfo, "alloc_time_in_ir");
             JsonUtil::SetByJsonKeyValue(segment.buffer, memInfo, "buffer");
             JsonUtil::SetByJsonKeyValue(segment.sourceLocation, memInfo, "source_location");
             JsonUtil::SetByJsonKeyValue(segment.tmpBuf, memInfo, "is_tmpbuf");
-            
+
             auto lifeTime = JsonUtil::GetVector<uint64_t>(memInfo, "life_time_in_ir");
             if (lifeTime.size() >= 2) {
                 segment.start = lifeTime[0];
@@ -168,7 +157,7 @@ ParseResult TritonParser::ParseOneTriton(const std::string &memFile)
                 segment.end = 0;
             }
 
-            uint64_t extend = memInfo["extent"].GetUint64() / 8;  // bite to Bytes
+            uint64_t extend = memInfo["extent"].GetUint64() / 8; // bite to Bytes
             uint64_t blockCount = memInfo["offset"].Size();
             segment.size = extend * blockCount;
             segment.blocks.reserve(blockCount);
@@ -188,8 +177,7 @@ ParseResult TritonParser::ParseOneTriton(const std::string &memFile)
     return {true, "Success"};
 }
 
-bool TritonParser::CheckDataValid(document_t &json)
-{
+bool TritonParser::CheckDataValid(document_t &json) {
     if (json.IsNull()) {
         return false;
     }
@@ -228,10 +216,9 @@ bool TritonParser::CheckDataValid(document_t &json)
             ServerLog::Error("Triton Record item required keys are missing");
             return false;
         }
-        
-        bool recordTypesOk = recordItem["scope"].IsString() && 
-                             recordItem["status"].IsString() && 
-                             recordItem["memory_info_array"].IsArray();
+
+        bool recordTypesOk = recordItem["scope"].IsString() && recordItem["status"].IsString() &&
+            recordItem["memory_info_array"].IsArray();
         if (!recordTypesOk) {
             ServerLog::Error("Triton Record item value types are invalid");
             return false;

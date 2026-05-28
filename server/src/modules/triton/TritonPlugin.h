@@ -24,12 +24,9 @@
 #include "TritonProtocol.h"
 namespace Dic::Module::Triton {
 class TritonPlugin : public Core::BasePlugin {
-public:
+  public:
     TritonPlugin() : Core::BasePlugin(MODULE_TRITON) {}
-    std::unique_ptr<Module::BaseModule> GetModule() override
-    {
-        return std::make_unique<TritonModule>();
-    }
+    std::unique_ptr<Module::BaseModule> GetModule() override { return std::make_unique<TritonModule>(); }
     std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override;
 };
 

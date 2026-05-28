@@ -21,36 +21,30 @@
 #include <limits>
 
 namespace Dic::Module::Triton {
-TritonService::TritonService()
-{
-}
+TritonService::TritonService() {}
 
 TritonService::~TritonService() = default;
 
-uint64_t TritonService::GetMemorySize(std::string_view kernelName, std::string_view memoryType)
-{
+uint64_t TritonService::GetMemorySize(std::string_view kernelName, std::string_view memoryType) {
     // current given 192kB
-    return 192*1024*8;
+    return 192 * 1024 * 8;
 }
 
-TritonService& TritonService::Instance()
-{
+TritonService &TritonService::Instance() {
     static TritonService instance;
     return instance;
 }
 
-void TritonService::Reset()
-{
+void TritonService::Reset() {
     header_ = {};
     records_.clear();
     addressManager_.clear();
     compileInfo_.clear();
 }
 
-void TritonService::UpdateRecord(std::map<std::string, TritonRecord> &&records)
-{
+void TritonService::UpdateRecord(std::map<std::string, TritonRecord> &&records) {
     records_ = std::move(records);
-    for (auto& [type, record] : records_) {
+    for (auto &[type, record] : records_) {
         if (addressManager_.find(type) == addressManager_.end()) {
             addressManager_[type] = std::make_unique<VirtualAddressManager>();
         }
@@ -58,13 +52,9 @@ void TritonService::UpdateRecord(std::map<std::string, TritonRecord> &&records)
     }
 }
 
-void TritonService::SetHeader(TritonMemeHeader&& header)
-{
-    header_ = std::move(header);
-}
+void TritonService::SetHeader(TritonMemeHeader &&header) { header_ = std::move(header); }
 
-bool TritonService::ContainsMemDataOf(const std::string &memType) const
-{
+bool TritonService::ContainsMemDataOf(const std::string &memType) const {
     if (records_.find(memType) != records_.end()) {
         return true;
     }
@@ -72,13 +62,13 @@ bool TritonService::ContainsMemDataOf(const std::string &memType) const
     return false;
 }
 
-std::vector<TritonTensorSegment> TritonService::QuerySegmentsContainRange(const std::string &memoryType, uint64_t timestamp) const
-{
+std::vector<TritonTensorSegment> TritonService::QuerySegmentsContainRange(
+    const std::string &memoryType, uint64_t timestamp) const {
     std::vector<TritonTensorSegment> result;
     if (!ContainsMemDataOf(memoryType)) {
         return result;
     }
-    for (const auto& seg : records_.at(memoryType).segments) {
+    for (const auto &seg : records_.at(memoryType).segments) {
         if (seg.start <= timestamp && timestamp <= seg.end) {
             result.push_back(seg);
         }
@@ -86,12 +76,11 @@ std::vector<TritonTensorSegment> TritonService::QuerySegmentsContainRange(const 
     return result;
 }
 
-std::vector<TritonTensorBlock> TritonService::QueryBlocksContainRange(const std::string &memoryType,
-    uint64_t start, uint64_t end) const
-{
+std::vector<TritonTensorBlock> TritonService::QueryBlocksContainRange(
+    const std::string &memoryType, uint64_t start, uint64_t end) const {
     std::vector<TritonTensorBlock> result;
-    auto tranSegmentToBlock = [](const TritonTensorSegment& item, std::vector<TritonTensorBlock>& blocks) {
-        for (const auto& block : item.blocks) {
+    auto tranSegmentToBlock = [](const TritonTensorSegment &item, std::vector<TritonTensorBlock> &blocks) {
+        for (const auto &block : item.blocks) {
             TritonTensorBlock newBlock = block;
             newBlock.buffer = item.buffer;
             newBlock.sourceLocation = item.sourceLocation;
@@ -103,8 +92,8 @@ std::vector<TritonTensorBlock> TritonService::QueryBlocksContainRange(const std:
     }
 
     bool isFullRange = (start == 0 && end == std::numeric_limits<uint64_t>::max());
-    const TritonRecord& record = records_.at(memoryType);
-    for (const auto& segment : record.segments) {
+    const TritonRecord &record = records_.at(memoryType);
+    for (const auto &segment : record.segments) {
         if (isFullRange) {
             tranSegmentToBlock(segment, result);
         } else if (start <= end) {
@@ -116,21 +105,18 @@ std::vector<TritonTensorBlock> TritonService::QueryBlocksContainRange(const std:
     return result;
 }
 
-void TritonService::UpdateCompileInfo(const std::string& scopeType, std::pair<std::string, std::string>&& compileInfo)
-{
+void TritonService::UpdateCompileInfo(const std::string &scopeType, std::pair<std::string, std::string> &&compileInfo) {
     compileInfo_[scopeType] = std::move(compileInfo);
 }
 
-std::string TritonService::GetCompileStatus(const std::string& scopeType) const
-{
+std::string TritonService::GetCompileStatus(const std::string &scopeType) const {
     if (compileInfo_.find(scopeType) == compileInfo_.end()) {
         return "Unknown";
     }
     return compileInfo_.at(scopeType).first;
 }
 
- std::string TritonService::GetCompileErrMsg(const std::string& scopeType) const
-{
+std::string TritonService::GetCompileErrMsg(const std::string &scopeType) const {
     if (compileInfo_.find(scopeType) == compileInfo_.end()) {
         return "Unknown";
     }

@@ -6,26 +6,24 @@
 
 namespace Dic::Module::Triton {
 using namespace Dic::Server;
-VirtualAddressManager::VirtualAddressManager() : current_top_address_(0) {
-    Reset();
-}
+VirtualAddressManager::VirtualAddressManager() : current_top_address_(0) { Reset(); }
 
 void VirtualAddressManager::ManageRecord(TritonRecord &tritonRecord) {
     std::vector<MemoryEvent> events;
     // Disassemble blocks into allocation and free events
-    for (auto& segment : tritonRecord.segments) {
-        for (auto& block : segment.blocks) {
+    for (auto &segment : tritonRecord.segments) {
+        for (auto &block : segment.blocks) {
             events.push_back(MemoryEvent(block.start, MemoryEventType::ALLOCATE, &block));
             events.push_back(MemoryEvent(block.end, MemoryEventType::FREE, &block));
         }
     }
-    
+
     // Sort events
     std::sort(events.begin(), events.end());
-    
+
     // Manage available memory and assign calculated addresses
     Reset();
-    for (const auto& event : events) {
+    for (const auto &event : events) {
         if (event.type == MemoryEventType::ALLOCATE) {
             event.block->virtualAddress = Allocate(event.block->size);
             event.block->id = std::to_string(event.block->virtualAddress) + std::to_string(event.block->start);
@@ -41,8 +39,10 @@ void VirtualAddressManager::Reset() {
 }
 
 uint64_t VirtualAddressManager::Allocate(uint64_t size) {
-    if (size == 0) return 0;
-    
+    if (size == 0) {
+        return 0;
+    }
+
     for (auto it = free_blocks_.begin(); it != free_blocks_.end(); ++it) {
         if (it->size >= size) {
             uint64_t allocated_addr = it->address;
@@ -55,7 +55,7 @@ uint64_t VirtualAddressManager::Allocate(uint64_t size) {
             return allocated_addr;
         }
     }
-    
+
     // Allocate from top unallocated space
     uint64_t allocated_addr = current_top_address_;
     current_top_address_ += size;
@@ -66,13 +66,13 @@ void VirtualAddressManager::Free(uint64_t address, uint64_t size) {
     if (address == UINT64_MAX) {
         return;
     }
-    
+
     auto it = free_blocks_.begin();
     while (it != free_blocks_.end() && it->address < address) {
         ++it;
     }
     it = free_blocks_.insert(it, VirtualAddressManager::FreeBlock(address, size));
-    
+
     // Merge with previous
     if (it != free_blocks_.begin()) {
         auto prev = std::prev(it);
@@ -82,7 +82,7 @@ void VirtualAddressManager::Free(uint64_t address, uint64_t size) {
             it = prev;
         }
     }
-    
+
     // Merge with next
     auto next = std::next(it);
     if (next != free_blocks_.end()) {
@@ -91,7 +91,7 @@ void VirtualAddressManager::Free(uint64_t address, uint64_t size) {
             free_blocks_.erase(next);
         }
     }
-    
+
     // Merge with top unallocated space
     if (it->address + it->size == current_top_address_) {
         current_top_address_ = it->address;

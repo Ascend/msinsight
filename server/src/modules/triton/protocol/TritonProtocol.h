@@ -16,13 +16,12 @@
 //  * -------------------------------------------------------------------------
 //  *
 
-
 #ifndef PROFILER_SERVER_TRITONPROTOCOL_H
 #define PROFILER_SERVER_TRITONPROTOCOL_H
 #include "ProtocolUtil.h"
 namespace Dic::Protocol {
 class TritonProtocolUtil : public ProtocolUtil {
-public:
+  public:
     TritonProtocolUtil() noexcept = default;
     ~TritonProtocolUtil() noexcept override = default;
     void RegisterJsonToRequestFuncs() override;

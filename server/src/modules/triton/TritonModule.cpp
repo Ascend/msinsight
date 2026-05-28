@@ -16,7 +16,6 @@
 //  * -------------------------------------------------------------------------
 //  *
 
-
 #include "TritonModule.h"
 #include "ProtocolDefs.h"
 #include "BaseModule.h"
@@ -25,16 +24,14 @@
 #include "handler/QueryTritonMemoryUsageHandler.h"
 
 namespace Dic::Module::Triton {
-void TritonModule::RegisterRequestHandlers()
-{
-   requestHandlerMap.clear();
-   requestHandlerMap.emplace(Protocol::REQ_RES_TRITON_MEMORY_BLOCKS, std::make_unique<QueryTritonMemoryBlocksHandler>());
-   requestHandlerMap.emplace(Protocol::REQ_RES_TRITON_MEMORY_BASIC_INFO, std::make_unique<QueryTritonBasicInfoHandler>());
-   requestHandlerMap.emplace(Protocol::REQ_RES_TRITON_MEMORY_USAGE, std::make_unique<QueryTritonMemoryUsageHandler>());
+void TritonModule::RegisterRequestHandlers() {
+    requestHandlerMap.clear();
+    requestHandlerMap.emplace(
+        Protocol::REQ_RES_TRITON_MEMORY_BLOCKS, std::make_unique<QueryTritonMemoryBlocksHandler>());
+    requestHandlerMap.emplace(
+        Protocol::REQ_RES_TRITON_MEMORY_BASIC_INFO, std::make_unique<QueryTritonBasicInfoHandler>());
+    requestHandlerMap.emplace(Protocol::REQ_RES_TRITON_MEMORY_USAGE, std::make_unique<QueryTritonMemoryUsageHandler>());
 }
 
-void TritonModule::OnRequest(std::unique_ptr<Protocol::Request> request)
-{
-    BaseModule::OnRequest(std::move(request));
-}
+void TritonModule::OnRequest(std::unique_ptr<Protocol::Request> request) { BaseModule::OnRequest(std::move(request)); }
 }

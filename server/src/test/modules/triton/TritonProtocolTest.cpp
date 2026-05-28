@@ -30,19 +30,16 @@ using namespace Dic::Module::Triton;
 using namespace Dic;
 
 class TritonProtocolTest : public ::testing::Test {
-protected:
-    void SetUp() override
-    {}
-    void TearDown() override
-    {}
+  protected:
+    void SetUp() override {}
+    void TearDown() override {}
 };
 
 /**
  * @brief 场景说明：测试 TritonMemoryBlocksRequest 从 JSON 字符串解析的功能。
  * 覆盖正常参数解析，以及 endTimestamp 缺失时的默认处理。
  */
-TEST_F(TritonProtocolTest, TritonMemoryBlocksRequestFromJsonTest)
-{
+TEST_F(TritonProtocolTest, TritonMemoryBlocksRequestFromJsonTest) {
     std::string error;
     std::string jsonStr = R"({
         "id": 1,
@@ -71,8 +68,7 @@ TEST_F(TritonProtocolTest, TritonMemoryBlocksRequestFromJsonTest)
 /**
  * @brief 场景说明：测试 TritonMemoryBlocksRequest 解析时，当 endTimestamp 为负值或缺失时的边界处理。
  */
-TEST_F(TritonProtocolTest, TritonMemoryBlocksRequestDefaultEndTimestampTest)
-{
+TEST_F(TritonProtocolTest, TritonMemoryBlocksRequestDefaultEndTimestampTest) {
     std::string error;
     std::string jsonStr = R"({
         "id": 2,
@@ -98,8 +94,7 @@ TEST_F(TritonProtocolTest, TritonMemoryBlocksRequestDefaultEndTimestampTest)
 /**
  * @brief 场景说明：测试 TritonBasicInfoRequest 从 JSON 字符串解析的功能。
  */
-TEST_F(TritonProtocolTest, TritonBasicInfoRequestFromJsonTest)
-{
+TEST_F(TritonProtocolTest, TritonBasicInfoRequestFromJsonTest) {
     std::string error;
     std::string jsonStr = R"({
         "id": 3,
@@ -121,8 +116,7 @@ TEST_F(TritonProtocolTest, TritonBasicInfoRequestFromJsonTest)
 /**
  * @brief 场景说明：测试 TritonBasicInfoResponse 序列化为 JSON 的功能。
  */
-TEST_F(TritonProtocolTest, TritonBasicInfoResponseToJsonTest)
-{
+TEST_F(TritonProtocolTest, TritonBasicInfoResponseToJsonTest) {
     TritonBasicInfoResponse res;
     res.id = 3;
     res.kernelName = "test_kernel";
@@ -134,7 +128,7 @@ TEST_F(TritonProtocolTest, TritonBasicInfoResponseToJsonTest)
     const auto &doc = docOpt.value();
     EXPECT_TRUE(doc.HasMember("body"));
     const auto &body = doc["body"];
-    
+
     EXPECT_TRUE(body.HasMember("kernelName"));
     EXPECT_STREQ(body["kernelName"].GetString(), "test_kernel");
 
@@ -149,8 +143,7 @@ TEST_F(TritonProtocolTest, TritonBasicInfoResponseToJsonTest)
 /**
  * @brief 场景说明：测试 TritonMemoryUsageRequest 从 JSON 字符串解析的功能。
  */
-TEST_F(TritonProtocolTest, TritonMemoryUsageRequestFromJsonTest)
-{
+TEST_F(TritonProtocolTest, TritonMemoryUsageRequestFromJsonTest) {
     std::string error;
     std::string jsonStr = R"({
         "id": 4,
@@ -178,8 +171,7 @@ TEST_F(TritonProtocolTest, TritonMemoryUsageRequestFromJsonTest)
  * @brief 场景说明：测试 TritonMemoryBlocksResponse 序列化为 JSON 的功能。
  * 覆盖多个 block 的正确组合。
  */
-TEST_F(TritonProtocolTest, TritonMemoryBlocksResponseToJsonTest)
-{
+TEST_F(TritonProtocolTest, TritonMemoryBlocksResponseToJsonTest) {
     TritonMemoryBlocksResponse res;
     res.id = 1;
 
@@ -225,8 +217,7 @@ TEST_F(TritonProtocolTest, TritonMemoryBlocksResponseToJsonTest)
  * @brief 场景说明：测试 TritonMemoryUsageResponse 序列化为 JSON 的功能。
  * 特别验证 segments 和嵌套的 blocks 是否正确序列化（包含之前修复的 bug 验证）。
  */
-TEST_F(TritonProtocolTest, TritonMemoryUsageResponseToJsonTest)
-{
+TEST_F(TritonProtocolTest, TritonMemoryUsageResponseToJsonTest) {
     TritonMemoryUsageResponse res;
     res.id = 2;
 
@@ -260,5 +251,3 @@ TEST_F(TritonProtocolTest, TritonMemoryUsageResponseToJsonTest)
     EXPECT_EQ(seg0["blocks"].Size(), 1);
     EXPECT_STREQ(seg0["blocks"][0]["id"].GetString(), "201");
 }
-
-
