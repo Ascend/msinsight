@@ -888,17 +888,18 @@ void TextTraceDatabase::AddThreadTrack(const std::string &fileId,
     const Thread &tThread) {
     std::unique_ptr<UnitTrack> thread = std::make_unique<UnitTrack>();
     thread->metaData.metaType = "TEXT";
-    auto it = counters.find({tThread.pid, tThread.threadName});
+    const std::string threadName = tThread.threadName;
+    auto it = counters.find({tThread.pid, threadName});
     if (it == counters.end()) { // thread
         thread->type = "thread";
         thread->metaData.cardId = fileId;
         thread->metaData.processId = tThread.pid;
         thread->metaData.threadId = tThread.tid;
-        thread->metaData.threadName = tThread.threadName;
+        thread->metaData.threadName = threadName;
         // 解开 threadName = "Group {groupNameValue} Communication" 的形式，获取 {groupNameValue}
-        if (StringUtil::StartWith(tThread.threadName, "Group") &&
-            StringUtil::EndWith(tThread.threadName, "Communication")) {
-            const std::string groupNameValue = ExtractGroupNameValue(tThread.threadName);
+        if (StringUtil::StartWith(threadName, "Group") &&
+            StringUtil::EndWith(threadName, "Communication")) {
+            const std::string groupNameValue = ExtractGroupNameValue(threadName);
             if (TraceDatabaseHelper::IsValidHCCLGroupNameValue(groupNameValue)) {
                 thread->metaData.groupNameValue = groupNameValue;
             }
@@ -907,7 +908,7 @@ void TextTraceDatabase::AddThreadTrack(const std::string &fileId,
         thread->type = "counter";
         thread->metaData.cardId = fileId;
         thread->metaData.processId = tThread.pid;
-        thread->metaData.threadName = tThread.threadName;
+        thread->metaData.threadName = threadName;
         thread->metaData.dataType = GetCounterDataType(it->second);
     }
     process->children.emplace_back(std::move(thread));
@@ -967,7 +968,7 @@ std::map<std::string, std::vector<Thread>> TextTraceDatabase::QueryAllThreadInfo
         thread.trackId = resultSet->GetUint64("track_id");
         thread.tid = resultSet->GetString("tid");
         thread.pid = resultSet->GetString("pid");
-        thread.threadName = resultSet->GetString("thread_name");
+        thread.threadName = StringUtil::FixGbkMojibakeStr(resultSet->GetString("thread_name"));
         thread.sortIndex = resultSet->GetUint32("thread_sort_index");
         res[thread.pid].emplace_back(thread);
     }
@@ -1026,7 +1027,7 @@ std::map<std::pair<std::string, std::string>, std::string> TextTraceDatabase::Qu
     }
     while (resultSet->Next()) {
         std::string pid = resultSet->GetString("pid");
-        std::string name = resultSet->GetString("name");
+        std::string name = StringUtil::FixGbkMojibakeStr(resultSet->GetString("name"));
         std::string args = resultSet->GetString("args");
         res[{pid, name}] = args;
     }

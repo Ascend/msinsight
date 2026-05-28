@@ -37,6 +37,7 @@
 #include "ClusterDef.h"
 #include "AdvisorProtocolResponse.h"
 #include "SearchSliceCacheManager.h"
+#include "StringUtil.h"
 
 // clang-format off
 namespace Dic::Module::Timeline {
@@ -263,7 +264,7 @@ class VirtualTraceDatabase : public Database {
         while (resultSet->Next()) {
             std::string groupName = std::to_string(resultSet->GetUint64("groupName"));
             std::string plane = std::to_string(resultSet->GetInt64("planeId"));
-            std::string threadName = resultSet->GetString("threadName");
+            std::string threadName = StringUtil::FixGbkMojibakeStr(resultSet->GetString("threadName"));
             if (StringUtil::StartWith(threadName, "Group ") && StringUtil::EndWith(threadName, " Communication")) {
                 groupMap.emplace(groupName.append("@").append(plane), threadName);
                 lastGroup = threadName;

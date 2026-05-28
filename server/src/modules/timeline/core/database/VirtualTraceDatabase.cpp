@@ -117,6 +117,7 @@ void VirtualTraceDatabase::ExecuteQueryCommunicationSummaryData(
     const std::vector<Protocol::ThreadTraces> &uncovered) {
     size_t index = 0;
     while (resultSet->Next()) {
+        std::string threadName = StringUtil::FixGbkMojibakeStr(resultSet->GetString("threadName"));
         Protocol::ThreadTraces ele = {.name = resultSet->GetString("name"),
             .duration = resultSet->GetUint64("duration"),
             .startTime = resultSet->GetUint64("startTime"),
@@ -125,7 +126,7 @@ void VirtualTraceDatabase::ExecuteQueryCommunicationSummaryData(
             .threadId = std::to_string(resultSet->GetInt64("plane")),
             .pid = std::to_string(resultSet->GetUint64("groupName")),
             .id = ele.pid + "@" + ele.threadId,
-            .cname = resultSet->GetString("threadName")};
+            .cname = threadName};
         uint64_t flag = resultSet->GetUint64("flag");
         if (groupInfoMap.find(ele.id) == groupInfoMap.end()) {
             continue;
