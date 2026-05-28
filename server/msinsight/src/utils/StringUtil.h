@@ -176,17 +176,75 @@ class StringUtil {
 #ifdef _WIN32
         static const unsigned int GBK_CODE_PAGE = 936;
 
-        // 如果是UTF-8直接返回，避免二次转换导致乱码
         if (IsUtf8StrFast(input)) {
             return input;
         }
 
         UINT codePage = GetACP();
         if (codePage == GBK_CODE_PAGE) {
-            return StringUtil::GbkToUtf8(input.c_str());
+            return StringUtil::MixedGbkAndUtf8ToUtf8(input);
         }
 #endif
         return input;
+    }
+
+#ifdef _WIN32
+    static size_t Utf8CharLen(const std::string &input, size_t index) {
+        unsigned char c = static_cast<unsigned char>(input[index]);
+        if (c <= 0x7F) {
+            return 1;
+        }
+        size_t len = 0;
+        if ((c & 0xE0) == 0xC0) {
+            len = 2;
+        } else if ((c & 0xF0) == 0xE0) {
+            len = 3;
+        } else if ((c & 0xF8) == 0xF0) {
+            len = 4;
+        } else {
+            return 0;
+        }
+        if (index + len > input.size()) {
+            return 0;
+        }
+        for (size_t i = 1; i < len; ++i) {
+            if ((static_cast<unsigned char>(input[index + i]) & 0xC0) != 0x80) {
+                return 0;
+            }
+        }
+        return len;
+    }
+
+    static std::string MixedGbkAndUtf8ToUtf8(const std::string &input) {
+        std::string result;
+        size_t i = 0;
+        while (i < input.size()) {
+            size_t utf8Len = Utf8CharLen(input, i);
+            if (utf8Len > 0) {
+                result.append(input, i, utf8Len);
+                i += utf8Len;
+                continue;
+            }
+            size_t gbkStart = i;
+            do {
+                ++i;
+                if (i < input.size()) {
+                    utf8Len = Utf8CharLen(input, i);
+                }
+            } while (i < input.size() && utf8Len == 0);
+            result += GbkToUtf8(input.substr(gbkStart, i - gbkStart).c_str());
+        }
+        return result;
+    }
+#endif
+
+    static std::string FixGbkMojibakeStr(const std::string &input) {
+        std::string utf8Str = ToUtf8Str(input);
+#ifdef _WIN32
+        return Utf8MojibakeToGbkUtf8(utf8Str.c_str());
+#else
+        return utf8Str;
+#endif
     }
 
     static std::string ToLocalStr(const std::string &input) {
@@ -205,14 +263,45 @@ class StringUtil {
         if (srcStr == nullptr) {
             return "";
         }
-        int len = MultiByteToWideChar(CP_ACP, 0, srcStr, -1, nullptr, 0);
+        static const unsigned int GBK_CODE_PAGE = 936;
+        int len = MultiByteToWideChar(GBK_CODE_PAGE, 0, srcStr, -1, nullptr, 0);
         std::unique_ptr<wchar_t[]> wstr = std::make_unique<wchar_t[]>(len + 1);
-        MultiByteToWideChar(CP_ACP, 0, srcStr, -1, wstr.get(), len);
+        MultiByteToWideChar(GBK_CODE_PAGE, 0, srcStr, -1, wstr.get(), len);
         len = WideCharToMultiByte(CP_UTF8, 0, wstr.get(), -1, nullptr, 0, nullptr, nullptr);
         std::unique_ptr<char[]> str = std::make_unique<char[]>(len + 1);
         WideCharToMultiByte(CP_UTF8, 0, wstr.get(), -1, str.get(), len, nullptr, nullptr);
         return std::string(str.get());
     }
+
+    static std::string Utf8MojibakeToGbkUtf8(const char *srcStr) {
+        if (srcStr == nullptr) {
+            return "";
+        }
+        int len = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, srcStr, -1, nullptr, 0);
+        if (len <= 0) {
+            return srcStr;
+        }
+        std::unique_ptr<wchar_t[]> wstr = std::make_unique<wchar_t[]>(len + 1);
+        if (MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, srcStr, -1, wstr.get(), len) <= 0) {
+            return srcStr;
+        }
+        static const unsigned int GBK_CODE_PAGE = 936;
+        BOOL usedDefaultChar = FALSE;
+        len = WideCharToMultiByte(GBK_CODE_PAGE, 0, wstr.get(), -1, nullptr, 0, nullptr, &usedDefaultChar);
+        if (len <= 0 || usedDefaultChar) {
+            return srcStr;
+        }
+        std::unique_ptr<char[]> rawUtf8Bytes = std::make_unique<char[]>(len + 1);
+        usedDefaultChar = FALSE;
+        if (WideCharToMultiByte(GBK_CODE_PAGE, 0, wstr.get(), -1, rawUtf8Bytes.get(), len, nullptr, &usedDefaultChar) <=
+                0 ||
+            usedDefaultChar) {
+            return srcStr;
+        }
+        std::string fixed(rawUtf8Bytes.get());
+        return IsUtf8StrFast(fixed) ? fixed : srcStr;
+    }
+
     static std::string Utf8ToGbk(const char *srcStr) {
         if (srcStr == nullptr) {
             return "";

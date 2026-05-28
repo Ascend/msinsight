@@ -20,6 +20,7 @@
 #include "../TestSuit.h"
 #include "StringUtil.h"
 
+// clang-format off
 using namespace Dic;
 
 TEST(StringUtil, IntToString) {
@@ -126,18 +127,97 @@ TEST(StringUtil, IsUtf8StrFastWithInvalidInput) {
 
 
 #ifdef _WIN32
+static constexpr UINT GBK_CODE_PAGE = 936;
+
+static void SkipIfNotGbkCodePage()
+{
+    if (GetACP() != GBK_CODE_PAGE) {
+        GTEST_SKIP() << "GBK code page required";
+    }
+}
+
 TEST(StringUtil, GbkToUtf8) {
     EXPECT_EQ(StringUtil::GbkToUtf8(nullptr), "");
     EXPECT_EQ(StringUtil::GbkToUtf8("nullptr"), "nullptr");
-    EXPECT_EQ(StringUtil::GbkToUtf8("中国"), "\xE6\xB6\x93\xEE\x85\x9E\xE6\xB5\x97");
-    EXPECT_EQ(StringUtil::GbkToUtf8("中"), "\xE6\xB6\x93?");
+    EXPECT_EQ(StringUtil::GbkToUtf8("\xD6\xD0\xB9\xFA"), "\xE4\xB8\xAD\xE5\x9B\xBD");
+    EXPECT_EQ(StringUtil::GbkToUtf8("\xD6\xD0"), "\xE4\xB8\xAD");
 }
 
 TEST(StringUtil, Utf8ToGbk) {
+    SkipIfNotGbkCodePage();
     EXPECT_EQ(StringUtil::Utf8ToGbk(nullptr), "");
     EXPECT_EQ(StringUtil::Utf8ToGbk("nullptr"), "nullptr");
-    EXPECT_EQ(StringUtil::Utf8ToGbk("中国"), "\xD6\xD0\xB9\xFA");
-    EXPECT_EQ(StringUtil::Utf8ToGbk("中"), "\xD6\xD0");
+    EXPECT_EQ(StringUtil::Utf8ToGbk("\xE4\xB8\xAD\xE5\x9B\xBD"), "\xD6\xD0\xB9\xFA");
+    EXPECT_EQ(StringUtil::Utf8ToGbk("\xE4\xB8\xAD"), "\xD6\xD0");
+}
+
+TEST(StringUtil, Utf8CharLenWithValidInput)
+{
+    EXPECT_EQ(StringUtil::Utf8CharLen("abc", 0), 1);
+    EXPECT_EQ(StringUtil::Utf8CharLen("\xC3\xA9", 0), 2);
+    EXPECT_EQ(StringUtil::Utf8CharLen("\xE4\xB8\xAD", 0), 3);
+    EXPECT_EQ(StringUtil::Utf8CharLen("\xF0\x9F\x98\x80", 0), 4);
+}
+
+TEST(StringUtil, Utf8CharLenWithInvalidInput)
+{
+    EXPECT_EQ(StringUtil::Utf8CharLen("\x80", 0), 0);
+    EXPECT_EQ(StringUtil::Utf8CharLen("\xC3", 0), 0);
+    EXPECT_EQ(StringUtil::Utf8CharLen("\xE4\xB8", 0), 0);
+    EXPECT_EQ(StringUtil::Utf8CharLen("\xF0\x9F\x98", 0), 0);
+    EXPECT_EQ(StringUtil::Utf8CharLen("\xD6\xD0", 0), 0);
+}
+
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureUtf8)
+{
+    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8(""), "");
+    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("abc123"), "abc123");
+    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xE4\xB8\xAD\xE6\x96\x87"), "\xE4\xB8\xAD\xE6\x96\x87");
+    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xF0\x9F\x98\x80"), "\xF0\x9F\x98\x80");
+}
+
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureGbk)
+{
+    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xD6\xD0"), "\xE4\xB8\xAD");
+    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xD6\xD0\xCE\xC4"), "\xE4\xB8\xAD\xE6\x96\x87");
+}
+
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithMixedInput)
+{
+    const std::string mixed = std::string("abc") + "\xD6\xD0\xCE\xC4" + "\xE4\xB8\xAD\xE6\x96\x87";
+    EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8(mixed), "abc\xE4\xB8\xAD\xE6\x96\x87\xE4\xB8\xAD\xE6\x96\x87");
+}
+
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithInvalidBytes)
+{
+    EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("\x80").empty());
+    EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("\xC3").empty());
+    EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("abc\xE4\xB8").empty());
+}
+
+TEST(StringUtil, Utf8MojibakeToGbkUtf8)
+{
+    const std::string utf8Chinese = "\xE4\xB8\xAD\xE6\x96\x87";
+    const std::string mojibake = StringUtil::GbkToUtf8(utf8Chinese.c_str());
+    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(nullptr), "");
+    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8("abc123"), "abc123");
+    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(mojibake.c_str()), utf8Chinese);
+}
+
+TEST(StringUtil, Utf8MojibakeToGbkUtf8KeepsUnconvertibleUnicode)
+{
+    const std::string textWithEmoji = "\xE4\xB8\xAD\xE6\x96\x87\xF0\x9F\x98\x80";
+    EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(textWithEmoji.c_str()), textWithEmoji);
+}
+
+TEST(StringUtil, FixGbkMojibakeStr)
+{
+    const std::string utf8Chinese = "\xE4\xB8\xAD\xE6\x96\x87";
+    const std::string mojibake = StringUtil::GbkToUtf8(utf8Chinese.c_str());
+    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(""), "");
+    EXPECT_EQ(StringUtil::FixGbkMojibakeStr("abc123"), "abc123");
+    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(utf8Chinese), utf8Chinese);
+    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(mojibake), utf8Chinese);
 }
 
 #endif
@@ -361,3 +441,4 @@ TEST(StringUtil, SplitCsvLine_EscapedQuotesOnlyInQuotedFields) {
     // 未加引号的 "" 应视为字面两个双引号
     EXPECT_EQ(SplitCsvLine("a\"\"b,c"), (std::vector<std::string>{"a\"\"b", "c"}));
 }
+// clang-format on
