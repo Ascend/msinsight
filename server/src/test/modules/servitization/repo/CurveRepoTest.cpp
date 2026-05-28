@@ -19,14 +19,11 @@
 #include "../../../DatabaseTestCaseMockUtil.h"
 #include "CurveRepo.h"
 class CurveRepoTest : public ::testing::Test {
-protected:
+  protected:
     class MockDatabase : public Dic::Module::Database {
-    public:
-        explicit MockDatabase(std::recursive_mutex& sqlMutex) : Database(sqlMutex)
-        {
-        }
-        void SetDbPtr(sqlite3* dbPtr)
-        {
+      public:
+        explicit MockDatabase(std::recursive_mutex &sqlMutex) : Database(sqlMutex) {}
+        void SetDbPtr(sqlite3 *dbPtr) {
             isOpen = true;
             db = dbPtr;
             path = ":memory:";
@@ -34,11 +31,10 @@ protected:
     };
 
     class MockContext : public Dic::Module::IE::ServitizationContext {
-    public:
-        sqlite3* dbPtr = nullptr;
+      public:
+        sqlite3 *dbPtr = nullptr;
         MockContext() = default;
-        std::shared_ptr<Dic::Module::Database> GetDatabase(const std::string& fileId)
-        {
+        std::shared_ptr<Dic::Module::Database> GetDatabase(const std::string &fileId) {
             std::recursive_mutex sqlMutex;
             std::shared_ptr<MockDatabase> db = std::make_shared<MockDatabase>(sqlMutex);
             db->SetDbPtr(dbPtr);
@@ -47,12 +43,9 @@ protected:
     };
 
     class MockRepo : public Dic::Module::IE::CurveRepo {
-    public:
-        MockRepo()
-        {
-        }
-        void SetContext(sqlite3* dbPtr)
-        {
+      public:
+        MockRepo() {}
+        void SetContext(sqlite3 *dbPtr) {
             std::shared_ptr<MockContext> ct = std::make_shared<MockContext>();
             ct->dbPtr = dbPtr;
             context = ct;
@@ -60,10 +53,9 @@ protected:
     };
 };
 
-TEST_F(CurveRepoTest, TestQueryAllViews)
-{
+TEST_F(CurveRepoTest, TestQueryAllViews) {
     MockRepo repo;
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     repo.SetContext(dbPtr);
     std::string tableSql = "CREATE TABLE \"first_token_latency\" (\n"
@@ -95,14 +87,13 @@ TEST_F(CurveRepoTest, TestQueryAllViews)
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, tableSql);
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, viewSql);
     auto res = repo.QueryAllViews("");
-    EXPECT_EQ(res.size(), 1);  // 1
+    EXPECT_EQ(res.size(), 1); // 1
     EXPECT_EQ(res.front(), "firstTokenLatency_by_ts_curve");
 }
 
-TEST_F(CurveRepoTest, TestQueryTableInfoByName)
-{
+TEST_F(CurveRepoTest, TestQueryTableInfoByName) {
     MockRepo repo;
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     repo.SetContext(dbPtr);
     std::string tableSql = "CREATE TABLE \"first_token_latency\" (\n"
@@ -134,15 +125,14 @@ TEST_F(CurveRepoTest, TestQueryTableInfoByName)
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, tableSql);
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, viewSql);
     auto res = repo.QueryTableInfoByName("", "firstTokenLatency_by_ts_curve");
-    EXPECT_EQ(res.size(), 5);  // 5
+    EXPECT_EQ(res.size(), 5); // 5
     EXPECT_EQ(res.front().key, "time");
     EXPECT_EQ(res.back().key, "p50");
 }
 
-TEST_F(CurveRepoTest, TestQueryDataByColumn)
-{
+TEST_F(CurveRepoTest, TestQueryDataByColumn) {
     MockRepo repo;
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     repo.SetContext(dbPtr);
     std::string tableSql = "CREATE TABLE \"first_token_latency\" (\n"
@@ -175,15 +165,14 @@ TEST_F(CurveRepoTest, TestQueryDataByColumn)
     cols.emplace_back(col4);
     cols.emplace_back(col5);
     auto res = repo.QueryDataByColumn("", "first_token_latency", cols);
-    EXPECT_EQ(res.size(), 2);  // 2
+    EXPECT_EQ(res.size(), 2); // 2
     EXPECT_EQ(res.front()["timestamp"], "2025-05-13 12:06:41:877116");
     EXPECT_EQ(res.back()["p50"], "393.5");
 }
 
-TEST_F(CurveRepoTest, TestQueryCountByTableName)
-{
+TEST_F(CurveRepoTest, TestQueryCountByTableName) {
     MockRepo repo;
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     repo.SetContext(dbPtr);
     std::string tableSql = "CREATE TABLE \"first_token_latency\" (\n"
@@ -201,18 +190,17 @@ TEST_F(CurveRepoTest, TestQueryCountByTableName)
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, dataSql);
     Dic::Module::PageQuery query;
     query.viewName = "first_token_latency";
-    query.curPage = 1;  // 1
-    query.size = 10;  // 10
+    query.curPage = 1; // 1
+    query.size = 10; // 10
     query.start = "2025-05-13 12:06:41:877110";
     query.end = "2025-05-13 12:06:41:877480";
     auto res = repo.QueryCountByTableName(query, "timestamp");
-    EXPECT_EQ(res, 1);  // 1
+    EXPECT_EQ(res, 1); // 1
 }
 
-TEST_F(CurveRepoTest, TestQueryDataByColumnPage)
-{
+TEST_F(CurveRepoTest, TestQueryDataByColumnPage) {
     MockRepo repo;
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     repo.SetContext(dbPtr);
     std::string tableSql = "CREATE TABLE \"first_token_latency\" (\n"
@@ -230,8 +218,8 @@ TEST_F(CurveRepoTest, TestQueryDataByColumnPage)
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, dataSql);
     Dic::Module::PageQuery query;
     query.viewName = "first_token_latency";
-    query.curPage = 1;  // 1
-    query.size = 10;  // 10
+    query.curPage = 1; // 1
+    query.size = 10; // 10
     query.start = "2025-05-13 12:06:41:877110";
     query.end = "2025-05-13 12:06:41:877489";
     query.order = "descend";
@@ -253,6 +241,6 @@ TEST_F(CurveRepoTest, TestQueryDataByColumnPage)
     cols.emplace_back(col4);
     cols.emplace_back(col5);
     auto res = repo.QueryDataByColumnPage(query, cols);
-    EXPECT_EQ(res.size(), 2);  // 2
+    EXPECT_EQ(res.size(), 2); // 2
     EXPECT_EQ(res.front()["p50"], "393.5");
 }

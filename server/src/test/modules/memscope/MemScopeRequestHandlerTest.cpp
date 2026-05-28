@@ -36,11 +36,10 @@ using namespace Dic::Module::FullDb;
 using namespace Dic;
 
 class MemScopeRequestHandlerTest : public ::testing::Test {
-public:
+  public:
     static const uint64_t SECOND = 1000000000;
     static const uint64_t INT64MAX = INT64_MAX;
-    static void SetUpTestSuite()
-    {
+    static void SetUpTestSuite() {
         std::string dbPath = TestSuit::GetTestDataFile("full_db", "leaks_dump_20250806.dat");
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("");
         ASSERT_TRUE(memoryDatabase != nullptr);
@@ -48,30 +47,27 @@ public:
         ASSERT_TRUE(memoryDatabase->DropMemoryAllocationAndBlockTable());
         ASSERT_TRUE(MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces("0"));
     }
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("");
         memoryDatabase->CloseDb();
         DataBaseManager::Instance().Clear();
     }
 };
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseInvalidParamsDeviceId)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseInvalidParamsDeviceId) {
     QueryMemScopeAllocationHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
     requestPtr->params.deviceId = "@:1:;";
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     bool result = handler.HandleRequest(std::move(requestPtr));
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseInvalidParamsEventType)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseInvalidParamsEventType) {
     QueryMemScopeAllocationHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
     requestPtr->params.deviceId = "1";
     requestPtr->params.eventType = "";
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
@@ -79,11 +75,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseInvalidParamsEventTy
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationUseInvalidParamsTimestamp)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationUseInvalidParamsTimestamp) {
     QueryMemScopeAllocationHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
     requestPtr->params.startTimestamp = INT64_MAX;
     requestPtr->params.endTimestamp = 0;
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
@@ -91,11 +86,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationUseInvalidParamsTimestam
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseNonExistsDeviceId)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseNonExistsDeviceId) {
     QueryMemScopeAllocationHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
     requestPtr->params.deviceId = "-1";
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.eventType = "PTA";
@@ -103,11 +97,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseNonExistsDeviceId)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseValidParamsWithoutTimeCondition)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseValidParamsWithoutTimeCondition) {
     QueryMemScopeAllocationHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
     requestPtr->params.deviceId = "1";
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.eventType = "PTA";
@@ -115,11 +108,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseValidParamsWithoutTi
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseValidParamsWithTimeAndRelativeCondition)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseValidParamsWithTimeAndRelativeCondition) {
     QueryMemScopeAllocationHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
     requestPtr->params.deviceId = "1";
     requestPtr->params.relativeTime = true;
     requestPtr->params.eventType = "PTA";
@@ -130,11 +122,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseValidParamsWithTimeA
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsDeviceId)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsDeviceId) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
     requestPtr->params.deviceId = "@:1:;";
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.eventType = "PTA";
@@ -142,11 +133,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsDeviceId)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsTimestamp)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsTimestamp) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
     requestPtr->params.endTimestamp = 0;
     requestPtr->params.startTimestamp = INT64_MAX;
     requestPtr->params.deviceId = "1";
@@ -156,11 +146,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsTimestamp)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsSize)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsSize) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
     requestPtr->params.maxSize = 0;
     requestPtr->params.minSize = INT64_MAX;
     requestPtr->params.deviceId = "1";
@@ -170,11 +159,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsSize)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsExceedSize)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsExceedSize) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
     requestPtr->params.maxSize = INT64_MAX;
     requestPtr->params.deviceId = "1";
     requestPtr->params.eventType = "PTA";
@@ -183,11 +171,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsExceedSize)
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithoutTimeAndSizeCondition)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithoutTimeAndSizeCondition) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
     requestPtr->params.deviceId = "1";
     requestPtr->params.eventType = "PTA";
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
@@ -195,11 +182,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithoutTimeAnd
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithTimeCondition)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithTimeCondition) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
     const uint64_t endTimestamp = 10000000;
     requestPtr->params.endTimestamp = endTimestamp;
     requestPtr->params.relativeTime = true;
@@ -210,11 +196,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithTimeCondit
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithSizeCondition)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithSizeCondition) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
     const uint64_t maxSize = 100000;
     requestPtr->params.maxSize = maxSize;
     requestPtr->params.deviceId = "0";
@@ -224,11 +209,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseValidParamsWithSizeCondit
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithInjectDeviceId)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithInjectDeviceId) {
     QueryMemScopeMemoryDetailHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryDetailRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "&";
     requestPtr->params.timestamp = 0;
@@ -236,11 +220,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithInjectDe
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithNonExistsDeviceId)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithNonExistsDeviceId) {
     QueryMemScopeMemoryDetailHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryDetailRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "-1";
     const uint64_t durationSecond = 15;
@@ -249,11 +232,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithNonExist
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithBigRelativeTimestamp)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithBigRelativeTimestamp) {
     QueryMemScopeMemoryDetailHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryDetailRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "1";
     requestPtr->params.timestamp = INT64MAX + 1;
@@ -261,11 +243,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseInvalidParamsWithBigRelat
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseValidParams)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseValidParams) {
     QueryMemScopeMemoryDetailHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryDetailRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
+        std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
     const uint64_t durationSecond = 15;
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "1";
@@ -276,11 +257,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInjectDeviceId)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInjectDeviceId) {
     QueryMemScopePythonTraceHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopePythonTraceRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
+        std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "&";
     requestPtr->params.relativeTime = true;
@@ -288,11 +268,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInjectDev
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInvalidThreadId)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInvalidThreadId) {
     QueryMemScopePythonTraceHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopePythonTraceRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
+        std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "";
     requestPtr->params.threadId = INT64MAX + 1;
@@ -300,11 +279,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInvalidTh
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInvalidTimestamp)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInvalidTimestamp) {
     QueryMemScopePythonTraceHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopePythonTraceRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
+        std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "0";
     requestPtr->params.threadId = 1;
@@ -313,11 +291,10 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseInvalidParamsWithInvalidTi
     EXPECT_FALSE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseValidParams)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseValidParams) {
     QueryMemScopePythonTraceHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopePythonTraceRequest> requestPtr =
-            std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
+        std::make_unique<Dic::Protocol::MemScopePythonTraceRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "1";
     requestPtr->params.threadId = 3841316;
@@ -326,8 +303,7 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryTraceUseValidParams)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlockTable)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlockTable) {
     QueryMemScopeBlockHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeMemoryBlockRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemScopeMemoryBlockRequest>();
@@ -342,8 +318,7 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlockTable)
     EXPECT_TRUE(result);
 }
 
-TEST_F(MemScopeRequestHandlerTest, QueryMemoryEventTable)
-{
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryEventTable) {
     QueryMemScopeEventHandler handler;
     std::unique_ptr<Dic::Protocol::MemScopeEventRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemScopeEventRequest>();

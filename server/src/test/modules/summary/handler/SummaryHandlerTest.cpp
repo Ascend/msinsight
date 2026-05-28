@@ -39,8 +39,7 @@ const int NUMBER_FIVE_HUNDRED = 500;
 const int NUMBER_TEN = 10;
 const int NUMBER_ONE = 1;
 
-TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestReturnFalseWhenWrongParameter)
-{
+TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestReturnFalseWhenWrongParameter) {
     auto request = std::make_unique<PipelineFwdBwdTimelineRequest>();
     request->params.stageId = "";
     request->params.stepId = "";
@@ -49,8 +48,7 @@ TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestReturnFalseWhenWrongP
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestReturnTrueWhenNormalParameter)
-{
+TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestReturnTrueWhenNormalParameter) {
     auto request = std::make_unique<PipelineFwdBwdTimelineRequest>();
     request->params.stageId = "(0)";
     request->params.stepId = "1";
@@ -60,8 +58,7 @@ TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestReturnTrueWhenNormalP
     EXPECT_EQ(result, true);
 }
 
-TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestStageIdEmty)
-{
+TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestStageIdEmty) {
     auto request = std::make_unique<PipelineFwdBwdTimelineRequest>();
     request->params.stageId = "()";
     request->params.stepId = "1";
@@ -71,8 +68,7 @@ TEST_F(HandlerTest, QueryFwdBwdTimelineHandlerHandleRequestStageIdEmty)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryCommunicationDetailHandlerWithExecuteSqlFail)
-{
+TEST_F(HandlerTest, QueryCommunicationDetailHandlerWithExecuteSqlFail) {
     auto request = std::make_unique<CommunicationDetailRequest>();
     request->params.rankId = "100";
     request->params.currentPage = NUMBER_ONE;
@@ -84,8 +80,7 @@ TEST_F(HandlerTest, QueryCommunicationDetailHandlerWithExecuteSqlFail)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryComputeDetailInfoHandlerWithExecuteSqlFail)
-{
+TEST_F(HandlerTest, QueryComputeDetailInfoHandlerWithExecuteSqlFail) {
     auto request = std::make_unique<ComputeDetailRequest>();
     request->params.rankId = "100";
     request->params.currentPage = NUMBER_ONE;
@@ -98,8 +93,7 @@ TEST_F(HandlerTest, QueryComputeDetailInfoHandlerWithExecuteSqlFail)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryParallelStrategyConfigHandlerWithExecuteSqlFail)
-{
+TEST_F(HandlerTest, QueryParallelStrategyConfigHandlerWithExecuteSqlFail) {
     auto request = std::make_unique<QueryParallelStrategyRequest>();
     request->params.clusterPath = "test";
     QueryParallelStrategyConfigHandler handler;
@@ -107,8 +101,7 @@ TEST_F(HandlerTest, QueryParallelStrategyConfigHandlerWithExecuteSqlFail)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, SetParallelStrategyConfigHandlerWithParamError)
-{
+TEST_F(HandlerTest, SetParallelStrategyConfigHandlerWithParamError) {
     auto request = std::make_unique<SetParallelStrategyRequest>();
     request->params.config.tpSize = NUMBER_FIVE_HUNDRED;
     request->params.config.dpSize = NUMBER_TEN;
@@ -121,8 +114,7 @@ TEST_F(HandlerTest, SetParallelStrategyConfigHandlerWithParamError)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, SetParallelStrategyConfigHandlerWithExecuteSqlError)
-{
+TEST_F(HandlerTest, SetParallelStrategyConfigHandlerWithExecuteSqlError) {
     auto request = std::make_unique<SetParallelStrategyRequest>();
     request->params.config.tpSize = NUMBER_TEN;
     request->params.config.dpSize = NUMBER_TEN;
@@ -135,8 +127,7 @@ TEST_F(HandlerTest, SetParallelStrategyConfigHandlerWithExecuteSqlError)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryParallelismArrangementHandlerShouldReturnFalseWithParamError)
-{
+TEST_F(HandlerTest, QueryParallelismArrangementHandlerShouldReturnFalseWithParamError) {
     auto request = std::make_unique<QueryParallelismArrangementRequest>();
     request->params.config.tpSize = 2; // 2
     request->params.config.dpSize = 4; // 4
@@ -149,8 +140,7 @@ TEST_F(HandlerTest, QueryParallelismArrangementHandlerShouldReturnFalseWithParam
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryParallelismArrangementHandlerShouldReturnFalseWithDataBaseError)
-{
+TEST_F(HandlerTest, QueryParallelismArrangementHandlerShouldReturnFalseWithDataBaseError) {
     auto request = std::make_unique<QueryParallelismArrangementRequest>();
     request->params.config.tpSize = 2; // 2
     request->params.config.dpSize = 4; // 4
@@ -164,8 +154,7 @@ TEST_F(HandlerTest, QueryParallelismArrangementHandlerShouldReturnFalseWithDataB
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryParallelismPerformanceHandlerShouldReturnFalseWithParamError)
-{
+TEST_F(HandlerTest, QueryParallelismPerformanceHandlerShouldReturnFalseWithParamError) {
     auto request = std::make_unique<QueryParallelismPerformanceRequest>();
     request->params.config.tpSize = 2; // 2
     request->params.config.dpSize = 4; // 4
@@ -178,8 +167,7 @@ TEST_F(HandlerTest, QueryParallelismPerformanceHandlerShouldReturnFalseWithParam
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryParallelismPerformanceHandlerShouldReturnTrue)
-{
+TEST_F(HandlerTest, QueryParallelismPerformanceHandlerShouldReturnTrue) {
     auto request = std::make_unique<QueryParallelismPerformanceRequest>();
     request->params.config.tpSize = 2; // 2
     request->params.config.dpSize = 4; // 4
@@ -193,8 +181,7 @@ TEST_F(HandlerTest, QueryParallelismPerformanceHandlerShouldReturnTrue)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(HandlerTest, SummaryTopRankHandlerHandleRequestReturnTrue)
-{
+TEST_F(HandlerTest, SummaryTopRankHandlerHandleRequestReturnTrue) {
     auto request = std::make_unique<SummaryTopRankRequest>();
     SummaryTopRankHandler handler;
     request->params.clusterPath = "test";
@@ -202,8 +189,7 @@ TEST_F(HandlerTest, SummaryTopRankHandlerHandleRequestReturnTrue)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(HandlerTest, ImportExpertDataHandlerRequestReturnFalse)
-{
+TEST_F(HandlerTest, ImportExpertDataHandlerRequestReturnFalse) {
     auto request = std::make_unique<ImportExpertDataRequest>();
     request->params.version = "1";
     request->params.filePath = "filePath";
@@ -213,8 +199,7 @@ TEST_F(HandlerTest, ImportExpertDataHandlerRequestReturnFalse)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, ImportExpertDataHandlerRequestErrorParams)
-{
+TEST_F(HandlerTest, ImportExpertDataHandlerRequestErrorParams) {
     auto request = std::make_unique<ImportExpertDataRequest>();
     request->params.version = "1";
     request->params.filePath = "filePath";
@@ -224,8 +209,7 @@ TEST_F(HandlerTest, ImportExpertDataHandlerRequestErrorParams)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestLayerAbnormal)
-{
+TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestLayerAbnormal) {
     auto request = std::make_unique<QueryExpertHotspotRequest>();
     request->params.modelStage = "prefill";
     request->params.version = "1";
@@ -240,8 +224,7 @@ TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestLayerAbnormal)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestDenseAbnormal)
-{
+TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestDenseAbnormal) {
     auto request = std::make_unique<QueryExpertHotspotRequest>();
     request->params.modelStage = "prefill";
     request->params.version = "1";
@@ -256,8 +239,7 @@ TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestDenseAbnormal)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestLayerNormal)
-{
+TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestLayerNormal) {
     auto request = std::make_unique<QueryExpertHotspotRequest>();
     request->params.modelStage = "prefill";
     request->params.version = "1";
@@ -272,8 +254,7 @@ TEST_F(HandlerTest, QueryExpertHotspotHandlerRequestLayerNormal)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, QueryModelInfoHandlerNormal)
-{
+TEST_F(HandlerTest, QueryModelInfoHandlerNormal) {
     auto request = std::make_unique<QueryModelInfoRequest>();
     request->params.clusterPath = "test";
     QueryModelInfoHandler handler;
@@ -281,8 +262,7 @@ TEST_F(HandlerTest, QueryModelInfoHandlerNormal)
     EXPECT_EQ(res, true);
 }
 
-TEST_F(HandlerTest, SummarySlowRankAdvisorHandlerShouldReturnFalseWithParamError)
-{
+TEST_F(HandlerTest, SummarySlowRankAdvisorHandlerShouldReturnFalseWithParamError) {
     auto request = std::make_unique<QueryParallelismArrangementRequest>();
     request->params.config.tpSize = 2; // 2
     request->params.config.dpSize = 4; // 4
@@ -294,8 +274,7 @@ TEST_F(HandlerTest, SummarySlowRankAdvisorHandlerShouldReturnFalseWithParamError
     EXPECT_EQ(result, false);
 }
 
-TEST_F(HandlerTest, SummarySlowRankAdvisorHandlerShouldReturnFalseWithDataBaseError)
-{
+TEST_F(HandlerTest, SummarySlowRankAdvisorHandlerShouldReturnFalseWithDataBaseError) {
     auto request = std::make_unique<QueryParallelismArrangementRequest>();
     request->params.config.tpSize = 2; // 2
     request->params.config.dpSize = 4; // 4

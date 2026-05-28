@@ -29,9 +29,8 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::Module::FullDb;
 
 class DbSummaryTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         std::string currPath = Dic::FileUtil::GetCurrPath();
         const ParamsOption &option = ParamsParser::Instance().GetOption();
         ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, to_string(option.wsPort));
@@ -50,8 +49,7 @@ public:
     static void TearDownTestSuite() {}
 };
 
-TEST_F(DbSummaryTest, QueryComputeStatisticsData)
-{
+TEST_F(DbSummaryTest, QueryComputeStatisticsData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SummaryStatisticParams requestParams;
     requestParams.rankId = "2";
@@ -61,8 +59,7 @@ TEST_F(DbSummaryTest, QueryComputeStatisticsData)
     EXPECT_EQ(responseBody.summaryStatisticsItemList.size(), expectSize);
 }
 
-TEST_F(DbSummaryTest, QueryComputeStatisticsDataWithEmptyParamReturnExpectSize)
-{
+TEST_F(DbSummaryTest, QueryComputeStatisticsDataWithEmptyParamReturnExpectSize) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SummaryStatisticParams requestParams;
     requestParams.stepId = "";
@@ -73,8 +70,7 @@ TEST_F(DbSummaryTest, QueryComputeStatisticsDataWithEmptyParamReturnExpectSize)
     EXPECT_EQ(responseBody.summaryStatisticsItemList.size(), expectSize);
 }
 
-TEST_F(DbSummaryTest, QueryComputeStatisticsData2)
-{
+TEST_F(DbSummaryTest, QueryComputeStatisticsData2) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SummaryStatisticParams requestParams;
     requestParams.rankId = "2";
@@ -85,8 +81,7 @@ TEST_F(DbSummaryTest, QueryComputeStatisticsData2)
     EXPECT_EQ(responseBody.summaryStatisticsItemList.size(), expectSize);
 }
 
-TEST_F(DbSummaryTest, QueryCommunicationDetailData)
-{
+TEST_F(DbSummaryTest, QueryCommunicationDetailData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId("0");
     Dic::Protocol::CommunicationDetailParams requestParams;
     requestParams.rankId = "2";
@@ -99,8 +94,7 @@ TEST_F(DbSummaryTest, QueryCommunicationDetailData)
     EXPECT_EQ(responseBody.commDetails.size(), expectSize);
 }
 
-TEST_F(DbSummaryTest, QueryGetTotalNumData)
-{
+TEST_F(DbSummaryTest, QueryGetTotalNumData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId("0");
     Dic::Protocol::CommunicationDetailParams requestParams;
     requestParams.rankId = "2";
@@ -113,8 +107,7 @@ TEST_F(DbSummaryTest, QueryGetTotalNumData)
     EXPECT_EQ(responseBody.totalNum, expectSize);
 }
 
-TEST_F(DbSummaryTest, QueryComputeDetailData)
-{
+TEST_F(DbSummaryTest, QueryComputeDetailData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId("0");
     Dic::Protocol::ComputeDetailParams requestParams;
     requestParams.rankId = "2";

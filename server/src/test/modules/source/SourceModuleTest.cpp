@@ -23,38 +23,28 @@
 
 using namespace Dic::Module;
 
-class ComputeSourceModuleTest : public ::testing::Test {
-};
+class ComputeSourceModuleTest : public ::testing::Test {};
 
 class SourceModuleTemp : public SourceModule {
-public:
-    std::string GetModuleName()
-    {
-        return moduleName;
-    }
+  public:
+    std::string GetModuleName() { return moduleName; }
 
-    std::map<std::string, std::unique_ptr<ModuleRequestHandler>>& GetRegister()
-    {
-        return requestHandlerMap;
-    }
+    std::map<std::string, std::unique_ptr<ModuleRequestHandler>> &GetRegister() { return requestHandlerMap; }
 };
 
-TEST_F(ComputeSourceModuleTest, ConstructorAndDestructorTest)
-{
+TEST_F(ComputeSourceModuleTest, ConstructorAndDestructorTest) {
     SourceModuleTemp module;
     EXPECT_EQ(Dic::Protocol::MODULE_SOURCE, module.GetModuleName());
 }
 
-TEST_F(ComputeSourceModuleTest, RegisterRequestHandlersTest)
-{
+TEST_F(ComputeSourceModuleTest, RegisterRequestHandlersTest) {
     SourceModuleTemp module;
     module.RegisterRequestHandlers();
     EXPECT_TRUE(!module.GetRegister().empty());
     EXPECT_TRUE(module.GetRegister().find(Dic::Protocol::REQ_RES_SOURCE_CODE_FILE) != module.GetRegister().end());
 }
 
-TEST_F(ComputeSourceModuleTest, OnRequestTest)
-{
+TEST_F(ComputeSourceModuleTest, OnRequestTest) {
     SourceModuleTemp module;
     auto requestPtr = std::make_unique<Dic::Protocol::SourceApiInstrRequest>();
     module.OnRequest(std::move(requestPtr));

@@ -22,11 +22,11 @@
 #include <string>
 
 namespace Dic::Module::Source::Test {
-    const std::string_view SOURCE_NAME = "/test/vec_add1_simt.cpp";
-    const std::string_view CORE_NAME = "core0.veccore0";
-    const std::string_view BIN_FILE_PATH_API_LINE = "query_api_line_handler_test.bin";
-    const std::string_view BIN_FILE_PATH_API_LINE_DYNAMIC = "query_api_line_dynamic_handler_test.bin";
-    const std::string_view API_FILE_WITH_DTYPE = R"({
+const std::string_view SOURCE_NAME = "/test/vec_add1_simt.cpp";
+const std::string_view CORE_NAME = "core0.veccore0";
+const std::string_view BIN_FILE_PATH_API_LINE = "query_api_line_handler_test.bin";
+const std::string_view BIN_FILE_PATH_API_LINE_DYNAMIC = "query_api_line_dynamic_handler_test.bin";
+const std::string_view API_FILE_WITH_DTYPE = R"({
 "Cores" : ["core0.veccore0", "core0.veccore1"],
 "Files Dtype": {
     "Lines": {
@@ -83,7 +83,7 @@ namespace Dic::Module::Source::Test {
     }
 ]
 })";
-    const std::string_view INSTR_FILE_WITH_DTYPE = R"({
+const std::string_view INSTR_FILE_WITH_DTYPE = R"({
 	"Cores" : ["core0.veccore0", "core0.veccore1"],
     "Instructions Dtype": {
         "Instructions": {
@@ -190,7 +190,7 @@ namespace Dic::Module::Source::Test {
 		}
 	]
 })";
-    const std::string_view SOURCE_FILE = R"(/*
+const std::string_view SOURCE_FILE = R"(/*
  * Copyright (c) Huawei Technologies Co., Ltd. 2023. All rights reserved.
  */
 #include "kernel_operator_simt.h"
@@ -256,7 +256,7 @@ extern "C" __global__ __aicore__ void vec_add1(GM_ADDR src0, GM_ADDR src1, GM_AD
 }
 })";
 
-    const std::string_view API_FILE = R"({
+const std::string_view API_FILE = R"({
 "Cores" : ["core0.veccore0", "core0.veccore1"],
 "Files" : [{
         "Lines" : [{
@@ -305,7 +305,7 @@ extern "C" __global__ __aicore__ void vec_add1(GM_ADDR src0, GM_ADDR src1, GM_AD
     }
 ]
 })";
-    const std::string_view INSTR_FILE = R"({
+const std::string_view INSTR_FILE = R"({
 	"Cores" : ["core0.veccore0", "core0.veccore1"],
 	"Instructions" : [{
 			"Address" : "0x1134e2d8",

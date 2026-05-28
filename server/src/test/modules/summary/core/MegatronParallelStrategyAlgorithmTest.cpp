@@ -21,11 +21,9 @@
 using namespace Dic::Module;
 using namespace Dic::Protocol;
 using namespace Dic::Module::Summary;
-class MegatronParallelStrategyAlgorithmTest : public ::testing::Test {
-};
+class MegatronParallelStrategyAlgorithmTest : public ::testing::Test {};
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnTrue_WhenUpdateSuccess)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnTrue_WhenUpdateSuccess) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -61,8 +59,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldRetu
     EXPECT_TRUE(res);
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnFalse_WhenWrongInput)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnFalse_WhenWrongInput) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = "yyyyy";
     ParallelStrategyConfig config;
@@ -83,8 +80,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldRetu
     EXPECT_EQ(err, "Failed to update show map for parallel view. Unexpected dimension.");
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithTpDimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithTpDimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -94,24 +90,22 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
     config.cpSize = 2; // 2
     config.epSize = 2; // 2
     config.algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG;
-    const std::vector<std::string> EXPECTED_NAME = {
-        "dp0-pp0-cp0-tp0", "dp0-pp0-cp0-tp1", "dp0-pp0-cp1-tp0", "dp0-pp0-cp1-tp1",
-        "dp1-pp0-cp0-tp0", "dp1-pp0-cp0-tp1", "dp1-pp0-cp1-tp0", "dp1-pp0-cp1-tp1",
-        "dp0-pp1-cp0-tp0", "dp0-pp1-cp0-tp1", "dp0-pp1-cp1-tp0", "dp0-pp1-cp1-tp1",
-        "dp1-pp1-cp0-tp0", "dp1-pp1-cp0-tp1", "dp1-pp1-cp1-tp0", "dp1-pp1-cp1-tp1"};
+    const std::vector<std::string> EXPECTED_NAME = {"dp0-pp0-cp0-tp0", "dp0-pp0-cp0-tp1", "dp0-pp0-cp1-tp0",
+        "dp0-pp0-cp1-tp1", "dp1-pp0-cp0-tp0", "dp1-pp0-cp0-tp1", "dp1-pp0-cp1-tp0", "dp1-pp0-cp1-tp1",
+        "dp0-pp1-cp0-tp0", "dp0-pp1-cp0-tp1", "dp0-pp1-cp1-tp0", "dp0-pp1-cp1-tp1", "dp1-pp1-cp0-tp0",
+        "dp1-pp1-cp0-tp1", "dp1-pp1-cp1-tp0", "dp1-pp1-cp1-tp1"};
     const std::vector<Position> EXPECTED_POSITION = {
         {0, 0}, {1, 0}, {2, 0}, {3, 0}, {4, 0}, {5, 0}, {6, 0}, {7, 0}, // y = 0
         {0, 1}, {1, 1}, {2, 1}, {3, 1}, {4, 1}, {5, 1}, {6, 1}, {7, 1}, // y = 1
-        };
-    const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {
-        {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}
     };
+    const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {
+        {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}, {8}, {9}, {10}, {11}, {12}, {13}, {14}, {15}};
     std::string err;
     algorithm.UpdateParallelDimension(dimension, config, err);
     algorithm.GenerateArrangementByDimension(err);
     ArrangementAndConnectionData data = algorithm.GetArrangementData();
     ASSERT_EQ(data.size, EXPECTED_NAME.size());
-    for (const auto& item : data.arrangements) {
+    for (const auto &item : data.arrangements) {
         EXPECT_EQ(item.name, EXPECTED_NAME[item.index]);
         EXPECT_EQ(item.position, EXPECTED_POSITION[item.index]);
         EXPECT_EQ(item.ranks.size(), 1);
@@ -119,8 +113,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
     }
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithCpDimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithCpDimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_CP;
     ParallelStrategyConfig config;
@@ -130,20 +123,18 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
     config.cpSize = 2; // 2
     config.epSize = 2; // 2
     config.algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG;
-    const std::vector<std::string> EXPECTED_NAME = {
-        "dp0-pp0-cp0", "dp0-pp0-cp1", "dp1-pp0-cp0", "dp1-pp0-cp1",
+    const std::vector<std::string> EXPECTED_NAME = {"dp0-pp0-cp0", "dp0-pp0-cp1", "dp1-pp0-cp0", "dp1-pp0-cp1",
         "dp0-pp1-cp0", "dp0-pp1-cp1", "dp1-pp1-cp0", "dp1-pp1-cp1"};
     const std::vector<Position> EXPECTED_POSITION = {
         {0, 0}, {1, 0}, {2, 0}, {3, 0}, {0, 1}, {1, 1}, {2, 1}, {3, 1}}; // position(x, y)
     const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {
-        {0, 1}, {2, 3}, {4, 5}, {6, 7}, {8, 9}, {10, 11}, {12, 13}, {14, 15}
-    };
+        {0, 1}, {2, 3}, {4, 5}, {6, 7}, {8, 9}, {10, 11}, {12, 13}, {14, 15}};
     std::string err;
     algorithm.UpdateParallelDimension(dimension, config, err);
     algorithm.GenerateArrangementByDimension(err);
     ArrangementAndConnectionData data = algorithm.GetArrangementData();
     ASSERT_EQ(data.arrangements.size(), EXPECTED_NAME.size());
-    for (const auto& item : data.arrangements) {
+    for (const auto &item : data.arrangements) {
         EXPECT_EQ(item.name, EXPECTED_NAME[item.index]);
         EXPECT_EQ(item.position, EXPECTED_POSITION[item.index]);
         EXPECT_EQ(item.ranks.size(), config.tpSize);
@@ -152,8 +143,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
         }
     }
     config.algorithm = MEGATRON_LM_TP_CP_PP_EP_DP_ALG;
-    const std::vector<std::string> EXPECTED_NAME2 = {
-        "dp0-pp0-cp0", "dp0-pp0-cp1", "dp0-pp1-cp0", "dp0-pp1-cp1",
+    const std::vector<std::string> EXPECTED_NAME2 = {"dp0-pp0-cp0", "dp0-pp0-cp1", "dp0-pp1-cp0", "dp0-pp1-cp1",
         "dp1-pp0-cp0", "dp1-pp0-cp1", "dp1-pp1-cp0", "dp1-pp1-cp1"};
 
     const std::vector<Position> EXPECTED_POSITION2 = {
@@ -163,7 +153,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
     algorithm2.GenerateArrangementByDimension(err);
     data = algorithm2.GetArrangementData();
     ASSERT_EQ(data.arrangements.size(), EXPECTED_NAME2.size());
-    for (const auto& item : data.arrangements) {
+    for (const auto &item : data.arrangements) {
         EXPECT_EQ(item.name, EXPECTED_NAME2[item.index]);
         EXPECT_EQ(item.position, EXPECTED_POSITION2[item.index]);
         EXPECT_EQ(item.ranks.size(), config.tpSize);
@@ -173,8 +163,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
     }
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithPpDimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithPpDimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_PP;
     ParallelStrategyConfig config;
@@ -184,18 +173,16 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
     config.cpSize = 2; // 2
     config.epSize = 2; // 2
     config.algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG;
-    const std::vector<std::string> EXPECTED_NAME = {
-        "dp0-pp0", "dp1-pp0", "dp0-pp1", "dp1-pp1"};
+    const std::vector<std::string> EXPECTED_NAME = {"dp0-pp0", "dp1-pp0", "dp0-pp1", "dp1-pp1"};
     const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {
-        {0, 1, 2, 3}, {4, 5, 6, 7}, {8, 9, 10, 11}, {12, 13, 14, 15}
-    };
+        {0, 1, 2, 3}, {4, 5, 6, 7}, {8, 9, 10, 11}, {12, 13, 14, 15}};
     const std::vector<Position> EXPECTED_POSITION = {{0, 0}, {1, 0}, {0, 1}, {1, 1}}; // position(x, y)
     std::string err;
     algorithm.UpdateParallelDimension(dimension, config, err);
     algorithm.GenerateArrangementByDimension(err);
     ArrangementAndConnectionData data = algorithm.GetArrangementData();
     ASSERT_EQ(data.arrangements.size(), EXPECTED_NAME.size());
-    for (const auto& item : data.arrangements) {
+    for (const auto &item : data.arrangements) {
         EXPECT_EQ(item.name, EXPECTED_NAME[item.index]);
         EXPECT_EQ(item.position, EXPECTED_POSITION[item.index]);
         EXPECT_EQ(item.ranks.size(), config.tpSize * config.cpSize);
@@ -205,8 +192,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGe
     }
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnFalse_WhenWrongParams)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnFalse_WhenWrongParams) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -234,9 +220,8 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldRe
     EXPECT_EQ(err, "Failed to get parallelism performance indicator for Megatron-LM. Unexpected dimension.");
 }
 
-void PrepareParametersForGetPerformanceByDimensionTest(ParallelStrategyConfig& config,
-    std::unordered_map<std::uint32_t, StepStatistic>& statistic)
-{
+void PrepareParametersForGetPerformanceByDimensionTest(
+    ParallelStrategyConfig &config, std::unordered_map<std::uint32_t, StepStatistic> &statistic) {
     config.ppSize = 2; // 2
     config.tpSize = 2; // 2
     config.dpSize = 2; // 2
@@ -260,8 +245,7 @@ void PrepareParametersForGetPerformanceByDimensionTest(ParallelStrategyConfig& c
     }
 }
 
-std::unordered_map<std::string, std::vector<CommInfoUnderRank>> PrepareParametersForGetCommInfoByDimension()
-{
+std::unordered_map<std::string, std::vector<CommInfoUnderRank>> PrepareParametersForGetCommInfoByDimension() {
     std::unordered_map<std::string, std::vector<CommInfoUnderRank>> res;
     res["0"].push_back({10, "0", "(0, 1)", "tp"});
     res["1"].push_back({12, "1", "(0, 1)", "tp"});
@@ -270,8 +254,7 @@ std::unordered_map<std::string, std::vector<CommInfoUnderRank>> PrepareParameter
     return res;
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithTpDimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithTpDimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -288,8 +271,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldRe
     EXPECT_EQ(responseData.size(), 14); // 14 = 16 - 2(empty rank)
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithCpDimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithCpDimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_CP;
     ParallelStrategyConfig config;
@@ -306,8 +288,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldRe
     EXPECT_EQ(responseData.size(), 7); // 7 pp groups
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_TP_dimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_TP_dimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -324,8 +305,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_TP_dimensio
     EXPECT_EQ(res["0"][0].commTime, exceptComm);
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_CP_dimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_CP_dimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_CP;
     ParallelStrategyConfig config;
@@ -334,7 +314,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_CP_dimensio
     std::string err;
     algorithm.UpdateParallelDimension(dimension, config, err);
     std::unordered_map<std::string, std::vector<CommInfoUnderRank>> input =
-            PrepareParametersForGetCommInfoByDimension();
+        PrepareParametersForGetCommInfoByDimension();
     auto res = algorithm.GetCommInfoByDimension(input, dimension);
     const int exceptSize = 2;
     const double exceptComm = 11;
@@ -342,8 +322,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_CP_dimensio
     EXPECT_EQ(res["0"][0].commTime, exceptComm);
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_PP_dimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_PP_dimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_PP;
     ParallelStrategyConfig config;
@@ -352,7 +331,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_PP_dimensio
     std::string err;
     algorithm.UpdateParallelDimension(dimension, config, err);
     std::unordered_map<std::string, std::vector<CommInfoUnderRank>> input =
-            PrepareParametersForGetCommInfoByDimension();
+        PrepareParametersForGetCommInfoByDimension();
     auto res = algorithm.GetCommInfoByDimension(input, dimension);
     const int exceptSize = 1;
     const double exceptComm = 12.25;
@@ -360,19 +339,17 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_PP_dimensio
     EXPECT_EQ(res["0"][0].commTime, exceptComm);
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_DP_dimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetCommInfoByDimension_DP_dimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_DP;
     std::unordered_map<std::string, std::vector<CommInfoUnderRank>> input =
-            PrepareParametersForGetCommInfoByDimension();
+        PrepareParametersForGetCommInfoByDimension();
     auto res = algorithm.GetCommInfoByDimension(input, dimension);
     const int exceptSize = 0;
     EXPECT_EQ(res.size(), exceptSize);
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithPpDimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithPpDimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_PP;
     ParallelStrategyConfig config;
@@ -389,7 +366,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldRe
     EXPECT_EQ(responseData.size(), 4); // 4 pp groups
     const std::vector<double> EXPECTED_COMPUTING = {90, 90, 90, 90};
     uint32_t i = 0;
-    for (auto& item : responseData) {
+    for (auto &item : responseData) {
         EXPECT_EQ(item.indicators[KEY_TOTAL_COMPUTING_TIME + KEY_MAX_SUFFIX], EXPECTED_COMPUTING[i++]);
     }
     //  test for MEGATRON_LM_TP_CP_PP_EP_DP_ALG
@@ -403,13 +380,12 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldRe
     EXPECT_EQ(responseData.size(), 4); // 4 cp groups
     const std::vector<double> EXPECTED_COMPUTING2 = {90, 90, 90, 90};
     i = 0;
-    for (auto& item : responseData) {
+    for (auto &item : responseData) {
         EXPECT_EQ(item.indicators[KEY_TOTAL_COMPUTING_TIME + KEY_MAX_SUFFIX], EXPECTED_COMPUTING2[i++]);
     }
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithDpDimension)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithDpDimension) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_DP;
     ParallelStrategyConfig config;
@@ -426,19 +402,18 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldRe
     EXPECT_EQ(responseData.size(), 2); // 2 dp groups
     const std::vector<double> EXPECTED_COMPUTING = {180, 180};
     uint32_t i = 0;
-    for (auto& item : responseData) {
+    for (auto &item : responseData) {
         EXPECT_EQ(item.indicators[VALUE_SUM_OF_MAX + KEY_TOTAL_COMPUTING_TIME], EXPECTED_COMPUTING[i++]);
     }
 }
 
- /**
+/**
  * using CommInfoMap = std::unordered_map<std::string, std::vector<CommInfoUnderRank>>;
  * CommInfoMap: key: rankId, value: CommInfoUnderRankList
  * rank0-6: commTime = 123.45, rank7: commTime = 0.01
   * @param pgName
   */
-CommInfoMap PrepareCommDataForTestCalAdviceInfoByCommInfo(const std::string& pgName)
-{
+CommInfoMap PrepareCommDataForTestCalAdviceInfoByCommInfo(const std::string &pgName) {
     CommInfoMap commInTpDimension;
     CommInfoUnderRank info;
     info.commTime = 123.45; // 123.45
@@ -464,8 +439,7 @@ CommInfoMap PrepareCommDataForTestCalAdviceInfoByCommInfo(const std::string& pgN
     return commInTpDimension;
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithDP8)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithDP8) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -485,8 +459,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldRetu
     EXPECT_EQ(adviceList[0].synchronizeTime["dp"], 123.44); // 123.44 = 123.45 - 0.01
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithCP8)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithCP8) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -507,8 +480,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldRetu
     EXPECT_EQ(adviceList[0].synchronizeTime["cp"], 123.44); // 123.44 = 123.45 - 0.01
 }
 
-TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithTP8)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithTP8) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -532,8 +504,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldRetu
  * DIMENSION_CP: slow group:cp0, contain ranks: 0-7
  * DIMENSION_TP: slow rank:tp0-tp7
  */
-TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithCP2TP8)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithCP2TP8) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -575,8 +546,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldRetu
  * DIMENSION_PP: slow group:dp0, contain ranks: 0-7
  * DIMENSION_TP: slow rank:tp0-tp7
  */
-TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithDP2TP8)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithDP2TP8) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -617,8 +587,7 @@ TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldRetu
  * DIMENSION_PP: slow group:dp0, contain ranks: 0-7
  * DIMENSION_CP: slow rank:cp0-cp7
  */
-TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithDP2CP8)
-{
+TEST_F(MegatronParallelStrategyAlgorithmTest, CalAdviceInfoByCommInfo_ShouldReturnTrue_TestWithDP2CP8) {
     MegatronParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;

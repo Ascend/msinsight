@@ -35,22 +35,15 @@
 using namespace Dic::Protocol;
 using namespace Dic::Module;
 class SummaryProtocolUtilTest : public ::testing::Test {
-protected:
-    void SetUp() override
-    {
-        protocol.Register();
-    }
+  protected:
+    void SetUp() override { protocol.Register(); }
 
-    void TearDown() override
-    {
-        protocol.UnRegister();
-    }
+    void TearDown() override { protocol.UnRegister(); }
 
     Dic::Protocol::SummaryProtocol protocol;
 };
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelStrategyRequestTest)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelStrategyRequestTest) {
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
         "command": "summary/query/parallelStrategy", "resultCallbackId": 0, "params": {}})";
     Dic::document_t json;
@@ -60,9 +53,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelStrategyRequestTest)
     EXPECT_EQ(result.command, REQ_RES_SUMMARY_QUERY_PARALLEL_STRATEGY);
 }
 
-
-TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyRequestTest)
-{
+TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyRequestTest) {
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
         "command": "summary/set/parallelStrategy", "resultCallbackId": 0, "params": {}})";
     Dic::document_t json;
@@ -84,8 +75,7 @@ TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyRequestTest)
     EXPECT_EQ(result.params.config.epSize, 1);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyRequestWithCpAndTpTest)
-{
+TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyRequestWithCpAndTpTest) {
     Dic::document_t json;
     std::string err;
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
@@ -104,8 +94,7 @@ TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyRequestWithCpAndTpTest)
     EXPECT_EQ(result.params.config.epSize, expectEp);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementRequestWillReturnTrueWhenInputCorrect)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementRequestWillReturnTrueWhenInputCorrect) {
     Dic::document_t json;
     std::string err;
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
@@ -125,8 +114,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementRequestWillReturnTr
     EXPECT_EQ(result.params.dimension, "ep-dp-pp-cp-tp");
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementRequestWillReturnNullWhenInputWrong)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementRequestWillReturnNullWhenInputWrong) {
     Dic::document_t json;
     std::string err;
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
@@ -149,8 +137,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementRequestWillReturnNu
     EXPECT_TRUE(result == nullptr);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestWillReturnTrueWhenInputCorrect)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestWillReturnTrueWhenInputCorrect) {
     Dic::document_t json;
     std::string err;
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
@@ -171,8 +158,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestWillReturnTr
     EXPECT_EQ(result.params.step, "all");
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestTest)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestTest) {
     Dic::document_t json;
     std::string err;
     std::string reqJson = "{\"id\":46,\"moduleName\":\"summary\",\"type\":\"request\",\"command\":"
@@ -197,8 +183,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestTest)
     EXPECT_EQ(result.params.clusterPath, "test");
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestWillReturnNullWhenInputWithWrong)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestWillReturnNullWhenInputWithWrong) {
     Dic::document_t json;
     std::string err;
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
@@ -222,8 +207,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceRequestWillReturnNu
     EXPECT_TRUE(result == nullptr);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelStrategyResponseTest)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelStrategyResponseTest) {
     Dic::Protocol::QueryParallelStrategyResponse response;
     std::string err;
     response.config.algorithm = "megatron-lm";
@@ -246,8 +230,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelStrategyResponseTest)
     EXPECT_EQ(jsonOptional.value()["body"][KEY_MOE_TP_SIZE.c_str()], response.config.moeTpSize);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyResponseTest)
-{
+TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyResponseTest) {
     Dic::Protocol::SetParallelStrategyResponse response;
     std::string err;
     response.result = false;
@@ -257,8 +240,7 @@ TEST_F(SummaryProtocolUtilTest, ToSetParallelStrategyResponseTest)
     EXPECT_EQ(jsonOptional.value()["body"][KEY_MSG.c_str()], response.msg.c_str());
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineRequestWillReturnNullWhenInputWrong)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineRequestWillReturnNullWhenInputWrong) {
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
         "command": "parallelism/pipeline/fwdBwdTimeline", "resultCallbackId": 0, "params": {}})";
     Dic::document_t json;
@@ -273,8 +255,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineRequestWillReturnNullWhenIn
     EXPECT_TRUE(request == nullptr);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineRequestWillReturnTrueWhenInputCorrect)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineRequestWillReturnTrueWhenInputCorrect) {
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request", "resultCallbackId": 0,
         "command": "parallelism/pipeline/fwdBwdTimeline", "params": {"stepId": "2", "stageId": "3"}})";
     Dic::document_t json;
@@ -286,8 +267,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineRequestWillReturnTrueWhenIn
     EXPECT_EQ(result.params.stageId, "3");
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineResponseTestWillReturnWhenEmptyInput)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineResponseTestWillReturnWhenEmptyInput) {
     Dic::Protocol::PipelineFwdBwdTimelineResponse response{};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
@@ -299,27 +279,19 @@ TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineResponseTestWillReturnWhenE
     EXPECT_EQ(jsonOptional.value()["body"]["rankList"].GetArray().Size(), 0);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineResponseTestWillReturnWhenNormalInput)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineResponseTestWillReturnWhenNormalInput) {
     Dic::Protocol::PipelineFwdBwdTimelineResponse response{};
     response.body.maxTime = 10086; // 10086
     response.body.minTime = 10010; // 10010
     response.body.rankLists = {"0", "1"};
-    PipelineFwdBwdTimelineByComponent rank0FwdBwd = {
-        "FWD/BWD", {
-            {"FP", 3000, 123456, 135678, 0, "FWD/BWD", "0", "1", "FWD"},
-            {"BP", 5000, 147890, 234567, 0, "FWD/BWD", "0", "1", "BWD"}
-        }
-    };
+    PipelineFwdBwdTimelineByComponent rank0FwdBwd = {"FWD/BWD",
+        {{"FP", 3000, 123456, 135678, 0, "FWD/BWD", "0", "1", "FWD"},
+            {"BP", 5000, 147890, 234567, 0, "FWD/BWD", "0", "1", "BWD"}}};
     PipelineFwdBwdTimelineByComponent rank0P2P = {
-        "P2P", {{"hcom_send", 3000, 136789, 137890, 0, "P2P", "0", "1", "SEND"}}
-    };
+        "P2P", {{"hcom_send", 3000, 136789, 137890, 0, "P2P", "0", "1", "SEND"}}};
     PipelineFwdBwdTimelineByRank rank0 = {"0", {"FWD/BWD", "P2P"}, {rank0FwdBwd, rank0P2P}};
     PipelineFwdBwdTimelineByComponent rank1FwdBwd = {
-        "FWD/BWD", {
-            {"FP", 3000, 123456, 135678, 0, "FWD/BWD", "0", "1", "FWD"}
-        }
-    };
+        "FWD/BWD", {{"FP", 3000, 123456, 135678, 0, "FWD/BWD", "0", "1", "FWD"}}};
     PipelineFwdBwdTimelineByRank rank1 = {"1", {"FWD/BWD"}, {rank1FwdBwd}};
 
     response.body.rankDataList = {rank0, rank1};
@@ -351,11 +323,17 @@ TEST_F(SummaryProtocolUtilTest, ToQueryFwdBwdTimelineResponseTestWillReturnWhenN
     }
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementResponseTestWillReturnWhenNormalInput)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementResponseTestWillReturnWhenNormalInput) {
     Dic::Protocol::ParallelismArrangementResponse response{};
-    IndicatorAttr attr = { .number = 0, .key = "computingTime", .name = "computing time", . renderHeatMap = true,
-        .renderChart = false, .visible = true, .chart = "bar", .stack = "time", .yAxisType = "time"};
+    IndicatorAttr attr = {.number = 0,
+        .key = "computingTime",
+        .name = "computing time",
+        .renderHeatMap = true,
+        .renderChart = false,
+        .visible = true,
+        .chart = "bar",
+        .stack = "time",
+        .yAxisType = "time"};
     response.arrangeData.indicators.push_back(attr);
     Position pos = {0, 0};
     Element ele;
@@ -392,8 +370,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismArrangementResponseTestWillRet
     EXPECT_EQ(jsonOptional.value()["body"].HasMember("connections"), true);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceResponseTestWillReturnWhenNormalInput)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceResponseTestWillReturnWhenNormalInput) {
     Dic::Protocol::ParallelismPerformanceResponse response{};
     IndicatorDataStructVo indicator;
     indicator.index = 0;
@@ -404,8 +381,8 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceResponseTestWillRet
     EXPECT_EQ(jsonOptional.has_value(), true);
     EXPECT_EQ(jsonOptional.value().HasMember("body"), true);
     EXPECT_EQ(jsonOptional.value()["body"].HasMember("performance"), true);
-    ASSERT_EQ(jsonOptional.value()["body"]["performance"].GetArray().Size(),
-              response.indicatorData.performanceData.size());
+    ASSERT_EQ(
+        jsonOptional.value()["body"]["performance"].GetArray().Size(), response.indicatorData.performanceData.size());
     int i = 0;
     for (const auto &item : jsonOptional.value()["body"]["performance"].GetArray()) {
         auto tmp = response.indicatorData.performanceData.at(i);
@@ -416,8 +393,7 @@ TEST_F(SummaryProtocolUtilTest, ToQueryParallelismPerformanceResponseTestWillRet
     EXPECT_EQ(jsonOptional.value()["body"].HasMember("advice"), true);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToSummarySlowRankAdvisorResponseTestWillReturnWhenNormalInput)
-{
+TEST_F(SummaryProtocolUtilTest, ToSummarySlowRankAdvisorResponseTestWillReturnWhenNormalInput) {
     Dic::Protocol::SummarySlowRankAdvisorResponse response{};
     Module::AdviceInfoForSlowRank adviceInfo;
     adviceInfo.name = "dp4-pp0-cp1-tp2";
@@ -449,8 +425,7 @@ TEST_F(SummaryProtocolUtilTest, ToSummarySlowRankAdvisorResponseTestWillReturnWh
 }
 
 // 基础信息数据序列化校验
-TEST_F(SummaryProtocolUtilTest, SummaryTopRankResponseSuccess)
-{
+TEST_F(SummaryProtocolUtilTest, SummaryTopRankResponseSuccess) {
     SummaryTopRankResponse response;
     SummaryBaseInfo compare{5, {"1", "2"}, 100, 100, "filePath", 10, 5, {"1"}};
     SummaryBaseInfo baseline{5, {"1", "2"}, 100, 100, "filePath", 10, 5, {"1"}};
@@ -484,8 +459,7 @@ TEST_F(SummaryProtocolUtilTest, SummaryTopRankResponseSuccess)
 }
 
 // 查询模型信息数据序列化校验
-TEST_F(SummaryProtocolUtilTest, QueryModelInfoResponseSuccess)
-{
+TEST_F(SummaryProtocolUtilTest, QueryModelInfoResponseSuccess) {
     QueryModelInfoResponse response;
     response.body = {60, {0, 1}, 200};
     std::string err;
@@ -498,8 +472,7 @@ TEST_F(SummaryProtocolUtilTest, QueryModelInfoResponseSuccess)
     EXPECT_EQ(body["denseLayerList"].GetArray().Size(), response.body.denseLayerList.size());
 }
 
-TEST_F(SummaryProtocolUtilTest, ToQueryExpertHotspotResponseJsonWhenNormalInput)
-{
+TEST_F(SummaryProtocolUtilTest, ToQueryExpertHotspotResponseJsonWhenNormalInput) {
     QueryExpertHotspotResponse response{};
     ExpertHotspotStruct info{"prefill", 0, 100, 0, 0, "1", 0};
     response.body.hotspotInfos.push_back(info);
@@ -508,12 +481,10 @@ TEST_F(SummaryProtocolUtilTest, ToQueryExpertHotspotResponseJsonWhenNormalInput)
     EXPECT_EQ(jsonOptional.has_value(), true);
     EXPECT_EQ(jsonOptional.value().HasMember("body"), true);
     EXPECT_EQ(jsonOptional.value()["body"].HasMember("hotspotInfos"), true);
-    ASSERT_EQ(jsonOptional.value()["body"]["hotspotInfos"].GetArray().Size(),
-              response.body.hotspotInfos.size());
+    ASSERT_EQ(jsonOptional.value()["body"]["hotspotInfos"].GetArray().Size(), response.body.hotspotInfos.size());
 }
 
-TEST_F(SummaryProtocolUtilTest, ToImportExpertDataResponseJsonWhenNormalInput)
-{
+TEST_F(SummaryProtocolUtilTest, ToImportExpertDataResponseJsonWhenNormalInput) {
     ImportExpertDataResponse response{};
     response.result = true;
     response.msg = "";
@@ -525,19 +496,12 @@ TEST_F(SummaryProtocolUtilTest, ToImportExpertDataResponseJsonWhenNormalInput)
     EXPECT_EQ(jsonOptional.value()["body"]["result"].GetBool(), true);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponse)
-{
+TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponse) {
     using namespace Dic::Module;
     Dic::Protocol::QueryParallelStrategyResponse response{};
     const int expectId = 1;
     response.config = {
-        .algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG,
-        .ppSize = 0,
-        .tpSize = 2,
-        .dpSize = 1,
-        .cpSize = 1,
-        .epSize = 1
-    };
+        .algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG, .ppSize = 0, .tpSize = 2, .dpSize = 1, .cpSize = 1, .epSize = 1};
     EXPECT_EQ(response.IsValid(), false);
     response.SetDefault();
     EXPECT_EQ(response.config.algorithm, MEGATRON_LM_TP_CP_EP_DP_PP_ALG);
@@ -546,19 +510,12 @@ TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponse)
     EXPECT_EQ(response.config.tpSize, expectTp);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponse2)
-{
+TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponse2) {
     using namespace Dic::Module;
     Dic::Protocol::QueryParallelStrategyResponse response{};
     const int expectId = 1;
     response.config = {
-            .algorithm = MEGATRON_LM_TP_CP_PP_EP_DP_ALG,
-            .ppSize = 0,
-            .tpSize = 2,
-            .dpSize = 1,
-            .cpSize = 1,
-            .epSize = 1
-    };
+        .algorithm = MEGATRON_LM_TP_CP_PP_EP_DP_ALG, .ppSize = 0, .tpSize = 2, .dpSize = 1, .cpSize = 1, .epSize = 1};
     EXPECT_EQ(response.IsValid(), false);
     response.SetDefault();
     EXPECT_EQ(response.config.algorithm, MEGATRON_LM_TP_CP_PP_EP_DP_ALG);
@@ -567,19 +524,12 @@ TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponse2)
     EXPECT_EQ(response.config.tpSize, expectTp);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenTpPpDp)
-{
+TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenTpPpDp) {
     using namespace Dic::Module;
     Dic::Protocol::QueryParallelStrategyResponse response{};
     const int expectId = 1;
     response.config = {
-            .algorithm = MEGATRON_LM_TP_CP_PP_EP_DP_ALG,
-            .ppSize = 0,
-            .tpSize = 2,
-            .dpSize = 1,
-            .cpSize = 1,
-            .epSize = 1
-    };
+        .algorithm = MEGATRON_LM_TP_CP_PP_EP_DP_ALG, .ppSize = 0, .tpSize = 2, .dpSize = 1, .cpSize = 1, .epSize = 1};
     EXPECT_EQ(response.IsValid(), false);
     response.SetDefault();
     EXPECT_EQ(response.config.algorithm, MEGATRON_LM_TP_CP_PP_EP_DP_ALG);
@@ -588,19 +538,12 @@ TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenTpPpDp)
     EXPECT_EQ(response.config.tpSize, expectTp);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenTpDpPp)
-{
+TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenTpDpPp) {
     using namespace Dic::Module;
     Dic::Protocol::QueryParallelStrategyResponse response{};
     const int expectId = 1;
     response.config = {
-            .algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG,
-            .ppSize = 0,
-            .tpSize = 2,
-            .dpSize = 1,
-            .cpSize = 1,
-            .epSize = 1
-    };
+        .algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG, .ppSize = 0, .tpSize = 2, .dpSize = 1, .cpSize = 1, .epSize = 1};
     EXPECT_EQ(response.IsValid(), false);
     response.SetDefault();
     EXPECT_EQ(response.config.algorithm, MEGATRON_LM_TP_CP_EP_DP_PP_ALG);
@@ -609,19 +552,11 @@ TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenTpDpPp)
     EXPECT_EQ(response.config.tpSize, expectTp);
 }
 
-TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenInvalid)
-{
+TEST_F(SummaryProtocolUtilTest, ToTestQueryParallelStrategyResponseWhenInvalid) {
     using namespace Dic::Module;
     Dic::Protocol::QueryParallelStrategyResponse response{};
     const int expectId = 1;
-    response.config = {
-            .algorithm = "LLLLLLLLLLLL",
-            .ppSize = 0,
-            .tpSize = 2,
-            .dpSize = 1,
-            .cpSize = 1,
-            .epSize = 1
-    };
+    response.config = {.algorithm = "LLLLLLLLLLLL", .ppSize = 0, .tpSize = 2, .dpSize = 1, .cpSize = 1, .epSize = 1};
     EXPECT_EQ(response.IsValid(), false);
     response.SetDefault();
     EXPECT_EQ(response.config.algorithm, MEGATRON_LM_TP_CP_EP_DP_PP_ALG);

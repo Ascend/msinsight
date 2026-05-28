@@ -24,8 +24,9 @@
 #include "SummaryProtocolRequest.h"
 
 class MockTraceDatabase : public Dic::Module::Timeline::VirtualTraceDatabase {
-public:
-    MOCK_METHOD2(QueryComputeStatisticsData, bool(const Dic::Protocol::SummaryStatisticParams &requestParams,
+  public:
+    MOCK_METHOD2(QueryComputeStatisticsData,
+        bool(const Dic::Protocol::SummaryStatisticParams &requestParams,
             Dic::Protocol::SummaryStatisticsBody &responseBody));
 };
 

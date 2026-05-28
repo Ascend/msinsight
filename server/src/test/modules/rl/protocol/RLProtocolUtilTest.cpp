@@ -23,23 +23,16 @@
 
 using namespace Dic::Protocol;
 class RLProtocolUtilTest : public ::testing::Test {
-protected:
-    void SetUp() override
-    {
-        protocol.Register();
-    }
+  protected:
+    void SetUp() override { protocol.Register(); }
 
-    void TearDown() override
-    {
-        protocol.UnRegister();
-    }
+    void TearDown() override { protocol.UnRegister(); }
 
     Dic::Protocol::RLProtocol protocol;
 };
 
 // 强化学习流水图响应序列化验证
-TEST_F(RLProtocolUtilTest, ToRLPipelineResponseTest)
-{
+TEST_F(RLProtocolUtilTest, ToRLPipelineResponseTest) {
     RLPipelineResponse response;
     response.body.framework = "fsdp";
     response.body.minTime = 0;
@@ -58,7 +51,7 @@ TEST_F(RLProtocolUtilTest, ToRLPipelineResponseTest)
         EXPECT_EQ(item.HasMember("lists"), true);
         EXPECT_EQ(item["lists"].GetArray().Size(), response.body.taskData[index].lists.size());
         size_t j = 0;
-        for (const auto &node: item["lists"].GetArray()) {
+        for (const auto &node : item["lists"].GetArray()) {
             EXPECT_EQ(node["fileId"].GetString(), response.body.taskData[index].lists[j].fileId);
             EXPECT_EQ(node["nodeType"].GetString(), response.body.taskData[index].lists[j].nodeType);
             EXPECT_EQ(node["startTime"].GetUint64(), response.body.taskData[index].lists[j].startTime);
@@ -78,8 +71,7 @@ TEST_F(RLProtocolUtilTest, ToRLPipelineResponseTest)
 }
 
 // 强化学习流水图请求反序列化验证
-TEST_F(RLProtocolUtilTest, ToRLPipelineRequestTest)
-{
+TEST_F(RLProtocolUtilTest, ToRLPipelineRequestTest) {
     std::string reqJson = R"({"id": 1, "moduleName": "rl", "type": "request", "resultCallbackId": 0,
         "command": "RL/pipeline", "params": {}})";
     Dic::document_t json;

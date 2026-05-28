@@ -58,9 +58,8 @@ const std::string DETAILS_CACHE_JSON = R"JSON({
 static const std::string BIN_FILE_PATH = "visualize_data_nosource.bin";
 
 class QueryCachelineRecordHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         auto cache = std::make_unique<NormalDataBlock>(DataTypeEnum::DISPLAY_CACHE, DETAILS_CACHE_JSON);
         BinFileGenerator generator;
         generator.AddDataBlock(std::move(cache));
@@ -71,8 +70,7 @@ public:
         SourceFileParser::Instance().Parse({BIN_FILE_PATH}, BIN_FILE_PATH, BIN_FILE_PATH, "");
     }
 
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         // remove bin file
         Dic::Module::Source::Test::BinFileGenerator::RemoveFile(BIN_FILE_PATH);
 
@@ -81,8 +79,7 @@ public:
     }
 };
 
-TEST_F(QueryCachelineRecordHandlerTest, QueryCachelineRecordHandlerWithValidData)
-{
+TEST_F(QueryCachelineRecordHandlerTest, QueryCachelineRecordHandlerWithValidData) {
     QueryCachelineRecordHandler handler;
     auto ptr = std::make_unique<DetailsMemoryGraphRequest>();
     EXPECT_TRUE(handler.HandleRequest(std::move(ptr)));

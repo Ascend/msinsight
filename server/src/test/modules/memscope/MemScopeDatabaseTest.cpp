@@ -30,25 +30,22 @@ using namespace Dic::Module::FullDb;
 using namespace Dic;
 
 class MemScopeDatabaseTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         std::string dbPath = TestSuit::GetTestDataFile("full_db", "leaks_dump_20250806.dat");
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         ASSERT_TRUE(memoryDatabase->OpenDb(dbPath, false));
         ASSERT_TRUE(memoryDatabase->DropMemoryAllocationAndBlockTable());
         ASSERT_TRUE(MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces("0"));
     }
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
         DataBaseManager::Instance().Clear();
     }
 };
 
-TEST_F(MemScopeDatabaseTest, QueryEntireEventsTable)
-{
+TEST_F(MemScopeDatabaseTest, QueryEntireEventsTable) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     std::vector<MemScopeEvent> events;
     memoryDatabase->QueryEntireEventsTable(events);
@@ -56,16 +53,14 @@ TEST_F(MemScopeDatabaseTest, QueryEntireEventsTable)
     EXPECT_EQ(events.size(), expectSize);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryDeviceIds)
-{
+TEST_F(MemScopeDatabaseTest, QueryDeviceIds) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     std::set<std::string> deviceIds;
     memoryDatabase->QueryDeviceIds(deviceIds);
     size_t expectSize = 1;
     EXPECT_EQ(deviceIds.size(), expectSize);
 }
-TEST_F(MemScopeDatabaseTest, QueryDeviceEventTypeMap)
-{
+TEST_F(MemScopeDatabaseTest, QueryDeviceEventTypeMap) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     std::unordered_map<std::string, std::vector<std::string>> resultMap;
     memoryDatabase->QueryMallocOrFreeEventTypeWithDeviceId(resultMap);
@@ -75,8 +70,7 @@ TEST_F(MemScopeDatabaseTest, QueryDeviceEventTypeMap)
     it = std::find(eventTypes.begin(), eventTypes.end(), "PTA");
     EXPECT_TRUE(it != eventTypes.end());
 }
-TEST_F(MemScopeDatabaseTest, QueryMinAndMaxTimestamp)
-{
+TEST_F(MemScopeDatabaseTest, QueryMinAndMaxTimestamp) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     uint64_t minTimestamp = memoryDatabase->GetGlobalMinTimestamp();
     uint64_t maxTimestamp = memoryDatabase->GetGlobalMaxTimestamp();
@@ -86,8 +80,7 @@ TEST_F(MemScopeDatabaseTest, QueryMinAndMaxTimestamp)
     EXPECT_EQ(maxTimestamp, expectMax);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryMemoryBlockWithNoTimeAndSizeCondition)
-{
+TEST_F(MemScopeDatabaseTest, QueryMemoryBlockWithNoTimeAndSizeCondition) {
     std::vector<MemScopeEvent> events;
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     MemScopeMemoryBlockParams params;
@@ -100,8 +93,7 @@ TEST_F(MemScopeDatabaseTest, QueryMemoryBlockWithNoTimeAndSizeCondition)
     EXPECT_EQ(blocks.size(), expectSize);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryMemoryBlockWithTimeAndSizeConditionAndRelativeTime)
-{
+TEST_F(MemScopeDatabaseTest, QueryMemoryBlockWithTimeAndSizeConditionAndRelativeTime) {
     MemScopeMemoryBlockParams params;
     params.deviceId = "1";
     params.relativeTime = true;
@@ -125,8 +117,7 @@ TEST_F(MemScopeDatabaseTest, QueryMemoryBlockWithTimeAndSizeConditionAndRelative
     EXPECT_TRUE(firstBlock.size > 0 and firstBlock.size < params.maxSize);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryAllocationWithNoTimeCondition)
-{
+TEST_F(MemScopeDatabaseTest, QueryAllocationWithNoTimeCondition) {
     MemScopeMemoryAllocationParams params;
     params.deviceId = "1";
     params.optimized = false;
@@ -138,8 +129,7 @@ TEST_F(MemScopeDatabaseTest, QueryAllocationWithNoTimeCondition)
     EXPECT_EQ(allocations.size(), expectSize);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryAllocationWithTimeAndRelativeCondition)
-{
+TEST_F(MemScopeDatabaseTest, QueryAllocationWithTimeAndRelativeCondition) {
     MemScopeMemoryAllocationParams params;
     params.deviceId = "1";
     params.optimized = false;
@@ -160,71 +150,57 @@ TEST_F(MemScopeDatabaseTest, QueryAllocationWithTimeAndRelativeCondition)
     EXPECT_EQ(firstAllocation.totalSize, totalSize);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryLatestAllocationWithinTimestamp)
-{
+TEST_F(MemScopeDatabaseTest, QueryLatestAllocationWithinTimestamp) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     const std::string deviceId = "1";
     const std::string eventType = "HAL";
     const uint64_t expectDuration = 20000000000;
-    const uint64_t timestamp =
-            memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
+    const uint64_t timestamp = memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
     auto alloc = memoryDatabase->QueryLatestAllocationWithinTimestamp(deviceId, eventType, timestamp);
     EXPECT_TRUE(alloc.has_value());
     const uint64_t expectTotalSize = 187076614;
     EXPECT_EQ(alloc->totalSize, expectTotalSize);
 }
 
-
-TEST_F(MemScopeDatabaseTest, QueryNextAllocationAfterTimestamp)
-{
+TEST_F(MemScopeDatabaseTest, QueryNextAllocationAfterTimestamp) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     const std::string deviceId = "1";
     const std::string eventType = "PTA";
     const uint64_t expectDuration = 10000000;
-    const uint64_t timestamp =
-            memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
+    const uint64_t timestamp = memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
     auto alloc = memoryDatabase->QueryNextAllocationAfterTimestamp(deviceId, eventType, timestamp);
     EXPECT_TRUE(alloc.has_value());
     const uint64_t expectTotalSize = 37888;
     EXPECT_EQ(alloc->totalSize, expectTotalSize);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryMemoryBlocksOwnersReleasedAfterTimestamp)
-{
+TEST_F(MemScopeDatabaseTest, QueryMemoryBlocksOwnersReleasedAfterTimestamp) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     const std::string deviceId = "1";
     const std::string eventType = "PTA";
     // 10s
     const uint64_t expectDuration = 20000000000;
-    const uint64_t timestamp =
-            memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
+    const uint64_t timestamp = memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
     std::set<std::string> owners;
     memoryDatabase->QueryMemoryBlocksOwnersReleasedAfterTimestamp(deviceId, eventType, timestamp, owners);
     EXPECT_FALSE(owners.empty());
-    std::set<std::string> expectOwners = {
-        "PTA@model@weight", "PTA@ops@aten", "PTA@ops@aten@leaks_mem"
-    };
+    std::set<std::string> expectOwners = {"PTA@model@weight", "PTA@ops@aten", "PTA@ops@aten@leaks_mem"};
     EXPECT_EQ(owners, expectOwners);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryTotalSizeUtilTimestampUsingOwner)
-{
+TEST_F(MemScopeDatabaseTest, QueryTotalSizeUtilTimestampUsingOwner) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     const std::string deviceId = "1";
     // 10s
     const uint64_t expectDuration = 20000000000;
     const std::string eventType = "HAL";
-    const uint64_t timestamp =
-            memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
-    auto allocation =
-            memoryDatabase->QueryLatestAllocationWithinTimestamp(deviceId, eventType, timestamp);
+    const uint64_t timestamp = memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
+    auto allocation = memoryDatabase->QueryLatestAllocationWithinTimestamp(deviceId, eventType, timestamp);
     uint64_t cannTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "CANN");
-    uint64_t ptaTotalSize = memoryDatabase->
-            QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "PTA");
-    uint64_t ptaModelTotalSize = memoryDatabase->
-            QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "PTA@model");
-    uint64_t ptaOpTotalSize = memoryDatabase->
-            QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "PTA@ops");
+    uint64_t ptaTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "PTA");
+    uint64_t ptaModelTotalSize =
+        memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "PTA@model");
+    uint64_t ptaOpTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "PTA@ops");
     const uint64_t expectCANNTotalSize = 187076614;
     const uint64_t expectPTATotalSize = 142264320;
     const uint64_t expectPTAModelTotalSize = 95234560;
@@ -237,8 +213,7 @@ TEST_F(MemScopeDatabaseTest, QueryTotalSizeUtilTimestampUsingOwner)
     EXPECT_EQ(ptaOpTotalSize, expectPTAOpTotalSize);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryPythonTraces)
-{
+TEST_F(MemScopeDatabaseTest, QueryPythonTraces) {
     const uint64_t startTimestamp = 1000000;
     const uint64_t endTimestamp = 20000000000;
     MemScopeThreadPythonTraceParams params;
@@ -260,8 +235,7 @@ TEST_F(MemScopeDatabaseTest, QueryPythonTraces)
 /***
  * 测试通过简易请求(仅deviceId)查询内存事件  应返回该deviceId下的所有事件
  */
-TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithSimpleParams)
-{
+TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithSimpleParams) {
     MemScopeEventParams simpleQueryParams;
     simpleQueryParams.deviceId = "1";
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
@@ -276,8 +250,7 @@ TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithSimpleParams)
 /***
 * 测试通过时间范围、字段、分页、排序参数请求内存事件
 */
-TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithComplexParams)
-{
+TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithComplexParams) {
     MemScopeEventParams complexParams;
     // 测试过滤后总量大于pageSize的情况，且根据Timestamp升序排序
     complexParams.deviceId = "1";
@@ -322,8 +295,7 @@ TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithComplexParams)
 /***
 * 测试查询某个deviceId+eventType下的全部数据
 */
-TEST_F(MemScopeDatabaseTest, QueryMemoryBlockTablesWithTimeRangeParams)
-{
+TEST_F(MemScopeDatabaseTest, QueryMemoryBlockTablesWithTimeRangeParams) {
     MemScopeMemoryBlockParams simpleQueryParams;
     simpleQueryParams.deviceId = "1";
     simpleQueryParams.eventType = "PTA";
@@ -346,8 +318,7 @@ TEST_F(MemScopeDatabaseTest, QueryMemoryBlockTablesWithTimeRangeParams)
 /***
 * 测试通过时间范围、字段、分页、排序参数请求内存事件
 */
-TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithPaginationParams)
-{
+TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithPaginationParams) {
     MemScopeEventParams complexParams;
     // 测试过滤后总量大于pageSize的情况，且根据startTimestamp升序排序
     complexParams.deviceId = "1";
@@ -388,8 +359,7 @@ TEST_F(MemScopeDatabaseTest, QueryMemoryEventsTableWithPaginationParams)
     EXPECT_EQ(events[0].timestamp, expectFirstEventStartTimestamp);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryAllDeviceExtreumTimestampMap)
-{
+TEST_F(MemScopeDatabaseTest, QueryAllDeviceExtreumTimestampMap) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     EXPECT_TRUE(memoryDatabase != nullptr);
     const uint64_t expectMin = 1754448088357133970;
@@ -402,8 +372,7 @@ TEST_F(MemScopeDatabaseTest, QueryAllDeviceExtreumTimestampMap)
     EXPECT_EQ(extreTsMap["1"].second, expectMax);
 }
 
-TEST_F(MemScopeDatabaseTest, QueryEventsByGroupId)
-{
+TEST_F(MemScopeDatabaseTest, QueryEventsByGroupId) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     EXPECT_TRUE(memoryDatabase != nullptr);
     const uint64_t groupId = 1910;
@@ -411,8 +380,8 @@ TEST_F(MemScopeDatabaseTest, QueryEventsByGroupId)
     memoryDatabase->QueryEventsByGroupId(groupId, "1", false, events);
     const uint64_t expectTotalSize = 5;
     EXPECT_EQ(events.size(), expectTotalSize);
-    MemScopeEvent& firstEvent = events[0];
-    MemScopeEvent& lastEvent = events[expectTotalSize-1];
+    MemScopeEvent &firstEvent = events[0];
+    MemScopeEvent &lastEvent = events[expectTotalSize - 1];
     EXPECT_EQ(firstEvent.event, MEM_SCOPE_DUMP_EVENT::MALLOC);
     EXPECT_EQ(lastEvent.event, MEM_SCOPE_DUMP_EVENT::FREE);
 }
@@ -420,8 +389,7 @@ TEST_F(MemScopeDatabaseTest, QueryEventsByGroupId)
 /***
  * 测试低效显存识别
  */
-TEST_F(MemScopeDatabaseTest, QueryBlocksTableWithInefficientThreshold)
-{
+TEST_F(MemScopeDatabaseTest, QueryBlocksTableWithInefficientThreshold) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     ASSERT_TRUE(memoryDatabase != nullptr);
     MemScopeMemoryBlockParams queryParams;
@@ -441,7 +409,7 @@ TEST_F(MemScopeDatabaseTest, QueryBlocksTableWithInefficientThreshold)
         EXPECT_TRUE(block.lazyUsed);
         uint64_t firstAccessInterval = block.firstAccessTimestamp - block.startTimestamp;
         uint64_t duration = block.endTimestamp - block.startTimestamp;
-        EXPECT_GT(firstAccessInterval, duration*0.1);
+        EXPECT_GT(firstAccessInterval, duration * 0.1);
     }
     queryParams.lazyUsedThreshold.perT = 0;
     blocks.clear();
@@ -454,7 +422,7 @@ TEST_F(MemScopeDatabaseTest, QueryBlocksTableWithInefficientThreshold)
         EXPECT_TRUE(block.delayedFree);
         uint64_t freeInterval = block.endTimestamp - block.lastAccessTimestamp;
         uint64_t duration = block.endTimestamp - block.startTimestamp;
-        EXPECT_TRUE(freeInterval > 100000000 || freeInterval > duration*0.1);
+        EXPECT_TRUE(freeInterval > 100000000 || freeInterval > duration * 0.1);
     }
     queryParams.delayedFreeThreshold.perT = 0;
     queryParams.delayedFreeThreshold.valueT = 0;
@@ -467,7 +435,7 @@ TEST_F(MemScopeDatabaseTest, QueryBlocksTableWithInefficientThreshold)
         EXPECT_TRUE(block.longIdle);
         uint64_t maxInterval = block.maxAccessInterval;
         uint64_t duration = block.endTimestamp - block.startTimestamp;
-        EXPECT_TRUE(maxInterval > duration*0.1);
+        EXPECT_TRUE(maxInterval > duration * 0.1);
     }
 }
 
@@ -477,49 +445,43 @@ TEST_F(MemScopeDatabaseTest, QueryBlocksTableWithInefficientThreshold)
  *  2. 新增的标签 以原某固化标签为前缀，却并原固化标签分类的子分类(如新增的PTA_WORKSPACE, 与原固化标签PTA存在前缀关系，却并非PTA子类)
  *  3. 测试统计标签分类总Size时是否可能误将上述新增固化标签误统计入内
  */
-TEST_F(MemScopeDatabaseTest, QueryTotalSizeUtilTimestampUsingOwnerWhenWorkspaceExists)
-{
+TEST_F(MemScopeDatabaseTest, QueryTotalSizeUtilTimestampUsingOwnerWhenWorkspaceExists) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     const std::string deviceId = "1";
     // 未插入新标签内存块前的总量统计
     const uint64_t expectDuration = 20000000000;
-    const uint64_t timestamp =
-        memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
-    uint64_t originPtaTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp,
-                                                                                         "PTA");
-    uint64_t originPtaWorkspaceTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp,
-                                                                                                  MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE);
+    const uint64_t timestamp = memoryDatabase->GetGlobalMinTimestamp() + expectDuration;
+    uint64_t originPtaTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, "PTA");
+    uint64_t originPtaWorkspaceTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(
+        deviceId, timestamp, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE);
     EXPECT_EQ(originPtaWorkspaceTotalSize, 0);
     EXPECT_GT(originPtaTotalSize, 0);
     std::string testFlag = "DT-TEST";
     // 插入一条PTA_WORKSPACE数据, 内存块在之后释放
-    MemoryBlock mockPTAWorkspaceBlock(testFlag, deviceId, 1, 0, timestamp + 1,
-                                      MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE,
-                                      "", 0, 0);
+    MemoryBlock mockPTAWorkspaceBlock(testFlag, deviceId, 1, 0, timestamp + 1, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE,
+        MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE, "", 0, 0);
     memoryDatabase->InsertMemoryBlock(mockPTAWorkspaceBlock);
     memoryDatabase->FlushMemoryBlocksCache();
-    uint64_t newPtaTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp,
-                                                                                      MEM_SCOPE_ALLOC_OWNER_PTA);
-    uint64_t newPtaWorkspaceTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp,
-                                                                                               MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE);
+    uint64_t newPtaTotalSize =
+        memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(deviceId, timestamp, MEM_SCOPE_ALLOC_OWNER_PTA);
+    uint64_t newPtaWorkspaceTotalSize = memoryDatabase->QueryTotalSizeUntilTimestampUsingOwner(
+        deviceId, timestamp, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE);
     EXPECT_EQ(newPtaTotalSize, originPtaTotalSize);
     EXPECT_EQ(newPtaWorkspaceTotalSize, 1);
-    std::string clearSql = StringUtil::FormatString("DELETE FROM {} WHERE {} = '{}' AND {} = '{}'",
-                                                    TABLE_LEAKS_DUMP, EventTableColumn::PTR, testFlag,
-                                                    EventTableColumn::EVENT_TYPE, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE);
+    std::string clearSql = StringUtil::FormatString("DELETE FROM {} WHERE {} = '{}' AND {} = '{}'", TABLE_LEAKS_DUMP,
+        EventTableColumn::PTR, testFlag, EventTableColumn::EVENT_TYPE, MEM_SCOPE_ALLOC_OWNER_PTA_WORKSPACE);
     EXPECT_TRUE(memoryDatabase->ExecSql(clearSql));
 }
 
 /***
 * 该DT用于测试msleaks采集时开启CallStack的场景
 */
-TEST_F(MemScopeDatabaseTest, TestCompatibilityOfCallStack)
-{
+TEST_F(MemScopeDatabaseTest, TestCompatibilityOfCallStack) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
 
     // 插入Callstack列模拟开启了CallStack
-    std::string addCallStackSql = StringUtil::FormatString("ALTER TABLE {} ADD {} TEXT DEFAULT 'N/A'",
-                                                           TABLE_LEAKS_DUMP, EventTableColumn::CALL_STACK_C);
+    std::string addCallStackSql = StringUtil::FormatString(
+        "ALTER TABLE {} ADD {} TEXT DEFAULT 'N/A'", TABLE_LEAKS_DUMP, EventTableColumn::CALL_STACK_C);
     EXPECT_TRUE(memoryDatabase->ExecSql(addCallStackSql));
 
     // 重开一个db(由于db在open中会检查是否有callstack列，所以必须关闭重开)
@@ -539,7 +501,7 @@ TEST_F(MemScopeDatabaseTest, TestCompatibilityOfCallStack)
     EXPECT_EQ(events.front().callStackC, "N/A");
 
     // 清理插入的CallStack列
-    std::string clearCallStackSql = StringUtil::FormatString("ALTER TABLE {} DROP COLUMN {}",
-                                                             TABLE_LEAKS_DUMP, EventTableColumn::CALL_STACK_C);
+    std::string clearCallStackSql =
+        StringUtil::FormatString("ALTER TABLE {} DROP COLUMN {}", TABLE_LEAKS_DUMP, EventTableColumn::CALL_STACK_C);
     EXPECT_TRUE(memoryDatabase->ExecSql(clearCallStackSql));
 }

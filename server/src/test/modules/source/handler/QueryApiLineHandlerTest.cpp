@@ -27,8 +27,7 @@ using namespace Dic::Module;
 using namespace Dic::Module::Source;
 using namespace Dic::Module::Source::Test;
 
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineHandlerRequestWithValidData)
-{
+TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineHandlerRequestWithValidData) {
     QueryApiLineHandler handler;
     auto ptr = std::make_unique<SourceApiLineRequest>();
     ptr->params.sourceName = SOURCE_NAME;
@@ -38,8 +37,7 @@ TEST_F(ComputeQuerySourceApiHandlerTest, testQueryApiLineHandlerRequestWithValid
     handler.HandleRequest(std::move(ptr));
 }
 
-TEST_F(ComputeQuerySourceApiHandlerTest, testQueryCodeFileHandlerRequestWithValidData)
-{
+TEST_F(ComputeQuerySourceApiHandlerTest, testQueryCodeFileHandlerRequestWithValidData) {
     QueryCodeFileHandler handler;
     auto ptr = std::make_unique<SourceCodeFileRequest>();
     ptr->params.sourceName = SOURCE_NAME;

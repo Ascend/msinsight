@@ -26,48 +26,39 @@ using namespace Dic::Module::RL;
 using namespace Dic;
 using namespace DT::Framework;
 class RLConfigReaderTest : public testing::Test {
-public:
+  public:
     static std::string tempConfigPath;
 
-protected:
-    static void SetUpTestSuite()
-    {
+  protected:
+    static void SetUpTestSuite() {
         auto testDataPath = DT::Framework::DtFramework::GetTestDataDirPath(0);
-        tempConfigPath =
-            FileUtil::SplicePath(testDataPath, "rl", "RLConfig_tmp_test.json");
+        tempConfigPath = FileUtil::SplicePath(testDataPath, "rl", "RLConfig_tmp_test.json");
     }
 
-    void WriteJsonIntoTestFile(const std::string &jsonStr) const
-    {
+    void WriteJsonIntoTestFile(const std::string &jsonStr) const {
         auto file = std::ofstream(RLConfigReaderTest::tempConfigPath, std::ios::out);
         file.write(jsonStr.c_str(), jsonStr.size());
         file.close();
     }
 
-    static void TearDownTestSuite()
-    {
-        FileUtil::RemoveFile(tempConfigPath);
-    }
+    static void TearDownTestSuite() { FileUtil::RemoveFile(tempConfigPath); }
 };
 
 std::string RLConfigReaderTest::tempConfigPath = "";
 
-TEST_F(RLConfigReaderTest, emptyConfigPath)
-{
+TEST_F(RLConfigReaderTest, emptyConfigPath) {
     RLMstxConfigReader reader;
     reader.SetConfigPath("");
     EXPECT_TRUE(reader.ReadConfigFile().empty());
 }
 
-TEST_F(RLConfigReaderTest, InvalidPath)
-{
+TEST_F(RLConfigReaderTest, InvalidPath) {
     RLMstxConfigReader reader;
     reader.SetConfigPath("/home/xx/test_no_exist_dir");
     EXPECT_TRUE(reader.ReadConfigFile().empty());
 }
 
-TEST_F(RLConfigReaderTest, Normal)
-{
+TEST_F(RLConfigReaderTest, Normal) {
     std::string configPath = FileUtil::SplicePath(DtFramework::GetTestDataDirPath(0), "rl", "RLConfig.json");
     RLMstxConfigReader reader;
     reader.SetConfigPath(configPath);
@@ -84,8 +75,7 @@ TEST_F(RLConfigReaderTest, Normal)
     EXPECT_EQ(config1.taskConfigs[0].microBatchConfigs[0].type, "FP");
 }
 
-TEST_F(RLConfigReaderTest, read_config_null)
-{
+TEST_F(RLConfigReaderTest, read_config_null) {
     RLMstxConfigReader reader;
     WriteJsonIntoTestFile("");
     reader.SetConfigPath(RLConfigReaderTest::tempConfigPath);
@@ -93,8 +83,7 @@ TEST_F(RLConfigReaderTest, read_config_null)
     EXPECT_EQ(res.size(), 0);
 }
 
-TEST_F(RLConfigReaderTest, read_config_array)
-{
+TEST_F(RLConfigReaderTest, read_config_array) {
     RLMstxConfigReader reader;
     WriteJsonIntoTestFile("[]");
     reader.SetConfigPath(RLConfigReaderTest::tempConfigPath);
@@ -102,8 +91,7 @@ TEST_F(RLConfigReaderTest, read_config_array)
     EXPECT_EQ(res.size(), 0);
 }
 
-TEST_F(RLConfigReaderTest, read_config_no_config_key)
-{
+TEST_F(RLConfigReaderTest, read_config_no_config_key) {
     RLMstxConfigReader reader;
     WriteJsonIntoTestFile("{}");
     reader.SetConfigPath(RLConfigReaderTest::tempConfigPath);
@@ -111,8 +99,7 @@ TEST_F(RLConfigReaderTest, read_config_no_config_key)
     EXPECT_EQ(res.size(), 0);
 }
 
-TEST_F(RLConfigReaderTest, read_config_no_role_key)
-{
+TEST_F(RLConfigReaderTest, read_config_no_role_key) {
     RLMstxConfigReader reader;
     WriteJsonIntoTestFile(R"({
   "config":[

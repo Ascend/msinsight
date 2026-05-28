@@ -27,17 +27,12 @@ using namespace Dic::Module::Memory;
 using namespace Dic;
 
 class MemoryParserTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-    }
-    static void TearDownTestSuite()
-    {
-    }
+  public:
+    static void SetUpTestSuite() {}
+    static void TearDownTestSuite() {}
 };
 
-TEST_F(MemoryParserTest, OperatorParseNormalTest)
-{
+TEST_F(MemoryParserTest, OperatorParseNormalTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     const std::string fileId = "0";
@@ -62,8 +57,7 @@ TEST_F(MemoryParserTest, OperatorParseNormalTest)
     std::remove(dbFilePath.c_str());
 }
 
-TEST_F(MemoryParserTest, OperatorParseEmptyLineTest)
-{
+TEST_F(MemoryParserTest, OperatorParseEmptyLineTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     const std::string fileId = "0";
@@ -99,8 +93,7 @@ TEST_F(MemoryParserTest, OperatorParseEmptyLineTest)
     std::remove(filePath.c_str());
 }
 
-TEST_F(MemoryParserTest, RecordParseNormalTest)
-{
+TEST_F(MemoryParserTest, RecordParseNormalTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     const std::string fileId = "0";
@@ -125,8 +118,7 @@ TEST_F(MemoryParserTest, RecordParseNormalTest)
     std::remove(dbFilePath.c_str());
 }
 
-TEST_F(MemoryParserTest, RecordParseEmptyLineTest)
-{
+TEST_F(MemoryParserTest, RecordParseEmptyLineTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     const std::string fileId = "0";
@@ -159,8 +151,7 @@ TEST_F(MemoryParserTest, RecordParseEmptyLineTest)
     std::remove(filePath.c_str());
 }
 
-TEST_F(MemoryParserTest, StaticOpParseNormalTest)
-{
+TEST_F(MemoryParserTest, StaticOpParseNormalTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     const std::string fileId = "0";
@@ -191,8 +182,7 @@ TEST_F(MemoryParserTest, StaticOpParseNormalTest)
     std::remove(filePath.c_str());
 }
 
-TEST_F(MemoryParserTest, StaticOpParseEmptyLineTest)
-{
+TEST_F(MemoryParserTest, StaticOpParseEmptyLineTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     const std::string fileId = "0";

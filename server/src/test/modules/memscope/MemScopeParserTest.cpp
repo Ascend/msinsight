@@ -21,40 +21,35 @@
 using namespace Dic::Module;
 
 class MemScopeParserTest : public ::testing::Test {
-public:
+  public:
     const static uint64_t SECOND = 1000000000;
 
-    static void SetUpTestSuite()
-    {
+    static void SetUpTestSuite() {
         std::string dbPath = TestSuit::GetTestDataFile("full_db", "leaks_dump_20250806.dat");
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         ASSERT_TRUE(memoryDatabase->OpenDb(dbPath, false));
     }
 
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
         DataBaseManager::Instance().Clear();
     }
 };
 
-TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithEmptyAttr)
-{
+TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithEmptyAttr) {
     MemScopeEvent event;
     auto attrs = BuildEventAttrsFromJson<MemoryEventBaseAttrs>("");
     EXPECT_FALSE(attrs.has_value());
 }
 
-TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithInvalidJsonAttr)
-{
+TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithInvalidJsonAttr) {
     MemScopeEvent event;
     auto attrs = BuildEventAttrsFromJson<MemoryEventBaseAttrs>("{]");
     EXPECT_FALSE(attrs.has_value());
 }
 
-TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithValidJsonAttr)
-{
+TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithValidJsonAttr) {
     MemScopeEvent event;
     event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
     auto eventAttr = BuildEventAttrsFromJson<MallocFreeEventAttrs>(
@@ -65,8 +60,7 @@ TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithValidJsonAttr)
     EXPECT_EQ(eventAttr->owner, "PTA@init_model");
 }
 
-TEST_F(MemScopeParserTest, TestParseEventsToAllocationsAndBlocks)
-{
+TEST_F(MemScopeParserTest, TestParseEventsToAllocationsAndBlocks) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     std::vector<MemScopeEvent> events;
     memoryDatabase->QueryEntireEventsTable(events);
@@ -97,8 +91,7 @@ TEST_F(MemScopeParserTest, TestParseEventsToAllocationsAndBlocks)
     EXPECT_EQ(allocations.size(), expectAllocationSize);
 }
 
-TEST_F(MemScopeParserTest, TestParseLeaksDump)
-{
+TEST_F(MemScopeParserTest, TestParseLeaksDump) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     EXPECT_TRUE(memoryDatabase->DropMemoryAllocationAndBlockTable());
     EXPECT_TRUE(memoryDatabase->CreateMemoryAllocationAndBlockTable());
@@ -121,8 +114,7 @@ TEST_F(MemScopeParserTest, TestParseLeaksDump)
 /***
  * 测试解析出的内存块数据首末次访问事件是否正确
  */
-TEST_F(MemScopeParserTest, TestMemoryBlockFirstLastAccessTimestamp)
-{
+TEST_F(MemScopeParserTest, TestMemoryBlockFirstLastAccessTimestamp) {
     auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
     ASSERT_TRUE(memoryDatabase != nullptr);
     const uint64_t groupId = 1910;

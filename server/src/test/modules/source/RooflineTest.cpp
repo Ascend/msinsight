@@ -24,7 +24,7 @@ using namespace std;
 using namespace Dic::Protocol;
 
 class RooflineTest : public ::testing::Test {
-public:
+  public:
     Dic::Module::Source::RooflineParserImpl praser;
     std::string jsonStr = R"({
     "advice": "latency bound:pipeline caused",
@@ -49,16 +49,14 @@ public:
 })";
 };
 
-TEST_F(RooflineTest, Advice)
-{
+TEST_F(RooflineTest, Advice) {
     DetailsRooflineBody body;
     auto res = praser.GetDetailsRoofline(jsonStr, body);
     EXPECT_EQ(res, true);
     EXPECT_EQ(body.advice, "latency bound:pipeline caused");
 }
 
-TEST_F(RooflineTest, ConvertStrToRooflineData)
-{
+TEST_F(RooflineTest, ConvertStrToRooflineData) {
     auto res = praser.ConvertStrToRooflineData(jsonStr);
     EXPECT_EQ(res.has_value(), true);
     auto rooflineGraph = res.value();
@@ -74,22 +72,19 @@ TEST_F(RooflineTest, ConvertStrToRooflineData)
     EXPECT_EQ(rooflines.point[0], "33.28");
 }
 
-TEST_F(RooflineTest, ConvertStrToRooflineData_NoMultipleRooflines)
-{
+TEST_F(RooflineTest, ConvertStrToRooflineData_NoMultipleRooflines) {
     std::string jsonStrNoRoofline = R"("{"advice":"latency"}")";
     auto res = praser.ConvertStrToRooflineData(jsonStrNoRoofline);
     EXPECT_EQ(res == std::nullopt, true);
 }
 
-TEST_F(RooflineTest, ConvertStrToRooflineData_MultipleRooflinesIsNotArray)
-{
+TEST_F(RooflineTest, ConvertStrToRooflineData_MultipleRooflinesIsNotArray) {
     std::string jsonStrNotArray = R"("{"advice":"latency", "multiple_rooflines":"xxxx"}")";
     auto res = praser.ConvertStrToRooflineData(jsonStrNotArray);
     EXPECT_EQ(res == std::nullopt, true);
 }
 
-TEST_F(RooflineTest, ConvertStrToRooflineData_PointSize)
-{
+TEST_F(RooflineTest, ConvertStrToRooflineData_PointSize) {
     std::string jsonStrPointSize = R"({"adivce":"latency bound:pipeline caused", "multiple_rooflines": )"
                                    R"([{"title": "Memory Unit", "rooflines":)"
                                    R"([{"bw": 18.44, "bwName": "L1 Read + Write", "computility": 324.4001, )"

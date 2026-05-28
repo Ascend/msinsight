@@ -24,8 +24,7 @@
 using namespace Dic::Module::Memory;
 class OperatorTableTest : public ::testing::Test {};
 
-TEST_F(OperatorTableTest, TestOperatorTableColumnMaping)
-{
+TEST_F(OperatorTableTest, TestOperatorTableColumnMaping) {
     sqlite3 *db = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(db);
     std::string sql =
@@ -34,8 +33,7 @@ TEST_F(OperatorTableTest, TestOperatorTableColumnMaping)
         "allocationTotalReserved INTEGER, allocationTotalActive INTEGER, releaseTotalAllocated INTEGER, "
         "releaseTotalReserved INTEGER, releaseTotalActive INTEGER, streamPtr TEXT, deviceId TEXT);";
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::CreateTable(db, sql);
-    std::string sqlInsert =
-        "INSERT INTO \"main\".\"operator\" (" +
+    std::string sqlInsert = "INSERT INTO \"main\".\"operator\" (" +
         StringUtil::GenerateColumnString(OpMemoryColumn::FULL_COLUMNS_WITHOUT_ID) +
         " ) VALUES ('aten::empty_strided', 2, 3, 4, 5, 6, "
         "7, 8, 9, 10, 11, 12, 13, "

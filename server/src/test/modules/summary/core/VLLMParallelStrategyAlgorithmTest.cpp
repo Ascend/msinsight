@@ -21,11 +21,9 @@
 using namespace Dic::Module;
 using namespace Dic::Protocol;
 using namespace Dic::Module::Summary;
-class VLLMParallelStrategyAlgorithmTest : public ::testing::Test {
-};
+class VLLMParallelStrategyAlgorithmTest : public ::testing::Test {};
 
-TEST_F(VLLMParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnTrue_WhenUpdateSuccess)
-{
+TEST_F(VLLMParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnTrue_WhenUpdateSuccess) {
     VLLMParallelStrategyAlgorithm algorithm;
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
@@ -39,8 +37,7 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnTr
     EXPECT_TRUE(res);
 }
 
-TEST_F(VLLMParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnFalse_WhenWrongInput)
-{
+TEST_F(VLLMParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnFalse_WhenWrongInput) {
     VLLMParallelStrategyAlgorithm algorithm;
     std::string dimension = "yyyyy";
     ParallelStrategyConfig config;
@@ -60,8 +57,7 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, UpdateParallelDimension_ShouldReturnFa
     EXPECT_EQ(err, "Failed to update show map for parallel view. Unexpected dimension.");
 }
 
-TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithPp2Tp2Dp2Ep2)
-{
+TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithPp2Tp2Dp2Ep2) {
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
     config.ppSize = 2; // 2
@@ -76,18 +72,12 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArr
     algorithm->UpdateParallelDimension(dimension, config, err);
     algorithm->GenerateArrangementByDimension(err);
     ArrangementAndConnectionData data = algorithm->GetArrangementData();
-    const std::vector<std::string> EXPECTED_NAME = {
-        "dp0-pp0-tp0", "dp0-pp0-tp1", "dp0-pp1-tp0", "dp0-pp1-tp1",
+    const std::vector<std::string> EXPECTED_NAME = {"dp0-pp0-tp0", "dp0-pp0-tp1", "dp0-pp1-tp0", "dp0-pp1-tp1",
         "dp1-pp0-tp0", "dp1-pp0-tp1", "dp1-pp1-tp0", "dp1-pp1-tp1"};
-    const std::vector<Position> EXPECTED_POSITION = {
-        {0, 0}, {1, 0}, {0, 1}, {1, 1},
-        {2, 0}, {3, 0}, {2, 1}, {3, 1}
-    };
-    const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {
-        {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}
-    };
+    const std::vector<Position> EXPECTED_POSITION = {{0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 0}, {3, 0}, {2, 1}, {3, 1}};
+    const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}};
     ASSERT_EQ(data.size, EXPECTED_NAME.size());
-    for (const auto& item : data.arrangements) {
+    for (const auto &item : data.arrangements) {
         EXPECT_EQ(item.name, EXPECTED_NAME[item.index]);
         EXPECT_EQ(item.position, EXPECTED_POSITION[item.index]);
         EXPECT_EQ(item.ranks.size(), 1);
@@ -95,11 +85,9 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArr
     }
     // 16个connections: 'pp': 4, 'dp': 4, 'tp': 4, 'exp': 4
     EXPECT_EQ(data.connections.size(), 16); // 16
-    const std::vector<std::vector<uint32_t>> EXPECT_INDEXES = {
-        {0, 1}, {2, 3}, {4, 5}, {6, 7}
-    };
+    const std::vector<std::vector<uint32_t>> EXPECT_INDEXES = {{0, 1}, {2, 3}, {4, 5}, {6, 7}};
     int i = 0;
-    for (const auto& item : data.connections) {
+    for (const auto &item : data.connections) {
         if (item.type != "exp") {
             continue;
         }
@@ -108,8 +96,7 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArr
     }
 }
 
-TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithPp2Tp2Dp2Ep4)
-{
+TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArrangement_TestWithPp2Tp2Dp2Ep4) {
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
     config.ppSize = 2; // 2
@@ -124,18 +111,12 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArr
     algorithm->UpdateParallelDimension(dimension, config, err);
     algorithm->GenerateArrangementByDimension(err);
     ArrangementAndConnectionData data = algorithm->GetArrangementData();
-    const std::vector<std::string> EXPECTED_NAME = {
-        "dp0-pp0-tp0", "dp0-pp0-tp1", "dp0-pp1-tp0", "dp0-pp1-tp1",
+    const std::vector<std::string> EXPECTED_NAME = {"dp0-pp0-tp0", "dp0-pp0-tp1", "dp0-pp1-tp0", "dp0-pp1-tp1",
         "dp1-pp0-tp0", "dp1-pp0-tp1", "dp1-pp1-tp0", "dp1-pp1-tp1"};
-    const std::vector<Position> EXPECTED_POSITION = {
-        {0, 0}, {1, 0}, {0, 1}, {1, 1},
-        {2, 0}, {3, 0}, {2, 1}, {3, 1}
-    };
-    const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {
-        {0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}
-    };
+    const std::vector<Position> EXPECTED_POSITION = {{0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 0}, {3, 0}, {2, 1}, {3, 1}};
+    const std::vector<std::vector<uint32_t>> EXPECT_RANKS = {{0}, {1}, {2}, {3}, {4}, {5}, {6}, {7}};
     ASSERT_EQ(data.size, EXPECTED_NAME.size());
-    for (const auto& item : data.arrangements) {
+    for (const auto &item : data.arrangements) {
         EXPECT_EQ(item.name, EXPECTED_NAME[item.index]);
         EXPECT_EQ(item.position, EXPECTED_POSITION[item.index]);
         EXPECT_EQ(item.ranks.size(), 1);
@@ -143,11 +124,9 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArr
     }
     // 14个connections: 'pp': 4, 'dp': 4, 'tp': 4, 'exp': 2
     EXPECT_EQ(data.connections.size(), 14); // 14
-    const std::vector<std::vector<uint32_t>> EXPECT_INDEXES = {
-        {0, 1, 4, 5}, {2, 3, 6, 7}
-    };
+    const std::vector<std::vector<uint32_t>> EXPECT_INDEXES = {{0, 1, 4, 5}, {2, 3, 6, 7}};
     int i = 0;
-    for (const auto& item : data.connections) {
+    for (const auto &item : data.connections) {
         if (item.type != "exp") {
             continue;
         }
@@ -156,9 +135,8 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetArrangementByDimension_ShouldGetArr
     }
 }
 
-void PrepareParametersForVLLMGetPerformanceByDimensionTest(ParallelStrategyConfig& config,
-    std::unordered_map<std::uint32_t, StepStatistic>& statistic)
-{
+void PrepareParametersForVLLMGetPerformanceByDimensionTest(
+    ParallelStrategyConfig &config, std::unordered_map<std::uint32_t, StepStatistic> &statistic) {
     config.ppSize = 2; // 2
     config.tpSize = 2; // 2
     config.dpSize = 4; // 4
@@ -181,8 +159,7 @@ void PrepareParametersForVLLMGetPerformanceByDimensionTest(ParallelStrategyConfi
     }
 }
 
-TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithTpDimension)
-{
+TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithTpDimension) {
     std::string dimension = DIMENSIONS_TP;
     ParallelStrategyConfig config;
     std::unordered_map<std::uint32_t, StepStatistic> statistic;
@@ -201,8 +178,7 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturn
     EXPECT_EQ(responseData.size(), 14); // 14 = 16 - 2(empty rank)
 }
 
-TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithPpDimension)
-{
+TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithPpDimension) {
     std::string dimension = DIMENSIONS_PP;
     ParallelStrategyConfig config;
     std::unordered_map<std::uint32_t, StepStatistic> statistic;
@@ -221,8 +197,7 @@ TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturn
     EXPECT_EQ(responseData.size(), 7); // 7 = 8 - 1 pp groups
 }
 
-TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithDpDimension)
-{
+TEST_F(VLLMParallelStrategyAlgorithmTest, GetPerformanceByDimension_ShouldReturnTrue_TestWithDpDimension) {
     std::string dimension = DIMENSIONS_DP;
     ParallelStrategyConfig config;
     std::unordered_map<std::uint32_t, StepStatistic> statistic;

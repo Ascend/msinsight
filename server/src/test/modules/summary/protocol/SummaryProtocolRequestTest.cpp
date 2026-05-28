@@ -21,8 +21,7 @@
 using namespace Dic::Protocol;
 class SummaryProtocolRequestTest : public ::testing::Test {};
 
-TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestTimeFlagInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestTimeFlagInvaild) {
     Dic::Protocol::SummaryStatisticParams params;
     params.rankId = "0";
     params.timeFlag = ";";
@@ -30,8 +29,7 @@ TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestTimeFlagInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestStepIdInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestStepIdInvaild) {
     Dic::Protocol::SummaryStatisticParams params;
     params.rankId = "0";
     params.timeFlag = "time";
@@ -40,8 +38,7 @@ TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestStepIdInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestRankIdInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestRankIdInvaild) {
     Dic::Protocol::SummaryStatisticParams params;
     params.timeFlag = "time";
     params.stepId = "0";
@@ -49,8 +46,7 @@ TEST_F(SummaryProtocolRequestTest, SummaryStatisticParamsTestRankIdInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, PipelineStageTimeParamTeststageIdInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, PipelineStageTimeParamTeststageIdInvaild) {
     Dic::Protocol::PipelineStageTimeParam params;
     params.stepId = "2";
     params.stageId = ";";
@@ -58,16 +54,14 @@ TEST_F(SummaryProtocolRequestTest, PipelineStageTimeParamTeststageIdInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestTimeFlagInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestTimeFlagInvaild) {
     Dic::Protocol::ComputeDetailParams params;
     params.timeFlag = ";";
     std::string msg;
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestOrderByInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestOrderByInvaild) {
     Dic::Protocol::ComputeDetailParams params;
     params.timeFlag = "time";
     params.orderBy = ";";
@@ -75,8 +69,7 @@ TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestOrderByInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestOrderInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestOrderInvaild) {
     Dic::Protocol::ComputeDetailParams params;
     params.timeFlag = "time";
     params.orderBy = "orderBy";
@@ -85,16 +78,14 @@ TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestOrderInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestRankIdInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestRankIdInvaild) {
     Dic::Protocol::ComputeDetailParams params;
     params.rankId = ";";
     std::string msg;
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestTimeFlagInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestTimeFlagInvaild) {
     Dic::Protocol::ComputeDetailParams params;
     params.rankId = "1";
     params.timeFlag = ";";
@@ -102,8 +93,7 @@ TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestTimeFlagInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderByInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderByInvaild) {
     Dic::Protocol::ComputeDetailParams params;
     params.rankId = "1";
     params.timeFlag = "time";
@@ -112,8 +102,7 @@ TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderByInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderInvaild) {
     Dic::Protocol::ComputeDetailParams params;
     params.rankId = "1";
     params.timeFlag = "time";
@@ -123,8 +112,7 @@ TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ImportExpertDataParamsTestVersionInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ImportExpertDataParamsTestVersionInvaild) {
     Dic::Protocol::ImportExpertDataParams params;
     params.filePath = "filePath";
     params.version = ";";
@@ -132,8 +120,7 @@ TEST_F(SummaryProtocolRequestTest, ImportExpertDataParamsTestVersionInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ImportExpertDataParamsTestFilePathInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ImportExpertDataParamsTestFilePathInvaild) {
     Dic::Protocol::ImportExpertDataParams params;
     params.filePath = ";";
     params.version = "1";
@@ -141,8 +128,7 @@ TEST_F(SummaryProtocolRequestTest, ImportExpertDataParamsTestFilePathInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestModelStageInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestModelStageInvaild) {
     Dic::Protocol::QueryExpertHotspotParams params;
     params.modelStage = ";";
     params.version = "1";
@@ -150,8 +136,7 @@ TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestModelStageInvaild
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestVersionInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestVersionInvaild) {
     Dic::Protocol::QueryExpertHotspotParams params;
     params.modelStage = "prefill";
     params.version = ";";
@@ -159,8 +144,7 @@ TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestVersionInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ParallelismArrangementParamTestClusterEmpty)
-{
+TEST_F(SummaryProtocolRequestTest, ParallelismArrangementParamTestClusterEmpty) {
     ParallelismArrangement params;
     params.clusterPath = "";
     params.config.ppSize = 2; // set ppSize 2
@@ -171,16 +155,14 @@ TEST_F(SummaryProtocolRequestTest, ParallelismArrangementParamTestClusterEmpty)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestDimenInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestDimenInvaild) {
     ParallelismPerformance params;
     params.dimension = "test";
     std::string msg;
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestOderbyInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestOderbyInvaild) {
     ParallelismPerformance params;
     params.dimension = "ep-dp";
     params.orderBy = ";";
@@ -188,8 +170,7 @@ TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestOderbyInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestStepInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestStepInvaild) {
     ParallelismPerformance params;
     params.dimension = "ep-dp";
     params.orderBy = "test";
@@ -198,8 +179,7 @@ TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestStepInvaild)
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestBaselineStepInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestBaselineStepInvaild) {
     ParallelismPerformance params;
     params.dimension = "ep-dp";
     params.orderBy = "test";
@@ -209,8 +189,7 @@ TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestBaselineStepIn
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestClusterPathInvaild)
-{
+TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestClusterPathInvaild) {
     ParallelismPerformance params;
     params.dimension = "ep-dp";
     params.orderBy = "test";
@@ -221,24 +200,21 @@ TEST_F(SummaryProtocolRequestTest, ParallelismPerformanceParamTestClusterPathInv
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, ParallelStrategyParamTestClusterPathEmpty)
-{
+TEST_F(SummaryProtocolRequestTest, ParallelStrategyParamTestClusterPathEmpty) {
     ParallelStrategyParam params;
     params.clusterPath = ";";
     std::string msg;
     EXPECT_EQ(params.CheckParams(msg), false);
 }
 
-TEST_F(SummaryProtocolRequestTest, SetParallelStrategyParamTestConfigErr)
-{
+TEST_F(SummaryProtocolRequestTest, SetParallelStrategyParamTestConfigErr) {
     SetParallelStrategyParam params;
     params.config.dpSize = 1000; // set dpSize to 1000
     std::string msg;
     EXPECT_FALSE(params.CheckParams(msg));
 }
 
-TEST_F(SummaryProtocolRequestTest, SetParallelStrategyParamTestClusterPathErr)
-{
+TEST_F(SummaryProtocolRequestTest, SetParallelStrategyParamTestClusterPathErr) {
     SetParallelStrategyParam params;
     params.clusterPath = ";";
     std::string msg;

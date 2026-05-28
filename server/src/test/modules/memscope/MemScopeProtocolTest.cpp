@@ -22,40 +22,40 @@
 #include "MemScopeProtocolResponse.h"
 
 class MemScopeProtocolTest : public ::testing::Test {
-public:
+  public:
     static void SetUpTestSuite() {}
     static void TearDownTestSuite() {}
 };
 
-TEST_F(MemScopeProtocolTest, BuildEventTableRequestFromJson)
-{
-    std::string jsonStr = "{"
-                          "  \"id\": 37, "
-                          "  \"moduleName\": \"leaks\", "
-                          "  \"type\": \"request\", "
-                          "  \"command\": \"Memory/leaks/events\", "
-                          "  \"fileId\": \"\", "
-                          "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
-                          "  \"params\": { "
-                          "    \"deviceId\": \"1\", "
-                          "    \"relativeTime\": true, "
-                          "    \"startTimestamp\": 14104097470, "
-                          "    \"endTimestamp\": 81806122630, "
-                          "    \"currentPage\": 1, "
-                          "    \"pageSize\": 10, "
-                          "    \"desc\": false, "
-                          "    \"orderBy\": \"ptr\", "
-                          "    \"filters\": { "
-                          "      \"event\": \"MALLOC\" "
-                          "    }, "
-                          "    \"rangeFilters\": { "
-                          "      \"_timestamp\": [ "
-                          "        14104097470, "
-                          "        24104097470 "
-                          "      ] "
-                          "    } "
-                          "  } "
-                          "}";
+TEST_F(MemScopeProtocolTest, BuildEventTableRequestFromJson) {
+    std::string jsonStr =
+        "{"
+        "  \"id\": 37, "
+        "  \"moduleName\": \"leaks\", "
+        "  \"type\": \"request\", "
+        "  \"command\": \"Memory/leaks/events\", "
+        "  \"fileId\": \"\", "
+        "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
+        "  \"params\": { "
+        "    \"deviceId\": \"1\", "
+        "    \"relativeTime\": true, "
+        "    \"startTimestamp\": 14104097470, "
+        "    \"endTimestamp\": 81806122630, "
+        "    \"currentPage\": 1, "
+        "    \"pageSize\": 10, "
+        "    \"desc\": false, "
+        "    \"orderBy\": \"ptr\", "
+        "    \"filters\": { "
+        "      \"event\": \"MALLOC\" "
+        "    }, "
+        "    \"rangeFilters\": { "
+        "      \"_timestamp\": [ "
+        "        14104097470, "
+        "        24104097470 "
+        "      ] "
+        "    } "
+        "  } "
+        "}";
     std::string errMsg;
     auto json = JsonUtil::TryParse(jsonStr, errMsg);
     EXPECT_TRUE(errMsg.empty());
@@ -72,31 +72,31 @@ TEST_F(MemScopeProtocolTest, BuildEventTableRequestFromJson)
     EXPECT_EQ(request.params.rangeFilters.size(), 1);
 }
 
-TEST_F(MemScopeProtocolTest, BuildBlockTableRequestFromJson)
-{
-    std::string jsonStr = "{ "
-                          "  \"id\": 21, "
-                          "  \"moduleName\": \"leaks\", "
-                          "  \"type\": \"request\", "
-                          "  \"command\": \"Memory/leaks/blocks\", "
-                          "  \"fileId\": \"\", "
-                          "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
-                          "  \"params\": { "
-                          "    \"deviceId\": \"1\", "
-                          "    \"relativeTime\": true, "
-                          "    \"eventType\": \"PTA\", "
-                          "    \"isTable\": true, "
-                          "    \"startTimestamp\": 14104097470, "
-                          "    \"endTimestamp\": 81806122630, "
-                          "    \"currentPage\": 1, "
-                          "    \"pageSize\": 10, "
-                          "    \"desc\": false, "
-                          "    \"orderBy\": \"_startTimestamp\", "
-                          "    \"filters\": { "
-                          "      \"owner\": \"ops\" "
-                          "    } "
-                          "  } "
-                          "}";
+TEST_F(MemScopeProtocolTest, BuildBlockTableRequestFromJson) {
+    std::string jsonStr =
+        "{ "
+        "  \"id\": 21, "
+        "  \"moduleName\": \"leaks\", "
+        "  \"type\": \"request\", "
+        "  \"command\": \"Memory/leaks/blocks\", "
+        "  \"fileId\": \"\", "
+        "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
+        "  \"params\": { "
+        "    \"deviceId\": \"1\", "
+        "    \"relativeTime\": true, "
+        "    \"eventType\": \"PTA\", "
+        "    \"isTable\": true, "
+        "    \"startTimestamp\": 14104097470, "
+        "    \"endTimestamp\": 81806122630, "
+        "    \"currentPage\": 1, "
+        "    \"pageSize\": 10, "
+        "    \"desc\": false, "
+        "    \"orderBy\": \"_startTimestamp\", "
+        "    \"filters\": { "
+        "      \"owner\": \"ops\" "
+        "    } "
+        "  } "
+        "}";
     std::string errMsg;
     auto json = JsonUtil::TryParse(jsonStr, errMsg);
     EXPECT_TRUE(errMsg.empty());
@@ -113,22 +113,22 @@ TEST_F(MemScopeProtocolTest, BuildBlockTableRequestFromJson)
     EXPECT_EQ(request.params.rangeFilters.size(), 0);
 }
 
-TEST_F(MemScopeProtocolTest, BuildDetailRequestFromJson)
-{
-    std::string jsonStr = "{ "
-                          "  \"id\": 39, "
-                          "  \"moduleName\": \"leaks\", "
-                          "  \"type\": \"request\", "
-                          "  \"command\": \"Memory/leaks/details\", "
-                          "  \"fileId\": \"\", "
-                          "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
-                          "  \"params\": { "
-                          "    \"deviceId\": \"1\", "
-                          "    \"timestamp\": 65215342604, "
-                          "    \"eventType\": \"PTA\", "
-                          "    \"relativeTime\": true "
-                          "  } "
-                          "}";
+TEST_F(MemScopeProtocolTest, BuildDetailRequestFromJson) {
+    std::string jsonStr =
+        "{ "
+        "  \"id\": 39, "
+        "  \"moduleName\": \"leaks\", "
+        "  \"type\": \"request\", "
+        "  \"command\": \"Memory/leaks/details\", "
+        "  \"fileId\": \"\", "
+        "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
+        "  \"params\": { "
+        "    \"deviceId\": \"1\", "
+        "    \"timestamp\": 65215342604, "
+        "    \"eventType\": \"PTA\", "
+        "    \"relativeTime\": true "
+        "  } "
+        "}";
     std::string errMsg;
     auto json = JsonUtil::TryParse(jsonStr, errMsg);
     EXPECT_TRUE(errMsg.empty());
@@ -145,23 +145,23 @@ TEST_F(MemScopeProtocolTest, BuildDetailRequestFromJson)
     EXPECT_TRUE(request.params.relativeTime);
 }
 
-TEST_F(MemScopeProtocolTest, BuildAllocationRequestFromJson)
-{
-    std::string jsonStr = "{ "
-                          "  \"id\": 47, "
-                          "  \"moduleName\": \"leaks\", "
-                          "  \"type\": \"request\", "
-                          "  \"command\": \"Memory/leaks/allocations\", "
-                          "  \"fileId\": \"\", "
-                          "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
-                          "  \"params\": { "
-                          "    \"deviceId\": \"1\", "
-                          "    \"relativeTime\": true, "
-                          "    \"eventType\": \"HAL\", "
-                          "    \"startTimestamp\": 45074528271, "
-                          "    \"endTimestamp\": 56927968979 "
-                          "  } "
-                          "}";
+TEST_F(MemScopeProtocolTest, BuildAllocationRequestFromJson) {
+    std::string jsonStr =
+        "{ "
+        "  \"id\": 47, "
+        "  \"moduleName\": \"leaks\", "
+        "  \"type\": \"request\", "
+        "  \"command\": \"Memory/leaks/allocations\", "
+        "  \"fileId\": \"\", "
+        "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
+        "  \"params\": { "
+        "    \"deviceId\": \"1\", "
+        "    \"relativeTime\": true, "
+        "    \"eventType\": \"HAL\", "
+        "    \"startTimestamp\": 45074528271, "
+        "    \"endTimestamp\": 56927968979 "
+        "  } "
+        "}";
     std::string errMsg;
     auto json = JsonUtil::TryParse(jsonStr, errMsg);
     EXPECT_TRUE(errMsg.empty());
@@ -180,23 +180,23 @@ TEST_F(MemScopeProtocolTest, BuildAllocationRequestFromJson)
     EXPECT_TRUE(request.params.relativeTime);
 }
 
-TEST_F(MemScopeProtocolTest, BuildTraceRequestFromJson)
-{
-    std::string jsonStr = "{ "
-                          "  \"id\": 45, "
-                          "  \"moduleName\": \"leaks\", "
-                          "  \"type\": \"request\", "
-                          "  \"command\": \"Memory/leaks/traces\", "
-                          "  \"fileId\": \"\", "
-                          "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
-                          "  \"params\": { "
-                          "    \"deviceId\": \"1\", "
-                          "    \"relativeTime\": true, "
-                          "    \"threadId\": 2637224, "
-                          "    \"startTimestamp\": 45074528271, "
-                          "    \"endTimestamp\": 56927968979 "
-                          "  } "
-                          "}";
+TEST_F(MemScopeProtocolTest, BuildTraceRequestFromJson) {
+    std::string jsonStr =
+        "{ "
+        "  \"id\": 45, "
+        "  \"moduleName\": \"leaks\", "
+        "  \"type\": \"request\", "
+        "  \"command\": \"Memory/leaks/traces\", "
+        "  \"fileId\": \"\", "
+        "  \"projectName\": \"/home/fuzz-test/test-data/930/leaks/callstack/leaks_dump_20250807173133.db\", "
+        "  \"params\": { "
+        "    \"deviceId\": \"1\", "
+        "    \"relativeTime\": true, "
+        "    \"threadId\": 2637224, "
+        "    \"startTimestamp\": 45074528271, "
+        "    \"endTimestamp\": 56927968979 "
+        "  } "
+        "}";
     std::string errMsg;
     auto json = JsonUtil::TryParse(jsonStr, errMsg);
     EXPECT_TRUE(errMsg.empty());
@@ -216,8 +216,7 @@ TEST_F(MemScopeProtocolTest, BuildTraceRequestFromJson)
     EXPECT_TRUE(request.params.relativeTime);
 }
 
-TEST_F(MemScopeProtocolTest, BuildBlockTableThresholdParamsFromJson)
-{
+TEST_F(MemScopeProtocolTest, BuildBlockTableThresholdParamsFromJson) {
     std::string jsonStr = R"({"id": 11, "moduleName": "leaks", "type": "request", "command": "Memory/leaks/blocks",
                                 "params": {"deviceId": "1", "relativeTime": true, "eventType": "PTA", "isTable": true,
                                 "startTimestamp": 7707721000, "endTimestamp": 42623722980,

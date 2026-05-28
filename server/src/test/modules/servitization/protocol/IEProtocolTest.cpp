@@ -26,14 +26,13 @@
 
 class IEProtocolTest : public ::testing::Test {};
 
-TEST_F(IEProtocolTest, ToIEUsageViewParamsRequest)
-{
+TEST_F(IEProtocolTest, ToIEUsageViewParamsRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::IEProtocol ieProtocol;
     ieProtocol.Register();
     std::string error;
     Dic::document_t json(Dic::kObjectType);
-    auto& allocator = json.GetAllocator();
+    auto &allocator = json.GetAllocator();
     Dic::JsonUtil::AddMember(json, "type", "request", allocator);
     Dic::JsonUtil::AddMember(json, "command", Dic::Protocol::REQ_RES_IE_VIEW, allocator);
     ieProtocol.FromJson(json, error);
@@ -44,7 +43,7 @@ TEST_F(IEProtocolTest, ToIEUsageViewParamsRequest)
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "IE", allocator);
     auto requestPtr = ieProtocol.FromJson(json, error);
-    auto& request = dynamic_cast<Dic::Protocol::IEUsageViewParamsRequest&>(*requestPtr);
+    auto &request = dynamic_cast<Dic::Protocol::IEUsageViewParamsRequest &>(*requestPtr);
     std::string rankId = request.params.rankId;
     std::string type = request.params.type;
     auto id = request.id;
@@ -53,14 +52,13 @@ TEST_F(IEProtocolTest, ToIEUsageViewParamsRequest)
     EXPECT_EQ(type, "nnnnnnnnnn");
 }
 
-TEST_F(IEProtocolTest, ToIETableRequest)
-{
+TEST_F(IEProtocolTest, ToIETableRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::IEProtocol ieProtocol;
     ieProtocol.Register();
     std::string error;
     Dic::document_t json(Dic::kObjectType);
-    auto& allocator = json.GetAllocator();
+    auto &allocator = json.GetAllocator();
     Dic::JsonUtil::AddMember(json, "type", "request", allocator);
     Dic::JsonUtil::AddMember(json, "command", Dic::Protocol::REQ_RES_IE_TABLE_VIEW, allocator);
     ieProtocol.FromJson(json, error);
@@ -69,7 +67,7 @@ TEST_F(IEProtocolTest, ToIETableRequest)
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "IE", allocator);
     auto requestPtr = ieProtocol.FromJson(json, error);
-    auto& request = dynamic_cast<Dic::Protocol::IETableRequest&>(*requestPtr);
+    auto &request = dynamic_cast<Dic::Protocol::IETableRequest &>(*requestPtr);
     std::string rankId = request.params.rankId;
     std::string type = request.params.type;
     auto id = request.id;
@@ -77,23 +75,22 @@ TEST_F(IEProtocolTest, ToIETableRequest)
     auto res = request.params.CommonCheck(errMsg);
     EXPECT_EQ(res, false);
     EXPECT_EQ(errMsg, "Page size invalid!");
-    request.params.pageSize = 50;  // 50
+    request.params.pageSize = 50; // 50
     request.params.CommonCheck(errMsg);
     EXPECT_EQ(errMsg, "Current page invalid!");
-    request.params.currentPage = 3;  // 3
+    request.params.currentPage = 3; // 3
     auto res2 = request.params.CommonCheck(errMsg);
     EXPECT_EQ(res2, true);
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(IEProtocolTest, ToIEGroupRequest)
-{
+TEST_F(IEProtocolTest, ToIEGroupRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::IEProtocol ieProtocol;
     ieProtocol.Register();
     std::string error;
     Dic::document_t json(Dic::kObjectType);
-    auto& allocator = json.GetAllocator();
+    auto &allocator = json.GetAllocator();
     Dic::JsonUtil::AddMember(json, "type", "request", allocator);
     Dic::JsonUtil::AddMember(json, "command", Dic::Protocol::REQ_RES_IE_DATA_GROUP, allocator);
     ieProtocol.FromJson(json, error);
@@ -103,15 +100,14 @@ TEST_F(IEProtocolTest, ToIEGroupRequest)
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "IE", allocator);
     auto requestPtr = ieProtocol.FromJson(json, error);
-    auto& request = dynamic_cast<Dic::Protocol::IEGroupRequest&>(*requestPtr);
+    auto &request = dynamic_cast<Dic::Protocol::IEGroupRequest &>(*requestPtr);
     std::string rankId = request.params.rankId;
     auto id = request.id;
     EXPECT_EQ(id, tempId);
     EXPECT_EQ(rankId, "lllllllllll");
 }
 
-TEST_F(IEProtocolTest, TestIEUsageViewResponseToJsonNormal)
-{
+TEST_F(IEProtocolTest, TestIEUsageViewResponseToJsonNormal) {
     Dic::Protocol::IEUsageViewResponse response;
     response.data.legends.emplace_back("ll");
     response.data.title = "mmm";
@@ -129,13 +125,12 @@ TEST_F(IEProtocolTest, TestIEUsageViewResponseToJsonNormal)
     EXPECT_EQ(json, jsonStr);
 }
 
-TEST_F(IEProtocolTest, TestIETableViewResponseToJsonNormal)
-{
+TEST_F(IEProtocolTest, TestIETableViewResponseToJsonNormal) {
     Dic::Protocol::IETableViewResponse response;
-    std::map<std::string, std::string> datas;
-    datas["jjj"] = "kkkkk";
-    response.data.columnData.emplace_back(datas);
-    response.data.totalNum = 50;  // 50
+    std::map<std::string, std::string> data;
+    data["jjj"] = "kkkkk";
+    response.data.columnData.emplace_back(data);
+    response.data.totalNum = 50; // 50
     Dic::Protocol::Column col;
     col.type = "text";
     col.name = "jjj";
@@ -151,8 +146,7 @@ TEST_F(IEProtocolTest, TestIETableViewResponseToJsonNormal)
     EXPECT_EQ(json, jsonStr);
 }
 
-TEST_F(IEProtocolTest, TestIEGroupResponseToJsonNormal)
-{
+TEST_F(IEProtocolTest, TestIEGroupResponseToJsonNormal) {
     Dic::Protocol::IEGroupResponse response;
     Dic::Protocol::IEGroupData group;
     group.value = "jjjjjjjjj";
@@ -167,8 +161,7 @@ TEST_F(IEProtocolTest, TestIEGroupResponseToJsonNormal)
     EXPECT_EQ(json, jsonStr);
 }
 
-TEST_F(IEProtocolTest, TestParseStatisticCompletedEventToJsonNormal)
-{
+TEST_F(IEProtocolTest, TestParseStatisticCompletedEventToJsonNormal) {
     Dic::Protocol::ParseStatisticCompletedEvent event;
     Dic::Protocol::IEGroupData group;
     event.rankIds.emplace_back("mmmmmmmmmm");
@@ -176,7 +169,7 @@ TEST_F(IEProtocolTest, TestParseStatisticCompletedEventToJsonNormal)
     EXPECT_EQ(jsonOp.has_value(), true);
     const std::string json = Dic::JsonUtil::JsonDump(jsonOp.value());
     const std::string jsonStr =
-            "{\"type\":\"event\",\"id\":0,\"event\":\"parse/statisticCompleted\",\"moduleName\":\"unknown\","
-            "\"body\":{\"rankIds\":[\"mmmmmmmmmm\"],\"dbPath\":\"\"}}";
+        "{\"type\":\"event\",\"id\":0,\"event\":\"parse/statisticCompleted\",\"moduleName\":\"unknown\","
+        "\"body\":{\"rankIds\":[\"mmmmmmmmmm\"],\"dbPath\":\"\"}}";
     EXPECT_EQ(json, jsonStr);
 }

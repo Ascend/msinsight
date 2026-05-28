@@ -35,7 +35,6 @@
 #include "RenderEngine.h"
 #include "../../../TestSuit.h"
 
-
 using namespace Dic::Server;
 using namespace Dic::Module::Timeline;
 using namespace Dic::Module::FullDb;
@@ -44,18 +43,14 @@ using namespace Dic::Module::Operator;
 using namespace Dic::Module::FullDb;
 
 class OperatorRequestHandlerTest : public TestSuit {
-public:
-    static void SetUpTestSuite()
-    {
-    }
-    static void TearDownTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {}
+    static void TearDownTestSuite() {
         DataBaseManager::Instance().Clear();
         BaselineManagerService::ResetBaseline(true);
     }
 
-    static void InitDbManager()
-    {
+    static void InitDbManager() {
         DataBaseManager::Instance().Clear();
         const ParamsOption &option = ParamsParser::Instance().GetOption();
         ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, to_string(option.wsPort));
@@ -70,14 +65,12 @@ public:
         DataBaseManager::Instance().UpdateRankIdToDeviceId(fullDbPath, "2", "2");
     }
 
-    static void InitBaseLineManager()
-    {
+    static void InitBaseLineManager() {
         ProjectExplorerManager::Instance().InitSystemMemoryDbPath(testDataDir);
         InitProjectExplorerData();
     }
 
-    static bool SetBaseLineManager()
-    {
+    static bool SetBaseLineManager() {
         InitBaseLineManager();
         // 创建DB场景的baseline基线manager
         std::string filePathText = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0", "ASCEND_PROFILER_OUTPUT");
@@ -99,27 +92,22 @@ public:
         return result;
     }
 
-    static void ClearProjectExplorerData()
-    {
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject",
-                                                                    std::vector<std::string>());
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProjectDb",
-                                                                    std::vector<std::string>());
+    static void ClearProjectExplorerData() {
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject", std::vector<std::string>());
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProjectDb", std::vector<std::string>());
     }
 
-protected:
+  protected:
     inline static std::string testDataDir = TestSuit::GetTestDataFile();
     inline static int retry = 2;
     static ProjectExplorerInfo CreateProjectData(const std::string &projectName, const std::string &fileName,
-                                                 const std::string &importType, Dic::ProjectTypeEnum projectType,
-                                                 const std::vector<std::string> parseFileList)
-    {
+        const std::string &importType, Dic::ProjectTypeEnum projectType, const std::vector<std::string> parseFileList) {
         ProjectExplorerInfo info;
         info.projectName = projectName;
         info.fileName = fileName;
         info.importType = importType;
         info.projectType = static_cast<int64_t>(projectType);
-        for (const auto &item: parseFileList) {
+        for (const auto &item : parseFileList) {
             auto parseFileInfo = std::make_shared<ParseFileInfo>();
             parseFileInfo->parseFilePath = item;
             parseFileInfo->type = ParseFileType::RANK;
@@ -129,32 +117,28 @@ protected:
         return info;
     }
 
-    static void InitProjectExplorerData()
-    {
+    static void InitProjectExplorerData() {
         std::string filePathText = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0", "ASCEND_PROFILER_OUTPUT");
         std::string filePathDb = Dic::FileUtil::SplicePath(testDataDir, "full_db", "ascend_pytorch_profiler.db");
         std::vector<ProjectExplorerInfo> infos;
-        std::vector<std::string> parseFileList {filePathText};
-        ProjectExplorerInfo info = CreateProjectData("testProject", "projectFilePath",
-                                                     "import", Dic::ProjectTypeEnum::TEXT_CLUSTER, parseFileList);
+        std::vector<std::string> parseFileList{filePathText};
+        ProjectExplorerInfo info = CreateProjectData(
+            "testProject", "projectFilePath", "import", Dic::ProjectTypeEnum::TEXT_CLUSTER, parseFileList);
         infos.push_back(info);
-        std::for_each(infos.begin(), infos.end(), [](const auto& item) {
-            ProjectExplorerManager::Instance().SaveProjectExplorer(item, false);
-        });
+        std::for_each(infos.begin(), infos.end(),
+            [](const auto &item) { ProjectExplorerManager::Instance().SaveProjectExplorer(item, false); });
 
         std::vector<ProjectExplorerInfo> dbInfos;
-        std::vector<std::string> parseDbFileList {filePathDb};
-        ProjectExplorerInfo dbInfo = CreateProjectData("testProjectDb", "projectFilePathDb",
-                                                       "import", Dic::ProjectTypeEnum::DB, parseDbFileList);
+        std::vector<std::string> parseDbFileList{filePathDb};
+        ProjectExplorerInfo dbInfo = CreateProjectData(
+            "testProjectDb", "projectFilePathDb", "import", Dic::ProjectTypeEnum::DB, parseDbFileList);
         dbInfos.push_back(dbInfo);
-        std::for_each(dbInfos.begin(), dbInfos.end(), [](const auto& item) {
-            ProjectExplorerManager::Instance().SaveProjectExplorer(item, false);
-        });
+        std::for_each(dbInfos.begin(), dbInfos.end(),
+            [](const auto &item) { ProjectExplorerManager::Instance().SaveProjectExplorer(item, false); });
     }
 };
 
-TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandlerNormalTest)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandlerNormalTest) {
     Dic::Module::Operator::QueryOpCategoryInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorCategoryInfoRequest>();
     requestPtr->params.rankId = "0";
@@ -164,8 +148,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandlerNormalTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandleEmptyRankId)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandleEmptyRankId) {
     Dic::Module::Operator::QueryOpCategoryInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorCategoryInfoRequest>();
     requestPtr.get()->params.rankId = "";
@@ -176,8 +159,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandleEmptyRankId)
     EXPECT_EQ(false, requestPtr->params.CommonCheck(errMsg));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpComputeUnitHandlerNormalTest)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpComputeUnitHandlerNormalTest) {
     Dic::Module::Operator::QueryOpComputeUnitHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorComputeUnitInfoRequest>();
     requestPtr->params.rankId = "0";
@@ -185,15 +167,13 @@ TEST_F(OperatorRequestHandlerTest, QueryOpComputeUnitHandlerNormalTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerNormalTest)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerNormalTest) {
     Dic::Module::Operator::QueryOpStatisticInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerCmplTest)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerCmplTest) {
     Dic::Module::Operator::QueryOpStatisticInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
     requestPtr->params.rankId = "0";
@@ -206,15 +186,13 @@ TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerCmplTest)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormalTest)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormalTest) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormal2Test)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormal2Test) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     const uint64_t ten = 10;
@@ -227,8 +205,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormal2Test)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormal3Test)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormal3Test) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     const uint64_t ten = 10;
@@ -242,15 +219,13 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormal3Test)
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpMoreInfoHandlerNormalTest)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpMoreInfoHandlerNormalTest) {
     Dic::Module::Operator::QueryOpMoreInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessWhenBaselineIsDbGroupByOperatorType)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessWhenBaselineIsDbGroupByOperatorType) {
     InitDbManager();
     Dic::Module::Operator::QueryOpStatisticInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
@@ -267,14 +242,13 @@ TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessWhenBaselin
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessAndOrderByOpTypeAndTopKIs15GroupByInputShape)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessAndOrderByOpTypeAndTopKIs15GroupByInputShape) {
     InitDbManager();
     Dic::Module::Operator::QueryOpStatisticInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
     requestPtr->params.rankId = "2";
     requestPtr->params.group = "Input Shape";
-    requestPtr->params.topK = 15;  // 15表示topK取15条数据
+    requestPtr->params.topK = 15; // 15表示topK取15条数据
     requestPtr->params.isCompare = true;
     requestPtr->params.orderBy = "opType";
     // 10 表示分页最小是10条
@@ -286,8 +260,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessAndOrderByO
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessWhenBaselineIsDbGroupByHCCLOperatorType)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessWhenBaselineIsDbGroupByHCCLOperatorType) {
     InitDbManager();
     Dic::Module::Operator::QueryOpStatisticInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
@@ -307,8 +280,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessWhenBaselin
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessGroupByHCCLOperatorTypeOrderDesc)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessGroupByHCCLOperatorTypeOrderDesc) {
     InitDbManager();
     Dic::Module::Operator::QueryOpStatisticInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
@@ -329,8 +301,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessGroupByHCCL
 }
 
 // QueryOpDetailInfoHandler 测试
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWhenBsesLineIsNotSet)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWhenBsesLineIsNotSet) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.rankId = "2";
@@ -348,8 +319,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWhenBsesLineIsN
 }
 
 // ExportOpDetailsHandler 测试
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorIsNotCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorIsNotCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -363,8 +333,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorI
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorTypeIsNotCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorTypeIsNotCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -378,8 +347,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorT
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByInputShapeIsNotCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByInputShapeIsNotCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -393,8 +361,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByInputShap
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorIsNotCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorIsNotCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -408,8 +375,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunica
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorTypeIsNotCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorTypeIsNotCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -423,9 +389,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunica
     ClearProjectExplorerData();
 }
 
-
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorTypeIsCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorTypeIsCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -440,8 +404,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByOperatorT
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByInputShapeIsCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByInputShapeIsCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -456,8 +419,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByInputShap
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorIsCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorIsCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -472,8 +434,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunica
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorTypeIsCompare)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunicationOperatorTypeIsCompare) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -488,8 +449,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerSuccessGroupByCommunica
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerFailTopKIsIllegal)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerFailTopKIsIllegal) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -503,8 +463,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerFailTopKIsIllegal)
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerGroupByIsIllegal)
-{
+TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerGroupByIsIllegal) {
     InitDbManager();
     Dic::Module::Operator::ExportOpDetailsHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorExportDetailsRequest>();
@@ -518,8 +477,7 @@ TEST_F(OperatorRequestHandlerTest, ExportOpDetailsHandlerGroupByIsIllegal)
     ClearProjectExplorerData();
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalTopK)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalTopK) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.group = "Operator";
@@ -528,8 +486,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalTop
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalPagesize)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalPagesize) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.group = "Operator";
@@ -539,8 +496,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalPag
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalCurrent)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalCurrent) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.group = "Operator";
@@ -552,8 +508,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalCur
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalRankid)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalRankid) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.group = "Operator";
@@ -566,8 +521,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalRan
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalOrder)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalOrder) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.group = "Operator";
@@ -582,8 +536,7 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalOrd
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalQuery)
-{
+TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalQuery) {
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
     requestPtr->params.group = "Operator";

@@ -44,19 +44,15 @@ struct BinaryBlockHeader {
  * 代表一个数据块，包含数据头和数据体
  */
 class DataBlock {
-public:
-    explicit DataBlock(DataTypeEnum type)
-    {
-        header.type = static_cast<uint8_t>(type);
-    }
+  public:
+    explicit DataBlock(DataTypeEnum type) { header.type = static_cast<uint8_t>(type); }
 
     /**
      * 将数据块内容写入文件
      *
      * @param file 写入的目标文件
      */
-    void Write2File(std::ofstream& file)
-    {
+    void Write2File(std::ofstream &file) {
         CalculateHeader();
         WriteHeader(file);
         WriteBody(file);
@@ -81,20 +77,19 @@ public:
      *
      * @param file 目标文件
      */
-    virtual void WriteBody(std::ofstream& file) = 0;
+    virtual void WriteBody(std::ofstream &file) = 0;
 
     virtual ~DataBlock() = default;
 
-protected:
+  protected:
     const int integerBytes_ = 4;
     BinaryBlockHeader header;
 
-private:
+  private:
     /**
      * 计算数据头 @BinaryBlockHeader 的信息
      */
-    void CalculateHeader()
-    {
+    void CalculateHeader() {
         header.padding = CalculatePadding();
         header.contentSize = CalculateContentSize();
     }
@@ -104,8 +99,7 @@ private:
      *
      * @param file 目标文件
      */
-    void WriteHeader(std::ofstream& file)
-    {
+    void WriteHeader(std::ofstream &file) {
         size_t size = 1;
         WriteStructs2File(file, &header, size);
     }
@@ -118,10 +112,8 @@ private:
      * @param data 结构体数组指针
      * @param count 结构体数组长度
      */
-    template<typename T>
-    void WriteStructs2File(std::ofstream& file, const T* data, size_t count) const
-    {
-        file.write(reinterpret_cast<const char*>(data), sizeof(T) * count);
+    template <typename T> void WriteStructs2File(std::ofstream &file, const T *data, size_t count) const {
+        file.write(reinterpret_cast<const char *>(data), sizeof(T) * count);
     }
 };
 
@@ -129,12 +121,10 @@ private:
  * Json字符串类型的数据块
  */
 class NormalDataBlock : public DataBlock {
-public:
-    NormalDataBlock(DataTypeEnum type, const std::string &dataBody) : DataBlock(type), dataBody(dataBody)
-    {}
+  public:
+    NormalDataBlock(DataTypeEnum type, const std::string &dataBody) : DataBlock(type), dataBody(dataBody) {}
 
-    uint8_t CalculatePadding() override
-    {
+    uint8_t CalculatePadding() override {
         auto temp = dataBody.size() % integerBytes_;
         if (temp != 0) {
             return header.padding = integerBytes_ - temp;
@@ -142,20 +132,16 @@ public:
         return 0;
     }
 
-    uint64_t CalculateContentSize() override
-    {
+    uint64_t CalculateContentSize() override {
         if (header.padding != 0) {
             dataBody.resize(dataBody.size() + header.padding, 0);
         }
         return dataBody.size();
     }
 
-    void WriteBody(std::ofstream& file) override
-    {
-        file.write(dataBody.c_str(), dataBody.size());
-    }
+    void WriteBody(std::ofstream &file) override { file.write(dataBody.c_str(), dataBody.size()); }
 
-private:
+  private:
     std::string dataBody;
 };
 
@@ -163,30 +149,26 @@ private:
  * Source Code类型的数据块
  */
 class SourceDataBlock : public NormalDataBlock {
-public:
+  public:
     SourceDataBlock(const std::string &dataBody, const std::string &sourceFilePath)
         : NormalDataBlock(DataTypeEnum::SOURCE, dataBody), sourceFilePath(sourceFilePath) {}
 
-    void WriteBody(std::ofstream &file) override
-    {
+    void WriteBody(std::ofstream &file) override {
         constexpr int pathLength = 4096;
         sourceFilePath.resize(pathLength, '\0');
         file.write(sourceFilePath.c_str(), sourceFilePath.size());
         NormalDataBlock::WriteBody(file);
     }
 
-private:
+  private:
     std::string sourceFilePath;
 };
 
-template<typename T>
-class StructDataBlock : public DataBlock {
-public:
-    StructDataBlock(DataTypeEnum type, std::vector<T> dataBody) : DataBlock(type), dataBody(dataBody)
-    {}
+template <typename T> class StructDataBlock : public DataBlock {
+  public:
+    StructDataBlock(DataTypeEnum type, std::vector<T> dataBody) : DataBlock(type), dataBody(dataBody) {}
 
-    uint8_t CalculatePadding() override
-    {
+    uint8_t CalculatePadding() override {
         auto temp = dataBody.size() * sizeof(T) % integerBytes_;
         if (temp != 0) {
             return integerBytes_ - temp;
@@ -194,13 +176,9 @@ public:
         return 0;
     }
 
-    uint64_t CalculateContentSize() override
-    {
-        return dataBody.size() * sizeof(T) + header.padding;
-    }
+    uint64_t CalculateContentSize() override { return dataBody.size() * sizeof(T) + header.padding; }
 
-    void WriteBody(std::ofstream& file) override
-    {
+    void WriteBody(std::ofstream &file) override {
         if (dataBody.empty()) {
             return;
         }
@@ -210,7 +188,7 @@ public:
         file.write(padding.c_str(), header.padding);
     }
 
-private:
+  private:
     std::vector<T> dataBody;
 };
 
