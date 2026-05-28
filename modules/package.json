@@ -5,8 +5,9 @@
     "private": true,
     "scripts": {
         "build:release": "pnpm build && pnpm sync",
-        "build": "pnpm -r build",
+        "build": "cross-env DISABLE_ESLINT_PLUGIN=true pnpm -r build",
         "sync": "node sync.mjs",
+        "lint": "eslint \"**/src/**/*.{js,jsx,ts,tsx}\" --max-warnings=0",
         "test": "pnpm install && pnpm testMemory && pnpm testTimeline",
         "testCluster": "cd cluster && pnpm test",
         "testMemory": "cd memory && pnpm test",

@@ -74,6 +74,16 @@ repos:
       - id: typos
         args: ["--force-exclude", "--config", "pre-commit/typos.toml"]
 
+  #--------------- 前端 ESLint 检查 ---------------------------------------------
+  - repo: local
+    hooks:
+      - id: frontend-eslint
+        name: frontend eslint (staged files)
+        entry: bash -c 'cd modules && pnpm exec eslint --max-warnings=0 "${@/#modules\//}"' --
+        language: system
+        files: ^modules/.+\.(js|jsx|ts|tsx)$
+        pass_filenames: true
+
   #--------------- C++ 核心检查 ---------------------------------------------
   - repo: https://gitcode.com/pre-commit-clang/mirrors-clang-format
     rev: v18.1.8

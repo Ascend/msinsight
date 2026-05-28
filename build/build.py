@@ -183,6 +183,7 @@ def build_server():
 def build_frontend():
     os.putenv('npm_config_strict_ssl', 'false')
     os.putenv('npm_config_registry', 'https://registry.npmmirror.com/')
+    os.putenv('DISABLE_ESLINT_PLUGIN', 'true')
 
     module_name = 'frontend'
     module_build_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.BUILD_DIR)
