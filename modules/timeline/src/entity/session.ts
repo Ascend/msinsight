@@ -30,8 +30,8 @@ import { platform } from '../platforms';
 import { type Phase, stateTexts } from '../utils/constant';
 import { SimpleCache } from '../cache/simplecache';
 import { InsightUnitSet } from '../utils/PageSetting';
-import { getTimeOffsetKey } from '../insight/units/utils';
-import { CardMetaData, SliceData, SliceMeta, ThreadMetaData, ThreadTrace, ThreadTraceRequest } from './data';
+import { getTimeOffsetKey, setTimeOffsetForUnitTree, visitUnitTree } from '../insight/units/utils';
+import { CardMetaData, SliceData, SliceMeta, ThreadMetaData, ThreadTrace } from './data';
 import { CardRankInfo } from '../api/interface';
 import { getRootUnit } from '../utils';
 import { getAutoKey } from '../utils/dataAutoKey';
@@ -545,12 +545,7 @@ export class Session {
 
     setTimestampOffsetByUnit(unit: InsightUnit, value: number, shouldUpdate: boolean = true): void {
         const prevObj = { ...this.unitsConfig.offsetConfig.timestampOffset };
-        if (unit.children !== undefined && unit.children.length > 0) {
-            for (const item of unit.children) {
-                const key = getTimeOffsetKey(this, item.metadata as unknown as ThreadTraceRequest);
-                prevObj[key] = value;
-            }
-        }
+        setTimeOffsetForUnitTree(this, unit, value, prevObj);
         this.unitsConfig.offsetConfig.timestampOffset = {
             ...prevObj,
             [(unit.metadata as unknown as CardMetaData).cardId]: (value),
@@ -637,8 +632,10 @@ export class Session {
         };
 
         const result = this._units.flatMap((unit: InsightUnit): number[] => {
-            const relativeOffsets = Array.isArray(unit.children) ? unit.children.map(getRelativeOffset) : [];
-            relativeOffsets.unshift(getRelativeOffset(unit));
+            const relativeOffsets: number[] = [];
+            visitUnitTree(unit, (item) => {
+                relativeOffsets.push(getRelativeOffset(item as InsightUnit));
+            });
             return relativeOffsets;
         });
         return Math.max(...result);

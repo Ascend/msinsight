@@ -145,12 +145,18 @@ function generateMetaData<T extends MetaDataInnerBase = MetaDataInnerBase>(
 }
 
 function checkMetaData<T extends keyof MetaDataEnumType>(unitMetaData: any, paramMetaData: InsightMetaData<T>): boolean {
-    if (paramMetaData.type === 'thread' && (unitMetaData as ThreadMetaData).threadId === (paramMetaData.metadata as ThreadMetaData).threadId) {
-        return true;
-    } else if (unitMetaData.type === 'process' && paramMetaData.type === 'process' && (unitMetaData as ProcessMetaData).processId === (paramMetaData.metadata as ProcessMetaData).processId) {
-        return true;
-    } else {
-        return false;
+    switch (paramMetaData.type) {
+        case 'thread':
+            return (unitMetaData as ThreadMetaData).threadId === (paramMetaData.metadata as ThreadMetaData).threadId;
+        case 'process':
+        case 'label':
+            return (unitMetaData as ProcessMetaData | LabelMetaData).processId ===
+                (paramMetaData.metadata as ProcessMetaData | LabelMetaData).processId;
+        case 'counter':
+            return (unitMetaData as CounterMetaData).processId === (paramMetaData.metadata as CounterMetaData).processId &&
+                (unitMetaData as CounterMetaData).threadName === (paramMetaData.metadata as CounterMetaData).threadName;
+        default:
+            return false;
     }
 }
 

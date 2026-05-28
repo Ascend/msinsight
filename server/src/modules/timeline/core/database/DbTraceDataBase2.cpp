@@ -25,15 +25,13 @@
 namespace Dic::Module::FullDb {
 using namespace Server;
 
-std::vector<std::string> DbTraceDataBase::GetIdListByFuzzNameFromCache(const std::string &path,
-                                                                       const std::string &fuzzName,
-                                                                       const bool caseSensitive)
-{
+std::vector<std::string> DbTraceDataBase::GetIdListByFuzzNameFromCache(
+    const std::string &path, const std::string &fuzzName, const bool caseSensitive) {
     if (stringsCache.count(path) == 0) {
         return {};
     }
     std::vector<std::string> res;
-    for (const auto &item: stringsCache.at(path)) {
+    for (const auto &item : stringsCache.at(path)) {
         if (caseSensitive) {
             if (StringUtil::Contains(item.second, fuzzName)) {
                 res.push_back(item.first);
@@ -47,22 +45,21 @@ std::vector<std::string> DbTraceDataBase::GetIdListByFuzzNameFromCache(const std
     return res;
 }
 
-bool DbTraceDataBase::QueryUnitCounter(Protocol::UnitCounterParams &params, uint64_t minTimestamp,
-                                       std::vector<Protocol::UnitCounterData> &dataList)
-{
+bool DbTraceDataBase::QueryUnitCounter(
+    Protocol::UnitCounterParams &params, uint64_t minTimestamp, std::vector<Protocol::UnitCounterData> &dataList) {
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
         ServerLog::Error("Query_unit_counter. Failed to prepare sql.", sqlite3_errmsg(db));
         return false;
     }
     std::unique_ptr<SqliteResultSet> resultSet;
-    const std::vector<PROCESS_TYPE> hostCounterEvents = {PROCESS_TYPE::CPU_USAGE,
-        PROCESS_TYPE::HOST_DISK_USAGE, PROCESS_TYPE::HOST_MEM_USAGE, PROCESS_TYPE::HOST_NETWORK_USAGE};
+    const std::vector<PROCESS_TYPE> hostCounterEvents = {PROCESS_TYPE::CPU_USAGE, PROCESS_TYPE::HOST_DISK_USAGE,
+        PROCESS_TYPE::HOST_MEM_USAGE, PROCESS_TYPE::HOST_NETWORK_USAGE};
     const std::vector<PROCESS_TYPE> deviceCounterEvents = {PROCESS_TYPE::AI_CORE, PROCESS_TYPE::ACC_PMU,
         PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC, PROCESS_TYPE::NPU_MEM, PROCESS_TYPE::HBM, PROCESS_TYPE::LLC,
         PROCESS_TYPE::SAMPLE_PMU, PROCESS_TYPE::NIC, PROCESS_TYPE::PCIE, PROCESS_TYPE::HCCS, PROCESS_TYPE::QOS};
     if (std::find(hostCounterEvents.begin(), hostCounterEvents.end(),
-                  Timeline::TraceDatabaseHelper::GetProcessType(params.metaType)) != hostCounterEvents.end()) {
+            Timeline::TraceDatabaseHelper::GetProcessType(params.metaType)) != hostCounterEvents.end()) {
         try {
             resultSet = TraceDatabaseHelper::QueryHostUnitCounter(stmt, params, minTimestamp);
         } catch (DatabaseException &e) {
@@ -70,10 +67,10 @@ bool DbTraceDataBase::QueryUnitCounter(Protocol::UnitCounterParams &params, uint
             return false;
         }
     } else if (std::find(deviceCounterEvents.begin(), deviceCounterEvents.end(),
-                         Timeline::TraceDatabaseHelper::GetProcessType(params.metaType)) != deviceCounterEvents.end()) {
+                   Timeline::TraceDatabaseHelper::GetProcessType(params.metaType)) != deviceCounterEvents.end()) {
         try {
-            resultSet = TraceDatabaseHelper::QueryDeviceUnitCounter(stmt,
-                params, minTimestamp, GetDeviceId(params.rankId));
+            resultSet =
+                TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, minTimestamp, GetDeviceId(params.rankId));
         } catch (DatabaseException &e) {
             ServerLog::Error("Query device unit counter failed, ", e.What());
             return false;
@@ -99,42 +96,43 @@ bool DbTraceDataBase::QueryUnitCounter(Protocol::UnitCounterParams &params, uint
     return true;
 }
 
-void DbTraceDataBase::ProcessHostCounterEventsMetadata(const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
-{
+void DbTraceDataBase::ProcessHostCounterEventsMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     CounterEventHelper helper;
     helper.RegisterHostMap();
     for (const auto &element : helper.hostCounterEventMap) {
         std::string progressName = element.second.processName;
         std::string metaDataSQL = helper.GenerateHostMetadataSQL(element.first);
-        auto counter = GenerateBaseUnitTrack("label", fileId, progressName, progressName,
-                                             ENUM_TO_STR(element.first).value());
+        auto counter =
+            GenerateBaseUnitTrack("label", fileId, progressName, progressName, ENUM_TO_STR(element.first).value());
         auto stmt = CreatPreparedStatement(metaDataSQL);
         if (!stmt) {
-            ServerLog::Error("Failed to query host counter metadata. metaType is %",
-                             ENUM_TO_STR(element.first).value());
+            ServerLog::Error(
+                "Failed to query host counter metadata. metaType is %", ENUM_TO_STR(element.first).value());
             continue;
         }
         auto resultSet = stmt->ExecuteQuery();
         if (!resultSet) {
             ServerLog::Error("Failed to get result set of querying counter metadata. metaType is %.",
-                             ENUM_TO_STR(element.first).value());
+                ENUM_TO_STR(element.first).value());
             continue;
         }
         while (resultSet->Next()) {
-            auto thread = GenerateBaseUnitTrack("counter", fileId, progressName, progressName,
-                                                ENUM_TO_STR(element.first).value());
+            auto thread = GenerateBaseUnitTrack(
+                "counter", fileId, progressName, progressName, ENUM_TO_STR(element.first).value());
             thread->metaData.threadId = resultSet->GetString("name");
             thread->metaData.threadName = thread->metaData.threadId;
             thread->metaData.dataType = StringUtil::Split(resultSet->GetString("types"), ",");
             counter->children.emplace_back(std::move(thread));
         }
-        metaData.emplace_back(std::move(counter));
+        if (!counter->children.empty()) {
+            GetOrCreateHardwareMetricsUnitTrack(fileId, metaData)->children.emplace_back(std::move(counter));
+        }
     }
 }
 
 void DbTraceDataBase::FillFlowDepth(const Protocol::UnitFlowsParams &requestParams, FlowLocation &location,
-    std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> &trackIdDepthCache)
-{
+    std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> &trackIdDepthCache) {
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
     uint64_t trackId = TrackInfoManager::Instance().GetTrackId(requestParams.rankId, location.pid, location.tid);
     auto item = trackIdDepthCache.find(trackId);
@@ -149,14 +147,11 @@ void DbTraceDataBase::FillFlowDepth(const Protocol::UnitFlowsParams &requestPara
 }
 
 std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const Protocol::UnitFlowsParams &requestParams,
-                                                                         const std::pair<std::string, std::string> &tableAndSql,
-                                                                         uint64_t minTimestamp,
-                                                                         const std::string &connectionId,
-                                                                         const std::vector<uint64_t> &deviceIdList)
-{
+    const std::pair<std::string, std::string> &tableAndSql, uint64_t minTimestamp, const std::string &connectionId,
+    const std::vector<uint64_t> &deviceIdList) {
     auto stmt = CreatPreparedStatement();
-    std::string sql = "with constValue as (select ? as minTime, ? as connectionId) " + tableAndSql.second +
-        " order by startTime ";
+    std::string sql =
+        "with constValue as (select ? as minTime, ? as connectionId) " + tableAndSql.second + " order by startTime ";
     std::unique_ptr<SqliteResultSet> resultSet;
     if (tableAndSql.first == "COMMUNICATION_OP" && deviceIdList.size() == 1) {
         resultSet = TraceDatabaseHelper::ExecuteQuery(stmt, sql, minTimestamp, connectionId, deviceIdList[0]);
@@ -169,18 +164,21 @@ std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const P
     while (resultSet->Next()) {
         auto metaType = resultSet->GetString("metaType");
         auto rankId = resultSet->GetString("deviceId");
-        for (const auto &item: QueryRankIdAndDeviceMap()) {
+        for (const auto &item : QueryRankIdAndDeviceMap()) {
             if (rankId == item.second) {
                 rankId = item.first;
             }
         }
         rankId = rankId.empty() ? path : QueryHostInfo() + rankId;
-        FlowLocation location {
-            .tid = resultSet->GetString("tid"), .id = resultSet->GetString("id"),
-            .metaType = metaType, .rankId = rankId, .depth = 0, .timestamp = resultSet->GetUint64("startTime"),
-            .duration = resultSet->GetUint64("duration"), .pid = resultSet->GetString("pid"),
-            .name = stringsCache.at(path)[resultSet->GetString("name")]
-        };
+        FlowLocation location{.tid = resultSet->GetString("tid"),
+            .id = resultSet->GetString("id"),
+            .metaType = metaType,
+            .rankId = rankId,
+            .depth = 0,
+            .timestamp = resultSet->GetUint64("startTime"),
+            .duration = resultSet->GetUint64("duration"),
+            .pid = resultSet->GetString("pid"),
+            .name = stringsCache.at(path)[resultSet->GetString("name")]};
         FillFlowDepth(requestParams, location, trackIdDepthCache);
         if (tableAndSql.first == "TASK") {
             std::string domainId = resultSet->GetString("domainId");
@@ -191,7 +189,7 @@ std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const P
         }
         flowLocations.push_back(location);
     }
-    for (auto &item: flowLocations) {
+    for (auto &item : flowLocations) {
         if (item.rankId == path) {
             item.rankId = requestParams.rankId;
         }
@@ -203,42 +201,36 @@ std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const P
 // 然后查找TASK/COMMUNICATION_OP是否有该连线，如果有就是torch-cann-task-communication类型连线
 // 否则就是async_task_queue fwd_bwd类型连线
 bool DbTraceDataBase::QueryUnitFlows(const Protocol::UnitFlowsParams &requestParams,
-                                     Protocol::UnitFlowsBody &responseBody, uint64_t minTimestamp, uint64_t trackId)
-{
+    Protocol::UnitFlowsBody &responseBody, uint64_t minTimestamp, uint64_t trackId) {
     auto stmt = CreatPreparedStatement();
     auto connectionId = TraceDatabaseHelper::QueryConnectionId(stmt, requestParams);
     // connectionId为-1和UINT32_MAX都表示无效值，无连线，因此不能继续搜索
-    if (!connectionId.has_value() ||
-        connectionId.value() == "-1" || connectionId.value() == std::to_string(UINT32_MAX)) {
+    if (!connectionId.has_value() || connectionId.value() == "-1" ||
+        connectionId.value() == std::to_string(UINT32_MAX)) {
         ServerLog::Warn("Connection id of current operator is null or invalid value.");
         return false;
     }
 
     std::vector<uint64_t> deviceIdList = TraceDatabaseHelper::GetDeviceIdList(requestParams.rankId);
     std::string comSql = deviceIdList.size() == 1 ? COM_OP_UNIT_FLOW_SQL_UNIQUE_DEVICE : COM_OP_UNIT_FLOW_SQL;
-    std::vector<FlowLocation> pytorchFlowLocationList =
-        ExecuteQueryUnitFlowsForTable(requestParams, {"PYTORCH_API", PYTORCH_UNIT_FLOW_SQL}, minTimestamp,
-        connectionId.value(), deviceIdList);
-    std::vector<FlowLocation> cannFlowLocationList =
-        ExecuteQueryUnitFlowsForTable(requestParams, {"CANN_API", CANN_UNIT_FLOW_SQL}, minTimestamp,
-        connectionId.value(), deviceIdList);
-    std::vector<FlowLocation> taskFlowLocationList =
-        ExecuteQueryUnitFlowsForTable(requestParams, {"TASK", TASK_UNIT_FLOW_SQL}, minTimestamp,
-        connectionId.value(), deviceIdList);
+    std::vector<FlowLocation> pytorchFlowLocationList = ExecuteQueryUnitFlowsForTable(
+        requestParams, {"PYTORCH_API", PYTORCH_UNIT_FLOW_SQL}, minTimestamp, connectionId.value(), deviceIdList);
+    std::vector<FlowLocation> cannFlowLocationList = ExecuteQueryUnitFlowsForTable(
+        requestParams, {"CANN_API", CANN_UNIT_FLOW_SQL}, minTimestamp, connectionId.value(), deviceIdList);
+    std::vector<FlowLocation> taskFlowLocationList = ExecuteQueryUnitFlowsForTable(
+        requestParams, {"TASK", TASK_UNIT_FLOW_SQL}, minTimestamp, connectionId.value(), deviceIdList);
     UpdateAscendHardwareFlowLocationName(requestParams.rankId, taskFlowLocationList);
-    std::vector<FlowLocation> communicationOpFlowLocationList =
-        ExecuteQueryUnitFlowsForTable(requestParams, {"COMMUNICATION_OP", comSql}, minTimestamp,
-        connectionId.value(), deviceIdList);
-    std::vector<FlowLocation> mstxFlowLocationList =
-        ExecuteQueryUnitFlowsForTable(requestParams, {"MSTX_EVENTS", MSTX_UNIT_FLOW_SQL}, minTimestamp,
-        connectionId.value(), deviceIdList);
+    std::vector<FlowLocation> communicationOpFlowLocationList = ExecuteQueryUnitFlowsForTable(
+        requestParams, {"COMMUNICATION_OP", comSql}, minTimestamp, connectionId.value(), deviceIdList);
+    std::vector<FlowLocation> mstxFlowLocationList = ExecuteQueryUnitFlowsForTable(
+        requestParams, {"MSTX_EVENTS", MSTX_UNIT_FLOW_SQL}, minTimestamp, connectionId.value(), deviceIdList);
 
     if (AssembleUnitFlowOfTypeMSTX(mstxFlowLocationList, taskFlowLocationList, connectionId.value(), responseBody)) {
         return true;
     }
     if (AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommunication(pytorchFlowLocationList,
-        cannFlowLocationList, taskFlowLocationList, communicationOpFlowLocationList, connectionId.value(),
-        responseBody)) {
+            cannFlowLocationList, taskFlowLocationList, communicationOpFlowLocationList, connectionId.value(),
+            responseBody)) {
         return true;
     }
     if (AssembleUnitFlowOfTypeAsyncTaskQueue(pytorchFlowLocationList, connectionId.value(), responseBody)) {
@@ -252,10 +244,8 @@ bool DbTraceDataBase::QueryUnitFlows(const Protocol::UnitFlowsParams &requestPar
 }
 
 bool DbTraceDataBase::AssembleUnitFlowOfTypeMSTX(const std::vector<FlowLocation> &mstxFlowLocationList,
-                                                 const std::vector<FlowLocation> &taskFlowLocationList,
-                                                 const std::string &connectionId,
-                                                 Protocol::UnitFlowsBody &responseBody)
-{
+    const std::vector<FlowLocation> &taskFlowLocationList, const std::string &connectionId,
+    Protocol::UnitFlowsBody &responseBody) {
     if (mstxFlowLocationList.empty() || taskFlowLocationList.empty()) {
         return false;
     }
@@ -266,8 +256,8 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypeMSTX(const std::vector<FlowLocation>
         return false;
     }
     // MSTX类型连线只允许一对一
-    UnitSingleFlow singleFlow{.cat = "MsTx", .id = connectionId, .from = mstxFlowLocationList[0],
-        .to = taskFlowLocationList[0]};
+    UnitSingleFlow singleFlow{
+        .cat = "MsTx", .id = connectionId, .from = mstxFlowLocationList[0], .to = taskFlowLocationList[0]};
     std::vector<UnitSingleFlow> flows{singleFlow};
     responseBody.unitAllFlows.push_back({.cat = singleFlow.cat, .flows = flows});
     return true;
@@ -277,8 +267,7 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
     const std::vector<FlowLocation> &pytorchFlowLocationList, const std::vector<FlowLocation> &cannFlowLocationList,
     const std::vector<FlowLocation> &taskFlowLocationList,
     const std::vector<FlowLocation> &communicationOpFlowLocationList, const std::string &connectionId,
-    Protocol::UnitFlowsBody &responseBody)
-{
+    Protocol::UnitFlowsBody &responseBody) {
     if (taskFlowLocationList.empty() && communicationOpFlowLocationList.empty()) {
         return false;
     }
@@ -292,13 +281,17 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
         // 但是对于其它deviceId（比如1），QueryUnitFlows()的SQL也会查询出deviceId=0的该算子，导致界面上deviceId=1也显示连线，但连线末端无算子
         std::vector<UnitSingleFlow> flows;
         if (!taskFlowLocationList.empty() && cannFlowLocationList[0].rankId == taskFlowLocationList[0].rankId) {
-            UnitSingleFlow singleFlow{.cat = "HostToDevice", .id = connectionId, .from = cannFlowLocationList[0],
+            UnitSingleFlow singleFlow{.cat = "HostToDevice",
+                .id = connectionId,
+                .from = cannFlowLocationList[0],
                 .to = taskFlowLocationList[0]};
             flows.push_back(singleFlow);
         }
         if (!communicationOpFlowLocationList.empty() &&
             cannFlowLocationList[0].rankId == communicationOpFlowLocationList[0].rankId) {
-            UnitSingleFlow singleFlow{.cat = "HostToDevice", .id = connectionId, .from = cannFlowLocationList[0],
+            UnitSingleFlow singleFlow{.cat = "HostToDevice",
+                .id = connectionId,
+                .from = cannFlowLocationList[0],
                 .to = communicationOpFlowLocationList[0]};
             flows.push_back(singleFlow);
         }
@@ -313,13 +306,17 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
         // 但是对于其它deviceId（比如1），QueryUnitFlows()的SQL也会查询出deviceId=0的该算子，导致界面上deviceId=1也显示连线，但连线末端无算子
         std::vector<UnitSingleFlow> flows;
         if (!taskFlowLocationList.empty() && pytorchFlowLocationList[0].rankId == taskFlowLocationList[0].rankId) {
-            UnitSingleFlow singleFlow{.cat = "async_npu", .id = connectionId, .from = pytorchFlowLocationList[0],
+            UnitSingleFlow singleFlow{.cat = "async_npu",
+                .id = connectionId,
+                .from = pytorchFlowLocationList[0],
                 .to = taskFlowLocationList[0]};
             flows.push_back(singleFlow);
         }
         if (!communicationOpFlowLocationList.empty() &&
             pytorchFlowLocationList[0].rankId == communicationOpFlowLocationList[0].rankId) {
-            UnitSingleFlow singleFlow{.cat = "async_npu", .id = connectionId, .from = pytorchFlowLocationList[0],
+            UnitSingleFlow singleFlow{.cat = "async_npu",
+                .id = connectionId,
+                .from = pytorchFlowLocationList[0],
                 .to = communicationOpFlowLocationList[0]};
             flows.push_back(singleFlow);
         }
@@ -333,10 +330,8 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypePyTorchToCANNToAscendHardwareToCommu
     return true;
 }
 
-bool DbTraceDataBase::AssembleUnitFlowOfTypeAsyncTaskQueue(
-    const std::vector<FlowLocation> &pytorchFlowLocationList, const std::string &connectionId,
-    Protocol::UnitFlowsBody &responseBody)
-{
+bool DbTraceDataBase::AssembleUnitFlowOfTypeAsyncTaskQueue(const std::vector<FlowLocation> &pytorchFlowLocationList,
+    const std::string &connectionId, Protocol::UnitFlowsBody &responseBody) {
     // async_task_queue是PyTorch和PyTorch连线，要求PyTorch同connectionId算子至少有2个
     if (pytorchFlowLocationList.size() < 2) {
         return false;
@@ -345,7 +340,9 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypeAsyncTaskQueue(
     if (!StringUtil::StartWith(pytorchFlowLocationList[0].name, "Enqueue")) {
         return false;
     }
-    UnitSingleFlow singleFlow{.cat = "async_task_queue", .id = connectionId, .from = pytorchFlowLocationList[0],
+    UnitSingleFlow singleFlow{.cat = "async_task_queue",
+        .id = connectionId,
+        .from = pytorchFlowLocationList[0],
         .to = pytorchFlowLocationList[1]};
     std::vector<UnitSingleFlow> flows{singleFlow};
     responseBody.unitAllFlows.push_back({.cat = singleFlow.cat, .flows = flows});
@@ -353,27 +350,24 @@ bool DbTraceDataBase::AssembleUnitFlowOfTypeAsyncTaskQueue(
 }
 
 bool DbTraceDataBase::AssembleUnitFlowOfTypeFwdBwd(const std::vector<FlowLocation> &pytorchFlowLocationList,
-                                                   const std::string &connectionId,
-                                                   Protocol::UnitFlowsBody &responseBody)
-{
+    const std::string &connectionId, Protocol::UnitFlowsBody &responseBody) {
     // async_task_queue是PyTorch和PyTorch连线，要求PyTorch同connectionId算子至少有2个
     if (pytorchFlowLocationList.size() < 2) {
         return false;
     }
     // fwdbwd类型连线只允许一对一
-    UnitSingleFlow singleFlow{.cat = "fwdbwd", .id = connectionId, .from = pytorchFlowLocationList[0],
-        .to = pytorchFlowLocationList[1]};
+    UnitSingleFlow singleFlow{
+        .cat = "fwdbwd", .id = connectionId, .from = pytorchFlowLocationList[0], .to = pytorchFlowLocationList[1]};
     std::vector<UnitSingleFlow> flows{singleFlow};
     responseBody.unitAllFlows.push_back({.cat = singleFlow.cat, .flows = flows});
     return true;
 }
 
-void DbTraceDataBase::UpdateAscendHardwareFlowLocationName(const std::string &rankId,
-    std::vector<FlowLocation> &flowLocations)
-{
+void DbTraceDataBase::UpdateAscendHardwareFlowLocationName(
+    const std::string &rankId, std::vector<FlowLocation> &flowLocations) {
     // 搜索 name
     const std::vector<uint64_t> ids = std::accumulate(flowLocations.begin(), flowLocations.end(),
-        std::vector<uint64_t>(), [](std::vector<uint64_t>& acc, const FlowLocation& item) {
+        std::vector<uint64_t>(), [](std::vector<uint64_t> &acc, const FlowLocation &item) {
             if (item.metaType == "Ascend Hardware") {
                 acc.push_back(StringUtil::StringToUint32(item.id));
             }
@@ -389,20 +383,19 @@ void DbTraceDataBase::UpdateAscendHardwareFlowLocationName(const std::string &ra
     hardwareRepo->QueryCompeteSliceByIds(sliceQuery, ids, competeSliceVec);
     // 创建 id 到 name 的映射
     std::unordered_map<std::string, std::string> nameMap;
-    for (const auto& item : competeSliceVec) {
+    for (const auto &item : competeSliceVec) {
         nameMap[std::to_string(item.id)] = item.name;
     }
 
     // 更新 flowLocation 中的 name
-    std::for_each(flowLocations.begin(), flowLocations.end(), [nameMap](FlowLocation& flow) {
+    std::for_each(flowLocations.begin(), flowLocations.end(), [nameMap](FlowLocation &flow) {
         if (const auto it = nameMap.find(flow.id); it != nameMap.end()) {
             flow.name = it->second;
         }
     });
 }
 
-std::string DbTraceDataBase::GetDeviceIdFromMemoryTable()
-{
+std::string DbTraceDataBase::GetDeviceIdFromMemoryTable() {
     auto queryDevice = [this](const std::string &table) -> std::string {
         sqlite3_stmt *stmt = nullptr;
         std::string sql = "SELECT deviceId FROM " + table + " limit 1";
@@ -425,14 +418,12 @@ std::string DbTraceDataBase::GetDeviceIdFromMemoryTable()
     return "";
 }
 
-void DbTraceDataBase::QueryDeviceIdInStepTraceTime(std::set<std::string> &deviceIds)
-{
+void DbTraceDataBase::QueryDeviceIdInStepTraceTime(std::set<std::string> &deviceIds) {
     std::string sql = "SELECT DISTINCT deviceId from StepTraceTime";
-    sqlite3_stmt* stmt = nullptr;
+    sqlite3_stmt *stmt = nullptr;
     int ret = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (ret != SQLITE_OK) {
-        ServerLog::Error("Failed to prepare sql for query deviceId in StepTraceTime. Error: ",
-                         sqlite3_errmsg(db));
+        ServerLog::Error("Failed to prepare sql for query deviceId in StepTraceTime. Error: ", sqlite3_errmsg(db));
         return;
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -444,12 +435,10 @@ void DbTraceDataBase::QueryDeviceIdInStepTraceTime(std::set<std::string> &device
 }
 
 bool DbTraceDataBase::QueryThreadSameOperatorsDetails(const Protocol::UnitThreadsOperatorsParams &requestParams,
-    Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp,
-    const std::vector<uint64_t> &trackIdList)
-{
+    Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList) {
     std::vector<std::string> pidList;
     std::vector<std::string> tidList;
-    for (const auto& trackId : trackIdList) {
+    for (const auto &trackId : trackIdList) {
         TrackInfo trackInfo;
         TrackInfoManager::Instance().GetTrackInfo(trackId, trackInfo, requestParams.rankId);
         if (!StringUtil::CheckSqlValid(trackInfo.threadId)) {
@@ -459,13 +448,13 @@ bool DbTraceDataBase::QueryThreadSameOperatorsDetails(const Protocol::UnitThread
         pidList.emplace_back(trackInfo.processId);
         tidList.emplace_back(trackInfo.threadId);
     }
-    std::string orderByAndPage = " ORDER BY " + requestParams.orderBy +
-                                 (requestParams.order == "descend" ? " DESC " : " ASC ");
+    std::string orderByAndPage =
+        " ORDER BY " + requestParams.orderBy + (requestParams.order == "descend" ? " DESC " : " ASC ");
     auto stmt = CreatPreparedStatement();
-    std::unique_ptr <SqliteResultSet> resultSet;
+    std::unique_ptr<SqliteResultSet> resultSet;
     try {
-        resultSet = TraceDatabaseHelper::QueryThreadSameOperatorsDetails(stmt, requestParams,
-            { GetDeviceId(requestParams.rankId), minTimestamp, orderByAndPage, pidList, tidList });
+        resultSet = TraceDatabaseHelper::QueryThreadSameOperatorsDetails(
+            stmt, requestParams, {GetDeviceId(requestParams.rankId), minTimestamp, orderByAndPage, pidList, tidList});
     } catch (DatabaseException &e) {
         ServerLog::Error("Query thread same operators details fail, ", e.What());
         return false;
@@ -481,10 +470,10 @@ bool DbTraceDataBase::QueryThreadSameOperatorsDetails(const Protocol::UnitThread
 
 void DbTraceDataBase::ExecuteQueryDbThreadSameOperatorsDetails(const std::unique_ptr<SqliteResultSet> &resultSet,
     const Protocol::UnitThreadsOperatorsParams &requestParams, Protocol::UnitThreadsOperatorsBody &responseBody,
-    const std::vector<std::string> tidList)
-{
-    uint64_t offset = (requestParams.current - 1) > UINT64_MAX / requestParams.pageSize ? 0 :
-                      (requestParams.current - 1) * requestParams.pageSize;
+    const std::vector<std::string> tidList) {
+    uint64_t offset = (requestParams.current - 1) > UINT64_MAX / requestParams.pageSize
+        ? 0
+        : (requestParams.current - 1) * requestParams.pageSize;
     uint64_t count = 0;
     std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> trackIdDepthCache;
     while (resultSet->Next()) {
@@ -495,11 +484,12 @@ void DbTraceDataBase::ExecuteQueryDbThreadSameOperatorsDetails(const std::unique
         sameOperatorsDetail.depth = resultSet->GetUint64(col++);
         sameOperatorsDetail.id = resultSet->GetString(col++);
         sameOperatorsDetail.tid = resultSet->GetString(col++);
-        if (sameOperatorsDetail.tid.empty()) {  // some process not have tid, use request.tid[0], ex:pytorch
+        if (sameOperatorsDetail.tid.empty()) { // some process not have tid, use request.tid[0], ex:pytorch
             sameOperatorsDetail.tid = tidList[0];
         }
         sameOperatorsDetail.pid = resultSet->GetString(col++);
-        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(requestParams.rankId, sameOperatorsDetail.pid, sameOperatorsDetail.tid);
+        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(
+            requestParams.rankId, sameOperatorsDetail.pid, sameOperatorsDetail.tid);
         SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
         auto item = trackIdDepthCache.find(trackId);
         if (item != trackIdDepthCache.end()) {
@@ -512,7 +502,7 @@ void DbTraceDataBase::ExecuteQueryDbThreadSameOperatorsDetails(const std::unique
         }
         if (!requestParams.startDepth.empty() && !requestParams.endDepth.empty() &&
             !(sameOperatorsDetail.depth >= NumberUtil::StringToUint32(requestParams.startDepth) &&
-              sameOperatorsDetail.depth <= NumberUtil::StringToUint32(requestParams.endDepth))) {
+                sameOperatorsDetail.depth <= NumberUtil::StringToUint32(requestParams.endDepth))) {
             continue;
         }
         if (++count <= offset) {

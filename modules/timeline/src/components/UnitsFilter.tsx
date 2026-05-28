@@ -25,7 +25,7 @@ import { FilterIcon, HelpIcon } from '@insight/lib/icon';
 import type { Session } from '../entity/session';
 import { CustomButton } from './base/StyledButton';
 import type { InsightUnit } from '../entity/insight';
-import type { CardMetaData, ProcessMetaData, ThreadMetaData } from '../entity/data';
+import type { CardMetaData, MetaDataInnerBase } from '../entity/data';
 import { useTranslation } from 'react-i18next';
 
 const CustomDiv = styled.div`
@@ -120,6 +120,37 @@ interface CompleteOptionProps {
     value: string;
 }
 
+export const normalizeUnitFilterName = (name = ''): string => name.replace(/\(\d{0,12}\)/, '').trim();
+
+export const getUnitFilterName = (unit: InsightUnit): string => {
+    const metadata = unit.metadata as MetaDataInnerBase;
+    if (unit.name === 'Thread' || unit.name === 'Counter') {
+        return normalizeUnitFilterName(metadata.threadName);
+    }
+    return normalizeUnitFilterName(metadata.processName);
+};
+
+const expandUnit = (unit: InsightUnit): void => {
+    if (!unit.children?.length) {
+        return;
+    }
+    if (unit.collapsible && !unit.isExpanded) {
+        unit.collapseAction?.(unit);
+    }
+    unit.isExpanded = true;
+};
+
+const displayUnitTree = (unit: InsightUnit, loopIndex = 0): void => {
+    const MaxLoop = 100;
+    if (loopIndex > MaxLoop) {
+        return;
+    }
+    unit.isDisplay = true;
+    unit.children?.forEach(child => {
+        displayUnitTree(child, loopIndex + 1);
+    });
+};
+
 /**
  * 开始过滤会话中的单位和卡片。
  * @param session - 当前会话对象。
@@ -176,8 +207,9 @@ const doCardFilter = (flattenUnits: InsightUnit[], selectValues: string[]): void
  * @param flattenUnits - 扁平化的单位数组。
  * @param selectValues - 选中的单位名称数组。
  */
-const doUnitsFilter = (flattenUnits: InsightUnit[], selectValues: string[]): void => {
+export const doUnitsFilter = (flattenUnits: InsightUnit[], selectValues: string[]): void => {
     runInAction(() => {
+        const normalizedSelectValues = selectValues.map(normalizeUnitFilterName);
         flattenUnits.forEach(unit => {
             if (!unit.children) {
                 // 如果没有子单位，则隐藏该单位
@@ -186,53 +218,41 @@ const doUnitsFilter = (flattenUnits: InsightUnit[], selectValues: string[]): voi
             }
             let hasMatchUnit = false;
             unit.children.forEach(childUnit => {
-                let isUnitMatch = false;
-                if (childUnit.name === 'Thread') {
-                    // 如果是线程单位，则根据线程名称进行匹配
-                    isUnitMatch = selectValues.includes((childUnit.metadata as ThreadMetaData).threadName.replace(/\(\d{0,12}\)/, '').trim());
+                const isUnitMatch = normalizedSelectValues.includes(getUnitFilterName(childUnit));
+                const hasMatchedChild = isUnitMatch ? false : findMatchUnit(childUnit, normalizedSelectValues);
+                if (isUnitMatch) {
+                    displayUnitTree(childUnit);
                 } else {
-                    // 如果是进程单位，则根据进程名称进行匹配
-                    isUnitMatch = selectValues.includes((childUnit.metadata as ProcessMetaData).processName.replace(/\(\d{0,12}\)/, '').trim());
+                    childUnit.isDisplay = hasMatchedChild;
                 }
-                childUnit.isDisplay = isUnitMatch || findMatchUnit(childUnit, selectValues);
+                if (childUnit.isDisplay) {
+                    expandUnit(childUnit);
+                }
                 hasMatchUnit = hasMatchUnit || childUnit.isDisplay;
             });
-            if (!hasMatchUnit) {
+            if (hasMatchUnit) {
+                expandUnit(unit);
+            } else {
                 // 如果没有匹配的子单位，则隐藏该单位
                 unit.isDisplay = false;
             }
         });
 
-        /**
-         * 递归设置单位及其子单位为显示状态。
-         * @param unit - 当前单位。
-         * @param loopIndex - 循环索引，用于防止无限递归。
-         */
-        const setUnitDisplay = (unit: InsightUnit, loopIndex = 0): void => {
-            const MaxLoop = 100;
-            if (loopIndex > MaxLoop) {
-                return;
-            }
-            unit.isDisplay = true;
-            if (unit.children) {
-                for (const child of unit.children) {
-                    setUnitDisplay(child, loopIndex++);
-                }
-            }
-        };
         flattenUnits.forEach(unit => {
             if (!unit.children) {
                 return;
             }
             if (unit.name === 'Thread') {
                 // 如果是线程单位，则根据线程名称设置显示状态
-                if (selectValues.includes(((unit.metadata as ThreadMetaData).threadName))) {
-                    setUnitDisplay(unit);
+                if (normalizedSelectValues.includes(getUnitFilterName(unit))) {
+                    displayUnitTree(unit);
+                    expandUnit(unit);
                 }
             } else {
                 // 如果是进程单位，则根据进程名称设置显示状态
-                if (selectValues.includes(((unit.metadata as ProcessMetaData).processName))) {
-                    setUnitDisplay(unit);
+                if (normalizedSelectValues.includes(getUnitFilterName(unit))) {
+                    displayUnitTree(unit);
+                    expandUnit(unit);
                 }
             }
         });
@@ -245,18 +265,24 @@ const doUnitsFilter = (flattenUnits: InsightUnit[], selectValues: string[]): voi
  * @param selectValues - 选择值数组。
  * @returns 如果单元匹配则返回true，否则返回false。
  */
-const findMatchUnit = (unit: InsightUnit, selectValues: string[]): boolean => {
+export const findMatchUnit = (unit: InsightUnit, selectValues: string[]): boolean => {
     let hasMatchUnit = false;
     unit.children?.forEach(childUnit => {
-        let isUnitMatch = false;
-        if (childUnit.name === 'Thread') {
-            isUnitMatch = selectValues.includes((childUnit.metadata as ThreadMetaData).threadName);
+        const isUnitMatch = selectValues.includes(getUnitFilterName(childUnit));
+        const hasMatchedChild = isUnitMatch ? false : findMatchUnit(childUnit, selectValues);
+        if (isUnitMatch) {
+            displayUnitTree(childUnit);
         } else {
-            isUnitMatch = selectValues.includes((childUnit.metadata as ProcessMetaData).processName);
+            childUnit.isDisplay = hasMatchedChild;
         }
-        childUnit.isDisplay = isUnitMatch || findMatchUnit(childUnit, selectValues);
+        if (childUnit.isDisplay) {
+            expandUnit(childUnit);
+        }
         hasMatchUnit = hasMatchUnit || childUnit.isDisplay;
     });
+    if (hasMatchUnit) {
+        expandUnit(unit);
+    }
     return hasMatchUnit;
 };
 
@@ -289,7 +315,7 @@ const setAllUnitsDisplay = (session: Session): void => {
  * @param session - 包含单元的会话对象。
  * @returns 包含卡片名称和单元名称的集合对象。
  */
-const useUnitsNameSet = (session: Session): { cardNames: Set<string>; unitNames: Set<string> } => {
+export const useUnitsNameSet = (session: Session): { cardNames: Set<string>; unitNames: Set<string> } => {
     const cardNames = new Set<string>();
     const unitNames = new Set<string>();
 
@@ -302,15 +328,15 @@ const useUnitsNameSet = (session: Session): { cardNames: Set<string>; unitNames:
             cardNames.add((unit.metadata as CardMetaData).cardName ?? '');
         }
         if (unit.name === 'Process' || unit.name === 'Label') {
-            const metaDataName = (unit.metadata as ProcessMetaData).processName;
+            const metaDataName = getUnitFilterName(unit);
             if (metaDataName === 'Process Scheduling' || (!metaDataName.toLowerCase().includes('process') && !metaDataName.toLowerCase().includes('thread'))) {
-                unitNames.add(metaDataName.replace(/\(\d{0,12}\)/, '').trim());
+                unitNames.add(metaDataName);
             }
         }
         if (unit.name === 'Thread') {
-            const metaDataName = (unit.metadata as ThreadMetaData).threadName;
+            const metaDataName = getUnitFilterName(unit);
             if (metaDataName && metaDataName !== '' && ['pytorch', 'mstx', 'python gc', 'cann', 'os runtime api'].includes(metaDataName.toLowerCase())) {
-                unitNames.add(metaDataName.replace(/\(\d{0,12}\)/, '').trim());
+                unitNames.add(metaDataName);
             }
         }
         if (unit.children) {

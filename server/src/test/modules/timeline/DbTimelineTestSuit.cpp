@@ -23,11 +23,9 @@
 #include "TrackInfoManager.h"
 #include "RepositoryFactory.h"
 
-class DbTimelineTestSuit : FullDbTestSuit {
-};
+class DbTimelineTestSuit : FullDbTestSuit {};
 
-TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithFuzzyMatch)
-{
+TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithFuzzyMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     uint32_t expectCount = 1;
     Dic::Protocol::SearchCountParams params;
@@ -38,8 +36,7 @@ TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithFuzzyMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithCaseMatch)
-{
+TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithCaseMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     uint32_t expectCount = 0;
     Dic::Protocol::SearchCountParams params;
@@ -51,8 +48,7 @@ TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithCaseMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithExactMatch)
-{
+TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithExactMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     uint32_t expectCount = 3;
     Dic::Protocol::SearchCountParams params;
@@ -64,8 +60,7 @@ TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithExactMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithCaseAndExactMatch)
-{
+TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithCaseAndExactMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     uint32_t expectCount = 0;
     Dic::Protocol::SearchCountParams params;
@@ -78,8 +73,7 @@ TEST_F(FullDbTestSuit, FullDb_of_SearchSliceNameCountWithCaseAndExactMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_SearchSliceName)
-{
+TEST_F(FullDbTestSuit, FullDb_of_SearchSliceName) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::SearchSliceParams params;
@@ -102,8 +96,7 @@ TEST_F(FullDbTestSuit, FullDb_of_SearchSliceName)
     EXPECT_EQ(body.duration, expectDuration);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_QueryRankIds)
-{
+TEST_F(FullDbTestSuit, FullDb_of_QueryRankIds) {
     auto database = std::dynamic_pointer_cast<DbTraceDataBase, Timeline::VirtualTraceDatabase>(
         Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb"));
     EXPECT_NE(database, nullptr);
@@ -112,8 +105,7 @@ TEST_F(FullDbTestSuit, FullDb_of_QueryRankIds)
     EXPECT_EQ(rankIds.size(), 8); // size = 8
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesSummary)
-{
+TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesSummary) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::UnitThreadTracesSummaryBody body;
@@ -173,8 +165,7 @@ TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesSummary)
     EXPECT_EQ(database->QueryThreadTracesSummary(params, body, minTimestamp), false);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesSummary_MSTX)
-{
+TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesSummary_MSTX) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::UnitThreadTracesSummaryBody body;
@@ -193,8 +184,7 @@ TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesSummary_MSTX)
     body.data.clear();
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesList)
-{
+TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesList) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::UnitThreadsBody body;
@@ -203,11 +193,7 @@ TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesList)
     params.startTime = 0;
     params.endTime = 400000000; // endTime = 400000000
     params.rankId = "2";
-    Dic::Protocol::Metadata metadata{
-            .tid = "8",
-            .pid = "Ascend Hardware",
-            .metaType = "Ascend Hardware"
-    };
+    Dic::Protocol::Metadata metadata{.tid = "8", .pid = "Ascend Hardware", .metaType = "Ascend Hardware"};
     params.metadataList.emplace_back(metadata);
     database->QueryThreads(params, body, minTimestamp, {0});
     EXPECT_EQ(body.data.size(), 1);
@@ -239,19 +225,41 @@ TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesList)
     EXPECT_EQ(database->QueryThreads(params, body, minTimestamp, {0}), true);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_UnitMetaData)
-{
+TEST_F(FullDbTestSuit, FullDb_of_UnitMetaData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     auto metaData = std::vector<std::unique_ptr<Protocol::UnitTrack>>();
     database->QueryUnitsMetadata("2", metaData);
-    const uint64_t third = 2;
-    EXPECT_EQ(metaData.size(), 7); // size = 5
-    EXPECT_EQ(metaData[third]->children.size(), 3); // size = 3
+    bool hasTopLevelCounterMetric = false;
+    const Protocol::UnitTrack *hardwareMetrics = nullptr;
+    for (const auto &item : metaData) {
+        if (item->metaData.processName == "HBM" || item->metaData.processName == "LLC" ||
+            item->metaData.processName == "DDR" || item->metaData.processName == "NPU MEM") {
+            hasTopLevelCounterMetric = true;
+        }
+        if (item->metaData.processId == "__hardware_metrics__") {
+            hardwareMetrics = item.get();
+        }
+    }
+    ASSERT_NE(hardwareMetrics, nullptr);
+    EXPECT_EQ(hardwareMetrics->type, "label");
+    bool hasHbmMetric = false;
+    bool hasLlcMetric = false;
+    bool hasDdrMetric = false;
+    for (const auto &child : hardwareMetrics->children) {
+        ASSERT_NE(child, nullptr);
+        EXPECT_EQ(child->type, "label");
+        hasHbmMetric = hasHbmMetric || child->metaData.processName == "HBM";
+        hasLlcMetric = hasLlcMetric || child->metaData.processName == "LLC";
+        hasDdrMetric = hasDdrMetric || child->metaData.processName == "DDR";
+    }
+    EXPECT_EQ(hasTopLevelCounterMetric, false);
+    EXPECT_EQ(hasHbmMetric, true);
+    EXPECT_EQ(hasLlcMetric, true);
+    EXPECT_EQ(hasDdrMetric, true);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_HostMetaData)
-{
+TEST_F(FullDbTestSuit, FullDb_of_HostMetaData) {
     auto database = std::dynamic_pointer_cast<DbTraceDataBase, Timeline::VirtualTraceDatabase>(
         Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb"));
 
@@ -262,8 +270,7 @@ TEST_F(FullDbTestSuit, FullDb_of_HostMetaData)
     EXPECT_EQ(metaData[0]->children.size(), 1);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_QueryKernelDetailData)
-{
+TEST_F(FullDbTestSuit, FullDb_of_QueryKernelDetailData) {
     Dic::Protocol::KernelDetailsParams requestParams;
     requestParams.current = 1;
     requestParams.pageSize = 20; // pageSize = 20
@@ -284,8 +291,7 @@ TEST_F(FullDbTestSuit, FullDb_of_QueryKernelDetailData)
     EXPECT_EQ(responseBody.acceleratorCoreList.size(), 1);
 }
 
-TEST_F(FullDbTestSuit, FullDb_of_UnitCounter)
-{
+TEST_F(FullDbTestSuit, FullDb_of_UnitCounter) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
@@ -322,8 +328,7 @@ TEST_F(FullDbTestSuit, FullDb_of_UnitCounter)
     EXPECT_EQ(database->QueryUnitCounter(params, minTimestamp, counterData), false);
 }
 
-TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcess)
-{
+TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcess) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::EventsViewParams params;
@@ -347,7 +352,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcess)
     CheckEventsViewColumns4Api(body);
     EXPECT_EQ(body.eventDetailList.size(), EXPECT_COUNT);
 
-    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail*>(body.eventDetailList.at(0).get());
+    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "aclrtGetDeviceCount");
     EXPECT_EQ(ptr->startTime, EXPECT_START);
@@ -359,8 +364,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcess)
     EXPECT_EQ(ptr->depth, EXPECT_DEPTH);
 }
 
-TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThread)
-{
+TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThread) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::EventsViewParams params;
@@ -384,7 +388,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThread)
     CheckEventsViewColumns4Api(body);
     EXPECT_EQ(body.eventDetailList.size(), EXPECT_COUNT);
 
-    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail*>(body.eventDetailList.at(0).get());
+    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "aclrtGetDeviceCount");
     EXPECT_EQ(ptr->startTime, EXPECT_START);
@@ -396,8 +400,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThread)
     EXPECT_EQ(ptr->depth, EXPECT_DEPTH);
 }
 
-TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANN)
-{
+TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANN) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::EventsViewParams params;
@@ -421,7 +424,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANN)
     CheckEventsViewColumns4Api(body);
     EXPECT_EQ(body.eventDetailList.size(), EXPECT_COUNT);
 
-    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail*>(body.eventDetailList.at(0).get());
+    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "aclrtGetDeviceCount");
     EXPECT_EQ(ptr->startTime, EXPECT_START);
@@ -433,8 +436,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANN)
     EXPECT_EQ(ptr->depth, EXPECT_DEPTH);
 }
 
-TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANNAcl)
-{
+TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANNAcl) {
     const uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
     Dic::Protocol::EventsViewParams params;
@@ -460,7 +462,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANNAcl)
     CheckEventsViewColumns4Api(body);
     EXPECT_EQ(body.eventDetailList.size(), EXPECT_COUNT);
 
-    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail*>(body.eventDetailList.at(0).get());
+    auto ptr = dynamic_cast<Dic::Protocol::HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "aclrtGetDeviceCount");
     EXPECT_EQ(ptr->startTime, EXPECT_START);
@@ -472,8 +474,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANNAcl)
     EXPECT_EQ(ptr->depth, EXPECT_DEPTH);
 }
 
-TEST_F(FullDbTestSuit, QueryComputeStatisticsData)
-{
+TEST_F(FullDbTestSuit, QueryComputeStatisticsData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Protocol::SummaryStatisticParams requestParams;
@@ -485,8 +486,7 @@ TEST_F(FullDbTestSuit, QueryComputeStatisticsData)
     EXPECT_EQ(responseBody.summaryStatisticsItemList.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryInsightHostToDeviceFlowCategoryEvents)
-{
+TEST_F(FullDbTestSuit, QueryInsightHostToDeviceFlowCategoryEvents) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -502,8 +502,7 @@ TEST_F(FullDbTestSuit, QueryInsightHostToDeviceFlowCategoryEvents)
     EXPECT_EQ(flowDetailList.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryInsightMsTxFlowCategoryEvents)
-{
+TEST_F(FullDbTestSuit, QueryInsightMsTxFlowCategoryEvents) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -519,8 +518,7 @@ TEST_F(FullDbTestSuit, QueryInsightMsTxFlowCategoryEvents)
     EXPECT_EQ(flowDetailList.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryInsightAsyncTaskQueueFlowCategoryEvents)
-{
+TEST_F(FullDbTestSuit, QueryInsightAsyncTaskQueueFlowCategoryEvents) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -536,8 +534,7 @@ TEST_F(FullDbTestSuit, QueryInsightAsyncTaskQueueFlowCategoryEvents)
     EXPECT_EQ(flowDetailList.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryInsightFwdbwdFlowCategoryEvents)
-{
+TEST_F(FullDbTestSuit, QueryInsightFwdbwdFlowCategoryEvents) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -553,8 +550,7 @@ TEST_F(FullDbTestSuit, QueryInsightFwdbwdFlowCategoryEvents)
     EXPECT_EQ(flowDetailList.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryInsightAsyncNpuFlowCategoryEvents)
-{
+TEST_F(FullDbTestSuit, QueryInsightAsyncNpuFlowCategoryEvents) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -570,8 +566,7 @@ TEST_F(FullDbTestSuit, QueryInsightAsyncNpuFlowCategoryEvents)
     EXPECT_EQ(flowDetailList.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryCANNSliceByNameListSuccess)
-{
+TEST_F(FullDbTestSuit, QueryCANNSliceByNameListSuccess) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -583,21 +578,19 @@ TEST_F(FullDbTestSuit, QueryCANNSliceByNameListSuccess)
     EXPECT_EQ(res.size(), expectedSize);
 }
 
-TEST_F(FullDbTestSuit, QueryHardwareSliceByNameListSuccess)
-{
+TEST_F(FullDbTestSuit, QueryHardwareSliceByNameListSuccess) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
     auto renderEngine = RenderEngine::Instance();
     renderEngine->SetDataEngineInterface(dataEngine);
-    std::vector<CompeteSliceDomain> res = renderEngine->QuerySliceDetailByNameList("FullDb", DataType::DB,
-        "Ascend Hardware", {"aclnnInplaceZero_ZerosLikeAiCore_ZerosLike"});
+    std::vector<CompeteSliceDomain> res = renderEngine->QuerySliceDetailByNameList(
+        "FullDb", DataType::DB, "Ascend Hardware", {"aclnnInplaceZero_ZerosLikeAiCore_ZerosLike"});
     const int expectedSize = 1;
     EXPECT_EQ(res.size(), expectedSize);
 }
 
-TEST_F(FullDbTestSuit, QueryUnitFLows)
-{
+TEST_F(FullDbTestSuit, QueryUnitFLows) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Protocol::UnitFlowsParams requestParams;
@@ -613,8 +606,7 @@ TEST_F(FullDbTestSuit, QueryUnitFLows)
     EXPECT_EQ(responseBody.unitAllFlows.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryTotalKernel)
-{
+TEST_F(FullDbTestSuit, QueryTotalKernel) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Protocol::KernelDetailsParams requestParams;
@@ -626,8 +618,7 @@ TEST_F(FullDbTestSuit, QueryTotalKernel)
     EXPECT_EQ(result, EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, QueryKernelDepthAndThread)
-{
+TEST_F(FullDbTestSuit, QueryKernelDepthAndThread) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Protocol::KernelParams params;
@@ -642,8 +633,7 @@ TEST_F(FullDbTestSuit, QueryKernelDepthAndThread)
     EXPECT_EQ(responseBody.id, EXPECT_ID);
 }
 
-TEST_F(FullDbTestSuit, QueryCommunicationKernelInfoDbSuccess)
-{
+TEST_F(FullDbTestSuit, QueryCommunicationKernelInfoDbSuccess) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Protocol::KernelParams params;
@@ -653,8 +643,7 @@ TEST_F(FullDbTestSuit, QueryCommunicationKernelInfoDbSuccess)
     EXPECT_EQ(responseBody.id, "");
 }
 
-TEST_F(FullDbTestSuit, SearchAllSlicesDetails)
-{
+TEST_F(FullDbTestSuit, SearchAllSlicesDetails) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Protocol::SearchAllSliceParams params;
@@ -672,12 +661,11 @@ TEST_F(FullDbTestSuit, SearchAllSlicesDetails)
     EXPECT_EQ(body.searchAllSlices.size(), EXPECT_COUNT);
 }
 
-TEST_F(FullDbTestSuit, TestQueryThreadSameOperatorsDetailsWhenHccl)
-{
+TEST_F(FullDbTestSuit, TestQueryThreadSameOperatorsDetailsWhenHccl) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Dic::Protocol::UnitThreadsOperatorsParams requestParams;
-    requestParams.processes.push_back(SimpleProcess {"HCCL", {"0"}});
+    requestParams.processes.push_back(SimpleProcess{"HCCL", {"0"}});
     requestParams.rankId = "2";
     requestParams.metaTypeList = {"HCCL"};
     requestParams.orderBy = "duration";
@@ -691,12 +679,11 @@ TEST_F(FullDbTestSuit, TestQueryThreadSameOperatorsDetailsWhenHccl)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(FullDbTestSuit, TestQueryThreadSameOperatorsDetailsWhenOverlap)
-{
+TEST_F(FullDbTestSuit, TestQueryThreadSameOperatorsDetailsWhenOverlap) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Dic::Protocol::UnitThreadsOperatorsParams requestParams;
-    requestParams.processes.push_back(SimpleProcess {"17738580008830245", {"0"}});
+    requestParams.processes.push_back(SimpleProcess{"17738580008830245", {"0"}});
     requestParams.metaTypeList = {"OVERLAP_ANALYSIS"};
     requestParams.orderBy = "duration";
     requestParams.order = "DESC";

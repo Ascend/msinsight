@@ -481,6 +481,9 @@ std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetCounterStmt(uint6
 
 bool TextTraceDatabase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesSummaryParams &requestParams,
     Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp) {
+    if (IsHardwareMetricsUnit(requestParams.processId, requestParams.metaType)) {
+        return true;
+    }
     const int64_t maxDataCount = 30000;
     uint64_t unitTime =
         (requestParams.endTime - requestParams.startTime) / maxDataCount; // 校验过保证 endTime > startTime
@@ -813,7 +816,71 @@ bool TextTraceDatabase::QueryUnitsMetadata(
         tempMetaData.emplace_back(std::move(process));
     }
     TraceDatabaseHelper::ComputeTree(metaData, processes, tempMetaData);
+    GroupCounterMetadata(fileId, metaData);
     return true;
+}
+
+bool TextTraceDatabase::IsHardwareMetricsUnit(const std::string &processId, const std::string &metaType) {
+    return processId == HARDWARE_METRICS_PROCESS_ID || metaType == HARDWARE_METRICS_META_TYPE;
+}
+
+std::unique_ptr<Protocol::UnitTrack> TextTraceDatabase::GenerateHardwareMetricsUnitTrack(const std::string &fileId) {
+    std::unique_ptr<UnitTrack> hardwareMetrics = std::make_unique<UnitTrack>();
+    hardwareMetrics->type = "label";
+    hardwareMetrics->metaData.cardId = fileId;
+    hardwareMetrics->metaData.processId = HARDWARE_METRICS_PROCESS_ID;
+    hardwareMetrics->metaData.processName = HARDWARE_METRICS_PROCESS_NAME;
+    hardwareMetrics->metaData.metaType = HARDWARE_METRICS_META_TYPE;
+    return hardwareMetrics;
+}
+
+bool TextTraceDatabase::ExtractCounterMetadata(std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData,
+    Protocol::UnitTrack &hardwareMetrics) {
+    bool hasCounter = false;
+    for (auto unitIt = metaData.begin(); unitIt != metaData.end();) {
+        if (*unitIt == nullptr) {
+            unitIt = metaData.erase(unitIt);
+            continue;
+        }
+
+        bool hasChildCounter = ExtractCounterMetadata((*unitIt)->children, hardwareMetrics);
+        std::vector<std::unique_ptr<UnitTrack>> counterChildren;
+        for (auto childIt = (*unitIt)->children.begin(); childIt != (*unitIt)->children.end();) {
+            if (*childIt != nullptr && (*childIt)->type == "counter") {
+                counterChildren.emplace_back(std::move(*childIt));
+                childIt = (*unitIt)->children.erase(childIt);
+            } else {
+                ++childIt;
+            }
+        }
+
+        bool hasDirectCounter = !counterChildren.empty();
+        if (hasDirectCounter) {
+            std::unique_ptr<UnitTrack> counterGroup = std::make_unique<UnitTrack>();
+            counterGroup->type = "label";
+            counterGroup->metaData = (*unitIt)->metaData;
+            counterGroup->children = std::move(counterChildren);
+            hardwareMetrics.children.emplace_back(std::move(counterGroup));
+        }
+
+        bool hasCounterInUnit = hasChildCounter || hasDirectCounter;
+        hasCounter = hasCounter || hasCounterInUnit;
+        if (hasCounterInUnit && (*unitIt)->children.empty()) {
+            unitIt = metaData.erase(unitIt);
+            continue;
+        }
+        ++unitIt;
+    }
+    return hasCounter;
+}
+
+void TextTraceDatabase::GroupCounterMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
+    auto hardwareMetrics = GenerateHardwareMetricsUnitTrack(fileId);
+    ExtractCounterMetadata(metaData, *hardwareMetrics);
+    if (!hardwareMetrics->children.empty()) {
+        metaData.emplace_back(std::move(hardwareMetrics));
+    }
 }
 
 void TextTraceDatabase::AddThreadTrack(const std::string &fileId,

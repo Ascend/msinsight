@@ -185,6 +185,9 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     FtraceStatistics QueryFtraceStatistics(FtraceDataType dataType, uint64_t offset, uint64_t limit);
 
   private:
+    static constexpr const char *HARDWARE_METRICS_PROCESS_ID = "__hardware_metrics__";
+    static constexpr const char *HARDWARE_METRICS_PROCESS_NAME = "Hardware Metrics";
+    static constexpr const char *HARDWARE_METRICS_META_TYPE = "HARDWARE_METRICS";
     const std::string sliceTable = "slice";
     const std::string threadTable = "thread";
     const std::string processTable = "process";
@@ -238,6 +241,12 @@ class TextTraceDatabase : public VirtualTraceDatabase {
 
     void AddThreadTrack(const std::string &fileId, std::map<std::pair<std::string, std::string>, std::string> &counters,
         std::unique_ptr<Protocol::UnitTrack> &process, const Thread &tThread);
+    static bool IsHardwareMetricsUnit(const std::string &processId, const std::string &metaType);
+    static std::unique_ptr<Protocol::UnitTrack> GenerateHardwareMetricsUnitTrack(const std::string &fileId);
+    static bool ExtractCounterMetadata(std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData,
+        Protocol::UnitTrack &hardwareMetrics);
+    static void GroupCounterMetadata(
+        const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
 
     bool SearchSliceNameWithOutLock(const Protocol::SearchSliceParams &params, int index, uint64_t minTimestamp,
         Protocol::SearchSliceBody &responseBody);
