@@ -32,18 +32,12 @@ constexpr long long JSON_AND_BIN_SIZE = 10ULL * 1024 * 1024 * 1024;
 constexpr uint64_t FILE_COUNT_LIMIT = 100000; // 最大遍历文件数量
 namespace Module = Dic::Module;
 std::unordered_map<std::string, long long> FILE_MAX_SIZE = {
-    {".csv", CSV_SIZE},
-    {".json", JSON_AND_BIN_SIZE},
-    {".bin", JSON_AND_BIN_SIZE},
-    {".db", JSON_AND_BIN_SIZE}
-};
+    {".csv", CSV_SIZE}, {".json", JSON_AND_BIN_SIZE}, {".bin", JSON_AND_BIN_SIZE}, {".db", JSON_AND_BIN_SIZE}};
 }
 
-bool Dic::Module::CheckProjectValidHandler::HandleRequest(std::unique_ptr<Request> requestPtr)
-{
+bool Dic::Module::CheckProjectValidHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     auto &request = dynamic_cast<ProjectCheckValidRequest &>(*requestPtr.get());
-    std::unique_ptr<ProjectCheckValidResponse> responsePtr =
-            std::make_unique<ProjectCheckValidResponse>();
+    std::unique_ptr<ProjectCheckValidResponse> responsePtr = std::make_unique<ProjectCheckValidResponse>();
     ProjectCheckValidResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     ProjectErrorType error = ProjectErrorType::NO_ERRORS;
@@ -54,17 +48,15 @@ bool Dic::Module::CheckProjectValidHandler::HandleRequest(std::unique_ptr<Reques
     return true;
 }
 
-bool Dic::Module::CheckProjectValidHandler::CheckRequestParamsValid(ProjectCheckParams &params, ProjectErrorType &error)
-{
+bool Dic::Module::CheckProjectValidHandler::CheckRequestParamsValid(
+    ProjectCheckParams &params, ProjectErrorType &error) {
     std::string errorMsg;
-    bool safe = std::all_of(params.dataPath.begin(),
-                            params.dataPath.end(),
-                            [&error](const std::string& p) {
-                                if (!CheckPathSafety(p, error)) {
-                                    return false;
-                                }
-                                return true;
-                            });
+    bool safe = std::all_of(params.dataPath.begin(), params.dataPath.end(), [&error](const std::string &p) {
+        if (!CheckPathSafety(p, error)) {
+            return false;
+        }
+        return true;
+    });
     if (!safe) {
         return false;
     }
@@ -73,7 +65,7 @@ bool Dic::Module::CheckProjectValidHandler::CheckRequestParamsValid(ProjectCheck
         return false;
     }
     uint64_t fileCount = 0;
-    for (const auto &path: params.dataPath) {
+    for (const auto &path : params.dataPath) {
         if (++fileCount > FILE_COUNT_LIMIT) {
             break;
         }
@@ -93,9 +85,8 @@ bool Dic::Module::CheckProjectValidHandler::CheckRequestParamsValid(ProjectCheck
     return true;
 }
 
-bool Dic::Module::CheckProjectValidHandler::CheckProjectFile(ProjectCheckParams &params, const fs::path &filePath,
-                                                             ProjectErrorType &error)
-{
+bool Dic::Module::CheckProjectValidHandler::CheckProjectFile(
+    ProjectCheckParams &params, const fs::path &filePath, ProjectErrorType &error) {
     if (FILE_MAX_SIZE.count(filePath.extension().string()) == 0) {
         return true;
     }
@@ -110,15 +101,13 @@ bool Dic::Module::CheckProjectValidHandler::CheckProjectFile(ProjectCheckParams 
     return true;
 }
 
-bool Dic::Module::CheckProjectValidHandler::CheckFileSize(const fs::path &filePath)
-{
+bool Dic::Module::CheckProjectValidHandler::CheckFileSize(const fs::path &filePath) {
     if (FileUtil::GetFileSize(filePath.u8string().c_str()) > FILE_MAX_SIZE[filePath.extension().string()]) {
         return false;
     }
     return true;
 }
-bool CheckProjectValidHandler::CheckPathSafety(const std::string& path, ProjectErrorType& error)
-{
+bool CheckProjectValidHandler::CheckPathSafety(const std::string &path, ProjectErrorType &error) {
     if (!FileUtil::CheckPathSecurity(path)) {
         error = ProjectErrorType::IS_UNSAFE_PATH;
         return false;

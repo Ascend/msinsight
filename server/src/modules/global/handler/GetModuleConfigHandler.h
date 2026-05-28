@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Global {
 class GetModuleConfigHandler : public GlobalHandler {
-public:
-    GetModuleConfigHandler()
-    {
-        command = REQ_RES_GET_MODULE_CONFIG;
-    }
+  public:
+    GetModuleConfigHandler() { command = REQ_RES_GET_MODULE_CONFIG; }
     ~GetModuleConfigHandler() override = default;
     bool HandleRequest(std::unique_ptr<Request> requestPtr) override;
 };

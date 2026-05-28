@@ -26,17 +26,16 @@ namespace Dic {
 namespace Module {
 namespace Global {
 class BaselineManagerService {
-public:
+  public:
     static void ResetBaseline(bool force);
     static bool InitBaselineData(const Protocol::BaselineSettingRequest &request, BaselineInfo &baselineInfo);
-private:
+
+  private:
     static bool IsClusterBaseline(ProjectTypeEnum projectTypeEnum,
-                                  const std::vector<ProjectExplorerInfo> &projectInfoList,
-                                  const std::string &filePath);
+        const std::vector<ProjectExplorerInfo> &projectInfoList, const std::string &filePath);
     static void InitBaselineParallelStrategy(const std::string &compareClusterPath);
     static bool CheckIsSupportCompare(const std::vector<ProjectExplorerInfo> &baseline,
-                                      const std::vector<ProjectExplorerInfo> &cur,
-                                      std::string &errorMsg, const std::string &filePath);
+        const std::vector<ProjectExplorerInfo> &cur, std::string &errorMsg, const std::string &filePath);
 };
 }
 }

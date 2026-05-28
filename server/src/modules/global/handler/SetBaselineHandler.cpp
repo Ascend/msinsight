@@ -26,8 +26,7 @@ namespace Module {
 using namespace Dic::Server;
 using namespace Global;
 
-bool SetBaselineHandler::HandleRequest(std::unique_ptr<Request> requestPtr)
-{
+bool SetBaselineHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     auto &request = dynamic_cast<BaselineSettingRequest &>(*requestPtr);
     std::unique_ptr<BaselineSettingResponse> responsePtr = std::make_unique<BaselineSettingResponse>();
     BaselineSettingResponse &response = *responsePtr;

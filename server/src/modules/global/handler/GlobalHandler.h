@@ -27,11 +27,8 @@
 namespace Dic {
 namespace Module {
 class GlobalHandler : public ModuleRequestHandler {
-public:
-    GlobalHandler()
-    {
-        moduleName = MODULE_GLOBAL;
-    }
+  public:
+    GlobalHandler() { moduleName = MODULE_GLOBAL; }
     ~GlobalHandler() override = default;
     bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override { return true; }
 };

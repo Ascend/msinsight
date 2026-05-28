@@ -77,8 +77,7 @@ struct ModuleConfigGetResponse : public Response {
     std::vector<std::string> configs;
 };
 
-struct ProjectExplorerInfoUpdateBody {
-};
+struct ProjectExplorerInfoUpdateBody {};
 
 struct ProjectExplorerInfoUpdateResponse : public Response {
     ProjectExplorerInfoUpdateResponse() : Response(REQ_RES_PROJECT_EXPLORER_UPDATE) {};
@@ -100,8 +99,7 @@ struct ProjectExplorerInfoGetResponse : public Response {
     ProjectExplorerInfoGetBody body;
 };
 
-struct ProjectExplorerInfoDeleteBody {
-};
+struct ProjectExplorerInfoDeleteBody {};
 
 struct ProjectExplorerInfoDeleteResponse : public Response {
     ProjectExplorerInfoDeleteResponse() : Response(REQ_RES_PROJECT_EXPLORER_INFO_DELETE) {};

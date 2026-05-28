@@ -23,9 +23,8 @@
 namespace Dic {
 namespace Module {
 class SetBaselineHandler : public GlobalHandler {
-public:
-    SetBaselineHandler()
-    {
+  public:
+    SetBaselineHandler() {
         command = REQ_RES_PROJECT_SET_BASELINE;
         async = false;
     }

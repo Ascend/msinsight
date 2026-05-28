@@ -24,12 +24,11 @@
 #include "shared_mutex"
 #include "SystemMemoryDatabaseDef.h"
 
-
 namespace Dic {
 namespace Module {
 namespace Global {
 class BaselineManager {
-public:
+  public:
     static BaselineManager &Instance();
     BaselineManager(const BaselineManager &) = delete;
     BaselineManager &operator=(const BaselineManager &) = delete;
@@ -38,20 +37,14 @@ public:
     std::string GetBaselineId();
     bool IsBaselineRankId(const std::string &rankId);
     void SetBaselineInfo(const BaselineInfo &baselineInfo);
-    std::string GetCompareClusterPath()
-    {
-        return compareClusterPath;
-    }
+    std::string GetCompareClusterPath() { return compareClusterPath; }
 
-    void SetCompareClusterPath(const std::string& clusterPath)
-    {
-        compareClusterPath = clusterPath;
-    }
-    void SetBaselineClusterPath(const std::string& clusterPath);
+    void SetCompareClusterPath(const std::string &clusterPath) { compareClusterPath = clusterPath; }
+    void SetBaselineClusterPath(const std::string &clusterPath);
     std::string GetBaseLineClusterPath();
     void Reset();
 
-private:
+  private:
     BaselineManager() = default;
     ~BaselineManager() = default;
     std::string baselineRankId;

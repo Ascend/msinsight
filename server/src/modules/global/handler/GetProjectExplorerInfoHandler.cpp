@@ -24,25 +24,24 @@ namespace Module {
 using namespace Dic::Server;
 using namespace Global;
 
-bool GetProjectExplorerInfoHandler::HandleRequest(std::unique_ptr<Request> requestPtr)
-{
+bool GetProjectExplorerInfoHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     auto &request = dynamic_cast<ProjectExplorerInfoGetRequest &>(*requestPtr.get());
     std::unique_ptr<ProjectExplorerInfoGetResponse> responsePtr = std::make_unique<ProjectExplorerInfoGetResponse>();
     ProjectExplorerInfoGetResponse &response = *responsePtr;
     SetBaseResponse(request, response);
-    std::vector<ProjectExplorerInfo> infos = ProjectExplorerManager::Instance()
-            .QueryProjectExplorer("", std::vector<std::string>());
+    std::vector<ProjectExplorerInfo> infos =
+        ProjectExplorerManager::Instance().QueryProjectExplorer("", std::vector<std::string>());
     // adapt one project have two import path, merge by name
     std::map<std::string, std::vector<std::string>> res;
     std::map<std::string, ProjectExplorerInfo> infoMap;
-    for (const auto &info: infos) {
+    for (const auto &info : infos) {
         if (infoMap.find(info.projectName) != infoMap.end()) {
             infoMap[info.projectName].MergeProjectExploreInfo(info);
             continue;
         }
         infoMap[info.projectName] = info;
     }
-    for (const auto &[name, info]: infoMap) {
+    for (const auto &[name, info] : infoMap) {
         Protocol::ProjectDirectoryInfo temp;
         temp.projectName = name;
         temp.fileName = info.subParseFileInfo;

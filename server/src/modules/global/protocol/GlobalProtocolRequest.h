@@ -47,15 +47,14 @@ struct ProjectExplorerInfoUpdateParams {
 };
 
 struct ProjectExplorerInfoUpdateRequest : public Request {
-    ProjectExplorerInfoUpdateRequest(): Request(REQ_RES_PROJECT_EXPLORER_UPDATE) {}
+    ProjectExplorerInfoUpdateRequest() : Request(REQ_RES_PROJECT_EXPLORER_UPDATE) {}
     ProjectExplorerInfoUpdateParams params;
 };
 
-struct ProjectExplorerInfoGetParams {
-};
+struct ProjectExplorerInfoGetParams {};
 
 struct ProjectExplorerInfoGetRequest : public Request {
-    ProjectExplorerInfoGetRequest(): Request(REQ_RES_PROJECT_EXPLORER_INFO_GET) {}
+    ProjectExplorerInfoGetRequest() : Request(REQ_RES_PROJECT_EXPLORER_INFO_GET) {}
     ProjectExplorerInfoGetParams params;
 };
 
@@ -65,7 +64,7 @@ struct ProjectExplorerInfoDeleteParams {
 };
 
 struct ProjectExplorerInfoDeleteRequest : public Request {
-    ProjectExplorerInfoDeleteRequest(): Request(REQ_RES_PROJECT_EXPLORER_INFO_DELETE) {}
+    ProjectExplorerInfoDeleteRequest() : Request(REQ_RES_PROJECT_EXPLORER_INFO_DELETE) {}
     ProjectExplorerInfoDeleteParams params;
 };
 
@@ -74,21 +73,18 @@ struct ProjectExplorerInfoClearParams {
 };
 
 struct ProjectExplorerInfoClearRequest : public Request {
-    ProjectExplorerInfoClearRequest(): Request(REQ_RES_PROJECT_EXPLORER_CLEAR) {}
+    ProjectExplorerInfoClearRequest() : Request(REQ_RES_PROJECT_EXPLORER_CLEAR) {}
     ProjectExplorerInfoClearParams params;
 };
 
 struct ProjectCheckParams {
     std::string projectName;
     std::vector<std::string> dataPath;
-    bool ConvertToRealPath(std::string &errorMsg)
-    {
-        return FileUtil::ConvertToRealPath(errorMsg, dataPath);
-    }
+    bool ConvertToRealPath(std::string &errorMsg) { return FileUtil::ConvertToRealPath(errorMsg, dataPath); }
 };
 
 struct ProjectCheckValidRequest : public Request {
-    ProjectCheckValidRequest(): Request(REQ_RES_PROJECT_VALID_CHECK) {}
+    ProjectCheckValidRequest() : Request(REQ_RES_PROJECT_VALID_CHECK) {}
     ProjectCheckParams params;
 };
 
@@ -100,7 +96,7 @@ struct BaselineSettingParams {
 };
 
 struct BaselineSettingRequest : public Request {
-    BaselineSettingRequest(): Request(REQ_RES_PROJECT_SET_BASELINE) {}
+    BaselineSettingRequest() : Request(REQ_RES_PROJECT_SET_BASELINE) {}
     BaselineSettingParams params;
 };
 
@@ -109,7 +105,7 @@ struct BaselineCancelParams {
     std::string filePath;
 };
 struct BaselineCancelRequest : public Request {
-    BaselineCancelRequest(): Request(REQ_RES_PROJECT_CANCEL_BASELINE) {}
+    BaselineCancelRequest() : Request(REQ_RES_PROJECT_CANCEL_BASELINE) {}
     BaselineCancelParams params;
 };
 } // end of namespace Protocol

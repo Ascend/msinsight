@@ -21,14 +21,12 @@
 #include "ParserStatusManager.h"
 #include "BaselineManager.h"
 namespace Dic::Module::Global {
-BaselineManager &BaselineManager::Instance()
-{
+BaselineManager &BaselineManager::Instance() {
     static BaselineManager instance;
     return instance;
 }
 
-std::string BaselineManager::GetBaselineId()
-{
+std::string BaselineManager::GetBaselineId() {
     uint64_t count = 0;
     const uint64_t maxCount = 180;
     if (baselineRankId.empty()) {
@@ -50,8 +48,7 @@ std::string BaselineManager::GetBaselineId()
     }
 }
 
-bool BaselineManager::IsBaselineRankId(const std::string &rankId)
-{
+bool BaselineManager::IsBaselineRankId(const std::string &rankId) {
     std::shared_lock<std::shared_mutex> sharedLock(sharedMutex);
     if (std::empty(rankId) || std::empty(baselineRankId)) {
         return false;
@@ -59,8 +56,7 @@ bool BaselineManager::IsBaselineRankId(const std::string &rankId)
     return baselineRankId == rankId;
 }
 
-void BaselineManager::SetBaselineInfo(const BaselineInfo &baselineInfo)
-{
+void BaselineManager::SetBaselineInfo(const BaselineInfo &baselineInfo) {
     std::unique_lock<std::shared_mutex> uniqueLock(sharedMutex);
     baselineRankId = baselineInfo.rankId;
     baselineHost = baselineInfo.host;
@@ -68,8 +64,7 @@ void BaselineManager::SetBaselineInfo(const BaselineInfo &baselineInfo)
     isCluster = baselineInfo.isCluster;
 }
 
-void BaselineManager::Reset()
-{
+void BaselineManager::Reset() {
     std::unique_lock<std::shared_mutex> uniqueLock(sharedMutex);
     baselineRankId.clear();
     baselineHost.clear();
@@ -81,13 +76,7 @@ void BaselineManager::Reset()
     isCluster = false;
 }
 
-void BaselineManager::SetBaselineClusterPath(const std::string &clusterPath)
-{
-    baselineClusterPath = clusterPath;
-}
+void BaselineManager::SetBaselineClusterPath(const std::string &clusterPath) { baselineClusterPath = clusterPath; }
 
-std::string BaselineManager::GetBaseLineClusterPath()
-{
-    return baselineClusterPath;
-}
+std::string BaselineManager::GetBaseLineClusterPath() { return baselineClusterPath; }
 }
