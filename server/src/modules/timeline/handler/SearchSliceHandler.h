@@ -19,18 +19,14 @@
 #ifndef PROFILER_SERVER_SEARCH_SLICE_HANDLER_H
 #define PROFILER_SERVER_SEARCH_SLICE_HANDLER_H
 
-
 #include "TimelineRequestHandler.h"
 
 namespace Dic {
 namespace Module {
 namespace Timeline {
 class SearchSliceHandler : public TimelineRequestHandler {
-public:
-    SearchSliceHandler()
-    {
-        command = Protocol::REQ_RES_SEARCH_SLICE;
-    };
+  public:
+    SearchSliceHandler() { command = Protocol::REQ_RES_SEARCH_SLICE; };
     ~SearchSliceHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

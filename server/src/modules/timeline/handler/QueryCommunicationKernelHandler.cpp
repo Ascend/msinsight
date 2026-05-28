@@ -25,8 +25,7 @@ namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 
-bool QueryCommunicationKernelHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryCommunicationKernelHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     CommunicationKernelRequest &request = dynamic_cast<CommunicationKernelRequest &>(*requestPtr.get());
     std::unique_ptr<CommunicationKernelResponse> responsePtr = std::make_unique<CommunicationKernelResponse>();
     CommunicationKernelResponse &response = *responsePtr.get();
@@ -36,8 +35,8 @@ bool QueryCommunicationKernelHandler::HandleRequest(std::unique_ptr<Protocol::Re
         database = DataBaseManager::Instance().GetTraceDatabaseByFileId(request.fileId);
     } else {
         if (ProjectExplorerManager::Instance().IsTextMultiCluster(request.projectName)) {
-            request.params.rankId = StringUtil::StrJoin(FileUtil::GetFileName(request.params.clusterPath), "_",
-                                                        request.params.rankId);
+            request.params.rankId =
+                StringUtil::StrJoin(FileUtil::GetFileName(request.params.clusterPath), "_", request.params.rankId);
         }
         database = GetTraceDatabaseByRankId(request);
         if (database == nullptr) {
@@ -62,7 +61,7 @@ bool QueryCommunicationKernelHandler::HandleRequest(std::unique_ptr<Protocol::Re
     request.params.rankId = GetRealRankId(request.params.rankId);
     auto clusterDbList = Timeline::DataBaseManager::Instance().GetAllClusterDatabase();
     bool flag = false;
-    for (auto &clusterDb: clusterDbList) {
+    for (auto &clusterDb : clusterDbList) {
         if (!clusterDb || !clusterDb->QueryIterationAndCommunicationGroup(request.params, response.body)) {
             continue;
         }
@@ -78,8 +77,7 @@ bool QueryCommunicationKernelHandler::HandleRequest(std::unique_ptr<Protocol::Re
     return true;
 }
 
-std::string QueryCommunicationKernelHandler::GetRealRankId(const std::string &rankId)
-{
+std::string QueryCommunicationKernelHandler::GetRealRankId(const std::string &rankId) {
     if (rankId.empty()) {
         return rankId;
     }
@@ -92,13 +90,12 @@ std::string QueryCommunicationKernelHandler::GetRealRankId(const std::string &ra
 }
 
 std::shared_ptr<VirtualTraceDatabase> QueryCommunicationKernelHandler::GetTraceDatabaseByRankId(
-    CommunicationKernelRequest &request)
-{
+    CommunicationKernelRequest &request) {
     std::shared_ptr<VirtualTraceDatabase> database =
         DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
     if (database == nullptr) {
-        database = Timeline::DataBaseManager::Instance().GetTraceDatabaseInCluster(request.params.clusterPath,
-                                                                                   request.params.rankId);
+        database = Timeline::DataBaseManager::Instance().GetTraceDatabaseInCluster(
+            request.params.clusterPath, request.params.rankId);
         if (database == nullptr) {
             SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
         }

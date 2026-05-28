@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 
-
 #ifndef PROFILER_SERVER_QUERY_THREADS_SAME_OPERATOR_HANDLER_H
 #define PROFILER_SERVER_QUERY_THREADS_SAME_OPERATOR_HANDLER_H
 
@@ -26,17 +25,13 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryThreadsSameOperatorHandler : public TimelineRequestHandler {
-public:
-    QueryThreadsSameOperatorHandler()
-    {
-        command = Protocol::REQ_RES_SAME_OPERATORS_DURATION;
-    };
+  public:
+    QueryThreadsSameOperatorHandler() { command = Protocol::REQ_RES_SAME_OPERATORS_DURATION; };
     ~QueryThreadsSameOperatorHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
 } // end of namespace Timeline
 } // end of namespace Module
 } // end of namespace Dic
-
 
 #endif // PROFILER_SERVER_QUERY_THREADS_SAME_OPERATOR_HANDLER_H

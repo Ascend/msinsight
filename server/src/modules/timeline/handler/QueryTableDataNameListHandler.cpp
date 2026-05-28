@@ -20,8 +20,7 @@
 #include "QueryTableDataNameListHandler.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
-bool QueryTableDataNameListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryTableDataNameListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<TableDataNameListRequest &>(*requestPtr);
     std::unique_ptr<TableDataNameListResponse> responsePtr = std::make_unique<TableDataNameListResponse>();
     TableDataNameListResponse &response = *responsePtr;
@@ -35,7 +34,7 @@ bool QueryTableDataNameListHandler::HandleRequest(std::unique_ptr<Protocol::Requ
         return false;
     }
     std::shared_ptr<TextTraceDatabase> databasePtr =
-            std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(database);
+        std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(database);
     if (databasePtr == nullptr) {
         ServerLog::Warn("Failed to get text connection when query table names,ID: %", request.params.rankId);
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
@@ -44,7 +43,7 @@ bool QueryTableDataNameListHandler::HandleRequest(std::unique_ptr<Protocol::Requ
     }
     auto nameList = databasePtr->QueryTableDataNameList();
     auto translate = databasePtr->QueryTranslate(request.params.isZh);
-    for (const auto &item: nameList) {
+    for (const auto &item : nameList) {
         response.body.layers.emplace_back(item.first, translate[item.first]);
     }
     SendResponse(std::move(responsePtr), true);

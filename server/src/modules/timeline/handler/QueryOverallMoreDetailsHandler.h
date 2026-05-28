@@ -24,24 +24,22 @@
 
 namespace Dic::Module::Timeline {
 class QueryOverallMoreDetailsHandler : public TimelineRequestHandler {
-public:
-    QueryOverallMoreDetailsHandler()
-    {
-        command = Protocol::REQ_RES_SYSTEM_VIEW_OVERALL_MORE_DETAILS;
-    };
+  public:
+    QueryOverallMoreDetailsHandler() { command = Protocol::REQ_RES_SYSTEM_VIEW_OVERALL_MORE_DETAILS; };
 
     ~QueryOverallMoreDetailsHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-private:
+
+  private:
     static void GetComputingOverallMetricDetails(const std::shared_ptr<VirtualTraceDatabase> &database,
-        const SystemViewOverallReqParam &params, UnitThreadsOperatorsResponse &response,
-        uint64_t minTimestamp, SystemViewOverallHelper &overallHelper);
-    static void GetPagedData(std::vector<SameOperatorsDetails>& filteredEvents,
-        const SystemViewOverallReqParam &params, UnitThreadsOperatorsResponse &response);
+        const SystemViewOverallReqParam &params, UnitThreadsOperatorsResponse &response, uint64_t minTimestamp,
+        SystemViewOverallHelper &overallHelper);
+    static void GetPagedData(std::vector<SameOperatorsDetails> &filteredEvents, const SystemViewOverallReqParam &params,
+        UnitThreadsOperatorsResponse &response);
     static void GetCommunicationOverallMetricDetails(const std::shared_ptr<VirtualTraceDatabase> &database,
-        const SystemViewOverallReqParam &params, UnitThreadsOperatorsResponse &response,
-        uint64_t minTimestamp, SystemViewOverallHelper &overallHelper);
+        const SystemViewOverallReqParam &params, UnitThreadsOperatorsResponse &response, uint64_t minTimestamp,
+        SystemViewOverallHelper &overallHelper);
 };
 }
 #endif // PROFILER_SERVER_QUERYOVERALLMOREDETAILS_H

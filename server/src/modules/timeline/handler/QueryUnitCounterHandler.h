@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryUnitCounterHandler : public TimelineRequestHandler {
-public:
-    QueryUnitCounterHandler()
-    {
-        command = Protocol::REQ_RES_UNIT_COUNTER;
-    };
+  public:
+    QueryUnitCounterHandler() { command = Protocol::REQ_RES_UNIT_COUNTER; };
     ~QueryUnitCounterHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

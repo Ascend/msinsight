@@ -20,8 +20,7 @@
 
 namespace Dic {
 namespace Protocol {
-void KernelDetailsParams::Check(uint64_t minTime, std::string &error) const
-{
+void KernelDetailsParams::Check(uint64_t minTime, std::string &error) const {
     if (current == 0) {
         error = "current is invalid";
         return;
@@ -40,11 +39,9 @@ void KernelDetailsParams::Check(uint64_t minTime, std::string &error) const
     }
 }
 
-bool SystemViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const
-{
+bool SystemViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const {
     static const std::set<std::string> validLayerTypeSet = {
-        "Python", "CANN", "Ascend Hardware",
-        "HCCL", "COMMUNICATION", "Overlap Analysis" };
+        "Python", "CANN", "Ascend Hardware", "HCCL", "COMMUNICATION", "Overlap Analysis"};
     if (validLayerTypeSet.find(layer) == validLayerTypeSet.end()) {
         warnMsg = "Layer is invalid";
         return false;
@@ -63,8 +60,7 @@ bool SystemViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const
     return true;
 }
 
-bool EventsViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const
-{
+bool EventsViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const {
     // 检查入参合法性
     if (pid.empty()) {
         warnMsg = "Can not to query events view data while process id is empty.";
@@ -90,8 +86,7 @@ bool EventsViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const
     return true;
 }
 
-bool SystemViewOverallReqParam::CheckParams(uint64_t minTime, std::string &errMsg) const
-{
+bool SystemViewOverallReqParam::CheckParams(uint64_t minTime, std::string &errMsg) const {
     if (page.pageSize == 0) {
         errMsg = "Failed to check page parameter. Page size cannot be zero.";
         return false;
@@ -111,8 +106,7 @@ bool SystemViewOverallReqParam::CheckParams(uint64_t minTime, std::string &errMs
     return true;
 }
 
-bool UnitThreadsParams::CheckParams(uint64_t minTime, std::string &warnMsg) const
-{
+bool UnitThreadsParams::CheckParams(uint64_t minTime, std::string &warnMsg) const {
     if (startTime > endTime) {
         warnMsg = "unit threads start time is bigger than end time";
         return false;
@@ -138,8 +132,7 @@ bool UnitThreadsParams::CheckParams(uint64_t minTime, std::string &warnMsg) cons
     return true;
 }
 
-bool UnitThreadsOperatorsParams::CheckParams(uint64_t minTime, std::string &warnMsg) const
-{
+bool UnitThreadsOperatorsParams::CheckParams(uint64_t minTime, std::string &warnMsg) const {
     if (!StringUtil::CheckSqlValid(orderBy)) {
         warnMsg = "There is an SQL injection attack in request parameter orderBy in unit threads operators. ";
         return false;
@@ -170,7 +163,7 @@ bool UnitThreadsOperatorsParams::CheckParams(uint64_t minTime, std::string &warn
         warnMsg = "Failed to query threads same operator. process list is empty.";
         return false;
     }
-    for (const auto& process : processes) {
+    for (const auto &process : processes) {
         if (process.pid.empty() || process.tidList.empty()) {
             warnMsg = "Failed to query threads same operator. process list is invalid.";
             return false;
@@ -179,8 +172,7 @@ bool UnitThreadsOperatorsParams::CheckParams(uint64_t minTime, std::string &warn
     return CheckUnsignPageValid(pageSize, current, warnMsg);
 }
 
-bool MemcpyOverallRequest::Params::CheckParams(uint64_t minTime, std::string &errMsg) const
-{
+bool MemcpyOverallRequest::Params::CheckParams(uint64_t minTime, std::string &errMsg) const {
     if (page.pageSize == 0) {
         errMsg = "Failed to check page parameter. Page size cannot be zero.";
         return false;

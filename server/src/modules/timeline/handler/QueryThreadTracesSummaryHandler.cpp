@@ -24,8 +24,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryThreadTracesSummaryHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryThreadTracesSummaryHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     UnitThreadTracesSummaryRequest &request = dynamic_cast<UnitThreadTracesSummaryRequest &>(*requestPtr.get());
     std::unique_ptr<UnitThreadTracesSummaryResponse> responsePtr = std::make_unique<UnitThreadTracesSummaryResponse>();
     UnitThreadTracesSummaryResponse &response = *responsePtr.get();
@@ -45,8 +44,7 @@ bool QueryThreadTracesSummaryHandler::HandleRequest(std::unique_ptr<Protocol::Re
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    bool result = database->QueryThreadTracesSummary(request.params, response.body,
-                                                     minTimestamp);
+    bool result = database->QueryThreadTracesSummary(request.params, response.body, minTimestamp);
     if (!result) {
         SetTimelineError(ErrorCode::QUERY_THREAD_TRACES_SUMMARY_FAILED);
         SetResponseResult(response, result);

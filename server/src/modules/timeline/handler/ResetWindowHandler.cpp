@@ -33,8 +33,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool ResetWindowHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool ResetWindowHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     ResetWindowRequest &request = dynamic_cast<ResetWindowRequest &>(*requestPtr.get());
     std::unique_ptr<ResetWindowResponse> responsePtr = std::make_unique<ResetWindowResponse>();
     ResetWindowResponse &response = *responsePtr.get();

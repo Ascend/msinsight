@@ -61,8 +61,7 @@ struct StatsAccumulator {
     [[nodiscard]] double GetAvgTime() const {
         // 保留两位小数
         constexpr int decimalPlaces = 2;
-        return NumberUtil::DoubleReservedNDigits(
-            (count ? totalTime / static_cast<double>(count) : 0.0), decimalPlaces);
+        return NumberUtil::DoubleReservedNDigits((count ? totalTime / static_cast<double>(count) : 0.0), decimalPlaces);
     }
 };
 
@@ -72,25 +71,19 @@ struct StatsAccumulator {
  * @warning 不要直接在业务代码中调用（未来可能调整签名）
  */
 void BuildMemcpyOverallResult(
-    const std::vector<MemcpyRecord>& records,
-    MemcpyOverallResponse& response,
-    uint32_t current,
-    uint32_t pageSize
-);
+    const std::vector<MemcpyRecord> &records, MemcpyOverallResponse &response, uint32_t current, uint32_t pageSize);
 
 class QueryMemcpyOverallHandler : public TimelineRequestHandler {
-public:
-    QueryMemcpyOverallHandler()
-    {
-        command = Protocol::REQ_RES_MEMCPY_OVERALL;
-    };
+  public:
+    QueryMemcpyOverallHandler() { command = Protocol::REQ_RES_MEMCPY_OVERALL; };
 
     ~QueryMemcpyOverallHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-private:
-    static bool CalMemcpyData(MemcpyOverallRequest &request, MemcpyOverallResponse &response,
-                                  std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database);
+
+  private:
+    static bool CalMemcpyData(MemcpyOverallRequest &request, MemcpyOverallResponse &response, std::string &error,
+        const std::shared_ptr<VirtualTraceDatabase> &database);
 };
 } // end of namespace Dic::Module::Timeline
 

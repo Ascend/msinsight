@@ -19,17 +19,15 @@
 #include "MetaDataCacheManager.h"
 
 namespace Dic::Module::Timeline {
-void MetaDataCacheManager::Clear()
-{
+void MetaDataCacheManager::Clear() {
     std::unique_lock<std::shared_mutex> uniqueLock(sharedMutex);
     hcclGroupInfoMap.clear();
     distributedArgsInfo.reset();
 }
 
-void MetaDataCacheManager::AddParallelGroupInfo(const std::vector<ParallelGroupInfo>& parallelGroupInfoList)
-{
+void MetaDataCacheManager::AddParallelGroupInfo(const std::vector<ParallelGroupInfo> &parallelGroupInfoList) {
     std::unique_lock<std::shared_mutex> uniqueLock(sharedMutex);
-    for (const auto &item: parallelGroupInfoList) {
+    for (const auto &item : parallelGroupInfoList) {
         if (item.group.empty()) {
             continue;
         }
@@ -37,8 +35,7 @@ void MetaDataCacheManager::AddParallelGroupInfo(const std::vector<ParallelGroupI
     }
 }
 
-std::optional<ParallelGroupInfo> MetaDataCacheManager::GetParallelGroupInfo(const std::string &group)
-{
+std::optional<ParallelGroupInfo> MetaDataCacheManager::GetParallelGroupInfo(const std::string &group) {
     std::shared_lock<std::shared_mutex> sharedLock(sharedMutex);
     auto res = hcclGroupInfoMap.find(group);
     if (res != hcclGroupInfoMap.end()) {
@@ -47,14 +44,12 @@ std::optional<ParallelGroupInfo> MetaDataCacheManager::GetParallelGroupInfo(cons
     return {};
 }
 
-void MetaDataCacheManager::SetDistributedArgsInfo(const std::optional<DistributedArgs> &args)
-{
+void MetaDataCacheManager::SetDistributedArgsInfo(const std::optional<DistributedArgs> &args) {
     std::unique_lock<std::shared_mutex> uniqueLock(sharedMutex);
     distributedArgsInfo = args;
 }
 
-std::optional<DistributedArgs> MetaDataCacheManager::GetDistributedArgsInfo()
-{
+std::optional<DistributedArgs> MetaDataCacheManager::GetDistributedArgsInfo() {
     std::shared_lock<std::shared_mutex> sharedLock(sharedMutex);
     return distributedArgsInfo;
 }

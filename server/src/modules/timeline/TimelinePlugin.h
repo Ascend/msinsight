@@ -22,16 +22,10 @@
 #include "TimelineProtocol.h"
 namespace Dic::Module::Timeline {
 class TimelinePlugin : public Core::BasePlugin {
-public:
+  public:
     TimelinePlugin() : Core::BasePlugin(MODULE_TIMELINE) {};
-    std::unique_ptr<Module::BaseModule> GetModule() override
-    {
-        return std::make_unique<TimelineModule>();
-    }
-    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override
-    {
-        return std::make_unique<TimelineProtocol>();
-    }
+    std::unique_ptr<Module::BaseModule> GetModule() override { return std::make_unique<TimelineModule>(); }
+    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override { return std::make_unique<TimelineProtocol>(); }
 };
 }
 #endif // PROFILER_SERVER_TIMELINEPLUGIN_H

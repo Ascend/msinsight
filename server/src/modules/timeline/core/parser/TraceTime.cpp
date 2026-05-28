@@ -21,14 +21,12 @@
 namespace Dic {
 namespace Module {
 namespace Timeline {
-TraceTime &TraceTime::Instance()
-{
+TraceTime &TraceTime::Instance() {
     static TraceTime instance;
     return instance;
 }
 
-void TraceTime::Reset()
-{
+void TraceTime::Reset() {
     std::unique_lock<std::mutex> lock(mutex);
     maxTimestamp = 0;
     minTimestamp = UINT64_MAX;
@@ -38,13 +36,9 @@ void TraceTime::Reset()
     isSimulation = false;
 }
 
-TraceTime::TraceTime()
-{
-    Reset();
-}
+TraceTime::TraceTime() { Reset(); }
 
-void TraceTime::UpdateTime(uint64_t min, uint64_t max)
-{
+void TraceTime::UpdateTime(uint64_t min, uint64_t max) {
     std::unique_lock<std::mutex> lock(mutex);
     if (min > 0) {
         minTimestamp = std::min(minTimestamp, min);
@@ -52,14 +46,12 @@ void TraceTime::UpdateTime(uint64_t min, uint64_t max)
     maxTimestamp = std::max(maxTimestamp, max);
 }
 
-uint64_t TraceTime::GetStartTime()
-{
+uint64_t TraceTime::GetStartTime() {
     std::unique_lock<std::mutex> lock(mutex);
     return minTimestamp;
 }
 
-uint64_t TraceTime::GetDuration()
-{
+uint64_t TraceTime::GetDuration() {
     std::unique_lock<std::mutex> lock(mutex);
     uint64_t maxDuration = 0;
     for (const auto &cardGroup : cardGroupTimeDurations) {
@@ -71,8 +63,7 @@ uint64_t TraceTime::GetDuration()
     return maxDuration;
 }
 
-void TraceTime::UpdateCardTimeDuration(const std::string &fileId, uint64_t min, uint64_t max)
-{
+void TraceTime::UpdateCardTimeDuration(const std::string &fileId, uint64_t min, uint64_t max) {
     std::unique_lock<std::mutex> lock(mutex);
     if (cardTimeDurationMap.count(fileId) == 0) {
         cardTimeDurationMap[fileId] = {min, max};
@@ -85,8 +76,7 @@ void TraceTime::UpdateCardTimeDuration(const std::string &fileId, uint64_t min, 
     minTimestamp = std::min(minTimestamp, cardGroupTimeDurations.begin()->groupMinTime);
 }
 
-std::vector<std::pair<std::string, uint64_t>> TraceTime::ComputeCardMinTimeInfo()
-{
+std::vector<std::pair<std::string, uint64_t>> TraceTime::ComputeCardMinTimeInfo() {
     std::unique_lock<std::mutex> lock(mutex);
     std::vector<std::pair<std::string, uint64_t>> result;
     for (const auto &item : cardTimeDurationMap) {
@@ -96,8 +86,7 @@ std::vector<std::pair<std::string, uint64_t>> TraceTime::ComputeCardMinTimeInfo(
     return result;
 }
 
-uint64_t TraceTime::GetOffsetByFileId(const std::string &fileId)
-{
+uint64_t TraceTime::GetOffsetByFileId(const std::string &fileId) {
     std::unique_lock<std::mutex> lock(mutex);
     if (cardTimeDurationMap.count(fileId) == 0) {
         return 0;
@@ -106,8 +95,7 @@ uint64_t TraceTime::GetOffsetByFileId(const std::string &fileId)
     return ComputetargetOffset(targetTime);
 }
 
-uint64_t TraceTime::GetOffsetByFileIdUsingMinTimestamp(const std::string &fileId)
-{
+uint64_t TraceTime::GetOffsetByFileIdUsingMinTimestamp(const std::string &fileId) {
     std::unique_lock<std::mutex> lock(mutex);
     if (rankMinTimestampMap.find(fileId) == rankMinTimestampMap.end()) {
         return 0;
@@ -120,8 +108,7 @@ uint64_t TraceTime::GetOffsetByFileIdUsingMinTimestamp(const std::string &fileId
     return 0;
 }
 
-uint64_t TraceTime::ComputetargetOffset(const std::pair<uint64_t, uint64_t> &targetTime)
-{
+uint64_t TraceTime::ComputetargetOffset(const std::pair<uint64_t, uint64_t> &targetTime) {
     uint64_t cardMinTime = targetTime.first;
     for (const auto &item : cardGroupTimeDurations) {
         if (item.groupMinTime <= targetTime.first && item.groupMaxTime >= targetTime.second) {
@@ -134,21 +121,18 @@ uint64_t TraceTime::ComputetargetOffset(const std::pair<uint64_t, uint64_t> &tar
     return 0;
 }
 
-void TraceTime::SetIsSimulation(bool simulation)
-{
+void TraceTime::SetIsSimulation(bool simulation) {
     std::unique_lock<std::mutex> lock(mutex);
     isSimulation = simulation;
 }
 
-bool TraceTime::GetIsSimulation()
-{
+bool TraceTime::GetIsSimulation() {
     std::unique_lock<std::mutex> lock(mutex);
     return isSimulation;
 }
 
-void TraceTime::UpdateCardGroupTime(uint64_t min, uint64_t max)
-{
-    CardGroup cardGroup = { min, max };
+void TraceTime::UpdateCardGroupTime(uint64_t min, uint64_t max) {
+    CardGroup cardGroup = {min, max};
     auto it = lower_bound(cardGroupTimeDurations.begin(), cardGroupTimeDurations.end(), cardGroup);
     cardGroupTimeDurations.insert(it, cardGroup);
     std::vector<CardGroup> mergeDurations;
@@ -165,8 +149,7 @@ void TraceTime::UpdateCardGroupTime(uint64_t min, uint64_t max)
     cardGroupTimeDurations = mergeDurations;
 }
 
-void TraceTime::UpdateCardMinTimestamp(const std::string &fileId, uint64_t minTs)
-{
+void TraceTime::UpdateCardMinTimestamp(const std::string &fileId, uint64_t minTs) {
     std::unique_lock<std::mutex> lock(mutex);
     if (rankMinTimestampMap.find(fileId) == rankMinTimestampMap.end()) {
         rankMinTimestampMap[fileId] = minTs;

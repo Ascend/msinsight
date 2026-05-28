@@ -23,18 +23,11 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Server;
-EventUtil::EventUtil()
-{
-    Register();
-}
+EventUtil::EventUtil() { Register(); }
 
-EventUtil::~EventUtil()
-{
-    UnRegister();
-}
+EventUtil::~EventUtil() { UnRegister(); }
 
-void EventUtil::Register()
-{
+void EventUtil::Register() {
     jsonToEventFactory.emplace("M", ToMetaDataEvent);
     jsonToEventFactory.emplace("X", ToSliceEvent);
     jsonToEventFactory.emplace("I", ToSliceEvent);
@@ -51,21 +44,16 @@ void EventUtil::Register()
     jsonToEventFactory.emplace("SC", ToCounterEvent);
 }
 
-void EventUtil::UnRegister()
-{
-    jsonToEventFactory.clear();
-}
+void EventUtil::UnRegister() { jsonToEventFactory.clear(); }
 
-std::string EventUtil::Type(const json_t &json)
-{
+std::string EventUtil::Type(const json_t &json) {
     if (json.HasMember("ph") && json["ph"].IsString()) {
         return json["ph"].GetString();
     }
     return "";
 }
 
-Trace::Event* EventUtil::FromJson(const json_t &json, const std::string &type)
-{
+Trace::Event *EventUtil::FromJson(const json_t &json, const std::string &type) {
     if (type.empty()) {
         return nullptr;
     }
@@ -76,16 +64,14 @@ Trace::Event* EventUtil::FromJson(const json_t &json, const std::string &type)
     return func.value()(json);
 }
 
-std::optional<EventUtil::JsonToEventFunc> EventUtil::GetJsonToEventFunc(const std::string &type)
-{
+std::optional<EventUtil::JsonToEventFunc> EventUtil::GetJsonToEventFunc(const std::string &type) {
     if (jsonToEventFactory.count(type) == 0) {
         return std::nullopt;
     }
     return jsonToEventFactory[type];
 }
 
-Trace::Event* EventUtil::ToSliceEvent(const json_t &json)
-{
+Trace::Event *EventUtil::ToSliceEvent(const json_t &json) {
     thread_local static std::shared_ptr<Slice> event = std::make_shared<Slice>();
     event->type = Type(json);
     event->ts = NumberUtil::ConvertUsStrToNanoseconds(JsonUtil::GetDumpString(json, "ts"));
@@ -98,8 +84,7 @@ Trace::Event* EventUtil::ToSliceEvent(const json_t &json)
     return event.get();
 }
 
-Trace::Event* EventUtil::ToSimulationSliceEvent(const json_t &json)
-{
+Trace::Event *EventUtil::ToSimulationSliceEvent(const json_t &json) {
     thread_local static std::shared_ptr<Slice> event = std::make_shared<Slice>();
     event->type = "SX";
     long double start = JsonUtil::GetLongDouble(json, "ts");
@@ -116,8 +101,7 @@ Trace::Event* EventUtil::ToSimulationSliceEvent(const json_t &json)
     return event.get();
 }
 
-Trace::Event* EventUtil::ToSimulationBeginSliceEvent(const json_t &json)
-{
+Trace::Event *EventUtil::ToSimulationBeginSliceEvent(const json_t &json) {
     thread_local static std::shared_ptr<Slice> event = std::make_shared<Slice>();
     event->type = "SB";
     event->ts = NumberUtil::TimestampUsToNs(JsonUtil::GetLongDouble(json, "ts"));
@@ -130,8 +114,7 @@ Trace::Event* EventUtil::ToSimulationBeginSliceEvent(const json_t &json)
     return event.get();
 }
 
-Trace::Event* EventUtil::ToSimulationEndSliceEvent(const json_t &json)
-{
+Trace::Event *EventUtil::ToSimulationEndSliceEvent(const json_t &json) {
     thread_local static std::shared_ptr<Slice> event = std::make_shared<Slice>();
     event->type = "SE";
     event->ts = NumberUtil::TimestampUsToNs(JsonUtil::GetLongDouble(json, "ts"));
@@ -140,8 +123,7 @@ Trace::Event* EventUtil::ToSimulationEndSliceEvent(const json_t &json)
     return event.get();
 }
 
-Trace::Event* EventUtil::ToMetaDataEvent(const json_t &json)
-{
+Trace::Event *EventUtil::ToMetaDataEvent(const json_t &json) {
     thread_local static std::shared_ptr<MetaData> event = std::make_shared<MetaData>();
     event->type = Type(json);
     event->name = JsonUtil::GetString(json, "name");
@@ -155,8 +137,7 @@ Trace::Event* EventUtil::ToMetaDataEvent(const json_t &json)
     return event.get();
 }
 
-Trace::Event* EventUtil::ToFlowEvent(const json_t &json)
-{
+Trace::Event *EventUtil::ToFlowEvent(const json_t &json) {
     thread_local static std::shared_ptr<Flow> event = std::make_shared<Flow>();
     event->type = Type(json);
     event->ts = NumberUtil::ConvertUsStrToNanoseconds(JsonUtil::GetDumpString(json, "ts"));
@@ -168,8 +149,7 @@ Trace::Event* EventUtil::ToFlowEvent(const json_t &json)
     return event.get();
 }
 
-Trace::Event* EventUtil::ToCounterEvent(const json_t &json)
-{
+Trace::Event *EventUtil::ToCounterEvent(const json_t &json) {
     thread_local static std::shared_ptr<Counter> event = std::make_shared<Counter>();
     event->type = Type(json);
     if (json.HasMember("id")) {

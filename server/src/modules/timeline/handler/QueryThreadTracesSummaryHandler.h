@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryThreadTracesSummaryHandler : public TimelineRequestHandler {
-public:
-    QueryThreadTracesSummaryHandler()
-    {
-        command = Protocol::REQ_RES_UNIT_THREAD_TRACES_SUMMARY;
-    };
+  public:
+    QueryThreadTracesSummaryHandler() { command = Protocol::REQ_RES_UNIT_THREAD_TRACES_SUMMARY; };
     ~QueryThreadTracesSummaryHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

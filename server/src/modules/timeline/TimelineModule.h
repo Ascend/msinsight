@@ -24,7 +24,7 @@
 namespace Dic {
 namespace Module {
 class TimelineModule : public BaseModule {
-public:
+  public:
     TimelineModule();
     ~TimelineModule() override;
 

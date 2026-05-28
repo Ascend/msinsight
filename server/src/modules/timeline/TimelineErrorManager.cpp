@@ -32,8 +32,8 @@ const std::map<ErrorCode, std::string> errorMessages = {
 
     {ErrorCode::CONNECT_DATABASE_FAILED, "Failed to connect to database"},
     {ErrorCode::QUERY_COMMUNICATION_KERNEL_FAILED,
-     "Failed to query communication kernel info"
-     " Please ensure that timeline data has been fully parsed and then try again"},
+        "Failed to query communication kernel info"
+        " Please ensure that timeline data has been fully parsed and then try again"},
     {ErrorCode::QUERY_EVENTS_VIEW_DATA_FAILED, "Failed to get events view table response data"},
     {ErrorCode::QUERY_AI_CORE_FREQ_FAILED, "Failed to get system view AI core freq table response data"},
     {ErrorCode::QUERY_FLOW_EVENTS_FAILED, "Failed to query flow events"},
@@ -62,8 +62,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::FILE_NOT_EXIST, "File not exist"},
 };
 
-const std::string& GetErrorMessage(ErrorCode code)
-{
+const std::string &GetErrorMessage(ErrorCode code) {
     auto it = errorMessages.find(code);
     if (it != errorMessages.end()) {
         return it->second;
@@ -72,8 +71,7 @@ const std::string& GetErrorMessage(ErrorCode code)
     }
 }
 
-void SetTimelineError(ErrorCode code)
-{
+void SetTimelineError(ErrorCode code) {
     ModuleRequestHandler::SetRequestContextError({.code = static_cast<int>(code), .message = GetErrorMessage(code)});
 }
-}  // namespace Dic::Module::Timeline
+} // namespace Dic::Module::Timeline

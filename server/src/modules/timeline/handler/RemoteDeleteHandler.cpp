@@ -28,8 +28,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool RemoteDeleteHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool RemoteDeleteHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     RemoteDeleteRequest &request = dynamic_cast<RemoteDeleteRequest &>(*requestPtr.get());
     std::unique_ptr<RemoteDeleteResponse> responsePtr = std::make_unique<RemoteDeleteResponse>();
     RemoteDeleteResponse &response = *responsePtr.get();
@@ -41,8 +40,7 @@ bool RemoteDeleteHandler::HandleRequest(std::unique_ptr<Protocol::Request> reque
     return true;
 }
 
-void RemoteDeleteHandler::GetUpdateTime(RemoteDeleteBody &body)
-{
+void RemoteDeleteHandler::GetUpdateTime(RemoteDeleteBody &body) {
     auto fileIdList = DataBaseManager::Instance().GetAllRankId();
     TraceTime::Instance().Reset();
     auto &parseStatusInstance = ParserStatusManager::Instance();

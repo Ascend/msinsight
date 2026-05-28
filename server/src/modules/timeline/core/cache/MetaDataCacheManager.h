@@ -27,19 +27,19 @@
 
 namespace Dic::Module::Timeline {
 class MetaDataCacheManager {
-public:
-    static MetaDataCacheManager &Instance()
-    {
+  public:
+    static MetaDataCacheManager &Instance() {
         static MetaDataCacheManager metaDataCacheManager;
         return metaDataCacheManager;
     }
 
     void Clear();
-    void AddParallelGroupInfo(const std::vector<ParallelGroupInfo>& parallelGroupInfoList);
-    std::optional<ParallelGroupInfo> GetParallelGroupInfo(const std::string& group);
+    void AddParallelGroupInfo(const std::vector<ParallelGroupInfo> &parallelGroupInfoList);
+    std::optional<ParallelGroupInfo> GetParallelGroupInfo(const std::string &group);
     void SetDistributedArgsInfo(const std::optional<DistributedArgs> &args);
     std::optional<DistributedArgs> GetDistributedArgsInfo();
-private:
+
+  private:
     MetaDataCacheManager() = default;
     ~MetaDataCacheManager() = default;
     std::map<std::string, ParallelGroupInfo> hcclGroupInfoMap;

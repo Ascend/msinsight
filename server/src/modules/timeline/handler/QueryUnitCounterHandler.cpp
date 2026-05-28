@@ -24,8 +24,7 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-bool QueryUnitCounterHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryUnitCounterHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     UnitCounterRequest &request = dynamic_cast<UnitCounterRequest &>(*requestPtr.get());
     std::unique_ptr<UnitCounterResponse> responsePtr = std::make_unique<UnitCounterResponse>();
     UnitCounterResponse &response = *responsePtr.get();

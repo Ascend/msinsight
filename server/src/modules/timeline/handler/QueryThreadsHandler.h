@@ -25,17 +25,13 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryThreadsHandler : public TimelineRequestHandler {
-public:
-    QueryThreadsHandler()
-    {
-        command = Protocol::REQ_RES_UNIT_THREADS;
-    };
+  public:
+    QueryThreadsHandler() { command = Protocol::REQ_RES_UNIT_THREADS; };
     ~QueryThreadsHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
 } // end of namespace Timeline
 } // end of namespace Module
 } // end of namespace Dic
-
 
 #endif // PROFILER_SERVER_QUERY_THREADS_HANDLER_H

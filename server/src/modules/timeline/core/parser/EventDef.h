@@ -68,19 +68,16 @@ struct ThreadEvent : public Event {
     std::string pid;
     std::string threadName;
     uint32_t threadSortIndex = 0;
-    bool operator < (const ThreadEvent &right) const
-    {
+    bool operator<(const ThreadEvent &right) const {
         if (trackId < right.trackId) {
             return true;
         }
         return false;
     }
 
-    void SetThreadSortIndex()
-    {
-        static std::map<std::string, uint32_t> orderMap = { { "SCALAR", 1 }, { "FLOWCTRL", 2 }, { "MTE1", 3 },
-                                                            { "CUBE", 4 },   { "FIXP", 5 },     { "MTE2", 6 },
-                                                            { "VECTOR", 7 }, { "MTE3", 8 },     { "CACHEMISS", 9 } };
+    void SetThreadSortIndex() {
+        static std::map<std::string, uint32_t> orderMap = {{"SCALAR", 1}, {"FLOWCTRL", 2}, {"MTE1", 3}, {"CUBE", 4},
+            {"FIXP", 5}, {"MTE2", 6}, {"VECTOR", 7}, {"MTE3", 8}, {"CACHEMISS", 9}};
         if (orderMap.find(threadName) != orderMap.end()) {
             threadSortIndex = orderMap[threadName];
         } else {
@@ -92,8 +89,7 @@ struct ThreadEvent : public Event {
 struct ProcessEvent : public Event {
     std::string pid;
     std::string processName;
-    bool operator < (const ProcessEvent &right) const
-    {
+    bool operator<(const ProcessEvent &right) const {
         if (pid < right.pid) {
             return true;
         }

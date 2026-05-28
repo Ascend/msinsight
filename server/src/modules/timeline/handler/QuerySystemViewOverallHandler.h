@@ -26,18 +26,16 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QuerySystemViewOverallHandler : public TimelineRequestHandler {
-public:
-    QuerySystemViewOverallHandler()
-    {
-        command = Protocol::REQ_RES_SYSTEM_VIEW_OVERALL;
-    };
+  public:
+    QuerySystemViewOverallHandler() { command = Protocol::REQ_RES_SYSTEM_VIEW_OVERALL; };
 
     ~QuerySystemViewOverallHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-private:
+
+  private:
     static bool CalOverallData(SystemViewOverallRequest &request, SystemViewOverallResponse &response,
-                               std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database);
+        std::string &error, const std::shared_ptr<VirtualTraceDatabase> &database);
     static double GetOverlapAnalysisData(SystemViewOverallHelper &overallHelper,
         const std::shared_ptr<VirtualTraceDatabase> &database, const SystemViewOverallRequest &request,
         std::vector<SystemViewOverallRes> &responseBody);

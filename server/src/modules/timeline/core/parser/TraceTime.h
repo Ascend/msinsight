@@ -30,8 +30,7 @@ namespace Timeline {
 struct CardGroup {
     uint64_t groupMinTime = 0;
     uint64_t groupMaxTime = 0;
-    bool operator < (const CardGroup &right) const
-    {
+    bool operator<(const CardGroup &right) const {
         if (groupMinTime < right.groupMinTime) {
             return true;
         }
@@ -39,7 +38,7 @@ struct CardGroup {
     }
 };
 class TraceTime {
-public:
+  public:
     static TraceTime &Instance();
     void Reset();
     void UpdateTime(uint64_t min, uint64_t max);
@@ -52,7 +51,8 @@ public:
     void SetIsSimulation(bool simulation);
     void UpdateCardMinTimestamp(const std::string &fileId, uint64_t minTs);
     bool GetIsSimulation();
-private:
+
+  private:
     TraceTime();
     ~TraceTime() = default;
     std::mutex mutex;

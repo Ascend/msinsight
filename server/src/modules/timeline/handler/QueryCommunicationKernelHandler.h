@@ -26,11 +26,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class QueryCommunicationKernelHandler : public TimelineRequestHandler {
-public:
-    QueryCommunicationKernelHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_KERNEL_DETAIL;
-    };
+  public:
+    QueryCommunicationKernelHandler() { command = Protocol::REQ_RES_COMMUNICATION_KERNEL_DETAIL; };
 
     ~QueryCommunicationKernelHandler() override = default;
 

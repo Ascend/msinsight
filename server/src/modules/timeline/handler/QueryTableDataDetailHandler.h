@@ -22,18 +22,15 @@
 #include "TimelineRequestHandler.h"
 namespace Dic::Module::Timeline {
 class QueryTableDataDetailHandler : public TimelineRequestHandler {
-public:
-    QueryTableDataDetailHandler()
-    {
-        command = Protocol::REQ_RES_TABLE_DATA_DETAIL;
-    }
+  public:
+    QueryTableDataDetailHandler() { command = Protocol::REQ_RES_TABLE_DATA_DETAIL; }
     ~QueryTableDataDetailHandler() override = default;
     bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override;
     static void ComputeTableDetail(const TableDataDetailRequest &request, TableDataDetailResponse &response,
-                                   std::shared_ptr<VirtualTraceDatabase> databasePtr) ;
+        std::shared_ptr<VirtualTraceDatabase> databasePtr);
 
     void ComputeLinkPageDetail(TableDataDetailRequest &request, TableDataDetailResponse &response,
-                               const std::shared_ptr<VirtualTraceDatabase> &database) const;
+        const std::shared_ptr<VirtualTraceDatabase> &database) const;
 };
-}  // namespace Dic::Module::IE
-#endif  // PROFILER_SERVER_QUERYTABLEDATADETAILHANDLER_H
+} // namespace Dic::Module::IE
+#endif // PROFILER_SERVER_QUERYTABLEDATADETAILHANDLER_H

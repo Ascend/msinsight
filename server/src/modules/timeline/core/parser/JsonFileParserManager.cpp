@@ -19,29 +19,22 @@
 #include "JsonFileParserManager.h"
 
 namespace Dic::Module::Timeline {
-JsonFileParserManager::JsonFileParserManager()
-{
-    InitThreadPool();
-}
-JsonFileParserManager::~JsonFileParserManager()
-{
-    globalThreadPool_->ShutDown();
-}
+JsonFileParserManager::JsonFileParserManager() { InitThreadPool(); }
+JsonFileParserManager::~JsonFileParserManager() { globalThreadPool_->ShutDown(); }
 
-JsonFileParserManager& JsonFileParserManager::Instance() {
+JsonFileParserManager &JsonFileParserManager::Instance() {
     static JsonFileParserManager instance;
     return instance;
 }
 
 void JsonFileParserManager::ResetAll() {
     std::shared_lock lock(Instance().mutex_);
-    for (auto& [_, parser] : Instance().parsers) {
+    for (auto &[_, parser] : Instance().parsers) {
         parser->Reset(); // 调用各解析器的Reset()
     }
 }
 
-void JsonFileParserManager::InitThreadPool()
-{
+void JsonFileParserManager::InitThreadPool() {
     // 设置解析内存池的大小，根据32卡数据测试，性能最好的线程数大约为64
     const uint32_t hardwareLimit = std::thread::hardware_concurrency();
     const uint32_t threadCount = std::min(hardwareLimit, maxThreadNum);

@@ -24,8 +24,7 @@ namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 
-bool QueryKernelDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryKernelDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     KernelDetailsRequest &request = dynamic_cast<KernelDetailsRequest &>(*requestPtr.get());
     std::unique_ptr<KernelDetailsResponse> responsePtr = std::make_unique<KernelDetailsResponse>();
     KernelDetailsResponse &response = *responsePtr.get();

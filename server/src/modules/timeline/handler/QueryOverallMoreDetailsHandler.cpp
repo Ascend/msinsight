@@ -24,8 +24,7 @@
 #include "QueryOverallMoreDetailsHandler.h"
 using namespace Dic::Server;
 namespace Dic::Module::Timeline {
-bool QueryOverallMoreDetailsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryOverallMoreDetailsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SystemViewOverallMoreDetailsRequest &>(*requestPtr);
     std::unique_ptr<UnitThreadsOperatorsResponse> responsePtr = std::make_unique<UnitThreadsOperatorsResponse>();
     UnitThreadsOperatorsResponse &response = *responsePtr;
@@ -62,7 +61,7 @@ bool QueryOverallMoreDetailsHandler::HandleRequest(std::unique_ptr<Protocol::Req
     if (request.params.categoryList[0] == OVERALL_CAT_COMPUTING) {
         GetComputingOverallMetricDetails(database, request.params, response, minTimestamp, overallHelper);
     } else if (request.params.categoryList[0] == COMMUNICATION_NOT_OVERLAP_TIME ||
-            request.params.categoryList[0] == COMMUNICATION_TIME) {
+        request.params.categoryList[0] == COMMUNICATION_TIME) {
         GetCommunicationOverallMetricDetails(database, request.params, response, minTimestamp, overallHelper);
     }
 
@@ -81,8 +80,7 @@ bool QueryOverallMoreDetailsHandler::HandleRequest(std::unique_ptr<Protocol::Req
 
 void QueryOverallMoreDetailsHandler::GetComputingOverallMetricDetails(
     const std::shared_ptr<VirtualTraceDatabase> &database, const SystemViewOverallReqParam &params,
-    UnitThreadsOperatorsResponse &response, uint64_t minTimestamp, SystemViewOverallHelper &overallHelper)
-{
+    UnitThreadsOperatorsResponse &response, uint64_t minTimestamp, SystemViewOverallHelper &overallHelper) {
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataTypeByRank(params.rankId));
     if (repoPtr == nullptr) {
@@ -95,7 +93,7 @@ void QueryOverallMoreDetailsHandler::GetComputingOverallMetricDetails(
     }
     if (!overallHelper.kernelEvents.empty()) {
         overallHelper.needResponse = true;
-        overallHelper.CategorizeComputingEvents();  // 分类kernelEvents
+        overallHelper.CategorizeComputingEvents(); // 分类kernelEvents
         // 按入参请求过滤kernelEvents, 去除一级目录
         std::vector<std::string> tempList(params.categoryList.begin() + 1, params.categoryList.end());
         std::vector<SameOperatorsDetails> filteredEvents =
@@ -107,55 +105,55 @@ void QueryOverallMoreDetailsHandler::GetComputingOverallMetricDetails(
 }
 
 // 实现排序、分页
-void QueryOverallMoreDetailsHandler::GetPagedData(std::vector<SameOperatorsDetails>& filteredEvents,
-    const SystemViewOverallReqParam &params, UnitThreadsOperatorsResponse &response)
-{
+void QueryOverallMoreDetailsHandler::GetPagedData(std::vector<SameOperatorsDetails> &filteredEvents,
+    const SystemViewOverallReqParam &params, UnitThreadsOperatorsResponse &response) {
     // 排序
     std::string orderBy = params.order.orderBy;
     std::string orderType = params.order.NormalizeOrderType(params.order.orderType);
-    std::sort(filteredEvents.begin(), filteredEvents.end(), [&orderBy, &orderType](
-        const SameOperatorsDetails& a, const SameOperatorsDetails& b) {
-        if (orderBy == "startTime") {
-            if (orderType == "ASC") {
-                return a.timestamp < b.timestamp;
-            } else {
-                return a.timestamp > b.timestamp;
+    std::sort(filteredEvents.begin(), filteredEvents.end(),
+        [&orderBy, &orderType](const SameOperatorsDetails &a, const SameOperatorsDetails &b) {
+            if (orderBy == "startTime") {
+                if (orderType == "ASC") {
+                    return a.timestamp < b.timestamp;
+                } else {
+                    return a.timestamp > b.timestamp;
+                }
+            } else if (orderBy == "duration") {
+                if (orderType == "ASC") {
+                    return a.duration < b.duration;
+                } else {
+                    return a.duration > b.duration;
+                }
             }
-        } else if (orderBy == "duration") {
-            if (orderType == "ASC") {
-                return a.duration < b.duration;
-            } else {
-                return a.duration > b.duration;
-            }
-        }
-        return false;
-    });
+            return false;
+        });
     // 分页
     uint64_t offset = (params.page.current - 1) * params.page.pageSize;
     if (offset > filteredEvents.size()) {
         return;
     }
-    uint64_t end = std::min(offset + static_cast<uint64_t>(params.page.pageSize),
-                            static_cast<uint64_t>(filteredEvents.size()));
+    uint64_t end =
+        std::min(offset + static_cast<uint64_t>(params.page.pageSize), static_cast<uint64_t>(filteredEvents.size()));
     if (offset > UINT32_MAX || end > UINT32_MAX) {
         return;
     }
-    response.body.sameOperatorsDetails.assign(filteredEvents.begin() + static_cast<uint32_t>(offset),
-                                              filteredEvents.begin() + static_cast<uint32_t>(end));
+    response.body.sameOperatorsDetails.assign(
+        filteredEvents.begin() + static_cast<uint32_t>(offset), filteredEvents.begin() + static_cast<uint32_t>(end));
 }
 
 void QueryOverallMoreDetailsHandler::GetCommunicationOverallMetricDetails(
     const std::shared_ptr<VirtualTraceDatabase> &database, const SystemViewOverallReqParam &params,
-    UnitThreadsOperatorsResponse &response, uint64_t minTimestamp, SystemViewOverallHelper &overallHelper)
-{
+    UnitThreadsOperatorsResponse &response, uint64_t minTimestamp, SystemViewOverallHelper &overallHelper) {
     std::vector<Protocol::ThreadTraces> notOverlapData{};
     if (params.categoryList[0] == COMMUNICATION_NOT_OVERLAP_TIME) {
         uint64_t totalTime = 0;
-        std::string sql = DataBaseManager::Instance().GetDataTypeByRank(params.rankId) == DataType::TEXT ?
-            TextSqlConstant::GetOverlapAnalysisTextSqlByType(params) : TraceDatabaseSqlConst::GetOverlapAnalysisDbSqlByType(params);
-        std::string type = DataBaseManager::Instance().GetDataTypeByRank(params.rankId) == DataType::TEXT ?
-            "Communication(Not Overlapped)" : "2";
-        ParamsForOAData paramsForOaData = { sql, type, minTimestamp, params.startTime, params.endTime };
+        std::string sql = DataBaseManager::Instance().GetDataTypeByRank(params.rankId) == DataType::TEXT
+            ? TextSqlConstant::GetOverlapAnalysisTextSqlByType(params)
+            : TraceDatabaseSqlConst::GetOverlapAnalysisDbSqlByType(params);
+        std::string type = DataBaseManager::Instance().GetDataTypeByRank(params.rankId) == DataType::TEXT
+            ? "Communication(Not Overlapped)"
+            : "2";
+        ParamsForOAData paramsForOaData = {sql, type, minTimestamp, params.startTime, params.endTime};
         int deviceId = StringUtil::StringToInt(params.deviceId);
         if (!database->QueryOverlapAnalysisData(paramsForOaData, deviceId, notOverlapData, totalTime)) {
             ServerLog::Error("Failed to query Communication Overall Metrics due to incorrect not overlapped data.");
@@ -169,8 +167,8 @@ void QueryOverallMoreDetailsHandler::GetCommunicationOverallMetricDetails(
         // GetSystemViewOverallRepo中已有日志报错
         return;
     }
-    if (!repoPtr->QueryCommunicationOpsTimeDataByGroupName(params, minTimestamp,
-        notOverlapData, response.body.sameOperatorsDetails, database)) {
+    if (!repoPtr->QueryCommunicationOpsTimeDataByGroupName(
+            params, minTimestamp, notOverlapData, response.body.sameOperatorsDetails, database)) {
         ServerLog::Error("Failed to query Communication Overall Metrics due to incorrect time data query.");
         return;
     }

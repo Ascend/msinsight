@@ -29,9 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class ParseCardsHandler : public TimelineRequestHandler {
-public:
-    ParseCardsHandler()
-    {
+  public:
+    ParseCardsHandler() {
         command = Protocol::REQ_RES_PARSE_CARDS;
         async = false;
     };

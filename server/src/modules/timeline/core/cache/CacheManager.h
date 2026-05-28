@@ -24,21 +24,19 @@
 #include "DomainObject.h"
 namespace Dic::Module::Timeline {
 class CacheManager {
-public:
-    static CacheManager &Instance()
-    {
+  public:
+    static CacheManager &Instance() {
         static CacheManager cacheManager;
         return cacheManager;
     }
     CacheManager(const CacheManager &) = delete;
-    CacheManager &operator = (const CacheManager &) = delete;
+    CacheManager &operator=(const CacheManager &) = delete;
     CacheManager(CacheManager &&) = delete;
-    CacheManager &operator = (CacheManager &&) = delete;
+    CacheManager &operator=(CacheManager &&) = delete;
     /**
      * 清理所有缓存
      */
-    void ClearAll()
-    {
+    void ClearAll() {
         simulationSliceCacheManager.ClearAll();
         sliceCacheManager.Clear();
         overallCacheManager.ClearAll();
@@ -48,12 +46,9 @@ public:
      * 清理单卡缓存
      * @param rankId
      */
-    void ClearCacheByRankId(const std::string &rankId)
-    {
-        simulationSliceCacheManager.ClearCacheByFileId(rankId);
-    }
+    void ClearCacheByRankId(const std::string &rankId) { simulationSliceCacheManager.ClearCacheByFileId(rankId); }
 
-private:
+  private:
     CacheManager() = default;
     ~CacheManager() = default;
     SimulationSliceCacheManager &simulationSliceCacheManager = SimulationSliceCacheManager::Instance();

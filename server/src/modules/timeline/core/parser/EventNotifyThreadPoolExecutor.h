@@ -23,11 +23,11 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 class EventNotifyThreadPoolExecutor {
-public:
+  public:
     static EventNotifyThreadPoolExecutor &Instance();
     std::shared_ptr<ThreadPool> GetThreadPool();
 
-private:
+  private:
     EventNotifyThreadPoolExecutor();
     ~EventNotifyThreadPoolExecutor();
     std::shared_ptr<ThreadPool> singleThreadPool;

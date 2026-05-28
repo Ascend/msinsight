@@ -30,17 +30,15 @@ namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 using json_t = rapidjson::Value;
-EventParser::EventParser(const std::string &filePath, const std::string &fileId,
-    std::shared_ptr<TextTraceDatabase> textDatabase)
-    : filePath(filePath), fileId(fileId), database(std::move(textDatabase))
-{
+EventParser::EventParser(
+    const std::string &filePath, const std::string &fileId, std::shared_ptr<TextTraceDatabase> textDatabase)
+    : filePath(filePath), fileId(fileId), database(std::move(textDatabase)) {
     ServerLog::Info("Init event parser. fileId:", fileId);
     InitEventHandle();
     fileReader = std::make_unique<FileReader>();
 }
 
-void EventParser::InitEventHandle()
-{
+void EventParser::InitEventHandle() {
     eventHandleMap.emplace("M", std::bind(&EventParser::MetaDataHandle, this, std::placeholders::_1));
     eventHandleMap.emplace("X", std::bind(&EventParser::CompleteEventsHandle, this, std::placeholders::_1));
     eventHandleMap.emplace("I", std::bind(&EventParser::CompleteEventsHandle, this, std::placeholders::_1));
@@ -57,8 +55,7 @@ void EventParser::InitEventHandle()
     eventHandleMap.emplace("SC", std::bind(&EventParser::CounterEventsHandle, this, std::placeholders::_1));
 }
 
-bool EventParser::Parse(int64_t startPosition, int64_t endPosition)
-{
+bool EventParser::Parse(int64_t startPosition, int64_t endPosition) {
     database->InitStmt();
     std::string buffer = fileReader->ReadJsonArray(filePath, startPosition, endPosition);
     if (buffer.empty()) {
@@ -95,8 +92,7 @@ bool EventParser::Parse(int64_t startPosition, int64_t endPosition)
     return true;
 }
 
-void EventParser::ProcessLastFlagSlice()
-{
+void EventParser::ProcessLastFlagSlice() {
     if (!waitFlagSliceMap.empty() || !setFlagSliceMap.empty()) {
         std::vector<Slice> sliceVec =
             SimulationSliceCacheManager::Instance().GetCompeteSlice(setFlagSliceMap, waitFlagSliceMap, fileId);
@@ -106,14 +102,9 @@ void EventParser::ProcessLastFlagSlice()
     }
 }
 
+void EventParser::SetSimulationStatus(const bool &isSimulation) { m_isSimulation = isSimulation; }
 
-void EventParser::SetSimulationStatus(const bool &isSimulation)
-{
-    m_isSimulation = isSimulation;
-}
-
-void EventParser::EventHandle(const json_t &json)
-{
+void EventParser::EventHandle(const json_t &json) {
     std::string type = EventUtil::Type(json);
     if (m_isSimulation) {
         type = "S" + type;
@@ -129,8 +120,7 @@ void EventParser::EventHandle(const json_t &json)
     }
 }
 
-void EventParser::MetaDataHandle(Trace::Event* eventPtr)
-{
+void EventParser::MetaDataHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -152,8 +142,7 @@ void EventParser::MetaDataHandle(Trace::Event* eventPtr)
     }
 }
 
-void EventParser::CompleteEventsHandle(Trace::Event* eventPtr)
-{
+void EventParser::CompleteEventsHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -173,8 +162,7 @@ void EventParser::CompleteEventsHandle(Trace::Event* eventPtr)
     database->InsertSlice(event);
 }
 
-void EventParser::SimulationBeginEventHandle(Trace::Event* eventPtr)
-{
+void EventParser::SimulationBeginEventHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -196,8 +184,7 @@ void EventParser::SimulationBeginEventHandle(Trace::Event* eventPtr)
             waitFlagSliceMap[event.flagId] = event;
             return;
         } else {
-            event.dur = waitFlagSliceMap[event.flagId].ts > event.ts ?
-                waitFlagSliceMap[event.flagId].ts - event.ts : 0;
+            event.dur = waitFlagSliceMap[event.flagId].ts > event.ts ? waitFlagSliceMap[event.flagId].ts - event.ts : 0;
             SimulationEventHandle(eventPtr);
             waitFlagSliceMap.erase(event.flagId);
             return;
@@ -205,8 +192,7 @@ void EventParser::SimulationBeginEventHandle(Trace::Event* eventPtr)
     }
 }
 
-void EventParser::SimulationEndEventHandle(Trace::Event* eventPtr)
-{
+void EventParser::SimulationEndEventHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -239,8 +225,7 @@ void EventParser::SimulationEndEventHandle(Trace::Event* eventPtr)
     }
 }
 
-void EventParser::SimulationEventHandle(Trace::Event* eventPtr)
-{
+void EventParser::SimulationEventHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -277,8 +262,7 @@ void EventParser::SimulationEventHandle(Trace::Event* eventPtr)
     database->AddSimulationThreadCache(std::move(threadEvent));
 }
 
-void EventParser::FlowEventsHandle(Trace::Event* eventPtr)
-{
+void EventParser::FlowEventsHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -297,8 +281,7 @@ void EventParser::FlowEventsHandle(Trace::Event* eventPtr)
     database->InsertFlow(event);
 }
 
-void EventParser::SimulationFlowEventsHandle(Trace::Event* eventPtr)
-{
+void EventParser::SimulationFlowEventsHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -320,8 +303,7 @@ void EventParser::SimulationFlowEventsHandle(Trace::Event* eventPtr)
     database->InsertFlow(event);
 }
 
-void EventParser::CounterEventsHandle(Trace::Event* eventPtr)
-{
+void EventParser::CounterEventsHandle(Trace::Event *eventPtr) {
     if (eventPtr == nullptr) {
         return;
     }
@@ -343,8 +325,7 @@ void EventParser::CounterEventsHandle(Trace::Event* eventPtr)
     database->InsertCounter(event);
 }
 
-uint64_t EventParser::GetTrackId(const std::string &pid, const std::string &tid)
-{
+uint64_t EventParser::GetTrackId(const std::string &pid, const std::string &tid) {
     std::string str = pid + tid;
     if (trackIdMap.count(str) > 0) {
         return trackIdMap.at(str);
@@ -354,10 +335,7 @@ uint64_t EventParser::GetTrackId(const std::string &pid, const std::string &tid)
     return id;
 }
 
-std::string EventParser::GetError() const
-{
-    return error;
-}
+std::string EventParser::GetError() const { return error; }
 } // end of namespace Timeline
 } // end of namespace Module
 } // end of namespace Dic
