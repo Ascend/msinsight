@@ -35,6 +35,7 @@
 #include "TimeUtil.h"
 #include "ServerLog.h"
 #include "StringUtil.h"
+#include "FileUtil.h"
 
 namespace Dic {
 enum class LogOutType : int { TERMINAL = 0, FILE, BOTH };
@@ -341,16 +342,11 @@ class LogUtil {
             ofs.open(filePath, std::ios::out | std::ios::trunc);
             currentSize = 0;
         }
-#ifdef __APPLE__
+#if defined(__linux__) || defined(__APPLE__)
         ofs.close(); // 关闭文件以设置权限
-        std::filesystem::permissions(filePath,
-            std::filesystem::perms::owner_read | std::filesystem::perms::owner_write |
-                std::filesystem::perms::group_read);
+        mode_t mode = 0640; // 业务数据权限要求设置为0640 （rw-r-----）
+        FileUtil::ModifyFilePermissions(filePath, mode);
         ofs.open(filePath, std::ofstream::out | std::ofstream::app); // 重新打开文件
-#elif __linux__
-        ofs.close();
-        chmod(filePath.c_str(), S_IRUSR | S_IWUSR | S_IRGRP);
-        ofs.open(filePath, std::ofstream::out | std::ofstream::app);
 #endif
     }
 

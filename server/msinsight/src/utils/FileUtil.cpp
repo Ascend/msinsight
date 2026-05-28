@@ -429,6 +429,10 @@ std::shared_ptr<std::string> FileUtil::GetRelativePath(
 }
 
 bool FileUtil::ModifyFilePermissions(const std::string &filePath, const mode_t &mode) {
+    // 后端启动时如果传入了--notStrict选项，写文件不显式设置权限，同时导入文件时不要求权限和属主校验通过
+    if (!strictMode) {
+        return true;
+    }
     if (!FileUtil::IsFilePathExist(filePath)) {
         // 文件不存在，返回错误代码或抛出异常
         return false;
