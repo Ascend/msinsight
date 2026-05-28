@@ -23,9 +23,8 @@
 #include "SystemViewOverallRepoInterface.h"
 namespace Dic::Module::Timeline {
 class SystemViewOverallRepoFactory {
-public:
-    static std::shared_ptr<SystemViewOverallRepoFactory> Instance()
-    {
+  public:
+    static std::shared_ptr<SystemViewOverallRepoFactory> Instance() {
         static std::shared_ptr<SystemViewOverallRepoFactory> instance =
             std::make_shared<SystemViewOverallRepoFactory>();
         return instance;
@@ -38,7 +37,8 @@ public:
     ~SystemViewOverallRepoFactory();
     void Reset();
     std::shared_ptr<SystemViewOverallRepoInterface> GetSystemViewOverallRepo(DataType type);
-private:
+
+  private:
     std::unordered_map<DataType, std::shared_ptr<SystemViewOverallRepoInterface>> systemViewOverallRepoMap;
 };
 }

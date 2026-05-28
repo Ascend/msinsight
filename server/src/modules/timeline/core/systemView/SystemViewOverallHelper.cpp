@@ -20,10 +20,9 @@
 
 using namespace Dic::Server;
 namespace Dic::Module::Timeline {
-void SystemViewOverallHelper::CategorizeComputingEvents()
-{
+void SystemViewOverallHelper::CategorizeComputingEvents() {
     size_t cpuCubeOpsIndex = 0;
-    for (auto &kernelEvent: kernelEvents) {
+    for (auto &kernelEvent : kernelEvents) {
         if (kernelEvent.flowStartTime == 0) {
             kernelEvent.GetKernelCategories();
             continue;
@@ -41,27 +40,30 @@ void SystemViewOverallHelper::CategorizeComputingEvents()
         kernelEvent.GetKernelCategories();
     }
     if (kernelEvents.empty()) {
-        ServerLog::Warn("No valid kernels found when querying computing data in system view overall. Please ensure "
+        ServerLog::Warn(
+            "No valid kernels found when querying computing data in system view overall. Please ensure "
             "that the profiling data is set to level 1 or higher and aic_metrics is set to PipeUtilization.");
     }
 }
 
 std::vector<SameOperatorsDetails> SystemViewOverallHelper::FilterComputingEventsByCategory(
-    const std::vector<std::string> &expectList, uint64_t minTimeStamp, const std::string &opName)
-{
+    const std::vector<std::string> &expectList, uint64_t minTimeStamp, const std::string &opName) {
     std::vector<SameOperatorsDetails> filteredEvents;
     if (expectList.empty()) {
         return filteredEvents;
     }
-    for (auto const& kernelEvent : kernelEvents) {
+    for (auto const &kernelEvent : kernelEvents) {
         if (kernelEvent.IsCategoryListEqual(expectList)) {
-            if (!opName.empty() && !StringUtil::Contains(StringUtil::ToLower(kernelEvent.opName),
-                                                         StringUtil::ToLower(opName))) {  // 按name过滤
+            if (!opName.empty() &&
+                !StringUtil::Contains(StringUtil::ToLower(kernelEvent.opName),
+                    StringUtil::ToLower(opName))) { // 按name过滤
                 continue;
             }
             SameOperatorsDetails details;
             const long double scaled = kernelEvent.duration * timeScale;
-            if (scaled < 0 || scaled > static_cast<long double>(std::numeric_limits<int64_t>::max())) { // 判断 duration * timeScale(固定为1000) 不能超过 UINT64_MAX
+            if (scaled < 0 ||
+                scaled > static_cast<long double>(std::numeric_limits<
+                             int64_t>::max())) { // 判断 duration * timeScale(固定为1000) 不能超过 UINT64_MAX
                 ServerLog::Warn("Unexpected condition: kernel duration is too long. Duration: ", kernelEvent.duration);
                 continue;
             }
@@ -69,7 +71,8 @@ std::vector<SameOperatorsDetails> SystemViewOverallHelper::FilterComputingEvents
             details.name = kernelEvent.opName;
             if (kernelEvent.startTime < minTimeStamp) {
                 ServerLog::Warn("Unexpected condition: kernel event start time is less than min timestamp. "
-                                "Kernel start time: ", kernelEvent.startTime, " Min time stamp: ", minTimeStamp);
+                                "Kernel start time: ",
+                    kernelEvent.startTime, " Min time stamp: ", minTimeStamp);
                 continue;
             }
             details.timestamp = kernelEvent.startTime - minTimeStamp;
@@ -79,23 +82,19 @@ std::vector<SameOperatorsDetails> SystemViewOverallHelper::FilterComputingEvents
     return filteredEvents;
 }
 
-static bool CompareByName(const SystemViewOverallRes& a, const SystemViewOverallRes& b)
-{
-    return a.name < b.name;
-}
+static bool CompareByName(const SystemViewOverallRes &a, const SystemViewOverallRes &b) { return a.name < b.name; }
 
-void SystemViewOverallHelper::AggregateComputingOverallMetrics(std::vector<SystemViewOverallRes> &responseBody)
-{
+void SystemViewOverallHelper::AggregateComputingOverallMetrics(std::vector<SystemViewOverallRes> &responseBody) {
     if (responseBody.empty()) {
         return;
     }
     // responseBody一层级数据中，computing部分位于responseBody[0]
-    for (const auto &tmpInfo: kernelEvents) {
+    for (const auto &tmpInfo : kernelEvents) {
         ComputeOverallMetrics(responseBody[0].children, tmpInfo, 0);
     }
     std::sort(responseBody[0].children.begin(), responseBody[0].children.end(), CompareByName);
     double otherComputingTime = responseBody[0].totalTime;
-    for (auto &item: responseBody[0].children) {
+    for (auto &item : responseBody[0].children) {
         otherComputingTime -= item.totalTime;
     }
     if (otherComputingTime > 0) {
@@ -110,8 +109,7 @@ void SystemViewOverallHelper::AggregateComputingOverallMetrics(std::vector<Syste
     responseBody[0].ValidateValues();
 }
 
-void SystemViewOverallHelper::SummarizeSystemViewOverall(SystemViewOverallRes &currentRes, uint32_t depth)
-{
+void SystemViewOverallHelper::SummarizeSystemViewOverall(SystemViewOverallRes &currentRes, uint32_t depth) {
     // 防止无穷递归
     if (depth > maxDepth) {
         return;
@@ -124,8 +122,8 @@ void SystemViewOverallHelper::SummarizeSystemViewOverall(SystemViewOverallRes &c
                 currentRes.nums += item.nums;
             } else {
                 currentRes.nums = UINT32_MAX;
-                ServerLog::Warn("Add operation failed when summarize overall metrics. Integer overflow. name: %",
-                    item.name);
+                ServerLog::Warn(
+                    "Add operation failed when summarize overall metrics. Integer overflow. name: %", item.name);
             }
             currentRes.max = std::max(currentRes.max, item.max);
             if (item.name != OVERALL_CAT_OTHER) {
@@ -145,9 +143,8 @@ void SystemViewOverallHelper::SummarizeSystemViewOverall(SystemViewOverallRes &c
         (e2eTime != 0) ? (currentRes.totalTime / e2eTime) * PERCENTAGE_RATIO_SCALE : 0, decimalPlaces);
 }
 
-void SystemViewOverallHelper::ComputeOverallMetrics(std::vector<SystemViewOverallRes> &resList,
-                                                    const OverallTmpInfo& tmpInfo, size_t index)
-{
+void SystemViewOverallHelper::ComputeOverallMetrics(
+    std::vector<SystemViewOverallRes> &resList, const OverallTmpInfo &tmpInfo, size_t index) {
     if (index >= tmpInfo.categoryList.size()) {
         return;
     }
@@ -156,18 +153,17 @@ void SystemViewOverallHelper::ComputeOverallMetrics(std::vector<SystemViewOveral
     ComputeOverallMetrics(currentRes.children, tmpInfo, index + 1);
 }
 
-void SystemViewOverallHelper::UpdateSystemViewResStatus(SystemViewOverallRes& currentRes, const OverallTmpInfo& tmpInfo)
-{
+void SystemViewOverallHelper::UpdateSystemViewResStatus(
+    SystemViewOverallRes &currentRes, const OverallTmpInfo &tmpInfo) {
     currentRes.totalTime += tmpInfo.duration;
     currentRes.nums++;
     currentRes.max = std::max(tmpInfo.duration, currentRes.max);
     currentRes.min = std::min(tmpInfo.duration, currentRes.min);
 }
 
-SystemViewOverallRes &SystemViewOverallHelper::FindOrCreateChild(std::vector<SystemViewOverallRes> &list,
-                                                                 const std::string &name)
-{
-    for (auto &child: list) {
+SystemViewOverallRes &SystemViewOverallHelper::FindOrCreateChild(
+    std::vector<SystemViewOverallRes> &list, const std::string &name) {
+    for (auto &child : list) {
         if (child.name == name) {
             return child;
         }

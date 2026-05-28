@@ -20,24 +20,16 @@
 #include "SystemViewOverallRepoFactory.h"
 using namespace Dic::Server;
 namespace Dic::Module::Timeline {
-SystemViewOverallRepoFactory::SystemViewOverallRepoFactory()
-{
+SystemViewOverallRepoFactory::SystemViewOverallRepoFactory() {
     systemViewOverallRepoMap.emplace(DataType::TEXT, std::make_shared<SystemViewOverallTextRepo>());
     systemViewOverallRepoMap.emplace(DataType::DB, std::make_shared<SystemViewOverallDbRepo>());
 }
 
-SystemViewOverallRepoFactory::~SystemViewOverallRepoFactory()
-{
-    systemViewOverallRepoMap.clear();
-}
+SystemViewOverallRepoFactory::~SystemViewOverallRepoFactory() { systemViewOverallRepoMap.clear(); }
 
-void SystemViewOverallRepoFactory::Reset()
-{
-    systemViewOverallRepoMap.clear();
-}
+void SystemViewOverallRepoFactory::Reset() { systemViewOverallRepoMap.clear(); }
 
-std::shared_ptr<SystemViewOverallRepoInterface> SystemViewOverallRepoFactory::GetSystemViewOverallRepo(DataType type)
-{
+std::shared_ptr<SystemViewOverallRepoInterface> SystemViewOverallRepoFactory::GetSystemViewOverallRepo(DataType type) {
     if (systemViewOverallRepoMap.find(type) == systemViewOverallRepoMap.end()) {
         ServerLog::Error("Can't find repository for system view overall.");
         return nullptr;

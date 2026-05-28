@@ -19,7 +19,7 @@
 #define PROFILER_SERVER_COUNTERREPOINTERFACE_H
 namespace Dic::Module::Timeline {
 class CounterRepoInterface {
-public:
+  public:
     virtual ~CounterRepoInterface() = default;
 };
 }

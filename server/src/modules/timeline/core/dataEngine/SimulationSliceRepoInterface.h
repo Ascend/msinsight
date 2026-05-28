@@ -23,10 +23,10 @@
 #include "DomainObject.h"
 namespace Dic::Module::Timeline {
 class SimulationSliceRepoInterface {
-public:
+  public:
     virtual ~SimulationSliceRepoInterface() = default;
-    virtual void QueryAllFlagSlice(const SliceQuery &sliceQuery,
-        std::vector<CompeteSliceDomain> &competeSliceDomain) = 0;
+    virtual void QueryAllFlagSlice(
+        const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &competeSliceDomain) = 0;
 };
 }
 #endif // PROFILER_SERVER_SIMULATIONSLICEREPOINTERFACE_H

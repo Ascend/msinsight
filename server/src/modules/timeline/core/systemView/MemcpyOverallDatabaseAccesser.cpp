@@ -21,8 +21,7 @@
 #include "MemcpyOverallDatabaseAccesser.h"
 
 namespace Dic::Module::Timeline {
-DataType MemcpyOverallDatabaseAccesser::GetDatabaseType() const
-{
+DataType MemcpyOverallDatabaseAccesser::GetDatabaseType() const {
     if (fileId_.empty()) {
         // 如果fileId为空，返回默认类型
         return DataType::TEXT;
@@ -31,9 +30,8 @@ DataType MemcpyOverallDatabaseAccesser::GetDatabaseType() const
     return DataBaseManager::Instance().GetDataType(fileId_);
 }
 
-bool MemcpyOverallDatabaseAccesser::GetMemcpyRecords(const uint64_t startTime, const uint64_t endTime,
-    std::vector<MemcpyRecord>& records) const
-{
+bool MemcpyOverallDatabaseAccesser::GetMemcpyRecords(
+    const uint64_t startTime, const uint64_t endTime, std::vector<MemcpyRecord> &records) const {
     if (!database_ || fileId_.empty()) {
         return false;
     }
@@ -55,10 +53,11 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyRecords(const uint64_t startTime, c
         return false;
     }
 
-    for (auto& record : records) {
+    for (auto &record : records) {
         if (record.startTime < minTimestamp || record.endTime < minTimestamp) {
             ServerLog::Warn("Unexpected condition: slice time is less than min timestamp. "
-                            "time: [", record.startTime, ", ", record.endTime, " Min time stamp: ", minTimestamp);
+                            "time: [",
+                record.startTime, ", ", record.endTime, " Min time stamp: ", minTimestamp);
             return false;
         }
         record.startTime -= minTimestamp;
@@ -67,13 +66,9 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyRecords(const uint64_t startTime, c
     return true;
 }
 
-bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPaged(
-    uint64_t startTime, uint64_t endTime,
-    const std::string& tid, const std::optional<std::string>& memcpyType,
-    uint32_t current, uint32_t pageSize,
-    const OrderParam &orderParam,
-    std::vector<MemcpyDetailRecord>& records, uint64_t& total) const
-{
+bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPaged(uint64_t startTime, uint64_t endTime,
+    const std::string &tid, const std::optional<std::string> &memcpyType, uint32_t current, uint32_t pageSize,
+    const OrderParam &orderParam, std::vector<MemcpyDetailRecord> &records, uint64_t &total) const {
     if (!database_ || fileId_.empty()) {
         return false;
     }
@@ -89,20 +84,20 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPaged(
 
     if (dataType == DataType::TEXT) {
         auto [sortField, sortDir] = ParseSortParams(orderParam.orderBy, orderParam.GetNormalizeOrderType());
-        GetMemcpyDetailRecordsPagedFromText(absStart, absEnd, tid, memcpyType, current, pageSize, sortField, sortDir,
-            records, total);
+        GetMemcpyDetailRecordsPagedFromText(
+            absStart, absEnd, tid, memcpyType, current, pageSize, sortField, sortDir, records, total);
     } else if (dataType == DataType::DB) {
-        GetMemcpyDetailRecordsPagedFromDb(absStart, absEnd, tid, memcpyType, current, pageSize,
-            orderParam.GenerateSql(),
-            records, total);
+        GetMemcpyDetailRecordsPagedFromDb(
+            absStart, absEnd, tid, memcpyType, current, pageSize, orderParam.GenerateSql(), records, total);
     } else {
         return false;
     }
 
-    for (auto& record : records) {
+    for (auto &record : records) {
         if (record.timestamp < minTimestamp) {
             ServerLog::Warn("Unexpected condition: slice timestamp is less than min timestamp. "
-                            "timestamp: ", record.timestamp, " Min time stamp: ", minTimestamp);
+                            "timestamp: ",
+                record.timestamp, " Min time stamp: ", minTimestamp);
             return false;
         }
         record.timestamp -= minTimestamp;
@@ -110,10 +105,8 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPaged(
     return true;
 }
 
-
-bool MemcpyOverallDatabaseAccesser::GetMemcpyRecordsFromText(uint64_t startTime, uint64_t endTime,
-    std::vector<MemcpyRecord>& records) const
-{
+bool MemcpyOverallDatabaseAccesser::GetMemcpyRecordsFromText(
+    uint64_t startTime, uint64_t endTime, std::vector<MemcpyRecord> &records) const {
     if (!database_) {
         return false;
     }
@@ -174,9 +167,8 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyRecordsFromText(uint64_t startTime,
     }
 }
 
-bool MemcpyOverallDatabaseAccesser::GetMemcpyRecordsFromDb(uint64_t startTime, uint64_t endTime,
-    std::vector<MemcpyRecord>& records) const
-{
+bool MemcpyOverallDatabaseAccesser::GetMemcpyRecordsFromDb(
+    uint64_t startTime, uint64_t endTime, std::vector<MemcpyRecord> &records) const {
     if (!database_) {
         return false;
     }
@@ -186,9 +178,12 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyRecordsFromDb(uint64_t startTime, u
         // 构造SQL查询语句，关联task表和memcpy_info表，使用参数化查询
         // memcpy 的数据只可能存在 Ascend Hardware 泳道，因此 tid 使用 Ascend Hardware 泳道使用的 tid 定义，即 streamId
         std::string sql = "SELECT t.streamId AS tid, emo.name AS memcpyOperation, mi.size, t.startNs, t.endNs "
-                          "FROM " + TABLE_TASK + " t JOIN " + TABLE_MEMCPY_INFO + " mi "
-                          "ON t.globalTaskId = mi.globalTaskId "
-                          "LEFT JOIN " + TABLE_ENUM_MEMCPY_OPERATION + " emo ON mi.memcpyOperation = emo.id ";
+                          "FROM " +
+            TABLE_TASK + " t JOIN " + TABLE_MEMCPY_INFO +
+            " mi "
+            "ON t.globalTaskId = mi.globalTaskId "
+            "LEFT JOIN " +
+            TABLE_ENUM_MEMCPY_OPERATION + " emo ON mi.memcpyOperation = emo.id ";
         if (useTimeSearch) {
             sql += "WHERE t.startNs >= ? AND t.endNs <= ?";
         }
@@ -240,10 +235,8 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyRecordsFromDb(uint64_t startTime, u
 }
 
 // ====== TEXT 库：构建基础查询（CTE 主体） ======
-std::pair<std::string, std::vector<std::string>>
-MemcpyOverallDatabaseAccesser::BuildMemcpyDetailBaseQueryText(uint64_t startTime, uint64_t endTime,
-    const std::string& tidFilter)
-{
+std::pair<std::string, std::vector<std::string>> MemcpyOverallDatabaseAccesser::BuildMemcpyDetailBaseQueryText(
+    uint64_t startTime, uint64_t endTime, const std::string &tidFilter) {
     std::vector<std::string> params;
     std::ostringstream sql;
 
@@ -267,26 +260,25 @@ MemcpyOverallDatabaseAccesser::BuildMemcpyDetailBaseQueryText(uint64_t startTime
     return {sql.str(), params};
 }
 
-bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromText(
-    uint64_t startTime, uint64_t endTime,
-    const std::string& tid, const std::optional<std::string>& memcpyType,
-    uint32_t current, uint32_t pageSize,
-    SortField orderByField, SortDirection orderDir,
-    std::vector<MemcpyDetailRecord>& records, uint64_t& total) const
-{
-    if (!database_) { return false; }
+bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromText(uint64_t startTime, uint64_t endTime,
+    const std::string &tid, const std::optional<std::string> &memcpyType, uint32_t current, uint32_t pageSize,
+    SortField orderByField, SortDirection orderDir, std::vector<MemcpyDetailRecord> &records, uint64_t &total) const {
+    if (!database_) {
+        return false;
+    }
 
     try {
-        auto [baseQuery, baseParams] = BuildMemcpyDetailBaseQueryText(
-            startTime, endTime, tid);
-        if (baseQuery.empty()) { return false; }
+        auto [baseQuery, baseParams] = BuildMemcpyDetailBaseQueryText(startTime, endTime, tid);
+        if (baseQuery.empty()) {
+            return false;
+        }
 
         auto stmt = database_->CreatPreparedStatement(baseQuery);
         if (!stmt) {
             Server::ServerLog::Error("Failed to create prepared statement for memcpy detail (TEXT)");
             return false;
         }
-        for (const auto& param : baseParams) {
+        for (const auto &param : baseParams) {
             stmt->BindParams(param);
         }
 
@@ -320,7 +312,7 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromText(
         total = paginator.GetTotal();
         records = paginator.GetPage(current);
         return true;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         Server::ServerLog::Error("Exception in GetMemcpyDetailRecordsPagedFromText: " + std::string(e.what()));
         return false;
     } catch (...) {
@@ -329,12 +321,10 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromText(
     }
 }
 
-
 // ====== DB 库：构建基础查询（CTE 主体） ======
-std::pair<std::string, std::vector<std::string>>
-MemcpyOverallDatabaseAccesser::BuildMemcpyDetailBaseQueryDb(uint64_t startTime, uint64_t endTime,
-    const std::string& tidFilter, const std::optional<std::string>& memcpyTypeFilter)
-{
+std::pair<std::string, std::vector<std::string>> MemcpyOverallDatabaseAccesser::BuildMemcpyDetailBaseQueryDb(
+    uint64_t startTime, uint64_t endTime, const std::string &tidFilter,
+    const std::optional<std::string> &memcpyTypeFilter) {
     std::vector<std::string> params;
     std::ostringstream sql;
 
@@ -374,9 +364,8 @@ MemcpyOverallDatabaseAccesser::BuildMemcpyDetailBaseQueryDb(uint64_t startTime, 
     return {sql.str(), params};
 }
 
-void MemcpyOverallDatabaseAccesser::GetMemcpyDetailTotalFromDb(const std::string& baseQuery,
-    const std::vector<std::string>& baseParams, uint64_t& total) const
-{
+void MemcpyOverallDatabaseAccesser::GetMemcpyDetailTotalFromDb(
+    const std::string &baseQuery, const std::vector<std::string> &baseParams, uint64_t &total) const {
     const std::string totalSql = "WITH filtered AS (" + baseQuery + ") SELECT COUNT(*) AS total FROM filtered";
 
     auto totalStmt = database_->CreatPreparedStatement(totalSql);
@@ -384,7 +373,7 @@ void MemcpyOverallDatabaseAccesser::GetMemcpyDetailTotalFromDb(const std::string
         Server::ServerLog::Error("Failed to create prepared statement for memcpy detail total (DB)");
         return;
     }
-    for (const auto& param : baseParams) {
+    for (const auto &param : baseParams) {
         totalStmt->BindParams(param);
     }
     auto resultSet = totalStmt->ExecuteQuery();
@@ -396,24 +385,23 @@ void MemcpyOverallDatabaseAccesser::GetMemcpyDetailTotalFromDb(const std::string
 }
 
 // ====== DB 库：分页查询主逻辑 ======
-bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromDb(
-    uint64_t startTime, uint64_t endTime,
-    const std::string& tid, const std::optional<std::string>& memcpyType,
-    uint32_t current, uint32_t pageSize,
-    const std::string& orderSql,
-    std::vector<MemcpyDetailRecord>& records, uint64_t& total) const
-{
-    if (!database_) { return false; }
+bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromDb(uint64_t startTime, uint64_t endTime,
+    const std::string &tid, const std::optional<std::string> &memcpyType, uint32_t current, uint32_t pageSize,
+    const std::string &orderSql, std::vector<MemcpyDetailRecord> &records, uint64_t &total) const {
+    if (!database_) {
+        return false;
+    }
 
     try {
-        auto [baseQuery, baseParams] = BuildMemcpyDetailBaseQueryDb(
-            startTime, endTime, tid, memcpyType);
-        if (baseQuery.empty()) { return false; }
+        auto [baseQuery, baseParams] = BuildMemcpyDetailBaseQueryDb(startTime, endTime, tid, memcpyType);
+        if (baseQuery.empty()) {
+            return false;
+        }
         // 查到总数
         GetMemcpyDetailTotalFromDb(baseQuery, baseParams, total);
         // 查到分页数据
-        std::string dataSql = "WITH filtered AS (" + baseQuery + ") SELECT * FROM filtered "
-                              + orderSql + "LIMIT ? OFFSET ?";
+        std::string dataSql =
+            "WITH filtered AS (" + baseQuery + ") SELECT * FROM filtered " + orderSql + "LIMIT ? OFFSET ?";
 
         if (current - 1 != 0 && pageSize > UINT64_MAX / (current - 1)) {
             Server::ServerLog::Error("Pagination overflow, it exceeds uint64_t limit");
@@ -425,7 +413,9 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromDb(
             Server::ServerLog::Error("Failed to create prepared statement for memcpy detail (DB)");
             return false;
         }
-        for (const auto& param : baseParams) { dataStmt->BindParams(param); }
+        for (const auto &param : baseParams) {
+            dataStmt->BindParams(param);
+        }
         dataStmt->BindParams(pageSize);
         dataStmt->BindParams(offset);
 
@@ -446,7 +436,7 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromDb(
             records.push_back(record);
         }
         return true;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         Server::ServerLog::Error("Exception in GetMemcpyDetailRecordsPagedFromDb: " + std::string(e.what()));
         return false;
     } catch (...) {
@@ -455,14 +445,13 @@ bool MemcpyOverallDatabaseAccesser::GetMemcpyDetailRecordsPagedFromDb(
     }
 }
 
-std::pair<std::string, uint64_t>
-MemcpyOverallDatabaseAccesser::ParseOperationAndSizeFromJson(const std::string& jsonStr)
-{
+std::pair<std::string, uint64_t> MemcpyOverallDatabaseAccesser::ParseOperationAndSizeFromJson(
+    const std::string &jsonStr) {
     std::string error;
     const auto json = JsonUtil::TryParse(jsonStr, error);
 
     if (!json.has_value() || !error.empty()) {
-        return { "", 0 }; // 解析失败，返回空字符串
+        return {"", 0}; // 解析失败，返回空字符串
     }
 
     std::string operation;
@@ -481,6 +470,6 @@ MemcpyOverallDatabaseAccesser::ParseOperationAndSizeFromJson(const std::string& 
         size = JsonUtil::GetInteger(json.value(), "size(B)");
     }
 
-    return { operation, size };
+    return {operation, size};
 }
 }

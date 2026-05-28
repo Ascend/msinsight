@@ -30,7 +30,7 @@ struct BindParamsForGMAndCS {
 };
 
 class SystemViewOverallDbRepo : public SystemViewOverallRepoInterface {
-public:
+  public:
     std::vector<OverallTmpInfo> QueryOverlapAnalysisDataForOverallMetric(
         const Protocol::SystemViewOverallReqParam &requestParams,
         const std::shared_ptr<VirtualTraceDatabase> &database) override;
@@ -42,11 +42,12 @@ public:
     bool QueryCommunicationOpsTimeDataByGroupName(const SystemViewOverallReqParam &params, uint64_t offset,
         const std::vector<Protocol::ThreadTraces> &notOverlapData, std::vector<SameOperatorsDetails> &opsDetails,
         const std::shared_ptr<VirtualTraceDatabase> &database) override;
-private:
+
+  private:
     static void QueryGroupMapAndCalculateSummary(const std::shared_ptr<VirtualTraceDatabase> &database,
         std::vector<Protocol::SystemViewOverallRes> &responseBody,
-        std::vector<Protocol::SystemViewOverallRes>::iterator it,
-        const std::vector<Protocol::ThreadTraces>& uncovered, BindParamsForGMAndCS bindParamsForGmAndCs);
+        std::vector<Protocol::SystemViewOverallRes>::iterator it, const std::vector<Protocol::ThreadTraces> &uncovered,
+        BindParamsForGMAndCS bindParamsForGmAndCs);
     static bool CheckDataForSystemViewOverall(const std::shared_ptr<VirtualTraceDatabase> &database);
     static bool GetTmpTableForOverall(const std::shared_ptr<VirtualTraceDatabase> &database);
     static std::map<uint64_t, uint64_t> QueryFlowDict(const Protocol::SystemViewOverallReqParam &requestParams,
@@ -56,11 +57,11 @@ private:
     std::vector<OverallTmpInfo> QueryKernelEventsForSystemViewOverall(
         const Protocol::SystemViewOverallReqParam &requestParams, const std::shared_ptr<VirtualTraceDatabase> &database,
         const std::map<uint64_t, uint64_t> &flowDict, int deviceId);
-    static void QueryBwdTrackIdForComputingOverall(const std::shared_ptr<VirtualTraceDatabase> &database,
-        uint64_t& bwdTrackId);
-    std::string GetOrUpdateStringCacheValue(const std::shared_ptr<VirtualTraceDatabase> &database,
-        const std::string& path, const std::string& key);
-    void UpdateStringCacheValue(const std::shared_ptr<VirtualTraceDatabase> &database, const std::string& path);
+    static void QueryBwdTrackIdForComputingOverall(
+        const std::shared_ptr<VirtualTraceDatabase> &database, uint64_t &bwdTrackId);
+    std::string GetOrUpdateStringCacheValue(
+        const std::shared_ptr<VirtualTraceDatabase> &database, const std::string &path, const std::string &key);
+    void UpdateStringCacheValue(const std::shared_ptr<VirtualTraceDatabase> &database, const std::string &path);
     std::map<std::string, std::map<std::string, std::string>> stringsCache;
     std::recursive_mutex mutex;
 };

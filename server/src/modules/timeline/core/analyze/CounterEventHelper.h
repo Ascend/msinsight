@@ -51,7 +51,7 @@ struct CounterEventConfig {
 };
 
 class CounterEventHelper {
-public:
+  public:
     CounterEventHelper() = default;
     ~CounterEventHelper() = default;
     void RegisterHostMap();
@@ -64,7 +64,8 @@ public:
     std::string GenerateDeviceCounterSQL(const PROCESS_TYPE type, const std::string &threadId);
     std::map<PROCESS_TYPE, CounterEventConfig> hostCounterEventMap;
     std::multimap<PROCESS_TYPE, CounterEventConfig> deviceCounterEventMap;
-protected:
+
+  protected:
     void RegisterDeviceAICoreFreqMap();
     void RegisterDeviceAccPMUMap();
     void RegisterDeviceDDRMap();
