@@ -31,31 +31,37 @@ struct ParseProgressInfo {
 };
 
 class ParseResult {
-public:
+  public:
     ParseResult(bool success, std::string msg) : success(success), msg(std::move(msg)) {}
     [[nodiscard]] bool IsSuccess() const { return success; }
     [[nodiscard]] std::string GetErrorMsg() const { return msg; }
     explicit operator bool() const noexcept { return success; }
     bool operator!() const noexcept { return !success; }
-    void Set(const bool result, std::string message) { success = result; msg = std::move(message); }
-private:
+    void Set(const bool result, std::string message) {
+        success = result;
+        msg = std::move(message);
+    }
+
+  private:
     bool success{false};
     std::string msg;
 };
 
 class TritonParser {
-public:
-    static TritonParser& Instance();
-    void Parse(const std::string& parseDir);
-    bool IsParsed(const std::string& filePath) const;
-protected:
-    void BeforeParse(const std::string& parsedDir);
-    void AfterParse(const ParseResult& result) const;
-    ParseResult ParseImpl(const std::string& parsedDir);
-    bool CheckFileValid(const std::string& fileName, std::string& error);
-    ParseResult ParseOneTriton(const std::string& memFile);
-    bool CheckDataValid(document_t& json);
-private:
+  public:
+    static TritonParser &Instance();
+    void Parse(const std::string &parseDir);
+    bool IsParsed(const std::string &filePath) const;
+
+  protected:
+    void BeforeParse(const std::string &parsedDir);
+    void AfterParse(const ParseResult &result) const;
+    ParseResult ParseImpl(const std::string &parsedDir);
+    bool CheckFileValid(const std::string &fileName, std::string &error);
+    ParseResult ParseOneTriton(const std::string &memFile);
+    bool CheckDataValid(document_t &json);
+
+  private:
     std::vector<std::string> parsedFiles;
     std::atomic<bool> terminated{false};
     std::string_view tritonMemFileName = "memory_info.json";

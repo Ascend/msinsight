@@ -23,16 +23,12 @@
 using namespace Dic::Module::Triton;
 
 class VirtualAddressManagerTest : public ::testing::Test {
-protected:
+  protected:
     VirtualAddressManager manager;
 
-    void SetUp() override {
-        manager.Reset();
-    }
+    void SetUp() override { manager.Reset(); }
 
-    void TearDown() override {
-        manager.Reset();
-    }
+    void TearDown() override { manager.Reset(); }
 };
 
 /**
@@ -67,12 +63,12 @@ TEST_F(VirtualAddressManagerTest, AllocateAndFreeTest) {
 TEST_F(VirtualAddressManagerTest, ManageRecordTest) {
     TritonRecord record;
     TritonTensorSegment seg1;
-    
+
     TritonTensorBlock block1;
     block1.start = 10;
     block1.end = 20;
     block1.size = 100;
-    
+
     TritonTensorBlock block2;
     block2.start = 15; // 和 block1 时间上有重叠
     block2.end = 30;
@@ -98,7 +94,7 @@ TEST_F(VirtualAddressManagerTest, ManageRecordTest) {
     // TS=20: Free block1 (addr=0, size=100)
     // TS=25: Allocate block3 (size 150) -> addr=0 容量不够，应该在 top_address 300 分配？还是？
     // Wait, FreeBlock 是 (0, 100)，新的是 150，放不下，所以会在 current_top_address_ = 300 分配
-    
+
     EXPECT_EQ(record.segments[0].blocks[0].virtualAddress, 0);
     EXPECT_EQ(record.segments[0].blocks[1].virtualAddress, 100);
     EXPECT_EQ(record.segments[0].blocks[2].virtualAddress, 300);

@@ -29,24 +29,17 @@ using namespace Dic::Module::Triton;
 using namespace Dic::Protocol;
 
 class TritonHandlerTest : public ::testing::Test {
-protected:
-    void SetUp() override
-    {
-        TritonService::Instance().Reset();
-    }
-    
-    void TearDown() override
-    {
-        TritonService::Instance().Reset();
-    }
+  protected:
+    void SetUp() override { TritonService::Instance().Reset(); }
+
+    void TearDown() override { TritonService::Instance().Reset(); }
 };
 
 /**
  * @brief 场景说明：测试 QueryTritonMemoryBlocksHandler 处理请求的功能。
  * 验证 Handler 能正确从 Service 获取数据并填充到 Response 中。
  */
-TEST_F(TritonHandlerTest, QueryTritonMemoryBlocksHandlerTest)
-{
+TEST_F(TritonHandlerTest, QueryTritonMemoryBlocksHandlerTest) {
     // 准备数据
     TritonTensorSegment s;
     s.start = 100;
@@ -59,13 +52,13 @@ TEST_F(TritonHandlerTest, QueryTritonMemoryBlocksHandlerTest)
     record.segments.push_back(s);
     records["scope_test"] = record;
     TritonService::Instance().UpdateRecord(std::move(records));
-    
+
     // 构造请求
     auto req = std::make_unique<TritonMemoryBlocksRequest>();
     req->startTimestamp = 100;
     req->endTimestamp = 200;
     req->scopeType = "scope_test";
-    
+
     QueryTritonMemoryBlocksHandler handler;
     // 注意：HandleRequest 内部会调用 SendResponse。
     // 在单元测试中，我们可能需要 mock WsSender 或检查 Response 对象的副作用。
@@ -77,16 +70,15 @@ TEST_F(TritonHandlerTest, QueryTritonMemoryBlocksHandlerTest)
 /**
  * @brief 场景说明：测试 QueryTritonBasicInfoHandler 处理请求的功能。
  */
-TEST_F(TritonHandlerTest, QueryTritonBasicInfoHandlerTest)
-{
+TEST_F(TritonHandlerTest, QueryTritonBasicInfoHandlerTest) {
     TritonMemeHeader header;
     header.kernelName = "test_kernel";
     header.memTypes = {"scope_test"};
     TritonService::Instance().SetHeader(std::move(header));
-    
+
     auto req = std::make_unique<TritonBasicInfoRequest>();
     QueryTritonBasicInfoHandler handler;
-    
+
     bool result = handler.HandleRequest(std::move(req));
     EXPECT_TRUE(result);
 }
@@ -94,8 +86,7 @@ TEST_F(TritonHandlerTest, QueryTritonBasicInfoHandlerTest)
 /**
  * @brief 场景说明：测试 QueryTritonMemoryUsageHandler 处理请求的功能。
  */
-TEST_F(TritonHandlerTest, QueryTritonMemoryUsageHandlerTest)
-{
+TEST_F(TritonHandlerTest, QueryTritonMemoryUsageHandlerTest) {
     TritonTensorSegment s;
     s.start = 100;
     s.end = 200;
@@ -104,11 +95,11 @@ TEST_F(TritonHandlerTest, QueryTritonMemoryUsageHandlerTest)
     record.segments.push_back(s);
     records["scope_test"] = record;
     TritonService::Instance().UpdateRecord(std::move(records));
-    
+
     auto req = std::make_unique<TritonMemoryUsageRequest>();
     req->timestamp = 150;
     req->scopeType = "scope_test";
-    
+
     QueryTritonMemoryUsageHandler handler;
     bool result = handler.HandleRequest(std::move(req));
     EXPECT_TRUE(result);

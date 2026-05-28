@@ -21,11 +21,11 @@
 #include "TritonService.h"
 #include "WsSender.h"
 namespace Dic::Module::Triton {
-bool QueryTritonBasicInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    const auto& request = dynamic_cast<Protocol::TritonBasicInfoRequest&>(*requestPtr);
-    std::unique_ptr<Protocol::TritonBasicInfoResponse> responsePtr = std::make_unique<Protocol::TritonBasicInfoResponse>();
-    auto& response = *responsePtr;
+bool QueryTritonBasicInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    const auto &request = dynamic_cast<Protocol::TritonBasicInfoRequest &>(*requestPtr);
+    std::unique_ptr<Protocol::TritonBasicInfoResponse> responsePtr =
+        std::make_unique<Protocol::TritonBasicInfoResponse>();
+    auto &response = *responsePtr;
     SetBaseResponse(request, response);
     auto [kernel, scopeTypes] = TritonService::Instance().GetHeader();
     response.kernelName = std::move(kernel);

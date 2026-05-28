@@ -68,11 +68,11 @@ export class Painter {
         }
     }
 
-    renderHighlightData(hightData: StateDataHoverResult | null, options: RenderOptions): void {
-        if (hightData === null) {
+    renderHighlightData(highlightData: StateDataHoverResult | null, options: RenderOptions): void {
+        if (highlightData === null) {
             return;
         }
-        const { type, data } = hightData;
+        const { type, data } = highlightData;
         const { size, offsetX, offsetY, blocks } = data;
         if (type === 'segment') {
             this.drawShape(offsetX, offsetY, size, options, '#ff0000', true);

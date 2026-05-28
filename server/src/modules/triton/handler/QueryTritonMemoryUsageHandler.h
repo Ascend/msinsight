@@ -21,11 +21,8 @@
 
 namespace Dic::Module::Triton {
 class QueryTritonMemoryUsageHandler : public TritonRequestHandler {
-public:
-    QueryTritonMemoryUsageHandler()
-    {
-        command = Protocol::REQ_RES_TRITON_MEMORY_USAGE;
-    }
+  public:
+    QueryTritonMemoryUsageHandler() { command = Protocol::REQ_RES_TRITON_MEMORY_USAGE; }
     ~QueryTritonMemoryUsageHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

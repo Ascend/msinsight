@@ -24,10 +24,8 @@
 #include "TritonService.h"
 namespace Dic::Protocol {
 using namespace Dic::Module::Triton;
-struct TritonMemoryBlocksResponse : public JsonResponse
-{
-    TritonMemoryBlocksResponse() : JsonResponse(REQ_RES_TRITON_MEMORY_BLOCKS)
-    {}
+struct TritonMemoryBlocksResponse : public JsonResponse {
+    TritonMemoryBlocksResponse() : JsonResponse(REQ_RES_TRITON_MEMORY_BLOCKS) {}
     std::vector<TritonTensorBlock> blocks;
     uint64_t maxSize{0};
     uint64_t minSize{std::numeric_limits<uint64_t>::max()};
@@ -36,10 +34,8 @@ struct TritonMemoryBlocksResponse : public JsonResponse
     uint64_t totalSize{0};
     std::string status;
     std::string errMsg;
-    void UpdateInfo()
-    {
-        std::for_each(blocks.begin(), blocks.end(), [this](const TritonTensorBlock& blk)
-        {
+    void UpdateInfo() {
+        std::for_each(blocks.begin(), blocks.end(), [this](const TritonTensorBlock &blk) {
             maxSize = std::max(maxSize, blk.size);
             minSize = std::min(minSize, blk.size);
             maxTimeStamp = std::max(maxTimeStamp, blk.end);
@@ -47,8 +43,7 @@ struct TritonMemoryBlocksResponse : public JsonResponse
             totalSize++;
         });
     }
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
         auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
@@ -78,12 +73,10 @@ struct TritonMemoryBlocksResponse : public JsonResponse
 };
 
 struct TritonBasicInfoResponse : public JsonResponse {
-    TritonBasicInfoResponse() : JsonResponse(REQ_RES_TRITON_MEMORY_BASIC_INFO)
-    {}
+    TritonBasicInfoResponse() : JsonResponse(REQ_RES_TRITON_MEMORY_BASIC_INFO) {}
     std::string kernelName;
     std::vector<std::string> scopeTypes;
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
         auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
@@ -100,11 +93,9 @@ struct TritonBasicInfoResponse : public JsonResponse {
 };
 
 struct TritonMemoryUsageResponse : public JsonResponse {
-    TritonMemoryUsageResponse() : JsonResponse(REQ_RES_TRITON_MEMORY_USAGE)
-    {}
+    TritonMemoryUsageResponse() : JsonResponse(REQ_RES_TRITON_MEMORY_USAGE) {}
     std::vector<TritonTensorSegment> segments;
-    [[nodiscard]] std::optional<document_t> ToJson() const override
-    {
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
         auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);

@@ -46,11 +46,10 @@ struct TritonTensorSegment;
  * 开启double buffer时会一个tensor会对应多个block
  */
 struct TritonTensorBlock {
-public:
+  public:
     TritonTensorBlock() = default;
 
-    explicit TritonTensorBlock(const TritonTensorSegment& segment)
-    {
+    explicit TritonTensorBlock(const TritonTensorSegment &segment) {
         allocate = segment.allocate;
         start = segment.start;
         end = segment.end;
@@ -59,10 +58,9 @@ public:
         sourceLocation = segment.sourceLocation;
     }
 
-    [[nodiscard]] std::string GetAttrStr() const
-    {
+    [[nodiscard]] std::string GetAttrStr() const {
         document_t attr(rapidjson::kObjectType);
-        auto& allocator = attr.GetAllocator();
+        auto &allocator = attr.GetAllocator();
         JsonUtil::AddMember(attr, "buffer", buffer, allocator);
         JsonUtil::AddMember(attr, "offset", offset, allocator);
         JsonUtil::AddMember(attr, "virtualAddress", virtualAddress, allocator);
@@ -80,7 +78,7 @@ public:
     uint64_t virtualAddress{0};
     bool tmpBuf{false};
     std::string sourceLocation; // 默认为空，当前端返回纯block形式时才赋值
-    std::string buffer;         // 默认为空，当前端返回纯block形式时才赋值
+    std::string buffer; // 默认为空，当前端返回纯block形式时才赋值
 };
 
 struct TritonMemeHeader {

@@ -21,13 +21,10 @@
 #include "ProtocolDefs.h"
 namespace Dic {
 namespace Module::Triton {
-class TritonModule: public BaseModule {
-public:
-    TritonModule()
-    {
-        moduleName = MODULE_TRITON;
-    }
-    ~TritonModule()  override = default;
+class TritonModule : public BaseModule {
+  public:
+    TritonModule() { moduleName = MODULE_TRITON; }
+    ~TritonModule() override = default;
     void RegisterRequestHandlers() override;
     void OnRequest(std::unique_ptr<Protocol::Request> request) override;
 };
