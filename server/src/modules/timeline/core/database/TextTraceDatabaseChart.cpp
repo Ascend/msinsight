@@ -27,8 +27,7 @@ using namespace Dic::Server;
 using namespace Dic::Protocol;
 
 void TextTraceDatabase::AssembleUnitFlowsBody(Protocol::UnitFlowsBody &responseBody, uint64_t minTimestamp,
-                                              std::unordered_map<std::string, std::vector<FlowPoint>> &flowPointMap)
-{
+    std::unordered_map<std::string, std::vector<FlowPoint>> &flowPointMap) {
     std::map<std::string, std::vector<Protocol::UnitSingleFlow>> flowMap;
     for (auto &item : flowPointMap) {
         const static int FLOW_COUNT = 2; // from + to
@@ -39,7 +38,7 @@ void TextTraceDatabase::AssembleUnitFlowsBody(Protocol::UnitFlowsBody &responseB
         FlowAnalyzer::SortByFlowIdAndTimestampASC(item.second);
         FlowAnalyzer::ComputeUintFlows(item.second, item.second[0].cat, flowDetailList);
         std::vector<Protocol::UnitCatFlows> unitAllFlow;
-        for (const auto &singleFlow: flowDetailList) {
+        for (const auto &singleFlow : flowDetailList) {
             if (singleFlow->from.timestamp < minTimestamp || singleFlow->to.timestamp < minTimestamp) {
                 continue;
             }

@@ -22,9 +22,8 @@
 #include "OverlapAnsRepo.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
-void OverlapAnsRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-    std::vector<SliceDomain> &sliceVec)
-{
+void OverlapAnsRepo::QuerySimpleSliceWithOutNameByTrackId(
+    const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -44,7 +43,7 @@ void OverlapAnsRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &slic
         return;
     }
     stmt->BindParams(trackInfo.deviceId, trackInfo.threadId, sliceQuery.endTime + sliceQuery.minTimestamp,
-                     sliceQuery.startTime + sliceQuery.minTimestamp);
+        sliceQuery.startTime + sliceQuery.minTimestamp);
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Warn("Failed to execute query overlap query all slice");
@@ -60,13 +59,12 @@ void OverlapAnsRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &slic
 }
 
 void OverlapAnsRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
-    std::vector<CompeteSliceDomain> &competeSliceVec)
-{
+    std::vector<CompeteSliceDomain> &competeSliceVec) {
     if (std::empty(sliceIds)) {
         return;
     }
     std::string sql = "select 'OVERLAP_ANALYSIS'||type as name, ROWID as id, startNs,"
-        " endNs from " +
+                      " endNs from " +
         TABLE_OVERLAP_ANALYSIS + " where 1 = 1 and id in (";
     std::string sliceidvecStr = StringUtil::join(sliceIds, ", ");
     sql += sliceidvecStr + ");";
@@ -96,11 +94,10 @@ void OverlapAnsRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const 
     }
 }
 
-bool OverlapAnsRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain)
-{
+bool OverlapAnsRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
     const uint64_t sliceId = NumberUtil::TryParseUnsignedLongLong(sliceQuery.sliceId);
     std::vector<CompeteSliceDomain> sliceVec;
-    QueryCompeteSliceByIds(sliceQuery, { sliceId }, sliceVec);
+    QueryCompeteSliceByIds(sliceQuery, {sliceId}, sliceVec);
     if (std::empty(sliceVec)) {
         ServerLog::Warn("Failed to query overlap slice detail by id. id is: %", sliceQuery.sliceId);
         return false;
@@ -109,8 +106,7 @@ bool OverlapAnsRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteS
     return true;
 }
 
-int OverlapAnsRepo::GetTypeByName(const std::string &name)
-{
+int OverlapAnsRepo::GetTypeByName(const std::string &name) {
     for (size_t index = 0; index < OVERLAP_TYPES.size(); index++) {
         if (name == OVERLAP_TYPES[index]) {
             return static_cast<int>(index);

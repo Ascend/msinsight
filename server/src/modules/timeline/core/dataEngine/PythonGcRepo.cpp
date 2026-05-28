@@ -21,9 +21,8 @@
 #include "DataBaseManager.h"
 #include "PythonGcRepo.h"
 namespace Dic::Module::Timeline {
-void PythonGcRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-                                                        std::vector<SliceDomain> &sliceVec)
-{
+void PythonGcRepo::QuerySimpleSliceWithOutNameByTrackId(
+    const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -35,8 +34,8 @@ void PythonGcRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQ
         ServerLog::Error("gcRecord open database is failed");
         return;
     }
-    std::string sql =
-        "SELECT ROWID as id, startNs, endNs from " + GC_RECORD + " where globalTid = ? "
+    std::string sql = "SELECT ROWID as id, startNs, endNs from " + GC_RECORD +
+        " where globalTid = ? "
         " AND startNs <= ? AND endNs >= ? order by startNs , id";
     auto stmt = database->CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -44,7 +43,7 @@ void PythonGcRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQ
         return;
     }
     stmt->BindParams(trackInfo.processId, sliceQuery.endTime + sliceQuery.minTimestamp,
-                     sliceQuery.startTime + sliceQuery.minTimestamp);
+        sliceQuery.startTime + sliceQuery.minTimestamp);
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to execute query gcRecord query all slice");
@@ -60,13 +59,12 @@ void PythonGcRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQ
 }
 
 void PythonGcRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
-    std::vector<CompeteSliceDomain> &competeSliceVec)
-{
+    std::vector<CompeteSliceDomain> &competeSliceVec) {
     if (std::empty(sliceIds)) {
         return;
     }
     std::string sql = "select 'Python GC' as name, gc.ROWID as id, startNs, endNs "
-        " from " +
+                      " from " +
         GC_RECORD +
         "  gc  "
         "    where 1 = 1 and id in (";
@@ -98,12 +96,11 @@ void PythonGcRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const st
     }
 }
 
-bool PythonGcRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain)
-{
+bool PythonGcRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
     std::vector<PythonGCPO> pythonGCPOs;
     table->Select(PythonGCColumn::ID, PythonGCColumn::TIMESTAMP)
-            .Select(PythonGCColumn::ENDTIME)
-            .ExcuteQuery(sliceQuery.rankId, pythonGCPOs);
+        .Select(PythonGCColumn::ENDTIME)
+        .ExcuteQuery(sliceQuery.rankId, pythonGCPOs);
     if (std::empty(pythonGCPOs)) {
         ServerLog::Warn("Failed to query pythonGC slice detail by id. id is: %", sliceQuery.sliceId);
         return false;

@@ -30,9 +30,8 @@
 
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
-template <typename T>
-class DBConnectionPool {
-public:
+template <typename T> class DBConnectionPool {
+  public:
     explicit DBConnectionPool(std::string dbPath, std::function<T *()> call);
 
     ~DBConnectionPool();
@@ -53,7 +52,7 @@ public:
 
     void Stop();
 
-private:
+  private:
     std::function<T *()> databaseCreateCall;
     std::mutex mutex;
     std::condition_variable cv;
@@ -70,13 +69,11 @@ private:
     void ReleaseConnection(T *conn);
 };
 
-template<typename T>
+template <typename T>
 DBConnectionPool<T>::DBConnectionPool(std::string dbPath, std::function<T *()> call)
     : databaseCreateCall(std::move(call)), path(std::move(dbPath)) {}
 
-template<typename T>
-DBConnectionPool<T>::~DBConnectionPool()
-{
+template <typename T> DBConnectionPool<T>::~DBConnectionPool() {
     try {
         Stop();
     } catch (const std::exception &) {
@@ -84,9 +81,7 @@ DBConnectionPool<T>::~DBConnectionPool()
     }
 }
 
-template<typename T>
-std::shared_ptr<T> DBConnectionPool<T>::GetConnection()
-{
+template <typename T> std::shared_ptr<T> DBConnectionPool<T>::GetConnection() {
     std::unique_lock<std::mutex> lock(mutex);
     if (!valid) {
         return nullptr;
@@ -109,27 +104,17 @@ std::shared_ptr<T> DBConnectionPool<T>::GetConnection()
         ServerLog::Error("Get connection Failed.");
         return nullptr;
     }
-    std::shared_ptr<T> connPtr(conn, [this] (T *conn) {
-        ReleaseConnection(conn);
-    });
+    std::shared_ptr<T> connPtr(conn, [this](T *conn) { ReleaseConnection(conn); });
     return connPtr;
 }
 
-template<typename T>
-void DBConnectionPool<T>::SetMaxActiveCount(unsigned int count)
-{
+template <typename T> void DBConnectionPool<T>::SetMaxActiveCount(unsigned int count) {
     maxActiveConnections = std::max(maxActiveConnections, count);
 }
 
-template<typename T>
-std::string DBConnectionPool<T>::GetDbPath() const
-{
-    return path;
-}
+template <typename T> std::string DBConnectionPool<T>::GetDbPath() const { return path; }
 
-template<typename T>
-void DBConnectionPool<T>::Stop()
-{
+template <typename T> void DBConnectionPool<T>::Stop() {
     std::unique_lock<std::mutex> lock(mutex);
     if (!valid) {
         return;
@@ -146,9 +131,7 @@ void DBConnectionPool<T>::Stop()
     path = "";
 }
 
-template<typename T>
-T *DBConnectionPool<T>::CreatConnection()
-{
+template <typename T> T *DBConnectionPool<T>::CreatConnection() {
     int retryCount = 0;
     while (retryCount < maxRetryAttempts) {
         T *conn = databaseCreateCall();
@@ -164,9 +147,7 @@ T *DBConnectionPool<T>::CreatConnection()
     return nullptr;
 }
 
-template<typename T>
-void DBConnectionPool<T>::ReleaseConnection(T *conn)
-{
+template <typename T> void DBConnectionPool<T>::ReleaseConnection(T *conn) {
     std::unique_lock<std::mutex> lock(mutex);
     idlePool.emplace_back(conn);
     if (valid) {

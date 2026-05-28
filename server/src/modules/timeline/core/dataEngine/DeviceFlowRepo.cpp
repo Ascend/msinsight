@@ -19,8 +19,7 @@
 #include "NumberSafeUtil.h"
 #include "DeviceFlowRepo.h"
 namespace Dic::Module::Timeline {
-void DeviceFlowRepo::AddDeviceFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void DeviceFlowRepo::AddDeviceFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     // task_info表中opId和globalTaskId的映射
     std::unordered_map<uint64_t, uint64_t> opIdMap = QueryOpIdMap(flowQuery);
     // task表中globalTaskId和deviceId的映射
@@ -31,9 +30,8 @@ void DeviceFlowRepo::AddDeviceFlowPoint(const FlowQuery &flowQuery, std::vector<
     AddHardWareFlowPoint(flowQuery, flowPointVec, host, hcclConnectionIdSet);
 }
 
-void DeviceFlowRepo::AddHardWareMstxFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec,
-    const std::vector<uint64_t> &connectionIds)
-{
+void DeviceFlowRepo::AddHardWareMstxFlowPoint(
+    const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec, const std::vector<uint64_t> &connectionIds) {
     auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(flowQuery.fileId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get database connection when querying Hardware MSTX flow point.");
@@ -44,13 +42,13 @@ void DeviceFlowRepo::AddHardWareMstxFlowPoint(const FlowQuery &flowQuery, std::v
 
 void DeviceFlowRepo::AddHardWareMstxFlowPointExecuteSQL(const Dic::Module::Timeline::FlowQuery &flowQuery,
     std::vector<FlowPoint> &flowPointVec, const std::vector<uint64_t> &connectionIds,
-    std::shared_ptr<VirtualTraceDatabase> database)
-{
+    std::shared_ptr<VirtualTraceDatabase> database) {
     // 因为MSTX按照domainId展示后必须连接MSTX_EVENTS表才能获取domainId，所以这里未使用Table类
     std::vector<TaskPO> taskPOS;
     std::string sql = "SELECT main.rowid AS id, main.startNs AS startNs, main.connectionId AS connectionId, "
-        "main.streamId AS streamId, main.deviceId AS deviceId, m.domainId AS domainId "
-        "FROM " + TABLE_TASK + " AS main INNER JOIN " + TABLE_MSTX_EVENTS +
+                      "main.streamId AS streamId, main.deviceId AS deviceId, m.domainId AS domainId "
+                      "FROM " +
+        TABLE_TASK + " AS main INNER JOIN " + TABLE_MSTX_EVENTS +
         " AS m ON main.connectionId = m.connectionId WHERE main.connectionId IN (" +
         StringUtil::join(connectionIds, ", ") + ");";
 
@@ -87,16 +85,15 @@ void DeviceFlowRepo::AddHardWareMstxFlowPointExecuteSQL(const Dic::Module::Timel
         endPoint.id = item.id;
         endPoint.timestamp = item.timestamp > flowQuery.minTimestamp ? item.timestamp - flowQuery.minTimestamp : 0;
         endPoint.rankId = host + instance.GetRankId(host, std::to_string(item.deviceId));
-        endPoint.trackId = instance.GetTrackId(endPoint.rankId, hardWarePid,
-                                               std::to_string(item.streamId) + "_" + std::to_string(item.domainId));
+        endPoint.trackId = instance.GetTrackId(
+            endPoint.rankId, hardWarePid, std::to_string(item.streamId) + "_" + std::to_string(item.domainId));
         flowPointVec.emplace_back(endPoint);
     }
 }
 
 std::unordered_set<int64_t> DeviceFlowRepo::AddGroupHcclFlowPoint(const FlowQuery &flowQuery,
     std::vector<FlowPoint> &flowPointVec, const std::unordered_map<uint64_t, uint64_t> &opIdMap,
-    const std::unordered_map<uint64_t, uint64_t> &deviceMap, const std::string &host)
-{
+    const std::unordered_map<uint64_t, uint64_t> &deviceMap, const std::string &host) {
     std::vector<CommucationTaskOpPO> commucationTaskOpPOs;
     commucationOpTable->Select(CommucationTaskOpColumn::OP_ID, CommucationTaskOpColumn::TIMESTAMP)
         .Select(CommucationTaskOpColumn::CONNECTION_ID, CommucationTaskOpColumn::GROUPNAME)
@@ -108,8 +105,8 @@ std::unordered_set<int64_t> DeviceFlowRepo::AddGroupHcclFlowPoint(const FlowQuer
     for (const auto &item : commucationTaskOpPOs) {
         FlowPoint endPoint;
         // 如果deviceId不唯一，则判断opId和device是否满足
-        bool isContinue = !isUniqueDeviceId &&
-            (opIdMap.count(item.opId) == 0 || deviceMap.count(opIdMap.at(item.opId)) == 0);
+        bool isContinue =
+            !isUniqueDeviceId && (opIdMap.count(item.opId) == 0 || deviceMap.count(opIdMap.at(item.opId)) == 0);
         if (isContinue) {
             continue;
         }
@@ -128,8 +125,7 @@ std::unordered_set<int64_t> DeviceFlowRepo::AddGroupHcclFlowPoint(const FlowQuer
     return hcclConnectionIdSet;
 }
 
-std::unordered_map<uint64_t, uint64_t> DeviceFlowRepo::QueryDeviceMap(const FlowQuery &flowQuery)
-{
+std::unordered_map<uint64_t, uint64_t> DeviceFlowRepo::QueryDeviceMap(const FlowQuery &flowQuery) {
     std::vector<TaskPO> deviceTaskPOS;
     taskTable->Select(TaskColumn::GLOBAL_TASK_ID, TaskColumn::DECICED_ID).ExcuteQuery(flowQuery.fileId, deviceTaskPOS);
     std::unordered_map<uint64_t, uint64_t> deviceMap;
@@ -139,8 +135,7 @@ std::unordered_map<uint64_t, uint64_t> DeviceFlowRepo::QueryDeviceMap(const Flow
     return deviceMap;
 }
 
-std::unordered_map<uint64_t, uint64_t> DeviceFlowRepo::QueryOpIdMap(const FlowQuery &flowQuery)
-{
+std::unordered_map<uint64_t, uint64_t> DeviceFlowRepo::QueryOpIdMap(const FlowQuery &flowQuery) {
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPOs;
     commucationTaskInfoTable->Select(CommucationTaskInfoColumn::GLOBAL_TASK_ID)
         .Select(CommucationTaskInfoColumn::OP_ID)
@@ -154,8 +149,7 @@ std::unordered_map<uint64_t, uint64_t> DeviceFlowRepo::QueryOpIdMap(const FlowQu
 }
 
 void DeviceFlowRepo::AddHardWareFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec,
-    const std::string &host, const std::unordered_set<int64_t> &hcclConnectionIdSet)
-{
+    const std::string &host, const std::unordered_set<int64_t> &hcclConnectionIdSet) {
     std::vector<TaskPO> taskPOS;
     taskTable->Select(TaskColumn::ROW_ID, TaskColumn::TIMESTAMP)
         .Select(TaskColumn::CONNECTION_ID, TaskColumn::STREAM_ID, TaskColumn::DECICED_ID)
@@ -178,22 +172,19 @@ void DeviceFlowRepo::AddHardWareFlowPoint(const FlowQuery &flowQuery, std::vecto
     }
 }
 
-void DeviceFlowRepo::SetTaskTable(std::unique_ptr<TaskTable> taskTablePtr)
-{
+void DeviceFlowRepo::SetTaskTable(std::unique_ptr<TaskTable> taskTablePtr) {
     if (taskTablePtr != nullptr) {
         taskTable = std::move(taskTablePtr);
     }
 }
 
-void DeviceFlowRepo::SetCommucationOpTable(std::unique_ptr<CommucationOpTable> commucationOpTablePtr)
-{
+void DeviceFlowRepo::SetCommucationOpTable(std::unique_ptr<CommucationOpTable> commucationOpTablePtr) {
     if (commucationOpTablePtr != nullptr) {
         commucationOpTable = std::move(commucationOpTablePtr);
     }
 }
 
-void DeviceFlowRepo::SetNpuInfoRepo(std::unique_ptr<NpuInfoRepo> npuInfoRepoPtr)
-{
+void DeviceFlowRepo::SetNpuInfoRepo(std::unique_ptr<NpuInfoRepo> npuInfoRepoPtr) {
     if (npuInfoRepoPtr != nullptr) {
         npuInfoRepo = std::move(npuInfoRepoPtr);
     }

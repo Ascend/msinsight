@@ -23,9 +23,8 @@
 #include "NumberUtil.h"
 #include "HardWareRepo.h"
 namespace Dic::Module::Timeline {
-void HardWareRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-    std::vector<SliceDomain> &sliceVec)
-{
+void HardWareRepo::QuerySimpleSliceWithOutNameByTrackId(
+    const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -57,8 +56,7 @@ void HardWareRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQ
 }
 
 std::unique_ptr<SqlitePreparedStatement> HardWareRepo::PrepareStmtForQuerySimpleSliceWithOutNameByTrackId(
-    const TrackInfo &trackInfo, const std::shared_ptr<VirtualTraceDatabase>& database, const SliceQuery &sliceQuery)
-{
+    const TrackInfo &trackInfo, const std::shared_ptr<VirtualTraceDatabase> &database, const SliceQuery &sliceQuery) {
     // 这个函数会将Device侧的非MSTX事件和MSTX事件分开显示，其中MSTX事件会分domainId展示，且摆放在非MSTX事件的上方
     // 非MSTX事件的threadId是其Stream编号，MSTX事件的threadId是{Stream编号}_{domain编号}
     // 非MSTX事件查询时必须使用connectionId NOT IN显式排除MSTX事件，否则会将MSTX事件同时查询
@@ -67,14 +65,15 @@ std::unique_ptr<SqlitePreparedStatement> HardWareRepo::PrepareStmtForQuerySimple
     std::string sql;
     if (trackInfo.threadId.find('_') != std::string::npos) {
         sql = "SELECT main.rowid AS id, main.startNs AS startNs, main.endNs AS endNs FROM " + TABLE_TASK +
-            " AS main INNER JOIN " + TABLE_MSTX_EVENTS + " AS mstx ON main.connectionId = mstx.connectionId "
+            " AS main INNER JOIN " + TABLE_MSTX_EVENTS +
+            " AS mstx ON main.connectionId = mstx.connectionId "
             " WHERE main.deviceId = ? AND main.streamId = ? AND mstx.domainId = ? "
             " AND main.startNs <= ? AND main.endNs >= ? "
             " ORDER BY main.startNs, main.rowid;";
     } else {
         sql = "SELECT rowid as id, startNs AS startNs, endNs AS endNs FROM " + TABLE_TASK +
-              " WHERE deviceId = ? AND streamId = ? AND connectionId NOT IN (SELECT connectionId FROM " +
-              TABLE_MSTX_EVENTS + ") AND startNs <= ? AND endNs >= ? ORDER BY startNs, id;";
+            " WHERE deviceId = ? AND streamId = ? AND connectionId NOT IN (SELECT connectionId FROM " +
+            TABLE_MSTX_EVENTS + ") AND startNs <= ? AND endNs >= ? ORDER BY startNs, id;";
     }
     auto stmt = database->CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -85,22 +84,21 @@ std::unique_ptr<SqlitePreparedStatement> HardWareRepo::PrepareStmtForQuerySimple
         std::string streamId = trackInfo.threadId.substr(0, pos);
         std::string domainId = trackInfo.threadId.substr(pos + 1);
         stmt->BindParams(trackInfo.deviceId, streamId, domainId, sliceQuery.endTime + sliceQuery.minTimestamp,
-                         sliceQuery.startTime + sliceQuery.minTimestamp);
+            sliceQuery.startTime + sliceQuery.minTimestamp);
     } else {
         stmt->BindParams(trackInfo.deviceId, trackInfo.threadId, sliceQuery.endTime + sliceQuery.minTimestamp,
-                         sliceQuery.startTime + sliceQuery.minTimestamp);
+            sliceQuery.startTime + sliceQuery.minTimestamp);
     }
     return stmt;
 }
 
 void HardWareRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
-    std::vector<CompeteSliceDomain> &competeSliceVec)
-{
+    std::vector<CompeteSliceDomain> &competeSliceVec) {
     if (std::empty(sliceIds)) {
         return;
     }
     std::string sql = "SELECT main.ROWID as id, main.startNs, main.endNs,"
-        " coalesce(c.name, m.message, s.name, main.taskType) as name FROM " +
+                      " coalesce(c.name, m.message, s.name, main.taskType) as name FROM " +
         TABLE_TASK +
         " main "
         " left join " +
@@ -110,9 +108,7 @@ void HardWareRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const st
         TABLE_MSTX_EVENTS +
         " m on "
         " (m.connectionId = main.connectionId and  m.connectionId != " +
-        WRONG_DATA +
-        " ) left join " +
-        TABLE_COMMUNICATION_SCHEDULE_TASK +
+        WRONG_DATA + " ) left join " + TABLE_COMMUNICATION_SCHEDULE_TASK +
         " s on main.globalTaskId = s.globalTaskId"
         " where 1 = 1 and id in (";
     std::string sliceidvecStr = StringUtil::join(sliceIds, ", ");
@@ -138,8 +134,7 @@ void HardWareRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const st
     }
 }
 
-bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain)
-{
+bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
     std::vector<TaskPO> taskPOS;
     taskTable->Select(TaskColumn::ROW_ID, TaskColumn::MODEL_ID)
         .Select(TaskColumn::TASK_TYPE, TaskColumn::STREAM_ID)
@@ -154,7 +149,7 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
     }
     const TaskPO targetTask = taskPOS[0];
     std::vector<CompeteSliceDomain> competeSliceVec;
-    QueryCompeteSliceByIds(sliceQuery, { targetTask.id }, competeSliceVec);
+    QueryCompeteSliceByIds(sliceQuery, {targetTask.id}, competeSliceVec);
     if (std::empty(competeSliceVec)) {
         competeSliceDomain.name = std::to_string(targetTask.taskType);
         competeSliceDomain.timestamp = targetTask.timestamp;
@@ -168,9 +163,8 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
     return true;
 }
 
-void HardWareRepo::QuerySliceShape(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-    const TaskPO &targetTask)
-{
+void HardWareRepo::QuerySliceShape(
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask) {
     std::vector<ComputeTaskInfoPO> computePOS;
     computeTaskInfoTable->Select(ComputeTaskInfoColumn::INPUT_SHAPES)
         .Select(ComputeTaskInfoColumn::INPUT_DATA_TYPES, ComputeTaskInfoColumn::INPUT_FORMATS)
@@ -199,15 +193,15 @@ void HardWareRepo::QuerySliceShape(const SliceQuery &sliceQuery, CompeteSliceDom
     }
 }
 
-void HardWareRepo::QuerySlicePmuInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-                                     uint64_t globalTaskId)
-{
+void HardWareRepo::QuerySlicePmuInfo(
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, uint64_t globalTaskId) {
     if (std::empty(competeSliceDomain.args)) {
         return;
     }
     std::vector<TaskPmuInfoPO> pmuInfoPOS;
     taskPmuInfoTable->Select(TaskPmuInfoColumn::GLOBAL_TASK_ID, TaskPmuInfoColumn::NAME_ID)
-        .Select(TaskPmuInfoColumn::VALUE_ID).Eq(TaskPmuInfoColumn::GLOBAL_TASK_ID, globalTaskId)
+        .Select(TaskPmuInfoColumn::VALUE_ID)
+        .Eq(TaskPmuInfoColumn::GLOBAL_TASK_ID, globalTaskId)
         .ExcuteQuery(sliceQuery.rankId, pmuInfoPOS);
     if (std::empty(pmuInfoPOS)) {
         return;
@@ -229,12 +223,11 @@ void HardWareRepo::QuerySlicePmuInfo(const SliceQuery &sliceQuery, CompeteSliceD
     competeSliceDomain.args = JsonUtil::JsonDump(json.value());
 }
 
-void HardWareRepo::QuerySliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-    const TaskPO &targetTask)
-{
+void HardWareRepo::QuerySliceArgs(
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask) {
     std::string modelIdName = std::to_string(targetTask.modelId);
     std::unordered_map<uint64_t, std::string> strMap =
-        stringIdsTable->QueryStrMap({ targetTask.taskType }, sliceQuery.rankId);
+        stringIdsTable->QueryStrMap({targetTask.taskType}, sliceQuery.rankId);
     std::string taskTypeName = strMap[targetTask.taskType];
     std::string streamId = std::to_string(targetTask.streamId);
     std::string taskId = std::to_string(targetTask.taskId);
@@ -258,11 +251,13 @@ void HardWareRepo::QuerySliceArgs(const SliceQuery &sliceQuery, CompeteSliceDoma
     competeSliceDomain.args = JsonUtil::JsonDump(json);
 }
 
-bool HardWareRepo::QueryMemoryInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-                                   const TaskPO &targetTask)
-{
-    std::string sql = "SELECT OPERATION.name as memcpyDirection, size from " + TABLE_MEMCPY_INFO + " MI"
-        " LEFT JOIN " + TABLE_ENUM_MEMCPY_OPERATION + " as OPERATION ON MI.memcpyOperation = OPERATION.id "
+bool HardWareRepo::QueryMemoryInfo(
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask) {
+    std::string sql = "SELECT OPERATION.name as memcpyDirection, size from " + TABLE_MEMCPY_INFO +
+        " MI"
+        " LEFT JOIN " +
+        TABLE_ENUM_MEMCPY_OPERATION +
+        " as OPERATION ON MI.memcpyOperation = OPERATION.id "
         " WHERE globalTaskId = ?";
     auto stmt = CreatPreparedStatement(sql, sliceQuery);
     if (stmt == nullptr) {
@@ -283,8 +278,7 @@ bool HardWareRepo::QueryMemoryInfo(const SliceQuery &sliceQuery, CompeteSliceDom
     return false;
 }
 
-Stmt HardWareRepo::CreatPreparedStatement(const std::string &sql, const SliceQuery &sliceQuery)
-{
+Stmt HardWareRepo::CreatPreparedStatement(const std::string &sql, const SliceQuery &sliceQuery) {
     auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
     if (database == nullptr) {
         ServerLog::Warn("hardWare open database is failed");
@@ -293,8 +287,7 @@ Stmt HardWareRepo::CreatPreparedStatement(const std::string &sql, const SliceQue
     return database->CreatPreparedStatement(sql);
 }
 
-std::string HardWareRepo::GetDbPath(const SliceQuery &sliceQuery)
-{
+std::string HardWareRepo::GetDbPath(const SliceQuery &sliceQuery) {
     auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
     if (database == nullptr) {
         ServerLog::Warn("hardWare open database is failed");
@@ -303,9 +296,8 @@ std::string HardWareRepo::GetDbPath(const SliceQuery &sliceQuery)
     return database->GetDbPath();
 }
 
-bool HardWareRepo::QuerySliceDetailInfoByNameList(const SliceQueryByNameList &params,
-                                                  std::vector<CompeteSliceDomain> &res)
-{
+bool HardWareRepo::QuerySliceDetailInfoByNameList(
+    const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) {
     // 根据名字查询stringId的内容
     std::unordered_map<uint64_t, std::string> strMap =
         stringIdsTable->QueryStrMapByValues(params.nameList, params.rankId);
@@ -314,7 +306,7 @@ bool HardWareRepo::QuerySliceDetailInfoByNameList(const SliceQueryByNameList &pa
     }
     std::vector<uint64_t> stringIds;
     std::transform(strMap.begin(), strMap.end(), std::back_inserter(stringIds),
-        [](const std::pair<uint64_t, std::string>& pair) { return pair.first; });
+        [](const std::pair<uint64_t, std::string> &pair) { return pair.first; });
     // 根据stringId列表查询算子表获取globalTaskId的内容
     std::vector<ComputeTaskInfoPO> computePOS;
     computeTaskInfoTable->Select(ComputeTaskInfoColumn::NAME, ComputeTaskInfoColumn::GLOBAL_TASK_ID)
@@ -325,7 +317,7 @@ bool HardWareRepo::QuerySliceDetailInfoByNameList(const SliceQueryByNameList &pa
     }
     std::vector<uint64_t> globalTaskIdList;
     std::transform(computePOS.begin(), computePOS.end(), std::back_inserter(globalTaskIdList),
-        [](const ComputeTaskInfoPO& computeTaskInfoPo) { return computeTaskInfoPo.globalTaskId; });
+        [](const ComputeTaskInfoPO &computeTaskInfoPo) { return computeTaskInfoPo.globalTaskId; });
     // 根据globalTaskId查询Task表获取耗时信息，并按算子起始时间进行排序
     std::vector<TaskPO> taskPOS;
     taskTable->Select(TaskColumn::GLOBAL_TASK_ID, TaskColumn::TIMESTAMP, TaskColumn::ENDTIME)
@@ -336,11 +328,10 @@ bool HardWareRepo::QuerySliceDetailInfoByNameList(const SliceQueryByNameList &pa
     // 先获取globalTaskId和名字的映射关系，再进行结果组装
     std::map<uint64_t, std::string> globalTaskIdMapName;
     std::transform(computePOS.begin(), computePOS.end(),
-        std::inserter(globalTaskIdMapName, globalTaskIdMapName.begin()),
-        [&strMap](const ComputeTaskInfoPO &compute) {
+        std::inserter(globalTaskIdMapName, globalTaskIdMapName.begin()), [&strMap](const ComputeTaskInfoPO &compute) {
             return std::make_pair(compute.globalTaskId, strMap[compute.name]);
-    });
-    for (const auto &item: taskPOS) {
+        });
+    for (const auto &item : taskPOS) {
         CompeteSliceDomain domain;
         domain.name = globalTaskIdMapName[item.globalTaskId];
         domain.timestamp = item.timestamp;

@@ -20,9 +20,8 @@
 #include "DataBaseManager.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
-void OSRTApiRepo::QuerySimpleSliceWithOutNameByTrackId(const Dic::Module::Timeline::SliceQuery &sliceQuery,
-                                                       std::vector<SliceDomain> &sliceVec)
-{
+void OSRTApiRepo::QuerySimpleSliceWithOutNameByTrackId(
+    const Dic::Module::Timeline::SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
     if (!isSuccess) {
@@ -37,18 +36,18 @@ void OSRTApiRepo::QuerySimpleSliceWithOutNameByTrackId(const Dic::Module::Timeli
     QuerySimpleSliceWithOutNameByTrackIdExecuteSQL(database, trackInfo.processId, sliceVec, sliceQuery);
 }
 
-void OSRTApiRepo::QuerySimpleSliceWithOutNameByTrackIdExecuteSQL(const std::shared_ptr<VirtualTraceDatabase>& database,
-    std::string &processId, std::vector<SliceDomain> &sliceVec, const SliceQuery &sliceQuery)
-{
-    std::string sql = "SELECT rowid AS id, startNs, endNs FROM " + TABLE_OSRT_API + " WHERE globalTid = ?"
-                      " AND startNs <= ? AND endNs >= ? ;";
+void OSRTApiRepo::QuerySimpleSliceWithOutNameByTrackIdExecuteSQL(const std::shared_ptr<VirtualTraceDatabase> &database,
+    std::string &processId, std::vector<SliceDomain> &sliceVec, const SliceQuery &sliceQuery) {
+    std::string sql = "SELECT rowid AS id, startNs, endNs FROM " + TABLE_OSRT_API +
+        " WHERE globalTid = ?"
+        " AND startNs <= ? AND endNs >= ? ;";
     auto stmt = database->CreatPreparedStatement(sql);
     if (!stmt) {
         ServerLog::Error("Failed to prepare OSRT_API query for simple slice.");
         return;
     }
-    stmt->BindParams(processId, sliceQuery.endTime + sliceQuery.minTimestamp,
-                     sliceQuery.startTime + sliceQuery.minTimestamp);
+    stmt->BindParams(
+        processId, sliceQuery.endTime + sliceQuery.minTimestamp, sliceQuery.startTime + sliceQuery.minTimestamp);
     auto resultSet = stmt->ExecuteQuery();
     if (!resultSet) {
         ServerLog::Error("Failed to execute OSRT_API query for simple slice.");
@@ -64,9 +63,7 @@ void OSRTApiRepo::QuerySimpleSliceWithOutNameByTrackIdExecuteSQL(const std::shar
 }
 
 void OSRTApiRepo::QueryCompeteSliceByIds(const Dic::Module::Timeline::SliceQuery &sliceQuery,
-                                         const std::vector<uint64_t> &sliceIds,
-                                         std::vector<CompeteSliceDomain> &competeSliceVec)
-{
+    const std::vector<uint64_t> &sliceIds, std::vector<CompeteSliceDomain> &competeSliceVec) {
     if (std::empty(sliceIds)) {
         return;
     }
@@ -79,13 +76,13 @@ void OSRTApiRepo::QueryCompeteSliceByIds(const Dic::Module::Timeline::SliceQuery
 }
 
 void OSRTApiRepo::QueryCompeteSliceByIdsExecuteSQL(std::shared_ptr<VirtualTraceDatabase> database,
-                                                   const std::vector<uint64_t> &sliceIds,
-                                                   std::vector<CompeteSliceDomain> &competeSliceVec)
-{
+    const std::vector<uint64_t> &sliceIds, std::vector<CompeteSliceDomain> &competeSliceVec) {
     std::string sliceidvecStr = StringUtil::join(sliceIds, ", ");
     std::string sql = "SELECT t2.value AS name, t1.rowid AS id, t1.startNs AS startNs, t1.endNs AS endNs FROM " +
-        TABLE_OSRT_API + " AS t1 INNER JOIN " + TABLE_STRING_IDS + " AS t2 ON t1.name = t2.id "
-        " WHERE t1.rowid IN (" + sliceidvecStr + ");";
+        TABLE_OSRT_API + " AS t1 INNER JOIN " + TABLE_STRING_IDS +
+        " AS t2 ON t1.name = t2.id "
+        " WHERE t1.rowid IN (" +
+        sliceidvecStr + ");";
     auto stmt = database->CreatPreparedStatement(sql);
     if (!stmt) {
         ServerLog::Error("Failed to prepare OSRT_API query for complete slice by ids.");
@@ -107,8 +104,7 @@ void OSRTApiRepo::QueryCompeteSliceByIdsExecuteSQL(std::shared_ptr<VirtualTraceD
 }
 
 bool OSRTApiRepo::QuerySliceDetailInfo(const Dic::Module::Timeline::SliceQuery &sliceQuery,
-                                       Dic::Module::Timeline::CompeteSliceDomain &competeSliceDomain)
-{
+    Dic::Module::Timeline::CompeteSliceDomain &competeSliceDomain) {
     auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
     if (!database) {
         ServerLog::Error("OSRT_API open database failed.");
@@ -118,12 +114,12 @@ bool OSRTApiRepo::QuerySliceDetailInfo(const Dic::Module::Timeline::SliceQuery &
 }
 
 bool OSRTApiRepo::QuerySliceDetailInfoExecuteSQL(std::shared_ptr<VirtualTraceDatabase> database,
-                                                 const std::string &sliceId,
-                                                 Dic::Module::Timeline::CompeteSliceDomain &competeSliceDomain)
-{
+    const std::string &sliceId, Dic::Module::Timeline::CompeteSliceDomain &competeSliceDomain) {
     std::string sql = "SELECT t2.value AS name, t1.rowid AS id, t1.startNs AS startNs, t1.endNs AS endNs FROM " +
-        TABLE_OSRT_API + " AS t1 INNER JOIN " + TABLE_STRING_IDS + " AS t2 ON t1.name = t2.id "
-        " WHERE t1.rowid = " + sliceId + ";";
+        TABLE_OSRT_API + " AS t1 INNER JOIN " + TABLE_STRING_IDS +
+        " AS t2 ON t1.name = t2.id "
+        " WHERE t1.rowid = " +
+        sliceId + ";";
     auto stmt = database->CreatPreparedStatement(sql);
     if (!stmt) {
         ServerLog::Error("Failed to prepare OSRT_API query for detail info.");

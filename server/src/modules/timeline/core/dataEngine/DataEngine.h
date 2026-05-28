@@ -23,25 +23,24 @@
 
 namespace Dic::Module::Timeline {
 class DataEngine : public DataEngineInterface {
-public:
-    static std::shared_ptr<DataEngine> Instance()
-    {
+  public:
+    static std::shared_ptr<DataEngine> Instance() {
         static std::shared_ptr<DataEngine> instance = std::make_shared<DataEngine>();
         return instance;
     }
     DataEngine() = default;
     DataEngine(DataEngine &) = delete;
-    DataEngine &operator = (DataEngine &) = delete;
+    DataEngine &operator=(DataEngine &) = delete;
     DataEngine(DataEngine &&) = delete;
-    DataEngine &operator = (DataEngine &&) = delete;
+    DataEngine &operator=(DataEngine &&) = delete;
     ~DataEngine() override = default;
     void SetRepositoryFactory(std::shared_ptr<RepositoryFactoryInterface> repositoryFactoryInterface) override;
-    void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-        std::vector<SliceDomain> &sliceVec) override;
+    void QuerySimpleSliceWithOutNameByTrackId(
+        const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override;
     uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override;
-    void QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery &sliceQuery,
-        std::vector<CompeteSliceDomain> &sliceVec) override;
+    void QueryCompeteSliceVecByTimeRangeAndTrackId(
+        const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) override;
     void QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override;
     void QueryFlowPointByFlowId(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override;
     void QueryAllThreadInfo(const ThreadQuery &flowQuery,
@@ -53,12 +52,12 @@ public:
     bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override;
 
     bool QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override;
-    bool QuerySliceDetailInfoByNameList(const SliceQueryByNameList &params,
-                                        std::vector<CompeteSliceDomain> &res) override;
-private:
+    bool QuerySliceDetailInfoByNameList(
+        const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) override;
+
+  private:
     std::shared_ptr<RepositoryFactoryInterface> respotoryFactory = nullptr;
 };
 }
-
 
 #endif // PROFILER_SERVER_DATAENGINE_H

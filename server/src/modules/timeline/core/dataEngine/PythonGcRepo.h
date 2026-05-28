@@ -26,14 +26,14 @@
 
 namespace Dic::Module::Timeline {
 class PythonGcRepo : public IBaseSliceRepo {
-public:
-    void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-                                                std::vector<SliceDomain> &sliceVec) override;
+  public:
+    void QuerySimpleSliceWithOutNameByTrackId(
+        const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
-                                std::vector<CompeteSliceDomain> &competeSliceVec) override;
+        std::vector<CompeteSliceDomain> &competeSliceVec) override;
     bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override;
 
-protected:
+  protected:
     std::unique_ptr<PythonGCTable> table = std::make_unique<PythonGCTable>();
 };
 }

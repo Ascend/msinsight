@@ -22,20 +22,20 @@
 #include "VirtualTraceDatabase.h"
 namespace Dic::Module::Timeline {
 class OSRTApiRepo : public IBaseSliceRepo {
-public:
-    void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-                                              std::vector<SliceDomain> &sliceVec) override;
+  public:
+    void QuerySimpleSliceWithOutNameByTrackId(
+        const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
-                                std::vector<CompeteSliceDomain> &competeSliceVec) override;
+        std::vector<CompeteSliceDomain> &competeSliceVec) override;
     bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override;
-protected:
-    static void QuerySimpleSliceWithOutNameByTrackIdExecuteSQL(const std::shared_ptr<VirtualTraceDatabase>& database,
+
+  protected:
+    static void QuerySimpleSliceWithOutNameByTrackIdExecuteSQL(const std::shared_ptr<VirtualTraceDatabase> &database,
         std::string &processId, std::vector<SliceDomain> &sliceVec, const SliceQuery &sliceQuery);
     void QueryCompeteSliceByIdsExecuteSQL(std::shared_ptr<VirtualTraceDatabase> database,
-                                          const std::vector<uint64_t> &sliceIds,
-                                          std::vector<CompeteSliceDomain> &competeSliceVec);
-    bool QuerySliceDetailInfoExecuteSQL(std::shared_ptr<VirtualTraceDatabase> database,
-                                        const std::string &sliceId, CompeteSliceDomain &competeSliceDomain);
+        const std::vector<uint64_t> &sliceIds, std::vector<CompeteSliceDomain> &competeSliceVec);
+    bool QuerySliceDetailInfoExecuteSQL(std::shared_ptr<VirtualTraceDatabase> database, const std::string &sliceId,
+        CompeteSliceDomain &competeSliceDomain);
 };
 }
 #endif // PROFILER_SERVER_OSRTAPI_H

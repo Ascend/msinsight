@@ -30,19 +30,19 @@
 #include "CommucationTaskInfoTable.h"
 namespace Dic::Module::Timeline {
 class DeviceFlowRepo {
-public:
+  public:
     void AddDeviceFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);
-    void AddHardWareMstxFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec,
-        const std::vector<uint64_t> &connectionIds);
+    void AddHardWareMstxFlowPoint(
+        const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec, const std::vector<uint64_t> &connectionIds);
     void SetTaskTable(std::unique_ptr<TaskTable> taskTablePtr);
     void SetCommucationOpTable(std::unique_ptr<CommucationOpTable> commucationOpTablePtr);
     void SetNpuInfoRepo(std::unique_ptr<NpuInfoRepo> npuInfoRepoPtr);
 
-protected:
+  protected:
     void AddHardWareMstxFlowPointExecuteSQL(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec,
         const std::vector<uint64_t> &connectionIds, std::shared_ptr<VirtualTraceDatabase> database);
 
-private:
+  private:
     const std::string hcclPid = "HCCL";
     const std::string hardWarePid = "Ascend Hardware";
     std::unique_ptr<CommucationOpTable> commucationOpTable = std::make_unique<CommucationOpTable>();

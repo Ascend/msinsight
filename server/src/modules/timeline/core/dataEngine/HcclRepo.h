@@ -31,9 +31,9 @@
 #include "SliceRepoInterface.h"
 namespace Dic::Module::Timeline {
 class HcclRepo : public IBaseSliceRepo {
-public:
-    void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-        std::vector<SliceDomain> &sliceVec) override;
+  public:
+    void QuerySimpleSliceWithOutNameByTrackId(
+        const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
         std::vector<CompeteSliceDomain> &CompeteSliceVec) override;
     bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override;
@@ -42,7 +42,7 @@ public:
     void SetNpuInfoRepo(std::unique_ptr<NpuInfoRepo> npuInfoRepoPtr);
     void SetCommucationTaskInfoTable(std::unique_ptr<CommucationTaskInfoTable>);
 
-protected:
+  protected:
     std::unique_ptr<TaskTable> taskTable = std::make_unique<TaskTable>();
     std::unique_ptr<CommucationOpTable> commucationOpTable = std::make_unique<CommucationOpTable>();
     std::unique_ptr<NpuInfoRepo> npuInfoRepo = std::make_unique<NpuInfoRepo>();
@@ -54,7 +54,7 @@ protected:
     std::unique_ptr<EnumHcclLinkTypeTable> enumHcclLinkTypeTable = std::make_unique<EnumHcclLinkTypeTable>();
     std::unique_ptr<EnumHcclRdmaTypeTable> enumHcclRdmaTypeTable = std::make_unique<EnumHcclRdmaTypeTable>();
 
-private:
+  private:
     const std::string groupSuffix = "group";
     const std::string globalSrcRank = "globalSrcRank";
     const std::string globalDstRank = "globalDstRank";
@@ -72,11 +72,11 @@ private:
     void QuerySimpleSliceFromGroupTrack(std::vector<SliceDomain> &sliceVec, const TrackInfo &trackInfo,
         const std::string &suffix, const SliceQuery &sliceQuery);
 
-    void QuerySimpleSliceFromPlaneTrack(std::vector<SliceDomain> &sliceVec, TrackInfo &trackInfo,
-                                        const SliceQuery &sliceQuery);
+    void QuerySimpleSliceFromPlaneTrack(
+        std::vector<SliceDomain> &sliceVec, TrackInfo &trackInfo, const SliceQuery &sliceQuery);
 
-    bool QueryGroupSliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-        const TrackInfo &trackInfo);
+    bool QueryGroupSliceDetailInfo(
+        const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TrackInfo &trackInfo);
 
     std::string QueryTransportName(const SliceQuery &sliceQuery, CommucationTaskInfoPO &targetTaskInfo);
 
@@ -88,8 +88,8 @@ private:
 
     std::string QueryBandwidth(const SliceQuery &sliceQuery, const TaskPO &targetPO);
 
-    void SetPlaneSliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain,
-        const TaskPO &targetPO, CommucationTaskInfoPO &targetTaskInfo);
+    void SetPlaneSliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetPO,
+        CommucationTaskInfoPO &targetTaskInfo);
 
     static std::string GetRealRankByLocalRank(uint64_t localRank, std::vector<std::string> &realRankList);
 

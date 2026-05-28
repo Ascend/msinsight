@@ -24,15 +24,15 @@
 #include "DomainObject.h"
 namespace Dic::Module::Timeline {
 class IBaseSliceRepo {
-public:
+  public:
     virtual ~IBaseSliceRepo() = default;
     /**
      * 根据trackId查询简单算子
      * @param sliceQuery
      * @param sliceVec
      */
-    virtual void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-        std::vector<SliceDomain> &sliceVec) = 0;
+    virtual void QuerySimpleSliceWithOutNameByTrackId(
+        const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) = 0;
 
     /**
      * 根据Id集合查询完整算子信息
@@ -52,19 +52,19 @@ public:
 };
 
 class IFindSliceByNameList {
-public:
+  public:
     virtual ~IFindSliceByNameList() = default;
     /**
      * 根据算子名查询算子明细列表
      * @param res
      * @return
      */
-    virtual bool QuerySliceDetailInfoByNameList(const SliceQueryByNameList &params,
-                                                std::vector<CompeteSliceDomain> &res) = 0;
+    virtual bool QuerySliceDetailInfoByNameList(
+        const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) = 0;
 };
 
 class IPythonFuncSlice {
-public:
+  public:
     virtual ~IPythonFuncSlice() = default;
     /**
      * 根据TrackId查询所有调用栈算子的id,返回结果升序
@@ -82,36 +82,35 @@ public:
 };
 
 class IFindSliceByTimepointAndName {
-public:
+  public:
     virtual ~IFindSliceByTimepointAndName() = default;
     /**
      * 根据给定的时刻和名字查询算子
      * @param sliceQuery
      * @param competeSliceDomain
      */
-    virtual bool QuerySliceByTimepointAndName(const SliceQuery &sliceQuery,
-                                              CompeteSliceDomain &competeSliceDomain) = 0;
+    virtual bool QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) = 0;
 };
 
 class IFindSliceByVagueNameAndTime {
-public:
+  public:
     virtual ~IFindSliceByVagueNameAndTime() = default;
     /**
      * @brief 根据模糊名称和时间段查询算子
      */
-    virtual bool QuerySliceByVagueNameAndTime(const SliceQuery& sliceQuery, std::vector<CompeteSliceDomain>& res) = 0;
+    virtual bool QuerySliceByVagueNameAndTime(const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &res) = 0;
 };
 
 class ITextSlice {
-public:
+  public:
     virtual ~ITextSlice() = default;
     /**
      * 查询时间范围内所有算子（包括与范围相交的）
      * @param sliceQuery
      * @param sliceVec
      */
-    virtual void QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery &sliceQuery,
-        std::vector<CompeteSliceDomain> &sliceVec) = 0;
+    virtual void QueryCompeteSliceVecByTimeRangeAndTrackId(
+        const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) = 0;
 
     /**
      * 查询所有泳道线程和进程信息

@@ -22,18 +22,22 @@
 #include "FlowRepoInterface.h"
 #include "SimulationSliceRepoInterface.h"
 namespace Dic::Module::Timeline {
-class TextRepository : public IBaseSliceRepo, public IPythonFuncSlice, public ITextSlice,
-    public IFindSliceByTimepointAndName, public IFindSliceByNameList,
-    public FlowRepoInterface, public SimulationSliceRepoInterface {
-public:
+class TextRepository : public IBaseSliceRepo,
+                       public IPythonFuncSlice,
+                       public ITextSlice,
+                       public IFindSliceByTimepointAndName,
+                       public IFindSliceByNameList,
+                       public FlowRepoInterface,
+                       public SimulationSliceRepoInterface {
+  public:
     ~TextRepository() override = default;
     /** @SliceRepoInterface IBaseSliceRepo
      * 根据trackId查询简单算子
      * @param sliceQuery
      * @param sliceVec
      */
-    void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-        std::vector<SliceDomain> &sliceVec) override;
+    void QuerySimpleSliceWithOutNameByTrackId(
+        const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     /** @SliceRepoInterface IPythonFuncSlice
      * 根据TrackId查询所有调用栈算子的id,返回结果升序
      * @param sliceQuery
@@ -53,8 +57,8 @@ public:
      * @param sliceQuery
      * @param sliceVec
      */
-    void QueryCompeteSliceVecByTimeRangeAndTrackId(const SliceQuery &sliceQuery,
-        std::vector<CompeteSliceDomain> &sliceVec) override;
+    void QueryCompeteSliceVecByTimeRangeAndTrackId(
+        const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) override;
 
     /** @SliceRepoInterface ITextSlice
      * 查询所有泳道线程和进程信息
@@ -62,7 +66,7 @@ public:
      * @param threadInfo
      */
     void QueryAllThreadInfo(const ThreadQuery &flowQuery,
-                            std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo) override;
+        std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo) override;
 
     /** @SliceRepoInterface IBaseSliceRepo
      * 根据Id集合查询完整算子信息
@@ -95,8 +99,8 @@ public:
      * @param res
      * @return
      */
-    bool QuerySliceDetailInfoByNameList(const SliceQueryByNameList &params,
-                                        std::vector<CompeteSliceDomain> &res) override;
+    bool QuerySliceDetailInfoByNameList(
+        const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) override;
 
     /** @FlowRepoInterface
      * 查询时间范围内的所有连线点
@@ -126,7 +130,7 @@ public:
      */
     void QueryAllFlagSlice(const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &competeSliceDomain) override;
 
-private:
+  private:
     const std::vector<std::string> COMMUNICATION_LIST = {"HCCL", "COMMUNICATION"};
 
     /* *
