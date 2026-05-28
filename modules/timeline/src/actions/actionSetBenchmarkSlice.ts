@@ -21,7 +21,7 @@ import { KEYS } from '@insight/lib/utils';
 import type { Session } from '../entity/session';
 import { runInAction } from 'mobx';
 import { CardMetaData, SliceData, SliceMeta, ThreadTrace } from '../entity/data';
-import { getTimeOffsetKey } from '../insight/units/utils';
+import { getTimeOffsetKey, visitUnitTree } from '../insight/units/utils';
 
 const setBenchmarkSlice = (session: Session): void => {
     runInAction(() => {
@@ -65,27 +65,25 @@ const updateSameDeviceOffset = (selectSliceMeta: SliceMeta, session: Session, se
         if ((unit.metadata as CardMetaData).cardId !== selectSliceMeta.cardId) {
             return;
         }
-        if (unit.children === undefined || unit.children.length <= 0) {
-            return;
-        }
-        for (const item of unit.children) {
+        visitUnitTree(unit, (item) => {
             const tempMeta = item.metadata as SliceMeta;
             if (tempMeta.label !== 'NPU') {
-                continue;
+                return;
             }
             const key = getTimeOffsetKey(session, tempMeta);
             if (key === selectOffsetKey || key === benchKey) {
-                continue;
+                return;
             }
             if (isNaN(Number(tempMeta.processId))) {
-                continue;
+                return;
             }
             const tempDeviceId = extractDeviceId(parseInt(tempMeta.processId));
             if (tempDeviceId !== deviceId) {
-                continue;
+                return;
             }
-            session.unitsConfig.offsetConfig.timestampOffset[key] += offsetDiff;
-        }
+            const currentOffset = session.unitsConfig.offsetConfig.timestampOffset[key] ?? 0;
+            session.unitsConfig.offsetConfig.timestampOffset[key] = currentOffset + offsetDiff;
+        });
     });
     session.updateEndTimeAll();
 };

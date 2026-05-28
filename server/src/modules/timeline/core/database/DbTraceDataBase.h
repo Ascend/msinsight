@@ -279,6 +279,14 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool QueryCounterMetadataGenerateInfo(
         const PROCESS_TYPE &type, std::string &processName, std::string &metaType, std::string &sql);
 
+    static constexpr const char *HARDWARE_METRICS_PROCESS_ID = "__hardware_metrics__";
+    static constexpr const char *HARDWARE_METRICS_PROCESS_NAME = "Hardware Metrics";
+    static constexpr const char *HARDWARE_METRICS_META_TYPE = "HARDWARE_METRICS";
+    static bool IsHardwareMetricsUnit(const std::string &processId, const std::string &metaType);
+    static std::unique_ptr<Protocol::UnitTrack> GenerateHardwareMetricsUnitTrack(const std::string &fileId);
+    static Protocol::UnitTrack *GetOrCreateHardwareMetricsUnitTrack(
+        const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+
     static std::unique_ptr<Protocol::UnitTrack> GenerateBaseUnitTrack(const std::string &type,
         const std::string &cardId, const std::string &processId, const std::string &processName,
         const std::string &metaType);

@@ -61,6 +61,42 @@ export function getTimeOffsetKey(session: Session, metaData: { cardId?: string; 
 }
 
 // 判断cardUnit自身以及子单元是否包含指定的cardId
+export interface TimeOffsetUnitTree {
+    metadata?: Record<string, unknown>;
+    children?: TimeOffsetUnitTree[];
+    alignStartTimestamp?: number;
+}
+
+export function visitUnitTree(unit: TimeOffsetUnitTree | undefined, visitor: (unit: TimeOffsetUnitTree) => void, loopIndex = 0): void {
+    const MaxLoop = 100;
+    if (unit === undefined || loopIndex > MaxLoop) {
+        return;
+    }
+    visitor(unit);
+    unit.children?.forEach(child => {
+        visitUnitTree(child, visitor, loopIndex + 1);
+    });
+}
+
+export function setTimeOffsetForUnitTree(
+    session: Session,
+    unit: TimeOffsetUnitTree | undefined,
+    offset: number | undefined,
+    timestampOffsetConfig: Record<string, number>,
+): void {
+    if (offset === undefined) {
+        return;
+    }
+    visitUnitTree(unit, (item) => {
+        if (item.metadata === undefined) {
+            return;
+        }
+        item.alignStartTimestamp = offset;
+        const key = getTimeOffsetKey(session, item.metadata as { cardId?: string; processId?: string });
+        timestampOffsetConfig[key] = offset;
+    });
+}
+
 function containCardId(unit: InsightUnit, cardId: string): boolean {
     if ((unit.metadata as CardMetaData)?.cardId === cardId) {
         return true;

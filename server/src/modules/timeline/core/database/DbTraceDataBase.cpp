@@ -777,6 +777,9 @@ OneKernelData DbTraceDataBase::QueryKernelTid(uint64_t trackId) { return OneKern
 
 bool DbTraceDataBase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesSummaryParams &requestParams,
     Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp) {
+    if (IsHardwareMetricsUnit(requestParams.processId, requestParams.metaType)) {
+        return true;
+    }
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql to query thread traces summary. ", sqlite3_errmsg(db));
@@ -1562,6 +1565,31 @@ std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateBaseUnitTrack(cons
     return unitTrack;
 }
 
+bool DbTraceDataBase::IsHardwareMetricsUnit(const std::string &processId, const std::string &metaType)
+{
+    return processId == HARDWARE_METRICS_PROCESS_ID || metaType == HARDWARE_METRICS_META_TYPE;
+}
+
+std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateHardwareMetricsUnitTrack(const std::string &fileId)
+{
+    return GenerateBaseUnitTrack(
+        "label", fileId, HARDWARE_METRICS_PROCESS_ID, HARDWARE_METRICS_PROCESS_NAME, HARDWARE_METRICS_META_TYPE);
+}
+
+Protocol::UnitTrack *DbTraceDataBase::GetOrCreateHardwareMetricsUnitTrack(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
+{
+    for (const auto &unit : metaData) {
+        if (unit != nullptr && IsHardwareMetricsUnit(unit->metaData.processId, unit->metaData.metaType)) {
+            return unit.get();
+        }
+    }
+    auto hardwareMetrics = GenerateHardwareMetricsUnitTrack(fileId);
+    Protocol::UnitTrack *hardwareMetricsPtr = hardwareMetrics.get();
+    metaData.emplace_back(std::move(hardwareMetrics));
+    return hardwareMetricsPtr;
+}
+
 std::string DbTraceDataBase::GetHcclOperatorMetaData(const std::string &fileId) {
     // 这里COMMUNICATION_TASK_INFO和COMMUNICATION_OP表关联后，按照planeId和groupName分组，
     // 理论上每一组都会有很多globalTaskId，但是我们只需要任意一个globalTaskId即可，就能够根据这个信息去Task表关联判断deviceId的信息
@@ -1731,6 +1759,12 @@ bool DbTraceDataBase::QueryCounterMetadata(
     PROCESS_TYPE types[] = {PROCESS_TYPE::HBM, PROCESS_TYPE::LLC, PROCESS_TYPE::SAMPLE_PMU, PROCESS_TYPE::QOS,
         PROCESS_TYPE::NIC, PROCESS_TYPE::PCIE, PROCESS_TYPE::HCCS, PROCESS_TYPE::AI_CORE, PROCESS_TYPE::ACC_PMU,
         PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC, PROCESS_TYPE::NPU_MEM};
+    auto hardwareMetrics = GenerateHardwareMetricsUnitTrack(fileId);
+    auto appendHardwareMetrics = [&metaData, &hardwareMetrics]() {
+        if (hardwareMetrics != nullptr && !hardwareMetrics->children.empty()) {
+            metaData.emplace_back(std::move(hardwareMetrics));
+        }
+    };
     for (const auto &type : types) {
         std::string processName;
         std::string metaType;
@@ -1742,6 +1776,7 @@ bool DbTraceDataBase::QueryCounterMetadata(
         auto stmt = CreatPreparedStatement(sql);
         if (stmt == nullptr) {
             ServerLog::Error("Query counter metadata failed!.");
+            appendHardwareMetrics();
             return false;
         }
         uint64_t countOfQuestionMark = 0;
@@ -1755,6 +1790,7 @@ bool DbTraceDataBase::QueryCounterMetadata(
         auto resultSet = stmt->ExecuteQuery();
         if (resultSet == nullptr) {
             ServerLog::Error("Query counter metadata. Failed to get result set.", stmt->GetErrorMessage());
+            appendHardwareMetrics();
             return false;
         }
         while (resultSet->Next()) {
@@ -1764,8 +1800,11 @@ bool DbTraceDataBase::QueryCounterMetadata(
             thread->metaData.dataType = StringUtil::Split(resultSet->GetString("types"), ",");
             counter->children.emplace_back(std::move(thread));
         }
-        metaData.emplace_back(std::move(counter));
+        if (!counter->children.empty()) {
+            hardwareMetrics->children.emplace_back(std::move(counter));
+        }
     }
+    appendHardwareMetrics();
     return true;
 }
 

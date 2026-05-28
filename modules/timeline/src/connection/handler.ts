@@ -27,7 +27,7 @@ import { Session } from '../entity/session';
 import { ImportResult, NotificationHandler } from './defs';
 import connector from '../connection/index';
 import { message } from 'antd';
-import { getTimeOffset, getTimeOffsetKey } from '../insight/units/utils';
+import { getTimeOffset, getTimeOffsetKey, setTimeOffsetForUnitTree } from '../insight/units/utils';
 import { calculateDomainRange } from '../components/CategorySearch';
 import i18n from '@insight/lib/i18n';
 import { forEach, groupBy, isEmpty, cloneDeep } from 'lodash';
@@ -131,7 +131,8 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
                     updateDbPathAndLabelForCardUnit(unit, unitData);
                     // 更新对齐开始时间戳
                     unit.alignStartTimestamp = unitData.offset as number;
-                    const prevObj = session.unitsConfig.offsetConfig.timestampOffset;
+                    const nextOffset = { ...session.unitsConfig.offsetConfig.timestampOffset };
+                    setTimeOffsetForUnitTree(session, unitData.unit, unit.alignStartTimestamp, nextOffset);
                     // 如果 unitData 的 children 不为空
                     if (unitData.unit.children !== undefined && unitData.unit.children.length > 0) {
                         for (const item of unitData.unit.children) {
@@ -143,11 +144,17 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
                         }
                     }
                     // 更新时间戳偏移配置
-                    session.unitsConfig.offsetConfig.timestampOffset = { ...prevObj, [(unit.metadata as CardMetaData).cardId]: unit.alignStartTimestamp };
+                    session.unitsConfig.offsetConfig.timestampOffset = nextOffset;
                     // 更新数据源和父元数据映射
                     updateDataSourceAndParentMetaDataMap(unitData.unit, (unit.metadata as CardMetaData).dataSource, !isGlobal);
                     // 根据是否为全局解析模式，决定是否将解析任务推入队列
-                    isGlobal ? session.parseQueue.push(() => recursiveExpandUnit(unitData.unit.children ?? [], unit, 0)) : recursiveExpandUnit(unitData.unit.children ?? [], unit, 0);
+                    const expandParsedUnits = (): void => {
+                        recursiveExpandUnit(unitData.unit.children ?? [], unit, 0);
+                        const expandedOffset = { ...session.unitsConfig.offsetConfig.timestampOffset };
+                        setTimeOffsetForUnitTree(session, unit, unit.alignStartTimestamp, expandedOffset);
+                        session.unitsConfig.offsetConfig.timestampOffset = expandedOffset;
+                    };
+                    isGlobal ? session.parseQueue.push(expandParsedUnits) : expandParsedUnits();
                 }
             });
             // 重置记录时间
@@ -981,6 +988,7 @@ export const allSuccessHandler: NotificationHandler = async (data): Promise<void
                 unit.alignStartTimestamp = offsetMap.get((unit.metadata as CardMetaData).cardId);
                 const prevObj = session.unitsConfig.offsetConfig.timestampOffset;
                 if (unit.alignStartTimestamp !== undefined) {
+                    setTimeOffsetForUnitTree(session, unit, unit.alignStartTimestamp, prevObj);
                     if (unit.children !== undefined && unit.children.length > 0) {
                         for (const item of unit.children) {
                             const key = getTimeOffsetKey(session, item.metadata as unknown as ThreadTraceRequest);
