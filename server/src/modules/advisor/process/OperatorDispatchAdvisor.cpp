@@ -25,20 +25,24 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool OperatorDispatchAdvisor::Process(const Protocol::APITypeParams &params, Protocol::OperatorDispatchResBody &resBody)
-{
+bool OperatorDispatchAdvisor::Process(
+    const Protocol::APITypeParams &params, Protocol::OperatorDispatchResBody &resBody) {
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.rankId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection for Operator Dispatch advice. fileId:", params.rankId);
         SetAdvisorError(ErrorCode::CONNECT_DATABASE_FAILED);
         return false;
     }
-    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy, .order = params.orderType,
-        .current = params.currentPage, .pageSize = params.pageSize, .startTime = params.startTime,
-        .endTime = params.endTime, .rankId = params.rankId};
+    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy,
+        .order = params.orderType,
+        .current = params.currentPage,
+        .pageSize = params.pageSize,
+        .startTime = params.startTime,
+        .endTime = params.endTime,
+        .rankId = params.rankId};
     param.order = params.orderType == "ascend" ? "ASC" : "DESC";
     if (std::count(OPERATOR_DISPATCH_ORDER_BY_NAME_LIST.begin(), OPERATOR_DISPATCH_ORDER_BY_NAME_LIST.end(),
-                   params.orderBy) == 0) {
+            params.orderBy) == 0) {
         param.orderBy = "duration";
     }
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();

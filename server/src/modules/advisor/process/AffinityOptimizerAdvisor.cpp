@@ -24,9 +24,8 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool AffinityOptimizerAdvisor::Process(const Protocol::APITypeParams& params,
-    Protocol::AffinityOptimizerResBody& resBody)
-{
+bool AffinityOptimizerAdvisor::Process(
+    const Protocol::APITypeParams &params, Protocol::AffinityOptimizerResBody &resBody) {
     std::string optimizers;
     for (const auto &it : OPTIMIZER_MAP) {
         optimizers += "'" + it.first + "',";
@@ -41,9 +40,12 @@ bool AffinityOptimizerAdvisor::Process(const Protocol::APITypeParams& params,
     }
 
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
-    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy, .order = params.orderType,
-                                           .current = params.currentPage, .pageSize = params.pageSize,
-                                           .startTime = params.startTime, .endTime = params.endTime};
+    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy,
+        .order = params.orderType,
+        .current = params.currentPage,
+        .pageSize = params.pageSize,
+        .startTime = params.startTime,
+        .endTime = params.endTime};
     param.order = params.orderType == "ascend" ? "ASC" : "DESC";
     if (std::count(AFFINITY_OP_ORDER_BY_NAME_LIST.begin(), AFFINITY_OP_ORDER_BY_NAME_LIST.end(), params.orderBy) == 0) {
         param.orderBy = "duration";
@@ -66,7 +68,7 @@ bool AffinityOptimizerAdvisor::Process(const Protocol::APITypeParams& params,
         one.baseInfo.depth = item.depth;
         one.originOptimizer = item.name;
         one.replaceOptimizer = OPTIMIZER_MAP.at(item.name); // 上面的查询逻辑能够保证key-value一定存在
-        resBody.datas.emplace_back(one);
+        resBody.data.emplace_back(one);
     }
     resBody.size = data.size();
     resBody.dbPath = database->GetDbPath();

@@ -26,11 +26,8 @@ namespace Module {
 namespace Advisor {
 
 class QueryAiCpuOpAdviceHandler : public AdvisorRequestHandler {
-public:
-    QueryAiCpuOpAdviceHandler()
-    {
-        command = Protocol::REQ_RES_ADVISOR_AICPU_OPERATORS;
-    }
+  public:
+    QueryAiCpuOpAdviceHandler() { command = Protocol::REQ_RES_ADVISOR_AICPU_OPERATORS; }
     ~QueryAiCpuOpAdviceHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

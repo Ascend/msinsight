@@ -25,8 +25,7 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool QueryAffinityOptimizerAdvice::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryAffinityOptimizerAdvice::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<AffinityOptimizerRequest &>(*requestPtr);
     std::unique_ptr<AffinityOptimizerResponse> responsePtr = std::make_unique<AffinityOptimizerResponse>();
     AffinityOptimizerResponse &response = *responsePtr;

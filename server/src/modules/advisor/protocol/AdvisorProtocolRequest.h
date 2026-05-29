@@ -31,8 +31,7 @@ struct APITypeParams {
     std::string orderType;
     uint64_t startTime = 0;
     uint64_t endTime = 0;
-    bool Check(uint64_t minTimestamp, std::string &errorMsg) const
-    {
+    bool Check(uint64_t minTimestamp, std::string &errorMsg) const {
         if (!CheckPageValid(this->pageSize, this->currentPage, errorMsg)) {
             return false;
         }

@@ -25,8 +25,7 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool QueryAiCpuOpAdviceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryAiCpuOpAdviceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<AICpuOperatorRequest &>(*requestPtr);
     std::unique_ptr<AICpuOperatorResponse> responsePtr = std::make_unique<AICpuOperatorResponse>();
     AICpuOperatorResponse &response = *responsePtr;

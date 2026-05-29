@@ -16,7 +16,6 @@
  * -------------------------------------------------------------------------
  */
 
-
 #ifndef PROFILER_SERVER_ADVISORPROTOCOLUTIL_H
 #define PROFILER_SERVER_ADVISORPROTOCOLUTIL_H
 
@@ -24,11 +23,11 @@
 
 namespace Dic::Protocol {
 class AdvisorProtocolUtil : public ProtocolUtil {
-public:
+  public:
     AdvisorProtocolUtil() = default;
     ~AdvisorProtocolUtil() override = default;
 
-private:
+  private:
     void RegisterJsonToRequestFuncs() override;
     void RegisterResponseToJsonFuncs() override;
     void RegisterEventToJsonFuncs() override;

@@ -25,8 +25,7 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool AffinityAPIAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AffinityAPIResBody &resBody)
-{
+bool AffinityAPIAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AffinityAPIResBody &resBody) {
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.rankId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection for Affinity API query. fileId:", params.rankId);
@@ -46,7 +45,7 @@ bool AffinityAPIAdvisor::Process(const Protocol::APITypeParams &params, Protocol
         one.baseInfo.startTime = item.timestamp;
         if (item.duration < item.timestamp) {
             ServerLog::Error("The original data seems to have an issue, as the end time is smaller than the timestamp."
-                              "Please check the rationality of the data.");
+                             "Please check the rationality of the data.");
             SetAdvisorError(ErrorCode::DATA_ANOMALY_END_TIME_SMALLER_TIMESTAMP);
             return false;
         }
@@ -55,15 +54,14 @@ bool AffinityAPIAdvisor::Process(const Protocol::APITypeParams &params, Protocol
         one.originAPI = item.type;
         one.replaceAPI = item.metaType;
         one.note = item.deviceId;
-        resBody.datas.emplace_back(one);
+        resBody.data.emplace_back(one);
     }
     resBody.dbPath = database->GetDbPath();
     resBody.size = results.size();
     return true;
 }
 
-std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(const Protocol::APITypeParams &params)
-{
+std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(const Protocol::APITypeParams &params) {
     std::vector<Protocol::FlowLocation> results;
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.rankId);
     if (database == nullptr) {
@@ -71,12 +69,15 @@ std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(cons
         SetAdvisorError(ErrorCode::CONNECT_DATABASE_FAILED);
         return results;
     }
-    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy, .order = params.orderType,
-                                           .current = params.currentPage, .pageSize = params.pageSize,
-                                           .startTime = params.startTime, .endTime = params.endTime};
+    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy,
+        .order = params.orderType,
+        .current = params.currentPage,
+        .pageSize = params.pageSize,
+        .startTime = params.startTime,
+        .endTime = params.endTime};
     param.order = params.orderType == "ascend" ? "ASC" : "DESC";
-    if (std::count(AFFINITY_API_ORDER_BY_NAME_LIST.begin(),
-                   AFFINITY_API_ORDER_BY_NAME_LIST.end(), params.orderBy) == 0) {
+    if (std::count(AFFINITY_API_ORDER_BY_NAME_LIST.begin(), AFFINITY_API_ORDER_BY_NAME_LIST.end(), params.orderBy) ==
+        0) {
         param.orderBy = "duration";
     }
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
@@ -87,28 +88,27 @@ std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(cons
         SetAdvisorError(ErrorCode::QUERY_AFFINITY_API_FAILED);
         return results;
     }
-    for (const auto& it : dataMap) { // 获取某个泳道的数据
+    for (const auto &it : dataMap) { // 获取某个泳道的数据
         uint64_t trackId = it.first;
-        std::vector<Protocol::FlowLocation> datas = it.second;
+        std::vector<Protocol::FlowLocation> data = it.second;
         std::vector<uint32_t> indexList = indexMap[trackId];
-        FilterAffinityApiData(params, datas, indexList, results);
+        FilterAffinityApiData(params, data, indexList, results);
     }
     AdvisorProcessUtil::SortFlowLocationData(results, param);
     return results;
 }
 
-std::set<std::string> AffinityAPIAdvisor::GetFirstApiList(const std::vector<AffinityApiData> &affinityApiData)
-{
+std::set<std::string> AffinityAPIAdvisor::GetFirstApiList(const std::vector<AffinityApiData> &affinityApiData) {
     std::set<std::string> apiList{};
     if (affinityApiData.empty()) {
         return apiList;
     }
-    for (const auto& item : affinityApiData) {
+    for (const auto &item : affinityApiData) {
         if (item.apiList.empty()) {
             continue;
         }
         std::vector list = StringUtil::Split(item.apiList[0], "\\|"); // 按"|"分割api
-        for (const auto& one : list) {
+        for (const auto &one : list) {
             apiList.insert(one);
         }
     }
@@ -116,8 +116,7 @@ std::set<std::string> AffinityAPIAdvisor::GetFirstApiList(const std::vector<Affi
 }
 
 // 给定一个API，过滤所有rule.apiList[0]中包含给定API
-std::vector<uint32_t> AffinityAPIAdvisor::FilterPossibleRules(const std::string &name)
-{
+std::vector<uint32_t> AffinityAPIAdvisor::FilterPossibleRules(const std::string &name) {
     std::vector<uint32_t> possible{};
     if (name.empty()) {
         return possible;
@@ -134,8 +133,7 @@ std::vector<uint32_t> AffinityAPIAdvisor::FilterPossibleRules(const std::string 
 // 匹配连续的api
 void AffinityAPIAdvisor::FilterAffinityApiData(const Protocol::APITypeParams &params,
     std::vector<Protocol::FlowLocation> &dataList, const std::vector<uint32_t> &indexList,
-    std::vector<Protocol::FlowLocation> &result)
-{
+    std::vector<Protocol::FlowLocation> &result) {
     if (dataList.empty() || indexList.empty()) {
         return;
     }
@@ -167,16 +165,15 @@ void AffinityAPIAdvisor::FilterAffinityApiData(const Protocol::APITypeParams &pa
 }
 
 // 给定匹配条件，检查api序列是否匹配相关条件
-bool AffinityAPIAdvisor::CheckApiSeqWithRule(const std::vector<std::string> &rule,
-    const std::vector<Protocol::FlowLocation> &dataList, uint32_t index)
-{
+bool AffinityAPIAdvisor::CheckApiSeqWithRule(
+    const std::vector<std::string> &rule, const std::vector<Protocol::FlowLocation> &dataList, uint32_t index) {
     std::string name = dataList[index].name;
     std::vector<std::string> list0 = StringUtil::Split(rule[0], "\\|");
     if (std::find(list0.begin(), list0.end(), name) == list0.end()) {
         return false; // 匹配rule中第一个API，不匹配规则时跳过
     }
     if (index >= NumberSafe::Sub(dataList.size(), rule.size())) {
-        return false;  // 真实数据长度 < 预期数据长度，无法匹配
+        return false; // 真实数据长度 < 预期数据长度，无法匹配
     }
 
     for (size_t i = 1; i < rule.size(); ++i) { // 上文已匹配索引为0的数据

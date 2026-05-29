@@ -24,11 +24,8 @@
 namespace Dic::Module::Advisor {
 
 class QueryFusedOpAdviceHandler : public AdvisorRequestHandler {
-public:
-    QueryFusedOpAdviceHandler()
-    {
-        command = Protocol::REQ_RES_ADVISOR_OPERATORS_FUSION;
-    }
+  public:
+    QueryFusedOpAdviceHandler() { command = Protocol::REQ_RES_ADVISOR_OPERATORS_FUSION; }
     ~QueryFusedOpAdviceHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
