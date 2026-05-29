@@ -28,8 +28,7 @@ namespace Module {
 namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
-bool DurationListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool DurationListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     DurationListRequest &request = dynamic_cast<DurationListRequest &>(*requestPtr.get());
     std::unique_ptr<DurationResponse> responsePtr = std::make_unique<DurationResponse>();
     DurationResponse &response = *responsePtr.get();

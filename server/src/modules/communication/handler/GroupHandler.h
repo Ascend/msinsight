@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class GroupHandler : public CommunicationRequestHandler {
-public:
-    GroupHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_MATRIX_GROUP;
-    };
+  public:
+    GroupHandler() { command = Protocol::REQ_RES_COMMUNICATION_MATRIX_GROUP; };
     ~GroupHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

@@ -24,8 +24,7 @@
 
 namespace Dic::Module::Communication {
 using namespace Dic::Server;
-bool CommunicationSlowRankAnalysisHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool CommunicationSlowRankAnalysisHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<DurationListRequest &>(*requestPtr);
     std::unique_ptr<CommunicationSlowRankAnalysisResponse> responsePtr =
         std::make_unique<CommunicationSlowRankAnalysisResponse>();

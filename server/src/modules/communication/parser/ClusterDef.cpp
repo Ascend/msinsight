@@ -22,8 +22,7 @@
 
 namespace Dic::Module {
 using namespace Dic::Protocol;
-bool ParallelStrategyConfig::CheckParams(std::string &errorMsg) const
-{
+bool ParallelStrategyConfig::CheckParams(std::string &errorMsg) const {
     // algorithm只允许为以下白名单之一
     if (std::find(ALGORITHMS_ALLOWED.begin(), ALGORITHMS_ALLOWED.end(), algorithm) == ALGORITHMS_ALLOWED.end()) {
         errorMsg = "Algorithm is not allowed.";
@@ -35,8 +34,8 @@ bool ParallelStrategyConfig::CheckParams(std::string &errorMsg) const
     }
     uint64_t tmpProduct = static_cast<uint64_t>(dpSize) * cpSize * tpSize * ppSize;
     if (tmpProduct > MAX_WORLD_SIZE) {
-        errorMsg = "The product of PP size, TP size, DP size, and CP size must be less than " +
-                   std::to_string(MAX_WORLD_SIZE);
+        errorMsg =
+            "The product of PP size, TP size, DP size, and CP size must be less than " + std::to_string(MAX_WORLD_SIZE);
         return false;
     }
     if (algorithm == MINDSPEED_TP_CP_EP_DP_PP_ALG) {
@@ -50,8 +49,7 @@ bool ParallelStrategyConfig::CheckParams(std::string &errorMsg) const
     }
 }
 
-bool ParallelStrategyConfig::CheckBaseParams(std::string& errorMsg) const
-{
+bool ParallelStrategyConfig::CheckBaseParams(std::string &errorMsg) const {
     // 检查ppSize, tpSize, dpSize的范围
     if (ppSize == 0 || ppSize > MAX_PARALLEL_SIZE) {
         errorMsg = "PP size must be between 1 and " + std::to_string(MAX_PARALLEL_SIZE);
@@ -85,8 +83,7 @@ bool ParallelStrategyConfig::CheckBaseParams(std::string& errorMsg) const
 }
 
 // LCOV_EXCL_BR_START
-bool ParallelStrategyConfig::CheckParamForVLLM(std::string& errorMsg) const
-{
+bool ParallelStrategyConfig::CheckParamForVLLM(std::string &errorMsg) const {
     // 未开启EP，无需检查
     if (epSize == 1) {
         return true;
@@ -102,8 +99,7 @@ bool ParallelStrategyConfig::CheckParamForVLLM(std::string& errorMsg) const
     return true;
 }
 
-bool ParallelStrategyConfig::CheckParamForMindIELLM(std::string& errorMsg) const
-{
+bool ParallelStrategyConfig::CheckParamForMindIELLM(std::string &errorMsg) const {
     if (moeTpSize * epSize != tpSize * dpSize) {
         // 对于MindIE-LLM算法，需检查world_size = moeTpSize * epSize * ppSize = tpSize * dpSize * ppSize
         errorMsg = "The product of MOE_TP size and EP size should match "
@@ -113,8 +109,7 @@ bool ParallelStrategyConfig::CheckParamForMindIELLM(std::string& errorMsg) const
     return true;
 }
 
-bool ParallelStrategyConfig::CheckParamForMegatron(std::string& errorMsg) const
-{
+bool ParallelStrategyConfig::CheckParamForMegatron(std::string &errorMsg) const {
     if (dpSize % epSize != 0) {
         // 对于Megatron, 检查dpSize是否能被epSize整除
         errorMsg = "DP size must be evenly divided by EP Size for the Megatron.";
@@ -123,8 +118,7 @@ bool ParallelStrategyConfig::CheckParamForMegatron(std::string& errorMsg) const
     return true;
 }
 
-bool ParallelStrategyConfig::CheckParamForMindSpeed(std::string& errorMsg) const
-{
+bool ParallelStrategyConfig::CheckParamForMindSpeed(std::string &errorMsg) const {
     if (dpSize * cpSize % epSize != 0) {
         // 对于MindSpeed, 检查dpSize * cpSize是否能被epSize整除
         errorMsg = "The product of DP size and CP size must be evenly divided by EP Size for the MindSpeed.";
@@ -136,7 +130,7 @@ bool ParallelStrategyConfig::CheckParamForMindSpeed(std::string& errorMsg) const
     }
     // 如果cpAlgo不为空，只允许为以下四者之一
     if (std::find(MINDSPEED_CP_ALGORITHM_ALLOWED.begin(), MINDSPEED_CP_ALGORITHM_ALLOWED.end(),
-                  configForMindSpeed.cpAlgo) == MINDSPEED_CP_ALGORITHM_ALLOWED.end()) {
+            configForMindSpeed.cpAlgo) == MINDSPEED_CP_ALGORITHM_ALLOWED.end()) {
         errorMsg = "Mindspeed CP algorithm is not allowed.";
         return false;
     }
@@ -160,8 +154,7 @@ bool ParallelStrategyConfig::CheckParamForMindSpeed(std::string& errorMsg) const
     return CheckWinSizeForMindSpeed(errorMsg);
 }
 
-bool ParallelStrategyConfig::CheckWinSizeForMindSpeed(std::string& errorMsg) const
-{
+bool ParallelStrategyConfig::CheckWinSizeForMindSpeed(std::string &errorMsg) const {
     if (!configForMindSpeed.useTp2D && configForMindSpeed.cpAlgo == MINDSPEED_HYBIRD_CP_ALG) {
         if (configForMindSpeed.winSize == 0) {
             errorMsg = "CP Window size must be greater than 0.";
@@ -185,15 +178,13 @@ bool ParallelStrategyConfig::CheckWinSizeForMindSpeed(std::string& errorMsg) con
     return true;
 }
 
-bool ParallelStrategyConfig::CheckTp2DSizeForMindSpeed(std::string& errorMsg) const
-{
+bool ParallelStrategyConfig::CheckTp2DSizeForMindSpeed(std::string &errorMsg) const {
     if (configForMindSpeed.useTp2D) {
         if (configForMindSpeed.nd1dim1 == 0 || configForMindSpeed.nd2dim1 == 0) {
             errorMsg = "Nd1dim1 or nd2dim1 must be greater than 0.";
             return false;
         }
-        if (tpSize % configForMindSpeed.nd1dim1 != 0 ||
-            tpSize % configForMindSpeed.nd2dim1 != 0) {
+        if (tpSize % configForMindSpeed.nd1dim1 != 0 || tpSize % configForMindSpeed.nd2dim1 != 0) {
             errorMsg = "TP size must be evenly divided by nd1dim1 and nd2dim1 for tp2d.";
             return false;
         }
@@ -201,26 +192,15 @@ bool ParallelStrategyConfig::CheckTp2DSizeForMindSpeed(std::string& errorMsg) co
     return true;
 }
 
-bool operator==(const ParallelStrategyConfigForMindSpeed& lhs, const ParallelStrategyConfigForMindSpeed& rhs)
-{
-    return lhs.cpAlgo == rhs.cpAlgo &&
-        lhs.useTp2D == rhs.useTp2D &&
-        lhs.nd1dim1 == rhs.nd1dim1 &&
-        lhs.nd2dim1 == rhs.nd2dim1 &&
-        lhs.ulyssesDegree == rhs.ulyssesDegree &&
-        lhs.winSize == rhs.winSize;
+bool operator==(const ParallelStrategyConfigForMindSpeed &lhs, const ParallelStrategyConfigForMindSpeed &rhs) {
+    return lhs.cpAlgo == rhs.cpAlgo && lhs.useTp2D == rhs.useTp2D && lhs.nd1dim1 == rhs.nd1dim1 &&
+        lhs.nd2dim1 == rhs.nd2dim1 && lhs.ulyssesDegree == rhs.ulyssesDegree && lhs.winSize == rhs.winSize;
 }
 
-bool operator==(const ParallelStrategyConfig& lhs, const ParallelStrategyConfig& rhs)
-{
-    return lhs.algorithm == rhs.algorithm &&
-        lhs.ppSize == rhs.ppSize &&
-        lhs.tpSize == rhs.tpSize &&
-        lhs.dpSize == rhs.dpSize &&
-        lhs.cpSize == rhs.cpSize &&
-        lhs.epSize == rhs.epSize &&
-        lhs.moeTpSize == rhs.moeTpSize &&
-        lhs.configForMindSpeed == rhs.configForMindSpeed;
+bool operator==(const ParallelStrategyConfig &lhs, const ParallelStrategyConfig &rhs) {
+    return lhs.algorithm == rhs.algorithm && lhs.ppSize == rhs.ppSize && lhs.tpSize == rhs.tpSize &&
+        lhs.dpSize == rhs.dpSize && lhs.cpSize == rhs.cpSize && lhs.epSize == rhs.epSize &&
+        lhs.moeTpSize == rhs.moeTpSize && lhs.configForMindSpeed == rhs.configForMindSpeed;
 }
 // LCOV_EXCL_BR_STOP
 }

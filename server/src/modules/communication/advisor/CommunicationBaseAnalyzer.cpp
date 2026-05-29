@@ -22,8 +22,7 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 
-bool CommunicationBaseAnalyzer::GenerateAdvisor(CommunicationAdvisorInfo &info, const std::string &clusterPath)
-{
+bool CommunicationBaseAnalyzer::GenerateAdvisor(CommunicationAdvisorInfo &info, const std::string &clusterPath) {
     if (!QueryAdvisorData(clusterPath)) {
         return false;
     }

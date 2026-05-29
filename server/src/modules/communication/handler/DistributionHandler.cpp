@@ -28,12 +28,9 @@ namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool DistributionHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto &request =
-            dynamic_cast<Protocol::DistributionDataRequest &>(*requestPtr);
-    std::unique_ptr<Protocol::DistributionResponse> responsePtr =
-            std::make_unique<Protocol::DistributionResponse>();
+bool DistributionHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<Protocol::DistributionDataRequest &>(*requestPtr);
+    std::unique_ptr<Protocol::DistributionResponse> responsePtr = std::make_unique<Protocol::DistributionResponse>();
     DistributionResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     SetResponseResult(response, true);

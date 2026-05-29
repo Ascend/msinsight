@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class BandwidthHandler : public CommunicationRequestHandler {
-public:
-    BandwidthHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_BANDWIDTH;
-    };
+  public:
+    BandwidthHandler() { command = Protocol::REQ_RES_COMMUNICATION_BANDWIDTH; };
     ~BandwidthHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

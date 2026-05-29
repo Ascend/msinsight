@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class DistributionHandler : public CommunicationRequestHandler {
-public:
-    DistributionHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_DISTRIBUTION;
-    };
+  public:
+    DistributionHandler() { command = Protocol::REQ_RES_COMMUNICATION_DISTRIBUTION; };
     ~DistributionHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

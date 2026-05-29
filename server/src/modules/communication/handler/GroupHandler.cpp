@@ -27,11 +27,9 @@ namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool GroupHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool GroupHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     MatrixGroupRequest &request = dynamic_cast<MatrixGroupRequest &>(*requestPtr.get());
-    std::unique_ptr<Protocol::MatrixGroupResponse> responsePtr =
-            std::make_unique<Protocol::MatrixGroupResponse>();
+    std::unique_ptr<Protocol::MatrixGroupResponse> responsePtr = std::make_unique<Protocol::MatrixGroupResponse>();
     MatrixGroupResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     SetResponseResult(response, true);

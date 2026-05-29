@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class IterationsHandler : public CommunicationRequestHandler {
-public:
-    IterationsHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_ITERATIONS;
-    }
+  public:
+    IterationsHandler() { command = Protocol::REQ_RES_COMMUNICATION_ITERATIONS; }
     ~IterationsHandler() override = default;
 
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;

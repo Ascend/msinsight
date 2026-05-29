@@ -33,8 +33,7 @@ struct OperatorTimeItem {
     uint64_t startTime = 0;
     uint64_t elapseTime = 0;
     std::string dbPath;
-    static bool SortByTime(const OperatorTimeItem &first, const OperatorTimeItem &second)
-    {
+    static bool SortByTime(const OperatorTimeItem &first, const OperatorTimeItem &second) {
         if (first.startTime < second.startTime) {
             return true;
         }
@@ -104,7 +103,6 @@ struct DistributionResponse : public Response {
     DistributionResBody body;
 };
 
-
 struct IterationsOrRanksObject {
     std::string iterationOrRankId;
 };
@@ -117,15 +115,9 @@ struct IterationsOrRanksResponse : public Response {
 struct OperatorNamesObject {
     std::string operatorName;
 
-    bool operator<(const OperatorNamesObject& other) const
-    {
-        return operatorName < other.operatorName;
-    }
+    bool operator<(const OperatorNamesObject &other) const { return operatorName < other.operatorName; }
 
-    bool operator==(const OperatorNamesObject& other) const
-    {
-        return operatorName == other.operatorName;
-    }
+    bool operator==(const OperatorNamesObject &other) const { return operatorName == other.operatorName; }
 };
 
 struct OperatorNamesResponse : public Response {
@@ -152,8 +144,7 @@ struct DurationData {
     double sdmaTime{};
     double rdmaTime{};
 
-    DurationData operator-(const DurationData &durationData) const
-    {
+    DurationData operator-(const DurationData &durationData) const {
         int precision = 4;
         DurationData res;
         res.startTime = NumberUtil::DoubleReservedNDigits(this->startTime - durationData.startTime, precision);
@@ -165,8 +156,8 @@ struct DurationData {
         res.idleTime = NumberUtil::DoubleReservedNDigits(this->idleTime - durationData.idleTime, precision);
         res.synchronizationTimeRatio = NumberUtil::DoubleReservedNDigits(
             this->synchronizationTimeRatio - durationData.synchronizationTimeRatio, precision);
-        res.waitTimeRatio = NumberUtil::DoubleReservedNDigits(
-            this->waitTimeRatio - durationData.waitTimeRatio, precision);
+        res.waitTimeRatio =
+            NumberUtil::DoubleReservedNDigits(this->waitTimeRatio - durationData.waitTimeRatio, precision);
         res.sdmaBw = NumberUtil::DoubleReservedNDigits(this->sdmaBw - durationData.sdmaBw, precision);
         res.rdmaBw = NumberUtil::DoubleReservedNDigits(this->rdmaBw - durationData.rdmaBw, precision);
         res.sdmaTime = NumberUtil::DoubleReservedNDigits(this->sdmaTime - durationData.sdmaTime, precision);
@@ -207,8 +198,7 @@ struct OperatorListsResponseBody {
     std::vector<std::string> dbPathList;
     std::vector<CompareData<std::vector<OperatorTimeItem>>> opLists;
     // 此方法为了所有色块能同屏展示
-    void AdjustTime(const std::string &operatorName)
-    {
+    void AdjustTime(const std::string &operatorName) {
         std::vector<std::pair<uint64_t, uint64_t>> timeDurations = MergeTimeDuration();
         std::map<size_t, uint64_t> offsetMap = ComputeOffset(timeDurations);
         // 第一次调整time是为了同屏展示
@@ -219,9 +209,8 @@ struct OperatorListsResponseBody {
         }
     }
 
-private:
-    void AdjustTimeByName(const std::string &operatorName)
-    {
+  private:
+    void AdjustTimeByName(const std::string &operatorName) {
         std::map<size_t, uint64_t> offsetMap;
         uint64_t maxEndTime = 0;
         for (auto &opList : opLists) {
@@ -260,8 +249,7 @@ private:
         AdjustTimeByOffset(offsetMap);
     }
 
-    void AdjustTimeByOffset(std::map<size_t, uint64_t> &offsetMap)
-    {
+    void AdjustTimeByOffset(std::map<size_t, uint64_t> &offsetMap) {
         if (std::empty(offsetMap)) {
             return;
         }
@@ -299,8 +287,7 @@ private:
         maxTime = tempMaxTime;
     }
 
-    std::vector<std::pair<uint64_t, uint64_t>> MergeTimeDuration()
-    {
+    std::vector<std::pair<uint64_t, uint64_t>> MergeTimeDuration() {
         std::vector<std::pair<uint64_t, uint64_t>> timeDurations;
         for (auto &opList : opLists) {
             if (!opList.baseline.empty()) {
@@ -317,8 +304,7 @@ private:
         return timeDurations;
     }
 
-    std::map<size_t, uint64_t> ComputeOffset(const std::vector<std::pair<uint64_t, uint64_t>> &timeDurations)
-    {
+    std::map<size_t, uint64_t> ComputeOffset(const std::vector<std::pair<uint64_t, uint64_t>> &timeDurations) {
         std::map<size_t, uint64_t> offsetMap;
         for (size_t i = 0; i < opLists.size(); i++) {
             const size_t compareKey = i * 2;
@@ -339,10 +325,9 @@ private:
         return offsetMap;
     }
 
-    static void UpdateTimeDurations(uint64_t min, uint64_t max,
-        std::vector<std::pair<uint64_t, uint64_t>> &timeDurations)
-    {
-        std::pair<uint64_t, uint64_t> cardGroup = { min, max };
+    static void UpdateTimeDurations(
+        uint64_t min, uint64_t max, std::vector<std::pair<uint64_t, uint64_t>> &timeDurations) {
+        std::pair<uint64_t, uint64_t> cardGroup = {min, max};
         auto it = lower_bound(timeDurations.begin(), timeDurations.end(), cardGroup);
         timeDurations.insert(it, cardGroup);
         std::vector<std::pair<uint64_t, uint64_t>> mergeDurations;
@@ -359,9 +344,8 @@ private:
         timeDurations = mergeDurations;
     }
 
-    uint64_t ComputeTargetOffset(uint64_t min, uint64_t max,
-        const std::vector<std::pair<uint64_t, uint64_t>> &timeDurations) const
-    {
+    uint64_t ComputeTargetOffset(
+        uint64_t min, uint64_t max, const std::vector<std::pair<uint64_t, uint64_t>> &timeDurations) const {
         for (const auto &item : timeDurations) {
             if (item.first <= min && item.second >= max) {
                 max = item.second;
@@ -385,8 +369,7 @@ struct MatrixData {
     double transitSize = 0;
     double transitTime = 0;
     double bandwidth = 0;
-    MatrixData operator-(const MatrixData &matrixData) const
-    {
+    MatrixData operator-(const MatrixData &matrixData) const {
         MatrixData res;
         // 精度
         int precision = 4;
@@ -418,8 +401,7 @@ struct GroupInfo {
     std::string parallelStrategy;
     CompareData<std::string> groupIdHash;
     std::string type; // BASELINE or COMPARE
-    bool operator==(const GroupInfo& other) const
-    {
+    bool operator==(const GroupInfo &other) const {
         return group == other.group && parallelStrategy == other.parallelStrategy && type == other.type;
     }
 };
@@ -462,8 +444,7 @@ struct RankDetailsForSlowRank {
     double totalDiffTime{};
     double totalElapseTime{};
     std::vector<OpDetailsForSlowRank> opDetails;
-    bool operator<(const RankDetailsForSlowRank &other) const
-    {
+    bool operator<(const RankDetailsForSlowRank &other) const {
         if (!NumberUtil::IsDoubleEqual(totalElapseTime, other.totalElapseTime)) {
             return totalElapseTime > other.totalElapseTime;
         }

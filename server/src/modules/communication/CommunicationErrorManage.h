@@ -45,7 +45,7 @@ enum class ErrorCode {
 // 错误信息映射
 extern const std::map<ErrorCode, std::string> errorMessages;
 
-const std::string& GetErrorMessage(ErrorCode code);
+const std::string &GetErrorMessage(ErrorCode code);
 void SetCommunicationError(ErrorCode code);
-}  // namespace Dic::Module::Communication
-#endif  // PROFILER_SERVER_COMMUNICATIONERRORMANAGE_H
+} // namespace Dic::Module::Communication
+#endif // PROFILER_SERVER_COMMUNICATIONERRORMANAGE_H

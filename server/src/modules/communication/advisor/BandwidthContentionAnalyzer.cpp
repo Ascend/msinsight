@@ -23,8 +23,7 @@
 namespace Dic {
 namespace Module {
 namespace Communication {
-bool BandwidthContentionAnalyzer::QueryAdvisorData(const std::string &clusterPath)
-{
+bool BandwidthContentionAnalyzer::QueryAdvisorData(const std::string &clusterPath) {
     std::vector<IterationsOrRanksObject> rankList;
     auto communicationDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (!communicationDatabase || !communicationDatabase->QueryRanksHandler(rankList)) {
@@ -37,22 +36,21 @@ bool BandwidthContentionAnalyzer::QueryAdvisorData(const std::string &clusterPat
         data.SDMAData.insert({rank.iterationOrRankId, {}});
         auto summaryDatabase = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rank.iterationOrRankId);
         if (!summaryDatabase) {
-            summaryDatabase = Timeline::DataBaseManager::Instance().GetSummaryDatabaseWithCluster(clusterPath,
-                                                                                                  rank.iterationOrRankId);
+            summaryDatabase = Timeline::DataBaseManager::Instance().GetSummaryDatabaseWithCluster(
+                clusterPath, rank.iterationOrRankId);
         }
         if (!summaryDatabase) {
             Server::ServerLog::Error("Failed to get summary database connection.");
             continue;
         }
         summaryDatabase->QueryBandwidthContentionMatMulData(data.matMulData[rank.iterationOrRankId]);
-        communicationDatabase->QueryBandwidthContentionAnalyzerData(data.SDMAData[rank.iterationOrRankId],
-            rank.iterationOrRankId);
+        communicationDatabase->QueryBandwidthContentionAnalyzerData(
+            data.SDMAData[rank.iterationOrRankId], rank.iterationOrRankId);
     }
     return true;
 }
 
-void BandwidthContentionAnalyzer::ComputeStatistics()
-{
+void BandwidthContentionAnalyzer::ComputeStatistics() {
     for (const auto &item : data.matMulData) {
         size_t HCCLIndex = 0;
         size_t matMulIndex = 0;
@@ -62,8 +60,8 @@ void BandwidthContentionAnalyzer::ComputeStatistics()
                 ++HCCLIndex;
                 continue;
             }
-            if (data.matMulData[item.first][matMulIndex].startTime + data.matMulData[item.first][matMulIndex].duration
-                < data.SDMAData[item.first][HCCLIndex].startTime) {
+            if (data.matMulData[item.first][matMulIndex].startTime + data.matMulData[item.first][matMulIndex].duration <
+                data.SDMAData[item.first][HCCLIndex].startTime) {
                 ++matMulIndex;
                 continue;
             }
@@ -80,8 +78,7 @@ void BandwidthContentionAnalyzer::ComputeStatistics()
     }
 }
 
-void BandwidthContentionAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info)
-{
+void BandwidthContentionAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info) {
     info.name = BANDWIDTHCONTENTION_ANALYZER_TITLE;
     info.statistics.insert({"rankId", {}});
     info.statistics.insert({"name", {}});

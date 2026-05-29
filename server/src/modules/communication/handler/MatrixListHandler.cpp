@@ -27,13 +27,10 @@ namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool MatrixListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool MatrixListHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     ServerLog::Info("request to Communication Matrix List");
-    MatrixBandwidthRequest &request =
-            dynamic_cast<MatrixBandwidthRequest &>(*requestPtr.get());
-    std::unique_ptr<Protocol::MatrixListResponse> responsePtr =
-            std::make_unique<Protocol::MatrixListResponse>();
+    MatrixBandwidthRequest &request = dynamic_cast<MatrixBandwidthRequest &>(*requestPtr.get());
+    std::unique_ptr<Protocol::MatrixListResponse> responsePtr = std::make_unique<Protocol::MatrixListResponse>();
     MatrixListResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
     SetResponseResult(response, true);

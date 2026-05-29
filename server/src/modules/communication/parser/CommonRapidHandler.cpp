@@ -20,8 +20,7 @@
 namespace Dic {
 namespace Module {
 namespace Timeline {
-std::string CommonRapidHandler::GenerateAndGetGroupInfoId(const std::string &rankSet, const std::string &groupIdHash)
-{
+std::string CommonRapidHandler::GenerateAndGetGroupInfoId(const std::string &rankSet, const std::string &groupIdHash) {
     if (groupIdHash.empty()) {
         return "-1";
     }
@@ -52,22 +51,20 @@ std::string CommonRapidHandler::GenerateAndGetGroupInfoId(const std::string &ran
     return std::to_string(info.id);
 }
 
-void CommonRapidHandler::InitGroupInfoMap()
-{
+void CommonRapidHandler::InitGroupInfoMap() {
     std::vector<CommGroupParallelInfo> groupInfoList = database->GetAllGroupInfo();
-    for (const auto &item: groupInfoList) {
-        std::string key = (item.groupIdHash.empty() || item.rankSetStr == "p2p") ? item.rankSetStr :
-            item.rankSetStr + item.groupIdHash;
+    for (const auto &item : groupInfoList) {
+        std::string key = (item.groupIdHash.empty() || item.rankSetStr == "p2p") ? item.rankSetStr
+                                                                                 : item.rankSetStr + item.groupIdHash;
         groupIdsMap[key] = item;
         groupIdIndex = std::max(groupIdIndex, item.id);
     }
 }
 
-bool CommonRapidHandler::SaveGroupInfoMap()
-{
+bool CommonRapidHandler::SaveGroupInfoMap() {
     // group数据更新落库
     std::vector<CommGroupParallelInfo> groupInfoList;
-    for (const auto &item: groupIdsMap) {
+    for (const auto &item : groupIdsMap) {
         groupInfoList.push_back(item.second);
     }
     if (groupInfoList.empty()) {

@@ -29,8 +29,7 @@ namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool MatrixSortOpNamesHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool MatrixSortOpNamesHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MatrixSortOpNamesRequest &>(*requestPtr);
     std::unique_ptr<MatrixSortOpNamesResponse> responsePtr = std::make_unique<MatrixSortOpNamesResponse>();
     MatrixSortOpNamesResponse &response = *responsePtr;

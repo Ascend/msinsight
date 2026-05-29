@@ -29,11 +29,9 @@ namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool BandwidthHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool BandwidthHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<Protocol::BandwidthDataRequest &>(*requestPtr);
-    std::unique_ptr<Protocol::BandwidthDataResponse> responsePtr =
-            std::make_unique<Protocol::BandwidthDataResponse>();
+    std::unique_ptr<Protocol::BandwidthDataResponse> responsePtr = std::make_unique<Protocol::BandwidthDataResponse>();
     // check request parameters
     std::string errorMsg;
     if (!request.params.CheckParams(errorMsg)) {

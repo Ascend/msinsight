@@ -28,8 +28,7 @@ namespace Module {
 namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
-bool IterationsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool IterationsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<IterationsRequest &>(*requestPtr);
     std::unique_ptr<IterationsOrRanksResponse> responsePtr = std::make_unique<IterationsOrRanksResponse>();
     IterationsOrRanksResponse &response = *responsePtr;

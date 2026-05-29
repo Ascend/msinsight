@@ -39,8 +39,7 @@ struct OperatorDetailsParam {
     std::string groupIdHash;
     int pageSize{};
     int currentPage{};
-    bool CheckParams(std::string &errorMsg) const
-    {
+    bool CheckParams(std::string &errorMsg) const {
         if (!CheckPageValid(this->pageSize, this->currentPage, errorMsg)) {
             return false;
         }
@@ -85,8 +84,7 @@ struct OperatorDetailsParam {
     }
 
     OperatorDetailsParam() = default;
-    OperatorDetailsParam(const OperatorDetailsParam& param)
-    {
+    OperatorDetailsParam(const OperatorDetailsParam &param) {
         this->iterationId = param.iterationId;
         this->rankId = param.rankId;
         this->orderBy = param.orderBy;
@@ -97,7 +95,7 @@ struct OperatorDetailsParam {
         this->pgName = param.pgName;
         this->groupIdHash = param.groupIdHash;
     }
-    OperatorDetailsParam& operator=(const OperatorDetailsParam& param) = delete;
+    OperatorDetailsParam &operator=(const OperatorDetailsParam &param) = delete;
 };
 
 struct OperatorDetailsRequest : public Request {
@@ -113,8 +111,7 @@ struct BandwidthDataParam {
     std::string pgName;
     std::string clusterPath;
     std::string groupIdHash;
-    bool CheckParams(std::string &errorMsg) const
-    {
+    bool CheckParams(std::string &errorMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(this->iterationId, paramError)) {
             errorMsg = "[Communication] Failed to check iteration id." + paramError;
@@ -162,8 +159,7 @@ struct DistributionDataParam {
     std::string pgName;
     std::string clusterPath;
     std::string groupIdHash;
-    bool CheckParams(std::string &errorMsg) const
-    {
+    bool CheckParams(std::string &errorMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(this->iterationId, paramError)) {
             errorMsg = "[Communication] Failed to check iteration id." + paramError;
@@ -210,8 +206,7 @@ struct IterationsParams {
     bool isCompare = false;
     std::string clusterPath;
 
-    inline bool CheckParams(std::string& errMsg) const
-    {
+    inline bool CheckParams(std::string &errMsg) const {
         std::string paramErr;
         if (!CheckStrParamValid(clusterPath, paramErr)) {
             errMsg = "[Communication] Failed to check cluster." + paramErr;
@@ -221,7 +216,7 @@ struct IterationsParams {
     }
 };
 
-struct IterationsRequest  : public Request {
+struct IterationsRequest : public Request {
     IterationsRequest() : Request(REQ_RES_COMMUNICATION_ITERATIONS) {};
     IterationsParams params;
 };
@@ -233,8 +228,7 @@ struct OperatorNamesParams {
     std::string pgName;
     std::string clusterPath;
     std::string groupIdHash;
-    bool CheckParams(std::string &errorMsg) const
-    {
+    bool CheckParams(std::string &errorMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(this->iterationId, paramError)) {
             errorMsg = "[Communication] Failed to check iteration id." + paramError;
@@ -260,24 +254,23 @@ struct OperatorNamesParams {
     }
 
     OperatorNamesParams() = default;
-    OperatorNamesParams(const OperatorNamesParams &params)
-    {
+    OperatorNamesParams(const OperatorNamesParams &params) {
         this->iterationId = params.iterationId;
-        for (const auto &item: params.rankList) {
+        for (const auto &item : params.rankList) {
             this->rankList.push_back(item);
         }
         this->stage = params.stage;
         this->groupIdHash = params.groupIdHash;
     }
-    OperatorNamesParams& operator=(const OperatorNamesParams &params) = delete;
+    OperatorNamesParams &operator=(const OperatorNamesParams &params) = delete;
 };
 
-struct OperatorNamesRequest  : public Request {
+struct OperatorNamesRequest : public Request {
     OperatorNamesRequest() : Request(REQ_RES_COMMUNICATION_OPERATORNAMES) {};
     OperatorNamesParams params;
 };
 
-struct MatrixSortOpNamesRequest  : public Request {
+struct MatrixSortOpNamesRequest : public Request {
     MatrixSortOpNamesRequest() : Request(REQ_RES_COMMUNICATION_SORT_OP) {};
     OperatorNamesParams params;
 };
@@ -294,8 +287,7 @@ struct DurationListParams {
     std::string clusterPath;
     std::string groupIdHash;
     std::string baselineGroupIdHash;
-    bool CheckParams(std::string &errorMsg) const
-    {
+    bool CheckParams(std::string &errorMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(this->iterationId, paramError)) {
             errorMsg = "[Communication] Failed to check iteration id." + paramError;
@@ -333,22 +325,21 @@ struct DurationListParams {
     }
 
     DurationListParams() = default;
-    DurationListParams(const DurationListParams& params)
-    {
+    DurationListParams(const DurationListParams &params) {
         this->iterationId = params.iterationId;
         this->operatorName = params.operatorName;
         this->stage = params.stage;
         this->targetOperatorName = params.targetOperatorName;
         this->pgName = params.pgName;
-        for (const auto &item: params.rankList) {
+        for (const auto &item : params.rankList) {
             this->rankList.push_back(item);
         }
         this->groupIdHash = params.groupIdHash;
     }
-    DurationListParams& operator=(const DurationListParams& params) = delete;
+    DurationListParams &operator=(const DurationListParams &params) = delete;
 };
 
-struct DurationListRequest  : public Request {
+struct DurationListRequest : public Request {
     DurationListRequest() : Request(REQ_RES_COMMUNICATION_LIST) {};
     DurationListParams params;
 };
@@ -358,8 +349,7 @@ struct MatrixGroupParam {
     std::string baselineIterationId;
     bool isCompare = false;
     std::string clusterPath;
-    bool CheckParams(std::string &errorMsg) const
-    {
+    bool CheckParams(std::string &errorMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(this->iterationId, paramError)) {
             errorMsg = "[Communication] Failed to check iteration id." + paramError;
@@ -392,8 +382,7 @@ struct MatrixBandwidthParam {
     std::string baselineIterationId;
     std::string clusterPath;
     std::string baselineGroupIdHash;
-    bool CheckParams(std::string &errorMsg) const
-    {
+    bool CheckParams(std::string &errorMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(this->iterationId, paramError)) {
             errorMsg = "[Communication] Failed to check iteration id." + paramError;
@@ -431,8 +420,7 @@ struct MatrixBandwidthRequest : public Request {
 struct CommunicationAdvisorParam {
     std::string clusterPath;
 
-    inline bool CheckParams(std::string &errMsg) const
-    {
+    inline bool CheckParams(std::string &errMsg) const {
         std::string paramErr;
         if (!CheckStrParamValid(clusterPath, paramErr)) {
             errMsg = "[Communication] Failed to check cluster." + paramErr;
