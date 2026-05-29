@@ -28,11 +28,11 @@ describe('safeStringify - 黑盒行为验证', () => {
       }
     };
     const unsafe = new Proxy({}, handler);
-    
+
     const result = safeStringify({ risky: unsafe });
     const parsed = JSON.parse(result);
     expect(parsed.risky).toBe('[Unserializable]');
-    
+
     // 验证无 console.error（异常被 replacer 内部 catch 捕获）
     const errorSpy = jest.spyOn(console, 'error');
     safeStringify({ test: unsafe });
@@ -63,10 +63,10 @@ describe('safeStringify - 黑盒行为验证', () => {
   test('循环引用应触发外层 catch，返回字符串 [Serialization Failed]', () => {
     const circular: any = { name: 'loop' };
     circular.self = circular;
-    
+
     const result = safeStringify(circular);
     expect(result).toBe('[Serialization Failed]'); // 字符串，非 JSON
-    
+
     // 验证 console.error 被触发（外层 catch 行为）
     const errorSpy = jest.spyOn(console, 'error').mockImplementation();
     safeStringify(circular);

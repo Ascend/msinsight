@@ -62,7 +62,7 @@ const drawAuxiliaryLine = (context: CanvasRenderingContext2D,
 
 interface DrawAreaArgs {
     ctx: CanvasRenderingContext2D;
-    datas: Data[];
+    dataList: Data[];
     minHeight: number;
     radius: number;
     xScale: Scale;
@@ -73,34 +73,34 @@ interface DrawAreaArgs {
     palette: StackedBarChartProps['palette'];
 };
 
-const getThisDrawWidth = (index: number, datas: Data[], xScale: (x: number) => number, domainStart: number): number => {
+const getThisDrawWidth = (index: number, data: Data[], xScale: (x: number) => number, domainStart: number): number => {
     // find bar width pixel
-    if (index > 0 && index < datas.length - 1) {
+    if (index > 0 && index < data.length - 1) {
         // find min distance
-        return xScale(Math.min(datas[index + 1].timestamp - datas[index].timestamp, datas[index].timestamp - (datas[index - 1].timestamp / 2)) + domainStart);
+        return xScale(Math.min(data[index + 1].timestamp - data[index].timestamp, data[index].timestamp - (data[index - 1].timestamp / 2)) + domainStart);
     }
-    if (datas.length === 1) {
+    if (data.length === 1) {
         return 24;
     }
     if (index === 0) {
-        return xScale((datas[index + 1].timestamp - (datas[index].timestamp / 2)) + domainStart);
+        return xScale((data[index + 1].timestamp - (data[index].timestamp / 2)) + domainStart);
     }
-    return xScale((datas[index].timestamp - (datas[index - 1].timestamp / 2)) + domainStart);
+    return xScale((data[index].timestamp - (data[index - 1].timestamp / 2)) + domainStart);
 };
 
 const drawArea = ({
-    ctx, datas, minHeight, radius, xScale, palette, yScale, domainStart, barWidthPix, barWidthStamp,
+    ctx, dataList, minHeight, radius, xScale, palette, yScale, domainStart, barWidthPix, barWidthStamp,
 }: DrawAreaArgs): void => {
     if (palette === undefined) {
         return;
     }
-    datas.forEach((data, index) => {
+    dataList.forEach((data, index) => {
         if (data.timestamp + (barWidthStamp / 2) < domainStart) {
             return;
         }
         let thisDrawWidth: number = barWidthPix as number;
         if (barWidthPix === undefined) {
-            thisDrawWidth = getThisDrawWidth(index, datas, xScale, domainStart);
+            thisDrawWidth = getThisDrawWidth(index, dataList, xScale, domainStart);
         }
         const drawRect = (accumulativeHeight: number, curHeight: number, idx: number, allHeights: number[]): void => {
             ctx.fillStyle = palette[idx];
@@ -122,7 +122,7 @@ const drawArea = ({
 };
 interface DrawArgs {
     ctx: CanvasRenderingContext2D | null;
-    datas: Data[];
+    data: Data[];
     palette: StackedBarChartProps['palette'];
     height: number;
     yScaleType: ScaleType;
@@ -134,7 +134,7 @@ interface DrawArgs {
     barWidthStamp: number;
 };
 const draw = ({
-    ctx, datas, height, yScaleType, rangeAndDomain,
+    ctx, data, height, yScaleType, rangeAndDomain,
     radius, valueRange, auxiliaryValue, barWidth, palette, barWidthStamp,
 }: DrawArgs): void => {
     if (palette === undefined) {
@@ -164,18 +164,18 @@ const draw = ({
     if (valueRange) {
         [minHeight, maxHeight] = valueRange;
     } else {
-        findHeights(datas);
+        findHeights(data);
         maxHeight *= 2;
     }
     const yScale = getScale[yScaleType].range([height, 0]).domain([minHeight, maxHeight]) as Scale;
     if (auxiliaryValue !== undefined && auxiliaryValue !== 0) { drawAuxiliaryLine(ctx, yScale, auxiliaryValue, rangeAndDomain[0][1]); }
     // draw line and area
-    drawArea({ ctx, datas, minHeight, radius, xScale, yScale, domainStart, barWidthStamp, barWidthPix, palette });
+    drawArea({ ctx, dataList: data, minHeight, radius, xScale, yScale, domainStart, barWidthStamp, barWidthPix, palette });
 };
 
 type ToolTipData = [ Data, number ];
-const findDataByX = (mousePosX: number | undefined, datas: Data[], rangeAndDomain: Array<[number, number]>): ToolTipData | undefined => {
-    if (rangeAndDomain.length === 0 || datas.length === 0 || mousePosX === undefined) { return undefined; }
+const findDataByX = (mousePosX: number | undefined, data: Data[], rangeAndDomain: Array<[number, number]>): ToolTipData | undefined => {
+    if (rangeAndDomain.length === 0 || data.length === 0 || mousePosX === undefined) { return undefined; }
     const reverseXScale = d3.scaleLinear().range([rangeAndDomain[1][0], rangeAndDomain[1][1]])
         .domain([rangeAndDomain[0][0], rangeAndDomain[0][1]]).clamp(false) as Scale;
     const xScale = d3.scaleLinear().domain([rangeAndDomain[1][0], rangeAndDomain[1][1]])
@@ -183,11 +183,11 @@ const findDataByX = (mousePosX: number | undefined, datas: Data[], rangeAndDomai
     const mouseTimestamp = reverseXScale(mousePosX);
     let minDistance = Number.MAX_VALUE;
     let selectedData = null;
-    for (let i = 0; i < datas.length; i++) {
-        const distanceNow = Math.abs(datas[i].timestamp - mouseTimestamp);
+    for (let i = 0; i < data.length; i++) {
+        const distanceNow = Math.abs(data[i].timestamp - mouseTimestamp);
         if (distanceNow < minDistance) {
             minDistance = distanceNow;
-            selectedData = datas[i];
+            selectedData = data[i];
         }
     }
     if (!selectedData) { return undefined; }
@@ -231,7 +231,7 @@ export const StackedBarChart = observer(({
     const canvas = useRef<HTMLCanvasElement>(null);
     const rangeAndDomain = useRangeAndDomain(session, width, margin);
     const barWidthStamp = getBarWidthStamp(barWidth, rangeAndDomain);
-    const datas = useData({
+    const data = useData({
         session,
         mapFunc,
         unit,
@@ -244,7 +244,7 @@ export const StackedBarChart = observer(({
     const mousePosX = useHoverPosX(canvasContainer);
     const theme = useTheme();
     const defaultPalette = ['#4183a2', '#549251', '#b09239', '#bb5f43', theme.colorPalette.otherColor];
-    const hoveredData = React.useMemo(() => findDataByX(mousePosX, datas, rangeAndDomain), [mousePosX, datas, rangeAndDomain]);
+    const hoveredData = React.useMemo(() => findDataByX(mousePosX, data, rangeAndDomain), [mousePosX, data, rangeAndDomain]);
     useBatchedRender(() => {
         const isCanvasInvalid = canvasContainer.current === null || canvas.current === null || rangeAndDomain.length === 0 ||
             canvas.current.width === 0 || canvas.current.height === 0;
@@ -252,8 +252,8 @@ export const StackedBarChart = observer(({
         const ctx = canvas.current.getContext('2d');
         ctx?.clearRect(0, 0, width, height);
         const drawPalette = palette ?? defaultPalette;
-        draw({ ctx, datas, height, yScaleType, rangeAndDomain, radius, valueRange, auxiliaryValue, barWidth, palette: drawPalette, barWidthStamp });
-    }, [datas, rangeAndDomain, valueRange]);
+        draw({ ctx, data, height, yScaleType, rangeAndDomain, radius, valueRange, auxiliaryValue, barWidth, palette: drawPalette, barWidthStamp });
+    }, [data, rangeAndDomain, valueRange]);
 
     const tooltipProp: TooltipProps<ToolTipData, Data[]> = {
         data: (hoveredData !== undefined && !isTooltipXInDomain(hoveredData, session) &&
@@ -263,7 +263,7 @@ export const StackedBarChart = observer(({
         x: (data) => isTooltipXInDomain(data, session) ? data[1] : mousePosX ?? 0,
         mouseX: mousePosX ?? null,
         session,
-        dataset: datas,
+        dataset: data,
         calcHeight: () => height / 2,
         dom: canvasContainer,
         renderContent: (data) => renderTooltip?.(data[0], metadata),

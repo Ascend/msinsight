@@ -23,7 +23,7 @@ import type { ValidSession } from '../../entity/session';
 import { getRange, dataFunc } from '../utils';
 
 /**
- * this cache won't process any datas,
+ * this cache won't process any data,
  * just return the data every threshold ms
  */
 // ThrottleCache<T extends DataKey>

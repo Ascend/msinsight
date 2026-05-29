@@ -75,12 +75,12 @@ export const TableDataDetail = observer((props: SelectContentViewProps & { selec
         }
         setLoading(true);
         queryTableDataDetails(param).then((res) => {
-            const datas = res as TableData;
-            const cols = datas.columnAttr.map((item) => {
+            const data = res as TableData;
+            const cols = data.columnAttr.map((item) => {
                 return { title: item.key as string, dataIndex: item.key, ...getDefaultColumData(item.key), ...fetchColumnFilterProps(item.key, item.key) };
             });
             setColumn(cols);
-            setDataSource(datas.tableData);
+            setDataSource(data.tableData);
             setPage((prevPage: any) => ({ ...prevPage, total: res.totalNum }));
             setLoading(false);
         });

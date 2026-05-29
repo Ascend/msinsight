@@ -345,7 +345,7 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
     };
     const handleMouseMoveUp = ([downX, upX]: number[]): void => { mouseMoveUpFunc([downX, upX], datasState, rangeAndDomain, session, metadata); };
     useEffect(() => onHover?.(hoveredData, session, metadata), [hoveredData, metadata]);
-    useClick({ canvasContainer, datasState, rangeAndDomain, session, metadata, handleMouseUp, handleMouseMoveUp });
+    useClick({ canvasContainer, dataState: datasState, rangeAndDomain, session, metadata, handleMouseUp, handleMouseMoveUp });
     const yScale = isCollapse ? d3.scaleLinear().range([0, height]).domain([0, maxDepth as number]) : (depth: number): number => depth * rowHeight;
     useBatchedRender(() => {
         const noRender = canvasContainer.current === null || canvas.current === null || rangeAndDomain.length === 0 ||

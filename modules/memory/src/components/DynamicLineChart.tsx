@@ -49,20 +49,20 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
                 memorySession.selectedRange = undefined;
                 return;
             }
-            const allDataSet = new Set(memoryCurveData.lines
+            const allDataListSet = new Set(memoryCurveData.lines
                 .map(item => {
                     return parseFloat(item[0] as string);
                 }).sort((a, b) => a - b));
-            if (allDataSet.size <= 1) {
+            if (allDataListSet.size <= 1) {
                 memorySession.selectedRange = undefined;
                 return;
             }
-            const allDatas = Array.from(allDataSet);
+            const allDataList = Array.from(allDataListSet);
 
-            if (end >= allDatas.length) {
-                memorySession.selectedRange = { startTs: allDatas[start], endTs: allDatas[allDatas.length - 1] };
+            if (end >= allDataList.length) {
+                memorySession.selectedRange = { startTs: allDataList[start], endTs: allDataList[allDataList.length - 1] };
             } else {
-                memorySession.selectedRange = { startTs: allDatas[start], endTs: allDatas[end] };
+                memorySession.selectedRange = { startTs: allDataList[start], endTs: allDataList[end] };
             }
             memorySession.current = 1;
             memorySession.pageSize = 10;

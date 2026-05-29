@@ -26,8 +26,8 @@ export function Resizor(props: {
     const divRef = useRef<HTMLDivElement>(null);
     let isDown = false;
     let offsetX: number;
-    let initalWidth: number;
-    let initalNextWidth: number;
+    let initialWidth: number;
+    let initialNextWidth: number;
     const handleMouseDown = (event: React.MouseEvent): void => {
         event.preventDefault();
         if (!isDown) {
@@ -36,10 +36,10 @@ export function Resizor(props: {
             const dom = divRef?.current?.parentNode as HTMLElement;
             if (dom !== undefined && dom !== null) {
                 dom.style.pointerEvents = 'none';
-                initalWidth = dom.offsetWidth;
+                initialWidth = dom.offsetWidth;
                 const nextBrother = dom.nextElementSibling as HTMLElement;
                 if (nextBrother !== null) {
-                    initalNextWidth = nextBrother.offsetWidth;
+                    initialNextWidth = nextBrother.offsetWidth;
                 }
             }
             window.addEventListener('mousemove', handleMouseMove);
@@ -62,10 +62,10 @@ export function Resizor(props: {
         if (isDown && Boolean(divRef?.current)) {
             const deltaX = event.clientX - offsetX;
             const dom = divRef?.current?.parentNode as HTMLElement;
-            const width = initalWidth + deltaX;
+            const width = initialWidth + deltaX;
             const nextBrother = dom?.nextElementSibling;
             if (nextBrother !== null) {
-                const nextWidth = initalNextWidth - deltaX;
+                const nextWidth = initialNextWidth - deltaX;
                 props.onResize(deltaX, width, nextWidth);
                 return;
             }

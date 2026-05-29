@@ -111,8 +111,8 @@ export const getDuration = (time: TimeStamp, options: TimeOptions = DEFAULT_DURA
         const timeUnitLength = timeItem?.unit.length ?? 0;
         return timeLength + timeUnitLength + 1;
     };
-    const getPadder: GetPadder = (splitTime, emptyPadder, orginPadStartIdx, timesIdx, originLength) => {
-        let padStartIdx = orginPadStartIdx;
+    const getPadder: GetPadder = (splitTime, emptyPadder, originPadStartIdx, timesIdx, originLength) => {
+        let padStartIdx = originPadStartIdx;
         let length = originLength;
         const handleEmptyPadder = (index: number): void => {
             if (emptyPadder[index] !== undefined) {

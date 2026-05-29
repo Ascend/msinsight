@@ -207,10 +207,9 @@ describe('DynamicLineChart', () => {
             searchEventOperatorName: '',
             hostCondition: { options: [], value: '' },
             rankCondition: { options: [1], value: 1 },
-        }
+        };
 
         rerender(<DynamicLineChart {...defaultProps} memorySession={upadteMemorySession} />);
-        
 
         expect(screen.getByTestId('spin')).toBeInTheDocument();
     });
@@ -399,7 +398,7 @@ describe('DynamicLineChart', () => {
         expect(screen.getByTestId('panel-title')).toBeInTheDocument();
         expect(screen.getByTestId('spin')).toBeInTheDocument();
         expect(screen.getByTestId('empty')).toBeInTheDocument();
-});
+    });
 
     it('handles different groupBy types correctly', async () => {
         jest.useFakeTimers();

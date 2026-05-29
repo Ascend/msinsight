@@ -39,7 +39,7 @@
     "Baseline": "Baseline",
     "Comparison": "Comparison",
     "Details": "Details",
-    "Bandwidth Formula": "Bandwidth = Datas / Operator Task Duration",
+    "Bandwidth Formula": "Bandwidth = Data / Operator Task Duration",
     "L2 Cache Hit Rate Formula": "L2 Cache Hit Rate = L2 Cache Total Hit / (L2 Cache Total Hit + L2 Cache Total Miss)",
     "Cube Ratio Formula": "Cube Ratio = Cube Cycle / Total Cycle",
     "Vector Ratio Formula": "Vector Ratio = Vector Cycle / Total Cycle",

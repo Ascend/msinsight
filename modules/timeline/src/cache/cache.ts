@@ -29,7 +29,7 @@ export interface CacheFactory {
 export type Caches = Record<any, Cache | null>;
 
 /**
- * create a new caches object for the session wich is latest created without caches
+ * create a new caches object for the session which is latest created without caches
  * @param session new session without caches
  * @returns new caches for session
  */
