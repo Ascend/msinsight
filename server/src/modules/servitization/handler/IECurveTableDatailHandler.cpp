@@ -21,8 +21,7 @@
 #include "WsSessionManager.h"
 #include "IECurveTableDatailHandler.h"
 namespace Dic::Module::IE {
-bool IECurveTableDatailHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr)
-{
+bool IECurveTableDatailHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<IETableRequest &>(*requestPtr);
     std::unique_ptr<IETableViewResponse> responsePtr = std::make_unique<IETableViewResponse>();
     IETableViewResponse &response = *responsePtr;
@@ -43,25 +42,24 @@ bool IECurveTableDatailHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Req
     return true;
 }
 
-void IECurveTableDatailHandler::QueryViewData(IETableViewResponse &response, const PageQuery &query)
-{
-    TableDatas datas;
-    datas.att = repo->QueryTableInfoByName(query.fileId, query.viewName);
-    if (datas.att.empty()) {
+void IECurveTableDatailHandler::QueryViewData(IETableViewResponse &response, const PageQuery &query) {
+    TableData tableData;
+    tableData.att = repo->QueryTableInfoByName(query.fileId, query.viewName);
+    if (tableData.att.empty()) {
         return;
     }
-    datas.datas = repo->QueryDataByColumnPage(query, datas.att);
-    datas.count = repo->QueryCountByTableName(query, datas.att[0].key);
-    for (const auto &item : datas.att) {
+    tableData.dataItems = repo->QueryDataByColumnPage(query, tableData.att);
+    tableData.count = repo->QueryCountByTableName(query, tableData.att[0].key);
+    for (const auto &item : tableData.att) {
         Column column;
         column.name = item.name;
         column.type = item.type;
         column.key = item.key;
         response.data.columnAttr.emplace_back(column);
     }
-    for (const auto &item : datas.datas) {
+    for (const auto &item : tableData.dataItems) {
         response.data.columnData.emplace_back(item);
     }
-    response.data.totalNum = datas.count;
+    response.data.totalNum = tableData.count;
 }
 }

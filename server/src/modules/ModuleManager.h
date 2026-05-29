@@ -27,11 +27,11 @@
 namespace Dic {
 namespace Module {
 class ModuleManager {
-public:
+  public:
     static ModuleManager &Instance();
     void OnDispatchModuleRequest(std::unique_ptr<Request> request);
 
-private:
+  private:
     ModuleManager();
     ~ModuleManager();
 

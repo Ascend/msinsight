@@ -18,8 +18,7 @@
 #include "SafeFile.h"
 
 namespace Dic {
-std::ifstream OpenReadFileSafely(const std::string &path, std::ios::openmode mode)
-{
+std::ifstream OpenReadFileSafely(const std::string &path, std::ios::openmode mode) {
     std::ifstream res;
     res.setstate(std::ifstream::badbit);
     std::string message;
@@ -39,6 +38,5 @@ std::ifstream OpenReadFileSafely(const std::string &path, std::ios::openmode mod
 #endif
     res.open(tmpPath, std::ios::in | mode);
     return res;
-
 }
 }

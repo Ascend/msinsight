@@ -18,9 +18,8 @@
 
 #include "CommonRequests.h"
 namespace Dic::Protocol {
-bool FiltersParam::SetFiltersFromJson(const json_t& json, const std::vector<TableViewColumn>& columns,
-                                      std::string& errorMsg)
-{
+bool FiltersParam::SetFiltersFromJson(
+    const json_t &json, const std::vector<TableViewColumn> &columns, std::string &errorMsg) {
     if (!json.IsObject()) {
         errorMsg = "Failed to set filters params from param json object: json is null or type invalid";
         return false;
@@ -28,13 +27,13 @@ bool FiltersParam::SetFiltersFromJson(const json_t& json, const std::vector<Tabl
     if (!json.HasMember("filters")) {
         return true;
     }
-    const json_t& filtersJson = json["filters"];
+    const json_t &filtersJson = json["filters"];
     if (!filtersJson.IsObject()) {
         errorMsg = "Failed to set filters params from param json object: filter json is null or type invalid";
         return false;
     }
     for (auto member = filtersJson.MemberBegin(); member != filtersJson.MemberEnd(); member++) {
-        auto &key  = member->name;
+        auto &key = member->name;
         auto &value = member->value;
         if (!key.IsString() || !value.IsString()) {
             errorMsg = "Failed to set filters params from param json object: invalid type";
@@ -56,9 +55,8 @@ bool FiltersParam::SetFiltersFromJson(const json_t& json, const std::vector<Tabl
     return true;
 }
 
-bool OrderByParam::SetOrderFromJson(const json_t& json, const std::vector<TableViewColumn>& columns,
-                                    std::string& errorMsg)
-{
+bool OrderByParam::SetOrderFromJson(
+    const json_t &json, const std::vector<TableViewColumn> &columns, std::string &errorMsg) {
     if (!json.IsObject()) {
         errorMsg = "Failed to set orderBy param from param json object: json is null or type invalid";
         return false;
@@ -81,8 +79,7 @@ bool OrderByParam::SetOrderFromJson(const json_t& json, const std::vector<TableV
         return false;
     }
     if (!columnIt->sortable) {
-        errorMsg = StringUtil::FormatString("Invalid order, detail: column '{}' is not sortable",
-                                            columnIt->name);
+        errorMsg = StringUtil::FormatString("Invalid order, detail: column '{}' is not sortable", columnIt->name);
         return false;
     }
     orderBy = StringUtil::FormatString(std::string(columnIt->key));
@@ -96,9 +93,8 @@ bool OrderByParam::SetOrderFromJson(const json_t& json, const std::vector<TableV
     return true;
 }
 
-bool RangeFiltersParam::SetRangeFiltersFromJson(const json_t& json, const std::vector<TableViewColumn>& columns,
-                                                std::string& errorMsg)
-{
+bool RangeFiltersParam::SetRangeFiltersFromJson(
+    const json_t &json, const std::vector<TableViewColumn> &columns, std::string &errorMsg) {
     if (!json.IsObject()) {
         errorMsg = "Failed to set range filters params from param json object: json is null or type invalid";
         return false;
@@ -112,13 +108,13 @@ bool RangeFiltersParam::SetRangeFiltersFromJson(const json_t& json, const std::v
         errorMsg = "Failed to set range filters params from param json object: filter json is null or type invalid";
         return false;
     }
-    const json_t& rangeFiltersJson = json["rangeFilters"];
+    const json_t &rangeFiltersJson = json["rangeFilters"];
     if (!rangeFiltersJson.IsObject()) {
         errorMsg = "Failed to set range filters params from param json object: filter json is null or type invalid";
         return false;
     }
     for (auto member = rangeFiltersJson.MemberBegin(); member != rangeFiltersJson.MemberEnd(); member++) {
-        auto &key  = member->name;
+        auto &key = member->name;
         auto &value = member->value;
         if (!key.IsString() || !value.IsArray()) {
             errorMsg = "Failed to set range filters params from param json object: format error.";
@@ -140,7 +136,8 @@ bool RangeFiltersParam::SetRangeFiltersFromJson(const json_t& json, const std::v
         }
         if (!columnIt->rangeFilterable) {
             errorMsg = StringUtil::FormatString("Invalid range filter, "
-                                                "detail: column '{}' is not range filterable", strKey);
+                                                "detail: column '{}' is not range filterable",
+                strKey);
             return false;
         }
         rangeFilters.emplace(StringUtil::FormatString("{}", columnIt->key), rangePair);
@@ -148,10 +145,8 @@ bool RangeFiltersParam::SetRangeFiltersFromJson(const json_t& json, const std::v
     return true;
 }
 
-bool CommonTableParams::SetFromJson(const json_t& json,
-                                    const std::vector<TableViewColumn>& columns,
-                                    std::string& errorMsg)
-{
+bool CommonTableParams::SetFromJson(
+    const json_t &json, const std::vector<TableViewColumn> &columns, std::string &errorMsg) {
     PaginationParam::SetPaginationParamFromJson(json);
     if (!FiltersParam::SetFiltersFromJson(json, columns, errorMsg)) {
         errorMsg = "Failed set filters from json param: " + errorMsg;
@@ -168,8 +163,7 @@ bool CommonTableParams::SetFromJson(const json_t& json,
     return true;
 }
 
-json_t TableViewColumn::ToTableHeaderJson(MemoryPoolAllocator<>& allocator) const
-{
+json_t TableViewColumn::ToTableHeaderJson(MemoryPoolAllocator<> &allocator) const {
     json_t headerJson(kObjectType);
     std::string headerName = std::string(name);
     StringUtil::StripDbColumnName(headerName);
@@ -181,9 +175,8 @@ json_t TableViewColumn::ToTableHeaderJson(MemoryPoolAllocator<>& allocator) cons
     return headerJson;
 }
 
-json_t TableViewColumn::CommonBuildTableHeadersJson(MemoryPoolAllocator<>& allocator,
-        const std::vector<TableViewColumn>& columns)
-{
+json_t TableViewColumn::CommonBuildTableHeadersJson(
+    MemoryPoolAllocator<> &allocator, const std::vector<TableViewColumn> &columns) {
     json_t headerJsonArray(kArrayType);
     for (const auto &header : columns) {
         if (!header.visible) {

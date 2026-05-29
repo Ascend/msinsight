@@ -25,8 +25,7 @@ namespace Dic {
 namespace Protocol {
 using namespace Dic::Server;
 
-uint64_t ProtocolMessageBuffer::GetBodyLength(const uint64_t &headPosition, const uint64_t &headLength) const
-{
+uint64_t ProtocolMessageBuffer::GetBodyLength(const uint64_t &headPosition, const uint64_t &headLength) const {
     std::string lenStr = buffer.substr(headPosition, headLength);
     std::optional<std::smatch> matchRes = RegexUtil::RegexMatch(lenStr, "Content-Length:\\s*(\\d+)");
     if (!matchRes.has_value() || matchRes.value().size() < matchMinNum) {
@@ -45,8 +44,7 @@ uint64_t ProtocolMessageBuffer::GetBodyLength(const uint64_t &headPosition, cons
     return res;
 }
 
-ProtocolMessageBuffer &ProtocolMessageBuffer::operator << (const std::string &data)
-{
+ProtocolMessageBuffer &ProtocolMessageBuffer::operator<<(const std::string &data) {
     std::unique_lock<std::mutex> lock(mutex);
     if (data.find(HEAD_START) != std::string::npos || data.find(REQ_DELIMITER) != std::string::npos) {
         return *this;
@@ -64,8 +62,7 @@ ProtocolMessageBuffer &ProtocolMessageBuffer::operator << (const std::string &da
     return *this;
 }
 
-std::unique_ptr<ProtocolMessage> ProtocolMessageBuffer::Pop()
-{
+std::unique_ptr<ProtocolMessage> ProtocolMessageBuffer::Pop() {
     std::unique_lock<std::mutex> lock(mutex);
     headPos = buffer.find(HEAD_START);
     if (headPos == std::string::npos) {
@@ -100,8 +97,7 @@ std::unique_ptr<ProtocolMessage> ProtocolMessageBuffer::Pop()
     return std::unique_ptr<ProtocolMessage>(request.release());
 }
 
-void ProtocolMessageBuffer::Clear()
-{
+void ProtocolMessageBuffer::Clear() {
     std::unique_lock<std::mutex> lock(mutex);
     buffer.clear();
 }

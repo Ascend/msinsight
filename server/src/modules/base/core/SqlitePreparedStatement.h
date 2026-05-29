@@ -29,7 +29,7 @@
 namespace Dic {
 namespace Module {
 class SqlitePreparedStatement {
-public:
+  public:
     /**
      * Constructor, 不管理sqlite3* 的生命周期，此类不是线程安全的
      * @param db 已打开的数据库指针
@@ -74,8 +74,7 @@ public:
      */
     template <typename... Args>
     // LCOV_EXCL_BR_START
-    void BindParams(Args&&... args)
-    {
+    void BindParams(Args &&...args) {
         std::tuple<Args &&...> tp(std::forward<Args>(args)...);
         BindParamsHelper(tp, std::make_index_sequence<sizeof...(Args)>{});
     }
@@ -87,9 +86,7 @@ public:
      * @param args 需要绑定的参数
      * @return
      */
-    template <typename... Args>
-    bool Execute(Args&&... args)
-    {
+    template <typename... Args> bool Execute(Args &&...args) {
         BindParams(std::forward<Args>(args)...);
         return Execute();
     }
@@ -100,9 +97,7 @@ public:
      * @param args 需要绑定的参数
      * @return
      */
-    template <typename... Args>
-    std::unique_ptr<SqliteResultSet> ExecuteQuery(Args&&... args)
-    {
+    template <typename... Args> std::unique_ptr<SqliteResultSet> ExecuteQuery(Args &&...args) {
         BindParams(std::forward<Args>(args)...);
         return ExecuteQuery();
     }
@@ -110,7 +105,7 @@ public:
     sqlite3_stmt *stmt = nullptr;
     int bindIndex = 1; // bind index start with 1
 
-private:
+  private:
     sqlite3 *db = nullptr;
     int lastErrorCode = SQLITE_OK;
 
@@ -120,8 +115,7 @@ private:
     void BindParam(int index, uint32_t value);
     void BindParam(int index, uint64_t value);
     void BindParam(int index, double value);
-    template<class T> inline void BindParam(int index, std::optional<T> value)
-    {
+    template <class T> inline void BindParam(int index, std::optional<T> value) {
         if (value.has_value()) {
             BindParam(index, value.value());
         } else {
@@ -130,9 +124,7 @@ private:
     }
 
     // LCOV_EXCL_BR_START
-    template <typename Tuple, size_t... I>
-    void BindParamsHelper(Tuple& tp, std::index_sequence<I...>)
-    {
+    template <typename Tuple, size_t... I> void BindParamsHelper(Tuple &tp, std::index_sequence<I...>) {
         (BindParam(bindIndex++, std::get<I>(tp)), ...);
     }
     // LCOV_EXCL_BR_STOP

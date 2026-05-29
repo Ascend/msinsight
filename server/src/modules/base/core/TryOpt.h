@@ -21,9 +21,7 @@
 #include "ServerLog.h"
 namespace Dic {
 namespace Module {
-template <typename T>
-bool TryOpt(const std::shared_ptr<T>& ptr, const std::string& msg)
-{
+template <typename T> bool TryOpt(const std::shared_ptr<T> &ptr, const std::string &msg) {
     if (!ptr) {
         Dic::Server::ServerLog::Warn(msg);
         return false;
@@ -31,9 +29,7 @@ bool TryOpt(const std::shared_ptr<T>& ptr, const std::string& msg)
     return true;
 }
 
-template <typename T>
-bool TryOpt(const std::unique_ptr<T>& ptr, const std::string& msg)
-{
+template <typename T> bool TryOpt(const std::unique_ptr<T> &ptr, const std::string &msg) {
     if (!ptr) {
         Dic::Server::ServerLog::Warn(msg);
         return false;
@@ -41,6 +37,6 @@ bool TryOpt(const std::unique_ptr<T>& ptr, const std::string& msg)
     return true;
 }
 
-}  // namespace Module
-}  // namespace Dic
-#endif  // PROFILER_SERVER_TRYOPT_H
+} // namespace Module
+} // namespace Dic
+#endif // PROFILER_SERVER_TRYOPT_H
