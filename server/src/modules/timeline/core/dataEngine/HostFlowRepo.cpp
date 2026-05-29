@@ -18,8 +18,7 @@
 #include "TrackInfoManager.h"
 #include "HostFlowRepo.h"
 namespace Dic::Module::Timeline {
-void HostFlowRepo::QueryFwdbwd(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void HostFlowRepo::QueryFwdbwd(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     uint64_t nameId = QueryEnqueueNameId(flowQuery);
     std::vector<PytorchApiPO> pythonApiPOS = QueryNotEnqueuePythonApi(flowQuery, nameId);
     std::unordered_map<uint64_t, uint64_t> connectionIdMap = QueryConnectionIdMap(flowQuery);
@@ -56,8 +55,7 @@ void HostFlowRepo::QueryFwdbwd(const FlowQuery &flowQuery, std::vector<FlowPoint
     std::sort(flowPointVec.begin(), flowPointVec.end());
 }
 
-uint64_t HostFlowRepo::QueryEnqueueNameId(const FlowQuery &flowQuery)
-{
+uint64_t HostFlowRepo::QueryEnqueueNameId(const FlowQuery &flowQuery) {
     uint64_t nameId = 0;
     std::vector<StringIdsPO> stringIdsPOS;
     stringIdsTable->Select(StringIdsColumn::ID)
@@ -69,8 +67,7 @@ uint64_t HostFlowRepo::QueryEnqueueNameId(const FlowQuery &flowQuery)
     return nameId;
 }
 
-std::vector<PytorchApiPO> HostFlowRepo::QueryNotEnqueuePythonApi(const FlowQuery &flowQuery, uint64_t nameId)
-{
+std::vector<PytorchApiPO> HostFlowRepo::QueryNotEnqueuePythonApi(const FlowQuery &flowQuery, uint64_t nameId) {
     std::vector<PytorchApiPO> pythonApiPOS;
     uint64_t minConnectionId = 0;
     pytorchApiTable->Select(PytorchApiColumn::ID, PytorchApiColumn::TIMESTAMP)
@@ -82,8 +79,7 @@ std::vector<PytorchApiPO> HostFlowRepo::QueryNotEnqueuePythonApi(const FlowQuery
     return pythonApiPOS;
 }
 
-void HostFlowRepo::QueryAsyncTaskQueue(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void HostFlowRepo::QueryAsyncTaskQueue(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     std::vector<StringIdsPO> stringIdsPOS;
     stringIdsTable->Select(StringIdsColumn::ID)
         .Like(StringIdsColumn::VALUE, "Enqueue%")
@@ -124,8 +120,7 @@ void HostFlowRepo::QueryAsyncTaskQueue(const FlowQuery &flowQuery, std::vector<F
     std::sort(flowPointVec.begin(), flowPointVec.end());
 }
 
-std::unordered_map<uint64_t, uint64_t> HostFlowRepo::QueryConnectionIdMap(const FlowQuery &flowQuery)
-{
+std::unordered_map<uint64_t, uint64_t> HostFlowRepo::QueryConnectionIdMap(const FlowQuery &flowQuery) {
     std::unordered_map<uint64_t, uint64_t> connectionIdMap;
     std::vector<ConnectionIdsPO> connectionIdsPOVec;
     connectionIdsTable->Select(ConnectionIdsColumn::ID, ConnectionIdsColumn::CONNECTIONID)
@@ -137,8 +132,7 @@ std::unordered_map<uint64_t, uint64_t> HostFlowRepo::QueryConnectionIdMap(const 
     return connectionIdMap;
 }
 
-std::vector<uint64_t> HostFlowRepo::QueryEnqueueFlowConnectionIds(const FlowQuery &flowQuery, uint64_t nameId)
-{
+std::vector<uint64_t> HostFlowRepo::QueryEnqueueFlowConnectionIds(const FlowQuery &flowQuery, uint64_t nameId) {
     std::vector<PytorchApiPO> pythonApiConnectionIdPOS;
     pytorchApiTable->Select(PytorchApiColumn::CONNECTIONID)
         .Eq(PytorchApiColumn::NAME, nameId)
@@ -151,9 +145,8 @@ std::vector<uint64_t> HostFlowRepo::QueryEnqueueFlowConnectionIds(const FlowQuer
     return pythonConnectionIds;
 }
 
-std::vector<uint64_t> HostFlowRepo::QueryRealConnectionIds(const FlowQuery &flowQuery,
-    const std::vector<uint64_t> &pythonConnectionIds)
-{
+std::vector<uint64_t> HostFlowRepo::QueryRealConnectionIds(
+    const FlowQuery &flowQuery, const std::vector<uint64_t> &pythonConnectionIds) {
     std::vector<ConnectionIdsPO> connectionIdsPOVec;
     connectionIdsTable->Select(ConnectionIdsColumn::CONNECTIONID)
         .In(ConnectionIdsColumn::ID, pythonConnectionIds)
@@ -168,8 +161,7 @@ std::vector<uint64_t> HostFlowRepo::QueryRealConnectionIds(const FlowQuery &flow
 
 void HostFlowRepo::QueryAllPythonConnectionIds(const FlowQuery &flowQuery,
     const std::vector<uint64_t> &realConnectionIds, std::unordered_map<uint64_t, uint64_t> &connectionIdMap,
-    std::vector<uint64_t> &allPythonConnectionIds)
-{
+    std::vector<uint64_t> &allPythonConnectionIds) {
     std::vector<ConnectionIdsPO> allConnectionIdsPOVec;
     connectionIdsTable->Select(ConnectionIdsColumn::ID, ConnectionIdsColumn::CONNECTIONID)
         .In(ConnectionIdsColumn::CONNECTIONID, realConnectionIds)
@@ -180,8 +172,7 @@ void HostFlowRepo::QueryAllPythonConnectionIds(const FlowQuery &flowQuery,
     }
 }
 
-void HostFlowRepo::AddAsyncNpuFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void HostFlowRepo::AddAsyncNpuFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     uint64_t nameId = QueryEnqueueNameId(flowQuery);
     std::vector<PytorchApiPO> pythonApiPOS = QueryNotEnqueuePythonApi(flowQuery, nameId);
     std::unordered_map<uint64_t, uint64_t> connectionIdMap = QueryConnectionIdMap(flowQuery);
@@ -216,8 +207,7 @@ void HostFlowRepo::AddAsyncNpuFlowPoint(const FlowQuery &flowQuery, std::vector<
     }
 }
 
-std::vector<uint64_t> HostFlowRepo::AddMstxFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+std::vector<uint64_t> HostFlowRepo::AddMstxFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     std::vector<MstxEventsPO> mstxPOs;
     mstxEventsTable->Select(MstxEventsColumn::ID, MstxEventsColumn::CONNECTION_ID)
         .Select(MstxEventsColumn::GLOBAL_TID, MstxEventsColumn::TIMESTAMP, MstxEventsColumn::DOMAIN_ID)
@@ -232,18 +222,18 @@ std::vector<uint64_t> HostFlowRepo::AddMstxFlowPoint(const FlowQuery &flowQuery,
         startPoint.flowId = std::to_string(item.connectionId);
         startPoint.timestamp = item.timestamp - flowQuery.minTimestamp;
         startPoint.rankId = flowQuery.fileId;
-        startPoint.trackId = instance.GetTrackId(flowQuery.fileId, std::to_string(item.globalTid), std::to_string(item.domainId));
+        startPoint.trackId =
+            instance.GetTrackId(flowQuery.fileId, std::to_string(item.globalTid), std::to_string(item.domainId));
         flowPointVec.emplace_back(startPoint);
         connectionIds.emplace_back(item.connectionId);
     }
     return connectionIds;
 }
 
-void HostFlowRepo::AddCannFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
-    std::vector<CannApiPO> cannApiPOs;
-    cannApiTable->Select(CannApiColumn::ID, CannApiColumn::TIMESTAMP)
-        .Select(CannApiColumn::GLOBAL_TID, CannApiColumn::TYPE)
+void HostFlowRepo::AddCANNFlowPoint(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
+    std::vector<CANNApiPO> cannApiPOs;
+    cannApiTable->Select(CANNApiColumn::ID, CANNApiColumn::TIMESTAMP)
+        .Select(CANNApiColumn::GLOBAL_TID, CANNApiColumn::TYPE)
         .ExcuteQuery(flowQuery.fileId, cannApiPOs);
     auto &instance = TrackInfoManager::Instance();
     for (const auto &item : cannApiPOs) {
@@ -252,11 +242,12 @@ void HostFlowRepo::AddCannFlowPoint(const FlowQuery &flowQuery, std::vector<Flow
         startPoint.id = item.id;
         startPoint.flowId = std::to_string(item.id);
         if (item.timestamp < flowQuery.minTimestamp) {
-            ServerLog::Warn("Cann flow timestamp invalid! id: %", item.id);
+            ServerLog::Warn("CANN flow timestamp invalid! id: %", item.id);
         }
         startPoint.timestamp = item.timestamp - flowQuery.minTimestamp;
         startPoint.rankId = flowQuery.fileId;
-        startPoint.trackId = instance.GetTrackId(flowQuery.fileId, std::to_string(item.globalTid), std::to_string(item.type));
+        startPoint.trackId =
+            instance.GetTrackId(flowQuery.fileId, std::to_string(item.globalTid), std::to_string(item.type));
         flowPointVec.emplace_back(startPoint);
     }
 }

@@ -26,7 +26,7 @@
 #include "DomainObject.h"
 namespace Dic::Module::Timeline {
 class RepositoryFactoryInterface {
-public:
+  public:
     virtual ~RepositoryFactoryInterface() = default;
     virtual std::shared_ptr<IBaseSliceRepo> GetSliceRespo(PROCESS_TYPE) = 0;
     virtual std::shared_ptr<SimulationSliceRepoInterface> GetSimulationSliceRespo(PROCESS_TYPE) = 0;
@@ -34,6 +34,5 @@ public:
     virtual std::shared_ptr<FlowRepoInterface> GetFlowRespo(PROCESS_TYPE) = 0;
 };
 }
-
 
 #endif // PROFILER_SERVER_REPOSITORYFACTORYINTERFACE_H

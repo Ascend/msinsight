@@ -16,37 +16,30 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
-#include "CannApiRepo_mock_data.h"
-#include "CannApiRepo.h"
+#include "CANNApiRepo_mock_data.h"
+#include "CANNApiRepo.h"
 #include "TrackInfoManager.h"
 #include "../../../DatabaseTestCaseMockUtil.h"
 #include "TableDefaultMock.h"
-using namespace Dic::TimeLine::CannApiRepo::Mock;
+using namespace Dic::TimeLine::CANNApiRepo::Mock;
 using namespace Dic::TimeLine::Table::Default::Mock;
 using namespace Dic::Global::PROFILER::MockUtil;
-class CannApiRepoTest : public ::testing::Test {
-protected:
+class CANNApiRepoTest : public ::testing::Test {
+  protected:
     const std::string stringIdsSql = "CREATE TABLE STRING_IDS (id INTEGER PRIMARY KEY,value TEXT);";
     const std::string cannapiSql = "CREATE TABLE CANN_API (startNs INTEGER,endNs INTEGER,type INTEGER,globalTid "
-        "INTEGER,connectionId INTEGER PRIMARY KEY,name INTEGER, depth integer);";
+                                   "INTEGER,connectionId INTEGER PRIMARY KEY,name INTEGER, depth integer);";
     const std::string apiTypeSql = "CREATE TABLE ENUM_API_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
-    void SetUp() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void SetUp() override { TrackInfoManager::Instance().Reset(); }
 
-    void TearDown() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void TearDown() override { TrackInfoManager::Instance().Reset(); }
 };
 
 /**
  * 测试全量DB的cann根据id空集合查询完整算子
  */
-TEST_F(CannApiRepoTest, test_QueryCompeteSliceByIds_with_empthIds)
-{
-    CannApiRepo cannApiRepo;
+TEST_F(CANNApiRepoTest, test_QueryCompeteSliceByIds_with_empthIds) {
+    CANNApiRepo cannApiRepo;
     SliceQuery sliceQuery;
     std::vector<uint64_t> sliceIds;
     std::vector<CompeteSliceDomain> competeSliceVec;
@@ -57,29 +50,27 @@ TEST_F(CannApiRepoTest, test_QueryCompeteSliceByIds_with_empthIds)
 /**
  * 测试全量DB的 cannApiRepo 转化 SliceInterface 的情况
  */
-TEST_F(CannApiRepoTest, TestDynamicCastOfMultiSliceInterface)
-{
-    std::shared_ptr<IBaseSliceRepo> cannApiRepo = std::make_shared<CannApiRepo>();
+TEST_F(CANNApiRepoTest, TestDynamicCastOfMultiSliceInterface) {
+    std::shared_ptr<IBaseSliceRepo> cannApiRepo = std::make_shared<CANNApiRepo>();
     // 转 IPythonFuncSlice 失败
-    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice*>(cannApiRepo.get());
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(cannApiRepo.get());
     EXPECT_EQ(pythonFuncRepo, nullptr);
     // 转 IFindSliceByNameList 成功
-    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList*>(cannApiRepo.get());
+    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList *>(cannApiRepo.get());
     EXPECT_NE(findSliceByNameList, nullptr);
     // 转 IFindSliceByTimepointAndName 失败
-    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName*>(cannApiRepo.get());
+    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName *>(cannApiRepo.get());
     EXPECT_EQ(findSliceByTimepointAndName, nullptr);
     // 转 ITextSlice 失败
-    const auto textSliceRepo = dynamic_cast<ITextSlice*>(cannApiRepo.get());
+    const auto textSliceRepo = dynamic_cast<ITextSlice *>(cannApiRepo.get());
     EXPECT_EQ(textSliceRepo, nullptr);
 }
 
 /**
  * 测试全量DB的cann根据trackId查询所有简单算子，无对应track
  */
-TEST_F(CannApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId)
-{
-    CannApiRepo cannApiRepo;
+TEST_F(CANNApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId) {
+    CANNApiRepo cannApiRepo;
     SliceQuery sliceQuery;
     std::vector<uint64_t> sliceIds;
     std::vector<SliceDomain> sliceVec;
@@ -90,11 +81,10 @@ TEST_F(CannApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId)
 /**
  * 测试全量DB的cann根据id集合查询完整算子,无对应track
  */
-TEST_F(CannApiRepoTest, test_QueryCompeteSliceByIds_with_track_empty)
-{
-    CannApiRepo cannApiRepo;
+TEST_F(CANNApiRepoTest, test_QueryCompeteSliceByIds_with_track_empty) {
+    CANNApiRepo cannApiRepo;
     SliceQuery sliceQuery;
-    std::vector<uint64_t> sliceIds = { 1, 2, 3 };
+    std::vector<uint64_t> sliceIds = {1, 2, 3};
     std::vector<CompeteSliceDomain> competeSliceVec;
     cannApiRepo.QueryCompeteSliceByIds(sliceQuery, sliceIds, competeSliceVec);
     EXPECT_EQ(competeSliceVec.size(), 0);
@@ -103,23 +93,21 @@ TEST_F(CannApiRepoTest, test_QueryCompeteSliceByIds_with_track_empty)
 /**
  * 测试全量DB的cann的根据id集合查询完整算子,正常情况
  */
-TEST_F(CannApiRepoTest, test_QueryCompeteSliceByIds_with_normal)
-{
+TEST_F(CANNApiRepoTest, test_QueryCompeteSliceByIds_with_normal) {
     TrackInfoManager::Instance().Reset();
-    class TableMock : public Dic::Module::Timeline::CannApiTable {
-    public:
-        void ExcuteQuery(const std::string &fileId, std::vector<CannApiPO> &result) override
-        {
+    class TableMock : public Dic::Module::Timeline::CANNApiTable {
+      public:
+        void ExcuteQuery(const std::string &fileId, std::vector<CANNApiPO> &result) override {
             QueryCompeteSliceByIdsWithNormalExcuteQuery(fileId, result);
             ClearThreadLocal();
         }
     };
-    std::unique_ptr<Dic::Module::Timeline::CannApiTable> ptr = std::make_unique<TableMock>();
-    CannApiRepo cannApiRepo;
-    cannApiRepo.SetCannApiTable(std::move(ptr));
+    std::unique_ptr<Dic::Module::Timeline::CANNApiTable> ptr = std::make_unique<TableMock>();
+    CANNApiRepo cannApiRepo;
+    cannApiRepo.SetCANNApiTable(std::move(ptr));
     SliceQuery sliceQuery;
     sliceQuery.trackId = TrackInfoManager::Instance().GetTrackId("999", "yyy", "999");
-    std::vector<uint64_t> sliceIds = { 1, 2, 3 };
+    std::vector<uint64_t> sliceIds = {1, 2, 3};
     std::vector<CompeteSliceDomain> competeSliceVec;
     cannApiRepo.QueryCompeteSliceByIds(sliceQuery, sliceIds, competeSliceVec);
     const uint64_t expectSize = 2;
@@ -136,24 +124,22 @@ TEST_F(CannApiRepoTest, test_QueryCompeteSliceByIds_with_normal)
 /**
  * 测试全量DB的cann的根据track查询完整算子,正常情况
  */
-TEST_F(CannApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_with_normal)
-{
+TEST_F(CANNApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_with_normal) {
     TrackInfoManager::Instance().Reset();
-    class TableMock : public Dic::Module::Timeline::CannApiTable {
-    public:
-        void ExcuteQuery(const std::string &fileId, std::vector<CannApiPO> &result) override
-        {
+    class TableMock : public Dic::Module::Timeline::CANNApiTable {
+      public:
+        void ExcuteQuery(const std::string &fileId, std::vector<CANNApiPO> &result) override {
             QuerySimpleSliceWithOutNameByTrackIdWithNormalExcuteQuery(fileId, result);
             ClearThreadLocal();
         }
     };
-    std::unique_ptr<Dic::Module::Timeline::CannApiTable> ptr = std::make_unique<TableMock>();
-    CannApiRepo cannApiRepo;
-    cannApiRepo.SetCannApiTable(std::move(ptr));
+    std::unique_ptr<Dic::Module::Timeline::CANNApiTable> ptr = std::make_unique<TableMock>();
+    CANNApiRepo cannApiRepo;
+    cannApiRepo.SetCANNApiTable(std::move(ptr));
     SliceQuery sliceQuery;
     sliceQuery.trackId = TrackInfoManager::Instance().GetTrackId("999", "yyy", "999");
     sliceQuery.endTime = UINT64_MAX;
-    std::vector<uint64_t> sliceIds = { 1, 2, 3 };
+    std::vector<uint64_t> sliceIds = {1, 2, 3};
     std::vector<SliceDomain> sliceVec;
     cannApiRepo.QuerySimpleSliceWithOutNameByTrackId(sliceQuery, sliceVec);
     const uint64_t expectSize = 2;
@@ -170,12 +156,10 @@ TEST_F(CannApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_with_normal)
 /**
  * 测试根据id查询算子详情,正常情况
  */
-TEST_F(CannApiRepoTest, TestQuerySliceDetailInfoNormal)
-{
-    class CannApiRepoMock : public CannApiRepo {
-    public:
-        void SetMock(CannDependency &dependency)
-        {
+TEST_F(CANNApiRepoTest, TestQuerySliceDetailInfoNormal) {
+    class CANNApiRepoMock : public CANNApiRepo {
+      public:
+        void SetMock(CANNDependency &dependency) {
             apiTypeTable = std::move(dependency.enumApiTypeTableMock);
             cannApiTable = std::move(dependency.cannApiTableMock);
             stringIdsTable = std::move(dependency.stringIdsTableMock);
@@ -188,21 +172,21 @@ TEST_F(CannApiRepoTest, TestQuerySliceDetailInfoNormal)
     DatabaseTestCaseMockUtil::CreateTable(db, stringIdsSql);
     std::string apiInsert = "INSERT INTO \"main\".\"ENUM_API_TYPE\" (\"id\", \"name\") VALUES (10000, 'node');";
     std::string cannInsert = "INSERT INTO \"main\".\"CANN_API\" (\"startNs\", \"endNs\", \"type\", \"globalTid\", "
-        "\"connectionId\", \"name\", \"depth\") VALUES (1718180918997508370, 1718180918997541810, "
-        "10000, 8785587534250072, 7421, 327, 0);";
+                             "\"connectionId\", \"name\", \"depth\") VALUES (1718180918997508370, 1718180918997541810, "
+                             "10000, 8785587534250072, 7421, 327, 0);";
     std::string stringInsert = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (377, 'mmmm');\n"
-        "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (327, 'aaaa');";
+                               "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (327, 'aaaa');";
     DatabaseTestCaseMockUtil::InsertData(db, apiInsert);
     DatabaseTestCaseMockUtil::InsertData(db, cannInsert);
     DatabaseTestCaseMockUtil::InsertData(db, stringInsert);
-    CannDependency dependency;
+    CANNDependency dependency;
     dependency.stringIdsTableMock = std::make_unique<StringIdsTableMock>();
     dependency.stringIdsTableMock->SetDb(db);
-    dependency.cannApiTableMock = std::make_unique<CannApiTableMock>();
+    dependency.cannApiTableMock = std::make_unique<CANNApiTableMock>();
     dependency.cannApiTableMock->SetDb(db);
     dependency.enumApiTypeTableMock = std::make_unique<EnumApiTypeTableMock>();
     dependency.enumApiTypeTableMock->SetDb(db);
-    CannApiRepoMock cannApiRepoMock;
+    CANNApiRepoMock cannApiRepoMock;
     cannApiRepoMock.SetMock(dependency);
     SliceQuery query;
     query.sliceId = "7421";
@@ -223,12 +207,10 @@ TEST_F(CannApiRepoTest, TestQuerySliceDetailInfoNormal)
 /**
  * 测试根据id查询算子详情,id不存在的情况
  */
-TEST_F(CannApiRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse)
-{
-    class CannApiRepoMock : public CannApiRepo {
-    public:
-        void SetMock(CannDependency &dependency)
-        {
+TEST_F(CANNApiRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse) {
+    class CANNApiRepoMock : public CANNApiRepo {
+      public:
+        void SetMock(CANNDependency &dependency) {
             apiTypeTable = std::move(dependency.enumApiTypeTableMock);
             cannApiTable = std::move(dependency.cannApiTableMock);
             stringIdsTable = std::move(dependency.stringIdsTableMock);
@@ -238,13 +220,13 @@ TEST_F(CannApiRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse)
     DatabaseTestCaseMockUtil::OpenDB(db);
     DatabaseTestCaseMockUtil::CreateTable(db, cannapiSql);
     std::string cannInsert = "INSERT INTO \"main\".\"CANN_API\" (\"startNs\", \"endNs\", \"type\", \"globalTid\", "
-        "\"connectionId\", \"name\", \"depth\") VALUES (1718180918997508370, 1718180918997541810, "
-        "10000, 8785587534250072, 7421, 327, 0);";
+                             "\"connectionId\", \"name\", \"depth\") VALUES (1718180918997508370, 1718180918997541810, "
+                             "10000, 8785587534250072, 7421, 327, 0);";
     DatabaseTestCaseMockUtil::InsertData(db, cannInsert);
-    CannDependency dependency;
-    dependency.cannApiTableMock = std::make_unique<CannApiTableMock>();
+    CANNDependency dependency;
+    dependency.cannApiTableMock = std::make_unique<CANNApiTableMock>();
     dependency.cannApiTableMock->SetDb(db);
-    CannApiRepoMock cannApiRepoMock;
+    CANNApiRepoMock cannApiRepoMock;
     cannApiRepoMock.SetMock(dependency);
     SliceQuery query;
     query.sliceId = "9999999999\r\f\b\v";

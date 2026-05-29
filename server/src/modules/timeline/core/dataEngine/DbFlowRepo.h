@@ -23,11 +23,12 @@
 #include "DeviceFlowRepo.h"
 namespace Dic::Module::Timeline {
 class DbFlowRepo : public FlowRepoInterface {
-public:
+  public:
     void QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override;
     void QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override;
     void QueryFlowPointByFlowId(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override;
-private:
+
+  private:
     std::unique_ptr<HostFlowRepo> hostFlowRepo = std::make_unique<HostFlowRepo>();
     std::unique_ptr<DeviceFlowRepo> deviceFlowRepo = std::make_unique<DeviceFlowRepo>();
     void QueryHostToDevice(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec);

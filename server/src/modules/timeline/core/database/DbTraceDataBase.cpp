@@ -44,7 +44,7 @@ DbTraceDataBase::DbTraceDataBase(std::recursive_mutex &sqlMutex) : VirtualTraceD
 }
 
 DbTraceDataBase::~DbTraceDataBase() {
-    updateCannApiDepthStmt = nullptr;
+    updateCANNApiDepthStmt = nullptr;
     insertOverlapStmt = nullptr;
     updateApiDepthStmt = nullptr;
     updateTaskDepthStmt = nullptr;
@@ -1341,7 +1341,7 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
         }
     }
     AddColumns2Table(isExistPytorch, TABLE_API, std::string(PytorchApiColumn::DEPTH), "integer");
-    AddColumns2Table(isExistCann, TABLE_CANN_API, std::string(PytorchApiColumn::DEPTH), "integer");
+    AddColumns2Table(isExistCANN, TABLE_CANN_API, std::string(PytorchApiColumn::DEPTH), "integer");
     AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "waitNs", "INTEGER");
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "waitNs", "integer");
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "opConnectionId", "TEXT");
@@ -1382,8 +1382,8 @@ bool DbTraceDataBase::InitStmt() {
     }
     if (CheckTableExist(TABLE_CANN_API)) {
         sql = "UPDATE " + TABLE_CANN_API + " set depth = ? where ROWID = ?";
-        updateCannApiDepthStmt = CreatPreparedStatement(sql);
-        if (updateCannApiDepthStmt == nullptr) {
+        updateCANNApiDepthStmt = CreatPreparedStatement(sql);
+        if (updateCANNApiDepthStmt == nullptr) {
             ServerLog::Error("Failed to prepare update cann api depth statement.");
             return false;
         }
@@ -1397,7 +1397,7 @@ bool DbTraceDataBase::SetConfig() {
         return false;
     }
     isExistPytorch = CheckTableExist(TABLE_API);
-    isExistCann = CheckTableExist(TABLE_CANN_API);
+    isExistCANN = CheckTableExist(TABLE_CANN_API);
     isExistMstx = CheckTableExist(TABLE_MSTX_EVENTS);
     isExistCommOp = CheckTableExist(TABLE_COMMUNICATION_OP);
     isExistTask = CheckTableExist(TABLE_TASK);
@@ -2098,7 +2098,7 @@ bool DbTraceDataBase::LoadSliceCache(LightSliceCache& cache,
     // 2.2 加载 CANN_API 表数据
     std::string cannSql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
                           " as startTime, endNs - startNs as duration FROM CANN_API";
-    LoadTableData(cache, matchedIds, isExistCann, cannSql, SliceTableType::CANN_API);
+    LoadTableData(cache, matchedIds, isExistCANN, cannSql, SliceTableType::CANN_API);
 
     // 2.3 加载 PYTORCH_API 表数据
     std::string pytorchSql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +

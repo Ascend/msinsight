@@ -20,11 +20,10 @@
 #include "QueryTableDataDetailHandler.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
-bool QueryTableDataDetailHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr)
-{
-    auto& request = dynamic_cast<TableDataDetailRequest&>(*requestPtr);
+bool QueryTableDataDetailHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<TableDataDetailRequest &>(*requestPtr);
     std::unique_ptr<TableDataDetailResponse> responsePtr = std::make_unique<TableDataDetailResponse>();
-    TableDataDetailResponse& response = *responsePtr;
+    TableDataDetailResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     SetResponseResult(response, true);
     auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
@@ -43,10 +42,8 @@ bool QueryTableDataDetailHandler::HandleRequest(std::unique_ptr<Dic::Protocol::R
     return true;
 }
 
-void QueryTableDataDetailHandler::ComputeLinkPageDetail(TableDataDetailRequest& request,
-                                                        TableDataDetailResponse& response,
-                                                        const std::shared_ptr<VirtualTraceDatabase>& database) const
-{
+void QueryTableDataDetailHandler::ComputeLinkPageDetail(TableDataDetailRequest &request,
+    TableDataDetailResponse &response, const std::shared_ptr<VirtualTraceDatabase> &database) const {
     if (request.params.equalConditions.empty()) {
         return;
     }
@@ -69,32 +66,30 @@ void QueryTableDataDetailHandler::ComputeLinkPageDetail(TableDataDetailRequest& 
     query.viewName = tableName;
     query.order = request.params.order;
     query.orderBy = request.params.orderBy;
-    for (const auto& item : request.params.filterconditions) {
+    for (const auto &item : request.params.filterconditions) {
         query.pageFilters.push_back({item.col, item.content});
     }
     const std::string col = linkInfos[0].col;
-    for (const auto& item : request.params.equalConditions) {
+    for (const auto &item : request.params.equalConditions) {
         query.equalFilters.push_back({col, item.content});
     }
-    auto datas = databasePtr->QueryDataByPage(query, colums);
+    auto data = databasePtr->QueryDataByPage(query, colums);
     uint64_t count = databasePtr->QueryCountByTableName(query, colums);
-    for (const auto& item : colums) {
+    for (const auto &item : colums) {
         TableColumn column;
         column.name = item.name;
         column.type = item.type;
         column.key = item.key;
         response.body.columnAttr.emplace_back(column);
     }
-    for (const auto& item : datas) {
+    for (const auto &item : data) {
         response.body.columnData.emplace_back(item);
     }
     response.body.totalNum = count;
 }
 
-void QueryTableDataDetailHandler::ComputeTableDetail(const TableDataDetailRequest& request,
-                                                     TableDataDetailResponse& response,
-                                                     std::shared_ptr<VirtualTraceDatabase> database)
-{
+void QueryTableDataDetailHandler::ComputeTableDetail(const TableDataDetailRequest &request,
+    TableDataDetailResponse &response, std::shared_ptr<VirtualTraceDatabase> database) {
     std::shared_ptr<TextTraceDatabase> databasePtr =
         std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(database);
     if (databasePtr == nullptr) {
@@ -114,21 +109,21 @@ void QueryTableDataDetailHandler::ComputeTableDetail(const TableDataDetailReques
     query.viewName = tableName;
     query.order = request.params.order;
     query.orderBy = request.params.orderBy;
-    for (const auto &item: request.params.filterconditions) {
+    for (const auto &item : request.params.filterconditions) {
         query.pageFilters.push_back({item.col, item.content});
     }
-    auto datas = databasePtr->QueryDataByPage(query, colums);
+    auto data = databasePtr->QueryDataByPage(query, colums);
     uint64_t count = databasePtr->QueryCountByTableName(query, colums);
-    for (const auto& item : colums) {
+    for (const auto &item : colums) {
         TableColumn column;
         column.name = item.name;
         column.type = item.type;
         column.key = item.key;
         response.body.columnAttr.emplace_back(column);
     }
-    for (const auto& item : datas) {
+    for (const auto &item : data) {
         response.body.columnData.emplace_back(item);
     }
     response.body.totalNum = count;
 }
-}  // namespace Dic::Module::Timeline
+} // namespace Dic::Module::Timeline

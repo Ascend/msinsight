@@ -19,7 +19,7 @@
 #ifndef PROFILER_SERVER_TABLEDEFAULTMOCK_H
 #define PROFILER_SERVER_TABLEDEFAULTMOCK_H
 #include "EnumApiTypeTable.h"
-#include "CannApiTable.h"
+#include "CANNApiTable.h"
 #include "CommucationOpTable.h"
 #include "TaskTable.h"
 #include "CommucationTaskInfoTable.h"
@@ -37,154 +37,133 @@
 using namespace Dic::Module::Timeline;
 namespace Dic::TimeLine::Table::Default::Mock {
 class TableDefaultMock {
-public:
-    void SetDb(sqlite3 *dbPtr)
-    {
-        db = dbPtr;
-    }
+  public:
+    void SetDb(sqlite3 *dbPtr) { db = dbPtr; }
 
-protected:
+  protected:
     sqlite3 *db = nullptr;
 };
 class CommucationOpTableMock : public CommucationOpTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<CommucationTaskOpPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<CommucationTaskOpPO> &result) override {
         CommucationOpTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class StringIdsTableMock : public StringIdsTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<StringIdsPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<StringIdsPO> &result) override {
         StringIdsTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class TaskTableMock : public TaskTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<TaskPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<TaskPO> &result) override {
         TaskTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class CommucationTaskInfoTableMock : public CommucationTaskInfoTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<CommucationTaskInfoPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<CommucationTaskInfoPO> &result) override {
         CommucationTaskInfoTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class EnumHcclLinkTypeTableMock : public EnumHcclLinkTypeTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclLinkTypePO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclLinkTypePO> &result) override {
         EnumHcclLinkTypeTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class EnumHcclTransportTypeTableMock : public EnumHcclTransportTypeTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclTransportTypePO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclTransportTypePO> &result) override {
         EnumHcclTransportTypeTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class EnumHcclRdmaTypeTableMock : public EnumHcclRdmaTypeTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclRdmaTypePO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclRdmaTypePO> &result) override {
         EnumHcclRdmaTypeTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class EnumHcclDataTypeTableMock : public EnumHcclDataTypeTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclDataTypePO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<EnumHcclDataTypePO> &result) override {
         EnumHcclDataTypeTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class EnumApiTypeTableMock : public EnumApiTypeTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<EnumApiTypePO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<EnumApiTypePO> &result) override {
         EnumApiTypeTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
-class CannApiTableMock : public CannApiTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<CannApiPO> &result) override
-    {
-        CannApiTable::ExcuteQuery(db, result);
+class CANNApiTableMock : public CANNApiTable, public TableDefaultMock {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<CANNApiPO> &result) override {
+        CANNApiTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 class MstxEventsTableMock : public MstxEventsTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<MstxEventsPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<MstxEventsPO> &result) override {
         MstxEventsTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 
 class PythonGCTableMock : public PythonGCTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<PythonGCPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<PythonGCPO> &result) override {
         PythonGCTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 
 class EnumMstxEventTypeTableMock : public EnumMstxEventTypeTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<EnumMstxEventTypePO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<EnumMstxEventTypePO> &result) override {
         EnumMstxEventTypeTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 
 class ComputeTaskInfoTableMock : public ComputeTaskInfoTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<ComputeTaskInfoPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<ComputeTaskInfoPO> &result) override {
         ComputeTaskInfoTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 
 class PytorchApiTableMock : public PytorchApiTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<PytorchApiPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<PytorchApiPO> &result) override {
         PytorchApiTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 
-
 class PytorchCallchainsTableMock : public PytorchCallchainsTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<PytorchCallchainsPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<PytorchCallchainsPO> &result) override {
         PytorchCallchainsTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
 };
 
 class TaskPmuInfoTableMock : public TaskPmuInfoTable, public TableDefaultMock {
-protected:
-    void ExcuteQuery(const std::string &fileId, std::vector<TaskPmuInfoPO> &result) override
-    {
+  protected:
+    void ExcuteQuery(const std::string &fileId, std::vector<TaskPmuInfoPO> &result) override {
         TaskPmuInfoTable::ExcuteQuery(db, result);
         ClearThreadLocal();
     }
@@ -204,9 +183,9 @@ struct HardWareDependency {
     std::unique_ptr<TaskPmuInfoTableMock> taskPmuInfoTableMock = std::make_unique<TaskPmuInfoTableMock>();
 };
 
-struct CannDependency {
+struct CANNDependency {
     std::unique_ptr<StringIdsTableMock> stringIdsTableMock = std::make_unique<StringIdsTableMock>();
-    std::unique_ptr<CannApiTableMock> cannApiTableMock = std::make_unique<CannApiTableMock>();
+    std::unique_ptr<CANNApiTableMock> cannApiTableMock = std::make_unique<CANNApiTableMock>();
     std::unique_ptr<EnumApiTypeTableMock> enumApiTypeTableMock = std::make_unique<EnumApiTypeTableMock>();
 };
 
@@ -218,7 +197,7 @@ struct MstxDependency {
 };
 
 struct PythonGcDependency {
-        std::unique_ptr<PythonGCTableMock> tableMock = std::make_unique<PythonGCTableMock>();
+    std::unique_ptr<PythonGCTableMock> tableMock = std::make_unique<PythonGCTableMock>();
 };
 
 struct HcclDependency {
@@ -237,6 +216,5 @@ struct HcclDependency {
         std::make_unique<EnumHcclDataTypeTableMock>();
 };
 }
-
 
 #endif // PROFILER_SERVER_TABLEDEFAULTMOCK_H
