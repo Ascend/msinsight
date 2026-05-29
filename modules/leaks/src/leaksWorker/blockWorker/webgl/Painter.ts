@@ -24,7 +24,7 @@ export class Painter {
     private gl: WebGL2RenderingContext | null = null;
     readonly canvas: OffscreenCanvas;
     memoryBlockProgram: MemoryBlockProgram | null = null;
-    memoryBlockHightlightProgram: MemoryBlockProgram | null = null;
+    memoryBlockHighlightProgram: MemoryBlockProgram | null = null;
     memoryBlockBorderHightlightProgram: MemoryBlockBorderProgram | null = null;
     private uniformData: Float32Array;
 
@@ -46,7 +46,7 @@ export class Painter {
         if (gl === null) { throw new Error('WebGL2 not supported'); }
         this.gl = gl;
         this.memoryBlockProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
-        this.memoryBlockHightlightProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
+        this.memoryBlockHighlightProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
         this.memoryBlockBorderHightlightProgram = new MemoryBlockBorderProgram(this.gl, this.uniformData, shaders.memoryBlockBorder);
     }
 
@@ -75,7 +75,7 @@ export class Painter {
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         this.updateUniformData(options);
         this.memoryBlockProgram?.render(options);
-        this.memoryBlockHightlightProgram?.render(options);
+        this.memoryBlockHighlightProgram?.render(options);
         this.memoryBlockBorderHightlightProgram?.render(options);
         gl.disable(gl.BLEND);
     }

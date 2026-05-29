@@ -56,16 +56,16 @@ const StaticLineChart = observer(({ session, memorySession, isDark }:
                 memorySession.staticSelectedRange = undefined;
                 return;
             }
-            const allDataSet = new Set(memoryStaticCurveData.lines
+            const allDataListSet = new Set(memoryStaticCurveData.lines
                 .map(item => {
                     return parseFloat(item[0] as string);
                 }).sort((a, b) => a - b));
-            if (allDataSet.size <= 1) {
+            if (allDataListSet.size <= 1) {
                 memorySession.staticSelectedRange = undefined;
                 return;
             }
-            const allDatas = Array.from(allDataSet);
-            memorySession.staticSelectedRange = { startTs: allDatas[start], endTs: allDatas[end] };
+            const allDataList = Array.from(allDataListSet);
+            memorySession.staticSelectedRange = { startTs: allDataList[start], endTs: allDataList[end] };
             memorySession.current = 1;
             memorySession.pageSize = 10;
         });

@@ -92,7 +92,7 @@ function onAutoFetchLines(session: Session, unit: InsightUnit): void {
 export const useData = <T extends ChartType>({ session, mapFunc, unit, metadata, width, processor }: UseDataParams<T>): ChartData<T> => {
     const { domainStart, domainEnd } = session.domainRange;
     const { endTimeAll } = session;
-    const [datasState, setDatasState] = useState<ChartData<T>>([]);
+    const [dataState, setDatasState] = useState<ChartData<T>>([]);
     const requestedWidth = useRef(0);
     const theme = useTheme();
     const timestampOffset = getTimeOffset(session, metadata as ThreadTraceRequest);
@@ -102,15 +102,15 @@ export const useData = <T extends ChartType>({ session, mapFunc, unit, metadata,
             return;
         }
         requestedWidth.current = width;
-        mapFunc(session, metadata, unit, theme).then(datas => {
+        mapFunc(session, metadata, unit, theme).then(data => {
             // 展开泳道时须泳道的所有子项的算子查询结束才触发session.shouldRefetchLines变更。（场景：先按类型连线，再展开从未展开过的泳道）
             onAutoFetchLines(session, unit);
             if (requestedWidth.current !== width) {
                 // drop the data if width has been changed since when request was made
                 return;
             }
-            // the datas should be sorted by startTime(min -> max).
-            setDatasState(processor?.(datas, width, domainStart, domainEnd) ?? datas);
+            // the data should be sorted by startTime(min -> max).
+            setDatasState(processor?.(data, width, domainStart, domainEnd) ?? data);
         }).catch(() => {
             logger('hooks useData', 'mapFunc occurred an exception.');
         }).finally(() => {
@@ -122,7 +122,7 @@ export const useData = <T extends ChartType>({ session, mapFunc, unit, metadata,
         session.autoAdjustUnitHeight,
         session.areFlagEventsHidden,
         session.alignRender]);
-    return datasState;
+    return dataState;
 };
 
 export const useRangeAndDomain = (session: Session, width: number, margin: number): Array<[number, number]> => {
@@ -175,7 +175,7 @@ export const useHoverPos = (ref: React.RefObject<HTMLElement>): Pos | undefined 
 
 interface UseClickParams<T extends ChartType> {
     canvasContainer: RefObject<HTMLElement>;
-    datasState: ChartData<T>;
+    dataState: ChartData<T>;
     rangeAndDomain: Array<[number, number]>;
     session: Session;
     metadata: unknown;
@@ -184,7 +184,7 @@ interface UseClickParams<T extends ChartType> {
 }
 
 export const useClick = <T extends ChartType>({
-    canvasContainer, datasState, rangeAndDomain, session, metadata, handleMouseUp, handleMouseMoveUp,
+    canvasContainer, dataState, rangeAndDomain, session, metadata, handleMouseUp, handleMouseMoveUp,
 }: UseClickParams<T>): void => {
     useEffect(() => {
         if (canvasContainer.current === null) {
@@ -225,5 +225,5 @@ export const useClick = <T extends ChartType>({
             canvasContainer.current?.removeEventListener('mouseup', onMouseUpListener);
             canvasContainer.current?.removeEventListener('mousemove', onMouseMoveListener);
         };
-    }, [datasState, rangeAndDomain, session, metadata]);
+    }, [dataState, rangeAndDomain, session, metadata]);
 };

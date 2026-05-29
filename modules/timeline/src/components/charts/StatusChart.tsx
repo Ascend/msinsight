@@ -32,7 +32,7 @@ import type { InsightUnit } from '../../entity/insight';
 type StatusChartProps = ChartProps<'status'>;
 interface DrawParams {
     ctx: CanvasRenderingContext2D | null;
-    datas: StatusData[];
+    data: StatusData[];
     xScale: Scale;
     yScale: Scale;
     theme: Theme;
@@ -56,12 +56,12 @@ const getMaxText = (text: string, maxWidth: number, ctx: CanvasRenderingContext2
     return [`${text.slice(0, mid)}...`, ctx.measureText(`${text.slice(0, mid)}...`).width];
 };
 
-const draw = ({ ctx, datas, xScale, yScale, theme, startY }: DrawParams): void => {
+const draw = ({ ctx, data, xScale, yScale, theme, startY }: DrawParams): void => {
     if (!ctx) { return; }
     ctx.textAlign = 'start';
     ctx.textBaseline = 'top';
     const minTextWidth = ctx.measureText('...').width + 8;
-    datas.forEach(data => {
+    data.forEach(data => {
         ctx.fillStyle = theme.summaryChartBgColor;
         let width = xScale(data.startTime + data.duration) - xScale(data.startTime);
         width = Math.max(1, Math.floor(width));
@@ -132,13 +132,13 @@ export const StatusChart = observer(({
     const canvas = useRef<HTMLCanvasElement>(null);
     const { action: drawExt = (): void => { }, triggers = [] } = decorator?.(session, metadata) ?? {};
 
-    const datasState = useData({ session, mapFunc, unit, metadata, width, processor: zipStatusData });
+    const dataState = useData({ session, mapFunc, unit, metadata, width, processor: zipStatusData });
     const rangeAndDomain = useRangeAndDomain(session, width, margin);
 
     const mousePosX = useHoverPosX(canvasContainer);
-    const hoveredData = useMemo(() => findDataByX(mousePosX, datasState, rangeAndDomain), [mousePosX, datasState, rangeAndDomain]);
+    const hoveredData = useMemo(() => findDataByX(mousePosX, dataState, rangeAndDomain), [mousePosX, dataState, rangeAndDomain]);
     const handleMouseUp = (e: MouseEvent): void => {
-        const clickedData = findDataByX(e.offsetX, datasState, rangeAndDomain);
+        const clickedData = findDataByX(e.offsetX, dataState, rangeAndDomain);
         runInAction(() => {
             session.selectedData = clickedData
                 ? { ...clickedData, threadId: (metadata as ThreadMetaData).threadId ?? '', processId: (metadata as ThreadMetaData).processId ?? '' }
@@ -150,7 +150,7 @@ export const StatusChart = observer(({
         });
     };
     useEffect(() => onHover?.(hoveredData, session, metadata), [hoveredData, metadata]);
-    useClick({ canvasContainer, datasState, rangeAndDomain, session, metadata, handleMouseUp });
+    useClick({ canvasContainer, dataState, rangeAndDomain, session, metadata, handleMouseUp });
     useBatchedRender(() => {
         const isCanvasInvalid = canvasContainer.current === null || canvas.current === null || rangeAndDomain.length === 0 ||
             canvas.current.width === 0 || canvas.current.height === 0;
@@ -163,19 +163,19 @@ export const StatusChart = observer(({
         ctx?.scale(devicePixelRatio, devicePixelRatio);
         ctx?.clearRect(0, 0, width, height);
         if (shouldHidePreview(unit)) { return; }
-        draw({ ctx, datas: datasState, xScale, yScale, theme, startY });
+        draw({ ctx, data: dataState, xScale, yScale, theme, startY });
         drawExt({
             context: ctx,
-            draw: (data, scaleX, scaleY) => draw({ ctx, datas: data, xScale: scaleX, yScale: scaleY, theme, startY }),
-            findAll: (condition) => datasState.filter(condition),
+            draw: (data, scaleX, scaleY) => draw({ ctx, data: data, xScale: scaleX, yScale: scaleY, theme, startY }),
+            findAll: (condition) => dataState.filter(condition),
         }, xScale, yScale, theme);
-    }, [datasState, rangeAndDomain, ...triggers, theme, unit.isExpanded]);
+    }, [dataState, rangeAndDomain, ...triggers, theme, unit.isExpanded]);
 
     const tooltipProp: TooltipProps<StatusData, StatusData[]> = {
         data: hoveredData,
         mouseX: mousePosX ?? null,
         session,
-        dataset: datasState,
+        dataset: dataState,
         calcHeight: () => height / 2,
         dom: canvasContainer,
         renderContent: (data) => renderTooltip?.(data),

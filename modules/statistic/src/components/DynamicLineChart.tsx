@@ -51,16 +51,16 @@ const DynamicLineChart = observer(({ session, curveSession, isDark }:
                 curveSession.selectedRange = undefined;
                 return;
             }
-            const allDataSet = new Set(curveData.lines
+            const allDataListSet = new Set(curveData.lines
                 .map(item => {
                     return item[0] as string;
                 }));
-            if (allDataSet.size <= 1) {
+            if (allDataListSet.size <= 1) {
                 curveSession.selectedRange = undefined;
                 return;
             }
-            const allDatas = Array.from(allDataSet);
-            curveSession.selectedRange = { startTs: allDatas[start].toString(), endTs: allDatas[end].toString() };
+            const allDataList = Array.from(allDataListSet);
+            curveSession.selectedRange = { startTs: allDataList[start].toString(), endTs: allDataList[end].toString() };
             curveSession.current = 1;
             curveSession.pageSize = 10;
         });

@@ -88,7 +88,7 @@ export const useWatchVirtualRender = <T>({ visibleHeight, itemHeight, dataSource
         if(itemHeight <= 0 || boxRef.current === null || targetRef.current === null) {
             return;
         }
-        
+
         const start = Math.floor((boxRef.current as HTMLElement).scrollTop / itemHeight);
         const end = start + visibleCount;
         setRange([start, end]);
@@ -110,7 +110,7 @@ export const useWatchVirtualRender = <T>({ visibleHeight, itemHeight, dataSource
         prevDataSourceLengthRef.current = currentLength;
 
         // 初始化虚拟滚动逻辑
-        const cleanup = initVirtual({ 
+        const cleanup = initVirtual({
             scrollEvent,
             totalHeight,
             targetElement: targetRef.current,

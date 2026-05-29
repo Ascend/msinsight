@@ -106,7 +106,7 @@ const serachInCode = ({ text, inRange, condition, handleAfterSearch }:
     }
     const instance = new Mark(dom);
     const option: any = {
-        className: HIGHTLIGHT_CLASSNAME,
+        className: HIGHLIGHT_CLASSNAME,
         indexName: INDEX_NAME,
         caseSensitive: condition.case,
         accuracy: condition.fullText ? 'exactly' : 'partially',
@@ -143,7 +143,7 @@ export const closeFind = (): void => {
 // 工具栏高度
 export const CODE_SEARCH_WINDOW_HEIGHT = 48;
 // 高亮类名
-const HIGHTLIGHT_CLASSNAME = 'code-hightlight';
+const HIGHLIGHT_CLASSNAME = 'code-highlight';
 // 第index个结果
 const INDEX_NAME = 'index';
 // 当前查看元素类名
@@ -167,9 +167,9 @@ const getCodeRangeDom = (): HTMLElement[] => {
 };
 // 跳转到第index个结果，并高亮
 const goTo = (index: number): void => {
-    const elements = document.querySelector('#CodeTable code')?.querySelectorAll(`.${HIGHTLIGHT_CLASSNAME}`);
+    const elements = document.querySelector('#CodeTable code')?.querySelectorAll(`.${HIGHLIGHT_CLASSNAME}`);
     elements?.forEach(ele => ele.classList.remove(CURRENT_DOM_CLASSNAME));
-    const eles = document.querySelector('#CodeTable code')?.querySelectorAll(`.${HIGHTLIGHT_CLASSNAME}[data-${INDEX_NAME}='${index}']`);
+    const eles = document.querySelector('#CodeTable code')?.querySelectorAll(`.${HIGHLIGHT_CLASSNAME}[data-${INDEX_NAME}='${index}']`);
     eles?.forEach(ele => ele?.classList.add(CURRENT_DOM_CLASSNAME));
     eles?.[0]?.scrollIntoView({ block: 'center' });
 };

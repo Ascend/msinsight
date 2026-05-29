@@ -50,13 +50,13 @@ const needleHeight = canvasHeight * ratio / 1.696;
 const needleThickness = canvasHeight * ratio / 15.6;
 const paddingTop = canvasHeight * ratio / 0.9;
 
-const drawNeedle = (theme: Theme, context: CanvasRenderingContext2D, width: number, maxNumber: number, datas: number): void => {
+const drawNeedle = (theme: Theme, context: CanvasRenderingContext2D, width: number, maxNumber: number, data: number): void => {
     if (maxNumber === 0) {
         return;
     }
     context.save();
     context.translate(width / 2, paddingTop);
-    context.rotate((Math.PI / 2) + (Math.PI * datas / maxNumber));
+    context.rotate((Math.PI / 2) + (Math.PI * data / maxNumber));
     context.beginPath();
     context.moveTo(-needleThickness / 2, (radius + (thickness / 2)) - needleHeight);
     context.lineTo(needleThickness / 2, (radius + (thickness / 2)) - needleHeight);
@@ -71,16 +71,16 @@ interface Iparams {
     theme: Theme;
     context: CanvasRenderingContext2D;
     width: number;
-    datas: number;
+    data: number;
     getDisplayNumber: Formatter;
 }
 const drawText = (params: Iparams): void => {
-    const { type, theme, context, width, datas, getDisplayNumber } = params;
+    const { type, theme, context, width, data, getDisplayNumber } = params;
     context.textAlign = 'center';
     context.textBaseline = 'bottom';
     context.font = '22px -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
     context.fillStyle = theme.fpsTextColor;
-    context.fillText(getDisplayNumber(datas), width / 2, paddingTop);
+    context.fillText(getDisplayNumber(data), width / 2, paddingTop);
     context.textBaseline = 'top';
     context.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif';
     context.fillStyle = theme.fpsColor;
@@ -126,9 +126,9 @@ export const GaugeChartHalfRound = observer(({ session, splits, mapFunc, type, g
     const canvas = useRef<HTMLCanvasElement>(null);
     const theme = useTheme();
     const draw = async (isCanceled: () => boolean): Promise<void> => {
-        let datas: number = 0;
+        let data: number = 0;
         try {
-            datas = await mapFunc();
+            data = await mapFunc();
         } catch {
             logger('GaugeChartHalfRound', 'mapFunc occurred an exception.');
         }
@@ -145,12 +145,12 @@ export const GaugeChartHalfRound = observer(({ session, splits, mapFunc, type, g
         // draw legend
         drawLegend(context, { width, maxNumber, splits, canvasHeight });
         // draw needle
-        drawNeedle(theme, context, width, maxNumber, datas);
+        drawNeedle(theme, context, width, maxNumber, data);
         // draw text
-        drawText({ type, theme, context, width, datas, getDisplayNumber });
+        drawText({ type, theme, context, width, data, getDisplayNumber });
     };
     useAsyncEffect(draw, [session.endTimeAll, theme]);
     return <CanvasChart ref={canvas} width={400} height={canvasHeight} />;
 });
 
-type Formatter = (datas: number) => string;
+type Formatter = (data: number) => string;
