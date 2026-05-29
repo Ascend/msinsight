@@ -22,22 +22,15 @@
 namespace Dic {
 namespace Protocol {
 using namespace Dic::Server;
-ProtocolManager::ProtocolManager()
-{
-    Register();
-}
+ProtocolManager::ProtocolManager() { Register(); }
 
-ProtocolManager::~ProtocolManager()
-{
-    UnRegister();
-}
+ProtocolManager::~ProtocolManager() { UnRegister(); }
 
-void ProtocolManager::Register()
-{
+void ProtocolManager::Register() {
     std::unique_lock<std::mutex> lock(mutex);
     protocolMap.clear();
-    auto& manager = Core::PluginsManager::Instance();
-    for (const auto &[moduleName, plugin]: manager.GetAllPlugins()) {
+    auto &manager = Core::PluginsManager::Instance();
+    for (const auto &[moduleName, plugin] : manager.GetAllPlugins()) {
         auto protocol = plugin->GetProtocolUtil();
         if (protocol != nullptr) {
             protocol->Register();
@@ -46,14 +39,12 @@ void ProtocolManager::Register()
     }
 }
 
-void ProtocolManager::UnRegister()
-{
+void ProtocolManager::UnRegister() {
     std::unique_lock<std::mutex> lock(mutex);
     protocolMap.clear();
 }
 
-std::unique_ptr<Request> ProtocolManager::FromJson(const std::string &requestStr, std::string &error)
-{
+std::unique_ptr<Request> ProtocolManager::FromJson(const std::string &requestStr, std::string &error) {
     auto requestJson = JsonUtil::TryParse(requestStr, error);
     if (!requestJson.has_value()) {
         ServerLog::Warn("Failed to parse request json. ", requestStr);
@@ -76,8 +67,7 @@ std::unique_ptr<Request> ProtocolManager::FromJson(const std::string &requestStr
     return protocolMap.at(moduleName)->FromJson(requestJson.value(), error);
 }
 
-std::optional<document_t> ProtocolManager::ToJson(const Response &response, std::string &error)
-{
+std::optional<document_t> ProtocolManager::ToJson(const Response &response, std::string &error) {
     auto moduleName = response.moduleName;
     std::unique_lock<std::mutex> lock(mutex);
     if (protocolMap.count(moduleName) == 0) {
@@ -87,8 +77,7 @@ std::optional<document_t> ProtocolManager::ToJson(const Response &response, std:
     return protocolMap.at(moduleName)->ToJson(response, error);
 }
 
-std::optional<document_t> ProtocolManager::ToJson(const Event &event, std::string &error)
-{
+std::optional<document_t> ProtocolManager::ToJson(const Event &event, std::string &error) {
     auto moduleName = event.moduleName;
     std::unique_lock<std::mutex> lock(mutex);
     if (protocolMap.count(moduleName) == 0) {

@@ -26,15 +26,13 @@
 namespace Dic {
 namespace Module {
 using namespace Dic::Server;
-Database::~Database()
-{
+Database::~Database() {
     if (isOpen) {
         CloseDb();
     }
 }
 
-bool Database::CreateDbIfNotExist(const std::string &dbPath)
-{
+bool Database::CreateDbIfNotExist(const std::string &dbPath) {
     struct stat st;
     std::string dbPathStr = CheckSqlString(dbPath);
 #ifdef _WIN32
@@ -66,8 +64,7 @@ bool Database::CreateDbIfNotExist(const std::string &dbPath)
     return true;
 }
 
-bool Database::OpenDb(const std::string &dbPath, bool clearAllTable)
-{
+bool Database::OpenDb(const std::string &dbPath, bool clearAllTable) {
     if (!StringUtil::ValidateStringParam(dbPath)) {
         ServerLog::Error("DB path contains illegal character, such as '|', ';', '&', '$', etc.");
         return false;
@@ -103,8 +100,8 @@ bool Database::OpenDb(const std::string &dbPath, bool clearAllTable)
 #else
     std::string utfDbPath = StringUtil::ToUtf8Str(dbPath);
 #endif
-    int result = sqlite3_open_v2(CheckSqlString(utfDbPath).c_str(), &db,
-        SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr);
+    int result =
+        sqlite3_open_v2(CheckSqlString(utfDbPath).c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr);
     if (result == SQLITE_OK) {
         isOpen = true;
         this->path = dbPath;
@@ -121,15 +118,14 @@ bool Database::OpenDb(const std::string &dbPath, bool clearAllTable)
 /*
  * connect exist db
  */
-bool Database::AttachDb(const std::string &dbPath)
-{
+bool Database::AttachDb(const std::string &dbPath) {
     if (isOpen) {
         ServerLog::Error("The db file has been opened.");
         return false;
     }
 
-    int result = sqlite3_open_v2(CheckSqlString(dbPath).c_str(), &db,
-        SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr);
+    int result =
+        sqlite3_open_v2(CheckSqlString(dbPath).c_str(), &db, SQLITE_OPEN_READWRITE | SQLITE_OPEN_FULLMUTEX, nullptr);
     if (result == SQLITE_OK) {
         isOpen = true;
         path = dbPath;
@@ -139,8 +135,7 @@ bool Database::AttachDb(const std::string &dbPath)
     return false;
 }
 
-void Database::CloseDb()
-{
+void Database::CloseDb() {
     if (!isOpen) {
         return;
     }
@@ -152,8 +147,7 @@ void Database::CloseDb()
     path.clear();
 }
 
-bool Database::ExecSql(const std::string &sql) const
-{
+bool Database::ExecSql(const std::string &sql) const {
     if (!isOpen) {
         ServerLog::Error("The db file is not opened.");
         return false;
@@ -166,14 +160,10 @@ bool Database::ExecSql(const std::string &sql) const
     return false;
 }
 
-bool Database::IsOpen() const
-{
-    return isOpen;
-}
+bool Database::IsOpen() const { return isOpen; }
 
 // replace ' by ''
-std::string Database::CheckSqlString(const std::string &src)
-{
+std::string Database::CheckSqlString(const std::string &src) {
     std::string res(src);
     size_t pos = 0;
     while ((pos = res.find('\'', pos)) != std::string::npos) {
@@ -183,17 +173,15 @@ std::string Database::CheckSqlString(const std::string &src)
     return res;
 }
 
-void Database::FastGetString(sqlite3_stmt *stmt, int iCol, std::string &output)
-{
-    const unsigned char* text = sqlite3_column_text(stmt, iCol);
+void Database::FastGetString(sqlite3_stmt *stmt, int iCol, std::string &output) {
+    const unsigned char *text = sqlite3_column_text(stmt, iCol);
     int len = sqlite3_column_bytes(stmt, iCol);
     if (text) {
-        output.assign(reinterpret_cast<const char*>(text), len);
+        output.assign(reinterpret_cast<const char *>(text), len);
     }
 }
 
-std::string Database::sqlite3_column_string(sqlite3_stmt *stmt, int iCol)
-{
+std::string Database::sqlite3_column_string(sqlite3_stmt *stmt, int iCol) {
     if (stmt == nullptr) {
         return "";
     }
@@ -208,8 +196,7 @@ std::string Database::sqlite3_column_string(sqlite3_stmt *stmt, int iCol)
     return std::string(reinterpret_cast<const char *>(data), len);
 }
 
-std::string Database::Sqlite3ColumnConvertStr(int colType, sqlite3_stmt *stmt, int iCol)
-{
+std::string Database::Sqlite3ColumnConvertStr(int colType, sqlite3_stmt *stmt, int iCol) {
     const int retainDecimaPlaces = 3;
     std::ostringstream oss;
     if (colType == SQLITE_INTEGER) {
@@ -225,8 +212,7 @@ std::string Database::Sqlite3ColumnConvertStr(int colType, sqlite3_stmt *stmt, i
     return oss.str();
 }
 
-std::string Database::Sqlite3ColumnConvertStrReturnNull(int colType, sqlite3_stmt *stmt, int iCol)
-{
+std::string Database::Sqlite3ColumnConvertStrReturnNull(int colType, sqlite3_stmt *stmt, int iCol) {
     int type = sqlite3_column_type(stmt, iCol);
     if (type == SQLITE_NULL) {
         return "NULL";
@@ -234,33 +220,17 @@ std::string Database::Sqlite3ColumnConvertStrReturnNull(int colType, sqlite3_stm
     return Sqlite3ColumnConvertStr(colType, stmt, iCol);
 }
 
-bool Database::StartTransaction()
-{
-    return isOpen && ExecSql("BEGIN;");
-}
+bool Database::StartTransaction() { return isOpen && ExecSql("BEGIN;"); }
 
-bool Database::RollbackTransaction()
-{
-    return isOpen && ExecSql("ROLLBACK;");
-}
+bool Database::RollbackTransaction() { return isOpen && ExecSql("ROLLBACK;"); }
 
-bool Database::EndTransaction()
-{
-    return isOpen && ExecSql("COMMIT;");
-}
+bool Database::EndTransaction() { return isOpen && ExecSql("COMMIT;"); }
 
-std::string Database::GetDbPath()
-{
-    return path;
-}
+std::string Database::GetDbPath() { return path; }
 
-void Database::SetDbPath(const std::string& dbPath)
-{
-    path = dbPath;
-}
+void Database::SetDbPath(const std::string &dbPath) { path = dbPath; }
 
-std::string Database::QueryValueFromMetaDataByName(const std::string &name)
-{
+std::string Database::QueryValueFromMetaDataByName(const std::string &name) {
     // 外层需要校验TABLE_META_DATA表是否存在
     std::string result;
     auto sql = "select value from " + TABLE_META_DATA + " where name = ?";
@@ -277,8 +247,7 @@ std::string Database::QueryValueFromMetaDataByName(const std::string &name)
     }
 }
 
-bool Database::QueryMetaVersion()
-{
+bool Database::QueryMetaVersion() {
     if (CheckTableExist(TABLE_META_DATA)) {
         isLowCamel = true;
         std::string schemaVersion = QueryValueFromMetaDataByName("SCHEMA_VERSION");
@@ -292,13 +261,9 @@ bool Database::QueryMetaVersion()
     return true;
 }
 
-std::string Database::GetMetaVersion() const
-{
-    return metaVersion;
-}
+std::string Database::GetMetaVersion() const { return metaVersion; }
 
-bool Database::IsDatabaseVersionChange() const
-{
+bool Database::IsDatabaseVersionChange() const {
     if (!isOpen) {
         ServerLog::Error("The db file is not opened.");
         return false;
@@ -307,8 +272,7 @@ bool Database::IsDatabaseVersionChange() const
     return std::strcmp(version.c_str(), GetCompileDataBaseVersion().c_str()) != 0;
 }
 
-bool Database::SetDataBaseVersion(const std::string& targetVersion)
-{
+bool Database::SetDataBaseVersion(const std::string &targetVersion) {
     std::string setToVersion = targetVersion;
     if (!isOpen) {
         ServerLog::Error("Failed to set db version. Database is not open.");
@@ -321,8 +285,7 @@ bool Database::SetDataBaseVersion(const std::string& targetVersion)
     return ExecSql(" PRAGMA user_version = " + setToVersion + ";");
 }
 
-std::string Database::GetCompileDataBaseVersion()
-{
+std::string Database::GetCompileDataBaseVersion() {
     std::stringstream version;
 #ifdef DATABASE_VERSION
     version << DATABASE_VERSION;
@@ -334,8 +297,7 @@ std::string Database::GetCompileDataBaseVersion()
     return version.str();
 }
 
-bool Database::GetTableList(std::vector<std::string> &tableList) const
-{
+bool Database::GetTableList(std::vector<std::string> &tableList) const {
     if (!isOpen) {
         ServerLog::Error("The db file is not opened when get table list.");
         return false;
@@ -363,8 +325,7 @@ bool Database::GetTableList(std::vector<std::string> &tableList) const
     return true;
 }
 
-bool Database::DropAllTable()
-{
+bool Database::DropAllTable() {
     if (!isOpen) {
         ServerLog::Error("The db file is not opened when drop all table.");
         return false;
@@ -384,8 +345,7 @@ bool Database::DropAllTable()
     return ExecSql(dropSql);
 }
 
-bool Database::DropSomeTables(const std::vector<std::string> &tableNames) const
-{
+bool Database::DropSomeTables(const std::vector<std::string> &tableNames) const {
     if (!isOpen) {
         ServerLog::Error("The db file is not opened when drop specific tables.");
         return false;
@@ -408,8 +368,7 @@ bool Database::DropSomeTables(const std::vector<std::string> &tableNames) const
     return ExecSql(dropSql);
 }
 
-std::unique_ptr<SqlitePreparedStatement> Database::CreatPreparedStatement(const std::string &sql)
-{
+std::unique_ptr<SqlitePreparedStatement> Database::CreatPreparedStatement(const std::string &sql) {
     if ((!isOpen) || sql.empty()) {
         ServerLog::Error("Failed prepare sql. Database is closed or sql is empty.");
         return nullptr;
@@ -422,8 +381,7 @@ std::unique_ptr<SqlitePreparedStatement> Database::CreatPreparedStatement(const 
     return stmt;
 }
 
-std::unique_ptr<SqlitePreparedStatement> Database::CreatPreparedStatement()
-{
+std::unique_ptr<SqlitePreparedStatement> Database::CreatPreparedStatement() {
     if ((!isOpen)) {
         ServerLog::Error("Failed prepare sql. Database is closed or sql is empty.");
         return nullptr;
@@ -431,8 +389,7 @@ std::unique_ptr<SqlitePreparedStatement> Database::CreatPreparedStatement()
     return std::make_unique<SqlitePreparedStatement>(db);
 }
 
-bool Database::CheckTableContainData(const std::string& tableName)
-{
+bool Database::CheckTableContainData(const std::string &tableName) {
     if ((!isOpen)) {
         ServerLog::Error("Failed Check Table. Database is closed or sql is empty.");
         return false;
@@ -462,8 +419,7 @@ bool Database::CheckTableContainData(const std::string& tableName)
 }
 
 // 该方法只能判断永久表是否存在，通过CREATE TEMP TABLE和CREATE TEMPORARY TABLE创建的临时表无法通过该方法判断
-bool Database::CheckTableExist(const std::string& tableName)
-{
+bool Database::CheckTableExist(const std::string &tableName) {
     if ((!isOpen)) {
         ServerLog::Error("Failed Check Table. Database is closed or sql is empty.");
         return false;
@@ -485,8 +441,7 @@ bool Database::CheckTableExist(const std::string& tableName)
     return false;
 }
 
-bool Database::CheckTablesExist(const std::vector<std::string> &tablesName)
-{
+bool Database::CheckTablesExist(const std::vector<std::string> &tablesName) {
     if (tablesName.empty()) {
         ServerLog::Error("Failed to check tables due to empty table name.");
         return false;
@@ -500,7 +455,7 @@ bool Database::CheckTablesExist(const std::vector<std::string> &tablesName)
         ServerLog::Error("Failed to check tables. Failed to get table list.");
         return false;
     }
-    for (const auto& item : tablesName) {
+    for (const auto &item : tablesName) {
         if (std::find(tableLists.begin(), tableLists.end(), item) == tableLists.end()) {
             ServerLog::Error("Failed to check tables due to no table: ", item);
             return false;
@@ -509,8 +464,7 @@ bool Database::CheckTablesExist(const std::vector<std::string> &tablesName)
     return true;
 }
 
-bool Database::CheckColumnExist(const std::string& tableName, const std::string& columnName)
-{
+bool Database::CheckColumnExist(const std::string &tableName, const std::string &columnName) {
     if (!isOpen) {
         ServerLog::Error("Failed to check column. Database is closed or sql is empty.");
         return false;
@@ -540,9 +494,8 @@ bool Database::CheckColumnExist(const std::string& tableName, const std::string&
     return false;
 }
 
-bool Database::CheckStringInColumn(const std::string& tableName, const std::string& columnName,
-                                   const std::string& searchString)
-{
+bool Database::CheckStringInColumn(
+    const std::string &tableName, const std::string &columnName, const std::string &searchString) {
     if ((!isOpen)) {
         ServerLog::Error("Failed to check string in column. Database is closed or sql is empty.");
         return false;
@@ -569,8 +522,7 @@ bool Database::CheckStringInColumn(const std::string& tableName, const std::stri
     return false;
 }
 
-bool Database::CreateStatusInfoTable()
-{
+bool Database::CreateStatusInfoTable() {
     if (CheckTableExist(infoTable)) {
         return true;
     }
@@ -578,8 +530,7 @@ bool Database::CreateStatusInfoTable()
     return ExecSql(sql);
 }
 
-std::string Database::GetValueFromStatusInfoTable(const std::string& key)
-{
+std::string Database::GetValueFromStatusInfoTable(const std::string &key) {
     std::string value;
     if (!CheckTableExist(infoTable)) {
         ServerLog::Warn("Get empty value from info table because table is not exist.");
@@ -603,8 +554,7 @@ std::string Database::GetValueFromStatusInfoTable(const std::string& key)
     return value;
 }
 
-bool Database::CheckValueFromStatusInfoTable(const std::string &key, const std::string &refValue)
-{
+bool Database::CheckValueFromStatusInfoTable(const std::string &key, const std::string &refValue) {
     if (key.empty() || refValue.empty()) {
         ServerLog::Error("Failed to get status for checking value from StatusInfoTable due to empty key or value.");
         return false;
@@ -616,8 +566,7 @@ bool Database::CheckValueFromStatusInfoTable(const std::string &key, const std::
     return true;
 }
 
-bool Database::UpdateValueIntoStatusInfoTable(const std::string &key, const std::string &value)
-{
+bool Database::UpdateValueIntoStatusInfoTable(const std::string &key, const std::string &value) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     if (!CheckTableExist(infoTable) && !CreateStatusInfoTable()) {
         ServerLog::Error("Failed to update status info table because table is not exist: key=", key, ", value=", value);
@@ -643,8 +592,7 @@ bool Database::UpdateValueIntoStatusInfoTable(const std::string &key, const std:
     return true;
 }
 
-bool Database::CheckAndResetDatabaseOnVersionChange()
-{
+bool Database::CheckAndResetDatabaseOnVersionChange() {
     bool res = true;
     std::lock_guard<std::recursive_mutex> lock(mutex);
     if (IsDatabaseVersionChange()) {
@@ -654,16 +602,14 @@ bool Database::CheckAndResetDatabaseOnVersionChange()
     return res;
 }
 
-std::string Database::GetLastError()
-{
+std::string Database::GetLastError() {
     if (!isOpen) {
         return "";
     }
     return sqlite3_errmsg(db);
 }
 
-bool Database::SetConfig()
-{
+bool Database::SetConfig() {
     if (!isOpen) {
         ServerLog::Error("Failed to set config. Database is not open.");
         return false;
@@ -675,22 +621,20 @@ bool Database::SetConfig()
     return true;
 }
 
-bool Database::ExtendColumns(const std::string &tableName, const std::vector<std::string>& columns)
-{
+bool Database::ExtendColumns(const std::string &tableName, const std::vector<std::string> &columns) {
     if (!isOpen) {
         ServerLog::Error("Failed to extend table. Database is not open.");
         return false;
     }
     std::string sql;
-    for (const auto& column : columns) {
+    for (const auto &column : columns) {
         sql += "ALTER TABLE " + tableName + " ADD COLUMN " + column + " TEXT; ";
     }
     std::lock_guard<std::recursive_mutex> lock(mutex);
     return ExecSql(sql);
 }
 
-bool Database::CreateMetaDataTableForText()
-{
+bool Database::CreateMetaDataTableForText() {
     std::lock_guard<std::recursive_mutex> lock(mutex);
     if (!isOpen) {
         ServerLog::Error("Failed to create meta data table. Database is not open.");
@@ -703,8 +647,7 @@ bool Database::CreateMetaDataTableForText()
     return ExecSql(sql);
 }
 
-std::string Database::GetValueFromMetaDataTable(const std::string& name)
-{
+std::string Database::GetValueFromMetaDataTable(const std::string &name) {
     std::string value;
     if (!StringUtil::CheckSqlValid(name)) {
         ServerLog::Error("There is an SQL injection attack on this parameter, param: name.");
@@ -731,12 +674,12 @@ std::string Database::GetValueFromMetaDataTable(const std::string& name)
     return value;
 }
 
-bool Database::UpdateMetaDataTable(const std::string &name, const std::string &value)
-{
+bool Database::UpdateMetaDataTable(const std::string &name, const std::string &value) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
-    std::string sql = "INSERT INTO " + metaDataTable + " (value, name) VALUES (?, ?)"
-                      " ON CONFLICT(name) DO"
-                      " UPDATE SET value = excluded.value;";
+    std::string sql = "INSERT INTO " + metaDataTable +
+        " (value, name) VALUES (?, ?)"
+        " ON CONFLICT(name) DO"
+        " UPDATE SET value = excluded.value;";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to create prepared stmt: name=", name, ", value=", value);
@@ -751,8 +694,7 @@ bool Database::UpdateMetaDataTable(const std::string &name, const std::string &v
     return true;
 }
 
-bool Database::UpdateMetaDataTableWithNoPrimaryKey(const std::string &name, const std::string &value)
-{
+bool Database::UpdateMetaDataTableWithNoPrimaryKey(const std::string &name, const std::string &value) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     std::string checkSql = "SELECT 1 FROM " + metaDataTable + " WHERE name = ? LIMIT 1;";
     auto checkStmt = CreatPreparedStatement(checkSql);
@@ -762,8 +704,8 @@ bool Database::UpdateMetaDataTableWithNoPrimaryKey(const std::string &name, cons
     }
     auto exist = checkStmt->ExecuteQuery(name);
     if (exist == nullptr) {
-        ServerLog::Error("Failed to get result set for getting value from meta data table: ",
-                         checkStmt->GetErrorMessage());
+        ServerLog::Error(
+            "Failed to get result set for getting value from meta data table: ", checkStmt->GetErrorMessage());
         return false;
     }
 
@@ -792,8 +734,7 @@ bool Database::UpdateMetaDataTableWithNoPrimaryKey(const std::string &name, cons
  * @param tableName
  * @return
  */
-std::vector<ColumnAtt> Database::QueryTableInfoByName(const std::string& tableName)
-{
+std::vector<ColumnAtt> Database::QueryTableInfoByName(const std::string &tableName) {
     if (!StringUtil::CheckSqlValid(tableName)) {
         return {};
     }
@@ -817,8 +758,7 @@ std::vector<ColumnAtt> Database::QueryTableInfoByName(const std::string& tableNa
     return res;
 }
 
-std::vector<LinkInfo> Database::QueryTableNameAndCol(const std::string& linkName)
-{
+std::vector<LinkInfo> Database::QueryTableNameAndCol(const std::string &linkName) {
     const std::string sql = "SELECT target_table, target_name FROM data_link WHERE source_name = ?;";
     auto stmt = CreatPreparedStatement(sql);
     if (!TryOpt(stmt, "Query table name and col to prepare sql!")) {
@@ -838,8 +778,7 @@ std::vector<LinkInfo> Database::QueryTableNameAndCol(const std::string& linkName
     return res;
 }
 
-std::vector<std::string> Database::QueryTableNamesByPrefix(const std::string& prefix)
-{
+std::vector<std::string> Database::QueryTableNamesByPrefix(const std::string &prefix) {
     const std::string sql = "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE ?;";
     auto stmt = CreatPreparedStatement(sql);
     if (!TryOpt(stmt, "Query tables name by prefix failed to prepare sql!")) {
@@ -856,24 +795,22 @@ std::vector<std::string> Database::QueryTableNamesByPrefix(const std::string& pr
     return res;
 }
 
-uint64_t Database::QueryCountByTableName(const PageQuery& query,
-                                         const std::vector<ColumnAtt>& columns)
-{
+uint64_t Database::QueryCountByTableName(const PageQuery &query, const std::vector<ColumnAtt> &columns) {
     if (!StringUtil::CheckSqlValid(query.viewName)) {
         return 0;
     }
     std::vector<std::string> columnName;
-    for (const auto& item : columns) {
+    for (const auto &item : columns) {
         columnName.emplace_back("\"" + item.key + "\"");
     }
     std::string sql = "SELECT COUNT(*) as count FROM " + query.viewName + " WHERE 1 = 1 ";
-    for (const auto& filter : query.pageFilters) {
+    for (const auto &filter : query.pageFilters) {
         if (std::find(columnName.begin(), columnName.end(), "\"" + filter.col + "\"") == columnName.end()) {
             continue;
         }
         sql += " AND lower(\"" + filter.col + "\") LIKE lower(?) ";
     }
-    for (const auto& filter : query.equalFilters) {
+    for (const auto &filter : query.equalFilters) {
         if (std::find(columnName.begin(), columnName.end(), "\"" + filter.col + "\"") == columnName.end()) {
             continue;
         }
@@ -912,14 +849,13 @@ uint64_t Database::QueryCountByTableName(const PageQuery& query,
  * @param columns
  * @return
  */
-std::vector<std::map<std::string, std::string>> Database::QueryDataByPage(const PageQuery& query,
-                                                                          const std::vector<ColumnAtt>& columns)
-{
+std::vector<std::map<std::string, std::string>> Database::QueryDataByPage(
+    const PageQuery &query, const std::vector<ColumnAtt> &columns) {
     if (columns.empty() || !StringUtil::CheckSqlValid(query.viewName)) {
         return {};
     }
     std::vector<std::string> columnName;
-    for (const auto& item : columns) {
+    for (const auto &item : columns) {
         columnName.emplace_back("\"" + item.key + "\"");
     }
     if (!query.orderBy.empty() &&
@@ -951,7 +887,7 @@ std::vector<std::map<std::string, std::string>> Database::QueryDataByPage(const 
     std::vector<std::map<std::string, std::string>> res;
     while (result->Next()) {
         std::map<std::string, std::string> data;
-        for (const auto& item : columns) {
+        for (const auto &item : columns) {
             data[item.key] = result->GetString(item.key);
             if (std::empty(data[item.key])) {
                 data[item.key] = "0";
@@ -962,13 +898,12 @@ std::vector<std::map<std::string, std::string>> Database::QueryDataByPage(const 
     return res;
 }
 
-std::string Database::ComputeDataPageSql(const PageQuery& query, std::vector<std::string>& columnName)
-{
+std::string Database::ComputeDataPageSql(const PageQuery &query, std::vector<std::string> &columnName) {
     std::string sql = ComputeConditionSql(query, columnName);
     std::string orderBySql;
     if (!std::empty(query.order) && !std::empty(query.orderBy)) {
-        orderBySql = query.order == "descend" ? " ORDER BY \"" + query.orderBy + "\" DESC " :
-                                                " ORDER BY \"" + query.orderBy + "\" ASC ";
+        orderBySql = query.order == "descend" ? " ORDER BY \"" + query.orderBy + "\" DESC "
+                                              : " ORDER BY \"" + query.orderBy + "\" ASC ";
     }
     sql += orderBySql;
     const std::string limitSql =
@@ -977,17 +912,16 @@ std::string Database::ComputeDataPageSql(const PageQuery& query, std::vector<std
     return sql;
 }
 
-std::string Database::ComputeConditionSql(const PageQuery& query, std::vector<std::string>& columnName)
-{
+std::string Database::ComputeConditionSql(const PageQuery &query, std::vector<std::string> &columnName) {
     const std::string columnNames = StringUtil::join(columnName, ",");
     std::string sql = "SELECT " + columnNames + " FROM " + query.viewName + " WHERE 1=1 ";
-    for (const auto& filter : query.pageFilters) {
+    for (const auto &filter : query.pageFilters) {
         if (std::find(columnName.begin(), columnName.end(), "\"" + filter.col + "\"") == columnName.end()) {
             continue;
         }
         sql += " AND lower(\"" + filter.col + "\") LIKE lower(?) ";
     }
-    for (const auto& filter : query.equalFilters) {
+    for (const auto &filter : query.equalFilters) {
         if (std::find(columnName.begin(), columnName.end(), "\"" + filter.col + "\"") == columnName.end()) {
             continue;
         }
@@ -996,8 +930,7 @@ std::string Database::ComputeConditionSql(const PageQuery& query, std::vector<st
     return sql;
 }
 
-std::unordered_map<std::string, std::string> Database::QueryTranslate(bool isZh)
-{
+std::unordered_map<std::string, std::string> Database::QueryTranslate(bool isZh) {
     const std::string sql = "SELECT key, value_en, value_zh FROM translate;";
     auto stmt = CreatPreparedStatement(sql);
     if (!TryOpt(stmt, "Query translate failed to prepare sql!")) {
@@ -1021,8 +954,7 @@ std::unordered_map<std::string, std::string> Database::QueryTranslate(bool isZh)
     return res;
 }
 
-std::string Database::QueryDatabaseVersion() const
-{
+std::string Database::QueryDatabaseVersion() const {
     std::string version;
     static const std::string SQL = "PRAGMA user_version";
     sqlite3_stmt *stmt = nullptr;
@@ -1039,8 +971,7 @@ std::string Database::QueryDatabaseVersion() const
     return version;
 }
 
-std::string Database::BuildQueryFiltersConditionSql(const std::map<std::string, std::string>& filters)
-{
+std::string Database::BuildQueryFiltersConditionSql(const std::map<std::string, std::string> &filters) {
     std::string filtersSql;
     for (auto &filterPair : filters) {
         filtersSql.append(StringUtil::FormatString(" AND {} LIKE ? ", filterPair.first));
@@ -1048,44 +979,37 @@ std::string Database::BuildQueryFiltersConditionSql(const std::map<std::string, 
     return filtersSql;
 }
 
-std::string Database::BuildQueryRangeFiltersConditionSql(const std::map<std::string, std::pair<double, double>>& rangeFilters)
-{
+std::string Database::BuildQueryRangeFiltersConditionSql(
+    const std::map<std::string, std::pair<double, double>> &rangeFilters) {
     std::string sql;
-    for (const auto& [colName, rangePair] : rangeFilters) {
+    for (const auto &[colName, rangePair] : rangeFilters) {
         sql.append(StringUtil::FormatString(" AND ({} BETWEEN ? AND ?) ", colName));
     }
     return sql;
 }
 
-std::string Database::BuildQueryOrderSql(const std::string& orderBy, bool desc)
-{
+std::string Database::BuildQueryOrderSql(const std::string &orderBy, bool desc) {
     return StringUtil::FormatString(" ORDER BY {} {} ", orderBy, desc ? "DESC" : "ASC");
 }
 
-void Database::CommonBindFiltersParams(const std::map<std::string, std::string>& filters,
-                                       sqlite3_stmt* stmt, int& bindIdx)
-{
-    for (auto& filterPair : filters) {
+void Database::CommonBindFiltersParams(
+    const std::map<std::string, std::string> &filters, sqlite3_stmt *stmt, int &bindIdx) {
+    for (auto &filterPair : filters) {
         std::string filterPattern = StringUtil::FormatString("%{}%", filterPair.second);
-        sqlite3_bind_text(stmt, bindIdx++, filterPattern.c_str(),
-                          filterPattern.length(), SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, bindIdx++, filterPattern.c_str(), filterPattern.length(), SQLITE_TRANSIENT);
     }
 }
 
 void Database::CommonBindRangeFiltersParams(
-    const std::map<std::string, std::pair<double, double>>& rangeFilters,
-    sqlite3_stmt* stmt,
-    int& bindIdx)
-{
-    for (const auto& [colName, rangePair] : rangeFilters) {
+    const std::map<std::string, std::pair<double, double>> &rangeFilters, sqlite3_stmt *stmt, int &bindIdx) {
+    for (const auto &[colName, rangePair] : rangeFilters) {
         sqlite3_bind_double(stmt, bindIdx++, rangePair.first);
         sqlite3_bind_double(stmt, bindIdx++, rangePair.second);
     }
 }
 
-void Database::CommonBindPaginationParams(const int64_t pageSize, const int64_t currentPage,
-                                          sqlite3_stmt* stmt, int& bindIdx)
-{
+void Database::CommonBindPaginationParams(
+    const int64_t pageSize, const int64_t currentPage, sqlite3_stmt *stmt, int &bindIdx) {
     int64_t limit = -1;
     int64_t offset = 0;
     if (pageSize > 0 && currentPage > 0) {
@@ -1096,5 +1020,5 @@ void Database::CommonBindPaginationParams(const int64_t pageSize, const int64_t 
     sqlite3_bind_int64(stmt, bindIdx++, offset);
 }
 
-}  // end of namespace Module
-}  // end of namespace Dic
+} // end of namespace Module
+} // end of namespace Dic

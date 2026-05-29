@@ -20,8 +20,7 @@
 
 namespace Dic {
 namespace Module {
-SqliteResultSet::SqliteResultSet(sqlite3_stmt *stmt) : stmt(stmt)
-{
+SqliteResultSet::SqliteResultSet(sqlite3_stmt *stmt) : stmt(stmt) {
     if (stmt != nullptr) {
         int columnCount = sqlite3_column_count(stmt);
         for (int i = 0; i < columnCount; ++i) {
@@ -30,19 +29,10 @@ SqliteResultSet::SqliteResultSet(sqlite3_stmt *stmt) : stmt(stmt)
     }
 }
 
-int SqliteResultSet::GetErrorCode() const
-{
-    return lastErrorCode;
-}
+int SqliteResultSet::GetErrorCode() const { return lastErrorCode; }
 
-std::string SqliteResultSet::GetErrorMessage() const
-{
-    return sqlite3_errmsg(sqlite3_db_handle(stmt));
-}
+std::string SqliteResultSet::GetErrorMessage() const { return sqlite3_errmsg(sqlite3_db_handle(stmt)); }
 
-const std::unordered_map<std::string, int> SqliteResultSet::GetColumns() const
-{
-    return columns;
-}
+const std::unordered_map<std::string, int> SqliteResultSet::GetColumns() const { return columns; }
 } // end of namespace Module
 } // end of namespace Dic

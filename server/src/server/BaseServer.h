@@ -25,21 +25,15 @@
 namespace Dic {
 namespace Server {
 class BaseServer {
-public:
+  public:
     BaseServer(const std::string &host, int port) : host(host), port(port) {}
     virtual ~BaseServer() = default;
     virtual bool Start() = 0;
     virtual bool Stop() = 0;
-    const std::string &GetHost() const
-    {
-        return host;
-    }
-    int GetPort() const
-    {
-        return port;
-    };
+    const std::string &GetHost() const { return host; }
+    int GetPort() const { return port; };
 
-protected:
+  protected:
     std::string host = "127.0.0.1";
     int port;
 };

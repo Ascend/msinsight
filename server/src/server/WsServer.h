@@ -31,7 +31,7 @@
 namespace Dic {
 namespace Server {
 class WsServer : public BaseServer {
-public:
+  public:
     WsServer(const std::string &host, int port, bool strictMode = true);
 
     ~WsServer() noexcept override = default;
@@ -40,7 +40,7 @@ public:
     bool Stop() override;
     bool IsStart() const;
 
-protected:
+  protected:
     static void ListenThreadFunc(WsServer &server);
 
     void StartListen();
@@ -50,8 +50,8 @@ protected:
     void OnCloseCb(WsChannel *ws, int code, std::string_view message);
     void OnMessageCb(WsChannel *ws, std::string_view message, uWS::OpCode opCode);
     void LoadHandlers();
-    void AddPostHandler(const std::string& key, std::shared_ptr<Core::ApiHandler> handler);
-    void AddGetHandler(const std::string& key, std::shared_ptr<Core::ApiHandler> handler);
+    void AddPostHandler(const std::string &key, std::shared_ptr<Core::ApiHandler> handler);
+    void AddGetHandler(const std::string &key, std::shared_ptr<Core::ApiHandler> handler);
 
     static void PreLoadEventDir();
     std::unique_ptr<uWS::App> wsApp = nullptr;

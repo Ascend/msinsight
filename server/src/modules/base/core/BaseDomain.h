@@ -33,9 +33,9 @@ struct LinkInfo {
     std::string col;
 };
 
-struct TableDatas {
+struct TableData {
     std::vector<ColumnAtt> att;
-    std::vector<std::map<std::string, std::string>> datas;
+    std::vector<std::map<std::string, std::string>> dataItems;
     uint64_t count = 0;
 };
 struct PageFilter {
@@ -57,8 +57,7 @@ struct PageQuery {
     std::string end;
     std::vector<PageFilter> pageFilters;
     std::vector<EqualFilter> equalFilters;
-    uint64_t ComputeOffset() const
-    {
+    uint64_t ComputeOffset() const {
         if (curPage == 0 || size == 0) {
             return 0;
         }
@@ -68,5 +67,5 @@ struct PageQuery {
         return (curPage - 1) * size;
     }
 };
-}  // namespace Dic::Module
-#endif  // PROFILER_SERVER_BASEDOMAIN_H
+} // namespace Dic::Module
+#endif // PROFILER_SERVER_BASEDOMAIN_H

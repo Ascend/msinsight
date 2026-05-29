@@ -19,7 +19,6 @@
 #ifndef PROFILER_SERVER_PROTOCOL_MANAGER_H
 #define PROFILER_SERVER_PROTOCOL_MANAGER_H
 
-
 #include <string>
 #include <map>
 #include <mutex>
@@ -30,9 +29,8 @@
 namespace Dic {
 namespace Protocol {
 class ProtocolManager {
-public:
-    static ProtocolManager &Instance()
-    {
+  public:
+    static ProtocolManager &Instance() {
         static ProtocolManager instance;
         return instance;
     }
@@ -41,7 +39,7 @@ public:
     std::optional<document_t> ToJson(const Response &response, std::string &error);
     std::optional<document_t> ToJson(const Event &event, std::string &error);
 
-private:
+  private:
     ProtocolManager();
     ~ProtocolManager();
 

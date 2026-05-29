@@ -22,7 +22,7 @@
 namespace Dic {
 namespace Module {
 class FileReader : public IFileReader {
-public:
+  public:
     ~FileReader() override = default;
     int64_t GetFileSize(const std::string &filePath) override;
     std::string ReadJsonArray(const std::string &filePath, int64_t startPosition, int64_t endPosition) override;

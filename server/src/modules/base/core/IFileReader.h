@@ -22,7 +22,7 @@
 namespace Dic {
 namespace Module {
 class IFileReader {
-public:
+  public:
     /* *
     * 获取文件大小
     * @param filePath

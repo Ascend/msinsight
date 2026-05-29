@@ -26,8 +26,7 @@
 namespace Dic {
 const int REQUEST_PARAMS_ERROR = 4003;
 namespace Protocol {
-inline bool CheckPageValid(int64_t pageSize, int64_t currentPage, std::string &errorMsg)
-{
+inline bool CheckPageValid(int64_t pageSize, int64_t currentPage, std::string &errorMsg) {
     if (pageSize <= MIN_PAGESIZE || pageSize > MAX_PAGESIZE) {
         errorMsg = "pagesize: " + std::to_string(pageSize) + " is invalid";
         return false;
@@ -39,8 +38,7 @@ inline bool CheckPageValid(int64_t pageSize, int64_t currentPage, std::string &e
     return true;
 }
 
-inline bool CheckUnsignPageValid(uint64_t pageSize, uint64_t currentPage, std::string &errorMsg)
-{
+inline bool CheckUnsignPageValid(uint64_t pageSize, uint64_t currentPage, std::string &errorMsg) {
     if (pageSize > INT64_MAX || currentPage > INT64_MAX) {
         errorMsg = "page size or current page is too big";
         return false;
@@ -49,9 +47,7 @@ inline bool CheckUnsignPageValid(uint64_t pageSize, uint64_t currentPage, std::s
 }
 
 // 和CheckStrParamValid不同，该函数不做参数长度限制
-inline bool CheckStrParamValidWithoutLenLimit(const std::string &param,
-                                              std::string &errorMsg)
-{
+inline bool CheckStrParamValidWithoutLenLimit(const std::string &param, std::string &errorMsg) {
     if (param.empty()) {
         errorMsg = "Parameter is empty.";
         return false;
@@ -64,9 +60,7 @@ inline bool CheckStrParamValidWithoutLenLimit(const std::string &param,
 }
 
 // arguments will be placed into specified request
-inline bool CheckStrParamValid(const std::string &param,
-    std::string &errorMsg)
-{
+inline bool CheckStrParamValid(const std::string &param, std::string &errorMsg) {
     constexpr unsigned maxStrLength = 500;
     if (param.size() > maxStrLength) {
         errorMsg = "Parameter length exceeds the upper limit " + std::to_string(maxStrLength) + ".";
@@ -84,9 +78,7 @@ inline bool CheckStrParamValid(const std::string &param,
 }
 
 // 和CheckStrParamValid不同，该函数认为空字符串是合法的
-inline bool CheckStrParamValidEmptyAllowed(const std::string &param,
-    std::string &errorMsg)
-{
+inline bool CheckStrParamValidEmptyAllowed(const std::string &param, std::string &errorMsg) {
     constexpr unsigned maxStrLength = 500;
     if (param.size() > maxStrLength) {
         errorMsg = "Parameter length exceeds the upper limit " + std::to_string(maxStrLength) + ".";

@@ -21,9 +21,8 @@
 
 namespace Dic {
 namespace Module {
-std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::SplitFile(const std::string &filePath,
-    std::optional<std::pair<int64_t, int64_t>> position)
-{
+std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::SplitFile(
+    const std::string &filePath, std::optional<std::pair<int64_t, int64_t>> position) {
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::in | std::ios::binary);
     if (!file.is_open()) {
         Dic::Server::ServerLog::Error("Split file failed to open json file. ");
@@ -45,9 +44,8 @@ std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::SplitFile(const std::s
     return result;
 }
 
-std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::GetSplitPosition(std::ifstream &file,
-    std::pair<int64_t, int64_t> position)
-{
+std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::GetSplitPosition(
+    std::ifstream &file, std::pair<int64_t, int64_t> position) {
     file.seekg(0, std::ifstream::end); // 将当前位置移动到文件尾，以获取文件大小
     int64_t fileSize = file.tellg();
     int64_t contentStart = position.first;
@@ -64,9 +62,9 @@ std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::GetSplitPosition(std::
     file.seekg(contentStart, std::ios::beg); // 将当前位置移动到文件开头，正式开始处理
     // 首先判断Trace文件的格式是JSON Object Format还是JSON Array
     // Format，二者有差异，Object格式实际的数据应该从traceEvents之后开始
-    Dic::Module::JsonFormat json = SeekRegexPosition(file, R"(\"traceEvents")") ?
-        Dic::Module::JsonFormat::JSON_OBJECT_FORMAT :
-        Dic::Module::JsonFormat::JSON_ARRAY_FORMAT;
+    Dic::Module::JsonFormat json = SeekRegexPosition(file, R"(\"traceEvents")")
+        ? Dic::Module::JsonFormat::JSON_OBJECT_FORMAT
+        : Dic::Module::JsonFormat::JSON_ARRAY_FORMAT;
     if (contentSize <= blockSize) {
         // 如果是Object类型，则有效数据从 ”traceEvents“: [  的"["之后开始
         ComputeSmallFilePosition(file, result, json, position);
@@ -98,8 +96,7 @@ std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::GetSplitPosition(std::
 }
 
 void JsonFileProcess::ComputeSmallFilePosition(std::ifstream &file, std::vector<std::pair<int64_t, int64_t>> &result,
-    const JsonFormat &json, std::pair<int64_t, int64_t> position)
-{
+    const JsonFormat &json, std::pair<int64_t, int64_t> position) {
     if (json == JsonFormat::JSON_OBJECT_FORMAT) {
         int64_t contentStart = position.first;
         int64_t contentEnd = position.second;
@@ -129,8 +126,7 @@ void JsonFileProcess::ComputeSmallFilePosition(std::ifstream &file, std::vector<
     }
 }
 
-bool JsonFileProcess::SeekCharPosition(std::ifstream &file, char c)
-{
+bool JsonFileProcess::SeekCharPosition(std::ifstream &file, char c) {
     file.clear();
     auto cur = file.tellg();
     std::unique_ptr<char[]> buffer = std::make_unique<char[]>(startBufferLength);
@@ -152,8 +148,7 @@ bool JsonFileProcess::SeekCharPosition(std::ifstream &file, char c)
     return true;
 }
 
-bool JsonFileProcess::SeekRegexPosition(std::ifstream &file, const std::string &regex)
-{
+bool JsonFileProcess::SeekRegexPosition(std::ifstream &file, const std::string &regex) {
     file.clear();
     auto cur = file.tellg();
     std::unique_ptr<char[]> buffer = std::make_unique<char[]>(endBufferLength);
@@ -175,8 +170,7 @@ bool JsonFileProcess::SeekRegexPosition(std::ifstream &file, const std::string &
     return true;
 }
 
-bool JsonFileProcess::SeekPhEndPosition(std::ifstream &file, bool endFlag, int bufferLength)
-{
+bool JsonFileProcess::SeekPhEndPosition(std::ifstream &file, bool endFlag, int bufferLength) {
     file.clear();
     auto cur = file.tellg();
     std::unique_ptr<char[]> buffer = std::make_unique<char[]>(bufferLength);

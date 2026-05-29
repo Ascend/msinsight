@@ -22,7 +22,7 @@
 #include "FileUtil.h"
 
 namespace Dic {
-    std::ifstream OpenReadFileSafely(const std::string &path, std::ios::openmode mode = std::ios::in);
+std::ifstream OpenReadFileSafely(const std::string &path, std::ios::openmode mode = std::ios::in);
 }
 
 #endif // PROFILER_SERVER_SAFEFILE_H

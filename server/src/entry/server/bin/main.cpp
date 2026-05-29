@@ -29,8 +29,7 @@ using namespace Dic;
 using namespace Dic::Server;
 
 namespace Dic {
-void SetResourceLimitForServer()
-{
+void SetResourceLimitForServer() {
 #if defined(__linux__) || defined(__APPLE__)
     struct rlimit oldResourceLimit;
     if (getrlimit(RLIMIT_NOFILE, &oldResourceLimit) == -1) {
@@ -56,8 +55,7 @@ void SetResourceLimitForServer()
 #endif
 }
 
-void PrintAvailablePort(int startPort)
-{
+void PrintAvailablePort(int startPort) {
     int port = startPort;
     const int scanRange = 100;
     while (port < startPort + scanRange) {
@@ -71,8 +69,7 @@ void PrintAvailablePort(int startPort)
     std::cout << "[Error] Can't find port between " << startPort << " and " << port << std::endl;
 }
 
-void ParamsOptionInfo()
-{
+void ParamsOptionInfo() {
     const ParamsOption &option = ParamsParser::Instance().GetOption();
     const int mbSize = 1024 * 1024;
     ServerLog::Info("Server Log Path: ", option.logPath);
@@ -81,8 +78,7 @@ void ParamsOptionInfo()
     ServerLog::Info("Strict Mode: ", option.strictMode);
 }
 
-void StartServer(const ParamsOption &option)
-{
+void StartServer(const ParamsOption &option) {
     ServerLog::Info("=============================== Server Start ===============================");
     WsServer server(option.host, option.wsPort, option.strictMode);
     server.Start();
@@ -93,8 +89,7 @@ void StartServer(const ParamsOption &option)
 }
 } // end of namespace Dic
 
-int main(int argc, const char *argv[])
-{
+int main(int argc, const char *argv[]) {
     std::vector<std::string> args;
     for (int i = 0; i < argc; i++) {
         args.emplace_back(std::string(argv[i]));

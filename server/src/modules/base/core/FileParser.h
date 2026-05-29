@@ -28,35 +28,20 @@
 
 namespace Dic {
 namespace Module {
-enum class JsonFormat {
-    JSON_ARRAY_FORMAT = 0,
-    JSON_OBJECT_FORMAT
-};
+enum class JsonFormat { JSON_ARRAY_FORMAT = 0, JSON_OBJECT_FORMAT };
 
 struct FileProgress {
-public:
-
+  public:
     FileProgress(uint64_t initialParsedSize, uint64_t initialTotalSize)
-        : parsedSize(initialParsedSize), totalSize(initialTotalSize)
-    {}
+        : parsedSize(initialParsedSize), totalSize(initialTotalSize) {}
 
-    uint64_t GetParsedSize() const
-    {
-        return parsedSize.load();
-    }
+    uint64_t GetParsedSize() const { return parsedSize.load(); }
 
-    uint64_t GetTotalSize() const
-    {
-        return totalSize.load();
-    }
+    uint64_t GetTotalSize() const { return totalSize.load(); }
 
-    void AddToParsedSize(uint64_t value)
-    {
-        parsedSize.fetch_add(value);
-    }
+    void AddToParsedSize(uint64_t value) { parsedSize.fetch_add(value); }
 
-    int GetProgressPercentage() const
-    {
+    int GetProgressPercentage() const {
         uint64_t parsed = parsedSize.load();
         uint64_t total = totalSize.load();
         if (total == 0) {
@@ -68,34 +53,30 @@ public:
         return res > maxPercentage ? maxPercentage : res;
     }
 
-private:
+  private:
     std::atomic<std::uint64_t> parsedSize;
     std::atomic<std::uint64_t> totalSize;
     const int maxPercentage = 99;
 };
 
 class FileParser {
-public:
+  public:
     FileParser() = default;
     virtual ~FileParser() = default;
-    virtual bool Parse(const std::vector<std::string> &filePathArr,
-                       const std::string &rankId,
-                       const std::string &selectedFolder,
-                       const std::string &fileId) = 0;
+    virtual bool Parse(const std::vector<std::string> &filePathArr, const std::string &rankId,
+        const std::string &selectedFolder, const std::string &fileId) = 0;
 
     virtual void SetParseEndCallBack(
-            std::function<void(const std::string, const std::string, bool result, const std::string)> &callback);
+        std::function<void(const std::string, const std::string, bool result, const std::string)> &callback);
     virtual void SetParseProgressCallBack(
         std::function<void(const std::string, uint64_t parsedSize, uint64_t totalSize, int progress)> &callback);
 
     virtual std::string GetError();
     virtual void Reset();
 
-    inline bool HasCallbackFuncSet() const
-    {
-        return parseEndCallback && parseProgressCallback;
-    }
-protected:
+    inline bool HasCallbackFuncSet() const { return parseEndCallback && parseProgressCallback; }
+
+  protected:
     std::string error;
     std::function<void(const std::string, const std::string, bool result, const std::string)> parseEndCallback;
     std::function<void(const std::string, uint64_t parsedSize, uint64_t totalSize, int progress)> parseProgressCallback;

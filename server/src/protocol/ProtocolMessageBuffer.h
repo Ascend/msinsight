@@ -27,15 +27,15 @@
 namespace Dic {
 namespace Protocol {
 class ProtocolMessageBuffer {
-public:
+  public:
     ProtocolMessageBuffer() = default;
     ~ProtocolMessageBuffer() = default;
 
-    ProtocolMessageBuffer &operator << (const std::string &data);
+    ProtocolMessageBuffer &operator<<(const std::string &data);
     std::unique_ptr<Protocol::ProtocolMessage> Pop();
     void Clear();
 
-private:
+  private:
     uint64_t GetBodyLength(const uint64_t &headPosition, const uint64_t &headLength) const;
 
     inline const static std::string REQ_DELIMITER = "\r\n\r\n";
