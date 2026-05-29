@@ -260,7 +260,7 @@ std::string TraceDatabaseHelper::GetQueryThreadSameOperatorsDetailsHeadSql(
         case PROCESS_TYPE::HCCL:
             return GetHcclSameNameDetailSql(tidListStr, uniqueDevice);
         case PROCESS_TYPE::CANN_API:
-            return GetCannSameNameDetailSql(pidListStr, tidListStr);
+            return GetCANNSameNameDetailSql(pidListStr, tidListStr);
         case PROCESS_TYPE::MS_TX:
             return GetMstxSameNameDetailSql(pidListStr, tidListStr);
         case PROCESS_TYPE::API:
@@ -316,7 +316,7 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryProcessTracesSummary(
         case PROCESS_TYPE::PROCESS:
             return QueryProcessUnitTracesSummary(rankId, minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::CANN_API:
-            return QueryCannTracesSummary(rankId, minTimestamp, stmt, requestParams);
+            return QueryCANNTracesSummary(rankId, minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::MS_TX:
             return QueryMstxTracesSummary(rankId, minTimestamp, stmt, requestParams);
         default:
@@ -370,7 +370,7 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryOverlapTracesSummary(
                         requestParams.endTime);
 }
 
-std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCannTracesSummary(const std::string& rankId, uint64_t minTimestamp,
+std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCANNTracesSummary(const std::string& rankId, uint64_t minTimestamp,
     std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams)
 {
     // 这个方法作用是查询Thread *泳道的缩略图，所以会查询CANN PyTorch MSTX OSRT数据

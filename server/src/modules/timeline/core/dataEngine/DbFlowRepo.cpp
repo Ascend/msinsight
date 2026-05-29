@@ -18,8 +18,7 @@
 #include "TrackInfoManager.h"
 #include "DbFlowRepo.h"
 namespace Dic::Module::Timeline {
-void DbFlowRepo::QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void DbFlowRepo::QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     if (flowQuery.cat == "async_task_queue") {
         hostFlowRepo->QueryAsyncTaskQueue(flowQuery, flowPointVec);
     } else if (flowQuery.cat == "fwdbwd") {
@@ -37,22 +36,19 @@ void DbFlowRepo::QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::vect
 
 void DbFlowRepo::QueryFlowPointByFlowId(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {}
 
-void DbFlowRepo::QueryHostToDevice(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
-    hostFlowRepo->AddCannFlowPoint(flowQuery, flowPointVec);
+void DbFlowRepo::QueryHostToDevice(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
+    hostFlowRepo->AddCANNFlowPoint(flowQuery, flowPointVec);
     deviceFlowRepo->AddDeviceFlowPoint(flowQuery, flowPointVec);
     std::sort(flowPointVec.begin(), flowPointVec.end());
 }
 
-void DbFlowRepo::QueryMsTx(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void DbFlowRepo::QueryMsTx(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     std::vector<uint64_t> connectionIds = hostFlowRepo->AddMstxFlowPoint(flowQuery, flowPointVec);
     deviceFlowRepo->AddHardWareMstxFlowPoint(flowQuery, flowPointVec, connectionIds);
     std::sort(flowPointVec.begin(), flowPointVec.end());
 }
 
-void DbFlowRepo::QueryAsyncNpu(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec)
-{
+void DbFlowRepo::QueryAsyncNpu(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) {
     hostFlowRepo->AddAsyncNpuFlowPoint(flowQuery, flowPointVec);
     deviceFlowRepo->AddDeviceFlowPoint(flowQuery, flowPointVec);
     std::sort(flowPointVec.begin(), flowPointVec.end());

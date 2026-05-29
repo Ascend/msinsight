@@ -145,7 +145,7 @@ constexpr std::string_view OP_TYPE = "opType";
 constexpr std::string_view WAIT_TIME = "waitNs";
 }
 
-namespace CannApiColumn {
+namespace CANNApiColumn {
 constexpr std::string_view ID = "connectionId";
 constexpr std::string_view TIMESTAMP = "startNs";
 constexpr std::string_view ENDTIME = "endNs";

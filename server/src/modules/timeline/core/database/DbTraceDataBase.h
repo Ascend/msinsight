@@ -242,7 +242,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     const uint32_t cacheSize = 5000;
     bool initStmt = false;
     bool isExistPytorch = false;
-    bool isExistCann = false;
+    bool isExistCANN = false;
     bool isExistMstx = false;
     bool isExistCommOp = false;
     bool isExistTask = false;
@@ -254,7 +254,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
 
     std::unique_ptr<SqlitePreparedStatement> updateTaskDepthStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> updateApiDepthStmt = nullptr;
-    std::unique_ptr<SqlitePreparedStatement> updateCannApiDepthStmt = nullptr;
+    std::unique_ptr<SqlitePreparedStatement> updateCANNApiDepthStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> insertOverlapStmt = nullptr;
 
     std::vector<TASK_INFO> taskDepthCache;

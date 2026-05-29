@@ -19,7 +19,7 @@
 #include "HardWareRepo.h"
 #include "HcclRepo.h"
 #include "OverlapAnsRepo.h"
-#include "CannApiRepo.h"
+#include "CANNApiRepo.h"
 #include "PythonApiRepo.h"
 #include "OSRTApiRepo.h"
 #include "MstxRepo.h"
@@ -28,12 +28,11 @@
 #include "DbFlowRepo.h"
 #include "RepositoryFactory.h"
 namespace Dic::Module::Timeline {
-RepositoryFactory::RepositoryFactory()
-{
+RepositoryFactory::RepositoryFactory() {
     sliceRespoMap.emplace(PROCESS_TYPE::ASCEND_HARDWARE, std::make_unique<HardWareRepo>());
     sliceRespoMap.emplace(PROCESS_TYPE::HCCL, std::make_unique<HcclRepo>());
     sliceRespoMap.emplace(PROCESS_TYPE::OVERLAP_ANALYSIS, std::make_unique<OverlapAnsRepo>());
-    sliceRespoMap.emplace(PROCESS_TYPE::CANN_API, std::make_unique<CannApiRepo>());
+    sliceRespoMap.emplace(PROCESS_TYPE::CANN_API, std::make_unique<CANNApiRepo>());
     sliceRespoMap.emplace(PROCESS_TYPE::API, std::make_unique<PythonApiRepo>());
     sliceRespoMap.emplace(PROCESS_TYPE::OSRT_API, std::make_unique<OSRTApiRepo>());
     sliceRespoMap.emplace(PROCESS_TYPE::MS_TX, std::make_unique<MstxRepo>());
@@ -43,40 +42,35 @@ RepositoryFactory::RepositoryFactory()
     flowRespoMap.emplace(PROCESS_TYPE::DB, std::make_unique<DbFlowRepo>());
     simulationRespoMap.emplace(PROCESS_TYPE::TEXT, std::make_unique<TextRepository>());
 };
-RepositoryFactory::~RepositoryFactory()
-{
+RepositoryFactory::~RepositoryFactory() {
     sliceRespoMap.clear();
     counterRespoMap.clear();
     flowRespoMap.clear();
     simulationRespoMap.clear();
 }
 
-std::shared_ptr<IBaseSliceRepo> RepositoryFactory::GetSliceRespo(PROCESS_TYPE metaType)
-{
+std::shared_ptr<IBaseSliceRepo> RepositoryFactory::GetSliceRespo(PROCESS_TYPE metaType) {
     if (sliceRespoMap.count(metaType) == 0) {
         return nullptr;
     }
     return sliceRespoMap.at(metaType);
 }
 
-std::shared_ptr<CounterRepoInterface> RepositoryFactory::GetCounterRespo(PROCESS_TYPE metaType)
-{
+std::shared_ptr<CounterRepoInterface> RepositoryFactory::GetCounterRespo(PROCESS_TYPE metaType) {
     if (counterRespoMap.count(metaType) == 0) {
         return nullptr;
     }
     return counterRespoMap.at(metaType);
 }
 
-std::shared_ptr<FlowRepoInterface> RepositoryFactory::GetFlowRespo(PROCESS_TYPE metaType)
-{
+std::shared_ptr<FlowRepoInterface> RepositoryFactory::GetFlowRespo(PROCESS_TYPE metaType) {
     if (flowRespoMap.count(metaType) == 0) {
         return nullptr;
     }
     return flowRespoMap.at(metaType);
 }
 
-std::shared_ptr<SimulationSliceRepoInterface> RepositoryFactory::GetSimulationSliceRespo(PROCESS_TYPE)
-{
+std::shared_ptr<SimulationSliceRepoInterface> RepositoryFactory::GetSimulationSliceRespo(PROCESS_TYPE) {
     return simulationRespoMap.at(PROCESS_TYPE::TEXT);
 }
 }

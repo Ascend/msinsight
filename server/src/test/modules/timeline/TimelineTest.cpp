@@ -30,8 +30,7 @@
 
 class TimelineTest : TestSuit {};
 
-TEST_F(TestSuit, QuerySystemViewData)
-{
+TEST_F(TestSuit, QuerySystemViewData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     Dic::Protocol::SystemViewBody responseBody;
@@ -49,8 +48,7 @@ TEST_F(TestSuit, QuerySystemViewData)
     EXPECT_EQ(responseBody.systemViewDetail.size(), expectSize);
 }
 
-TEST_F(TestSuit, QuerySystemViewAICoreFreqData)
-{
+TEST_F(TestSuit, QuerySystemViewAICoreFreqData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewAICoreFreqParams requestParams;
     Dic::Protocol::ExpAnaAICoreFreqBody responseBody;
@@ -62,8 +60,7 @@ TEST_F(TestSuit, QuerySystemViewAICoreFreqData)
     EXPECT_EQ(freqs.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryPythonViewWithTotalNum)
-{
+TEST_F(TestSuit, QueryPythonViewWithTotalNum) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     Dic::Protocol::SystemViewBody responseBody;
@@ -82,8 +79,7 @@ TEST_F(TestSuit, QueryPythonViewWithTotalNum)
     EXPECT_EQ(responseBody.total, expectSize);
 }
 
-TEST_F(TestSuit, QueryLayerOperatorTimeWithCann)
-{
+TEST_F(TestSuit, QueryLayerOperatorTimeWithCANN) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     requestParams.rankId = "0";
@@ -95,8 +91,7 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithCann)
     EXPECT_EQ(lround(data.allOperatorTime), expectSize);
 }
 
-TEST_F(TestSuit, QueryLayerOperatorTimeWithPython)
-{
+TEST_F(TestSuit, QueryLayerOperatorTimeWithPython) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     requestParams.rankId = "0";
@@ -108,8 +103,7 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithPython)
     EXPECT_EQ(lround(data.allOperatorTime), expectSize);
 }
 
-TEST_F(TestSuit, QueryLayerOperatorTimeWithAscend)
-{
+TEST_F(TestSuit, QueryLayerOperatorTimeWithAscend) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     requestParams.rankId = "0";
@@ -122,8 +116,7 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithAscend)
     EXPECT_EQ(data.total, 57); // total operator = 57
 }
 
-TEST_F(TestSuit, QueryLayerOperatorTimeWithHCCL)
-{
+TEST_F(TestSuit, QueryLayerOperatorTimeWithHCCL) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     requestParams.rankId = "0";
@@ -135,8 +128,7 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithHCCL)
     EXPECT_EQ(lround(data.allOperatorTime), expectSize);
 }
 
-TEST_F(TestSuit, QueryLayerOperatorTimeWithCommunication)
-{
+TEST_F(TestSuit, QueryLayerOperatorTimeWithCommunication) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     requestParams.rankId = "0";
@@ -148,8 +140,7 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithCommunication)
     EXPECT_EQ(lround(data.allOperatorTime), expectSize);
 }
 
-TEST_F(TestSuit, QueryLayerOperatorTimeWithOverlap)
-{
+TEST_F(TestSuit, QueryLayerOperatorTimeWithOverlap) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SystemViewParams requestParams;
     requestParams.rankId = "0";
@@ -161,8 +152,7 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithOverlap)
     EXPECT_EQ(lround(data.allOperatorTime), expectSize);
 }
 
-TEST_F(TestSuit, QueryCoreType)
-{
+TEST_F(TestSuit, QueryCoreType) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
 
     const std::vector<std::string> &coreType = database->QueryCoreType();
@@ -170,8 +160,7 @@ TEST_F(TestSuit, QueryCoreType)
     EXPECT_EQ(coreType.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryKernelDetailData)
-{
+TEST_F(TestSuit, QueryKernelDetailData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::KernelDetailsParams requestParams;
     Dic::Protocol::KernelDetailsBody responseBody;
@@ -187,8 +176,7 @@ TEST_F(TestSuit, QueryKernelDetailData)
     EXPECT_EQ(responseBody.count, expectSize);
 }
 
-TEST_F(TestSuit, QueryTotalKernel)
-{
+TEST_F(TestSuit, QueryTotalKernel) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::KernelDetailsParams requestParams;
     uint64_t PAGE = 10;
@@ -206,8 +194,7 @@ TEST_F(TestSuit, QueryTotalKernel)
     EXPECT_EQ(result, EXPECT_COUNT);
 }
 
-TEST_F(TestSuit, QueryKernelDetailDataWithCoreType)
-{
+TEST_F(TestSuit, QueryKernelDetailDataWithCoreType) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::KernelDetailsParams requestParams;
     Dic::Protocol::KernelDetailsBody responseBody;
@@ -225,8 +212,7 @@ TEST_F(TestSuit, QueryKernelDetailDataWithCoreType)
     EXPECT_EQ(responseBody.count, expectSize);
 }
 
-TEST_F(TestSuit, QueryKernelDepthAndThread)
-{
+TEST_F(TestSuit, QueryKernelDepthAndThread) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::KernelParams requestParams;
     Dic::Protocol::OneKernelBody responseBody;
@@ -245,8 +231,7 @@ TEST_F(TestSuit, QueryKernelDepthAndThread)
     EXPECT_EQ(responseBody.pid, pid);
 }
 
-TEST_F(TestSuit, QueryCommunicationKernelInfoSuccess)
-{
+TEST_F(TestSuit, QueryCommunicationKernelInfoSuccess) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::CommunicationKernelBody responseBody;
     database->QueryCommunicationKernelInfo("trans_Cast_15", "0", responseBody);
@@ -258,8 +243,7 @@ TEST_F(TestSuit, QueryCommunicationKernelInfoSuccess)
     EXPECT_EQ(responseBody.pid, pid);
 }
 
-TEST_F(TestSuit, QueryCommunicationStatisticsData)
-{
+TEST_F(TestSuit, QueryCommunicationStatisticsData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SummaryStatisticParams requestParams;
     Dic::Protocol::SummaryStatisticsBody responseBody;
@@ -267,8 +251,7 @@ TEST_F(TestSuit, QueryCommunicationStatisticsData)
     EXPECT_EQ(responseBody.summaryStatisticsItemList.size(), 2); // item number = 2
 }
 
-TEST_F(TestSuit, QueryUnitCounterData)
-{
+TEST_F(TestSuit, QueryUnitCounterData) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::UnitCounterParams requestParams;
     std::vector<Dic::Protocol::UnitCounterData> unitData;
@@ -279,12 +262,11 @@ TEST_F(TestSuit, QueryUnitCounterData)
     requestParams.startTime = STARTTIME;
     requestParams.endTime = ENDTIME;
     database->QueryUnitCounter(requestParams, 0, unitData);
-    EXPECT_EQ(unitData.size(), 2);                         // unit data size = 2
+    EXPECT_EQ(unitData.size(), 2); // unit data size = 2
     EXPECT_EQ(unitData[0].timestamp, 1695115378653323500); // timestamp = 1695115378653323500
 }
 
-TEST_F(TestSuit, QueryFlowCategoryEvents)
-{
+TEST_F(TestSuit, QueryFlowCategoryEvents) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -310,15 +292,14 @@ TEST_F(TestSuit, QueryFlowCategoryEvents)
     EXPECT_EQ(flowDetailList[0]->from.timestamp, expectFromTimestamp); // timestamp = 1695115378722143800
     EXPECT_EQ(flowDetailList[0]->from.pid, "140836602");
     EXPECT_EQ(flowDetailList[0]->from.depth, 0);
-    EXPECT_EQ(flowDetailList[0]->from.tid, EXPECT_FROM_TID);       // from.tid = 1408366
+    EXPECT_EQ(flowDetailList[0]->from.tid, EXPECT_FROM_TID); // from.tid = 1408366
     EXPECT_EQ(flowDetailList[0]->to.timestamp, expectToTimestamp); // to.timestamp = 1695115378722392500
     EXPECT_EQ(flowDetailList[0]->to.pid, "14083661400");
     EXPECT_EQ(flowDetailList[0]->to.depth, 0);
     EXPECT_EQ(flowDetailList[0]->to.tid, "0"); // to.tid = 0
 }
 
-TEST_F(TestSuit, QuerySliceDetailByNameListSuccess)
-{
+TEST_F(TestSuit, QuerySliceDetailByNameListSuccess) {
     auto renderEngine = GetRenderEngine();
     std::vector<CompeteSliceDomain> res =
         renderEngine->QuerySliceDetailByNameList("0", DataType::TEXT, "CANN", {"AscendCL@aclrtRecordEvent"});
@@ -326,8 +307,7 @@ TEST_F(TestSuit, QuerySliceDetailByNameListSuccess)
     EXPECT_EQ(res.size(), expectedSize);
 }
 
-TEST_F(TestSuit, QueryFlowCategoryEventsWithLockRange)
-{
+TEST_F(TestSuit, QueryFlowCategoryEventsWithLockRange) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -363,15 +343,14 @@ TEST_F(TestSuit, QueryFlowCategoryEventsWithLockRange)
     EXPECT_EQ(flowDetailList[0]->from.timestamp, expectFromTimestamp); // timestamp = 1695115378722143800
     EXPECT_EQ(flowDetailList[0]->from.pid, "140836602");
     EXPECT_EQ(flowDetailList[0]->from.depth, 0);
-    EXPECT_EQ(flowDetailList[0]->from.tid, EXPECT_FROM_TID);       // from.tid = 1408366
+    EXPECT_EQ(flowDetailList[0]->from.tid, EXPECT_FROM_TID); // from.tid = 1408366
     EXPECT_EQ(flowDetailList[0]->to.timestamp, expectToTimestamp); // to.timestamp = 1695115378722392500
     EXPECT_EQ(flowDetailList[0]->to.pid, "14083661400");
     EXPECT_EQ(flowDetailList[0]->to.depth, 0);
     EXPECT_EQ(flowDetailList[0]->to.tid, "0"); // to.tid = 0
 }
 
-TEST_F(TestSuit, QueryFlowCategoryList)
-{
+TEST_F(TestSuit, QueryFlowCategoryList) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     std::vector<std::string> categories;
     database->QueryFlowCategoryList(categories, "");
@@ -382,8 +361,7 @@ TEST_F(TestSuit, QueryFlowCategoryList)
     EXPECT_EQ(categories[thirdNumber], "async_task_queue");
 }
 
-TEST_F(TestSuit, QueryThreadsWithEmptyDepth)
-{
+TEST_F(TestSuit, QueryThreadsWithEmptyDepth) {
     // request parameters
     Dic::Protocol::UnitThreadsParams request;
     uint64_t STARTTIME = 1695115378734066176;
@@ -408,7 +386,7 @@ TEST_F(TestSuit, QueryThreadsWithEmptyDepth)
     request.metadataList.emplace_back(metadata);
     request.rankId = "0";
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
-    database->QueryThreads(request, response, minTimestamp, { 30 });
+    database->QueryThreads(request, response, minTimestamp, {30});
 
     EXPECT_EQ(response.emptyFlag, false);
     EXPECT_EQ(response.data.size(), size);
@@ -419,8 +397,7 @@ TEST_F(TestSuit, QueryThreadsWithEmptyDepth)
     EXPECT_EQ(response.data[0].selfTime, selfTime);
 }
 
-TEST_F(TestSuit, QueryThreadsWithDepth0)
-{
+TEST_F(TestSuit, QueryThreadsWithDepth0) {
     // request parameters
     Dic::Protocol::UnitThreadsParams request;
     uint64_t STARTTIME = 1695115378734066176;
@@ -447,7 +424,7 @@ TEST_F(TestSuit, QueryThreadsWithDepth0)
     request.metadataList.emplace_back(metadata);
     request.rankId = "0";
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
-    database->QueryThreads(request, response, minTimestamp, { 30 });
+    database->QueryThreads(request, response, minTimestamp, {30});
 
     EXPECT_EQ(response.emptyFlag, false);
     EXPECT_EQ(response.data.size(), size);
@@ -458,8 +435,7 @@ TEST_F(TestSuit, QueryThreadsWithDepth0)
     EXPECT_EQ(response.data[0].selfTime, selfTime);
 }
 
-TEST_F(TestSuit, QueryThreadDetail)
-{
+TEST_F(TestSuit, QueryThreadDetail) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -493,8 +469,7 @@ TEST_F(TestSuit, QueryThreadDetail)
     EXPECT_EQ(response.data.title, title);
 }
 
-TEST_F(TestSuit, QueryThreadTraces)
-{
+TEST_F(TestSuit, QueryThreadTraces) {
     Dic::Protocol::UnitThreadTracesParams request;
     uint64_t STARTTIME = 1695115378713851200;
     uint64_t ENDTIME = 1695115378728583500;
@@ -522,8 +497,7 @@ TEST_F(TestSuit, QueryThreadTraces)
     EXPECT_EQ(response.data[0].size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryThreadDetailWithShape)
-{
+TEST_F(TestSuit, QueryThreadDetailWithShape) {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -558,8 +532,7 @@ TEST_F(TestSuit, QueryThreadDetailWithShape)
     EXPECT_EQ(response.data.outputFormats, "FORMAT_ND");
 }
 
-TEST_F(TestSuit, QueryExtremumTimestamp)
-{
+TEST_F(TestSuit, QueryExtremumTimestamp) {
     uint64_t expectMin = 1695115378653323500;
     uint64_t expectMax = 1695115379212601200;
     bool expectResult = true;
@@ -573,8 +546,7 @@ TEST_F(TestSuit, QueryExtremumTimestamp)
     EXPECT_EQ(max, expectMax);
 }
 
-TEST_F(TestSuit, SearchSliceNameCountWithFuzzyMatch)
-{
+TEST_F(TestSuit, SearchSliceNameCountWithFuzzyMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     uint32_t expectCount = 91;
     SearchCountParams params;
@@ -584,8 +556,7 @@ TEST_F(TestSuit, SearchSliceNameCountWithFuzzyMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(TestSuit, SearchSliceNameCountWithExactMatch)
-{
+TEST_F(TestSuit, SearchSliceNameCountWithExactMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     uint32_t expectCount = 4;
     SearchCountParams params;
@@ -596,8 +567,7 @@ TEST_F(TestSuit, SearchSliceNameCountWithExactMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(TestSuit, SearchSliceNameCountWithCaseMatch)
-{
+TEST_F(TestSuit, SearchSliceNameCountWithCaseMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     uint32_t expectCount = 55;
     SearchCountParams params;
@@ -608,8 +578,7 @@ TEST_F(TestSuit, SearchSliceNameCountWithCaseMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(TestSuit, SearchSliceNameCountWithCaseAndExactMatch)
-{
+TEST_F(TestSuit, SearchSliceNameCountWithCaseAndExactMatch) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     uint32_t expectCount = 4;
     SearchCountParams params;
@@ -621,8 +590,7 @@ TEST_F(TestSuit, SearchSliceNameCountWithCaseAndExactMatch)
     EXPECT_EQ(count, expectCount);
 }
 
-TEST_F(TestSuit, SearchSliceName)
-{
+TEST_F(TestSuit, SearchSliceName) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::SearchSliceParams params;
     params.rankId = "0";
@@ -645,8 +613,7 @@ TEST_F(TestSuit, SearchSliceName)
     EXPECT_EQ(body.duration, expectDuration);
 }
 
-TEST_F(TestSuit, QueryThreadSameOperatorsDetails)
-{
+TEST_F(TestSuit, QueryThreadSameOperatorsDetails) {
     // request parameters
     Protocol::UnitThreadsOperatorsParams requestParam;
     uint64_t START_TIME = 1695115378713505000;
@@ -680,8 +647,7 @@ TEST_F(TestSuit, QueryThreadSameOperatorsDetails)
     EXPECT_EQ(responseBody.count, COUNT);
 }
 
-TEST_F(TestSuit, SearchAllSlicesDetailsWithFuzzyMatch)
-{
+TEST_F(TestSuit, SearchAllSlicesDetailsWithFuzzyMatch) {
     uint64_t START_TIME = 1695115378726082200;
     uint64_t DURATION = 3439;
     uint64_t PAGE_SIZE = 10;
@@ -702,8 +668,7 @@ TEST_F(TestSuit, SearchAllSlicesDetailsWithFuzzyMatch)
     EXPECT_EQ(body.count, expectCount);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4Python)
-{
+TEST_F(TestSuit, QueryEventsViewData4Python) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.processName = "Python (1408366)";
@@ -733,8 +698,7 @@ TEST_F(TestSuit, QueryEventsViewData4Python)
     EXPECT_EQ(ptr->threadId, "1408366");
 }
 
-TEST_F(TestSuit, QueryEventsViewData4PythonThread)
-{
+TEST_F(TestSuit, QueryEventsViewData4PythonThread) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "1408366";
@@ -766,8 +730,7 @@ TEST_F(TestSuit, QueryEventsViewData4PythonThread)
     EXPECT_EQ(ptr->threadId, "1408366");
 }
 
-TEST_F(TestSuit, QueryEventsViewData4CANN)
-{
+TEST_F(TestSuit, QueryEventsViewData4CANN) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "140836602";
@@ -797,8 +760,7 @@ TEST_F(TestSuit, QueryEventsViewData4CANN)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4CANNThread)
-{
+TEST_F(TestSuit, QueryEventsViewData4CANNThread) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "140836602";
@@ -831,8 +793,7 @@ TEST_F(TestSuit, QueryEventsViewData4CANNThread)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4Hardware)
-{
+TEST_F(TestSuit, QueryEventsViewData4Hardware) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "300";
@@ -862,8 +823,7 @@ TEST_F(TestSuit, QueryEventsViewData4Hardware)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4HardwareStream)
-{
+TEST_F(TestSuit, QueryEventsViewData4HardwareStream) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "300";
@@ -895,8 +855,7 @@ TEST_F(TestSuit, QueryEventsViewData4HardwareStream)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4HCCL)
-{
+TEST_F(TestSuit, QueryEventsViewData4HCCL) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "14083661400";
@@ -928,8 +887,7 @@ TEST_F(TestSuit, QueryEventsViewData4HCCL)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4Communication)
-{
+TEST_F(TestSuit, QueryEventsViewData4Communication) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "14083661400";
@@ -961,8 +919,7 @@ TEST_F(TestSuit, QueryEventsViewData4Communication)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4HCCLGroup)
-{
+TEST_F(TestSuit, QueryEventsViewData4HCCLGroup) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "14083661400";
@@ -996,8 +953,7 @@ TEST_F(TestSuit, QueryEventsViewData4HCCLGroup)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4CommunicationGroup)
-{
+TEST_F(TestSuit, QueryEventsViewData4CommunicationGroup) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "14083661400";
@@ -1031,8 +987,7 @@ TEST_F(TestSuit, QueryEventsViewData4CommunicationGroup)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4Overlap)
-{
+TEST_F(TestSuit, QueryEventsViewData4Overlap) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "14083661700";
@@ -1064,8 +1019,7 @@ TEST_F(TestSuit, QueryEventsViewData4Overlap)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryEventsViewData4OverlapComputing)
-{
+TEST_F(TestSuit, QueryEventsViewData4OverlapComputing) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.pid = "14083661700";
@@ -1099,8 +1053,7 @@ TEST_F(TestSuit, QueryEventsViewData4OverlapComputing)
     EXPECT_EQ(ptr->depth, 0);
 }
 
-TEST_F(TestSuit, QueryP2PCommunicationOpDataTest)
-{
+TEST_F(TestSuit, QueryP2PCommunicationOpDataTest) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     std::vector<Protocol::ThreadTraces> p2pOpData{};
     Protocol::ExtremumTimestamp range = {0, (uint64_t)INT64_MAX};
@@ -1111,8 +1064,7 @@ TEST_F(TestSuit, QueryP2PCommunicationOpDataTest)
     EXPECT_EQ(p2pOpData.at(0).cname, MARKER_SEND);
 }
 
-TEST_F(TestSuit, QuerySliceByTimepointAndNameTest)
-{
+TEST_F(TestSuit, QuerySliceByTimepointAndNameTest) {
     TextRepository repository;
     SliceQuery sliceQuery;
     sliceQuery.rankId = "0";
@@ -1142,48 +1094,45 @@ TEST_F(TestSuit, QuerySliceByTimepointAndNameTest)
 /**
  * 测试 Text 的 textRepo 转成五种 SliceInterface 的情况
  */
-TEST_F(TestSuit, TestDynamicCastOfMultiSliceInterface)
-{
+TEST_F(TestSuit, TestDynamicCastOfMultiSliceInterface) {
     TextRepository textRepo;
     // 转 IBaseSliceRepo 成功
-    const auto baseSliceRepo = dynamic_cast<IBaseSliceRepo*>(&textRepo);
+    const auto baseSliceRepo = dynamic_cast<IBaseSliceRepo *>(&textRepo);
     EXPECT_NE(baseSliceRepo, nullptr);
     // 转 IPythonFuncSlice 成功
-    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice*>(&textRepo);
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(&textRepo);
     EXPECT_NE(pythonFuncRepo, nullptr);
     // 转 IFindSliceByNameList 成功
-    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList*>(&textRepo);
+    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList *>(&textRepo);
     EXPECT_NE(findSliceByNameList, nullptr);
     // 转 IFindSliceByTimepointAndName 成功
-    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName*>(&textRepo);
+    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName *>(&textRepo);
     EXPECT_NE(findSliceByTimepointAndName, nullptr);
     // 转 ITextSlice 成功
-    const auto textSliceRepo = dynamic_cast<ITextSlice*>(&textRepo);
+    const auto textSliceRepo = dynamic_cast<ITextSlice *>(&textRepo);
     EXPECT_NE(textSliceRepo, nullptr);
 }
 
-TEST_F(TestSuit, QueryOverlapAnalysisDataTest)
-{
+TEST_F(TestSuit, QueryOverlapAnalysisDataTest) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     std::vector<Protocol::ThreadTraces> notOverlapData{};
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     requestParams.rankId = "0";
     int intDeviceId = 4;
     uint64_t totalTime = 0;
-    ParamsForOAData paramsForOaData = { "", "", 0 };
+    ParamsForOAData paramsForOaData = {"", "", 0};
     bool result = database->QueryOverlapAnalysisData(paramsForOaData, intDeviceId, notOverlapData, totalTime);
     EXPECT_EQ(result, false);
     EXPECT_EQ(notOverlapData.empty(), true);
-    ParamsForOAData newParamsForOaData = { TextSqlConstant::GetOverlapAnalysisTextSqlByType(requestParams),
-        OVERLAP_TYPES.at(2), 0 };
-    result = database->QueryOverlapAnalysisData(newParamsForOaData, intDeviceId,
-        notOverlapData, totalTime); // 2 for not overlap
+    ParamsForOAData newParamsForOaData = {
+        TextSqlConstant::GetOverlapAnalysisTextSqlByType(requestParams), OVERLAP_TYPES.at(2), 0};
+    result = database->QueryOverlapAnalysisData(
+        newParamsForOaData, intDeviceId, notOverlapData, totalTime); // 2 for not overlap
     EXPECT_EQ(result, true);
     EXPECT_EQ(notOverlapData.size(), 34); // 34
 }
 
-TEST_F(TestSuit, QueryCommunicationGroupMapTest)
-{
+TEST_F(TestSuit, QueryCommunicationGroupMapTest) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     std::map<std::string, std::string> groupMap{};
     int intDeviceId = 24;
@@ -1196,10 +1145,9 @@ TEST_F(TestSuit, QueryCommunicationGroupMapTest)
     EXPECT_EQ(groupMap.at("14083661400@17"), "Group 2 Communication");
 }
 
-TEST_F(TestSuit, QueryByteAlignmentAnalyzerRawDataTest)
-{
+TEST_F(TestSuit, QueryByteAlignmentAnalyzerRawDataTest) {
     auto database = dynamic_pointer_cast<TextTraceDatabase>(
-            Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0"));
+        Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0"));
     std::vector<std::pair<std::string, std::string>> rawData;
     bool result = database->QueryByteAlignmentAnalyzerRawData(rawData);
     ASSERT_TRUE(result);

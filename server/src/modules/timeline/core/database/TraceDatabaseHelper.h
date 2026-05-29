@@ -353,7 +353,7 @@ private:
         std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams);
     static std::unique_ptr<SqliteResultSet> QueryOverlapTracesSummary(const std::string& rankId, uint64_t minTimestamp,
         std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams);
-    static std::unique_ptr<SqliteResultSet> QueryCannTracesSummary(const std::string& rankId, uint64_t minTimestamp,
+    static std::unique_ptr<SqliteResultSet> QueryCANNTracesSummary(const std::string& rankId, uint64_t minTimestamp,
         std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams);
     static std::unique_ptr<SqliteResultSet> QueryMstxTracesSummary(const std::string& rankId, uint64_t minTimestamp,
         std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams);

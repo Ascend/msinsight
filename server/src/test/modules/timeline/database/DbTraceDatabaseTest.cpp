@@ -1882,7 +1882,7 @@ TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenPython) {
         "api.endNs <= ?  ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
 }
 
-TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenCann) {
+TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenCANN) {
     std::vector<Dic::Module::Timeline::TrackQuery> trackQueryVec;
     Dic::Module::Timeline::TrackQuery item;
     Dic::Module::Timeline::SearchAllSliceParams params;
@@ -2014,7 +2014,7 @@ TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenPython) {
         "AND api.startNs >= ? AND api.endNs <= ?  ORDER BY timestamp ASC LIMIT 1 OFFSET ?");
 }
 
-TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenCann) {
+TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenCANN) {
     std::vector<Dic::Module::Timeline::TrackQuery> trackQueryVec;
     Dic::Module::Timeline::TrackQuery item;
     std::string path = "lll";
@@ -2131,7 +2131,7 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenPython) {
         "name from PYTORCH_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) api join ids on id = api.name ");
 }
 
-TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenCann) {
+TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenCANN) {
     std::vector<Dic::Module::Timeline::TrackQuery> trackQueryVec;
     Dic::Module::Timeline::TrackQuery item;
     std::string path = "lll";

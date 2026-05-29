@@ -127,7 +127,7 @@ inline std::string GetHcclSameNameDetailSql(const std::string &tidListStr, const
                     tidListStr +
                     "   ) and timestamp+duration >= p.startTime AND timestamp <= p.endTime group by op.opId ");
 }
-inline std::string GetCannSameNameDetailSql(const std::string &pidListStr, const std::string &tidListStr) {
+inline std::string GetCANNSameNameDetailSql(const std::string &pidListStr, const std::string &tidListStr) {
     return " select startNs - p.minTime as timestamp, endNs - startNs as duration, depth, "
            "   main.ROWID as id, type as tid, globalTid as pid"
            " from CANN_API main join nameIds n on name = n.id join params p where globalTid in (" +
@@ -342,7 +342,7 @@ class DbSqlDefs {
         return sql;
     }
 
-    static std::string GetQueryCannApiLocationSql() {
+    static std::string GetQueryCANNApiLocationSql() {
         std::string sql = "with constValue as (select ? as minTime), "
                           "     rankIds as (select deviceId, globalPid from TASK group by globalPid) ";
         sql.append(" select connectionCats.cat, connectionCats.connectionId, api.ROWID as id, api.type as tid,"
