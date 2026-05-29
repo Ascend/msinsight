@@ -38,13 +38,14 @@ struct BandwidthContentionAnalyzerStatistics {
 };
 
 class BandwidthContentionAnalyzer : public CommunicationBaseAnalyzer {
-public:
+  public:
     BandwidthContentionAnalyzer() = default;
     ~BandwidthContentionAnalyzer() override = default;
-    bool QueryAdvisorData(const std::string& clusterPath) override;
+    bool QueryAdvisorData(const std::string &clusterPath) override;
     void ComputeStatistics() override;
     void AssembleAdvisor(CommunicationAdvisorInfo &info) override;
-protected:
+
+  protected:
     BandwidthContentionData data;
     std::vector<BandwidthContentionAnalyzerStatistics> statistics;
 };

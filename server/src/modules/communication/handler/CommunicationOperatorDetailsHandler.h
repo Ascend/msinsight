@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class CommunicationOperatorDetailsHandler : public CommunicationRequestHandler {
-public:
-    CommunicationOperatorDetailsHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_OPERATOR_DETAILS;
-    };
+  public:
+    CommunicationOperatorDetailsHandler() { command = Protocol::REQ_RES_COMMUNICATION_OPERATOR_DETAILS; };
     ~CommunicationOperatorDetailsHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

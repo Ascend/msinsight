@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class MatrixSortOpNamesHandler : public CommunicationRequestHandler {
-public:
-    MatrixSortOpNamesHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_SORT_OP;
-    }
+  public:
+    MatrixSortOpNamesHandler() { command = Protocol::REQ_RES_COMMUNICATION_SORT_OP; }
     ~MatrixSortOpNamesHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

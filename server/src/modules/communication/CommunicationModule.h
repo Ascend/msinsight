@@ -24,7 +24,7 @@
 namespace Dic {
 namespace Module {
 class CommunicationModule : public BaseModule {
-public:
+  public:
     CommunicationModule();
     ~CommunicationModule() override;
 

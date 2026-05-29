@@ -27,16 +27,16 @@
 namespace Dic {
 namespace Module {
 namespace Timeline {
-    class CommonRapidHandler {
-    protected:
-        bool isOldData = false;
-        std::unordered_map<std::string, CommGroupParallelInfo> groupIdsMap;
-        uint64_t groupIdIndex = 0;
-        std::shared_ptr<TextClusterDatabase> database;
-        std::string GenerateAndGetGroupInfoId(const std::string &rankSet, const std::string &groupIdHash);
-        void InitGroupInfoMap();
-        bool SaveGroupInfoMap();
-    };
+class CommonRapidHandler {
+  protected:
+    bool isOldData = false;
+    std::unordered_map<std::string, CommGroupParallelInfo> groupIdsMap;
+    uint64_t groupIdIndex = 0;
+    std::shared_ptr<TextClusterDatabase> database;
+    std::string GenerateAndGetGroupInfoId(const std::string &rankSet, const std::string &groupIdHash);
+    void InitGroupInfoMap();
+    bool SaveGroupInfoMap();
+};
 }
 }
 }

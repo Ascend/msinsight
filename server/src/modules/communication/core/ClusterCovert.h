@@ -26,9 +26,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class ClusterCovert {
-public:
-    static inline Protocol::MatrixData CovertMatrixDoToInfo(const MatrixInfoDo &matrixDo)
-    {
+  public:
+    static inline Protocol::MatrixData CovertMatrixDoToInfo(const MatrixInfoDo &matrixDo) {
         Protocol::MatrixData matrix;
         matrix.transitSize = matrixDo.transitSize;
         matrix.transitTime = matrixDo.transitTime;
@@ -38,8 +37,7 @@ public:
         return matrix;
     }
 
-    static inline Protocol::OperatorTimeItem CovertDoToOperatorTime(const OperatorTimeDo &operatorTimeDo)
-    {
+    static inline Protocol::OperatorTimeItem CovertDoToOperatorTime(const OperatorTimeDo &operatorTimeDo) {
         Protocol::OperatorTimeItem operatorTimeItem;
         operatorTimeItem.operatorName = operatorTimeDo.operatorName;
         operatorTimeItem.startTime = operatorTimeDo.startTime;
@@ -47,8 +45,7 @@ public:
         return operatorTimeItem;
     }
 
-    static inline Protocol::DurationData CovertDoToDuration(const DurationDo &durationDo)
-    {
+    static inline Protocol::DurationData CovertDoToDuration(const DurationDo &durationDo) {
         Protocol::DurationData duration;
         duration.startTime = durationDo.startTime;
         duration.elapseTime = durationDo.elapseTime;

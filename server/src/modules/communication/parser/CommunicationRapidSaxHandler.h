@@ -32,9 +32,10 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 
-class CommunicationRapidSaxHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>,
-        CommunicationRapidSaxHandler>, CommonRapidHandler {
-public:
+class CommunicationRapidSaxHandler
+    : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, CommunicationRapidSaxHandler>,
+      CommonRapidHandler {
+  public:
     explicit CommunicationRapidSaxHandler(std::shared_ptr<TextClusterDatabase> database, const std::string &uniqueKey);
     ~CommunicationRapidSaxHandler();
     bool Null();
@@ -42,18 +43,19 @@ public:
     bool Int(int i);
     bool Uint(unsigned u);
     bool Int64(int64_t i);
-    bool Uint64(uint64_t u) ;
-    bool Double(double d) ;
-    bool RawNumber(const Ch* str, SizeType len, bool copy);
-    bool String(const char* str, rapidjson::SizeType length, bool copy) ;
+    bool Uint64(uint64_t u);
+    bool Double(double d);
+    bool RawNumber(const Ch *str, SizeType len, bool copy);
+    bool String(const char *str, rapidjson::SizeType length, bool copy);
     bool StartObject();
-    bool Key(const char* str, rapidjson::SizeType length, bool copy) ;
+    bool Key(const char *str, rapidjson::SizeType length, bool copy);
     bool EndObject(rapidjson::SizeType memberCount);
     bool StartArray();
     bool EndArray(rapidjson::SizeType elementCount);
     void GetBandwidth();
     void GetTimeInfo();
-private:
+
+  private:
     std::string currentKey;
     std::string rankId;
     std::string stepId;

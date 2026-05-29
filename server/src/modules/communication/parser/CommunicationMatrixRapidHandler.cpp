@@ -25,78 +25,66 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
-CommunicationMatrixRapidHandler::CommunicationMatrixRapidHandler(std::shared_ptr<TextClusterDatabase> database,
-    const std::string &uniqueKey) : uniqueKey(uniqueKey)
-{
+CommunicationMatrixRapidHandler::CommunicationMatrixRapidHandler(
+    std::shared_ptr<TextClusterDatabase> database, const std::string &uniqueKey)
+    : uniqueKey(uniqueKey) {
     this->database = database;
     currentObject.SetObject();
 }
 
 CommunicationMatrixRapidHandler::~CommunicationMatrixRapidHandler() {}
 
-bool CommunicationMatrixRapidHandler::Null()
-{
-    return true;
-}
+bool CommunicationMatrixRapidHandler::Null() { return true; }
 
-bool CommunicationMatrixRapidHandler::Bool(bool bl)
-{
+bool CommunicationMatrixRapidHandler::Bool(bool bl) {
     rapidjson::Value tempKey(currentKey.c_str(), currentObject.GetAllocator());
     currentObject.AddMember(tempKey, bl, currentObject.GetAllocator());
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::Int(int i)
-{
+bool CommunicationMatrixRapidHandler::Int(int i) {
     rapidjson::Value tempKey(currentKey.c_str(), currentObject.GetAllocator());
     currentObject.AddMember(tempKey, i, currentObject.GetAllocator());
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::Uint(unsigned int uint)
-{
+bool CommunicationMatrixRapidHandler::Uint(unsigned int uint) {
     rapidjson::Value tempKey(currentKey.c_str(), currentObject.GetAllocator());
     currentObject.AddMember(tempKey, uint, currentObject.GetAllocator());
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::Int64(int64_t i)
-{
+bool CommunicationMatrixRapidHandler::Int64(int64_t i) {
     rapidjson::Value tempKey(currentKey.c_str(), currentObject.GetAllocator());
     currentObject.AddMember(tempKey, i, currentObject.GetAllocator());
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::Uint64(uint64_t u)
-{
+bool CommunicationMatrixRapidHandler::Uint64(uint64_t u) {
     rapidjson::Value tempKey(currentKey.c_str(), currentObject.GetAllocator());
     currentObject.AddMember(tempKey, u, currentObject.GetAllocator());
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::Double(double doubleVal)
-{
+bool CommunicationMatrixRapidHandler::Double(double doubleVal) {
     rapidjson::Value tempKey(currentKey.c_str(), currentObject.GetAllocator());
     currentObject.AddMember(tempKey, doubleVal, currentObject.GetAllocator());
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::String(const char *str, rapidjson::SizeType length, bool copy)
-{
+bool CommunicationMatrixRapidHandler::String(const char *str, rapidjson::SizeType length, bool copy) {
     rapidjson::Value tempKey(currentKey.c_str(), currentObject.GetAllocator());
     rapidjson::Value val(str, currentObject.GetAllocator());
     currentObject.AddMember(tempKey, val, currentObject.GetAllocator());
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::StartObject()
-{
+bool CommunicationMatrixRapidHandler::StartObject() {
     currentDepth++;
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::Key(const char *str, rapidjson::SizeType length, bool copy)
-{
+bool CommunicationMatrixRapidHandler::Key(const char *str, rapidjson::SizeType length, bool copy) {
     currentKey = str;
     if (currentDepth == groupDepth) {
         // groupId内容可能为乱序，需要重新进行排序
@@ -107,21 +95,24 @@ bool CommunicationMatrixRapidHandler::Key(const char *str, rapidjson::SizeType l
             groupId = StringUtil::JoinNumberStrWithParenthesesByOrder(rankList);
         }
     }
-    if (currentDepth == stepDepth) { iterationId = str; }
-    if (currentDepth == opNameDepth) { tempOpName = str; }
-    if (currentDepth == ranksDepth) { tempRank = str; }
+    if (currentDepth == stepDepth) {
+        iterationId = str;
+    }
+    if (currentDepth == opNameDepth) {
+        tempOpName = str;
+    }
+    if (currentDepth == ranksDepth) {
+        tempRank = str;
+    }
     return true;
 }
 
-std::string CommunicationMatrixRapidHandler::GenerateMatrixKey(const CommunicationMatrixInfo &matrixInfo) const
-{
+std::string CommunicationMatrixRapidHandler::GenerateMatrixKey(const CommunicationMatrixInfo &matrixInfo) const {
     return StringUtil::FormatString("{}_{}_{}_{}_{}", matrixInfo.iterationId, std::to_string(matrixInfo.srcRank),
-                                    std::to_string(matrixInfo.dstRank), matrixInfo.transportType,
-                                    matrixInfo.groupName);
+        std::to_string(matrixInfo.dstRank), matrixInfo.transportType, matrixInfo.groupName);
 }
 
-void CommunicationMatrixRapidHandler::StatTotalOpInfo(const CommunicationMatrixInfo &matrixInfo)
-{
+void CommunicationMatrixRapidHandler::StatTotalOpInfo(const CommunicationMatrixInfo &matrixInfo) {
     if (matrixInfo.groupName == "" || matrixInfo.sortOp == "Total Op Info" ||
         !StringUtil::Contains(matrixInfo.sortOp, "total")) {
         return;
@@ -134,14 +125,12 @@ void CommunicationMatrixRapidHandler::StatTotalOpInfo(const CommunicationMatrixI
             matrixTotalOpInfoMap[key].transitSize / matrixTotalOpInfoMap[key].transitTime, 4);
     } else {
         matrixTotalOpInfoMap[key] = {matrixInfo.groupId, matrixInfo.iterationId, "Total Op Info", "",
-                                     matrixInfo.groupName, matrixInfo.srcRank, matrixInfo.dstRank,
-                                     matrixInfo.transportType, matrixInfo.transitSize, matrixInfo.transitTime,
-                                     matrixInfo.bandwidth};
+            matrixInfo.groupName, matrixInfo.srcRank, matrixInfo.dstRank, matrixInfo.transportType,
+            matrixInfo.transitSize, matrixInfo.transitTime, matrixInfo.bandwidth};
     }
 }
 
-bool CommunicationMatrixRapidHandler::EndObject(rapidjson::SizeType memberCount)
-{
+bool CommunicationMatrixRapidHandler::EndObject(rapidjson::SizeType memberCount) {
     if (ParserStatusManager::Instance().IsClusterParserFinalState(uniqueKey)) {
         return false;
     }
@@ -165,7 +154,7 @@ bool CommunicationMatrixRapidHandler::EndObject(rapidjson::SizeType memberCount)
     }
     if (currentDepth == 0) {
         if (isOldData) {
-            for (auto &item: matrixTotalOpInfoMap) {
+            for (auto &item : matrixTotalOpInfoMap) {
                 database->InsertCommunicationMatrix(item.second);
             }
         }
@@ -176,18 +165,11 @@ bool CommunicationMatrixRapidHandler::EndObject(rapidjson::SizeType memberCount)
     return true;
 }
 
-bool CommunicationMatrixRapidHandler::StartArray()
-{
-    return true;
-}
+bool CommunicationMatrixRapidHandler::StartArray() { return true; }
 
-bool CommunicationMatrixRapidHandler::EndArray(rapidjson::SizeType elementCount)
-{
-    return true;
-}
+bool CommunicationMatrixRapidHandler::EndArray(rapidjson::SizeType elementCount) { return true; }
 
-CommunicationMatrixInfo CommunicationMatrixRapidHandler::MapToMatrixInfo(const rapidjson::Document &json)
-{
+CommunicationMatrixInfo CommunicationMatrixRapidHandler::MapToMatrixInfo(const rapidjson::Document &json) {
     CommunicationMatrixInfo matrixInfo;
     matrixInfo.iterationId = iterationId;
     matrixInfo.iterationId = iterationId.length() > stepSubLen ? iterationId.substr(stepSubLen) : iterationId;

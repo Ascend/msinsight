@@ -29,10 +29,8 @@ namespace Communication {
 using namespace Dic;
 using namespace Dic::Server;
 
-bool CommunicationAdvisorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto &request =
-        dynamic_cast<Protocol::CommunicationAdvisorRequest &>(*requestPtr);
+bool CommunicationAdvisorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<Protocol::CommunicationAdvisorRequest &>(*requestPtr);
     std::unique_ptr<Protocol::CommunicationAdvisorResponse> responsePtr =
         std::make_unique<Protocol::CommunicationAdvisorResponse>();
     CommunicationAdvisorResponse &response = *responsePtr;

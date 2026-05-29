@@ -23,8 +23,7 @@
 namespace Dic {
 namespace Module {
 namespace Communication {
-bool ByteAlignmentAnalyzer::QueryAdvisorData(const std::string &clusterPath)
-{
+bool ByteAlignmentAnalyzer::QueryAdvisorData(const std::string &clusterPath) {
     std::vector<IterationsOrRanksObject> rankList;
     auto communicationDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (!communicationDatabase || !communicationDatabase->QueryRanksHandler(rankList)) {
@@ -47,8 +46,7 @@ bool ByteAlignmentAnalyzer::QueryAdvisorData(const std::string &clusterPath)
     return true;
 }
 
-void ByteAlignmentAnalyzer::ComputeStatistics()
-{
+void ByteAlignmentAnalyzer::ComputeStatistics() {
     for (const auto &itemsForEachRank : data) {
         for (const auto &item : itemsForEachRank.second) {
             if (Check(item)) {
@@ -61,8 +59,7 @@ void ByteAlignmentAnalyzer::ComputeStatistics()
     }
 }
 
-bool ByteAlignmentAnalyzer::Check(const Dic::Module::CommunicationLargeOperatorInfo &item)
-{
+bool ByteAlignmentAnalyzer::Check(const Dic::Module::CommunicationLargeOperatorInfo &item) {
     bool flag = false;
     for (const auto &memcpyItem : item.memcpyTasks) {
         if (memcpyItem.transportType != "SDMA" || memcpyItem.linkType == "ON_CHIP" ||
@@ -85,8 +82,7 @@ bool ByteAlignmentAnalyzer::Check(const Dic::Module::CommunicationLargeOperatorI
     return flag;
 }
 
-void ByteAlignmentAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info)
-{
+void ByteAlignmentAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info) {
     info.name = BYTEALIGNMENT_ANALYZER_TITLE;
     info.statistics.insert({"rankId", {}});
     info.statistics.insert({"name", {}});

@@ -27,11 +27,10 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 using namespace Dic::Server;
-bool CommunicationOperatorListsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto& request = dynamic_cast<DurationListRequest&>(*requestPtr);
+bool CommunicationOperatorListsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<DurationListRequest &>(*requestPtr);
     std::unique_ptr<OperatorListsResponse> responsePtr = std::make_unique<OperatorListsResponse>();
-    OperatorListsResponse& response = *responsePtr;
+    OperatorListsResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     // check request parameters
     std::string errorMsg;
@@ -44,6 +43,6 @@ bool CommunicationOperatorListsHandler::HandleRequest(std::unique_ptr<Protocol::
     SendResponse(std::move(responsePtr), true);
     return true;
 }
-}  // namespace Communication
-}  // namespace Module
-}  // namespace Dic
+} // namespace Communication
+} // namespace Module
+} // namespace Dic

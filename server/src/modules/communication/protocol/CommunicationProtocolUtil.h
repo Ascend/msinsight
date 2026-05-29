@@ -40,9 +40,10 @@ template <> std::optional<document_t> ToResponseJson<OperatorListsResponse>(cons
 template <> std::optional<document_t> ToResponseJson<MatrixGroupResponse>(const MatrixGroupResponse &response);
 template <> std::optional<document_t> ToResponseJson<MatrixListResponse>(const MatrixListResponse &response);
 
-template <> std::optional<document_t> ToResponseJson<CommunicationAdvisorResponse>(
-    const CommunicationAdvisorResponse &response);
-template <> std::optional<document_t> ToResponseJson<CommunicationSlowRankAnalysisResponse>(
+template <>
+std::optional<document_t> ToResponseJson<CommunicationAdvisorResponse>(const CommunicationAdvisorResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<CommunicationSlowRankAnalysisResponse>(
     const CommunicationSlowRankAnalysisResponse &response);
 std::optional<document_t> MatrixDataToJson(const MatrixData &matrixData, Document::AllocatorType &allocator);
 

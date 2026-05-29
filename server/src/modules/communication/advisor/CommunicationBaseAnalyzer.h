@@ -27,7 +27,7 @@ namespace Communication {
 using namespace Dic::Protocol;
 
 class CommunicationBaseAnalyzer {
-public:
+  public:
     CommunicationBaseAnalyzer() = default;
     virtual ~CommunicationBaseAnalyzer() = default;
     bool GenerateAdvisor(CommunicationAdvisorInfo &info, const std::string &clusterPath);

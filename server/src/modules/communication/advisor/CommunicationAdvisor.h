@@ -27,13 +27,13 @@ namespace Communication {
 using namespace Protocol;
 
 class CommunicationAdvisor {
-public:
+  public:
     CommunicationAdvisor() = default;
     ~CommunicationAdvisor() = default;
-    void GenerateAdvisor(std::vector<CommunicationAdvisorInfo> &items,
-            const std::string &clusterPath);
+    void GenerateAdvisor(std::vector<CommunicationAdvisorInfo> &items, const std::string &clusterPath);
     void Register();
-protected:
+
+  protected:
     std::map<std::string, std::unique_ptr<CommunicationBaseAnalyzer>> advisorMap;
 };
 } // end of namespace Communication

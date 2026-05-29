@@ -25,11 +25,8 @@
 
 namespace Dic::Module::Communication {
 class CommunicationSlowRankAnalysisHandler : public CommunicationRequestHandler {
-public:
-    CommunicationSlowRankAnalysisHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_DURATION_SLOW_RANK_LIST;
-    }
+  public:
+    CommunicationSlowRankAnalysisHandler() { command = Protocol::REQ_RES_COMMUNICATION_DURATION_SLOW_RANK_LIST; }
     ~CommunicationSlowRankAnalysisHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

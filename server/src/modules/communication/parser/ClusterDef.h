@@ -133,8 +133,8 @@ const std::string MINDSPEED_ULYSSES_CP_ALG = "ulysses_cp_algo";
 const std::string MINDSPEED_MEGATRON_CP_ALG = "megatron_cp_algo";
 const std::string MINDSPEED_HYBIRD_CP_ALG = "hybird_cp_algo";
 const std::string MINDSPEED_HYBIRD_ADAPTIVE_CP_ALG = "hybird_adaptive_cp_algo";
-const std::vector<std::string> MINDSPEED_CP_ALGORITHM_ALLOWED = {MINDSPEED_ULYSSES_CP_ALG, MINDSPEED_MEGATRON_CP_ALG,
-    MINDSPEED_HYBIRD_CP_ALG, MINDSPEED_HYBIRD_ADAPTIVE_CP_ALG};
+const std::vector<std::string> MINDSPEED_CP_ALGORITHM_ALLOWED = {
+    MINDSPEED_ULYSSES_CP_ALG, MINDSPEED_MEGATRON_CP_ALG, MINDSPEED_HYBIRD_CP_ALG, MINDSPEED_HYBIRD_ADAPTIVE_CP_ALG};
 // 并行策略层次化展开，域维度
 const std::string DIMENSIONS_DP = "ep-dp";
 const std::string DIMENSIONS_PP = "ep-dp-pp";
@@ -166,7 +166,7 @@ struct ParallelStrategyConfigForMindSpeed {
     uint32_t ulyssesDegree = 1;
     uint32_t winSize = 1;
 };
-bool operator==(const ParallelStrategyConfigForMindSpeed& lhs, const ParallelStrategyConfigForMindSpeed& rhs);
+bool operator==(const ParallelStrategyConfigForMindSpeed &lhs, const ParallelStrategyConfigForMindSpeed &rhs);
 
 struct ParallelStrategyConfig {
     std::string algorithm = MEGATRON_LM_TP_CP_EP_DP_PP_ALG;
@@ -180,14 +180,14 @@ struct ParallelStrategyConfig {
     ParallelStrategyConfigForMindSpeed configForMindSpeed;
     bool CheckParams(std::string &errorMsg) const;
     bool CheckBaseParams(std::string &errorMsg) const;
-    bool CheckParamForMindSpeed(std::string& errorMsg) const;
-    bool CheckWinSizeForMindSpeed(std::string& errorMsg) const;
-    bool CheckTp2DSizeForMindSpeed(std::string& errorMsg) const;
-    bool CheckParamForMegatron(std::string& errorMsg) const;
-    bool CheckParamForMindIELLM(std::string& errorMsg) const;
-    bool CheckParamForVLLM(std::string& errorMsg) const;
+    bool CheckParamForMindSpeed(std::string &errorMsg) const;
+    bool CheckWinSizeForMindSpeed(std::string &errorMsg) const;
+    bool CheckTp2DSizeForMindSpeed(std::string &errorMsg) const;
+    bool CheckParamForMegatron(std::string &errorMsg) const;
+    bool CheckParamForMindIELLM(std::string &errorMsg) const;
+    bool CheckParamForVLLM(std::string &errorMsg) const;
 };
-bool operator==(const ParallelStrategyConfig& lhs, const ParallelStrategyConfig& rhs);
+bool operator==(const ParallelStrategyConfig &lhs, const ParallelStrategyConfig &rhs);
 
 struct ClusterBaseInfo {
     std::string filePath;
@@ -246,21 +246,15 @@ const std::string VALUE_STAGE_TIME = "Stage";
 const std::string VALUE_BUBBLE_TIME = "Bubble";
 const std::string VALUE_NPU_TIME = "Computing + Communication(Not Overlapped) + Free";
 
-const std::vector<std::string> VALID_STEP_STATISTICS_HEADERS = {
-    FIELD_STEP, FIELD_TYPE, FIELD_INDEX, FIELD_COMPUTING, FIELD_COMMUNICATION_NOT_OVERLAPPED, FIELD_OVERLAPPED,
-    FIELD_COMMUNICATION, FIELD_FREE, FIELD_STAGE, FIELD_BUBBLE, FIELD_COMMUNICATION_NOT_OVERLAPPED_AND_RECEIVE
-};
-const std::vector<std::string> PARALLEL_STRATEGY_HEADERS = {
-    FIELD_DP_INDEX, FIELD_PP_INDEX, FIELD_TP_INDEX
-};
+const std::vector<std::string> VALID_STEP_STATISTICS_HEADERS = {FIELD_STEP, FIELD_TYPE, FIELD_INDEX, FIELD_COMPUTING,
+    FIELD_COMMUNICATION_NOT_OVERLAPPED, FIELD_OVERLAPPED, FIELD_COMMUNICATION, FIELD_FREE, FIELD_STAGE, FIELD_BUBBLE,
+    FIELD_COMMUNICATION_NOT_OVERLAPPED_AND_RECEIVE};
+const std::vector<std::string> PARALLEL_STRATEGY_HEADERS = {FIELD_DP_INDEX, FIELD_PP_INDEX, FIELD_TP_INDEX};
 
 struct Position {
     uint32_t x = 0;
     uint32_t y = 0;
-    bool operator==(const Position& other) const
-    {
-        return x == other.x && y == other.y;
-    }
+    bool operator==(const Position &other) const { return x == other.x && y == other.y; }
 };
 
 struct IndicatorAttr {
@@ -290,12 +284,11 @@ struct Connection {
     // 界面上一条连线对应多个通信域
     std::vector<std::string> communicationGroups;
     Connection() = default;
-    Connection(std::string type, const std::vector<uint32_t>& indexes,
-        const std::vector<std::string>& communicationGroups) : indexes(indexes), type(std::move(type)),
-        communicationGroups(communicationGroups) {}
-    Connection(const Connection& other) = default;
-    Connection& operator=(const Connection& other)
-    {
+    Connection(
+        std::string type, const std::vector<uint32_t> &indexes, const std::vector<std::string> &communicationGroups)
+        : indexes(indexes), type(std::move(type)), communicationGroups(communicationGroups) {}
+    Connection(const Connection &other) = default;
+    Connection &operator=(const Connection &other) {
         if (this == &other) {
             return *this;
         }

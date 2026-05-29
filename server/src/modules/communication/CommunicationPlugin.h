@@ -23,14 +23,10 @@
 #include "CommunicationProtocol.h"
 namespace Dic::Module::Communication {
 class CommunicationPlugin : public Core::BasePlugin {
-public:
+  public:
     CommunicationPlugin() : Core::BasePlugin(MODULE_COMMUNICATION) {};
-    std::unique_ptr<Module::BaseModule> GetModule() override
-    {
-        return std::make_unique<CommunicationModule>();
-    }
-    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override
-    {
+    std::unique_ptr<Module::BaseModule> GetModule() override { return std::make_unique<CommunicationModule>(); }
+    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override {
         return std::make_unique<CommunicationProtocol>();
     }
 };

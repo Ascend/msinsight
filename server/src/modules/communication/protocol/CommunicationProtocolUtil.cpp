@@ -24,20 +24,18 @@ namespace Protocol {
 using namespace Dic::Server;
 using namespace rapidjson;
 #pragma region <<Response to json>>
-template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response)
-{
+template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESPONSE &response) {
     ServerLog::Warn("ToResponseJson is not implemented. command:", response.command);
     return std::nullopt;
 }
 
-template <> std::optional<document_t> ToResponseJson<OperatorDetailsResponse>(const OperatorDetailsResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<OperatorDetailsResponse>(const OperatorDetailsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t allOperators(kArrayType);
-    for (const OperatorItem& operatorItem : response.body.allOperators) {
+    for (const OperatorItem &operatorItem : response.body.allOperators) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "operatorName", operatorItem.operatorName, allocator);
         JsonUtil::AddMember(itemJson, "startTime", operatorItem.startTime, allocator);
@@ -46,8 +44,7 @@ template <> std::optional<document_t> ToResponseJson<OperatorDetailsResponse>(co
         JsonUtil::AddMember(itemJson, "synchronizationTime", operatorItem.synchronizationTime, allocator);
         JsonUtil::AddMember(itemJson, "waitTime", operatorItem.waitTime, allocator);
         JsonUtil::AddMember(itemJson, "idleTime", operatorItem.idleTime, allocator);
-        JsonUtil::AddMember(itemJson, "synchronizationTimeRatio",
-                            operatorItem.synchronizationTimeRatio, allocator);
+        JsonUtil::AddMember(itemJson, "synchronizationTimeRatio", operatorItem.synchronizationTimeRatio, allocator);
         JsonUtil::AddMember(itemJson, "waitTimeRatio", operatorItem.waitTimeRatio, allocator);
         JsonUtil::AddMember(itemJson, "sdmaBw", operatorItem.sdmaBw, allocator);
         JsonUtil::AddMember(itemJson, "rdmaBw", operatorItem.rdmaBw, allocator);
@@ -61,8 +58,7 @@ template <> std::optional<document_t> ToResponseJson<OperatorDetailsResponse>(co
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<DistributionResponse>(const DistributionResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<DistributionResponse>(const DistributionResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -72,14 +68,13 @@ template <> std::optional<document_t> ToResponseJson<DistributionResponse>(const
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<BandwidthDataResponse>(const BandwidthDataResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<BandwidthDataResponse>(const BandwidthDataResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t items(kArrayType);
-    for (const BandwidthDataItem& bandwidthDataItem : response.body.items) {
+    for (const BandwidthDataItem &bandwidthDataItem : response.body.items) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "transportType", bandwidthDataItem.transportType, allocator);
         JsonUtil::AddMember(itemJson, "transitSize", bandwidthDataItem.transitSize, allocator);
@@ -93,19 +88,17 @@ template <> std::optional<document_t> ToResponseJson<BandwidthDataResponse>(cons
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> IterOrRanksInfoToJson(const std::vector<IterationsOrRanksObject> &objs,
-                                                Document::AllocatorType &allocator)
-{
+std::optional<document_t> IterOrRanksInfoToJson(
+    const std::vector<IterationsOrRanksObject> &objs, Document::AllocatorType &allocator) {
     document_t iterationIdList(kArrayType);
-    for (const IterationsOrRanksObject& ranksObject : objs) {
+    for (const IterationsOrRanksObject &ranksObject : objs) {
         iterationIdList.PushBack(json_t().SetString(ranksObject.iterationOrRankId.c_str(), allocator), allocator);
     }
     return std::optional<document_t>(std::move(iterationIdList));
 }
 
 template <>
-std::optional<document_t> ToResponseJson<IterationsOrRanksResponse>(const IterationsOrRanksResponse &response)
-{
+std::optional<document_t> ToResponseJson<IterationsOrRanksResponse>(const IterationsOrRanksResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -119,14 +112,13 @@ std::optional<document_t> ToResponseJson<IterationsOrRanksResponse>(const Iterat
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }
-template <> std::optional<document_t> ToResponseJson<OperatorNamesResponse>(const OperatorNamesResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<OperatorNamesResponse>(const OperatorNamesResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t operatorName(kArrayType);
-    for (const OperatorNamesObject& object : response.body) {
+    for (const OperatorNamesObject &object : response.body) {
         operatorName.PushBack(json_t().SetString(object.operatorName.c_str(), allocator), allocator);
     }
     JsonUtil::AddMember(body, "operatorName", operatorName, allocator);
@@ -135,14 +127,13 @@ template <> std::optional<document_t> ToResponseJson<OperatorNamesResponse>(cons
 }
 
 template <>
-std::optional<document_t> ToResponseJson<MatrixSortOpNamesResponse>(const MatrixSortOpNamesResponse &response)
-{
+std::optional<document_t> ToResponseJson<MatrixSortOpNamesResponse>(const MatrixSortOpNamesResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t operatorName(kArrayType);
-    for (const OperatorNamesObject& object : response.body) {
+    for (const OperatorNamesObject &object : response.body) {
         operatorName.PushBack(json_t().SetString(object.operatorName.c_str(), allocator), allocator);
     }
     JsonUtil::AddMember(body, "operatorName", operatorName, allocator);
@@ -150,8 +141,7 @@ std::optional<document_t> ToResponseJson<MatrixSortOpNamesResponse>(const Matrix
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> DurationDataToJson(const DurationData &durationData, Document::AllocatorType &allocator)
-{
+std::optional<document_t> DurationDataToJson(const DurationData &durationData, Document::AllocatorType &allocator) {
     document_t res(kObjectType);
     JsonUtil::AddMember(res, "startTime", durationData.startTime, allocator);
     JsonUtil::AddMember(res, "elapseTime", durationData.elapseTime, allocator);
@@ -166,14 +156,13 @@ std::optional<document_t> DurationDataToJson(const DurationData &durationData, D
     return std::optional<document_t>(std::move(res));
 }
 
-template <> std::optional<document_t> ToResponseJson<DurationResponse>(const DurationResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<DurationResponse>(const DurationResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t items(kArrayType);
-    for (const Duration& duration : response.body.durationList) {
+    for (const Duration &duration : response.body.durationList) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "rankId", duration.rankId, allocator);
         JsonUtil::AddMember(itemJson, "dbPath", duration.dbPath, allocator);
@@ -188,7 +177,7 @@ template <> std::optional<document_t> ToResponseJson<DurationResponse>(const Dur
         items.PushBack(itemJson, allocator);
     }
     json_t adviceJson(kArrayType);
-    for (const auto& item : response.body.bwStatistics) {
+    for (const auto &item : response.body.bwStatistics) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "type", item.type, allocator);
         JsonUtil::AddMember(itemJson, "max", item.maxBw, allocator);
@@ -204,9 +193,8 @@ template <> std::optional<document_t> ToResponseJson<DurationResponse>(const Dur
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> OpTimeListToJson(const std::vector<OperatorTimeItem> &opTimeList,
-                                           Document::AllocatorType &allocator)
-{
+std::optional<document_t> OpTimeListToJson(
+    const std::vector<OperatorTimeItem> &opTimeList, Document::AllocatorType &allocator) {
     document_t res(kArrayType);
     for (auto item : opTimeList) {
         json_t opJson(kObjectType);
@@ -218,8 +206,7 @@ std::optional<document_t> OpTimeListToJson(const std::vector<OperatorTimeItem> &
     return std::optional<document_t>(std::move(res));
 }
 
-template <> std::optional<document_t> ToResponseJson<OperatorListsResponse>(const OperatorListsResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<OperatorListsResponse>(const OperatorListsResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -244,8 +231,7 @@ template <> std::optional<document_t> ToResponseJson<OperatorListsResponse>(cons
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<MatrixGroupResponse>(const MatrixGroupResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<MatrixGroupResponse>(const MatrixGroupResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -267,8 +253,7 @@ template <> std::optional<document_t> ToResponseJson<MatrixGroupResponse>(const 
     return std::optional<document_t>{std::move(json)};
 }
 
-std::optional<document_t> MatrixDataToJson(const MatrixData &matrixData, Document::AllocatorType &allocator)
-{
+std::optional<document_t> MatrixDataToJson(const MatrixData &matrixData, Document::AllocatorType &allocator) {
     document_t res(kObjectType);
     JsonUtil::AddMember(res, "transportType", matrixData.transportType, allocator);
     JsonUtil::AddMember(res, "transitSize", matrixData.transitSize, allocator);
@@ -278,14 +263,13 @@ std::optional<document_t> MatrixDataToJson(const MatrixData &matrixData, Documen
     return std::optional<document_t>(std::move(res));
 }
 
-template <> std::optional<document_t> ToResponseJson<MatrixListResponse>(const MatrixListResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<MatrixListResponse>(const MatrixListResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     json_t body(kObjectType);
     json_t matrixList(kArrayType);
-    for (const MatrixList& matrix : response.body.matrixList) {
+    for (const MatrixList &matrix : response.body.matrixList) {
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "srcRank", matrix.srcRank, allocator);
         JsonUtil::AddMember(itemJson, "dstRank", matrix.dstRank, allocator);
@@ -304,9 +288,8 @@ template <> std::optional<document_t> ToResponseJson<MatrixListResponse>(const M
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<CommunicationAdvisorResponse>(
-    const CommunicationAdvisorResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<CommunicationAdvisorResponse>(const CommunicationAdvisorResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
@@ -332,9 +315,9 @@ template <> std::optional<document_t> ToResponseJson<CommunicationAdvisorRespons
     return std::optional<document_t>{std::move(json)};
 }
 
-template <> std::optional<document_t> ToResponseJson<CommunicationSlowRankAnalysisResponse>(
-    const CommunicationSlowRankAnalysisResponse &response)
-{
+template <>
+std::optional<document_t> ToResponseJson<CommunicationSlowRankAnalysisResponse>(
+    const CommunicationSlowRankAnalysisResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);

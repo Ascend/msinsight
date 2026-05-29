@@ -37,13 +37,14 @@ struct ByteAlignmentAnalyzerStatistics {
 };
 
 class ByteAlignmentAnalyzer : public CommunicationBaseAnalyzer {
-public:
+  public:
     ByteAlignmentAnalyzer() = default;
     ~ByteAlignmentAnalyzer() override = default;
     bool QueryAdvisorData(const std::string &clusterPath) override;
     void ComputeStatistics() override;
     void AssembleAdvisor(CommunicationAdvisorInfo &info) override;
-protected:
+
+  protected:
     bool Check(const CommunicationLargeOperatorInfo &item);
     std::map<std::string, std::vector<CommunicationLargeOperatorInfo>> data;
     std::vector<ByteAlignmentAnalyzerStatistics> statistics;

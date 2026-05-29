@@ -23,8 +23,7 @@
 namespace Dic {
 namespace Module {
 namespace Communication {
-bool RetransmissionAnalyzer::QueryAdvisorData(const std::string &clusterPath)
-{
+bool RetransmissionAnalyzer::QueryAdvisorData(const std::string &clusterPath) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (!database || !database->QueryRetransmissionAnalyzerData(data)) {
         Server::ServerLog::Error("Failed to query retransmission analyzer data.");
@@ -33,8 +32,7 @@ bool RetransmissionAnalyzer::QueryAdvisorData(const std::string &clusterPath)
     return true;
 }
 
-void RetransmissionAnalyzer::ComputeStatistics()
-{
+void RetransmissionAnalyzer::ComputeStatistics() {
     for (const auto &element : data) {
         if (element.minElapseTime < MIN_RETRANSMISSION_TIME) {
             continue;
@@ -46,8 +44,7 @@ void RetransmissionAnalyzer::ComputeStatistics()
     }
 }
 
-void RetransmissionAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info)
-{
+void RetransmissionAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info) {
     info.name = RETRANSMISSION_ANALYZER_TITLE;
     info.statistics.insert({"name", {}});
     info.statistics.insert({"group name", {}});

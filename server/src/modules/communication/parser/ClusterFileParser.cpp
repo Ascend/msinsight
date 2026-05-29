@@ -31,15 +31,13 @@
 #include "MetaDataCacheManager.h"
 #include "ClusterFileParser.h"
 
-
 namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
 using namespace rapidjson;
 using namespace Dic::Module::FullDb;
-void ClusterFileParser::ParseCommunication(const std::vector<std::string> &filePathList)
-{
+void ClusterFileParser::ParseCommunication(const std::vector<std::string> &filePathList) {
     if (filePathList.empty()) {
         ServerLog::Error("Communication file list is empty.");
         return;
@@ -49,8 +47,7 @@ void ClusterFileParser::ParseCommunication(const std::vector<std::string> &fileP
     SaxParseJsonFile(filePath, 0);
 }
 
-void ClusterFileParser::ParseCommunicationMatrix(const std::vector<std::string> &filePathList)
-{
+void ClusterFileParser::ParseCommunicationMatrix(const std::vector<std::string> &filePathList) {
     if (filePathList.empty()) {
         ServerLog::Error("Communication matrix file list is empty.");
         return;
@@ -60,8 +57,7 @@ void ClusterFileParser::ParseCommunicationMatrix(const std::vector<std::string> 
     SaxParseJsonFile(filePath, 1);
 }
 
-void ClusterFileParser::SaxParseJsonFile(const std::string& filePath, int saxHandlerType)
-{
+void ClusterFileParser::SaxParseJsonFile(const std::string &filePath, int saxHandlerType) {
     auto start = std::chrono::high_resolution_clock::now();
     auto checkFilePath = FileUtil::CheckPathSecurity(filePath, CHECK_FILE_WRITE);
     if (!checkFilePath) {
@@ -73,7 +69,7 @@ void ClusterFileParser::SaxParseJsonFile(const std::string& filePath, int saxHan
         return;
     }
     // 打开JSON文件
-    FILE* fp = fopen(filePath.c_str(), "rb");
+    FILE *fp = fopen(filePath.c_str(), "rb");
     if (fp == nullptr) {
         return;
     }
@@ -94,8 +90,7 @@ void ClusterFileParser::SaxParseJsonFile(const std::string& filePath, int saxHan
     fclose(fp);
 }
 
-void ClusterFileParser::ParseStepStatisticsFile(const std::vector<std::string> &filePathList)
-{
+void ClusterFileParser::ParseStepStatisticsFile(const std::vector<std::string> &filePathList) {
     const std::string &filePath = FileUtil::PathPreprocess(filePathList[0].c_str());
     auto start = std::chrono::high_resolution_clock::now();
     if (!ValidateUtil::CheckCsvFile(filePath)) {
@@ -116,12 +111,12 @@ void ClusterFileParser::ParseStepStatisticsFile(const std::vector<std::string> &
         std::vector<std::string> tokens = StringUtil::StringSplit(line);
         if (!tokens.empty() and isHeader) {
             // 校验表头，求必要表头和当前文件表头的差集，如果差集数量大于0，则校验不通过
-            std::vector<std::string> difference = CollectionUtil::CalDifferenceVector(VALID_STEP_STATISTICS_HEADERS,
-                                                                                      tokens);
+            std::vector<std::string> difference =
+                CollectionUtil::CalDifferenceVector(VALID_STEP_STATISTICS_HEADERS, tokens);
             if (difference.size() != 0) {
                 ServerLog::Error("The header of step statistics file is invalid, "
                                  "missing header data as follows: %, filePath: %",
-                                 StringUtil::join(difference, ","), filePath);
+                    StringUtil::join(difference, ","), filePath);
                 stepTraceFileCsv.close();
                 return;
             }
@@ -144,8 +139,7 @@ void ClusterFileParser::ParseStepStatisticsFile(const std::vector<std::string> &
     stepTraceFileCsv.close();
 }
 
-void ClusterFileParser::SaveClusterBaseInfo(const std::string &selectedPath)
-{
+void ClusterFileParser::SaveClusterBaseInfo(const std::string &selectedPath) {
     ClusterBaseInfo baseInfo;
     baseInfo.filePath = selectedPath;
     std::shared_ptr<TextClusterDatabase> textDb = std::dynamic_pointer_cast<TextClusterDatabase>(database);
@@ -167,11 +161,10 @@ void ClusterFileParser::SaveClusterBaseInfo(const std::string &selectedPath)
     ServerLog::Info("End save cluster base info data into db, path: ", selectedPath);
 }
 
-bool ClusterFileParser::InitCommunicationGroupInfo(std::vector<CommGroupParallelInfo> &groupInfos)
-{
+bool ClusterFileParser::InitCommunicationGroupInfo(std::vector<CommGroupParallelInfo> &groupInfos) {
     // 先解析communication group文件
     std::vector<std::string> communicationGroupList =
-            FileUtil::FindFirstFileByRegex(selectedFilePath, std::regex(R"(communication_group.json)"));
+        FileUtil::FindFirstFileByRegex(selectedFilePath, std::regex(R"(communication_group.json)"));
     if (communicationGroupList.empty()) {
         ServerLog::Error("Failed to get communicationGroup files");
         return false;
@@ -183,8 +176,7 @@ bool ClusterFileParser::InitCommunicationGroupInfo(std::vector<CommGroupParallel
     return true;
 }
 
-bool ClusterFileParser::ParseClusterFiles()
-{
+bool ClusterFileParser::ParseClusterFiles() {
     ParserStatusManager::Instance().SetClusterParseStatus(uniqueKey, ParserStatus::INIT);
     // 初始化集群
     if (!InitClusterDatabase()) {
@@ -208,8 +200,7 @@ bool ClusterFileParser::ParseClusterFiles()
     return parseRes;
 }
 
-bool ClusterFileParser::SkipClusterParse()
-{
+bool ClusterFileParser::SkipClusterParse() {
     std::shared_ptr<TextClusterDatabase> textDb = std::dynamic_pointer_cast<TextClusterDatabase>(database);
     if (textDb == nullptr) {
         ServerLog::Error("Fail to skip cluster parse, can't get cluster database when parse cluster files.");
@@ -225,8 +216,7 @@ bool ClusterFileParser::SkipClusterParse()
     return true;
 }
 
-bool ClusterFileParser::InitBaseInfoAndMatrixData()
-{
+bool ClusterFileParser::InitBaseInfoAndMatrixData() {
     std::shared_ptr<TextClusterDatabase> textDb = std::dynamic_pointer_cast<TextClusterDatabase>(database);
     if (textDb == nullptr) {
         ServerLog::Error("Fail to init base info and matrixData, can't get cluster database when parse cluster files.");
@@ -235,13 +225,13 @@ bool ClusterFileParser::InitBaseInfoAndMatrixData()
     // parse communication file
     std::regex patternCommunicationMatrix(R"(cluster_communication_matrix.json)");
     std::vector<std::string> communicationMatrixFileList =
-            FileUtil::FindFirstFileByRegex(selectedFilePath, patternCommunicationMatrix);
+        FileUtil::FindFirstFileByRegex(selectedFilePath, patternCommunicationMatrix);
     std::regex patternCommunicationTime(R"(cluster_communication.json)");
     std::vector<std::string> communicationTimeFileList =
         FileUtil::FindFirstFileByRegex(selectedFilePath, patternCommunicationTime);
     // cluster analysis
-    if ((communicationMatrixFileList.empty() && communicationTimeFileList.empty())
-        && !AttAnalyze(selectedFilePath, ATT_MODEL_MATRIX, AttDataType::TEXT)) {
+    if ((communicationMatrixFileList.empty() && communicationTimeFileList.empty()) &&
+        !AttAnalyze(selectedFilePath, ATT_MODEL_MATRIX, AttDataType::TEXT)) {
         return false;
     }
     // 解析group数据并进行落库，解析失败不阻塞进程
@@ -251,7 +241,7 @@ bool ClusterFileParser::InitBaseInfoAndMatrixData()
     }
     // 解析矩阵数据
     std::vector<std::string> communicationMatrixList =
-            FileUtil::FindFirstFileByRegex(selectedFilePath, patternCommunicationMatrix);
+        FileUtil::FindFirstFileByRegex(selectedFilePath, patternCommunicationMatrix);
     if (!communicationMatrixList.empty()) {
         ParseCommunicationMatrix(communicationMatrixList);
     }
@@ -269,47 +259,46 @@ bool ClusterFileParser::InitBaseInfoAndMatrixData()
     return true;
 }
 
-bool ClusterFileParser::BackupExistedClusterFiles(const std::vector<std::string>& backUpMatrixList,
-    const std::vector<std::string>& backUpGroupList, const std::vector<std::string>& backUpStepList)
-{
+bool ClusterFileParser::BackupExistedClusterFiles(const std::vector<std::string> &backUpMatrixList,
+    const std::vector<std::string> &backUpGroupList, const std::vector<std::string> &backUpStepList) {
     if (backUpMatrixList.empty() || backUpGroupList.empty() || backUpStepList.empty()) {
         return false;
     }
-    bool isCopyFile = FileUtil::CopyFileByPath(FileUtil::PathPreprocess(backUpMatrixList[0]),
-                                               FileUtil::SplicePath(selectedFilePath, "tmp_matrix.json"));
-    isCopyFile = isCopyFile && FileUtil::CopyFileByPath(FileUtil::PathPreprocess(backUpStepList[0]),
-        FileUtil::SplicePath(selectedFilePath, "tmp_step.csv"));
-    isCopyFile = isCopyFile && FileUtil::CopyFileByPath(FileUtil::PathPreprocess(backUpGroupList[0]),
-        FileUtil::SplicePath(selectedFilePath, "tmp_group.json"));
+    bool isCopyFile = FileUtil::CopyFileByPath(
+        FileUtil::PathPreprocess(backUpMatrixList[0]), FileUtil::SplicePath(selectedFilePath, "tmp_matrix.json"));
+    isCopyFile = isCopyFile &&
+        FileUtil::CopyFileByPath(
+            FileUtil::PathPreprocess(backUpStepList[0]), FileUtil::SplicePath(selectedFilePath, "tmp_step.csv"));
+    isCopyFile = isCopyFile &&
+        FileUtil::CopyFileByPath(
+            FileUtil::PathPreprocess(backUpGroupList[0]), FileUtil::SplicePath(selectedFilePath, "tmp_group.json"));
     return isCopyFile;
 }
 
-bool ClusterFileParser::RestoreClusterFiles(const std::vector<std::string>& backUpMatrixList,
-    const std::vector<std::string>& backUpGroupList, const std::vector<std::string>& backUpStepList)
-{
+bool ClusterFileParser::RestoreClusterFiles(const std::vector<std::string> &backUpMatrixList,
+    const std::vector<std::string> &backUpGroupList, const std::vector<std::string> &backUpStepList) {
     std::string tempMatrixPath = FileUtil::SplicePath(selectedFilePath, "tmp_matrix.json");
     std::string tempStepPath = FileUtil::SplicePath(selectedFilePath, "tmp_step.csv");
     std::string tempGroupPath = FileUtil::SplicePath(selectedFilePath, "tmp_group.json");
     bool reductionFileRes =
-        FileUtil::CopyFileByPath(tempMatrixPath, FileUtil::PathPreprocess(backUpMatrixList[0].c_str()))
-        && FileUtil::RemoveFile(tempMatrixPath);
+        FileUtil::CopyFileByPath(tempMatrixPath, FileUtil::PathPreprocess(backUpMatrixList[0].c_str())) &&
+        FileUtil::RemoveFile(tempMatrixPath);
     reductionFileRes = reductionFileRes &&
-        FileUtil::CopyFileByPath(tempStepPath, FileUtil::PathPreprocess(backUpStepList[0].c_str()))
-        && FileUtil::RemoveFile(tempStepPath);
+        FileUtil::CopyFileByPath(tempStepPath, FileUtil::PathPreprocess(backUpStepList[0].c_str())) &&
+        FileUtil::RemoveFile(tempStepPath);
     reductionFileRes = reductionFileRes &&
-        FileUtil::CopyFileByPath(tempGroupPath, FileUtil::PathPreprocess(backUpGroupList[0].c_str()))
-        && FileUtil::RemoveFile(tempGroupPath);
+        FileUtil::CopyFileByPath(tempGroupPath, FileUtil::PathPreprocess(backUpGroupList[0].c_str())) &&
+        FileUtil::RemoveFile(tempGroupPath);
     return reductionFileRes;
 }
 
-bool ClusterFileParser::ParseClusterStep2Files()
-{
+bool ClusterFileParser::ParseClusterStep2Files() {
     if (ParserStatusManager::Instance().IsClusterParserFinalState(uniqueKey)) {
         return true;
     }
     // parse communication file
     std::vector<std::string> communicationFileList =
-            FileUtil::FindFirstFileByRegex(selectedFilePath, std::regex(R"(cluster_communication.json)"));
+        FileUtil::FindFirstFileByRegex(selectedFilePath, std::regex(R"(cluster_communication.json)"));
 
     std::vector<std::string> backUpMatrixList =
         FileUtil::FindFirstFileByRegex(selectedFilePath, std::regex(R"(cluster_communication_matrix.json)"));
@@ -342,15 +331,14 @@ bool ClusterFileParser::ParseClusterStep2Files()
     return res;
 }
 
-bool ClusterFileParser::TransCommunicationToDb(const std::string &selectedPath, const std::regex &patternCommunication)
-{
+bool ClusterFileParser::TransCommunicationToDb(
+    const std::string &selectedPath, const std::regex &patternCommunication) {
     std::shared_ptr<TextClusterDatabase> textDb = std::dynamic_pointer_cast<TextClusterDatabase>(database);
     if (textDb == nullptr) {
         ServerLog::Error("Failed to connect to cluster database.", selectedPath);
         return false;
     }
-    std::vector<std::string> communicationFileList =
-            FileUtil::FindFirstFileByRegex(selectedPath, patternCommunication);
+    std::vector<std::string> communicationFileList = FileUtil::FindFirstFileByRegex(selectedPath, patternCommunication);
     if (!communicationFileList.empty()) {
         ParseCommunication(communicationFileList);
     }
@@ -373,8 +361,7 @@ bool ClusterFileParser::TransCommunicationToDb(const std::string &selectedPath, 
     return true;
 }
 
-bool ClusterFileParser::InitClusterDatabase()
-{
+bool ClusterFileParser::InitClusterDatabase() {
     clusterDbPath = selectedFilePath + FILE_SEPARATOR + "cluster.db";
 
     // 创建新的db连接池
@@ -387,8 +374,8 @@ bool ClusterFileParser::InitClusterDatabase()
     }
     std::ifstream file = OpenReadFileSafely(clusterDbPath, std::ios::in);
     if (!file.good()) {
-        if (!(databaseWrite->DropAllTable() && databaseWrite->CreateTable() &&
-              databaseWrite->SetConfig() && databaseWrite->SetDbVersion() && databaseWrite->InitStmt())) {
+        if (!(databaseWrite->DropAllTable() && databaseWrite->CreateTable() && databaseWrite->SetConfig() &&
+                databaseWrite->SetDbVersion() && databaseWrite->InitStmt())) {
             ServerLog::Error("Failed to update databaseWrite. path:", selectedFilePath);
             return false;
         }
@@ -410,14 +397,13 @@ bool ClusterFileParser::InitClusterDatabase()
 }
 
 // LCOV_EXCL_BR_START
-bool ClusterFileParser::CheckDocumentValid(const Document &doc)
-{
+bool ClusterFileParser::CheckDocumentValid(const Document &doc) {
     if (doc.HasParseError()) {
         ServerLog::Error("JSON file is invalid.");
         return false;
     }
     bool isLegal = doc.IsObject() && doc.HasMember("p2p") && doc.FindMember("p2p")->value.IsArray() &&
-                   doc.HasMember("collective") && doc.FindMember("collective")->value.IsArray();
+        doc.HasMember("collective") && doc.FindMember("collective")->value.IsArray();
     if (!isLegal) {
         ServerLog::Error("JSON file is illegal.");
         return false;
@@ -425,16 +411,15 @@ bool ClusterFileParser::CheckDocumentValid(const Document &doc)
     return true;
 }
 
-bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::string &mode, AttDataType dataType)
-{
+bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::string &mode, AttDataType dataType) {
     ServerLog::Info("Start execute cluster analysis");
     if (!StringUtil::ValidateCommandFilePathParam(selectedPath)) {
         ServerLog::Warn("validate string select path failed! select path", selectedPath);
         return false;
     }
 
-    const std::string scriptPath = std::string("msprof_analyze") + FILE_SEPARATOR + "cluster_analyse" +
-        FILE_SEPARATOR + "cluster_analysis.py";
+    const std::string scriptPath =
+        std::string("msprof_analyze") + FILE_SEPARATOR + "cluster_analyse" + FILE_SEPARATOR + "cluster_analysis.py";
     std::vector<std::string> arguments{"-d", selectedPath};
     if (!mode.empty()) {
         arguments.emplace_back("-m");
@@ -442,8 +427,8 @@ bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::s
     }
     ServerLog::Info("Start execute command, selected path:", selectedPath, " ,mode: ", mode);
     if (PythonUtil::ExecuteScript(scriptPath, arguments) != 0) {
-        ServerLog::Warn("Execute cluster analysis failed, skip parse cluster file, selected path:",
-            selectedPath, " ,mode: ", mode);
+        ServerLog::Warn(
+            "Execute cluster analysis failed, skip parse cluster file, selected path:", selectedPath, " ,mode: ", mode);
         return false;
     }
     ServerLog::Info("Execute cluster analysis succeeded, selected path: ", selectedPath, ",mode: ", mode);
@@ -451,9 +436,8 @@ bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::s
 }
 // LCOV_EXCL_BR_STOP
 
-StepStatistic ClusterFileParser::MapToStepStatistic(std::map<std::string, size_t> &dataMap,
-                                                    const std::vector<std::string> &tokens)
-{
+StepStatistic ClusterFileParser::MapToStepStatistic(
+    std::map<std::string, size_t> &dataMap, const std::vector<std::string> &tokens) {
     StepStatistic statistic;
     std::string stepId = GetStrValue(dataMap, tokens, FIELD_STEP);
     std::string flag = GetStrValue(dataMap, tokens, FIELD_TYPE);
@@ -461,31 +445,28 @@ StepStatistic ClusterFileParser::MapToStepStatistic(std::map<std::string, size_t
     statistic.stepId = stepId.empty() ? "0" : stepId;
     statistic.rankId = std::strcmp(flag.c_str(), "rank") == 0 ? order : "";
     // 去掉stage的首尾引号
-    if (std::strcmp(flag.c_str(), "stage") == 0 &&
-        order.find('\"') != std::string::npos &&
+    if (std::strcmp(flag.c_str(), "stage") == 0 && order.find('\"') != std::string::npos &&
         order.length() > subStrlen) {
         order = order.substr(1, order.length() - subStrlen);
         statistic.stageId = order;
     }
     statistic.computingTime = NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_COMPUTING));
-    statistic.pureCommunicationTime = NumberUtil::StringToDouble(
-        GetStrValue(dataMap, tokens, FIELD_COMMUNICATION_NOT_OVERLAPPED));
+    statistic.pureCommunicationTime =
+        NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_COMMUNICATION_NOT_OVERLAPPED));
     statistic.overlapCommunicationTime = NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_OVERLAPPED));
     statistic.communicationTime = NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_COMMUNICATION));
     statistic.freeTime = NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_FREE));
     statistic.stageTime = NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_STAGE));
     statistic.bubbleTime = NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_BUBBLE));
-    statistic.pureCommunicationExcludeReceiveTime = NumberUtil::StringToDouble(
-        GetStrValue(dataMap, tokens, FIELD_COMMUNICATION_NOT_OVERLAPPED_AND_RECEIVE));
+    statistic.pureCommunicationExcludeReceiveTime =
+        NumberUtil::StringToDouble(GetStrValue(dataMap, tokens, FIELD_COMMUNICATION_NOT_OVERLAPPED_AND_RECEIVE));
 
     std::string prepareTime = GetStrValue(dataMap, tokens, FIELD_PREPARE_TIME);
     statistic.prepareTime = prepareTime.empty() ? -1 : NumberUtil::StringToDouble(prepareTime);
 
     // 判断表头中是否存在所有并行策略的key值
-    bool allParallelKeys = std::all_of(PARALLEL_STRATEGY_HEADERS.begin(),
-                                       PARALLEL_STRATEGY_HEADERS.end(), [&dataMap](const std::string& str) {
-        return dataMap.find(str) != dataMap.end();
-    });
+    bool allParallelKeys = std::all_of(PARALLEL_STRATEGY_HEADERS.begin(), PARALLEL_STRATEGY_HEADERS.end(),
+        [&dataMap](const std::string &str) { return dataMap.find(str) != dataMap.end(); });
     // 存在则读取相关的值
     if (allParallelKeys) {
         // 如果非数字字符串，这里会返回0
@@ -496,9 +477,8 @@ StepStatistic ClusterFileParser::MapToStepStatistic(std::map<std::string, size_t
     return statistic;
 }
 
-std::string ClusterFileParser::GetStrValue(std::map<std::string, size_t> &dataMap,
-                                           const std::vector<std::string> &tokens, const std::string &key)
-{
+std::string ClusterFileParser::GetStrValue(
+    std::map<std::string, size_t> &dataMap, const std::vector<std::string> &tokens, const std::string &key) {
     if (dataMap.find(key) == dataMap.end()) {
         return "";
     }
@@ -516,8 +496,7 @@ void UpdateTraceTimeOfDb(std::shared_ptr<FullDb::DbClusterDataBase> clusterDatab
 }
 
 // LCOV_EXCL_BR_START
-bool ClusterFileParser::ParserClusterOfDb()
-{
+bool ClusterFileParser::ParserClusterOfDb() {
     ParserStatusManager::Instance().SetClusterParseStatus(uniqueKey, ParserStatus::INIT);
     std::string tempPath(selectedFilePath);
     // 如果selectedPath是单个文件，则使用该文件所在文件夹作为分析路径
@@ -539,8 +518,8 @@ bool ClusterFileParser::ParserClusterOfDb()
     }
     ServerLog::Info("Cluster Db Path: " + clusterPath[0]);
     clusterDbPath = clusterPath[0];
-    Dic::Module::FullDb::DataBaseManager::Instance().CreateClusterConnectionPool(selectedFilePath, clusterDbPath,
-        Dic::Module::Timeline::DataType::DB);
+    Dic::Module::FullDb::DataBaseManager::Instance().CreateClusterConnectionPool(
+        selectedFilePath, clusterDbPath, Dic::Module::Timeline::DataType::DB);
     database = Dic::Module::FullDb::DataBaseManager::Instance().GetClusterDatabase(selectedFilePath);
     std::shared_ptr<FullDb::DbClusterDataBase> clusterDatabase = std::dynamic_pointer_cast<DbClusterDataBase>(database);
     if (clusterDatabase == nullptr) {
@@ -580,9 +559,8 @@ bool ClusterFileParser::ParserClusterOfDb()
     return true;
 }
 
-void ClusterFileParser::InitFullDbClusterBaseInfo(std::shared_ptr<FullDb::DbClusterDataBase> &clusterDatabase,
-                                                  ClusterBaseInfo &baseInfo)
-{
+void ClusterFileParser::InitFullDbClusterBaseInfo(
+    std::shared_ptr<FullDb::DbClusterDataBase> &clusterDatabase, ClusterBaseInfo &baseInfo) {
     if (clusterDatabase == nullptr) {
         return;
     }
@@ -598,17 +576,13 @@ void ClusterFileParser::InitFullDbClusterBaseInfo(std::shared_ptr<FullDb::DbClus
 }
 // LCOV_EXCL_BR_STOP
 
-std::string ClusterFileParser::GetClusterDbPath()
-{
-    return clusterDbPath;
-}
+std::string ClusterFileParser::GetClusterDbPath() { return clusterDbPath; }
 
-ClusterFileParser::ClusterFileParser(const std::string &filePath, std::shared_ptr<VirtualClusterDatabase> database,
-                                     const std::string &uniqueKey)
+ClusterFileParser::ClusterFileParser(
+    const std::string &filePath, std::shared_ptr<VirtualClusterDatabase> database, const std::string &uniqueKey)
     : selectedFilePath(filePath), uniqueKey(uniqueKey), database(database) {}
 
-bool ClusterFileParser::CheckIsCluster(const std::string &filePath)
-{
+bool ClusterFileParser::CheckIsCluster(const std::string &filePath) {
     std::vector<std::string> folders;
     std::vector<std::string> files;
     if (filePath.find(CLUSTER_ANALYSIS_OUTPUT) != std::string::npos) {
@@ -619,8 +593,8 @@ bool ClusterFileParser::CheckIsCluster(const std::string &filePath)
         ServerLog::Info("FindFolders is empty, Check Cluster is false");
         return false;
     }
-    return std::any_of(folders.begin(), folders.end(),
-                       [](std::string &folder) { return folder == CLUSTER_ANALYSIS_OUTPUT; });
+    return std::any_of(
+        folders.begin(), folders.end(), [](std::string &folder) { return folder == CLUSTER_ANALYSIS_OUTPUT; });
 }
 } // end of namespace Timeline
 } // end of namespace Module

@@ -23,8 +23,7 @@
 namespace Dic {
 namespace Module {
 namespace Communication {
-bool PacketAnalyzer::QueryAdvisorData(const std::string &clusterPath)
-{
+bool PacketAnalyzer::QueryAdvisorData(const std::string &clusterPath) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (!database || !database->QueryPacketAnalyzerData(data)) {
         Server::ServerLog::Error("Failed to query packet analyzer data.");
@@ -33,8 +32,7 @@ bool PacketAnalyzer::QueryAdvisorData(const std::string &clusterPath)
     return true;
 }
 
-void PacketAnalyzer::ComputeStatistics()
-{
+void PacketAnalyzer::ComputeStatistics() {
     for (const auto &singleOperator : data) {
         if (singleOperator.type == "SDMA") {
             ++statistics.sdmaCount;
@@ -68,8 +66,7 @@ void PacketAnalyzer::ComputeStatistics()
     }
 }
 
-void PacketAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info)
-{
+void PacketAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &info) {
     const int hundred = 100;
     info.name = PACKET_ANALYZER_TITLE;
     info.statistics.insert({"Category", {"SDMA", "RDMA"}});
@@ -77,14 +74,13 @@ void PacketAnalyzer::AssembleAdvisor(Dic::Protocol::CommunicationAdvisorInfo &in
         {std::to_string(statistics.smallSdmaSizeStandard), std::to_string(statistics.smallRdmaSizeStandard)}});
     info.statistics.insert({"Small Size Proportion Standard(%)",
         {std::to_string(statistics.smallSdmaProportionStandard * hundred),
-        std::to_string(statistics.smallRdmaProportionStandard * hundred)}});
+            std::to_string(statistics.smallRdmaProportionStandard * hundred)}});
     info.statistics.insert({"Small Size Proportion(%)",
         {std::to_string(statistics.smallSdmaProportion * hundred),
-         std::to_string(statistics.smallRdmaProportion * hundred)}});
+            std::to_string(statistics.smallRdmaProportion * hundred)}});
     info.statistics.insert({"Small Size Duration(ms)",
         {std::to_string(statistics.smallSdmaDuration), std::to_string(statistics.smallRdmaDuration)}});
-    info.statistics.insert({"Issue",
-        {statistics.sdmaIssue ? "Yes" : "No", statistics.rdmaIssue ? "Yes" : "No"}});
+    info.statistics.insert({"Issue", {statistics.sdmaIssue ? "Yes" : "No", statistics.rdmaIssue ? "Yes" : "No"}});
 }
 }
 }

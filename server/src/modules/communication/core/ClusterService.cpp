@@ -33,9 +33,8 @@ namespace Module {
 namespace Communication {
 using namespace Dic::Server;
 using namespace Dic::Module::Global;
-void ClusterService::QueryIterations(const Protocol::IterationsRequest &request,
-                                     Protocol::IterationsOrRanksResponse &response)
-{
+void ClusterService::QueryIterations(
+    const Protocol::IterationsRequest &request, Protocol::IterationsOrRanksResponse &response) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(request.params.clusterPath);
     if (database == nullptr || !database->QueryIterations(response.body.compare)) {
         ServerLog::Warn("Fail to query compare iterations info.");
@@ -45,28 +44,26 @@ void ClusterService::QueryIterations(const Protocol::IterationsRequest &request,
         return;
     }
 
-    auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(
-        BaselineManager::Instance().GetBaseLineClusterPath());
+    auto baselineDatabase =
+        Timeline::DataBaseManager::Instance().GetClusterDatabase(BaselineManager::Instance().GetBaseLineClusterPath());
     if (baselineDatabase == nullptr || !baselineDatabase->QueryIterations(response.body.baseline)) {
         ServerLog::Warn("Fail to query baseline iterations info.");
     }
 }
 
-void ClusterService::QueryGroupInfo(const Protocol::MatrixGroupRequest &request,
-                                    Protocol::MatrixGroupResponse &response)
-{
+void ClusterService::QueryGroupInfo(
+    const Protocol::MatrixGroupRequest &request, Protocol::MatrixGroupResponse &response) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(request.params.clusterPath);
     std::vector<GroupInfoDo> compareGroupList;
     if (database == nullptr || !database->GetGroups(compareGroupList)) {
         ServerLog::Warn("Fail to query compare group info.");
     }
 
-    auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(
-        BaselineManager::Instance().GetBaseLineClusterPath());
+    auto baselineDatabase =
+        Timeline::DataBaseManager::Instance().GetClusterDatabase(BaselineManager::Instance().GetBaseLineClusterPath());
     std::vector<GroupInfoDo> baselineGroupList;
     if (request.params.isCompare) {
-        if (baselineDatabase == nullptr ||
-            !baselineDatabase->GetGroups(baselineGroupList)) {
+        if (baselineDatabase == nullptr || !baselineDatabase->GetGroups(baselineGroupList)) {
             ServerLog::Warn("Fail to query baseline group info.");
         }
     }
@@ -74,9 +71,8 @@ void ClusterService::QueryGroupInfo(const Protocol::MatrixGroupRequest &request,
     response.body.groupList = MergeGroupInfo(request, compareGroupList, baselineGroupList);
 }
 
-std::vector<OpTypeStatistics> ClusterService::GetOpTypeStatByStepId(const std::string &stepId,
-                                                                    const std::string &clusterPath)
-{
+std::vector<OpTypeStatistics> ClusterService::GetOpTypeStatByStepId(
+    const std::string &stepId, const std::string &clusterPath) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     if (database == nullptr) {
         return {};
@@ -85,19 +81,18 @@ std::vector<OpTypeStatistics> ClusterService::GetOpTypeStatByStepId(const std::s
 }
 
 std::vector<Protocol::GroupInfo> ClusterService::MergeGroupInfo(const Protocol::MatrixGroupRequest &request,
-    std::vector<GroupInfoDo> &compareGroupList, std::vector<GroupInfoDo> &baselineGroupList)
-{
+    std::vector<GroupInfoDo> &compareGroupList, std::vector<GroupInfoDo> &baselineGroupList) {
     // 对compare数据和baseline通信域数据进行匹配
     // 1.如果两份数据都具备pgName，则直接根据pgName和rankSet进行直接匹配
     // 2.如果存在一份数据没有pgName，则需要通过算子类型进行匹配
     std::map<std::string, GroupInfoDo> baselineGroupInfoMap;
     std::map<std::string, GroupInfoDo> compareGroupInfoMap;
     if (IsHavePgName(compareGroupList) && IsHavePgName(baselineGroupList)) {
-        for (const auto &item: compareGroupList) {
+        for (const auto &item : compareGroupList) {
             std::string key = item.pgName + underline + item.rankSet;
             compareGroupInfoMap[key] = item;
         }
-        for (const auto &item: baselineGroupList) {
+        for (const auto &item : baselineGroupList) {
             std::string key = item.pgName + underline + item.rankSet;
             baselineGroupInfoMap[key] = item;
         }
@@ -105,8 +100,8 @@ std::vector<Protocol::GroupInfo> ClusterService::MergeGroupInfo(const Protocol::
         // 获取所有的每个通信域下有哪些类型的通信算子
         std::vector<OpTypeStatistics> compareStats =
             GetOpTypeStatByStepId(request.params.iterationId, request.params.clusterPath);
-        std::vector<OpTypeStatistics> baselineStats = GetOpTypeStatByStepId(request.params.baselineIterationId,
-            BaselineManager::Instance().GetBaseLineClusterPath());
+        std::vector<OpTypeStatistics> baselineStats = GetOpTypeStatByStepId(
+            request.params.baselineIterationId, BaselineManager::Instance().GetBaseLineClusterPath());
         // 使用rankset和该通信域下算子的类型作为唯一key，用于后续合并操作
         baselineGroupInfoMap = GetRankSetAndOpTypeToGroupInfoMap(baselineStats, baselineGroupList);
         compareGroupInfoMap = GetRankSetAndOpTypeToGroupInfoMap(compareStats, compareGroupList);
@@ -116,10 +111,9 @@ std::vector<Protocol::GroupInfo> ClusterService::MergeGroupInfo(const Protocol::
 }
 
 std::map<std::string, GroupInfoDo> ClusterService::GetRankSetAndOpTypeToGroupInfoMap(
-    const std::vector<OpTypeStatistics> &StatsList, const std::vector<GroupInfoDo> &groupList)
-{
+    const std::vector<OpTypeStatistics> &StatsList, const std::vector<GroupInfoDo> &groupList) {
     std::map<std::string, GroupInfoDo> groupIdHashToRankSetMap;
-    for (const auto &item: groupList) {
+    for (const auto &item : groupList) {
         // 正常解析数据 group id hash必不为空，为空则说明缺失了矩阵和通信耗时的数据
         if (item.groupIdHash.empty()) {
             continue;
@@ -127,11 +121,11 @@ std::map<std::string, GroupInfoDo> ClusterService::GetRankSetAndOpTypeToGroupInf
         groupIdHashToRankSetMap[item.groupIdHash] = item;
     }
     std::map<std::string, std::vector<std::string>> compareOpTypeMap;
-    for (const auto &item: StatsList) {
+    for (const auto &item : StatsList) {
         compareOpTypeMap[item.groupIdHash].push_back(item.opType);
     }
     std::map<std::string, GroupInfoDo> rankSetAndOpTypeToGroupInfoMap;
-    for (auto &item: groupIdHashToRankSetMap) {
+    for (auto &item : groupIdHashToRankSetMap) {
         std::string key;
         auto it = compareOpTypeMap.find(item.first);
         if (it == compareOpTypeMap.end()) {
@@ -148,18 +142,17 @@ std::map<std::string, GroupInfoDo> ClusterService::GetRankSetAndOpTypeToGroupInf
 }
 
 std::vector<Protocol::GroupInfo> ClusterService::MergeGroupInfoWithPgName(
-    std::map<std::string, GroupInfoDo> &compareGroupMap, std::map<std::string, GroupInfoDo> &baselineGroupMap)
-{
+    std::map<std::string, GroupInfoDo> &compareGroupMap, std::map<std::string, GroupInfoDo> &baselineGroupMap) {
     std::set<std::string> keyList;
-    for (const auto &item: compareGroupMap) {
+    for (const auto &item : compareGroupMap) {
         keyList.insert(item.first);
     }
-    for (const auto &item: baselineGroupMap) {
+    for (const auto &item : baselineGroupMap) {
         keyList.insert(item.first);
     }
 
     std::vector<Protocol::GroupInfo> res;
-    for (const auto &item: keyList) {
+    for (const auto &item : keyList) {
         Protocol::GroupInfo groupInfo;
         auto compareIt = compareGroupMap.find(item);
         if (compareIt != compareGroupMap.end()) {
@@ -178,14 +171,13 @@ std::vector<Protocol::GroupInfo> ClusterService::MergeGroupInfoWithPgName(
     return res;
 }
 
-bool ClusterService::IsHavePgName(const std::vector<GroupInfoDo> &groupList)
-{
+bool ClusterService::IsHavePgName(const std::vector<GroupInfoDo> &groupList) {
     // 如果无数据，则返回true，此时与对比的另一份为准
     if (groupList.empty()) {
         return true;
     }
     bool res = false;
-    for (const auto &item: groupList) {
+    for (const auto &item : groupList) {
         // p2p没有pgName，因此不能依据p2p来
         if (item.rankSet != "p2p") {
             res = !item.pgName.empty();
@@ -196,23 +188,22 @@ bool ClusterService::IsHavePgName(const std::vector<GroupInfoDo> &groupList)
 }
 
 void ClusterService::MergeMatrixInfo(Protocol::MatrixListResponseBody &body, const std::vector<MatrixInfoDo> &compare,
-                                     const std::vector<MatrixInfoDo> &baseline)
-{
+    const std::vector<MatrixInfoDo> &baseline) {
     std::set<std::string> keySet;
     std::map<std::string, MatrixInfoDo> compareMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         std::string key = std::to_string(item.srcRank) + underline + std::to_string(item.dstRank);
         keySet.insert(key);
         compareMap[key] = item;
     }
     std::map<std::string, MatrixInfoDo> baselineMap;
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         std::string key = std::to_string(item.srcRank) + underline + std::to_string(item.dstRank);
         keySet.insert(key);
         baselineMap[key] = item;
     }
 
-    for (const auto &key: keySet) {
+    for (const auto &key : keySet) {
         Protocol::MatrixList matrix;
         std::vector<std::string> srcAndDst = StringUtil::Split(key, underline);
         if (srcAndDst.size() != matrixPointNumber) {
@@ -233,20 +224,19 @@ void ClusterService::MergeMatrixInfo(Protocol::MatrixListResponseBody &body, con
     }
 }
 
-void ClusterService::QueryMatrixInfo(Protocol::MatrixBandwidthParam &params, Protocol::MatrixListResponseBody &body)
-{
+void ClusterService::QueryMatrixInfo(Protocol::MatrixBandwidthParam &params, Protocol::MatrixListResponseBody &body) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
     std::vector<MatrixInfoDo> compareMatrixList;
     std::vector<MatrixInfoDo> baselineMatrixList;
-    Protocol::MatrixBandwidthParam compareParams{params.stage, params.operatorName, params.iterationId, params.pgName,
-                                                 params.groupIdHash};
+    Protocol::MatrixBandwidthParam compareParams{
+        params.stage, params.operatorName, params.iterationId, params.pgName, params.groupIdHash};
     if (database == nullptr || !database->QueryMatrixList(compareParams, compareMatrixList)) {
         ServerLog::Error("Failed to get compare matrix response data.");
     }
 
     if (params.isCompare) {
-        Protocol::MatrixBandwidthParam baselineParams{params.stage, params.operatorName, params.baselineIterationId,
-                                                      params.pgName, params.baselineGroupIdHash};
+        Protocol::MatrixBandwidthParam baselineParams{
+            params.stage, params.operatorName, params.baselineIterationId, params.pgName, params.baselineGroupIdHash};
         auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(
             BaselineManager::Instance().GetBaseLineClusterPath());
         if (baselineDatabase == nullptr || !baselineDatabase->QueryMatrixList(baselineParams, baselineMatrixList)) {
@@ -259,14 +249,13 @@ void ClusterService::QueryMatrixInfo(Protocol::MatrixBandwidthParam &params, Pro
 
 void ClusterService::MergeOperatorList(Protocol::OperatorListsResponseBody &body,
     const std::vector<OperatorTimeDo> &compare, const std::vector<OperatorTimeDo> &baseline,
-    const std::string &operatorName)
-{
+    const std::string &operatorName) {
     auto numericStringCompare = [](const std::string &num1, const std::string &num2) {
         return StringUtil::StringToInt(num1) < StringUtil::StringToInt(num2);
     };
     std::set<std::string, decltype(numericStringCompare)> rankList(numericStringCompare);
     std::map<std::string, std::vector<Protocol::OperatorTimeItem>> compareRankToOperator;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         Protocol::OperatorTimeItem operatorTime = ClusterCovert::CovertDoToOperatorTime(item);
         compareRankToOperator[item.rankId].push_back(operatorTime);
         body.minTime = std::min(body.minTime, operatorTime.startTime);
@@ -274,7 +263,7 @@ void ClusterService::MergeOperatorList(Protocol::OperatorListsResponseBody &body
         rankList.insert(item.rankId);
     }
     std::map<std::string, std::vector<Protocol::OperatorTimeItem>> baselineRankToOperator;
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         Protocol::OperatorTimeItem operatorTime = ClusterCovert::CovertDoToOperatorTime(item);
         baselineRankToOperator[item.rankId].push_back(operatorTime);
         body.minTime = std::min(body.minTime, operatorTime.startTime);
@@ -282,7 +271,7 @@ void ClusterService::MergeOperatorList(Protocol::OperatorListsResponseBody &body
         rankList.insert(item.rankId);
     }
 
-    for (const auto &item: rankList) {
+    for (const auto &item : rankList) {
         body.rankLists.push_back(item);
         Dic::Protocol::CompareData<std::vector<Protocol::OperatorTimeItem>> data;
         if (compareRankToOperator.count(item) != 0) {
@@ -298,8 +287,8 @@ void ClusterService::MergeOperatorList(Protocol::OperatorListsResponseBody &body
     body.AdjustTime(operatorName);
 }
 
-void ClusterService::QueryOperatorList(Protocol::DurationListParams &params, Protocol::OperatorListsResponseBody &body)
-{
+void ClusterService::QueryOperatorList(
+    Protocol::DurationListParams &params, Protocol::OperatorListsResponseBody &body) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
     std::vector<OperatorTimeDo> compareOperatorTimeList;
     std::vector<OperatorTimeDo> baselineOperatorTimeList;
@@ -321,7 +310,7 @@ void ClusterService::QueryOperatorList(Protocol::DurationListParams &params, Pro
     }
 
     MergeOperatorList(body, compareOperatorTimeList, baselineOperatorTimeList, params.targetOperatorName);
-    for (const auto &item: body.rankLists) {
+    for (const auto &item : body.rankLists) {
         std::string traceDb =
             FullDb::TrackInfoManager::Instance().GetFileIdByClusterDbAndRankId(params.clusterPath, item);
         body.dbPathList.push_back(traceDb);
@@ -329,24 +318,23 @@ void ClusterService::QueryOperatorList(Protocol::DurationListParams &params, Pro
 }
 
 void ClusterService::MergeDurationData(Protocol::DurationListsResponseBody &body, std::vector<DurationDo> &compare,
-                                       std::vector<DurationDo> &baseline, const std::string &clusterPath)
-{
+    std::vector<DurationDo> &baseline, const std::string &clusterPath) {
     std::set<std::string> rankIdSet;
     std::map<std::string, Protocol::DurationData> compareMap;
-    for (const auto &item: compare) {
+    for (const auto &item : compare) {
         compareMap[item.rankId] = ClusterCovert::CovertDoToDuration(item);
         rankIdSet.insert(item.rankId);
     }
     std::map<std::string, Protocol::DurationData> baselineMap;
-    for (const auto &item: baseline) {
+    for (const auto &item : baseline) {
         baselineMap[item.rankId] = ClusterCovert::CovertDoToDuration(item);
         rankIdSet.insert(item.rankId);
     }
 
-    for (const auto &item: rankIdSet) {
+    for (const auto &item : rankIdSet) {
         Protocol::Duration duration;
         duration.rankId = item;
-        duration.dbPath =  FullDb::TrackInfoManager::Instance().GetFileIdByClusterDbAndRankId(clusterPath, item);
+        duration.dbPath = FullDb::TrackInfoManager::Instance().GetFileIdByClusterDbAndRankId(clusterPath, item);
         if (compareMap.count(item) != 0) {
             duration.durationData.compare = compareMap[item];
         }
@@ -358,8 +346,7 @@ void ClusterService::MergeDurationData(Protocol::DurationListsResponseBody &body
     }
 }
 
-void ClusterService::StatisticBandwidthData(const DurationDo &item, std::vector<Protocol::BandwidthStatistic> &bwStat)
-{
+void ClusterService::StatisticBandwidthData(const DurationDo &item, std::vector<Protocol::BandwidthStatistic> &bwStat) {
     for (auto &one : bwStat) {
         if (one.type == "SDMA") {
             one.maxBw = std::max(one.maxBw, item.sdmaBw);
@@ -375,9 +362,8 @@ void ClusterService::StatisticBandwidthData(const DurationDo &item, std::vector<
     }
 }
 
-void ClusterService::GetBandwidthStatisticResult(std::vector<Protocol::BandwidthStatistic> &bwStat,
-                                                 Protocol::DurationListsResponseBody &responseBody)
-{
+void ClusterService::GetBandwidthStatisticResult(
+    std::vector<Protocol::BandwidthStatistic> &bwStat, Protocol::DurationListsResponseBody &responseBody) {
     if (responseBody.durationList.empty()) {
         return;
     }
@@ -397,18 +383,17 @@ void ClusterService::GetBandwidthStatisticResult(std::vector<Protocol::Bandwidth
     }
 }
 
-void ClusterService::CalBandwidthData(Protocol::DurationListsResponseBody &body,
-                                      const std::vector<DurationDo> &durationDoList)
-{
+void ClusterService::CalBandwidthData(
+    Protocol::DurationListsResponseBody &body, const std::vector<DurationDo> &durationDoList) {
     std::vector<Protocol::BandwidthStatistic> bwStat = {{"SDMA", 0, 0, DBL_MAX, 0, 0}, {"RDMA", 0, 0, DBL_MAX, 0, 0}};
-    for (const auto &item: durationDoList) {
+    for (const auto &item : durationDoList) {
         StatisticBandwidthData(item, bwStat);
     }
     GetBandwidthStatisticResult(bwStat, body);
 }
 
-void ClusterService::QueryDurationList(Protocol::DurationListParams &params, Protocol::DurationListsResponseBody &body)
-{
+void ClusterService::QueryDurationList(
+    Protocol::DurationListParams &params, Protocol::DurationListsResponseBody &body) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
     std::vector<DurationDo> compareDurationDoList;
     std::vector<DurationDo> baselineDurationDoList;
@@ -433,9 +418,8 @@ void ClusterService::QueryDurationList(Protocol::DurationListParams &params, Pro
     CalBandwidthData(body, compareDurationDoList);
 }
 
-bool ClusterService::AnalyzeCommunicationSlowRanks(const Protocol::DurationListParams &params,
-    CommunicationSlowRankAnalysisResponseBody &body)
-{
+bool ClusterService::AnalyzeCommunicationSlowRanks(
+    const Protocol::DurationListParams &params, CommunicationSlowRankAnalysisResponseBody &body) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection for analyze communication slow rank list.");
@@ -467,11 +451,10 @@ bool ClusterService::AnalyzeCommunicationSlowRanks(const Protocol::DurationListP
 
 void ClusterService::FindSlowRankByCommDuration(const std::shared_ptr<VirtualClusterDatabase> &database,
     const Protocol::DurationListParams &params, RankDetailsForSlowRank &fastestRank,
-    CommunicationSlowRankAnalysisResponseBody &body)
-{
+    CommunicationSlowRankAnalysisResponseBody &body) {
     std::vector<CommInfoUnderRank> commTimeForRankDim = database->GetCommTimeForRankDim(params.iterationId);
     std::set<RankDetailsForSlowRank> rankDetails;
-    for (const auto& commInfo : commTimeForRankDim) {
+    for (const auto &commInfo : commTimeForRankDim) {
         if (commInfo.groupIdHash == params.groupIdHash) {
             rankDetails.insert({commInfo.rankId, 0.0, commInfo.commTime, {}});
         }
@@ -501,9 +484,8 @@ void ClusterService::FindSlowRankByCommDuration(const std::shared_ptr<VirtualClu
 }
 
 // 若校验失败结果为false，则不返回慢卡专家建议
-bool ClusterService::CheckOpNameList(const Protocol::DurationListParams &params,
-    const std::shared_ptr<VirtualClusterDatabase> &database)
-{
+bool ClusterService::CheckOpNameList(
+    const Protocol::DurationListParams &params, const std::shared_ptr<VirtualClusterDatabase> &database) {
     if (params.operatorName != totalOpInfo || params.pgName == ppPgName) {
         return false;
     }
@@ -519,9 +501,9 @@ bool ClusterService::CheckOpNameList(const Protocol::DurationListParams &params,
     }
     // p2p, all2allv
     const std::vector<std::string> opKey = {"send", "receive", "recv", "all2allv", "alltoallv"};
-    for (const auto& name : opNameList) {
+    for (const auto &name : opNameList) {
         std::string opNameLower = StringUtil::ToLower(name.operatorName);
-        for (const auto& key : opKey) {
+        for (const auto &key : opKey) {
             if (opNameLower.find(key) != std::string::npos) {
                 return false;
             }

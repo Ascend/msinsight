@@ -38,8 +38,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_OPERATOR_NAMES_FAILED, "Failed to query operator names"},
 };
 
-const std::string& GetErrorMessage(ErrorCode code)
-{
+const std::string &GetErrorMessage(ErrorCode code) {
     auto it = errorMessages.find(code);
     if (it != errorMessages.end()) {
         return it->second;
@@ -48,8 +47,7 @@ const std::string& GetErrorMessage(ErrorCode code)
     }
 }
 
-void SetCommunicationError(ErrorCode code)
-{
+void SetCommunicationError(ErrorCode code) {
     ModuleRequestHandler::SetRequestContextError({.code = static_cast<int>(code), .message = GetErrorMessage(code)});
 }
-}  // namespace Dic::Module::Communication
+} // namespace Dic::Module::Communication

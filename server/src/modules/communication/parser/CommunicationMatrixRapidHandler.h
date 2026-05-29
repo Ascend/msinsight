@@ -31,28 +31,29 @@
 namespace Dic {
 namespace Module {
 namespace Timeline {
-class CommunicationMatrixRapidHandler : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>,
-        CommunicationMatrixRapidHandler>, public CommonRapidHandler {
-public:
-    explicit CommunicationMatrixRapidHandler(std::shared_ptr<TextClusterDatabase> database,
-                                             const std::string &uniqueKey);
+class CommunicationMatrixRapidHandler
+    : public rapidjson::BaseReaderHandler<rapidjson::UTF8<>, CommunicationMatrixRapidHandler>,
+      public CommonRapidHandler {
+  public:
+    explicit CommunicationMatrixRapidHandler(
+        std::shared_ptr<TextClusterDatabase> database, const std::string &uniqueKey);
     ~CommunicationMatrixRapidHandler();
     bool Null();
     bool Bool(bool bl);
     bool Int(int i);
     bool Uint(unsigned uint);
     bool Int64(int64_t i);
-    bool Uint64(uint64_t u) ;
-    bool Double(double doubleVal) ;
-    bool String(const char* val, rapidjson::SizeType length, bool copy) ;
+    bool Uint64(uint64_t u);
+    bool Double(double doubleVal);
+    bool String(const char *val, rapidjson::SizeType length, bool copy);
     bool StartObject();
-    bool Key(const char* keyStr, rapidjson::SizeType length, bool copy) ;
+    bool Key(const char *keyStr, rapidjson::SizeType length, bool copy);
     bool EndObject(rapidjson::SizeType memberCount);
     bool StartArray();
     bool EndArray(rapidjson::SizeType elementCount);
     CommunicationMatrixInfo MapToMatrixInfo(const rapidjson::Document &json);
 
-private:
+  private:
     std::string exception;
     uint32_t currentDepth = 0;
     rapidjson::Document currentObject;

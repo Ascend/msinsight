@@ -27,9 +27,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class CommunicationRequestHandler : public ModuleRequestHandler {
-public:
-    CommunicationRequestHandler()
-    {
+  public:
+    CommunicationRequestHandler() {
         moduleName = MODULE_COMMUNICATION;
         async = true;
     }

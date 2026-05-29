@@ -36,13 +36,14 @@ struct RetransmissionAnalyzerStatistics {
 };
 
 class RetransmissionAnalyzer : public CommunicationBaseAnalyzer {
-public:
+  public:
     RetransmissionAnalyzer() = default;
     ~RetransmissionAnalyzer() override = default;
     bool QueryAdvisorData(const std::string &clusterPath) override;
     void ComputeStatistics() override;
     void AssembleAdvisor(CommunicationAdvisorInfo &info) override;
-protected:
+
+  protected:
     std::vector<RetransmissionClassificationInfo> data;
     std::vector<RetransmissionAnalyzerStatistics> statistics;
 };

@@ -29,11 +29,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class DurationListHandler : public CommunicationRequestHandler {
-public:
-    DurationListHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_LIST;
-    }
+  public:
+    DurationListHandler() { command = Protocol::REQ_RES_COMMUNICATION_LIST; }
     ~DurationListHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

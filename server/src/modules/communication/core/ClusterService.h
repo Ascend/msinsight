@@ -33,37 +33,38 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class ClusterService {
-public:
-    static void QueryIterations(const Protocol::IterationsRequest &request,
-                                Protocol::IterationsOrRanksResponse &response);
+  public:
+    static void QueryIterations(
+        const Protocol::IterationsRequest &request, Protocol::IterationsOrRanksResponse &response);
     static void QueryGroupInfo(const Protocol::MatrixGroupRequest &request, Protocol::MatrixGroupResponse &response);
     static void QueryMatrixInfo(Protocol::MatrixBandwidthParam &params, Protocol::MatrixListResponseBody &body);
     static void QueryOperatorList(Protocol::DurationListParams &params, Protocol::OperatorListsResponseBody &body);
     static void QueryDurationList(Protocol::DurationListParams &params, Protocol::DurationListsResponseBody &body);
-    static bool AnalyzeCommunicationSlowRanks(const Protocol::DurationListParams &params,
-        CommunicationSlowRankAnalysisResponseBody &body);
-private:
+    static bool AnalyzeCommunicationSlowRanks(
+        const Protocol::DurationListParams &params, CommunicationSlowRankAnalysisResponseBody &body);
+
+  private:
     static std::vector<Protocol::GroupInfo> MergeGroupInfoWithPgName(
         std::map<std::string, GroupInfoDo> &compareGroupMap, std::map<std::string, GroupInfoDo> &baselineGroupMap);
     static std::map<std::string, GroupInfoDo> GetRankSetAndOpTypeToGroupInfoMap(
         const std::vector<OpTypeStatistics> &StatsList, const std::vector<GroupInfoDo> &groupList);
     static std::vector<Protocol::GroupInfo> MergeGroupInfo(const Protocol::MatrixGroupRequest &request,
         std::vector<GroupInfoDo> &compareGroupList, std::vector<GroupInfoDo> &baselineGroupList);
-    static std::vector<OpTypeStatistics> GetOpTypeStatByStepId(const std::string &stepId,
-                                                               const std::string &clusterPath);
+    static std::vector<OpTypeStatistics> GetOpTypeStatByStepId(
+        const std::string &stepId, const std::string &clusterPath);
     static void MergeMatrixInfo(Protocol::MatrixListResponseBody &body, const std::vector<MatrixInfoDo> &compare,
-                                const std::vector<MatrixInfoDo> &baseline);
+        const std::vector<MatrixInfoDo> &baseline);
     static void MergeOperatorList(Protocol::OperatorListsResponseBody &body, const std::vector<OperatorTimeDo> &compare,
-                                  const std::vector<OperatorTimeDo> &baseline, const std::string &operatorName);
+        const std::vector<OperatorTimeDo> &baseline, const std::string &operatorName);
     static void MergeDurationData(Protocol::DurationListsResponseBody &body, std::vector<DurationDo> &compare,
-                                  std::vector<DurationDo> &baseline, const std::string &clusterPath);
+        std::vector<DurationDo> &baseline, const std::string &clusterPath);
     static void StatisticBandwidthData(const DurationDo &item, std::vector<Protocol::BandwidthStatistic> &bwStat);
-    static void GetBandwidthStatisticResult(std::vector<Protocol::BandwidthStatistic> &bwStat,
-                                            Protocol::DurationListsResponseBody &responseBody);
-    static void CalBandwidthData(Protocol::DurationListsResponseBody &body,
-                                 const std::vector<DurationDo> &durationDoList);
-    static bool CheckOpNameList(const Protocol::DurationListParams &params,
-                                const std::shared_ptr<VirtualClusterDatabase> &database);
+    static void GetBandwidthStatisticResult(
+        std::vector<Protocol::BandwidthStatistic> &bwStat, Protocol::DurationListsResponseBody &responseBody);
+    static void CalBandwidthData(
+        Protocol::DurationListsResponseBody &body, const std::vector<DurationDo> &durationDoList);
+    static bool CheckOpNameList(
+        const Protocol::DurationListParams &params, const std::shared_ptr<VirtualClusterDatabase> &database);
     static void FindSlowRankByCommDuration(const std::shared_ptr<VirtualClusterDatabase> &database,
         const Protocol::DurationListParams &params, RankDetailsForSlowRank &fastestRank,
         CommunicationSlowRankAnalysisResponseBody &body);

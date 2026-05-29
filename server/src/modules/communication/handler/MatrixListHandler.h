@@ -25,11 +25,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class MatrixListHandler : public CommunicationRequestHandler {
-public:
-    MatrixListHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_MATRIX_BANDWIDTH;
-    };
+  public:
+    MatrixListHandler() { command = Protocol::REQ_RES_COMMUNICATION_MATRIX_BANDWIDTH; };
     ~MatrixListHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

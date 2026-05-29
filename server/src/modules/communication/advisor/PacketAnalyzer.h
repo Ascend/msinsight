@@ -47,13 +47,14 @@ struct PacketAnalyzerStatistics {
 };
 
 class PacketAnalyzer : public CommunicationBaseAnalyzer {
-public:
+  public:
     PacketAnalyzer() = default;
     ~PacketAnalyzer() override = default;
     bool QueryAdvisorData(const std::string &clusterPath) override;
     void ComputeStatistics() override;
     void AssembleAdvisor(CommunicationAdvisorInfo &info) override;
-protected:
+
+  protected:
     std::vector<PacketAnalyzerData> data;
     PacketAnalyzerStatistics statistics;
 };

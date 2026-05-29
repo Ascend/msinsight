@@ -30,12 +30,10 @@ using namespace Dic;
 using namespace Dic::Server;
 using namespace Dic::Module::Global;
 
-bool CommunicationOperatorDetailsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
-    auto &request =
-            dynamic_cast<Protocol::OperatorDetailsRequest &>(*requestPtr);
+bool CommunicationOperatorDetailsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<Protocol::OperatorDetailsRequest &>(*requestPtr);
     std::unique_ptr<Protocol::OperatorDetailsResponse> responsePtr =
-            std::make_unique<Protocol::OperatorDetailsResponse>();
+        std::make_unique<Protocol::OperatorDetailsResponse>();
     // check request parameters
     std::string errorMsg;
     OperatorDetailsResponse &response = *responsePtr;

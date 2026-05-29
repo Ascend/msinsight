@@ -26,11 +26,8 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class CommunicationAdvisorHandler : public CommunicationRequestHandler {
-public:
-    CommunicationAdvisorHandler()
-    {
-        command = Protocol::REQ_RES_COMMUNICATION_ADVISOR;
-    };
+  public:
+    CommunicationAdvisorHandler() { command = Protocol::REQ_RES_COMMUNICATION_ADVISOR; };
     ~CommunicationAdvisorHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };
