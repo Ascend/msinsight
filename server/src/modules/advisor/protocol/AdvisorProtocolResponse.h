@@ -43,7 +43,7 @@ struct AffinityOptimizerData {
 struct AffinityOptimizerResBody {
     uint64_t size{};
     std::string dbPath;
-    std::vector<AffinityOptimizerData> datas;
+    std::vector<AffinityOptimizerData> data;
 };
 
 struct AffinityOptimizerResponse : public Response {
@@ -62,7 +62,7 @@ struct AffinityAPIData {
 struct AffinityAPIResBody {
     uint64_t size{};
     std::string dbPath;
-    std::vector<AffinityAPIData> datas;
+    std::vector<AffinityAPIData> data;
 };
 
 struct AffinityAPIResponse : public Response {
@@ -81,7 +81,7 @@ struct OperatorFusionData {
 struct OperatorFusionResBody {
     uint64_t size{};
     std::string dbPath;
-    std::vector<OperatorFusionData> datas;
+    std::vector<OperatorFusionData> data;
 };
 
 struct OperatorFusionResponse : public Response {
@@ -98,7 +98,7 @@ struct AICpuOperatorData {
 struct AICpuOperatorResBody {
     uint64_t size{};
     std::string dbPath;
-    std::vector<AICpuOperatorData> datas;
+    std::vector<AICpuOperatorData> data;
 };
 
 struct AICpuOperatorResponse : public Response {
@@ -115,7 +115,7 @@ struct AclnnOperatorData {
 struct AclnnOperatorResBody {
     uint64_t size{};
     std::string dbPath;
-    std::vector<AclnnOperatorData> datas;
+    std::vector<AclnnOperatorData> data;
 };
 
 struct AclnnOperatorResponse : public Response {
@@ -140,6 +140,5 @@ struct OperatorDispatchResponse : public Response {
     OperatorDispatchResBody body;
 };
 }
-
 
 #endif // PROFILER_SERVER_ADVISORPROTOCOLRESPONSE_H

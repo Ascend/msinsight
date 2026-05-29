@@ -23,16 +23,10 @@
 #include "AdvisorProtocolUtil.h"
 namespace Dic::Module::Advisor {
 class AdvisorPlugin : public Core::BasePlugin {
-public:
+  public:
     AdvisorPlugin() : Core::BasePlugin(MODULE_ADVISOR) {};
-    std::unique_ptr<Module::BaseModule> GetModule() override
-    {
-        return std::make_unique<AdvisorModule>();
-    }
-    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override
-    {
-        return std::make_unique<AdvisorProtocolUtil>();
-    }
+    std::unique_ptr<Module::BaseModule> GetModule() override { return std::make_unique<AdvisorModule>(); }
+    std::unique_ptr<Module::ProtocolUtil> GetProtocolUtil() override { return std::make_unique<AdvisorProtocolUtil>(); }
 };
 }
 #endif // PROFILER_SERVER_ADVISORPLUGIN_H

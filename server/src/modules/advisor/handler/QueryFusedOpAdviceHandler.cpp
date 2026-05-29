@@ -25,8 +25,7 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool QueryFusedOpAdviceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryFusedOpAdviceHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<OperatorFusionRequest &>(*requestPtr);
     std::unique_ptr<OperatorFusionResponse> responsePtr = std::make_unique<OperatorFusionResponse>();
     OperatorFusionResponse &response = *responsePtr;

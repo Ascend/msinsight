@@ -24,8 +24,7 @@
 #include "AdvisorProtocolResponse.h"
 
 namespace Dic::Module::Advisor {
-const std::map<std::string, std::string> OPTIMIZER_MAP = {
-    {"Optimizer.step#SGD.step", "torch_npu.optim.NpuFusedSGD"},
+const std::map<std::string, std::string> OPTIMIZER_MAP = {{"Optimizer.step#SGD.step", "torch_npu.optim.NpuFusedSGD"},
     {"Optimizer.step#Adadelta.step", "torch_npu.optim.NpuFusedAdadelta"},
     {"Optimizer.step#Lamb.step", "torch_npu.optim.NpuFusedLamb"},
     {"Optimizer.step#Adam.step", "torch_npu.optim.NpuFusedAdam"},
@@ -33,15 +32,13 @@ const std::map<std::string, std::string> OPTIMIZER_MAP = {
     {"Optimizer.step#AdamP.step", "torch_npu.optim.NpuFusedAdamP"},
     {"Optimizer.step#BertAdam.step", "torch_npu.optim.NpuFusedBertAdam"},
     {"Optimizer.step#RMSprop.step", "torch_npu.optim.NpuFusedRMSprop"},
-    {"Optimizer.step#RMSpropTF.step", "torch_npu.optim.NpuFusedRMSpropTF"}
-};
+    {"Optimizer.step#RMSpropTF.step", "torch_npu.optim.NpuFusedRMSpropTF"}};
 const std::vector<std::string> AFFINITY_OP_ORDER_BY_NAME_LIST = {
-    "startTime", "duration", "pid", "tid", "originOptimizer"
-};
+    "startTime", "duration", "pid", "tid", "originOptimizer"};
 
 class AffinityOptimizerAdvisor {
-public:
-static bool Process(const Protocol::APITypeParams& params, Protocol::AffinityOptimizerResBody& resBody);
+  public:
+    static bool Process(const Protocol::APITypeParams &params, Protocol::AffinityOptimizerResBody &resBody);
 };
 }
 

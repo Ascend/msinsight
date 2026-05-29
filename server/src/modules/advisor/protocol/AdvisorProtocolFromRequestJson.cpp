@@ -21,8 +21,7 @@
 #include "AdvisorProtocolFromRequestJson.h"
 
 namespace Dic::Protocol {
-template<typename RequestType> std::unique_ptr<Request> ToRequest(const Dic::json_t& json, std::string& error)
-{
+template <typename RequestType> std::unique_ptr<Request> ToRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<RequestType> reqPtr = std::make_unique<RequestType>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -39,38 +38,32 @@ template<typename RequestType> std::unique_ptr<Request> ToRequest(const Dic::jso
 }
 
 std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToAffinityOptimizerRequest(
-    const Dic::json_t &json, std::string &error)
-{
+    const Dic::json_t &json, std::string &error) {
     return ToRequest<AffinityOptimizerRequest>(json, error);
 }
 
 std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToAffinityAPIRequest(
-    const Dic::json_t &json, std::string &error)
-{
+    const Dic::json_t &json, std::string &error) {
     return ToRequest<AffinityAPIRequest>(json, error);
 }
 
 std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToOperatorFusionRequest(
-    const json_t &json, std::string &error)
-{
+    const json_t &json, std::string &error) {
     return ToRequest<OperatorFusionRequest>(json, error);
 }
 
 std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToAICpuOperatorRequest(
-    const json_t &json, std::string &error)
-{
+    const json_t &json, std::string &error) {
     return ToRequest<AICpuOperatorRequest>(json, error);
 }
 
 std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToAclnnOperatorRequest(
-    const json_t &json, std::string &error)
-{
+    const json_t &json, std::string &error) {
     return ToRequest<AclnnOperatorRequest>(json, error);
 }
 
 std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToOperatorDispatchRequest(
-    const json_t &json, std::string &error)
-{
+    const json_t &json, std::string &error) {
     return ToRequest<OperatorDispatchRequest>(json, error);
 }
 }

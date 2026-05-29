@@ -24,11 +24,8 @@
 namespace Dic::Module::Advisor {
 
 class QueryAclnnOpAdvisorHandler : public AdvisorRequestHandler {
-public:
-    QueryAclnnOpAdvisorHandler()
-    {
-        command = Protocol::REQ_RES_ADVISOR_ACLNN_OPERATORS;
-    }
+  public:
+    QueryAclnnOpAdvisorHandler() { command = Protocol::REQ_RES_ADVISOR_ACLNN_OPERATORS; }
     ~QueryAclnnOpAdvisorHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

@@ -24,11 +24,8 @@
 namespace Dic::Module::Advisor {
 
 class QueryAffinityAPIAdvice : public AdvisorRequestHandler {
-public:
-    QueryAffinityAPIAdvice()
-    {
-        command = Protocol::REQ_RES_ADVISOR_AFFINITY_API;
-    }
+  public:
+    QueryAffinityAPIAdvice() { command = Protocol::REQ_RES_ADVISOR_AFFINITY_API; }
     ~QueryAffinityAPIAdvice() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

@@ -24,8 +24,7 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool AclnnOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AclnnOperatorResBody &resBody)
-{
+bool AclnnOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AclnnOperatorResBody &resBody) {
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.rankId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection in Aclnn op advice. fileId:", params.rankId);
@@ -33,9 +32,14 @@ bool AclnnOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::Ac
         return false;
     }
 
-    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy, .order = params.orderType,
-        .current = params.currentPage, .pageSize = params.pageSize, .startTime = params.startTime,
-        .endTime = params.endTime, .rankId = params.rankId, .deviceId = params.deviceId};
+    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy,
+        .order = params.orderType,
+        .current = params.currentPage,
+        .pageSize = params.pageSize,
+        .startTime = params.startTime,
+        .endTime = params.endTime,
+        .rankId = params.rankId,
+        .deviceId = params.deviceId};
     param.order = params.orderType == "ascend" ? "ASC" : "DESC";
     if (std::count(SINGLE_OP_ORDER_BY_NAME_LIST.begin(), SINGLE_OP_ORDER_BY_NAME_LIST.end(), params.orderBy) == 0) {
         param.orderBy = "duration";
@@ -47,9 +51,8 @@ bool AclnnOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::Ac
     return true;
 }
 
-bool AclnnOpAdvisor::AclnnOpProcess(const std::shared_ptr<Timeline::VirtualTraceDatabase>& database,
-    Protocol::KernelDetailsParams &param, Protocol::AclnnOperatorResBody &resBody)
-{
+bool AclnnOpAdvisor::AclnnOpProcess(const std::shared_ptr<Timeline::VirtualTraceDatabase> &database,
+    Protocol::KernelDetailsParams &param, Protocol::AclnnOperatorResBody &resBody) {
     std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(param.rankId);
     if (deviceId.empty()) {
         ServerLog::Error("Query Aclnn op advice failed to get deviceId.");
@@ -77,7 +80,7 @@ bool AclnnOpAdvisor::AclnnOpProcess(const std::shared_ptr<Timeline::VirtualTrace
         one.baseInfo.depth = item.depth;
         one.opName = item.name;
         one.note = "";
-        resBody.datas.emplace_back(one);
+        resBody.data.emplace_back(one);
     }
     resBody.size += data.size();
     return true;

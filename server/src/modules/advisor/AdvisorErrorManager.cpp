@@ -33,16 +33,15 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_ACLNN_OPERATOR_COUNT_FAILED, "Failed to query aclnn operator count"},
     {ErrorCode::QUERY_AFFINITY_API_FAILED, "Failed to query affinity API"},
     {ErrorCode::DATA_ANOMALY_END_TIME_SMALLER_TIMESTAMP,
-     "The original data seems to have an issue, as the end time is smaller than the timestamp. Please check the "
-     "rationality of the data"},
+        "The original data seems to have an issue, as the end time is smaller than the timestamp. Please check the "
+        "rationality of the data"},
     {ErrorCode::QUERY_AFFINITY_OPTIMIZER_FAILED, "Failed to query affinity optimizer"},
     {ErrorCode::QUERY_AI_CPU_OP_CAN_BE_OPTIMIZED_FAILED, "Failed to query can be optimized AI CPU Op"},
     {ErrorCode::QUERY_OPERATOR_DISPATCH_FAILED, "Failed to query operator dispatch data"},
     {ErrorCode::QUERY_FUSED_OP_DATABASE_FAILED, "Failed to query fused operator advice from database"},
 };
 
-const std::string& GetErrorMessage(ErrorCode code)
-{
+const std::string &GetErrorMessage(ErrorCode code) {
     auto it = errorMessages.find(code);
     if (it != errorMessages.end()) {
         return it->second;
@@ -51,8 +50,8 @@ const std::string& GetErrorMessage(ErrorCode code)
     }
 }
 
-void SetAdvisorError(ErrorCode code)
-{
-    Module::ModuleRequestHandler::SetRequestContextError({.code = static_cast<int>(code), .message = GetErrorMessage(code)});
+void SetAdvisorError(ErrorCode code) {
+    Module::ModuleRequestHandler::SetRequestContextError(
+        {.code = static_cast<int>(code), .message = GetErrorMessage(code)});
 }
-}  // namespace Dic::Module::Advisor
+} // namespace Dic::Module::Advisor

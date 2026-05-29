@@ -24,11 +24,8 @@
 namespace Dic::Module::Advisor {
 
 class QueryAffinityOptimizerAdvice : public AdvisorRequestHandler {
-public:
-    QueryAffinityOptimizerAdvice()
-    {
-        command = Protocol::REQ_RES_ADVISOR_AFFINITY_OPTIMIZER;
-    }
+  public:
+    QueryAffinityOptimizerAdvice() { command = Protocol::REQ_RES_ADVISOR_AFFINITY_OPTIMIZER; }
     ~QueryAffinityOptimizerAdvice() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 };

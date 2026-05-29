@@ -24,15 +24,19 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool FusedOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::OperatorFusionResBody &resBody)
-{
+bool FusedOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::OperatorFusionResBody &resBody) {
     auto database = GetDatabaseConnection(params.rankId);
     if (database == nullptr) {
         return false;
     }
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
-    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy, .order = params.orderType, .current = params.currentPage,
-                                           .pageSize = params.pageSize, .startTime = params.startTime, .endTime = params.endTime, .rankId = params.rankId};
+    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy,
+        .order = params.orderType,
+        .current = params.currentPage,
+        .pageSize = params.pageSize,
+        .startTime = params.startTime,
+        .endTime = params.endTime,
+        .rankId = params.rankId};
     param.order = params.orderType == "ascend" ? "ASC" : "DESC";
     if (std::count(FUSED_OP_ORDER_BY_NAME_LIST.begin(), FUSED_OP_ORDER_BY_NAME_LIST.end(), params.orderBy) == 0) {
         param.orderBy = "duration";
@@ -52,8 +56,7 @@ bool FusedOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::Op
     return true;
 }
 
-std::shared_ptr<Timeline::VirtualTraceDatabase> FusedOpAdvisor::GetDatabaseConnection(const std::string &rankId)
-{
+std::shared_ptr<Timeline::VirtualTraceDatabase> FusedOpAdvisor::GetDatabaseConnection(const std::string &rankId) {
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection for Fused Operator advice. fileId:", rankId);

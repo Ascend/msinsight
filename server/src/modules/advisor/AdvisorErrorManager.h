@@ -50,8 +50,8 @@ enum class ErrorCode {
 // 错误信息映射
 extern const std::map<ErrorCode, std::string> errorMessages;
 
-const std::string& GetErrorMessage(ErrorCode code);
+const std::string &GetErrorMessage(ErrorCode code);
 void SetAdvisorError(ErrorCode code);
-}  // namespace Dic::Module::Advisor
+} // namespace Dic::Module::Advisor
 
-#endif  // PROFILER_SERVER_ADVISORERRORMANAGER_H
+#endif // PROFILER_SERVER_ADVISORERRORMANAGER_H

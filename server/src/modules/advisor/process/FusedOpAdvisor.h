@@ -34,22 +34,17 @@ const std::vector<Timeline::FuseableOpRule> FUSEABLE_OPERATER_RULE_LIST = {
     {{"Mul", "AsStrided", "Neg", "AsStrided", "ConcatD", "Mul", "Add"}, "RotaryMul", ""},
     {{"Mul", "Slice", "Neg", "Slice", "ConcatD", "Cast", "Mul", "Add"}, "RotaryMul", ""},
     {{"Cast", "Square", "MemSet", "ReduceMean", "Add", "Rsqrt", "Mul", "Cast", "Mul"}, "RMSNorm", ""},
-    {
-        {"Cast", "Square", "ReduceMeanD", "Add", "Rsqrt", "Cast", "Cast", "Mul", "Cast", "Cast", "Mul", "Cast"},
-        "RMSNORM",
-        ""
-    },
+    {{"Cast", "Square", "ReduceMeanD", "Add", "Rsqrt", "Cast", "Cast", "Mul", "Cast", "Cast", "Mul", "Cast"}, "RMSNORM",
+        ""},
 };
 
-const std::vector<std::string> FUSED_OP_ORDER_BY_NAME_LIST = {
-    "startTime", "duration", "pid", "tid", "name"
-};
+const std::vector<std::string> FUSED_OP_ORDER_BY_NAME_LIST = {"startTime", "duration", "pid", "tid", "name"};
 class FusedOpAdvisor {
-public:
-    static bool Process(const Protocol::APITypeParams& params, Protocol::OperatorFusionResBody& resBody);
+  public:
+    static bool Process(const Protocol::APITypeParams &params, Protocol::OperatorFusionResBody &resBody);
 
-private:
-    static std::shared_ptr<Timeline::VirtualTraceDatabase> GetDatabaseConnection(const std::string& rankId);
+  private:
+    static std::shared_ptr<Timeline::VirtualTraceDatabase> GetDatabaseConnection(const std::string &rankId);
 };
 
 } // Dic::Module::Advisor

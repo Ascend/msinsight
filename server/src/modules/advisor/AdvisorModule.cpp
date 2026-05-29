@@ -27,17 +27,10 @@
 
 namespace Dic::Module {
 using namespace Dic::Module::Advisor;
-AdvisorModule::AdvisorModule()
-{
-    moduleName = MODULE_ADVISOR;
-}
-AdvisorModule::~AdvisorModule()
-{
-    requestHandlerMap.clear();
-}
+AdvisorModule::AdvisorModule() { moduleName = MODULE_ADVISOR; }
+AdvisorModule::~AdvisorModule() { requestHandlerMap.clear(); }
 
-void AdvisorModule::RegisterRequestHandlers()
-{
+void AdvisorModule::RegisterRequestHandlers() {
     requestHandlerMap.clear();
     requestHandlerMap.emplace(REQ_RES_ADVISOR_AFFINITY_OPTIMIZER, std::make_unique<QueryAffinityOptimizerAdvice>());
     requestHandlerMap.emplace(REQ_RES_ADVISOR_AFFINITY_API, std::make_unique<QueryAffinityAPIAdvice>());
@@ -47,8 +40,5 @@ void AdvisorModule::RegisterRequestHandlers()
     requestHandlerMap.emplace(REQ_RES_ADVISOR_OPERATOR_DISPATCH, std::make_unique<QueryOperatorDispatchHandler>());
 }
 
-void AdvisorModule::OnRequest(std::unique_ptr<Protocol::Request> request)
-{
-    BaseModule::OnRequest(std::move(request));
-}
+void AdvisorModule::OnRequest(std::unique_ptr<Protocol::Request> request) { BaseModule::OnRequest(std::move(request)); }
 }

@@ -25,8 +25,7 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool QueryAclnnOpAdvisorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr)
-{
+bool QueryAclnnOpAdvisorHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<AclnnOperatorRequest &>(*requestPtr);
     std::unique_ptr<AclnnOperatorResponse> responsePtr = std::make_unique<AclnnOperatorResponse>();
     AclnnOperatorResponse &response = *responsePtr;

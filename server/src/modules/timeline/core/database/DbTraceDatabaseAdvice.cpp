@@ -29,8 +29,7 @@ using namespace Server;
 
 // Expert System View实现
 bool DbTraceDataBase::QueryAffinityOptimizer(const KernelDetailsParams &params, const std::string &optimizers,
-                                             std::vector<ThreadTraces> &data, uint64_t minTimestamp)
-{
+    std::vector<ThreadTraces> &data, uint64_t minTimestamp) {
     if (!CheckTableExist(TABLE_API)) {
         ServerLog::Warn("The PYTORCH_API table isn't exist.");
         return false;
@@ -67,8 +66,7 @@ bool DbTraceDataBase::QueryAffinityOptimizer(const KernelDetailsParams &params, 
 
 bool DbTraceDataBase::QueryAICpuOpCanBeOptimized(const KernelDetailsParams &params,
     const std::vector<std::string> &replace, const std::map<std::string, AICpuCheckDataType> &dataType,
-    std::vector<KernelBaseInfo> &data, uint64_t minTimestamp)
-{
+    std::vector<KernelBaseInfo> &data, uint64_t minTimestamp) {
     std::string sql = TraceDatabaseSqlConst::GenerateAICpuQueryDbSql(replace, params, dataType);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -104,9 +102,8 @@ bool DbTraceDataBase::QueryAICpuOpCanBeOptimized(const KernelDetailsParams &para
     return true;
 }
 
-bool DbTraceDataBase::QueryAclnnOpCountExceedThreshold(const KernelDetailsParams &params, uint64_t threshold,
-                                                       std::vector<KernelBaseInfo> &data, uint64_t minTimestamp)
-{
+bool DbTraceDataBase::QueryAclnnOpCountExceedThreshold(
+    const KernelDetailsParams &params, uint64_t threshold, std::vector<KernelBaseInfo> &data, uint64_t minTimestamp) {
     auto stmt = CreatPreparedStatement(TraceDatabaseSqlConst::GenerateAclnnQueryDbSql(params));
     if (stmt == nullptr) {
         ServerLog::Error("Fail to prepare sql for Aclnn Op Exceed Threshold.");
@@ -117,7 +114,8 @@ bool DbTraceDataBase::QueryAclnnOpCountExceedThreshold(const KernelDetailsParams
     if (params.startTime == params.endTime) {
         resultSet = stmt->ExecuteQuery(minTimestamp, deviceId, threshold);
     } else {
-        resultSet = stmt->ExecuteQuery(minTimestamp, deviceId, params.startTime + minTimestamp, params.endTime + minTimestamp, threshold);
+        resultSet = stmt->ExecuteQuery(
+            minTimestamp, deviceId, params.startTime + minTimestamp, params.endTime + minTimestamp, threshold);
     }
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set for Aclnn Op Exceed Threshold.", stmt->GetErrorMessage());
@@ -137,10 +135,9 @@ bool DbTraceDataBase::QueryAclnnOpCountExceedThreshold(const KernelDetailsParams
     return true;
 }
 
-bool DbTraceDataBase::QueryAffinityAPIData(const KernelDetailsParams &params,
-    const std::set<std::string> &pattern, uint64_t minTimestamp, std::map<uint64_t,
-    std::vector<FlowLocation>> &data, std::map<uint64_t, std::vector<uint32_t>> &indexes)
-{
+bool DbTraceDataBase::QueryAffinityAPIData(const KernelDetailsParams &params, const std::set<std::string> &pattern,
+    uint64_t minTimestamp, std::map<uint64_t, std::vector<FlowLocation>> &data,
+    std::map<uint64_t, std::vector<uint32_t>> &indexes) {
     auto stmt = CreatPreparedStatement(TraceDatabaseSqlConst::GenerateAffinityApiDbSql(params));
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for Affinity API.");
@@ -150,7 +147,8 @@ bool DbTraceDataBase::QueryAffinityAPIData(const KernelDetailsParams &params,
     if (params.startTime == params.endTime) {
         resultSet = stmt->ExecuteQuery(minTimestamp, minTimestamp);
     } else {
-        resultSet = stmt->ExecuteQuery(minTimestamp, minTimestamp, params.startTime + minTimestamp, params.endTime + minTimestamp);
+        resultSet = stmt->ExecuteQuery(
+            minTimestamp, minTimestamp, params.startTime + minTimestamp, params.endTime + minTimestamp);
     }
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set for Affinity API data.", stmt->GetErrorMessage());
@@ -187,9 +185,9 @@ bool DbTraceDataBase::QueryAffinityAPIData(const KernelDetailsParams &params,
     return true;
 }
 
-bool DbTraceDataBase::QueryFusibleOpData(const KernelDetailsParams &params, const std::vector<Timeline::FuseableOpRule> &rule,
-    Protocol::OperatorFusionResBody &resBody, uint64_t minTimestamp)
-{
+bool DbTraceDataBase::QueryFusibleOpData(const KernelDetailsParams &params,
+    const std::vector<Timeline::FuseableOpRule> &rule, Protocol::OperatorFusionResBody &resBody,
+    uint64_t minTimestamp) {
     std::string sql = DbAdviceSqlConstant::GenerateFusibleOpFilterDbSql(params, rule);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -199,9 +197,8 @@ bool DbTraceDataBase::QueryFusibleOpData(const KernelDetailsParams &params, cons
     return QueryFusibleOpDataForDB(params, stmt, rule, resBody, minTimestamp);
 }
 
-bool DbTraceDataBase::QueryOperatorDispatchData(const KernelDetailsParams &params,
-    std::vector<KernelBaseInfo> &data, uint64_t minTimestamp, uint64_t threshold)
-{
+bool DbTraceDataBase::QueryOperatorDispatchData(
+    const KernelDetailsParams &params, std::vector<KernelBaseInfo> &data, uint64_t minTimestamp, uint64_t threshold) {
     auto stmt = CreatPreparedStatement(TraceDatabaseSqlConst::GenerateOperatorDispatchQueryDbSql(params));
     if (stmt == nullptr) {
         ServerLog::Error("Fail to prepare sql for Operator Dispatch data.");
@@ -210,9 +207,8 @@ bool DbTraceDataBase::QueryOperatorDispatchData(const KernelDetailsParams &param
     return QueryOpDispatchDataForDB(stmt, minTimestamp, params, threshold, data);
 }
 
-bool DbTraceDataBase::QueryFwdBwdDataByFlow(const std::string &rankId, uint64_t offset,
-    const ExtremumTimestamp &range, std::vector<ThreadTraces> &fwdBwdData)
-{
+bool DbTraceDataBase::QueryFwdBwdDataByFlow(
+    const std::string &rankId, uint64_t offset, const ExtremumTimestamp &range, std::vector<ThreadTraces> &fwdBwdData) {
     std::vector<std::string> tableList = {TABLE_API, TABLE_CONNECTION_CATS, TABLE_CONNECTION_IDS, TABLE_ENUM_API_TYPE};
     if (!CheckTablesExist(tableList)) {
         ServerLog::Error("Failed to check dependent table for query fwdbwd data in the DB scenario.");
@@ -231,9 +227,8 @@ bool DbTraceDataBase::QueryFwdBwdDataByFlow(const std::string &rankId, uint64_t 
     return TraceDatabaseHelper::ExecuteQueryFwdBwdDataByFlow(std::move(stmt), rankId, offset, range, fwdBwdData);
 }
 
-bool DbTraceDataBase::QueryP2PCommunicationOpData(const std::string &rankId, uint64_t offset,
-    const ExtremumTimestamp &range, std::vector<ThreadTraces> &p2pOpData)
-{
+bool DbTraceDataBase::QueryP2PCommunicationOpData(
+    const std::string &rankId, uint64_t offset, const ExtremumTimestamp &range, std::vector<ThreadTraces> &p2pOpData) {
     auto stmt = CreatPreparedStatement(QUERY_P2P_COMMUNICATION_OP_DB_SQL);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query p2p communication op data in the DB scenario.");
@@ -242,8 +237,7 @@ bool DbTraceDataBase::QueryP2PCommunicationOpData(const std::string &rankId, uin
     return TraceDatabaseHelper::ExecuteQueryP2POpData(std::move(stmt), rankId, offset, range, p2pOpData);
 }
 
-bool DbTraceDataBase::QueryByteAlignmentAnalyzerData(std::vector<CommunicationLargeOperatorInfo> &data)
-{
+bool DbTraceDataBase::QueryByteAlignmentAnalyzerData(std::vector<CommunicationLargeOperatorInfo> &data) {
     std::vector<ByteAlignmentAnalyzerLargeOperatorInfo> largeOpInfo;
     std::vector<ByteAlignmentAnalyzerSmallOperatorInfo> smallOpInfo;
     QueryByteAlignmentAnalyzerRawData(largeOpInfo, smallOpInfo);
@@ -253,14 +247,13 @@ bool DbTraceDataBase::QueryByteAlignmentAnalyzerData(std::vector<CommunicationLa
 
 bool DbTraceDataBase::QueryByteAlignmentAnalyzerRawData(
     std::vector<ByteAlignmentAnalyzerLargeOperatorInfo> &largeOpInfo,
-    std::vector<ByteAlignmentAnalyzerSmallOperatorInfo> &smallOpInfo)
-{
+    std::vector<ByteAlignmentAnalyzerSmallOperatorInfo> &smallOpInfo) {
     std::string sqlForLargeOp = QUERY_BYTE_ALIGNMENT_ANALYZER_LARGE_OPERATOR_FOR_DB_SQL;
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sqlForLargeOp.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to prepare sql for query byte alignment analyzer large operator data. Error: ",
-                         sqlite3_errmsg(db));
+        ServerLog::Error(
+            "Failed to prepare sql for query byte alignment analyzer large operator data. Error: ", sqlite3_errmsg(db));
         return false;
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -275,8 +268,8 @@ bool DbTraceDataBase::QueryByteAlignmentAnalyzerRawData(
     sqlite3_stmt *stmt2 = nullptr;
     int result2 = sqlite3_prepare_v2(db, sqlForSmallOp.c_str(), -1, &stmt2, nullptr);
     if (result2 != SQLITE_OK) {
-        ServerLog::Error("Failed to prepare sql for query byte alignment analyzer small operator data. Error: ",
-                         sqlite3_errmsg(db));
+        ServerLog::Error(
+            "Failed to prepare sql for query byte alignment analyzer small operator data. Error: ", sqlite3_errmsg(db));
         return false;
     }
     while (sqlite3_step(stmt2) == SQLITE_ROW) {
@@ -298,9 +291,8 @@ bool DbTraceDataBase::QueryByteAlignmentAnalyzerRawData(
     return true;
 }
 
-bool DbTraceDataBase::QueryFwdBwdFromMstx(std::vector<ThreadTraces> &traceList)
-{
-    std::string sql = "Select name, startNs, endNs, type from " + TABLE_STEP_TASK_INFO  + " order by startNs";
+bool DbTraceDataBase::QueryFwdBwdFromMstx(std::vector<ThreadTraces> &traceList) {
+    std::string sql = "Select name, startNs, endNs, type from " + TABLE_STEP_TASK_INFO + " order by startNs";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query fwd/bwd data from mstx in the DB scenario.");
@@ -322,8 +314,7 @@ bool DbTraceDataBase::QueryFwdBwdFromMstx(std::vector<ThreadTraces> &traceList)
     return true;
 }
 
-bool DbTraceDataBase::QueryP2PCommunicationOpHaveConnectionId(std::vector<ThreadTraces> &traceList)
-{
+bool DbTraceDataBase::QueryP2PCommunicationOpHaveConnectionId(std::vector<ThreadTraces> &traceList) {
     std::string sql = "select str.value as name, op.startNs, op.endNs, op.opConnectionId from " +
         TABLE_COMMUNICATION_OP + " as op LEFT JOIN " + TABLE_STRING_IDS +
         " as str ON str.id = op.opName WHERE LOWER(name) LIKE '%send%' OR LOWER(name) LIKE '%receive%'";
@@ -335,8 +326,9 @@ bool DbTraceDataBase::QueryP2PCommunicationOpHaveConnectionId(std::vector<Thread
     }
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
-        ServerLog::Error("Failed to get result set for query communication op data "
-                         "have connection id in the DB scenario.", stmt->GetErrorMessage());
+        ServerLog::Error(
+            "Failed to get result set for query communication op data have connection id in the DB scenario.",
+            stmt->GetErrorMessage());
         return false;
     }
     while (resultSet->Next()) {
@@ -359,17 +351,16 @@ bool DbTraceDataBase::QueryP2PCommunicationOpHaveConnectionId(std::vector<Thread
 }
 
 bool DbTraceDataBase::QueryFusibleOpDataForDB(const KernelDetailsParams &params,
-                                              std::unique_ptr<SqlitePreparedStatement> &stmt,
-                                              const std::vector<Timeline::FuseableOpRule> &rule,
-                                              Protocol::OperatorFusionResBody &resBody, uint64_t minTimestamp)
-{
+    std::unique_ptr<SqlitePreparedStatement> &stmt, const std::vector<Timeline::FuseableOpRule> &rule,
+    Protocol::OperatorFusionResBody &resBody, uint64_t minTimestamp) {
     int deviceId = StringUtil::StringToInt(params.deviceId);
     uint64_t offset = (params.current - 1) * params.pageSize;
     std::unique_ptr<SqliteResultSet> resultSet;
     if (params.startTime == params.endTime) { // default request, not time range analysis
         resultSet = stmt->ExecuteQuery(minTimestamp, deviceId, params.pageSize, offset);
     } else {
-        resultSet = stmt->ExecuteQuery(minTimestamp, deviceId, params.startTime + minTimestamp, params.endTime + minTimestamp, params.pageSize, offset);
+        resultSet = stmt->ExecuteQuery(minTimestamp, deviceId, params.startTime + minTimestamp,
+            params.endTime + minTimestamp, params.pageSize, offset);
     }
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set for query Fusible Operator.", stmt->GetErrorMessage());
@@ -389,16 +380,15 @@ bool DbTraceDataBase::QueryFusibleOpDataForDB(const KernelDetailsParams &params,
         one.originOpList = resultSet->GetString("originOpList");
         one.fusedOp = resultSet->GetString("fusedOp");
         one.note = "";
-        resBody.datas.emplace_back(one);
+        resBody.data.emplace_back(one);
         resBody.size = resultSet->GetUint64("total_count");
     }
 
     return true;
 }
 
-bool DbTraceDataBase::QueryOpDispatchDataForDB(std::unique_ptr<SqlitePreparedStatement> &stmt,
-    uint64_t minTimestamp, const KernelDetailsParams &params, uint64_t threshold, std::vector<KernelBaseInfo> &data)
-{
+bool DbTraceDataBase::QueryOpDispatchDataForDB(std::unique_ptr<SqlitePreparedStatement> &stmt, uint64_t minTimestamp,
+    const KernelDetailsParams &params, uint64_t threshold, std::vector<KernelBaseInfo> &data) {
     std::unique_ptr<SqliteResultSet> resultSet;
     if (params.startTime == params.endTime) {
         resultSet = stmt->ExecuteQuery(minTimestamp);
@@ -422,18 +412,16 @@ bool DbTraceDataBase::QueryOpDispatchDataForDB(std::unique_ptr<SqlitePreparedSta
     }
     if (data.size() > 0 && data.size() < threshold) {
         ServerLog::Error(
-            "Failed to get Operator Dispatch data because the total count should greater than or equal to "
-            + std::to_string(threshold) + " ."
-        );
+            "Failed to get Operator Dispatch data because the total count should greater than or equal to " +
+            std::to_string(threshold) + " .");
         data.clear();
     }
     return true;
 }
 
 void DbTraceDataBase::ProcessByteAlignmentAnalyzerDataForDb(std::vector<CommunicationLargeOperatorInfo> &result,
-                                                            std::vector<ByteAlignmentAnalyzerLargeOperatorInfo> &largeOpInfo,
-                                                            std::vector<ByteAlignmentAnalyzerSmallOperatorInfo> &smallOpInfo)
-{
+    std::vector<ByteAlignmentAnalyzerLargeOperatorInfo> &largeOpInfo,
+    std::vector<ByteAlignmentAnalyzerSmallOperatorInfo> &smallOpInfo) {
     std::map<std::string, CommunicationLargeOperatorInfo> resultMap;
     for (const auto &singleLargeOp : largeOpInfo) {
         CommunicationLargeOperatorInfo info;

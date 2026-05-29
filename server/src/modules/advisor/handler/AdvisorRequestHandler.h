@@ -25,9 +25,8 @@
 
 namespace Dic::Module::Advisor {
 class AdvisorRequestHandler : public ModuleRequestHandler {
-public:
-    AdvisorRequestHandler()
-    {
+  public:
+    AdvisorRequestHandler() {
         moduleName = MODULE_ADVISOR;
         async = false;
     }

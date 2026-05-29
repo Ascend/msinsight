@@ -22,9 +22,9 @@
 #include "BaseModule.h"
 namespace Dic::Module {
 class AdvisorModule : public BaseModule {
-public:
+  public:
     AdvisorModule();
-    ~AdvisorModule()override;
+    ~AdvisorModule() override;
 
     void RegisterRequestHandlers() override;
     void OnRequest(std::unique_ptr<Protocol::Request> request) override;

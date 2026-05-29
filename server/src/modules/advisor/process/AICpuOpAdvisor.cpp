@@ -23,8 +23,7 @@
 
 namespace Dic::Module::Advisor {
 using namespace Dic::Server;
-bool AICpuOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AICpuOperatorResBody &resBody)
-{
+bool AICpuOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AICpuOperatorResBody &resBody) {
     auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.rankId);
     if (database == nullptr) {
         ServerLog::Error("Failed to get connection in AI CPU advice. fileId:", params.rankId);
@@ -33,9 +32,12 @@ bool AICpuOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AI
     }
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
     std::vector<Protocol::KernelBaseInfo> data{};
-    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy, .order = params.orderType,
-                                           .current = params.currentPage, .pageSize = params.pageSize,
-                                           .startTime = params.startTime, .endTime = params.endTime};
+    Protocol::KernelDetailsParams param = {.orderBy = params.orderBy,
+        .order = params.orderType,
+        .current = params.currentPage,
+        .pageSize = params.pageSize,
+        .startTime = params.startTime,
+        .endTime = params.endTime};
     param.order = params.orderType == "ascend" ? "ASC" : "DESC";
     if (std::count(AICPU_OP_ORDER_BY_NAME_LIST.begin(), AICPU_OP_ORDER_BY_NAME_LIST.end(), params.orderBy) == 0) {
         param.orderBy = "duration";
@@ -47,8 +49,8 @@ bool AICpuOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AI
         return false;
     }
     param.deviceId = deviceId;
-    if (!database->QueryAICpuOpCanBeOptimized(param, AICPU_OP_EQUIVALENT_REPLACE,
-                                              AICPU_OP_DATATYPE_RULE, data, startTime)) {
+    if (!database->QueryAICpuOpCanBeOptimized(
+            param, AICPU_OP_EQUIVALENT_REPLACE, AICPU_OP_DATATYPE_RULE, data, startTime)) {
         ServerLog::Error("Failed to Query Can Be Optimized AI CPU Op from database. fileId:", params.rankId);
         SetAdvisorError(ErrorCode::QUERY_AI_CPU_OP_CAN_BE_OPTIMIZED_FAILED);
         return false;
@@ -66,15 +68,14 @@ bool AICpuOpAdvisor::Process(const Protocol::APITypeParams &params, Protocol::AI
         one.baseInfo.depth = item.depth;
         one.opName = item.name;
         one.note = GenerateAICpuOperatorNote(item);
-        resBody.datas.emplace_back(one);
+        resBody.data.emplace_back(one);
     }
     resBody.dbPath = database->GetDbPath();
     resBody.size = data.size();
     return true;
 }
 
-std::string AICpuOpAdvisor::GenerateAICpuOperatorNote(const Protocol::KernelBaseInfo& info)
-{
+std::string AICpuOpAdvisor::GenerateAICpuOperatorNote(const Protocol::KernelBaseInfo &info) {
     std::vector<std::string> replace = AICPU_OP_EQUIVALENT_REPLACE;
     if (std::find(replace.begin(), replace.end(), info.type) != replace.end()) {
         return "Try to replace " + info.type + " operator with equivalent operator.";
@@ -90,8 +91,8 @@ std::string AICpuOpAdvisor::GenerateAICpuOperatorNote(const Protocol::KernelBase
         std::find(type.output.begin(), type.output.end(), info.outputType) == type.output.end()) {
         return "The input/output data type is not supported, "
                "and maybe you can convert its type to meet the requirements: "
-               "input data type, " + StringUtil::join(type.input, ",") +
-               "; output data type, " + StringUtil::join(type.output, ",");
+               "input data type, " +
+            StringUtil::join(type.input, ",") + "; output data type, " + StringUtil::join(type.output, ",");
     }
     uint32_t threshold = AICPU_OP_DURATION_THRESHOLD / THOUSAND;
     if (info.duration > threshold) {

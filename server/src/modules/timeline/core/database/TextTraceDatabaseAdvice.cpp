@@ -29,8 +29,7 @@ using namespace Dic::Server;
 using namespace Dic::Protocol;
 
 void TextTraceDatabase::ProcessByteAlignmentAnalyzerDataForText(
-    std::vector<CommunicationLargeOperatorInfo> &result, std::vector<std::pair<std::string, std::string>> rawData)
-{
+    std::vector<CommunicationLargeOperatorInfo> &result, std::vector<std::pair<std::string, std::string>> rawData) {
     bool hasOneHcom = false;
     CommunicationLargeOperatorInfo op;
     for (const auto &item : rawData) {
@@ -75,8 +74,7 @@ void TextTraceDatabase::ProcessByteAlignmentAnalyzerDataForText(
 
 bool TextTraceDatabase::QueryAffinityAPIData(const Protocol::KernelDetailsParams &params,
     const std::set<std::string> &pattern, uint64_t minTimestamp,
-    std::map<uint64_t, std::vector<Protocol::FlowLocation>> &data, std::map<uint64_t, std::vector<uint32_t>> &indexes)
-{
+    std::map<uint64_t, std::vector<Protocol::FlowLocation>> &data, std::map<uint64_t, std::vector<uint32_t>> &indexes) {
     auto stmt = CreatPreparedStatement(TextSqlConstant::GenerateAffinityApiTextSql(params));
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for Affinity API.");
@@ -86,7 +84,8 @@ bool TextTraceDatabase::QueryAffinityAPIData(const Protocol::KernelDetailsParams
     if (params.startTime == params.endTime) {
         resultSet = stmt->ExecuteQuery(minTimestamp, minTimestamp);
     } else {
-        resultSet = stmt->ExecuteQuery(minTimestamp, minTimestamp, params.startTime + minTimestamp, params.endTime + minTimestamp);
+        resultSet = stmt->ExecuteQuery(
+            minTimestamp, minTimestamp, params.startTime + minTimestamp, params.endTime + minTimestamp);
     }
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set for Affinity API data.", stmt->GetErrorMessage());
@@ -120,8 +119,7 @@ bool TextTraceDatabase::QueryAffinityAPIData(const Protocol::KernelDetailsParams
 }
 
 bool TextTraceDatabase::QueryAffinityOptimizer(const Protocol::KernelDetailsParams &params,
-    const std::string &optimizers, std::vector<Protocol::ThreadTraces> &data, uint64_t minTimestamp)
-{
+    const std::string &optimizers, std::vector<Protocol::ThreadTraces> &data, uint64_t minTimestamp) {
     std::string sql = TextSqlConstant::QueryAffinityOptimizerTextSql(optimizers, params);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -151,9 +149,9 @@ bool TextTraceDatabase::QueryAffinityOptimizer(const Protocol::KernelDetailsPara
     return true;
 }
 
-bool TextTraceDatabase::QueryFusibleOpData(const KernelDetailsParams &params, const std::vector<Timeline::FuseableOpRule> &rule,
-                                           Protocol::OperatorFusionResBody &resBody, uint64_t minTimestamp)
-{
+bool TextTraceDatabase::QueryFusibleOpData(const KernelDetailsParams &params,
+    const std::vector<Timeline::FuseableOpRule> &rule, Protocol::OperatorFusionResBody &resBody,
+    uint64_t minTimestamp) {
     std::string sql = TextAdviceSqlConstant::GenerateFusibleOpFilterTextSql(params, rule);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -165,7 +163,8 @@ bool TextTraceDatabase::QueryFusibleOpData(const KernelDetailsParams &params, co
     if (params.startTime == params.endTime) {
         resultSet = stmt->ExecuteQuery(minTimestamp, params.deviceId, params.pageSize, offset);
     } else {
-        resultSet = stmt->ExecuteQuery(minTimestamp, params.deviceId, params.startTime + minTimestamp, params.endTime + minTimestamp, params.pageSize, offset);
+        resultSet = stmt->ExecuteQuery(minTimestamp, params.deviceId, params.startTime + minTimestamp,
+            params.endTime + minTimestamp, params.pageSize, offset);
     }
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result set for query Fuseable Operator.", stmt->GetErrorMessage());
@@ -184,7 +183,7 @@ bool TextTraceDatabase::QueryFusibleOpData(const KernelDetailsParams &params, co
         one.originOpList = resultSet->GetString("originOpList");
         one.fusedOp = resultSet->GetString("fusedOp");
         one.note = "";
-        resBody.datas.emplace_back(one);
+        resBody.data.emplace_back(one);
         resBody.size = resultSet->GetUint64("total_count");
     }
     return true;
