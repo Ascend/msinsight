@@ -682,13 +682,17 @@ vncserver -localhost -geometry 1920x1080
     pip install jupyterlab
     ```
 
+    >[!NOTE]
+    >
+    >如果需要打开集群场景数据，则需要参见[安装依赖](#安装依赖)章节中的内容安装Python依赖。
+
     **表 2**  环境要求<a id="环境要求"></a>
 
     |类别|要求|
     |--|--|
-    |支持的系统|Linux系统|
-    |依赖|版本要求：Python >= 3.8<br>如果需要打开集群场景数据，则需要参见[安装依赖](#安装依赖)章节中的内容安装Python依赖。|
-    |JupyterLab环境|版本要求：JupyterLab >= 4.0，且 < 5.0|
+    |系统|Linux系统|
+    |Python版本|Python >= 3.8<br>|
+    |JupyterLab环境版本|JupyterLab >= 4.0，且 < 5.0|
 
 2. 安装完成后，查看JupyterLab版本。
 
