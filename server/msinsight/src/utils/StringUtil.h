@@ -182,7 +182,7 @@ class StringUtil {
 
         UINT codePage = GetACP();
         if (codePage == GBK_CODE_PAGE) {
-            return StringUtil::MixedGbkAndUtf8ToUtf8(input);
+            return StringUtil::GbkToUtf8(input.c_str());
         }
 #endif
         return input;
@@ -239,11 +239,14 @@ class StringUtil {
 #endif
 
     static std::string FixGbkMojibakeStr(const std::string &input) {
-        std::string utf8Str = ToUtf8Str(input);
 #ifdef _WIN32
-        return Utf8MojibakeToGbkUtf8(utf8Str.c_str());
+        if (!IsUtf8StrFast(input)) {
+            return input;
+        }
+        std::string fixedUtf8Str = Utf8MojibakeToGbkUtf8(input.c_str());
+        return Utf8ToGbk(fixedUtf8Str.c_str());
 #else
-        return utf8Str;
+        return input;
 #endif
     }
 
