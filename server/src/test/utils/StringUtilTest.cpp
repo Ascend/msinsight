@@ -151,6 +151,14 @@ TEST(StringUtil, Utf8ToGbk) {
     EXPECT_EQ(StringUtil::Utf8ToGbk("\xE4\xB8\xAD"), "\xD6\xD0");
 }
 
+TEST(StringUtil, ToUtf8StrConvertsWholeGbkPathWithoutMixedUtf8Splitting)
+{
+    SkipIfNotGbkCodePage();
+    const std::string gbkPath = std::string("D:\\data\\") + "\xB6\xE0\xBB\xFA\xB6\xE0\xBF\xA8";
+    const std::string utf8Path = std::string("D:\\data\\") + "\xE5\xA4\x9A\xE6\x9C\xBA\xE5\xA4\x9A\xE5\x8D\xA1";
+    EXPECT_EQ(StringUtil::ToUtf8Str(gbkPath), utf8Path);
+}
+
 TEST(StringUtil, Utf8CharLenWithValidInput)
 {
     EXPECT_EQ(StringUtil::Utf8CharLen("abc", 0), 1);
@@ -212,12 +220,19 @@ TEST(StringUtil, Utf8MojibakeToGbkUtf8KeepsUnconvertibleUnicode)
 
 TEST(StringUtil, FixGbkMojibakeStr)
 {
+    SkipIfNotGbkCodePage();
     const std::string utf8Chinese = "\xE4\xB8\xAD\xE6\x96\x87";
+    const std::string gbkChinese = "\xD6\xD0\xCE\xC4";
     const std::string mojibake = StringUtil::GbkToUtf8(utf8Chinese.c_str());
+    const std::string gbkMultiCard = "\xB6\xE0\xBB\xFA\xB6\xE0\xBF\xA8";
+    const std::string utf8MultiCard = "\xE5\xA4\x9A\xE6\x9C\xBA\xE5\xA4\x9A\xE5\x8D\xA1";
     EXPECT_EQ(StringUtil::FixGbkMojibakeStr(""), "");
     EXPECT_EQ(StringUtil::FixGbkMojibakeStr("abc123"), "abc123");
-    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(utf8Chinese), utf8Chinese);
-    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(mojibake), utf8Chinese);
+    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(utf8Chinese), gbkChinese);
+    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(mojibake), gbkChinese);
+    EXPECT_EQ(StringUtil::FixGbkMojibakeStr(gbkMultiCard), gbkMultiCard);
+    EXPECT_EQ(StringUtil::ToUtf8Str(StringUtil::FixGbkMojibakeStr(mojibake)), utf8Chinese);
+    EXPECT_EQ(StringUtil::ToUtf8Str(StringUtil::FixGbkMojibakeStr(gbkMultiCard)), utf8MultiCard);
 }
 
 #endif
