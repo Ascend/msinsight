@@ -368,6 +368,7 @@ const createBaselineCard = (session: Session | undefined, result: TimelineCard[]
             unit.children = cardUnits;
         }
     });
+    session.updateUnitsForMultiDevice();
 };
 export const savePageSettingRemoteHandler: NotificationHandler = async (): Promise<unknown> => {
     const { sessionStore } = store;
