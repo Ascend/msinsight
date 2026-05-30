@@ -20,7 +20,7 @@ import styled from '@emotion/styled';
 import { Button, Input, Select, Tooltip } from '@insight/lib/components';
 import { message } from 'antd';
 import { observer } from 'mobx-react';
-import React, { type ChangeEvent, useEffect, useMemo, useState } from 'react';
+import React, { type ChangeEvent, useEffect, useState } from 'react';
 import { SearchIcon } from '@insight/lib/icon';
 import { ReactComponent as AntdCloseIcon } from '../assets/images/insights/ic_close_filled.svg';
 import type { Session } from '../entity/session';
@@ -228,21 +228,18 @@ const CategorySearchContent = (session: Session): JSX.Element => {
     const [isSearching, setIsSearching] = useState(false);
 
     // 获取所有可用的 rankId 列表
-    const rankIdOptions = useMemo(() => {
-        const rankIdSet = new Set<string>();
-        for (const unit of session.units) {
-            if (!unit.isDisplay || unit.isMultiDeviceHidden) {
-                continue;
-            }
-            const metadata = unit.metadata as any;
-            if (metadata.cardId !== undefined) {
-                rankIdSet.add(metadata.cardId);
-            }
+    const rankIdSet = new Set<string>();
+    for (const unit of session.units) {
+        if (!unit.isDisplay || unit.isMultiDeviceHidden) {
+            continue;
         }
-        const options = Array.from(rankIdSet);
-        options.push(ALL_RANK_ID); // ALL 放在最后
-        return options;
-    }, [session.units]);
+        const metadata = unit.metadata as any;
+        if (metadata.cardId !== undefined) {
+            rankIdSet.add(metadata.cardId);
+        }
+    }
+    const rankIdOptions = Array.from(rankIdSet);
+    rankIdOptions.push(ALL_RANK_ID); // ALL 放在最后
 
     // 选中的 rankId，默认为第一个
     const [selectedRankId, setSelectedRankId] = useState<string>(() => {
