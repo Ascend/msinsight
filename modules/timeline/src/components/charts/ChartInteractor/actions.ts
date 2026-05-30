@@ -242,7 +242,7 @@ export const mouseDownAction = ({
     session, xReverseScaleRef, interactorMouseState, e, splitLineRef, interactorParams,
 }: MouseActionParams): MouseDownActionResult => {
     const lastPos = interactorMouseState.lastPos.current;
-    const isPressingKey = (isMac && e.metaKey) || (!isMac && e.ctrlKey);
+    const isPressingKey = session.panMode || (isMac && e.metaKey) || (!isMac && e.ctrlKey);
     // 点击context menu选项时屏蔽mouseDownAction
     const contextMenuVisible = session.contextMenu.isVisible as boolean;
     const rightClickOrNoLastPos = session.endTimeAll === undefined || !lastPos || e.button === MouseButton.RIGHT;
@@ -296,7 +296,7 @@ export const mouseDownAction = ({
 export const mouseMoveAction = (interactorParams: InteractorParams, interactorMouseState: InteractorMouseState, e: React.MouseEvent): void => {
     const { hoverCanvas: canvas, session } = interactorParams;
     if (canvas.current === null) { return; }
-    const canDrag = ((isMac && e.metaKey) || (!isMac && e.ctrlKey)) && dragData.isDragging;
+    const canDrag = (session.panMode || (isMac && e.metaKey) || (!isMac && e.ctrlKey)) && dragData.isDragging;
     if (canDrag) {
         moveDomainByDragging(session, dragData.xPos - e.clientX, canvas.current?.clientWidth ?? INTERACTOR_WIDTH);
         canvas.current.style.cursor = 'grabbing';

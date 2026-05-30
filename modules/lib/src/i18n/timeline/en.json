@@ -223,6 +223,20 @@
       "Click To AI Core Frequency": "Click To AI Core Frequency"
     },
     "RenderError": "Rendering failed. Please check if the data is correct",
+    "floatingToolbar": {
+      "expand": "Expand mouse tools",
+      "collapse": "Collapse mouse tools",
+      "guideTitle": "Mouse tool guide",
+      "closeGuide": "Close mouse tool guide",
+      "defaultMode": "Default mode",
+      "defaultModeDescription": "Click freely and select lanes with the default pointer behavior.",
+      "dragMode": "Pan mode ({{key}} + Drag)",
+      "dragModeDescription": "Freely drag the timeline horizontally to locate operators with flexibility.",
+      "autoFitHeight": "Auto fit lane height",
+      "autoFitHeightDescription": "Adapt lane height automatically as the visible area changes.",
+      "selectionMode": "Slice selection mode",
+      "selectionModeDescription": "Select operators precisely, highlight them, and focus on their position."
+    },
     "Merged unit": "Merged unit",
     "MergeStreamOnly": "Only Stream units can be merged",
     "InterceptedMaximum": "The loading time exceeds the maximum JS security value (5003 hours, 59 minutes, 58 seconds), and the system displays a message indicating that data has been intercepted.",

@@ -1,0 +1,8 @@
+<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16.000000" height="16.000000" fill="none">
+	<rect id="容器 1" width="16.000000" height="16.000000" x="0.000000" y="0.000000" fill="currentColor" fill-opacity="0" />
+	<path id="直线 1(边框)" d="M2 14L14 14L14 15L2 15L2 14Z" fill="currentColor" fill-rule="evenodd" />
+	<path id="箭头 1(边框)" d="M0 0L8 0L8 1L0 1L0 0Z" fill="currentColor" fill-rule="evenodd" transform="matrix(0,1,-1,0,8.5,4)" />
+	<path id="多边形 1" d="M9.73205 5.25L6.26795 5.25L8 3L9.73205 5.25Z" fill="currentColor" fill-rule="evenodd" />
+	<path id="多边形 2" d="M3.73205 2.25L0.267949 2.25L2 0L3.73205 2.25Z" fill="currentColor" fill-rule="evenodd" transform="matrix(1,0,0,-1,6,13)" />
+	<path id="直线 1(边框)" d="M2 1L14 1L14 2L2 2L2 1Z" fill="currentColor" fill-rule="evenodd" />
+</svg>

@@ -1,0 +1,13 @@
+<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16.000000" height="16.000000" fill="none" customFrame="#000000">
+	<rect id="容器 2" width="16.000000" height="16.000000" x="0.000000" y="0.000000" fill="currentColor" fill-opacity="0" />
+	<circle id="椭圆 1" cx="2.5" cy="2.5" r="1" stroke="currentColor" stroke-width="1.000000" />
+	<circle id="椭圆 3" cx="2.5" cy="13.5" r="1" stroke="currentColor" stroke-width="1.000000" />
+	<circle id="椭圆 2" cx="13.5" cy="2.5" r="1" stroke="currentColor" stroke-width="1.000000" />
+	<circle id="椭圆 4" cx="13.5" cy="13.5" r="1" stroke="currentColor" stroke-width="1.000000" />
+	<path id="直线 1(边框)" d="M0 0L10 0L10 1L0 1L0 0Z" fill="currentColor" fill-rule="evenodd" transform="matrix(0,1,-1,0,3,3)" />
+	<path id="直线 1(边框)" d="M0 0L10 0L10 1L0 1L0 0Z" fill="currentColor" fill-rule="evenodd" transform="matrix(0,1,-1,0,14,3)" />
+	<path id="直线 1(边框)" d="M3 2L13 2L13 3L3 3L3 2Z" fill="currentColor" fill-rule="evenodd" />
+	<path id="直线 1(边框)" d="M3 13L13 13L13 14L3 14L3 13Z" fill="currentColor" fill-rule="evenodd" />
+	<rect id="矩形 1" width="7.000000" height="2.000000" x="4.500000" y="4.500000" stroke="currentColor" stroke-width="1.000000" />
+	<rect id="矩形 2" width="7.000000" height="2.000000" x="4.500000" y="9.500000" stroke="currentColor" stroke-width="1.000000" />
+</svg>

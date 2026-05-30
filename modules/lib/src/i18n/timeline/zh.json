@@ -223,6 +223,20 @@
       "Click To AI Core Frequency": "点击跳转AI Core Frequency"
     },
     "RenderError": "渲染失败，请检查数据是否正确",
+    "floatingToolbar": {
+      "expand": "展开鼠标功能选项",
+      "collapse": "收起",
+      "guideTitle": "鼠标功能指引",
+      "closeGuide": "关闭鼠标功能指引",
+      "defaultMode": "默认模式",
+      "defaultModeDescription": "鼠标灵活点击，自由框选泳道。",
+      "dragMode": "平移模式（{{key}}+拖动）",
+      "dragModeDescription": "自由横向拖动时序图，灵活查看定位算子。",
+      "autoFitHeight": "泳道高度自适应",
+      "autoFitHeightDescription": "根据窗口变化，自适应压缩空白无效区域。",
+      "selectionMode": "算子框选模式",
+      "selectionModeDescription": "精细化框选算子，高亮显示、聚焦定位。"
+    },
     "Merged unit": "合并的泳道",
     "MergeStreamOnly": "只允许合并 Stream 泳道",
     "InterceptedMaximum": "加载时间超过JS最大安全值(5003小时 59分 58秒), 显示数据已截取",
