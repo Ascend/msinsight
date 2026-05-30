@@ -239,6 +239,9 @@ void HardWareRepo::QuerySliceArgs(
     JsonUtil::AddConstMember(json, TaskColumn::STREAM_ID, streamId, allocator);
     JsonUtil::AddConstMember(json, TaskColumn::TASK_ID, taskId, allocator);
     JsonUtil::AddConstMember(json, TaskColumn::CONNECTION_ID, connectionId, allocator);
+    if (taskTypeName == "KERNEL_SIMT") {
+        AppendKernelSimtDims(sliceQuery, json, allocator, targetTask);
+    }
     if (QueryMemoryInfo(sliceQuery, competeSliceDomain, targetTask)) {
         JsonUtil::AddMember(json, "operation", competeSliceDomain.memcpyDirection, allocator);
         JsonUtil::AddMember(json, "size(B)", competeSliceDomain.dataSize, allocator);
@@ -249,6 +252,22 @@ void HardWareRepo::QuerySliceArgs(
         }
     }
     competeSliceDomain.args = JsonUtil::JsonDump(json);
+}
+
+void HardWareRepo::AppendKernelSimtDims(
+    const SliceQuery &sliceQuery, document_t &json, RAPIDJSON_DEFAULT_ALLOCATOR &allocator, const TaskPO &targetTask) {
+    std::vector<ComputeTaskInfoPO> computePOS;
+    computeTaskInfoTable->Select(ComputeTaskInfoColumn::GRID_DIM, ComputeTaskInfoColumn::BLOCK_DIM)
+        .Eq(ComputeTaskInfoColumn::GLOBAL_TASK_ID, targetTask.globalTaskId)
+        .ExcuteQuery(sliceQuery.rankId, computePOS);
+    if (std::empty(computePOS)) {
+        return;
+    }
+    const ComputeTaskInfoPO targetCompute = computePOS[0];
+    std::unordered_map<uint64_t, std::string> strMap =
+        stringIdsTable->QueryStrMap({targetCompute.gridDim, targetCompute.blockDim}, sliceQuery.rankId);
+    JsonUtil::AddMember(json, "gridDim", strMap[targetCompute.gridDim], allocator);
+    JsonUtil::AddMember(json, "blockDim", strMap[targetCompute.blockDim], allocator);
 }
 
 bool HardWareRepo::QueryMemoryInfo(

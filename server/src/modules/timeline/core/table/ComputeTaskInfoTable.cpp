@@ -27,14 +27,24 @@ void ComputeTaskInfoTable::SetGlobalTaskId(
     computeTaskInfoPO.globalTaskId = resultSet->GetUint64(ComputeTaskInfoColumn::GLOBAL_TASK_ID);
 }
 
-void ComputeTaskInfoTable::SetBlockDim(
+void ComputeTaskInfoTable::SetBlockNum(
     ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
-    computeTaskInfoPO.blockDim = resultSet->GetUint64(ComputeTaskInfoColumn::BLOCK_DIM);
+    computeTaskInfoPO.blockNum = resultSet->GetUint64(ComputeTaskInfoColumn::BLOCK_NUM);
 }
 
 void ComputeTaskInfoTable::SetMixBlockDim(
     ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     computeTaskInfoPO.mixBlockDim = resultSet->GetUint64(ComputeTaskInfoColumn::MIX_BLOCK_DIM);
+}
+
+void ComputeTaskInfoTable::SetGridDim(
+    ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    computeTaskInfoPO.gridDim = resultSet->GetUint64(ComputeTaskInfoColumn::GRID_DIM);
+}
+
+void ComputeTaskInfoTable::SetBlockDim(
+    ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    computeTaskInfoPO.blockDim = resultSet->GetUint64(ComputeTaskInfoColumn::BLOCK_DIM);
 }
 
 void ComputeTaskInfoTable::SetTaskType(
