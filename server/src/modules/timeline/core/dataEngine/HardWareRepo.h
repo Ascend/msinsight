@@ -44,6 +44,8 @@ class HardWareRepo : public IBaseSliceRepo, public IFindSliceByNameList {
     virtual Stmt CreatPreparedStatement(const std::string &sql, const SliceQuery &sliceQuery);
     std::string GetDbPath(const SliceQuery &sliceQuery);
     void QuerySliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);
+    void AppendKernelSimtDims(const SliceQuery &sliceQuery, document_t &json, RAPIDJSON_DEFAULT_ALLOCATOR &allocator,
+        const TaskPO &targetTask);
 
     void QuerySliceShape(
         const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask);

@@ -42,10 +42,10 @@ const static std::map<std::string, std::string> FULL_DB_TABLE_MAP = {
         " dataType INTEGER, linkType INTEGER, opId INTEGER);  "},
     {TABLE_COMPUTE_TASK_INFO,
         "create TEMPORARY table if not exists COMPUTE_TASK_INFO( name INTEGER, "
-        " globalTaskId INTEGER primary key, blockDim INTEGER, mixBlockDim INTEGER, taskType INTEGER, "
+        " globalTaskId INTEGER primary key, blockNum INTEGER, mixBlockDim INTEGER, taskType INTEGER,"
         " opType INTEGER, inputFormats INTEGER, inputDataTypes INTEGER, inputShapes INTEGER, "
         " outputFormats INTEGER, outputDataTypes INTEGER, outputShapes INTEGER, attrInfo INTEGER, "
-        " waitNs INTEGER);  "},
+        " waitNs INTEGER, gridDim INTEGER, blockDim INTEGER);  "},
     {TABLE_MEMCPY_INFO,
         "create TEMPORARY table if not exists MEMCPY_INFO(globalTaskId NUMERIC, size NUMERIC,"
         " memcpyOperation NUMERIC);"},

@@ -1343,6 +1343,8 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
     AddColumns2Table(isExistPytorch, TABLE_API, std::string(PytorchApiColumn::DEPTH), "integer");
     AddColumns2Table(isExistCANN, TABLE_CANN_API, std::string(PytorchApiColumn::DEPTH), "integer");
     AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "waitNs", "INTEGER");
+    AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "gridDim", "INTEGER");
+    AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "blockDim", "INTEGER");
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "waitNs", "integer");
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "opConnectionId", "TEXT");
     for (const auto &status : DB_STATUS_LIST) {

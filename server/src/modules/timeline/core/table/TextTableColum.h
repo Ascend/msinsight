@@ -273,6 +273,8 @@ constexpr std::string_view NAME = "name";
 // 全局算子任务id，用于关联TASK表,主键
 constexpr std::string_view GLOBAL_TASK_ID = "globalTaskId";
 // 算子运行切分数量，对应算子运行时核数
+constexpr std::string_view BLOCK_NUM = "blockNum";
+constexpr std::string_view GRID_DIM = "gridDim";
 constexpr std::string_view BLOCK_DIM = "blockDim";
 // mix算子从加速器的block_dim值
 constexpr std::string_view MIX_BLOCK_DIM = "mixBlockDim";

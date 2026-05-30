@@ -38,16 +38,15 @@ const std::string CREATE_TABLE_DB_MSTX_EVENTS_SQL =
     "CREATE TABLE IF NOT EXISTS MSTX_EVENTS(startNs INTEGER,endNs INTEGER, "
     " eventType INTEGER,rangeId INTEGER, category INTEGER, message INTEGER, globalTid INTEGER, "
     " endGlobalTid INTEGER, domainId INTEGER, connectionId INTEGER, depth integer); ";
-const std::string CREATE_TABLE_DB_OSRT_API_SQL =
-    "CREATE TABLE IF NOT EXISTS OSRT_API(name INTEGER, globalTid NUMERIC,"
-    " startNs INTEGER, endNs INTEGER);";
+const std::string CREATE_TABLE_DB_OSRT_API_SQL = "CREATE TABLE IF NOT EXISTS OSRT_API(name INTEGER, globalTid NUMERIC,"
+                                                 " startNs INTEGER, endNs INTEGER);";
 const std::string CREATE_TABLE_DB_TASK_SQL =
     "create TABLE IF NOT EXISTS TASK( startNs INTEGER, endNs INTEGER, deviceId INTEGER, "
     " connectionId INTEGER, globalTaskId INTEGER, globalPid INTEGER, taskType INTEGER,contextId INTEGER, "
     " streamId INTEGER, taskId INTEGER, modelId INTEGER, depth integer);";
 const std::string CREATE_TABLE_DB_COMPUTE_TASK_INFO_SQL =
     "CREATE TABLE IF NOT EXISTS COMPUTE_TASK_INFO( name INTEGER, "
-    " globalTaskId INTEGER primary key, blockDim INTEGER, mixBlockDim INTEGER, taskType INTEGER, "
+    " globalTaskId INTEGER primary key, blockNum INTEGER, mixBlockDim INTEGER, taskType INTEGER,"
     " opType INTEGER, inputFormats INTEGER, inputDataTypes INTEGER, inputShapes INTEGER, "
     " outputFormats INTEGER, outputDataTypes INTEGER, outputShapes INTEGER, attrInfo INTEGER, "
     " waitNs INTEGER);  ";
@@ -92,8 +91,7 @@ const std::string CREATE_TABLE_DB_PCIE_SQL =
 const std::string CREATE_TABLE_DB_OVERLAP_ANALYSIS_SQL =
     "CREATE TABLE OVERLAP_ANALYSIS (id INTEGER PRIMARY KEY AUTOINCREMENT, deviceId integer, "
     "startNs integer, endNs integer, type integer);";
-const std::string CREATE_TABLE_DB_CONNECTION_CATS_SQL =
-    "CREATE TABLE connectionCats(connectionId INT,cat);";
+const std::string CREATE_TABLE_DB_CONNECTION_CATS_SQL = "CREATE TABLE connectionCats(connectionId INT,cat);";
 
 const std::map<TableName, std::string> CREATE_TABLE_SQL_MAP = {
     {TableName::DB_STRING_IDS, CREATE_TABLE_DB_STRING_IDS_SQL},
@@ -102,8 +100,7 @@ const std::map<TableName, std::string> CREATE_TABLE_SQL_MAP = {
     {TableName::DB_PYTORCH_CALLCHAINS, CREATE_TABLE_DB_PYTORCH_CALLCHAINS_SQL},
     {TableName::DB_CANN_API, CREATE_TABLE_DB_CANN_API_SQL},
     {TableName::DB_MSTX_EVENTS, CREATE_TABLE_DB_MSTX_EVENTS_SQL},
-    {TableName::DB_OSRT_API, CREATE_TABLE_DB_OSRT_API_SQL},
-    {TableName::DB_TASK, CREATE_TABLE_DB_TASK_SQL},
+    {TableName::DB_OSRT_API, CREATE_TABLE_DB_OSRT_API_SQL}, {TableName::DB_TASK, CREATE_TABLE_DB_TASK_SQL},
     {TableName::DB_COMPUTE_TASK_INFO, CREATE_TABLE_DB_COMPUTE_TASK_INFO_SQL},
     {TableName::DB_COMMUNICATION_OP, CREATE_TABLE_DB_COMMUNICATION_OP_SQL},
     {TableName::DB_COMMUNICATION_TASK_INFO, CREATE_TABLE_DB_COMMUNICATION_TASK_INFO_SQL},
@@ -112,12 +109,9 @@ const std::map<TableName, std::string> CREATE_TABLE_SQL_MAP = {
     {TableName::DB_RANK_DEVICE_MAP, CREATE_TABLE_DB_RANK_DEVICE_MAP_SQL},
     {TableName::DB_ENUM_API_TYPE, CREATE_TABLE_DB_ENUM_API_TYPE_SQL},
     {TableName::DB_OVERLAP_ANALYSIS, CREATE_TABLE_DB_OVERLAP_ANALYSIS_SQL},
-    {TableName::DB_AICORE_FREQ, CREATE_TABLE_DB_AICORE_FREQ_SQL},
-    {TableName::DB_ACC_PMU, CREATE_TABLE_DB_ACC_PMU_SQL},
+    {TableName::DB_AICORE_FREQ, CREATE_TABLE_DB_AICORE_FREQ_SQL}, {TableName::DB_ACC_PMU, CREATE_TABLE_DB_ACC_PMU_SQL},
     {TableName::DB_SOC_BANDWIDTH_LEVEL, CREATE_TABLE_DB_SOC_BANDWIDTH_LEVEL_SQL},
-    {TableName::DB_NPU_MEM, CREATE_TABLE_DB_NPU_MEM_SQL},
-    {TableName::DB_HCCS, CREATE_TABLE_DB_HCCS_SQL},
+    {TableName::DB_NPU_MEM, CREATE_TABLE_DB_NPU_MEM_SQL}, {TableName::DB_HCCS, CREATE_TABLE_DB_HCCS_SQL},
     {TableName::DB_PCIE, CREATE_TABLE_DB_PCIE_SQL},
-    {TableName::DB_CONNECTION_CATS, CREATE_TABLE_DB_CONNECTION_CATS_SQL}
-};
+    {TableName::DB_CONNECTION_CATS, CREATE_TABLE_DB_CONNECTION_CATS_SQL}};
 }

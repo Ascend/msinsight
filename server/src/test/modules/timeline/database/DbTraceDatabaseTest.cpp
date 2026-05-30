@@ -105,6 +105,49 @@ namespace Dic::Protocol {
 using namespace Dic::Module::Timeline;
 }
 
+TEST_F(DbTraceDatabaseTest, TestAddHelperColumnsAddsKernelSimtDimColumnsForOldComputeTaskInfo)
+{
+    const std::string dbPath = "test_add_kernel_simt_dim_columns.db";
+    std::remove(dbPath.c_str());
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &db), SQLITE_OK);
+    DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_DB_COMPUTE_TASK_INFO_SQL);
+    sqlite3_close(db);
+
+    std::recursive_mutex testMutex;
+    Dic::Module::FullDb::DbTraceDataBase database(testMutex);
+    ASSERT_TRUE(database.OpenDb(dbPath, false));
+    ASSERT_FALSE(database.CheckColumnExist(TABLE_COMPUTE_TASK_INFO, "gridDim"));
+    ASSERT_FALSE(database.CheckColumnExist(TABLE_COMPUTE_TASK_INFO, "blockDim"));
+
+    database.AddHelperColumnsAndSetStatus();
+
+    auto getColumnType = [](sqlite3 *databasePtr, const std::string &columnName) {
+        sqlite3_stmt *stmt = nullptr;
+        std::string columnType;
+        sqlite3_prepare_v2(databasePtr, "PRAGMA table_info(COMPUTE_TASK_INFO);", -1, &stmt, nullptr);
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            const char *name = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+            if (name != nullptr && columnName == name) {
+                const char *type = reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2));
+                columnType = type == nullptr ? "" : type;
+                break;
+            }
+        }
+        sqlite3_finalize(stmt);
+        return columnType;
+    };
+    EXPECT_TRUE(database.CheckColumnExist(TABLE_COMPUTE_TASK_INFO, "gridDim"));
+    EXPECT_TRUE(database.CheckColumnExist(TABLE_COMPUTE_TASK_INFO, "blockDim"));
+    sqlite3 *checkDb = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &checkDb), SQLITE_OK);
+    EXPECT_EQ(getColumnType(checkDb, "gridDim"), "INTEGER");
+    EXPECT_EQ(getColumnType(checkDb, "blockDim"), "INTEGER");
+    sqlite3_close(checkDb);
+    database.CloseDb();
+    std::remove(dbPath.c_str());
+}
+
 /**
  * RANK_DEVICE_MAP表和NPU_INFO都不存在的情况
  */
@@ -419,7 +462,7 @@ TEST_F(DbTraceDatabaseTest, TestQueryAICpuOpCanBeOptimizedWhenDbOpen) {
     DatabaseTestCaseMockUtil::OpenDB(db);
     const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_TASK, TableName::DB_COMPUTE_TASK_INFO};
     DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
-    std::string comData = "INSERT INTO \"main\".\"COMPUTE_TASK_INFO\" (\"name\", \"globalTaskId\", \"blockDim\", "
+    std::string comData = "INSERT INTO \"main\".\"COMPUTE_TASK_INFO\" (\"name\", \"globalTaskId\", \"blockNum\", "
                           "\"mixBlockDim\", \"taskType\", \"opType\", \"inputFormats\", \"inputDataTypes\", "
                           "\"inputShapes\", \"outputFormats\", \"outputDataTypes\", \"outputShapes\", \"attrInfo\", "
                           "\"waitNs\") VALUES (3, 1, 8, 0, 1, 2, 6, 4, 8, 6, 5, 10, 5, 1240);";
@@ -823,7 +866,7 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetDeviceSlicesReturnsOnlyMatchingSlices
         "(100, 160, 0, 19, 1000, 1, 3, 0, 7, 0, 0, 0),"
         "(200, 260, 0, 29, 1001, 1, 3, 0, 8, 0, 0, 0);");
     DatabaseTestCaseMockUtil::InsertData(db,
-        "INSERT INTO COMPUTE_TASK_INFO (name, globalTaskId, blockDim, mixBlockDim, taskType, opType, inputFormats, "
+        "INSERT INTO COMPUTE_TASK_INFO (name, globalTaskId, blockNum, mixBlockDim, taskType, opType, inputFormats, "
         "inputDataTypes, inputShapes, outputFormats, outputDataTypes, outputShapes, attrInfo, waitNs) "
         "VALUES (1, 1000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0),"
         "(2, 1001, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);");
@@ -889,7 +932,7 @@ TEST_F(DbTraceDatabaseTest, TestQueryAclnnOpCountExceedThresholdWhenDbOpen) {
     DatabaseTestCaseMockUtil::OpenDB(db);
     const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_COMPUTE_TASK_INFO, TableName::DB_TASK};
     DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
-    std::string comData = "INSERT INTO \"main\".\"COMPUTE_TASK_INFO\" (\"name\", \"globalTaskId\", \"blockDim\", "
+    std::string comData = "INSERT INTO \"main\".\"COMPUTE_TASK_INFO\" (\"name\", \"globalTaskId\", \"blockNum\", "
                           "\"mixBlockDim\", \"taskType\", \"opType\", \"inputFormats\", \"inputDataTypes\", "
                           "\"inputShapes\", \"outputFormats\", \"outputDataTypes\", \"outputShapes\", \"attrInfo\", "
                           "\"waitNs\") VALUES (1, 1, 8, 0, 1, 2, 6, 4, 8, 6, 5, 10, 5, 1240);";
@@ -934,7 +977,7 @@ TEST_F(DbTraceDatabaseTest, TestQueryFusibleOpDataWhenDbOpen) {
     DatabaseTestCaseMockUtil::OpenDB(db);
     const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_COMPUTE_TASK_INFO, TableName::DB_TASK};
     DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
-    std::string comData = "INSERT INTO \"main\".\"COMPUTE_TASK_INFO\" (\"name\", \"globalTaskId\", \"blockDim\", "
+    std::string comData = "INSERT INTO \"main\".\"COMPUTE_TASK_INFO\" (\"name\", \"globalTaskId\", \"blockNum\", "
                           "\"mixBlockDim\", \"taskType\", \"opType\", \"inputFormats\", \"inputDataTypes\", "
                           "\"inputShapes\", \"outputFormats\", \"outputDataTypes\", \"outputShapes\", \"attrInfo\", "
                           "\"waitNs\") VALUES (1, 1, 8, 0, 1, 2, 6, 4, 8, 6, 5, 10, 5, 1240);";

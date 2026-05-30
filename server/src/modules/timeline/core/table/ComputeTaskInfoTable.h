@@ -24,8 +24,10 @@ namespace Dic::Module::Timeline {
 struct ComputeTaskInfoPO {
     uint64_t name = 0;
     uint64_t globalTaskId = 0;
-    uint64_t blockDim = 0;
+    uint64_t blockNum = 0;
     uint64_t mixBlockDim = 0;
+    uint64_t gridDim = 0;
+    uint64_t blockDim = 0;
     uint64_t taskType = 0;
     uint64_t opType = 0;
     uint64_t inputFormats = 0;
@@ -47,8 +49,10 @@ class ComputeTaskInfoTable : public Table<ComputeTaskInfoPO> {
         static std::unordered_map<std::string_view, assign> assignMap = {
             {ComputeTaskInfoColumn::NAME, SetName},
             {ComputeTaskInfoColumn::GLOBAL_TASK_ID, SetGlobalTaskId},
-            {ComputeTaskInfoColumn::BLOCK_DIM, SetBlockDim},
+            {ComputeTaskInfoColumn::BLOCK_NUM, SetBlockNum},
             {ComputeTaskInfoColumn::MIX_BLOCK_DIM, SetMixBlockDim},
+            {ComputeTaskInfoColumn::GRID_DIM, SetGridDim},
+            {ComputeTaskInfoColumn::BLOCK_DIM, SetBlockDim},
             {ComputeTaskInfoColumn::TASK_TYPE, SetTaskType},
             {ComputeTaskInfoColumn::OP_TYPE, SetOpType},
             {ComputeTaskInfoColumn::INPUT_FORMATS, SetInputFormats},
@@ -70,8 +74,10 @@ class ComputeTaskInfoTable : public Table<ComputeTaskInfoPO> {
     static void SetName(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetGlobalTaskId(
         ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
-    static void SetBlockDim(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetBlockNum(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetMixBlockDim(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetGridDim(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void SetBlockDim(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetTaskType(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetOpType(ComputeTaskInfoPO &computeTaskInfoPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void SetInputFormats(
