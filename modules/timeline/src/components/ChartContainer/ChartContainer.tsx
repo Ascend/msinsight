@@ -45,6 +45,8 @@ import { renderEngine } from '../../renderEngine';
 import { DragDirection, useDraggableContainerEx } from '../../utils/useDraggableContainerEx';
 import { ActionManager } from '../../actions/manager';
 import KeyInfoTooltip from './KeyInfoTooltip';
+import FloatingToolbar from './FloatingToolbar';
+import { isMac } from '../../utils/is';
 
 const DEFAULT_LANE_INFO_WIDTH = 250;
 const DEFAULT_LANE_CHART_WIDTH = 100;
@@ -178,13 +180,22 @@ export const ChartContainer = observer((props: Props) => {
     const keyHoldAction = useMemo(() => loopActionFactory(
         (e: React.KeyboardEvent<HTMLDivElement>) => actionManager.handleKeyDown(e, interactorMouseState, chartInteractorRef.current?.xScale), 16, 50),
     [session]);
+    const setPanModifierState = (pressed: boolean): void => {
+        session.panModePressed = pressed;
+    };
     const handleKeyDownEvent = (e: KeyboardEvent): void => {
+        if (isPanModifierPressed(e)) {
+            setPanModifierState(true);
+        }
         if (!e.repeat) {
             keyHoldAction.clearLoop();
             keyHoldAction.beginLoop(e as unknown as React.KeyboardEvent<HTMLDivElement>);
         }
     };
     const handleKeyUpEvent = (e: KeyboardEvent): void => {
+        if (!isPanModifierPressed(e)) {
+            setPanModifierState(false);
+        }
         keyHoldAction.clearLoop();
         requestAnimationFrame(() => { actionManager.handleKeyUp(e); });
     };
@@ -195,6 +206,7 @@ export const ChartContainer = observer((props: Props) => {
         document.addEventListener('blur', keyHoldAction.clearLoop);
 
         return (): void => {
+            setPanModifierState(false);
             document.removeEventListener('keydown', handleKeyDownEvent);
             document.removeEventListener('keyup', handleKeyUpEvent);
             document.removeEventListener('blur', keyHoldAction.clearLoop);
@@ -224,6 +236,7 @@ export const ChartContainer = observer((props: Props) => {
             containerDom={containerDom}
             scrollerRef={scrollerRef}
         />
+        <FloatingToolbar session={session} />
         <KeyInfoTooltip session={session} />
     </Container>;
 });
@@ -240,6 +253,10 @@ function isTargetElement(event: React.MouseEvent): boolean {
         ele = ele.parentElement;
     }
     return Boolean(ele);
+}
+
+function isPanModifierPressed(event: KeyboardEvent): boolean {
+    return isMac ? event.metaKey : event.ctrlKey;
 }
 
 const useInteractorMouseState = (chartInteractorRef: React.RefObject<ChartInteractorHandles>, scrollerRef: React.RefObject<HTMLDivElement>,

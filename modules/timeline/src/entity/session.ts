@@ -265,6 +265,10 @@ export class Session {
     } | undefined> = {};
 
     autoAdjustUnitHeight: boolean = false;
+    // 是否处于平移模式
+    panMode: boolean = false;
+    // 是否临时按下了平移快捷键
+    panModePressed: boolean = false;
     showBottomPanel: boolean | null = null;
     // 是否处于拖拽场景下
     isDragging: boolean = false;

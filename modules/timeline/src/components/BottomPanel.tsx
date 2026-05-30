@@ -31,9 +31,6 @@ import { getDetailViewItem } from './detailViews/DetailView';
 import { useFindDetail } from './detailViews/FindInWindow';
 import { StyledTabs } from './base/StyledTabs';
 import i18n from '@insight/lib/i18n';
-import { Checkbox } from '@insight/lib/components';
-import { runInAction } from 'mobx';
-import eventBus from '../utils/eventBus';
 
 interface CssProps {
     className?: string;
@@ -291,7 +288,6 @@ export const BottomPanel = observer((props: BottomPanelProps & CssProps) => {
         getDetailViewItem(session, bottomHeight),
         useFindDetail(session, bottomHeight),
     ];
-    const { t } = useTranslation('timeline');
 
     useEffect(() => {
         const bottomResize = (): void => setBottomHeight(ref.current?.clientHeight ?? BOTTOM_HEIGHT);
@@ -322,19 +318,8 @@ export const BottomPanel = observer((props: BottomPanelProps & CssProps) => {
         setItem('SystemView');
     }, [session.showEvent, session.isTimeAnalysisMode]);
 
-    const extraSlot = (): ReactNode => {
-        // 算子框选模式与时间范围分析模式互斥，当进行时间范围分析时，算子框选模式不可用
-        return <Checkbox disabled={session.isTimeAnalysisMode} checked={session.sliceSelection.active} onChange={() => {
-            runInAction(() => {
-                session.sliceSelection.active = !session.sliceSelection.active;
-                session.sliceSelection.activeIsChanged = true;
-                eventBus.emit('sliceActiveChanged', session.sliceSelection.active);
-            });
-        }}>{t('contextMenu.SliceSelectionMode')}</Checkbox>;
-    };
-
     return (<Container ref={ref} className="bottomPanelContainer">
-        <BottomTabs style={{ width: '100%' }} items={items} activeKey={item} tabBarExtraContent={extraSlot()} onTabClick={(key): void => setItem(key)}/>
+        <BottomTabs style={{ width: '100%' }} items={items} activeKey={item} onTabClick={(key): void => setItem(key)}/>
     </Container>);
 });
 
