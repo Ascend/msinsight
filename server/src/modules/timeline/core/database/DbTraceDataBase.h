@@ -279,12 +279,23 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool QueryCounterMetadataGenerateInfo(
         const PROCESS_TYPE &type, std::string &processName, std::string &metaType, std::string &sql);
 
-    static constexpr const char *HARDWARE_METRICS_PROCESS_ID = "__hardware_metrics__";
-    static constexpr const char *HARDWARE_METRICS_PROCESS_NAME = "Hardware Metrics";
-    static constexpr const char *HARDWARE_METRICS_META_TYPE = "HARDWARE_METRICS";
-    static bool IsHardwareMetricsUnit(const std::string &processId, const std::string &metaType);
-    static std::unique_ptr<Protocol::UnitTrack> GenerateHardwareMetricsUnitTrack(const std::string &fileId);
-    static Protocol::UnitTrack *GetOrCreateHardwareMetricsUnitTrack(
+    static constexpr const char *CPU_METRICS_PROCESS_ID = "__cpu_metrics__";
+    static constexpr const char *CPU_METRICS_PROCESS_NAME = "CPU Metrics";
+    static constexpr const char *CPU_METRICS_META_TYPE = "CPU_METRICS";
+    static constexpr const char *NPU_METRICS_PROCESS_ID = "__npu_metrics__";
+    static constexpr const char *NPU_METRICS_PROCESS_NAME = "NPU Metrics";
+    static constexpr const char *NPU_METRICS_META_TYPE = "NPU_METRICS";
+    static bool IsMetricsUnit(const std::string &processId, const std::string &metaType);
+    static std::unique_ptr<Protocol::UnitTrack> GenerateMetricsUnitTrack(const std::string &fileId,
+        const std::string &processId, const std::string &processName, const std::string &metaType);
+    static std::unique_ptr<Protocol::UnitTrack> GenerateCpuMetricsUnitTrack(const std::string &fileId);
+    static std::unique_ptr<Protocol::UnitTrack> GenerateNpuMetricsUnitTrack(const std::string &fileId);
+    static Protocol::UnitTrack *GetOrCreateMetricsUnitTrack(const std::string &fileId,
+        std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData, const std::string &processId,
+        const std::string &processName, const std::string &metaType);
+    static Protocol::UnitTrack *GetOrCreateCpuMetricsUnitTrack(
+        const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+    static Protocol::UnitTrack *GetOrCreateNpuMetricsUnitTrack(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
 
     static std::unique_ptr<Protocol::UnitTrack> GenerateBaseUnitTrack(const std::string &type,

@@ -125,8 +125,8 @@ bool DbTraceDataBase::QueryUnitsMetadata(
     if (existOverlapAnalysis) {
         GenerateOverlapAnalysisMetadata(fileId, metaData);
     }
-    QueryCounterMetadata(fileId, metaData);
     ProcessHostCounterEventsMetadata(fileId, metaData);
+    QueryCounterMetadata(fileId, metaData);
     return false;
 }
 
@@ -777,7 +777,7 @@ OneKernelData DbTraceDataBase::QueryKernelTid(uint64_t trackId) { return OneKern
 
 bool DbTraceDataBase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesSummaryParams &requestParams,
     Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp) {
-    if (IsHardwareMetricsUnit(requestParams.processId, requestParams.metaType)) {
+    if (IsMetricsUnit(requestParams.processId, requestParams.metaType)) {
         return true;
     }
     auto stmt = CreatPreparedStatement();
@@ -1567,29 +1567,55 @@ std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateBaseUnitTrack(cons
     return unitTrack;
 }
 
-bool DbTraceDataBase::IsHardwareMetricsUnit(const std::string &processId, const std::string &metaType)
+bool DbTraceDataBase::IsMetricsUnit(const std::string &processId, const std::string &metaType)
 {
-    return processId == HARDWARE_METRICS_PROCESS_ID || metaType == HARDWARE_METRICS_META_TYPE;
+    return processId == CPU_METRICS_PROCESS_ID || metaType == CPU_METRICS_META_TYPE ||
+        processId == NPU_METRICS_PROCESS_ID || metaType == NPU_METRICS_META_TYPE;
 }
 
-std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateHardwareMetricsUnitTrack(const std::string &fileId)
+std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateMetricsUnitTrack(const std::string &fileId,
+    const std::string &processId, const std::string &processName, const std::string &metaType)
 {
-    return GenerateBaseUnitTrack(
-        "label", fileId, HARDWARE_METRICS_PROCESS_ID, HARDWARE_METRICS_PROCESS_NAME, HARDWARE_METRICS_META_TYPE);
+    return GenerateBaseUnitTrack("label", fileId, processId, processName, metaType);
 }
 
-Protocol::UnitTrack *DbTraceDataBase::GetOrCreateHardwareMetricsUnitTrack(
-    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
+std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateCpuMetricsUnitTrack(const std::string &fileId)
+{
+    return GenerateMetricsUnitTrack(fileId, CPU_METRICS_PROCESS_ID, CPU_METRICS_PROCESS_NAME, CPU_METRICS_META_TYPE);
+}
+
+std::unique_ptr<Protocol::UnitTrack> DbTraceDataBase::GenerateNpuMetricsUnitTrack(const std::string &fileId)
+{
+    return GenerateMetricsUnitTrack(fileId, NPU_METRICS_PROCESS_ID, NPU_METRICS_PROCESS_NAME, NPU_METRICS_META_TYPE);
+}
+
+Protocol::UnitTrack *DbTraceDataBase::GetOrCreateMetricsUnitTrack(const std::string &fileId,
+    std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData, const std::string &processId,
+    const std::string &processName, const std::string &metaType)
 {
     for (const auto &unit : metaData) {
-        if (unit != nullptr && IsHardwareMetricsUnit(unit->metaData.processId, unit->metaData.metaType)) {
+        if (unit != nullptr && (unit->metaData.processId == processId || unit->metaData.metaType == metaType)) {
             return unit.get();
         }
     }
-    auto hardwareMetrics = GenerateHardwareMetricsUnitTrack(fileId);
-    Protocol::UnitTrack *hardwareMetricsPtr = hardwareMetrics.get();
-    metaData.emplace_back(std::move(hardwareMetrics));
-    return hardwareMetricsPtr;
+    auto metrics = GenerateMetricsUnitTrack(fileId, processId, processName, metaType);
+    Protocol::UnitTrack *metricsPtr = metrics.get();
+    metaData.emplace_back(std::move(metrics));
+    return metricsPtr;
+}
+
+Protocol::UnitTrack *DbTraceDataBase::GetOrCreateCpuMetricsUnitTrack(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
+{
+    return GetOrCreateMetricsUnitTrack(
+        fileId, metaData, CPU_METRICS_PROCESS_ID, CPU_METRICS_PROCESS_NAME, CPU_METRICS_META_TYPE);
+}
+
+Protocol::UnitTrack *DbTraceDataBase::GetOrCreateNpuMetricsUnitTrack(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData)
+{
+    return GetOrCreateMetricsUnitTrack(
+        fileId, metaData, NPU_METRICS_PROCESS_ID, NPU_METRICS_PROCESS_NAME, NPU_METRICS_META_TYPE);
 }
 
 std::string DbTraceDataBase::GetHcclOperatorMetaData(const std::string &fileId) {
@@ -1761,10 +1787,10 @@ bool DbTraceDataBase::QueryCounterMetadata(
     PROCESS_TYPE types[] = {PROCESS_TYPE::HBM, PROCESS_TYPE::LLC, PROCESS_TYPE::SAMPLE_PMU, PROCESS_TYPE::QOS,
         PROCESS_TYPE::NIC, PROCESS_TYPE::PCIE, PROCESS_TYPE::HCCS, PROCESS_TYPE::AI_CORE, PROCESS_TYPE::ACC_PMU,
         PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC, PROCESS_TYPE::NPU_MEM};
-    auto hardwareMetrics = GenerateHardwareMetricsUnitTrack(fileId);
-    auto appendHardwareMetrics = [&metaData, &hardwareMetrics]() {
-        if (hardwareMetrics != nullptr && !hardwareMetrics->children.empty()) {
-            metaData.emplace_back(std::move(hardwareMetrics));
+    auto npuMetrics = GenerateNpuMetricsUnitTrack(fileId);
+    auto appendNpuMetrics = [&metaData, &npuMetrics]() {
+        if (npuMetrics != nullptr && !npuMetrics->children.empty()) {
+            metaData.emplace_back(std::move(npuMetrics));
         }
     };
     for (const auto &type : types) {
@@ -1778,7 +1804,7 @@ bool DbTraceDataBase::QueryCounterMetadata(
         auto stmt = CreatPreparedStatement(sql);
         if (stmt == nullptr) {
             ServerLog::Error("Query counter metadata failed!.");
-            appendHardwareMetrics();
+            appendNpuMetrics();
             return false;
         }
         uint64_t countOfQuestionMark = 0;
@@ -1792,7 +1818,7 @@ bool DbTraceDataBase::QueryCounterMetadata(
         auto resultSet = stmt->ExecuteQuery();
         if (resultSet == nullptr) {
             ServerLog::Error("Query counter metadata. Failed to get result set.", stmt->GetErrorMessage());
-            appendHardwareMetrics();
+            appendNpuMetrics();
             return false;
         }
         while (resultSet->Next()) {
@@ -1803,10 +1829,10 @@ bool DbTraceDataBase::QueryCounterMetadata(
             counter->children.emplace_back(std::move(thread));
         }
         if (!counter->children.empty()) {
-            hardwareMetrics->children.emplace_back(std::move(counter));
+            npuMetrics->children.emplace_back(std::move(counter));
         }
     }
-    appendHardwareMetrics();
+    appendNpuMetrics();
     return true;
 }
 

@@ -1589,22 +1589,25 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounter) {
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, counterData);
     const std::string fileId = "9";
-    const uint8_t expectProcessCount = 2;
     const uint8_t first = 0;
-    const uint8_t second = 1;
-    const uint8_t expectCounterCount = 3;
+    const size_t expectCpuCounterCount = 1;
+    const size_t expectNpuCounterCount = 2;
     std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
     bool result = database.QueryUnitsMetadata(fileId, metaData);
     EXPECT_EQ(result, true);
     const Dic::Protocol::UnitTrack *normalProcess = nullptr;
-    const Dic::Protocol::UnitTrack *hardwareMetrics = nullptr;
+    const Dic::Protocol::UnitTrack *cpuMetrics = nullptr;
+    const Dic::Protocol::UnitTrack *npuMetrics = nullptr;
     for (const auto &unit : metaData) {
         ASSERT_NE(unit, nullptr);
         if (unit->metaData.processId == "319667") {
             normalProcess = unit.get();
         }
-        if (unit->metaData.processId == "__hardware_metrics__") {
-            hardwareMetrics = unit.get();
+        if (unit->metaData.processId == "__cpu_metrics__") {
+            cpuMetrics = unit.get();
+        }
+        if (unit->metaData.processId == "__npu_metrics__") {
+            npuMetrics = unit.get();
         }
     }
     ASSERT_NE(normalProcess, nullptr);
@@ -1612,30 +1615,38 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounter) {
     ASSERT_EQ(normalProcess->children.size(), 1);
     EXPECT_EQ(normalProcess->children[first]->type, "thread");
 
-    ASSERT_NE(hardwareMetrics, nullptr);
-    EXPECT_EQ(hardwareMetrics->type, "label");
+    ASSERT_NE(cpuMetrics, nullptr);
+    EXPECT_EQ(cpuMetrics->type, "label");
+    ASSERT_EQ(cpuMetrics->children.size(), 1);
+    ASSERT_EQ(cpuMetrics->children[first]->children.size(), expectCpuCounterCount);
+    EXPECT_EQ(cpuMetrics->children[first]->children[first]->type, "counter");
+    EXPECT_EQ(cpuMetrics->children[first]->children[first]->metaData.threadName, "CPU Usage");
 
-    const Dic::Protocol::UnitTrack *pidOneCounterGroup = nullptr;
-    const Dic::Protocol::UnitTrack *pid319667CounterGroup = nullptr;
-    for (const auto &child : hardwareMetrics->children) {
+    ASSERT_NE(npuMetrics, nullptr);
+    EXPECT_EQ(npuMetrics->type, "label");
+    const Dic::Protocol::UnitTrack *pidOneNpuCounterGroup = nullptr;
+    const Dic::Protocol::UnitTrack *pid319667NpuCounterGroup = nullptr;
+    for (const auto &child : npuMetrics->children) {
         ASSERT_NE(child, nullptr);
         if (child->metaData.processId == "1") {
-            pidOneCounterGroup = child.get();
+            pidOneNpuCounterGroup = child.get();
         }
         if (child->metaData.processId == "319667") {
-            pid319667CounterGroup = child.get();
+            pid319667NpuCounterGroup = child.get();
         }
     }
-    ASSERT_NE(pidOneCounterGroup, nullptr);
-    EXPECT_EQ(pidOneCounterGroup->type, "label");
-    EXPECT_EQ(pidOneCounterGroup->children.size(), expectProcessCount);
-    EXPECT_EQ(pidOneCounterGroup->children[first]->type, "counter");
-    EXPECT_EQ(pidOneCounterGroup->children[second]->type, "counter");
+    ASSERT_NE(pidOneNpuCounterGroup, nullptr);
+    EXPECT_EQ(pidOneNpuCounterGroup->type, "label");
+    ASSERT_EQ(pidOneNpuCounterGroup->children.size(), 1);
+    EXPECT_EQ(pidOneNpuCounterGroup->children[first]->type, "counter");
+    EXPECT_EQ(pidOneNpuCounterGroup->children[first]->metaData.threadName, "NPU Usage");
 
-    ASSERT_NE(pid319667CounterGroup, nullptr);
-    ASSERT_EQ(pid319667CounterGroup->children.size(), 1);
-    EXPECT_EQ(pid319667CounterGroup->children[first]->type, "counter");
-    EXPECT_EQ(pidOneCounterGroup->children.size() + pid319667CounterGroup->children.size(), expectCounterCount);
+    ASSERT_NE(pid319667NpuCounterGroup, nullptr);
+    ASSERT_EQ(pid319667NpuCounterGroup->children.size(), 1);
+    EXPECT_EQ(pid319667NpuCounterGroup->children[first]->type, "counter");
+    EXPECT_EQ(pid319667NpuCounterGroup->children[first]->metaData.threadName, "KVCache");
+    EXPECT_EQ(
+        pidOneNpuCounterGroup->children.size() + pid319667NpuCounterGroup->children.size(), expectNpuCounterCount);
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataGroupsHardwareMetricCounters) {
@@ -1673,12 +1684,16 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataGroupsHardwareMetricCoun
     std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
     bool result = database.QueryUnitsMetadata("9", metaData);
     EXPECT_EQ(result, true);
-    const Dic::Protocol::UnitTrack *hardwareMetrics = nullptr;
+    const Dic::Protocol::UnitTrack *cpuMetrics = nullptr;
+    const Dic::Protocol::UnitTrack *npuMetrics = nullptr;
     bool hasTopLevelCounterMetric = false;
     for (const auto &unit : metaData) {
         ASSERT_NE(unit, nullptr);
-        if (unit->metaData.processId == "__hardware_metrics__") {
-            hardwareMetrics = unit.get();
+        if (unit->metaData.processId == "__cpu_metrics__") {
+            cpuMetrics = unit.get();
+        }
+        if (unit->metaData.processId == "__npu_metrics__") {
+            npuMetrics = unit.get();
         }
         if (unit->metaData.processId == "14083671101" || unit->metaData.processId == "14083671201" ||
             unit->metaData.processId == "14083671301" || unit->metaData.processId == "14083671501" ||
@@ -1686,11 +1701,12 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataGroupsHardwareMetricCoun
             hasTopLevelCounterMetric = true;
         }
     }
-    ASSERT_NE(hardwareMetrics, nullptr);
-    EXPECT_EQ(hardwareMetrics->type, "label");
+    EXPECT_EQ(cpuMetrics, nullptr);
+    ASSERT_NE(npuMetrics, nullptr);
+    EXPECT_EQ(npuMetrics->type, "label");
     EXPECT_EQ(hasTopLevelCounterMetric, false);
     std::set<std::string> metricNames;
-    for (const auto &child : hardwareMetrics->children) {
+    for (const auto &child : npuMetrics->children) {
         ASSERT_NE(child, nullptr);
         EXPECT_EQ(child->type, "label");
         ASSERT_EQ(child->children.size(), 1);
@@ -1700,7 +1716,7 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataGroupsHardwareMetricCoun
     const std::set<std::string> expectedNames = {"HBM (14083671101)", "LLC (14083671201)", "NPU_MEM (14083671301)",
         "Stars Soc Info (14083671501)", "acc_pmu (1601)"};
     EXPECT_EQ(metricNames, expectedNames);
-    EXPECT_EQ(hardwareMetrics->children.size(), expectedNames.size());
+    EXPECT_EQ(npuMetrics->children.size(), expectedNames.size());
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounterInvalidJSON) {
@@ -1731,56 +1747,36 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithCounterInvalidJSON) 
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, counterData);
     const std::string fileId = "9";
-    const uint8_t first = 0;
     const std::vector<std::string> expectedDataType = {};
     std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
     bool result = database.QueryUnitsMetadata(fileId, metaData);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(metaData[first]->type, "label");
-    EXPECT_EQ(metaData[first]->metaData.processName, "Hardware Metrics");
-    ASSERT_EQ(metaData[first]->children.size(), 1);
-    ASSERT_EQ(metaData[first]->children[0]->children.size(), 3);
-    EXPECT_EQ(metaData[first]->children[0]->children[0]->metaData.dataType, expectedDataType);
-    EXPECT_EQ(metaData[first]->children[0]->children[1]->metaData.dataType, expectedDataType);
-    EXPECT_EQ(metaData[first]->children[0]->children[2]->metaData.dataType, expectedDataType);
-}
-
-TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithMultiplePythonStacks) {
-    std::recursive_mutex sqlMutex;
-    MockDatabase database(sqlMutex);
-    sqlite3 *dbPtr = nullptr;
-    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
-    database.SetDbPtr(dbPtr);
-    database.CreateTable();
-    const std::string processData = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-                                    "\"process_sort_index\") VALUES ('100', 'Python', NULL, 1);";
-    const std::string threadData =
-        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", "
-        "\"thread_sort_index\") VALUES (1, '100', '100', 'MainThread', 1);\n"
-        "INSERT INTO \"main\".\"thread\" (\"track_id\", \"tid\", \"pid\", \"thread_name\", \"thread_sort_index\") "
-        "VALUES (2, '22', '100', 'Thread 22', 2);";
-    const std::string sliceData = "INSERT INTO \"main\".\"slice\" (\"timestamp\", \"duration\", \"name\", \"depth\", "
-                                  "\"track_id\", \"cat\", \"args\", \"cname\", \"end_time\", \"flag_id\") VALUES "
-                                  "(10, 5, 'main', 0, 1, 'python_function', '{}', '', 15, ''),"
-                                  "(20, 5, 'bwd', 0, 2, 'python_function', '{}', '', 25, '');";
-    DatabaseTestCaseMockUtil::InsertData(dbPtr, processData);
-    DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
-    DatabaseTestCaseMockUtil::InsertData(dbPtr, sliceData);
-
-    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
-    EXPECT_EQ(database.QueryUnitsMetadata("9", metaData), true);
-    ASSERT_EQ(metaData.size(), 1);
-    ASSERT_EQ(metaData[0]->children.size(), 2);
-    std::set<std::string> pythonStackThreadIds;
-    std::set<std::string> pythonStackThreadNames;
-    for (const auto &thread : metaData[0]->children) {
-        for (const auto &child : thread->children) {
-            pythonStackThreadIds.emplace(child->metaData.threadId);
-            pythonStackThreadNames.emplace(child->metaData.threadName);
+    const Dic::Protocol::UnitTrack *cpuMetrics = nullptr;
+    const Dic::Protocol::UnitTrack *npuMetrics = nullptr;
+    for (const auto &unit : metaData) {
+        ASSERT_NE(unit, nullptr);
+        if (unit->metaData.processId == "__cpu_metrics__") {
+            cpuMetrics = unit.get();
+        }
+        if (unit->metaData.processId == "__npu_metrics__") {
+            npuMetrics = unit.get();
         }
     }
-    EXPECT_EQ(pythonStackThreadIds, std::set<std::string>({"python_stack:text:100", "python_stack:text:22"}));
-    EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 100", "Python Stack 22"}));
+
+    ASSERT_NE(cpuMetrics, nullptr);
+    EXPECT_EQ(cpuMetrics->type, "label");
+    EXPECT_EQ(cpuMetrics->metaData.processName, "CPU Metrics");
+    ASSERT_EQ(cpuMetrics->children.size(), 1);
+    ASSERT_EQ(cpuMetrics->children[0]->children.size(), 2);
+    EXPECT_EQ(cpuMetrics->children[0]->children[0]->metaData.dataType, expectedDataType);
+    EXPECT_EQ(cpuMetrics->children[0]->children[1]->metaData.dataType, expectedDataType);
+
+    ASSERT_NE(npuMetrics, nullptr);
+    EXPECT_EQ(npuMetrics->type, "label");
+    EXPECT_EQ(npuMetrics->metaData.processName, "NPU Metrics");
+    ASSERT_EQ(npuMetrics->children.size(), 1);
+    ASSERT_EQ(npuMetrics->children[0]->children.size(), 1);
+    EXPECT_EQ(npuMetrics->children[0]->children[0]->metaData.dataType, expectedDataType);
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsSame) {
@@ -1815,17 +1811,33 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsS
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, counterData);
     const std::string fileId = "9";
-    const uint8_t expectProcessCount = 2;
-    const uint8_t first = 0;
-    const uint8_t second = 1;
     std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
     bool result = database.QueryUnitsMetadata(fileId, metaData);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(metaData.size(), expectProcessCount);
-    EXPECT_EQ(metaData[first]->type, "process");
-    EXPECT_EQ(metaData[first]->metaData.processName, "319667");
-    EXPECT_EQ(metaData[second]->type, "label");
-    EXPECT_EQ(metaData[second]->metaData.processName, "Hardware Metrics");
+    const Dic::Protocol::UnitTrack *normalProcess = nullptr;
+    const Dic::Protocol::UnitTrack *cpuMetrics = nullptr;
+    const Dic::Protocol::UnitTrack *npuMetrics = nullptr;
+    for (const auto &unit : metaData) {
+        ASSERT_NE(unit, nullptr);
+        if (unit->metaData.processId == "319667") {
+            normalProcess = unit.get();
+        }
+        if (unit->metaData.processId == "__cpu_metrics__") {
+            cpuMetrics = unit.get();
+        }
+        if (unit->metaData.processId == "__npu_metrics__") {
+            npuMetrics = unit.get();
+        }
+    }
+    ASSERT_NE(normalProcess, nullptr);
+    EXPECT_EQ(normalProcess->type, "process");
+    EXPECT_EQ(normalProcess->metaData.processName, "319667");
+    ASSERT_NE(cpuMetrics, nullptr);
+    EXPECT_EQ(cpuMetrics->type, "label");
+    EXPECT_EQ(cpuMetrics->metaData.processName, "CPU Metrics");
+    ASSERT_NE(npuMetrics, nullptr);
+    EXPECT_EQ(npuMetrics->type, "label");
+    EXPECT_EQ(npuMetrics->metaData.processName, "NPU Metrics");
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithMutiLayerProcess) {
@@ -1898,17 +1910,33 @@ TEST_F(TextTraceDatabaseMockTest, TestQueryUnitsMetadataWithPidAndProcessNameIsN
     DatabaseTestCaseMockUtil::InsertData(dbPtr, threadData);
     DatabaseTestCaseMockUtil::InsertData(dbPtr, counterData);
     const std::string fileId = "9";
-    const uint8_t expectProcessCount = 2;
-    const uint8_t first = 0;
-    const uint8_t second = 1;
     std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
     bool result = database.QueryUnitsMetadata(fileId, metaData);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(metaData.size(), expectProcessCount);
-    EXPECT_EQ(metaData[first]->type, "process");
-    EXPECT_EQ(metaData[first]->metaData.processName, "nnm (319667)");
-    EXPECT_EQ(metaData[second]->type, "label");
-    EXPECT_EQ(metaData[second]->metaData.processName, "Hardware Metrics");
+    const Dic::Protocol::UnitTrack *normalProcess = nullptr;
+    const Dic::Protocol::UnitTrack *cpuMetrics = nullptr;
+    const Dic::Protocol::UnitTrack *npuMetrics = nullptr;
+    for (const auto &unit : metaData) {
+        ASSERT_NE(unit, nullptr);
+        if (unit->metaData.processId == "319667") {
+            normalProcess = unit.get();
+        }
+        if (unit->metaData.processId == "__cpu_metrics__") {
+            cpuMetrics = unit.get();
+        }
+        if (unit->metaData.processId == "__npu_metrics__") {
+            npuMetrics = unit.get();
+        }
+    }
+    ASSERT_NE(normalProcess, nullptr);
+    EXPECT_EQ(normalProcess->type, "process");
+    EXPECT_EQ(normalProcess->metaData.processName, "nnm (319667)");
+    ASSERT_NE(cpuMetrics, nullptr);
+    EXPECT_EQ(cpuMetrics->type, "label");
+    EXPECT_EQ(cpuMetrics->metaData.processName, "CPU Metrics");
+    ASSERT_NE(npuMetrics, nullptr);
+    EXPECT_EQ(npuMetrics->type, "label");
+    EXPECT_EQ(npuMetrics->metaData.processName, "NPU Metrics");
 }
 
 TEST_F(TextTraceDatabaseMockTest, TestQuerySimulationUintFlows) {
