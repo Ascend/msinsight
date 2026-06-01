@@ -23,7 +23,7 @@ import type { Icondition } from '../Filter';
 import { getFormatNum, getFormatNumReturnEmpty } from '../../../Common';
 import { CompareData } from '../../../../utils/interface';
 import { hideFormula, showFormula } from '../FormulaTip';
-import { cubeCoreBaseV5, vectorCoreModule1V5, vectorCoreModule2V5 } from './coreConfig';
+import { cubeCoreBaseA5, vectorCoreModule1A5, vectorCoreModule1A5V2, vectorCoreModule2A5, vectorCoreModule2A5V2 } from './coreConfig';
 
 const bodyStyle = window.getComputedStyle(document.body);
 const fontFamily = bodyStyle.fontFamily;
@@ -165,9 +165,10 @@ const cubeCore: Inode = {
     ],
 };
 
-const cubeCoreV5: Inode = {
-    ...cubeCoreBaseV5,
-    line: [...(cubeCoreBaseV5.line ?? []).filter(lineItem => !['GM_OR_L1_TO_L0A', 'GM_OR_L1_TO_L0B'].includes(lineItem.id as string)),
+const cubeCoreA5: Inode = {
+    ...cubeCoreBaseA5,
+    line: [
+        ...(cubeCoreBaseA5.line ?? []).filter(lineItem => !['GM_OR_L1_TO_L0A', 'GM_OR_L1_TO_L0B'].includes(lineItem.id as string)),
         {
             id: 'L1_TO_L0A_AIC',
             label: 'L1_TO_L0A_AIC',
@@ -191,7 +192,8 @@ const cubeCoreV5: Inode = {
 
 const cubeCoreV2: Inode = {
     ...cubeCore,
-    line: [...(cubeCore.line ?? []).filter(lineItem => !['GM_OR_L1_TO_L0A', 'GM_OR_L1_TO_L0B'].includes(lineItem.id as string)),
+    line: [
+        ...(cubeCore.line ?? []).filter(lineItem => !['GM_OR_L1_TO_L0A', 'GM_OR_L1_TO_L0B'].includes(lineItem.id as string)),
         {
             id: 'GM_TO_L0A_AIC',
             label: 'GM_TO_L0A_AIC',
@@ -315,40 +317,26 @@ const vectorCore2: Inode = {
     line: (vectorCore.line ?? []).map(item => ({ ...item, id: `${item.id}_2`, name: item.id, label: `${item.label}_2` })),
 };
 
-const vectorCore2V5UB0: Inode = {
-    ...vectorCoreModule1V5,
-    rect: (vectorCoreModule1V5.rect ?? []).map(item => {
-        if (item.name === 'Vector') {
-            return {
-                ...item,
-                labels: [
-                    { value: 'Vector' },
-                    { value: 'Ratio:', x: 720, y: 95 },
-                    { id: 'vectorRatio', name: 'vectorRatio', value: '0%', x: 750, y: 95, position: 'right' },
-                    { id: 'vectorRatioBaseline', value: '' },
-                ],
-            };
-        }
-        return item;
-    }),
-};
-
-const vectorCore2V5UB1: Inode = {
-    ...vectorCoreModule2V5,
-    rect: (vectorCoreModule2V5.rect ?? []).map((item, index) => {
-        if (item.name === 'Vector') {
-            return {
-                ...item,
-                labels: [
-                    { value: 'Vector' },
-                    { value: 'Ratio:', x: 720, y: 95 },
-                    { id: 'vector1Ratio', name: 'vectorRatio', value: '0%', x: 750, y: 95, position: 'right' },
-                    { id: 'vector1RatioBaseline', value: '' },
-                ],
-            };
-        }
-        return item;
-    }),
+const changeVectorCore2A5UBParameter = (value: Inode, ubIndex = 0): Inode => {
+    const vectorRatioId = ubIndex === 0 ? 'vectorRatio' : 'vector1Ratio';
+    const vectorRatioBaselineId = ubIndex === 0 ? 'vectorRatioBaseline' : 'vector1RatioBaseline';
+    return {
+        ...value,
+        rect: (value.rect ?? []).map(item => {
+            if (item.name === 'Vector') {
+                return {
+                    ...item,
+                    labels: [
+                        { value: 'Vector' },
+                        { value: 'Ratio:', x: 720, y: 95 },
+                        { id: vectorRatioId, name: 'vectorRatio', value: '0%', x: 750, y: 95, position: 'right' },
+                        { id: vectorRatioBaselineId, value: '' },
+                    ],
+                };
+            }
+            return item;
+        }),
+    };
 };
 
 const mixCore: Inode = {
@@ -646,27 +634,38 @@ const mix310: Igraph = [
     mixCore,
 ];
 
-// mixV5
-const mixV5: Igraph = [
+// mixA5
+const mixA5: Igraph = [
     ...common,
-    cubeCoreV5,
+    cubeCoreA5,
     // 底部两个
-    { ...vectorCore2V5UB0, x: 291, y: 345 },
-    { ...vectorCore2V5UB1, x: 291, y: 510 },
+    { ...changeVectorCore2A5UBParameter(vectorCoreModule1A5), x: 291, y: 345 },
+    { ...changeVectorCore2A5UBParameter(vectorCoreModule2A5, 1), x: 291, y: 510 },
 ];
 
-// cubeV5
-const cubeV5: Igraph = [
+const mixA5V2: Igraph = [
+    ...common,
+    cubeCoreA5,
+    // 底部两个
+    { ...changeVectorCore2A5UBParameter(vectorCoreModule1A5V2), x: 291, y: 345 },
+    { ...changeVectorCore2A5UBParameter(vectorCoreModule2A5V2, 1), x: 291, y: 510 },
+];
+
+// cubeA5
+const cubeA5: Igraph = [
     ...common.map(item => ({
         ...item,
         rect: (item.rect ?? []).map(rectItem => ({ ...rectItem, height: 350 })),
         container: (item.container ?? []).map(containerItem => ({ ...containerItem, height: 380 })),
     })),
-    cubeCoreV5,
+    cubeCoreA5,
 ];
 
-function changeVectorParameter(value: Inode): Inode {
-    const idsToRemove = ['UB_TO_L1', 'L1_TO_UB', 'FIXP_TO_UB', 'UB_TO_L1__UB_TO_L1_2'];
+function changeVectorParameter(value: Inode, version = 'V1'): Inode {
+    const idsToRemove = ['UB_TO_L1', 'L1_TO_UB', 'FIXP_TO_UB'];
+    if (version === 'V1') {
+        idsToRemove.push('UB_TO_L1__UB_TO_L1_2');
+    }
     // 过滤line数组，移除指定ID的元素
     const filteredLine = value.line?.filter(item => !idsToRemove.includes(item.id as string));
     value.line = filteredLine;
@@ -674,14 +673,24 @@ function changeVectorParameter(value: Inode): Inode {
 }
 
 // vector
-const vectorV5: Igraph = [
+const vectorA5: Igraph = [
     ...common.map(item => ({
         ...item,
-        rect: (item.rect ?? []).map(rectItem => ({ ...rectItem, height: 350 })), // 设置vectorV5 高度
+        rect: (item.rect ?? []).map(rectItem => ({ ...rectItem, height: 350 })), // 设置vectorA5 高度
         container: (item.container ?? []).map(containerItem => ({ ...containerItem, height: 380 })), // 设置 外边框高度
     })),
     // 显示 V0 +  common
-    { ...changeVectorParameter(vectorCore2V5UB0), x: 291, y: 100 },
+    { ...changeVectorParameter(changeVectorCore2A5UBParameter(vectorCoreModule1A5)), x: 291, y: 100 },
+];
+
+const vectorA5V2: Igraph = [
+    ...common.map(item => ({
+        ...item,
+        rect: (item.rect ?? []).map(rectItem => ({ ...rectItem, height: 350 })), // 设置vectorA5 高度
+        container: (item.container ?? []).map(containerItem => ({ ...containerItem, height: 380 })), // 设置 外边框高度
+    })),
+    // 显示 V0 +  common
+    { ...changeVectorParameter(changeVectorCore2A5UBParameter(vectorCoreModule1A5V2), 'V2'), x: 291, y: 100 },
 ];
 
 const flow: Record<string, Igraph> = {
@@ -691,12 +700,12 @@ const flow: Record<string, Igraph> = {
     mix910: mix,
     mix910V2: mixV2,
     mix310,
-    // cube + 公共的V5算子
-    cubeV5,
-    // cube + Vector + 公共 V5算子整体图
-    mixV5,
+    // cube + 公共的A5算子
+    cubeA5,
+    // cube + Vector + 公共 A5算子整体图
+    mixA5,
     // 只显示Vector + 公共
-    vectorV5,
+    vectorA5,
 };
 
 // 判断是给哪一条线
@@ -994,7 +1003,7 @@ const transformLinePosition = (origin: IlinePosition, box: Ibox): IdrawLine => {
     }
     return { points: `${x1},${y1} ${x2},${y2}` };
 };
-const transLineLabel = (origin: Iline, points: string): {x: number;y: number} => {
+const transLineLabel = (origin: Iline, points: string): { x: number; y: number } => {
     if (origin.labelXy !== undefined) {
         return origin.labelXy;
     }
@@ -1237,7 +1246,7 @@ const drawLine = (nodes: d3.Selection<SVGGElement, IdrawNode, d3.BaseType, unkno
         .enter()
         .append('text')
         .attr('class', 'line-label')
-        .attr('x', d => LINES_HIDDEN_LABELS.includes(d.id ?? '') ? '' : d.labelXy?.x ?? 0)
+        .attr('x', d => (!enable && LINES_HIDDEN_LABELS.includes(d.id ?? '')) ? '' : d.labelXy?.x ?? 0)
         .attr('y', d => d.labelXy?.y ?? 0)
         .attr('text-anchor', d => {
             switch (d.labelPosition) {
@@ -1318,7 +1327,7 @@ const addLegend = (svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>, ti
         .attr('transform', 'translate(1180,10)');
     // 创建渐变色的矩形
     const size = { width: 15, height: 380 };
-    const X_VALUE = isModuleV5 ? 100 : 0;
+    const X_VALUE = isModuleA5 ? 100 : 0;
     g.append('rect')
         .attr('width', size.width)
         .attr('height', size.height)
@@ -1362,37 +1371,40 @@ export const drawGraph = (svg: d3.Selection<d3.BaseType, unknown, HTMLElement, a
     addMarker(svg);
 };
 
-export const drawFlowChart = (svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>, data: ImemoryData & Icondition & {theme: string},
+export const drawFlowChart = (svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>, data: ImemoryData & Icondition & { theme: string },
     tDetails: TFunction): void => {
     const graph: Igraph = getGraph(data);
     drawGraph(svg, graph, data.theme ?? 'dark', tDetails);
     updateData(svg, data, tDetails);
 };
 
-let isModuleV5 = false;
+let isModuleA5 = false;
+let enable = false;
 export const getGraph = (data: ImemoryData): Igraph => {
     const { blockType = '', chipType = '', memoryUnit } = data;
-    isModuleV5 = chipType === '910A5';
+    isModuleA5 = chipType === '910A5';
+    enable = false;
     // 910训练芯片 A2/A3/A5
     if (chipType.includes('910')) {
         // cube核有2种线路
         // 第1版：包含 GM_OR_L1_TO_L0A , GM_OR_L1_TO_L0B
         // 第2版：上面的2条分为 GM_TO_L0A_AIC，L1_TO_L0A_AIC，GM_TO_L0B_AIC，L1_TO_L0B_AIC
         // 第3版：添加A5
-        if (isModuleV5) {
+        if (isModuleA5) {
+            enable = memoryUnit.some(unit => String(unit.compare.memoryPath) === String(Path.Dcache_TO_L2));
             switch (blockType) {
                 case 'cube':
-                    return cubeV5;
+                    return cubeA5;
                 case 'vector':
-                    return vectorV5;
+                    return enable ? vectorA5V2 : vectorA5;
                 default:
-                    return mixV5;
+                    return enable ? mixA5V2 : mixA5;
             }
         }
         const isVersion2 = ['cube', 'mix'].includes(blockType) &&
             memoryUnit.some(unit => String(unit.compare.memoryPath) === String(Path.GM_TO_L0A_AIC));
         return flow[`${blockType}910${isVersion2 ? 'V2' : ''}`] ?? [];
-    // 310推理芯片
+        // 310推理芯片
     } else if (chipType.includes('310')) {
         return flow.mix310;
     } else {
@@ -1545,7 +1557,7 @@ const updateHotPath = (svg: d3.Selection<d3.BaseType, unknown, HTMLElement, any>
         })
         .attr('marker-end', d => {
             const lineid: any = ((d as IdrawLine)?.id ?? '').split('_append')[0];
-            if (PLAIN_LINES.includes(lineid)) {
+            if (!enable && PLAIN_LINES.includes(lineid)) {
                 return null;
             }
             const memoryUnitId = Path[lineid];

@@ -18,7 +18,7 @@
 
 import type { Inode } from './flowType';
 
-export const cubeCoreBaseV5: Inode = {
+export const cubeCoreBaseA5: Inode = {
     name: '',
     left: -25,
     top: 20,
@@ -144,7 +144,7 @@ export const cubeCoreBaseV5: Inode = {
 };
 
 // UB0
-export const vectorCoreModule1V5: Inode = {
+export const vectorCoreModule1A5Common: Inode = {
     name: '',
     left: -15,
     top: 0,
@@ -188,30 +188,6 @@ export const vectorCoreModule1V5: Inode = {
         },
     ],
     line: [
-        // UB0 -> L1,46
-        {
-            id: 'UB_TO_L1',
-            label: 'UB_TO_L1',
-            x: 150,
-            y: 20,
-            top: '46%-60',
-            length: 104,
-            orient: 'top',
-            labelXy: {
-                x: 166,
-                y: -100,
-            },
-        },
-        // UB_TO_L1 到 UB_TO_L1_2
-        {
-            id: 'UB_TO_L1__UB_TO_L1_2',
-            label: 'UB_TO_L1__UB_TO_L1_2',
-            x: 150,
-            y: -84,
-            top: '46%-60',
-            length: 30,
-            orient: 'right',
-        },
         // L1 -> UB0,44
         {
             id: 'L1_TO_UB',
@@ -239,16 +215,6 @@ export const vectorCoreModule1V5: Inode = {
             top: '46%-40',
             length: 138,
             orient: 'right',
-        },
-        //  UB0_TO_L2 -> 13
-        {
-            id: 'UB_TO_L2',
-            label: 'UB0_TO_L2',
-            x: 126,
-            top: '46%-2',
-            length: 124,
-            orient: 'left',
-            labelPosition: 'top',
         },
         // L2_TO_Dcache 48
         {
@@ -300,8 +266,90 @@ export const vectorCoreModule1V5: Inode = {
     ],
 };
 
+export const vectorCoreModule1A5: Inode = {
+    ...vectorCoreModule1A5Common,
+    line: [
+        ...(vectorCoreModule1A5Common.line ?? []),
+        // UB0 -> L1,46
+        {
+            id: 'UB_TO_L1',
+            label: 'UB_TO_L1',
+            x: 150,
+            y: 20,
+            top: '46%-60',
+            length: 104,
+            orient: 'top',
+            labelXy: {
+                x: 166,
+                y: -100,
+            },
+        },
+        // UB_TO_L1 到 UB_TO_L1_2
+        {
+            id: 'UB_TO_L1__UB_TO_L1_2',
+            label: 'UB_TO_L1__UB_TO_L1_2',
+            x: 150,
+            y: -84,
+            top: '46%-60',
+            length: 30,
+            orient: 'right',
+        },
+        //  UB0_TO_L2 -> 13
+        {
+            id: 'UB_TO_L2',
+            label: 'UB0_TO_L2',
+            x: 126,
+            top: '46%-2',
+            length: 124,
+            orient: 'left',
+            labelPosition: 'top',
+        },
+    ],
+};
+
+export const vectorCoreModule1A5V2: Inode = {
+    ...vectorCoreModule1A5Common,
+    line: [
+        ...(vectorCoreModule1A5Common.line ?? []),
+        // UB0 -> L1,46
+        {
+            id: 'UB_TO_L1',
+            label: 'UB_TO_L1',
+            x: 150,
+            y: 20,
+            top: '46%-60',
+            length: 146,
+            orient: 'top',
+            labelXy: {
+                x: 150,
+                y: -82,
+            },
+        },
+        //  UB0_TO_L2 -> 13
+        {
+            id: 'UB_TO_L2',
+            label: 'UB0_TO_L2',
+            x: 140,
+            top: '46%-20',
+            length: 138,
+            orient: 'left',
+            labelPosition: 'bottom',
+        },
+        // Dcache_TO_L2 50
+        {
+            id: 'Dcache_TO_L2',
+            label: 'Dcache_TO_L2',
+            x: 140,
+            top: '46%+55',
+            length: 138,
+            orient: 'left',
+            labelPosition: 'bottom',
+        },
+    ],
+};
+
 // UB1
-export const vectorCoreModule2V5: Inode = {
+export const vectorCoreModule2A5Common: Inode = {
     name: '',
     top: 0,
     left: -15,
@@ -355,24 +403,6 @@ export const vectorCoreModule2V5: Inode = {
             length: 311,
             orient: 'top',
         },
-        // L1 -> UB1
-        {
-            id: 'L1_TO_UB_2',
-            label: 'L1_TO_UB_2',
-            x: 290,
-            top: '46%-327',
-            length: 267,
-            orient: 'bottom',
-        },
-        // UB1 -> UB2
-        {
-            id: 'L1_TO_UB_UB',
-            label: 'L1_TO_UB_UB',
-            x: 250,
-            top: '46%-327',
-            length: 40,
-            orient: 'right',
-        },
         // FIXP -> UB1
         {
             id: 'FIXP_TO_UB_2',
@@ -390,16 +420,6 @@ export const vectorCoreModule2V5: Inode = {
             top: '46%-40',
             length: 138,
             orient: 'right',
-        },
-        // UB_TO_L2_2 17
-        {
-            id: 'UB_TO_L2_2',
-            label: 'UB_TO_L2_2',
-            x: 126,
-            top: '46%-2',
-            length: 124,
-            orient: 'left',
-            labelPosition: 'top',
         },
         // L2_TO_Dcache_2 49
         {
@@ -447,6 +467,79 @@ export const vectorCoreModule2V5: Inode = {
             length: 118,
             orient: 'left',
             labelPosition: 'bottom',
+        },
+    ],
+};
+
+export const vectorCoreModule2A5: Inode = {
+    ...vectorCoreModule2A5Common,
+    line: [
+        ...(vectorCoreModule2A5Common.line ?? []),
+        // UB_TO_L2_2 17
+        {
+            id: 'UB_TO_L2_2',
+            label: 'UB_TO_L2_2',
+            x: 126,
+
+            top: '46%-2',
+            length: 124,
+            orient: 'left',
+            labelPosition: 'top',
+        },
+        // UB1 -> UB2
+        {
+            id: 'L1_TO_UB_UB',
+            label: 'L1_TO_UB_UB',
+            x: 250,
+            top: '46%-327',
+            length: 40,
+            orient: 'right',
+        },
+        // L1 -> UB1
+        {
+            id: 'L1_TO_UB_2',
+            label: 'L1_TO_UB_2',
+            x: 290,
+            top: '46%-327',
+            length: 267,
+            orient: 'bottom',
+        },
+    ],
+};
+
+export const vectorCoreModule2A5V2: Inode = {
+    ...vectorCoreModule2A5Common,
+    line: [
+        ...(vectorCoreModule2A5Common.line ?? []),
+        // UB_TO_L2_2 17
+        {
+            id: 'UB_TO_L2_2',
+            label: 'UB_TO_L2_2',
+            x: 140,
+
+            top: '46%-20',
+            length: 138,
+            orient: 'left',
+            labelPosition: 'bottom',
+        },
+        // Dcache_TO_L2_2 51
+        {
+            id: 'Dcache_TO_L2_2',
+            label: 'Dcache_TO_L2_2',
+            x: 140,
+            top: '46%+55',
+            length: 138,
+            orient: 'left',
+            labelPosition: 'bottom',
+        },
+        // L1 -> UB1
+        {
+            id: 'L1_TO_UB_2',
+            label: 'L1_TO_UB_2',
+            x: 290,
+            top: '46%-370',
+            length: 310,
+            orient: 'bottom',
         },
     ],
 };
