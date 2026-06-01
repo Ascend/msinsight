@@ -26,21 +26,21 @@ const createUnit = (metadata: Record<string, unknown>, children?: InsightUnit[])
 } as Partial<InsightUnit> as InsightUnit);
 
 describe('timeline unit offset utils', () => {
-    it('sets timestamp offset for deep hardware metric descendants', () => {
+    it('sets timestamp offset for deep metric descendants', () => {
         const counter = createUnit({ cardId: 'rank0', processId: '14083671101', threadName: 'HBM 0/Read' });
         const hbm = createUnit({ cardId: 'rank0', processId: '14083671101', processName: 'HBM', label: 'NPU' }, [counter]);
-        const hardwareMetrics = createUnit({ cardId: 'rank0', processId: '__hardware_metrics__', processName: 'Hardware Metrics' }, [hbm]);
-        const card = createUnit({ cardId: 'rank0' }, [hardwareMetrics]);
+        const npuMetrics = createUnit({ cardId: 'rank0', processId: '__npu_metrics__', processName: 'NPU Metrics' }, [hbm]);
+        const card = createUnit({ cardId: 'rank0' }, [npuMetrics]);
         const session = { units: [card] } as Partial<Session> as Session;
         const timestampOffsetConfig: Record<string, number> = {};
 
         setTimeOffsetForUnitTree(session, card, 123, timestampOffsetConfig);
 
         expect(timestampOffsetConfig.rank0).toBe(123);
-        expect(timestampOffsetConfig.rank0____hardware_metrics__).toBe(123);
+        expect(timestampOffsetConfig.rank0____npu_metrics__).toBe(123);
         expect(timestampOffsetConfig.rank0__3).toBe(123);
         expect(card.alignStartTimestamp).toBe(123);
-        expect(hardwareMetrics.alignStartTimestamp).toBe(123);
+        expect(npuMetrics.alignStartTimestamp).toBe(123);
         expect(hbm.alignStartTimestamp).toBe(123);
         expect(counter.alignStartTimestamp).toBe(123);
     });

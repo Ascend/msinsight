@@ -481,7 +481,7 @@ std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetCounterStmt(uint6
 
 bool TextTraceDatabase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesSummaryParams &requestParams,
     Protocol::UnitThreadTracesSummaryBody &responseBody, uint64_t minTimestamp) {
-    if (IsHardwareMetricsUnit(requestParams.processId, requestParams.metaType)) {
+    if (IsMetricsUnit(requestParams.processId, requestParams.metaType)) {
         return true;
     }
     const int64_t maxDataCount = 30000;
@@ -820,22 +820,71 @@ bool TextTraceDatabase::QueryUnitsMetadata(
     return true;
 }
 
-bool TextTraceDatabase::IsHardwareMetricsUnit(const std::string &processId, const std::string &metaType) {
-    return processId == HARDWARE_METRICS_PROCESS_ID || metaType == HARDWARE_METRICS_META_TYPE;
+bool TextTraceDatabase::IsMetricsUnit(const std::string &processId, const std::string &metaType) {
+    return processId == CPU_METRICS_PROCESS_ID || metaType == CPU_METRICS_META_TYPE ||
+        processId == NPU_METRICS_PROCESS_ID || metaType == NPU_METRICS_META_TYPE;
 }
 
-std::unique_ptr<Protocol::UnitTrack> TextTraceDatabase::GenerateHardwareMetricsUnitTrack(const std::string &fileId) {
-    std::unique_ptr<UnitTrack> hardwareMetrics = std::make_unique<UnitTrack>();
-    hardwareMetrics->type = "label";
-    hardwareMetrics->metaData.cardId = fileId;
-    hardwareMetrics->metaData.processId = HARDWARE_METRICS_PROCESS_ID;
-    hardwareMetrics->metaData.processName = HARDWARE_METRICS_PROCESS_NAME;
-    hardwareMetrics->metaData.metaType = HARDWARE_METRICS_META_TYPE;
-    return hardwareMetrics;
+std::unique_ptr<Protocol::UnitTrack> TextTraceDatabase::GenerateMetricsUnitTrack(const std::string &fileId,
+    const std::string &processId, const std::string &processName, const std::string &metaType) {
+    std::unique_ptr<UnitTrack> metrics = std::make_unique<UnitTrack>();
+    metrics->type = "label";
+    metrics->metaData.cardId = fileId;
+    metrics->metaData.processId = processId;
+    metrics->metaData.processName = processName;
+    metrics->metaData.metaType = metaType;
+    return metrics;
+}
+
+std::unique_ptr<Protocol::UnitTrack> TextTraceDatabase::GenerateCpuMetricsUnitTrack(const std::string &fileId) {
+    return GenerateMetricsUnitTrack(fileId, CPU_METRICS_PROCESS_ID, CPU_METRICS_PROCESS_NAME, CPU_METRICS_META_TYPE);
+}
+
+std::unique_ptr<Protocol::UnitTrack> TextTraceDatabase::GenerateNpuMetricsUnitTrack(const std::string &fileId) {
+    return GenerateMetricsUnitTrack(fileId, NPU_METRICS_PROCESS_ID, NPU_METRICS_PROCESS_NAME, NPU_METRICS_META_TYPE);
+}
+
+bool TextTraceDatabase::IsCpuCounterUnit(
+    const Protocol::UnitTrack &counterUnit, const Protocol::UnitTrack &parentUnit) {
+    std::string parentLabel = StringUtil::ToLower(parentUnit.metaData.label);
+    if (parentLabel == "cpu" || parentLabel == "host") {
+        return true;
+    }
+    if (parentLabel == "npu") {
+        return false;
+    }
+
+    std::string counterName = StringUtil::ToLower(counterUnit.metaData.threadName);
+    if (counterName.empty()) {
+        counterName = StringUtil::ToLower(counterUnit.metaData.processName);
+    }
+    if (StringUtil::Contains(counterName, "npu") || StringUtil::Contains(counterName, "hbm") ||
+        StringUtil::Contains(counterName, "llc") || StringUtil::Contains(counterName, "ai core") ||
+        StringUtil::Contains(counterName, "acc_pmu") || StringUtil::Contains(counterName, "stars") ||
+        StringUtil::Contains(counterName, "qos") || StringUtil::Contains(counterName, "ddr") ||
+        StringUtil::Contains(counterName, "pcie") || StringUtil::Contains(counterName, "nic") ||
+        StringUtil::Contains(counterName, "hccs") || StringUtil::Contains(counterName, "sample_pmu")) {
+        return false;
+    }
+    return (StringUtil::StartWith(counterName, "cpu") && StringUtil::Contains(counterName, "usage")) ||
+        StringUtil::Contains(counterName, "disk usage") || StringUtil::Contains(counterName, "memory usage") ||
+        StringUtil::Contains(counterName, "mem usage") || StringUtil::Contains(counterName, "network usage");
+}
+
+void TextTraceDatabase::AppendCounterGroup(Protocol::UnitTrack &metricsUnit, const Protocol::UnitTrack &parentUnit,
+    std::vector<std::unique_ptr<Protocol::UnitTrack>> &counterChildren) {
+    if (counterChildren.empty()) {
+        return;
+    }
+    std::unique_ptr<UnitTrack> counterGroup = std::make_unique<UnitTrack>();
+    counterGroup->type = "label";
+    counterGroup->metaData = parentUnit.metaData;
+    counterGroup->children = std::move(counterChildren);
+    metricsUnit.children.emplace_back(std::move(counterGroup));
 }
 
 bool TextTraceDatabase::ExtractCounterMetadata(std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData,
-    Protocol::UnitTrack &hardwareMetrics) {
+    Protocol::UnitTrack &cpuMetrics, Protocol::UnitTrack &npuMetrics) {
     bool hasCounter = false;
     for (auto unitIt = metaData.begin(); unitIt != metaData.end();) {
         if (*unitIt == nullptr) {
@@ -843,25 +892,25 @@ bool TextTraceDatabase::ExtractCounterMetadata(std::vector<std::unique_ptr<Proto
             continue;
         }
 
-        bool hasChildCounter = ExtractCounterMetadata((*unitIt)->children, hardwareMetrics);
-        std::vector<std::unique_ptr<UnitTrack>> counterChildren;
+        bool hasChildCounter = ExtractCounterMetadata((*unitIt)->children, cpuMetrics, npuMetrics);
+        std::vector<std::unique_ptr<UnitTrack>> cpuCounterChildren;
+        std::vector<std::unique_ptr<UnitTrack>> npuCounterChildren;
         for (auto childIt = (*unitIt)->children.begin(); childIt != (*unitIt)->children.end();) {
             if (*childIt != nullptr && (*childIt)->type == "counter") {
-                counterChildren.emplace_back(std::move(*childIt));
+                if (IsCpuCounterUnit(**childIt, **unitIt)) {
+                    cpuCounterChildren.emplace_back(std::move(*childIt));
+                } else {
+                    npuCounterChildren.emplace_back(std::move(*childIt));
+                }
                 childIt = (*unitIt)->children.erase(childIt);
             } else {
                 ++childIt;
             }
         }
 
-        bool hasDirectCounter = !counterChildren.empty();
-        if (hasDirectCounter) {
-            std::unique_ptr<UnitTrack> counterGroup = std::make_unique<UnitTrack>();
-            counterGroup->type = "label";
-            counterGroup->metaData = (*unitIt)->metaData;
-            counterGroup->children = std::move(counterChildren);
-            hardwareMetrics.children.emplace_back(std::move(counterGroup));
-        }
+        bool hasDirectCounter = !cpuCounterChildren.empty() || !npuCounterChildren.empty();
+        AppendCounterGroup(cpuMetrics, **unitIt, cpuCounterChildren);
+        AppendCounterGroup(npuMetrics, **unitIt, npuCounterChildren);
 
         bool hasCounterInUnit = hasChildCounter || hasDirectCounter;
         hasCounter = hasCounter || hasCounterInUnit;
@@ -876,10 +925,14 @@ bool TextTraceDatabase::ExtractCounterMetadata(std::vector<std::unique_ptr<Proto
 
 void TextTraceDatabase::GroupCounterMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
-    auto hardwareMetrics = GenerateHardwareMetricsUnitTrack(fileId);
-    ExtractCounterMetadata(metaData, *hardwareMetrics);
-    if (!hardwareMetrics->children.empty()) {
-        metaData.emplace_back(std::move(hardwareMetrics));
+    auto cpuMetrics = GenerateCpuMetricsUnitTrack(fileId);
+    auto npuMetrics = GenerateNpuMetricsUnitTrack(fileId);
+    ExtractCounterMetadata(metaData, *cpuMetrics, *npuMetrics);
+    if (!cpuMetrics->children.empty()) {
+        metaData.emplace_back(std::move(cpuMetrics));
+    }
+    if (!npuMetrics->children.empty()) {
+        metaData.emplace_back(std::move(npuMetrics));
     }
 }
 

@@ -231,22 +231,22 @@ TEST_F(FullDbTestSuit, FullDb_of_UnitMetaData) {
     auto metaData = std::vector<std::unique_ptr<Protocol::UnitTrack>>();
     database->QueryUnitsMetadata("2", metaData);
     bool hasTopLevelCounterMetric = false;
-    const Protocol::UnitTrack *hardwareMetrics = nullptr;
+    const Protocol::UnitTrack *npuMetrics = nullptr;
     for (const auto &item : metaData) {
         if (item->metaData.processName == "HBM" || item->metaData.processName == "LLC" ||
             item->metaData.processName == "DDR" || item->metaData.processName == "NPU MEM") {
             hasTopLevelCounterMetric = true;
         }
-        if (item->metaData.processId == "__hardware_metrics__") {
-            hardwareMetrics = item.get();
+        if (item->metaData.processId == "__npu_metrics__") {
+            npuMetrics = item.get();
         }
     }
-    ASSERT_NE(hardwareMetrics, nullptr);
-    EXPECT_EQ(hardwareMetrics->type, "label");
+    ASSERT_NE(npuMetrics, nullptr);
+    EXPECT_EQ(npuMetrics->type, "label");
     bool hasHbmMetric = false;
     bool hasLlcMetric = false;
     bool hasDdrMetric = false;
-    for (const auto &child : hardwareMetrics->children) {
+    for (const auto &child : npuMetrics->children) {
         ASSERT_NE(child, nullptr);
         EXPECT_EQ(child->type, "label");
         hasHbmMetric = hasHbmMetric || child->metaData.processName == "HBM";

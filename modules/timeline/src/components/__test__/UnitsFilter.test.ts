@@ -30,7 +30,7 @@ const createUnit = (name: string, metadata: Record<string, unknown>, children?: 
     isMultiDeviceHidden: false,
 } as Partial<InsightUnit> as InsightUnit);
 
-describe('UnitsFilter hardware metrics filtering', () => {
+describe('UnitsFilter metrics filtering', () => {
     it('normalizes process id suffix consistently', () => {
         expect(normalizeUnitFilterName('LLC (14083671201)')).toBe('LLC');
         expect(normalizeUnitFilterName('NPU_MEM')).toBe('NPU_MEM');
@@ -40,8 +40,8 @@ describe('UnitsFilter hardware metrics filtering', () => {
     it('uses normalized label names when collecting options and filtering deep hardware metric children', () => {
         const counter = createUnit('Counter', { threadName: 'LLC 0 Read/Hit Rate' });
         const llc = createUnit('Label', { processName: 'LLC (14083671201)' }, [counter]);
-        const hardwareMetrics = createUnit('Label', { processName: 'Hardware Metrics' }, [llc]);
-        const card = createUnit('Card', { cardName: 'rank0' }, [hardwareMetrics]);
+        const npuMetrics = createUnit('Label', { processName: 'NPU Metrics' }, [llc]);
+        const card = createUnit('Card', { cardName: 'rank0' }, [npuMetrics]);
         const session = { units: [card] } as Partial<Session> as Session;
 
         const { unitNames } = useUnitsNameSet(session);
@@ -51,24 +51,24 @@ describe('UnitsFilter hardware metrics filtering', () => {
         doUnitsFilter(session.units, ['LLC']);
 
         expect(card.isDisplay).toBe(true);
-        expect(hardwareMetrics.isDisplay).toBe(true);
+        expect(npuMetrics.isDisplay).toBe(true);
         expect(llc.isDisplay).toBe(true);
         expect(counter.isDisplay).toBe(true);
         expect(card.isExpanded).toBe(true);
-        expect(hardwareMetrics.isExpanded).toBe(true);
+        expect(npuMetrics.isExpanded).toBe(true);
         expect(llc.isExpanded).toBe(true);
     });
 
-    it('hides the whole hardware metrics branch when no selected name matches', () => {
+    it('hides the whole metrics branch when no selected name matches', () => {
         const counter = createUnit('Counter', { threadName: 'HBM 0/Read' });
         const hbm = createUnit('Label', { processName: 'HBM (14083671101)' }, [counter]);
-        const hardwareMetrics = createUnit('Label', { processName: 'Hardware Metrics' }, [hbm]);
-        const card = createUnit('Card', { cardName: 'rank0' }, [hardwareMetrics]);
+        const npuMetrics = createUnit('Label', { processName: 'NPU Metrics' }, [hbm]);
+        const card = createUnit('Card', { cardName: 'rank0' }, [npuMetrics]);
 
         doUnitsFilter([card], ['Missing metric']);
 
         expect(card.isDisplay).toBe(false);
-        expect(hardwareMetrics.isDisplay).toBe(false);
+        expect(npuMetrics.isDisplay).toBe(false);
         expect(hbm.isDisplay).toBe(false);
         expect(counter.isDisplay).toBe(false);
     });

@@ -126,7 +126,7 @@ void DbTraceDataBase::ProcessHostCounterEventsMetadata(
             counter->children.emplace_back(std::move(thread));
         }
         if (!counter->children.empty()) {
-            GetOrCreateHardwareMetricsUnitTrack(fileId, metaData)->children.emplace_back(std::move(counter));
+            GetOrCreateCpuMetricsUnitTrack(fileId, metaData)->children.emplace_back(std::move(counter));
         }
     }
 }

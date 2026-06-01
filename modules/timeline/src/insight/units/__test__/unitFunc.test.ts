@@ -68,7 +68,7 @@ const createCardUnit = (): InsightUnit => ({
     children: [],
 } as Partial<InsightUnit> as InsightUnit);
 
-const createHardwareMetricsTree = (): InsightMetaData<'card'> => ({
+const createNpuMetricsTree = (): InsightMetaData<'card'> => ({
     type: 'card',
     dataSource,
     metadata: {
@@ -83,9 +83,9 @@ const createHardwareMetricsTree = (): InsightMetaData<'card'> => ({
             cardId: 'rank0',
             dbPath: 'rank0.db',
             dataSource,
-            processId: '__hardware_metrics__',
-            processName: 'Hardware Metrics',
-            metaType: 'HARDWARE_METRICS',
+            processId: '__npu_metrics__',
+            processName: 'NPU Metrics',
+            metaType: 'NPU_METRICS',
             label: '',
         },
         children: [{
@@ -124,19 +124,19 @@ describe('timeline unit metadata expansion', () => {
         clearParentMap();
     });
 
-    it('deduplicates label and counter hardware metric nodes during repeated expansion', () => {
+    it('deduplicates label and counter metric nodes during repeated expansion', () => {
         const cardUnit = createCardUnit();
-        const metadataTree = createHardwareMetricsTree();
+        const metadataTree = createNpuMetricsTree();
 
         updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
         recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
         recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
 
         expect(cardUnit.children).toHaveLength(1);
-        const hardwareMetrics = cardUnit.children?.[0];
-        expect(hardwareMetrics?.name).toBe('Label');
-        expect(hardwareMetrics?.children).toHaveLength(1);
-        const hbm = hardwareMetrics?.children?.[0];
+        const npuMetrics = cardUnit.children?.[0];
+        expect(npuMetrics?.name).toBe('Label');
+        expect(npuMetrics?.children).toHaveLength(1);
+        const hbm = npuMetrics?.children?.[0];
         expect(hbm?.name).toBe('Label');
         expect(hbm?.children).toHaveLength(1);
         expect(hbm?.children?.[0].name).toBe('Counter');
