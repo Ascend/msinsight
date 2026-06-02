@@ -20,28 +20,23 @@
 #include "SystemUtil.h"
 
 namespace Dic::Module::IE {
-IEConnectionPool::IEConnectionPool(std::string dbPath, std::recursive_mutex& insertSqlMutex)
-    : path(std::move(dbPath)),
-      insertSqlMutex(insertSqlMutex)
-{
-}
+IEConnectionPool::IEConnectionPool(std::string dbPath, std::recursive_mutex &insertSqlMutex)
+    : path(std::move(dbPath)), insertSqlMutex(insertSqlMutex) {}
 
-IEConnectionPool::~IEConnectionPool()
-{
+IEConnectionPool::~IEConnectionPool() {
     try {
         Stop();
-    } catch (const std::exception&) {
+    } catch (const std::exception &) {
         // do nothing
     }
 }
 
-std::shared_ptr<Database> IEConnectionPool::GetConnection()
-{
+std::shared_ptr<Database> IEConnectionPool::GetConnection() {
     std::unique_lock<std::mutex> lock(mutex);
     if (!valid) {
         return nullptr;
     }
-    Database* conn = nullptr;
+    Database *conn = nullptr;
     if (!idlePool.empty()) {
         conn = idlePool.front();
         idlePool.pop_front();
@@ -59,7 +54,7 @@ std::shared_ptr<Database> IEConnectionPool::GetConnection()
         ServerLog::Error("Get connection Failed.");
         return nullptr;
     }
-    std::shared_ptr<Database> connPtr(conn, [this](Database* conn) { ReleaseConnection(conn); });
+    std::shared_ptr<Database> connPtr(conn, [this](Database *conn) { ReleaseConnection(conn); });
     return connPtr;
 }
 
@@ -68,22 +63,20 @@ std::shared_ptr<Database> IEConnectionPool::GetConnection()
  *
  * @param count max active connections.
  */
-void IEConnectionPool::SetMaxActiveCount()
-{
+void IEConnectionPool::SetMaxActiveCount() {
     const static unsigned int MAX_COUNT = 10;
     const static unsigned int CPU_CORE_COUNT = std::min(SystemUtil::GetCpuCoreCount(), MAX_COUNT);
     maxActiveConnections = std::max(maxActiveConnections, CPU_CORE_COUNT);
 }
 
-void IEConnectionPool::Stop()
-{
+void IEConnectionPool::Stop() {
     std::unique_lock<std::mutex> lock(mutex);
     if (!valid) {
         return;
     }
     valid = false;
     ServerLog::Info("Wait all connection released. path:", path, ", idle size:", idlePool.size(),
-                    ", active size:", activePool.size());
+        ", active size:", activePool.size());
     while (idlePool.size() != activePool.size()) {
         cv.wait_for(lock, std::chrono::seconds(maxWaitTime));
     }
@@ -96,8 +89,7 @@ void IEConnectionPool::Stop()
     path = "";
 }
 
-void IEConnectionPool::ReleaseConnection(Database* conn)
-{
+void IEConnectionPool::ReleaseConnection(Database *conn) {
     std::unique_lock<std::mutex> lock(mutex);
     idlePool.emplace_back(conn);
     if (valid) {
@@ -108,11 +100,10 @@ void IEConnectionPool::ReleaseConnection(Database* conn)
     }
 }
 
-Database* IEConnectionPool::CreatConnection()
-{
+Database *IEConnectionPool::CreatConnection() {
     int retryCount = 0;
     while (retryCount < maxRetryAttempts) {
-        auto* conn = new Database(insertSqlMutex);
+        auto *conn = new Database(insertSqlMutex);
         if (!conn->OpenDb(path, false)) {
             delete conn;
             retryCount++;
@@ -125,10 +116,7 @@ Database* IEConnectionPool::CreatConnection()
     return nullptr;
 }
 
-std::string IEConnectionPool::GetDbPath()
-{
-    return path;
-}
-}  // namespace Dic::Module::IE
+std::string IEConnectionPool::GetDbPath() { return path; }
+} // namespace Dic::Module::IE
 // end of namespace Module
 // end of namespace Dic

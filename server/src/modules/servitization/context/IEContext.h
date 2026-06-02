@@ -24,12 +24,12 @@
 #include <IEConnectionPool.h>
 namespace Dic::Module::IE {
 class IEContext {
-public:
-    static IEContext& Instance();
+  public:
+    static IEContext &Instance();
     IEContext(const IEContext &) = delete;
-    IEContext &operator = (const IEContext &) = delete;
+    IEContext &operator=(const IEContext &) = delete;
     IEContext(IEContext &&) = delete;
-    IEContext &operator = (IEContext &&) = delete;
+    IEContext &operator=(IEContext &&) = delete;
 
     bool InitDataBase(const std::string &fileId, const std::string &dbPath);
     std::string ComputeFileIdByFolder(const std::string &folder);
@@ -40,7 +40,7 @@ public:
      */
     void Reset();
 
-private:
+  private:
     std::mutex mutex;
     std::map<std::string, std::unique_ptr<IEConnectionPool>> databaseMap;
     std::map<std::string, std::recursive_mutex> dbMutexMap;

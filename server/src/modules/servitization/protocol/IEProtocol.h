@@ -27,12 +27,12 @@
 namespace Dic {
 namespace Protocol {
 class IEProtocol : public ProtocolUtil {
-public:
+  public:
     IEProtocol() = default;
 
     ~IEProtocol() override = default;
 
-private:
+  private:
     void RegisterJsonToRequestFuncs() override;
 
     void RegisterResponseToJsonFuncs() override;

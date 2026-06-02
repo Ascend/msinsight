@@ -32,7 +32,7 @@
 namespace Dic {
 namespace Module {
 class TextClusterDatabase : public VirtualClusterDatabase {
-public:
+  public:
     explicit TextClusterDatabase(std::recursive_mutex &sqlMutex) : VirtualClusterDatabase(sqlMutex) {};
     ~TextClusterDatabase() noexcept override;
 
@@ -61,7 +61,7 @@ public:
     std::vector<std::string> GetAllRankFromStepStatisticInfo() override;
     std::vector<CommInfoUnderRank> GetCommTimeForRankDim(const std::string &stepId) override;
     bool QuerySlowOpByCommDuration(const Protocol::DurationListParams &params, const std::string &fastestRankId,
-                                   Protocol::RankDetailsForSlowRank &slowRank) override;
+        Protocol::RankDetailsForSlowRank &slowRank) override;
     bool GetGroups(std::vector<GroupInfoDo> &groupList) override;
     bool QueryMatrixList(Protocol::MatrixBandwidthParam &param, std::vector<MatrixInfoDo> &matrixInfoDoList) override;
     bool QueryAllOperators(Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody) override;
@@ -73,36 +73,36 @@ public:
 
     bool QueryRanksHandler(std::vector<Protocol::IterationsOrRanksObject> &responseBody) override;
     bool QueryOperatorNames(Protocol::OperatorNamesParams &requestParams,
-                            std::vector<Protocol::OperatorNamesObject> &responseBody) override;
+        std::vector<Protocol::OperatorNamesObject> &responseBody) override;
     bool QueryMatrixSortOpNames(Protocol::OperatorNamesParams &requestParams,
-                                std::vector<Protocol::OperatorNamesObject> &responseBody) override;
+        std::vector<Protocol::OperatorNamesObject> &responseBody) override;
     bool QueryIterations(std::vector<Protocol::IterationsOrRanksObject> &responseBody) override;
-    bool QueryDurationList(Protocol::DurationListParams &requestParams,
-        std::vector<DurationDo> &durationDoList) override;
-    bool QueryOperatorList(Protocol::DurationListParams &requestParams,
-        std::vector<OperatorTimeDo> &operatorTimeDoList) override;
+    bool QueryDurationList(
+        Protocol::DurationListParams &requestParams, std::vector<DurationDo> &durationDoList) override;
+    bool QueryOperatorList(
+        Protocol::DurationListParams &requestParams, std::vector<OperatorTimeDo> &operatorTimeDoList) override;
     bool QueryExtremumTimestamp(uint64_t &min, uint64_t &max) override;
     bool UpdateCollectTimeInfo(const Protocol::SummaryBaseInfo &baseInfo) override;
-    bool QueryIterationAndCommunicationGroup(Protocol::CommunicationKernelParams &params,
-                                             Protocol::CommunicationKernelBody &responseBody) override;
+    bool QueryIterationAndCommunicationGroup(
+        Protocol::CommunicationKernelParams &params, Protocol::CommunicationKernelBody &responseBody) override;
     bool GetParallelConfigFromStepTrace(ParallelStrategyConfig &config, std::string &level) override;
     bool QueryParallelStrategyConfig(ParallelStrategyConfig &config, std::string &level) override;
-    bool UpdateParallelStrategyConfig(const ParallelStrategyConfig &config,
-        std::string &level, std::string &msg) override;
+    bool UpdateParallelStrategyConfig(
+        const ParallelStrategyConfig &config, std::string &level, std::string &msg) override;
     std::map<std::string, std::string> QueryBaseInfoByKeys(const std::vector<std::string> &keys) override;
     bool InsertDuplicateUpdateBaseInfo(const std::map<std::string, std::string> &baseInfoMap) override;
 
     std::vector<CommGroupParallelInfo> GetAllGroupInfo();
-    bool QueryAllPerformanceDataByStep(const std::string &step,
-                                       std::unordered_map<std::uint32_t, StepStatistic> &data) override;
+    bool QueryAllPerformanceDataByStep(
+        const std::string &step, std::unordered_map<std::uint32_t, StepStatistic> &data) override;
 
     bool QueryPacketAnalyzerData(std::vector<PacketAnalyzerData> &data) override;
-    bool QueryBandwidthContentionAnalyzerData(std::vector<BandwidthContentionSDMAInfo> &res,
-        const std::string &rankId) override;
+    bool QueryBandwidthContentionAnalyzerData(
+        std::vector<BandwidthContentionSDMAInfo> &res, const std::string &rankId) override;
     bool QueryRetransmissionAnalyzerData(std::vector<RetransmissionClassificationInfo> &data) override;
     std::vector<OpTypeStatistics> GetOpStatByStepId(const std::string &stepId) override;
 
-private:
+  private:
     sqlite3_stmt *insertTimeInfoStmt = nullptr;
     sqlite3_stmt *insertBandwidthStmt = nullptr;
     sqlite3_stmt *stepStmt = nullptr;
@@ -118,8 +118,8 @@ private:
 
     std::string GetStageIdByGroupId(const std::string &groupId);
     std::string GetDurationListSql(const std::string &bandwidthCondition, const std::string &timeCondition) const;
-    std::string GetAllOperatorsSql(const std::string &startTime, const std::string &bandwidthCondition,
-                                   const std::string &timeCondition) const;
+    std::string GetAllOperatorsSql(
+        const std::string &startTime, const std::string &bandwidthCondition, const std::string &timeCondition) const;
     std::string GetAllOperatorsSql(uint64_t &startTime, const Protocol::OperatorDetailsParam &param);
     void BindTextForClusterBaseInfo(ClusterBaseInfo &baseInfo, sqlite3_stmt *stmt);
 };

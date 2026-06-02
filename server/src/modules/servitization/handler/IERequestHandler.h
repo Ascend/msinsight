@@ -24,17 +24,11 @@ namespace Dic {
 namespace Module {
 namespace IE {
 class IERequestHandler : public ModuleRequestHandler {
-public:
-    IERequestHandler()
-    {
-        moduleName = MODULE_IE;
-    }
+  public:
+    IERequestHandler() { moduleName = MODULE_IE; }
 
     ~IERequestHandler() override = default;
-    bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override
-    {
-        return true;
-    };
+    bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override { return true; };
 };
 }
 }

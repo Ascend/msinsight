@@ -20,8 +20,7 @@
 #include "IEProtocolUtil.h"
 
 namespace Dic::Protocol {
-template <> std::optional<document_t> ToResponseJson<IEUsageViewResponse>(const IEUsageViewResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<IEUsageViewResponse>(const IEUsageViewResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
@@ -46,8 +45,7 @@ template <> std::optional<document_t> ToResponseJson<IEUsageViewResponse>(const 
     return std::move(json);
 }
 
-template <> std::optional<document_t> ToResponseJson<IETableViewResponse>(const IETableViewResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<IETableViewResponse>(const IETableViewResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
@@ -79,8 +77,7 @@ template <> std::optional<document_t> ToResponseJson<IETableViewResponse>(const 
     return std::move(json);
 }
 
-template <> std::optional<document_t> ToResponseJson<IEGroupResponse>(const IEGroupResponse &response)
-{
+template <> std::optional<document_t> ToResponseJson<IEGroupResponse>(const IEGroupResponse &response) {
     document_t json(kObjectType);
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
@@ -98,8 +95,7 @@ template <> std::optional<document_t> ToResponseJson<IEGroupResponse>(const IEGr
 }
 
 template <>
-std::optional<document_t> ToEventJson<ParseStatisticCompletedEvent>(const ParseStatisticCompletedEvent &event)
-{
+std::optional<document_t> ToEventJson<ParseStatisticCompletedEvent>(const ParseStatisticCompletedEvent &event) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();
     ProtocolUtil::SetEventJsonBaseInfo(event, json);

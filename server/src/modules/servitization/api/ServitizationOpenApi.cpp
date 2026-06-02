@@ -22,19 +22,17 @@
 #include "ServitizationOpenApi.h"
 #include "ParserStatusManager.h"
 namespace Dic::Module::IE {
-bool ServitizationOpenApi::Parse(const std::unordered_map<std::string, std::string>& inputs)
-{
+bool ServitizationOpenApi::Parse(const std::unordered_map<std::string, std::string> &inputs) {
     Dic::Module::Timeline::ParserStatusManager::Instance().WaitStartParse();
     bool res = false;
-    for (const auto& item : inputs) {
+    for (const auto &item : inputs) {
         std::string dir = FileUtil::GetParentPath(item.second);
         res = ParseDir(dir, item.first);
     }
     return res;
 }
 
-std::vector<TaskInfo> ServitizationOpenApi::ComputeTaskInfo(const std::string& path)
-{
+std::vector<TaskInfo> ServitizationOpenApi::ComputeTaskInfo(const std::string &path) {
     if (ValidIEFile(path)) {
         std::vector<TaskInfo> res;
         std::string folder = FileUtil::GetParentPath(path);
@@ -56,19 +54,19 @@ std::vector<TaskInfo> ServitizationOpenApi::ComputeTaskInfo(const std::string& p
         std::vector<std::string> folders;
         std::vector<std::string> files;
         FileUtil::FindFolders(node, folders, files);
-        for (const auto& item : files) {
+        for (const auto &item : files) {
             std::string absPath = FileUtil::SplicePath(node, item);
             if (ValidIEFile(absPath)) {
                 validFiles.emplace_back(absPath);
             }
         }
-        for (const auto& item : folders) {
+        for (const auto &item : folders) {
             std::string absPath = FileUtil::SplicePath(node, item);
             queue.emplace(absPath, depth + 1);
         }
     }
     std::vector<TaskInfo> res;
-    for (const auto& item : validFiles) {
+    for (const auto &item : validFiles) {
         std::string fileId = context->ComputeFileIdByFolder(FileUtil::GetParentPath(item));
         TaskInfo taskInfo = {fileId, item};
         res.emplace_back(taskInfo);
@@ -76,13 +74,9 @@ std::vector<TaskInfo> ServitizationOpenApi::ComputeTaskInfo(const std::string& p
     return res;
 }
 
-void ServitizationOpenApi::Reset()
-{
-    context->Reset();
-}
+void ServitizationOpenApi::Reset() { context->Reset(); }
 
-bool ServitizationOpenApi::ValidIEFile(const std::string& path)
-{
+bool ServitizationOpenApi::ValidIEFile(const std::string &path) {
     if (FileUtil::IsFolder(path)) {
         return false;
     }
@@ -93,8 +87,7 @@ bool ServitizationOpenApi::ValidIEFile(const std::string& path)
     return false;
 }
 
-void ServitizationOpenApi::ParseSingleFile(const std::string& filePath, const std::string& fileId)
-{
+void ServitizationOpenApi::ParseSingleFile(const std::string &filePath, const std::string &fileId) {
     auto event = std::make_unique<Protocol::ParseStatisticCompletedEvent>();
     event->moduleName = Protocol::MODULE_IE;
     event->result = true;
@@ -105,8 +98,7 @@ void ServitizationOpenApi::ParseSingleFile(const std::string& filePath, const st
     SendEvent(std::move(event));
 }
 
-bool ServitizationOpenApi::CreateCurve(const std::string& fileId, const std::string& curve)
-{
+bool ServitizationOpenApi::CreateCurve(const std::string &fileId, const std::string &curve) {
     if (curve.find("_curve' AS ") == std::string::npos) {
         return false;
     }
@@ -114,8 +106,7 @@ bool ServitizationOpenApi::CreateCurve(const std::string& fileId, const std::str
     return true;
 }
 
-bool ServitizationOpenApi::ParseDir(const std::string& dir, const std::string& fileId)
-{
+bool ServitizationOpenApi::ParseDir(const std::string &dir, const std::string &fileId) {
     std::string targetFile = FileUtil::SplicePath(dir, IEFileName);
     if (FileUtil::CheckFilePathExist(targetFile)) {
         context->InitDataBase(fileId, targetFile);
@@ -128,8 +119,9 @@ bool ServitizationOpenApi::ParseDir(const std::string& dir, const std::string& f
         std::vector<std::string> folders;
         FileUtil::FindFolders(dir, folders, files);
         std::vector<std::string> distributeFiles;
-        for (const auto &item: files) {
-            if (item != MS_SERVICE_PARSED_NAME && StringUtil::StartWith(item, "ms_service_") && StringUtil::EndWith(item, ".db")) {
+        for (const auto &item : files) {
+            if (item != MS_SERVICE_PARSED_NAME && StringUtil::StartWith(item, "ms_service_") &&
+                StringUtil::EndWith(item, ".db")) {
                 distributeFiles.emplace_back(item);
             }
         }
@@ -141,7 +133,7 @@ bool ServitizationOpenApi::ParseDir(const std::string& dir, const std::string& f
         AttachDb(dir, distributeFiles, database);
         std::string attachSql;
         std::string detachSqls;
-        for (const auto &item: distributeFiles) {
+        for (const auto &item : distributeFiles) {
             std::string distributePath = FileUtil::SplicePath(dir, item);
             if (!FileUtil::CheckPathSecurity(distributePath, CHECK_FILE_READ)) {
                 continue;
@@ -168,18 +160,16 @@ bool ServitizationOpenApi::ParseDir(const std::string& dir, const std::string& f
     return false;
 }
 
-void ServitizationOpenApi::AttachDb(const std::string& dir, std::vector<std::string>& distributeFiles,
-                                    std::shared_ptr<Database>& database)
-{
+void ServitizationOpenApi::AttachDb(
+    const std::string &dir, std::vector<std::string> &distributeFiles, std::shared_ptr<Database> &database) {
     std::string attachSql;
-    for (const auto& item : distributeFiles) {
+    for (const auto &item : distributeFiles) {
         AttachSingleDb(dir, item, database);
     }
 }
 
-void ServitizationOpenApi::AttachSingleDb(const std::string& dir, const std::string& distributeFile,
-                                          std::shared_ptr<Database>& database)
-{
+void ServitizationOpenApi::AttachSingleDb(
+    const std::string &dir, const std::string &distributeFile, std::shared_ptr<Database> &database) {
     std::string distributePath = FileUtil::SplicePath(dir, distributeFile);
     if (!FileUtil::CheckPathSecurity(distributePath, CHECK_FILE_READ)) {
         return;
@@ -196,4 +186,4 @@ void ServitizationOpenApi::AttachSingleDb(const std::string& dir, const std::str
     stmt->BindParams(StringUtil::ToUtf8Str(distributePath));
     stmt->Execute();
 }
-}  // namespace Dic::Module::IE
+} // namespace Dic::Module::IE

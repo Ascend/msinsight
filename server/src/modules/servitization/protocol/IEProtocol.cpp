@@ -23,27 +23,23 @@
 #include "IEProtocol.h"
 
 namespace Dic::Protocol {
-void IEProtocol::RegisterJsonToRequestFuncs()
-{
+void IEProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_IE_VIEW, ToIEUsageViewRequest);
     jsonToReqFactory.emplace(REQ_RES_IE_TABLE_VIEW, ToIETableRequest);
     jsonToReqFactory.emplace(REQ_RES_IE_DATA_GROUP, ToIEGroupRequest);
 }
 
-void IEProtocol::RegisterResponseToJsonFuncs()
-{
+void IEProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_IE_VIEW, ToIEUsageViewResponseJson);
     resToJsonFactory.emplace(REQ_RES_IE_TABLE_VIEW, ToIETableViewResponseJson);
     resToJsonFactory.emplace(REQ_RES_IE_DATA_GROUP, ToIEGroupResponseJson);
 }
 
-void IEProtocol::RegisterEventToJsonFuncs()
-{
+void IEProtocol::RegisterEventToJsonFuncs() {
     eventToJsonFactory.emplace(EVENT_PARSE_IE_COMPLETED, ToParseIECompletedEventJson);
 }
 
-std::unique_ptr<Request> IEProtocol::ToIEUsageViewRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> IEProtocol::ToIEUsageViewRequest(const json_t &json, std::string &error) {
     std::unique_ptr<IEUsageViewParamsRequest> reqPtr = std::make_unique<IEUsageViewParamsRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -55,8 +51,7 @@ std::unique_ptr<Request> IEProtocol::ToIEUsageViewRequest(const json_t &json, st
     return reqPtr;
 }
 
-std::unique_ptr<Request> IEProtocol::ToIEGroupRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> IEProtocol::ToIEGroupRequest(const json_t &json, std::string &error) {
     std::unique_ptr<IEGroupRequest> reqPtr = std::make_unique<IEGroupRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -66,8 +61,7 @@ std::unique_ptr<Request> IEProtocol::ToIEGroupRequest(const json_t &json, std::s
     return reqPtr;
 }
 
-std::unique_ptr<Request> IEProtocol::ToIETableRequest(const json_t &json, std::string &error)
-{
+std::unique_ptr<Request> IEProtocol::ToIETableRequest(const json_t &json, std::string &error) {
     std::unique_ptr<IETableRequest> reqPtr = std::make_unique<IETableRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
         error = "Failed to set request base info, command is: " + reqPtr->command;
@@ -84,23 +78,19 @@ std::unique_ptr<Request> IEProtocol::ToIETableRequest(const json_t &json, std::s
     return reqPtr;
 }
 
-std::optional<document_t> IEProtocol::ToIEUsageViewResponseJson(const Response &response)
-{
+std::optional<document_t> IEProtocol::ToIEUsageViewResponseJson(const Response &response) {
     return ToResponseJson<IEUsageViewResponse>(dynamic_cast<const IEUsageViewResponse &>(response));
 }
 
-std::optional<document_t> IEProtocol::ToIETableViewResponseJson(const Response &response)
-{
+std::optional<document_t> IEProtocol::ToIETableViewResponseJson(const Response &response) {
     return ToResponseJson<IETableViewResponse>(dynamic_cast<const IETableViewResponse &>(response));
 }
 
-std::optional<document_t> IEProtocol::ToIEGroupResponseJson(const Response &response)
-{
+std::optional<document_t> IEProtocol::ToIEGroupResponseJson(const Response &response) {
     return ToResponseJson<IEGroupResponse>(dynamic_cast<const IEGroupResponse &>(response));
 }
 
-std::optional<document_t> IEProtocol::ToParseIECompletedEventJson(const Event &event)
-{
+std::optional<document_t> IEProtocol::ToParseIECompletedEventJson(const Event &event) {
     return ToEventJson<ParseStatisticCompletedEvent>(dynamic_cast<const ParseStatisticCompletedEvent &>(event));
 }
 }
