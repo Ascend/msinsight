@@ -326,7 +326,7 @@ void EventParser::CounterEventsHandle(Trace::Event *eventPtr) {
 }
 
 uint64_t EventParser::GetTrackId(const std::string &pid, const std::string &tid) {
-    std::string str = pid + tid;
+    std::string str = std::to_string(pid.size()) + ":" + pid + "|" + std::to_string(tid.size()) + ":" + tid;
     if (trackIdMap.count(str) > 0) {
         return trackIdMap.at(str);
     }
