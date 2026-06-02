@@ -25,14 +25,12 @@
 
 namespace Dic::Module::IE {
 class CurveGroupHandler : public IERequestHandler {
-public:
-    CurveGroupHandler()
-    {
-        moduleName = MODULE_IE;
-    }
+  public:
+    CurveGroupHandler() { moduleName = MODULE_IE; }
     ~CurveGroupHandler() override = default;
     bool HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) override;
-protected:
+
+  protected:
     std::shared_ptr<CurveRepo> repo = std::make_shared<CurveRepo>();
 };
 }

@@ -30,7 +30,7 @@ struct IEUsageViewParams {
 };
 
 struct IEUsageViewParamsRequest : public Request {
-    IEUsageViewParamsRequest() : Request(REQ_RES_IE_VIEW){};
+    IEUsageViewParamsRequest() : Request(REQ_RES_IE_VIEW) {};
     IEUsageViewParams params;
 };
 
@@ -43,8 +43,7 @@ struct IETableViewParams {
     std::string endTime;
     std::string order;
     std::string orderBy;
-    bool CommonCheck(std::string& errorMsg) const
-    {
+    bool CommonCheck(std::string &errorMsg) const {
         static const uint64_t PAGE_LIMIT = 500;
         if (pageSize == 0 || pageSize > PAGE_LIMIT) {
             errorMsg = "Page size invalid!";
@@ -59,7 +58,7 @@ struct IETableViewParams {
 };
 
 struct IETableRequest : public Request {
-    IETableRequest() : Request(REQ_RES_IE_TABLE_VIEW){};
+    IETableRequest() : Request(REQ_RES_IE_TABLE_VIEW) {};
     IETableViewParams params;
 };
 
@@ -68,9 +67,9 @@ struct IEGroupParams {
 };
 
 struct IEGroupRequest : public Request {
-    IEGroupRequest() : Request(REQ_RES_IE_DATA_GROUP){};
+    IEGroupRequest() : Request(REQ_RES_IE_DATA_GROUP) {};
     IEGroupParams params;
 };
-}  // namespace Dic::Protocol
+} // namespace Dic::Protocol
 
-#endif  // PROFILER_SERVER_IEPROTOCOLRESQUEST_H
+#endif // PROFILER_SERVER_IEPROTOCOLRESQUEST_H

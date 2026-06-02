@@ -21,11 +21,11 @@
 #include "BaseModule.h"
 namespace Dic::Module {
 class IEModule : public BaseModule {
-public:
+  public:
     IEModule();
     ~IEModule() override;
     void RegisterRequestHandlers() override;
     void OnRequest(std::unique_ptr<Protocol::Request> request) override;
 };
-}  // namespace Dic::Module
-#endif  // PROFILER_SERVER_IEMODULE_H
+} // namespace Dic::Module
+#endif // PROFILER_SERVER_IEMODULE_H

@@ -28,13 +28,9 @@ namespace Dic {
 namespace Module {
 using namespace Dic::Server;
 
-VirtualClusterDatabase::~VirtualClusterDatabase()
-{
-    ReleaseStmt();
-}
+VirtualClusterDatabase::~VirtualClusterDatabase() { ReleaseStmt(); }
 
-bool VirtualClusterDatabase::HasColumn(const std::string &tableName, const std::string &columnName)
-{
+bool VirtualClusterDatabase::HasColumn(const std::string &tableName, const std::string &columnName) {
     if (!Database::CheckTableExist(tableName)) {
         ServerLog::Error("Failed to check table: ", tableName);
         return false;
@@ -59,8 +55,7 @@ bool VirtualClusterDatabase::HasColumn(const std::string &tableName, const std::
     return result;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryBaseInfo(Protocol::SummaryBaseInfo &baseInfo, std::string sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryBaseInfo(Protocol::SummaryBaseInfo &baseInfo, std::string sql) {
     sqlite3_stmt *stmtBaseInfo = nullptr;
     int baseInfoResult = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmtBaseInfo, nullptr);
     if (baseInfoResult != SQLITE_OK) {
@@ -97,13 +92,12 @@ bool VirtualClusterDatabase::ExecuteQueryBaseInfo(Protocol::SummaryBaseInfo &bas
 }
 
 std::map<std::string, std::string> VirtualClusterDatabase::ExecuteQueryBaseInfoByKeys(
-    const std::vector<std::string> &keys, const std::string &tableName)
-{
+    const std::vector<std::string> &keys, const std::string &tableName) {
     if (keys.empty()) {
         return {};
     }
-    std::string sql = "SELECT key, value FROM " + tableName +
-        " WHERE key IN (" + StringUtil::CreateQuestionMarkString(keys.size()) + ");";
+    std::string sql = "SELECT key, value FROM " + tableName + " WHERE key IN (" +
+        StringUtil::CreateQuestionMarkString(keys.size()) + ");";
     sqlite3_stmt *stmtBaseInfo = nullptr;
     int baseInfoResult = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmtBaseInfo, nullptr);
     if (baseInfoResult != SQLITE_OK) {
@@ -111,7 +105,7 @@ std::map<std::string, std::string> VirtualClusterDatabase::ExecuteQueryBaseInfoB
         return {};
     }
     int index = bindStartIndex;
-    for (const auto &item: keys) {
+    for (const auto &item : keys) {
         sqlite3_bind_text(stmtBaseInfo, index++, item.c_str(), item.length(), SQLITE_TRANSIENT);
     }
     std::map<std::string, std::string> info;
@@ -125,9 +119,8 @@ std::map<std::string, std::string> VirtualClusterDatabase::ExecuteQueryBaseInfoB
     return info;
 }
 
-bool VirtualClusterDatabase::ExecuteInsertDuplicateUpdateBaseInfo(const std::map<std::string, std::string> &baseInfoMap,
-                                                                  const std::string &tableName)
-{
+bool VirtualClusterDatabase::ExecuteInsertDuplicateUpdateBaseInfo(
+    const std::map<std::string, std::string> &baseInfoMap, const std::string &tableName) {
     if (baseInfoMap.empty()) {
         return false;
     }
@@ -143,7 +136,7 @@ bool VirtualClusterDatabase::ExecuteInsertDuplicateUpdateBaseInfo(const std::map
         return false;
     }
     int index = bindStartIndex;
-    for (const auto &item: baseInfoMap) {
+    for (const auto &item : baseInfoMap) {
         sqlite3_bind_text(stmt, index++, item.first.c_str(), item.first.length(), SQLITE_TRANSIENT);
         sqlite3_bind_text(stmt, index++, item.second.c_str(), item.second.length(), SQLITE_TRANSIENT);
     }
@@ -152,8 +145,7 @@ bool VirtualClusterDatabase::ExecuteInsertDuplicateUpdateBaseInfo(const std::map
     return result == SQLITE_DONE;
 }
 
-bool VirtualClusterDatabase::ExecuteGetGroups(std::vector<GroupInfoDo> &groupList, const std::string &sql)
-{
+bool VirtualClusterDatabase::ExecuteGetGroups(std::vector<GroupInfoDo> &groupList, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare get groups statement. error:", sqlite3_errmsg(db));
@@ -176,9 +168,8 @@ bool VirtualClusterDatabase::ExecuteGetGroups(std::vector<GroupInfoDo> &groupLis
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryMatrixList(Protocol::MatrixBandwidthParam &param,
-    std::vector<MatrixInfoDo> &matrixInfoDoList, const std::string &sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryMatrixList(
+    Protocol::MatrixBandwidthParam &param, std::vector<MatrixInfoDo> &matrixInfoDoList, const std::string &sql) {
     int index = bindStartIndex;
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -204,8 +195,7 @@ bool VirtualClusterDatabase::ExecuteQueryMatrixList(Protocol::MatrixBandwidthPar
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryExtremumTimestamp(std::string &sql, uint64_t &min, uint64_t &max)
-{
+bool VirtualClusterDatabase::ExecuteQueryExtremumTimestamp(std::string &sql, uint64_t &min, uint64_t &max) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare query extremum timestamp statement. error:", sqlite3_errmsg(db));
@@ -231,13 +221,12 @@ bool VirtualClusterDatabase::ExecuteQueryExtremumTimestamp(std::string &sql, uin
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryIterationAndCommunicationGroup(std::string &sql,
-    std::string &opName, const std::string &rankId, std::string &iteration, std::string &communicationGroup)
-{
+bool VirtualClusterDatabase::ExecuteQueryIterationAndCommunicationGroup(std::string &sql, std::string &opName,
+    const std::string &rankId, std::string &iteration, std::string &communicationGroup) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        ServerLog::Error("Failed to prepare query iteration and communication group statement. error:",
-            sqlite3_errmsg(db));
+        ServerLog::Error(
+            "Failed to prepare query iteration and communication group statement. error:", sqlite3_errmsg(db));
         return false;
     }
     int index = bindStartIndex;
@@ -254,20 +243,17 @@ bool VirtualClusterDatabase::ExecuteQueryIterationAndCommunicationGroup(std::str
 }
 
 bool VirtualClusterDatabase::ExecuteQueryAllOperators(Protocol::OperatorDetailsParam &param,
-    Protocol::OperatorDetailsResBody &resBody, std::string sql, uint64_t startTime)
-{
+    Protocol::OperatorDetailsResBody &resBody, std::string sql, uint64_t startTime) {
     sqlite3_stmt *stmt = nullptr;
     std::vector<std::string> orderByFlagVector = {"operatorName", "startTime", "elapseTime", "synchronizationTime",
-                                                  "waitTime", "idleTime", "transitTime", "sdmaBw", "rdmaBw",
-                                                  "synchronizationTimeRatio", "waitTimeRatio"};
+        "waitTime", "idleTime", "transitTime", "sdmaBw", "rdmaBw", "synchronizationTimeRatio", "waitTimeRatio"};
     if (param.orderBy.empty() ||
-        std::find(orderByFlagVector.begin(), orderByFlagVector.end(), param.orderBy) ==
-        orderByFlagVector.end()) {
+        std::find(orderByFlagVector.begin(), orderByFlagVector.end(), param.orderBy) == orderByFlagVector.end()) {
         param.orderBy = "elapseTime";
     }
     std::string orderBy = " order by " + param.orderBy;
     std::string order = !param.order.empty() && std::strcmp(param.order.c_str(), "ascend") == 0 ? "ASC" : "DESC";
-    sql +=  orderBy + " " + order + " LIMIT ?, ?";
+    sql += orderBy + " " + order + " LIMIT ?, ?";
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare query all operators statement. error:", sqlite3_errmsg(db));
         return false;
@@ -302,9 +288,8 @@ bool VirtualClusterDatabase::ExecuteQueryAllOperators(Protocol::OperatorDetailsP
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryOperatorsCount(Protocol::OperatorDetailsParam &param,
-    Protocol::OperatorDetailsResBody &resBody, std::string sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryOperatorsCount(
+    Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     if (!param.iterationId.empty()) {
@@ -337,9 +322,8 @@ bool VirtualClusterDatabase::ExecuteQueryOperatorsCount(Protocol::OperatorDetail
     return res;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryBandwidthData(Protocol::BandwidthDataParam &param,
-    Protocol::BandwidthDataResBody &resBody, std::string sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryBandwidthData(
+    Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -364,9 +348,8 @@ bool VirtualClusterDatabase::ExecuteQueryBandwidthData(Protocol::BandwidthDataPa
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryDistributionData(Protocol::DistributionDataParam &param,
-    Protocol::DistributionResBody &resBody, std::string sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryDistributionData(
+    Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
@@ -386,9 +369,8 @@ bool VirtualClusterDatabase::ExecuteQueryDistributionData(Protocol::Distribution
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryRanksHandler(std::vector<Protocol::IterationsOrRanksObject> &responseBody,
-    std::string sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryRanksHandler(
+    std::vector<Protocol::IterationsOrRanksObject> &responseBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -409,8 +391,7 @@ bool VirtualClusterDatabase::ExecuteQueryRanksHandler(std::vector<Protocol::Iter
 }
 
 bool VirtualClusterDatabase::ExecuteQueryOperatorNames(Protocol::OperatorNamesParams &requestParams,
-    std::vector<Protocol::OperatorNamesObject> &responseBody, std::string sql)
-{
+    std::vector<Protocol::OperatorNamesObject> &responseBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     std::string iterationId = requestParams.iterationId;
@@ -428,7 +409,7 @@ bool VirtualClusterDatabase::ExecuteQueryOperatorNames(Protocol::OperatorNamesPa
         int col = resultStartIndex;
         Protocol::OperatorNamesObject object;
         object.operatorName = sqlite3_column_string(stmt, col++);
-        if (object.operatorName == "Total Op Info" && !flag) {  // summary opName default select Total Op Info
+        if (object.operatorName == "Total Op Info" && !flag) { // summary opName default select Total Op Info
             totalOpInfo = object;
             flag = true;
             continue;
@@ -442,9 +423,8 @@ bool VirtualClusterDatabase::ExecuteQueryOperatorNames(Protocol::OperatorNamesPa
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryIterations(std::vector<Protocol::IterationsOrRanksObject> &responseBody,
-    std::string sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryIterations(
+    std::vector<Protocol::IterationsOrRanksObject> &responseBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -462,15 +442,14 @@ bool VirtualClusterDatabase::ExecuteQueryIterations(std::vector<Protocol::Iterat
     GetStepsOrRanksObject(valueSteps, responseBody);
     if (responseBody.empty()) {
         ServerLog::Warn("Failed to obtain the number of iteration ids. At least one id must be contained. "
-                         "Check whether communication data files exist in the directory.");
+                        "Check whether communication data files exist in the directory.");
     }
     sqlite3_finalize(stmt);
     return true;
 }
 
 bool VirtualClusterDatabase::ExecuteQueryDurationList(Protocol::DurationListParams &requestParams,
-    std::vector<DurationDo> &durationDoList, std::string sql, uint64_t startTime)
-{
+    std::vector<DurationDo> &durationDoList, std::string sql, uint64_t startTime) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     std::string iterationId = requestParams.iterationId;
@@ -512,8 +491,7 @@ bool VirtualClusterDatabase::ExecuteQueryDurationList(Protocol::DurationListPara
 }
 
 bool VirtualClusterDatabase::ExecuteQueryOperatorList(Protocol::DurationListParams &requestParams,
-    std::vector<OperatorTimeDo> &operatorTimeDoList, const std::string& sql, uint64_t startTime)
-{
+    std::vector<OperatorTimeDo> &operatorTimeDoList, const std::string &sql, uint64_t startTime) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     std::string iterationId = requestParams.iterationId;
@@ -554,9 +532,8 @@ bool VirtualClusterDatabase::ExecuteQueryOperatorList(Protocol::DurationListPara
     return true;
 }
 
-void VirtualClusterDatabase::GetStepsOrRanksObject(const std::string &jsonStr,
-    std::vector<Protocol::IterationsOrRanksObject> &responseBody)
-{
+void VirtualClusterDatabase::GetStepsOrRanksObject(
+    const std::string &jsonStr, std::vector<Protocol::IterationsOrRanksObject> &responseBody) {
     std::string err;
     auto json = JsonUtil::TryParse(jsonStr, err);
     if (!json || !err.empty()) {
@@ -574,8 +551,7 @@ void VirtualClusterDatabase::GetStepsOrRanksObject(const std::string &jsonStr,
 }
 
 bool VirtualClusterDatabase::ExecuteQueryMatrixSortOpNames(Protocol::OperatorNamesParams &requestParams,
-    std::vector<Protocol::OperatorNamesObject> &responseBody, std::string sql)
-{
+    std::vector<Protocol::OperatorNamesObject> &responseBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;
     int index = bindStartIndex;
     std::string iterationId = requestParams.iterationId;
@@ -597,8 +573,7 @@ bool VirtualClusterDatabase::ExecuteQueryMatrixSortOpNames(Protocol::OperatorNam
     return true;
 }
 
-std::string VirtualClusterDatabase::GetRanksSql(const std::vector<std::string> &rankList)
-{
+std::string VirtualClusterDatabase::GetRanksSql(const std::vector<std::string> &rankList) {
     std::string ranks = "(";
     if (rankList.empty()) {
         return "";
@@ -621,9 +596,8 @@ std::string VirtualClusterDatabase::GetRanksSql(const std::vector<std::string> &
     return ranks;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryParallelStrategyConfig(std::string &sql,
-    ParallelStrategyConfig &config, std::string &level)
-{
+bool VirtualClusterDatabase::ExecuteQueryParallelStrategyConfig(
+    std::string &sql, ParallelStrategyConfig &config, std::string &level) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare query parallel strategy config statement. error:", sqlite3_errmsg(db));
@@ -656,9 +630,8 @@ bool VirtualClusterDatabase::ExecuteQueryParallelStrategyConfig(std::string &sql
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteSetParallelStrategyConfig(std::string &sql,
-    const ParallelStrategyConfig &config, std::string &level)
-{
+bool VirtualClusterDatabase::ExecuteSetParallelStrategyConfig(
+    std::string &sql, const ParallelStrategyConfig &config, std::string &level) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare set parallel strategy config statement. error:", sqlite3_errmsg(db));
@@ -689,9 +662,8 @@ bool VirtualClusterDatabase::ExecuteSetParallelStrategyConfig(std::string &sql,
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteGetParallelConfigFromStepTrace(std::string &sql,
-    ParallelStrategyConfig &config, std::string &level)
-{
+bool VirtualClusterDatabase::ExecuteGetParallelConfigFromStepTrace(
+    std::string &sql, ParallelStrategyConfig &config, std::string &level) {
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK || stmt == nullptr) {
@@ -740,19 +712,16 @@ bool VirtualClusterDatabase::ExecuteGetParallelConfigFromStepTrace(std::string &
     return true;
 }
 
-bool VirtualClusterDatabase::HasFinishedParseLastTime()
-{
+bool VirtualClusterDatabase::HasFinishedParseLastTime() {
     return CheckValueFromStatusInfoTable(clusterParseStatus, FINISH_STATUS);
 }
 
-bool VirtualClusterDatabase::UpdatesClusterParseStatus(const std::string &status)
-{
+bool VirtualClusterDatabase::UpdatesClusterParseStatus(const std::string &status) {
     return UpdateValueIntoStatusInfoTable(clusterParseStatus, status);
 }
 
-bool VirtualClusterDatabase::ExecuteQueryAllPerformanceDataByStep(const std::string &sql,
-    const std::string &step, std::unordered_map<std::uint32_t, StepStatistic> &data)
-{
+bool VirtualClusterDatabase::ExecuteQueryAllPerformanceDataByStep(
+    const std::string &sql, const std::string &step, std::unordered_map<std::uint32_t, StepStatistic> &data) {
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query all performance data by step.");
@@ -782,15 +751,14 @@ bool VirtualClusterDatabase::ExecuteQueryAllPerformanceDataByStep(const std::str
         if (rankIdNum != UINT32_MAX) {
             data.emplace(rankIdNum, one);
         } else {
-            ServerLog::Warn("RankId % could not be converted to a valid uint32_t. This entry will be skipped.",
-                            one.rankId.c_str());
+            ServerLog::Warn(
+                "RankId % could not be converted to a valid uint32_t. This entry will be skipped.", one.rankId.c_str());
         }
     }
     return true;
 }
 
-std::vector<std::string> VirtualClusterDatabase::ExecuteGetAllRankFromStepStatisticInfo(std::string &sql)
-{
+std::vector<std::string> VirtualClusterDatabase::ExecuteGetAllRankFromStepStatisticInfo(std::string &sql) {
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query all rank from step statistic info.");
@@ -810,16 +778,15 @@ std::vector<std::string> VirtualClusterDatabase::ExecuteGetAllRankFromStepStatis
 
 bool VirtualClusterDatabase::ExecuteQuerySlowOpByCommDuration(const std::string &sql,
     const Protocol::DurationListParams &params, const std::string &fastestRankId,
-    Protocol::RankDetailsForSlowRank &slowRank)
-{
+    Protocol::RankDetailsForSlowRank &slowRank) {
     uint64_t startTime = Module::Timeline::TraceTime::Instance().GetStartTime();
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query slow operator by communication duration.");
         return false;
     }
-    stmt->BindParams(startTime, fastestRankId, params.iterationId, params.groupIdHash,
-                     startTime, slowRank.rankId, params.iterationId, params.groupIdHash);
+    stmt->BindParams(startTime, fastestRankId, params.iterationId, params.groupIdHash, startTime, slowRank.rankId,
+        params.iterationId, params.groupIdHash);
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to get result for query slow operator by communication duration.");
@@ -829,28 +796,27 @@ bool VirtualClusterDatabase::ExecuteQuerySlowOpByCommDuration(const std::string 
     while (resultSet->Next()) {
         slowOpCnt++;
         Protocol::OpDetailsForSlowRank opDetail;
-        opDetail.diffTime = NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("diffElapseTime"),
-                                                              doubleReservedNum);
+        opDetail.diffTime =
+            NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("diffElapseTime"), doubleReservedNum);
         if (opDetail.diffTime <= 0 || slowOpCnt > slowRankOpCount) {
             return true;
         }
         opDetail.name = resultSet->GetString("opName");
-        opDetail.startTime = NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("startTimeOfSlow"),
-                                                               doubleReservedNum);
-        opDetail.elapseTime = NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("elapseTimeOfSlow"),
-                                                                doubleReservedNum);
-        opDetail.maxElapseTime = NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("elapseTimeOfFast"),
-                                                                   doubleReservedNum);
-        opDetail.maxStartTime = NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("startTimeOfFast"),
-                                                                  doubleReservedNum);
+        opDetail.startTime =
+            NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("startTimeOfSlow"), doubleReservedNum);
+        opDetail.elapseTime =
+            NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("elapseTimeOfSlow"), doubleReservedNum);
+        opDetail.maxElapseTime =
+            NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("elapseTimeOfFast"), doubleReservedNum);
+        opDetail.maxStartTime =
+            NumberUtil::DoubleReservedNDigits(resultSet->GetDouble("startTimeOfFast"), doubleReservedNum);
         slowRank.opDetails.push_back(opDetail);
     }
     return true;
 }
 
-std::vector<CommInfoUnderRank> VirtualClusterDatabase::ExecuteGetCommTimeForRankDim(std::string &sql,
-                                                                                    const std::string &step)
-{
+std::vector<CommInfoUnderRank> VirtualClusterDatabase::ExecuteGetCommTimeForRankDim(
+    std::string &sql, const std::string &step) {
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql for query communication time for rank dimension.");
@@ -877,12 +843,12 @@ std::vector<CommInfoUnderRank> VirtualClusterDatabase::ExecuteGetCommTimeForRank
     return res;
 }
 
-sqlite3_stmt *VirtualClusterDatabase::InitExpertHotspotInsertStmt(uint64_t paramLen)
-{
+sqlite3_stmt *VirtualClusterDatabase::InitExpertHotspotInsertStmt(uint64_t paramLen) {
     if (paramLen == 0) {
         return nullptr;
     }
-    std::string sql = "INSERT INTO " + TABLE_EXPERT_HOTSPOT_INTO + " (localExpertId, modelStage, rankId, visits, layer,"
+    std::string sql = "INSERT INTO " + TABLE_EXPERT_HOTSPOT_INTO +
+        " (localExpertId, modelStage, rankId, visits, layer,"
         " version) VALUES (?,?,?,?,?,?)";
     for (size_t i = 0; i < paramLen - 1; ++i) {
         sql.append(",(?,?,?,?,?,?)");
@@ -896,12 +862,12 @@ sqlite3_stmt *VirtualClusterDatabase::InitExpertHotspotInsertStmt(uint64_t param
     return stmt;
 }
 
-sqlite3_stmt *VirtualClusterDatabase::InitExpertDeploymentInsertStmt(uint64_t paramLen)
-{
+sqlite3_stmt *VirtualClusterDatabase::InitExpertDeploymentInsertStmt(uint64_t paramLen) {
     if (paramLen == 0) {
         return nullptr;
     }
-    std::string sql = "INSERT INTO " + TABLE_EXPERT_DEPLOYMENT_INFO + " (modelStage, rankId, layer, expertList, "
+    std::string sql = "INSERT INTO " + TABLE_EXPERT_DEPLOYMENT_INFO +
+        " (modelStage, rankId, layer, expertList, "
         " version) VALUES (?,?,?,?,?)";
     for (size_t i = 0; i < paramLen - 1; ++i) {
         sql.append(",(?,?,?,?,?)");
@@ -915,8 +881,7 @@ sqlite3_stmt *VirtualClusterDatabase::InitExpertDeploymentInsertStmt(uint64_t pa
     return stmt;
 }
 
-sqlite3_stmt *VirtualClusterDatabase::GetExpertHotspotInsertStmt(uint64_t paramLen)
-{
+sqlite3_stmt *VirtualClusterDatabase::GetExpertHotspotInsertStmt(uint64_t paramLen) {
     if (paramLen == CACHE_SIZE) {
         if (insertHotspotStmt == nullptr) {
             // 初始化
@@ -931,8 +896,7 @@ sqlite3_stmt *VirtualClusterDatabase::GetExpertHotspotInsertStmt(uint64_t paramL
     }
 }
 
-sqlite3_stmt *VirtualClusterDatabase::GetExpertDeploymentInsertStmt(uint64_t paramLen)
-{
+sqlite3_stmt *VirtualClusterDatabase::GetExpertDeploymentInsertStmt(uint64_t paramLen) {
     if (paramLen == CACHE_SIZE) {
         if (insertDeploymentStmt == nullptr) {
             // 初始化
@@ -947,8 +911,7 @@ sqlite3_stmt *VirtualClusterDatabase::GetExpertDeploymentInsertStmt(uint64_t par
     }
 }
 
-void VirtualClusterDatabase::InsertExpertHotspotDataForCache(const ExpertHotspotStruct &info)
-{
+void VirtualClusterDatabase::InsertExpertHotspotDataForCache(const ExpertHotspotStruct &info) {
     expertHotspotCache.emplace_back(info);
     if (expertHotspotCache.size() == CACHE_SIZE) {
         BatchInsertExpertHotspotData(expertHotspotCache);
@@ -956,8 +919,7 @@ void VirtualClusterDatabase::InsertExpertHotspotDataForCache(const ExpertHotspot
     }
 }
 
-void VirtualClusterDatabase::InsertExpertDeploymentForCache(const ExpertDeploymentStruct &info)
-{
+void VirtualClusterDatabase::InsertExpertDeploymentForCache(const ExpertDeploymentStruct &info) {
     expertDeploymentCache.emplace_back(info);
     if (expertDeploymentCache.size() == CACHE_SIZE) {
         BatchInsertExpertDeployment(expertDeploymentCache);
@@ -965,24 +927,21 @@ void VirtualClusterDatabase::InsertExpertDeploymentForCache(const ExpertDeployme
     }
 }
 
-void VirtualClusterDatabase::SaveExpertDeployment()
-{
+void VirtualClusterDatabase::SaveExpertDeployment() {
     if (expertDeploymentCache.size() > 0) {
         BatchInsertExpertDeployment(expertDeploymentCache);
         expertDeploymentCache.clear();
     }
 }
 
-void VirtualClusterDatabase::SaveExpertHotspot()
-{
+void VirtualClusterDatabase::SaveExpertHotspot() {
     if (expertHotspotCache.size() > 0) {
         BatchInsertExpertHotspotData(expertHotspotCache);
         expertHotspotCache.clear();
     }
 }
 
-bool VirtualClusterDatabase::BatchInsertExpertHotspotData(const std::vector<ExpertHotspotStruct> &expertHotspotInfos)
-{
+bool VirtualClusterDatabase::BatchInsertExpertHotspotData(const std::vector<ExpertHotspotStruct> &expertHotspotInfos) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     sqlite3_stmt *stmt = GetExpertHotspotInsertStmt(expertHotspotInfos.size());
     if (stmt == nullptr) {
@@ -1006,8 +965,7 @@ bool VirtualClusterDatabase::BatchInsertExpertHotspotData(const std::vector<Expe
 }
 
 bool VirtualClusterDatabase::BatchInsertExpertDeployment(
-    const std::vector<ExpertDeploymentStruct> &expertDeploymentInfos)
-{
+    const std::vector<ExpertDeploymentStruct> &expertDeploymentInfos) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     sqlite3_stmt *stmt = GetExpertDeploymentInsertStmt(expertDeploymentInfos.size());
     if (stmt == nullptr) {
@@ -1015,7 +973,7 @@ bool VirtualClusterDatabase::BatchInsertExpertDeployment(
         return false;
     }
     int idx = bindStartIndex;
-    for (const auto &info: expertDeploymentInfos) {
+    for (const auto &info : expertDeploymentInfos) {
         sqlite3_bind_text(stmt, idx++, info.modelStage.c_str(), info.modelStage.length(), SQLITE_TRANSIENT);
         sqlite3_bind_int(stmt, idx++, info.deviceId);
         sqlite3_bind_int(stmt, idx++, info.layer);
@@ -1030,8 +988,7 @@ bool VirtualClusterDatabase::BatchInsertExpertDeployment(
     return result == SQLITE_DONE;
 }
 
-bool VirtualClusterDatabase::DeleteExpertHotspot(const std::string &modelStage, const std::string &version)
-{
+bool VirtualClusterDatabase::DeleteExpertHotspot(const std::string &modelStage, const std::string &version) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     std::string sql = "DELETE FROM " + TABLE_EXPERT_HOTSPOT_INTO + " WHERE 1 = 1";
     if (!modelStage.empty()) {
@@ -1058,8 +1015,7 @@ bool VirtualClusterDatabase::DeleteExpertHotspot(const std::string &modelStage, 
     return result == SQLITE_DONE;
 }
 
-bool VirtualClusterDatabase::DeleteDeployment(const std::string &modelStage, const std::string &version)
-{
+bool VirtualClusterDatabase::DeleteDeployment(const std::string &modelStage, const std::string &version) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     std::string sql = "DELETE FROM " + TABLE_EXPERT_DEPLOYMENT_INFO + " WHERE 1 = 1";
     if (!modelStage.empty()) {
@@ -1086,9 +1042,8 @@ bool VirtualClusterDatabase::DeleteDeployment(const std::string &modelStage, con
     return result == SQLITE_DONE;
 }
 
-std::vector<ExpertHotspotStruct> VirtualClusterDatabase::QueryExpertHotspotData(const std::string &modelStage,
-                                                                                const std::string &version)
-{
+std::vector<ExpertHotspotStruct> VirtualClusterDatabase::QueryExpertHotspotData(
+    const std::string &modelStage, const std::string &version) {
     std::string sql = "SELECT localExpertId, modelStage, rankId, visits, version, layer FROM " +
         TABLE_EXPERT_HOTSPOT_INTO + " WHERE modelStage = ? and version = ?";
     sqlite3_stmt *stmt = nullptr;
@@ -1117,11 +1072,10 @@ std::vector<ExpertHotspotStruct> VirtualClusterDatabase::QueryExpertHotspotData(
     return res;
 }
 
-std::vector<ExpertDeploymentStruct> VirtualClusterDatabase::QueryExpertDeployment(const std::string &modelStage,
-                                                                                  const std::string &version)
-{
-    std::string sql = "SELECT modelStage, rankId, layer, expertList, version FROM " +
-        TABLE_EXPERT_DEPLOYMENT_INFO + " WHERE modelStage = ? and version = ?";
+std::vector<ExpertDeploymentStruct> VirtualClusterDatabase::QueryExpertDeployment(
+    const std::string &modelStage, const std::string &version) {
+    std::string sql = "SELECT modelStage, rankId, layer, expertList, version FROM " + TABLE_EXPERT_DEPLOYMENT_INFO +
+        " WHERE modelStage = ? and version = ?";
     sqlite3_stmt *stmt = nullptr;
     int stmtResult = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
     if (stmtResult != SQLITE_OK || stmt == nullptr) {
@@ -1140,7 +1094,7 @@ std::vector<ExpertDeploymentStruct> VirtualClusterDatabase::QueryExpertDeploymen
         info.layer = sqlite3_column_int(stmt, col++);
         std::string expertListStr = sqlite3_column_string(stmt, col++);
         if (!expertListStr.empty()) {
-            for (const auto &item: StringUtil::Split(expertListStr, ",")) {
+            for (const auto &item : StringUtil::Split(expertListStr, ",")) {
                 info.expertList.push_back(StringUtil::StringToInt(item));
             }
         }
@@ -1151,17 +1105,15 @@ std::vector<ExpertDeploymentStruct> VirtualClusterDatabase::QueryExpertDeploymen
     return res;
 }
 
-void VirtualClusterDatabase::ReleaseStmt()
-{
+void VirtualClusterDatabase::ReleaseStmt() {
     if (insertHotspotStmt != nullptr) {
         sqlite3_finalize(insertHotspotStmt);
         insertHotspotStmt = nullptr;
     }
 }
 
-bool VirtualClusterDatabase::ExecuteQueryPacketAnalyzerData(std::vector<PacketAnalyzerData> &data,
-                                                            const std::string &sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryPacketAnalyzerData(
+    std::vector<PacketAnalyzerData> &data, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare sql for query packet analyzer. Error:", sqlite3_errmsg(db));
@@ -1179,14 +1131,13 @@ bool VirtualClusterDatabase::ExecuteQueryPacketAnalyzerData(std::vector<PacketAn
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteQueryBandwidthContentionAnalyzerData(std::vector<BandwidthContentionSDMAInfo> &res,
-                                                                         const std::string &rankId,
-                                                                         const std::string &sql)
-{
+bool VirtualClusterDatabase::ExecuteQueryBandwidthContentionAnalyzerData(
+    std::vector<BandwidthContentionSDMAInfo> &res, const std::string &rankId, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare sql for query bandwidth contention analyzer."
-            " Error:", sqlite3_errmsg(db));
+                         " Error:",
+            sqlite3_errmsg(db));
         return false;
     }
     int index = bindStartIndex;
@@ -1205,12 +1156,11 @@ bool VirtualClusterDatabase::ExecuteQueryBandwidthContentionAnalyzerData(std::ve
 }
 
 bool VirtualClusterDatabase::ExecuteQueryRetransmissionAnalyzerData(
-    std::vector<RetransmissionClassificationInfo> &data, const std::string &sql)
-{
+    std::vector<RetransmissionClassificationInfo> &data, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        ServerLog::Error("Failed to prepare sql for query retransmission analyzer detail data. Error:",
-                         sqlite3_errmsg(db));
+        ServerLog::Error(
+            "Failed to prepare sql for query retransmission analyzer detail data. Error:", sqlite3_errmsg(db));
         return false;
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -1227,14 +1177,13 @@ bool VirtualClusterDatabase::ExecuteQueryRetransmissionAnalyzerData(
     return true;
 }
 
-bool VirtualClusterDatabase::ExecuteUpdateCollectTimeInfo(const Protocol::SummaryBaseInfo &baseInfo,
-    const std::string& sql)
-{
+bool VirtualClusterDatabase::ExecuteUpdateCollectTimeInfo(
+    const Protocol::SummaryBaseInfo &baseInfo, const std::string &sql) {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        ServerLog::Error("Failed to prepare sql for update collect time for cluster base info. Error:",
-                         sqlite3_errmsg(db));
+        ServerLog::Error(
+            "Failed to prepare sql for update collect time for cluster base info. Error:", sqlite3_errmsg(db));
         return false;
     }
     if (stmt == nullptr) {
@@ -1255,22 +1204,20 @@ bool VirtualClusterDatabase::ExecuteUpdateCollectTimeInfo(const Protocol::Summar
     return true;
 }
 
-std::string VirtualClusterDatabase::GenerateReplaceSql(const std::string &columnName,
-                                                       const std::vector<std::string> &replaceList)
-{
+std::string VirtualClusterDatabase::GenerateReplaceSql(
+    const std::string &columnName, const std::vector<std::string> &replaceList) {
     if (replaceList.empty()) {
         return columnName;
     }
     std::string res = columnName;
-    for (const auto &item: replaceList) {
+    for (const auto &item : replaceList) {
         res = StringUtil::FormatString("REPLACE({}, '{}', '')", res, item);
     }
     return res;
 }
 
-std::vector<OpTypeStatistics> VirtualClusterDatabase::ExecuteGetOpStatByStepId(const std::string &stepId,
-                                                                               const std::string &sql)
-{
+std::vector<OpTypeStatistics> VirtualClusterDatabase::ExecuteGetOpStatByStepId(
+    const std::string &stepId, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
         ServerLog::Error("Failed to prepare sql for get op stat by step id. Error:", sqlite3_errmsg(db));

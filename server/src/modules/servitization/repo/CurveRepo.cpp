@@ -20,8 +20,7 @@
 #include "StringUtil.h"
 #include "CurveRepo.h"
 namespace Dic::Module::IE {
-std::vector<std::string> CurveRepo::QueryAllViews(const std::string& fileId)
-{
+std::vector<std::string> CurveRepo::QueryAllViews(const std::string &fileId) {
     auto dataBase = context->GetDatabase(fileId);
     if (!TryOpt(dataBase, "Query all views get connection failed!")) {
         return {};
@@ -45,8 +44,7 @@ std::vector<std::string> CurveRepo::QueryAllViews(const std::string& fileId)
     return res;
 }
 
-std::vector<ColumnAtt> CurveRepo::QueryTableInfoByName(const std::string& fileId, const std::string& tableName)
-{
+std::vector<ColumnAtt> CurveRepo::QueryTableInfoByName(const std::string &fileId, const std::string &tableName) {
     auto dataBase = context->GetDatabase(fileId);
     if (!TryOpt(dataBase, "Query table info by name get connection failed!")) {
         return {};
@@ -54,15 +52,13 @@ std::vector<ColumnAtt> CurveRepo::QueryTableInfoByName(const std::string& fileId
     return dataBase->QueryTableInfoByName(tableName);
 }
 
-std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumn(const std::string& fileId,
-                                                                             const std::string& tableName,
-                                                                             const std::vector<ColumnAtt>& columns)
-{
+std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumn(
+    const std::string &fileId, const std::string &tableName, const std::vector<ColumnAtt> &columns) {
     if (!StringUtil::CheckSqlValid(tableName) || columns.empty()) {
         return {};
     }
     std::vector<std::string> columnName;
-    for (const auto& item : columns) {
+    for (const auto &item : columns) {
         columnName.emplace_back("\"" + item.key + "\"");
     }
     const std::string columnNames = StringUtil::join(columnName, ",");
@@ -82,7 +78,7 @@ std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumn(con
     std::vector<std::map<std::string, std::string>> res;
     while (result->Next()) {
         std::map<std::string, std::string> data;
-        for (const auto& item : columns) {
+        for (const auto &item : columns) {
             data[item.key] = result->GetString(item.key);
             if (std::empty(data[item.key])) {
                 data[item.key] = "0";
@@ -93,9 +89,8 @@ std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumn(con
     return res;
 }
 
-std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumnPage(const PageQuery& query,
-                                                                                 const std::vector<ColumnAtt>& columns)
-{
+std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumnPage(
+    const PageQuery &query, const std::vector<ColumnAtt> &columns) {
     std::vector<std::string> columnName = ComputeColNames(query, columns);
     if (std::empty(columnName)) {
         return {};
@@ -108,8 +103,8 @@ std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumnPage
     const std::string columnNames = StringUtil::join(columnName, ",");
     std::string sql = "SELECT " + columnNames + " FROM '" + query.viewName + "' WHERE 1=1 ";
     bool rangeIsValid = !query.start.empty() && !query.end.empty();
-    bool rangeIsInteger = rangeIsValid && StringUtil::CheckSqlValid(query.start) &&
-                          StringUtil::CheckSqlValid(query.end);
+    bool rangeIsInteger =
+        rangeIsValid && StringUtil::CheckSqlValid(query.start) && StringUtil::CheckSqlValid(query.end);
     // 专门处理整数
     if (rangeIsValid && rangeIsInteger) {
         sql += " AND " + conditionName + " >= " + query.start + " AND " + conditionName + " <= " + query.end;
@@ -136,7 +131,7 @@ std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumnPage
     std::vector<std::map<std::string, std::string>> res;
     while (result->Next()) {
         std::map<std::string, std::string> data;
-        for (const auto& item : columns) {
+        for (const auto &item : columns) {
             data[item.key] = result->GetString(item.key);
             if (std::empty(data[item.key])) {
                 data[item.key] = "0";
@@ -147,12 +142,11 @@ std::vector<std::map<std::string, std::string>> CurveRepo::QueryDataByColumnPage
     return res;
 }
 
-std::string& CurveRepo::AppendConditionSql(const PageQuery& query, std::string& sql) const
-{
+std::string &CurveRepo::AppendConditionSql(const PageQuery &query, std::string &sql) const {
     std::string orderBySql;
     if (!std::empty(query.order) && !std::empty(query.orderBy)) {
-        orderBySql = query.order == "descend" ? " ORDER BY \"" + query.orderBy + "\" DESC " :
-                                                " ORDER BY \"" + query.orderBy + "\" ASC ";
+        orderBySql = query.order == "descend" ? " ORDER BY \"" + query.orderBy + "\" DESC "
+                                              : " ORDER BY \"" + query.orderBy + "\" ASC ";
     }
     sql += orderBySql;
     const std::string limitSql =
@@ -161,13 +155,13 @@ std::string& CurveRepo::AppendConditionSql(const PageQuery& query, std::string& 
     return sql;
 }
 
-std::vector<std::string> CurveRepo::ComputeColNames(const PageQuery& query, const std::vector<ColumnAtt>& columns) const
-{
+std::vector<std::string> CurveRepo::ComputeColNames(
+    const PageQuery &query, const std::vector<ColumnAtt> &columns) const {
     if (columns.empty()) {
         return {};
     }
     std::vector<std::string> columnName;
-    for (const auto& item : columns) {
+    for (const auto &item : columns) {
         columnName.emplace_back("\"" + item.key + "\"");
     }
     if (!StringUtil::CheckSqlValid(query.viewName)) {
@@ -176,15 +170,14 @@ std::vector<std::string> CurveRepo::ComputeColNames(const PageQuery& query, cons
     return columnName;
 }
 
-uint64_t CurveRepo::QueryCountByTableName(const PageQuery& query, const std::string& abscissa)
-{
+uint64_t CurveRepo::QueryCountByTableName(const PageQuery &query, const std::string &abscissa) {
     if (!StringUtil::CheckSqlValid(query.viewName)) {
         return 0;
     }
     std::string sql = "SELECT COUNT(*) as count FROM '" + query.viewName + "' WHERE 1 = 1 ";
     bool rangeIsValid = !query.start.empty() && !query.end.empty();
-    bool rangeIsInteger = rangeIsValid && StringUtil::CheckSqlValid(query.start) &&
-                          StringUtil::CheckSqlValid(query.end);
+    bool rangeIsInteger =
+        rangeIsValid && StringUtil::CheckSqlValid(query.start) && StringUtil::CheckSqlValid(query.end);
     if (rangeIsValid && rangeIsInteger) {
         sql += " AND " + abscissa + " >= " + query.start + " AND " + abscissa + " <= " + query.end;
     }
@@ -212,8 +205,7 @@ uint64_t CurveRepo::QueryCountByTableName(const PageQuery& query, const std::str
     return 0;
 }
 
-std::string CurveRepo::QueryTableNameDesc(const std::string& fileId, const std::string& tableName, bool isZh)
-{
+std::string CurveRepo::QueryTableNameDesc(const std::string &fileId, const std::string &tableName, bool isZh) {
     auto dataBase = context->GetDatabase(fileId);
     if (!TryOpt(dataBase, "Query table name desc get connection failed!")) {
         return {};
@@ -221,4 +213,4 @@ std::string CurveRepo::QueryTableNameDesc(const std::string& fileId, const std::
     auto translate = dataBase->QueryTranslate(isZh);
     return translate[tableName];
 }
-}  // namespace Dic::Module::IE
+} // namespace Dic::Module::IE

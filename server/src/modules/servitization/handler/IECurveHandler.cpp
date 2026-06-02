@@ -26,11 +26,10 @@
 namespace Dic::Module::IE {
 using namespace Dic;
 using namespace Dic::Server;
-bool IECurveHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr)
-{
-    auto& request = dynamic_cast<IEUsageViewParamsRequest&>(*requestPtr);
+bool IECurveHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> requestPtr) {
+    auto &request = dynamic_cast<IEUsageViewParamsRequest &>(*requestPtr);
     std::unique_ptr<IEUsageViewResponse> responsePtr = std::make_unique<IEUsageViewResponse>();
-    IEUsageViewResponse& response = *responsePtr;
+    IEUsageViewResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     if (!request.params.type.empty()) {
         auto translate = repo->QueryTableNameDesc(request.params.rankId, request.params.type, request.params.isZh);
@@ -46,19 +45,18 @@ bool IECurveHandler::HandleRequest(std::unique_ptr<Dic::Protocol::Request> reque
     return true;
 }
 
-void IECurveHandler::QueryDatasByCols(const IEUsageViewParamsRequest& request, IEUsageViewResponse& response,
-                                      std::vector<ColumnAtt>& atts)
-{
+void IECurveHandler::QueryDatasByCols(
+    const IEUsageViewParamsRequest &request, IEUsageViewResponse &response, std::vector<ColumnAtt> &atts) {
     std::string rankId = request.params.rankId;
     std::string tableName = request.params.type;
-    auto datas = repo->QueryDataByColumn(rankId, tableName, atts);
+    auto data = repo->QueryDataByColumn(rankId, tableName, atts);
 
     // 第一步：收集所有去重后的行
     std::vector<std::vector<std::string>> uniqueLines;
     std::vector<std::string> curline(atts.size());
-    for (auto& item : datas) {
+    for (auto &item : data) {
         std::vector<std::string> line;
-        for (const auto& att : atts) {
+        for (const auto &att : atts) {
             line.emplace_back(item[att.key]);
         }
         bool isDifferent = false;
@@ -81,14 +79,13 @@ void IECurveHandler::QueryDatasByCols(const IEUsageViewParamsRequest& request, I
         response.data.lines = std::move(uniqueLines);
     }
 
-    for (const auto& att : atts) {
+    for (const auto &att : atts) {
         response.data.legends.emplace_back(att.key);
     }
 }
 
-void IECurveHandler::SampleLines(const std::vector<std::vector<std::string>>& lines,
-                                 std::vector<std::vector<std::string>>& result)
-{
+void IECurveHandler::SampleLines(
+    const std::vector<std::vector<std::string>> &lines, std::vector<std::vector<std::string>> &result) {
     uint64_t n = lines.size();
     size_t numCols = lines.empty() ? 0 : lines[0].size();
 
@@ -131,10 +128,12 @@ void IECurveHandler::SampleLines(const std::vector<std::vector<std::string>>& li
             if (minIdx > maxIdx && minIdx >= 0 && maxIdx >= 0) {
                 std::swap(minIdx, maxIdx);
             }
-            if (minIdx >= 0 && std::find(sampledIndices.begin(), sampledIndices.end(), minIdx) == sampledIndices.end()) {
+            if (minIdx >= 0 &&
+                std::find(sampledIndices.begin(), sampledIndices.end(), minIdx) == sampledIndices.end()) {
                 sampledIndices.emplace_back(minIdx);
             }
-            if (maxIdx >= 0 && std::find(sampledIndices.begin(), sampledIndices.end(), maxIdx) == sampledIndices.end()) {
+            if (maxIdx >= 0 &&
+                std::find(sampledIndices.begin(), sampledIndices.end(), maxIdx) == sampledIndices.end()) {
                 sampledIndices.emplace_back(maxIdx);
             }
         }
@@ -147,8 +146,7 @@ void IECurveHandler::SampleLines(const std::vector<std::vector<std::string>>& li
     }
 }
 
-double IECurveHandler::StringToDouble(const std::string& str)
-{
+double IECurveHandler::StringToDouble(const std::string &str) {
     if (str.empty() || str == "NULL") {
         return 0.0;
     }
@@ -158,4 +156,4 @@ double IECurveHandler::StringToDouble(const std::string& str)
         return 0.0;
     }
 }
-}  // namespace Dic::Module::IE
+} // namespace Dic::Module::IE
