@@ -92,23 +92,26 @@ const TOOLBAR_ITEMS: ToolbarItem[] = [
     },
 ];
 
-const COLLAPSED_TOP_OFFSET_PX = 217;
+const COLLAPSED_TOP_OFFSET_PX = 206;
 
 const ToolbarContainer = styled.div<{ collapsed: boolean }>`
     position: absolute;
-    top: ${(props): string => props.collapsed ? `${COLLAPSED_TOP_OFFSET_PX}px` : `${TOOLBAR_TOP_OFFSET_PX}px`};
-    right: ${(props): string => props.collapsed ? '0' : `${TOOLBAR_RIGHT_OFFSET_PX}px`};
+    top: ${TOOLBAR_TOP_OFFSET_PX}px;
+    right: 0;
     z-index: 11;
     display: flex;
     align-items: flex-start;
-    transition: all 200ms ease-out;
+    transform: ${(props): string => props.collapsed
+        ? `translate(0, ${COLLAPSED_TOP_OFFSET_PX - TOOLBAR_TOP_OFFSET_PX}px)`
+        : `translate(-${TOOLBAR_RIGHT_OFFSET_PX}px, 0)`};
+    transition: transform 200ms ease-out;
 `;
 
 const ToolbarPanel = styled.div<{ collapsed: boolean }>`
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: ${(props): string => props.collapsed ? '0' : '4px'};
     width: ${(props): string => props.collapsed ? '16px' : '32px'};
     padding: ${(props): string => props.collapsed ? '0' : '4px'};
     border: 1px solid ${(props): string => props.theme.borderColor};
@@ -116,13 +119,21 @@ const ToolbarPanel = styled.div<{ collapsed: boolean }>`
     border-radius: ${(props): string => props.collapsed ? '12px 0 0 12px' : '6px'};
     background-color: ${(props): string => props.theme.contentBackgroundColor};
     box-shadow: ${(props): string => props.theme.boxShadow};
+    transition: width 200ms ease-out, padding 200ms ease-out, border-radius 200ms ease-out;
 `;
 
 const ToolbarItems = styled.div<{ collapsed: boolean }>`
-    display: ${(props): string => props.collapsed ? 'none' : 'flex'};
+    display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
+    max-height: ${(props): string => props.collapsed ? '0' : '136px'};
+    opacity: ${(props): number => props.collapsed ? 0 : 1};
+    overflow: hidden;
+    transform: ${(props): string => props.collapsed ? 'translateX(8px)' : 'translateX(0)'};
+    transform-origin: right top;
+    pointer-events: ${(props): string => props.collapsed ? 'none' : 'auto'};
+    transition: opacity 160ms ease-out, max-height 200ms ease-out, transform 200ms ease-out;
 `;
 
 const ToolbarButton = styled.button<{ selected?: boolean; disabled?: boolean }>`
@@ -159,6 +170,7 @@ const ToggleButton = styled(ToolbarButton)<{ collapsed: boolean }>`
     width: ${(props): string => props.collapsed ? '16px' : `${TOOLBAR_BUTTON_SIZE_PX}px`};
     height: ${(props): string => props.collapsed ? '48px' : `${TOOLBAR_BUTTON_SIZE_PX}px`};
     border-radius: ${(props): string => props.collapsed ? '12px 0 0 12px' : '4px'};
+    transition: width 200ms ease-out, height 200ms ease-out, border-radius 200ms ease-out, background-color 160ms ease-out;
 
     &:hover {
         background-color: ${(props): string => props.theme.bgColorLight};
@@ -168,6 +180,7 @@ const ToggleButton = styled(ToolbarButton)<{ collapsed: boolean }>`
         width: 16px;
         height: 16px;
         transform: ${(props): string => props.collapsed ? 'rotate(180deg)' : 'none'};
+        transition: transform 200ms ease-out;
     }
 `;
 
@@ -312,17 +325,23 @@ const FloatingToolbar = observer(({ session }: FloatingToolbarProps): JSX.Elemen
                 toggleAutoFitHeight(session);
                 break;
             case 'default-mode':
-                session.panMode = false;
+                runInAction(() => {
+                    session.panMode = false;
+                });
                 toggleSelectionMode(session, false);
                 break;
             case 'drag-mode': {
-                session.panMode = activeMode !== 'drag-mode';
+                runInAction(() => {
+                    session.panMode = activeMode !== 'drag-mode';
+                });
                 toggleSelectionMode(session, false);
                 break;
             }
             case 'selection-mode': {
                 const active = activeMode !== 'selection-mode';
-                session.panMode = false;
+                runInAction(() => {
+                    session.panMode = false;
+                });
                 toggleSelectionMode(session, active);
                 break;
             }
@@ -402,8 +421,7 @@ const FloatingToolbar = observer(({ session }: FloatingToolbarProps): JSX.Elemen
                                 type="button"
                                 selected={guideVisible}
                                 data-testid="timeline-floating-toolbar-guide"
-                                onClick={(event): void => {
-                                    stopToolbarEvent(event);
+                                onClick={(): void => {
                                     setGuideVisible((prev) => !prev);
                                 }}
                             >
@@ -417,8 +435,7 @@ const FloatingToolbar = observer(({ session }: FloatingToolbarProps): JSX.Elemen
                         type="button"
                         collapsed={collapsed}
                         data-testid="timeline-floating-toolbar-toggle"
-                        onClick={(event): void => {
-                            stopToolbarEvent(event);
+                        onClick={(): void => {
                             setCollapsed((prev) => !prev);
                             setGuideVisible(false);
                         }}

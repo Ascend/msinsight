@@ -225,7 +225,7 @@
     "RenderError": "Rendering failed. Please check if the data is correct",
     "floatingToolbar": {
       "expand": "Expand mouse tools",
-      "collapse": "Collapse mouse tools",
+      "collapse": "Collapse",
       "guideTitle": "Mouse tool guide",
       "closeGuide": "Close mouse tool guide",
       "defaultMode": "Default mode",
