@@ -22,8 +22,7 @@
 
 using namespace Dic;
 
-int GetCurrentYear()
-{
+int GetCurrentYear() {
     const int sinceYear = 1900;
     auto currentTime = std::chrono::system_clock::now();
     std::time_t currentTime_t = std::chrono::system_clock::to_time_t(currentTime);
@@ -31,8 +30,7 @@ int GetCurrentYear()
     return currentTime_tm->tm_year + sinceYear;
 }
 
-int GetCurrentMonth()
-{
+int GetCurrentMonth() {
     const int sinceMonth = 1;
     auto currentTime = std::chrono::system_clock::now();
     std::time_t currentTime_t = std::chrono::system_clock::to_time_t(currentTime);
@@ -40,16 +38,14 @@ int GetCurrentMonth()
     return currentTime_tm->tm_mon + sinceMonth;
 }
 
-int GetCurrentDay()
-{
+int GetCurrentDay() {
     auto currentTime = std::chrono::system_clock::now();
     std::time_t currentTime_t = std::chrono::system_clock::to_time_t(currentTime);
     std::tm *currentTime_tm = std::localtime(&currentTime_t);
     return currentTime_tm->tm_mday;
 }
 
-int GetCurrentHour()
-{
+int GetCurrentHour() {
     auto currentTime = std::chrono::system_clock::now();
     std::time_t currentTime_t = std::chrono::system_clock::to_time_t(currentTime);
     std::tm *currentTime_tm = std::localtime(&currentTime_t);

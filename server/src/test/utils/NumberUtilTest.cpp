@@ -89,7 +89,7 @@ TEST(NumberUtil, TimestampUsToNsWithLongDoubleWithNormalInputReturnValid) {
     EXPECT_EQ(1695297849996490053, NumberUtil::TimestampUsToNs(stold("1695297849996490.053011100000")));
     EXPECT_EQ(1695297849996490054, NumberUtil::TimestampUsToNs(stold("1695297849996490.0535")));
     EXPECT_EQ(1695297849996490000, NumberUtil::TimestampUsToNs(1695297849996490));
-#elif defined(__APPLE__) && defined (__MACH__)
+#elif defined(__APPLE__) && defined(__MACH__)
     EXPECT_EQ(1695297849996489984, NumberUtil::TimestampUsToNs(stold("1695297849996490.053011100000")));
     EXPECT_EQ(1695297849996489984, NumberUtil::TimestampUsToNs(stold("1695297849996490.0535")));
 #endif
@@ -187,8 +187,7 @@ TEST(NumberUtil, StringToLongWithAbnormalStringReturnInalidNumber) {
     EXPECT_EQ(NumberUtil::TryParseInt("2147483648"), INVALID_NUMBER);
 }
 
-TEST(NumberUtil, StringUnsignedLongLongMinusTest)
-{
+TEST(NumberUtil, StringUnsignedLongLongMinusTest) {
     EXPECT_EQ(NumberUtil::StringUnsignedLongLongMinus("1", "0"), "1");
     EXPECT_EQ(NumberUtil::StringUnsignedLongLongMinus("100", "1"), "99");
     EXPECT_EQ(NumberUtil::StringUnsignedLongLongMinus("106", "104"), "2");
@@ -269,8 +268,7 @@ TEST(NumberUtil, SubWithAbnormalStringReturnInvalidNumber) {
     EXPECT_EQ(NumberUtil::Sub(a, a), 0);
 }
 
-TEST(NumberUtil, StringRservedNDigitsWithNormalInputReturnValidString)
-{
+TEST(NumberUtil, StringRservedNDigitsWithNormalInputReturnValidString) {
     EXPECT_EQ(NumberUtil::StrReservedNDigits("3.1415", 2), "3.14");
     EXPECT_EQ(NumberUtil::StrReservedNDigits("3.1", 2), "3.1");
     EXPECT_EQ(NumberUtil::StrReservedNDigits("31", 2), "31");
@@ -279,16 +277,14 @@ TEST(NumberUtil, StringRservedNDigitsWithNormalInputReturnValidString)
     EXPECT_EQ(NumberUtil::StrReservedNDigits("0.0002", 3), "0.0002");
 }
 
-TEST(NumberUtil, StringRservedNDigitsWithAbnormalStringReturnInvalidNumber)
-{
+TEST(NumberUtil, StringRservedNDigitsWithAbnormalStringReturnInvalidNumber) {
     EXPECT_EQ(NumberUtil::StrReservedNDigits("3.1415", 0), "3.1415");
     EXPECT_EQ(NumberUtil::StrReservedNDigits("3.1415", 7), "3.1415");
     EXPECT_EQ(NumberUtil::StrReservedNDigits("3.1415", 5), "3.1415");
     EXPECT_EQ(NumberUtil::StrReservedNDigits("0.00", 2), "0.00");
 }
 
-TEST(NumberUtil, IsGreaterWithNormalInputReturnValidString)
-{
+TEST(NumberUtil, IsGreaterWithNormalInputReturnValidString) {
     EXPECT_EQ(NumberUtil::IsGreater(3.1415, 3.1416), false);
     EXPECT_EQ(NumberUtil::IsGreater(3.1415, 3.1415), false);
     EXPECT_FALSE(NumberUtil::IsGreater(3.1416, 3.1415, 0.001));
@@ -298,25 +294,17 @@ TEST(NumberUtil, IsGreaterWithNormalInputReturnValidString)
     EXPECT_EQ(NumberUtil::IsGreater(-3.1415, -3.1415), false);
 }
 
-TEST(NumberUtil, TruncateNumberString)
-{
-    std::unordered_map<std::string, std::string> testMap = {
-            {"123.456", "123"},
-            {"-123.987", "-123"},
-            {"abc", "0"},
-            {"0.000", "0"},
-            {"-0.1", "0"},
-            {"0", "0"},
-            {std::to_string(std::numeric_limits<uint64_t>::max()), std::to_string(std::numeric_limits<int64_t>::max())},
-            {std::to_string(std::numeric_limits<uint64_t>::min()), std::to_string(std::numeric_limits<int64_t>::min())}
-    };
-    for (auto& testItem: testMap) {
+TEST(NumberUtil, TruncateNumberString) {
+    std::unordered_map<std::string, std::string> testMap = {{"123.456", "123"}, {"-123.987", "-123"}, {"abc", "0"},
+        {"0.000", "0"}, {"-0.1", "0"}, {"0", "0"},
+        {std::to_string(std::numeric_limits<uint64_t>::max()), std::to_string(std::numeric_limits<int64_t>::max())},
+        {std::to_string(std::numeric_limits<uint64_t>::min()), std::to_string(std::numeric_limits<int64_t>::min())}};
+    for (auto &testItem : testMap) {
         EXPECT_EQ(NumberUtil::TruncateNumberString(testItem.first), testItem.second);
     }
 }
 
-TEST(NumberUtil, TrimNumericString)
-{
+TEST(NumberUtil, TrimNumericString) {
     std::unordered_map<std::string, std::string> testMap = {
         {"\"123.456\t\"", "123.456"},
         {"\t\"-123.987\t\"", "-123.987"},
@@ -326,7 +314,7 @@ TEST(NumberUtil, TrimNumericString)
         {"\t\t", "0"},
     };
 
-    for (auto &testItem: testMap) {
+    for (auto &testItem : testMap) {
         EXPECT_EQ(NumberUtil::TrimNumericString(testItem.first), testItem.second);
     }
 }

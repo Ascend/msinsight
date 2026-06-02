@@ -23,8 +23,7 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class CommucationTaskInfoTableTest : public ::testing::Test {};
 
-TEST_F(CommucationTaskInfoTableTest, TestCommucationTaskInfoTableColumnMaping)
-{
+TEST_F(CommucationTaskInfoTableTest, TestCommucationTaskInfoTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql =
         "CREATE TABLE COMMUNICATION_TASK_INFO (name INTEGER,globalTaskId INTEGER,taskType INTEGER,planeId "
@@ -32,8 +31,8 @@ TEST_F(CommucationTaskInfoTableTest, TestCommucationTaskInfoTableColumnMaping)
         "INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,opId INTEGER);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO COMMUNICATION_TASK_INFO (name, globalTaskId, taskType, planeId, groupName, "
-        "notifyId,rdmaType,srcRank,dstRank,transportType,size,dataType,linkType,opId) VALUES (1, "
-        "2,3,4,5,6,7,8,9,10,11,12,13,14);";
+                            "notifyId,rdmaType,srcRank,dstRank,transportType,size,dataType,linkType,opId) VALUES (1, "
+                            "2,3,4,5,6,7,8,9,10,11,12,13,14);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPOs;
     Dic::Protocol::CommucationTaskInfoTable commucationTaskInfoTable;
@@ -43,7 +42,7 @@ TEST_F(CommucationTaskInfoTableTest, TestCommucationTaskInfoTableColumnMaping)
     commucationTaskInfoTable.Select(CommucationTaskInfoColumn::ROW_ID, CommucationTaskInfoColumn::NAME)
         .Select(CommucationTaskInfoColumn::GLOBAL_TASK_ID, CommucationTaskInfoColumn::TASK_TYPE)
         .Select(CommucationTaskInfoColumn::PLANE_ID, CommucationTaskInfoColumn::GROUPNAME,
-        CommucationTaskInfoColumn::NOTIFY_ID)
+            CommucationTaskInfoColumn::NOTIFY_ID)
         .Select(CommucationTaskInfoColumn::RDMA_TYPE, CommucationTaskInfoColumn::SRC_RANK)
         .Select(CommucationTaskInfoColumn::DST_RANK, CommucationTaskInfoColumn::TRANSPORT_TYPE)
         .Select(CommucationTaskInfoColumn::SIZE, CommucationTaskInfoColumn::DATA_TYPE)

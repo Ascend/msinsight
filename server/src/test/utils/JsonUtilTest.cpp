@@ -25,10 +25,10 @@ using namespace Dic;
 TEST(JsonUtil, IsJsonKeyValid) {
     document_t json;
     json.Parse("{\n"
-                         "        \"ph\": \"X\",\n"
-                         "        \"name\": \"contiguous_d_Reshape\",\n"
-                         "        \"args\": {}\n"
-                         "}");
+               "        \"ph\": \"X\",\n"
+               "        \"name\": \"contiguous_d_Reshape\",\n"
+               "        \"args\": {}\n"
+               "}");
     bool ph = JsonUtil::IsJsonKeyValid(json, "ph");
     EXPECT_EQ(ph, true);
 
@@ -42,10 +42,10 @@ TEST(JsonUtil, IsJsonKeyValid) {
 TEST(JsonUtil, SetByJsonKeyValue) {
     document_t json;
     json.Parse("{\n"
-                         "        \"name\": \"X\",\n"
-                         "        \"age\": 18,\n"
-                         "        \"args\": {}\n"
-                         "}");
+               "        \"name\": \"X\",\n"
+               "        \"age\": 18,\n"
+               "        \"args\": {}\n"
+               "}");
     std::string name;
     JsonUtil::SetByJsonKeyValue(name, json, "name");
     EXPECT_EQ(name, "X");
@@ -76,8 +76,7 @@ TEST(JsonUtil, SetByJsonKeyValueDouble) {
     EXPECT_FLOAT_EQ(score, 65.12);
 }
 
-TEST(JsonUtil, JsonUtil_SetByJsonKeyValueFloat)
-{
+TEST(JsonUtil, JsonUtil_SetByJsonKeyValueFloat) {
     document_t json;
     json.Parse("{\n"
                "        \"name\": \"X\",\n"
@@ -137,7 +136,6 @@ TEST(JsonUtil, JsonDump) {
 }
 
 TEST(JsonUtil, GetDoubleAndGetLongDouble) {
-
     rapidjson::Document d;
     d.Parse("{\n"
             "        \"ph\": \"X\",\n"
@@ -238,8 +236,7 @@ TEST(JsonUtil, GetVectorFloatInconsistentDataTypeTest) {
     EXPECT_FLOAT_EQ(data[2], 0.0);
 }
 
-TEST(JsonUtil, GetVectorDoubleNormalTest)
-{
+TEST(JsonUtil, GetVectorDoubleNormalTest) {
     rapidjson::Document d;
     d.Parse(R"(
         {
@@ -253,8 +250,7 @@ TEST(JsonUtil, GetVectorDoubleNormalTest)
     EXPECT_EQ(data[2], 6);
 }
 
-TEST(JsonUtil, GetVectorDoubleInconsistentDataTypeTest)
-{
+TEST(JsonUtil, GetVectorDoubleInconsistentDataTypeTest) {
     rapidjson::Document d;
     d.Parse(R"(
         {
@@ -268,8 +264,7 @@ TEST(JsonUtil, GetVectorDoubleInconsistentDataTypeTest)
     EXPECT_EQ(data[2], 0.0);
 }
 
-TEST(JsonUtil, GetVectorIntNormalTest)
-{
+TEST(JsonUtil, GetVectorIntNormalTest) {
     rapidjson::Document d;
     d.Parse(R"(
         {
@@ -283,8 +278,7 @@ TEST(JsonUtil, GetVectorIntNormalTest)
     EXPECT_EQ(data[2], 100);
 }
 
-TEST(JsonUtil, GetVectorIntInconsistentDataTypeTest)
-{
+TEST(JsonUtil, GetVectorIntInconsistentDataTypeTest) {
     rapidjson::Document d;
     d.Parse(R"(
         {
@@ -298,8 +292,7 @@ TEST(JsonUtil, GetVectorIntInconsistentDataTypeTest)
     EXPECT_EQ(data[2], 0);
 }
 
-TEST(JsonUtil, GetVectorStringNormalTest)
-{
+TEST(JsonUtil, GetVectorStringNormalTest) {
     rapidjson::Document d;
     d.Parse(R"(
         {
@@ -313,8 +306,7 @@ TEST(JsonUtil, GetVectorStringNormalTest)
     EXPECT_EQ(data[2], "c");
 }
 
-TEST(JsonUtil, GetVectorStringInconsistentDataTypeTest)
-{
+TEST(JsonUtil, GetVectorStringInconsistentDataTypeTest) {
     rapidjson::Document d;
     d.Parse(R"(
         {

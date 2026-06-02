@@ -19,11 +19,9 @@
 #include <gtest/gtest.h>
 #include "SafeFile.h"
 
-class SafeFileTest : public ::testing::Test {
-};
+class SafeFileTest : public ::testing::Test {};
 
-TEST_F(SafeFileTest, testOpenReadFileSafelyWhenFileCanNotBeWrittenByOthers)
-{
+TEST_F(SafeFileTest, testOpenReadFileSafelyWhenFileCanNotBeWrittenByOthers) {
     std::string path = "FileCanNotBeWrittenByOthers.tmp";
     std::string content = "test";
     std::ofstream out(path);
@@ -45,8 +43,7 @@ TEST_F(SafeFileTest, testOpenReadFileSafelyWhenFileCanNotBeWrittenByOthers)
     std::remove(path.c_str());
 }
 
-TEST_F(SafeFileTest, testOpenWithReadMode)
-{
+TEST_F(SafeFileTest, testOpenWithReadMode) {
     std::string path = "FileCanNotBeWrittenByOthers.tmp";
     std::string content = "test";
     std::ofstream out(path);

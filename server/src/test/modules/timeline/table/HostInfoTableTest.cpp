@@ -23,13 +23,12 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class HostInfoTableTest : public ::testing::Test {};
 
-TEST_F(HostInfoTableTest, TestHostInfoTableColumnMaping)
-{
+TEST_F(HostInfoTableTest, TestHostInfoTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE  HOST_INFO ("
-        "  hostUid TEXT,"
-        "  hostName TEXT"
-        ");";
+                      "  hostUid TEXT,"
+                      "  hostName TEXT"
+                      ");";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO HOST_INFO (hostUid, hostName) VALUES ('yyyy', 'djsjjksd'), ('zzzz', 'wwww');";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);

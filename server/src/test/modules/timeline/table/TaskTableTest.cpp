@@ -23,15 +23,14 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class TaskTableTest : public ::testing::Test {};
 
-TEST_F(TaskTableTest, TestTaskTableColumnMaping)
-{
+TEST_F(TaskTableTest, TestTaskTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE TASK (startNs INTEGER,endNs INTEGER,deviceId INTEGER,connectionId "
-        "INTEGER,globalTaskId INTEGER,globalPid INTEGER,taskType INTEGER,contextId INTEGER,streamId "
-        "INTEGER,taskId INTEGER,modelId INTEGER, depth integer);";
+                      "INTEGER,globalTaskId INTEGER,globalPid INTEGER,taskType INTEGER,contextId INTEGER,streamId "
+                      "INTEGER,taskId INTEGER,modelId INTEGER, depth integer);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO TASK (startNs, endNs, deviceId, connectionId, globalTaskId, globalPid, "
-        "taskType,contextId,streamId,taskId,modelId) VALUES (1, 2,3,4,5,6,7,8,9,10,11);";
+                            "taskType,contextId,streamId,taskId,modelId) VALUES (1, 2,3,4,5,6,7,8,9,10,11);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<TaskPO> taskPOs;
     Dic::Protocol::TaskTable taskTable;

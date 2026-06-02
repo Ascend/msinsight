@@ -22,12 +22,10 @@
 
 using namespace Dic;
 
-class PythonUtilTest : public testing::Test {
-};
+class PythonUtilTest : public testing::Test {};
 
 #if defined(__linux__) || defined(__APPLE__)
-TEST_F(PythonUtilTest, ExecuteCommandListOnLinuxOrMac)
-{
+TEST_F(PythonUtilTest, ExecuteCommandListOnLinuxOrMac) {
     std::string executablePath{"ls"};
     std::vector<std::string> arguments{"-l"};
     int result = PythonUtil::ExecuteCommand(executablePath, arguments);

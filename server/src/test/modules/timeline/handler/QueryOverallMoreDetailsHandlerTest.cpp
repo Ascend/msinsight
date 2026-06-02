@@ -21,11 +21,9 @@
 #include "DataBaseManager.h"
 
 using namespace Dic::Module::Timeline;
-TEST_F(HandlerTest, QueryOverallMoreDetailsHandlerTestNormal)
-{
+TEST_F(HandlerTest, QueryOverallMoreDetailsHandlerTestNormal) {
     Dic::Module::Timeline::QueryOverallMoreDetailsHandler handler;
-    auto requestPtr =
-        std::make_unique<Dic::Protocol::SystemViewOverallMoreDetailsRequest>();
+    auto requestPtr = std::make_unique<Dic::Protocol::SystemViewOverallMoreDetailsRequest>();
     requestPtr->params.rankId = "0";
     DataBaseManager::Instance().CreateTraceConnectionPool("0", "test");
     handler.HandleRequest(std::move(requestPtr));

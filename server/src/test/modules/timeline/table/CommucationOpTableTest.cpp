@@ -23,14 +23,14 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class CommucationOpTableTest : public ::testing::Test {};
 
-TEST_F(CommucationOpTableTest, TestCommucationOpTableColumnMaping)
-{
+TEST_F(CommucationOpTableTest, TestCommucationOpTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE COMMUNICATION_OP (opName INTEGER,startNs INTEGER,endNs INTEGER,connectionId "
-        "INTEGER,groupName INTEGER,opId INTEGER PRIMARY KEY,relay INTEGER,retry INTEGER,dataType "
-        "INTEGER,algType INTEGER,count NUMERIC,opType INTEGER, waitNs INTEGER);";
+                      "INTEGER,groupName INTEGER,opId INTEGER PRIMARY KEY,relay INTEGER,retry INTEGER,dataType "
+                      "INTEGER,algType INTEGER,count NUMERIC,opType INTEGER, waitNs INTEGER);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
-    std::string sqlInsert = "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, groupName, opId, "
+    std::string sqlInsert =
+        "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, groupName, opId, "
         "relay,retry,dataType,algType,count,opType,waitNs) VALUES (1, 2,3,4,5,6,7,8,9,10,11,12,13);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<CommucationTaskOpPO> commucationTaskOpPOs;

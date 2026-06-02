@@ -23,10 +23,8 @@
 namespace Dic::Module::Timeline::Test {
 
 // 辅助验证函数（复用）
-void VerifyMemcpyRes(const MemcpyOverallRes& res,
-                     uint64_t expTotalSize, double expTotalTime,
-                     uint64_t expCount, double expAvgSize,
-                     uint64_t expMinSize, uint64_t expMaxSize) {
+void VerifyMemcpyRes(const MemcpyOverallRes &res, uint64_t expTotalSize, double expTotalTime, uint64_t expCount,
+    double expAvgSize, uint64_t expMinSize, uint64_t expMaxSize) {
     EXPECT_EQ(res.totalSize, expTotalSize);
     EXPECT_DOUBLE_EQ(res.totalTime, expTotalTime);
     EXPECT_EQ(res.number, expCount);
@@ -45,20 +43,17 @@ TEST(BuildMemcpyOverallResultTest, EmptyInputYieldsEmptyResult) {
 }
 
 TEST(BuildMemcpyOverallResultTest, SingleThreadSingleMemcpyType) {
-    std::vector<MemcpyRecord> records = {
-        {"1", "A", "H2D", 100, 1.0},
-        {"1", "A", "H2D", 200, 2.0}
-    };
+    std::vector<MemcpyRecord> records = {{"1", "A", "H2D", 100, 1.0}, {"1", "A", "H2D", 200, 2.0}};
     MemcpyOverallResponse response;
     BuildMemcpyOverallResult(records, response, 1, 10);
 
     ASSERT_EQ(response.details.size(), 1U);
-    const auto& thread = response.details[0];
+    const auto &thread = response.details[0];
     EXPECT_EQ(thread.key, "1");
     VerifyMemcpyRes(thread, 300, 3.0, 2, 150.0, 100, 200);
 
     ASSERT_EQ(thread.children.size(), 1U);
-    const auto& type = thread.children[0];
+    const auto &type = thread.children[0];
     EXPECT_EQ(type.key, "H2D");
     // ✅ 验证子项使用自身统计（关键Bug修复点）
     VerifyMemcpyRes(type, 300, 3.0, 2, 150.0, 100, 200);
@@ -66,10 +61,10 @@ TEST(BuildMemcpyOverallResultTest, SingleThreadSingleMemcpyType) {
 
 TEST(BuildMemcpyOverallResultTest, MultiThreadMultiTypeWithCorrectGrouping) {
     std::vector<MemcpyRecord> records = {
-        {"2", "B", "D2H", 50, 0.5},   // Thread2
-        {"1", "A", "H2D", 100, 1.0},  // Thread1
-        {"1", "A", "D2H", 300, 3.0},  // Thread1
-        {"1", "A", "H2D", 150, 1.5}   // Thread1
+        {"2", "B", "D2H", 50, 0.5}, // Thread2
+        {"1", "A", "H2D", 100, 1.0}, // Thread1
+        {"1", "A", "D2H", 300, 3.0}, // Thread1
+        {"1", "A", "H2D", 150, 1.5} // Thread1
     };
     MemcpyOverallResponse response;
     BuildMemcpyOverallResult(records, response, 1, 10);
@@ -80,7 +75,7 @@ TEST(BuildMemcpyOverallResultTest, MultiThreadMultiTypeWithCorrectGrouping) {
     EXPECT_EQ(response.details[1].key, "2"); // tid=2
 
     // 验证Thread1的子类型按字典序（D2H < H2D）
-    const auto& t1 = response.details[0];
+    const auto &t1 = response.details[0];
     ASSERT_EQ(t1.children.size(), 2U);
     EXPECT_EQ(t1.children[0].key, "D2H"); // ✅ 字典序
     VerifyMemcpyRes(t1.children[0], 300, 3.0, 1, 300.0, 300, 300); // D2H独立统计
@@ -90,15 +85,12 @@ TEST(BuildMemcpyOverallResultTest, MultiThreadMultiTypeWithCorrectGrouping) {
 }
 
 TEST(BuildMemcpyOverallResultTest, ZeroValuesHandledSafely) {
-    std::vector<MemcpyRecord> records = {
-        {"1", "A", "ZERO", 0, 0.0},
-        {"1", "A", "ZERO", 0, 0.0}
-    };
+    std::vector<MemcpyRecord> records = {{"1", "A", "ZERO", 0, 0.0}, {"1", "A", "ZERO", 0, 0.0}};
     MemcpyOverallResponse response;
     BuildMemcpyOverallResult(records, response, 1, 10);
 
     ASSERT_EQ(response.details.size(), 1U);
-    const auto& res = response.details[0];
+    const auto &res = response.details[0];
     EXPECT_EQ(res.minSize, 0U); // ✅ 非空时返回实际最小值（0）
     EXPECT_EQ(res.maxSize, 0U);
     EXPECT_DOUBLE_EQ(res.avgSize, 0.0);
@@ -107,9 +99,7 @@ TEST(BuildMemcpyOverallResultTest, ZeroValuesHandledSafely) {
 // ===== 边界测试：StatsAccumulator 安全性（补充）=====
 TEST(BuildMemcpyOverallResultTest, ExtremeValuesNoCrash) {
     std::vector<MemcpyRecord> records = {
-        {"1", "A", "BIG", std::numeric_limits<uint64_t>::max(), 1e300},
-        {"1", "A", "BIG", 1, 1e-300}
-    };
+        {"1", "A", "BIG", std::numeric_limits<uint64_t>::max(), 1e300}, {"1", "A", "BIG", 1, 1e-300}};
     MemcpyOverallResponse response;
     EXPECT_NO_THROW(BuildMemcpyOverallResult(records, response, 1, 10));
     ASSERT_EQ(response.details.size(), 1U);

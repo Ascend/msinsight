@@ -19,11 +19,9 @@
 #include "QueryKernelDetailHandler.h"
 #include "HandlerTest.cpp"
 
-class QueryKernelDetailHandlerTest : HandlerTest {
-};
+class QueryKernelDetailHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, QueryKernelDetailHandlerTestNormal)
-{
+TEST_F(HandlerTest, QueryKernelDetailHandlerTestNormal) {
     Dic::Module::Timeline::QueryKernelDetailHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::KernelDetailsRequest>();
     handler.HandleRequest(std::move(requestPtr));

@@ -25,8 +25,7 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class TaskPmuInfoTableTest : public ::testing::Test {};
 
-TEST_F(TaskPmuInfoTableTest, GetPmuInfo)
-{
+TEST_F(TaskPmuInfoTableTest, GetPmuInfo) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE TASK_PMU_INFO (globalTaskId INTEGER, name INTEGER, value NUMERIC)";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);

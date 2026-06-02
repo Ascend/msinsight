@@ -23,21 +23,20 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class PythonApiTableTest : public ::testing::Test {};
 
-TEST_F(PythonApiTableTest, testPytorchApiTableColumnMaping)
-{
+TEST_F(PythonApiTableTest, testPytorchApiTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE PYTORCH_API ("
-        "startNs INTEGER,"
-        "endNs INTEGER,"
-        "globalTid INTEGER,"
-        "connectionId INTEGER,"
-        "name INTEGER,"
-        "sequenceNumber INTEGER,"
-        "fwdThreadId INTEGER,"
-        "inputDtypes INTEGER,"
-        "inputShapes INTEGER,"
-        "callchainId INTEGER,"
-        "type integer);";
+                      "startNs INTEGER,"
+                      "endNs INTEGER,"
+                      "globalTid INTEGER,"
+                      "connectionId INTEGER,"
+                      "name INTEGER,"
+                      "sequenceNumber INTEGER,"
+                      "fwdThreadId INTEGER,"
+                      "inputDtypes INTEGER,"
+                      "inputShapes INTEGER,"
+                      "callchainId INTEGER,"
+                      "type integer);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert =
         "INSERT INTO PYTORCH_API (startNs, endNs,globalTid, connectionId,name, sequenceNumber,fwdThreadId, "

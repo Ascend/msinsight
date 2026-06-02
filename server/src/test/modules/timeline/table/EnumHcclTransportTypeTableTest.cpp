@@ -26,8 +26,7 @@ class EnumHcclTransportTypeTableTest : public ::testing::Test {};
 /**
  * 测试EnumHcclTransportTypeTable字段映射
  */
-TEST_F(EnumHcclTransportTypeTableTest, TestEnumHcclTransportTypeTableTestColumnMaping)
-{
+TEST_F(EnumHcclTransportTypeTableTest, TestEnumHcclTransportTypeTableTestColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE ENUM_HCCL_TRANSPORT_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);

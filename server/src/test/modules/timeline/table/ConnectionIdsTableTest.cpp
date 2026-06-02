@@ -23,13 +23,12 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class ConnectionIdsTableTest : public ::testing::Test {};
 
-TEST_F(ConnectionIdsTableTest, testConnectionIdsTableColumnMaping)
-{
+TEST_F(ConnectionIdsTableTest, testConnectionIdsTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE  CONNECTION_IDS ("
-        "  id INTEGER,"
-        "  connectionId INTEGER"
-        ");";
+                      "  id INTEGER,"
+                      "  connectionId INTEGER"
+                      ");";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO CONNECTION_IDS (id, connectionId) VALUES (1, 67786), (2, 7487378);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);

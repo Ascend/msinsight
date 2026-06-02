@@ -23,8 +23,7 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class CollectionTimeServiceTest : public ::testing::Test {};
 
-TEST_F(CollectionTimeServiceTest, TestComputeMarkHostWithHostPath)
-{
+TEST_F(CollectionTimeServiceTest, TestComputeMarkHostWithHostPath) {
     std::string host = "mshost";
     uint64_t startTime = 100;
     uint64_t endTime = 200;

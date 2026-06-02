@@ -23,23 +23,15 @@
 using namespace Dic;
 using namespace Dic::Core;
 using namespace Dic::Server;
-class WsServerTest : public ::testing::Test {
-};
+class WsServerTest : public ::testing::Test {};
 
 class WsServerDerived : public WsServer {
-public:
+  public:
     using WsServer::WsServer;
 
-    void OnOpenCb(WsChannel *ws)
-    {
-        WsServer::OnOpenCb(ws);
-    }
-    void OnCloseCb(WsChannel *ws, int code, std::string_view message)
-    {
-        WsServer::OnCloseCb(ws, code, message);
-    }
-    void OnMessageCb(WsChannel *ws, std::string_view message, uWS::OpCode opCode)
-    {
+    void OnOpenCb(WsChannel *ws) { WsServer::OnOpenCb(ws); }
+    void OnCloseCb(WsChannel *ws, int code, std::string_view message) { WsServer::OnCloseCb(ws, code, message); }
+    void OnMessageCb(WsChannel *ws, std::string_view message, uWS::OpCode opCode) {
         WsServer::OnMessageCb(ws, message, opCode);
     }
 };
@@ -49,11 +41,10 @@ public:
  * @tc.number: ws_server_test_001
  * @tc.desc  : Test when ws is nullptr then OnOpenCb logs "Accept new session, channel is null"
  */
-TEST_F(WsServerTest, ws_server_test_001)
-{
+TEST_F(WsServerTest, ws_server_test_001) {
     int port = 8080;
     WsServerDerived wsServer("localhost", port);
-    WsChannel* ws = nullptr;
+    WsChannel *ws = nullptr;
     EXPECT_NO_THROW(wsServer.OnOpenCb(ws));
 }
 
@@ -62,8 +53,7 @@ TEST_F(WsServerTest, ws_server_test_001)
  * @tc.number: ws_server_Test_001
  * @tc.desc  : Test when ws is nullptr then OnCloseCb returns immediately
  */
-TEST_F(WsServerTest, ws_server_on_close_cb_test_001)
-{
+TEST_F(WsServerTest, ws_server_on_close_cb_test_001) {
     int port = 8080;
     int code = 1000;
     WsServerDerived wsServer("localhost", port);
@@ -76,8 +66,7 @@ TEST_F(WsServerTest, ws_server_on_close_cb_test_001)
  * @tc.number: ws_server_Test_001
  * @tc.desc  : Test when ws is nullptr then OnMessageCb returns immediately
  */
-TEST_F(WsServerTest, ws_server_on_message_cb_test_001)
-{
+TEST_F(WsServerTest, ws_server_on_message_cb_test_001) {
     int port = 8080;
     WsServerDerived wsServer("localhost", port);
     wsServer.OnMessageCb(nullptr, "test message", uWS::OpCode::TEXT);
@@ -89,8 +78,7 @@ TEST_F(WsServerTest, ws_server_on_message_cb_test_001)
  * @tc.number: ws_server_Test_002
  * @tc.desc  : Test when session is not valid then OnMessageCb logs an error
  */
-TEST_F(WsServerTest, ws_server_on_message_cb_test_002)
-{
+TEST_F(WsServerTest, ws_server_on_message_cb_test_002) {
     int port = 8080;
     WsServerDerived wsServer("localhost", port);
     Dic::Server::WsChannel wsChannel;
@@ -98,8 +86,7 @@ TEST_F(WsServerTest, ws_server_on_message_cb_test_002)
     // No assertions needed as the function should log an error
 }
 
-TEST_F(WsServerTest, server_def_WsUserData_init)
-{
+TEST_F(WsServerTest, server_def_WsUserData_init) {
     WsUserData data;
     data.reqUrl = "test";
 }

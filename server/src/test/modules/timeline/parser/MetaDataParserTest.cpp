@@ -23,22 +23,21 @@
 using namespace Dic::Module;
 using namespace Dic::Module::Timeline;
 class MetaDataParserTest : public ::testing::Test {
-protected:
+  protected:
     std::string filePath;
-    void SetUp() override
-    {
+    void SetUp() override {
         std::string currPath = Dic::FileUtil::GetCurrPath();
         int index = currPath.find("server");
         currPath = currPath.substr(0, index);
-        filePath = Dic::FileUtil::SplicePath(currPath, "server", "src", "test", "test_data", "metadata", "profiler_metadata.json");
+        filePath = Dic::FileUtil::SplicePath(
+            currPath, "server", "src", "test", "test_data", "metadata", "profiler_metadata.json");
     }
 };
 
 /**
  * 测试解析profiler_metadata文件成功
  */
-TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByFilePathReturnSuccess)
-{
+TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByFilePathReturnSuccess) {
     std::vector<ParallelGroupInfo> res = MetaDataParser::ParserParallelGroupInfoByFilePath(filePath);
     const int twentyOne = 21;
     EXPECT_EQ(res.size(), twentyOne);
@@ -47,8 +46,7 @@ TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByFilePathReturnSuccess)
 /**
  * 测试解析parallel_group_info数据失败，文本内容为空
  */
-TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByTextFailWithEmptyText)
-{
+TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByTextFailWithEmptyText) {
     std::vector<ParallelGroupInfo> res = MetaDataParser::ParserParallelGroupInfoByText("");
     const int zero = 0;
     EXPECT_EQ(res.size(), zero);
@@ -57,8 +55,7 @@ TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByTextFailWithEmptyText)
 /**
  * 测试解析parallel_group_info数据成功
  */
-TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByTextReturnSuccess)
-{
+TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByTextReturnSuccess) {
     std::string text = "{\"10.174.216.241%enp189s0f1_55000_0_1738895486152654\": {\"group_name\": \"default_group\", "
                        "\"group_rank\": 0, \"global_ranks\": [0, 1, 2, 3, 4, 5, 6, 7]}, "
                        "\"10.174.216.241%enp189s0f1_55000_0_1738895521183247\": {\"group_name\": \"dp\", "
@@ -81,8 +78,7 @@ TEST_F(MetaDataParserTest, TestParserParallelGroupInfoByTextReturnSuccess)
 /**
  * 测试解析profiler_metadata文件distributed_args
  */
-TEST_F(MetaDataParserTest, TestParserDistributedArgsByFilePathReturnSuccess)
-{
+TEST_F(MetaDataParserTest, TestParserDistributedArgsByFilePathReturnSuccess) {
     std::optional<DistributedArgs> args = MetaDataParser::ParserDistributedArgsByFilePath(filePath);
     const unsigned int two = 2;
     const unsigned int eight = 8;

@@ -23,11 +23,10 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::TimeLine::TestCaseUtil;
 class CounterTableTest : public ::testing::Test {};
 
-TEST_F(CounterTableTest, TestCounterTableMaping)
-{
+TEST_F(CounterTableTest, TestCounterTableMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE counter (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, pid TEXT,timestamp "
-        "INTEGER, cat TEXT, args TEXT);";
+                      "INTEGER, cat TEXT, args TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert =
         "INSERT INTO \"main\".\"counter\" (\"id\", \"name\", \"pid\", \"timestamp\", \"cat\", \"args\") VALUES (949, "

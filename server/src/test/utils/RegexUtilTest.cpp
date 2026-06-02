@@ -22,7 +22,6 @@
 
 using namespace Dic;
 
-
 TEST(RegexUtil, RegexSearch) {
     std::string data = "AaaAaaaA";
     std::string pattern;
