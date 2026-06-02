@@ -24,14 +24,12 @@
 
 using namespace Dic::Module::Timeline;
 class RenderEngineTest : public ::testing::Test {
-    void SetUp() override
-    {
+    void SetUp() override {
         TrackInfoManager::Instance().Reset();
         CacheManager::Instance().ClearAll();
     }
 
-    void TearDown() override
-    {
+    void TearDown() override {
         TrackInfoManager::Instance().Reset();
         CacheManager::Instance().ClearAll();
     }
@@ -40,15 +38,14 @@ class RenderEngineTest : public ::testing::Test {
 /**
  * 根据时间点查询算子，名字存在，但没有算子信息
  */
-TEST_F(RenderEngineTest, TestFindSliceByTimePointNormal)
-{
+TEST_F(RenderEngineTest, TestFindSliceByTimePointNormal) {
     const uint64_t expectTrackId = 8;
     const uint64_t expectId = 70;
     const uint32_t expectDepth = 2;
     class DataEngineMock : public DataEngine {
-    public:
-        bool QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override
-        {
+      public:
+        bool QuerySliceByTimepointAndName(
+            const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
             competeSliceDomain.trackId = expectTrackId;
             competeSliceDomain.id = expectId;
             return true;
@@ -73,12 +70,11 @@ TEST_F(RenderEngineTest, TestFindSliceByTimePointNormal)
 /**
  * 根据时间点查询算子，查询返回 false，打印日志中的特殊字符转义
  */
-TEST_F(RenderEngineTest, TestFindSliceByTimePointTypeWrong)
-{
+TEST_F(RenderEngineTest, TestFindSliceByTimePointTypeWrong) {
     class DataEngineMock : public DataEngine {
-    public:
-        bool QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override
-        {
+      public:
+        bool QuerySliceByTimepointAndName(
+            const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
             return false;
         }
     };

@@ -37,9 +37,8 @@ using namespace Dic::Module;
 using namespace Dic;
 namespace Dic::Module::Timeline {
 class SystemViewOverallDbRepoTest : public ::testing::Test {
-public:
-    static void InitDataEngine()
-    {
+  public:
+    static void InitDataEngine() {
         auto respotoryFactory = RepositoryFactory::Instance();
         auto dataEngine = DataEngine::Instance();
         dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -47,8 +46,7 @@ public:
         renderEngine->SetDataEngineInterface(dataEngine);
     }
 
-    static void SetUpTestCase()
-    {
+    static void SetUpTestCase() {
         FullDb::FullDbParser::Instance().Reset();
         InitDataEngine();
         std::string currPath = Dic::FileUtil::GetCurrPath();
@@ -57,8 +55,8 @@ public:
         std::string subStr = "server";
         size_t index = currPath.rfind(subStr);
         currPath = currPath.substr(0, index - 1);
-        std::string dbPath3 = currPath +
-            R"(/test/st/level2/rank_0_ascend_pt/ASCEND_PROFILER_OUTPUT/ascend_pytorch_profiler_0.db)";
+        std::string dbPath3 =
+            currPath + R"(/test/st/level2/rank_0_ascend_pt/ASCEND_PROFILER_OUTPUT/ascend_pytorch_profiler_0.db)";
         DataBaseManager::Instance().SetDataType(DataType::DB, dbPath3);
         DataBaseManager::Instance().SetFileType(FileType::PYTORCH, dbPath3);
         DataBaseManager::Instance().CreateTraceConnectionPool("0", dbPath3);
@@ -66,7 +64,7 @@ public:
         ParserType allocType = parserType.second;
         std::shared_ptr<ProjectParserBase> factory = ParserFactory::GetProjectParser(allocType);
         // 路径列表不为空，需要进行文件目录的新增、覆盖
-        ProjectTypeEnum projectType = factory->GetProjectType({ dbPath3 });
+        ProjectTypeEnum projectType = factory->GetProjectType({dbPath3});
         std::vector<Global::ProjectExplorerInfo> projectExplorerInfoList;
 
         std::string warn;
@@ -84,17 +82,19 @@ public:
         ImportActionRequest request;
         ImportActionResponse response;
         factory->Parser(projectExplorerInfoList, request, response);
-        Timeline::DataBaseManager::Instance().SetDbPathMapping("FullDb", dbPath3, "localhost.localdomain2152938157304401006_0");
-        Timeline::DataBaseManager::Instance().SetDbPathMapping("0", dbPath3, "localhost.localdomain2152938157304401006_0");
+        Timeline::DataBaseManager::Instance().SetDbPathMapping(
+            "FullDb", dbPath3, "localhost.localdomain2152938157304401006_0");
+        Timeline::DataBaseManager::Instance().SetDbPathMapping(
+            "0", dbPath3, "localhost.localdomain2152938157304401006_0");
         while (ParserStatusManager::Instance().GetParserStatus("localhost.localdomain2152938157304401006_0 0") !=
-               ParserStatus::FINISH_ALL) {
+            ParserStatus::FINISH_ALL) {
         }
         auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
-        while (!database->CheckValueFromStatusInfoTable(OVERLAP_ANALYSIS_UNIT, FINISH_STATUS)) {}
+        while (!database->CheckValueFromStatusInfoTable(OVERLAP_ANALYSIS_UNIT, FINISH_STATUS)) {
+        }
     }
 
-    static void TearDownTestCase()
-    {
+    static void TearDownTestCase() {
         auto connList = Timeline::DataBaseManager::Instance().GetAllTraceDatabase();
         for (auto &conn : connList) {
             conn->Stop();
@@ -105,8 +105,7 @@ public:
     }
 };
 
-TEST_F(SystemViewOverallDbRepoTest, QueryOverlapAnalysisDataForOverallMetricTest)
-{
+TEST_F(SystemViewOverallDbRepoTest, QueryOverlapAnalysisDataForOverallMetricTest) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
@@ -118,7 +117,7 @@ TEST_F(SystemViewOverallDbRepoTest, QueryOverlapAnalysisDataForOverallMetricTest
     requestParams.rankId = "0";
     std::vector<OverallTmpInfo> overlapInfos;
     overlapInfos = repoPtr->QueryOverlapAnalysisDataForOverallMetric(requestParams, database);
-    ASSERT_EQ(overlapInfos.size(), 3);  // 3
+    ASSERT_EQ(overlapInfos.size(), 3); // 3
     const double toleranceThreshold = 0.01;
     const std::vector<std::string> EXPECT_OVERLAP_NAME = {"Communication(Not Overlapped)", "Computing", "Free"};
     const std::vector<double> EXPECT_OVERLAP_TINE = {420174.26, 231290.10, 158558.0};
@@ -130,8 +129,7 @@ TEST_F(SystemViewOverallDbRepoTest, QueryOverlapAnalysisDataForOverallMetricTest
 }
 
 // System View Overall: 查询Computing拆解所需数据（有PMU数据，能正常查询）
-TEST_F(SystemViewOverallDbRepoTest, QueryDataForComputingOverallMetricTestWithPmu)
-{
+TEST_F(SystemViewOverallDbRepoTest, QueryDataForComputingOverallMetricTestWithPmu) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
@@ -141,24 +139,52 @@ TEST_F(SystemViewOverallDbRepoTest, QueryDataForComputingOverallMetricTestWithPm
     }
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     std::vector<SystemViewOverallRes> details;
-    Protocol::SystemViewOverallRes tmpRes = { .totalTime = 8903.43, .ratio = 6.73, // Computing Time = 8903.43, 6.73%
-        .nums = 0, .avg = 0, .max = 0, .min = UINT32_MAX, .name = COMPUTING_TIME, .children = {}, .level = 1};
+    Protocol::SystemViewOverallRes tmpRes = {.totalTime = 8903.43,
+        .ratio = 6.73, // Computing Time = 8903.43, 6.73%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = UINT32_MAX,
+        .name = COMPUTING_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
-    tmpRes = { .totalTime = 98071.95, .ratio = 74.17, // Comm(Not Overlapped) = 98071.95, 74.17%
-        .nums = 0, .avg = 0, .max = 0, .min = 0, .name = COMMUNICATION_NOT_OVERLAP_TIME, .children = {}, .level = 1};
+    tmpRes = {.totalTime = 98071.95,
+        .ratio = 74.17, // Comm(Not Overlapped) = 98071.95, 74.17%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = COMMUNICATION_NOT_OVERLAP_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
-    tmpRes = { .totalTime = 25258.14, .ratio = 19.1, // Free = 25258.14, 19.1%
-        .nums = 0, .avg = 0, .max = 0, .min = 0, .name = FREE_TIME, .children = {}, .level = 1};
+    tmpRes = {.totalTime = 25258.14,
+        .ratio = 19.1, // Free = 25258.14, 19.1%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = FREE_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
-    tmpRes = { .totalTime = 132233.52, .ratio = 100, // E2E = 132233.52, 100%
-        .nums = 0, .avg = 0, .max = 0, .min = 0, .name = E2E_TIME, .children = {}, .level = 1};
+    tmpRes = {.totalTime = 132233.52,
+        .ratio = 100, // E2E = 132233.52, 100%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = E2E_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
     requestParams.rankId = "0";
     SystemViewOverallHelper computeHelper;
     bool result = repoPtr->QueryDataForComputingOverallMetric(requestParams, computeHelper, database);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(computeHelper.cpuCubeOps.size(), 392);  // 392
-    EXPECT_EQ(computeHelper.kernelEvents.size(), 2448);  // 2448
+    EXPECT_EQ(computeHelper.cpuCubeOps.size(), 392); // 392
+    EXPECT_EQ(computeHelper.kernelEvents.size(), 2448); // 2448
     EXPECT_EQ(computeHelper.bwdTrackId, 14735581824444285); // globalTid in PYTORCH_API = 14735581824444285
     computeHelper.CategorizeComputingEvents();
     computeHelper.AggregateComputingOverallMetrics(details);
@@ -175,8 +201,7 @@ TEST_F(SystemViewOverallDbRepoTest, QueryDataForComputingOverallMetricTestWithPm
 }
 
 // System View Overall: Computing拆解Flash Attention算子详情、按name过滤功能
-TEST_F(SystemViewOverallDbRepoTest, QueryComputingOverallMetricWithNameFilterTest)
-{
+TEST_F(SystemViewOverallDbRepoTest, QueryComputingOverallMetricWithNameFilterTest) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
@@ -186,17 +211,45 @@ TEST_F(SystemViewOverallDbRepoTest, QueryComputingOverallMetricWithNameFilterTes
     }
     Dic::Protocol::SystemViewOverallReqParam requestParams;
     std::vector<SystemViewOverallRes> details;
-    Protocol::SystemViewOverallRes tmpRes = { .totalTime = 8903.43, .ratio = 6.73, // Computing Time = 8903.43, 6.73%
-    .nums = 0, .avg = 0, .max = 0, .min = UINT32_MAX, .name = COMPUTING_TIME, .children = {}, .level = 1};
+    Protocol::SystemViewOverallRes tmpRes = {.totalTime = 8903.43,
+        .ratio = 6.73, // Computing Time = 8903.43, 6.73%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = UINT32_MAX,
+        .name = COMPUTING_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
-    tmpRes = { .totalTime = 98071.95, .ratio = 74.17, // Comm(Not Overlapped) = 98071.95, 74.17%
-        .nums = 0, .avg = 0, .max = 0, .min = 0, .name = COMMUNICATION_NOT_OVERLAP_TIME, .children = {}, .level = 1};
+    tmpRes = {.totalTime = 98071.95,
+        .ratio = 74.17, // Comm(Not Overlapped) = 98071.95, 74.17%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = COMMUNICATION_NOT_OVERLAP_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
-    tmpRes = { .totalTime = 25258.14, .ratio = 19.1, // Free = 25258.14, 19.1%
-        .nums = 0, .avg = 0, .max = 0, .min = 0, .name = FREE_TIME, .children = {}, .level = 1};
+    tmpRes = {.totalTime = 25258.14,
+        .ratio = 19.1, // Free = 25258.14, 19.1%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = FREE_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
-    tmpRes = { .totalTime = 132233.52, .ratio = 100, // E2E = 132233.52, 100%
-        .nums = 0, .avg = 0, .max = 0, .min = 0, .name = E2E_TIME, .children = {}, .level = 1};
+    tmpRes = {.totalTime = 132233.52,
+        .ratio = 100, // E2E = 132233.52, 100%
+        .nums = 0,
+        .avg = 0,
+        .max = 0,
+        .min = 0,
+        .name = E2E_TIME,
+        .children = {},
+        .level = 1};
     details.emplace_back(tmpRes);
     requestParams.rankId = "0";
     SystemViewOverallHelper computeHelper;
@@ -212,12 +265,11 @@ TEST_F(SystemViewOverallDbRepoTest, QueryComputingOverallMetricWithNameFilterTes
     // 按照name过滤
     std::vector<std::string> tempList2 = {"Other Vector"};
     std::vector<SameOperatorsDetails> filteredEvents2 =
-    computeHelper.FilterComputingEventsByCategory(tempList2, minTimestamp, "add");
+        computeHelper.FilterComputingEventsByCategory(tempList2, minTimestamp, "add");
     EXPECT_EQ(filteredEvents2.size(), 457); // 457个name包含add的Other Vector类算子
 }
 
-TEST_F(SystemViewOverallDbRepoTest, QueryCommunicationOverlapOverallInfosTestWhenSuccess)
-{
+TEST_F(SystemViewOverallDbRepoTest, QueryCommunicationOverlapOverallInfosTestWhenSuccess) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
@@ -241,8 +293,7 @@ TEST_F(SystemViewOverallDbRepoTest, QueryCommunicationOverlapOverallInfosTestWhe
     EXPECT_DOUBLE_EQ(responseBody[0].children[0].children[1].totalTime, 2232.4); // 2232.4 for Transmit Time
 }
 
-TEST_F(SystemViewOverallDbRepoTest, QueryCommunicationOpsTimeDataByGroupNameTestWhenSuccess)
-{
+TEST_F(SystemViewOverallDbRepoTest, QueryCommunicationOpsTimeDataByGroupNameTestWhenSuccess) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     auto repoPtr = SystemViewOverallRepoFactory::Instance()->GetSystemViewOverallRepo(
         DataBaseManager::Instance().GetDataType(database->GetDbPath()));
@@ -255,21 +306,23 @@ TEST_F(SystemViewOverallDbRepoTest, QueryCommunicationOpsTimeDataByGroupNameTest
     SystemViewOverallHelper computeHelper;
     UnitThreadsOperatorsResponse response;
     uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
-    std::string sql = DataBaseManager::Instance().GetDataType(database->GetDbPath()) == DataType::TEXT ?
-        TextSqlConstant::GetOverlapAnalysisTextSqlByType(requestParams) : TraceDatabaseSqlConst::GetOverlapAnalysisDbSqlByType(requestParams);
-    std::string type = DataBaseManager::Instance().GetDataType(database->GetDbPath()) == DataType::TEXT ?
-                       "Communication(Not Overlapped)" : "2";
+    std::string sql = DataBaseManager::Instance().GetDataType(database->GetDbPath()) == DataType::TEXT
+        ? TextSqlConstant::GetOverlapAnalysisTextSqlByType(requestParams)
+        : TraceDatabaseSqlConst::GetOverlapAnalysisDbSqlByType(requestParams);
+    std::string type = DataBaseManager::Instance().GetDataType(database->GetDbPath()) == DataType::TEXT
+        ? "Communication(Not Overlapped)"
+        : "2";
     uint64_t totalTime = 0;
     std::vector<Protocol::ThreadTraces> notOverlapData{};
     std::string deviceId = Dic::Module::Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId("0");
     requestParams.deviceId = deviceId;
     int deviceIdInt = StringUtil::StringToInt(deviceId);
-    ParamsForOAData paramsForOaData = { sql, type, minTimestamp };
+    ParamsForOAData paramsForOaData = {sql, type, minTimestamp};
     bool result = database->QueryOverlapAnalysisData(paramsForOaData, deviceIdInt, notOverlapData, totalTime);
     EXPECT_TRUE(result);
     requestParams.categoryList = {"", "default_group:Group group_name_0 Communication"};
-    repoPtr->QueryCommunicationOpsTimeDataByGroupName(requestParams, minTimestamp, notOverlapData,
-                                                      response.body.sameOperatorsDetails, database);
+    repoPtr->QueryCommunicationOpsTimeDataByGroupName(
+        requestParams, minTimestamp, notOverlapData, response.body.sameOperatorsDetails, database);
     EXPECT_EQ(response.body.sameOperatorsDetails.size(), 4); // 4
     int index = 0;
     EXPECT_EQ(response.body.sameOperatorsDetails[index++].name, "hcom_allReduce__612_4_1");
@@ -279,8 +332,8 @@ TEST_F(SystemViewOverallDbRepoTest, QueryCommunicationOpsTimeDataByGroupNameTest
     // 按name过滤功能
     requestParams.name = "allGather";
     UnitThreadsOperatorsResponse response2;
-    repoPtr->QueryCommunicationOpsTimeDataByGroupName(requestParams, minTimestamp, notOverlapData,
-                                                      response2.body.sameOperatorsDetails, database);
+    repoPtr->QueryCommunicationOpsTimeDataByGroupName(
+        requestParams, minTimestamp, notOverlapData, response2.body.sameOperatorsDetails, database);
     EXPECT_EQ(response2.body.sameOperatorsDetails.size(), 1); // 1
     EXPECT_EQ(response2.body.sameOperatorsDetails[0].name, "hcom_allGather__612_7_1");
 }

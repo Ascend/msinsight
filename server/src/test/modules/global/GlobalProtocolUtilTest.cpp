@@ -26,22 +26,15 @@
 using namespace Dic::Protocol;
 
 class GlobalProtocolUtilTest : public ::testing::Test {
-protected:
-    void SetUp() override
-    {
-        protocol.Register();
-    }
+  protected:
+    void SetUp() override { protocol.Register(); }
 
-    void TearDown() override
-    {
-        protocol.UnRegister();
-    }
+    void TearDown() override { protocol.UnRegister(); }
 
     Dic::Protocol::GlobalProtocol protocol;
 };
 
-TEST_F(GlobalProtocolUtilTest, ToProjectExplorerInfoClearRequest)
-{
+TEST_F(GlobalProtocolUtilTest, ToProjectExplorerInfoClearRequest) {
     std::string reqJson = R"({"id": 2, "moduleName": "global", "type": "request",
         "command": "files/clearProjectExplorer", "resultCallbackId": 0, "params": {}})";
     Dic::document_t json;
@@ -51,8 +44,7 @@ TEST_F(GlobalProtocolUtilTest, ToProjectExplorerInfoClearRequest)
     EXPECT_EQ(result.command, REQ_RES_PROJECT_EXPLORER_CLEAR);
 }
 
-TEST_F(GlobalProtocolUtilTest, ToSetParallelStrategyResponseTest)
-{
+TEST_F(GlobalProtocolUtilTest, ToSetParallelStrategyResponseTest) {
     Dic::Protocol::ProjectExplorerInfoClearResponse response;
     std::string err;
     response.result = false;
@@ -60,8 +52,7 @@ TEST_F(GlobalProtocolUtilTest, ToSetParallelStrategyResponseTest)
     EXPECT_EQ(jsonOptional.value()["result"], response.result);
 }
 
-TEST_F(GlobalProtocolUtilTest, TransformReadFileFailEventToJsonTest)
-{
+TEST_F(GlobalProtocolUtilTest, TransformReadFileFailEventToJsonTest) {
     Dic::Protocol::ReadFileFailEvent event;
     std::string err;
     event.body.filePath = "aaa";

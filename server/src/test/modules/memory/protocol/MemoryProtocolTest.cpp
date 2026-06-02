@@ -517,7 +517,8 @@ TEST_F(MemoryProtocolTest, ToMemoryOpeatorRequestLackIdTestReturnNull) {
 }
 
 TEST_F(MemoryProtocolTest, ToMemoryResourceTypeRequestNormalTest) {
-    std::string reqJson = R"({"id": 2, "moduleName": "memory", "type": "request", "command": "Memory/view/resourceType",
+    std::string reqJson =
+        R"({"id": 2, "moduleName": "memory", "type": "request", "command": "Memory/view/resourceType",
         "resultCallbackId": 0, "params": {"rankId": "0"}})";
     std::string expect = "0";
     Dic::document_t json;

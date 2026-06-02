@@ -27,30 +27,25 @@
 
 using namespace Dic::Module::Global;
 class BaselineManagerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         std::string systemDbPath = TestSuit::GetTestDataFile();
         ProjectExplorerManager::Instance().InitSystemMemoryDbPath(systemDbPath);
         InitProjectExplorerData();
     }
 
-    static void TearDownTestSuite()
-    {
-        ClearProjectExplorerData();
-    }
-protected:
+    static void TearDownTestSuite() { ClearProjectExplorerData(); }
+
+  protected:
     inline static int retry = 5;
     static ProjectExplorerInfo CreateProjectData(const std::string &projectName, const std::string &fileName,
-                                                 const std::string &importType, Dic::ProjectTypeEnum projectType,
-                                                 const std::vector<std::string> parseFileList)
-    {
+        const std::string &importType, Dic::ProjectTypeEnum projectType, const std::vector<std::string> parseFileList) {
         ProjectExplorerInfo info;
         info.projectName = projectName;
         info.fileName = fileName;
         info.importType = importType;
         info.projectType = static_cast<int64_t>(projectType);
-        for (const auto &item: parseFileList) {
+        for (const auto &item : parseFileList) {
             auto parseFileInfo = std::make_shared<ParseFileInfo>();
             parseFileInfo->parseFilePath = item;
             parseFileInfo->subId = item;
@@ -61,8 +56,7 @@ protected:
     }
 
     static ProjectExplorerInfo CreateMultiClusterProject(const std::string &projectName, const std::string &fileName,
-                                                         Dic::ProjectTypeEnum projectType, int clusterCount)
-    {
+        Dic::ProjectTypeEnum projectType, int clusterCount) {
         ProjectExplorerInfo info;
         info.projectName = projectName;
         info.fileName = fileName;
@@ -80,38 +74,33 @@ protected:
         return info;
     }
 
-    static void InitProjectExplorerData()
-    {
+    static void InitProjectExplorerData() {
         std::string filePathText = TestSuit::GetTestDataFile("test_rank_0", "ASCEND_PROFILER_OUTPUT");
         std::string filePathDb = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
         std::vector<ProjectExplorerInfo> infos;
-        std::vector<std::string> parseFileList {filePathText};
-        ProjectExplorerInfo info = CreateProjectData("testProject", "projectFilePath",
-                                                     "import", Dic::ProjectTypeEnum::TEXT_CLUSTER, parseFileList);
+        std::vector<std::string> parseFileList{filePathText};
+        ProjectExplorerInfo info = CreateProjectData(
+            "testProject", "projectFilePath", "import", Dic::ProjectTypeEnum::TEXT_CLUSTER, parseFileList);
         ProjectExplorerManager::Instance().SaveProjectExplorer(info, false);
 
-        std::vector<std::string> parseDbFileList {filePathDb};
-        ProjectExplorerInfo dbInfo = CreateProjectData("testProjectDb", "projectFilePathDb",
-                                                       "import", Dic::ProjectTypeEnum::DB, parseDbFileList);
+        std::vector<std::string> parseDbFileList{filePathDb};
+        ProjectExplorerInfo dbInfo = CreateProjectData(
+            "testProjectDb", "projectFilePathDb", "import", Dic::ProjectTypeEnum::DB, parseDbFileList);
         ProjectExplorerManager::Instance().SaveProjectExplorer(dbInfo, false);
-        ProjectExplorerInfo multiClusterInfo = CreateMultiClusterProject("multiCluster", "projectFilePath",
-                                                                         Dic::ProjectTypeEnum::DB_CLUSTER,
-                                                                         4); // generator 4 cluster
+        ProjectExplorerInfo multiClusterInfo =
+            CreateMultiClusterProject("multiCluster", "projectFilePath", Dic::ProjectTypeEnum::DB_CLUSTER,
+                4); // generator 4 cluster
         ProjectExplorerManager::Instance().SaveProjectExplorer(multiClusterInfo, false);
     }
 
-    static void ClearProjectExplorerData()
-    {
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject",
-                                                                    std::vector<std::string>());
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProjectDb",
-                                                                    std::vector<std::string>());
+    static void ClearProjectExplorerData() {
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject", std::vector<std::string>());
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProjectDb", std::vector<std::string>());
     }
 };
 
 // 测试text数据baseline设置正常情况
-TEST_F(BaselineManagerTest, TestText)
-{
+TEST_F(BaselineManagerTest, TestText) {
     std::string filePathText = TestSuit::GetTestDataFile("test_rank_0", "ASCEND_PROFILER_OUTPUT");
     BaselineInfo baselineInfo;
     baselineInfo.parsedFilePath = filePathText;
@@ -134,8 +123,7 @@ TEST_F(BaselineManagerTest, TestText)
 }
 
 // 测试db数据baseline设置正常情况
-TEST_F(BaselineManagerTest, TestDb)
-{
+TEST_F(BaselineManagerTest, TestDb) {
     std::string filePathDb = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
     BaselineInfo baselineInfo;
     baselineInfo.parsedFilePath = filePathDb;
@@ -158,8 +146,7 @@ TEST_F(BaselineManagerTest, TestDb)
 }
 
 // 测试db不存在的场景
-TEST_F(BaselineManagerTest, TestFileNotExist)
-{
+TEST_F(BaselineManagerTest, TestFileNotExist) {
     std::string filePathDb = "noData";
     BaselineInfo baselineInfo;
     baselineInfo.parsedFilePath = filePathDb;
@@ -173,20 +160,17 @@ TEST_F(BaselineManagerTest, TestFileNotExist)
     EXPECT_EQ(baselineInfo.errorMessage, "");
 }
 
-TEST_F(BaselineManagerTest, SetGetBaselineClusterPath)
-{
+TEST_F(BaselineManagerTest, SetGetBaselineClusterPath) {
     BaselineManager::Instance().SetBaselineClusterPath("baseline");
     EXPECT_EQ(BaselineManager::Instance().GetBaseLineClusterPath(), "baseline");
 }
 
-TEST_F(BaselineManagerTest, GetCompareClusterPath)
-{
+TEST_F(BaselineManagerTest, GetCompareClusterPath) {
     BaselineManager::Instance().SetCompareClusterPath("compare");
     EXPECT_EQ(BaselineManager::Instance().GetCompareClusterPath(), "compare");
 }
 
-TEST_F(BaselineManagerTest, MultiCluster)
-{
+TEST_F(BaselineManagerTest, MultiCluster) {
     std::string filePath = "cluster_2";
     BaselineInfo baselineInfo;
     baselineInfo.parsedFilePath = filePath;

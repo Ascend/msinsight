@@ -29,20 +29,15 @@ const int64_t NUMBER_FIVE = 5;
 const int64_t NUMBER_SIX = 6;
 using namespace Dic::Module::Global;
 class ProjectExplorerManagerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-        ProjectExplorerManager::Instance().InitSystemMemoryDbPath(testDataDir);
-    }
+  public:
+    static void SetUpTestSuite() { ProjectExplorerManager::Instance().InitSystemMemoryDbPath(testDataDir); }
 
     static void TearDownTestSuite() {}
 
-protected:
+  protected:
     inline static std::string testDataDir = TestSuit::GetTestDataFile();
     ProjectExplorerInfo CreateProjectData(const std::string &projectName, const std::string &fileName,
-                                          const std::string &importType, Dic::ProjectTypeEnum projectType,
-                                          const std::vector<std::string> dbPath)
-    {
+        const std::string &importType, Dic::ProjectTypeEnum projectType, const std::vector<std::string> dbPath) {
         ProjectExplorerInfo info;
         info.projectName = projectName;
         info.fileName = fileName;
@@ -57,37 +52,30 @@ protected:
         info.AddSubParseFileInfo(parseFileInfo);
         return info;
     }
-    void InitProjectExplorerData()
-    {
+    void InitProjectExplorerData() {
         std::vector<ProjectExplorerInfo> infos;
-        ProjectExplorerInfo info = CreateProjectData("testProject", "projectFilePath",
-                                                     "import", Dic::ProjectTypeEnum::TEXT_CLUSTER,
-                                                     std::vector<std::string>());
+        ProjectExplorerInfo info = CreateProjectData(
+            "testProject", "projectFilePath", "import", Dic::ProjectTypeEnum::TEXT_CLUSTER, std::vector<std::string>());
         infos.push_back(info);
-        std::for_each(infos.begin(), infos.end(), [](const auto& item) {
-            ProjectExplorerManager::Instance().SaveProjectExplorer(item, false);
-        });
+        std::for_each(infos.begin(), infos.end(),
+            [](const auto &item) { ProjectExplorerManager::Instance().SaveProjectExplorer(item, false); });
     }
 
-    void ClearProjectExplorerData()
-    {
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject",
-                                                                    std::vector<std::string>());
-        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("newTestProject",
-                                                                    std::vector<std::string>());
+    void ClearProjectExplorerData() {
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject", std::vector<std::string>());
+        ProjectExplorerManager::Instance().DeleteProjectAndFilePath("newTestProject", std::vector<std::string>());
     }
 };
 
 // 更新项目名成功
-TEST_F(ProjectExplorerManagerTest, UpdateProjectNameSuccess)
-{
+TEST_F(ProjectExplorerManagerTest, UpdateProjectNameSuccess) {
     InitProjectExplorerData();
     std::string projectName = "testProject";
     std::string newProjectName = "newTestProject";
     bool updateRes = ProjectExplorerManager::Instance().UpdateProjectName(projectName, newProjectName);
     EXPECT_EQ(updateRes, true);
-    std::vector<ProjectExplorerInfo> res = ProjectExplorerManager::Instance()
-            .QueryProjectExplorer(newProjectName, std::vector<std::string>());
+    std::vector<ProjectExplorerInfo> res =
+        ProjectExplorerManager::Instance().QueryProjectExplorer(newProjectName, std::vector<std::string>());
     EXPECT_EQ(res.size(), 1);
     EXPECT_EQ(res[0].importType, "import");
     EXPECT_EQ(res[0].fileName, "projectFilePath");
@@ -96,28 +84,27 @@ TEST_F(ProjectExplorerManagerTest, UpdateProjectNameSuccess)
 }
 
 // 同一个项目下导入文件，存在冲突，并覆盖文件
-TEST_F(ProjectExplorerManagerTest, CheckProjectConflictAndCoverData)
-{
+TEST_F(ProjectExplorerManagerTest, CheckProjectConflictAndCoverData) {
     std::string projectName = "testProject";
     InitProjectExplorerData();
     std::vector<std::string> filePathList;
     Dic::Protocol::ProjectCheckBody body;
     std::string filePath = TestSuit::GetTestDataFile("data.bin");
     filePathList.push_back(filePath);
-    Dic::Protocol::ProjectErrorType result = ProjectExplorerManager::Instance().CheckProjectConflict(projectName,
-                                                                                                     filePathList[0]);
+    Dic::Protocol::ProjectErrorType result =
+        ProjectExplorerManager::Instance().CheckProjectConflict(projectName, filePathList[0]);
     bool isConflict = (result == Dic::Protocol::ProjectErrorType::PROJECT_NAME_CONFLICT);
     EXPECT_EQ(isConflict, true);
     std::vector<ProjectExplorerInfo> infos;
-    ProjectExplorerInfo info = CreateProjectData(projectName, filePathList[0], "import",
-                                                 Dic::ProjectTypeEnum::BIN, std::vector<std::string>());
+    ProjectExplorerInfo info = CreateProjectData(
+        projectName, filePathList[0], "import", Dic::ProjectTypeEnum::BIN, std::vector<std::string>());
     infos.push_back(info);
-    std::for_each(infos.begin(), infos.end(), [](const auto& item) {
+    std::for_each(infos.begin(), infos.end(), [](const auto &item) {
         bool res = ProjectExplorerManager::Instance().SaveProjectExplorer(item, false);
         EXPECT_EQ(res, true);
     });
-    std::vector<ProjectExplorerInfo> queryRes = ProjectExplorerManager::Instance()
-            .QueryProjectExplorer(projectName, std::vector<std::string>());
+    std::vector<ProjectExplorerInfo> queryRes =
+        ProjectExplorerManager::Instance().QueryProjectExplorer(projectName, std::vector<std::string>());
     EXPECT_EQ(queryRes.size(), 2); // expect size 2
     EXPECT_EQ(queryRes[0].importType, "import");
     EXPECT_EQ(queryRes[0].fileName, filePath);
@@ -126,19 +113,17 @@ TEST_F(ProjectExplorerManagerTest, CheckProjectConflictAndCoverData)
 }
 
 // 清空项目内容
-TEST_F(ProjectExplorerManagerTest, ClearProjectExplorerSuccess)
-{
+TEST_F(ProjectExplorerManagerTest, ClearProjectExplorerSuccess) {
     ProjectExplorerManager::Instance().ClearProjectExplorer(std::vector<std::string>{});
     InitProjectExplorerData();
     bool result = ProjectExplorerManager::Instance().ClearProjectExplorer(std::vector<std::string>{});
     EXPECT_EQ(result, true);
-    std::vector<ProjectExplorerInfo> queryRes = ProjectExplorerManager::Instance()
-            .QueryProjectExplorer("", std::vector<std::string>());
+    std::vector<ProjectExplorerInfo> queryRes =
+        ProjectExplorerManager::Instance().QueryProjectExplorer("", std::vector<std::string>());
     EXPECT_EQ(queryRes.size(), 0);
 }
 
-TEST_F(ProjectExplorerManagerTest, GetProjectTypeWithOnlyMulitTextType)
-{
+TEST_F(ProjectExplorerManagerTest, GetProjectTypeWithOnlyMulitTextType) {
     std::vector<ProjectExplorerInfo> projectInfoList;
     ProjectExplorerInfo info1;
     info1.projectType = NUMBER_FIVE;
@@ -150,8 +135,7 @@ TEST_F(ProjectExplorerManagerTest, GetProjectTypeWithOnlyMulitTextType)
     EXPECT_EQ(type, Dic::ProjectTypeEnum::TEXT_CLUSTER);
 }
 
-TEST_F(ProjectExplorerManagerTest, GetProjectTypeWithOnlyMulitDbType)
-{
+TEST_F(ProjectExplorerManagerTest, GetProjectTypeWithOnlyMulitDbType) {
     std::vector<ProjectExplorerInfo> projectInfoList;
     ProjectExplorerInfo info1;
     info1.projectType = NUMBER_ZERO;
@@ -163,8 +147,7 @@ TEST_F(ProjectExplorerManagerTest, GetProjectTypeWithOnlyMulitDbType)
     EXPECT_EQ(type, Dic::ProjectTypeEnum::DB_CLUSTER);
 }
 
-TEST_F(ProjectExplorerManagerTest, DeleteFileNode)
-{
+TEST_F(ProjectExplorerManagerTest, DeleteFileNode) {
     std::string importPath = "test_rank_1";
     ProjectExplorerInfo projectInfo;
     projectInfo.fileName = importPath;

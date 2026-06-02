@@ -26,11 +26,9 @@ using namespace Dic::Module;
 using namespace Dic::Module::Global;
 using namespace Dic::Module::Source::Test;
 
-class ParserBinTest : public ::testing::Test {
-};
+class ParserBinTest : public ::testing::Test {};
 
-TEST_F(ParserBinTest, ParserWithValidData)
-{
+TEST_F(ParserBinTest, ParserWithValidData) {
     std::string fileName = "ParserBinTest.bin";
     std::string filePath = "./" + fileName;
 
@@ -47,34 +45,13 @@ TEST_F(ParserBinTest, ParserWithValidData)
     fileInfo->clusterId = filePath;
     fileInfo->parseFilePath = "";
     filePathInfos.emplace_back(fileInfo);
-    ProjectExplorerInfo info = {
-        1,
-        "testProject",
-        filePath,
-        filePathInfos,
-        {},
-        {},
-        "",
-        {""},
-        ""
-    };
+    ProjectExplorerInfo info = {1, "testProject", filePath, filePathInfos, {}, {}, "", {""}, ""};
     ImportActionRequest request;
-    request.params = {
-        "testProject",
-        {filePath},
-        ProjectActionEnum::ADD_FILE,
-        false
-    };
+    request.params = {"testProject", {filePath}, ProjectActionEnum::ADD_FILE, false};
     ImportActionResponse response;
     ProjectParserBin parserBin;
     parserBin.Parser({info}, request, response);
-    BaselineInfo baselineInfo = {
-        "localhost",
-        "0",
-        "card0",
-        "",
-        false
-    };
+    BaselineInfo baselineInfo = {"localhost", "0", "card0", "", false};
     parserBin.ParserBaseline({info}, baselineInfo);
 
     // remove file
@@ -82,8 +59,7 @@ TEST_F(ParserBinTest, ParserWithValidData)
     SourceFileParser::Instance().Reset();
 }
 
-TEST_F(ParserBinTest, ResponseHasRankList)
-{
+TEST_F(ParserBinTest, ResponseHasRankList) {
     std::string fileName = "ParserBinTest.bin";
     std::string filePath = "./" + fileName;
 
@@ -100,24 +76,9 @@ TEST_F(ParserBinTest, ResponseHasRankList)
     fileInfo->clusterId = filePath;
     fileInfo->parseFilePath = "";
     filePathInfos.emplace_back(fileInfo);
-    ProjectExplorerInfo info = {
-        1,
-        "testProject",
-        filePath,
-        filePathInfos,
-        {},
-        {},
-        "",
-        {""},
-        ""
-    };
+    ProjectExplorerInfo info = {1, "testProject", filePath, filePathInfos, {}, {}, "", {""}, ""};
     ImportActionRequest request;
-    request.params = {
-        "testProject",
-        {filePath},
-        ProjectActionEnum::ADD_FILE,
-        false
-    };
+    request.params = {"testProject", {filePath}, ProjectActionEnum::ADD_FILE, false};
 
     ProjectParserBin parserBin;
     ImportActionResponse response;
@@ -130,8 +91,7 @@ TEST_F(ParserBinTest, ResponseHasRankList)
     SourceFileParser::Instance().Reset();
 }
 
-TEST_F(ParserBinTest, get_import_file)
-{
+TEST_F(ParserBinTest, get_import_file) {
     ProjectParserBin bin;
     std::string error;
     auto res = bin.GetParseFileByImportFile("test", error);

@@ -21,21 +21,14 @@
 
 using namespace Dic::Module::Timeline;
 class TraceTimeTest : public ::testing::Test {
-    void SetUp() override
-    {
-        Dic::Module::Timeline::TraceTime::Instance().Reset();
-    }
-    void TearDown() override
-    {
-        TraceTime::Instance().Reset();
-    }
+    void SetUp() override { Dic::Module::Timeline::TraceTime::Instance().Reset(); }
+    void TearDown() override { TraceTime::Instance().Reset(); }
 };
 
 /**
  * 测试单卡情况
  */
-TEST_F(TraceTimeTest, TestSingleRank)
-{
+TEST_F(TraceTimeTest, TestSingleRank) {
     const uint64_t min = 20;
     const uint64_t max = 40;
     TraceTime::Instance().UpdateTime(min, max);
@@ -57,13 +50,12 @@ TEST_F(TraceTimeTest, TestSingleRank)
 /**
  * 测试单机八卡的情况
  */
-TEST_F(TraceTimeTest, TestSingleHostAndManyRanks)
-{
-    std::vector<std::pair<uint64_t, uint64_t>> datas = { { 10, 50 }, { 12, 53 }, { 17, 59 }, { 12, 52 },
-                                                         { 18, 58 }, { 19, 53 }, { 9, 56 },  { 11, 49 } };
+TEST_F(TraceTimeTest, TestSingleHostAndManyRanks) {
+    std::vector<std::pair<uint64_t, uint64_t>> data = {
+        {10, 50}, {12, 53}, {17, 59}, {12, 52}, {18, 58}, {19, 53}, {9, 56}, {11, 49}};
     uint64_t count = 0;
     const uint64_t targetFileId = 4;
-    for (const auto &item : datas) {
+    for (const auto &item : data) {
         const std::string fileId = std::to_string(count);
         TraceTime::Instance().UpdateTime(item.first, item.second);
         TraceTime::Instance().UpdateCardTimeDuration(fileId, item.first, item.second);
@@ -92,16 +84,13 @@ TEST_F(TraceTimeTest, TestSingleHostAndManyRanks)
 /**
  * 测试双机16卡的情况，采集的数据在同一时间段
  */
-TEST_F(TraceTimeTest, TestTwoHostAndManyRanks)
-{
-    std::vector<std::pair<uint64_t, uint64_t>> datas = { { 10, 50 },  { 12, 53 },  { 17, 59 },  { 12, 52 },
-                                                         { 18, 58 },  { 19, 53 },  { 9, 56 },   { 11, 49 },
-                                                         { 73, 101 }, { 75, 94 },  { 61, 96 },  { 63, 99 },
-                                                         { 52, 112 }, { 59, 114 }, { 70, 105 }, { 55, 111 } };
+TEST_F(TraceTimeTest, TestTwoHostAndManyRanks) {
+    std::vector<std::pair<uint64_t, uint64_t>> data = {{10, 50}, {12, 53}, {17, 59}, {12, 52}, {18, 58}, {19, 53},
+        {9, 56}, {11, 49}, {73, 101}, {75, 94}, {61, 96}, {63, 99}, {52, 112}, {59, 114}, {70, 105}, {55, 111}};
     uint64_t count = 0;
     const uint64_t firstTargetFileId = 4;
     const uint64_t secondTargetFileId = 14;
-    for (const auto &item : datas) {
+    for (const auto &item : data) {
         const std::string fileId = std::to_string(count);
         TraceTime::Instance().UpdateTime(item.first, item.second);
         TraceTime::Instance().UpdateCardTimeDuration(fileId, item.first, item.second);
@@ -134,17 +123,14 @@ TEST_F(TraceTimeTest, TestTwoHostAndManyRanks)
 /**
  * 测试双机16卡的情况，采集的数据不在同一时间段
  */
-TEST_F(TraceTimeTest, TestTwoHostAndManyRanksWithTimeDurationNotSame)
-{
-    std::vector<std::pair<uint64_t, uint64_t>> datas = { { 10, 50 },  { 12, 53 },  { 17, 59 },  { 12, 52 },
-                                                         { 18, 58 },  { 19, 53 },  { 9, 56 },   { 11, 49 },
-                                                         { 73, 101 }, { 75, 94 },  { 61, 96 },  { 63, 99 },
-                                                         { 62, 112 }, { 69, 114 }, { 70, 105 }, { 65, 111 } };
+TEST_F(TraceTimeTest, TestTwoHostAndManyRanksWithTimeDurationNotSame) {
+    std::vector<std::pair<uint64_t, uint64_t>> data = {{10, 50}, {12, 53}, {17, 59}, {12, 52}, {18, 58}, {19, 53},
+        {9, 56}, {11, 49}, {73, 101}, {75, 94}, {61, 96}, {63, 99}, {62, 112}, {69, 114}, {70, 105}, {65, 111}};
     uint64_t count = 0;
     const uint64_t firstTargetFileId = 4;
     const uint64_t secondTargetFileId = 14;
     const uint64_t secondExpectOffset = 52;
-    for (const auto &item : datas) {
+    for (const auto &item : data) {
         const std::string fileId = std::to_string(count);
         TraceTime::Instance().UpdateTime(item.first, item.second);
         TraceTime::Instance().UpdateCardTimeDuration(fileId, item.first, item.second);
