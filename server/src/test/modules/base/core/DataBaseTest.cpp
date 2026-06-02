@@ -20,14 +20,11 @@
 #include "../../../DatabaseTestCaseMockUtil.h"
 using namespace Dic::Global::PROFILER::MockUtil;
 class DataBaseTest : public ::testing::Test {
-protected:
+  protected:
     class MockDatabase : public Dic::Module::Database {
-    public:
-        explicit MockDatabase(std::recursive_mutex& sqlMutex) : Database(sqlMutex)
-        {
-        }
-        void SetDbPtr(sqlite3* dbPtr)
-        {
+      public:
+        explicit MockDatabase(std::recursive_mutex &sqlMutex) : Database(sqlMutex) {}
+        void SetDbPtr(sqlite3 *dbPtr) {
             isOpen = true;
             db = dbPtr;
             path = ":memory:";
@@ -38,11 +35,10 @@ protected:
 /**
  * 根据表名查询表结构，正常情况
  */
-TEST_F(DataBaseTest, TestQueryTableInfoByNameNormal)
-{
+TEST_F(DataBaseTest, TestQueryTableInfoByNameNormal) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -65,11 +61,10 @@ TEST_F(DataBaseTest, TestQueryTableInfoByNameNormal)
 /**
  * 根据表名查询表结构，sql注入情况
  */
-TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenSqlInjectReturnEmpty)
-{
+TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenSqlInjectReturnEmpty) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -88,11 +83,10 @@ TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenSqlInjectReturnEmpty)
 /**
  * 根据表名查询表结构，表名不正确
  */
-TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenNameErrReturnEmpty)
-{
+TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenNameErrReturnEmpty) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -111,11 +105,10 @@ TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenNameErrReturnEmpty)
 /**
  * 根据表名查询表结构，db未打开
  */
-TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenDbNotOpenReturnEmpty)
-{
+TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenDbNotOpenReturnEmpty) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     database.SetDbPtr(dbPtr);
     auto res = database.QueryTableInfoByName("SELECT");
     const uint64_t expectSize = 0;
@@ -125,11 +118,10 @@ TEST_F(DataBaseTest, TestQueryTableInfoByNameWhenDbNotOpenReturnEmpty)
 /**
  * 根据表名查询表数据量，正常情况
  */
-TEST_F(DataBaseTest, TestQueryCountByTableNameNormal)
-{
+TEST_F(DataBaseTest, TestQueryCountByTableNameNormal) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -162,11 +154,10 @@ TEST_F(DataBaseTest, TestQueryCountByTableNameNormal)
 /**
  * 根据表名查询表数据量，搜索情况
  */
-TEST_F(DataBaseTest, TestQueryCountByTableNameSearch)
-{
+TEST_F(DataBaseTest, TestQueryCountByTableNameSearch) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -200,11 +191,10 @@ TEST_F(DataBaseTest, TestQueryCountByTableNameSearch)
 /**
  * 根据表名查询表数据量，sql注入情况
  */
-TEST_F(DataBaseTest, TestQueryCountByTableNameWhenSqlInjectReturnEmpty)
-{
+TEST_F(DataBaseTest, TestQueryCountByTableNameWhenSqlInjectReturnEmpty) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -226,11 +216,10 @@ TEST_F(DataBaseTest, TestQueryCountByTableNameWhenSqlInjectReturnEmpty)
 /**
  * 根据表名查询表数据量，表名不正确
  */
-TEST_F(DataBaseTest, TestQueryCountByTableNameWhenNameErrReturnEmpty)
-{
+TEST_F(DataBaseTest, TestQueryCountByTableNameWhenNameErrReturnEmpty) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -252,11 +241,10 @@ TEST_F(DataBaseTest, TestQueryCountByTableNameWhenNameErrReturnEmpty)
 /**
  * 根据表名查询表数据量，db未打开
  */
-TEST_F(DataBaseTest, TestQueryCountByTableNameWhenDbNotOpenReturnEmpty)
-{
+TEST_F(DataBaseTest, TestQueryCountByTableNameWhenDbNotOpenReturnEmpty) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     database.SetDbPtr(dbPtr);
     Dic::Module::PageQuery query;
     const std::vector<Dic::Module::ColumnAtt> columns = database.QueryTableInfoByName("SELECT");
@@ -269,11 +257,10 @@ TEST_F(DataBaseTest, TestQueryCountByTableNameWhenDbNotOpenReturnEmpty)
 /**
  * 分页查询表数据，正常情况
  */
-TEST_F(DataBaseTest, TestQueryDataByPageNormal)
-{
+TEST_F(DataBaseTest, TestQueryDataByPageNormal) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -295,8 +282,8 @@ TEST_F(DataBaseTest, TestQueryDataByPageNormal)
     DatabaseTestCaseMockUtil::InsertData(dbPtr, dataSql);
     auto cols = database.QueryTableInfoByName("decode_gen_speed");
     Dic::Module::PageQuery pageQuery;
-    pageQuery.curPage = 1;  // 1
-    pageQuery.size = 10;  // 10
+    pageQuery.curPage = 1; // 1
+    pageQuery.size = 10; // 10
     pageQuery.viewName = "decode_gen_speed";
     auto res = database.QueryDataByPage(pageQuery, cols);
     const uint64_t expectSize = 4;
@@ -310,11 +297,10 @@ TEST_F(DataBaseTest, TestQueryDataByPageNormal)
 /**
  * 分页查询表数据，搜索情况
  */
-TEST_F(DataBaseTest, TestQueryDataByPageSearch)
-{
+TEST_F(DataBaseTest, TestQueryDataByPageSearch) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -336,8 +322,8 @@ TEST_F(DataBaseTest, TestQueryDataByPageSearch)
     DatabaseTestCaseMockUtil::InsertData(dbPtr, dataSql);
     auto cols = database.QueryTableInfoByName("decode_gen_speed");
     Dic::Module::PageQuery pageQuery;
-    pageQuery.curPage = 1;  // 1
-    pageQuery.size = 10;  // 10
+    pageQuery.curPage = 1; // 1
+    pageQuery.size = 10; // 10
     pageQuery.viewName = "decode_gen_speed";
     pageQuery.pageFilters.push_back({"timestamp", "646"});
     auto res = database.QueryDataByPage(pageQuery, cols);
@@ -352,11 +338,10 @@ TEST_F(DataBaseTest, TestQueryDataByPageSearch)
 /**
  * 分页查询表数据，有排序条件
  */
-TEST_F(DataBaseTest, TestQueryDataByPageWhenOrderAndLimit)
-{
+TEST_F(DataBaseTest, TestQueryDataByPageWhenOrderAndLimit) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"decode_gen_speed\" (\n"
@@ -395,11 +380,10 @@ TEST_F(DataBaseTest, TestQueryDataByPageWhenOrderAndLimit)
 /**
  * 查询翻译正常
  */
-TEST_F(DataBaseTest, TestQueryTranslateNormal)
-{
+TEST_F(DataBaseTest, TestQueryTranslateNormal) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"translate\" (\n"
@@ -409,9 +393,12 @@ TEST_F(DataBaseTest, TestQueryTranslateNormal)
                       "  PRIMARY KEY (\"key\")\n"
                       ");";
     DatabaseTestCaseMockUtil::InsertData(dbPtr, sql);
-    std::string dataSql = "INSERT INTO \"main\".\"translate\" (\"key\", \"value_en\", \"value_zh\") VALUES ('request_data', 'bbbb', 'nnnn');\n"
-                          "INSERT INTO \"main\".\"translate\" (\"key\", \"value_en\", \"value_zh\") VALUES ('batch_info', 'ffff', 'mmm');\n"
-                          "INSERT INTO \"main\".\"translate\" (\"key\", \"value_en\", \"value_zh\") VALUES ('kvcache_usage', 'sssss', 'kkk');";
+    std::string dataSql = "INSERT INTO \"main\".\"translate\" (\"key\", \"value_en\", \"value_zh\") VALUES "
+                          "('request_data', 'bbbb', 'nnnn');\n"
+                          "INSERT INTO \"main\".\"translate\" (\"key\", \"value_en\", \"value_zh\") VALUES "
+                          "('batch_info', 'ffff', 'mmm');\n"
+                          "INSERT INTO \"main\".\"translate\" (\"key\", \"value_en\", \"value_zh\") VALUES "
+                          "('kvcache_usage', 'sssss', 'kkk');";
     DatabaseTestCaseMockUtil::InsertData(dbPtr, dataSql);
     auto cols = database.QueryTranslate(false);
     const uint64_t expectSize = 3;
@@ -425,11 +412,10 @@ TEST_F(DataBaseTest, TestQueryTranslateNormal)
 /**
  * 查询翻译不正常
  */
-TEST_F(DataBaseTest, TestQueryTranslateAbnormal)
-{
+TEST_F(DataBaseTest, TestQueryTranslateAbnormal) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     database.SetDbPtr(dbPtr);
     std::string sql = "CREATE TABLE \"translates\" (\n"

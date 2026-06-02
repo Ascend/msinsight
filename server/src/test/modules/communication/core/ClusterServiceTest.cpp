@@ -32,38 +32,32 @@ const int NUMBER_ONE = 1;
 const int NUMBER_TWO = 2;
 
 class ClusterServiceTest : public ::testing::Test {
-protected:
+  protected:
     std::string filePath;
     std::string baselineFilePath;
     std::string dbPath;
     std::string dbBaselinePath;
 
-    void SetUp() override
-    {
+    void SetUp() override {
         filePath = TestSuit::GetTestDataFile("cluster_analysis_output");
         baselineFilePath = TestSuit::GetTestDataFile("baseline_cluster", "cluster_analysis_output");
         dbPath = filePath + FILE_SEPARATOR + "cluster.db";
         dbBaselinePath = baselineFilePath + FILE_SEPARATOR + "cluster.db";
     }
 
-    static void InitParser(const std::string &dataPath)
-    {
+    static void InitParser(const std::string &dataPath) {
         // 集群解析，如果集群已解析，则只会初始化db，然后结束流程
         // database直接传空指针，建立连接池的动作在ParseClusterFiles中
-        Dic::Module::FullDb::ClusterFileParser clusterFileParser(dataPath, nullptr,
-                                                                 dataPath + Dic::TimeUtil::Instance().NowStr());
+        Dic::Module::FullDb::ClusterFileParser clusterFileParser(
+            dataPath, nullptr, dataPath + Dic::TimeUtil::Instance().NowStr());
         clusterFileParser.ParseClusterFiles();
         clusterFileParser.ParseClusterStep2Files();
     }
 
-    static void Clear()
-    {
-        Dic::Module::FullDb::DataBaseManager::Instance().ClearClusterDb();
-    }
+    static void Clear() { Dic::Module::FullDb::DataBaseManager::Instance().ClearClusterDb(); }
 };
 
-TEST_F(ClusterServiceTest, TestEraseClusterDb)
-{
+TEST_F(ClusterServiceTest, TestEraseClusterDb) {
     InitParser(filePath);
     auto res = Dic::Module::FullDb::DataBaseManager::Instance().GetAllClusterDatabase();
     EXPECT_EQ(res.size(), 1);
@@ -73,8 +67,7 @@ TEST_F(ClusterServiceTest, TestEraseClusterDb)
     EXPECT_EQ(res2.size(), 0);
 }
 
-TEST_F(ClusterServiceTest, TestClearClusterDb)
-{
+TEST_F(ClusterServiceTest, TestClearClusterDb) {
     InitParser(filePath);
     InitParser(baselineFilePath);
     auto res = Dic::Module::FullDb::DataBaseManager::Instance().GetAllClusterDatabase();
@@ -86,8 +79,7 @@ TEST_F(ClusterServiceTest, TestClearClusterDb)
     EXPECT_EQ(res2.size(), NUMBER_ZERO);
 }
 
-TEST_F(ClusterServiceTest, QueryIterationsAllFail)
-{
+TEST_F(ClusterServiceTest, QueryIterationsAllFail) {
     Clear();
     Dic::Protocol::IterationsRequest request;
     request.params.isCompare = false;
@@ -97,8 +89,7 @@ TEST_F(ClusterServiceTest, QueryIterationsAllFail)
     EXPECT_EQ(response.body.baseline.size(), NUMBER_ZERO);
 }
 
-TEST_F(ClusterServiceTest, QueryIterationsAllSuccess)
-{
+TEST_F(ClusterServiceTest, QueryIterationsAllSuccess) {
     Clear();
     InitParser(filePath);
     InitParser(baselineFilePath);
@@ -114,8 +105,7 @@ TEST_F(ClusterServiceTest, QueryIterationsAllSuccess)
     Clear();
 }
 
-TEST_F(ClusterServiceTest, QueryIterationsOnlyCompareSuccess)
-{
+TEST_F(ClusterServiceTest, QueryIterationsOnlyCompareSuccess) {
     Clear();
     InitParser(filePath);
     Dic::Protocol::IterationsRequest request;
@@ -128,8 +118,7 @@ TEST_F(ClusterServiceTest, QueryIterationsOnlyCompareSuccess)
     Clear();
 }
 
-TEST_F(ClusterServiceTest, QueryGroupInfoAllFail)
-{
+TEST_F(ClusterServiceTest, QueryGroupInfoAllFail) {
     Clear();
     Dic::Protocol::MatrixGroupRequest request;
     request.params.isCompare = false;
@@ -139,8 +128,7 @@ TEST_F(ClusterServiceTest, QueryGroupInfoAllFail)
     EXPECT_EQ(response.body.groupList.size(), NUMBER_ZERO);
 }
 
-TEST_F(ClusterServiceTest, QueryGroupInfoAllSuccess)
-{
+TEST_F(ClusterServiceTest, QueryGroupInfoAllSuccess) {
     InitParser(filePath);
     InitParser(baselineFilePath);
     Dic::Protocol::MatrixGroupRequest request;
@@ -155,8 +143,7 @@ TEST_F(ClusterServiceTest, QueryGroupInfoAllSuccess)
     Clear();
 }
 
-TEST_F(ClusterServiceTest, QueryGroupInfoOnlyCompareSuccess)
-{
+TEST_F(ClusterServiceTest, QueryGroupInfoOnlyCompareSuccess) {
     InitParser(filePath);
     Dic::Protocol::MatrixGroupRequest request;
     request.params.iterationId = "2";
@@ -169,13 +156,11 @@ TEST_F(ClusterServiceTest, QueryGroupInfoOnlyCompareSuccess)
     Clear();
 }
 
-TEST_F(ClusterServiceTest, QueryMatrixInfoSuccess)
-{
+TEST_F(ClusterServiceTest, QueryMatrixInfoSuccess) {
     InitParser(filePath);
     InitParser(baselineFilePath);
-    Dic::Protocol::MatrixBandwidthParam params = {"(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_broadcast__483_0",
-                                                  "2", "", "9350434047717501483", true, "2",
-                                                  filePath, "9350434047717501483"};
+    Dic::Protocol::MatrixBandwidthParam params = {"(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_broadcast__483_0", "2", "",
+        "9350434047717501483", true, "2", filePath, "9350434047717501483"};
     BaselineManager::Instance().SetBaselineClusterPath(baselineFilePath);
     Dic::Protocol::MatrixListResponseBody body;
     ClusterService::QueryMatrixInfo(params, body);
@@ -184,19 +169,16 @@ TEST_F(ClusterServiceTest, QueryMatrixInfoSuccess)
     Clear();
 }
 
-TEST_F(ClusterServiceTest, QueryMatrixInfoFailOfDatabaseNotExist)
-{
+TEST_F(ClusterServiceTest, QueryMatrixInfoFailOfDatabaseNotExist) {
     Clear();
-    Dic::Protocol::MatrixBandwidthParam params = {"(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_broadcast__483_0",
-                                                  "2", "", "9350434047717501483", true,
-                                                  "2", filePath};
+    Dic::Protocol::MatrixBandwidthParam params = {
+        "(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_broadcast__483_0", "2", "", "9350434047717501483", true, "2", filePath};
     Dic::Protocol::MatrixListResponseBody body;
     ClusterService::QueryMatrixInfo(params, body);
     EXPECT_EQ(body.matrixList.size(), NUMBER_ZERO);
 }
 
-TEST_F(ClusterServiceTest, QueryOperatorListSuccess)
-{
+TEST_F(ClusterServiceTest, QueryOperatorListSuccess) {
     InitParser(filePath);
     InitParser(baselineFilePath);
     Dic::Protocol::DurationListParams params;
@@ -220,8 +202,7 @@ TEST_F(ClusterServiceTest, QueryOperatorListSuccess)
     Clear();
 }
 
-TEST_F(ClusterServiceTest, QueryOperatorListFailWithoutDb)
-{
+TEST_F(ClusterServiceTest, QueryOperatorListFailWithoutDb) {
     Clear();
     Dic::Protocol::DurationListParams params;
     params.operatorName = "hcom_broadcast__483_1";
@@ -234,8 +215,7 @@ TEST_F(ClusterServiceTest, QueryOperatorListFailWithoutDb)
     EXPECT_EQ(body.opLists.size(), NUMBER_ZERO);
 }
 
-TEST_F(ClusterServiceTest, QueryDurationListSuccess)
-{
+TEST_F(ClusterServiceTest, QueryDurationListSuccess) {
     InitParser(filePath);
     InitParser(baselineFilePath);
     Dic::Protocol::DurationListParams params;
@@ -258,8 +238,7 @@ TEST_F(ClusterServiceTest, QueryDurationListSuccess)
     Clear();
 }
 
-TEST_F(ClusterServiceTest, QueryDurationListFailWithoutDb)
-{
+TEST_F(ClusterServiceTest, QueryDurationListFailWithoutDb) {
     Clear();
     Dic::Protocol::DurationListParams params;
     params.operatorName = "hcom_broadcast__483_1";
@@ -273,9 +252,8 @@ TEST_F(ClusterServiceTest, QueryDurationListFailWithoutDb)
     EXPECT_EQ(body.durationList.size(), NUMBER_ZERO);
 }
 
- // operatorName不为Total Op Info时，无专家建议
-TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksCheckOperatorNameFalse)
-{
+// operatorName不为Total Op Info时，无专家建议
+TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksCheckOperatorNameFalse) {
     Clear();
     InitParser(filePath);
     Dic::Protocol::DurationListParams params;
@@ -290,9 +268,8 @@ TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksCheckOperatorNameFalse)
     EXPECT_EQ(body.hasAdvice, false);
 }
 
- // pgName为pp时，无专家建议
-TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksCheckPgNameFalse)
-{
+// pgName为pp时，无专家建议
+TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksCheckPgNameFalse) {
     Clear();
     InitParser(filePath);
     Dic::Protocol::DurationListParams params;
@@ -308,8 +285,7 @@ TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksCheckPgNameFalse)
     EXPECT_EQ(body.hasAdvice, false);
 }
 
-TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksSuccess)
-{
+TEST_F(ClusterServiceTest, AnalyzeCommunicationSlowRanksSuccess) {
     Clear();
     InitParser(filePath);
     Dic::Protocol::DurationListParams params;

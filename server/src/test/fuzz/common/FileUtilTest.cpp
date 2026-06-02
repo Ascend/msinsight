@@ -26,81 +26,71 @@
 using namespace Dic;
 using namespace Dic::Protocol;
 using namespace Dic::Module::Global;
-TEST(TestFileUtil, IsAbsolutePath)
-{
+TEST(TestFileUtil, IsAbsolutePath) {
     char testApi[] = "test_file_util_is_absolute_path";
-    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0)
-        {
-            char* filePath = DT_SetGetString(&g_Element[0], 5, UINT32_MAX, "path");
-            FileUtil::IsAbsolutePath(filePath);
-        }
+    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0) {
+        char *filePath = DT_SetGetString(&g_Element[0], 5, UINT32_MAX, "path");
+        FileUtil::IsAbsolutePath(filePath);
+    }
     DT_FUZZ_END()
 }
 
-TEST(TestFileUtil, CopyFileByPath)
-{
+TEST(TestFileUtil, CopyFileByPath) {
     char testApi[] = "test_file_util_copy_file_by_path";
-    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0)
-                {
-                    std::string binFilePath = "./test_file_util_copy_file_by_path.bin";
-                    std::ofstream binFile(binFilePath, std::ios::binary | std::ios::trunc);
+    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0) {
+        std::string binFilePath = "./test_file_util_copy_file_by_path.bin";
+        std::ofstream binFile(binFilePath, std::ios::binary | std::ios::trunc);
 
-                    char* fileContent = DT_SetGetBlob(&g_Element[0], 2, UINT32_MAX, "a");
-                    int fileSize = DT_GET_MutatedValueLen(&g_Element[0]);
-                    binFile.write(fileContent, fileSize);
-                    binFile.close();
+        char *fileContent = DT_SetGetBlob(&g_Element[0], 2, UINT32_MAX, "a");
+        int fileSize = DT_GET_MutatedValueLen(&g_Element[0]);
+        binFile.write(fileContent, fileSize);
+        binFile.close();
 
-                    std::string copyPath = "./test_file_util_copy_file_by_path.copy";
-                    FileUtil::CopyFileByPath(binFilePath, copyPath);
-                }
+        std::string copyPath = "./test_file_util_copy_file_by_path.copy";
+        FileUtil::CopyFileByPath(binFilePath, copyPath);
+    }
     DT_FUZZ_END()
 }
 
-TEST(TestFileUtil, PathPreprocess)
-{
+TEST(TestFileUtil, PathPreprocess) {
     char testApi[] = "test_file_util_path_preprocess";
-    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0)
-                {
-                    char* filePath = DT_SetGetString(&g_Element[0], 4, PATH_MAX, "./a");
-                    FileUtil::PathPreprocess(filePath);
-                }
+    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0) {
+        char *filePath = DT_SetGetString(&g_Element[0], 4, PATH_MAX, "./a");
+        FileUtil::PathPreprocess(filePath);
+    }
     DT_FUZZ_END()
 }
 
-TEST(JsonUtil, TryParse)
-{
+TEST(JsonUtil, TryParse) {
     char testApi[] = "test_json_util_try_parse";
-    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0)
-                {
-                    std::string outputFilePath = "./" + std::string(testApi) + ".json";
-                    std::string inputFilePath = "./test_data/trace_view_tiny.json";
+    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0) {
+        std::string outputFilePath = "./" + std::string(testApi) + ".json";
+        std::string inputFilePath = "./test_data/trace_view_tiny.json";
 
-                    char* fileContent = nullptr;
-                    int fileContentSize = 0;
-                    if (GenerateFileMutation(inputFilePath, &fileContent, fileContentSize) == 0) {
-                        std::ofstream outputFile(outputFilePath, std::ios::trunc);
-                        if (!outputFile) {
-                            std::cout << "open output file failed: " << outputFilePath << std::endl;
-                            return;
-                        }
-                        outputFile.write(fileContent, fileContentSize);
-                        outputFile.close();
-                        std::string errMsg;
-                        JsonUtil::TryParse<kParseDefaultFlags>(fileContent, errMsg);
-                    } else {
-                        std::cout << "Generate mutation file failed." << std::endl;
-                    }
-                }
+        char *fileContent = nullptr;
+        int fileContentSize = 0;
+        if (GenerateFileMutation(inputFilePath, &fileContent, fileContentSize) == 0) {
+            std::ofstream outputFile(outputFilePath, std::ios::trunc);
+            if (!outputFile) {
+                std::cout << "open output file failed: " << outputFilePath << std::endl;
+                return;
+            }
+            outputFile.write(fileContent, fileContentSize);
+            outputFile.close();
+            std::string errMsg;
+            JsonUtil::TryParse<kParseDefaultFlags>(fileContent, errMsg);
+        } else {
+            std::cout << "Generate mutation file failed." << std::endl;
+        }
+    }
     DT_FUZZ_END()
 }
 
 // 该用例用于测试在GetFilesHandler中的核心方法，获取某个目录下的子目录和文件等(在通过一系列安全校验的过滤下)
-TEST(TestFileUtil, GetFoldersAndFiles)
-{
+TEST(TestFileUtil, GetFoldersAndFiles) {
     char testApi[] = "test_get_folders_and_files";
     PathFuzzer pathFuzzer;
-    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0)
-    {
+    DT_FUZZ_START(0, FUZZ_RUN_TIMES, testApi, 0) {
         if (!pathFuzzer.ClearBaseDir()) {
             std::cout << "Init base dir failed." << std::endl;
             return;

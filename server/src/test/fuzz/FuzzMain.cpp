@@ -18,8 +18,7 @@
 
 #include "FuzzDefs.h"
 
-GTEST_API_ int main(int argc, char **argv)
-{
+GTEST_API_ int main(int argc, char **argv) {
     int singleCaseTimeout = 60; // second
     // 设置报告路径
     DT_Set_Report_Path(REPORT_PATH.c_str());

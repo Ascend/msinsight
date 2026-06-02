@@ -24,32 +24,21 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class CommunicationBaseAnalyzerTest : public CommunicationBaseAnalyzer, public testing::Test {
-public:
+  public:
     CommunicationBaseAnalyzerTest() = default;
     ~CommunicationBaseAnalyzerTest() override = default;
-    bool QueryAdvisorData(const std::string &clusterPath) override
-    {
-        return true;
-    }
-    void ComputeStatistics() override
-    {
-        return;
-    }
-    void AssembleAdvisor(CommunicationAdvisorInfo &info) override
-    {
-        return;
-    }
+    bool QueryAdvisorData(const std::string &clusterPath) override { return true; }
+    void ComputeStatistics() override { return; }
+    void AssembleAdvisor(CommunicationAdvisorInfo &info) override { return; }
 };
 
-TEST_F(CommunicationBaseAnalyzerTest, GenerateAdvisorTest)
-{
+TEST_F(CommunicationBaseAnalyzerTest, GenerateAdvisorTest) {
     Dic::Protocol::CommunicationAdvisorInfo info;
     bool result = GenerateAdvisor(info, "compare");
     ASSERT_TRUE(result);
 }
 
-TEST_F(CommunicationBaseAnalyzerTest, AllTestAnalyzer)
-{
+TEST_F(CommunicationBaseAnalyzerTest, AllTestAnalyzer) {
     RetransmissionAnalyzer analyzer1;
     CommunicationAdvisorInfo info;
     analyzer1.GenerateAdvisor(info, "test");
@@ -58,8 +47,7 @@ TEST_F(CommunicationBaseAnalyzerTest, AllTestAnalyzer)
     analyzer2.GenerateAdvisor(info, "test");
 }
 
-TEST_F(CommunicationBaseAnalyzerTest, RetransmissionAnalyzer)
-{
+TEST_F(CommunicationBaseAnalyzerTest, RetransmissionAnalyzer) {
     RetransmissionAnalyzer analyzer;
     Dic::Protocol::CommunicationAdvisorInfo info;
     EXPECT_NO_THROW(analyzer.QueryAdvisorData(""));

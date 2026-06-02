@@ -22,15 +22,11 @@
 using namespace Dic::Protocol;
 
 class ProtocolTest : public testing::Test {
-public:
-    void SetUp() override
-    {
-    }
-
+  public:
+    void SetUp() override {}
 };
 
-TEST_F(ProtocolTest, MessageWithNoDelim)
-{
+TEST_F(ProtocolTest, MessageWithNoDelim) {
     ProtocolMessageBuffer buffer;
     std::string req = R"(Content-Length: 9)";
     buffer << req;
@@ -38,8 +34,7 @@ TEST_F(ProtocolTest, MessageWithNoDelim)
     EXPECT_EQ(message, nullptr);
 }
 
-TEST_F(ProtocolTest, MessgeWithWrongLength)
-{
+TEST_F(ProtocolTest, MessgeWithWrongLength) {
     ProtocolMessageBuffer buffer;
     std::string req = R"(Content-Length: 1024\r\n\r\nhelloworld)";
     buffer << req;
@@ -47,8 +42,7 @@ TEST_F(ProtocolTest, MessgeWithWrongLength)
     EXPECT_EQ(message, nullptr);
 }
 
-TEST_F(ProtocolTest, MessageCannotCastToJson)
-{
+TEST_F(ProtocolTest, MessageCannotCastToJson) {
     ProtocolMessageBuffer buffer;
     std::string req = R"(Content-Length: 10\r\n\r\nhelloworld)";
     buffer << req;
@@ -56,8 +50,7 @@ TEST_F(ProtocolTest, MessageCannotCastToJson)
     EXPECT_EQ(message, nullptr);
 }
 
-TEST_F(ProtocolTest, MessageGetProjectInfo)
-{
+TEST_F(ProtocolTest, MessageGetProjectInfo) {
     ProtocolMessageBuffer buffer;
     std::string req = R"({"id":2, "moduleName":"global", "type":"request", "command":"files/getProjectExplorer", )"
                       R"("projectName":"", "params":{}})";

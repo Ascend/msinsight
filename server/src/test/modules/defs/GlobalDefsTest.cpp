@@ -20,11 +20,9 @@
 #include "GlobalDefs.h"
 
 using namespace Dic;
-class GlobalDefsTest : public ::testing::Test {
-};
+class GlobalDefsTest : public ::testing::Test {};
 
-TEST_F(GlobalDefsTest, isFileConflict)
-{
+TEST_F(GlobalDefsTest, isFileConflict) {
     ProjectTypeEnum typeEnumIPYNB = ProjectTypeEnum::IPYNB;
     ProjectTypeEnum typeEnumDB = ProjectTypeEnum::DB;
     EXPECT_TRUE(isFileConflict(typeEnumIPYNB, typeEnumDB));

@@ -21,12 +21,11 @@
 
 using namespace Dic::Global::PROFILER::MockUtil;
 class DbClusterDataBaseTest : public ::testing::Test {
-protected:
+  protected:
     class MockDatabase : public Dic::Module::FullDb::DbClusterDataBase {
-    public:
+      public:
         explicit MockDatabase(std::recursive_mutex &sqlMutex) : Dic::Module::FullDb::DbClusterDataBase(sqlMutex) {}
-        void SetDbPtr(sqlite3 *dbPtr)
-        {
+        void SetDbPtr(sqlite3 *dbPtr) {
             isOpen = true;
             db = dbPtr;
             path = ":memory:";
@@ -37,8 +36,7 @@ protected:
 /**
  * DB场景设置并行策略,只设置了dp，pp，tp,兼容老版本
  */
-TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenNotSetCpAndEp)
-{
+TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenNotSetCpAndEp) {
     std::recursive_mutex sqlMutex;
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
@@ -50,7 +48,7 @@ TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenNotSetCpAndEp)
     const int64_t expectDP = 10;
     const int64_t expectCP = 1;
     const int64_t expectEP = 1;
-    Dic::Module::ParallelStrategyConfig config = { "ttttt", expectPP, expectTP, expectDP };
+    Dic::Module::ParallelStrategyConfig config = {"ttttt", expectPP, expectTP, expectDP};
     std::string msg;
     std::string level = "configed";
     Dic::Module::ClusterBaseInfo baseInfo;
@@ -70,8 +68,7 @@ TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenNotSetCpAndEp)
 /**
  * DB场景设置并行策略,设置了dp，pp，tp,cp,ep
  */
-TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenSetAllConfig)
-{
+TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenSetAllConfig) {
     std::recursive_mutex sqlMutex;
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
@@ -83,7 +80,7 @@ TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenSetAllConfig)
     const int64_t expectDP = 10;
     const int64_t expectCP = 18;
     const int64_t expectEP = 17;
-    Dic::Module::ParallelStrategyConfig config = { "ttttt", expectPP, expectTP, expectDP, expectCP, expectEP };
+    Dic::Module::ParallelStrategyConfig config = {"ttttt", expectPP, expectTP, expectDP, expectCP, expectEP};
     std::string msg;
     std::string level = "configed";
     Dic::Module::ClusterBaseInfo baseInfo;
@@ -103,8 +100,7 @@ TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenSetAllConfig)
 /**
  * DB场景查询并行策略,db未打开
  */
-TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenDbNotOpen)
-{
+TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const int64_t expectPP = 0;
@@ -127,8 +123,7 @@ TEST_F(DbClusterDataBaseTest, TestQueryParallelStrategyConfigWhenDbNotOpen)
 /**
  * DB场景设置并行策略,db未打开
  */
-TEST_F(DbClusterDataBaseTest, TestUpdateParallelStrategyConfigWhenDbNotOpen)
-{
+TEST_F(DbClusterDataBaseTest, TestUpdateParallelStrategyConfigWhenDbNotOpen) {
     std::recursive_mutex sqlMutex;
     MockDatabase database(sqlMutex);
     const int64_t expectPP = 12;
@@ -136,7 +131,7 @@ TEST_F(DbClusterDataBaseTest, TestUpdateParallelStrategyConfigWhenDbNotOpen)
     const int64_t expectDP = 10;
     const int64_t expectCP = 18;
     const int64_t expectEP = 17;
-    Dic::Module::ParallelStrategyConfig config = { "ttttt", expectPP, expectTP, expectDP, expectCP, expectEP };
+    Dic::Module::ParallelStrategyConfig config = {"ttttt", expectPP, expectTP, expectDP, expectCP, expectEP};
     std::string msg;
     std::string level = "configed";
     bool ans = database.UpdateParallelStrategyConfig(config, level, msg);

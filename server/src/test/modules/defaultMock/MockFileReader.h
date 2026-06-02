@@ -21,10 +21,10 @@
 #include <gmock/gmock.h>
 #include "IFileReader.h"
 class MockFileReader : public Dic::Module::IFileReader {
-public:
+  public:
     ~MockFileReader() override = default;
     MOCK_METHOD(int64_t, GetFileSize, (const std::string &filePath), (override));
     MOCK_METHOD(std::string, ReadJsonArray, (const std::string &filePath, int64_t startPosition, int64_t endPosition),
-    (override));
+        (override));
 };
 #endif // PROFILER_SERVER_MOCKFILEREADER_H

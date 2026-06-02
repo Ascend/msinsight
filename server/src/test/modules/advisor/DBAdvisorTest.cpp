@@ -34,31 +34,25 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::Module::Advisor;
 
 class DBAdvisorTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
+  public:
+    static void SetUpTestSuite() {
         std::string dbPath = FileUtil::SplicePath(TestSuit::GetRootTestPath(), "data", "pytorch", "db", "level1",
-                                                  "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT",
-                                                  "ascend_pytorch_profiler_0.db");
+            "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler_0.db");
         DataBaseManager::Instance().SetDataType(DataType::DB, dbPath);
         DataBaseManager::Instance().SetFileType(FileType::PYTORCH, dbPath);
         DataBaseManager::Instance().CreateTraceConnectionPool("0", dbPath);
     }
 
-    static void TearDownTestSuite()
-    {
-        DataBaseManager::Instance().Clear();
-    }
+    static void TearDownTestSuite() { DataBaseManager::Instance().Clear(); }
 };
 
-TEST_F(DBAdvisorTest, QueryAffinityApiAdvisorSuccessInDb)
-{
+TEST_F(DBAdvisorTest, QueryAffinityApiAdvisorSuccessInDb) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
     Protocol::KernelDetailsParams params = {"duration", "DESC", 1, 10}; // 1是第1页，10是每页10条数据
-    std::map<uint64_t, std::vector<Protocol::FlowLocation> > dataMap{};
-    std::map<uint64_t, std::vector<uint32_t> > indexMap{};
+    std::map<uint64_t, std::vector<Protocol::FlowLocation>> dataMap{};
+    std::map<uint64_t, std::vector<uint32_t>> indexMap{};
     auto result = db->QueryAffinityAPIData(params, {"aten::reshape"}, startTime, dataMap, indexMap);
     const uint64_t expectTrackId = 13471134862269421;
     EXPECT_TRUE(result);
@@ -70,8 +64,7 @@ TEST_F(DBAdvisorTest, QueryAffinityApiAdvisorSuccessInDb)
     EXPECT_EQ(indexMap.at(expectTrackId).size(), 2);
 }
 
-TEST_F(DBAdvisorTest, QueryAffinityOptimizerAdvisorSuccessDb)
-{
+TEST_F(DBAdvisorTest, QueryAffinityOptimizerAdvisorSuccessDb) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
@@ -82,8 +75,7 @@ TEST_F(DBAdvisorTest, QueryAffinityOptimizerAdvisorSuccessDb)
     EXPECT_EQ(data.size(), 0);
 }
 
-TEST_F(DBAdvisorTest, QueryAclNNOperatorAdvisorSuccessDb)
-{
+TEST_F(DBAdvisorTest, QueryAclNNOperatorAdvisorSuccessDb) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
@@ -94,24 +86,19 @@ TEST_F(DBAdvisorTest, QueryAclNNOperatorAdvisorSuccessDb)
     EXPECT_EQ(data.size(), 0);
 }
 
-TEST_F(DBAdvisorTest, QueryAICPUOperatorAdvisorSuccessDb)
-{
+TEST_F(DBAdvisorTest, QueryAICPUOperatorAdvisorSuccessDb) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
     std::vector<Protocol::KernelBaseInfo> data{};
-    Protocol::KernelDetailsParams params = {
-        "duration", "DESC", 1,
-        10, 0, 0, "0", "0"
-    }; // 1是第1页，10是每页10条数据
-    auto result = db->QueryAICpuOpCanBeOptimized(params,
-                                                 AICPU_OP_EQUIVALENT_REPLACE, AICPU_OP_DATATYPE_RULE, data, startTime);
+    Protocol::KernelDetailsParams params = {"duration", "DESC", 1, 10, 0, 0, "0", "0"}; // 1是第1页，10是每页10条数据
+    auto result =
+        db->QueryAICpuOpCanBeOptimized(params, AICPU_OP_EQUIVALENT_REPLACE, AICPU_OP_DATATYPE_RULE, data, startTime);
     EXPECT_TRUE(result);
     EXPECT_EQ(data.size(), 0);
 }
 
-TEST_F(DBAdvisorTest, QueryFusedOperatorAdvisorSuccessDb)
-{
+TEST_F(DBAdvisorTest, QueryFusedOperatorAdvisorSuccessDb) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
@@ -122,8 +109,7 @@ TEST_F(DBAdvisorTest, QueryFusedOperatorAdvisorSuccessDb)
     EXPECT_EQ(resBody.size, 0);
 }
 
-TEST_F(DBAdvisorTest, QueryOperatorDispatchAdvisorSuccessOnDb)
-{
+TEST_F(DBAdvisorTest, QueryOperatorDispatchAdvisorSuccessOnDb) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();

@@ -42,7 +42,7 @@ using namespace Dic;
 using namespace Dic::DT::Framework;
 
 class TestSuit : public ::testing::Test {
-public:
+  public:
     // 静态成员变量
     static std::string clusterPath;
 
@@ -59,7 +59,7 @@ public:
     static void WaitParseEnd(std::vector<std::string> statusList);
 
     // 主函数
-    static int Main(int argc, char** argv);
+    static int Main(int argc, char **argv);
 
     // 获取渲染引擎实例
     static std::shared_ptr<RenderEngine> GetRenderEngine();
@@ -68,15 +68,14 @@ public:
     static std::string GetServerHome();
     static std::string GetSrcTestPath();
     static std::string GetRootTestPath();
-    template<typename... Args>
-    static std::string GetTestDataFile(Args... paths)
-    {
+    template <typename... Args> static std::string GetTestDataFile(Args... paths) {
         return FileUtil::SplicePath(DtFramework::GetTestDataDirPath(TestPathType::SRC_TEST_DATA), paths...);
     }
-private:
+
+  private:
     // 禁止拷贝构造和赋值操作
-    TestSuit(const TestSuit&) = delete;
-    TestSuit& operator=(const TestSuit&) = delete;
+    TestSuit(const TestSuit &) = delete;
+    TestSuit &operator=(const TestSuit &) = delete;
     static std::string serverHome;
     static std::string srcTestPath;
     static std::string rootTestPath;

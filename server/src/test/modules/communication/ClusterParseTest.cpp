@@ -23,11 +23,9 @@
 #include "CommunicationRapidSaxHandler.h"
 #include "../../TestSuit.h"
 
-class ClusterParseTest : public ::testing::Test {
-};
+class ClusterParseTest : public ::testing::Test {};
 
-TEST_F(ClusterParseTest, ParserDbClusterFailWithEmptyPath)
-{
+TEST_F(ClusterParseTest, ParserDbClusterFailWithEmptyPath) {
     std::recursive_mutex mutex;
     std::string clusterDbPath;
     auto database = std::make_shared<Dic::Module::FullDb::DbClusterDataBase>(mutex);
@@ -36,8 +34,7 @@ TEST_F(ClusterParseTest, ParserDbClusterFailWithEmptyPath)
     EXPECT_EQ(res, false);
 }
 
-TEST_F(ClusterParseTest, MatrixRapidHandlerTest)
-{
+TEST_F(ClusterParseTest, MatrixRapidHandlerTest) {
     CommunicationMatrixRapidHandler handler(nullptr, "TEST");
     constexpr rapidjson::SizeType elementCount{};
     EXPECT_EQ(handler.Null(), true);
@@ -50,8 +47,7 @@ TEST_F(ClusterParseTest, MatrixRapidHandlerTest)
     EXPECT_EQ(handler.EndArray(elementCount), true);
 }
 
-TEST_F(ClusterParseTest, RapidSaxHandlerTest)
-{
+TEST_F(ClusterParseTest, RapidSaxHandlerTest) {
     CommunicationRapidSaxHandler handler(nullptr, "TEST");
     EXPECT_EQ(handler.Null(), true);
     EXPECT_EQ(handler.Bool(true), true);

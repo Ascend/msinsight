@@ -24,22 +24,17 @@
 #include "JsonFileProcess.h"
 
 class JsonFileProcessTest : public ::testing::Test {
-protected:
+  protected:
     class JsonFileProcessMock : protected Dic::Module::JsonFileProcess {
-    public:
-        static std::vector<std::pair<int64_t, int64_t>> SplitFileMock(const std::string &filePath,
-            std::optional<std::pair<int64_t, int64_t>> position = std::nullopt)
-        {
+      public:
+        static std::vector<std::pair<int64_t, int64_t>> SplitFileMock(
+            const std::string &filePath, std::optional<std::pair<int64_t, int64_t>> position = std::nullopt) {
             return SplitFile(filePath, position);
         }
     };
     const std::string tempFileName = "temp_test_file.json";
-    void TearDown()
-    {
-        DeleteTempFile(tempFileName);
-    }
-    std::string GenerateLargeJsonArray(size_t sizeInBytes)
-    {
+    void TearDown() { DeleteTempFile(tempFileName); }
+    std::string GenerateLargeJsonArray(size_t sizeInBytes) {
         const uint64_t offset = 10;
         std::string jsonArray = "[";
         while (jsonArray.size() < sizeInBytes - offset) {
@@ -53,8 +48,7 @@ protected:
         return jsonArray;
     }
 
-    std::string GenerateLargeJsonDocument(size_t sizeInBytes)
-    {
+    std::string GenerateLargeJsonDocument(size_t sizeInBytes) {
         const uint64_t offset = 2;
         std::string jsonDocument = "{\"traceEvents\":[";
         std::string jsonObject = "{\"id\": 1, \"ph\": \"XXtest\"}";
@@ -72,8 +66,7 @@ protected:
         return jsonDocument;
     }
 
-    std::string GenerateWrongEndJsonDocument(size_t sizeInBytes)
-    {
+    std::string GenerateWrongEndJsonDocument(size_t sizeInBytes) {
         const uint64_t offset = 2;
         std::string jsonDocument = "{}]}\"traceEvents\":[";
         std::string jsonObject = "{\"id\": 1, \"name\": \"test\"}";
@@ -86,8 +79,7 @@ protected:
         return jsonDocument;
     }
 
-    std::string GenerateWrongStartJsonDocument(size_t sizeInBytes)
-    {
+    std::string GenerateWrongStartJsonDocument(size_t sizeInBytes) {
         const uint64_t offset = 2;
         std::string jsonDocument = "{\"traceEvents\":@@@";
         std::string jsonObject = "{\"id\": 1, \"name\": \"test\"}";
@@ -105,8 +97,7 @@ protected:
         return jsonDocument;
     }
 
-    std::string WriteTempJsonFile(const std::string &data)
-    {
+    std::string WriteTempJsonFile(const std::string &data) {
         std::ofstream tempFile(tempFileName, std::ios::out | std::ios::trunc);
         if (tempFile.is_open()) {
             tempFile << data;
@@ -118,8 +109,7 @@ protected:
     }
 
     // 删除临时文件
-    void DeleteTempFile(const std::string &fileName)
-    {
+    void DeleteTempFile(const std::string &fileName) {
         if (std::remove(fileName.c_str()) != 0) {
             std::cerr << "Error deleting temporary file." << std::endl;
         }
@@ -129,8 +119,7 @@ protected:
 /**
  * 测试文件打开失败的情况
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenFileIsNotOpen)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenFileIsNotOpen) {
     std::vector<std::pair<int64_t, int64_t>> res = JsonFileProcessMock::SplitFileMock(tempFileName);
     const uint64_t expectSize = 0;
     EXPECT_EQ(res.size(), expectSize);
@@ -139,8 +128,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenFileIsNotOpen)
 /**
  * 测试0.5kb的json数组
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs500ByteThenReturn0and0)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs500ByteThenReturn0and0) {
     size_t sizeInBytes = 1024 / 2;
     std::string json = GenerateLargeJsonArray(sizeInBytes);
     WriteTempJsonFile(json);
@@ -157,8 +145,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs500ByteThenReturn0an
 /**
  * 测试0.5kb的json对象
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs500ByteThenReturnOneSplit)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs500ByteThenReturnOneSplit) {
     size_t sizeInBytes = 1024 / 2;
     std::string json = GenerateLargeJsonDocument(sizeInBytes);
     WriteTempJsonFile(json);
@@ -175,8 +162,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs500ByteThenReturnOn
 /**
  * 测试0.5kb的json对象没有开始位置
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileWithOutStartMarkThenReturnZeroSplit)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileWithOutStartMarkThenReturnZeroSplit) {
     size_t sizeInBytes = 1024 / 2;
     std::string json = GenerateWrongStartJsonDocument(sizeInBytes);
     WriteTempJsonFile(json);
@@ -188,8 +174,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileWithOutStartMarkThenR
 /**
  * 测试0.5kb的json对象没有开始位置
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileWithWrongEndMarkThenReturnZeroSplit)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileWithWrongEndMarkThenReturnZeroSplit) {
     size_t sizeInBytes = 1024 / 2;
     std::string json = GenerateWrongEndJsonDocument(sizeInBytes);
     WriteTempJsonFile(json);
@@ -201,8 +186,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileWithWrongEndMarkThenR
 /**
  * 测试9kb的json数组
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs9KBThenReturn0and0)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs9KBThenReturn0and0) {
     size_t sizeInBytes = 1024 * 9;
     std::string json = GenerateLargeJsonArray(sizeInBytes);
     WriteTempJsonFile(json);
@@ -219,8 +203,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs9KBThenReturn0and0)
 /**
  * 测试9kb的json对象
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs9KBThenReturnReturnOneSplit)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs9KBThenReturnReturnOneSplit) {
     size_t sizeInBytes = 1024 * 9;
     std::string json = GenerateLargeJsonDocument(sizeInBytes);
     WriteTempJsonFile(json);
@@ -237,14 +220,13 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs9KBThenReturnReturn
 /**
  * 文件内有两块9kb的数据
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenTwoBlock9kbInFile)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenTwoBlock9kbInFile) {
     size_t sizeInBytes = 1024 * 9;
     const std::string buffer = "llllllllll";
     std::string json = GenerateLargeJsonDocument(sizeInBytes);
     const std::string content = buffer + json + buffer + json + buffer;
     WriteTempJsonFile(content);
-    std::pair<int64_t, int64_t> pos = { buffer.size(), sizeInBytes + buffer.size() };
+    std::pair<int64_t, int64_t> pos = {buffer.size(), sizeInBytes + buffer.size()};
     std::vector<std::pair<int64_t, int64_t>> res = JsonFileProcessMock::SplitFileMock(tempFileName, pos);
     const uint64_t expectSize = 1;
     const uint64_t expectStart = 26;
@@ -254,7 +236,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenTwoBlock9kbInFile)
     EXPECT_EQ(res[first].first, expectStart);
     EXPECT_EQ(res[first].second, expectEnd);
     const int offset = 2;
-    pos = { expectEnd + buffer.size() + offset, content.size() - buffer.size() };
+    pos = {expectEnd + buffer.size() + offset, content.size() - buffer.size()};
     res = JsonFileProcessMock::SplitFileMock(tempFileName, pos);
     const uint64_t secondExpectStart = 9231;
     const uint64_t secondExpectEnd = 18407;
@@ -263,12 +245,10 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenTwoBlock9kbInFile)
     EXPECT_EQ(res[first].second, secondExpectEnd);
 }
 
-
 /* *
  * 测试52MB的json对象
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs52MBThenReturnReturnTwoSplit)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs52MBThenReturnReturnTwoSplit) {
     size_t sizeInBytes = 1024 * 1024 * 52;
     std::string json = GenerateLargeJsonDocument(sizeInBytes);
     WriteTempJsonFile(json);
@@ -290,8 +270,7 @@ TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonObjectFileIs52MBThenReturnRetur
 /**
  * 测试52MB的json数组
  */
-TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs52MBThenReturnReturnTwoSplit)
-{
+TEST_F(JsonFileProcessTest, TestSplitFileWhenJsonArrayFileIs52MBThenReturnReturnTwoSplit) {
     size_t sizeInBytes = 1024 * 1024 * 52;
     std::string json = GenerateLargeJsonArray(sizeInBytes);
     WriteTempJsonFile(json);

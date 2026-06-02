@@ -41,40 +41,40 @@ namespace Timeline {
 //=============================================================================
 
 class MockFileUtil : public IFileUtil {
-public:
-    MOCK_METHOD(bool, IsFolder, (const std::string& path), (override));
-    MOCK_METHOD(std::string, GetParentPath, (const std::string& filePath), (override));
-    MOCK_METHOD(std::vector<std::string>, FindFilesWithFilter,
-                (const std::string& path, const std::regex& fileRegex), (override));
+  public:
+    MOCK_METHOD(bool, IsFolder, (const std::string &path), (override));
+    MOCK_METHOD(std::string, GetParentPath, (const std::string &filePath), (override));
+    MOCK_METHOD(std::vector<std::string>, FindFilesWithFilter, (const std::string &path, const std::regex &fileRegex),
+        (override));
 };
 
 class MockParserStatusManager : public IParserStatusManager {
-public:
-    MOCK_METHOD(void, SetClusterParseStatus, (const std::string& uniqueKey, ParserStatus status), (override));
-    MOCK_METHOD(ParserStatus, GetClusterParseStatus, (const std::string& uniqueKey), (override));
+  public:
+    MOCK_METHOD(void, SetClusterParseStatus, (const std::string &uniqueKey, ParserStatus status), (override));
+    MOCK_METHOD(ParserStatus, GetClusterParseStatus, (const std::string &uniqueKey), (override));
 };
 
 class MockDataBaseManager : public IDataBaseManager {
-public:
+  public:
     MOCK_METHOD(void, CreateClusterConnectionPool,
-                (const std::string& projectPath, const std::string& dbPath, DataType type), (override));
-    MOCK_METHOD(std::shared_ptr<IDbClusterDataBase>, GetClusterDatabase, (const std::string& uniqueKey), (override));
+        (const std::string &projectPath, const std::string &dbPath, DataType type), (override));
+    MOCK_METHOD(std::shared_ptr<IDbClusterDataBase>, GetClusterDatabase, (const std::string &uniqueKey), (override));
 };
 
 class MockDbClusterDataBase : public IDbClusterDataBase {
-public:
+  public:
     MOCK_METHOD(bool, IsDatabaseVersionChange, (), (const, override));
-    MOCK_METHOD(bool, SetDataBaseVersion, (const std::string& targetVersion), (override));
-    MOCK_METHOD(bool, QueryExtremumTimestamp, (uint64_t& min, uint64_t& max), (override));
+    MOCK_METHOD(bool, SetDataBaseVersion, (const std::string &targetVersion), (override));
+    MOCK_METHOD(bool, QueryExtremumTimestamp, (uint64_t & min, uint64_t &max), (override));
     MOCK_METHOD(bool, CreateTable, (), (override));
     MOCK_METHOD(bool, DropTable, (), (override));
     MOCK_METHOD(bool, HasFinishedParseLastTime, (), (override));
-    MOCK_METHOD(bool, UpdatesClusterParseStatus, (const std::string& status), (override));
-    MOCK_METHOD(void, InsertClusterBaseInfo, (ClusterBaseInfo& info), (override));
+    MOCK_METHOD(bool, UpdatesClusterParseStatus, (const std::string &status), (override));
+    MOCK_METHOD(void, InsertClusterBaseInfo, (ClusterBaseInfo & info), (override));
 };
 
 class MockTraceTime : public ITraceTime {
-public:
+  public:
     MOCK_METHOD(void, UpdateTime, (uint64_t min, uint64_t max), (override));
 };
 
@@ -83,19 +83,12 @@ public:
 //=============================================================================
 
 class TestableClusterFileParser {
-public:
-    TestableClusterFileParser(const std::string& filePath,
-                              const std::string& uniqueKey,
-                              std::shared_ptr<IFileUtil> fileUtil,
-                              std::shared_ptr<IParserStatusManager> statusManager,
-                              std::shared_ptr<IDataBaseManager> dbManager,
-                              std::shared_ptr<ITraceTime> traceTime)
-        : filePath_(filePath)
-        , uniqueKey_(uniqueKey)
-        , fileUtil_(fileUtil)
-        , statusManager_(statusManager)
-        , dbManager_(dbManager)
-        , traceTime_(traceTime) {}
+  public:
+    TestableClusterFileParser(const std::string &filePath, const std::string &uniqueKey,
+        std::shared_ptr<IFileUtil> fileUtil, std::shared_ptr<IParserStatusManager> statusManager,
+        std::shared_ptr<IDataBaseManager> dbManager, std::shared_ptr<ITraceTime> traceTime)
+        : filePath_(filePath), uniqueKey_(uniqueKey), fileUtil_(fileUtil), statusManager_(statusManager),
+          dbManager_(dbManager), traceTime_(traceTime) {}
 
     // 从原有 ParserClusterOfDb 重构的核心逻辑
     bool ParserClusterOfDb() {
@@ -149,7 +142,7 @@ public:
         return true;
     }
 
-private:
+  private:
     void UpdateTraceTimeOfDb(std::shared_ptr<IDbClusterDataBase> clusterDatabase) {
         uint64_t min = UINT64_MAX;
         uint64_t max = 0;
@@ -173,7 +166,7 @@ private:
 //=============================================================================
 
 class UpdateTraceTimeOfDbTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
         mockFileUtil_ = std::make_shared<NiceMock<MockFileUtil>>();
         mockStatusManager_ = std::make_shared<NiceMock<MockParserStatusManager>>();
@@ -209,35 +202,27 @@ TEST_F(UpdateTraceTimeOfDbTest, ParserClusterOfDb_CallsUpdateTraceTime_VersionNo
     std::string clusterDbPath = "/test/path/to/cluster_analysis.db";
     std::vector<std::string> clusterPaths = {clusterDbPath};
 
-    TestableClusterFileParser parser(filePath, uniqueKey,
-                                     mockFileUtil_, mockStatusManager_,
-                                     mockDbManager_, mockTraceTime_);
+    TestableClusterFileParser parser(
+        filePath, uniqueKey, mockFileUtil_, mockStatusManager_, mockDbManager_, mockTraceTime_);
 
     // 设置 Mock 行为
     EXPECT_CALL(*mockStatusManager_, SetClusterParseStatus(uniqueKey, ParserStatus::INIT));
-    EXPECT_CALL(*mockFileUtil_, IsFolder(filePath))
-        .WillOnce(Return(false));
-    EXPECT_CALL(*mockFileUtil_, GetParentPath(filePath))
-        .WillOnce(Return("/test/path/to"));
-    EXPECT_CALL(*mockFileUtil_, FindFilesWithFilter("/test/path/to", _))
-        .WillOnce(Return(clusterPaths));
+    EXPECT_CALL(*mockFileUtil_, IsFolder(filePath)).WillOnce(Return(false));
+    EXPECT_CALL(*mockFileUtil_, GetParentPath(filePath)).WillOnce(Return("/test/path/to"));
+    EXPECT_CALL(*mockFileUtil_, FindFilesWithFilter("/test/path/to", _)).WillOnce(Return(clusterPaths));
     EXPECT_CALL(*mockDbManager_, CreateClusterConnectionPool(filePath, clusterDbPath, DataType::DB));
-    EXPECT_CALL(*mockDbManager_, GetClusterDatabase(filePath))
-        .WillOnce(Return(mockDb_));
+    EXPECT_CALL(*mockDbManager_, GetClusterDatabase(filePath)).WillOnce(Return(mockDb_));
 
     // 模拟版本未变化，上次已完成
-    EXPECT_CALL(*mockDb_, IsDatabaseVersionChange())
-        .WillOnce(Return(false));
-    EXPECT_CALL(*mockDb_, HasFinishedParseLastTime())
-        .WillOnce(Return(true));
+    EXPECT_CALL(*mockDb_, IsDatabaseVersionChange()).WillOnce(Return(false));
+    EXPECT_CALL(*mockDb_, HasFinishedParseLastTime()).WillOnce(Return(true));
 
     // 模拟查询到有效时间戳
-    EXPECT_CALL(*mockDb_, QueryExtremumTimestamp(_, _))
-        .WillOnce([](uint64_t& min, uint64_t& max) -> bool {
-            min = 1000;
-            max = 5000;
-            return true;
-        });
+    EXPECT_CALL(*mockDb_, QueryExtremumTimestamp(_, _)).WillOnce([](uint64_t &min, uint64_t &max) -> bool {
+        min = 1000;
+        max = 5000;
+        return true;
+    });
 
     // 期望 UpdateTime 被调用
     EXPECT_CALL(*mockTraceTime_, UpdateTime(1000, 5000));
@@ -259,23 +244,18 @@ TEST_F(UpdateTraceTimeOfDbTest, ParserClusterOfDb_CallsUpdateTraceTime_VersionCh
     std::string clusterDbPath = "/test/path/to/folder/cluster_analysis.db";
     std::vector<std::string> clusterPaths = {clusterDbPath};
 
-    TestableClusterFileParser parser(filePath, uniqueKey,
-                                     mockFileUtil_, mockStatusManager_,
-                                     mockDbManager_, mockTraceTime_);
+    TestableClusterFileParser parser(
+        filePath, uniqueKey, mockFileUtil_, mockStatusManager_, mockDbManager_, mockTraceTime_);
 
     // 设置 Mock 行为
     EXPECT_CALL(*mockStatusManager_, SetClusterParseStatus(uniqueKey, ParserStatus::INIT));
-    EXPECT_CALL(*mockFileUtil_, IsFolder(filePath))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*mockFileUtil_, FindFilesWithFilter(filePath, _))
-        .WillOnce(Return(clusterPaths));
+    EXPECT_CALL(*mockFileUtil_, IsFolder(filePath)).WillOnce(Return(true));
+    EXPECT_CALL(*mockFileUtil_, FindFilesWithFilter(filePath, _)).WillOnce(Return(clusterPaths));
     EXPECT_CALL(*mockDbManager_, CreateClusterConnectionPool(filePath, clusterDbPath, DataType::DB));
-    EXPECT_CALL(*mockDbManager_, GetClusterDatabase(filePath))
-        .WillOnce(Return(mockDb_));
+    EXPECT_CALL(*mockDbManager_, GetClusterDatabase(filePath)).WillOnce(Return(mockDb_));
 
     // 模拟版本已变化，需要重新解析
-    EXPECT_CALL(*mockDb_, IsDatabaseVersionChange())
-        .WillOnce(Return(true));
+    EXPECT_CALL(*mockDb_, IsDatabaseVersionChange()).WillOnce(Return(true));
 
     // 模拟数据库操作成功
     EXPECT_CALL(*mockDb_, DropTable()).WillOnce(Return(true));
@@ -285,12 +265,11 @@ TEST_F(UpdateTraceTimeOfDbTest, ParserClusterOfDb_CallsUpdateTraceTime_VersionCh
     EXPECT_CALL(*mockDb_, InsertClusterBaseInfo(_));
 
     // 模拟查询到有效时间戳
-    EXPECT_CALL(*mockDb_, QueryExtremumTimestamp(_, _))
-        .WillOnce([](uint64_t& min, uint64_t& max) -> bool {
-            min = 2000;
-            max = 6000;
-            return true;
-        });
+    EXPECT_CALL(*mockDb_, QueryExtremumTimestamp(_, _)).WillOnce([](uint64_t &min, uint64_t &max) -> bool {
+        min = 2000;
+        max = 6000;
+        return true;
+    });
 
     // 期望 UpdateTime 被调用
     EXPECT_CALL(*mockTraceTime_, UpdateTime(2000, 6000));
@@ -312,33 +291,26 @@ TEST_F(UpdateTraceTimeOfDbTest, ParserClusterOfDb_NoCallUpdateTraceTime_InvalidT
     std::string clusterDbPath = "/test/path/to/folder/cluster_analysis.db";
     std::vector<std::string> clusterPaths = {clusterDbPath};
 
-    TestableClusterFileParser parser(filePath, uniqueKey,
-                                     mockFileUtil_, mockStatusManager_,
-                                     mockDbManager_, mockTraceTime_);
+    TestableClusterFileParser parser(
+        filePath, uniqueKey, mockFileUtil_, mockStatusManager_, mockDbManager_, mockTraceTime_);
 
     // 设置 Mock 行为
     EXPECT_CALL(*mockStatusManager_, SetClusterParseStatus(uniqueKey, ParserStatus::INIT));
-    EXPECT_CALL(*mockFileUtil_, IsFolder(filePath))
-        .WillOnce(Return(true));
-    EXPECT_CALL(*mockFileUtil_, FindFilesWithFilter(filePath, _))
-        .WillOnce(Return(clusterPaths));
+    EXPECT_CALL(*mockFileUtil_, IsFolder(filePath)).WillOnce(Return(true));
+    EXPECT_CALL(*mockFileUtil_, FindFilesWithFilter(filePath, _)).WillOnce(Return(clusterPaths));
     EXPECT_CALL(*mockDbManager_, CreateClusterConnectionPool(filePath, clusterDbPath, DataType::DB));
-    EXPECT_CALL(*mockDbManager_, GetClusterDatabase(filePath))
-        .WillOnce(Return(mockDb_));
+    EXPECT_CALL(*mockDbManager_, GetClusterDatabase(filePath)).WillOnce(Return(mockDb_));
 
     // 模拟版本未变化，上次已完成
-    EXPECT_CALL(*mockDb_, IsDatabaseVersionChange())
-        .WillOnce(Return(false));
-    EXPECT_CALL(*mockDb_, HasFinishedParseLastTime())
-        .WillOnce(Return(true));
+    EXPECT_CALL(*mockDb_, IsDatabaseVersionChange()).WillOnce(Return(false));
+    EXPECT_CALL(*mockDb_, HasFinishedParseLastTime()).WillOnce(Return(true));
 
     // 模拟查询到无效时间戳
-    EXPECT_CALL(*mockDb_, QueryExtremumTimestamp(_, _))
-        .WillOnce([](uint64_t& min, uint64_t& max) -> bool {
-            min = UINT64_MAX;
-            max = 0;
-            return true;
-        });
+    EXPECT_CALL(*mockDb_, QueryExtremumTimestamp(_, _)).WillOnce([](uint64_t &min, uint64_t &max) -> bool {
+        min = UINT64_MAX;
+        max = 0;
+        return true;
+    });
 
     // UpdateTime 不应被调用
     EXPECT_CALL(*mockTraceTime_, UpdateTime(_, _)).Times(0);

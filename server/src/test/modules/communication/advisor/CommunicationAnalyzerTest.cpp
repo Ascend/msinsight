@@ -26,13 +26,9 @@ namespace Dic {
 namespace Module {
 namespace Communication {
 class PacketAnalyzerInheritance : public PacketAnalyzer {
-public:
-    void SetData(const std::vector<PacketAnalyzerData> &inputData)
-    {
-        data = inputData;
-    }
-    void SetStatistics(const PacketAnalyzerStatistics &inputStatistics)
-    {
+  public:
+    void SetData(const std::vector<PacketAnalyzerData> &inputData) { data = inputData; }
+    void SetStatistics(const PacketAnalyzerStatistics &inputStatistics) {
         statistics.smallSdmaProportion = inputStatistics.smallSdmaProportion;
         statistics.smallSdmaDuration = inputStatistics.smallSdmaDuration;
         statistics.sdmaIssue = inputStatistics.sdmaIssue;
@@ -40,75 +36,44 @@ public:
         statistics.smallRdmaDuration = inputStatistics.smallRdmaDuration;
         statistics.rdmaIssue = inputStatistics.rdmaIssue;
     }
-    PacketAnalyzerStatistics GetStatistics()
-    {
-        return statistics;
-    }
+    PacketAnalyzerStatistics GetStatistics() { return statistics; }
 };
 
 class ByteAlignmentAnalyzerInheritance : public ByteAlignmentAnalyzer {
-public:
-    void SetData(const std::map<std::string, std::vector<CommunicationLargeOperatorInfo>> &inputData)
-    {
+  public:
+    void SetData(const std::map<std::string, std::vector<CommunicationLargeOperatorInfo>> &inputData) {
         data = inputData;
     }
-    void SetStatistics(const std::vector<ByteAlignmentAnalyzerStatistics> &inputStatistics)
-    {
+    void SetStatistics(const std::vector<ByteAlignmentAnalyzerStatistics> &inputStatistics) {
         statistics = inputStatistics;
     }
-    std::vector<ByteAlignmentAnalyzerStatistics> GetStatistics()
-    {
-        return statistics;
-    }
+    std::vector<ByteAlignmentAnalyzerStatistics> GetStatistics() { return statistics; }
 };
 
 class BandwidthContentionAnalyzerInheritance : public BandwidthContentionAnalyzer {
-public:
-    void SetData(const BandwidthContentionData &inputData)
-    {
-        data = inputData;
-    }
-    void SetStatistics(const std::vector<BandwidthContentionAnalyzerStatistics> &inputStatistics)
-    {
+  public:
+    void SetData(const BandwidthContentionData &inputData) { data = inputData; }
+    void SetStatistics(const std::vector<BandwidthContentionAnalyzerStatistics> &inputStatistics) {
         statistics = inputStatistics;
     }
-    std::vector<BandwidthContentionAnalyzerStatistics> GetStatistics()
-    {
-        return statistics;
-    }
+    std::vector<BandwidthContentionAnalyzerStatistics> GetStatistics() { return statistics; }
 };
 
 class RetransmissionAnalyzerInheritance : public RetransmissionAnalyzer {
-public:
-    void SetData(const std::vector<RetransmissionClassificationInfo> &inputData)
-    {
-        data = inputData;
-    }
-    void SetStatistics(const std::vector<RetransmissionAnalyzerStatistics> &inputStatistics)
-    {
+  public:
+    void SetData(const std::vector<RetransmissionClassificationInfo> &inputData) { data = inputData; }
+    void SetStatistics(const std::vector<RetransmissionAnalyzerStatistics> &inputStatistics) {
         statistics = inputStatistics;
     }
-    std::vector<RetransmissionAnalyzerStatistics> GetStatistics()
-    {
-        return statistics;
-    }
+    std::vector<RetransmissionAnalyzerStatistics> GetStatistics() { return statistics; }
 };
 
-class CommunicationAnalyzerTest : public testing::Test {
-};
+class CommunicationAnalyzerTest : public testing::Test {};
 
-TEST_F(CommunicationAnalyzerTest, PacketAnalyzerComputeStatisticsTest)
-{
+TEST_F(CommunicationAnalyzerTest, PacketAnalyzerComputeStatisticsTest) {
     PacketAnalyzerInheritance analyzer;
-    const std::vector<PacketAnalyzerData> inputData = {
-        {"SDMA", 15.0, 2.0},
-        {"SDMA", 17.0, 1.0},
-        {"SDMA", 1.0, 5.0},
-        {"SDMA", 100.0, 3.0},
-        {"RDMA", 0.2, 2.0},
-        {"RDMA", 1.2, 2.0},
-        {"RDMA", 0.9, 5.0},
-        {"RDMA", 100.1, 10.0}};
+    const std::vector<PacketAnalyzerData> inputData = {{"SDMA", 15.0, 2.0}, {"SDMA", 17.0, 1.0}, {"SDMA", 1.0, 5.0},
+        {"SDMA", 100.0, 3.0}, {"RDMA", 0.2, 2.0}, {"RDMA", 1.2, 2.0}, {"RDMA", 0.9, 5.0}, {"RDMA", 100.1, 10.0}};
     analyzer.SetData(inputData);
     analyzer.ComputeStatistics();
     PacketAnalyzerStatistics statistics = analyzer.GetStatistics();
@@ -124,8 +89,7 @@ TEST_F(CommunicationAnalyzerTest, PacketAnalyzerComputeStatisticsTest)
     EXPECT_EQ(statistics.rdmaIssue, true);
 }
 
-TEST_F(CommunicationAnalyzerTest, PacketAnalyzerAssembleAdvisorTest)
-{
+TEST_F(CommunicationAnalyzerTest, PacketAnalyzerAssembleAdvisorTest) {
     PacketAnalyzerInheritance analyzer;
     PacketAnalyzerStatistics inputStatistics;
     inputStatistics.smallSdmaProportion = 0.5; // 0.5
@@ -158,24 +122,20 @@ TEST_F(CommunicationAnalyzerTest, PacketAnalyzerAssembleAdvisorTest)
     EXPECT_EQ(advisor.statistics["Issue"][1], "No");
 }
 
-TEST_F(CommunicationAnalyzerTest, ByteAlignmentAnalyzerComputeStatisticsTest)
-{
+TEST_F(CommunicationAnalyzerTest, ByteAlignmentAnalyzerComputeStatisticsTest) {
     ByteAlignmentAnalyzerInheritance analyzer;
     CommunicationLargeOperatorInfo info1{"hcom_allGather_1",
-        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"},
-        {1024, "SDMA", "HCCS"}, {1026, "SDMA", "HCCS"}},
-        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"},
-        {1024, "SDMA", "HCCS"}, {1026, "SDMA", "HCCS"}}};
+        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"}, {1024, "SDMA", "HCCS"},
+            {1026, "SDMA", "HCCS"}},
+        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"}, {1024, "SDMA", "HCCS"},
+            {1026, "SDMA", "HCCS"}}};
     CommunicationLargeOperatorInfo info2{"hcom_allReduce_1",
-        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"},
-        {1024, "SDMA", "HCCS"}},
-        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"},
-        {1024, "SDMA", "HCCS"}}};
+        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"}, {1024, "SDMA", "HCCS"}},
+        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"}, {1024, "SDMA", "HCCS"}}};
     CommunicationLargeOperatorInfo info3{"hcom_allGather_2",
-        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"},
-        {1024, "SDMA", "HCCS"}, {1026, "SDMA", "HCCS"}},
-        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"},
-        {1024, "SDMA", "HCCS"}}};
+        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"}, {1024, "SDMA", "HCCS"},
+            {1026, "SDMA", "HCCS"}},
+        {{790, "RDMA", "HCCS"}, {9247, "SDMA", "ON_CHIP"}, {256, "SDMA", "HCCS"}, {1024, "SDMA", "HCCS"}}};
     std::map<std::string, std::vector<CommunicationLargeOperatorInfo>> inputData;
     inputData["0"].emplace_back(info1);
     inputData["0"].emplace_back(info2);
@@ -188,8 +148,7 @@ TEST_F(CommunicationAnalyzerTest, ByteAlignmentAnalyzerComputeStatisticsTest)
     EXPECT_EQ(statistics[1].name, "hcom_allGather_2");
 }
 
-TEST_F(CommunicationAnalyzerTest, ByteAlignmentAnalyzerAssembleAdvisorTest)
-{
+TEST_F(CommunicationAnalyzerTest, ByteAlignmentAnalyzerAssembleAdvisorTest) {
     ByteAlignmentAnalyzerInheritance analyzer;
     std::vector<ByteAlignmentAnalyzerStatistics> inputStatistics;
     analyzer.SetStatistics(inputStatistics);
@@ -215,8 +174,7 @@ TEST_F(CommunicationAnalyzerTest, ByteAlignmentAnalyzerAssembleAdvisorTest)
     EXPECT_EQ(advisor.statistics["name"][1], "hcom_allReduce_15");
 }
 
-TEST_F(CommunicationAnalyzerTest, BandwidthContentionAnalyzerComputeStatisticsTest)
-{
+TEST_F(CommunicationAnalyzerTest, BandwidthContentionAnalyzerComputeStatisticsTest) {
     BandwidthContentionAnalyzerInheritance analyzer;
     BandwidthContentionMatMulInfo matmul1{"Matmul1", 100.0, 24.0};
     BandwidthContentionMatMulInfo matmul2{"Matmul2", 120.0, 20.0};
@@ -258,8 +216,7 @@ TEST_F(CommunicationAnalyzerTest, BandwidthContentionAnalyzerComputeStatisticsTe
     EXPECT_EQ(statistics[1].name, "hcom_allGather_5");
 }
 
-TEST_F(CommunicationAnalyzerTest, BandwidthContentionAnalyzerAssembleAdvisorTest)
-{
+TEST_F(CommunicationAnalyzerTest, BandwidthContentionAnalyzerAssembleAdvisorTest) {
     BandwidthContentionAnalyzerInheritance analyzer;
     std::vector<BandwidthContentionAnalyzerStatistics> inputStatistics;
     analyzer.SetStatistics(inputStatistics);
@@ -292,8 +249,7 @@ TEST_F(CommunicationAnalyzerTest, BandwidthContentionAnalyzerAssembleAdvisorTest
     EXPECT_EQ(advisor.statistics["bandwidth(GB/s)"][1], "25.000000");
 }
 
-TEST_F(CommunicationAnalyzerTest, RetransmissionAnalyzerComputeStatisticsTest)
-{
+TEST_F(CommunicationAnalyzerTest, RetransmissionAnalyzerComputeStatisticsTest) {
     RetransmissionAnalyzerInheritance analyzer;
     std::vector<RetransmissionClassificationInfo> inputData;
     RetransmissionClassificationInfo info1{"1", "(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_allReduce_1", 2000.0, 2000.0};
@@ -312,11 +268,10 @@ TEST_F(CommunicationAnalyzerTest, RetransmissionAnalyzerComputeStatisticsTest)
     EXPECT_EQ(statistics[1].opName, "hcom_allReduce_5");
 }
 
-TEST_F(CommunicationAnalyzerTest, RetransmissionAnalyzerAssembleAdvisorTest)
-{
+TEST_F(CommunicationAnalyzerTest, RetransmissionAnalyzerAssembleAdvisorTest) {
     RetransmissionAnalyzerInheritance analyzer;
-    std::vector<RetransmissionAnalyzerStatistics> inputStatistics = {{"(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_allReduce_1"},
-        {"(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_allReduce_2"}};
+    std::vector<RetransmissionAnalyzerStatistics> inputStatistics = {
+        {"(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_allReduce_1"}, {"(0, 1, 2, 3, 4, 5, 6, 7)", "hcom_allReduce_2"}};
     analyzer.SetStatistics(inputStatistics);
     CommunicationAdvisorInfo advisor;
     analyzer.AssembleAdvisor(advisor);
