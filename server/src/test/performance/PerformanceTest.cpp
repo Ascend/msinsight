@@ -25,8 +25,7 @@ int PerformanceTest::number = 0;
 std::string_view PerformanceTest::test1P2GBRootPath;
 std::string_view PerformanceTest::test1P5GBRootPath;
 
-void PerformanceTest::SetUpTestCase()
-{
+void PerformanceTest::SetUpTestCase() {
     status = {"No.", "Module", "CaseName", "Result", "Baseline(ms)", "Real Time(ms)"};
     WriteTestCaseResult(status, true);
     number = 0;
@@ -36,18 +35,14 @@ void PerformanceTest::SetUpTestCase()
 #endif
 }
 
-void PerformanceTest::TearDownTestCase() {
-}
+void PerformanceTest::TearDownTestCase() {}
 
-
-int PerformanceTest::Main(int argc, char **argv)
-{
+int PerformanceTest::Main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 
-void PerformanceTest::WriteTestCaseResult(const CaseExecuteStatus& result, bool clear)
-{
+void PerformanceTest::WriteTestCaseResult(const CaseExecuteStatus &result, bool clear) {
     std::ofstream outfile;
     outfile.open(TEST_RESULT_FILE_NAME, std::ofstream::out | (clear ? std::ofstream::trunc : std::ofstream::app));
 
@@ -60,13 +55,9 @@ void PerformanceTest::WriteTestCaseResult(const CaseExecuteStatus& result, bool 
     outfile.close();
 }
 
-std::string PerformanceTest::GetNumber()
-{
-    return std::to_string(++number);
-}
+std::string PerformanceTest::GetNumber() { return std::to_string(++number); }
 
-void PerformanceTest::SetUp()
-{
+void PerformanceTest::SetUp() {
     Test::SetUp();
     status.id = GetNumber();
     status.module = "";
@@ -76,11 +67,9 @@ void PerformanceTest::SetUp()
     status.realTime = "";
 }
 
-void PerformanceTest::TearDown()
-{
+void PerformanceTest::TearDown() {
     WriteTestCaseResult(status, false);
     Test::TearDown();
 }
 
 }
-

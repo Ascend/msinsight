@@ -24,11 +24,9 @@
 
 using namespace Dic;
 
-class FileUtilTest : public  TestSuit {
-};
+class FileUtilTest : public TestSuit {};
 
-TEST_F(TestSuit, BasicAssertions)
-{
+TEST_F(TestSuit, BasicAssertions) {
 #ifdef _WIN32
     EXPECT_EQ(FileUtil::SplicePath("a", "b"), "a\\b");
     EXPECT_EQ(FileUtil::SplicePath("a", "b", "c"), "a\\b\\c");
@@ -37,8 +35,7 @@ TEST_F(TestSuit, BasicAssertions)
 #endif
 }
 
-TEST(TestUtil, testGetDouble)
-{
+TEST(TestUtil, testGetDouble) {
     json_t json;
     rapidjson::Document d;
     d.Parse("{\n"
@@ -58,8 +55,7 @@ TEST(TestUtil, testGetDouble)
     EXPECT_EQ(dur, 169.33);
 }
 
-TEST(TestUtil, TestSplitToRankList)
-{
+TEST(TestUtil, TestSplitToRankList) {
     std::vector<std::pair<std::string, std::string>> fileList;
     std::pair<std::string, std::string> pair1;
     pair1.first = "1";
@@ -73,33 +69,30 @@ TEST(TestUtil, TestSplitToRankList)
     EXPECT_EQ(result.size(), 2);
 }
 
-TEST(TestUtil, TestGetRankIdFromFile)
-{
+TEST(TestUtil, TestGetRankIdFromFile) {
     std::string rank = FileUtil::GetRankIdFromFile(
-            TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "trace_view.json"));
+        TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "trace_view.json"));
     EXPECT_EQ(rank, "1");
 }
 
-TEST(TestUtil, TestGetRankIdFromPath)
-{
+TEST(TestUtil, TestGetRankIdFromPath) {
     std::string rank = FileUtil::GetRankIdFromPath(
-            TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "trace_view.json"));
+        TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "trace_view.json"));
     auto result = FileUtil::CheckPathSecurity(
-            TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "trace_view.json"), CHECK_FILE_READ);
+        TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "trace_view.json"), CHECK_FILE_READ);
     EXPECT_EQ(rank, "test_rank_1");
     EXPECT_EQ(result.isSuccess, true);
 }
 
-TEST(TestUtil, TestGetDbPath)
-{
+TEST(TestUtil, TestGetDbPath) {
     std::string traceViewPath = TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "trace_view.json");
     std::string dbPath = FileUtil::GetDbPath(traceViewPath, "1");
-    std::string expectedDbPath = TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db");
+    std::string expectedDbPath =
+        TestSuit::GetTestDataFile("test_rank_1", "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db");
     EXPECT_EQ(dbPath, expectedDbPath);
 }
 
-TEST(TestUtil, TestIdBuilder)
-{
+TEST(TestUtil, TestIdBuilder) {
     int id2 = IdBuilder::EventIdBuilder().Build();
     int id3 = IdBuilder::RequestIdBuilder().Build();
     int id4 = IdBuilder::SessionIdBuilder().Build();
@@ -108,37 +101,25 @@ TEST(TestUtil, TestIdBuilder)
     EXPECT_EQ(id4, 0);
 }
 
-TEST(TestUtil, GetFileId)
-{
-    EXPECT_EQ(FileUtil::GetSingleFileIdWithDb("test"), "test_mindstudio_insight_data.db");
-}
+TEST(TestUtil, GetFileId) { EXPECT_EQ(FileUtil::GetSingleFileIdWithDb("test"), "test_mindstudio_insight_data.db"); }
 
-TEST(TestUtil, TestGetFileSizeNullFileName)
-{
+TEST(TestUtil, TestGetFileSizeNullFileName) {
     auto res = FileUtil::GetFileSize(nullptr);
     EXPECT_EQ(res, 0);
 }
 
-TEST(TestUtil, TestIsAbsolutePathEmtpyPath)
-{
-    EXPECT_EQ(FileUtil::IsAbsolutePath(""), false);
-}
+TEST(TestUtil, TestIsAbsolutePathEmtpyPath) { EXPECT_EQ(FileUtil::IsAbsolutePath(""), false); }
 
-TEST(TestUtil, CheckDirAccessSuccessWhenFileExist)
-{
+TEST(TestUtil, CheckDirAccessSuccessWhenFileExist) {
     std::ofstream file(".//example.txt");
     file.close();
     EXPECT_EQ(FileUtil::CheckDirAccess(".//example.txt"), true);
     EXPECT_EQ(std::remove(".//example.txt"), 0);
 }
 
-TEST(TestUtil, CheckDirAccessFailedWhenFileIsNotExist)
-{
-    EXPECT_EQ(FileUtil::CheckDirAccess("./test1.text"), false);
-}
+TEST(TestUtil, CheckDirAccessFailedWhenFileIsNotExist) { EXPECT_EQ(FileUtil::CheckDirAccess("./test1.text"), false); }
 
-TEST(TestUtil, CheckFilePathLengthFailedWhenFilePathIsTooLong)
-{
+TEST(TestUtil, CheckFilePathLengthFailedWhenFilePathIsTooLong) {
 #ifdef _WIN32
     std::string filePath(MAX_PATH, 'a');
     EXPECT_EQ(FileUtil::CheckFilePathLength(filePath), false);
@@ -148,8 +129,7 @@ TEST(TestUtil, CheckFilePathLengthFailedWhenFilePathIsTooLong)
 #endif
 }
 
-TEST(TestUtil, CheckFilePathLengthSuccess)
-{
+TEST(TestUtil, CheckFilePathLengthSuccess) {
 #ifdef _WIN32
     std::string filePath("test11");
     EXPECT_EQ(FileUtil::CheckFilePathLength(filePath), true);
@@ -159,21 +139,18 @@ TEST(TestUtil, CheckFilePathLengthSuccess)
 #endif
 }
 
-TEST(TestUtil, CheckFilePathExistSuccessWhenFileIsExist)
-{
+TEST(TestUtil, CheckFilePathExistSuccessWhenFileIsExist) {
     std::ofstream file(".//example.txt");
     file.close();
     EXPECT_EQ(FileUtil::CheckFilePathExist(".//example.txt"), true);
     EXPECT_EQ(std::remove(".//example.txt"), 0);
 }
 
-TEST(TestUtil, CheckFilePathExistFailedWhenFileIsNotExist)
-{
+TEST(TestUtil, CheckFilePathExistFailedWhenFileIsNotExist) {
     EXPECT_EQ(FileUtil::CheckFilePathExist(".//example_no_exist.txt"), false);
 }
 
-TEST(TestUtil, IsAbsolutePathFailedWhenPathIsRelativePath)
-{
+TEST(TestUtil, IsAbsolutePathFailedWhenPathIsRelativePath) {
 #ifdef _WIN32
     EXPECT_EQ(FileUtil::IsAbsolutePath("\\dbox\\example_no_exist.txt"), false);
     EXPECT_EQ(FileUtil::IsAbsolutePath("a"), false);
@@ -182,8 +159,7 @@ TEST(TestUtil, IsAbsolutePathFailedWhenPathIsRelativePath)
 #endif
 }
 
-TEST(TestUtil, IsAbsolutePathCheckSuccessWhenPathIsAbsPath)
-{
+TEST(TestUtil, IsAbsolutePathCheckSuccessWhenPathIsAbsPath) {
 #ifdef _WIN32
     EXPECT_EQ(FileUtil::IsAbsolutePath("D:\\dbox\\example_no_exist.txt"), true);
 #else
@@ -191,38 +167,31 @@ TEST(TestUtil, IsAbsolutePathCheckSuccessWhenPathIsAbsPath)
 #endif
 }
 
-TEST(TestUtil, GetAbsPathFailedWhenPathIsEmpty)
-{
-    EXPECT_EQ(FileUtil::GetAbsPath(""), "");
-}
+TEST(TestUtil, GetAbsPathFailedWhenPathIsEmpty) { EXPECT_EQ(FileUtil::GetAbsPath(""), ""); }
 
-TEST(TestUtil, GetAbsPathSuccessWhenPathIsExist)
-{
+TEST(TestUtil, GetAbsPathSuccessWhenPathIsExist) {
     std::ofstream file(".//example.txt");
     file.close();
     EXPECT_NE(FileUtil::GetAbsPath(".//example.txt"), "");
     EXPECT_EQ(std::remove(".//example.txt"), 0);
 }
 
-TEST(TestUtil, IsSoftLinkCheckFailedWhenPathIsExistAndIsNotSoftlink)
-{
+TEST(TestUtil, IsSoftLinkCheckFailedWhenPathIsExistAndIsNotSoftlink) {
     std::ofstream file(".//example.txt");
     file.close();
     EXPECT_EQ(FileUtil::IsSoftLink(".//example.txt"), false);
     EXPECT_EQ(std::remove(".//example.txt"), 0);
 }
 
-TEST(TestUtil, IsSoftLinkCheckFailedWhenPathIsNotExist)
-{
+TEST(TestUtil, IsSoftLinkCheckFailedWhenPathIsNotExist) {
     EXPECT_EQ(FileUtil::IsSoftLink(".//example_bot_exist.txt"), false);
 }
 
-TEST(TestUtil, IsSoftLinkCheckSuccessWhenPathIsSoftlink)
-{
+TEST(TestUtil, IsSoftLinkCheckSuccessWhenPathIsSoftlink) {
     // 源文件路径
-    const char* srcPath = ".//example.txt";
+    const char *srcPath = ".//example.txt";
     // 链接文件路径
-    const char* linkPath = ".//example_softlink.txt";
+    const char *linkPath = ".//example_softlink.txt";
     std::ofstream file(srcPath);
     file.close();
 #ifdef _WIN32
@@ -239,18 +208,13 @@ TEST(TestUtil, IsSoftLinkCheckSuccessWhenPathIsSoftlink)
     EXPECT_EQ(std::remove(srcPath), 0);
 }
 
-TEST(TestUtil, CheckPathValidFailedWhenPathIsNotExist)
-{
-    EXPECT_FALSE(FileUtil::CheckPathSecurity(".//example_bot_exist.txt",CHECK_FILE_READ));
+TEST(TestUtil, CheckPathValidFailedWhenPathIsNotExist) {
+    EXPECT_FALSE(FileUtil::CheckPathSecurity(".//example_bot_exist.txt", CHECK_FILE_READ));
 }
 
-TEST_F(TestSuit, CheckPathValidFailedWhenPathIsEmpty)
-{
-    EXPECT_FALSE(FileUtil::CheckPathSecurity(""));
-}
+TEST_F(TestSuit, CheckPathValidFailedWhenPathIsEmpty) { EXPECT_FALSE(FileUtil::CheckPathSecurity("")); }
 
-TEST(TestUtil, CheckPathValidFailedWhenFileIsExistedButPathIsTooLong)
-{
+TEST(TestUtil, CheckPathValidFailedWhenFileIsExistedButPathIsTooLong) {
 #ifdef _WIN32
     std::string filePath(MAX_PATH, 'a');
     EXPECT_FALSE(FileUtil::CheckPathSecurity(filePath));
@@ -260,17 +224,15 @@ TEST(TestUtil, CheckPathValidFailedWhenFileIsExistedButPathIsTooLong)
 #endif
 }
 
-TEST(TestUtil, CheckPathValidFailedWhenFileExistInvalidChar)
-{
+TEST(TestUtil, CheckPathValidFailedWhenFileExistInvalidChar) {
     EXPECT_FALSE(FileUtil::CheckPathSecurity("te\\nst.text"));
 }
 
-TEST(TestUtil, CheckPathValidFailedWhenFileIsSoftlink)
-{
+TEST(TestUtil, CheckPathValidFailedWhenFileIsSoftlink) {
     // 源文件路径
-    const char* srcPath = ".//example.txt";
+    const char *srcPath = ".//example.txt";
     // 链接文件路径
-    const char* linkPath = ".//example_softlink.txt";
+    const char *linkPath = ".//example_softlink.txt";
     std::ofstream file(srcPath);
     file.close();
 #ifdef _WIN32
@@ -287,20 +249,18 @@ TEST(TestUtil, CheckPathValidFailedWhenFileIsSoftlink)
     EXPECT_EQ(std::remove(srcPath), 0);
 }
 
-TEST(TestUtil, CheckPathValidSuccessWhenFileIsExist)
-{
+TEST(TestUtil, CheckPathValidSuccessWhenFileIsExist) {
     // 源文件路径
-    const char* srcPath = ".//example.txt";
+    const char *srcPath = ".//example.txt";
     std::ofstream file(srcPath);
     file.close();
-    EXPECT_TRUE(FileUtil::CheckPathSecurity(srcPath,CHECK_FILE_READ));
+    EXPECT_TRUE(FileUtil::CheckPathSecurity(srcPath, CHECK_FILE_READ));
     EXPECT_EQ(std::remove(srcPath), 0);
 }
 
-TEST(TestUtil, CheckPathValidSuccessWhenFileIsExistAndPathIsInChinese)
-{
+TEST(TestUtil, CheckPathValidSuccessWhenFileIsExistAndPathIsInChinese) {
 #ifdef _WIN32
-    const wchar_t* filePath = L".\\测试001.txt";
+    const wchar_t *filePath = L".\\测试001.txt";
     HANDLE hFile = CreateFileW(filePath, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
         std::cerr << "无法创建文件: " << GetLastError() << std::endl;
@@ -310,7 +270,7 @@ TEST(TestUtil, CheckPathValidSuccessWhenFileIsExistAndPathIsInChinese)
     EXPECT_NE(DeleteFileW(filePath), 0);
 #else
     // 源文件路径
-    const char* srcPath = ".//测试001.txt";
+    const char *srcPath = ".//测试001.txt";
     std::ofstream file(srcPath);
     file.close();
     EXPECT_TRUE(FileUtil::CheckPathSecurity(srcPath));
@@ -318,16 +278,15 @@ TEST(TestUtil, CheckPathValidSuccessWhenFileIsExistAndPathIsInChinese)
 #endif
 }
 
-TEST(TestUtil, CheckFileSizeSuccessWhenFileIsEmptyAndPathIsInChinese)
-{
+TEST(TestUtil, CheckFileSizeSuccessWhenFileIsEmptyAndPathIsInChinese) {
 #ifdef _WIN32
-    const wchar_t* filePath = L".\\测试001.txt";
+    const wchar_t *filePath = L".\\测试001.txt";
     HANDLE hFile = CreateFileW(filePath, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE) {
         std::cerr << "无法创建文件: " << GetLastError() << std::endl;
     }
     // 写入数据
-    const char* data = "这是第一行\n这是第二行\n这是第三行\n";
+    const char *data = "这是第一行\n这是第二行\n这是第三行\n";
     DWORD bytesWritten;
     if (!WriteFile(hFile, data, strlen(data), &bytesWritten, NULL)) {
         std::cerr << "无法写入文件: " << GetLastError() << std::endl;
@@ -338,7 +297,7 @@ TEST(TestUtil, CheckFileSizeSuccessWhenFileIsEmptyAndPathIsInChinese)
     EXPECT_NE(DeleteFileW(filePath), 0);
 #else
     // 源文件路径
-    const char* srcPath = ".//测试001.txt";
+    const char *srcPath = ".//测试001.txt";
     std::ofstream file(srcPath);
     if (file.is_open()) {
         file << "测试1" << std::endl;
@@ -350,28 +309,25 @@ TEST(TestUtil, CheckFileSizeSuccessWhenFileIsEmptyAndPathIsInChinese)
 #endif
 }
 
-TEST(TestUtil, CheckFileSizeFailedWhenFileIsExistButIsEmpty)
-{
+TEST(TestUtil, CheckFileSizeFailedWhenFileIsExistButIsEmpty) {
     // 源文件路径
-    const char* srcPath = ".//example.txt";
+    const char *srcPath = ".//example.txt";
     std::ofstream file(srcPath);
     file.close();
     EXPECT_EQ(FileUtil::CheckFileSize(srcPath), false);
     EXPECT_EQ(std::remove(srcPath), 0);
 }
 
-TEST(TestUtil, GetRealPathSuccessWhenFileIsExistAndIsNotEmpty)
-{
+TEST(TestUtil, GetRealPathSuccessWhenFileIsExistAndIsNotEmpty) {
     // 源文件路径
-    const char* srcPath = ".//example.txt";
+    const char *srcPath = ".//example.txt";
     std::ofstream file(srcPath);
     file.close();
     EXPECT_NE(FileUtil::GetRealPath(srcPath), "");
     EXPECT_EQ(std::remove(srcPath), 0);
 }
 
-TEST(TestUtil, GetRealPathFailedWhenFileIsNotExist)
-{
+TEST(TestUtil, GetRealPathFailedWhenFileIsNotExist) {
 #ifdef _WIN32
     std::string filePath = "D:\\test\\test1\\example.txt";
     EXPECT_EQ(FileUtil::GetRealPath(filePath), filePath);
@@ -381,9 +337,8 @@ TEST(TestUtil, GetRealPathFailedWhenFileIsNotExist)
 #endif
 }
 
-TEST(TestUtil, ConvertToRealPath)
-{
-#ifdef  _WIN32
+TEST(TestUtil, ConvertToRealPath) {
+#ifdef _WIN32
     return;
 #else
     std::vector<std::string> paths = {""};
@@ -398,8 +353,7 @@ TEST(TestUtil, ConvertToRealPath)
 #endif
 }
 
-TEST(TestUitl, GetRelativePath)
-{
+TEST(TestUitl, GetRelativePath) {
     std::string path1 = "/etc/host/test";
     std::string path2 = "/etc/host";
     auto res = FileUtil::GetRelativePath(path1, path2);
@@ -409,28 +363,24 @@ TEST(TestUitl, GetRelativePath)
     EXPECT_EQ(res, nullptr);
 }
 
-TEST(TestUtil, GetRootPath)
-{
+TEST(TestUtil, GetRootPath) {
     std::string path = "/etc/hosts";
     EXPECT_EQ(FileUtil::GetRootPath(path), "/");
     path = "hosts";
     EXPECT_EQ(FileUtil::GetRootPath(path), "");
 }
 
-TEST(TestUtil, FindIfDbTypeByRegex)
-{
+TEST(TestUtil, FindIfDbTypeByRegex) {
     auto testDbDir = TestSuit::GetTestDataFile("full_db");
     const std::string DB_REG =
-            R"((msprof_[0-9]{1,16}|((ascend_pytorch_profiler)(_[0-9]{1,16}){0,1})|cluster_analysis)\.db$)";
-    const std::string traceViewReg =
-            R"((((trace_view|msprof(_slice_[0-9]{1,2})?_[0-9]{1,14})\.json)|)"
-            R"((operator_memory|operator_memory(_slice_[0-9]{1,2})?_[0-9]{1,14})\.csv)$)";
+        R"((msprof_[0-9]{1,16}|((ascend_pytorch_profiler)(_[0-9]{1,16}){0,1})|cluster_analysis)\.db$)";
+    const std::string traceViewReg = R"((((trace_view|msprof(_slice_[0-9]{1,2})?_[0-9]{1,14})\.json)|)"
+                                     R"((operator_memory|operator_memory(_slice_[0-9]{1,2})?_[0-9]{1,14})\.csv)$)";
     bool suc = FileUtil::FindIfDbTypeByRegex(testDbDir, std::regex(traceViewReg), std::regex(DB_REG));
     EXPECT_EQ(suc, true);
 }
 
-TEST(TestUtil, CopyFileByPath)
-{
+TEST(TestUtil, CopyFileByPath) {
     std::string sourcePath = "CopyFileByPathTest.tmp";
     std::ofstream sourceFile(sourcePath);
     EXPECT_TRUE(sourceFile.is_open());
@@ -443,26 +393,21 @@ TEST(TestUtil, CopyFileByPath)
     std::remove(targetPath.c_str());
 }
 
-TEST(TestUtil, TestSplitFilePathSuccess)
-{
+TEST(TestUtil, TestSplitFilePathSuccess) {
 #ifdef __WIN32
     std::string dbPath1 = R"(D:\GUI_TEST_DATA\deepseek_32B\actor worker\ma-job_ascend_pt\ASCEND_PROFILER_OUTPUT\)";
 #else
     std::string dbPath1 = "D:/GUI_TEST_DATA/deepseek_32B/actor worker/ma-job_ascend_pt/ASCEND_PROFILER_OUTPUT/";
 #endif
     auto result1 = FileUtil::SplitFilePath(dbPath1);
-    std::vector<std::string> expected1 = { "D:", "GUI_TEST_DATA", "deepseek_32B",
-        "actor worker", "ma-job_ascend_pt", "ASCEND_PROFILER_OUTPUT" };
+    std::vector<std::string> expected1 = {
+        "D:", "GUI_TEST_DATA", "deepseek_32B", "actor worker", "ma-job_ascend_pt", "ASCEND_PROFILER_OUTPUT"};
     EXPECT_EQ(result1, expected1);
 }
 
-TEST(TestUtil, SplicePath)
-{
-    EXPECT_EQ("/home/user/test", FileUtil::SplicePath("/home", "user", "test"));
-}
+TEST(TestUtil, SplicePath) { EXPECT_EQ("/home/user/test", FileUtil::SplicePath("/home", "user", "test")); }
 
-TEST(TestUtil, StemFile)
-{
+TEST(TestUtil, StemFile) {
     EXPECT_EQ(FileUtil::StemFile("test.excel"), "test");
     EXPECT_EQ(FileUtil::StemFile("/home/user/test.tar"), "test");
     EXPECT_EQ(FileUtil::StemFile("test_excel"), "test_excel");

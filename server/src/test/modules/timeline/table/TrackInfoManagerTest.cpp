@@ -25,8 +25,7 @@ class TrackInfoManagerTest : public ::testing::Test {};
 /**
  * 测试Text场景首次导入
  */
-TEST_F(TrackInfoManagerTest, TestGetTrackIdFirst)
-{
+TEST_F(TrackInfoManagerTest, TestGetTrackIdFirst) {
     TrackInfoManager::Instance().Reset();
     uint64_t first = TrackInfoManager::Instance().GetTrackId("gggg", "ppp", "ttt");
     uint64_t second = TrackInfoManager::Instance().GetTrackId("gggg", "ppp", "ttt");
@@ -45,8 +44,7 @@ TEST_F(TrackInfoManagerTest, TestGetTrackIdFirst)
 /**
  * 测试TrackId不存在
  */
-TEST_F(TrackInfoManagerTest, TestTrackIdNotExist)
-{
+TEST_F(TrackInfoManagerTest, TestTrackIdNotExist) {
     TrackInfoManager::Instance().Reset();
     TrackInfo trackInfo2;
     uint64_t notExistTrackId = 999999;
@@ -58,8 +56,7 @@ TEST_F(TrackInfoManagerTest, TestTrackIdNotExist)
 /**
  * 测试Text场景二次导入
  */
-TEST_F(TrackInfoManagerTest, TestSecondImportScene)
-{
+TEST_F(TrackInfoManagerTest, TestSecondImportScene) {
     TrackInfoManager::Instance().Reset();
     std::map<uint64_t, std::pair<std::string, std::string>> threadMap;
     std::pair<std::string, std::string> p("kkkk", "Hello");
@@ -81,8 +78,7 @@ TEST_F(TrackInfoManagerTest, TestSecondImportScene)
 /**
  * 测试DB场景host存在但devicemap不存在
  */
-TEST_F(TrackInfoManagerTest, TestHostIsExistAndDeviceMapNotExist)
-{
+TEST_F(TrackInfoManagerTest, TestHostIsExistAndDeviceMapNotExist) {
     TrackInfoManager::Instance().Reset();
     const std::string cardId = "hhhhhhhhhhh 9988";
     TrackInfoManager::Instance().UpdateHost(cardId, "hhhhhhhhhhh ");
@@ -102,8 +98,7 @@ TEST_F(TrackInfoManagerTest, TestHostIsExistAndDeviceMapNotExist)
 /**
  * 测试DB场景host和devicemap都存在
  */
-TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExist)
-{
+TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExist) {
     TrackInfoManager::Instance().Reset();
     const std::string cardId = "hhhhhhhhhhh 9988";
     TrackInfoManager::Instance().UpdateHost(cardId, "hhhhhhhhhhh ");
@@ -126,8 +121,7 @@ TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExist)
 /**
  * 测试DB场景host和devicemap都存在,但deviceMap里rankId不存在
  */
-TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExistAndRankIdNotExist)
-{
+TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExistAndRankIdNotExist) {
     TrackInfoManager::Instance().Reset();
     const std::string cardId = "hhhhhhhhhhh 9988";
     TrackInfoManager::Instance().UpdateHost(cardId, "hhhhhhhhhhh ");

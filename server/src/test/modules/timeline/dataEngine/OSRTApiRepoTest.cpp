@@ -21,28 +21,27 @@
 using namespace Dic::Module::Timeline;
 using namespace Dic::Module::FullDb;
 class OSRTApiRepoTest : public OSRTApiRepo, public ::testing::Test {
-protected:
+  protected:
     std::string OSRTApiCreate =
         "CREATE TABLE OSRT_API (name NUMERIC, globalTid NUMERIC, startNs NUMERIC, endNs NUMERIC);";
-    std::string stringIdsCreate =
-        "CREATE TABLE STRING_IDS (id INTEGER, value TEXT);";
+    std::string stringIdsCreate = "CREATE TABLE STRING_IDS (id INTEGER, value TEXT);";
     std::string OSRTApiInsert = "INSERT INTO \"OSRT_API\" (\"name\", \"globalTid\", \"startNs\", \"endNs\")"
-        " VALUES (119, 885733925791211, 1736911444046987000, 1736911444046990000), "
-        " (123, 885733925791211, 1736911444046987000, 1736911444046997000),"
-        " (119, 885733925791211, 1736911444047007000, 1736911444047010000),"
-        " (124, 885733925791211, 1736911444047207000, 1736911444047210000),"
-        " (119, 885733925791211, 1736911444047407000, 1736911444047410000),"
-        " (128, 885733925791213, 1736911444046997000, 1736911444047000000),"
-        " (119, 885733925791213, 1736911444047197000, 1736911444047200000),"
-        " (123, 885733925791213, 1736911444047397000, 1736911444047400000),"
-        " (124, 885733925791213, 1736911444047597000, 1736911444047600000),"
-        " (119, 885733925791213, 1736911444047797000, 1736911444047800000);";
-    std::string stringIdsInsert = "INSERT INTO \"STRING_IDS\" (\"id\", \"value\") VALUES"
+                                " VALUES (119, 885733925791211, 1736911444046987000, 1736911444046990000), "
+                                " (123, 885733925791211, 1736911444046987000, 1736911444046997000),"
+                                " (119, 885733925791211, 1736911444047007000, 1736911444047010000),"
+                                " (124, 885733925791211, 1736911444047207000, 1736911444047210000),"
+                                " (119, 885733925791211, 1736911444047407000, 1736911444047410000),"
+                                " (128, 885733925791213, 1736911444046997000, 1736911444047000000),"
+                                " (119, 885733925791213, 1736911444047197000, 1736911444047200000),"
+                                " (123, 885733925791213, 1736911444047397000, 1736911444047400000),"
+                                " (124, 885733925791213, 1736911444047597000, 1736911444047600000),"
+                                " (119, 885733925791213, 1736911444047797000, 1736911444047800000);";
+    std::string stringIdsInsert =
+        "INSERT INTO \"STRING_IDS\" (\"id\", \"value\") VALUES"
         " (119, \"read\"), (123, \"openat\"), (124, \"clock_nanosleep\"), (128, \"mmap\"), (131, \"munmap\")";
 };
 
-TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLNormalTest)
-{
+TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLNormalTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     currPath = currPath.substr(0, index);
@@ -79,8 +78,7 @@ TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLNormalTest
     std::remove(completePath.c_str());
 }
 
-TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLFailedTest)
-{
+TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLFailedTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     currPath = currPath.substr(0, index);
@@ -99,8 +97,7 @@ TEST_F(OSRTApiRepoTest, QuerySimpleSliceWithOutNameByTrackIdExecuteSQLFailedTest
     std::remove(completePath.c_str());
 }
 
-TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLNormalTest)
-{
+TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLNormalTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     currPath = currPath.substr(0, index);
@@ -137,8 +134,7 @@ TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLNormalTest)
     std::remove(completePath.c_str());
 }
 
-TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLFailedTest)
-{
+TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLFailedTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     currPath = currPath.substr(0, index);
@@ -155,8 +151,7 @@ TEST_F(OSRTApiRepoTest, QueryCompeteSliceByIdsExecuteSQLFailedTest)
     std::remove(completePath.c_str());
 }
 
-TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLNormalTest)
-{
+TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLNormalTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     currPath = currPath.substr(0, index);
@@ -184,8 +179,7 @@ TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLNormalTest)
     std::remove(completePath.c_str());
 }
 
-TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLFailedTest)
-{
+TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLFailedTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     currPath = currPath.substr(0, index);
@@ -206,19 +200,18 @@ TEST_F(OSRTApiRepoTest, QuerySliceDetailInfoExecuteSQLFailedTest)
 /**
  * 测试全量DB的 osrtApiRepo 转化 SliceInterface 的情况
  */
-TEST_F(OSRTApiRepoTest, TestDynamicCastOfMultiSliceInterface)
-{
+TEST_F(OSRTApiRepoTest, TestDynamicCastOfMultiSliceInterface) {
     std::shared_ptr<IBaseSliceRepo> osrtApiRepo = std::make_shared<OSRTApiRepo>();
     // 转 IPythonFuncSlice 失败
-    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice*>(osrtApiRepo.get());
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(osrtApiRepo.get());
     EXPECT_EQ(pythonFuncRepo, nullptr);
     // 转 IFindSliceByNameList 失败
-    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList*>(osrtApiRepo.get());
+    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList *>(osrtApiRepo.get());
     EXPECT_EQ(findSliceByNameList, nullptr);
     // 转 IFindSliceByTimepointAndName 失败
-    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName*>(osrtApiRepo.get());
+    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName *>(osrtApiRepo.get());
     EXPECT_EQ(findSliceByTimepointAndName, nullptr);
     // 转 ITextSlice 失败
-    const auto textSliceRepo = dynamic_cast<ITextSlice*>(osrtApiRepo.get());
+    const auto textSliceRepo = dynamic_cast<ITextSlice *>(osrtApiRepo.get());
     EXPECT_EQ(textSliceRepo, nullptr);
 }

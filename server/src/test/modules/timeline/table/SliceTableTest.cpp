@@ -23,15 +23,14 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class SliceTableTest : public ::testing::Test {};
 
-TEST_F(SliceTableTest, TestSliceTableColumnMaping)
-{
+TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql =
         "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
         "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO slice (timestamp, duration, name,track_id, cat, "
-        "args,cname,end_time,flag_id) VALUES (1, 2,'3',5,'6','7','8',9,'10');";
+                            "args,cname,end_time,flag_id) VALUES (1, 2,'3',5,'6','7','8',9,'10');";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<SlicePO> slicePos;
     Dic::Protocol::SliceTable sliceTable;

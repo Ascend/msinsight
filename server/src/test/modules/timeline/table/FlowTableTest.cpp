@@ -23,11 +23,10 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class FlowTableTest : public ::testing::Test {};
 
-TEST_F(FlowTableTest, TestFlowTableColumnMaping)
-{
+TEST_F(FlowTableTest, TestFlowTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE flow (id INTEGER PRIMARY KEY AUTOINCREMENT, flow_id TEXT, name TEXT, cat TEXT, "
-        "track_id INTEGER, timestamp INTEGER, type TEXT);";
+                      "track_id INTEGER, timestamp INTEGER, type TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert =
         "INSERT INTO flow (flow_id, name, cat, track_id, timestamp, type) VALUES ('1', '2','3',5,6,'7');";

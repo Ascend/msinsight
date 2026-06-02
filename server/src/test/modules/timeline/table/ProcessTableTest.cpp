@@ -23,14 +23,13 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::TimeLine::TestCaseUtil;
 class ProcessTableTest : public ::testing::Test {};
 
-TEST_F(ProcessTableTest, TestProcessColumnMaping)
-{
+TEST_F(ProcessTableTest, TestProcessColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql =
         "CREATE TABLE process (pid TEXT PRIMARY KEY, process_name TEXT, label TEXT, process_sort_index INTEGER);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO \"main\".\"process\" (\"pid\", \"process_name\", \"label\", "
-        "\"process_sort_index\") VALUES ('207552928', 'Ascend Hardware', 'NPU', 13);";
+                            "\"process_sort_index\") VALUES ('207552928', 'Ascend Hardware', 'NPU', 13);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<ProcessPO> processPOS;
     ProcessTable processTable;

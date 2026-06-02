@@ -35,12 +35,12 @@ const std::string SEPARATOR = ",";
 const std::string TEST_RESULT_FILE_NAME = "performance_test.csv";
 
 class PerformanceTest : public ::testing::Test {
-public:
+  public:
     static std::string GetNumber();
 
-    static void WriteTestCaseResult(const CaseExecuteStatus& result, bool clear);
+    static void WriteTestCaseResult(const CaseExecuteStatus &result, bool clear);
 
-protected:
+  protected:
     static void SetUpTestCase();
 
     static void TearDownTestCase();
@@ -49,7 +49,7 @@ protected:
 
     void TearDown() override;
 
-    static int Main(int argc, char** argv);
+    static int Main(int argc, char **argv);
 
     static int number;
     static CaseExecuteStatus status;

@@ -23,11 +23,9 @@
 using namespace Dic;
 using namespace NumberSafe;
 
-class NumberSafeUtilTest : public testing::Test {
-};
+class NumberSafeUtilTest : public testing::Test {};
 
-TEST_F(NumberSafeUtilTest, SafeCast)
-{
+TEST_F(NumberSafeUtilTest, SafeCast) {
     // int -> uint
     const int32_t a = -10;
     bool suc = IsSafeCast<int32_t, uint32_t>(a);
@@ -66,8 +64,7 @@ TEST_F(NumberSafeUtilTest, SafeCast)
     EXPECT_TRUE(suc);
 }
 
-TEST_F(NumberSafeUtilTest, FLIP)
-{
+TEST_F(NumberSafeUtilTest, FLIP) {
     int a = 10;
     a = Flip(a);
     const int expect = -10;
@@ -78,8 +75,7 @@ TEST_F(NumberSafeUtilTest, FLIP)
     EXPECT_EQ(-1 * b, Flip(b));
 }
 
-TEST_F(NumberSafeUtilTest, AddTowIntUpZero)
-{
+TEST_F(NumberSafeUtilTest, AddTowIntUpZero) {
     // int + int
     const int left = 10;
     const int right = 11;
@@ -88,8 +84,7 @@ TEST_F(NumberSafeUtilTest, AddTowIntUpZero)
     EXPECT_EQ(res, expect);
 }
 
-TEST_F(NumberSafeUtilTest, AddTowIntDifferenSign)
-{
+TEST_F(NumberSafeUtilTest, AddTowIntDifferenSign) {
     const int left = -10;
     const int right = 5;
     const int res = Add(left, right);
@@ -97,31 +92,27 @@ TEST_F(NumberSafeUtilTest, AddTowIntDifferenSign)
     EXPECT_EQ(res, expect);
 }
 
-TEST_F(NumberSafeUtilTest, AddTowIntMax)
-{
+TEST_F(NumberSafeUtilTest, AddTowIntMax) {
     const int left = std::numeric_limits<int>::max();
     const int right = 10;
     const int expect = 0;
     EXPECT_EQ(Add(left, right), expect);
 }
 
-TEST_F(NumberSafeUtilTest, AddTowIntMin)
-{
+TEST_F(NumberSafeUtilTest, AddTowIntMin) {
     const int left = std::numeric_limits<int>::min();
     const int right = 10;
     EXPECT_EQ(Add(left, right), std::numeric_limits<int>::min() + right);
 }
 
-TEST_F(NumberSafeUtilTest, AddIntWithUint)
-{
+TEST_F(NumberSafeUtilTest, AddIntWithUint) {
     const int32_t left = 10;
     const uint32_t right = 100;
     const uint32_t expect = 110;
     EXPECT_EQ(Add(left, right), expect);
 }
 
-TEST_F(NumberSafeUtilTest, AddIntWithUintDiffSign)
-{
+TEST_F(NumberSafeUtilTest, AddIntWithUintDiffSign) {
     const int left = -10;
     const int right = 10;
     const int expect1 = 0;
@@ -130,8 +121,7 @@ TEST_F(NumberSafeUtilTest, AddIntWithUintDiffSign)
     EXPECT_EQ(Add(max, right), expect1);
 }
 
-TEST_F(NumberSafeUtilTest, AddInt64WithInt32)
-{
+TEST_F(NumberSafeUtilTest, AddInt64WithInt32) {
     const int32_t a = 10;
     const int64_t b = 20;
     const int64_t expect1 = 30;
@@ -142,44 +132,37 @@ TEST_F(NumberSafeUtilTest, AddInt64WithInt32)
     EXPECT_EQ(Add(a, int64Max), 0);
 }
 
-TEST_F(NumberSafeUtilTest, Addint64WithUin32)
-{
+TEST_F(NumberSafeUtilTest, Addint64WithUin32) {
     const int64_t a = 100;
     uint32_t b = std::numeric_limits<uint32_t>::max();
     EXPECT_EQ(Add(a, b), a + b);
 }
 
-TEST_F(NumberSafeUtilTest, AddUint64WithInt32)
-{
+TEST_F(NumberSafeUtilTest, AddUint64WithInt32) {
     const uint64_t a = 10;
     const int32_t b = -1;
     EXPECT_EQ(Add(a, b), 0);
 }
 
-TEST_F(NumberSafeUtilTest, AddFloatPoint)
-{
+TEST_F(NumberSafeUtilTest, AddFloatPoint) {
     const double a = 1.71;
     const double b = 2.90;
     EXPECT_EQ(Add(a, b), a + b);
 }
 
-TEST_F(NumberSafeUtilTest, AddFloatWithDouble)
-{
+TEST_F(NumberSafeUtilTest, AddFloatWithDouble) {
     const double a = 1.71;
     const float b = 2.90;
     EXPECT_EQ(Add(a, b), a + b);
 }
 
-TEST_F(NumberSafeUtilTest, AddFloatWithDoubleMinElips)
-{
+TEST_F(NumberSafeUtilTest, AddFloatWithDoubleMinElips) {
     const float b = 2.90;
     const double a = std::numeric_limits<double>::epsilon();
     EXPECT_EQ(Add(a, b), a + b);
 }
 
-
-TEST_F(NumberSafeUtilTest, SubInt)
-{
+TEST_F(NumberSafeUtilTest, SubInt) {
     // int to int
     const int32_t a = 100;
     const int32_t b = 10;
@@ -190,8 +173,7 @@ TEST_F(NumberSafeUtilTest, SubInt)
     EXPECT_EQ(Sub(a, rightValue10), a - rightValue10);
 }
 
-TEST_F(NumberSafeUtilTest, SubUint)
-{
+TEST_F(NumberSafeUtilTest, SubUint) {
     const uint32_t a = 100;
     const uint32_t b = 10;
     const uint32_t expect1 = 90;
@@ -202,8 +184,7 @@ TEST_F(NumberSafeUtilTest, SubUint)
     EXPECT_EQ(Sub(c, d), expect2);
 }
 
-TEST_F(NumberSafeUtilTest, SubIntWithUint)
-{
+TEST_F(NumberSafeUtilTest, SubIntWithUint) {
     const uint32_t a = 100;
     const int32_t b = -1000;
     const uint32_t expect1 = 1100;
@@ -213,16 +194,14 @@ TEST_F(NumberSafeUtilTest, SubIntWithUint)
     EXPECT_EQ(Sub(a, smallNum), expect2);
 }
 
-TEST_F(NumberSafeUtilTest, SubInt64WithUint8)
-{
+TEST_F(NumberSafeUtilTest, SubInt64WithUint8) {
     const int64_t a = 484;
     const uint8_t b = 2;
     const int64_t expect = 482;
     EXPECT_EQ(NumberSafe::Sub(a, b), expect);
 }
 
-TEST_F(NumberSafeUtilTest, Multiply)
-{
+TEST_F(NumberSafeUtilTest, Multiply) {
     const int32_t a = 10;
     const int32_t b = 20;
     const int32_t expect = 200;
@@ -234,15 +213,13 @@ TEST_F(NumberSafeUtilTest, Multiply)
     EXPECT_EQ(Muls(left, right), 0);
 }
 
-TEST_F(NumberSafeUtilTest, Div)
-{
+TEST_F(NumberSafeUtilTest, Div) {
     const uint64_t a = 10;
     const uint64_t b = 0;
     EXPECT_EQ(Division(a, b), 0);
 }
 
-TEST_F(NumberSafeUtilTest, multiCall)
-{
+TEST_F(NumberSafeUtilTest, multiCall) {
     const int64_t startPos = 12;
     const uint64_t dataSize = 472;
     const uint8_t paddingLength = 2;

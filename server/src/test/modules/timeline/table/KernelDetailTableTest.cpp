@@ -23,13 +23,12 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class KernelDetailTableTest : public ::testing::Test {};
 
-TEST_F(KernelDetailTableTest, testMstxEventsTableColumnMaping)
-{
+TEST_F(KernelDetailTableTest, testMstxEventsTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE kernel_detail (id INTEGER PRIMARY KEY AUTOINCREMENT, deviceId TEXT, step_id TEXT, "
-        "name TEXT, op_type TEXT, accelerator_core TEXT, start_time INTEGER, duration INTEGER, wait_time "
-        "INTEGER, block_dim INTEGER, input_shapes TEXT, input_data_types TEXT, input_formats TEXT, "
-        "output_shapes TEXT, output_data_types TEXT, output_formats TEXT);";
+                      "name TEXT, op_type TEXT, accelerator_core TEXT, start_time INTEGER, duration INTEGER, wait_time "
+                      "INTEGER, block_dim INTEGER, input_shapes TEXT, input_data_types TEXT, input_formats TEXT, "
+                      "output_shapes TEXT, output_data_types TEXT, output_formats TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert =
         "INSERT INTO \"main\".\"kernel_detail\" (\"id\", \"deviceId\", \"step_id\", \"name\", \"op_type\", "

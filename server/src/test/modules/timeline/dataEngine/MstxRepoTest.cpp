@@ -24,32 +24,24 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::TimeLine::Table::Default::Mock;
 using namespace Dic::Global::PROFILER::MockUtil;
 class MstxRepoTest : public ::testing::Test {
-protected:
+  protected:
     const std::string stringIdsSql = "CREATE TABLE STRING_IDS (id INTEGER PRIMARY KEY,value TEXT);";
     const std::string mstxSql = "CREATE TABLE MSTX_EVENTS (startNs INTEGER,endNs INTEGER,eventType INTEGER,rangeId "
-        "INTEGER,category INTEGER,message INTEGER,globalTid INTEGER,endGlobalTid "
-        "INTEGER,domainId INTEGER,connectionId INTEGER, depth integer);";
+                                "INTEGER,category INTEGER,message INTEGER,globalTid INTEGER,endGlobalTid "
+                                "INTEGER,domainId INTEGER,connectionId INTEGER, depth integer);";
     const std::string mstxTypeSql = "CREATE TABLE ENUM_MSTX_EVENT_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
-    void SetUp() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void SetUp() override { TrackInfoManager::Instance().Reset(); }
 
-    void TearDown() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void TearDown() override { TrackInfoManager::Instance().Reset(); }
 };
 
 /**
  * 测试根据id查询算子详情,正常情况
  */
-TEST_F(MstxRepoTest, TestQuerySliceDetailInfoNormal)
-{
+TEST_F(MstxRepoTest, TestQuerySliceDetailInfoNormal) {
     class MstxRepoMock : public MstxRepo {
-    public:
-        void SetMock(MstxDependency &dependency)
-        {
+      public:
+        void SetMock(MstxDependency &dependency) {
             mstxEventsTable = std::move(dependency.mstxEventsTableMock);
             enumMstxEventTypeTable = std::move(dependency.enumMstxEventTypeTableMock);
             stringIdsTable = std::move(dependency.stringIdsTableMock);
@@ -61,13 +53,13 @@ TEST_F(MstxRepoTest, TestQuerySliceDetailInfoNormal)
     DatabaseTestCaseMockUtil::CreateTable(db, mstxTypeSql);
     DatabaseTestCaseMockUtil::CreateTable(db, stringIdsSql);
     std::string mstxInsert = "INSERT INTO \"main\".\"MSTX_EVENTS\" (\"startNs\", \"endNs\", \"eventType\", "
-        "\"rangeId\", \"category\", \"message\", \"globalTid\", \"endGlobalTid\", \"domainId\", "
-        "\"connectionId\", \"depth\") VALUES (1718180918997410110, 1718180918997410110, 3, "
-        "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 0);";
+                             "\"rangeId\", \"category\", \"message\", \"globalTid\", \"endGlobalTid\", \"domainId\", "
+                             "\"connectionId\", \"depth\") VALUES (1718180918997410110, 1718180918997410110, 3, "
+                             "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 0);";
     std::string mstxTypeInsert =
         "INSERT INTO \"main\".\"ENUM_MSTX_EVENT_TYPE\" (\"id\", \"name\") VALUES (3, 'marker_ex');";
     std::string stringInsert = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (377, 'mmmm');\n"
-        "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (513, 'aaaa');";
+                               "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (513, 'aaaa');";
     DatabaseTestCaseMockUtil::InsertData(db, mstxInsert);
     DatabaseTestCaseMockUtil::InsertData(db, mstxTypeInsert);
     DatabaseTestCaseMockUtil::InsertData(db, stringInsert);
@@ -98,12 +90,10 @@ TEST_F(MstxRepoTest, TestQuerySliceDetailInfoNormal)
 /**
  * 测试根据id查询算子详情,算子不存在
  */
-TEST_F(MstxRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse)
-{
+TEST_F(MstxRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse) {
     class MstxRepoMock : public MstxRepo {
-    public:
-        void SetMock(MstxDependency &dependency)
-        {
+      public:
+        void SetMock(MstxDependency &dependency) {
             mstxEventsTable = std::move(dependency.mstxEventsTableMock);
             enumMstxEventTypeTable = std::move(dependency.enumMstxEventTypeTableMock);
             stringIdsTable = std::move(dependency.stringIdsTableMock);
@@ -113,9 +103,9 @@ TEST_F(MstxRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse)
     DatabaseTestCaseMockUtil::OpenDB(db);
     DatabaseTestCaseMockUtil::CreateTable(db, mstxSql);
     std::string mstxInsert = "INSERT INTO \"main\".\"MSTX_EVENTS\" (\"startNs\", \"endNs\", \"eventType\", "
-        "\"rangeId\", \"category\", \"message\", \"globalTid\", \"endGlobalTid\", \"domainId\", "
-        "\"connectionId\", \"depth\") VALUES (1718180918997410110, 1718180918997410110, 3, "
-        "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 0);";
+                             "\"rangeId\", \"category\", \"message\", \"globalTid\", \"endGlobalTid\", \"domainId\", "
+                             "\"connectionId\", \"depth\") VALUES (1718180918997410110, 1718180918997410110, 3, "
+                             "4294967295, 4294967295, 513, 8785587534250072, 8785587534250072, 65535, 4000000000, 0);";
     DatabaseTestCaseMockUtil::InsertData(db, mstxInsert);
     MstxDependency dependency;
     dependency.mstxEventsTableMock = std::make_unique<MstxEventsTableMock>();
@@ -130,12 +120,10 @@ TEST_F(MstxRepoTest, TestQuerySliceDetailInfoWhenIdNotExistThenReturnFalse)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(MstxRepoTest, QuerySliceDetailInfoByNameListSuccess)
-{
+TEST_F(MstxRepoTest, QuerySliceDetailInfoByNameListSuccess) {
     class MstxRepoMock : public MstxRepo {
-    public:
-        void SetMock(MstxDependency &dependency)
-        {
+      public:
+        void SetMock(MstxDependency &dependency) {
             mstxEventsTable = std::move(dependency.mstxEventsTableMock);
             enumMstxEventTypeTable = std::move(dependency.enumMstxEventTypeTableMock);
             stringIdsTable = std::move(dependency.stringIdsTableMock);
@@ -175,16 +163,15 @@ TEST_F(MstxRepoTest, QuerySliceDetailInfoByNameListSuccess)
 /**
  * 测试全量DB的 mstxRepo 转化 SliceInterface 的情况
  */
-TEST_F(MstxRepoTest, TestDynamicCastOfMultiSliceInterface)
-{
+TEST_F(MstxRepoTest, TestDynamicCastOfMultiSliceInterface) {
     std::shared_ptr<IBaseSliceRepo> mstxRepo = std::make_shared<MstxRepo>();
     // 转 IPythonFuncSlice 失败
-    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice*>(mstxRepo.get());
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(mstxRepo.get());
     EXPECT_EQ(pythonFuncRepo, nullptr);
     // 转 IFindSliceByTimepointAndName 失败
-    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName*>(mstxRepo.get());
+    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName *>(mstxRepo.get());
     EXPECT_EQ(findSliceByTimepointAndName, nullptr);
     // 转 ITextSlice 失败
-    const auto textSliceRepo = dynamic_cast<ITextSlice*>(mstxRepo.get());
+    const auto textSliceRepo = dynamic_cast<ITextSlice *>(mstxRepo.get());
     EXPECT_EQ(textSliceRepo, nullptr);
 }

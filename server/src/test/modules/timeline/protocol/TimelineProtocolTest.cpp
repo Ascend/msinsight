@@ -25,8 +25,7 @@
 
 class TimelineProtocolTest : ProtocolTest {};
 
-TEST_F(ProtocolTest, ToImportActionRequestTest)
-{
+TEST_F(ProtocolTest, ToImportActionRequestTest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -49,8 +48,7 @@ TEST_F(ProtocolTest, ToImportActionRequestTest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToUnitThreadTracesRequestTest)
-{
+TEST_F(ProtocolTest, ToUnitThreadTracesRequestTest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -68,8 +66,7 @@ TEST_F(ProtocolTest, ToUnitThreadTracesRequestTest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToUnitThreadTracesSummaryRequest)
-{
+TEST_F(ProtocolTest, ToUnitThreadTracesSummaryRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -87,8 +84,7 @@ TEST_F(ProtocolTest, ToUnitThreadTracesSummaryRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToUnitThreadsRequest)
-{
+TEST_F(ProtocolTest, ToUnitThreadsRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -106,8 +102,7 @@ TEST_F(ProtocolTest, ToUnitThreadsRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToThreadDetailRequest)
-{
+TEST_F(ProtocolTest, ToThreadDetailRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -126,8 +121,7 @@ TEST_F(ProtocolTest, ToThreadDetailRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(ProtocolTest, ToResetWindowRequest)
-{
+TEST_F(ProtocolTest, ToResetWindowRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -145,8 +139,7 @@ TEST_F(ProtocolTest, ToResetWindowRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToSearchCountRequest)
-{
+TEST_F(ProtocolTest, ToSearchCountRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -164,8 +157,7 @@ TEST_F(ProtocolTest, ToSearchCountRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToSearchSliceRequest)
-{
+TEST_F(ProtocolTest, ToSearchSliceRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -183,8 +175,7 @@ TEST_F(ProtocolTest, ToSearchSliceRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToRemoteDeleteRequest)
-{
+TEST_F(ProtocolTest, ToRemoteDeleteRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -205,8 +196,7 @@ TEST_F(ProtocolTest, ToRemoteDeleteRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToFlowCategoryListRequest)
-{
+TEST_F(ProtocolTest, ToFlowCategoryListRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -224,8 +214,7 @@ TEST_F(ProtocolTest, ToFlowCategoryListRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToFlowCategoryEventsRequest)
-{
+TEST_F(ProtocolTest, ToFlowCategoryEventsRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -243,8 +232,7 @@ TEST_F(ProtocolTest, ToFlowCategoryEventsRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToUnitCounterRequest)
-{
+TEST_F(ProtocolTest, ToUnitCounterRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -262,8 +250,7 @@ TEST_F(ProtocolTest, ToUnitCounterRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToSystemViewRequest)
-{
+TEST_F(ProtocolTest, ToSystemViewRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -281,8 +268,7 @@ TEST_F(ProtocolTest, ToSystemViewRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToKernelDetailRequest)
-{
+TEST_F(ProtocolTest, ToKernelDetailRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -300,8 +286,7 @@ TEST_F(ProtocolTest, ToKernelDetailRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToOneKernelRequest)
-{
+TEST_F(ProtocolTest, ToOneKernelRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -319,8 +304,7 @@ TEST_F(ProtocolTest, ToOneKernelRequest)
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
-TEST_F(ProtocolTest, ToUnitThreadsOperatorsRequest)
-{
+TEST_F(ProtocolTest, ToUnitThreadsOperatorsRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -339,8 +323,7 @@ TEST_F(ProtocolTest, ToUnitThreadsOperatorsRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(ProtocolTest, ToTableDataNameListRequest)
-{
+TEST_F(ProtocolTest, ToTableDataNameListRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -359,8 +342,7 @@ TEST_F(ProtocolTest, ToTableDataNameListRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(ProtocolTest, ToTableDataDetailRequest)
-{
+TEST_F(ProtocolTest, ToTableDataDetailRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -376,23 +358,22 @@ TEST_F(ProtocolTest, ToTableDataDetailRequest)
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
     auto requestPtr = timelineProtocol.FromJson(json, error);
-    auto& request = dynamic_cast<Dic::Protocol::TableDataDetailRequest&>(*requestPtr);
+    auto &request = dynamic_cast<Dic::Protocol::TableDataDetailRequest &>(*requestPtr);
     auto id = request.id;
     std::string errMsg;
     auto res = request.params.CommonCheck(errMsg);
     EXPECT_EQ(res, false);
     EXPECT_EQ(errMsg, "Page size invalid!");
-    request.params.pageSize = 50;  // 50
+    request.params.pageSize = 50; // 50
     request.params.CommonCheck(errMsg);
     EXPECT_EQ(errMsg, "Current page invalid!");
-    request.params.currentPage = 3;  // 3
+    request.params.currentPage = 3; // 3
     auto res2 = request.params.CommonCheck(errMsg);
     EXPECT_EQ(res2, true);
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(ProtocolTest, ToCreateCurveRequest)
-{
+TEST_F(ProtocolTest, ToCreateCurveRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
@@ -408,12 +389,11 @@ TEST_F(ProtocolTest, ToCreateCurveRequest)
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
     auto requestPtr = timelineProtocol.FromJson(json, error);
-    auto& request = dynamic_cast<Dic::Protocol::CreateCurveRequest&>(*requestPtr);
+    auto &request = dynamic_cast<Dic::Protocol::CreateCurveRequest &>(*requestPtr);
     EXPECT_EQ(request.id, tempId);
 }
 
-TEST_F(ProtocolTest, ResponseToJson)
-{
+TEST_F(ProtocolTest, ResponseToJson) {
     EXPECT_NO_THROW({
         Dic::Protocol::TimelineProtocol timelineProtocol;
         timelineProtocol.Register();
@@ -453,20 +433,16 @@ TEST_F(ProtocolTest, ResponseToJson)
     });
 }
 
-TEST_F(ProtocolTest, ToSystemViewOverallResponseTest)
-{
+TEST_F(ProtocolTest, ToSystemViewOverallResponseTest) {
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();
     std::string error;
     Dic::Protocol::SystemViewOverallResponse response;
     response.details = {
-        {1.0, 30, 3, 4.0, 5.0, 3.0, "computing", {
-            {1.0, 30, 3, 4.0, 5.0, 3.0, "fa", {
-                {1.0, 30, 3, 4.0, 5.0, 3.0, "fa-fwb"},
-                {1.0, 30, 3, 4.0, 5.0, 3.0, "fa-bwb"}
-            }},
-            {1.0, 30, 3, 4.0, 5.0, 3.0, "matmal", {}}
-        }},
+        {1.0, 30, 3, 4.0, 5.0, 3.0, "computing",
+            {{1.0, 30, 3, 4.0, 5.0, 3.0, "fa",
+                 {{1.0, 30, 3, 4.0, 5.0, 3.0, "fa-fwb"}, {1.0, 30, 3, 4.0, 5.0, 3.0, "fa-bwb"}}},
+                {1.0, 30, 3, 4.0, 5.0, 3.0, "matmal", {}}}},
         {2.0, 40, 5, 4.0, 5.0, 3.0, "communication", {}},
     };
     response.pageParam.total = response.details.size();
@@ -490,8 +466,7 @@ TEST_F(ProtocolTest, ToSystemViewOverallResponseTest)
     }
 }
 
-TEST_F(ProtocolTest, EventToJson)
-{
+TEST_F(ProtocolTest, EventToJson) {
     EXPECT_NO_THROW({
         Dic::Protocol::TimelineProtocol timelineProtocol;
         timelineProtocol.Register();
@@ -511,8 +486,7 @@ TEST_F(ProtocolTest, EventToJson)
     });
 }
 
-TEST_F(ProtocolTest, TestSetRequestBaseInfoNormal)
-{
+TEST_F(ProtocolTest, TestSetRequestBaseInfoNormal) {
     std::string command = "lll";
     Dic::Protocol::Request request(command);
     Dic::document_t json(Dic::kObjectType);
@@ -534,8 +508,7 @@ TEST_F(ProtocolTest, TestSetRequestBaseInfoNormal)
     EXPECT_EQ(request.projectName, "mmmmmmmmm");
 }
 
-TEST_F(ProtocolTest, TestSetRequestBaseInfoWhenNotNormal)
-{
+TEST_F(ProtocolTest, TestSetRequestBaseInfoWhenNotNormal) {
     std::string command = "lll";
     Dic::Protocol::Request request(command);
     Dic::document_t json(Dic::kObjectType);

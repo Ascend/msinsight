@@ -21,16 +21,13 @@
 
 class ImportActionHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, ImportActionHandlerTestPathIsEmpty)
-{
+TEST_F(HandlerTest, ImportActionHandlerTestPathIsEmpty) {
     Dic::Module::Timeline::ImportActionHandler importActionHandler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::ImportActionRequest>();
     importActionHandler.HandleRequest(std::move(requestPtr));
 }
 
-
-TEST_F(HandlerTest, ImportActionHandlerTestPathIsNotEmpty)
-{
+TEST_F(HandlerTest, ImportActionHandlerTestPathIsNotEmpty) {
     Dic::Module::Timeline::ImportActionHandler importActionHandler;
     std::unique_ptr<Dic::Protocol::ImportActionRequest> requestPtr =
         std::make_unique<Dic::Protocol::ImportActionRequest>();
@@ -39,15 +36,12 @@ TEST_F(HandlerTest, ImportActionHandlerTestPathIsNotEmpty)
 }
 
 // 该用例测试导入cluster_analysis_output的上一级目录，这样导入是允许的
-TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutput)
-{
+TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutput) {
 #ifdef _WIN32
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() +
-        "..\\..\\..\\..\\test\\data\\test\\";
+    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "..\\..\\..\\..\\test\\data\\test\\";
     const std::string folderPath = deleteFolderPath + "cluster_analysis_output\\";
 #else
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() +
-        "../../../../test/data/test/";
+    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "../../../../test/data/test/";
     const std::string folderPath = deleteFolderPath + "cluster_analysis_output/";
 #endif
     const std::string filePath1 = folderPath + "cluster_communication.json";
@@ -84,15 +78,12 @@ TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutpu
     system(rmCommand.c_str());
 }
 
-TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutputTransferProject)
-{
+TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutputTransferProject) {
 #ifdef _WIN32
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() +
-                                         "..\\..\\..\\..\\test\\data\\test\\";
+    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "..\\..\\..\\..\\test\\data\\test\\";
     const std::string folderPath = deleteFolderPath + "cluster_analysis_output\\";
 #else
-    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() +
-        "../../../../test/data/test/";
+    const std::string deleteFolderPath = Dic::FileUtil::GetCurrPath() + "../../../../test/data/test/";
     const std::string folderPath = deleteFolderPath + "cluster_analysis_output/";
 #endif
     const std::string filePath1 = folderPath + "cluster_communication.json";
@@ -113,7 +104,7 @@ TEST_F(HandlerTest, ImportActionHandlerTestParentDirectoryOfClusterAnalysisOutpu
 
     Dic::Module::Timeline::ImportActionHandler importActionHandler;
     std::unique_ptr<Dic::Protocol::ImportActionRequest> requestPtr =
-            std::make_unique<Dic::Protocol::ImportActionRequest>();
+        std::make_unique<Dic::Protocol::ImportActionRequest>();
     requestPtr.get()->params.projectName = "test";
     requestPtr.get()->params.projectAction = Dic::Protocol::ProjectActionEnum::TRANSFER_PROJECT;
     requestPtr.get()->params.path.emplace_back(deleteFolderPath);

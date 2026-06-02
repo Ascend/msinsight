@@ -21,11 +21,9 @@
 
 using namespace Dic;
 
-class SafeQueueTest : public testing::Test {
-};
+class SafeQueueTest : public testing::Test {};
 
-TEST_F(SafeQueueTest, testPop)
-{
+TEST_F(SafeQueueTest, testPop) {
     SafeQueue<int> q;
     int res = 1; // push 1
     q.Push(res);

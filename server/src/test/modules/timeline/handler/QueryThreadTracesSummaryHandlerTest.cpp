@@ -21,11 +21,9 @@
 
 class QueryThreadTracesSummaryHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, QueryThreadTracesSummaryHandlerTestNormal)
-{
+TEST_F(HandlerTest, QueryThreadTracesSummaryHandlerTestNormal) {
     Dic::Module::Timeline::QueryThreadTracesSummaryHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr =
         std::make_unique<Dic::Protocol::UnitThreadTracesSummaryRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
-

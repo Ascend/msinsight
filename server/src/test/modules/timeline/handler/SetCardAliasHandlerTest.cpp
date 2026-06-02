@@ -21,18 +21,15 @@
 #include "SearchSliceHandler.h"
 #include "HandlerTest.cpp"
 
-class SetCardAliasHandlerTest : HandlerTest {
-};
+class SetCardAliasHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, SetCardAliasHandlerTestNotVariable)
-{
+TEST_F(HandlerTest, SetCardAliasHandlerTestNotVariable) {
     Dic::Module::Timeline::SetCardAliasHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::SetCardAliasRequest>();
     EXPECT_EQ(handler.HandleRequest(std::move(requestPtr)), false);
 }
 
-TEST_F(HandlerTest, SetCardAliasHandlerTestInvalidParam)
-{
+TEST_F(HandlerTest, SetCardAliasHandlerTestInvalidParam) {
     Dic::Module::Timeline::SetCardAliasHandler handler;
     std::unique_ptr<Dic::Protocol::SetCardAliasRequest> requestPtr =
         std::make_unique<Dic::Protocol::SetCardAliasRequest>();
@@ -42,14 +39,10 @@ TEST_F(HandlerTest, SetCardAliasHandlerTestInvalidParam)
     requestPtr->params.rankId = "$./|";
     EXPECT_EQ(handler.HandleRequest(std::move(requestPtr)), false);
 }
-TEST_F(HandlerTest, TestCreateCurveHandler)
-{
+TEST_F(HandlerTest, TestCreateCurveHandler) {
     class MockOpenApi : public Dic::Module::IE::ServitizationOpenApi {
-    public:
-        bool CreateCurve(const std::string& fileId, const std::string& curve) override
-        {
-            return true;
-        }
+      public:
+        bool CreateCurve(const std::string &fileId, const std::string &curve) override { return true; }
     };
     Dic::Module::Timeline::CreateCurveHandler handler;
     handler.openApi = std::make_shared<MockOpenApi>();

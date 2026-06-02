@@ -31,18 +31,15 @@ const std::string TIMELINE_MODULE = "Timeline";
 const int TIME_REFERENCE_1S = 1000;
 const int TIME_REFERENCE_2S = 2000;
 
-class TraceParserTest : PerformanceTest {
-};
+class TraceParserTest : PerformanceTest {};
 
-TEST_F(PerformanceTest, testTraceParser1P2GBTime)
-{
+TEST_F(PerformanceTest, testTraceParser1P2GBTime) {
     auto start = std::chrono::high_resolution_clock::now();
     DataBaseManager::Instance().SetDataType(DataType::TEXT, "");
-    DataBaseManager::Instance().CreateTraceConnectionPool("0",
-        FileUtil::SplicePath(test1P2GBRootPath, "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db"));
+    DataBaseManager::Instance().CreateTraceConnectionPool(
+        "0", FileUtil::SplicePath(test1P2GBRootPath, "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db"));
     JsonFileParserManager::GetTraceFileParser().Parse(
-        {FileUtil::SplicePath(test1P2GBRootPath, "ASCEND_PROFILER_OUTPUT", "trace_view.json")},
-        "0", "", "");
+        {FileUtil::SplicePath(test1P2GBRootPath, "ASCEND_PROFILER_OUTPUT", "trace_view.json")}, "0", "", "");
     while (true) {
         ParserStatus status = ParserStatusManager::Instance().GetParserStatus("0");
         if (status == ParserStatus::FINISH) {
@@ -61,15 +58,13 @@ TEST_F(PerformanceTest, testTraceParser1P2GBTime)
     JsonFileParserManager::GetTraceFileParser().Reset();
 }
 
-TEST_F(PerformanceTest, testTraceParser1P5GBTime)
-{
+TEST_F(PerformanceTest, testTraceParser1P5GBTime) {
     auto start = std::chrono::high_resolution_clock::now();
     DataBaseManager::Instance().SetDataType(DataType::TEXT, "");
-    DataBaseManager::Instance().CreateTraceConnectionPool("0",
-        FileUtil::SplicePath(test1P5GBRootPath, "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db"));
+    DataBaseManager::Instance().CreateTraceConnectionPool(
+        "0", FileUtil::SplicePath(test1P5GBRootPath, "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db"));
     JsonFileParserManager::GetTraceFileParser().Parse(
-        {FileUtil::SplicePath(test1P5GBRootPath, "ASCEND_PROFILER_OUTPUT", "trace_view.json")},
-        "0", "", "");
+        {FileUtil::SplicePath(test1P5GBRootPath, "ASCEND_PROFILER_OUTPUT", "trace_view.json")}, "0", "", "");
     while (true) {
         ParserStatus status = ParserStatusManager::Instance().GetParserStatus("0");
         if (status == ParserStatus::FINISH) {

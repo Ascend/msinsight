@@ -22,27 +22,24 @@
 using namespace Dic::Module::Timeline;
 
 class TextTraceDatabaseFtraceTest : public ::testing::Test {
-protected:
+  protected:
     class MockDatabase : public TextTraceDatabase {
-    public:
+      public:
         explicit MockDatabase(std::recursive_mutex &sqlMutex) : TextTraceDatabase(sqlMutex) {}
-        void SetDbPtr(sqlite3 *dbPtr)
-        {
+        void SetDbPtr(sqlite3 *dbPtr) {
             isOpen = true;
             db = dbPtr;
             path = ":memory:";
         }
     };
 
-    void SetUp() override
-    {
+    void SetUp() override {
         Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
         database.SetDbPtr(dbPtr);
         database.CreateFtraceTable();
     }
 
-    void TearDown() override
-    {
+    void TearDown() override {
         if (dbPtr) {
             sqlite3_close(dbPtr);
             dbPtr = nullptr;
@@ -50,22 +47,20 @@ protected:
     }
 
     sqlite3 *dbPtr = nullptr;
-    MockDatabase database { sqlMutex };
+    MockDatabase database{sqlMutex};
     std::recursive_mutex sqlMutex;
 };
 
-TEST_F(TextTraceDatabaseFtraceTest, CreateFtraceTable)
-{
+TEST_F(TextTraceDatabaseFtraceTest, CreateFtraceTable) {
     std::recursive_mutex testMutex;
     MockDatabase testDatabase(testMutex);
     testDatabase.SetDbPtr(dbPtr);
-    
+
     bool success = database.CheckTableExist("ftrace_analysis");
     EXPECT_EQ(success, true);
 }
 
-TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceTimeStatistics)
-{
+TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceTimeStatistics) {
     // 插入耗时统计数据
     FtraceStatisticsData timeData;
     timeData.trackId = 1;
@@ -88,8 +83,7 @@ TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceTimeStatistics)
     EXPECT_EQ(result.data[0].data["uninterruptibleSleep"], "100");
 }
 
-TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceIrqStatistics)
-{
+TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceIrqStatistics) {
     // 插入中断统计数据
     FtraceStatisticsData irqData;
     irqData.trackId = 2;
@@ -112,8 +106,7 @@ TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceIrqStatistics)
     EXPECT_EQ(result.data[0].data["hardIrqDuration"], "2000");
 }
 
-TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceSchedStatistics)
-{
+TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceSchedStatistics) {
     // 插入上下文切换统计数据
     FtraceStatisticsData schedData;
     schedData.trackId = 3;
@@ -132,8 +125,7 @@ TEST_F(TextTraceDatabaseFtraceTest, InsertAndQueryFtraceSchedStatistics)
     EXPECT_EQ(result.data[0].data["contextSwitchDuration"], "50000");
 }
 
-TEST_F(TextTraceDatabaseFtraceTest, InsertMultipleDataTypesForSameTrackId)
-{
+TEST_F(TextTraceDatabaseFtraceTest, InsertMultipleDataTypesForSameTrackId) {
     // 为同一个trackId插入不同类型的统计数据
     FtraceStatisticsData timeData;
     timeData.trackId = 10;
@@ -171,8 +163,7 @@ TEST_F(TextTraceDatabaseFtraceTest, InsertMultipleDataTypesForSameTrackId)
     EXPECT_EQ(schedResult.data[0].data["contextSwitchCount"], "200");
 }
 
-TEST_F(TextTraceDatabaseFtraceTest, QueryWithPagination)
-{
+TEST_F(TextTraceDatabaseFtraceTest, QueryWithPagination) {
     // 插入多条数据
     for (uint64_t i = 0; i < 25; ++i) {
         FtraceStatisticsData data;
@@ -201,14 +192,12 @@ TEST_F(TextTraceDatabaseFtraceTest, QueryWithPagination)
     EXPECT_EQ(page3.data[4].trackId, 24);
 }
 
-TEST_F(TextTraceDatabaseFtraceTest, QueryEmptyResult)
-{
+TEST_F(TextTraceDatabaseFtraceTest, QueryEmptyResult) {
     auto result = database.QueryFtraceStatistics(FtraceDataType::TIME, 0, 10);
     EXPECT_EQ(result.totalCount, 0);
 }
 
-TEST_F(TextTraceDatabaseFtraceTest, QueryDifferentDataTypes)
-{
+TEST_F(TextTraceDatabaseFtraceTest, QueryDifferentDataTypes) {
     // 插入三种类型的数据
     FtraceStatisticsData timeData;
     timeData.trackId = 1;

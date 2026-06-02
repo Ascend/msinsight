@@ -23,11 +23,10 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class ThreadTableTest : public ::testing::Test {};
 
-TEST_F(ThreadTableTest, TestThreadTableColumnMaping)
-{
+TEST_F(ThreadTableTest, TestThreadTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE thread (track_id INTEGER PRIMARY KEY, tid TEXT, pid TEXT, thread_name TEXT, "
-        "thread_sort_index INTEGER);";
+                      "thread_sort_index INTEGER);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert =
         "INSERT INTO thread (track_id, tid, pid,thread_name, thread_sort_index) VALUES (1, '2','3','4',5);";

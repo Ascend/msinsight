@@ -23,8 +23,7 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class PytorchCallchainsTableTest : public ::testing::Test {};
 
-TEST_F(PytorchCallchainsTableTest, testPytorchCallchainsColumnMaping)
-{
+TEST_F(PytorchCallchainsTableTest, testPytorchCallchainsColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE PYTORCH_CALLCHAINS (id INTEGER, stack INTEGER, stackDepth INTEGER);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);

@@ -19,13 +19,10 @@
 #include "QuerySystemViewHandler.h"
 #include "HandlerTest.cpp"
 
-class QuerySystemViewHandlerTest : HandlerTest {
-};
+class QuerySystemViewHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, QuerySystemViewHandlerTestNormal)
-{
+TEST_F(HandlerTest, QuerySystemViewHandlerTestNormal) {
     Dic::Module::Timeline::QuerySystemViewHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::SystemViewRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
-

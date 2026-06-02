@@ -26,25 +26,18 @@
 using namespace Dic::Global::PROFILER::MockUtil;
 using namespace Dic::Module::FullDb;
 class DeviceFlowRepoTest : public DeviceFlowRepo, public ::testing::Test {
-protected:
-    void SetUp() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+  protected:
+    void SetUp() override { TrackInfoManager::Instance().Reset(); }
 
-    void TearDown() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void TearDown() override { TrackInfoManager::Instance().Reset(); }
 
     std::string taskCreate =
         "CREATE TABLE TASK (startNs INTEGER,endNs INTEGER,deviceId INTEGER,connectionId "
         "INTEGER,globalTaskId INTEGER,globalPid INTEGER,taskType INTEGER,contextId INTEGER,streamId "
         "INTEGER,taskId INTEGER,modelId INTEGER, depth integer);";
-    std::string mstxCreate =
-        "CREATE TABLE MSTX_EVENTS (startNs INTEGER,endNs INTEGER,eventType INTEGER,rangeId "
-        "INTEGER,category INTEGER,message INTEGER,globalTid INTEGER,endGlobalTid "
-        "INTEGER,domainId INTEGER,connectionId INTEGER, depth integer);";
+    std::string mstxCreate = "CREATE TABLE MSTX_EVENTS (startNs INTEGER,endNs INTEGER,eventType INTEGER,rangeId "
+                             "INTEGER,category INTEGER,message INTEGER,globalTid INTEGER,endGlobalTid "
+                             "INTEGER,domainId INTEGER,connectionId INTEGER, depth integer);";
     std::string taskInsert =
         "INSERT INTO TASK(startNs, endNs, deviceId, connectionId, globalTaskId, "
         "globalPid, taskType, contextId, streamId, taskId, modelId, depth) "
@@ -63,30 +56,26 @@ protected:
         "4754301164515056, 4754301164515056, 240, 4000000002, 0);";
 };
 
-DeviceFlowRepo GetDeviceFlowRepoMock()
-{
+DeviceFlowRepo GetDeviceFlowRepoMock() {
     class TaskMock : public Dic::Module::Timeline::TaskTable {
-    public:
-        void ExcuteQuery(const std::string &fileId, std::vector<TaskPO> &result) override
-        {
-            TaskPO taskPO1 = { 0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 0, 0 };
+      public:
+        void ExcuteQuery(const std::string &fileId, std::vector<TaskPO> &result) override {
+            TaskPO taskPO1 = {0, 0, 0, 0, 0, 33, 0, 0, 0, 0, 0, 0};
             result.emplace_back(taskPO1);
             ClearThreadLocal();
         }
     };
     class CommucationOpTableMock : public Dic::Module::Timeline::CommucationOpTable {
-    public:
-        void ExcuteQuery(const std::string &fileId, std::vector<CommucationTaskOpPO> &result) override
-        {
-            CommucationTaskOpPO commucationTaskOpPO1 = { 1, 22, 45, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 };
+      public:
+        void ExcuteQuery(const std::string &fileId, std::vector<CommucationTaskOpPO> &result) override {
+            CommucationTaskOpPO commucationTaskOpPO1 = {1, 22, 45, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0};
             result.emplace_back(commucationTaskOpPO1);
             ClearThreadLocal();
         }
     };
     class NpuInfoTableMock : public Dic::Module::Timeline::NpuInfoTable {
-    public:
-        void ExcuteQuery(const std::string &fileId, std::vector<NpuInfoPo> &result) override
-        {
+      public:
+        void ExcuteQuery(const std::string &fileId, std::vector<NpuInfoPo> &result) override {
             NpuInfoPo po = {"device1", 0};
             result.push_back(po);
             ClearThreadLocal();
@@ -104,8 +93,7 @@ DeviceFlowRepo GetDeviceFlowRepoMock()
     return deviceFlowRepo;
 }
 
-TEST_F(DeviceFlowRepoTest, test_AddDeviceFlowPoint)
-{
+TEST_F(DeviceFlowRepoTest, test_AddDeviceFlowPoint) {
     DeviceFlowRepo deviceFlowRepo = GetDeviceFlowRepoMock();
     std::vector<FlowPoint> flowPointVec;
     FlowQuery flowQuery;
@@ -114,8 +102,7 @@ TEST_F(DeviceFlowRepoTest, test_AddDeviceFlowPoint)
     EXPECT_EQ(flowPointVec.size(), expectCount);
 }
 
-TEST_F(DeviceFlowRepoTest, AddHardWareMstxFlowPointExecuteSQLTest)
-{
+TEST_F(DeviceFlowRepoTest, AddHardWareMstxFlowPointExecuteSQLTest) {
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
     currPath = currPath.substr(0, index);

@@ -26,8 +26,7 @@ class EnumHcclLinkTypeTableTest : public ::testing::Test {};
 /**
  * 测试EnumHcclLinkTypeTable字段映射
  */
-TEST_F(EnumHcclLinkTypeTableTest, TestEnumHcclLinkTypeTableTestColumnMaping)
-{
+TEST_F(EnumHcclLinkTypeTableTest, TestEnumHcclLinkTypeTableTestColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE ENUM_HCCL_LINK_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);

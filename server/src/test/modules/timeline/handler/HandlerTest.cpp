@@ -20,25 +20,19 @@
 #include "WsSessionImpl.h"
 #include "WsSessionManager.h"
 class HandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestSuite()
-    {
-    }
-    static void TearDownTestSuite()
-    {
-    }
-    static int Main(int argc, char** argv)
-    {
+  public:
+    static void SetUpTestSuite() {}
+    static void TearDownTestSuite() {}
+    static int Main(int argc, char **argv) {
         ::testing::InitGoogleTest(&argc, argv);
         return RUN_ALL_TESTS();
     }
 
-protected:
+  protected:
     class MockDatabase : public Dic::Module::Timeline::TextTraceDatabase {
-    public:
+      public:
         explicit MockDatabase(std::recursive_mutex &sqlMutex) : TextTraceDatabase(sqlMutex) {}
-        void SetDbPtr(sqlite3 *dbPtr)
-        {
+        void SetDbPtr(sqlite3 *dbPtr) {
             isOpen = true;
             db = dbPtr;
             path = ":memory:";

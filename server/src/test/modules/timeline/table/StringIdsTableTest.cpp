@@ -26,14 +26,13 @@ class StringIdsTableTest : public ::testing::Test {};
 /**
  * 测试StringIdsTable字段映射
  */
-TEST_F(StringIdsTableTest, testStringIdsTableColumnMaping)
-{
+TEST_F(StringIdsTableTest, testStringIdsTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE  STRING_IDS ("
-        "  id INTEGER,"
-        "  value TEXT,"
-        "  PRIMARY KEY (id)"
-        ");";
+                      "  id INTEGER,"
+                      "  value TEXT,"
+                      "  PRIMARY KEY (id)"
+                      ");";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO STRING_IDS (id, value) VALUES (1, 'aaaa'), (2, 'bbb');";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);

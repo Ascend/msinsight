@@ -24,11 +24,10 @@ using namespace Dic::Module::Timeline;
 using namespace Dic::TimeLine::Table::Default::Mock;
 using namespace Dic::Global::PROFILER::MockUtil;
 class PythonApiRepoTest : public ::testing::Test {
-protected:
+  protected:
     class PythonApiRepoRepoMock : public PythonApiRepo {
-    public:
-        void SetMock(PytorchApiDependency &dependency)
-        {
+      public:
+        void SetMock(PytorchApiDependency &dependency) {
             pytorchApiTable = std::move(dependency.pytorchApiTableMock);
             pytorchCallchainsTable = std::move(dependency.pytorchCallchainsTableMock);
             stringIdsTable = std::move(dependency.stringIdsTableMock);
@@ -44,18 +43,11 @@ protected:
         "type INTEGER, depth integer);";
     const std::string stringIdsSql = "CREATE TABLE STRING_IDS (id INTEGER PRIMARY KEY,value TEXT);";
     const std::string chainSql = "CREATE TABLE PYTORCH_CALLCHAINS (id INTEGER, stack INTEGER, stackDepth INTEGER);";
-    void SetUp() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void SetUp() override { TrackInfoManager::Instance().Reset(); }
 
-    void TearDown() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void TearDown() override { TrackInfoManager::Instance().Reset(); }
 
-    void TestQuerySliceDetailInfoNormalPrepare(PytorchApiDependency &dependency)
-    {
+    void TestQuerySliceDetailInfoNormalPrepare(PytorchApiDependency &dependency) {
         sqlite3 *db = nullptr;
         DatabaseTestCaseMockUtil::OpenDB(db);
         DatabaseTestCaseMockUtil::CreateTable(db, pythonApiSql);
@@ -66,7 +58,8 @@ protected:
             "\"sequenceNumber\", \"fwdThreadId\", \"inputDtypes\", \"inputShapes\", \"callchainId\", \"depth\") VALUES "
             "('1718180919237611490', '1718180919237618540', 8785587534252168, 820, 268435456, 1, 2, 3, 4, "
             "5, 4);";
-        std::string chainInsert = "INSERT INTO \"main\".\"PYTORCH_CALLCHAINS\" (\"id\", \"stack\", \"stackDepth\") "
+        std::string chainInsert =
+            "INSERT INTO \"main\".\"PYTORCH_CALLCHAINS\" (\"id\", \"stack\", \"stackDepth\") "
             "VALUES (5, 268436792, 0);\n"
             "INSERT INTO \"main\".\"PYTORCH_CALLCHAINS\" (\"id\", \"stack\", \"stackDepth\") VALUES (5, 268436793, 1);";
         std::string stringInsert =
@@ -90,12 +83,10 @@ protected:
 /**
  * 测试根据id查询算子详情,正常情况
  */
-TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoNormal)
-{
+TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoNormal) {
     class PythonApiRepoRepoMock : public PythonApiRepo {
-    public:
-        void SetMock(PytorchApiDependency &dependency)
-        {
+      public:
+        void SetMock(PytorchApiDependency &dependency) {
             pytorchApiTable = std::move(dependency.pytorchApiTableMock);
             pytorchCallchainsTable = std::move(dependency.pytorchCallchainsTableMock);
             stringIdsTable = std::move(dependency.stringIdsTableMock);
@@ -117,15 +108,14 @@ TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoNormal)
     EXPECT_EQ(slice.timestamp, expectStart);
     EXPECT_EQ(slice.endTime, expectEnd);
     const std::string expectArgs = "{\"sequenceNumber\":\"1\",\"fwdThreadId\":\"2\",\"connectionId\":\"820\","
-        "\"inputShapes\":\"nnn\",\"inputDtypes\":\"aaa\",\"Call stack\":\"bbb;\\nggg;\\n\"}";
+                                   "\"inputShapes\":\"nnn\",\"inputDtypes\":\"aaa\",\"Call stack\":\"bbb;\\nggg;\\n\"}";
     EXPECT_EQ(slice.args, expectArgs);
 }
 
 /**
  * 测试根据id查询算子详情,算子不存在的情况
  */
-TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoWhenSliceNotExistThenReturnFalse)
-{
+TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoWhenSliceNotExistThenReturnFalse) {
     PythonApiRepo repo;
     SliceQuery query;
     query.sliceId = "1";
@@ -138,8 +128,7 @@ TEST_F(PythonApiRepoTest, TestQuerySliceDetailInfoWhenSliceNotExistThenReturnFal
 /**
  * 根据时间点查询算子，名字不存在
  */
-TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameWhenNameNotExistThenReturnFalse)
-{
+TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameWhenNameNotExistThenReturnFalse) {
     PytorchApiDependency dependency;
     sqlite3 *db = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(db);
@@ -156,8 +145,7 @@ TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameWhenNameNotExistThenRe
 /**
  * 根据时间点查询算子，名字存在，但没有算子信息
  */
-TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameWhenNameExistAndPytorchNotExistThenReturnFalse)
-{
+TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameWhenNameExistAndPytorchNotExistThenReturnFalse) {
     PytorchApiDependency dependency;
     sqlite3 *db = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(db);
@@ -180,8 +168,7 @@ TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameWhenNameExistAndPytorc
 /**
  * 根据时间点查询算子，名字存在，也有算子信息
  */
-TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameNormal)
-{
+TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameNormal) {
     PytorchApiDependency dependency;
     sqlite3 *db = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(db);
@@ -226,19 +213,18 @@ TEST_F(PythonApiRepoTest, TestQuerySliceByTimepointAndNameNormal)
 /**
  * 测试全量DB的 pythonApiRepo 转化 SliceInterface 的情况
  */
-TEST_F(PythonApiRepoTest, TestDynamicCastOfMultiSliceInterface)
-{
+TEST_F(PythonApiRepoTest, TestDynamicCastOfMultiSliceInterface) {
     std::shared_ptr<IBaseSliceRepo> pythonApiRepo = std::make_shared<PythonApiRepo>();
     // 转 IPythonFuncSlice 成功
-    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice*>(pythonApiRepo.get());
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(pythonApiRepo.get());
     EXPECT_NE(pythonFuncRepo, nullptr);
     // 转 IFindSliceByNameList 失败
-    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList*>(pythonApiRepo.get());
+    const auto findSliceByNameList = dynamic_cast<IFindSliceByNameList *>(pythonApiRepo.get());
     EXPECT_EQ(findSliceByNameList, nullptr);
     // 转 IFindSliceByTimepointAndName 成功
-    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName*>(pythonApiRepo.get());
+    const auto findSliceByTimepointAndName = dynamic_cast<IFindSliceByTimepointAndName *>(pythonApiRepo.get());
     EXPECT_NE(findSliceByTimepointAndName, nullptr);
     // 转 ITextSlice 失败
-    const auto textSliceRepo = dynamic_cast<ITextSlice*>(pythonApiRepo.get());
+    const auto textSliceRepo = dynamic_cast<ITextSlice *>(pythonApiRepo.get());
     EXPECT_EQ(textSliceRepo, nullptr);
 }

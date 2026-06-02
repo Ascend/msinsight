@@ -23,24 +23,23 @@ using namespace Dic::Protocol;
 using namespace Dic::TimeLine::TestCaseUtil;
 class MstxEventsTableTest : public ::testing::Test {};
 
-TEST_F(MstxEventsTableTest, testMstxEventsTableColumnMaping)
-{
+TEST_F(MstxEventsTableTest, testMstxEventsTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE MSTX_EVENTS ("
-        "startNs INTEGER,"
-        "endNs INTEGER,"
-        "eventType INTEGER,"
-        "rangeId INTEGER,"
-        "category INTEGER,"
-        "message INTEGER,"
-        "globalTid INTEGER,"
-        "endGlobalTid INTEGER,"
-        "domainId INTEGER,"
-        "connectionId INTEGER,"
-        "depth integer);";
+                      "startNs INTEGER,"
+                      "endNs INTEGER,"
+                      "eventType INTEGER,"
+                      "rangeId INTEGER,"
+                      "category INTEGER,"
+                      "message INTEGER,"
+                      "globalTid INTEGER,"
+                      "endGlobalTid INTEGER,"
+                      "domainId INTEGER,"
+                      "connectionId INTEGER,"
+                      "depth integer);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO MSTX_EVENTS (startNs, endNs,eventType, rangeId,category, message,globalTid, "
-        "endGlobalTid,domainId, connectionId,depth) VALUES (1, 2,3,4,5,6,7,8,9,10,11);";
+                            "endGlobalTid,domainId, connectionId,depth) VALUES (1, 2,3,4,5,6,7,8,9,10,11);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<MstxEventsPO> mstxEventsPOs;
     Dic::Protocol::MstxEventsTable mstxEventsTable;

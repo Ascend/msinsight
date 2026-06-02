@@ -30,13 +30,11 @@ const std::string OPERATOR_MODULE = "Operator";
 const int TIME_REFERENCE_200MS = 200;
 const int TIME_REFERENCE_500MS = 500;
 
-class KernelParseTest : PerformanceTest {
-};
+class KernelParseTest : PerformanceTest {};
 
-TEST_F(PerformanceTest, testKernelParser1P2GBTime)
-{
+TEST_F(PerformanceTest, testKernelParser1P2GBTime) {
     auto start = std::chrono::high_resolution_clock::now();
-    KernelParse::Instance().Parse({ std::string(test1P2GBRootPath), "", "" });
+    KernelParse::Instance().Parse({std::string(test1P2GBRootPath), "", ""});
     while (true) {
         Timeline::ParserStatus status = Timeline::ParserStatusManager::Instance().GetParserStatus(KERNEL_PREFIX + "0");
         if (status == Timeline::ParserStatus::FINISH) {
@@ -55,10 +53,9 @@ TEST_F(PerformanceTest, testKernelParser1P2GBTime)
     KernelParse::Instance().Reset();
 }
 
-TEST_F(PerformanceTest, testKernelParser1P5GBTime)
-{
+TEST_F(PerformanceTest, testKernelParser1P5GBTime) {
     auto start = std::chrono::high_resolution_clock::now();
-    KernelParse::Instance().Parse({ std::string(test1P5GBRootPath), "", "" });
+    KernelParse::Instance().Parse({std::string(test1P5GBRootPath), "", ""});
     while (true) {
         Timeline::ParserStatus status = Timeline::ParserStatusManager::Instance().GetParserStatus(KERNEL_PREFIX + "0");
         if (status == Timeline::ParserStatus::FINISH) {

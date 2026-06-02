@@ -19,11 +19,9 @@
 #include "RemoteDeleteHandler.h"
 #include "HandlerTest.cpp"
 
-class RemoteDeleteHandlerTest : HandlerTest {
-};
+class RemoteDeleteHandlerTest : HandlerTest {};
 
-TEST_F(HandlerTest, RemoteDeleteHandlerTestNormal)
-{
+TEST_F(HandlerTest, RemoteDeleteHandlerTestNormal) {
     Dic::Module::Timeline::RemoteDeleteHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::RemoteDeleteRequest>();
     handler.HandleRequest(std::move(requestPtr));

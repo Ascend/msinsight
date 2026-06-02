@@ -22,30 +22,27 @@
 #include "../../../DatabaseTestCaseMockUtil.h"
 #include "HandlerTest.cpp"
 
-TEST_F(HandlerTest, QueryTableDataDetailHandlerTestNormal)
-{
+TEST_F(HandlerTest, QueryTableDataDetailHandlerTestNormal) {
     Dic::Module::Timeline::QueryTableDataDetailHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::TableDataDetailRequest>();
     auto res = handler.HandleRequest(std::move(requestPtr));
     EXPECT_EQ(res, false);
 }
 
-TEST_F(HandlerTest, QueryTableDataNameListHandlerTestNormal)
-{
+TEST_F(HandlerTest, QueryTableDataNameListHandlerTestNormal) {
     Dic::Module::Timeline::QueryTableDataNameListHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::TableDataNameListRequest>();
     auto res = handler.HandleRequest(std::move(requestPtr));
     EXPECT_EQ(res, false);
 }
 
-TEST_F(HandlerTest, ComputeTableDetailTestNormal)
-{
+TEST_F(HandlerTest, ComputeTableDetailTestNormal) {
     Dic::Module::Timeline::QueryTableDataDetailHandler handler;
     TableDataDetailRequest request;
     TableDataDetailResponse response;
     std::recursive_mutex sqlMutex;
     std::shared_ptr<MockDatabase> vDb = std::make_shared<MockDatabase>(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     std::string sql1 = "CREATE TABLE \"data_table\" (\n"
                        "\"id\" INTEGER NOT NULL,\n"
@@ -73,23 +70,22 @@ TEST_F(HandlerTest, ComputeTableDetailTestNormal)
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, sql3);
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, sql4);
     vDb->SetDbPtr(dbPtr);
-    request.params.tableIndex = 0;  // 0
-    request.params.currentPage = 1;  // 1
-    request.params.pageSize = 10;  // 10
+    request.params.tableIndex = 0; // 0
+    request.params.currentPage = 1; // 1
+    request.params.pageSize = 10; // 10
     handler.ComputeTableDetail(request, response, vDb);
-    EXPECT_EQ(response.body.columnAttr.size(), 5);  // 5
-    EXPECT_EQ(response.body.columnData.size(), 2);  // 2
-    EXPECT_EQ(response.body.totalNum, 2);  // 2
+    EXPECT_EQ(response.body.columnAttr.size(), 5); // 5
+    EXPECT_EQ(response.body.columnData.size(), 2); // 2
+    EXPECT_EQ(response.body.totalNum, 2); // 2
 }
 
-TEST_F(HandlerTest, ComputeTableDetailTestWhenFilterBrackets)
-{
+TEST_F(HandlerTest, ComputeTableDetailTestWhenFilterBrackets) {
     Dic::Module::Timeline::QueryTableDataDetailHandler handler;
     TableDataDetailRequest request;
     TableDataDetailResponse response;
     std::recursive_mutex sqlMutex;
     std::shared_ptr<MockDatabase> vDb = std::make_shared<MockDatabase>(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     std::string sql1 = "CREATE TABLE \"data_table\" (\"id\" INTEGER NOT NULL,\n"
                        "\"name\" TEXT,\"view_name\" TEXT,PRIMARY KEY (\"id\"));";
@@ -121,24 +117,23 @@ TEST_F(HandlerTest, ComputeTableDetailTestWhenFilterBrackets)
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, sql4);
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, sql5);
     vDb->SetDbPtr(dbPtr);
-    request.params.tableIndex = 0;  // 0
-    request.params.currentPage = 1;  // 1
-    request.params.pageSize = 10;  // 10
+    request.params.tableIndex = 0; // 0
+    request.params.currentPage = 1; // 1
+    request.params.pageSize = 10; // 10
     request.params.filterconditions.push_back({"end_time(ms)", "1754039537986"});
     handler.ComputeTableDetail(request, response, vDb);
-    EXPECT_EQ(response.body.columnAttr.size(), 7);  // 7
-    EXPECT_EQ(response.body.columnData.size(), 1);  // 1
-    EXPECT_EQ(response.body.totalNum, 1);  // 1
+    EXPECT_EQ(response.body.columnAttr.size(), 7); // 7
+    EXPECT_EQ(response.body.columnData.size(), 1); // 1
+    EXPECT_EQ(response.body.totalNum, 1); // 1
 }
 
-TEST_F(HandlerTest, ComputeLinkPageDetailNormal)
-{
+TEST_F(HandlerTest, ComputeLinkPageDetailNormal) {
     Dic::Module::Timeline::QueryTableDataDetailHandler handler;
     TableDataDetailRequest request;
     TableDataDetailResponse response;
     std::recursive_mutex sqlMutex;
     std::shared_ptr<MockDatabase> vDb = std::make_shared<MockDatabase>(sqlMutex);
-    sqlite3* dbPtr = nullptr;
+    sqlite3 *dbPtr = nullptr;
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     std::string sql1 = "CREATE TABLE \"data_link\" (\n"
                        "\"source_name\" TEXT NOT NULL,\n"
@@ -168,12 +163,12 @@ TEST_F(HandlerTest, ComputeLinkPageDetailNormal)
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, sql3);
     Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::InsertData(dbPtr, sql4);
     vDb->SetDbPtr(dbPtr);
-    request.params.currentPage = 1;  // 1
-    request.params.pageSize = 10;  // 10
+    request.params.currentPage = 1; // 1
+    request.params.pageSize = 10; // 10
     request.params.equalConditions.push_back({"rid", "1"});
     request.params.type = "1";
     handler.ComputeLinkPageDetail(request, response, vDb);
-    EXPECT_EQ(response.body.columnAttr.size(), 7);  // 7
-    EXPECT_EQ(response.body.columnData.size(), 1);  // 1
-    EXPECT_EQ(response.body.totalNum, 1);  // 1
+    EXPECT_EQ(response.body.columnAttr.size(), 7); // 7
+    EXPECT_EQ(response.body.columnData.size(), 1); // 1
+    EXPECT_EQ(response.body.totalNum, 1); // 1
 }

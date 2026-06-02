@@ -25,16 +25,16 @@
 
 using namespace Dic::Module::Timeline;
 class DataEngineTest : public ::testing::Test {
-public:
+  public:
     static std::string g_testDbPath;
     static std::recursive_mutex g_testMutex;
     static Module::Database g_testDataBase;
-    const std::string pytorch_api = "CREATE TABLE PYTORCH_API (startNs TEXT, endNs TEXT, globalTid INTEGER, "
+    const std::string pytorch_api =
+        "CREATE TABLE PYTORCH_API (startNs TEXT, endNs TEXT, globalTid INTEGER, "
         "connectionId INTEGER, name INTEGER, sequenceNumber INTEGER, fwdThreadId INTEGER, inputDtypes INTEGER, "
         "inputShapes INTEGER, callchainId INTEGER, type INTEGER, depth integer);";
     const std::string enum_api_type = "CREATE TABLE ENUM_API_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
-    static void SetUpTestSuite()
-    {
+    static void SetUpTestSuite() {
         std::string currPath = Dic::FileUtil::GetCurrPath();
         const u_long index = currPath.find("server");
         currPath = currPath.substr(0, index + std::strlen("server"));
@@ -44,8 +44,7 @@ public:
         DataBaseManager::Instance().CreateTraceConnectionPool("0", g_testDbPath);
     }
 
-    static void TearDownTestSuite()
-    {
+    static void TearDownTestSuite() {
         DataBaseManager::Instance().Clear(DatabaseType::TRACE);
         g_testDataBase.CloseDb();
         if (FileUtil::CheckFilePathExist(g_testDbPath) && !FileUtil::RemoveFile(g_testDbPath)) {
@@ -53,22 +52,15 @@ public:
         }
     }
 
-    void SetUp() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void SetUp() override { TrackInfoManager::Instance().Reset(); }
 
-    void TearDown() override
-    {
-        TrackInfoManager::Instance().Reset();
-    }
+    void TearDown() override { TrackInfoManager::Instance().Reset(); }
 
-protected:
+  protected:
     class SliceRepoMock : public Dic::Module::Timeline::HcclRepo {
-    public:
-        void QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
-            std::vector<SliceDomain> &sliceVec) override
-        {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
             SliceDomain sliceDomain1;
             SliceDomain sliceDomain2;
             SliceDomain sliceDomain3;
@@ -91,9 +83,8 @@ protected:
     };
 
     class RespotoryFactoryMock : public Dic::Module::Timeline::RepositoryFactory {
-    public:
-        std::shared_ptr<IBaseSliceRepo> GetSliceRespo(PROCESS_TYPE)override
-        {
+      public:
+        std::shared_ptr<IBaseSliceRepo> GetSliceRespo(PROCESS_TYPE) override {
             std::shared_ptr<IBaseSliceRepo> res = std::make_shared<SliceRepoMock>();
             return res;
         }
@@ -104,8 +95,7 @@ std::string DataEngineTest::g_testDbPath;
 std::recursive_mutex DataEngineTest::g_testMutex;
 Module::Database DataEngineTest::g_testDataBase(g_testMutex);
 
-TEST_F(DataEngineTest, QueryAllThreadInfoNormalTest)
-{
+TEST_F(DataEngineTest, QueryAllThreadInfoNormalTest) {
     std::unordered_map<uint64_t, std::pair<std::string, std::string>> threadInfo;
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
@@ -133,8 +123,7 @@ TEST_F(DataEngineTest, QueryAllThreadInfoNormalTest)
     });
 }
 
-TEST_F(DataEngineTest, QuerySimpleSliceWithOutNameByTrackIdTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QuerySimpleSliceWithOutNameByTrackIdTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -164,8 +153,7 @@ TEST_F(DataEngineTest, QuerySimpleSliceWithOutNameByTrackIdTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QueryPythonFunctionCountByTrackIdTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QueryPythonFunctionCountByTrackIdTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -192,8 +180,7 @@ TEST_F(DataEngineTest, QueryPythonFunctionCountByTrackIdTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QuerySliceIdsByCatTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QuerySliceIdsByCatTestWithOutFactory) {
     g_testDataBase.ExecSql(pytorch_api);
     g_testDataBase.ExecSql(enum_api_type);
     const std::string apiData =
@@ -236,8 +223,7 @@ TEST_F(DataEngineTest, QuerySliceIdsByCatTestWithOutFactory)
     EXPECT_EQ(sliceIds.size(), 1);
 }
 
-TEST_F(DataEngineTest, QueryCompeteSliceVecByTimeRangeAndTrackIdTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QueryCompeteSliceVecByTimeRangeAndTrackIdTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -265,8 +251,7 @@ TEST_F(DataEngineTest, QueryCompeteSliceVecByTimeRangeAndTrackIdTestWithOutFacto
     });
 }
 
-TEST_F(DataEngineTest, QueryFlowPointByTimeRangeTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QueryFlowPointByTimeRangeTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         FlowQuery sliceQuery;
@@ -294,8 +279,7 @@ TEST_F(DataEngineTest, QueryFlowPointByTimeRangeTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QueryFlowPointByFlowIdTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QueryFlowPointByFlowIdTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         FlowQuery sliceQuery;
@@ -323,8 +307,7 @@ TEST_F(DataEngineTest, QueryFlowPointByFlowIdTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QueryCompeteSliceByIdsTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QueryCompeteSliceByIdsTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -355,8 +338,7 @@ TEST_F(DataEngineTest, QueryCompeteSliceByIdsTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QuerySliceDetailInfoTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QuerySliceDetailInfoTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -384,8 +366,7 @@ TEST_F(DataEngineTest, QuerySliceDetailInfoTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QuerySliceDetailInfoFailTest)
-{
+TEST_F(DataEngineTest, QuerySliceDetailInfoFailTest) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -402,8 +383,7 @@ TEST_F(DataEngineTest, QuerySliceDetailInfoFailTest)
     });
 }
 
-TEST_F(DataEngineTest, QueryAllFlagSliceTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QueryAllFlagSliceTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -416,8 +396,7 @@ TEST_F(DataEngineTest, QueryAllFlagSliceTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QueryFlowPointByCategoryTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QueryFlowPointByCategoryTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         FlowQuery sliceQuery;
@@ -430,8 +409,7 @@ TEST_F(DataEngineTest, QueryFlowPointByCategoryTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QuerySliceByTimepointAndNameTestWithOutFactory)
-{
+TEST_F(DataEngineTest, QuerySliceByTimepointAndNameTestWithOutFactory) {
     EXPECT_NO_THROW({
         Dic::Module::Timeline::DataEngine dataEngine;
         SliceQuery sliceQuery;
@@ -447,8 +425,7 @@ TEST_F(DataEngineTest, QuerySliceByTimepointAndNameTestWithOutFactory)
     });
 }
 
-TEST_F(DataEngineTest, QuerySimpleSliceWithOutNameByTrackId)
-{
+TEST_F(DataEngineTest, QuerySimpleSliceWithOutNameByTrackId) {
     Dic::Module::Timeline::DataEngine dataEngine;
     std::shared_ptr<Dic::Module::Timeline::RepositoryFactoryInterface> repositoryFactoryInterface =
         std::make_shared<RespotoryFactoryMock>();

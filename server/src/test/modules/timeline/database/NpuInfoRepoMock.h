@@ -22,22 +22,19 @@
 #include "TraceDatabaseHelper.h"
 
 class NpuInfoRepoMock : public Dic::Protocol::NpuInfoRepo {
-public:
-    std::vector<uint64_t> QueryDeviceIdByFileId(const std::string &fileId) override
-    {
+  public:
+    std::vector<uint64_t> QueryDeviceIdByFileId(const std::string &fileId) override {
         std::vector<uint64_t> res;
         res.push_back(0);
         return res;
     }
 };
-inline void MockNpuInfoRepoFunc()
-{
+inline void MockNpuInfoRepoFunc() {
     std::unique_ptr<Dic::Protocol::NpuInfoRepo> tPtr = std::make_unique<NpuInfoRepoMock>();
     Dic::Protocol::TraceDatabaseHelper::SetNpuInfoRepo(std::move(tPtr));
 }
 
-inline void RestoreRepoFunc()
-{
+inline void RestoreRepoFunc() {
     std::unique_ptr<Dic::Protocol::NpuInfoRepo> tPtr = std::make_unique<Dic::Protocol::NpuInfoRepo>();
     Dic::Protocol::TraceDatabaseHelper::SetNpuInfoRepo(std::move(tPtr));
 }
