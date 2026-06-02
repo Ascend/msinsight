@@ -39,26 +39,21 @@ using namespace Dic::Module::Global;
 using namespace Dic::Module;
 using namespace Dic::Protocol;
 class GlobalHandlerTest : public ::testing::Test {
-public:
-    static void SetUpTestCase()
-    {
-    }
-    static void TearDownTestCase()
-    {
-    }
-protected:
+  public:
+    static void SetUpTestCase() {}
+    static void TearDownTestCase() {}
+
+  protected:
     inline static std::string testDataDir = TestSuit::GetTestDataFile();
 };
 
-TEST_F(GlobalHandlerTest, TestCancelBaselineHandler)
-{
+TEST_F(GlobalHandlerTest, TestCancelBaselineHandler) {
     std::unique_ptr<Request> requestPtr = std::make_unique<BaselineCancelRequest>();
     CancelBaselineHandler cancelBaselineHandler;
     ASSERT_TRUE(cancelBaselineHandler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(GlobalHandlerTest, TestCheckProjectValidHandler)
-{
+TEST_F(GlobalHandlerTest, TestCheckProjectValidHandler) {
     auto requestPtr = std::make_unique<ProjectCheckValidRequest>();
     requestPtr->params.projectName = "";
     std::string path = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0");
@@ -67,8 +62,7 @@ TEST_F(GlobalHandlerTest, TestCheckProjectValidHandler)
     ASSERT_TRUE(checkProjectValidHandler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(GlobalHandlerTest, TestDeleteProjectExplorerHandler)
-{
+TEST_F(GlobalHandlerTest, TestDeleteProjectExplorerHandler) {
     auto requestPtr = std::make_unique<ProjectExplorerInfoDeleteRequest>();
     requestPtr->params.projectName = "";
     std::string path = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0");
@@ -77,16 +71,14 @@ TEST_F(GlobalHandlerTest, TestDeleteProjectExplorerHandler)
     ASSERT_TRUE(deleteProjectExplorerInfoHandler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(GlobalHandlerTest, TestFilesNotExistGetHandler)
-{
+TEST_F(GlobalHandlerTest, TestFilesNotExistGetHandler) {
     auto requestPtr = std::make_unique<FilesGetRequest>();
     requestPtr->params.path = "";
     FilesGetHandler filesGetHandler;
     ASSERT_TRUE(filesGetHandler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(GlobalHandlerTest, TestCheckfilesGetHandler)
-{
+TEST_F(GlobalHandlerTest, TestCheckfilesGetHandler) {
     auto requestPtr = std::make_unique<FilesGetRequest>();
     std::string path = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0");
     requestPtr->params.path = path;
@@ -94,15 +86,13 @@ TEST_F(GlobalHandlerTest, TestCheckfilesGetHandler)
     ASSERT_TRUE(filesGetHandler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(GlobalHandlerTest, TestHandleRequest)
-{
+TEST_F(GlobalHandlerTest, TestHandleRequest) {
     auto requestPtr = std::make_unique<HeartCheckRequest>();
     HeartCheckHandler heartCheckHandler;
     ASSERT_TRUE(heartCheckHandler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(GlobalHandlerTest, TestUpdateProjectExplorerInfoHandler)
-{
+TEST_F(GlobalHandlerTest, TestUpdateProjectExplorerInfoHandler) {
     auto requestPtr = std::make_unique<ProjectExplorerInfoUpdateRequest>();
     requestPtr->params.newProjectName = "";
     requestPtr->params.oldProjectName = "";

@@ -19,8 +19,7 @@
 #define PROFILER_SERVER_PARSERJSON_MOCK_DATA_H
 #include "FileDef.h"
 namespace Dic::Module::ParserJsonMock {
-int64_t CheckParseFileInfoSizeWhenOneFileIs20GThenReturnFalseMock(const std::string &filePath)
-{
+int64_t CheckParseFileInfoSizeWhenOneFileIs20GThenReturnFalseMock(const std::string &filePath) {
     static uint32_t count = 0;
     const static uint32_t exceptionOrder = 20;
     const static long long FILE_SIZE_COUNT = (JSON_MAX_FILE_SIZE + 1);
@@ -33,8 +32,7 @@ int64_t CheckParseFileInfoSizeWhenOneFileIs20GThenReturnFalseMock(const std::str
     }
 }
 
-int64_t CheckParseFileInfoSizeWhenTotalFileSizeExceed20GThenReturnFalseMock(const std::string &filePath)
-{
+int64_t CheckParseFileInfoSizeWhenTotalFileSizeExceed20GThenReturnFalseMock(const std::string &filePath) {
     static uint32_t count = 0;
     const static uint32_t exceptionOrder = 20;
     const static long long FILE_SIZE_COUNT = 1024 * 1024 * 1024;

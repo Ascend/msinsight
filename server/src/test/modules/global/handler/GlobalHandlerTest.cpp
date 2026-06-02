@@ -25,16 +25,14 @@
 #include "ClearProjectExplorerHandler.h"
 
 using namespace Dic::Module;
-TEST_F(HandlerTest, GetProjectExplorerInfoWithEmptyResult)
-{
+TEST_F(HandlerTest, GetProjectExplorerInfoWithEmptyResult) {
     auto request = std::make_unique<Dic::Module::ProjectExplorerInfoGetRequest>();
     Dic::Module::GetProjectExplorerInfoHandler handler;
     bool result = handler.HandleRequest(std::move(request));
     EXPECT_EQ(result, true);
 }
 
-TEST_F(HandlerTest, SetBaselineHandler)
-{
+TEST_F(HandlerTest, SetBaselineHandler) {
     auto request = std::make_unique<BaselineSettingRequest>();
     request->params.baselineClusterPath = "COMPARE";
     request->params.projectName = "test";
@@ -46,15 +44,13 @@ TEST_F(HandlerTest, SetBaselineHandler)
     EXPECT_EQ(result, true);
 }
 
-TEST_F(HandlerTest, GetModuleConfigHandler)
-{
+TEST_F(HandlerTest, GetModuleConfigHandler) {
     auto request = std::make_unique<BaselineSettingRequest>();
     GetModuleConfigHandler handler;
     EXPECT_EQ(handler.HandleRequest(std::move(request)), true);
 }
 
-TEST_F(HandlerTest, ClearProjectExplorerHandler)
-{
+TEST_F(HandlerTest, ClearProjectExplorerHandler) {
     auto request = std::make_unique<ProjectExplorerInfoClearRequest>();
     ClearProjectExplorerHandler handler;
     EXPECT_EQ(handler.HandleRequest(std::move(request)), true);

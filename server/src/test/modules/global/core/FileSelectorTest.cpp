@@ -27,12 +27,11 @@
 using namespace Dic::Module::Global;
 using namespace Dic::Protocol;
 class FileSelectorTest : public ::testing::Test {
-protected:
+  protected:
     inline static std::string testDataDir = TestSuit::GetTestDataFile();
 };
 
-TEST_F(FileSelectorTest, TestPathNotExist)
-{
+TEST_F(FileSelectorTest, TestPathNotExist) {
     std::string path = "xxx";
     std::vector<std::unique_ptr<Folder>> childrenFolders;
     std::vector<std::unique_ptr<File>> childrenFiles;
@@ -43,8 +42,7 @@ TEST_F(FileSelectorTest, TestPathNotExist)
     ASSERT_TRUE(childrenFiles.empty());
 }
 
-TEST_F(FileSelectorTest, TestContainFolder)
-{
+TEST_F(FileSelectorTest, TestContainFolder) {
     std::string path = Dic::FileUtil::SplicePath(testDataDir, "msprof");
     std::vector<std::unique_ptr<Folder>> childrenFolders;
     std::vector<std::unique_ptr<Folder>> realChildrenFolders;
@@ -65,15 +63,14 @@ TEST_F(FileSelectorTest, TestContainFolder)
     ASSERT_TRUE(childrenFiles.empty());
 }
 
-TEST_F(FileSelectorTest, TestContainFiles)
-{
+TEST_F(FileSelectorTest, TestContainFiles) {
     std::string path = Dic::FileUtil::SplicePath(testDataDir, "full_db");
     std::vector<std::unique_ptr<Folder>> childrenFolders;
     std::vector<std::unique_ptr<File>> childrenFiles;
     std::vector<std::unique_ptr<File>> realChildrenFiles;
     bool exist = true;
-    std::vector<std::string> files = {"ascend_pytorch_profiler.db", "cluster_analysis.db",
-                                      "leaks_dump_20250806.dat", "msprof_0.db"};
+    std::vector<std::string> files = {
+        "ascend_pytorch_profiler.db", "cluster_analysis.db", "leaks_dump_20250806.dat", "msprof_0.db"};
     for (const auto &file : files) {
         std::string tmpPath = Dic::FileUtil::SplicePath(path, file);
         realChildrenFiles.emplace_back(std::make_unique<File>(file, tmpPath));
@@ -86,8 +83,7 @@ TEST_F(FileSelectorTest, TestContainFiles)
     ASSERT_TRUE(childrenFolders.empty());
 }
 
-TEST_F(FileSelectorTest, TestContainFolderandFiles)
-{
+TEST_F(FileSelectorTest, TestContainFolderandFiles) {
     std::string path = Dic::FileUtil::SplicePath(testDataDir, "test_rank_0");
     std::vector<std::unique_ptr<Folder>> childrenFolders;
     std::vector<std::unique_ptr<Folder>> realChildrenFolders;

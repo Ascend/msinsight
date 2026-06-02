@@ -25,12 +25,11 @@ class FlowAnalyzerTest : public ::testing::Test {};
 /**
  * 测试：点数组转成连线数组，基础情况 S-F
  */
-TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_F)
-{
+TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_F) {
     const std::string category = "A";
     std::vector<FlowPoint> flowPoints = {
-        FlowPoint { .flowId = "0", .type = Dic::Protocol::LINE_START, .tid = "0" },
-        FlowPoint { .flowId = "0", .type = Dic::Protocol::LINE_END, .tid = "1" },
+        FlowPoint{.flowId = "0", .type = Dic::Protocol::LINE_START, .tid = "0"},
+        FlowPoint{.flowId = "0", .type = Dic::Protocol::LINE_END, .tid = "1"},
     };
     std::vector<std::unique_ptr<Dic::Protocol::UnitSingleFlow>> flowDetailList;
     const std::vector<std::tuple<std::string, std::string>> expectResultList = {
@@ -40,8 +39,8 @@ TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_F)
     ASSERT_EQ(expectResultList.size(), flowDetailList.size());
 
     for (size_t i = 0; i < expectResultList.size(); ++i) {
-        const auto& [expectedFromId, expectedToId] = expectResultList[i];
-        const auto& actual = flowDetailList[i];
+        const auto &[expectedFromId, expectedToId] = expectResultList[i];
+        const auto &actual = flowDetailList[i];
 
         EXPECT_EQ(expectedFromId, actual->from.tid);
         EXPECT_EQ(expectedToId, actual->to.tid);
@@ -51,12 +50,11 @@ TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_F)
 /**
  * 测试：点数组转成连线数组，特殊结束 S-T
  */
-TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_T)
-{
+TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_T) {
     const std::string category = "A";
     std::vector<FlowPoint> flowPoints = {
-        FlowPoint { .flowId = "1", .type = Dic::Protocol::LINE_START, .tid = "2" },
-        FlowPoint { .flowId = "1", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "3" },
+        FlowPoint{.flowId = "1", .type = Dic::Protocol::LINE_START, .tid = "2"},
+        FlowPoint{.flowId = "1", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "3"},
     };
     std::vector<std::unique_ptr<Dic::Protocol::UnitSingleFlow>> flowDetailList;
     const std::vector<std::tuple<std::string, std::string>> expectResultList = {
@@ -66,8 +64,8 @@ TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_T)
     ASSERT_EQ(expectResultList.size(), flowDetailList.size());
 
     for (size_t i = 0; i < expectResultList.size(); ++i) {
-        const auto& [expectedFromId, expectedToId] = expectResultList[i];
-        const auto& actual = flowDetailList[i];
+        const auto &[expectedFromId, expectedToId] = expectResultList[i];
+        const auto &actual = flowDetailList[i];
 
         EXPECT_EQ(expectedFromId, actual->from.tid);
         EXPECT_EQ(expectedToId, actual->to.tid);
@@ -77,15 +75,14 @@ TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_T)
 /**
  * 测试：点数组转成连线数组，连续连线 S-T-T-...-T-F
  */
-TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_ManyT_F)
-{
+TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_ManyT_F) {
     const std::string category = "A";
     std::vector<FlowPoint> flowPoints = {
-        FlowPoint { .flowId = "2", .type = Dic::Protocol::LINE_START, .tid = "4" },
-        FlowPoint { .flowId = "2", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "5" },
-        FlowPoint { .flowId = "2", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "6" },
-        FlowPoint { .flowId = "2", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "7" },
-        FlowPoint { .flowId = "2", .type = Dic::Protocol::LINE_END, .tid = "8" },
+        FlowPoint{.flowId = "2", .type = Dic::Protocol::LINE_START, .tid = "4"},
+        FlowPoint{.flowId = "2", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "5"},
+        FlowPoint{.flowId = "2", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "6"},
+        FlowPoint{.flowId = "2", .type = Dic::Protocol::LINE_END_OPTIONAL, .tid = "7"},
+        FlowPoint{.flowId = "2", .type = Dic::Protocol::LINE_END, .tid = "8"},
     };
     std::vector<std::unique_ptr<Dic::Protocol::UnitSingleFlow>> flowDetailList;
     const std::vector<std::tuple<std::string, std::string>> expectResultList = {
@@ -98,8 +95,8 @@ TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_ManyT_F)
     ASSERT_EQ(expectResultList.size(), flowDetailList.size());
 
     for (size_t i = 0; i < expectResultList.size(); ++i) {
-        const auto& [expectedFromId, expectedToId] = expectResultList[i];
-        const auto& actual = flowDetailList[i];
+        const auto &[expectedFromId, expectedToId] = expectResultList[i];
+        const auto &actual = flowDetailList[i];
 
         EXPECT_EQ(expectedFromId, actual->from.tid);
         EXPECT_EQ(expectedToId, actual->to.tid);
@@ -109,15 +106,14 @@ TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_ManyT_F)
 /**
  * 测试：点数组转成连线数组，连续结尾 S-F-F-...-F
  */
-TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_ManyF)
-{
+TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_ManyF) {
     const std::string category = "A";
     std::vector<FlowPoint> flowPoints = {
-        FlowPoint { .flowId = "3", .type = Dic::Protocol::LINE_START, .tid = "9" },
-        FlowPoint { .flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "10" },
-        FlowPoint { .flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "11" },
-        FlowPoint { .flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "12" },
-        FlowPoint { .flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "13" },
+        FlowPoint{.flowId = "3", .type = Dic::Protocol::LINE_START, .tid = "9"},
+        FlowPoint{.flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "10"},
+        FlowPoint{.flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "11"},
+        FlowPoint{.flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "12"},
+        FlowPoint{.flowId = "3", .type = Dic::Protocol::LINE_END, .tid = "13"},
     };
     std::vector<std::unique_ptr<Dic::Protocol::UnitSingleFlow>> flowDetailList;
     const std::vector<std::tuple<std::string, std::string>> expectResultList = {
@@ -130,8 +126,8 @@ TEST_F(FlowAnalyzerTest, Test_ComputeUintFlows_S_ManyF)
     ASSERT_EQ(expectResultList.size(), flowDetailList.size());
 
     for (size_t i = 0; i < expectResultList.size(); ++i) {
-        const auto& [expectedFromId, expectedToId] = expectResultList[i];
-        const auto& actual = flowDetailList[i];
+        const auto &[expectedFromId, expectedToId] = expectResultList[i];
+        const auto &actual = flowDetailList[i];
 
         EXPECT_EQ(expectedFromId, actual->from.tid);
         EXPECT_EQ(expectedToId, actual->to.tid);

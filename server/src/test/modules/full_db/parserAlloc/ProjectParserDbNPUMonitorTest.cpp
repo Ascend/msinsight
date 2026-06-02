@@ -24,19 +24,16 @@
 using namespace Dic;
 using namespace Dic::Module;
 
-class ProjectParserDbNPUMonitorTest : public testing::Test {
-};
+class ProjectParserDbNPUMonitorTest : public testing::Test {};
 
-TEST_F(ProjectParserDbNPUMonitorTest, GetProjectTypeTest)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, GetProjectTypeTest) {
     ProjectParserDbNPUMonitor parser;
     std::string path = "/home/Data/npumonitor";
     ProjectTypeEnum type = parser.GetProjectType(path);
     EXPECT_EQ(type, ProjectTypeEnum::DB_NPUMONITOR);
 }
 
-TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestEmptyFolder)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestEmptyFolder) {
 #ifdef __linux__
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
@@ -57,8 +54,7 @@ TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestEmptyFolder)
 #endif
 }
 
-TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContainingOneFile)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContainingOneFile) {
 #ifdef __linux__
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
@@ -82,8 +78,7 @@ TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContaini
 #endif
 }
 
-TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContainingMultipleFiles)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContainingMultipleFiles) {
 #ifdef __linux__
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
@@ -116,8 +111,7 @@ TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContaini
 #endif
 }
 
-TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContainingFolderContainingMultipleFiles)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContainingFolderContainingMultipleFiles) {
 #ifdef __linux__
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
@@ -151,8 +145,7 @@ TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestFolderContaini
 #endif
 }
 
-TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestSingleFile)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestSingleFile) {
 #ifdef __linux__
     std::string currPath = Dic::FileUtil::GetCurrPath();
     int index = currPath.find("server");
@@ -183,8 +176,7 @@ TEST_F(ProjectParserDbNPUMonitorTest, GetParseFileByImportFileTestSingleFile)
 #endif
 }
 
-TEST_F(ProjectParserDbNPUMonitorTest, BuildProjectExploreInfoTest)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, BuildProjectExploreInfoTest) {
     ProjectExplorerInfo info;
     info.fileName = "/home/Data/npumonitor";
     std::vector<std::string> parsedFiles = {"/home/Data/npumonitor/msmonitor_99092_20250901114924883_0.db",
@@ -196,8 +188,7 @@ TEST_F(ProjectParserDbNPUMonitorTest, BuildProjectExploreInfoTest)
     EXPECT_EQ(info.subParseFileInfo[1]->fileId, "/home/Data/npumonitor/msmonitor_99093_20250901114924876_1.db");
 }
 
-TEST_F(ProjectParserDbNPUMonitorTest, parse_baseline)
-{
+TEST_F(ProjectParserDbNPUMonitorTest, parse_baseline) {
     ProjectExplorerInfo project;
     project.fileInfoMap.emplace("test", std::make_shared<ParseFileInfo>());
     BaselineInfo baselineInfo;

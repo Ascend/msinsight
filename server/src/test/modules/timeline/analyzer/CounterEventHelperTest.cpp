@@ -18,11 +18,9 @@
 #include <gtest/gtest.h>
 #include "CounterEventHelper.h"
 using namespace Dic::Module::Timeline;
-class CounterEventHelperTest : public testing::Test {
-};
+class CounterEventHelperTest : public testing::Test {};
 
-TEST_F(CounterEventHelperTest, GenerateHostMetaDataSQLTest)
-{
+TEST_F(CounterEventHelperTest, GenerateHostMetaDataSQLTest) {
     CounterEventHelper helper;
     helper.RegisterHostMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::CPU_USAGE;
@@ -32,13 +30,11 @@ TEST_F(CounterEventHelperTest, GenerateHostMetaDataSQLTest)
     EXPECT_EQ(sql, cpuUsageSQL);
     type = Dic::Protocol::PROCESS_TYPE::HOST_DISK_USAGE;
     sql = helper.GenerateHostMetadataSQL(type);
-    const std::string diskUsageSQL =
-        "SELECT DISTINCT 'Disk Usage' AS name, 'Usage(%)' AS types FROM HOST_DISK_USAGE;";
+    const std::string diskUsageSQL = "SELECT DISTINCT 'Disk Usage' AS name, 'Usage(%)' AS types FROM HOST_DISK_USAGE;";
     EXPECT_EQ(sql, diskUsageSQL);
     type = Dic::Protocol::PROCESS_TYPE::HOST_MEM_USAGE;
     sql = helper.GenerateHostMetadataSQL(type);
-    const std::string memUsageSQL =
-        "SELECT DISTINCT 'Memory Usage' AS name, 'Usage(%)' AS types FROM HOST_MEM_USAGE;";
+    const std::string memUsageSQL = "SELECT DISTINCT 'Memory Usage' AS name, 'Usage(%)' AS types FROM HOST_MEM_USAGE;";
     EXPECT_EQ(sql, memUsageSQL);
     type = Dic::Protocol::PROCESS_TYPE::HOST_NETWORK_USAGE;
     sql = helper.GenerateHostMetadataSQL(type);
@@ -47,8 +43,7 @@ TEST_F(CounterEventHelperTest, GenerateHostMetaDataSQLTest)
     EXPECT_EQ(sql, networkUsageSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateHostCounterSQLTest)
-{
+TEST_F(CounterEventHelperTest, GenerateHostCounterSQLTest) {
     CounterEventHelper helper;
     helper.RegisterHostMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::CPU_USAGE;
@@ -77,8 +72,7 @@ TEST_F(CounterEventHelperTest, GenerateHostCounterSQLTest)
     EXPECT_EQ(sql, networkUsageSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAICoreFreqTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAICoreFreqTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::AI_CORE;
@@ -88,8 +82,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAICoreFreqTest)
     EXPECT_EQ(sql, aiCoreFreqSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAICoreFreqTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAICoreFreqTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::AI_CORE;
@@ -101,8 +94,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAICoreFreqTest)
     EXPECT_EQ(sql, aiCoreFreqSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAccPMUTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAccPMUTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::ACC_PMU;
@@ -119,8 +111,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAccPMUTest)
     EXPECT_EQ(sql, accPMUSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAccPMUTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAccPMUTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::ACC_PMU;
@@ -154,8 +145,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAccPMUTest)
     EXPECT_EQ(sql, accPMUSQL4);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForDDRTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForDDRTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::DDR;
@@ -166,8 +156,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForDDRTest)
     EXPECT_EQ(sql, ddrSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForDDRTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForDDRTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::DDR;
@@ -185,22 +174,19 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForDDRTest)
     EXPECT_EQ(sql, ddrSQL2);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForStarsSocTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForStarsSocTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::STARS_SOC;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
-    const std::string starSocSQL =
-        "SELECT DISTINCT 'L2 Buffer Bw Level' AS name, 'Level' AS types "
-        "FROM SOC_BANDWIDTH_LEVEL WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'Mata Bw Level' AS name, 'Level' AS types "
-        "FROM SOC_BANDWIDTH_LEVEL WHERE deviceId = ?;";
+    const std::string starSocSQL = "SELECT DISTINCT 'L2 Buffer Bw Level' AS name, 'Level' AS types "
+                                   "FROM SOC_BANDWIDTH_LEVEL WHERE deviceId = ? UNION ALL "
+                                   "SELECT DISTINCT 'Mata Bw Level' AS name, 'Level' AS types "
+                                   "FROM SOC_BANDWIDTH_LEVEL WHERE deviceId = ?;";
     EXPECT_EQ(sql, starSocSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForStarsSocTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForStarsSocTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::STARS_SOC;
@@ -220,22 +206,19 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForStarsSocTest)
     EXPECT_EQ(sql, starsSocSQL2);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNPUMEMTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNPUMEMTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NPU_MEM;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
-    const std::string npuMemSQL =
-        "SELECT DISTINCT '' || id0.value || '/DDR' AS name, 'B' AS types FROM NPU_MEM "
-        "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT '' || id0.value || '/HBM' AS name, 'B' AS types FROM NPU_MEM "
-        "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE deviceId = ?;";
+    const std::string npuMemSQL = "SELECT DISTINCT '' || id0.value || '/DDR' AS name, 'B' AS types FROM NPU_MEM "
+                                  "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE deviceId = ? UNION ALL "
+                                  "SELECT DISTINCT '' || id0.value || '/HBM' AS name, 'B' AS types FROM NPU_MEM "
+                                  "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE deviceId = ?;";
     EXPECT_EQ(sql, npuMemSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNPUMEMTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNPUMEMTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NPU_MEM;
@@ -269,8 +252,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNPUMEMTest)
     EXPECT_EQ(sql, npuMemSQL4);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHBMTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHBMTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::HBM;
@@ -281,8 +263,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHBMTest)
     EXPECT_EQ(sql, hbmSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHBMTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHBMTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::HBM;
@@ -320,8 +301,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHBMTest)
     EXPECT_EQ(sql, hbmSQL4);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForLLCTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForLLCTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::LLC;
@@ -334,8 +314,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForLLCTest)
     EXPECT_EQ(sql, llcSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForLLCTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForLLCTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::LLC;
@@ -373,8 +352,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForLLCTest)
     EXPECT_EQ(sql, llcSQL4);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForSamplePMUTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForSamplePMUTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::SAMPLE_PMU;
@@ -392,8 +370,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForSamplePMUTest)
     EXPECT_EQ(sql, samplePmuSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartOne)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartOne) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::SAMPLE_PMU;
@@ -439,8 +416,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartOne)
     EXPECT_EQ(sql, samplePmuSQL5);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartTwo)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartTwo) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::SAMPLE_PMU;
@@ -478,8 +454,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartTwo)
     EXPECT_EQ(sql, samplePmuSQL4);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNICTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNICTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
@@ -511,8 +486,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNICTest)
     EXPECT_EQ(sql, nicSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartOne)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartOne) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
@@ -556,8 +530,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartOne)
     EXPECT_EQ(sql, nicSQL6);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartTwo)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartTwo) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
@@ -601,8 +574,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartTwo)
     EXPECT_EQ(sql, nicSQL6);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartThree)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartThree) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
@@ -650,8 +622,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartThree)
     EXPECT_EQ(sql, nicSQL7);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForPCIeTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForPCIeTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::PCIE;
@@ -683,8 +654,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForPCIeTest)
     EXPECT_EQ(sql, pcieSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartOne)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartOne) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::PCIE;
@@ -726,8 +696,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartOne)
     EXPECT_EQ(sql, pcieSQL6);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartTwo)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartTwo) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::PCIE;
@@ -769,8 +738,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartTwo)
     EXPECT_EQ(sql, pcieSQL6);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartThree)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartThree) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::PCIE;
@@ -812,8 +780,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartThree)
     EXPECT_EQ(sql, pcieSQL6);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartFour)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartFour) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::PCIE;
@@ -840,8 +807,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartFour)
     EXPECT_EQ(sql, pcieSQL3);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHCCSTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHCCSTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::HCCS;
@@ -852,8 +818,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHCCSTest)
     EXPECT_EQ(sql, roceSQL);
 }
 
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHCCSTest)
-{
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHCCSTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::HCCS;

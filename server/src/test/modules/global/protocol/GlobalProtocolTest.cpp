@@ -21,8 +21,7 @@
 #include "GlobalProtocol.h"
 class GlobalProtocolTest : public ::testing::Test {};
 
-TEST_F(GlobalProtocolTest, ToHeartCheckRequestTest)
-{
+TEST_F(GlobalProtocolTest, ToHeartCheckRequestTest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -46,8 +45,7 @@ TEST_F(GlobalProtocolTest, ToHeartCheckRequestTest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ToProjectExplorerUpdateRequest)
-{
+TEST_F(GlobalProtocolTest, ToProjectExplorerUpdateRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -71,8 +69,7 @@ TEST_F(GlobalProtocolTest, ToProjectExplorerUpdateRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ToProjectExplorerInfoGetRequest)
-{
+TEST_F(GlobalProtocolTest, ToProjectExplorerInfoGetRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -96,8 +93,7 @@ TEST_F(GlobalProtocolTest, ToProjectExplorerInfoGetRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ToProjectExplorerInfoDeleteRequest)
-{
+TEST_F(GlobalProtocolTest, ToProjectExplorerInfoDeleteRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -121,8 +117,7 @@ TEST_F(GlobalProtocolTest, ToProjectExplorerInfoDeleteRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ToProjectExplorerInfoClearRequest)
-{
+TEST_F(GlobalProtocolTest, ToProjectExplorerInfoClearRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -149,8 +144,7 @@ TEST_F(GlobalProtocolTest, ToProjectExplorerInfoClearRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ToProjectValidCheckRequest)
-{
+TEST_F(GlobalProtocolTest, ToProjectValidCheckRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -177,8 +171,7 @@ TEST_F(GlobalProtocolTest, ToProjectValidCheckRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ToSetBaselineRequest)
-{
+TEST_F(GlobalProtocolTest, ToSetBaselineRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -202,8 +195,7 @@ TEST_F(GlobalProtocolTest, ToSetBaselineRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ToCancelBaselineRequest)
-{
+TEST_F(GlobalProtocolTest, ToCancelBaselineRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::GlobalProtocol globalProtocol;
     globalProtocol.Register();
@@ -227,8 +219,7 @@ TEST_F(GlobalProtocolTest, ToCancelBaselineRequest)
     EXPECT_EQ(id, tempId);
 }
 
-TEST_F(GlobalProtocolTest, ResponseToJson)
-{
+TEST_F(GlobalProtocolTest, ResponseToJson) {
     EXPECT_NO_THROW({
         Dic::Protocol::GlobalProtocol timelineProtocol;
         timelineProtocol.Register();

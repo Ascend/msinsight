@@ -22,15 +22,13 @@
 #include "SystemMemoryDatabaseDef.h"
 class GlobalProtocolUtilTest : public ::testing::Test {};
 
-TEST_F(GlobalProtocolUtilTest, TestTokenHeartCheckResponse)
-{
+TEST_F(GlobalProtocolUtilTest, TestTokenHeartCheckResponse) {
     Dic::Protocol::TokenHeartCheckResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
 }
 
-TEST_F(GlobalProtocolUtilTest, TestFilesGetResponseToJson)
-{
+TEST_F(GlobalProtocolUtilTest, TestFilesGetResponseToJson) {
     Dic::Protocol::FilesGetResponse response;
     std::unique_ptr<Dic::Protocol::File> file1 = std::make_unique<Dic::Protocol::File>();
     std::unique_ptr<Dic::Protocol::File> file2 = std::make_unique<Dic::Protocol::File>();
@@ -44,15 +42,13 @@ TEST_F(GlobalProtocolUtilTest, TestFilesGetResponseToJson)
     EXPECT_EQ(jsonOp.has_value(), true);
 }
 
-TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoUpdateResponseToJson)
-{
+TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoUpdateResponseToJson) {
     Dic::Protocol::ProjectExplorerInfoUpdateResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
 }
 
-TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoGetResponseToJson)
-{
+TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoGetResponseToJson) {
     Dic::Protocol::ProjectExplorerInfoGetResponse response;
     Dic::Protocol::ProjectDirectoryInfo projectDirectoryInfo;
     auto fileInfo = std::make_shared<Dic::Module::Global::ParseFileInfo>();
@@ -69,30 +65,27 @@ TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoGetResponseToJson)
     EXPECT_EQ(json, jsonStr);
 }
 
-TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoDeleteResponseToJson)
-{
+TEST_F(GlobalProtocolUtilTest, TestProjectExplorerInfoDeleteResponseToJson) {
     Dic::Protocol::ProjectExplorerInfoDeleteResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
     const std::string json = Dic::JsonUtil::JsonDump(jsonOp.value());
     const std::string jsonStr = "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":false,\"command\":\"files/"
-        "deleteProjectExplorer\",\"moduleName\":\"unknown\",\"body\":{}}";
+                                "deleteProjectExplorer\",\"moduleName\":\"unknown\",\"body\":{}}";
     EXPECT_EQ(json, jsonStr);
 }
 
-TEST_F(GlobalProtocolUtilTest, TestProjectCheckValidResponseToJson)
-{
+TEST_F(GlobalProtocolUtilTest, TestProjectCheckValidResponseToJson) {
     Dic::Protocol::ProjectCheckValidResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
     const std::string json = Dic::JsonUtil::JsonDump(jsonOp.value());
     const std::string jsonStr = "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":false,\"command\":\"files/"
-        "checkProjectValid\",\"moduleName\":\"unknown\",\"body\":{\"result\":0}}";
+                                "checkProjectValid\",\"moduleName\":\"unknown\",\"body\":{\"result\":0}}";
     EXPECT_EQ(json, jsonStr);
 }
 
-TEST_F(GlobalProtocolUtilTest, TestBaselineSettingResponseToJson)
-{
+TEST_F(GlobalProtocolUtilTest, TestBaselineSettingResponseToJson) {
     Dic::Protocol::BaselineSettingResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
@@ -104,13 +97,12 @@ TEST_F(GlobalProtocolUtilTest, TestBaselineSettingResponseToJson)
     EXPECT_EQ(json, jsonStr);
 }
 
-TEST_F(GlobalProtocolUtilTest, TestBaselineCancelResponseToJson)
-{
+TEST_F(GlobalProtocolUtilTest, TestBaselineCancelResponseToJson) {
     Dic::Protocol::BaselineCancelResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
     const std::string json = Dic::JsonUtil::JsonDump(jsonOp.value());
     const std::string jsonStr = "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":false,\"command\":\"global/"
-        "cancelBaseline\",\"moduleName\":\"unknown\",\"body\":{}}";
+                                "cancelBaseline\",\"moduleName\":\"unknown\",\"body\":{}}";
     EXPECT_EQ(json, jsonStr);
 }

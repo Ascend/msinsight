@@ -24,20 +24,19 @@
 #include "algorithm"
 using namespace Dic::Module::Timeline;
 namespace Dic::TimeLine::SliceAnalyzer::Mock {
-inline void QueryCompeteSliceVecByTimeRangeAndTrackId_mock(const Module::Timeline::SliceQuery &sliceQuery,
-    std::vector<CompeteSliceDomain> &sliceVec)
-{
+inline void QueryCompeteSliceVecByTimeRangeAndTrackId_mock(
+    const Module::Timeline::SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) {
     std::vector<CompeteSliceDomain> temp;
-    CompeteSliceDomain competeSliceDomain1 = { 1, 2, 20, 22, 0, "slice1", 3, "" };
-    CompeteSliceDomain competeSliceDomain2 = { 2, 3, 2, 5, 0, "slice2", 3, "" };
-    CompeteSliceDomain competeSliceDomain3 = { 3, 6, 3, 9, 0, "slice3", 3, "" };
-    CompeteSliceDomain competeSliceDomain4 = { 4, 10, 9, 19, 0, "slice2", 3, "" };
-    CompeteSliceDomain competeSliceDomain5 = { 5, 7, 1, 8, 0, "slice5", 3, "" };
-    CompeteSliceDomain competeSliceDomain6 = { 6, 11, 1, 12, 0, "slice4", 3, "" };
-    CompeteSliceDomain competeSliceDomain7 = { 7, 13, 1, 14, 0, "slice7", 3, "" };
-    CompeteSliceDomain competeSliceDomain8 = { 8, 15, 3, 18, 0, "slice3", 3, "" };
-    CompeteSliceDomain competeSliceDomain9 = { 9, 16, 1, 17, 0, "slice10", 3, "" };
-    CompeteSliceDomain competeSliceDomain10 = { 10, 16, 1, 17, 0, "slice10", 3, "" };
+    CompeteSliceDomain competeSliceDomain1 = {1, 2, 20, 22, 0, "slice1", 3, ""};
+    CompeteSliceDomain competeSliceDomain2 = {2, 3, 2, 5, 0, "slice2", 3, ""};
+    CompeteSliceDomain competeSliceDomain3 = {3, 6, 3, 9, 0, "slice3", 3, ""};
+    CompeteSliceDomain competeSliceDomain4 = {4, 10, 9, 19, 0, "slice2", 3, ""};
+    CompeteSliceDomain competeSliceDomain5 = {5, 7, 1, 8, 0, "slice5", 3, ""};
+    CompeteSliceDomain competeSliceDomain6 = {6, 11, 1, 12, 0, "slice4", 3, ""};
+    CompeteSliceDomain competeSliceDomain7 = {7, 13, 1, 14, 0, "slice7", 3, ""};
+    CompeteSliceDomain competeSliceDomain8 = {8, 15, 3, 18, 0, "slice3", 3, ""};
+    CompeteSliceDomain competeSliceDomain9 = {9, 16, 1, 17, 0, "slice10", 3, ""};
+    CompeteSliceDomain competeSliceDomain10 = {10, 16, 1, 17, 0, "slice10", 3, ""};
     temp.emplace_back(competeSliceDomain1);
     temp.emplace_back(competeSliceDomain2);
     temp.emplace_back(competeSliceDomain3);
@@ -55,18 +54,18 @@ inline void QueryCompeteSliceVecByTimeRangeAndTrackId_mock(const Module::Timelin
         }
     }
 };
-inline void QuerySimpleSliceWithOutNameByTrackId_mock(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec)
-{
-    SliceDomain sliceDomain1 = { 1, 2, 22, 0 };
-    SliceDomain sliceDomain2 = { 2, 3, 5, 0 };
-    SliceDomain sliceDomain3 = { 3, 6, 9, 0 };
-    SliceDomain sliceDomain4 = { 4, 10, 19, 0 };
-    SliceDomain sliceDomain5 = { 5, 7, 8, 0 };
-    SliceDomain sliceDomain6 = { 6, 11, 12, 0 };
-    SliceDomain sliceDomain7 = { 7, 13, 14, 0 };
-    SliceDomain sliceDomain8 = { 8, 15, 18, 0 };
-    SliceDomain sliceDomain9 = { 9, 16, 17, 0 };
-    SliceDomain sliceDomain10 = { 10, 16, 17, 0 };
+inline void QuerySimpleSliceWithOutNameByTrackId_mock(
+    const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
+    SliceDomain sliceDomain1 = {1, 2, 22, 0};
+    SliceDomain sliceDomain2 = {2, 3, 5, 0};
+    SliceDomain sliceDomain3 = {3, 6, 9, 0};
+    SliceDomain sliceDomain4 = {4, 10, 19, 0};
+    SliceDomain sliceDomain5 = {5, 7, 8, 0};
+    SliceDomain sliceDomain6 = {6, 11, 12, 0};
+    SliceDomain sliceDomain7 = {7, 13, 14, 0};
+    SliceDomain sliceDomain8 = {8, 15, 18, 0};
+    SliceDomain sliceDomain9 = {9, 16, 17, 0};
+    SliceDomain sliceDomain10 = {10, 16, 17, 0};
     sliceVec.emplace_back(sliceDomain1);
     sliceVec.emplace_back(sliceDomain2);
     sliceVec.emplace_back(sliceDomain3);
@@ -85,18 +84,17 @@ inline void QuerySimpleSliceWithOutNameByTrackId_mock(const SliceQuery &sliceQue
     });
 }
 
-inline void SliceCacheNotFliterPythonMock()
-{
-    SliceDomain sliceDomain1 = { 1, 2, 22, 0 };
-    SliceDomain sliceDomain2 = { 2, 3, 5, 1 };
-    SliceDomain sliceDomain3 = { 3, 6, 9, 1 };
-    SliceDomain sliceDomain4 = { 4, 10, 19, 1 };
-    SliceDomain sliceDomain5 = { 5, 7, 8, 2 };
-    SliceDomain sliceDomain6 = { 6, 11, 12, 2 };
-    SliceDomain sliceDomain7 = { 7, 13, 14, 2 };
-    SliceDomain sliceDomain8 = { 8, 15, 18, 2 };
-    SliceDomain sliceDomain9 = { 9, 16, 17, 3 };
-    SliceDomain sliceDomain10 = { 10, 16, 17, 4 };
+inline void SliceCacheNotFliterPythonMock() {
+    SliceDomain sliceDomain1 = {1, 2, 22, 0};
+    SliceDomain sliceDomain2 = {2, 3, 5, 1};
+    SliceDomain sliceDomain3 = {3, 6, 9, 1};
+    SliceDomain sliceDomain4 = {4, 10, 19, 1};
+    SliceDomain sliceDomain5 = {5, 7, 8, 2};
+    SliceDomain sliceDomain6 = {6, 11, 12, 2};
+    SliceDomain sliceDomain7 = {7, 13, 14, 2};
+    SliceDomain sliceDomain8 = {8, 15, 18, 2};
+    SliceDomain sliceDomain9 = {9, 16, 17, 3};
+    SliceDomain sliceDomain10 = {10, 16, 17, 4};
     std::vector<SliceDomain> sliceVec;
     sliceVec.emplace_back(sliceDomain1);
     sliceVec.emplace_back(sliceDomain2);
@@ -114,22 +112,21 @@ inline void SliceCacheNotFliterPythonMock()
         }
         return (first.timestamp == second.timestamp) && first.id < second.id;
     });
-    SliceQuery sliceQuery = {3, 0, 23, 2 };
+    SliceQuery sliceQuery = {3, 0, 23, 2};
     SliceCacheManager::Instance().UpdateSliceCache("3", sliceVec, sliceQuery);
 }
 
-inline void SliceCacheFliterPythonMock()
-{
-    SliceDomain sliceDomain1 = { 1, 2, 22, 0 };
-    SliceDomain sliceDomain2 = { 2, 3, 5, 0 };
-    SliceDomain sliceDomain3 = { 3, 6, 9, 0 };
-    SliceDomain sliceDomain4 = { 4, 10, 19, 0 };
-    SliceDomain sliceDomain5 = { 5, 7, 8, 1 };
-    SliceDomain sliceDomain6 = { 6, 11, 12, 1 };
-    SliceDomain sliceDomain7 = { 7, 13, 14, 1 };
-    SliceDomain sliceDomain8 = { 8, 15, 18, 1 };
-    SliceDomain sliceDomain9 = { 9, 16, 17, 2 };
-    SliceDomain sliceDomain10 = { 10, 16, 17, 3 };
+inline void SliceCacheFliterPythonMock() {
+    SliceDomain sliceDomain1 = {1, 2, 22, 0};
+    SliceDomain sliceDomain2 = {2, 3, 5, 0};
+    SliceDomain sliceDomain3 = {3, 6, 9, 0};
+    SliceDomain sliceDomain4 = {4, 10, 19, 0};
+    SliceDomain sliceDomain5 = {5, 7, 8, 1};
+    SliceDomain sliceDomain6 = {6, 11, 12, 1};
+    SliceDomain sliceDomain7 = {7, 13, 14, 1};
+    SliceDomain sliceDomain8 = {8, 15, 18, 1};
+    SliceDomain sliceDomain9 = {9, 16, 17, 2};
+    SliceDomain sliceDomain10 = {10, 16, 17, 3};
     std::vector<SliceDomain> sliceVec;
     sliceVec.emplace_back(sliceDomain1);
     sliceVec.emplace_back(sliceDomain2);
@@ -147,7 +144,7 @@ inline void SliceCacheFliterPythonMock()
         }
         return (first.timestamp == second.timestamp) && first.id < second.id;
     });
-    SliceQuery sliceQuery = {3, 0, 23, 2 };
+    SliceQuery sliceQuery = {3, 0, 23, 2};
     SliceCacheManager::Instance().UpdateSliceCache("3", sliceVec, sliceQuery);
 }
 }
