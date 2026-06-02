@@ -119,6 +119,7 @@ const detailsRestore = (session: any): void => {
     session.delayedFreeThreshold = { perT: null, valueT: null };
     session.longIdleThreshold = { perT: null, valueT: null };
     session.onlyInefficient = false;
+    session.autoFilterPotentialLeaks = false;
 };
 const restore = (session: any): void => {
     commonRestore(session);
