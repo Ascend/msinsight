@@ -22,14 +22,12 @@
 #include "ServerLog.h"
 #include "WsSessionManager.h"
 
-class ParamsParserTest : public ::testing::Test {
-};
+class ParamsParserTest : public ::testing::Test {};
 
-TEST_F(ParamsParserTest, testParamsParser)
-{
+TEST_F(ParamsParserTest, testParamsParser) {
     Dic::Server::ParamsParser::Instance();
-    Dic::Server::ParamsParser::Instance().Parse({"exe", "--wsPort=9000", "--wsHost=127.0.0.1",
-                                                 "--logPath=./", "--logSize=10", "--logLevel=INFO"});
+    Dic::Server::ParamsParser::Instance().Parse(
+        {"exe", "--wsPort=9000", "--wsHost=127.0.0.1", "--logPath=./", "--logSize=10", "--logLevel=INFO"});
     int64_t expectPort = 9000;
     int64_t expectLogSize = 10;
     EXPECT_EQ(Dic::Server::ParamsParser::Instance().GetOption().wsPort, expectPort);
@@ -39,9 +37,7 @@ TEST_F(ParamsParserTest, testParamsParser)
     EXPECT_EQ(Dic::Server::ParamsParser::Instance().GetOption().logPath, "./");
 }
 
-
-TEST_F(ParamsParserTest, testParamsParserErr)
-{
+TEST_F(ParamsParserTest, testParamsParserErr) {
     Dic::Server::ParamsParser::Instance();
     bool result = Dic::Server::ParamsParser::Instance().Parse({"exe", "--wsPort=9200"});
     EXPECT_EQ(result, false);
@@ -57,8 +53,7 @@ TEST_F(ParamsParserTest, testParamsParserErr)
     EXPECT_EQ(result, false);
 }
 
-TEST_F(ParamsParserTest, testWsSession)
-{
+TEST_F(ParamsParserTest, testWsSession) {
     Dic::Server::WsChannel *ws = nullptr;
     std::unique_ptr<Dic::Server::WsSessionImpl> session = std::make_unique<Dic::Server::WsSessionImpl>(ws);
     int waitTime = 10;
@@ -89,14 +84,11 @@ TEST_F(ParamsParserTest, testWsSession)
     }
 }
 
-TEST_F(ParamsParserTest, testServerStart)
-{
-    std::vector<std::string> args = {"exe", "--wsPort=9003", "--wsHost=127.0.0.1",
-                                     "--logSize=10", "--logLevel=INFO"};
+TEST_F(ParamsParserTest, testServerStart) {
+    std::vector<std::string> args = {"exe", "--wsPort=9003", "--wsHost=127.0.0.1", "--logSize=10", "--logLevel=INFO"};
     Dic::Server::ParamsParser::Instance().Parse(args);
     const Dic::Server::ParamsOption &option = Dic::Server::ParamsParser::Instance().GetOption();
-    Dic::Server::ServerLog::Initialize(option.logPath, option.logSize, option.logLevel,
-                                       std::to_string(option.wsPort));
+    Dic::Server::ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, std::to_string(option.wsPort));
     Dic::Server::WsServer server(option.host, option.wsPort);
     server.Start();
     const int checkInterval = 1000;

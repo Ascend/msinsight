@@ -22,19 +22,16 @@
 using namespace Dic;
 using namespace Dic::Module::Global;
 
-class CommFuncTest : public testing::Test {
-};
+class CommFuncTest : public testing::Test {};
 
-TEST_F(CommFuncTest, CastParserTypeToStr)
-{
+TEST_F(CommFuncTest, CastParserTypeToStr) {
     EXPECT_EQ(CastParserTypeToStr(ParserType::JSON), "JSON");
     EXPECT_EQ(CastParserTypeToStr(ParserType::OTHER), "OTHER");
     EXPECT_EQ(CastParserTypeToStr(ParserType::BIN), "BIN");
     EXPECT_EQ(CastParserTypeToStr(ParserType::DB), "DB");
 }
 
-TEST_F(CommFuncTest, CastParseFileTypeToStr)
-{
+TEST_F(CommFuncTest, CastParseFileTypeToStr) {
     EXPECT_EQ(CastParseFileTypeToStr(ParseFileType::RANK), "RANK");
     EXPECT_EQ(CastParseFileTypeToStr(ParseFileType::PROJECT), "PROJECT");
     EXPECT_EQ(CastParseFileTypeToStr(ParseFileType::DATA_FILE), "DATA_FILE");

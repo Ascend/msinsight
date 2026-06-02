@@ -24,20 +24,16 @@
 using namespace Dic::Module;
 using namespace Dic::Module::Communication;
 class CommunicationGroupParserTest : public ::testing::Test {
-protected:
+  protected:
     std::string filePath;
 
-    void SetUp() override
-    {
-        filePath = TestSuit::GetTestDataFile("communication_group");
-    }
+    void SetUp() override { filePath = TestSuit::GetTestDataFile("communication_group"); }
 };
 
 /**
  * 测试新的communication_grou.json格式（带有comm_group_parallel_info数据）
  */
-TEST_F(CommunicationGroupParserTest, TestNewCommunicationGroup)
-{
+TEST_F(CommunicationGroupParserTest, TestNewCommunicationGroup) {
     std::string file = FileUtil::SplicePath(filePath, "communication_group.json");
     std::vector<CommGroupParallelInfo> res = CommunicationGroupParser::ParseCommunicationGroup(file);
     const int exceptSize = 22;
@@ -47,8 +43,7 @@ TEST_F(CommunicationGroupParserTest, TestNewCommunicationGroup)
 /**
  * 测试老的communication_grou.json格式（不带comm_group_parallel_info数据）
  */
-TEST_F(CommunicationGroupParserTest, TestOldCommunicationGroup)
-{
+TEST_F(CommunicationGroupParserTest, TestOldCommunicationGroup) {
     std::string file = FileUtil::SplicePath(filePath, "communication_group_old.json");
     std::vector<CommGroupParallelInfo> res = CommunicationGroupParser::ParseCommunicationGroup(file);
     const int exceptSize = 20;

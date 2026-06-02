@@ -36,8 +36,7 @@ struct BinaryBlockHeader4File {
 
 const int INTEGER_BYTES = 4;
 
-inline void GetFilePadding(BinaryBlockHeader &binaryBlockHeader, const uint64_t &sizeContent, std::string &buffer)
-{
+inline void GetFilePadding(BinaryBlockHeader &binaryBlockHeader, const uint64_t &sizeContent, std::string &buffer) {
     if (sizeContent % INTEGER_BYTES != 0) {
         binaryBlockHeader.padding = INTEGER_BYTES - (sizeContent % INTEGER_BYTES);
         buffer.resize(sizeContent + binaryBlockHeader.padding, 0);

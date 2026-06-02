@@ -25,8 +25,7 @@ class CommunicationProtocolResponseTest : public ::testing::Test {};
 /**
  * 正常采集八卡的情况
  */
-TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankNormal)
-{
+TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankNormal) {
     OperatorListsResponseBody body;
     const int rankSize = 8;
     const uint64_t min = 1;
@@ -34,7 +33,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankNormal)
     uint64_t init = min;
     for (int i = 0; i < rankSize; ++i) {
         CompareData<std::vector<OperatorTimeItem>> data1;
-        OperatorTimeItem operatorTime1 = { "", init++, max };
+        OperatorTimeItem operatorTime1 = {"", init++, max};
         body.maxTime = std::max(body.maxTime, operatorTime1.startTime + operatorTime1.elapseTime);
         body.minTime = std::min(body.minTime, operatorTime1.startTime);
         data1.compare.emplace_back(operatorTime1);
@@ -52,8 +51,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankNormal)
 /**
  * 两次采集的数据，每次都是8卡
  */
-TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen16Rank2Group)
-{
+TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen16Rank2Group) {
     OperatorListsResponseBody body;
     const int rankSize = 8;
     const uint64_t min = 1;
@@ -61,7 +59,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen16Rank2Group)
     uint64_t init = min;
     for (int i = 0; i < rankSize; ++i) {
         CompareData<std::vector<OperatorTimeItem>> data1;
-        OperatorTimeItem operatorTime1 = { "", init++, max };
+        OperatorTimeItem operatorTime1 = {"", init++, max};
         body.maxTime = std::max(body.maxTime, operatorTime1.startTime + operatorTime1.elapseTime);
         body.minTime = std::min(body.minTime, operatorTime1.startTime);
         data1.compare.emplace_back(operatorTime1);
@@ -72,7 +70,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen16Rank2Group)
     init = secondMin;
     for (int i = 0; i < rankSize; ++i) {
         CompareData<std::vector<OperatorTimeItem>> data1;
-        OperatorTimeItem operatorTime1 = { "", init++, max };
+        OperatorTimeItem operatorTime1 = {"", init++, max};
         body.maxTime = std::max(body.maxTime, operatorTime1.startTime + operatorTime1.elapseTime);
         body.minTime = std::min(body.minTime, operatorTime1.startTime);
         data1.compare.emplace_back(operatorTime1);
@@ -91,8 +89,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen16Rank2Group)
 /**
  * 采集八卡,对比情况,base和baseline在同一时间范围内
  */
-TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankAndHaveBaseWithOneGroup)
-{
+TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankAndHaveBaseWithOneGroup) {
     OperatorListsResponseBody body;
     const int rankSize = 8;
     const uint64_t min = 1;
@@ -100,7 +97,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankAndHaveBaseWith
     uint64_t init = min;
     for (int i = 0; i < rankSize; ++i) {
         CompareData<std::vector<OperatorTimeItem>> data1;
-        OperatorTimeItem operatorTime1 = { "", init++, max };
+        OperatorTimeItem operatorTime1 = {"", init++, max};
         body.maxTime = std::max(body.maxTime, operatorTime1.startTime + operatorTime1.elapseTime);
         body.minTime = std::min(body.minTime, operatorTime1.startTime);
         data1.compare.emplace_back(operatorTime1);
@@ -121,8 +118,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankAndHaveBaseWith
 /**
  * 采集八卡,对比情况,base和baseline不在同一时间范围内
  */
-TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankAndHaveBaseWithTwoGroup)
-{
+TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankAndHaveBaseWithTwoGroup) {
     OperatorListsResponseBody body;
     const int rankSize = 8;
     const uint64_t min = 1;
@@ -131,7 +127,7 @@ TEST_F(CommunicationProtocolResponseTest, TestAdjustTimeWhen8RankAndHaveBaseWith
     uint64_t init = min;
     for (int i = 0; i < rankSize; ++i) {
         CompareData<std::vector<OperatorTimeItem>> data1;
-        OperatorTimeItem operatorTime1 = { "", init++, max };
+        OperatorTimeItem operatorTime1 = {"", init++, max};
         body.maxTime = std::max(body.maxTime, operatorTime1.startTime + operatorTime1.elapseTime);
         body.minTime = std::min(body.minTime, operatorTime1.startTime);
         data1.compare.emplace_back(operatorTime1);

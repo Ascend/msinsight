@@ -21,16 +21,14 @@
 
 using namespace Dic::Module::Advisor;
 class AdvisorProcessUtilTest : public ::testing::Test {
-protected:
+  protected:
     std::vector<Dic::Protocol::FlowLocation> data = {
         {"1id", "id", "meta", "0", 0, 5, 1, "Pid", "A", "0", "type", "note"},
         {"tid", "id", "meta", "0", 0, 7, 2, "pid", "a", "0", "type", "note"},
-        {"Tid", "id", "meta", "0", 0, 1, 3, "1id", "1", "0", "type", "note"}
-    };
+        {"Tid", "id", "meta", "0", 0, 1, 3, "1id", "1", "0", "type", "note"}};
 };
 
-TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByName)
-{
+TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByName) {
     Dic::Protocol::KernelDetailsParams param{};
     param.orderBy = "name";
     param.order = "ASC";
@@ -54,8 +52,7 @@ TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByName)
     EXPECT_EQ(data.at(data.size() - 1).name, "1");
 }
 
-TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByDuration)
-{
+TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByDuration) {
     Dic::Protocol::KernelDetailsParams param{};
     param.orderBy = "duration";
     param.order = "ASC";
@@ -69,8 +66,7 @@ TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByDuration)
     EXPECT_EQ(data.at(data.size() - 1).name, "a");
 }
 
-TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByPid)
-{
+TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByPid) {
     Dic::Protocol::KernelDetailsParams param{};
     param.orderBy = "pid";
     param.order = "ASC";
@@ -84,8 +80,7 @@ TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByPid)
     EXPECT_EQ(data.at(data.size() - 1).name, "1");
 }
 
-TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByTid)
-{
+TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByTid) {
     Dic::Protocol::KernelDetailsParams param{};
     param.orderBy = "tid";
     param.order = "ASC";
@@ -99,8 +94,7 @@ TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByTid)
     EXPECT_EQ(data.at(data.size() - 1).name, "A");
 }
 
-TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByStartTime)
-{
+TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByStartTime) {
     Dic::Protocol::KernelDetailsParams param{};
     param.orderBy = "startTime";
     param.order = "ASC";
@@ -114,8 +108,7 @@ TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByStartTime)
     EXPECT_EQ(data.at(data.size() - 1).name, "1");
 }
 
-TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByDefault)
-{
+TEST_F(AdvisorProcessUtilTest, SortFlowLocationDataTestOrderByDefault) {
     Dic::Protocol::KernelDetailsParams param{};
     param.orderBy = "xxx";
     param.order = "ASC";

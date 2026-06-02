@@ -27,8 +27,7 @@ std::string TestSuit::clusterPath;
 std::string TestSuit::srcTestPath;
 std::string TestSuit::rootTestPath;
 std::string TestSuit::serverHome;
-void TestSuit::SetUpTestSuite()
-{
+void TestSuit::SetUpTestSuite() {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -49,11 +48,11 @@ void TestSuit::SetUpTestSuite()
     DataBaseManager::Instance().CreateTraceConnectionPool("1", dbPath1);
     DataBaseManager::Instance().UpdateRankIdToDeviceId(dbPath0, "0", "0");
     DataBaseManager::Instance().UpdateRankIdToDeviceId(dbPath1, "1", "1");
-    JsonFileParserManager::GetTraceFileParser().Parse({FileUtil::SplicePath(refPath0, "trace_view.json")},
-        "0", "", dbPath0);
+    JsonFileParserManager::GetTraceFileParser().Parse(
+        {FileUtil::SplicePath(refPath0, "trace_view.json")}, "0", "", dbPath0);
     WaitParseEnd({"0"});
-    JsonFileParserManager::GetTraceFileParser().Parse({FileUtil::SplicePath(refPath1, "trace_view.json")},
-        "1", "", dbPath1);
+    JsonFileParserManager::GetTraceFileParser().Parse(
+        {FileUtil::SplicePath(refPath1, "trace_view.json")}, "1", "", dbPath1);
     WaitParseEnd({"1"});
     KernelParse::Instance().Parse({dbPath0, "0", refPath0});
     KernelParse::Instance().Parse({dbPath1, "1", refPath1});
@@ -66,15 +65,13 @@ void TestSuit::SetUpTestSuite()
     ClusterFileParser clusterFileParser(clusterPath, nullptr, COMPARE + TimeUtil::Instance().NowStr());
     clusterFileParser.ParseClusterFiles();
     clusterFileParser.ParseClusterStep2Files();
-    WaitParseEnd({"0", "1", KERNEL_PREFIX + "0",
-                  KERNEL_PREFIX + "1", MEMORY_PREFIX + "0", MEMORY_PREFIX + "1"});
+    WaitParseEnd({"0", "1", KERNEL_PREFIX + "0", KERNEL_PREFIX + "1", MEMORY_PREFIX + "0", MEMORY_PREFIX + "1"});
 }
 
-void TestSuit::WaitParseEnd(std::vector<std::string> statusList)
-{
+void TestSuit::WaitParseEnd(std::vector<std::string> statusList) {
     while (true) {
         size_t i = 0;
-        for (const auto& tmp : statusList) {
+        for (const auto &tmp : statusList) {
             if (ParserStatusManager::Instance().GetParserStatus(tmp) != ParserStatus::FINISH) {
                 break;
             } else {
@@ -90,8 +87,7 @@ void TestSuit::WaitParseEnd(std::vector<std::string> statusList)
     }
 }
 
-void TestSuit::TearDownTestSuite()
-{
+void TestSuit::TearDownTestSuite() {
     KernelParse::Instance().Reset();
     TraceFileParser::DeleteParseFiles({"0", "1"});
     DataBaseManager::Instance().EraseClusterDb(COMPARE);
@@ -104,14 +100,12 @@ void TestSuit::TearDownTestSuite()
     }
 }
 
-int TestSuit::Main(int argc, char** argv)
-{
+int TestSuit::Main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
 
-std::shared_ptr<RenderEngine> TestSuit::GetRenderEngine()
-{
+std::shared_ptr<RenderEngine> TestSuit::GetRenderEngine() {
     auto respotoryFactory = RepositoryFactory::Instance();
     auto dataEngine = DataEngine::Instance();
     dataEngine->SetRepositoryFactory(respotoryFactory);
@@ -120,8 +114,7 @@ std::shared_ptr<RenderEngine> TestSuit::GetRenderEngine()
     return renderEngine;
 }
 
-std::string TestSuit::GetServerHome()
-{
+std::string TestSuit::GetServerHome() {
     if (serverHome.empty()) {
         std::string srcTestData = DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::SRC_TEST_DATA);
         serverHome = srcTestData.substr(0, srcTestData.find("server") + 6);
@@ -129,8 +122,7 @@ std::string TestSuit::GetServerHome()
     return serverHome;
 }
 
-std::string TestSuit::GetSrcTestPath()
-{
+std::string TestSuit::GetSrcTestPath() {
     if (srcTestPath.empty()) {
         std::string srcTestData = DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::SRC_TEST_DATA);
         srcTestPath = srcTestData.substr(0, srcTestData.rfind("test_data"));
@@ -138,11 +130,9 @@ std::string TestSuit::GetSrcTestPath()
     return srcTestPath;
 }
 
-std::string TestSuit::GetRootTestPath()
-{
+std::string TestSuit::GetRootTestPath() {
     if (rootTestPath.empty()) {
         rootTestPath = DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::ROOT_TEST);
     }
     return rootTestPath;
 }
-

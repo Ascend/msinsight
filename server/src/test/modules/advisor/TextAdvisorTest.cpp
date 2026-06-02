@@ -29,11 +29,9 @@
 
 using namespace Dic::Module::Timeline;
 using namespace Dic::Module::Advisor;
-class TextAdvisorTest : TestSuit {
-};
+class TextAdvisorTest : TestSuit {};
 
-TEST_F(TestSuit, QueryAffinityApiAdvisorSuccessInText)
-{
+TEST_F(TestSuit, QueryAffinityApiAdvisorSuccessInText) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
@@ -51,8 +49,7 @@ TEST_F(TestSuit, QueryAffinityApiAdvisorSuccessInText)
     EXPECT_EQ(indexMap.at(expectTrackId).size(), 24); // 符合结果的包含1个泳道，且track_id = 41，符合条件的结果为24条
 }
 
-TEST_F(TestSuit, QueryAffinityOptimizerAdvisorSuccessText)
-{
+TEST_F(TestSuit, QueryAffinityOptimizerAdvisorSuccessText) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
@@ -64,8 +61,7 @@ TEST_F(TestSuit, QueryAffinityOptimizerAdvisorSuccessText)
     EXPECT_EQ(data.at(0).name, "Optimizer.step#AdamW.step"); //
 }
 
-TEST_F(TestSuit, QueryAclNNOperatorAdvisorSuccessText)
-{
+TEST_F(TestSuit, QueryAclNNOperatorAdvisorSuccessText) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
@@ -76,22 +72,19 @@ TEST_F(TestSuit, QueryAclNNOperatorAdvisorSuccessText)
     EXPECT_EQ(data.size(), 0);
 }
 
-TEST_F(TestSuit, QueryAICPUOperatorAdvisorSuccessText)
-{
+TEST_F(TestSuit, QueryAICPUOperatorAdvisorSuccessText) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
     std::vector<Protocol::KernelBaseInfo> data{};
-    Protocol::KernelDetailsParams params = {"duration", "DESC", 1,
-                                            10, 0, 0, "0", "0"}; // 1是第1页，10是每页10条数据
-    auto result = db->QueryAICpuOpCanBeOptimized(params,
-        AICPU_OP_EQUIVALENT_REPLACE, AICPU_OP_DATATYPE_RULE, data, startTime);
+    Protocol::KernelDetailsParams params = {"duration", "DESC", 1, 10, 0, 0, "0", "0"}; // 1是第1页，10是每页10条数据
+    auto result =
+        db->QueryAICpuOpCanBeOptimized(params, AICPU_OP_EQUIVALENT_REPLACE, AICPU_OP_DATATYPE_RULE, data, startTime);
     EXPECT_TRUE(result);
     EXPECT_EQ(data.size(), 2); // 可以查询到2条结果
 }
 
-TEST_F(TestSuit, QueryFusedOperatorAdvisorSuccessText)
-{
+TEST_F(TestSuit, QueryFusedOperatorAdvisorSuccessText) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();
@@ -102,8 +95,7 @@ TEST_F(TestSuit, QueryFusedOperatorAdvisorSuccessText)
     EXPECT_EQ(resBody.size, 0);
 }
 
-TEST_F(TestSuit, QueryOperatorDispatchAdvisorSuccessOnText)
-{
+TEST_F(TestSuit, QueryOperatorDispatchAdvisorSuccessOnText) {
     auto db = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EXPECT_NE(db, nullptr);
     uint64_t startTime = Dic::Module::Timeline::TraceTime::Instance().GetStartTime();

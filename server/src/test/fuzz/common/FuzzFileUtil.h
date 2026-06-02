@@ -33,26 +33,25 @@ using namespace Dic;
  * @param mutationContentLength 变异后文本内容的长度
  * @return 如果成功获取变异文本内容，返回0；否则返回1
  */
-int GenerateFileMutation(const std::string& baseFilePath, char** mutationContent, int& mutationContentLength);
+int GenerateFileMutation(const std::string &baseFilePath, char **mutationContent, int &mutationContentLength);
 
 class PathFuzzer {
-public:
+  public:
     /**
      * 在一个相对路径下创建一系列的异常文件/文件夹
      * @param pathCount : 创建子文件/子目录等的数量
      * @param fileList : 输出有效文件列表
      * @param dirList : 输出有效子目录列表
      */
-    void GenerateFilePathMutation(uint pathCount, std::vector<std::string>& fileList,
-                                  std::vector<std::string>& dirList);
+    void GenerateFilePathMutation(
+        uint pathCount, std::vector<std::string> &fileList, std::vector<std::string> &dirList);
     /**
      * 变异出一个随机字符串
      * @param validPathCharOnly : 是否过滤掉非法的路径字符
      * @return 文件名
      */
     static std::string GenerateFileName(bool validPathCharOnly, uint index);
-    inline bool CreateRegularFileOrDir(const std::string& filename, const bool isFile)
-    {
+    inline bool CreateRegularFileOrDir(const std::string &filename, const bool isFile) {
         if (filename.size() > NAME_MAX) {
             std::cerr << "Create symlink failed: symlinkName exceeds max length of file name." << std::endl;
             return false;
@@ -75,14 +74,13 @@ public:
                 }
                 return FileUtil::ModifyFilePermissions(fullPath, 0750);
             }
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             std::cerr << "Caught runtime_error: " << e.what() << std::endl;
             return false;
         }
     }
 
-    inline bool CreateBaseDirSymlink(const std::string& symlinkName) const
-    {
+    inline bool CreateBaseDirSymlink(const std::string &symlinkName) const {
         if (symlinkName.size() > NAME_MAX) {
             std::cerr << "Create symlink failed: symlinkName exceeds max length of file name." << std::endl;
             return false;
@@ -90,33 +88,30 @@ public:
         try {
             fs::create_symlink(baseDir, FileUtil::SplicePath(baseDir, symlinkName));
             return true;
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             std::cerr << "Caught runtime_error: " << e.what() << std::endl;
             return false;
         }
     }
 
-    inline bool CreateCircularSymlink(const std::string& symlinkName) const
-    {
+    inline bool CreateCircularSymlink(const std::string &symlinkName) const {
         try {
             fs::create_symlink(FileUtil::SplicePath(baseDir, symlinkName), FileUtil::SplicePath(baseDir, symlinkName));
             return true;
-        } catch (std::exception& e) {
+        } catch (std::exception &e) {
             std::cerr << "Caught runtime_error: " << e.what() << std::endl;
             return false;
         }
     }
 
-    static inline int RandomInt(int min, int max)
-    {
+    static inline int RandomInt(int min, int max) {
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_int_distribution<> distrib(min, max);
         return distrib(gen);
     }
 
-    static inline std::string GenerateRandomBytes(const size_t len)
-    {
+    static inline std::string GenerateRandomBytes(const size_t len) {
         std::string result;
         size_t i = 0;
         size_t loop = 0;
@@ -132,8 +127,7 @@ public:
         return result;
     }
 
-    inline std::string CreateSpecialCharFileOrDir(const std::string& filename, bool isUtf8, const bool isFile)
-    {
+    inline std::string CreateSpecialCharFileOrDir(const std::string &filename, bool isUtf8, const bool isFile) {
         if (filename.size() > NAME_MAX) {
             std::cerr << "Create symlink failed: symlinkName exceeds max length of file name." << std::endl;
             return "";
@@ -155,8 +149,7 @@ public:
     }
 
     // 创建权限异常文件/目录
-    inline bool CreateInsecurityPermissionFileOrDir(const std::string& filename, bool isFile)
-    {
+    inline bool CreateInsecurityPermissionFileOrDir(const std::string &filename, bool isFile) {
         std::string fullPath = FileUtil::SplicePath(baseDir, filename);
         if (!CreateRegularFileOrDir(filename, isFile)) {
             return false;
@@ -166,8 +159,7 @@ public:
         return true;
     }
 
-    inline bool ClearBaseDir()
-    {
+    inline bool ClearBaseDir() {
         try {
             if (fs::exists(baseDir)) {
                 fs::remove_all(baseDir);
@@ -177,9 +169,9 @@ public:
                 return false;
             }
             return true;
-        } catch (const fs::filesystem_error& e) {
+        } catch (const fs::filesystem_error &e) {
             std::cerr << "文件系统错误: " << e.what() << std::endl;
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             std::cerr << "标准异常: " << e.what() << std::endl;
         } catch (...) {
             std::cerr << "未知错误" << std::endl;
@@ -194,4 +186,4 @@ public:
     const static std::vector<std::string> specialChars;
 };
 
-#endif  // PROFILER_SERVER_FUZZFILEUTIL_H
+#endif // PROFILER_SERVER_FUZZFILEUTIL_H

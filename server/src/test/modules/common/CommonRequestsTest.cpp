@@ -24,14 +24,12 @@ using namespace Dic;
 using namespace Dic::Protocol;
 
 class CommonRequestsTest : public ::testing::Test {
-protected:
+  protected:
     void SetUp() override {
-        columns = {
-            TableViewColumn("Name", "name", true, true, true, false),
+        columns = {TableViewColumn("Name", "name", true, true, true, false),
             TableViewColumn("Age", "age", true, true, true, true),
             TableViewColumn("Score", "score", true, true, false, true),
-            TableViewColumn("ID", "id", false, false, false, false)
-        };
+            TableViewColumn("ID", "id", false, false, false, false)};
     }
 
     std::vector<TableViewColumn> columns;

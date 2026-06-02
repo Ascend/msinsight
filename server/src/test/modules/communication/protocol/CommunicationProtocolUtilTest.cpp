@@ -26,19 +26,12 @@ using namespace Dic::Protocol;
 const uint64_t NUMBER_HUNDRED = 100;
 const uint64_t NUMBER_THOUSAND = 100;
 class CommunicationProtocolUtilTest : public ::testing::Test {
-protected:
-    void SetUp() override
-    {
-        protocol.Register();
-    }
+  protected:
+    void SetUp() override { protocol.Register(); }
 
-    void TearDown() override
-    {
-        protocol.UnRegister();
-    }
+    void TearDown() override { protocol.UnRegister(); }
 
-    void CheckResponseBaseStruct(const std::optional<Dic::document_t> &jsonOptional)
-    {
+    void CheckResponseBaseStruct(const std::optional<Dic::document_t> &jsonOptional) {
         ASSERT_TRUE(jsonOptional.has_value());
         ASSERT_TRUE(jsonOptional.value().HasMember("body"));
     }
@@ -46,8 +39,7 @@ protected:
     Dic::Protocol::CommunicationProtocol protocol;
 };
 
-TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorRequestNormalTest)
-{
+TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorRequestNormalTest) {
     std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
         "command": "communication/advisor", "params": {}})";
     Dic::document_t json;
@@ -60,8 +52,7 @@ TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorRequestNormalTest)
     EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToAdvisorRequestLackIdTestReturnNull)
-{
+TEST_F(CommunicationProtocolUtilTest, ToAdvisorRequestLackIdTestReturnNull) {
     std::string reqJson = R"({"moduleName": "communication", "type": "request", "resultCallbackId": 0,
         "command": "communication/advisor", "params": {}})";
     Dic::document_t json;
@@ -72,8 +63,7 @@ TEST_F(CommunicationProtocolUtilTest, ToAdvisorRequestLackIdTestReturnNull)
     EXPECT_EQ(err, "Failed to set request base info of communication advisor request.");
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToOperatorListResponseTest)
-{
+TEST_F(CommunicationProtocolUtilTest, ToOperatorListResponseTest) {
     const std::string KEY_MIN_TIME = "minTime";
     const std::string KEY_MAX_TIME = "maxTime";
     Dic::Protocol::OperatorListsResponse response;
@@ -92,8 +82,7 @@ TEST_F(CommunicationProtocolUtilTest, ToOperatorListResponseTest)
     EXPECT_EQ(jsonOptional.value()["body"][KEY_MAX_TIME.c_str()], response.body.maxTime);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorResponseEmptyDataTest)
-{
+TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorResponseEmptyDataTest) {
     CommunicationAdvisorResponse response;
     std::string err;
     response.body.items.clear();
@@ -101,15 +90,11 @@ TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorResponseEmptyDataTes
     CheckResponseBaseStruct(jsonOptional);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorResponseNormalDataTest)
-{
+TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorResponseNormalDataTest) {
     CommunicationAdvisorResponse response;
     CommunicationAdvisorInfo info{"Packet Analysis",
-        {
-        {"Category", {"SDMA", "RDMA"}},
-        {"Min Size", {"16MB", "1MB"}},
-        {"Packet Size <= Min Size Percentage", {"2.1", "0.5"}}
-        }};
+        {{"Category", {"SDMA", "RDMA"}}, {"Min Size", {"16MB", "1MB"}},
+            {"Packet Size <= Min Size Percentage", {"2.1", "0.5"}}}};
     response.body.items.push_back(info);
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
@@ -139,8 +124,7 @@ TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorResponseNormalDataTe
     EXPECT_EQ(jsonOptional.value()["body"]["items"][0]["statistics"]["Packet Size <= Min Size Percentage"][1], "0.5");
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsResponseReturnFalseWithEmptyData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsResponseReturnFalseWithEmptyData) {
     OperatorDetailsResponse response;
     response.body.count = 0;
     response.body.pageSize = 0;
@@ -158,8 +142,7 @@ TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsResponseReturnFalseWithEm
     EXPECT_EQ(body["allOperators"].GetArray().Size(), 0);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsResponseReturnTrueWithNormalData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsResponseReturnTrueWithNormalData) {
     OperatorDetailsResponse response;
     response.body.count = 122;
     response.body.pageSize = 50;
@@ -186,8 +169,7 @@ TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsResponseReturnTrueWithNor
     }
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataResponseReturnFalseWithEmptyData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataResponseReturnFalseWithEmptyData) {
     BandwidthDataResponse response = {};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
@@ -199,8 +181,7 @@ TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataResponseReturnFalseWithEmpt
     EXPECT_EQ(body["items"].GetArray().Size(), 0);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataResponseReturnTrueWithNormalData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataResponseReturnTrueWithNormalData) {
     BandwidthDataResponse response;
     response.body.items = {
         {"AAA", 1, 2, 3, 4},
@@ -222,8 +203,7 @@ TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataResponseReturnTrueWithNorma
     }
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToDurationResponseReturnFalseWithEmptyData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToDurationResponseReturnFalseWithEmptyData) {
     DurationResponse response = {};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
@@ -237,22 +217,11 @@ TEST_F(CommunicationProtocolUtilTest, ToDurationResponseReturnFalseWithEmptyData
     EXPECT_EQ(body["advice"].GetArray().Size(), 0);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToDurationResponseReturnTrueWithNormalData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToDurationResponseReturnTrueWithNormalData) {
     DurationResponse response = {};
-    response.body.durationList = {
-        {
-            "AAA", "/root/data",
-            {
-                {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
-                {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}
-            }
-        }
-    };
-    response.body.bwStatistics = {
-        {"AAA", 1, 2, 3, 4, 5},
-        {"BBB", 31, 32, 33, 34, 35}
-    };
+    response.body.durationList = {{"AAA", "/root/data",
+        {{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}, {11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22}}}};
+    response.body.bwStatistics = {{"AAA", 1, 2, 3, 4, 5}, {"BBB", 31, 32, 33, 34, 35}};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
     jsonOptional = protocol.ToJson(response, err);
@@ -268,7 +237,7 @@ TEST_F(CommunicationProtocolUtilTest, ToDurationResponseReturnTrueWithNormalData
         EXPECT_EQ(item["rankId"].GetString(), response.body.durationList[index].rankId);
         EXPECT_EQ(item["dbPath"].GetString(), response.body.durationList[index].dbPath);
         EXPECT_EQ(item["compareData"]["baseline"]["sdmaBw"],
-                  response.body.durationList[index++].durationData.baseline.sdmaBw);
+            response.body.durationList[index++].durationData.baseline.sdmaBw);
     }
     index = 0;
     for (const auto &item : body["advice"].GetArray()) {
@@ -278,8 +247,7 @@ TEST_F(CommunicationProtocolUtilTest, ToDurationResponseReturnTrueWithNormalData
     }
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupResponseReturnFalseWithEmptyData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupResponseReturnFalseWithEmptyData) {
     MatrixGroupResponse response = {};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
@@ -291,13 +259,9 @@ TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupResponseReturnFalseWithEmptyD
     EXPECT_EQ(body["data"].GetArray().Size(), 0);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupResponseReturnTrueWithNormalData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupResponseReturnTrueWithNormalData) {
     MatrixGroupResponse response = {};
-    response.body.groupList = {
-        {"A1", "A2", "A3"},
-        {"B1", "B2", "B3"}
-    };
+    response.body.groupList = {{"A1", "A2", "A3"}, {"B1", "B2", "B3"}};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
     jsonOptional = protocol.ToJson(response, err);
@@ -314,8 +278,7 @@ TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupResponseReturnTrueWithNormalD
     }
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToMatrixListResponseWithEmptyData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToMatrixListResponseWithEmptyData) {
     MatrixListResponse response = {};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
@@ -327,25 +290,18 @@ TEST_F(CommunicationProtocolUtilTest, ToMatrixListResponseWithEmptyData)
     EXPECT_EQ(body["matrixList"].GetArray().Size(), 0);
 }
 
-TEST_F(CommunicationProtocolUtilTest, ToMatrixListResponseWithNormalData)
-{
+TEST_F(CommunicationProtocolUtilTest, ToMatrixListResponseWithNormalData) {
     MatrixListResponse response;
-    response.body.matrixList = {
-        {
-            0, 1,
-            {
-                {"A1", "A2", 1, 2, 3},
-                {"B1", "B2", 4, 5, 6},
-            }
-        },
-        {
-            1, 0,
+    response.body.matrixList = {{0, 1,
+                                    {
+                                        {"A1", "A2", 1, 2, 3},
+                                        {"B1", "B2", 4, 5, 6},
+                                    }},
+        {1, 0,
             {
                 {"C1", "C2", 7, 8, 9},
                 {"D1", "D2", 10, 11, 12},
-            }
-        }
-    };
+            }}};
     std::string err;
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
     jsonOptional = protocol.ToJson(response, err);
@@ -359,12 +315,11 @@ TEST_F(CommunicationProtocolUtilTest, ToMatrixListResponseWithNormalData)
         EXPECT_EQ(item["srcRank"].GetInt(), response.body.matrixList[index].srcRank);
         EXPECT_EQ(item["dstRank"].GetInt(), response.body.matrixList[index].dstRank);
         EXPECT_EQ(item["matrixData"]["baseline"]["transportType"].GetString(),
-                  response.body.matrixList[index++].matrixData.baseline.transportType);
+            response.body.matrixList[index++].matrixData.baseline.transportType);
     }
 }
 
-TEST_F(CommunicationProtocolUtilTest, TestCommunicationSlowRankAnalysisResponse)
-{
+TEST_F(CommunicationProtocolUtilTest, TestCommunicationSlowRankAnalysisResponse) {
     CommunicationSlowRankAnalysisResponse response;
     response.body.hasAdvice = true;
     response.body.fastRankId = "7";

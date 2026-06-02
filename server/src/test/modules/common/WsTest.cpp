@@ -33,8 +33,7 @@
 
 using namespace Dic;
 
-TEST_F(TestSuit, TestAllRequestHandler)
-{
+TEST_F(TestSuit, TestAllRequestHandler) {
     std::string err = "";
     std::ifstream file(TestSuit::GetTestDataFile("request.csv"));
     std::string line;
@@ -57,8 +56,7 @@ TEST_F(TestSuit, TestAllRequestHandler)
     EXPECT_EQ(count, size);
 }
 
-TEST_F(TestSuit, TestAllRequestSessionErr)
-{
+TEST_F(TestSuit, TestAllRequestSessionErr) {
     std::string err = "";
     std::ifstream file(TestSuit::GetTestDataFile("request.csv"));
     std::string line;

@@ -19,16 +19,11 @@
 #ifndef PROFILER_SERVER_DTFRAMEWORK_H
 #define PROFILER_SERVER_DTFRAMEWORK_H
 #include <string>
-namespace Dic::DT::Framework
-{
-enum class TestPathType {
-    SRC_TEST_DATA = 0,
-    ROOT_TEST = 1
-};
+namespace Dic::DT::Framework {
+enum class TestPathType { SRC_TEST_DATA = 0, ROOT_TEST = 1 };
 
-class DtFramework
-{
-public:
+class DtFramework {
+  public:
     static std::string GetTestDataDirPath(TestPathType type = TestPathType::SRC_TEST_DATA);
     static std::string GetTestDataDirPath(int version);
 };
