@@ -83,6 +83,9 @@
       "GE Reserved": "GE Reserved",
       "GE Activated": "GE Activated",
       "APP Reserved": "APP Reserved",
+      "HOST_PINNED": "Host Pinned Memory",
+      "START_TRACE": "Trace Start",
+      "STOP_TRACE": "Trace Stop",
       "MemoryUsage": "Memory Usage",
       "CurveDescribe": [
         "Operators Allocated: This curve illustrates the device memory trend derived from data collected from operators during memory allocation, encompassing the total memory usage of all operators. The memory data presented here is requested by PTA and GE",

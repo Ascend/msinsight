@@ -60,6 +60,17 @@ class MemScopeServiceTest : public ::testing::Test {
     }
 };
 
+TEST_F(MemScopeServiceTest, IsValidMemoryEventTypeAcceptsHostPinnedAndTraceLifecycleEvents) {
+    EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
+        MEM_SCOPE_DUMP_EVENT::MALLOC, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED));
+    EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
+        MEM_SCOPE_DUMP_EVENT::FREE, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED));
+    EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
+        MEM_SCOPE_DUMP_EVENT::SYSTEM, MEM_SCOPE_DUMP_EVENT_TYPE::SYSTEM_START_TRACE));
+    EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
+        MEM_SCOPE_DUMP_EVENT::SYSTEM, MEM_SCOPE_DUMP_EVENT_TYPE::SYSTEM_STOP_TRACE));
+}
+
 /***
  * 用于测试当时间戳非法时（如出现负值，或超出最大时间戳时），通过非法时间戳构建内存拆解树的情况
  * 预期：无报错，能够构建出根节点HAL节点，但无子节点

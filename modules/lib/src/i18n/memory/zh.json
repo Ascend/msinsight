@@ -83,6 +83,9 @@
       "GE Reserved": "GE保留",
       "GE Activated": "GE持有",
       "APP Reserved": "进程保留",
+      "HOST_PINNED": "Host锁页内存",
+      "START_TRACE": "采集开始",
+      "STOP_TRACE": "采集结束",
       "MemoryUsage": "内存使用",
       "CurveDescribe": [
         "算子分配: 算子分配曲线表示算子在申请device内存时采集到的内存信息随采集时间的变化趋势，代表所有算子总的占用内存，此处采集到的device内存数据由PTA和GE申请",

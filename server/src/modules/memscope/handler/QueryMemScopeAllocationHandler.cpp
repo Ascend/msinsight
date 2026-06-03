@@ -42,13 +42,11 @@ bool QueryMemScopeAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Req
     }
     std::vector<MemoryAllocation> allocations;
     memoryDatabase->QueryMemoryAllocations(request.params, allocations);
+    PaddingAllocations(allocations, request.params);
     if (allocations.empty()) {
         Server::ServerLog::Warn("Query memory allocations: empty data.");
         SendResponse(std::move(responsePtr), true);
         return true;
-    }
-    if (request.params.startTimestamp > 0 || request.params.endTimestamp > 0) {
-        PaddingAllocations(allocations, request.params);
     }
     responsePtr->minTimestamp = allocations[0].timestamp;
     responsePtr->maxTimestamp = allocations.back().timestamp;
@@ -64,28 +62,30 @@ void QueryMemScopeAllocationHandler::PaddingAllocations(
         Server::ServerLog::Error("Get memscope memory database failed when padding allocations.");
         return;
     }
-    uint64_t minTimestamp = 0;
-    if (queryParams.relativeTime) {
-        minTimestamp = memoryDatabase->GetGlobalMinTimestamp();
-    }
+    const uint64_t minTimestamp = queryParams.relativeTime ? memoryDatabase->GetGlobalMinTimestamp() : 0;
+    const uint64_t globalMinTimestamp = memoryDatabase->GetGlobalMinTimestamp();
+    const uint64_t globalMaxTimestamp = memoryDatabase->GetGlobalMaxTimestamp();
+    const bool hasTimeRange = queryParams.endTimestamp > 0;
+    const uint64_t startTimestamp =
+        hasTimeRange ? queryParams.startTimestamp : (queryParams.relativeTime ? 0 : globalMinTimestamp);
+    const uint64_t endTimestamp = hasTimeRange
+        ? queryParams.endTimestamp
+        : (queryParams.relativeTime ? globalMaxTimestamp - globalMinTimestamp : globalMaxTimestamp);
     auto beforeAllocation = memoryDatabase->QueryLatestAllocationWithinTimestamp(
-        queryParams.deviceId, queryParams.eventType, queryParams.startTimestamp + minTimestamp);
+        queryParams.deviceId, queryParams.eventType, startTimestamp + minTimestamp);
     if (!beforeAllocation.has_value()) {
         beforeAllocation = std::make_optional<MemoryAllocation>(
-            queryParams.startTimestamp, 0, queryParams.deviceId, queryParams.eventType, queryParams.optimized);
+            startTimestamp, 0, queryParams.deviceId, queryParams.eventType, queryParams.optimized);
     } else {
-        beforeAllocation.value().timestamp = queryParams.startTimestamp;
+        beforeAllocation.value().timestamp = startTimestamp;
     }
-    allocations.insert(allocations.begin(), beforeAllocation.value());
-    auto afterAllocation = memoryDatabase->QueryNextAllocationAfterTimestamp(
-        queryParams.deviceId, queryParams.eventType, queryParams.endTimestamp + minTimestamp);
-    if (!afterAllocation.has_value()) {
-        afterAllocation = std::make_optional<MemoryAllocation>(queryParams.endTimestamp, allocations.back().totalSize,
-            queryParams.deviceId, queryParams.eventType, queryParams.optimized);
-    } else {
-        afterAllocation.value().timestamp = queryParams.endTimestamp;
+    if (allocations.empty() || allocations.front().timestamp != startTimestamp) {
+        allocations.insert(allocations.begin(), beforeAllocation.value());
     }
-    allocations.emplace_back(afterAllocation.value());
+    if (allocations.back().timestamp != endTimestamp) {
+        allocations.emplace_back(endTimestamp, allocations.back().totalSize, queryParams.deviceId,
+            queryParams.eventType, queryParams.optimized);
+    }
 }
 } // Memory
 } // Module
