@@ -27,7 +27,7 @@ import { fetchColumnFilterProps } from '@insight/lib/resize';
 import i18n from '@insight/lib/i18n';
 import type { TableColumnsType } from 'antd';
 import { ColumnFilterIcon } from '@insight/lib/icon';
-import type { EventViewParams, BaseSummaryRowItemType } from '../../api/interface';
+import type { EventViewParams, BaseSummaryRowItemType, KernelE2ETimeResponse } from '../../api/interface';
 
 interface ColumData {
     title: string;
@@ -230,6 +230,7 @@ export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Ascend HardWare Task Summary', tips: 'AscendHardWareTaskSummaryTips' },
     { name: 'Communication Summary', tips: 'CommunicationSummaryTips' },
     { name: 'Overlap Analysis', tips: 'OverlapAnalysisTips' },
+    { name: 'Kernel E2E Time', tips: 'KernelE2ETimeTips' },
     { name: 'Kernel Details', tips: 'KernelDetailsTips' },
 ];
 
@@ -366,6 +367,21 @@ export const queryACLNNOperators = async (param: {
 
 export const eventViewData = async (params: EventViewParams): Promise<any> => {
     return window.requestData('unit/eventView', params, 'timeline');
+};
+
+export const queryKernelE2ETime = async (param: {
+    rankId: string;
+    dbPath: string;
+    startTime: number;
+    endTime: number;
+    current: number;
+    pageSize: number;
+    pathType: string;
+    opName?: string;
+    sortField?: string;
+    sortOrder?: string;
+}): Promise<KernelE2ETimeResponse> => {
+    return window.requestData('unit/kernelE2ETime', param, 'timeline');
 };
 
 export const Loading = ({ size = 20, style = {} }: { size?: number; style?: object }): JSX.Element => {

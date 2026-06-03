@@ -21,7 +21,7 @@
  * 包含扩展的控制方法
  */
 export interface DebouncedRequestFunc<T extends (...args: any[]) => Promise<any>> {
-    (...args: Parameters<T>): Promise<ReturnType<T>>;
+    (...args: Parameters<T>): Promise<Awaited<ReturnType<T>>>;
     /** 取消指定key或所有等待中的请求 */
     cancel(key?: string): void;
     /** 立即发送指定key或所有等待中的请求 */
@@ -100,10 +100,10 @@ export function createSmartDebounceRequestFunc<T extends (...args: any[]) => Pro
         keyFn?: (...args: Parameters<T>) => string;
         leading?: boolean;
         onBeforeRequest?: (...args: Parameters<T>) => void;
-        onAfterRequest?: (result: ReturnType<T>, ...args: Parameters<T>) => void;
+        onAfterRequest?: (result: Awaited<ReturnType<T>>, ...args: Parameters<T>) => void;
     }
 ): DebouncedRequestFunc<T> {
-    type Resolve = (value: ReturnType<T>) => void;
+    type Resolve = (value: Awaited<ReturnType<T>>) => void;
     type Reject = (reason?: any) => void;
     type QueueItem = { resolve: Resolve; reject: Reject };
 
@@ -135,7 +135,7 @@ export function createSmartDebounceRequestFunc<T extends (...args: any[]) => Pro
 
         // --- leading 模式专用 ---
         leadingQueue: QueueItem[];
-        leadingResult?: ReturnType<T>;
+        leadingResult?: Awaited<ReturnType<T>>;
         leadingError?: any;
         leadingCompleted: boolean;
     };
@@ -155,7 +155,7 @@ export function createSmartDebounceRequestFunc<T extends (...args: any[]) => Pro
     const resolveLeadingQueue = (state: KeyState) => {
         while (state.leadingQueue.length > 0) {
             const { resolve } = state.leadingQueue.shift()!;
-            resolve(state.leadingResult as ReturnType<T>);
+            resolve(state.leadingResult as Awaited<ReturnType<T>>);
         }
     };
 
@@ -268,7 +268,7 @@ export function createSmartDebounceRequestFunc<T extends (...args: any[]) => Pro
 
     // ========== 核心包装函数 ==========
 
-    const debouncedFn = (...args: Parameters<T>): Promise<ReturnType<T>> => {
+    const debouncedFn = (...args: Parameters<T>): Promise<Awaited<ReturnType<T>>> => {
         const key = keyFn ? keyFn(...args) : 'default';
 
         return new Promise((resolve, reject) => {

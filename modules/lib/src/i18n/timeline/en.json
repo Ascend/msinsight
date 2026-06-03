@@ -149,7 +149,9 @@
       "AICPUOperatorsTips": "AICPU算子无法充分利用AI Core资源，可按备注提示，尝试减少AI CPU类算子。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）；采集的Level等级需为L1及以上。",
       "ACLNNOperatorsTips": "分析可优化的ACLNN类算子。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）。",
       "OperatorsFusionTips": "提示存在可以替换的融合算子，详见Ascend Extension for PyTorch融合算子替换文档。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）；采集的Level等级需为L1及以上。",
-      "OperatorsDispatchTips": "提示算子下发时存在较为耗时的aclOpCompile操作，可按备注提示，禁用在线编译。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）。"
+      "OperatorsDispatchTips": "提示算子下发时存在较为耗时的aclOpCompile操作，可按备注提示，禁用在线编译。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）。",
+      "Kernel E2E Time": "Kernel E2E Time",
+      "KernelE2ETimeTips": "算子下发端到端时间统计，展示每条算子下发链路的阶段耗时、状态和诊断信息。点击表格行可高亮该链路对应的Timeline slices。采集事件需包含CPU（框架侧）、NPU（CANN软件栈及NPU硬件层）数据。"
     },
     "tableHead": {
       "Name": "Name",
@@ -205,7 +207,30 @@
       "Rank ID": "Rank ID",
       "Category": "Category",
       "Number": "Number",
-      "Time Ratio": "Time Ratio"
+      "Time Ratio": "Time Ratio",
+      "Operator": "Operator",
+      "Path": "Path",
+      "Prepare Time": "Prepare Time",
+      "Python API Time": "Python API Time",
+      "Enqueue Time": "Enqueue Time",
+      "Queue Time": "Queue Time",
+      "Pipeline2 Time": "Pipeline2 Time",
+      "Launch Time": "Launch Time",
+      "E2E Time": "E2E Time",
+      "Match Rate": "Match Rate",
+      "Normal": "Normal",
+      "Fallback": "Fallback",
+      "Incomplete": "Incomplete",
+      "Duration": "Duration",
+      "All": "All",
+      "PathTooltip": "Kernel dispatch path type: ACLOP or ACLNN",
+      "PrepareTimeTooltip": "PythonCall parent: earliest Enqueue Start - Python API Start among all leaf descendants; CANN API parent/Full-chain leaf: Enqueue Start - Python API Start; Launch leaf: empty",
+      "PythonApiTimeTooltip": "PythonCall parent/CANN API parent/Full-chain leaf: Python API End - Python API Start; Launch leaf: empty",
+      "EnqueueTimeTooltip": "PythonCall parent: sum of all leaf descendants Enqueue Time; CANN API parent/Full-chain leaf: Enqueue End - Enqueue Start; Launch leaf: empty",
+      "QueueTimeTooltip": "PythonCall parent: sum of all leaf descendants Queue Time; CANN API parent/Full-chain leaf: Dequeue Start - Enqueue End; Launch leaf: empty",
+      "Pipeline2TimeTooltip": "PythonCall parent: sum of all leaf descendants Pipeline2 Time; CANN API parent: sum of child leaf Pipeline2 Time; Full-chain leaf/Launch leaf: Launch End - Dequeue Start (falls back to Dequeue End when Launch End is unavailable)",
+      "LaunchTimeTooltip": "PythonCall parent: sum of all leaf descendants Launch Time; CANN API parent: sum of child leaf Launch Time; Full-chain leaf/Launch leaf: Launch End - Launch Start (empty when no Launch)",
+      "E2ETimeTooltip": "PythonCall parent: max E2E Time among all leaf descendants; CANN API parent: max E2E Time among child leaf descendants; Full-chain leaf/Launch leaf: Launch End - Python API Start (falls back to Dequeue End when Launch End is unavailable)"
     },
     "dragFile": {
       "FileFormatError": "File format error: Only Trace Event Format is supported",

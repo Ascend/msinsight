@@ -44,6 +44,7 @@ import { OverallMetrics } from './OverallMetrics';
 import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
 import { ProjectType } from '../../entity/insight';
 import { MemcpyOverallMetrics } from './MemcpyOverallMetrics';
+import { KernelE2ETimeTable } from './KernelE2ETimeTable';
 
 const filterColumn = [
     'name', 'type', 'acceleratorCore', 'taskId', 'inputShapes', 'inputDataTypes',
@@ -233,4 +234,4 @@ export const StatsSystemView = [OverallMetrics, MemcpyOverallMetrics, ...ftraceT
             />
         );
     });
-}), KernelDetails];
+}), KernelE2ETimeTable, KernelDetails];

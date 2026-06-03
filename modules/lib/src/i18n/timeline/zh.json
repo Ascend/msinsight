@@ -149,7 +149,9 @@
       "AICPUOperatorsTips": "AICPU算子无法充分利用AI Core资源，可按备注提示，尝试减少AI CPU类算子。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）；采集的Level等级需为L1及以上。",
       "ACLNNOperatorsTips": "分析可优化的ACLNN类算子。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）。",
       "OperatorsFusionTips": "提示存在可以替换的融合算子，详见Ascend Extension for PyTorch融合算子替换文档。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）；采集的Level等级需为L1及以上。",
-      "OperatorsDispatchTips": "提示算子下发时存在较为耗时的aclOpCompile操作，可按备注提示，禁用在线编译。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）。"
+      "OperatorsDispatchTips": "提示算子下发时存在较为耗时的aclOpCompile操作，可按备注提示，禁用在线编译。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）。",
+      "Kernel E2E Time": "算子下发端到端时间",
+      "KernelE2ETimeTips": "算子下发端到端时间统计，展示每条算子下发链路的阶段耗时、状态和诊断信息。点击表格行可高亮该链路对应的Timeline slices。采集事件需包含CPU（框架侧）、NPU（CANN软件栈及NPU硬件层）数据。"
     },
     "tableHead": {
       "Name": "名称",
@@ -205,7 +207,30 @@
       "Rank ID": "卡序号",
       "Category": "类别",
       "Number": "数量",
-      "Time Ratio": "时间占比"
+      "Time Ratio": "时间占比",
+      "Operator": "算子",
+      "Path": "路径",
+      "Prepare Time": "准备时间",
+      "Python API Time": "Python API 时间",
+      "Enqueue Time": "入队耗时",
+      "Queue Time": "排队耗时",
+      "Pipeline2 Time": "二级流水耗时",
+      "Launch Time": "Launch 耗时",
+      "E2E Time": "端到端耗时",
+      "Match Rate": "匹配率",
+      "Normal": "正常",
+      "Fallback": "回退",
+      "Incomplete": "不完整",
+      "Duration": "耗时",
+      "All": "全部",
+      "PathTooltip": "算子下发路径类型：ACLOP 或 ACLNN",
+      "PrepareTimeTooltip": "PythonCall 父项：所有叶子项中最早的入队开始时间 - Python API 开始时间；CANN API 父项/完整链路叶子项：入队开始时间 - Python API 开始时间；Launch 叶子项：空",
+      "PythonApiTimeTooltip": "PythonCall 父项/CANN API 父项/完整链路叶子项：Python API 结束时间 - Python API 开始时间；Launch 叶子项：空",
+      "EnqueueTimeTooltip": "PythonCall 父项：汇总所有叶子项入队耗时；CANN API 父项/完整链路叶子项：入队结束时间 - 入队开始时间；Launch 叶子项：空",
+      "QueueTimeTooltip": "PythonCall 父项：汇总所有叶子项排队耗时；CANN API 父项/完整链路叶子项：出队开始时间 - 入队结束时间；Launch 叶子项：空",
+      "Pipeline2TimeTooltip": "PythonCall 父项：汇总所有叶子项二级流水耗时；CANN API 父项：汇总子叶子项二级流水耗时；完整链路叶子项/Launch 叶子项：Launch 结束时间 - 出队开始时间（Launch 结束时间不存在时，用出队结束时间兜底）",
+      "LaunchTimeTooltip": "PythonCall 父项：汇总所有叶子项 Launch 耗时；CANN API 父项：汇总子叶子项 Launch 耗时；完整链路叶子项/Launch 叶子项：Launch 结束时间 - Launch 开始时间（无 Launch 则为空）",
+      "E2ETimeTooltip": "PythonCall 父项：所有叶子项端到端耗时最大值；CANN API 父项：子叶子项端到端耗时最大值；完整链路叶子项/Launch 叶子项：Launch 结束时间 - Python API 开始时间（Launch 结束时间不存在时，用出队结束时间兜底）"
     },
     "dragFile": {
       "FileFormatError": "仅支持上传Trace Event类型的文件",

@@ -335,3 +335,51 @@ export interface QueryTimelineOffsetResult {
     result: TimelineOffsetItem[];
     baseOffset: number;
 }
+
+export enum KernelE2ERole {
+    PYTHON_CALL = 'PYTHON_CALL',
+    PYTHON_OP = 'PYTHON_OP',
+    ENQUEUE = 'ENQUEUE',
+    DEQUEUE = 'DEQUEUE',
+    CANN_API = 'CANN_API',
+    LAUNCH = 'LAUNCH',
+    HARDWARE_TASK = 'HARDWARE_TASK',
+}
+
+export interface KernelE2EHighlightSlice {
+    role: KernelE2ERole | string;
+    name: string;
+    startTime: number;
+    duration: number;
+    pid: string;
+    tid: string;
+    id?: string;
+    missingReason?: string;
+}
+
+export interface KernelE2ETimeRecord {
+    id: string;
+    opName: string;
+    pathType: string;
+    isParent?: boolean;
+    prepareTime?: number;
+    pythonApiTime?: number;
+    enqueueTime?: number;
+    queueTime?: number;
+    pipeline2Time?: number;
+    launchTime?: number;
+    endToEndTime?: number;
+    status: 'normal' | 'fallback' | 'incomplete' | string;
+    diagnostic?: string;
+    highlightSlices: KernelE2EHighlightSlice[];
+    children?: KernelE2ETimeRecord[];
+}
+
+export interface KernelE2ETimeResponse {
+    records: KernelE2ETimeRecord[];
+    totalCount: number;
+    normalCount: number;
+    fallbackCount: number;
+    incompleteCount: number;
+    launchMatchRate: number;
+}
