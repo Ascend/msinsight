@@ -57,6 +57,7 @@ class TimelineProtocol : public ProtocolUtil {
     static std::unique_ptr<Request> ToExpAnaAICoreFreqRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToEventsViewRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToKernelDetailRequest(const json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToKernelE2ETimeRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToOneKernelRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToTableDataNameListRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToTableDataDetailRequest(const json_t &json, std::string &error);
@@ -88,6 +89,7 @@ class TimelineProtocol : public ProtocolUtil {
     static std::optional<document_t> ToExpAnaAICoreFreqResponseJson(const Dic::Protocol::Response &response);
     static std::optional<document_t> ToEventsViewResponseJson(const Response &response);
     static std::optional<document_t> ToKernelDetailResponseJson(const Response &response);
+    static std::optional<document_t> ToKernelE2ETimeResponseJson(const Response &response);
     static std::optional<document_t> ToOneKernelResponseJson(const Response &response);
     static std::optional<document_t> ToCommunicationKernelResponseJson(const Dic::Protocol::Response &response);
     static std::optional<document_t> ToUnitThreadsOperatorsResponseJson(const Response &response);

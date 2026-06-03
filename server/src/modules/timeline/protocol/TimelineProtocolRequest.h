@@ -500,6 +500,39 @@ struct KernelDetailsRequest : public Request {
     KernelDetailsParams params;
 };
 
+struct KernelE2ETimeParams {
+    std::string rankId;
+    uint64_t startTime = 0;
+    uint64_t endTime = 0;
+    uint64_t current = 1;
+    uint64_t pageSize = 100;
+    std::string pathType = "all";
+    std::string opName;
+    std::string sortField = "endToEndTime";
+    std::string sortOrder = "desc";
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
+    {
+        if (startTime > endTime) {
+            warnMsg = "kernel e2e time start time is bigger than end time";
+            return false;
+        }
+        if (endTime > UINT64_MAX - minTime) {
+            warnMsg = "kernel e2e time end time is invalid";
+            return false;
+        }
+        if (rankId.empty()) {
+            warnMsg = "kernel e2e time rank id is empty";
+            return false;
+        }
+        return CheckUnsignPageValid(pageSize, current, warnMsg);
+    }
+};
+
+struct KernelE2ETimeRequest : public Request {
+    KernelE2ETimeRequest() : Request(REQ_RES_KERNEL_E2E_TIME) {};
+    KernelE2ETimeParams params;
+};
+
 struct KernelParams {
     std::string rankId;
     std::string name;

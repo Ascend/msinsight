@@ -29,6 +29,76 @@ template <typename RESPONSE> std::optional<document_t> ToResponseJson(const RESP
     return std::nullopt;
 }
 
+static void AddKernelE2ERecordJson(
+    json_t &itemJson, const KernelE2ETimeRecordDto &record, RAPIDJSON_DEFAULT_ALLOCATOR &allocator);
+
+static void AddKernelE2EHighlightSlicesJson(
+    json_t &itemJson, const std::vector<KernelE2EHighlightSliceDto> &slices, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
+    json_t highlightSlices(kArrayType);
+    for (const auto &slice : slices) {
+        json_t sliceJson(kObjectType);
+        JsonUtil::AddMember(sliceJson, "role", slice.role, allocator);
+        JsonUtil::AddMember(sliceJson, "name", slice.name, allocator);
+        JsonUtil::AddMember(sliceJson, "startTime", slice.startTime, allocator);
+        JsonUtil::AddMember(sliceJson, "duration", slice.duration, allocator);
+        if (!slice.pid.empty()) {
+            JsonUtil::AddMember(sliceJson, "pid", slice.pid, allocator);
+        }
+        if (!slice.tid.empty()) {
+            JsonUtil::AddMember(sliceJson, "tid", slice.tid, allocator);
+        }
+        if (!slice.id.empty()) {
+            JsonUtil::AddMember(sliceJson, "id", slice.id, allocator);
+        }
+        if (!slice.missingReason.empty()) {
+            JsonUtil::AddMember(sliceJson, "missingReason", slice.missingReason, allocator);
+        }
+        highlightSlices.PushBack(sliceJson, allocator);
+    }
+    JsonUtil::AddMember(itemJson, "highlightSlices", highlightSlices, allocator);
+}
+
+static void AddKernelE2ERecordJson(
+    json_t &itemJson, const KernelE2ETimeRecordDto &record, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
+    JsonUtil::AddMember(itemJson, "id", record.id, allocator);
+    JsonUtil::AddMember(itemJson, "opName", record.opName, allocator);
+    JsonUtil::AddMember(itemJson, "pathType", record.pathType, allocator);
+    JsonUtil::AddMember(itemJson, "isParent", record.isParent, allocator);
+    if (record.prepareTime.has_value()) {
+        JsonUtil::AddMember(itemJson, "prepareTime", record.prepareTime.value(), allocator);
+    }
+    if (record.pythonApiTime.has_value()) {
+        JsonUtil::AddMember(itemJson, "pythonApiTime", record.pythonApiTime.value(), allocator);
+    }
+    if (record.enqueueTime.has_value()) {
+        JsonUtil::AddMember(itemJson, "enqueueTime", record.enqueueTime.value(), allocator);
+    }
+    if (record.queueTime.has_value()) {
+        JsonUtil::AddMember(itemJson, "queueTime", record.queueTime.value(), allocator);
+    }
+    if (record.pipeline2Time.has_value()) {
+        JsonUtil::AddMember(itemJson, "pipeline2Time", record.pipeline2Time.value(), allocator);
+    }
+    if (record.launchTime.has_value()) {
+        JsonUtil::AddMember(itemJson, "launchTime", record.launchTime.value(), allocator);
+    }
+    if (record.endToEndTime.has_value()) {
+        JsonUtil::AddMember(itemJson, "endToEndTime", record.endToEndTime.value(), allocator);
+    }
+    JsonUtil::AddMember(itemJson, "status", record.status, allocator);
+    JsonUtil::AddMember(itemJson, "diagnostic", record.diagnostic, allocator);
+    AddKernelE2EHighlightSlicesJson(itemJson, record.highlightSlices, allocator);
+    if (!record.children.empty()) {
+        json_t children(kArrayType);
+        for (const auto &child : record.children) {
+            json_t childJson(kObjectType);
+            AddKernelE2ERecordJson(childJson, child, allocator);
+            children.PushBack(childJson, allocator);
+        }
+        JsonUtil::AddMember(itemJson, "children", children, allocator);
+    }
+}
+
 static void BuildImportActionJson(
     const std::vector<Action> &actions, json_t &result, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
     for (const Action &action : actions) {
@@ -528,6 +598,27 @@ template <> std::optional<document_t> ToResponseJson<KernelDetailsResponse>(cons
     JsonUtil::AddMember(body, "count", response.body.count, allocator);
     JsonUtil::AddMember(body, "pageSize", response.body.pageSize, allocator);
     JsonUtil::AddMember(body, "currentPage", response.body.currentPage, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
+template <> std::optional<document_t> ToResponseJson<KernelE2ETimeResponse>(const KernelE2ETimeResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t records(kArrayType);
+    for (const auto &record : response.body.records) {
+        json_t itemJson(kObjectType);
+        AddKernelE2ERecordJson(itemJson, record, allocator);
+        records.PushBack(itemJson, allocator);
+    }
+    JsonUtil::AddMember(body, "records", records, allocator);
+    JsonUtil::AddMember(body, "totalCount", response.body.totalCount, allocator);
+    JsonUtil::AddMember(body, "normalCount", response.body.normalCount, allocator);
+    JsonUtil::AddMember(body, "fallbackCount", response.body.fallbackCount, allocator);
+    JsonUtil::AddMember(body, "incompleteCount", response.body.incompleteCount, allocator);
+    JsonUtil::AddMember(body, "launchMatchRate", response.body.launchMatchRate, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }

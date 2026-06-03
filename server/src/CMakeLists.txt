@@ -50,6 +50,7 @@ include_directories(${SRC_HOME_DIR}/modules/timeline/core/cache)
 include_directories(${SRC_HOME_DIR}/modules/timeline/core/parser)
 include_directories(${SRC_HOME_DIR}/modules/timeline/core/table)
 include_directories(${SRC_HOME_DIR}/modules/timeline/core/dataEngine)
+include_directories(${SRC_HOME_DIR}/modules/timeline/core/kernelE2E)
 include_directories(${SRC_HOME_DIR}/modules/timeline/core/systemView)
 include_directories(${SRC_HOME_DIR}/modules/timeline/handler)
 include_directories(${SRC_HOME_DIR}/modules/timeline/protocol)
@@ -145,6 +146,7 @@ aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/cache DIC_MODULES_TIM
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/parser DIC_MODULES_TIMELINE_CORE_PARSER_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/table DIC_MODULES_TIMELINE_CORE_TABLE_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/dataEngine DIC_MODULES_TIMELINE_CORE_DATAENGINE_SRC)
+aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/kernelE2E DIC_MODULES_TIMELINE_CORE_KERNELE2E_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/core/systemView DIC_MODULES_TIMELINE_CORE_SYSTEMVIEW_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/handler DIC_MODULES_TIMELINE_HANDLER_SRC)
 aux_source_directory(${SRC_HOME_DIR}/modules/timeline/protocol DIC_MODULES_TIMELINE_PROTOCOL_SRC)
@@ -264,6 +266,7 @@ list(APPEND DIC_MODULES_SRC_LIST
         ${DIC_MODULES_TIMELINE_CORE_PARSER_SRC}
         ${DIC_MODULES_TIMELINE_CORE_TABLE_SRC}
         ${DIC_MODULES_TIMELINE_CORE_DATAENGINE_SRC}
+        ${DIC_MODULES_TIMELINE_CORE_KERNELE2E_SRC}
         ${DIC_MODULES_TIMELINE_CORE_SYSTEMVIEW_SRC}
         ${DIC_MODULES_TIMELINE_HANDLER_SRC}
         ${DIC_MODULES_TIMELINE_PROTOCOL_SRC}

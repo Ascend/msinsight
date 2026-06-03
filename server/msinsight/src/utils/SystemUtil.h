@@ -19,9 +19,15 @@
 #ifndef PROFILER_SERVER_SYSTEM_UTIL_H
 #define PROFILER_SERVER_SYSTEM_UTIL_H
 
+#include <cstdint>
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
+#elif defined(__APPLE__)
+#include <mach/mach.h>
+#include <sys/sysctl.h>
+#include <unistd.h>
 #else
 #include <unistd.h>
 #endif
@@ -37,6 +43,31 @@ class SystemUtil {
 #else
         return sysconf(_SC_NPROCESSORS_CONF);
 #endif
+    }
+
+    static uint64_t GetAvailablePhysicalMemoryBytes() {
+#ifdef _WIN32
+        MEMORYSTATUSEX status;
+        status.dwLength = sizeof(status);
+        if (GlobalMemoryStatusEx(&status)) {
+            return static_cast<uint64_t>(status.ullAvailPhys);
+        }
+#elif defined(__APPLE__)
+        mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+        vm_statistics64_data_t vmStats;
+        if (host_statistics64(mach_host_self(), HOST_VM_INFO64, reinterpret_cast<host_info64_t>(&vmStats), &count) ==
+            KERN_SUCCESS) {
+            return static_cast<uint64_t>(vmStats.free_count + vmStats.inactive_count) *
+                static_cast<uint64_t>(getpagesize());
+        }
+#else
+        const long availablePages = sysconf(_SC_AVPHYS_PAGES);
+        const long pageSize = sysconf(_SC_PAGESIZE);
+        if (availablePages > 0 && pageSize > 0) {
+            return static_cast<uint64_t>(availablePages) * static_cast<uint64_t>(pageSize);
+        }
+#endif
+        return 0;
     }
 };
 }
