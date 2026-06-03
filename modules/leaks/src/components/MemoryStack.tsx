@@ -27,6 +27,7 @@ import { Label } from './Common';
 import { getFuncNewData, getBarNewData, getBlockTableData, getEventTableData, getPotentialLeakStats } from './dataHandler';
 import { convertNanoseconds } from '../utils/utils';
 import { MemoryBlockDiagram } from './leaks/MemoryBlockDiagram';
+import { getInitialZoomDomain } from './leaks/zoomDomain';
 import MemoryDataZoom from './MemoryDataZoom';
 import { workerTransform } from '@/leaksWorker/blockWorker/worker';
 import { MemoryStateDiagram } from './leaks/MemoryStateDiagram';
@@ -213,12 +214,14 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
 
     useEffect(() => {
         setZoomData(session.allocationData.allocations.map((item: any) => ([item.timestamp, item.totalSize])));
-        let minTime = Math.min(session.leaksWorkerInfo.sizeInfo.minTimestamp, session.allocationData.minTimestamp);
-        let maxTime = Math.max(session.leaksWorkerInfo.sizeInfo.maxTimestamp, session.allocationData.maxTimestamp);
-        if (session.funcData.maxTimestamp > 0) {
-            minTime = Math.min(minTime, session.funcData.minTimestamp);
-            maxTime = Math.max(maxTime, session.funcData.maxTimestamp);
-        }
+        const { minTime, maxTime } = getInitialZoomDomain({
+            blockMinTimestamp: session.leaksWorkerInfo.sizeInfo.minTimestamp,
+            blockMaxTimestamp: session.leaksWorkerInfo.sizeInfo.maxTimestamp,
+            allocationMinTimestamp: session.allocationData.minTimestamp,
+            allocationMaxTimestamp: session.allocationData.maxTimestamp,
+            funcMinTimestamp: session.funcData.minTimestamp,
+            funcMaxTimestamp: session.funcData.maxTimestamp,
+        });
         setZoomMinTime(minTime);
         setZoomMaxTime(maxTime);
         zoomRangeRef.current = { min: minTime, max: maxTime };
@@ -351,7 +354,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                     </div>
                 </CollapsiblePanel>
             </div>
-            {session.memoryStamp && session.module === 'leaks'
+            {session.memoryStamp && session.module === 'leaks' && session.eventType !== 'HOST_PINNED'
                 ? (
                     <CollapsiblePanel title={t('DetailsDiagram')} collapsible style={{ minWidth: 1000 }}>
                         <div id="detailsContent" style={{ position: 'relative' }}>

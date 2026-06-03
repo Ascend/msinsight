@@ -30,8 +30,9 @@ const SYSTEM_TABLE_TOOLBAR_HEIGHT = 42;
 
 const MemoryTable = observer(({ session, height }: { session: Session; height?: number }): React.ReactElement => {
     const { t } = useTranslation('leaks');
-    const { tableType, module, autoFilterPotentialLeaks } = session;
+    const { tableType, module, eventType, autoFilterPotentialLeaks } = session;
     const [open, setOpen] = useState(false);
+    const supportsInefficientFilter = eventType !== 'HOST_PINNED';
     const closeAutoFilter = (): void => {
         runInAction(() => {
             session.autoFilterPotentialLeaks = false;
@@ -86,7 +87,9 @@ const MemoryTable = observer(({ session, height }: { session: Session; height?: 
                     <Radio
                         data-testid={'eventViewRadio'} value={'events'}>{t('Event View')}</Radio>
                 </Radio.Group>
-                {tableType === 'blocks' && module === 'leaks' ? <Button type="primary" onClick={() => { setOpen(true); }}>{t('setThreshold')}</Button> : <></>}
+                {tableType === 'blocks' && module === 'leaks' && supportsInefficientFilter
+                    ? <Button type="primary" onClick={() => { setOpen(true); }}>{t('setThreshold')}</Button>
+                    : <></>}
                 {tableType === 'blocks' && module === 'memsnapshot'
                     ? <Checkbox checked={autoFilterPotentialLeaks} onChange={autoFilterChange}>{t('autoFilterPotentialLeaks')}</Checkbox>
                     : <></>}

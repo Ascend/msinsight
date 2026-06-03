@@ -40,15 +40,15 @@ class MemScopeRequestHandlerTest : public ::testing::Test {
     static const uint64_t SECOND = 1000000000;
     static const uint64_t INT64MAX = INT64_MAX;
     static void SetUpTestSuite() {
-        std::string dbPath = TestSuit::GetTestDataFile("full_db", "leaks_dump_20250806.dat");
-        auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("");
+        std::string dbPath = TestSuit::GetTestDataFile("memscope", "host_pinned", "memscope_dump_20260527062213.db");
+        auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         ASSERT_TRUE(memoryDatabase != nullptr);
         ASSERT_TRUE(memoryDatabase->OpenDb(dbPath, false));
         ASSERT_TRUE(memoryDatabase->DropMemoryAllocationAndBlockTable());
         ASSERT_TRUE(MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces("0"));
     }
     static void TearDownTestSuite() {
-        auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("");
+        auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         memoryDatabase->CloseDb();
         DataBaseManager::Instance().Clear();
     }
@@ -120,6 +120,118 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsUseValidParamsWithTimeA
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     bool result = handler.HandleRequest(std::move(requestPtr));
     EXPECT_TRUE(result);
+}
+
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsAddsTailStepForHostPinned) {
+    QueryMemScopeAllocationHandler handler;
+    std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
+        std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
+    requestPtr->params.deviceId = "cpu";
+    requestPtr->params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    requestPtr->params.relativeTime = true;
+    requestPtr->moduleName = Protocol::MODULE_MEMORY;
+    bool result = handler.HandleRequest(std::move(requestPtr));
+    EXPECT_TRUE(result);
+
+    auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
+    ASSERT_TRUE(memoryDatabase != nullptr);
+
+    MemScopeMemoryAllocationParams params;
+    params.deviceId = "cpu";
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.relativeTime = true;
+
+    std::vector<MemoryAllocation> allocations;
+    memoryDatabase->QueryMemoryAllocations(params, allocations);
+    handler.PaddingAllocations(allocations, params);
+
+    ASSERT_FALSE(allocations.empty());
+    EXPECT_EQ(allocations.back().timestamp,
+        memoryDatabase->GetGlobalMaxTimestamp() - memoryDatabase->GetGlobalMinTimestamp());
+}
+
+TEST_F(MemScopeRequestHandlerTest, PaddingAllocationsKeepsFlatLineWhenRangeHasNoAllocationEvents) {
+    auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
+    ASSERT_TRUE(memoryDatabase != nullptr);
+
+    MemScopeMemoryAllocationParams params;
+    params.deviceId = "cpu";
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.relativeTime = true;
+
+    std::vector<MemoryAllocation> allAllocations;
+    memoryDatabase->QueryMemoryAllocations(params, allAllocations);
+    ASSERT_FALSE(allAllocations.empty());
+
+    params.startTimestamp = 50;
+    params.endTimestamp = 90;
+
+    std::vector<MemoryAllocation> allocations;
+    memoryDatabase->QueryMemoryAllocations(params, allocations);
+    ASSERT_TRUE(allocations.empty());
+
+    QueryMemScopeAllocationHandler handler;
+    handler.PaddingAllocations(allocations, params);
+
+    ASSERT_EQ(allocations.size(), 2);
+    EXPECT_EQ(allocations[0].timestamp, params.startTimestamp);
+    EXPECT_EQ(allocations[0].totalSize, 0);
+    EXPECT_EQ(allocations[1].timestamp, params.endTimestamp);
+    EXPECT_EQ(allocations[1].totalSize, 0);
+}
+
+TEST_F(MemScopeRequestHandlerTest, PaddingAllocationsDoesNotDuplicateExactBoundaryAllocations) {
+    auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
+    ASSERT_TRUE(memoryDatabase != nullptr);
+
+    MemScopeMemoryAllocationParams params;
+    params.deviceId = "cpu";
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.relativeTime = true;
+
+    std::vector<MemoryAllocation> allAllocations;
+    memoryDatabase->QueryMemoryAllocations(params, allAllocations);
+    ASSERT_GE(allAllocations.size(), 2);
+
+    params.startTimestamp = allAllocations.front().timestamp;
+    params.endTimestamp = allAllocations[1].timestamp;
+
+    std::vector<MemoryAllocation> allocations;
+    memoryDatabase->QueryMemoryAllocations(params, allocations);
+    ASSERT_EQ(allocations.size(), 2);
+
+    QueryMemScopeAllocationHandler handler;
+    handler.PaddingAllocations(allocations, params);
+
+    ASSERT_EQ(allocations.size(), 2);
+    EXPECT_EQ(allocations[0].timestamp, params.startTimestamp);
+    EXPECT_EQ(allocations[0].totalSize, allAllocations.front().totalSize);
+    EXPECT_EQ(allocations[1].timestamp, params.endTimestamp);
+    EXPECT_EQ(allocations[1].totalSize, allAllocations[1].totalSize);
+}
+
+TEST_F(MemScopeRequestHandlerTest, PaddingAllocationsUsesRelativeSessionBoundsWithoutTimeCondition) {
+    auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
+    ASSERT_TRUE(memoryDatabase != nullptr);
+
+    MemScopeMemoryAllocationParams params;
+    params.deviceId = "cpu";
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.relativeTime = true;
+
+    std::vector<MemoryAllocation> allocations;
+    memoryDatabase->QueryMemoryAllocations(params, allocations);
+    ASSERT_FALSE(allocations.empty());
+
+    QueryMemScopeAllocationHandler handler;
+    handler.PaddingAllocations(allocations, params);
+
+    ASSERT_GE(allocations.size(), 2);
+    EXPECT_EQ(allocations.front().timestamp, 0);
+    EXPECT_EQ(allocations.front().totalSize, 0);
+    EXPECT_EQ(allocations.back().timestamp,
+        memoryDatabase->GetGlobalMaxTimestamp() - memoryDatabase->GetGlobalMinTimestamp());
+    EXPECT_EQ(allocations.back().totalSize, allocations[allocations.size() - 2].totalSize);
 }
 
 TEST_F(MemScopeRequestHandlerTest, QueryMemoryBlocksUseInvalidParamsDeviceId) {
@@ -252,6 +364,30 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailUseValidParams) {
     requestPtr->params.deviceId = "1";
     requestPtr->params.eventType = "PTA";
     requestPtr->params.timestamp = durationSecond * SECOND;
+    requestPtr->params.relativeTime = true;
+    bool result = handler.HandleRequest(std::move(requestPtr));
+    EXPECT_TRUE(result);
+}
+
+TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailAcceptsHostPinnedEventType) {
+    auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
+    ASSERT_TRUE(memoryDatabase != nullptr);
+
+    MemScopeMemoryAllocationParams params;
+    params.deviceId = "cpu";
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.relativeTime = true;
+    std::vector<MemoryAllocation> allocations;
+    memoryDatabase->QueryMemoryAllocations(params, allocations);
+    ASSERT_FALSE(allocations.empty());
+
+    QueryMemScopeMemoryDetailHandler handler;
+    std::unique_ptr<Dic::Protocol::MemScopeMemoryDetailRequest> requestPtr =
+        std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
+    requestPtr->moduleName = Protocol::MODULE_MEMORY;
+    requestPtr->params.deviceId = "cpu";
+    requestPtr->params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    requestPtr->params.timestamp = allocations.front().timestamp;
     requestPtr->params.relativeTime = true;
     bool result = handler.HandleRequest(std::move(requestPtr));
     EXPECT_TRUE(result);

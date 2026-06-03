@@ -29,8 +29,6 @@ class QueryMemScopeAllocationHandler : public MemScopeRequestHandler {
     QueryMemScopeAllocationHandler() { command = Protocol::REQ_RES_MEM_SCOPE_MEMORY_ALLOCATIONS; }
     ~QueryMemScopeAllocationHandler() override = default;
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
-
-  private:
     void PaddingAllocations(
         std::vector<MemoryAllocation> &allocations, const MemScopeMemoryAllocationParams &queryParams);
 };
