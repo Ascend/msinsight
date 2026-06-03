@@ -220,3 +220,226 @@ TEST_F(SummaryProtocolRequestTest, SetParallelStrategyParamTestClusterPathErr) {
     std::string msg;
     EXPECT_FALSE(params.CheckParams(msg));
 }
+
+TEST_F(SummaryProtocolRequestTest, SummaryTopRankParamsTestClusterPathInvalid) {
+    Dic::Protocol::SummaryTopRankParams params;
+    params.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, SummaryTopRankParamsTestNormal) {
+    Dic::Protocol::SummaryTopRankParams params;
+    params.isCompare = true;
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), true);
+}
+
+TEST_F(SummaryProtocolRequestTest, PipelineStageTimeParamTestStepIdInvalid) {
+    Dic::Protocol::PipelineStageTimeParam params;
+    params.stepId = ";";
+    params.stageId = "0";
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, PipelineStageTimeParamTestClusterPathInvalid) {
+    Dic::Protocol::PipelineStageTimeParam params;
+    params.stepId = "0";
+    params.stageId = "0";
+    params.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, PipelineFwdBwdTimelineParamTestStepIdInvalid) {
+    Dic::Protocol::PipelineFwdBwdTimelineParam params;
+    params.stepId = ";";
+    params.stageId = "0";
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, PipelineFwdBwdTimelineParamTestStageIdInvalid) {
+    Dic::Protocol::PipelineFwdBwdTimelineParam params;
+    params.stepId = "0";
+    params.stageId = ";";
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, PipelineFwdBwdTimelineParamTestClusterPathInvalid) {
+    Dic::Protocol::PipelineFwdBwdTimelineParam params;
+    params.stepId = "0";
+    params.stageId = "0";
+    params.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, ParallelismArrangementParamTestDimensionInvalid) {
+    Dic::Protocol::ParallelismArrangement params;
+    params.config.algorithm = "megatron-lm(tp-cp-ep-dp-pp)";
+    params.config.tpSize = 2;
+    params.config.ppSize = 2;
+    params.config.dpSize = 2;
+    params.config.cpSize = 1;
+    params.config.epSize = 1;
+    params.dimension = "invalid";
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, ParallelismArrangementParamTestConfigInvalid) {
+    Dic::Protocol::ParallelismArrangement params;
+    params.dimension = "ep-dp";
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestPageInvalid) {
+    Dic::Protocol::ComputeDetailParams params;
+    params.rankId = "0";
+    params.timeFlag = "time";
+    params.pageSize = 0;
+    params.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, ComputeDetailParamsTestRankIdInvalid) {
+    Dic::Protocol::ComputeDetailParams params;
+    params.rankId = ";";
+    params.timeFlag = "time";
+    params.pageSize = 10;
+    params.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestRankIdInvalid) {
+    Dic::Protocol::CommunicationDetailParams params;
+    params.rankId = ";";
+    params.timeFlag = "HCCL";
+    params.pageSize = 10;
+    params.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestTimeFlagInvalid) {
+    Dic::Protocol::CommunicationDetailParams params;
+    params.rankId = "0";
+    params.timeFlag = ";";
+    params.pageSize = 10;
+    params.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderByInvalid) {
+    Dic::Protocol::CommunicationDetailParams params;
+    params.rankId = "0";
+    params.timeFlag = "HCCL";
+    params.orderBy = ";";
+    params.pageSize = 10;
+    params.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestOrderInvalid) {
+    Dic::Protocol::CommunicationDetailParams params;
+    params.rankId = "0";
+    params.timeFlag = "HCCL";
+    params.orderBy = "time";
+    params.order = ";";
+    params.pageSize = 10;
+    params.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, CommunicationDetailParamsTestPageInvalid) {
+    Dic::Protocol::CommunicationDetailParams params;
+    params.rankId = "0";
+    params.timeFlag = "HCCL";
+    params.pageSize = 0;
+    params.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, ImportExpertDataParamsTestClusterPathInvalid) {
+    Dic::Protocol::ImportExpertDataParams params;
+    params.filePath = "/data/test.json";
+    params.version = "1.0";
+    params.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, ModelInfoParamTestClusterPathInvalid) {
+    Dic::Protocol::ModelInfoParam params;
+    params.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, ModelInfoParamTestNormal) {
+    Dic::Protocol::ModelInfoParam params;
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), true);
+}
+
+TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestLayerNumInvalid) {
+    Dic::Protocol::QueryExpertHotspotParams params;
+    params.modelStage = "prefill";
+    params.version = "1.0";
+    params.layerNum = 0;
+    params.expertNum = 8;
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestExpertNumInvalid) {
+    Dic::Protocol::QueryExpertHotspotParams params;
+    params.modelStage = "prefill";
+    params.version = "1.0";
+    params.layerNum = 60;
+    params.expertNum = 0;
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestDenseLayerListInvalid) {
+    Dic::Protocol::QueryExpertHotspotParams params;
+    params.modelStage = "prefill";
+    params.version = "1.0";
+    params.layerNum = 10;
+    params.expertNum = 8;
+    params.denseLayerList = {15};
+    params.clusterPath = "/data/test";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
+
+TEST_F(SummaryProtocolRequestTest, QueryExpertHotspotParamsTestClusterPathInvalid) {
+    Dic::Protocol::QueryExpertHotspotParams params;
+    params.modelStage = "prefill";
+    params.version = "1.0";
+    params.layerNum = 60;
+    params.expertNum = 8;
+    params.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(params.CheckParams(msg), false);
+}
