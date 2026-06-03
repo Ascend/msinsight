@@ -122,3 +122,325 @@ TEST_F(CommunicationProtocolRequestTest, MatrixBandwidthParamTest) {
     EXPECT_EQ(param3.CheckParams(msg), false);
     EXPECT_EQ(param4.CheckParams(msg), false);
 }
+
+TEST_F(CommunicationProtocolRequestTest, OperatorDetailsParamTestPageSizeInvalid) {
+    Dic::Protocol::OperatorDetailsParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.orderBy = "time";
+    param.order = "desc";
+    param.stage = "forward";
+    param.queryType = "Comparison";
+    param.pgName = "test";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    param.pageSize = 0;
+    param.currentPage = 1;
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorDetailsParamTestCurrentPageInvalid) {
+    Dic::Protocol::OperatorDetailsParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.pageSize = 10;
+    param.currentPage = 0;
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorDetailsParamTestRankIdInvalid) {
+    Dic::Protocol::OperatorDetailsParam param;
+    param.iterationId = "1";
+    param.rankId = ";";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorDetailsParamTestQueryTypeInvalid) {
+    Dic::Protocol::OperatorDetailsParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.queryType = ";";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorDetailsParamTestPgNameInvalid) {
+    Dic::Protocol::OperatorDetailsParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.pgName = ";";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorDetailsParamTestClusterPathInvalid) {
+    Dic::Protocol::OperatorDetailsParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.clusterPath = ";";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorDetailsParamTestGroupIdHashInvalid) {
+    Dic::Protocol::OperatorDetailsParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.clusterPath = "/data";
+    param.groupIdHash = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, BandwidthDataParamTestRankIdInvalid) {
+    Dic::Protocol::BandwidthDataParam param;
+    param.iterationId = "1";
+    param.rankId = ";";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.pgName = "test";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, BandwidthDataParamTestPgNameInvalid) {
+    Dic::Protocol::BandwidthDataParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.pgName = ";";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, BandwidthDataParamTestClusterPathInvalid) {
+    Dic::Protocol::BandwidthDataParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.clusterPath = ";";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, BandwidthDataParamTestGroupIdHashInvalid) {
+    Dic::Protocol::BandwidthDataParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.clusterPath = "/data";
+    param.groupIdHash = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DistributionDataParamTestRankIdInvalid) {
+    Dic::Protocol::DistributionDataParam param;
+    param.iterationId = "1";
+    param.rankId = ";";
+    param.operatorName = "AllReduce";
+    param.transportType = "SDMA";
+    param.stage = "forward";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DistributionDataParamTestPgNameInvalid) {
+    Dic::Protocol::DistributionDataParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.pgName = ";";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DistributionDataParamTestClusterPathInvalid) {
+    Dic::Protocol::DistributionDataParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.clusterPath = ";";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DistributionDataParamTestGroupIdHashInvalid) {
+    Dic::Protocol::DistributionDataParam param;
+    param.iterationId = "1";
+    param.rankId = "0";
+    param.clusterPath = "/data";
+    param.groupIdHash = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, IterationsParamsTestClusterPathInvalid) {
+    Dic::Protocol::IterationsParams param;
+    param.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, IterationsParamsTestNormal) {
+    Dic::Protocol::IterationsParams param;
+    param.isCompare = true;
+    param.clusterPath = "/data";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), true);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorNamesParamsTestPgNameInvalid) {
+    Dic::Protocol::OperatorNamesParams param;
+    param.iterationId = "1";
+    param.stage = "forward";
+    param.pgName = ";";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorNamesParamsTestClusterPathInvalid) {
+    Dic::Protocol::OperatorNamesParams param;
+    param.iterationId = "1";
+    param.stage = "forward";
+    param.clusterPath = ";";
+    param.groupIdHash = "hash123";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, OperatorNamesParamsTestGroupIdHashInvalid) {
+    Dic::Protocol::OperatorNamesParams param;
+    param.iterationId = "1";
+    param.stage = "forward";
+    param.clusterPath = "/data";
+    param.groupIdHash = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DurationListParamsTestBaselineIterationIdInvalid) {
+    Dic::Protocol::DurationListParams param;
+    param.iterationId = "1";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.baselineIterationId = ";";
+    param.clusterPath = "/data";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DurationListParamsTestPgNameInvalid) {
+    Dic::Protocol::DurationListParams param;
+    param.iterationId = "1";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.pgName = ";";
+    param.clusterPath = "/data";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DurationListParamsTestClusterPathInvalid) {
+    Dic::Protocol::DurationListParams param;
+    param.iterationId = "1";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DurationListParamsTestGroupIdHashInvalid) {
+    Dic::Protocol::DurationListParams param;
+    param.iterationId = "1";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.clusterPath = "/data";
+    param.groupIdHash = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, DurationListParamsTestBaselineGroupIdHashInvalid) {
+    Dic::Protocol::DurationListParams param;
+    param.iterationId = "1";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.clusterPath = "/data";
+    param.groupIdHash = "hash123";
+    param.baselineGroupIdHash = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, MatrixGroupParamTestClusterPathInvalid) {
+    Dic::Protocol::MatrixGroupParam param;
+    param.iterationId = "1";
+    param.baselineIterationId = "2";
+    param.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, MatrixBandwidthParamTestPgNameInvalid) {
+    Dic::Protocol::MatrixBandwidthParam param;
+    param.iterationId = "1";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.baselineIterationId = "2";
+    param.pgName = ";";
+    param.clusterPath = "/data";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, MatrixBandwidthParamTestClusterPathInvalid) {
+    Dic::Protocol::MatrixBandwidthParam param;
+    param.iterationId = "1";
+    param.operatorName = "AllReduce";
+    param.stage = "forward";
+    param.baselineIterationId = "2";
+    param.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, CommunicationAdvisorParamTestClusterPathInvalid) {
+    Dic::Protocol::CommunicationAdvisorParam param;
+    param.clusterPath = ";";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), false);
+}
+
+TEST_F(CommunicationProtocolRequestTest, CommunicationAdvisorParamTestNormal) {
+    Dic::Protocol::CommunicationAdvisorParam param;
+    param.clusterPath = "/data";
+    std::string msg;
+    EXPECT_EQ(param.CheckParams(msg), true);
+}
