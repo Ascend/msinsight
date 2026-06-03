@@ -26,7 +26,7 @@ import { getCenteredBlockTransform } from '../tools/blockTransform';
 
 export class MainThreadRender {
     canvas: HTMLCanvasElement = document.createElement('canvas');
-    memoryBlockData: RenderData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
+    memoryBlockData: RenderData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [], reservedLine: [], reservedSizeMax: 0 };
     transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     viewport: RenderOptions['viewport'] = { width: 0, height: 0 };
     zoom: RenderOptions['zoom'] = { x: 1, y: 1, offset: 0 };
@@ -51,7 +51,8 @@ export class MainThreadRender {
         this.hoverItem = null;
         this.clickItem = null;
         this.memoryBlockData = buildBlockViewPath(payload.data);
-        const { maxTimestamp, minTimestamp, maxSize, minSize } = this.memoryBlockData;
+        const { maxTimestamp, minTimestamp, minSize } = this.memoryBlockData;
+        const maxSize = Math.max(this.memoryBlockData.maxSize, this.memoryBlockData.reservedSizeMax ?? this.memoryBlockData.maxSize);
         this.zoom = getZoom(this.memoryBlockData, this.canvas);
         runInAction(() => {
             this.session.leaksWorkerInfo.sizeInfo = {
@@ -62,7 +63,7 @@ export class MainThreadRender {
             };
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
         });
-        this.renderer?.setZoom(this.zoom).setData(this.memoryBlockData.blocks);
+        this.renderer?.setZoom(this.zoom).setData(this.memoryBlockData.blocks, this.memoryBlockData.reservedLine);
         this.renderHighlightData();
         this.renderer?.updateCanvasSize(this.viewport);
         runInAction(() => {
@@ -142,7 +143,7 @@ export class MainThreadRender {
     };
 
     destroyHandler(): void {
-        this.memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
+        this.memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [], reservedLine: [], reservedSizeMax: 0 };
         this.transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         this.zoom = { x: 1, y: 1, offset: 0 };
         this.hoverItem = null;

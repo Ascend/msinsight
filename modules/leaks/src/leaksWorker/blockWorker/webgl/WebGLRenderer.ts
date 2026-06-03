@@ -44,8 +44,9 @@ export class WebGLRenderer {
         return this;
     }
 
-    setData(data: RenderData['blocks'] = []): this {
+    setData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): this {
         this.data = data;
+        this.painter.setReservedLine(reservedLine);
         this.painter.memoryBlockProgram?.processData(data, this.dimBase);
         this.renderFrame();
         return this;

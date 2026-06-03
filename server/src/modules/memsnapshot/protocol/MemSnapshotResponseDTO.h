@@ -18,6 +18,7 @@
 #ifndef PROFILER_SERVER_MEMSNAPSHOTRESPONSEDTO_H
 #define PROFILER_SERVER_MEMSNAPSHOTRESPONSEDTO_H
 
+#include <algorithm>
 #include <utility>
 #include "MemSnapshotDefs.h"
 #include "NumberUtil.h"
@@ -50,16 +51,22 @@ struct BlockViewItemDTO : public JsonSerializable, Block {
 struct AllocationRecordDTO : public JsonSerializable {
     int64_t timestamp{0};
     uint64_t allocated{0};
+    uint64_t reserved{0};
 
     AllocationRecordDTO(const int64_t timestamp, const uint64_t allocated)
-        : timestamp(timestamp), allocated(allocated) {}
+        : timestamp(timestamp), allocated(allocated), reserved(allocated) {}
 
-    AllocationRecordDTO(const MemoryRecord &record) : timestamp(record.id), allocated(record.allocated) {}
+    AllocationRecordDTO(const int64_t timestamp, const uint64_t allocated, const uint64_t reserved)
+        : timestamp(timestamp), allocated(allocated), reserved(std::max(reserved, allocated)) {}
+
+    AllocationRecordDTO(const MemoryRecord &record)
+        : timestamp(record.id), allocated(record.allocated), reserved(std::max(record.reserved, record.allocated)) {}
 
     [[nodiscard]] json_t ToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const override {
         json_t json(kObjectType);
         JsonUtil::AddMember(json, "timestamp", timestamp, allocator);
         JsonUtil::AddMember(json, "totalSize", allocated, allocator);
+        JsonUtil::AddMember(json, "reservedSize", reserved, allocator);
         return json;
     }
 };

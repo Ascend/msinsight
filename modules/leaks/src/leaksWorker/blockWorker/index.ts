@@ -41,7 +41,8 @@ const setMemoryBlockDataHandler = (payload: SetMemoryBlocksDataPayload): void =>
     hoverItem = null;
     clickItem = null;
     memoryBlockData = buildBlockViewPath(payload.data);
-    const { maxTimestamp, minTimestamp, maxSize, minSize } = memoryBlockData;
+    const { maxTimestamp, minTimestamp, minSize } = memoryBlockData;
+    const maxSize = Math.max(memoryBlockData.maxSize, memoryBlockData.reservedSizeMax ?? memoryBlockData.maxSize);
     zoom = getZoom(memoryBlockData, canvas);
     self.postMessage({
         type: 'dataInfo',
@@ -53,7 +54,7 @@ const setMemoryBlockDataHandler = (payload: SetMemoryBlocksDataPayload): void =>
         },
         zoom,
     });
-    renderer?.setZoom(zoom).setData(memoryBlockData.blocks);
+    renderer?.setZoom(zoom).setData(memoryBlockData.blocks, memoryBlockData.reservedLine);
     renderHighlightData();
     renderer?.updateCanvasSize(viewport);
     self.postMessage({ type: 'renderCompleted' });
@@ -66,7 +67,8 @@ const resizeCanvasHandler = (payload: ResizeCanvasPayload): void => {
         return;
     }
     zoom = getZoom(memoryBlockData, canvas);
-    const { maxTimestamp, minTimestamp, maxSize, minSize } = memoryBlockData;
+    const { maxTimestamp, minTimestamp, minSize } = memoryBlockData;
+    const maxSize = Math.max(memoryBlockData.maxSize, memoryBlockData.reservedSizeMax ?? memoryBlockData.maxSize);
     self.postMessage({
         type: 'dataInfo',
         sizeInfo: {

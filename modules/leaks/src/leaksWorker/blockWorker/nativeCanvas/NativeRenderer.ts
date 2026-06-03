@@ -42,8 +42,8 @@ export class NativeRenderer {
         return this;
     }
 
-    setData(data: RenderData['blocks'] = []): this {
-        this.painter.processData(data);
+    setData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): this {
+        this.painter.processData(data, reservedLine);
         this.renderFrame();
         return this;
     }

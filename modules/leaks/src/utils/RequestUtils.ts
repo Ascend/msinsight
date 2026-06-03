@@ -47,6 +47,7 @@ export interface Allocation {
     id: number;
     timestamp: number;
     totalSize: number;
+    reservedSize?: number;
 }
 export interface GraphParam {
     deviceId: string;

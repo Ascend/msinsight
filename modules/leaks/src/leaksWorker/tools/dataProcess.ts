@@ -17,9 +17,10 @@
  */
 
 export const getZoom = (data: RenderData, canvas: OffscreenCanvas | HTMLCanvasElement): RenderOptions['zoom'] => {
+    const maxSize = Math.max(data.maxSize, data.reservedSizeMax ?? data.maxSize);
     return {
         x: canvas.width / (data.maxTimestamp - data.minTimestamp),
-        y: canvas.height / (data.maxSize - data.minSize),
+        y: canvas.height / (maxSize - data.minSize),
         offset: data.minTimestamp,
     };
 };

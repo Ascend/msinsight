@@ -26,6 +26,7 @@ import {
     getSnapshotBlockTable,
     getSnapshotEvent,
     getSnapshotAllocations,
+    Allocation,
     getSnapshotLeakStats,
 } from '../utils/RequestUtils';
 import { message } from 'antd';
@@ -96,8 +97,15 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
         workerTransform({ transform });
-        workerSetMemoryBlockData({ data: blockData });
         const allocationData = await getAllocationRequest(param);
+        if (session.module === 'memsnapshot') {
+            const reservedLine = allocationData.allocations
+                .filter((item): item is Allocation & { reservedSize: number } => typeof item.reservedSize === 'number')
+                .map(item => [item.timestamp, item.reservedSize] as [number, number]);
+            blockData.reservedLine = reservedLine;
+            blockData.reservedSizeMax = reservedLine.reduce((max, [, reservedSize]) => Math.max(max, reservedSize), blockData.maxSize);
+        }
+        workerSetMemoryBlockData({ data: blockData });
         runInAction(() => {
             session.allocationData = allocationData;
         });

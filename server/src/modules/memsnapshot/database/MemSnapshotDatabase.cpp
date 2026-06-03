@@ -627,9 +627,10 @@ void MemSnapshotDatabase::QueryMemoryRecords(
 
 void MemSnapshotDatabase::QueryMemoryAllocations(
     const std::string &deviceId, std::vector<AllocationRecordDTO> &records) {
-    std::string querySql = "SELECT {}, {} FROM {} WHERE {} >= 0";
+    std::string querySql = "SELECT {}, {}, {} FROM {} WHERE {} >= 0 ORDER BY {} ASC";
     querySql = StringUtil::FormatString(querySql, TraceEntryTableColumn::ID, TraceEntryTableColumn::ALLOCATED,
-        GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID);
+        TraceEntryTableColumn::RESERVED, GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID,
+        TraceEntryTableColumn::ID);
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -638,8 +639,11 @@ void MemSnapshotDatabase::QueryMemoryAllocations(
         return;
     }
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        records.emplace_back(sqlite3_column_int64(stmt, resultStartIndex),
-            NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, resultStartIndex + 1)));
+        int col = resultStartIndex;
+        const int64_t timestamp = sqlite3_column_int64(stmt, col++);
+        const uint64_t allocated = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
+        const uint64_t reserved = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
+        records.emplace_back(timestamp, allocated, reserved);
     }
     sqlite3_finalize(stmt);
 }
