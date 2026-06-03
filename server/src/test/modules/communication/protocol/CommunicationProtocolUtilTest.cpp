@@ -63,6 +63,248 @@ TEST_F(CommunicationProtocolUtilTest, ToAdvisorRequestLackIdTestReturnNull) {
     EXPECT_EQ(err, "Failed to set request base info of communication advisor request.");
 }
 
+TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/operatorDetails", "params": {"iterationId": 1, "rankId": "0", "orderBy": "time",
+        "order": "desc", "stage": "forward", "pageSize": 10, "currentPage": 1, "queryType": "all",
+        "pgName": "test", "clusterPath": "/data", "groupIdHash": "hash123"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/operatorDetails");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToOperatorDetailsRequestLackIdTestReturnNull) {
+    std::string reqJson = R"({"moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/operatorDetails", "params": {"iterationId": 1}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of operator details.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/bandwidth", "params": {"iterationId": 1, "rankId": "0", "operatorName": "AllReduce",
+        "stage": "forward", "pgName": "test", "clusterPath": "/data", "groupIdHash": "hash123"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/bandwidth");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToBandwidthDataRequestLackModuleNameTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "type": "request", "resultCallbackId": 0,
+        "command": "communication/bandwidth", "params": {"iterationId": 1}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of bandwidth data request.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToDistributionRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/distribution", "params": {"iterationId": 1, "rankId": "0",
+        "operatorName": "AllReduce", "transportType": "SDMA", "stage": "forward",
+        "pgName": "test", "clusterPath": "/data", "groupIdHash": "hash123"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/distribution");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToDistributionRequestLackIdTestReturnNull) {
+    std::string reqJson = R"({"moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/distribution", "params": {"iterationId": 1}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of distribution request.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToIterationsRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/duration/iterations", "params": {"isCompare": true, "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/duration/iterations");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToIterationsRequestLackParamsTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/duration/iterations"})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of iterations request.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToDurationRequestNormalTestWithoutTargetOperator) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/duration/list", "params": {"iterationId": 1, "operatorName": "AllReduce",
+        "stage": "forward", "pgName": "test", "isCompare": true, "baselineIterationId": 2,
+        "rankList": ["0", "1"], "clusterPath": "/data", "groupIdHash": "hash123"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/duration/list");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToDurationRequestNormalTestWithTargetOperator) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/duration/list", "params": {"iterationId": 1, "operatorName": "AllReduce",
+        "stage": "forward", "pgName": "test", "isCompare": true, "baselineIterationId": 2, "targetOperatorName": "Op",
+        "rankList": ["0", "1"], "clusterPath": "/data", "groupIdHash": "hash123"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/duration/list");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToDurationRequestLackIdTestReturnNull) {
+    std::string reqJson = R"({"moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/duration/list", "params": {"iterationId": 1}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of duration request.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToOperatorNamesRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/duration/operatorNames", "params": {"iterationId": 1, "stage": "forward",
+        "pgName": "test", "rankList": ["0", "1"], "clusterPath": "/data", "groupIdHash": "hash123"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/duration/operatorNames");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToOperatorNamesRequestLackParamsTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/duration/operatorNames"})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of operator names request.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToMatrixOpNamesRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/matrix/sortOpNames", "params": {"iterationId": 1, "stage": "forward",
+        "pgName": "test", "rankList": ["0", "1"], "clusterPath": "/data", "groupIdHash": "hash123"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/matrix/sortOpNames");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToMatrixOpNamesRequestLackIdTestReturnNull) {
+    std::string reqJson = R"({"moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/matrix/sortOpNames", "params": {"iterationId": 1}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of matrix op names request.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/matrix/group",
+        "params": {"iterationId": 1, "isCompare": true, "baselineIterationId": 2, "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/matrix/group");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToMatrixGroupRequestLackParamsTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/matrix/group"})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of matrix group request.");
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToMatrixListRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/matrix/bandwidthInfo", "params": {"iterationId": 1, "operatorName": "AllReduce",
+        "stage": "forward", "isCompare": true, "baselineIterationId": 2, "pgName": "test", "clusterPath": "/data",
+        "groupIdHash": "hash123", "baselineGroupIdHash": "hash456"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "communication/matrix/bandwidthInfo");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
+}
+
 TEST_F(CommunicationProtocolUtilTest, ToOperatorListResponseTest) {
     const std::string KEY_MIN_TIME = "minTime";
     const std::string KEY_MAX_TIME = "maxTime";
