@@ -16,14 +16,26 @@
  * -------------------------------------------------------------------------
  */
 import { type NotificationHandler } from './connection/defs';
-import { setTheme, updateSessionHandler, switchLanguageHandler, parseCompletedHandler, removeRemoteHandler, parseFailHandler } from './connection/handler';
+import {
+    setTheme,
+    updateSessionHandler,
+    switchLanguageHandler,
+    parseCompletedHandler,
+    removeRemoteHandler,
+    parseFailHandler,
+    parseProgressHandler,
+    importRemoteHandler,
+} from './connection/handler';
 
 const PARSECOMPLETED = 'parse/leaksMemoryCompleted';
 const PARSEFAIL = 'parse/fail';
+const PARSE_MEM_SNAPSHOT_PROGRESS = 'parse/memSnapshotProgress';
 export const NOTIFICATION_HANDLERS: Record<string, NotificationHandler> = {
     setTheme,
     updateSession: updateSessionHandler,
     switchLanguage: switchLanguageHandler,
+    'remote/import': importRemoteHandler,
+    [PARSE_MEM_SNAPSHOT_PROGRESS]: parseProgressHandler,
     [PARSECOMPLETED]: parseCompletedHandler,
     [PARSEFAIL]: parseFailHandler,
     'remote/remove': removeRemoteHandler,

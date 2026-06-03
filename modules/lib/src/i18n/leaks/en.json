@@ -23,6 +23,7 @@
     "DetailsDiagram": "Memory Details Disassembly Diagram",
     "DetailsTable": "Memory Details Table",
     "Search": "Search",
+    "parsing": "Parsing",
     "Block View": "Block View",
     "Event View": "Event View",
     "MemoryUsage": "Memory Usage(MB)",

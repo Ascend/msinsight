@@ -23,6 +23,7 @@
     "DetailsDiagram": "内存详情拆解图",
     "DetailsTable": "内存详情表",
     "Search": "搜索",
+    "parsing": "解析中",
     "Block View": "内存块视图",
     "Event View": "内存事件视图",
     "MemoryUsage": "内存使用(MB)",
