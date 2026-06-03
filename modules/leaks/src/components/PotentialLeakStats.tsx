@@ -17,46 +17,64 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { observer } from 'mobx-react';
+import styled from '@emotion/styled';
 
 const formatKBytes = (value: number): string => value.toFixed(3);
-
-const statItemStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '2px 10px',
-    borderRadius: 12,
-    background: '#f5f7fa',
-    border: '1px solid #e5e6eb',
-    lineHeight: '24px',
-};
-
-const statValueStyle: React.CSSProperties = {
-    fontWeight: 600,
-    color: '#1d2129',
-};
 
 const PotentialLeakStats = observer(({ session }: { session: any }): React.ReactElement => {
     const { t } = useTranslation('leaks');
     const { leakStats } = session;
     return (
-        <div style={{ display: 'inline-flex', gap: 8, marginLeft: 24, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={statItemStyle}>
+        <StatsContainer>
+            <StatItem>
                 <span>{t('unreleasedTotal')}</span>
-                <span style={statValueStyle}>{formatKBytes(leakStats.totalSize)}</span>
-            </span>
-            <span style={statItemStyle}>
+                <StatValue>{formatKBytes(leakStats.totalSize)}</StatValue>
+            </StatItem>
+            <StatItem>
                 <span>{t('unreleasedMax')}</span>
-                <span style={statValueStyle}>{formatKBytes(leakStats.maxSize)}</span>
-            </span>
-            <span style={statItemStyle}>
+                <StatValue>{formatKBytes(leakStats.maxSize)}</StatValue>
+            </StatItem>
+            <StatItem>
                 <span>{t('unreleasedMin')}</span>
-                <span style={statValueStyle}>{formatKBytes(leakStats.minSize)}</span>
-            </span>
-            {leakStats.loading ? <span style={{ color: '#86909c' }}>{t('calculating')}</span> : <></>}
-            {leakStats.error ? <span style={{ color: '#ff4d4f' }}>{t('leakStatsFailed')}</span> : <></>}
-        </div>
+                <StatValue>{formatKBytes(leakStats.minSize)}</StatValue>
+            </StatItem>
+            {leakStats.loading ? <StatusText>{t('calculating')}</StatusText> : <></>}
+            {leakStats.error ? <ErrorText>{t('leakStatsFailed')}</ErrorText> : <></>}
+        </StatsContainer>
     );
 });
+
+const StatsContainer = styled.div`
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-left: 24px;
+`;
+
+const StatItem = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 10px;
+    border: 1px solid ${(props): string => props.theme.mode === 'dark' ? '#3c3c3c' : '#e5e6eb'};
+    border-radius: 12px;
+    color: ${(props): string => props.theme.mode === 'dark' ? '#cccccc' : props.theme.textColorPrimary};
+    background: ${(props): string => props.theme.mode === 'dark' ? '#2a2d2e' : '#f5f7fa'};
+    line-height: 24px;
+`;
+
+const StatValue = styled.span`
+    color: ${(props): string => props.theme.mode === 'dark' ? '#f0f0f0' : '#1d2129'};
+    font-weight: 600;
+`;
+
+const StatusText = styled.span`
+    color: ${(props): string => props.theme.mode === 'dark' ? '#9aa0a6' : '#86909c'};
+`;
+
+const ErrorText = styled.span`
+    color: #ff4d4f;
+`;
 
 export default PotentialLeakStats;

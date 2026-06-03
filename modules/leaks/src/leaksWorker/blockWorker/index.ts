@@ -19,6 +19,7 @@
 import { WebGLRenderer } from './webgl/WebGLRenderer';
 import { buildBlockViewPath, getZoom, searchBlockDataByPoint } from '../tools/dataProcess';
 import { debounce } from 'lodash';
+import { getCenteredBlockTransform } from '../tools/blockTransform';
 
 let canvas: OffscreenCanvas;
 let memoryBlockData: RenderData;
@@ -104,6 +105,20 @@ const selectItemHandler = (payload: SelectBlockItemPayload): void => {
     self.postMessage({ type: 'clickItemResult', result: clickItem, selectionVersion: payload.selectionVersion });
 };
 
+const selectBlockByIdHandler = (payload: SelectBlockByIdPayload): void => {
+    clickItem = memoryBlockData?.blocks?.find(block => block.id === payload.blockId) ?? null;
+    const centeredTransform = clickItem === null || viewport === undefined || zoom === undefined
+        ? null
+        : getCenteredBlockTransform(clickItem, viewport, zoom);
+    if (centeredTransform !== null) {
+        transform = centeredTransform;
+        renderer?.setTransform(transform);
+        self.postMessage({ type: 'transformResult', transform });
+    }
+    renderHighlightData();
+    self.postMessage({ type: 'clickItemResult', result: clickItem, selectionVersion: payload.selectionVersion });
+};
+
 const hoverItemHandler = (payload: HoverItemPayload): void => {
     debouncedSearchBlockData(payload);
 };
@@ -149,6 +164,7 @@ const Handlers: PayloadHandlers = {
     hoverItem: hoverItemHandler,
     clickItem: clickItemHandler,
     selectBlockItem: selectItemHandler,
+    selectBlockById: selectBlockByIdHandler,
     destroy: destroyHandler,
 };
 

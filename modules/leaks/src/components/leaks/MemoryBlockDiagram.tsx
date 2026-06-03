@@ -23,6 +23,7 @@ import {
     workerTransform,
     workerHoverItem,
     workerClickItem,
+    workerSelectBlockById,
 } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
 import { Session } from '@/entity/session';
@@ -52,6 +53,8 @@ import { ColumnWidthOutlined, OneToOneOutlined } from '@ant-design/icons';
 const BASE_ZOOM_STEP = 0.1;
 const BASE_MOVE_STEP = 5;
 const TOOLBAR_HEIGHT = 36;
+const BLOCK_DIAGRAM_OFFSET_LEFT = 100;
+const BLOCK_DIAGRAM_OFFSET_RIGHT = 105;
 const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
 
@@ -100,7 +103,7 @@ export const MemoryBlockDiagram = observer(({
             return;
         }
         const containerRect = containerRef.current.getBoundingClientRect();
-        const width = containerRect.width - 100;
+        const width = containerRect.width - BLOCK_DIAGRAM_OFFSET_LEFT - BLOCK_DIAGRAM_OFFSET_RIGHT;
         const height = containerRect.height - 50;
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.viewport = { width, height };
@@ -400,13 +403,30 @@ export const MemoryBlockDiagram = observer(({
     </GraphShortcutTip>;
 
     useEffect(() => {
+        const targetBlockId = session.pendingBlockLocateId;
+        if (targetBlockId === null) {
+            return;
+        }
+        document.querySelector('[data-testid="blockDiagramPanel"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const selectionVersion = session.selectionVersion + 1;
+        workerSelectStateItem({ item: null, selectionVersion });
+        runInAction(() => {
+            session.selectionVersion = selectionVersion;
+            session.stateWorkerInfo.clickItem = null;
+            session.clickEventItem = null;
+            session.pendingBlockLocateId = null;
+        });
+        workerSelectBlockById({ blockId: targetBlockId, selectionVersion });
+    }, [session.pendingBlockLocateId]);
+
+    useEffect(() => {
         if (ref.current === null || containerRef.current === null) {
             return;
         }
         const canvas = ref.current;
         try {
             const containerRect = containerRef.current.getBoundingClientRect();
-            const width = containerRect.width - 100;
+            const width = containerRect.width - BLOCK_DIAGRAM_OFFSET_LEFT - BLOCK_DIAGRAM_OFFSET_RIGHT;
             const height = containerRect.height - 50;
 
             runInAction(() => {
@@ -473,7 +493,18 @@ export const MemoryBlockDiagram = observer(({
                 </Tooltip>
             </GraphToolbar>
         </div>
-        <div ref={containerRef} style={{ width: '100%', height: 530, paddingLeft: 100, paddingTop: 20, boxSizing: 'border-box' }}>
+        <div
+            data-testid="blockDiagramSection"
+            ref={containerRef}
+            style={{
+                width: '100%',
+                height: 530,
+                paddingLeft: BLOCK_DIAGRAM_OFFSET_LEFT,
+                paddingRight: BLOCK_DIAGRAM_OFFSET_RIGHT,
+                paddingTop: 20,
+                boxSizing: 'border-box',
+            }}
+        >
             <div style={{ position: 'relative' }}>
                 <Axis session={session} />
                 <canvas

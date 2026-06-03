@@ -47,6 +47,9 @@ const WorkerBackend = {
     selectItem({ item, selectionVersion }: Omit<SelectBlockItemPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'selectBlockItem', item, selectionVersion });
     },
+    selectBlockById({ blockId, selectionVersion }: Omit<SelectBlockByIdPayload, 'type'>): void {
+        BlockWorker.postMessage({ type: 'selectBlockById', blockId, selectionVersion });
+    },
     destroy(): void {
         BlockWorker.postMessage({ type: 'destroy' });
     },
@@ -77,6 +80,9 @@ const MainThreadBackend = {
     selectItem({ item }: Omit<SelectBlockItemPayload, 'type'>): void {
         mainThreadRender.selectItemHandler({ item });
     },
+    selectBlockById({ blockId }: Omit<SelectBlockByIdPayload, 'type'>): void {
+        mainThreadRender.selectBlockByIdHandler({ blockId });
+    },
     destroy(): void {
         mainThreadRender.destroyHandler();
     },
@@ -93,4 +99,5 @@ export const workerTransform = backend.transform;
 export const workerHoverItem = backend.hoverItem;
 export const workerClickItem = backend.clickItem;
 export const workerSelectItem = backend.selectItem;
+export const workerSelectBlockById = backend.selectBlockById;
 export const workerDestroy = backend.destroy;

@@ -159,6 +159,8 @@ export class Session {
     } = STATE_WORKER_INFO_DEFAULT;
 
     clickEventItem: EvenItem | null = null;
+    pendingEventLocate: { eventId: number; deviceId: string } | null = null;
+    pendingBlockLocateId: number | null = null;
     selectionVersion: number = 0;
     leakStats: { totalSize: number; maxSize: number; minSize: number; loading: boolean; error: boolean; requestId: number } = {
         totalSize: 0,

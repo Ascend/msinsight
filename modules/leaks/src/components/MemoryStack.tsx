@@ -285,70 +285,72 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                     <MemoryFunctionCall session={session} />
                 </div>
             </CollapsiblePanel >
-            <CollapsiblePanel title={t('BlockGraph')} style={{ minWidth: 1000 }}>
-                <Label name={t('DeviceID')} />
-                <Select
-                    id={'select-deviceId'}
-                    style={{ marginRight: 20 }}
-                    value={session.deviceId}
-                    size="middle"
-                    onChange={(value): void => {
-                        runInAction(() => {
-                            session.threadFlag = false;
-                            session.typeOpts = session.deviceIds[value].map((type: string) => ({ label: type, value: type }));
-                            session.deviceId = value;
-                            session.eventType = session.deviceIds[value][0];
-                        });
-                    }}
-                    options={session.deviceIdOpts}
-                />
-                <Label name={t('Type')} />
-                <Select
-                    id={'select-type'}
-                    value={session.eventType}
-                    size="middle"
-                    onChange={(value): void => {
-                        runInAction(() => {
-                            session.threadFlag = false;
-                            session.eventType = value;
-                        });
-                    }}
-                    options={session.typeOpts}
-                />
-                {session.module === 'memsnapshot' ? <PotentialLeakStats session={session} /> : <></>}
-                <div id="barContent" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
-                    <MemoryBlockDiagram
-                        session={session}
-                        onResetTransform={() => {
-                            const { min, max } = zoomRangeRef.current;
-                            const fullRange: [number, number] = [min, max];
-                            if (!isValidRange(fullRange)) {
-                                return;
-                            }
-                            selectedRangeRef.current = fullRange;
-                            setSelectedRange(fullRange);
-                            debouncedFuncRangeRef.current?.cancel();
-                            debouncedCommitRangeRef.current?.cancel();
-                            debouncedLeakStatsRef.current?.cancel();
-                            commitRangeSideEffects(fullRange);
-                            requestFuncRangeData(fullRange);
-                            requestPotentialLeakStatsNow(fullRange);
-                            setDataZoomKey(key => key + 1);
+            <div data-testid="blockDiagramPanel">
+                <CollapsiblePanel title={t('BlockGraph')} style={{ minWidth: 1000 }}>
+                    <Label name={t('DeviceID')} />
+                    <Select
+                        id={'select-deviceId'}
+                        style={{ marginRight: 20 }}
+                        value={session.deviceId}
+                        size="middle"
+                        onChange={(value): void => {
+                            runInAction(() => {
+                                session.threadFlag = false;
+                                session.typeOpts = session.deviceIds[value].map((type: string) => ({ label: type, value: type }));
+                                session.deviceId = value;
+                                session.eventType = session.deviceIds[value][0];
+                            });
                         }}
-                        onTransformChange={syncDataZoomRange}
+                        options={session.deviceIdOpts}
                     />
-                    <MemoryDataZoom
-                        key={dataZoomKey}
-                        module={session.module}
-                        offsetLeft={95}
-                        offsetRight={105}
-                        dataSource={zoomData}
-                        minTime={zoomMinTime}
-                        maxTime={zoomMaxTime}
-                        selectedRange={selectedRange}
-                        selectedZoomChange={selectedZoomChange} />
-                </div>
-            </CollapsiblePanel>
+                    <Label name={t('Type')} />
+                    <Select
+                        id={'select-type'}
+                        value={session.eventType}
+                        size="middle"
+                        onChange={(value): void => {
+                            runInAction(() => {
+                                session.threadFlag = false;
+                                session.eventType = value;
+                            });
+                        }}
+                        options={session.typeOpts}
+                    />
+                    {session.module === 'memsnapshot' ? <PotentialLeakStats session={session} /> : <></>}
+                    <div id="barContent" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
+                        <MemoryBlockDiagram
+                            session={session}
+                            onResetTransform={() => {
+                                const { min, max } = zoomRangeRef.current;
+                                const fullRange: [number, number] = [min, max];
+                                if (!isValidRange(fullRange)) {
+                                    return;
+                                }
+                                selectedRangeRef.current = fullRange;
+                                setSelectedRange(fullRange);
+                                debouncedFuncRangeRef.current?.cancel();
+                                debouncedCommitRangeRef.current?.cancel();
+                                debouncedLeakStatsRef.current?.cancel();
+                                commitRangeSideEffects(fullRange);
+                                requestFuncRangeData(fullRange);
+                                requestPotentialLeakStatsNow(fullRange);
+                                setDataZoomKey(key => key + 1);
+                            }}
+                            onTransformChange={syncDataZoomRange}
+                        />
+                        <MemoryDataZoom
+                            key={dataZoomKey}
+                            module={session.module}
+                            offsetLeft={95}
+                            offsetRight={105}
+                            dataSource={zoomData}
+                            minTime={zoomMinTime}
+                            maxTime={zoomMaxTime}
+                            selectedRange={selectedRange}
+                            selectedZoomChange={selectedZoomChange} />
+                    </div>
+                </CollapsiblePanel>
+            </div>
             {session.memoryStamp && session.module === 'leaks'
                 ? (
                     <CollapsiblePanel title={t('DetailsDiagram')} collapsible style={{ minWidth: 1000 }}>
@@ -363,7 +365,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                 )
             }
             {session.module === 'memsnapshot' &&
-                <CollapsiblePanel title={t('stateDiagram')} style={{ minWidth: 1000 }}>
+                <CollapsiblePanel title={t('stateDiagram')} testId="stateDiagramPanel" style={{ minWidth: 1000 }}>
                     <MemoryStateDiagram session={session} />
                 </CollapsiblePanel>
             }
