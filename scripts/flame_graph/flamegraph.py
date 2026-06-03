@@ -20,7 +20,7 @@ Standalone Python script to extract PyTorch function call stacks from
 Ascend PyTorch Profiler DB files and generate interactive flame graphs.
 
 Usage:
-    python pytorch_flame_graph.py <db_path> [--output OUTPUT]
+    python flamegraph.py <db_path> [--output OUTPUT]
 """
 
 import argparse
@@ -61,7 +61,6 @@ def _validate_readable_file(file_path: str, description: str) -> str:
 
 REQUIRED_TABLES = ["PYTORCH_API", "STRING_IDS"]
 
-# API types 50001, 50002, and 50003 correspond to OP, QUEUE, and PYTHON_TRACE records.
 QUERY_API_CALLS_FILTERED = """
 SELECT
     CAST(api.startNs AS INTEGER) AS startNs,
@@ -72,9 +71,8 @@ FROM PYTORCH_API AS api
 LEFT JOIN STRING_IDS AS api_name ON api.name = api_name.id
 WHERE api.startNs IS NOT NULL
   AND api.endNs IS NOT NULL
-  AND api_name.value NOT LIKE 'ProfilerStep#%'
-  AND api.type IN (50001, 50002, 50003)
   AND api.globalTid = ?
+  AND (api_name.value IS NULL OR api_name.value NOT LIKE 'ProfilerStep#%')
 ORDER BY api.startNs ASC
 """
 
@@ -83,7 +81,6 @@ SELECT DISTINCT globalTid,
        globalTid >> 32 AS pid,
        globalTid & 0xFFFFFFFF AS tid
 FROM PYTORCH_API
-WHERE type IN (50001, 50002, 50003)
 ORDER BY globalTid
 """
 
@@ -214,7 +211,7 @@ def _to_dict_iterative(root: "FlameNode") -> Dict[str, object]:
 
 
 FRAMEWORK_KEYWORDS_LOWER = ("torch", "torch_npu", "aten::", "c10::", "aten_")
-CANN_KEYWORDS_LOWER = ("cann", "ascendcl", "aclnn", "acl ", "hccl")
+CANN_KEYWORDS_LOWER = ("cann", "ascendcl", "aclnn", "aclrt", "aclmdl", "aclprof", "hccl")
 
 
 def classify_frame(frame_text: str) -> str:
