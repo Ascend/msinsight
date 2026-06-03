@@ -147,6 +147,18 @@ std::optional<document_t> ToResponseJson<ProjectCheckValidResponse>(const Projec
     ProtocolUtil::SetResponseJsonBaseInfo(response, json);
     auto &allocator = json.GetAllocator();
     JsonUtil::AddMember(body, "result", response.body.result, allocator);
+    if (!response.body.errorDetail.empty()) {
+        json_t errorDetail(kArrayType);
+        for (const auto &error : response.body.errorDetail) {
+            json_t errorJson(kObjectType);
+            JsonUtil::AddMember(errorJson, "layer", error.layer, allocator);
+            JsonUtil::AddMember(errorJson, "error", error.error, allocator);
+            JsonUtil::AddMember(errorJson, "path", error.path, allocator);
+            JsonUtil::AddMember(errorJson, "message", error.message, allocator);
+            errorDetail.PushBack(errorJson, allocator);
+        }
+        JsonUtil::AddMember(body, "errorDetail", errorDetail, allocator);
+    }
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }

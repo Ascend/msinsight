@@ -21,6 +21,18 @@
 #include "JsonUtil.h"
 class TimelineProtocolUtilTest : public ::testing::Test {};
 
+TEST_F(TimelineProtocolUtilTest, ImportActionResponseSerializesIsFtrace) {
+    Dic::Protocol::ImportActionResponse response;
+    response.body.isFtrace = true;
+
+    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+    ASSERT_TRUE(jsonOp.has_value());
+    const auto &json = jsonOp.value();
+    ASSERT_TRUE(json.HasMember("body"));
+    ASSERT_TRUE(json["body"].HasMember("isFtrace"));
+    EXPECT_TRUE(json["body"]["isFtrace"].GetBool());
+}
+
 /**
  * 测试ThreadTracesResponseToJson正常情况
  */

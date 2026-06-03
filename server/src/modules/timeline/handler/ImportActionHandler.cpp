@@ -31,6 +31,7 @@ using namespace Dic;
 using namespace Dic::Server;
 using namespace Dic::Module::Global;
 using namespace Dic::Module::Timeline;
+
 bool ImportActionHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<ImportActionRequest &>(*requestPtr);
     ServerLog::Info("Import action request handler start");
@@ -176,17 +177,7 @@ std::optional<ProjectExplorerInfo> ImportActionHandler::BuildProjectInfo(
     ProjectTypeEnum projectType = projectParser->GetProjectType(importPath);
     // 获取文件列表
     std::vector<std::string> tempFiles = projectParser->GetParseFileByImportFile(importPath, warnMsg);
-    std::vector<std::string> parseFileList;
-    for (const auto &item : tempFiles) {
-        if (FileUtil::CheckWritableByOther(item)) {
-            parseFileList.emplace_back(item);
-        }
-    }
-    if (parseFileList.size() != tempFiles.size()) {
-        warnMsg = "Other users have write permissions to the file or subfiles";
-        SetTimelineError(ErrorCode::OTHER_CAN_WRITE);
-        warnMsg = "";
-    }
+    std::vector<std::string> parseFileList = tempFiles;
     bool isNotCluster = parseFileList.size() == 1 && !ClusterFileParser::CheckIsCluster(parseFileList[0]);
     // 如果未发生异常（warnMsg为空）或集群数据（容忍异常），进行错误重置，否则返回前端
     if (warnMsg.empty() || !isNotCluster) {

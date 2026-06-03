@@ -732,6 +732,7 @@ export interface CardMetaData extends MetaDataBase {
     cardName: string;
     cardPath: string;
     label?: string;
+    isFtrace?: boolean;
 }
 
 export interface HostMetaData extends MetaDataBase {

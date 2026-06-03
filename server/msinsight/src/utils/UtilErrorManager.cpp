@@ -56,10 +56,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::PATH_OWNER_ERROR, "The path's owner is not current user"},
     {ErrorCode::OTHER_CAN_WRITE, "The path is writeable by other user"},
     {ErrorCode::OPEN_DIR_FAILED, "open dir failed"},
-    {ErrorCode::IMPORT_FILE_OTHER_TYPE,
-        "No parsable files found, Possible reasons:; 1.File not exist; 2.The nesting "
-        "depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
-            std::to_string(GetFilePathLengthLimit())},
+    {ErrorCode::IMPORT_FILE_OTHER_TYPE, "No parsable files found"},
 };
 
 const std::string &GetErrorMessage(ErrorCode code) {

@@ -166,7 +166,7 @@ const afterImportProject = (params: ImportProjectParams, data: ImportResultBody)
         }
         const selectedFilePath = params.selectedFilePath ?? targetList?.[0]?.filePath ?? '';
         const selectedRankId = params.selectedRankId ?? targetList?.[0]?.rankId ?? '';
-        const selectedFileType: LayerType = params.selectedFileType ?? 'RANK'; // 此处暂时用 RANK，实际应该和 data.subdirectoryList[0] 中应该带有的类型相同
+        const selectedFileType: LayerType = params.selectedFileType ?? 'RANK';
         const children = data.children?.map((child) => transformFile(child, 0))
             ?.flat()?.filter((item) => item !== undefined) as FileOrDirectory[];
         // 更新场景

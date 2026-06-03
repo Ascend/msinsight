@@ -25,7 +25,31 @@ using namespace Dic::Module;
 using namespace Dic::Module::ParserJsonMock;
 class ParserJsonTest : public ::testing::Test {
   protected:
+    std::vector<std::string> tempFiles_;
+
     inline std::string GetTestDataDir() { return TestSuit::GetTestDataFile(); }
+
+    std::string CreateTempJsonFile(const std::string &content) {
+        const ::testing::TestInfo *testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+        std::string uniqueName = std::string(testInfo->name()) + "_" + std::to_string(std::rand()) + ".json";
+        std::string path = Dic::FileUtil::SplicePath(::testing::TempDir(), uniqueName);
+
+        std::ofstream file(path);
+        if (file.is_open()) {
+            file << content;
+            file.close();
+            tempFiles_.push_back(path);
+            return path;
+        }
+        return "";
+    }
+
+    void TearDown() override {
+        for (const auto &path : tempFiles_) {
+            std::remove(path.c_str());
+        }
+        tempFiles_.clear();
+    }
 };
 
 /**
@@ -335,4 +359,29 @@ TEST_F(ACLGraphDebugJSONTest, Invalid_MatchOnlyNotArrayRoot) {
     std::string path = CreateTempFile(content);
     ASSERT_FALSE(path.empty());
     EXPECT_FALSE(ProjectParserJson::IsACLGraphDebugJSON(path)); // 仅检查前三行
+}
+
+TEST_F(ParserJsonTest, FtraceJsonValidWhenFirstXEventPidMatches) {
+    std::string content = R"([{"ph": "M", "pid": "Ascend Hardware"}, {"ph": "X", "pid": "CPU Scheduling"}])";
+    std::string path = CreateTempJsonFile(content);
+    ASSERT_FALSE(path.empty());
+    EXPECT_TRUE(ProjectParserJson::IsFtraceJsonData(path));
+}
+
+TEST_F(ParserJsonTest, FtraceJsonValidWhenTraceEventsPidMatches) {
+    std::string content = R"({"traceEvents": [{"ph": "X", "pid": "Process Scheduling"}]})";
+    std::string path = CreateTempJsonFile(content);
+    ASSERT_FALSE(path.empty());
+    EXPECT_TRUE(ProjectParserJson::IsFtraceJsonData(path));
+}
+
+TEST_F(ParserJsonTest, FtraceJsonInvalidWhenFirstXEventPidMismatches) {
+    std::string content = R"([{"ph": "X", "pid": "Ascend Hardware"}, {"ph": "X", "pid": "CPU Scheduling"}])";
+    std::string path = CreateTempJsonFile(content);
+    ASSERT_FALSE(path.empty());
+    EXPECT_FALSE(ProjectParserJson::IsFtraceJsonData(path));
+}
+
+TEST_F(ParserJsonTest, FtraceJsonInvalidWhenInputIsFolder) {
+    EXPECT_FALSE(ProjectParserJson::IsFtraceJsonData(::testing::TempDir()));
 }

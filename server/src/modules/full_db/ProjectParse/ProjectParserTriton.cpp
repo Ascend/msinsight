@@ -35,7 +35,6 @@ void ProjectParserTriton::Parser(const std::vector<Global::ProjectExplorerInfo> 
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
     response.moduleName = MODULE_TIMELINE;
     response.body.reset = true;
-    response.body.subParseFileInfo = projectInfos[0].subParseFileInfo;
     response.body.isTriton = true;
     ModuleRequestHandler::SetResponseResult(response, true);
     if (!Global::ProjectExplorerManager::Instance().UpdateParseFileInfo(

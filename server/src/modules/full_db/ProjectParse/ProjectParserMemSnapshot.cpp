@@ -34,7 +34,6 @@ void ProjectParserMemSnapshot::Parser(const std::vector<ProjectExplorerInfo> &pr
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
     response.moduleName = MODULE_TIMELINE; // 开始解析的响应中模块暂时必须设置为timeline
     response.body.reset = true;
-    response.body.subParseFileInfo = projectInfos[0].subParseFileInfo;
     response.body.isLeaks = true;
     if (!MemSnapshotParser::Instance().GetParseContext().IsReadyToParse()) {
         response.result = false;
@@ -67,7 +66,7 @@ ProjectTypeEnum ProjectParserMemSnapshot::GetProjectType(const std::string &data
 std::vector<std::string> ProjectParserMemSnapshot::GetParseFileByImportFile(
     const std::string &importFile, std::string &error) {
     // 注意importfile为完整路径
-    if (FileUtil::IsFolder(importFile) || !FileUtil::CheckPathSecurity(importFile)) {
+    if (FileUtil::IsFolder(importFile)) {
         error = "Supports import only from a single-file snapshot pickle.";
         return {};
     }

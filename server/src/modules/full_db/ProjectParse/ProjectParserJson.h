@@ -54,6 +54,8 @@ class ProjectParserJson : public ProjectParserBase {
      */
     static bool IsACLGraphDebugJSON(const std::string &filePath);
 
+    static bool IsFtraceJsonData(const std::string &filePath);
+
     static void BuildProjectExploreInfo(ProjectExplorerInfo &info, const std::vector<std::string> &parsedFiles);
 
     static void BuildProjectFromParseFile(ProjectExplorerInfo &info, const std::string &parseFile);

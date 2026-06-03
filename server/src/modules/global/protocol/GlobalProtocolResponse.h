@@ -113,6 +113,13 @@ struct ProjectExplorerInfoClearResponse : public Response {
 struct ProjectCheckBody {
     ProjectErrorType error = ProjectErrorType::NO_ERRORS;
     int result = static_cast<int>(error);
+    struct ErrorDetail {
+        int layer = 0;
+        int error = static_cast<int>(ProjectErrorType::NO_ERRORS);
+        std::string path;
+        std::string message;
+    };
+    std::vector<ErrorDetail> errorDetail;
 };
 
 struct ProjectCheckValidResponse : public Response {

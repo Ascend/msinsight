@@ -40,14 +40,6 @@ using namespace Dic::Server;
 void ProjectParserDb::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
     ImportActionResponse &response) {
     ModuleRequestHandler::SetBaseResponse(request, response);
-    // 待解析的数据文件单独处理
-    std::vector<std::string> dataFiles = {};
-    for (const auto &projectInfo : projectInfos) {
-        for (const auto &item : projectInfo.subParseFileInfo) {
-            dataFiles.push_back(item->parseFilePath);
-            response.body.subParseFileInfo.push_back(item);
-        }
-    }
     auto hostInfoMap = GetReportFiles(projectInfos);
     SetHostInfo(hostInfoMap, response, projectInfos[0].projectType);
     SetParseCallBack();
@@ -236,9 +228,7 @@ std::vector<std::string> ProjectParserDb::GetParseFileByImportFile(const std::st
     }
     std::vector<std::string> msprofFiles = FileUtil::FindFilesWithFilter(importFile, std::regex(msprofDBReg));
     if (frameworkFiles.empty() && msprofFiles.empty()) {
-        error = "No parsable db files found, Possible reasons:; 1.File not exist; "
-                "2.The nesting depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
-            std::to_string(FileUtil::GetFilePathLengthLimit());
+        error = "No parsable db files found";
         ServerLog::Info(error);
         return {importFile};
     }

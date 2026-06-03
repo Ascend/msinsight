@@ -33,7 +33,7 @@ import i18n from '@insight/lib/i18n';
 import { forEach, groupBy, isEmpty, cloneDeep } from 'lodash';
 import { savePageSetting, recoverPageSetting, updatePageSetting } from '../utils/PageSetting';
 import { errorCenter, getRankInfoKey, WsError, ErrorCode } from '@insight/lib/utils';
-import { RankInfo } from '../api/interface';
+import type { RankInfo } from '../api/interface';
 import { queryOneKernel } from '../components/detailViews/Common';
 import { TIME_MAKER_DEFAULT } from '../entity/timeMaker';
 import { MAX_INITIAL_DURATION } from '../entity/domain';
@@ -48,7 +48,7 @@ const getPropFromData = function <T extends keyof U, U extends Record<string, un
     }
     return data[key];
 };
-function updateRankDbPathMap(rankList: RankInfo[], dbPath: string): void {
+function updateRankDbPathMap(rankList: RankInfo[], dbPath: string, isFtrace?: boolean): void {
     const { sessionStore } = store;
     const session = sessionStore.activeSession;
     runInAction(() => {
@@ -56,7 +56,7 @@ function updateRankDbPathMap(rankList: RankInfo[], dbPath: string): void {
             return;
         }
         rankList.forEach((rankInfo) => {
-            session.rankCardInfoMap.set(getRankInfoKey(rankInfo), { rankInfo, dbPath });
+            session.rankCardInfoMap.set(getRankInfoKey(rankInfo), { rankInfo, dbPath, isFtrace });
         });
     });
 }
@@ -114,8 +114,10 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
         if (!session) { return; }
         // 第一次 parse/success 返回时，更新 isRL 字段
         session.rankCardInfoMap.size === 0 && connector.send({ event: 'updateSession', body: { isRL: data.isRl } });
+        const matchedUnit = session.units.find((unit) => (unit.metadata as CardMetaData).cardId === unitData.unit.metadata.cardId);
+        const isFtrace = (matchedUnit?.metadata as CardMetaData | undefined)?.isFtrace;
         // 更新排名数据库路径映射
-        updateRankDbPathMap(unitData.rankList ?? [], unitData.dbPath);
+        updateRankDbPathMap(unitData.rankList ?? [], unitData.dbPath, isFtrace);
         runInAction(() => {
             // 更新会话的 isFullDb 和 startTime 属性
             session.isFullDb = unitData.isFullDb;
@@ -266,9 +268,22 @@ const initUnitSessionInfo = (session: Session, result: ImportResult, dataSource:
     session.isMultiDevice = result.isMultiDevice;
 };
 
+const updateImportedDataTypeState = (session: Session, result: ImportResult, isNeedResetRankId: boolean): void => {
+    if (result.reset || isNeedResetRankId) {
+        session.hasFtraceData = false;
+        session.hasNonFtraceData = false;
+    }
+    if (result.isFtrace) {
+        session.hasFtraceData = true;
+    } else {
+        session.hasNonFtraceData = true;
+    }
+};
+
 const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSource: DataSource, isNeedResetRankId: boolean): void => {
     if (!session) { return; }
     if (result.reset as boolean) { resetPage({ dataSource }); }
+    updateImportedDataTypeState(session, result, isNeedResetRankId);
     if (!session.units.length) {
         session.threadsToFetch.clear();
     }
@@ -287,7 +302,15 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
             const curDataSource = cloneDeep(dataSource);
             curDataSource.dataPath = item.dataPathList;
             const { rankId, dbPath, cluster, cardName, cardPath } = item;
-            const cardUnit = new CardUnit({ dataSource: curDataSource, cardId: rankId, dbPath, cluster, cardName, cardPath }, item.projectType);
+            const cardUnit = new CardUnit({
+                dataSource: curDataSource,
+                cardId: rankId,
+                dbPath,
+                cluster,
+                cardName,
+                cardPath,
+                isFtrace: result.isFtrace,
+            }, item.projectType);
             if (item.result as boolean) {
                 cardUnit.isParseLoading = !(result.isPending as boolean);
                 cardUnit.shouldParse = item.cardName !== 'Host';
@@ -599,6 +622,8 @@ const resetPage = (data?: Record<string, unknown>): void => {
         }
         session.isMultiDevice = false;
         session.isFullDb = false;
+        session.hasFtraceData = false;
+        session.hasNonFtraceData = false;
         session.isNeedResetRankId = true;
         clearUnits(session, data);
         session.simpleCache.clear();

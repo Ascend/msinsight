@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <fstream>
 #include "ImportActionHandler.h"
 #include "HandlerTest.cpp"
 

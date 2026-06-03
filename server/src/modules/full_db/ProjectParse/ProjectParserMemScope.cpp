@@ -39,7 +39,6 @@ void ProjectParserMemScope::Parser(const std::vector<ProjectExplorerInfo> &proje
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
     response.moduleName = MODULE_TIMELINE; // 开始解析的响应中模块暂时必须设置为timeline
     response.body.reset = true;
-    response.body.subParseFileInfo = projectInfos[0].subParseFileInfo;
     response.body.isLeaks = true;
     // 导入MemScope单文件时，只会有二层文件树，且二级目录数量为1，因此这里直接对rankId进行赋值
     for (auto &item : projectInfos[0].projectFileTree) {
@@ -68,7 +67,7 @@ ProjectTypeEnum ProjectParserMemScope::GetProjectType(const std::string &dataPat
 std::vector<std::string> ProjectParserMemScope::GetParseFileByImportFile(
     const std::string &importFile, std::string &error) {
     // 注意importfile为完整路径
-    if (FileUtil::IsFolder(importFile) || !FileUtil::CheckPathSecurity(importFile)) {
+    if (FileUtil::IsFolder(importFile)) {
         error = "Supports import only from a single-file memscope database.";
         return {};
     }

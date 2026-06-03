@@ -15,8 +15,9 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include <algorithm>
+#include <string_view>
 #include "ProjectParserJson.h"
-#include "TimelineRequestHandler.h"
 #include "ModuleRequestHandler.h"
 #include "TraceFileSimulationParser.h"
 #include "ClusterParseThreadPoolExecutor.h"
@@ -35,11 +36,51 @@
 #include "KernelParse.h"
 #include "ParseUnitManager.h"
 #include "TrackInfoManager.h"
+#include "JsonFileProcess.h"
 
 namespace Dic::Module {
 using namespace Timeline;
 using namespace Global;
 using namespace Dic::Server;
+
+namespace {
+constexpr std::string_view PROCESS_SCHEDULING_PID = "Process Scheduling";
+constexpr std::string_view CPU_SCHEDULING_PID = "CPU Scheduling";
+constexpr std::string_view TRACE_EVENTS_KEY = "traceEvents";
+
+enum class FtraceJsonCheckResult { NOT_FOUND, MATCHED, MISMATCHED };
+
+FtraceJsonCheckResult CheckFtraceSchedulingData(const document_t &jsonDoc) {
+    const json_t *events = nullptr;
+    if (jsonDoc.IsArray()) {
+        events = &jsonDoc;
+    } else if (jsonDoc.IsObject() && jsonDoc.HasMember(TRACE_EVENTS_KEY.data()) &&
+        jsonDoc[TRACE_EVENTS_KEY.data()].IsArray()) {
+        events = &jsonDoc[TRACE_EVENTS_KEY.data()];
+    }
+    if (events == nullptr) {
+        return FtraceJsonCheckResult::NOT_FOUND;
+    }
+    for (const auto &event : events->GetArray()) {
+        if (!event.IsObject() || !event.HasMember("ph") || !event["ph"].IsString() ||
+            std::string_view(event["ph"].GetString(), event["ph"].GetStringLength()) != "X") {
+            continue;
+        }
+        if (!event.HasMember("pid") || !event["pid"].IsString()) {
+            return FtraceJsonCheckResult::MISMATCHED;
+        }
+        std::string_view pid(event["pid"].GetString(), event["pid"].GetStringLength());
+        return pid == PROCESS_SCHEDULING_PID || pid == CPU_SCHEDULING_PID ? FtraceJsonCheckResult::MATCHED
+                                                                          : FtraceJsonCheckResult::MISMATCHED;
+    }
+    return FtraceJsonCheckResult::NOT_FOUND;
+}
+
+bool HasFtraceJsonImportData(const std::vector<Global::ProjectExplorerInfo> &projectInfos) {
+    return std::any_of(projectInfos.begin(), projectInfos.end(),
+        [](const auto &project) { return ProjectParserJson::IsFtraceJsonData(project.fileName); });
+}
+} // namespace
 
 // LCOV_EXCL_BR_START
 void ProjectParserJson::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos,
@@ -59,6 +100,7 @@ void ProjectParserJson::Parser(const std::vector<Global::ProjectExplorerInfo> &p
 
     // 设置基础响应内容
     SetBaseAction(rankListMap, response, projectInfos[0].projectType);
+    response.body.isFtrace = response.body.isFtrace || HasFtraceJsonImportData(projectInfos);
     // 解析内容
     auto projectTypeEnum = Global::ProjectExplorerManager::GetProjectType(projectInfos);
     if (projectTypeEnum == ProjectTypeEnum::SIMULATION) {
@@ -98,8 +140,6 @@ void ProjectParserJson::FillBaseResponseInfo(const ImportActionRequest &request,
     const std::vector<ProjectExplorerInfo> &projectInfos) {
     ModuleRequestHandler::SetBaseResponse(request, response);
     std::for_each(projectInfos.begin(), projectInfos.end(), [&response](const ProjectExplorerInfo &info) {
-        std::copy(info.subParseFileInfo.begin(), info.subParseFileInfo.end(),
-            std::back_inserter(response.body.subParseFileInfo));
         std::copy(info.projectFileTree.begin(), info.projectFileTree.end(),
             std::back_inserter(response.body.projectFileTree));
     });
@@ -437,8 +477,7 @@ bool ProjectParserJson::IsJsonValid(const std::string &fileName) {
 void ProjectParserJson::FindAscendFolder(const std::string &path, std::vector<std::string> &traceFiles) {
     std::string traceFilePath = FileUtil::SplicePath(path, ASCEND_PROFILER_OUTPUT);
     traceFilePath = FileUtil::SplicePath(traceFilePath, "trace_view.json");
-    // 检查traceFilePath是否存在且合法
-    if (FileUtil::CheckPathSecurity(traceFilePath, CHECK_FILE_READ)) {
+    if (FileUtil::IsRegularFile(traceFilePath)) {
         traceFiles.emplace_back(traceFilePath);
         return;
     }
@@ -513,9 +552,7 @@ std::vector<std::string> ProjectParserJson::GetParseFileByImportFile(
     auto opFiles = FileUtil::FindFilesWithFilter(importFile, std::regex(KERNEL_DETAIL_REG));
     auto memoryFiles = FileUtil::FindFilesWithFilter(importFile, std::regex(memoryRecordReg));
     if (traceFiles.empty() && opFiles.empty() && memoryFiles.empty()) {
-        error = "No parsable text files found, Possible reasons:; 1.File not exist; "
-                "2.The nesting depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
-            std::to_string(FileUtil::GetFilePathLengthLimit());
+        error = "No parsable text files found";
         ServerLog::Info(error);
         return {importFile};
     }
@@ -652,7 +689,7 @@ void ProjectParserJson::ParserMetaData(const std::vector<Global::ProjectExplorer
         for (const auto &item : project.subParseFileInfo) {
             std::string parent = FileUtil::GetParentPath(item->parseFilePath);
             std::string metaDataFilePath = FileUtil::SplicePath(parent, PROFILER_METADATA_FILE);
-            if (!FileUtil::CheckPathSecurity(metaDataFilePath, CHECK_FILE_READ)) {
+            if (!FileUtil::IsRegularFile(metaDataFilePath)) {
                 ServerLog::Error("Meta data file % is not valid.", metaDataFilePath);
                 continue;
             }
@@ -753,6 +790,36 @@ bool ProjectParserJson::IsACLGraphDebugJSON(const std::string &filePath) {
     static const std::regex pattern(
         R"("pid":\s*"[^"]*aclGraph")", std::regex_constants::optimize); // 仅 optimize，不忽略大小写
     return std::regex_search(firstObject, pattern);
+}
+
+bool ProjectParserJson::IsFtraceJsonData(const std::string &filePath) {
+    if (filePath.empty() || FileUtil::IsFolder(filePath)) {
+        return false;
+    }
+
+    FileReader fileReader;
+    for (const auto &position : JsonFileProcess::SplitFile(filePath)) {
+        std::string content = fileReader.ReadJsonArray(filePath, position.first, position.second);
+        if (content.empty()) {
+            continue;
+        }
+
+        std::string error;
+        auto jsonDoc = JsonUtil::TryParse(content, error);
+        if (!jsonDoc.has_value()) {
+            ServerLog::Warn("Failed to parse ftrace json candidate. file:", StringUtil::GetPrintAbleString(filePath),
+                " error:", error);
+            continue;
+        }
+        FtraceJsonCheckResult checkResult = CheckFtraceSchedulingData(jsonDoc.value());
+        if (checkResult == FtraceJsonCheckResult::MATCHED) {
+            return true;
+        }
+        if (checkResult == FtraceJsonCheckResult::MISMATCHED) {
+            return false;
+        }
+    }
+    return false;
 }
 
 std::tuple<bool, bool, bool> ProjectParserJson::CheckHasJsonMemoryDataOperatorData(

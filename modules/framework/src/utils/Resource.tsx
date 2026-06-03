@@ -35,6 +35,18 @@ export interface ResourceItem {
     exist: boolean;
 };
 
+export interface ProjectCheckErrorDetail {
+    layer: number;
+    error: ProjectError;
+    path: string;
+    message: string;
+}
+
+export interface ProjectCheckResult {
+    result: ProjectError;
+    errorDetail: ProjectCheckErrorDetail[];
+}
+
 // 接口返回数据转为Tree组件数据结构
 export const dealResource = (resource: ResourceItem): TreeDataNode[] => {
     const folders = (resource.childrenFolders ?? []).map(item => ({
@@ -88,19 +100,20 @@ export const fileExist = async (path: string): Promise<boolean> => {
 
 // 文件/文件夹安全校验
 export const checkPathValid = async(project: Project):
-Promise<ProjectError> => {
+Promise<ProjectCheckResult> => {
     // 检查文件是否存在
     const existed = await fileExist(project.projectPath[0] ?? '');
     if (!existed) {
-        return ProjectError.FILE_NOT_EXIST;
+        return { result: ProjectError.FILE_NOT_EXIST, errorDetail: [] };
     }
     // 是否在左侧已导入的数据中
     if (checkExistedDataSource(project)) {
-        return ProjectError.IMPORTED;
+        return { result: ProjectError.IMPORTED, errorDetail: [] };
     }
     // 校验文件安全，如文件冲突、超大文件、软链接等
     const res = await checkProjectValid({ projectName: project.projectName ?? '', dataPath: project.projectPath ?? [] });
-    return (res as {result: ProjectError}).result;
+    const result = res as {result: ProjectError; errorDetail?: ProjectCheckErrorDetail[]};
+    return { result: result.result, errorDetail: result.errorDetail ?? [] };
 };
 
 // 文件是否已导入

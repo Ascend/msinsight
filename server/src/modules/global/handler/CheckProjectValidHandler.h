@@ -38,10 +38,15 @@ class CheckProjectValidHandler : public GlobalHandler {
     bool HandleRequest(std::unique_ptr<Request> requestPtr) override;
 
   private:
-    static bool CheckRequestParamsValid(ProjectCheckParams &params, ProjectErrorType &error);
-    static bool CheckProjectFile(ProjectCheckParams &params, const fs::path &filePath, ProjectErrorType &error);
+    static bool CheckRequestParamsValid(
+        ProjectCheckParams &params, ProjectErrorType &error, std::vector<ProjectCheckBody::ErrorDetail> &errors);
+    static bool CheckProjectFile(const fs::path &filePath, ProjectErrorType &error,
+        std::vector<ProjectCheckBody::ErrorDetail> &errors, int layer);
     static bool CheckFileSize(const fs::path &filePath);
-    static bool CheckPathSafety(const std::string &path, ProjectErrorType &error);
+    static bool CheckPathSafety(const std::string &path, ProjectErrorType &error,
+        std::vector<ProjectCheckBody::ErrorDetail> &errors, int layer);
+    static bool CheckPathByBfs(const std::vector<std::string> &paths, ProjectErrorType &error,
+        std::vector<ProjectCheckBody::ErrorDetail> &errors);
 };
 } // end of namespace Module
 } // Dic

@@ -16,11 +16,14 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <fstream>
 #include "ProtocolDefs.h"
 #include "GlobalProtocolRequest.h"
 #include "CancelBaselineHandler.h"
 #include "FilesGetHandler.h"
+#define private public
 #include "CheckProjectValidHandler.h"
+#undef private
 #include "ClearProjectExplorerHandler.h"
 #include "DeleteProjectExplorerInfoHandler.h"
 #include "GetModuleConfigHandler.h"
@@ -61,6 +64,46 @@ TEST_F(GlobalHandlerTest, TestCheckProjectValidHandler) {
     CheckProjectValidHandler checkProjectValidHandler;
     ASSERT_TRUE(checkProjectValidHandler.HandleRequest(std::move(requestPtr)));
 }
+
+#ifndef _WIN32
+TEST_F(GlobalHandlerTest, TestCheckProjectValidHandlerCollectsPathSecurityErrorsByLayer) {
+    const std::string deleteFolderPath = Dic::FileUtil::SplicePath(
+        Dic::FileUtil::GetCurrPath(), "../../../../test/data/check_project_valid_security_test");
+    const std::string nestedFolderPath = Dic::FileUtil::SplicePath(deleteFolderPath, "nested");
+    const std::string removeCommand = "rm -rf " + deleteFolderPath;
+    system(removeCommand.c_str());
+    const std::string mkdirCommand = "mkdir -p " + nestedFolderPath;
+    system(mkdirCommand.c_str());
+
+    const std::string safeFile = Dic::FileUtil::SplicePath(deleteFolderPath, "trace_view.json");
+    const std::string firstLayerInvalidFile = Dic::FileUtil::SplicePath(deleteFolderPath, "bad\nfile.json");
+    const std::string secondLayerInvalidFile = Dic::FileUtil::SplicePath(nestedFolderPath, "bad\tfile.json");
+    std::ofstream outfile;
+    outfile.open(safeFile, std::ios::out | std::ios::trunc);
+    outfile.close();
+    outfile.open(firstLayerInvalidFile, std::ios::out | std::ios::trunc);
+    outfile.close();
+    outfile.open(secondLayerInvalidFile, std::ios::out | std::ios::trunc);
+    outfile.close();
+
+    ProjectCheckParams params;
+    params.projectName = "test";
+    params.dataPath = {deleteFolderPath};
+    ProjectErrorType error = ProjectErrorType::NO_ERRORS;
+    std::vector<ProjectCheckBody::ErrorDetail> errors;
+
+    EXPECT_FALSE(CheckProjectValidHandler::CheckRequestParamsValid(params, error, errors));
+    ASSERT_EQ(2, errors.size());
+    EXPECT_EQ(ProjectErrorType::IS_UNSAFE_PATH, error);
+    EXPECT_EQ(1, errors[0].layer);
+    EXPECT_EQ(2, errors[1].layer);
+    EXPECT_EQ(static_cast<int>(ProjectErrorType::IS_UNSAFE_PATH), errors[0].error);
+    EXPECT_EQ(Dic::StringUtil::GetPrintAbleString(firstLayerInvalidFile), errors[0].path);
+    EXPECT_EQ(Dic::StringUtil::GetPrintAbleString(secondLayerInvalidFile), errors[1].path);
+
+    system(removeCommand.c_str());
+}
+#endif
 
 TEST_F(GlobalHandlerTest, TestDeleteProjectExplorerHandler) {
     auto requestPtr = std::make_unique<ProjectExplorerInfoDeleteRequest>();

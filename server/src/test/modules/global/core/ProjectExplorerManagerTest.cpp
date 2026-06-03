@@ -16,6 +16,9 @@
  * -------------------------------------------------------------------------
  */
 
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
 #include <gtest/gtest.h>
 #include "FileUtil.h"
 #include "ProjectExplorerManager.h"
@@ -36,6 +39,29 @@ class ProjectExplorerManagerTest : public ::testing::Test {
 
   protected:
     inline static std::string testDataDir = TestSuit::GetTestDataFile();
+    std::vector<std::string> tempFiles_;
+
+    void TearDown() override {
+        for (const auto &path : tempFiles_) {
+            std::remove(path.c_str());
+        }
+        tempFiles_.clear();
+    }
+
+    std::string CreateTempJsonFile(const std::string &content) {
+        const ::testing::TestInfo *testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+        std::string uniqueName = std::string(testInfo->name()) + "_" + std::to_string(std::rand()) + ".json";
+        std::string path = Dic::FileUtil::SplicePath(::testing::TempDir(), uniqueName);
+        std::ofstream file(path);
+        if (!file.is_open()) {
+            return "";
+        }
+        file << content;
+        file.close();
+        tempFiles_.push_back(path);
+        return path;
+    }
+
     ProjectExplorerInfo CreateProjectData(const std::string &projectName, const std::string &fileName,
         const std::string &importType, Dic::ProjectTypeEnum projectType, const std::vector<std::string> dbPath) {
         ProjectExplorerInfo info;
@@ -109,6 +135,64 @@ TEST_F(ProjectExplorerManagerTest, CheckProjectConflictAndCoverData) {
     EXPECT_EQ(queryRes[0].importType, "import");
     EXPECT_EQ(queryRes[0].fileName, filePath);
     EXPECT_EQ(static_cast<Dic::ProjectTypeEnum>(queryRes[0].projectType), Dic::ProjectTypeEnum::BIN);
+    ClearProjectExplorerData();
+}
+
+TEST_F(ProjectExplorerManagerTest, CheckProjectConflictAllowFtraceJsonWithProfilingDb) {
+    ClearProjectExplorerData();
+    std::string projectName = "testProject";
+    ProjectExplorerInfo info =
+        CreateProjectData(projectName, "msprof_1.db", "import", Dic::ProjectTypeEnum::DB, std::vector<std::string>());
+    ASSERT_TRUE(ProjectExplorerManager::Instance().SaveProjectExplorer(info, false));
+
+    std::string ftraceJsonPath = CreateTempJsonFile(R"([{"ph": "X", "pid": "Process Scheduling"}])");
+    ASSERT_FALSE(ftraceJsonPath.empty());
+    Dic::Protocol::ProjectErrorType result =
+        ProjectExplorerManager::Instance().CheckProjectConflict(projectName, ftraceJsonPath);
+    EXPECT_EQ(result, Dic::Protocol::ProjectErrorType::NO_ERRORS);
+    ClearProjectExplorerData();
+}
+
+TEST_F(ProjectExplorerManagerTest, CheckProjectConflictAllowFtraceDbWithProfilingText) {
+    ClearProjectExplorerData();
+    std::string projectName = "testProject";
+    ProjectExplorerInfo info = CreateProjectData(
+        projectName, "trace_view.json", "import", Dic::ProjectTypeEnum::TRACE, std::vector<std::string>());
+    ASSERT_TRUE(ProjectExplorerManager::Instance().SaveProjectExplorer(info, false));
+
+    std::string ftraceDbPath = TestSuit::GetTestDataFile("ftrace_data.db");
+    Dic::Protocol::ProjectErrorType result =
+        ProjectExplorerManager::Instance().CheckProjectConflict(projectName, ftraceDbPath);
+    EXPECT_EQ(result, Dic::Protocol::ProjectErrorType::NO_ERRORS);
+    ClearProjectExplorerData();
+}
+
+TEST_F(ProjectExplorerManagerTest, CheckProjectConflictAllowFtraceDbWithProfilingDb) {
+    ClearProjectExplorerData();
+    std::string projectName = "testProject";
+    ProjectExplorerInfo info =
+        CreateProjectData(projectName, "msprof_1.db", "import", Dic::ProjectTypeEnum::DB, std::vector<std::string>());
+    ASSERT_TRUE(ProjectExplorerManager::Instance().SaveProjectExplorer(info, false));
+
+    std::string ftraceDbPath = TestSuit::GetTestDataFile("ftrace_data.db");
+    Dic::Protocol::ProjectErrorType result =
+        ProjectExplorerManager::Instance().CheckProjectConflict(projectName, ftraceDbPath);
+    EXPECT_EQ(result, Dic::Protocol::ProjectErrorType::NO_ERRORS);
+    ClearProjectExplorerData();
+}
+
+TEST_F(ProjectExplorerManagerTest, CheckProjectConflictKeepsProfilingJsonAndDbConflict) {
+    ClearProjectExplorerData();
+    std::string projectName = "testProject";
+    ProjectExplorerInfo info =
+        CreateProjectData(projectName, "msprof_1.db", "import", Dic::ProjectTypeEnum::DB, std::vector<std::string>());
+    ASSERT_TRUE(ProjectExplorerManager::Instance().SaveProjectExplorer(info, false));
+
+    std::string profilingJsonPath = CreateTempJsonFile(R"([{"ph": "X", "pid": "Other Scheduling"}])");
+    ASSERT_FALSE(profilingJsonPath.empty());
+    Dic::Protocol::ProjectErrorType result =
+        ProjectExplorerManager::Instance().CheckProjectConflict(projectName, profilingJsonPath);
+    EXPECT_EQ(result, Dic::Protocol::ProjectErrorType::PROJECT_NAME_CONFLICT);
     ClearProjectExplorerData();
 }
 

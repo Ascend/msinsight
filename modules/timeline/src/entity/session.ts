@@ -146,6 +146,9 @@ export class Session {
     // 是否是ipynb文件
     isIpynb: boolean = false;
     ipynbUrl: string = '';
+    // 当前项目已导入的数据类型，用于 System View 标签过滤
+    hasFtraceData: boolean = false;
+    hasNonFtraceData: boolean = false;
     // context menu state
     contextMenu: ContextMenu = {
         isVisible: false,

@@ -61,8 +61,6 @@ void ParserIE::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInf
 void ParserIE::FillBaseResponseInfo(const ImportActionRequest &request, ImportActionResponse &response,
     const std::vector<ProjectExplorerInfo> &projectInfos) {
     ModuleRequestHandler::SetBaseResponse(request, response);
-    response.body.subParseFileInfo.insert(response.body.subParseFileInfo.end(),
-        projectInfos[0].subParseFileInfo.begin(), projectInfos[0].subParseFileInfo.end());
     MergeFileTree(response.body.projectFileTree, projectInfos[0].projectFileTree);
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
     response.moduleName = MODULE_TIMELINE;

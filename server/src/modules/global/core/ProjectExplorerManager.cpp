@@ -24,8 +24,46 @@
 #include "ProjectParserFactory.h"
 #include "TimeUtil.h"
 #include "ProjectExplorerManager.h"
+#include "ProjectParserJson.h"
 
 namespace Dic::Module::Global {
+namespace {
+bool IsFtraceProfilingCompatible(ProjectTypeEnum importProjectType, const std::string &importFilePath,
+    ProjectTypeEnum existedProjectType, const std::string &existedFilePath) {
+    auto isFtraceData = [](ProjectTypeEnum projectType, const std::string &filePath) {
+        if (projectType == ProjectTypeEnum::DB_FTRACE) {
+            return true;
+        }
+        if (projectType != ProjectTypeEnum::TRACE && projectType != ProjectTypeEnum::TEXT_CLUSTER) {
+            return false;
+        }
+        return ProjectParserJson::IsFtraceJsonData(filePath);
+    };
+    auto isProfilingData = [](ProjectTypeEnum projectType) {
+        switch (projectType) {
+        case ProjectTypeEnum::DB:
+        case ProjectTypeEnum::DB_CLUSTER:
+        case ProjectTypeEnum::DB_NPUMONITOR:
+        case ProjectTypeEnum::TRACE:
+        case ProjectTypeEnum::TEXT_CLUSTER:
+            return true;
+        default:
+            return false;
+        }
+    };
+
+    bool importIsFtrace = isFtraceData(importProjectType, importFilePath);
+    bool existedIsFtrace = isFtraceData(existedProjectType, existedFilePath);
+    if (!importIsFtrace && !existedIsFtrace) {
+        return false;
+    }
+    if (importIsFtrace && existedIsFtrace) {
+        return true;
+    }
+    return (importIsFtrace && isProfilingData(existedProjectType)) ||
+        (existedIsFtrace && isProfilingData(importProjectType));
+}
+} // namespace
 
 ProjectExplorerManager &ProjectExplorerManager::Instance() {
     static ProjectExplorerManager instance;
@@ -232,9 +270,14 @@ ProjectErrorType ProjectExplorerManager::CheckProjectConflict(
             "Failed to cast project type. project type is: ", std::to_string(infos[0].projectType));
         return ProjectErrorType::OTHER;
     }
-    bool isConflict = !infos.empty() &&
-        (infos[0].importType == "drag" ||
-            isFileConflict(projectTypeEnum, static_cast<ProjectTypeEnum>(infos[0].projectType)));
+    if (infos[0].importType == "drag") {
+        return ProjectErrorType::PROJECT_NAME_CONFLICT;
+    }
+    ProjectTypeEnum existedProjectType = static_cast<ProjectTypeEnum>(infos[0].projectType);
+    if (IsFtraceProfilingCompatible(projectTypeEnum, filePath, existedProjectType, infos[0].fileName)) {
+        return ProjectErrorType::NO_ERRORS;
+    }
+    bool isConflict = isFileConflict(projectTypeEnum, existedProjectType);
     if (isConflict) {
         return ProjectErrorType::PROJECT_NAME_CONFLICT;
     }
