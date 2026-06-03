@@ -78,6 +78,7 @@ export const STATE_WORKER_INFO_DEFAULT = {
     },
     hoverItem: null,
     clickItem: null,
+    eventId: -1,
 };
 
 export class Session {
@@ -156,7 +157,8 @@ export class Session {
         renderOptions: RenderOptions;
         hoverItem: StateDataHoverResult | null;
         clickItem: StateDataHoverResult | null;
-    } = STATE_WORKER_INFO_DEFAULT;
+        eventId: number;
+    } = { ...STATE_WORKER_INFO_DEFAULT };
 
     clickEventItem: EvenItem | null = null;
     pendingEventLocate: { eventId: number; deviceId: string } | null = null;

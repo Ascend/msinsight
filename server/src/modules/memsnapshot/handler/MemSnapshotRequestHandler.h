@@ -45,8 +45,11 @@ class MemSnapshotRequestHandler : public ModuleRequestHandler {
 
     static inline std::shared_ptr<FullDb::MemSnapshotDatabase> GetMemSnapshotDatabaseByRequest(
         const Protocol::Request &request) {
-        return Timeline::DataBaseManager::Instance().GetMemSnapshotDatabase(
-            request.fileId.empty() ? request.projectName : request.fileId);
+        return Timeline::DataBaseManager::Instance().GetMemSnapshotDatabase(GetMemSnapshotDataKey(request));
+    }
+
+    static inline std::string GetMemSnapshotDataKey(const Protocol::Request &request) {
+        return request.fileId.empty() ? request.projectName : request.fileId;
     }
 };
 } // namespace Dic::Module::MemSnapshot

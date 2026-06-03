@@ -29,9 +29,13 @@ class QueryMemSnapshotDetailHandler : public MemSnapshotRequestHandler {
     bool HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) override;
 
   private:
-    const std::string LOG_TAG = "[MemSnapshotDetailHandler] ";
+    static inline const std::string LOG_TAG = "[MemSnapshotDetailHandler] ";
     static void BuildBlockDetailDTO(BlockDetailDTO &blockDetail, const std::string &deviceId,
         const std::shared_ptr<FullDb::MemSnapshotDatabase> &database);
+    static std::unique_ptr<Protocol::SegmentDetailDTO> BuildSegmentDetailDTO(
+        const Protocol::MemSnapshotDetailRequest &request, const std::shared_ptr<FullDb::MemSnapshotDatabase> &database,
+        std::string &errMsg);
+    static bool ParseSegmentAddress(const std::string &address, uint64_t &value);
 };
 } // namespace Dic::Module::MemSnapshot
 

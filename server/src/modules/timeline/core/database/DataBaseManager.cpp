@@ -27,6 +27,7 @@
 #include "TrackInfoManager.h"
 #include "DataBaseManager.h"
 #include "SearchSliceCacheManager.h"
+#include "MemSnapshotStateCache.h"
 
 // clang-format off
 namespace Dic {
@@ -209,6 +210,7 @@ void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
     if (summary != summaryDatabaseMap.end()) {
         summaryDatabaseMap.erase(summary);
     }
+    Dic::Module::MemSnapshot::MemSnapshotStateCache::ClearData(fileId);
     // 清理对应的缓存
     std::string rankId = GetRankIdByFileId(fileId);
     if (!rankId.empty()) {

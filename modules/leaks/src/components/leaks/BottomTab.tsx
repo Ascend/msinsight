@@ -163,11 +163,19 @@ const DetailTabsWrapper = styled.div`
 
     .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab {
         padding: 2px 8px;
+        max-width: 160px;
         border-color: ${(props): string => props.theme.borderColorLight};
         background: ${(props): string => props.theme.bgColor};
         font-size: 12px;
         line-height: 20px;
         transition: transform 160ms ease, background-color 160ms ease, opacity 160ms ease;
+    }
+
+    .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-btn {
+        display: flex;
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
     }
 
     .ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active {
@@ -206,6 +214,8 @@ const DetailContextMenuItem = styled.div`
 const DetailTabLabel = styled.span`
     position: relative;
     display: inline-flex;
+    flex: 1 1 auto;
+    min-width: 0;
     align-items: center;
     max-width: 120px;
     overflow: hidden;
@@ -508,7 +518,7 @@ const CallStackLineText = styled.div`
     white-space: pre-wrap;
 `;
 
-const SNAPSHOT_EVENT_KEYS = ['Alloc Event', 'Free Requested Event', 'Free Completed Event'];
+const SNAPSHOT_EVENT_KEYS = ['Alloc Event', 'Free Requested Event', 'Free Completed Event', 'Alloc Or Map Event'];
 const CALL_STACK_KEYS = ['CallStack', 'Callstack'];
 const SNAPSHOT_NESTED_KEYS = new Set([...SNAPSHOT_EVENT_KEYS, ...CALL_STACK_KEYS]);
 const LEGACY_LOCAL_BLOCK_HIDDEN_KEYS = new Set([
@@ -523,7 +533,7 @@ const LEGACY_LOCAL_BLOCK_HIDDEN_KEYS = new Set([
     'path',
 ]);
 
-type SliceDetailKind = 'localBlock' | 'snapshotBlock' | 'snapshotEvent' | 'stateBlock' | 'stateEvent';
+type SliceDetailKind = 'localBlock' | 'snapshotBlock' | 'snapshotEvent' | 'stateBlock' | 'stateEvent' | 'stateSegment';
 type SnapshotDetailData = { [key: string]: any };
 interface DetailFieldEntry {
     key: string;
@@ -632,6 +642,16 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         return tab.titleId !== undefined ? `#${tab.titleId}` : getDetailTabTitle(tab);
     };
 
+    const translateDetailKey = (key: string): string => {
+        return t(key, { defaultValue: key });
+    };
+
+    const formatSegmentTabLabel = (allocOrMapEventId?: number): string => {
+        return allocOrMapEventId !== undefined && allocOrMapEventId >= 0
+            ? `Seg#${allocOrMapEventId}`
+            : 'Seg#unknown';
+    };
+
     const cloneBlock = (block: Block | null | undefined): Block | null => {
         if (block === null || block === undefined) {
             return null;
@@ -650,6 +670,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             type: item.type,
             data: {
                 ...item.data,
+                eventId: item.data.eventId ?? session.stateWorkerInfo.eventId,
                 blocks: item.data.blocks.map(block => ({ ...block })),
             },
         };
@@ -725,8 +746,8 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         ];
         upsertDetailTab({
             key: `snapshot_state_no_frames_${tabKeyParts.map(String).join('_')}`,
-            label: type === 'segment' ? t('exceptionEvent') : t('exceptionBlock'),
-            kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
+            label: type === 'segment' ? formatSegmentTabLabel(data.allocOrMapEventId) : t('exceptionBlock'),
+            kind: type === 'segment' ? 'stateSegment' : 'stateBlock',
             detailData: {},
             state: stateSelection,
             selection: { type: 'state', state: stateSelection },
@@ -999,7 +1020,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         }
         return <DetailFieldList>
             {entries.map((item, index) => <DetailField key={`${item.key}_${index}`}>
-                <DetailFieldName title={item.label ?? t(item.key)}>{item.label ?? t(item.key)}</DetailFieldName>
+                <DetailFieldName title={item.label ?? translateDetailKey(item.key)}>{item.label ?? translateDetailKey(item.key)}</DetailFieldName>
                 <DetailFieldValue>{item.value}</DetailFieldValue>
             </DetailField>)}
         </DetailFieldList>;
@@ -1074,7 +1095,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         }
         if (isRecordValue(value)) {
             return [Object.entries(value)
-                .map(([key, item]) => `${t(key)}: ${formatDetailValue(item)}`)
+                .map(([key, item]) => `${translateDetailKey(key)}: ${formatDetailValue(item)}`)
                 .join('  ')];
         }
         return [formatDetailValue(value)];
@@ -1084,7 +1105,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         const groups = isRecordValue(value)
             ? Object.entries(value)
                 .filter(([, item]) => hasVisibleValue(item))
-                .map(([key, item]) => ({ key, label: t(key), lines: normalizeCallStackLines(item) }))
+                .map(([key, item]) => ({ key, label: translateDetailKey(key), lines: normalizeCallStackLines(item) }))
                 .filter(group => group.lines.length > 0)
             : [{ key: 'callStack', label: t('callStack'), lines: normalizeCallStackLines(value) }];
 
@@ -1128,7 +1149,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
     const getRelatedEventTabs = (data?: SnapshotDetailData): DetailEventTab[] => {
         return getRelatedEvents(data).map(item => ({
             key: item.key,
-            label: t(item.key),
+            label: translateDetailKey(item.key),
             value: item.value,
         }));
     };
@@ -1161,7 +1182,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             return <></>;
         }
         return <>
-            {extraEntries.map(item => renderContentSection(t(item.key), renderSnapshotEventObject(item)))}
+            {extraEntries.map(item => renderContentSection(translateDetailKey(item.key), renderSnapshotEventObject(item)))}
         </>;
     };
 
@@ -1175,7 +1196,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         return getSnapshotOverviewEntries(tab.detailData);
     };
 
-    const renderEventInfo = (tab: SliceDetailTab, type: 'block' | 'event', extraEntries: Array<{ key: string; value: any }>): JSX.Element => {
+    const renderEventInfo = (tab: SliceDetailTab, type: 'block' | 'event' | 'segment', extraEntries: Array<{ key: string; value: any }>): JSX.Element => {
         if (type === 'block') {
             return <>
                 {renderDirectEventContent(tab.detailData)}
@@ -1188,7 +1209,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         </>;
     };
 
-    const renderSnapshotDetail = (tab: SliceDetailTab, type: 'block' | 'event'): JSX.Element => {
+    const renderSnapshotDetail = (tab: SliceDetailTab, type: 'block' | 'event' | 'segment'): JSX.Element => {
         if (tab.loading === true) {
             return <DetailPanel>
                 <DetailCard>
@@ -1199,7 +1220,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         const basicEntries = getBasicInfoEntries(tab);
         const extraEntries = getSnapshotExtraEntries(tab.detailData);
         const hasCallStack = hasVisibleValue(getCallStackValue(tab.detailData));
-        const relatedEventTabs = type === 'block' ? getRelatedEventTabs(tab.detailData) : [];
+        const relatedEventTabs = type === 'event' ? [] : getRelatedEventTabs(tab.detailData);
         const hasRelatedEvents = relatedEventTabs.length > 0;
         const hasEventInfo = hasRelatedEvents || hasCallStack || extraEntries.length > 0;
         const hasAnyDetail = basicEntries.length > 0 || hasEventInfo;
@@ -1246,6 +1267,9 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         }
         if (tab.kind === 'snapshotBlock' || tab.kind === 'stateBlock') {
             return renderSnapshotDetail(tab, 'block');
+        }
+        if (tab.kind === 'stateSegment') {
+            return renderSnapshotDetail(tab, 'segment');
         }
         return renderSnapshotDetail(tab, 'event');
     };
@@ -1321,7 +1345,72 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             return;
         }
         const { type, data } = stateSelection;
-        const id = type === 'segment' ? data.allocOrMapEventId : (data.blocks[0]?.id ?? -1);
+        if (type === 'segment') {
+            const eventId = data.eventId ?? session.stateWorkerInfo.eventId;
+            const tabKey = `snapshot_segment_${eventId}_${data.address}_${data.stream}`;
+            const label = formatSegmentTabLabel(data.allocOrMapEventId);
+            if (eventId < 0) {
+                upsertDetailTab({
+                    key: tabKey,
+                    label,
+                    kind: 'stateSegment',
+                    loading: false,
+                    detailData: {},
+                    state: stateSelection,
+                    selection: { type: 'state', state: stateSelection },
+                }, { activate: true });
+                return;
+            }
+            let cancelled = false;
+            const requestDeviceId = session.deviceId;
+            const requestDetailContextKey = detailContextKeyRef.current;
+            openPendingDetailTab({
+                key: tabKey,
+                label,
+                kind: 'stateSegment',
+                loading: true,
+                state: stateSelection,
+                selection: { type: 'state', state: stateSelection },
+            });
+            getSnapshotDetail({
+                type: 'segment',
+                id: -1,
+                deviceId: session.deviceId,
+                eventId,
+                segmentAddress: data.address,
+                stream: data.stream,
+            }).then(result => {
+                if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
+                    return;
+                }
+                upsertDetailTab({
+                    key: tabKey,
+                    label,
+                    kind: 'stateSegment',
+                    loading: false,
+                    detailData: result,
+                    state: stateSelection,
+                    selection: { type: 'state', state: stateSelection },
+                });
+            }).catch(() => {
+                if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
+                    return;
+                }
+                upsertDetailTab({
+                    key: tabKey,
+                    label,
+                    kind: 'stateSegment',
+                    loading: false,
+                    detailData: {},
+                    state: stateSelection,
+                    selection: { type: 'state', state: stateSelection },
+                });
+            });
+            return () => {
+                cancelled = true;
+            };
+        }
+        const id = data.blocks[0]?.id ?? -1;
         if (id < 0) {
             upsertNoFramesStateTab(stateSelection);
             return;
@@ -1329,13 +1418,13 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         let cancelled = false;
         const requestDeviceId = session.deviceId;
         const requestDetailContextKey = detailContextKeyRef.current;
-        const detailType = type === 'segment' ? 'event' : 'block';
+        const detailType = 'block';
         const tabKey = `snapshot_${detailType}_${id}`;
         openPendingDetailTab({
             key: tabKey,
-            label: `${detailType === 'event' ? t('event') : t('block')} #${id}`,
+            label: `${t('block')} #${id}`,
             titleId: id,
-            kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
+            kind: 'stateBlock',
             loading: true,
             state: stateSelection,
             selection: { type: 'state', state: stateSelection },
@@ -1346,9 +1435,9 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             }
             upsertDetailTab({
                 key: tabKey,
-                label: `${detailType === 'event' ? t('event') : t('block')} #${id}`,
+                label: `${t('block')} #${id}`,
                 titleId: id,
-                kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
+                kind: 'stateBlock',
                 loading: false,
                 detailData: normalizeStateBlockDetailData(result, stateSelection),
                 state: stateSelection,
@@ -1360,9 +1449,9 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             }
             upsertDetailTab({
                 key: tabKey,
-                label: `${detailType === 'event' ? t('event') : t('block')} #${id}`,
+                label: `${t('block')} #${id}`,
                 titleId: id,
-                kind: type === 'segment' ? 'stateEvent' : 'stateBlock',
+                kind: 'stateBlock',
                 loading: false,
                 detailData: normalizeStateBlockDetailData({}, stateSelection),
                 state: stateSelection,
@@ -1372,7 +1461,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         return () => {
             cancelled = true;
         };
-    }, [session.stateWorkerInfo.clickItem]);
+    }, [session.stateWorkerInfo.clickItem, session.stateWorkerInfo.eventId]);
 
     useEffect(() => {
         setNoData(false);

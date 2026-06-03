@@ -22,6 +22,7 @@
 #include <utility>
 #include "MemSnapshotDefs.h"
 #include "NumberUtil.h"
+#include "SegmentSummaryCalculator.h"
 
 namespace Dic::Protocol {
 using namespace Dic::Module::MemSnapshot;
@@ -187,6 +188,38 @@ struct BlockDetailDTO : public JsonSerializable, Block {
             freeCompletedEventJson = freeCompletedEvent->ToJson(allocator);
         }
         JsonUtil::AddMember(json, "Free Completed Event", freeCompletedEventJson, allocator);
+        return json;
+    }
+};
+
+struct SegmentDetailDTO : public JsonSerializable {
+    Segment segment;
+    SegmentSummary summary;
+    std::optional<TraceEntryDetailDTO> allocOrMapEvent;
+
+    SegmentDetailDTO(const Segment &segment, const SegmentSummary &summary) : segment(segment), summary(summary) {}
+
+    [[nodiscard]] json_t ToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const override {
+        json_t json(kObjectType);
+        JsonUtil::AddMember(json, "Address", NumberUtil::Uint64ToHexString(segment.address), allocator);
+        JsonUtil::AddMember(json, "Stream", segment.stream, allocator);
+        JsonUtil::AddMember(
+            json, "Segment Size(MBytes)", NumberUtil::ConvertBytesToMBytes(summary.segmentSize), allocator);
+        JsonUtil::AddMember(
+            json, "Allocated Size(MBytes)", NumberUtil::ConvertBytesToMBytes(summary.allocatedSize), allocator);
+        JsonUtil::AddMember(json, "Gap Size(MBytes)", NumberUtil::ConvertBytesToMBytes(summary.gapSize), allocator);
+        JsonUtil::AddMember(json, "Block Count", summary.blockCount, allocator);
+        JsonUtil::AddMember(json, "Gap Count", summary.gapCount, allocator);
+        JsonUtil::AddMember(
+            json, "Max Gap Size(MBytes)", NumberUtil::ConvertBytesToMBytes(summary.maxGapSize), allocator);
+        if (!allocOrMapEvent.has_value()) {
+            JsonUtil::AddMember(json, "Event Message", std::string("allocation event not captured"), allocator);
+        }
+        json_t eventJson(kObjectType);
+        if (allocOrMapEvent.has_value()) {
+            eventJson = allocOrMapEvent->ToJson(allocator);
+        }
+        JsonUtil::AddMember(json, "Alloc Or Map Event", eventJson, allocator);
         return json;
     }
 };

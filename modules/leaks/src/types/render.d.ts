@@ -70,6 +70,7 @@ interface Segment {
     offsetX: number;
     offsetY: number;
     allocOrMapEventId: number;
+    eventId?: number;
 }
 
 interface StateBlock {
