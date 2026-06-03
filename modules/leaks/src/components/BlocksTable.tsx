@@ -27,29 +27,109 @@ import { Tooltip } from '@insight/lib/components';
 import { Session } from '../entity/session';
 import { getBlockTableData } from './dataHandler';
 import { generateJsonShow } from '../utils/utils';
-const columnRender = (col: any, text: string, record: any, t: TFunction): React.ReactNode => {
+
+const DEFAULT_TABLE_HEIGHT = 400;
+const TABLE_CHROME_HEIGHT = 88;
+const MIN_TABLE_SCROLL_Y = 120;
+
+const getRecordValue = (record: any, keys: string[]): any => {
+    for (const key of keys) {
+        if (record?.[key] !== undefined && record?.[key] !== null && record?.[key] !== '') {
+            return record[key];
+        }
+    }
+    return undefined;
+};
+
+const toNumber = (value: any): number | null => {
+    const num = Number(value);
+    return Number.isNaN(num) ? null : num;
+};
+
+const isValidBlockId = (value: number | null): boolean => value !== null;
+const isValidEventId = (value: number | null): boolean => value !== null && value >= 0;
+const isBlockIdColumn = (col: any): boolean => ['id', 'ID', 'blockId', 'Block ID'].includes(String(col.key ?? col.name));
+const isAllocEventIdColumn = (col: any): boolean => ['Alloc Event ID', 'allocEventId', 'allocOrMapEventId'].includes(String(col.key ?? col.name));
+const isFreeEventIdColumn = (col: any): boolean => ['Free Event ID', 'freeEventId', 'freeOrUnmapEventId'].includes(String(col.key ?? col.name));
+
+const LocateLink = ({ disabled, children, onClick }: { disabled: boolean; children: React.ReactNode; onClick: () => void }): React.ReactElement => (
+    <button
+        type="button"
+        disabled={disabled}
+        onClick={(event): void => {
+            event.stopPropagation();
+            if (!disabled) {
+                onClick();
+            }
+        }}
+        onMouseEnter={(event): void => {
+            if (!disabled) {
+                event.currentTarget.style.textDecoration = 'underline';
+            }
+        }}
+        onMouseLeave={(event): void => {
+            event.currentTarget.style.textDecoration = 'none';
+        }}
+        style={{
+            border: 0,
+            padding: 0,
+            color: disabled ? 'inherit' : '#1677ff',
+            background: 'transparent',
+            cursor: disabled ? 'default' : 'pointer',
+            textAlign: 'left',
+            font: 'inherit',
+        }}
+        className="locate-link"
+    >
+        {children}
+    </button>
+);
+
+const columnRender = (col: any, text: string, record: any, t: TFunction, session: Session): React.ReactNode => {
     const tags: { [key: string]: boolean } = { 'early-alloc': record.lazyUsed, 'late-free': record.delayedFree, idle: record.longIdle };
     const showTag = Object.keys(tags).filter(tag => tags[tag]);
-    if (col.key === 'id') {
+    const blockId = toNumber(getRecordValue(record, ['id', 'ID', 'blockId', 'Block ID']));
+    const allocEventId = toNumber(getRecordValue(record, ['Alloc Event ID', 'allocEventId', 'allocOrMapEventId']));
+    const freeEventId = toNumber(getRecordValue(record, ['Free Event ID', 'freeEventId', 'freeOrUnmapEventId']));
+    const locateBlock = (): void => {
+        if (!isValidBlockId(blockId)) return;
+        runInAction(() => {
+            session.pendingBlockLocateId = blockId as number;
+        });
+    };
+    const locateEvent = (eventId: number | null): void => {
+        if (!isValidEventId(eventId)) return;
+        runInAction(() => {
+            session.pendingEventLocate = { eventId: eventId as number, deviceId: session.deviceId };
+        });
+    };
+    if (isBlockIdColumn(col)) {
         return <>
-            <span style={{ marginRight: '5px' }}>{text}</span>
+            <LocateLink disabled={!isValidBlockId(blockId)} onClick={locateBlock}>
+                <span style={{ marginRight: '5px' }}>{text}</span>
+            </LocateLink>
             {showTag.map((tag) => <Tag key={tag} color="red">{t(tag)}</Tag>)}
         </>;
-    } else {
-        return <Tooltip
-            title={col.key === 'attr' && text ? generateJsonShow(text) : text || ''}
-            placement="top"
-        >
-            {text ?? ''}
-        </Tooltip>;
     }
+    if (session.module !== 'leaks' && isAllocEventIdColumn(col)) {
+        return <LocateLink disabled={!isValidEventId(allocEventId)} onClick={(): void => locateEvent(allocEventId)}>{text ?? ''}</LocateLink>;
+    }
+    if (session.module !== 'leaks' && isFreeEventIdColumn(col)) {
+        return <LocateLink disabled={!isValidEventId(freeEventId)} onClick={(): void => locateEvent(freeEventId)}>{text ?? ''}</LocateLink>;
+    }
+    return <Tooltip
+        title={col.key === 'attr' && text ? generateJsonShow(text) : text || ''}
+        placement="top"
+    >
+        {text ?? ''}
+    </Tooltip>;
 };
 const getTableColumns = (t: TFunction, session: Session): any => {
     return session.blocksTableHeader.map((col: any) => {
         const item = {
             dataIndex: col.key,
             key: col.key,
-            title: t(col.name, { defaultValue: col.name, keyPrefix: 'tableHead' }),
+            title: isBlockIdColumn(col) ? t('blockId', { keyPrefix: 'tableHead' }) : t(col.name, { defaultValue: col.name, keyPrefix: 'tableHead' }),
             sorter: col.sortable,
             ellipsis: {
                 showTitle: false,
@@ -57,7 +137,7 @@ const getTableColumns = (t: TFunction, session: Session): any => {
             showSorterTooltip: t(col.name, { keyPrefix: 'tableHeadTooltip', defaultValue: '' }) === ''
                 ? true
                 : { title: t(col.name, { keyPrefix: 'tableHeadTooltip' }) },
-            render: (text: string, record: any): React.ReactNode => columnRender(col, text, record, t),
+            render: (text: string, record: any): React.ReactNode => columnRender(col, text, record, t, session),
         };
         if (col.searchable) {
             return { ...item, ...fetchColumnFilterProps(col.key, col.name.replace(' ', '')) };
@@ -86,7 +166,7 @@ const handleFilters = (filters: any, session: Session): void => {
         session.blocksRangeFilters = newRangeFilters;
     });
 };
-const BlocksTable = observer(({ session }: { session: Session }): React.ReactElement => {
+const BlocksTable = observer(({ session, height }: { session: Session; height?: number }): React.ReactElement => {
     const { t } = useTranslation('leaks');
     const {
         deviceId, eventType, blocksTableData, blocksTableHeader, tableKey,
@@ -97,7 +177,10 @@ const BlocksTable = observer(({ session }: { session: Session }): React.ReactEle
     } = session;
     const [loading, setLoading] = useState(false);
     const defaultDataSource = (process.env.NODE_ENV === 'development' ? [{}] : []);
-    const columns = useMemo(() => getTableColumns(t, session), [JSON.stringify(blocksTableHeader), t]);
+    const columns = useMemo(() => getTableColumns(t, session), [JSON.stringify(blocksTableHeader), session.module, t]);
+    const scrollX = Math.max(120 * columns.length, 1000);
+    const tableHeight = Math.max(height ?? DEFAULT_TABLE_HEIGHT, MIN_TABLE_SCROLL_Y + TABLE_CHROME_HEIGHT);
+    const scrollY = Math.max(MIN_TABLE_SCROLL_Y, tableHeight - TABLE_CHROME_HEIGHT);
     const onTableChange = (pagination: any, filters: any, sorter: any, extra: any): void => {
         if (extra.action === 'sort') {
             runInAction(() => {
@@ -135,6 +218,7 @@ const BlocksTable = observer(({ session }: { session: Session }): React.ReactEle
                 data-testid={'blocksTable'}
                 columns={columns}
                 dataSource={blocksTableData.length === 0 ? defaultDataSource : blocksTableData.map((item: any, index: number) => ({ ...item, key: `${item.id}_${index}` }))}
+                rowKey={(record: any, index?: number): string => `${record.id ?? record.ID ?? 'block'}_${index ?? 0}`}
                 onChange={onTableChange}
                 pagination={{
                     current: blocksCurrentPage,
@@ -145,8 +229,8 @@ const BlocksTable = observer(({ session }: { session: Session }): React.ReactEle
                     showTotal: (totalNum: number): string => i18n.t('PaginationTotal', { total: totalNum }),
                     showQuickJumper: true,
                 }}
-                scroll={{ x: 150 * columns.length }}
-                style={{ height: 400 }}
+                scroll={{ x: scrollX, y: scrollY }}
+                style={{ height: tableHeight }}
                 loading={loading}
                 key={`${tableKey}_BLocks`}
             />

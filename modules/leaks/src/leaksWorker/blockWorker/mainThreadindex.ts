@@ -22,6 +22,7 @@ import { NativeRenderer } from './nativeCanvas/NativeRenderer';
 import { store } from '@/store';
 import { Session } from '@/entity/session';
 import { runInAction } from 'mobx';
+import { getCenteredBlockTransform } from '../tools/blockTransform';
 
 export class MainThreadRender {
     canvas: HTMLCanvasElement = document.createElement('canvas');
@@ -106,6 +107,20 @@ export class MainThreadRender {
         this.clickItem = payload.item;
         this.renderHighlightData();
         runInAction(() => {
+            this.session.leaksWorkerInfo.clickItem = this.clickItem;
+        });
+    };
+
+    selectBlockByIdHandler(payload: Omit<SelectBlockByIdPayload, 'type'>): void {
+        this.clickItem = this.memoryBlockData?.blocks?.find(block => block.id === payload.blockId) ?? null;
+        const centeredTransform = this.clickItem === null ? null : getCenteredBlockTransform(this.clickItem, this.viewport, this.zoom);
+        if (centeredTransform !== null) {
+            this.transform = centeredTransform;
+            this.renderer?.setTransform(this.transform);
+        }
+        this.renderHighlightData();
+        runInAction(() => {
+            this.session.leaksWorkerInfo.renderOptions.transform = this.transform;
             this.session.leaksWorkerInfo.clickItem = this.clickItem;
         });
     };

@@ -50,6 +50,11 @@ const useWorkerMessage = (): void => {
                         session.leaksWorkerInfo.clickItem = ev.data.result;
                     });
                     break;
+                case 'transformResult':
+                    runInAction(() => {
+                        session.leaksWorkerInfo.renderOptions.transform = ev.data.transform;
+                    });
+                    break;
                 case 'renderCompleted':
                     runInAction(() => {
                         session.loadingBlocks = false;

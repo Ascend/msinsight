@@ -53,6 +53,12 @@ interface SelectBlockItemPayload {
     selectionVersion?: number;
 };
 
+interface SelectBlockByIdPayload {
+    type: 'selectBlockById';
+    blockId: number;
+    selectionVersion?: number;
+};
+
 interface SelectStateItemPayload {
     type: 'selectStateItem';
     item: StateDataHoverResult | null;
@@ -71,6 +77,7 @@ type Payload =
     | TransformPayload
     | HoverItemPayload
     | SelectBlockItemPayload
+    | SelectBlockByIdPayload
     | SelectStateItemPayload
     | SetMemoryStateDataPayload;
 
