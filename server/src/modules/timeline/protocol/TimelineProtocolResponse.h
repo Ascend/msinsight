@@ -516,6 +516,50 @@ struct KernelDetailsResponse : public Response {
     KernelDetailsBody body;
 };
 
+// Minimal Timeline slice locator for frontend highlight. Missing nodes are represented by missingReason.
+struct KernelE2EHighlightSliceDto {
+    std::string role;
+    std::string name;
+    uint64_t startTime = 0;
+    uint64_t duration = 0;
+    std::string pid;
+    std::string tid;
+    std::string id;
+    std::string missingReason;
+};
+
+struct KernelE2ETimeRecordDto {
+    std::string id;
+    std::string opName;
+    std::string pathType;
+    bool isParent = false;
+    std::optional<uint64_t> prepareTime;
+    std::optional<uint64_t> pythonApiTime;
+    std::optional<uint64_t> enqueueTime;
+    std::optional<uint64_t> queueTime;
+    std::optional<uint64_t> pipeline2Time;
+    std::optional<uint64_t> launchTime;
+    std::optional<uint64_t> endToEndTime;
+    std::string status;
+    std::string diagnostic;
+    std::vector<KernelE2EHighlightSliceDto> highlightSlices;
+    std::vector<KernelE2ETimeRecordDto> children;
+};
+
+struct KernelE2ETimeBody {
+    std::vector<KernelE2ETimeRecordDto> records;
+    uint64_t totalCount = 0;
+    uint64_t normalCount = 0;
+    uint64_t fallbackCount = 0;
+    uint64_t incompleteCount = 0;
+    double launchMatchRate = 0.0;
+};
+
+struct KernelE2ETimeResponse : public Response {
+    KernelE2ETimeResponse() : Response(REQ_RES_KERNEL_E2E_TIME) {}
+    KernelE2ETimeBody body;
+};
+
 struct OneKernelBody {
     std::string id;
     uint64_t depth = {0};
