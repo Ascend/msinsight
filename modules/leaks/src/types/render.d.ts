@@ -49,6 +49,8 @@ interface RenderData {
     maxSize: number;
     minSize: number;
     blocks: Block[];
+    reservedLine?: Array<[number, number]>;
+    reservedSizeMax?: number;
 }
 
 interface SpatialGrid {

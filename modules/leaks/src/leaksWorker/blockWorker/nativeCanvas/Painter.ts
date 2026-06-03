@@ -18,6 +18,9 @@
 
 import { getColorStringByAddr, getDimmedColorStringByAddr } from '@/leaksWorker/tools/color';
 
+const RESERVED_LINE_COLOR = '#0052D9';
+const RESERVED_LABEL_COLOR = '#003CAB';
+
 export class Painter {
     readonly canvas: HTMLCanvasElement;
     readonly devicePixelRatio: number;
@@ -25,6 +28,7 @@ export class Painter {
     private data: RenderData['blocks'] = [];
     private highlightData: RenderData['blocks'] = [];
     private dimBase: boolean = false;
+    private reservedLine: Array<[number, number]> = [];
 
     constructor(canvas: HTMLCanvasElement, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -35,8 +39,9 @@ export class Painter {
         this.context = this.canvas.getContext('2d');
     }
 
-    processData(data: RenderData['blocks'] = []): void {
+    processData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): void {
         this.data = data;
+        this.reservedLine = reservedLine;
     }
 
     processHighlightData(highlightData: RenderData['blocks'] = []): void {
@@ -66,8 +71,37 @@ export class Painter {
         this.context.scale(this.getScaleX(transform), -this.getScaleY(transform));
         this.context.save();
         this.renderData(this.data, options, false, this.dimBase);
+        this.renderReservedLine(options);
         this.renderData(this.highlightData, options);
         this.renderData(this.highlightData, options, true);
+    }
+
+    renderReservedLine(options: RenderOptions): void {
+        if (this.context === null || this.reservedLine.length < 2) {
+            return;
+        }
+        const { zoom } = options;
+        const context = this.context;
+        context.beginPath();
+        context.strokeStyle = RESERVED_LINE_COLOR;
+        context.lineWidth = 2 / Math.max(this.getScaleX(options.transform), this.getScaleY(options.transform));
+        this.reservedLine.forEach(([timestamp, reservedSize], index) => {
+            const x = (timestamp - zoom.offset) * zoom.x;
+            const y = reservedSize * zoom.y;
+            if (index === 0) {
+                context.moveTo(x, y);
+            } else {
+                context.lineTo(x, y);
+            }
+        });
+        context.stroke();
+        const lastPoint = this.reservedLine[this.reservedLine.length - 1];
+        context.save();
+        context.scale(1, -1);
+        context.fillStyle = RESERVED_LABEL_COLOR;
+        context.font = `${12 / this.getScaleY(options.transform)}px sans-serif`;
+        context.fillText('Reserved', (lastPoint[0] - zoom.offset) * zoom.x, -lastPoint[1] * zoom.y);
+        context.restore();
     }
 
     renderData(data: RenderData['blocks'], options: RenderOptions, isHighlight: boolean = false, dimBase: boolean = false): void {

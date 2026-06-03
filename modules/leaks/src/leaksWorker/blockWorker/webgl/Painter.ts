@@ -18,6 +18,7 @@
 
 import { MemoryBlockProgram } from './programs/MemoryBlockProgram';
 import { MemoryBlockBorderProgram } from './programs/MemoryBlockBorderProgram';
+import { ReservedLineProgram } from './programs/ReservedLineProgram';
 import shaders from './shaders';
 
 export class Painter {
@@ -26,6 +27,7 @@ export class Painter {
     memoryBlockProgram: MemoryBlockProgram | null = null;
     memoryBlockHighlightProgram: MemoryBlockProgram | null = null;
     memoryBlockBorderHightlightProgram: MemoryBlockBorderProgram | null = null;
+    reservedLineProgram: ReservedLineProgram | null = null;
     private uniformData: Float32Array;
 
     constructor(canvas: OffscreenCanvas) {
@@ -48,6 +50,11 @@ export class Painter {
         this.memoryBlockProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
         this.memoryBlockHighlightProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
         this.memoryBlockBorderHightlightProgram = new MemoryBlockBorderProgram(this.gl, this.uniformData, shaders.memoryBlockBorder);
+        this.reservedLineProgram = new ReservedLineProgram(this.gl, this.uniformData, shaders.reservedLine);
+    }
+
+    setReservedLine(reservedLine: Array<[number, number]> = []): void {
+        this.reservedLineProgram?.processData(reservedLine);
     }
 
     private updateUniformData(options: RenderOptions): void {
@@ -75,6 +82,7 @@ export class Painter {
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         this.updateUniformData(options);
         this.memoryBlockProgram?.render(options);
+        this.reservedLineProgram?.render(options);
         this.memoryBlockHighlightProgram?.render(options);
         this.memoryBlockBorderHightlightProgram?.render(options);
         gl.disable(gl.BLEND);

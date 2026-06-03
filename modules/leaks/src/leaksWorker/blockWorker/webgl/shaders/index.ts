@@ -20,6 +20,8 @@ import memoryBlockVertexShader from './memoryBlock.vertex.glsl';
 import memoryBlockFragmentShader from './memoryBlock.fragment.glsl';
 import memoryBlockBorderVertexShader from './memoryBlockBorder.vertex.glsl';
 import memoryBlockBorderFragmentShader from './memoryBlockBorder.fragment.glsl';
+import reservedLineVertexShader from './reservedLine.vertex.glsl';
+import reservedLineFragmentShader from './reservedLine.fragment.glsl';
 
 const shaders = {
     memoryBlock: {
@@ -29,6 +31,10 @@ const shaders = {
     memoryBlockBorder: {
         vertexShader: memoryBlockBorderVertexShader,
         fragmentShader: memoryBlockBorderFragmentShader,
+    },
+    reservedLine: {
+        vertexShader: reservedLineVertexShader,
+        fragmentShader: reservedLineFragmentShader,
     },
 };
 
