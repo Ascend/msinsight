@@ -85,6 +85,26 @@ TEST_F(GlobalProtocolUtilTest, TestProjectCheckValidResponseToJson) {
     EXPECT_EQ(json, jsonStr);
 }
 
+TEST_F(GlobalProtocolUtilTest, TestProjectCheckValidResponseToJsonWithErrors) {
+    Dic::Protocol::ProjectCheckValidResponse response;
+    response.body.result = static_cast<int>(Dic::Protocol::ProjectErrorType::IS_UNSAFE_PATH);
+    response.body.errorDetail.emplace_back(Dic::Protocol::ProjectCheckBody::ErrorDetail{
+        .layer = 1,
+        .error = static_cast<int>(Dic::Protocol::ProjectErrorType::IS_UNSAFE_PATH),
+        .path = "/tmp/bad_file.json",
+        .message = "The path contains invalid characters.",
+    });
+    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+    EXPECT_EQ(jsonOp.has_value(), true);
+    const std::string json = Dic::JsonUtil::JsonDump(jsonOp.value());
+    const std::string jsonStr =
+        "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":false,\"command\":\"files/"
+        "checkProjectValid\",\"moduleName\":\"unknown\",\"body\":{\"result\":2,\"errorDetail\":[{\"layer\":1,\"error\":"
+        "2,"
+        "\"path\":\"/tmp/bad_file.json\",\"message\":\"The path contains invalid characters.\"}]}}";
+    EXPECT_EQ(json, jsonStr);
+}
+
 TEST_F(GlobalProtocolUtilTest, TestBaselineSettingResponseToJson) {
     Dic::Protocol::BaselineSettingResponse response;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);

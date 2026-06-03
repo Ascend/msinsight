@@ -24,7 +24,6 @@ import { store } from '@/store';
 import type { CardRankInfo, RankInfo } from '@/entity/session';
 
 interface ImportActionBody {
-    subdirectoryList: string[];
     result: Array<{ rankId: string; dataPathList: string[] }>;
     isBinary: boolean;
     isCluster: boolean;

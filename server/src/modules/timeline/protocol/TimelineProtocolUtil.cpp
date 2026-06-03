@@ -69,11 +69,6 @@ template <> std::optional<document_t> ToResponseJson<ImportActionResponse>(const
     }
     JsonUtil::AddMember(body, "sourceList", sourceList, allocator);
 
-    json_t subdirectoryList(kArrayType);
-    for (const auto &subdirectory : response.body.subParseFileInfo) {
-        subdirectoryList.PushBack(json_t().SetString(subdirectory->parseFilePath.c_str(), allocator), allocator);
-    }
-    JsonUtil::AddMember(body, "subdirectoryList", subdirectoryList, allocator);
     json_t projectFileTree(kArrayType);
     for (const auto &fileTree : response.body.projectFileTree) {
         projectFileTree.PushBack(fileTree->SerializeToJson(allocator), allocator);
@@ -101,6 +96,7 @@ void SetBodyAtt(
     JsonUtil::AddMember(body, "isIE", response.body.isIE, allocator);
     JsonUtil::AddMember(body, "isMultiDevice", response.body.isMultiDevice, allocator);
     JsonUtil::AddMember(body, "isTriton", response.body.isTriton, allocator);
+    JsonUtil::AddMember(body, "isFtrace", response.body.isFtrace, allocator);
 }
 
 template <>

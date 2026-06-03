@@ -38,6 +38,7 @@ export interface CardRankInfo {
     rankInfo: RankInfo;
     dbPath: string;
     index?: number;
+    isFtrace?: boolean;
 }
 
 // 算子详情信息

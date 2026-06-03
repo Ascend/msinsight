@@ -52,7 +52,6 @@ struct ImportActionResBody {
     std::vector<Action> result;
     std::vector<std::string> coreList;
     std::vector<std::string> sourceList;
-    std::vector<std::shared_ptr<ParseFileInfo>> subParseFileInfo;
     std::vector<std::shared_ptr<ParseFileInfo>> projectFileTree;
     bool isBinary = false;
     bool isCluster = false;

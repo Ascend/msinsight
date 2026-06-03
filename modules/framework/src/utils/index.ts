@@ -37,15 +37,24 @@ export function registerDragAndDropFile(): void {
                 children: [],
             };
             // 校验
-            const validRes: ProjectError = await checkPathValid(project);
+            let validRes;
+            try {
+                validRes = await checkPathValid(project);
+            } catch (error) {
+                console.error('Check path valid failed:', error);
+                message.error({ content: i18n.t('framework:FileCheckFailedDescribe') });
+                return;
+            }
+            const projectError = validRes.result;
             // 校验通过
-            if ([ProjectError.NO_ERRORS, ProjectError.IMPORTED].includes(validRes)) {
-                const action = validRes === ProjectError.NO_ERRORS ? ProjectAction.ADD_FILE : ProjectAction.SWITCH_PROJECT;
+            if ([ProjectError.NO_ERRORS, ProjectError.IMPORTED].includes(projectError)) {
+                const action = projectError === ProjectError.NO_ERRORS ? ProjectAction.ADD_FILE : ProjectAction.SWITCH_PROJECT;
                 handleProjectAction({ action, project, isConflict: false });
-            } else if (validRes === ProjectError.PROJECT_NAME_CONFLICT) {
+            } else if (projectError === ProjectError.PROJECT_NAME_CONFLICT) {
                 message.info({ content: `${i18n.t('framework:FileConflict')}:${i18n.t('framework:FileConflictContent')}` });
             } else {
-                message.info({ content: `Error:${ProjectError[validRes]}` });
+                const detailMessage = validRes.errorDetail.map(error => `${error.path}: ${error.message}`).join('\n');
+                message.info({ content: detailMessage === '' ? `Error:${ProjectError[projectError]}` : detailMessage });
             }
         },
         writable: true,

@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { Button, Input, Tooltip } from '@insight/lib/components';
 import { RefreshIcon } from '@insight/lib/icon';
 import { checkPathValid, fileExist, getLastFilePath, getSearchDir, getTrimedPath } from '@/utils/Resource';
+import type { ProjectCheckErrorDetail, ProjectCheckResult } from '@/utils/Resource';
 import { ProjectAction, ProjectError } from '@/utils/enum';
 import { type Project } from '@/centralServer/websocket/defs';
 import type { CatalogActionListener, SearchResult } from './ResourceCatalog';
@@ -94,6 +95,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
     const [hit, setHit] = useState<{alert: boolean;message: string;options?: Record<string, string | number>}>({ alert: false, message: 'FileSearchDescribe' });
     const [conflictModalVis, setConflictModalVis] = useState<boolean>(false);
     const [checkResult, setCheckResult] = useState<ProjectError>(ProjectError.NO_ERRORS);
+    const [checkErrors, setCheckErrors] = useState<ProjectCheckErrorDetail[]>([]);
     const [confirmLoading, setConfirmLoading] = useState<boolean>(false);
 
     // 点击确认
@@ -125,19 +127,28 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
         }
 
         // 校验
-        const validRes: ProjectError = await checkPathValid(newProject);
+        let validRes: ProjectCheckResult;
+        try {
+            validRes = await checkPathValid(newProject);
+        } catch (error) {
+            console.error('Check path valid failed:', error);
+            setHit({ alert: true, message: 'FileCheckFailedDescribe' });
+            return;
+        }
+        const projectError = validRes.result;
         // 校验通过
-        if ([ProjectError.NO_ERRORS, ProjectError.IMPORTED].includes(validRes)) {
-            const action = validRes === ProjectError.NO_ERRORS ? ProjectAction.ADD_FILE : ProjectAction.SWITCH_PROJECT;
+        if ([ProjectError.NO_ERRORS, ProjectError.IMPORTED].includes(projectError)) {
+            const action = projectError === ProjectError.NO_ERRORS ? ProjectAction.ADD_FILE : ProjectAction.SWITCH_PROJECT;
             handleProjectAction({ action, project: newProject, isConflict: false });
             closeDialog();
             // 校验告警
         } else {
-            if (validRes === ProjectError.FILE_NOT_EXIST) {
+            if (projectError === ProjectError.FILE_NOT_EXIST) {
                 setHit({ alert: true, message: 'FileNotFundDescribe' });
             }
-            if (validRes > ProjectError.OTHER) {
-                setCheckResult(validRes);
+            if (projectError > ProjectError.OTHER) {
+                setCheckResult(projectError);
+                setCheckErrors(validRes.errorDetail);
                 setConflictModalVis(true);
             }
         }
@@ -177,6 +188,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
 
     const closeConflictModal = (): void => {
         setConflictModalVis(false);
+        setCheckErrors([]);
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -230,7 +242,13 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
             />
         </FileExplorerContainer>
     </StyledModal>
-    <FileConflictDialog open={conflictModalVis} error={checkResult} onCancel={closeConflictModal} onConfrim={onContinue}/>
+    <FileConflictDialog
+        open={conflictModalVis}
+        error={checkResult}
+        errors={checkErrors}
+        onCancel={closeConflictModal}
+        onConfrim={onContinue}
+    />
     </>;
 });
 

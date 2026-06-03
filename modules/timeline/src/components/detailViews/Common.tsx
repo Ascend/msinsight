@@ -236,6 +236,27 @@ export const statsSystemViewItems: SystemViewItem[] = [
 export const layerTypes: string[] = ['Python', 'CANN', 'Ascend Hardware', 'HCCL', 'Overlap Analysis'];
 export const ftraceTypes: string[] = ['Ftrace Time Consuming', 'Ftrace IRQ', 'Ftrace Sched'];
 
+export interface IndexedSystemViewItem extends SystemViewItem {
+    originIndex: number;
+}
+
+export const getVisibleStatsSystemViewItems = (
+    items: SystemViewItem[],
+    hasFtraceData: boolean,
+    hasNonFtraceData: boolean,
+): IndexedSystemViewItem[] => {
+    return items.map((item, index) => ({ ...item, originIndex: index })).filter((item) => {
+        const isFtraceItem = ftraceTypes.includes(item.name);
+        if (hasFtraceData && !hasNonFtraceData) {
+            return isFtraceItem;
+        }
+        if (!hasFtraceData && hasNonFtraceData) {
+            return !isFtraceItem;
+        }
+        return true;
+    });
+};
+
 export const expertSystemViewItems: SystemViewItem[] = [
     { name: 'Expert Analysis', tips: 'ExpertAnalysisTips' },
     { name: 'Affinity API', tips: 'AffinityAPITips' },

@@ -29,6 +29,7 @@ export interface ImportResult {
     isIpynb: boolean;
     isCluster: boolean;
     isMultiDevice: boolean; // 判断是否是单Host多Device项目
+    isFtrace: boolean;
     result: ImportCardInfo[];
 }
 

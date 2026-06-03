@@ -46,7 +46,6 @@ void ProjectParserBin::Parser(const std::vector<Global::ProjectExplorerInfo> &pr
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
     response.moduleName = MODULE_TIMELINE;
     response.body.reset = true;
-    response.body.subParseFileInfo = projectInfos[0].subParseFileInfo;
     // 导入bin文件时，只会有二层文件树，且二级目录数量为1，因此这里直接对rankId进行赋值
     for (auto &item : projectInfos[0].projectFileTree) {
         for (auto &subItem : item->subParseFile) {

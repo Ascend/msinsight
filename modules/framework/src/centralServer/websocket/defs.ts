@@ -125,6 +125,7 @@ export interface ImportResultBody {
     isMultiDevice: boolean; // 判断是否是单Host多Device项目
     children: ImportTreeInfo[];
     isIE: boolean;
+    isFtrace: boolean;
 }
 
 export interface ImportRankInfo {

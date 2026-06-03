@@ -26,8 +26,9 @@ import {
     getPageData,
     statsSystemViewItems,
     expertSystemViewItems,
+    getVisibleStatsSystemViewItems,
     type IQueryCondition,
-    SystemViewItem, queryTableDataNameList,
+    SystemViewItem, queryTableDataNameList, type IndexedSystemViewItem, ftraceTypes,
 } from './Common';
 import { ResizeTable } from '@insight/lib/resize';
 import { limitInput, StyledEmpty, GroupCardRankInfosByHost, getRankInfoLabel } from '@insight/lib/utils';
@@ -153,9 +154,24 @@ type SelectContentViewComponent<T extends SelectContentViewProps = SelectContent
 
 export const DEFAULT_CARD_VALUE = { cardId: '', dbPath: '' };
 
+const findRankCardInfo = (session: Session, card: SelectedCardInfo): CardRankInfo | undefined => {
+    return Array.from(session.rankCardInfoMap.values()).find((cardRankInfo) => {
+        return cardRankInfo.rankInfo.rankId === card.cardId && cardRankInfo.dbPath === card.dbPath;
+    });
+};
+
+const isRequestCardTypeMismatch = (session: Session, card: SelectedCardInfo, isFtrace: boolean): boolean => {
+    const rankCardInfo = findRankCardInfo(session, card);
+    if (isFtrace) {
+        return rankCardInfo?.isFtrace !== true;
+    }
+    return rankCardInfo?.isFtrace === true;
+};
+
 export const SystemView = observer((props: any) => {
     const [viewOption, setViewOption] = useState(0);
     const [key, setKey] = useState(0);
+    const isFtraceStatsItem = viewOption === 0 && ftraceTypes.includes(statsSystemViewItems[key]?.name ?? '');
     // eslint-disable-next-line camelcase
     const SelectContent = useMemo(() => {
         // 第四个tab的特殊逻辑
@@ -182,7 +198,15 @@ export const SystemView = observer((props: any) => {
         <AsideSelectContainer>
             {viewOption !== 3 && (<TimeRangeInfo session={props.session}></TimeRangeInfo>)}
             <ViewSelect viewOption={viewOption} handleViewChange={handleViewChange}/>
-            {viewOption !== 2 && (<RankFilter session={props.session} viewOption={viewOption} handleChange={handleChange}></RankFilter>)}
+            {viewOption !== 2 && (
+                <RankFilter
+                    session={props.session}
+                    viewOption={viewOption}
+                    handleChange={handleChange}
+                    isFtraceRankOnly={isFtraceStatsItem}
+                    excludeFtraceRank={viewOption === 0 && !isFtraceStatsItem}
+                />
+            )}
             <SelectList viewOption={viewOption} selectKey={key} setKey={setKey} card={conditions} session={props.session}></SelectList>
         </AsideSelectContainer>
         <ChartErrorBoundary>
@@ -227,17 +251,36 @@ const ViewSelect = observer((props: any) => {
 });
 
 // eslint-disable-next-line max-lines-per-function
-export const RankFilter = observer((props: { session: Session; viewOption?: number; handleChange: (v: SelectedCardInfo) => void; defaultRankId?: string }): JSX.Element => {
+export const RankFilter = observer((props: {
+    session: Session;
+    viewOption?: number;
+    handleChange: (v: SelectedCardInfo) => void;
+    defaultRankId?: string;
+    isFtraceRankOnly?: boolean;
+    excludeFtraceRank?: boolean;
+}): JSX.Element => {
     const [rankCondition, setRankCondition] = useState<ConditionType<CardRankInfo, number | undefined>>({ options: [], value: undefined });
     const [hostCondition, setHostCondition] = useState<HostConditionType>({ options: [], value: '' });
     const { t } = useTranslation('timeline');
+    const excludeFtraceRank = props.excludeFtraceRank ?? false;
 
     useEffect(() => {
         const cardList: CardRankInfo[] = [];
         for (const v of props.session.rankCardInfoMap.values()) {
-            if (!v.rankInfo.rankId.endsWith('Host')) {
-                cardList.push(v);
+            if (v.rankInfo.rankId.endsWith('Host')) {
+                continue;
             }
+            if (props.isFtraceRankOnly && v.isFtrace !== true) {
+                continue;
+            }
+            if (excludeFtraceRank && v.isFtrace === true) {
+                continue;
+            }
+            cardList.push(v);
+        }
+        if (props.isFtraceRankOnly) {
+            setHostCondition({ options: [], value: '', cardsMap: new Map([['', cardList]]) });
+            return;
         }
         const { hosts, cardsMap }: { hosts: string[]; cardsMap: Map<string, CardRankInfo[]> } = GroupCardRankInfosByHost(cardList);
 
@@ -252,7 +295,7 @@ export const RankFilter = observer((props: { session: Session; viewOption?: numb
             }
         }
         setHostCondition({ options: hosts, value: initialHost, cardsMap });
-    }, [props.session.rankCardInfoMap.size, props.defaultRankId]);
+    }, [props.session.rankCardInfoMap.size, props.defaultRankId, props.isFtraceRankOnly, excludeFtraceRank]);
 
     useEffect(() => {
         const rankOptions = hostCondition.cardsMap?.get(hostCondition.value) ?? [];
@@ -285,7 +328,7 @@ export const RankFilter = observer((props: { session: Session; viewOption?: numb
         setRankCondition({ ...rankCondition, value });
     };
     return (<div className={'rank-filter'} >
-        {hostCondition.options.length > 0
+        {!props.isFtraceRankOnly && hostCondition.options.length > 0
             ? <FormItem label={t('Host')} contentStyle={{ flex: 1, minWidth: 0 }}>
                 <Select
                     value={hostCondition.value}
@@ -331,6 +374,16 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
     useEffect(() => {
         setSelectedKey(props.selectKey);
     }, [props.selectKey]);
+    const displayItems = useMemo(() => {
+        if (props.viewOption !== 0) {
+            return systemViewItems.map((item, index) => ({ ...item, originIndex: index }));
+        }
+        return getVisibleStatsSystemViewItems(
+            systemViewItems,
+            props.session.hasFtraceData,
+            props.session.hasNonFtraceData,
+        );
+    }, [props.viewOption, props.session.hasFtraceData, props.session.hasNonFtraceData, systemViewItems]);
     useEffect(() => {
         switch (props.viewOption) {
             case 0: {
@@ -364,32 +417,27 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
                 break;
         }
     }, [props.viewOption, params, props.session.language]);
-    if (systemViewItems.length > statsSystemViewItems.length) {
-        return (<AsideSelectList>
-            {
-                systemViewItems.slice(statsSystemViewItems.length).map((item, index) =>
-                    (<div
-                        className={`aside-select-item ${selectedKey === index + statsSystemViewItems.length ? 'selected' : ''}`}
-                        key={index + statsSystemViewItems.length}
-                        onClick={(): void => handleClick(index + statsSystemViewItems.length)}
-                    >
-                        <Tooltip title={item.description}>
-                            <div>{item.name}</div>
-                        </Tooltip>
-                    </div>
-                    ),
-                )
-            }
-        </AsideSelectList>);
-    }
-    return (<AsideSelectList>
-        {
-            systemViewItems.map((item, index) =>
-                (<div
-                    className={`aside-select-item ${selectedKey === index ? 'selected' : ''}`}
-                    key={index}
-                    onClick={(): void => handleClick(index)}
-                >
+    useEffect(() => {
+        if (props.viewOption !== 0 || displayItems.length === 0) {
+            return;
+        }
+        if (!displayItems.some(item => item.originIndex === props.selectKey)) {
+            props.setKey(displayItems[0].originIndex);
+            setSelectedKey(displayItems[0].originIndex);
+        }
+    }, [props.viewOption, props.selectKey, props.setKey, displayItems]);
+    const renderItem = (item: IndexedSystemViewItem): JSX.Element => {
+        const isDynamicItem = item.originIndex >= statsSystemViewItems.length;
+        return (<div
+            className={`aside-select-item ${selectedKey === item.originIndex ? 'selected' : ''}`}
+            key={item.originIndex}
+            onClick={(): void => handleClick(item.originIndex)}
+        >
+            {isDynamicItem
+                ? <Tooltip title={item.description}>
+                    <div>{item.name}</div>
+                </Tooltip>
+                : <>
                     <div>{t(item.name)}</div>
                     {
                         item.tips !== undefined &&
@@ -397,9 +445,12 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
                                 <HelpIcon style={{ cursor: 'pointer', marginLeft: 4 }} height={20} width={20} />
                             </Tooltip>
                     }
-                </div>
-                ),
-            )
+                </>}
+        </div>);
+    };
+    return (<AsideSelectList>
+        {
+            displayItems.map(renderItem)
         }
     </AsideSelectList>
     );
@@ -457,6 +508,11 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
         const _isFtrace = prop.isFtrace as boolean;
         const targetInfo = props.session.units.find(unitItem => (unitItem.metadata as CardMetaData)?.cardId === props.card?.cardId);
         if (props.card === undefined || props.card.cardId === '' || targetInfo?.projectType === ProjectType.IE) {
+            setDataSource([]);
+            setPage(defaultPage);
+            return;
+        }
+        if (isRequestCardTypeMismatch(prop.session, prop.card, _isFtrace)) {
             setDataSource([]);
             setPage(defaultPage);
             return;

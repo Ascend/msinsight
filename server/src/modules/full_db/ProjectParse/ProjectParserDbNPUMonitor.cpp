@@ -36,9 +36,7 @@ std::vector<std::string> ProjectParserDbNPUMonitor::GetParseFileByImportFile(
     const std::string &importFile, std::string &error) {
     std::vector<std::string> npuMonitorFiles = FileUtil::FindNPUMonitorFiles(importFile);
     if (npuMonitorFiles.empty()) {
-        error = "No parsable db files found, Possible reasons:; 1.File not exist; "
-                "2.The nesting depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
-            std::to_string(FileUtil::GetFilePathLengthLimit());
+        error = "No parsable db files found";
         ServerLog::Info(error);
         return {importFile};
     }

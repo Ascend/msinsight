@@ -39,7 +39,6 @@ class ProjectParserBase {
         // 需要返回应答
         response.body.isCluster = false;
         ModuleRequestHandler::SetBaseResponse(request, response);
-        response.body.subParseFileInfo = {};
         response.command = Protocol::REQ_RES_IMPORT_ACTION;
         response.moduleName = MODULE_TIMELINE;
         response.body.reset = false;
@@ -52,9 +51,7 @@ class ProjectParserBase {
     virtual std::vector<std::string> GetParseFileByImportFile(const std::string &importFile, std::string &error) {
         std::vector<std::string> res = {importFile};
         // other默认弹窗,存在以下场景:由于存在非法路径, DB JSON等格式会判断异常走到other下
-        error = "No parsable files found, Possible reasons:; 1.File not exist; "
-                "2.The nesting depth of the imported sub-file exceeds 5; 3.The sub-file path length exceeds " +
-            std::to_string(FileUtil::GetFilePathLengthLimit());
+        error = "No parsable files found";
         Dic::Common::SetCommonError(Dic::Common::ErrorCode::IMPORT_FILE_OTHER_TYPE);
         return res;
     };
