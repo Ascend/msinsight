@@ -176,6 +176,9 @@ export class Session {
     loadingBlocks: boolean = false;
     loadingFunc: boolean = false;
     loadingState: boolean = false;
+    memSnapshotParseLoading: boolean = false;
+    memSnapshotParseProgress: number = 0;
+    memSnapshotParseFileId: string = '';
 
     constructor() {
         makeAutoObservable(this);

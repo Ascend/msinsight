@@ -23,6 +23,88 @@ import { workerDestroy } from '@/leaksWorker/blockWorker/worker';
 import { errorCenter, ErrorCode, WsError } from '@insight/lib';
 import { workerDestroy as stateWorkerDestroy } from '@/leaksWorker/stateWorker/worker';
 import { LEAKS_WORKER_INFO_DEFAULT, MARK_LINE_POSITION_DEFAULT, STATE_WORKER_INFO_DEFAULT } from '@/entity/session';
+
+interface ImportFileTreeNode {
+    filePath?: string;
+    fileDir?: string;
+    path?: string;
+    children?: ImportFileTreeNode[];
+}
+
+interface RemoteImportData {
+    dataSource?: {
+        selectedFilePath?: string;
+        projectPath?: string | string[];
+    };
+    importResult?: {
+        isLeaks?: boolean;
+        children?: ImportFileTreeNode[];
+    };
+}
+
+interface MemSnapshotProgressData {
+    fileId?: string;
+    progress?: number;
+}
+
+const isMemSnapshotFile = (filePath: unknown): filePath is string => {
+    if (typeof filePath !== 'string') {
+        return false;
+    }
+    const lowerPath = filePath.toLowerCase();
+    return lowerPath.endsWith('.pkl') || lowerPath.endsWith('.pickle');
+};
+
+const normalizeFilePath = (filePath: string): string => filePath.replace(/\\/g, '/');
+
+const findMemSnapshotFile = (nodes?: ImportFileTreeNode[]): string => {
+    if (!Array.isArray(nodes)) {
+        return '';
+    }
+    for (const node of nodes) {
+        const filePath = [node.filePath, node.path, node.fileDir].find(isMemSnapshotFile);
+        if (filePath) {
+            return filePath;
+        }
+        const childFilePath = findMemSnapshotFile(node.children);
+        if (childFilePath) {
+            return childFilePath;
+        }
+    }
+    return '';
+};
+
+const getImportedMemSnapshotFile = (data: RemoteImportData): string => {
+    const selectedFilePath = data.dataSource?.selectedFilePath;
+    if (isMemSnapshotFile(selectedFilePath)) {
+        return selectedFilePath;
+    }
+    const projectPath = data.dataSource?.projectPath;
+    if (isMemSnapshotFile(projectPath)) {
+        return projectPath;
+    }
+    if (Array.isArray(projectPath)) {
+        const filePath = projectPath.find(isMemSnapshotFile);
+        if (filePath) {
+            return filePath;
+        }
+    }
+    return findMemSnapshotFile(data.importResult?.children);
+};
+
+const clearMemSnapshotParseProgress = (session: any): void => {
+    session.memSnapshotParseLoading = false;
+    session.memSnapshotParseProgress = 0;
+    session.memSnapshotParseFileId = '';
+};
+
+const clampProgress = (progress: unknown): number => {
+    if (typeof progress !== 'number' || Number.isNaN(progress)) {
+        return 0;
+    }
+    return Math.min(100, Math.max(0, Math.round(progress)));
+};
+
 export const setTheme: NotificationHandler = (data): void => {
     window.setTheme(Boolean(data.isDark));
 };
@@ -130,11 +212,50 @@ const restore = (session: any): void => {
     eventsDetailsRestore(session);
     detailsRestore(session);
 };
+export const importRemoteHandler: NotificationHandler = (data): void => {
+    const session = store.sessionStore.activeSession;
+    if (!session || typeof data !== 'object') {
+        return;
+    }
+    const fileId = getImportedMemSnapshotFile(data as RemoteImportData);
+    if (!fileId) {
+        runInAction(() => {
+            clearMemSnapshotParseProgress(session);
+        });
+        return;
+    }
+    runInAction(() => {
+        session.memSnapshotParseLoading = true;
+        session.memSnapshotParseProgress = 0;
+        session.memSnapshotParseFileId = fileId;
+    });
+};
+
+export const parseProgressHandler: NotificationHandler = (data): void => {
+    const session = store.sessionStore.activeSession;
+    if (!session || typeof data !== 'object') {
+        return;
+    }
+    const { fileId = '', progress } = data as MemSnapshotProgressData;
+    if (!isMemSnapshotFile(fileId)) {
+        return;
+    }
+    runInAction(() => {
+        const currentFileId = session.memSnapshotParseFileId;
+        if (!currentFileId || normalizeFilePath(currentFileId) !== normalizeFilePath(fileId)) {
+            return;
+        }
+        session.memSnapshotParseLoading = true;
+        session.memSnapshotParseProgress = Math.max(session.memSnapshotParseProgress, clampProgress(progress));
+    });
+};
+
 export const parseCompletedHandler = (data: any): void => {
     const session = store.sessionStore.activeSession;
     workerDestroy();
     if (session) {
         runInAction(() => {
+            clearMemSnapshotParseProgress(session);
             session.deviceIds = data.deviceIds;
             session.threadIds = data.threadIds;
             session.module = data.module;
@@ -157,6 +278,7 @@ export const removeRemoteHandler: NotificationHandler = (data): void => {
             session.markLineInfo = MARK_LINE_POSITION_DEFAULT;
             session.loadingBlocks = false;
             session.loadingState = false;
+            clearMemSnapshotParseProgress(session);
             restore(session);
         });
     }
