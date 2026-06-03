@@ -248,6 +248,13 @@ export const getMemoryStateData = async (params: { eventId: number; deviceId: st
     return window.request({ command: 'Memory/snapshot/state', params: { ...params } });
 };
 
-export const getSnapshotDetail = async (params: { id: number; type: string; deviceId: string }): Promise<{ [key: string]: any }> => {
+export const getSnapshotDetail = async (params: {
+    id: number;
+    type: string;
+    deviceId: string;
+    eventId?: number;
+    segmentAddress?: string;
+    stream?: number;
+}): Promise<{ [key: string]: any }> => {
     return window.request({ command: 'Memory/snapshot/detail', params: { ...params } });
 };

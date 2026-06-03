@@ -251,6 +251,12 @@ struct MemSnapshotDetailParams {
     std::string deviceId;
     std::string type;
     int64_t id{0};
+    uint64_t eventId{0};
+    std::string segmentAddress;
+    uint64_t stream{0};
+    bool hasEventId{false};
+    bool hasSegmentAddress{false};
+    bool hasStream{false};
 
     bool CommonCheck(std::string &errorMsg) const {
         if (!CheckStrParamValid(deviceId, errorMsg)) {
@@ -260,6 +266,20 @@ struct MemSnapshotDetailParams {
         if (VALID_DETAIL_TYPES.find(type) == VALID_DETAIL_TYPES.end()) {
             errorMsg = "Invalid type";
             return false;
+        }
+        if (type == DETAIL_TYPE_SEGMENT) {
+            if (!hasEventId || !hasSegmentAddress || !hasStream) {
+                errorMsg = "Invalid segment detail params";
+                return false;
+            }
+            if (eventId > INT64_MAX) {
+                errorMsg = "eventId exceeds INT64_MAX";
+                return false;
+            }
+            if (!CheckStrParamValid(segmentAddress, errorMsg)) {
+                errorMsg = "Invalid segmentAddress, detail: " + errorMsg;
+                return false;
+            }
         }
         return true;
     }
@@ -285,6 +305,12 @@ struct MemSnapshotDetailRequest : Request {
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.type, param_json, "type");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.id, param_json, "id");
+        reqPtr->params.hasEventId = param_json.HasMember("eventId");
+        reqPtr->params.hasSegmentAddress = param_json.HasMember("segmentAddress");
+        reqPtr->params.hasStream = param_json.HasMember("stream");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.eventId, param_json, "eventId");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.segmentAddress, param_json, "segmentAddress");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.stream, param_json, "stream");
         return reqPtr;
     }
 };

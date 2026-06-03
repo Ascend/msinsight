@@ -36,8 +36,9 @@ const std::string BLOCK_STATE_ACTIVE_PENDING_FREE = "active_pending_free";
 
 const std::string DETAIL_TYPE_BLOCK = "block";
 const std::string DETAIL_TYPE_EVENT = "event";
+const std::string DETAIL_TYPE_SEGMENT = "segment";
 
-const std::set<std::string> VALID_DETAIL_TYPES = {DETAIL_TYPE_BLOCK, DETAIL_TYPE_EVENT};
+const std::set<std::string> VALID_DETAIL_TYPES = {DETAIL_TYPE_BLOCK, DETAIL_TYPE_EVENT, DETAIL_TYPE_SEGMENT};
 
 struct TraceEntry {
     int64_t id{-1};

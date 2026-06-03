@@ -523,6 +523,65 @@ TEST_F(MemSnapshotProtocolTest, BuildDetailRequestEventFromJson) {
     EXPECT_EQ(request.params.id, 456);
 }
 
+TEST_F(MemSnapshotProtocolTest, BuildDetailRequestSegmentFromJson) {
+    std::string jsonStr = "{"
+                          "  \"id\": 135, "
+                          "  \"moduleName\": \"leaks\", "
+                          "  \"type\": \"request\", "
+                          "  \"command\": \"Memory/snapshot/detail\", "
+                          "  \"fileId\": \"\", "
+                          "  \"projectName\": \"/home/test/data/memsnapshot/test.db\", "
+                          "  \"params\": { "
+                          "    \"type\": \"segment\", "
+                          "    \"id\": -1, "
+                          "    \"eventId\": 789, "
+                          "    \"segmentAddress\": \"0x400\", "
+                          "    \"stream\": 3, "
+                          "    \"deviceId\": \"1\" "
+                          "  } "
+                          "}";
+    std::string errMsg;
+    auto json = JsonUtil::TryParse(jsonStr, errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    EXPECT_TRUE(json.has_value());
+    auto requestPtr = Dic::Protocol::MemSnapshotDetailRequest::FromJson(json.value(), errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    auto &request = dynamic_cast<Dic::Protocol::MemSnapshotDetailRequest &>(*requestPtr);
+    EXPECT_TRUE(request.params.CommonCheck(errMsg));
+    EXPECT_EQ(request.params.type, "segment");
+    EXPECT_EQ(request.params.deviceId, "1");
+    EXPECT_EQ(request.params.eventId, 789);
+    EXPECT_EQ(request.params.segmentAddress, "0x400");
+    EXPECT_EQ(request.params.stream, 3);
+}
+
+TEST_F(MemSnapshotProtocolTest, DetailRequestSegmentMissingIdentityParams) {
+    std::string jsonStr = "{"
+                          "  \"id\": 136, "
+                          "  \"moduleName\": \"leaks\", "
+                          "  \"type\": \"request\", "
+                          "  \"command\": \"Memory/snapshot/detail\", "
+                          "  \"fileId\": \"\", "
+                          "  \"projectName\": \"/home/test/data/memsnapshot/test.db\", "
+                          "  \"params\": { "
+                          "    \"type\": \"segment\", "
+                          "    \"id\": -1, "
+                          "    \"segmentAddress\": \"0x400\", "
+                          "    \"stream\": 3, "
+                          "    \"deviceId\": \"1\" "
+                          "  } "
+                          "}";
+    std::string errMsg;
+    auto json = JsonUtil::TryParse(jsonStr, errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    EXPECT_TRUE(json.has_value());
+    auto requestPtr = Dic::Protocol::MemSnapshotDetailRequest::FromJson(json.value(), errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    auto &request = dynamic_cast<Dic::Protocol::MemSnapshotDetailRequest &>(*requestPtr);
+    EXPECT_FALSE(request.params.CommonCheck(errMsg));
+    EXPECT_TRUE(errMsg.find("segment") != std::string::npos);
+}
+
 TEST_F(MemSnapshotProtocolTest, DetailRequestInvalidType) {
     std::string jsonStr = "{"
                           "  \"id\": 36, "

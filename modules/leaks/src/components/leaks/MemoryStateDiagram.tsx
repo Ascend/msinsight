@@ -107,11 +107,26 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     const searchInputRefs = useRef<Record<EventSearchField, HTMLInputElement | null>>({ address: null, eventType: null });
     const eventTypeButtonRef = useRef<HTMLButtonElement>(null);
     const addFilterAnchorRef = useRef<HTMLInputElement>(null);
+    const dataSourceRef = useRef<EvenItem[]>([]);
+    const currentSelectRowRef = useRef(currentSelectRow);
+    const deviceIdRef = useRef(session.deviceId);
 
     const columns = [{
         key: 'id',
         render: (_value: string, record: EvenItem, _index: number) => <EventItemRender record={record} />,
     }];
+
+    useEffect(() => {
+        dataSourceRef.current = dataSource;
+    }, [dataSource]);
+
+    useEffect(() => {
+        currentSelectRowRef.current = currentSelectRow;
+    }, [currentSelectRow]);
+
+    useEffect(() => {
+        deviceIdRef.current = session.deviceId;
+    }, [session.deviceId]);
 
     const normalizeSearchValue = (value: string): string => value.replace(/\s+/g, '');
 
@@ -325,11 +340,22 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         const currentRow = dataSource[currentSelectRow];
         if (currentRow === undefined) {
             workerSetMemoryStateData({ data: [] });
+            runInAction(() => {
+                session.stateWorkerInfo.eventId = -1;
+            });
             return;
         }
-        getMemoryStateData({ eventId: currentRow.id, deviceId: session.deviceId }).then(data => {
+        const requestRowIndex = currentSelectRow;
+        const requestEventId = currentRow.id;
+        const requestDeviceId = session.deviceId;
+        getMemoryStateData({ eventId: requestEventId, deviceId: requestDeviceId }).then(data => {
+            if (deviceIdRef.current !== requestDeviceId || currentSelectRowRef.current !== requestRowIndex ||
+                dataSourceRef.current[requestRowIndex]?.id !== requestEventId) {
+                return;
+            }
             workerSetMemoryStateData({ data: data.segments });
             runInAction(() => {
+                session.stateWorkerInfo.eventId = requestEventId;
                 session.loadingState = false; // 实际只有第一次获取数据时才需要显示loading
             });
         });

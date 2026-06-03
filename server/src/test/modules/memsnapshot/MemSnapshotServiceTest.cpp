@@ -20,6 +20,8 @@
 #include <gtest/gtest.h>
 #include "MemSnapshotSegmentService.h"
 #include "MemSnapshotDefs.h"
+#include "SegmentSummaryCalculator.h"
+#include "MemSnapshotStateCache.h"
 
 using namespace Dic::Module::MemSnapshot;
 
@@ -258,4 +260,135 @@ TEST_F(MemSnapshotSegmentServiceTest, BuildSegmentsSortedBySize) {
     EXPECT_EQ(segments[0].totalSize, 300);
     EXPECT_EQ(segments[1].totalSize, 500);
     EXPECT_EQ(segments[2].totalSize, 1000);
+}
+
+// 测试SegmentSummary - 空segment
+TEST_F(MemSnapshotSegmentServiceTest, ComputeSegmentSummaryEmptySegment) {
+    Segment segment(1000, 100, 0);
+
+    const auto summary = ComputeSegmentSummary(segment);
+
+    EXPECT_EQ(summary.segmentSize, 100);
+    EXPECT_EQ(summary.allocatedSize, 0);
+    EXPECT_EQ(summary.gapSize, 100);
+    EXPECT_EQ(summary.blockCount, 0);
+    EXPECT_EQ(summary.gapCount, 1);
+    EXPECT_EQ(summary.maxGapSize, 100);
+}
+
+// 测试SegmentSummary - 小block切割大空闲
+TEST_F(MemSnapshotSegmentServiceTest, ComputeSegmentSummaryBlockSplitsFreeSpace) {
+    Segment segment(1000, 100, 0);
+    segment.allocated = 4;
+    Block block;
+    block.address = 1040;
+    block.size = 4;
+    segment.blocks.push_back(block);
+
+    const auto summary = ComputeSegmentSummary(segment);
+
+    EXPECT_EQ(summary.segmentSize, 100);
+    EXPECT_EQ(summary.allocatedSize, 4);
+    EXPECT_EQ(summary.gapSize, 96);
+    EXPECT_EQ(summary.blockCount, 1);
+    EXPECT_EQ(summary.gapCount, 2);
+    EXPECT_EQ(summary.maxGapSize, 56);
+}
+
+// 测试SegmentSummary - 无序blocks输入
+TEST_F(MemSnapshotSegmentServiceTest, ComputeSegmentSummarySortsBlocksByAddress) {
+    Segment segment(1000, 100, 0);
+    segment.allocated = 30;
+    Block second;
+    second.address = 1060;
+    second.size = 10;
+    Block first;
+    first.address = 1020;
+    first.size = 20;
+    segment.blocks = {second, first};
+
+    const auto summary = ComputeSegmentSummary(segment);
+
+    EXPECT_EQ(summary.allocatedSize, 30);
+    EXPECT_EQ(summary.gapSize, 70);
+    EXPECT_EQ(summary.gapCount, 3);
+    EXPECT_EQ(summary.maxGapSize, 30);
+}
+
+// 测试SegmentSummary - 完全占满
+TEST_F(MemSnapshotSegmentServiceTest, ComputeSegmentSummaryFullyAllocated) {
+    Segment segment(1000, 100, 0);
+    segment.allocated = 100;
+    Block block;
+    block.address = 1000;
+    block.size = 100;
+    segment.blocks.push_back(block);
+
+    const auto summary = ComputeSegmentSummary(segment);
+
+    EXPECT_EQ(summary.allocatedSize, 100);
+    EXPECT_EQ(summary.gapSize, 0);
+    EXPECT_EQ(summary.gapCount, 0);
+    EXPECT_EQ(summary.maxGapSize, 0);
+}
+
+// 测试SegmentSummary - allocatedSize沿用Segment::allocated语义
+TEST_F(MemSnapshotSegmentServiceTest, ComputeSegmentSummaryUsesSegmentAllocatedSize) {
+    Segment segment(1000, 100, 0);
+    segment.allocated = 20;
+    Block activeAllocated;
+    activeAllocated.address = 1000;
+    activeAllocated.size = 20;
+    activeAllocated.state = BLOCK_STATE_ACTIVE_ALLOC;
+    Block pendingFree;
+    pendingFree.address = 1040;
+    pendingFree.size = 30;
+    pendingFree.state = BLOCK_STATE_ACTIVE_PENDING_FREE;
+    segment.blocks = {activeAllocated, pendingFree};
+
+    const auto summary = ComputeSegmentSummary(segment);
+
+    EXPECT_EQ(summary.allocatedSize, segment.allocated);
+    EXPECT_EQ(summary.gapSize, 50);
+    EXPECT_EQ(summary.blockCount, 2);
+}
+
+// 测试MemSnapshotStateCache - 按数据源、设备、事件隔离
+TEST_F(MemSnapshotSegmentServiceTest, StateCacheIsScopedByDataDeviceAndEvent) {
+    MemSnapshotStateCache::ClearAll();
+    std::vector<Segment> segments = {{1000, 100, 0}};
+
+    MemSnapshotStateCache::Put("dataA", "0", 1, segments);
+
+    EXPECT_TRUE(MemSnapshotStateCache::Get("dataA", "0", 1).has_value());
+    EXPECT_FALSE(MemSnapshotStateCache::Get("dataA", "0", 2).has_value());
+    EXPECT_FALSE(MemSnapshotStateCache::Get("dataA", "1", 1).has_value());
+    EXPECT_FALSE(MemSnapshotStateCache::Get("dataB", "0", 1).has_value());
+}
+
+// 测试MemSnapshotStateCache - 清理指定数据源
+TEST_F(MemSnapshotSegmentServiceTest, StateCacheClearsDataSourceOnly) {
+    MemSnapshotStateCache::ClearAll();
+    std::vector<Segment> segments = {{1000, 100, 0}};
+    MemSnapshotStateCache::Put("dataA", "0", 1, segments);
+    MemSnapshotStateCache::Put("dataB", "0", 1, segments);
+
+    MemSnapshotStateCache::ClearData("dataA");
+
+    EXPECT_FALSE(MemSnapshotStateCache::Get("dataA", "0", 1).has_value());
+    EXPECT_TRUE(MemSnapshotStateCache::Get("dataB", "0", 1).has_value());
+    MemSnapshotStateCache::ClearAll();
+}
+// 测试MemSnapshotStateCache - 缓存条目数量有上限
+TEST_F(MemSnapshotSegmentServiceTest, StateCacheEvictsOldEntries) {
+    MemSnapshotStateCache::ClearAll();
+    std::vector<Segment> segments = {{1000, 100, 0}};
+
+    for (uint64_t eventId = 0; eventId < 33; ++eventId) {
+        MemSnapshotStateCache::Put("dataA", "0", eventId, segments);
+    }
+
+    EXPECT_FALSE(MemSnapshotStateCache::Get("dataA", "0", 0).has_value());
+    EXPECT_TRUE(MemSnapshotStateCache::Get("dataA", "0", 32).has_value());
+    MemSnapshotStateCache::ClearAll();
 }

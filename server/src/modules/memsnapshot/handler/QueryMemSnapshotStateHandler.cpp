@@ -19,6 +19,7 @@
 
 #include "QueryMemSnapshotStateHandler.h"
 #include "MemSnapshotService.h"
+#include "MemSnapshotStateCache.h"
 #include "DataBaseManager.h"
 
 using namespace Dic::Module::MemSnapshot;
@@ -51,6 +52,8 @@ bool QueryMemSnapshotStateHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         return false;
     }
     auto segments = MemSnapshotService::GetSegmentsByEventId(request.params.eventId, request.params.deviceId, database);
+    MemSnapshotStateCache::Put(
+        GetMemSnapshotDataKey(request), request.params.deviceId, request.params.eventId, segments);
     BuildSegmentsStateInfoFromSegments(segments, response.segments);
     SendResponse(std::move(responsePtr), true);
     return true;
