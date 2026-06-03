@@ -43,6 +43,214 @@ class SummaryProtocolUtilTest : public ::testing::Test {
     Dic::Protocol::SummaryProtocol protocol;
 };
 
+TEST_F(SummaryProtocolUtilTest, ToTopNRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/queryTopData", "resultCallbackId": 0,
+        "params": {"isCompare": true, "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "summary/queryTopData");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToTopNRequestLackIdTestReturnNull) {
+    std::string reqJson = R"({"moduleName": "summary", "type": "request",
+        "command": "summary/queryTopData", "resultCallbackId": 0, "params": {"isCompare": true}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of topN request.");
+}
+
+TEST_F(SummaryProtocolUtilTest, ToStatisticsRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/statistic", "resultCallbackId": 0,
+        "params": {"rankId": "0", "stepId": "1", "timeFlag": "all", "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "summary/statistic");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToStatisticsRequestLackParamsTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/statistic", "resultCallbackId": 0, "paramx": {"rankId": "0"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of statistics request.");
+}
+
+TEST_F(SummaryProtocolUtilTest, ToComputeDetailRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/queryComputeDetail", "resultCallbackId": 0,
+        "params": {"rankId": "0", "dbPath": "/data/db", "currentPage": 1, "timeFlag": "all", "pageSize": 10,
+        "orderBy": "time", "order": "desc", "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "summary/queryComputeDetail");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToComputeDetailRequestLackModuleNameTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "type": "request",
+        "command": "summary/queryComputeDetail", "resultCallbackId": 0, "params": {"rankId": "0"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of compute detail request.");
+}
+
+TEST_F(SummaryProtocolUtilTest, ToCommunicationRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/queryCommunicationDetail", "resultCallbackId": 0,
+        "params": {"rankId": "0", "currentPage": 1, "timeFlag": "all", "pageSize": 10, "orderBy": "time",
+        "order": "desc", "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "summary/queryCommunicationDetail");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToCommunicationRequestLackIdTestReturnNull) {
+    std::string reqJson = R"({"moduleName": "summary", "type": "request",
+        "command": "summary/queryCommunicationDetail", "resultCallbackId": 0, "params": {"rankId": "0"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of communication request.");
+}
+
+TEST_F(SummaryProtocolUtilTest, ToImportExpertDataRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/importExpertData", "resultCallbackId": 0,
+        "params": {"filePath": "/data/expert.json", "version": "1.0", "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "summary/importExpertData");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToImportExpertDataRequestLackParamsTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/importExpertData", "resultCallbackId": 0})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToQueryExpertHotspotRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/queryExpertHotspot", "resultCallbackId": 0,
+        "params": {"modelStage": "prefill", "version": "1.0", "layerNum": 60, "expertNum": 8,
+        "denseLayerList": [0, 1], "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "summary/queryExpertHotspot");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToQueryExpertHotspotRequestLackParamsTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/queryExpertHotspot", "resultCallbackId": 0})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToQueryModelInfoRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/queryModelInfo", "resultCallbackId": 0, "params": {"clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->command, "summary/queryModelInfo");
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToQueryModelInfoRequestLackIdTestReturnNull) {
+    std::string reqJson = R"({"moduleName": "summary", "type": "request",
+        "command": "summary/queryModelInfo", "resultCallbackId": 0, "params": {"clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Failed to set request base info of query model info request.");
+}
+
+TEST_F(SummaryProtocolUtilTest, ToSummarySlowRankAdvisorRequestNormalTest) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/slowRank/advisor", "resultCallbackId": 0,
+        "params": {"algorithm": "test", "tpSize": 2, "ppSize": 3, "dpSize": 4, "epSize": 1,
+        "dimension": "ep-dp-pp-cp-tp", "clusterPath": "/data"}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_NE(result, nullptr);
+    EXPECT_EQ(result->id, 1);
+    EXPECT_EQ(result->type, ProtocolMessage::Type::REQUEST);
+    EXPECT_EQ(result->moduleName, MODULE_SUMMARY);
+}
+
+TEST_F(SummaryProtocolUtilTest, ToSummarySlowRankAdvisorRequestLackKeyAlgorithmTestReturnNull) {
+    std::string reqJson = R"({"id": 1, "moduleName": "summary", "type": "request",
+        "command": "summary/slowRank/advisor", "resultCallbackId": 0, "params": {"tpSize": 2}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    EXPECT_EQ(result, nullptr);
+    EXPECT_EQ(err, "Query parallelism arrangement request didn't have key: algorithm");
+}
+
 TEST_F(SummaryProtocolUtilTest, ToQueryParallelStrategyRequestTest) {
     std::string reqJson = R"({"id": 2, "moduleName": "summary", "type": "request",
         "command": "summary/query/parallelStrategy", "resultCallbackId": 0, "params": {}})";
