@@ -200,16 +200,21 @@ export const ChartContainer = observer((props: Props) => {
         requestAnimationFrame(() => { actionManager.handleKeyUp(e); });
     };
 
+    const handleBlurEvent = (): void => {
+        keyHoldAction.clearLoop();
+        setPanModifierState(false);
+    };
+
     useEffect(() => {
         document.addEventListener('keydown', handleKeyDownEvent);
         document.addEventListener('keyup', handleKeyUpEvent);
-        document.addEventListener('blur', keyHoldAction.clearLoop);
+        window.addEventListener('blur', handleBlurEvent);
 
         return (): void => {
             setPanModifierState(false);
             document.removeEventListener('keydown', handleKeyDownEvent);
             document.removeEventListener('keyup', handleKeyUpEvent);
-            document.removeEventListener('blur', keyHoldAction.clearLoop);
+            window.removeEventListener('blur', handleBlurEvent);
         };
     }, []);
     return <Container
