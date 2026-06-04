@@ -25,9 +25,10 @@ torch_npu.profiler.profile(
 
 ## 2.2 生成火焰图 HTML
 
+脚本位于 MindStudio Insight 安装目录的 `resources/profiler/scripts/flame_graph` 目录下，脚本执行命令如下：
+
 ```shell
-# 在 msinsight 项目根目录下执行
-python3 scripts/flame_graph/flamegraph.py [-h] [-o OUTPUT] db_path
+python3 flamegraph.py [-h] [-o OUTPUT] db_path
 ```
 
 参数说明如下：
@@ -39,16 +40,14 @@ python3 scripts/flame_graph/flamegraph.py [-h] [-o OUTPUT] db_path
 
 - -o, --output（可选）
   - 类型：目录路径
-  - 说明：指定生成结果的输出目录。脚本会在该目录下生成 `flamegraph.html`。
+  - 说明：指定生成结果的输出目录。若目录不存在，脚本会尝试自动创建，并在该目录下生成 `flamegraph.html`。
   - 缺省值：当前执行目录。
   - 示例：`--output /path/to/output_dir`
 
 示例：
 
 ```shell
-python3 scripts/flame_graph/flamegraph.py \
-  /path/to/ascend_pytorch_profiler_0.db \
-  --output /path/to/output_dir
+python3 flamegraph.py /path/to/ascend_pytorch_profiler_0.db --output /path/to/output_dir
 ```
 
 生成完成后，使用浏览器打开：

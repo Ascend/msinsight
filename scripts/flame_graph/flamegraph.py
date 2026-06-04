@@ -328,6 +328,22 @@ def build_flame_tree(reader: ProfilerDBReader) -> Tuple[FlameNode, int, float, B
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _prepare_output_dir(output: str) -> str:
+    output_dir = os.path.abspath(output)
+    if os.path.exists(output_dir) and not os.path.isdir(output_dir):
+        _exit_with_error(f"Output path is not a directory: {output_dir}")
+    if not os.path.exists(output_dir):
+        logger.info("Output directory does not exist: %s", output_dir)
+        try:
+            os.makedirs(output_dir, exist_ok=True)
+            logger.info("Created output directory: %s", output_dir)
+        except OSError as err:
+            _exit_with_error(f"Failed to create output directory {output_dir}: {err}")
+    if not os.access(output_dir, os.W_OK):
+        _exit_with_error(f"Output directory is not writable: {output_dir}")
+    return output_dir
+
+
 def generate_html(
     root: FlameNode,
     total_calls: int,
@@ -414,6 +430,9 @@ def main() -> None:
     if not args.db_path:
         parser.error("db_path is required")
 
+    output_dir = _prepare_output_dir(args.output)
+    output_path = os.path.join(output_dir, "flamegraph.html")
+
     reader = ProfilerDBReader(args.db_path)
     try:
         logger.info("Reading: %s", args.db_path)
@@ -436,13 +455,6 @@ def main() -> None:
             )
 
         title = os.path.basename(reader.db_path)
-
-        output_dir = os.path.abspath(args.output)
-        if not os.path.isdir(output_dir):
-            _exit_with_error(f"Output path is not a directory: {output_dir}")
-        if not os.access(output_dir, os.W_OK):
-            _exit_with_error(f"Output directory is not writable: {output_dir}")
-        output_path = os.path.join(output_dir, "flamegraph.html")
 
         logger.info("Generating flame graph...")
         generate_html(root, total_calls, total_duration_us, title, output_path)
