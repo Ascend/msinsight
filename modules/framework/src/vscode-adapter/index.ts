@@ -15,26 +15,17 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-const isVscode = process.env.REACT_APP_IS_VSCODE === 'true';
-const { webpackCfg, configureConfig } = isVscode
-  ? require('../build-vscode-config')
-  : require('../build-config');
+export { WebviewSocket } from './WebviewSocket';
+export {
+    DataViewerController,
+    isVscodePluginEnvironment,
+    getConnectHost,
+    setConnectRemoteFn,
+    pluginModeInit,
+    onDivLoad,
+} from './DataViewerController';
 
-const path = require("path");
-
-const libPath = path.resolve(__dirname, '../lib/src');
-const echartsPath = require.resolve('echarts');
-
-module.exports = {
-  devServer: {
-    port: 5174,
-    open: false,
-    historyApiFallback: false,
-  },
-  webpack: {
-    configure: webpackConfig => {
-      return configureConfig(webpackConfig, [libPath, echartsPath]);
-    },
-    alias: webpackCfg.alias,
-  },
+// 判断是否为 VSCode 环境
+export const isVscodeEnv = (): boolean => {
+    return process.env.REACT_APP_IS_VSCODE === 'true';
 };

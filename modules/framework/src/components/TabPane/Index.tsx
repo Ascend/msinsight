@@ -28,6 +28,11 @@ import { useTranslation } from 'react-i18next';
 import { getModuleConfig } from '@/utils/Request';
 import { updateSession } from '@/connection/notificationHandler';
 import connector from '@/connection';
+import {
+    onDivLoad,
+    isVscodePluginEnvironment,
+    isVscodeEnv,
+} from '@/vscode-adapter';
 
 const Container = styled.div`
     width: 100%;
@@ -54,6 +59,9 @@ const Container = styled.div`
         flex-grow: 1;
         height: calc(100% - 40px);
         background: ${(props): string => props.theme.bgColorDark};
+        > * {
+            height: 100%;
+        }
     }
     iframe {
         width: 100%;
@@ -280,15 +288,32 @@ const Index = observer(({ session }: {session: Session}) => {
     }, [isTriton]);
     return <Container>
         <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
-        <div className="tab-body">{availableModules.map(moduleConfig => (
-            <iframe
-                {...moduleConfig.attributes}
-                key={`frame-${moduleConfig.name}`}
-                id={moduleConfig.name}
-                name={moduleConfig.name}
-                style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
-            />
-        ))}
+        <div className="tab-body">
+            {availableModules.map((moduleConfig) =>
+                (isVscodeEnv() && isVscodePluginEnvironment())
+                    ? (
+                        <div
+                            {...moduleConfig.attributes}
+                            key={`frame-${moduleConfig.name}`}
+                            id={moduleConfig.name}
+                            style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
+                            ref={(devRef) => {
+                                if (devRef) {
+                                    onDivLoad(moduleConfig.name);
+                                }
+                            }}
+                        />
+                    )
+                    : (
+                        <iframe
+                            {...moduleConfig.attributes}
+                            key={`frame-${moduleConfig.name}`}
+                            id={moduleConfig.name}
+                            name={moduleConfig.name}
+                            style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
+                        />
+                    ),
+            )}
         </div>
     </Container>;
 });

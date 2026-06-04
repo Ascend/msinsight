@@ -4,6 +4,7 @@
   "private": true,
   "homepage": "./",
   "scripts": {
+    "build:vscode": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production REACT_APP_IS_VSCODE=true DISABLE_ESLINT_PLUGIN=true GENERATE_SOURCEMAP=false CI=false craco build && node ../inline-build.js",
     "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider REACT_APP_ENV=development craco start",
     "staging": "cross-env NODE_OPTIONS=--openssl-legacy-provider craco start",
     "build": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production GENERATE_SOURCEMAP=false CI=false craco build",

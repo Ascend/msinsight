@@ -33,14 +33,24 @@ import { Spin } from 'antd';
 import { LoadingOutlined } from '@ant-design/icons';
 import i18n from '@insight/lib/i18n';
 import { runInAction } from 'mobx';
+import { isVscodePluginEnvironment, pluginModeInit, isVscodeEnv } from '@/vscode-adapter';
 
-const init = async(session: Session): Promise<void> => {
+const init = async (session: Session): Promise<void> => {
     // 注册文件拖拽
     registerDragAndDropFile();
     // 连接与模块的通信
     registerEventListeners();
 
     // 连接ws（启动后第一次）
+    if (isVscodeEnv()) {
+        pluginModeInit();
+        if (isVscodePluginEnvironment()) {
+            return;
+        }
+    }
+
+    // ws连接
+    console.log('[App] ========== connectRemote ==========', { ...GLOBAL_HOST, jupyterlabProxy: JUPYTERLABPROXY });
     const isSuccess = await connectRemote({ ...GLOBAL_HOST, jupyterlabProxy: JUPYTERLABPROXY });
     if (isSuccess) {
         runInAction(() => {
@@ -67,19 +77,21 @@ const App = observer(() => {
         init(session);
     }, []);
 
-    return session?.defaultConnected
+    const isVscode = isVscodeEnv() && isVscodePluginEnvironment();
+
+    return (isVscode || session?.defaultConnected)
         ? <ThemeProvider theme={themeInstance.getThemeType()}>
             <GlobalStyles />
             <SharedConfigProvider locale={locale}>
                 <Spin
-                    wrapperClassName="spin-global"
+                    wrapperClassName={`spin-global ${isVscode ? 'no-remote-manager' : ''}`}
                     spinning={session.loading}
                     tip={i18n.t('Loading', { ns: 'framework' })}
                     indicator={<LoadingOutlined style={{ fontSize: 24 }} spin />}>
                     {
                         view({
                             mainContainer: <Main session={session} />,
-                            draggableContainer: <RemoteManager session={session} />,
+                            draggableContainer: isVscode ? undefined : <RemoteManager session={session} />,
                             id: 'framework',
                             padding: 16,
                         })

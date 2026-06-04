@@ -15,7 +15,10 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-const {webpackCfg, configureConfig } = require('../build-config');
+const isVscode = process.env.REACT_APP_IS_VSCODE === 'true';
+const { webpackCfg, configureConfig } = isVscode
+  ? require('../build-vscode-config')
+  : require('../build-config');
 
 const path = require('path');
 
@@ -30,13 +33,16 @@ module.exports = {
     webpack: {
         alias: webpackCfg.alias,
         configure: (webpackConfig) => {
-            // 添加 GLSL 文件处理规则 - 使用 webpack 5 的资源模块
+            // 添加 GLSL 文件处理规则 - 使用 webpack 5 的资产模块
             webpackConfig.module.rules.push({
                 test: /\.glsl$/,
                 type: 'asset/source'
             });
             webpackConfig.output.workerPublicPath = './';
-            webpackConfig.output.chunkFilename = '[name].[contenthash:8].chunk.js';
+            // 只在非 VS Code 构建时设置 chunkFilename
+            if (!isVscode) {
+                webpackConfig.output.chunkFilename = '[name].[contenthash:8].chunk.js';
+            }
             return configureConfig(webpackConfig, [libPath, echartsPath]);
         }
     },

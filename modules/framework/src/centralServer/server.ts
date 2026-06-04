@@ -39,11 +39,20 @@ import { closeLoading } from '@/utils/useLoading';
 import { updateDataScene } from '@/components/TabPane/Index';
 import { Session } from '@/entity/session';
 import { errorCenter, RequestOptions, WsError } from '@insight/lib';
+import { getConnectHost, isVscodeEnv, setConnectRemoteFn } from '@/vscode-adapter';
 
 export const CONNECTION_MAP: Map<string, Connection> = new Map();
 
 const getConnectionMapKey = (host: ConnectHost): string => {
     return `${host?.remote}:${host?.port}`;
+};
+
+// 获取实际使用的 host
+const getActualHost = (): ConnectHost => {
+    if (isVscodeEnv()) {
+        return getConnectHost();
+    }
+    return GLOBAL_HOST;
 };
 
 export const connectRemote = async function (host: ConnectHost): Promise<boolean> {
@@ -57,18 +66,24 @@ export const connectRemote = async function (host: ConnectHost): Promise<boolean
     return true;
 };
 
+// 注册 connectRemote 到 DataViewerController，打破循环依赖
+if (isVscodeEnv()) {
+    setConnectRemoteFn(connectRemote);
+};
+
 export const isExistedRemote = function(host: ConnectHost): boolean {
     return CONNECTION_MAP.has(getConnectionMapKey(host));
 };
 
 export const addDataPath = async function(project: Project, action: ProjectAction, isConflict: boolean, session: Session): Promise<boolean> {
-    if (!isExistedRemote(GLOBAL_HOST)) {
-        const connected = await connectRemote(GLOBAL_HOST);
+    const host = getActualHost();
+    if (!isExistedRemote(host)) {
+        const connected = await connectRemote(host);
         if (!connected) {
             return false;
         }
     }
-    const connection = CONNECTION_MAP.get(getConnectionMapKey(GLOBAL_HOST));
+    const connection = CONNECTION_MAP.get(getConnectionMapKey(host));
     if (connection) {
         connector.send({
             event: 'remote/savePageSetting',
@@ -166,7 +181,7 @@ const afterImportProject = (params: ImportProjectParams, data: ImportResultBody)
         }
         const selectedFilePath = params.selectedFilePath ?? targetList?.[0]?.filePath ?? '';
         const selectedRankId = params.selectedRankId ?? targetList?.[0]?.rankId ?? '';
-        const selectedFileType: LayerType = params.selectedFileType ?? 'RANK';
+        const selectedFileType: LayerType = params.selectedFileType ?? 'RANK'; // 此处暂时用 RANK，实际应该和 data.subdirectoryList[0] 中应该带有的类型相同
         const children = data.children?.map((child) => transformFile(child, 0))
             ?.flat()?.filter((item) => item !== undefined) as FileOrDirectory[];
         // 更新场景
@@ -187,7 +202,8 @@ export const request = async <T>(
     args: DataRequest,
     options?: RequestOptions,
 ): Promise<T | ErrorMsg> => {
-    const connection: Connection | undefined = CONNECTION_MAP.get(getConnectionMapKey(GLOBAL_HOST));
+    const host = getActualHost();
+    const connection: Connection | undefined = CONNECTION_MAP.get(getConnectionMapKey(host));
 
     if (connection === undefined) {
         return Promise.reject(Error('no connection'));
@@ -217,7 +233,8 @@ export const requestModule = function <T>(
     moduleName: ModuleName,
     args: DataRequest,
 ): Promise<T | ErrorMsg> {
-    const connection: Connection | undefined = CONNECTION_MAP.get(getConnectionMapKey(GLOBAL_HOST));
+    const host = getActualHost();
+    const connection: Connection | undefined = CONNECTION_MAP.get(getConnectionMapKey(host));
 
     if (connection === undefined) {
         return Promise.reject(Error('no connection'));
