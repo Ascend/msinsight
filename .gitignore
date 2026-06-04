@@ -27,3 +27,4 @@ product
 .cache
 /opensource/
 /modules/framework/public/plugins
+**/.pnpm-store

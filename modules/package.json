@@ -53,10 +53,15 @@
         "eslint-plugin-promise": "6.1.1",
         "eslint-plugin-react": "7.33.2",
         "eslint-plugin-react-hooks": "4.6.0",
+ 	    "html-inline-css-webpack-plugin": "1.11.2",
+ 	    "html-webpack-inline-source-plugin": "^0.0.10",
         "html-webpack-plugin": "^5.5.3",
         "react-scripts": "5.0.1",
         "resize-observer-polyfill": "1.5.1",
         "typescript": "5.5.4",
-        "typescript-plugin-css-modules": "3.4.0"
+ 	    "typescript-plugin-css-modules": "3.4.0",
+ 	    "mini-css-extract-plugin": "^2.9.4",
+ 	    "style-loader": "^3.3.3",
+ 	    "css-loader": "^6.8.1"
     }
 }

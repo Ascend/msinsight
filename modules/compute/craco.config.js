@@ -15,7 +15,10 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-const {webpackCfg} = require('../build-config');
+const isVscode = process.env.REACT_APP_IS_VSCODE === 'true';
+const { webpackCfg, configureConfig } = isVscode
+  ? require('../build-vscode-config')
+  : require('../build-config');
 const path = require('path');
 
 const libPath = path.resolve(__dirname, '../lib/src');

@@ -27,36 +27,37 @@ export function firstLetterUpper(value: string): string {
     return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
+// DataViewerController 使用
+export async function loadProjectByPath(path: string): Promise<void> {
+    const project: Project = {
+        projectName: path,
+        projectPath: [path],
+        children: [],
+    };
+    let validRes;
+    try {
+        validRes = await checkPathValid(project);
+    } catch (error) {
+        console.error('Check path valid failed:', error);
+        message.error({ content: i18n.t('framework:FileCheckFailedDescribe') });
+        return;
+    }
+    const projectError = validRes.result;
+    if ([ProjectError.NO_ERRORS, ProjectError.IMPORTED].includes(projectError)) {
+        const action = projectError === ProjectError.NO_ERRORS ? ProjectAction.ADD_FILE : ProjectAction.SWITCH_PROJECT;
+        handleProjectAction({ action, project, isConflict: false });
+    } else if (projectError === ProjectError.PROJECT_NAME_CONFLICT) {
+        message.info({ content: `${i18n.t('framework:FileConflict')}:${i18n.t('framework:FileConflictContent')}` });
+    } else {
+        const detailMessage = validRes.errorDetail.map(error => `${error.path}:${error.message}`).join('\n');
+        message.info({ content: detailMessage === '' ? `Error:${ProjectError[projectError]}` : detailMessage });
+    }
+}
+
 // 注册文件拖拽事件
 export function registerDragAndDropFile(): void {
     Object.defineProperty(window, 'handleDrop', {
-        value: async (path: string) => {
-            const project: Project = {
-                projectName: path,
-                projectPath: [path],
-                children: [],
-            };
-            // 校验
-            let validRes;
-            try {
-                validRes = await checkPathValid(project);
-            } catch (error) {
-                console.error('Check path valid failed:', error);
-                message.error({ content: i18n.t('framework:FileCheckFailedDescribe') });
-                return;
-            }
-            const projectError = validRes.result;
-            // 校验通过
-            if ([ProjectError.NO_ERRORS, ProjectError.IMPORTED].includes(projectError)) {
-                const action = projectError === ProjectError.NO_ERRORS ? ProjectAction.ADD_FILE : ProjectAction.SWITCH_PROJECT;
-                handleProjectAction({ action, project, isConflict: false });
-            } else if (projectError === ProjectError.PROJECT_NAME_CONFLICT) {
-                message.info({ content: `${i18n.t('framework:FileConflict')}:${i18n.t('framework:FileConflictContent')}` });
-            } else {
-                const detailMessage = validRes.errorDetail.map(error => `${error.path}: ${error.message}`).join('\n');
-                message.info({ content: detailMessage === '' ? `Error:${ProjectError[projectError]}` : detailMessage });
-            }
-        },
+        value: loadProjectByPath,
         writable: true,
         enumerable: false,
         configurable: true,

@@ -24,6 +24,8 @@ import { connectRemote } from '../server';
 import { store } from '../../store';
 import { runInAction } from 'mobx';
 import i18n from '@insight/lib/i18n';
+import { WebviewSocket } from '@/vscode-adapter/WebviewSocket';
+import { isVscodeEnv } from '@/vscode-adapter';
 
 const createRequestHead = function (
     id: number,
@@ -58,7 +60,7 @@ export interface ErrorMsg {
 };
 
 export class Connection {
-    private readonly _ws: WebSocket | undefined;
+    private readonly _ws: WebSocket | WebviewSocket | undefined;
     private readonly _host: ConnectHost;
     private _msgId: number = 0;
     private readonly _responseHandlers: Map<number, ResponseHandler> = new Map();
@@ -72,34 +74,47 @@ export class Connection {
         }
         this._msgId = 0;
         const session = store.sessionStore.activeSession;
-        const protocol = `${window.location.protocol === 'https:' && window.location.host !== 'wry.localhost' ? 'wss:' : 'ws:'}//`;
-        if (initHost.jupyterlabProxy) {
-            const { host, search } = window.location;
-            const path = `${window.location.pathname.replace(/\/resources\/profiler\/frontend/, `/proxy/${initHost.port}/resources/profiler/frontend`)}`;
-            const uri = protocol + host + path + search;
-            this._ws = new WebSocket(uri);
-            runInAction(() => {
-                session.toIframeUrl = `${protocol}${host}${window.location.pathname.replace(/\/resources\/profiler\/frontend\/.*/, `/proxy/${initHost.port}`)}`;
-            });
-        } else if (!window.location.pathname.includes('/proxy/')) {
-            const hostname = window.location.hostname || LOCAL_HOST;
-            let pathname = window.location.pathname && window.location.pathname !== '/' ? window.location.pathname.replace(/\/resources\/profiler\/frontend\/index.html/, '') : '';
-            pathname = pathname.replace(/\/index.html/, '');
-            this._ws = new WebSocket(`${protocol}${hostname}${pathname}:${initHost.port}${window.location.search}`);
-            runInAction(() => {
-                session.toIframeUrl = `${protocol}${hostname}${pathname}:${initHost.port}`;
-            });
-        } else {
-            const { location } = window;
-            const { host } = location;
-            const path = `${window.location.pathname}`.replace(/proxy\/\d{4}/, `proxy/${initHost.port}`);
-            const { search } = location;
-            const uri = protocol + host + path + search;
 
-            this._ws = new WebSocket(uri);
-            runInAction(() => {
-                session.toIframeUrl = `${protocol}${host}${path.replace(/\/index.html/, '')}`;
-            });
+        // VSCode 环境使用 WebviewSocket
+        if (isVscodeEnv()) {
+            const { ws, toIframeUrl } = WebviewSocket.createForHost(initHost);
+            this._ws = ws;
+            if (toIframeUrl) {
+                runInAction(() => {
+                    session.toIframeUrl = toIframeUrl;
+                });
+            }
+        } else {
+            // 原有逻辑：使用原生 WebSocket
+            const protocol = `${window.location.protocol === 'https:' && window.location.host !== 'wry.localhost' ? 'wss:' : 'ws:'}//`;
+            if (initHost.jupyterlabProxy) {
+                const { host, search } = window.location;
+                const path = `${window.location.pathname.replace(/\/resources\/profiler\/frontend/, `/proxy/${initHost.port}/resources/profiler/frontend`)}`;
+                const uri = protocol + host + path + search;
+                this._ws = new WebSocket(uri);
+                runInAction(() => {
+                    session.toIframeUrl = `${protocol}${host}${window.location.pathname.replace(/\/resources\/profiler\/frontend\/.*/, `/proxy/${initHost.port}`)}`;
+                });
+            } else if (!window.location.pathname.includes('/proxy/')) {
+                const hostname = window.location.hostname || LOCAL_HOST;
+                let pathname = window.location.pathname && window.location.pathname !== '/' ? window.location.pathname.replace(/\/resources\/profiler\/frontend\/index.html/, '') : '';
+                pathname = pathname.replace(/\/index.html/, '');
+                this._ws = new WebSocket(`${protocol}${hostname}${pathname}:${initHost.port}${window.location.search}`);
+                runInAction(() => {
+                    session.toIframeUrl = `${protocol}${hostname}${pathname}:${initHost.port}`;
+                });
+            } else {
+                const { location } = window;
+                const { host } = location;
+                const path = `${window.location.pathname}`.replace(/proxy\/\d{4}/, `proxy/${initHost.port}`);
+                const { search } = location;
+                const uri = protocol + host + path + search;
+
+                this._ws = new WebSocket(uri);
+                runInAction(() => {
+                    session.toIframeUrl = `${protocol}${host}${path.replace(/\/index.html/, '')}`;
+                });
+            }
         }
         this._host = initHost;
     }

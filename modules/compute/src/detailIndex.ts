@@ -15,5 +15,5 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import('./detailBootstrap');
+import './detailBootstrap';
 export {};

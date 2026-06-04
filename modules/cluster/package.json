@@ -7,6 +7,7 @@
     "start": "cross-env NODE_OPTIONS=--openssl-legacy-provider craco start",
     "build": "cross-env NODE_OPTIONS=\"==--max-old-space-size=3072 --openssl-legacy-provider\" NODE_ENV=production GENERATE_SOURCEMAP=false CI=false craco build",
     "build:dev": "cross-env GENERATE_SOURCEMAP=true CI=false craco build",
+    "build:vscode": "cross-env NODE_OPTIONS=\"==--max-old-space-size=3072 --openssl-legacy-provider\" NODE_ENV=production REACT_APP_IS_VSCODE=true GENERATE_SOURCEMAP=false CI=false craco build && node ../inline-build.js",
     "test": "set REACT_APP_TEST=1&&set CI=true&&react-scripts test --watchAll=false  --coverage",
     "test:dev": "set REACT_APP_TEST=1&&react-scripts test",
     "eject": "react-scripts eject",
