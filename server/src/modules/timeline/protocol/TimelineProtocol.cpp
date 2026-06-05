@@ -44,6 +44,7 @@ void TimelineProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_UNIT_COUNTER, ToUnitCounterRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW, ToSystemViewRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW, ToExpAnaAICoreFreqRequest);
+    jsonToReqFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW_TRACE, ToSystemViewRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_EVENTS_VIEW, ToEventsViewRequest);
     jsonToReqFactory.emplace(REQ_RES_UNIT_KERNEL_DETAILS, ToKernelDetailRequest);
     jsonToReqFactory.emplace(REQ_RES_KERNEL_E2E_TIME, ToKernelE2ETimeRequest);
@@ -78,6 +79,7 @@ void TimelineProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_FLOW_CATEGORY_EVENTS, ToFlowCategoryEventsResponse);
     resToJsonFactory.emplace(REQ_RES_UNIT_COUNTER, ToUnitCounterResponse);
     resToJsonFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW, ToSystemViewResponseJson);
+    resToJsonFactory.emplace(REQ_RES_UNIT_SYSTEM_VIEW_TRACE, ToSystemViewTraceResponseJson);
     resToJsonFactory.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, ToExpAnaAICoreFreqResponseJson);
     resToJsonFactory.emplace(REQ_RES_UNIT_EVENTS_VIEW, ToEventsViewResponseJson);
     resToJsonFactory.emplace(REQ_RES_UNIT_KERNEL_DETAILS, ToKernelDetailResponseJson);
@@ -827,7 +829,9 @@ std::optional<document_t> TimelineProtocol::ToUnitCounterResponse(const Response
 std::optional<document_t> TimelineProtocol::ToSystemViewResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<SystemViewResponse>(dynamic_cast<const SystemViewResponse &>(response));
 }
-
+std::optional<document_t> TimelineProtocol::ToSystemViewTraceResponseJson(const Dic::Protocol::Response &response){
+    return ToResponseJson<SystemViewTraceResponse>(dynamic_cast<const SystemViewTraceResponse &>(response));
+}
 std::optional<document_t> TimelineProtocol::ToExpAnaAICoreFreqResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<ExpAnaAICoreFreqResponse>(dynamic_cast<const ExpAnaAICoreFreqResponse &>(response));
 }

@@ -105,6 +105,10 @@ static std::unique_ptr<SqliteResultSet> QuerySystemViewData(std::unique_ptr<Sqli
     const Protocol::SystemViewParams &requestParams, const std::string& rankId, const uint64_t &minTimestamp,
     const std::string &timeCondSql);
 
+static std::unique_ptr<SqliteResultSet> QuerySystemViewTraceData(std::unique_ptr<SqlitePreparedStatement> &stmt,
+    const Protocol::SystemViewParams &requestParams, const std::string& rankId, const uint64_t &minTimestamp,
+    const std::string &timeCondSql);
+
 static std::unique_ptr<SqliteResultSet> QueryThreadTracesSummary(const std::string& rankId, uint64_t minTimestamp,
     std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams);
 static std::vector<uint64_t> GetDeviceIdList(const std::string &fileId);
