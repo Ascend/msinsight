@@ -443,6 +443,31 @@ class TestTraceConverterE2E(unittest.TestCase):
         # Verify events were parsed
         self.assertTrue(len(result) > 0)
 
+    def test_parse_with_non_overlapping_profiling_data_logs_warning(self):
+        """Test warning when ftrace and profiling time windows do not overlap"""
+        trace_file = os.path.join(self.TEST_DATA_DIR, 'trace.txt')
+        if not os.path.exists(trace_file):
+            self.skipTest("Test data file not found")
+
+        profiling_data = os.path.join(self.temp_dir, 'profiling_data')
+        os.makedirs(profiling_data)
+        with open(os.path.join(profiling_data, 'start_info'), 'w', encoding='utf-8') as f:
+            json.dump({"clockMonotonicRaw": "223456000000000", "collectionTimeBegin": "223456000"}, f)
+        with open(os.path.join(profiling_data, 'end_info'), 'w', encoding='utf-8') as f:
+            json.dump({"clockMonotonicRaw": "223457000000000", "collectionTimeBegin": "223457000"}, f)
+
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+        converter = trace_convert.TraceConverter(trace_file, profiling_data=profiling_data)
+
+        with self.assertLogs(level='WARNING') as logs:
+            converter.parse()
+
+        self.assertTrue(any("No ftrace events are within the profiling time window" in log for log in logs.output))
+        self.assertEqual(trace_convert.TimeStampTran().ftrace_in_window_count, 0)
+        self.assertGreater(trace_convert.TimeStampTran().ftrace_before_start_count, 0)
+
     def test_export_to_json(self):
         """Test exporting parsed data to JSON format"""
         trace_file = os.path.join(self.TEST_DATA_DIR, 'trace.txt')

@@ -222,12 +222,14 @@ class TimeStampTran:
         self.mono_raw_start = None
         self.mono_raw_end = None
         self.utc_start_timestamp = None
-        pass
+        self.__reset_time_filter_stats()
 
     def initialize(self, profiling_data):
+        self.__reset_time_filter_stats()
         if profiling_data is None:
             logging.warning("No profiling data path detected. Time alignment will be skipped.")
             self.mono_raw_start = 0
+            self.mono_raw_end = None
             self.utc_start_timestamp = 0
             return
         start_info = self.__get_profiling_time_info(profiling_data, "start_info")
@@ -243,6 +245,56 @@ class TimeStampTran:
             logging.error("Can't find profiling end time info")
             return
         self.mono_raw_end = int(end_info['clockMonotonicRaw'])
+
+    def __reset_time_filter_stats(self):
+        self.ftrace_event_count = 0
+        self.ftrace_in_window_count = 0
+        self.ftrace_before_start_count = 0
+        self.ftrace_after_end_count = 0
+        self.first_ftrace_timestamp = None
+        self.last_ftrace_timestamp = None
+        self.__time_window_warning_reported = False
+
+    def __record_ftrace_timestamp(self, timestamp: int):
+        self.ftrace_event_count += 1
+        if self.first_ftrace_timestamp is None:
+            self.first_ftrace_timestamp = timestamp
+        self.last_ftrace_timestamp = timestamp
+
+    def report_time_filter_summary(self):
+        if self.__time_window_warning_reported:
+            return
+        if self.mono_raw_start is None or self.mono_raw_end is None:
+            return
+        if self.ftrace_event_count == 0 or self.ftrace_in_window_count > 0:
+            return
+
+        self.__time_window_warning_reported = True
+        if self.ftrace_before_start_count > 0 and self.ftrace_after_end_count == 0:
+            logging.warning(
+                "No ftrace events are within the profiling time window. "
+                "All matched ftrace events are before profiling start. "
+                "ftrace range=[%s, %s] ns, profiling range=[%s, %s] ns.",
+                self.first_ftrace_timestamp, self.last_ftrace_timestamp,
+                self.mono_raw_start, self.mono_raw_end
+            )
+            return
+        if self.ftrace_after_end_count > 0 and self.ftrace_before_start_count == 0:
+            logging.warning(
+                "No ftrace events are within the profiling time window. "
+                "The first matched ftrace event is after profiling end. "
+                "ftrace range=[%s, %s] ns, profiling range=[%s, %s] ns.",
+                self.first_ftrace_timestamp, self.last_ftrace_timestamp,
+                self.mono_raw_start, self.mono_raw_end
+            )
+            return
+        logging.warning(
+            "No ftrace events are within the profiling time window. "
+            "Matched ftrace events were filtered by profiling start/end. "
+            "ftrace range=[%s, %s] ns, profiling range=[%s, %s] ns.",
+            self.first_ftrace_timestamp, self.last_ftrace_timestamp,
+            self.mono_raw_start, self.mono_raw_end
+        )
 
     def __get_profiling_time_info(self, profiling_data, info_name:str):
         """
@@ -264,15 +316,19 @@ class TimeStampTran:
     def get_utc_timestamp(self, uptime: str):
         # ns
         timestamp = self.__str_to_int(uptime)
+        self.__record_ftrace_timestamp(timestamp)
 
         # Filter events before profiling started
         if self.mono_raw_start is not None and timestamp < self.mono_raw_start:
+            self.ftrace_before_start_count += 1
             return None, TimeFilterResult.BEFORE_START
 
         # Filter events after profiling ended
         if self.mono_raw_end is not None and timestamp > self.mono_raw_end:
+            self.ftrace_after_end_count += 1
             return None, TimeFilterResult.AFTER_END
 
+        self.ftrace_in_window_count += 1
         utc_ts = (timestamp - self.mono_raw_start) + self.utc_start_timestamp
         return utc_ts, TimeFilterResult.OK
 
@@ -699,9 +755,11 @@ class TraceConverter:
                 # parse_one_event 返回 False =>AFTER_END，直接结束解析
                 keep_parsing = parser.parse_one_event(match)
                 if keep_parsing is False:
+                    self.time_tran.report_time_filter_summary()
                     return True
                 # 当前行已经被某个parser消费，不再匹配其他parser
                 break
+        self.time_tran.report_time_filter_summary()
         return True
 
 
