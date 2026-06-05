@@ -17,6 +17,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <unordered_map>
 #include "../TestSuit.h"
 #include "JsonUtil.h"
 
@@ -318,4 +319,147 @@ TEST(JsonUtil, GetVectorStringInconsistentDataTypeTest) {
     EXPECT_EQ(data[0], "");
     EXPECT_EQ(data[1], "");
     EXPECT_EQ(data[2], "");
+}
+
+TEST(JsonUtil, GetDoubleTest) {
+    json_t json;
+    rapidjson::Document d;
+    d.Parse("{\n"
+            "        \"ph\": \"X\",\n"
+            "        \"name\": \"contiguous_d_Reshape\",\n"
+            "        \"pid\": 768209,\n"
+            "        \"tid\": 768209,\n"
+            "        \"ts\": \"1699579270364817.47\",\n"
+            "        \"dur\": \"169.33\",\n"
+            "        \"cat\": \"cpu_op\",\n"
+            "        \"args\": {}\n"
+            "}");
+    d.GetAllocator();
+    double ts = JsonUtil::GetDouble(d, "ts");
+    double dur = JsonUtil::GetDouble(d, "dur");
+    EXPECT_EQ(ts, 1699579270364817.47);
+    EXPECT_EQ(dur, 169.33);
+}
+
+TEST(JsonUtil, GetScalarValuesReturnFallbackWhenTypeInvalidOrKeyMissing) {
+    document_t doc;
+    doc.Parse(R"({
+        "doubleValue": 1.5,
+        "doubleString": "2.5",
+        "badDouble": "abc",
+        "longDoubleString": "1699579270364817.47",
+        "badLongDouble": "abc",
+        "intString": "42",
+        "intDouble": 42.9,
+        "badInt": "abc",
+        "floatString": "3.5",
+        "badFloat": "abc",
+        "floatOutOfRange": "1e39",
+        "plainString": "rank0",
+        "objectValue": {"key": "value"}
+    })");
+
+    EXPECT_DOUBLE_EQ(JsonUtil::GetDouble(doc, "doubleValue"), 1.5);
+    EXPECT_DOUBLE_EQ(JsonUtil::GetDouble(doc, "doubleString"), 2.5);
+    EXPECT_DOUBLE_EQ(JsonUtil::GetDouble(doc, "badDouble"), 0);
+    EXPECT_DOUBLE_EQ(JsonUtil::GetDouble(doc, "missingDouble"), 0);
+    EXPECT_EQ(JsonUtil::GetLongDouble(doc, "longDoubleString"), stold("1699579270364817.47"));
+    EXPECT_EQ(JsonUtil::GetLongDouble(doc, "badLongDouble"), 0);
+    EXPECT_EQ(JsonUtil::GetLongDouble(doc, "missingLongDouble"), 0);
+    EXPECT_EQ(JsonUtil::GetInteger(doc, "intString"), 42);
+    EXPECT_EQ(JsonUtil::GetInteger(doc, "intDouble"), 42);
+    EXPECT_EQ(JsonUtil::GetInteger(doc, "badInt"), 0);
+    EXPECT_EQ(JsonUtil::GetInteger(doc, "missingInt"), 0);
+    EXPECT_FLOAT_EQ(JsonUtil::GetFloat(doc, "floatString"), 3.5F);
+    EXPECT_FLOAT_EQ(JsonUtil::GetFloat(doc, "badFloat"), 0.0F);
+    EXPECT_FLOAT_EQ(JsonUtil::GetFloat(doc, "floatOutOfRange"), 0.0F);
+    EXPECT_FLOAT_EQ(JsonUtil::GetFloat(doc, "missingFloat"), 0.0F);
+    EXPECT_EQ(JsonUtil::GetString(doc, "plainString"), "rank0");
+    EXPECT_EQ(JsonUtil::GetString(doc, "objectValue"), "");
+    EXPECT_EQ(JsonUtil::GetString(doc, "missingString"), "");
+}
+
+TEST(JsonUtil, GetValuesWithoutKeyReturnFallbackWhenTypeInvalid) {
+    json_t numberValue;
+    numberValue.SetDouble(1.25);
+    json_t intValue;
+    intValue.SetInt(2);
+    json_t stringValue;
+    stringValue.SetString("rank0");
+    json_t uint64Value;
+    uint64Value.SetUint64(18446744073709551615ULL);
+    json_t objectValue(rapidjson::kObjectType);
+
+    EXPECT_DOUBLE_EQ(JsonUtil::GetDoubleWithoutKey(numberValue), 1.25);
+    EXPECT_FLOAT_EQ(JsonUtil::GetFloatWithoutKey(numberValue), 1.25F);
+    EXPECT_EQ(JsonUtil::GetIntWithoutKey(intValue), 2);
+    EXPECT_EQ(JsonUtil::GetStringWithoutKey(stringValue), "rank0");
+    EXPECT_EQ(JsonUtil::GetUint64WithoutKey(uint64Value), 18446744073709551615ULL);
+    EXPECT_DOUBLE_EQ(JsonUtil::GetDoubleWithoutKey(stringValue), 0);
+    EXPECT_FLOAT_EQ(JsonUtil::GetFloatWithoutKey(stringValue), 0.0F);
+    EXPECT_EQ(JsonUtil::GetIntWithoutKey(stringValue), 0);
+    EXPECT_EQ(JsonUtil::GetStringWithoutKey(objectValue), "");
+    EXPECT_EQ(JsonUtil::GetUint64WithoutKey(stringValue), 0);
+}
+
+TEST(JsonUtil, GetVectorUint64ReturnsZeroForInconsistentItem) {
+    document_t doc;
+    doc.Parse(R"({
+        "data": [1, 18446744073709551615, "3"],
+        "notArray": "value"
+    })");
+
+    auto data = JsonUtil::GetVector<uint64_t>(doc, "data");
+    ASSERT_EQ(data.size(), 3);
+    EXPECT_EQ(data[0], 1);
+    EXPECT_EQ(data[1], 18446744073709551615ULL);
+    EXPECT_EQ(data[2], 0);
+    EXPECT_TRUE(JsonUtil::GetVector<uint64_t>(doc, "missing").empty());
+    EXPECT_TRUE(JsonUtil::GetVector<uint64_t>(doc, "notArray").empty());
+}
+
+TEST(JsonUtil, GetOptionalStringAndDumpStringReturnJsonForNonStringValues) {
+    document_t doc;
+    doc.Parse(R"({
+        "name": "rank0",
+        "args": {"shape": [1, 2]},
+        "number": 3
+    })");
+
+    auto name = JsonUtil::GetOptionalString(doc, "name");
+    auto args = JsonUtil::GetOptionalString(doc, "args");
+    auto missing = JsonUtil::GetOptionalString(doc, "missing");
+    ASSERT_TRUE(name.has_value());
+    ASSERT_TRUE(args.has_value());
+    EXPECT_EQ(name.value(), "rank0");
+    EXPECT_EQ(args.value(), "{\"shape\":[1,2]}");
+    EXPECT_FALSE(missing.has_value());
+    EXPECT_EQ(JsonUtil::GetDumpString(doc, "number"), "3");
+    EXPECT_EQ(JsonUtil::GetDumpString(doc, "missing"), "");
+}
+
+TEST(JsonUtil, MapAndVectorConversions) {
+    std::unordered_map<std::string, std::string> data = {{"rank", "0"}, {"device", "npu"}};
+    std::string jsonStr = JsonUtil::MapToJsonStr(data);
+    auto parsedMap = JsonUtil::JsonStrToMap(jsonStr);
+    EXPECT_EQ(parsedMap, data);
+    EXPECT_TRUE(JsonUtil::JsonStrToMap("").empty());
+    EXPECT_TRUE(JsonUtil::JsonStrToMap("{invalid").empty());
+
+    auto vec = JsonUtil::JsonToVector(R"(["rank0", 1, "rank1"])");
+    ASSERT_EQ(vec.size(), 2);
+    EXPECT_EQ(vec[0], "rank0");
+    EXPECT_EQ(vec[1], "rank1");
+    EXPECT_TRUE(JsonUtil::JsonToVector("{invalid").empty());
+
+    document_t doc;
+    doc.Parse(R"(["device0", {"ignored": true}, "device1"])");
+    auto vecFromValue = JsonUtil::JsonToVector(doc);
+    ASSERT_EQ(vecFromValue.size(), 2);
+    EXPECT_EQ(vecFromValue[0], "device0");
+    EXPECT_EQ(vecFromValue[1], "device1");
+
+    document_t objectDoc;
+    objectDoc.Parse(R"({"name": "rank0"})");
+    EXPECT_TRUE(JsonUtil::JsonToVector(objectDoc).empty());
 }

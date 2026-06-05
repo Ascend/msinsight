@@ -131,11 +131,11 @@ target_link_libraries(insight_performance msinsight)
 if (CMAKE_SYSTEM_NAME MATCHES "Windows")
     target_link_libraries(insight_test
             gtest_main gmock_main mockcpp
-            uv_a userenv ws2_32 iphlpapi shlwapi -lssp z
+            uv_a userenv ws2_32 iphlpapi shlwapi z
             ${EXECUTABLE_OUTPUT_PATH}/libsqlite.dll)
     target_link_libraries(insight_performance
             gtest_main gmock_main mockcpp
-            uv_a userenv ws2_32 iphlpapi shlwapi -lssp z
+            uv_a userenv ws2_32 iphlpapi shlwapi z
             ${EXECUTABLE_OUTPUT_PATH}/libsqlite.dll)
 else()
     target_link_libraries(insight_test

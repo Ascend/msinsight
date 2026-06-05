@@ -17,6 +17,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
+#include <vector>
 #include "../TestSuit.h"
 #include "NumberUtil.h"
 
@@ -72,6 +74,13 @@ TEST(NumberUtil, Uint64ToHexStringWithNormalNumberReturnValid) {
     EXPECT_EQ(NumberUtil::Uint64ToHexString(999999999), "0x3b9ac9ff");
     EXPECT_EQ(NumberUtil::Uint64ToHexString(99999999999999), "0x5af3107a3fff");
     EXPECT_EQ(NumberUtil::Uint64ToHexString(-1), "0xffffffffffffffff");
+}
+
+TEST(NumberUtil, ConvertBytesToMBytesRoundsToThreeDecimals) {
+    EXPECT_DOUBLE_EQ(NumberUtil::ConvertBytesToMBytes(0), 0.0);
+    EXPECT_DOUBLE_EQ(NumberUtil::ConvertBytesToMBytes(1024 * 1024), 1.0);
+    EXPECT_DOUBLE_EQ(NumberUtil::ConvertBytesToMBytes(1024 * 1024 + 512 * 1024), 1.5);
+    EXPECT_DOUBLE_EQ(NumberUtil::ConvertBytesToMBytes(2048), 0.002);
 }
 
 TEST(NumberUtil, HexadecimalStrToDecimalIntWithNormalNumberReturnValid) {
@@ -155,6 +164,13 @@ TEST(NumberUtil, StringToLongDoubleWithAbnormalStringReturnInvalidNumber) {
     EXPECT_EQ(NumberUtil::StringToLongDouble("a+b"), 0);
 }
 
+TEST(NumberUtil, StringToFloatingTypesSupportTrimNumericString) {
+    EXPECT_DOUBLE_EQ(NumberUtil::StringToDouble("\t\"123.5\"", true), 123.5);
+    EXPECT_DOUBLE_EQ(NumberUtil::StringToDouble("\"abc\"", true), 0.0);
+    EXPECT_EQ(NumberUtil::StringToLongDouble("\t\"456.25\"", true), stold("456.25"));
+    EXPECT_EQ(NumberUtil::StringToLongDouble("\"abc\"", true), 0);
+}
+
 TEST(NumberUtil, StringToIntWithNormalStringReturnValidNumber) {
     EXPECT_EQ(NumberUtil::StringToInt("0"), 0);
     EXPECT_EQ(NumberUtil::StringToInt("2537"), 2537);
@@ -185,6 +201,29 @@ TEST(NumberUtil, StringToLongWithAbnormalStringReturnInalidNumber) {
     EXPECT_EQ(NumberUtil::TryParseInt("-"), INVALID_NUMBER);
     EXPECT_EQ(NumberUtil::TryParseInt("A"), INVALID_NUMBER);
     EXPECT_EQ(NumberUtil::TryParseInt("2147483648"), INVALID_NUMBER);
+}
+
+TEST(NumberUtil, StringToLongTypesReturnZeroWhenInputInvalid) {
+    EXPECT_EQ(NumberUtil::StringToLong("123456"), 123456);
+    EXPECT_EQ(NumberUtil::StringToLong("-123456"), -123456);
+    EXPECT_EQ(NumberUtil::StringToLong("abc"), 0);
+    EXPECT_EQ(NumberUtil::StringToLong(""), 0);
+    EXPECT_EQ(NumberUtil::StringToLongLong("9223372036854775807"), INT64_MAX);
+    EXPECT_EQ(NumberUtil::StringToLongLong("-9223372036854775808"), INT64_MIN);
+    EXPECT_EQ(NumberUtil::StringToLongLong("abc"), 0);
+    EXPECT_EQ(NumberUtil::StringToUnsignedLongLong("18446744073709551615"), UINT64_MAX);
+    EXPECT_EQ(NumberUtil::StringToUnsignedLongLong("abc"), 0);
+}
+
+TEST(NumberUtil, StringToUnsignedAndSignedHelpersClampNegativeOrInvalidInput) {
+    EXPECT_EQ(NumberUtil::StringToUint32("0"), 0);
+    EXPECT_EQ(NumberUtil::StringToUint32("123"), 123);
+    EXPECT_EQ(NumberUtil::StringToUint32("-1"), 0);
+    EXPECT_EQ(NumberUtil::StringToUint32("abc"), 0);
+    EXPECT_EQ(NumberUtil::IntToUint32(123), 123);
+    EXPECT_EQ(NumberUtil::IntToUint32(-1), 0);
+    EXPECT_EQ(NumberUtil::Int64ToUint64(123), 123);
+    EXPECT_EQ(NumberUtil::Int64ToUint64(-1), 0);
 }
 
 TEST(NumberUtil, StringUnsignedLongLongMinusTest) {
@@ -292,6 +331,28 @@ TEST(NumberUtil, IsGreaterWithNormalInputReturnValidString) {
 
     EXPECT_EQ(NumberUtil::IsGreater(-3.1415, -3.1416), true);
     EXPECT_EQ(NumberUtil::IsGreater(-3.1415, -3.1415), false);
+}
+
+TEST(NumberUtil, IsDoubleAndStringDoubleSortPredicates) {
+    EXPECT_TRUE(NumberUtil::IsDouble("1"));
+    EXPECT_TRUE(NumberUtil::IsDouble("-1.25"));
+    EXPECT_FALSE(NumberUtil::IsDouble("1a"));
+    EXPECT_FALSE(NumberUtil::IsDouble(""));
+
+    std::vector<std::string> desc = {"abc", "2", "10", "1.5"};
+    std::sort(desc.begin(), desc.end(), NumberUtil::IsStr2DoubleDesc);
+    EXPECT_EQ(desc, (std::vector<std::string>{"10", "2", "1.5", "abc"}));
+
+    std::vector<std::string> asce = {"abc", "2", "10", "1.5"};
+    std::sort(asce.begin(), asce.end(), NumberUtil::IsStr2DoubleAsce);
+    EXPECT_EQ(asce, (std::vector<std::string>{"1.5", "2", "10", "abc"}));
+}
+
+TEST(NumberUtil, FloatingEqualHelpersUseEpsilon) {
+    EXPECT_TRUE(NumberUtil::IsDoubleEqual(1.0, 1.0 + 1e-10));
+    EXPECT_FALSE(NumberUtil::IsDoubleEqual(1.0, 1.0 + 1e-6));
+    EXPECT_TRUE(NumberUtil::IsEqual(1.0F, 1.0F + 1e-10F));
+    EXPECT_FALSE(NumberUtil::IsEqual(1.0F, 1.0F + 1e-6F));
 }
 
 TEST(NumberUtil, TruncateNumberString) {

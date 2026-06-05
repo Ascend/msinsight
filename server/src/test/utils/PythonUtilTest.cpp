@@ -18,6 +18,7 @@
 #include <vector>
 #include <string>
 #include "gtest/gtest.h"
+#include "FileUtil.h"
 #include "PythonUtil.h"
 
 using namespace Dic;
@@ -30,5 +31,20 @@ TEST_F(PythonUtilTest, ExecuteCommandListOnLinuxOrMac) {
     std::vector<std::string> arguments{"-l"};
     int result = PythonUtil::ExecuteCommand(executablePath, arguments);
     EXPECT_EQ(result, 0);
+}
+#endif
+
+#ifdef _WIN32
+TEST_F(PythonUtilTest, GetPythonCommandReturnsBundledPythonPathOnWindows) {
+    std::string expected = FileUtil::SplicePath(FileUtil::GetCurrPath(), "python", "python.exe");
+
+    EXPECT_EQ(PythonUtil::GetPythonCommand(), expected);
+}
+
+TEST_F(PythonUtilTest, ExecuteCommandReturnsFailureWhenExecutableMissingOnWindows) {
+    std::string executablePath =
+        FileUtil::SplicePath(FileUtil::GetCurrPath(), "missing_python_for_python_util_test.exe");
+
+    EXPECT_EQ(PythonUtil::ExecuteCommand(executablePath, {}), -1);
 }
 #endif

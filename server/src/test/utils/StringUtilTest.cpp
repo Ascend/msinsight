@@ -17,10 +17,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <string_view>
 #include "../TestSuit.h"
 #include "StringUtil.h"
 
-// clang-format off
 using namespace Dic;
 
 TEST(StringUtil, IntToString) {
@@ -41,8 +41,13 @@ TEST(StringUtil, Split) {
     EXPECT_EQ(StringUtil::Split("wwa,aww", "aww")[0], "wwa,");
 }
 
-TEST(StringUtil, ByteNum) {
-    std::cout << StringUtil::ByteNum(11) << std::endl;
+TEST(StringUtil, ByteNum) { std::cout << StringUtil::ByteNum(11) << std::endl; }
+
+TEST(StringUtil, ByteNumWithUtf8LeadingBytes) {
+    EXPECT_EQ(StringUtil::ByteNum(0x7F), 0);
+    EXPECT_EQ(StringUtil::ByteNum(0xC2), 1);
+    EXPECT_EQ(StringUtil::ByteNum(0xE4), 2);
+    EXPECT_EQ(StringUtil::ByteNum(0xF0), 3);
 }
 
 TEST(StringUtil, IsAllDigitsWithNormalInput) {
@@ -115,22 +120,20 @@ TEST(StringUtil, IsUtf8StrFastWithInvalidInput) {
     EXPECT_EQ(StringUtil::IsUtf8StrFast("Hello\xC3World"), false);
     EXPECT_EQ(StringUtil::IsUtf8StrFast("中\x80国"), false);
     // GBK 编码（非 UTF-8）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xD6\xD0"), false);  // "中" 的 GBK 编码
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xB9\xFA"), false);  // "国" 的 GBK 编码
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xD6\xD0\xB9\xFA"), false);  // "中国" 的 GBK 编码
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("Hello\xD6\xD0World"), false);  // GBK 和 ASCII 混合
+    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xD6\xD0"), false); // "中" 的 GBK 编码
+    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xB9\xFA"), false); // "国" 的 GBK 编码
+    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xD6\xD0\xB9\xFA"), false); // "中国" 的 GBK 编码
+    EXPECT_EQ(StringUtil::IsUtf8StrFast("Hello\xD6\xD0World"), false); // GBK 和 ASCII 混合
     // 其他非 UTF-8 编码（Latin-1 高位字节）
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\x80\x81"), false);  // 高位字节序列
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xFF\xFE"), false);  // 无效的字节序列
-    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xFE\xFF"), false);  // BOM 标记（但作为普通字节检查）
+    EXPECT_EQ(StringUtil::IsUtf8StrFast("\x80\x81"), false); // 高位字节序列
+    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xFF\xFE"), false); // 无效的字节序列
+    EXPECT_EQ(StringUtil::IsUtf8StrFast("\xFE\xFF"), false); // BOM 标记（但作为普通字节检查）
 }
-
 
 #ifdef _WIN32
 static constexpr UINT GBK_CODE_PAGE = 936;
 
-static void SkipIfNotGbkCodePage()
-{
+static void SkipIfNotGbkCodePage() {
     if (GetACP() != GBK_CODE_PAGE) {
         GTEST_SKIP() << "GBK code page required";
     }
@@ -151,24 +154,21 @@ TEST(StringUtil, Utf8ToGbk) {
     EXPECT_EQ(StringUtil::Utf8ToGbk("\xE4\xB8\xAD"), "\xD6\xD0");
 }
 
-TEST(StringUtil, ToUtf8StrConvertsWholeGbkPathWithoutMixedUtf8Splitting)
-{
+TEST(StringUtil, ToUtf8StrConvertsWholeGbkPathWithoutMixedUtf8Splitting) {
     SkipIfNotGbkCodePage();
     const std::string gbkPath = std::string("D:\\data\\") + "\xB6\xE0\xBB\xFA\xB6\xE0\xBF\xA8";
     const std::string utf8Path = std::string("D:\\data\\") + "\xE5\xA4\x9A\xE6\x9C\xBA\xE5\xA4\x9A\xE5\x8D\xA1";
     EXPECT_EQ(StringUtil::ToUtf8Str(gbkPath), utf8Path);
 }
 
-TEST(StringUtil, Utf8CharLenWithValidInput)
-{
+TEST(StringUtil, Utf8CharLenWithValidInput) {
     EXPECT_EQ(StringUtil::Utf8CharLen("abc", 0), 1);
     EXPECT_EQ(StringUtil::Utf8CharLen("\xC3\xA9", 0), 2);
     EXPECT_EQ(StringUtil::Utf8CharLen("\xE4\xB8\xAD", 0), 3);
     EXPECT_EQ(StringUtil::Utf8CharLen("\xF0\x9F\x98\x80", 0), 4);
 }
 
-TEST(StringUtil, Utf8CharLenWithInvalidInput)
-{
+TEST(StringUtil, Utf8CharLenWithInvalidInput) {
     EXPECT_EQ(StringUtil::Utf8CharLen("\x80", 0), 0);
     EXPECT_EQ(StringUtil::Utf8CharLen("\xC3", 0), 0);
     EXPECT_EQ(StringUtil::Utf8CharLen("\xE4\xB8", 0), 0);
@@ -176,35 +176,30 @@ TEST(StringUtil, Utf8CharLenWithInvalidInput)
     EXPECT_EQ(StringUtil::Utf8CharLen("\xD6\xD0", 0), 0);
 }
 
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureUtf8)
-{
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureUtf8) {
     EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8(""), "");
     EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("abc123"), "abc123");
     EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xE4\xB8\xAD\xE6\x96\x87"), "\xE4\xB8\xAD\xE6\x96\x87");
     EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xF0\x9F\x98\x80"), "\xF0\x9F\x98\x80");
 }
 
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureGbk)
-{
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithPureGbk) {
     EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xD6\xD0"), "\xE4\xB8\xAD");
     EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8("\xD6\xD0\xCE\xC4"), "\xE4\xB8\xAD\xE6\x96\x87");
 }
 
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithMixedInput)
-{
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithMixedInput) {
     const std::string mixed = std::string("abc") + "\xD6\xD0\xCE\xC4" + "\xE4\xB8\xAD\xE6\x96\x87";
     EXPECT_EQ(StringUtil::MixedGbkAndUtf8ToUtf8(mixed), "abc\xE4\xB8\xAD\xE6\x96\x87\xE4\xB8\xAD\xE6\x96\x87");
 }
 
-TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithInvalidBytes)
-{
+TEST(StringUtil, MixedGbkAndUtf8ToUtf8WithInvalidBytes) {
     EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("\x80").empty());
     EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("\xC3").empty());
     EXPECT_FALSE(StringUtil::MixedGbkAndUtf8ToUtf8("abc\xE4\xB8").empty());
 }
 
-TEST(StringUtil, Utf8MojibakeToGbkUtf8)
-{
+TEST(StringUtil, Utf8MojibakeToGbkUtf8) {
     const std::string utf8Chinese = "\xE4\xB8\xAD\xE6\x96\x87";
     const std::string mojibake = StringUtil::GbkToUtf8(utf8Chinese.c_str());
     EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(nullptr), "");
@@ -212,14 +207,12 @@ TEST(StringUtil, Utf8MojibakeToGbkUtf8)
     EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(mojibake.c_str()), utf8Chinese);
 }
 
-TEST(StringUtil, Utf8MojibakeToGbkUtf8KeepsUnconvertibleUnicode)
-{
+TEST(StringUtil, Utf8MojibakeToGbkUtf8KeepsUnconvertibleUnicode) {
     const std::string textWithEmoji = "\xE4\xB8\xAD\xE6\x96\x87\xF0\x9F\x98\x80";
     EXPECT_EQ(StringUtil::Utf8MojibakeToGbkUtf8(textWithEmoji.c_str()), textWithEmoji);
 }
 
-TEST(StringUtil, FixGbkMojibakeStr)
-{
+TEST(StringUtil, FixGbkMojibakeStr) {
     SkipIfNotGbkCodePage();
     const std::string utf8Chinese = "\xE4\xB8\xAD\xE6\x96\x87";
     const std::string gbkChinese = "\xD6\xD0\xCE\xC4";
@@ -236,7 +229,6 @@ TEST(StringUtil, FixGbkMojibakeStr)
 }
 
 #endif
-
 
 TEST(StringUtil, join) {
     std::vector<std::string> list1 = {"a", "b", "c"};
@@ -291,32 +283,27 @@ TEST(StringUtil, ToCamelCaseWithNormalInput) {
     EXPECT_EQ(StringUtil::ToCamelCase("rank__id, device_Id"), "rankId, deviceId");
 }
 
-TEST(StringUtil, SplitStringWithParenthesesByCommaTestReturnEmptyWhenEmptyInput)
-{
+TEST(StringUtil, SplitStringWithParenthesesByCommaTestReturnEmptyWhenEmptyInput) {
     EXPECT_EQ(StringUtil::SplitStringWithParenthesesByComma("").size(), 0);
 }
 
-TEST(StringUtil, SplitStringWithParenthesesByCommaTestReturnNormalWhenInputWithSpace)
-{
+TEST(StringUtil, SplitStringWithParenthesesByCommaTestReturnNormalWhenInputWithSpace) {
     auto result = StringUtil::SplitStringWithParenthesesByComma("( a ,b,  c d, )");
     EXPECT_EQ(result.size(), 3); // 3, a, b, c
     EXPECT_EQ(result.at(result.size() - 1), "c d");
 }
 
-TEST(StringUtil, CreateQuestionMarkStringWhenInputZero)
-{
+TEST(StringUtil, CreateQuestionMarkStringWhenInputZero) {
     auto result = StringUtil::CreateQuestionMarkString(0);
     EXPECT_EQ(result, "");
 }
 
-TEST(StringUtil, CreateQuestionMarkStringWhenInputNotZero)
-{
+TEST(StringUtil, CreateQuestionMarkStringWhenInputNotZero) {
     auto result = StringUtil::CreateQuestionMarkString(5);
     EXPECT_EQ(result, "?,?,?,?,?");
 }
 
-TEST(StringUtil, StringToUint32)
-{
+TEST(StringUtil, StringToUint32) {
     const uint64_t tempMax = INT64_MAX;
     const uint64_t input = tempMax + 1;
     std::string inputStr = std::to_string(input);
@@ -324,8 +311,7 @@ TEST(StringUtil, StringToUint32)
     EXPECT_EQ(result, UINT32_MAX);
 }
 
-TEST(StringUtil, StringToInt)
-{
+TEST(StringUtil, StringToInt) {
     const uint64_t tempMax = INT64_MAX;
     const uint64_t input = tempMax + 1;
     std::string inputStr = std::to_string(input);
@@ -333,15 +319,13 @@ TEST(StringUtil, StringToInt)
     EXPECT_EQ(result, 0);
 }
 
-TEST(StringUtil, StrJoin)
-{
+TEST(StringUtil, StrJoin) {
     EXPECT_EQ(StringUtil::StrJoin("test"), "test");
     EXPECT_EQ(StringUtil::StrJoin("test", "hello"), "testhello");
     EXPECT_EQ(StringUtil::StrJoin("test", " hello", " world"), "test hello world");
 }
 
-TEST(StringUtil, FormatStringUsingPlaceHolder)
-{
+TEST(StringUtil, FormatStringUsingPlaceHolder) {
     const std::string pattern = "Pattern format: {}, {}";
     // 异常用例：args字符串数量大于占位符数量
     std::string res = StringUtil::FormatString(pattern, "hello", "world", "!");
@@ -359,8 +343,7 @@ TEST(StringUtil, FormatStringUsingPlaceHolder)
     EXPECT_EQ(res, expectFormatResult);
 }
 
-TEST(StringUtil, CheckSqlVaildWithDoubleUnderline)
-{
+TEST(StringUtil, CheckSqlVaildWithDoubleUnderline) {
     const std::string sql = "--thistaskid";
     bool result = StringUtil::CheckSqlValid(sql);
     EXPECT_FALSE(result);
@@ -370,68 +353,58 @@ TEST(StringUtil, CheckSqlVaildWithDoubleUnderline)
     EXPECT_FALSE(StringUtil::CheckSqlValid(sqlTail));
 }
 
-TEST(StringUtil, CheckSqlVaildNormal)
-{
+TEST(StringUtil, CheckSqlVaildNormal) {
     const std::string sql = "19247823";
     bool result = StringUtil::CheckSqlValid(sql);
     EXPECT_TRUE(result);
 }
 
-TEST(StringUtil, SplitCsvLine_EmptyLine)
-{
-    EXPECT_EQ(SplitCsvLine(""), std::vector<std::string>{""});
+TEST(StringUtil, CheckSqlValidRejectsUnsupportedCharacters) {
+    EXPECT_TRUE(StringUtil::CheckSqlValid(""));
+    EXPECT_TRUE(StringUtil::CheckSqlValid("rank@device:0-name.1_"));
+    EXPECT_FALSE(StringUtil::CheckSqlValid("rank device"));
+    EXPECT_FALSE(StringUtil::CheckSqlValid("rank$device"));
 }
 
-TEST(StringUtil, SplitCsvLine_SingleField)
-{
-    EXPECT_EQ(SplitCsvLine("hello"), std::vector<std::string>{"hello"});
-}
+TEST(StringUtil, SplitCsvLine_EmptyLine) { EXPECT_EQ(SplitCsvLine(""), std::vector<std::string>{""}); }
 
-TEST(StringUtil, SplitCsvLine_SimpleFields)
-{
+TEST(StringUtil, SplitCsvLine_SingleField) { EXPECT_EQ(SplitCsvLine("hello"), std::vector<std::string>{"hello"}); }
+
+TEST(StringUtil, SplitCsvLine_SimpleFields) {
     EXPECT_EQ(SplitCsvLine("a,b,c"), (std::vector<std::string>{"a", "b", "c"}));
 }
 
-TEST(StringUtil, SplitCsvLine_TrailingSeparator)
-{
+TEST(StringUtil, SplitCsvLine_TrailingSeparator) {
     // 行末有分隔符，应补空字段
     EXPECT_EQ(SplitCsvLine("a,b,"), (std::vector<std::string>{"a", "b", ""}));
 }
 
-TEST(StringUtil, SplitCsvLine_LeadingSeparator)
-{
+TEST(StringUtil, SplitCsvLine_LeadingSeparator) {
     EXPECT_EQ(SplitCsvLine(",a,b"), (std::vector<std::string>{"", "a", "b"}));
 }
 
-TEST(StringUtil, SplitCsvLine_ConsecutiveSeparators)
-{
+TEST(StringUtil, SplitCsvLine_ConsecutiveSeparators) {
     EXPECT_EQ(SplitCsvLine("a,,b"), (std::vector<std::string>{"a", "", "b"}));
 }
 
-TEST(StringUtil, SplitCsvLine_QuotedFieldWithoutSpecialChars)
-{
+TEST(StringUtil, SplitCsvLine_QuotedFieldWithoutSpecialChars) {
     EXPECT_EQ(SplitCsvLine("a,,b"), (std::vector<std::string>{"a", "", "b"}));
 }
 
-TEST(StringUtil, SplitCsvLine_QuotedFieldWithComma)
-{
+TEST(StringUtil, SplitCsvLine_QuotedFieldWithComma) {
     EXPECT_EQ(SplitCsvLine("\"hello, world\""), (std::vector<std::string>{"hello, world"}));
 }
 
-TEST(StringUtil, SplitCsvLine_QuotedFieldWithQuotes)
-{
+TEST(StringUtil, SplitCsvLine_QuotedFieldWithQuotes) {
     EXPECT_EQ(SplitCsvLine("\"She said \"\"Hi\"\"\""), (std::vector<std::string>{"She said \"Hi\""}));
 }
 
-TEST(StringUtil, SplitCsvLine_MixedQuotedAndUnquoted)
-{
-    EXPECT_EQ(SplitCsvLine("apple,\"banana, split\",cherry"),
-              (std::vector<std::string>{"apple", "banana, split", "cherry"}));
+TEST(StringUtil, SplitCsvLine_MixedQuotedAndUnquoted) {
+    EXPECT_EQ(
+        SplitCsvLine("apple,\"banana, split\",cherry"), (std::vector<std::string>{"apple", "banana, split", "cherry"}));
 }
 
-TEST(StringUtil, SplitCsvLine_EmptyQuotedField) {
-    EXPECT_EQ(SplitCsvLine("\"\""), (std::vector<std::string>{""}));
-}
+TEST(StringUtil, SplitCsvLine_EmptyQuotedField) { EXPECT_EQ(SplitCsvLine("\"\""), (std::vector<std::string>{""})); }
 
 TEST(StringUtil, SplitCsvLine_UnmatchedQuote) {
     // RFC 4180 要求引号成对，但SplitCsvLine实现会把未闭合引号视为普通字符结尾
@@ -456,4 +429,80 @@ TEST(StringUtil, SplitCsvLine_EscapedQuotesOnlyInQuotedFields) {
     // 未加引号的 "" 应视为字面两个双引号
     EXPECT_EQ(SplitCsvLine("a\"\"b,c"), (std::vector<std::string>{"a\"\"b", "c"}));
 }
-// clang-format on
+
+TEST(StringUtil, ExtractDigitRankIdFromHost) {
+    EXPECT_EQ(StringUtil::ExtractDigitRankIdFromHost("Host 3"), 3);
+    EXPECT_EQ(StringUtil::ExtractDigitRankIdFromHost("7"), 7);
+    EXPECT_EQ(StringUtil::ExtractDigitRankIdFromHost("Host rank0"), -1);
+    EXPECT_EQ(StringUtil::ExtractDigitRankIdFromHost("rank0"), -1);
+}
+
+TEST(StringUtil, Join4SqlGroupSkipsEmptyItems) {
+    EXPECT_EQ(StringUtil::Join4SqlGroup({"rank0", "", "rank1"}), "'rank0','rank1'");
+    EXPECT_EQ(StringUtil::Join4SqlGroup({}), "");
+    EXPECT_EQ(StringUtil::Join4SqlGroup({"", ""}), "");
+}
+
+TEST(StringUtil, ContainsIgnoreCaseAndToLower) {
+    EXPECT_EQ(StringUtil::ToLower("Rank_Device-01"), "rank_device-01");
+    EXPECT_TRUE(StringUtil::ContainsIgnoreCase("Rank_Device-01", "device"));
+    EXPECT_TRUE(StringUtil::ContainsIgnoreCase("Rank_Device-01", "RANK"));
+    EXPECT_FALSE(StringUtil::ContainsIgnoreCase("Rank_Device-01", "host"));
+    EXPECT_TRUE(StringUtil::ContainAnyOfSubStr("rank_device", {"host", "device"}));
+    EXPECT_FALSE(StringUtil::ContainAnyOfSubStr("rank_device", {"host", "cluster"}));
+}
+
+TEST(StringUtil, ValidateStringParamRejectsCommandInjectionCharacters) {
+    EXPECT_TRUE(StringUtil::ValidateStringParam(""));
+    EXPECT_TRUE(StringUtil::ValidateStringParam("rank_device-01"));
+    EXPECT_FALSE(StringUtil::ValidateStringParam("rank|device"));
+    EXPECT_FALSE(StringUtil::ValidateStringParam("rank\ndevice"));
+    EXPECT_FALSE(StringUtil::ValidateStringParam(std::string("rank\0device", 11)));
+}
+
+TEST(StringUtil, StringSplitKeepsQuotedCommaField) {
+    EXPECT_EQ(StringUtil::StringSplit("a,\"b,c\",d"), (std::vector<std::string>{"a", "\"b,c\"", "d"}));
+    EXPECT_EQ(StringUtil::StringSplit("a,b\r\n"), (std::vector<std::string>{"a", "b"}));
+    EXPECT_TRUE(StringUtil::StringSplit("").empty());
+}
+
+TEST(StringUtil, FormattingAndPrintableHelpers) {
+    EXPECT_EQ(StringUtil::DoubleToStringWithTwoDecimalPlaces(1.236), "1.24");
+    EXPECT_EQ(StringUtil::DoubleToStringWithTwoDecimalPlaces(-1.2), "-1.20");
+    EXPECT_EQ(StringUtil::GetPrintAbleString("a\nb\tc"), "a_b_c");
+    EXPECT_EQ(StringUtil::ToLocalStr("abc123"), "abc123");
+
+    const std::string_view cols[] = {"rank", "device", "value"};
+    EXPECT_EQ(StringUtil::GenerateColumnString(cols), "rank ,device ,value");
+    EXPECT_EQ(StringUtil::JoinNumberStrWithParenthesesByOrder({"10", "2", "1"}), "(1, 2, 10)");
+}
+
+TEST(StringUtil, NameAndNumberHelpers) {
+    EXPECT_EQ(StringUtil::FindLCP("rank_id", "rank_name"), "rank_");
+    EXPECT_EQ(StringUtil::FindLCP("rank", "host"), "");
+
+    std::string wrappedColumn = "`Table Column`";
+    StringUtil::StripDbColumnName(wrappedColumn);
+    EXPECT_EQ(wrappedColumn, "Table Column");
+
+    std::string plainColumn = "TableColumn";
+    StringUtil::StripDbColumnName(plainColumn);
+    EXPECT_EQ(plainColumn, "TableColumn");
+
+    EXPECT_EQ(StringUtil::GetOriginHostName("host_0"), "host");
+    EXPECT_EQ(StringUtil::GetOriginHostName("host_rank_1"), "host_rank");
+    EXPECT_EQ(StringUtil::GetOriginHostName("host"), "host");
+    EXPECT_EQ(StringUtil::StrNumMax("10", "2"), "10");
+    EXPECT_EQ(StringUtil::StrNumMax("2", "10"), "10");
+    EXPECT_EQ(StringUtil::StrNumMax("abc", "10"), "abc");
+}
+
+#ifdef _WIN32
+TEST(StringUtil, StringWideRoundTripOnWindows) {
+    const std::string local = "rank_device_01";
+    std::wstring wide = StringUtil::String2WString(local);
+    EXPECT_EQ(StringUtil::WString2String(wide), local);
+    EXPECT_TRUE(StringUtil::String2WString("").empty());
+    EXPECT_TRUE(StringUtil::WString2String(L"").empty());
+}
+#endif
