@@ -225,6 +225,32 @@ public:
             "GROUP BY name " + orderBy + " limit ? offset ?";
     }
 
+    static std::string GetQueryPythonViewTraceDataSql(const std::string &order, const std::string &orderByField,
+        std::vector<std::string> layers, const std::string &timeCondSql)
+    {
+        std::string orderBy;
+        if (order == "descend") {
+            orderBy = " ORDER BY " + orderByField + " DESC";
+        } else {
+            orderBy = " ORDER BY " + orderByField + " ASC";
+        }
+        const auto layerStr = StringUtil::Join4SqlGroup(std::move(layers));
+        if (layerStr.find("python") != std::string::npos || layerStr.find("cann") != std::string::npos) {
+            return "SELECT name, timestamp - ? as startTime, duration / 1000.0 as duration, "
+                "count(*) over() as total "
+                "FROM slice WHERE lower(name) LIKE lower(?) AND slice.track_id IN ( SELECT track_id "
+                "FROM process JOIN thread t ON process.pid = t.pid "
+                "WHERE lower(process_name) in (" + layerStr + ")) " + timeCondSql +
+                orderBy + " limit ? offset ?";
+        }
+        return "SELECT name, timestamp - ? as startTime, duration / 1000.0 as duration, "
+            "count(*) over() as total "
+            "FROM slice WHERE lower(name) LIKE lower(?) AND slice.track_id IN ( SELECT track_id "
+            "FROM process JOIN thread t ON process.pid = t.pid "
+            "WHERE (process.pid & 0x1f) = ? AND lower(process_name) in (" + layerStr + ")) " + timeCondSql +
+            orderBy + " limit ? offset ?";
+    }
+
     static std::string GetAICoreViewDataSql()
     {
         return "SELECT timestamp, args, process.pid as pid, thread.tid as tid "

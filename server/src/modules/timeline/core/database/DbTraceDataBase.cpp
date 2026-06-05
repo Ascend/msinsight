@@ -548,6 +548,38 @@ bool DbTraceDataBase::QuerySystemViewData(const Protocol::SystemViewParams &requ
     responseBody.currentPage = requestParams.current;
     return true;
 }
+//QuerySystemViewTraceData
+bool DbTraceDataBase::QuerySystemViewTraceData(const Protocol::SystemViewParams &requestParams,
+    Protocol::SystemViewTraceBody &responseBody, const uint64_t &minTimestamp)
+{
+    auto stmt = CreatPreparedStatement(); // 这里不需要判断空指针，TraceDatabaseHelper里面统一进行了判空操作
+    std::unique_ptr<SqliteResultSet> resultSet;
+    try {
+        const std::string &timeCondSql = TraceDatabaseSqlConst::AppendDbTimeRangeConditionSql(requestParams.startTime, requestParams.endTime);
+        resultSet = TraceDatabaseHelper::QuerySystemViewTraceData(stmt, requestParams,
+            GetDeviceId(requestParams.rankId), minTimestamp, timeCondSql);
+    } catch (DatabaseException &e) {
+        ServerLog::Error("Query system view trace data failed, ", e.What());
+        return false;
+    }
+
+    while (resultSet->Next()) {
+        Protocol::SystemViewTraceDetail SystemViewTraceDetail;
+        int col = resultStartIndex;
+        SystemViewTraceDetail.name = resultSet->GetString(col++);
+        uint64_t tempStartTime = resultSet->GetUint64(col++);
+        if (tempStartTime < minTimestamp) {
+            continue;
+        }
+        SystemViewTraceDetail.startTime = tempStartTime - minTimestamp;
+        SystemViewTraceDetail.duration = resultSet->GetDouble(col++);
+        responseBody.total = resultSet->GetUint64(col++);
+        responseBody.systemViewDetail.emplace_back(SystemViewTraceDetail);
+    }
+    responseBody.pageSize = requestParams.pageSize;
+    responseBody.currentPage = requestParams.current;
+    return true;
+}
 
 bool DbTraceDataBase::QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICoreFreqParams &requestParams,
     Protocol::ExpAnaAICoreFreqBody &responseBody, std::vector<std::pair<uint64_t, uint64_t>> &freqs, uint64_t &maxFreq,

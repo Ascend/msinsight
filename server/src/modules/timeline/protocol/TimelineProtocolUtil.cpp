@@ -493,6 +493,28 @@ template <> std::optional<document_t> ToResponseJson<SystemViewResponse>(const S
     return std::optional<document_t>{std::move(json)};
 }
 
+// SystemViewTraceResponse
+template <> std::optional<document_t> ToResponseJson<SystemViewTraceResponse>(const SystemViewTraceResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t systemViewDetails(kArrayType);
+    for (const SystemViewTraceDetail &systemView : response.body.systemViewDetail) {
+        json_t itemJson(kObjectType);
+        JsonUtil::AddMember(itemJson, "name", systemView.name, allocator);
+        JsonUtil::AddMember(itemJson, "startTime", systemView.startTime, allocator);
+        JsonUtil::AddMember(itemJson, "duration", systemView.duration, allocator);
+        systemViewDetails.PushBack(itemJson, allocator);
+    }
+    JsonUtil::AddMember(body, "systemViewDetails", systemViewDetails, allocator);
+    JsonUtil::AddMember(body, "count", response.body.total, allocator);
+    JsonUtil::AddMember(body, "pageSize", response.body.pageSize, allocator);
+    JsonUtil::AddMember(body, "currentPage", response.body.currentPage, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
 template <>
 std::optional<document_t> ToResponseJson<ExpAnaAICoreFreqResponse>(const ExpAnaAICoreFreqResponse &response) {
     document_t json(kObjectType);

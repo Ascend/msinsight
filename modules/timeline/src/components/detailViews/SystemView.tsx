@@ -461,6 +461,7 @@ export interface BaseSummaryProps extends SelectContentViewProps {
     request: (...rest: any[]) => any;
     isStats?: boolean;
     isFtrace?: boolean;
+    isTrace?: boolean;
     columns: any;
 }
 
@@ -468,8 +469,18 @@ export interface BaseSummaryProps extends SelectContentViewProps {
 export const BaseSummary = observer((props: BaseSummaryProps) => {
     const isStats = props.isStats as boolean;
     const isFtrace = props.isFtrace as boolean;
+    const isTrace = props.isTrace as boolean;
+    const getDefaultSorter = (): {field: string;order: string} => {
+        if (isStats) {
+            return { field: 'totalTime', order: 'descend' };
+        }
+        if (isTrace) {
+            return { field: 'startTime', order: 'ascend' };
+        }
+        return { field: 'duration', order: 'descend' };
+    };
     const defaultPage = { current: 1, pageSize: 10, total: 0 };
-    const defaultSorter = isStats ? { field: 'totalTime', order: 'descend' } : { field: 'duration', order: 'descend' };
+    const defaultSorter = getDefaultSorter();
     const [dataSource, setDataSource] = useState<any[]>([]);
     const [page, setPage] = useState(defaultPage);
     const [sorter, setSorter] = useState(defaultSorter);
@@ -484,7 +495,7 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
         title: t(col.title),
     }));
 
-    if (isStats) {
+    if (isStats || isTrace) {
         columns = [{
             title: t('Name'),
             dataIndex: 'name',
@@ -503,9 +514,11 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
                 }}>{t('Click')}</Button>),
         }];
     }
+
     const updateData = async(searchName: string, pages: any, sorters: {field: string;order: string}, prop: BaseSummaryProps): Promise<void> => {
         const _isStats = prop.isStats as boolean;
         const _isFtrace = prop.isFtrace as boolean;
+        const _isTrace = prop.isTrace as boolean;
         const targetInfo = props.session.units.find(unitItem => (unitItem.metadata as CardMetaData)?.cardId === props.card?.cardId);
         if (props.card === undefined || props.card.cardId === '' || targetInfo?.projectType === ProjectType.IE) {
             setDataSource([]);
@@ -534,7 +547,7 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
             startTime: Math.floor(startTime + timestampOffset),
             endTime: Math.ceil(endTime + timestampOffset),
         };
-        if (_isStats) {
+        if (_isStats || _isTrace) {
             params = { isQueryTotal: true, layer: prop.layerType, searchName, ...params };
         }
         if (_isFtrace) {
@@ -545,6 +558,12 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
             const res = await props.request(params);
             if (_isStats) {
                 setDataSource(res.systemViewDetails);
+            } else if (_isTrace) {
+                const data = res.systemViewDetails.map((item: any) => ({
+                    ...item,
+                    startTimeLabel: getDetailTimeDisplay(item.startTime - timestampOffset),
+                }));
+                setDataSource(data);
             } else {
                 const timestampoffset = getTimeOffset(props.session, props.card);
                 const dbPath = res.dbPath;

@@ -86,6 +86,7 @@ class TimelineProtocol : public ProtocolUtil {
     static std::optional<document_t> ToFlowCategoryEventsResponse(const Response &response);
     static std::optional<document_t> ToUnitCounterResponse(const Response &response);
     static std::optional<document_t> ToSystemViewResponseJson(const Response &response);
+    static std::optional<document_t> ToSystemViewTraceResponseJson(const Response &response);
     static std::optional<document_t> ToExpAnaAICoreFreqResponseJson(const Dic::Protocol::Response &response);
     static std::optional<document_t> ToEventsViewResponseJson(const Response &response);
     static std::optional<document_t> ToKernelDetailResponseJson(const Response &response);

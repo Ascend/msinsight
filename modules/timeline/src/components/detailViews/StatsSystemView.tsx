@@ -29,9 +29,9 @@ import {
     ftraceTimeSummaryColumns,
     ftraceIrqSummaryColumns,
     ftraceSchedSummaryColumns,
-    pythonApiSummaryColumns,
-    layerTypes,
     ftraceTypes,
+    querySystemViewTrace,
+    summaryAndTraceTypes,
 } from './Common';
 import type { CardMetaData } from '../../entity/data';
 import { getDetailTimeDisplay } from '../../insight/units/AscendUnit';
@@ -44,6 +44,7 @@ import { OverallMetrics } from './OverallMetrics';
 import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
 import { ProjectType } from '../../entity/insight';
 import { MemcpyOverallMetrics } from './MemcpyOverallMetrics';
+import OperatorDetailView from './OperatorDetailView';
 import { KernelE2ETimeTable } from './KernelE2ETimeTable';
 
 const filterColumn = [
@@ -128,7 +129,7 @@ const KernelDetails = observer((props: SelectContentViewProps) => {
         startTime = startTime < 0 ? 0 : startTime;
         let endTime = props.session.timeAnalysisRange?.[1] ?? 0;
         endTime = endTime < 0 ? 0 : endTime;
-        const timestampoffset = getTimeOffset(props.session, props.card);
+        const timestampOffset = getTimeOffset(props.session, props.card);
         const sortedField = sorters.field === 'startTimeLabel' ? 'startTime' : sorters.field;
         const res = await queryKernelDetails({
             rankId: props.card.cardId,
@@ -137,8 +138,8 @@ const KernelDetails = observer((props: SelectContentViewProps) => {
             current: pages.current,
             orderBy: sorters.order ? sortedField : defaultSorter.field,
             order: sorters.order ?? defaultSorter.order,
-            startTime: Math.floor(startTime + timestampoffset),
-            endTime: Math.ceil(endTime + timestampoffset),
+            startTime: Math.floor(startTime + timestampOffset),
+            endTime: Math.ceil(endTime + timestampOffset),
             coreType: '',
             filterCondition: filterTypes,
         }).finally(() => {
@@ -148,7 +149,7 @@ const KernelDetails = observer((props: SelectContentViewProps) => {
         const data = res.kernelDetails.map((item: {
             startTimeLabel: string;
             startTime: number;}) => {
-            item.startTimeLabel = getDetailTimeDisplay(item.startTime - timestampoffset);
+            item.startTimeLabel = getDetailTimeDisplay(item.startTime - timestampOffset);
             return item;
         });
         setDataSource(data);
@@ -203,7 +204,22 @@ const ftraceColumnsMap: Record<string, typeof ftraceTimeSummaryColumns> = {
     'Ftrace Sched': ftraceSchedSummaryColumns,
 };
 
-export const StatsSystemView = [OverallMetrics, MemcpyOverallMetrics, ...ftraceTypes.map((type) => {
+const LayerAndTrace = summaryAndTraceTypes.map((item) => {
+    return observer((props: SelectContentViewProps) => {
+        return (
+            <BaseSummary
+                layerType={item.type}
+                request={item.isStats ? querySystemViewDetails : querySystemViewTrace}
+                isStats={item.isStats}
+                isTrace={item.isTrace}
+                columns={item.columns}
+                {...props}
+            />
+        );
+    });
+});
+
+const Ftrace = ftraceTypes.map((type) => {
     return observer((props: SelectContentViewProps) => {
         const ftraceColumns = ftraceColumnsMap[type] || ftraceTimeSummaryColumns;
         if (props.session.isFullDb) {
@@ -222,16 +238,14 @@ export const StatsSystemView = [OverallMetrics, MemcpyOverallMetrics, ...ftraceT
             />
         );
     });
-}), ...layerTypes.map((type) => {
-    return observer((props: SelectContentViewProps) => {
-        return (
-            <BaseSummary
-                layerType={type}
-                request={querySystemViewDetails}
-                isStats={true}
-                columns={pythonApiSummaryColumns}
-                {...props}
-            />
-        );
-    });
-}), KernelE2ETimeTable, KernelDetails];
+});
+
+export const StatsSystemView = [
+    OverallMetrics,
+    ...LayerAndTrace,
+    KernelE2ETimeTable,
+    KernelDetails,
+    OperatorDetailView,
+    MemcpyOverallMetrics,
+    ...Ftrace,
+];

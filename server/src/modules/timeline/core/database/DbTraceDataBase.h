@@ -120,6 +120,8 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool QueryStepDuration(const std::string &stepId, uint64_t &min, uint64_t &max) override;
     bool QuerySystemViewData(const Protocol::SystemViewParams &requestParams, Protocol::SystemViewBody &responseBody,
         const uint64_t &minTimestamp) override;
+    bool QuerySystemViewTraceData(const Protocol::SystemViewParams &requestParams,
+        Protocol::SystemViewTraceBody &responseBody, const uint64_t &minTimestamp) override;
     bool QueryExpAnaAICoreFreqData(const Protocol::SystemViewAICoreFreqParams &requestParams,
         Protocol::ExpAnaAICoreFreqBody &responseBody, std::vector<std::pair<uint64_t, uint64_t>> &freqs,
         uint64_t &maxFreq, uint64_t &minFreq) override;

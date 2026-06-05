@@ -17,6 +17,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <algorithm>
 #include "TimelineProtocolRequest.h"
 #include "DataBaseManager.h"
 #include "../../TestSuit.h"
@@ -46,6 +47,137 @@ TEST_F(TestSuit, QuerySystemViewData) {
     database->QuerySystemViewData(requestParams, responseBody, minTimestamp);
     int expectSize = 10;
     EXPECT_EQ(responseBody.systemViewDetail.size(), expectSize);
+}
+
+TEST_F(TestSuit, QuerySystemViewTraceData) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::SystemViewParams requestParams;
+    Dic::Protocol::SystemViewTraceBody responseBody;
+    uint64_t PAGE = 10;
+    requestParams.rankId = "0";
+    requestParams.deviceId = "0";
+    requestParams.layer = "Python";
+    requestParams.current = 1;
+    requestParams.order = "descend";
+    requestParams.orderBy = "timestamp";
+    requestParams.pageSize = PAGE;
+    const uint64_t minTimestamp = 0;
+    database->QuerySystemViewTraceData(requestParams, responseBody, minTimestamp);
+    int expectSize = 10;
+    EXPECT_EQ(responseBody.systemViewDetail.size(), expectSize);
+    EXPECT_EQ(responseBody.pageSize, PAGE);
+    EXPECT_EQ(responseBody.currentPage, 1);
+}
+
+TEST_F(TestSuit, QuerySystemViewTraceDataWithHCCL) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::SystemViewParams requestParams;
+    Dic::Protocol::SystemViewTraceBody responseBody;
+    uint64_t PAGE = 5;
+    requestParams.rankId = "0";
+    requestParams.deviceId = "24";
+    requestParams.layer = "HCCL";
+    requestParams.current = 1;
+    requestParams.order = "ascend";
+    requestParams.orderBy = "timestamp";
+    requestParams.pageSize = PAGE;
+    const uint64_t minTimestamp = 0;
+    database->QuerySystemViewTraceData(requestParams, responseBody, minTimestamp);
+    EXPECT_EQ(responseBody.pageSize, PAGE);
+    EXPECT_EQ(responseBody.currentPage, 1);
+    EXPECT_EQ(responseBody.systemViewDetail.size(), PAGE);
+}
+
+TEST_F(TestSuit, QuerySystemViewTraceDataWithCommunication) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::SystemViewParams requestParams;
+    Dic::Protocol::SystemViewTraceBody responseBody;
+    uint64_t PAGE = 5;
+    requestParams.rankId = "0";
+    requestParams.deviceId = "24";
+    requestParams.layer = "COMMUNICATION";
+    requestParams.current = 1;
+    requestParams.order = "descend";
+    requestParams.orderBy = "duration";
+    requestParams.pageSize = PAGE;
+    const uint64_t minTimestamp = 0;
+    database->QuerySystemViewTraceData(requestParams, responseBody, minTimestamp);
+    EXPECT_EQ(responseBody.pageSize, PAGE);
+    EXPECT_EQ(responseBody.currentPage, 1);
+    EXPECT_EQ(responseBody.systemViewDetail.size(), PAGE);
+}
+
+TEST_F(TestSuit, QuerySystemViewTraceDataWithSearchName) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::SystemViewParams requestParams;
+    Dic::Protocol::SystemViewTraceBody responseBody;
+    uint64_t PAGE = 10;
+    requestParams.rankId = "0";
+    requestParams.deviceId = "0";
+    requestParams.layer = "Python";
+    requestParams.searchName = "aten";
+    requestParams.current = 1;
+    requestParams.order = "descend";
+    requestParams.orderBy = "timestamp";
+    requestParams.pageSize = PAGE;
+    const uint64_t minTimestamp = 0;
+    database->QuerySystemViewTraceData(requestParams, responseBody, minTimestamp);
+    EXPECT_EQ(responseBody.pageSize, PAGE);
+    EXPECT_EQ(responseBody.currentPage, 1);
+    for (const auto &detail : responseBody.systemViewDetail) {
+        std::string lowerName = detail.name;
+        std::transform(
+            lowerName.begin(), lowerName.end(), lowerName.begin(), [](unsigned char c) { return std::tolower(c); });
+        EXPECT_TRUE(lowerName.find("aten") != std::string::npos);
+    }
+}
+
+TEST_F(TestSuit, QuerySystemViewTraceDataWithTimeRange) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::SystemViewParams requestParams;
+    Dic::Protocol::SystemViewTraceBody responseBody;
+    uint64_t PAGE = 10;
+    requestParams.rankId = "0";
+    requestParams.deviceId = "0";
+    requestParams.layer = "Python";
+    requestParams.current = 1;
+    requestParams.order = "descend";
+    requestParams.orderBy = "timestamp";
+    requestParams.pageSize = PAGE;
+    requestParams.startTime = 100000;
+    requestParams.endTime = 500000;
+    const uint64_t minTimestamp = 0;
+    database->QuerySystemViewTraceData(requestParams, responseBody, minTimestamp);
+    EXPECT_EQ(responseBody.pageSize, PAGE);
+    EXPECT_EQ(responseBody.currentPage, 1);
+    for (const auto &detail : responseBody.systemViewDetail) {
+        EXPECT_GE(detail.startTime, requestParams.startTime);
+        EXPECT_LE(detail.startTime, requestParams.endTime);
+    }
+}
+
+TEST_F(TestSuit, QuerySystemViewTraceDataWithPagination) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::SystemViewParams requestParams;
+    Dic::Protocol::SystemViewTraceBody responseBody1;
+    Dic::Protocol::SystemViewTraceBody responseBody2;
+    uint64_t PAGE = 5;
+    requestParams.rankId = "0";
+    requestParams.deviceId = "0";
+    requestParams.layer = "Python";
+    requestParams.current = 1;
+    requestParams.order = "descend";
+    requestParams.orderBy = "timestamp";
+    requestParams.pageSize = PAGE;
+    const uint64_t minTimestamp = 0;
+    database->QuerySystemViewTraceData(requestParams, responseBody1, minTimestamp);
+    requestParams.current = 2;
+    database->QuerySystemViewTraceData(requestParams, responseBody2, minTimestamp);
+    EXPECT_EQ(responseBody1.pageSize, PAGE);
+    EXPECT_EQ(responseBody2.pageSize, PAGE);
+    EXPECT_EQ(responseBody1.currentPage, 1);
+    EXPECT_EQ(responseBody2.currentPage, 2);
+    EXPECT_EQ(responseBody1.systemViewDetail.size(), PAGE);
 }
 
 TEST_F(TestSuit, QuerySystemViewAICoreFreqData) {

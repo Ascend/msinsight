@@ -55,6 +55,7 @@
 #include "QuerySystemViewFtraceStatHandler.h"
 #include "QueryKernelE2ETimeHandler.h"
 #include "RankOffsetHandler.h"
+#include "QuerySystemViewTraceHandler.h"
 
 namespace Dic {
 namespace Module {
@@ -97,6 +98,7 @@ void TimelineModule::RegisterRequestHandlers() {
 
     requestHandlerMap.emplace(REQ_RES_UNIT_COUNTER, std::make_unique<QueryUnitCounterHandler>());
     requestHandlerMap.emplace(REQ_RES_UNIT_SYSTEM_VIEW, std::make_unique<QuerySystemViewHandler>());
+    requestHandlerMap.emplace(REQ_RES_UNIT_SYSTEM_VIEW_TRACE, std::make_unique<QuerySystemViewTraceHandler>());
     requestHandlerMap.emplace(REQ_RES_UNIT_KERNEL_DETAILS, std::make_unique<QueryKernelDetailHandler>());
     requestHandlerMap.emplace(REQ_RES_KERNEL_E2E_TIME, std::make_unique<QueryKernelE2ETimeHandler>());
     requestHandlerMap.emplace(REQ_RES_ONE_KERNEL_DETAILS, std::make_unique<QueryOneKernelHandler>());

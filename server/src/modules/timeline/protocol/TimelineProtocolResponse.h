@@ -355,6 +355,24 @@ struct SystemViewResponse : public Response {
     SystemViewBody body;
 };
 
+struct SystemViewTraceDetail {
+    std::string name;
+    uint64_t startTime = 0;
+    double duration = 0;
+};
+
+struct SystemViewTraceBody {
+    std::vector<SystemViewTraceDetail> systemViewDetail;
+    uint64_t total = 0;
+    uint64_t pageSize{};
+    uint64_t currentPage{};
+};
+
+struct SystemViewTraceResponse : public Response {
+    SystemViewTraceResponse() : Response(REQ_RES_UNIT_SYSTEM_VIEW_TRACE) {}
+    SystemViewTraceBody body;
+};
+
 struct SystemViewAICoreFreqDetail {
     double frequency; // 频率
     double timestamp; // 时间戳

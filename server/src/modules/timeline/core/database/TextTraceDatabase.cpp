@@ -1760,6 +1760,69 @@ bool TextTraceDatabase::QueryKernelDetailData(const Protocol::KernelDetailsParam
     return true;
 }
 
+bool TextTraceDatabase::QuerySystemViewTraceData(const Protocol::SystemViewParams &requestParams,
+    Protocol::SystemViewTraceBody &responseBody, const uint64_t &minTimestamp)
+{
+    std::string searchName = "%" + requestParams.searchName + "%";
+    std::string timeCondSql = TextSqlConstant::AppendTextTimeRangeConditionSql(requestParams.startTime, requestParams.endTime);
+    if (timeCondSql.empty()) {
+        timeCondSql = " AND 1=1 ";
+    }
+    if (!StringUtil::CheckSqlValid(requestParams.orderBy)) {
+        ServerLog::Error("Query system view trace data an SQL injection attack.");
+        return false;
+    }
+    std::vector<std::string> layers;
+    if (requestParams.layer == "HCCL" || requestParams.layer == "COMMUNICATION") {
+        layers = {"hccl", "communication"};
+    } else {
+        layers = {StringUtil::ToLower(requestParams.layer)};
+    }
+    std::string sql = TextSqlConstant::GetQueryPythonViewTraceDataSql(requestParams.order, requestParams.orderBy, layers, timeCondSql);
+    uint64_t offset = (requestParams.current - 1) * requestParams.pageSize;
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Error("Query system view trace data, fail to prepare sql.");
+        return false;
+    }
+    std::unique_ptr<SqliteResultSet> resultSet;
+    if (std::find(layers.begin(), layers.end(), "python") == layers.end()
+        && std::find(layers.begin(), layers.end(), "cann") == layers.end()) {
+        int deviceId = StringUtil::StringToInt(requestParams.deviceId);
+        if (requestParams.startTime == requestParams.endTime) {
+            resultSet = stmt->ExecuteQuery(minTimestamp, searchName, deviceId, requestParams.pageSize, offset);
+        } else {
+            resultSet = stmt->ExecuteQuery(minTimestamp, searchName, deviceId, requestParams.startTime + minTimestamp,
+                                           requestParams.endTime + minTimestamp, requestParams.pageSize, offset);
+        }
+    } else {
+        if (requestParams.startTime == requestParams.endTime) {
+            resultSet = stmt->ExecuteQuery(minTimestamp, searchName, requestParams.pageSize, offset);
+        } else {
+            resultSet = stmt->ExecuteQuery(minTimestamp, searchName, requestParams.startTime + minTimestamp,
+                                           requestParams.endTime + minTimestamp, requestParams.pageSize, offset);
+        }
+    }
+    if (resultSet == nullptr) {
+        ServerLog::Error("Query system view trace data. Failed to get result set.", stmt->GetErrorMessage());
+        return false;
+    }
+    while (resultSet->Next()) {
+        Protocol::SystemViewTraceDetail detail;
+        int col = resultStartIndex;
+        detail.name = resultSet->GetString(col++);
+        detail.startTime = resultSet->GetDouble(col++);
+        detail.duration = resultSet->GetDouble(col++);
+        if (responseBody.total == 0) {
+            responseBody.total = resultSet->GetUint64(col++);
+        }
+        responseBody.systemViewDetail.emplace_back(detail);
+    }
+    responseBody.pageSize = requestParams.pageSize;
+    responseBody.currentPage = requestParams.current;
+    return true;
+}
+
 bool TextTraceDatabase::QueryCommunicationKernelInfo(
     const std::string &name, const std::string &rankId, CommunicationKernelBody &body) {
     std::string sql = "SELECT id, track_id, timestamp FROM " + sliceTable + " WHERE name = ?";

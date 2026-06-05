@@ -268,6 +268,25 @@ TEST_F(ProtocolTest, ToSystemViewRequest) {
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
+TEST_F(ProtocolTest, ToSystemViewTraceRequest) {
+    const uint64_t tempId = 89;
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::document_t json(Dic::kObjectType);
+    auto &allocator = json.GetAllocator();
+    Dic::JsonUtil::AddMember(json, "type", "request", allocator);
+    Dic::JsonUtil::AddMember(json, "command", "unit/systemViewTrace", allocator);
+    timelineProtocol.FromJson(json, error);
+
+    Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
+    Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
+    Dic::JsonUtil::AddMember(json, "params", params, allocator);
+    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
+    EXPECT_EQ(id, tempId);
+}
+
 TEST_F(ProtocolTest, ToKernelDetailRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
@@ -424,6 +443,8 @@ TEST_F(ProtocolTest, ResponseToJson) {
         timelineProtocol.ToJson(response14, error);
         Dic::Protocol::SystemViewResponse response15;
         timelineProtocol.ToJson(response15, error);
+        Dic::Protocol::SystemViewTraceResponse response15b;
+        timelineProtocol.ToJson(response15b, error);
         Dic::Protocol::KernelDetailsResponse response16;
         timelineProtocol.ToJson(response16, error);
         Dic::Protocol::OneKernelResponse response17;

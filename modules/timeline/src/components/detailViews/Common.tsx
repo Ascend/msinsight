@@ -94,6 +94,11 @@ export const pythonApiSummaryColumns: ColumData[] = [
     { title: 'Max(us)', dataIndex: 'max', ...getDefaultColumData('max') },
 ];
 
+export const traceColumns: ColumData[] = [
+    { title: 'Start Time', dataIndex: 'startTimeLabel', ...getDefaultColumData('startTimeLabel') },
+    { title: 'Duration(us)', dataIndex: 'duration', ...getDefaultColumData('duration') },
+];
+
 export const ftraceTimeSummaryColumns: ColumData[] = [
     { title: 'process', dataIndex: 'process', ...getDefaultColumData('process', false) },
     { title: 'thread', dataIndex: 'thread', ...getDefaultColumData('thread', false) },
@@ -221,21 +226,36 @@ export interface SystemViewItem {
 }
 export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Overall Metrics', tips: 'OverallMetricsTips' },
+    { name: 'Python API Summary', tips: 'PythonAPISummaryTips' },
+    { name: 'Python API Trace', tips: 'PythonAPITraceTips' },
+    { name: 'CANN API Summary', tips: 'CANNAPISummaryTips' },
+    { name: 'CANN API Trace', tips: 'CANNAPITraceTips' },
+    { name: 'Ascend HardWare Task Summary', tips: 'AscendHardWareTaskSummaryTips' },
+    { name: 'Ascend HardWare Task Trace', tips: 'AscendHardWareTaskTraceTips' },
+    { name: 'Communication Summary', tips: 'CommunicationSummaryTips' },
+    { name: 'Communication Trace', tips: 'CommunicationTraceTips' },
+    { name: 'Overlap Analysis', tips: 'OverlapAnalysisTips' },
+    { name: 'Kernel E2E Time', tips: 'KernelE2ETimeTips' },
+    { name: 'Kernel Details', tips: 'KernelDetailsTips' },
+    { name: 'Operator Details', tips: 'OperatorDetailsTips' },
     { name: 'Memcpy Overall' },
     { name: 'Ftrace Time Consuming' },
     { name: 'Ftrace IRQ' },
     { name: 'Ftrace Sched' },
-    { name: 'Python API Summary', tips: 'PythonAPISummaryTips' },
-    { name: 'CANN API Summary', tips: 'CANNAPISummaryTips' },
-    { name: 'Ascend HardWare Task Summary', tips: 'AscendHardWareTaskSummaryTips' },
-    { name: 'Communication Summary', tips: 'CommunicationSummaryTips' },
-    { name: 'Overlap Analysis', tips: 'OverlapAnalysisTips' },
-    { name: 'Kernel E2E Time', tips: 'KernelE2ETimeTips' },
-    { name: 'Kernel Details', tips: 'KernelDetailsTips' },
 ];
 
-export const layerTypes: string[] = ['Python', 'CANN', 'Ascend Hardware', 'HCCL', 'Overlap Analysis'];
 export const ftraceTypes: string[] = ['Ftrace Time Consuming', 'Ftrace IRQ', 'Ftrace Sched'];
+export const summaryAndTraceTypes: Array<{type: string; isStats: boolean; isTrace: boolean;columns: ColumData[] }> = [
+    { type: 'Python', isStats: true, isTrace: false, columns: pythonApiSummaryColumns },
+    { type: 'Python', isStats: false, isTrace: true, columns: traceColumns },
+    { type: 'CANN', isStats: true, isTrace: false, columns: pythonApiSummaryColumns },
+    { type: 'CANN', isStats: false, isTrace: true, columns: traceColumns },
+    { type: 'Ascend Hardware', isStats: true, isTrace: false, columns: pythonApiSummaryColumns },
+    { type: 'Ascend Hardware', isStats: false, isTrace: true, columns: traceColumns },
+    { type: 'HCCL', isStats: true, isTrace: false, columns: pythonApiSummaryColumns },
+    { type: 'HCCL', isStats: false, isTrace: true, columns: traceColumns },
+    { type: 'Overlap Analysis', isStats: true, isTrace: false, columns: pythonApiSummaryColumns },
+];
 
 export interface IndexedSystemViewItem extends SystemViewItem {
     originIndex: number;
@@ -283,6 +303,13 @@ export const getPageData = (page: PageType, setPage: VoidFunction): object => {
         onChange: (current: number, pageSize: number): void => { setPage({ ...page, current, pageSize }); },
         showQuickJumper: page.total / (page.pageSize === 0 ? 1 : page.pageSize) > 5,
     };
+};
+
+export const querySystemViewTrace = async (param: {
+    rankId: string; dbPath: string; pageSize: number; current: number; orderBy: string; order: string;
+    startTime: number; endTime: number; layer: string; searchName: string;
+}): Promise<{ systemViewDetails: BaseSummaryRowItemType[] }> => {
+    return window.requestData('unit/systemViewTrace', param, 'timeline');
 };
 
 export const querySystemViewDetails = async (param: {
