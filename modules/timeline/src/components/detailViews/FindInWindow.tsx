@@ -226,9 +226,17 @@ const FindDetail = observer((props: FindDetailProps) => {
     }, [sorter, page.current, page.pageSize]);
 
     useEffect(() => {
-        setAllCondition({ ...allCondition, doContextSearch: props.session.doContextSearch, page: defaultPage, selectCard: props.card });
+        setNameFilter('');
+        setRowData({});
+        setAllCondition({
+            ...allCondition,
+            doContextSearch: props.session.doContextSearch,
+            page: defaultPage,
+            selectCard: props.card,
+            nameFilter: '',
+        });
         setPage(defaultPage);
-    }, [props.session.doContextSearch, props.card.cardId]);
+    }, [props.session.doContextSearch, props.card.cardId, props.card.dbPath, props.session.doReset]);
 
     useEffect(() => {
         setAllCondition({ ...allCondition, nameFilter, page: defaultPage });
@@ -283,6 +291,7 @@ const FindDetail = observer((props: FindDetailProps) => {
             rowClassName={(record: any): string => {
                 return record.id === rowData.id ? 'selected-row' : 'click-able';
             }}
+            key={`${props.card.cardId}-${props.card.dbPath}-${props.session.doReset}`}
             pagination={getPageData(page, setPage)}
             dataSource={dataSource}
             columns={columns}
