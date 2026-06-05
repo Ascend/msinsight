@@ -459,17 +459,18 @@ python trace_record.py --backend=debugfs --record_time=30 --cpu=0-15 --output=tr
 trace-cmd模式：
 
 ```bash
-python trace_convert.py --input=trace.dat --output=tracecmd.json --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
+python trace_convert.py --input=trace.dat --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
 ```
 
 tracefs/debugfs模式：
 
 ```bash
 # 需要显式指定--input。
-python trace_convert.py --input=trace.txt --output=debugfs.json --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
+python trace_convert.py --input=trace.txt --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
 ```
 
 > tracefs/debugfs模式的输出文件通常为`trace.txt`。若同目录下仍存在默认文件名`trace.dat`，且转换时未显式指定`--input=trace.txt`，`trace_convert.py`可能会按默认输入读取`trace.dat`，导致转换的不是本次tracefs/debugfs采集结果。
+> `trace_convert.py`默认导出DB格式，默认输出文件为`ftrace_data.db`。如需导出JSON格式，请同时指定`--format=json`并将`--output`设置为JSON文件路径，避免输出格式与文件后缀不一致。
 
 ### 3. 性能效率差异
 
