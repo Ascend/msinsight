@@ -992,6 +992,55 @@ std::string Database::BuildQueryOrderSql(const std::string &orderBy, bool desc) 
     return StringUtil::FormatString(" ORDER BY {} {} ", orderBy, desc ? "DESC" : "ASC");
 }
 
+void Database::SetAttr(const std::string &key, const std::string &value) {
+    if (key.empty()) {
+        ServerLog::Error("Database::SetAttr: key is empty.");
+        return;
+    }
+    std::lock_guard<std::recursive_mutex> lock(attrsMutex);
+    attrs[key] = value;
+}
+
+std::string Database::GetAttr(const std::string &key, const std::string &defaultValue) const {
+    if (key.empty()) {
+        return defaultValue;
+    }
+    std::lock_guard<std::recursive_mutex> lock(attrsMutex);
+    auto it = attrs.find(key);
+    return (it != attrs.end()) ? it->second : defaultValue;
+}
+
+bool Database::HasAttr(const std::string &key) const {
+    if (key.empty()) {
+        return false;
+    }
+    std::lock_guard<std::recursive_mutex> lock(attrsMutex);
+    return attrs.find(key) != attrs.end();
+}
+
+void Database::RemoveAttr(const std::string &key) {
+    if (key.empty()) {
+        return;
+    }
+    std::lock_guard<std::recursive_mutex> lock(attrsMutex);
+    attrs.erase(key);
+}
+
+const std::map<std::string, std::string> &Database::GetAllAttrs() const {
+    std::lock_guard<std::recursive_mutex> lock(attrsMutex);
+    return attrs;
+}
+
+void Database::SetAttrs(const std::map<std::string, std::string> &attrsMap) {
+    std::lock_guard<std::recursive_mutex> lock(attrsMutex);
+    for (const auto &[key, value] : attrsMap) {
+        if (key.empty()) {
+            continue;
+        }
+        attrs[key] = value;
+    }
+}
+
 void Database::CommonBindFiltersParams(
     const std::map<std::string, std::string> &filters, sqlite3_stmt *stmt, int &bindIdx) {
     for (auto &filterPair : filters) {

@@ -100,6 +100,46 @@ class Database {
     std::string QueryDatabaseVersion() const;
     static std::string GetCompileDataBaseVersion();
 
+    /**
+     * @brief 设置属性
+     * @param key 属性键
+     * @param value 属性值
+     */
+    void SetAttr(const std::string &key, const std::string &value);
+
+    /**
+     * @brief 获取属性
+     * @param key 属性键
+     * @param defaultValue 默认值（当属性不存在时返回）
+     * @return 属性值或默认值
+     */
+    std::string GetAttr(const std::string &key, const std::string &defaultValue = "") const;
+
+    /**
+     * @brief 检查属性是否存在
+     * @param key 属性键
+     * @return true-存在，false-不存在
+     */
+    bool HasAttr(const std::string &key) const;
+
+    /**
+     * @brief 移除属性
+     * @param key 属性键
+     */
+    void RemoveAttr(const std::string &key);
+
+    /**
+     * @brief 获取所有属性
+     * @return 属性集合的常量引用
+     */
+    const std::map<std::string, std::string> &GetAllAttrs() const;
+
+    /**
+     * @brief 批量设置属性
+     * @param attrsMap 属性键值对集合
+     */
+    void SetAttrs(const std::map<std::string, std::string> &attrsMap);
+
   protected:
     bool CheckTableContainData(const std::string &tableName);
     virtual bool SetConfig();
@@ -121,6 +161,16 @@ class Database {
     std::string metaVersion;
     const std::string metaDataTable = "META_DATA";
     std::unordered_map<std::string, std::string> rankToDeviceMap;
+
+    /**
+     * @brief 数据库属性集合，用于存储数据库类型、子类型、来源等特征信息
+     */
+    std::map<std::string, std::string> attrs;
+
+    /**
+     * @brief attrs 属性的互斥锁，用于保证线程安全
+     */
+    mutable std::recursive_mutex attrsMutex;
 
     std::string GetValueFromMetaDataTable(const std::string &name);
     bool CreateStatusInfoTable(); // 创建表时未加锁，需要在调用处加锁

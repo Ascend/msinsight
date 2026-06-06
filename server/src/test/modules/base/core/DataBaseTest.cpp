@@ -429,3 +429,291 @@ TEST_F(DataBaseTest, TestQueryTranslateAbnormal) {
     const uint64_t expectSize = 0;
     EXPECT_EQ(cols.size(), expectSize);
 }
+
+/**
+ * 设置属性，正常情况
+ * 验证：SetAttr后通过GetAttr能获取到设置的值
+ */
+TEST_F(DataBaseTest, TestSetAttrNormalExpectGetValue) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 设置属性
+    database.SetAttr("db.type", "sqlite");
+    database.SetAttr("db.subtype", "cluster");
+
+    // 验证属性值
+    EXPECT_EQ(database.GetAttr("db.type"), "sqlite");
+    EXPECT_EQ(database.GetAttr("db.subtype"), "cluster");
+}
+
+/**
+ * 获取存在的属性，验证返回正确值
+ */
+TEST_F(DataBaseTest, TestGetAttrWhenExistExpectReturnValue) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 预先设置属性
+    database.SetAttr("db.version", "1.0.0");
+    database.SetAttr("db.source", "file");
+
+    // 获取存在的属性
+    EXPECT_EQ(database.GetAttr("db.version"), "1.0.0");
+    EXPECT_EQ(database.GetAttr("db.source"), "file");
+}
+
+/**
+ * 获取不存在的属性，验证返回默认值
+ */
+TEST_F(DataBaseTest, TestGetAttrWhenNotExistExpectReturnDefault) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 未设置任何属性
+    // 获取不存在的属性，验证返回空字符串（默认值）
+    EXPECT_EQ(database.GetAttr("nonexistent_key"), "");
+
+    // 获取不存在的属性，验证返回指定的默认值
+    EXPECT_EQ(database.GetAttr("nonexistent_key", "default_value"), "default_value");
+}
+
+/**
+ * 检查属性存在，验证返回true
+ */
+TEST_F(DataBaseTest, TestHasAttrWhenExistExpectReturnTrue) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 设置属性
+    database.SetAttr("db.type", "text");
+
+    // 检查存在的属性
+    EXPECT_TRUE(database.HasAttr("db.type"));
+}
+
+/**
+ * 检查属性不存在，验证返回false
+ */
+TEST_F(DataBaseTest, TestHasAttrWhenNotExistExpectReturnFalse) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 未设置任何属性
+    // 检查不存在的属性
+    EXPECT_FALSE(database.HasAttr("nonexistent_key"));
+
+    // 设置一个属性，检查另一个不存在的属性
+    database.SetAttr("db.type", "sqlite");
+    EXPECT_FALSE(database.HasAttr("db.subtype"));
+}
+
+/**
+ * 移除存在的属性，验证移除成功
+ */
+TEST_F(DataBaseTest, TestRemoveAttrWhenExistExpectRemoveSuccess) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 设置多个属性
+    database.SetAttr("db.type", "sqlite");
+    database.SetAttr("db.subtype", "trace");
+    database.SetAttr("db.version", "2.0.0");
+
+    // 验证属性存在
+    EXPECT_TRUE(database.HasAttr("db.type"));
+    EXPECT_TRUE(database.HasAttr("db.subtype"));
+
+    // 移除一个属性
+    database.RemoveAttr("db.subtype");
+
+    // 验证移除成功
+    EXPECT_TRUE(database.HasAttr("db.type"));
+    EXPECT_FALSE(database.HasAttr("db.subtype"));
+    EXPECT_EQ(database.GetAttr("db.subtype"), "");
+
+    // 验证其他属性不受影响
+    EXPECT_TRUE(database.HasAttr("db.version"));
+    EXPECT_EQ(database.GetAttr("db.version"), "2.0.0");
+}
+
+/**
+ * 移除不存在的属性，验证不报错
+ */
+TEST_F(DataBaseTest, TestRemoveAttrWhenNotExistExpectNoError) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 未设置任何属性
+    // 移除不存在的属性，应不报错
+    EXPECT_NO_THROW(database.RemoveAttr("nonexistent_key"));
+
+    // 设置一个属性后，移除另一个不存在的属性
+    database.SetAttr("db.type", "sqlite");
+    EXPECT_NO_THROW(database.RemoveAttr("nonexistent_key"));
+}
+
+/**
+ * 获取所有属性，验证返回完整的属性集合
+ */
+TEST_F(DataBaseTest, TestGetAllAttrsExpectReturnAllAttributes) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 初始状态：无属性
+    auto attrs = database.GetAllAttrs();
+    EXPECT_EQ(attrs.size(), 0);
+
+    // 设置属性
+    database.SetAttr("db.type", "virtual");
+    database.SetAttr("db.subtype", "memory");
+    database.SetAttr("db.rank_count", "8");
+
+    // 验证所有属性都被正确存储
+    attrs = database.GetAllAttrs();
+    EXPECT_EQ(attrs.size(), 3);
+    EXPECT_EQ(attrs.at("db.type"), "virtual");
+    EXPECT_EQ(attrs.at("db.subtype"), "memory");
+    EXPECT_EQ(attrs.at("db.rank_count"), "8");
+}
+
+/**
+ * 覆盖已存在的属性，验证新值生效
+ */
+TEST_F(DataBaseTest, TestSetAttrOverwriteExpectNewValue) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 设置属性
+    database.SetAttr("db.type", "text");
+    EXPECT_EQ(database.GetAttr("db.type"), "text");
+
+    // 覆盖属性
+    database.SetAttr("db.type", "sqlite");
+    EXPECT_EQ(database.GetAttr("db.type"), "sqlite");
+
+    // 再次覆盖
+    database.SetAttr("db.type", "virtual");
+    EXPECT_EQ(database.GetAttr("db.type"), "virtual");
+}
+
+/**
+ * 空字符串键值处理，验证能正常存储
+ */
+TEST_F(DataBaseTest, TestSetAttrWithEmptyStringExpectStoreSuccess) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    // 设置空键（边界情况）
+    database.SetAttr("", "value");
+    EXPECT_FALSE(database.HasAttr(""));
+    EXPECT_EQ(database.GetAttr(""), "");
+
+    // 设置空值
+    database.SetAttr("db.empty", "");
+    EXPECT_TRUE(database.HasAttr("db.empty"));
+    EXPECT_EQ(database.GetAttr("db.empty"), "");
+
+    // 设置空键空值
+    database.SetAttr("", "");
+    EXPECT_FALSE(database.HasAttr(""));
+    EXPECT_EQ(database.GetAttr(""), "");
+}
+
+/**
+ * 批量设置属性（使用map），验证所有属性都能正确设置
+ */
+TEST_F(DataBaseTest, TestSetAttrsWithMapExpectAllSetSuccess) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    std::map<std::string, std::string> attrsMap = {
+        {"db.type", "sqlite"}, {"db.subtype", "cluster"}, {"db.source", "db"}, {"db.version", "1.0.0"}};
+
+    database.SetAttrs(attrsMap);
+
+    EXPECT_TRUE(database.HasAttr("db.type"));
+    EXPECT_EQ(database.GetAttr("db.type"), "sqlite");
+    EXPECT_TRUE(database.HasAttr("db.subtype"));
+    EXPECT_EQ(database.GetAttr("db.subtype"), "cluster");
+    EXPECT_TRUE(database.HasAttr("db.source"));
+    EXPECT_EQ(database.GetAttr("db.source"), "db");
+    EXPECT_TRUE(database.HasAttr("db.version"));
+    EXPECT_EQ(database.GetAttr("db.version"), "1.0.0");
+}
+
+/**
+ * 批量设置属性覆盖已有属性，验证新值生效
+ */
+TEST_F(DataBaseTest, TestSetAttrsOverwriteExistingExpectNewValues) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    database.SetAttr("db.type", "sqlite");
+    database.SetAttr("db.version", "1.0.0");
+    EXPECT_EQ(database.GetAttr("db.type"), "sqlite");
+    EXPECT_EQ(database.GetAttr("db.version"), "1.0.0");
+
+    std::map<std::string, std::string> newAttrs = {
+        {"db.type", "virtual"}, {"db.version", "2.0.0"}, {"db.source", "api"}};
+
+    database.SetAttrs(newAttrs);
+
+    EXPECT_EQ(database.GetAttr("db.type"), "virtual");
+    EXPECT_EQ(database.GetAttr("db.version"), "2.0.0");
+    EXPECT_EQ(database.GetAttr("db.source"), "api");
+}
+
+/**
+ * 批量设置空map，验证不报错且无副作用
+ */
+TEST_F(DataBaseTest, TestSetAttrsWithEmptyMapExpectNoError) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    database.SetAttr("db.type", "sqlite");
+    EXPECT_TRUE(database.HasAttr("db.type"));
+
+    std::map<std::string, std::string> emptyMap;
+    EXPECT_NO_THROW(database.SetAttrs(emptyMap));
+
+    EXPECT_TRUE(database.HasAttr("db.type"));
+    EXPECT_EQ(database.GetAttr("db.type"), "sqlite");
+}
+
+/**
+ * 批量设置属性包含空字符串键值，验证能正常处理
+ */
+TEST_F(DataBaseTest, TestSetAttrsWithEmptyStringsExpectStoreSuccess) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    std::map<std::string, std::string> attrsMap = {{"", "empty_key_value"}, {"db.empty_value", ""}, {"", ""}};
+
+    database.SetAttrs(attrsMap);
+
+    EXPECT_FALSE(database.HasAttr(""));
+    EXPECT_EQ(database.GetAttr(""), "");
+    EXPECT_TRUE(database.HasAttr("db.empty_value"));
+    EXPECT_EQ(database.GetAttr("db.empty_value"), "");
+}
+
+/**
+ * 批量设置属性与单个设置混合使用，验证行为正确
+ */
+TEST_F(DataBaseTest, TestSetAttrsMixedWithSingleSetExpectCorrect) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+
+    database.SetAttr("db.type", "sqlite");
+
+    std::map<std::string, std::string> attrsMap = {{"db.subtype", "cluster"}, {"db.version", "1.0.0"}};
+    database.SetAttrs(attrsMap);
+
+    database.SetAttr("db.source", "db");
+
+    EXPECT_EQ(database.GetAttr("db.type"), "sqlite");
+    EXPECT_EQ(database.GetAttr("db.subtype"), "cluster");
+    EXPECT_EQ(database.GetAttr("db.version"), "1.0.0");
+    EXPECT_EQ(database.GetAttr("db.source"), "db");
+}
