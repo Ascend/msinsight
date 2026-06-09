@@ -4,10 +4,11 @@
 :maxdepth: 2
 :caption: 开始使用
 :hidden:
+
 简介 <zh/user_guide/overview>
-安装指南 <zh/user_guide/mindstudio_insight_install_guide>
-常见问题 <zh/user_guide/FAQ.md>
-安全声明 <zh/user_guide/security_statement>
+安装指南 <zh/install_guide/mindstudio_insight_install_guide>
+常见问题 <zh/support/faq>
+安全声明 <zh/legal/security_statement>
 ```
 
 ```{toctree}
@@ -27,7 +28,7 @@
 :caption: 开发者指南
 :hidden:
 
-开发指南 <zh/developer_guide/development_guide>
+开发指南 <zh/development_guide/develop_guide>
 ```
 
 ```{toctree}
@@ -36,8 +37,7 @@
 :hidden:
 :glob:
 
-wiki/FAQ/*
-wiki/Issue_Feedback/*
+zh/support/issue_feedback/*
 ```
 
 ```{toctree}
@@ -46,5 +46,5 @@ wiki/Issue_Feedback/*
 :hidden:
 :glob:
 
-wiki/Case_Studies/*
+zh/best_practices/*
 ```

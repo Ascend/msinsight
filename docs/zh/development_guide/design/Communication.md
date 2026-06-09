@@ -1,4 +1,4 @@
-# Communication部分设计文档 
+# Communication部分设计文档
 
 ## 接口与数据映射关系
 

@@ -28,7 +28,7 @@
 
 #### Json 文件
 
-文件格式：*.json 
+文件格式：*.json
 判断逻辑：json文件中在第一个数组开始前，包含“profilingType”和“op“
 内容格式：traceEvents， 等同timeline的json文件
 内容示例：
@@ -64,27 +64,27 @@
 内容格式：
 算子bin文件采用二进制格式，每个数据单元形如：
 ![compute_bin](./figures/compute_bin.png)
- 
+
 visualize_data.bin中各个数据块数据类型分配原则：
 **后续按照每个组件一次性分配16个位置，防止不同组件开发冲突。**
- 
+
 | 数据块编码 |数据块内容 |
 |---|---|
-|0x00 |数据块无效|  
-|0x01 |代码文件 | 
+|0x00 |数据块无效|
+|0x01 |代码文件 |
 |0x02 |流水图tracing.json。  |
-|0x03 |热点图映射文件api.json的files部分。|  
-|0x04 |热点图映射文件api.json的instructions部分。|  
+|0x03 |热点图映射文件api.json的files部分。|
+|0x04 |热点图映射文件api.json的instructions部分。|
 |0x05 |基本信息  |
 |0x06 |计算负载图  |
-|0x07 |计算负载表格。|  
-|0x08 |访存热力图。 | 
+|0x07 |计算负载表格。|
+|0x08 |访存热力图。 |
 |0x09 |访存表格。  |
 |0x0A |内存读写时序图(TraceKit)。  |
 |0x0B |L2Cache图(TraceKit)。  |
 |0x0C |核间负载。  |
 |0x0D |roofline模型。  |
- 
+
 JSON部分数据内容示例：
 0x01 代码文件:
 功能页面：
@@ -104,7 +104,7 @@ JSON部分数据内容示例：
 ```C++
 # include "kernel_operator.h"\n# include "lib/matmul_intf.h"\n\nusing namespace ...
 ```
- 
+
 0x03 源码行信息
 功能页面：
  ![compute_source](./figures/compute_source.png)
@@ -224,7 +224,7 @@ JSON部分数据内容示例：
     "displayTimeUnit": "ns",
     "schemaVersion": 1,
     "traceEvents": [
-  {    
+  {
    "args": {
                 "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
@@ -238,7 +238,7 @@ JSON部分数据内容示例：
             "tid": "process_block0",
             "ts": 1
         },
-        {    
+        {
    "args": {
                 "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
@@ -252,7 +252,7 @@ JSON部分数据内容示例：
             "tid": "process_block0",
             "ts": 2
         },
-  {    
+  {
    "args": {
                 "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
@@ -271,7 +271,7 @@ JSON部分数据内容示例：
 ```
 
 注：数据来源为tracing.json，满足Trace Event Format格式要求
- 
+
 0x05 算子基本信息
 
 功能页面：
@@ -301,7 +301,7 @@ JSON部分数据内容示例：
     ],
     "mix_block_detail": [ // 当op_type == mix时，有效
         {
-            "block_id": uint16,  // block 序号                 
+            "block_id": uint16,  // block 序号
             "duration": [float32, float32, float32], //sub block耗时，依次表示: aic, aiv0, aiv1
         }
     ],
@@ -312,7 +312,7 @@ JSON部分数据内容示例：
 ```
 
 注意，block_detail和mix_block_detail字段只会有一个有效。block_detail和mix_block_detail均为列表，包含0~N个dict/map
- 
+
 0x06 计算负载图
 
 功能页面：
@@ -360,7 +360,7 @@ JSON部分数据内容示例：
             "name": string,     // 计算负载数据名
             "unit": enum,       // 数据单位：us, instructions, 数据量(Byte)
             "value": float32,   // 数值
-            "origin_value": float32   // 数值 
+            "origin_value": float32   // 数值
         }
     ],
     "advice": [ // 建议，目前为空，预留
@@ -368,7 +368,7 @@ JSON部分数据内容示例：
     ]
 }
 ```
- 
+
 0x08 访存热力图
 
 功能页面：
@@ -401,7 +401,7 @@ JSON部分数据内容示例：
                 "miss": uint64,             // 未命中cache次数
                 "total_request": uint64,    // cache请求总次数
                 "hit_ratio": int8,          // 命中率：-1代表数据无效
-            ], 
+            ],
             "Cube": {
                 "ratio": float32,
                 "cycle": uint64,
@@ -429,7 +429,7 @@ JSON部分数据内容示例：
 
 功能页面：
  ![compute_heat_table](./figures/compute_heat_table.png)
- 
+
 二进制结构：
  ![compute_heat_table_binary](./figures/compute_heat_table_binary.png)
 
@@ -563,7 +563,7 @@ TraceRecord结构体字段含义说明：
         "StartFileName": "/tmp/test.cpp",
         "StartLine": 14
       }
-    ] 
+    ]
   }
 ]
 ```
@@ -575,7 +575,7 @@ TraceRecord结构体字段含义说明：
 
 二进制结构：
  ![compute_L2Cache_binary](./figures/compute_L2Cache_binary.png)
- 
+
 数据块内容：
 Cache信息记录结构体设计：
 
@@ -603,7 +603,7 @@ struct CacheRecord {
 |allocate |当前cache set因未命中导致的分配总次数|
 |evictAndWrite |当前cache set换出cacheline并写回L2的总次数|
 |evictWithoutWrite |当前cache set换出cacheline并不写回的总次数|
- 
+
 命中率计算公式：各维度次数 / (loadCount + storeCount)
 
 0x0C 核间负载
@@ -670,13 +670,13 @@ struct CacheRecord {
       "title": "Memory Unit",             // 图表标题
       "rooflines": [
         {
-          "bw": float,                   // 理论带宽 
+          "bw": float,                   // 理论带宽
           "computility": float,            // 屋顶算力
           "computility_name": str,       // 算力名称
           "point": [float, float]          // 对应坐标点
         },
         {
-          "bw": float,                      
+          "bw": float,
           "computility": float,
           "computility_name": str,
           "point": [float, float]
@@ -686,7 +686,7 @@ struct CacheRecord {
   ]
 }
 ```
- 
+
 ### 时间线视图接口
 
 # 接口列表总览
@@ -1008,7 +1008,7 @@ struct CacheRecord {
     "displayTimeUnit": "ns",
     "schemaVersion": 1,
     "traceEvents": [
-  {    
+  {
    "args": {
                 "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
@@ -1022,7 +1022,7 @@ struct CacheRecord {
             "tid": "process_block0",
             "ts": 1
         },
-        {    
+        {
    "args": {
                 "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
@@ -1036,7 +1036,7 @@ struct CacheRecord {
             "tid": "process_block0",
             "ts": 2
         },
-  {    
+  {
    "args": {
                 "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
@@ -1628,7 +1628,7 @@ json格式说明：
     ],
     "mix_block_detail": [ // 当op_type == mix时，有效
         {
-            "block_id": uint16,  // block 序号                 
+            "block_id": uint16,  // block 序号
             "duration": [float32, float32, float32], //sub block耗时，依次表示: aic, aiv0, aiv1
         }
     ],
@@ -1725,7 +1725,7 @@ Json结构说明
                 "miss": uint64,             // 未命中cache次数
                 "total_request": uint64,    // cache请求总次数
                 "hit_ratio": int8,          // 命中率：-1代表数据无效
-            ], 
+            ],
             "advice": [ // 建议
                 string, string, ...
             ]
@@ -1864,7 +1864,7 @@ TraceRecord结构体字段含义说明：
         "StartFileName": "/tmp/test.cpp",
         "StartLine": 14
       }
-    ] 
+    ]
   }
 ]
 ```

@@ -46,8 +46,8 @@
 
 ## 数据安全声明
 
-MindStudio Insight支持导入各类（包括但不限于pytorch memory snapshot、pytorch 
-profiler、msprof、memscope、msServiceProfiler等调优工具采集的，详情参考[overview](./overview.md)）调优数据，在导入前请自行确保数据来源可信及环境安全。
+MindStudio Insight支持导入各类（包括但不限于pytorch memory snapshot、pytorch
+profiler、msprof、memscope、msServiceProfiler等调优工具采集的，详情参考[overview](../user_guide/overview.md)）调优数据，在导入前请自行确保数据来源可信及环境安全。
 
 ## 运行安全声明
 

@@ -66,15 +66,15 @@ Linux 内核内置了多种跟踪(trace)工具，其中 ftrace 作为从 2.6.27 
   Ubuntu安装命令：`sudo apt-get install trace-cmd`
   CentOs安装命令：`sudo yum install trace-cmd`
 + 获取MindStudio Insight提供的采集脚本trace_record.py(见附件)，推荐profiling和ftrace数据同步采集
-  
+
 #### 非侵入式采集
-  
+
   这种方式不需要修改现有代码，将trace_record.py脚本作为整体使用。优点在于无需修改代码，快速上手，但是同时灵活性较低。
   作为整体脚本使用时提供以下参数：
-  
+
   ```bash
   usage: trace_record.py [-h] [--cpu CPU] [--output OUTPUT] --record_time RECORD_TIME
-  
+
   options:
     -h, --help            show this help message and exit
     --cpu CPU
@@ -82,13 +82,13 @@ Linux 内核内置了多种跟踪(trace)工具，其中 ftrace 作为从 2.6.27 
     --record_time RECORD_TIME
                           record time, if pass <=0 will start long term record that user should attention the disk space
   ```
-  
+
   + cpu: cpu_mask列表，多个cpu使用逗号分割，例如采集0，1，4则传入--cpu=0,1,4
   + output: 输出的文件名
   + record_time：采集的时间，单位秒。如果传递小于等于0的数字，则会持续采集，直到使用ctrl-c终止进程
-  
+
   Example:
-  
+
   1. 在终端中启动训练脚本`python train.py`
   2. 同时在另一终端中启动采集脚本，采集60s，`python trace_record.py --record_time=60`
 
@@ -161,7 +161,7 @@ Example:
 
 1. 在MindStudio Insight中导入profiling数据
 2. 在工程管理中向当前工程添加转换后的结果文件，就可以得到两种数据并存的流水图
-   
+
    ![image](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/import-profiling-and-ftrace.png)
 3. 查看CPU侧调度情况， 查看CPU Proscheduling泳道
 
