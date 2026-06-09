@@ -1,0 +1,148 @@
+# syntax=docker/dockerfile:1
+
+# ============================================================
+# MindStudio Insight -- Minimal Single-Container Image
+# Base: ubuntu:22.04
+# ============================================================
+
+ARG VERSION=26.1.0
+ARG TAG=26.1.0
+
+# ============================================================
+# Stage 1: Download & extract (discarded after copy)
+# ============================================================
+FROM ubuntu:22.04 AS downloader
+
+# Replace Ubuntu sources with Aliyun mirror (handle both old and new formats)
+RUN sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g; s|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+        sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g; s|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+    fi || true
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        wget ca-certificates unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+ARG TARGETARCH
+ARG VERSION
+ARG TAG
+
+WORKDIR /downloads
+
+RUN set -ex; \
+    if [ "$TARGETARCH" = "arm64" ]; then \
+        INSIGHT_ARCH="aarch64"; \
+    elif [ "$TARGETARCH" = "amd64" ]; then \
+        INSIGHT_ARCH="x86_64"; \
+    else \
+        echo "ERROR: Unsupported architecture '$TARGETARCH'. Only amd64 and arm64 are supported." >&2; \
+        exit 1; \
+    fi; \
+    echo "Architecture: $TARGETARCH"; \
+    echo "Version:      $VERSION"; \
+    echo "Tag:          $TAG"; \
+    INSIGHT_URL="https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_${TAG}/MindStudio-Insight_${VERSION}_linux_${INSIGHT_ARCH}.zip"; \
+    echo "Download URL: $INSIGHT_URL"; \
+    wget -q -O insight-package.zip "${INSIGHT_URL}"; \
+    wget -q -O insight-package.zip.sha256 "${INSIGHT_URL}.sha256"; \
+    EXPECTED_HASH=$(awk '{print $1}' insight-package.zip.sha256); \
+    ACTUAL_HASH=$(sha256sum insight-package.zip | awk '{print $1}'); \
+    if [ "$EXPECTED_HASH" != "$ACTUAL_HASH" ]; then \
+        echo "ERROR: SHA256 mismatch!" >&2; \
+        echo "  Expected: $EXPECTED_HASH" >&2; \
+        echo "  Actual:   $ACTUAL_HASH" >&2; \
+        exit 1; \
+    fi; \
+    echo "SHA256 verified: $ACTUAL_HASH"; \
+    rm -f insight-package.zip.sha256; \
+    unzip -q insight-package.zip; \
+    rm -f insight-package.zip
+
+# ============================================================
+# Stage 2: Minimal runtime image
+# ============================================================
+FROM ubuntu:22.04 AS runtime
+
+ARG VERSION
+ARG TAG
+ARG TARGETARCH
+
+ENV ASCEND_SOFTWARE_VERSION=${VERSION}
+
+LABEL org.opencontainers.image.title="MindStudio Insight" \
+      org.opencontainers.image.description="All-scenario Ascend AI visualization profiling tool" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.vendor="Ascend/MindStudio" \
+      org.opencontainers.image.authors="MindStudio Team" \
+      org.opencontainers.image.source="https://gitcode.com/Ascend/msinsight" \
+      org.opencontainers.image.url="https://www.hiascend.com/developer/ascendhub" \
+      org.opencontainers.image.licenses="MulanPSL2" \
+      org.opencontainers.image.ref.name="MindStudio_${TAG}" \
+      org.opencontainers.image.architecture="${TARGETARCH}"
+
+# ---- Replace Debian sources with Aliyun mirror ----
+RUN sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g; s|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true; \
+    if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+        sed -i 's|archive.ubuntu.com|mirrors.aliyun.com|g; s|security.ubuntu.com|mirrors.aliyun.com|g' /etc/apt/sources.list.d/ubuntu.sources; \
+    fi || true
+
+# ---- Install only runtime dependencies ----
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        nginx-light \
+        supervisor \
+        curl \
+        openssl \
+        lsof \
+        python3 \
+        python3-pip \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /usr/share/doc /usr/share/man /usr/share/locale \
+    && apt-get clean
+
+# ---- Create application directories ----
+RUN mkdir -p /opt/insight/backend /opt/insight/python-scripts /opt/insight/data \
+    /var/log/supervisor /etc/nginx/templates
+
+# ---- Copy artifacts from Stage 1 ----
+# Zip structure after unzip:
+#   resources/profiler/frontend/  -> nginx static files
+#   resources/profiler/server/    -> C++ binary (profiler_server) + libs
+#   resources/profiler/scripts/   -> Python scripts + requirements.txt
+COPY --from=downloader /downloads/resources/profiler/frontend/ /usr/share/nginx/html/
+COPY --from=downloader /downloads/resources/profiler/server/  /opt/insight/backend/
+COPY --from=downloader /downloads/resources/profiler/scripts/ /opt/insight/python-scripts/
+
+# ---- Fix permissions (zip may strip world-readable bits) ----
+RUN chmod -R o+rX /usr/share/nginx/html/
+
+# ---- Make backend binary executable ----
+RUN chmod +x /opt/insight/backend/profiler_server 2>/dev/null || true
+
+# ---- Copy local configuration files ----
+COPY nginx.conf       /etc/nginx/templates/nginx.conf
+COPY nginx-http.conf  /etc/nginx/templates/nginx-http.conf
+COPY ws-map.conf      /etc/nginx/conf.d/ws-map.conf
+COPY supervisord.conf /etc/supervisor/conf.d/insight.conf
+COPY entrypoint.sh    /entrypoint.sh
+COPY requirements.txt /opt/insight/python-scripts/requirements.txt
+
+RUN rm -f /etc/nginx/sites-enabled/default \
+    && chmod +x /entrypoint.sh
+
+# ---- Install Python dependencies ----
+RUN pip3 install --no-cache-dir --index-url https://mirrors.aliyun.com/pypi/simple/ -r /opt/insight/python-scripts/requirements.txt
+
+# ---- Expose HTTPS and HTTP ports ----
+EXPOSE 443
+EXPOSE 80
+
+# ---- Health check ----
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD (curl -sf http://127.0.0.1:8080/health || curl -sf http://127.0.0.1:80/health) \
+        && pgrep -x profiler_server >/dev/null \
+        && lsof -Pan -iTCP:9000 -sTCP:LISTEN >/dev/null \
+        || exit 1
+
+# ---- Entrypoint ----
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/usr/bin/supervisord", "-n", "-c", "/etc/supervisor/supervisord.conf"]

@@ -40,9 +40,9 @@ repos:
       - id: codespell
         args: [
           "-L",
-          "CANN,cann,NNAL,nnal,ASCEND,ascend,EnQue,CopyIn,ArchType,AND,ND,tbe,copyin,alog",
+          "CANN,cann,NNAL,nnal,ASCEND,ascend,EnQue,CopyIn,ArchType,AND,ND,tbe,copyin,alog,aNULL",
           "--skip",
-          "*.py,*.cpp,*.hpp,*.c,*.h,*.toml,*.ts,*.tsx,*.js,*.mjs,*.css,*.scss,*.json,*.glsl,modules/pnpm-lock.yaml",
+          "*.py,*.cpp,*.hpp,*.c,*.h,*.toml,*.ts,*.tsx,*.js,*.mjs,*.css,*.scss,*.json,*.glsl,modules/pnpm-lock.yaml,docker/nginx.conf",
         ]
 
   # pylint：指定 pre-commit/pyproject.toml

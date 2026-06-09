@@ -1,0 +1,18 @@
+# Local build artifacts (all components downloaded via wget in Dockerfile)
+*.tar.gz
+*.zip
+dist/
+build/
+__pycache__/
+*.pyc
+
+# Docker
+.dockerignore
+
+# IDE
+.vscode/
+.idea/
+
+# Git
+.git/
+.gitignore

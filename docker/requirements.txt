@@ -1,0 +1,13 @@
+click
+xlsxwriter>=3.0.6
+numpy<=1.26.4
+tabulate
+networkx
+jinja2
+PyYaml
+tqdm
+prettytable
+ijson
+sqlalchemy
+pandas<=2.3.2
+psutil
