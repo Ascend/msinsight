@@ -48,10 +48,7 @@ const lockSelectionArea = (session: Session): void => {
 
 const unlockSelectionArea = (session: Session): void => {
     runInAction(() => {
-        session.selectedRangeIsLock = false;
-        session.lockUnitCount = 0;
-        session.lockRange = undefined;
-        session.lockUnit = [];
+        session.clearSelectionLock();
     });
 };
 
