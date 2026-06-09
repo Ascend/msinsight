@@ -30,7 +30,8 @@ const getParamMap = (): Map<string, string> => {
         });
     }
     if (!paramMap.has('port')) {
-        paramMap.set('port', '9000');
+        const useProxy = paramMap.get('proxy') === 'true';
+        paramMap.set('port', useProxy ? (window.location.port || (window.location.protocol === 'https:' ? '443' : '80')) : '9000');
     }
     return paramMap;
 };
