@@ -30,7 +30,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 **导入 `msprof-op/details/visualize_data.bin` 上板数据文件，切换到 Details（详情）页签。**
 
-![base info question](../figures/quick_start/operator_quick_start_base_info.png)
+![base info question](./figures/quick_start/operator_quick_start_base_info.png)
 
 在基础信息部分，发现算子用时 __90+μs__。
 
@@ -38,7 +38,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 根据先验知识，在 Ascend 910 上计算 FP16 的小矩阵（`1024×1024×1024`），`matmul_leakyrelu` 算子的预期用时应该在 16-30μs 之间。因此可以判断这个算子性能不是最优状态，有优化空间。
 
-![pipe cube scalar high](../figures/quick_start/operator_quick_start_pipe_cube_scalar.png)
+![pipe cube scalar high](./figures/quick_start/operator_quick_start_pipe_cube_scalar.png)
 
 在内存负载分析部分，查看流水情况，发现 Cube 的流水中 Scalar 活跃度很高。这表明算子中标量计算发生次数高，有优化空间。
 
@@ -48,21 +48,21 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 
 **导入 `msprof-op-simulator/visualize_data.bin` 仿真板数据文件，切换到 Timeline（时间线）页签。**
 
-![timeline scalar unit](../figures/quick_start/operator_quick_start_timeline_scalar_unit.png)
+![timeline scalar unit](./figures/quick_start/operator_quick_start_timeline_scalar_unit.png)
 
 在 Timeline（时间线）页签查看算子运行过程的行为。发现 Scalar 泳道中的行为很多，符合得到的初步结论。
 
 **鼠标框选 Scalar 泳道，挑选发生次数最多的行为，查看是哪段代码导致的。**
 
-![find max behavior](../figures/quick_start/operator_quick_start_find_max_behavior.gif)
+![find max behavior](./figures/quick_start/operator_quick_start_find_max_behavior.gif)
 
-![detail code position](../figures/quick_start/operator_quick_start_detail_code_position.png)
+![detail code position](./figures/quick_start/operator_quick_start_detail_code_position.png)
 
 具体的用户代码在 `/home/wangyunkai/code/samples/operator/ascendc/0_introduction/13_matmulleakyrelu_kernellaunch/MatmulLeakyReluInvocationAsync/matmul_leakyrelu_custom.cpp:206` 中
 
 **切换到 Source（源码）页签，打开之前找到的用户代码**
 
-![alt text](../figures/quick_start/operator_quick_start_source_code.png)
+![alt text](./figures/quick_start/operator_quick_start_source_code.png)
 
 ```c
 206     REGIST_MATMUL_OBJ(&pipe, GetSysWorkSpacePtr(), matmulLeakyKernel.matmulObj, &matmulLeakyKernel.tiling);

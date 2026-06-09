@@ -68,7 +68,7 @@
 ## 相关链接
 
 - [GitCode Releases 页面](https://gitcode.com/Ascend/msinsight/releases)
-- [MindStudio Insight 安装指南](./user_guide/mindstudio_insight_install_guide.md)
+- [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_guide.md)
 
 ---
 

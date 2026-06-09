@@ -32,7 +32,7 @@ A5当前导出db存在已知问题，手动拦截了db导出。
 
 用MindStudio Insight打开profiling，显示无法打开。已排查2和3，profiling中的steptrace也能用google perfetto正常打开。
 
-工具版本：Insight 8.1 
+工具版本：Insight 8.1
 
 ### 解决方法
 

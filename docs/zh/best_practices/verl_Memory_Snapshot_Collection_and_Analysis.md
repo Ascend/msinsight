@@ -166,7 +166,7 @@ mem_snapshots_selected_ranks/
 
 ### 软件安装
 
-下载MindStudio Insight工具并安装，请参见[MindStudio Insight安装指南](../../zh/user_guide/mindstudio_insight_install_guide.md)。
+下载MindStudio Insight工具并安装，请参见[MindStudio Insight安装指南](../install_guide/mindstudio_insight_install_guide.md)。
 
 ### 导入数据
 

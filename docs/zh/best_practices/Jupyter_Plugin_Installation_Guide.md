@@ -35,11 +35,11 @@ $ pip install jupyterlab==4.0.11
 ```
 
 > 安装完成后查看jupyterlab版本
-> 
+>
 > ```bash
 > $ jupyter -version
 > ```
-> 
+>
 > ![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/jupyter-version-check.png)
 
 <h3 id="3.2">3.2 安装包准备</h3>
@@ -54,14 +54,14 @@ $ pip install mindstudio_insight_jupyterlab-{version}-py3-none-{platform}.whl # 
 ```
 
 > 安装后可查看是否安装成功
-> 
+>
 > ```bash
 > $ jupyter server extension list
 > ```
-> 
+>
 > ![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/server-extension-list.png)
 > 如果安装后未启动，可使用下面命令拉起
-> 
+>
 > ```bash
 > $ jupyter server extension enable mindstudio_insight_jupyterlab --sys-prefix
 > ```
