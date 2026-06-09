@@ -648,10 +648,7 @@ function resetSession(): void {
             searchData: undefined,
             linkLines: {},
         });
-        session.selectedRangeIsLock = false;
-        session.lockUnitCount = 0;
-        session.lockRange = undefined;
-        session.selectedUnits = [];
+        session.clearSelectionLock();
         session.singleLinkLine = {};
         session.isTimeAnalysisMode = false;
         session.timeAnalysisRange = undefined;

@@ -596,6 +596,16 @@ export class Session {
         this.sliceSelection.targetUnit = null;
     }
 
+    clearSelectionLock(): void {
+        this.selectedRangeIsLock = false;
+        this.lockUnitCount = 0;
+        this.lockRange = undefined;
+        this.lockUnit = [];
+        this._selectedRange = undefined;
+        this._selectedUnits = [];
+        this._selectedUnitKeys = [];
+    }
+
     deleteRankCardInfoMapItemByDbPath(dbPath: string): boolean {
         for (const [k, v] of this._rankCardInfoMap) {
             if (v.dbPath === dbPath) {
