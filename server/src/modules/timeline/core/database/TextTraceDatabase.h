@@ -187,6 +187,12 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     std::unique_ptr<SqlitePreparedStatement> GetFtraceStmt(uint64_t paramLen);
     FtraceStatistics QueryFtraceStatistics(FtraceDataType dataType, uint64_t offset, uint64_t limit);
 
+    // 结构化新表（trace_task_summary / trace_irq_detail）建表与插入
+    bool CreateTraceTaskSummaryTable();
+    bool CreateTraceIrqDetailTable();
+    bool InsertTraceTaskSummary(const TraceTaskSummaryData &data);
+    bool InsertTraceIrqDetail(const TraceIrqDetailData &data);
+
   private:
     static constexpr const char *CPU_METRICS_PROCESS_ID = "__cpu_metrics__";
     static constexpr const char *CPU_METRICS_PROCESS_NAME = "CPU Metrics";
@@ -214,6 +220,8 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     std::unique_ptr<SqlitePreparedStatement> simulationInsertThreadNameStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> simulationInsertProcessNameStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> insertFtraceStatStmt = nullptr;
+    std::unique_ptr<SqlitePreparedStatement> insertTraceTaskSummaryStmt = nullptr;
+    std::unique_ptr<SqlitePreparedStatement> insertTraceIrqDetailStmt = nullptr;
 
     std::vector<Trace::Slice> sliceCache;
     std::list<Protocol::SimpleSlice> sliceDepthHelper;
@@ -222,6 +230,8 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     std::set<Trace::ThreadEvent> simulationThreadInfoCache;
     std::set<Trace::ProcessEvent> simulationProcessInfoCache;
     std::vector<FtraceStatisticsData> ftraceStatCache;
+    std::vector<TraceTaskSummaryData> traceTaskSummaryCache;
+    std::vector<TraceIrqDetailData> traceIrqDetailCache;
     std::unique_ptr<SliceAnalyzer> sliceAnalyzerPtr = nullptr;
     std::unique_ptr<FlowAnalyzer> flowAnalyzerPtr = nullptr;
 
@@ -232,6 +242,10 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     std::unique_ptr<SqlitePreparedStatement> GetFlowStmt(uint64_t paramLen);
     std::unique_ptr<SqlitePreparedStatement> GetCounterStmt(uint64_t paramLen);
     std::vector<std::string> GetCounterDataType(const std::string &args);
+    std::unique_ptr<SqlitePreparedStatement> GetTraceTaskSummaryStmt(uint64_t paramLen);
+    std::unique_ptr<SqlitePreparedStatement> GetTraceIrqDetailStmt(uint64_t paramLen);
+    bool InsertTraceTaskSummaryList(const std::vector<TraceTaskSummaryData> &dataList);
+    bool InsertTraceIrqDetailList(const std::vector<TraceIrqDetailData> &dataList);
     std::vector<Protocol::SimpleSlice> QuerySimpleSliceByFlagAndTrackId(const std::string &flagId, uint64_t trackId);
 
     std::vector<FlowDetailDto> QuerySingleFlowDetail(const std::string &flowId);

@@ -26,6 +26,12 @@ class TextTraceDatabaseFtraceTest : public ::testing::Test {
     class MockDatabase : public TextTraceDatabase {
       public:
         explicit MockDatabase(std::recursive_mutex &sqlMutex) : TextTraceDatabase(sqlMutex) {}
+        // db 句柄由 fixture 统一持有并在 TearDown 中 sqlite3_close 关闭。
+        // 析构时断开对该句柄的引用，避免基类 ~Database 对已关闭句柄二次关闭（heap-use-after-free）。
+        ~MockDatabase() override {
+            db = nullptr;
+            isOpen = false;
+        }
         void SetDbPtr(sqlite3 *dbPtr) {
             isOpen = true;
             db = dbPtr;
@@ -37,6 +43,51 @@ class TextTraceDatabaseFtraceTest : public ::testing::Test {
         Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
         database.SetDbPtr(dbPtr);
         database.CreateFtraceTable();
+        database.CreateTraceTaskSummaryTable();
+        database.CreateTraceIrqDetailTable();
+    }
+
+    int64_t QueryRowCount(const std::string &table) {
+        std::string sql = "SELECT COUNT(*) FROM " + table;
+        sqlite3_stmt *stmt = nullptr;
+        if (sqlite3_prepare_v2(dbPtr, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+            return -1;
+        }
+        int64_t count = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            count = sqlite3_column_int64(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+        return count;
+    }
+
+    int64_t QueryInt64(const std::string &sql) {
+        sqlite3_stmt *stmt = nullptr;
+        if (sqlite3_prepare_v2(dbPtr, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+            return -1;
+        }
+        int64_t value = -1;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            value = sqlite3_column_int64(stmt, 0);
+        }
+        sqlite3_finalize(stmt);
+        return value;
+    }
+
+    std::string QueryText(const std::string &sql) {
+        sqlite3_stmt *stmt = nullptr;
+        if (sqlite3_prepare_v2(dbPtr, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+            return "";
+        }
+        std::string value;
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            const unsigned char *text = sqlite3_column_text(stmt, 0);
+            if (text != nullptr) {
+                value = reinterpret_cast<const char *>(text);
+            }
+        }
+        sqlite3_finalize(stmt);
+        return value;
     }
 
     void TearDown() override {
@@ -46,9 +97,10 @@ class TextTraceDatabaseFtraceTest : public ::testing::Test {
         }
     }
 
+    // 声明顺序：sqlMutex 必须先于 database 构造（database 构造时引用 sqlMutex）
+    std::recursive_mutex sqlMutex;
     sqlite3 *dbPtr = nullptr;
     MockDatabase database{sqlMutex};
-    std::recursive_mutex sqlMutex;
 };
 
 TEST_F(TextTraceDatabaseFtraceTest, CreateFtraceTable) {
@@ -227,4 +279,106 @@ TEST_F(TextTraceDatabaseFtraceTest, QueryDifferentDataTypes) {
     // SCHED类型查询应该只有1条
     auto schedResult = database.QueryFtraceStatistics(FtraceDataType::SCHED, 0, 10);
     EXPECT_EQ(schedResult.totalCount, 1);
+}
+
+// ==================== 新表 trace_task_summary / trace_irq_detail ====================
+
+TEST_F(TextTraceDatabaseFtraceTest, CreateTraceTaskSummaryTable) {
+    EXPECT_EQ(database.CheckTableExist("trace_task_summary"), true);
+}
+
+TEST_F(TextTraceDatabaseFtraceTest, CreateTraceIrqDetailTable) {
+    EXPECT_EQ(database.CheckTableExist("trace_irq_detail"), true);
+}
+
+TEST_F(TextTraceDatabaseFtraceTest, InsertAndReadbackTraceTaskSummary) {
+    TraceTaskSummaryData data;
+    data.comm = "bash";
+    data.pid = 1234;
+    data.cpuId = 0;
+    data.runningNs = 700000;
+    data.sleepingNs = 300000;
+    data.runnableNs = 50000;
+    data.csCount = 10;
+    data.csInvoluntaryCount = 3;
+
+    EXPECT_EQ(database.InsertTraceTaskSummary(data), true);
+    database.CommitData(); // flush 剩余缓存
+
+    EXPECT_EQ(QueryRowCount("trace_task_summary"), 1);
+    EXPECT_EQ(QueryText("SELECT comm FROM trace_task_summary"), "bash");
+    EXPECT_EQ(QueryInt64("SELECT pid FROM trace_task_summary"), 1234);
+    EXPECT_EQ(QueryInt64("SELECT cpu_id FROM trace_task_summary"), 0);
+    EXPECT_EQ(QueryInt64("SELECT running_ns FROM trace_task_summary"), 700000);
+    EXPECT_EQ(QueryInt64("SELECT sleeping_ns FROM trace_task_summary"), 300000);
+    EXPECT_EQ(QueryInt64("SELECT runnable_ns FROM trace_task_summary"), 50000);
+    EXPECT_EQ(QueryInt64("SELECT cs_count FROM trace_task_summary"), 10);
+    EXPECT_EQ(QueryInt64("SELECT cs_involuntary_count FROM trace_task_summary"), 3);
+}
+
+TEST_F(TextTraceDatabaseFtraceTest, InsertAndReadbackTraceIrqDetail) {
+    TraceIrqDetailData data;
+    data.comm = "kworker";
+    data.pid = 99;
+    data.cpuId = 2;
+    data.irqType = "irq";
+    data.irqName = "eth0";
+    data.count = 5;
+    data.timeNs = 7000;
+
+    EXPECT_EQ(database.InsertTraceIrqDetail(data), true);
+    database.CommitData();
+
+    EXPECT_EQ(QueryRowCount("trace_irq_detail"), 1);
+    EXPECT_EQ(QueryText("SELECT comm FROM trace_irq_detail"), "kworker");
+    EXPECT_EQ(QueryInt64("SELECT pid FROM trace_irq_detail"), 99);
+    EXPECT_EQ(QueryInt64("SELECT cpu_id FROM trace_irq_detail"), 2);
+    EXPECT_EQ(QueryText("SELECT irq_type FROM trace_irq_detail"), "irq");
+    EXPECT_EQ(QueryText("SELECT irq_name FROM trace_irq_detail"), "eth0");
+    EXPECT_EQ(QueryInt64("SELECT count FROM trace_irq_detail"), 5);
+    EXPECT_EQ(QueryInt64("SELECT time_ns FROM trace_irq_detail"), 7000);
+}
+
+// 复合主键 (comm, pid, cpu_id)：同一进程跨 CPU 应作为不同行存在
+TEST_F(TextTraceDatabaseFtraceTest, TraceTaskSummarySameProcessDifferentCpuAreSeparateRows) {
+    TraceTaskSummaryData cpu0;
+    cpu0.comm = "app";
+    cpu0.pid = 555;
+    cpu0.cpuId = 0;
+    cpu0.runningNs = 100;
+
+    TraceTaskSummaryData cpu1 = cpu0;
+    cpu1.cpuId = 1;
+    cpu1.runningNs = 200;
+
+    EXPECT_EQ(database.InsertTraceTaskSummary(cpu0), true);
+    EXPECT_EQ(database.InsertTraceTaskSummary(cpu1), true);
+    database.CommitData();
+
+    EXPECT_EQ(QueryRowCount("trace_task_summary"), 2);
+    EXPECT_EQ(QueryInt64("SELECT running_ns FROM trace_task_summary WHERE cpu_id = 0"), 100);
+    EXPECT_EQ(QueryInt64("SELECT running_ns FROM trace_task_summary WHERE cpu_id = 1"), 200);
+}
+
+// 复合主键 (comm, pid, cpu_id, irq_type, irq_name)：不同中断名应作为不同行存在
+TEST_F(TextTraceDatabaseFtraceTest, TraceIrqDetailDifferentIrqNameAreSeparateRows) {
+    TraceIrqDetailData eth;
+    eth.comm = "app";
+    eth.pid = 555;
+    eth.cpuId = 0;
+    eth.irqType = "irq";
+    eth.irqName = "eth0";
+    eth.count = 1;
+
+    TraceIrqDetailData timer = eth;
+    timer.irqName = "timer";
+    timer.count = 2;
+
+    EXPECT_EQ(database.InsertTraceIrqDetail(eth), true);
+    EXPECT_EQ(database.InsertTraceIrqDetail(timer), true);
+    database.CommitData();
+
+    EXPECT_EQ(QueryRowCount("trace_irq_detail"), 2);
+    EXPECT_EQ(QueryInt64("SELECT count FROM trace_irq_detail WHERE irq_name = 'eth0'"), 1);
+    EXPECT_EQ(QueryInt64("SELECT count FROM trace_irq_detail WHERE irq_name = 'timer'"), 2);
 }

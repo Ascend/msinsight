@@ -1176,6 +1176,16 @@ void TextTraceDatabase::CommitData() {
         InsertFtraceStatList(ftraceStatCache);
         ftraceStatCache.clear();
     }
+    if (!traceTaskSummaryCache.empty()) {
+        if (InsertTraceTaskSummaryList(traceTaskSummaryCache)) {
+            traceTaskSummaryCache.clear();
+        }
+    }
+    if (!traceIrqDetailCache.empty()) {
+        if (InsertTraceIrqDetailList(traceIrqDetailCache)) {
+            traceIrqDetailCache.clear();
+        }
+    }
 }
 
 uint32_t TextTraceDatabase::SearchSliceNameCount(const Protocol::SearchCountParams &params) {
