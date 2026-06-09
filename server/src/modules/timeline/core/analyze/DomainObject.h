@@ -206,5 +206,28 @@ struct FtraceStatistics {
     int64_t totalCount = 0;
     std::vector<FtraceStatisticsData> data;
 };
+
+// trace_task_summary 表的一行：按 (comm, pid, cpu_id) 聚合的耗时与上下文切换统计
+struct TraceTaskSummaryData {
+    std::string comm;
+    uint64_t pid = 0;
+    int32_t cpuId = 0;
+    uint64_t runningNs = 0;
+    uint64_t sleepingNs = 0;
+    uint64_t runnableNs = 0;
+    uint64_t csCount = 0;
+    uint64_t csInvoluntaryCount = 0;
+};
+
+// trace_irq_detail 表的一行：按 (comm, pid, cpu_id, irq_type, irq_name) 聚合的中断统计（进程视角）
+struct TraceIrqDetailData {
+    std::string comm;
+    uint64_t pid = 0;
+    int32_t cpuId = 0;
+    std::string irqType; // "irq" 或 "softirq"
+    std::string irqName; // 中断名称（如 "eth0", "timer"）
+    uint64_t count = 0;
+    uint64_t timeNs = 0;
+};
 }
 #endif // PROFILER_SERVER_DOMAINOBJECT_H

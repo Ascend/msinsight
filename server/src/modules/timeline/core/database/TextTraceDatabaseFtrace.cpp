@@ -128,4 +128,168 @@ FtraceStatistics TextTraceDatabase::QueryFtraceStatistics(FtraceDataType dataTyp
     sqlite3_finalize(stmt);
     return result;
 }
+
+// ==================== trace_task_summary 表 ====================
+
+bool TextTraceDatabase::CreateTraceTaskSummaryTable() {
+    if (!isOpen) {
+        ServerLog::Error("Failed to create trace_task_summary table. Database is not open.");
+        return false;
+    }
+
+    std::string sql = R"(
+            CREATE TABLE IF NOT EXISTS trace_task_summary (
+                comm TEXT NOT NULL,
+                pid INTEGER NOT NULL,
+                cpu_id INTEGER NOT NULL,
+                running_ns INTEGER DEFAULT 0,
+                sleeping_ns INTEGER DEFAULT 0,
+                runnable_ns INTEGER DEFAULT 0,
+                cs_count INTEGER DEFAULT 0,
+                cs_involuntary_count INTEGER DEFAULT 0,
+                PRIMARY KEY (comm, pid, cpu_id)
+            );
+        )";
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    return ExecSql(sql);
+}
+
+bool TextTraceDatabase::InsertTraceTaskSummary(const TraceTaskSummaryData &data) {
+    traceTaskSummaryCache.emplace_back(data);
+    if (traceTaskSummaryCache.size() == CACHE_SIZE) {
+        InsertTraceTaskSummaryList(traceTaskSummaryCache);
+        traceTaskSummaryCache.clear();
+    }
+    return true;
+}
+
+std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetTraceTaskSummaryStmt(uint64_t paramLen) {
+    std::string valuePlaceholders;
+    for (uint64_t i = 0; i < paramLen; ++i) {
+        if (i > 0) {
+            valuePlaceholders += ", ";
+        }
+        valuePlaceholders += "(?, ?, ?, ?, ?, ?, ?, ?)";
+    }
+    std::string sql = "INSERT INTO trace_task_summary (comm, pid, cpu_id, running_ns, sleeping_ns, "
+                      "runnable_ns, cs_count, cs_involuntary_count) VALUES " +
+        valuePlaceholders;
+    return CreatPreparedStatement(sql);
+}
+
+bool TextTraceDatabase::InsertTraceTaskSummaryList(const std::vector<TraceTaskSummaryData> &dataList) {
+    std::unique_ptr<SqlitePreparedStatement> stmt = nullptr;
+    std::unique_ptr<SqlitePreparedStatement> &refStmt =
+        dataList.size() == CACHE_SIZE ? insertTraceTaskSummaryStmt : stmt;
+    if (refStmt == nullptr) {
+        refStmt = GetTraceTaskSummaryStmt(dataList.size());
+    } else {
+        refStmt->Reset();
+    }
+
+    if (refStmt == nullptr) {
+        ServerLog::Error("Failed to create prepared statement for InsertTraceTaskSummaryList.");
+        return false;
+    }
+
+    int bindIndex = bindStartIndex;
+    for (const auto &data : dataList) {
+        sqlite3_bind_text(refStmt->stmt, bindIndex++, data.comm.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.pid));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.cpuId));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.runningNs));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.sleepingNs));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.runnableNs));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.csCount));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.csInvoluntaryCount));
+    }
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    if (!refStmt->Execute()) {
+        ServerLog::Error("Insert trace task summary data fail. ", refStmt->GetErrorMessage());
+        return false;
+    }
+    return true;
+}
+
+// ==================== trace_irq_detail 表 ====================
+
+bool TextTraceDatabase::CreateTraceIrqDetailTable() {
+    if (!isOpen) {
+        ServerLog::Error("Failed to create trace_irq_detail table. Database is not open.");
+        return false;
+    }
+
+    std::string sql = R"(
+            CREATE TABLE IF NOT EXISTS trace_irq_detail (
+                comm TEXT NOT NULL,
+                pid INTEGER NOT NULL,
+                cpu_id INTEGER NOT NULL,
+                irq_type TEXT NOT NULL,
+                irq_name TEXT NOT NULL,
+                count INTEGER DEFAULT 0,
+                time_ns INTEGER DEFAULT 0,
+                PRIMARY KEY (comm, pid, cpu_id, irq_type, irq_name)
+            );
+        )";
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    return ExecSql(sql);
+}
+
+bool TextTraceDatabase::InsertTraceIrqDetail(const TraceIrqDetailData &data) {
+    traceIrqDetailCache.emplace_back(data);
+    if (traceIrqDetailCache.size() == CACHE_SIZE) {
+        InsertTraceIrqDetailList(traceIrqDetailCache);
+        traceIrqDetailCache.clear();
+    }
+    return true;
+}
+
+std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetTraceIrqDetailStmt(uint64_t paramLen) {
+    std::string valuePlaceholders;
+    for (uint64_t i = 0; i < paramLen; ++i) {
+        if (i > 0) {
+            valuePlaceholders += ", ";
+        }
+        valuePlaceholders += "(?, ?, ?, ?, ?, ?, ?)";
+    }
+    std::string sql = "INSERT INTO trace_irq_detail (comm, pid, cpu_id, irq_type, irq_name, count, time_ns) VALUES " +
+        valuePlaceholders;
+    return CreatPreparedStatement(sql);
+}
+
+bool TextTraceDatabase::InsertTraceIrqDetailList(const std::vector<TraceIrqDetailData> &dataList) {
+    std::unique_ptr<SqlitePreparedStatement> stmt = nullptr;
+    std::unique_ptr<SqlitePreparedStatement> &refStmt = dataList.size() == CACHE_SIZE ? insertTraceIrqDetailStmt : stmt;
+    if (refStmt == nullptr) {
+        refStmt = GetTraceIrqDetailStmt(dataList.size());
+    } else {
+        refStmt->Reset();
+    }
+
+    if (refStmt == nullptr) {
+        ServerLog::Error("Failed to create prepared statement for InsertTraceIrqDetailList.");
+        return false;
+    }
+
+    int bindIndex = bindStartIndex;
+    for (const auto &data : dataList) {
+        sqlite3_bind_text(refStmt->stmt, bindIndex++, data.comm.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.pid));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.cpuId));
+        sqlite3_bind_text(refStmt->stmt, bindIndex++, data.irqType.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_text(refStmt->stmt, bindIndex++, data.irqName.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.count));
+        sqlite3_bind_int64(refStmt->stmt, bindIndex++, static_cast<int64_t>(data.timeNs));
+    }
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    if (!refStmt->Execute()) {
+        ServerLog::Error("Insert trace irq detail data fail. ", refStmt->GetErrorMessage());
+        return false;
+    }
+    return true;
+}
 }
