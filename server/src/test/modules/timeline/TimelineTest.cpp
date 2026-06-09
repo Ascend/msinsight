@@ -750,13 +750,13 @@ TEST_F(TestSuit, QueryThreadSameOperatorsDetails) {
     Protocol::UnitThreadsOperatorsParams requestParam;
     uint64_t START_TIME = 1695115378713505000;
     uint64_t END_TIME = 1695115378714916500;
-    uint64_t PAGE_SIZE = 10;
+    uint64_t SYS_PAGE_SIZE = 10;
     requestParam.name = "aten::empty";
     requestParam.startTime = START_TIME;
     requestParam.endTime = END_TIME;
     requestParam.orderBy = "timestamp";
     requestParam.current = 1;
-    requestParam.pageSize = PAGE_SIZE;
+    requestParam.pageSize = SYS_PAGE_SIZE;
     Protocol::UnitThreadsOperatorsBody responseBody;
     uint64_t minTimestamp = 0;
     std::vector<uint64_t> traceId = {65};
@@ -782,12 +782,12 @@ TEST_F(TestSuit, QueryThreadSameOperatorsDetails) {
 TEST_F(TestSuit, SearchAllSlicesDetailsWithFuzzyMatch) {
     uint64_t START_TIME = 1695115378726082200;
     uint64_t DURATION = 3439;
-    uint64_t PAGE_SIZE = 10;
+    uint64_t SYS_PAGE_SIZE = 10;
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     int expectCount = 91;
     SearchAllSliceParams params;
     params.searchContent = "Mul";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.current = 1;
     params.orderBy = "duration";
 
@@ -804,7 +804,7 @@ TEST_F(TestSuit, QueryEventsViewData4Python) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     EventsViewParams params;
     params.processName = "Python (1408366)";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_2;
     params.pid = "1408366";
     params.rankId = "0";
@@ -817,7 +817,7 @@ TEST_F(TestSuit, QueryEventsViewData4Python) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Api(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
 
     auto ptr = dynamic_cast<HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
@@ -837,7 +837,7 @@ TEST_F(TestSuit, QueryEventsViewData4PythonThread) {
     params.processName = "Python (1408366)";
     params.tid = "1408366";
     params.threadName = "Thread 1408366";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_2;
     params.rankId = "0";
     params.threadIdList.emplace_back(params.tid);
@@ -850,7 +850,7 @@ TEST_F(TestSuit, QueryEventsViewData4PythonThread) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Api(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "aten::empty_strided");
@@ -867,7 +867,7 @@ TEST_F(TestSuit, QueryEventsViewData4CANN) {
     EventsViewParams params;
     params.pid = "140836602";
     params.processName = "CANN (140836602)";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_2;
     params.rankId = "0";
 
@@ -879,7 +879,7 @@ TEST_F(TestSuit, QueryEventsViewData4CANN) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Api(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "AscendCL@aclrtDestroyEvent");
@@ -899,7 +899,7 @@ TEST_F(TestSuit, QueryEventsViewData4CANNThread) {
     params.processName = "CANN (140836602)";
     params.tid = "1408366";
     params.threadName = "Thread 1408366";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_2;
     params.rankId = "0";
     params.threadIdList.emplace_back(params.tid);
@@ -912,7 +912,7 @@ TEST_F(TestSuit, QueryEventsViewData4CANNThread) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Api(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<HostEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "AscendCL@hcom_broadcast_");
@@ -930,7 +930,7 @@ TEST_F(TestSuit, QueryEventsViewData4Hardware) {
     EventsViewParams params;
     params.pid = "300";
     params.processName = "Ascend Hardware (300)";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_2;
     params.rankId = "0";
 
@@ -942,7 +942,7 @@ TEST_F(TestSuit, QueryEventsViewData4Hardware) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Hardware(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "Notify Wait");
@@ -962,7 +962,7 @@ TEST_F(TestSuit, QueryEventsViewData4HardwareStream) {
     params.processName = "Ascend Hardware (300)";
     params.tid = "16";
     params.threadName = "Stream 16";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_2;
     params.rankId = "0";
     params.threadIdList.emplace_back(params.tid);
@@ -974,7 +974,7 @@ TEST_F(TestSuit, QueryEventsViewData4HardwareStream) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Hardware(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "Tril");
@@ -992,7 +992,7 @@ TEST_F(TestSuit, QueryEventsViewData4HCCL) {
     EventsViewParams params;
     params.pid = "14083661400";
     params.processName = "HCCL (14083661400)";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_1;
     params.rankId = "0";
     params.orderBy = "duration";
@@ -1006,7 +1006,7 @@ TEST_F(TestSuit, QueryEventsViewData4HCCL) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Group(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "hcom_allReduce__459_0");
@@ -1024,7 +1024,7 @@ TEST_F(TestSuit, QueryEventsViewData4Communication) {
     EventsViewParams params;
     params.pid = "14083661400";
     params.processName = "Communication (14083661400)";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_1;
     params.rankId = "0";
     params.orderBy = "duration";
@@ -1038,7 +1038,7 @@ TEST_F(TestSuit, QueryEventsViewData4Communication) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Group(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "hcom_allReduce__459_0");
@@ -1058,7 +1058,7 @@ TEST_F(TestSuit, QueryEventsViewData4HCCLGroup) {
     params.processName = "HCCL (14083661400)";
     params.tid = "0";
     params.threadName = "Group 0 Communication";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_1;
     params.rankId = "0";
     params.orderBy = "duration";
@@ -1072,7 +1072,7 @@ TEST_F(TestSuit, QueryEventsViewData4HCCLGroup) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Group(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "hcom_broadcast__483_0");
@@ -1092,7 +1092,7 @@ TEST_F(TestSuit, QueryEventsViewData4CommunicationGroup) {
     params.processName = "Communication (14083661400)";
     params.tid = "0";
     params.threadName = "Group 0 Communication";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_1;
     params.rankId = "0";
     params.orderBy = "duration";
@@ -1106,7 +1106,7 @@ TEST_F(TestSuit, QueryEventsViewData4CommunicationGroup) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Group(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "hcom_broadcast__483_0");
@@ -1124,7 +1124,7 @@ TEST_F(TestSuit, QueryEventsViewData4Overlap) {
     EventsViewParams params;
     params.pid = "14083661700";
     params.processName = "Overlap Analysis (14083661700)";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_1;
     params.rankId = "0";
     params.orderBy = "duration";
@@ -1138,7 +1138,7 @@ TEST_F(TestSuit, QueryEventsViewData4Overlap) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Overlap(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "Communication");
@@ -1158,7 +1158,7 @@ TEST_F(TestSuit, QueryEventsViewData4OverlapComputing) {
     params.processName = "Overlap Analysis (14083661700)";
     params.tid = "0";
     params.threadName = "Computing";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.currentPage = CUR_PAGE_1;
     params.rankId = "0";
     params.orderBy = "duration";
@@ -1172,7 +1172,7 @@ TEST_F(TestSuit, QueryEventsViewData4OverlapComputing) {
 
     EXPECT_EQ(body.count, EXPECT_COUNT);
     CheckEventsViewColumns4Overlap(body);
-    EXPECT_EQ(body.eventDetailList.size(), PAGE_SIZE);
+    EXPECT_EQ(body.eventDetailList.size(), SYS_PAGE_SIZE);
     auto ptr = dynamic_cast<DeviceEventDetail *>(body.eventDetailList.at(0).get());
     EXPECT_TRUE(ptr != nullptr);
     EXPECT_EQ(ptr->name, "Computing");

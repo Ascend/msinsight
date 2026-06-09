@@ -32,6 +32,10 @@ struct DepthHelper {
     uint64_t tempDuration = 0;
     uint64_t curLimitTime = 0;
 };
+struct SliceInterval {
+    uint64_t startTime = 0;
+    uint64_t endTime = 0;
+};
 class SliceAnalyzer {
   public:
     SliceAnalyzer();
@@ -63,6 +67,9 @@ class SliceAnalyzer {
     void ComputeAllThreadInfo(
         const ThreadQuery &flowQuery, std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo);
     void SetRepository(std::shared_ptr<IBaseSliceRepo> repository);
+    static std::set<std::pair<uint64_t, uint32_t>> ComputeSmallScreenIds(uint64_t startTime, uint64_t endTime,
+        std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
+        const std::vector<uint64_t> &pythonFunctionIds);
 
   private:
     std::shared_ptr<IBaseSliceRepo> repository;
@@ -72,9 +79,14 @@ class SliceAnalyzer {
     static std::set<std::pair<uint64_t, uint32_t>> ComputeResultIds(uint64_t startTime, uint64_t endTime,
         std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
         const std::vector<uint64_t> &pythonFunctionIds);
-    static std::set<std::pair<uint64_t, uint32_t>> ComputeSmallScreenIds(uint64_t startTime, uint64_t endTime,
-        std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
-        const std::vector<uint64_t> &pythonFunctionIds);
+    static uint32_t AssignSliceDepths(
+        std::vector<SliceDomain> &sliceDomain, const std::vector<uint64_t> &pythonFunctionIds);
+    static SliceInterval ToInterval(const SliceDomain &slice);
+    static SliceInterval MergeIntervals(const std::vector<SliceInterval> &intervals);
+    static bool IsDepthAvailable(const std::vector<SliceInterval> &depthIntervals, const SliceInterval &targetInterval);
+    static bool IsOverlap(const SliceInterval &left, const SliceInterval &right);
+    static uint32_t FindFirstAvailableDepth(
+        const std::vector<std::vector<SliceInterval>> &depthIntervals, const SliceInterval &targetInterval);
     static void CalculateSelfTime(
         std::vector<CompeteSliceDomain> &rows, std::map<std::string, uint64_t> &selfTimeKeyValue);
 

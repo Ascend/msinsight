@@ -18,6 +18,12 @@
 #include "pch.h"
 #include "SliceAnalyzer.h"
 namespace Dic::Module::Timeline {
+namespace {
+bool IsFilteredPythonFunction(const std::vector<uint64_t> &pythonFunctionIds, uint64_t id) {
+    return !std::empty(pythonFunctionIds) && std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), id);
+}
+}
+
 SliceAnalyzer::SliceAnalyzer() {
     if (repository == nullptr) {
         repository = std::make_shared<TextRepository>();
@@ -43,44 +49,34 @@ std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeResultIds(uint64_t
     if (unitTime == 0) {
         return ComputeSmallScreenIds(startTime, endTime, sliceDomain, endList, pythonFunctionIds);
     }
+    uint32_t maxDepth = AssignSliceDepths(sliceDomain, pythonFunctionIds);
+    endList.assign(maxDepth, DepthHelper{});
+    for (auto &item : endList) {
+        item.curLimitTime = startTime + unitTime; // (startTime + unitTime) < endTime < UINT64_MAX
+    }
     std::set<std::pair<uint64_t, uint32_t>> ids;
     for (auto &item : sliceDomain) {
-        if (!std::empty(pythonFunctionIds) &&
-            std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
+        if (IsFilteredPythonFunction(pythonFunctionIds, item.id)) {
             continue;
         }
-        for (item.depth = 0; item.depth < endList.size() && endList[item.depth].endTime > item.timestamp;
-             item.depth++) {
+        // 不在屏幕中的算子只参与深度计算，不参与采样过程
+        if (!(item.endTime >= startTime && item.timestamp <= endTime)) {
+            continue;
         }
-        if (item.depth < endList.size()) {
-            endList[item.depth].endTime = item.endTime;
-            // 不在屏幕中的算子只参与深度计算，不参与采样过程
-            if (!(item.endTime >= startTime && item.timestamp <= endTime)) {
-                continue;
-            }
-            // 算子开始时间大于当前份屏幕时间，则把tempId加进结果集，重置tempId，进入下一份屏幕采样
-            if (item.timestamp > endList[item.depth].curLimitTime && endList[item.depth].curLimitTime <= endTime) {
-                ids.emplace(endList[item.depth].tempId, item.depth);
-                endList[item.depth].tempId = 0;
-                endList[item.depth].tempDuration = 0;
-                // item.timestamp 从数据库得到，item.timestamp <= INT64_MAX，unitTime <= UINT64_MAX / 1000
-                // item.timestamp + unitTime < UINT64_MAX
-                endList[item.depth].curLimitTime = item.timestamp + unitTime;
-            }
-            // 更新tempId
-            if (item.endTime >= item.timestamp && endList[item.depth].tempDuration <= item.endTime - item.timestamp) {
-                endList[item.depth].tempId = item.id;
-                endList[item.depth].tempDuration = item.endTime - item.timestamp;
-            }
-        } else {
-            DepthHelper depthHelper;
-            depthHelper.endTime = item.endTime;
-            depthHelper.curLimitTime = startTime + unitTime; // (startTime + unitTime) < endTime < UINT64_MAX
-            if (item.endTime >= startTime && item.timestamp <= endTime && item.endTime >= item.timestamp) {
-                depthHelper.tempId = item.id;
-                depthHelper.tempDuration = item.endTime - item.timestamp;
-            }
-            endList.emplace_back(depthHelper);
+        DepthHelper &depthHelper = endList[item.depth];
+        // 算子开始时间大于当前份屏幕时间，则把tempId加进结果集，重置tempId，进入下一份屏幕采样
+        if (item.timestamp > depthHelper.curLimitTime && depthHelper.curLimitTime <= endTime) {
+            ids.emplace(depthHelper.tempId, item.depth);
+            depthHelper.tempId = 0;
+            depthHelper.tempDuration = 0;
+            // item.timestamp 从数据库得到，item.timestamp <= INT64_MAX，unitTime <= UINT64_MAX / 1000
+            // item.timestamp + unitTime < UINT64_MAX
+            depthHelper.curLimitTime = item.timestamp + unitTime;
+        }
+        // 更新tempId
+        if (item.endTime >= item.timestamp && depthHelper.tempDuration <= item.endTime - item.timestamp) {
+            depthHelper.tempId = item.id;
+            depthHelper.tempDuration = item.endTime - item.timestamp;
         }
     }
     for (size_t i = 0; i < endList.size(); ++i) {
@@ -101,27 +97,133 @@ std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeResultIds(uint64_t
 std::set<std::pair<uint64_t, uint32_t>> SliceAnalyzer::ComputeSmallScreenIds(uint64_t startTime, uint64_t endTime,
     std::vector<SliceDomain> &sliceDomain, std::vector<DepthHelper> &endList,
     const std::vector<uint64_t> &pythonFunctionIds) {
+    uint32_t maxDepth = AssignSliceDepths(sliceDomain, pythonFunctionIds);
+    endList.assign(maxDepth, DepthHelper{});
     std::set<std::pair<uint64_t, uint32_t>> ids;
     for (auto &item : sliceDomain) {
-        if (!std::empty(pythonFunctionIds) &&
-            std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
+        if (IsFilteredPythonFunction(pythonFunctionIds, item.id)) {
             continue;
-        }
-        for (item.depth = 0; item.depth < endList.size() && endList[item.depth].endTime > item.timestamp;
-             item.depth++) {
-        }
-        if (item.depth < endList.size()) {
-            endList[item.depth].endTime = item.endTime;
-        } else {
-            DepthHelper depthHelper;
-            depthHelper.endTime = item.endTime;
-            endList.emplace_back(depthHelper);
         }
         if (item.endTime >= startTime && item.timestamp <= endTime) {
             ids.emplace(item.id, item.depth);
         }
     }
     return ids;
+}
+
+SliceInterval SliceAnalyzer::ToInterval(const SliceDomain &slice) {
+    SliceInterval interval;
+    interval.startTime = slice.timestamp;
+    interval.endTime = slice.endTime >= slice.timestamp ? slice.endTime : slice.timestamp;
+    return interval;
+}
+
+bool SliceAnalyzer::IsOverlap(const SliceInterval &left, const SliceInterval &right) {
+    return left.startTime < right.endTime && right.startTime < left.endTime;
+}
+
+bool SliceAnalyzer::IsDepthAvailable(
+    const std::vector<SliceInterval> &depthIntervals, const SliceInterval &targetInterval) {
+    for (const auto &current : depthIntervals) {
+        if (IsOverlap(current, targetInterval)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+SliceInterval SliceAnalyzer::MergeIntervals(const std::vector<SliceInterval> &intervals) {
+    if (intervals.empty()) {
+        return {};
+    }
+    uint64_t minStart = intervals.front().startTime;
+    uint64_t maxEnd = intervals.front().endTime;
+    for (const auto &interval : intervals) {
+        if (interval.startTime < minStart) {
+            minStart = interval.startTime;
+        }
+        if (interval.endTime > maxEnd) {
+            maxEnd = interval.endTime;
+        }
+    }
+    SliceInterval merged;
+    merged.startTime = minStart;
+    merged.endTime = maxEnd;
+    return merged;
+}
+
+uint32_t SliceAnalyzer::FindFirstAvailableDepth(
+    const std::vector<std::vector<SliceInterval>> &depthIntervals, const SliceInterval &targetInterval) {
+    uint32_t depth = 0;
+    while (depth < depthIntervals.size() && !IsDepthAvailable(depthIntervals[depth], targetInterval)) {
+        ++depth;
+    }
+    return depth;
+}
+
+uint32_t SliceAnalyzer::AssignSliceDepths(
+    std::vector<SliceDomain> &sliceDomain, const std::vector<uint64_t> &pythonFunctionIds) {
+    std::vector<std::vector<SliceInterval>> depthIntervals;
+    std::vector<size_t> validIndexes;
+    validIndexes.reserve(sliceDomain.size());
+    for (size_t i = 0; i < sliceDomain.size(); ++i) {
+        if (!IsFilteredPythonFunction(pythonFunctionIds, sliceDomain[i].id)) {
+            validIndexes.emplace_back(i);
+        }
+    }
+
+    // 第一遍遍历：记录每个 groupId 到合并时间区间的映射
+    std::map<std::string, SliceInterval> groupIntervalMap;
+    for (size_t i : validIndexes) {
+        const std::string &gid = sliceDomain[i].groupId;
+        if (gid.empty()) {
+            continue;
+        }
+        SliceInterval interval = ToInterval(sliceDomain[i]);
+        auto it = groupIntervalMap.find(gid);
+        if (it == groupIntervalMap.end()) {
+            groupIntervalMap.emplace(gid, interval);
+        } else {
+            if (interval.startTime < it->second.startTime) {
+                it->second.startTime = interval.startTime;
+            }
+            if (interval.endTime > it->second.endTime) {
+                it->second.endTime = interval.endTime;
+            }
+        }
+    }
+
+    // 第二遍遍历：按原始顺序贪心分配深度
+    std::set<std::string> processedGroupIds;
+    for (size_t i : validIndexes) {
+        const std::string &gid = sliceDomain[i].groupId;
+        SliceInterval merged;
+        if (gid.empty()) {
+            merged = ToInterval(sliceDomain[i]);
+        } else {
+            if (processedGroupIds.count(gid) > 0) {
+                continue;
+            }
+            processedGroupIds.insert(gid);
+            merged = groupIntervalMap.at(gid);
+        }
+
+        uint32_t depth = FindFirstAvailableDepth(depthIntervals, merged);
+        if (depth == depthIntervals.size()) {
+            depthIntervals.emplace_back();
+        }
+        if (gid.empty()) {
+            sliceDomain[i].depth = depth;
+        } else {
+            for (size_t idx : validIndexes) {
+                if (sliceDomain[idx].groupId == gid) {
+                    sliceDomain[idx].depth = depth;
+                }
+            }
+        }
+        depthIntervals[depth].emplace_back(merged);
+    }
+    return static_cast<uint32_t>(depthIntervals.size());
 }
 
 void SliceAnalyzer::SortByTimestampASC(std::vector<SliceDomain> &cacheSlices) {
@@ -404,18 +506,10 @@ void SliceAnalyzer::ComputeDepthInfoFromDB(
     }
     SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
     repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceVec);
-    std::vector<uint64_t> endList;
+    AssignSliceDepths(sliceVec, pythonFunctionIds);
     for (auto &item : sliceVec) {
-        if (std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
+        if (IsFilteredPythonFunction(pythonFunctionIds, item.id)) {
             continue;
-        }
-        while (item.depth < endList.size() && endList[item.depth] > item.timestamp) {
-            item.depth++;
-        }
-        if (item.depth < endList.size()) {
-            endList[item.depth] = item.endTime;
-        } else {
-            endList.emplace_back(item.endTime);
         }
         depthInfo[item.id] = item.depth;
     }

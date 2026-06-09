@@ -27,10 +27,11 @@ TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql =
         "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
-        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT);";
+        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT, "
+        "group_id TEXT);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert = "INSERT INTO slice (timestamp, duration, name,track_id, cat, "
-                            "args,cname,end_time,flag_id) VALUES (1, 2,'3',5,'6','7','8',9,'10');";
+                            "args,cname,end_time,flag_id,group_id) VALUES (1, 2,'3',5,'6','7','8',9,'10','11');";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<SlicePO> slicePos;
     Dic::Protocol::SliceTable sliceTable;
@@ -42,6 +43,7 @@ TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
     const std::string expect3 = "7";
     const std::string expect4 = "8";
     const std::string expect5 = "10";
+    const std::string expect6 = "11";
     const uint64_t expect11 = 1;
     const uint64_t expect12 = 2;
     const uint64_t expect14 = 5;
@@ -50,6 +52,7 @@ TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
         .Select(SliceColumn::DURATION, SliceColumn::NAME)
         .Select(SliceColumn::TRACKID, SliceColumn::CAT, SliceColumn::ARGS)
         .Select(SliceColumn::CNAME, SliceColumn::ENDTIME, SliceColumn::FLAGID)
+        .Select(SliceColumn::GROUPID)
         .ExcuteQuery(db, slicePos);
     EXPECT_EQ(slicePos.size(), expectSize);
     EXPECT_EQ(slicePos[index].id, expectId);
@@ -62,4 +65,5 @@ TEST_F(SliceTableTest, TestSliceTableColumnMaping) {
     EXPECT_EQ(slicePos[index].cname, expect4);
     EXPECT_EQ(slicePos[index].endTime, expect15);
     EXPECT_EQ(slicePos[index].flagId, expect5);
+    EXPECT_EQ(slicePos[index].groupId, expect6);
 }

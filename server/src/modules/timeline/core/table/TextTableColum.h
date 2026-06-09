@@ -34,6 +34,7 @@ constexpr std::string_view ARGS = "args";
 constexpr std::string_view CNAME = "cname";
 constexpr std::string_view ENDTIME = "end_time";
 constexpr std::string_view FLAGID = "flag_id";
+constexpr std::string_view GROUPID = "group_id";
 }
 #pragma endregion
 namespace FlowColumn {

@@ -31,6 +31,7 @@ struct SlicePO {
     std::string args;
     std::string cat;
     std::string flagId;
+    std::string groupId;
     std::string cname;
 };
 class SliceTable : public Table<SlicePO> {
@@ -44,7 +45,7 @@ class SliceTable : public Table<SlicePO> {
             {SliceColumn::TIMESTAMP, TimeStampHandle}, {SliceColumn::DURATION, DurationHandle},
             {SliceColumn::NAME, NameHandle}, {SliceColumn::TRACKID, TrackIdHandle}, {SliceColumn::CAT, CatHandle},
             {SliceColumn::ARGS, ArgsHandle}, {SliceColumn::CNAME, CnameHandle}, {SliceColumn::ENDTIME, EndTimeHandle},
-            {SliceColumn::FLAGID, FlagIdHandle}};
+            {SliceColumn::FLAGID, FlagIdHandle}, {SliceColumn::GROUPID, GroupIdHandle}};
 
         return assignMap;
     }
@@ -62,6 +63,7 @@ class SliceTable : public Table<SlicePO> {
     static void CnameHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void EndTimeHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void FlagIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void GroupIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
 

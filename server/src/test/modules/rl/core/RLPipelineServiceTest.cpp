@@ -28,7 +28,32 @@ using namespace Dic::Module::RL;
 using namespace Dic::Module;
 class RLPipelineServiceTest : public ::testing::Test {
   public:
-    class DataEngineMock : public DataEngine {
+    class DataEngineMock : public DataEngineInterface {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {};
+        void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
+            std::vector<CompeteSliceDomain> &CompeteSliceVec) override {};
+        bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
+            return true;
+        };
+        void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override {};
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override { return 0; };
+        bool QuerySliceByTimepointAndName(
+            const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
+            return true;
+        };
+        void QueryCompeteSliceVecByTimeRangeAndTrackId(
+            const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) override {};
+        void QueryAllThreadInfo(const ThreadQuery &flowQuery,
+            std::unordered_map<uint64_t, std::pair<std::string, std::string>> &threadInfo) override {};
+        void QueryFlowPointByCategory(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override {};
+        void QueryFlowPointByTimeRange(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override {};
+        void QueryFlowPointByFlowId(const FlowQuery &flowQuery, std::vector<FlowPoint> &flowPointVec) override {};
+        void QueryAllFlagSlice(
+            const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &competeSliceDomain) override {};
+        void SetRepositoryFactory(std::shared_ptr<RepositoryFactoryInterface>) override{};
+
         bool QuerySliceDetailInfoByNameList(
             const SliceQueryByNameList &params, std::vector<CompeteSliceDomain> &res) override {
             CompeteSliceDomain domain1;

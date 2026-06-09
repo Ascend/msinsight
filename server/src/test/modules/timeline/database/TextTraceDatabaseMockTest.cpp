@@ -48,7 +48,8 @@ class TextTraceDatabaseMockTest : public ::testing::Test {
     CounterTable counterTable;
     const std::string sliceTableSql =
         "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
-        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT);";
+        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT, "
+        "group_id TEXT);";
     const std::string threadTableSql = "CREATE TABLE thread (track_id INTEGER PRIMARY KEY, tid TEXT, pid TEXT, "
                                        "thread_name TEXT, thread_sort_index INTEGER);";
     const std::string flowTableSql = "CREATE TABLE flow (id INTEGER PRIMARY KEY AUTOINCREMENT, flow_id TEXT, name "
@@ -234,6 +235,55 @@ TEST_F(TextTraceDatabaseMockTest, TestInsertSliceWhenInsert1000SliceThenDbHave10
     std::vector<SlicePO> slicePOS;
     sliceTable.Select(SliceColumn::NAME).ExcuteQuery(dbPtr, slicePOS);
     EXPECT_EQ(slicePOS.size(), CACHE_SIZE);
+}
+
+TEST_F(TextTraceDatabaseMockTest, TestInsertAndQuerySliceGroupId) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    database.SetDbPtr(dbPtr);
+    Trace::Slice event;
+    event.name = "slice";
+    event.groupId = "groupA";
+    ASSERT_TRUE(database.InsertSliceList({event}));
+    std::vector<SliceDto> sliceDtos;
+    ASSERT_TRUE(database.QuerySliceDtoList(sliceDtos));
+    ASSERT_EQ(sliceDtos.size(), 1);
+    EXPECT_EQ(sliceDtos[0].groupId, "groupA");
+}
+
+TEST_F(TextTraceDatabaseMockTest, TestReplaceAllSlicesKeepGroupId) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    database.SetDbPtr(dbPtr);
+    SliceDto sliceDto;
+    sliceDto.name = "slice";
+    sliceDto.groupId = "groupA";
+    ASSERT_TRUE(database.ReplaceAllSlices({sliceDto}));
+    std::vector<SliceDto> sliceDtos;
+    ASSERT_TRUE(database.QuerySliceDtoList(sliceDtos));
+    ASSERT_EQ(sliceDtos.size(), 1);
+    EXPECT_EQ(sliceDtos[0].groupId, "groupA");
+}
+
+TEST_F(TextTraceDatabaseMockTest, TestEnsureSliceGroupIdColumnWhenOldSliceTable) {
+    std::recursive_mutex sqlMutex;
+    MockDatabase database(sqlMutex);
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    const std::string oldSliceTableSql =
+        "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
+        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT);";
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, oldSliceTableSql);
+    database.SetDbPtr(dbPtr);
+    ASSERT_FALSE(database.CheckColumnExist("slice", std::string(SliceColumn::GROUPID)));
+    ASSERT_TRUE(database.EnsureSliceGroupIdColumn());
+    EXPECT_TRUE(database.CheckColumnExist("slice", std::string(SliceColumn::GROUPID)));
 }
 
 /**
