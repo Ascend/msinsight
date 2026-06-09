@@ -660,6 +660,24 @@ struct MemcpyOverallResponse : public Response {
     bool isLoading = false;
 };
 
+struct KernelOverallRes {
+    std::string key;
+    std::string type;
+    std::string acceleratorCore;
+    double totalTime{};
+    uint32_t number{};
+    double avgTime{};
+    double minTime{};
+    double maxTime{};
+};
+
+struct KernelOverallResponse : public Response {
+    KernelOverallResponse() : Response(REQ_RES_KERNEL_OVERALL) {}
+    std::vector<KernelOverallRes> details;
+    PageParam pageParam;
+    bool isLoading = false;
+};
+
 struct MemcpyDetailResponse : public Response {
     MemcpyDetailResponse() : Response(REQ_RES_MEMCPY_DETAIL) {}
     MemcpyDetailsBody body;

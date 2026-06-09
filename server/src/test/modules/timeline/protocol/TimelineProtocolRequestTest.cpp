@@ -210,6 +210,44 @@ TEST_F(TimelineProtocolRequestTest, TestUnitThreadsOperatorsParams) {
     EXPECT_EQ(res, false);
 }
 
+TEST_F(TimelineProtocolRequestTest, KernelOverallParams) {
+    Dic::Protocol::KernelOverallRequest::Params params;
+    std::string errorMsg;
+
+    params.page.pageSize = 0;
+    params.page.current = 1;
+    EXPECT_EQ(params.CheckParams(0, errorMsg), false);
+
+    params.page.pageSize = 1;
+    params.page.current = 0;
+    EXPECT_EQ(params.CheckParams(0, errorMsg), false);
+
+    params.page.current = 1;
+    params.startTime = 2;
+    params.endTime = 1;
+    EXPECT_EQ(params.CheckParams(0, errorMsg), false);
+
+    params.startTime = 0;
+    params.endTime = UINT64_MAX;
+    EXPECT_EQ(params.CheckParams(1, errorMsg), false);
+
+    params.endTime = 1;
+    params.order = "";
+    params.orderBy = "invalid";
+    EXPECT_EQ(params.CheckParams(0, errorMsg), true);
+
+    params.order = "ascend";
+    params.orderBy = "acceleratorCore";
+    EXPECT_EQ(params.CheckParams(0, errorMsg), true);
+
+    params.orderBy = "invalid";
+    EXPECT_EQ(params.CheckParams(0, errorMsg), false);
+
+    params.order = "invalid";
+    params.orderBy = "type";
+    EXPECT_EQ(params.CheckParams(0, errorMsg), false);
+}
+
 TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsValidInput) {
     Dic::Protocol::RankOffsetParams params;
     params.sliceName = "MatMul";
