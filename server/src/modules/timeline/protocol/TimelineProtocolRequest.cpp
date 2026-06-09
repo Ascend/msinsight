@@ -191,5 +191,37 @@ bool MemcpyOverallRequest::Params::CheckParams(uint64_t minTime, std::string &er
     }
     return true;
 }
+
+bool KernelOverallRequest::Params::CheckParams(uint64_t minTime, std::string &errMsg) const {
+    if (page.pageSize == 0) {
+        errMsg = "Failed to check page parameter. Page size cannot be zero.";
+        return false;
+    }
+    if (page.current == 0) {
+        errMsg = "Failed to check page parameter. Current cannot be zero.";
+        return false;
+    }
+    if (startTime > endTime) {
+        errMsg = "kernel overall start time is bigger than end time";
+        return false;
+    }
+    if (endTime > UINT64_MAX - minTime) {
+        errMsg = "kernel overall end time is invalid";
+        return false;
+    }
+    if (order.empty()) {
+        return true;
+    }
+    if (order != "ascend" && order != "descend") {
+        errMsg = "kernel overall order is invalid";
+        return false;
+    }
+    if (orderBy != "type" && orderBy != "acceleratorCore" && orderBy != "number" && orderBy != "totalTime" &&
+        orderBy != "avgTime" && orderBy != "minTime" && orderBy != "maxTime") {
+        errMsg = "kernel overall orderBy is invalid";
+        return false;
+    }
+    return true;
+}
 } // namespace Protocol
 } // namespace Dic

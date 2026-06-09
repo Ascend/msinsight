@@ -111,6 +111,7 @@ const std::string REQ_RES_TABLE_DATA_NAME_LIST = "tableData/nameList";
 const std::string REQ_RES_TABLE_DATA_DETAIL = "tableData/detail";
 const std::string REQ_RES_MEMCPY_OVERALL = "memcpy/total/list";
 const std::string REQ_RES_MEMCPY_DETAIL = "memcpy/detail/list";
+const std::string REQ_RES_KERNEL_OVERALL = "kernel/total/list";
 const std::string REQ_RES_RANK_OFFSET = "timeline/rankOffset";
 
 // communication

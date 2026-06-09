@@ -55,6 +55,9 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_SLICE_DETAIL_FAILED, "Failed to search slice details"},
     {ErrorCode::QUERY_SLICE_NAME_FAILED, "Failed to search slice name"},
     {ErrorCode::SET_CARD_ALIAS_FAILED, "Failed to set card alias"},
+    {ErrorCode::QUERY_MEMCPY_OVERALL_FAILED, "Failed to query memcpy overall"},
+    {ErrorCode::QUERY_MEMCPY_DETAIL_FAILED, "Failed to query memcpy detail"},
+    {ErrorCode::QUERY_KERNEL_OVERALL_FAILED, "Failed to query kernel overall"},
 
     {ErrorCode::FILE_PATH_IS_EMPTY, "Import file path is empty"},
     {ErrorCode::FOLDER_IS_EMPTY, "Import path is empty folder"},

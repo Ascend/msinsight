@@ -59,6 +59,7 @@ void TimelineProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_SYSTEM_VIEW_FTRACE_STAT, ToSystemViewFtraceStatRequest);
     jsonToReqFactory.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, ToExpAnaAICoreFreqRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMCPY_OVERALL, ToMemcpyOverallRequest);
+    jsonToReqFactory.emplace(REQ_RES_KERNEL_OVERALL, ToKernelOverallRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMCPY_DETAIL, ToSystemViewOverallMoreDetailsRequest);
     jsonToReqFactory.emplace(REQ_RES_RANK_OFFSET, ToRankOffsetRequest);
 }
@@ -97,6 +98,7 @@ void TimelineProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, ToExpAnaAICoreFreqResponseJson);
     resToJsonFactory.emplace(REQ_RES_CREATE_CURVE, ToCreateCurveResponseJson);
     resToJsonFactory.emplace(REQ_RES_MEMCPY_OVERALL, ToMemcpyOverallListResponseJson);
+    resToJsonFactory.emplace(REQ_RES_KERNEL_OVERALL, ToKernelOverallListResponseJson);
     resToJsonFactory.emplace(REQ_RES_MEMCPY_DETAIL, ToMemcpyDetailListResponseJson);
     resToJsonFactory.emplace(REQ_RES_RANK_OFFSET, ToRankOffsetResponseJson);
 }
@@ -742,6 +744,38 @@ std::unique_ptr<Request> TimelineProtocol::ToMemcpyOverallRequest(const Dic::jso
     return reqPtr;
 }
 
+std::unique_ptr<Request> TimelineProtocol::ToKernelOverallRequest(const Dic::json_t &json, std::string &error) {
+    std::unique_ptr<KernelOverallRequest> reqPtr = std::make_unique<KernelOverallRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+        error = "Failed to set request base info for kernel overall command.";
+        return nullptr;
+    }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.page.current, json["params"], "current");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.page.pageSize, json["params"], "pageSize");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.orderBy, json["params"], "orderBy");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.order, json["params"], "order");
+    if (json["params"].HasMember("filterCondition") && json["params"]["filterCondition"].IsArray()) {
+        for (const auto &filter : json["params"]["filterCondition"].GetArray()) {
+            if (!filter.IsString()) {
+                continue;
+            }
+            auto fil = JsonUtil::TryParse(filter.GetString(), error);
+            if (!fil) {
+                error = "Failed to set request base info because invalid filter json, command is: " + reqPtr->command;
+                continue;
+            }
+            std::pair<std::string, std::string> pFilter("", "");
+            pFilter.first = JsonUtil::GetString(fil->GetObj(), "columnName");
+            pFilter.second = JsonUtil::GetString(fil->GetObj(), "value");
+            reqPtr->params.filters.emplace_back(pFilter);
+        }
+    }
+    return reqPtr;
+}
+
 std::unique_ptr<Request> TimelineProtocol::ToRankOffsetRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<RankOffsetRequest> reqPtr = std::make_unique<RankOffsetRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
@@ -879,6 +913,10 @@ std::optional<document_t> TimelineProtocol::ToParseCardsResponseJson(const Respo
 
 std::optional<document_t> TimelineProtocol::ToMemcpyOverallListResponseJson(const Response &response) {
     return ToResponseJson<MemcpyOverallResponse>(dynamic_cast<const MemcpyOverallResponse &>(response));
+}
+
+std::optional<document_t> TimelineProtocol::ToKernelOverallListResponseJson(const Response &response) {
+    return ToResponseJson<KernelOverallResponse>(dynamic_cast<const KernelOverallResponse &>(response));
 }
 
 std::optional<document_t> TimelineProtocol::ToMemcpyDetailListResponseJson(const Response &response) {

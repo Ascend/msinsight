@@ -915,6 +915,33 @@ template <> std::optional<document_t> ToResponseJson<MemcpyOverallResponse>(cons
     return std::optional<document_t>{std::move(json)};
 }
 
+template <> std::optional<document_t> ToResponseJson<KernelOverallResponse>(const KernelOverallResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    json_t data(kArrayType);
+    for (const auto &item : response.details) {
+        json_t detail(kObjectType);
+        JsonUtil::AddMember(detail, "key", item.key, allocator);
+        JsonUtil::AddMember(detail, "type", item.type, allocator);
+        JsonUtil::AddMember(detail, "acceleratorCore", item.acceleratorCore, allocator);
+        JsonUtil::AddMember(detail, "totalTime", item.totalTime, allocator);
+        JsonUtil::AddMember(detail, "number", item.number, allocator);
+        JsonUtil::AddMember(detail, "avgTime", item.avgTime, allocator);
+        JsonUtil::AddMember(detail, "minTime", item.minTime, allocator);
+        JsonUtil::AddMember(detail, "maxTime", item.maxTime, allocator);
+        data.PushBack(detail, allocator);
+    }
+    JsonUtil::AddMember(body, "data", data, allocator);
+    JsonUtil::AddMember(body, "count", response.pageParam.total, allocator);
+    JsonUtil::AddMember(body, "pageSize", response.pageParam.pageSize, allocator);
+    JsonUtil::AddMember(body, "current", response.pageParam.current, allocator);
+    JsonUtil::AddMember(body, "isLoading", response.isLoading, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
 template <> std::optional<document_t> ToResponseJson<MemcpyDetailResponse>(const MemcpyDetailResponse &response) {
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();

@@ -52,6 +52,7 @@
 
 #include "QueryMemcpyDetailHandler.h"
 #include "QueryMemcpyOverallHandler.h"
+#include "QueryKernelOverallHandler.h"
 #include "QuerySystemViewFtraceStatHandler.h"
 #include "QueryKernelE2ETimeHandler.h"
 #include "RankOffsetHandler.h"
@@ -114,6 +115,7 @@ void TimelineModule::RegisterRequestHandlers() {
     requestHandlerMap.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, std::make_unique<QueryExpAnaAICoreFreqHandler>());
     requestHandlerMap.emplace(REQ_RES_CREATE_CURVE, std::make_unique<CreateCurveHandler>());
     requestHandlerMap.emplace(REQ_RES_MEMCPY_OVERALL, std::make_unique<QueryMemcpyOverallHandler>());
+    requestHandlerMap.emplace(REQ_RES_KERNEL_OVERALL, std::make_unique<QueryKernelOverallHandler>());
     requestHandlerMap.emplace(REQ_RES_MEMCPY_DETAIL, std::make_unique<QueryMemcpyDetailHandler>());
     requestHandlerMap.emplace(REQ_RES_SYSTEM_VIEW_FTRACE_STAT, std::make_unique<QuerySystemViewFtraceStatHandler>());
     requestHandlerMap.emplace(REQ_RES_RANK_OFFSET, std::make_unique<RankOffsetHandler>());

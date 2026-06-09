@@ -68,6 +68,7 @@ class TimelineProtocol : public ProtocolUtil {
     static std::unique_ptr<Request> ToSystemViewOverallMoreDetailsRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToSystemViewFtraceStatRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToMemcpyOverallRequest(const json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToKernelOverallRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToRankOffsetRequest(const json_t &json, std::string &error);
     // response to json
     static std::optional<document_t> ToImportActionResponseJson(const Response &response);
@@ -99,6 +100,7 @@ class TimelineProtocol : public ProtocolUtil {
     static std::optional<document_t> ToTableDataDetailResponseJson(const Response &response);
     static std::optional<document_t> ToParseCardsResponseJson(const Response &response);
     static std::optional<document_t> ToMemcpyOverallListResponseJson(const Response &response);
+    static std::optional<document_t> ToKernelOverallListResponseJson(const Response &response);
     static std::optional<document_t> ToMemcpyDetailListResponseJson(const Response &response);
     static std::optional<document_t> ToRankOffsetResponseJson(const Response &response);
     // event to json

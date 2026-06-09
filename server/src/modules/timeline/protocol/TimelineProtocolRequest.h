@@ -37,11 +37,7 @@ namespace Protocol {
 using namespace Dic::Module::Timeline;
 const std::string PYTHON_STACK_THREAD_ID_PREFIX = "python_stack:";
 const std::string PYTHON_API_THREAD_ID = "pytorch";
-enum class ProjectActionEnum {
-    TRANSFER_PROJECT = 0,
-    ADD_FILE,
-    UNKNOWN
-};
+enum class ProjectActionEnum { TRANSFER_PROJECT = 0, ADD_FILE, UNKNOWN };
 
 struct ImportActionParams {
     std::string projectName;
@@ -612,6 +608,21 @@ struct MemcpyOverallRequest : public Request {
         PageParam page{};
         uint64_t startTime = 0; // time range analysis mode while startTime not equal to endTime
         uint64_t endTime = 0; // time range analysis mode while startTime not equal to endTime
+        bool CheckParams(uint64_t minTime, std::string &errMsg) const;
+    } params;
+};
+
+struct KernelOverallRequest : public Request {
+    KernelOverallRequest() : Request(REQ_RES_KERNEL_OVERALL) {};
+    struct Params {
+        std::string rankId;
+        std::string deviceId;
+        std::vector<std::pair<std::string, std::string>> filters;
+        PageParam page{};
+        uint64_t startTime = 0;
+        uint64_t endTime = 0;
+        std::string orderBy;
+        std::string order;
         bool CheckParams(uint64_t minTime, std::string &errMsg) const;
     } params;
 };
