@@ -174,6 +174,7 @@ template <> std::optional<document_t> ToResponseJson<BaselineSettingResponse>(co
     JsonUtil::AddMember(body, "isCluster", response.body.isCluster, allocator);
     JsonUtil::AddMember(body, "errorMessage", response.body.errorMessage, allocator);
     JsonUtil::AddMember(body, "dbPath", response.body.fileId, allocator);
+    JsonUtil::AddMember(body, "isFtrace", response.body.isFtrace, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }

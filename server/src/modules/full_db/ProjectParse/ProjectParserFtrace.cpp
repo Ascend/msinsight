@@ -16,12 +16,15 @@
  * -------------------------------------------------------------------------
  */
 
+#include <algorithm>
+
 #include "ProjectParserFtrace.h"
 #include "ModuleRequestHandler.h"
 #include "DataBaseManager.h"
 #include "ParserStatusManager.h"
 #include "EventNotifyThreadPoolExecutor.h"
 #include "ProjectAnalyze.h"
+#include "BaselineManager.h"
 #include "TrackInfoManager.h"
 #include "CommonDefs.h"
 #include "Database.h"
@@ -95,6 +98,45 @@ void ProjectParserFtrace::FillBaseResponseInfo(const ImportActionRequest &reques
     MergeFileTree(response.body.projectFileTree, projectInfos[0].projectFileTree);
     response.command = Protocol::REQ_RES_IMPORT_ACTION;
     response.moduleName = MODULE_TIMELINE;
+}
+
+void ProjectParserFtrace::ParserBaseline(
+    const Global::ProjectExplorerInfo &projectInfo, Global::BaselineInfo &baselineInfo) {
+    (void)projectInfo;
+    std::string error;
+    std::vector<std::string> ftraceFiles = GetParseFileByImportFile(baselineInfo.parsedFilePath, error);
+    auto it = std::find_if(ftraceFiles.begin(), ftraceFiles.end(),
+        [](const std::string &file) { return IsFtraceDbFile(FileUtil::GetFileName(file)); });
+    if (it == ftraceFiles.end()) {
+        baselineInfo.errorMessage = error.empty() ? "No ftrace db files found" : error;
+        Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
+        return;
+    }
+
+    std::string file = *it;
+    std::string rankId = file;
+    std::string fileId = file;
+    baselineInfo.rankId = rankId;
+    baselineInfo.cardName = "Baseline_" + rankId;
+    baselineInfo.fileId = fileId;
+    baselineInfo.isFtrace = true;
+    Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
+
+    Timeline::DataBaseManager::Instance().SetDataType(Timeline::DataType::TEXT, fileId);
+    RankInfo rankInfo;
+    rankInfo.rankId = rankId;
+    rankInfo.rankName = rankId;
+    TrackInfoManager::Instance().SetRankListByFileId(fileId, rankInfo);
+
+    if (!DataBaseManager::Instance().CreateTraceConnectionPool(rankId, fileId)) {
+        ServerLog::Error("Failed to create baseline ftrace connection pool. file:", file);
+        return;
+    }
+
+    SetParseCallBack();
+    Timeline::JsonFileParserManager::GetTraceFileParser().Parse({file}, rankId, file, fileId);
+    Timeline::EventNotifyThreadPoolExecutor::Instance().GetThreadPool()->AddTask(
+        SendAllParseSuccess, TraceIdManager::GetTraceId());
 }
 
 void ProjectParserFtrace::ParserFtraceData(const std::unordered_map<std::string, std::string> &rankListMap) {

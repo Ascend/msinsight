@@ -312,6 +312,7 @@ struct BaselineInfo {
     std::string cardName;
     std::string errorMessage;
     bool isCluster = false;
+    bool isFtrace = false;
     std::string clusterBaseLine;
     std::string fileId;
     std::string parsedFilePath;

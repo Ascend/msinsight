@@ -18,6 +18,8 @@
 #include <gtest/gtest.h>
 #include <vector>
 #include "ProjectParserFactory.h"
+#include "ProjectParserFtrace.h"
+#include "FileUtil.h"
 
 using namespace Dic::Module;
 using namespace Dic::Module::Global;
@@ -64,6 +66,11 @@ TEST_F(ProjectParserTest, ParserBaseline) {
     ProjectExplorerInfo info;
     BaselineInfo baselineInfo;
     parser.ParserBaseline(info, baselineInfo);
+}
+
+TEST_F(ProjectParserTest, FtraceProjectTypeSupportsBaselineCompare) {
+    EXPECT_TRUE(IsSupportCompareType(ProjectTypeEnum::DB_FTRACE));
+    EXPECT_TRUE(IsComparable(ProjectTypeEnum::DB_FTRACE, ProjectTypeEnum::DB_FTRACE));
 }
 
 TEST_F(ProjectParserTest, GetParseFileByImportFile) {

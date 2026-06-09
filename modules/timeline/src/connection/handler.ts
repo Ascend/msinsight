@@ -38,6 +38,7 @@ import { queryOneKernel } from '../components/detailViews/Common';
 import { TIME_MAKER_DEFAULT } from '../entity/timeMaker';
 import { MAX_INITIAL_DURATION } from '../entity/domain';
 import { mergeUnitsWhenLoadProject } from '../actions/actionMergeUnits';
+import { buildBaselineCardMetadata, type TimelineCard } from './baseline';
 
 const DEFAULT_EXPAND_UNIT_NUMBER = 1;
 const MAX_PARSE_SIZE = 32;
@@ -343,7 +344,7 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
     session.updateUnitsForMultiDevice();
 };
 
-const createBaselineCard = (session: Session | undefined, result: TimelineCard[], dataSource: DataSource): void => {
+export const createBaselineCard = (session: Session | undefined, result: TimelineCard[], dataSource: DataSource): void => {
     if (!session) { return; }
     const singleDataPath = dataSource.dataPath[0];
     const isSamePath = session?.units.some((unit) => {
@@ -361,16 +362,7 @@ const createBaselineCard = (session: Session | undefined, result: TimelineCard[]
         const unit = isEmpty(host) ? undefined : new ROOT_UNIT({ dataSource, host });
         const cardUnits: InsightUnit[] = [];
         forEach(cards, (item: TimelineCard) => {
-            const curDataSource = cloneDeep(dataSource);
-            curDataSource.dataPath = [item.cardPath];
-            const cardUnit = new CardUnit({
-                dataSource: curDataSource,
-                cardId: item.rankId,
-                dbPath: item.dbPath ?? '',
-                cluster: item.cluster,
-                cardName: item.cardName,
-                cardPath: item.cardPath,
-            });
+            const cardUnit = new CardUnit(buildBaselineCardMetadata(item, dataSource));
             if (item.result as boolean) {
                 cardUnit.isParseLoading = true;
                 cardUnit.shouldParse = true;
@@ -488,16 +480,6 @@ export const importRemoteHandler: NotificationHandler = async (data): Promise<vo
         console.error(error);
     }
 };
-
-export interface TimelineCard {
-    cardName: string;
-    cardPath: string;
-    cluster: string;
-    host: string;
-    rankId: string;
-    dbPath?: string;
-    result: boolean;
-}
 
 /**
  * 处理基线添加通知的异步函数

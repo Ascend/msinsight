@@ -45,6 +45,7 @@ bool SetBaselineHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     response.body.errorMessage = baselineInfo.errorMessage;
     response.body.cardName = baselineInfo.cardName;
     response.body.isCluster = baselineInfo.isCluster;
+    response.body.isFtrace = baselineInfo.isFtrace;
     response.body.cluster = baselineInfo.clusterBaseLine;
     response.body.fileId = baselineInfo.fileId;
     SendResponse(std::move(responsePtr), res);

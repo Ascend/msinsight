@@ -630,6 +630,8 @@ void ProjectParserJson::ParserSingleCardBaseline(
     baselineInfo.rankId = rankId;
     baselineInfo.cardName = rankId;
     baselineInfo.fileId = dbPath;
+    baselineInfo.isFtrace = std::any_of(jsonFiles.begin(), jsonFiles.end(),
+        [](const std::string &jsonFile) { return ProjectParserJson::IsFtraceJsonData(jsonFile); });
     Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
     UpdateRankIdToDevice(rankListMap);
     if (isParsed) {
