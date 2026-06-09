@@ -2,7 +2,7 @@
 <div align="center">
   <img src="./modules/framework/public/favicon.ico" width="200" alt="MindStudio Insight Logo">
   <p>🚀 <b>All-scenario Ascend AI visualization profiling tool</b></p>
-  
+
   [![Ask DeepWiki](https://badgen.net/badge/Ask/DeepWiki/blue)](https://deepwiki.com/qianxiaoxixixi/MsInsightForEveryOne/ ) [![Ask ZRead](https://badgen.net/badge/Ask/ZRead/orange)](https://zread.ai/qianxiaoxixixi/MsInsightForEveryOne) [![doc](https://badgen.net/badge/doc/readthedocs/green)](https://msinsight.readthedocs.io/zh-cn/latest/)
   [![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](./License) [![Version](https://badgen.net/badge/Version/8.3.0/green)](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_8.3.0) [![Ascend](https://img.shields.io/badge/Hardware-Ascend-orange.svg)](https://www.hiascend.com/)
 </div>
@@ -27,7 +27,7 @@
   padding: 4px 0 2px 0;            /* Extremely narrow top and bottom */
   font-weight: 600;                 Semi-bold
   color: #1a2639;
-  letter-spacing: 1px;           
+  letter-spacing: 1px;
 ">
   System Tuning
 </div>
@@ -60,21 +60,21 @@
 ├── server                             # Backend service module
 │   ├── build                          # Build script
 │   ├── cmake                          # Build script for open-source software
-│   ├── src                      
+│   ├── src
 │   │   ├── channel                    # Network communication
 │   │   ├── defs                       # Global definition
 │   │   ├── entry                       # Compilation module
-│   │   │   ├── server       
+│   │   │   ├── server
 │   │   │      ├── bin                 # Server module
 │   │   ├── protocol                   # Message definition
-│   │   ├── module       
+│   │   ├── module
 │   │   │   ├── base                   # Base class shared by modules
 │   │   │   ├── global                 # Global message
 │   │   │   ├── timeline               # Timeline message processing
 │   │   │   │   ├── core               # Core processing logic
 │   │   │   │   ├── handler            # Message processing
 │   │   │   │   ├──protocol            # Message format conversion
-│   │   │   ├── ...      
+│   │   │   ├── ...
 │   │   ├── server                     # Server service
 │   │   ├── utils                      # Utility class
 │   ├── third_party                    # Open-source software
@@ -187,7 +187,7 @@ Thank you to everyone in the community for your PRs. We warmly welcome contribut
 The Huawei MindStudio full-pipeline development toolchain team is dedicated to providing an end-to-end solution for building Ascend AI applications, accelerating the processes of training, inference, and operator development. You can learn more about the Huawei MindStudio team through the following channels:
 <div style="display: flex; align-items: center; gap: 10px;">
     <span>MindStudio official account:</span>
-    <img width="100" src="./docs/zh/user_guide/figures/readme/officialAccount.jpg" />
+    <img width="100" src="./docs/zh/user_guide/figures/readme/officialAccount.png" />
     <span style="margin-left: 20px;">Ascend Assistant: </span>
     <a href="https://gitcode.com/Ascend/msinsight/blob/master/docs/zh/user_guide/figures/readme/xiaozhushou.png">
         <img src="https://camo.githubusercontent.com/22bbaa8aaa1bd0d664b5374d133c565213636ae50831af284ef901724e420f8f/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5765436861742d3037433136303f7374796c653d666f722d7468652d6261646765266c6f676f3d776563686174266c6f676f436f6c6f723d7768697465" data-canonical-src="./docs/zh/user_guide/figures/readme/xiaozhushou.png" style="max-width: 100%;">

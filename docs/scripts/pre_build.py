@@ -35,74 +35,80 @@ def convert_paths(content):
     return content
 
 
+def remove_trailing_blank_lines(lines):
+    while lines and lines[-1].strip() == '':
+        lines.pop()
+
+
+def should_remove_details(lines, line_index, titles_to_remove):
+    if '<details>' not in lines[line_index]:
+        return False
+    next_line_index = line_index + 1
+    if next_line_index >= len(lines):
+        return False
+    summary_match = re.search(r'<summary[^>]*>(.+?)</summary>', lines[next_line_index])
+    return bool(summary_match and summary_match.group(1).strip() in titles_to_remove)
+
+
 def remove_sections(content, titles_to_remove):
     lines = content.split('\n')
     result_lines = []
     skip = False
     current_level = 0
     skip_details = False
-    
-    for i, line in enumerate(lines):
-        if '<details>' in line:
-            next_line_idx = i + 1
-            if next_line_idx < len(lines):
-                next_line = lines[next_line_idx]
-                summary_match = re.search(r'<summary[^>]*>(.+?)</summary>', next_line)
-                if summary_match:
-                    title = summary_match.group(1).strip()
-                    if title in titles_to_remove:
-                        skip = True
-                        skip_details = True
-                        while result_lines and result_lines[-1].strip() == '':
-                            result_lines.pop()
-                        continue
-        
+
+    for line_index, line in enumerate(lines):
+        if should_remove_details(lines, line_index, titles_to_remove):
+            skip = True
+            skip_details = True
+            remove_trailing_blank_lines(result_lines)
+            continue
+
         if skip_details and '</details>' in line:
             skip = False
             skip_details = False
             continue
-        
+
         header_match = re.match(r'^(#{1,6})\s+(.+)$', line)
-        
+
         if header_match:
             level = len(header_match.group(1))
             title = header_match.group(2).strip()
-            
+
             if title in titles_to_remove:
                 skip = True
                 current_level = level
-                while result_lines and result_lines[-1].strip() == '':
-                    result_lines.pop()
+                remove_trailing_blank_lines(result_lines)
                 continue
-            elif skip and level <= current_level:
+            if skip and level <= current_level:
                 skip = False
-        
+
         if skip:
             continue
-        
+
         result_lines.append(line)
-    
+
     return '\n'.join(result_lines)
 
 
 def main():
-    titles_to_remove = ['Demo', '🗺️ 目录结构', '🚀 快速入门', '🛠️ 贡献指南']
-    
+    titles_to_remove = []
+
     readme_path = 'README.md'
     index_path = 'docs/index.md'
-    
+
     readme_content = read_file(readme_path)
     index_content = read_file(index_path)
-    
+
     if titles_to_remove:
         readme_content = remove_sections(readme_content, titles_to_remove)
-    
+
     processed_readme = convert_paths(readme_content)
-    
-    new_index_content = processed_readme + '\n'.join(index_content.splitlines()[1:])
-    
+
+    new_index_content = processed_readme.rstrip() + '\n\n' + '\n'.join(index_content.splitlines()[1:])
+
     write_file(index_path, new_index_content)
-    
+
     print(f"Successfully processed README.md and updated {index_path}")
 
 
