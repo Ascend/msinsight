@@ -135,6 +135,7 @@ struct BaselineSettingBody {
     std::string errorMessage;
     std::string fileId;
     bool isCluster = false;
+    bool isFtrace = false;
 };
 
 struct BaselineSettingResponse : public Response {

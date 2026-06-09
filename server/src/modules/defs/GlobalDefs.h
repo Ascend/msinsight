@@ -89,6 +89,7 @@ inline std::vector<ProjectTypeEnum> projectTypeSupportCompare = {
     ProjectTypeEnum::TRACE,
     ProjectTypeEnum::DB_CLUSTER,
     ProjectTypeEnum::BIN,
+    ProjectTypeEnum::DB_FTRACE,
 };
 
 static inline bool IsSupportCompareType(ProjectTypeEnum projectTypeEnum) {
@@ -101,7 +102,7 @@ static inline bool IsSupportCompareType(ProjectTypeEnum projectTypeEnum) {
 
 inline std::unordered_map<ProjectTypeEnum, uint8_t> projectTypeGroup = {{ProjectTypeEnum::DB, 1},
     {ProjectTypeEnum::TEXT_CLUSTER, 2}, {ProjectTypeEnum::SIMULATION, 3}, {ProjectTypeEnum::TRACE, 2},
-    {ProjectTypeEnum::DB_CLUSTER, 1}, {ProjectTypeEnum::DB_NPUMONITOR, 1}};
+    {ProjectTypeEnum::DB_CLUSTER, 1}, {ProjectTypeEnum::DB_NPUMONITOR, 1}, {ProjectTypeEnum::DB_FTRACE, 1}};
 
 static inline ParserType coverProjectTypeToParserType(ProjectTypeEnum projectTypeEnum) {
     switch (projectTypeEnum) {

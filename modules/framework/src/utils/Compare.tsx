@@ -33,6 +33,7 @@ export interface CompareData extends File {
     host?: string;
     cardName?: string;
     isCluster?: boolean;
+    isFtrace?: boolean;
 }
 
 export interface TimelineCard {
@@ -42,6 +43,7 @@ export interface TimelineCard {
     rankId: string;
     dbPath?: string;
     result: boolean;
+    isFtrace?: boolean;
 }
 
 const sendTabAddBaseline = function(dataSource: any, baseLine: TimelineCard[]): void {
@@ -82,7 +84,7 @@ export const setBaselineData = async ({ projectName, fileType, filePath, rankId,
     } else if (isClusterCompare) {
         handleClusterCompare({ projectName, fileType, filePath, ...result } as CompareData);
     } else {
-        const { rankId: resultRankId, dbPath, cardName, host } = result as CompareData;
+        const { rankId: resultRankId, dbPath, cardName, host, isFtrace } = result as CompareData;
         const timelineCard: TimelineCard = {
             rankId: resultRankId,
             dbPath,
@@ -90,6 +92,7 @@ export const setBaselineData = async ({ projectName, fileType, filePath, rankId,
             cardName: cardName ?? '',
             host: host ?? '',
             cardPath: filePath,
+            isFtrace,
         };
         const dataSourceForTimeline = { ...GLOBAL_HOST, projectName, dataPath: [filePath] };
         // 通知页签
