@@ -28,20 +28,21 @@
 
 // clang-format off
 namespace {
-Trace::Slice ConvertSliceDtoToTraceSlice(const SliceDto &dto) {
-    Trace::Slice slice;
-    slice.ts = dto.timestamp; // timestamp → ts
-    slice.dur = dto.duration; // duration → dur
-    slice.name = dto.name;
-    slice.trackId = dto.trackId; // trackId → trackId
-    slice.cat = dto.cat.empty() ? std::nullopt : std::optional(dto.cat); // 处理 optional
-    slice.args = dto.args.empty() ? std::nullopt : std::optional(dto.args);
-    slice.cname = ""; // 根据实际需求填充（原 InsertSQL 有 cname）
-    slice.end = dto.timestamp + dto.duration; // end_time = timestamp + duration
-    slice.flagId = dto.flagId;
-    // 注：pid/tid/cardId/metaType 等未在 InsertSQL 中使用，按需扩展
-    return slice;
-}
+    Trace::Slice ConvertSliceDtoToTraceSlice(const SliceDto& dto) {
+        Trace::Slice slice;
+        slice.ts = dto.timestamp;          // timestamp → ts
+        slice.dur = dto.duration;          // duration → dur
+        slice.name = dto.name;
+        slice.trackId = dto.trackId;       // trackId → trackId
+        slice.cat = dto.cat.empty() ? std::nullopt : std::optional(dto.cat); // 处理 optional
+        slice.args = dto.args.empty() ? std::nullopt : std::optional(dto.args);
+        slice.cname = "";                  // 根据实际需求填充（原 InsertSQL 有 cname）
+        slice.end = dto.timestamp + dto.duration; // end_time = timestamp + duration
+        slice.flagId = dto.flagId;
+        slice.groupId = dto.groupId;
+        // 注：pid/tid/cardId/metaType 等未在 InsertSQL 中使用，按需扩展
+        return slice;
+    }
 
 const std::string TEXT_PYTHON_STACK_THREAD_ID_PREFIX = Dic::Protocol::PYTHON_STACK_THREAD_ID_PREFIX + "text:";
 }
@@ -73,7 +74,7 @@ bool TextTraceDatabase::OpenDb(const std::string &dbPath, bool clearAllTable) {
     if (!Database::OpenDb(dbPath, clearAllTable)) {
         return false;
     }
-    return SetConfig() && CheckAndResetDatabaseOnVersionChange();
+    return SetConfig() && EnsureSliceGroupIdColumn() && CheckAndResetDatabaseOnVersionChange();
 }
 
 bool TextTraceDatabase::InitStmt() {
@@ -163,7 +164,21 @@ bool TextTraceDatabase::DropTable() const {
     return DropSomeTables(tables);
 }
 
-bool TextTraceDatabase::CreateIndex() {
+bool TextTraceDatabase::EnsureSliceGroupIdColumn()
+{
+    if (!CheckTableExist(sliceTable) || CheckColumnExist(sliceTable, std::string(SliceColumn::GROUPID))) {
+        return true;
+    }
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    if (!ExecSql("ALTER TABLE " + sliceTable + " ADD COLUMN " + std::string(SliceColumn::GROUPID) + " TEXT;")) {
+        ServerLog::Error("Failed to add group_id column to text slice table.");
+        return false;
+    }
+    return true;
+}
+
+bool TextTraceDatabase::CreateIndex()
+{
     auto start = std::chrono::system_clock::now();
     if (!isOpen) {
         ServerLog::Error("Failed to creat index. Database is not open.");
@@ -222,6 +237,7 @@ bool TextTraceDatabase::InsertSliceList(const std::vector<Trace::Slice> &eventLi
         sqlite3_bind_int64(refStmt->stmt, refStmt->bindIndex++, event.end); // 第8个参数
         sqlite3_bind_text(
             refStmt->stmt, refStmt->bindIndex++, event.flagId.c_str(), event.flagId.size(), SQLITE_STATIC); // 第9个参数
+        sqlite3_bind_text(refStmt->stmt, refStmt->bindIndex++, event.groupId.c_str(), event.groupId.size(), SQLITE_STATIC); // 第10个参数
     }
     std::unique_lock<std::recursive_mutex> lock(mutex);
     if (!refStmt->Execute()) {
@@ -278,9 +294,10 @@ bool TextTraceDatabase::ReplaceAllSlices(const std::vector<SliceDto> &slices) {
 
 std::unique_ptr<SqlitePreparedStatement> TextTraceDatabase::GetSliceStmt(uint64_t paramLen) {
     std::string sql = "INSERT INTO " + sliceTable +
-        " (timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id) VALUES (?,?,?,?,?,?,?,?,?)";
+        " (timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id, group_id) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?)";
     for (uint64_t i = 0; i < paramLen - 1; ++i) {
-        sql.append(",(?,?,?,?,?,?,?,?,?)");
+        sql.append(",(?,?,?,?,?,?,?,?,?,?)");
     }
     return CreatPreparedStatement(sql);
 }
@@ -707,7 +724,7 @@ bool TextTraceDatabase::QuerySliceDtoById(const std::string &sliceId, SliceDto &
 
 bool TextTraceDatabase::QuerySliceDtoList(std::vector<SliceDto> &sliceDtoList) {
     const std::string sliceSql = "select id, timestamp, duration, depth, track_id,"
-                                 "name, args, cat, flag_id from slice";
+                                 "name, args, cat, flag_id, group_id from slice";
     const auto sliceStmt = CreatPreparedStatement(sliceSql);
     if (sliceStmt == nullptr) {
         ServerLog::Error("Query slice list failed to prepare sql.");
@@ -730,6 +747,7 @@ bool TextTraceDatabase::QuerySliceDtoList(std::vector<SliceDto> &sliceDtoList) {
             .args = sliceSet->GetString(col++),
             .cat = sliceSet->GetString(col++),
             .flagId = sliceSet->GetString(col++),
+            .groupId = sliceSet->GetString(col++),
         });
     }
     return true;

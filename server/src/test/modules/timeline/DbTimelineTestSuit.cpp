@@ -336,7 +336,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcess) {
     params.metaType = "PROCESS";
     params.order = "descend";
     params.orderBy = "duration";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.pid = "11814731181473";
     params.processName = "Process 2750";
     params.rankId = "2";
@@ -372,7 +372,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThread) {
     params.metaType = "CANN_API";
     params.order = "descend";
     params.orderBy = "duration";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.pid = "11814731181473";
     params.processName = "Thread 3571117473";
     params.rankId = "2";
@@ -408,7 +408,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANN) {
     params.metaType = "CANN_API";
     params.order = "descend";
     params.orderBy = "duration";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.pid = "11814731181473";
     params.processName = "CANN";
     params.rankId = "2";
@@ -444,7 +444,7 @@ TEST_F(FullDbTestSuit, QueryEventsViewData4HostProcessThreadCANNAcl) {
     params.metaType = "CANN_API";
     params.order = "descend";
     params.orderBy = "duration";
-    params.pageSize = PAGE_SIZE;
+    params.pageSize = SYS_PAGE_SIZE;
     params.pid = "11814731181473";
     params.processName = "CANN";
     params.rankId = "2";

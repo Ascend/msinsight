@@ -51,7 +51,8 @@ class EventParserTest : public ::testing::Test {
     const std::string fileId = "lll";
     std::string sliceTableSql =
         "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
-        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT);";
+        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT, "
+        "group_id TEXT);";
     std::unique_ptr<MockFileReader> mockFileReader = std::make_unique<MockFileReader>();
     std::recursive_mutex sqlMutex;
     std::shared_ptr<MockDatabase> mockDatabase = std::make_unique<MockDatabase>(sqlMutex);
@@ -67,6 +68,33 @@ class EventParserTest : public ::testing::Test {
         TrackInfoManager::Instance().Reset();
     }
 };
+
+TEST_F(EventParserTest, TestEventUtilParseGroupId) {
+    document_t json;
+    json.Parse(R"({"ph":"X","ts":1,"dur":2,"name":"slice","pid":1,"tid":2,"group_id":"groupA"})");
+    auto event = EventUtil::Instance().FromJson(json, "X");
+    ASSERT_NE(event, nullptr);
+    auto &slice = dynamic_cast<Trace::Slice &>(*event);
+    EXPECT_EQ(slice.groupId, "groupA");
+}
+
+TEST_F(EventParserTest, TestEventUtilParseSimulationGroupId) {
+    document_t json;
+    json.Parse(R"({"ph":"SX","ts":1,"dur":2,"name":"slice","pid":"p","tid":"t","group_id":"groupA"})");
+    auto event = EventUtil::Instance().FromJson(json, "SX");
+    ASSERT_NE(event, nullptr);
+    auto &slice = dynamic_cast<Trace::Slice &>(*event);
+    EXPECT_EQ(slice.groupId, "groupA");
+}
+
+TEST_F(EventParserTest, TestEventUtilParseSimulationBeginGroupId) {
+    document_t json;
+    json.Parse(R"({"ph":"SB","ts":1,"name":"SET_FLAG","pid":"p","tid":"t","id":1,"group_id":"groupA"})");
+    auto event = EventUtil::Instance().FromJson(json, "SB");
+    ASSERT_NE(event, nullptr);
+    auto &slice = dynamic_cast<Trace::Slice &>(*event);
+    EXPECT_EQ(slice.groupId, "groupA");
+}
 
 class EventParserMock : public EventParser {
   public:
@@ -844,7 +872,8 @@ TEST_F(EventParserTest, TestSimulationPhIsBAndEParse) {
         "FrameworkLaunch/MatmulLeakyReluCustom/build_out/op_kernel/binary/ascend910b/"
         "kernel_meta_MatmulLeakyreluCustom_0a4ecf73240c8db04ac5059db7c787a7/kernel_meta/"
         "MatmulLeakyreluCustom_0a4ecf73240c8db04ac5059db7c787a7_16186_kernel.cpp:39\",\"detail\":\"PIPE:MTE2,"
-        "TRIGGERPIPE:MTE3,FLAGID:0,\",\"pc_addr\":\"0x1269f0ac\"},\"cname\":\"rail_response\",\"id\":5,\"name\":\"WAIT_"
+        "TRIGGERPIPE:MTE3,FLAGID:0,\",\"pc_addr\":\"0x1269f0ac\"},\"cname\":\"rail_response\",\"group_id\":\"groupA\","
+        "\"id\":5,\"name\":\"WAIT_"
         "FLAG\",\"ph\":\"B\",\"pid\":\"core0.cubecore0\",\"tid\":\"MTE3\",\"ts\":3.1454052925109863},{\"args\":{},"
         "\"cname\":\"rail_response\",\"id\":5,\"name\":\"WAIT_FLAG\",\"ph\":\"E\",\"pid\":\"core0.cubecore0\",\"tid\":"
         "\"MTE3\",\"ts\":3.184324264526367}]";
@@ -864,7 +893,7 @@ TEST_F(EventParserTest, TestSimulationPhIsBAndEParse) {
         .Select(SliceColumn::DURATION, SliceColumn::NAME)
         .Select(SliceColumn::TRACKID, SliceColumn::CNAME)
         .Select(SliceColumn::ENDTIME, SliceColumn::ARGS)
-        .Select(SliceColumn::FLAGID)
+        .Select(SliceColumn::FLAGID, SliceColumn::GROUPID)
         .ExcuteQuery(dbPtr, slicePOs);
     const uint64_t expectSize = 1;
     const uint64_t first = 0;
@@ -881,6 +910,7 @@ TEST_F(EventParserTest, TestSimulationPhIsBAndEParse) {
     EXPECT_EQ(slicePOs[first].args.empty(), false);
     EXPECT_EQ(slicePOs[first].cname, "rail_response");
     EXPECT_EQ(slicePOs[first].flagId, "5");
+    EXPECT_EQ(slicePOs[first].groupId, "groupA");
 }
 
 /**

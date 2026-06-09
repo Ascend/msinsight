@@ -35,6 +35,7 @@ struct SliceDto {
     std::string args;
     std::string cat;
     std::string flagId;
+    std::string groupId;
     std::string pid;
     std::string tid;
     std::string cardId;

@@ -49,6 +49,9 @@ void SliceTable::TrackIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteRes
 void SliceTable::FlagIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet) {
     slicePo.flagId = resultSet->GetString(SliceColumn::FLAGID);
 }
+void SliceTable::GroupIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    slicePo.groupId = resultSet->GetString(SliceColumn::GROUPID);
+}
 }
 }
 }
