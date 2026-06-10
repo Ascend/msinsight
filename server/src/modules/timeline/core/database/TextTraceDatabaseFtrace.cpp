@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 
+#include "ServerLog.h"
 #include "TextTraceDatabase.h"
+#include "TextTraceDatabaseFtraceSql.h"
 
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
@@ -147,12 +149,33 @@ bool TextTraceDatabase::CreateTraceTaskSummaryTable() {
                 runnable_ns INTEGER DEFAULT 0,
                 cs_count INTEGER DEFAULT 0,
                 cs_involuntary_count INTEGER DEFAULT 0,
+                soft_irq_count INTEGER DEFAULT 0,
+                soft_irq_duration INTEGER DEFAULT 0,
+                hard_irq_count INTEGER DEFAULT 0,
+                hard_irq_duration INTEGER DEFAULT 0,
                 PRIMARY KEY (comm, pid, cpu_id)
             );
         )";
 
     std::unique_lock<std::recursive_mutex> lock(mutex);
-    return ExecSql(sql);
+    if (!ExecSql(sql)) {
+        return false;
+    }
+
+    // 补齐 IRQ 列
+    static constexpr const char *IRQ_COLUMNS[] = {
+        "soft_irq_count", "soft_irq_duration", "hard_irq_count", "hard_irq_duration"};
+    for (const char *col : IRQ_COLUMNS) {
+        if (!CheckColumnExist("trace_task_summary", col)) {
+            std::string alterSql =
+                "ALTER TABLE trace_task_summary ADD COLUMN " + std::string(col) + " INTEGER DEFAULT 0";
+            if (!ExecSql(alterSql)) {
+                ServerLog::Error("Failed to add column ", col, " to trace_task_summary.");
+            }
+        }
+    }
+    // lock 在函数结束时自动释放，无需手动 unlock
+    return true;
 }
 
 bool TextTraceDatabase::InsertTraceTaskSummary(const TraceTaskSummaryData &data) {
@@ -321,54 +344,6 @@ bool TextTraceDatabase::UpdateTraceTaskSummaryCsCount(
     return true;
 }
 
-TraceTaskSummaryResult TextTraceDatabase::QueryTraceTaskSummary(
-    uint64_t offset, uint64_t limit, const std::string &orderBy, bool desc) {
-    TraceTaskSummaryResult result;
-
-    if (!isOpen) {
-        ServerLog::Error("Failed to query trace_task_summary. Database is not open.");
-        return result;
-    }
-
-    std::string sql = "SELECT comm, pid, cpu_id, running_ns, sleeping_ns, runnable_ns, "
-                      "cs_count, cs_involuntary_count, COUNT(*) OVER () AS total_count "
-                      "FROM trace_task_summary";
-    if (!orderBy.empty()) {
-        sql += " ORDER BY " + orderBy + (desc ? " DESC" : " ASC");
-    }
-    sql += " LIMIT ? OFFSET ?";
-
-    std::unique_lock<std::recursive_mutex> lock(mutex);
-
-    sqlite3_stmt *stmt = nullptr;
-    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        ServerLog::Error("Failed to prepare statement: ", sqlite3_errmsg(db));
-        return result;
-    }
-
-    int bindIndex = bindStartIndex;
-    sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(limit));
-    sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(offset));
-
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        TraceTaskSummaryData data;
-        data.comm = sqlite3_column_string(stmt, 0);
-        data.pid = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1));
-        data.cpuId = static_cast<int32_t>(sqlite3_column_int64(stmt, 2));
-        data.runningNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 3));
-        data.sleepingNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 4));
-        data.runnableNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 5));
-        data.csCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 6));
-        data.csInvoluntaryCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 7));
-        result.totalCount = sqlite3_column_int64(stmt, 8);
-
-        result.data.push_back(data);
-    }
-
-    sqlite3_finalize(stmt);
-    return result;
-}
-
 TraceIrqDetailResult TextTraceDatabase::QueryTraceIrqDetail(
     uint64_t offset, uint64_t limit, const std::string &orderBy, bool desc) {
     TraceIrqDetailResult result;
@@ -416,4 +391,160 @@ TraceIrqDetailResult TextTraceDatabase::QueryTraceIrqDetail(
     return result;
 }
 
+// ==================== Handler 查询方法（纯单表 SELECT，无 JOIN）====================
+
+static void AppendFtraceFilter(std::string &sql, const std::string &columnName, const std::string &value) {
+    std::string sqlColumn;
+    if (columnName == "cpu") {
+        sqlColumn = "CAST(cpu_id AS TEXT)";
+    } else if (columnName == "comm") {
+        sqlColumn = "comm";
+    } else if (columnName == "pid") {
+        sqlColumn = "CAST(pid AS TEXT)";
+    } else {
+        return; // 不支持的 columnName，忽略
+    }
+    if (!sql.empty()) {
+        sql += " AND ";
+    }
+    sql += sqlColumn + " LIKE '%" + value + "%'";
+}
+
+std::vector<TraceTaskSummaryData> TextTraceDatabase::QueryTraceTaskSummary(
+    const SystemViewFtraceStatParams &params, uint64_t offset, uint64_t limit, uint64_t &totalCount) {
+    std::vector<TraceTaskSummaryData> result;
+
+    if (!isOpen) {
+        ServerLog::Error("Failed to query trace_task_summary. Database is not open.");
+        return result;
+    }
+
+    // 拼接 WHERE 子句
+    std::string whereClause;
+    for (const auto &filter : params.filters) {
+        AppendFtraceFilter(whereClause, filter.first, filter.second);
+    }
+    if (!whereClause.empty()) {
+        whereClause = " WHERE " + whereClause;
+    }
+
+    // ORDER BY 子句
+    std::string orderDir = (params.order == "ascend") ? " ASC" : " DESC";
+    auto orderByIt = FTRACE_TASK_SUMMARY_ORDER_BY_MAP.find(params.orderBy);
+    std::string orderColumn = (orderByIt != FTRACE_TASK_SUMMARY_ORDER_BY_MAP.end()) ? orderByIt->second : "running_ns";
+    std::string orderClause = " ORDER BY " + orderColumn + orderDir;
+
+    // count 查询
+    std::string countSql = "SELECT COUNT(*) FROM trace_task_summary" + whereClause;
+
+    // 数据查询（纯单表 SELECT）
+    std::string dataSql = QUERY_TRACE_TASK_SUMMARY_SELECT_SQL + whereClause + orderClause + " LIMIT ? OFFSET ?";
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+
+    // 先查询 totalCount
+    {
+        sqlite3_stmt *stmt = nullptr;
+        if (sqlite3_prepare_v2(db, countSql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+            ServerLog::Error("Failed to prepare count statement: ", sqlite3_errmsg(db));
+            sqlite3_finalize(stmt);
+            return result;
+        }
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            totalCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 0));
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    // 查询数据
+    {
+        sqlite3_stmt *stmt = nullptr;
+        if (sqlite3_prepare_v2(db, dataSql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+            ServerLog::Error("Failed to prepare data statement: ", sqlite3_errmsg(db));
+            return result;
+        }
+
+        int bindIndex = bindStartIndex;
+        sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(limit));
+        sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(offset));
+
+        while (sqlite3_step(stmt) == SQLITE_ROW) {
+            TraceTaskSummaryData data;
+            data.comm = sqlite3_column_string(stmt, 0);
+            data.pid = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1));
+            data.cpuId = static_cast<int32_t>(sqlite3_column_int64(stmt, 2));
+            data.runnableNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 3));
+            data.runningNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 4));
+            data.sleepingNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 5));
+            data.csCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 6));
+            data.csInvoluntaryCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 7));
+            data.softIrqCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 8));
+            data.softIrqDuration = static_cast<uint64_t>(sqlite3_column_int64(stmt, 9));
+            data.hardIrqCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 10));
+            data.hardIrqDuration = static_cast<uint64_t>(sqlite3_column_int64(stmt, 11));
+
+            result.push_back(data);
+        }
+
+        sqlite3_finalize(stmt);
+    }
+
+    return result;
+}
+
+// ==================== IRQ 聚合方法（Parse 阶段调用）====================
+
+bool TextTraceDatabase::AggregateIrqToTaskSummary() {
+    if (!isOpen) {
+        ServerLog::Error("Failed to aggregate IRQ to task summary. Database is not open.");
+        return false;
+    }
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+
+    // 查询 trace_irq_detail 按 (comm, pid, cpu_id, irq_type) 聚合的结果
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, QUERY_IRQ_AGGREGATE_BY_TASK_SQL.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        ServerLog::Error("Failed to prepare IRQ aggregate statement: ", sqlite3_errmsg(db));
+        return false;
+    }
+
+    int updatedCount = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        std::string comm = sqlite3_column_string(stmt, 0);
+        int64_t pid = sqlite3_column_int64(stmt, 1);
+        int32_t cpuId = static_cast<int32_t>(sqlite3_column_int64(stmt, 2));
+        std::string irqType = sqlite3_column_string(stmt, 3);
+        uint64_t totalCountVal = static_cast<uint64_t>(sqlite3_column_int64(stmt, 4));
+        uint64_t totalTimeVal = static_cast<uint64_t>(sqlite3_column_int64(stmt, 5));
+
+        // 选择对应的 UPDATE SQL
+        const std::string &updateSql =
+            (irqType == "softirq") ? UPDATE_TASK_SUMMARY_SOFTIRQ_SQL : UPDATE_TASK_SUMMARY_HARDIRQ_SQL;
+
+        sqlite3_stmt *updateStmt = nullptr;
+        if (sqlite3_prepare_v2(db, updateSql.c_str(), -1, &updateStmt, nullptr) != SQLITE_OK) {
+            ServerLog::Error("Failed to prepare IRQ update statement: ", sqlite3_errmsg(db));
+            sqlite3_finalize(stmt);
+            return false;
+        }
+
+        sqlite3_bind_int64(updateStmt, 1, static_cast<int64_t>(totalCountVal));
+        sqlite3_bind_int64(updateStmt, 2, static_cast<int64_t>(totalTimeVal));
+        sqlite3_bind_text(updateStmt, 3, comm.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int64(updateStmt, 4, static_cast<int64_t>(pid));
+        sqlite3_bind_int64(updateStmt, 5, static_cast<int64_t>(cpuId));
+
+        if (sqlite3_step(updateStmt) != SQLITE_DONE) {
+            ServerLog::Warn("Failed to update IRQ aggregate for comm=", comm, " pid=", pid, " cpu_id=", cpuId);
+        } else {
+            updatedCount++;
+        }
+        sqlite3_finalize(updateStmt);
+    }
+
+    sqlite3_finalize(stmt);
+    ServerLog::Info("IRQ aggregation complete. Updated ", updatedCount, " rows in trace_task_summary.");
+    return true;
+}
 }

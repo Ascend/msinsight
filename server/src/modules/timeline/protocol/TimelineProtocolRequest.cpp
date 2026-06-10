@@ -223,5 +223,27 @@ bool KernelOverallRequest::Params::CheckParams(uint64_t minTime, std::string &er
     }
     return true;
 }
+
+bool SystemViewFtraceStatParams::CheckParams(std::string &warnMsg) const {
+    if (pageSize == 0) {
+        warnMsg = "Failed to check page parameter. Page size cannot be zero.";
+        return false;
+    }
+    if (current == 0) {
+        warnMsg = "Failed to check page parameter. Current cannot be zero.";
+        return false;
+    }
+    if (!StringUtil::CheckSqlValid(orderBy)) {
+        warnMsg = "There is an SQL injection attack in request parameter orderBy for ftrace stat.";
+        return false;
+    }
+    for (const auto &filter : filters) {
+        if (!StringUtil::CheckSqlValid(filter.first) || !StringUtil::CheckSqlValid(filter.second)) {
+            warnMsg = "filters contain invalid string value for ftrace stat.";
+            return false;
+        }
+    }
+    return true;
+}
 } // namespace Protocol
 } // namespace Dic

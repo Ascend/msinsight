@@ -22,7 +22,6 @@
 #include "TimelineProtocolResponse.h"
 #include "TimelineProtocol.h"
 
-// clang-format off
 namespace Dic {
 namespace Protocol {
 void TimelineProtocol::RegisterJsonToRequestFuncs() {
@@ -726,7 +725,24 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewFtraceStatRequest(const D
     JsonUtil::SetByJsonKeyValue(reqPtr->params.current, json["params"], "current");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pageSize, json["params"], "pageSize");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
-    reqPtr->params.SetDataType();
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.orderBy, json["params"], "orderBy");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.order, json["params"], "order");
+    if (json["params"].HasMember("filterCondition") && json["params"]["filterCondition"].IsArray()) {
+        for (const auto &filter : json["params"]["filterCondition"].GetArray()) {
+            if (!filter.IsString()) {
+                continue;
+            }
+            auto fil = JsonUtil::TryParse(filter.GetString(), error);
+            if (!fil) {
+                error = "Failed to set request base info because invalid filter json, command is: " + reqPtr->command;
+                continue;
+            }
+            std::pair<std::string, std::string> pFilter("", "");
+            pFilter.first = JsonUtil::GetString(fil->GetObj(), "columnName");
+            pFilter.second = JsonUtil::GetString(fil->GetObj(), "value");
+            reqPtr->params.filters.emplace_back(pFilter);
+        }
+    }
     return reqPtr;
 }
 
@@ -863,7 +879,7 @@ std::optional<document_t> TimelineProtocol::ToUnitCounterResponse(const Response
 std::optional<document_t> TimelineProtocol::ToSystemViewResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<SystemViewResponse>(dynamic_cast<const SystemViewResponse &>(response));
 }
-std::optional<document_t> TimelineProtocol::ToSystemViewTraceResponseJson(const Dic::Protocol::Response &response){
+std::optional<document_t> TimelineProtocol::ToSystemViewTraceResponseJson(const Dic::Protocol::Response &response) {
     return ToResponseJson<SystemViewTraceResponse>(dynamic_cast<const SystemViewTraceResponse &>(response));
 }
 std::optional<document_t> TimelineProtocol::ToExpAnaAICoreFreqResponseJson(const Dic::Protocol::Response &response) {
@@ -983,4 +999,3 @@ std::optional<document_t> TimelineProtocol::ToSystemViewFtraceStatResponseJson(c
 #pragma endregion
 } // namespace Protocol
 } // namespace Dic
-// clang-format on

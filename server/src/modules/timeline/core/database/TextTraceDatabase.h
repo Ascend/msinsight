@@ -29,7 +29,6 @@
 #include "TimelineProtocolRequest.h"
 #include "GlobalDefs.h"
 
-// clang-format off
 namespace Dic::Module::Timeline {
 /*
  * 解析原始的traceView.json文件以及其他csv文件情况下的数据库处理类
@@ -128,14 +127,13 @@ class TextTraceDatabase : public VirtualTraceDatabase {
         uint64_t minTimestamp, const std::vector<TrackQuery> &trackQueryVec) override;
 
     // 【新增】加载 SoA 缓存
-    bool LoadSliceCache(LightSliceCache& cache,
-        const Protocol::SearchAllSliceParams& params, uint64_t minTimestamp) override;
+    bool LoadSliceCache(
+        LightSliceCache &cache, const Protocol::SearchAllSliceParams &params, uint64_t minTimestamp) override;
 
     // 【新增】根据 TargetRow 查询明细数据
-    bool FetchSliceDetails(const LightSliceCache& cache,
-        const std::vector<TargetRow>& rows,
-        const Protocol::SearchAllSliceParams& params,
-        Protocol::SearchAllSlicesBody& body, uint64_t minTimestamp) override;
+    bool FetchSliceDetails(const LightSliceCache &cache, const std::vector<TargetRow> &rows,
+        const Protocol::SearchAllSliceParams &params, Protocol::SearchAllSlicesBody &body,
+        uint64_t minTimestamp) override;
 
     bool QueryThreadSameOperatorsDetails(const Protocol::UnitThreadsOperatorsParams &requestParams,
         Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp,
@@ -195,11 +193,16 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     bool UpdateTraceTaskSummaryCsCount(
         const std::string &comm, uint64_t pid, int32_t cpuId, uint64_t csCount, uint64_t csInvoluntaryCount);
 
-    // 结构化新表查询（支持分页）
-    TraceTaskSummaryResult QueryTraceTaskSummary(uint64_t offset, uint64_t limit, const std::string &orderBy = "",
-        bool desc = true);
-    TraceIrqDetailResult QueryTraceIrqDetail(uint64_t offset, uint64_t limit, const std::string &orderBy = "",
-        bool desc = true);
+    // 面向 Handler 的查询方法（支持排序、筛选、分页）
+    std::vector<TraceTaskSummaryData> QueryTraceTaskSummary(
+        const SystemViewFtraceStatParams &params, uint64_t offset, uint64_t limit, uint64_t &totalCount);
+
+    // IRQ 详情查询（支持分页）
+    TraceIrqDetailResult QueryTraceIrqDetail(
+        uint64_t offset, uint64_t limit, const std::string &orderBy = "", bool desc = true);
+
+    // IRQ 聚合方法（Parse 阶段调用，将 trace_irq_detail 聚合后 UPDATE 到 trace_task_summary）
+    bool AggregateIrqToTaskSummary();
 
   private:
     static constexpr const char *CPU_METRICS_PROCESS_ID = "__cpu_metrics__";
@@ -275,8 +278,7 @@ class TextTraceDatabase : public VirtualTraceDatabase {
         const std::string &processId, const std::string &processName, const std::string &metaType);
     static std::unique_ptr<Protocol::UnitTrack> GenerateCpuMetricsUnitTrack(const std::string &fileId);
     static std::unique_ptr<Protocol::UnitTrack> GenerateNpuMetricsUnitTrack(const std::string &fileId);
-    static bool IsCpuCounterUnit(
-        const Protocol::UnitTrack &counterUnit, const Protocol::UnitTrack &parentUnit);
+    static bool IsCpuCounterUnit(const Protocol::UnitTrack &counterUnit, const Protocol::UnitTrack &parentUnit);
     static void AppendCounterGroup(Protocol::UnitTrack &metricsUnit, const Protocol::UnitTrack &parentUnit,
         std::vector<std::unique_ptr<Protocol::UnitTrack>> &counterChildren);
     static bool ExtractCounterMetadata(std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData,
@@ -304,6 +306,5 @@ class TextTraceDatabase : public VirtualTraceDatabase {
 } // end of namespace Timeline
 // end of namespace Module
 // end of namespace Dic
-// clang-format on
 
 #endif // PROFILER_SERVER_JSON_TRACE_DATABASE_H

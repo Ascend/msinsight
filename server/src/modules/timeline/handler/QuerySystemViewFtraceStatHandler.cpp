@@ -17,8 +17,6 @@
  */
 #include "QuerySystemViewFtraceStatHandler.h"
 
-#include "RenderEngine.h"
-
 namespace Dic::Module::Timeline {
 bool QuerySystemViewFtraceStatHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<SystemViewFtraceStatRequest &>(*requestPtr);
@@ -33,7 +31,6 @@ bool QuerySystemViewFtraceStatHandler::HandleRequest(std::unique_ptr<Protocol::R
         return false;
     }
 
-    // 将Database转换为TextTraceDatabase
     auto textDb = std::dynamic_pointer_cast<TextTraceDatabase>(database);
     if (textDb == nullptr) {
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
@@ -41,32 +38,38 @@ bool QuerySystemViewFtraceStatHandler::HandleRequest(std::unique_ptr<Protocol::R
         return false;
     }
 
-    // 计算offset
-    uint64_t offset = (request.params.current - 1) * request.params.pageSize;
+    std::string warnMsg;
+    if (!request.params.CheckParams(warnMsg)) {
+        ServerLog::Warn(warnMsg);
+        SetTimelineError(ErrorCode::PARAMS_ERROR);
+        SendResponse(std::move(responsePtr), false);
+        return false;
+    }
 
-    // 查询数据
-    auto ftraceStat = textDb->QueryFtraceStatistics(request.params.dataType, offset, request.params.pageSize);
-    auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({request.params.rankId, PROCESS_TYPE::TEXT});
-    // 转换数据为map格式
-    for (const auto &item : ftraceStat.data) {
+    uint64_t offset = (request.params.current - 1) * request.params.pageSize;
+    uint64_t totalCount = 0;
+
+    auto rows = textDb->QueryTraceTaskSummary(request.params, offset, request.params.pageSize, totalCount);
+
+    for (const auto &data : rows) {
         std::unordered_map<std::string, std::string> row;
-        row["track_id"] = std::to_string(item.trackId);
-        auto it = threadInfoMap.find(item.trackId);
-        if (it == threadInfoMap.end()) {
-            continue;
-        }
-        row["process"] = it->second.first;
-        row["thread"] = it->second.second;
-        for (const auto &kv : item.data) {
-            row[kv.first] = kv.second;
-        }
+        row["cpu"] = std::to_string(data.cpuId);
+        row["comm"] = data.comm;
+        row["pid"] = std::to_string(data.pid);
+        row["runnable"] = std::to_string(data.runnableNs);
+        row["running"] = std::to_string(data.runningNs);
+        row["sleeping"] = std::to_string(data.sleepingNs);
+        row["context_switch_count"] = std::to_string(data.csCount);
+        row["soft_irq_count"] = std::to_string(data.softIrqCount);
+        row["soft_irq_duration"] = std::to_string(data.softIrqDuration);
+        row["hard_irq_count"] = std::to_string(data.hardIrqCount);
+        row["hard_irq_duration"] = std::to_string(data.hardIrqDuration);
         response.data.push_back(row);
     }
 
-    // 设置分页信息
     response.pageParam.current = request.params.current;
     response.pageParam.pageSize = request.params.pageSize;
-    response.pageParam.total = ftraceStat.totalCount;
+    response.pageParam.total = totalCount;
 
     SendResponse(std::move(responsePtr), true);
     return true;
