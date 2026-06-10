@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <cstdint>
 #include "ProtocolManager.h"
+#include "SourceProtocolRequest.h"
 #include "SourceProtocolResponse.h"
 #include "SourceProtocolTest.h"
 
@@ -154,4 +155,35 @@ TEST_F(SourceProtocolTest, ToDetailsInterCoreLoadGraphResponse) {
     response.body.opDetails.emplace_back(opDetail);
     response.moduleName = MODULE_SOURCE;
     manager->ToJson(response, error);
+}
+
+TEST_F(SourceProtocolTest, ToTopWarpStallReasonRequest) {
+    const std::unique_ptr<Request> &ptr = manager->FromJson(TO_TOP_WARP_STALL_REASON_REQ_JSON, error);
+    EXPECT_EQ(ptr->moduleName, MODULE_SOURCE);
+    EXPECT_EQ(ptr->command, REQ_RES_TOP_WARP_STALL_REASON);
+    EXPECT_NE(dynamic_cast<SourceTopWarpStallReasonRequest *>(ptr.get()), nullptr);
+}
+
+TEST_F(SourceProtocolTest, ToTopWarpStallReasonResponse) {
+    TopWarpStallReasonResponse response;
+    StallReasonItem item1;
+    item1.name = "IBuf_Empty";
+    item1.value = 100;
+    response.body.data.emplace_back(item1);
+    StallReasonItem item2;
+    item2.name = "Nop_Cycles";
+    item2.value = 200;
+    response.body.data.emplace_back(item2);
+    response.body.unit = "count";
+    response.moduleName = MODULE_SOURCE;
+    manager->ToJson(response, error);
+}
+
+TEST_F(SourceProtocolTest, ToTopWarpStallReasonResponseEmpty) {
+    TopWarpStallReasonResponse response;
+    response.body.unit = "count";
+    response.body.data = {};
+    response.moduleName = MODULE_SOURCE;
+    manager->ToJson(response, error);
+    EXPECT_TRUE(error.empty());
 }

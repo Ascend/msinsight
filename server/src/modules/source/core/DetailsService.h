@@ -34,6 +34,8 @@ class DetailsService {
     static bool QueryMemoryTable(const DetailsMemoryTableRequest &request, DetailsMemoryTableResponse &response);
     static bool QueryCoreLoadAnalysisGraph(
         const DetailsInterCoreLoadGraphRequest &request, DetailsInterCoreLoadGraphResponse &response);
+    static bool QueryTopWarpStallReason(
+        const SourceTopWarpStallReasonRequest &request, TopWarpStallReasonResponse &response);
 
   private:
     const static inline std::string underline = "_";

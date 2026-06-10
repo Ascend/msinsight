@@ -205,6 +205,7 @@ const std::string REQ_RES_DETAILS_COMPUTE_MEMORY_TABLE = "source/details/memoryT
 const std::string REQ_RES_DETAILS_INTER_CORE_LOAD_GRAPH = "source/details/interCoreLoadAnalysis";
 constexpr inline std::string_view REQ_RES_DETAILS_ROOFLINE = "source/details/roofline";
 constexpr std::string_view REQ_RES_CACHELINE_RECORD = "source/cache/cachelineRecords";
+constexpr std::string_view REQ_RES_TOP_WARP_STALL_REASON = "source/queryTopWarpStallReason";
 
 // Advisor Request/Response
 const std::string REQ_RES_ADVISOR_AFFINITY_OPTIMIZER = "advisor/affinity_optimizer";

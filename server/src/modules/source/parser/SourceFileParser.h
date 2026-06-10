@@ -81,6 +81,7 @@ class SourceFileParser : public FileParser {
     void ResetBaseline();
     std::vector<Position> GetPositionByType(DataTypeEnum type);
     bool HasCachelineRecords();
+    bool GetTopWarpStallReason(std::vector<Protocol::StallReasonItem> &data);
     int8_t GetInstrVersion() const;
     std::string GetFilePath();
 

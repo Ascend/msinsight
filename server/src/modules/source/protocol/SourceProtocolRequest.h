@@ -140,6 +140,10 @@ struct DetailsRooflineRequest : public Request {
     DetailsRooflineParams params;
 };
 
+struct SourceTopWarpStallReasonRequest : public Request {
+    SourceTopWarpStallReasonRequest() : Request(REQ_RES_TOP_WARP_STALL_REASON) {}
+};
+
 } // end of namespace Protocol
 } // end of namespace Dic
 

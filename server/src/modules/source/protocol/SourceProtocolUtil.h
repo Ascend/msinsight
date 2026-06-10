@@ -50,6 +50,9 @@ std::optional<document_t> ToResponseJson<DetailsMemoryGraphResponse>(const Detai
 template <>
 std::optional<document_t> ToResponseJson<DetailsMemoryTableResponse>(const DetailsMemoryTableResponse &response);
 
+template <>
+std::optional<document_t> ToResponseJson<TopWarpStallReasonResponse>(const TopWarpStallReasonResponse &response);
+
 std::optional<document_t> DetailsBaseInfoToJson(const DetailsBaseInfoResBody &body, Document::AllocatorType &allocator);
 std::optional<document_t> SubBlockUnitDataToJson(const SubBlockUnitData &data, Document::AllocatorType &allocator);
 std::optional<document_t> SubBlockDataToJson(const SubBlockData &data, Document::AllocatorType &allocator);

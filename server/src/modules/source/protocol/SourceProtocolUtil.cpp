@@ -593,6 +593,25 @@ template <> std::optional<document_t> ToResponseJson<CachelineRecordResponse>(co
     return std::optional<document_t>{std::move(json)};
 }
 
+template <>
+std::optional<document_t> ToResponseJson<TopWarpStallReasonResponse>(const TopWarpStallReasonResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    JsonUtil::AddMember(body, "unit", response.body.unit, allocator);
+    json_t data(kArrayType);
+    for (const auto &item : response.body.data) {
+        json_t itemJson(kObjectType);
+        JsonUtil::AddMember(itemJson, "name", item.name, allocator);
+        JsonUtil::AddMember(itemJson, "value", item.value, allocator);
+        data.PushBack(itemJson, allocator);
+    }
+    JsonUtil::AddMember(body, "data", data, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
 #pragma endregion
 } // end of namespace Protocol
 } // end of namespace Dic

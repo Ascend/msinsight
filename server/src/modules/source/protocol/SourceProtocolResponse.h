@@ -389,6 +389,21 @@ struct CachelineRecordResponse : public Response {
     CachelineRecordResponse() : Response(std::string(REQ_RES_CACHELINE_RECORD)) {}
     CacheLineRecordResBody body;
 };
+
+struct StallReasonItem {
+    std::string name;
+    int64_t value = 0;
+};
+
+struct TopWarpStallReasonResBody {
+    std::string unit;
+    std::vector<StallReasonItem> data;
+};
+
+struct TopWarpStallReasonResponse : public Response {
+    TopWarpStallReasonResponse() : Response(std::string(REQ_RES_TOP_WARP_STALL_REASON)) {}
+    TopWarpStallReasonResBody body;
+};
 }
 
 #endif // DIC_SOURCE_PROTOCOL_SOURCE_RESPONSE_H
