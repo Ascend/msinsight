@@ -65,6 +65,7 @@ std::map<PROCESS_TYPE, std::vector<Protocol::EventsViewColumnAttr>> eventsViewCo
     {PROCESS_TYPE::ASCEND_HARDWARE,
         {columnName, columnStart, columnDuration, columnStreamName, columnRankId}},
     {PROCESS_TYPE::HCCL, {columnName, columnStart, columnDuration, columnGroupName, columnRankId}},
+    {PROCESS_TYPE::CCU, {columnName, columnStart, columnDuration, columnGroupName, columnRankId}},
     {PROCESS_TYPE::OVERLAP_ANALYSIS,
         {columnName, columnStart, columnDuration, columnAnalysisType, columnRankId}},
 };
@@ -300,6 +301,8 @@ std::string TraceDatabaseHelper::GetQueryThreadSameOperatorsDetailsHeadSql(
             return GetOsrtSameNameDetailSql(pidListStr);
         case PROCESS_TYPE::OVERLAP_ANALYSIS:
             return GetOverlapAnalysisSameNameDetailSql(overlapType);
+        case PROCESS_TYPE::CCU:
+            return GetCcuSameNameDetailSql(tidListStr);
         default:
             return "";
     }
@@ -342,6 +345,8 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryProcessTracesSummary(
             return QueryHardwareTracesSummary(rankId, minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::HCCL:
             return QueryCommunicationTracesSummary(rankId, minTimestamp, stmt, requestParams);
+        case PROCESS_TYPE::CCU:
+            return QueryCcuTracesSummary(rankId, minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::OVERLAP_ANALYSIS:
             return QueryOverlapTracesSummary(rankId, minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::PROCESS:
@@ -390,6 +395,16 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCommunicationTracesSu
         return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, requestParams.startTime,
                             requestParams.endTime);
     }
+}
+
+std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCcuTracesSummary(const std::string& rankId, uint64_t minTimestamp,
+    std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams)
+{
+    std::string sql = "SELECT startNs - ? as start_time, endNs - startNs as duration, "
+        "endNs - ? as end_time FROM " + TABLE_CCU +
+        " WHERE deviceId = ? AND start_time >= ? AND start_time <= ? ORDER BY startNs;";
+    return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, rankId, requestParams.startTime,
+                        requestParams.endTime);
 }
 
 std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryOverlapTracesSummary(const std::string& rankId, uint64_t minTimestamp,
@@ -504,6 +519,8 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryThreadsByPid(std::uni
                                 endTime);
         case PROCESS_TYPE::OSRT_API:
             return ExecuteQuery(stmt, OSRT_API_THREADS_BY_PID, metaData.pid, startTime, endTime);
+        case PROCESS_TYPE::CCU:
+            return ExecuteQuery(stmt, CCU_THREADS_BY_PID, metaData.tid, startTime, endTime);
         default:
             throw DatabaseException("unsupported type!");
     }
@@ -737,6 +754,31 @@ std::unique_ptr <SqliteResultSet> QueryEventsView4OSRT(std::unique_ptr <SqlitePr
         return nullptr;
     }
     stmt->BindParams(params.pid);
+    if (params.startTime != params.endTime) {
+        stmt->BindParams(params.startTime + minTimestamp, params.endTime + minTimestamp);
+    }
+    for (const auto &filter: params.filters) {
+        stmt->BindParams("%" + filter.second + "%");
+    }
+    return stmt->ExecuteQuery();
+}
+
+std::unique_ptr <SqliteResultSet> QueryEventsView4Ccu(std::unique_ptr <SqlitePreparedStatement> &stmt,
+    const Protocol::EventsViewParams &params, DbEventViewSqlParams dbEventViewSqlParams)
+{
+    auto [orderByCondition, deviceId, minTimestamp, timeCondSql] = dbEventViewSqlParams;
+    std::string sql = "SELECT ccu.ROWID as id, si.value AS name, ccu.startNs AS start, "
+        "ccu.endNs - ccu.startNs as duration, 'communication' as threadName, 0 as depth, "
+        "'CCU' as processId, ccu.deviceId as threadId FROM " + TABLE_CCU +
+        " AS ccu LEFT JOIN STRING_IDS AS si ON si.id = ccu.name WHERE ccu.deviceId = ? ";
+    sql.append(timeCondSql);
+    AppendFilterToDBEventViewSql(sql, "si.value", params);
+    stmt->Prepare(sql.append(orderByCondition));
+    if (stmt == nullptr) {
+        ServerLog::Error("Query events view for CCU failed to prepare sql.");
+        return nullptr;
+    }
+    stmt->BindParams(deviceId);
     if (params.startTime != params.endTime) {
         stmt->BindParams(params.startTime + minTimestamp, params.endTime + minTimestamp);
     }
@@ -1110,6 +1152,8 @@ std::unique_ptr<SqliteResultSet> QueryEventsViewResultSet(std::unique_ptr <Sqlit
             } else {
                 return QueryEventsView4Group(stmt, params, dbEventViewSqlParams);
             }
+        case Protocol::PROCESS_TYPE::CCU:
+            return QueryEventsView4Ccu(stmt, params, dbEventViewSqlParams);
         case Protocol::PROCESS_TYPE::OVERLAP_ANALYSIS:
             if (params.tid.empty() && params.threadName.empty()) {
                 return QueryEventsView4Overlap(stmt, params, dbEventViewSqlParams);
@@ -1866,6 +1910,12 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, c
             WRONG_DATA + " ) left join " + TABLE_COMMUNICATION_SCHEDULE_TASK +
             " s on main.globalTaskId = s.globalTaskId WHERE main.deviceId = ? AND main.streamId = ? AND "
             "main.startNs >= ? AND main.endNs <= ?) hadware  join ids on ids.id = hadware.name" + filterSuffix;
+    } else if (type == PROCESS_TYPE::CCU) {
+        filterSuffix += filterJoin.empty() ? "" : "ccu.name";
+        tempSql = " SELECT ccu.ROWID as id, 'CCU' as pid, ccu.deviceId as tid, ccu.startNs as "
+            "timestamp, ccu.endNs as endTime, 0 as depth, ccu.deviceId as deviceId, ids.value as value FROM " +
+            TABLE_CCU + " ccu join ids on ids.id = ccu.name" + filterSuffix +
+            " WHERE ccu.deviceId = ? AND ccu.startNs >= ? AND ccu.endNs <= ? ";
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
             filterSuffix += filterJoin.empty() ? "" : "op.opName";
@@ -1915,6 +1965,8 @@ void TraceDatabaseHelper::BindSearchAllSliceSingleTrack(std::unique_ptr<SqlitePr
         stmt->BindParams(item.processId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::ASCEND_HARDWARE) {
         stmt->BindParams(deviceId, item.threadId, item.startTime, item.endTime);
+    } else if (type == PROCESS_TYPE::CCU) {
+        stmt->BindParams(item.threadId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
             std::string tid = item.threadId.substr(0, item.threadId.size() - 5);
@@ -1994,6 +2046,11 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
             WRONG_DATA + " ) left join " + TABLE_COMMUNICATION_SCHEDULE_TASK +
             " s on main.globalTaskId = s.globalTaskId WHERE main.deviceId = ? AND main.streamId = ? AND "
             "main.startNs >= ? AND main.endNs <= ?) hadware  join ids on ids.id = hadware.name ";
+    } else if (type == PROCESS_TYPE::CCU) {
+        tempSql = " SELECT ccu.ROWID as id, 'CCU' as pid, ccu.deviceId as tid, ccu.startNs as timestamp, "
+            "ccu.endNs as endTime, 0 as depth, 'CCU' as metaType from " + TABLE_CCU +
+            " ccu join ids on ids.id = ccu.name WHERE ccu.deviceId = ? AND ccu.startNs >= ? "
+            "AND ccu.endNs <= ? ";
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(singleQuery.threadId, "group")) {
             tempSql = " SELECT op.opId as id, 'HCCL' as pid, op.groupName||'group' as tid, op.startNs as "
@@ -2036,6 +2093,8 @@ void TraceDatabaseHelper::BindSearchNameWithLockRangeStmt(std::unique_ptr<Sqlite
         stmt->BindParams(item.processId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::ASCEND_HARDWARE) {
         stmt->BindParams(deviceId, item.threadId, item.startTime, item.endTime);
+    } else if (type == PROCESS_TYPE::CCU) {
+        stmt->BindParams(item.threadId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
             std::string tid = item.threadId.substr(0, item.threadId.size() - 5);
@@ -2081,6 +2140,8 @@ void TraceDatabaseHelper::BindSingleTrackStmt(const SearchCountParams &params,
         stmt->BindParams(item.processId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::ASCEND_HARDWARE) {
         stmt->BindParams(deviceId, item.threadId, item.startTime, item.endTime);
+    } else if (type == PROCESS_TYPE::CCU) {
+        stmt->BindParams(item.threadId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
             std::string tid = item.threadId.substr(0, item.threadId.size() - 5);

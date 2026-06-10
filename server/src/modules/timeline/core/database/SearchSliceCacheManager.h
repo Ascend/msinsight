@@ -42,6 +42,7 @@ enum class SliceTableType : int8_t {
     PYTORCH_API = 2,
     COMMUNICATION_OP = 3,
     MSTX = 4,
+    CCU = 5,
     UNKNOWN = -1
 };
 

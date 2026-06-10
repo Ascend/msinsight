@@ -143,6 +143,7 @@ struct FlowPoint {
 enum class PROCESS_TYPE {
     ASCEND_HARDWARE,
     HCCL,
+    CCU,
     OVERLAP_ANALYSIS,
     CANN_API,
     API,

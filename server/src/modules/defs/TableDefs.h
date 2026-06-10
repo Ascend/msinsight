@@ -45,6 +45,7 @@ const static std::string TABLE_COMMUNICATION_SCHEDULE_TASK = "COMMUNICATION_SCHE
 const static std::string TABLE_ENUM_MSTX_EVENTS = "ENUM_MSTX_EVENT_TYPE";
 const static std::string TABLE_COMMUNICATION_TASK_INFO = "COMMUNICATION_TASK_INFO";
 const static std::string TABLE_COMMUNICATION_OP = "COMMUNICATION_OP";
+const static std::string TABLE_CCU = "CCU";
 const static std::string TABLE_COMPUTE_TASK_INFO = "COMPUTE_TASK_INFO";
 const static std::string TABLE_TASK_PMU_INFO = "TASK_PMU_INFO";
 const static std::string TABLE_ENUM_API_LEVEL = "ENUM_API_LEVEL";

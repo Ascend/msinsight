@@ -165,7 +165,11 @@ const std::string QUERY_KERNEL_SQL =
     " UNION ALL "
     " SELECT osrt.ROWID AS id, 'OSRT_API' AS tid, name, globalTid AS pid, 0 AS depth, "
     " 'OSRT_API' as metaType FROM OSRT_API osrt "
-    " WHERE name = (SELECT id FROM STRING_IDS WHERE value = ?) AND abs(startNs - ?) <= 500";
+    " WHERE name = (SELECT id FROM STRING_IDS WHERE value = ?) AND abs(startNs - ?) <= 500"
+    " UNION ALL "
+    " SELECT ccu.ROWID AS id, ccu.deviceId AS tid, ccu.name AS name, 'CCU' AS pid, 0 AS depth, "
+    " 'CCU' AS metaType FROM CCU ccu "
+    " WHERE ccu.name = (SELECT id FROM STRING_IDS WHERE value = ?) AND abs(ccu.startNs - ?) <= 500";
 
 // 兼容老版本（1.0.0）
 const std::string QUERY_COMMUNICATION_GROUP_MAP_DB_1_0_SQL =

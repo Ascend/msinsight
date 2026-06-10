@@ -41,7 +41,7 @@ void KernelDetailsParams::Check(uint64_t minTime, std::string &error) const {
 
 bool SystemViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const {
     static const std::set<std::string> validLayerTypeSet = {
-        "Python", "CANN", "Ascend Hardware", "HCCL", "COMMUNICATION", "Overlap Analysis"};
+        "Python", "CANN", "Ascend Hardware", "HCCL", "CCU", "COMMUNICATION", "Overlap Analysis"};
     if (validLayerTypeSet.find(layer) == validLayerTypeSet.end()) {
         warnMsg = "Layer is invalid";
         return false;

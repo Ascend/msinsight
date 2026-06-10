@@ -35,6 +35,9 @@ const static std::map<std::string, std::string> FULL_DB_TABLE_MAP = {
         "create TEMPORARY table if not exists COMMUNICATION_OP( opName INTEGER, startNs INTEGER, "
         " endNs INTEGER, connectionId INTEGER, groupName INTEGER, opId INTEGER primary key, "
         " relay INTEGER, retry INTEGER, dataType INTEGER, algType INTEGER, count NUMERIC, waitNs INTEGER);  "},
+    {TABLE_CCU,
+        "create TEMPORARY table if not exists CCU(deviceId INTEGER, globalTaskId INTEGER, name INTEGER, "
+        "startNs INTEGER, endNs INTEGER, args INTEGER);"},
     {TABLE_COMMUNICATION_TASK_INFO,
         "create TEMPORARY table if not exists COMMUNICATION_TASK_INFO( name INTEGER, "
         " globalTaskId INTEGER, taskType INTEGER, planeId INTEGER, groupName INTEGER, notifyId INTEGER,"
@@ -153,6 +156,12 @@ inline std::string GetOverlapAnalysisSameNameDetailSql(const int type) {
            " main.ROWID as id , type as tid, 'OVERLAP_ANALYSIS' as pid"
            " from OVERLAP_ANALYSIS main join params p where deviceId = p.rankId and type = " +
         std::to_string(type) + " and timestamp + duration >= p.startTime AND timestamp <= p.endTime ";
+}
+inline std::string GetCcuSameNameDetailSql(const std::string &tidListStr) {
+    return " select startNs - p.minTime as timestamp, endNs - startNs as duration, 0 as depth, "
+           " main.ROWID as id, deviceId as tid, 'CCU' as pid from CCU main join nameIds n on name = n.id "
+           " join params p where deviceId = p.rankId and deviceId in (" +
+        tidListStr + " ) and timestamp + duration >= p.startTime AND timestamp <= p.endTime ";
 }
 inline std::string GetOsrtSameNameDetailSql(const std::string &pidListStr) {
     return "SELECT startNs - p.minTime AS timestamp, endNs - startNs AS duration, 0 AS depth,"
@@ -274,6 +283,11 @@ const static std::string MS_TX_THREAD_BY_PID =
 const static std::string OSRT_API_THREADS_BY_PID =
     "SELECT ROWID as id, startNs, endNs - startNs AS duration, endNs, name, 0 AS depth FROM " + TABLE_OSRT_API +
     " WHERE globalTid = ? AND endNs >= ? AND startNs <= ? ORDER BY startNs ASC;";
+
+const static std::string CCU_THREADS_BY_PID =
+    "SELECT ROWID as id, startNs as startNs, endNs - startNs AS duration, endNs as endNs, "
+    "name, 0 AS depth FROM " +
+    TABLE_CCU + " WHERE deviceId = ? AND endNs >= ? AND startNs <= ? ORDER BY startNs ASC;";
 
 // QueryEventsViewData4Db
 const static std::string QUERY_EVENTS_VIEW_FOR_DEVICE_HCCL_DEVICE_ID_NOT_UNIQUE =

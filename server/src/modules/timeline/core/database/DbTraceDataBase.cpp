@@ -121,6 +121,9 @@ bool DbTraceDataBase::QueryUnitsMetadata(
         QueryHCCLOperatorMetadata(fileId, metaData);
         existOverlapAnalysis = true;
     }
+    if (CheckTableExist(TABLE_CCU)) {
+        QueryCcuOperatorMetadata(fileId, metaData);
+    }
     // 只要TASK表或者COMMUNICATION_OP表存在，展示覆盖分析，TASK表反映计算信息，COMMUNICATION_OP表反映通信信息
     if (existOverlapAnalysis) {
         GenerateOverlapAnalysisMetadata(fileId, metaData);
@@ -181,7 +184,8 @@ uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams
         ServerLog::Error("Query slice name count failed!.");
         return 0;
     }
-    auto resultSet = stmt->ExecuteQuery(params.searchContent, GetDeviceId(params.rankId));
+    std::string deviceId = GetDeviceId(params.rankId);
+    auto resultSet = stmt->ExecuteQuery(params.searchContent, deviceId, deviceId);
     if (resultSet == nullptr) {
         ServerLog::Error("Query_slice_name_count. Failed to get result set.", stmt->GetErrorMessage());
         return 0;
@@ -247,7 +251,8 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
         ServerLog::Error("Query slice name failed!.");
         return false;
     }
-    auto resultSet = stmt->ExecuteQuery(params.searchContent, minTimestamp, GetDeviceId(responseBody.rankId), index);
+    std::string deviceId = GetDeviceId(responseBody.rankId);
+    auto resultSet = stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId, index);
     if (resultSet == nullptr || !resultSet->Next()) {
         ServerLog::Error("Query_slice_name. Failed to get result set.", stmt->GetErrorMessage());
         return false;
@@ -426,6 +431,14 @@ bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const s
               "from COMMUNICATION_OP op" +
             associationTaskSql + " join ids on ids.id = op.opName group by op.opId";
         processSql = "SELECT DISTINCT 'HCCL' AS pid FROM COMMUNICATION_OP";
+    } else if (metaType == "CCU" && CheckTableExist(TABLE_CCU)) {
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, 'CCU' as pid, 'CCU' as metaType, "
+              "ccu.startNs as startTime, ccu.endNs - ccu.startNs as duration, ccu.ROWID as id "
+              "from " + TABLE_CCU + " ccu join ids on ids.id = ccu.name where ccu.deviceId = ?";
+        processSql = "SELECT DISTINCT 'CCU' AS pid FROM " + TABLE_CCU + " WHERE deviceId = ?";
+        bindDeviceIdForSlice = true;
+        bindDeviceIdForProcess = true;
     }
 
     if (!sql.empty()) {
@@ -757,7 +770,7 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(
     }
     std::unique_ptr<SqliteResultSet> resultSet;
     uint64_t timestamp = params.timestamp + minTimestamp;
-    constexpr uint8_t QUERY_KERNEL_SQL_UNION_TABLE_NUM = 8; // 这个值需要等于 QUERY_KERNEL_SQL 联合的表数
+    constexpr uint8_t QUERY_KERNEL_SQL_UNION_TABLE_NUM = 9; // 这个值需要等于 QUERY_KERNEL_SQL 联合的表数
     for (uint8_t i = 0; i < QUERY_KERNEL_SQL_UNION_TABLE_NUM; ++i) {
         stmt->BindParams(params.name, timestamp);
     }
@@ -1434,6 +1447,7 @@ bool DbTraceDataBase::SetConfig() {
     isExistCANN = CheckTableExist(TABLE_CANN_API);
     isExistMstx = CheckTableExist(TABLE_MSTX_EVENTS);
     isExistCommOp = CheckTableExist(TABLE_COMMUNICATION_OP);
+    isExistCcu = CheckTableExist(TABLE_CCU);
     isExistTask = CheckTableExist(TABLE_TASK);
     isExistComputeTask = CheckTableExist(TABLE_COMPUTE_TASK_INFO);
     // 临时表只在该数据库连接的生命周期内有效，连接断开后自动销毁
@@ -1747,6 +1761,34 @@ bool DbTraceDataBase::QueryAscendHardwareOperatorMetadata(
     return true;
 }
 
+bool DbTraceDataBase::QueryCcuOperatorMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
+    auto stmt = CreatPreparedStatement("SELECT COUNT(1) AS count FROM " + TABLE_CCU + " WHERE deviceId = ?");
+    if (stmt == nullptr) {
+        ServerLog::Error("Failed to prepare sql for query CCU operator metadata.");
+        return false;
+    }
+    std::string deviceId = GetDeviceId(fileId);
+    auto resultSet = stmt->ExecuteQuery(deviceId);
+    if (resultSet == nullptr) {
+        ServerLog::Error("Failed to execute query CCU operator metadata.");
+        return false;
+    }
+    if (!resultSet->Next() || resultSet->GetUint64("count") == 0) {
+        return true;
+    }
+
+    auto metaType = ENUM_TO_STR(PROCESS_TYPE::CCU).value_or("");
+    auto process = GenerateBaseUnitTrack("process", fileId, metaType, "CCU", metaType);
+    auto thread = GenerateBaseUnitTrack("thread", fileId, process->metaData.processId, "", metaType);
+    thread->metaData.threadId = deviceId;
+    thread->metaData.threadName = "communication";
+    thread->metaData.maxDepth = 1;
+    process->children.emplace_back(std::move(thread));
+    metaData.emplace_back(std::move(process));
+    return true;
+}
+
 bool DbTraceDataBase::QueryHCCLOperatorMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     PROCESS_TYPE type = PROCESS_TYPE::HCCL;
@@ -1911,11 +1953,12 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
     }
 
     std::unique_ptr<SqliteResultSet> resultSet;
+    std::string deviceId = GetDeviceId(params.rankId);
     if (!params.nameFilter.empty()) {
         resultSet = stmt->ExecuteQuery(params.searchContent, params.nameFilter, minTimestamp,
-            GetDeviceId(params.rankId), params.pageSize, offset);
+            deviceId, deviceId, params.pageSize, offset);
     } else {
-        resultSet = stmt->ExecuteQuery(params.searchContent, minTimestamp, GetDeviceId(params.rankId),
+        resultSet = stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId,
             params.pageSize, offset);
     }
 
@@ -1933,6 +1976,7 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
         searchAllSlice.tid = resultSet->GetString("tid");
         searchAllSlice.pid = resultSet->GetString("pid");
         searchAllSlice.depth = resultSet->GetUint64("depth");
+        searchAllSlice.metaType = resultSet->GetString("metaType");
         auto deviceId = resultSet->GetString("deviceId");
         searchAllSlice.rankId = params.rankId;
         searchAllSlice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
@@ -1945,10 +1989,11 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
     auto countStmt = CreatPreparedStatement(GetSearchSliceNameCountSql(sqlParams));
     if (countStmt != nullptr) {
         std::unique_ptr<SqliteResultSet> countResult;
+        std::string countDeviceId = GetDeviceId(params.rankId);
         if (!params.nameFilter.empty()) {
-            countResult = countStmt->ExecuteQuery(params.searchContent, params.nameFilter, GetDeviceId(params.rankId));
+            countResult = countStmt->ExecuteQuery(params.searchContent, params.nameFilter, countDeviceId, countDeviceId);
         } else {
-            countResult = countStmt->ExecuteQuery(params.searchContent, GetDeviceId(params.rankId));
+            countResult = countStmt->ExecuteQuery(params.searchContent, countDeviceId, countDeviceId);
         }
         if (countResult != nullptr && countResult->Next()) {
             count = countResult->GetUint64("count");
@@ -2105,11 +2150,15 @@ bool DbTraceDataBase::FillDictMap(LightSliceCache& cache, const Protocol::Search
     return !matchedIds.empty();
 }
 
-void DbTraceDataBase::LoadTableData(LightSliceCache& cache, const std::unordered_set<int32_t>& matchedIds, bool isExist, const std::string& sql, SliceTableType tableType)
+void DbTraceDataBase::LoadTableData(LightSliceCache& cache, const std::unordered_set<int32_t>& matchedIds,
+    const SliceCacheTableLoadQuery& query)
 {
-    if (!isExist) return;
-    auto stmt = CreatPreparedStatement(sql);
+    if (!query.isExist) return;
+    auto stmt = CreatPreparedStatement(query.sql);
     if (stmt == nullptr) return;
+    for (const auto& param : query.bindParams) {
+        stmt->BindParams(param);
+    }
     auto result = stmt->ExecuteQuery();
     if (result == nullptr) return;
 
@@ -2117,7 +2166,7 @@ void DbTraceDataBase::LoadTableData(LightSliceCache& cache, const std::unordered
         int32_t stringId = result->GetInt32("nameId");
         if (matchedIds.count(stringId) == 0) continue;
 
-        cache.tableTypes.push_back(static_cast<int8_t>(tableType));
+        cache.tableTypes.push_back(static_cast<int8_t>(query.tableType));
         cache.rowIds.push_back(result->GetUint64("rowId"));
         cache.stringIds.push_back(stringId);
         cache.timestamps.push_back(result->GetUint64("startTime"));
@@ -2143,37 +2192,65 @@ bool DbTraceDataBase::LoadSliceCache(LightSliceCache& cache,
     std::string deviceId = GetDeviceId(params.rankId);
 
     // 2.1 加载 TASK 表数据
-    std::string taskSql = "SELECT main.ROWID as rowId, "
+    SliceCacheTableLoadQuery taskQuery;
+    taskQuery.isExist = isExistTask;
+    taskQuery.sql = "SELECT main.ROWID as rowId, "
         "coalesce(compute.name, schedule.name, main.taskType) as nameId, "
         "main.startNs - " + std::to_string(minTimestamp) + " as startTime, "
         "main.endNs - main.startNs as duration "
         "FROM TASK main "
         "LEFT JOIN COMPUTE_TASK_INFO compute ON compute.globalTaskId = main.globalTaskId "
         "LEFT JOIN COMMUNICATION_SCHEDULE_TASK_INFO schedule ON main.globalTaskId = schedule.globalTaskId";
+    taskQuery.tableType = SliceTableType::TASK;
     if (!deviceId.empty()) {
-        taskSql += " WHERE main.deviceId = '" + deviceId + "'";
+        taskQuery.sql += " WHERE main.deviceId = ?";
+        taskQuery.bindParams.emplace_back(deviceId);
     }
-    LoadTableData(cache, matchedIds, isExistTask, taskSql, SliceTableType::TASK);
+    LoadTableData(cache, matchedIds, taskQuery);
 
     // 2.2 加载 CANN_API 表数据
-    std::string cannSql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
-                          " as startTime, endNs - startNs as duration FROM CANN_API";
-    LoadTableData(cache, matchedIds, isExistCANN, cannSql, SliceTableType::CANN_API);
+    SliceCacheTableLoadQuery cannQuery;
+    cannQuery.isExist = isExistCANN;
+    cannQuery.sql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
+                    " as startTime, endNs - startNs as duration FROM CANN_API";
+    cannQuery.tableType = SliceTableType::CANN_API;
+    LoadTableData(cache, matchedIds, cannQuery);
 
     // 2.3 加载 PYTORCH_API 表数据
-    std::string pytorchSql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
-                             " as startTime, endNs - startNs as duration FROM PYTORCH_API";
-    LoadTableData(cache, matchedIds, isExistPytorch, pytorchSql, SliceTableType::PYTORCH_API);
+    SliceCacheTableLoadQuery pytorchQuery;
+    pytorchQuery.isExist = isExistPytorch;
+    pytorchQuery.sql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
+                       " as startTime, endNs - startNs as duration FROM PYTORCH_API";
+    pytorchQuery.tableType = SliceTableType::PYTORCH_API;
+    LoadTableData(cache, matchedIds, pytorchQuery);
 
     // 2.4 加载 COMMUNICATION_OP 表数据
-    std::string commSql = "SELECT ROWID as rowId, opName as nameId, startNs - " + std::to_string(minTimestamp) +
-                          " as startTime, endNs - startNs as duration FROM COMMUNICATION_OP";
-    LoadTableData(cache, matchedIds, isExistCommOp, commSql, SliceTableType::COMMUNICATION_OP);
+    SliceCacheTableLoadQuery commQuery;
+    commQuery.isExist = isExistCommOp;
+    commQuery.sql = "SELECT ROWID as rowId, opName as nameId, startNs - " + std::to_string(minTimestamp) +
+                    " as startTime, endNs - startNs as duration FROM COMMUNICATION_OP";
+    commQuery.tableType = SliceTableType::COMMUNICATION_OP;
+    LoadTableData(cache, matchedIds, commQuery);
 
     // 2.5 加载 MSTX_EVENTS 表数据
-    std::string mstxSql = "SELECT ROWID as rowId, message as nameId, startNs - " + std::to_string(minTimestamp) +
-                          " as startTime, endNs - startNs as duration FROM MSTX_EVENTS";
-    LoadTableData(cache, matchedIds, isExistMstx, mstxSql, SliceTableType::MSTX);
+    SliceCacheTableLoadQuery mstxQuery;
+    mstxQuery.isExist = isExistMstx;
+    mstxQuery.sql = "SELECT ROWID as rowId, message as nameId, startNs - " + std::to_string(minTimestamp) +
+                    " as startTime, endNs - startNs as duration FROM MSTX_EVENTS";
+    mstxQuery.tableType = SliceTableType::MSTX;
+    LoadTableData(cache, matchedIds, mstxQuery);
+
+    // 2.6 加载 CCU 表数据
+    SliceCacheTableLoadQuery ccuQuery;
+    ccuQuery.isExist = isExistCcu;
+    ccuQuery.sql = "SELECT ROWID as rowId, name as nameId, startNs - " + std::to_string(minTimestamp) +
+                   " as startTime, endNs - startNs as duration FROM " + TABLE_CCU;
+    ccuQuery.tableType = SliceTableType::CCU;
+    if (!deviceId.empty()) {
+        ccuQuery.sql += " WHERE deviceId = ?";
+        ccuQuery.bindParams.emplace_back(deviceId);
+    }
+    LoadTableData(cache, matchedIds, ccuQuery);
 
     // Step 3: 初始化排序索引
     SearchSliceCacheManager::InitializeSortedIndices(cache);
@@ -2198,27 +2275,32 @@ std::string DbTraceDataBase::GetSliceDetailSql(SliceTableType type, uint64_t min
         case SliceTableType::TASK:
             return "SELECT main.ROWID as rowId, coalesce(compute.name, schedule.name, main.taskType) as nameId, "
                    "main.startNs - " + minTimeStr + " as startTime, main.endNs - main.startNs as duration, "
-                   "main.streamId as tid, 'Ascend Hardware' as pid, main.depth, main.deviceId "
+                   "main.streamId as tid, 'Ascend Hardware' as pid, 'Ascend Hardware' as metaType, "
+                   "main.depth, main.deviceId "
                    "FROM TASK main "
                    "LEFT JOIN COMPUTE_TASK_INFO compute ON compute.globalTaskId = main.globalTaskId "
                    "LEFT JOIN COMMUNICATION_SCHEDULE_TASK_INFO schedule ON main.globalTaskId = schedule.globalTaskId "
                    "WHERE main.ROWID IN (" + idList + ")";
         case SliceTableType::CANN_API:
             return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
-                   "type as tid, globalTid as pid, depth, '' as deviceId "
+                   "type as tid, globalTid as pid, 'CANN_API' as metaType, depth, '' as deviceId "
                    "FROM CANN_API WHERE ROWID IN (" + idList + ")";
         case SliceTableType::PYTORCH_API:
             return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
-                   "'pytorch' as tid, globalTid as pid, depth, '' as deviceId "
+                   "'pytorch' as tid, globalTid as pid, 'PYTORCH_API' as metaType, depth, '' as deviceId "
                    "FROM PYTORCH_API WHERE ROWID IN (" + idList + ")";
         case SliceTableType::COMMUNICATION_OP:
             return "SELECT ROWID as rowId, opName as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
-                   "groupName||'group' as tid, 'HCCL' as pid, 0 as depth, '' as deviceId "
+                   "groupName||'group' as tid, 'HCCL' as pid, 'HCCL' as metaType, 0 as depth, '' as deviceId "
                    "FROM COMMUNICATION_OP WHERE ROWID IN (" + idList + ")";
         case SliceTableType::MSTX:
             return "SELECT ROWID as rowId, message as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
-                   "domainId as tid, globalTid as pid, depth, '' as deviceId "
+                   "domainId as tid, globalTid as pid, 'MSTX_EVENTS' as metaType, depth, '' as deviceId "
                    "FROM MSTX_EVENTS WHERE ROWID IN (" + idList + ")";
+        case SliceTableType::CCU:
+            return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr +
+                   " as startTime, endNs - startNs as duration, deviceId as tid, 'CCU' as pid, "
+                   "'CCU' as metaType, 0 as depth, deviceId as deviceId FROM " + TABLE_CCU + " WHERE ROWID IN (" + idList + ")";
         default:
             return "";
     }
@@ -2242,6 +2324,7 @@ void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache, const Pr
         slice.id = std::to_string(result->GetUint64("rowId"));
         slice.tid = result->GetString("tid");
         slice.pid = result->GetString("pid");
+        slice.metaType = result->GetString("metaType");
         slice.depth = result->GetUint64("depth");
         slice.rankId = params.rankId;
         auto deviceId = result->GetString("deviceId");
