@@ -382,3 +382,55 @@ TEST_F(TextTraceDatabaseFtraceTest, TraceIrqDetailDifferentIrqNameAreSeparateRow
     EXPECT_EQ(QueryInt64("SELECT count FROM trace_irq_detail WHERE irq_name = 'eth0'"), 1);
     EXPECT_EQ(QueryInt64("SELECT count FROM trace_irq_detail WHERE irq_name = 'timer'"), 2);
 }
+
+// UpdateTraceTaskSummaryCsCount：先插入一行时间统计数据，再累加更新 cs_count
+TEST_F(TextTraceDatabaseFtraceTest, UpdateTraceTaskSummaryCsCount_Basic) {
+    // 先插入基础数据（模拟子任务2 写入的时间统计）
+    TraceTaskSummaryData data;
+    data.comm = "bash";
+    data.pid = 100;
+    data.cpuId = 0;
+    data.runningNs = 500000;
+    data.sleepingNs = 200000;
+    data.runnableNs = 30000;
+
+    EXPECT_EQ(database.InsertTraceTaskSummary(data), true);
+    database.CommitData();
+    EXPECT_EQ(QueryRowCount("trace_task_summary"), 1);
+
+    // 累加更新 cs_count
+    EXPECT_EQ(database.UpdateTraceTaskSummaryCsCount("bash", 100, 0, 5, 2), true);
+    EXPECT_EQ(QueryInt64("SELECT cs_count FROM trace_task_summary WHERE comm='bash'"), 5);
+    EXPECT_EQ(QueryInt64("SELECT cs_involuntary_count FROM trace_task_summary WHERE comm='bash'"), 2);
+
+    // 时间统计字段不应被覆盖
+    EXPECT_EQ(QueryInt64("SELECT running_ns FROM trace_task_summary WHERE comm='bash'"), 500000);
+    EXPECT_EQ(QueryInt64("SELECT sleeping_ns FROM trace_task_summary WHERE comm='bash'"), 200000);
+}
+
+// 多次 Update 应为累加，而非覆盖
+TEST_F(TextTraceDatabaseFtraceTest, UpdateTraceTaskSummaryCsCount_Accumulate) {
+    TraceTaskSummaryData data;
+    data.comm = "app";
+    data.pid = 200;
+    data.cpuId = 1;
+    data.runningNs = 100;
+
+    EXPECT_EQ(database.InsertTraceTaskSummary(data), true);
+    database.CommitData();
+
+    EXPECT_EQ(database.UpdateTraceTaskSummaryCsCount("app", 200, 1, 3, 1), true);
+    EXPECT_EQ(database.UpdateTraceTaskSummaryCsCount("app", 200, 1, 7, 2), true);
+
+    EXPECT_EQ(QueryInt64("SELECT cs_count FROM trace_task_summary WHERE comm='app'"), 10);
+    EXPECT_EQ(QueryInt64("SELECT cs_involuntary_count FROM trace_task_summary WHERE comm='app'"), 3);
+}
+
+// 对不存在的行调用 Update，不应创建新行（WHERE 条件不匹配）
+TEST_F(TextTraceDatabaseFtraceTest, UpdateTraceTaskSummaryCsCount_NoMatch) {
+    EXPECT_EQ(QueryRowCount("trace_task_summary"), 0);
+
+    // 对不存在的行执行 Update，不应报错但也不应有数据
+    EXPECT_EQ(database.UpdateTraceTaskSummaryCsCount("nonexist", 999, 0, 1, 0), true);
+    EXPECT_EQ(QueryRowCount("trace_task_summary"), 0);
+}
