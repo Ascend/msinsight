@@ -138,6 +138,7 @@ export interface SearchAllSlicesDetails {
      * @memberof dbPath
      */
     dbPath: string;
+    metaType?: string;
 }
 
 export function useFindDetail(session: Session, bottomHeight: number): any {
@@ -335,13 +336,15 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
 
 const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptimizer: string }, props: FindDetailProps): Promise<void> => {
     const queryName = rowData.name ?? rowData.originOptimizer;
-    const res = await queryOneKernel({
-        rankId: rowData.rankId,
-        dbPath: rowData.dbPath,
-        name: queryName,
-        timestamp: rowData.timestamp,
-        duration: rowData.duration,
-    });
+    const res = rowData.metaType === 'CCU'
+        ? { depth: rowData.depth, metaType: 'CCU' }
+        : await queryOneKernel({
+            rankId: rowData.rankId,
+            dbPath: rowData.dbPath,
+            name: queryName,
+            timestamp: rowData.timestamp,
+            duration: rowData.duration,
+        });
     const depth = rowData.depth > res.depth ? rowData.depth : res.depth;
     jumpToUnitOperator({
         ...rowData,
@@ -349,5 +352,6 @@ const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptim
         depth,
         cardId: rowData.rankId,
         dbPath: rowData.dbPath,
+        metaType: rowData.metaType ?? res.metaType,
     });
 };

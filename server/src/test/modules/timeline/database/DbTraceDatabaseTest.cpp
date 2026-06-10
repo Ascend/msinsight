@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include <algorithm>
 #include <gtest/gtest.h>
 #include "DbTraceDataBase.h"
 #include "DataBaseManager.h"
@@ -103,6 +104,107 @@ class DbTraceDatabaseTest : public ::testing::Test {
 };
 namespace Dic::Protocol {
 using namespace Dic::Module::Timeline;
+}
+
+TEST_F(DbTraceDatabaseTest, FetchSliceDetailsSetsMetaTypeForCcuCachePath)
+{
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "CREATE TABLE CCU(deviceId INTEGER, globalTaskId INTEGER, name INTEGER, "
+                               "startNs INTEGER, endNs INTEGER, args INTEGER);", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "INSERT INTO CCU(deviceId, globalTaskId, name, startNs, endNs, args) "
+                               "VALUES (0, 1, 1, 110, 150, 0);", nullptr, nullptr, nullptr), SQLITE_OK);
+
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    database.SetDbPtr(db);
+
+    LightSliceCache cache;
+    cache.dictMap.emplace(1, "ccu_kernel");
+    std::vector<TargetRow> rows = {{SliceTableType::CCU, 1}};
+    Dic::Protocol::SearchAllSliceParams params;
+    params.fileId = "0";
+    params.rankId = "0";
+    Dic::Protocol::SearchAllSlicesBody body;
+
+    ASSERT_TRUE(database.FetchSliceDetails(cache, rows, params, body, 100));
+
+    ASSERT_EQ(body.searchAllSlices.size(), 1);
+    EXPECT_EQ(body.searchAllSlices[0].name, "ccu_kernel");
+    EXPECT_EQ(body.searchAllSlices[0].metaType, "CCU");
+    EXPECT_EQ(body.searchAllSlices[0].pid, "CCU");
+    EXPECT_EQ(body.searchAllSlices[0].tid, "0");
+    database.CloseDb();
+}
+
+TEST_F(DbTraceDatabaseTest, QueryEventsViewDataReturnsCcuEvents)
+{
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "CREATE TABLE STRING_IDS(id INTEGER PRIMARY KEY, value TEXT);", nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "CREATE TABLE CCU(deviceId INTEGER, globalTaskId INTEGER, name INTEGER, "
+                               "startNs INTEGER, endNs INTEGER, args INTEGER);", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "INSERT INTO STRING_IDS(id, value) VALUES (1, 'ccu_kernel');", nullptr, nullptr,
+        nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "INSERT INTO CCU(deviceId, globalTaskId, name, startNs, endNs, args) "
+                               "VALUES (0, 1, 1, 110, 150, 0);", nullptr, nullptr, nullptr), SQLITE_OK);
+
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    database.SetDbPtr(db);
+
+    Dic::Protocol::EventsViewParams params;
+    params.rankId = "0";
+    params.metaType = "CCU";
+    params.currentPage = 1;
+    params.pageSize = 10;
+    Dic::Protocol::EventsViewBody body;
+
+    ASSERT_TRUE(database.QueryEventsViewData(params, body, 100));
+
+    ASSERT_EQ(body.eventDetailList.size(), 1);
+    EXPECT_EQ(body.eventDetailList[0]->name, "ccu_kernel");
+    EXPECT_EQ(body.eventDetailList[0]->startTime, 10);
+    EXPECT_EQ(body.eventDetailList[0]->duration, 40);
+    EXPECT_EQ(body.eventDetailList[0]->processId, "CCU");
+    EXPECT_EQ(body.eventDetailList[0]->threadId, "0");
+    ASSERT_FALSE(body.columnList.empty());
+    EXPECT_NE(std::find_if(body.columnList.begin(), body.columnList.end(), [](const auto& column) {
+        return column.key == "threadName";
+    }), body.columnList.end());
+    database.CloseDb();
+}
+
+TEST_F(DbTraceDatabaseTest, LoadSliceCacheDoesNotConcatenateCcuDeviceId)
+{
+    const std::string dbPath = "test_load_slice_cache_ccu_device_id.db";
+    std::remove(dbPath.c_str());
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "CREATE TABLE STRING_IDS(id INTEGER PRIMARY KEY, value TEXT);", nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "CREATE TABLE CCU(deviceId INTEGER, globalTaskId INTEGER, name INTEGER, "
+                               "startNs INTEGER, endNs INTEGER, args INTEGER);", nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "INSERT INTO STRING_IDS(id, value) VALUES (1, 'ccu_kernel');", nullptr, nullptr,
+        nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db, "INSERT INTO CCU(deviceId, globalTaskId, name, startNs, endNs, args) "
+                               "VALUES (0, 1, 1, 110, 150, 0);", nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_close(db);
+
+    std::recursive_mutex testMutex;
+    Dic::Module::FullDb::DbTraceDataBase database(testMutex);
+    ASSERT_TRUE(database.OpenDb(dbPath, false));
+
+    LightSliceCache cache;
+    Dic::Protocol::SearchAllSliceParams params;
+    params.rankId = "0' OR '1'='1";
+    params.searchContent = "ccu_kernel";
+
+    EXPECT_FALSE(database.LoadSliceCache(cache, params, 100));
+    EXPECT_EQ(cache.size(), 0);
+    database.CloseDb();
+    std::remove(dbPath.c_str());
 }
 
 TEST_F(DbTraceDatabaseTest, TestAddHelperColumnsAddsKernelSimtDimColumnsForOldComputeTaskInfo)

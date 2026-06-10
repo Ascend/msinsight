@@ -54,6 +54,10 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
                          " startNs - minTime.value as startTime, endNs - startNs as duration, 0 as depth, op.ROWID"
                          " as id from COMMUNICATION_OP op join minTime " +
                          associationTaskSql + " join ids on ids.id = opName group by opId";
+    std::string ccuSql = "select name, 'CCU' as pid, 'CCU' as metaType, deviceId as tid, "
+                         "startNs - minTime.value as startTime, endNs - startNs as duration, "
+                         "0 as depth, ccu.ROWID as id from " + TABLE_CCU +
+                         " ccu join minTime join ids on ids.id = ccu.name where ccu.deviceId = ?";
     sql = "with ids as (" + nameMatch +
           "), minTime as (select ? as value), "
           " tasks as (select ROWID, globalTaskId, taskType, 'Ascend Hardware' as pid, streamId as tid, connectionId, "
@@ -68,8 +72,8 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
           " left join COMMUNICATION_SCHEDULE_TASK_INFO schedule ON main.globalTaskId = schedule.globalTaskId "
           " join ids on ids.id = coalesce(compute.name, schedule.name, main.taskType) "
           " union ALL select name, pid, pid as meatType, tid, startTime, duration, depth, com.id from com "
-          " join ids on ids.id = com.name  union ALL " +
-          comSql + " union ALL " + hostSql + ") allNames " + orderBy + " LIMIT 1 OFFSET ?";
+          " join ids on ids.id = com.name union ALL " +
+          ccuSql + " union ALL " + comSql + " union ALL " + hostSql + ") allNames " + orderBy + " LIMIT 1 OFFSET ?";
     return sql;
 }
 
@@ -113,7 +117,10 @@ std::string DbTraceDataBase::GetSearchAllSlicesDetailsSql(const SearchSliceSqlPa
           " main.tid, main.startTime, main.duration, main.depth, main.ROWID as id from tasks main\n"
           " left join COMPUTE_TASK_INFO compute on compute.globalTaskId = main.globalTaskId "
           " LEFT JOIN COMMUNICATION_SCHEDULE_TASK_INFO schedule ON main.globalTaskId = schedule.globalTaskId union ALL"
-          " select deviceId,name, pid, pid as meatType, tid, startTime, duration, depth, id from com union ALL " +
+          " select deviceId,name, pid, pid as meatType, tid, startTime, duration, depth, id from com union ALL "
+          " select deviceId, name, 'CCU' as pid, 'CCU' as metaType, deviceId as tid, "
+          " startNs - minTime.value as startTime, endNs - startNs as duration, 0 as depth, "
+          " ccu.ROWID as id from " + TABLE_CCU + " ccu join minTime where ccu.deviceId = ? union ALL " +
           communicationOpSql +
           " UNION all select '' as deviceId, name, globalTid as pid, 'HOST' as metaType, type as tid, "
           "startNs - minTime.value AS startTime, endNs - startNs AS duration, depth, CANN_API.ROWID as id from "
@@ -145,6 +152,7 @@ std::string DbTraceDataBase::GetSearchSliceNameCountSql(const SearchSliceSqlPara
     std::string hostSql = "select name from " + TABLE_CANN_API + " union all select message from  " +
                           TABLE_MSTX_EVENTS + " union all select name from  " + TABLE_API +
                           " UNION ALL SELECT name FROM " + TABLE_OSRT_API;
+    std::string ccuSql = "select name from " + TABLE_CCU + " where deviceId = ?";
 
     std::string communicationOpSql;
     if (!TraceDatabaseHelper::IsDeviceIdUnique(params.rankId)) {
@@ -175,7 +183,7 @@ std::string DbTraceDataBase::GetSearchSliceNameCountSql(const SearchSliceSqlPara
           " left join schedule ON main.globalTaskId = schedule.globalTaskId"
           "    union ALL select name from com "
           "    union ALL " +
-          communicationOpSql + " union ALL " + hostSql + ") allNames join ids on id = allNames.name" + filterJoin + ";";
+          communicationOpSql + " union ALL " + ccuSql + " union ALL " + hostSql + ") allNames join ids on id = allNames.name" + filterJoin + ";";
     return sql;
 }
 

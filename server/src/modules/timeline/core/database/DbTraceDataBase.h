@@ -247,6 +247,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool isExistCANN = false;
     bool isExistMstx = false;
     bool isExistCommOp = false;
+    bool isExistCcu = false;
     bool isExistTask = false;
     bool isExistComputeTask = false;
 
@@ -274,6 +275,8 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool QueryAscendHardwareOperatorMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     bool QueryHCCLOperatorMetadata(
+        const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+    bool QueryCcuOperatorMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     bool GenerateOverlapAnalysisMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
@@ -365,10 +368,17 @@ class DbTraceDataBase : public VirtualTraceDatabase {
 
     static void UpdateAscendHardwareFlowLocationName(
         const std::string &rankId, std::vector<FlowLocation> &flowLocations);
+    struct SliceCacheTableLoadQuery {
+        bool isExist = false;
+        std::string sql;
+        SliceTableType tableType = SliceTableType::UNKNOWN;
+        std::vector<std::string> bindParams;
+    };
+
     bool FillDictMap(
         LightSliceCache& cache, const Protocol::SearchAllSliceParams& params, std::unordered_set<int32_t>& matchedIds);
     void LoadTableData(LightSliceCache& cache, const std::unordered_set<int32_t>& matchedIds,
-        bool isExist, const std::string& sql, SliceTableType tableType);
+        const SliceCacheTableLoadQuery& query);
 
     static std::string GetSliceDetailSql(SliceTableType type, uint64_t minTimestamp, const std::string& idList);
     static std::string BuildIdList(const std::vector<uint64_t>& ids);
