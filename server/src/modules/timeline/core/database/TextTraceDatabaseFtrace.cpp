@@ -292,4 +292,33 @@ bool TextTraceDatabase::InsertTraceIrqDetailList(const std::vector<TraceIrqDetai
     }
     return true;
 }
+
+/**
+ * 累加更新指定 (comm, pid, cpu_id) 行的 cs_count 和 cs_involuntary_count。
+ * 用于 FtraceSchedStatisticsParseUnit 在时间统计已写入的基础上追加上下文切换数据。
+ */
+bool TextTraceDatabase::UpdateTraceTaskSummaryCsCount(
+    const std::string &comm, uint64_t pid, int32_t cpuId, uint64_t csCount, uint64_t csInvoluntaryCount) {
+    const std::string sql = "UPDATE trace_task_summary SET "
+                            "cs_count = cs_count + ?, cs_involuntary_count = cs_involuntary_count + ? "
+                            "WHERE comm = ? AND pid = ? AND cpu_id = ?";
+
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    if (updateTraceTaskSummaryCsStmt == nullptr) {
+        updateTraceTaskSummaryCsStmt = CreatPreparedStatement(sql);
+        if (updateTraceTaskSummaryCsStmt == nullptr) {
+            ServerLog::Error("Create prepared statement for UpdateTraceTaskSummaryCsCount fail.");
+            return false;
+        }
+    }
+
+    updateTraceTaskSummaryCsStmt->Reset();
+    if (!updateTraceTaskSummaryCsStmt->Execute(static_cast<int64_t>(csCount), static_cast<int64_t>(csInvoluntaryCount),
+            comm, static_cast<int64_t>(pid), static_cast<int64_t>(cpuId))) {
+        ServerLog::Error("Update trace_task_summary cs_count fail. ", updateTraceTaskSummaryCsStmt->GetErrorMessage());
+        return false;
+    }
+    return true;
+}
+
 }

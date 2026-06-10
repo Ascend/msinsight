@@ -192,6 +192,8 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     bool CreateTraceIrqDetailTable();
     bool InsertTraceTaskSummary(const TraceTaskSummaryData &data);
     bool InsertTraceIrqDetail(const TraceIrqDetailData &data);
+    bool UpdateTraceTaskSummaryCsCount(
+        const std::string &comm, uint64_t pid, int32_t cpuId, uint64_t csCount, uint64_t csInvoluntaryCount);
 
   private:
     static constexpr const char *CPU_METRICS_PROCESS_ID = "__cpu_metrics__";
@@ -222,6 +224,7 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     std::unique_ptr<SqlitePreparedStatement> insertFtraceStatStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> insertTraceTaskSummaryStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> insertTraceIrqDetailStmt = nullptr;
+    std::unique_ptr<SqlitePreparedStatement> updateTraceTaskSummaryCsStmt = nullptr;
 
     std::vector<Trace::Slice> sliceCache;
     std::list<Protocol::SimpleSlice> sliceDepthHelper;
