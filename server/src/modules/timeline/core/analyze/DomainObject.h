@@ -185,29 +185,6 @@ enum class PYTHON_FUNCTION_STATUS {
     NOT_EXIST,
 };
 
-enum class FtraceDataType : int8_t {
-    TIME = 0, // 耗时信息
-    IRQ = 1, // 中断信息
-    SCHED = 2, // 上下文切换信息
-    UNKOWN = 3, //未知
-};
-
-struct FtraceStatisticsData {
-    uint64_t trackId = 0;
-    FtraceDataType dataType = FtraceDataType::TIME;
-    std::unordered_map<std::string, std::string> data;
-
-    // 获取JSON字符串（兼容旧接口）
-    std::string GetArgs() const { return JsonUtil::MapToJsonStr(data); };
-    // 设置JSON字符串（兼容旧接口）
-    void SetArgs(const std::string &jsonStr) { data = JsonUtil::JsonStrToMap(jsonStr); };
-};
-
-struct FtraceStatistics {
-    int64_t totalCount = 0;
-    std::vector<FtraceStatisticsData> data;
-};
-
 // trace_task_summary 表的一行：按 (comm, pid, cpu_id) 聚合的耗时与上下文切换统计
 struct TraceTaskSummaryData {
     std::string comm;
