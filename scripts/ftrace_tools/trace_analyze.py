@@ -92,7 +92,8 @@ class TaskStats:
     running_ns: int = 0
     sleeping_ns: int = 0
     runnable_ns: int = 0
-    cs_count: int = 0
+    cs_count: int = 0  # 上下文切换总次数
+    cs_involuntary_count: int = 0  # 非自愿切换次数（prev_state='R'，抢占导致）
     irqs: Dict[str, Dict] = field(default_factory=dict)  # key: "irq_type:irq_name"
 
     def add_duration_ns(self, event_name: str, duration_ns: int) -> None:
@@ -187,6 +188,83 @@ def compute_running_sleeping_runnable_stats(
 
     logging.info("Generated %d TaskStats entries", len(stats_map))
     return stats_map
+
+
+# 内核进程关键词，与 trace_convert.py 中的 KERNEL_PROCESS 保持一致
+_KERNEL_PROCESS_KEYWORDS = ['migration', 'swapper', 'kworker']
+
+
+def _is_kernel_process(comm: str) -> bool:
+    """判断是否为内核进程。
+
+    与 trace_convert.py 中的 is_kernel_process 逻辑保持一致。
+    """
+    for keyword in _KERNEL_PROCESS_KEYWORDS:
+        if keyword in comm:
+            return True
+    return False
+
+
+def compute_cs_count(conn: sqlite3.Connection, stats_map: Dict[Tuple[str, int, Optional[int]], TaskStats]) -> None:
+    """统计上下文切换次数，按 (comm, pid, cpu_id) 分组。
+
+    从 sched_switch 事件的 args 中提取 prev_comm/prev_pid/prev_state，
+    结合 CPU 线程的 tid 获取 cpu_id，定位到 stats_map 中的对应行并累加 cs_count。
+
+    内核进程（swapper/kworker/migration）的 prev 事件被跳过。
+
+    Args:
+        conn: SQLite 数据库连接
+        stats_map: 由 compute_running_sleeping_runnable_stats() 返回的 TaskStats 字典
+    """
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT
+            json_extract(s.args, '$.prev_comm') as prev_comm,
+            json_extract(s.args, '$.prev_pid') as prev_pid,
+            json_extract(s.args, '$.prev_state') as prev_state,
+            CAST(REPLACE(t.tid, 'CPU ', '') AS INTEGER) as cpu_id
+        FROM slice s
+        JOIN thread t ON s.track_id = t.track_id
+        WHERE s.name = 'sched_switch'
+          AND t.tid LIKE 'CPU %'
+    """)
+    rows = cur.fetchall()
+    logging.info("Found %d sched_switch events on CPU threads", len(rows))
+
+    cs_count = 0
+    cs_involuntary_count = 0
+    skipped_kernel = 0
+
+    for prev_comm, prev_pid_str, prev_state, cpu_id in rows:
+        if prev_comm is None or prev_pid_str is None:
+            continue
+
+        # 跳过内核进程
+        if _is_kernel_process(prev_comm):
+            skipped_kernel += 1
+            continue
+
+        try:
+            prev_pid = int(prev_pid_str)
+        except (ValueError, TypeError):
+            continue
+
+        key = (prev_comm, prev_pid, cpu_id)
+        if key in stats_map:
+            stats_map[key].cs_count += 1
+            cs_count += 1
+
+            # prev_state='R' 表示进程仍在 Ready 状态被强制换下（非自愿/抢占）
+            if prev_state == 'R':
+                stats_map[key].cs_involuntary_count += 1
+                cs_involuntary_count += 1
+
+    if skipped_kernel > 0:
+        logging.debug("Skipped %d kernel process sched_switch events", skipped_kernel)
+
+    logging.info("Accumulated %d context switch events (%d involuntary) into TaskStats", cs_count, cs_involuntary_count)
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
