@@ -246,6 +246,52 @@ class TestComputeIrqStats(unittest.TestCase):
         self.assertEqual(irqs["softirq:NET_RX"]["count"], 2)
         self.assertEqual(irqs["softirq:NET_RX"]["time_ns"], 4500)
 
+    def test_multiple_irq_types_same_process_same_cpu(self):
+        """同一进程在同一 CPU 上同时被多个不同类型的 irq 打断。
+
+        验证：count 和 time_ns 正确累加，irq 字典的 key 正确区分不同类型。
+        这是实际系统中的常见场景（如网卡 + 定时器 + softirq 同时中断同一进程）。
+        """
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "nginx:2000")],
+            slices_with_args=[
+                # irq eth0 x3（应该累加）
+                ("irq", 1000, 5000, 1, {"irq": "1", "name": "eth0", "ret": "handled", "task": "nginx:2000"}),
+                ("irq", 2000, 3000, 1, {"irq": "1", "name": "eth0", "ret": "handled", "task": "nginx:2000"}),
+                ("irq", 3000, 2000, 1, {"irq": "1", "name": "eth0", "ret": "handled", "task": "nginx:2000"}),
+                # irq timer x2（应该累加）
+                ("irq", 4000, 1000, 1, {"irq": "2", "name": "timer", "ret": "handled", "task": "nginx:2000"}),
+                ("irq", 5000, 1500, 1, {"irq": "2", "name": "timer", "ret": "handled", "task": "nginx:2000"}),
+                # softirq NET_RX x2（应该累加）
+                ("softirq", 6000, 4000, 1, {"vec": "1", "action": "NET_RX", "task": "nginx:2000"}),
+                ("softirq", 7000, 2000, 1, {"vec": "1", "action": "NET_RX", "task": "nginx:2000"}),
+                # softirq TIMER x1
+                ("softirq", 8000, 500, 1, {"vec": "0", "action": "TIMER", "task": "nginx:2000"}),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("nginx", 2000, 0)])
+        compute_irq_stats(conn, stats_map)
+        conn.close()
+
+        irqs = stats_map[("nginx", 2000, 0)].irqs
+        # 验证 4 种 irq key 都存在
+        self.assertEqual(len(irqs), 4)
+        self.assertIn("irq:eth0", irqs)
+        self.assertIn("irq:timer", irqs)
+        self.assertIn("softirq:NET_RX", irqs)
+        self.assertIn("softirq:TIMER", irqs)
+        # 验证 count 累加
+        self.assertEqual(irqs["irq:eth0"]["count"], 3)
+        self.assertEqual(irqs["irq:timer"]["count"], 2)
+        self.assertEqual(irqs["softirq:NET_RX"]["count"], 2)
+        self.assertEqual(irqs["softirq:TIMER"]["count"], 1)
+        # 验证 time_ns 累加
+        self.assertEqual(irqs["irq:eth0"]["time_ns"], 10000)  # 5000+3000+2000
+        self.assertEqual(irqs["irq:timer"]["time_ns"], 2500)  # 1000+1500
+        self.assertEqual(irqs["softirq:NET_RX"]["time_ns"], 6000)  # 4000+2000
+        self.assertEqual(irqs["softirq:TIMER"]["time_ns"], 500)
+
 
 class TestAddIrqToEntry(unittest.TestCase):
     """测试 _add_irq_to_entry 辅助函数"""
