@@ -25,11 +25,6 @@ import {
     queryOneKernel,
     getPageData,
     querySystemViewDetails,
-    queryFtraceStat,
-    ftraceTimeSummaryColumns,
-    ftraceIrqSummaryColumns,
-    ftraceSchedSummaryColumns,
-    ftraceTypes,
     querySystemViewTrace,
     summaryAndTraceTypes,
 } from './Common';
@@ -46,6 +41,7 @@ import { ProjectType } from '../../entity/insight';
 import { MemcpyOverallMetrics } from './MemcpyOverallMetrics';
 import OperatorDetailView from './OperatorDetailView';
 import { KernelE2ETimeTable } from './KernelE2ETimeTable';
+import { FtraceTaskSummary } from './FtraceTaskSummary';
 
 const filterColumn = [
     'name', 'type', 'acceleratorCore', 'taskId', 'inputShapes', 'inputDataTypes',
@@ -198,12 +194,6 @@ const KernelDetails = observer((props: SelectContentViewProps) => {
     );
 });
 
-const ftraceColumnsMap: Record<string, typeof ftraceTimeSummaryColumns> = {
-    'Ftrace Time Consuming': ftraceTimeSummaryColumns,
-    'Ftrace IRQ': ftraceIrqSummaryColumns,
-    'Ftrace Sched': ftraceSchedSummaryColumns,
-};
-
 const LayerAndTrace = summaryAndTraceTypes.map((item) => {
     return observer((props: SelectContentViewProps) => {
         return (
@@ -219,27 +209,6 @@ const LayerAndTrace = summaryAndTraceTypes.map((item) => {
     });
 });
 
-const Ftrace = ftraceTypes.map((type) => {
-    return observer((props: SelectContentViewProps) => {
-        const ftraceColumns = ftraceColumnsMap[type] || ftraceTimeSummaryColumns;
-        if (props.session.isFullDb) {
-            return <div style={{ display: 'flex', height: '100%' }}>
-                <StyledEmpty style={{ margin: 'auto' }}/>
-            </div>;
-        }
-        return (
-            <BaseSummary
-                layerType={type}
-                request={queryFtraceStat}
-                isStats={false}
-                isFtrace={true}
-                columns={ftraceColumns}
-                {...props}
-            />
-        );
-    });
-});
-
 export const StatsSystemView = [
     OverallMetrics,
     ...LayerAndTrace,
@@ -247,5 +216,5 @@ export const StatsSystemView = [
     KernelDetails,
     OperatorDetailView,
     MemcpyOverallMetrics,
-    ...Ftrace,
+    FtraceTaskSummary,
 ];
