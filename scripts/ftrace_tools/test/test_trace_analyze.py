@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details.
 import unittest
 import os
 import tempfile
+import shutil
 import sqlite3
 import json
 import sys
@@ -32,6 +33,7 @@ from trace_analyze import (
     build_arg_parser,
     compute_running_sleeping_runnable_stats,
     open_db,
+    compute_cs_count,
 )
 
 
@@ -138,6 +140,7 @@ class TestTaskStats(unittest.TestCase):
         self.assertEqual(stats.sleeping_ns, 0)
         self.assertEqual(stats.runnable_ns, 0)
         self.assertEqual(stats.cs_count, 0)
+        self.assertEqual(stats.cs_involuntary_count, 0)
         self.assertIsInstance(stats.irqs, dict)
         self.assertEqual(len(stats.irqs), 0)
 
@@ -182,11 +185,11 @@ class TestDBConnection(unittest.TestCase):
     """测试 SQLite 连接管理"""
 
     def setUp(self):
-        self.tmpdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        self.db_path = os.path.join(self.tmpdir.name, "test.db")
+        self.tmpdir = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.tmpdir, "test.db")
 
     def tearDown(self):
-        self.tmpdir.cleanup()
+        shutil.rmtree(self.tmpdir)
 
     def test_open_nonexistent_db(self):
         """打开不存在的 db 文件应报错"""
@@ -215,11 +218,11 @@ class TestComputeRunningSleepingRunnable(unittest.TestCase):
     """测试 running/sleeping/runnable 时间统计（含 CPU 维度）"""
 
     def setUp(self):
-        self.tmpdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        self.db_path = os.path.join(self.tmpdir.name, "test.db")
+        self.tmpdir = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.tmpdir, "test.db")
 
     def tearDown(self):
-        self.tmpdir.cleanup()
+        shutil.rmtree(self.tmpdir)
 
     def _create_test_db(self, threads, slices_with_args):
         """创建测试 db。
@@ -314,6 +317,442 @@ class TestComputeRunningSleepingRunnable(unittest.TestCase):
         self.assertEqual(len(stats_map), 2)
         self.assertEqual(stats_map[("migrator", 42, 0)].running_ns, 700_000)
         self.assertEqual(stats_map[("migrator", 42, 1)].running_ns, 300_000)
+
+
+class TestComputeCsCount(unittest.TestCase):
+    """测试上下文切换统计（子任务3）"""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.db_path = os.path.join(self.tmpdir, "test.db")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir)
+
+    def _create_test_db(self, threads, slices_with_args):
+        """创建测试 db。
+        threads: list of (track_id, tid)
+        slices_with_args: list of (name, timestamp, duration, track_id, args_dict_or_None)
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("CREATE TABLE thread (track_id INTEGER PRIMARY KEY, tid TEXT)")
+        conn.execute(
+            "CREATE TABLE slice (id INTEGER PRIMARY KEY, name TEXT, timestamp INTEGER, duration INTEGER, track_id INTEGER, args TEXT DEFAULT NULL)"
+        )
+        for track_id, tid in threads:
+            conn.execute("INSERT INTO thread (track_id, tid) VALUES (?, ?)", (track_id, tid))
+        for i, (name, ts, dur, track_id, args) in enumerate(slices_with_args):
+            args_json = json.dumps(args) if args else None
+            conn.execute(
+                "INSERT INTO slice (id, name, timestamp, duration, track_id, args) VALUES (?, ?, ?, ?, ?, ?)",
+                (i + 1, name, ts, dur, track_id, args_json),
+            )
+        conn.commit()
+        conn.close()
+
+    def _make_stats_map(self, keys):
+        """根据 keys 列表创建空的 stats_map"""
+        result = {}
+        for comm, pid, cpu_id in keys:
+            result[(comm, pid, cpu_id)] = TaskStats(comm=comm, pid=pid, cpu_id=cpu_id)
+        return result
+
+    def test_basic_cs_count(self):
+        """基本的 sched_switch 事件，cs_count 应正确累加"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "bash:100")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "R",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    2000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "S",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("bash", 100, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("bash", 100, 0)].cs_count, 2)
+
+    def test_cs_count_multiple_processes(self):
+        """多个进程的 cs_count 分别累加"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "bash:100"), (3, "node:200")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "R",
+                        "next_comm": "node",
+                        "next_pid": "200",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    2000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "node",
+                        "prev_pid": "200",
+                        "prev_state": "R",
+                        "next_comm": "bash",
+                        "next_pid": "100",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    3000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "S",
+                        "next_comm": "node",
+                        "next_pid": "200",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("bash", 100, 0), ("node", 200, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("bash", 100, 0)].cs_count, 2)
+        self.assertEqual(stats_map[("node", 200, 0)].cs_count, 1)
+
+    def test_cs_count_by_cpu_grouping(self):
+        """同一进程在不同 CPU 上的 cs_count 分别统计"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "CPU 001"), (3, "worker:50")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "worker",
+                        "prev_pid": "50",
+                        "prev_state": "R",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    2000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "worker",
+                        "prev_pid": "50",
+                        "prev_state": "R",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    3000,
+                    0,
+                    2,
+                    {
+                        "prev_comm": "worker",
+                        "prev_pid": "50",
+                        "prev_state": "R",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("worker", 50, 0), ("worker", 50, 1)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("worker", 50, 0)].cs_count, 2)
+        self.assertEqual(stats_map[("worker", 50, 1)].cs_count, 1)
+
+    def test_kernel_process_sched_switch_skipped(self):
+        """内核进程（swapper/kworker）的 sched_switch 不应被统计"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "bash:100")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "R",
+                        "next_comm": "swapper",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    2000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "swapper",
+                        "prev_pid": "0",
+                        "prev_state": "R",
+                        "next_comm": "bash",
+                        "next_pid": "100",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    3000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "kworker/0:0",
+                        "prev_pid": "10",
+                        "prev_state": "S",
+                        "next_comm": "bash",
+                        "next_pid": "100",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("bash", 100, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("bash", 100, 0)].cs_count, 1)
+
+    def test_no_sched_switch_events(self):
+        """没有 sched_switch 事件时，cs_count 保持为 0"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "bash:100")],
+            slices_with_args=[
+                ("Running", 1000, 500_000, 2, {"cpu": 0}),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("bash", 100, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("bash", 100, 0)].cs_count, 0)
+
+    def test_prev_comm_with_colon(self):
+        """prev_comm 中包含冒号（如 WatchParentPid:）"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "WatchParentPid:500")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "WatchParentPid:",
+                        "prev_pid": "500",
+                        "prev_state": "R",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("WatchParentPid:", 500, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("WatchParentPid:", 500, 0)].cs_count, 1)
+
+    def test_prev_not_in_stats_map_ignored(self):
+        """prev 进程不在 stats_map 中时应被忽略（不报错）"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "bash:100"), (3, "node:200")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "unknown",
+                        "prev_pid": "999",
+                        "prev_state": "R",
+                        "next_comm": "bash",
+                        "next_pid": "100",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("bash", 100, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("bash", 100, 0)].cs_count, 0)
+
+    def test_involuntary_cs_count(self):
+        """prev_state='R' 时应同时累加 cs_count 和 cs_involuntary_count"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "bash:100")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "R",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    2000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "S",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    3000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "R",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    4000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "bash",
+                        "prev_pid": "100",
+                        "prev_state": "D",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("bash", 100, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("bash", 100, 0)].cs_count, 4)
+        self.assertEqual(stats_map[("bash", 100, 0)].cs_involuntary_count, 2)
+
+    def test_no_involuntary_cs_count(self):
+        """全部为自愿切换时，cs_involuntary_count 保持为 0"""
+        self._create_test_db(
+            threads=[(1, "CPU 000"), (2, "worker:50")],
+            slices_with_args=[
+                (
+                    "sched_switch",
+                    1000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "worker",
+                        "prev_pid": "50",
+                        "prev_state": "S",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+                (
+                    "sched_switch",
+                    2000,
+                    0,
+                    1,
+                    {
+                        "prev_comm": "worker",
+                        "prev_pid": "50",
+                        "prev_state": "D",
+                        "next_comm": "idle",
+                        "next_pid": "0",
+                        "next_prio": "120",
+                    },
+                ),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = self._make_stats_map([("worker", 50, 0)])
+        compute_cs_count(conn, stats_map)
+        conn.close()
+
+        self.assertEqual(stats_map[("worker", 50, 0)].cs_count, 2)
+        self.assertEqual(stats_map[("worker", 50, 0)].cs_involuntary_count, 0)
 
 
 if __name__ == '__main__':

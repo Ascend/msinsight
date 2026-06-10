@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details.
 import json
 import logging
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -212,13 +213,15 @@ class TestPidTran(unittest.TestCase):
     """Test PidTran singleton class"""
 
     def setUp(self):
-        # pylint: disable=consider-using-with
-        self.temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+        self.temp_dir = tempfile.mkdtemp()
         # Reset singleton instance
         trace_convert.PidTran._instances = {}
         self.pid_tran = trace_convert.PidTran()
         self.pid_tran.pid_status = None
         self.pid_tran.pid_mapping_path = None
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
 
     def test_singleton(self):
         instance1 = trace_convert.PidTran()
@@ -381,8 +384,7 @@ class TestTraceConverterE2E(unittest.TestCase):
     TEST_DATA_DIR = os.path.join(os.path.dirname(__file__), 'test-data')
 
     def setUp(self):
-        # pylint: disable=consider-using-with
-        self.temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+        self.temp_dir = tempfile.mkdtemp()
         # Reset singleton instances before each test
         trace_convert.PidTran._instances = {}
         trace_convert.TimeStampTran._instances = {}
@@ -391,6 +393,9 @@ class TestTraceConverterE2E(unittest.TestCase):
         trace_convert.TimeStampTran().mono_raw_start = None
         trace_convert.TimeStampTran().mono_raw_end = None
         trace_convert.TimeStampTran().utc_start_timestamp = None
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir)
 
     def test_parse_basic_trace_file(self):
         """Test parsing a basic trace.txt file without profiling data"""
