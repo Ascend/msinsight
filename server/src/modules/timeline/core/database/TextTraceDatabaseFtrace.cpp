@@ -321,4 +321,99 @@ bool TextTraceDatabase::UpdateTraceTaskSummaryCsCount(
     return true;
 }
 
+TraceTaskSummaryResult TextTraceDatabase::QueryTraceTaskSummary(
+    uint64_t offset, uint64_t limit, const std::string &orderBy, bool desc) {
+    TraceTaskSummaryResult result;
+
+    if (!isOpen) {
+        ServerLog::Error("Failed to query trace_task_summary. Database is not open.");
+        return result;
+    }
+
+    std::string sql = "SELECT comm, pid, cpu_id, running_ns, sleeping_ns, runnable_ns, "
+                      "cs_count, cs_involuntary_count, COUNT(*) OVER () AS total_count "
+                      "FROM trace_task_summary";
+    if (!orderBy.empty()) {
+        sql += " ORDER BY " + orderBy + (desc ? " DESC" : " ASC");
+    }
+    sql += " LIMIT ? OFFSET ?";
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        ServerLog::Error("Failed to prepare statement: ", sqlite3_errmsg(db));
+        return result;
+    }
+
+    int bindIndex = bindStartIndex;
+    sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(limit));
+    sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(offset));
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        TraceTaskSummaryData data;
+        data.comm = sqlite3_column_string(stmt, 0);
+        data.pid = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1));
+        data.cpuId = static_cast<int32_t>(sqlite3_column_int64(stmt, 2));
+        data.runningNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 3));
+        data.sleepingNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 4));
+        data.runnableNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 5));
+        data.csCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 6));
+        data.csInvoluntaryCount = static_cast<uint64_t>(sqlite3_column_int64(stmt, 7));
+        result.totalCount = sqlite3_column_int64(stmt, 8);
+
+        result.data.push_back(data);
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
+TraceIrqDetailResult TextTraceDatabase::QueryTraceIrqDetail(
+    uint64_t offset, uint64_t limit, const std::string &orderBy, bool desc) {
+    TraceIrqDetailResult result;
+
+    if (!isOpen) {
+        ServerLog::Error("Failed to query trace_irq_detail. Database is not open.");
+        return result;
+    }
+
+    std::string sql = "SELECT comm, pid, cpu_id, irq_type, irq_name, count, time_ns, "
+                      "COUNT(*) OVER () AS total_count "
+                      "FROM trace_irq_detail";
+    if (!orderBy.empty()) {
+        sql += " ORDER BY " + orderBy + (desc ? " DESC" : " ASC");
+    }
+    sql += " LIMIT ? OFFSET ?";
+
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        ServerLog::Error("Failed to prepare statement: ", sqlite3_errmsg(db));
+        return result;
+    }
+
+    int bindIndex = bindStartIndex;
+    sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(limit));
+    sqlite3_bind_int64(stmt, bindIndex++, static_cast<int64_t>(offset));
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        TraceIrqDetailData data;
+        data.comm = sqlite3_column_string(stmt, 0);
+        data.pid = static_cast<uint64_t>(sqlite3_column_int64(stmt, 1));
+        data.cpuId = static_cast<int32_t>(sqlite3_column_int64(stmt, 2));
+        data.irqType = sqlite3_column_string(stmt, 3);
+        data.irqName = sqlite3_column_string(stmt, 4);
+        data.count = static_cast<uint64_t>(sqlite3_column_int64(stmt, 5));
+        data.timeNs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 6));
+        result.totalCount = sqlite3_column_int64(stmt, 7);
+
+        result.data.push_back(data);
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
 }

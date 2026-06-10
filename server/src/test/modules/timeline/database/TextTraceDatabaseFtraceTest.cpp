@@ -434,3 +434,82 @@ TEST_F(TextTraceDatabaseFtraceTest, UpdateTraceTaskSummaryCsCount_NoMatch) {
     EXPECT_EQ(database.UpdateTraceTaskSummaryCsCount("nonexist", 999, 0, 1, 0), true);
     EXPECT_EQ(QueryRowCount("trace_task_summary"), 0);
 }
+
+// QueryTraceTaskSummary：插入数据后查询，验证 totalCount 和数据行
+TEST_F(TextTraceDatabaseFtraceTest, QueryTraceTaskSummary_Basic) {
+    TraceTaskSummaryData d1;
+    d1.comm = "bash";
+    d1.pid = 100;
+    d1.cpuId = 0;
+    d1.runningNs = 1000;
+    d1.sleepingNs = 500;
+
+    TraceTaskSummaryData d2 = d1;
+    d2.comm = "app";
+    d2.pid = 200;
+    d2.cpuId = 1;
+    d2.runningNs = 2000;
+
+    EXPECT_EQ(database.InsertTraceTaskSummary(d1), true);
+    EXPECT_EQ(database.InsertTraceTaskSummary(d2), true);
+    database.CommitData();
+
+    auto result = database.QueryTraceTaskSummary(0, 10);
+    EXPECT_EQ(result.totalCount, 2);
+    EXPECT_EQ(result.data.size(), 2);
+    EXPECT_EQ(result.data[0].comm, "bash");
+    EXPECT_EQ(result.data[0].pid, 100);
+    EXPECT_EQ(result.data[0].runningNs, 1000);
+}
+
+// QueryTraceTaskSummary：分页查询
+TEST_F(TextTraceDatabaseFtraceTest, QueryTraceTaskSummary_Pagination) {
+    for (int i = 0; i < 5; ++i) {
+        TraceTaskSummaryData d;
+        d.comm = "proc" + std::to_string(i);
+        d.pid = i;
+        d.cpuId = 0;
+        d.runningNs = i * 100;
+        EXPECT_EQ(database.InsertTraceTaskSummary(d), true);
+    }
+    database.CommitData();
+
+    auto page1 = database.QueryTraceTaskSummary(0, 2);
+    EXPECT_EQ(page1.totalCount, 5);
+    EXPECT_EQ(page1.data.size(), 2);
+
+    auto page3 = database.QueryTraceTaskSummary(4, 2);
+    EXPECT_EQ(page3.totalCount, 5);
+    EXPECT_EQ(page3.data.size(), 1);
+}
+
+// QueryTraceIrqDetail：插入后查询
+TEST_F(TextTraceDatabaseFtraceTest, QueryTraceIrqDetail_Basic) {
+    TraceIrqDetailData d;
+    d.comm = "app";
+    d.pid = 300;
+    d.cpuId = 0;
+    d.irqType = "irq";
+    d.irqName = "eth0";
+    d.count = 5;
+    d.timeNs = 3000;
+
+    EXPECT_EQ(database.InsertTraceIrqDetail(d), true);
+    database.CommitData();
+
+    auto result = database.QueryTraceIrqDetail(0, 10);
+    EXPECT_EQ(result.totalCount, 1);
+    EXPECT_EQ(result.data.size(), 1);
+    EXPECT_EQ(result.data[0].irqName, "eth0");
+    EXPECT_EQ(result.data[0].count, 5);
+}
+
+// Query 空表应返回 totalCount=0
+TEST_F(TextTraceDatabaseFtraceTest, QueryEmptyResultNewTables) {
+    // 新建空表测试
+    auto taskResult = database.QueryTraceTaskSummary(0, 10);
+    EXPECT_EQ(taskResult.totalCount, 0);
+
+    auto irqResult = database.QueryTraceIrqDetail(0, 10);
+    EXPECT_EQ(irqResult.totalCount, 0);
+}
