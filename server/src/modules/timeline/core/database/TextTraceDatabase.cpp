@@ -140,7 +140,6 @@ void TextTraceDatabase::ReleaseStmt() {
     insertCounterStmt = nullptr;
     simulationInsertThreadNameStmt = nullptr;
     simulationInsertProcessNameStmt = nullptr;
-    insertFtraceStatStmt = nullptr;
 }
 
 bool TextTraceDatabase::SetConfig() {
@@ -1171,10 +1170,6 @@ void TextTraceDatabase::CommitData() {
     if (!simulationProcessInfoCache.empty()) {
         InsertSimulationProcessList();
         simulationProcessInfoCache.clear();
-    }
-    if (!ftraceStatCache.empty()) {
-        InsertFtraceStatList(ftraceStatCache);
-        ftraceStatCache.clear();
     }
     if (!traceTaskSummaryCache.empty()) {
         if (InsertTraceTaskSummaryList(traceTaskSummaryCache)) {

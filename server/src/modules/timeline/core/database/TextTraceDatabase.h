@@ -179,11 +179,6 @@ class TextTraceDatabase : public VirtualTraceDatabase {
         std::vector<CommunicationLargeOperatorInfo> &result, std::vector<std::pair<std::string, std::string>> rawData);
 
     virtual bool QuerySliceDtoList(std::vector<SliceDto> &sliceDtoList);
-    bool CreateFtraceTable();
-    bool InsertFtraceStat(const FtraceStatisticsData &event);
-    bool InsertFtraceStatList(const std::vector<FtraceStatisticsData> &dataList);
-    std::unique_ptr<SqlitePreparedStatement> GetFtraceStmt(uint64_t paramLen);
-    FtraceStatistics QueryFtraceStatistics(FtraceDataType dataType, uint64_t offset, uint64_t limit);
 
     // 结构化新表（trace_task_summary / trace_irq_detail）建表与插入
     bool CreateTraceTaskSummaryTable();
@@ -230,7 +225,6 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     std::unique_ptr<SqlitePreparedStatement> insertCounterStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> simulationInsertThreadNameStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> simulationInsertProcessNameStmt = nullptr;
-    std::unique_ptr<SqlitePreparedStatement> insertFtraceStatStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> insertTraceTaskSummaryStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> insertTraceIrqDetailStmt = nullptr;
     std::unique_ptr<SqlitePreparedStatement> updateTraceTaskSummaryCsStmt = nullptr;
@@ -241,7 +235,6 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     std::vector<Trace::Counter> counterCache;
     std::set<Trace::ThreadEvent> simulationThreadInfoCache;
     std::set<Trace::ProcessEvent> simulationProcessInfoCache;
-    std::vector<FtraceStatisticsData> ftraceStatCache;
     std::vector<TraceTaskSummaryData> traceTaskSummaryCache;
     std::vector<TraceIrqDetailData> traceIrqDetailCache;
     std::unique_ptr<SliceAnalyzer> sliceAnalyzerPtr = nullptr;
