@@ -33,13 +33,13 @@ def parse_cpu_list(value: str | None) -> set[int]:
             continue
         if "-" in token:
             start_text, end_text = token.split("-", 1)
-            start = int(start_text)
-            end = int(end_text)
+            start = _parse_cpu_number(start_text, token)
+            end = _parse_cpu_number(end_text, token)
             if end < start:
                 raise ValueError(f"invalid CPU range: {token}")
             cpus.update(range(start, end + 1))
         else:
-            cpus.add(int(token))
+            cpus.add(_parse_cpu_number(token, token))
     return cpus
 
 
@@ -95,6 +95,16 @@ def numa_nodes_for_cpu_list(cpu_list: str | None, numa_nodes: list[dict]) -> set
         if cpus & node_cpus:
             matched.add(node_id)
     return matched
+
+
+def _parse_cpu_number(token: str, original: str) -> int:
+    try:
+        value = int(token)
+    except ValueError as exc:
+        raise ValueError(f"invalid CPU value in {original}: {token}") from exc
+    if value < 0:
+        raise ValueError(f"negative CPU number: {original}")
+    return value
 
 
 def _format_range(start: int, end: int) -> str:

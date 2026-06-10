@@ -75,9 +75,9 @@ def _collect_v2(
 
     cpuset_cpus, cpuset_cpus_fallback = _read_first_available(reader, rel, "cpuset.cpus.effective")
     cpuset_mems, cpuset_mems_fallback = _read_first_available(reader, rel, "cpuset.mems.effective")
-    cpu_max = _strip_or_none(reader.read_sys(str(Path(rel) / "cpu.max") if rel else "cpu.max"))
-    cpu_weight = _safe_int(_strip_or_none(reader.read_sys(str(Path(rel) / "cpu.weight") if rel else "cpu.weight")))
-    cpu_stat = reader.read_sys(str(Path(rel) / "cpu.stat") if rel else "cpu.stat")
+    cpu_max = _strip_or_none(reader.read_sys(_join_cgroup_path(rel, "cpu.max")))
+    cpu_weight = _safe_int(_strip_or_none(reader.read_sys(_join_cgroup_path(rel, "cpu.weight"))))
+    cpu_stat = reader.read_sys(_join_cgroup_path(rel, "cpu.stat"))
 
     field = f"cgroup.process_groups[{pid}].cpuset_cpus_effective"
     if cpuset_cpus is None:
@@ -168,6 +168,10 @@ def _read_first_available(reader: CgroupReader, rel: str, filename: str) -> tupl
             return None, tried_parent
         current = current.parent
         tried_parent = True
+
+
+def _join_cgroup_path(rel: str, filename: str) -> str:
+    return str(Path(rel) / filename) if rel else filename
 
 
 def _parse_v1_controller_paths(cgroup_text: str) -> dict[str, dict[str, str]]:
