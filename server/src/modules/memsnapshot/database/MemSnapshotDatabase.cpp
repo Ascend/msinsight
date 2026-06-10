@@ -571,7 +571,7 @@ sqlite3_stmt *MemSnapshotDatabase::BuildQueryBlocksTableByQueryParamsAndBindPara
 
 bool MemSnapshotDatabase::QueryPotentialLeakStats(
     const MemSnapshotLeakStatsParams &queryParams, MemSnapshotLeakStatsDTO &stats) {
-    std::string querySql = "SELECT COALESCE(ROUND(SUM({}) / 1024.0, 3), 0), "
+    std::string querySql = "SELECT COALESCE(SUM(ROUND({} / 1024.0, 3)), 0), "
                            "COALESCE(ROUND(MAX({}) / 1024.0, 3), 0), "
                            "COALESCE(ROUND(MIN({}) / 1024.0, 3), 0) FROM {} "
                            "WHERE {} BETWEEN ? AND ? AND ({} < 0 OR {} > ?)";
