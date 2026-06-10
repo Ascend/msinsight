@@ -17,6 +17,7 @@
  * -------------------------------------------------------------------------
  */
 
+#include <cstdio>
 #include <gtest/gtest.h>
 #include "DataBaseManager.h"
 #include "MemSnapshotDatabase.h"
@@ -25,6 +26,7 @@
 #include "MemSnapshotParser.h"
 #include "FileUtil.h"
 #include "StringUtil.h"
+#include "sqlite3.h"
 #include "../TestSuit.h"
 
 using namespace Dic::Module::Timeline;
@@ -335,7 +337,7 @@ TEST_F(MemSnapshotDatabaseTest, QueryBlocksTableOnlyUnreleasedInRangeWithFilters
     }
 }
 
-// 测试查询潜在泄漏聚合统计
+// 测试查询潜在泄漏聚合统计与表格展示值一致
 TEST_F(MemSnapshotDatabaseTest, QueryPotentialLeakStats) {
     MemSnapshotLeakStatsParams params;
     params.deviceId = "0";
@@ -347,6 +349,71 @@ TEST_F(MemSnapshotDatabaseTest, QueryPotentialLeakStats) {
     EXPECT_EQ(stats.totalSize, 108473.0);
     EXPECT_EQ(stats.maxSize, 9216.5);
     EXPECT_EQ(stats.minSize, 0.5);
+}
+
+TEST_F(MemSnapshotDatabaseTest, QueryPotentialLeakStatsMatchesDisplayedBlockTableSizeSum) {
+    const std::string precisionDbPath = testDbPath + ".precision_test.db";
+    sqlite3 *precisionDb = nullptr;
+    ASSERT_EQ(sqlite3_open(precisionDbPath.c_str(), &precisionDb), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(precisionDb,
+                  "CREATE TABLE dictionary (`table` TEXT, `column` TEXT, `key` TEXT, `value` TEXT);"
+                  "CREATE TABLE block_0 (`id` INTEGER PRIMARY KEY, `address` INTEGER, `size` INTEGER, "
+                  "`requestedSize` INTEGER, `state` INTEGER DEFAULT 99, `allocEventId` INTEGER, `freeEventId` INTEGER);"
+                  "CREATE TABLE trace_entry_0 (`id` INTEGER PRIMARY KEY, `action` INTEGER, `address` INTEGER, `size` "
+                  "INTEGER, "
+                  "`stream` INTEGER, `allocated` INTEGER, `active` INTEGER, `reserved` INTEGER, `callstack` TEXT);"
+                  "INSERT INTO dictionary VALUES ('block_0', 'state', '1', 'active_allocated');",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    sqlite3_stmt *insertStmt = nullptr;
+    ASSERT_EQ(
+        sqlite3_prepare_v2(precisionDb, "INSERT INTO block_0 VALUES (?, ?, 1, 1, 1, ?, -1);", -1, &insertStmt, nullptr),
+        SQLITE_OK);
+    for (int id = 1; id <= 512; ++id) {
+        sqlite3_bind_int(insertStmt, 1, id);
+        sqlite3_bind_int(insertStmt, 2, id);
+        sqlite3_bind_int(insertStmt, 3, id);
+        ASSERT_EQ(sqlite3_step(insertStmt), SQLITE_DONE);
+        sqlite3_reset(insertStmt);
+        sqlite3_clear_bindings(insertStmt);
+    }
+    sqlite3_finalize(insertStmt);
+    sqlite3_close(precisionDb);
+
+    auto precisionSnapshotDb = DataBaseManager::Instance().GetMemSnapshotDatabase(precisionDbPath);
+    ASSERT_TRUE(precisionSnapshotDb != nullptr);
+    ASSERT_TRUE(precisionSnapshotDb->OpenDbReadOnly(precisionDbPath));
+
+    MemSnapshotLeakStatsParams statsParams;
+    statsParams.deviceId = "0";
+    statsParams.startEventIdx = 1;
+    statsParams.endEventIdx = 512;
+
+    MemSnapshotBlockParams blockParams;
+    blockParams.deviceId = "0";
+    blockParams.startEventIdx = statsParams.startEventIdx;
+    blockParams.endEventIdx = statsParams.endEventIdx;
+    blockParams.onlyUnreleasedInRange = true;
+    blockParams.currentPage = 1;
+    blockParams.pageSize = 100000;
+
+    MemSnapshotLeakStatsDTO stats;
+    std::vector<BlockTableItemDTO> blocks;
+    EXPECT_TRUE(precisionSnapshotDb->QueryPotentialLeakStats(statsParams, stats));
+    EXPECT_EQ(precisionSnapshotDb->QueryBlocksTable(blockParams, blocks), 512);
+
+    double displayedTotalSize = 0;
+    for (const auto &block : blocks) {
+        displayedTotalSize += block.size;
+    }
+    EXPECT_NEAR(stats.totalSize, displayedTotalSize, 1e-9);
+
+    precisionSnapshotDb->CloseDb();
+    DataBaseManager::Instance().Clear(DatabaseType::MEM_SNAPSHOT);
+    std::remove(precisionDbPath.c_str());
+    snapshotDb = DataBaseManager::Instance().GetMemSnapshotDatabase(testDbPath);
+    ASSERT_TRUE(snapshotDb != nullptr);
+    ASSERT_TRUE(snapshotDb->OpenDbReadOnly(testDbPath));
 }
 
 // 测试查询无匹配潜在泄漏聚合统计
