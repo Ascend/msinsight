@@ -38,7 +38,11 @@ def parse_tid(tid_str: str) -> Tuple[str, Optional[int]]:
     - "CPU 000" -> ("CPU 000", None)  (CPU 线程，无 pid)
 
     策略：从右边找最后一个冒号，右边部分必须是纯数字。
+
+    防御性：非字符串输入先转为字符串。
     """
+    if not isinstance(tid_str, str):
+        tid_str = str(tid_str) if tid_str is not None else ''
     if not tid_str:
         return tid_str, None
 
@@ -125,10 +129,14 @@ def open_db(db_path: str) -> sqlite3.Connection:
 
     Raises:
         FileNotFoundError: db 文件不存在
+        sqlite3.Error: 数据库连接失败
     """
     if not os.path.isfile(db_path):
         raise FileNotFoundError(f"DB file not found: {db_path}")
-    conn = sqlite3.connect(db_path)
+    try:
+        conn = sqlite3.connect(db_path)
+    except sqlite3.Error as e:
+        raise sqlite3.Error(f"Failed to connect to database: {db_path}") from e
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -222,28 +230,37 @@ def compute_irq_stats(conn: sqlite3.Connection, stats_map: Dict[Tuple[str, int, 
     """
     cur = conn.cursor()
 
-    # 聚合 irq 事件（按被打断的进程 + irq_name + cpu_id 分组）
+    # 合并查询：一次扫描同时获取 irq 和 softirq，减少全表扫描次数
     cur.execute("""
         SELECT
             json_extract(s.args, '$.task') as interrupted_task,
-            json_extract(s.args, '$.name') as irq_name,
+            s.name as event_type,
+            CASE
+                WHEN s.name = 'irq' THEN json_extract(s.args, '$.name')
+                ELSE json_extract(s.args, '$.action')
+            END as irq_action,
             CAST(REPLACE(t.tid, 'CPU ', '') AS INTEGER) as cpu_id,
             COUNT(*) as count,
             CAST(SUM(s.duration) AS INTEGER) as total_ns
         FROM slice s
         JOIN thread t ON s.track_id = t.track_id
-        WHERE s.name = 'irq'
+        WHERE s.name IN ('irq', 'softirq')
           AND t.tid LIKE 'CPU %'
           AND interrupted_task IS NOT NULL
-        GROUP BY interrupted_task, irq_name, cpu_id
+        GROUP BY interrupted_task, event_type, irq_action, cpu_id
     """)
-    irq_rows = cur.fetchall()
+    rows = cur.fetchall()
     irq_count = 0
+    softirq_count = 0
     skipped_idle = 0
     skipped_no_match = 0
 
-    for interrupted_task, irq_name, cpu_id, count, total_ns in irq_rows:
-        if irq_name is None or count == 0:
+    for interrupted_task, event_type, irq_action, cpu_id, count, total_ns in rows:
+        # 健壮性：irq_action 或 count 无效则跳过
+        if irq_action is None or count == 0:
+            continue
+        if not isinstance(interrupted_task, str):
+            logging.debug("Skipping irq event with non-string task: %r", interrupted_task)
             continue
 
         comm, pid = parse_tid(interrupted_task)
@@ -253,42 +270,11 @@ def compute_irq_stats(conn: sqlite3.Connection, stats_map: Dict[Tuple[str, int, 
 
         key = (comm, pid, cpu_id)
         if key in stats_map:
-            _add_irq_to_entry(stats_map[key], "irq", irq_name, count, total_ns)
-            irq_count += count
-        else:
-            skipped_no_match += count
-
-    # 聚合 softirq 事件（按被打断的进程 + action + cpu_id 分组）
-    cur.execute("""
-        SELECT
-            json_extract(s.args, '$.task') as interrupted_task,
-            json_extract(s.args, '$.action') as action,
-            CAST(REPLACE(t.tid, 'CPU ', '') AS INTEGER) as cpu_id,
-            COUNT(*) as count,
-            CAST(SUM(s.duration) AS INTEGER) as total_ns
-        FROM slice s
-        JOIN thread t ON s.track_id = t.track_id
-        WHERE s.name = 'softirq'
-          AND t.tid LIKE 'CPU %'
-          AND interrupted_task IS NOT NULL
-        GROUP BY interrupted_task, action, cpu_id
-    """)
-    softirq_rows = cur.fetchall()
-    softirq_count = 0
-
-    for interrupted_task, action, cpu_id, count, total_ns in softirq_rows:
-        if action is None or count == 0:
-            continue
-
-        comm, pid = parse_tid(interrupted_task)
-        if comm == '<idle>':
-            skipped_idle += count
-            continue
-
-        key = (comm, pid, cpu_id)
-        if key in stats_map:
-            _add_irq_to_entry(stats_map[key], "softirq", action, count, total_ns)
-            softirq_count += count
+            _add_irq_to_entry(stats_map[key], event_type, irq_action, count, total_ns)
+            if event_type == 'irq':
+                irq_count += count
+            else:
+                softirq_count += count
         else:
             skipped_no_match += count
 
@@ -313,6 +299,138 @@ def _add_irq_to_entry(task_stats: TaskStats, irq_type: str, irq_name: str, count
         task_stats.irqs[key] = {"count": 0, "time_ns": 0, "type": irq_type, "name": irq_name}
     task_stats.irqs[key]["count"] += count
     task_stats.irqs[key]["time_ns"] += total_ns
+
+
+def _create_result_tables(conn: sqlite3.Connection) -> None:
+    """创建结果表（trace_task_summary 和 trace_irq_detail）。
+
+    使用 CREATE TABLE IF NOT EXISTS，支持重复调用。
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS trace_task_summary (
+            comm TEXT,
+            pid INTEGER,
+            cpu_id INTEGER,
+            running_ns INTEGER DEFAULT 0,
+            sleeping_ns INTEGER DEFAULT 0,
+            runnable_ns INTEGER DEFAULT 0,
+            cs_count INTEGER DEFAULT 0,
+            cs_involuntary_count INTEGER DEFAULT 0,
+            PRIMARY KEY (comm, pid, cpu_id)
+        )
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS trace_irq_detail (
+            comm TEXT,
+            pid INTEGER,
+            cpu_id INTEGER,
+            irq_type TEXT,
+            irq_name TEXT,
+            count INTEGER DEFAULT 0,
+            time_ns INTEGER DEFAULT 0,
+            PRIMARY KEY (comm, pid, cpu_id, irq_type, irq_name)
+        )
+    """)
+
+
+def _build_task_rows(stats_map: Dict[Tuple[str, int, Optional[int]], TaskStats]) -> list:
+    """从 stats_map 构建 trace_task_summary 插入用的元组列表。
+
+    Returns:
+        [(comm, pid, cpu_id, running_ns, sleeping_ns, runnable_ns,
+          cs_count, cs_involuntary_count), ...]
+    """
+    rows = []
+    for (comm, pid, cpu_id), stats in stats_map.items():
+        rows.append(
+            (
+                comm,
+                pid,
+                cpu_id,
+                stats.running_ns,
+                stats.sleeping_ns,
+                stats.runnable_ns,
+                stats.cs_count,
+                stats.cs_involuntary_count,
+            )
+        )
+    return rows
+
+
+def _build_irq_rows(stats_map: Dict[Tuple[str, int, Optional[int]], TaskStats]) -> list:
+    """从 stats_map 构建 trace_irq_detail 插入用的元组列表。
+
+    仅包含有 IRQ 记录的条目。
+
+    Returns:
+        [(comm, pid, cpu_id, irq_type, irq_name, count, time_ns), ...]
+    """
+    rows = []
+    for (comm, pid, cpu_id), stats in stats_map.items():
+        for irq_key, irq_info in stats.irqs.items():
+            rows.append(
+                (
+                    comm,
+                    pid,
+                    cpu_id,
+                    irq_info["type"],
+                    irq_info["name"],
+                    irq_info["count"],
+                    irq_info["time_ns"],
+                )
+            )
+    return rows
+
+
+def write_results_to_db(conn: sqlite3.Connection, stats_map: Dict[Tuple[str, int, Optional[int]], TaskStats]) -> None:
+    """将 stats_map 统计结果写回 db 新表。
+
+    策略：DELETE 旧数据 + INSERT（显式事务 + executemany 批量插入）。
+    性能优化：关闭同步 + 内存 journal（离线分析场景安全）。
+
+    Args:
+        conn: SQLite 数据库连接
+        stats_map: 由 compute_* 系列函数填充的 TaskStats 字典
+    """
+    cur = conn.cursor()
+
+    # 创建结果表
+    _create_result_tables(conn)
+
+    # 性能优化：关闭同步 + 内存 journal（必须在事务外设置）
+    # 离线分析工具场景安全：输入 db 可重新生成，无并发写入
+    cur.execute("PRAGMA synchronous = OFF")
+    cur.execute("PRAGMA journal_mode = MEMORY")
+
+    # 清空旧数据（避免重复运行产生脏数据）
+    cur.execute("DELETE FROM trace_task_summary")
+    cur.execute("DELETE FROM trace_irq_detail")
+
+    # 构建数据行
+    task_rows = _build_task_rows(stats_map)
+    irq_rows = _build_irq_rows(stats_map)
+
+    logging.info("Writing %d task rows and %d irq rows to db", len(task_rows), len(irq_rows))
+
+    # 批量写入（SQLite 默认 autocommit=False，DELETE 已开始隐式事务）
+    if task_rows:
+        cur.executemany(
+            "INSERT INTO trace_task_summary "
+            "(comm, pid, cpu_id, running_ns, sleeping_ns, runnable_ns, "
+            "cs_count, cs_involuntary_count) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            task_rows,
+        )
+    if irq_rows:
+        cur.executemany(
+            "INSERT INTO trace_irq_detail "
+            "(comm, pid, cpu_id, irq_type, irq_name, count, time_ns) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            irq_rows,
+        )
+    conn.commit()
+
+    logging.info("Results written to db successfully")
 
 
 def compute_cs_count(conn: sqlite3.Connection, stats_map: Dict[Tuple[str, int, Optional[int]], TaskStats]) -> None:
@@ -405,7 +523,22 @@ def main():
     conn = open_db(db_path)
 
     try:
-        # 后续子任务将在此处添加统计逻辑
+        # Step 1: 统计 Running/Sleeping/Runnable 时间
+        logging.info("Computing running/sleeping/runnable stats...")
+        stats_map = compute_running_sleeping_runnable_stats(conn)
+
+        # Step 2: 统计上下文切换
+        logging.info("Computing context switch stats...")
+        compute_cs_count(conn, stats_map)
+
+        # Step 3: 统计 IRQ
+        logging.info("Computing IRQ stats...")
+        compute_irq_stats(conn, stats_map)
+
+        # Step 4: 写回 db
+        logging.info("Writing results to db...")
+        write_results_to_db(conn, stats_map)
+
         logging.info("Analysis complete")
     finally:
         conn.close()
