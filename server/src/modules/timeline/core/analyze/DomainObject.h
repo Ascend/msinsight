@@ -230,5 +230,15 @@ struct TraceIrqDetailData {
     uint64_t count = 0;
     uint64_t timeNs = 0;
 };
+
+struct TraceTaskSummaryResult {
+    int64_t totalCount = 0;
+    std::vector<TraceTaskSummaryData> data;
+};
+
+struct TraceIrqDetailResult {
+    int64_t totalCount = 0;
+    std::vector<TraceIrqDetailData> data;
+};
 }
 #endif // PROFILER_SERVER_DOMAINOBJECT_H

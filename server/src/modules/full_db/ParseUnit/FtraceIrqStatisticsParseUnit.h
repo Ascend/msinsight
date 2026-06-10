@@ -31,10 +31,6 @@ class FtraceIrqStatisticsParseUnit : public AbstractParseUnit<Timeline::TextTrac
         std::string &error) override;
     bool HandleParseProcess(const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database,
         std::string &error) override;
-
-  private:
-    void AddIrqInfo(uint64_t trackId, const std::string &irqType, uint64_t duration,
-        std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> &trackIdMap);
 };
 
 }

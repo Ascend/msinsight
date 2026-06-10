@@ -20,76 +20,148 @@
 #include "ConstantDefs.h"
 #include "ParseUnitManager.h"
 #include "RenderEngine.h"
+#include "StringUtil.h"
 
 namespace Dic::Module::FullDb {
 
 std::string FtraceIrqStatisticsParseUnit::GetUnitName() const { return Dic::FTRACE_IRQ_STATISTICS_UNIT; }
 
-bool FtraceIrqStatisticsParseUnit::PreCheck(
-    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
-    return database->CreateFtraceTable();
+/**
+ * 判断是否为内核进程。
+ * 按进程名关键字匹配：migration / swapper / kworker
+ */
+static bool IsKernelProcess(const std::string &comm) {
+    return StringUtil::Contains(comm, "migration") || StringUtil::Contains(comm, "swapper") ||
+        StringUtil::Contains(comm, "kworker");
 }
 
-void FtraceIrqStatisticsParseUnit::AddIrqInfo(uint64_t trackId, const std::string &irqType, uint64_t duration,
-    std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> &trackIdMap) {
-    auto initStatData = []() {
-        return std::unordered_map<std::string, uint64_t>{
-            {"soft_irq_count", 0}, {"soft_irq_duration", 0}, {"hard_irq_count", 0}, {"hard_irq_duration", 0}};
-    };
-
-    auto addIrqStat = [](std::unordered_map<std::string, uint64_t> &statData, const std::string &irqType,
-                          uint64_t duration) {
-        if (irqType == "softirq") {
-            statData["soft_irq_count"]++;
-            statData["soft_irq_duration"] += duration;
-        } else if (irqType == "irq") {
-            statData["hard_irq_count"]++;
-            statData["hard_irq_duration"] += duration;
-        }
-    };
-
-    if (trackIdMap.find(trackId) == trackIdMap.end()) {
-        trackIdMap[trackId] = initStatData();
+/**
+ * 从 "CPU NNN" 格式的 tid 中提取 cpu_id。
+ */
+static int32_t ParseCpuIdFromTid(const std::string &tid) {
+    if (!StringUtil::StartWith(tid, "CPU ")) {
+        return -1;
     }
-    addIrqStat(trackIdMap[trackId], irqType, duration);
+    std::string numPart = tid.substr(4);
+    if (!StringUtil::IsAllDigits(numPart)) {
+        return -1;
+    }
+    return static_cast<int32_t>(std::stoi(numPart));
+}
+
+/**
+ * 从 tid 字符串中提取 comm 和 pid。
+ * tid 格式通常为 "comm:pid"，但 comm 本身可能包含冒号（如 "kworker/0:1"），
+ * 因此从最后一个冒号处分割，前面全部为 comm，最后一段为 pid。
+ */
+static bool ParseCommAndPid(const std::string &tid, std::string &comm, uint64_t &pid) {
+    if (tid.empty()) {
+        return false;
+    }
+    size_t lastColon = tid.rfind(':');
+    if (lastColon == std::string::npos || lastColon == 0 || lastColon == tid.size() - 1) {
+        return false;
+    }
+    comm = tid.substr(0, lastColon);
+    if (!StringUtil::IsAllDigits(tid.substr(lastColon + 1))) {
+        return false;
+    }
+    pid = std::stoull(tid.substr(lastColon + 1));
+    return true;
+}
+
+bool FtraceIrqStatisticsParseUnit::PreCheck(
+    const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
+    return database->CreateTraceIrqDetailTable();
 }
 
 bool FtraceIrqStatisticsParseUnit::HandleParseProcess(
     const ParseUnitParams &params, const std::shared_ptr<Timeline::TextTraceDatabase> &database, std::string &error) {
     std::vector<std::string> nameList = {"irq", "softirq"};
-    auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
     auto allIrqSlice =
         RenderEngine::Instance()->QuerySliceDetailByNameList(params.dbId, DataType::TEXT, "CPU Scheduling", nameList);
 
-    std::unordered_map<std::string, uint64_t> tidToTrackId;
-    for (const auto &pair : threadInfoMap) {
-        tidToTrackId[pair.second.second] = pair.first;
+    if (allIrqSlice.empty()) {
+        return true;
     }
 
-    std::unordered_map<uint64_t, std::unordered_map<std::string, uint64_t>> trackIdMap;
+    auto threadInfoMap = RenderEngine::Instance()->GetAllThreadInfo({params.dbId, PROCESS_TYPE::TEXT});
+
+    // 构建 trackId → tid 映射，用于从 CPU 线程 track 提取 cpu_id
+    std::unordered_map<uint64_t, std::string> trackIdToTid;
+    for (const auto &pair : threadInfoMap) {
+        trackIdToTid[pair.first] = pair.second.second; // pair.second.second = tid
+    }
+
+    // 统计 Key：(comm, pid, cpu_id, irq_type, irq_name)
+    struct IrqStats {
+        uint64_t count = 0;
+        uint64_t timeNs = 0;
+    };
+    std::map<std::tuple<std::string, uint64_t, int32_t, std::string, std::string>, IrqStats> statsMap;
 
     for (const auto &slice : allIrqSlice) {
-        uint64_t trackId = slice.trackId;
-        std::string irqType = slice.name;
-        uint64_t duration = slice.duration;
         auto argsMap = JsonUtil::JsonStrToMap(slice.args);
-        std::string processTid = argsMap["task"];
 
-        AddIrqInfo(trackId, irqType, duration, trackIdMap);
-
-        auto it = tidToTrackId.find(processTid);
-        if (it != tidToTrackId.end()) {
-            AddIrqInfo(it->second, irqType, duration, trackIdMap);
+        // 提取 task（被中断的进程）
+        std::string task = argsMap["task"];
+        if (task.empty()) {
+            continue;
         }
+
+        // 过滤 idle 进程
+        if (task == "<idle>") {
+            continue;
+        }
+
+        // 解析 comm 和 pid
+        std::string comm;
+        uint64_t pid = 0;
+        if (!ParseCommAndPid(task, comm, pid)) {
+            continue;
+        }
+
+        // 过滤内核进程
+        if (IsKernelProcess(comm)) {
+            continue;
+        }
+
+        // 提取 irq_name：irq 类型取 name，softirq 类型取 action
+        std::string irqType = slice.name;
+        std::string irqName = (irqType == "irq") ? argsMap["name"] : argsMap["action"];
+        if (irqName.empty()) {
+            continue;
+        }
+
+        // 通过 CPU 线程 track 获取 cpu_id
+        int32_t cpuId = -1;
+        auto tidIt = trackIdToTid.find(slice.trackId);
+        if (tidIt != trackIdToTid.end()) {
+            cpuId = ParseCpuIdFromTid(tidIt->second);
+        }
+
+        auto key = std::make_tuple(comm, pid, cpuId, irqType, irqName);
+        auto &stat = statsMap[key];
+        stat.count++;
+        stat.timeNs += slice.duration;
     }
 
-    for (auto &pair : trackIdMap) {
-        FtraceStatisticsData statData = {pair.first, FtraceDataType::IRQ};
-        for (auto &dataPair : pair.second) {
-            statData.data[dataPair.first] = std::to_string(dataPair.second);
-        }
-        database->InsertFtraceStat(statData);
+    for (auto &pair : statsMap) {
+        const auto &key = pair.first;
+        const auto &stat = pair.second;
+
+        TraceIrqDetailData data;
+        data.comm = std::get<0>(key);
+        data.pid = std::get<1>(key);
+        data.cpuId = std::get<2>(key);
+        data.irqType = std::get<3>(key);
+        data.irqName = std::get<4>(key);
+        data.count = stat.count;
+        data.timeNs = stat.timeNs;
+
+        database->InsertTraceIrqDetail(data);
     }
+
     database->CommitData();
     return true;
 }

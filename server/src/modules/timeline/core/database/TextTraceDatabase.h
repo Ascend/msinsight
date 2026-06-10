@@ -195,6 +195,12 @@ class TextTraceDatabase : public VirtualTraceDatabase {
     bool UpdateTraceTaskSummaryCsCount(
         const std::string &comm, uint64_t pid, int32_t cpuId, uint64_t csCount, uint64_t csInvoluntaryCount);
 
+    // 结构化新表查询（支持分页）
+    TraceTaskSummaryResult QueryTraceTaskSummary(uint64_t offset, uint64_t limit, const std::string &orderBy = "",
+        bool desc = true);
+    TraceIrqDetailResult QueryTraceIrqDetail(uint64_t offset, uint64_t limit, const std::string &orderBy = "",
+        bool desc = true);
+
   private:
     static constexpr const char *CPU_METRICS_PROCESS_ID = "__cpu_metrics__";
     static constexpr const char *CPU_METRICS_PROCESS_NAME = "CPU Metrics";
