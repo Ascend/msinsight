@@ -52,6 +52,7 @@ class SourceProtocol : public ProtocolUtil {
     static std::unique_ptr<Request> ToDetailsInterCoreLoadGraphRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToDetailsRooflineRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToCachelineRecordRequest(const Dic::json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToTopWarpStallReasonRequest(const json_t &json, std::string &error);
 
     // response to json
     static std::optional<document_t> ToCodeFileResponse(const Response &response);
@@ -66,6 +67,7 @@ class SourceProtocol : public ProtocolUtil {
     static std::optional<document_t> ToDetailsInterCoreLoadGraphResponse(const Response &response);
     static std::optional<document_t> ToDetailsRooflineResponse(const Response &response);
     static std::optional<document_t> ToCachelineRecordResponse(const Dic::Protocol::Response &response);
+    static std::optional<document_t> ToTopWarpStallReasonResponse(const Response &response);
 };
 
 } // Protocol
@@ -83,6 +85,7 @@ enum class DataTypeEnum : int {
     DETAILS_INTER_CORE_LOAD_GRAPH = 12,
     DETAILS_ROOFLINE = 13,
     DISPLAY_CACHE = 0x0E,
+    TOP_WARP_STALL_REASON = 0x0F,
     OTHER = 0x100
 };
 

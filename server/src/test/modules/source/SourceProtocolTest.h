@@ -109,5 +109,15 @@ const std::string TO_CODE_FILE_REQ_JSON = R"(
   }
 }
 )";
+const std::string TO_TOP_WARP_STALL_REASON_REQ_JSON = R"(
+{
+  "id": 4773,
+  "moduleName": "source",
+  "type": "request",
+  "command": "source/queryTopWarpStallReason",
+  "params": {
+  }
+}
+)";
 
 #endif // PROFILER_SERVER_SOURCEPROTOCOLTEST_H

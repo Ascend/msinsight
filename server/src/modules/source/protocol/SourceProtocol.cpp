@@ -36,6 +36,7 @@ void SourceProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_DETAILS_INTER_CORE_LOAD_GRAPH, ToDetailsInterCoreLoadGraphRequest);
     jsonToReqFactory.emplace(std::string(REQ_RES_DETAILS_ROOFLINE), ToDetailsRooflineRequest);
     jsonToReqFactory.emplace(std::string(REQ_RES_CACHELINE_RECORD), ToCachelineRecordRequest);
+    jsonToReqFactory.emplace(REQ_RES_TOP_WARP_STALL_REASON, ToTopWarpStallReasonRequest);
 }
 
 void SourceProtocol::RegisterResponseToJsonFuncs() {
@@ -51,6 +52,7 @@ void SourceProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_DETAILS_INTER_CORE_LOAD_GRAPH, ToDetailsInterCoreLoadGraphResponse);
     resToJsonFactory.emplace(std::string(REQ_RES_DETAILS_ROOFLINE), ToDetailsRooflineResponse);
     resToJsonFactory.emplace(std::string(REQ_RES_CACHELINE_RECORD), ToCachelineRecordResponse);
+    resToJsonFactory.emplace(REQ_RES_TOP_WARP_STALL_REASON, ToTopWarpStallReasonResponse);
 }
 
 void SourceProtocol::RegisterEventToJsonFuncs() {}
@@ -184,6 +186,15 @@ std::unique_ptr<Request> SourceProtocol::ToCachelineRecordRequest(const Dic::jso
     return ToNoParamsRequest(json, error, std::string(REQ_RES_CACHELINE_RECORD));
 }
 
+std::unique_ptr<Request> SourceProtocol::ToTopWarpStallReasonRequest(const Dic::json_t &json, std::string &error) {
+    auto reqPtr = std::make_unique<SourceTopWarpStallReasonRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+        error = "Failed to set request base info, command is: " + reqPtr->command;
+        return nullptr;
+    }
+    return reqPtr;
+}
+
 #pragma endregion
 
 #pragma region <<Reponse To Json>>
@@ -235,6 +246,10 @@ std::optional<document_t> SourceProtocol::ToDetailsRooflineResponse(const Dic::P
 
 std::optional<document_t> SourceProtocol::ToCachelineRecordResponse(const Dic::Protocol::Response &response) {
     return ToResponseJson<CachelineRecordResponse>(dynamic_cast<const CachelineRecordResponse &>(response));
+}
+
+std::optional<document_t> SourceProtocol::ToTopWarpStallReasonResponse(const Dic::Protocol::Response &response) {
+    return ToResponseJson<TopWarpStallReasonResponse>(dynamic_cast<const TopWarpStallReasonResponse &>(response));
 }
 
 #pragma endregion

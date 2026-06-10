@@ -511,6 +511,47 @@ bool SourceFileParser::HasCachelineRecords() {
     return false;
 }
 
+bool SourceFileParser::GetTopWarpStallReason(std::vector<Protocol::StallReasonItem> &data) {
+    std::unique_lock<std::mutex> lock(mutex);
+    std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary);
+    if (!file.is_open()) {
+        return false;
+    }
+    std::string jsonStr =
+        BinFileParseUtil::GetSingleContentStrByDataType(file, DataTypeEnum::TOP_WARP_STALL_REASON, dataBlockMap);
+    if (jsonStr.empty()) {
+        return false;
+    }
+    std::string error;
+    auto doc = JsonUtil::TryParse(jsonStr, error);
+    if (!error.empty() || !doc.has_value()) {
+        ServerLog::Error("Illegal top warp stall reason data, can't parse into json");
+        return false;
+    }
+    const auto &root = doc.value();
+    if (!root.HasMember("top_stall_reason_table") || !root["top_stall_reason_table"].IsObject()) {
+        return false;
+    }
+    const auto &dataObj = root["top_stall_reason_table"];
+    for (auto it = dataObj.MemberBegin(); it != dataObj.MemberEnd(); ++it) {
+        StallReasonItem item;
+        item.name = it->name.GetString();
+        if (it->value.IsInt64()) {
+            item.value = it->value.GetInt64();
+        } else if (it->value.IsUint64()) {
+            item.value = static_cast<int64_t>(it->value.GetUint64());
+        } else if (it->value.IsInt()) {
+            item.value = it->value.GetInt();
+        } else if (it->value.IsUint()) {
+            item.value = it->value.GetUint();
+        } else {
+            continue;
+        }
+        data.push_back(std::move(item));
+    }
+    return !data.empty();
+}
+
 int8_t SourceFileParser::GetInstrVersion() const { return instrVersion; }
 
 void SourceFileParser::SetBaselineFilePath(const std::string &inputFilePath) {
