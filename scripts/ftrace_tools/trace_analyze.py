@@ -205,6 +205,116 @@ def _is_kernel_process(comm: str) -> bool:
     return False
 
 
+def compute_irq_stats(conn: sqlite3.Connection, stats_map: Dict[Tuple[str, int, Optional[int]], TaskStats]) -> None:
+    """统计 IRQ 和 SoftIRQ 打断进程的次数与耗时，写入 TaskStats.irqs。
+
+    从进程视角出发：每条 irq/softirq 事件的 args.task 字段记录了**被中断的进程**。
+    按 (task, irq_name/action, cpu_id) 分组聚合后，定位到 stats_map 中的对应行并累加。
+
+    过滤规则：
+    - task 字段缺失 → 跳过
+    - task 是 idle 进程（<idle>）→ 跳过
+    - task 不在 stats_map 中 → 跳过（说明该进程没有 running/sleeping 事件）
+
+    Args:
+        conn: SQLite 数据库连接
+        stats_map: 由 compute_running_sleeping_runnable_stats() 返回的 TaskStats 字典
+    """
+    cur = conn.cursor()
+
+    # 聚合 irq 事件（按被打断的进程 + irq_name + cpu_id 分组）
+    cur.execute("""
+        SELECT
+            json_extract(s.args, '$.task') as interrupted_task,
+            json_extract(s.args, '$.name') as irq_name,
+            CAST(REPLACE(t.tid, 'CPU ', '') AS INTEGER) as cpu_id,
+            COUNT(*) as count,
+            CAST(SUM(s.duration) AS INTEGER) as total_ns
+        FROM slice s
+        JOIN thread t ON s.track_id = t.track_id
+        WHERE s.name = 'irq'
+          AND t.tid LIKE 'CPU %'
+          AND interrupted_task IS NOT NULL
+        GROUP BY interrupted_task, irq_name, cpu_id
+    """)
+    irq_rows = cur.fetchall()
+    irq_count = 0
+    skipped_idle = 0
+    skipped_no_match = 0
+
+    for interrupted_task, irq_name, cpu_id, count, total_ns in irq_rows:
+        if irq_name is None or count == 0:
+            continue
+
+        comm, pid = parse_tid(interrupted_task)
+        if comm == '<idle>':
+            skipped_idle += count
+            continue
+
+        key = (comm, pid, cpu_id)
+        if key in stats_map:
+            _add_irq_to_entry(stats_map[key], "irq", irq_name, count, total_ns)
+            irq_count += count
+        else:
+            skipped_no_match += count
+
+    # 聚合 softirq 事件（按被打断的进程 + action + cpu_id 分组）
+    cur.execute("""
+        SELECT
+            json_extract(s.args, '$.task') as interrupted_task,
+            json_extract(s.args, '$.action') as action,
+            CAST(REPLACE(t.tid, 'CPU ', '') AS INTEGER) as cpu_id,
+            COUNT(*) as count,
+            CAST(SUM(s.duration) AS INTEGER) as total_ns
+        FROM slice s
+        JOIN thread t ON s.track_id = t.track_id
+        WHERE s.name = 'softirq'
+          AND t.tid LIKE 'CPU %'
+          AND interrupted_task IS NOT NULL
+        GROUP BY interrupted_task, action, cpu_id
+    """)
+    softirq_rows = cur.fetchall()
+    softirq_count = 0
+
+    for interrupted_task, action, cpu_id, count, total_ns in softirq_rows:
+        if action is None or count == 0:
+            continue
+
+        comm, pid = parse_tid(interrupted_task)
+        if comm == '<idle>':
+            skipped_idle += count
+            continue
+
+        key = (comm, pid, cpu_id)
+        if key in stats_map:
+            _add_irq_to_entry(stats_map[key], "softirq", action, count, total_ns)
+            softirq_count += count
+        else:
+            skipped_no_match += count
+
+    if irq_count > 0 or softirq_count > 0:
+        logging.info("Aggregated %d irq events and %d softirq events into TaskStats", irq_count, softirq_count)
+    else:
+        logging.info("No irq/softirq events found for tracked tasks")
+
+    if skipped_idle > 0:
+        logging.debug("Skipped %d idle task irq/softirq events", skipped_idle)
+    if skipped_no_match > 0:
+        logging.debug("Skipped %d irq events with no matching TaskStats", skipped_no_match)
+
+
+def _add_irq_to_entry(task_stats: TaskStats, irq_type: str, irq_name: str, count: int, total_ns: int) -> None:
+    """将聚合后的 irq 统计累加到单个 TaskStats 条目。
+
+    count 和 total_ns 已由 SQL 聚合完毕，直接设置到 irqs 字典中。
+    """
+    key = f"{irq_type}:{irq_name}"
+    if key not in task_stats.irqs:
+        task_stats.irqs[key] = {"count": 0, "time_ns": 0, "type": irq_type, "name": irq_name}
+    task_stats.irqs[key]["count"] += count
+    task_stats.irqs[key]["time_ns"] += total_ns
+
+
 def compute_cs_count(conn: sqlite3.Connection, stats_map: Dict[Tuple[str, int, Optional[int]], TaskStats]) -> None:
     """统计上下文切换次数，按 (comm, pid, cpu_id) 分组。
 
