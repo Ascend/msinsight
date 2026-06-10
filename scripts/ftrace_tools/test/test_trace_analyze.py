@@ -20,10 +20,19 @@ import unittest
 import os
 import tempfile
 import sqlite3
+import json
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-from trace_analyze import parse_tid, parse_cpu_from_tid, TaskStats, DB_PATH_DEFAULT, build_arg_parser
+from trace_analyze import (
+    parse_tid,
+    parse_cpu_from_tid,
+    TaskStats,
+    DB_PATH_DEFAULT,
+    build_arg_parser,
+    compute_running_sleeping_runnable_stats,
+    open_db,
+)
 
 
 class TestDefaultPath(unittest.TestCase):
@@ -174,22 +183,19 @@ class TestDBConnection(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
-        self.addCleanup(self.tmpdir.cleanup)
         self.db_path = os.path.join(self.tmpdir.name, "test.db")
 
     def tearDown(self):
-        pass
+        self.tmpdir.cleanup()
 
     def test_open_nonexistent_db(self):
         """打开不存在的 db 文件应报错"""
-        from trace_analyze import open_db
 
         with self.assertRaises(FileNotFoundError):
             open_db("/nonexistent/path/test.db")
 
     def test_open_valid_db(self):
         """打开有效的 db 文件应返回连接"""
-        from trace_analyze import open_db
 
         # Create a minimal test db
         conn = sqlite3.connect(self.db_path)
@@ -203,6 +209,111 @@ class TestDBConnection(unittest.TestCase):
         cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='test'")
         self.assertIsNotNone(cur.fetchone())
         db_conn.close()
+
+
+class TestComputeRunningSleepingRunnable(unittest.TestCase):
+    """测试 running/sleeping/runnable 时间统计（含 CPU 维度）"""
+
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+        self.db_path = os.path.join(self.tmpdir.name, "test.db")
+
+    def tearDown(self):
+        self.tmpdir.cleanup()
+
+    def _create_test_db(self, threads, slices_with_args):
+        """创建测试 db。
+        threads: list of (track_id, tid)
+        slices_with_args: list of (name, timestamp, duration, track_id, args_dict_or_None)
+        """
+        conn = sqlite3.connect(self.db_path)
+        conn.execute("CREATE TABLE thread (track_id INTEGER PRIMARY KEY, tid TEXT)")
+        conn.execute(
+            "CREATE TABLE slice (id INTEGER PRIMARY KEY, name TEXT, timestamp INTEGER, duration INTEGER, track_id INTEGER, args TEXT DEFAULT NULL)"
+        )
+        for track_id, tid in threads:
+            conn.execute("INSERT INTO thread (track_id, tid) VALUES (?, ?)", (track_id, tid))
+        for i, (name, ts, dur, track_id, args) in enumerate(slices_with_args):
+            args_json = json.dumps(args) if args else None
+            conn.execute(
+                "INSERT INTO slice (id, name, timestamp, duration, track_id, args) VALUES (?, ?, ?, ?, ?, ?)",
+                (i + 1, name, ts, dur, track_id, args_json),
+            )
+        conn.commit()
+        conn.close()
+
+    def test_basic_running_stats_with_cpu_in_args(self):
+        """基本 Running 事件统计，cpu 来自 args"""
+        self._create_test_db(
+            threads=[(1, "node:3501822")],
+            slices_with_args=[
+                ("Running", 1000, 500_000, 1, {"cpu": 3}),
+                ("Running", 2000, 300_000, 1, {"cpu": 3}),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = compute_running_sleeping_runnable_stats(conn)
+        conn.close()
+
+        self.assertEqual(len(stats_map), 1)
+        key = ("node", 3501822, 3)
+        self.assertIn(key, stats_map)
+        self.assertEqual(stats_map[key].running_ns, 800_000)
+
+    def test_multiple_event_types_with_cpu(self):
+        """Running + Sleeping + Runnable 混合"""
+        self._create_test_db(
+            threads=[(1, "worker:100")],
+            slices_with_args=[
+                ("Running", 1000, 1_000_000, 1, {"cpu": 5}),
+                ("Sleeping", 2000, 2_000_000, 1, {"cpu": 5}),
+                ("Runnable", 3000, 500_000, 1, {"cpu": 5}),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = compute_running_sleeping_runnable_stats(conn)
+        conn.close()
+
+        key = ("worker", 100, 5)
+        self.assertIn(key, stats_map)
+        self.assertEqual(stats_map[key].running_ns, 1_000_000)
+        self.assertEqual(stats_map[key].sleeping_ns, 2_000_000)
+        self.assertEqual(stats_map[key].runnable_ns, 500_000)
+
+    def test_no_cpu_in_args_defaults_to_none(self):
+        """args 中没有 cpu 字段时，cpu_id 应为 None"""
+        self._create_test_db(
+            threads=[(1, "orphan:999")],
+            slices_with_args=[
+                ("Running", 1000, 100_000, 1, None),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = compute_running_sleeping_runnable_stats(conn)
+        conn.close()
+
+        key = ("orphan", 999, None)
+        self.assertIn(key, stats_map)
+        self.assertEqual(stats_map[key].running_ns, 100_000)
+
+    def test_different_cpu_values_split_groups(self):
+        """同一 tid 不同 cpu 的事件应分到不同的 TaskStats"""
+        self._create_test_db(
+            threads=[(1, "migrator:42")],
+            slices_with_args=[
+                ("Running", 1000, 500_000, 1, {"cpu": 0}),
+                ("Running", 2000, 300_000, 1, {"cpu": 1}),
+                ("Running", 3000, 200_000, 1, {"cpu": 0}),
+            ],
+        )
+        conn = open_db(self.db_path)
+        stats_map = compute_running_sleeping_runnable_stats(conn)
+        conn.close()
+
+        # 应该有 2 条记录：cpu=0 和 cpu=1
+        self.assertEqual(len(stats_map), 2)
+        self.assertEqual(stats_map[("migrator", 42, 0)].running_ns, 700_000)
+        self.assertEqual(stats_map[("migrator", 42, 1)].running_ns, 300_000)
 
 
 if __name__ == '__main__':
