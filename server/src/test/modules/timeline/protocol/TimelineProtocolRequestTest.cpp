@@ -386,3 +386,38 @@ TEST_F(TimelineProtocolRequestTest, RestoreFullDbPythonStackThreadTracesParams) 
     EXPECT_EQ(params.threadId, "pytorch");
     EXPECT_EQ(params.metaType, "PYTORCH_API");
 }
+
+TEST_F(TimelineProtocolRequestTest, SystemViewFtraceStatParams_CheckParams) {
+    Dic::Protocol::SystemViewFtraceStatParams params;
+    std::string warnMsg;
+
+    // pageSize 为 0 → 拒绝
+    params.current = 1;
+    params.pageSize = 0;
+    EXPECT_FALSE(params.CheckParams(warnMsg));
+
+    // current 为 0 → 拒绝
+    params.current = 0;
+    params.pageSize = 10;
+    EXPECT_FALSE(params.CheckParams(warnMsg));
+
+    // orderBy 包含 SQL 注入 → 拒绝
+    params.current = 1;
+    params.pageSize = 10;
+    params.orderBy = "running_ns; DROP TABLE";
+    EXPECT_FALSE(params.CheckParams(warnMsg));
+
+    // filter value 包含 SQL 注入 → 拒绝
+    params.orderBy = "running_ns";
+    params.filters = {{"comm", "bash; DROP TABLE"}};
+    EXPECT_FALSE(params.CheckParams(warnMsg));
+
+    // filter columnName 包含非法字符 → 拒绝
+    params.filters = {{"comm; DROP", "bash"}};
+    EXPECT_FALSE(params.CheckParams(warnMsg));
+
+    // 合法参数 → 通过
+    params.orderBy = "running_ns";
+    params.filters = {{"comm", "bash"}, {"pid", "100"}};
+    EXPECT_TRUE(params.CheckParams(warnMsg));
+}

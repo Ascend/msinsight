@@ -31,7 +31,6 @@
 #include "ProtocolMessage.h"
 #include "TimelineErrorManager.h"
 
-// clang-format off
 namespace Dic {
 namespace Protocol {
 using namespace Dic::Module::Timeline;
@@ -226,7 +225,7 @@ struct SearchCountParams {
     bool isMatchExact = false;
     std::string rankId;
     std::string searchContent;
-    std::string nameFilter;  // 二级筛选关键字
+    std::string nameFilter; // 二级筛选关键字
     std::vector<Metadata> metadataList;
     bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         for (const auto &item : metadataList) {
@@ -398,22 +397,14 @@ struct SystemViewOverallMoreDetailsRequest : public Request {
 
 struct SystemViewFtraceStatParams {
     std::string layer; // 前端传递的layer字符串
-    FtraceDataType dataType = FtraceDataType::UNKOWN;
     uint64_t current = 0;
     uint64_t pageSize = 0;
     std::string rankId;
+    std::string orderBy; // 排序字段名（前端 dataIndex）
+    std::string order; // 排序方向："descend" / "ascend" / ""
+    std::vector<std::pair<std::string, std::string>> filters; // 筛选条件
 
-    void SetDataType() {
-        static const std::unordered_map<std::string, FtraceDataType> layerToDataType = {
-            {"Ftrace Time Consuming", FtraceDataType::TIME},
-            {"Ftrace IRQ", FtraceDataType::IRQ},
-            {"Ftrace Sched", FtraceDataType::SCHED},
-        };
-        auto it = layerToDataType.find(layer);
-        if (it != layerToDataType.end()) {
-            this->dataType = it->second;
-        }
-    }
+    bool CheckParams(std::string &warnMsg) const;
 };
 
 struct SystemViewFtraceStatRequest : public Request {
@@ -506,8 +497,7 @@ struct KernelE2ETimeParams {
     std::string opName;
     std::string sortField = "endToEndTime";
     std::string sortOrder = "desc";
-    bool CheckParams(uint64_t minTime, std::string &warnMsg) const
-    {
+    bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
             warnMsg = "kernel e2e time start time is bigger than end time";
             return false;
@@ -672,6 +662,5 @@ struct RankOffsetRequest : public Request {
 };
 } // end of namespace Protocol
 } // end of namespace Dic
-// clang-format on
 
 #endif // DIC_TIMELINE_PROTOCOL_REQUEST_H

@@ -140,7 +140,7 @@
       "Ascend HardWare Task Trace": "Ascend HardWare Task 跟踪",
       "Communication Trace": "通信跟踪",
       "OverallMetricsTips": "对于Ascend Hardware层，按照计算、通信、空闲事件的进一步拆解；其中计算会拆解出FA、MM等关键算子耗时，通信会按通信域拆解传输、等待时长。采集事件需包含CPU（框架侧）、NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.CPU、ProfilerActivity.NPU开关），采集Level等级需为L1及以上；要进一步得到计算时间的子层级分类，AI Core的性能指标采集项需为PipeUtilization。",
-      "OperatorDetailsTips": "算子级别的详细信息，包括名称、类型、加速器核、开始时间、耗时、等待时间以及输入输出shape等。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）；要进一步得到算子类型、加速器核、输入输出shape等，采集的Level等级需为L1及以上。",
+      "OperatorDetailsTips": "对算子详情表按类型汇总的统计结果，采集项同算子详情表",
       "PythonAPISummaryTips": "对于Python层事件的统计。采集事件需包含CPU（框架侧）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.CPU开关）。",
       "PythonAPITraceTips": "对于Python层单个API按照开始时间列举。采集事件需包含CPU（框架侧）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.CPU开关）。",
       "CANNAPISummaryTips": "对于CANN层事件的统计。采集事件需包含NPU（CANN软件栈及NPU硬件层）数据（以PyTorch Profiler接口为例，activities配置需包含ProfilerActivity.NPU开关）。",

@@ -218,6 +218,11 @@ struct TraceTaskSummaryData {
     uint64_t runnableNs = 0;
     uint64_t csCount = 0;
     uint64_t csInvoluntaryCount = 0;
+    // IRQ 聚合字段（Handler 查询时通过 LEFT JOIN trace_irq_detail 填充）
+    uint64_t softIrqCount = 0;
+    uint64_t softIrqDuration = 0;
+    uint64_t hardIrqCount = 0;
+    uint64_t hardIrqDuration = 0;
 };
 
 // trace_irq_detail 表的一行：按 (comm, pid, cpu_id, irq_type, irq_name) 聚合的中断统计（进程视角）
