@@ -41,17 +41,15 @@ from typing import Any
 
 class Availability:
     def __init__(self) -> None:
-        self._missing: list[str] = []
-        self._partial: list[str] = []
+        self._missing: set[str] = set()
+        self._partial: set[str] = set()
         self._errors: list[dict[str, str]] = []
 
     def add_missing(self, field: str) -> None:
-        if field not in self._missing:
-            self._missing.append(field)
+        self._missing.add(field)
 
     def add_partial(self, field: str) -> None:
-        if field not in self._partial:
-            self._partial.append(field)
+        self._partial.add(field)
 
     def add_error(self, component: str, message: str) -> None:
         entry = {"component": component, "message": message}
@@ -59,10 +57,8 @@ class Availability:
             self._errors.append(entry)
 
     def merge(self, other: Availability) -> None:
-        for item in other._missing:
-            self.add_missing(item)
-        for item in other._partial:
-            self.add_partial(item)
+        self._missing.update(other._missing)
+        self._partial.update(other._partial)
         for entry in other._errors:
             if entry not in self._errors:
                 self._errors.append(dict(entry))
@@ -70,7 +66,7 @@ class Availability:
     def to_dict(self) -> dict[str, Any]:
         return {
             "complete": not self._missing and not self._errors,
-            "missing": list(self._missing),
-            "partial": list(self._partial),
+            "missing": sorted(self._missing),
+            "partial": sorted(self._partial),
             "errors": [dict(entry) for entry in self._errors],
         }

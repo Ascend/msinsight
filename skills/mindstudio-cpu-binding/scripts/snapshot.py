@@ -27,8 +27,11 @@ Snapshot = dict[str, Any]
 
 def load_snapshot(path: str | Path) -> Snapshot:
     snapshot_path = Path(path)
-    with snapshot_path.open("r", encoding="utf-8") as fp:
-        data = json.load(fp)
+    try:
+        with snapshot_path.open("r", encoding="utf-8") as fp:
+            data = json.load(fp)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid snapshot JSON {snapshot_path}: {exc.msg}") from exc
     if not isinstance(data, dict):
         raise ValueError("snapshot root must be a JSON object")
     data.setdefault("availability", {})

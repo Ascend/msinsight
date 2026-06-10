@@ -351,13 +351,19 @@ def _parse_rank_map(rank_map: str | None) -> list[dict[str, Any]]:
     result = []
     for entry in rank_map.split(","):
         rank_part, separator, rest = entry.partition("=")
-        pid_part, _, npu_part = rest.partition(":")
-        if not separator or not rank_part or not pid_part:
-            raise ValueError(f"invalid rank-map entry: {entry}")
+        if not separator:
+            raise ValueError(f"invalid rank-map entry: missing equals sign in {entry}")
+        if not rank_part:
+            raise ValueError(f"invalid rank-map entry: missing rank name in {entry}")
+        pid_part, colon, npu_part = rest.partition(":")
+        if not pid_part:
+            raise ValueError(f"invalid rank-map entry: missing pid in {entry}")
+        if not colon:
+            raise ValueError(f"invalid rank-map entry: missing colon before NPU device in {entry}")
         try:
             pid = int(pid_part)
         except ValueError as exc:
-            raise ValueError(f"invalid rank-map pid in entry: {entry}") from exc
+            raise ValueError(f"invalid rank-map entry: PID must be integer in {entry}") from exc
         result.append({"rank": rank_part, "pid": pid, "npu_device": npu_part or None})
     return result
 

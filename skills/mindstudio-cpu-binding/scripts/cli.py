@@ -136,14 +136,18 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _analyze(args: argparse.Namespace) -> int:
-    snapshot = load_snapshot(args.snapshot)
-    findings = diagnose(snapshot)
-    plan = generate_plan(snapshot, findings, executor_backend=args.executor)
+    try:
+        snapshot = load_snapshot(args.snapshot)
+        findings = diagnose(snapshot)
+        plan = generate_plan(snapshot, findings, executor_backend=args.executor)
 
-    output_dir = Path(args.out)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    write_json(output_dir / "plan.json", plan)
-    render_report(snapshot, findings, plan, output_dir / "report.html")
+        output_dir = Path(args.out)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        write_json(output_dir / "plan.json", plan)
+        render_report(snapshot, findings, plan, output_dir / "report.html")
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"analyze error: {exc}", file=sys.stderr)
+        return 1
 
     print(f"Generated {output_dir / 'plan.json'}")
     print(f"Generated {output_dir / 'report.html'}")
@@ -152,9 +156,12 @@ def _analyze(args: argparse.Namespace) -> int:
 
 def _collect_topology(args: argparse.Namespace) -> int:
     if not args.lscpu_file:
-        raise ValueError(
-            "collect-topology currently requires --lscpu-file in the shared CLI; use scripts/topology_collect.py for live prototype mode"
+        print(
+            "collect-topology error: --lscpu-file is required by the shared CLI; "
+            "run scripts/topology_collect.py for live collection",
+            file=sys.stderr,
         )
+        return 1
     lscpu_text = Path(args.lscpu_file).read_text(encoding="utf-8")
     npu_smi_topo_text = Path(args.npu_smi_topo_file).read_text(encoding="utf-8") if args.npu_smi_topo_file else ""
     topology = collect_topology_from_text(lscpu_text, npu_smi_topo_text)
@@ -167,9 +174,12 @@ def _collect_topology(args: argparse.Namespace) -> int:
 
 def _discover_processes(args: argparse.Namespace) -> int:
     if not args.ps_file:
-        raise ValueError(
-            "discover-processes currently requires --ps-file in the shared CLI; use scripts/process_discovery.py for live prototype mode"
+        print(
+            "discover-processes error: --ps-file is required by the shared CLI; "
+            "run scripts/process_discovery.py for live discovery",
+            file=sys.stderr,
         )
+        return 1
     ps_text = Path(args.ps_file).read_text(encoding="utf-8")
     npu_smi_info_text = Path(args.npu_smi_info_file).read_text(encoding="utf-8") if args.npu_smi_info_file else ""
     discovery = discover_processes_from_text(ps_text, npu_smi_info_text, keyword=args.keyword)

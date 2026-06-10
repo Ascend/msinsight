@@ -200,9 +200,13 @@ NUMA node0 CPU(s): 0-7
                 )
 
     def test_rank_map_rejects_malformed_entries(self):
-        with self.assertRaises(ValueError):
-            _parse_rank_map("rank0=100:npu0,rank1:101:npu1")
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "missing equals sign"):
+            _parse_rank_map("rank0:123:npu0")
+        with self.assertRaisesRegex(ValueError, "missing pid"):
+            _parse_rank_map("rank0=:npu0")
+        with self.assertRaisesRegex(ValueError, "missing colon"):
+            _parse_rank_map("rank0=123")
+        with self.assertRaisesRegex(ValueError, "PID must be integer"):
             _parse_rank_map("rank0=bad:npu0")
 
 
