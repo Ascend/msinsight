@@ -99,27 +99,24 @@ export const traceColumns: ColumData[] = [
     { title: 'Duration(us)', dataIndex: 'duration', ...getDefaultColumData('duration') },
 ];
 
-export const ftraceTimeSummaryColumns: ColumData[] = [
-    { title: 'process', dataIndex: 'process', ...getDefaultColumData('process', false) },
-    { title: 'thread', dataIndex: 'thread', ...getDefaultColumData('thread', false) },
-    { title: 'runnable', dataIndex: 'runnable', ...getDefaultColumData('runnable', false) },
-    { title: 'running', dataIndex: 'running', ...getDefaultColumData('running', false) },
-    { title: 'sleeping', dataIndex: 'sleeping', ...getDefaultColumData('sleeping', false) },
-];
-
-export const ftraceIrqSummaryColumns: ColumData[] = [
-    { title: 'process', dataIndex: 'process', ...getDefaultColumData('process', false) },
-    { title: 'thread', dataIndex: 'thread', ...getDefaultColumData('thread', false) },
-    { title: 'soft_irq_count', dataIndex: 'soft_irq_count', ...getDefaultColumData('soft_irq_count', false) },
-    { title: 'soft_irq_duration', dataIndex: 'soft_irq_duration', ...getDefaultColumData('soft_irq_duration', false) },
-    { title: 'hard_irq_count', dataIndex: 'hard_irq_count', ...getDefaultColumData('hard_irq_count', false) },
-    { title: 'hard_irq_duration', dataIndex: 'hard_irq_duration', ...getDefaultColumData('hard_irq_duration', false) },
-];
-
-export const ftraceSchedSummaryColumns: ColumData[] = [
-    { title: 'process', dataIndex: 'process', ...getDefaultColumData('process', false) },
-    { title: 'thread', dataIndex: 'thread', ...getDefaultColumData('thread', false) },
-    { title: 'context_switch_count', dataIndex: 'context_switch_count', ...getDefaultColumData('context_switch_count', false) },
+/**
+ * Ftrace 统一列定义：合并原来的耗时、中断、上下文切换三张表为一张表
+ * 前 3 列（运行CPU、进程名、线程名）支持筛选 + 排序
+ * 后 8 列只支持排序
+ * 注意：由于使用了 fetchColumnFilterProps（返回 ColumnType），使用 TableColumnsType<any> 类型
+ */
+export const ftraceUnifiedColumns: TableColumnsType<any> = [
+    { title: 'cpu', dataIndex: 'cpu', ...getDefaultColumData('cpu', true), ...fetchColumnFilterProps('cpu', 'cpu') },
+    { title: 'FtraceComm', dataIndex: 'comm', ...getDefaultColumData('comm', true), ...fetchColumnFilterProps('comm', 'FtraceComm') },
+    { title: 'FtraceThread', dataIndex: 'pid', ...getDefaultColumData('pid', true), ...fetchColumnFilterProps('pid', 'FtraceThread') },
+    { title: 'runnable', dataIndex: 'runnable', ...getDefaultColumData('runnable', true) },
+    { title: 'running', dataIndex: 'running', ...getDefaultColumData('running', true) },
+    { title: 'sleeping', dataIndex: 'sleeping', ...getDefaultColumData('sleeping', true) },
+    { title: 'context_switch_count', dataIndex: 'context_switch_count', ...getDefaultColumData('context_switch_count', true) },
+    { title: 'soft_irq_count', dataIndex: 'soft_irq_count', ...getDefaultColumData('soft_irq_count', true) },
+    { title: 'soft_irq_duration', dataIndex: 'soft_irq_duration', ...getDefaultColumData('soft_irq_duration', true) },
+    { title: 'hard_irq_count', dataIndex: 'hard_irq_count', ...getDefaultColumData('hard_irq_count', true) },
+    { title: 'hard_irq_duration', dataIndex: 'hard_irq_duration', ...getDefaultColumData('hard_irq_duration', true) },
 ];
 
 export const useKernelDetails = (): TableColumnsType<any> => {
@@ -239,12 +236,11 @@ export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Kernel Details', tips: 'KernelDetailsTips' },
     { name: 'Operator Details', tips: 'OperatorDetailsTips' },
     { name: 'Memcpy Overall' },
-    { name: 'Ftrace Time Consuming' },
-    { name: 'Ftrace IRQ' },
-    { name: 'Ftrace Sched' },
+    { name: 'Ftrace Task Summary' },
 ];
 
-export const ftraceTypes: string[] = ['Ftrace Time Consuming', 'Ftrace IRQ', 'Ftrace Sched'];
+/** Ftrace 数据类型标识，用于 getVisibleStatsSystemViewItems 过滤 */
+export const ftraceTypes: string[] = ['Ftrace Task Summary'];
 export const summaryAndTraceTypes: Array<{type: string; isStats: boolean; isTrace: boolean;columns: ColumData[] }> = [
     { type: 'Python', isStats: true, isTrace: false, columns: pythonApiSummaryColumns },
     { type: 'Python', isStats: false, isTrace: true, columns: traceColumns },
@@ -320,8 +316,10 @@ export const querySystemViewDetails = async (param: {
 };
 
 export const queryFtraceStat = async (param: {
-    rankId: string; dbPath: string; dataType: number; current: number; pageSize: number;
-}): Promise<{ headers: string[]; data: Array<Record<string, string>>; pageParam: { current: number; pageSize: number; total: number } }> => {
+    rankId: string; dbPath: string; current: number; pageSize: number;
+    orderBy: string; order: string; startTime: number; endTime: number;
+    filterCondition: string[];
+}): Promise<{ data: Array<Record<string, string>>; count: number; pageSize: number; currentPage: number }> => {
     return window.requestData('systemView/systemViewFtraceStat', param, 'timeline');
 };
 

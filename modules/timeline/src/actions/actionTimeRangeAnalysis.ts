@@ -22,6 +22,10 @@ import type { Session } from '../entity/session';
 import { checkCardIsIE } from './actionGenerateCurve';
 
 const timeRangeAnalysisMenuVisible = (session: Session): boolean => {
+    // Ftrace 数据暂时不支持时间范围分析
+    if (session.hasFtraceData) {
+        return false;
+    }
     if (session.isTimeAnalysisMode || session.selectedRangeIsLock || session.sliceSelection.active) {
         return false;
     }
@@ -36,6 +40,10 @@ const timeRangeAnalysisMenuVisible = (session: Session): boolean => {
 };
 
 const applyTimeRangeAnalysisMenuVisible = (session: Session): boolean => {
+    // Ftrace 数据暂时不支持时间范围分析
+    if (session.hasFtraceData) {
+        return false;
+    }
     if (session.isTimeAnalysisMode || session.selectedRangeIsLock || session.sliceSelection.active || !session.selectedData) {
         return false;
     }
