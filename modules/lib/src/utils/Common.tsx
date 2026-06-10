@@ -747,11 +747,11 @@ const getTableHeader = (columns: any[]): TableHeaderAndData['header'] => {
 };
 
 const getTableData = (columns: any[], dataSource: any[]): TableHeaderAndData['data'] => {
-    const data = dataSource?.map(item => {
+    const data = dataSource?.map((item, index) => {
         const obj: ObjectKeyString = {};
 
         columns.forEach(col => {
-            getColData(obj, item, col);
+            getColData(obj, item, col, index);
         });
         return obj;
     });
@@ -784,12 +784,12 @@ const getTextFromReactElement = (element: React.ReactElement): string => {
     }
 };
 
-const getColData = (obj: ObjectKeyString, data: ObjectKeyString, col: any): void => {
+const getColData = (obj: ObjectKeyString, data: ObjectKeyString, col: any, index: number): void => {
     const dataKey = col.dataIndex ?? col.key;
     if (col.render === undefined || col.render.name === 'useTextColor') {
         obj[dataKey] = data[dataKey];
     } else {
-        const itemData = col.render(data[dataKey], data, 0);
+        const itemData = col.render(data[dataKey], data, index);
         if (React.isValidElement(itemData)) {
             obj[dataKey] = getTextFromReactElement(itemData);
         } else if (typeof itemData !== 'object') {

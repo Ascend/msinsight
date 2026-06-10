@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { safeStr, formatDecimal } from './Common';
+import { safeStr, formatDecimal, copyTableToClipboard } from './Common';
 
 // 测试字符串转义方法
 describe('test function safeStr', () => {
@@ -131,5 +131,43 @@ describe('test function formatDecimal', () => {
             expect(formatDecimal('abc')).toBeNaN();
             expect(formatDecimal(NaN)).toBeNaN();
         });
+    });
+});
+
+describe('test function copyTableToClipboard', () => {
+    const writeText = jest.fn();
+
+    beforeEach(() => {
+        writeText.mockResolvedValue(undefined);
+        Object.assign(navigator, {
+            clipboard: { writeText },
+        });
+    });
+
+    afterEach(() => {
+        writeText.mockClear();
+    });
+
+    it('should pass the actual row index to column renderers', async() => {
+        const columns = [
+            {
+                title: 'Index',
+                dataIndex: 'index',
+                render: (_value: unknown, _record: unknown, index: number) => index + 1,
+            },
+            {
+                title: 'Name',
+                dataIndex: 'name',
+            },
+        ];
+        const dataSource = [
+            { name: 'first' },
+            { name: 'second' },
+            { name: 'third' },
+        ];
+
+        await copyTableToClipboard(columns, dataSource);
+
+        expect(writeText).toHaveBeenCalledWith('Index\tName\t\n1\tfirst\t\n2\tsecond\t\n3\tthird\t\n');
     });
 });
