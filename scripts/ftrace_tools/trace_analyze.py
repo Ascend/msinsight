@@ -21,7 +21,11 @@ import logging
 import os
 import sqlite3
 from dataclasses import dataclass, field
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
+
+from openpyxl import Workbook
+from openpyxl.chart import BarChart, Reference
+from openpyxl.styles import Font, Alignment
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s]:%(message)s')
 
@@ -539,11 +543,338 @@ def main():
         logging.info("Writing results to db...")
         write_results_to_db(conn, stats_map)
 
-        logging.info("Analysis complete")
+        # Step 5: 生成 Excel 报告
+        logging.info("Generating Excel report: %s", output_path)
+        task_rows = read_task_summary_from_db(conn)
+        irq_rows = read_irq_detail_from_db(conn)
+        write_excel(task_rows, irq_rows, output_path)
+
+        logging.info("Analysis complete. Report saved to: %s", output_path)
     finally:
         conn.close()
 
-    logging.info("Report saved to: %s", output_path)
+
+# ============================================================
+# Excel 输出与图表生成
+# ============================================================
+
+
+def read_task_summary_from_db(conn: sqlite3.Connection) -> List[Dict]:
+    """从 trace_task_summary 表读取所有数据。
+
+    Returns:
+        列表，每个元素是包含所有字段的 dict
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT comm, pid, cpu_id, running_ns, sleeping_ns, runnable_ns,
+               cs_count, cs_involuntary_count
+        FROM trace_task_summary
+        ORDER BY running_ns DESC
+    """)
+    columns = [d[0] for d in cur.description]
+    return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def read_irq_detail_from_db(conn: sqlite3.Connection) -> List[Dict]:
+    """从 trace_irq_detail 表读取所有数据。
+
+    Returns:
+        列表，每个元素是包含所有字段的 dict
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT comm, pid, cpu_id, irq_type, irq_name, count, time_ns
+        FROM trace_irq_detail
+        ORDER BY time_ns DESC
+    """)
+    columns = [d[0] for d in cur.description]
+    return [dict(zip(columns, row)) for row in cur.fetchall()]
+
+
+def aggregate_by_comm(rows: List[Dict]) -> List[Dict]:
+    """按 comm 汇总（所有 pid 和 cpu 合并）。
+
+    Args:
+        rows: 原始 task summary 数据（含 comm, pid, cpu_id）
+
+    Returns:
+        按 comm 聚合后的列表，只保留 comm + 聚合后的数值字段
+    """
+    comm_map: Dict[str, Dict] = {}
+    for row in rows:
+        comm = row["comm"]
+        if comm not in comm_map:
+            comm_map[comm] = {
+                "comm": comm,
+                "running_ns": 0,
+                "sleeping_ns": 0,
+                "runnable_ns": 0,
+                "cs_count": 0,
+                "cs_involuntary_count": 0,
+            }
+        entry = comm_map[comm]
+        entry["running_ns"] += row.get("running_ns", 0)
+        entry["sleeping_ns"] += row.get("sleeping_ns", 0)
+        entry["runnable_ns"] += row.get("runnable_ns", 0)
+        entry["cs_count"] += row.get("cs_count", 0)
+        entry["cs_involuntary_count"] += row.get("cs_involuntary_count", 0)
+
+    return sorted(comm_map.values(), key=lambda x: x["running_ns"], reverse=True)
+
+
+def aggregate_by_pid(rows: List[Dict]) -> List[Dict]:
+    """按 comm:pid 汇总（合并所有 cpu，但 pid 不合并）。
+
+    Args:
+        rows: 原始 task summary 数据
+
+    Returns:
+        按 (comm, pid) 聚合后的列表
+    """
+    pid_map: Dict[Tuple[str, int], Dict] = {}
+    for row in rows:
+        key = (row["comm"], row["pid"])
+        if key not in pid_map:
+            pid_map[key] = {
+                "comm": row["comm"],
+                "pid": row["pid"],
+                "running_ns": 0,
+                "sleeping_ns": 0,
+                "runnable_ns": 0,
+                "cs_count": 0,
+                "cs_involuntary_count": 0,
+            }
+        entry = pid_map[key]
+        entry["running_ns"] += row.get("running_ns", 0)
+        entry["sleeping_ns"] += row.get("sleeping_ns", 0)
+        entry["runnable_ns"] += row.get("runnable_ns", 0)
+        entry["cs_count"] += row.get("cs_count", 0)
+        entry["cs_involuntary_count"] += row.get("cs_involuntary_count", 0)
+
+    return sorted(pid_map.values(), key=lambda x: x["running_ns"], reverse=True)
+
+
+def convert_ns_to_us(rows: List[Dict], is_task: bool = True) -> List[Dict]:
+    """将纳秒字段转换为微秒。
+
+    Args:
+        rows: 原始数据
+        is_task: True 为 task summary（转换 running/sleeping/runnable_ns），
+                 False 为 irq detail（转换 time_ns）
+
+    Returns:
+        新列表，ns 字段替换为 us 字段
+    """
+    result = []
+    for row in rows:
+        new_row = dict(row)
+        if is_task:
+            new_row["running_us"] = new_row.pop("running_ns", 0) / 1000
+            new_row["sleeping_us"] = new_row.pop("sleeping_ns", 0) / 1000
+            new_row["runnable_us"] = new_row.pop("runnable_ns", 0) / 1000
+        else:
+            new_row["time_us"] = new_row.pop("time_ns", 0) / 1000
+        result.append(new_row)
+    return result
+
+
+def write_excel(task_rows: List[Dict], irq_rows: List[Dict], output_path: str) -> None:
+    """生成 Excel 报告，包含 4 个工作表和 3 个图表。
+
+    工作表（按顺序）：
+    - task_summary_by_comm: 按 comm 汇总 + Top10 Running 柱状图
+    - task_summary_by_pid: 按 comm:pid 汇总（cpu 合并）
+    - task_summary: 每行一个 (comm, pid, cpu_id)，ns → μs
+    - proc_irq_detail: IRQ 明细 + Top10 Time/Count 柱状图
+
+    图表位置：数据从 A1 开始，图表放在右侧（I1 起）竖直堆叠。
+    """
+
+    wb = Workbook()
+
+    # 准备数据
+    task_us = convert_ns_to_us(task_rows, is_task=True)
+    irq_us = convert_ns_to_us(irq_rows, is_task=False)
+    by_comm = aggregate_by_comm(task_rows)
+    by_comm_us = convert_ns_to_us(by_comm, is_task=True)
+    # 为 IRQ 图表生成 label（写在 sheet 最后一列）
+    for row in irq_us:
+        cpu = row.get("cpu_id", "")
+        cpu_str = f"@{cpu}" if cpu is not None else ""
+        row["label"] = f"{row['comm']}:{row['pid']}{cpu_str}"
+    by_pid = aggregate_by_pid(task_rows)
+    by_pid_us = convert_ns_to_us(by_pid, is_task=True)
+
+    # --- Sheet 1: task_summary_by_comm (+ Running chart) ---
+    ws_comm = wb.active
+    ws_comm.title = "task_summary_by_comm"
+    _write_sheet_data(ws_comm, by_comm_us, freeze=True)
+    if by_comm_us:
+        # 直接用 A 列（comm）作为 X 轴标签
+        _insert_running_chart(ws_comm, by_comm_us, "I1")
+
+    # --- Sheet 2: task_summary_by_pid ---
+    ws_pid = wb.create_sheet("task_summary_by_pid")
+    _write_sheet_data(ws_pid, by_pid_us, freeze=True)
+
+    # --- Sheet 3: task_summary ---
+    ws_task = wb.create_sheet("task_summary")
+    _write_sheet_data(ws_task, task_us, freeze=True)
+
+    # --- Sheet 4: proc_irq_detail (+ IRQ Time/Count charts) ---
+    ws_irq = wb.create_sheet("proc_irq_detail")
+    _write_sheet_data(ws_irq, irq_us, freeze=True)
+    if irq_us:
+        _insert_irq_time_chart(ws_irq, irq_us, "I1")
+        _insert_irq_count_chart(ws_irq, irq_us, "I22")
+
+    wb.save(output_path)
+    logging.info("Excel report saved: %s", output_path)
+
+
+def _write_sheet_data(ws, rows: List[Dict], exclude_keys: Optional[set] = None, freeze: bool = False) -> None:
+    """将数据写入工作表（标题行 + 数据行）。
+
+    Args:
+        ws: openpyxl worksheet
+        rows: 数据列表（dict）
+        exclude_keys: 不写入 sheet 的 key 集合
+        freeze: 是否冻结首行
+    """
+    if not rows:
+        return
+
+    # 过滤掉 exclude_keys 中的字段
+    filtered = [{k: v for k, v in row.items() if k not in (exclude_keys or set())} for row in rows]
+
+    # 标题行
+    headers = list(filtered[0].keys())
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal="center")
+
+    # 数据行
+    for row_idx, row in enumerate(filtered, 2):
+        for col_idx, header in enumerate(headers, 1):
+            value = row.get(header)
+            ws.cell(row=row_idx, column=col_idx, value=value)
+
+    # 自动列宽
+    for col_idx, header in enumerate(headers, 1):
+        max_len = len(str(header))
+        for row in filtered:
+            val = row.get(header, "")
+            max_len = max(max_len, len(str(val)))
+        ws.column_dimensions[ws.cell(row=1, column=col_idx).column_letter].width = min(max_len + 4, 30)
+
+    if freeze:
+        ws.freeze_panes = "A2"
+
+
+def _get_col_letter(rows: List[Dict], key: str) -> Optional[str]:
+    """获取某个 key 对应的 Excel 列字母。"""
+    if not rows:
+        return None
+    headers = list(rows[0].keys())
+    if key not in headers:
+        return None
+    col_idx = headers.index(key) + 1
+    result = ""
+    while col_idx > 0:
+        col_idx, remainder = divmod(col_idx - 1, 26)
+        result = chr(65 + remainder) + result
+    return result
+
+
+def _insert_running_chart(ws, rows: List[Dict], anchor_cell: str) -> None:
+    """插入 Top10 Running 时间柱状图。
+
+    直接使用 A 列（comm）作为 X 轴分类。
+    """
+    if not rows:
+        return
+
+    headers = list(rows[0].keys())
+    running_col = headers.index("running_us") + 1
+
+    data_end = min(11, len(rows) + 1)
+
+    chart = BarChart()
+    chart.type = "col"
+    chart.title = "Top10 Running Time"
+    chart.style = 10
+    chart.y_axis.title = "Running Time (us)"
+
+    cat_ref = Reference(ws, min_col=1, min_row=2, max_row=data_end)  # A 列 = comm
+    val_ref = Reference(ws, min_col=running_col, min_row=1, max_row=data_end)
+
+    chart.add_data(val_ref, titles_from_data=True)
+    chart.set_categories(cat_ref)
+    chart.shape = 4
+
+    ws.add_chart(chart, anchor_cell)
+
+
+def _insert_irq_time_chart(ws, rows: List[Dict], anchor_cell: str) -> None:
+    """插入 Top10 IRQ Time 柱状图。
+
+    使用 label 列作为 X 轴，time_us 列作为值。
+    """
+    if not rows:
+        return
+
+    headers = list(rows[0].keys())
+    label_col = headers.index("label") + 1
+    time_col = headers.index("time_us") + 1
+
+    data_end = min(11, len(rows) + 1)
+
+    chart = BarChart()
+    chart.type = "col"
+    chart.title = "Top10 IRQ Time"
+    chart.style = 10
+    chart.y_axis.title = "IRQ Time (us)"
+
+    cat_ref = Reference(ws, min_col=label_col, min_row=2, max_row=data_end)
+    val_ref = Reference(ws, min_col=time_col, min_row=1, max_row=data_end)
+
+    chart.add_data(val_ref, titles_from_data=True)
+    chart.set_categories(cat_ref)
+    chart.shape = 4
+
+    ws.add_chart(chart, anchor_cell)
+
+
+def _insert_irq_count_chart(ws, rows: List[Dict], anchor_cell: str) -> None:
+    """插入 Top10 IRQ Count 柱状图。
+
+    使用 label 列作为 X 轴，count 列作为值。
+    """
+    if not rows:
+        return
+
+    headers = list(rows[0].keys())
+    label_col = headers.index("label") + 1
+    count_col = headers.index("count") + 1
+
+    data_end = min(11, len(rows) + 1)
+
+    chart = BarChart()
+    chart.type = "col"
+    chart.title = "Top10 IRQ Count"
+    chart.style = 10
+    chart.y_axis.title = "IRQ Count"
+
+    cat_ref = Reference(ws, min_col=label_col, min_row=2, max_row=data_end)
+    val_ref = Reference(ws, min_col=count_col, min_row=1, max_row=data_end)
+
+    chart.add_data(val_ref, titles_from_data=True)
+    chart.set_categories(cat_ref)
+    chart.shape = 4
+
+    ws.add_chart(chart, anchor_cell)
 
 
 if __name__ == '__main__':
