@@ -110,6 +110,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     const dataSourceRef = useRef<EvenItem[]>([]);
     const currentSelectRowRef = useRef(currentSelectRow);
     const deviceIdRef = useRef(session.deviceId);
+    const deviceIdsSignature = JSON.stringify(session.deviceIds);
 
     const columns = [{
         key: 'id',
@@ -129,6 +130,17 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     }, [session.deviceId]);
 
     const normalizeSearchValue = (value: string): string => value.replace(/\s+/g, '');
+
+    const resetSearchState = (): void => {
+        setSearchField(null);
+        setSearchFieldOrder([]);
+        setSearchValues({ address: '', eventType: '' });
+        setDraftSearchValues({ address: '', eventType: '' });
+        setIsFilterMenuOpen(false);
+        setIsEventTypeMenuOpen(false);
+        setSearchIndexList([]);
+        setCurrentShowRow(-1);
+    };
 
     const handleSearchChange = (field: EventSearchField, e: React.ChangeEvent<HTMLInputElement>): void => {
         const value = normalizeSearchValue(e.target.value);
@@ -364,15 +376,14 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     useEffect(() => {
         if (session.deviceId === '') return;
         setDataSource([]);
-        setSearchIndexList([]);
-        setCurrentShowRow(-1);
+        resetSearchState();
         setCurrentSelectRow(0);
         setDataTotal(0);
         // table使用了不自动恢复滚动条模式，需要手动恢复到0
         tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 0 });
         workerSetMemoryStateData({ data: [] });
         getAllEventListData(session);
-    }, [session.deviceId]);
+    }, [session.deviceId, deviceIdsSignature]);
 
     useEffect(() => {
         const result = getMatchedIndexes();
