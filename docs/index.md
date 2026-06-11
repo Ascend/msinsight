@@ -29,6 +29,7 @@
 :hidden:
 
 开发指南 <zh/development_guide/develop_guide>
+开发环境搭建 <zh/developer_guide/environment_setup>
 ```
 
 ```{toctree}
