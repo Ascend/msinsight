@@ -32,14 +32,21 @@ interface ImportFileTreeNode {
 }
 
 interface RemoteImportData {
+    selectedFilePath?: string;
+    projectPath?: string | string[];
     dataSource?: {
         selectedFilePath?: string;
         projectPath?: string | string[];
+        children?: ImportFileTreeNode[];
     };
     importResult?: {
         isLeaks?: boolean;
         children?: ImportFileTreeNode[];
     };
+}
+
+interface FrameLoadedData extends RemoteImportData {
+    remoteImportData?: RemoteImportData;
 }
 
 interface MemSnapshotProgressData {
@@ -74,20 +81,28 @@ const findMemSnapshotFile = (nodes?: ImportFileTreeNode[]): string => {
     return '';
 };
 
+const getMemSnapshotPath = (path: unknown): string => {
+    if (isMemSnapshotFile(path)) {
+        return path;
+    }
+    if (Array.isArray(path)) {
+        return path.find(isMemSnapshotFile) ?? '';
+    }
+    return '';
+};
+
 const getImportedMemSnapshotFile = (data: RemoteImportData): string => {
-    const selectedFilePath = data.dataSource?.selectedFilePath;
-    if (isMemSnapshotFile(selectedFilePath)) {
-        return selectedFilePath;
+    const directFilePath = getMemSnapshotPath(data.selectedFilePath) || getMemSnapshotPath(data.projectPath);
+    if (directFilePath) {
+        return directFilePath;
     }
-    const projectPath = data.dataSource?.projectPath;
-    if (isMemSnapshotFile(projectPath)) {
-        return projectPath;
+    const dataSourceFile = getMemSnapshotPath(data.dataSource?.selectedFilePath) || getMemSnapshotPath(data.dataSource?.projectPath);
+    if (dataSourceFile) {
+        return dataSourceFile;
     }
-    if (Array.isArray(projectPath)) {
-        const filePath = projectPath.find(isMemSnapshotFile);
-        if (filePath) {
-            return filePath;
-        }
+    const dataSourceFilePath = findMemSnapshotFile(data.dataSource?.children);
+    if (dataSourceFilePath) {
+        return dataSourceFilePath;
     }
     return findMemSnapshotFile(data.importResult?.children);
 };
@@ -98,11 +113,48 @@ const clearMemSnapshotParseProgress = (session: any): void => {
     session.memSnapshotParseFileId = '';
 };
 
+const initMemSnapshotParseProgress = (session: any, fileId: string): void => {
+    session.memSnapshotParseLoading = true;
+    session.memSnapshotParseProgress = 0;
+    session.memSnapshotParseFileId = fileId;
+};
+
+const hasDeviceIds = (deviceIds: unknown): boolean => {
+    if (Array.isArray(deviceIds)) {
+        return deviceIds.length > 0;
+    }
+    if (deviceIds && typeof deviceIds === 'object') {
+        return Object.keys(deviceIds).length > 0;
+    }
+    return false;
+};
+
 const clampProgress = (progress: unknown): number => {
     if (typeof progress !== 'number' || Number.isNaN(progress)) {
         return 0;
     }
     return Math.min(100, Math.max(0, Math.round(progress)));
+};
+
+const applyMemSnapshotParseProgress = (session: any, data: MemSnapshotProgressData): void => {
+    const { fileId = '', progress } = data;
+    if (!isMemSnapshotFile(fileId)) {
+        return;
+    }
+    let currentFileId = session.memSnapshotParseFileId;
+    if (currentFileId && normalizeFilePath(currentFileId) !== normalizeFilePath(fileId)) {
+        if (session.memSnapshotParseLoading) {
+            return;
+        }
+        initMemSnapshotParseProgress(session, fileId);
+        currentFileId = fileId;
+    }
+    if (!currentFileId) {
+        session.memSnapshotParseProgress = 0;
+        session.memSnapshotParseFileId = fileId;
+    }
+    session.memSnapshotParseLoading = true;
+    session.memSnapshotParseProgress = Math.max(session.memSnapshotParseProgress, clampProgress(progress));
 };
 
 export const setTheme: NotificationHandler = (data): void => {
@@ -123,6 +175,9 @@ export const updateSessionHandler: NotificationHandler = (data): void => {
                 (session as unknown as Record<string, unknown>)[key] = data[key];
             }
         });
+        if (session.memSnapshotParseLoading && hasDeviceIds((data as Record<string, unknown>).deviceIds)) {
+            clearMemSnapshotParseProgress(session);
+        }
     });
 };
 
@@ -225,9 +280,28 @@ export const importRemoteHandler: NotificationHandler = (data): void => {
         return;
     }
     runInAction(() => {
-        session.memSnapshotParseLoading = true;
-        session.memSnapshotParseProgress = 0;
-        session.memSnapshotParseFileId = fileId;
+        initMemSnapshotParseProgress(session, fileId);
+    });
+};
+
+export const frameLoadedHandler: NotificationHandler = (data): void => {
+    const session = store.sessionStore.activeSession;
+    if (!session || typeof data !== 'object') {
+        return;
+    }
+    if (session.memSnapshotParseLoading && session.memSnapshotParseFileId) {
+        return;
+    }
+    if (hasDeviceIds(session.deviceIds)) {
+        return;
+    }
+    const { remoteImportData } = data as FrameLoadedData;
+    const fileId = getImportedMemSnapshotFile(remoteImportData ?? (data as RemoteImportData));
+    if (!fileId) {
+        return;
+    }
+    runInAction(() => {
+        initMemSnapshotParseProgress(session, fileId);
     });
 };
 
@@ -236,17 +310,8 @@ export const parseProgressHandler: NotificationHandler = (data): void => {
     if (!session || typeof data !== 'object') {
         return;
     }
-    const { fileId = '', progress } = data as MemSnapshotProgressData;
-    if (!isMemSnapshotFile(fileId)) {
-        return;
-    }
     runInAction(() => {
-        const currentFileId = session.memSnapshotParseFileId;
-        if (!currentFileId || normalizeFilePath(currentFileId) !== normalizeFilePath(fileId)) {
-            return;
-        }
-        session.memSnapshotParseLoading = true;
-        session.memSnapshotParseProgress = Math.max(session.memSnapshotParseProgress, clampProgress(progress));
+        applyMemSnapshotParseProgress(session, data as MemSnapshotProgressData);
     });
 };
 
