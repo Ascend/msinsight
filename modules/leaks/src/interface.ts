@@ -25,6 +25,7 @@ import {
     parseFailHandler,
     parseProgressHandler,
     importRemoteHandler,
+    frameLoadedHandler,
 } from './connection/handler';
 
 const PARSECOMPLETED = 'parse/leaksMemoryCompleted';
@@ -34,6 +35,7 @@ export const NOTIFICATION_HANDLERS: Record<string, NotificationHandler> = {
     setTheme,
     updateSession: updateSessionHandler,
     switchLanguage: switchLanguageHandler,
+    'frame/loaded': frameLoadedHandler,
     'remote/import': importRemoteHandler,
     [PARSE_MEM_SNAPSHOT_PROGRESS]: parseProgressHandler,
     [PARSECOMPLETED]: parseCompletedHandler,
