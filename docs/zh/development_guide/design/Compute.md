@@ -414,17 +414,17 @@ JSON部分数据内容示例：
             "Cube": {
                 "ratio": float32,
                 "cycle": uint64,
-                "total_cycles": uint64,
+                "total_cycles": uint64
             },
             "Vector": {
                 "ratio": float32,
                 "cycle": uint64,
-                "total_cycles": uint64,
+                "total_cycles": uint64
             },
             "Vector1": {
                 "ratio": float32,
                 "cycle": uint64,
-                "total_cycles": uint64,
+                "total_cycles": uint64
             },
             "advice": [ // 建议
                 string, string, ...
@@ -1570,9 +1570,9 @@ struct CacheRecord {
                                     "77",
                                     "16.883118"
                                 ]
-                            },
+                            }
                         ]
-                    },
+                    }
                 ]
             }
         ]
@@ -1753,7 +1753,7 @@ Json结构说明：
         {
             "block_id": uint,       // block id
             "table_op_type": enum,  // 表格数据类型：aic, aiv, mix
-            "tables_detail": [
+            "table_detail": [
                 {
                     "table_name": string,   // 表格名
                     "size": [uint8, uint8], // 表格大小：[行数, 列数]
@@ -1783,7 +1783,7 @@ Json结构说明：
 # 内存读写时序图数据结构（POC）
 
 统一二进制交付件的内容格式如下：
-![compute_memory_rw_time_diagram](./figures/comnpute_memory_rw_time_diagram.png)
+![compute_memory_rw_time_diagram](./figures/compute_memory_rw_time_diagram.png)
 
 文件协议头结构设计：
 

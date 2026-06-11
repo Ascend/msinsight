@@ -18,7 +18,7 @@ Timeline 中泳道绘制涉及以下几个区域，分别是：
 
 **组件：**
 
-```html
+```jsx
 <TimelineAxis />
 ```
 
@@ -30,7 +30,7 @@ Timeline 中泳道绘制涉及以下几个区域，分别是：
 
 **组件：**
 
-```html
+```jsx
 <TimeMarkerAxis />
 ```
 
@@ -50,7 +50,7 @@ width（区域宽度）、domainStart、domainEnd、 session.timelineMarker.refr
 
 **组件：**
 
-```html
+```jsx
 <UnitInfo />
 ```
 
@@ -64,7 +64,7 @@ width（区域宽度）、domainStart、domainEnd、 session.timelineMarker.refr
 
 **组件：**
 
-```html
+```jsx
 <Chart />
 ```
 
@@ -100,7 +100,7 @@ width（区域宽度）、domainStart、domainEnd、 session.timelineMarker.refr
 
    ![卡类型泳道初始化](./figures/track-render/content-1.png)
 
-2. 单卡解析成功（parse/success）：每张卡解析成功后，后端会返回该卡解析成功的事件，事件中包含该卡的详情数据（如子泳道数据 children、metadata等）。遍历 children，根据数据类型 type 实例化不同类型泳道，并将子泳道补充到 session.units 对应的父泳道中；\
+2. 单卡解析成功（parse/success）：每张卡解析成功后，后端会返回该卡解析成功的事件，事件中包含该卡的详情数据（如子泳道数据 children、metadata等）。遍历 children，根据数据类型 type 实例化不同类型泳道，并将子泳道补充到 session.units 对应的父泳道中；
 
    ![子泳道类型](./figures/track-render/content-2.png)
 

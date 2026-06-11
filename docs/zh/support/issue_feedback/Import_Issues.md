@@ -473,7 +473,7 @@ msprof工具采集db数据后，MindStudio Insight 无法导入：
 
 【错误原因】
 
-该场景是一张卡上跑多个进程，无法用msprof进行采集，后改为用动态profiling进行采集，timeline能够正常展示，memory页面缺少相关数据所以不展示，operator页面无法显示数据，原因是单文件夹下只有一个msprof_*.db的导入方式缺少deviceId。
+该场景是一张卡上跑多个进程，无法用msprof进行采集，后改为用动态profiling进行采集，timeline能够正常展示，memory页面缺少相关数据所以不展示，operator页面无法显示数据，原因是单个文件夹下只有一个msprof_*.db的导入方式缺少deviceId。
 
 【规避方法】
 
