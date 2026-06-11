@@ -61,343 +61,160 @@
 | statistic | 服务化调优 |
 | timeline | 时间线 |
 
-## 2. 开发环境搭建
+## 2. Linux 环境快速搭建与运行
 
-### 2.1 推荐开发软件
+MindStudio Insight 是跨平台工具，本文默认以 **Linux 开发环境** 为主线说明本地开发、调试和提交流程。Windows、macOS、CLion 工具链配置以及各平台出包环境准备请参见[开发环境搭建](./environment_setup.md)。
 
-| 软件名 | 用途 |
-| --- | --- |
-| WebStorm（推荐） | 编写 & 启动前端 |
-| CLion（推荐） | 编写 & 启动 C++ 后端 |
+### 2.1 准备基础依赖
 
-### 2.2 环境依赖
+Linux 本地开发建议准备如下工具：
 
 | 软件名 | 版本要求 | 用途 |
 | --- | --- | --- |
-| Node.js | v18.20.8+ | 前端 |
-| pnpm | 无要求 | 前端包管理 |
-| Python | 3.11+ | 工具脚本 |
-| MinGW | 10.0+（msvcrt 版本） | 执行编译程序 |
-| git | 无 | 代码拉取与提交 |
-| cmake | 3.16~3.20 | 后端项目构建与编译 |
+| git | 无特殊要求 | 代码拉取与提交 |
+| Node.js | v18.20.8+ | 前端开发与构建 |
+| pnpm | 建议使用与 lockfile 兼容的版本 | 前端包管理 |
+| Python | 3.11+ | 工具脚本、pre-commit、第三方依赖预处理 |
+| CMake | 3.16~3.20 | 后端项目构建与编译 |
+| GCC/G++ 或 Clang | 使用操作系统稳定版本 | 后端编译 |
+| Ninja | 无特殊要求，推荐安装 | 后端构建 |
 
-### 2.3 代码下载
-
-#### 2.3.1 Fork 代码到自己仓库，并使用 git 从远程仓库 clone 代码到本地
-
-[MindStudio-Insight](https://gitcode.com/Ascend/msinsight)
-
-#### 2.3.2 使用 CLion 打开 server 文件夹
-
-![Cli_to_server_path](./figures/Cli_to_server_path.png)
-
-### 2.4 配置 CLion 设置
-
-**1. 点击右上角的设置按钮，选择设置选项**
-
-![Cli_setting](./figures/Cli_setting.png)
-
-**2. 选择构建、执行、部署中的工具链选项，将工具集路径指向已安装的 MinGW**
-
-![toolchain_setting](./figures/toolchain_setting.png)
-
-**3. 选择构建、执行、部署中的 CMake 选项，将工具链指向 MinGW**
-
-![CMake_toolchain_setting](./figures/CMake_toolchain_setting.png)
-
-### 2.5 配置 pre-commit 代码检查工具
-
-pre-commit 是一款基于 Git 钩子的开源代码质量管控工具，在代码提交前会自动完成代码校验、格式规范化等工作。项目要求本地启用 pre-commit 完成代码校验后再提交。
-[pre-commit 本地运行指南](https://gitcode.com/Ascend/community/blob/master/docs/contributor/pre-commit-guide.md)
-
-**1. 安装 pre-commit**
+Ubuntu / Debian 系统可参考：
 
 ```bash
-pip install pre-commit
+sudo apt update
+sudo apt install -y git python3 python3-pip cmake ninja-build build-essential
 ```
 
-**2. 安装 Git 钩子**
-
-在项目根目录下执行，注册 Git 钩子。后续执行 `git commit` 时将自动触发代码检查。
+openEuler / CentOS / RHEL 类系统可参考：
 
 ```bash
-pre-commit install
+sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-**3. 执行代码检查**
+Node.js 建议通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v18.20.8+。
 
-在提交代码前，扫描暂存区的改动文件，自动完成格式化与合规性检查。
+完成安装后可执行如下命令验证：
 
 ```bash
-git add .
-pre-commit run
+git --version
+node --version
+python3 --version
+cmake --version
+g++ --version
+ninja --version
 ```
 
-检查过程中，格式化类问题（如代码缩进、换行等）会被自动修复，修复后需重新 `git add`。未能自动修复的错误请根据提示人工修复。
+### 2.2 获取代码
 
-前端 `modules` 目录下暂存的 `js/jsx/ts/tsx` 文件会在 pre-commit 阶段执行 ESLint 检查。pre-commit 只检查暂存文件，不能替代 CI 中的全量 `cd modules && pnpm lint`。
-
-**4. 提交代码**
-
-钩子安装成功后，正常提交代码即可，pre-commit 会自动运行。若自动修复后无其他问题，提交将直接成功。
+建议先 Fork 代码到个人仓库，再 clone 到本地，并配置官方仓库为 upstream。
 
 ```bash
-git add .
-git commit -S -m "提交信息"
+git clone https://gitcode.com/<your-user>/msinsight.git
+cd msinsight
+git remote add upstream https://gitcode.com/Ascend/msinsight.git
+git remote -v
 ```
 
-## 3. 编译、构建、运行
+如只需只读查看源码，也可以直接 clone 官方仓库：
 
-### 3.1 第三方库的下载与编译
+```bash
+git clone https://gitcode.com/Ascend/msinsight.git
+cd msinsight
+```
 
-在 server 文件夹下新建终端，运行如下代码。**执行此步骤之前请保证网络畅通**。
+### 2.3 初始化后端依赖
 
-```shell
+首次进行后端编译或使用 IDE 重新加载 CMake 项目前，需下载并预处理第三方依赖。执行该步骤前请保证网络畅通；若处于代理环境，请提前配置 git、pip、npm/pnpm 等工具的代理或镜像源。
+
+```bash
 cd server/build
-python download_third_party.py
-python preprocess_third_party.py
+python3 download_third_party.py
+python3 preprocess_third_party.py
 ```
 
-**下载第三方库成功**
+### 2.4 构建并启动后端
 
-![download_third_party_success](./figures/download_third_party_success.png)
+在 `server/build` 目录执行后端构建脚本：
 
-**预运行成功**
+```bash
+python3 build.py build
+```
 
-![preload_success](./figures/preload_success.png)
+构建产物位于 `server/output/linux-<架构>/bin` 目录，其中 `<架构>` 通常为 `x86_64` 或 `aarch64`。启动 `profiler_server` 时建议显式指定 WebSocket 端口，避免和本机已打开的 Insight 桌面端应用冲突。
 
-### 3.2 CMake 编译
+```bash
+cd ../output/linux-$(uname -m)/bin
+./profiler_server --wsPort=9000
+```
 
-- 点击右下角的 CMake 按钮，选择重新加载 CMake 项目
+如需在 CLion 中调试后端，可打开 `server` 目录，重新加载 CMake 项目后运行 `profiler_server` 目标，并在启动参数中配置 `--wsPort=9000`。如果本机已打开 Insight 桌面端应用，建议关闭应用或改用 `9050`~`9099` 范围内的端口。
 
-![reload_CMake](./figures/reload_CMake.png)
+### 2.5 安装并启动前端
 
-- CMake 重载成功如下图所示
-
-![reload_CMake_success](./figures/reload_CMake_success.png)
-
-### 3.3 后端启动
-
-#### 3.3.1 启动参数配置
-
-- 打开 profiler_server 旁的更多选项，选择编辑选项
-
-![edit_options](./figures/edit_options.png)
-
-- 选择 profiler_server 选项，将参数修改为 `--wsPort=9000` 后点击确定保存
-  - 提示：端口可以设置为其他端口，以避免和其他端口冲突
-  - 警告：如果您的开发机器中已打开了 Insight 桌面端应用，请确认设置 `wsPort` 不会与已开启的 insight 产生端口冲突（Insight 应用默认为 `9000`，但多开时将从 `9000` 端口逐个 +1 绑定占用，建议设置为 `9050`~`9099`），否则可能导致前后端连接问题或其他未预期的异常，建议本地开发调试时，关闭所有已开启的 Insight 应用。
-
-![add_port](./figures/add_port.png)
-
-#### 3.3.2 构建并启动 profiler_server
-
-- 点击右上角的启动按钮
-
-![start_build](./figures/start_build.png)
-
-- 构建成功如下图所示
-
-![build_complete](./figures/build_complete.png)
-
-### 3.4 前端启动
-
-#### 3.4.1 安装前端依赖
-
-- 安装 pnpm 包管理工具
+安装 pnpm 和前端依赖：
 
 ```bash
 npm install -g pnpm
-```
-
-- 在 modules 目录下执行安装指令
-
-```bash
+cd modules
 pnpm install
 ```
 
-- 安装成功结果如下图所示
+MindStudio Insight 采用模块化前端设计，`framework` 模块为基础功能模块，其他模块可按需启动加载。至少需要先启动 `framework` 模块：
 
-![setup_finished](./figures/setup_finished.png)
-
-#### 3.4.2 拉起前端模块服务
-
-MindStudio-Insight 采用模块设计，framework 模块为基础功能模块，其他模块可按需启动加载。进入模块项目中，在对应 `package.json` 文件中执行 `npm run start` 命令即可启动该模块。
-
-![start_module](./figures/start_module.png)
-
-- 模块启动成功如下图所示
-
-![start_success](./figures/start_success.png)
-
-**请注意，请确保 framework 模块启动成功，否则无法启动网页端 MindStudio-Insight。**
-
-#### 3.4.3 开发者环境下运行 MindStudio-Insight
-
-- 在浏览器中输入 `localhost:5174` 启动网页端
-
-- 网页端启动成功如下图所示
-
-![insight_start_success](./figures/insight_start_success.png)
-
-### 3.5 本地出包
-
-#### 3.5.1 Windows 环境
-
-**环境依赖**
-
-| 软件名称 | 版本 | 用途 |
-| --- | --- | --- |
-| rust | 1.89 | 底座编译构建 |
-| windows11SDK | 10.0.22000.0+ | Windows 平台基础开发运行时 |
-| MSVC | v143 | Windows 平台基础开发运行时 |
-| mingw | 10.0+（msvcrt 版本） | 后台编译器 |
-| Ninja | 无要求 | 后台编译 |
-| cmake | 3.16~3.20 | 后端构建 |
-| nsis | 无要求 | 安装包打包软件 |
-| nsProcess 插件 | unicode support | 检查是否有重复运行 |
-| node | v18.20.8+ | 前端构建 |
-| pnpm | 无要求 | 前端构建 |
-| python | 3.11+ | 集群工具打包 |
-
-Python 运行时依赖：
-
-```text
-click
-tabulate
-networkx
-jinja2
-PyYaml
-tqdm
-prettytable
-ijson
-xlsxwriter>=3.0.6
-sqlalchemy
-numpy<=1.26.4
-pandas<=2.3.2
-psutil
+```bash
+cd framework
+pnpm start
 ```
 
-Python 开发时依赖：
+如需调试具体业务模块，可在新的终端进入对应模块目录并执行：
 
-```shell
-pyinstaller
+```bash
+pnpm start
 ```
 
-**编译出包步骤**
+前后端均启动后，在浏览器访问 `http://localhost:5174` 打开开发者环境下的 MindStudio Insight。
 
-1. 进入项目根目录下 `server/build` 目录，执行 `python3 download_third_party.py && python3 preprocess_third_party.py`
-2. 在 Windows 系统，MindStudio Insight 会集成 Python 解释器：
-   - 第一步：在构建环境上手动安装 Python 解释器（同时包含 pip），建议 Python 版本 3.12.10
-   - 第二步：设置环境变量 `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` 为 Python 解释器的安装目录，该目录需包含 `python.exe`。示例：如 Python 安装目录为 `D:\xxx\python`，则设置环境变量为 `D:\xxx\python`
-3. 进入项目根目录下 `build` 目录，执行 `python build.py`，产物位于项目根目录 `out` 目录下
+### 2.6 配置 pre-commit
 
-**依赖安装附录**
+pre-commit 是基于 Git 钩子的代码质量管控工具，项目要求本地启用 pre-commit，提交前完成代码校验和格式规范化。
 
-- Windows 运行时安装（windows11SDK 和 MSVC）：下载 Visual Studio Installer，双击打开，选择如下依赖（通常默认即可）：
-
-  ![MSVC_install](./figures/MSVC_install.png)
-
-- MinGW 安装：从 [WinLibs](https://www.winlibs.com/) 下载，版本选择 11.0 以上。下载后解压，将解压后 mingw 路径下的 bin 目录添加到系统 PATH 环境变量：
-
-  ![mingw_path_add](./figures/mingw_path_add.png)
-
-  验证安装：终端执行 `g++ -v`，正常输出版本信息即可。
-
-- nsProcess 插件安装：首先安装 NSIS（需装在 `C:\Program Files (x86)` 下）。从 [NsProcess plugin](https://nsis.sourceforge.io/NsProcess_plugin) 获取压缩包，将 `Include/nsProcess.h` 放到 `C:\Program Files (x86)\NSIS\Include`，将 `Plugin/nsProcess.dll` 和 `Plugin/nsProcessw.dll` 放到 `C:\Program Files (x86)\NSIS\Plugins\x86-unicode`。
-
-- Rust：推荐通过 [rustup](https://www.rust-lang.org) 安装，验证：`rustc --version` 和 `cargo --version`。
-
-- Ninja：通过 [官网](https://ninja-build.org) 下载二进制文件或包管理器安装，验证：`ninja --version`。
-
-- Node.js：通过 [官网](https://nodejs.org) 安装 LTS 版本（v18.20.8+），验证：`node --version`。
-
-- pnpm：`npm install -g pnpm`，验证：`pnpm --version`。
-
-- Python：通过 [官网](https://www.python.org) 安装 3.11+，勾选"Add Python to PATH"，验证：`python --version`。
-
-#### 3.5.2 Mac 环境
-
-**环境依赖**
-
-| 软件名称 | 版本 | 用途 |
-| --- | --- | --- |
-| rust | 1.89 | 底座编译构建 |
-| cargo-bundle | 无要求 | 打包 |
-| Ninja | 无要求 | 后台编译 |
-| node | v18.20.8+ | 前端构建 |
-| pnpm | 无要求 | 前端构建 |
-| python | 3.11+ | 集群工具打包 |
-| clang | 15 | 编译 |
-| cmake | 3.16~3.20 | 后端构建 |
-
-Python 运行时依赖：
-
-```text
-click
-tabulate
-networkx
-jinja2
-PyYaml
-tqdm
-prettytable
-ijson
-xlsxwriter>=3.0.6
-sqlalchemy
-numpy<=1.26.4
-pandas<=2.3.2
-psutil
-dmgbuild
+```bash
+python3 -m pip install pre-commit
+pre-commit install
 ```
 
-Python 开发时依赖：
+提交前检查已暂存文件：
 
-```shell
-pyinstaller
+```bash
+git add <修改过的文件>
+pre-commit run
 ```
 
-**编译出包步骤**
+如需检查全仓文件：
 
-**Step 1. 预处理构建依赖**
-
-```shell
-cd server/build
-python3 download_third_party.py && python3 preprocess_third_party.py
+```bash
+pre-commit run --all-files
 ```
 
-**Step 2. 指定 APP 签名证书（可选）**
+检查过程中，格式化类问题（如代码缩进、换行等）会被自动修复，修复后需重新 `git add <修改过的文件>`。未能自动修复的错误请根据提示人工修复。前端 `modules` 目录下暂存的 `js/jsx/ts/tsx` 文件会在 pre-commit 阶段执行 ESLint 检查；pre-commit 只检查暂存文件，不能替代 CI 中的全量 `cd modules && pnpm lint`。
 
-> 注意：请您确保已阅读并知悉 [LICENSE](https://gitcode.com/Ascend/msinsight/blob/master/docs/LICENSE) 要求。
+### 2.7 本地出包入口
 
-Insight macOS ARM 版本在构建出包时，会对产物 APP 进行 macOS 开发者证书签名。您可以通过环境变量配置签名证书。如不指定，缺省时使用临时证书签名，可能导致产物无法通过网络分发（本地调试运行不受影响）。
+Linux 环境完成基础依赖、后端第三方依赖和前端依赖初始化后，可在项目根目录执行本地出包脚本：
 
-- 证书使用前置：要求为可用于签名的苹果开发者证书，并确保已正确导入钥匙串中（如登录钥匙串 `~/Library/Keychains/login.keychain`）。
-- 通过环境变量配置证书，支持**证书名**或**证书 ID**。
-
-```shell
-# 以证书名为 "insight_cert" 为例
-export INSIGHT_APP_SIGN="insight_cert"
-# 解锁钥匙串
-security unlock-keychain -p {您当前用户的密码} ~/Library/Keychains/login.keychain
+```bash
+cd build
+python3 build.py
 ```
 
-**Step 3. 设置集成 Python 解释器的环境变量**
+产物位于项目根目录 `out` 目录下。Windows 和 macOS 出包需要额外准备 Rust、平台运行时、打包工具和集成 Python 解释器，详见[开发环境搭建](./environment_setup.md#5-本地出包环境)。
 
-在 macOS 系统，MindStudio Insight 会集成 Python 解释器：
+## 3. 开发流程
 
-- 第一步：在构建环境上手动安装可移植的 Python 解释器（同时包含 pip），建议 Python 版本 3.12.10
-  - 提示："可移植"指将 A 机器上的 Python 文件夹拷贝到 B 机器上仍可直接使用。macOS 上某些 Python 版本依赖 `/Library` 下的动态库，需确保安装的是可移植版本
-- 第二步：设置环境变量 `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` 为 Python 解释器的安装目录，该目录需包含 `bin/python3`。如 Python 安装目录为 `/Users/xxx/python`，则设置环境变量为 `/Users/xxx/python`。如 Python 版本不为 3.12，需手动修改 `server/build/build.py` 中的 version 变量值
+### 3.1 新增模块开发
 
-**Step 4. 执行出包脚本**
-
-进入项目根目录下 `build` 目录，执行 `python build.py`，产物位于项目根目录 `out` 目录下。
-
-## 4. 开发流程
-
-### 4.1 新增模块开发
-
-#### 4.1.1 前端部分
+#### 3.1.1 前端部分
 
 **1. 添加新模块目录**
 
@@ -685,7 +502,7 @@ MODULES_MAP = {
 }
 ```
 
-#### 4.1.2 后端部分
+#### 3.1.2 后端部分
 
 **1. 后端模块目录结构**
 
@@ -863,9 +680,9 @@ void FullDbParser::BuildProfilingInitTask(
     std::unique_ptr<ThreadPool> &pool)
 ```
 
-### 4.2 DB 场景新增泳道
+### 3.2 DB 场景新增泳道
 
-#### 4.2.1 前端部分
+#### 3.2.1 前端部分
 
 **1. 配置 DB 场景显示模块**
 
@@ -964,7 +781,7 @@ const ThreadUnit = unit<ThreadMetaData>({
 })
 ```
 
-#### 4.2.2 后端部分
+#### 3.2.2 后端部分
 
 ##### 创建一个 profiler.db 文件
 
@@ -1125,11 +942,11 @@ CREATE TABLE "translate" (
 
 ##### 创建好的 profiler.db 拖入 Insight 即可看见新增泳道
 
-## 5. 测试指南
+## 4. 测试指南
 
-### 5.1 后端开发者测试
+### 4.1 后端开发者测试
 
-#### 5.1.1 测试框架与构建方式
+#### 4.1.1 测试框架与构建方式
 
 - 测试框架：GoogleTest + GMock
 - Mock 框架：mockcpp（通过 ExternalProject 自动构建）
@@ -1149,7 +966,7 @@ cd build
 python3 build.py test
 ```
 
-#### 5.1.2 测试目录结构
+#### 4.1.2 测试目录结构
 
 后端 DT 代码位于 `server/src/test`：
 
@@ -1173,7 +990,7 @@ server/src/test/
 └── utils/                          # 工具函数测试
 ```
 
-#### 5.1.3 测试命名规范
+#### 4.1.3 测试命名规范
 
 - **Fixture 命名**：`<模块名><组件名>Test`，如 `MemoryHandlerTest`、`CommunicationProtocolRequestTest`
 - **用例命名**：
@@ -1183,7 +1000,7 @@ server/src/test/
   - 安全注入式：`TestOpenDbWithPathInject`（验证路径注入等安全问题）
 - **无状态工具测试**：使用 `TEST(UtilName, FunctionName)`，如 `TEST(StringUtil, IntToString)`
 
-#### 5.1.4 新增测试用例步骤
+#### 4.1.4 新增测试用例步骤
 
 1. **创建测试文件**：在 `server/src/test/modules/<模块名>/` 下创建测试文件，如 `<模块名><组件>Test.cpp`
 2. **编写测试 Fixture 与用例**：使用 `TEST_F(FixtureName, CaseName)` 宏编写
@@ -1206,7 +1023,7 @@ server/src/test/
 
 更多用法参考 [GoogleTest 官方文档](https://google.github.io/googletest/)。
 
-#### 5.1.5 测试数据管理
+#### 4.1.5 测试数据管理
 
 - 测试数据位于 `server/src/test/test_data/` 目录，各模块按需创建子目录
 - 使用 `DtFramework` 工具获取测试数据路径：
@@ -1214,7 +1031,7 @@ server/src/test/
   - `ROOT_TEST`：项目根目录 `test/` 下的数据
 - `TestSuit::SetUpTestSuite()` 会在测试套件初始化时解析 `test_rank_0/` 等真实 profiler 数据
 
-#### 5.1.6 覆盖率
+#### 4.1.6 覆盖率
 
 - **覆盖率要求**：行覆盖率达到 **80%**，分支覆盖率达到 **60%**
 - 在 Linux 系统上，运行如下命令生成覆盖率：
@@ -1233,9 +1050,9 @@ bash cpp_coverage.sh
 - 覆盖率报告路径：`build_llt/output/cpp_coverage/result/index.html`
 - 注意：当前 lcov/genhtml 报告生成功能暂时屏蔽，覆盖率数据文件（.gcda）仍正常生成
 
-### 5.2 GUI 开发者测试
+### 4.2 GUI 开发者测试
 
-#### 5.2.1 测试框架与配置
+#### 4.2.1 测试框架与配置
 
 - 测试框架：Playwright 1.57 + TypeScript
 - 测试代码位于项目根目录 `e2e/` 下
@@ -1257,7 +1074,7 @@ Playwright 会自动拉起前后端服务，无需手动启动。`profiler_serve
 - macOS：`../server/output/darwin/bin/profiler_server`
 - Linux：`../server/output/linux-{arch}/bin/profiler_server`
 
-#### 5.2.2 测试目录结构
+#### 4.2.2 测试目录结构
 
 ```text
 e2e/src/
@@ -1271,7 +1088,7 @@ e2e/src/
 └── utils/                         # 测试工具函数
 ```
 
-#### 5.2.3 新增 GUI 测试用例步骤
+#### 4.2.3 新增 GUI 测试用例步骤
 
 1. **创建 Page Object**（如模块已有可跳过）：在 `e2e/src/page-object/` 下创建模块 Page 类，封装 iframe 定位与模块操作
 2. **创建 spec 文件**：在 `e2e/src/tests/` 对应子目录下创建 `.spec.ts` 文件
@@ -1298,7 +1115,7 @@ const test = baseTest.extend<TestFixtures>({
 2. **在 `page-object/index.ts` 中导出**新 Page Object
 3. **运行验证**
 
-#### 5.2.4 测试数据管理
+#### 4.2.4 测试数据管理
 
 - 测试数据路径定义在 `e2e/src/utils/constants.ts` 中
 - 主要数据目录：
@@ -1312,7 +1129,7 @@ const test = baseTest.extend<TestFixtures>({
 - 测试数据可从数据仓库下载：https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo.git
 - 请在 `constants.ts` 中修改路径为本地实际路径
 
-#### 5.2.5 常用测试命令
+#### 4.2.5 常用测试命令
 
 ```bash
 # 安装依赖（首次运行）
@@ -1351,7 +1168,7 @@ npx playwright test tests/full-test/framework.spec.ts -u
 npm run lint
 ```
 
-#### 5.2.6 预冒烟测试（CI 环境）
+#### 4.2.6 预冒烟测试（CI 环境）
 
 ##### Linux 环境（Docker）
 
@@ -1380,7 +1197,7 @@ cd e2e
 npm run test:smoke
 ```
 
-#### 5.2.7 注意事项
+#### 4.2.7 注意事项
 
 1. **WS 连接冲突**：运行前请关闭浏览器中已打开的 Insight 页面，WS 同时只能保持一个连接
 2. **无头模式一致性**：快照必须在无头模式（`headless: true`）下生成，有头/无头模式下快照存在差异
@@ -1389,9 +1206,9 @@ npm run test:smoke
 5. **缩小快照范围**：快照断言时尽量缩小到功能影响区域，截图前将鼠标移出区域（`page.mouse.move(0, 0)`）
 6. **串行执行**：默认测试并行执行，需要串行时在 `test.describe` 内设置 `test.describe.configure({ mode: 'serial' })`
 
-## 6. Pull Request 提交流程
+## 5. Pull Request 提交流程
 
-### 6.1 提交前检查
+### 5.1 提交前检查
 
 在提交 PR 之前，请确保：
 
@@ -1402,7 +1219,7 @@ npm run test:smoke
 5. 涉及用户端功能的改动，请同步更新对应的用户和开发者文档
 6. 每个 PR 仅包含**一个 commit**（如有多 commit 请先合并）
 
-### 6.2 PR 标题规范
+### 5.2 PR 标题规范
 
 请在 PR 标题前添加合适的前缀，以明确 PR 类型：
 
@@ -1422,7 +1239,7 @@ npm run test:smoke
 
 示例：`[Timeline] 新增 xxx 泳道支持`
 
-### 6.3 PR 模板
+### 5.3 PR 模板
 
 请遵循 [Pull Request 模板](https://gitcode.com/Ascend/msinsight/blob/master/.gitcode/PULL_REQUEST_TEMPLATE.md) 填写以下内容：
 
@@ -1430,7 +1247,7 @@ npm run test:smoke
 - **面向用户的变更**：是否包含 API、UI 或其他行为变更
 - **功能验证**：自验截图、UT 覆盖说明
 
-### 6.4 多提交合并为单 Commit
+### 5.4 多提交合并为单 Commit
 
 如果当前分支包含多个 commit，请使用以下方法合并为单个 commit：
 
@@ -1468,13 +1285,13 @@ git push --force-with-lease origin your-branch-name
 
 > 警告：切勿对共享或受保护的分支执行强制推送。
 
-### 6.5 提交与合入
+### 5.5 提交与合入
 
 1. 完成上述准备工作后提交代码
 2. 输入 `compile` 命令触发机器人编译流水线
 3. 流水线编译通过后联系[仓库管理和维护成员](https://gitcode.com/Ascend/msinsight/member)进行检视与合入
 
-### 6.6 寻找可贡献的 Issue
+### 5.6 寻找可贡献的 Issue
 
 - [good-first-issue](https://gitcode.com/Ascend/msinsight/issues?state=all&scope=all&page=1&categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:22797,%22name%22:%22good-first-issue%22%257D%255D,%22label%22:%22good-first-issue%22%257D%255D)
 - [help-wanted](https://gitcode.com/Ascend/msinsight/pulls?categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:22796,%22name%22:%22help-wanted%22%257D%255D,%22label%22:%22help-wanted%22%257D%255D&state=opened&scope=all&page=1)
