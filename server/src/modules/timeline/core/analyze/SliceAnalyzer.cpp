@@ -473,6 +473,40 @@ void SliceAnalyzer::ComputeDepthInfoByTrackId(
     }
 }
 
+void SliceAnalyzer::ComputePythonFunctionDepthInfoByTrackId(
+    const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo) {
+    SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
+    std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
+    std::vector<SliceDomain> sliceVec =
+        sliceCacheManager.GetSliceDomainVec(sliceCacheKey, sliceQuery.rankId, sliceQuery);
+    if (std::empty(sliceVec)) {
+        SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
+        repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceVec);
+    }
+
+    std::vector<uint64_t> pythonFunctionIds;
+    QueryPythonFuncIds(sliceQuery, pythonFunctionIds);
+    if (std::empty(pythonFunctionIds)) {
+        return;
+    }
+
+    std::vector<uint64_t> endList;
+    for (auto &item : sliceVec) {
+        if (!std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
+            continue;
+        }
+        while (item.depth < endList.size() && endList[item.depth] > item.timestamp) {
+            item.depth++;
+        }
+        if (item.depth < endList.size()) {
+            endList[item.depth] = item.endTime;
+        } else {
+            endList.emplace_back(item.endTime);
+        }
+        depthInfo[item.id] = item.depth;
+    }
+}
+
 void SliceAnalyzer::ComputeSliceDomainVecByTrackId(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
     sliceVec = sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId, sliceQuery);

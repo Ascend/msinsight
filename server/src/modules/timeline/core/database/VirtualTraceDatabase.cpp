@@ -317,7 +317,12 @@ uint64_t VirtualTraceDatabase::GetSliceDepthForJump(const SliceQuery &params, ui
     }
     sliceAnalyzer.SetRepository(repo);
     std::unordered_map<uint64_t, uint32_t> depthCache;
-    sliceAnalyzer.ComputeDepthInfoByTrackId(params, depthCache);
-    return depthCache[sliceId];
+    if (params.isPythonStack) {
+        sliceAnalyzer.ComputePythonFunctionDepthInfoByTrackId(params, depthCache);
+    } else {
+        sliceAnalyzer.ComputeDepthInfoByTrackId(params, depthCache);
+    }
+    auto it = depthCache.find(sliceId);
+    return it == depthCache.end() ? 0 : it->second;
 }
 }

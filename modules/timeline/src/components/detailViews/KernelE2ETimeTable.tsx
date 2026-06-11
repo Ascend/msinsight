@@ -82,14 +82,15 @@ const HighlightSlicesDetail = ({ record, cardId, dbPath, timestampOffset, bottom
         });
         jumpToUnitOperator({
             name: slice.name,
-            id: slice.id,
+            id: res.id ?? slice.id,
             depth: res.depth,
             cardId,
             dbPath,
-            tid: slice.tid,
-            pid: slice.pid,
+            tid: res.threadId,
+            pid: res.pid,
             duration: slice.duration,
             timestamp: slice.startTime,
+            metaType: res.metaType ?? '',
         });
         setSelectedSliceKey(getSliceKey(slice, idx));
     };

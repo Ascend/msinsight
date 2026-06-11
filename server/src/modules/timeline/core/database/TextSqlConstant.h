@@ -155,7 +155,7 @@ public:
     static std::string GetSearchSliceNameSql(bool isMatchExact, bool isMatchCase)
     {
         std::string nameMatch = GetSearchNameSqlSuffix(isMatchExact, isMatchCase);
-        return "SELECT id, pid, tid, timestamp - ? as startTime, duration, track_id AS trackId"
+        return "SELECT id, pid, tid, timestamp - ? as startTime, duration, track_id AS trackId, cat"
             " FROM " + SLICE_TABLE + " JOIN " + THREAD_TABLE + " USING (track_id) WHERE " + nameMatch +
             " ORDER BY timestamp ASC, track_id ASC, id ASC LIMIT 1 OFFSET ?";
     }

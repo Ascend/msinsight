@@ -182,7 +182,9 @@ const OverallMetricsMoreTable = observer(({ card, session, selectedRow, bottomHe
                     cardId: card.cardId,
                     dbPath: card.dbPath,
                     tid: res.threadId,
+                    pid: res.pid,
                     id: res.id,
+                    metaType: res.metaType ?? '',
                 });
                 setSelectedRowId(id);
             },

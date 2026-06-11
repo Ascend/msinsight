@@ -200,10 +200,6 @@ const MemcpyOverallMetricsMoreTable = observer(({ card, session, selectedRow, bo
         const { id, name, duration, timestamp } = record;
         return {
             onClick: async (): Promise<void> => {
-                /// FIX: queryOneKernel 接口当查询到的算子有相同的 name 和 timestamp 时，默认返回最后一个算子的信息，这可能导致跳转到错误的算子上。
-                /// 因此先取出 selectedRow 的 categoryList 中的 tid 和 record 中的算子 id 进行过滤
-                /// 如果两个值不存在，则仍然使用 queryOneKernel 返回的算子 tid 和 id 进行跳转。
-                const selectedTid = selectedRow?.categoryList[0];
                 const res = await queryOneKernel({ rankId: card.cardId, dbPath: card.dbPath, name, timestamp, duration });
                 jumpToUnitOperator({
                     ...record,
@@ -211,8 +207,10 @@ const MemcpyOverallMetricsMoreTable = observer(({ card, session, selectedRow, bo
                     duration,
                     cardId: card.cardId,
                     dbPath: card.dbPath,
-                    tid: selectedTid ?? res.threadId,
-                    id: id ?? res.id,
+                    tid: res.threadId,
+                    pid: res.pid,
+                    id: res.id ?? id,
+                    metaType: res.metaType ?? '',
                 });
                 setSelectedRowId(id);
             },

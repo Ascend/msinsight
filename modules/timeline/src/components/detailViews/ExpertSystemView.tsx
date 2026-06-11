@@ -121,6 +121,9 @@ export const handleAdvisorSelected = async (rowData: BaseSummaryRowItemType, pro
         depth,
         duration: rowData.duration,
         name: queryName,
+        tid: res.threadId,
+        pid: res.pid,
+        metaType: res.metaType ?? '',
     });
 };
 

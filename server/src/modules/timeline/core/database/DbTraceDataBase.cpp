@@ -28,6 +28,7 @@
 #include "MetaDataParser.h"
 #include "MetaDataCacheManager.h"
 #include "CounterEventHelper.h"
+#include "RepositoryFactory.h"
 
 // clang-format off
 namespace Dic::Module::FullDb {
@@ -263,8 +264,17 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
     responseBody.duration = resultSet->GetUint64("duration");
     responseBody.id = resultSet->GetString("id");
     std::string metaType = resultSet->GetString("metaType");
-    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, responseBody.tid,
-        metaType, responseBody.startTime, responseBody.duration});
+    responseBody.metaType = metaType;
+    bool isPythonStack = metaType == ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+    std::string queryTid = responseBody.tid;
+    std::string queryMetaType = metaType;
+    if (isPythonStack) {
+        queryTid = "pytorch";
+        queryMetaType = ENUM_TO_STR(PROCESS_TYPE::API).value_or("");
+    }
+    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, queryTid,
+        queryMetaType, responseBody.startTime, responseBody.duration});
+    sliceQuery.isPythonStack = isPythonStack;
     responseBody.depth = GetSliceDepthForJump(sliceQuery, NumberUtil::StringToUnsignedLongLong(responseBody.id));
     return true;
 }
@@ -298,8 +308,17 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
     responseBody.startTime -= minTimestamp; // 业务上 minTimestamp 是最小的时间，一定有 item.timestamp > minTimestamp
     responseBody.id = resultSet->GetString("id");
     std::string metaType = resultSet->GetString("metaType");
-    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, responseBody.tid,
-        metaType, responseBody.startTime, responseBody.duration});
+    responseBody.metaType = metaType;
+    bool isPythonStack = metaType == ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+    std::string queryTid = responseBody.tid;
+    std::string queryMetaType = metaType;
+    if (isPythonStack) {
+        queryTid = "pytorch";
+        queryMetaType = ENUM_TO_STR(PROCESS_TYPE::API).value_or("");
+    }
+    SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid, queryTid,
+        queryMetaType, responseBody.startTime, responseBody.duration});
+    sliceQuery.isPythonStack = isPythonStack;
     responseBody.depth = GetSliceDepthForJump(sliceQuery, NumberUtil::StringToUnsignedLongLong(responseBody.id));
     return true;
 }
@@ -785,9 +804,26 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(
         responseBody.pid = resultSet->GetString("pid");
         responseBody.rankId = params.rankId;
         std::string metaType = resultSet->GetString("metaType");
-        SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({responseBody.rankId, responseBody.pid,
-            responseBody.threadId, metaType, params.timestamp, params.duration});
-        responseBody.depth = GetSliceDepthForJump(sliceQuery, NumberUtil::StringToUnsignedLongLong(responseBody.id));
+        bool isPythonStack = metaType == ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+        std::string queryThreadId = isPythonStack ? "pytorch" : responseBody.threadId;
+        std::string queryMetaType = isPythonStack ? ENUM_TO_STR(PROCESS_TYPE::API).value_or("") : metaType;
+        SliceQuery sliceQuery = CreateSliceQueryWithTimeRange(
+            {responseBody.rankId, responseBody.pid, queryThreadId, queryMetaType, params.timestamp, params.duration});
+        uint64_t sliceId = NumberUtil::StringToUnsignedLongLong(responseBody.id);
+        if (isPythonStack) {
+            SliceAnalyzer sliceAnalyzer;
+            auto repo = RepositoryFactory::Instance()->GetSliceRespo(sliceQuery.metaType);
+            if (repo != nullptr) {
+                std::set<uint64_t> ids;
+                uint64_t maxDepth = 0;
+                std::map<uint64_t, uint32_t> depthMap;
+                sliceAnalyzer.SetRepository(repo);
+                sliceAnalyzer.ComputePythonFunctionSliceIds(sliceQuery, ids, maxDepth, depthMap);
+                responseBody.depth = depthMap[sliceId];
+            }
+        } else {
+            responseBody.depth = GetSliceDepthForJump(sliceQuery, sliceId);
+        }
     }
     return true;
 }
@@ -1386,6 +1422,7 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
         }
     }
     AddColumns2Table(isExistPytorch, TABLE_API, std::string(PytorchApiColumn::DEPTH), "integer");
+    AddColumns2Table(isExistPytorch, TABLE_API, "type", "integer");
     AddColumns2Table(isExistCANN, TABLE_CANN_API, std::string(PytorchApiColumn::DEPTH), "integer");
     AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "waitNs", "INTEGER");
     AddColumns2Table(isExistComputeTask, TABLE_COMPUTE_TASK_INFO, "gridDim", "INTEGER");

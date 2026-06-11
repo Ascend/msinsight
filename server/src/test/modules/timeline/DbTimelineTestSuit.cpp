@@ -84,6 +84,7 @@ TEST_F(FullDbTestSuit, FullDb_of_SearchSliceName) {
     body.rankId = "2"; // cardId = 2
     std::string expectPid = "Ascend Hardware";
     std::string expectTid = "8";
+    std::string expectMetaType = "Ascend Hardware";
     uint64_t expectStartTime = 181306181;
     uint32_t expectDepth = 0;
     uint64_t expectDuration = 51121;
@@ -91,6 +92,7 @@ TEST_F(FullDbTestSuit, FullDb_of_SearchSliceName) {
     database->SearchSliceName(params, index, minTimestamp, body, {});
     EXPECT_EQ(body.pid, expectPid);
     EXPECT_EQ(body.tid, expectTid);
+    EXPECT_EQ(body.metaType, expectMetaType);
     EXPECT_EQ(body.startTime, expectStartTime);
     EXPECT_EQ(body.depth, expectDepth);
     EXPECT_EQ(body.duration, expectDuration);
@@ -622,6 +624,7 @@ TEST_F(FullDbTestSuit, QueryKernelDepthAndThread) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("FullDb");
 
     Protocol::KernelParams params;
+    params.rankId = "2";
     params.name = "aclnnInplaceZero_ZerosLikeAiCore_ZerosLike";
     params.timestamp = 39828694; // timestamp = 39828694
     Protocol::OneKernelBody responseBody;

@@ -220,9 +220,11 @@ const handleSelected = async(rowData: any, props: SelectContentViewProps): Promi
         cardId: rankId,
         dbPath,
         timestamp: rowData.start,
-        tid: rowData.threadId,
-        pid: rowData.processId,
+        id: res.id,
+        tid: res.threadId,
+        pid: res.pid,
         depth,
+        metaType: res.metaType ?? '',
     });
 };
 

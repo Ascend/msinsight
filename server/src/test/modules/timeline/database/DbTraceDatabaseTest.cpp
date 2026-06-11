@@ -2156,7 +2156,7 @@ TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenPython) {
         "with ids as (select id from STRING_IDS where value like ?)  SELECT api.ROWID as id, 'pytorch' "
         "as tid, api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
         "'PYTORCH_API' as metaType from PYTORCH_API  api join ids on ids.id = api.name WHERE api.globalTid = ? "
-        "AND api.startNs >= ? AND api.endNs <= ?  ORDER BY timestamp ASC LIMIT 1 OFFSET ?");
+        "AND api.startNs >= ? AND api.endNs <= ?  AND api.type != 50003  ORDER BY timestamp ASC LIMIT 1 OFFSET ?");
 }
 
 TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenCANN) {
@@ -2273,7 +2273,7 @@ TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenPython) {
     params.rankId = "ll Host";
     std::string sql = DbTraceDataBase::GetSearchCountWithLockSql(params, trackQueryVec);
     EXPECT_EQ(sql, "with ids as (select id from STRING_IDS where value like ?) SELECT count(1) as count FROM (SELECT "
-        "name from PYTORCH_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) api join ids on id = api.name ");
+        "name from PYTORCH_API WHERE globalTid = ? AND startNs >= ? AND endNs <= ?  AND type != 50003 ) api join ids on id = api.name ");
 }
 
 TEST_F(DbTraceDatabaseTest, GetSearchCountWithLockSqlWhenCANN) {

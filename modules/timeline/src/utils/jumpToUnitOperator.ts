@@ -27,14 +27,32 @@ import { store } from '../store';
 import { InsightUnit } from '../entity/insight';
 
 const PYTHON_STACK_THREAD_ID_PREFIX = 'python_stack:';
+const PYTHON_STACK_THREAD_NAME_PREFIX = 'Python Stack ';
 
-const isSameThread = (unitMetaData: ThreadMetaData, tid: string): boolean => {
-    const { threadId, threadIdList } = unitMetaData;
-    if (threadId === tid || threadIdList?.includes(tid)) {
+const getPythonStackThreadId = (threadId?: string): string | undefined => {
+    if (threadId === undefined) {
+        return undefined;
+    }
+    if (threadId.startsWith(PYTHON_STACK_THREAD_ID_PREFIX)) {
+        return threadId.slice(PYTHON_STACK_THREAD_ID_PREFIX.length);
+    }
+    if (threadId.startsWith(PYTHON_STACK_THREAD_NAME_PREFIX)) {
+        return threadId.slice(PYTHON_STACK_THREAD_NAME_PREFIX.length);
+    }
+    return undefined;
+};
+
+const isSameThread = (unitMetaData: ThreadMetaData, tid?: string): boolean => {
+    if (tid === undefined) {
+        return false;
+    }
+    const { threadId, threadIdList, threadName } = unitMetaData;
+    if (threadId === tid || threadName === tid || threadIdList?.includes(tid)) {
         return true;
     }
-    return threadId.startsWith(PYTHON_STACK_THREAD_ID_PREFIX) &&
-        threadId.slice(PYTHON_STACK_THREAD_ID_PREFIX.length) === tid;
+    const unitPythonStackThreadId = getPythonStackThreadId(threadId);
+    const targetPythonStackThreadId = getPythonStackThreadId(tid) ?? tid;
+    return unitPythonStackThreadId !== undefined && unitPythonStackThreadId === targetPythonStackThreadId;
 };
 
 /**
@@ -54,6 +72,7 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
         timestamp,
         metaType,
     } = opDetail;
+    const targetMetaType = metaType === '' ? undefined : metaType;
     const session = store.sessionStore.activeSession;
     if (session === undefined) { return; }
 
@@ -63,8 +82,10 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                 if (!(unit instanceof ThreadUnit)) { return false; }
 
                 const { cardId, processId } = unit.metadata;
-                const isSameMetaType = metaType === undefined || metaType === unit.metadata.metaType;
-                const isSameUnit = Boolean(processId === pid && isSameThread(unit.metadata, tid) && isSameMetaType);
+                const isSameMetaType = targetMetaType === undefined || targetMetaType === unit.metadata.metaType;
+                const isSameProcess = processId === pid;
+                const isSameThreadResult = isSameThread(unit.metadata, tid);
+                const isSameUnit = Boolean(isSameProcess && isSameThreadResult && isSameMetaType);
                 if (cid && cardId) {
                     return cid === cardId && isSameUnit;
                 }
@@ -88,7 +109,7 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                     dbPath,
                     startRecordTime: session.startRecordTime,
                     showSelectedData: true,
-                    metaType: metaType ?? unitMetaData.metaType,
+                    metaType: targetMetaType ?? unitMetaData.metaType,
                 };
             },
             showDetail: false,
