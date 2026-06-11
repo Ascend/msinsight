@@ -61,6 +61,21 @@
 | statistic | 服务化调优 |
 | timeline | 时间线 |
 
+### 1.3 开发者文档地图
+
+建议按以下顺序阅读开发者文档：
+
+| 场景 | 推荐阅读 |
+| --- | --- |
+| 首次参与开发 | 本文 `2. Linux 环境快速搭建与运行`、`4. 测试指南` |
+| 新增前端/后端模块 | 本文 `3.1 新增模块开发` |
+| 新增或维护 Timeline 泳道 | 本文 `3.2 DB 场景新增泳道`、[TrackRender](./design/TrackRender.md)、[Timeline](./design/Timeline.md) |
+| 维护概览和通信模块 | [Summary](./design/Summary.md)、[Communication](./design/Communication.md) |
+| 维护内存模块 | [Memory](./design/Memory.md)、[Device 内存分析](./design/support_device_memory_analysis.md)、[Snapshot 分析](./design/support_snapshot_analysis.md) |
+| 维护算子和算子调优模块 | [Operator](./design/Operator.md)、[Compute](./design/Compute.md) |
+
+阅读设计文档时，请优先确认文档中的代码路径、接口命令和数据结构是否仍与源码一致。若修改接口、数据字段或页面交互，应同步更新对应设计文档。
+
 ## 2. Linux 环境快速搭建与运行
 
 MindStudio Insight 是跨平台工具，本文默认以 **Linux 开发环境** 为主线说明本地开发、调试和提交流程。Windows、macOS、CLion 工具链配置以及各平台出包环境准备请参见[开发环境搭建](./environment_setup.md)。

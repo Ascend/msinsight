@@ -1,5 +1,14 @@
 # Compute部分设计文档
 
+## 文档目标与范围
+
+本文说明 Compute（算子调优）相关数据导入、二进制数据块、Timeline 视图、热点指令视图和内存负载视图的开发约定。
+
+- JSON 数据主要复用 Trace Event Format。
+- Bin 数据通过数据块编码区分不同页面数据。
+- 0x0A 内存读写时序图和 0x0B L2Cache 图当前按 POC 能力记录，稳定性以实现和测试为准。
+- 本文中的示例路径均为脱敏路径，真实路径以导入数据为准。
+
 ## 业务流程梳理
 
 ### 端到端流程
@@ -29,11 +38,11 @@
 #### Json 文件
 
 文件格式：*.json
-判断逻辑：json文件中在第一个数组开始前，包含“profilingType”和“op“
+判断逻辑：json文件中在第一个数组开始前，包含“profilingType”和“op”
 内容格式：traceEvents， 等同timeline的json文件
 内容示例：
 
-```JSON
+```json
 {
     "displayTimeUnit": "ns",
     "profilingType": "op",
@@ -41,7 +50,7 @@
     "traceEvents": [
         {
             "args": {
-                "code": "/home/liuyekang/projects/samples/operator/ascendc/0_introduction/3_add_kernellaunch/AddKernelInvocationNeo/build/auto_gen/ascendc_kernels_sim/auto_gen_add_custom.cpp:22",
+                "code": "/home/xxx/projects/samples/operator/ascendc/0_introduction/3_add_kernellaunch/AddKernelInvocationNeo/build/auto_gen/ascendc_kernels_sim/auto_gen_add_custom.cpp:22",
                 "detail": "XD:X29=0x7fa0,IMM:0x7fa0,",
                 "pc_addr": "0x10d0d000"
             },
@@ -52,7 +61,7 @@
             "pid": "core2.veccore1",
             "tid": "SCALAR",
             "ts": 3.568000078201294
-        },
+        }
     ]
 }
 ```
@@ -95,7 +104,7 @@ JSON部分数据内容示例：
 
 4096字节的附加数据块（存储文件路径信息）：
 
-```JSON
+```json
 /home/matmul_leakyrelu_custom.cpp
 ```
 
@@ -114,7 +123,7 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {
   "Cores": [ // 执行算子的计算核，如"core0.cubecore0"，"core0.veccore0"
     string
@@ -141,10 +150,10 @@ JSON部分数据内容示例：
               string
             ]
           ],
-          "Cycles": [ // 当前代码行在各个计算核上消耗的总时钟周期（对应顺序是？）
+          "Cycles": [ // 当前代码行在各个计算核上消耗的总时钟周期（代码示例中的数组顺序需与 `Cores` 字段顺序保持一致；具体含义以数据生产端和解析端约定为准。）
             int
           ],
-          "Instructions Executed": [ // 当前代码行在各个计算核上执行的指令总数（对应顺序是？）
+          "Instructions Executed": [ // 当前代码行在各个计算核上执行的指令总数（代码示例中的数组顺序需与 `Cores` 字段顺序保持一致；具体含义以数据生产端和解析端约定为准。）
             int
           ],
           "Line": 100 // 代码行号
@@ -165,7 +174,7 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {
   "Cores": [ // 执行算子的计算核，如"core0.cubecore0"，"core0.veccore0"
     string
@@ -219,14 +228,14 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {"profilingType": "op",
     "displayTimeUnit": "ns",
     "schemaVersion": 1,
     "traceEvents": [
   {
    "args": {
-                "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
+                "code": "/home/xxx/workspace/samples/operator/AddCustom/kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
                 "pc_addr": "0x10cfa004"
             },
@@ -240,7 +249,7 @@ JSON部分数据内容示例：
         },
         {
    "args": {
-                "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
+                "code": "/home/xxx/workspace/samples/operator/AddCustom/kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
                 "pc_addr": "0x10cfa004"
             },
@@ -254,7 +263,7 @@ JSON部分数据内容示例：
         },
   {
    "args": {
-                "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
+                "code": "/home/xxx/workspace/samples/operator/AddCustom/kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
                 "pc_addr": "0x10cfa004"
             },
@@ -282,7 +291,7 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {
     "name": str,            // 算子名称
     "soc": str,             // 算子运行平台
@@ -323,7 +332,7 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {
     "subblock_detail": [
         {
@@ -351,7 +360,7 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {
     "subblock_detail": [
         {
@@ -379,7 +388,7 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {
     "core_memory_map": [
         {
@@ -435,7 +444,7 @@ JSON部分数据内容示例：
 
 数据块内容：
 
-```JSON
+```json
 {
     "table_per_block": [
         {
@@ -451,7 +460,7 @@ JSON部分数据内容示例：
                     "row": [                // 行数据(与行数一致)
                         "name": string,     // 行名
                         "value": [          // 行数据：长度为列数-1
-                            float16, float16, ....
+                            float16, float16, ...
                         ]
                     ],
                 }
@@ -537,7 +546,7 @@ TraceRecord结构体字段含义说明：
 
 调用栈信息映射表示例如下：
 
-```JSON
+```json
 [
 {
     "Address": "0x4004be",
@@ -616,7 +625,7 @@ struct CacheRecord {
 
 数据块内容：
 
-```JSON
+```json
 {
     "advice": "1) core0 vector0 took more time than other vector cores.",
     "op_detail": [
@@ -662,7 +671,7 @@ struct CacheRecord {
 
 数据块内容格式：
 
-```JSON
+```json
 // roofline数据块
 {
  "multiple_rooflines": [
@@ -693,9 +702,9 @@ struct CacheRecord {
 
 | 接口命令| 作用 | 类型 | 备注 |
 | --- | --- | --- | --- |
-| import/action | 导入bin文件 |  |  |
-| unit/threadTracesSummary |  |  |  |
-| unit/threadTraces |  |  |  |
+| import/action | 导入 bin 文件 | WebSocket request | 由 timeline 模块处理导入结果 |
+| unit/threadTracesSummary | 获取线程预览数据 | WebSocket request | 用于 Process 泳道预览 |
+| unit/threadTraces | 获取线程详细数据 | WebSocket request | 用于 Thread 泳道详情 |
 
 ## import/action
 
@@ -987,8 +996,6 @@ struct CacheRecord {
 }
 ```
 
-### 数据结构说明
-
 ## 数据类型
 
 数据块的第9个字节如果是整数2，代表数据体内容为timeline的信息。
@@ -996,8 +1003,6 @@ struct CacheRecord {
 ![compute_dataType](./figures/compute_data_type.png)
 
 ## 数据体格式
-
-### 数据结构说明
 
 ![compute_data_structure](./figures/compute_data_structure.png)
 
@@ -1010,7 +1015,7 @@ struct CacheRecord {
     "traceEvents": [
   {
    "args": {
-                "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
+                "code": "/home/xxx/workspace/samples/operator/AddCustom/kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
                 "pc_addr": "0x10cfa004"
             },
@@ -1024,7 +1029,7 @@ struct CacheRecord {
         },
         {
    "args": {
-                "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
+                "code": "/home/xxx/workspace/samples/operator/AddCustom/kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
                 "pc_addr": "0x10cfa004"
             },
@@ -1038,7 +1043,7 @@ struct CacheRecord {
         },
   {
    "args": {
-                "code": "/home/yanyuwei/workspace/samples-master/operator/AddCustomSample/FrameworkLaunch/AddCustom/build_out/op_kernel/binary/xxxx/kernel_meta_AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b/kernel_meta/AddCustom_1e04ee05ab491cc5ae9c3d5c9ee8950b_413903_kernel.cpp:23",
+                "code": "/home/xxx/workspace/samples/operator/AddCustom/kernel.cpp:23",
                 "detail": "x[1]=0x0,imme16:0x4000",
                 "pc_addr": "0x10cfa004"
             },
@@ -1126,10 +1131,10 @@ struct CacheRecord {
               string
             ]
           ],
-          "Cycles": [ // 当前代码行在各个计算核上消耗的总时钟周期（对应顺序是？）
+          "Cycles": [ // 当前代码行在各个计算核上消耗的总时钟周期（代码示例中的数组顺序需与 `Cores` 字段顺序保持一致；具体含义以数据生产端和解析端约定为准。）
             int
           ],
-          "Instructions Executed": [ // 当前代码行在各个计算核上执行的指令总数（对应顺序是？）
+          "Instructions Executed": [ // 当前代码行在各个计算核上执行的指令总数（代码示例中的数组顺序需与 `Cores` 字段顺序保持一致；具体含义以数据生产端和解析端约定为准。）
             int
           ],
           "Line": 100 // 代码行号
@@ -1197,11 +1202,11 @@ struct CacheRecord {
 
 # 接口列表总览
 
-| 接口命令| 作用 | 类型 | 备注 |
+| 接口命令 | 作用 | 类型 | 备注 |
 | --- | --- | --- | --- |
-| source/code/file | 获取算子源代码文本 | Get |  |
-| source/api/line | 获取源代码行关联的指令的信息 |  |  |
-| source/api/instructions | 获取指令对应的信息 |  |  |
+| source/code/file | 获取算子源代码文本 | WebSocket request | 根据 sourceName 查询 |
+| source/api/line | 获取源代码行关联的指令信息 | WebSocket request | 根据源码文件和 core 查询 |
+| source/api/instructions | 获取指令信息 | WebSocket request | 示例请求中 params 为空，具体参数以源码为准 |
 
 # 接口详细定义
 
@@ -1317,12 +1322,12 @@ struct CacheRecord {
 
 # 接口列表总览
 
-| 接口地址 | 作用 | 类型 | 备注|
-| --- | --- | --- | -- |
-| source/details/baseInfo | 获取算子基本信息 | Get | |
-| source/details/computeworkload | 获取计算负载图  |  | |
-| source/details/memoryGraph | 获取内存热力图 | | |
-| source/details/memoryTable | 获取访存表格| | |
+| 接口命令 | 作用 | 类型 |
+| --- | --- | --- |
+| source/details/baseInfo | 获取算子基本信息 | WebSocket request |
+| source/details/computeworkload | 获取计算负载图和表格数据 | WebSocket request |
+| source/details/memoryGraph | 获取内存热力图 | WebSocket request |
+| source/details/memoryTable | 获取访存表格 | WebSocket request |
 
 # 获取算子基本信息
 
@@ -1758,7 +1763,7 @@ Json结构说明：
                     "row": [                // 行数据(与行数一致)
                         "name": string,     // 行名
                         "value": [          // 行数据：长度为列数-1
-                            float16, float16, ....
+                            float16, float16, ...
                         ]
                     ],
                 }
@@ -1778,7 +1783,7 @@ Json结构说明：
 # 内存读写时序图数据结构（POC）
 
 统一二进制交付件的内容格式如下：
-![comnpute_memory_rw_time_diagram](./figures/comnpute_memory_rw_time_diagram.png)
+![compute_memory_rw_time_diagram](./figures/comnpute_memory_rw_time_diagram.png)
 
 文件协议头结构设计：
 
@@ -1818,10 +1823,10 @@ TraceRecord结构体字段含义说明：
 | blockType  | 此内存事件发生的 block 类型：<br>- AIV=0<br>- AIC=1                  |
 | recordId   | 此内存事件的编号                                                    |
 | addr       | 此内存事件操作的内存地址                                            |
-| memSize    | 此内存事件操作的内存长度（）                                        |
+| memSize    | 此内存事件操作的内存长度，单位以数据生产端记录为准                                        |
 | pc         | 此内存事件发生的代码位置对应PC地址                                  |
 
-调用栈信息映射表（CallStack map）设计为JSON对象的形式，字段类型和含义说明如下：.
+调用栈信息映射表（CallStack map）设计为JSON对象的形式，字段类型和含义说明如下：
 
 | 字段       | 类型   | 说明                                                                 |
 |------------|--------|----------------------------------------------------------------------|
@@ -1838,7 +1843,7 @@ TraceRecord结构体字段含义说明：
 
 调用栈信息映射表示例如下：
 
-```JSON
+```json
 [
 {
     "Address": "0x4004be",
