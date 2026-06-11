@@ -16,8 +16,12 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include "../../../../DatabaseTestCaseMockUtil.h"
 #include "KernelE2EAnalyzer.h"
+#include "TextKernelE2ERepo.h"
+#include "TextTraceDatabase.h"
 
+using namespace Dic::Global::PROFILER::MockUtil;
 using namespace Dic::Module::Timeline;
 
 namespace {
@@ -81,6 +85,17 @@ class FakeTextKernelE2ERepo : public KernelE2ERepoInterface {
         return {queueFlow, hostToDeviceFlow};
     }
 };
+
+class MockTextKernelE2EDatabase : public TextTraceDatabase {
+  public:
+    explicit MockTextKernelE2EDatabase(std::recursive_mutex &sqlMutex) : TextTraceDatabase(sqlMutex) {}
+
+    void SetDbPtr(sqlite3 *dbPtr) {
+        isOpen = true;
+        db = dbPtr;
+        path = ":memory:";
+    }
+};
 }
 
 TEST(KernelE2ETextFlowTest, AnalyzeAclopWithTextFlows) {
@@ -107,4 +122,41 @@ TEST(KernelE2ETextFlowTest, AnalyzeAclopWithTextFlows) {
     EXPECT_EQ(120, record.pipeline2Time.value());
     ASSERT_TRUE(record.endToEndTime.has_value());
     EXPECT_EQ(240, record.endToEndTime.value());
+}
+
+TEST(KernelE2ETextFlowTest, QueryPythonApiEventsUsesPythonStackTidForTextPythonFunction) {
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr,
+        "CREATE TABLE process (pid TEXT PRIMARY KEY, process_name TEXT, label TEXT, process_sort_index INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr,
+        "CREATE TABLE thread (track_id INTEGER PRIMARY KEY, tid TEXT, pid TEXT, "
+        "thread_name TEXT, thread_sort_index INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr,
+        "CREATE TABLE slice (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER, name TEXT, "
+        "depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT, "
+        "group_id TEXT);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO process (pid, process_name, label, process_sort_index) VALUES ('100', 'Python', 'CPU', 0);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+        "(10, '100', '100', 'Thread 100', 0), (20, '200', '100', 'Thread 200', 1);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
+        "VALUES (1, 100, 20, '<built-in method add>', 0, 10, 'python_function', '', '', 120, ''), "
+        "(2, 130, 20, 'aten::add', 0, 20, '', '', '', 150, '');");
+    std::recursive_mutex sqlMutex;
+    auto database = std::make_shared<MockTextKernelE2EDatabase>(sqlMutex);
+    database->SetDbPtr(dbPtr);
+    TextKernelE2ERepo repo(database, "text");
+    KernelE2EQuery query;
+    query.rankId = "text";
+
+    const auto events = repo.QueryPythonApiEvents(query);
+
+    ASSERT_EQ(2, events.size());
+    EXPECT_EQ("python_stack:text:100", events[0].tid);
+    EXPECT_EQ("PYTHON_CALL", events[0].eventType);
+    EXPECT_EQ("200", events[1].tid);
+    EXPECT_EQ("PYTHON_OP", events[1].eventType);
 }

@@ -1944,6 +1944,9 @@ bool TextTraceDatabase::QueryKernelDepthAndThread(
         sliceQuery.trackId = trackId;
         sliceQuery.metaType = PROCESS_TYPE::TEXT;
         sliceQuery.isPythonStack = isPythonStack;
+        if (isPythonStack) {
+            sliceQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
+        }
         responseBody.id = std::to_string(id);
         responseBody.depth = GetSliceDepthForJump(sliceQuery, id);
         responseBody.duration = resultSet->GetUint64("duration");

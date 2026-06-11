@@ -23,12 +23,15 @@
 #include "ProtocolDefs.h"
 #include "ServerLog.h"
 #include "TextKernelE2ERepo.h"
+#include "TimelineProtocolRequest.h"
 
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
 
 namespace {
 constexpr size_t KERNEL_E2E_SQLITE_PARAM_LIMIT = 900;
+constexpr auto TEXT_PYTHON_FUNCTION_CAT = "python_function";
+const std::string TEXT_PYTHON_STACK_THREAD_ID_PREFIX = Dic::Protocol::PYTHON_STACK_THREAD_ID_PREFIX + "text:";
 
 std::string BuildPlaceholders(size_t count) {
     std::string placeholders;
@@ -43,7 +46,7 @@ std::string BuildPlaceholders(size_t count) {
 
 std::string BuildBaseSliceSql(const std::string &nameFilterSql, const std::string &orderBySql, bool useTimeSearch) {
     std::string sql = "SELECT s.id AS id, s.name AS name, s.timestamp AS startNs, s.end_time AS endNs, "
-                      "s.track_id AS trackId, t.pid AS pid, t.tid AS tid, p.process_name AS processName "
+                      "s.track_id AS trackId, s.cat AS cat, t.pid AS pid, t.tid AS tid, p.process_name AS processName "
                       "FROM slice s LEFT JOIN thread t ON s.track_id = t.track_id "
                       "LEFT JOIN process p ON t.pid = p.pid ";
     sql += useTimeSearch ? "WHERE s.end_time >= ? AND s.timestamp <= ? AND " : "WHERE ";
@@ -183,7 +186,9 @@ KernelE2EEvent TextKernelE2ERepo::BuildEventFromResultSet(
     event.endNs = resultSet->GetUint64("endNs");
     event.trackId = resultSet->GetUint64("trackId");
     event.pid = resultSet->GetString("pid");
-    event.tid = resultSet->GetString("tid");
+    const auto tid = resultSet->GetString("tid");
+    event.tid =
+        resultSet->GetString("cat") == TEXT_PYTHON_FUNCTION_CAT ? TEXT_PYTHON_STACK_THREAD_ID_PREFIX + tid : tid;
     event.rankId = fileId_;
     event.globalTid = event.trackId;
     return event;
@@ -198,7 +203,7 @@ std::optional<KernelE2EEvent> TextKernelE2ERepo::QuerySliceEventById(uint64_t sl
         return std::nullopt;
     }
     std::string sql = "SELECT s.id AS id, s.name AS name, s.timestamp AS startNs, s.end_time AS endNs, "
-                      "s.track_id AS trackId, t.pid AS pid, t.tid AS tid, p.process_name AS processName "
+                      "s.track_id AS trackId, s.cat AS cat, t.pid AS pid, t.tid AS tid, p.process_name AS processName "
                       "FROM slice s LEFT JOIN thread t ON s.track_id = t.track_id "
                       "LEFT JOIN process p ON t.pid = p.pid WHERE s.id = ?";
     auto stmt = database_->CreatPreparedStatement(sql);

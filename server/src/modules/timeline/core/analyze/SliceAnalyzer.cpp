@@ -19,6 +19,8 @@
 #include "SliceAnalyzer.h"
 namespace Dic::Module::Timeline {
 namespace {
+const std::string TEXT_PYTHON_FUNCTION_CAT = "python_function";
+
 bool IsFilteredPythonFunction(const std::vector<uint64_t> &pythonFunctionIds, uint64_t id) {
     return !std::empty(pythonFunctionIds) && std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), id);
 }
@@ -318,8 +320,12 @@ void SliceAnalyzer::ComputeScreenSliceIds(
         slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
         repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceDomainVec);
     }
+    SliceQuery pythonFunctionQuery = sliceQuery;
+    if (pythonFunctionQuery.cat.empty()) {
+        pythonFunctionQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
+    }
     std::vector<uint64_t> pythonFunctionIds;
-    QueryPythonFuncIds(sliceQuery, pythonFunctionIds);
+    QueryPythonFuncIds(pythonFunctionQuery, pythonFunctionIds);
     std::vector<DepthHelper> endList;
     std::set<std::pair<uint64_t, uint32_t>> idPairVec = ComputeResultIds(sliceQuery.startTime + sliceQuery.minTimestamp,
         sliceQuery.endTime + sliceQuery.minTimestamp, sliceDomainVec, endList, pythonFunctionIds);
@@ -484,25 +490,26 @@ void SliceAnalyzer::ComputePythonFunctionDepthInfoByTrackId(
         repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceVec);
     }
 
+    SliceQuery pythonFunctionQuery = sliceQuery;
+    if (pythonFunctionQuery.cat.empty()) {
+        pythonFunctionQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
+    }
     std::vector<uint64_t> pythonFunctionIds;
-    QueryPythonFuncIds(sliceQuery, pythonFunctionIds);
+    QueryPythonFuncIds(pythonFunctionQuery, pythonFunctionIds);
     if (std::empty(pythonFunctionIds)) {
         return;
     }
 
-    std::vector<uint64_t> endList;
+    std::vector<SliceDomain> pythonSlices;
+    pythonSlices.reserve(sliceVec.size());
     for (auto &item : sliceVec) {
         if (!std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
             continue;
         }
-        while (item.depth < endList.size() && endList[item.depth] > item.timestamp) {
-            item.depth++;
-        }
-        if (item.depth < endList.size()) {
-            endList[item.depth] = item.endTime;
-        } else {
-            endList.emplace_back(item.endTime);
-        }
+        pythonSlices.emplace_back(item);
+    }
+    AssignSliceDepths(pythonSlices, {});
+    for (auto &item : pythonSlices) {
         depthInfo[item.id] = item.depth;
     }
 }

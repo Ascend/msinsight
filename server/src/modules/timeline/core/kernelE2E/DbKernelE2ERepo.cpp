@@ -22,9 +22,14 @@
 #include "DbKernelE2ERepo.h"
 #include "DataBaseManager.h"
 #include "ServerLog.h"
+#include "TimelineProtocolRequest.h"
 
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
+
+namespace {
+constexpr uint64_t PYTHON_STACK_API_TYPE = 50003;
+}
 
 std::vector<KernelE2EEvent> DbKernelE2ERepo::QueryPythonApiEvents(const KernelE2EQuery &query) {
     std::vector<KernelE2EEvent> events;
@@ -35,7 +40,8 @@ std::vector<KernelE2EEvent> DbKernelE2ERepo::QueryPythonApiEvents(const KernelE2
     }
 
     std::string sql = "SELECT api.ROWID AS id, str.value AS name, api.startNs AS startNs, api.endNs AS endNs, "
-                      "api.globalTid AS globalTid, COALESCE(conn.connectionId, api.connectionId) AS connectionId "
+                      "api.globalTid AS globalTid, api.type AS type, "
+                      "COALESCE(conn.connectionId, api.connectionId) AS connectionId "
                       "FROM PYTORCH_API api "
                       "JOIN STRING_IDS str ON api.name = str.id "
                       "LEFT JOIN CONNECTION_IDS conn ON api.connectionId = conn.id ";
@@ -68,7 +74,9 @@ std::vector<KernelE2EEvent> DbKernelE2ERepo::QueryPythonApiEvents(const KernelE2
         event.globalTid = resultSet->GetUint64("globalTid");
         // Keep pid/tid consistent with TraceDatabaseHelper Python slice query.
         event.pid = std::to_string(event.globalTid);
-        event.tid = "pytorch";
+        event.tid = resultSet->GetUint64("type") == PYTHON_STACK_API_TYPE
+            ? Protocol::PYTHON_STACK_THREAD_ID_PREFIX + std::to_string(event.globalTid)
+            : "pytorch";
         event.connectionId = resultSet->GetInt64("connectionId");
         event.rankId = query.rankId;
 
