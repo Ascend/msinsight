@@ -46,8 +46,10 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
         + TABLE_CANN_API + " cann join ids on ids.id = cann.name "
         " Union all select globalTid, domainId as type, startNs, endNs, depth, mstx.ROWID as id, message as name, "
         " 'MSTX_EVENTS' as metaType from " + TABLE_MSTX_EVENTS + " mstx join ids on ids.id = mstx.message "
-        " UNION all select globalTid, 'pytorch' as type, startNs, endNs, depth, python.ROWID as id, name, "
-        " 'PYTORCH_API' as metaType from " + TABLE_API + " python join ids on ids.id = python.name" +
+        " UNION all select globalTid, CASE WHEN python.type = 50003 THEN 'python_stack:' || python.globalTid "
+        "ELSE 'pytorch' END as type, startNs, endNs, depth, python.ROWID as id, name, "
+        "CASE WHEN python.type = 50003 THEN 'PYTORCH_API_PYTHON_STACK' ELSE 'PYTORCH_API' END as metaType from " +
+        TABLE_API + " python join ids on ids.id = python.name" +
         " UNION ALL SELECT globalTid, 'OSRT_API' AS type, startNs, endNs, 0 AS depth, osrt.ROWID AS id, name,"
         " 'OSRT_API' as metaType FROM " + TABLE_OSRT_API + " osrt JOIN ids ON ids.id = osrt.name) api join minTime ";
     std::string comSql = "select opName as name,'HCCL' as pid, 'HCCL' as metaType, groupName||'group' as tid,"
@@ -231,8 +233,10 @@ std::string DbTraceDataBase::GetSingleSearchCountLockRangeSql(const SearchCountP
     std::string filterSuffix = filterJoin.empty() ? "" : filterJoin;
     if (type == PROCESS_TYPE::API) {
         filterSuffix += filterJoin.empty() ? "" : "api.name";
+        std::string pythonFunctionFilter = item.isPythonStack ? " AND type = 50003 " : " AND type != 50003 ";
         tempSql = "SELECT count(1) as count FROM (SELECT name from " + TABLE_API +
-                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ?) api join ids on id = api.name" +
+                  " WHERE globalTid = ? AND startNs >= ? AND endNs <= ? " + pythonFunctionFilter +
+                  ") api join ids on id = api.name" +
                   filterSuffix + " ";
     } else if (type == PROCESS_TYPE::CANN_API) {
         filterSuffix += filterJoin.empty() ? "" : "cann.name";

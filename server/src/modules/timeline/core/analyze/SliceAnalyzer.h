@@ -58,6 +58,8 @@ class SliceAnalyzer {
      * @param depthInfo
      */
     void ComputeDepthInfoByTrackId(const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo);
+    void ComputePythonFunctionDepthInfoByTrackId(
+        const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo);
     /* *
      * 根据泳道trackId计算泳道下所有简单算子信息
      * @param trackId

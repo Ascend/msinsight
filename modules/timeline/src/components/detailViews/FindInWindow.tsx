@@ -337,7 +337,7 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
 const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptimizer: string }, props: FindDetailProps): Promise<void> => {
     const queryName = rowData.name ?? rowData.originOptimizer;
     const res = rowData.metaType === 'CCU'
-        ? { depth: rowData.depth, metaType: 'CCU' }
+        ? { id: rowData.id, threadId: rowData.tid, pid: rowData.pid, depth: rowData.depth, metaType: 'CCU' }
         : await queryOneKernel({
             rankId: rowData.rankId,
             dbPath: rowData.dbPath,
@@ -349,9 +349,12 @@ const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptim
     jumpToUnitOperator({
         ...rowData,
         name: queryName,
+        id: res.id,
+        tid: res.threadId,
+        pid: res.pid,
         depth,
         cardId: rowData.rankId,
         dbPath: rowData.dbPath,
-        metaType: rowData.metaType ?? res.metaType,
+        metaType: res.metaType ?? '',
     });
 };

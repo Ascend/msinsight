@@ -58,6 +58,7 @@ struct SliceQuery {
     std::string startDepth;
     std::string endDepth;
     bool isFilterPythonFunction = false;
+    bool isPythonStack = false;
     bool QueryThreadsCheck(std::string &error) const {
         if (startTime > endTime) {
             error = "start time is bigger than end time";

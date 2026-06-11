@@ -45,6 +45,24 @@ namespace {
     }
 
 const std::string TEXT_PYTHON_STACK_THREAD_ID_PREFIX = Dic::Protocol::PYTHON_STACK_THREAD_ID_PREFIX + "text:";
+const std::string TEXT_PYTHON_FUNCTION_CAT = "python_function";
+
+std::string GetTextPythonFunctionFilterSql(bool isPythonStack, const std::string &tableAlias = "") {
+    std::string catColumn = tableAlias.empty() ? "cat" : tableAlias + ".cat";
+    if (isPythonStack) {
+        return " AND " + catColumn + " = '" + TEXT_PYTHON_FUNCTION_CAT + "' ";
+    }
+    return " AND (" + catColumn + " IS NULL OR " + catColumn + " != '" + TEXT_PYTHON_FUNCTION_CAT + "') ";
+}
+
+std::string GetTextSearchThreadId(const std::string &threadId, bool isPythonStack) {
+    return isPythonStack ? TEXT_PYTHON_STACK_THREAD_ID_PREFIX + threadId : threadId;
+}
+
+std::string GetTextSearchMetaType(bool isPythonStack) {
+    PROCESS_TYPE metaType = isPythonStack ? PROCESS_TYPE::PYTHON_STACK : PROCESS_TYPE::TEXT;
+    return ENUM_TO_STR(metaType).value_or("");
+}
 }
 
 namespace Dic::Module::Timeline {
@@ -1219,7 +1237,10 @@ uint32_t TextTraceDatabase::SearchSliceNameCount(
         sql = TextSqlConstant::GetSearchSliceNameCountSql(params.isMatchExact, params.isMatchCase);
         sql += " AND track_id = ? AND timestamp >= ? AND end_time <= ? ";
     }
-    std::vector<std::string> sqls(trackQuery.size(), sql);
+    std::vector<std::string> sqls;
+    for (const auto &item : trackQuery) {
+        sqls.emplace_back(sql + GetTextPythonFunctionFilterSql(item.isPythonStack, params.nameFilter.empty() ? "" : "s"));
+    }
     sql = StringUtil::join(sqls, " UNION ALL ");
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1269,18 +1290,20 @@ bool TextTraceDatabase::SearchSliceNameWithOutLock(const Protocol::SearchSlicePa
         return false;
     }
     uint64_t id = resultSet->GetUint64("id");
+    bool isPythonStack = resultSet->GetString("cat") == TEXT_PYTHON_FUNCTION_CAT;
     responseBody.id = std::to_string(id);
     responseBody.pid = resultSet->GetString("pid");
-    responseBody.tid = resultSet->GetString("tid");
+    responseBody.tid = GetTextSearchThreadId(resultSet->GetString("tid"), isPythonStack);
+    responseBody.metaType = GetTextSearchMetaType(isPythonStack);
     responseBody.startTime = resultSet->GetUint64("startTime");
     responseBody.duration = resultSet->GetUint64("duration");
     uint64_t trackId = resultSet->GetUint64("trackId");
     SliceQuery sliceQuery;
     sliceQuery.trackId = trackId;
     sliceQuery.rankId = params.rankId;
-    std::unordered_map<uint64_t, uint32_t> depthCache;
-    sliceAnalyzerPtr->ComputeDepthInfoByTrackId(sliceQuery, depthCache);
-    responseBody.depth = depthCache[id];
+    sliceQuery.metaType = PROCESS_TYPE::TEXT;
+    sliceQuery.isPythonStack = isPythonStack;
+    responseBody.depth = GetSliceDepthForJump(sliceQuery, id);
     return true;
 }
 
@@ -1291,10 +1314,14 @@ bool TextTraceDatabase::SearchSliceName(const Protocol::SearchSliceParams &param
     }
     std::string nameMatch = TextSqlConstant::GetSearchNameSqlSuffix(params.isMatchExact, params.isMatchCase);
     nameMatch += " AND track_id = ? AND timestamp >= ? AND end_time <= ?";
-    std::string sql = "SELECT id, pid, tid, timestamp - ? as startTime, duration, track_id AS trackId"
-                      " FROM " +
+    std::string baseSql = "SELECT id, pid, tid, timestamp - ? as startTime, duration, track_id AS trackId, cat"
+                          " FROM " +
         SLICE_TABLE + " JOIN " + THREAD_TABLE + " USING (track_id) WHERE " + nameMatch;
-    std::vector<std::string> sqls(trackQuery.size(), sql);
+    std::vector<std::string> sqls;
+    for (const auto &item : trackQuery) {
+        sqls.emplace_back(baseSql + GetTextPythonFunctionFilterSql(item.isPythonStack));
+    }
+    std::string sql;
     sql = StringUtil::join(sqls, " UNION ALL ");
     sql += " ORDER BY startTime ASC, track_id ASC, id ASC LIMIT 1 OFFSET ?";
     auto stmt = CreatPreparedStatement(sql);
@@ -1315,18 +1342,20 @@ bool TextTraceDatabase::SearchSliceName(const Protocol::SearchSliceParams &param
         return false;
     }
     uint64_t id = resultSet->GetUint64("id");
+    bool isPythonStack = resultSet->GetString("cat") == TEXT_PYTHON_FUNCTION_CAT;
     responseBody.id = std::to_string(id);
     responseBody.pid = resultSet->GetString("pid");
-    responseBody.tid = resultSet->GetString("tid");
+    responseBody.tid = GetTextSearchThreadId(resultSet->GetString("tid"), isPythonStack);
+    responseBody.metaType = GetTextSearchMetaType(isPythonStack);
     responseBody.startTime = resultSet->GetUint64("startTime");
     responseBody.duration = resultSet->GetUint64("duration");
     uint64_t trackId = resultSet->GetUint64("trackId");
     SliceQuery sliceQuery;
     sliceQuery.trackId = trackId;
     sliceQuery.rankId = params.rankId;
-    std::unordered_map<uint64_t, uint32_t> depthCache;
-    sliceAnalyzerPtr->ComputeDepthInfoByTrackId(sliceQuery, depthCache);
-    responseBody.depth = depthCache[id];
+    sliceQuery.metaType = PROCESS_TYPE::TEXT;
+    sliceQuery.isPythonStack = isPythonStack;
+    responseBody.depth = GetSliceDepthForJump(sliceQuery, id);
     return true;
 }
 
@@ -1883,7 +1912,7 @@ bool TextTraceDatabase::QueryCommunicationKernelInfo(
 bool TextTraceDatabase::QueryKernelDepthAndThread(
     const Protocol::KernelParams &params, Protocol::OneKernelBody &responseBody, uint64_t minTimestamp) {
     std::string sql =
-        "SELECT id, duration, track_id FROM " + sliceTable + " WHERE name = ? AND timestamp > ? AND timestamp < ?";
+        "SELECT id, duration, track_id, cat FROM " + sliceTable + " WHERE name = ? AND timestamp > ? AND timestamp < ?";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query kernel depth and thread, fail to prepare sql.");
@@ -1905,20 +1934,24 @@ bool TextTraceDatabase::QueryKernelDepthAndThread(
         return false;
     }
     uint64_t trackId = 0;
+    bool isPythonStack = false;
     if (resultSet->Next()) {
         uint64_t id = resultSet->GetUint64("id");
         trackId = resultSet->GetUint64("track_id");
+        isPythonStack = resultSet->GetString("cat") == TEXT_PYTHON_FUNCTION_CAT;
         SliceQuery sliceQuery;
         sliceQuery.rankId = params.rankId;
         sliceQuery.trackId = trackId;
-        std::unordered_map<uint64_t, uint32_t> depthCache;
-        sliceAnalyzerPtr->ComputeDepthInfoByTrackId(sliceQuery, depthCache);
+        sliceQuery.metaType = PROCESS_TYPE::TEXT;
+        sliceQuery.isPythonStack = isPythonStack;
         responseBody.id = std::to_string(id);
-        responseBody.depth = depthCache[id];
+        responseBody.depth = GetSliceDepthForJump(sliceQuery, id);
         responseBody.duration = resultSet->GetUint64("duration");
     }
     const OneKernelData &data = QueryKernelTid(trackId);
-    responseBody.threadId = data.threadId;
+    responseBody.threadId = isPythonStack && !data.threadId.empty()
+        ? TEXT_PYTHON_STACK_THREAD_ID_PREFIX + data.threadId
+        : data.threadId;
     responseBody.pid = data.pid;
     responseBody.rankId = params.rankId;
     return true;

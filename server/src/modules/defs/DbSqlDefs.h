@@ -56,7 +56,8 @@ const static std::map<std::string, std::string> FULL_DB_TABLE_MAP = {
     {TABLE_ENUM_API_TYPE, "create TEMPORARY table if not exists ENUM_API_TYPE( id INTEGER primary key, name TEXT);  "},
     {TABLE_API,
         "create TEMPORARY table if not exists PYTORCH_API(startNs TEXT, endNs TEXT,globalTid INTEGER, "
-        " connectionId INTEGER, name INTEGER, sequenceNumber INTEGER, fwdThreadId INTEGER,inputDtypes INTEGER, "
+        " type INTEGER, connectionId INTEGER, name INTEGER, sequenceNumber INTEGER, fwdThreadId INTEGER,inputDtypes "
+        "INTEGER, "
         " inputShapes INTEGER, callchainId INTEGER, depth integer);  "},
     {TABLE_MSTX_EVENTS,
         "create TEMPORARY table if not exists MSTX_EVENTS(startNs INTEGER,endNs INTEGER, "

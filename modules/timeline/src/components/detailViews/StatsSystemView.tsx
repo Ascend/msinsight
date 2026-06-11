@@ -64,9 +64,10 @@ const handleSelected = async(rowData: any, props: SelectContentViewProps): Promi
         cardId: props.card.cardId,
         dbPath: props.card.dbPath,
         tid: res.threadId,
+        pid: res.pid,
         duration: Number((rowData.duration * 1000).toFixed(0)),
         timestamp: rowData.startTime,
-        metaType: res.pid,
+        metaType: res.metaType ?? '',
     });
 };
 

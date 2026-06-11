@@ -2018,9 +2018,15 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
     PROCESS_TYPE type = STR_TO_ENUM<PROCESS_TYPE>(singleQuery.metaType).value();
     std::string tempSql;
     if (type == PROCESS_TYPE::API) {
-        tempSql = " SELECT api.ROWID as id, 'pytorch' as tid, api.globalTid as pid, api.startNs as timestamp, "
-            "api.endNs as endTime, api.depth, 'PYTORCH_API' as metaType from " + TABLE_API +
-            "  api join ids on ids.id = api.name WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? ";
+        std::string tidSql = singleQuery.isPythonStack ? "'python_stack:' || api.globalTid" : "'pytorch'";
+        std::string metaTypeSql = singleQuery.isPythonStack ? "'PYTORCH_API_PYTHON_STACK'" : "'PYTORCH_API'";
+        std::string pythonFunctionFilter = singleQuery.isPythonStack ? " AND api.type = 50003 " :
+            " AND api.type != 50003 ";
+        tempSql = " SELECT api.ROWID as id, " + tidSql +
+            " as tid, api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, " +
+            metaTypeSql + " as metaType from " + TABLE_API +
+            "  api join ids on ids.id = api.name WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? " +
+            pythonFunctionFilter;
     } else if (type == PROCESS_TYPE::CANN_API) {
         tempSql = " SELECT cann.connectionId as id, cann.globalTid as pid, cann.type as tid, cann.startNs as "
             "timestamp, cann.endNs as endTime, cann.depth, 'CANN_API' as metaType from " + TABLE_CANN_API +

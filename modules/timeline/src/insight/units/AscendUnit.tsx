@@ -266,6 +266,17 @@ const drawRectBorder = (selectedData: SliceData,
 };
 
 const PYTHON_STACK_THREAD_ID_PREFIX = 'python_stack:';
+const PYTHON_STACK_THREAD_NAME_PREFIX = 'Python Stack ';
+
+const getPythonStackThreadId = (threadId: string): string | undefined => {
+    if (threadId.startsWith(PYTHON_STACK_THREAD_ID_PREFIX)) {
+        return threadId.slice(PYTHON_STACK_THREAD_ID_PREFIX.length);
+    }
+    if (threadId.startsWith(PYTHON_STACK_THREAD_NAME_PREFIX)) {
+        return threadId.slice(PYTHON_STACK_THREAD_NAME_PREFIX.length);
+    }
+    return undefined;
+};
 
 function isSameThreadId(selectedThreadId: string, currentMeta: ThreadMetaData): boolean {
     if (currentMeta.threadIdList) {
@@ -274,8 +285,12 @@ function isSameThreadId(selectedThreadId: string, currentMeta: ThreadMetaData): 
     if (selectedThreadId === currentMeta.threadId) {
         return true;
     }
-    return currentMeta.threadId.startsWith(PYTHON_STACK_THREAD_ID_PREFIX) &&
-        currentMeta.threadId.slice(PYTHON_STACK_THREAD_ID_PREFIX.length) === selectedThreadId;
+    if (selectedThreadId === currentMeta.threadName) {
+        return true;
+    }
+    const currentPythonStackThreadId = getPythonStackThreadId(currentMeta.threadId);
+    const selectedPythonStackThreadId = getPythonStackThreadId(selectedThreadId) ?? selectedThreadId;
+    return currentPythonStackThreadId !== undefined && currentPythonStackThreadId === selectedPythonStackThreadId;
 }
 
 interface DrawBorderArgs {
