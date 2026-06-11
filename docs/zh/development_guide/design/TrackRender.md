@@ -127,8 +127,66 @@ width（区域宽度）、domainStart、domainEnd、 session.timelineMarker.refr
 
 ### 6.1 置顶
 
+置顶交互位于泳道信息区，由 `UnitInfo` 相关组件承载。用户对某条泳道执行置顶后，该泳道需要在滚动或展开其他泳道时保持可见，便于对照其他泳道内容。
+
+开发时需要关注：
+
+- 置顶状态是否与泳道 ID 绑定。
+- 父子泳道展开或折叠后，置顶泳道是否仍能正确定位。
+- 置顶泳道的数据请求与普通泳道保持一致，不应绕过 `unit/threadTracesSummary`、`unit/threadTraces`、`unit/counter` 等接口。
+
 ### 6.2 框选
+
+框选用于在图形区域选择一个时间范围。框选范围会影响表格、详情或其他模块联动，相关状态通常与 `session.selectedRange` 相关。
+
+开发时需要关注：
+
+- 框选开始时间和结束时间是否落在当前 `session.domain` 范围内。
+- 框选范围变化后，相关图表是否重新绘制。
+- 不同图表类型（`StatusChart`、`StackStatusChart`、`FilledLineChart`）对框选范围的处理是否一致。
 
 ### 6.3 缩放
 
+缩放通过改变时间域范围驱动图形重新绘制。时间轴区域根据 `session.domain` 中的 `_domainStart` 和 `_domainEnd` 计算刻度，泳道内容也需要使用同一时间域完成坐标换算。
+
+开发时需要关注：
+
+- 缩放后时间轴、标记区域、泳道内容使用同一时间域。
+- 大数据量场景下避免在每次重绘中重复执行高成本计算。
+- 需要重新请求数据时，应优先复用已有缓存或按当前时间范围请求。
+
 ### 6.4 跳转
+
+跳转用于定位目标时间点、目标切片或目标算子。跳转后应更新可视区域，并确保目标对象在当前视图范围内可见。
+
+开发时需要关注：
+
+- 跳转目标是否有明确的时间戳或切片 ID。
+- 跳转后 `domainStart` / `domainEnd` 与选中状态是否同步更新。
+- 若目标数据尚未加载，需要先触发对应泳道数据请求，再执行定位。
+
+## 7、开发与验证建议
+
+### 7.1 关键代码入口
+
+- 泳道类定义：`modules/timeline/src/insight/units/AscendUnit.tsx`
+- 泳道信息组件：`modules/timeline/src/components/ChartContainer/Units/UnitInfo.tsx`
+- 图表类型：`StatusChart`、`StackStatusChart`、`FilledLineChart`
+- 数据缓存：`modules/timeline/src/cache/simplecache.ts`
+
+具体路径随代码演进可能调整，维护本文时需以仓库源码为准。
+
+### 7.2 新增泳道开发步骤
+
+1. 在泳道定义中补充新的 Unit 类型和必要元数据。
+2. 明确新泳道使用的图表类型。
+3. 后端补充或复用数据接口。
+4. 前端在展开泳道时触发对应数据请求。
+5. 验证置顶、框选、缩放、hover、跳转等交互是否受影响。
+
+### 7.3 验证方法
+
+- 导入包含 Timeline 数据的 TEXT 或 DB 数据。
+- 展开 Card、Process、Thread、Counter 等不同类型泳道。
+- 验证 `import/action`、`parse/success`、`unit/threadTracesSummary`、`unit/threadTraces`、`unit/counter` 的请求链路。
+- 验证置顶、框选、缩放、跳转、hover 是否正常。
