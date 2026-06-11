@@ -809,21 +809,9 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(
         std::string queryMetaType = isPythonStack ? ENUM_TO_STR(PROCESS_TYPE::API).value_or("") : metaType;
         SliceQuery sliceQuery = CreateSliceQueryWithTimeRange(
             {responseBody.rankId, responseBody.pid, queryThreadId, queryMetaType, params.timestamp, params.duration});
+        sliceQuery.isPythonStack = isPythonStack;
         uint64_t sliceId = NumberUtil::StringToUnsignedLongLong(responseBody.id);
-        if (isPythonStack) {
-            SliceAnalyzer sliceAnalyzer;
-            auto repo = RepositoryFactory::Instance()->GetSliceRespo(sliceQuery.metaType);
-            if (repo != nullptr) {
-                std::set<uint64_t> ids;
-                uint64_t maxDepth = 0;
-                std::map<uint64_t, uint32_t> depthMap;
-                sliceAnalyzer.SetRepository(repo);
-                sliceAnalyzer.ComputePythonFunctionSliceIds(sliceQuery, ids, maxDepth, depthMap);
-                responseBody.depth = depthMap[sliceId];
-            }
-        } else {
-            responseBody.depth = GetSliceDepthForJump(sliceQuery, sliceId);
-        }
+        responseBody.depth = GetSliceDepthForJump(sliceQuery, sliceId);
     }
     return true;
 }

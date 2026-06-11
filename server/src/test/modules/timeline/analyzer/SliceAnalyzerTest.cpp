@@ -223,6 +223,62 @@ TEST_F(SliceAnalyzerTest, test_ComputeDepthInfoByTrackId_group_id_filter_python_
     CacheManager::Instance().ClearAll();
 }
 
+TEST_F(SliceAnalyzerTest, test_ComputePythonFunctionDepthInfoByTrackId_reassigns_virtual_lane_depth) {
+    class RepositoryMock : public Dic::Module::Timeline::TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            (void)sliceQuery;
+            sliceVec = {
+                SliceDomain{1, 0, 100, 0, ""},
+                SliceDomain{2, 10, 50, 5, ""},
+                SliceDomain{3, 20, 40, 6, ""},
+                SliceDomain{4, 60, 90, 5, ""},
+            };
+        }
+
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override {
+            return sliceQuery.cat == "python_function" ? 3 : 0;
+        }
+
+        void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override {
+            if (sliceQuery.cat != "python_function") {
+                return;
+            }
+            sliceIds = {2, 3, 4};
+        }
+    };
+    CacheManager::Instance().ClearAll();
+    std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
+    SliceAnalyzer sliceAnalyzer;
+    sliceAnalyzer.SetRepository(ptr);
+    SliceQuery sliceQuery;
+    sliceQuery.trackId = 1009;
+    sliceQuery.rankId = "python_stack_depth";
+    sliceQuery.startTime = 0;
+    sliceQuery.endTime = 100;
+    std::unordered_map<uint64_t, uint32_t> depthInfo;
+
+    sliceAnalyzer.ComputePythonFunctionDepthInfoByTrackId(sliceQuery, depthInfo);
+
+    EXPECT_EQ(depthInfo.count(1), 0);
+    EXPECT_EQ(depthInfo[2], 0);
+    EXPECT_EQ(depthInfo[3], 1);
+    EXPECT_EQ(depthInfo[4], 0);
+
+    SliceQuery screenQuery = sliceQuery;
+    screenQuery.cat = "python_function";
+    std::set<uint64_t> ids;
+    uint64_t maxDepth = 0;
+    std::map<uint64_t, uint32_t> depthMap;
+    sliceAnalyzer.ComputeScreenSliceIds(screenQuery, ids, maxDepth, depthMap);
+
+    EXPECT_EQ(ids.count(2), 0);
+    EXPECT_EQ(ids.count(3), 0);
+    EXPECT_EQ(ids.count(4), 0);
+    CacheManager::Instance().ClearAll();
+}
+
 /**
  * 测试无 group_id 时保持原有 first-fit 深度分配行为
  */
