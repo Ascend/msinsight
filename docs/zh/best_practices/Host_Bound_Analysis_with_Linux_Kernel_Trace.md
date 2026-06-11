@@ -163,14 +163,14 @@ Example:
 2. 在工程管理中向当前工程添加转换后的结果文件，就可以得到两种数据并存的流水图
 
    ![image](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/import-profiling-and-ftrace.png)
-3. 查看CPU侧调度情况， 查看CPU Proscheduling泳道
+3. 查看CPU侧调度情况， 查看CPU Scheduling泳道
 
 ![image](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/cpu-scheduling-lane.png)
 4. 查看特定进程的调度状态
 
 ![image](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/process-scheduling-status.png)
 
-通过上述流水图，可以观察到进程的调度行为，例如观察进程python3:1418857，可以看到他发生了一次核间迁移，运行过程中存在软中断的情况。
+通过上述流水图，可以观察到进程的调度行为，例如观察进程python3:1418857，可以看到它发生了一次核间迁移，运行过程中存在软中断的情况。
 ![image](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/process-inter-core-migration.png)
 
 ![image](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/soft-interrupt-observation.png)

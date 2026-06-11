@@ -102,7 +102,7 @@ torch_npu.npu.memory._dump_snapshot("memory_snapshot.pickle")
     **图 4**  内存池状态图中存在未被复用的空闲内存<a id="内存池状态图中存在未被复用的空闲内存"></a>
     ![](./figures/pytorch_snapshot_memory_analysis/snapshot_fragmentation_pool_state.png "内存池状态图中存在未被复用的空闲内存")
 
-6. 结合训练输入和业务逻辑继续分析，发现训练数据中存在个别极端长序列。这类输入会在单个 Step 中将显存峰值顶高，后续虽然实际使用下降，但内存池中遗留的碎片难以及时复用。
+6. 结合训练输入和业务逻辑继续分析，发现训练数据中存在个别极端长序列。这类输入会在单个 Step 中将显存峰值拉高，后续虽然实际使用下降，但内存池中遗留的碎片难以及时复用。
 
 ### 分析结论
 

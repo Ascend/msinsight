@@ -629,7 +629,7 @@ list(APPEND DIC_MODULES_SRC_LIST
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * You may obtain a copy of Mulan PSL v2 at:
  *
- *          http://license.coscl.org.cn/MulanPSL2
+ *          https://license.coscl.org.cn/MulanPSL2
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -1228,9 +1228,9 @@ npm run test:smoke
 在提交 PR 之前，请确保：
 
 1. 代码通过本地编译和构建
-2. **pre-commit 代码检查全部通过**（参见 [2.5 配置 pre-commit 代码检查工具](#25-配置-pre-commit-代码检查工具)）
+2. **pre-commit 代码检查全部通过**（参见 [2.6 配置 pre-commit](#26-配置-pre-commit)）
 3. 后端代码变更需补充 DT，行覆盖率 >= 80%，分支覆盖率 >= 60%
-4. 前后端代码变更需通过预冒烟测试（参见 [5.2.6 预冒烟测试](#526-预冒烟测试ci-环境)）
+4. 前后端代码变更需通过预冒烟测试（参见 [4.2.6 预冒烟测试（CI 环境）](#426-预冒烟测试ci-环境)）
 5. 涉及用户端功能的改动，请同步更新对应的用户和开发者文档
 6. 每个 PR 仅包含**一个 commit**（如有多 commit 请先合并）
 

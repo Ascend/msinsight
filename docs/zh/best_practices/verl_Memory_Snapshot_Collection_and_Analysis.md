@@ -210,7 +210,7 @@ mem_snapshots_selected_ranks/
 
 ![内存块表格1](./figures/verl_Memory_Snapshot_Collection_and_Analysis/block-table1.png)
 
-并且可以复制此次事件的内存地址，在内存池状态图中的事件列表进行搜索，找到这次事件发生时的内存状态进行分析
+并且可以复制此次事件的内存地址，在内存池状态图中的事件列表中进行搜索，找到这次事件发生时的内存状态进行分析
 
 ![内存块表格2](./figures/verl_Memory_Snapshot_Collection_and_Analysis/block-table2.png)
 

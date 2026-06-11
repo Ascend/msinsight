@@ -4,7 +4,7 @@
 
 ### 问题描述
 
-MindStudio Insight 打开后立即闪退，请问怎么处理，安装edge webview2 runtime报这个错
+MindStudio Insight 打开后立即闪退，请问怎么处理，安装Edge WebView2 Runtime报这个错
 
 ![image](figures/Crash_Issues/webview2-install-error.png)
 
@@ -42,7 +42,7 @@ MindStudio Insight 一直闪退，重装也无法解决
 
 【解决方案】
 
-黄区可以找 12345 客服获取代理下载 edge webview2 runtime 工具。
+黄区可以找 12345 客服获取代理下载 Edge WebView2 Runtime 工具。
 
 启动包在 Windows 官网下载。
 

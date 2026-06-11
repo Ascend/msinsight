@@ -729,7 +729,7 @@ const std::string BLOCK_STATE_ACTIVE_PENDING_FREE = "active_pending_free";
 
 # 5. 缺点和风险
 
-## 6.1 潜在风险
+## 5.1 潜在风险
 
 1. **大数据库性能**
    - 风险：数据量非常大时，查询性能可能下降
@@ -743,12 +743,12 @@ const std::string BLOCK_STATE_ACTIVE_PENDING_FREE = "active_pending_free";
    - 风险：未来数据格式可能变更
    - 应对：版本兼容设计，字典表支持枚举变更
 
-## 6.2 对现有用户的影响
+## 5.2 对现有用户的影响
 
 - 功能已实现并集成，用户可以直接使用
 - 不影响其他功能
 
-# 7. 未解决问题
+# 6. 未解决问题
 
 1. 是否需要支持PyTorch原生snapshot格式？
 2. 是否需要添加自动化内存泄漏检测功能？

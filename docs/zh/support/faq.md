@@ -255,8 +255,8 @@ export JSC_useJIT=0
 export JSC_useDFGJIT=0
 export JSC_useFTLJIT=0
 export WEBKIT_DISABLE_COMPOSITING_MODE=1
-unset https_proxy
-unset http_proxy
+unset HTTPS_PROXY
+unset HTTP_PROXY
 ```
 
 ## 14. 导入文件时提示路径过长或嵌套层数过深怎么办？
