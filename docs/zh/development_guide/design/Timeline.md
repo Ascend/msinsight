@@ -840,7 +840,7 @@ Counter 泳道如图所示：
 <summary> <code>unit/counter</code> </summary>
 req:
 
-```tson
+```json
 {
   "id": 24,
   "moduleName": "timeline",
@@ -870,7 +870,7 @@ req:
 
 resp:
 
-```tson
+```json
 {
   "type": "response",
   "id": 828,
@@ -947,7 +947,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 1. HBM 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -969,7 +969,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 2. LLC 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -994,7 +994,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 3. DDR 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -1019,7 +1019,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 4. STARS_SOC 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -1044,7 +1044,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 5. ACC_PMU 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -1065,7 +1065,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 6. NPU_MEM 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -1087,7 +1087,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 7. SAMPLE_PMU 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -1104,7 +1104,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 8. ROCE\ROH\NIC 类型
 
-```tson
+```json
 // 1
 {
   "timestamp": 20534090,
@@ -1136,7 +1136,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 9. HCCS 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -1152,7 +1152,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 10. PCIE 类型
 
-```tson
+```json
 // 1
 {
   "timestamp": 20534090,
@@ -1181,7 +1181,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 ###### 11. AI_CORE 类型
 
-```tson
+```json
 {
   "timestamp": 20534090,
   "value": {
@@ -1229,7 +1229,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
 3. 例子：json 文件中关于 Counter 的片段
 
-   ```tson
+   ```json
    {"processName": "APP/DDR", "ts": "1707359574357536.879", "pid": 1717664, "tid": 0, "args": {"KB": 0.0}, "ph": "C"}
 
    {"processName": "APP/HBM", "ts": "1707359574357536.879", "pid": 1717664, "tid": 0, "args": {"KB": 9069036.0}, "ph": "C"}
@@ -1300,7 +1300,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 
    req:
 
-   ```tson
+   ```json
    {
      "rankId": "ubuntu8438122216155992192_0 0",
      "tid": ["272_0"],

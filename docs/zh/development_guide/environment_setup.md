@@ -1,8 +1,8 @@
 # 开发环境搭建
 
-本文说明 MindStudio Insight 开发环境的准备方式，覆盖 Linux、Windows 和 macOS 三个平台。MindStudio Insight 是跨端工具，[开发指南](./development_guide.md)默认以 Linux 为主线说明快速开发流程；Windows 和 macOS 开发者可参考本文对应平台章节完成环境准备。
+本文说明 MindStudio Insight 开发环境的准备方式，覆盖 Linux、Windows 和 macOS 三个平台。MindStudio Insight 是跨端工具，[开发指南](./develop_guide.md)默认以 Linux 为主线说明快速开发流程；Windows 和 macOS 开发者可参考本文对应平台章节完成环境准备。
 
-> 说明：本文面向源码开发和本地调试，不等同于用户安装指南。用户侧安装请参见[MindStudio Insight 安装指南](../user_guide/mindstudio_insight_install_guide.md)。
+> 说明：本文面向源码开发和本地调试，不等同于用户安装指南。用户侧安装请参见[MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_guide.md)。
 
 ## 1. 通用准备
 
@@ -138,7 +138,7 @@ g++ --version
 ninja --version
 ```
 
-完成环境准备后，可回到[开发指南](./development_guide.md)继续执行 Linux 快速构建与运行步骤。
+完成环境准备后，可回到[开发指南](./develop_guide.md)继续执行 Linux 快速构建与运行步骤。
 
 ## 3. Windows 开发环境
 
