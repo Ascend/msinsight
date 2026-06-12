@@ -157,6 +157,8 @@ const handleThreshold = (blockParam: any, session: any): void => {
 export const getBlockTableData = async (session: any): Promise<void> => {
     const request = session.module === 'leaks' ? getBlockDetails : getSnapshotBlockTable;
     try {
+        const currentPage = session.blocksCurrentPage;
+        const pageSize = session.blocksPageSize;
         const blockParam: BlockParam = {
             deviceId: session.deviceId,
             relativeTime: true,
@@ -164,8 +166,8 @@ export const getBlockTableData = async (session: any): Promise<void> => {
             isTable: true,
             startTimestamp: session.minTime,
             endTimestamp: session.maxTime,
-            currentPage: session.blocksCurrentPage,
-            pageSize: session.blocksPageSize,
+            currentPage,
+            pageSize,
         };
         if (session.blocksOrder !== '') {
             blockParam.desc = session.blocksOrder;
@@ -185,6 +187,13 @@ export const getBlockTableData = async (session: any): Promise<void> => {
         }
         handleThreshold(blockParam, session);
         const blockTableData = await request(blockParam);
+        const maxPage = Math.max(Math.ceil(blockTableData.total / pageSize), 1);
+        if (currentPage > maxPage) {
+            runInAction(() => {
+                session.blocksCurrentPage = maxPage;
+            });
+            return;
+        }
         runInAction(() => {
             session.blocksTableData = blockTableData.blocks;
             session.blocksTableHeader = blockTableData.headers;
@@ -226,13 +235,15 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
 export const getEventTableData = async (session: any): Promise<void> => {
     const request = session.module === 'leaks' ? getEventDetails : getSnapshotEvent;
     try {
+        const currentPage = session.eventsCurrentPage;
+        const pageSize = session.eventsPageSize;
         const eventParam: EventParam = {
             deviceId: session.deviceId,
             relativeTime: true,
             startTimestamp: session.minTime,
             endTimestamp: session.maxTime,
-            currentPage: session.eventsCurrentPage,
-            pageSize: session.eventsPageSize,
+            currentPage,
+            pageSize,
             isTable: true,
         };
         if (session.eventsOrder !== '') {
@@ -246,6 +257,13 @@ export const getEventTableData = async (session: any): Promise<void> => {
             eventParam.rangeFilters = session.eventsRangeFilters;
         }
         const eventTableData = await request(eventParam);
+        const maxPage = Math.max(Math.ceil(eventTableData.total / pageSize), 1);
+        if (currentPage > maxPage) {
+            runInAction(() => {
+                session.eventsCurrentPage = maxPage;
+            });
+            return;
+        }
         runInAction(() => {
             session.eventsTableData = eventTableData.events;
             session.eventsTableHeader = eventTableData.headers;

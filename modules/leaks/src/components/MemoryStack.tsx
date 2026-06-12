@@ -91,12 +91,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     const commitRangeSideEffects = (range: [number, number]): void => {
         commitSessionRange(range);
         if (session.module === 'memsnapshot') {
-            runInAction(() => {
-                if (session.autoFilterPotentialLeaks) {
-                    session.blocksCurrentPage = 1;
-                    session.eventsCurrentPage = 1;
-                }
-            });
             if (session.autoFilterPotentialLeaks) {
                 getBlockTableData(session);
                 getEventTableData(session);
