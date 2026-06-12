@@ -47,6 +47,7 @@
 #include "MemSnapshotParser.h"
 #include "ProjectParserTriton.h"
 #include "ProjectParserFtrace.h"
+#include "DbPlatformDataBase.h"
 
 // clang-format off
 namespace Dic::Module {
@@ -181,7 +182,12 @@ void ProjectParserBase::ParseEndCallBack(
     const std::string &rankId, const std::string &fileId, bool result, const std::string &message) {
     ServerLog::Info("Parse end, fileId:", rankId, ", result:", result);
     if (result) {
-        SendParseSuccessEvent(rankId, fileId);
+        auto type = DataBaseManager::Instance().GetFileTypeByRankId(rankId);
+        if (type == FileType::PLATFORM) {
+            SendPlatformParseSuccessEvent(rankId, fileId);
+        } else {
+            SendParseSuccessEvent(rankId, fileId);
+        }
     } else {
         SendParseFailEvent(rankId, fileId, message);
     }
@@ -235,6 +241,192 @@ void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const s
     event->body.rankList = TrackInfoManager::Instance().GetRankListByFileId(fileId, rankId);
     SearchMetaData(rankId, fileId, event->body.unit.children);
     SearchGroupedAscendHardwareThreads(fileId, event->body.unit, event->body.threadGroupList);
+    SendEvent(std::move(event));
+}
+
+void ProjectParserBase::SendPlatformParseSuccessEvent(const std::string &rankId, const std::string &fileId)
+{
+    auto event = std::make_unique<ParseSuccessEvent>();
+    event->moduleName = MODULE_TIMELINE;
+    event->result = true;
+    event->body.unit.type = "card";
+    event->body.unit.metadata.cardId = rankId;
+    event->body.unit.metadata.cardAlias = "Platform Metrics";
+    event->body.fileId = fileId;
+    event->body.isFullDb = true;
+    event->body.startTimeUpdated = false;
+
+    auto database = Timeline::DataBaseManager::Instance().GetPlatformDatabaseByRankId(rankId);
+    if (database == nullptr) {
+        ServerLog::Error("[Platform] Failed to get platform database for SendPlatformParseSuccessEvent: ", rankId);
+        SendEvent(std::move(event));
+        return;
+    }
+
+    auto dbPlatform = std::dynamic_pointer_cast<FullDb::DbPlatformDataBase, Platform::VirtualPlatformDataBase>(database);
+    if (dbPlatform == nullptr) {
+        ServerLog::Error("[Platform] Failed to cast to DbPlatformDataBase");
+        SendEvent(std::move(event));
+        return;
+    }
+
+    FullDb::LevelDataMap levels;
+    if (!dbPlatform->QueryLevelData(levels)) {
+        ServerLog::Error("[Platform] Failed to query level data");
+        SendEvent(std::move(event));
+        return;
+    }
+
+    FullDb::TitleDataMap titles;
+    if (!dbPlatform->QueryTitleData(titles)) {
+        ServerLog::Error("[Platform] Failed to query title data");
+        SendEvent(std::move(event));
+        return;
+    }
+
+    FullDb::ScalingValueMap scalingValues;
+    if (!dbPlatform->QueryScalingValuesData(scalingValues)) {
+        ServerLog::Error("[Platform] Failed to query scaling data");
+        SendEvent(std::move(event));
+        return;
+    }
+
+    std::vector<FullDb::PlatformMetric> metrics;
+    dbPlatform->QueryPlatformMetrics(metrics);
+
+    if (levels.empty() || titles.empty() || metrics.empty() || scalingValues.empty()) {
+        ServerLog::Info("[Platform] No levels, titles or metrics found for rankId: ", rankId);
+        SendEvent(std::move(event));
+        return;
+    }
+
+    int64_t minTs = metrics.front().ts;
+    int64_t maxTs = metrics.back().ts;
+    TraceTime::Instance().UpdateTime(minTs, maxTs);
+    TraceTime::Instance().UpdateCardTimeDuration(rankId, minTs, maxTs);
+    event->body.startTimeUpdated = true;
+    event->body.startTime = minTs;
+    event->body.offset = 0;
+
+    std::map<int64_t, TreeNode> tree;
+
+    for (const auto& [levelId, level] : levels) {
+        int64_t title0Id = level.title0Id;
+        int64_t title1Id = level.title1Id;
+        int64_t title2Id = level.title2Id;
+
+        if (title1Id == 0 && title2Id == 0) {
+            auto counterTrack = std::make_unique<UnitTrack>();
+            counterTrack->type = "counter";
+            counterTrack->metaData.cardId = rankId;
+            counterTrack->metaData.processId = "PLATFORM_METRICS";
+            counterTrack->metaData.threadId = std::to_string(levelId);
+            counterTrack->metaData.threadName = titles.count(title0Id) ? titles[title0Id].name : "";
+            counterTrack->metaData.headerTooltip = titles.count(title0Id) ? titles[title0Id].description : "";
+            counterTrack->metaData.maxValue = scalingValues.count(levelId) ? scalingValues[levelId] : 0;
+            if (titles.count(title0Id) && !titles[title0Id].measurementUnit.empty())
+                counterTrack->metaData.dataType = { titles[title0Id].measurementUnit };
+            else
+                counterTrack->metaData.dataType = { "Value" };
+            tree[title0Id].track = std::move(counterTrack);
+            continue;
+        }
+
+        if (!tree.count(title0Id) || tree[title0Id].track == nullptr) {
+            auto processTrack = std::make_unique<UnitTrack>();
+            processTrack->type = "process";
+            processTrack->metaData.cardId = rankId;
+            processTrack->metaData.processId = std::to_string(title0Id);
+            processTrack->metaData.processName = titles.count(title0Id) ? titles[title0Id].name : "";
+            tree[title0Id].track = std::move(processTrack);
+        }
+
+        auto& subtree = tree[title0Id].children;
+
+        if (!subtree.count(title1Id)) {
+            if (title2Id == 0) {
+                auto counterTrack = std::make_unique<UnitTrack>();
+                counterTrack->type = "counter";
+                counterTrack->metaData.cardId = rankId;
+                counterTrack->metaData.processId = std::to_string(title1Id);
+                counterTrack->metaData.threadId = std::to_string(levelId);
+                counterTrack->metaData.threadName = titles.count(title1Id) ? titles[title1Id].name : "";
+                counterTrack->metaData.headerTooltip = titles.count(title1Id) ? titles[title1Id].description : "";
+                counterTrack->metaData.maxValue = scalingValues.count(levelId) ? scalingValues[levelId] : 0;
+                if (titles.count(title1Id) && !titles[title1Id].measurementUnit.empty())
+                    counterTrack->metaData.dataType = { titles[title1Id].measurementUnit };
+                else
+                    counterTrack->metaData.dataType = { "Value" };
+
+                subtree[title1Id].track = std::move(counterTrack);
+            } else {
+                auto processTrack = std::make_unique<UnitTrack>();
+                processTrack->type = "process";
+                processTrack->metaData.cardId = rankId;
+                processTrack->metaData.processId = std::to_string(title1Id);
+                processTrack->metaData.processName = titles.count(title1Id) ? titles[title1Id].name : "";
+                subtree[title1Id].track = std::move(processTrack);
+            }
+        }
+
+        if (title2Id == 0) {
+            continue;
+        }
+
+        auto& subsubtree = subtree[title1Id].children;
+
+        auto counterTrack = std::make_unique<UnitTrack>();
+        counterTrack->type = "counter";
+        counterTrack->metaData.cardId = rankId;
+        counterTrack->metaData.processId = "PLATFORM_METRICS";
+        counterTrack->metaData.threadId = std::to_string(levelId);
+        counterTrack->metaData.threadName = titles.count(title2Id) ? titles[title2Id].name : "";
+        counterTrack->metaData.headerTooltip = titles.count(title2Id) ? titles[title2Id].description : "";
+        counterTrack->metaData.maxValue = scalingValues.count(levelId) ? scalingValues[levelId] : 0;
+        if (titles.count(title2Id) && !titles[title2Id].measurementUnit.empty())
+            counterTrack->metaData.dataType = { titles[title2Id].measurementUnit };
+        else
+            counterTrack->metaData.dataType = { "Value" };
+        subsubtree[title2Id].track = std::move(counterTrack);
+    }
+
+    auto platformWrapper = std::make_unique<UnitTrack>();
+    platformWrapper->type = "process";
+    platformWrapper->metaData.cardId = rankId;
+    platformWrapper->metaData.processId = "PLATFORM_METRICS";
+    platformWrapper->metaData.processName = "Platform Metrics";
+
+    std::function<void(TreeNode&, UnitTrack&)> buildTree = [&buildTree](TreeNode& node, UnitTrack& parent) {
+        if (node.track && node.track->type == "counter") {
+            parent.children.emplace_back(std::move(node.track));
+            return;
+        }
+        for (auto& [id, childNode] : node.children) {
+            if (childNode.track) {
+                buildTree(childNode, *node.track);
+            }
+        }
+        if (!node.children.empty() && node.track) {
+            parent.children.emplace_back(std::move(node.track));
+        }
+    };
+
+    for (auto& [title0Id, rootNode] : tree) {
+        if (rootNode.track && rootNode.track->type == "process") {
+            for (auto& [id, childNode] : rootNode.children) {
+                if (childNode.track) {
+                    buildTree(childNode, *rootNode.track);
+                }
+            }
+            platformWrapper->children.emplace_back(std::move(rootNode.track));
+        } else if (rootNode.track && rootNode.track->type == "counter") {
+            platformWrapper->children.emplace_back(std::move(rootNode.track));
+        }
+    }
+
+    event->body.unit.children.emplace_back(std::move(platformWrapper));
+
+    ServerLog::Info("[Platform] SendPlatformParseSuccessEvent for rankId: ", rankId);
     SendEvent(std::move(event));
 }
 

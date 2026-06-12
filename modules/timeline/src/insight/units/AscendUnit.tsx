@@ -787,6 +787,7 @@ export const CounterUnit = unit<CounterMetaData>({
             });
             return {
                 palette,
+                valueRange: countMetaData.maxValue ? [0, countMetaData.maxValue] : undefined,
             };
         },
         renderTooltip: (data, metadata) => {

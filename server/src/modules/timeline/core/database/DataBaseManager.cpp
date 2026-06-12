@@ -22,6 +22,7 @@
 #include "DbTraceDataBase.h"
 #include "DbMemoryDataBase.h"
 #include "DbSummaryDataBase.h"
+#include "DbPlatformDataBase.h"
 #include "DbClusterDataBase.h"
 #include "BaselineManager.h"
 #include "TrackInfoManager.h"
@@ -269,12 +270,60 @@ std::vector<Summary::VirtualSummaryDataBase *> DataBaseManager::GetAllSummaryDat
     return databases;
 }
 
+
+std::shared_ptr<Platform::VirtualPlatformDataBase> DataBaseManager::CreatePlatformDataBase(const std::string &rankId,
+                                        const std::string &dbPath)
+{
+    std::unique_lock lock(mutex);
+    std::string fileId = dbPath;
+    databasePathSet.emplace(dbPath);
+    SetRankIdFileIdMapping(rankId, fileId);
+
+    if (platformDatabaseMap.count(fileId) == 0) {
+        std::recursive_mutex &dbMutex = GetDbMutex(fileId);
+
+        platformDatabaseMap.emplace(
+            fileId,
+            std::make_unique<FullDb::DbPlatformDataBase>(dbMutex)
+        );
+    }
+
+    ServerLog::Info("[Platform] Database created for rankId: ", rankId, fileId);
+    return platformDatabaseMap[fileId];
+}
+
+std::shared_ptr<Platform::VirtualPlatformDataBase> DataBaseManager::GetPlatformDatabaseByRankId(const std::string &rankId)
+{
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    std::string fileId = GetFileIdByRankId(rankId);
+    auto it = platformDatabaseMap.find(fileId);
+    if (it == platformDatabaseMap.end() && dbFilePathMap.count(fileId) != 0) {
+        it = platformDatabaseMap.find(dbFilePathMap[fileId]);
+    }
+    if (it == platformDatabaseMap.end()) {
+        ServerLog::Error("Can't find platform database. FileId:", fileId);
+        return nullptr;
+    }
+    return it->second;
+}
+
+std::vector<Platform::VirtualPlatformDataBase *> DataBaseManager::GetAllPlatformDatabase()
+{
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    std::vector<Platform::VirtualPlatformDataBase *> databases;
+    for (auto &databaseMap : platformDatabaseMap) {
+        databases.emplace_back(databaseMap.second.get());
+    }
+    return databases;
+}
+
 void DataBaseManager::Clear()
 {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     traceDatabaseMap.clear();
     memoryDatabaseMap.clear();
     summaryDatabaseMap.clear();
+    platformDatabaseMap.clear();
     clusterDatabaseMap.clear();
     clusterProject2DbPathMap.clear();
     dbMutexMap.clear();
@@ -308,6 +357,9 @@ void DataBaseManager::Clear(DatabaseType type)
             break;
         case DatabaseType::MEM_SNAPSHOT:
             memSnapshotDatabaseMap.clear();
+            break;
+        case DatabaseType::PLATFORM:
+            platformDatabaseMap.clear();
             break;
         default:
             break;

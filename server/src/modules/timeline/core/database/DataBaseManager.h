@@ -28,6 +28,7 @@
 #include "DbTraceDataBase.h"
 #include "TextClusterDatabase.h"
 #include "VirtualMemoryDataBase.h"
+#include "VirtualPlatformDataBase.h"
 #include "MemScopeDatabase.h"
 #include "MemSnapshotDatabase.h"
 #include "KernelParse.h"
@@ -36,9 +37,9 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Module::FullDb;
-enum class DatabaseType { TRACE, SUMMARY, MEMORY, MEM_SCOPE, MEM_SNAPSHOT };
+enum class DatabaseType { TRACE, SUMMARY, MEMORY, MEM_SCOPE, MEM_SNAPSHOT, PLATFORM };
 enum class DataType { TEXT, DB };
-enum class FileType { MS_PROF, PYTORCH };
+enum class FileType { MS_PROF, PYTORCH, PLATFORM };
 class DataBaseManager {
   public:
     static DataBaseManager &Instance();
@@ -82,6 +83,11 @@ class DataBaseManager {
     std::shared_ptr<Summary::VirtualSummaryDataBase> CreateSummaryDatabase(
         const std::string &rankId, const std::string &dbPath);
     std::vector<Summary::VirtualSummaryDataBase *> GetAllSummaryDatabase();
+
+    std::shared_ptr<Platform::VirtualPlatformDataBase> CreatePlatformDataBase(
+        const std::string &rankId, const std::string &dbPath);
+    std::shared_ptr<Platform::VirtualPlatformDataBase> GetPlatformDatabaseByRankId(const std::string &rankId);
+    std::vector<Platform::VirtualPlatformDataBase *> GetAllPlatformDatabase();
 
     std::string GetDbPathByRankId(const std::string &rankId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseWithOutHost(const std::string &rankId);
@@ -141,6 +147,7 @@ class DataBaseManager {
 
     std::map<RankId, std::shared_ptr<Memory::VirtualMemoryDataBase>> memoryBaselineDatabaseMap;
     std::map<RankId, std::shared_ptr<Summary::VirtualSummaryDataBase>> summaryBaselineDatabaseMap;
+    std::map<RankId, std::shared_ptr<Platform::VirtualPlatformDataBase>> platformDatabaseMap;
 
     std::map<std::string, std::string> rankIdToDeviceIdMap; // key: fileId + rankId , value: deviceId
     std::recursive_mutex &GetDbMutex(const std::string &fileId);

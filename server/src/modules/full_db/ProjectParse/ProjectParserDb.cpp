@@ -244,6 +244,10 @@ std::vector<std::string> ProjectParserDb::GetParseFileByImportFile(const std::st
     for (const auto &item : reportFiles) {
         res.push_back(FileUtil::GetParentPath(item));
     }
+    std::vector<std::string> platformFiles = FileUtil::FindFilesWithFilter(importFile, std::regex(platformDBReg));
+    for (const auto &item : platformFiles) {
+        res.push_back(FileUtil::GetParentPath(item));
+    }
     return res;
 }
 
@@ -430,7 +434,8 @@ std::vector<std::string> ProjectParserDb::GetDbFilesInDir(const std::string &fil
     }
     // 静态初始化，避免重复调用时正则编译开销
     static std::unordered_multimap<FileType, std::regex> dbRegex = {{FileType::PYTORCH, std::regex{pytorchDBReg}},
-        {FileType::PYTORCH, std::regex{mindsporeDBReg}}, {FileType::MS_PROF, std::regex{msprofDBReg}}};
+        {FileType::PLATFORM, std::regex{platformDBReg}}, {FileType::PYTORCH, std::regex{mindsporeDBReg}},
+        {FileType::MS_PROF, std::regex{msprofDBReg}}};
     for (const auto &pair : dbRegex) {
         FileType type = pair.first;
         auto &dbRegx = pair.second;

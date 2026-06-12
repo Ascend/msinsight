@@ -45,6 +45,8 @@ struct UnitTrackMetaData {
     std::string metaType;
     int maxDepth = 0; // type = thread
     std::vector<std::string> dataType; // type = counter
+    std::string headerTooltip;
+    double maxValue = 0.;
 };
 
 struct UnitTrack {
