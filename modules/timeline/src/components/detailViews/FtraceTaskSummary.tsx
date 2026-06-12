@@ -105,14 +105,10 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
     };
 
     useEffect(() => {
-        fetchData(page, sorter, filters);
-    }, [sorter, filters, page.current, page.pageSize, props.card?.cardId, props.card?.dbPath, status, props.session.timeAnalysisRange]);
-
-    useEffect(() => {
         if (status === 'download') {
             fetchData(page, sorter, filters);
         }
-    }, [status]);
+    }, [status, sorter, filters, page.current, page.pageSize, props.card?.cardId, props.card?.dbPath, props.session.timeAnalysisRange]);
 
     // 列定义：将 title 映射为 i18n 翻译文本
     const columns = ftraceUnifiedColumns.map(col => ({ ...col, title: t(col.title as string) }));
