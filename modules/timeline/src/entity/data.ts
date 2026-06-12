@@ -694,6 +694,8 @@ export interface MetaDataInnerBase extends MetaDataBase {
     processName?: string;
     threadName?: string;
     threadId?: string;
+    headerTooltip?: string;
+    maxValue?: number;
 }
 
 export interface LabelMetaData extends MetaDataInnerBase {

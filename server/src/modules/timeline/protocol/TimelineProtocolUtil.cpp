@@ -1028,6 +1028,8 @@ json_t UnitTrackToJson(const UnitTrack &unitTrack, RAPIDJSON_DEFAULT_ALLOCATOR &
         dataType.PushBack(json_t().SetString(type.c_str(), type.length(), allocator), allocator);
     }
     JsonUtil::AddMember(metadata, "dataType", dataType, allocator);
+    JsonUtil::AddMember(metadata, "headerTooltip", unitTrack.metaData.headerTooltip, allocator);
+    JsonUtil::AddMember(metadata, "maxValue", unitTrack.metaData.maxValue, allocator);
     json_t children(kArrayType);
     for (const auto &track : unitTrack.children) {
         children.PushBack(UnitTrackToJson(*track, allocator, depth + 1), allocator);

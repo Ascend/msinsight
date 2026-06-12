@@ -108,6 +108,7 @@ class ProjectParserBase {
         const std::string &rankId, const std::string &fileId, std::vector<std::unique_ptr<UnitTrack>> &metaData);
     static void ProcessMetadata(std::vector<std::unique_ptr<UnitTrack>> &metaData);
     static void SendParseSuccessEvent(const std::string &rankId, const std::string &fileId);
+    static void SendPlatformParseSuccessEvent(const std::string &rankId, const std::string &fileId);
     static void SendParseFailEvent(const std::string &rankId, const std::string &fileId, const std::string &message);
     static bool IsNeedReset(const ImportActionRequest &request);
 
@@ -131,6 +132,12 @@ class ParserFactory {
   private:
     static std::mutex mutex;
 };
+
+struct TreeNode {
+    std::unique_ptr<UnitTrack> track;
+    std::map<int64_t, TreeNode> children;
+};
+
 } // end of namespace Module
 // end of namespace Dic
 

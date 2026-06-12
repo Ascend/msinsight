@@ -16,13 +16,13 @@
  * -------------------------------------------------------------------------
  */
 #include "pch.h"
-#include "WsSender.h"
 #include "ParserStatusManager.h"
 #include "DataBaseManager.h"
 #include "TraceTime.h"
 #include "DbTraceDataBase.h"
 #include "DbMemoryDataBase.h"
 #include "DbSummaryDataBase.h"
+#include "DbPlatformDataBase.h"
 #include "ClusterParseThreadPoolExecutor.h"
 #include "BaselineManager.h"
 #include "CollectionTimeService.h"
@@ -30,6 +30,7 @@
 #include "CacheManager.h"
 #include "ParseUnitManager.h"
 #include "FullDbParser.h"
+#include "ProtocolManager.h"
 
 namespace Dic::Module::FullDb {
 using namespace Dic::Server;
@@ -74,6 +75,7 @@ void FullDbParser::Reset() {
     FullDb::DbMemoryDataBase::Reset();
     FullDb::DbSummaryDataBase::Reset();
     FullDb::DbTraceDataBase::Reset();
+    FullDb::DbPlatformDataBase::Reset();
     ServerLog::Info("End Reset trace Parser");
     CollectionTimeService::Instance().Reset();
 }
@@ -87,6 +89,24 @@ std::shared_ptr<DbTraceDataBase> FullDbParser::GetTraceDatabase(const std::strin
 void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std::string> &rankIds) {
     ParserStatusManager::Instance().WaitStartParse();
     auto start = std::chrono::high_resolution_clock::now();
+
+    bool isPlatform =
+        !rankIds.empty() ? DataBaseManager::Instance().GetFileTypeByRankId(rankIds[0]) == FileType::PLATFORM : false;
+    // Init Platform metrics data
+    if (isPlatform) {
+        ServerLog::Info("Platform data parsing has started");
+        for (const auto &id : rankIds) {
+            if (InitPlatform(id, filePath)) {
+                ParserCallBack(id, filePath, true);
+                Timeline::ParserStatusManager::Instance().SetParserStatus(id, Timeline::ParserStatus::FINISH_ALL);
+            }
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        ServerLog::Info("Platform data parsing has finished.",
+            " Cost time(ms): ", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+        return;
+    }
+
     std::string dbId = (rankIds.size() > 0 && Global::BaselineManager::Instance().IsBaselineRankId(rankIds[0]))
         ? rankIds[0]
         : filePath;
@@ -212,6 +232,21 @@ void FullDbParser::InitMemory(const std::vector<std::string> &rankIds, const std
         }
     }
     ServerLog::Info("Init Memory finish");
+}
+
+bool FullDbParser::InitPlatform(const std::string &rankId, const std::string &path) {
+    auto platformDatabase = std::dynamic_pointer_cast<FullDb::DbPlatformDataBase, Platform::VirtualPlatformDataBase>(
+        Timeline::DataBaseManager::Instance().CreatePlatformDataBase(rankId, path));
+    if (platformDatabase == nullptr) {
+        ServerLog::Error("[Platform] Failed to create database for rankId: ", rankId);
+        return false;
+    }
+    if (!platformDatabase->OpenDb(path, false)) {
+        ServerLog::Error("[Platform] Failed to open database for rankId: ", rankId);
+        return false;
+    }
+    ServerLog::Info("[Platform] Database opened successfully for rankId: ", rankId);
+    return true;
 }
 
 bool FullDbParser::Parse(const std::vector<std::string> &fileIds, const std::string &filePath,

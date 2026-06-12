@@ -41,6 +41,15 @@ bool QueryUnitCounterHandler::HandleRequest(std::unique_ptr<Protocol::Request> r
     if (StringUtil::EndWith(request.params.rankId, hostString)) {
         request.params.rankId = DataBaseManager::Instance().GetAnyTraceDatabaseId();
     }
+    auto databasePlatform = DataBaseManager::Instance().GetPlatformDatabaseByRankId(request.params.rankId);
+    if (databasePlatform != nullptr) {
+        bool result = databasePlatform->QueryUnitCounter(request.params, minTimestamp, response.body.data);
+        if (!result) {
+            SetTimelineError(ErrorCode::QUERY_UNIT_COUNTER_FAILED);
+        }
+        SendResponse(std::move(responsePtr), true);
+        return result;
+    }
     auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
     if (database == nullptr) {
         ServerLog::Error("Query unit counter failed to get connection.");

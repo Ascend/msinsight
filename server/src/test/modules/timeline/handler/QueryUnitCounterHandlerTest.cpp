@@ -17,7 +17,12 @@
  */
 #include <gtest/gtest.h>
 #include "QueryUnitCounterHandler.h"
+#include "DataBaseManager.h"
 #include "HandlerTest.cpp"
+
+namespace Dic::Protocol {
+using namespace Dic::Module::Timeline;
+}
 
 class QueryUnitCounterHandlerTest : HandlerTest {};
 
@@ -25,4 +30,20 @@ TEST_F(HandlerTest, QueryUnitCounterHandlerTestNormal) {
     Dic::Module::Timeline::QueryUnitCounterHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::UnitCounterRequest>();
     handler.HandleRequest(std::move(requestPtr));
+}
+
+TEST_F(HandlerTest, QueryUnitCounterHandlerTestPlatformRouting) {
+    Dic::Protocol::DataBaseManager::Instance().Clear();
+    Dic::Protocol::DataBaseManager::Instance().SetFileType(Dic::Protocol::FileType::PLATFORM, ":memory:platform_test");
+    std::string rankId = "platform_test_rank";
+    Dic::Protocol::DataBaseManager::Instance().CreatePlatformDataBase(rankId, ":memory:platform_test");
+
+    Dic::Module::Timeline::QueryUnitCounterHandler handler;
+    auto requestPtr = std::make_unique<Dic::Protocol::UnitCounterRequest>();
+    requestPtr->params.rankId = rankId;
+    requestPtr->params.threadName = "cpu_usage";
+    requestPtr->params.threadId = "0";
+    handler.HandleRequest(std::move(requestPtr));
+
+    Dic::Protocol::DataBaseManager::Instance().Clear();
 }

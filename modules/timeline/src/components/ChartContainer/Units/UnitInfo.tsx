@@ -235,7 +235,9 @@ const getDefaultInfoTooltipTitle = (unit: KeyedInsightUnit, name: string): Toolt
     } else if (isGroupUnit) {
         return { content: `(${unit.metadata.rankList.join(', ')})` };
     }
-    return { content: name };
+    const customTooltip = unit.metadata.headerTooltip as string;
+    const tooltipContent = customTooltip && customTooltip.trim() !== '' ? customTooltip : name;
+    return { content: tooltipContent };
 };
 
 const shouldDisplayStickyButton = (session: Session, isHovered: boolean, hasPinButton: boolean, _isPinned: boolean): boolean => {
