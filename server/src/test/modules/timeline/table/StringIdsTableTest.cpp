@@ -17,6 +17,7 @@
  */
 #include <gtest/gtest.h>
 #include <string>
+#include <vector>
 #include "StringIdsTable.h"
 #include "TestCaseDatabaseUtil.h"
 using namespace Dic::Protocol;
@@ -45,4 +46,32 @@ TEST_F(StringIdsTableTest, testStringIdsTableColumnMaping) {
     EXPECT_EQ(stringIdsPOs.size(), expectSize);
     EXPECT_EQ(stringIdsPOs[index].value, "bbb");
     EXPECT_EQ(stringIdsPOs[index].id, expectId);
+}
+
+TEST_F(StringIdsTableTest, testStringIdsTableInQueryShouldHandleManyParams) {
+    sqlite3 *db = nullptr;
+    std::string sql = "CREATE TABLE  STRING_IDS ("
+                      "  id INTEGER,"
+                      "  value TEXT,"
+                      "  PRIMARY KEY (id)"
+                      ");";
+    TestCaseDatabaseUtil::CreateDatabse(db, sql);
+    sqlite3_limit(db, SQLITE_LIMIT_VARIABLE_NUMBER, 1000);
+    TestCaseDatabaseUtil::InsertData(db, "INSERT INTO STRING_IDS (id, value) VALUES (1, 'aaaa');");
+
+    std::vector<uint64_t> ids;
+    ids.reserve(1001);
+    for (uint64_t i = 1; i <= 1001; ++i) {
+        ids.emplace_back(i);
+    }
+
+    std::vector<StringIdsPO> stringIdsPOs;
+    Dic::Protocol::StringIdsTable stringIdsTable;
+    stringIdsTable.Select(StringIdsColumn::ID, StringIdsColumn::VALUE)
+        .In(StringIdsColumn::ID, ids)
+        .ExcuteQuery(db, stringIdsPOs);
+
+    ASSERT_EQ(stringIdsPOs.size(), 1u);
+    EXPECT_EQ(stringIdsPOs[0].id, 1u);
+    EXPECT_EQ(stringIdsPOs[0].value, "aaaa");
 }
