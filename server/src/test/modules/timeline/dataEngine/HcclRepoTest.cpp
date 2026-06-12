@@ -268,7 +268,14 @@ TEST_F(HcclRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_group_track_with_
     std::unique_ptr<Dic::Module::Timeline::CommucationTaskInfoTable> cmPtr =
         std::make_unique<CommucationTaskInfoTableMock>();
     std::unique_ptr<Dic::Module::Timeline::CommucationOpTable> copPtr = std::make_unique<CommucationOpTableMock>();
-    HcclRepo hcclRepo;
+    class HcclRepoMockForGroup : public HcclRepo {
+      protected:
+        void QuerySimpleSliceFromGroupTrackByDevice(std::vector<CommucationTaskOpPO> &commucationTaskOpPOVec,
+            const TrackInfo &trackInfo, const std::string &tid, const SliceQuery &sliceQuery) override {
+            QuerySimpleSliceByIdsGroupTrackForCommucationOpTable(trackInfo.cardId, commucationTaskOpPOVec);
+        }
+    };
+    HcclRepoMockForGroup hcclRepo;
     hcclRepo.SetTaskTable(std::move(tPtr));
     hcclRepo.SetCommucationTaskInfoTable(std::move(cmPtr));
     hcclRepo.SetCommucationOpTable(std::move(copPtr));
@@ -278,7 +285,7 @@ TEST_F(HcclRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_group_track_with_
     std::vector<SliceDomain> sliceVec;
     hcclRepo.QuerySimpleSliceWithOutNameByTrackId(sliceQuery, sliceVec);
     const uint64_t expectSize = 2;
-    EXPECT_EQ(sliceVec.size(), expectSize);
+    ASSERT_EQ(sliceVec.size(), expectSize);
     auto it = sliceVec.begin();
     const uint64_t firstTimestamp = 22;
     EXPECT_EQ(it->timestamp, firstTimestamp);
@@ -336,7 +343,15 @@ HcclRepo GetHcclRepoMock() {
  */
 TEST_F(HcclRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_group_track_with_unique_key) {
     TrackInfoManager::Instance().Reset();
-    HcclRepo hcclRepo = GetHcclRepoMock();
+    HcclRepo baseRepo = GetHcclRepoMock();
+    class HcclRepoMockForGroup : public HcclRepo {
+      protected:
+        void QuerySimpleSliceFromGroupTrackByDevice(std::vector<CommucationTaskOpPO> &commucationTaskOpPOVec,
+            const TrackInfo &trackInfo, const std::string &tid, const SliceQuery &sliceQuery) override {
+            QuerySimpleSliceByIdsGroupTrackForCommucationOpTable(trackInfo.cardId, commucationTaskOpPOVec);
+        }
+    };
+    HcclRepoMockForGroup hcclRepo;
     SliceQuery sliceQuery;
     sliceQuery.endTime = UINT64_MAX;
     sliceQuery.trackId = TrackInfoManager::Instance().GetTrackId("999", "yyy", "999group");

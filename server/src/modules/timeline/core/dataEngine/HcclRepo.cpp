@@ -75,24 +75,71 @@ void HcclRepo::QuerySimpleSliceFromGroupTrack(std::vector<SliceDomain> &sliceVec
     std::vector<uint64_t> deviceIdList = npuInfoRepo->QueryDeviceIdByFileId(trackInfo.cardId);
     std::vector<CommucationTaskOpPO> commucationTaskOpPOVec;
     std::string tid = trackInfo.threadId.substr(0, trackInfo.threadId.size() - suffix.size());
-    commucationOpTable->Select(CommucationTaskOpColumn::TIMESTAMP, CommucationTaskOpColumn::ENDTIME)
-        .Select(CommucationTaskOpColumn::OP_ID)
-        .Eq(CommucationTaskOpColumn::GROUPNAME, tid)
-        .LessEq(CommucationTaskOpColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
-        .Greater(CommucationTaskOpColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp);
     if (deviceIdList.size() != 1) {
-        // 设备id不唯一，走老逻辑，通过communication_task_info作为中间表查询对应deviceId下大算子数据
-        std::vector<uint64_t> globalIds = QueryGlobalTaskIdsByRank(trackInfo);
-        std::vector<uint64_t> opIds = QueryOpIdsByGlabalTaskIds(trackInfo, globalIds);
-        commucationOpTable->In(CommucationTaskOpColumn::OP_ID, opIds);
+        // 设备id不唯一，使用专属关联查询，避免构造大量C++ vector
+        QuerySimpleSliceFromGroupTrackByDevice(commucationTaskOpPOVec, trackInfo, tid, sliceQuery);
+    } else {
+        commucationOpTable->Select(CommucationTaskOpColumn::TIMESTAMP, CommucationTaskOpColumn::ENDTIME)
+            .Select(CommucationTaskOpColumn::OP_ID)
+            .Eq(CommucationTaskOpColumn::GROUPNAME, tid)
+            .LessEq(CommucationTaskOpColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
+            .Greater(CommucationTaskOpColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp)
+            .ExcuteQuery(trackInfo.cardId, commucationTaskOpPOVec);
     }
-    commucationOpTable->ExcuteQuery(trackInfo.cardId, commucationTaskOpPOVec);
     for (const auto &item : commucationTaskOpPOVec) {
         SliceDomain sliceDomain;
         sliceDomain.id = item.opId;
         sliceDomain.timestamp = item.timestamp;
         sliceDomain.endTime = item.endTime;
         sliceVec.emplace_back(sliceDomain);
+    }
+}
+
+void HcclRepo::QuerySimpleSliceFromGroupTrackByDevice(std::vector<CommucationTaskOpPO> &commucationTaskOpPOVec,
+    const TrackInfo &trackInfo, const std::string &tid, const SliceQuery &sliceQuery) {
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(trackInfo.cardId);
+    if (database == nullptr) {
+        return;
+    }
+    std::string sql = R"(
+        SELECT
+            co.startNs AS timestamp,
+            co.endNs AS endTime,
+            co.opId AS opId
+        FROM COMMUNICATION_OP co
+        WHERE co.groupName = ?
+          AND co.startNs <= ?
+          AND co.endNs > ?
+          AND EXISTS (
+              SELECT 1
+              FROM COMMUNICATION_TASK_INFO cti
+              JOIN TASK t
+                ON t.globalTaskId = cti.globalTaskId
+              WHERE cti.opId = co.opId
+                AND t.deviceId = ?
+          )
+    )";
+    auto stmt = database->CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Warn("COMMUNICATION_OP Failed to get stmt.");
+        return;
+    }
+    stmt->BindParams(tid);
+    stmt->BindParams(sliceQuery.endTime + sliceQuery.minTimestamp);
+    stmt->BindParams(sliceQuery.startTime + sliceQuery.minTimestamp);
+    stmt->BindParams(trackInfo.deviceId);
+
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr) {
+        ServerLog::Warn("COMMUNICATION_OP Failed to get result set.", stmt->GetErrorMessage());
+        return;
+    }
+    while (resultSet->Next()) {
+        CommucationTaskOpPO po;
+        po.timestamp = resultSet->GetUint64("timestamp");
+        po.endTime = resultSet->GetUint64("endTime");
+        po.opId = resultSet->GetUint64("opId");
+        commucationTaskOpPOVec.emplace_back(std::move(po));
     }
 }
 

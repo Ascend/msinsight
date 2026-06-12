@@ -18,6 +18,7 @@
 
 #ifndef PROFILER_SERVER_TABLE_H
 #define PROFILER_SERVER_TABLE_H
+#include <algorithm>
 #include <string>
 #include <memory>
 #include <vector>
@@ -135,6 +136,39 @@ template <typename T> class Table {
         return res;
     }
 
+    static std::string EscapeSqlText(const std::string &input) {
+        std::string escaped;
+        escaped.reserve(input.size());
+        for (const auto ch : input) {
+            escaped.push_back(ch);
+            if (ch == '\'') {
+                escaped.push_back('\'');
+            }
+        }
+        return escaped;
+    }
+
+    template <typename Y> static std::string GetSqlLiteral(const Y &input) {
+        static_assert(is_one_of_basic_types<Y>, "Fail to get sql literal, unknown type.");
+        if constexpr (std::is_same_v<Y, std::string>) {
+            return "'" + EscapeSqlText(input) + "'";
+        } else {
+            return std::to_string(input);
+        }
+    }
+
+    template <typename Y>
+    static std::string GetSqlLiteralList(const std::vector<Y> &inputs, size_t offset, size_t count) {
+        std::string res;
+        for (size_t i = 0; i < count; ++i) {
+            if (i != 0) {
+                res.append(", ");
+            }
+            res.append(GetSqlLiteral(inputs[offset + i]));
+        }
+        return res;
+    }
+
     /**
      * 调用此函数需要先校验inputs不为空
      * @param str
@@ -142,16 +176,54 @@ template <typename T> class Table {
      * @return
      */
     template <typename Y> Table &In(std::string_view str, const std::vector<Y> &inputs) {
-        ConditionStr() += " AND " + std::string(str) + " IN ( ";
-        std::string placeholderStr = SaveParamListAndGetPlaceholderStr(inputs);
-        ConditionStr() += placeholderStr + " ) ";
+        static constexpr size_t SQLITE_SAFE_VARIABLE_LIMIT = 900;
+        if (inputs.empty()) {
+            ConditionStr() += " AND 1 = 0 ";
+            return *this;
+        }
+        if (inputs.size() <= SQLITE_SAFE_VARIABLE_LIMIT) {
+            ConditionStr() += " AND " + std::string(str) + " IN ( ";
+            std::string placeholderStr = SaveParamListAndGetPlaceholderStr(inputs);
+            ConditionStr() += placeholderStr + " ) ";
+            return *this;
+        }
+        ConditionStr() += " AND ( ";
+        for (size_t offset = 0; offset < inputs.size(); offset += SQLITE_SAFE_VARIABLE_LIMIT) {
+            const size_t batchSize = std::min(SQLITE_SAFE_VARIABLE_LIMIT, inputs.size() - offset);
+            if (offset != 0) {
+                ConditionStr() += " OR ";
+            }
+            ConditionStr() += std::string(str) + " IN ( ";
+            ConditionStr() += GetSqlLiteralList(inputs, offset, batchSize);
+            ConditionStr() += " ) ";
+        }
+        ConditionStr() += " ) ";
         return *this;
     }
 
     template <typename Y> Table &NotIn(std::string_view str, const std::vector<Y> &inputs) {
-        ConditionStr() += " AND " + std::string(str) + " NOT IN ( ";
-        std::string placeholderStr = SaveParamListAndGetPlaceholderStr(inputs);
-        ConditionStr() += placeholderStr + " ) ";
+        static constexpr size_t SQLITE_SAFE_VARIABLE_LIMIT = 900;
+        if (inputs.empty()) {
+            ConditionStr() += " AND 1 = 1 ";
+            return *this;
+        }
+        if (inputs.size() <= SQLITE_SAFE_VARIABLE_LIMIT) {
+            ConditionStr() += " AND " + std::string(str) + " NOT IN ( ";
+            std::string placeholderStr = SaveParamListAndGetPlaceholderStr(inputs);
+            ConditionStr() += placeholderStr + " ) ";
+            return *this;
+        }
+        ConditionStr() += " AND ( ";
+        for (size_t offset = 0; offset < inputs.size(); offset += SQLITE_SAFE_VARIABLE_LIMIT) {
+            const size_t batchSize = std::min(SQLITE_SAFE_VARIABLE_LIMIT, inputs.size() - offset);
+            if (offset != 0) {
+                ConditionStr() += " AND ";
+            }
+            ConditionStr() += std::string(str) + " NOT IN ( ";
+            ConditionStr() += GetSqlLiteralList(inputs, offset, batchSize);
+            ConditionStr() += " ) ";
+        }
+        ConditionStr() += " ) ";
         return *this;
     }
 

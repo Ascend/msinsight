@@ -53,6 +53,8 @@ class HcclRepo : public IBaseSliceRepo {
         std::make_unique<EnumHcclTransportTypeTable>();
     std::unique_ptr<EnumHcclLinkTypeTable> enumHcclLinkTypeTable = std::make_unique<EnumHcclLinkTypeTable>();
     std::unique_ptr<EnumHcclRdmaTypeTable> enumHcclRdmaTypeTable = std::make_unique<EnumHcclRdmaTypeTable>();
+    virtual void QuerySimpleSliceFromGroupTrackByDevice(std::vector<CommucationTaskOpPO> &commucationTaskOpPOVec,
+        const TrackInfo &trackInfo, const std::string &tid, const SliceQuery &sliceQuery);
 
   private:
     const std::string groupSuffix = "group";
