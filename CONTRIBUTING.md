@@ -27,12 +27,12 @@
 
 遵循我们的 Pull Request [模板与规范](.gitcode/PULL_REQUEST_TEMPLATE.md)
 
-遵守 pre-commit（预提交）[代码规范检查](docs/zh/developer_guide/development_guide.md)，在提交PR之前请确保所有检查通过
+遵守 pre-commit（预提交）[代码规范检查](docs/zh/development_guide/develop_guide.md)，在提交PR之前请确保所有检查通过
 
 对涉及用户端功能的改动，请同步更新对应的用户和开发者文档
 
 在 CI 工作流中 添加或更新测试；若无需测试，请说明原因
-  
+
 在上述准备工作完成后提交代码，请输入 compile 命令触发机器人编译流水线
 
 流水线编译通过后请联系[仓库管理和维护成员](https://gitcode.com/Ascend/msinsight/member)进行检视与合入
@@ -48,12 +48,12 @@
 **开发者测试相关要求**：
 合入后端代码时，有开发者测试的相关要求。
 
-1. 后端DT使用测试框架GoogleTest，DT代码位置是server/src/test，Linux系统上，在build目录下执行命令`bash cpp_coverage.sh`即可生成覆盖率。后端覆盖率的要求是行覆盖率达到80%，分支覆盖率达到60%。后端合入新特性代码时，要求同时补充DT。详细步骤可以参考[开发指南](./docs/zh/developer_guide/development_guide.md)的3.3.3节。
+1. 后端DT使用测试框架GoogleTest，DT代码位置是server/src/test，Linux系统上，在build目录下执行命令`bash cpp_coverage.sh`即可生成覆盖率。后端覆盖率的要求是行覆盖率达到80%，分支覆盖率达到60%。后端合入新特性代码时，要求同时补充DT。详细步骤可以参考[开发指南](./docs/zh/development_guide/develop_guide.md)的3.3.3节。
 
 **预冒烟测试相关要求**：
 合入前端代码或后端代码时，有预冒烟测试的相关要求。
 
-1. 预冒烟测试是端到端的测试，用于验证软件的主要功能是否正常运行，涉及前端和后端。预冒烟测试使用测试框架Playwright。详细步骤可以参考[开发指南](https://gitcode.com/Ascend/msinsight/blob/master/docs/zh/developer_guide/development_guide.md)的3.5节。
+1. 预冒烟测试是端到端的测试，用于验证软件的主要功能是否正常运行，涉及前端和后端。预冒烟测试使用测试框架Playwright。详细步骤可以参考[开发指南](https://gitcode.com/Ascend/msinsight/blob/master/docs/zh/development_guide/develop_guide.md)的3.5节。
 
 ## PR标题与分类
 
