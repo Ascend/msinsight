@@ -139,6 +139,7 @@ interface UnitProps {
     hasExpandIcon: boolean;
     isPinned: boolean;
     isSonPinned: boolean;
+    isPinnedArea?: boolean;
     nextUnitTop?: number;
     isSelecting?: boolean;
     inRangeUnitKeys?: Set<string>;

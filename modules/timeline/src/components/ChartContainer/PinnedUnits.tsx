@@ -160,6 +160,7 @@ const FlattenUnits = observer(({ session, height, laneInfoWidth, eventType }:
                     hasPinButton={true}
                     hasExpandIcon={true}
                     isVisible={true}
+                    isPinnedArea={true}
                     isPinned={isPinned(flattenUnits[i])}
                     isSonPinned={isSonPinned(flattenUnits[i])}
                     enableDrag={!isAncestorPinned(flattenUnits[i])}
@@ -181,6 +182,7 @@ const FlattenUnits = observer(({ session, height, laneInfoWidth, eventType }:
                     hasPinButton={true}
                     hasExpandIcon={true}
                     isVisible={true}
+                    isPinnedArea={true}
                     isPinned={isPinned(flattenUnits[i])}
                     isSonPinned={isSonPinned(flattenUnits[i])}
                     // 拖拽泳道下方泳道全部向下偏移拖拽泳道的高度，以保障拖拽泳道脱离文档流的整体布局不变

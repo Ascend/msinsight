@@ -24,7 +24,7 @@ import { runInAction } from 'mobx';
 import { observer } from 'mobx-react';
 // support utils/types
 import { useTranslation } from 'react-i18next';
-import { level } from '../../../entity/common';
+import { level, pinnedLevel } from '../../../entity/common';
 import type { Session } from '../../../entity/session';
 import type { KeyedInsightUnit } from './types';
 import type { InsightUnit } from '../../../entity/insight';
@@ -469,14 +469,14 @@ const ExpandIcon = observer(({ unit }: { unit: KeyedInsightUnit }): JSX.Element 
     </div>;
 });
 
-const UnitInfoContainer = styled.div<{ unit: InsightUnit; laneInfoWidth: number }>`
+const UnitInfoContainer = styled.div<{ unit: InsightUnit; laneInfoWidth: number; isPinnedArea?: boolean }>`
     position: relative;
     flex-grow: 0;
     flex-shrink: 0;
     width: ${(props): number => props.laneInfoWidth}px;
     flex-basis: ${(props): number => props.laneInfoWidth}px;
     height: ${(props): number => props.unit.height()}px;
-    padding-left: ${(props): number => 14 * ((props.unit as any)[level] ?? 0)}px;
+    padding-left: ${(props): number => 14 * ((props.unit as any)[props.isPinnedArea ? pinnedLevel : level] ?? 0)}px;
     text-align: left;
     color: ${(props): string => props.theme.unitInfoTextColor};
     display: flex;
@@ -510,6 +510,7 @@ interface UnitInfoProps {
     height: number;
     className: string;
     isSelected: boolean;
+    isPinnedArea?: boolean;
     enableDrag?: boolean;
     onMouseDown: (e: React.MouseEvent) => void;
 }
@@ -663,6 +664,7 @@ export const UnitInfo = observer(({ session, unit, laneInfoWidth, hasExpandIcon,
         className={`unit-info ${className ?? ''}`}
         unit={unit}
         laneInfoWidth={laneInfoWidth}
+        isPinnedArea={props.isPinnedArea}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onMouseDown={onMouseDown}

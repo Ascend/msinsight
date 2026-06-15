@@ -18,10 +18,12 @@
 export type TimeStamp = number;
 
 export const level = Symbol('unitLevel');
+export const pinnedLevel = Symbol('pinnedUnitLevel');
 
 export type TreeNode<T> = T & {
     children?: Array<TreeNode<T>>;
     [level]?: number;
+    [pinnedLevel]?: number;
 };
 
 export interface PreOrderFlattenOptions<T> {
@@ -35,21 +37,22 @@ export interface PreOrderFlattenOptions<T> {
     exclude?: (node: TreeNode<T>) => boolean;
     excludeEx?: (node: TreeNode<T>) => boolean;
 }
-export function preOrderFlatten<T>(tree: Array<TreeNode<T>>, currentLevel: number, options?: PreOrderFlattenOptions<T>): T[] {
+
+type LevelKey = typeof level | typeof pinnedLevel;
+
+function preOrderFlattenWithLevel<T>(tree: Array<TreeNode<T>>, currentLevel: number, levelKey: LevelKey, options?: PreOrderFlattenOptions<T>): T[] {
     tree.forEach(node => {
-        if (!(node as any)[level]) {
-            (node as any)[level] = currentLevel;
-        }
+        (node as any)[levelKey] = currentLevel;
     });
     return tree.flatMap(node => {
         if (options?.bypass?.(node) ?? false) {
-            return node.children ? [...preOrderFlatten(node.children, currentLevel, options)] : [];
+            return node.children ? [...preOrderFlattenWithLevel(node.children, currentLevel, levelKey, options)] : [];
         } else {
             const self = (options?.exclude?.(node) ?? false) ? [] : [node];
             const isFlat = (self.length > 0 && (options?.when?.(node) ?? true));
             if (isFlat && node.children) {
-                const nextLevel = node[level] as number + 1;
-                return [...self, ...preOrderFlatten(node.children, nextLevel, options)];
+                const nextLevel = ((node as any)[levelKey] as number) + 1;
+                return [...self, ...preOrderFlattenWithLevel(node.children, nextLevel, levelKey, options)];
             } else {
                 return self;
             }
@@ -57,9 +60,13 @@ export function preOrderFlatten<T>(tree: Array<TreeNode<T>>, currentLevel: numbe
     });
 }
 
+export function preOrderFlatten<T>(tree: Array<TreeNode<T>>, currentLevel: number, options?: PreOrderFlattenOptions<T>): T[] {
+    return preOrderFlattenWithLevel(tree, currentLevel, level, options);
+}
+
 export function preOrderPinnedFlatten<T>(tree: Array<TreeNode<T>>, currentLevel: number, options?: PreOrderFlattenOptions<T>): T[] {
     const newTree = tree.filter(item => !options?.excludeEx?.(item));
-    return preOrderFlatten(newTree, currentLevel, options);
+    return preOrderFlattenWithLevel(newTree, currentLevel, pinnedLevel, options);
 }
 
 export type ElementType<T> = T extends Array<infer U> ? U : never;

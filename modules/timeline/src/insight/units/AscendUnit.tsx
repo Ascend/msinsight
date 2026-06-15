@@ -734,7 +734,7 @@ export const LabelUnit = unit<LabelMetaData>({
     pinType: 'copied',
     chart: LabelSummaryChart,
     renderInfo: (session: Session, metadata: LabelMetaData, thisUnit) => {
-        return isPinned(thisUnit) && !isSonPinned(thisUnit) ? `${metadata.cardId}_${metadata.processName} (${metadata.processId})` : `${metadata.processName}`;
+        return isPinned(thisUnit) && !isSonPinned(thisUnit) ? `${metadata.cardId}_${metadata.processName}` : `${metadata.processName}`;
     },
 });
 
@@ -760,9 +760,16 @@ export const ROOT_UNIT = unit<HostMetaData>({
 
 export const CounterUnit = unit<CounterMetaData>({
     name: 'Counter',
-    pinType: 'move',
+    pinType: 'copied',
     collapsible: false,
-    renderInfo: (session: Session, metadata) => `${metadata.threadName}`,
+    renderInfo: (session: Session, metadata, thisUnit) => {
+        if (!isPinned(thisUnit) || isSonPinned(thisUnit)) {
+            return `${metadata.threadName}`;
+        }
+        const parentMetaData = thisUnit.parent?.metadata as { processName?: string; threadName?: string } | undefined;
+        const parentName = parentMetaData?.processName ?? parentMetaData?.threadName ?? metadata.processName ?? metadata.processId;
+        return [metadata.cardId, parentName, metadata.threadName].filter(Boolean).join('_');
+    },
     chart: chart({
         type: 'filledLine',
         height: UnitHeight.SUPER_UPPER,
