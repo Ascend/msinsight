@@ -28,6 +28,7 @@ import sys
 import tarfile
 import urllib.request
 import subprocess
+import logging
 
 from build import init_log
 
@@ -41,76 +42,87 @@ SQLITE3_AUTOCONF_DIR = 'sqlite-autoconf-3460100'
 SQLITE_SRC_TAR = 'sqlite_src.tar.gz'
 
 BUILD_TITLE = '[Pre Process Third Party]'
+LOG = logging.getLogger('root')
 
 CHECK_FILE_LIST = [
     [
         os.path.join(SQLITE_DIR, 'include', 'sqlite3.h'),
         os.path.join(SQLITE3_AUTOCONF_DIR, 'sqlite3.h'),
-        os.path.join(SQLITE3_SRC_DIR, 'build', 'sqlite3.h')
+        os.path.join(SQLITE3_SRC_DIR, 'build', 'sqlite3.h'),
     ],
     [
         os.path.join(SQLITE_DIR, 'include', 'sqlite3ext.h'),
         os.path.join(SQLITE3_AUTOCONF_DIR, 'sqlite3ext.h'),
-        os.path.join(SQLITE3_SRC_DIR, 'build', 'sqlite3ext.h')
+        os.path.join(SQLITE3_SRC_DIR, 'build', 'sqlite3ext.h'),
     ],
     [
         os.path.join(SQLITE_DIR, 'src', 'shell.c'),
         os.path.join(SQLITE3_AUTOCONF_DIR, 'shell.c'),
-        os.path.join(SQLITE3_SRC_DIR, 'build', 'shell.c')
+        os.path.join(SQLITE3_SRC_DIR, 'build', 'shell.c'),
     ],
     [
         os.path.join(SQLITE_DIR, 'src', 'sqlite3.c'),
         os.path.join(SQLITE3_AUTOCONF_DIR, 'sqlite3.c'),
-        os.path.join(SQLITE3_SRC_DIR, 'build', 'sqlite3.c')
-    ]
+        os.path.join(SQLITE3_SRC_DIR, 'build', 'sqlite3.c'),
+    ],
 ]
 
 SQLITE3_SOURCE_URL = 'https://www.sqlite.org/2024/sqlite-autoconf-3460100.tar.gz'
 
 
 def log(info):
-    LOG.info(BUILD_TITLE + info)
+    LOG.info('%s%s', BUILD_TITLE, info)
 
 
 def exec_command(command, path):
-    process = subprocess.Popen(command, cwd=path, stdout=subprocess.PIPE)
-    for line in iter(process.stdout.readline, b''):
-        log(line.decode('utf-8').strip())
-    process.communicate(timeout=600)
-    if process.returncode != 0:
-        log('Failed to execute '.join(command))
-    return process.returncode
+    with subprocess.Popen(command, cwd=path, stdout=subprocess.PIPE) as process:
+        for line in iter(process.stdout.readline, b''):
+            log(line.decode('utf-8').strip())
+        process.communicate(timeout=600)
+        if process.returncode != 0:
+            log('Failed to execute ' + ' '.join(command))
+        return process.returncode
 
 
 def is_mingw_available():
     """
-   检查系统是否安装了 MinGW（通过 g++ 是否存在且标识为 MinGW）
-   返回: (bool, str) -> (是否可用, 详细信息)
-   """
+    检查系统是否安装了 MinGW（优先通过 g++ -dumpmachine 判断目标平台）
+    返回: (bool, str) -> (是否可用, 详细信息)
+    """
     # Step 1: 检查 g++ 是否在 PATH 中
     gpp_path = shutil.which("g++")
     if not gpp_path:
         return False, "g++ not found in PATH"
 
     try:
-        # Step 2: 运行 g++ --version 获取版本信息
-        result = subprocess.run(
-            [gpp_path, "--version"],
+        # Step 2: 优先通过 g++ -dumpmachine 获取目标平台三元组
+        dumpmachine_result = subprocess.run(
+            [gpp_path, "-dumpmachine"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            timeout=5
+            timeout=5,
+            check=False,
+        )
+        machine_output = (dumpmachine_result.stdout + dumpmachine_result.stderr).strip().lower()
+        if dumpmachine_result.returncode == 0 and "mingw" in machine_output:
+            return True, f"MinGW detected via g++ target {machine_output} at {gpp_path}"
+
+        result = subprocess.run(
+            [gpp_path, "--version"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5, check=False
         )
         if result.returncode != 0:
             return False, f"g++ failed: {result.stderr.strip()}"
 
-        version_output = result.stdout.lower()
+        version_output = (result.stdout + result.stderr).strip().lower()
 
-        # Step 3: 检查输出是否包含 mingw 关键字
+        # Step 3: 回退到 g++ --version 检查输出是否包含 mingw 关键字
         if "mingw" in version_output:
             return True, f"MinGW detected via g++ at {gpp_path}"
         else:
-            return False, f"g++ found but not MinGW (output: {version_output[:100]}...)"
+            return False, (
+                f"g++ found but not MinGW (target: {machine_output[:100]}, version: {version_output[:100]}...)"
+            )
 
     except Exception as e:
         return False, f"Error checking g++: {e}"
@@ -122,15 +134,16 @@ def prepare_sqlite_src() -> bool:
         check_mingw_result, msg = is_mingw_available()
         log(msg)
         if not check_mingw_result:
-            LOG.error('MinGW environment check failed. Please ensure that MinGW is properly installed '
-                      'and the environment variables are correctly configured.')
+            LOG.error(
+                'MinGW environment check failed. Please ensure that MinGW is properly installed '
+                'and the environment variables are correctly configured.'
+            )
             return False
         if not os.path.exists(os.path.join(THIRD_PARTY_DIR, SQLITE3_AUTOCONF_DIR)):
             tar_path = os.path.join(THIRD_PARTY_DIR, SQLITE_SRC_TAR)
             urllib.request.urlretrieve(SQLITE3_SOURCE_URL, tar_path)
-            tar = tarfile.open(tar_path)
-            tar.extractall(THIRD_PARTY_DIR)
-            tar.close()
+            with tarfile.open(tar_path) as tar:
+                tar.extractall(THIRD_PARTY_DIR)
             os.remove(tar_path)
             return True
     else:
