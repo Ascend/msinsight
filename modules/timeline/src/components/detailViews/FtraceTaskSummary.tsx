@@ -114,7 +114,7 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
     const columns = ftraceUnifiedColumns.map(col => ({ ...col, title: t(col.title as string) }));
 
     return (
-        (status === 'download' || props.card === undefined || props.card.cardId === '')
+        (props.card !== undefined && props.card.cardId !== '')
             ? <ResizeTable
                 onChange={(_pagination: any, newFilters: any, newSorter: any): void => {
                     const field = typeof newSorter?.field === 'string' ? newSorter.field : '';
