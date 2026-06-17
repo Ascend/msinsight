@@ -271,76 +271,90 @@ std::vector<KernelE2EEvent> DbKernelE2ERepo::QueryHardwareTaskEvents(const Kerne
     for (const auto &event : cannEvents) {
         addConnectionId(event.connectionId);
     }
-    if (candidateConnectionIds.size() > 900) {
-        candidateConnectionIds.clear();
+
+    // 优化5：原实现当 connectionId 数量超过 900 时直接清空候选列表，退化为按时间范围
+    // 全表扫描 TASK，在大数据量下性能极差。改为分批查询，每批不超过 SQLite 占位符
+    // 上限（32766），每批 30000 留出余量给时间范围等参数，多批结果合并返回。
+    constexpr size_t CONNECTION_ID_BATCH_SIZE = 30000;
+
+    if (candidateConnectionIds.empty()) {
+        return events;
     }
 
-    // Kernel E2E only needs compute kernels, so skip MSTX and communication schedule joins.
-    std::string sql = "SELECT task.ROWID AS id, COALESCE(nameStr.value, typeStr.value, '') AS name, "
-                      "task.startNs AS startNs, task.endNs AS endNs, "
-                      "task.connectionId AS connectionId, task.streamId AS streamId, "
-                      "task.deviceId AS deviceId, task.globalTaskId AS globalTaskId "
-                      "FROM TASK task "
-                      "LEFT JOIN COMPUTE_TASK_INFO info ON info.globalTaskId = task.globalTaskId "
-                      "LEFT JOIN STRING_IDS nameStr ON info.name = nameStr.id "
-                      "LEFT JOIN STRING_IDS typeStr ON task.taskType = typeStr.id ";
-    const bool useTimeSearch = query.startNs != query.endNs;
-    bool hasWhere = false;
-    if (useTimeSearch) {
-        sql += "WHERE task.endNs >= ? AND task.startNs <= ? ";
-        hasWhere = true;
-    }
-    if (!candidateConnectionIds.empty()) {
+    auto queryTaskBatch = [&](const std::vector<int64_t> &batchIds) -> std::vector<KernelE2EEvent> {
+        std::vector<KernelE2EEvent> batchEvents;
+        // Kernel E2E only needs compute kernels, so skip MSTX and communication schedule joins.
+        std::string sql = "SELECT task.ROWID AS id, COALESCE(nameStr.value, typeStr.value, '') AS name, "
+                          "task.startNs AS startNs, task.endNs AS endNs, "
+                          "task.connectionId AS connectionId, task.streamId AS streamId, "
+                          "task.deviceId AS deviceId, task.globalTaskId AS globalTaskId "
+                          "FROM TASK task "
+                          "LEFT JOIN COMPUTE_TASK_INFO info ON info.globalTaskId = task.globalTaskId "
+                          "LEFT JOIN STRING_IDS nameStr ON info.name = nameStr.id "
+                          "LEFT JOIN STRING_IDS typeStr ON task.taskType = typeStr.id ";
+        const bool useTimeSearch = query.startNs != query.endNs;
+        bool hasWhere = false;
+        if (useTimeSearch) {
+            sql += "WHERE task.endNs >= ? AND task.startNs <= ? ";
+            hasWhere = true;
+        }
         sql += hasWhere ? "AND " : "WHERE ";
         sql += "task.connectionId IN (";
-        for (size_t index = 0; index < candidateConnectionIds.size(); ++index) {
-            if (index != 0) {
+        for (size_t i = 0; i < batchIds.size(); ++i) {
+            if (i != 0) {
                 sql += ",";
             }
             sql += "?";
         }
-        sql += ") ";
-    }
-    sql += "ORDER BY task.startNs ASC, task.ROWID ASC";
+        sql += ") ORDER BY task.startNs ASC, task.ROWID ASC";
 
-    auto stmt = database->CreatPreparedStatement(sql);
-    if (stmt == nullptr) {
-        ServerLog::Error("DbKernelE2ERepo: failed to prepare hardware task query");
-        return events;
-    }
-    if (useTimeSearch) {
-        stmt->BindParams(query.startNs, query.endNs);
-    }
-    for (const auto connectionId : candidateConnectionIds) {
-        stmt->BindParams(connectionId);
-    }
-    auto resultSet = stmt->ExecuteQuery();
-    if (resultSet == nullptr) {
-        ServerLog::Error("DbKernelE2ERepo: failed to execute hardware task query");
-        return events;
-    }
-
-    while (resultSet->Next()) {
-        KernelE2EEvent event;
-        event.id = resultSet->GetUint64("id");
-        event.name = resultSet->GetString("name");
-        event.startNs = resultSet->GetUint64("startNs");
-        event.endNs = resultSet->GetUint64("endNs");
-        event.connectionId = resultSet->GetInt64("connectionId");
-        event.streamId = resultSet->GetUint64("streamId");
-        event.deviceId = resultSet->GetUint64("deviceId");
-        // Keep pid/tid consistent with TraceDatabaseHelper Ascend Hardware slice query.
-        event.pid = "Ascend Hardware";
-        event.tid = std::to_string(event.streamId);
-        event.rankId = query.rankId;
-        event.eventType = "HARDWARE";
-
-        if (IsAclnnEvent(event.name)) {
-            event.pathType = "ACLNN";
+        auto stmt = database->CreatPreparedStatement(sql);
+        if (stmt == nullptr) {
+            ServerLog::Error("DbKernelE2ERepo: failed to prepare hardware task batch query");
+            return batchEvents;
+        }
+        if (useTimeSearch) {
+            stmt->BindParams(query.startNs, query.endNs);
+        }
+        for (const auto connectionId : batchIds) {
+            stmt->BindParams(connectionId);
+        }
+        auto resultSet = stmt->ExecuteQuery();
+        if (resultSet == nullptr) {
+            ServerLog::Error("DbKernelE2ERepo: failed to execute hardware task batch query");
+            return batchEvents;
         }
 
-        events.emplace_back(std::move(event));
+        while (resultSet->Next()) {
+            KernelE2EEvent event;
+            event.id = resultSet->GetUint64("id");
+            event.name = resultSet->GetString("name");
+            event.startNs = resultSet->GetUint64("startNs");
+            event.endNs = resultSet->GetUint64("endNs");
+            event.connectionId = resultSet->GetInt64("connectionId");
+            event.streamId = resultSet->GetUint64("streamId");
+            event.deviceId = resultSet->GetUint64("deviceId");
+            event.pid = "Ascend Hardware";
+            event.tid = std::to_string(event.streamId);
+            event.rankId = query.rankId;
+            event.eventType = "HARDWARE";
+
+            if (IsAclnnEvent(event.name)) {
+                event.pathType = "ACLNN";
+            }
+
+            batchEvents.emplace_back(std::move(event));
+        }
+        return batchEvents;
+    };
+
+    for (size_t i = 0; i < candidateConnectionIds.size(); i += CONNECTION_ID_BATCH_SIZE) {
+        auto batchEnd = std::min(i + CONNECTION_ID_BATCH_SIZE, candidateConnectionIds.size());
+        std::vector<int64_t> batch(candidateConnectionIds.begin() + i, candidateConnectionIds.begin() + batchEnd);
+        auto batchResult = queryTaskBatch(batch);
+        events.insert(events.end(), batchResult.begin(), batchResult.end());
     }
+
     return events;
 }
 

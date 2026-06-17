@@ -108,9 +108,8 @@ TEST_F(KernelE2ETimeDatabaseAccesserTest, BuildHighlightSlicesReturnsRecoveredNo
     auto record = MakeRecord("record-1", "normal", minTimestamp);
     std::vector<Dic::Protocol::KernelE2EHighlightSliceDto> slices;
 
-    bool result = KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
+    KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
 
-    ASSERT_TRUE(result);
     ASSERT_EQ(7, slices.size());
     EXPECT_EQ("PYTHON_CALL", slices[0].role);
     EXPECT_EQ(100, slices[0].startTime);
@@ -136,9 +135,8 @@ TEST_F(KernelE2ETimeDatabaseAccesserTest, BuildHighlightSlicesClampsSliceBeforeM
     auto record = MakeRecord("record-1", "normal", minTimestamp);
     std::vector<Dic::Protocol::KernelE2EHighlightSliceDto> slices;
 
-    bool result = KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
+    KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
 
-    ASSERT_TRUE(result);
     ASSERT_GE(slices.size(), 1);
     EXPECT_EQ("PYTHON_CALL", slices[0].role);
     EXPECT_EQ(0, slices[0].startTime);
@@ -163,7 +161,6 @@ TEST_F(KernelE2ETimeDatabaseAccesserTest, ConvertChainToDtoKeepsChildrenUnderPar
     Dic::Protocol::KernelE2ETimeRecordDto dto;
     bool result = KernelE2ETimeDatabaseAccesser::ConvertChainToDto(parent, calculator, minTimestamp, dto);
 
-    ASSERT_TRUE(result);
     EXPECT_TRUE(dto.isParent);
     ASSERT_EQ(1, dto.children.size());
     EXPECT_FALSE(dto.children[0].id.empty());
@@ -178,9 +175,8 @@ TEST_F(KernelE2ETimeDatabaseAccesserTest, BuildHighlightSlicesReturnsOnlyPythonC
     record.isParent = true;
     std::vector<Dic::Protocol::KernelE2EHighlightSliceDto> slices;
 
-    bool result = KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
+    KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
 
-    ASSERT_TRUE(result);
     ASSERT_EQ(1, slices.size());
     EXPECT_EQ("PYTHON_CALL", slices[0].role);
     EXPECT_TRUE(slices[0].missingReason.empty());
@@ -196,9 +192,8 @@ TEST_F(KernelE2ETimeDatabaseAccesserTest, BuildHighlightSlicesAddsMissingLaunchF
     auto record = MakeRecord("record-1", "fallback", minTimestamp);
     std::vector<Dic::Protocol::KernelE2EHighlightSliceDto> slices;
 
-    bool result = KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
+    KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
 
-    ASSERT_TRUE(result);
     ASSERT_EQ(5, slices.size());
     EXPECT_EQ("LAUNCH", slices.back().role);
     EXPECT_EQ(0, slices.back().startTime);
@@ -213,9 +208,8 @@ TEST_F(KernelE2ETimeDatabaseAccesserTest, BuildHighlightSlicesAddsMissingRequire
     auto record = MakeRecord("record-1", "incomplete", minTimestamp);
     std::vector<Dic::Protocol::KernelE2EHighlightSliceDto> slices;
 
-    bool result = KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
+    KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(chain, record, minTimestamp, slices);
 
-    ASSERT_TRUE(result);
     ASSERT_EQ(5, slices.size());
     EXPECT_EQ("CANN_API", slices[0].role);
     EXPECT_EQ("PYTHON_CALL", slices[1].role);

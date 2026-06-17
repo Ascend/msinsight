@@ -55,7 +55,7 @@ class KernelE2ETimeDatabaseAccesser {
     static Protocol::KernelE2EHighlightSliceDto MakeMissingHighlightSlice(
         const std::string &role, const std::string &missingReason);
     // Converts recovered chain nodes into frontend Timeline coordinates and appends missing critical nodes.
-    static bool BuildHighlightSlices(const KernelE2EChain &chain, const KernelE2ETimeRecord &record,
+    static void BuildHighlightSlices(const KernelE2EChain &chain, const KernelE2ETimeRecord &record,
         uint64_t minTimestamp, std::vector<Protocol::KernelE2EHighlightSliceDto> &highlightSlices);
     static std::vector<KernelE2EChain> PrepareChainsForResponse(
         const std::vector<KernelE2EChain> &chains, const Protocol::KernelE2ETimeParams &params);
@@ -93,11 +93,6 @@ class KernelE2ETimeDatabaseAccesser {
     struct KernelE2ECacheValue {
         KernelE2ECacheKey key;
         std::shared_ptr<const std::vector<KernelE2EChain>> chains;
-        uint64_t totalCount = 0;
-        uint64_t normalCount = 0;
-        uint64_t fallbackCount = 0;
-        uint64_t incompleteCount = 0;
-        double launchMatchRate = 0.0;
     };
 
     static KernelE2ECacheKey BuildCacheKey(const std::string &fileId, const KernelE2EQuery &query);
@@ -108,7 +103,6 @@ class KernelE2ETimeDatabaseAccesser {
     static uint64_t EstimateChainsBytes(const std::vector<KernelE2EChain> &chains);
     static uint64_t EstimateChainBytes(const KernelE2EChain &chain);
     static uint64_t EstimateEventBytes(const std::optional<KernelE2EEvent> &event);
-    static void ApplyCachedStats(const KernelE2ECacheValue &cacheValue, Protocol::KernelE2ETimeBody &body);
 
     static std::mutex cacheMutex_;
     static std::optional<KernelE2ECacheValue> cacheValue_;

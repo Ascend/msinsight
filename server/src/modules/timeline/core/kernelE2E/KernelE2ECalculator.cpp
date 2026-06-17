@@ -178,6 +178,14 @@ KernelE2ETimeRecord KernelE2ECalculator::Calculate(const KernelE2EChain &chain) 
     return FinalizeChildRecord(chain, std::move(record));
 }
 
+// 优化3：优先读缓存，未命中时调用 Calculate 并存入 chain.cachedRecord
+const KernelE2ETimeRecord &KernelE2ECalculator::GetOrCalculate(const KernelE2EChain &chain) {
+    if (!chain.cachedRecord.has_value()) {
+        chain.cachedRecord = Calculate(chain);
+    }
+    return chain.cachedRecord.value();
+}
+
 KernelE2ETimeRecord KernelE2ECalculator::CreateBaseRecord(const KernelE2EChain &chain) {
     KernelE2ETimeRecord record;
     record.pathType = chain.pathType;
