@@ -1776,6 +1776,11 @@ uint64_t TextTraceDatabase::QueryTotalKernel(
 
 bool TextTraceDatabase::QueryKernelDetailData(const Protocol::KernelDetailsParams &requestParams,
     Protocol::KernelDetailsBody &responseBody, uint64_t minTimestamp) {
+    if (!CheckTableExist(TABLE_KERNEL)) {
+        responseBody.pageSize = requestParams.pageSize;
+        responseBody.currentPage = requestParams.current;
+        return true;
+    }
     if (!StringUtil::CheckSqlValid(requestParams.orderBy)) {
         ServerLog::Error("Query kernel detail data is an SQL injection attack");
         return false;
