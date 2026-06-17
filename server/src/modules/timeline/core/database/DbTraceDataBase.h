@@ -88,6 +88,10 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     void AddHelperColumnsAndSetStatus();
     bool InitStmt();
 
+    // Test-only entry point. Production code should rely on OpenDb() to invoke SetConfig() implicitly.
+    // Do NOT call from non-test code.
+    bool SetConfigForTesting() { return SetConfig(); }
+
     // search
     bool QueryThreads(const Protocol::UnitThreadsParams &requestParams, Protocol::UnitThreadsBody &responseBody,
         uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList) override;

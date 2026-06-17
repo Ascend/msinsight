@@ -35,6 +35,12 @@ static const std::string PARSE_RESULT_FAIL = "fail";
 
 // dbTrace database status key
 static const std::string OVERLAP_ANALYSIS_UNIT = "OVERLAP_ANALYSIS";
+// FEAT: 支持上游提供 OVERLAP_ANALYSIS 表
+// OVERLAP_ANALYSIS_SOURCE: 记录 OVERLAP_ANALYSIS 表的数据来源，不在 DB_STATUS_LIST 中，版本变更时不会被覆盖
+// 值为 UPSTREAM 表示上游数据库提供，值为 LOCAL 表示本地生成
+static const std::string OVERLAP_ANALYSIS_SOURCE = "OVERLAP_ANALYSIS_SOURCE";
+static const std::string OVERLAP_ANALYSIS_SOURCE_UPSTREAM = "UPSTREAM";
+static const std::string OVERLAP_ANALYSIS_SOURCE_LOCAL = "LOCAL";
 static const std::string WAIT_TIME_UNIT = "WAIT_TIME";
 static const std::string CONNECTION_UNIT = "CONNECTION_CATEGORY";
 static const std::string FTRACE_TIME_STATISTICS_UNIT = "FTRACE_TIME_STATISTICS";

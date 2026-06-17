@@ -122,6 +122,10 @@ bool DbTraceDataBase::QueryUnitsMetadata(
         QueryHCCLOperatorMetadata(fileId, metaData);
         existOverlapAnalysis = true;
     }
+    // 上游直接提供 OVERLAP_ANALYSIS 表时（无 TASK/COMMUNICATION_OP），也需要展示覆盖分析元数据
+    if (CheckTableExist(TABLE_OVERLAP_ANALYSIS)) {
+        existOverlapAnalysis = true;
+    }
     if (CheckTableExist(TABLE_CCU)) {
         QueryCcuOperatorMetadata(fileId, metaData);
     }
@@ -1383,6 +1387,30 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
     }
     std::lock_guard<std::recursive_mutex> lock(mutex);
 
+    // FEAT: 上游数据库可能已提供 OVERLAP_ANALYSIS 表，需要检测数据来源以决定是否跳过本地生成
+    // 检测逻辑分两阶段：
+    // 1. 优先读取 OVERLAP_ANALYSIS_SOURCE 持久标记（版本变更后仍保留，因为不在 DB_STATUS_LIST 中）
+    //    - "UPSTREAM": 上游提供，跳过建表和生成
+    //    - "LOCAL": 本地生成，走原有逻辑
+    // 2. 首次检测（SOURCE 为空时）：表存在且 OVERLAP_ANALYSIS_UNIT 也为空 → 上游提供
+    //    不变式：本地创建表时必定同时写入 UNIT 记录，因此"有表且无 UNIT 记录"说明表不是我们创建的
+    bool isUpstreamOverlapAnalysis = false;
+    if (CheckTableExist(TABLE_OVERLAP_ANALYSIS)) {
+        std::string source = GetValueFromStatusInfoTable(OVERLAP_ANALYSIS_SOURCE);
+        if (source == OVERLAP_ANALYSIS_SOURCE_UPSTREAM) {
+            // 阶段1: 持久标记为 UPSTREAM，版本变更后仍能正确识别，此时无需再检测 UNIT，之后的逻辑不会重新生成 OVERLAP_ANALYSIS 表
+            isUpstreamOverlapAnalysis = true;
+        } else if (source.empty()) {
+            // 阶段2: 首次检测，SOURCE 为空说明是旧版本或新上游数据
+            std::string status = GetValueFromStatusInfoTable(OVERLAP_ANALYSIS_UNIT);
+            if (status.empty()) {
+                // UNIT 为空：我们从未处理过此表 → 判断为上游提供的
+                // （旧版本生成OVERLAP_ANALYSIS 表后再导入， UNIT 一定为 FINISH 非空，不会误判为新上游数据）
+                isUpstreamOverlapAnalysis = true;
+            }
+        }
+    }
+
     if (isExistTask) {
         if (!CheckColumnExist(TABLE_TASK, std::string(PytorchApiColumn::DEPTH))) {
             ExecSql("alter table " + TABLE_TASK + " add depth integer;");
@@ -1391,7 +1419,8 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
         }
     }
     // 只要TASK表或者COMMUNICATION_OP表存在，展示覆盖分析，TASK表反映计算信息，COMMUNICATION_OP表反映通信信息
-    if (isExistTask || isExistCommOp) {
+    // FEAT: 上游已提供 OVERLAP_ANALYSIS 表时跳过建表，避免重复创建
+    if ((isExistTask || isExistCommOp) && !isUpstreamOverlapAnalysis) {
         ExecSql(" create table if not exists OVERLAP_ANALYSIS (id INTEGER PRIMARY KEY AUTOINCREMENT,"
                 " deviceId integer, startNs integer, endNs integer, type integer);");
     }
@@ -1418,6 +1447,24 @@ void DbTraceDataBase::AddHelperColumnsAndSetStatus() {
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "waitNs", "integer");
     AddColumns2Table(isExistCommOp, TABLE_COMMUNICATION_OP, "opConnectionId", "TEXT");
     for (const auto &status : DB_STATUS_LIST) {
+        if (status == OVERLAP_ANALYSIS_UNIT) {
+            if (isUpstreamOverlapAnalysis) {
+                // 上游提供时直接标记为 FINISH，ParseUnit 幂等检查会跳过，不会执行 GenerateOverlapAnalysis()
+                UpdateValueIntoStatusInfoTable(status, FINISH_STATUS);
+                // 持久化数据来源标记，供版本变更后仍能正确识别来源
+                // OVERLAP_ANALYSIS_SOURCE 不在 DB_STATUS_LIST 中
+                UpdateValueIntoStatusInfoTable(OVERLAP_ANALYSIS_SOURCE, OVERLAP_ANALYSIS_SOURCE_UPSTREAM);
+            } else if (isExistTask || isExistCommOp) {
+                // 非上游提供，是旧数据，有数据可执行，需要我们执行 GenerateOverlapAnalysis()
+                UpdateValueIntoStatusInfoTable(status, NOT_FINISH_STATUS);
+                // 设为本地修改
+                UpdateValueIntoStatusInfoTable(OVERLAP_ANALYSIS_SOURCE, OVERLAP_ANALYSIS_SOURCE_LOCAL);
+            } else {
+                // 非上游提供，是旧数据，无数据可执行，走原逻辑，设为 NOT_FINISH_STATUS
+                UpdateValueIntoStatusInfoTable(status, NOT_FINISH_STATUS);
+            }
+            continue;
+        }
         UpdateValueIntoStatusInfoTable(status, NOT_FINISH_STATUS);
     }
 }
