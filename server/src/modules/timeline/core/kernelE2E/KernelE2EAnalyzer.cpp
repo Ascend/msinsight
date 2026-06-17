@@ -38,7 +38,94 @@ std::string BuildEventRecordId(const KernelE2EEvent &event) {
     const auto rankId = event.rankId.empty() ? "unknown" : event.rankId;
     return rankId + ":" + event.eventType + ":" + std::to_string(event.id);
 }
+
+// 在按 startNs 排序的事件指针列表上，用二分查找 + 剪枝扫描找最小包含区间
+std::optional<KernelE2EEvent> FindSmallestEnclosing(
+    const KernelE2EEvent &target, const std::vector<const KernelE2EEvent *> &sorted) {
+    const KernelE2EEvent *best = nullptr;
+    uint64_t bestDuration = UINT64_MAX;
+    auto upper = std::upper_bound(sorted.begin(), sorted.end(), target.startNs,
+        [](uint64_t startNs, const KernelE2EEvent *e) { return startNs < e->startNs; });
+    for (auto it = (upper == sorted.begin() ? sorted.end() : upper - 1); it != sorted.end() && it >= sorted.begin();) {
+        const auto &candidate = **it;
+        if (best != nullptr && target.endNs >= candidate.startNs && target.endNs - candidate.startNs >= bestDuration) {
+            break;
+        }
+        if (Contains(candidate, target)) {
+            uint64_t duration = candidate.endNs - candidate.startNs;
+            if (duration < bestDuration) {
+                bestDuration = duration;
+                best = &candidate;
+            }
+        }
+        if (it == sorted.begin()) {
+            break;
+        }
+        --it;
+    }
+    return best == nullptr ? std::nullopt : std::optional<KernelE2EEvent>(*best);
 }
+
+// 带过滤谓词的重载版本，返回 false 的事件跳过
+template <typename Filter>
+std::optional<KernelE2EEvent> FindSmallestEnclosing(
+    const KernelE2EEvent &target, const std::vector<const KernelE2EEvent *> &sorted, Filter &&filter) {
+    const KernelE2EEvent *best = nullptr;
+    uint64_t bestDuration = UINT64_MAX;
+    auto upper = std::upper_bound(sorted.begin(), sorted.end(), target.startNs,
+        [](uint64_t startNs, const KernelE2EEvent *e) { return startNs < e->startNs; });
+    for (auto it = (upper == sorted.begin() ? sorted.end() : upper - 1); it != sorted.end() && it >= sorted.begin();) {
+        const auto &candidate = **it;
+        if (best != nullptr && target.endNs >= candidate.startNs && target.endNs - candidate.startNs >= bestDuration) {
+            break;
+        }
+        if (Contains(candidate, target) && filter(candidate)) {
+            uint64_t duration = candidate.endNs - candidate.startNs;
+            if (duration < bestDuration) {
+                bestDuration = duration;
+                best = &candidate;
+            }
+        }
+        if (it == sorted.begin()) {
+            break;
+        }
+        --it;
+    }
+    return best == nullptr ? std::nullopt : std::optional<KernelE2EEvent>(*best);
+}
+} // namespace
+
+// 优化2：去重键，用于 unordered_set 替代 O(n²) 的 find_if 线性扫描
+struct EventDedupKey {
+    uint64_t id;
+    std::string eventType;
+    std::string rankId;
+    std::string name;
+    uint64_t startNs;
+    uint64_t endNs;
+    bool operator==(const EventDedupKey &other) const {
+        return id == other.id && eventType == other.eventType && rankId == other.rankId && name == other.name &&
+            startNs == other.startNs && endNs == other.endNs;
+    }
+};
+
+// 优化2：Boost hash_combine 惯用写法：每轮将已累积的哈希值做位移混合，加上新字段的哈希值
+// 和黄金比例常数 (2^32/phi)，再异或回去。确保每个字段都影响结果的所有位，
+// 且字段顺序不同结果也不同（不同于简单相加）。
+struct EventDedupKeyHash {
+    size_t operator()(const EventDedupKey &k) const {
+        auto h = std::hash<uint64_t>{}(k.id);
+        h ^= std::hash<std::string>{}(k.eventType) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<std::string>{}(k.rankId) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<std::string>{}(k.name) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<uint64_t>{}(k.startNs) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= std::hash<uint64_t>{}(k.endNs) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+
+// 优化1：构建 Flow 哈希索引的 key
+std::string MakeFlowKey(const KernelE2EEvent &event) { return event.eventType + ":" + std::to_string(event.id); }
 
 KernelE2EAnalyzer::KernelE2EAnalyzer(std::unique_ptr<KernelE2ERepoInterface> repo) : repo(std::move(repo)) {}
 
@@ -77,13 +164,11 @@ KernelE2EAnalyzer::EventIndex KernelE2EAnalyzer::BuildIndex(const std::vector<Ke
     const std::vector<KernelE2EEvent> &cannEvents, const std::vector<KernelE2EEvent> &taskEvents,
     const std::vector<KernelE2EFlow> &flows) {
     EventIndex index;
-    const auto addUniqueEvent = [](std::vector<KernelE2EEvent> &events, const KernelE2EEvent &event) {
-        const auto iter = std::find_if(events.begin(), events.end(), [&event](const KernelE2EEvent &existing) {
-            return existing.id == event.id && existing.eventType == event.eventType &&
-                existing.rankId == event.rankId && existing.name == event.name && existing.startNs == event.startNs &&
-                existing.endNs == event.endNs;
-        });
-        if (iter == events.end()) {
+    // 优化2：使用 unordered_set 替代 O(n²) 的 find_if 去重
+    std::unordered_set<EventDedupKey, EventDedupKeyHash> seen;
+    const auto addUniqueEvent = [&seen](std::vector<KernelE2EEvent> &events, const KernelE2EEvent &event) {
+        EventDedupKey key{event.id, event.eventType, event.rankId, event.name, event.startNs, event.endNs};
+        if (seen.insert(key).second) {
             events.push_back(event);
         }
     };
@@ -113,17 +198,56 @@ KernelE2EAnalyzer::EventIndex KernelE2EAnalyzer::BuildIndex(const std::vector<Ke
     for (const auto &event : taskEvents) {
         addEventToIndex(event);
     }
+    // 优化1：构建 Flow 哈希索引，FindFlowFrom/FindFlowTo 从 O(F) 改为 O(1)
     for (const auto &flow : flows) {
-        // addEventToIndex(flow.from);
-        // addEventToIndex(flow.to);
         if (flow.cat == KERNEL_E2E_FLOW_ASYNC_TASK_QUEUE) {
             index.asyncTaskQueueFlows.push_back(flow);
+            index.asyncTaskQueueFlowIndex.fromIndex.emplace(MakeFlowKey(flow.to), flow.from);
+            index.asyncTaskQueueFlowIndex.toIndex.emplace(MakeFlowKey(flow.from), flow.to);
         } else if (flow.cat == KERNEL_E2E_FLOW_HOST_TO_DEVICE) {
             index.hostToDeviceFlows.push_back(flow);
+            index.hostToDeviceFlowIndex.fromIndex.emplace(MakeFlowKey(flow.to), flow.from);
+            index.hostToDeviceFlowIndex.toIndex.emplace(MakeFlowKey(flow.from), flow.to);
         } else if (flow.cat == KERNEL_E2E_FLOW_ASYNC_NPU) {
             index.asyncNpuFlows.push_back(flow);
+            index.asyncNpuFlowIndex.fromIndex.emplace(MakeFlowKey(flow.to), flow.from);
+            index.asyncNpuFlowIndex.toIndex.emplace(MakeFlowKey(flow.from), flow.to);
         }
     }
+
+    // 优化4：构建指针列表和按线程分桶的索引
+    // SQL 按 globalTid ASC, startNs ASC 排序，不是全局按 startNs 有序，需要重新排序
+    auto buildSortedPtrs = [](const std::vector<KernelE2EEvent> &events) -> std::vector<const KernelE2EEvent *> {
+        std::vector<const KernelE2EEvent *> ptrs;
+        ptrs.reserve(events.size());
+        for (const auto &e : events) {
+            ptrs.push_back(&e);
+        }
+        std::sort(ptrs.begin(), ptrs.end(), [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+        return ptrs;
+    };
+    index.sortedDequeues = buildSortedPtrs(index.dequeues);
+    index.sortedCannApis = buildSortedPtrs(index.cannApis);
+    index.sortedLaunches = buildSortedPtrs(index.launches);
+
+    // 去重可能打乱 SQL 原始排序，桶内需要重新排序保证 startNs 有序
+    auto buildThreadBuckets = [](const std::vector<KernelE2EEvent> &events)
+        -> std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> {
+        std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> buckets;
+        for (const auto &e : events) {
+            const uint64_t globalTid = e.globalTid != 0 ? e.globalTid : e.trackId;
+            if (globalTid != 0) {
+                buckets[globalTid].push_back(&e);
+            }
+        }
+        for (auto &[globalTid, ptrs] : buckets) {
+            std::sort(ptrs.begin(), ptrs.end(), [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+        }
+        return buckets;
+    };
+    index.pythonCallsByGlobalTid = buildThreadBuckets(index.pythonCalls);
+    index.pythonOpsByGlobalTid = buildThreadBuckets(index.pythonOps);
+
     return index;
 }
 
@@ -212,18 +336,18 @@ std::vector<KernelE2EChain> KernelE2EAnalyzer::RecoverAclopChains(const EventInd
         KernelE2EChain chain;
         chain.pathType = "ACLOP";
         chain.cannApi = cannApi;
-        chain.dequeue = FindEnclosingDequeue(cannApi, index.dequeues);
+        chain.dequeue = FindEnclosingDequeue(cannApi, index.sortedDequeues);
         if (chain.dequeue.has_value()) {
-            chain.enqueue = FindFlowFrom(chain.dequeue.value(), index.asyncTaskQueueFlows);
+            chain.enqueue = FindFlowFrom(chain.dequeue.value(), index.asyncTaskQueueFlowIndex);
             if (chain.enqueue.has_value()) {
-                chain.pythonOp = FindEnclosingPythonOp(chain.enqueue.value(), index.pythonOps);
+                chain.pythonOp = FindEnclosingPythonOp(chain.enqueue.value(), index.pythonOpsByGlobalTid);
                 chain.pythonCall = chain.pythonOp.has_value()
-                    ? FindEnclosingPythonCall(chain.pythonOp.value(), index.pythonCalls)
-                    : FindEnclosingPythonCall(chain.enqueue.value(), index.pythonCalls);
+                    ? FindEnclosingPythonCall(chain.pythonOp.value(), index.pythonCallsByGlobalTid)
+                    : FindEnclosingPythonCall(chain.enqueue.value(), index.pythonCallsByGlobalTid);
             }
         }
 
-        const auto launches = FindLaunchesInside(cannApi, index.launches);
+        const auto launches = FindLaunchesInside(cannApi, index.sortedLaunches);
         if (launches.empty()) {
             if (!chain.dequeue.has_value()) {
                 chain.diagnostic = "missing dequeue for aclopCompileAndExecute";
@@ -239,7 +363,7 @@ std::vector<KernelE2EChain> KernelE2EAnalyzer::RecoverAclopChains(const EventInd
         for (const auto &launch : launches) {
             auto launchChain = chain;
             launchChain.launch = launch;
-            launchChain.hardwareTask = FindFlowTo(launch, index.hostToDeviceFlows);
+            launchChain.hardwareTask = FindFlowTo(launch, index.hostToDeviceFlowIndex);
             if (!launchChain.dequeue.has_value()) {
                 launchChain.diagnostic = "missing dequeue for aclopCompileAndExecute";
             } else if (!launchChain.enqueue.has_value()) {
@@ -264,19 +388,19 @@ std::vector<KernelE2EChain> KernelE2EAnalyzer::RecoverAclnnChains(const EventInd
         chain.pathType = "ACLNN";
         chain.hardwareTask = task;
 
-        chain.launch = FindFlowFrom(task, index.hostToDeviceFlows);
+        chain.launch = FindFlowFrom(task, index.hostToDeviceFlowIndex);
         if (chain.launch.has_value()) {
-            chain.cannApi = FindEnclosingAclnnCannApi(chain.launch.value(), index.cannApis);
+            chain.cannApi = FindEnclosingAclnnCannApi(chain.launch.value(), index.sortedCannApis);
         }
         if (chain.cannApi.has_value()) {
-            chain.dequeue = FindEnclosingDequeue(chain.cannApi.value(), index.dequeues);
+            chain.dequeue = FindEnclosingDequeue(chain.cannApi.value(), index.sortedDequeues);
             if (chain.dequeue.has_value()) {
-                chain.enqueue = FindFlowFrom(chain.dequeue.value(), index.asyncTaskQueueFlows);
+                chain.enqueue = FindFlowFrom(chain.dequeue.value(), index.asyncTaskQueueFlowIndex);
                 if (chain.enqueue.has_value()) {
-                    chain.pythonOp = FindEnclosingPythonOp(chain.enqueue.value(), index.pythonOps);
+                    chain.pythonOp = FindEnclosingPythonOp(chain.enqueue.value(), index.pythonOpsByGlobalTid);
                     chain.pythonCall = chain.pythonOp.has_value()
-                        ? FindEnclosingPythonCall(chain.pythonOp.value(), index.pythonCalls)
-                        : FindEnclosingPythonCall(chain.enqueue.value(), index.pythonCalls);
+                        ? FindEnclosingPythonCall(chain.pythonOp.value(), index.pythonCallsByGlobalTid)
+                        : FindEnclosingPythonCall(chain.enqueue.value(), index.pythonCallsByGlobalTid);
                 }
             }
         }
@@ -297,86 +421,56 @@ std::vector<KernelE2EChain> KernelE2EAnalyzer::RecoverAclnnChains(const EventInd
     return chains;
 }
 
+// 优化4：在按 startNs 排序的指针列表上，用二分查找 + 剪枝扫描找最小包含区间
 std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindEnclosingDequeue(
-    const KernelE2EEvent &target, const std::vector<KernelE2EEvent> &dequeues) {
-    const KernelE2EEvent *best = nullptr;
-    uint64_t bestDuration = UINT64_MAX;
-    for (const auto &dequeue : dequeues) {
-        if (!Contains(dequeue, target)) {
-            continue;
-        }
-        uint64_t duration = dequeue.endNs - dequeue.startNs;
-        if (duration < bestDuration) {
-            bestDuration = duration;
-            best = &dequeue;
-        }
-    }
-    return best == nullptr ? std::nullopt : std::optional<KernelE2EEvent>(*best);
+    const KernelE2EEvent &target, const std::vector<const KernelE2EEvent *> &sortedDequeues) {
+    return FindSmallestEnclosing(target, sortedDequeues);
 }
 
-std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindFlowFrom(
-    const KernelE2EEvent &to, const std::vector<KernelE2EFlow> &flows) {
-    for (const auto &flow : flows) {
-        if (flow.to.id == to.id && flow.to.eventType == to.eventType) {
-            return flow.from;
-        }
-    }
-    return std::nullopt;
+// 优化1：Flow 哈希查找，O(F) 线性扫描 -> O(1) 哈希查找
+std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindFlowFrom(const KernelE2EEvent &to, const FlowIndex &flowIndex) {
+    const auto it = flowIndex.fromIndex.find(MakeFlowKey(to));
+    return it != flowIndex.fromIndex.end() ? std::optional<KernelE2EEvent>(it->second) : std::nullopt;
 }
 
-std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindFlowTo(
-    const KernelE2EEvent &from, const std::vector<KernelE2EFlow> &flows) {
-    for (const auto &flow : flows) {
-        if (flow.from.id == from.id && flow.from.eventType == from.eventType) {
-            return flow.to;
-        }
-    }
-    return std::nullopt;
+// 优化1：Flow 哈希查找，O(F) 线性扫描 -> O(1) 哈希查找
+std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindFlowTo(const KernelE2EEvent &from, const FlowIndex &flowIndex) {
+    const auto it = flowIndex.toIndex.find(MakeFlowKey(from));
+    return it != flowIndex.toIndex.end() ? std::optional<KernelE2EEvent>(it->second) : std::nullopt;
 }
 
-std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindEnclosingPythonCall(
-    const KernelE2EEvent &child, const std::vector<KernelE2EEvent> &pythonCalls) {
-    const KernelE2EEvent *best = nullptr;
-    uint64_t bestDuration = UINT64_MAX;
-    for (const auto &pythonCall : pythonCalls) {
-        if (!Contains(pythonCall, child)) {
-            continue;
-        }
-        if (!IsSameThreadContext(pythonCall, child)) {
-            continue;
-        }
-        uint64_t duration = pythonCall.endNs - pythonCall.startNs;
-        if (duration < bestDuration) {
-            bestDuration = duration;
-            best = &pythonCall;
-        }
+// 优化4：先按线程定位桶，再在桶内找最小包含区间
+std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindEnclosingPythonCall(const KernelE2EEvent &child,
+    const std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> &pythonCallsByGlobalTid) {
+    const uint64_t globalTid = child.globalTid != 0 ? child.globalTid : child.trackId;
+    if (globalTid == 0) {
+        return std::nullopt;
     }
-    return best == nullptr ? std::nullopt : std::optional<KernelE2EEvent>(*best);
+    auto it = pythonCallsByGlobalTid.find(globalTid);
+    if (it == pythonCallsByGlobalTid.end()) {
+        return std::nullopt;
+    }
+    return FindSmallestEnclosing(child, it->second);
 }
 
-std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindEnclosingPythonOp(
-    const KernelE2EEvent &child, const std::vector<KernelE2EEvent> &pythonOps) {
-    const KernelE2EEvent *best = nullptr;
-    uint64_t bestDuration = UINT64_MAX;
-    for (const auto &pythonOp : pythonOps) {
-        if (!Contains(pythonOp, child)) {
-            continue;
-        }
-        if (!IsSameThreadContext(pythonOp, child)) {
-            continue;
-        }
-        uint64_t duration = pythonOp.endNs - pythonOp.startNs;
-        if (duration < bestDuration) {
-            bestDuration = duration;
-            best = &pythonOp;
-        }
+std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindEnclosingPythonOp(const KernelE2EEvent &child,
+    const std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> &pythonOpsByGlobalTid) {
+    const uint64_t globalTid = child.globalTid != 0 ? child.globalTid : child.trackId;
+    if (globalTid == 0) {
+        return std::nullopt;
     }
-    return best == nullptr ? std::nullopt : std::optional<KernelE2EEvent>(*best);
+    auto it = pythonOpsByGlobalTid.find(globalTid);
+    if (it == pythonOpsByGlobalTid.end()) {
+        return std::nullopt;
+    }
+    return FindSmallestEnclosing(child, it->second);
 }
 
+// 优化4：在排序的 launches 列表上，用二分查找定位 cannApi.startNs 附近的候选，
+// 再向右扫描收集所有被 cannApi 包含的 launch
 std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindLaunchInside(
-    const KernelE2EEvent &cannApi, const std::vector<KernelE2EEvent> &launches) {
-    const auto containedLaunches = FindLaunchesInside(cannApi, launches);
+    const KernelE2EEvent &cannApi, const std::vector<const KernelE2EEvent *> &sortedLaunches) {
+    const auto containedLaunches = FindLaunchesInside(cannApi, sortedLaunches);
     if (containedLaunches.empty()) {
         return std::nullopt;
     }
@@ -384,9 +478,15 @@ std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindLaunchInside(
 }
 
 std::vector<KernelE2EEvent> KernelE2EAnalyzer::FindLaunchesInside(
-    const KernelE2EEvent &cannApi, const std::vector<KernelE2EEvent> &launches) {
+    const KernelE2EEvent &cannApi, const std::vector<const KernelE2EEvent *> &sortedLaunches) {
     std::vector<KernelE2EEvent> containedLaunches;
-    for (const auto &launch : launches) {
+    auto lower = std::lower_bound(sortedLaunches.begin(), sortedLaunches.end(), cannApi.startNs,
+        [](const KernelE2EEvent *e, uint64_t startNs) { return e->startNs < startNs; });
+    for (auto it = lower; it != sortedLaunches.end(); ++it) {
+        const auto &launch = **it;
+        if (launch.startNs > cannApi.endNs) {
+            break;
+        }
         if (Contains(cannApi, launch)) {
             containedLaunches.emplace_back(launch);
         }
@@ -403,21 +503,10 @@ std::vector<KernelE2EEvent> KernelE2EAnalyzer::FindLaunchesInside(
     return containedLaunches;
 }
 
+// 优化4：在排序的 cannApis 列表上找最小包含区间（仅匹配 aclnn 事件）
 std::optional<KernelE2EEvent> KernelE2EAnalyzer::FindEnclosingAclnnCannApi(
-    const KernelE2EEvent &launch, const std::vector<KernelE2EEvent> &cannApis) {
-    const KernelE2EEvent *best = nullptr;
-    uint64_t bestDuration = UINT64_MAX;
-    for (const auto &cannApi : cannApis) {
-        if (!IsAclnnEvent(cannApi.name) || !Contains(cannApi, launch)) {
-            continue;
-        }
-        const auto duration = cannApi.endNs - cannApi.startNs;
-        if (duration < bestDuration) {
-            bestDuration = duration;
-            best = &cannApi;
-        }
-    }
-    return best == nullptr ? std::nullopt : std::optional<KernelE2EEvent>(*best);
+    const KernelE2EEvent &launch, const std::vector<const KernelE2EEvent *> &sortedCannApis) {
+    return FindSmallestEnclosing(launch, sortedCannApis, [](const KernelE2EEvent &e) { return IsAclnnEvent(e.name); });
 }
 
 } // namespace Dic::Module::Timeline

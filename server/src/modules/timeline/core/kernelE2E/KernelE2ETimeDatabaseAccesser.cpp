@@ -86,30 +86,13 @@ bool KernelE2ETimeDatabaseAccesser::GetKernelE2ETimeRecordsFromDb(
     const KernelE2EQuery &query, const Protocol::KernelE2ETimeParams &params, Protocol::KernelE2ETimeBody &body) const {
     const auto cacheKey = BuildCacheKey(fileId_, query);
     KernelE2ECacheValue cacheValue;
-    if (TryGetCachedValue(cacheKey, cacheValue)) {
-        ApplyCachedStats(cacheValue, body);
-    } else {
+    if (!TryGetCachedValue(cacheKey, cacheValue)) {
         ClearCacheIfKeyChanged(cacheKey);
         auto repo = std::make_unique<DbKernelE2ERepo>();
         KernelE2EAnalyzer analyzer(std::move(repo));
         const auto chains = std::make_shared<std::vector<KernelE2EChain>>(analyzer.AnalyzeChains(query));
         cacheValue.key = cacheKey;
         cacheValue.chains = chains;
-        cacheValue.totalCount = chains->size();
-        KernelE2ECalculator statsCalculator;
-        for (const auto &chain : *chains) {
-            const auto record = statsCalculator.Calculate(chain);
-            if (record.status == "normal") {
-                ++cacheValue.normalCount;
-            } else if (record.status == "fallback") {
-                ++cacheValue.fallbackCount;
-            } else if (record.status == "incomplete") {
-                ++cacheValue.incompleteCount;
-            }
-        }
-        cacheValue.launchMatchRate = cacheValue.totalCount == 0
-            ? 0.0
-            : static_cast<double>(cacheValue.normalCount) / static_cast<double>(cacheValue.totalCount);
         TryUpdateCache(cacheValue);
     }
 
@@ -136,30 +119,13 @@ bool KernelE2ETimeDatabaseAccesser::GetKernelE2ETimeRecordsFromText(
     const KernelE2EQuery &query, const Protocol::KernelE2ETimeParams &params, Protocol::KernelE2ETimeBody &body) const {
     const auto cacheKey = BuildCacheKey(fileId_, query);
     KernelE2ECacheValue cacheValue;
-    if (TryGetCachedValue(cacheKey, cacheValue)) {
-        ApplyCachedStats(cacheValue, body);
-    } else {
+    if (!TryGetCachedValue(cacheKey, cacheValue)) {
         ClearCacheIfKeyChanged(cacheKey);
         auto repo = std::make_unique<TextKernelE2ERepo>(database_, fileId_);
         KernelE2EAnalyzer analyzer(std::move(repo));
         const auto chains = std::make_shared<std::vector<KernelE2EChain>>(analyzer.AnalyzeChains(query));
         cacheValue.key = cacheKey;
         cacheValue.chains = chains;
-        cacheValue.totalCount = chains->size();
-        KernelE2ECalculator statsCalculator;
-        for (const auto &chain : *chains) {
-            const auto record = statsCalculator.Calculate(chain);
-            if (record.status == "normal") {
-                ++cacheValue.normalCount;
-            } else if (record.status == "fallback") {
-                ++cacheValue.fallbackCount;
-            } else if (record.status == "incomplete") {
-                ++cacheValue.incompleteCount;
-            }
-        }
-        cacheValue.launchMatchRate = cacheValue.totalCount == 0
-            ? 0.0
-            : static_cast<double>(cacheValue.normalCount) / static_cast<double>(cacheValue.totalCount);
         TryUpdateCache(cacheValue);
     }
 
@@ -201,11 +167,9 @@ void KernelE2ETimeDatabaseAccesser::ConvertRecordToDto(
 
 bool KernelE2ETimeDatabaseAccesser::ConvertChainToDto(const KernelE2EChain &chain, KernelE2ECalculator &calculator,
     uint64_t minTimestamp, Protocol::KernelE2ETimeRecordDto &dto) {
-    const auto record = calculator.Calculate(chain);
+    const auto &record = calculator.GetOrCalculate(chain);
     ConvertRecordToDto(record, dto);
-    if (!BuildHighlightSlices(chain, record, minTimestamp, dto.highlightSlices)) {
-        return false;
-    }
+    BuildHighlightSlices(chain, record, minTimestamp, dto.highlightSlices);
     dto.children.clear();
     dto.children.reserve(chain.children.size());
     for (const auto &child : chain.children) {
@@ -240,7 +204,7 @@ Protocol::KernelE2EHighlightSliceDto KernelE2ETimeDatabaseAccesser::MakeMissingH
     return dto;
 }
 
-bool KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(const KernelE2EChain &chain, const KernelE2ETimeRecord &record,
+void KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(const KernelE2EChain &chain, const KernelE2ETimeRecord &record,
     uint64_t minTimestamp, std::vector<Protocol::KernelE2EHighlightSliceDto> &highlightSlices) {
     highlightSlices.clear();
     auto addEvent = [&](const std::optional<KernelE2EEvent> &event, const std::string &role) {
@@ -254,14 +218,14 @@ bool KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(const KernelE2EChain &c
 
     addEvent(chain.pythonCall, "PYTHON_CALL");
     if (chain.isParent && !chain.cannApi.has_value()) {
-        return true;
+        return;
     }
     addEvent(chain.pythonOp, "PYTHON_OP");
     addEvent(chain.enqueue, "ENQUEUE");
     addEvent(chain.dequeue, "DEQUEUE");
     addEvent(chain.cannApi, "CANN_API");
     if (chain.isParent) {
-        return true;
+        return;
     }
     addEvent(chain.launch, "LAUNCH");
     addEvent(chain.hardwareTask, "HARDWARE_TASK");
@@ -280,7 +244,6 @@ bool KernelE2ETimeDatabaseAccesser::BuildHighlightSlices(const KernelE2EChain &c
     } else if (!chain.launch.has_value() && record.status == "incomplete") {
         addMissing("LAUNCH", "missing launch");
     }
-    return true;
 }
 
 KernelE2ETimeDatabaseAccesser::KernelE2ECacheKey KernelE2ETimeDatabaseAccesser::BuildCacheKey(
@@ -347,6 +310,12 @@ uint64_t KernelE2ETimeDatabaseAccesser::EstimateChainsBytes(const std::vector<Ke
 
 uint64_t KernelE2ETimeDatabaseAccesser::EstimateChainBytes(const KernelE2EChain &chain) {
     uint64_t bytes = chain.pathType.capacity() + chain.parentId.capacity() + chain.diagnostic.capacity();
+    if (chain.cachedRecord.has_value()) {
+        bytes += sizeof(KernelE2ETimeRecord) + chain.cachedRecord->id.capacity() +
+            chain.cachedRecord->opName.capacity() + chain.cachedRecord->pathType.capacity() +
+            chain.cachedRecord->parentId.capacity() + chain.cachedRecord->status.capacity() +
+            chain.cachedRecord->diagnostic.capacity();
+    }
     bytes += EstimateEventBytes(chain.pythonCall) + EstimateEventBytes(chain.pythonOp) +
         EstimateEventBytes(chain.enqueue) + EstimateEventBytes(chain.dequeue) + EstimateEventBytes(chain.cannApi) +
         EstimateEventBytes(chain.launch) + EstimateEventBytes(chain.hardwareTask);
@@ -363,15 +332,6 @@ uint64_t KernelE2ETimeDatabaseAccesser::EstimateEventBytes(const std::optional<K
     }
     return sizeof(KernelE2EEvent) + event->name.capacity() + event->eventType.capacity() + event->pathType.capacity() +
         event->pid.capacity() + event->tid.capacity() + event->rankId.capacity();
-}
-
-void KernelE2ETimeDatabaseAccesser::ApplyCachedStats(
-    const KernelE2ECacheValue &cacheValue, Protocol::KernelE2ETimeBody &body) {
-    body.totalCount = cacheValue.totalCount;
-    body.normalCount = cacheValue.normalCount;
-    body.fallbackCount = cacheValue.fallbackCount;
-    body.incompleteCount = cacheValue.incompleteCount;
-    body.launchMatchRate = cacheValue.launchMatchRate;
 }
 
 std::vector<KernelE2EChain> KernelE2ETimeDatabaseAccesser::PrepareChainsForResponse(
@@ -441,7 +401,7 @@ std::vector<KernelE2EChain> KernelE2ETimeDatabaseAccesser::FilterChainsByOpName(
 
 bool KernelE2ETimeDatabaseAccesser::ChainMatchesOpName(
     const KernelE2EChain &chain, const std::string &opName, KernelE2ECalculator &calculator) {
-    return ContainsIgnoreCase(calculator.Calculate(chain).opName, opName);
+    return ContainsIgnoreCase(calculator.GetOrCalculate(chain).opName, opName);
 }
 
 void KernelE2ETimeDatabaseAccesser::SortChains(std::vector<KernelE2EChain> &chains, const std::string &sortField,
@@ -449,8 +409,8 @@ void KernelE2ETimeDatabaseAccesser::SortChains(std::vector<KernelE2EChain> &chai
     const auto normalizedField = NormalizeSortField(sortField);
     const bool isAscending = IsAscendingSort(sortOrder);
     std::stable_sort(chains.begin(), chains.end(), [&](const auto &left, const auto &right) {
-        const auto leftValue = GetSortableValue(calculator.Calculate(left), normalizedField);
-        const auto rightValue = GetSortableValue(calculator.Calculate(right), normalizedField);
+        const auto leftValue = GetSortableValue(calculator.GetOrCalculate(left), normalizedField);
+        const auto rightValue = GetSortableValue(calculator.GetOrCalculate(right), normalizedField);
         if (!leftValue.has_value() && !rightValue.has_value()) {
             return false;
         }
@@ -564,7 +524,7 @@ void KernelE2ETimeDatabaseAccesser::UpdateStatistics(
     body.fallbackCount = 0;
     body.incompleteCount = 0;
     for (const auto &chain : chains) {
-        const auto record = calculator.Calculate(chain);
+        const auto &record = calculator.GetOrCalculate(chain);
         if (record.status == "normal") {
             ++body.normalCount;
         } else if (record.status == "fallback") {

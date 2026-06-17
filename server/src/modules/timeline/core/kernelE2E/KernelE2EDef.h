@@ -68,25 +68,7 @@ struct KernelE2EFlow {
     KernelE2EEvent to;
 };
 
-// A recovered chain of events for a single kernel
-struct KernelE2EChain {
-    std::optional<KernelE2EEvent> pythonCall;
-    std::optional<KernelE2EEvent> pythonOp;
-    std::optional<KernelE2EEvent> enqueue;
-    std::optional<KernelE2EEvent> dequeue;
-    std::optional<KernelE2EEvent> cannApi;
-    std::optional<KernelE2EEvent> launch;
-    std::optional<KernelE2EEvent> hardwareTask;
-    std::vector<KernelE2EChain> children;
-
-    std::string pathType = "Unknown";
-    std::string parentId;
-    bool isParent = false;
-    std::string status = "incomplete";
-    std::string diagnostic;
-};
-
-// The final output record
+// The final output record (defined before KernelE2EChain so it can be used as cachedRecord)
 struct KernelE2ETimeRecord {
     std::string id;
     std::string opName;
@@ -113,6 +95,27 @@ struct KernelE2ETimeRecord {
 
     std::string status; // normal / fallback / incomplete
     std::string diagnostic;
+};
+
+// A recovered chain of events for a single kernel
+struct KernelE2EChain {
+    std::optional<KernelE2EEvent> pythonCall;
+    std::optional<KernelE2EEvent> pythonOp;
+    std::optional<KernelE2EEvent> enqueue;
+    std::optional<KernelE2EEvent> dequeue;
+    std::optional<KernelE2EEvent> cannApi;
+    std::optional<KernelE2EEvent> launch;
+    std::optional<KernelE2EEvent> hardwareTask;
+    std::vector<KernelE2EChain> children;
+
+    std::string pathType = "Unknown";
+    std::string parentId;
+    bool isParent = false;
+    std::string status = "incomplete";
+    std::string diagnostic;
+
+    // 优化3：缓存 Calculate 结果，避免排序、过滤、DTO 转换时重复计算
+    mutable std::optional<KernelE2ETimeRecord> cachedRecord;
 };
 
 // Time containment helpers

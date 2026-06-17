@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <algorithm>
 #include <memory>
+#include <unordered_map>
 #include "KernelE2EAnalyzer.h"
 
 using namespace Dic::Module::Timeline;
@@ -43,25 +45,85 @@ TEST_F(KernelE2EAnalyzerTest, FindEnclosingDequeueReturnsSmallestContainingEvent
         MakeEvent("DequeueInner", "DEQUEUE", 180, 240),
         MakeEvent("DequeueMiss", "DEQUEUE", 210, 260),
     };
+    std::vector<const KernelE2EEvent *> sortedDequeues;
+    for (const auto &d : dequeues) {
+        sortedDequeues.push_back(&d);
+    }
+    std::sort(sortedDequeues.begin(), sortedDequeues.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
 
-    auto result = KernelE2EAnalyzer::FindEnclosingDequeue(cannApi, dequeues);
+    auto result = KernelE2EAnalyzer::FindEnclosingDequeue(cannApi, sortedDequeues);
 
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ("DequeueInner", result->name);
 }
 
+TEST_F(KernelE2EAnalyzerTest, FindEnclosingDequeueDoesNotPruneBeforeFirstMatch) {
+    auto cannApi = MakeEvent("aclopCompileAndExecute", "CANN_API", 900, 920);
+    std::vector<KernelE2EEvent> dequeues = {
+        MakeEvent("DequeueOuter", "DEQUEUE", 800, 950),
+        MakeEvent("DequeueInner", "DEQUEUE", 850, 930),
+    };
+    std::vector<const KernelE2EEvent *> sortedDequeues;
+    for (const auto &d : dequeues) {
+        sortedDequeues.push_back(&d);
+    }
+    std::sort(sortedDequeues.begin(), sortedDequeues.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+
+    auto result = KernelE2EAnalyzer::FindEnclosingDequeue(cannApi, sortedDequeues);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ("DequeueInner", result->name);
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindEnclosingDequeueReturnsNulloptWhenNoEventContainsTarget) {
+    auto cannApi = MakeEvent("aclopCompileAndExecute", "CANN_API", 200, 230);
+    std::vector<KernelE2EEvent> dequeues = {
+        MakeEvent("DequeueBefore", "DEQUEUE", 100, 190),
+        MakeEvent("DequeueOverlapStart", "DEQUEUE", 180, 220),
+        MakeEvent("DequeueAfter", "DEQUEUE", 210, 260),
+    };
+    std::vector<const KernelE2EEvent *> sortedDequeues;
+    for (const auto &d : dequeues) {
+        sortedDequeues.push_back(&d);
+    }
+    std::sort(sortedDequeues.begin(), sortedDequeues.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+
+    auto result = KernelE2EAnalyzer::FindEnclosingDequeue(cannApi, sortedDequeues);
+
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindEnclosingDequeueHandlesSameStartTimeCandidates) {
+    auto cannApi = MakeEvent("aclopCompileAndExecute", "CANN_API", 200, 230);
+    std::vector<KernelE2EEvent> dequeues = {
+        MakeEvent("DequeueLong", "DEQUEUE", 100, 300),
+        MakeEvent("DequeueShort", "DEQUEUE", 100, 240),
+    };
+    std::vector<const KernelE2EEvent *> sortedDequeues;
+    for (const auto &d : dequeues) {
+        sortedDequeues.push_back(&d);
+    }
+    std::sort(sortedDequeues.begin(), sortedDequeues.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+
+    auto result = KernelE2EAnalyzer::FindEnclosingDequeue(cannApi, sortedDequeues);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ("DequeueShort", result->name);
+}
+
 TEST_F(KernelE2EAnalyzerTest, FindFlowFromAndToUseTextFlowRelationship) {
     auto enqueue = MakeEvent("Enqueue", "ENQUEUE", 100, 120, 1);
     auto dequeue = MakeEvent("Dequeue", "DEQUEUE", 200, 240, 2);
-    KernelE2EFlow flow;
-    flow.cat = KERNEL_E2E_FLOW_ASYNC_TASK_QUEUE;
-    flow.flowId = "text-flow-1";
-    flow.from = enqueue;
-    flow.to = dequeue;
-    std::vector<KernelE2EFlow> flows = {flow};
+    KernelE2EAnalyzer::FlowIndex flowIndex;
+    flowIndex.fromIndex.emplace(dequeue.eventType + ":" + std::to_string(dequeue.id), enqueue);
+    flowIndex.toIndex.emplace(enqueue.eventType + ":" + std::to_string(enqueue.id), dequeue);
 
-    auto from = KernelE2EAnalyzer::FindFlowFrom(dequeue, flows);
-    auto to = KernelE2EAnalyzer::FindFlowTo(enqueue, flows);
+    auto from = KernelE2EAnalyzer::FindFlowFrom(dequeue, flowIndex);
+    auto to = KernelE2EAnalyzer::FindFlowTo(enqueue, flowIndex);
 
     ASSERT_TRUE(from.has_value());
     EXPECT_EQ("Enqueue", from->name);
@@ -76,11 +138,73 @@ TEST_F(KernelE2EAnalyzerTest, FindEnclosingPythonCallRequiresSameGlobalTid) {
         MakeEvent("<built-in outer>", "PYTHON_CALL", 90, 210, 0, 11),
         MakeEvent("<built-in inner>", "PYTHON_CALL", 120, 180, 0, 11),
     };
+    std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> pythonCallsByGlobalTid;
+    for (const auto &pc : pythonCalls) {
+        pythonCallsByGlobalTid[pc.globalTid].push_back(&pc);
+    }
+    for (auto &[globalTid, ptrs] : pythonCallsByGlobalTid) {
+        std::sort(ptrs.begin(), ptrs.end(), [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+    }
 
-    auto result = KernelE2EAnalyzer::FindEnclosingPythonCall(enqueue, pythonCalls);
+    auto result = KernelE2EAnalyzer::FindEnclosingPythonCall(enqueue, pythonCallsByGlobalTid);
 
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ("<built-in inner>", result->name);
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindEnclosingPythonCallReturnsNulloptWhenThreadBucketMissing) {
+    auto enqueue = MakeEvent("Enqueue", "ENQUEUE", 150, 160, 1, 11);
+    std::vector<KernelE2EEvent> pythonCalls = {
+        MakeEvent("<built-in other thread>", "PYTHON_CALL", 100, 200, 0, 12),
+    };
+    std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> pythonCallsByGlobalTid;
+    for (const auto &pc : pythonCalls) {
+        pythonCallsByGlobalTid[pc.globalTid].push_back(&pc);
+    }
+
+    auto result = KernelE2EAnalyzer::FindEnclosingPythonCall(enqueue, pythonCallsByGlobalTid);
+
+    EXPECT_FALSE(result.has_value());
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindEnclosingPythonOpRespectsBoundaryContainment) {
+    auto enqueue = MakeEvent("Enqueue", "ENQUEUE", 150, 160, 1, 11);
+    std::vector<KernelE2EEvent> pythonOps = {
+        MakeEvent("<built-in outer>", "PYTHON_OP", 100, 200, 0, 11),
+        MakeEvent("<built-in boundary>", "PYTHON_OP", 150, 160, 0, 11),
+        MakeEvent("<built-in wrong thread>", "PYTHON_OP", 140, 170, 0, 12),
+    };
+    std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> pythonOpsByGlobalTid;
+    for (const auto &op : pythonOps) {
+        pythonOpsByGlobalTid[op.globalTid].push_back(&op);
+    }
+    for (auto &[globalTid, ptrs] : pythonOpsByGlobalTid) {
+        std::sort(ptrs.begin(), ptrs.end(), [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+    }
+
+    auto result = KernelE2EAnalyzer::FindEnclosingPythonOp(enqueue, pythonOpsByGlobalTid);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ("<built-in boundary>", result->name);
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindEnclosingPythonOpReturnsNulloptWhenNoEventContainsTarget) {
+    auto enqueue = MakeEvent("Enqueue", "ENQUEUE", 150, 160, 1, 11);
+    std::vector<KernelE2EEvent> pythonOps = {
+        MakeEvent("<built-in before>", "PYTHON_OP", 100, 140, 0, 11),
+        MakeEvent("<built-in after>", "PYTHON_OP", 161, 200, 0, 11),
+    };
+    std::unordered_map<uint64_t, std::vector<const KernelE2EEvent *>> pythonOpsByGlobalTid;
+    for (const auto &op : pythonOps) {
+        pythonOpsByGlobalTid[op.globalTid].push_back(&op);
+    }
+    for (auto &[globalTid, ptrs] : pythonOpsByGlobalTid) {
+        std::sort(ptrs.begin(), ptrs.end(), [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+    }
+
+    auto result = KernelE2EAnalyzer::FindEnclosingPythonOp(enqueue, pythonOpsByGlobalTid);
+
+    EXPECT_FALSE(result.has_value());
 }
 
 TEST_F(KernelE2EAnalyzerTest, FindLaunchInsideReturnsLatestContainedLaunch) {
@@ -90,11 +214,55 @@ TEST_F(KernelE2EAnalyzerTest, FindLaunchInsideReturnsLatestContainedLaunch) {
         MakeEvent("launchLate", "LAUNCH", 250, 290),
         MakeEvent("launchOutside", "LAUNCH", 280, 320),
     };
+    std::vector<const KernelE2EEvent *> sortedLaunches;
+    for (const auto &l : launches) {
+        sortedLaunches.push_back(&l);
+    }
+    std::sort(sortedLaunches.begin(), sortedLaunches.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
 
-    auto result = KernelE2EAnalyzer::FindLaunchInside(cannApi, launches);
+    auto result = KernelE2EAnalyzer::FindLaunchInside(cannApi, sortedLaunches);
 
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ("launchLate", result->name);
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindLaunchInsideRespectsBoundaryContainment) {
+    auto cannApi = MakeEvent("aclopCompileAndExecute", "CANN_API", 200, 300);
+    std::vector<KernelE2EEvent> launches = {
+        MakeEvent("launchBoundaryStart", "LAUNCH", 200, 220),
+        MakeEvent("launchBoundaryEnd", "LAUNCH", 280, 300),
+    };
+    std::vector<const KernelE2EEvent *> sortedLaunches;
+    for (const auto &l : launches) {
+        sortedLaunches.push_back(&l);
+    }
+    std::sort(sortedLaunches.begin(), sortedLaunches.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+
+    auto result = KernelE2EAnalyzer::FindLaunchInside(cannApi, sortedLaunches);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ("launchBoundaryEnd", result->name);
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindLaunchInsideReturnsNulloptWhenNoLaunchIsContained) {
+    auto cannApi = MakeEvent("aclopCompileAndExecute", "CANN_API", 200, 300);
+    std::vector<KernelE2EEvent> launches = {
+        MakeEvent("launchBefore", "LAUNCH", 100, 199),
+        MakeEvent("launchOverlapEnd", "LAUNCH", 280, 320),
+        MakeEvent("launchAfter", "LAUNCH", 301, 320),
+    };
+    std::vector<const KernelE2EEvent *> sortedLaunches;
+    for (const auto &l : launches) {
+        sortedLaunches.push_back(&l);
+    }
+    std::sort(sortedLaunches.begin(), sortedLaunches.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+
+    auto result = KernelE2EAnalyzer::FindLaunchInside(cannApi, sortedLaunches);
+
+    EXPECT_FALSE(result.has_value());
 }
 
 TEST_F(KernelE2EAnalyzerTest, FindEnclosingAclnnCannApiReturnsSmallestContainingEvent) {
@@ -105,11 +273,37 @@ TEST_F(KernelE2EAnalyzerTest, FindEnclosingAclnnCannApiReturnsSmallestContaining
         MakeEvent("aclopCompileAndExecute", "CANN_API", 230, 290),
         MakeEvent("aclnnMiss", "CANN_API", 260, 320),
     };
+    std::vector<const KernelE2EEvent *> sortedCannApis;
+    for (const auto &c : cannApis) {
+        sortedCannApis.push_back(&c);
+    }
+    std::sort(sortedCannApis.begin(), sortedCannApis.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
 
-    auto result = KernelE2EAnalyzer::FindEnclosingAclnnCannApi(launch, cannApis);
+    auto result = KernelE2EAnalyzer::FindEnclosingAclnnCannApi(launch, sortedCannApis);
 
     ASSERT_TRUE(result.has_value());
     EXPECT_EQ("aclnnInner", result->name);
+}
+
+TEST_F(KernelE2EAnalyzerTest, FindEnclosingAclnnCannApiRespectsBoundaryContainment) {
+    auto launch = MakeEvent("launch", "LAUNCH", 200, 220);
+    std::vector<KernelE2EEvent> cannApis = {
+        MakeEvent("aclnnBoundary", "CANN_API", 200, 220),
+        MakeEvent("aclnnOuter", "CANN_API", 190, 230),
+        MakeEvent("aclopCompileAndExecute", "CANN_API", 195, 225),
+    };
+    std::vector<const KernelE2EEvent *> sortedCannApis;
+    for (const auto &c : cannApis) {
+        sortedCannApis.push_back(&c);
+    }
+    std::sort(sortedCannApis.begin(), sortedCannApis.end(),
+        [](const auto *a, const auto *b) { return a->startNs < b->startNs; });
+
+    auto result = KernelE2EAnalyzer::FindEnclosingAclnnCannApi(launch, sortedCannApis);
+
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ("aclnnBoundary", result->name);
 }
 
 class FakeParentChildRepo : public KernelE2ERepoInterface {

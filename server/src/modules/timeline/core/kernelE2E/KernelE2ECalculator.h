@@ -25,8 +25,10 @@ namespace Dic::Module::Timeline {
 
 class KernelE2ECalculator {
   public:
-    // Calculate time record from a recovered chain
     KernelE2ETimeRecord Calculate(const KernelE2EChain &chain);
+
+    // 优化3：优先读取 chain.cachedRecord，未命中时调用 Calculate 并缓存结果
+    const KernelE2ETimeRecord &GetOrCalculate(const KernelE2EChain &chain);
 
   private:
     KernelE2ETimeRecord CreateBaseRecord(const KernelE2EChain &chain);
