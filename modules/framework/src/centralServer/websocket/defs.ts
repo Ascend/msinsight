@@ -30,7 +30,9 @@ const getParamMap = (): Map<string, string> => {
         });
     }
     if (!paramMap.has('port')) {
-        paramMap.set('port', '9000');
+        // 仅在容器化分离式启动场景使用，借助proxy参数判断是否重定向，启用后会在容器中通过nginx将对外暴露端口反向代理到9000端口，避免跨域问题
+        const useProxy = paramMap.get('proxy') === 'true';
+        paramMap.set('port', useProxy ? (window.location.port || (window.location.protocol === 'https:' ? '443' : '80')) : '9000');
     }
     return paramMap;
 };
