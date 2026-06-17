@@ -349,6 +349,15 @@ bool DetailsService::QueryCoreLoadAnalysisGraph(const DetailsInterCoreLoadGraphR
     return true;
 }
 
+bool DetailsService::QueryTopWarpStallReason(
+    const SourceTopWarpStallReasonRequest &request, TopWarpStallReasonResponse &response) {
+    response.body.unit = "count";
+    bool result = SourceFileParser::Instance().GetTopWarpStallReason(response.body.data);
+    // 数据段不存在时 result 为 false 但 data 为空 vector，仍返回 true 表示请求成功
+    (void)result;
+    return true;
+}
+
 std::vector<DetailsInterCoreLoadOpDetail> DetailsService::MergeCoreLoadOpDetail(
     const std::vector<DetailsInterCoreLoadOpDetail> &compare,
     const std::vector<DetailsInterCoreLoadOpDetail> &baseline)

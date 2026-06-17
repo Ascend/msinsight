@@ -28,12 +28,14 @@ namespace Source {
 using namespace Protocol;
 
 class DetailsService {
-public:
-static bool QueryDetailsLoadInfo(const SourceDetailsLoadInfoRequest &request, DetailsLoadInfoResponse &response);
-static bool QueryMemoryGraph(const DetailsMemoryGraphRequest &request, DetailsMemoryGraphResponse &response);
-static bool QueryMemoryTable(const DetailsMemoryTableRequest &request, DetailsMemoryTableResponse &response);
-static bool QueryCoreLoadAnalysisGraph(const DetailsInterCoreLoadGraphRequest &request,
-                                       DetailsInterCoreLoadGraphResponse &response);
+  public:
+    static bool QueryDetailsLoadInfo(const SourceDetailsLoadInfoRequest &request, DetailsLoadInfoResponse &response);
+    static bool QueryMemoryGraph(const DetailsMemoryGraphRequest &request, DetailsMemoryGraphResponse &response);
+    static bool QueryMemoryTable(const DetailsMemoryTableRequest &request, DetailsMemoryTableResponse &response);
+    static bool QueryCoreLoadAnalysisGraph(
+        const DetailsInterCoreLoadGraphRequest &request, DetailsInterCoreLoadGraphResponse &response);
+    static bool QueryTopWarpStallReason(
+        const SourceTopWarpStallReasonRequest &request, TopWarpStallReasonResponse &response);
 
 private:
 const static inline std::string underline = "_";

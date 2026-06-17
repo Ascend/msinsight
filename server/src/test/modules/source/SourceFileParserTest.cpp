@@ -20,10 +20,13 @@
 #include "SourceFileParser.h"
 #include "SourceProtocolRequest.h"
 #include "ProjectParserFactory.h"
+#include "mockUtils/BinFileGenerator.h"
+#include "mockUtils/DataBlock.h"
 #include "../../TestSuit.h"
 
 using namespace std;
 using namespace Dic::Module::Source;
+using namespace Dic::Module::Source::Test;
 
 class SourceFileParserTest : public ::testing::Test {
 public:
@@ -88,4 +91,73 @@ TEST_F(SourceFileParserTest, Parse)
     int sourceListSize = 6;
     EXPECT_EQ(list.size(), sourceListSize);
     parser.Reset();
+}
+
+// 生成包含 0x0f Top Warp Stall Reason 数据段的测试 bin 文件
+static std::string GenerateStallReasonBinFile() {
+    std::string testBinPath = TestSuit::GetSrcTestPath() + "/test_stall_reason.bin";
+    std::string stallJson = R"({
+        "top_stall_reason_table": {
+            "IBuf_Empty": 100,
+            "Nop_Cycles": 200,
+            "Scoreboard_Not_Ready": 300,
+            "Register_bank_conflict": 400,
+            "Resource_conflict": 500,
+            "Warp_Level_Sync": 600,
+            "Divergence_Stack_Spill": 700,
+            "Others": 400
+        }
+    })";
+
+    BinFileGenerator generator;
+    generator.AddDataBlock(std::make_unique<NormalDataBlock>(DataTypeEnum::TOP_WARP_STALL_REASON, stallJson));
+    generator.Generate(testBinPath);
+    return testBinPath;
+}
+
+TEST_F(SourceFileParserTest, GetTopWarpStallReason_DataExists) {
+    std::string testBinPath = GenerateStallReasonBinFile();
+    std::string testDbPath = TestSuit::GetSrcTestPath() + "/test_stall_reason.db";
+    DataBaseManager::Instance().SetDataType(DataType::TEXT, testDbPath);
+    DataBaseManager::Instance().CreateTraceConnectionPool(testBinPath, testDbPath);
+    auto &parser = SourceFileParser::Instance();
+    parser.SetFilePath(testBinPath);
+
+    // 直接调用 Parse 来解析 bin 文件并填充 dataBlockMap
+    parser.Parse(std::vector<std::string>(), testBinPath, testBinPath, testDbPath);
+    WaitParseEnd({testBinPath});
+
+    std::vector<Protocol::StallReasonItem> data;
+    bool result = parser.GetTopWarpStallReason(data);
+    EXPECT_TRUE(result);
+    EXPECT_EQ(data.size(), 8);
+
+    // 验证特定条目
+    auto it = std::find_if(
+        data.begin(), data.end(), [](const Protocol::StallReasonItem &item) { return item.name == "IBuf_Empty"; });
+    ASSERT_NE(it, data.end());
+    EXPECT_EQ(it->value, 100);
+
+    it = std::find_if(data.begin(), data.end(),
+        [](const Protocol::StallReasonItem &item) { return item.name == "Divergence_Stack_Spill"; });
+    ASSERT_NE(it, data.end());
+    EXPECT_EQ(it->value, 700);
+    parser.Reset();
+    BinFileGenerator::RemoveFile(testBinPath);
+    BinFileGenerator::RemoveFile(testDbPath);
+}
+
+TEST_F(SourceFileParserTest, GetTopWarpStallReason_NoDataBlock) {
+    std::string testBinPath = GenerateStallReasonBinFile();
+    auto &parser = SourceFileParser::Instance();
+    parser.SetFilePath(testBinPath);
+
+    // 不调用 Parse，直接获取数据 — 应该返回 false 因为 dataBlockMap 为空
+    std::vector<Protocol::StallReasonItem> data;
+    bool result = parser.GetTopWarpStallReason(data);
+    EXPECT_FALSE(result);
+    EXPECT_TRUE(data.empty());
+
+    parser.Reset();
+    BinFileGenerator::RemoveFile(testBinPath);
 }
