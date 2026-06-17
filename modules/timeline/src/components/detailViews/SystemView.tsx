@@ -378,6 +378,10 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
         if (props.viewOption !== 0) {
             return systemViewItems.map((item, index) => ({ ...item, originIndex: index }));
         }
+        // 服务化只展示tableData/nameList接口返回的视图名称
+        if (systemViewItems.length > statsSystemViewItems.length) {
+            return systemViewItems.map((item, index) => ({ ...item, originIndex: index })).slice(statsSystemViewItems.length);
+        }
         return getVisibleStatsSystemViewItems(
             systemViewItems,
             props.session.hasFtraceData,
