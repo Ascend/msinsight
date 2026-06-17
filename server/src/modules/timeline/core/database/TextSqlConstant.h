@@ -63,7 +63,8 @@ const std::string SIMULATION_INSERT_THREAD_NAME_AND_SORT_INDEX_SQL = "INSERT INT
     "ELSE thread_sort_index END;";
 const std::string CREATE_TABLE_SQL = "CREATE TABLE " + SLICE_TABLE +
     " (id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp INTEGER, duration INTEGER,"
-    " name TEXT, depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT);" +
+    " name TEXT, depth INTEGER, track_id INTEGER, cat TEXT, args TEXT, cname TEXT, end_time INTEGER, flag_id TEXT,"
+    " group_id TEXT);" +
     "CREATE TABLE " + THREAD_TABLE + " (track_id INTEGER PRIMARY KEY, tid TEXT, pid TEXT, thread_name TEXT," +
     " thread_sort_index INTEGER);" + "CREATE TABLE " + PROCESS_TABLE +
     " (pid TEXT PRIMARY KEY, process_name TEXT, label TEXT," + " process_sort_index INTEGER, parentPid TEXT DEFAULT '0');" + "CREATE TABLE " +
@@ -112,10 +113,10 @@ public:
     static std::string GetInsertSliceSql()
     {
         std::string sql = "INSERT INTO slice "
-            " (timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id) VALUES"
-            " (?,?,?,?,?,?,?,?,?)";
+            " (timestamp, duration, name, track_id, cat, args, cname, end_time, flag_id, group_id) VALUES"
+            " (?,?,?,?,?,?,?,?,?,?)";
         for (int i = 0; i < CACHE_SIZE - 1; ++i) {
-            sql.append(",(?,?,?,?,?,?,?,?,?)");
+            sql.append(",(?,?,?,?,?,?,?,?,?,?)");
         }
         return sql;
     }

@@ -46,6 +46,7 @@ public:
     bool DeleteEmptyThread();
     bool DeleteEmptyFlow();
     bool DropTable() const;
+    bool EnsureSliceGroupIdColumn();
     bool InitStmt();
     void ReleaseStmt();
     bool InsertSlice(const Trace::Slice &event);
