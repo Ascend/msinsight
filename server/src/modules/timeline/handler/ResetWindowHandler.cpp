@@ -27,6 +27,7 @@
 #include "MemScopeParser.h"
 #include "ServitizationOpenApi.h"
 #include "BaselineManagerService.h"
+#include "ParserStatusManager.h"
 #include "ResetWindowHandler.h"
 
 namespace Dic {
@@ -38,6 +39,8 @@ bool ResetWindowHandler::HandleRequest(std::unique_ptr<Protocol::Request> reques
     std::unique_ptr<ResetWindowResponse> responsePtr = std::make_unique<ResetWindowResponse>();
     ResetWindowResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
+    ParserStatusManager::Instance().SetAllTerminateStatus();
+    ParserStatusManager::Instance().NotifyStartParse();
     std::shared_ptr<IE::ServitizationOpenApi> openApi = std::make_shared<IE::ServitizationOpenApi>();
     openApi->Reset();
     JsonFileParserManager::ResetAll();

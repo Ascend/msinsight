@@ -136,6 +136,8 @@ std::shared_ptr<ProjectParserBase> ParserFactory::GetProjectParser(ParserType al
 
 void ParserFactory::Reset() {
     std::lock_guard<std::mutex> lock(mutex);
+    ParserStatusManager::Instance().SetAllTerminateStatus();
+    ParserStatusManager::Instance().NotifyStartParse();
     std::shared_ptr<IE::ServitizationOpenApi> openApi = std::make_shared<IE::ServitizationOpenApi>();
     openApi->Reset();
     JsonFileParserManager::Instance().ResetAll();
