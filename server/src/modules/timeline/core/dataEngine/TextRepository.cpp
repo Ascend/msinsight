@@ -37,6 +37,7 @@ void TextRepository::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &slic
     SliceTable sliceTable;
     std::vector<SlicePO> tempSlicePOVec;
     sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
+        .Select(SliceColumn::GROUPID)
         .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
         .OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC)
         .OrderBy(SliceColumn::ID, TableOrder::ASC)
@@ -46,6 +47,7 @@ void TextRepository::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &slic
         cachelice.id = item.id;
         cachelice.timestamp = item.timestamp;
         cachelice.endTime = item.endTime;
+        cachelice.groupId = item.groupId;
         sliceVec.emplace_back(cachelice);
     }
 }

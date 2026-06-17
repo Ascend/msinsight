@@ -31,6 +31,7 @@ struct SlicePO {
     std::string args;
     std::string cat;
     std::string flagId;
+    std::string groupId;
     std::string cname;
 };
 class SliceTable : public Table<SlicePO> {
@@ -38,20 +39,13 @@ public:
     SliceTable() = default;
     ~SliceTable() = default;
 
-protected:
-    const std::unordered_map<std::string_view, assign>& GetAssignMap() override
-    {
-        static std::unordered_map<std::string_view, assign> assignMap = {
-            { SliceColumn::ID, IdHandle },
-            { SliceColumn::TIMESTAMP, TimeStampHandle },
-            { SliceColumn::DURATION, DurationHandle },
-            { SliceColumn::NAME, NameHandle },
-            { SliceColumn::TRACKID, TrackIdHandle },
-            { SliceColumn::CAT, CatHandle },
-            { SliceColumn::ARGS, ArgsHandle },
-            { SliceColumn::CNAME, CnameHandle },
-            { SliceColumn::ENDTIME, EndTimeHandle },
-            { SliceColumn::FLAGID, FlagIdHandle } };
+  protected:
+    const std::unordered_map<std::string_view, assign> &GetAssignMap() override {
+        static std::unordered_map<std::string_view, assign> assignMap = {{SliceColumn::ID, IdHandle},
+            {SliceColumn::TIMESTAMP, TimeStampHandle}, {SliceColumn::DURATION, DurationHandle},
+            {SliceColumn::NAME, NameHandle}, {SliceColumn::TRACKID, TrackIdHandle}, {SliceColumn::CAT, CatHandle},
+            {SliceColumn::ARGS, ArgsHandle}, {SliceColumn::CNAME, CnameHandle}, {SliceColumn::ENDTIME, EndTimeHandle},
+            {SliceColumn::FLAGID, FlagIdHandle}, {SliceColumn::GROUPID, GroupIdHandle}};
 
         return assignMap;
     }
@@ -70,6 +64,7 @@ protected:
     static void CnameHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void EndTimeHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void FlagIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void GroupIdHandle(SlicePO &slicePo, const std::unique_ptr<SqliteResultSet> &resultSet);
 };
 }
 

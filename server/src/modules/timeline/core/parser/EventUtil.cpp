@@ -95,6 +95,7 @@ Trace::Event* EventUtil::ToSliceEvent(const json_t &json)
     event->pid = JsonUtil::GetDumpString(json, "pid");
     event->cat = JsonUtil::GetOptionalString(json, "cat");
     event->args = JsonUtil::GetOptionalString(json, "args");
+    event->groupId = JsonUtil::GetString(json, "group_id");
     return event.get();
 }
 
@@ -113,6 +114,7 @@ Trace::Event* EventUtil::ToSimulationSliceEvent(const json_t &json)
     event->processName = JsonUtil::GetString(json, "pid");
     event->cname = JsonUtil::GetString(json, "cname");
     event->args = JsonUtil::GetOptionalString(json, "args");
+    event->groupId = JsonUtil::GetString(json, "group_id");
     return event.get();
 }
 
@@ -127,6 +129,7 @@ Trace::Event* EventUtil::ToSimulationBeginSliceEvent(const json_t &json)
     event->cname = JsonUtil::GetString(json, "cname");
     event->args = JsonUtil::GetOptionalString(json, "args");
     event->flagId = JsonUtil::GetDumpString(json, "id");
+    event->groupId = JsonUtil::GetString(json, "group_id");
     return event.get();
 }
 
@@ -137,6 +140,7 @@ Trace::Event* EventUtil::ToSimulationEndSliceEvent(const json_t &json)
     event->ts = NumberUtil::TimestampUsToNs(JsonUtil::GetLongDouble(json, "ts"));
     event->name = JsonUtil::GetString(json, "name");
     event->flagId = JsonUtil::GetDumpString(json, "id");
+    event->groupId = JsonUtil::GetString(json, "group_id");
     return event.get();
 }
 

@@ -18,8 +18,7 @@
 
 #ifndef PROFILER_SERVER_TIMELINETESTUTIL_CPP
 #define PROFILER_SERVER_TIMELINETESTUTIL_CPP
-
-const uint64_t PAGE_SIZE = 10;
+const uint64_t SYS_PAGE_SIZE = 10;
 const uint64_t CUR_PAGE_1 = 1;
 const uint64_t CUR_PAGE_2 = 2;
 const uint64_t EVENTS_VIEW_COLUMN_SIZE = 5;
