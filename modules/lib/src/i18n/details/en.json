@@ -44,6 +44,8 @@
     "Cube Ratio Formula": "Cube Ratio = Cube Cycle / Total Cycle",
     "Vector Ratio Formula": "Vector Ratio = Vector Cycle / Total Cycle",
     "Active Bw(GB/s)": "Active Bw(GB/s)",
-    "Instruction Per Cycle": "Instruction Per Cycle"
+    "Instruction Per Cycle": "Instruction Per Cycle",
+    "TopWarpStallReason": "Top Warp Stall Reason",
+    "Stall Count": "Stall Count"
   }
 }

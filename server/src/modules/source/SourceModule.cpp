@@ -30,6 +30,7 @@
 #include "QueryInterCoreLoadAnalysisGraphHandler.h"
 #include "QueryDetailsRooflineHandler.h"
 #include "QueryCachelineRecordHandler.h"
+#include "QueryTopWarpStallReasonHandler.h"
 
 namespace Dic::Module {
 using namespace Dic::Module::Source;
@@ -63,6 +64,7 @@ void SourceModule::RegisterRequestHandlers()
     requestHandlerMap.emplace(std::string(REQ_RES_DETAILS_ROOFLINE),
                               std::make_unique<QueryDetailsRooflineHandler>());
     requestHandlerMap.emplace(REQ_RES_CACHELINE_RECORD, std::make_unique<QueryCachelineRecordHandler>());
+    requestHandlerMap.emplace(REQ_RES_TOP_WARP_STALL_REASON, std::make_unique<QueryTopWarpStallReasonHandler>());
 }
 
 void SourceModule::OnRequest(std::unique_ptr<Protocol::Request> request)

@@ -178,3 +178,7 @@ export const queryRoofline = async(): Promise<IRooflineData | undefined> => {
 export const queryCacheRecord = async(): Promise<QueryCacheRecordReturn> => {
     return window.requestData('source/cache/cachelineRecords', {}) as Promise<QueryCacheRecordReturn>;
 };
+
+export const queryTopWarpStallReason = async(): Promise<any> => {
+    return window.requestData('source/queryTopWarpStallReason', {});
+};

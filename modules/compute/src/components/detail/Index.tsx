@@ -24,6 +24,7 @@ import ComputeWorkload from './ComputeWorkload/Index';
 import MemoryWorkload from './MemoryWorkload/Index';
 import CoreOccupancy from './CoreOccupancy/Index';
 import Roofline from './Roofline/Index';
+import TopWarpStallReason from './TopWarpStallReason/Index';
 
 const index = observer(({ session }: { session: Session }): JSX.Element => {
     return (
@@ -32,6 +33,7 @@ const index = observer(({ session }: { session: Session }): JSX.Element => {
             <CoreOccupancy session={session}/>
             <Roofline session={session}/>
             <ComputeWorkload session={session}/>
+            <TopWarpStallReason session={session}/>
             <MemoryWorkload session={session}/>
         </Layout>
     );

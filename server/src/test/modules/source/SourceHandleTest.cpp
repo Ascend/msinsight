@@ -26,6 +26,7 @@
 #include "QueryDetailsMemoryTableHandler.h"
 #include "QueryInterCoreLoadAnalysisGraphHandler.h"
 #include "QueryDetailsRooflineHandler.h"
+#include "QueryTopWarpStallReasonHandler.h"
 #include "SourceProtocolRequest.h"
 #include "WsSessionManager.h"
 #include "../../TestSuit.h"
@@ -117,5 +118,11 @@ TEST_F(SourceHandleTest, QueryDetailsRooflineHandler)
 {
     Dic::Module::Source::QueryDetailsRooflineHandler handler;
     std::unique_ptr<Request> requestPtr = std::make_unique<DetailsRooflineRequest>();
+    handler.HandleRequest(std::move(requestPtr));
+}
+
+TEST_F(SourceHandleTest, QueryTopWarpStallReasonHandler) {
+    Dic::Module::Source::QueryTopWarpStallReasonHandler handler;
+    std::unique_ptr<Request> requestPtr = std::make_unique<SourceTopWarpStallReasonRequest>();
     handler.HandleRequest(std::move(requestPtr));
 }
