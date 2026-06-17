@@ -128,29 +128,34 @@ const KernelDetails = observer((props: SelectContentViewProps) => {
         endTime = endTime < 0 ? 0 : endTime;
         const timestampOffset = getTimeOffset(props.session, props.card);
         const sortedField = sorters.field === 'startTimeLabel' ? 'startTime' : sorters.field;
-        const res = await queryKernelDetails({
-            rankId: props.card.cardId,
-            dbPath: props.card.dbPath,
-            pageSize: pages.pageSize,
-            current: pages.current,
-            orderBy: sorters.order ? sortedField : defaultSorter.field,
-            order: sorters.order ?? defaultSorter.order,
-            startTime: Math.floor(startTime + timestampOffset),
-            endTime: Math.ceil(endTime + timestampOffset),
-            coreType: '',
-            filterCondition: filterTypes,
-        }).finally(() => {
-            setLoading(false);
-        });
+        try {
+            const res = await queryKernelDetails({
+                rankId: props.card.cardId,
+                dbPath: props.card.dbPath,
+                pageSize: pages.pageSize,
+                current: pages.current,
+                orderBy: sorters.order ? sortedField : defaultSorter.field,
+                order: sorters.order ?? defaultSorter.order,
+                startTime: Math.floor(startTime + timestampOffset),
+                endTime: Math.ceil(endTime + timestampOffset),
+                coreType: '',
+                filterCondition: filterTypes,
+            });
 
-        const data = res.kernelDetails.map((item: {
-            startTimeLabel: string;
-            startTime: number;}) => {
-            item.startTimeLabel = getDetailTimeDisplay(item.startTime - timestampOffset);
-            return item;
-        });
-        setDataSource(data);
-        setPage({ ...page, total: res.count });
+            const data = res.kernelDetails.map((item: {
+                startTimeLabel: string;
+                startTime: number;}) => {
+                item.startTimeLabel = getDetailTimeDisplay(item.startTime - timestampOffset);
+                return item;
+            });
+            setDataSource(data);
+            setPage({ ...pages, total: res.count });
+        } catch {
+            setDataSource([]);
+            setPage({ ...pages, total: 0 });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const colums = [
