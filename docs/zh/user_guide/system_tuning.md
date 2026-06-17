@@ -1600,14 +1600,14 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |最大大小(B)|Max Size(B)|该类内存拷贝数据的最大数据量。|
   |详情|Details|该区域展示所选内存拷贝数据的所有算子详情，可单击任意一个算子，跳转至时间线视图中算子所在的具体位置。|
 
-- 算子类型
+- 算子类型汇总
 
-  算子类型包括Python API 汇总（Python API Summary）、CANN API 汇总（CANN API Summary）、Ascend Hardware Task 汇总（Ascend Hardware Task Summary）、通信汇总（Communication Summary）、覆盖分析（Overlap Analysis），算子信息如[**图 7** 算子汇总页签](#算子汇总页签)所示，字段解释如[**表 6** 统计系统视图字段说明](#统计系统视图字段说明)所示。
+  算子类型包括Python API 汇总（Python API Summary）、CANN API 汇总（CANN API Summary）、Ascend Hardware Task 汇总（Ascend Hardware Task Summary）、通信汇总（Communication Summary）、覆盖分析（Overlap Analysis），算子信息如[**图 7** 算子类型汇总](#算子类型汇总)所示，字段解释如[**表 6** 算子类型汇总字段说明](#算子类型汇总字段说明)所示。
 
-  **图 7** 算子汇总页签<a id="算子汇总页签"></a>
-  ![](./figures/system_tuning/operator_summary_tab_2.png "算子汇总页签")
+  **图 7** 算子类型汇总<a id="算子类型汇总"></a>
+  ![](./figures/system_tuning/operator_summary_tab_2.png "算子类型汇总")
 
-  **表 6** 统计系统视图字段说明<a id="统计系统视图字段说明"></a>
+  **表 6** 算子类型汇总字段说明<a id="算子类型汇总字段说明"></a>
 
   |中文字段|英文字段|说明|
   |--|--|--|
@@ -1619,14 +1619,49 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |最小值(us)|Min(us)|该类耗时的最小值。|
   |最大值(us)|Max(us)|该类耗时的最大值。|
 
+- 算子跟踪
+
+  算子跟踪包括Python API 跟踪（Python API Trace）、CANN API 跟踪（CANN API Trace）、Ascend Hardware Task 跟踪（Ascend Hardware Task Trace）、通信跟踪（Communication Trace），算子信息如[**图 8** 算子跟踪](#算子跟踪)所示，字段解释如[**表 7** 算子跟踪字段说明](#算子跟踪字段说明)所示。
+
+  **图 8** 算子跟踪<a id="算子跟踪"></a>
+  ![](./figures/system_tuning/operator_trace_tab_2.png "算子跟踪")
+
+  **表 7** 算子跟踪字段说明<a id="算子跟踪字段说明"></a>
+
+  |中文字段|英文字段|说明|
+  |--|--|--|
+  |名称|Name|名称。|
+  |开始时间|Start Time|任务开始时间点。|
+  |时长(us)|Duration(us)|任务耗时。|
+
+- 算子类型汇总（按类型）
+
+  对算子详情表按类型汇总的统计结果，采集项同算子详情表，算子信息如[**图 9** 算子类型汇总（按类型）](#算子类型汇总)所示，字段解释如[**表 8** 算子类型汇总（按类型）字段说明](#算子类型汇总字段说明)所示。
+
+  **图 9** 算子类型汇总（按类型）<a id="算子类型汇总"></a>
+  ![](./figures/system_tuning/operator_type_summary_2.png "算子类型汇总（按类型）")
+
+  **表 8** 算子类型汇总（按类型）字段说明<a id="算子类型汇总字段说明"></a>
+
+  |中文字段|英文字段|说明|
+  |--|--|--|
+  |类型|Type|算子类型。|
+  |加速器核|Accelerator Core|AI加速核类型，包括AI Core、AI CPU等。|
+  |数量|Count|算子执行次数。|
+  |总耗时(μs)|Total Time(μs)|算子执行总时间。|
+  |平均耗时(μs)|Avg Time(μs)|算子执行平均时间。|
+  |最大耗时(μs)|Max Time(μs)|算子执行的最大时间。|
+  |最小耗时(μs)|Min Time(μs)|算子执行的最小时间。|
+  |详情|Details|单击详情列中查看更多，可以展示单个计算算子的具体信息，详情请参见[**表 1** 计算算子字段说明](#计算算子字段说明)。|
+
 - 算子详情
 
-  算子详情（Kernel Details）展示NPU上算子的详细信息，如[**图 8** 算子详情信息展示](#算子详情信息展示)所示，字段解释如[**表 7** 算子详情字段说明](#算子详情字段说明)所示，单击“点击跳转Timeline”列中的“点击”，会跳转到算子在时间线视图中的具体位置，区域四（数据窗格）将会展示选中详情，展示该算子的具体信息。单击算子详情表中字段名称后的![](./figures/system_tuning/zh-cn_image_0000002531920231.png)，可对相关字段进行模糊搜索。
+  算子详情（Kernel Details）展示NPU上算子的详细信息，如[**图 10** 算子详情信息展示](#算子详情信息展示)所示，字段解释如[**表 9** 算子详情字段说明](#算子详情字段说明)所示，单击“点击跳转Timeline”列中的“点击”，会跳转到算子在时间线视图中的具体位置，区域四（数据窗格）将会展示选中详情，展示该算子的具体信息。单击算子详情表中字段名称后的![](./figures/system_tuning/zh-cn_image_0000002531920231.png)，可对相关字段进行模糊搜索。
 
-  **图 8** 算子详情信息展示<a id="算子详情信息展示"></a>
+  **图 10** 算子详情信息展示<a id="算子详情信息展示"></a>
   ![](./figures/system_tuning/operator_detail_display_2.png "算子详情信息展示")
 
-  **表 7** 算子详情字段说明<a id="算子详情字段说明"></a>
+  **表 9** 算子详情字段说明<a id="算子详情字段说明"></a>
 
   |中文字段|英文字段|说明|
   |--|--|--|
@@ -1646,59 +1681,32 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |输出格式|Output Formats|算子输出数据格式。|
   |点击跳转Timeline|Click To Timeline|单击“点击”，跳转到算子在时间线视图上的具体位置，并且在区域四（数据窗格）展示该算子的详情。|
 
-- ftrace耗时统计
+- Ftrace任务统计
 
-  ftrace耗时统计（Ftrace Time Consuming）通过slice表中获取所有进程的算子数据，根据算子名runnable、running、sleeping统计算子的耗时情况，如[**图 9** ftrace耗时统计](#ftrace耗时统计)所示。
+  Ftrace任务统计（Ftrace Task Summary）是对Ftrace采集数据的调度、上下文切换次数、被中断打断次数与时长的统计信息，用于帮助快速定位CPU侧Top 耗时进程、Top 中断源、进程抢占频次等关键指标，如[**图 11** Ftrace任务统计](#Ftrace任务统计)所示，字段说明见[**表 10** Ftrace任务统计字段说明](#Ftrace任务统计字段说明)。
 
-  **图 9** ftrace耗时统计<a id="ftrace耗时统计"></a>
-  ![](./figures/system_tuning/ftrace_time_consuming_2.png "ftrace耗时统计")
+  **图 11** Ftrace任务统计<a id="Ftrace任务统计"></a>
+  ![](./figures/system_tuning/ftrace_task_summary_1.png "Ftrace任务统计")
 
-  **表 8** ftrace耗时统计字段说明<a id="ftrace耗时统计字段说明"></a>
-
-  |中文字段|英文字段|说明|
-  |--|--|--|
-  |泳道类型|Process|泳道的类型。|
-  |cpu/进程泳道|Thread|cpu/进程的名称。|
-  |可运行时长（ns）|Runnable(ns)|进程处于可运行（Runnable）的总耗时统计。|
-  |运行中时长（ns）|Running(ns)|进程处于运行中（Running）的总耗时统计。|
-  |睡眠时长（ns）|Sleeping(ns)|进程处于休眠中（Sleeping）的总耗时统计。|
-
-- ftrace中断统计
-
-  ftrace中断统计（Ftrace IRQ）通过slice表中获取所有cpu的irq和softirq的数据，根据以上数据中断的扩展信息，判断中断发生进程位置，进而统计每一个cpu进程的硬中断、软中断的总耗时和次数，如[**图 10** ftrace中断统计](#ftrace中断统计)所示。
-
-  **图 10** ftrace中断统计<a id="ftrace中断统计"></a>
-  ![](./figures/system_tuning/ftrace_irq_2.png "ftrace中断统计")
-
-  **表 9** ftrace中断统计字段说明<a id="ftrace中断统计字段说明"></a>
+  **表 10** Ftrace任务统计字段说明<a id="Ftrace任务统计字段说明"></a>
 
   |中文字段|英文字段|说明|
   |--|--|--|
-  |泳道类型|Process|泳道的类型。|
-  |cpu/进程泳道|Thread|cpu/进程的名称。|
-  |软中断次数|Soft IRQ Count|进程发生软中断的次数。|
-  |软中断时长（ns）|Soft IRQ Duration(ns)|进程进行软中断执行的总耗时。|
-  |硬中断次数|Hard IRQ Count|进程发生硬中断的次数。|
-  |硬中断时长（ns）|Hard IRQ Duration(ns)|进程进行硬中断执行的总耗时。|
-
-- ftrace上下文切换统计
-
-  ftrace上下文切换统计（Ftrace Sched）通过Slice中cpu进程中发生的上下文切换事件的次数，将部分内容落库到db中的跟踪分析（ftrace_analysis）中，并发送消息通知前端已经完成的数据解析，如[**图 11** ftrace上下文切换统计](#ftrace上下文切换统计)所示。
-
-  **图 11** ftrace上下文切换统计<a id="ftrace上下文切换统计"></a>
-  ![](./figures/system_tuning/ftrace_sched_2.png "ftrace上下文切换统计")
-
-  **表 10** ftrace上下文切换统计字段说明<a id="ftrace上下文切换统计字段说明"></a>
-
-  |中文字段|英文字段|说明|
-  |--|--|--|
-  |泳道类型|Process|泳道的类型。|
-  |cpu/进程泳道|Thread|cpu/进程的名称。|
-  |上下文切换次数|Context Switch Count|上下文切换的次数。|
+  |运行CPU|CPU|进程运行所在CPU|
+  |进程/线程名|Comm|进程/线程名称|
+  |进程/线程号|PID/TID|进程/线程号|
+  |待运行时长(ns) |Runnable(ns)|进程/线程处于待运行（Runnable）的总耗时统计。|
+  |运行时长(ns) |Running(ns)|进程/线程处于运行中（Running）的总耗时统计。|
+  |睡眠时长（ns）|Sleeping(ns) |进程/线程处于休眠中（Sleeping）的总耗时统计。|
+  |上下文切换次数 |Context Switch Count|进程/线程上下文切换的次数。|
+  |软中断次数|Soft IRQ Count|进程/线程被软中断打断的次数。|
+  |软中断时长（ns）|Soft IRQ Duration(ns) |进程/线程被软中断打断的总耗时。|
+  |硬中断次数|Hard IRQ Count|进程/线程被硬中断打断的次数。|
+  |硬中断时长（ns）|Hard IRQ Duration(ns) |进程/线程被硬中断打断的总耗时。|
 
 - 算子下发耗时统计
 
-  算子下发问题是常见典型的HOST Bound问题，支持提供拆解分析一、二级流水耗时，帮助调优人员快速找到下发异常点，如[**图12** 算子下发耗时统计](#算子下发耗时统计)所示，字段说明见[**表 11** 算子下发耗时统计字段说明](#算子下发耗时统计字段说明)。
+  算子下发问题是常见典型的HOST Bound问题，支持提供拆解分析一、二级流水耗时，帮助调优人员快速找到下发异常点，如[**图 12** 算子下发耗时统计](#算子下发耗时统计)所示，字段说明见[**表 11** 算子下发耗时统计字段说明](#算子下发耗时统计字段说明)。
 
   **图 12** 算子下发耗时统计<a id="算子下发耗时统计"></a>
   ![](./figures/system_tuning/operator_kernel_time_1.png "算子下发耗时统计")
