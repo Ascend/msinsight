@@ -458,11 +458,7 @@ export const KernelE2ETimeTable = observer((props: SelectContentViewProps) => {
     }
 
     const handleRowClick = (record: KernelE2ETimeRecord): void => {
-        if (selectedRow?.id === record.id) {
-            setSelectedRow(null);
-        } else {
-            setSelectedRow(record);
-        }
+        setSelectedRow(record);
     };
 
     // 默认排序：按端到端耗时倒序；取消排序时回退到默认排序
