@@ -35,7 +35,7 @@ function generateCalculateWHWithCache(): {
     });
     const WIDTH_CACHE: Map<string, number> = new Map();
     const HEIGHT_CACHE: Map<string, number | undefined> = new Map();
-    const disposer = observe(WIDTH_DEPENDENCIES, (change) => {
+    const disposer = observe(WIDTH_DEPENDENCIES, () => {
         WIDTH_CACHE.clear(); // 根据宽度变化更新宽度缓存
     });
     function getWidthWithCache(paramsOfCache: { timestamp: number; cardId: string; pid: string; getTimeOffset?: Record<string, number>},
@@ -147,7 +147,7 @@ export function calculateLinkLines(rawList: Array<Record<string, unknown>>, sess
 
         const [targetX, targetY] = [getWidthWithCache({ timestamp: to.timestamp, cardId: targetCardId, pid: to.pid }, li, session, units, timestampOffset),
             getHeightWithCache(to, targetCardId, cat, session)];
-        const [sourceX, sourceY] = [getWidthWithCache({ timestamp: from.timestamp + (from?.duration ?? 0), cardId: sourceCardId, pid: from.pid }, li, session, units, timestampOffset),
+        const [sourceX, sourceY] = [getWidthWithCache({ timestamp: from.timestamp, cardId: sourceCardId, pid: from.pid }, li, session, units, timestampOffset),
             getHeightWithCache(from, sourceCardId, cat, session)];
         const targetPos: Array<[x: number, y: number]> = [[targetX, targetY]];
         const offset = ((targetX - sourceX) / 2);
