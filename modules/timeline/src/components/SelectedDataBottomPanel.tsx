@@ -239,7 +239,9 @@ export const SelectedDataBottomPanel = observer(<T extends Record<string, unknow
     const [dataLink, setDataLink] = useState<string>('');
     useEffect(() => {
         runInAction(() => {
-            session.drawLineMode = 'all';
+            if (dataLink !== '') {
+                session.drawLineMode = 'all';
+            }
             session.ridLineType = dataLink;
             session.renderTrigger = !session.renderTrigger;
         });
