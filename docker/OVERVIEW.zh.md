@@ -1,17 +1,17 @@
-# MindStudio Insight Docker 镜像概述
+# MindStudio Insight
 
 ## 快速参考
 
-| 项目 | 说明 |
-| ------ | ------ |
-| **镜像名称** | msinsight |
-| **维护者** | MindStudio Insight 团队 |
-| **源码仓库** | [https://gitcode.com/Ascend/msinsight](https://gitcode.com/Ascend/msinsight) |
-| **Dockerfile 路径** | `docker/Dockerfile.ubuntu`、`docker/Dockerfile.openEuler` |
-| **许可证** | MulanPSL2 |
-| **默认版本** | `26.1.0` |
-| **支持架构** | `x86_64`、`aarch64` |
-| **默认服务端口** | `80`、`443` |
+- MindStudio Insight 由 [MindStudio Insight community](https://gitcode.com/Ascend/msinsight) 维护。
+
+- 从哪里获取帮助
+
+  - [AscendHub镜像仓库](https://www.hiascend.com/developer/ascendhub)
+  - [MindStudio Insight 代码仓](https://gitcode.com/Ascend/msinsight)
+  - [MindStudio Insight 昇腾社区](https://www.hiascend.com/document/detail/zh/mindstudio/2600/GUI_baseddevelopmenttool/MindStudioInsight/docs/zh/user_guide/overview.md)
+  - [问题反馈](https://gitcode.com/Ascend/msinsight/issues)
+
+---
 
 ## 镜像介绍
 
@@ -19,11 +19,11 @@
 
 该 Docker 镜像提供开箱即用的 MindStudio Insight Web 化访问方式，适用于快速部署、数据分析环境隔离、团队共享分析服务以及在不同操作系统环境中统一运行 MindStudio Insight。
 
-## 镜像 Tag 说明及 Dockerfile 归档路径
+## 支持的 Tags 及 Dockerfile 链接
 
-### 镜像 Tag 说明
+### Tag 规范
 
-镜像 Tag 建议遵循以下格式：
+Tag 遵循以下格式：
 
 ```text
 {版本号}-{操作系统}
@@ -36,19 +36,10 @@
 
 默认镜像以多架构 manifest 形式发布，同一 Tag 支持 `x86_64` 和 `aarch64`，Docker 会根据运行环境自动拉取匹配架构的镜像。
 
-示例：
-
-| Tag | 操作系统 | 支持架构 |
+| Tag | 操作系统 | Dockerfile |
 | ------ | ------ | ------ |
-| `26.1.0-ubuntu22.04` | Ubuntu 22.04 | x86_64、aarch64 |
-| `26.1.0-openeuler24.03` | openEuler 24.03 LTS | x86_64、aarch64 |
-
-### Dockerfile 归档路径
-
-```text
-docker/Dockerfile.ubuntu
-docker/Dockerfile.openEuler
-```
+| `26.1.0-ubuntu22.04` | Ubuntu 22.04 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
+| `26.1.0-openeuler24.03` | openEuler 24.03 LTS | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
 
 ### 目录结构
 

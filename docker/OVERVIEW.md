@@ -1,17 +1,17 @@
-# MindStudio Insight Docker Image Overview
+# MindStudio Insight
 
 ## Quick Reference
 
-| Item | Description |
-| ------ | ------ |
-| **Image Name** | msinsight |
-| **Maintainer** | MindStudio Insight Team |
-| **Source Repository** | [https://gitcode.com/Ascend/msinsight](https://gitcode.com/Ascend/msinsight) |
-| **Dockerfile Path** | `docker/Dockerfile.ubuntu`, `docker/Dockerfile.openEuler` |
-| **License** | MulanPSL2 |
-| **Default Version** | `26.1.0` |
-| **Supported Architectures** | `x86_64`, `aarch64` |
-| **Default Service Ports** | `80`, `443` |
+- MindStudio Insight is maintained by the [MindStudio Insight community](https://gitcode.com/Ascend/msinsight).
+
+- Where to get help:
+
+  - [AtlasHub Image Repository](https://www.hiascend.com/developer/ascendhub)
+  - [MindStudio Insight Code Repository](https://gitcode.com/Ascend/msinsight)
+  - [MindStudio Insight Atlas Community](https://www.hiascend.com/document/detail/zh/mindstudio/2600/GUI_baseddevelopmenttool/MindStudioInsight/docs/zh/user_guide/overview.md)
+  - [Issue Tracker](https://gitcode.com/Ascend/msinsight/issues)
+
+---
 
 ## Image Introduction
 
@@ -19,11 +19,11 @@
 
 This Docker image provides an out-of-the-box web access mode for MindStudio Insight. It is suitable for quick deployment, isolated data analysis environments, shared team analysis services, and consistent MindStudio Insight usage across different operating systems.
 
-## Image Tag Description and Dockerfile Archive Path
+## Supported Tags and Dockerfile Links
 
-### Image Tag Description
+### Tag Format
 
-Recommended image tag format:
+Tags follow this format:
 
 ```text
 {Version}-{OS}
@@ -36,19 +36,10 @@ Recommended image tag format:
 
 By default, images are published as multi-architecture manifests. The same tag supports both `x86_64` and `aarch64`, and Docker automatically pulls the image matching the runtime platform.
 
-Examples:
-
-| Tag | Operating System | Supported Architectures |
+| Tag | Operating System | Dockerfile |
 | ------ | ------ | ------ |
-| `26.1.0-ubuntu22.04` | Ubuntu 22.04 | x86_64, aarch64 |
-| `26.1.0-openeuler24.03` | openEuler 24.03 LTS | x86_64, aarch64 |
-
-### Dockerfile Archive Path
-
-```text
-docker/Dockerfile.ubuntu
-docker/Dockerfile.openEuler
-```
+| `26.1.0-ubuntu22.04` | Ubuntu 22.04 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
+| `26.1.0-openeuler24.03` | openEuler 24.03 LTS | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
 
 ### Directory Structure
 
@@ -177,7 +168,7 @@ docker build \
   -f Dockerfile.openEuler \
   --build-arg VERSION={version} \
   --build-arg TAG={tag} \
-  -t msinsight:26.1.0-openeuler24.03-x86_64 .
+  -t {msinsight_tag} .
 ```
 
 ### Secondary Development
@@ -188,18 +179,6 @@ You can create a custom image based on the official image:
 FROM msinsight:26.1.0-ubuntu22.04
 
 # Add custom build steps as needed.
-```
-
-Build and run:
-
-```bash
-docker build -t my-msinsight:latest .
-
-docker run -d \
-  -p 9880:80 \
-  -v /path/to/profile_data:/opt/insight/data \
-  --name my-msinsight \
-  my-msinsight:latest
 ```
 
 ## License
