@@ -573,6 +573,7 @@ bool TextTraceDatabase::QueryThreads(const Protocol::UnitThreadsParams &requestP
             std::string pythonStackMetaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
             for (size_t index = sliceStartIndex; index < competeSliceVec.size(); ++index) {
                 competeSliceVec[index].metaType = pythonStackMetaType;
+                competeSliceVec[index].tid = GetTextSearchThreadId(competeSliceVec[index].tid, true);
             }
         }
     }
@@ -1989,8 +1990,9 @@ bool TextTraceDatabase::QueryThreadSameOperatorsDetails(const Protocol::UnitThre
     Protocol::UnitThreadsOperatorsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList) {
     uint64_t startTime = requestParams.startTime + minTimestamp;
     uint64_t endTime = requestParams.endTime + minTimestamp;
-    std::string sql =
-        TextSqlConstant::GetThreadSameOperatorsDetailsSql(requestParams.order, requestParams.orderBy, trackIdList);
+    std::string pythonFunctionFilterSql = GetTextPythonFunctionFilterSql(requestParams.isPythonStack);
+    std::string sql = TextSqlConstant::GetThreadSameOperatorsDetailsSql(
+        requestParams.order, requestParams.orderBy, trackIdList, pythonFunctionFilterSql);
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query thread same operators details. Failed to prepare sql.", sqlite3_errmsg(db));
@@ -2004,7 +2006,8 @@ bool TextTraceDatabase::QueryThreadSameOperatorsDetails(const Protocol::UnitThre
     ExecuteQueryThreadSameOperatorsDetails(resultSet, minTimestamp, requestParams, responseBody);
     responseBody.currentPage = requestParams.current;
     responseBody.pageSize = requestParams.pageSize;
-    responseBody.count = SameOperatorsCount(requestParams.name, trackIdList, startTime, endTime);
+    responseBody.count = SameOperatorsCount(requestParams.name, trackIdList, startTime, endTime,
+        requestParams.isPythonStack);
     return true;
 }
 
@@ -2027,21 +2030,39 @@ void TextTraceDatabase::ExecuteQueryThreadSameOperatorsDetails(const std::unique
         sameOperatorsDetail.duration = resultSet->GetUint64(col++);
         sameOperatorsDetail.id = resultSet->GetString(col++);
         uint64_t trackId = resultSet->GetUint64("track_id");
-        auto item = trackIdDepthCache.find(trackId);
-        if (item != trackIdDepthCache.end()) {
-            sameOperatorsDetail.depth = item->second[NumberUtil::StringToLongLong(sameOperatorsDetail.id)];
+        uint64_t sliceId = NumberUtil::StringToLongLong(sameOperatorsDetail.id);
+        if (requestParams.isPythonStack) {
+            auto item = trackIdDepthCache.find(trackId);
+            if (item != trackIdDepthCache.end()) {
+                sameOperatorsDetail.depth = item->second[sliceId];
+            } else {
+                std::unordered_map<uint64_t, uint32_t> depthCache;
+                SliceQuery sliceQuery;
+                sliceQuery.rankId = requestParams.rankId;
+                sliceQuery.trackId = trackId;
+                sliceQuery.metaType = PROCESS_TYPE::TEXT;
+                sliceQuery.isPythonStack = true;
+                GetSliceDepthCacheForJump(sliceQuery, depthCache);
+                trackIdDepthCache[trackId] = depthCache;
+                sameOperatorsDetail.depth = depthCache[sliceId];
+            }
         } else {
-            std::unordered_map<uint64_t, uint32_t> depthCache;
-            SliceQuery sliceQuery;
-            sliceQuery.rankId = requestParams.rankId;
-            sliceQuery.trackId = trackId;
-            sliceAnalyzerPtr->ComputeDepthInfoByTrackId(sliceQuery, depthCache);
-            trackIdDepthCache[trackId] = depthCache;
-            sameOperatorsDetail.depth = depthCache[NumberUtil::StringToLongLong(sameOperatorsDetail.id)];
+            auto item = trackIdDepthCache.find(trackId);
+            if (item != trackIdDepthCache.end()) {
+                sameOperatorsDetail.depth = item->second[sliceId];
+            } else {
+                std::unordered_map<uint64_t, uint32_t> depthCache;
+                SliceQuery sliceQuery;
+                sliceQuery.rankId = requestParams.rankId;
+                sliceQuery.trackId = trackId;
+                sliceAnalyzerPtr->ComputeDepthInfoByTrackId(sliceQuery, depthCache);
+                trackIdDepthCache[trackId] = depthCache;
+                sameOperatorsDetail.depth = depthCache[sliceId];
+            }
         }
         TrackInfo trackInfo;
         TrackInfoManager::Instance().GetTrackInfo(trackId, trackInfo, requestParams.rankId);
-        sameOperatorsDetail.tid = trackInfo.threadId;
+        sameOperatorsDetail.tid = GetTextSearchThreadId(trackInfo.threadId, requestParams.isPythonStack);
         sameOperatorsDetail.pid = trackInfo.processId;
         if (!requestParams.startDepth.empty() && !requestParams.endDepth.empty() &&
             !(sameOperatorsDetail.depth >= NumberUtil::StringToUint32(requestParams.startDepth) &&
@@ -2058,14 +2079,15 @@ void TextTraceDatabase::ExecuteQueryThreadSameOperatorsDetails(const std::unique
     }
 }
 
-uint64_t TextTraceDatabase::SameOperatorsCount(
-    const std::string &name, const std::vector<uint64_t> &trackIdList, uint64_t &startTime, uint64_t &endTime) {
+uint64_t TextTraceDatabase::SameOperatorsCount(const std::string &name, const std::vector<uint64_t> &trackIdList,
+    uint64_t &startTime, uint64_t &endTime, bool isPythonStack) {
     uint64_t total = 0;
     std::string trackIdPlaceholders = StringUtil::join(trackIdList, ", ");
+    std::string pythonFunctionFilterSql = GetTextPythonFunctionFilterSql(isPythonStack);
     std::string sql = "SELECT count(*) FROM " + sliceTable +
         " WHERE name = ? AND "
         " track_id in (" +
-        trackIdPlaceholders + ") AND timestamp <= ? AND timestamp + duration >= ?;";
+        trackIdPlaceholders + ") AND timestamp <= ? AND timestamp + duration >= ?" + pythonFunctionFilterSql + ";";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Fail to prepare sql for same operators count.", sqlite3_errmsg(db));

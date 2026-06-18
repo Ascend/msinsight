@@ -146,11 +146,21 @@ inline std::string GetMstxSameNameDetailSql(const std::string &pidListStr, const
         " ) "
         "   and timestamp + duration >= p.startTime AND timestamp <= p.endTime ";
 }
-inline std::string GetPythonSameNameDetailSql(const std::string &pidListStr) {
+inline std::string GetPythonSameNameDetailSql(
+    const std::string &pidListStr, bool isPythonStack, bool hasPythonApiTypeColumn) {
+    std::string tidSql = isPythonStack ? "'python_stack:' || globalTid" : "'pytorch'";
+    std::string typeFilter;
+    if (hasPythonApiTypeColumn) {
+        typeFilter = isPythonStack ? " and type = 50003 " : " and (type is null or type != 50003) ";
+    } else if (isPythonStack) {
+        typeFilter = " and 1 = 0 ";
+    }
     return " select startNs - p.minTime as timestamp, endNs - startNs as duration, depth, main.ROWID as id,"
-           "   'pytorch' as tid, globalTid as pid from PYTORCH_API main join nameIds n on name = n.id join params p\n"
-           "   where globalTid in (" +
-        pidListStr + ") and timestamp + duration >= p.startTime AND timestamp <= p.endTime ";
+           "   " +
+        tidSql +
+        " as tid, globalTid as pid from PYTORCH_API main join nameIds n on name = n.id join params p\n"
+        "   where globalTid in (" +
+        pidListStr + ") and timestamp + duration >= p.startTime AND timestamp <= p.endTime " + typeFilter;
 }
 inline std::string GetOverlapAnalysisSameNameDetailSql(const int type) {
     return " select startNs - p.minTime as timestamp, endNs - startNs as duration, 0 as depth, "

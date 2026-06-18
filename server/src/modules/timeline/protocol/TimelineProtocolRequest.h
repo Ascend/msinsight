@@ -558,6 +558,7 @@ struct UnitThreadsOperatorsParams {
     std::string rankId;
     std::vector<SimpleProcess> processes;
     std::vector<std::string> metaTypeList;
+    bool isPythonStack = false;
     uint64_t startTime = 0;
     uint64_t endTime = 0;
     std::string name;

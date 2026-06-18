@@ -78,6 +78,8 @@ struct QUERY_THREAD_SAME_OPERATORS_PARAMS {
     std::string orderBy;
     std::vector<std::string> pidList;
     std::vector<std::string> tidList;
+    bool isPythonStack = false;
+    bool hasPythonApiTypeColumn = false;
 };
 class DbTraceDataBase : public VirtualTraceDatabase {
   public:

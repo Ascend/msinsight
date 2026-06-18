@@ -278,7 +278,7 @@ void RenderEngine::QueryThreadDetail(
         std::vector<uint64_t> sliceIds;
         dataEngine->QuerySliceIdsByCat(sliceQuery, sliceIds);
         std::unordered_map<uint64_t, uint32_t> depthMap;
-        sliceAnalyzer.ComputeDepthInfoByTrackId(sliceQuery, depthMap);
+        sliceAnalyzer.ComputePythonFunctionDepthInfoByTrackId(sliceQuery, depthMap);
         std::vector<CompeteSliceDomain> competeSliceVec;
         dataEngine->QueryCompeteSliceByIds(sliceQuery, sliceIds, competeSliceVec);
         sliceVec.reserve(competeSliceVec.size());

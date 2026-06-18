@@ -16,14 +16,18 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <cstdio>
 #include <set>
 #include "../../../DatabaseTestCaseMockUtil.h"
+#include "DataBaseManager.h"
+#include "DtFramework.h"
 #include "SliceTable.h"
 #include "FlowTable.h"
 #include "ThreadTable.h"
 #include "ProcessTable.h"
 #include "CounterTable.h"
 #include "TimelineProtocolResponse.h"
+#include "TrackInfoManager.h"
 #include "TraceDatabaseHelper.h"
 #include "TraceTime.h"
 #include "TextTraceDatabase.h"
@@ -131,6 +135,72 @@ TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetHostProcessIdsReturnsAllTextPro
 
     ASSERT_TRUE(result);
     EXPECT_EQ(processIds.count("10"), 1);
+}
+
+TEST_F(TextTraceDatabaseMockTest, QueryThreadsWhenTextPythonStackThenUsePythonStackTidAndDepth) {
+    const std::string rankId = "text_python_stack_jump_test";
+    const std::string dbPath = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::SRC_TEST_DATA),
+        "msinsight_text_python_stack_jump_test.db");
+    const uint64_t trackId = 990001;
+    std::remove(dbPath.c_str());
+
+    sqlite3 *dbPtr = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &dbPtr), SQLITE_OK);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
+        "VALUES (1, 100, 100, 'python_outer', 0, 990001, 'python_function', '', '', 200, ''), "
+        "(2, 120, 50, 'python_inner', 0, 990001, 'python_function', '', '', 170, ''), "
+        "(3, 220, 30, 'aten::add', 0, 990001, '', '', '', 250, '');");
+    DatabaseTestCaseMockUtil::ExecuteSql(dbPtr, "PRAGMA user_version = " + std::to_string(DATABASE_VERSION));
+    sqlite3_close(dbPtr);
+
+    DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath);
+    ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool(rankId, dbPath));
+    TrackInfoManager::Instance().UpdateTrackIdMap(rankId, {{trackId, {"100", "100"}}});
+
+    TrackInfo trackInfo;
+    ASSERT_TRUE(TrackInfoManager::Instance().GetTrackInfo(trackId, trackInfo, rankId));
+    EXPECT_EQ(trackInfo.cardId, rankId);
+    std::vector<SlicePO> sliceRecords;
+    SliceTable()
+        .Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
+        .Eq(SliceColumn::TRACKID, trackId)
+        .ExcuteQuery(rankId, sliceRecords);
+    ASSERT_EQ(sliceRecords.size(), 3);
+
+    Protocol::UnitThreadsParams requestParams;
+    requestParams.rankId = rankId;
+    requestParams.startTime = 0;
+    requestParams.endTime = 300;
+    Protocol::Metadata metadata;
+    metadata.pid = "100";
+    metadata.tid = "100";
+    metadata.isPythonStack = true;
+    requestParams.metadataList.emplace_back(metadata);
+
+    Protocol::UnitThreadsBody responseBody;
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
+    ASSERT_NE(database, nullptr);
+    ASSERT_TRUE(database->QueryThreads(requestParams, responseBody, 0, {trackId}));
+
+    auto outerIt = std::find_if(responseBody.data.begin(), responseBody.data.end(),
+        [](const auto &item) { return item.title == "python_outer"; });
+    ASSERT_NE(outerIt, responseBody.data.end());
+    EXPECT_EQ(outerIt->selfTime, 50);
+    EXPECT_EQ(outerIt->processMap["100"], std::set<std::string>({"python_stack:text:100"}));
+    EXPECT_EQ(outerIt->metaTypeList, std::set<std::string>({"PYTORCH_API_PYTHON_STACK"}));
+
+    auto normalIt = std::find_if(
+        responseBody.data.begin(), responseBody.data.end(), [](const auto &item) { return item.title == "aten::add"; });
+    EXPECT_EQ(normalIt, responseBody.data.end());
+
+    database.reset();
+    DataBaseManager::Instance().ReleaseDatabaseByRankId(rankId);
+    std::remove(dbPath.c_str());
 }
 
 /**

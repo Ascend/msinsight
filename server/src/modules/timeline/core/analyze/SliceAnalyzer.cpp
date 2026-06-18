@@ -433,12 +433,20 @@ void SliceAnalyzer::ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery
     std::vector<CompeteSliceDomain> competeSliceVec;
     std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
     auto &instance = SliceCacheManager::Instance();
-    std::vector<uint64_t> pythonFunctionIds = instance.GetPythonFunctionIdVec(sliceCacheKey, sliceQuery);
+    SliceQuery pythonFunctionQuery = sliceQuery;
+    if (pythonFunctionQuery.cat.empty()) {
+        pythonFunctionQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
+    }
+    std::vector<uint64_t> pythonFunctionIds = instance.GetPythonFunctionIdVec(sliceCacheKey, pythonFunctionQuery);
     if (std::empty(pythonFunctionIds)) {
-        QueryPythonFuncFromDBAndUpdateCache(sliceCacheKey, sliceQuery, pythonFunctionIds);
+        QueryPythonFuncFromDBAndUpdateCache(sliceCacheKey, pythonFunctionQuery, pythonFunctionIds);
     }
     std::unordered_map<uint64_t, uint32_t> depthInfo;
-    ComputeDepthInfoByTrackId(sliceQuery, depthInfo);
+    if (isPythonStack) {
+        ComputePythonFunctionDepthInfoByTrackId(sliceQuery, depthInfo);
+    } else {
+        ComputeDepthInfoByTrackId(sliceQuery, depthInfo);
+    }
     // 普通泳道过滤 python function；Python Stack 泳道只保留 python function。
     for (auto &item : allCompeteSliceVec) {
         bool isPythonFunction = std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id);
