@@ -1216,6 +1216,36 @@ std::string VirtualClusterDatabase::GenerateReplaceSql(
     return res;
 }
 
+std::string VirtualClusterDatabase::NormalizeOpName(const std::string &rawName) const {
+    if (rawName.empty()) {
+        return "";
+    }
+
+    constexpr int ASCII_SIZE = 256;
+    // 静态查找表（只初始化一次）
+    static const std::array<bool, ASCII_SIZE> shouldRemove = [this]() {
+        std::array<bool, ASCII_SIZE> table = {false};
+        for (const auto &str : replaceCharList) {
+            if (!str.empty()) {
+                const auto c = static_cast<unsigned char>(str[0]);
+                table[c] = true;
+            }
+        }
+        return table;
+    }();
+
+    std::string result;
+    result.reserve(rawName.length());
+
+    for (const char c : rawName) {
+        if (!shouldRemove[static_cast<unsigned char>(c)]) {
+            result.push_back(c);
+        }
+    }
+
+    return result;
+}
+
 std::vector<OpTypeStatistics> VirtualClusterDatabase::ExecuteGetOpStatByStepId(
     const std::string &stepId, const std::string &sql) {
     sqlite3_stmt *stmt = nullptr;
@@ -1225,16 +1255,25 @@ std::vector<OpTypeStatistics> VirtualClusterDatabase::ExecuteGetOpStatByStepId(
     }
     int index = bindStartIndex;
     sqlite3_bind_text(stmt, index++, stepId.c_str(), stepId.length(), SQLITE_TRANSIENT);
-    std::vector<OpTypeStatistics> res;
+    std::unordered_map<std::string, std::unordered_map<std::string, uint64_t>> aggMap;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        OpTypeStatistics info;
         int col = resultStartIndex;
-        info.count = NumberUtil::Int64ToUint64(sqlite3_column_int(stmt, col++));
-        info.opType = sqlite3_column_string(stmt, col++);
-        info.groupIdHash = sqlite3_column_string(stmt, col++);
-        res.push_back(info);
+        auto opType = NormalizeOpName(sqlite3_column_string(stmt, col++));
+        auto groupIdHash = sqlite3_column_string(stmt, col++);
+        aggMap[opType][groupIdHash]++;
     }
     sqlite3_finalize(stmt);
+
+    std::vector<OpTypeStatistics> res;
+    res.reserve(aggMap.size() * 2);
+
+    for (auto &[opType, groupMap] : aggMap) {
+        for (auto &[groupName, count] : groupMap) {
+            res.push_back(OpTypeStatistics{count, opType, groupName});
+        }
+    }
+    std::sort(res.begin(), res.end(),
+        [](const OpTypeStatistics &a, const OpTypeStatistics &b) { return a.opType < b.opType; });
     return res;
 }
 }

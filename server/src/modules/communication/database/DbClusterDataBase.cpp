@@ -667,12 +667,12 @@ bool DbClusterDataBase::QueryRetransmissionAnalyzerData(std::vector<Retransmissi
 }
 
 std::vector<OpTypeStatistics> DbClusterDataBase::GetOpStatByStepId(const std::string &stepId) {
-    std::string sql = "SELECT count(*) as cnt, op_type, group_name FROM (SELECT " +
-        GenerateReplaceSql("hccl_op_name", replaceCharList) +
-        " as op_type, "
-        "group_name  FROM ClusterCommunicationTime WHERE hccl_op_name != 'Total Op Info' AND step = ?) "
-        "GROUP BY op_type, group_name";
-    return ExecuteGetOpStatByStepId("step" + stepId, sql);
+    return opTypeStatisticsCache_.GetOrFetch(stepId, [&stepId, this]() -> std::vector<OpTypeStatistics> {
+        const std::string sql =
+            "SELECT hccl_op_name as op_type, "
+            "group_name FROM ClusterCommunicationTime WHERE hccl_op_name != 'Total Op Info' AND step = ?";
+        return ExecuteGetOpStatByStepId("step" + stepId, sql);
+    });
 }
 }
 }
