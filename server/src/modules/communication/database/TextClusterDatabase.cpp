@@ -1001,12 +1001,11 @@ bool TextClusterDatabase::QueryRetransmissionAnalyzerData(std::vector<Retransmis
 }
 
 std::vector<OpTypeStatistics> TextClusterDatabase::GetOpStatByStepId(const std::string &stepId) {
-    std::string sql = "SELECT count(*) as cnt, op_type, op_suffix FROM (SELECT " +
-        GenerateReplaceSql("op_name", replaceCharList) +
-        " as op_type, op_suffix FROM "
-        "communication_time_info WHERE op_name != 'Total Op Info' AND iteration_id = ?)"
-        "GROUP BY op_type, op_suffix";
-    return ExecuteGetOpStatByStepId(stepId, sql);
+    return opTypeStatisticsCache_.GetOrFetch(stepId, [&stepId, this]() -> std::vector<OpTypeStatistics> {
+        std::string sql = "SELECT op_name as op_type, op_suffix FROM "
+                          "communication_time_info WHERE op_name != 'Total Op Info' AND iteration_id = ?";
+        return ExecuteGetOpStatByStepId(stepId, sql);
+    });
 }
 } // end of namespace Module
 } // end of namespace Dic

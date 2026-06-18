@@ -31,6 +31,7 @@
 #include "SummaryProtocolRequest.h"
 #include "CommunicationProtocolRequest.h"
 #include "CommunicationProtocolResponse.h"
+#include "GenericCacheManager.h"
 #include "TableDefs.h"
 
 namespace Dic {
@@ -100,6 +101,7 @@ class VirtualClusterDatabase : public Database {
         const std::string &modelStage, const std::string &version);
     std::vector<ExpertHotspotStruct> QueryExpertHotspotData(const std::string &modelStage, const std::string &version);
     void ReleaseStmt();
+    void ClearCache() { opTypeStatisticsCache_.Clear(); }
 
   protected:
     const static inline int doubleReservedNum = 3;
@@ -124,6 +126,25 @@ class VirtualClusterDatabase : public Database {
     std::vector<ExpertHotspotStruct> expertHotspotCache;
     std::vector<ExpertDeploymentStruct> expertDeploymentCache;
     const double overlapThreshold = 0.05;
+    // PERF: 添加缓存，加速 SQL 查询
+    GenericCacheManager<std::string, std::vector<OpTypeStatistics>> opTypeStatisticsCache_{[]() {
+        GenericCacheManager<std::string, std::vector<OpTypeStatistics>>::Config config;
+        config.enableMemoryCheck = true;
+        config.estimateBytes = [](const std::vector<OpTypeStatistics> &stats) -> uint64_t {
+            // vector 堆内存：capacity 个 OpTypeStatistics 结构体
+            // sizeof(OpTypeStatistics) 已包含结构体内所有成员的固定大小
+            // （含 std::string 对象本身及 SSO 缓冲区，短字符串无额外堆分配）
+            return sizeof(OpTypeStatistics) * stats.capacity();
+        };
+        return config;
+    }()};
+    /**
+     * @brief 根据 replaceCharList 中定义的字符列表（数字和下划线），从原始 op_name 中移除指定字符，
+     *        实现 op_name 的标准化。例如将 'hcom_allGather_612_0_1' 标准化为 'hcomallGather'
+     * @param rawName 原始字符串
+     * @return 标准化的字符串
+     */
+    inline std::string NormalizeOpName(const std::string &rawName) const;
     bool HasColumn(const std::string &tableName, const std::string &columnName);
     bool ExecuteQueryBaseInfo(Protocol::SummaryBaseInfo &baseInfo, std::string sql);
     std::map<std::string, std::string> ExecuteQueryBaseInfoByKeys(

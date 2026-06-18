@@ -38,6 +38,8 @@ class DbCommunicationTest : public ::testing::Test {
         ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, to_string(option.wsPort));
         std::string dataDir = TestSuit::GetTestDataFile("full_db");
         std::string dbFilePath = FileUtil::SplicePath(dataDir, "cluster_analysis.db");
+        // FIX: 防止其他测试夹具完成后没有清理缓存导致这里的测试失败，这里手动清理一次
+        DataBaseManager::Instance().Clear();
         DataBaseManager::Instance().SetDataType(DataType::DB, dbFilePath);
         DataBaseManager::Instance().SetFileType(FileType::MS_PROF, dbFilePath);
         std::string clusterDbPath = FileUtil::SplicePath(dataDir, "cluster_analysis.db");
@@ -409,6 +411,7 @@ TEST_F(DbCommunicationTest, QueryRetransmissionAnalyzerClassificationData) {
 TEST_F(DbCommunicationTest, GetOpStatByStepIdSuccess) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetClusterDatabase(COMPARE);
     std::string stepId = "1";
+    database->ClearCache();
     std::vector<Dic::Module::OpTypeStatistics> res = database->GetOpStatByStepId(stepId);
     const int expectSize = 4;
     ASSERT_EQ(res.size(), expectSize);
