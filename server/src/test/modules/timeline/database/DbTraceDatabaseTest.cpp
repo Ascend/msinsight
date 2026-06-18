@@ -821,6 +821,52 @@ TEST_F(DbTraceDatabaseTest, TestQueryThreadSameOperatorsDetailsWhenApi) {
     }
     bool result = database.QueryThreadSameOperatorsDetails(requestParams, responseBody, minTimestamp, traceId);
     EXPECT_EQ(result, true);
+    ASSERT_EQ(responseBody.sameOperatorsDetails.size(), 1);
+    EXPECT_EQ(responseBody.sameOperatorsDetails[0].tid, "pytorch");
+}
+
+TEST_F(DbTraceDatabaseTest, TestQueryThreadSameOperatorsDetailsWhenPythonStack) {
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_PYTORCH_API};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    std::string pyData =
+        "INSERT INTO \"main\".\"PYTORCH_API\" (\"startNs\", \"endNs\", \"globalTid\", \"connectionId\", \"name\", "
+        "\"sequenceNumber\", \"fwdThreadId\", \"inputDtypes\", \"inputShapes\", \"callchainId\", \"type\", \"depth\") "
+        "VALUES ('100', '130', 17738580008830245, 0, 268435456, NULL, NULL, NULL, NULL, NULL, 50002, 3),"
+        "('140', '170', 17738580008830245, 0, 268435456, NULL, NULL, NULL, NULL, NULL, 50003, 1);";
+    std::string strData = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (268435456, 'FORMAT_ND');";
+    DatabaseTestCaseMockUtil::InsertData(db, pyData);
+    DatabaseTestCaseMockUtil::InsertData(db, strData);
+    database.SetDbPtr(db);
+    Dic::Protocol::UnitThreadsOperatorsParams requestParams;
+    requestParams.rankId = "";
+    requestParams.processes.push_back(SimpleProcess{"17738580008830245", {"python_stack:17738580008830245"}});
+    requestParams.metaTypeList = {"PYTORCH_API_PYTHON_STACK"};
+    requestParams.isPythonStack = true;
+    requestParams.orderBy = "timestamp";
+    requestParams.order = "ASC";
+    requestParams.startTime = 0;
+    requestParams.endTime = 200;
+    requestParams.name = "FORMAT_ND";
+    requestParams.current = 1;
+    requestParams.pageSize = 10;
+    Dic::Protocol::UnitThreadsOperatorsBody responseBody;
+    std::vector<uint64_t> traceId;
+    for (const auto &process : requestParams.processes) {
+        for (const auto &tid : process.tidList) {
+            traceId.emplace_back(TrackInfoManager::Instance().GetTrackId(requestParams.rankId, process.pid, tid));
+        }
+    }
+    bool result = database.QueryThreadSameOperatorsDetails(requestParams, responseBody, 0, traceId);
+    EXPECT_EQ(result, true);
+    ASSERT_EQ(responseBody.sameOperatorsDetails.size(), 1);
+    EXPECT_EQ(responseBody.sameOperatorsDetails[0].tid, "python_stack:17738580008830245");
+    EXPECT_EQ(responseBody.sameOperatorsDetails[0].pid, "17738580008830245");
+    EXPECT_EQ(responseBody.sameOperatorsDetails[0].id, "2");
+    EXPECT_EQ(responseBody.sameOperatorsDetails[0].depth, 0);
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryThreadSameOperatorsDetailsWhenOsrt) {
@@ -1193,6 +1239,42 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithMultiplePythonStacks)
     }
     EXPECT_EQ(pythonStackThreadIds, std::set<std::string>({"python_stack:4294967297", "python_stack:4294967298"}));
     EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 1", "Python Stack 2"}));
+}
+
+TEST_F(DbTraceDatabaseTest, TestQueryThreadsWhenPythonStackThenReturnPythonStackTid)
+{
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_PYTORCH_API, TableName::DB_STRING_IDS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    const std::string pyData =
+        "INSERT INTO \"main\".\"PYTORCH_API\" (\"startNs\", \"endNs\", \"globalTid\", \"connectionId\", \"name\", "
+        "\"sequenceNumber\", \"fwdThreadId\", \"inputDtypes\", \"inputShapes\", \"callchainId\", \"type\", \"depth\") "
+        "VALUES (100, 150, 4294967297, 0, 1, NULL, NULL, NULL, NULL, NULL, 50003, 0);";
+    const std::string stringData = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (1, 'stack_op');";
+    DatabaseTestCaseMockUtil::InsertData(db, pyData);
+    DatabaseTestCaseMockUtil::InsertData(db, stringData);
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitThreadsParams params;
+    params.rankId = "9";
+    params.startTime = 0;
+    params.endTime = 200;
+    params.metadataList.emplace_back(Dic::Protocol::Metadata{.tid = "pytorch",
+        .pid = "4294967297",
+        .metaType = "PYTORCH_API",
+        .isPythonStack = true});
+    Dic::Protocol::UnitThreadsBody body;
+    bool result = database.QueryThreads(params, body, 0, {0});
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(body.data.size(), 1);
+    EXPECT_EQ(body.data[0].title, "stack_op");
+    ASSERT_EQ(body.data[0].processMap.count("4294967297"), 1);
+    EXPECT_EQ(body.data[0].processMap["4294967297"], std::set<std::string>({"python_stack:4294967297"}));
+    EXPECT_EQ(body.data[0].metaTypeList, std::set<std::string>({"PYTORCH_API_PYTHON_STACK"}));
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsWhenConnectionIdIsEmptyThenReturnFalse) {

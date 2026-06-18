@@ -23,6 +23,7 @@
 #include "Database.h"
 #include "OverlapAnsRepo.h"
 #include "FullDbEnumUtil.h"
+#include "PythonStackHelper.h"
 #include "TraceDatabaseSqlConst.h"
 
 // clang-format off
@@ -296,7 +297,9 @@ std::string TraceDatabaseHelper::GetQueryThreadSameOperatorsDetailsHeadSql(
         case PROCESS_TYPE::MS_TX:
             return GetMstxSameNameDetailSql(pidListStr, tidListStr);
         case PROCESS_TYPE::API:
-            return GetPythonSameNameDetailSql(pidListStr);
+            return GetPythonSameNameDetailSql(pidListStr, params.isPythonStack, params.hasPythonApiTypeColumn);
+        case PROCESS_TYPE::PYTHON_STACK:
+            return GetPythonSameNameDetailSql(pidListStr, true, params.hasPythonApiTypeColumn);
         case PROCESS_TYPE::OSRT_API:
             return GetOsrtSameNameDetailSql(pidListStr);
         case PROCESS_TYPE::OVERLAP_ANALYSIS:
@@ -2019,7 +2022,8 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
     std::string tempSql;
     if (type == PROCESS_TYPE::API) {
         std::string tidSql = singleQuery.isPythonStack ? "'python_stack:' || api.globalTid" : "'pytorch'";
-        std::string metaTypeSql = singleQuery.isPythonStack ? "'PYTORCH_API_PYTHON_STACK'" : "'PYTORCH_API'";
+        std::string metaTypeSql = singleQuery.isPythonStack ?
+            "'" + PythonStackHelper::GetPythonStackMetaType() + "'" : "'PYTORCH_API'";
         std::string pythonFunctionFilter = singleQuery.isPythonStack ? " AND api.type = 50003 " :
             " AND api.type != 50003 ";
         tempSql = " SELECT api.ROWID as id, " + tidSql +

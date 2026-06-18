@@ -109,18 +109,26 @@ class PythonStackHelper {
 
     static std::string GetPythonStackDisplayMetaType() { return GetPythonStackMetaType(); }
 
+    static const std::string &GetPythonStackMetaType() {
+        static const std::string metaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+        return metaType;
+    }
+
     static void RestoreSameOperatorParams(Protocol::UnitThreadsOperatorsParams &params) {
         std::string realPythonStackMetaType = GetRealPythonStackMetaType(params);
         for (auto &metaType : params.metaTypeList) {
             if (metaType == GetPythonStackMetaType()) {
                 metaType = realPythonStackMetaType;
+                params.isPythonStack = true;
             }
         }
         for (auto &process : params.processes) {
             std::set<std::string> restoredTidList;
             for (auto tid : process.tidList) {
                 std::string metaType = realPythonStackMetaType;
-                RestoreThreadIdAndMetaType(process.pid, tid, metaType);
+                if (RestoreThreadIdAndMetaType(process.pid, tid, metaType)) {
+                    params.isPythonStack = true;
+                }
                 restoredTidList.emplace(tid);
             }
             process.tidList = restoredTidList;
@@ -132,8 +140,6 @@ class PythonStackHelper {
         static const std::string prefix = Protocol::PYTHON_STACK_THREAD_ID_PREFIX + "text:";
         return prefix;
     }
-
-    static std::string GetPythonStackMetaType() { return ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or(""); }
 
     static std::string GetRealPythonStackMetaType(const Protocol::UnitThreadsOperatorsParams &params) {
         for (const auto &process : params.processes) {

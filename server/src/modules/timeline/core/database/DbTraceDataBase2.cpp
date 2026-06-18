@@ -453,8 +453,9 @@ bool DbTraceDataBase::QueryThreadSameOperatorsDetails(const Protocol::UnitThread
     auto stmt = CreatPreparedStatement();
     std::unique_ptr<SqliteResultSet> resultSet;
     try {
-        resultSet = TraceDatabaseHelper::QueryThreadSameOperatorsDetails(
-            stmt, requestParams, {GetDeviceId(requestParams.rankId), minTimestamp, orderByAndPage, pidList, tidList});
+        resultSet = TraceDatabaseHelper::QueryThreadSameOperatorsDetails(stmt, requestParams,
+            {GetDeviceId(requestParams.rankId), minTimestamp, orderByAndPage, pidList, tidList,
+                requestParams.isPythonStack, CheckColumnExist(TABLE_API, "type")});
     } catch (DatabaseException &e) {
         ServerLog::Error("Query thread same operators details fail, ", e.What());
         return false;
@@ -490,15 +491,33 @@ void DbTraceDataBase::ExecuteQueryDbThreadSameOperatorsDetails(const std::unique
         sameOperatorsDetail.pid = resultSet->GetString(col++);
         uint64_t trackId = TrackInfoManager::Instance().GetTrackId(
             requestParams.rankId, sameOperatorsDetail.pid, sameOperatorsDetail.tid);
-        SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
-        auto item = trackIdDepthCache.find(trackId);
-        if (item != trackIdDepthCache.end()) {
-            sameOperatorsDetail.depth = item->second[NumberUtil::StringToLongLong(sameOperatorsDetail.id)];
+        uint64_t sliceId = NumberUtil::StringToLongLong(sameOperatorsDetail.id);
+        if (requestParams.isPythonStack) {
+            SliceQuery sliceQuery = CreateSliceQueryWithTimeRange({requestParams.rankId, sameOperatorsDetail.pid,
+                Protocol::PYTHON_API_THREAD_ID, ENUM_TO_STR(PROCESS_TYPE::API).value_or(""),
+                sameOperatorsDetail.timestamp, sameOperatorsDetail.duration});
+            sliceQuery.isPythonStack = true;
+            auto item = trackIdDepthCache.find(sliceQuery.trackId);
+            if (item != trackIdDepthCache.end()) {
+                sameOperatorsDetail.depth = item->second[sliceId];
+            } else {
+                std::unordered_map<uint64_t, uint32_t> depthCache;
+                GetSliceDepthCacheForJump(sliceQuery, depthCache);
+                trackIdDepthCache[sliceQuery.trackId] = depthCache;
+                sameOperatorsDetail.depth = depthCache[sliceId];
+            }
         } else {
-            std::unordered_map<uint64_t, uint32_t> depthCache;
-            sliceCacheManager.QueryDepthInfoWithoutTimeRange(std::to_string(trackId), requestParams.rankId, depthCache);
-            trackIdDepthCache[trackId] = depthCache;
-            sameOperatorsDetail.depth = depthCache[NumberUtil::StringToLongLong(sameOperatorsDetail.id)];
+            SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
+            auto item = trackIdDepthCache.find(trackId);
+            if (item != trackIdDepthCache.end()) {
+                sameOperatorsDetail.depth = item->second[sliceId];
+            } else {
+                std::unordered_map<uint64_t, uint32_t> depthCache;
+                sliceCacheManager.QueryDepthInfoWithoutTimeRange(
+                    std::to_string(trackId), requestParams.rankId, depthCache);
+                trackIdDepthCache[trackId] = depthCache;
+                sameOperatorsDetail.depth = depthCache[sliceId];
+            }
         }
         if (!requestParams.startDepth.empty() && !requestParams.endDepth.empty() &&
             !(sameOperatorsDetail.depth >= NumberUtil::StringToUint32(requestParams.startDepth) &&

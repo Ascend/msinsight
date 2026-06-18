@@ -308,20 +308,25 @@ SliceQuery VirtualTraceDatabase::CreateSliceQueryWithTimeRange(const SliceBaseIn
     return newSliceQuery;
 }
 
-uint64_t VirtualTraceDatabase::GetSliceDepthForJump(const SliceQuery &params, uint64_t sliceId) {
+void VirtualTraceDatabase::GetSliceDepthCacheForJump(
+    const SliceQuery &params, std::unordered_map<uint64_t, uint32_t> &depthCache) {
     SliceAnalyzer sliceAnalyzer;
     auto repositoryFactory = RepositoryFactory::Instance();
     auto repo = repositoryFactory->GetSliceRespo(params.metaType);
     if (repo == nullptr) {
-        return 0;
+        return;
     }
     sliceAnalyzer.SetRepository(repo);
-    std::unordered_map<uint64_t, uint32_t> depthCache;
     if (params.isPythonStack) {
         sliceAnalyzer.ComputePythonFunctionDepthInfoByTrackId(params, depthCache);
     } else {
         sliceAnalyzer.ComputeDepthInfoByTrackId(params, depthCache);
     }
+}
+
+uint64_t VirtualTraceDatabase::GetSliceDepthForJump(const SliceQuery &params, uint64_t sliceId) {
+    std::unordered_map<uint64_t, uint32_t> depthCache;
+    GetSliceDepthCacheForJump(params, depthCache);
     auto it = depthCache.find(sliceId);
     return it == depthCache.end() ? 0 : it->second;
 }

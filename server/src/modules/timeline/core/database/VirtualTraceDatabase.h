@@ -21,6 +21,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <list>
 #include <set>
@@ -293,6 +294,7 @@ class VirtualTraceDatabase : public Database {
     static std::string ExtractGroupNameValue(const std::string &str);
 
     SliceQuery CreateSliceQueryWithTimeRange(const SliceBaseInfo &sliceInfo);
+    void GetSliceDepthCacheForJump(const SliceQuery &params, std::unordered_map<uint64_t, uint32_t> &depthCache);
     uint64_t GetSliceDepthForJump(const SliceQuery &params, uint64_t sliceId);
 
   private:

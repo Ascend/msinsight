@@ -314,13 +314,13 @@ public:
         return sql;
     }
     static std::string GetThreadSameOperatorsDetailsSql(const std::string &order, const std::string &orderByField,
-                                                        const std::vector<uint64_t> &trackIdList)
+        const std::vector<uint64_t> &trackIdList, const std::string &pythonFunctionFilterSql = "")
     {
         std::string orderBy = " ORDER BY " + orderByField + (order == "descend" ? " DESC" : " ASC");
         std::string trackIdPlaceholders = StringUtil::join(trackIdList, ", ");
         std::string sql = "SELECT timestamp, duration, id, coalesce(depth, 0) as depth, track_id FROM " + SLICE_TABLE +
             " WHERE name = ? AND track_id in (" + trackIdPlaceholders + ") AND timestamp <= ? AND timestamp "
-            " + duration >= ? " + orderBy;
+            " + duration >= ? " + pythonFunctionFilterSql + orderBy;
         return sql;
     }
 
