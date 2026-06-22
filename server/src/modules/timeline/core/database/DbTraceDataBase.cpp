@@ -347,8 +347,15 @@ bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const 
               "select ids.value as name, python.globalTid as pid, 'PYTORCH_API' as metaType, "
               "python.startNs as startTime, python.endNs - python.startNs as duration, "
               "python.ROWID as id from " +
-            TABLE_API + " python join ids on ids.id = python.name";
-        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_API;
+            TABLE_API + " python join ids on ids.id = python.name where python.type != 50003";
+        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type != 50003";
+    } else if (metaType == "PYTORCH_API_PYTHON_STACK" && CheckTableExist(TABLE_API)) {
+        sql = "with ids as (select id, value from STRING_IDS where value = ?) "
+              "select ids.value as name, python.globalTid as pid, 'PYTORCH_API_PYTHON_STACK' as metaType, "
+              "python.startNs as startTime, python.endNs - python.startNs as duration, "
+              "python.ROWID as id from " +
+            TABLE_API + " python join ids on ids.id = python.name where python.type = 50003";
+        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type = 50003";
     } else if (metaType == TABLE_MSTX_EVENTS && CheckTableExist(TABLE_MSTX_EVENTS)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, mstx.globalTid as pid, 'MSTX_EVENTS' as metaType, "

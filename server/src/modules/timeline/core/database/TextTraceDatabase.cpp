@@ -1362,6 +1362,34 @@ bool TextTraceDatabase::SearchSliceName(const Protocol::SearchSliceParams &param
 
 bool TextTraceDatabase::QueryHostSlicesByName(const std::string &sliceName, const std::string &metaType,
     std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    if (metaType != "PYTORCH_API_PYTHON_STACK") {
+        return true;
+    }
+
+    std::string sql = "SELECT slice.id, thread.pid, slice.timestamp, slice.duration FROM " + sliceTable +
+        " slice JOIN " + threadTable + " thread ON slice.track_id = thread.track_id WHERE slice.name = ?" +
+        GetTextPythonFunctionFilterSql(true, "slice");
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Error("Query text python stack slices by name failed to prepare sql.");
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery(sliceName);
+    if (resultSet == nullptr) {
+        ServerLog::Error("Query text python stack slices by name failed to get result set.", stmt->GetErrorMessage());
+        return false;
+    }
+    while (resultSet->Next()) {
+        Protocol::SimpleSlice slice;
+        slice.name = sliceName;
+        slice.pid = resultSet->GetString("pid");
+        slice.metaType = metaType;
+        slice.timestamp = resultSet->GetUint64("timestamp");
+        slice.duration = resultSet->GetUint64("duration");
+        slice.id = resultSet->GetUint64("id");
+        result.emplace_back(slice);
+        processIds.insert(slice.pid);
+    }
     return true;
 }
 
@@ -1377,7 +1405,8 @@ bool TextTraceDatabase::QueryTextSlicesByName(const std::string &sliceName, cons
     }
 
     std::string sql = "SELECT slice.id, thread.pid, slice.timestamp, slice.duration FROM " + sliceTable +
-        " slice JOIN " + threadTable + " thread ON slice.track_id = thread.track_id WHERE slice.name = ?";
+        " slice JOIN " + threadTable + " thread ON slice.track_id = thread.track_id WHERE slice.name = ?" +
+        GetTextPythonFunctionFilterSql(false, "slice");
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Query text slices by name failed to prepare sql.");

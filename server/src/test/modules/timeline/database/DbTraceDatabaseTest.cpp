@@ -944,6 +944,65 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostSlicesReturnsOnlyMatchingSlices) 
     Dic::Module::Timeline::TraceTime::Instance().Reset();
 }
 
+TEST_F(DbTraceDatabaseTest, QueryRankOffsetPythonStackSlicesReturnsOnlyPythonStack) {
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_PYTORCH_API};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO STRING_IDS (id, value) VALUES (1, 'multiprocessing/popen_fork.py(19): __init__');");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO PYTORCH_API (startNs, endNs, globalTid, connectionId, name, sequenceNumber, fwdThreadId, "
+        "inputDtypes, inputShapes, callchainId, type, depth) VALUES "
+        "(100, 130, 1704908, 1, 1, NULL, NULL, NULL, NULL, NULL, 50002, 0),"
+        "(140, 180, 1704908, 2, 1, NULL, NULL, NULL, NULL, NULL, 50003, 1);");
+    database.SetDbPtr(db);
+
+    std::vector<Dic::Protocol::SimpleSlice> slices;
+    std::set<std::string> processIds;
+    bool result = database.QueryHostSlicesByName(
+        "multiprocessing/popen_fork.py(19): __init__", "PYTORCH_API_PYTHON_STACK", slices, processIds);
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(slices.size(), 1);
+    EXPECT_EQ(slices.front().pid, "1704908");
+    EXPECT_EQ(slices.front().metaType, "PYTORCH_API_PYTHON_STACK");
+    EXPECT_EQ(slices.front().timestamp, 140);
+    EXPECT_EQ(slices.front().duration, 40);
+    EXPECT_EQ(processIds.size(), 1);
+    EXPECT_EQ(processIds.count("1704908"), 1);
+}
+
+TEST_F(DbTraceDatabaseTest, QueryRankOffsetPytorchApiSlicesExcludesPythonStack) {
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_PYTORCH_API};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO STRING_IDS (id, value) VALUES (1, 'rank_offset_target');");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO PYTORCH_API (startNs, endNs, globalTid, connectionId, name, sequenceNumber, fwdThreadId, "
+        "inputDtypes, inputShapes, callchainId, type, depth) VALUES "
+        "(100, 130, 20, 1, 1, NULL, NULL, NULL, NULL, NULL, 50002, 0),"
+        "(140, 180, 30, 2, 1, NULL, NULL, NULL, NULL, NULL, 50003, 1);");
+    database.SetDbPtr(db);
+
+    std::vector<Dic::Protocol::SimpleSlice> slices;
+    std::set<std::string> processIds;
+    bool result = database.QueryHostSlicesByName("rank_offset_target", "PYTORCH_API", slices, processIds);
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(slices.size(), 1);
+    EXPECT_EQ(slices.front().pid, "20");
+    EXPECT_EQ(slices.front().metaType, "PYTORCH_API");
+    EXPECT_EQ(slices.front().timestamp, 100);
+    EXPECT_EQ(processIds.size(), 1);
+    EXPECT_EQ(processIds.count("20"), 1);
+}
+
 TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostProcessIdsReturnsAllExistingHostLanes) {
     std::recursive_mutex testMutex;
     MockDatabase2 database(testMutex);
