@@ -157,6 +157,8 @@ enum class PROCESS_TYPE {
     QOS,
     PCIE,
     NIC,
+    ROCE,
+    NETDEV_STATS,
     SAMPLE_PMU,
     AI_CORE,
     CPU_USAGE,

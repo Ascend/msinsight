@@ -46,6 +46,8 @@ void CounterEventHelper::RegisterDeviceMap() {
     RegisterDeviceLLCMap();
     RegisterDeviceSamplePMUMap();
     RegisterDeviceNICMap();
+    RegisterDeviceRoCEMap();
+    RegisterDeviceNetDevStatsMap();
     RegisterDevicePCIeMap();
     RegisterDeviceHCCSMap();
     RegisterDeviceQOSMap();
@@ -53,7 +55,7 @@ void CounterEventHelper::RegisterDeviceMap() {
 
 void CounterEventHelper::RegisterDeviceAICoreFreqMap() {
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::AI_CORE, {"AI Core Freq", "AICORE_FREQ", "freq", "AI Core Freq", "Mhz"}});
+        {PROCESS_TYPE::AI_CORE, {"AI Core Freq", "AICORE_FREQ", "freq", "AI Core Freq", "Frequency(Mhz)"}});
 }
 
 void CounterEventHelper::RegisterDeviceAccPMUMap() {
@@ -68,8 +70,8 @@ void CounterEventHelper::RegisterDeviceAccPMUMap() {
 }
 
 void CounterEventHelper::RegisterDeviceDDRMap() {
-    deviceCounterEventMap.insert({PROCESS_TYPE::DDR, {"DDR", "DDR", "read", "Read", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::DDR, {"DDR", "DDR", "write", "Write", "Bandwidth(B/s)"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::DDR, {"DDR", "DDR", "read", "Read", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::DDR, {"DDR", "DDR", "write", "Write", "Bandwidth(Byte/s)"}});
 }
 
 void CounterEventHelper::RegisterDeviceStarsSocMap() {
@@ -80,25 +82,25 @@ void CounterEventHelper::RegisterDeviceStarsSocMap() {
 }
 
 void CounterEventHelper::RegisterDeviceNPUMEMMap() {
-    deviceCounterEventMap.insert({PROCESS_TYPE::NPU_MEM, {"NPU MEM", "NPU_MEM", "ddr", "{type:s}/DDR", "B"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NPU_MEM, {"NPU MEM", "NPU_MEM", "hbm", "{type:s}/HBM", "B"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NPU_MEM, {"NPU MEM", "NPU_MEM", "ddr", "{type:s}/DDR", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NPU_MEM, {"NPU MEM", "NPU_MEM", "hbm", "{type:s}/HBM", "Byte"}});
 }
 
 void CounterEventHelper::RegisterDeviceHBMMap() {
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::HBM, {"HBM", "HBM", "bandwidth", "HBM {hbmId} {type:s}/Bandwidth", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::HBM, {"HBM", "HBM", "bandwidth", "HBM {hbmId} {type:s}/Bandwidth", "Bandwidth(Byte/s)"}});
 }
 
 void CounterEventHelper::RegisterDeviceLLCMap() {
     deviceCounterEventMap.insert(
         {PROCESS_TYPE::LLC, {"LLC", "LLC", "hitRate", "LLC {llcId} {mode:s}/Hit Rate", "Hit Rate(%)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::LLC, {"LLC", "LLC", "throughput", "LLC {llcId} {mode:s}/Throughput", "Throughput(B/s)"}});
+        {PROCESS_TYPE::LLC, {"LLC", "LLC", "throughput", "LLC {llcId} {mode:s}/Throughput", "Throughput(Byte/s)"}});
 }
 
 void CounterEventHelper::RegisterDeviceSamplePMUMap() {
     deviceCounterEventMap.insert({PROCESS_TYPE::SAMPLE_PMU,
-        {"SAMPLE PMU TIMELINE", "SAMPLE_PMU_TIMELINE", "freq", "{coreType:s} Core {coreId}/Freq", "Mhz"}});
+        {"SAMPLE PMU TIMELINE", "SAMPLE_PMU_TIMELINE", "freq", "{coreType:s} Core {coreId}/Freq", "Frequency(Mhz)"}});
     deviceCounterEventMap.insert({PROCESS_TYPE::SAMPLE_PMU,
         {"SAMPLE PMU TIMELINE", "SAMPLE_PMU_TIMELINE", "usage", "{coreType:s} Core {coreId}/Usage", "Usage(%)"}});
     deviceCounterEventMap.insert({PROCESS_TYPE::SAMPLE_PMU,
@@ -106,71 +108,118 @@ void CounterEventHelper::RegisterDeviceSamplePMUMap() {
             "Cycle"}});
 }
 
-// NIC数据db格式的来源是NETDEV_STATS表，而不是NIC表
 void CounterEventHelper::RegisterDeviceNICMap() {
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "roceTxPkt", "NIC/roceTxPkt", "Pkt"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "roceRxPkt", "NIC/roceRxPkt", "Pkt"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "bandwidth", "bandwidth", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "rxPacketRate", "rxPacketRate", "Packet/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "rxByteRate", "rxByteRate", "Byte/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "rxPackets", "rxPackets", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "rxBytes", "rxBytes", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "rxErrors", "rxErrors", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "rxDropped", "rxDropped", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "txPacketRate", "txPacketRate", "Packet/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "txByteRate", "txByteRate", "Byte/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "txPackets", "txPackets", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "txBytes", "txBytes", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "txErrors", "txErrors", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "txDropped", "txDropped", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NIC", "funcId", "funcId", "Port number"}});
+}
+
+void CounterEventHelper::RegisterDeviceRoCEMap() {
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "bandwidth", "bandwidth", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "rxPacketRate", "rxPacketRate", "Packet/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "rxByteRate", "rxByteRate", "Byte/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "rxPackets", "rxPackets", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "rxBytes", "rxBytes", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "rxErrors", "rxErrors", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "rxDropped", "rxDropped", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "txPacketRate", "txPacketRate", "Packet/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "txByteRate", "txByteRate", "Byte/s"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "txPackets", "txPackets", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "txBytes", "txBytes", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "txErrors", "txErrors", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "txDropped", "txDropped", "Packet"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::ROCE, {"RoCE", "ROCE", "funcId", "funcId", "Port number"}});
+}
+
+void CounterEventHelper::RegisterDeviceNetDevStatsMap() {
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "roceTxErrPkt", "NIC/roceTxErrPkt", "Pkt"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "roceTxPkt", "roceTxPkt", "Packet"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "roceRxErrPkt", "NIC/roceRxErrPkt", "Pkt"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "roceRxPkt", "roceRxPkt", "Packet"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "roceTxCnpPkt", "NIC/roceTxCnpPkt", "Pkt"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "roceTxErrPkt", "roceTxErrPkt", "Packet"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "roceRxCnpPkt", "NIC/roceRxCnpPkt", "Pkt"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "roceRxErrPkt", "roceRxErrPkt", "Packet"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "roceNewPktRty", "NIC/roceNewPktRty", "Rty"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "nicTxByte", "NIC/nicTxByte", "Byte"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "roceTxCnpPkt", "roceTxCnpPkt", "Packet"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "nicTxBandwidth", "NIC/nicTxBandwidth", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "nicRxByte", "NIC/nicRxByte", "Byte"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "roceRxCnpPkt", "roceRxCnpPkt", "Packet"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "nicRxBandwidth", "NIC/nicRxBandwidth", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macTxPfcPkt", "NIC/macTxPfcPkt", "Pkt"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macRxPfcPkt", "NIC/macRxPfcPkt", "Pkt"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macTxByte", "NIC/macTxByte", "Byte"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "roceNewPktRty", "roceNewPktRty", "Retry"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macTxBandwidth", "NIC/macTxBandwidth", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macRxByte", "NIC/macRxByte", "Byte"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "nicTxByte", "nicTxByte", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NETDEV_STATS,
+        {"NetDev Stats", "NETDEV_STATS", "nicTxBandwidth", "nicTxBandwidth", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macRxBandwidth", "NIC/macRxBandwidth", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "nicRxByte", "nicRxByte", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NETDEV_STATS,
+        {"NetDev Stats", "NETDEV_STATS", "nicRxBandwidth", "nicRxBandwidth", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macTxBadByte", "NIC/macTxBadByte", "Byte"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "macTxPfcPkt", "macTxPfcPkt", "Frame"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::NIC, {"NIC", "NETDEV_STATS", "macRxBadByte", "NIC/macRxBadByte", "Byte"}});
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "macRxPfcPkt", "macRxPfcPkt", "Frame"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "macTxByte", "macTxByte", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NETDEV_STATS,
+        {"NetDev Stats", "NETDEV_STATS", "macTxBandwidth", "macTxBandwidth", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "macRxByte", "macRxByte", "Byte"}});
+    deviceCounterEventMap.insert({PROCESS_TYPE::NETDEV_STATS,
+        {"NetDev Stats", "NETDEV_STATS", "macRxBandwidth", "macRxBandwidth", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "macTxBadByte", "macTxBadByte", "Byte"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::NETDEV_STATS, {"NetDev Stats", "NETDEV_STATS", "macRxBadByte", "macRxBadByte", "Byte"}});
 }
 
 void CounterEventHelper::RegisterDevicePCIeMap() {
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txPostMin", "PCIE/txPostMin", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txPostMin", "PCIE/txPostMin", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txPostMax", "PCIE/txPostMax", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txPostMax", "PCIE/txPostMax", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txPostAvg", "PCIE/txPostAvg", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txPostAvg", "PCIE/txPostAvg", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxPostMin", "PCIE/rxPostMin", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxPostMin", "PCIE/rxPostMin", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxPostMax", "PCIE/rxPostMax", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxPostMax", "PCIE/rxPostMax", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxPostAvg", "PCIE/rxPostAvg", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxPostAvg", "PCIE/rxPostAvg", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txNonpostMin", "PCIE/txNonpostMin", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txNonpostMin", "PCIE/txNonpostMin", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txNonpostMax", "PCIE/txNonpostMax", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txNonpostMax", "PCIE/txNonpostMax", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txNonpostAvg", "PCIE/txNonpostAvg", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txNonpostAvg", "PCIE/txNonpostAvg", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxNonpostMin", "PCIE/rxNonpostMin", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxNonpostMin", "PCIE/rxNonpostMin", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxNonpostMax", "PCIE/rxNonpostMax", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxNonpostMax", "PCIE/rxNonpostMax", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxNonpostAvg", "PCIE/rxNonpostAvg", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txCplMin", "PCIE/txCplMin", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txCplMax", "PCIE/txCplMax", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txCplAvg", "PCIE/txCplAvg", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxCplMin", "PCIE/rxCplMin", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxCplMax", "PCIE/rxCplMax", "Bandwidth(B/s)"}});
-    deviceCounterEventMap.insert({PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxCplAvg", "PCIE/rxCplAvg", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxNonpostAvg", "PCIE/rxNonpostAvg", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txCplMin", "PCIE/txCplMin", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txCplMax", "PCIE/txCplMax", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txCplAvg", "PCIE/txCplAvg", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxCplMin", "PCIE/rxCplMin", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxCplMax", "PCIE/rxCplMax", "Bandwidth(Byte/s)"}});
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "rxCplAvg", "PCIE/rxCplAvg", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
         {PROCESS_TYPE::PCIE, {"PCIE", "PCIE", "txNonpostLatencyMin", "PCIE/txNonpostLatencyMin", "Time(ns)"}});
     deviceCounterEventMap.insert(
@@ -181,14 +230,14 @@ void CounterEventHelper::RegisterDevicePCIeMap() {
 
 void CounterEventHelper::RegisterDeviceHCCSMap() {
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::HCCS, {"HCCS", "HCCS", "txThroughput", "HCCS/txThroughput", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::HCCS, {"HCCS", "HCCS", "txThroughput", "HCCS/txThroughput", "Bandwidth(Byte/s)"}});
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::HCCS, {"HCCS", "HCCS", "rxThroughput", "HCCS/rxThroughput", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::HCCS, {"HCCS", "HCCS", "rxThroughput", "HCCS/rxThroughput", "Bandwidth(Byte/s)"}});
 }
 
 void CounterEventHelper::RegisterDeviceQOSMap() {
     deviceCounterEventMap.insert(
-        {PROCESS_TYPE::QOS, {"QOS", "QOS", "bandwidth", "{eventName:s}/Bandwidth", "Bandwidth(B/s)"}});
+        {PROCESS_TYPE::QOS, {"QOS", "QOS", "bandwidth", "{eventName:s}/Bandwidth", "Bandwidth(Byte/s)"}});
 }
 
 std::string CounterEventHelper::GenerateHostMetadataSQL(const PROCESS_TYPE type) {
