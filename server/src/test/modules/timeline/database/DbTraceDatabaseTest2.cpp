@@ -1017,7 +1017,7 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenNPUQuerySuccess) {
     auto startTime = resultSet->GetUint64("startTime");
     auto args = resultSet->GetString("args");
     EXPECT_EQ(startTime, expectStartTime);
-    EXPECT_EQ(args, "{\"B\":28036571136}");
+    EXPECT_EQ(args, "{\"Byte\":28036571136}");
 }
 
 TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenQOSQuerySuccess) {
@@ -1055,7 +1055,7 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenQOSQuerySuccess) {
     auto startTime = resultSet->GetUint64("startTime");
     auto args = resultSet->GetString("args");
     EXPECT_EQ(startTime, expectStartTime);
-    EXPECT_EQ(args, "{\"Bandwidth(B/s)\":3611295744}");
+    EXPECT_EQ(args, "{\"Bandwidth(Byte/s)\":3611295744}");
 }
 
 TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenSimple) {

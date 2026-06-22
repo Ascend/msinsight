@@ -78,7 +78,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAICoreFreqTest) {
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::AI_CORE;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
     const std::string aiCoreFreqSQL =
-        "SELECT DISTINCT 'AI Core Freq' AS name, 'Mhz' AS types FROM AICORE_FREQ WHERE deviceId = ?;";
+        "SELECT DISTINCT 'AI Core Freq' AS name, 'Frequency(Mhz)' AS types FROM AICORE_FREQ WHERE deviceId = ?;";
     EXPECT_EQ(sql, aiCoreFreqSQL);
 }
 
@@ -89,7 +89,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAICoreFreqTest) {
     std::string threadId = "AI Core Freq/freq";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string aiCoreFreqSQL =
-        "SELECT timestampNs - ? AS startTime, '{\"Mhz\":' || freq || '}' AS args FROM AICORE_FREQ "
+        "SELECT timestampNs - ? AS startTime, '{\"Frequency(Mhz)\":' || freq || '}' AS args FROM AICORE_FREQ "
         "WHERE 'AI Core Freq' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, aiCoreFreqSQL);
 }
@@ -151,8 +151,8 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForDDRTest) {
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::DDR;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
     const std::string ddrSQL =
-        "SELECT DISTINCT 'Read' AS name, 'Bandwidth(B/s)' AS types FROM DDR WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'Write' AS name, 'Bandwidth(B/s)' AS types FROM DDR WHERE deviceId = ?;";
+        "SELECT DISTINCT 'Read' AS name, 'Bandwidth(Byte/s)' AS types FROM DDR WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'Write' AS name, 'Bandwidth(Byte/s)' AS types FROM DDR WHERE deviceId = ?;";
     EXPECT_EQ(sql, ddrSQL);
 }
 
@@ -163,13 +163,13 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForDDRTest) {
     std::string threadId = "DDR/read";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string ddrSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || read || '}' AS args FROM DDR "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || read || '}' AS args FROM DDR "
         "WHERE 'Read' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, ddrSQL1);
     threadId = "DDR/write";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string ddrSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || write || '}' AS args FROM DDR "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || write || '}' AS args FROM DDR "
         "WHERE 'Write' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, ddrSQL2);
 }
@@ -211,9 +211,9 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNPUMEMTest) {
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NPU_MEM;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
-    const std::string npuMemSQL = "SELECT DISTINCT '' || id0.value || '/DDR' AS name, 'B' AS types FROM NPU_MEM "
+    const std::string npuMemSQL = "SELECT DISTINCT '' || id0.value || '/DDR' AS name, 'Byte' AS types FROM NPU_MEM "
                                   "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE deviceId = ? UNION ALL "
-                                  "SELECT DISTINCT '' || id0.value || '/HBM' AS name, 'B' AS types FROM NPU_MEM "
+                                  "SELECT DISTINCT '' || id0.value || '/HBM' AS name, 'Byte' AS types FROM NPU_MEM "
                                   "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE deviceId = ?;";
     EXPECT_EQ(sql, npuMemSQL);
 }
@@ -225,28 +225,28 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNPUMEMTest) {
     std::string threadId = "app/DDR";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string npuMemSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"B\":' || ddr || '}' AS args FROM NPU_MEM "
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || ddr || '}' AS args FROM NPU_MEM "
         "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE '' || id0.value || '/DDR' = ? AND startTime >= ? "
         "AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, npuMemSQL1);
     threadId = "device/DDR";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string npuMemSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"B\":' || ddr || '}' AS args FROM NPU_MEM "
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || ddr || '}' AS args FROM NPU_MEM "
         "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE '' || id0.value || '/DDR' = ? AND startTime >= ? "
         "AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, npuMemSQL2);
     threadId = "app/HBM";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string npuMemSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"B\":' || hbm || '}' AS args FROM NPU_MEM "
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || hbm || '}' AS args FROM NPU_MEM "
         "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE '' || id0.value || '/HBM' = ? AND startTime >= ? "
         "AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, npuMemSQL3);
     threadId = "device/HBM";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string npuMemSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"B\":' || hbm || '}' AS args FROM NPU_MEM "
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || hbm || '}' AS args FROM NPU_MEM "
         "INNER JOIN STRING_IDS AS id0 ON NPU_MEM.type = id0.id WHERE '' || id0.value || '/HBM' = ? AND startTime >= ? "
         "AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, npuMemSQL4);
@@ -258,7 +258,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHBMTest) {
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::HBM;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
     const std::string hbmSQL =
-        "SELECT DISTINCT 'HBM ' || hbmId || ' ' || id0.value || '/Bandwidth' AS name, 'Bandwidth(B/s)' AS types "
+        "SELECT DISTINCT 'HBM ' || hbmId || ' ' || id0.value || '/Bandwidth' AS name, 'Bandwidth(Byte/s)' AS types "
         "FROM HBM INNER JOIN STRING_IDS AS id0 ON HBM.type = id0.id WHERE deviceId = ?;";
     EXPECT_EQ(sql, hbmSQL);
 }
@@ -270,7 +270,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHBMTest) {
     std::string threadId = "HBM 0 read/Bandwidth";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string hbmSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || bandwidth || '}' AS args FROM HBM "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || bandwidth || '}' AS args FROM HBM "
         "INNER JOIN STRING_IDS AS id0 ON HBM.type = id0.id "
         "WHERE 'HBM ' || hbmId || ' ' || id0.value || '/Bandwidth' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -278,7 +278,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHBMTest) {
     threadId = "HBM 0 write/Bandwidth";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string hbmSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || bandwidth || '}' AS args FROM HBM "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || bandwidth || '}' AS args FROM HBM "
         "INNER JOIN STRING_IDS AS id0 ON HBM.type = id0.id "
         "WHERE 'HBM ' || hbmId || ' ' || id0.value || '/Bandwidth' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -286,7 +286,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHBMTest) {
     threadId = "HBM 1 read/Bandwidth";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string hbmSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || bandwidth || '}' AS args FROM HBM "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || bandwidth || '}' AS args FROM HBM "
         "INNER JOIN STRING_IDS AS id0 ON HBM.type = id0.id "
         "WHERE 'HBM ' || hbmId || ' ' || id0.value || '/Bandwidth' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -294,7 +294,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHBMTest) {
     threadId = "HBM 1 write/Bandwidth";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string hbmSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || bandwidth || '}' AS args FROM HBM "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || bandwidth || '}' AS args FROM HBM "
         "INNER JOIN STRING_IDS AS id0 ON HBM.type = id0.id "
         "WHERE 'HBM ' || hbmId || ' ' || id0.value || '/Bandwidth' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -309,7 +309,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForLLCTest) {
     const std::string llcSQL =
         "SELECT DISTINCT 'LLC ' || llcId || ' ' || id0.value || '/Hit Rate' AS name, 'Hit Rate(%)' AS types FROM LLC "
         "INNER JOIN STRING_IDS AS id0 ON LLC.mode = id0.id WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'LLC ' || llcId || ' ' || id0.value || '/Throughput' AS name, 'Throughput(B/s)' AS types "
+        "SELECT DISTINCT 'LLC ' || llcId || ' ' || id0.value || '/Throughput' AS name, 'Throughput(Byte/s)' AS types "
         "FROM LLC INNER JOIN STRING_IDS AS id0 ON LLC.mode = id0.id WHERE deviceId = ?;";
     EXPECT_EQ(sql, llcSQL);
 }
@@ -337,7 +337,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForLLCTest) {
     threadId = "LLC 0 read/Throughput";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string llcSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Throughput(B/s)\":' || throughput || '}' AS args FROM LLC "
+        "SELECT timestampNs - ? AS startTime, '{\"Throughput(Byte/s)\":' || throughput || '}' AS args FROM LLC "
         "INNER JOIN STRING_IDS AS id0 ON LLC.mode = id0.id "
         "WHERE 'LLC ' || llcId || ' ' || id0.value || '/Throughput' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -345,7 +345,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForLLCTest) {
     threadId = "LLC 0 write/Throughput";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string llcSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Throughput(B/s)\":' || throughput || '}' AS args FROM LLC "
+        "SELECT timestampNs - ? AS startTime, '{\"Throughput(Byte/s)\":' || throughput || '}' AS args FROM LLC "
         "INNER JOIN STRING_IDS AS id0 ON LLC.mode = id0.id "
         "WHERE 'LLC ' || llcId || ' ' || id0.value || '/Throughput' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -358,7 +358,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForSamplePMUTest) {
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::SAMPLE_PMU;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
     const std::string samplePmuSQL =
-        "SELECT DISTINCT '' || id0.value || ' Core ' || coreId || '/Freq' AS name, 'Mhz' AS types "
+        "SELECT DISTINCT '' || id0.value || ' Core ' || coreId || '/Freq' AS name, 'Frequency(Mhz)' AS types "
         "FROM SAMPLE_PMU_TIMELINE INNER JOIN STRING_IDS AS id0 ON SAMPLE_PMU_TIMELINE.coreType = id0.id "
         "WHERE deviceId = ? UNION ALL "
         "SELECT DISTINCT '' || id0.value || ' Core ' || coreId || '/Usage' AS name, 'Usage(%)' AS types "
@@ -377,7 +377,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartOne) 
     std::string threadId = "AIC Core 0/Freq";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string samplePmuSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Mhz\":' || freq || '}' AS args FROM SAMPLE_PMU_TIMELINE "
+        "SELECT timestampNs - ? AS startTime, '{\"Frequency(Mhz)\":' || freq || '}' AS args FROM SAMPLE_PMU_TIMELINE "
         "INNER JOIN STRING_IDS AS id0 ON SAMPLE_PMU_TIMELINE.coreType = id0.id "
         "WHERE '' || id0.value || ' Core ' || coreId || '/Freq' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -385,7 +385,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartOne) 
     threadId = "AIV Core 0/Freq";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string samplePmuSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Mhz\":' || freq || '}' AS args FROM SAMPLE_PMU_TIMELINE "
+        "SELECT timestampNs - ? AS startTime, '{\"Frequency(Mhz)\":' || freq || '}' AS args FROM SAMPLE_PMU_TIMELINE "
         "INNER JOIN STRING_IDS AS id0 ON SAMPLE_PMU_TIMELINE.coreType = id0.id "
         "WHERE '' || id0.value || ' Core ' || coreId || '/Freq' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -393,7 +393,7 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForSamplePMUTestPartOne) 
     threadId = "AIC Core 10/Freq";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string samplePMUSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Mhz\":' || freq || '}' AS args FROM SAMPLE_PMU_TIMELINE "
+        "SELECT timestampNs - ? AS startTime, '{\"Frequency(Mhz)\":' || freq || '}' AS args FROM SAMPLE_PMU_TIMELINE "
         "INNER JOIN STRING_IDS AS id0 ON SAMPLE_PMU_TIMELINE.coreType = id0.id "
         "WHERE '' || id0.value || ' Core ' || coreId || '/Freq' = ? AND startTime >= ? AND startTime <= ? "
         "AND deviceId = ? ORDER BY startTime ASC;";
@@ -460,29 +460,20 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNICTest) {
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
     const std::string nicSQL =
-        "SELECT DISTINCT 'NIC/roceTxPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/roceRxPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/roceTxErrPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/roceRxErrPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/roceTxCnpPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/roceRxCnpPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/roceNewPktRty' AS name, 'Rty' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/nicTxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/nicTxBandwidth' AS name, 'Bandwidth(B/s)' AS types "
-        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/nicRxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/nicRxBandwidth' AS name, 'Bandwidth(B/s)' AS types "
-        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macTxPfcPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macRxPfcPkt' AS name, 'Pkt' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macTxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macTxBandwidth' AS name, 'Bandwidth(B/s)' AS types "
-        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macRxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macRxBandwidth' AS name, 'Bandwidth(B/s)' AS types "
-        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macTxBadByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'NIC/macRxBadByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ?;";
+        "SELECT DISTINCT 'bandwidth' AS name, 'Bandwidth(Byte/s)' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxPacketRate' AS name, 'Packet/s' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxByteRate' AS name, 'Byte/s' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxPackets' AS name, 'Packet' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxBytes' AS name, 'Byte' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxErrors' AS name, 'Packet' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxDropped' AS name, 'Packet' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txPacketRate' AS name, 'Packet/s' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txByteRate' AS name, 'Byte/s' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txPackets' AS name, 'Packet' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txBytes' AS name, 'Byte' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txErrors' AS name, 'Packet' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txDropped' AS name, 'Packet' AS types FROM NIC WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'funcId' AS name, 'Port number' AS types FROM NIC WHERE deviceId = ?;";
     EXPECT_EQ(sql, nicSQL);
 }
 
@@ -490,136 +481,416 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartOne) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
-    std::string threadId = "NIC/macTxPfcPkt";
+    std::string threadId = "bandwidth";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || macTxPfcPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/macTxPfcPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || bandwidth || '}' AS args FROM NIC "
+        "WHERE 'bandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL1);
-    threadId = "NIC/macRxPfcPkt";
+    threadId = "rxPacketRate";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || macRxPfcPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/macRxPfcPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Packet/s\":' || rxPacketRate || '}' AS args FROM NIC "
+        "WHERE 'rxPacketRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL2);
-    threadId = "NIC/macTxByte";
+    threadId = "rxByteRate";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macTxByte || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/macTxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Byte/s\":' || rxByteRate || '}' AS args FROM NIC "
+        "WHERE 'rxByteRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL3);
-    threadId = "NIC/macTxBandwidth";
+    threadId = "rxPackets";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || macTxBandwidth || '}' AS args "
-        "FROM NETDEV_STATS WHERE 'NIC/macTxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? "
-        "ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || rxPackets || '}' AS args FROM NIC "
+        "WHERE 'rxPackets' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL4);
-    threadId = "NIC/macRxByte";
+    threadId = "rxBytes";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL5 =
-        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macRxByte || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/macRxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || rxBytes || '}' AS args FROM NIC "
+        "WHERE 'rxBytes' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL5);
-    threadId = "NIC/macRxBandwidth";
+    threadId = "rxErrors";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL6 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || macRxBandwidth || '}' AS args "
-        "FROM NETDEV_STATS WHERE 'NIC/macRxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? "
-        "ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || rxErrors || '}' AS args FROM NIC "
+        "WHERE 'rxErrors' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL6);
+    threadId = "rxDropped";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string nicSQL7 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || rxDropped || '}' AS args FROM NIC "
+        "WHERE 'rxDropped' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, nicSQL7);
 }
 
 TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartTwo) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
-    std::string threadId = "NIC/macTxBadByte";
+    std::string threadId = "funcId";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macTxBadByte || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/macTxBadByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Port number\":' || funcId || '}' AS args FROM NIC "
+        "WHERE 'funcId' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL1);
-    threadId = "NIC/macRxBadByte";
+    threadId = "txPacketRate";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macRxBadByte || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/macRxBadByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Packet/s\":' || txPacketRate || '}' AS args FROM NIC "
+        "WHERE 'txPacketRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL2);
-    threadId = "NIC/nicTxByte";
+    threadId = "txByteRate";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || nicTxByte || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/nicTxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Byte/s\":' || txByteRate || '}' AS args FROM NIC "
+        "WHERE 'txByteRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL3);
-    threadId = "NIC/nicTxBandwidth";
+    threadId = "txPackets";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || nicTxBandwidth || '}' AS args "
-        "FROM NETDEV_STATS WHERE 'NIC/nicTxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? "
-        "ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || txPackets || '}' AS args FROM NIC "
+        "WHERE 'txPackets' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL4);
-    threadId = "NIC/nicRxByte";
+    threadId = "txBytes";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL5 =
-        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || nicRxByte || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/nicRxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || txBytes || '}' AS args FROM NIC "
+        "WHERE 'txBytes' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL5);
-    threadId = "NIC/nicRxBandwidth";
+    threadId = "txErrors";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL6 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || nicRxBandwidth || '}' AS args "
-        "FROM NETDEV_STATS WHERE 'NIC/nicRxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? "
-        "ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || txErrors || '}' AS args FROM NIC "
+        "WHERE 'txErrors' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL6);
-}
-
-TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNICTestPartThree) {
-    CounterEventHelper helper;
-    helper.RegisterDeviceMap();
-    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NIC;
-    std::string threadId = "NIC/roceTxPkt";
-    std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
-    const std::string nicSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || roceTxPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/roceTxPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
-    EXPECT_EQ(sql, nicSQL1);
-    threadId = "NIC/roceRxPkt";
-    sql = helper.GenerateDeviceCounterSQL(type, threadId);
-    const std::string nicSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || roceRxPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/roceRxPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
-    EXPECT_EQ(sql, nicSQL2);
-    threadId = "NIC/roceTxErrPkt";
-    sql = helper.GenerateDeviceCounterSQL(type, threadId);
-    const std::string nicSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || roceTxErrPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/roceTxErrPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
-    EXPECT_EQ(sql, nicSQL3);
-    threadId = "NIC/roceRxErrPkt";
-    sql = helper.GenerateDeviceCounterSQL(type, threadId);
-    const std::string nicSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || roceRxErrPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/roceRxErrPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
-    EXPECT_EQ(sql, nicSQL4);
-    threadId = "NIC/roceTxCnpPkt";
-    sql = helper.GenerateDeviceCounterSQL(type, threadId);
-    const std::string nicSQL5 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || roceTxCnpPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/roceTxCnpPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
-    EXPECT_EQ(sql, nicSQL5);
-    threadId = "NIC/roceRxCnpPkt";
-    sql = helper.GenerateDeviceCounterSQL(type, threadId);
-    const std::string nicSQL6 =
-        "SELECT timestampNs - ? AS startTime, '{\"Pkt\":' || roceRxCnpPkt || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/roceRxCnpPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
-    EXPECT_EQ(sql, nicSQL6);
-    threadId = "NIC/roceNewPktRty";
+    threadId = "txDropped";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string nicSQL7 =
-        "SELECT timestampNs - ? AS startTime, '{\"Rty\":' || roceNewPktRty || '}' AS args FROM NETDEV_STATS "
-        "WHERE 'NIC/roceNewPktRty' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || txDropped || '}' AS args FROM NIC "
+        "WHERE 'txDropped' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, nicSQL7);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForROCETest) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::ROCE;
+    std::string sql = helper.GenerateDeviceMetadataSQL(type);
+    const std::string roceSQL =
+        "SELECT DISTINCT 'bandwidth' AS name, 'Bandwidth(Byte/s)' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxPacketRate' AS name, 'Packet/s' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxByteRate' AS name, 'Byte/s' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxPackets' AS name, 'Packet' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxBytes' AS name, 'Byte' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxErrors' AS name, 'Packet' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'rxDropped' AS name, 'Packet' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txPacketRate' AS name, 'Packet/s' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txByteRate' AS name, 'Byte/s' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txPackets' AS name, 'Packet' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txBytes' AS name, 'Byte' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txErrors' AS name, 'Packet' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'txDropped' AS name, 'Packet' AS types FROM ROCE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'funcId' AS name, 'Port number' AS types FROM ROCE WHERE deviceId = ?;";
+    EXPECT_EQ(sql, roceSQL);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForROCETestPartOne) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::ROCE;
+    std::string threadId = "bandwidth";
+    std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL1 =
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || bandwidth || '}' AS args FROM ROCE "
+        "WHERE 'bandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL1);
+    threadId = "rxPacketRate";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL2 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet/s\":' || rxPacketRate || '}' AS args FROM ROCE "
+        "WHERE 'rxPacketRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL2);
+    threadId = "rxByteRate";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL3 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte/s\":' || rxByteRate || '}' AS args FROM ROCE "
+        "WHERE 'rxByteRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL3);
+    threadId = "rxPackets";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL4 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || rxPackets || '}' AS args FROM ROCE "
+        "WHERE 'rxPackets' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL4);
+    threadId = "rxBytes";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL5 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || rxBytes || '}' AS args FROM ROCE "
+        "WHERE 'rxBytes' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL5);
+    threadId = "rxErrors";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL6 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || rxErrors || '}' AS args FROM ROCE "
+        "WHERE 'rxErrors' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL6);
+    threadId = "rxDropped";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL7 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || rxDropped || '}' AS args FROM ROCE "
+        "WHERE 'rxDropped' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL7);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForROCETestPartTwo) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::ROCE;
+    std::string threadId = "funcId";
+    std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL1 =
+        "SELECT timestampNs - ? AS startTime, '{\"Port number\":' || funcId || '}' AS args FROM ROCE "
+        "WHERE 'funcId' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL1);
+    threadId = "txPacketRate";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL2 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet/s\":' || txPacketRate || '}' AS args FROM ROCE "
+        "WHERE 'txPacketRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL2);
+    threadId = "txByteRate";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL3 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte/s\":' || txByteRate || '}' AS args FROM ROCE "
+        "WHERE 'txByteRate' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL3);
+    threadId = "txPackets";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL4 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || txPackets || '}' AS args FROM ROCE "
+        "WHERE 'txPackets' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL4);
+    threadId = "txBytes";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL5 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || txBytes || '}' AS args FROM ROCE "
+        "WHERE 'txBytes' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL5);
+    threadId = "txErrors";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL6 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || txErrors || '}' AS args FROM ROCE "
+        "WHERE 'txErrors' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL6);
+    threadId = "txDropped";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string roceSQL7 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || txDropped || '}' AS args FROM ROCE "
+        "WHERE 'txDropped' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, roceSQL7);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForNetDevStatsTest) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NETDEV_STATS;
+    std::string sql = helper.GenerateDeviceMetadataSQL(type);
+    const std::string netDevStatsSQL =
+        "SELECT DISTINCT 'roceTxPkt' AS name, 'Packet' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'roceRxPkt' AS name, 'Packet' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'roceTxErrPkt' AS name, 'Packet' AS types FROM NETDEV_STATS WHERE deviceId = ? "
+        "UNION ALL "
+        "SELECT DISTINCT 'roceRxErrPkt' AS name, 'Packet' AS types FROM NETDEV_STATS WHERE deviceId = ? "
+        "UNION ALL "
+        "SELECT DISTINCT 'roceTxCnpPkt' AS name, 'Packet' AS types FROM NETDEV_STATS WHERE deviceId = ? "
+        "UNION ALL "
+        "SELECT DISTINCT 'roceRxCnpPkt' AS name, 'Packet' AS types FROM NETDEV_STATS WHERE deviceId = ? "
+        "UNION ALL "
+        "SELECT DISTINCT 'roceNewPktRty' AS name, 'Retry' AS types FROM NETDEV_STATS WHERE deviceId = ? "
+        "UNION ALL "
+        "SELECT DISTINCT 'nicTxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'nicTxBandwidth' AS name, 'Bandwidth(Byte/s)' AS types "
+        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'nicRxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'nicRxBandwidth' AS name, 'Bandwidth(Byte/s)' AS types "
+        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'macTxPfcPkt' AS name, 'Frame' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'macRxPfcPkt' AS name, 'Frame' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'macTxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'macTxBandwidth' AS name, 'Bandwidth(Byte/s)' AS types "
+        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'macRxByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'macRxBandwidth' AS name, 'Bandwidth(Byte/s)' AS types "
+        "FROM NETDEV_STATS WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'macTxBadByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ? "
+        "UNION ALL "
+        "SELECT DISTINCT 'macRxBadByte' AS name, 'Byte' AS types FROM NETDEV_STATS WHERE deviceId = ?;";
+    EXPECT_EQ(sql, netDevStatsSQL);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNetDevStatsTestPartOne) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NETDEV_STATS;
+    std::string threadId = "macTxPfcPkt";
+    std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL1 =
+        "SELECT timestampNs - ? AS startTime, '{\"Frame\":' || macTxPfcPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'macTxPfcPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL1);
+    threadId = "macRxPfcPkt";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL2 =
+        "SELECT timestampNs - ? AS startTime, '{\"Frame\":' || macRxPfcPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'macRxPfcPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL2);
+    threadId = "macTxByte";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL3 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macTxByte || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'macTxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime "
+        "ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL3);
+    threadId = "macTxBandwidth";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL4 =
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || macTxBandwidth || '}' AS args "
+        "FROM NETDEV_STATS WHERE 'macTxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId "
+        "= ? "
+        "ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL4);
+    threadId = "macRxByte";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL5 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macRxByte || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'macRxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime "
+        "ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL5);
+    threadId = "macRxBandwidth";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL6 =
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || macRxBandwidth || '}' AS args "
+        "FROM NETDEV_STATS WHERE 'macRxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId "
+        "= ? "
+        "ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL6);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNetDevStatsTestPartTwo) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NETDEV_STATS;
+    std::string threadId = "macTxBadByte";
+    std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL1 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macTxBadByte || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'macTxBadByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL1);
+    threadId = "macRxBadByte";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL2 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || macRxBadByte || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'macRxBadByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL2);
+    threadId = "nicTxByte";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL3 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || nicTxByte || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'nicTxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime "
+        "ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL3);
+    threadId = "nicTxBandwidth";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL4 =
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || nicTxBandwidth || '}' AS args "
+        "FROM NETDEV_STATS WHERE 'nicTxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId "
+        "= ? "
+        "ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL4);
+    threadId = "nicRxByte";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL5 =
+        "SELECT timestampNs - ? AS startTime, '{\"Byte\":' || nicRxByte || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'nicRxByte' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime "
+        "ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL5);
+    threadId = "nicRxBandwidth";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL6 =
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || nicRxBandwidth || '}' AS args "
+        "FROM NETDEV_STATS WHERE 'nicRxBandwidth' = ? AND startTime >= ? AND startTime <= ? AND deviceId "
+        "= ? "
+        "ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL6);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForNetDevStatsTestPartThree) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::NETDEV_STATS;
+    std::string threadId = "roceTxPkt";
+    std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL1 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || roceTxPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'roceTxPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime "
+        "ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL1);
+    threadId = "roceRxPkt";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL2 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || roceRxPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'roceRxPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime "
+        "ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL2);
+    threadId = "roceTxErrPkt";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL3 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || roceTxErrPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'roceTxErrPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL3);
+    threadId = "roceRxErrPkt";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL4 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || roceRxErrPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'roceRxErrPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL4);
+    threadId = "roceTxCnpPkt";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL5 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || roceTxCnpPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'roceTxCnpPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL5);
+    threadId = "roceRxCnpPkt";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL6 =
+        "SELECT timestampNs - ? AS startTime, '{\"Packet\":' || roceRxCnpPkt || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'roceRxCnpPkt' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL6);
+    threadId = "roceNewPktRty";
+    sql = helper.GenerateDeviceCounterSQL(type, threadId);
+    const std::string netDevStatsSQL7 =
+        "SELECT timestampNs - ? AS startTime, '{\"Retry\":' || roceNewPktRty || '}' AS args FROM NETDEV_STATS "
+        "WHERE 'roceNewPktRty' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY "
+        "startTime ASC;";
+    EXPECT_EQ(sql, netDevStatsSQL7);
 }
 
 TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForPCIeTest) {
@@ -628,24 +899,30 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForPCIeTest) {
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::PCIE;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
     const std::string pcieSQL =
-        "SELECT DISTINCT 'PCIE/txPostMin' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txPostMax' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txPostAvg' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxPostMin' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxPostMax' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxPostAvg' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txNonpostMin' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txNonpostMax' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txNonpostAvg' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxNonpostMin' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxNonpostMax' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxNonpostAvg' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txCplMin' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txCplMax' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/txCplAvg' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxCplMin' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxCplMax' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'PCIE/rxCplAvg' AS name, 'Bandwidth(B/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/txPostMin' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/txPostMax' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/txPostAvg' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/rxPostMin' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/rxPostMax' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/rxPostAvg' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/txNonpostMin' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'PCIE/txNonpostMax' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'PCIE/txNonpostAvg' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'PCIE/rxNonpostMin' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'PCIE/rxNonpostMax' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'PCIE/rxNonpostAvg' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'PCIE/txCplMin' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/txCplMax' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/txCplAvg' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/rxCplMin' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/rxCplMax' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
+        "SELECT DISTINCT 'PCIE/rxCplAvg' AS name, 'Bandwidth(Byte/s)' AS types FROM PCIE WHERE deviceId = ? UNION ALL "
         "SELECT DISTINCT 'PCIE/txNonpostLatencyMin' AS name, 'Time(ns)' AS types "
         "FROM PCIE WHERE deviceId = ? UNION ALL "
         "SELECT DISTINCT 'PCIE/txNonpostLatencyMax' AS name, 'Time(ns)' AS types "
@@ -661,37 +938,37 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartOne) {
     std::string threadId = "PCIE/txPostMin";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txPostMin || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txPostMin || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txPostMin' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL1);
     threadId = "PCIE/txPostMax";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txPostMax || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txPostMax || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txPostMax' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL2);
     threadId = "PCIE/txPostAvg";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txPostAvg || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txPostAvg || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txPostAvg' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL3);
     threadId = "PCIE/rxPostMin";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxPostMin || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxPostMin || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxPostMin' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL4);
     threadId = "PCIE/rxPostMax";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL5 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxPostMax || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxPostMax || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxPostMax' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL5);
     threadId = "PCIE/rxPostAvg";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL6 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxPostAvg || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxPostAvg || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxPostAvg' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL6);
 }
@@ -703,37 +980,37 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartTwo) {
     std::string threadId = "PCIE/txNonpostMin";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txNonpostMin || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txNonpostMin || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txNonpostMin' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL1);
     threadId = "PCIE/txNonpostMax";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txNonpostMax || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txNonpostMax || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txNonpostMax' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL2);
     threadId = "PCIE/txNonpostAvg";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txNonpostAvg || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txNonpostAvg || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txNonpostAvg' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL3);
     threadId = "PCIE/rxNonpostMin";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxNonpostMin || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxNonpostMin || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxNonpostMin' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL4);
     threadId = "PCIE/rxNonpostMax";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL5 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxNonpostMax || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxNonpostMax || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxNonpostMax' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL5);
     threadId = "PCIE/rxNonpostAvg";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL6 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxNonpostAvg || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxNonpostAvg || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxNonpostAvg' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL6);
 }
@@ -745,37 +1022,37 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForPCIeTestPartThree) {
     std::string threadId = "PCIE/txCplMin";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txCplMin || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txCplMin || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txCplMin' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL1);
     threadId = "PCIE/txCplMax";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txCplMax || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txCplMax || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txCplMax' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL2);
     threadId = "PCIE/txCplAvg";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL3 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txCplAvg || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txCplAvg || '}' AS args FROM PCIE "
         "WHERE 'PCIE/txCplAvg' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL3);
     threadId = "PCIE/rxCplMin";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL4 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxCplMin || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxCplMin || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxCplMin' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL4);
     threadId = "PCIE/rxCplMax";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL5 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxCplMax || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxCplMax || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxCplMax' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL5);
     threadId = "PCIE/rxCplAvg";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string pcieSQL6 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxCplAvg || '}' AS args FROM PCIE "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxCplAvg || '}' AS args FROM PCIE "
         "WHERE 'PCIE/rxCplAvg' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, pcieSQL6);
 }
@@ -812,10 +1089,11 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForHCCSTest) {
     helper.RegisterDeviceMap();
     Dic::Protocol::PROCESS_TYPE type = Dic::Protocol::PROCESS_TYPE::HCCS;
     std::string sql = helper.GenerateDeviceMetadataSQL(type);
-    const std::string roceSQL =
-        "SELECT DISTINCT 'HCCS/txThroughput' AS name, 'Bandwidth(B/s)' AS types FROM HCCS WHERE deviceId = ? UNION ALL "
-        "SELECT DISTINCT 'HCCS/rxThroughput' AS name, 'Bandwidth(B/s)' AS types FROM HCCS WHERE deviceId = ?;";
-    EXPECT_EQ(sql, roceSQL);
+    const std::string hccsSQL =
+        "SELECT DISTINCT 'HCCS/txThroughput' AS name, 'Bandwidth(Byte/s)' AS types FROM HCCS WHERE deviceId = ? UNION "
+        "ALL "
+        "SELECT DISTINCT 'HCCS/rxThroughput' AS name, 'Bandwidth(Byte/s)' AS types FROM HCCS WHERE deviceId = ?;";
+    EXPECT_EQ(sql, hccsSQL);
 }
 
 TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHCCSTest) {
@@ -825,13 +1103,13 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHCCSTest) {
     std::string threadId = "HCCS/txThroughput";
     std::string sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string hccsSQL1 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || txThroughput || '}' AS args FROM HCCS "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || txThroughput || '}' AS args FROM HCCS "
         "WHERE 'HCCS/txThroughput' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, hccsSQL1);
     threadId = "HCCS/rxThroughput";
     sql = helper.GenerateDeviceCounterSQL(type, threadId);
     const std::string hccsSQL2 =
-        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(B/s)\":' || rxThroughput || '}' AS args FROM HCCS "
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || rxThroughput || '}' AS args FROM HCCS "
         "WHERE 'HCCS/rxThroughput' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, hccsSQL2);
 }

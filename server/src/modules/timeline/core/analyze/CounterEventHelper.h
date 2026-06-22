@@ -75,6 +75,8 @@ class CounterEventHelper {
     void RegisterDeviceLLCMap();
     void RegisterDeviceSamplePMUMap();
     void RegisterDeviceNICMap();
+    void RegisterDeviceRoCEMap();
+    void RegisterDeviceNetDevStatsMap();
     void RegisterDevicePCIeMap();
     void RegisterDeviceHCCSMap();
     void RegisterDeviceQOSMap();
