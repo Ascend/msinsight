@@ -2155,6 +2155,17 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
     try {
         auto resultSet = TraceDatabaseHelper::QueryThreadsByPid(stmt, startTime, endTime, metaData, deviceId);
         std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> trackIdDepthCache;
+        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(rankId, metaData.pid, metaData.tid);
+        SliceQuery pythonStackQuery;
+        if (metaData.isPythonStack) {
+            uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
+            uint64_t queryStartTime = startTime >= minTimestamp ? startTime - minTimestamp : 0;
+            uint64_t queryDuration = endTime >= startTime ? endTime - startTime : 0;
+            pythonStackQuery = CreateSliceQueryWithTimeRange(
+                {rankId, metaData.pid, metaData.tid, metaData.metaType, queryStartTime, queryDuration});
+            pythonStackQuery.isPythonStack = true;
+            trackId = pythonStackQuery.trackId;
+        }
         while (resultSet->Next()) {
             int col = resultStartIndex;
             Protocol::SimpleSlice simpleSlice{};
@@ -2169,14 +2180,17 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
             simpleSlice.pid = metaData.pid;
             simpleSlice.metaType = metaData.isPythonStack ?
                 ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("") : metaData.metaType;
-            uint64_t trackId = TrackInfoManager::Instance().GetTrackId(rankId, metaData.pid, metaData.tid);
-            SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
             auto item = trackIdDepthCache.find(trackId);
             if (item != trackIdDepthCache.end()) {
                 simpleSlice.depth = item->second[id];
             } else {
                 std::unordered_map<uint64_t, uint32_t> depthCache;
-                sliceCacheManager.QueryDepthInfoWithoutTimeRange(std::to_string(trackId), rankId, depthCache);
+                if (metaData.isPythonStack) {
+                    GetSliceDepthCacheForJump(pythonStackQuery, depthCache);
+                } else {
+                    SliceCacheManager::Instance().QueryDepthInfoWithoutTimeRange(
+                        std::to_string(trackId), rankId, depthCache);
+                }
                 trackIdDepthCache[trackId] = depthCache;
                 simpleSlice.depth = depthCache[id];
             }
