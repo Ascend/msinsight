@@ -17,4 +17,5 @@
  */
 export { useContextMenu } from './useContextMenu';
 export { useResizeObserver } from './useResizeObserver';
+export { useSmartDebounceRequest } from './useSmartDebounceRequest';
 export { useViewport } from './useViewport';

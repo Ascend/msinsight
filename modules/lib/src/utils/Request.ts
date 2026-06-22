@@ -17,6 +17,7 @@
  */
 import { ClientConnector } from '../connection';
 import { errorCenter, WsError } from './ErrorCenter';
+import { createSmartDebounceRequestFunc } from './createSmartDebounceRequestFunc';
 
 export interface RequestOptions {
     silent?: boolean; // 不显示报错信息
@@ -49,4 +50,36 @@ export function createRequest(connector: ClientConnector) {
             throw wsError;
         }
     };
+}
+
+/**
+ * 创建防抖请求方法
+ * 在 requestData 基础上包装智能防抖，默认保留最后一次请求（trailing）。
+ *
+ * @param connector 各模块的 connector 实例
+ * @param debounceOptions 防抖配置
+ */
+export function createDebounceRequest(
+    connector: ClientConnector,
+    debounceOptions?: {
+        delay?: number;
+        leading?: boolean;
+    },
+) {
+    const request = createRequest(connector);
+    const debounced = createSmartDebounceRequestFunc(
+        async (command: string, params: any, module?: string, options?: RequestOptions) => {
+            return request(command, params, module, options);
+        },
+        {
+            delay: debounceOptions?.delay ?? 300,
+            leading: debounceOptions?.leading ?? false,
+            keyFn: (command: string, params: any) => {
+                // 用 method + params 生成唯一 key，确保不同接口互不干扰
+                return `${command}:${JSON.stringify(params)}`;
+            },
+        },
+    );
+
+    return debounced;
 }

@@ -31,7 +31,7 @@ import {
     GetSlowRankListResult,
     GetSlowRankListParams,
 } from './interface';
-import { createCancelableApi } from '@insight/lib/utils';
+import { createCancelableApi, createSmartDebounceRequestFunc } from '@insight/lib/utils';
 import { store } from '../store';
 
 type ParamsWithClusterPath<T> = T & {
@@ -49,7 +49,7 @@ function withClusterPath<T>(params: ParamsWithClusterPath<T>): ParamsWithCluster
  * @return {[]} 返回迭代数组[0,1,2,3]
  */
 export const queryIterations = async(param: {isCompare: boolean}): Promise<any> => {
-    return window.requestData('communication/duration/iterations', withClusterPath(param));
+    return window.requestDataDebounced('communication/duration/iterations', withClusterPath(param));
 };
 
 /**
@@ -57,9 +57,11 @@ export const queryIterations = async(param: {isCompare: boolean}): Promise<any> 
  * 无参
  * @return {[]} 返回迭代数组['(0,1,2)']
  */
-export const queryStages = async(param: {iterationId: string;baselineIterationId: string;isCompare: boolean }): Promise<any> => {
-    return window.requestData('communication/matrix/group', withClusterPath(param));
-};
+export const queryStages = createSmartDebounceRequestFunc(
+    async(param: {iterationId: string;baselineIterationId: string;isCompare: boolean }): Promise<any> => {
+        return window.requestData('communication/matrix/group', withClusterPath(param));
+    }, { delay: 300, leading: true },
+);
 
 /**
  * 查询一次迭代下所有Rank ID
@@ -87,7 +89,7 @@ export const queryOperators = async(param: {iterationId: string ;stage: string; 
  * @return {[]} 返回算子名数组[0,1,2,3]
  */
 export const queryMatrixOperators = async(param: {iterationId: string ;stage: string; pgName: string; groupIdHash: string}): Promise<any> => {
-    return window.requestData('communication/matrix/sortOpNames', withClusterPath(param));
+    return window.requestDataDebounced('communication/matrix/sortOpNames', withClusterPath(param));
 };
 
 /**
@@ -108,7 +110,7 @@ export const queryCommunication = async(param: { iterationId: string ; operatorN
  * @return {[]} 返回数组
  */
 export const queryCommunicationExpertAdvisor = async(): Promise<any> => {
-    return window.requestData('communication/advisor', withClusterPath({}));
+    return window.requestDataDebounced('communication/advisor', withClusterPath({}));
 };
 
 /**
@@ -193,7 +195,7 @@ export const queryTopSummary = async (param: ParamsWithClusterPath<{isCompare?: 
  */
 export const queryCommunicationMatrix = async(param: { iterationId: string ; pgName: string ; stage: string ; operatorName: string; isCompare: boolean; groupIdHash: string; baselineGroupIdHash: string}):
 Promise<any> => {
-    return window.requestData('communication/matrix/bandwidthInfo', withClusterPath(param));
+    return window.requestDataDebounced('communication/matrix/bandwidthInfo', withClusterPath(param));
 };
 
 export interface QueryFwpBwdTimelineParams {
@@ -312,5 +314,5 @@ export async function queryTimelineUnitKernelDetail(params: {
 
 // 通信时序图慢卡分析列表
 export const getSlowRankList = async(params: GetSlowRankListParams): Promise<GetSlowRankListResult> => {
-    return await window.requestData('communication/duration/slow-rank/list', withClusterPath(params));
+    return await window.requestDataDebounced('communication/duration/slow-rank/list', withClusterPath(params));
 };
