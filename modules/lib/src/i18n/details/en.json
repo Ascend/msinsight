@@ -46,6 +46,7 @@
     "Active Bw(GB/s)": "Active Bw(GB/s)",
     "Instruction Per Cycle": "Instruction Per Cycle",
     "TopWarpStallReason": "Top Warp Stall Reason",
-    "Stall Count": "Stall Count"
+    "Stall Count": "Stall Count",
+    "Stall Reason": "Stall Reason"
   }
 }

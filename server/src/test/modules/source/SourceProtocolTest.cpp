@@ -169,11 +169,15 @@ TEST_F(SourceProtocolTest, ToTopWarpStallReasonResponse) {
     StallReasonItem item1;
     item1.name = "IBuf_Empty";
     item1.value = 100;
-    response.body.data.emplace_back(item1);
+    CompareData<StallReasonItem> compareItem1;
+    compareItem1.compare = item1;
+    response.body.data.emplace_back(compareItem1);
     StallReasonItem item2;
     item2.name = "Nop_Cycles";
     item2.value = 200;
-    response.body.data.emplace_back(item2);
+    CompareData<StallReasonItem> compareItem2;
+    compareItem2.compare = item2;
+    response.body.data.emplace_back(compareItem2);
     response.body.unit = "count";
     response.moduleName = MODULE_SOURCE;
     manager->ToJson(response, error);

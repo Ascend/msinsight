@@ -511,14 +511,16 @@ bool SourceFileParser::HasCachelineRecords() {
     return false;
 }
 
-bool SourceFileParser::GetTopWarpStallReason(std::vector<Protocol::StallReasonItem> &data) {
+bool SourceFileParser::GetTopWarpStallReason(std::vector<Protocol::StallReasonItem> &data, bool isBaseline) {
     std::unique_lock<std::mutex> lock(mutex);
-    std::ifstream file = OpenReadFileSafely(filePath, std::ios::binary);
+    std::string curFilePath = isBaseline ? baselineFilePath : filePath;
+    std::map<int, std::vector<Position>> curBlockMap = isBaseline ? baselineDataBlockMap : dataBlockMap;
+    std::ifstream file = OpenReadFileSafely(curFilePath, std::ios::binary);
     if (!file.is_open()) {
         return false;
     }
     std::string jsonStr =
-        BinFileParseUtil::GetSingleContentStrByDataType(file, DataTypeEnum::TOP_WARP_STALL_REASON, dataBlockMap);
+        BinFileParseUtil::GetSingleContentStrByDataType(file, DataTypeEnum::TOP_WARP_STALL_REASON, curBlockMap);
     if (jsonStr.empty()) {
         return false;
     }

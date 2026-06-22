@@ -73,6 +73,7 @@
     "Active Bw(GB/s)": "活跃带宽(GB/s)",
     "Instruction Per Cycle": "指令发射效率",
     "TopWarpStallReason": "Top Warp Stall Reason",
-    "Stall Count": "阻塞次数"
+    "Stall Count": "阻塞次数",
+    "Stall Reason": "阻塞原因"
   }
 }

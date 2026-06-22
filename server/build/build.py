@@ -61,24 +61,26 @@ OUTPUT_EXE_DIR = ''
 
 LOG_DIR = os.path.join(BUILD_DIR, 'logs')
 LOG_FILE = os.path.join(LOG_DIR, 'build.log')
+LOG = logging.getLogger('root')
 
 BUILD_TITLE = '[Server]'
+CMAKE_POLICY_VERSION_MINIMUM = '-DCMAKE_POLICY_VERSION_MINIMUM=3.5'
 
 
 def build_log(build_info):
-    LOG.info(BUILD_TITLE + build_info)
+    LOG.info('%s%s', BUILD_TITLE, build_info)
 
 
 def execute_cmd(cmd, work_path):
-    proc = subprocess.Popen(cmd, cwd=work_path, stdout=subprocess.PIPE)
-    for line in iter(proc.stdout.readline, b''):
-        build_log(line.decode('utf-8').strip())
-    try:
-        proc.communicate(timeout=600)
-    except subprocess.TimeoutExpired:
-        LOG.error('Subprocess timed out')
-        return 1
-    return proc.returncode
+    with subprocess.Popen(cmd, cwd=work_path, stdout=subprocess.PIPE) as proc:
+        for line in iter(proc.stdout.readline, b''):
+            build_log(line.decode('utf-8').strip())
+        try:
+            proc.communicate(timeout=600)
+        except subprocess.TimeoutExpired:
+            LOG.error('Subprocess timed out')
+            return 1
+        return proc.returncode
 
 
 def log_output(output):
@@ -112,9 +114,7 @@ def build():
     if not os.path.exists(build_dir):
         os.makedirs(build_dir)
 
-    build_cmds = [
-        'cmake', HOME_DIR, '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release'
-    ]
+    build_cmds = ['cmake', HOME_DIR, '-G', 'Ninja', '-DCMAKE_BUILD_TYPE=Release', CMAKE_POLICY_VERSION_MINIMUM]
 
     result = execute_cmd(build_cmds, build_dir)
     if result != 0:
@@ -137,6 +137,7 @@ def build():
             return -1
     build_log('end build.\n')
     return 0
+
 
 def copy_msprof2server_dir():
     att_dir = os.path.join(OUTPUT_DIR, get_gxx_type())
@@ -184,6 +185,7 @@ def copy_python_interpreter():
     build_log(f"Python interpreter was successfully copied to {att_bin_python_dir}.")
     return 0
 
+
 def pip_install_third_party_for_cluster_analysis():
     gxx_type = get_gxx_type()
     server_output_dir = os.path.join(OUTPUT_DIR, gxx_type)
@@ -193,10 +195,12 @@ def pip_install_third_party_for_cluster_analysis():
     if IS_WINDOWS:
         python_interpreter_path = os.path.join(server_output_bin_python_dir, 'python.exe')
         pip_site_packages_path = os.path.join(server_output_bin_python_dir, 'Lib', 'site-packages')
-    if IS_DARWIN:
+    elif IS_DARWIN:
         python_interpreter_path = os.path.join(server_output_bin_python_dir, 'bin', 'python3')
         version = '3.12'
         pip_site_packages_path = os.path.join(server_output_bin_python_dir, 'lib', 'python' + version, 'site-packages')
+    else:
+        return 0
 
     # 集群分析工具依赖的三方库在Windows系统和macOS系统上需要安装到构建产物里
     # requirements.txt包含了通过import *显式导入的三方库和pandas使用到的三方库
@@ -208,9 +212,21 @@ def pip_install_third_party_for_cluster_analysis():
     # sqlalchemy->greenlet, typing-extensions
     # Python解释器使用绝对路径，三方库安装到指定目录
     requirements_path = os.path.join(BUILD_DIR, 'requirements.txt')
-    pip_install_cmds = [python_interpreter_path, '-m', 'pip', 'install', '-r', requirements_path,
-                        '--target', pip_site_packages_path, '-i', 'https://mirrors.aliyun.com/pypi/simple/',
-                        '--only-binary', ':all:', '--no-cache-dir']
+    pip_install_cmds = [
+        python_interpreter_path,
+        '-m',
+        'pip',
+        'install',
+        '-r',
+        requirements_path,
+        '--target',
+        pip_site_packages_path,
+        '-i',
+        'https://mirrors.aliyun.com/pypi/simple/',
+        '--only-binary',
+        ':all:',
+        '--no-cache-dir',
+    ]
     result = execute_cmd(pip_install_cmds, None)
     if result != 0:
         build_log('Failed to pip install third party packages for cluster analysis.')
@@ -246,8 +262,13 @@ def build_test():
         os.makedirs(build_dir)
 
     build_cmds = [
-        'cmake', HOME_DIR, '-G', generator, '-DCMAKE_BUILD_TYPE=Release',
-        '-D_PROJECT_TYPE=test'
+        'cmake',
+        HOME_DIR,
+        '-G',
+        generator,
+        '-DCMAKE_BUILD_TYPE=Release',
+        '-D_PROJECT_TYPE=test',
+        CMAKE_POLICY_VERSION_MINIMUM,
     ]
 
     result = execute_cmd(build_cmds, build_dir)
@@ -275,6 +296,9 @@ def main():
     parser = argparse.ArgumentParser(description='build dic server project')
     subparsers = parser.add_subparsers(help='sub command help')
     parser_build = subparsers.add_parser('build', help='build dic server')
+    parser_build.add_argument(
+        '--release', action='store_true', help='compatibility option; server builds are release builds by default'
+    )
     parser_build.set_defaults(func=build)
 
     parser_test = subparsers.add_parser('test', help='test build')

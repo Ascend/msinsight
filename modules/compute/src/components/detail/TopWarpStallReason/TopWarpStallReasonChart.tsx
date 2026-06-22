@@ -10,7 +10,7 @@
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
- * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
@@ -19,13 +19,17 @@ import { useTranslation } from 'react-i18next';
 import * as echarts from 'echarts';
 import { COLOR, getAdaptiveEchart, chartVisbilityListener, safeStr, sortFunc, chartColors, getDefaultChartOptions } from '@insight/lib/utils';
 import { cloneDeep } from 'lodash';
+import { CompareData } from '../../../utils/interface';
+import { type IStallReasonData } from './Index';
 
 interface Iprops {
-    data: Array<{ name: string; value: number }>;
+    data: Array<CompareData<IStallReasonData>>;
+    isCompared: boolean;
 }
 
 interface SeriesData {
     value: number;
+    source?: string;
 }
 
 interface Series {
@@ -53,7 +57,12 @@ const baseOption = {
         formatter: function (params: any[]): string {
             let result: string = `${safeStr(params[0]?.name)}`;
             params.forEach(param => {
-                result += `<br/>${param?.marker} ${safeStr(param?.name)}: ${param?.data?.value}`;
+                const source = param.data?.source;
+                if (source !== undefined) {
+                    result += `<br/>${param?.marker} ${safeStr(source)}: ${param?.data?.value}`;
+                } else {
+                    result += `<br/>${param?.marker} ${safeStr(param?.name)}: ${param?.data?.value}`;
+                }
             });
             return result;
         },
@@ -108,25 +117,38 @@ const defaultSeries: Series = {
 
 const chartID = 'TopWarpStallReason';
 
-function InitCharts(data: Array<{ name: string; value: number }>, title: string): void {
+function InitCharts(data: Array<CompareData<IStallReasonData>>, title: string, isCompared: boolean): void {
     const chartDom = document.getElementById(chartID);
     if (chartDom === null || chartDom.offsetParent === null) {
         return;
     }
     const myChart: echarts.ECharts = getAdaptiveEchart(chartDom);
-    myChart.setOption(wrapData(data, title), { replaceMerge: ['series'] });
+    myChart.setOption(wrapData(data, title, isCompared), { replaceMerge: ['series'] });
 }
 
-function wrapData(data: Array<{ name: string; value: number }>, title: string): any {
+function wrapData(data: Array<CompareData<IStallReasonData>>, title: string, isCompared: boolean): any {
     const option = cloneDeep(baseOption);
     option.title.text = title;
-    const sorted = [...data].sort((a, b) => sortFunc(String(a.value), String(b.value)));
-    const namelist = sorted.map(item => item.name);
+    const sorted = [...data].sort((a, b) => sortFunc(String(a.compare.value), String(b.compare.value)));
+    const namelist = sorted.map(item => item.compare.name);
     option.yAxis.data = namelist;
-    const valueList = sorted.map(item => ({ value: item.value } as SeriesData));
-    const series: Series = cloneDeep(defaultSeries);
-    series.data = valueList;
-    option.series = [series];
+    option.series = [];
+    if (isCompared) {
+        const compareValueList = sorted.map(item => ({ value: item.compare.value, source: 'Comparison' } as SeriesData));
+        const baselineValueList = sorted.map(item => ({ value: item.baseline.value, source: 'Baseline' } as SeriesData));
+        const compare: Series = cloneDeep(defaultSeries);
+        const baseline: Series = cloneDeep(defaultSeries);
+        baseline.name = 'baseline';
+        compare.data = compareValueList;
+        baseline.data = baselineValueList;
+        option.series.push(compare);
+        option.series.push(baseline);
+    } else {
+        const valueList = sorted.map(item => ({ value: item.compare.value } as SeriesData));
+        const compare: Series = cloneDeep(defaultSeries);
+        compare.data = valueList;
+        option.series.push(compare);
+    }
     // 左边距
     let maxLength = 0;
     namelist.forEach(item => {
@@ -138,21 +160,21 @@ function wrapData(data: Array<{ name: string; value: number }>, title: string): 
     return option;
 }
 
-function TopWarpStallReasonChart({ data }: Iprops): JSX.Element {
+function TopWarpStallReasonChart({ data, isCompared }: Iprops): JSX.Element {
     const { t } = useTranslation('details');
     const showData = useMemo(() => data, [data]);
     const title = t('TopWarpStallReason');
     const unit = t('Stall Count');
 
     chartVisbilityListener(chartID, () => {
-        InitCharts(showData, title);
+        InitCharts(showData, title, isCompared);
     });
 
     useEffect(() => {
         setTimeout(() => {
-            InitCharts(showData, title);
+            InitCharts(showData, title, isCompared);
         });
-    }, [showData, title]);
+    }, [showData, title, isCompared]);
 
     return (
         <div style={{ marginBottom: '20px' }}>
