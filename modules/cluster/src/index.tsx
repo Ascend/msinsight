@@ -21,7 +21,7 @@ import './index.css';
 import connector from './connection';
 import { NOTIFICATION_HANDLERS } from './interface';
 import React from 'react';
-import { createRequest, disableShortcuts } from '@insight/lib/utils';
+import { createRequest, createDebounceRequest, disableShortcuts } from '@insight/lib/utils';
 import { store } from './store';
 
 Object.entries(NOTIFICATION_HANDLERS).forEach(([event, callback]) => {
@@ -70,6 +70,12 @@ declare global {
 declare global {
     interface Window {
         requestData: (method: string, params: any, module?: string) => Promise<any>;
+        requestDataDebounced: ((method: string, params: any, module?: string) => Promise<any>) & {
+            cancel: (key?: string) => void;
+            flush: (key?: string) => void;
+            getPendingCount: () => number;
+            getPendingKeys: () => string[];
+        };
         dataSource: DataSource;
 
         closeWaiting: () => void;
@@ -77,3 +83,4 @@ declare global {
 };
 
 window.requestData = createRequest(connector);
+window.requestDataDebounced = createDebounceRequest(connector, { delay: 300, leading: false });
