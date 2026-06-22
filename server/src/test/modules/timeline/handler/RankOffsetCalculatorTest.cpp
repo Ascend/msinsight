@@ -12,6 +12,7 @@ TEST(RankOffsetCalculatorTest, ClassifiesDeviceSideMetaTypes) {
 TEST(RankOffsetCalculatorTest, ClassifiesHostSideMetaTypes) {
     EXPECT_EQ(RankOffsetCalculator::GetSide("CANN_API"), RankOffsetSide::HOST);
     EXPECT_EQ(RankOffsetCalculator::GetSide("PYTORCH_API"), RankOffsetSide::HOST);
+    EXPECT_EQ(RankOffsetCalculator::GetSide("PYTORCH_API_PYTHON_STACK"), RankOffsetSide::HOST);
     EXPECT_EQ(RankOffsetCalculator::GetSide("OSRT_API"), RankOffsetSide::HOST);
     EXPECT_EQ(RankOffsetCalculator::GetSide("MSTX_EVENTS"), RankOffsetSide::HOST);
     EXPECT_EQ(RankOffsetCalculator::GetSide("TEXT"), RankOffsetSide::HOST);
@@ -34,6 +35,7 @@ TEST(RankOffsetCalculatorTest, IsSameSideReturnsTrueForMatchingSide) {
     EXPECT_TRUE(RankOffsetCalculator::IsSameSide("HCCL", RankOffsetSide::DEVICE));
     EXPECT_TRUE(RankOffsetCalculator::IsSameSide("CANN_API", RankOffsetSide::HOST));
     EXPECT_TRUE(RankOffsetCalculator::IsSameSide("PYTORCH_API", RankOffsetSide::HOST));
+    EXPECT_TRUE(RankOffsetCalculator::IsSameSide("PYTORCH_API_PYTHON_STACK", RankOffsetSide::HOST));
 }
 
 TEST(RankOffsetCalculatorTest, IsSameSideReturnsFalseForMismatchingSide) {

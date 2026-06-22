@@ -49,6 +49,7 @@ class RankOffsetCalculator {
         static const std::set<std::string> hostMetaTypes = {
             "CANN_API",
             "PYTORCH_API",
+            "PYTORCH_API_PYTHON_STACK",
             "OSRT_API",
             "MSTX_EVENTS",
             "TEXT",
