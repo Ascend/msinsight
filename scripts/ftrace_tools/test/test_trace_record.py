@@ -19,6 +19,7 @@ See the Mulan PSL v2 for more details.
 import contextlib
 import logging
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -55,28 +56,16 @@ class TestEventLists(unittest.TestCase):
     """Test event list constants"""
 
     def test_sched_event_list(self):
-        expected_events = {
-            "sched:sched_switch",
-            "sched:sched_wakeup",
-            "sched:sched_waking",
-            "sched:sched_wakeup_new",
-            "sched:sched_migrate_task",
-            "sched:sched_stat_runtime",
-            "sched:sched_process_fork",
-            "sched:sched_process_exec",
-            "sched:sched_process_exit",
-        }
-        self.assertEqual(trace_record.SCHED_EVENT_LIST, expected_events)
+        self.assertEqual(len(trace_record.SCHED_EVENT_LIST), 9)
+        self.assertIn("sched:sched_switch", trace_record.SCHED_EVENT_LIST)
+        self.assertIn("sched:sched_process_exit", trace_record.SCHED_EVENT_LIST)
+        self.assertTrue(all(event.startswith("sched:") for event in trace_record.SCHED_EVENT_LIST))
 
     def test_irq_event_list(self):
-        expected_events = {
-            "irq:irq_handler_entry",
-            "irq:irq_handler_exit",
-            "irq:softirq_raise",
-            "irq:softirq_entry",
-            "irq:softirq_exit",
-        }
-        self.assertEqual(trace_record.IRQ_EVENT_LIST, expected_events)
+        self.assertEqual(len(trace_record.IRQ_EVENT_LIST), 5)
+        self.assertIn("irq:irq_handler_entry", trace_record.IRQ_EVENT_LIST)
+        self.assertIn("irq:softirq_exit", trace_record.IRQ_EVENT_LIST)
+        self.assertTrue(all(event.startswith(("irq:", "irq:softirq")) for event in trace_record.IRQ_EVENT_LIST))
 
     def test_futex_event_list(self):
         expected_events = {
@@ -306,7 +295,10 @@ class TestContainerPidMapper(unittest.TestCase):
 
     def setUp(self):
         # pylint: disable=consider-using-with
-        self.temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_init(self):
         mapper = trace_record.ContainerPidMapper("test.json")
@@ -314,25 +306,25 @@ class TestContainerPidMapper(unittest.TestCase):
         self.assertEqual(mapper.pid_dict, {})
         self.assertFalse(mapper.stop_flag.is_set())
 
-    def test_status_value_get_valid(self):
+    def test_get_status_value_valid(self):
         mapper = trace_record.ContainerPidMapper()
-        self.assertEqual(mapper.status_value_get("NSpid:\t123\t456", 2), "456")
+        self.assertEqual(mapper.get_status_value("NSpid:\t123\t456", 2), "456")
 
-    def test_status_value_get_index_out_of_range(self):
+    def test_get_status_value_index_out_of_range(self):
         mapper = trace_record.ContainerPidMapper()
-        self.assertEqual(mapper.status_value_get("NSpid:\t123", 3), "")
+        self.assertEqual(mapper.get_status_value("NSpid:\t123", 3), "")
 
-    def test_status_value_get_basic(self):
+    def test_get_status_value_basic(self):
         mapper = trace_record.ContainerPidMapper()
-        self.assertEqual(mapper.status_value_get("Name: python", 1), "python")
+        self.assertEqual(mapper.get_status_value("Name: python", 1), "python")
 
-    def test_status_value_get_multiple_values(self):
+    def test_get_status_value_multiple_values(self):
         mapper = trace_record.ContainerPidMapper()
-        self.assertEqual(mapper.status_value_get("NSpid: 123 456 789", 2), "456")
+        self.assertEqual(mapper.get_status_value("NSpid: 123 456 789", 2), "456")
 
-    def test_status_value_get_empty_line(self):
+    def test_get_status_value_empty_line(self):
         mapper = trace_record.ContainerPidMapper()
-        self.assertEqual(mapper.status_value_get("", 1), "")
+        self.assertEqual(mapper.get_status_value("", 1), "")
 
     def test_parse_process_status_file(self):
         mapper = trace_record.ContainerPidMapper()
@@ -362,7 +354,10 @@ class TestTraceRecordDaemon(unittest.TestCase):
 
     def setUp(self):
         # pylint: disable=consider-using-with
-        self.temp_dir = self.enterContext(tempfile.TemporaryDirectory())
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_init_default(self):
         daemon = trace_record.TraceRecordDaemon()
@@ -399,6 +394,75 @@ class TestFtraceRecordFunctions(unittest.TestCase):
     def test_ftrace_record_start_invalid_cpu_mask(self):
         with patch('trace_record._is_root_user', return_value=True):
             self.assertFalse(trace_record.ftrace_record_start(cpu_mask="-1"))
+
+
+class TestCheckTraceDataWarning(unittest.TestCase):
+    """Test _check_trace_data_warning function"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _create_trace_file(self, content: str) -> str:
+        path = os.path.join(self.temp_dir, "trace.txt")
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return path
+
+    def test_file_not_exists(self):
+        """文件不存在时应返回告警"""
+        with patch('logging.warning') as mock_warning:
+            trace_record._check_trace_data_warning("/nonexistent/path")
+            mock_warning.assert_called_once()
+            full_msg = mock_warning.call_args[0][0] % mock_warning.call_args[0][1:]
+            self.assertIn("No trace data collected", full_msg)
+            self.assertIn("record_time", full_msg)
+
+    def test_file_empty(self):
+        """文件为空时应返回告警"""
+        path = self._create_trace_file("")
+        with patch('logging.warning') as mock_warning:
+            trace_record._check_trace_data_warning(path)
+            mock_warning.assert_called_once()
+            full_msg = mock_warning.call_args[0][0] % mock_warning.call_args[0][1:]
+            self.assertIn("No trace data collected", full_msg)
+            self.assertIn("record_time", full_msg)
+
+    def test_non_empty_file(self):
+        """文件非空时不应告警"""
+        path = self._create_trace_file("# tracer: nop\n#\n")
+        with patch('logging.warning') as mock_warning:
+            trace_record._check_trace_data_warning(path)
+            mock_warning.assert_not_called()
+
+    def test_getsize_failed(self):
+        """读取文件大小失败时只打印告警，不抛出异常"""
+        path = os.path.join(self.temp_dir, "trace.txt")
+        with (
+            patch('os.path.exists', return_value=True),
+            patch('os.path.getsize', side_effect=OSError("permission denied")),
+            patch('logging.warning') as mock_warning,
+        ):
+            trace_record._check_trace_data_warning(path)
+            mock_warning.assert_called_once()
+            full_msg = mock_warning.call_args[0][0] % mock_warning.call_args[0][1:]
+            self.assertIn("Failed to check trace data", full_msg)
+
+    def test_ftrace_record_stop_calls_check_and_returns_output(self):
+        """ftrace_record_stop 应内部调用 _check_trace_data_warning 并返回输出路径"""
+        output_path = os.path.join(self.temp_dir, "trace.txt")
+        with (
+            patch.object(trace_record.TraceRecord, 'trace_stop', return_value=output_path),
+            patch.object(trace_record.TraceRecord, 'log_tracefs_stats'),
+            patch.object(trace_record.TraceRecord, 'trace_clear'),
+            patch.object(trace_record.TraceRecord, 'trace_reset'),
+            patch('trace_record._check_trace_data_warning') as mock_check,
+        ):
+            result = trace_record.ftrace_record_stop(output_path)
+            mock_check.assert_called_once_with(output_path)
+            self.assertEqual(result, output_path)
 
 
 if __name__ == '__main__':

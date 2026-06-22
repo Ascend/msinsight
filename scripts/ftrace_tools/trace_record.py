@@ -108,6 +108,32 @@ def ftrace_record_start(
         return False
 
 
+def _check_trace_data_warning(output_path: str) -> None:
+    """检查采集输出文件是否包含有效数据，若无则打印告警。
+
+    Args:
+        output_path: 输出文件路径
+    """
+    hint = (
+        "The collection time may have been too short to capture any data. "
+        "Consider increasing --record_time, or reducing --bf_size "
+        "(to shorten trace-cmd warmup time, provided no ring buffer data loss occurs)."
+    )
+
+    if output_path is None or not os.path.exists(output_path):
+        logging.warning("No trace data collected: output file does not exist. %s", hint)
+        return
+
+    try:
+        file_size = os.path.getsize(output_path)
+    except OSError as exc:
+        logging.warning("Failed to check trace data in %s: %s", output_path, exc)
+        return
+
+    if file_size == 0:
+        logging.warning("No trace data collected: trace file is empty (0 bytes). %s", hint)
+
+
 def ftrace_record_stop(output=None):
     logging.info("Ending record, cleaning up...")
     final_output = None
@@ -128,7 +154,8 @@ def ftrace_record_stop(output=None):
         if final_output is not None:
             logging.info("Trace data saved to %s", final_output)
         logging.info("Cleanup finished")
-        return final_output
+    _check_trace_data_warning(final_output or output)
+    return final_output
 
 
 def on_exit(signum=None, frame=None):
@@ -588,10 +615,10 @@ class TraceRecord:
                         if proc.poll() is not None:
                             break
                     return_code = proc.wait(timeout=TraceRecord._WAIT_TIMEOUT_SEC)
-                    logging.info(
-                        "trace-cmd record process stopped: returncode=%s",
-                        return_code,
-                    )
+                    if return_code in (0, -signal.SIGINT):
+                        logging.info("trace-cmd record process stopped normally")
+                    else:
+                        logging.warning("trace-cmd record process stopped with exit code %s", return_code)
                 except subprocess.TimeoutExpired:
                     try:
                         proc.terminate()
@@ -683,16 +710,16 @@ class ContainerPidMapper:
         status = {"name": "", "NSpid": "", "Tgid": "", "PPid": ""}
         for line in file:
             if line.startswith("NSpid:"):
-                status['NSpid'] = self.status_value_get(line, 2)
+                status['NSpid'] = self.get_status_value(line, 2)
             if line.startswith("Name:"):
-                status['name'] = self.status_value_get(line, 1)
+                status['name'] = self.get_status_value(line, 1)
             if line.startswith("Tgid"):
-                status['Tgid'] = self.status_value_get(line, 1)
+                status['Tgid'] = self.get_status_value(line, 1)
             if line.startswith('PPid'):
-                status['PPid'] = self.status_value_get(line, 1)
+                status['PPid'] = self.get_status_value(line, 1)
         return status
 
-    def status_value_get(self, line: str, index: int):
+    def get_status_value(self, line: str, index: int):
         parts = line.strip().split()
         if len(parts) <= index:
             return ""
