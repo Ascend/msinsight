@@ -61,6 +61,8 @@ class DetailsService {
     static std::vector<DetailsInterCoreLoadSubCoreDetail> MergeCoreDetail(
         const std::vector<DetailsInterCoreLoadSubCoreDetail> &compare,
         const std::vector<DetailsInterCoreLoadSubCoreDetail> &baseline);
+    static std::vector<CompareData<StallReasonItem>> MergeTopWarpStallReason(
+        const std::vector<StallReasonItem> &compare, const std::vector<StallReasonItem> &baseline);
 };
 }
 }

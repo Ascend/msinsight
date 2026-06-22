@@ -179,6 +179,6 @@ export const queryCacheRecord = async(): Promise<QueryCacheRecordReturn> => {
     return window.requestData('source/cache/cachelineRecords', {}) as Promise<QueryCacheRecordReturn>;
 };
 
-export const queryTopWarpStallReason = async(): Promise<any> => {
-    return window.requestData('source/queryTopWarpStallReason', {});
+export const queryTopWarpStallReason = async(param: { isCompared: boolean }): Promise<any> => {
+    return window.requestData('source/queryTopWarpStallReason', param);
 };

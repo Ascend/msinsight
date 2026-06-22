@@ -65,6 +65,7 @@ std::optional<document_t> CompareTableRowToJson(
     const std::vector<CompareData<TableRow>> &rows, Document::AllocatorType &allocator);
 std::optional<document_t> PercentageAndDetailsToJson(
     const Module::Source::PercentageAndDetails &item, Document::AllocatorType &allocator);
+std::optional<document_t> TopWarpStallReasonItemToJson(const StallReasonItem &item, Document::AllocatorType &allocator);
 void SetSourceApiLineResponseBody(
     const std::vector<SourceFileLineRes> &lines, json_t &body, Document::AllocatorType &allocator);
 } // end of namespace Protocol

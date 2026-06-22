@@ -140,8 +140,13 @@ struct DetailsRooflineRequest : public Request {
     DetailsRooflineParams params;
 };
 
+struct SourceTopWarpStallReasonParams {
+    bool isCompared = false;
+};
+
 struct SourceTopWarpStallReasonRequest : public Request {
     SourceTopWarpStallReasonRequest() : Request(REQ_RES_TOP_WARP_STALL_REASON) {}
+    SourceTopWarpStallReasonParams params;
 };
 
 } // end of namespace Protocol

@@ -397,7 +397,7 @@ struct StallReasonItem {
 
 struct TopWarpStallReasonResBody {
     std::string unit;
-    std::vector<StallReasonItem> data;
+    std::vector<CompareData<StallReasonItem>> data;
 };
 
 struct TopWarpStallReasonResponse : public Response {

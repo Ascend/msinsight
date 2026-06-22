@@ -340,10 +340,48 @@ bool DetailsService::QueryCoreLoadAnalysisGraph(
 bool DetailsService::QueryTopWarpStallReason(
     const SourceTopWarpStallReasonRequest &request, TopWarpStallReasonResponse &response) {
     response.body.unit = "count";
-    bool result = SourceFileParser::Instance().GetTopWarpStallReason(response.body.data);
-    // 数据段不存在时 result 为 false 但 data 为空 vector，仍返回 true 表示请求成功
-    (void)result;
+    std::vector<StallReasonItem> compareData;
+    bool result = SourceFileParser::Instance().GetTopWarpStallReason(compareData, false);
+    if (!result) {
+        return true;
+    }
+    std::vector<StallReasonItem> baselineData;
+    response.body.data = MergeTopWarpStallReason(compareData, baselineData);
+    if (!request.params.isCompared) {
+        return true;
+    }
+    bool baselineRes = SourceFileParser::Instance().GetTopWarpStallReason(baselineData, true);
+    if (!baselineRes) {
+        return true;
+    }
+    response.body.data = MergeTopWarpStallReason(compareData, baselineData);
     return true;
+}
+
+std::vector<CompareData<StallReasonItem>> DetailsService::MergeTopWarpStallReason(
+    const std::vector<StallReasonItem> &compare, const std::vector<StallReasonItem> &baseline) {
+    std::unordered_map<std::string, CompareData<StallReasonItem>> stallReasonMap;
+    for (const auto &item : compare) {
+        stallReasonMap[item.name].compare = item;
+        stallReasonMap[item.name].baseline.name = item.name;
+        stallReasonMap[item.name].diff.name = item.name;
+        stallReasonMap[item.name].diff.value = item.value;
+    }
+    for (const auto &item : baseline) {
+        auto &stallReason = stallReasonMap[item.name];
+        if (stallReason.compare.name.empty()) {
+            stallReason.compare.name = item.name;
+        }
+        stallReason.baseline = item;
+        stallReason.diff.name = item.name;
+        stallReason.diff.value = stallReason.compare.value - item.value;
+    }
+    std::vector<CompareData<StallReasonItem>> result;
+    result.reserve(stallReasonMap.size());
+    for (const auto &item : stallReasonMap) {
+        result.push_back(item.second);
+    }
+    return result;
 }
 
 std::vector<DetailsInterCoreLoadOpDetail> DetailsService::MergeCoreLoadOpDetail(

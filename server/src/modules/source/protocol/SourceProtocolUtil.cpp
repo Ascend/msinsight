@@ -593,6 +593,14 @@ template <> std::optional<document_t> ToResponseJson<CachelineRecordResponse>(co
     return std::optional<document_t>{std::move(json)};
 }
 
+std::optional<document_t> TopWarpStallReasonItemToJson(
+    const StallReasonItem &item, Document::AllocatorType &allocator) {
+    document_t itemJson(kObjectType);
+    JsonUtil::AddMember(itemJson, "name", item.name, allocator);
+    JsonUtil::AddMember(itemJson, "value", item.value, allocator);
+    return std::optional<document_t>{std::move(itemJson)};
+}
+
 template <>
 std::optional<document_t> ToResponseJson<TopWarpStallReasonResponse>(const TopWarpStallReasonResponse &response) {
     document_t json(kObjectType);
@@ -603,8 +611,12 @@ std::optional<document_t> ToResponseJson<TopWarpStallReasonResponse>(const TopWa
     json_t data(kArrayType);
     for (const auto &item : response.body.data) {
         json_t itemJson(kObjectType);
-        JsonUtil::AddMember(itemJson, "name", item.name, allocator);
-        JsonUtil::AddMember(itemJson, "value", item.value, allocator);
+        std::optional<document_t> compare = TopWarpStallReasonItemToJson(item.compare, allocator);
+        JsonUtil::AddMember(itemJson, "compare", compare, allocator);
+        std::optional<document_t> baseline = TopWarpStallReasonItemToJson(item.baseline, allocator);
+        JsonUtil::AddMember(itemJson, "baseline", baseline, allocator);
+        std::optional<document_t> diff = TopWarpStallReasonItemToJson(item.diff, allocator);
+        JsonUtil::AddMember(itemJson, "diff", diff, allocator);
         data.PushBack(itemJson, allocator);
     }
     JsonUtil::AddMember(body, "data", data, allocator);

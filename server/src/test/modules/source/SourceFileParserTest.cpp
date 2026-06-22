@@ -124,7 +124,7 @@ TEST_F(SourceFileParserTest, GetTopWarpStallReason_DataExists) {
     WaitParseEnd({testBinPath});
 
     std::vector<Protocol::StallReasonItem> data;
-    bool result = parser.GetTopWarpStallReason(data);
+    bool result = parser.GetTopWarpStallReason(data, false);
     EXPECT_TRUE(result);
     EXPECT_EQ(data.size(), 8);
 
@@ -150,7 +150,7 @@ TEST_F(SourceFileParserTest, GetTopWarpStallReason_NoDataBlock) {
 
     // 不调用 Parse，直接获取数据 — 应该返回 false 因为 dataBlockMap 为空
     std::vector<Protocol::StallReasonItem> data;
-    bool result = parser.GetTopWarpStallReason(data);
+    bool result = parser.GetTopWarpStallReason(data, false);
     EXPECT_FALSE(result);
     EXPECT_TRUE(data.empty());
 

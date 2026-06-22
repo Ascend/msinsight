@@ -192,6 +192,7 @@ std::unique_ptr<Request> SourceProtocol::ToTopWarpStallReasonRequest(const Dic::
         error = "Failed to set request base info, command is: " + reqPtr->command;
         return nullptr;
     }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.isCompared, json["params"], "isCompared");
     return reqPtr;
 }
 
