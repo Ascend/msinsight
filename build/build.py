@@ -45,6 +45,7 @@ class Const:
     FRAMEWORK_DIR = 'framework'
     MODULES_DIR = 'modules'
     SERVER_DIR = 'server'
+    insight_web_agent_DIR = 'insight_web_agent'
     SCRIPT_DIR = 'scripts'
     BUILD_DIR = 'build'
     SRC_DIR = 'src'
@@ -118,6 +119,7 @@ def clean():
         'leaks',
         'reinforcement-learning',
         'memory-on-chip',
+        'insight_web_agent',
     ]
     for module in modules:
         build_dir = os.path.join(PROJECT_PATH, Const.MODULES_DIR, module, Const.BUILD_DIR)
@@ -199,6 +201,24 @@ def build_frontend():
     if result != 0:
         return 1
 
+    return 0
+
+
+def build_acp_node_service():
+    module_name = 'acp_node_service'
+    acp_module_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.insight_web_agent_DIR)
+    result = exec_command([Const.PNPM, 'server:build'], acp_module_path, module_name)
+    if result != 0:
+        return 1
+
+    source_path = os.path.join(acp_module_path, 'dist-server')
+    target_path = os.path.join(
+        PROJECT_PATH, Const.SERVER_DIR, 'output', Const.BUILD_DIR, Const.SERVER_DIR, Const.insight_web_agent_DIR
+    )
+    if os.path.exists(target_path):
+        shutil.rmtree(target_path)
+    shutil.copytree(source_path, target_path)
+    logging.info('[%s]Copied ACP node service to %s', module_name, target_path)
     return 0
 
 
@@ -801,12 +821,17 @@ def run_parallel_functions(named_functions):
 
 
 def build_core_artifacts(context: BuildContext):
-    return run_parallel_functions(
+    result = run_parallel_functions(
         [
             ('server', build_server),
             ('frontend', build_frontend),
         ]
     )
+
+    if result != 0:
+        return result
+
+    return build_acp_node_service()
 
 
 def build_optional_artifacts(context: BuildContext):

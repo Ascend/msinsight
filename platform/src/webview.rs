@@ -41,6 +41,7 @@ fn create_webview(
     cache_path: Arc<PathBuf>,
     resource_path: Arc<PathBuf>,
     port: u16,
+    acp_port: u16,
     proxy: Arc<EventLoopProxy<PathBuf>>,
 ) -> wry::Result<WebView> {
     WebViewBuilder::new(window)?
@@ -58,7 +59,7 @@ fn create_webview(
                 .body(content)
                 .map_err(Into::into)
         })
-        .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}", port).as_str())?
+        .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}&acpPort={}", port, acp_port).as_str())?
         .with_file_drop_handler(move |_, ev| {
             match ev {
                 FileDropEvent::Dropped(paths) => {
@@ -214,6 +215,7 @@ pub fn run_script(
     root_path: &PathBuf,
     cache_path: &PathBuf,
     port: u16,
+    acp_port: u16,
 ) -> wry::Result<(EventLoop<PathBuf>, WebView)> {
     let event_loop = EventLoop::with_user_event();
 
@@ -240,7 +242,7 @@ pub fn run_script(
     #[cfg(windows)]
     set_windows_icon(&window, root_path);
 
-    let webview = create_webview(window, log_path, resource_path, port, proxy)?;
+    let webview = create_webview(window, log_path, resource_path, port, acp_port, proxy)?;
 
     Ok((event_loop, webview))
 }

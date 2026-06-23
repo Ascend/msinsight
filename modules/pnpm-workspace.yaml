@@ -10,3 +10,4 @@ packages:
   - 'timeline'
   - 'reinforcement-learning'
   - 'memory-on-chip'
+  - 'insight_web_agent'
