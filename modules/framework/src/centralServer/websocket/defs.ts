@@ -32,14 +32,20 @@ const getParamMap = (): Map<string, string> => {
     if (!paramMap.has('port')) {
         paramMap.set('port', '9000');
     }
+    if (!paramMap.has('acpPort')) {
+        paramMap.set('acpPort', '9090');
+    }
     return paramMap;
 };
 const PARAM_MAP = getParamMap();
 const port: number = Number.parseInt(<string>PARAM_MAP.get('port'));
+const acpPort: number = Number.parseInt(<string>PARAM_MAP.get('acpPort'));
+
 const jupyterlabProxy: boolean = PARAM_MAP.get('jupyterlabProxy') === 'true';
 
 export const LOCAL_HOST = '127.0.0.1';
 export const PORT: number = port;
+export const ACP_PORT: number = acpPort;
 export const JUPYTERLABPROXY: boolean = jupyterlabProxy;
 export const GLOBAL_HOST = { remote: LOCAL_HOST, port: PORT };
 

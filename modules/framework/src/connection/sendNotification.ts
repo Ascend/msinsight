@@ -23,11 +23,15 @@ import { ThemeName, Language } from '@/utils/enum';
 import type { LayerType } from '@/centralServer/websocket/defs';
 
 export function sendTheme(to?: string): void {
+    const isDark = themeInstance.getCurrentTheme() === ThemeName.DARK;
     connector.send({
         event: 'setTheme',
-        body: { isDark: themeInstance.getCurrentTheme() === ThemeName.DARK },
+        body: { isDark },
         to,
     });
+    (document.getElementById('AcpSession') as HTMLIFrameElement | null)
+        ?.contentWindow
+        ?.postMessage({ event: 'setTheme', body: { isDark } }, '*');
 }
 
 export function sendModuleReset(): void {

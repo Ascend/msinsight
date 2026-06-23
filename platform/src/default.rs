@@ -30,6 +30,8 @@ use crate::webview;
 
 const SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "profiler_server"];
+const ACP_SERVER_RELATIVE_LIST: [&str; 4] =
+    ["resources", "profiler", "server", "insight_web_agent"];
 #[cfg(windows)]
 const NO_WINDOW_FLAG: u32 = 0x08000000;
 
@@ -95,6 +97,46 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
     }
 }
 
+fn acp_server_path(root_path: &PathBuf) -> Option<PathBuf> {
+    let mut server_path = root_path.to_path_buf();
+    for tmp in ACP_SERVER_RELATIVE_LIST {
+        server_path.push(tmp);
+    }
+
+    if !server_path.join("index.mjs").exists() {
+        return None;
+    }
+
+    Some(server_path)
+}
+
+fn run_acp_server(root_path: &PathBuf, port: u16) {
+    let Some(acp_path) = acp_server_path(root_path) else {
+        eprintln!("ACP node server path does not exist");
+        return;
+    };
+    let entry_path = acp_path.join("index.mjs");
+
+    let mut server_command = Command::new("node");
+
+    #[cfg(windows)]
+    server_command.creation_flags(NO_WINDOW_FLAG);
+
+    match server_command
+        .arg(entry_path)
+        .arg("--path")
+        .arg(acp_path)
+        .arg("--port")
+        .arg(port.to_string())
+        .spawn()
+    {
+        Ok(child) => unsafe {
+            ACP_PID = child.id();
+        },
+        _ => eprintln!("Failed to start ACP node server"),
+    }
+}
+
 fn home_dir() -> Option<PathBuf> {
     #[cfg(target_os = "windows")]
     {
@@ -148,6 +190,7 @@ fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
 }
 
 pub static mut PID: u32 = u32::MAX;
+pub static mut ACP_PID: u32 = u32::MAX;
 
 pub fn main() {
     let mut cache_path = home_dir()
@@ -207,8 +250,14 @@ pub fn main() {
         return;
     };
 
-    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port) {
+    let Some(acp_port) = find_first_available_port(port + 1, 9100) else {
+        eprintln!("No available ACP port between 9000 and 9100");
+        return;
+    };
+
+    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port, acp_port) {
         run_server(&root_path, &cache_path, port);
+        run_acp_server(&root_path, acp_port);
         webview::run_event_loop(eventloop, webview)
     }
 }

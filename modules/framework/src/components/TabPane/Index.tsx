@@ -19,15 +19,17 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { observer } from 'mobx-react';
 import type { Scene, Session } from '@/entity/session';
 import { type MenuProps, message, Menu, Tooltip } from 'antd';
+import { Button } from '@insight/lib/components';
 import { safeJSONParse } from '@insight/lib/utils';
 
-import { type ModuleConfig, modulesConfig, MEM_SCOPE_MODULE_NAME, ON_CHIP_MEMORY_MODULE_NAME } from '@/moduleConfig';
+import { type ModuleConfig, modulesConfig, MEM_SCOPE_MODULE_NAME, ON_CHIP_MEMORY_MODULE_NAME, ACP_SESSION_SRC } from '@/moduleConfig';
 import styled from '@emotion/styled';
 import { SessionAction } from '@/utils/enum';
 import { useTranslation } from 'react-i18next';
 import { getModuleConfig } from '@/utils/Request';
 import { updateSession } from '@/connection/notificationHandler';
 import connector from '@/connection';
+import { ACP_PORT } from '@/centralServer/websocket/defs';
 
 const Container = styled.div`
     width: 100%;
@@ -54,6 +56,39 @@ const Container = styled.div`
         flex-grow: 1;
         height: calc(100% - 40px);
         background: ${(props): string => props.theme.bgColorDark};
+        display: flex;
+        min-height: 0;
+    }
+    .module-frame-area {
+        flex: 1 1 auto;
+        min-width: 0;
+        height: 100%;
+    }
+    .tab-toolbar {
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-right: 150px;
+        background: ${(props): string => props.theme.bgColorLight};
+    }
+    .tab-toolbar .ant-menu {
+        flex: 1 1 auto;
+        min-width: 0;
+        border-bottom: 0;
+    }
+    .session-toggle {
+        flex: 0 0 auto;
+        margin: 0 12px 0 8px;
+        min-width: 88px;
+    }
+    .acp-session-panel {
+        flex: 0 0 500px;
+        width: 500px;
+        height: calc(100% - 16px);
+        margin-top: 16px;
+        border-radius: 5px;
+        background: ${(props): string => props.theme.bgColorLight};
     }
     iframe {
         width: 100%;
@@ -120,11 +155,12 @@ function isAllowedIframeSrc(src: string | undefined | null): boolean {
     return cleanSrc.startsWith('./plugins/');
 }
 
-const Index = observer(({ session }: {session: Session}) => {
+const Index = observer(({ session }: { session: Session }) => {
     const { t } = useTranslation('framework', { keyPrefix: 'tabs' });
     const [scene, setScene] = useState<Scene>('Default');
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
     const [activeModule, setActiveModule] = useState('Timeline');
+    const [showSessionPanel, setShowSessionPanel] = useState(false);
     const [mergedModulesConfig, setMergedModulesConfig] = useState(modulesConfig);
     const prevFrameIdsRef = useRef<string[]>([]);
     const iframeLoadHandlersRef = useRef<Map<HTMLIFrameElement, () => void>>(new Map());
@@ -213,7 +249,7 @@ const Index = observer(({ session }: {session: Session}) => {
 
     // 添加监听新的页签加载后发送当前工程
     useEffect(() => {
-        const frames = document.querySelectorAll('iframe');
+        const frames = document.querySelectorAll('iframe:not(.acp-session-panel)');
         const frameIds = Array.prototype.map.call(frames, (frame: HTMLIFrameElement) => frame.id) as string[];
         const newFrames = Array.prototype.filter.call(frames, (frame: HTMLIFrameElement) => !prevFrameIdsRef.current.includes(frame.id)) as HTMLIFrameElement[];
 
@@ -278,17 +314,39 @@ const Index = observer(({ session }: {session: Session}) => {
             setActiveModule(ON_CHIP_MEMORY_MODULE_NAME);
         }
     }, [isTriton]);
+    const sessionToggleType = showSessionPanel ? 'primary' : 'default';
+    const acpSessionSrc = `${ACP_SESSION_SRC}${ACP_SESSION_SRC.includes('?') ? '&' : '?'}acpPort=${ACP_PORT}`;
     return <Container>
-        <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
-        <div className="tab-body">{availableModules.map(moduleConfig => (
-            <iframe
-                {...moduleConfig.attributes}
-                key={`frame-${moduleConfig.name}`}
-                id={moduleConfig.name}
-                name={moduleConfig.name}
-                style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
-            />
-        ))}
+        <div className="tab-toolbar">
+            <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
+            <Button
+                className="session-toggle"
+                size="small"
+                type={sessionToggleType}
+                onClick={() => setShowSessionPanel(value => !value)}
+            >
+                Agent View
+            </Button>
+        </div>
+        <div className="tab-body">
+            <div className="module-frame-area">{availableModules.map(moduleConfig => (
+                <iframe
+                    {...moduleConfig.attributes}
+                    key={`frame-${moduleConfig.name}`}
+                    id={moduleConfig.name}
+                    name={moduleConfig.name}
+                    style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
+                />
+            ))}</div>
+            <div className="acp-session-wrapper" style={{ display: showSessionPanel ? 'block' : 'none' }}>
+                <iframe
+                    className="acp-session-panel"
+                    id="AcpSession"
+                    name="AcpSession"
+                    src={acpSessionSrc}
+                    title="ACP Session"
+                />
+            </div>
         </div>
     </Container>;
 });
