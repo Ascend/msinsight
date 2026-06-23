@@ -119,3 +119,4 @@ def setup(app):
     app.add_js_file('right_toc.js')
     # 给部分md文档中html实现的table添加样式
     app.add_js_file('table_add_class_name.js')
+    app.add_js_file('public_operation.js')
