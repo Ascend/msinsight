@@ -2,7 +2,7 @@
 
 ## 安全声明
 
-介绍了MindStudio Insight工具安全相关信息和通信矩阵信息等，具体内容请参见[MindStudio Insight安全声明](./docs/zh/user_guide/security_statement.md)。
+介绍了MindStudio Insight工具安全相关信息和通信矩阵信息等，具体内容请参见[MindStudio Insight安全声明](./docs/zh/legal/security_statement.md)。
 
 ## 免责声明
 

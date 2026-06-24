@@ -33,29 +33,29 @@ For details about the profile data files that can be imported in the operator tu
   <tr>
     <td>trace.json</td>
     <td>Operator instruction pipeline trace file for visualization</td>
-    <td>For details, see <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
+    <td>For details, see <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/user_guide/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
     <td>Timeline</td>
   </tr>
   <tr>
     <td rowspan="3">visualize_data.bin</td>
     <td>Instruction pipeline data file for visualization</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/user_guide/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
     <td>Timeline</td>
   </tr>
   <tr>
     <td>Data file for visualizing basic operator information, computing unit load, and Roofline bottleneck analysis information.</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a>.</td>
     <td>Details</td>
   </tr>
   <tr>
     <td>Data file for visualizing information such as simulation hotspot functions.</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/user_guide/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
     <td>Source</td>
   </tr>
   <tr>
     <td>visualize_data.bin</td>
     <td>L2 cache access data file of user kernel functions for visualization</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a>.</td>
     <td>Cache</td>
   </tr>
 </tbody>
@@ -106,7 +106,7 @@ The **Timeline** interface consists of three parts: toolbar (area 1), graphical 
 |MTE3|Data transfer pipeline, from UBUF to {DDR/GM, L2, L1}, or from L1 to {DDR/L2}.|
 |CACHEMISS|Missed iCache.|
 |USEMASK|Custom instrumentation range.|
-|MTE Throughput|Memory throughput information.<br> `- GM_TO_L1`: throughput of data transferred from GM to L1.<br>` - GM_TO_TOTAL`: total throughput of GM output data.<br> `- GM_TO_UB`: throughput of data transferred from GM to UB.<br> `- L1_TO_GM`: throughput of data transferred from L1 to GM.<br> `- TOTAL_TO_GM`: total throughput of GM input data.<br> `- UB_TO_GM`: throughput of data transferred from UB to GM.|
+|MTE Throughput|Memory throughput information.<br> `- GM_TO_L1`: throughput of data transferred from GM to L1.<br>`- GM_TO_TOTAL`: total throughput of GM output data.<br> `- GM_TO_UB`: throughput of data transferred from GM to UB.<br> `- L1_TO_GM`: throughput of data transferred from L1 to GM.<br> `- TOTAL_TO_GM`: total throughput of GM input data.<br> `- UB_TO_GM`: throughput of data transferred from UB to GM.|
 
 ### Usage Description
 
@@ -245,11 +245,11 @@ MindStudio Insight supports instruction search on the **Timeline** interface.
 
 **Hide**
 
-For details about how to hide units in the operator tuning scenario, see [Unit Hiding](./system_tuning.md#page-tuning-example).
+For details about how to hide units in the operator tuning scenario, see [Unit Hiding](./system_tuning.md#displaying-page-optimization).
 
 **Unit height adaptation**
 
-For details about how to adapt the unit height in the operator tuning scenario, see [Adaptive Unit Height](./system_tuning.md#page-tuning-example).
+For details about how to adapt the unit height in the operator tuning scenario, see [Adaptive Unit Height](./system_tuning.md#displaying-page-optimization).
 
 #### Displaying Statistics
 

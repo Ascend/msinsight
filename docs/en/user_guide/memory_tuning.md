@@ -69,7 +69,7 @@ torch_npu.npu.memory._dump_snapshot("model_memory_snapshot.pickle")
 
 ### memscope Data Description
 
-You can import the memory result files in DB format collected by the msMemScope tool to display related content in graphics. For details about how to obtain the DB file, see section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/memory_profile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)" in the *msMemScope Memory Collection*. For details about the memory data that can be imported, see [**Table 1** Memory data description](#memory-data-description).
+You can import the memory result files in DB format collected by the msMemScope tool to display related content in graphics. For details about how to obtain the DB file, see section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/user_guide/memory_profile.md#collection-via-cli)" in the *msMemScope Memory Collection*. For details about the memory data that can be imported, see [**Table 1** Memory data description](#memory-data-description).
 
 **Table 1** Memory data description <a id="memory-data-description"></a>
 
@@ -251,7 +251,7 @@ The **Memory Details Table** area displays memory details by **Block View** and 
     | |Call Stack(C)|C call stack. This field is displayed only when the information is collected.|
 
     > [!NOTE]NOTE  
-    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/memory_profile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)" in *msMemScope Memory Collection*.
+    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/user_guide/memory_profile.md#collection-via-cli)" in *msMemScope Memory Collection*.
 
 - **Slice Detail**: displays details about the memory block, as shown in [**Figure 6** Slice Detail](#Slice Detail).
 
@@ -367,7 +367,7 @@ The memory details include the slice detail and system view. The slice detail di
     |Call Stack|Optional|Call stack of a memory event.|String|`/home/xxx/test/demo.py: 60 main`|Call stack of a memory event, which displays the call stack triggered when the memory event occurs. If the value is empty, the possible causes are as follows:<br><ul><li>Stacks are not enabled when `_record_memory_history` is called.</li><br><li>The event occurs in autograd during backward propagation, and there may be no call stack information.</li></ul>|
 
     > [!NOTE]NOTE  
-    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/memory_profile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)" in *msMemScope Memory Collection*.
+    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/user_guide/memory_profile.md#collection-via-cli)" in *msMemScope Memory Collection*.
 
 - **Slice Detail**: displays details about the memory block, as shown in [**Figure 5** Slice Detail](#slice-detail). For details about the fields, see [**Table 3** Slice Detail fields](#slice-detail-fields).
 
@@ -435,7 +435,7 @@ For excessive memory usage or OOM on the device, the issue analysis process is a
 **Preparing Software**
 
 - Download and install MindStudio Insight. For details, see [MindStudio Insight Installation Guide](./mindstudio_insight_install_guide.md).
-- Install the msMemScope tool. For details, see [msMemScope Installation Guide](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/install_guide.md).
+- Install the msMemScope tool. For details, see [msMemScope Installation Guide](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/install_guide/install_guide.md).
 
 **Preparing Data**
 
