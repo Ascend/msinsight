@@ -37,7 +37,7 @@ $ pip install jupyterlab==4.0.11
 > 安装完成后查看jupyterlab版本
 >
 > ```bash
-> $ jupyter -version
+> $ jupyter lab --version
 > ```
 >
 > ![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/jupyter-version-check.png)
