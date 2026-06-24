@@ -88,17 +88,14 @@
 | ------- | --------------- | ------------- | ------------- |
 | 26.0.0-alpha.1 | 2026/02/04  | tag_MindStudio_26.0.0-alpha.1 | Compatible with Ascend CANN 8.5.0 and earlier versions. For details about how to obtain the CANN installation package, see [CANN Installation Guide](https://www.hiascend.com/cann).|
 
-
-**[View the complete release notes](./docs/en/release_notes.md)**
-
 ## 🛠️ Installation
 
 MindStudio Insight can be installed and used on Windows, Linux, and macOS systems, and can be installed as a plugin. For details about the installation procedure, see [MindStudio Insight Installation Guide](./docs/en/user_guide/mindstudio_insight_install_guide.md).
 
 ## 🚀 Quick Start
 
-- [System Tuning](./docs/en/user_guide/quick_start/system_tuning_quick_start.md): Learn how to use the **Summary**, **Communication**, and **Timeline** tabs to analyze the model system performance.
-- [Operator Tuning](./docs/en/user_guide/quick_start/operator_tuning_quick_start.md): Learn how to use the **Details**, **Timeline**, and **Source** tabs to analyze operator performance.
+- [System Tuning](./docs/zh/quick_start/system_tuning_quick_start.md): Learn how to use the **Summary**, **Communication**, and **Timeline** tabs to analyze the model system performance.
+- [Operator Tuning](./docs/zh/quick_start/operator_tuning_quick_start.md): Learn how to use the **Details**, **Timeline**, and **Source** tabs to analyze operator performance.
 
 ---
 
@@ -164,7 +161,7 @@ MindStudio Insight supports system, operator, serving, and memory tuning, and vi
 
 ## 📝 Related Information
 
-- [FAQ](./docs/zh/user_guide/FAQ.md)
+- [FAQ](./docs/en/user_guide/FAQ.md)
 - [Contribution Guide](CONTRIBUTING.md)
 - License<br>
   For details about the license for using MindStudio Insight, see [LICENSE](./License).<br>Documents in the `docs` directory of MindStudio Insight are licensed under CC-BY 4.0. For details, see [DOC LICENSE](./docs/LICENSE).

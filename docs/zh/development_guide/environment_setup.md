@@ -254,7 +254,7 @@ click
 tabulate
 networkx
 jinja2
-PyYaml
+PyYAML
 tqdm
 prettytable
 ijson
@@ -331,7 +331,7 @@ click
 tabulate
 networkx
 jinja2
-PyYaml
+PyYAML
 tqdm
 prettytable
 ijson

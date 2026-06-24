@@ -64,7 +64,7 @@ Linux 内核内置了多种跟踪(trace)工具，其中 ftrace 作为从 2.6.27 
 
 + 安装trace-cmd命令
   Ubuntu安装命令：`sudo apt-get install trace-cmd`
-  CentOs安装命令：`sudo yum install trace-cmd`
+  CentOS安装命令：`sudo yum install trace-cmd`
 + 获取MindStudio Insight提供的采集脚本trace_record.py(见附件)，推荐profiling和ftrace数据同步采集
 
 #### 非侵入式采集

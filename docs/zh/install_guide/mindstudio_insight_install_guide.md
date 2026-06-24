@@ -700,7 +700,7 @@ vncserver -localhost -geometry 1920x1080
     > [!NOTE] 说明
     > 建议使用非root用户执行命令。如果实际需要使用root用户启动，请严格执行root用户的命令，否则会存在安全风险。
 
-    启用后，使用浏览器，输入http://\{_your\_server\_ip_\}:\{_your\_server\_port_\}/lab地址，打开JupyterLab环境首页，如[**图 1**  JupyterLab环境首页](#JupyterLab环境首页)所示，单击MindStudio Insight图标，即可打开MindStudio Insight工具。
+    启用后，使用浏览器，输入http://\{_your\_server\_ip_\}:\{_your\_server\_port_\}/lab地址，打开JupyterLab环境首页，如[**图 1**  JupyterLab环境首页](#JupyterLab环境首页)所示，单击MindStudio Insight图标，即可打开MindStudio Insight工具（端口号可在终端实时查看，端口号port默认值为“8888”）。
 
     **图 1**  JupyterLab环境首页<a id="JupyterLab环境首页"></a>
     ![](./figures/install_guide/jupyterlab_homepage_1.png "JupyterLab环境首页")

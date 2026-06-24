@@ -46,7 +46,6 @@ In Linux or Unix, when you use the JupyterLab plugin to install MindStudio Insig
 ## Data Security Statement
 
 MindStudio Insight supports importing various types of tuning data (including but not limited to those collected by PyTorch Memory Snapshot, PyTorch Profiler, msprof, memscope, msServiceProfiler, and other tools; for details, refer to [overview](./overview.md)). Before importing, ensure that the data source is trustworthy and the environment is secure.
- 
 
 ## Running Security Statement
 
