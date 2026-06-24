@@ -142,13 +142,13 @@ When you select a serving data type, the corresponding details are displayed in 
 
 |Chinese|Field|Description|
 |--|--|--|
-|**kvcache_usage**|
+|**kvcache_usage**|-|-|
 |rid|rid|Request ID.|
 |name|name|Method that changes the graphics memory usage.|
 |real_start_time_ms|real_start_time_ms|Time when the device memory usage changes, in milliseconds.|
 |device_kvcache_left|device_kvcache_left|Number of left blocks in the graphics memory.|
 |kvcache_usage_rate|kvcache_usage_rate|KV cache usage.|
-|**batch_info**|
+|**batch_info**|-|-|
 |name|name|Batch grouping or execution. **batchFrameworkProcessing** refers to batch grouping, while **modelExec** refers to batch execution.|
 |res_list|res_list|Batch composition information.|
 |start_time_ms|start_time_ms|Start time of batch grouping or batch execution, in milliseconds.|
@@ -159,7 +159,7 @@ When you select a serving data type, the corresponding details are displayed in 
 |dp*_rid|dp*_rid|ID of the request contained in the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
 |dp*_size|dp*_size|Batch size of the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
 |dp*_forward_ms|dp*_forward_ms|The longest forward execution time in the DP domain, in milliseconds. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|**request_data**|
+|**request_data**|-|-|
 |http_rid|http_rid|HTTP request ID.|
 |start_time_ms|start_time_ms|Request arrival time, in milliseconds.|
 |recv_token_size|recv_token_size|Input token length of a request.|
@@ -167,7 +167,7 @@ When you select a serving data type, the corresponding details are displayed in 
 |execution_time_ms|execution_time_ms|End-to-end request duration, in ms.|
 |queue_wait_time_ms|queue_wait_time_ms|The total waiting time of a request in the queue throughout the inference process includes both waiting and pending periods, measured in milliseconds.|
 |first_token_latency|first_token_latency|Time to first token (TTFT), in milliseconds.|
-|**forward_info**|
+|**forward_info**|-|-|
 |name|name|Labels a forward event, indicating the model forward execution process.|
 |relative_start_time(ms)|relative_start_time(ms)|Time elapsed since the initial forward on each device.|
 |start_time(ms)|start_time(ms)|Forward start time.|
