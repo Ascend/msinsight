@@ -115,14 +115,18 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
         if (!session) { return; }
         // 第一次 parse/success 返回时，更新 isRL 字段
         session.rankCardInfoMap.size === 0 && connector.send({ event: 'updateSession', body: { isRL: data.isRl } });
-        const matchedUnit = session.units.find((unit) => (unit.metadata as CardMetaData).cardId === unitData.unit.metadata.cardId);
-        const isFtrace = (matchedUnit?.metadata as CardMetaData | undefined)?.isFtrace;
+        const isFtrace = unitData.isFtrace === true;
         // 更新排名数据库路径映射
         updateRankDbPathMap(unitData.rankList ?? [], unitData.dbPath, isFtrace);
         runInAction(() => {
             // 更新会话的 isFullDb 和 startTime 属性
             session.isFullDb = unitData.isFullDb;
             session.startTime = unitData.startTime;
+            if (isFtrace) {
+                session.hasFtraceData = true;
+            } else {
+                session.hasNonFtraceData = true;
+            }
             // 判断是否为全局解析模式
             const isGlobal = session.modeOfParse === 'global_parse';
             // parse success之后关闭进度条
@@ -132,6 +136,7 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
                 if ((unit.metadata as CardMetaData).cardId === unitData.unit.metadata.cardId) {
                     // 更新数据库路径和标签
                     updateDbPathAndLabelForCardUnit(unit, unitData);
+                    (unit.metadata as CardMetaData).isFtrace = isFtrace;
                     // 更新对齐开始时间戳
                     unit.alignStartTimestamp = unitData.offset as number;
                     const nextOffset = { ...session.unitsConfig.offsetConfig.timestampOffset };
@@ -269,22 +274,17 @@ const initUnitSessionInfo = (session: Session, result: ImportResult, dataSource:
     session.isMultiDevice = result.isMultiDevice;
 };
 
-const updateImportedDataTypeState = (session: Session, result: ImportResult, isNeedResetRankId: boolean): void => {
+const resetImportedDataTypeState = (session: Session, result: ImportResult, isNeedResetRankId: boolean): void => {
     if (result.reset || isNeedResetRankId) {
         session.hasFtraceData = false;
         session.hasNonFtraceData = false;
-    }
-    if (result.isFtrace) {
-        session.hasFtraceData = true;
-    } else {
-        session.hasNonFtraceData = true;
     }
 };
 
 const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSource: DataSource, isNeedResetRankId: boolean): void => {
     if (!session) { return; }
     if (result.reset as boolean) { resetPage({ dataSource }); }
-    updateImportedDataTypeState(session, result, isNeedResetRankId);
+    resetImportedDataTypeState(session, result, isNeedResetRankId);
     if (!session.units.length) {
         session.threadsToFetch.clear();
     }
@@ -310,7 +310,6 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
                 cluster,
                 cardName,
                 cardPath,
-                isFtrace: result.isFtrace,
             }, item.projectType);
             if (item.result as boolean) {
                 cardUnit.isParseLoading = !(result.isPending as boolean);

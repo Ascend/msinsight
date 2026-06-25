@@ -21,11 +21,11 @@
 #include "JsonUtil.h"
 class TimelineProtocolUtilTest : public ::testing::Test {};
 
-TEST_F(TimelineProtocolUtilTest, ImportActionResponseSerializesIsFtrace) {
-    Dic::Protocol::ImportActionResponse response;
-    response.body.isFtrace = true;
+TEST_F(TimelineProtocolUtilTest, ParseSuccessEventSerializesIsFtrace) {
+    Dic::Protocol::ParseSuccessEvent event;
+    event.body.isFtrace = true;
 
-    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+    auto jsonOp = Dic::Protocol::ToEventJson(event);
     ASSERT_TRUE(jsonOp.has_value());
     const auto &json = jsonOp.value();
     ASSERT_TRUE(json.HasMember("body"));
