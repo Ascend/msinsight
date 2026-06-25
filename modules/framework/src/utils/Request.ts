@@ -47,7 +47,6 @@ export interface ImportResult {
     isSimulation: boolean;
     isIpynb: boolean;
     isCluster: boolean;
-    isFtrace: boolean;
     result: CardInfo[];
 }
 

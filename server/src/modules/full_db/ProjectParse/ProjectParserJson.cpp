@@ -76,10 +76,6 @@ FtraceJsonCheckResult CheckFtraceSchedulingData(const document_t &jsonDoc) {
     return FtraceJsonCheckResult::NOT_FOUND;
 }
 
-bool HasFtraceJsonImportData(const std::vector<Global::ProjectExplorerInfo> &projectInfos) {
-    return std::any_of(projectInfos.begin(), projectInfos.end(),
-        [](const auto &project) { return ProjectParserJson::IsFtraceJsonData(project.fileName); });
-}
 } // namespace
 
 // LCOV_EXCL_BR_START
@@ -100,7 +96,6 @@ void ProjectParserJson::Parser(const std::vector<Global::ProjectExplorerInfo> &p
 
     // 设置基础响应内容
     SetBaseAction(rankListMap, response, projectInfos[0].projectType);
-    response.body.isFtrace = response.body.isFtrace || HasFtraceJsonImportData(projectInfos);
     // 解析内容
     auto projectTypeEnum = Global::ProjectExplorerManager::GetProjectType(projectInfos);
     if (projectTypeEnum == ProjectTypeEnum::SIMULATION) {
