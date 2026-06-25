@@ -83,3 +83,49 @@ TEST_F(RenderEngineTest, TestFindSliceByTimePointTypeWrong) {
     renderEngine.SetDataEngineInterface(dataEngineMock);
     CompeteSliceDomain slice = renderEngine.FindSliceByTimePoint("", "AAA\n%\t\\", 0, "TEXT");
 }
+
+TEST_F(RenderEngineTest, QueryThreadDetailUsesDepthIndexForSelfTime) {
+    class DataEngineMock : public DataEngine {
+      public:
+        bool QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) override {
+            competeSliceDomain.id = 1;
+            competeSliceDomain.timestamp = 0;
+            competeSliceDomain.endTime = 100;
+            competeSliceDomain.name = "parent";
+            return true;
+        }
+
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            (void)sliceQuery;
+            (void)sliceVec;
+            ADD_FAILURE() << "depth index hit should avoid fallback slice scan";
+        }
+    };
+
+    SliceQuery cacheQuery;
+    cacheQuery.rankId = "0";
+    cacheQuery.startTime = 0;
+    cacheQuery.endTime = 100;
+    std::vector<SliceDomain> sliceVec = {
+        SliceDomain{1, 0, 100, 0, ""},
+        SliceDomain{2, 10, 120, 1, ""},
+        SliceDomain{3, 50, 70, 1, ""},
+        SliceDomain{4, 60, 65, 2, ""},
+    };
+    SliceCacheManager::Instance().UpdateSliceCache("8", sliceVec, cacheQuery);
+
+    RenderEngine renderEngine;
+    std::shared_ptr<DataEngineMock> dataEngineMock = std::make_unique<DataEngineMock>();
+    renderEngine.SetDataEngineInterface(dataEngineMock);
+    ThreadDetailParams request;
+    request.id = "1";
+    request.metaType = "TEXT";
+    request.rankId = "0";
+    UnitThreadDetailBody response;
+
+    renderEngine.QueryThreadDetail(request, response, 8);
+
+    EXPECT_EQ(response.data.duration, 100);
+    EXPECT_EQ(response.data.selfTime, 10);
+}

@@ -73,6 +73,10 @@ class IPythonFuncSlice {
      */
     virtual void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) = 0;
 
+    virtual bool QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
+        return false;
+    }
+
     /**
      * 根据TrackId查询python function数据条数
      * @param sliceQuery

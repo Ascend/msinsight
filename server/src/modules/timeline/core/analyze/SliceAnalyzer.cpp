@@ -17,12 +17,122 @@
  */
 #include "pch.h"
 #include "SliceAnalyzer.h"
+#include <algorithm>
+#include <functional>
+#include <limits>
+#include <queue>
+#include <set>
+#include <unordered_map>
+#include <unordered_set>
 namespace Dic::Module::Timeline {
 namespace {
 const std::string TEXT_PYTHON_FUNCTION_CAT = "python_function";
+const std::string PYTHON_STACK_CACHE_SUFFIX = "@python_stack";
+const size_t INVALID_UNIT_INDEX = std::numeric_limits<size_t>::max();
+
+struct SliceDepthUnit {
+    SliceInterval interval;
+};
+
+class PythonFunctionFilter {
+  public:
+    explicit PythonFunctionFilter(const std::vector<uint64_t> &pythonFunctionIds) {
+        filteredIds.reserve(pythonFunctionIds.size());
+        for (uint64_t id : pythonFunctionIds) {
+            filteredIds.insert(id);
+        }
+    }
+
+    bool Contains(uint64_t id) const { return !filteredIds.empty() && filteredIds.find(id) != filteredIds.end(); }
+
+  private:
+    std::unordered_set<uint64_t> filteredIds;
+};
+
+std::string BuildPythonStackCacheKey(uint64_t trackId) { return std::to_string(trackId) + PYTHON_STACK_CACHE_SUFFIX; }
 
 bool IsFilteredPythonFunction(const std::vector<uint64_t> &pythonFunctionIds, uint64_t id) {
     return !std::empty(pythonFunctionIds) && std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), id);
+}
+
+SliceQuery BuildDepthIndexQuery(SliceCacheManager &sliceCacheManager, const SliceQuery &sliceQuery,
+    const std::string &sliceCacheKey, const SliceQuery &slicePagedQuery, bool isHitCache) {
+    if (!isHitCache) {
+        return slicePagedQuery;
+    }
+    SliceQuery depthIndexQuery = sliceQuery;
+    uint64_t cacheStartTime = 0;
+    uint64_t cacheEndTime = 0;
+    if (sliceCacheManager.QueryCacheDuration(sliceCacheKey, sliceQuery.rankId, cacheStartTime, cacheEndTime)) {
+        depthIndexQuery.startTime = cacheStartTime;
+        depthIndexQuery.endTime = cacheEndTime;
+    }
+    return depthIndexQuery;
+}
+
+bool AreIntervalsOverlap(const SliceInterval &left, const SliceInterval &right) {
+    return left.startTime < right.endTime && right.startTime < left.endTime;
+}
+
+bool IsUnitAvailableOnDepth(const std::vector<SliceInterval> &depthIntervals, const SliceInterval &targetInterval) {
+    for (const auto &current : depthIntervals) {
+        if (AreIntervalsOverlap(current, targetInterval)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+uint32_t AssignUnitDepthsByIntervalScan(const std::vector<SliceDepthUnit> &units, std::vector<uint32_t> &unitDepths) {
+    std::vector<std::vector<SliceInterval>> depthIntervals;
+    for (size_t i = 0; i < units.size(); ++i) {
+        uint32_t depth = 0;
+        while (depth < depthIntervals.size() && !IsUnitAvailableOnDepth(depthIntervals[depth], units[i].interval)) {
+            ++depth;
+        }
+        if (depth == depthIntervals.size()) {
+            depthIntervals.emplace_back();
+        }
+        unitDepths[i] = depth;
+        depthIntervals[depth].emplace_back(units[i].interval);
+    }
+    return static_cast<uint32_t>(depthIntervals.size());
+}
+
+uint32_t AssignUnitDepthsByHeap(const std::vector<SliceDepthUnit> &units, std::vector<uint32_t> &unitDepths) {
+    using BusyDepth = std::pair<uint64_t, uint32_t>;
+    std::priority_queue<BusyDepth, std::vector<BusyDepth>, std::greater<BusyDepth>> busyDepths;
+    std::set<uint32_t> reusableDepths;
+    uint32_t nextDepth = 0;
+    for (size_t i = 0; i < units.size(); ++i) {
+        const SliceInterval &interval = units[i].interval;
+        while (!busyDepths.empty() && busyDepths.top().first <= interval.startTime) {
+            reusableDepths.insert(busyDepths.top().second);
+            busyDepths.pop();
+        }
+        uint32_t depth = 0;
+        if (reusableDepths.empty()) {
+            depth = nextDepth++;
+        } else {
+            auto depthIt = reusableDepths.begin();
+            depth = *depthIt;
+            reusableDepths.erase(depthIt);
+        }
+        unitDepths[i] = depth;
+        busyDepths.emplace(interval.endTime, depth);
+    }
+    return nextDepth;
+}
+
+void BackfillSliceDepths(std::vector<SliceDomain> &sliceDomain, const std::vector<size_t> &sliceToUnit,
+    const std::vector<uint32_t> &unitDepths) {
+    for (size_t i = 0; i < sliceDomain.size(); ++i) {
+        size_t unitIndex = sliceToUnit[i];
+        if (unitIndex == INVALID_UNIT_INDEX) {
+            continue;
+        }
+        sliceDomain[i].depth = unitDepths[unitIndex];
+    }
 }
 }
 
@@ -120,112 +230,54 @@ SliceInterval SliceAnalyzer::ToInterval(const SliceDomain &slice) {
     return interval;
 }
 
-bool SliceAnalyzer::IsOverlap(const SliceInterval &left, const SliceInterval &right) {
-    return left.startTime < right.endTime && right.startTime < left.endTime;
-}
-
-bool SliceAnalyzer::IsDepthAvailable(
-    const std::vector<SliceInterval> &depthIntervals, const SliceInterval &targetInterval) {
-    for (const auto &current : depthIntervals) {
-        if (IsOverlap(current, targetInterval)) {
-            return false;
-        }
-    }
-    return true;
-}
-
-SliceInterval SliceAnalyzer::MergeIntervals(const std::vector<SliceInterval> &intervals) {
-    if (intervals.empty()) {
-        return {};
-    }
-    uint64_t minStart = intervals.front().startTime;
-    uint64_t maxEnd = intervals.front().endTime;
-    for (const auto &interval : intervals) {
-        if (interval.startTime < minStart) {
-            minStart = interval.startTime;
-        }
-        if (interval.endTime > maxEnd) {
-            maxEnd = interval.endTime;
-        }
-    }
-    SliceInterval merged;
-    merged.startTime = minStart;
-    merged.endTime = maxEnd;
-    return merged;
-}
-
-uint32_t SliceAnalyzer::FindFirstAvailableDepth(
-    const std::vector<std::vector<SliceInterval>> &depthIntervals, const SliceInterval &targetInterval) {
-    uint32_t depth = 0;
-    while (depth < depthIntervals.size() && !IsDepthAvailable(depthIntervals[depth], targetInterval)) {
-        ++depth;
-    }
-    return depth;
-}
-
 uint32_t SliceAnalyzer::AssignSliceDepths(
     std::vector<SliceDomain> &sliceDomain, const std::vector<uint64_t> &pythonFunctionIds) {
-    std::vector<std::vector<SliceInterval>> depthIntervals;
-    std::vector<size_t> validIndexes;
-    validIndexes.reserve(sliceDomain.size());
-    for (size_t i = 0; i < sliceDomain.size(); ++i) {
-        if (!IsFilteredPythonFunction(pythonFunctionIds, sliceDomain[i].id)) {
-            validIndexes.emplace_back(i);
-        }
-    }
+    std::vector<SliceDepthUnit> units;
+    std::vector<size_t> sliceToUnit(sliceDomain.size(), INVALID_UNIT_INDEX);
+    std::unordered_map<std::string, size_t> groupToUnit;
+    PythonFunctionFilter filter(pythonFunctionIds);
+    bool areUnitsOrderedByStartTime = true;
 
-    // 第一遍遍历：记录每个 groupId 到合并时间区间的映射
-    std::map<std::string, SliceInterval> groupIntervalMap;
-    for (size_t i : validIndexes) {
-        const std::string &gid = sliceDomain[i].groupId;
-        if (gid.empty()) {
+    units.reserve(sliceDomain.size());
+    for (size_t i = 0; i < sliceDomain.size(); ++i) {
+        if (filter.Contains(sliceDomain[i].id)) {
             continue;
         }
-        SliceInterval interval = ToInterval(sliceDomain[i]);
-        auto it = groupIntervalMap.find(gid);
-        if (it == groupIntervalMap.end()) {
-            groupIntervalMap.emplace(gid, interval);
-        } else {
-            if (interval.startTime < it->second.startTime) {
-                it->second.startTime = interval.startTime;
-            }
-            if (interval.endTime > it->second.endTime) {
-                it->second.endTime = interval.endTime;
-            }
-        }
-    }
-
-    // 第二遍遍历：按原始顺序贪心分配深度
-    std::set<std::string> processedGroupIds;
-    for (size_t i : validIndexes) {
+        const SliceInterval interval = ToInterval(sliceDomain[i]);
         const std::string &gid = sliceDomain[i].groupId;
-        SliceInterval merged;
         if (gid.empty()) {
-            merged = ToInterval(sliceDomain[i]);
-        } else {
-            if (processedGroupIds.count(gid) > 0) {
-                continue;
+            if (!units.empty() && interval.startTime < units.back().interval.startTime) {
+                areUnitsOrderedByStartTime = false;
             }
-            processedGroupIds.insert(gid);
-            merged = groupIntervalMap.at(gid);
+            sliceToUnit[i] = units.size();
+            units.emplace_back(SliceDepthUnit{interval});
+            continue;
         }
-
-        uint32_t depth = FindFirstAvailableDepth(depthIntervals, merged);
-        if (depth == depthIntervals.size()) {
-            depthIntervals.emplace_back();
+        if (groupToUnit.empty()) {
+            groupToUnit.reserve(sliceDomain.size() - i);
         }
-        if (gid.empty()) {
-            sliceDomain[i].depth = depth;
-        } else {
-            for (size_t idx : validIndexes) {
-                if (sliceDomain[idx].groupId == gid) {
-                    sliceDomain[idx].depth = depth;
-                }
+        auto [it, inserted] = groupToUnit.emplace(gid, units.size());
+        if (inserted) {
+            if (!units.empty() && interval.startTime < units.back().interval.startTime) {
+                areUnitsOrderedByStartTime = false;
             }
+            units.emplace_back(SliceDepthUnit{interval});
+        } else {
+            SliceInterval &merged = units[it->second].interval;
+            if (interval.startTime < merged.startTime) {
+                areUnitsOrderedByStartTime = false;
+            }
+            merged.startTime = std::min(merged.startTime, interval.startTime);
+            merged.endTime = std::max(merged.endTime, interval.endTime);
         }
-        depthIntervals[depth].emplace_back(merged);
+        sliceToUnit[i] = it->second;
     }
-    return static_cast<uint32_t>(depthIntervals.size());
+
+    std::vector<uint32_t> unitDepths(units.size(), 0);
+    uint32_t maxDepth = areUnitsOrderedByStartTime ? AssignUnitDepthsByHeap(units, unitDepths)
+                                                   : AssignUnitDepthsByIntervalScan(units, unitDepths);
+    BackfillSliceDepths(sliceDomain, sliceToUnit, unitDepths);
+    return maxDepth;
 }
 
 void SliceAnalyzer::SortByTimestampASC(std::vector<SliceDomain> &cacheSlices) {
@@ -360,19 +412,12 @@ void SliceAnalyzer::ComputePythonFunctionSliceIds(
         repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceDomainVec);
     }
 
+    SliceQuery pythonFunctionQuery = sliceQuery;
+    if (pythonFunctionQuery.cat.empty()) {
+        pythonFunctionQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
+    }
     std::vector<uint64_t> pythonFunctionIds;
-    if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::UNKNOWN) {
-        const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
-        uint64_t count = pythonFuncRepo != nullptr ? pythonFuncRepo->QueryPythonFunctionCountByTrackId(sliceQuery) : 0;
-        instance.SetPythonFunctionStatus(
-            sliceQuery.trackId, count == 0 ? PYTHON_FUNCTION_STATUS::NOT_EXIST : PYTHON_FUNCTION_STATUS::EXIST);
-    }
-    if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::EXIST) {
-        pythonFunctionIds = instance.GetPythonFunctionIdVec(sliceCacheKey, sliceQuery);
-        if (std::empty(pythonFunctionIds)) {
-            QueryPythonFuncFromDBAndUpdateCache(sliceCacheKey, sliceQuery, pythonFunctionIds);
-        }
-    }
+    QueryPythonFuncIds(pythonFunctionQuery, pythonFunctionIds);
 
     std::vector<SliceDomain> pythonSlices;
     for (auto &item : sliceDomainVec) {
@@ -389,6 +434,8 @@ void SliceAnalyzer::ComputePythonFunctionSliceIds(
     std::vector<DepthHelper> endList;
     std::set<std::pair<uint64_t, uint32_t>> idPairVec = ComputeResultIds(sliceQuery.startTime + sliceQuery.minTimestamp,
         sliceQuery.endTime + sliceQuery.minTimestamp, pythonSlices, endList, {});
+    SliceQuery depthIndexQuery = BuildDepthIndexQuery(instance, sliceQuery, sliceCacheKey, slicePagedQuery, isHitCache);
+    instance.UpdateDepthIndexCache(BuildPythonStackCacheKey(sliceQuery.trackId), pythonSlices, depthIndexQuery);
     for (const auto &item : idPairVec) {
         ids.emplace(item.first);
         depthMap[item.first] = item.second;
@@ -520,6 +567,58 @@ void SliceAnalyzer::ComputePythonFunctionDepthInfoByTrackId(
     for (auto &item : pythonSlices) {
         depthInfo[item.id] = item.depth;
     }
+    SliceQuery depthIndexQuery = sliceQuery;
+    uint64_t cacheStartTime = 0;
+    uint64_t cacheEndTime = 0;
+    if (sliceCacheManager.QueryCacheDuration(sliceCacheKey, sliceQuery.rankId, cacheStartTime, cacheEndTime)) {
+        depthIndexQuery.startTime = cacheStartTime;
+        depthIndexQuery.endTime = cacheEndTime;
+    }
+    sliceCacheManager.UpdateDepthIndexCache(
+        BuildPythonStackCacheKey(sliceQuery.trackId), pythonSlices, depthIndexQuery);
+}
+
+void SliceAnalyzer::ComputePythonFunctionSliceVecByTimeRange(
+    const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
+    SliceQuery pythonFunctionQuery = sliceQuery;
+    if (pythonFunctionQuery.cat.empty()) {
+        pythonFunctionQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
+    }
+    const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
+    if (pythonFuncRepo == nullptr) {
+        return;
+    }
+    if (pythonFuncRepo->QuerySliceByCatAndTimeRange(pythonFunctionQuery, sliceVec)) {
+        if (std::empty(sliceVec)) {
+            return;
+        }
+        SortByTimestampASC(sliceVec);
+        AssignSliceDepths(sliceVec, {});
+        return;
+    }
+
+    std::vector<SliceDomain> allSlices;
+    repository->QuerySimpleSliceWithOutNameByTrackId(sliceQuery, allSlices);
+    if (std::empty(allSlices)) {
+        return;
+    }
+
+    std::vector<uint64_t> pythonFunctionIds;
+    pythonFuncRepo->QuerySliceIdsByCat(pythonFunctionQuery, pythonFunctionIds);
+    if (std::empty(pythonFunctionIds)) {
+        return;
+    }
+    std::sort(pythonFunctionIds.begin(), pythonFunctionIds.end());
+
+    sliceVec.reserve(allSlices.size());
+    for (auto &item : allSlices) {
+        if (!std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), item.id)) {
+            continue;
+        }
+        sliceVec.emplace_back(item);
+    }
+    SortByTimestampASC(sliceVec);
+    AssignSliceDepths(sliceVec, {});
 }
 
 void SliceAnalyzer::ComputeSliceDomainVecByTrackId(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
