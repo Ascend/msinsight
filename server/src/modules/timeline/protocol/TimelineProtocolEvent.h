@@ -85,6 +85,7 @@ struct ParseSuccessEventBody {
     bool startTimeUpdated = false;
     bool isFullDb = false;
     bool isRl = false;
+    bool isFtrace = false;
     uint64_t maxTimeStamp = 0;
     uint64_t startTime = 0;
     uint64_t offset = 0;

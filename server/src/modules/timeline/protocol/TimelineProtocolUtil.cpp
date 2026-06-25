@@ -166,7 +166,6 @@ void SetBodyAtt(
     JsonUtil::AddMember(body, "isIE", response.body.isIE, allocator);
     JsonUtil::AddMember(body, "isMultiDevice", response.body.isMultiDevice, allocator);
     JsonUtil::AddMember(body, "isTriton", response.body.isTriton, allocator);
-    JsonUtil::AddMember(body, "isFtrace", response.body.isFtrace, allocator);
 }
 
 template <>
@@ -1048,6 +1047,7 @@ template <> std::optional<document_t> ToEventJson<ParseSuccessEvent>(const Parse
     JsonUtil::AddMember(body, "startTimeUpdated", event.body.startTimeUpdated, allocator);
     JsonUtil::AddMember(body, "isFullDb", event.body.isFullDb, allocator);
     JsonUtil::AddMember(body, "isRl", event.body.isRl, allocator);
+    JsonUtil::AddMember(body, "isFtrace", event.body.isFtrace, allocator);
     // 创建 unit 开始
     json_t unit(kObjectType);
     JsonUtil::AddMember(unit, "type", event.body.unit.type, allocator);
