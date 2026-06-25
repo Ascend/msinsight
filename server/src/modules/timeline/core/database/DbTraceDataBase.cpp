@@ -976,9 +976,16 @@ bool DbTraceDataBase::QueryTaskEarliestAndLatestTimeExcludingCertainEvent(
     int64_t latestTime = 0;
     while (sqlite3_step(stmt) == SQLITE_ROW) {
         int col = resultStartIndex;
+        if (sqlite3_column_type(stmt, col) == SQLITE_NULL || sqlite3_column_type(stmt, col + 1) == SQLITE_NULL) {
+            Server::ServerLog::Warn(
+                "Failed to query task earliest and latest time excluding certain event, "
+                "all tasks may have been filtered out.");
+            sqlite3_finalize(stmt);
+            return false;
+        }
         earliestTime = sqlite3_column_int64(stmt, col++);
         latestTime = sqlite3_column_int64(stmt, col++);
-        if (earliestTime < 0 || latestTime < 0) {
+        if (earliestTime <= 0 || latestTime <= 0) {
             Server::ServerLog::Error(
                 "Failed to query task earliest and latest time excluding certain event due to invalid time.");
             sqlite3_finalize(stmt);
