@@ -54,6 +54,25 @@ using namespace Dic;
 using namespace Dic::Server;
 using namespace Dic::Module::Timeline;
 using namespace Dic::Module::Global;
+
+static bool IsFtraceDbPath(const std::string &path) {
+    return ProjectParserFtrace::IsFtraceDbFile(FileUtil::GetFileName(path));
+}
+
+static bool IsFtraceUnit(const Protocol::Unit &unit) {
+    if (unit.children.empty() || unit.children.front() == nullptr) {
+        return false;
+    }
+
+    const auto &firstChild = unit.children.front();
+    if (firstChild->type != "process") {
+        return false;
+    }
+
+    const auto &processName = firstChild->metaData.processName;
+    return processName == "CPU Scheduling" || processName == "Process Scheduling";
+}
+
 // 静态变量 锁初始化
 std::mutex ParserFactory::mutex;
 std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::string &path) {
@@ -236,6 +255,7 @@ void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const s
     event->body.isRl = !mstxSliceList.empty();
     event->body.rankList = TrackInfoManager::Instance().GetRankListByFileId(fileId, rankId);
     SearchMetaData(rankId, fileId, event->body.unit.children);
+    event->body.isFtrace = IsFtraceDbPath(fileId) || IsFtraceUnit(event->body.unit);
     SearchGroupedAscendHardwareThreads(fileId, event->body.unit, event->body.threadGroupList);
     SendEvent(std::move(event));
 }

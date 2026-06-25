@@ -86,7 +86,6 @@ void ProjectParserFtrace::Parser(const std::vector<Global::ProjectExplorerInfo> 
     if (rankListMap.size() >= PENDIND_CRITICAL_VALUE) {
         response.body.isPending = true;
     }
-    response.body.isFtrace = true;
     ModuleRequestHandler::SetResponseResult(response, true);
 
     ThreadPool::Instance().AddTask(ProjectParserFtrace::ParserFtraceData, TraceIdManager::GetTraceId(), rankListMap);

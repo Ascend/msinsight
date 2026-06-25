@@ -47,6 +47,16 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
     )?.phase;
 
     /**
+     * 检查 card 类型是否匹配（非 Ftrace 类型不应请求 Ftrace 数据）
+     */
+    const isCardTypeInvalid = (): boolean => {
+        const cardRankInfo = Array.from(props.session.rankCardInfoMap.values()).find(
+            (info) => info.rankInfo.rankId === props.card?.cardId && info.dbPath === props.card?.dbPath,
+        );
+        return cardRankInfo?.isFtrace !== true;
+    };
+
+    /**
      * 请求 Ftrace 数据（参考 BaseSummary 的 updateData 逻辑，传递排序/过滤/时间范围参数）
      */
     const fetchData = async (
@@ -54,7 +64,7 @@ export const FtraceTaskSummary = observer((props: SelectContentViewProps) => {
         sorters: typeof defaultSorter,
         filtersConditions: typeof filters,
     ): Promise<void> => {
-        if (props.card === undefined || props.card.cardId === '' || props.session.isFullDb) {
+        if (props.card === undefined || props.card.cardId === '' || isCardTypeInvalid()) {
             setDataSource([]);
             setPage(defaultPage);
             return;
