@@ -60,6 +60,7 @@ class SliceAnalyzer {
     void ComputeDepthInfoByTrackId(const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo);
     void ComputePythonFunctionDepthInfoByTrackId(
         const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo);
+    void ComputePythonFunctionSliceVecByTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec);
     /* *
      * 根据泳道trackId计算泳道下所有简单算子信息
      * @param trackId
@@ -84,11 +85,6 @@ class SliceAnalyzer {
     static uint32_t AssignSliceDepths(
         std::vector<SliceDomain> &sliceDomain, const std::vector<uint64_t> &pythonFunctionIds);
     static SliceInterval ToInterval(const SliceDomain &slice);
-    static SliceInterval MergeIntervals(const std::vector<SliceInterval> &intervals);
-    static bool IsDepthAvailable(const std::vector<SliceInterval> &depthIntervals, const SliceInterval &targetInterval);
-    static bool IsOverlap(const SliceInterval &left, const SliceInterval &right);
-    static uint32_t FindFirstAvailableDepth(
-        const std::vector<std::vector<SliceInterval>> &depthIntervals, const SliceInterval &targetInterval);
     static void CalculateSelfTime(
         std::vector<CompeteSliceDomain> &rows, std::map<std::string, uint64_t> &selfTimeKeyValue);
 

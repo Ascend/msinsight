@@ -18,6 +18,7 @@
 //
 #ifndef PROFILER_SERVER_SLICECACHEMANAGER_H
 #define PROFILER_SERVER_SLICECACHEMANAGER_H
+#include <algorithm>
 #include <unordered_map>
 #include <set>
 #include <list>
@@ -29,6 +30,17 @@
 namespace Dic::Module::Timeline {
 
 static constexpr uint64_t MINUTE_NS = 60ULL * 1000ULL * 1000ULL * 1000ULL;
+
+struct SliceDepthIndexItem {
+    uint64_t id = 0;
+    uint64_t timestamp = 0;
+    uint64_t endTime = 0;
+};
+
+struct SliceDepthIndex {
+    std::unordered_map<uint64_t, uint32_t> idToDepth;
+    std::unordered_map<uint32_t, std::vector<SliceDepthIndexItem>> slicesByDepth;
+};
 
 class SliceCacheManager {
   public:
@@ -86,6 +98,11 @@ class SliceCacheManager {
             return false;
         }
         Touch(it);
+        auto indexIt = depthIndexCache.find(key);
+        if (indexIt != depthIndexCache.end()) {
+            depthInfo = indexIt->second.idToDepth;
+            return true;
+        }
         for (const auto &item : it->second.first) {
             depthInfo[item.id] = item.depth;
         }
@@ -120,9 +137,91 @@ class SliceCacheManager {
             }
         }
         Touch(it);
+        auto indexIt = depthIndexCache.find(key);
+        if (indexIt != depthIndexCache.end()) {
+            depthInfo = indexIt->second.idToDepth;
+            return true;
+        }
         for (const auto &item : it->second.first) {
             depthInfo[item.id] = item.depth;
         }
+        return true;
+    }
+
+    bool QueryDepthBySliceId(const std::string &trackId, const std::string &rankId, const SliceQuery &sliceQuery,
+        uint64_t sliceId, uint32_t &depth) {
+        SpinLockGuard lock(mutex);
+        std::string key = rankId + "@" + trackId;
+        if (!IsTimeRangeCovered(key, sliceQuery)) {
+            return false;
+        }
+        auto indexIt = depthIndexCache.find(key);
+        if (indexIt != depthIndexCache.end()) {
+            auto depthIt = indexIt->second.idToDepth.find(sliceId);
+            if (depthIt == indexIt->second.idToDepth.end()) {
+                return false;
+            }
+            depth = depthIt->second;
+            return true;
+        }
+        auto it = cache.find(key);
+        if (it == cache.end()) {
+            return false;
+        }
+        Touch(it);
+        for (const auto &item : it->second.first) {
+            if (item.id == sliceId) {
+                depth = item.depth;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool QuerySlicesByDepthAndTimeRange(const std::string &trackId, const std::string &rankId,
+        const SliceQuery &sliceQuery, uint32_t depth, std::vector<SliceDomain> &sliceVec) {
+        SpinLockGuard lock(mutex);
+        std::string key = rankId + "@" + trackId;
+        if (!IsTimeRangeCovered(key, sliceQuery)) {
+            return false;
+        }
+        auto indexIt = depthIndexCache.find(key);
+        if (indexIt != depthIndexCache.end()) {
+            auto depthIt = indexIt->second.slicesByDepth.find(depth);
+            if (depthIt == indexIt->second.slicesByDepth.end()) {
+                return true;
+            }
+            const auto &items = depthIt->second;
+            auto startIt = std::lower_bound(items.begin(), items.end(), sliceQuery.startTime,
+                [](const SliceDepthIndexItem &item, uint64_t timestamp) { return item.timestamp < timestamp; });
+            for (auto item = startIt; item != items.end() && item->timestamp < sliceQuery.endTime; ++item) {
+                SliceDomain sliceDomain;
+                sliceDomain.id = item->id;
+                sliceDomain.timestamp = item->timestamp;
+                sliceDomain.endTime = item->endTime;
+                sliceDomain.depth = depth;
+                sliceVec.emplace_back(sliceDomain);
+            }
+            return true;
+        }
+        auto it = cache.find(key);
+        if (it == cache.end()) {
+            return false;
+        }
+        Touch(it);
+        return QuerySlicesByDepthAndTimeRangeFromCache(it->second.first, sliceQuery, depth, sliceVec);
+    }
+
+    bool QueryCacheDuration(
+        const std::string &trackId, const std::string &rankId, uint64_t &startTime, uint64_t &endTime) {
+        SpinLockGuard lock(mutex);
+        std::string key = rankId + "@" + trackId;
+        auto durIt = cacheDuration.find(key);
+        if (durIt == cacheDuration.end()) {
+            return false;
+        }
+        startTime = durIt->second.first;
+        endTime = durIt->second.second;
         return true;
     }
 
@@ -142,12 +241,16 @@ class SliceCacheManager {
         if (it == cache.end()) {
             while (curCapacity >= allCapacity) {
                 // 此处上下文逻辑可以保证curCapacity大于cache[used.back()].first.size()
-                curCapacity -= cache[used.back()].first.size();
-                cache.erase(used.back());
+                std::string evictKey = used.back();
+                curCapacity -= cache[evictKey].first.size();
+                cache.erase(evictKey);
+                cacheDuration.erase(evictKey);
+                depthIndexCache.erase(evictKey);
                 used.pop_back();
             }
             used.push_front(key);
             cache[key] = {value, used.begin()};
+            depthIndexCache[key] = BuildDepthIndex(value);
             curCapacity += value.size();
             // 添加算子缓存时间区间
             cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
@@ -159,6 +262,20 @@ class SliceCacheManager {
         }
         Touch(it);
         cache[key] = {value, used.begin()};
+        depthIndexCache[key] = BuildDepthIndex(value);
+    }
+
+    void UpdateDepthIndexCache(
+        const std::string &trackId, const std::vector<SliceDomain> &value, const SliceQuery &slicePagedQuery) {
+        SpinLockGuard lock(mutex);
+        if (std::empty(value)) {
+            return;
+        }
+        std::string key = slicePagedQuery.rankId + "@" + trackId;
+        depthIndexCache[key] = BuildDepthIndex(value);
+        if (slicePagedQuery.endTime != 0) {
+            cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
+        }
     }
 
     static SliceQuery GetSlicePagedQuery(const SliceQuery &sliceQuery) {
@@ -251,6 +368,7 @@ class SliceCacheManager {
         SpinLockGuard lock(mutex);
         cache.clear();
         cacheDuration.clear();
+        depthIndexCache.clear();
         pythonCacheDuration.clear();
         used.clear();
         trackIdAndPythonFunctionMap.clear();
@@ -267,6 +385,7 @@ class SliceCacheManager {
     using CacheMap = std::unordered_map<std::string, CacheValue>;
     using PythonFunctionMap = std::unordered_map<std::string, PythonFunctionIDCache>;
     using CacheDurationMap = std::unordered_map<std::string, std::pair<uint64_t, uint64_t>>;
+    using DepthIndexCacheMap = std::unordered_map<std::string, SliceDepthIndex>;
 
     // 算子缓存
     CacheMap cache;
@@ -274,6 +393,7 @@ class SliceCacheManager {
     VisitOrderList used;
     // 算子缓存时间区间, <filedId@trackId, <startTime, endTime>>
     CacheDurationMap cacheDuration;
+    DepthIndexCacheMap depthIndexCache;
     CacheDurationMap pythonCacheDuration;
     SpinLock mutex;
     // 算子缓存大小上限
@@ -305,6 +425,50 @@ class SliceCacheManager {
         pythonFunctionIdUsed.erase(it->second.second);
         pythonFunctionIdUsed.push_front(key);
         it->second.second = pythonFunctionIdUsed.begin();
+    }
+
+    bool IsTimeRangeCovered(const std::string &key, const SliceQuery &sliceQuery) const {
+        auto durIt = cacheDuration.find(key);
+        if (durIt == cacheDuration.end()) {
+            return false;
+        }
+        if (sliceQuery.startTime == sliceQuery.endTime) {
+            return true;
+        }
+        auto [start, end] = durIt->second;
+        return start <= sliceQuery.startTime && end >= sliceQuery.endTime;
+    }
+
+    static SliceDepthIndex BuildDepthIndex(const std::vector<SliceDomain> &sliceVec) {
+        SliceDepthIndex depthIndex;
+        depthIndex.idToDepth.reserve(sliceVec.size());
+        for (const auto &item : sliceVec) {
+            depthIndex.idToDepth[item.id] = item.depth;
+            depthIndex.slicesByDepth[item.depth].push_back({item.id, item.timestamp, item.endTime});
+        }
+        for (auto &item : depthIndex.slicesByDepth) {
+            std::sort(item.second.begin(), item.second.end(),
+                [](const SliceDepthIndexItem &left, const SliceDepthIndexItem &right) {
+                    if (left.timestamp == right.timestamp) {
+                        return left.id < right.id;
+                    }
+                    return left.timestamp < right.timestamp;
+                });
+        }
+        return depthIndex;
+    }
+
+    static bool QuerySlicesByDepthAndTimeRangeFromCache(const std::vector<SliceDomain> &cacheSlices,
+        const SliceQuery &sliceQuery, uint32_t depth, std::vector<SliceDomain> &sliceVec) {
+        for (const auto &item : cacheSlices) {
+            if (item.timestamp >= sliceQuery.endTime) {
+                break;
+            }
+            if (item.depth == depth && item.timestamp >= sliceQuery.startTime) {
+                sliceVec.emplace_back(item);
+            }
+        }
+        return true;
     }
 };
 }
