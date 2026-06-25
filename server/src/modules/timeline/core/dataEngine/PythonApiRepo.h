@@ -31,6 +31,7 @@ class PythonApiRepo : public IBaseSliceRepo,
     void QuerySimpleSliceWithOutNameByTrackId(
         const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override;
+    bool QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override;
     void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
         std::vector<CompeteSliceDomain> &CompeteSliceVec) override;

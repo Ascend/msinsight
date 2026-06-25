@@ -91,6 +91,48 @@ void PythonApiRepo::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector
         sliceIds.emplace_back(resultSet->GetUint64("id"));
     }
 }
+
+bool PythonApiRepo::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
+    TrackInfo trackInfo;
+    const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
+    if (!isSuccess) {
+        ServerLog::Warn(
+            "python api query slice by cat and range track info is not exist, track is: ", sliceQuery.trackId);
+        return false;
+    }
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    if (database == nullptr) {
+        ServerLog::Warn("python api open database is failed");
+        return false;
+    }
+    std::string sql = "SELECT api.ROWID as id, api.startNs, api.endNs from " + TABLE_API +
+        " api "
+        " JOIN " +
+        TABLE_ENUM_API_TYPE +
+        " enum ON enum.id = api.type "
+        " where api.globalTid = ? and enum.name = 'trace' and api.startNs <= ? and api.endNs >= ? "
+        " order by api.startNs, api.ROWID";
+    auto stmt = database->CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Warn("Failed to parpare python api query slice by cat and range");
+        return false;
+    }
+    stmt->BindParams(trackInfo.processId, sliceQuery.endTime + sliceQuery.minTimestamp,
+        sliceQuery.startTime + sliceQuery.minTimestamp);
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr) {
+        ServerLog::Warn("Failed to execute query python api query slice by cat and range");
+        return false;
+    }
+    while (resultSet->Next()) {
+        SliceDomain sliceDomain;
+        sliceDomain.id = resultSet->GetUint64("id");
+        sliceDomain.timestamp = resultSet->GetUint64("startNs");
+        sliceDomain.endTime = resultSet->GetUint64("endNs");
+        sliceVec.emplace_back(sliceDomain);
+    }
+    return true;
+}
 uint64_t PythonApiRepo::QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
