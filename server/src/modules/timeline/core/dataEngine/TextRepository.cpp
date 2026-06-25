@@ -69,6 +69,34 @@ void TextRepository::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vecto
     }
 }
 
+bool TextRepository::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
+    TrackInfo trackInfo;
+    const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
+    if (!isSuccess) {
+        return false;
+    }
+    SliceTable sliceTable;
+    std::vector<SlicePO> slicePOVec;
+    sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP, SliceColumn::ENDTIME)
+        .Select(SliceColumn::GROUPID)
+        .Eq(SliceColumn::TRACKID, sliceQuery.trackId)
+        .Eq(SliceColumn::CAT, sliceQuery.cat)
+        .LessEq(SliceColumn::TIMESTAMP, sliceQuery.endTime + sliceQuery.minTimestamp)
+        .GreaterEq(SliceColumn::ENDTIME, sliceQuery.startTime + sliceQuery.minTimestamp)
+        .OrderBy(SliceColumn::TIMESTAMP, TableOrder::ASC)
+        .OrderBy(SliceColumn::ID, TableOrder::ASC)
+        .ExcuteQuery(trackInfo.cardId, slicePOVec);
+    for (const auto &item : slicePOVec) {
+        SliceDomain cacheSlice;
+        cacheSlice.id = item.id;
+        cacheSlice.timestamp = item.timestamp;
+        cacheSlice.endTime = item.endTime;
+        cacheSlice.groupId = item.groupId;
+        sliceVec.emplace_back(cacheSlice);
+    }
+    return true;
+}
+
 uint64_t TextRepository::QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) {
     TrackInfo trackInfo;
     const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);

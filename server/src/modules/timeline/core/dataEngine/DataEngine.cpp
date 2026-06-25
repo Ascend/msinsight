@@ -58,6 +58,26 @@ void DataEngine::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<ui
     pythonFuncSliceRepo->QuerySliceIdsByCat(sliceQuery, sliceIds);
 }
 
+bool DataEngine::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
+    if (respotoryFactory == nullptr) {
+        Server::ServerLog::Warn("Failed to query slice by cat and range.Data engine not assembly");
+        return false;
+    }
+    auto sliceRespo = respotoryFactory->GetSliceRespo(sliceQuery.metaType);
+    if (sliceRespo == nullptr) {
+        return false;
+    }
+    const auto pythonFuncSliceRepo = dynamic_cast<IPythonFuncSlice *>(sliceRespo.get());
+    if (pythonFuncSliceRepo == nullptr) {
+        return false;
+    }
+    const bool isSupported = pythonFuncSliceRepo->QuerySliceByCatAndTimeRange(sliceQuery, sliceVec);
+    if (isSupported) {
+        std::sort(sliceVec.begin(), sliceVec.end(), SliceDomain::CompareTimestampASC);
+    }
+    return isSupported;
+}
+
 uint64_t DataEngine::QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) {
     if (respotoryFactory == nullptr) {
         Server::ServerLog::Warn("Failed to query python function.Data engine not assembly");

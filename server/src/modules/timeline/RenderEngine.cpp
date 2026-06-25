@@ -27,6 +27,62 @@
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
 using namespace Dic::Protocol;
+namespace {
+const std::string PYTHON_STACK_CACHE_SUFFIX = "@python_stack";
+
+std::string BuildPythonStackCacheKey(uint64_t trackId) { return std::to_string(trackId) + PYTHON_STACK_CACHE_SUFFIX; }
+
+uint64_t ComputeCoveredDurationByChildren(
+    const std::vector<SliceDomain> &childSlices, uint64_t parentStartTime, uint64_t parentEndTime) {
+    uint64_t coveredDuration = 0;
+    uint64_t mergedEndTime = parentStartTime;
+    for (const auto &child : childSlices) {
+        if (child.endTime <= parentStartTime || child.timestamp >= parentEndTime || child.endTime <= child.timestamp) {
+            continue;
+        }
+        uint64_t childStartTime = std::max(child.timestamp, parentStartTime);
+        uint64_t childEndTime = std::min(child.endTime, parentEndTime);
+        if (childEndTime <= childStartTime) {
+            continue;
+        }
+        if (childStartTime >= mergedEndTime) {
+            coveredDuration += childEndTime - childStartTime;
+            mergedEndTime = childEndTime;
+            continue;
+        }
+        if (childEndTime > mergedEndTime) {
+            coveredDuration += childEndTime - mergedEndTime;
+            mergedEndTime = childEndTime;
+        }
+    }
+    return coveredDuration;
+}
+
+bool TryComputeSelfTimeByDepthIndex(const ThreadDetailParams &requestParams, uint64_t trackId,
+    const SliceQuery &sliceQuery, const CompeteSliceDomain &competeSliceDomain, UnitThreadDetailBody &responseBody) {
+    std::string sliceCacheKey =
+        requestParams.isPythonStack ? BuildPythonStackCacheKey(trackId) : std::to_string(trackId);
+    uint32_t targetDepth = 0;
+    auto &sliceCacheManager = SliceCacheManager::Instance();
+    if (!sliceCacheManager.QueryDepthBySliceId(
+            sliceCacheKey, requestParams.rankId, sliceQuery, competeSliceDomain.id, targetDepth)) {
+        return false;
+    }
+
+    std::vector<SliceDomain> childSlices;
+    if (!sliceCacheManager.QuerySlicesByDepthAndTimeRange(
+            sliceCacheKey, requestParams.rankId, sliceQuery, targetDepth + 1, childSlices)) {
+        return false;
+    }
+    const uint64_t childCoveredDuration =
+        ComputeCoveredDurationByChildren(childSlices, competeSliceDomain.timestamp, competeSliceDomain.endTime);
+    if (childCoveredDuration > 0 && childCoveredDuration <= responseBody.data.duration) {
+        responseBody.data.selfTime = responseBody.data.duration - childCoveredDuration;
+    }
+    return true;
+}
+}
+
 void RenderEngine::SetDataEngineInterface(std::shared_ptr<DataEngineInterface> dataEngineInterface) {
     dataEngine = dataEngineInterface;
 }
@@ -195,8 +251,6 @@ void RenderEngine::ComputeSimulationFlows(const FlowCategoryEventsParams &params
                 simpleSliceMap[slice.flagId] = depthCache[slice.id];
             }
         }
-        std::unordered_map<uint64_t, uint32_t> depthCache;
-        sliceAnalyzerPtr->ComputeDepthInfoByTrackId(sliceQuery, depthCache);
         item.depth = simpleSliceMap[item.flowId];
         item.pid = trackInfo.processId;
         item.tid = trackInfo.threadId;
@@ -269,36 +323,24 @@ void RenderEngine::QueryThreadDetail(
     responseBody.data.outputFormats = competeSliceDomain.sliceShape.outputFormats;
     sliceQuery.startTime = competeSliceDomain.timestamp;
     sliceQuery.endTime = competeSliceDomain.endTime;
+    if (TryComputeSelfTimeByDepthIndex(requestParams, trackId, sliceQuery, competeSliceDomain, responseBody)) {
+        return;
+    }
     SliceAnalyzer sliceAnalyzer;
     sliceAnalyzer.SetRepository(dataEngine);
     std::vector<SliceDomain> sliceVec;
     uint32_t targetDepth = 0;
     auto targetIt = sliceVec.end();
     if (requestParams.isPythonStack) {
-        std::vector<uint64_t> sliceIds;
-        dataEngine->QuerySliceIdsByCat(sliceQuery, sliceIds);
-        std::unordered_map<uint64_t, uint32_t> depthMap;
-        sliceAnalyzer.ComputePythonFunctionDepthInfoByTrackId(sliceQuery, depthMap);
-        std::vector<CompeteSliceDomain> competeSliceVec;
-        dataEngine->QueryCompeteSliceByIds(sliceQuery, sliceIds, competeSliceVec);
-        sliceVec.reserve(competeSliceVec.size());
-        for (const auto &item : competeSliceVec) {
-            SliceDomain sliceDomain;
-            sliceDomain.id = item.id;
-            sliceDomain.timestamp = item.timestamp;
-            sliceDomain.endTime = item.endTime;
-            sliceDomain.depth = depthMap[item.id];
-            sliceVec.emplace_back(sliceDomain);
-        }
-        std::sort(sliceVec.begin(), sliceVec.end(), SliceDomain::CompareTimestampASC);
-        if (depthMap.count(competeSliceDomain.id) == 0) {
-            return;
-        }
-        targetDepth = depthMap[competeSliceDomain.id] + 1;
+        sliceAnalyzer.ComputePythonFunctionSliceVecByTimeRange(sliceQuery, sliceVec);
         SliceDomain target;
         target.id = competeSliceDomain.id;
         target.timestamp = competeSliceDomain.timestamp;
         targetIt = std::lower_bound(sliceVec.begin(), sliceVec.end(), target, SliceDomain::CompareTimestampASC);
+        if (targetIt == sliceVec.end() || targetIt->id != competeSliceDomain.id) {
+            return;
+        }
+        targetDepth = targetIt->depth + 1;
     } else {
         sliceAnalyzer.ComputeSliceDomainVecByTrackId(sliceQuery, sliceVec);
         SliceDomain target;
@@ -318,6 +360,9 @@ void RenderEngine::QueryThreadDetail(
     const uint64_t targetEndTime = competeSliceDomain.endTime;
     uint64_t nextDepthTime = 0;
     for (auto item = targetIt; item != sliceVec.end(); ++item) {
+        if (item->timestamp > targetEndTime) {
+            break;
+        }
         if (item->timestamp >= targetTimestamp && item->endTime <= targetEndTime && item->depth == targetDepth) {
             nextDepthTime +=
                 item->endTime - item->timestamp; // 从数据库查询得到。业务上保证 item->endTime >= item->timestamp

@@ -38,6 +38,7 @@ class DataEngine : public DataEngineInterface {
     void QuerySimpleSliceWithOutNameByTrackId(
         const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override;
+    bool QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override;
     uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override;
     void QueryCompeteSliceVecByTimeRangeAndTrackId(
         const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &sliceVec) override;
