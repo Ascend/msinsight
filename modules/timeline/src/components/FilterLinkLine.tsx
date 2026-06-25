@@ -387,13 +387,15 @@ const getSingleFlow = async (session: Session): Promise<void> => {
         if (cardId === undefined || id === undefined) {
             return;
         }
+        const timestampOffset = getTimeOffset(session, { cardId, processId });
+        const startTimeWithOffset = timestampOffset + startTime;
         const raw = await getUnitFlows({
             dbPath,
             rankId: cardId,
             tid: threadId,
             pid: processId,
-            startTime,
-            endTime: (timestamp ?? startTime) + duration,
+            startTime: timestamp ?? startTimeWithOffset,
+            endTime: (timestamp ?? startTimeWithOffset) + duration,
             id,
             metaType,
             isSimulation: session.isSimulation,
