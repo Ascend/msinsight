@@ -17,7 +17,6 @@
  */
 import React from 'react';
 import styled from '@emotion/styled';
-import { useTheme } from '@emotion/react';
 import type { TFunction } from 'i18next';
 import type { ColumnsType, ColumnType } from 'antd/es/table';
 import type { AlignType } from 'rc-table/lib/interface';
@@ -27,6 +26,7 @@ import { Tooltip } from '@insight/lib/components';
 import Bar, { BarType } from './Bar';
 import { limitInput, colorPalette } from '@insight/lib/utils';
 import { RegisterDependency } from '@/components/hotMethod/RegisterDependency';
+import { themeInstance } from '@insight/lib';
 
 const onFilterDropdownOpenChange = (open: boolean): void => {
     if (open) {
@@ -96,7 +96,7 @@ const BarItem = styled.div<{ widthPx: number; color: string }>`
 `;
 
 const StallSamplingCell = ({ stallSampling, maxWidth = 120 }: { stallSampling: any; maxWidth?: number }): React.ReactNode => {
-    const theme = useTheme();
+    const theme = themeInstance.themeObject;
     if (!stallSampling) {
         return '';
     }
