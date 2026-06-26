@@ -37,6 +37,7 @@ import { getRootUnit } from '../utils';
 import { getAutoKey } from '../utils/dataAutoKey';
 import type { FlowPoint } from '../insight/units/AscendUnit';
 import { MergedThreadData } from './mergedThreadData';
+import { TimelineCard } from '../connection/baseline';
 
 export const MAX_ZOOM_COUNT = 10000;
 
@@ -212,6 +213,7 @@ export class Session {
     renderTrigger: boolean = true;
     isTimeAnalysisMode: boolean = false; // 时间范围分析模式
     timeAnalysisRange?: [ TimeStamp, TimeStamp ]; // 时间分析范围
+    baselineCardInfo: TimelineCard | null = null;
     /**
      * 页面是否有m快捷键的遮罩m
      */

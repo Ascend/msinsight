@@ -383,6 +383,7 @@ export const createBaselineCard = (session: Session | undefined, result: Timelin
         }
     });
     session.updateUnitsForMultiDevice();
+    session.baselineCardInfo = result[0];
 };
 export const savePageSettingRemoteHandler: NotificationHandler = async (): Promise<unknown> => {
     const { sessionStore } = store;
@@ -738,10 +739,22 @@ export const removeBaselineHandler: NotificationHandler = async (data): Promise<
             clearTimeMarkerFlags(session);
             // 取消对比时，删除底部面板Rank ID下拉框对比卡的数据选项
             for (const [key] of session.rankCardInfoMap) {
-                if (key.includes('_Baseline')) {
-                    session.rankCardInfoMap.delete(key);
+                // text数据比对情形，基线卡显式含有"Baseline"
+                if (!session.isFullDb) {
+                    if (key.includes('_Baseline')) {
+                        session.rankCardInfoMap.delete(key);
+                    }
+                }
+                // db数据比对情形，基线卡的信息保存在baselineCardInfo中
+                // 仅跨工程比对会进入以下逻辑，同工程比对timeline不会新增baseline卡，因此baselineCardInfo值为null
+                if (session.isFullDb && session.baselineCardInfo) {
+                    const { cardName, host } = session.baselineCardInfo;
+                    if (cardName?.includes('Baseline') && key.includes(host)) {
+                        session.rankCardInfoMap.delete(key);
+                    }
                 }
             }
+            session.baselineCardInfo = null;
         });
     } catch (error) {
         console.error(error);
