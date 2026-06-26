@@ -98,8 +98,8 @@ TEST_F(GlobalHandlerTest, TestCheckProjectValidHandlerCollectsPathSecurityErrors
     EXPECT_EQ(1, errors[0].layer);
     EXPECT_EQ(2, errors[1].layer);
     EXPECT_EQ(static_cast<int>(ProjectErrorType::IS_UNSAFE_PATH), errors[0].error);
-    EXPECT_EQ(Dic::StringUtil::GetPrintAbleString(firstLayerInvalidFile), errors[0].path);
-    EXPECT_EQ(Dic::StringUtil::GetPrintAbleString(secondLayerInvalidFile), errors[1].path);
+    EXPECT_EQ(firstLayerInvalidFile, errors[0].path);
+    EXPECT_EQ(secondLayerInvalidFile, errors[1].path);
 
     system(removeCommand.c_str());
 }
