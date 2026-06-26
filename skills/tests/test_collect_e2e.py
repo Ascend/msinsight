@@ -160,6 +160,16 @@ NUMA node0 CPU(s): 0-7
             self.assertEqual(snapshot["schema_version"], "0.1.1")
             self.assertEqual(snapshot["workload"]["target_pids"], [100])
             self.assertEqual(snapshot["processes"][0]["threads"][1]["key_class"], "communication")
+            process_tree = snapshot["process_tree"]
+            self.assertIn("roots", process_tree)
+            self.assertIn("nodes", process_tree)
+            self.assertIn("missing_parent_pids", process_tree)
+            nodes_by_pid = {node["pid"]: node for node in process_tree["nodes"]}
+            self.assertIn(100, nodes_by_pid)
+            self.assertIn("children", nodes_by_pid[100])
+            self.assertIn("tree_root", nodes_by_pid[100])
+            self.assertIn("depth", nodes_by_pid[100])
+            self.assertIn("parent_missing", nodes_by_pid[100])
             self.assertEqual(snapshot["cgroup"]["process_groups"][0]["cpuset_cpus_effective"], "0-7")
             self.assertTrue(snapshot["pytorch"]["detected"])
             self.assertNotIn("SECRET_TOKEN", snapshot["pytorch"]["env"])

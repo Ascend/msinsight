@@ -43,6 +43,7 @@ from scripts.collectors.runtime_sample import (
     merge_runtime_sample,
 )
 from scripts.cpulist import parse_cpu_list
+from scripts.process_tree import build_process_tree
 from scripts.snapshot import write_json
 from scripts.topology_collect import parse_lscpu
 
@@ -178,6 +179,7 @@ def collect_snapshot(config: CollectConfig) -> dict[str, Any]:
         "numa_topology": numa_topology,
         "npu_topology": npu_topology,
         "processes": processes,
+        "process_tree": build_process_tree(processes),
         "cgroup": cgroup,
         "pytorch": pytorch,
         "key_processes": key_processes,

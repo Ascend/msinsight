@@ -25,18 +25,17 @@ from pathlib import Path
 
 SKILLS_ROOT = Path(__file__).resolve().parents[1]
 ROOT = SKILLS_ROOT / "mindstudio-cpu-binding"
+sys.path.insert(0, str(SKILLS_ROOT))
 sys.path.insert(0, str(ROOT))
 
 from scripts.cli import main as cli_main
 from scripts.topology_collect import collect_topology_from_text, main
+from tests.fixtures import LSCPU_TEXT, NPU_SMI_TOPO_TEXT
 
 
 class TopologyCollectTest(unittest.TestCase):
     def test_collect_topology_from_sample_text(self):
-        lscpu_text = (ROOT / "samples" / "lscpu.sample.txt").read_text(encoding="utf-8")
-        npu_topo_text = (ROOT / "samples" / "npu-smi-topo.sample.txt").read_text(encoding="utf-8")
-
-        result = collect_topology_from_text(lscpu_text, npu_topo_text)
+        result = collect_topology_from_text(LSCPU_TEXT, NPU_SMI_TOPO_TEXT)
 
         self.assertEqual(result["system"]["total_logical_cpus"], 128)
         self.assertTrue(result["system"]["smt_enabled"])
@@ -54,13 +53,17 @@ class TopologyCollectTest(unittest.TestCase):
 
     def test_cli_writes_topology_json_from_sample_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
+            lscpu_file = Path(tmpdir) / "lscpu.txt"
+            npu_topo_file = Path(tmpdir) / "npu-smi-topo.txt"
             output = Path(tmpdir) / "topology.json"
+            lscpu_file.write_text(LSCPU_TEXT, encoding="utf-8")
+            npu_topo_file.write_text(NPU_SMI_TOPO_TEXT, encoding="utf-8")
             exit_code = main(
                 [
                     "--lscpu-file",
-                    str(ROOT / "samples" / "lscpu.sample.txt"),
+                    str(lscpu_file),
                     "--npu-smi-topo-file",
-                    str(ROOT / "samples" / "npu-smi-topo.sample.txt"),
+                    str(npu_topo_file),
                     "--out",
                     str(output),
                 ]
@@ -73,14 +76,18 @@ class TopologyCollectTest(unittest.TestCase):
 
     def test_cli_collect_topology_command_writes_json(self):
         with tempfile.TemporaryDirectory() as tmpdir:
+            lscpu_file = Path(tmpdir) / "lscpu.txt"
+            npu_topo_file = Path(tmpdir) / "npu-smi-topo.txt"
             output = Path(tmpdir) / "topology.json"
+            lscpu_file.write_text(LSCPU_TEXT, encoding="utf-8")
+            npu_topo_file.write_text(NPU_SMI_TOPO_TEXT, encoding="utf-8")
             exit_code = cli_main(
                 [
                     "collect-topology",
                     "--lscpu-file",
-                    str(ROOT / "samples" / "lscpu.sample.txt"),
+                    str(lscpu_file),
                     "--npu-smi-topo-file",
-                    str(ROOT / "samples" / "npu-smi-topo.sample.txt"),
+                    str(npu_topo_file),
                     "--out",
                     str(output),
                 ]
