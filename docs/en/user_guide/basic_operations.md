@@ -60,7 +60,7 @@ When you start MindStudio Insight of the same version again, the data displayed 
 
 **Data Management**
 
-MindStudio Insight allow you to create, delete, add, and modify data project information.
+MindStudio Insight allows you to create, delete, add, and modify data project information.
 
 Table 1 Data management operations
 

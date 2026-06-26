@@ -106,7 +106,7 @@ The installation and GUI of MindStudio Insight require specific Windows system a
     - If **Run MindStudio Insight** is not selected, you can double-click the MindStudio Insight shortcut icon on the desktop or **MindStudio-Insight.exe** in the installation directory to start MindStudio Insight after the installation is complete.
 
     > [!NOTE]NOTE  
-    > If the "Missing Dependencies" error message is displayed when you run MindStudio Insight after the installation is complete, see [Error Message "Missing Dependencies" Is Displayed When MindStudio Insight Is Running](./FAQ.md#error-message-"missing-dependencies"-is-displayed-when-mindstudio-insight-is-running).
+    > If the "Missing Dependencies" error message is displayed when you run MindStudio Insight after the installation is complete, see [Error Message "Missing Dependencies" Is Displayed When MindStudio Insight Is Running](./FAQ.md#error-message-missing-dependencies-is-displayed-when-mindstudio-insight-is-running).
 
 ### Installation (Linux)
 
@@ -344,7 +344,7 @@ Starting MindStudio Insight through VNC forwarding provides a smoother experienc
             If the command output contains **gnome** information, run the following command to install **gnome**:
 
             ```shell
-            yum install -y gnome* 
+            yum install -y gnome*
             ```
 
 3. Run the following command to install the VNC server:
@@ -549,7 +549,7 @@ Ensure that the source is available. Run the following command as the **root** u
         sudo yum install -y xterm xorg-x11-xauth
         ```
 
-#### Install MindStudio Insight.
+#### Install MindStudio Insight
 
 1. Upload the software package to the target environment as the MindStudio Insight installation user.
 2. In the directory where the software package is stored, run the following command to decompress the MindStudio Insight software package:
@@ -693,7 +693,7 @@ In the Linux environment, MindStudio Insight can be integrated into JupyterLab a
 4. If the MindStudio Insight icon is not displayed on the JupyterLab home page, run the following command to check whether the MindStudio Insight plugin is enabled:
 
     ```shell
-    jupyter server extension list 
+    jupyter server extension list
     ```
 
     - If the following information is displayed, the plugin has been enabled:

@@ -119,13 +119,13 @@ When you select a key phase block, the details about the key phase are displayed
 
 **Table 1** Slice Detail fields <a id="slice-detail-fields"></a>
 
-|Chinese|Field|Description|
-|--|--|--|
-|Title|Title|Name.|
-|Start|Start|Start time.|
-| |Start(Raw Timestamp)|Original start time of data collection.|
-|Duration|Wall Duration|Total duration.|
-| |Args|Key phase parameters.|
+|Field|Description|
+|--|--|
+|Title|Name.|
+|Start|Start time.|
+|Start(Raw Timestamp)|Original start time of data collection.|
+|Wall Duration|Total duration.|
+|Args|Key phase parameters.|
 
 **System View**
 
@@ -140,46 +140,46 @@ When you select a serving data type, the corresponding details are displayed in 
 
 **Table 2** Servitization View fields <a id="servitization-view-fields"></a>
 
-|Chinese|Field|Description|
-|--|--|--|
-|**kvcache_usage**|
-|rid|rid|Request ID.|
-|name|name|Method that changes the graphics memory usage.|
-|real_start_time_ms|real_start_time_ms|Time when the device memory usage changes, in milliseconds.|
-|device_kvcache_left|device_kvcache_left|Number of left blocks in the graphics memory.|
-|kvcache_usage_rate|kvcache_usage_rate|KV cache usage.|
-|**batch_info**|
-|name|name|Batch grouping or execution. **batchFrameworkProcessing** refers to batch grouping, while **modelExec** refers to batch execution.|
-|res_list|res_list|Batch composition information.|
-|start_time_ms|start_time_ms|Start time of batch grouping or batch execution, in milliseconds.|
-|end_time_ms|end_time_ms|End time of batch grouping or batch execution, in milliseconds.|
-|batch_size|batch_size|Number of requests in a batch.|
-|batch_type|batch_type|Request status (`prefill` or `decode`) in a batch.|
-|during_time_ms|during_time_ms|Execution time, in ms.|
-|dp*_rid|dp*_rid|ID of the request contained in the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|dp*_size|dp*_size|Batch size of the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|dp*_forward_ms|dp*_forward_ms|The longest forward execution time in the DP domain, in milliseconds. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|**request_data**|
-|http_rid|http_rid|HTTP request ID.|
-|start_time_ms|start_time_ms|Request arrival time, in milliseconds.|
-|recv_token_size|recv_token_size|Input token length of a request.|
-|reply_token_size|reply_token_size|Output token length of a request.|
-|execution_time_ms|execution_time_ms|End-to-end request duration, in ms.|
-|queue_wait_time_ms|queue_wait_time_ms|The total waiting time of a request in the queue throughout the inference process includes both waiting and pending periods, measured in milliseconds.|
-|first_token_latency|first_token_latency|Time to first token (TTFT), in milliseconds.|
-|**forward_info**|
-|name|name|Labels a forward event, indicating the model forward execution process.|
-|relative_start_time(ms)|relative_start_time(ms)|Time elapsed since the initial forward on each device.|
-|start_time(ms)|start_time(ms)|Forward start time.|
-|end_time(ms)|end_time(ms)|Forward end time.|
-|during_time(ms)|during_time(ms)|Execution duration of a forward event, in ms.|
-|bubble_time(ms)|bubble_time(ms)|Bubble time between forward events, in ms.|
-|batch_size|batch_size|Number of requests processed in a forward event.|
-|batch_type|batch_type|Request status in a forward event.|
-|forward_iter|forward_iter|Forward iteration number on each device.|
-|dp_rank|dp_rank|DP information of the forward. The values for the same DP domain are the same.|
-|prof_id|prof_id|Identifies different devices. This value is the same for the same device.|
-|hostname|hostname|Identifies different hosts. This value is the same for the same host.|
+|Field|Description|
+|--|--|
+|**kvcache_usage**|-|
+|rid|Request ID.|
+|name|Method that changes the graphics memory usage.|
+|real_start_time_ms|Time when the device memory usage changes, in milliseconds.|
+|device_kvcache_left|Number of left blocks in the graphics memory.|
+|kvcache_usage_rate|KV cache usage.|
+|**batch_info**|-|
+|name|Batch grouping or execution. **batchFrameworkProcessing** refers to batch grouping, while **modelExec** refers to batch execution.|
+|res_list|Batch composition information.|
+|start_time_ms|Start time of batch grouping or batch execution, in milliseconds.|
+|end_time_ms|End time of batch grouping or batch execution, in milliseconds.|
+|batch_size|Number of requests in a batch.|
+|batch_type|Request status (`prefill` or `decode`) in a batch.|
+|during_time_ms|Execution time, in ms.|
+|dp*_rid|ID of the request contained in the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
+|dp*_size|Batch size of the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
+|dp*_forward_ms|The longest forward execution time in the DP domain, in milliseconds. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
+|**request_data**|-|
+|http_rid|HTTP request ID.|
+|start_time_ms|Request arrival time, in milliseconds.|
+|recv_token_size|Input token length of a request.|
+|reply_token_size|Output token length of a request.|
+|execution_time_ms|End-to-end request duration, in ms.|
+|queue_wait_time_ms|The total waiting time of a request in the queue throughout the inference process includes both waiting and pending periods, measured in milliseconds.|
+|first_token_latency|Time to first token (TTFT), in milliseconds.|
+|**forward_info**|-|
+|name|Labels a forward event, indicating the model forward execution process.|
+|relative_start_time(ms)|Time elapsed since the initial forward on each device.|
+|start_time(ms)|Forward start time.|
+|end_time(ms)|Forward end time.|
+|during_time(ms)|Execution duration of a forward event, in ms.|
+|bubble_time(ms)|Bubble time between forward events, in ms.|
+|batch_size|Number of requests processed in a forward event.|
+|batch_type|Request status in a forward event.|
+|forward_iter|Forward iteration number on each device.|
+|dp_rank|DP information of the forward. The values for the same DP domain are the same.|
+|prof_id|Identifies different devices. This value is the same for the same device.|
+|hostname|Identifies different hosts. This value is the same for the same host.|
 
 **Generating Line Charts by Blocks**
 

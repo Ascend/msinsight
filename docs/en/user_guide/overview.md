@@ -2,7 +2,7 @@
 
 ## Overview
 
-MindStudio Insight is a visualization tuning tool for Ascend developers. It supports system, operator, serving, and memory tuning, enable developers to quickly tune performance in training, inference, and operator development scenarios.
+MindStudio Insight is a visualization tuning tool for Ascend developers. It supports system, operator, serving, and memory tuning, enabling developers to quickly tune performance in training, inference, and operator development scenarios.
 
 MindStudio Insight provides various tuning analysis methods, displays real software and hardware running data, analyzes performance bottlenecks from multiple dimensions, and supports visualized performance analysis for clusters with hundreds and thousands of cards, and even beyond, enabling developers to complete performance tuning within days.
 
@@ -23,7 +23,7 @@ MindStudio Insight supports system, operator, serving, and memory tuning, and vi
   | Function Interface             | Description                                                        | Scenario Description                        |
   | --------------------- | ------------------------------------------------------------ | -------------------------------- |
   | Timeline|Displays the running status of the entire online inference and training process in the timeline view based on the scheduling process, and provides functions such as cluster timeline display and system view details viewing.|-                                |
-  | Memory|Provides visualized display of memory information during collection. Displays the operator memory trend in an operator memory curves.|-                                |
+  | Memory|Provides visualized display of memory information during collection. Displays the operator memory trend in operator memory curves.|-                                |
   | Operator|Provides operator duration statistics and analysis.|-                                |
   | Summary|Displays the computing and communication operator duration analysis, and displays the analysis results in a bar chart, curve, and data pane.|PyTorch cluster scenario is supported.|
   | Communication|Displays the network link performance across the cluster and the communication performance of all nodes. By analyzing the overlapped duration between cluster communication and computation, slow hosts or nodes in the cluster training can be identified.|PyTorch cluster scenario is supported.|
@@ -56,7 +56,7 @@ MindStudio Insight supports system, operator, serving, and memory tuning, and vi
   | Function Interface         | Description                                                        | Scenario Description                                     |
   | ----------------- | ------------------------------------------------------------ | --------------------------------------------- |
   | msMemScope| Displays call stack diagrams, curve block charts, and memory breakdown diagrams to visualize memory usage, helping developers analyze and locate memory issues and effectively reduce diagnosis time.| Memory result files in .db format collected by msMemScope are supported.|
- 
+
 ## Constraints
 
 MindStudio Insight allows you to import and display profile data files in various formats and provides suggestions and restrictions on file specifications.

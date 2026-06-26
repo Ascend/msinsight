@@ -65,7 +65,7 @@ In the single-rank scenario, profile data can be classified into the following t
     |communication_matrix.json|Indicates the basic information file of small communication operators.|Communication|
     |ascend_pytorch_profiler_{*rank_id*}.db|Indicates the profile data file collected by Ascend PyTorch Profiler APIs.|Timeline<br> Memory<br> Operator<br> Summary<br> Communication|
     |analysis.db|Indicates data files collected in multi-rank or cluster scenarios involving communication.|Timeline<br> Memory<br> Operator<br> Summary<br> Communication|
-    |Note: The asterisk (*) indicates the timestamp.|
+    |Note: The asterisk (*) indicates the timestamp.|-|-|
 
 - MindSpore training/inference data: MindSpore framework profile data can be imported. For details about how to obtain the data, see "Debugging and Tuning" > "\> Ascend Performance Tuning" in <https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html>.
 
@@ -84,7 +84,7 @@ In the single-rank scenario, profile data can be classified into the following t
     |step_trace_time.csv|Indicates time statistics of computation and communication in a step.|Summary|
     |communication.json|Indicates the file that stores details about communication operators, such as communication duration and bandwidth.|Communication|
     |communication_matrix.json|Indicates the basic information file of small communication operators.|Communication|
-    |Note: The asterisk (*) indicates the timestamp.|
+    |Note: The asterisk (*) indicates the timestamp.|-|-|
 
 - Offline inference data: The profile data in the **mindstudio\_profiler\_output** directory can be imported. For details about the profile data files, see [**Table 4** Offline inference profile data files](#offline-inference-profile-data-files).
 
@@ -104,7 +104,7 @@ In the single-rank scenario, profile data can be classified into the following t
     |step_trace_*.json|Indicates step trace data, which records the time required for each step. This profile data file does not exist in single-operator scenarios.|-|
     |task_time_*.csv|Indicates task scheduler data.|-|
     |msprof_*.db|Indicates a unified .db file. Currently, the data volume of this format is different from that of the data parsed by the TEXT format.|Timeline<br>Memory<br>Operator<br>Summary<br>Communication|
-    |Note: The asterisk (*) indicates the timestamp.|
+    |Note: The asterisk (*) indicates the timestamp.|-|-|
 
 - npumonitor data: The profile data collected by npumonitor can be imported. For details about the collection mode, see [npumonitor Feature](https://gitcode.com/Ascend/msmonitor/blob/master/docs/en/npumonitor_instruct.md). For details about the profile data file, see [Table 5 Profile data file details](#profile-data-file-details).
 
@@ -1108,7 +1108,7 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
 
   **Figure 7** Operator summary tab page<a id="operator-summary-tab-page"></a>
 
-  ![perator summary tab page](./figures/system_tuning/operator_summary_tab_2.png "Operator summary tab page")
+  ![Operator summary tab page](./figures/system_tuning/operator_summary_tab_2.png "Operator summary tab page")
 
   **Table 6** Stats System View fields <a id="stats-system-view-fields"></a>
 
@@ -1206,7 +1206,7 @@ On the **System View** tab page, when you select **Expert System View**, the **R
 
 The **Expert Analysis** tab page displays the abnormal metrics in the unit.
 
-There are six types of expert advice systems: **Affinity API**, **Affinity Optimizer**, **AICPU Operators**, **ACLNN Operators**, **Operators Fusion**, and **Operators Dispatc**h, as shown in [**Figure 9** Expert System View](#expert-system-view). For details about the fields, see [**Table 8** Expert System View fields](#expert-system-view-fields).
+There are six types of expert advice systems: **Affinity API**, **Affinity Optimizer**, **AICPU Operators**, **ACLNN Operators**, **Operators Fusion**, and **Operators Dispatch**, as shown in [**Figure 9** Expert System View](#expert-system-view). For details about the fields, see [**Table 8** Expert System View fields](#expert-system-view-fields).
 
 If you select any advice system, the details about the advice system are displayed in the right pane. Click **Click** in the **Click to Timeline** column to go to the specific location of the operator in the timeline view. The **Slice Detail** tab page in area 4 (data pane) displays the details about the operator.
 
@@ -1533,7 +1533,7 @@ This page is displayed when **Group By** is set to **Computing Operator Name and
 |Field|Description|
 |--|--|
 |Name|Operator name.|
-|Shape|Shape|Operator input shape.|
+|Shape|Operator input shape.|
 |Accelerator Core|AI accelerator core type, including AI Core and AI CPU.|
 |Count|Number of operator executions.|
 |Total Time(μs)|Total operator execution time.|
@@ -1655,8 +1655,8 @@ Area 2: **Parallel Strategy Analysis**, which includes the parallel strategy ove
   |Rank Group|Node ID. You can select one, multiple, or all nodes from the drop-down list.|
   |Order By|Set **Order By** to different dimensions.<br> - DP + PP + CP + TP and DP + PP + TP<br> **Rank ID**: rank ID.<br> **Computing(Not Overlapped)**: **Computing(Not Overlapped)** = **Computing** – **Computing_Communication Overlapped**.<br> **Computing_Communication Overlapped**: communication duration overlapped by computing.<br> **Communication(Not Overlapped)**: **Communication(Not Overlapped)** = **Communication** – **Computing_Communication Overlapped**.<br> **Free**: time when the device is not in communication or computing. The free time here is not included in the preparing time.<br> **Preparing**: time from the start of a step to the running of the first computing or communication operator. During this time, operations such as data loading and copying are performed. In the **Overlap Analysis** unit of **Timeline**, the time is considered as **Free**.<br> **Computing Ratio**: ratio of the computing time to the total time. Total time = **Computing(Not Overlapped)** + **Computing_Communication Overlapped** + **Communication(Not Overlapped)** + **Free** + **Preparing**.<br> **Communication Ratio**: ratio of the communication time to the total time.<br> - **DP + PP + CP Dimension**: **Order By** can be set to **Rank ID**, **Max Computing**, **Max Communication**, **Max Free**, and **Max Total Time (Computing + Communication (Not Overlapped) + Free)**. The maximum value of each parameter is the maximum value in each TP communication group.<br> - **DP + PP Dimension**: **Order By** can be set to **Rank ID**, **Max Computing**, **Max Communication**, **Max Free**, **Max Total Time (Computing + Communication (Not Overlapped) + Free)**, and **Max Communication(Not Overlapped)**. The maximum value of each parameter is the maximum value in the communication group of each **DP + PP + CP Dimension**.|
   |Top|You can set **Top** to display the top *N* records of **Order By**.|
-  |Time(μs)|Time(μs)|The vertical coordinate on the left indicates the duration, in microseconds. The calculation formula is as follows:<br> **Total** = **Computing(Not Overlapped)** + **Computing_Communication Overlapped** + **Communication(Not Overlapped)** + **Free** + **Preparing**. **Preparing** indicates the data preprocessing time.|
-  |Ratio|Ratio|The vertical coordinate on the right indicates the duration percentage, including the following information:<br> - **Computing Ratio**: **Computing Ratio** = **Total Computing**/**Time**.<br> - **Communication Ratio**: **Communication Ratio** = **Communication(Not Overlapped)**/**Time**.|
+  |Time(μs)|The vertical coordinate on the left indicates the duration, in microseconds. The calculation formula is as follows:<br> **Total** = **Computing(Not Overlapped)** + **Computing_Communication Overlapped** + **Communication(Not Overlapped)** + **Free** + **Preparing**. **Preparing** indicates the data preprocessing time.|
+  |Ratio|The vertical coordinate on the right indicates the duration percentage, including the following information:<br> - **Computing Ratio**: **Computing Ratio** = **Total Computing**/**Time**.<br> - **Communication Ratio**: **Communication Ratio** = **Communication(Not Overlapped)**/**Time**.|
   |Advice|The analysis and suggestions of slow ranks based on the communication time under each parallel dimension help you to locate slow ranks.|
 
 - **Computing Detail (Rank *ID*)**: When **DP + PP + CP + TP** and **DP + PP + TP** are selected, click the bar chart of a node in the **Computation/Communication Overview** area. The total time consumption and usage of the accelerator core of the node are displayed. Click **Details**to view the details about the computing operator, as shown in [**Figure 4** Computing operator details](#computing-operator-details). For details about the fields, see [**Table 3** Computing details](#computing-details). You can click ![icon](./figures/system_tuning/zh-cn_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
@@ -1831,7 +1831,7 @@ In the **Parallel Strategy Analysis** area, the parallel strategy configuration 
 In the bar chart details in the **Computation/Communication Overview** area, the difference between the comparison data and baseline data is displayed, as shown in [**Figure 8** Comparison mode on the overview page](#comparison-mode-on-the-overview-page).
 
 **Figure 8** Comparison mode on the overview page <a id="comparison-mode-on-the-overview-page"></a>
-![Comparison mode on the overview pag](./figures/system_tuning/overview_interface_comparison_mode_1.png "Comparison mode on the overview page")
+![Comparison mode on the overview page](./figures/system_tuning/overview_interface_comparison_mode_1.png "Comparison mode on the overview page")
 
 **Showing Expert Distribution Heatmap and Load Balancing Heatmap**
 
@@ -2050,17 +2050,17 @@ MindStudio Insight automatically checks if slow ranks and abnormal operator exis
 
 |Field|Description|
 |--|--|
-|**Slow rank parameters**|
+|**Slow rank parameters**|-|
 |Rank ID|ID of the slow rank.|
 |Elapsed Time Difference(ms)|Time difference = Time taken by the fastest rank - Time taken by the current rank (unit: ms) The communication time difference indicates the communication time that can be reduced to some extent.|
 |Elapsed Time(ms)|Total time consumed by the communication operators on the current rank.|
-|**Abnormal operator parameters**|
+|**Abnormal operator parameters**|-|
 |Index|Top ranking of abnormal operators.|
 |Operator Name|Name of the abnormal operator.|
 |Elapsed Time Difference(ms)|Time difference = Time taken by the communication operator on the fastest rank - Time taken by the communication operator on the current rank (unit: ms) The time difference indicates the communication time that can be reduced to some extent.|
 |Elapsed Time on Current Rank(ms)|Time taken by the communication operator on the current rank.|
 |Elapsed Time on Fastest Rank(ms)|Time taken by the communication operator on the fastest rank.|
-|Operation|Action|You can click **Find in Communication** to highlight the operator in the communication operator thumbnail.|
+|Action|You can click **Find in Communication** to highlight the operator in the communication operator thumbnail.|
 
 **Comparing Cluster Data**
 
@@ -2107,7 +2107,7 @@ The **RL** page consists of the parameter configuration area (area 1) and the ta
 **Figure 1** RL <a id="rl"></a>
 ![](./figures/system_tuning/reinforcement_learning_interface_1.png "RL")
 
-- Area 1: In the parameter configuration area, the **Framework** and **Algorithm** of the imported data are automatically identified and displayed. If the data of more than 16 ranks is imported, the data may not be completely displayed on the **RL** tab page. You can click **Refresh**to parse all data and refresh the task trace timeline.
+- Area 1: In the parameter configuration area, the **Framework** and **Algorithm** of the imported data are automatically identified and displayed. If the data of more than 16 ranks is imported, the data may not be completely displayed on the **RL** tab page. You can click **Refresh** to parse all data and refresh the task trace timeline.
 - Area 2: The **Task Trace Timeline** area displays the execution time of each task on each rank. The horizontal coordinate is the timeline, and the vertical coordinate is the rank ID of each device. Different colors represent different tasks. Forward and backward micro batch marks are available in blue blocks, helping locate fine-grained performance issues during training.
 
     You can zoom in or out and move the timeline by dragging the sliders at the right and bottom of the timeline, or by holding down **Ctrl** and scrolling the mouse wheel.

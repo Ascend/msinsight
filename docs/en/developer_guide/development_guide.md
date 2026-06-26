@@ -21,15 +21,15 @@
 
 ### 3.1 Downloading Code and Setting up Environment
 
-#### 3.1.1 Fork the code to your repository and use Git to clone the code from your remote repository to the local host.
+#### 3.1.1 Fork the code to your repository and use Git to clone the code from your remote repository to the local host
 
 [MindStudio-Insight](https://gitcode.com/Ascend/msinsight)
 
-#### 3.1.2 Use CLion or other software to open the `server` folder in the `MindStudio-Insight` folder.
+#### 3.1.2 Use CLion or other software to open the `server` folder in the `MindStudio-Insight` folder
 
 ![Cli_to_server_path](./figures/Cli_to_server_path.png)
 
-#### 3.1.3 Configure the CLion.
+#### 3.1.3 Configure the CLion
 
 **1. Click the settings button in the upper right corner and select the settings option.**
 
@@ -45,7 +45,7 @@
 
 ### 3.2 Downloading and Compiling Third-Party Libraries
 
-#### 3.2.1 Download and pre-run third-party libraries.
+#### 3.2.1 Download and pre-run third-party libraries
 
 Create a new terminal in the `server` folder and run the following code in the terminal. If the code is successfully executed, the output shown in **Figure 3-1 download_third_party_success** and **Figure 3-2 Pre-run success** will be displayed.
 Note: Before performing this step, ensure that the network connection is normal.
@@ -78,7 +78,7 @@ python preprocess_third_party.py
 
 ### 3.3 Configuring and Starting the Main Function in CLion for Backend Developer Testing
 
-#### 3.3.1 Configure the Main function.
+#### 3.3.1 Configure the Main function
 
 - Click the more icon next to **profiler_server** and select the edit option.
 
@@ -90,7 +90,7 @@ python preprocess_third_party.py
 
 ![add_port](./figures/add_port.png)
 
-#### 3.3.2 Start to build profiler_server.
+#### 3.3.2 Start to build profiler_server
 
 - Click the start button in the upper right corner to start building profiler_server.
 
@@ -117,9 +117,9 @@ bash cpp_coverage.sh
 ./insight_test --gtest_filter=TestSuit.*
 ```
 
-### 3.4 Staring the Frontend on WebStorm
+### 3.4 Starting the Frontend on WebStorm
 
-#### 3.4.1 Install frontend dependencies.
+#### 3.4.1 Install frontend dependencies
 
 - Install the pnpm dependency.
 
@@ -137,7 +137,7 @@ pnpm install
 
 ![setup_finished](./figures/setup_finished.png)
 
-#### 3.4.2 Start the frontend module service.
+#### 3.4.2 Start the frontend module service
 
 - MindStudio Insight adopts the modular design. The framework module is a basic functional module, and other modules can be loaded as required.
 
@@ -163,7 +163,7 @@ pnpm install
 
 **Ensure that the framework module is started successfully. Otherwise, MindStudio Insight on the web page cannot be started.**
 
-#### 3.4.3 Run MindStudio Insight in the developer environment.
+#### 3.4.3 Run MindStudio Insight in the developer environment
 
 - Enter **localhost:5174** in the address box of the browser to start the web page.
 
@@ -175,7 +175,7 @@ pnpm install
 
 The pre-smoke test can be performed on Linux or Windows.
 
-#### 3.5.1 Perform a pre-smoke test on Linux.
+#### 3.5.1 Perform a pre-smoke test on Linux
 
 - Docker is recommended for performing a pre-smoke test on Linux.
 
@@ -195,7 +195,7 @@ bash build/mindstudio_insight_gui_run.sh
 
 After performing the pre-smoke test, view the test result.
 
-#### 3.5.2 Perform a pre-smoke test on Windows.
+#### 3.5.2 Perform a pre-smoke test on Windows
 
 - Perform a pre-smoke test on Windows. For details about how to install dependencies, see [GUI Guide](https://gitcode.com/Ascend/msinsight/blob/master/e2e/README.md).
 
@@ -808,11 +808,11 @@ void FullDbParser::BuildProfilingInitTask(std::shared_ptr<std::vector<std::futur
 
 ### Backend
 
-#### Create a profiler.db file.
+#### Create a profiler.db file
 
 ![create_profiler_db](./figures/create_profiler_db.png)
 
-#### Create a table structure.
+#### Create a table structure
 
 **1. Slice**
 
@@ -920,7 +920,7 @@ Add level-2 unit data to the process table.
 
 ![add_leaf_lane](./figures/add_leaf_lane.png)
 
-#### Add color block data to the leaf unit.
+#### Add color block data to the leaf unit
 
 ![add_color_block_data](./figures/add_color_block_data.png)
 
@@ -932,7 +932,7 @@ Add level-2 unit data to the process table.
 
 ![add_histogram_data](./figures/add_histogram_data.png)
 
-#### Drag the created **profiler.db** file to msInsight to view the new unit.
+#### Drag the created **profiler.db** file to msInsight to view the new unit
 
 ## 6. Developer Guide to Local Package Generation
 
@@ -988,8 +988,8 @@ pyinstaller
 
 2. On Windows, MindStudio Insight integrates the Python interpreter.
 
-- Step 1: Manually install the Python interpreter (including pip) in the build environment. Python 3.12.10 is recommended.
-- Step 2: Set the environment variable `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` to the installation directory of the Python interpreter. This directory must contain the interpreter `python.exe`. Example: If the installation directory of the Python interpreter is `D:\xxx\python` and the directory contains the interpreter `D:\xxx\python\python.exe`, set the environment variable `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` to `D:\xxx\python`.
+    - Step 1: Manually install the Python interpreter (including pip) in the build environment. Python 3.12.10 is recommended.
+    - Step 2: Set the environment variable `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` to the installation directory of the Python interpreter. This directory must contain the interpreter `python.exe`. Example: If the installation directory of the Python interpreter is `D:\xxx\python` and the directory contains the interpreter `D:\xxx\python\python.exe`, set the environment variable `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` to `D:\xxx\python`.
 
 3. Go to the `build` directory in the `root` directory of the project and run `python build.py`. The product is stored in the `out` directory in the `root` directory of the project.
 
@@ -1135,7 +1135,7 @@ pyinstaller
 
 #### Compiling and Generating Packages
 
-##### Step 1. Preprocess build dependencies.
+##### Step 1. Preprocess build dependencies
 
 - Go to the **root** directory of the project and run the following commands:
 
@@ -1144,7 +1144,7 @@ cd server/build
 python3 download_third_party.py && python3 preprocess_third_party.py
 ```
 
-##### Step 2. (Optional) Specify the app signing certificate.
+##### Step 2. (Optional) Specify the app signing certificate
 
 **Note**: Ensure that you have read and understood the [LICENSE](https://gitcode.com/Ascend/msinsight/blob/master/docs/LICENSE) requirements.
 
@@ -1159,13 +1159,13 @@ export INSIGHT_APP_SIGN="insight_cert"
 security unlock-keychain -p {Your password} ~/Library/Keychains/login.keychain
 ```
 
-##### Step 3. Set environment variables for integrating the Python interpreter.
+##### Step 3. Set environment variables for integrating the Python interpreter
 
 - On macOS, MindStudio Insight integrates the Python interpreter.
   - Step 1: Manually install the portable Python interpreter (including pip) in the build environment. Python 3.12.10 is recommended.
   - Note: "Portable" means that the Python folder on machine A can be copied to machine B and can be directly used on machine B. Some Python versions on macOS depend on the dynamic library in the absolute path `/Library`. When the Python interpreter is copied from machine A to machine B, the Python interpreter cannot run because machine B does not have the dynamic library in `/Library`. To ensure that MindStudio Insight built locally is available on other machines, the Python interpreter installed on macOS must be portable.
   - Step 2: Set the environment variable `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` to the installation directory of the Python interpreter. This directory must contain the interpreter bin/python3. If the version of the Python interpreter you installed is not 3.12, manually change the value of the `version` variable in `server/build/build.py`. Example: If the installation directory of the Python interpreter is `/Users/xxx/python` and the directory contains the interpreter `/Users/xxx/python/bin/python3`, set the environment variable `MINDSTUDIO_INSIGHT_PYTHON_INTERPRETER` to `/Users/xxx/python`.
 
-##### Step 4. Run the packaging script.
+##### Step 4. Run the packaging script
 
 Go to the `build` directory in the `root` directory of the project and run `python build.py`. The product is stored in the `out` directory in the `root` directory of the project.
