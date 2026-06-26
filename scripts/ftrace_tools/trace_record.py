@@ -288,9 +288,8 @@ class CPUParser:
 
 
 class TraceRecord:
-    _INT_RETRY_COUNT = 5
-    _INT_INTERVAL_SEC = 1
-    _WAIT_TIMEOUT_SEC = 20
+    _WAIT_TIMEOUT_SEC = 60  # trace-cmd 收到 SIGINT 后，允许其正常 flush / merge / exit 的最长等待时间
+    _TERMINATE_TIMEOUT_SEC = 1  # terminate 后的短兜底等待时间，不用于等待 trace 数据合并。
     # Holds the running trace-cmd record subprocess (if any)
     _record_process = None
     _backend_name = None
@@ -599,45 +598,66 @@ class TraceRecord:
     @staticmethod
     def trace_stop(output=None):
         if TraceRecord._ensure_backend() == TRACE_BACKEND_TRACE_CMD:
-            # If we launched a trace-cmd record subprocess, try to stop it gracefully
-            proc = TraceRecord._record_process
-            if proc:
-                try:
-                    logging.info("Stopping trace-cmd record process")
-                    # Try sending SIGINT a few times to let trace-cmd finish cleanly
-                    for _ in range(TraceRecord._INT_RETRY_COUNT):
-                        try:
-                            os.kill(proc.pid, signal.SIGINT)
-                        except Exception as e:
-                            logging.exception("Failed to send SIGINT to kill trace-cmd record process: %s", e)
-                            pass
-                        time.sleep(TraceRecord._INT_INTERVAL_SEC)
-                        if proc.poll() is not None:
-                            break
-                    return_code = proc.wait(timeout=TraceRecord._WAIT_TIMEOUT_SEC)
-                    if return_code in (0, -signal.SIGINT):
-                        logging.info("trace-cmd record process stopped normally")
-                    else:
-                        logging.warning("trace-cmd record process stopped with exit code %s", return_code)
-                except subprocess.TimeoutExpired:
-                    try:
-                        proc.terminate()
-                    except Exception as terminate_exception:
-                        logging.exception("Failed to terminate trace-cmd record process: %s", terminate_exception)
-                    logging.error(
-                        "Forcefully stopped trace-cmd record process due to timeout after waiting for %s seconds. "
-                        "This might indicate that the process is taking longer than expected to finish. "
-                        "Consider increasing the _WAIT_TIMEOUT_SEC value or investigating the cause of delay. ",
-                        TraceRecord._WAIT_TIMEOUT_SEC,
-                    )
-                finally:
-                    TraceRecord._record_process = None
-                return TraceRecord._output_path
+            return TraceRecord._stop_trace_cmd_record()
+        return TraceRecord._stop_debugfs_record(output)
 
-            # Fallback: run trace-cmd stop if we don't have a process handle
+    @staticmethod
+    def _stop_trace_cmd_record():
+        # 只发送一次 SIGINT，等待 trace-cmd 完成逐 CPU 数据 flush/merge。
+        # 若超时仍未完成合并，则终止进程并向上报告输出可能不完整的风险。
+        proc = TraceRecord._record_process
+        if proc is None:
             logging.error("No trace-cmd record process found.")
             return TraceRecord._output_path
 
+        try:
+            logging.info("Stopping trace-cmd record process")
+            TraceRecord._request_trace_cmd_stop(proc)
+            return_code = proc.wait(timeout=TraceRecord._WAIT_TIMEOUT_SEC)
+            if return_code in (0, -signal.SIGINT):
+                logging.info("trace-cmd record process stopped normally, trace data merge finished")
+            else:
+                logging.warning("trace-cmd record process stopped with exit code %s", return_code)
+            return TraceRecord._output_path
+        except subprocess.TimeoutExpired as exc:
+            TraceRecord._terminate_trace_cmd_process(proc)
+            raise TimeoutError(
+                "trace-cmd record process did not finish within "
+                f"{TraceRecord._WAIT_TIMEOUT_SEC} seconds after SIGINT. The output trace.dat may be incomplete, "
+                "and per-CPU trace.dat.cpu* files may remain. For large traces, reduce trace volume, shorten "
+                "record time, reduce buffer size, use faster storage, or ask developers to adjust the stop wait timeout."
+            ) from exc
+        finally:
+            TraceRecord._record_process = None
+
+    @staticmethod
+    def _request_trace_cmd_stop(proc):
+        if proc.poll() is not None:
+            return
+
+        logging.info(
+            "Stopping trace-cmd record process. Waiting for trace-cmd to flush and merge per-CPU trace data..."
+        )
+        try:
+            os.kill(proc.pid, signal.SIGINT)
+        except Exception as exc:
+            logging.exception("Failed to send SIGINT to trace-cmd record process: %s", exc)
+
+    @staticmethod
+    def _terminate_trace_cmd_process(proc):
+        try:
+            proc.terminate()
+            proc.wait(timeout=TraceRecord._TERMINATE_TIMEOUT_SEC)
+            logging.warning("Terminated trace-cmd record process after stop wait timed out.")
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            logging.error("Killed trace-cmd record process after terminate timed out.")
+        except Exception as terminate_exception:
+            logging.exception("Failed to terminate trace-cmd record process: %s", terminate_exception)
+
+    @staticmethod
+    def _stop_debugfs_record(output):
         final_output = TraceRecord._get_final_output_path(output)
         TraceRecord._write_tracefs_text("tracing_on", "0")
         logging.info("debugfs tracing disabled")

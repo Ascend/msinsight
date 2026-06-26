@@ -20,6 +20,8 @@ import contextlib
 import logging
 import os
 import shutil
+import subprocess  # nosec B404
+import signal
 import sys
 import tempfile
 import unittest
@@ -387,6 +389,32 @@ class TestTraceRecordDaemon(unittest.TestCase):
 class TestFtraceRecordFunctions(unittest.TestCase):
     """Test ftrace_record_start and ftrace_record_stop functions"""
 
+    def _build_args(self, record_time=-1):
+        args = MagicMock()
+        args.cpu = None
+        args.output = "trace.dat"
+        args.bf_size = trace_record.DEFAULT_TRACE_BUFFER_SIZE
+        args.record_time = record_time
+        args.NSpid = False
+        args.sched = 1
+        args.irq = 1
+        args.futex = 0
+        args.backend = trace_record.TRACE_BACKEND_TRACE_CMD
+        return args
+
+    def test_normal_mode_long_term_record_stops_once_on_keyboard_interrupt(self):
+        args = self._build_args(record_time=-1)
+
+        with (
+            patch('trace_record.ftrace_record_start', return_value=True) as mock_start,
+            patch('trace_record.ftrace_record_stop') as mock_stop,
+            patch('time.sleep', side_effect=KeyboardInterrupt),
+        ):
+            trace_record.normal_mode(args)
+
+        mock_start.assert_called_once_with(args.cpu, args.output, args.bf_size, args=args)
+        mock_stop.assert_called_once_with(args.output)
+
     def test_ftrace_record_start_non_root(self):
         with patch('trace_record._is_root_user', return_value=False):
             self.assertFalse(trace_record.ftrace_record_start())
@@ -394,6 +422,81 @@ class TestFtraceRecordFunctions(unittest.TestCase):
     def test_ftrace_record_start_invalid_cpu_mask(self):
         with patch('trace_record._is_root_user', return_value=True):
             self.assertFalse(trace_record.ftrace_record_start(cpu_mask="-1"))
+
+
+class TestTraceRecordStop(unittest.TestCase):
+    """Test TraceRecord stop handling"""
+
+    def setUp(self):
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_TRACE_CMD
+        trace_record.TraceRecord._trace_root = None
+        trace_record.TraceRecord._output_path = "trace.dat"
+        trace_record.TraceRecord._record_process = None
+
+    def tearDown(self):
+        trace_record.TraceRecord._backend_name = None
+        trace_record.TraceRecord._trace_root = None
+        trace_record.TraceRecord._output_path = None
+        trace_record.TraceRecord._record_process = None
+
+    def test_trace_cmd_stop_without_process_returns_output_path(self):
+        self.assertEqual(trace_record.TraceRecord.trace_stop(), "trace.dat")
+
+    def test_trace_cmd_stop_sends_sigint_once_and_waits_for_merge(self):
+        proc = MagicMock()
+        proc.pid = 1234
+        proc.poll.return_value = None
+        proc.wait.return_value = 0
+        trace_record.TraceRecord._record_process = proc
+
+        with patch('os.kill') as mock_kill, patch('time.sleep') as mock_sleep:
+            result = trace_record.TraceRecord.trace_stop()
+
+        mock_kill.assert_called_once_with(proc.pid, signal.SIGINT)
+        mock_sleep.assert_not_called()
+        proc.wait.assert_called_once_with(timeout=trace_record.TraceRecord._WAIT_TIMEOUT_SEC)
+        self.assertEqual(result, "trace.dat")
+        self.assertIsNone(trace_record.TraceRecord._record_process)
+
+    def test_trace_cmd_stop_timeout_raises(self):
+        proc = MagicMock()
+        proc.pid = 1234
+        proc.poll.return_value = None
+        proc.wait.side_effect = [subprocess.TimeoutExpired(cmd="trace-cmd record", timeout=60), 0]
+        trace_record.TraceRecord._record_process = proc
+
+        with (
+            patch('os.kill'),
+            self.assertRaisesRegex(TimeoutError, "trace.dat.cpu\\* files may remain"),
+        ):
+            trace_record.TraceRecord.trace_stop()
+
+        proc.terminate.assert_called_once()
+        self.assertIsNone(trace_record.TraceRecord._record_process)
+
+    def test_request_trace_cmd_stop_ignores_signal_failure(self):
+        proc = MagicMock()
+        proc.pid = 1234
+        proc.poll.return_value = None
+
+        with patch('os.kill', side_effect=ProcessLookupError("missing process")) as mock_kill:
+            trace_record.TraceRecord._request_trace_cmd_stop(proc)
+
+        mock_kill.assert_called_once_with(proc.pid, signal.SIGINT)
+
+    def test_ftrace_record_stop_failure_does_not_clear_trace(self):
+        with (
+            patch.object(trace_record.TraceRecord, 'trace_stop', side_effect=TimeoutError("stop timeout")),
+            patch.object(trace_record.TraceRecord, 'trace_reset') as mock_reset,
+            patch.object(trace_record.TraceRecord, 'trace_clear') as mock_clear,
+            patch.object(trace_record.TraceRecord, 'log_tracefs_stats') as mock_stats,
+            self.assertRaises(TimeoutError),
+        ):
+            trace_record.ftrace_record_stop("trace.dat")
+
+        mock_reset.assert_called_once()
+        mock_clear.assert_not_called()
+        mock_stats.assert_not_called()
 
 
 class TestCheckTraceDataWarning(unittest.TestCase):
