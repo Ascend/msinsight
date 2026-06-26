@@ -52,6 +52,10 @@ bool QueryThreadsHandler::HandleRequest(std::unique_ptr<Protocol::Request> reque
     trackIdList.reserve(queryParams.metadataList.size());
     for (auto &metadata : queryParams.metadataList) {
         PythonStackHelper::RestoreMetadata(metadata);
+        if (!metadata.isPythonStack && metadata.tid == Protocol::PYTHON_API_THREAD_ID &&
+            metadata.metaType == ENUM_TO_STR(PROCESS_TYPE::API).value_or("")) {
+            metadata.hidePythonFunction = true;
+        }
         uint64_t trackId = TrackInfoManager::Instance().GetTrackId(queryParams.rankId, metadata.pid, metadata.tid);
         trackIdList.push_back(trackId);
     }
