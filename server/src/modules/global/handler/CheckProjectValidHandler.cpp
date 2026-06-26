@@ -47,7 +47,7 @@ void AddCheckError(std::vector<ProjectCheckBody::ErrorDetail> &errors, ProjectEr
     errors.emplace_back(ProjectCheckBody::ErrorDetail{
         .layer = layer,
         .error = static_cast<int>(error),
-        .path = StringUtil::GetPrintAbleString(path),
+        .path = path,
         .message = message.empty() ? "Project path check failed." : message,
     });
 }
