@@ -59,6 +59,7 @@ import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
 import { getUnitFlows, queryAllSameOperatorsDuration } from '../../api/request';
 import { GetUnitFlowsParams, OpData } from '../../api/interface';
 import connector from '../../connection';
+import { getCounterLaneDisplayName } from './counterUnit';
 
 const MAX_UNIT_CANVAS_HEIGHT = 50_000; // 画布高度上限
 const MAX_UNIT_DEPTH = Math.floor(MAX_UNIT_CANVAS_HEIGHT / UnitHeight.STANDARD); // 泳道深度上限
@@ -763,12 +764,13 @@ export const CounterUnit = unit<CounterMetaData>({
     pinType: 'copied',
     collapsible: false,
     renderInfo: (session: Session, metadata, thisUnit) => {
+        const displayName = getCounterLaneDisplayName(metadata);
         if (!isPinned(thisUnit) || isSonPinned(thisUnit)) {
-            return `${metadata.threadName}`;
+            return displayName;
         }
         const parentMetaData = thisUnit.parent?.metadata as { processName?: string; threadName?: string } | undefined;
         const parentName = parentMetaData?.processName ?? parentMetaData?.threadName ?? metadata.processName ?? metadata.processId;
-        return [metadata.cardId, parentName, metadata.threadName].filter(Boolean).join('_');
+        return [metadata.cardId, parentName, displayName].filter(Boolean).join('_');
     },
     chart: chart({
         type: 'filledLine',
