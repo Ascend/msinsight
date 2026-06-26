@@ -23,16 +23,17 @@ from pathlib import Path
 
 SKILLS_ROOT = Path(__file__).resolve().parents[1]
 ROOT = SKILLS_ROOT / "mindstudio-cpu-binding"
+sys.path.insert(0, str(SKILLS_ROOT))
 sys.path.insert(0, str(ROOT))
 
 from scripts.diagnose import diagnose
 from scripts.planner import generate_plan
-from scripts.snapshot import load_snapshot
+from tests.fixtures import multi_rank_snapshot
 
 
 class PlannerTest(unittest.TestCase):
     def test_plan_contains_apply_and_rollback_actions(self):
-        snapshot = load_snapshot(ROOT / "samples" / "snapshot.multi-rank.json")
+        snapshot = multi_rank_snapshot()
         findings = diagnose(snapshot)
         plan = generate_plan(snapshot, findings)
         self.assertEqual(plan["executor_backend"], "dry-run")

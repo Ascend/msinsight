@@ -383,6 +383,8 @@ def _process_view(
     return {
         "pid": pid,
         "role": _process_role(process),
+        "comm": str(process.get("comm") or ""),
+        "command": str(process.get("command") or process.get("args") or ""),
         "npu_device": str(npu_device) if npu_device is not None else "",
         "current_cpu_list": current_cpu_list,
         "effective_cpu_list": effective_cpu_list,
@@ -395,13 +397,8 @@ def _process_view(
 
 
 def _process_role(process: dict[str, Any]) -> str:
-    rank = process.get("rank")
-    if rank is not None:
-        return f"rank{rank}"
-    comm = process.get("comm")
-    if comm:
-        return str(comm)
-    return "process"
+    role = process.get("role_hint") or process.get("role") or process.get("rank") or process.get("instance")
+    return str(role) if role is not None else "process"
 
 
 def _first_numa_node(cpu_list: str | None, numa_nodes: list[dict[str, Any]]) -> int | None:
@@ -443,7 +440,7 @@ def _render_numa_card(node: dict[str, Any]) -> str:
 <p><strong>CPU Range:</strong> {html.escape(str(node.get("cpus", "")))}</p>
 <p><strong>Core:</strong> physical={html.escape(str(physical))}, logical={html.escape(str(logical))}</p>
 <div class="topology-npus"><h4>本地 NPU</h4>{npus}</div>
-<div class="topology-processes"><h4>进程 / Rank / Worker</h4>{processes}</div>
+<div class="topology-processes"><h4>目标进程</h4>{processes}</div>
 </div>
 """
 
@@ -464,7 +461,9 @@ def _render_process(process: dict[str, Any]) -> str:
     status_label = STATUS_LABELS.get(status, status)
     return f"""
 <div class="topology-item process-item {html.escape(status)}">
-<strong>PID {html.escape(str(process.get("pid")))} / {html.escape(str(process.get("role", "")))}</strong>
+<strong>PID {html.escape(str(process.get("pid")))}</strong>
+<span>Role/Rank：{html.escape(str(process.get("role", "")))}</span>
+<span>Comm：{html.escape(str(process.get("comm", "")))}</span>
 <span>NPU {html.escape(str(process.get("npu_device", "")))}</span>
 <span>当前 CPU {html.escape(str(process.get("current_cpu_list", "")))}</span>
 <span>有效 CPU {html.escape(str(process.get("effective_cpu_list", "")))}</span>

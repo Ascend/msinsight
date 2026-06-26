@@ -31,6 +31,57 @@ from scripts.collectors.sanitize import sanitize_command
 from scripts.script_utils import read_or_run, write_json_output
 
 ROLE_PATTERNS = [
+    (
+        "vllm_api_server",
+        re.compile(r"vllm\.entrypoints\.openai\.api_server|vllm.*api[_-]?server", re.IGNORECASE),
+    ),
+    (
+        "vllm_engine_core",
+        re.compile(r"vllm.*(?:v1\.engine\.core|EngineCore|engine[_-]?core)", re.IGNORECASE),
+    ),
+    (
+        "vllm_scheduler",
+        re.compile(r"vllm.*scheduler|scheduler\.schedule", re.IGNORECASE),
+    ),
+    (
+        "vllm_tp_worker",
+        re.compile(
+            r"VllmWorker-\d+|vllm.*(?:tp|tensor)[_-]?parallel|vllm.*local[_-]?rank|vllm.*--rank",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "vllm_worker",
+        re.compile(r"vllm.*worker|WorkerProc|worker_main", re.IGNORECASE),
+    ),
+    (
+        "vllm_input_processor",
+        re.compile(r"vllm.*(?:v1\.engine\.input_processor|input[_-]?processor)", re.IGNORECASE),
+    ),
+    (
+        "vllm_detokenizer",
+        re.compile(r"vllm.*(?:v1\.engine\.detokenizer|detokenizer)", re.IGNORECASE),
+    ),
+    (
+        "vllm_tokenizer",
+        re.compile(r"vllm.*tokenizer|tokenizer_group", re.IGNORECASE),
+    ),
+    (
+        "vllm_ipc",
+        re.compile(
+            r"vllm.*(?:v1\.engine\.tensor_ipc|tensor[_-]?ipc|shm_broadcast)",
+            re.IGNORECASE,
+        ),
+    ),
+    ("ray_worker", re.compile(r"ray::|raylet|RayWorker", re.IGNORECASE)),
+    (
+        "sglang_scheduler",
+        re.compile(r"sglang.*scheduler|srt\.managers\.scheduler", re.IGNORECASE),
+    ),
+    (
+        "sglang_server",
+        re.compile(r"sglang.*launch_server|sglang.*api[_-]?server", re.IGNORECASE),
+    ),
     ("api_server", re.compile(r"api[_-]?server|openai", re.IGNORECASE)),
     ("scheduler", re.compile(r"scheduler|manager", re.IGNORECASE)),
     ("tokenizer", re.compile(r"tokenizer", re.IGNORECASE)),
