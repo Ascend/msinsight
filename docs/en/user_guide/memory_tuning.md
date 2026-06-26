@@ -12,8 +12,9 @@ Based on the visualization of the memory allocation and release lifetime, the to
 
 Based on the visualization of the memory allocation and release lifetime, the tool locates and tunes memory fragmentation problems based on the **memory pool allocation status**.
 
->[!NOTE]NOTE 
-The PyTorch Snapshot function is referred to as the memory snapshot function in this document.
+>[!NOTE]
+>
+>The PyTorch Snapshot function is referred to as the memory snapshot function in this document.
 
 ## Preparations
 
@@ -69,7 +70,7 @@ torch_npu.npu.memory._dump_snapshot("model_memory_snapshot.pickle")
 
 ### memscope Data Description
 
-You can import the memory result files in DB format collected by the msMemScope tool to display related content in graphics. For details about how to obtain the DB file, see section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/memory_profile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)" in the *msMemScope Memory Collection*. For details about the memory data that can be imported, see [**Table 1** Memory data description](#memory-data-description).
+You can import the memory result files in DB format collected by the msMemScope tool to display related content in graphics. For details about how to obtain the DB file, see section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/26.0.0/docs/en/memory_profile.md#collection-via-cli)" in the *msMemScope Memory Collection*. For details about the memory data that can be imported, see [**Table 1** Memory data description](#memory-data-description).
 
 **Table 1** Memory data description <a id="memory-data-description"></a>
 
@@ -111,8 +112,9 @@ PyTorch Memory Snapshot is a memory snapshot function provided by PyTorch. It is
 
   - Peak memory tuning: During model training, the peak memory needs to be analyzed to determine which operators or tensors cause the peak memory. Then evaluate whether the memory peak can be reduced by adjusting the allocation order of tensors or the execution order of operators.
 
->[!NOTE]NOTE 
-The preceding common memory problems occur when the memory tab page is displayed on the **System Tuning** page after profile data is collected.
+>[!NOTE]
+>
+>The preceding common memory problems occur when the memory tab page is displayed on the **System Tuning** page after profile data is collected.
 
 ## Memory Details
 
@@ -153,8 +155,9 @@ In the call stack flame graph and memory block lifetime graph of MindStudio Insi
 
     The background of the zoom slider in the trend chart of MindStudio Insight displays the trend of the memory usage (Operator Allocated) in the overall time range, and intuitively displays the memory usage trend in the selected time range.
 
-    >[!NOTE]NOTE 
-    The Operator Allocated curve indicates the change trend of the allocated memory collected when the operator allocates or releases the memory. It represents the total allocated memory of all operators.
+    >[!NOTE]
+    >
+    >The Operator Allocated curve indicates the change trend of the allocated memory collected when the operator allocates or releases the memory. It represents the total allocated memory of all operators.
 
 2. Diversified operations on the time domain:
 
@@ -194,7 +197,7 @@ The **Memory Details Table** area displays memory details by **Block View** and 
 > [!NOTE]NOTE  
 > The memory details are hidden by default. To view the details, click the expand button to display the memory details. If you do not need to view the memory details, click the collapse button to hide the memory details.
 > 
-> Filter is supported for the **Size**, **Malloc Timestamp**, and **Free Timestamp** fields in **Block View**, and the **Timestam**p field in **Event View**. After you click ![](./figures/memory_tuning/zh-cn_image_0000002532040401.png), you can enter integers between **0** and the value displayed in the table to set the minimum and maximum values of the filter range.
+> Filter is supported for the **Size**, **Malloc Timestamp**, and **Free Timestamp** fields in **Block View**, and the **Timestamp** field in **Event View**. After you click ![](./figures/memory_tuning/zh-cn_image_0000002532040401.png), you can enter integers between **0** and the value displayed in the table to set the minimum and maximum values of the filter range.
 
 - **Block View**: displays detailed information about memory blocks, as shown in [**Figure 4** Block View](#block-view). For details about the fields, see [**Table 1** Block View fields](#block-view-fields).
 
@@ -251,7 +254,7 @@ The **Memory Details Table** area displays memory details by **Block View** and 
     | |Call Stack(C)|C call stack. This field is displayed only when the information is collected.|
 
     > [!NOTE]NOTE  
-    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/memory_profile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)" in *msMemScope Memory Collection*.
+    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/26.0.0/docs/en/memory_profile.md#collection-via-cli)" in *msMemScope Memory Collection*.
 
 - **Slice Detail**: displays details about the memory block, as shown in [**Figure 6** Slice Detail](#Slice Detail).
 
@@ -292,8 +295,9 @@ In the memory block lifetime graph of MindStudio Insight, you can select a range
 
     The background of the zoom slider in the memory snapshot trend chart of MindStudio Insight displays the trend chart of the memory usage (Operator Allocated) in the overall time range, intuitively showing the trend of the entire memory usage in the selected time range.
 
-    >[!NOTE]NOTE 
-    The Operator Allocated curve indicates the change trend of the allocated memory collected when the operator allocates or releases the memory. It represents the total allocated memory of all operators.
+    >[!NOTE]
+    >
+    >The Operator Allocated curve indicates the change trend of the allocated memory collected when the operator allocates or releases the memory. It represents the total allocated memory of all operators.
 
 2. Diversified operations on the time domain:
 
@@ -309,8 +313,9 @@ The memory block lifetime graph and memory pool status graph can be moved by dra
 
 When you hover the mouse pointer over the memory block lifetime graph, click a memory block. The event overview and memory pool status graph at the corresponding time point are displayed below the memory block lifetime graph. You can also search for the corresponding address to accurately locate the event details, as shown in [**Figure 2** Memory pool status graph](#memory-pool-status-graph).
 
->[!NOTE]NOTE 
-If the memory pool status is not updated after you click a memory block, no allocation event is collected for the memory block in the lifetime.
+>[!NOTE]
+>
+>If the memory pool status is not updated after you click a memory block, no allocation event is collected for the memory block in the lifetime.
 
 **Figure 2** Memory pool status graph <a id="memory-pool-status-graph"></a> 
     ![**Figure 2** Memory pool status graph](./figures/memory_tuning/memory_pytorch_snapshot_pool_status_1.png "Memory pool status graph")
@@ -359,7 +364,7 @@ The memory details include the slice detail and system view. The slice detail di
     |ID|Required|Unique ID of a memory event.|Integer|0|None|
     |Action|Required|Memory event operation type.|One of the enumerated values. For details, see the description.|alloc|<ul><li>Memory segment operations:</li><br><ul><li>`segment_alloc`: memory segment allocation event, which triggers the PTA memory pool to allocate physical memory from the driver and triggers capacity expansion.</li><br><li>`segment_free`: memory segment release event, which triggers the PTA memory pool to release physical memory and triggers capacity reduction.</li><br><li>`segment_map`: memory segment mapping event. In the virtual memory scenario, this event triggers the PTA memory pool to map the physical memory to the virtual address space.</li><br><li>`segment_unmap`: memory segment unmapping event. In the virtual memory scenario, this event triggers the PTA memory pool to cancel the mapping of the physical memory to the virtual address space. </li></ul><li>Memory block operations:</li><br><ul><li>`alloc`: memory block allocation event. The PTA searches the memory pool for available inactive memory blocks for secondary allocation.</li><br><li>`free_requested`: memory block release request event. The PTA memory pool sets the memory block status to `active_pending_free` and waits for subsequent release. </li><li>`free_completed`: memory block release completion event. The PTA memory pool sets the memory block status to `inactive` and releases the memory block to the memory pool. </li></ul><li>Operator workspace snapshot: `workspace_snapshot`.</li></ul>|
     |Address|Required|Memory event address.|0xhexadecimal address|0x7f9f00000000|Memory address operated by the memory event.|
-    |Size(bytes)|Required|Size of the memory operated by the memory event, in MB.|Floating point number|12.5|None|
+    |Size(MBytes)|Required|Size of the memory operated by the memory event, in MB.|Floating point number|12.5|None|
     |Stream|Required|ID of the stream to which the memory event belongs.|Integer|0|None|
     |Allocated(bytes)|Required|Total size of secondary allocations from the PTA memory pool after the event, in bytes.|Floating point number|12.5|Total size of all `active_allocated` blocks in all segments, indicating the size of memory that has been secondarily allocated from the PTA memory pool to tensors when the event occurs.|
     |Active(bytes)|Required|Total size of active memory in the PTA memory pool after the event occurs, in bytes.|Floating point number|12.5|Total size of all `active_allocated` blocks in all segments, indicating the size of memory that has been secondarily allocated from the PTA memory pool to tensors when the event occurs.|
@@ -367,7 +372,7 @@ The memory details include the slice detail and system view. The slice detail di
     |Call Stack|Optional|Call stack of a memory event.|String|`/home/xxx/test/demo.py: 60 main`|Call stack of a memory event, which displays the call stack triggered when the memory event occurs. If the value is empty, the possible causes are as follows:<br><ul><li>Stacks are not enabled when `_record_memory_history` is called.</li><br><li>The event occurs in autograd during backward propagation, and there may be no call stack information.</li></ul>|
 
     > [!NOTE]NOTE  
-    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/memory_profile.md#%E5%91%BD%E4%BB%A4%E8%A1%8C%E9%87%87%E9%9B%86%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D)" in *msMemScope Memory Collection*.
+    > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/26.0.0/docs/en/memory_profile.md#collection-via-cli)" in *msMemScope Memory Collection*.
 
 - **Slice Detail**: displays details about the memory block, as shown in [**Figure 5** Slice Detail](#slice-detail). For details about the fields, see [**Table 3** Slice Detail fields](#slice-detail-fields).
 
@@ -435,7 +440,7 @@ For excessive memory usage or OOM on the device, the issue analysis process is a
 **Preparing Software**
 
 - Download and install MindStudio Insight. For details, see [MindStudio Insight Installation Guide](./mindstudio_insight_install_guide.md).
-- Install the msMemScope tool. For details, see [msMemScope Installation Guide](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/install_guide.md).
+- Install the msMemScope tool. For details, see [msMemScope Installation Guide](https://gitcode.com/Ascend/msmemscope/blob/26.0.0/docs/en/install_guide.md).
 
 **Preparing Data**
 
@@ -513,7 +518,7 @@ The following collects memory leak data.
     **Figure 2** Tensor object <a id="Tensor object"></a> 
     ![](./figures/memory_tuning/tensor_object_1.png "Tensor object")
 
-4. When cross-referencing the `leaks\_mem` segment against the memory details disassembly diagram, a clear increasing trend is detected within the segment. From step 1, the memory usage of the `leaks\_mem` segment is 40 MB for the first time, as shown in [**Figure 3** Checking the memory usage in step 1] (#checking-the-memory-usage-in-step-1).
+4. When cross-referencing the `leaks\_mem` segment against the memory details disassembly diagram, a clear increasing trend is detected within the segment. From step 1, the memory usage of the `leaks\_mem` segment is 40 MB for the first time, as shown in [**Figure 3** Checking the memory usage in step 1](#checking-the-memory-usage-in-step-1).
 
     **Figure 3** Checking the memory usage in step 1 <a id="checking-the-memory-usage-in-step-1"></a> 
     ![**Figure 3** Checking the memory usage in step 1](./figures/memory_tuning/view_step1_memory_usage_1.png "Checking the memory usage in step 1")

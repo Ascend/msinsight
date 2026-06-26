@@ -33,29 +33,29 @@ For details about the profile data files that can be imported in the operator tu
   <tr>
     <td>trace.json</td>
     <td>Operator instruction pipeline trace file for visualization</td>
-    <td>For details, see <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
+    <td>For details, see <a href="https://gitcode.com/Ascend/msopprof/blob/26.0.0/docs/en/user_guide/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
     <td>Timeline</td>
   </tr>
   <tr>
     <td rowspan="3">visualize_data.bin</td>
     <td>Instruction pipeline data file for visualization</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/26.0.0/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/26.0.0/docs/en/user_guide/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
     <td>Timeline</td>
   </tr>
   <tr>
     <td>Data file for visualizing basic operator information, computing unit load, and Roofline bottleneck analysis information.</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/26.0.0/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a>.</td>
     <td>Details</td>
   </tr>
   <tr>
     <td>Data file for visualizing information such as simulation hotspot functions.</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/26.0.0/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a> and <a href="https://gitcode.com/Ascend/msopprof/blob/26.0.0/docs/en/user_guide/msopprof_simulator_user_guide.md">msopprof simulator User Guide</a>.</td>
     <td>Source</td>
   </tr>
   <tr>
     <td>visualize_data.bin</td>
     <td>L2 cache access data file of user kernel functions for visualization</td>
-    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/master/docs/en/msopprof_user_guide.md">msopprof User Guide</a>.</td>
+    <td>For details, see the <a href="https://gitcode.com/Ascend/msopprof/blob/26.0.0/docs/en/user_guide/msopprof_user_guide.md">msopprof User Guide</a>.</td>
     <td>Cache</td>
   </tr>
 </tbody>
@@ -106,7 +106,7 @@ The **Timeline** interface consists of three parts: toolbar (area 1), graphical 
 |MTE3|Data transfer pipeline, from UBUF to {DDR/GM, L2, L1}, or from L1 to {DDR/L2}.|
 |CACHEMISS|Missed iCache.|
 |USEMASK|Custom instrumentation range.|
-|MTE Throughput|Memory throughput information.<br> `- GM_TO_L1`: throughput of data transferred from GM to L1.<br>` - GM_TO_TOTAL`: total throughput of GM output data.<br> `- GM_TO_UB`: throughput of data transferred from GM to UB.<br> `- L1_TO_GM`: throughput of data transferred from L1 to GM.<br> `- TOTAL_TO_GM`: total throughput of GM input data.<br> `- UB_TO_GM`: throughput of data transferred from UB to GM.|
+|MTE Throughput|Memory throughput information.<br> `- GM_TO_L1`: throughput of data transferred from GM to L1.<br>`- GM_TO_TOTAL`: total throughput of GM output data.<br> `- GM_TO_UB`: throughput of data transferred from GM to UB.<br> `- L1_TO_GM`: throughput of data transferred from L1 to GM.<br> `- TOTAL_TO_GM`: total throughput of GM input data.<br> `- UB_TO_GM`: throughput of data transferred from UB to GM.|
 
 ### Usage Description
 
@@ -231,7 +231,7 @@ MindStudio Insight supports instruction search on the **Timeline** interface.
 
 - The SET_FLAG and WAIT_FLAG instructions can be hidden.
 
-    In the operator display area, right-click and choose Hide SET/WAIT Events from the shortcut menu to hide the SET_FLAG and WAIT_FLAG instructions. The instructions and connections disappear at the same time, as shown in [**Figure 7** Hiding SET/WAIT events](#hiding-set/wait-events).
+    In the operator display area, right-click and choose Hide SET and WAIT Events from the shortcut menu to hide the SET_FLAG and WAIT_FLAG instructions. The instructions and connections disappear at the same time, as shown in [**Figure 7** Hiding SET/WAIT events](#hiding-set/wait-events).
 
     **Figure 7** Hiding SET/WAIT events <div id="hiding-set/wait-events"></div>
     ![Hiding SET/WAIT events](./figures/operator_tuning/hide_set_wait_events_1.png "hide_set_wait_events_1")
@@ -245,11 +245,11 @@ MindStudio Insight supports instruction search on the **Timeline** interface.
 
 **Hide**
 
-For details about how to hide units in the operator tuning scenario, see [Unit Hiding](./system_tuning.md#page-tuning-example).
+For details about how to hide units in the operator tuning scenario, see [Unit Hiding](./system_tuning.md#displaying-page-optimization).
 
 **Unit height adaptation**
 
-For details about how to adapt the unit height in the operator tuning scenario, see [Adaptive Unit Height](./system_tuning.md#page-tuning-example).
+For details about how to adapt the unit height in the operator tuning scenario, see [Adaptive Unit Height](./system_tuning.md#displaying-page-optimization).
 
 #### Displaying Statistics
 
@@ -403,7 +403,7 @@ The **Details** interface displays **Base Info**, **Compute Workload Analysis**,
 
 ### GUI Description
 
-The Details interface contains Base Info (area 1), Core Occupancy (area 2), Roofline (area 3), and Compute Workload Analysis. (area 4) and Memory Workload Analysis (area 5), as shown in [**Figure 1** Details interface](#details-interface).
+The Details interface contains Base Info (area 1), Core Occupancy (area 2), Roofline (area 3), and Compute Workload Analysis (area 4) and Memory Workload Analysis (area 5), as shown in [**Figure 1** Details interface](#details-interface).
 
 **Figure 1** Details interface<a id="details-interface"></a>
 ![Details interface](./figures/operator_tuning/details_interface_1.png "details_interface_1")
@@ -463,7 +463,7 @@ Area 3 is the Roofline analysis area. It displays the operator performance using
 
 The Roofline model displays the instruction mix that contributes to peak performance. For example, Cube\_INT\(100.000000%\) + Vec\_FP16\(30.000000%\),Vec\_FP32\(70.000000%\) indicates that the Cube compute unit processes only int instructions, and the Vector compute unit processes 30% fp16 instructions and 70% fp32 instructions.
 
->[!NOTE]NOTE
+>[!NOTE]
 >
 > - This module is supported only by the <term>Ascend 950PR/Ascend 950DT</term>, <term>Atlas A3 training products/Atlas A3 inference products</term>, <term>Atlas A2 training products/Atlas A2 inference products</term>, and <term>Atlas inference products</term>.
 > - When data of the <term>Ascend 950PR/Ascend 950DT</term> is imported, the instruction types are displayed in the Roofline model. You can filter the Roofline model based on the parameters in the figure.
@@ -701,7 +701,7 @@ The content displayed in the data pane varies according to the operator type. Th
 
 **Viewing Cycles**
 
-In the Pipe Utilization bar chart area, move the pointer to the corresponding instruction bar chart. The actual cycles information is displayed. as shown in [**Figure 1** Viewing Cycles](#viewing-cycles).
+In the Pipe Utilization bar chart area, move the pointer to the corresponding instruction bar chart. The actual cycles information is displayed, as shown in [**Figure 1** Viewing Cycles](#viewing-cycles).
 
 **Figure 1** Viewing cycles<div id="viewing-cycles"></div>
 ![Viewing cycles](./figures/operator_tuning/view_cycles_1.png "view_cycles_1")
@@ -796,8 +796,9 @@ Click the graph block corresponding to any time node in [**Figure 2** Memory blo
 
 Click a color block in [**Figure 2** Memory block diagram](#memory-block-diagram) or [**Figure 3** Memory pool status diagram](#memory-pool-status-diagram). The details of the corresponding time slice are displayed in the lower area, as shown in [**Figure 4** Slice details of the selected time node](#slice-details-of-the-selected-time-node).
 
-  > [!NOTE]NOTE
-  > By default, the details of the selected time slice are not displayed. To view the details, click the **Expand** button in the middle of the upper part of the selected time slice area. To hide the details, click the **Collapse** button again.
+  >[!NOTE]
+  >
+  >By default, the details of the selected time slice are not displayed. To view the details, click the **Expand** button in the middle of the upper part of the selected time slice area. To hide the details, click the **Collapse** button again.
 
 **Figure 4** Details of the selected time slice<div id="slice-details-of-the-selected-time-node"></div>
 ![Slice details of the selected time node](./figures/operator_tuning/triton_timenode_slicedetail_1.png "triton_timenode_slicedetail_1")
