@@ -167,6 +167,19 @@ LLM serving 的问题目标选择：
 
 详细提问协议见 `docs/question-flow.md`。
 
+### vLLM runtime 重点进程
+
+vLLM / vLLM-Ascend 场景中，不要只关注模型 worker 或数字 rank。只读发现和报告解释应优先区分以下角色：
+
+- API server / frontend：处理 HTTP/OpenAI 请求、输入准备、排队和 streaming，影响 TTFT、queueing latency 和 p99。
+- Engine core / scheduler：负责调度、KV cache、batching 和执行协调，是 CPU 侧控制关键路径。
+- Model worker / TP worker：最接近 NPU/GPU 执行，是 NPU/NUMA locality 和 CPU range 观察重点。
+- Tokenizer / input / output / detokenizer：属于 CPU 热路径；只有采集到进程或线程证据时才作为具体对象展示，不默认假设其一定是独立 OS 进程。
+- Tensor IPC / queue：scheduler-worker 通信路径，可用于解释 CPU/IPC 抖动。
+- Ray worker 和 Ascend runtime/HCCL/SQ：作为扩展候选；缺少证据时标记信息缺口，不做确定结论。
+
+保留现场角色标识，例如 `api`、`engine`、`tp0`、`tp1`。这些标识通常比数字 Rank 更能表达 vLLM 服务中的职责。详细案例见 `docs/vllm-runtime-processes.md`。
+
 ## Snapshot 输入与采集
 
 优先使用用户已有的 Snapshot JSON。Snapshot 数据契约见 `docs/snapshot-schema.md`。
@@ -366,6 +379,7 @@ LLM serving 指标：
 - `docs/question-flow.md`：提问协议。
 - `docs/snapshot-schema.md`：Snapshot 数据契约。
 - `docs/diagnosis-rules.md`：规则 taxonomy。
+- `docs/vllm-runtime-processes.md`：vLLM 运行时进程角色和 Host CPU 绑核关注案例。
 - `templates/report-template.md`：报告模板。
 - `docs/binding-rollback-design.md`：执行后端和回滚机制。
 - `scripts/`：当前辅助原型脚本。

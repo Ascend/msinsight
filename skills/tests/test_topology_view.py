@@ -23,21 +23,22 @@ from pathlib import Path
 
 SKILLS_ROOT = Path(__file__).resolve().parents[1]
 ROOT = SKILLS_ROOT / "mindstudio-cpu-binding"
+sys.path.insert(0, str(SKILLS_ROOT))
 sys.path.insert(0, str(ROOT))
 
 from scripts.diagnose import diagnose
 from scripts.planner import generate_plan
-from scripts.snapshot import load_snapshot
 from scripts.topology_view import (
     build_topology_view,
     render_topology_html,
     render_topology_text,
 )
+from tests.fixtures import multi_rank_snapshot
 
 
 class TopologyViewTest(unittest.TestCase):
     def test_builds_topology_view_from_snapshot_and_plan(self):
-        snapshot = load_snapshot(ROOT / "samples" / "snapshot.multi-rank.json")
+        snapshot = multi_rank_snapshot()
         findings = diagnose(snapshot)
         plan = generate_plan(snapshot, findings)
 
@@ -59,7 +60,7 @@ class TopologyViewTest(unittest.TestCase):
         self.assertEqual(view["topology_graph"]["nodes"][0]["id"], "server")
 
     def test_render_topology_html_contains_relation_section(self):
-        snapshot = load_snapshot(ROOT / "samples" / "snapshot.multi-rank.json")
+        snapshot = multi_rank_snapshot()
         snapshot["npu_topology"]["devices"][0]["links"] = [{"target": "1", "type": "HCCS"}]
         findings = diagnose(snapshot)
         plan = generate_plan(snapshot, findings)
@@ -76,8 +77,64 @@ class TopologyViewTest(unittest.TestCase):
         self.assertIn("HCCS", content)
         self.assertIn("跨 NUMA", content)
 
+    def test_render_topology_html_uses_clear_process_role_label(self):
+        view = {
+            "summary": {},
+            "topology_graph": {},
+            "numa_nodes": [
+                {
+                    "node": 0,
+                    "cpus": "0-3",
+                    "local_npus": [],
+                    "processes": [
+                        {
+                            "pid": 12345,
+                            "role": "tp0",
+                            "npu_device": "npu0",
+                            "current_cpu_list": "0-3",
+                            "effective_cpu_list": "0-3",
+                            "target_cpu_list": "0-3",
+                            "status": "local",
+                        }
+                    ],
+                }
+            ],
+            "orphan_processes": [],
+            "warnings": [],
+            "missing": [],
+        }
+
+        content = render_topology_html(view)
+
+        self.assertIn("<h4>目标进程</h4>", content)
+        self.assertIn("<strong>PID 12345</strong>", content)
+        self.assertIn("<span>Role/Rank：tp0</span>", content)
+        self.assertIn("<span>Comm：</span>", content)
+        self.assertNotIn("<span>完整命令：</span>", content)
+        self.assertNotIn("进程 / Rank / Worker", content)
+        self.assertNotIn("PID 12345 / tp0", content)
+
+    def test_build_topology_view_keeps_rank_map_label_without_prefixing_rank(self):
+        snapshot = {
+            "system": {},
+            "numa_topology": {"nodes": [{"node": 0, "cpus": "0-3"}]},
+            "npu_topology": {"devices": []},
+            "processes": [
+                {
+                    "pid": 12345,
+                    "rank": "tp0",
+                    "comm": "VLLM::Worker_TP",
+                    "cpus_allowed_list": "0-3",
+                }
+            ],
+        }
+
+        view = build_topology_view(snapshot, None)
+
+        self.assertEqual(view["numa_nodes"][0]["processes"][0]["role"], "tp0")
+
     def test_dense_topology_expands_svg_viewbox_to_keep_nodes_separated(self):
-        snapshot = load_snapshot(ROOT / "samples" / "snapshot.multi-rank.json")
+        snapshot = multi_rank_snapshot()
         snapshot["numa_topology"]["nodes"] = [
             {"node": node, "cpus": f"{node * 16}-{node * 16 + 15}"} for node in range(4)
         ]
@@ -105,7 +162,7 @@ class TopologyViewTest(unittest.TestCase):
         )
 
     def test_missing_npu_topology_does_not_crash(self):
-        snapshot = load_snapshot(ROOT / "samples" / "snapshot.multi-rank.json")
+        snapshot = multi_rank_snapshot()
         snapshot.pop("npu_topology", None)
 
         view = build_topology_view(snapshot, None)

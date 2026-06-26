@@ -24,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from scripts.cpulist import parse_cpu_list
+from scripts.process_tree import build_process_tree
 from scripts.topology_view import build_topology_view, render_topology_html
 
 
@@ -63,6 +64,8 @@ details.card > :last-child {{ padding-bottom: 16px; }}
 table {{ border-collapse: collapse; width: 100%; background: #fff; }}
 th, td {{ border: 1px solid #e5e7eb; padding: 8px; text-align: left; vertical-align: top; }}
 th {{ background: #f1f5f9; }}
+.command-cell {{ max-width: 680px; white-space: pre-wrap; overflow-wrap: anywhere; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }}
+.comm-cell {{ font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }}
 .badge {{ display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; background: #e0f2fe; color: #0369a1; }}
 .high {{ background: #fee2e2; color: #991b1b; }}
 .medium {{ background: #fef3c7; color: #92400e; }}
@@ -92,17 +95,47 @@ pre {{ background: #0f172a; color: #e2e8f0; padding: 12px; border-radius: 8px; o
 </head>
 <body>
 <h1>mindstudio-cpu-binding CPU 绑核优化报告</h1>
+{_attention(findings)}
 {_summary(snapshot, findings, plan)}
+{_findings(findings)}
 {_process_table(snapshot, plan)}
+{_process_tree(snapshot, plan)}
 {_topology_view(snapshot, plan)}
 {_cpu_grid(snapshot, plan)}
 {_key_processes(snapshot)}
-{_findings(findings)}
 {_plan(plan)}
 {_gaps(snapshot)}
 </body>
 </html>
 """
+
+
+def _attention(findings: list[dict[str, Any]]) -> str:
+    high = sum(1 for finding in findings if finding.get("severity") == "high")
+    medium = sum(1 for finding in findings if finding.get("severity") == "medium")
+    if not findings:
+        top_findings = "<p>未识别到明确 CPU 绑核问题。</p>"
+    else:
+        top_findings = "<ol>" + "".join(_attention_item(finding) for finding in findings[:3]) + "</ol>"
+    return f"""
+<div class="card">
+<h2>需要关注的问题</h2>
+<p>共识别 {len(findings)} 个问题；High / Medium：{high} / {medium}</p>
+{top_findings}
+</div>
+"""
+
+
+def _attention_item(finding: dict[str, Any]) -> str:
+    severity = html.escape(str(finding.get("severity", "info")))
+    title = html.escape(str(finding.get("title", "")))
+    judgement = html.escape(_short_judgement(finding))
+    return f"<li><span class='badge {severity}'>{severity}</span> <strong>{title}</strong> - {judgement}</li>"
+
+
+def _short_judgement(finding: dict[str, Any]) -> str:
+    judgement = str(finding.get("judgement", ""))
+    return judgement if len(judgement) <= 80 else judgement[:77] + "..."
 
 
 def _summary(snapshot: dict[str, Any], findings: list[dict[str, Any]], plan: dict[str, Any]) -> str:
@@ -128,7 +161,9 @@ def _process_table(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
         rows.append(
             "<tr>"
             f"<td>{pid}</td>"
-            f"<td>{html.escape(str(process.get('rank', '')))}</td>"
+            f"<td>{html.escape(_process_role(process))}</td>"
+            f"<td class='comm-cell'>{html.escape(_process_comm(process))}</td>"
+            f"<td class='command-cell'>{html.escape(_process_command(process))}</td>"
             f"<td>{html.escape(str(process.get('npu_device', '')))}</td>"
             f"<td>{html.escape(str(process.get('cpus_allowed_list', '')))}</td>"
             f"<td>{html.escape(str(action.get('effective_cpu_list', '')))}</td>"
@@ -139,13 +174,127 @@ def _process_table(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
         """
 <div class="card">
 <h2>当前 CPU 绑定状态</h2>
+<p>Role/Rank、Comm 和完整命令分列展示：Comm 来自 Linux 短进程名，完整命令来自 cmdline。</p>
 <table>
-<thead><tr><th>PID</th><th>Rank</th><th>NPU</th><th>当前 CPU Range</th><th>有效 CPU Range</th><th>推荐 CPU Range</th></tr></thead>
+<thead><tr><th>PID</th><th>Role/Rank</th><th>Comm</th><th>完整命令</th><th>NPU</th><th>当前 CPU Range</th><th>有效 CPU Range</th><th>推荐 CPU Range</th></tr></thead>
 <tbody>
 """
         + "\n".join(rows)
         + "\n</tbody></table></div>"
     )
+
+
+def _process_tree(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
+    processes = snapshot.get("processes", [])
+    process_by_pid = {int(process.get("pid")): process for process in processes if process.get("pid") is not None}
+    action_by_pid = {
+        int(action["pid"]): action for action in plan.get("apply_actions", []) if action.get("pid") is not None
+    }
+    tree = snapshot.get("process_tree") or build_process_tree(processes)
+    rows = []
+    for node in _ordered_process_tree_nodes(tree):
+        pid = int(node.get("pid"))
+        process = process_by_pid.get(pid, {})
+        action = action_by_pid.get(pid, {})
+        rows.append(
+            "<tr>"
+            f"<td>{pid}</td>"
+            f"<td>{html.escape(str(node.get('ppid', '')))}</td>"
+            f"<td>{html.escape(_tree_process_comm(process, int(node.get('depth', 0))))}</td>"
+            f"<td>{html.escape(_process_role(process))}</td>"
+            f"<td class='command-cell'>{html.escape(_process_command(process))}</td>"
+            f"<td>{html.escape(str(process.get('npu_device', '')))}</td>"
+            f"<td>{html.escape(str(process.get('cpus_allowed_list', '')))}</td>"
+            f"<td>{html.escape(str(action.get('target_cpu_list', '无需调整')))}</td>"
+            f"<td>{html.escape(_key_thread_summary(pid, snapshot.get('key_processes') or {}))}</td>"
+            "</tr>"
+        )
+    if not rows:
+        rows.append("<tr><td colspan='9'>未采集到进程关系信息。</td></tr>")
+    missing_notice = _missing_parent_notice(tree.get("missing_parent_pids", []))
+    description = (
+        "<p>本表按父子关系展示进程。Comm 保留父子树缩进，完整命令单独展示；最后一列统计该进程中识别到的关键线程数量；"
+        "具体线程明细请查看下方“关键进程与线程”章节。</p>"
+    )
+    return (
+        "<div class='card'>"
+        "<h2>进程关系 / 父子进程树</h2>"
+        f"{description}"
+        f"{missing_notice}"
+        "<table><thead><tr>"
+        "<th>PID</th><th>PPID</th><th>Comm</th><th>Role/Rank</th><th>完整命令</th><th>NPU</th>"
+        "<th>当前 CPU Range</th><th>推荐 CPU Range</th><th>识别到的关键线程</th>"
+        "</tr></thead><tbody>" + "\n".join(rows) + "</tbody></table></div>"
+    )
+
+
+def _ordered_process_tree_nodes(tree: dict[str, Any]) -> list[dict[str, Any]]:
+    nodes_by_pid = {int(node.get("pid")): node for node in tree.get("nodes", []) if node.get("pid") is not None}
+    ordered: list[dict[str, Any]] = []
+    visited: set[int] = set()
+
+    def walk(pid: int) -> None:
+        if pid in visited or pid not in nodes_by_pid:
+            return
+        visited.add(pid)
+        node = nodes_by_pid[pid]
+        ordered.append(node)
+        for child_pid in sorted(int(child) for child in node.get("children", [])):
+            walk(child_pid)
+
+    for root in sorted(int(root) for root in tree.get("roots", [])):
+        walk(root)
+    for pid in sorted(nodes_by_pid):
+        walk(pid)
+    return ordered
+
+
+def _process_role(process: dict[str, Any]) -> str:
+    role = process.get("role_hint") or process.get("role") or process.get("rank") or process.get("instance")
+    return str(role) if role is not None else ""
+
+
+def _process_comm(process: dict[str, Any]) -> str:
+    return str(process.get("comm") or "")
+
+
+def _process_command(process: dict[str, Any]) -> str:
+    return str(process.get("command") or process.get("args") or "")
+
+
+def _tree_process_comm(process: dict[str, Any], depth: int) -> str:
+    return f"{'　' * depth}{_process_comm(process)}"
+
+
+def _key_thread_summary(pid: int, key_processes: dict[str, Any]) -> str:
+    buckets = [
+        ("sq_task_threads", "SQ 线程"),
+        ("communication_threads", "通信线程"),
+        ("npu_fixed_threads", "NPU 固定线程"),
+        ("dataloader_threads", "DataLoader 线程"),
+        ("top_threads", "高 CPU 线程"),
+    ]
+    parts = []
+    for key, label in buckets:
+        count = sum(1 for item in key_processes.get(key, []) if _item_pid(item) == pid)
+        if count:
+            parts.append(f"{label} {count} 个")
+    return "，".join(parts) or "未识别到关键线程"
+
+
+def _item_pid(item: Any) -> int | None:
+    if isinstance(item, int):
+        return item
+    if isinstance(item, dict) and item.get("pid") is not None:
+        return int(item.get("pid"))
+    return None
+
+
+def _missing_parent_notice(missing_parent_pids: list[Any]) -> str:
+    if not missing_parent_pids:
+        return ""
+    pids = "，".join(html.escape(str(pid)) for pid in missing_parent_pids)
+    return f"<p>以下父进程未在本次采集中出现：{pids}</p>"
 
 
 def _topology_view(snapshot: dict[str, Any], plan: dict[str, Any]) -> str:
@@ -183,13 +332,22 @@ def _key_processes(snapshot: dict[str, Any]) -> str:
     if not key_processes:
         return "<details class='card collapsible-section' open><summary>关键进程与线程</summary><p>未采集到 key_processes 信息。</p></details>"
 
+    process_by_pid = {
+        int(process.get("pid")): process for process in snapshot.get("processes", []) if process.get("pid") is not None
+    }
     rows = []
-    rows.extend(_key_process_rows("主调度进程", key_processes.get("main_scheduler_pids", [])))
-    rows.extend(_key_process_rows("SQ 线程", key_processes.get("sq_task_threads", [])))
-    rows.extend(_key_process_rows("NPU 固定线程", key_processes.get("npu_fixed_threads", [])))
-    rows.extend(_key_process_rows("通信线程", key_processes.get("communication_threads", [])))
-    rows.extend(_key_process_rows("DataLoader 线程", key_processes.get("dataloader_threads", [])))
-    rows.extend(_key_process_rows("Top CPU 线程", key_processes.get("top_threads", [])))
+    rows.extend(_key_process_rows("主调度进程", key_processes.get("main_scheduler_pids", []), process_by_pid))
+    rows.extend(_key_process_rows("SQ 线程", key_processes.get("sq_task_threads", []), process_by_pid))
+    rows.extend(_key_process_rows("NPU 固定线程", key_processes.get("npu_fixed_threads", []), process_by_pid))
+    rows.extend(_key_process_rows("通信线程", key_processes.get("communication_threads", []), process_by_pid))
+    rows.extend(
+        _key_process_rows(
+            "DataLoader 线程",
+            key_processes.get("dataloader_threads", []),
+            process_by_pid,
+        )
+    )
+    rows.extend(_key_process_rows("Top CPU 线程", key_processes.get("top_threads", []), process_by_pid))
     if not rows:
         rows.append("<tr><td colspan='6'>未识别到关键进程或线程。</td></tr>")
 
@@ -201,16 +359,17 @@ def _key_processes(snapshot: dict[str, Any]) -> str:
     )
 
 
-def _key_process_rows(category: str, items: list[Any]) -> list[str]:
+def _key_process_rows(category: str, items: list[Any], process_by_pid: dict[int, dict[str, Any]]) -> list[str]:
     rows = []
     for item in items:
-        data = {"pid": item} if isinstance(item, int) else item
+        data = {"pid": item, "tid": item} if isinstance(item, int) else item
+        process = process_by_pid.get(int(data.get("pid"))) if data.get("pid") is not None else None
         rows.append(
             "<tr>"
             f"<td>{html.escape(category)}</td>"
             f"<td>{html.escape(str(data.get('pid', '')))}</td>"
             f"<td>{html.escape(str(data.get('tid', '')))}</td>"
-            f"<td>{html.escape(str(data.get('name', data.get('key_class', ''))))}</td>"
+            f"<td>{html.escape(_key_process_name(data, process))}</td>"
             f"<td>{html.escape(str(data.get('npu_id', data.get('npu_device', ''))))}</td>"
             f"<td>{html.escape(str(data.get('cpu_percent', '')))}</td>"
             "</tr>"
@@ -218,20 +377,56 @@ def _key_process_rows(category: str, items: list[Any]) -> list[str]:
     return rows
 
 
+def _key_process_name(data: dict[str, Any], process: dict[str, Any] | None) -> str:
+    process_command = str((process or {}).get("command") or "")
+    process_comm = str((process or {}).get("comm") or "")
+    return process_command or process_comm or str(data.get("name") or data.get("key_class", ""))
+
+
 def _findings(findings: list[dict[str, Any]]) -> str:
-    cards = []
-    for finding in findings:
-        severity = html.escape(str(finding.get("severity", "info")))
-        evidence = "".join(f"<li>{html.escape(str(item))}</li>" for item in finding.get("evidence", []))
-        recommendations = "".join(f"<li>{html.escape(str(item))}</li>" for item in finding.get("recommendations", []))
-        cards.append(
-            f"<div class='card'><span class='badge {severity}'>{severity}</span> "
-            f"<strong>{html.escape(str(finding.get('id')))} {html.escape(str(finding.get('title')))}</strong>"
-            f"<p>{html.escape(str(finding.get('judgement')))}</p>"
-            f"<h4>证据</h4><ul>{evidence}</ul>"
-            f"<h4>建议</h4><ul>{recommendations}</ul></div>"
-        )
+    if not findings:
+        return "<h2>问题发现</h2><div class='card'><p>未识别到明确 CPU 绑核问题。</p></div>"
+
+    if len(findings) <= 3:
+        cards = [_finding_card(finding) for finding in findings]
+    else:
+        cards = [_collapsible_finding_card(finding) for finding in findings]
     return "<h2>问题发现</h2>" + "\n".join(cards)
+
+
+def _finding_card(finding: dict[str, Any]) -> str:
+    severity = html.escape(str(finding.get("severity", "info")))
+    evidence = _finding_list(finding.get("evidence", []))
+    recommendations = _finding_list(finding.get("recommendations", []))
+    return (
+        f"<div class='card'><span class='badge {severity}'>{severity}</span> "
+        f"<strong>{html.escape(str(finding.get('id')))} {html.escape(str(finding.get('title')))}</strong>"
+        f"<p>{html.escape(str(finding.get('judgement')))}</p>"
+        f"<h4>证据</h4><ul>{evidence}</ul>"
+        f"<h4>建议</h4><ul>{recommendations}</ul></div>"
+    )
+
+
+def _collapsible_finding_card(finding: dict[str, Any]) -> str:
+    severity = html.escape(str(finding.get("severity", "info")))
+    title = html.escape(str(finding.get("title", "")))
+    judgement = html.escape(str(finding.get("judgement", "")))
+    evidence = _finding_list(finding.get("evidence", []))
+    recommendations = _finding_list(finding.get("recommendations", []))
+    open_attr = " open" if finding.get("severity") == "high" else ""
+    summary = f"<span class='badge {severity}'>{severity}</span> {title} - {html.escape(_short_judgement(finding))}"
+    return (
+        f"<details class='card finding-card'{open_attr}>"
+        f"<summary>{summary}</summary>"
+        f"<p><strong>ID：</strong>{html.escape(str(finding.get('id')))}</p>"
+        f"<p>{judgement}</p>"
+        f"<h4>证据</h4><ul>{evidence}</ul>"
+        f"<h4>建议</h4><ul>{recommendations}</ul></details>"
+    )
+
+
+def _finding_list(items: list[Any]) -> str:
+    return "".join(f"<li>{html.escape(str(item))}</li>" for item in items)
 
 
 def _plan(plan: dict[str, Any]) -> str:
