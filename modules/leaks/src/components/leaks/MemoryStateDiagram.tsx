@@ -88,6 +88,9 @@ const EventItemRender = ({ record }: { record: EvenItem }): JSX.Element => {
 let currentRequestId = 0;
 const MIN_PAGE_SIZE = 1000;
 const MAX_PAGE_SIZE = 64000; // 分页逐步增加，配合逻辑，最大值必须是 1000 * 2^n
+// 事件列表每行包含两行文本，叠加 ResizeTable 单元格上下 8px padding 后高度为 48px。
+// 虚拟滚动和跳转定位必须使用同一个行高，否则滚动到底部时最后几行会落在可视区外。
+const EVENT_LIST_ROW_HEIGHT = 48;
 type EventSearchField = 'address' | 'eventType';
 const EventList = observer(({ session }: { session: Session }): JSX.Element => {
     const { t } = useTranslation('leaks');
@@ -256,7 +259,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         if (rowIndex === undefined) {
             return;
         }
-        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 32 * rowIndex });
+        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: EVENT_LIST_ROW_HEIGHT * rowIndex });
         setCurrentShowRow(matchIndex);
         if (shouldSelect) {
             setCurrentSelectRow(rowIndex);
@@ -395,7 +398,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         const selectedMatchIndex = result.findIndex(index => index === currentSelectRow);
         const nextShowRow = selectedMatchIndex >= 0 ? selectedMatchIndex : 0;
         setCurrentShowRow(nextShowRow);
-        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 32 * result[nextShowRow] });
+        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: EVENT_LIST_ROW_HEIGHT * result[nextShowRow] });
     }, [searchValues.address, searchValues.eventType, dataSource.length]);
 
     useEffect(() => {
@@ -417,8 +420,11 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
             return;
         }
         const index = dataSource.findIndex(item => item.id === session.leaksWorkerInfo.clickItem?.id);
+        if (index < 0) {
+            return;
+        }
         setCurrentSelectRow(index);
-        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 32 * index });
+        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: EVENT_LIST_ROW_HEIGHT * index });
     }, [session.leaksWorkerInfo.clickItem]);
 
     useEffect(() => {
@@ -446,7 +452,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         }
         setCurrentSelectRow(index);
         document.querySelector('[data-testid="stateDiagramPanel"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 32 * index });
+        tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: EVENT_LIST_ROW_HEIGHT * index });
         selectEventRow(dataSource[index]);
         runInAction(() => {
             session.pendingEventLocate = null;
@@ -619,7 +625,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
             </ToolGroup>
         </FindPanel>
         <ProgressLine currentCount={dataSource.length} total={dataTotal} />
-        <ResizeTable className="table-slice-list" ref={tableRef} virtual scroll={{ y: 760 }} dataSource={dataSource} rowKey={(row: EvenItem & { index: number }): string => `${row.id}_${row.index}`} columns={columns} showHeader={false}
+        <ResizeTable className="table-slice-list" ref={tableRef} virtual scroll={{ y: 760, rowHeight: EVENT_LIST_ROW_HEIGHT }} dataSource={dataSource} rowKey={(row: EvenItem & { index: number }): string => `${row.id}_${row.index}`} columns={columns} showHeader={false}
             resetScroll={false} loading={dataSource.length < 1} allowCopy={false} rowClassName={(row: any): string => {
                 if (currentSelectRow === row.index) {
                     return 'click-select';
