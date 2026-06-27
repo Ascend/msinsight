@@ -207,7 +207,15 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
     const startTimestamp = range?.[0] ?? session.minTime;
     const endTimestamp = range?.[1] ?? session.maxTime;
     if (session.module !== 'memsnapshot' || session.deviceId === '' || endTimestamp === 0 || endTimestamp === undefined) return;
+    const deviceId = session.deviceId;
     const requestId = session.leakStats.requestId + 1;
+    const isLatestRequest = (): boolean => (
+        session.module === 'memsnapshot' &&
+        session.deviceId === deviceId &&
+        session.minTime === startTimestamp &&
+        session.maxTime === endTimestamp &&
+        session.leakStats.requestId === requestId
+    );
     runInAction(() => {
         session.leakStats.loading = true;
         session.leakStats.error = false;
@@ -215,17 +223,17 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
     });
     try {
         const leakStats = await getSnapshotLeakStats({
-            deviceId: session.deviceId,
+            deviceId,
             startTimestamp,
             endTimestamp,
         });
         runInAction(() => {
-            if (session.leakStats.requestId !== requestId) return;
+            if (!isLatestRequest()) return;
             session.leakStats = { ...leakStats, loading: false, error: false, requestId };
         });
     } catch (error: any) {
         runInAction(() => {
-            if (session.leakStats.requestId !== requestId) return;
+            if (!isLatestRequest()) return;
             session.leakStats.loading = false;
             session.leakStats.error = true;
         });
