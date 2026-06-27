@@ -63,23 +63,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     const zoomRangeRef = useRef({ min: Number.MAX_SAFE_INTEGER, max: Number.MIN_SAFE_INTEGER });
     const debouncedFuncRangeRef = useRef<DebouncedFunc<(range: [number, number]) => void> | null>(null);
     const debouncedCommitRangeRef = useRef<DebouncedFunc<(range: [number, number]) => void> | null>(null);
-    const debouncedLeakStatsRef = useRef<DebouncedFunc<(range: [number, number]) => void> | null>(null);
     const funcRangeRequestSeqRef = useRef(0);
-
-    const schedulePotentialLeakStats = (range: [number, number]): void => {
-        if (session.module !== 'memsnapshot') {
-            return;
-        }
-        debouncedLeakStatsRef.current?.(range);
-    };
-
-    const requestPotentialLeakStatsNow = (range: [number, number]): void => {
-        if (session.module !== 'memsnapshot') {
-            return;
-        }
-        debouncedLeakStatsRef.current?.cancel();
-        getPotentialLeakStats(session, range);
-    };
 
     const commitSessionRange = (range: [number, number]): void => {
         runInAction(() => {
@@ -119,7 +103,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         }
         selectedRangeRef.current = range;
         setSelectedRange(range);
-        schedulePotentialLeakStats(range);
         debouncedFuncRangeRef.current?.cancel();
         debouncedFuncRangeRef.current?.(range);
         debouncedCommitRangeRef.current?.cancel();
@@ -135,11 +118,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         debouncedCommitRangeRef.current = debounce((range: [number, number]): void => {
             commitRangeSideEffects(range);
         }, 300);
-    }
-    if (debouncedLeakStatsRef.current === null) {
-        debouncedLeakStatsRef.current = debounce((range: [number, number]): void => {
-            getPotentialLeakStats(session, range);
-        }, 150, { maxWait: 500 });
     }
 
     const selectedZoomChange = (range: [number, number]): void => {
@@ -221,7 +199,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         zoomRangeRef.current = { min: minTime, max: maxTime };
         if (selectedRange === undefined) {
             commitRangeSideEffects([minTime, maxTime]);
-            getPotentialLeakStats(session, [minTime, maxTime]);
         }
     }, [
         session.allocationData.allocations,
@@ -233,10 +210,15 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     ]);
 
     useEffect(() => {
+        // Leak stats should only follow the committed session range. Data source refreshes
+        // during project switching must not trigger the snapshot-only stats API directly.
+        getPotentialLeakStats(session);
+    }, [session.module, session.deviceId, session.minTime, session.maxTime]);
+
+    useEffect(() => {
         return () => {
             debouncedFuncRangeRef.current?.cancel();
             debouncedCommitRangeRef.current?.cancel();
-            debouncedLeakStatsRef.current?.cancel();
         };
     }, []);
 
@@ -327,10 +309,8 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                                 setSelectedRange(fullRange);
                                 debouncedFuncRangeRef.current?.cancel();
                                 debouncedCommitRangeRef.current?.cancel();
-                                debouncedLeakStatsRef.current?.cancel();
                                 commitRangeSideEffects(fullRange);
                                 requestFuncRangeData(fullRange);
-                                requestPotentialLeakStatsNow(fullRange);
                                 setDataZoomKey(key => key + 1);
                             }}
                             onTransformChange={syncDataZoomRange}
