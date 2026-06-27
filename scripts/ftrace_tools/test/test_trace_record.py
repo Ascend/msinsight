@@ -291,6 +291,75 @@ class TestTraceRecordStats(unittest.TestCase):
     def test_stat_value_to_int_invalid(self):
         self.assertEqual(trace_record.TraceRecord._stat_value_to_int("abc"), 0)
 
+    def _create_cpu_stats(self, trace_root, cpu, content):
+        cpu_dir = os.path.join(trace_root, "per_cpu", f"cpu{cpu}")
+        os.makedirs(cpu_dir)
+        stats_path = os.path.join(cpu_dir, "stats")
+        with open(stats_path, 'w', encoding='utf-8') as stats_file:
+            stats_file.write(content)
+
+    def test_log_tracefs_stats_sums_all_loss_counters_across_cpus_and_warns(self):
+        """debugfs stats 中任一丢失计数非零时，应汇总所有 CPU 后告警。"""
+        trace_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, trace_root, ignore_errors=True)
+        os.makedirs(os.path.join(trace_root, "per_cpu"))
+        self._create_cpu_stats(trace_root, 0, "overrun: 1\ncommit overrun: 2\ndropped events: 0\n")
+        self._create_cpu_stats(trace_root, 1, "overrun: 0\ncommit overrun: 0\ndropped events: 3\n")
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
+        trace_record.TraceRecord._trace_root = trace_root
+        self.addCleanup(setattr, trace_record.TraceRecord, "_backend_name", None)
+        self.addCleanup(setattr, trace_record.TraceRecord, "_trace_root", None)
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with self.assertLogs(level='WARNING') as logs:
+            trace_record.TraceRecord.log_tracefs_stats()
+
+        self.assertTrue(any("total_loss_counters=6" in log for log in logs.output))
+
+    def test_log_tracefs_stats_ignores_cpu_directory_without_stats_file(self):
+        """部分 CPU 缺少 stats 文件时，不应中断其它 CPU 的丢失计数统计。"""
+        trace_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, trace_root, ignore_errors=True)
+        os.makedirs(os.path.join(trace_root, "per_cpu", "cpu0"))
+        self._create_cpu_stats(trace_root, 1, "overrun: 1\n")
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
+        trace_record.TraceRecord._trace_root = trace_root
+        self.addCleanup(setattr, trace_record.TraceRecord, "_backend_name", None)
+        self.addCleanup(setattr, trace_record.TraceRecord, "_trace_root", None)
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with self.assertLogs(level='WARNING') as logs:
+            trace_record.TraceRecord.log_tracefs_stats()
+
+        self.assertTrue(any("total_loss_counters=1" in log for log in logs.output))
+
+    def test_log_tracefs_stats_warns_and_continues_when_stats_file_read_fails(self):
+        """读取 stats 文件失败时应告警，且不能影响 trace_stop/reset 后续流程。"""
+        trace_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, trace_root, ignore_errors=True)
+        os.makedirs(os.path.join(trace_root, "per_cpu", "cpu0"))
+        stats_path = os.path.join(trace_root, "per_cpu", "cpu0", "stats")
+        with open(stats_path, 'w', encoding='utf-8') as stats_file:
+            stats_file.write("overrun: 1\n")
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
+        trace_record.TraceRecord._trace_root = trace_root
+        self.addCleanup(setattr, trace_record.TraceRecord, "_backend_name", None)
+        self.addCleanup(setattr, trace_record.TraceRecord, "_trace_root", None)
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with patch('builtins.open', side_effect=OSError("permission denied")):
+            with self.assertLogs(level='WARNING') as logs:
+                trace_record.TraceRecord.log_tracefs_stats()
+
+        self.assertTrue(any("Failed to read tracefs stats" in log for log in logs.output))
+        self.assertTrue(any("No tracefs per-cpu stats files found" in log for log in logs.output))
+
 
 class TestContainerPidMapper(unittest.TestCase):
     """Test ContainerPidMapper class"""

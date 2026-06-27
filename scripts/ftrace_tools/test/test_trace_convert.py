@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+from collections import deque
 import json
 import logging
 import os
@@ -316,6 +317,130 @@ class TestInterruptFtraceParse(unittest.TestCase):
 
     def test_get_result_empty(self):
         self.assertEqual(self.parser.get_result(), [])
+
+    def _parse_line(self, line):
+        match = self.parser.belong(line)
+        self.assertIsNotNone(match)
+        self.parser.parse_one_event(match)
+
+    def test_irq_entry_and_exit_with_same_irq_number_outputs_duration_event(self):
+        """同一 CPU 上 IRQ entry/exit 编号一致时，应输出完整 duration 事件。"""
+        self._parse_line("task-123 [0] .... 123456.001: irq_handler_entry: irq=12 name=eth0")
+        self._parse_line("task-123 [0] .... 123456.002: irq_handler_exit: irq=12 ret=handled")
+
+        result = self.parser.get_result()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["name"], "irq")
+        self.assertEqual(result[0]["args"]["irq"], "12")
+        self.assertEqual(result[0]["args"]["task"], "task:123")
+        self.assertEqual(result[0]["dur"], "1.000")
+
+    def test_softirq_entry_and_exit_with_same_vec_outputs_duration_event(self):
+        """同一 CPU 上 softirq entry/exit vec 一致时，应输出完整 duration 事件。"""
+        self._parse_line("task-123 [0] .... 123456.001: softirq_entry: vec=1 [action=TIMER]")
+        self._parse_line("task-123 [0] .... 123456.002: softirq_exit: vec=1 [action=TIMER]")
+
+        result = self.parser.get_result()
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["name"], "softirq")
+        self.assertEqual(result[0]["args"]["vec"], "1")
+        self.assertEqual(result[0]["args"]["action"], "TIMER")
+        self.assertEqual(result[0]["dur"], "1.000")
+
+    def test_irq_exit_without_pending_entry_logs_warning_and_drops_exit(self):
+        """只有 IRQ exit、没有 pending entry 时，应告警并丢弃该 exit。"""
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with self.assertLogs(level='WARNING') as logs:
+            self._parse_line("task-123 [0] .... 123456.002: irq_handler_exit: irq=12 ret=handled")
+
+        self.assertEqual(self.parser.get_result(), [])
+        self.assertTrue(any("IRQ exit event without matching entry event" in log for log in logs.output))
+
+    def test_irq_entry_without_exit_logs_warning_and_is_not_output_at_result_time(self):
+        """只有 IRQ entry、直到转换结束都没有 exit 时，应告警并丢弃未闭合事件。"""
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+        self._parse_line("task-123 [0] .... 123456.001: irq_handler_entry: irq=12 name=eth0")
+
+        with self.assertLogs(level='WARNING') as logs:
+            result = self.parser.get_result()
+
+        self.assertEqual(result, [])
+        self.assertTrue(any("IRQ entry event without matching exit event" in log for log in logs.output))
+
+    def test_irq_exit_with_different_irq_number_discards_pending_entry_and_exit(self):
+        """IRQ 编号错配时采用保守策略：同时丢弃栈顶 entry 和当前 exit。"""
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+        self._parse_line("task-123 [0] .... 123456.001: irq_handler_entry: irq=12 name=eth0")
+
+        with self.assertLogs(level='WARNING') as logs:
+            self._parse_line("task-123 [0] .... 123456.002: irq_handler_exit: irq=13 ret=handled")
+
+        self.assertEqual(self.parser.get_result(), [])
+        self.assertEqual(self.parser.interrupt_events["0"], deque())
+        self.assertTrue(any("IRQ exit event does not match pending entry event" in log for log in logs.output))
+
+    def test_softirq_exit_after_irq_entry_discards_pending_entry_and_exit(self):
+        """IRQ/softirq 类型错配时不允许跨类型配对，避免生成错误 duration。"""
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+        self._parse_line("task-123 [0] .... 123456.001: irq_handler_entry: irq=12 name=eth0")
+
+        with self.assertLogs(level='WARNING') as logs:
+            self._parse_line("task-123 [0] .... 123456.002: softirq_exit: vec=1 [action=TIMER]")
+
+        self.assertEqual(self.parser.get_result(), [])
+        self.assertEqual(self.parser.interrupt_events["0"], deque())
+        self.assertTrue(any("Softirq exit event does not match pending entry event" in log for log in logs.output))
+
+    def test_irq_event_longer_than_threshold_logs_warning_and_is_discarded(self):
+        """同一 IRQ 编号也可能因中段数据丢失被误配，超长 duration 应告警并丢弃。"""
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+        self._parse_line("task-123 [0] .... 123456.001: irq_handler_entry: irq=12 name=eth0")
+
+        with self.assertLogs(level='WARNING') as logs:
+            self._parse_line("task-123 [0] .... 123458.001: irq_handler_exit: irq=12 ret=handled")
+
+        self.assertEqual(self.parser.get_result(), [])
+        self.assertTrue(any("Abnormally long irq event" in log for log in logs.output))
+
+    def test_irq_entry_and_exit_without_irq_number_are_not_matched(self):
+        """entry/exit 均缺失 irq 编号时不能按 None 匹配成功，应告警并丢弃。"""
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+        self._parse_line("task-123 [0] .... 123456.001: irq_handler_entry: name=eth0")
+
+        with self.assertLogs(level='WARNING') as logs:
+            self._parse_line("task-123 [0] .... 123456.002: irq_handler_exit: ret=handled")
+
+        self.assertEqual(self.parser.get_result(), [])
+        self.assertEqual(self.parser.interrupt_events["0"], deque())
+        self.assertTrue(any("missing match field" in log for log in logs.output))
+
+    def test_irq_exit_earlier_than_entry_logs_warning_and_is_discarded(self):
+        """trace 数据乱序导致 exit 早于 entry 时，应告警并丢弃负 duration 事件。"""
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+        self._parse_line("task-123 [0] .... 123456.002: irq_handler_entry: irq=12 name=eth0")
+
+        with self.assertLogs(level='WARNING') as logs:
+            self._parse_line("task-123 [0] .... 123456.001: irq_handler_exit: irq=12 ret=handled")
+
+        self.assertEqual(self.parser.get_result(), [])
+        self.assertTrue(any("Negative irq duration" in log for log in logs.output))
 
 
 class TestSchedFtraceParse(unittest.TestCase):

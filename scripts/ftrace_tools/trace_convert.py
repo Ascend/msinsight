@@ -411,6 +411,8 @@ class FtraceParse:
 
 
 class InterruptFtraceParse(FtraceParse):
+    MAX_INTERRUPT_DURATION_NS = 1_000_000_000
+
     def __init__(self, file_type='dat'):
         super().__init__(file_type=file_type)
         self.parse_softirq_pattern = re.compile(r'vec=(?P<vec>\d+)\s+\[action=(?P<action>.+)\]')
@@ -440,11 +442,9 @@ class InterruptFtraceParse(FtraceParse):
                 self.interrupt_events[cpu] = deque()
             self.interrupt_events[cpu].append(InterruptEvent("irq", timestamp, cpu, **kwargs))
         elif entry['action'] == 'irq_handler_exit':
-            if cpu not in self.interrupt_events or len(self.interrupt_events[cpu]) == 0:
-                logging.warning("IRQ exit event without matching entry event on CPU %s", cpu)
+            event = self._pop_matched_interrupt_event(cpu, "irq", "irq", kwargs.get("irq"), timestamp)
+            if event is None:
                 return
-            event = self.interrupt_events[cpu].pop()
-            event.dur = timestamp - event.st
             event.kwargs.update(kwargs)
             self.interrupt_events_res.append(event.to_event_json())
 
@@ -469,12 +469,56 @@ class InterruptFtraceParse(FtraceParse):
                 self.interrupt_events[cpu] = deque()
             self.interrupt_events[cpu].append(InterruptEvent("softirq", timestamp, cpu, **kwargs))
         elif entry['action'] == 'softirq_exit':
-            if cpu not in self.interrupt_events or len(self.interrupt_events[cpu]) == 0:
-                logging.warning("Softirq exit event without matching entry event on CPU %s", cpu)
+            event = self._pop_matched_interrupt_event(cpu, "softirq", "vec", kwargs.get("vec"), timestamp)
+            if event is None:
                 return
-            event = self.interrupt_events[cpu].pop()
-            event.dur = timestamp - event.st
             self.interrupt_events_res.append(event.to_event_json())
+
+    def _pop_matched_interrupt_event(self, cpu, event_type, match_key, match_value, timestamp):
+        event_name = "IRQ" if event_type == "irq" else "Softirq"
+        if cpu not in self.interrupt_events or len(self.interrupt_events[cpu]) == 0:
+            logging.warning("%s exit event without matching entry event on CPU %s", event_name, cpu)
+            return None
+
+        event = self.interrupt_events[cpu].pop()
+        entry_value = event.kwargs.get(match_key)
+        if event.comm != event_type:
+            logging.warning(
+                "%s exit event does not match pending entry event on CPU %s: "
+                "entry_type=%s expected_type=%s",
+                event_name, cpu, event.comm, event_type
+            )
+            return None
+        if entry_value is None or match_value is None:
+            logging.warning(
+                "%s exit event missing match field on CPU %s: entry_%s=%s exit_%s=%s",
+                event_name, cpu, match_key, entry_value, match_key, match_value
+            )
+            return None
+        if entry_value != match_value:
+            logging.warning(
+                "%s exit event does not match pending entry event on CPU %s: "
+                "entry_type=%s entry_%s=%s exit_%s=%s",
+                event_name, cpu, event.comm, match_key, entry_value, match_key, match_value
+            )
+            return None
+
+        event.dur = timestamp - event.st
+        if event.dur < 0:
+            logging.warning(
+                "Negative %s duration on CPU %s: %d ns (exit_ts=%s, entry_st=%s). "
+                "The trace data may be corrupted.",
+                event_type, cpu, event.dur, timestamp, event.st
+            )
+            return None
+        if event.dur > self.MAX_INTERRUPT_DURATION_NS:
+            logging.warning(
+                "Abnormally long %s event on CPU %s: %d ns. "
+                "The trace data may be incomplete or overwritten.",
+                event_type, cpu, event.dur
+            )
+            return None
+        return event
 
     def parse_softirq_param(self, string: str):
         match = self.parse_softirq_pattern.search(string.strip())
@@ -487,6 +531,14 @@ class InterruptFtraceParse(FtraceParse):
         return result
 
     def get_result(self):
+        for cpu, events in self.interrupt_events.items():
+            while events:
+                event = events.pop()
+                event_name = "IRQ" if event.comm == "irq" else "Softirq"
+                logging.warning(
+                    "%s entry event without matching exit event on CPU %s: start=%s args=%s",
+                    event_name, cpu, event.st, event.kwargs
+                )
         return self.interrupt_events_res
 
 class TimeFilterResult:
