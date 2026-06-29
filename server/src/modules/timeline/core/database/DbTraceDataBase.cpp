@@ -800,7 +800,7 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(
     }
     std::unique_ptr<SqliteResultSet> resultSet;
     uint64_t timestamp = params.timestamp + minTimestamp;
-    constexpr uint8_t QUERY_KERNEL_SQL_UNION_TABLE_NUM = 9; // 这个值需要等于 QUERY_KERNEL_SQL 联合的表数
+    constexpr uint8_t QUERY_KERNEL_SQL_UNION_TABLE_NUM = 10; // 这个值需要等于 QUERY_KERNEL_SQL 联合的表数
     for (uint8_t i = 0; i < QUERY_KERNEL_SQL_UNION_TABLE_NUM; ++i) {
         stmt->BindParams(params.name, timestamp);
     }
