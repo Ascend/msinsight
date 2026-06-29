@@ -134,10 +134,20 @@ def _check_trace_data_warning(output_path: str) -> None:
         logging.warning("No trace data collected: trace file is empty (0 bytes). %s", hint)
 
 
+def _check_trace_buffer_loss_safely():
+    try:
+        TraceRecord.check_trace_buffer_loss()
+    except Exception as exc:
+        logging.exception("Failed to check ftrace ring buffer loss: %s", exc)
+
+
 def ftrace_record_stop(output=None):
     logging.info("Ending record, cleaning up...")
     final_output = None
+    backend = TraceRecord.get_backend_name()
     try:
+        if backend == TRACE_BACKEND_TRACE_CMD:
+            _check_trace_buffer_loss_safely()
         final_output = TraceRecord.trace_stop(output)
     except Exception:
         logging.exception("Failed to stop ftrace recording")
@@ -148,7 +158,8 @@ def ftrace_record_stop(output=None):
         logging.warning("Trace buffer was not cleared because trace data may not have been saved.")
         raise
     else:
-        TraceRecord.log_tracefs_stats()
+        if backend != TRACE_BACKEND_TRACE_CMD:
+            _check_trace_buffer_loss_safely()
         TraceRecord.trace_clear()
         TraceRecord.trace_reset(log_stats=False)
         if final_output is not None:
@@ -364,12 +375,13 @@ class TraceRecord:
 
         if TraceRecord._ensure_backend() == TRACE_BACKEND_DEBUGFS and output.lower().endswith(".dat"):
             normalized_output = output[:-4] + ".txt"
-            logging.warning(
-                "debugfs backend produces text trace data, output path is adjusted from %s to %s. "
-                "Use the adjusted file as trace_convert.py input.",
-                output,
-                normalized_output,
-            )
+            if TraceRecord._output_path != normalized_output:
+                logging.warning(
+                    "debugfs backend produces text trace data, output path is adjusted from %s to %s. "
+                    "Use the adjusted file as trace_convert.py input.",
+                    output,
+                    normalized_output,
+                )
             output = normalized_output
         return output
 
@@ -450,18 +462,33 @@ class TraceRecord:
             return 0
 
     @staticmethod
-    def log_tracefs_stats():
-        if TraceRecord._ensure_backend() != TRACE_BACKEND_DEBUGFS:
-            return
+    def _get_ring_buffer_stats_root(backend):
+        if backend == TRACE_BACKEND_DEBUGFS:
+            return TraceRecord._trace_root
+        if backend == TRACE_BACKEND_TRACE_CMD:
+            return TraceRecord.detect_tracing_root()
+        return None
 
-        trace_root = TraceRecord._trace_root
+    @staticmethod
+    def check_trace_buffer_loss():
+        backend = TraceRecord._ensure_backend()
+        trace_root = TraceRecord._get_ring_buffer_stats_root(backend)
         if not trace_root:
-            logging.warning("tracefs root is unavailable, skip tracefs stats check")
+            logging.warning(
+                "Unable to check whether ftrace ring buffer lost events for %s backend. "
+                "Trace data may be incomplete if the ring buffer was overwritten.",
+                backend,
+            )
             return
 
         per_cpu_root = os.path.join(trace_root, "per_cpu")
         if not os.path.isdir(per_cpu_root):
-            logging.warning("tracefs per-cpu stats are unavailable: %s", per_cpu_root)
+            logging.warning(
+                "Unable to check whether ftrace ring buffer lost events for %s backend: "
+                "per-CPU ring buffer stats directory is unavailable: %s",
+                backend,
+                per_cpu_root,
+            )
             return
 
         loss_keys = ("overrun", "commit overrun", "dropped events")
@@ -479,17 +506,19 @@ class TraceRecord:
                 with open(stats_path, "r", encoding="utf-8", errors="replace") as stats_file:
                     stats = TraceRecord._parse_tracefs_stats(stats_file.read())
             except OSError as exc:
-                logging.warning("Failed to read tracefs stats from %s: %s", stats_path, exc)
+                logging.warning("Failed to check ftrace ring buffer loss from %s: %s", stats_path, exc)
                 continue
 
             found_stats = True
             total_loss += sum(TraceRecord._stat_value_to_int(stats.get(key)) for key in loss_keys)
 
         if not found_stats:
-            logging.warning("No tracefs per-cpu stats files found under %s", per_cpu_root)
+            logging.warning("No per-CPU ring buffer stats files found under %s", per_cpu_root)
         elif total_loss > 0:
             logging.warning(
-                "tracefs stats report lost/overwritten events before reset: total_loss_counters=%d. Consider increasing --bf-size",
+                "ftrace ring buffer was overwritten or dropped events during %s recording: "
+                "total_loss_counters=%d. Trace data may be incomplete; consider increasing --bf-size.",
+                backend,
                 total_loss,
             )
 
@@ -540,7 +569,7 @@ class TraceRecord:
             return
 
         if log_stats:
-            TraceRecord.log_tracefs_stats()
+            TraceRecord.check_trace_buffer_loss()
         TraceRecord._write_tracefs_text("tracing_on", "0")
         TraceRecord._write_tracefs_text("current_tracer", "nop")
         TraceRecord._write_tracefs_text("events/enable", "0")
@@ -611,7 +640,9 @@ class TraceRecord:
             return TraceRecord._output_path
 
         try:
-            logging.info("Stopping trace-cmd record process")
+            logging.info(
+                "Stopping trace-cmd record process. Waiting for trace-cmd to flush and merge per-CPU trace data..."
+            )
             TraceRecord._request_trace_cmd_stop(proc)
             return_code = proc.wait(timeout=TraceRecord._WAIT_TIMEOUT_SEC)
             if return_code in (0, -signal.SIGINT):
@@ -635,9 +666,6 @@ class TraceRecord:
         if proc.poll() is not None:
             return
 
-        logging.info(
-            "Stopping trace-cmd record process. Waiting for trace-cmd to flush and merge per-CPU trace data..."
-        )
         try:
             os.kill(proc.pid, signal.SIGINT)
         except Exception as exc:
