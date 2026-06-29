@@ -261,6 +261,27 @@ class TestTraceRecordOutputPath(unittest.TestCase):
         trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_TRACE_CMD
         self.assertEqual(trace_record.TraceRecord._get_final_output_path("custom.dat"), "custom.dat")
 
+    def test_debugfs_dat_output_adjustment_warning_logs_once_for_start_stop_flow(self):
+        """debugfs start/stop 都会解析输出路径时，.dat 到 .txt 的调整告警只应提示一次。"""
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
+        event_cfg = trace_record.TraceEventConfig()
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with (
+            patch.object(trace_record.TraceRecord, '_write_tracefs_text'),
+            patch.object(trace_record.TraceRecord, '_set_tracefs_cpumask'),
+            patch.object(trace_record.TraceRecord, '_set_tracefs_events'),
+            patch.object(trace_record.TraceRecord, '_copy_tracefs_trace'),
+            self.assertLogs(level='WARNING') as logs,
+        ):
+            trace_record.TraceRecord.trace_start(None, "trace.dat", event_cfg)
+            trace_record.TraceRecord.trace_stop("trace.dat")
+
+        adjustment_logs = [log for log in logs.output if "debugfs backend produces text trace data" in log]
+        self.assertEqual(len(adjustment_logs), 1)
+
 
 class TestTraceRecordStats(unittest.TestCase):
     """Test TraceRecord stats parsing"""
@@ -298,8 +319,8 @@ class TestTraceRecordStats(unittest.TestCase):
         with open(stats_path, 'w', encoding='utf-8') as stats_file:
             stats_file.write(content)
 
-    def test_log_tracefs_stats_sums_all_loss_counters_across_cpus_and_warns(self):
-        """debugfs stats 中任一丢失计数非零时，应汇总所有 CPU 后告警。"""
+    def test_check_trace_buffer_loss_warns_for_debugfs_backend_loss_counters(self):
+        """debugfs 采集路线发现 ring buffer 覆盖/丢事件计数时，应明确告警。"""
         trace_root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, trace_root, ignore_errors=True)
         os.makedirs(os.path.join(trace_root, "per_cpu"))
@@ -314,11 +335,50 @@ class TestTraceRecordStats(unittest.TestCase):
         self.addCleanup(logging.disable, original_disable_level)
 
         with self.assertLogs(level='WARNING') as logs:
-            trace_record.TraceRecord.log_tracefs_stats()
+            trace_record.TraceRecord.check_trace_buffer_loss()
 
+        self.assertTrue(any("ring buffer was overwritten or dropped events" in log for log in logs.output))
         self.assertTrue(any("total_loss_counters=6" in log for log in logs.output))
 
-    def test_log_tracefs_stats_ignores_cpu_directory_without_stats_file(self):
+    def test_check_trace_buffer_loss_warns_for_trace_cmd_backend_loss_counters(self):
+        """trace-cmd 采集路线也应只读 tracefs stats，检查 ring buffer 是否覆盖/丢事件。"""
+        trace_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, trace_root, ignore_errors=True)
+        os.makedirs(os.path.join(trace_root, "per_cpu"))
+        self._create_cpu_stats(trace_root, 0, "overrun: 0\ncommit overrun: 0\ndropped events: 4\n")
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_TRACE_CMD
+        trace_record.TraceRecord._trace_root = None
+        self.addCleanup(setattr, trace_record.TraceRecord, "_backend_name", None)
+        self.addCleanup(setattr, trace_record.TraceRecord, "_trace_root", None)
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with patch.object(trace_record.TraceRecord, 'detect_tracing_root', return_value=trace_root):
+            with self.assertLogs(level='WARNING') as logs:
+                trace_record.TraceRecord.check_trace_buffer_loss()
+
+        self.assertTrue(any("trace-cmd" in log for log in logs.output))
+        self.assertTrue(any("ring buffer was overwritten or dropped events" in log for log in logs.output))
+        self.assertTrue(any("total_loss_counters=4" in log for log in logs.output))
+
+    def test_check_trace_buffer_loss_warns_when_trace_root_unavailable(self):
+        """无法访问 tracefs 时，应提示无法检查 ring buffer 覆盖/丢事件，而不是静默跳过。"""
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_TRACE_CMD
+        trace_record.TraceRecord._trace_root = None
+        self.addCleanup(setattr, trace_record.TraceRecord, "_backend_name", None)
+        self.addCleanup(setattr, trace_record.TraceRecord, "_trace_root", None)
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with patch.object(trace_record.TraceRecord, 'detect_tracing_root', return_value=None):
+            with self.assertLogs(level='WARNING') as logs:
+                trace_record.TraceRecord.check_trace_buffer_loss()
+
+        self.assertTrue(any("Unable to check whether ftrace ring buffer lost events" in log for log in logs.output))
+
+    def test_check_trace_buffer_loss_ignores_cpu_directory_without_stats_file(self):
         """部分 CPU 缺少 stats 文件时，不应中断其它 CPU 的丢失计数统计。"""
         trace_root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, trace_root, ignore_errors=True)
@@ -333,11 +393,11 @@ class TestTraceRecordStats(unittest.TestCase):
         self.addCleanup(logging.disable, original_disable_level)
 
         with self.assertLogs(level='WARNING') as logs:
-            trace_record.TraceRecord.log_tracefs_stats()
+            trace_record.TraceRecord.check_trace_buffer_loss()
 
         self.assertTrue(any("total_loss_counters=1" in log for log in logs.output))
 
-    def test_log_tracefs_stats_warns_and_continues_when_stats_file_read_fails(self):
+    def test_check_trace_buffer_loss_warns_and_continues_when_stats_file_read_fails(self):
         """读取 stats 文件失败时应告警，且不能影响 trace_stop/reset 后续流程。"""
         trace_root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, trace_root, ignore_errors=True)
@@ -355,10 +415,10 @@ class TestTraceRecordStats(unittest.TestCase):
 
         with patch('builtins.open', side_effect=OSError("permission denied")):
             with self.assertLogs(level='WARNING') as logs:
-                trace_record.TraceRecord.log_tracefs_stats()
+                trace_record.TraceRecord.check_trace_buffer_loss()
 
-        self.assertTrue(any("Failed to read tracefs stats" in log for log in logs.output))
-        self.assertTrue(any("No tracefs per-cpu stats files found" in log for log in logs.output))
+        self.assertTrue(any("Failed to check ftrace ring buffer loss" in log for log in logs.output))
+        self.assertTrue(any("No per-CPU ring buffer stats files found" in log for log in logs.output))
 
 
 class TestContainerPidMapper(unittest.TestCase):
@@ -527,6 +587,23 @@ class TestTraceRecordStop(unittest.TestCase):
         self.assertEqual(result, "trace.dat")
         self.assertIsNone(trace_record.TraceRecord._record_process)
 
+    def test_trace_cmd_stop_logs_stopping_message_once(self):
+        """停止 trace-cmd 时只保留一条 stop 日志，避免用户看到重复的停止提示。"""
+        proc = MagicMock()
+        proc.pid = 1234
+        proc.poll.return_value = None
+        proc.wait.return_value = 0
+        trace_record.TraceRecord._record_process = proc
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with patch('os.kill'), self.assertLogs(level='INFO') as logs:
+            trace_record.TraceRecord.trace_stop()
+
+        stop_logs = [log for log in logs.output if "Stopping trace-cmd record process" in log]
+        self.assertEqual(len(stop_logs), 1)
+
     def test_trace_cmd_stop_timeout_raises(self):
         proc = MagicMock()
         proc.pid = 1234
@@ -554,11 +631,13 @@ class TestTraceRecordStop(unittest.TestCase):
         mock_kill.assert_called_once_with(proc.pid, signal.SIGINT)
 
     def test_ftrace_record_stop_failure_does_not_clear_trace(self):
+        """trace_stop 失败时不能检查 loss 或清空 trace，避免破坏尚未保存的现场。"""
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
         with (
             patch.object(trace_record.TraceRecord, 'trace_stop', side_effect=TimeoutError("stop timeout")),
             patch.object(trace_record.TraceRecord, 'trace_reset') as mock_reset,
             patch.object(trace_record.TraceRecord, 'trace_clear') as mock_clear,
-            patch.object(trace_record.TraceRecord, 'log_tracefs_stats') as mock_stats,
+            patch.object(trace_record.TraceRecord, 'check_trace_buffer_loss') as mock_stats,
             self.assertRaises(TimeoutError),
         ):
             trace_record.ftrace_record_stop("trace.dat")
@@ -566,6 +645,56 @@ class TestTraceRecordStop(unittest.TestCase):
         mock_reset.assert_called_once()
         mock_clear.assert_not_called()
         mock_stats.assert_not_called()
+
+    def test_ftrace_record_stop_checks_trace_cmd_loss_before_stop(self):
+        """trace-cmd 停止后 stats 可能被清零，因此 ring buffer loss 必须在 trace_stop 前检查。"""
+        calls = []
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_TRACE_CMD
+
+        def fake_check_trace_buffer_loss():
+            calls.append("check_loss")
+
+        def fake_trace_stop(output):
+            calls.append("trace_stop")
+            return output
+
+        with (
+            patch('trace_record._check_trace_buffer_loss_safely', side_effect=fake_check_trace_buffer_loss),
+            patch.object(trace_record.TraceRecord, 'trace_stop', side_effect=fake_trace_stop),
+            patch.object(trace_record.TraceRecord, 'trace_clear') as mock_clear,
+            patch.object(trace_record.TraceRecord, 'trace_reset') as mock_reset,
+            patch('trace_record._check_trace_data_warning'),
+        ):
+            trace_record.ftrace_record_stop("trace.dat")
+
+        self.assertEqual(calls, ["check_loss", "trace_stop"])
+        mock_clear.assert_called_once()
+        mock_reset.assert_called_once_with(log_stats=False)
+
+    def test_ftrace_record_stop_checks_debugfs_loss_after_stop(self):
+        """debugfs 需要先停止并保存 trace 快照，再检查 ring buffer loss 并清理 tracefs。"""
+        calls = []
+        trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
+
+        def fake_trace_stop(output):
+            calls.append("trace_stop")
+            return output
+
+        def fake_check_trace_buffer_loss():
+            calls.append("check_loss")
+
+        with (
+            patch.object(trace_record.TraceRecord, 'trace_stop', side_effect=fake_trace_stop),
+            patch('trace_record._check_trace_buffer_loss_safely', side_effect=fake_check_trace_buffer_loss),
+            patch.object(trace_record.TraceRecord, 'trace_clear') as mock_clear,
+            patch.object(trace_record.TraceRecord, 'trace_reset') as mock_reset,
+            patch('trace_record._check_trace_data_warning'),
+        ):
+            trace_record.ftrace_record_stop("trace.txt")
+
+        self.assertEqual(calls, ["trace_stop", "check_loss"])
+        mock_clear.assert_called_once()
+        mock_reset.assert_called_once_with(log_stats=False)
 
 
 class TestCheckTraceDataWarning(unittest.TestCase):
@@ -627,7 +756,7 @@ class TestCheckTraceDataWarning(unittest.TestCase):
         output_path = os.path.join(self.temp_dir, "trace.txt")
         with (
             patch.object(trace_record.TraceRecord, 'trace_stop', return_value=output_path),
-            patch.object(trace_record.TraceRecord, 'log_tracefs_stats'),
+            patch.object(trace_record.TraceRecord, 'check_trace_buffer_loss'),
             patch.object(trace_record.TraceRecord, 'trace_clear'),
             patch.object(trace_record.TraceRecord, 'trace_reset'),
             patch('trace_record._check_trace_data_warning') as mock_check,
