@@ -59,6 +59,12 @@ def is_kernel_process(comm):
     return False
 
 
+def validate_output_suffix(parser, output_path, output_format):
+    expected_suffix = ".json" if output_format == "json" else ".db"
+    if not output_path.endswith(expected_suffix):
+        parser.error(f"--format={output_format} requires --output to end with {expected_suffix}")
+
+
 def get_trace_event(name, pid, tid, ts, dur, args=None):
     event = {"name": name, "ph": "X", "pid": pid, "tid": tid, "ts": ts, "dur": dur}
     if args is not None:
@@ -827,6 +833,7 @@ if __name__ == "__main__":
     parser.add_argument('--profiling_data', type=str, help='Use profiling data to adjust start time')
     parser.add_argument('--pid_mapping', type=str, help='Container pid map file')
     args = parser.parse_args()
+    validate_output_suffix(parser, args.output, args.format)
 
     t_start = time.perf_counter()
     converter = TraceConverter(args.input, args.profiling_data, args.pid_mapping)
