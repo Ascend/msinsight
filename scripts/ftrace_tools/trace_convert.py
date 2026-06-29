@@ -766,6 +766,9 @@ class TraceConverter:
         return result
 
     def export(self, strategy: ExportStrategy, output_path: str):
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
         data = self.parse()
         strategy.export(data, output_path)
 

@@ -619,6 +619,34 @@ class TestTraceConverterE2E(unittest.TestCase):
             data = json.load(f)
         self.assertTrue(len(data) > 0)
 
+    def test_export_creates_parent_dir_before_parse(self):
+        """Test export prepares parent directory before parsing trace data"""
+        output_dir = os.path.join(self.temp_dir, 'results')
+        output_path = os.path.join(output_dir, 'tracecmd.json')
+        sample_data = [{'name': 'event', 'ph': 'X'}]
+
+        class DummyExport:
+            def __init__(self):
+                self.data = None
+                self.output_path = None
+
+            def export(self, data, output_path):
+                self.data = data
+                self.output_path = output_path
+
+        converter = trace_convert.TraceConverter(os.path.join(self.temp_dir, 'trace.txt'))
+
+        def parse_stub():
+            self.assertTrue(os.path.isdir(output_dir))
+            return sample_data
+
+        converter.parse = parse_stub
+        strategy = DummyExport()
+        converter.export(strategy, output_path)
+
+        self.assertEqual(strategy.data, sample_data)
+        self.assertEqual(strategy.output_path, output_path)
+
     def test_sched_events_parsed(self):
         """Test that sched_switch events are properly parsed"""
         trace_file = os.path.join(self.TEST_DATA_DIR, 'trace.txt')
