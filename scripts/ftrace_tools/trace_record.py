@@ -936,8 +936,7 @@ def daemon_mode(args):
         recorder.trace_record_stop()
 
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s] [%(levelname)s]:%(message)s')
+def build_arg_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--cpu',
@@ -945,7 +944,12 @@ if __name__ == "__main__":
         default=None,
         help="Specify CPU cores to collect. Supports single numbers, commas, and hyphen ranges. e.g., '0,1,4' or '0-3,8'. Default: collect all CPUs.",
     )
-    parser.add_argument('--output', type=str, default='trace.dat')
+    parser.add_argument(
+        '--output',
+        type=str,
+        default=None,
+        help='Output trace file path. Default: trace.dat for trace-cmd backend, trace.txt for debugfs backend.',
+    )
     parser.add_argument(
         '--record_time',
         type=int,
@@ -980,6 +984,11 @@ if __name__ == "__main__":
     )
     parser.add_argument('--NSpid', action='store_true', help='will try to record the pid flex map')
     parser.add_argument('--duration', type=int, default=30)
+    return parser
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG, format='[%(asctime)s] [%(levelname)s]:%(message)s')
     confirm = (
         input("This script requires root privileges, irreverisble action may occur. Continue? (y/N):").strip().lower()
     )
@@ -987,5 +996,5 @@ if __name__ == "__main__":
         logging.critical("Aborted")
         sys.exit(1)
 
-    cli_args = parser.parse_args()
+    cli_args = build_arg_parser().parse_args()
     normal_mode(cli_args)

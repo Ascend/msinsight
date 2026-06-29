@@ -238,6 +238,16 @@ class TestTraceRecordBackend(unittest.TestCase):
             self.assertFalse(trace_record.TraceRecord._is_trace_cmd_available())
 
 
+class TestBuildArgParser(unittest.TestCase):
+    """Test CLI argument parser defaults"""
+
+    def test_output_default_is_none(self):
+        parser = trace_record.build_arg_parser()
+        args = parser.parse_args([])
+
+        self.assertIsNone(args.output)
+
+
 class TestTraceRecordOutputPath(unittest.TestCase):
     """Test TraceRecord output path handling"""
 

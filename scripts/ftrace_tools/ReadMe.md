@@ -6,12 +6,6 @@
 
 目前缺乏一种工具，能够统合profiling数据和Linux Kernel ftrace数据，做到联合分析。MindStudio Insight在本仓库中，提出一些工具脚本，帮助开发者实现两种数据的联合分析，提高Host Bound问题定位的效率。
 
-## 特性
-
-+ 支持**命令行**和**API接口**两种方式的ftrace数据采集
-+ 支持将ftrace格式数据转换为SQLite DB格式（默认）或Chrome Trace JSON格式，**联合Profiling数据导入**MindStudio Insight，进行可视化展示
-+ 支持**容器内**运行模型，宿主机采集Linux Kernel ftrace数据，并进行无缝PID映射
-
 ## Host Bound问题定位思路
 
 1. 尝试通用的调度优化手段，包括绑核、流水优化、内存分配库替换三板斧。PyTorch框架调度优化可参考：[调度优化-Ascend Extension for PyTorch-昇腾社区](https://www.hiascend.com/document/detail/zh/Pytorch/720/ptmoddevg/trainingmigrguide/performance_tuning_0059.html)
@@ -19,510 +13,245 @@
 3. 将ftrace数据转换为MindStudio Insight可识别的数据格式。
 4. 同时导入ftrace数据与profiling数据，分析进程调度情况。
 
-## 模型Profiling采集
+## 1. 工具能力概览
 
-参考昇腾社区有关profiling采集相关的文档：[简介-CANN商用版8.3.RC1-昇腾社区](https://www.hiascend.com/document/detail/zh/canncommercial/83RC1/devaids/Profiling/atlasprofiling_16_0001.html)
+`ftrace_tools` 用于采集、转换和分析 Linux Kernel ftrace 数据，辅助定位调度延迟、上下文切换频繁、IRQ/SoftIRQ 打断等问题。
 
-> 请注意Profiling采集配置。当前仅支持ftrace与Text类型的Profiling联合导入，暂不支持与DB类型的Profiling数据联合导入。
+| 脚本 | 作用 | 主要输出 |
+| --- | --- | --- |
+| `trace_record.py` | 采集 sched、irq/softirq 等 ftrace 事件 | `trace.dat` 或 `trace.txt`、`pid_mapping.json` |
+| `trace_convert.py` | 将原始 ftrace 转换为 MindStudio Insight 可导入格式 | `ftrace_data.db` 或 `.json` |
+| `trace_analyze.py` | 对 `trace_convert.py` 生成的 DB 做统计分析并输出 Excel | `<input>_report.xlsx` |
 
-## Linux Kernel ftrace数据采集
+典型流程：
 
-### 1. Linux Kernel ftrace数据简介
+```text
+trace_record.py（采集）
+      ↓
+trace_convert.py（转换为 DB/JSON，可与 Profiling 时间轴对齐）
+      ↓
+MindStudio Insight（可视化联合分析）或 trace_analyze.py（统计分析）
+```
 
-Linux内核内置了多种跟踪（trace）工具，其中ftrace作为从2.6.27版本开始引入主流内核的跟踪框架，可用于监控和调试内核中发生的各类事件，帮助开发人员深入分析系统运行时的内部行为。ftrace支持多种跟踪器，例如函数调用跟踪、上下文切换跟踪、中断延迟分析等，能够有效辅助定位内核态性能问题与调度异常。
-在本仓库中，提供了与CPU进程调度相关的事件（sched）、中断 / 软中断相关事件（irq）的采集能力。
+## 2. 前置依赖
 
-trace-cmd是一个命令行工具，它封装了trace采集的过程，提供了更加简易的命令接口。
+- Python 3.10+
+- 可选：`trace-cmd`。未安装或不可用时，`trace_record.py --backend=auto` 会回退到 tracefs/debugfs 后端。
+- 使用 `trace_analyze.py` 生成 Excel 时需要 `openpyxl`。
 
-### 2. 数据采集前置准备
-
-+ 安装trace-cmd命令
-
-  Ubuntu安装命令：`sudo apt-get install trace-cmd`
-
-  CentOs安装命令：`sudo yum install trace-cmd`
-
-+ 获取仓库中提供的采集、转换脚本`trace_record.py`，`trace_convert.py`，推荐profiling和ftrace数据同步采集。
-
-> 若目标环境不支持安装trace-cmd，可使用脚本内置的tracefs/debugfs采集模式。该模式直接通过内核 tracing 文件系统配置 ftrace，并输出文本格式 trace 文件，使用差异详见下文[tracefs/debugfs模式支持](#tracefsdebugfs模式支持)。
-
-### 3. ftrace数据采集
-
-支持**命令行**和**API接口**两种方式的ftrace数据采集。
-
-#### 方式一：命令行采集
-
-这种方式不需要修改现有代码，将`trace_record.py`脚本作为整体使用，易上手，但自定义程度相对有限。
-
-**参数说明**
-
-| 参数 | 说明 | 示例 | 默认值 |
-|-----|-----|-----|-----|
-| `--cpu` | cpu_mask 列表，指定采集的 CPU 核心。支持单个数字、逗号分隔及连字符范围。| `--cpu=0,1,4 (指定核)`<br>`--cpu=0-3,8 (混合写法)`<br>`--cpu=0-15 (范围写法)` | None，采集 **全部** CPU 核心 |
-| `--output` | 输出文件路径与文件名。 | `--output=my_trace_data.dat` | `trace.dat` |
-| `--record_time` | 采集持续时间（单位：秒）。<br>• 正值：采集指定秒数后自动停止；<br>• ≤0：持续采集，需 `Ctrl+C` 手动终止，长时间采集请注意磁盘空间占用。 | `--record_time=30` | 30 |
-| `--bf_size` | 脚本使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失**；若发生覆盖，采集结束打印回显会告警，tracefs/debugfs模式推荐配置为大于40960KB。 | `--bf_size=40960` | `40960` |
-| `--backend` | ftrace采集后端。<br>• `auto`默认模式，表示优先使用trace-cmd，trace-cmd不可用时自动回退到tracefs/debugfs；<br>• `trace-cmd`表示强制使用trace-cmd；<br>• `debugfs`表示强制使用tracefs/debugfs模式 | `--backend=debugfs` | `auto` |
-| `--sched` | 是否采集 **CPU 调度相关事件**，包括任务切换、唤醒、新任务启动等（如 `sched_switch`、`sched_wakeup`、`sched_wakeup_new`）。<br>主要用于分析 **调度延迟、任务切换频率、线程唤醒关系**。<br>• `1`：开启<br>• `0`：关闭 | `--sched=1`<br>`--sched=0` | `1`（开启） |
-| `--irq` | 是否采集 **中断 / 软中断相关事件**，包括硬中断与 softirq 的进入、退出及触发行为。<br>主要用于分析 **中断负载、软中断抖动、CPU 被中断打断的情况**。<br>• `1`：开启<br>• `0`：关闭 | `--irq=1`<br>`--irq=0` | `1`（开启） |
-| `--NSpid` | 容器场景下开启该开关，用于获取容器与宿主机 PID 映射关系，详见[容器内外PID命名空间隔离场景下采集](#5-容器内外pid命名空间隔离场景下采集)。 | `--NSpid` | 关闭 |
-
-**使用示例:**
-
-场景：采集CPU核心`0-4`的30秒训练数据
-
-**1. 启动数据采集（需root权限）：**
+安装示例：
 
 ```bash
-sudo python trace_record.py --record_time=30 --cpu=0,1,2,3,4
+# Ubuntu
+sudo apt-get install trace-cmd
+
+# CentOS
+sudo yum install trace-cmd
+
+# trace_analyze.py 依赖
+pip install openpyxl
 ```
 
-**注意**：此处的`--cpu=0,1,2,3,4`仅为示例，实际使用时，建议根据绑核策略，选取一定量的CPU核心进行采集（**推荐CPU采集核心数不超过64，采集时长30s左右，否则采集数据量可能过大，解析落盘耗时较长，需耐心等待**）。
+## 3. 采集 ftrace 数据
 
-**2. 执行训练任务（在新终端中）：**
+### 3.1 命令行采集
 
 ```bash
-python train.py
+sudo python trace_record.py --record_time=30 --cpu=0-15 --output=trace.dat
 ```
 
-**3. 采集结果：**
-
-脚本运行30秒后自动停止，默认生成 `trace.dat` 文件（或通过 --output 参数指定文件名）。
-
-> **tracefs/debugfs模式说明：** 当使用`--backend=debugfs`（或使用默认`--backend=auto`且环境中没有trace-cmd时），脚本输出会自动调整为文本格式trace文件，默认生成 `trace.txt` 文件（或通过 --output 参数指定文件名）。
-
-#### 方式二：API接口采集模式
-
-`trace_record.py`中提供两个接口，分别控制ftrace采集的启停，允许开发者将数据采集逻辑精细地嵌入到应用程序中。这种方式适合需要动态控制采集时机、条件触发采集或与业务逻辑深度集成的场景。
-
-**1. 开始采集接口**
-
-```python
-ftrace_record_start(cpu_mask=None, output="trace.dat", bf_size=DEFAULT_TRACE_BUFFER_SIZE, event_cfg: TraceEventConfig = None, args=None, backend="auto")
-```
-
-**参数说明**
+常用参数：
 
 | 参数 | 说明 | 默认值 |
-|-----|-----|-----|
-| `cpu_mask` | cpu_mask 列表，指定采集的 CPU 核心。支持 `List[int]` 或字符串（如 `"0-3,8"`）| None，采集 **全部** CPU 核心 |
-| `bf_size` | 脚本使用的 **ring buffer 大小（单位：KB）**，用于在内核侧缓存 ftrace 事件。<br>当采集数据量较大时，可适当增大该值，避免环形缓冲区数据覆盖导致 **trace event 丢失** | `--bf_size=40960` |
-| `backend` | ftrace采集后端，可选`auto`、`trace-cmd`、`debugfs`。其中`debugfs`表示使用tracefs/debugfs模式。 | `auto` |
-| `output` | 输出文件路径与文件名。 | `trace.dat` |
-|`event_cfg`| 事件采集配置（`TraceEventConfig`），用于控制采集事件类型：`sched`（调度）、`irq`（中断）。`1`表示打开，`0`表示关闭。|`TraceEventConfig(sched=1, irq=1)`|
+| --- | --- | --- |
+| `--cpu` | CPU mask，支持 `0,1,4`、`0-3,8`、`0-15` 等写法 | 采集全部 CPU |
+| `--output` | 输出文件路径。未指定时由后端决定默认文件名 | trace-cmd 后端默认 `trace.dat`；debugfs 后端默认 `trace.txt` |
+| `--record_time` | 采集时长，单位秒；`<=0` 表示持续采集，需 `Ctrl+C` 停止 | `30` |
+| `--bf_size` | ftrace ring buffer 大小，单位 KB；数据量大时建议增大 | `40960` |
+| `--backend` | `auto`、`trace-cmd`、`debugfs` | `auto` |
+| `--sched` | 是否采集调度事件 | `1` |
+| `--irq` | 是否采集中断/软中断事件 | `1` |
+| `--NSpid` | 容器场景下 dump 容器 PID 与宿主机 PID 映射 | 关闭 |
 
-**注意：推荐CPU采集核心数不超过64，采集时长30s左右，否则采集数据量可能过大，解析落盘耗时较长，需耐心等待。**
+建议 CPU 采集核心数不超过 64，采集时长 30s 左右。采集范围过大、事件量过高或磁盘较慢时，停止采集和后续转换都可能耗时较长。
 
-**2. 停止采集并保存数据接口**
+### 3.2 后端差异
 
-```python
-def ftrace_record_stop(output=None)
+| 后端 | 典型输入/输出 | 说明 |
+| --- | --- | --- |
+| `trace-cmd` | 输出 `trace.dat` | 优先推荐；依赖系统安装 `trace-cmd` |
+| `debugfs` / `tracefs` | 输出 `trace.txt` | 不依赖 `trace-cmd`；停止采集时需要从 tracing 文件系统拷贝文本快照，数据量大时耗时更明显 |
+
+强制使用 debugfs 示例：
+
+```bash
+sudo python trace_record.py --backend=debugfs --record_time=30 --cpu=0-15 --output=trace.txt --NSpid
 ```
 
-**参数说明**
+如果采集结束日志出现 lost/overwritten 事件告警，说明 ring buffer 中发生过覆盖或丢失，建议优先增大 `--bf_size`，也可缩短采集时长、减少事件类型或缩小 CPU 范围后重新采集。
+
+## 4. 转换 ftrace 数据
+
+`trace_convert.py` 将 `trace.dat` 或 `trace.txt` 转换为 MindStudio Insight 可导入的 SQLite DB 或 Chrome Trace JSON，并可通过 Profiling 目录进行时间轴对齐。
+
+```bash
+python trace_convert.py \
+  --input trace.dat \
+  --output ftrace_data.db \
+  --format db \
+  --profiling_data /path/to/profiling/xxxx_ascend_pt \
+  --pid_mapping pid_mapping.json
+```
+
+参数说明：
 
 | 参数 | 说明 | 默认值 |
-|-----|-----|-----|
-| `output` | 输出文件的路径和名称 | `trace.dat` |
+| --- | --- | --- |
+| `--input` | 输入的原始 ftrace 文件。trace-cmd 后端通常为 `.dat`，debugfs 后端通常为 `.txt` | `trace.dat` |
+| `--output` | 输出文件路径。后缀必须与 `--format` 匹配 | `ftrace_data.db` |
+| `--format` | 输出格式，支持 `db` 或 `json` | `db` |
+| `--profiling_data` | Profiling 数据目录，用于 ftrace 与 Profiling 时间轴对齐 | 不启用 |
+| `--pid_mapping` | 容器 PID 映射文件，用于把宿主机 PID 转为容器内 PID | 不启用 |
 
-**使用示例**:
+### 4.1 输出格式与后缀要求
 
-```python
-import trace_record
+`--format` 与 `--output` 文件后缀必须一致；不一致时脚本会直接报错退出，避免 JSON 内容被保存成 `.db` 或 DB 内容被保存成 `.json`。
 
-def train():
-    # 方式一：传入字符串范围（可混合）
-    trace_record.ftrace_record_start(cpu_mask="0-4,7,10")
+| `--format` | `--output` 要求 | 示例 |
+| --- | --- | --- |
+| `db` | 必须以 `.db` 结尾 | `--format=db --output=ftrace_data.db` |
+| `json` | 必须以 `.json` 结尾 | `--format=json --output=ftrace_data.json` |
 
-    # 方式二：传入列表
-    trace_record.ftrace_record_start(cpu_mask=[0,1,2,3,4])
-
-    profiling_start()
-
-    # 模型运行...
-
-    profiling_stop()
-    trace_record.ftrace_record_stop(output="trace.dat")
-```
-
-### 4. 数据采集后处理
-
-`trace_convert.py`脚本用于将原始 ftrace 数据转换为 SQLite DB 格式（默认）或 Chrome Trace JSON 格式，并与所采集的profiling数据时间轴对齐，以便导入 MindStudio Insight 可视化工具联合展示与分析。
-> 请注意Profiling采集配置。当前仅支持ftrace与Text类型的Profiling联合展示，暂不支持与DB类型的Profiling数据联合展示。当ftrace导出为db格式时，如果需要与Text类型的Profiling联合分析，请使用 `--format=json` 回退到 JSON 格式。
-
-**使用方法**
+常用命令：
 
 ```bash
-python trace_convert.py [-h] [--input INPUT] [--output OUTPUT] [--format FORMAT] [--profiling_data PROFILING_DATA] [--pid_mapping PID_MAPPING]
+# trace-cmd 输出：trace.dat -> SQLite DB（默认）
+python trace_convert.py --input=trace.dat --output=ftrace_data.db --format=db
+
+# debugfs 输出：trace.txt -> SQLite DB。注意需要显式指定 --input
+python trace_convert.py --input=trace.txt --output=ftrace_data.db --format=db
+
+# 输出 Chrome Trace JSON
+python trace_convert.py --input=trace.dat --output=ftrace_data.json --format=json
 ```
 
-**参数说明**
+> debugfs 模式输出通常为 `trace.txt`。若同目录下仍存在默认文件名 `trace.dat`，转换时未显式指定 `--input=trace.txt`，脚本会读取默认 `trace.dat`，导致转换的不是本次 debugfs 采集结果。
 
-| 参数 | 说明 | 示例值 | 默认值 |
-|------|------|--------|--------|
-| `--input` | 输入的原始 trace 文件路径，通过 `trace_record.py` 生成 | `/path/to/trace_data.dat` | `trace.dat` |
-| `--output` | 输出的文件路径 | `trace.db` 或 `trace.json` | `ftrace_data.db` |
-| `--format` | 指定输出的数据格式，支持 `db` 或 `json` | `json` | `db` |
-| `--profiling_data` | 同步采集的Profiling数据文件路径，用于时间轴对齐，以便导入MindStudio Insight联合分析 | `/profiling/xxxx_ascend_pt` | - |
-| `--pid_mapping` | 容器场景下，可传入pid映射文件路径，进行容器与宿主机PID转换，详见[容器内外PID命名空间隔离场景下采集](#5-容器内外pid命名空间隔离场景下采集) | `pid_mapping.json`| - |
+### 4.2 Profiling 时间轴对齐
 
-**使用示例**
-
-假设第一步采集的profiling数据在目录`result_dir/xxxx_ascend_pt`下。
-
-执行命令：
+传入 `--profiling_data` 后，`trace_convert.py` 会读取 Profiling 目录中的 `start_info` / `end_info`，将 ftrace 时间转换到 Profiling 时间轴，便于在 MindStudio Insight 中联合分析。
 
 ```bash
-# --input默认为trace.dat
-python trace_convert.py --profiling_data=result_dir/xxxx_ascend_pt
+python trace_convert.py \
+  --input=trace.dat \
+  --output=ftrace_data.db \
+  --format=db \
+  --profiling_data=/path/to/profiling/xxxx_ascend_pt
 ```
 
-> tracefs/debugfs模式使用 `.txt` 文件作为输入时，**需要显式指定输入文件**，例如 --input=trace.txt 。
+多卡场景下，`--profiling_data` 可指定为包含多卡的上级目录，或任意单卡数据目录。
 
-多卡场景下，`--profiling_data`可指定为包含多卡的上级目录，或任意单卡数据目录。
+### 4.3 容器 PID 映射
 
-### 5. 容器内外PID命名空间隔离场景下采集
+容器未使用 `--pid=host` 启动时，Profiling 看到的是容器内 PID，而 ftrace 采集的是宿主机 PID。此时需要：
 
-默认情况下（即容器启动时，未设置`--pid=host`参数），Docker容器有自己独立的PID命名空间。在容器中运行模型，profiling采集的进程号，为容器内部进程号。而ftrace采集的时Linux Kernel内核数据，**与容器内进程号存在命名空间隔离，无法直接对齐**。
-
-针对该问题，`trace_record.py`脚本中提供了接口，用于获取容器内PID与宿主机PID的映射关系（基于遍历`/proc/$PID/status`文件的方式）。
-
-#### 方式一：命令行采集
-
-1. 使用`trace_record.py`脚本采集ftrace数据时，打开`--NSpid`开关，得到`pid_mapping.json`交付件，记录了PID映射关系。
-2. 使用`trace_convert.py`脚本进行数据后处理时，通过`--pid_mapping`参数，传入`pid_mapping.json`路径。脚本执行时，会自动将采集到的进程号转换为容器内进程号，以便于和profiling所采集进程号对应。
-
-#### 方式二：API接口采集模式
-
-可单独使用 trace_record.py 脚本中的 ContainerPidMapper 类，提供以下对外接口：
-
-**1. 类构造函数**
-
-```python
-def __init__(self, output_file: str = "pid_mapping.json")
-```
-
-**2. PID映射关系dump功能**
-
-```python
-// 开启接口
-def start(self, duration=None)
-// 停止接口
-def stop(self)
-```
-
-**说明**：参数`duration`代表映射关系dump采集的开启周期，当传入`None`时，仅dump一次，且无需调用stop接口；传入其它有效值时，每`duration`秒dump一次，并通过stop接口停止。
-
-## 采集样例：基于vllm-ascend场景的ftrace数据与profiling数据联合分析
-
-本样例给出一个在**Docker容器**内基于vllm-ascend（v0.11.0）进行离线推理服务，同步采集Profiling数据，在**宿主机**通过命令行方式采集ftrace数据，并将采集结果**导入MindStudio Insight进行联合分析**的简单样例，帮助用户快速上手。
-
-### 1. 前置准备
-
-vllm-Ascend镜像获取地址：<https://quay.io/repository/ascend/vllm-ascend?tab=tags>
-
-vllm-Ascend文档：<https://docs.vllm.ai/projects/ascend/zh-cn/v0.11.0-dev/quick_start.html>
-
-按照文档所示，获取镜像，启动容器。
-
-**安装trace-cmd**：
-
-+ Ubuntu安装命令：sudo apt-get install trace-cmd
-
-+ CentOS安装命令：sudo yum install trace-cmd
-
-**获取ftrace采集与转换脚本**
-
-下载本仓库提供的ftrace采集与转换脚本至本地。
+1. 采集时打开 `--NSpid`，生成 `pid_mapping.json`；
+2. 转换时传入 `--pid_mapping=pid_mapping.json`。
 
 ```bash
-├── ftrace_tools
-│   ├── trace_convert.py
-│   └── trace_record.py
+sudo python trace_record.py --record_time=30 --cpu=0-15 --NSpid
+python trace_convert.py --input=trace.dat --output=ftrace_data.db --format=db --pid_mapping=pid_mapping.json
 ```
 
-**环境变量配置**：
+## 5. 导入 MindStudio Insight
+
+推荐优先使用 `trace_convert.py` 默认生成的 SQLite DB：
 
 ```bash
-#  Load model from ModelScope to speed up download
-export VLLM_USE_MODELSCOPE=True
-# Set `max_split_size_mb` to reduce memory fragmentation and avoid out of memory
-export PYTORCH_NPU_ALLOC_CONF=max_split_size_mb:256
-
-# 开启vllm profiling采集（请根据实际需要指定profiling输出路径）
-export VLLM_TORCH_PROFILER_DIR="/path/to/profiling/data"
-
-# 开启绑核，将NPU 0 绑至CPU 0-15核
-export CPU_AFFINITY_CONF=2,npu0:0-15
+python trace_convert.py --input=trace.dat --output=ftrace_data.db --format=db --profiling_data=/path/to/profiling
 ```
 
-此处绑核仅为示例，请根据实际业务需要确定CPU绑核区间，建议采用NPU与CPU亲和性绑核。详见：[绑核优化-Ascend Extension for PyTorch-昇腾社区](https://www.hiascend.com/document/detail/zh/Pytorch/720/ptmoddevg/trainingmigrguide/performance_tuning_0060.html)
+当前版本已支持 ftrace DB 与 Profiling Text/DB 数据在同一工程中混合导入。一般流程为：
 
-### 2. 进入容器，运行vllm-ascend离线推理任务，同步采集ftrace与Profiling数据
+1. 在 MindStudio Insight 中先导入 Profiling 数据；
+2. 在同一工程中继续导入 `ftrace_data.db`；
+3. 结合 CPU Scheduling、Process Scheduling 与 Profiling 视图分析 Host Bound 问题。
 
-可参考以下推理脚本`Qwen3_8B.py`进行vllm-ascend离线推理任务，脚本将同步采集Profiling数据：
-
-```python
-import os
-from vllm import LLM, SamplingParams
-
-prompts = [
-    "Hello, my name is",
-    "The future of AI is",
-]
-sampling_params = SamplingParams(temperature=0.8, top_p=0.95)
-llm = LLM(
-        model="Qwen/Qwen3-8B",
-        max_model_len=26240
-)
-# 开启profiling采集
-llm.start_profile()
-outputs = llm.generate(prompts, sampling_params)
-# 停止profiling采集
-llm.stop_profile()
-for output in outputs:
-    prompt = output.prompt
-    generated_text = output.outputs[0].text
-    print(f"Prompt: {prompt!r}, Generated text: {generated_text!r}")
-```
-
-> 请注意Profiling采集配置。当前仅支持ftrace与Text类型的Profiling联合展示，暂不支持与DB类型的Profiling数据联合展示。
-
-在**宿主机**启动ftrace采集：
+JSON 输出主要用于需要 Chrome Trace JSON 格式、或外部工具只支持 JSON 的场景：
 
 ```bash
-# 进入脚本所在目录
-cd /home/xxx/msinsight/scripts/ftrace_tools
-
-# record_time为-1代表持续采集，需Ctrl+C手动终止
-# 针对CPU0-15核采集，打开容器内外PID映射开关
-python trace_record.py --record_time=-1 --cpu=0-15 --NSpid
+python trace_convert.py --input=trace.dat --output=ftrace_data.json --format=json
 ```
 
-ftrace采集期间，同步在**容器中**运行推理脚本：
+## 6. 统计分析：trace_analyze.py
+
+如果需要对 ftrace DB 做离线汇总统计并生成 Excel 报告，可使用：
 
 ```bash
-python Qwen3_8B.py
+python trace_analyze.py --input ftrace_data.db --output ftrace_report.xlsx
 ```
 
-**注意：`--record_time`为-1，代表持续采集模式，ftrace采集完成后，需及时`Ctrl+C`终止采集进程**。
+更多输出表、指标和图表说明见 [trace_analyze_README.md](trace_analyze_README.md)。
 
-**采集结果**
-vllm-ascend离线推理任务运行，profiling成功采集，打屏回显如下：
+## 7. 完整样例
+
+- vllm-ascend 容器场景下，宿主机采集 ftrace、容器内采集 Profiling、再导入 Insight 联合分析的完整样例见 [docs/vllm_ascend_example.md](docs/vllm_ascend_example.md)。
+
+## 8. 常见问题
+
+### 8.1 转换后 `.db` 文件无法用 SQLite 打开
+
+优先检查转换命令中的 `--format` 和 `--output` 是否匹配：
+
+- `--format=db` 必须输出 `.db`；
+- `--format=json` 必须输出 `.json`。
+
+新版本 `trace_convert.py` 已强制校验该规则。如果使用旧版本脚本，可能出现 JSON 内容保存到 `.db` 文件的情况，导致 SQLite 工具无法打开。
+
+### 8.2 使用 debugfs 采集后，为什么转换时必须指定 `--input=trace.txt`？
+
+debugfs 后端默认生成 `trace.txt`。但 `trace_convert.py` 为兼容 trace-cmd 流程，默认输入仍是 `trace.dat`。
+
+因此，如果目录中残留了旧的 `trace.dat`，执行以下命令会转换旧的 `trace.dat`，而不是本次 debugfs 采集得到的 `trace.txt`：
 
 ```bash
-......
-
-[INFO] [1070251] profiler.py: Start parsing profiling data: /home/tangke/result_dir/profiling0113/ubuntu122_1069691_20260113031336165_ascend_pt
-[INFO] [1070260] profiler.py: CANN profiling data parsed in a total time of 0:00:06.039457
-[INFO] [1070251] profiler.py: All profiling data parsed in a total time of 0:00:34.928982
-Prompt: 'Hello, my name is', Generated text: ' Lucy and I am an 8 year old who loves to draw and write stories'
-Prompt: 'The future of AI is', Generated text: ' a topic that has been widely discussed, with many people expressing both excitement and concern'
+python trace_convert.py --output=ftrace_data.db --format=db
 ```
 
-得到如下形式的profiling采集交付件：
+使用 debugfs 采集后，请显式指定：
 
 ```bash
-.
-└── profiling
-    └── ubuntu122_1069691_20260113031336165_ascend_pt
-        ├── ASCEND_PROFILER_OUTPUT
-        ├── FRAMEWORK
-        ├── logs
-        ├── PROF_000001_20260113031336168_JJIHFMPCABFRIEEB
-        ├── profiler_info_0.json
-        └── profiler_metadata.json
+python trace_convert.py --input=trace.txt --output=ftrace_data.db --format=db
 ```
 
-ftrace采集成功打屏回显如下：
-
-trace-cmd模式：
-
-```bash
-......
-[2026-02-11 08:16:24,486] [INFO]:Ending record, cleaning up...
-[2026-02-11 08:16:24,487] [INFO]:Stopping trace-cmd record process
-[2026-02-11 08:16:28,488] [INFO]:trace-cmd record process stopped
-[2026-02-11 08:16:28,488] [INFO]:Run command/usr/bin/trace-cmd clear
-[2026-02-11 08:16:28,573] [INFO]:Run command/usr/bin/trace-cmd reset
-[2026-02-11 08:16:30,912] [INFO]:Cleanup finished
-```
-
-tracefs/debugfs模式：
-
-```bash
-......
-[2026-05-15 06:26:38,839] [INFO]:Ending record, cleaning up...
-[2026-05-15 06:26:38,840] [INFO]:debugfs tracing disabled in 0.000s
-[2026-05-15 06:27:22,020] [INFO]:debugfs trace snapshot copy finished: output=debugfs_5cpu_snapshot.txt, bytes=183936388, duration=43.180s
-[2026-05-15 06:27:23,180] [INFO]:Trace data saved to debugfs_5cpu_snapshot.txt
-[2026-05-15 06:27:23,180] [INFO]:Cleanup finished
-```
-
-得到如下形式的ftrace采集结果（默认保存在ftrace脚本同级目录下）：
-
-```bash
-.
-├── ftrace_tools
-│   ├── trace.dat # trace-cmd record采集结果
-│   ├── trace.txt # tracefs/debugfs模式采集结果，与trace.dat二选一
-│   ├── pid_mapping.json #容器内外PID映射信息
-│   ├── trace_convert.py
-│   └── trace_record.py
-```
-
-### 3. 数据后处理
-
-> 该步骤将原始 ftrace 数据转换为 Chrome Trace JSON 格式，并与所采集的profiling数据时间轴对齐，以便导入 MindStudio Insight 可视化工具联合展示与分析。
-
-假设所采集的profiling数据在目录`/path/to/profiling/xxxx_ascend_pt`下。trace-cmd采集结果`trace.dat`与容器内外PID映射信息`pid_mapping.json`在`trace_convert.py`同级目录下。
-
-执行命令：
-
-```bash
-# 进入脚本所在目录
-cd /home/xxx/msinsight/scripts/ftrace_tools
-# --input默认为trace.dat
-python trace_convert.py --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
-```
-
-> 多卡场景下，`--profiling_data`可指定为包含多卡的上级目录，或任意单卡数据目录。
-
-转换结果`ftrace_data.db`默认保存在当前目录下。可将其导入MindStudio Insight，进行可视化分析。
-
-```bash
-.
-├── ftrace_tools
-│   ├── trace.dat
-│   ├── trace.txt
-│   ├── ftrace_data.db # ftrace转换结果
-│   ├── pid_mapping.json
-│   ├── trace_convert.py
-│   └── trace_record.py
-```
-
-### 4. 导入MindStudio Insight联合分析
-
->**注意**：当前暂不支持Text类型数据与DB类型数据混合显示。若Profiling为Text和DB混合场景，需要提前删除其中的DB交付件`analysis.db`与`ascend_pytorch_profiler_x.db`。
-![](./assets/hybrid_text_db_data.png)
-
-打开MindStudio Insight可视化软件，首先导入Profiling数据：
-
-<img src="./assets/import_profiling_data.png" width="500">
-
-随后，在同一工程中导入ftrace数据：
-
-<div style="display:flex; align-items:flex-start;">
-<img src="./assets/import_within_same_project.png" width="350" style="margin-right:12px;">
-<img src="./assets/import_ftrace_data.png" width="350" >
-</div>
-
-即可联合分析Profiling数据与ftrace数据：
-
-![](./assets/joint_analysis.png)
-
-CPU Scheduling泳道，可从CPU视角查看进程调度情况。
-![](./assets/cpu_sche.png)
-
-Process Scheduling泳道，可查看特定进程的调度状态。
-![](./assets/process_sche.png)
-
-利用MindStudio Insight的泳道置顶功能，可以将感兴趣的泳道放在一起联合分析。
-![](./assets/lane_pinning_feature.png)
-
-**联合分析思路**
-
-一般而言，若在Profiling中观察到下发瓶颈点，可先通过CPU Scheduling泳道，概览性地观察该时间段内，下发流水中的热点线程，如Pytorch主线程、前向算子下发、反向算子下发、PTA二级流水下发（aclThread）等，是否存在进程抢占、软中断等情况。随后，观察特定进程的Process Scheduling泳道，进一步了解进程状态。最后，根据分析结果，进行针对性优化，例如改进绑核方案、核隔离、流水优化等。
-
-## tracefs/debugfs模式支持
-
-部分用户的目标环境无法安装或使用 trace-cmd。为覆盖这类场景，`trace_record.py` 提供 tracefs/debugfs 后端，直接通过内核 tracing 文件系统配置 ftrace，并将采集结果保存为文本格式 trace 文件。
-
-### 1. 启动采集命令差异
-
-trace-cmd模式：
-
-```bash
-# --backend默认为auto，自动优先使用trace-cmd
-python trace_record.py --record_time=30 --cpu=0-15 --output=trace.dat --NSpid
-```
-
-tracefs/debugfs模式：
-
-```bash
-# 未安装 trace-cmd 时 auto 会自动回退到 tracefs/debugfs；如需强制使用该模式，可显式指定 --backend=debugfs
-python trace_record.py --backend=debugfs --record_time=30 --cpu=0-15 --output=trace.txt --NSpid
-```
-
-### 2. 转换命令差异
-
-trace-cmd模式：
-
-```bash
-python trace_convert.py --input=trace.dat --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
-```
-
-tracefs/debugfs模式：
-
-```bash
-# 需要显式指定--input。
-python trace_convert.py --input=trace.txt --profiling_data=/path/to/profiling/xxxx_ascend_pt --pid_mapping=pid_mapping.json
-```
-
-> tracefs/debugfs模式的输出文件通常为`trace.txt`。若同目录下仍存在默认文件名`trace.dat`，且转换时未显式指定`--input=trace.txt`，`trace_convert.py`可能会按默认输入读取`trace.dat`，导致转换的不是本次tracefs/debugfs采集结果。
-> `trace_convert.py`默认导出DB格式，默认输出文件为`ftrace_data.db`。如需导出JSON格式，请同时指定`--format=json`并将`--output`设置为JSON文件路径，避免输出格式与文件后缀不一致。
-
-### 3. 性能效率差异
-
-tracefs/debugfs 后端输出文本格式 trace 文件，停止采集后的落盘耗时和后续 `trace_convert.py` 解析耗时会受 CPU 采集范围、事件量、业务负载和磁盘性能影响。采集范围较大或事件量较高时，耗时可能明显增加。
-
-### 4. 采集结果对比
-
-除输出格式和使用方式差异外，tracefs/debugfs 模式采集的事件范围与 trace-cmd 模式保持一致，转换后的可视化结果整体接近。
-
-#### CPU Scheduling泳道对比
-
-trace-cmd模式:
-![](./assets/tracecmd_CPU_scheduling_compare.png)
-
-debugfs模式:
-![](./assets/debugfs_CPU_scheduling_compare.png)
-
-#### Process Scheduling泳道对比
-
-trace-cmd模式:
-![](./assets/tracecmd_process_scheduling_compare.png)
-
-debugfs模式:
-![](./assets/debugfs_process_scheduling_compare.png)
-
-## 常见问题FAQ
-
-### 1. Profiling数据与ftrace数据联合导入失败，报错`File Conflict`
-
-![](./assets/joint_import_failure.png)
-
-**答：**
-当前暂不支持Text类型数据与DB类型数据混合显示。由于 ftrace 数据默认导出为 DB 格式，如果此时您导入的 Profiling 数据仅为 Text 类型，则会产生格式冲突。
-
-**解决方案**：若 Profiling 为 Text 和 DB 混合场景，需要提前删除 Profiling 中的 DB 交付件 `analysis.db` 与 `ascend_pytorch_profiler_x.db`，并在转换 ftrace 数据时，使用 `--format=json` 回退到 JSON 格式。
-![Text与DB混合数据](./assets/hybrid_text_db_data.png)
-
-### 2. 采集后ftrace数据部分CPU核存在大面积空白
+### 8.3 ftrace 数据部分 CPU 核存在大面积空白
 
 ![](./assets/partial_cpu_core_blank.png)
 
-**可能性1**：ftrace采用环形缓冲区，这意味着缓冲区满后新数据会覆盖旧数据，可以在脚本`trace_record.py`中调整缓冲区大小`buffer_size`，例如调整至`--bf_size=4096'`，tracefs/debugfs模式建议调整至大于`40960`KB。
+可能原因：
 
-另外，当前脚本会在采集停止时读取tracefs per-CPU stats。如果日志中出现如下告警，说明本次采集过程中已经感知到环形缓冲区覆盖或事件丢失，建议增大`--bf_size`（优先）、缩短采集时长、减少采集事件或缩小CPU采集范围后重新采集。
+1. ring buffer 发生覆盖或事件丢失。若采集结束日志出现 lost/overwritten 告警，建议增大 `--bf_size`、缩短采集时长、减少事件或缩小 CPU 范围；
+2. 该 CPU 在目标时间段没有采集到目标事件，或未被业务实际使用。
 
-```bash
-tracefs stats report lost/overwritten events before reset: total_loss_counters=123. Consider increasing --bf-size
-```
+### 8.4 trace-cmd record 停止超时
 
-**可能性2**：该核在此时段没有目标事件，或未被业务实际使用（可能性较小）
+采集数据量较大时，`trace-cmd record` 清理时间可能较长。可缩小采集范围、缩短采集时长，或根据实际环境调整脚本中的停止等待参数。
 
-### 3. trace-cmd record 停止超时
+### 8.5 能否在容器内直接使用 ftrace 采集能力？
 
-![trace-cmd record超时](./assets/trace_cmd_record_timeout.png)
-采集数据量较大时，trace-cmd record进程清理时间较长，超出了预设值范围。适当调大`trace_record.py`脚本中的`_INT_INTERVAL_SEC`与`_WAIT_TIMEOUT_SEC`参数即可。
+可以，但容器启动时需要满足额外权限和挂载要求。ftrace 依赖宿主机内核 tracing 文件系统，普通非特权容器通常无法直接访问或配置这些内核接口。
+
+建议容器启动时满足以下条件：
+
+1. **使用特权容器**：例如 Docker 启动时添加 `--privileged`，确保容器具备配置内核 tracing 子系统所需的权限；
+2. **挂载宿主机 tracing/debugfs 相关目录**：至少需要让容器内能访问 ftrace 控制文件。常见挂载目录包括：
+   - `/sys/kernel/tracing`
+   - `/sys/kernel/debug`
+3. **确认容器内具备读写 ftrace 控制文件的权限**：采集脚本需要写入 `tracing_on`、`set_event`、`events/*/enable`、`trace` 等文件；
+4. **注意 PID 命名空间差异**：
+   - 如果容器未使用 `--pid=host`，容器内 PID/TID 与宿主机内核视角下的 PID/TID 不一致；
+   - ftrace 采集到的是宿主机内核视角下的进程号和线程号；
+   - 如果不做 PID 映射，后续与容器内 Profiling 数据联合分析时，可能无法准确对应到容器内的业务进程和线程；
+   - 建议采集时开启 `--NSpid` 生成 `pid_mapping.json`，并在转换时通过 `--pid_mapping=pid_mapping.json` 完成 PID 映射。
+
+如果无法满足以上条件，建议在宿主机侧采集 ftrace，并通过 `--NSpid` / `--pid_mapping` 处理容器 PID 映射关系。

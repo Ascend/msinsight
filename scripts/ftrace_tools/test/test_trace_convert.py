@@ -78,6 +78,33 @@ class TestIsKernelProcess(unittest.TestCase):
         self.assertTrue(trace_convert.is_kernel_process("kworker_u:0"))
 
 
+class TestValidateOutputSuffix(unittest.TestCase):
+    """Test output suffix validation for CLI arguments"""
+
+    def setUp(self):
+        import argparse
+
+        self.parser = argparse.ArgumentParser()
+
+    def test_json_format_requires_json_suffix(self):
+        with self.assertRaises(SystemExit) as context:
+            trace_convert.validate_output_suffix(self.parser, "ftrace_data.db", "json")
+
+        self.assertNotEqual(context.exception.code, 0)
+
+    def test_db_format_requires_db_suffix(self):
+        with self.assertRaises(SystemExit) as context:
+            trace_convert.validate_output_suffix(self.parser, "ftrace_data.json", "db")
+
+        self.assertNotEqual(context.exception.code, 0)
+
+    def test_json_format_accepts_json_suffix(self):
+        trace_convert.validate_output_suffix(self.parser, "ftrace_data.json", "json")
+
+    def test_db_format_accepts_db_suffix(self):
+        trace_convert.validate_output_suffix(self.parser, "ftrace_data.db", "db")
+
+
 class TestTraceEventHelpers(unittest.TestCase):
     """Test get_trace_event and get_meta_event functions"""
 
