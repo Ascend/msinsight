@@ -2163,15 +2163,18 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
         auto resultSet = TraceDatabaseHelper::QueryThreadsByPid(stmt, startTime, endTime, metaData, deviceId);
         std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> trackIdDepthCache;
         uint64_t trackId = TrackInfoManager::Instance().GetTrackId(rankId, metaData.pid, metaData.tid);
-        SliceQuery pythonStackQuery;
-        if (metaData.isPythonStack) {
+        SliceQuery depthSliceQuery;
+        auto processType = TraceDatabaseHelper::GetProcessType(metaData.metaType);
+        bool useJumpDepthCache = metaData.isPythonStack || processType == PROCESS_TYPE::API;
+        if (useJumpDepthCache) {
             uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
             uint64_t queryStartTime = startTime >= minTimestamp ? startTime - minTimestamp : 0;
             uint64_t queryDuration = endTime >= startTime ? endTime - startTime : 0;
-            pythonStackQuery = CreateSliceQueryWithTimeRange(
+            depthSliceQuery = CreateSliceQueryWithTimeRange(
                 {rankId, metaData.pid, metaData.tid, metaData.metaType, queryStartTime, queryDuration});
-            pythonStackQuery.isPythonStack = true;
-            trackId = pythonStackQuery.trackId;
+            depthSliceQuery.isPythonStack = metaData.isPythonStack;
+            depthSliceQuery.isFilterPythonFunction = metaData.hidePythonFunction;
+            trackId = depthSliceQuery.trackId;
         }
         while (resultSet->Next()) {
             int col = resultStartIndex;
@@ -2192,8 +2195,8 @@ std::vector<Protocol::SimpleSlice> DbTraceDataBase::QueryThreadByPid(const Metad
                 simpleSlice.depth = item->second[id];
             } else {
                 std::unordered_map<uint64_t, uint32_t> depthCache;
-                if (metaData.isPythonStack) {
-                    GetSliceDepthCacheForJump(pythonStackQuery, depthCache);
+                if (useJumpDepthCache) {
+                    GetSliceDepthCacheForJump(depthSliceQuery, depthCache);
                 } else {
                     SliceCacheManager::Instance().QueryDepthInfoWithoutTimeRange(
                         std::to_string(trackId), rankId, depthCache);
