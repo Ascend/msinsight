@@ -208,9 +208,32 @@ class TestTraceRecordBackend(unittest.TestCase):
             self.assertIsNone(trace_record.TraceRecord.detect_tracing_root())
 
     def test_configure_backend_trace_cmd_available(self):
-        with patch.object(trace_record.TraceRecord, '_is_trace_cmd_available', return_value=True):
+        """trace-cmd 可用且能力检查通过时，应选择 trace-cmd 后端。"""
+        with (
+            patch.object(trace_record.TraceRecord, '_is_trace_cmd_available', return_value=True),
+            patch.object(trace_record.TraceRecord, '_check_trace_cmd_compatibility', return_value=True),
+        ):
             result = trace_record.TraceRecord.configure_backend(trace_record.TRACE_BACKEND_TRACE_CMD)
             self.assertEqual(result, trace_record.TRACE_BACKEND_TRACE_CMD)
+
+    def test_configure_backend_auto_falls_back_to_debugfs_when_trace_cmd_incompatible(self):
+        """auto 后端遇到 trace-cmd 能力不满足时，应自动回退到 debugfs。"""
+        with (
+            patch.object(trace_record.TraceRecord, '_is_trace_cmd_available', return_value=True),
+            patch.object(trace_record.TraceRecord, '_check_trace_cmd_compatibility', return_value=False),
+            patch.object(trace_record.TraceRecord, 'detect_tracing_root', return_value='/sys/kernel/tracing'),
+        ):
+            result = trace_record.TraceRecord.configure_backend(trace_record.TRACE_BACKEND_AUTO)
+            self.assertEqual(result, trace_record.TRACE_BACKEND_DEBUGFS)
+
+    def test_configure_backend_trace_cmd_incompatible_raises_error(self):
+        """强制 trace-cmd 后端时，能力检查失败应直接报错，避免静默降级。"""
+        with (
+            patch.object(trace_record.TraceRecord, '_is_trace_cmd_available', return_value=True),
+            patch.object(trace_record.TraceRecord, '_check_trace_cmd_compatibility', return_value=False),
+        ):
+            with self.assertRaises(RuntimeError):
+                trace_record.TraceRecord.configure_backend(trace_record.TRACE_BACKEND_TRACE_CMD)
 
     def test_configure_backend_trace_cmd_unavailable(self):
         with patch.object(trace_record.TraceRecord, '_is_trace_cmd_available', return_value=False):
@@ -236,6 +259,49 @@ class TestTraceRecordBackend(unittest.TestCase):
     def test_is_trace_cmd_available_not_found(self):
         with patch('shutil.which', return_value=None), patch('os.path.isfile', return_value=False):
             self.assertFalse(trace_record.TraceRecord._is_trace_cmd_available())
+
+
+class TestTraceCmdCompatibility(unittest.TestCase):
+    """Test trace-cmd and kernel tracing capability checks"""
+
+    def test_trace_cmd_help_with_required_options_is_compatible(self):
+        """record help 同时包含 -C 和 -M 时，应认为 trace-cmd 参数能力满足要求。"""
+        help_text = "trace-cmd record [-b size][-C clock][-M mask][-e event]"
+
+        self.assertTrue(trace_record.TraceRecord._check_trace_cmd_help_options(help_text))
+
+    def test_trace_cmd_help_missing_clock_option_is_incompatible(self):
+        """record help 缺少 -C 时，应识别为不支持 trace clock 参数。"""
+        help_text = "trace-cmd record [-b size][-M mask][-e event]"
+
+        self.assertFalse(trace_record.TraceRecord._check_trace_cmd_help_options(help_text))
+
+    def test_trace_cmd_help_missing_cpu_mask_option_is_incompatible(self):
+        """record help 缺少 -M 时，应识别为不支持 CPU mask 参数。"""
+        help_text = "trace-cmd record [-b size][-C clock][-e event]"
+
+        self.assertFalse(trace_record.TraceRecord._check_trace_cmd_help_options(help_text))
+
+    def test_trace_clock_with_mono_raw_is_supported(self):
+        """trace_clock 列表包含 mono_raw 时，应满足时间轴对齐要求。"""
+        with patch.object(trace_record.TraceRecord, '_read_tracefs_file', return_value="local [mono_raw] global"):
+            self.assertTrue(trace_record.TraceRecord._is_trace_clock_supported("mono_raw"))
+
+    def test_trace_clock_without_mono_raw_is_not_supported(self):
+        """trace_clock 列表缺少 mono_raw 时，应判定内核 clock 能力不足。"""
+        with patch.object(trace_record.TraceRecord, '_read_tracefs_file', return_value="local global"):
+            self.assertFalse(trace_record.TraceRecord._is_trace_clock_supported("mono_raw"))
+
+    def test_find_missing_events_returns_only_absent_events(self):
+        """事件存在性检查应只返回 tracefs 中缺失的 tracepoint。"""
+        with patch.object(
+            trace_record.TraceRecord,
+            '_tracefs_event_exists',
+            side_effect=lambda event: event != "irq:softirq_exit",
+        ):
+            missing = trace_record.TraceRecord._find_missing_events(["sched:sched_switch", "irq:softirq_exit"])
+
+        self.assertEqual(missing, ["irq:softirq_exit"])
 
 
 class TestBuildArgParser(unittest.TestCase):
@@ -272,7 +338,7 @@ class TestTraceRecordOutputPath(unittest.TestCase):
         self.assertEqual(trace_record.TraceRecord._get_final_output_path("custom.dat"), "custom.dat")
 
     def test_debugfs_dat_output_adjustment_warning_logs_once_for_start_stop_flow(self):
-        """debugfs start/stop 都会解析输出路径时，.dat 到 .txt 的调整告警只应提示一次。"""
+        """debugfs 仅在 start 阶段解析输出路径，.dat 到 .txt 的调整告警只应提示一次。"""
         trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
         event_cfg = trace_record.TraceEventConfig()
         original_disable_level = logging.getLogger().manager.disable
@@ -287,7 +353,7 @@ class TestTraceRecordOutputPath(unittest.TestCase):
             self.assertLogs(level='WARNING') as logs,
         ):
             trace_record.TraceRecord.trace_start(None, "trace.dat", event_cfg)
-            trace_record.TraceRecord.trace_stop("trace.dat")
+            trace_record.TraceRecord.trace_stop()
 
         adjustment_logs = [log for log in logs.output if "debugfs backend produces text trace data" in log]
         self.assertEqual(len(adjustment_logs), 1)
@@ -552,7 +618,7 @@ class TestFtraceRecordFunctions(unittest.TestCase):
             trace_record.normal_mode(args)
 
         mock_start.assert_called_once_with(args.cpu, args.output, args.bf_size, args=args)
-        mock_stop.assert_called_once_with(args.output)
+        mock_stop.assert_called_once_with()
 
     def test_ftrace_record_start_non_root(self):
         with patch('trace_record._is_root_user', return_value=False):
@@ -650,7 +716,7 @@ class TestTraceRecordStop(unittest.TestCase):
             patch.object(trace_record.TraceRecord, 'check_trace_buffer_loss') as mock_stats,
             self.assertRaises(TimeoutError),
         ):
-            trace_record.ftrace_record_stop("trace.dat")
+            trace_record.ftrace_record_stop()
 
         mock_reset.assert_called_once()
         mock_clear.assert_not_called()
@@ -664,9 +730,9 @@ class TestTraceRecordStop(unittest.TestCase):
         def fake_check_trace_buffer_loss():
             calls.append("check_loss")
 
-        def fake_trace_stop(output):
+        def fake_trace_stop():
             calls.append("trace_stop")
-            return output
+            return trace_record.TraceRecord._output_path
 
         with (
             patch('trace_record._check_trace_buffer_loss_safely', side_effect=fake_check_trace_buffer_loss),
@@ -675,7 +741,7 @@ class TestTraceRecordStop(unittest.TestCase):
             patch.object(trace_record.TraceRecord, 'trace_reset') as mock_reset,
             patch('trace_record._check_trace_data_warning'),
         ):
-            trace_record.ftrace_record_stop("trace.dat")
+            trace_record.ftrace_record_stop()
 
         self.assertEqual(calls, ["check_loss", "trace_stop"])
         mock_clear.assert_called_once()
@@ -686,9 +752,9 @@ class TestTraceRecordStop(unittest.TestCase):
         calls = []
         trace_record.TraceRecord._backend_name = trace_record.TRACE_BACKEND_DEBUGFS
 
-        def fake_trace_stop(output):
+        def fake_trace_stop():
             calls.append("trace_stop")
-            return output
+            return trace_record.TraceRecord._output_path
 
         def fake_check_trace_buffer_loss():
             calls.append("check_loss")
@@ -700,8 +766,7 @@ class TestTraceRecordStop(unittest.TestCase):
             patch.object(trace_record.TraceRecord, 'trace_reset') as mock_reset,
             patch('trace_record._check_trace_data_warning'),
         ):
-            trace_record.ftrace_record_stop("trace.txt")
-
+            trace_record.ftrace_record_stop()
         self.assertEqual(calls, ["trace_stop", "check_loss"])
         mock_clear.assert_called_once()
         mock_reset.assert_called_once_with(log_stats=False)
@@ -762,16 +827,17 @@ class TestCheckTraceDataWarning(unittest.TestCase):
             self.assertIn("Failed to check trace data", full_msg)
 
     def test_ftrace_record_stop_calls_check_and_returns_output(self):
-        """ftrace_record_stop 应内部调用 _check_trace_data_warning 并返回输出路径"""
+        """ftrace_record_stop 使用 start 阶段保存的输出路径检查并返回采集结果。"""
         output_path = os.path.join(self.temp_dir, "trace.txt")
         with (
-            patch.object(trace_record.TraceRecord, 'trace_stop', return_value=output_path),
+            patch.object(trace_record.TraceRecord, 'trace_stop', return_value=output_path) as mock_stop,
             patch.object(trace_record.TraceRecord, 'check_trace_buffer_loss'),
             patch.object(trace_record.TraceRecord, 'trace_clear'),
             patch.object(trace_record.TraceRecord, 'trace_reset'),
             patch('trace_record._check_trace_data_warning') as mock_check,
         ):
-            result = trace_record.ftrace_record_stop(output_path)
+            result = trace_record.ftrace_record_stop()
+            mock_stop.assert_called_once_with()
             mock_check.assert_called_once_with(output_path)
             self.assertEqual(result, output_path)
 

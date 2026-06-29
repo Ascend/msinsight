@@ -16,6 +16,7 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+# pylint: disable=too-many-lines
 import os
 import argparse
 import logging
@@ -141,14 +142,14 @@ def _check_trace_buffer_loss_safely():
         logging.exception("Failed to check ftrace ring buffer loss: %s", exc)
 
 
-def ftrace_record_stop(output=None):
+def ftrace_record_stop():
     logging.info("Ending record, cleaning up...")
     final_output = None
     backend = TraceRecord.get_backend_name()
     try:
         if backend == TRACE_BACKEND_TRACE_CMD:
             _check_trace_buffer_loss_safely()
-        final_output = TraceRecord.trace_stop(output)
+        final_output = TraceRecord.trace_stop()
     except Exception:
         logging.exception("Failed to stop ftrace recording")
         try:
@@ -165,7 +166,7 @@ def ftrace_record_stop(output=None):
         if final_output is not None:
             logging.info("Trace data saved to %s", final_output)
         logging.info("Cleanup finished")
-    _check_trace_data_warning(final_output or output)
+    _check_trace_data_warning(final_output)
     return final_output
 
 
@@ -309,16 +310,22 @@ class TraceRecord:
 
     @staticmethod
     def configure_backend(backend_name=TRACE_BACKEND_AUTO):
+        requested_backend = backend_name
         if backend_name == TRACE_BACKEND_AUTO:
-            if TraceRecord._is_trace_cmd_available():
+            if TraceRecord._is_trace_cmd_available() and TraceRecord._check_trace_cmd_compatibility():
                 backend_name = TRACE_BACKEND_TRACE_CMD
             else:
                 backend_name = TRACE_BACKEND_DEBUGFS
-                logging.info("trace-cmd is unavailable, falling back to debugfs backend")
+                logging.info("trace-cmd is unavailable or incompatible, falling back to debugfs backend")
 
         if backend_name == TRACE_BACKEND_TRACE_CMD:
             if not TraceRecord._is_trace_cmd_available():
                 raise FileNotFoundError("trace-cmd was not found in PATH or /usr/bin/trace-cmd")
+            if not TraceRecord._check_trace_cmd_compatibility():
+                raise RuntimeError(
+                    "trace-cmd backend is incompatible with current ftrace_tools requirements. "
+                    "Please upgrade trace-cmd, check kernel tracing capabilities, or use --backend=debugfs."
+                )
             TraceRecord._backend_name = backend_name
             TraceRecord._trace_root = None
             return backend_name
@@ -331,9 +338,10 @@ class TraceRecord:
                 )
             TraceRecord._backend_name = backend_name
             TraceRecord._trace_root = resolved_root
+            TraceRecord._check_kernel_tracing_capabilities()
             return backend_name
 
-        raise ValueError(f"Unsupported trace backend: {backend_name}")
+        raise ValueError(f"Unsupported trace backend: {requested_backend}")
 
     @staticmethod
     def get_backend_name():
@@ -367,23 +375,109 @@ class TraceRecord:
         return os.path.isfile("/usr/bin/trace-cmd") and os.access("/usr/bin/trace-cmd", os.X_OK)
 
     @staticmethod
-    def _get_final_output_path(output=None):
-        if output is None:
-            output = TraceRecord._output_path
-        if output is None:
-            output = "trace.txt" if TraceRecord._ensure_backend() == TRACE_BACKEND_DEBUGFS else "trace.dat"
+    def _check_trace_cmd_compatibility():
+        return TraceRecord._check_trace_cmd_record_options() and TraceRecord._check_kernel_tracing_capabilities()
 
-        if TraceRecord._ensure_backend() == TRACE_BACKEND_DEBUGFS and output.lower().endswith(".dat"):
+    @staticmethod
+    def _check_trace_cmd_record_options():
+        try:
+            result = subprocess.run(  # nosec B603
+                [TraceRecord._get_trace_cmd_path(), "record", "--help"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+        except OSError as exc:
+            logging.warning("Failed to run trace-cmd record --help: %s", exc)
+            return False
+        return TraceRecord._check_trace_cmd_help_options(result.stdout or "")
+
+    @staticmethod
+    def _check_trace_cmd_help_options(help_text):
+        missing_options = [option for option in ("-C", "-M") if option not in help_text]
+        if not missing_options:
+            return True
+        logging.warning(
+            "trace-cmd record does not support required option(s): %s. "
+            "Please upgrade trace-cmd or use --backend=debugfs.",
+            ", ".join(missing_options),
+        )
+        return False
+
+    @staticmethod
+    def _check_kernel_tracing_capabilities():
+        if not TraceRecord._is_trace_clock_supported("mono_raw"):
+            logging.warning(
+                "Kernel tracing clock 'mono_raw' is unavailable. "
+                "Please check trace_clock or use an environment that supports mono_raw."
+            )
+            return False
+        missing_events = TraceRecord._find_missing_events(sorted(SCHED_EVENT_LIST | IRQ_EVENT_LIST))
+        if missing_events:
+            logging.warning(
+                "Some ftrace events are unavailable and will be skipped if requested: %s", ", ".join(missing_events)
+            )
+        return True
+
+    @staticmethod
+    def _read_tracefs_file(relative_path):
+        for trace_root in DEFAULT_DEBUGFS_TRACE_ROOTS:
+            path = os.path.join(trace_root, relative_path)
+            if os.path.isfile(path):
+                try:
+                    with open(path, "r", encoding="utf-8", errors="replace") as trace_file:
+                        return trace_file.read()
+                except OSError as exc:
+                    logging.warning("Failed to read tracefs file %s: %s", path, exc)
+                    return None
+        logging.warning("Tracefs file %s was not found under tracing roots", relative_path)
+        return None
+
+    @staticmethod
+    def _is_trace_clock_supported(clock_name):
+        trace_clock = TraceRecord._read_tracefs_file("trace_clock")
+        return bool(trace_clock and clock_name in trace_clock.replace("[", " ").replace("]", " ").split())
+
+    @staticmethod
+    def _tracefs_event_exists(event_name):
+        if ":" not in event_name:
+            return False
+        category, event = event_name.split(":", 1)
+        relative_path = os.path.join("events", category, event)
+        return any(os.path.isdir(os.path.join(trace_root, relative_path)) for trace_root in DEFAULT_DEBUGFS_TRACE_ROOTS)
+
+    @staticmethod
+    def _find_missing_events(events):
+        return [event for event in events if not TraceRecord._tracefs_event_exists(event)]
+
+    @staticmethod
+    def _get_final_output_path(output=None):
+        """采集启动阶段（ftrace_record_start），根据后端类型解析采集输出路径。
+
+        未指定输出路径时按后端选择默认文件名；debugfs 后端默认为trace.txt, trace-cmd后端默认为trace.dat
+        debugfs 后端会将非预期的 .dat 后缀规范化为 .txt
+        """
+        backend = TraceRecord._ensure_backend()
+        if output is None:
+            output = "trace.txt" if backend == TRACE_BACKEND_DEBUGFS else "trace.dat"
+
+        if backend == TRACE_BACKEND_DEBUGFS and output.lower().endswith(".dat"):
             normalized_output = output[:-4] + ".txt"
-            if TraceRecord._output_path != normalized_output:
-                logging.warning(
-                    "debugfs backend produces text trace data, output path is adjusted from %s to %s. "
-                    "Use the adjusted file as trace_convert.py input.",
-                    output,
-                    normalized_output,
-                )
+            logging.warning(
+                "debugfs backend produces text trace data, output path is adjusted from %s to %s. "
+                "Use the adjusted file as trace_convert.py input.",
+                output,
+                normalized_output,
+            )
             output = normalized_output
         return output
+
+    @staticmethod
+    def _get_saved_output_path():
+        if TraceRecord._output_path is not None:
+            return TraceRecord._output_path
+        return TraceRecord._get_final_output_path()
 
     @staticmethod
     def _tracefs_path(relative_path):
@@ -625,10 +719,10 @@ class TraceRecord:
         return final_output
 
     @staticmethod
-    def trace_stop(output=None):
+    def trace_stop():
         if TraceRecord._ensure_backend() == TRACE_BACKEND_TRACE_CMD:
             return TraceRecord._stop_trace_cmd_record()
-        return TraceRecord._stop_debugfs_record(output)
+        return TraceRecord._stop_debugfs_record()
 
     @staticmethod
     def _stop_trace_cmd_record():
@@ -637,7 +731,7 @@ class TraceRecord:
         proc = TraceRecord._record_process
         if proc is None:
             logging.error("No trace-cmd record process found.")
-            return TraceRecord._output_path
+            return TraceRecord._get_saved_output_path()
 
         try:
             logging.info(
@@ -649,7 +743,7 @@ class TraceRecord:
                 logging.info("trace-cmd record process stopped normally, trace data merge finished")
             else:
                 logging.warning("trace-cmd record process stopped with exit code %s", return_code)
-            return TraceRecord._output_path
+            return TraceRecord._get_saved_output_path()
         except subprocess.TimeoutExpired as exc:
             TraceRecord._terminate_trace_cmd_process(proc)
             raise TimeoutError(
@@ -685,8 +779,8 @@ class TraceRecord:
             logging.exception("Failed to terminate trace-cmd record process: %s", terminate_exception)
 
     @staticmethod
-    def _stop_debugfs_record(output):
-        final_output = TraceRecord._get_final_output_path(output)
+    def _stop_debugfs_record():
+        final_output = TraceRecord._get_saved_output_path()
         TraceRecord._write_tracefs_text("tracing_on", "0")
         logging.info("debugfs tracing disabled")
         TraceRecord._copy_tracefs_trace(final_output)
@@ -722,7 +816,7 @@ def normal_mode(args):
         if not started:
             return
     except KeyboardInterrupt:
-        ftrace_record_stop(args.output)
+        ftrace_record_stop()
         return
     if args.record_time <= 0:
         logging.warning('Record time equals -1, start long term record')
@@ -733,7 +827,7 @@ def normal_mode(args):
                 break
     else:
         time.sleep(args.record_time)
-    ftrace_record_stop(args.output)
+    ftrace_record_stop()
 
 
 class ContainerPidMapper:

@@ -1,5 +1,12 @@
 # 使用MindStudio Insight加载Linux Kernel数据以联合分析Host Bound问题
 
+## Release Note（2026/6/29）
+
+- 新增 `trace_analyze.py` 自动分析脚本，可基于 ftrace DB 输出汇总分析报告；也可以直接将 ftrace DB 导入 MindStudio Insight，在下方系统视图中查看分析结果。
+- 新增 debugfs 采集模式支持，并新增对 `trace-cmd` 的兼容性检查；环境中未安装 `trace-cmd` 或 `trace-cmd` 版本无法满足要求时，脚本会自动回退至 tracefs/debugfs 完成 ftrace 数据采集。
+- 增强 MindStudio Insight 导入能力，解除 ftrace 数据导入格式限制，支持 ftrace DB 与 Profiling Text / DB 数据联合导入分析。
+- 增强工具易用性并修复多个问题，包括异常场景防护、ring buffer 覆盖/丢事件告警、数据覆盖导致的中断事件解析不准确等。
+
 ## 问题背景
 
 在大模型中，CPU主要负责任务的下发，NPU负责计算任务的执行。无论训练还是推理领域，Host Bound都是现网高发问题。分析Host Bound问题通常需要采集Linux Kernel ftrace数据，分析CPU上的进程调度情况。
@@ -9,7 +16,7 @@
 ## Host Bound问题定位思路
 
 1. 尝试通用的调度优化手段，包括绑核、流水优化、内存分配库替换三板斧。PyTorch框架调度优化可参考：[调度优化-Ascend Extension for PyTorch-昇腾社区](https://www.hiascend.com/document/detail/zh/Pytorch/720/ptmoddevg/trainingmigrguide/performance_tuning_0059.html)
-2. 若通用优化手段效果不及预期，可采集数据，进一步深入分析。建议同时采集ftrace和profiling数据。
+2. 若通用优化手段效果不及预期，可采集数据，进一步深入分析。建议同时采集ftrace和profiling数据，Profiling采集方法详见：[MindStudio Profiler工具指南](https://mindstudio-profiler-docs.readthedocs.io/zh-cn/latest/msprof/)。
 3. 将ftrace数据转换为MindStudio Insight可识别的数据格式。
 4. 同时导入ftrace数据与profiling数据，分析进程调度情况。
 
@@ -51,6 +58,14 @@ sudo yum install trace-cmd
 # trace_analyze.py 依赖
 pip install openpyxl
 ```
+
+### 2.1 trace-cmd 与 Linux 内核规格约束
+
+`trace_record.py` 会在启动时自动检查 trace-cmd 后端所需的命令行参数和内核 ftrace 能力。通常情况下，直接使用默认的 `--backend=auto` 即可：如果 trace-cmd 后端不可用，脚本会尝试回退到 tracefs/debugfs 后端。
+
+如果显式指定 `--backend=trace-cmd`，但当前环境的 trace-cmd 或内核 ftrace 能力不满足要求，脚本会报错并给出检查提示。
+
+详细规格与手动排查方法见 [8.6 trace-cmd 后端对 trace-cmd 和内核有哪些要求？](#86-trace-cmd-后端对-trace-cmd-和内核有哪些要求)。
 
 ## 3. 采集 ftrace 数据
 
@@ -255,3 +270,22 @@ python trace_convert.py --input=trace.txt --output=ftrace_data.db --format=db
    - 建议采集时开启 `--NSpid` 生成 `pid_mapping.json`，并在转换时通过 `--pid_mapping=pid_mapping.json` 完成 PID 映射。
 
 如果无法满足以上条件，建议在宿主机侧采集 ftrace，并通过 `--NSpid` / `--pid_mapping` 处理容器 PID 映射关系。
+
+### 8.6 trace-cmd 后端对 trace-cmd 和内核有哪些要求？
+
+当前工具的 trace-cmd 后端已在 `trace-cmd 2.9.6`、Linux `5.4` 内核环境验证。通常情况下，版本不低于上述验证版本的环境更可能满足所需能力；但不同发行版可能存在补丁回合、功能裁剪或内核配置差异，因此工具不以固定版本号作为唯一判断依据，而是检查实际功能规格。
+
+trace-cmd 需要支持：
+
+- `trace-cmd record -C <clock>`：当前脚本使用 `-C mono_raw` 做时间轴对齐；
+- `trace-cmd record -M <cpu_mask>`：指定 CPU 采集范围；
+- `trace-cmd record -e <event>`：开启 sched / irq tracepoints；
+- `trace-cmd report -i <trace.dat>`：转换 `.dat` 文件时解析 trace-cmd 输出。
+
+Linux 内核需要支持：
+
+- ftrace / tracefs 或 debugfs；
+- `mono_raw` trace clock，可通过 `cat /sys/kernel/tracing/trace_clock` 或 `cat /sys/kernel/debug/tracing/trace_clock` 检查；
+- 默认采集所需 tracepoints：`sched:*`、`irq:*`。
+
+容器场景下，如果在容器内执行 `trace_record.py --backend=trace-cmd`，脚本调用的是容器内可执行路径中的 `trace-cmd`，因此 `record -C`、`record -M`、`report -i` 等命令行参数能力取决于容器内 trace-cmd 版本；但 ftrace 实际采集能力取决于宿主机内核，以及容器是否正确挂载 `/sys/kernel/tracing` 或 `/sys/kernel/debug/tracing`。容器内 trace-cmd 版本、宿主机内核 tracing 能力和容器挂载权限均满足要求时，trace-cmd 后端才可用。
