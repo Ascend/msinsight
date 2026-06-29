@@ -344,17 +344,21 @@ const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptim
             name: queryName,
             timestamp: rowData.timestamp,
             duration: rowData.duration,
+            threadId: rowData.tid,
+            processId: rowData.pid,
+            metaType: rowData.metaType,
         });
     const depth = rowData.depth > res.depth ? rowData.depth : res.depth;
-    jumpToUnitOperator({
+    const jumpParams = {
         ...rowData,
         name: queryName,
-        id: res.id,
-        tid: res.threadId,
-        pid: res.pid,
+        id: res.id || rowData.id,
+        tid: res.threadId || rowData.tid,
+        pid: res.pid || rowData.pid,
         depth,
         cardId: rowData.rankId,
         dbPath: rowData.dbPath,
-        metaType: res.metaType ?? '',
-    });
+        metaType: res.metaType || rowData.metaType || '',
+    };
+    jumpToUnitOperator(jumpParams);
 };
