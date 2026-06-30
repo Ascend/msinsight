@@ -516,6 +516,179 @@ class TestSchedFtraceParse(unittest.TestCase):
         self.assertEqual(result["comm"], "python")
         self.assertEqual(result["prio"], "120")
 
+    def test_sched_switch_prev_running_state_becomes_runnable(self):
+        """验证 R 状态切出进程保持 Runnable，不应误判为 Sleeping。"""
+        self.parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 1000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=python prev_pid=123 prev_prio=120 prev_state=R ==> "
+                    "next_comm=bash next_pid=456 next_prio=120"
+                ),
+            }
+        )
+        self.parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 3000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=bash prev_pid=456 prev_prio=120 prev_state=S ==> "
+                    "next_comm=python next_pid=123 next_prio=120"
+                ),
+            }
+        )
+
+        result = self.parser.get_result()
+        python_events = [
+            event
+            for event in result
+            if event.get("pid") == trace_convert.PROCESS_SCHED_PID and event.get("tid") == "python:123"
+        ]
+
+        self.assertTrue(any(event["name"] == "Runnable" for event in python_events))
+        self.assertFalse(any(event["name"] == "Sleeping" for event in python_events))
+
+    def test_dat_sched_switch_prev_state_with_plus_becomes_runnable(self):
+        """验证 dat 格式可解析 R+ 状态，并映射为 Runnable。"""
+        parser = trace_convert.SchedFtraceParse(file_type='dat')
+        parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 1000,
+                "action": "sched_switch",
+                "args": "python:123 [120] R+ ==> bash:456 [100]",
+            }
+        )
+        parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 3000,
+                "action": "sched_switch",
+                "args": "bash:456 [120] S ==> python:123 [120]",
+            }
+        )
+
+        result = parser.get_result()
+        python_events = [
+            event
+            for event in result
+            if event.get("pid") == trace_convert.PROCESS_SCHED_PID and event.get("tid") == "python:123"
+        ]
+
+        self.assertTrue(any(event["name"] == "Runnable" for event in python_events))
+        self.assertFalse(any(event["name"] == "Sleeping" for event in python_events))
+
+    def test_process_scheduling_events_record_cpu(self):
+        """验证 Process Running/Runnable/Sleeping 片段写入关联 CPU。"""
+        self.parser.parse_sched_event(
+            {
+                "cpu": "2",
+                "timestamp": 1000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=swapper/2 prev_pid=0 prev_prio=120 prev_state=R ==> "
+                    "next_comm=python next_pid=123 next_prio=120"
+                ),
+            }
+        )
+        self.parser.parse_sched_event(
+            {
+                "cpu": "2",
+                "timestamp": 2000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=python prev_pid=123 prev_prio=120 prev_state=R ==> "
+                    "next_comm=bash next_pid=456 next_prio=120"
+                ),
+            }
+        )
+        self.parser.parse_sched_event(
+            {
+                "cpu": "5",
+                "timestamp": 3000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=bash prev_pid=456 prev_prio=120 prev_state=S ==> "
+                    "next_comm=python next_pid=123 next_prio=120"
+                ),
+            }
+        )
+        self.parser.parse_sched_event(
+            {
+                "cpu": "5",
+                "timestamp": 4000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=python prev_pid=123 prev_prio=120 prev_state=S ==> "
+                    "next_comm=worker next_pid=789 next_prio=120"
+                ),
+            }
+        )
+        self.parser.parse_sched_event(
+            {
+                "cpu": "5",
+                "timestamp": 5000,
+                "action": "sched_wakeup",
+                "args": "comm=python pid=123 prio=120 target_cpu=4",
+            }
+        )
+
+        result = self.parser.get_result()
+        python_events = [
+            event
+            for event in result
+            if event.get("pid") == trace_convert.PROCESS_SCHED_PID
+            and event.get("tid") == "python:123"
+            and event.get("args") is not None
+        ]
+        event_cpu = {(event["name"], event["ts"], event["dur"]): event["args"]["cpu"] for event in python_events}
+
+        self.assertEqual(event_cpu[("Running", "1.000", "1.000")], "2")
+        self.assertEqual(event_cpu[("Runnable", "2.000", "1.000")], "2")
+        self.assertEqual(event_cpu[("Running", "3.000", "1.000")], "5")
+        self.assertEqual(event_cpu[("Sleeping", "4.000", "1.000")], "5")
+
+    def test_get_result_discards_unclosed_cpu_running_slice(self):
+        """验证末尾未闭合 CPU Running 片段被丢弃并聚合告警，避免超长片段。"""
+        self.parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 1000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==> "
+                    "next_comm=python next_pid=123 next_prio=120"
+                ),
+            }
+        )
+        self.parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 3000,
+                "action": "sched_wakeup",
+                "args": "comm=worker pid=789 prio=120 target_cpu=0",
+            }
+        )
+
+        original_disable_level = logging.getLogger().manager.disable
+        logging.disable(logging.NOTSET)
+        self.addCleanup(logging.disable, original_disable_level)
+
+        with self.assertLogs(level='WARNING') as logs:
+            result = self.parser.get_result()
+
+        running_events = [
+            event
+            for event in result
+            if event.get("pid") == trace_convert.CPU_SCHED_PID and event.get("name") == "python:123"
+        ]
+
+        self.assertEqual(running_events, [])
+        self.assertTrue(any("Discarded 1 unclosed CPU running slices at trace end" in log for log in logs.output))
+
     def test_get_result_not_empty(self):
         result = self.parser.get_result()
         self.assertTrue(len(result) >= 1)

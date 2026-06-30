@@ -129,6 +129,7 @@ class Process(object):
         self.events = []
         self.add_process_meta()
         self.state = 'W'  # R-running S-sleep W-runable, X-exit
+        self.cpu = None
 
     def add_process_meta(self):
         # 存在父进程, 挂在父进程下
@@ -145,7 +146,8 @@ class Process(object):
 
     def add_event(self, ts):
         event_name = self.get_event_name()
-        event = get_trace_event(event_name, self.ppid, self.process_name, tran(self.ts), tran(ts - self.ts))
+        args = {'cpu': self.cpu} if self.cpu is not None else None
+        event = get_trace_event(event_name, self.ppid, self.process_name, tran(self.ts), tran(ts - self.ts), args)
         self.events.append(event)
 
     def sleep(self, ts):
@@ -154,15 +156,25 @@ class Process(object):
         self.ts = ts
         self.state = 'S'
 
-    def wakeup(self, ts):
+    def runnable(self, ts):
+        if self.state == 'R':
+            self.add_event(ts)
+        self.ts = ts
+        self.state = 'W'
+
+    def wakeup(self, ts, cpu=None):
+        if self.state == 'S':
+            self.add_event(ts)
+        self.cpu = cpu
         self.state = 'W'
         self.ts = ts
 
-    def run(self, ts):
+    def run(self, ts, cpu=None):
         if self.state == 'W':
             self.add_event(ts)
         self.ts = ts
         self.state = 'R'
+        self.cpu = cpu
 
     def get_process_events(self, ts):
         self.exit(ts)
@@ -622,12 +634,22 @@ class SchedFtraceParse(FtraceParse):
                                                        cpu, kwargs['next_prio'])
         if prev_comm not in self.process_state.keys():
             self.process_state[prev_comm] = Process(kwargs['prev_comm'], kwargs['prev_pid'], timestamp)
-        self.process_state[prev_comm].sleep(timestamp)
+        self.update_previous_process_state(prev_comm, kwargs['prev_state'], timestamp)
         if next_name not in self.process_state.keys():
             self.process_state[next_name] = Process(kwargs['next_comm'], kwargs['next_pid'], timestamp)
-            self.process_state[next_name].run(timestamp)
+            self.process_state[next_name].run(timestamp, cpu)
         else:
-            self.process_state[next_name].run(timestamp)
+            self.process_state[next_name].run(timestamp, cpu)
+
+    def update_previous_process_state(self, process_name, prev_state, timestamp):
+        # sched_switch 中 R/R+ 表示仍可运行，被切出后应展示为 Runnable，而不是 Sleeping。
+        if prev_state.startswith('R'):
+            self.process_state[process_name].runnable(timestamp)
+        elif prev_state.startswith(('X', 'Z')):
+            self.process_state[process_name].exit(timestamp)
+            del self.process_state[process_name]
+        else:
+            self.process_state[process_name].sleep(timestamp)
 
     def parse_sched_wakeup(self, entry):
         timestamp = entry['timestamp']
@@ -642,10 +664,12 @@ class SchedFtraceParse(FtraceParse):
             return
 
         comm = args_dict['comm'] + ':' + args_dict['pid']
+        cpu = args_dict.get('cpu', args_dict.get('target_cpu'))
         if comm in self.process_state.keys():
-            self.process_state[comm].wakeup(timestamp)
+            self.process_state[comm].wakeup(timestamp, cpu)
         else:
             self.process_state[comm] = Process(args_dict['comm'], args_dict['pid'], timestamp)
+            self.process_state[comm].wakeup(timestamp, cpu)
 
     def parse_sched_process_exit(self, entry):
         args_dict = self.parse_base_param(entry['args'])
@@ -669,7 +693,7 @@ class SchedFtraceParse(FtraceParse):
                 self.cpu_stats[cpu][new_key] = CompleteEvent(new_comm, pid, ts, cpu, "unknown")
             if new_key not in self.process_state:
                 self.process_state[new_key] = Process(new_comm, pid, ts)
-                self.process_state[new_key].run(ts)
+                self.process_state[new_key].run(ts, cpu)
             return
 
         # old key != new key, update cpu_stats and process_state
@@ -685,7 +709,7 @@ class SchedFtraceParse(FtraceParse):
             self.process_state[old_key].exit(ts)
             del self.process_state[old_key]
         self.process_state[new_key] = Process(new_comm, pid, ts)
-        self.process_state[new_key].run(ts)
+        self.process_state[new_key].run(ts, cpu)
 
     def parse_sched_stat_runtime(self, entry):
         ts = entry['timestamp']
@@ -738,14 +762,29 @@ class SchedFtraceParse(FtraceParse):
             event['dur'] = tran(event['dur'])
         self.trace_event.append(event)
 
+    def discard_unclosed_cpu_events(self):
+        # trace 末尾没有后续 sched_switch 时，丢弃未闭合 CPU Running，避免展示误导性的超长片段。
+        unclosed_count = 0
+        for events in self.cpu_stats.values():
+            unclosed_count += len(events)
+            events.clear()
+        if unclosed_count > 0:
+            logging.warning("Discarded %d unclosed CPU running slices at trace end", unclosed_count)
+
     def get_result(self):
         result = []
+        self.discard_unclosed_cpu_events()
         result.extend(self.trace_event)
         result.append({'name': 'Process Scheduling', 'ph': 'M', 'pid': PROCESS_SCHED_PID, 'tid': PROCESS_SCHED_PID})
+        unclosed_process_count = 0
         for k, value in self.process_state.items():
             if is_kernel_process(k):
                 continue
-            result.extend(value.get_process_events(self.last_time))
+            result.extend(value.events)
+            if value.state != 'X':
+                unclosed_process_count += 1
+        if unclosed_process_count > 0:
+            logging.warning("Skipped %d unclosed process scheduling states at trace end", unclosed_process_count)
         return result
 
 
