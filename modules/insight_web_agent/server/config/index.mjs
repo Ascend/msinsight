@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 
 const defaultRootDir = (() => {
@@ -67,6 +67,17 @@ const loadAgentServersConfig = (configPath) => {
     }
 };
 
+const loadSystemPrompt = (rootDir) => {
+    const filePath = join(rootDir, "prompts", "system.md");
+    if (!existsSync(filePath)) return "";
+    try {
+        return readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").trim();
+    } catch (error) {
+        console.warn(`Failed to load system prompt ${filePath}: ${error.message}`);
+        return "";
+    }
+};
+
 const normalizeAgentServers = (servers) => {
     if (!Array.isArray(servers)) return [];
     return servers.map((server) => ({
@@ -106,6 +117,7 @@ export const config = {
     cwd: process.env.ACP_CWD ?? join(rootDir, "agent-workspace"),
     debug: process.env.ACP_DEBUG === "1",
     defaultModel: process.env.ACP_MODEL,
+    systemPrompt: loadSystemPrompt(rootDir),
 };
 
 export const saveActiveAgent = (name) => {

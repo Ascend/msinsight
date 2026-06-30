@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { mkdir } from "node:fs/promises";
+import { lstat, mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createApp } from "./app.mjs";
 import { config, saveActiveAgent } from "./config/index.mjs";
@@ -25,6 +25,33 @@ import { createSessionService } from "./services/sessionService.mjs";
 import { createSkillService } from "./services/skillService.mjs";
 import { createEventBus } from "./state/eventBus.mjs";
 import { createRuntimeState, publicState, resetRuntimeForAgent } from "./state/runtimeState.mjs";
+
+const PROJECT_RULE_FILES = ["AGENTS.md", "CLAUDE.md"];
+
+const syncProjectRules = async (workspacePath, systemPrompt) => {
+    const body = String(systemPrompt ?? "").trim();
+    if (!body) return;
+    const content = `${body}\n`;
+    await Promise.all(PROJECT_RULE_FILES.map((name) => writeFile(join(workspacePath, name), content, "utf8")));
+};
+
+const ensureDocsSymlink = async (rootDir) => {
+    const linkPath = join(rootDir, "docs");
+    try {
+        await lstat(linkPath);
+        return;
+    } catch (error) {
+        if (error.code !== "ENOENT") {
+            console.warn(`Failed to check docs symlink: ${error.message}`);
+            return;
+        }
+    }
+    try {
+        await symlink("../../docs", linkPath, "dir");
+    } catch (error) {
+        console.warn(`Failed to create docs symlink at ${linkPath}: ${error.message}`);
+    }
+};
 
 const createActiveAcpClient = (agentServer) => {
     const agentWorkspacePath = join(config.cwd, agentServer.name);
@@ -37,8 +64,10 @@ const createActiveAcpClient = (agentServer) => {
     });
 };
 
+await ensureDocsSymlink(config.rootDir);
 await mkdir(config.cwd, { recursive: true });
 await mkdir(join(config.cwd, config.agentServer.name), { recursive: true });
+await syncProjectRules(join(config.cwd, config.agentServer.name), config.systemPrompt);
 
 const state = createRuntimeState();
 const eventBus = createEventBus(state);
@@ -65,6 +94,7 @@ chatService = createChatService({
     sessionService,
     skillService,
     state,
+    systemPrompt: config.systemPrompt,
 });
 
 const agentService = {
@@ -88,6 +118,7 @@ const agentService = {
             console.warn(`Failed to save active agent: ${error.message}`);
         }
         await mkdir(join(config.cwd, activeAgentServer.name), { recursive: true });
+        await syncProjectRules(join(config.cwd, activeAgentServer.name), config.systemPrompt);
         activeAcpClient = createActiveAcpClient(activeAgentServer);
         resetRuntimeForAgent(state, { agentServers: config.agentServers, activeAgentName: activeAgentServer.name });
         await chatService.initialize();
