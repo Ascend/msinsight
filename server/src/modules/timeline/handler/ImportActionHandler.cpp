@@ -111,6 +111,8 @@ bool ImportActionHandler::TransferProject(ImportActionRequest &request) {
     response->body.reset = IsNeedReset(request);
     if (response->body.reset) {
         ParserFactory::Reset();
+        // 解析器Reset过程中需要把条件变量设置为true，所以结束后需要复位
+        ParserStatusManager::Instance().ResetParse();
     }
     std::for_each(projectExplorerInfo.begin(), projectExplorerInfo.end(), [&request, &response](const auto &project) {
         auto projectEnum = static_cast<ProjectTypeEnum>(project.projectType);
