@@ -47,6 +47,15 @@ available_port = 9000
 # default profiler_server_id
 profiler_server_id = str(uuid.uuid4())
 
+HOST_PATTERN = (
+    r"^(?=.{1,261}$)(?:"
+    r"(?:[A-Za-z0-9-]{1,63}\.)*[A-Za-z0-9-]{1,63}(?::\d{1,5})?"
+    r"|\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?"
+    r"|[0-9A-Fa-f:]{2,45}"
+    r"|\[[0-9A-Fa-f:]{2,45}\](?::\d{1,5})?"
+    r")$"
+)
+
 
 def check_jupyter_server_proxy_installed():
     try:
@@ -275,7 +284,7 @@ class IFrameStaticFileHandler(StaticFileHandler):
 
 def setup_handlers(web_app):
     web_app.settings["shutdown_hook"] = shutdown_hook
-    host_pattern = "^[A-Za-z0-9.-]{1,255}$"
+    host_pattern = HOST_PATTERN
     base_url = web_app.settings["base_url"]
 
     iframe_route_pattern = url_path_join(base_url, "/mindstudio_insight_jupyterlab/get_iframe_config")
