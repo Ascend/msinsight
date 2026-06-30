@@ -72,6 +72,32 @@ test("createPromptContent prepends hidden context without changing visible text"
     ]);
 });
 
+test("createPromptContent injects system prompt as the leading resource block", () => {
+    const content = createPromptContent("hello", [], [], undefined, "你是一个 Ascend 调优助手");
+
+    assert.deepEqual(content, [
+        {
+            type: "resource",
+            resource: {
+                uri: "insight-system-prompt://project",
+                mimeType: "text/plain",
+                text: "你是一个 Ascend 调优助手",
+            },
+        },
+        { type: "text", text: "hello" },
+    ]);
+});
+
+test("createPromptContent skips empty system prompt for backward compatibility", () => {
+    const withoutSystem = createPromptContent("hello", []);
+    const withEmptySystem = createPromptContent("hello", [], [], undefined, "   ");
+    const withNullSystem = createPromptContent("hello", [], [], undefined, null);
+
+    assert.deepEqual(withoutSystem, [{ type: "text", text: "hello" }]);
+    assert.deepEqual(withEmptySystem, [{ type: "text", text: "hello" }]);
+    assert.deepEqual(withNullSystem, [{ type: "text", text: "hello" }]);
+});
+
 test("prompt applies requested mode to a new session before sending", async () => {
     const calls = [];
     const state = createRuntimeState();

@@ -19,7 +19,7 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setLocalTitle } from "./messageService.mjs";
 
-export const createChatService = ({ acpClient, eventBus, sessionService, skillService, state }) => {
+export const createChatService = ({ acpClient, eventBus, sessionService, skillService, state, systemPrompt = "" }) => {
     const serviceContext = { eventBus, state };
 
     const initialize = async () => {
@@ -104,7 +104,7 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
         try {
             await acpClient.request("session/prompt", {
                 sessionId,
-                prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext),
+                prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext, systemPrompt),
             });
 
             if (!assistant.text && !assistant.thinking) {
@@ -194,8 +194,12 @@ const normalizeImages = (images = []) => images
     }))
     .filter((image) => image.data && image.mimeType.startsWith("image/"));
 
-export const createPromptContent = (text, images, skills = [], hiddenContextValue) => {
+export const createPromptContent = (text, images, skills = [], hiddenContextValue, systemPromptValue) => {
     const content = [];
+    const systemPrompt = normalizeSystemPrompt(systemPromptValue);
+    if (systemPrompt) {
+        content.push(createSystemPromptBlock(systemPrompt));
+    }
     const hiddenContext = normalizeHiddenContext(hiddenContextValue);
     if (hiddenContext) {
         content.push(createHiddenContextBlock(hiddenContext));
@@ -218,10 +222,21 @@ export const createPromptContent = (text, images, skills = [], hiddenContextValu
     return content;
 };
 
+const normalizeSystemPrompt = (value) => String(value ?? "").trim();
+
 const normalizeHiddenContext = (value) => {
     if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
     return value;
 };
+
+const createSystemPromptBlock = (systemPrompt) => ({
+    type: "resource",
+    resource: {
+        uri: "insight-system-prompt://project",
+        mimeType: "text/plain",
+        text: systemPrompt,
+    },
+});
 
 const createHiddenContextBlock = (hiddenContext) => ({
     type: "resource",
