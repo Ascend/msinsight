@@ -32,7 +32,7 @@ const getProfilerServerCmd = (port = 9000) => {
         throw new Error(`Unsupported platform: ${platform}`);
     }
 
-    return `${serverBinDir}${profilerServer} --wsPort=${port} --logPath=${logPath}`;
+    return `${serverBinDir}${profilerServer} --wsPort=${port} --wsHost=127.0.0.1 --logPath=${logPath}`;
 };
 export default defineConfig({
     testDir: './src/tests',
@@ -98,7 +98,7 @@ export default defineConfig({
              */
             command: 'npm run staging',
             cwd: path.resolve(__dirname, '../modules/framework'),
-            url: 'http://127.0.0.1:5174',
+            url: 'http://localhost:5174',
             reuseExistingServer: !isCI,
         },
     ],
