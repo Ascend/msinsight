@@ -140,6 +140,7 @@ const HighlightSlicesDetail = ({ record, cardId, dbPath, timestampOffset, bottom
     ];
     return (
         <ResizeTable
+            key={`kernelE2e-${cardId}-${dbPath}-${timestampOffset}`}
             rowKey={(row: KernelE2EHighlightSlice, idx?: number): string => getSliceKey(row, idx ?? 0)}
             dataSource={slices}
             columns={sliceColumns}
