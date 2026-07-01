@@ -236,6 +236,16 @@ class TestProcess(unittest.TestCase):
         self.assertEqual(len(process.events), 1)
         self.assertEqual(process.events[0]["name"], "process_name")
 
+    def test_first_run_skips_zero_duration_runnable(self):
+        """验证进程首次运行不生成 0 时长 Runnable 噪声。"""
+        process = trace_convert.Process("python", "123", 1000)
+
+        process.run(1000, "0")
+
+        self.assertEqual(len(process.events), 1)
+        self.assertEqual(process.events[0]["name"], "process_name")
+        self.assertEqual(process.state, 'R')
+
 
 class TestPidTran(unittest.TestCase):
     """Test PidTran singleton class"""
@@ -515,6 +525,40 @@ class TestSchedFtraceParse(unittest.TestCase):
         self.assertEqual(result["pid"], "123")
         self.assertEqual(result["comm"], "python")
         self.assertEqual(result["prio"], "120")
+
+    def test_first_sched_switch_skips_zero_duration_runnable(self):
+        """验证首次调度进程不输出 0 时长 Runnable 噪声。"""
+        self.parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 1000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=swapper/0 prev_pid=0 prev_prio=120 prev_state=R ==> "
+                    "next_comm=python next_pid=123 next_prio=120"
+                ),
+            }
+        )
+        self.parser.parse_sched_event(
+            {
+                "cpu": "0",
+                "timestamp": 2000,
+                "action": "sched_switch",
+                "args": (
+                    "prev_comm=python prev_pid=123 prev_prio=120 prev_state=S ==> "
+                    "next_comm=bash next_pid=456 next_prio=120"
+                ),
+            }
+        )
+
+        result = self.parser.get_result()
+        python_events = [
+            event
+            for event in result
+            if event.get("pid") == trace_convert.PROCESS_SCHED_PID and event.get("tid") == "python:123"
+        ]
+
+        self.assertFalse(any(event["name"] == "Runnable" and event["dur"] == "0.000" for event in python_events))
 
     def test_sched_switch_prev_running_state_becomes_runnable(self):
         """验证 R 状态切出进程保持 Runnable，不应误判为 Sleeping。"""
