@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1
-
 # ============================================================
 # MindStudio Insight -- Minimal Single-Container Image
 # Base: openeuler/openeuler:24.03-lts
