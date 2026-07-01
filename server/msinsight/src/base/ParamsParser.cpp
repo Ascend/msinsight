@@ -109,7 +109,8 @@ bool ParamsParser::ParseWsPort(const std::string &wsPortStr) {
 }
 
 bool ParamsParser::ParseWsHost(const std::string &wsHostStr) {
-    if (RegexUtil::RegexMatch(wsHostStr, IP_PATTERN)) {
+    if (RegexUtil::RegexMatch(wsHostStr, IPV4_PATTERN) || wsHostStr == LOCALHOST ||
+        RegexUtil::RegexMatch(wsHostStr, IPV6_PATTERN)) {
         option.host = wsHostStr;
         return true;
     }

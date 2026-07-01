@@ -21,7 +21,7 @@ use std::os::windows::process::CommandExt;
 use std::{
     env,
     env::current_exe,
-    net::{Ipv4Addr, SocketAddrV4, TcpListener},
+    net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener},
     path::PathBuf,
     process::Command,
 };
@@ -137,9 +137,20 @@ fn eq_prefix(lhs: &PathBuf, rhs: &PathBuf) -> bool {
 }
 
 fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
+    // 探测系统是否支持 IPv6 loopback 绑定：若不支持则仅检测 IPv4，避免在禁用 IPv6 的环境失效
+    let ipv6_capable =
+        TcpListener::bind(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)).is_ok();
+
     for port in start..=end {
-        let addr = SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port);
-        if TcpListener::bind(addr).is_ok() {
+        let v4_ok = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port))
+            .is_ok();
+        // IPv6 不可用时跳过 v6 检测，等价于仅检测 IPv4，保证兼容性
+        let v6_ok = if ipv6_capable {
+            TcpListener::bind(SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0)).is_ok()
+        } else {
+            true
+        };
+        if v4_ok && v6_ok {
             return Some(port);
         }
     }
