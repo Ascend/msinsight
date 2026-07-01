@@ -42,6 +42,13 @@ PROCESS_SCHED_PID = 'Process Scheduling'
 KERNEL_PROCESS = ['migration', 'swapper', 'kworker']
 _seen_log_warning = set()
 
+
+def warn_once(key, message, *args):
+    if key not in _seen_log_warning:
+        logging.warning(message, *args)
+        _seen_log_warning.add(key)
+
+
 def tran(ts):
     if not isinstance(ts, (int, float)):
         logging.warning("Invalid timestamp")
@@ -145,9 +152,15 @@ class Process(object):
         return 'Unknown'
 
     def add_event(self, ts):
+        duration = ts - self.ts
+        if duration == 0:
+            return
+        if duration < 0:
+            warn_once("Negative process scheduling duration", "Negative process scheduling duration, drop event")
+            return
         event_name = self.get_event_name()
         args = {'cpu': self.cpu} if self.cpu is not None else None
-        event = get_trace_event(event_name, self.ppid, self.process_name, tran(self.ts), tran(ts - self.ts), args)
+        event = get_trace_event(event_name, self.ppid, self.process_name, tran(self.ts), tran(duration), args)
         self.events.append(event)
 
     def sleep(self, ts):
@@ -405,17 +418,27 @@ class FtraceParse:
 
     def parse_base_param(self, string: str):
         kv = string.split(' ')
-        result = [kv[0]]
-        for i in range(1, len(kv)):
-            if '=' in kv[i]:
-                result.append(kv[i])
-            else:
-                result[-1] += " " + kv[i]
-        kv_dic = {}
-        for item in result:
+        if len(kv) == 0 or kv[0] == '':
+            return None
+        result = []
+        for item in kv:
+            if item == '':
+                continue
             if item == '==>':
                 continue
-            k, v = item.split("=")
+            if '=' in item:
+                result.append(item)
+            elif len(result) > 0:
+                result[-1] += " " + item
+            else:
+                return None
+        kv_dic = {}
+        for item in result:
+            if '=' not in item:
+                return None
+            k, v = item.split("=", 1)
+            if k == '':
+                return None
             kv_dic[k] = v
 
         # 需要做 pid 映射的字段
@@ -454,6 +477,9 @@ class InterruptFtraceParse(FtraceParse):
         pid = entry['pid']
         timestamp = entry['timestamp']
         kwargs = self.parse_base_param(entry['args'])
+        if kwargs is None:
+            warn_once("Failed to parse irq event", "Failed to parse irq event, args: %s", entry['args'])
+            return
         kwargs['task'] = entry['task'] + ":" + pid
         if entry['action'] == 'irq_handler_entry':
             if cpu not in self.interrupt_events:
@@ -474,11 +500,7 @@ class InterruptFtraceParse(FtraceParse):
         kwargs = self.parse_softirq_param(entry['args'])
 
         if kwargs is None:
-            # 非debug模式下，同类解析失败事件仅打印一次日志告警，避免刷屏
-            key = "Failed to parse softirq event"
-            if key not in _seen_log_warning:
-                logging.warning(f"{key}, args: {entry['args']}")
-                _seen_log_warning.add(key)
+            warn_once("Failed to parse softirq event", "Failed to parse softirq event, args: %s", entry['args'])
             return
 
         kwargs['task'] = task + ":" + pid
@@ -572,7 +594,7 @@ class SchedFtraceParse(FtraceParse):
         self.process_state = {}
         self.process_set = set()
         self.parse_sched_switch_pattern = re.compile(
-            r'(?P<prev_comm>.+):(?P<prev_pid>\d+)\s+\[(?P<prev_prio>\d+)\]\s+(?P<prev_state>\w+)\s+==>\s+(?P<next_comm>.+):(?P<next_pid>\d+)\s+\[(?P<next_prio>\d+)\]')
+            r'(?P<prev_comm>.+):(?P<prev_pid>\d+)\s+\[(?P<prev_prio>\d+)\]\s+(?P<prev_state>\S+)\s+==>\s+(?P<next_comm>.+):(?P<next_pid>\d+)\s+\[(?P<next_prio>\d+)\]')
         self.parse_sched_wakeup_pattern = re.compile(r'(?P<comm>.+):(?P<pid>\d+)\s+\[(?P<prio>\d+)\].+CPU:(?P<cpu>\d+)')
 
         self.trace_event = []
@@ -614,20 +636,22 @@ class SchedFtraceParse(FtraceParse):
         timestamp = entry['timestamp']
         kwargs = self.parse_switch_sched_param(entry['args']) if self.file_type == 'dat' else self.parse_base_param(entry['args'])
 
-        if kwargs is None:
-            # 非debug模式下，同类解析失败事件仅打印一次日志告警，避免刷屏
-            key = "Failed to parse sched_switch event"
-            if key not in _seen_log_warning:
-                logging.warning(f"{key}, args: {entry['args']}")
-                _seen_log_warning.add(key)
+        if kwargs is None or not self._has_required_fields(
+            kwargs, ("prev_comm", "prev_pid", "prev_prio", "prev_state", "next_comm", "next_pid", "next_prio")
+        ):
+            warn_once("Failed to parse sched_switch event", "Failed to parse sched_switch event, args: %s", entry['args'])
             return
 
         if not is_kernel_process(kwargs['prev_comm']) and not is_kernel_process(kwargs['next_comm']):
             self.add_trace_event(get_trace_event("sched_switch", CPU_SCHED_PID, "CPU " + cpu, timestamp, 0, args=kwargs))
         prev_comm = kwargs['prev_comm'] + ':' + kwargs['prev_pid']
         if prev_comm in self.cpu_stats[cpu].keys():
-            self.cpu_stats[cpu][prev_comm].end(timestamp, kwargs['prev_state'], kwargs['prev_prio'])
-            self.add_trace_event(self.cpu_stats[cpu][prev_comm].to_event_json())
+            cpu_event = self.cpu_stats[cpu][prev_comm]
+            cpu_event.end(timestamp, kwargs['prev_state'], kwargs['prev_prio'])
+            if cpu_event.dur < 0:
+                warn_once("Negative CPU running duration", "Negative CPU running duration, drop event")
+            else:
+                self.add_trace_event(cpu_event.to_event_json())
             del self.cpu_stats[cpu][prev_comm]
         next_name = kwargs['next_comm'] + ':' + kwargs['next_pid']
         self.cpu_stats[cpu][next_name] = CompleteEvent(kwargs['next_comm'], kwargs['next_pid'], timestamp,
@@ -637,9 +661,7 @@ class SchedFtraceParse(FtraceParse):
         self.update_previous_process_state(prev_comm, kwargs['prev_state'], timestamp)
         if next_name not in self.process_state.keys():
             self.process_state[next_name] = Process(kwargs['next_comm'], kwargs['next_pid'], timestamp)
-            self.process_state[next_name].run(timestamp, cpu)
-        else:
-            self.process_state[next_name].run(timestamp, cpu)
+        self.process_state[next_name].run(timestamp, cpu)
 
     def update_previous_process_state(self, process_name, prev_state, timestamp):
         # sched_switch 中 R/R+ 表示仍可运行，被切出后应展示为 Runnable，而不是 Sleeping。
@@ -655,12 +677,8 @@ class SchedFtraceParse(FtraceParse):
         timestamp = entry['timestamp']
         args_dict = self.parse_weakup_sched_param(entry['args']) if self.file_type == 'dat' else self.parse_base_param(entry['args'])
 
-        if args_dict is None:
-            # 非debug模式下，同类解析失败事件仅打印一次日志告警，避免刷屏
-            key = "Failed to parse sched_wakeup event"
-            if key not in _seen_log_warning:
-                logging.warning(f"{key}, args: {entry['args']}")
-                _seen_log_warning.add(key)
+        if args_dict is None or not self._has_required_fields(args_dict, ("comm", "pid")):
+            warn_once("Failed to parse sched_wakeup event", "Failed to parse sched_wakeup event, args: %s", entry['args'])
             return
 
         comm = args_dict['comm'] + ':' + args_dict['pid']
@@ -673,6 +691,13 @@ class SchedFtraceParse(FtraceParse):
 
     def parse_sched_process_exit(self, entry):
         args_dict = self.parse_base_param(entry['args'])
+        if args_dict is None or not self._has_required_fields(args_dict, ("comm", "pid")):
+            warn_once(
+                "Failed to parse sched_process_exit event",
+                "Failed to parse sched_process_exit event, args: %s",
+                entry['args']
+            )
+            return
         timestamp = entry['timestamp']
         comm = args_dict['comm'] + ':' + args_dict['pid']
         if comm in self.process_state.keys():
@@ -683,6 +708,13 @@ class SchedFtraceParse(FtraceParse):
         ts = entry['timestamp']
         cpu = entry['cpu']
         kwargs = self.parse_base_param(entry['args'])
+        if kwargs is None or not self._has_required_fields(kwargs, ("pid", "filename")):
+            warn_once(
+                "Failed to parse sched_process_exec event",
+                "Failed to parse sched_process_exec event, args: %s",
+                entry['args']
+            )
+            return
         pid = kwargs['pid']
         old_key = entry['task'] + ':' + pid
         new_comm = kwargs['filename'].split('/')[-1]
@@ -715,14 +747,41 @@ class SchedFtraceParse(FtraceParse):
         ts = entry['timestamp']
         cpu = entry['cpu']
         kwargs = self.parse_base_param(entry['args'])
+        if kwargs is None or not self._has_required_fields(kwargs, ("comm", "pid")):
+            warn_once(
+                "Failed to parse sched_stat_runtime event",
+                "Failed to parse sched_stat_runtime event, args: %s",
+                entry['args']
+            )
+            return
+        runtime = kwargs.get('runtime')
+        if runtime is not None:
+            try:
+                runtime_value = int(runtime.split()[0])
+                if runtime_value < 0:
+                    warn_once(
+                        "Negative sched_stat_runtime runtime",
+                        "Negative sched_stat_runtime runtime, drop event"
+                    )
+                    return
+            except ValueError:
+                warn_once(
+                    "Failed to parse sched_stat_runtime event",
+                    "Failed to parse sched_stat_runtime event, args: %s",
+                    entry['args']
+                )
+                return
         comm = kwargs['comm']
         pid = kwargs['pid']
         process = comm + ':' + pid
         # 当前进程已存在，更新运行时间
         if process in self.cpu_stats[cpu]:
-            self.cpu_stats[cpu][process].update_runtime(kwargs.get('runtime'), kwargs.get('vruntime', None))
+            self.cpu_stats[cpu][process].update_runtime(runtime, kwargs.get('vruntime', None))
         else:
             self.cpu_stats[cpu][process] = CompleteEvent(comm, pid, ts, cpu, "unknown")
+
+    def _has_required_fields(self, data, fields):
+        return all(data.get(field) for field in fields)
 
     def parse_switch_sched_param(self, string: str):
         match = self.parse_sched_switch_pattern.search(string.strip())
