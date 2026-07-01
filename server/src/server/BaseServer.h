@@ -34,7 +34,7 @@ class BaseServer {
     int GetPort() const { return port; };
 
   protected:
-    std::string host = "127.0.0.1";
+    std::string host = "localhost";
     int port;
 };
 } // end of namespace Server

@@ -29,7 +29,7 @@ using namespace std;
 struct ParamsOption {
     int wsPort = -1;
     int logSize = 10 * 1024 * 1024;
-    string host = "127.0.0.1";
+    string host = "localhost";
     string logLevel = "INFO";
 #ifdef _WIN32
     string logPath = "";
@@ -76,7 +76,24 @@ class ParamsParser {
 
     const string EQUAL = "=";
     const string SYMBOL_PREFIX = "--";
-    const string IP_PATTERN = "^(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})$";
+    // 严格校验 IPv4 点分十进制：每段取值范围 0-255，拒绝前导零与越界段（如 256、999）
+    // 每段匹配: 25[0-5] | 2[0-4][0-9] | 1[0-9][0-9] | [1-9]?[0-9]
+    const string IPV4_PATTERN = "^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])\\.){3}"
+                                "(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])$";
+    const string LOCALHOST = "localhost";
+    // 覆盖 IPv6 标准缩写形式（含 ::、::1、2001:db8::1 等），不含 IPv4-mapped 与 zone id
+    const string IPV6_PATTERN = "^(("
+                                "([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}"
+                                "|([0-9a-fA-F]{1,4}:){1,7}:"
+                                "|([0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}"
+                                "|([0-9a-fA-F]{1,4}:){1,5}(:[0-9a-fA-F]{1,4}){1,2}"
+                                "|([0-9a-fA-F]{1,4}:){1,4}(:[0-9a-fA-F]{1,4}){1,3}"
+                                "|([0-9a-fA-F]{1,4}:){1,3}(:[0-9a-fA-F]{1,4}){1,4}"
+                                "|([0-9a-fA-F]{1,4}:){1,2}(:[0-9a-fA-F]{1,4}){1,5}"
+                                "|[0-9a-fA-F]{1,4}:((:[0-9a-fA-F]{1,4}){1,6})"
+                                "|:(:[0-9a-fA-F]{1,4}){1,7}"
+                                "|::"
+                                "))$";
 
     ParamsOption option;
     std::string error;
