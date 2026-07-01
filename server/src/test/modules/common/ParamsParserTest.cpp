@@ -99,3 +99,26 @@ TEST_F(ParamsParserTest, testServerStart) {
     server.Stop();
     EXPECT_EQ(server.IsStart(), false);
 }
+
+TEST_F(ParamsParserTest, testParamsParserWsHostIPv6) {
+    // 覆盖 IPv6 各类标准缩写形式：全写、::、::1、含中间 ::、前/后/中段缩写
+    const std::vector<std::string> validHosts = {"::", "::1", "::ffff:0:0", "1::", "1::8", "1:2:3:4:5:6:7:8",
+        "2001:db8::1", "fe80::1", "1:2::7:8", "1::6:7:8", "::7:8"};
+    for (const auto &host : validHosts) {
+        bool result = Dic::Server::ParamsParser::Instance().Parse({"exe", "--wsPort=9000", "--wsHost=" + host});
+        EXPECT_EQ(result, true) << "expected valid host: " << host;
+        EXPECT_EQ(Dic::Server::ParamsParser::Instance().GetOption().host, host);
+    }
+}
+
+TEST_F(ParamsParserTest, testParamsParserWsHostInvalid) {
+    // IPv4-mapped、zone id、段数越界、段位超长、非 IP 字符串应被拒绝
+    // IPv4 段值越界（如 256、999）也应在参数校验阶段被拒绝，避免延迟到监听阶段才失败
+    const std::vector<std::string> invalidHosts = {"192.168.0", "1.2.3.4.5", "ggg", "fe80::1%eth0", "::ffff:1.2.3.4",
+        "1:2:3:4:5:6:7:8:9", "gggg::1", "999.999.999.999", "256.1.1.1", "1.2.3.256", "01.02.03.04", "1.2.3.4.5.6"};
+    for (const auto &host : invalidHosts) {
+        bool result = Dic::Server::ParamsParser::Instance().Parse({"exe", "--wsPort=9000", "--wsHost=" + host});
+        EXPECT_EQ(result, false) << "expected invalid host: " << host;
+        EXPECT_EQ(Dic::Server::ParamsParser::Instance().GetError(), "ERROR: Host is not valid.");
+    }
+}

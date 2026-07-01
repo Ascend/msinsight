@@ -39,7 +39,7 @@ const PARAM_MAP = getParamMap();
 const port: number = Number.parseInt(<string>PARAM_MAP.get('port'));
 const jupyterlabProxy: boolean = PARAM_MAP.get('jupyterlabProxy') === 'true';
 
-export const LOCAL_HOST = '127.0.0.1';
+export const LOCAL_HOST = 'localhost';
 export const PORT: number = port;
 export const JUPYTERLABPROXY: boolean = jupyterlabProxy;
 export const GLOBAL_HOST = { remote: LOCAL_HOST, port: PORT };
