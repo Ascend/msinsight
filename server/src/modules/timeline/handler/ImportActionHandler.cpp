@@ -134,6 +134,8 @@ bool ImportActionHandler::ImportFile(ImportActionRequest &request, std::string &
     response->body.reset = IsNeedReset(request);
     if (response->body.reset) {
         ParserFactory::Reset();
+        // 解析器Reset过程中需要把条件变量设置为true，所以结束后需要复位
+        ParserStatusManager::Instance().ResetParse();
     }
     auto invalid = std::all_of(parserList.begin(), parserList.end(), [&request, &warnMsg, &response](ParserType type) {
         auto project = BuildProjectInfo(type, request, warnMsg);
