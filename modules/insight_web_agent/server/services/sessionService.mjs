@@ -40,9 +40,11 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
             // If the agent doesn't support session list (like dcode),
             // just return the locally generated sessions
             state.sessions = localSessions();
+            console.log(`Session list uses local sessions: count=${state.sessions.length}`);
             return state.sessions;
         }
 
+        console.log(`Listing remote sessions: cwd=${getAgentCwd()}`);
         const response = await acpClient.request("session/list", { cwd: getAgentCwd() });
         const remoteSessions = response.sessions ?? [];
         const remoteIds = new Set(remoteSessions.map((session) => session.sessionId));
@@ -54,6 +56,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
             })),
             ...localSessions().filter((session) => !remoteIds.has(session.sessionId)),
         ];
+        console.log(`Session list completed: remote=${remoteSessions.length}, total=${state.sessions.length}`);
         return state.sessions;
     };
 
@@ -69,6 +72,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
         if (state.configOptions.length) return state.configOptions;
 
         try {
+            console.log("Loading config options with temporary session");
             const session = await acpClient.request("session/new", {
                 cwd: getAgentCwd(),
                 additionalDirectories: [],
@@ -77,6 +81,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
             setConfigOptions({ eventBus, state }, session?.configOptions ?? [], null);
 
             if (session?.sessionId) {
+                console.log(`Cleaning up temporary config session: sessionId=${session.sessionId}`);
                 await cleanupSession(session.sessionId);
                 await refreshSessions();
             }
@@ -88,6 +93,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
     };
 
     const createSessionContext = async ({ messages }) => {
+        console.log(`Creating ACP session: cwd=${getAgentCwd()}, initialMessages=${messages.length}`);
         const session = await acpClient.request("session/new", {
             cwd: getAgentCwd(),
             additionalDirectories: [],
@@ -98,6 +104,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
         context.configOptions = session?.configOptions ?? [];
         setConfigOptions({ eventBus, state }, context.configOptions, session.sessionId);
         await applyPreferredModel(session.sessionId);
+        console.log(`ACP session created: sessionId=${session.sessionId}, configOptions=${context.configOptions.length}`);
         return session.sessionId;
     };
 
@@ -114,14 +121,19 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
                 configOptions: state.sessionContexts.get(sessionId)?.configOptions ?? [],
             };
         } catch (error) {
+            console.error(`Create empty session failed: ${error.message}`);
             return { error: error.message, status: 500 };
         }
     };
 
     const loadSessionById = async (sessionId) => {
         const targetSessionId = String(sessionId ?? "").trim();
-        if (!targetSessionId) return { error: "sessionId is required", status: 400 };
+        if (!targetSessionId) {
+            console.warn("Load session rejected: sessionId is required");
+            return { error: "sessionId is required", status: 400 };
+        }
 
+        console.log(`Loading session context: sessionId=${targetSessionId}`);
         const context = getOrCreateSessionContext(targetSessionId);
         context.messages = [];
         context.replayingHistory = true;
@@ -133,6 +145,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
             });
         const configOptions = response?.configOptions ?? [];
         setConfigOptions({ eventBus, state }, configOptions, targetSessionId);
+        console.log(`Session loaded: sessionId=${targetSessionId}, messages=${context.messages.length}, configOptions=${configOptions.length}`);
 
         return {
             ok: true,
@@ -152,12 +165,22 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
     const deleteSessionById = async (sessionId) => {
         return enqueueMutation(async () => {
             const targetSessionId = String(sessionId ?? "").trim();
-            if (!targetSessionId) return { error: "sessionId is required", status: 400 };
+            if (!targetSessionId) {
+                console.warn("Delete session rejected: sessionId is required");
+                return { error: "sessionId is required", status: 400 };
+            }
             const targetContext = state.sessionContexts.get(targetSessionId);
-            if (targetContext?.pendingPrompt) return { error: "cannot delete a session while prompting", status: 409 };
-            if (!supportsSessionDelete(state)) return { error: "delete session is not supported by this agent", status: 409 };
+            if (targetContext?.pendingPrompt) {
+                console.warn(`Delete session rejected: pending prompt, sessionId=${targetSessionId}`);
+                return { error: "cannot delete a session while prompting", status: 409 };
+            }
+            if (!supportsSessionDelete(state)) {
+                console.warn("Delete session rejected: unsupported by agent");
+                return { error: "delete session is not supported by this agent", status: 409 };
+            }
 
             try {
+                console.log(`Deleting ACP session: sessionId=${targetSessionId}`);
                 await acpClient.request("session/delete", { sessionId: targetSessionId });
             } catch (error) {
                 console.warn(`[ACP] session/delete failed for ${targetSessionId}: ${error.message}`);
@@ -171,6 +194,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
 
             state.sessionContexts.delete(targetSessionId);
 
+            console.log(`Session deleted locally: sessionId=${targetSessionId}`);
             return { ok: true };
         });
     };
@@ -198,9 +222,13 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
     const setSessionConfigOption = async (configId, value, targetSessionId) => {
         return enqueueMutation(async () => {
             const sessionId = String(targetSessionId ?? "").trim();
-            if (!sessionId) return { error: "sessionId is required", status: 400 };
+            if (!sessionId) {
+                console.warn(`Set config option rejected: configId=${configId}, sessionId is required`);
+                return { error: "sessionId is required", status: 400 };
+            }
 
             try {
+                console.log(`Setting session config option: sessionId=${sessionId}, configId=${configId}`);
                 const result = await acpClient.request("session/set_config_option", {
                     sessionId,
                     configId,
@@ -208,11 +236,14 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
                 });
                 setConfigOptions({ eventBus, state }, result?.configOptions ?? result?.config_options ?? [], sessionId);
                 broadcastState();
+                console.log(`Session config option set: sessionId=${sessionId}, configId=${configId}`);
                 return { ok: true, configOptions: state.sessionContexts.get(sessionId)?.configOptions ?? state.configOptions };
             } catch (error) {
                 if (error.message.includes("Method not found")) {
+                    console.warn(`Set config option unsupported: sessionId=${sessionId}, configId=${configId}`);
                     return { error: "config options are not supported by this agent", status: 409 };
                 }
+                console.error(`Set config option failed: sessionId=${sessionId}, configId=${configId}, error=${error.message}`);
                 return { error: error.message, status: 500 };
             }
         });
@@ -221,13 +252,20 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
     const setModel = async (model, sessionId) => {
         const targetSessionId = String(sessionId ?? "").trim() || undefined;
         const modelConfig = getModelConfig(state, targetSessionId);
-        if (!modelConfig) return { error: "model config option is unavailable", status: 409 };
+        if (!modelConfig) {
+            console.warn(`Set model rejected: model config unavailable, sessionId=${targetSessionId ?? ""}`);
+            return { error: "model config option is unavailable", status: 409 };
+        }
         const value = normalizeModelValue(modelConfig, model);
-        if (!value) return { error: `model is unavailable: ${model}`, status: 400 };
+        if (!value) {
+            console.warn(`Set model rejected: unavailable model=${String(model ?? "")}`);
+            return { error: `model is unavailable: ${model}`, status: 400 };
+        }
         state.preferredModel = value;
         if (!targetSessionId) {
             setConfigOptionCurrentValue({ eventBus, state }, modelConfig.id, value, null);
             broadcastState();
+            console.log(`Preferred model set globally: model=${value}`);
             return { ok: true, configOptions: state.configOptions };
         }
         return setSessionConfigOption(modelConfig.id, value, targetSessionId);
@@ -236,11 +274,20 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
     const setMode = async (mode, sessionId) => {
         const targetSessionId = String(sessionId ?? "").trim() || undefined;
         const targetMode = String(mode ?? "").trim();
-        if (!targetMode) return { error: "mode is required", status: 400 };
-        if (!targetSessionId) return { error: "sessionId is required", status: 400 };
+        if (!targetMode) {
+            console.warn("Set mode rejected: mode is required");
+            return { error: "mode is required", status: 400 };
+        }
+        if (!targetSessionId) {
+            console.warn("Set mode rejected: sessionId is required");
+            return { error: "sessionId is required", status: 400 };
+        }
         const configOptions = state.sessionContexts.get(targetSessionId)?.configOptions ?? state.configOptions;
         const modeConfig = getModeConfigFromOptions(configOptions);
-        if (!modeConfig) return { error: "mode config option is unavailable", status: 409 };
+        if (!modeConfig) {
+            console.warn(`Set mode rejected: mode config unavailable, sessionId=${targetSessionId}`);
+            return { error: "mode config option is unavailable", status: 409 };
+        }
 
         return setSessionConfigOption(modeConfig.id, targetMode, targetSessionId);
     };

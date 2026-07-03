@@ -29,7 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { getModuleConfig } from '@/utils/Request';
 import { updateSession } from '@/connection/notificationHandler';
 import connector from '@/connection';
-import { ACP_PORT } from '@/centralServer/websocket/defs';
+import { ACP_PORT, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
 
 const Container = styled.div`
     width: 100%;
@@ -315,7 +315,11 @@ const Index = observer(({ session }: { session: Session }) => {
         }
     }, [isTriton]);
     const sessionToggleType = showSessionPanel ? 'primary' : 'default';
-    const acpSessionSrc = `${ACP_SESSION_SRC}${ACP_SESSION_SRC.includes('?') ? '&' : '?'}acpPort=${ACP_PORT}`;
+    const acpSessionParams = new URLSearchParams({ acpPort: String(ACP_PORT) });
+    if (JUPYTERLABPROXY) {
+        acpSessionParams.set('jupyterlabProxy', 'true');
+    }
+    const acpSessionSrc = `${ACP_SESSION_SRC}${ACP_SESSION_SRC.includes('?') ? '&' : '?'}${acpSessionParams.toString()}`;
     return <Container>
         <div className="tab-toolbar">
             <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />

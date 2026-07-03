@@ -19,11 +19,15 @@ import { json } from "../http/response.mjs";
 
 export const createAgentController = ({ agentService }) => ({
     list(_req, res) {
+        console.log("Listing agent servers");
         return json(res, agentService.list());
     },
 
     async switch(_req, res, body) {
+        console.log(`Switch agent requested: ${String(body?.name ?? "")}`);
         const result = await agentService.switchAgent(body?.name);
+        if (result.error) console.warn(`Switch agent failed: ${result.error}`);
+        else console.log(`Switch agent completed: ${result.activeAgentName}`);
         return json(res, result, result.status ?? 200);
     },
 });
