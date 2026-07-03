@@ -36,7 +36,7 @@ Delete the **mindstudio\_insight\_data.db** file in the profile data directory a
 
 **Symptom**
 
-When MindStudio Insight is running on a system such as EulerOS, the import selection box is not displayed after you click ![icon](./figures/FAQ/zh-cn_image_0000002517624287.png) on the toolbar in the upper left corner of the page.
+When MindStudio Insight is running on a system such as EulerOS, the import selection box is not displayed after you click ![icon](./figures/FAQ/en-us_image_0000002517624287.png) on the toolbar in the upper left corner of the page.
 
 **Solution**
 

@@ -53,7 +53,7 @@
 **预冒烟测试相关要求**：
 合入前端代码或后端代码时，有预冒烟测试的相关要求。
 
-1. 预冒烟测试是端到端的测试，用于验证软件的主要功能是否正常运行，涉及前端和后端。预冒烟测试使用测试框架Playwright。详细步骤可以参考[开发指南](https://gitcode.com/Ascend/msinsight/blob/master/docs/zh/developer_guide/development_guide.md)的3.5节。
+1. 预冒烟测试是端到端的测试，用于验证软件的主要功能是否正常运行，涉及前端和后端。预冒烟测试使用测试框架Playwright。详细步骤可以参考[开发指南](https://gitcode.com/msinsight/blob/26.0.0/docs/zh/developer_guide/development_guide.md)的3.5节。
 
 ## PR标题与分类
 

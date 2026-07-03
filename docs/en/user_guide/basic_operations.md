@@ -13,12 +13,12 @@ Install MindStudio Insight first. For details, see [MindStudio Insight Installat
 **Setting the Theme**
 
 1. Open MindStudio Insight.
-2. Click ![icon](./figures/basic_operations/zh-cn_image_0000002532040191.png) in the upper right corner of the page to switch the theme to light or dark.
+2. Click ![icon](./figures/basic_operations/en-us_image_0000002532040191.png) in the upper right corner of the page to switch the theme to light or dark.
 
 **Setting the Language**
 
 1. Open MindStudio Insight.
-2. Click ![icon](./figures/basic_operations/zh-cn_image_0000002531920169.png) in the upper right corner of the page to switch the language of MindStudio Insight to Chinese or English.
+2. Click ![icon](./figures/basic_operations/en-us_image_0000002531920169.png) in the upper right corner of the page to switch the language of MindStudio Insight to Chinese or English.
 
 ## Importing Data
 
@@ -68,10 +68,10 @@ Table 1 Data management operations
 |--|--|
 |Creating a data project|Click **Import Data** in the upper left corner of the page. After the data is successfully imported, a data project is automatically created in the data manager's list.|
 |Changing the data project name|In the data manager list, select the required project, double-click the project name, and enter a new name.|
-|Deleting a single data project|Click ![icon](./figures/basic_operations/zh-cn_image_0000002531941261.png) next to the project to delete the project.|
-|Deleting multiple data projects|Click ![icon](./figures/basic_operations/zh-cn_image_0000002500061370.png) next to **Import Data**, select the projects to be deleted, and click ![icon](./figures/basic_operations/zh-cn_image_0000002500221370.png) in the row where the all button is located in the list to delete the selected projects. By default, all projects are selected.|
-|Importing data to a project|Click ![icon](./figures/basic_operations/zh-cn_image_0000002532061303.png) next to a project to import data to the project.|
-|Deleting data from a project|Click ![icon](./figures/basic_operations/zh-cn_image_0000002531941263.png) next to the selected data in a project to delete the selected data from the project.|
+|Deleting a single data project|Click ![icon](./figures/basic_operations/en-us_image_0000002531941261.png) next to the project to delete the project.|
+|Deleting multiple data projects|Click ![icon](./figures/basic_operations/en-us_image_0000002500061370.png) next to **Import Data**, select the projects to be deleted, and click ![icon](./figures/basic_operations/en-us_image_0000002500221370.png) in the row where the all button is located in the list to delete the selected projects. By default, all projects are selected.|
+|Importing data to a project|Click ![icon](./figures/basic_operations/en-us_image_0000002532061303.png) next to a project to import data to the project.|
+|Deleting data from a project|Click ![icon](./figures/basic_operations/en-us_image_0000002531941263.png) next to the selected data in a project to delete the selected data from the project.|
 |Viewing the data path|In the data manager's list, right-click the required project or data and choose **Open in File Explorer** from the shortcut menu to go to the corresponding data file path.|
 
 > [!NOTE]NOTE
@@ -134,7 +134,7 @@ You can view the log file storage path in two ways: directly viewing the path, o
 
 - GUI operations
 
-    On the MindStudio Insight page, click ![icon](./figures/basic_operations/zh-cn_image_0000002531920179.png) in the upper right corner and choose **Show Logs in Explorer** to go to the log storage directory.
+    On the MindStudio Insight page, click ![icon](./figures/basic_operations/en-us_image_0000002531920179.png) in the upper right corner and choose **Show Logs in Explorer** to go to the log storage directory.
 
     > [!NOTE]NOTE
     > This function is supported only on Windows and macOS.
@@ -157,7 +157,7 @@ The logs of MindStudio Insight can be cleared automatically or manually.
 
 ## Common Shortcut Keys
 
-This section describes the common shortcut keys of MindStudio Insight. You can also click ![icon](./figures/basic_operations/zh-cn_image_0000002500056862.png) in the upper right corner of MindStudio Insight and choose **Keyboard Shortcuts** to view the shortcut key information.
+This section describes the common shortcut keys of MindStudio Insight. You can also click ![icon](./figures/basic_operations/en-us_image_0000002500056862.png) in the upper right corner of MindStudio Insight and choose **Keyboard Shortcuts** to view the shortcut key information.
 
 **Table 1** Common shortcut keys
 
