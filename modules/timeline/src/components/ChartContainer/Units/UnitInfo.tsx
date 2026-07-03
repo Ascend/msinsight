@@ -24,6 +24,7 @@ import { runInAction } from 'mobx';
 import { observer } from 'mobx-react';
 // support utils/types
 import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { level, pinnedLevel } from '../../../entity/common';
 import type { Session } from '../../../entity/session';
 import type { KeyedInsightUnit } from './types';
@@ -57,6 +58,7 @@ import connector from '../../../connection/index';
 import { useEffect } from 'react';
 import { updateThreadsToFetch } from '../../../actions/actionExpandUnits';
 import { getUnitUniqueId } from '../../../utils';
+import { getLaneDescriptionKey } from '../../../insight/units/laneDescription';
 
 const DefaultInfoContainer = styled.div`
     display: flex;
@@ -84,6 +86,7 @@ const DefaultInfoContainer = styled.div`
                 font-size: 12px;
             }
         }
+
 
        .insight-lane-info-tag-info {
             font-size: 12px;
@@ -153,6 +156,7 @@ interface DefaultInfoProps {
 }
 
 const DefaultInfo = observer(({ unit, name, session, ...props }: DefaultInfoProps): JSX.Element => {
+    const { t } = useTranslation('timeline');
     const tag = (typeof unit.tag === 'string') ? `${unit.tag}` : unit.tag?.(session, unit.metadata) ?? undefined;
     const tooltipInfo = getDefaultInfoTooltipTitle(unit, name);
     const allNumeric = tooltipInfo.cardNames?.every(str => str?.trim() !== '' && !isNaN(Number(str))) ?? false;
@@ -174,7 +178,7 @@ const DefaultInfo = observer(({ unit, name, session, ...props }: DefaultInfoProp
                     }
                     return null;
                 })}
-                <Tooltip title={tooltipInfo.content}>
+                <Tooltip title={getLaneInfoTooltipContent(unit, name, tooltipInfo.content, t)}>
                     <div style={{ width: '100%' }}>
                         <div className="insight-lane-info-name">{name}</div>
                         <div>
@@ -206,6 +210,27 @@ interface TooltipInfo {
     content: string | JSX.Element;
     cardNames?: string[];
 }
+
+const getLaneInfoTooltipContent = (
+    unit: KeyedInsightUnit,
+    displayName: string | undefined,
+    content: TooltipInfo['content'],
+    t: TFunction<'timeline'>,
+): TooltipInfo['content'] => {
+    // 将 NPU Metrics 泳道说明追加到名称 tooltip 中，避免在高密度 Timeline 中额外展示图标。
+    const descriptionKey = getLaneDescriptionKey(unit, displayName);
+    const description = descriptionKey === undefined ? undefined : t(descriptionKey);
+    if (!description) {
+        return content;
+    }
+    if (!content) {
+        return description;
+    }
+    return <div>
+        <div>{content}</div>
+        <div style={{ marginTop: 4, opacity: 0.6 }}>{description}</div>
+    </div>;
+};
 
 const getDefaultInfoTooltipTitle = (unit: KeyedInsightUnit, name: string): TooltipInfo => {
     // 判断是否为HCCL的group甬道，并且rank列表不为空
@@ -366,6 +391,7 @@ function getParserVisiable(unit: KeyedInsightUnit): boolean {
 }
 
 const UnitInfoContent = observer(({ unit, session, ...props }: UnitInfoContentProps): JSX.Element => {
+    const { t } = useTranslation('timeline');
     const info = unit.renderInfo?.(session, unit.metadata, unit) ?? `${unit.name}`;
     const onDragMouseDown = (e: React.MouseEvent): void => {
         // 只允许鼠标左键拖拽
@@ -384,12 +410,10 @@ const UnitInfoContent = observer(({ unit, session, ...props }: UnitInfoContentPr
     }
     const tooltip = (children: JSX.Element): JSX.Element => unit.name === 'Card'
         ? <Tooltip placement="leftBottom"
-            title={
-                <>
-                    <div>{(unit.metadata as CardMetaData).cardPath}</div>
-                    <div>Timestamp Counter value at t=0: { bigSubtract(session.startTime, getTimeOffset(session, unit.metadata as CardMetaData)) } ns</div>
-                </>
-            }
+            title={getLaneInfoTooltipContent(unit, undefined, <>
+                <div>{(unit.metadata as CardMetaData).cardPath}</div>
+                <div>Timestamp Counter value at t=0: { bigSubtract(session.startTime, getTimeOffset(session, unit.metadata as CardMetaData)) } ns</div>
+            </>, t)}
         >{children}</Tooltip>
         : children;
     React.useEffect(() => {
