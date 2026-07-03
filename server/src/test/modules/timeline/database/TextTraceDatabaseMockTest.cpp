@@ -194,6 +194,7 @@ TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetHostProcessIdsReturnsAllTextPro
 
     ASSERT_TRUE(result);
     EXPECT_EQ(processIds.count("10"), 1);
+    EXPECT_EQ(processIds.count("20"), 0);
 }
 
 TEST_F(TextTraceDatabaseMockTest, QueryThreadsWhenTextPythonStackThenUsePythonStackTidAndDepth) {

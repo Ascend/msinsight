@@ -7,6 +7,7 @@ TEST(RankOffsetCalculatorTest, ClassifiesDeviceSideMetaTypes) {
     EXPECT_EQ(RankOffsetCalculator::GetSide("Ascend Hardware"), RankOffsetSide::DEVICE);
     EXPECT_EQ(RankOffsetCalculator::GetSide("HCCL"), RankOffsetSide::DEVICE);
     EXPECT_EQ(RankOffsetCalculator::GetSide("OVERLAP_ANALYSIS"), RankOffsetSide::DEVICE);
+    EXPECT_EQ(RankOffsetCalculator::GetSide("NPU_METRICS"), RankOffsetSide::DEVICE);
 }
 
 TEST(RankOffsetCalculatorTest, ClassifiesHostSideMetaTypes) {

@@ -999,8 +999,9 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetPytorchApiSlicesExcludesPythonStack) 
     EXPECT_EQ(slices.front().pid, "20");
     EXPECT_EQ(slices.front().metaType, "PYTORCH_API");
     EXPECT_EQ(slices.front().timestamp, 100);
-    EXPECT_EQ(processIds.size(), 1);
+    EXPECT_EQ(processIds.size(), 2);
     EXPECT_EQ(processIds.count("20"), 1);
+    EXPECT_EQ(processIds.count("30"), 1);
 }
 
 TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostProcessIdsReturnsAllExistingHostLanes) {
@@ -1031,8 +1032,11 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostProcessIdsReturnsAllExistingHostL
     bool result = database.QueryHostSlicesByName("rank_offset_target", "CANN_API", slices, processIds);
 
     ASSERT_TRUE(result);
-    EXPECT_EQ(processIds.size(), 1);
+    EXPECT_EQ(processIds.size(), 4);
     EXPECT_EQ(processIds.count("10"), 1);
+    EXPECT_EQ(processIds.count("20"), 1);
+    EXPECT_EQ(processIds.count("30"), 1);
+    EXPECT_EQ(processIds.count("40"), 1);
 }
 
 TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostProcessIdsSkipsMissingHostTables) {
@@ -1115,8 +1119,10 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetDeviceProcessIdsReturnsExistingDevice
         database.QueryDeviceSlicesByName("0", "rank_offset_device_target", "Ascend Hardware", slices, processIds);
 
     ASSERT_TRUE(result);
+    EXPECT_EQ(processIds.size(), 3);
     EXPECT_EQ(processIds.count("Ascend Hardware"), 1);
-    EXPECT_EQ(processIds.count("HCCL"), 0);
+    EXPECT_EQ(processIds.count("HCCL"), 1);
+    EXPECT_EQ(processIds.count("OVERLAP_ANALYSIS"), 1);
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryAclnnOpCountExceedThresholdWhenDbNotOpen) {

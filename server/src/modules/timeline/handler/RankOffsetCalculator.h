@@ -45,6 +45,7 @@ class RankOffsetCalculator {
             "Ascend Hardware",
             "HCCL",
             "OVERLAP_ANALYSIS",
+            "NPU_METRICS",
         };
         static const std::set<std::string> hostMetaTypes = {
             "CANN_API",
