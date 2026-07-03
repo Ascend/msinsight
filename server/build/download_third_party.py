@@ -31,53 +31,22 @@ THIRD_PARTY_DIR = os.path.join(HOME_DIR, 'third_party')
 
 
 BUILD_TITLE = '[Download Third Party]'
+LOG = init_log('root')
 
 OPEN_SOURCE = [
-    [
-        'googletest',
-        'v1.13.0',
-        'https://gitcode.com/GitHub_Trending/go/googletest.git'
-    ],
-    [
-        'mockcpp',
-        'master',
-        'https://gitcode.com/Ascend/mockcpp.git'
-    ],
-    [
-        'libuv',
-        'v1.44.2',
-        'https://gitcode.com/gh_mirrors/li/libuv.git'
-    ],
-    [
-        'uSockets',
-        'v0.8.6',
-        'https://gitcode.com/gh_mirrors/us/uSockets.git'
-    ],
-    [
-        'uWebSockets',
-        'v20.48.0',
-        'https://gitcode.com/gh_mirrors/uw/uWebSockets.git'
-    ],
-    [
-        'rapidjson',
-        'master',
-        'https://gitcode.com/GitHub_Trending/ra/rapidjson.git'
-    ],
-    [
-        'sqlite3_src',
-        'version-3.46.1',
-        'https://gitcode.com/gh_mirrors/sq/sqlite.git'
-    ],
-    [
-        'msprof-analyze',
-        'tag_MindStudio_26.0.0-alpha.1',
-        'https://gitcode.com/Ascend/msprof-analyze.git'
-    ]
+    ['googletest', 'v1.13.0', 'https://gitcode.com/GitHub_Trending/go/googletest.git'],
+    ['mockcpp', 'master', 'https://gitcode.com/Ascend/mockcpp.git'],
+    ['libuv', 'v1.44.2', 'https://gitcode.com/gh_mirrors/li/libuv.git'],
+    ['uSockets', 'v0.8.6', 'https://gitcode.com/gh_mirrors/us/uSockets.git'],
+    ['uWebSockets', 'v20.48.0', 'https://gitcode.com/gh_mirrors/uw/uWebSockets.git'],
+    ['rapidjson', 'master', 'https://gitcode.com/GitHub_Trending/ra/rapidjson.git'],
+    ['sqlite3_src', 'version-3.46.1', 'https://gitcode.com/gh_mirrors/sq/sqlite.git'],
+    ['msprof-analyze', '26.1.0', 'https://gitcode.com/Ascend/msprof-analyze.git'],
 ]
 
 
 def log(info):
-    LOG.info(BUILD_TITLE + info)
+    LOG.info('%s%s', BUILD_TITLE, info)
 
 
 def download_3rd_party():
@@ -87,12 +56,11 @@ def download_3rd_party():
         if os.path.exists(os.path.join(THIRD_PARTY_DIR, source[0])):
             continue
         download_cmd = ['git', 'clone', '-b', source[1], source[2], source[0], '--depth=1']
-        output = subprocess.Popen(download_cmd, cwd=THIRD_PARTY_DIR, stdout=subprocess.PIPE)
-        log_output(output)
+        with subprocess.Popen(download_cmd, cwd=THIRD_PARTY_DIR, stdout=subprocess.PIPE) as output:
+            log_output(output)
 
     log('finish to download third party')
 
 
 if __name__ == '__main__':
-    LOG = init_log('root')
     download_3rd_party()
