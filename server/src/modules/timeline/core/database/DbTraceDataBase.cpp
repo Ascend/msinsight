@@ -1620,6 +1620,15 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
         return;
     }
     auto pythonStackMetaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+    auto pytorchMetaType = ENUM_TO_STR(PROCESS_TYPE::API).value_or("");
+    auto cannMetaType = ENUM_TO_STR(PROCESS_TYPE::CANN_API).value_or("");
+    auto isPytorchUnit = [&pytorchMetaType](const std::unique_ptr<Protocol::UnitTrack> &unit) {
+        return unit != nullptr && unit->metaData.metaType == pytorchMetaType &&
+            unit->metaData.threadId == Protocol::PYTHON_API_THREAD_ID;
+    };
+    auto isCannUnit = [&cannMetaType](const std::unique_ptr<Protocol::UnitTrack> &unit) {
+        return unit != nullptr && unit->metaData.metaType == cannMetaType && unit->type == "label";
+    };
     for (auto &process : metaData) {
         for (auto &child : process->children) {
             if (globalTidsWithPythonFunc.count(child->metaData.processId)) {
@@ -1628,7 +1637,37 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
                 pythonStack->metaData.threadId = Protocol::PYTHON_STACK_THREAD_ID_PREFIX + child->metaData.processId;
                 pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
                 pythonStack->metaData.maxDepth = 1;
+
+                std::vector<std::unique_ptr<Protocol::UnitTrack>> beforePytorch;
+                std::vector<std::unique_ptr<Protocol::UnitTrack>> afterPytorch;
+                std::vector<std::unique_ptr<Protocol::UnitTrack>> cannUnits;
+                std::unique_ptr<Protocol::UnitTrack> pytorchUnit;
+                bool hasVisitedPytorch = false;
+                for (auto &unit : child->children) {
+                    if (isPytorchUnit(unit) && pytorchUnit == nullptr) {
+                        pytorchUnit = std::move(unit);
+                        hasVisitedPytorch = true;
+                    } else if (isCannUnit(unit)) {
+                        cannUnits.insert(cannUnits.end(), std::make_move_iterator(unit->children.begin()),
+                            std::make_move_iterator(unit->children.end()));
+                    } else if (!hasVisitedPytorch) {
+                        beforePytorch.emplace_back(std::move(unit));
+                    } else {
+                        afterPytorch.emplace_back(std::move(unit));
+                    }
+                }
+
+                child->children.clear();
+                child->children.insert(child->children.end(), std::make_move_iterator(beforePytorch.begin()),
+                    std::make_move_iterator(beforePytorch.end()));
                 child->children.emplace_back(std::move(pythonStack));
+                if (pytorchUnit != nullptr) {
+                    child->children.emplace_back(std::move(pytorchUnit));
+                }
+                child->children.insert(child->children.end(), std::make_move_iterator(cannUnits.begin()),
+                    std::make_move_iterator(cannUnits.end()));
+                child->children.insert(child->children.end(), std::make_move_iterator(afterPytorch.begin()),
+                    std::make_move_iterator(afterPytorch.end()));
             }
         }
     }
