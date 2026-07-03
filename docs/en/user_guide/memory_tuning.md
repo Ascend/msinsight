@@ -102,7 +102,7 @@ You can import the memory result files in DB format collected by the msMemScope 
 
 ### PyTorch Snapshot Data Description
 
-PyTorch Memory Snapshot is a memory snapshot function provided by PyTorch. It is used to record and analyze the memory usage of the memory pool managed by PyTorch during model running. For details about the original data of memory snapshot, see "[Memory Snapshot Application Scenarios](https://www.hiascend.com/document/detail/zh/Pytorch/730/ptmoddevg/Frameworkfeatures/docs/zh/framework_feature_guide_pytorch/memory_snapshot.md#application-scenarios)" in Section "Model Development" in the *Ascend Extension for PyTorch*.
+PyTorch Memory Snapshot is a memory snapshot function provided by PyTorch. It is used to record and analyze the memory usage of the memory pool managed by PyTorch during model running. For details about the original data of memory snapshot, see "[Memory Snapshot Application Scenarios](https://www.hiascend.com/document/detail/zh/Pytorch/730/ptmoddevg/Frameworkfeatures/docs/zh/framework_feature_guide_pytorch/memory_snapshot.md#application-scenarios)(Chinese only)" in Section "Model Development" in the *Ascend Extension for PyTorch*.
 
 **Common Memory Problems**
 
@@ -197,7 +197,7 @@ The **Memory Details Table** area displays memory details by **Block View** and 
 > [!NOTE]NOTE  
 > The memory details are hidden by default. To view the details, click the expand button to display the memory details. If you do not need to view the memory details, click the collapse button to hide the memory details.
 > 
-> Filter is supported for the **Size**, **Malloc Timestamp**, and **Free Timestamp** fields in **Block View**, and the **Timestamp** field in **Event View**. After you click ![](./figures/memory_tuning/zh-cn_image_0000002532040401.png), you can enter integers between **0** and the value displayed in the table to set the minimum and maximum values of the filter range.
+> Filter is supported for the **Size**, **Malloc Timestamp**, and **Free Timestamp** fields in **Block View**, and the **Timestamp** field in **Event View**. After you click ![](./figures/memory_tuning/en-us_image_0000002532040401.png), you can enter integers between **0** and the value displayed in the table to set the minimum and maximum values of the filter range.
 
 - **Block View**: displays detailed information about memory blocks, as shown in [**Figure 4** Block View](#block-view). For details about the fields, see [**Table 1** Block View fields](#block-view-fields).
 
@@ -326,7 +326,7 @@ The memory details include the slice detail and system view. The slice detail di
 > [!NOTE]NOTE  
 > The memory details are hidden by default. To view the details, click the expand button to display the memory details. If you do not need to view the memory details, click the collapse button to hide the memory details.
 > 
-> For the **Size(bytes)** and **Requested Size(bytes)** fields in the memory block view, and the **Size(bytes)**, **Allocated(bytes)**, **Active(bytes)**, and **Reserved(bytes)** fields in the memory event view, you can click ![](./figures/memory_tuning/zh-cn_image_0000002532040401.png) to enter the minimum and maximum values for range filtering.
+> For the **Size(bytes)** and **Requested Size(bytes)** fields in the memory block view, and the **Size(bytes)**, **Allocated(bytes)**, **Active(bytes)**, and **Reserved(bytes)** fields in the memory event view, you can click ![](./figures/memory_tuning/en-us_image_0000002532040401.png) to enter the minimum and maximum values for range filtering.
 
 - **Block View**: displays detailed information about memory blocks, as shown in [**Figure 3** Block View](#block-view). For details about the fields, see [**Table 1** Block View fields](#block-view-fields).
 

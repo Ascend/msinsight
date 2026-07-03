@@ -67,7 +67,7 @@ In the single-rank scenario, profile data can be classified into the following t
     |analysis.db|Indicates data files collected in multi-rank or cluster scenarios involving communication.|Timeline<br> Memory<br> Operator<br> Summary<br> Communication|
     |Note: The asterisk (*) indicates the timestamp.|-|-|
 
-- MindSpore training/inference data: MindSpore framework profile data can be imported. For details about how to obtain the data, see "Debugging and Tuning" > "\> Ascend Performance Tuning" in <https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html>.
+- MindSpore training/inference data: MindSpore framework profile data can be imported. For details about how to obtain the data, see "Debugging and Tuning" > "\> Ascend Performance Tuning" in [Ascend Performance Tuning](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html)(Chinese only).
 
     MindStudio Insight allows you to import the profile data directory whose name ends with **ascend\_ms**. For details about the profile data files, see [Table 3 MindSpore training/inference profile data files](#mindspore-training-inference-profile-data-files).
 
@@ -543,8 +543,8 @@ The **Timeline** tab page supports zooming in, zooming out, and moving left and 
 - Click any position in the tree chart or graphical pane on the **Timeline** tab page and press **W** (zoom in) or **S** (zoom out) on the keyboard. The maximum zoom-in precision is 1 ns.
 - Click any position in the tree chart or graphical pane on the **Timeline** tab page and press **A** (move left), **D** (move right), left arrow (move left), or right arrow (move right) keys on the keyboard to move leftward or rightward, or press up arrow (move up) or down arrow (move down) on the keyboard to move upward or downward.
 - In the graphical pane, hold down **Alt** and use the left mouse button to select an area. The selected area is zoomed in.
-- Click ![icon](./figures/system_tuning/zh-cn_image_0000002500200278.png) (zoom in) and ![icon](./figures/system_tuning/zh-cn_image_0000002532040205.png) (zoom out) on the toolbar in the upper left corner of the page to zoom in or out.
-- Click ![icon](./figures/system_tuning/zh-cn_image_0000002531920183.png) on the toolbar in the upper left corner of the page to restore the graphical pane to display all timeline views.
+- Click ![icon](./figures/system_tuning/en-us_image_0000002500200278.png) (zoom in) and ![icon](./figures/system_tuning/en-us_image_0000002532040205.png) (zoom out) on the toolbar in the upper left corner of the page to zoom in or out.
+- Click ![icon](./figures/system_tuning/en-us_image_0000002531920183.png) on the toolbar in the upper left corner of the page to restore the graphical pane to display all timeline views.
 - Move the pointer to any position in the tree chart or graphical pane on the **Timeline** tab page, and hold down **Ctrl** and scroll the mouse wheel to zoom in or out.
 - In the graphical pane, hold down **Ctrl** and click the left mouse button to drag the unit chart leftward or rightward.
 
@@ -566,21 +566,21 @@ The **Timeline** tab page supports zooming in, zooming out, and moving left and 
 
 On the **Timeline** tab page, you can search for operators and APIs by name.
 
-- Click ![icon](./figures/system_tuning/zh-cn_image_0000002500040294.png) on the toolbar in the upper left corner of the page. In the text box that is displayed, enter the content to be searched for and press **Enter**. The corresponding operators or APIs are matched. The total number of matched operators and APIs is displayed. The matched operators or APIs are highlighted, as shown in [**Figure 1** Searching for operators](#searching-for-operators). The total number of operators and APIs related to npu is **3104**.
+- Click ![icon](./figures/system_tuning/en-us_image_0000002500040294.png) on the toolbar in the upper left corner of the page. In the text box that is displayed, enter the content to be searched for and press **Enter**. The corresponding operators or APIs are matched. The total number of matched operators and APIs is displayed. The matched operators or APIs are highlighted, as shown in [**Figure 1** Searching for operators](#searching-for-operators). The total number of operators and APIs related to npu is **3104**.
 
     Click the switch button next to the search box to view the previous or next matched operator or API. Alternatively, enter a number next to the text box to search for the corresponding operator or API. The operator or API is selected.
 
     **Figure 1** Searching for operators<a id="searching-for-operators"></a>  
     ![Searching for operators](./figures/system_tuning/search_operators_2.png "Searching for operators")
 
-- Click ![icon](./figures/system_tuning/zh-cn_image_0000002500040294.png) on the toolbar in the upper left corner of the page and click ![icon](./figures/system_tuning/zh-cn_image_0000002531920185.png) and ![icon](./figures/system_tuning/zh-cn_image_0000002500040296.png) on the left of the search box to enable case-sensitive matching and full-word matching, respectively.
-  - Click ![icon](./figures/system_tuning/zh-cn_image_0000002531920185.png) to enable case-sensitive matching. In the displayed dialog box, enter the content to be searched for and press **Enter**. Operators or APIs whose names contain the search item are matched, as shown in [**Figure 2** Enabling case-sensitive matching or full-word matching](#enabling-case-sensitive-matching-or-full-word-matching).
+- Click ![icon](./figures/system_tuning/en-us_image_0000002500040294.png) on the toolbar in the upper left corner of the page and click ![icon](./figures/system_tuning/en-us_image_0000002531920185.png) and ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) on the left of the search box to enable case-sensitive matching and full-word matching, respectively.
+  - Click ![icon](./figures/system_tuning/en-us_image_0000002531920185.png) to enable case-sensitive matching. In the displayed dialog box, enter the content to be searched for and press **Enter**. Operators or APIs whose names contain the search item are matched, as shown in [**Figure 2** Enabling case-sensitive matching or full-word matching](#enabling-case-sensitive-matching-or-full-word-matching).
 
       **Figure 2** Enabling case-sensitive matching or whole word matching<a id="enabling-case-sensitive-matching-or-full-word-matching"></a>  
         ![Enabling case-sensitive matching or whole word matching](./figures/system_tuning/enable_case_or_whole_word_matching_1.png "Enabling case-sensitive matching or whole word matching")
 
-  - Click ![icon](./figures/system_tuning/zh-cn_image_0000002500040296.png) to enable whole word matching. In the displayed text box, enter the search term and press **Enter**. The system will match operators or APIs with names corresponding to the search term, ignoring case, as shown in [**Figure 2** Enabling case-sensitive matching or whole word matching](#enabling-case-sensitive-matching-or-full-word-matching).
-  - When both ![icon](./figures/system_tuning/zh-cn_image_0000002531920185.png) and ![icon](./figures/system_tuning/zh-cn_image_0000002500040296.png) are selected, the **Match case** and **Words** functions are enabled. In the text box that is displayed, enter the search content and press **Enter**. The operator or API whose name is the same as the search item is matched.
+  - Click ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) to enable whole word matching. In the displayed text box, enter the search term and press **Enter**. The system will match operators or APIs with names corresponding to the search term, ignoring case, as shown in [**Figure 2** Enabling case-sensitive matching or whole word matching](#enabling-case-sensitive-matching-or-full-word-matching).
+  - When both ![icon](./figures/system_tuning/en-us_image_0000002531920185.png) and ![icon](./figures/system_tuning/en-us_image_0000002500040296.png) are selected, the **Match case** and **Words** functions are enabled. In the text box that is displayed, enter the search content and press **Enter**. The operator or API whose name is the same as the search item is matched.
 
 - Click **Open in Find Window** next to the search box. The **Find** tab page is displayed in the lower part of the page, showing the information about the search term, as shown in [**Figure 3** Open in the Find Window](#open-in-the-find-window). For details about the fields, see [Table 2 Fields on the Find tab page](#fields-on-the-find-tab-page). Click **Click** in the **Click to Timeline** column to go to the specific location of the operator or API in the timeline view.
 
@@ -629,12 +629,12 @@ When cluster data is imported, a large amount of timeline information is display
 > [!NOTE]NOTE  
 > When filtering data by rank and unit, you can select the rank and unit in sequence to display the filtering information.
 
-- Display by rank: displays only one rank. Click ![icon](./figures/system_tuning/zh-cn_image_0000002532040213.png) in the upper left corner of the page, select **Rank Filter**, click the text box, and select **1** from the drop-down list. The timeline information of rank 1 is displayed, as shown in [**Figure 4** Rank filtering](#rank-filtering).
+- Display by rank: displays only one rank. Click ![icon](./figures/system_tuning/en-us_image_0000002532040213.png) in the upper left corner of the page, select **Rank Filter**, click the text box, and select **1** from the drop-down list. The timeline information of rank 1 is displayed, as shown in [**Figure 4** Rank filtering](#rank-filtering).
 
     **Figure 4** Rank filtering <a id="rank-filtering"></a>
     ![](./figures/system_tuning/card_filter_1.png "Rank filtering")
 
-- Display by unit: [**Figure 5** Unit filtering](#unit-filtering) displays only the **Overlap Analysis** unit of a rank as an example. Click ![](./figures/system_tuning/zh-cn_image_0000002532040213.png) on the toolbar in the upper left corner of the page, select **Units Filter**, click the text box, and select **Overlap Analysis** from the drop-down list box.
+- Display by unit: [**Figure 5** Unit filtering](#unit-filtering) displays only the **Overlap Analysis** unit of a rank as an example. Click ![](./figures/system_tuning/en-us_image_0000002532040213.png) on the toolbar in the upper left corner of the page, select **Units Filter**, click the text box, and select **Overlap Analysis** from the drop-down list box.
 
     **Figure 5** Unit filtering <a id="unit-filtering"></a>  
     ![](./figures/system_tuning/lane_filter_1.png "Unit filtering")
@@ -646,7 +646,7 @@ When cluster data is imported, a large amount of timeline information is display
     > [!NOTE]NOTE  
     > If the level-2 and level-3 units in the pinned rank are also pinned, you can only drag and drop the rank-level units. Similarly, if the level-3 units in the pinned level-2 units are also pinned, you can only drag and drop the level-2 units.
 
-    For example, click ![](./figures/system_tuning/zh-cn_image_0000002532040217.png) next to a level-3 unit name in cards 0, 1, and 2 to pin the unit name. Click ![](./figures/system_tuning/zh-cn_image_0000002531920195.png) again to unpin the unit name, as shown in [**Figure 6** Pinning and comparing](#pinning-and-comparing).
+    For example, click ![](./figures/system_tuning/en-us_image_0000002532040217.png) next to a level-3 unit name in cards 0, 1, and 2 to pin the unit name. Click ![](./figures/system_tuning/en-us_image_0000002531920195.png) again to unpin the unit name, as shown in [**Figure 6** Pinning and comparing](#pinning-and-comparing).
 
     **Figure 6** Pinning and comparing<a id="pinning-and-comparing"></a>  
     ![Pinning and comparing](./figures/system_tuning/pin_comparison_to_top_1.png "Pinning and comparing")
@@ -670,7 +670,7 @@ When cluster data is imported, a large amount of timeline information is display
 
 - Manually aligning the relative positions to the start position
 
-    In the **Offset** dialog box, click ![](./figures/system_tuning/zh-cn_image_0000002531920197.png) (**Align to Start**). The offset of the leftmost thread data in the rank from the initial position (00:00.000) of the timeline is displayed in the **Timestamp Offset\(ns\)** text box. Then press **Enter**. The **Timeline** tab page aligns the thread data with the initial position of the timeline.
+    In the **Offset** dialog box, click ![](./figures/system_tuning/en-us_image_0000002531920197.png) (**Align to Start**). The offset of the leftmost thread data in the rank from the initial position (00:00.000) of the timeline is displayed in the **Timestamp Offset\(ns\)** text box. Then press **Enter**. The **Timeline** tab page aligns the thread data with the initial position of the timeline.
 
     As shown in [**Figure 9** Initial position offset](#initial-position-offset), the offset between the leftmost thread data in rank 0 and the initial position of the timeline is 7293500 ns.
 
@@ -730,15 +730,15 @@ When multiple hosts and cards are imported, data can be displayed by host in Min
 
 - Marker management
 
-    Click ![](./figures/system_tuning/zh-cn_image_0000002500040314.png) on the toolbar in the upper left corner to show all marker information, as shown in [**Figure 16** Viewing mark information](#Viewing-mark-information).
+    Click ![](./figures/system_tuning/en-us_image_0000002500040314.png) on the toolbar in the upper left corner to show all marker information, as shown in [**Figure 16** Viewing mark information](#Viewing-mark-information).
 
     **Figure 16** Viewing mark information <a id="Viewing-mark-information"></a>
     ![](./figures/system_tuning/view_marker_info_1.png "Viewing mark information")
 
-  - Click the ![](./figures/system_tuning/zh-cn_image_0000002532040225.png) icon corresponding to a marker to delete the marker.
+  - Click the ![](./figures/system_tuning/en-us_image_0000002532040225.png) icon corresponding to a marker to delete the marker.
   - Click **Clear** in the lower part of the dialog box to delete all markers.
   - Click a region marker. The **Slice Detail** tab page in the lower part of the page displays the duration information of the region.
-  - If a marker is not displayed on the current visualization page, click the ![](./figures/system_tuning/zh-cn_image_0000002531920203.png) icon corresponding to the marker to go to the marker page.
+  - If a marker is not displayed on the current visualization page, click the ![](./figures/system_tuning/en-us_image_0000002531920203.png) icon corresponding to the marker to go to the marker page.
   - Click the color icon corresponding to a marker to set the color to facilitate marker category management.
 
 **Displaying Operator Flows**
@@ -755,7 +755,7 @@ When multiple hosts and cards are imported, data can be displayed by host in Min
         > - If the processes at the start point and end point of a flow are collapsed, the flow disappears.
         > - In MindStudio Insight, flows are connected only to the first operator delivered in the same batch. In the Ascend hardware unit, if you click an operator and find that the associated flow is connected to another operator, the two operators are delivered in the same batch.
 
-- MindStudio Insight supports full flows. You can click ![](./figures/system_tuning/zh-cn_image_0000002500200298.png) on the toolbar in the upper left corner of the page. In the dialog box that is displayed, you can select one or more flow types. Alternatively, you can search for a flow type by keyword in the search box and select the corresponding flow type. All flows of the corresponding type are displayed in the graphical pane, as shown in [**Figure 18** Full flows](#Full-flows).
+- MindStudio Insight supports full flows. You can click ![](./figures/system_tuning/en-us_image_0000002500200298.png) on the toolbar in the upper left corner of the page. In the dialog box that is displayed, you can select one or more flow types. Alternatively, you can search for a flow type by keyword in the search box and select the corresponding flow type. All flows of the corresponding type are displayed in the graphical pane, as shown in [**Figure 18** Full flows](#Full-flows).
 
     > [!NOTE]NOTE  
     > A maximum of 10 flow types can be selected.
@@ -791,12 +791,12 @@ When data of more than 16 cards is imported to MindStudio Insight, you can selec
     **Figure 19** Global analysis <a id="Global-analysis"></a>
     ![](./figures/system_tuning/global_parsing_1.png "Global analysis")
 
-- Partial analysis: If you only need to analyze the data of some cards, click ![](./figures/system_tuning/zh-cn_image_0000002500040320.png) next to the rank number to analyze the data of the selected rank, as shown in [**Figure 20** Single-rank analysis](#Single-rank-analysis). After the rank data is analyzed, the button disappears, as shown in rank 0 and rank 1 in the figure.
+- Partial analysis: If you only need to analyze the data of some cards, click ![](./figures/system_tuning/en-us_image_0000002500040320.png) next to the rank number to analyze the data of the selected rank, as shown in [**Figure 20** Single-rank analysis](#Single-rank-analysis). After the rank data is analyzed, the button disappears, as shown in rank 0 and rank 1 in the figure.
 
     **Figure 20** Single-rank analysis <a id="Single-rank-analysis"></a>
     ![](./figures/system_tuning/single_card_parsing_1.png "Single-rank analysis")
 
-    If a large number of cards are imported, you can use the rank filter function to locate the cards whose data needs to be analyzed. On the toolbar of the **Timeline** tab page, click ![](./figures/system_tuning/zh-cn_image_0000002532040213.png), select **Rank Filter**, click the text box next to it, and select the rank to be displayed from the drop-down list box. The corresponding information is displayed on the **Timeline** tab page. Click ![](./figures/system_tuning/zh-cn_image_0000002500040320.png) next to the rank number to analyse the data. As shown in [**Figure 21** Filtering, displaying, and analyzing](#Filtering-displaying-and-analyzing), cards 2, 5, and 7 are selected for analysis.
+    If a large number of cards are imported, you can use the rank filter function to locate the cards whose data needs to be analyzed. On the toolbar of the **Timeline** tab page, click ![](./figures/system_tuning/en-us_image_0000002532040213.png), select **Rank Filter**, click the text box next to it, and select the rank to be displayed from the drop-down list box. The corresponding information is displayed on the **Timeline** tab page. Click ![](./figures/system_tuning/en-us_image_0000002500040320.png) next to the rank number to analyse the data. As shown in [**Figure 21** Filtering, displaying, and analyzing](#Filtering-displaying-and-analyzing), cards 2, 5, and 7 are selected for analysis.
 
     **Figure 21** Filtering, displaying, and parsing <a id="Filtering-displaying-and-analyzing"></a>
     ![](./figures/system_tuning/filter_display_and_parse_1.png "Filtering, displaying, and analyzing")
@@ -958,7 +958,7 @@ MindStudio Insight allows you to view operator statistics and details about a si
 
 - After you selecting some operators in a single level-3 unit or selecting some operators across multiple units at the single-rank level, the operator statistics are displayed on the **Slice List** tab page in the lower part, as shown in [**Figure 1** Slice List](#slice-list). For details about the fields, see [**Table 1** Fields on the Slice List tab page](#fields-on-the-slice-list-tab-page).
 
-    You can move the cursor to the **Slice List** tab page and click ![icon](./figures/system_tuning/zh-cn_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the **Slice List** tab page and paste the content to an Excel file for analysis.
+    You can move the cursor to the **Slice List** tab page and click ![icon](./figures/system_tuning/en-us_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the **Slice List** tab page and paste the content to an Excel file for analysis.
 
     > [!NOTE]NOTE
     > When operators are selected across multiple units under a single rank, the selected parts of the HBM, LLC, NPU\_MEM, Stars Soc Info, and acc\_pmu histogram units are not counted on the **Slice List** tab page.
@@ -1077,8 +1077,9 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
 
 - Memcpy Overview
 
-  > [!NOTE]NOTE
-  > The memory copy data can be collected only when the `profiler_level` parameter is set to `Level2`. For details, see [Ascend PyToch profiling data collection](https://www.hiascend.com/document/detail/zh/mindstudio/830/T&ITools/Profiling/atlasprofiling_16_0121.html#ZH-CN_TOPIC_0000002504198570__zh-cn_topic_0000002534478481_section2015623185118).
+  > [!NOTE]
+  >
+  > The memory copy data can be collected only when the `profiler_level` parameter is set to `Level2`. For details, see [Ascend PyToch profiling data collection](https://www.hiascend.com/document/detail/en/mindstudio/830/TITools/Profiling/atlasprofiling_16_0033.html).
 
   The **Memcpy Overall** tab page displays details about the memory copy operator, as shown in [**Figure 6** Memcpy Overview](#memcpy-overview). For details about the fields, see [**Table 5** Memcpy Overview fields](#memcpy-overview-fields). When you select a category, you can click any memory copy operator in the **More** area to go to the specific location of the operator in the timeline view.
 
@@ -1124,7 +1125,7 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
 
 - Kernel Details
 
-  The **Kernel Details** area displays the details of the operator on the NPU, as shown in [Figure 8 Kernel Details](#kernel-details). For details about the fields, see [**Table 7** Kernel Details fields](#kernel-details-fields). Click **Click** in the **Click to Timeline** column to go to the specific location of the operator in the timeline view. Area 4 (data pane) displays the details of the operator. You can click ![icon](./figures/system_tuning/zh-cn_image_0000002531920231.png) next to a field name in the operator details table to perform fuzzy search on the related field.
+  The **Kernel Details** area displays the details of the operator on the NPU, as shown in [Figure 8 Kernel Details](#kernel-details). For details about the fields, see [**Table 7** Kernel Details fields](#kernel-details-fields). Click **Click** in the **Click to Timeline** column to go to the specific location of the operator in the timeline view. Area 4 (data pane) displays the details of the operator. You can click ![icon](./figures/system_tuning/en-us_image_0000002531920231.png) next to a field name in the operator details table to perform fuzzy search on the related field.
 
   **Figure 8** Kernel Details<a id="kernel-details"></a>
 
@@ -1169,7 +1170,7 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
 
 -  
 
-  **Ftrace IRQ** obtains the IRQ and soft IRQ data of all CPUs from the slice table, determines the location of the process where the interrupt occurs based on the extended information about the interrupt, and collects statistics on the total time consumed and number of hard and soft interrupts of each CPU process, as shown in [**Figure 9** Ftrace IRQ fields](#ftrace-irq-fields).
+  **Ftrace IRQ** obtains the IRQ and soft IRQ data of all CPUs from the slice table, determines the location of the process where the interrupt occurs based on the extended information about the interrupt, and collects statistics on the total time consumed and number of hard and soft interrupts of each CPU process, as shown in [**Figure 10** Ftrace IRQ fields](#ftrace-irq-fields).
 
   **Figure 10** Ftrace IRQ <a id="Ftrace IRQ"></a>
   ![Ftrace IRQ](./figures/system_tuning/ftrace_irq_2.png "Ftrace IRQ")
@@ -1292,7 +1293,7 @@ The **Memory** tab page consists of the parameter configuration area (area 1), o
   - The **APP Reserved** curve indicates the memory trend reserved by the entire process.
   - When **Group By** is set to **Component**, the curve displays the memory usage of PyTorch operators and GE.
 
-- Area 3: memory allocation/release details table, which displays the memory information of each operator. The table supports searching, sorting, pagination, and redirection. You can click the table header of each column to display data in ascending, descending, or default order. You can click ![icon](./figures/system_tuning/zh-cn_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
+- Area 3: memory allocation/release details table, which displays the memory information of each operator. The table supports searching, sorting, pagination, and redirection. You can click the table header of each column to display data in ascending, descending, or default order. You can click ![icon](./figures/system_tuning/en-us_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
 
 **GUI Display (Static Curve Scenario)**
 
@@ -1316,7 +1317,7 @@ The **Memory** tab page consists of the parameter configuration area (area 1), o
         - **Size**: size of the memory dynamically allocated by index.
         - **Total Size**: maximum memory size that is automatically preset.
 
-- Area 3: memory allocation/release details table, which displays the memory information of each operator in the static curve. The table supports searching, sorting, pagination, and redirection. You can click the table header of each column to display data in ascending, descending, or default order. You can click ![icon](./figures/system_tuning/zh-cn_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
+- Area 3: memory allocation/release details table, which displays the memory information of each operator in the static curve. The table supports searching, sorting, pagination, and redirection. You can click the table header of each column to display data in ascending, descending, or default order. You can click ![icon](./figures/system_tuning/en-us_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
 
 ### Usage Description
 
@@ -1349,8 +1350,8 @@ In the curve, click and drag the mouse to the end point to be zoomed in and rele
 
 > [!NOTE]NOTE
 >
-> - Click ![icon](./figures/system_tuning/zh-cn_image_0000002500040358.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
-> - Click ![icon](./figures/system_tuning/zh-cn_image_0000002532040259.png) in the upper right corner of the curve. The curve is restored to the initial state.
+> - Click ![icon](./figures/system_tuning/en-us_image_0000002500040358.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
+> - Click ![icon](./figures/system_tuning/en-us_image_0000002532040259.png) in the upper right corner of the curve. The curve is restored to the initial state.
 
 **Searching for Operators**
 
@@ -1363,7 +1364,7 @@ In the memory allocation/release details table, operators can be searched in dyn
 
 - Dynamic Curve
 
-    In the table header, click ![icon](./figures/system_tuning/zh-cn_image_0000002531920231.png) next to a parameter name to search for related information. You can enter an operator name in the **Name** column for fuzzy search. Other parameters such as **Size** and **Duration** support range search, as shown in [**Figure 4** Searching for operators](#searching-for-operators-1). For details about the parameters, see [**Table 1** Dynamic curve fields](#dynamic-curve-fields)
+    In the table header, click ![icon](./figures/system_tuning/en-us_image_0000002531920231.png) next to a parameter name to search for related information. You can enter an operator name in the **Name** column for fuzzy search. Other parameters such as **Size** and **Duration** support range search, as shown in [**Figure 4** Searching for operators](#searching-for-operators-1). For details about the parameters, see [**Table 1** Dynamic curve fields](#dynamic-curve-fields)
 
     If you select **Only show allocated or released within the selected interval** above the table, the operators are those allocated or released within the selected interval in the curve.
 
@@ -1475,7 +1476,7 @@ The **Operator** tab page consists of the parameter configuration area (area 1),
 
 **Computing Operator**
 
-This page is displayed when **Group By** is set to **Computing Operator**. You can view details about a single computing operator to quickly locate performance problems, as shown in [Figure 1 Computing Operator](#computing-operator). [**Table 1** Computing Operator fields](#computing-operator-fields) describes the fields in **Operator Details**. You can click ![icon](./figures/system_tuning/zh-cn_image_0000002531920231.png) next to a field to perform fuzzy search on the field.
+This page is displayed when **Group By** is set to **Computing Operator**. You can view details about a single computing operator to quickly locate performance problems, as shown in [Figure 1 Computing Operator](#computing-operator). [**Table 1** Computing Operator fields](#computing-operator-fields) describes the fields in **Operator Details**. You can click ![icon](./figures/system_tuning/en-us_image_0000002531920231.png) next to a field to perform fuzzy search on the field.
 
 **Figure 1** Computing Operator <a id="computing-operator"></a>
 ![](./figures/system_tuning/compute_operator_2.png "Computing Operator")
@@ -1503,7 +1504,7 @@ This page is displayed when **Group By** is set to **Computing Operator**. You c
 
 **Computing Operator Type**
 
-This page is displayed when **Group By** is set to **Computing Operator Type**. You can view the duration percentage and detailed data of different computing operator types to quickly locate performance problems, as shown in [**Figure 2** Computing Operator Type](#computing-operator-type). [Table 2 Computing Operator Type fields](#computing-operator-type-fields) describes the fields in the **Operator Details** area. You can click ![](./figures/system_tuning/zh-cn_image_0000002531920231.png) next to the field to perform fuzzy search on the related field.
+This page is displayed when **Group By** is set to **Computing Operator Type**. You can view the duration percentage and detailed data of different computing operator types to quickly locate performance problems, as shown in [**Figure 2** Computing Operator Type](#computing-operator-type). [Table 2 Computing Operator Type fields](#computing-operator-type-fields) describes the fields in the **Operator Details** area. You can click ![](./figures/system_tuning/en-us_image_0000002531920231.png) next to the field to perform fuzzy search on the related field.
 
 **Figure 2** Computing Operator Type<a id="computing-operator-type"></a>
 ![Computing Operator Type](./figures/system_tuning/compute_operator_type_1.png "Computing Operator Type")
@@ -1523,7 +1524,7 @@ This page is displayed when **Group By** is set to **Computing Operator Type**. 
 
 **Computing Operator Name and Input Shape**
 
-This page is displayed when **Group By** is set to **Computing Operator Name and Input Shape**. You can view the time consumption proportion and detailed data of computing operators of different types under a specific input shape to quickly find operator performance problems, as shown in [**Figure 3** Computing Operator Name and Input Shape](#computing-operator-name-and-input-shape). For details about the fields in **Operator Details**, see [**Table 3** Computing Operator Name and Input Shape fields](#computing-operator-name-and-input-shape-fields). You can click ![icon](./figures/system_tuning/zh-cn_image_0000002531920231.png) next to a field to perform fuzzy search on the field.
+This page is displayed when **Group By** is set to **Computing Operator Name and Input Shape**. You can view the time consumption proportion and detailed data of computing operators of different types under a specific input shape to quickly find operator performance problems, as shown in [**Figure 3** Computing Operator Name and Input Shape](#computing-operator-name-and-input-shape). For details about the fields in **Operator Details**, see [**Table 3** Computing Operator Name and Input Shape fields](#computing-operator-name-and-input-shape-fields). You can click ![icon](./figures/system_tuning/en-us_image_0000002531920231.png) next to a field to perform fuzzy search on the field.
 
 **Figure 3** Computing Operator Name and Input Shape<a id="computing-operator-name-and-input-shape"></a>
 ![](./figures/system_tuning/compute_operator_name_and_input_shape_1.png "Computing Operator Name and Input Shape")
@@ -1544,7 +1545,7 @@ This page is displayed when **Group By** is set to **Computing Operator Name and
 
 **Communication Operator**
 
-This page is displayed when **Group By** is set to **Communication Operator**. You can view details about a single communication operator to quickly locate performance problems, as shown in [**Figure 4** Communication Operator](#communication-operator). [**Table 4** Communication Operator fields](#communication-operator-fields) describes the fields in **Operator Details**. You can click ![icon](./figures/system_tuning/zh-cn_image_0000002531920231.png) next to a field to perform fuzzy search on the field.
+This page is displayed when **Group By** is set to **Communication Operator**. You can view details about a single communication operator to quickly locate performance problems, as shown in [**Figure 4** Communication Operator](#communication-operator). [**Table 4** Communication Operator fields](#communication-operator-fields) describes the fields in **Operator Details**. You can click ![icon](./figures/system_tuning/en-us_image_0000002531920231.png) next to a field to perform fuzzy search on the field.
 
 **Figure 4** Communication Operator <a id="communication-operator"></a>
 ![Communication Operator](./figures/system_tuning/communication_operator_1.png "Communication Operator")
@@ -1561,7 +1562,7 @@ This page is displayed when **Group By** is set to **Communication Operator**. Y
 
 **Communication Operator Type**
 
-This page is displayed when **Group By** is set to **Communication Operator Type**. You can view the duration percentage and detailed data of different communication operator types to quickly locate performance problems, as shown in [**Figure 5** Communication Operator Type](#communication-operator-type). [**Table 5** Communication Operator Type fields](#communication-operator-type-fields) describes the fields in the **Operator Details** area. You can click ![icon](./figures/system_tuning/zh-cn_image_0000002531920231.png) next to the field to perform fuzzy search on the related field.
+This page is displayed when **Group By** is set to **Communication Operator Type**. You can view the duration percentage and detailed data of different communication operator types to quickly locate performance problems, as shown in [**Figure 5** Communication Operator Type](#communication-operator-type). [**Table 5** Communication Operator Type fields](#communication-operator-type-fields) describes the fields in the **Operator Details** area. You can click ![icon](./figures/system_tuning/en-us_image_0000002531920231.png) next to the field to perform fuzzy search on the related field.
 
 **Figure 5** Communication Operator Type <a id="communication-operator-type"></a>
 ![](./figures/system_tuning/communication_operator_type_1.png "Communication Operator Type")
@@ -1622,7 +1623,7 @@ Area 2: **Parallel Strategy Analysis**, which includes the parallel strategy ove
 
     If the communication time can be correctly split by communication group, the advice is displayed.
 
-    **Figure 2** Parallel strategy overview <<a id="parallel-strategy-overview"></a>
+    **Figure 2** Parallel strategy overview <a id="parallel-strategy-overview"></a>
     ![Parallel strategy overview](./figures/system_tuning/parallel_strategy_overview_1.png "Parallel strategy overview")
 
     **Table 1** Parallel strategy parameters <a id="parallel-strategy-parameters"></a>
@@ -1659,7 +1660,7 @@ Area 2: **Parallel Strategy Analysis**, which includes the parallel strategy ove
   |Ratio|The vertical coordinate on the right indicates the duration percentage, including the following information:<br> - **Computing Ratio**: **Computing Ratio** = **Total Computing**/**Time**.<br> - **Communication Ratio**: **Communication Ratio** = **Communication(Not Overlapped)**/**Time**.|
   |Advice|The analysis and suggestions of slow ranks based on the communication time under each parallel dimension help you to locate slow ranks.|
 
-- **Computing Detail (Rank *ID*)**: When **DP + PP + CP + TP** and **DP + PP + TP** are selected, click the bar chart of a node in the **Computation/Communication Overview** area. The total time consumption and usage of the accelerator core of the node are displayed. Click **Details**to view the details about the computing operator, as shown in [**Figure 4** Computing operator details](#computing-operator-details). For details about the fields, see [**Table 3** Computing details](#computing-details). You can click ![icon](./figures/system_tuning/zh-cn_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
+- **Computing Detail (Rank *ID*)**: When **DP + PP + CP + TP** and **DP + PP + TP** are selected, click the bar chart of a node in the **Computation/Communication Overview** area. The total time consumption and usage of the accelerator core of the node are displayed. Click **Details**to view the details about the computing operator, as shown in [**Figure 4** Computing operator details](#computing-operator-details). For details about the fields, see [**Table 3** Computing details](#computing-details). You can click ![icon](./figures/system_tuning/en-us_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
 
     **Figure 4** Computing operator details <a id="computing-operator-details"></a>
     ![Computing operator details](./figures/system_tuning/compute_operator_details_1.png "Computing operator details")
@@ -1683,7 +1684,7 @@ Area 2: **Parallel Strategy Analysis**, which includes the parallel strategy ove
   |Output Data Types|Output data type of the operator.|
   |Output Formats|Output format of the operator.|
 
-- **Communication Detail (Rank *ID*)**: When **DP + PP + CP + TP** and **DP + PP + TP** are selected, click the bar chart of a node in the **Computation/Communication Overview** area. The total duration of the communication operator on the node (including communication duration overlapped and not overlapped) is displayed. Click **Details** to view the details about the communication operator, as shown in [**Figure 5** Communication operator details](#communication-operator-details). For details about the fields, see [**Table 4** Communication details](#communication-details). You can click ![icon](./figures/system_tuning/zh-cn_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
+- **Communication Detail (Rank *ID*)**: When **DP + PP + CP + TP** and **DP + PP + TP** are selected, click the bar chart of a node in the **Computation/Communication Overview** area. The total duration of the communication operator on the node (including communication duration overlapped and not overlapped) is displayed. Click **Details** to view the details about the communication operator, as shown in [**Figure 5** Communication operator details](#communication-operator-details). For details about the fields, see [**Table 4** Communication details](#communication-details). You can click ![icon](./figures/system_tuning/en-us_image_0000002500040346.png) in the upper right corner of the table to copy the content displayed in the table and paste the content to an Excel file for analysis.
 
     **Figure 5** Communication operator details<a id="communication-operator-details"></a>
     ![Communication operator details](./figures/system_tuning/communication_operator_detailed_info_1.png "Communication operator details")
@@ -1716,7 +1717,7 @@ You can select **Profiling** or **Dump** for **Data Version** in the parameter c
 
 If **Profiling** is selected, the expert distribution heatmap is displayed. The heatmap is based on Profiling and collects statistics on the time consumed by the GroupedMatmul operator in each MoE layer. Since the GroupedMatmul operator is the core of MoE model computation, its performance directly affects how quickly experts respond.
 
-If **Dump** is selected, the MoE model expert load balancing heatmap is displayed. The heatmap is based on Dump and collects statistics on the number of tokens processed by each expert in each MoE layer. You can select **Dump unbalanced** or **Dump Balance** and click ![icon](./figures/system_tuning/zh-cn_image_0000002532040275.png) to import the corresponding file. The MoE model expert load balancing heatmap is displayed, as shown in [**Figure 7** MoE expert load balancing analysis](#moe-model-load-balancing-analysis). For details about the parameters, see [**Table 5** Parameters for MoE expert load balancing analysis](#parameters-for-moe-expert-load-balancing-analysis). For details about how to collect data files before and after dump balancing, see "Features" \> "[Load Balancing](https://www.hiascend.com/document/detail/zh/mindie/230/mindiellm/llmdev/mindie_llm0480.html)" in the *MindIE LLM Development Guide*.
+If **Dump** is selected, the MoE model expert load balancing heatmap is displayed. The heatmap is based on Dump and collects statistics on the number of tokens processed by each expert in each MoE layer. You can select **Dump unbalanced** or **Dump Balance** and click ![icon](./figures/system_tuning/en-us_image_0000002532040275.png) to import the corresponding file. The MoE model expert load balancing heatmap is displayed, as shown in [**Figure 7** MoE expert load balancing analysis](#moe-model-load-balancing-analysis). For details about the parameters, see [**Table 5** Parameters for MoE expert load balancing analysis](#parameters-for-moe-expert-load-balancing-analysis). For details about how to collect data files before and after dump balancing, see "Features" \> "[Load Balancing](https://www.hiascend.com/document/detail/en/mindie/230/LLMframe/llmdev/mindie_llm0480.html)" in the *MindIE LLM Development Guide*.
 
 **Figure 7** MoE expert load balancing analysis<a id="moe-model-load-balancing-analysis"></a>
 ![MoE expert load balancing analysis](./figures/system_tuning/moe_large_model_expert_load_balancing_analysis_1.png "MoE expert load balancing analysis")
@@ -1843,7 +1844,7 @@ In the **MoE Expert Load Balancing Analysis** area, you can choose to display th
 
 - Expert load balancing heatmap
 
-    To import the balanced or unbalanced dump data, set **Data Version** to **Dump balanced** or **Dump unbalanced** and click ![icon](./figures/system_tuning/zh-cn_image_0000002532040275.png) to import the corresponding file to display the MoE expert load balancing heatmap, as shown in [**Figure 9** MoE expert load balancing analysis](#moe-expert-load-balancing-analysis). After the file is imported successfully, the default values of the parameters are automatically set.
+    To import the balanced or unbalanced dump data, set **Data Version** to **Dump balanced** or **Dump unbalanced** and click ![icon](./figures/system_tuning/en-us_image_0000002532040275.png) to import the corresponding file to display the MoE expert load balancing heatmap, as shown in [**Figure 9** MoE expert load balancing analysis](#moe-expert-load-balancing-analysis). After the file is imported successfully, the default values of the parameters are automatically set.
 
 The vertical coordinate indicates the total number of model layers (MoE layers + non-MoE layers), and the horizontal coordinate indicates the expert sequence number. When you select a cell in the chart, the details of the cell are displayed, including the expert index, ID, layer ID, rank ID, and access traffic.
 
@@ -1907,7 +1908,7 @@ The **Communication Matrix** tab page displays information about communication o
 |Visualized Communication Time|Visualized communication duration chart.|
 |Time(ms)|Vertical coordinate on the left of the communication duration chart, which indicates the duration, in milliseconds.|
 |Ratio|Vertical coordinate on the right of the communication duration chart, which indicates the duration percentage.|
-|Data Analysis of Communication Time|Operator communication duration data analysis. You can move the cursor to the table and click ![](./figures/system_tuning/zh-cn_image_0000002500040346.png) to copy the content displayed in the table and paste it to an Excel file for analysis.|
+|Data Analysis of Communication Time|Operator communication duration data analysis. You can move the cursor to the table and click ![](./figures/system_tuning/en-us_image_0000002500040346.png) to copy the content displayed in the table and paste it to an Excel file for analysis.|
 |Rank ID|Rank ID.|
 |Elapsed Time(ms)|Total time of all communication operator events.|
 |Transit Time(ms)|Communication duration, which indicates the communication duration of the communication operator, which is the total duration of communication operators on SDMA links (communication within a server) and RDMA links (communication between servers). If the communication duration is too long, a link may be faulty.|
@@ -2097,7 +2098,7 @@ The **RL** tab page displays the pipeline of each phase in the RL process, enabl
 
 **Precautions**
 
-- The **Task Trace Timeline** area is displayed only when control flow data collected using mstx is imported. For details about how to collect data using mstx, see "Sampling and Parsing msprof\_tx" in section "[Ascend PyTorch Profiling Tool](https://www.hiascend.com/document/detail/zh/mindstudio/830/T&ITools/Profiling/atlasprofiling_16_0121.html)" in the *Profiling Tool Guide*.
+- The **Task Trace Timeline** area is displayed only when control flow data collected using mstx is imported. For details about how to collect data using mstx, see "Sampling and Parsing msprof\_tx" in section "[Ascend PyTorch Profiling Tool](https://www.hiascend.com/document/detail/en/mindstudio/830/TITools/Profiling/atlasprofiling_16_0033.html)" in the *Profiling Tool Guide*.
 - When importing profile data of Volcano Engine Reinforcement Learning for LLMs (VerL) and MindSpeed, keep their files in different folders. Do not mix them together during import.
 
 ### GUI Description

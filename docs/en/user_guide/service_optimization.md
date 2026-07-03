@@ -133,7 +133,7 @@ On the **System View** tab page, when you select **Stats System View**, the **Ra
 
 The serving data includes the **kvcache\_usage**, **batch\_info**, **request\_data**, and **forward\_info** tab pages, as shown in [**Figure 2** System View](#system-view).
 
-When you select a serving data type, the corresponding details are displayed in the right area. For details about the fields, see [**Table 2** Servitization View fields](#servitization-view-fields). You can search for information by clicking ![](./figures/service_optimization/zh-cn_image_0000002500200444.png) next to the field name.
+When you select a serving data type, the corresponding details are displayed in the right area. For details about the fields, see [**Table 2** Servitization View fields](#servitization-view-fields). You can search for information by clicking ![](./figures/service_optimization/en-us_image_0000002500200444.png) next to the field name.
 
 **Figure 2** System View <a id="system-view"></a> 
 ![](./figures/service_optimization/system_view_1.png "System view")
@@ -225,8 +225,8 @@ You can click to dim a legend on the top to hide the curve. You can also click t
 **Figure 1** Selected zoom-in region <a id="selected-zoom-in-region-14"> </a> 
 ![](./figures/service_optimization/selected_zoom_region_14_1.png "Selected zoom-in region-14")
 
-> [!NOTE]NOTE
+> [!NOTE]
 >
-> - Click ![](./figures/service_optimization/zh-cn_image_0000002500040464.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
-> - You can click ![](./figures/service_optimization/zh-cn_image_0000002500200460.png) in the upper right corner of the curve to cancel the last zoom-in operation.
-> - Click ![](./figures/service_optimization/zh-cn_image_0000002532040385.png) in the upper right corner of the curve. The curve is restored to the initial state.
+> - Click ![](./figures/service_optimization/en-us_image_0000002500040464.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
+> - You can click ![](./figures/service_optimization/en-us_image_0000002500200460.png) in the upper right corner of the curve to cancel the last zoom-in operation.
+> - Click ![](./figures/service_optimization/en-us_image_0000002532040385.png) in the upper right corner of the curve. The curve is restored to the initial state.
