@@ -334,42 +334,50 @@ bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const 
     }
 
     std::string sql;
-    std::string processSql;
+    std::vector<std::string> processSqlList;
     if (metaType == TABLE_CANN_API && CheckTableExist(TABLE_CANN_API)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, cann.globalTid as pid, 'CANN_API' as metaType, "
               "cann.startNs as startTime, cann.endNs - cann.startNs as duration, "
               "cann.ROWID as id from " +
             TABLE_CANN_API + " cann join ids on ids.id = cann.name";
-        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_CANN_API;
     } else if (metaType == TABLE_API && CheckTableExist(TABLE_API)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, python.globalTid as pid, 'PYTORCH_API' as metaType, "
               "python.startNs as startTime, python.endNs - python.startNs as duration, "
               "python.ROWID as id from " +
             TABLE_API + " python join ids on ids.id = python.name where python.type != 50003";
-        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type != 50003";
     } else if (metaType == "PYTORCH_API_PYTHON_STACK" && CheckTableExist(TABLE_API)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, python.globalTid as pid, 'PYTORCH_API_PYTHON_STACK' as metaType, "
               "python.startNs as startTime, python.endNs - python.startNs as duration, "
               "python.ROWID as id from " +
             TABLE_API + " python join ids on ids.id = python.name where python.type = 50003";
-        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type = 50003";
     } else if (metaType == TABLE_MSTX_EVENTS && CheckTableExist(TABLE_MSTX_EVENTS)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, mstx.globalTid as pid, 'MSTX_EVENTS' as metaType, "
               "mstx.startNs as startTime, mstx.endNs - mstx.startNs as duration, "
               "mstx.ROWID as id from " +
             TABLE_MSTX_EVENTS + " mstx join ids on ids.id = mstx.message";
-        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_MSTX_EVENTS;
     } else if (metaType == TABLE_OSRT_API && CheckTableExist(TABLE_OSRT_API)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, osrt.globalTid as pid, 'OSRT_API' as metaType, "
               "osrt.startNs as startTime, osrt.endNs - osrt.startNs as duration, "
               "osrt.ROWID as id from " +
             TABLE_OSRT_API + " osrt join ids on ids.id = osrt.name";
-        processSql = "SELECT DISTINCT globalTid AS pid FROM " + TABLE_OSRT_API;
+    }
+    if (CheckTableExist(TABLE_CANN_API)) {
+        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_CANN_API);
+    }
+    if (CheckTableExist(TABLE_API)) {
+        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type != 50003");
+        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type = 50003");
+    }
+    if (CheckTableExist(TABLE_MSTX_EVENTS)) {
+        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_MSTX_EVENTS);
+    }
+    if (CheckTableExist(TABLE_OSRT_API)) {
+        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_OSRT_API);
     }
 
     if (!sql.empty()) {
@@ -395,22 +403,21 @@ bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const 
         }
     }
 
-    if (processSql.empty()) {
-        return true;
-    }
-    auto processStmt = CreatPreparedStatement(processSql);
-    if (processStmt == nullptr) {
-        ServerLog::Error("Query host rank offset process ids failed to prepare sql.");
-        return false;
-    }
-    auto processResultSet = processStmt->ExecuteQuery();
-    if (processResultSet == nullptr) {
-        ServerLog::Error(
-            "Query host rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
-        return false;
-    }
-    while (processResultSet->Next()) {
-        processIds.insert(processResultSet->GetString("pid"));
+    for (const auto &processSql : processSqlList) {
+        auto processStmt = CreatPreparedStatement(processSql);
+        if (processStmt == nullptr) {
+            ServerLog::Error("Query host rank offset process ids failed to prepare sql.");
+            return false;
+        }
+        auto processResultSet = processStmt->ExecuteQuery();
+        if (processResultSet == nullptr) {
+            ServerLog::Error(
+                "Query host rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
+            return false;
+        }
+        while (processResultSet->Next()) {
+            processIds.insert(processResultSet->GetString("pid"));
+        }
     }
     return true;
 }
@@ -422,10 +429,9 @@ bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const s
     }
 
     std::string sql;
-    std::string processSql;
+    std::vector<std::pair<std::string, bool>> processSqlList;
     std::string deviceId = GetDeviceId(rankId);
     bool bindDeviceIdForSlice = false;
-    bool bindDeviceIdForProcess = false;
     if (metaType == "Ascend Hardware" && CheckTableExist(TABLE_TASK)) {
         bool hasCompute = CheckTableExist(TABLE_COMPUTE_TASK_INFO);
         bool hasSchedule = CheckTableExist(TABLE_COMMUNICATION_SCHEDULE_TASK);
@@ -445,9 +451,7 @@ bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const s
               "main.startNs as startTime, main.endNs - main.startNs as duration, "
               "main.ROWID as id from TASK main" +
             taskJoinSql + " join ids on ids.id = " + taskNameExpr + " where main.deviceId = ?";
-        processSql = "SELECT DISTINCT 'Ascend Hardware' AS pid FROM TASK WHERE deviceId = ?";
         bindDeviceIdForSlice = true;
-        bindDeviceIdForProcess = true;
     } else if (metaType == "HCCL" && CheckTableExist(TABLE_COMMUNICATION_OP)) {
         std::string associationTaskSql;
         if (CheckTableExist(TABLE_TASK) && !TraceDatabaseHelper::IsDeviceIdUnique(path)) {
@@ -460,15 +464,36 @@ bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const s
               "op.startNs as startTime, op.endNs - op.startNs as duration, op.ROWID as id "
               "from COMMUNICATION_OP op" +
             associationTaskSql + " join ids on ids.id = op.opName group by op.opId";
-        processSql = "SELECT DISTINCT 'HCCL' AS pid FROM COMMUNICATION_OP";
     } else if (metaType == "CCU" && CheckTableExist(TABLE_CCU)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, 'CCU' as pid, 'CCU' as metaType, "
               "ccu.startNs as startTime, ccu.endNs - ccu.startNs as duration, ccu.ROWID as id "
               "from " + TABLE_CCU + " ccu join ids on ids.id = ccu.name where ccu.deviceId = ?";
-        processSql = "SELECT DISTINCT 'CCU' AS pid FROM " + TABLE_CCU + " WHERE deviceId = ?";
         bindDeviceIdForSlice = true;
-        bindDeviceIdForProcess = true;
+    }
+    if (CheckTableExist(TABLE_TASK)) {
+        processSqlList.emplace_back("SELECT DISTINCT 'Ascend Hardware' AS pid FROM TASK WHERE deviceId = ?", true);
+    }
+    if (CheckTableExist(TABLE_COMMUNICATION_OP)) {
+        processSqlList.emplace_back("SELECT DISTINCT 'HCCL' AS pid FROM COMMUNICATION_OP", false);
+    }
+    if (CheckTableExist(TABLE_CCU)) {
+        processSqlList.emplace_back("SELECT DISTINCT 'CCU' AS pid FROM " + TABLE_CCU + " WHERE deviceId = ?", true);
+    }
+    bool hasOverlapAnalysis = CheckTableExist(TABLE_TASK) || CheckTableExist(TABLE_COMMUNICATION_OP) ||
+        CheckTableExist(TABLE_OVERLAP_ANALYSIS);
+    bool hasNpuMetrics = false;
+    CounterEventHelper counterHelper;
+    counterHelper.RegisterDeviceMap();
+    PROCESS_TYPE counterTypes[] = {PROCESS_TYPE::HBM, PROCESS_TYPE::LLC, PROCESS_TYPE::SAMPLE_PMU,
+        PROCESS_TYPE::QOS, PROCESS_TYPE::NIC, PROCESS_TYPE::ROCE, PROCESS_TYPE::NETDEV_STATS, PROCESS_TYPE::PCIE,
+        PROCESS_TYPE::HCCS, PROCESS_TYPE::AI_CORE, PROCESS_TYPE::ACC_PMU, PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC,
+        PROCESS_TYPE::NPU_MEM};
+    for (const auto &counterType : counterTypes) {
+        if (CheckTableExist(counterHelper.GetDeviceTableName(counterType))) {
+            hasNpuMetrics = true;
+            break;
+        }
     }
 
     if (!sql.empty()) {
@@ -495,23 +520,28 @@ bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const s
         }
     }
 
-    if (processSql.empty()) {
-        return true;
+    for (const auto &[processSql, bindDeviceId] : processSqlList) {
+        auto processStmt = CreatPreparedStatement(processSql);
+        if (processStmt == nullptr) {
+            ServerLog::Error("Query device rank offset process ids failed to prepare sql.");
+            return false;
+        }
+        std::unique_ptr<SqliteResultSet> processResultSet =
+            bindDeviceId ? processStmt->ExecuteQuery(deviceId) : processStmt->ExecuteQuery();
+        if (processResultSet == nullptr) {
+            ServerLog::Error(
+                "Query device rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
+            return false;
+        }
+        while (processResultSet->Next()) {
+            processIds.insert(processResultSet->GetString("pid"));
+        }
     }
-    auto processStmt = CreatPreparedStatement(processSql);
-    if (processStmt == nullptr) {
-        ServerLog::Error("Query device rank offset process ids failed to prepare sql.");
-        return false;
+    if (hasOverlapAnalysis) {
+        processIds.insert("OVERLAP_ANALYSIS");
     }
-    std::unique_ptr<SqliteResultSet> processResultSet =
-        bindDeviceIdForProcess ? processStmt->ExecuteQuery(deviceId) : processStmt->ExecuteQuery();
-    if (processResultSet == nullptr) {
-        ServerLog::Error(
-            "Query device rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
-        return false;
-    }
-    while (processResultSet->Next()) {
-        processIds.insert(processResultSet->GetString("pid"));
+    if (hasNpuMetrics) {
+        processIds.insert(NPU_METRICS_PROCESS_ID);
     }
     return true;
 }
