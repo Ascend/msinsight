@@ -182,7 +182,7 @@ export function startIframeUrl(
         return response.json();
     })
     .then((data: any) => {
-        return Private.getMindStudioInstanceUrl(localSettings.baseUrl, data.proxy, data.port, data.profilerServerId);
+        return Private.getMindStudioInstanceUrl(localSettings.baseUrl, data.proxy, data.port, data.profilerServerId, data.acpPort);
     });
 }
 

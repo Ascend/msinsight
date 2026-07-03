@@ -23,7 +23,6 @@ import { fileURLToPath } from "node:url";
 const rootDir = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const outputDir = join(rootDir, "dist-server");
 const outputEntry = join(outputDir, "index.mjs");
-const outputAgentConfig = join(outputDir, "agent-servers.json");
 
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
@@ -39,14 +38,9 @@ await build({
     target: "node18",
 });
 
-await cp(
-    join(rootDir, "agent-servers.json"),
-    outputAgentConfig,
-);
 await cp(join(rootDir, "prompts"), join(outputDir, "prompts"), { recursive: true });
 await cp(join(rootDir, "..", "..", "docs"), join(outputDir, "docs"), { recursive: true });
 
 console.log(`Server bundle written to ${outputEntry}`);
-console.log(`Agent config copied to ${outputAgentConfig}`);
 console.log(`Prompts copied to ${join(outputDir, "prompts")}`);
 console.log(`Docs copied to ${join(outputDir, "docs")}`);

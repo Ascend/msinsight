@@ -24,6 +24,7 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
 
     const initialize = async () => {
         try {
+            console.log("Initializing ACP agent");
             const init = await acpClient.request("initialize", {
                 protocolVersion: 1,
                 clientCapabilities: {
@@ -57,19 +58,32 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
         const images = normalizeImages(options.images);
         const selectedSkills = parsedPrompt.skills;
         const incomingHiddenContext = normalizeHiddenContext(options.hiddenContext);
-        if (!promptText && !images.length && !selectedSkills.length) return { error: "message cannot be empty", status: 400 };
-        if (!state.initialized) return { error: state.agentError ?? "ACP agent is not initialized", status: 503 };
+        if (!promptText && !images.length && !selectedSkills.length) {
+            console.warn("Prompt rejected: message is empty");
+            return { error: "message cannot be empty", status: 400 };
+        }
+        if (!state.initialized) {
+            console.warn(`Prompt rejected: ACP agent is not initialized, error=${state.agentError ?? ""}`);
+            return { error: state.agentError ?? "ACP agent is not initialized", status: 503 };
+        }
         try {
             let sessionId = String(options.sessionId ?? "").trim() || undefined;
             if (options.newSession) {
+                console.log("Prompt is creating a new session");
                 sessionId = await sessionService.createSessionContext({ messages: [] });
                 if (options.mode) await sessionService.setMode(options.mode, sessionId);
                 sessionService.broadcastState();
             }
 
-            if (!sessionId) return { error: "sessionId is required", status: 400 };
+            if (!sessionId) {
+                console.warn("Prompt rejected: sessionId is required");
+                return { error: "sessionId is required", status: 400 };
+            }
             const sessionContext = getSessionContext(state, sessionId);
-            if (sessionContext.pendingPrompt) return { error: "another prompt is running", status: 409 };
+            if (sessionContext.pendingPrompt) {
+                console.warn(`Prompt rejected: another prompt is running, sessionId=${sessionId}`);
+                return { error: "another prompt is running", status: 409 };
+            }
             const hiddenContext = updateSessionHiddenContext(sessionContext, incomingHiddenContext);
 
             sessionContext.pendingPrompt = true;
@@ -96,16 +110,19 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
             if (sessionContext) sessionContext.pendingPrompt = false;
             appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${error.message}`);
             eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false });
+            console.error(`Prompt setup failed: sessionId=${sessionId}, error=${error.message}`);
             return { error: error.message, status: 500 };
         }
     };
 
     const runPrompt = async (sessionId, promptText, images, selectedSkills, hiddenContext, assistant) => {
         try {
+            console.log(`Prompt execution started: sessionId=${sessionId}, textLength=${promptText.length}, images=${images.length}, skills=${selectedSkills.length}, hiddenContext=${Boolean(hiddenContext)}`);
             await acpClient.request("session/prompt", {
                 sessionId,
                 prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext, systemPrompt),
             });
+            console.log(`Prompt execution completed: sessionId=${sessionId}`);
 
             if (!assistant.text && !assistant.thinking) {
                 const sessionContext = getSessionContext(state, sessionId);
@@ -113,6 +130,7 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
                 eventBus.broadcast({ type: "message_removed", sessionId, id: assistant.id });
             }
         } catch (error) {
+            console.error(`Prompt execution failed: sessionId=${sessionId}, error=${error.message}`);
             appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${error.message}`);
         } finally {
             const sessionContext = getSessionContext(state, sessionId);
@@ -122,9 +140,13 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
     };
 
     const cancel = async (sessionId) => {
-        if (!sessionId) return { error: "sessionId is required", status: 400 };
+        if (!sessionId) {
+            console.warn("Cancel rejected: sessionId is required");
+            return { error: "sessionId is required", status: 400 };
+        }
         try {
             await acpClient.request("session/cancel", { sessionId });
+            console.log(`ACP session cancel completed: sessionId=${sessionId}`);
         } catch (error) {
             console.warn(`Failed to cancel session ${sessionId} with ACP: ${error.message}`);
         }

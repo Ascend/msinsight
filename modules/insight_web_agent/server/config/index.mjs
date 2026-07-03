@@ -17,6 +17,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { initLogger } from "../utils/logger.mjs";
 
 const defaultRootDir = (() => {
     const entryDir = dirname(resolve(process.argv[1] ?? "."));
@@ -36,6 +37,15 @@ const parseCliOptions = (args) => {
             options.path = arg.slice("--path=".length);
             continue;
         }
+        if (arg === "--resource-path") {
+            options.resourcePath = args[index + 1];
+            index += 1;
+            continue;
+        }
+        if (arg.startsWith("--resource-path=")) {
+            options.resourcePath = arg.slice("--resource-path=".length);
+            continue;
+        }
         if (arg === "--port") {
             options.port = args[index + 1];
             index += 1;
@@ -43,6 +53,15 @@ const parseCliOptions = (args) => {
         }
         if (arg.startsWith("--port=")) {
             options.port = arg.slice("--port=".length);
+            continue;
+        }
+        if (arg === "--host") {
+            options.host = args[index + 1];
+            index += 1;
+            continue;
+        }
+        if (arg.startsWith("--host=")) {
+            options.host = arg.slice("--host=".length);
         }
     }
     return options;
@@ -57,6 +76,11 @@ const normalizeRootDir = (input) => {
 const normalizePort = (input, fallback) => {
     const port = Number(input ?? fallback);
     return Number.isInteger(port) && port > 0 && port < 65536 ? port : fallback;
+};
+
+const normalizeHost = (input, fallback) => {
+    const host = String(input ?? "").trim();
+    return host || fallback;
 };
 
 const loadAgentServersConfig = (configPath) => {
@@ -97,6 +121,10 @@ const normalizeEnv = (env) => {
 
 const cliOptions = parseCliOptions(process.argv.slice(2));
 const rootDir = normalizeRootDir(cliOptions.path ?? process.env.ACP_ROOT ?? defaultRootDir);
+const resourceDir = normalizeRootDir(cliOptions.resourcePath ?? process.env.ACP_RESOURCE_ROOT ?? defaultRootDir);
+const port = normalizePort(cliOptions.port ?? process.env.PORT, 9090);
+const host = normalizeHost(cliOptions.host ?? process.env.HOST, "localhost");
+initLogger({ rootDir, port });
 const agentServersConfigPath = join(rootDir, "agent-servers.json");
 const agentServersConfig = loadAgentServersConfig(agentServersConfigPath);
 const agentServers = normalizeAgentServers(agentServersConfig.agentServers);
@@ -109,15 +137,17 @@ if (!agentServer) {
 
 export const config = {
     rootDir,
+    resourceDir,
     agentServersConfigPath,
     agentServers,
     activeAgentName: agentServer.name,
     agentServer,
-    port: normalizePort(cliOptions.port ?? process.env.PORT, 9090),
+    host,
+    port,
     cwd: process.env.ACP_CWD ?? join(rootDir, "agent-workspace"),
     debug: process.env.ACP_DEBUG === "1",
     defaultModel: process.env.ACP_MODEL,
-    systemPrompt: loadSystemPrompt(rootDir),
+    systemPrompt: loadSystemPrompt(resourceDir),
 };
 
 export const saveActiveAgent = (name) => {

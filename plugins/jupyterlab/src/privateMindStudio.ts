@@ -98,10 +98,12 @@ export function getMindStudioInstanceUrl(
     proxy: boolean,
     port: string,
     profilerServerId: string,
+    acpPort?: string,
 ): string {
     let url = URLExt.join(baseUrl, MINDSTUDIO_URL);
+    const acpPortParam = acpPort ? `&acpPort=${encodeURIComponent(acpPort)}` : '';
     if (proxy) {
-        return `${url}?jupyterlabProxy=true&port=${port}&profilerServerId=${profilerServerId}`;
+        return `${url}?jupyterlabProxy=true&port=${port}&profilerServerId=${profilerServerId}${acpPortParam}`;
     }
-    return `${url}?port=${port}&profilerServerId=${profilerServerId}`;
+    return `${url}?port=${port}&profilerServerId=${profilerServerId}${acpPortParam}`;
 }
