@@ -20,10 +20,28 @@ import { publicState } from "../state/runtimeState.mjs";
 import { supportsSessionDelete, supportsSessionList, supportsSessionLoad, supportsSessionResume, supportsSetConfigOption } from "./capabilityService.mjs";
 import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setConfigOptions } from "./configOptionService.mjs";
 
-export const createSessionService = ({ acpClient, config, eventBus, state }) => {
+export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager }) => {
     let mutationQueue = Promise.resolve();
 
     const getAgentCwd = () => join(config.cwd, state.activeAgentName);
+    const manager = sessionManager ?? {
+        async startSession() {
+            const session = await acpClient.request("session/new", {
+                cwd: getAgentCwd(),
+                additionalDirectories: [],
+                mcpServers: [],
+            });
+            const context = getOrCreateSessionContext(session.sessionId);
+            context.configOptions = session?.configOptions ?? [];
+            return context;
+        },
+        async endSession(sessionId) {
+            await acpClient.request("session/delete", { sessionId });
+            state.localTitles.delete(sessionId);
+            state.sessionContexts.delete(sessionId);
+            return { ok: true };
+        },
+    };
 
     const broadcastState = () => {
         eventBus.broadcast({ type: "state", state: publicState(state) });
@@ -92,20 +110,15 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
         return state.configOptions;
     };
 
-    const createSessionContext = async ({ messages }) => {
+    const createSessionContext = async ({ messages, agentId, mode, view, profileId, grants }) => {
         console.log(`Creating ACP session: cwd=${getAgentCwd()}, initialMessages=${messages.length}`);
-        const session = await acpClient.request("session/new", {
-            cwd: getAgentCwd(),
-            additionalDirectories: [],
-            mcpServers: [],
-        });
-        const context = getOrCreateSessionContext(session.sessionId);
-        context.messages = messages;
-        context.configOptions = session?.configOptions ?? [];
-        setConfigOptions({ eventBus, state }, context.configOptions, session.sessionId);
-        await applyPreferredModel(session.sessionId);
-        console.log(`ACP session created: sessionId=${session.sessionId}, configOptions=${context.configOptions.length}`);
-        return session.sessionId;
+        const context = await manager.startSession({ agentId, mode, view, profileId, grants });
+        const sessionContext = getOrCreateSessionContext(context.sessionId);
+        sessionContext.messages = messages;
+        setConfigOptions({ eventBus, state }, sessionContext.configOptions, context.sessionId);
+        await applyPreferredModel(context.sessionId);
+        console.log(`ACP session created: sessionId=${context.sessionId}, configOptions=${sessionContext.configOptions.length}`);
+        return context.sessionId;
     };
 
     const createEmptySession = async () => {
@@ -157,7 +170,21 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
     };
 
     const getOrCreateSessionContext = (sessionId) => {
-        const context = state.sessionContexts.get(sessionId) ?? { sessionId, messages: [], pendingPrompt: false, configOptions: [], hiddenContext: undefined };
+        const context = state.sessionContexts.get(sessionId) ?? {
+            sessionId,
+            agentId: undefined,
+            runtime: "stdio",
+            mode: "free_chat",
+            view: undefined,
+            profileId: undefined,
+            grants: new Set(),
+            messages: [],
+            pendingPrompt: false,
+            configOptions: [],
+            hiddenContext: undefined,
+            replayingHistory: false,
+            createdAt: Date.now(),
+        };
         state.sessionContexts.set(sessionId, context);
         return context;
     };
@@ -179,23 +206,12 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
                 return { error: "delete session is not supported by this agent", status: 409 };
             }
 
-            try {
-                console.log(`Deleting ACP session: sessionId=${targetSessionId}`);
-                await acpClient.request("session/delete", { sessionId: targetSessionId });
-            } catch (error) {
-                console.warn(`[ACP] session/delete failed for ${targetSessionId}: ${error.message}`);
-                // Ignore "not found" errors silently so we can still clear it locally
-                if (!error.message.includes("not found")) {
-                    return { error: error.message, status: 500 };
-                }
-            }
-            state.localTitles.delete(targetSessionId);
+            console.log(`Deleting ACP session: sessionId=${targetSessionId}`);
+            const result = await manager.endSession(targetSessionId);
+            if (result.error) return result;
             await refreshSessions();
-
-            state.sessionContexts.delete(targetSessionId);
-
             console.log(`Session deleted locally: sessionId=${targetSessionId}`);
-            return { ok: true };
+            return result;
         });
     };
 
@@ -324,6 +340,14 @@ export const createSessionService = ({ acpClient, config, eventBus, state }) => 
         if (!supportsSessionDelete(state)) return;
         await acpClient.request("session/delete", { sessionId });
     };
+
+    sessionManager?.bindSessionService?.({
+        deleteSessionById,
+        listSessions,
+        loadSessionById,
+        setMode,
+        setModel,
+    });
 
     return {
         applyPreferredModel,

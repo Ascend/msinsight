@@ -83,19 +83,100 @@ const normalizeHost = (input, fallback) => {
     return host || fallback;
 };
 
-const loadAgentServersConfig = (configPath) => {
+const loadJsonConfig = (configPath, label) => {
     try {
-        return JSON.parse(readFileSync(configPath, "utf8").replace(/^\uFEFF/, ""));
+        return JSON.parse(readFileSync(configPath, "utf8").replace(/^﻿/, ""));
     } catch (error) {
-        throw new Error(`Failed to load ACP agent server config ${configPath}: ${error.message}`);
+        throw new Error(`Failed to load ${label} ${configPath}: ${error.message}`);
     }
 };
 
-const loadSystemPrompt = (rootDir) => {
-    const filePath = join(rootDir, "prompts", "system.md");
+const loadAgentServersConfig = (configPath) => loadJsonConfig(configPath, "ACP agent server config");
+
+const loadSessionConfig = (configPath) => {
+    if (!existsSync(configPath)) return {};
+    return loadJsonConfig(configPath, "ACP session config");
+};
+
+const normalizeTimeout = (value, fallback) => {
+    const timeout = Number(value ?? fallback);
+    return Number.isFinite(timeout) && timeout > 0 ? timeout : fallback;
+};
+
+const normalizeDefaultAllowlistConfig = (config = {}) => ({
+    includeDocsRoot: config.includeDocsRoot !== false,
+    includeAgentWorkspaceRoot: config.includeAgentWorkspaceRoot !== false,
+    includeProjectRoot: config.includeProjectRoot !== false,
+    extraPaths: Array.isArray(config.extraPaths) ? config.extraPaths.map(String) : [],
+});
+
+const normalizeSessionConfig = (config = {}) => ({
+    requestTimeoutMs: normalizeTimeout(config.requestTimeoutMs, 30000),
+    promptRequestTimeoutMs: normalizeTimeout(config.promptRequestTimeoutMs, 5 * 60 * 1000),
+    permissionRequestTimeoutMs: normalizeTimeout(config.permissionRequestTimeoutMs, 5 * 60 * 1000),
+    defaultAllowlist: normalizeDefaultAllowlistConfig(config.defaultAllowlist),
+});
+
+const mergeSessionConfig = (sessionConfig, env) => ({
+    ...sessionConfig,
+    requestTimeoutMs: normalizeTimeout(env.ACP_REQUEST_TIMEOUT_MS, sessionConfig.requestTimeoutMs),
+    promptRequestTimeoutMs: normalizeTimeout(env.ACP_PROMPT_REQUEST_TIMEOUT_MS, sessionConfig.promptRequestTimeoutMs),
+    permissionRequestTimeoutMs: normalizeTimeout(env.ACP_PERMISSION_REQUEST_TIMEOUT_MS, sessionConfig.permissionRequestTimeoutMs),
+});
+
+const sessionConfigPathForRoot = (rootDir) => join(rootDir, "acp-session-conf.json");
+const agentServersConfigPathForRoot = (rootDir) => join(rootDir, "agent-servers.json");
+
+const loadResolvedSessionConfig = (rootDir, env) => mergeSessionConfig(
+    normalizeSessionConfig(loadSessionConfig(sessionConfigPathForRoot(rootDir))),
+    env,
+);
+
+const loadResolvedAgentServersConfig = (rootDir) => loadAgentServersConfig(agentServersConfigPathForRoot(rootDir));
+
+const filterAvailableAllowlistPaths = (paths = []) => paths.filter((path) => String(path ?? "").trim());
+
+const resolveExtraAllowlistPaths = (rootDir, paths = []) => filterAvailableAllowlistPaths(paths).map((path) => (
+    isAbsolute(path) ? path : resolve(rootDir, path)
+));
+
+const createSessionConfigPaths = (rootDir, sessionConfig) => ({
+    sessionConfigPath: sessionConfigPathForRoot(rootDir),
+    extraAllowlistPaths: resolveExtraAllowlistPaths(rootDir, sessionConfig.defaultAllowlist.extraPaths),
+});
+
+const createResolvedSessionConfig = (rootDir, env) => {
+    const sessionConfig = loadResolvedSessionConfig(rootDir, env);
+    return {
+        ...sessionConfig,
+        ...createSessionConfigPaths(rootDir, sessionConfig),
+    };
+};
+
+const createResolvedAgentConfig = (rootDir) => {
+    const agentServersConfigPath = agentServersConfigPathForRoot(rootDir);
+    return {
+        agentServersConfigPath,
+        agentServersConfig: loadResolvedAgentServersConfig(rootDir),
+    };
+};
+
+const loadRuntimeConfigBundle = (rootDir, env) => {
+    const resolvedSessionConfig = createResolvedSessionConfig(rootDir, env);
+    const resolvedAgentConfig = createResolvedAgentConfig(rootDir);
+    return {
+        ...resolvedSessionConfig,
+        ...resolvedAgentConfig,
+    };
+};
+
+const readRuntimeConfigBundle = (rootDir, env) => loadRuntimeConfigBundle(rootDir, env);
+
+const loadSystemPrompt = (resourceDir) => {
+    const filePath = join(resourceDir, "prompts", "system.md");
     if (!existsSync(filePath)) return "";
     try {
-        return readFileSync(filePath, "utf8").replace(/^\uFEFF/, "").trim();
+        return readFileSync(filePath, "utf8").replace(/^﻿/, "").trim();
     } catch (error) {
         console.warn(`Failed to load system prompt ${filePath}: ${error.message}`);
         return "";
@@ -122,43 +203,70 @@ const normalizeEnv = (env) => {
 const cliOptions = parseCliOptions(process.argv.slice(2));
 const rootDir = normalizeRootDir(cliOptions.path ?? process.env.ACP_ROOT ?? defaultRootDir);
 const resourceDir = normalizeRootDir(cliOptions.resourcePath ?? process.env.ACP_RESOURCE_ROOT ?? defaultRootDir);
-const port = normalizePort(cliOptions.port ?? process.env.PORT, 9090);
-const host = normalizeHost(cliOptions.host ?? process.env.HOST, "localhost");
-initLogger({ rootDir, port });
-const agentServersConfigPath = join(rootDir, "agent-servers.json");
-const agentServersConfig = loadAgentServersConfig(agentServersConfigPath);
-const agentServers = normalizeAgentServers(agentServersConfig.agentServers);
-const requestedActiveAgentName = process.env.ACP_AGENT ?? agentServersConfig.activeAgent ?? agentServers[0]?.name;
-const agentServer = agentServers.find((server) => server.name === requestedActiveAgentName) ?? agentServers[0];
 
-if (!agentServer) {
-    throw new Error(`No ACP agent servers configured in ${agentServersConfigPath}`);
-}
+const createRuntimeConfig = (rootDir, resourceDir, env) => {
+    const {
+        agentServersConfigPath,
+        agentServersConfig,
+        sessionConfigPath,
+        requestTimeoutMs,
+        promptRequestTimeoutMs,
+        permissionRequestTimeoutMs,
+        defaultAllowlist,
+        extraAllowlistPaths,
+    } = readRuntimeConfigBundle(rootDir, env);
+    const agentServers = normalizeAgentServers(agentServersConfig.agentServers);
+    const requestedActiveAgentName = env.ACP_AGENT ?? agentServersConfig.activeAgent ?? agentServers[0]?.name;
+    const agentServer = agentServers.find((server) => server.name === requestedActiveAgentName) ?? agentServers[0];
+    const port = normalizePort(cliOptions.port ?? env.PORT, 9090);
 
-export const config = {
-    rootDir,
-    resourceDir,
-    agentServersConfigPath,
-    agentServers,
-    activeAgentName: agentServer.name,
-    agentServer,
-    host,
-    port,
-    cwd: process.env.ACP_CWD ?? join(rootDir, "agent-workspace"),
-    debug: process.env.ACP_DEBUG === "1",
-    defaultModel: process.env.ACP_MODEL,
-    systemPrompt: loadSystemPrompt(resourceDir),
+    if (!agentServer) {
+        throw new Error(`No ACP agent servers configured in ${agentServersConfigPath}`);
+    }
+
+    return {
+        rootDir,
+        resourceDir,
+        agentServersConfigPath,
+        sessionConfigPath,
+        agentServers,
+        activeAgentName: agentServer.name,
+        agentServer,
+        host: normalizeHost(cliOptions.host ?? env.HOST, "127.0.0.1"),
+        port,
+        cwd: env.ACP_CWD ?? join(rootDir, "agent-workspace"),
+        debug: env.ACP_DEBUG === "1",
+        defaultModel: env.ACP_MODEL,
+        systemPrompt: loadSystemPrompt(resourceDir),
+        requestTimeoutMs,
+        promptRequestTimeoutMs,
+        permissionRequestTimeoutMs,
+        defaultAllowlist,
+        extraAllowlistPaths,
+        requestedActiveAgentName,
+    };
+};
+
+export const config = createRuntimeConfig(rootDir, resourceDir, process.env);
+initLogger({ rootDir: config.rootDir, port: config.port });
+
+export const reloadConfig = (env = process.env) => {
+    const nextConfig = createRuntimeConfig(rootDir, resourceDir, env);
+    Object.keys(config).forEach((key) => delete config[key]);
+    Object.assign(config, nextConfig);
+    return config;
 };
 
 export const saveActiveAgent = (name) => {
-    const nextConfig = { ...agentServersConfig, activeAgent: name };
-    writeFileSync(agentServersConfigPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
+    const currentConfig = loadResolvedAgentServersConfig(config.rootDir);
+    const nextConfig = { ...currentConfig, activeAgent: name };
+    writeFileSync(config.agentServersConfigPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
 };
 
-if (!process.env.ACP_AGENT && requestedActiveAgentName && requestedActiveAgentName !== agentServer.name) {
-    console.warn(`Configured active agent "${requestedActiveAgentName}" is unavailable; using "${agentServer.name}".`);
+if (!process.env.ACP_AGENT && config.requestedActiveAgentName && config.requestedActiveAgentName !== config.agentServer.name) {
+    console.warn(`Configured active agent "${config.requestedActiveAgentName}" is unavailable; using "${config.agentServer.name}".`);
     try {
-        saveActiveAgent(agentServer.name);
+        saveActiveAgent(config.agentServer.name);
     } catch (error) {
         console.warn(`Failed to save active agent fallback: ${error.message}`);
     }

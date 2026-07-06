@@ -26,9 +26,9 @@ import {
     type RefObject,
 } from 'react';
 import { message } from 'antd';
-import { cancelPrompt, createSession, deleteSession, fetchSessions, fetchState, loadSession, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { cancelPrompt, createSession, deleteSession, fetchSessions, fetchState, loadSession, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { apiUrl } from '../env';
-import type { AgentCapabilities, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
     configOptions: ConfigOption[];
@@ -64,6 +64,8 @@ interface ChatStateValue {
     setModel: (model: string) => Promise<void>;
     setMode: (mode: string, sessionId?: string) => Promise<void>;
     setAgent: (name: string) => Promise<void>;
+    applyAgentConfigSnapshot: (snapshot: AgentConfigSnapshot) => void;
+    respondToPermission: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
 }
 
 interface ChatState {
@@ -139,18 +141,35 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     const applyEvent = (event: ServerEvent): void => {
         if (event.type === 'state') {
-            setState((current) => ({
-                ...current,
-                initialized: event.state.initialized ?? current.initialized,
-                configOptions: event.state.configOptions ?? current.configOptions,
-                agentServers: event.state.agentServers ?? current.agentServers,
-                activeAgentName: event.state.activeAgentName ?? current.activeAgentName,
-                agentInfo: event.state.agentInfo ?? current.agentInfo,
-                agentError: event.state.agentError,
-                agentCapabilities: event.state.agentCapabilities ?? current.agentCapabilities,
-                availableCommands: event.state.availableCommands ?? current.availableCommands,
-                availableSkills: event.state.availableSkills ?? current.availableSkills,
-            }));
+            setState((current) => {
+                const activeAgentChanged = Boolean(current.activeAgentName)
+                    && Boolean(event.state.activeAgentName)
+                    && event.state.activeAgentName !== current.activeAgentName;
+                const nextState = {
+                    ...current,
+                    initialized: event.state.initialized ?? current.initialized,
+                    configOptions: event.state.configOptions ?? current.configOptions,
+                    agentServers: event.state.agentServers ?? current.agentServers,
+                    activeAgentName: event.state.activeAgentName ?? current.activeAgentName,
+                    agentInfo: event.state.agentInfo ?? current.agentInfo,
+                    agentError: event.state.agentError,
+                    agentCapabilities: event.state.agentCapabilities ?? current.agentCapabilities,
+                    availableCommands: event.state.availableCommands ?? current.availableCommands,
+                    availableSkills: event.state.availableSkills ?? current.availableSkills,
+                };
+                if (!activeAgentChanged) return nextState;
+
+                return {
+                    ...nextState,
+                    activeSessionId: undefined,
+                    isDraftSession: true,
+                    draftMessages: activeMessages(current),
+                    draftPendingPrompt: false,
+                    draftQueuedPrompts: [],
+                    sessions: [],
+                    sessionRecords: {},
+                };
+            });
             return;
         }
 
@@ -202,6 +221,37 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 return;
             }
             updateSessionRecord(event.sessionId, (record) => ({ ...record, configOptions: event.configOptions }));
+            return;
+        }
+
+        if (event.type === 'permission_request') {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: [...record.messages, {
+                    id: `permission:${event.requestId}`,
+                    role: 'assistant',
+                    text: '',
+                    permission: {
+                        sessionId: event.sessionId,
+                        requestId: event.requestId,
+                        path: event.path,
+                        actions: event.actions,
+                        state: 'pending',
+                    },
+                }],
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'permission_resolved') {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.permission?.requestId === event.requestId
+                    ? { ...message, permission: { ...message.permission, state: event.state, loadingDecision: undefined, error: undefined } }
+                    : message),
+                loaded: true,
+            }));
         }
     };
 
@@ -499,6 +549,50 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
+    const respondToPermission = async (sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> => {
+        updateSessionRecord(sessionId, (record) => ({
+            ...record,
+            messages: record.messages.map((item) => item.permission?.requestId === requestId
+                ? { ...item, permission: { ...item.permission, loadingDecision: decision, error: undefined } }
+                : item),
+        }));
+        try {
+            await respondPermission(sessionId, requestId, decision);
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            updateSessionRecord(sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((item) => item.permission?.requestId === requestId
+                    ? { ...item, permission: { ...item.permission, loadingDecision: undefined, error: errorMessage } }
+                    : item),
+            }));
+        }
+    };
+
+    const applyAgentConfigSnapshot = (snapshot: AgentConfigSnapshot): void => {
+        setState((current) => {
+            const activeAgentChanged = Boolean(current.activeAgentName)
+                && snapshot.activeAgentName !== current.activeAgentName;
+            const nextState = {
+                ...current,
+                agentServers: snapshot.agentServers.map(({ name }) => ({ name })),
+                activeAgentName: snapshot.activeAgentName,
+            };
+            if (!activeAgentChanged) return nextState;
+
+            return {
+                ...nextState,
+                activeSessionId: undefined,
+                isDraftSession: true,
+                draftMessages: activeMessages(current),
+                draftPendingPrompt: false,
+                draftQueuedPrompts: [],
+                sessions: [],
+                sessionRecords: {},
+            };
+        });
+    };
+
     const value = useMemo<ChatStateValue>(() => ({
         configOptions: getActiveConfigOptions(state),
         agentServers: state.agentServers,
@@ -532,6 +626,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setModel: updateModel,
         setMode: updateMode,
         setAgent: updateAgent,
+        applyAgentConfigSnapshot,
+        respondToPermission,
     }), [images, input, state]);
 
     return <ChatStateContext.Provider value={value}>{children}</ChatStateContext.Provider>;

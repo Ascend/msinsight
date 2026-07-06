@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { SetIcon } from '@insight/lib/icon/Icon';
 import { useChatState } from '../hooks/useChatState';
+import { AgentSettingsDialog } from './AgentSettingsDialog';
 import { Composer } from './Composer';
 import { MessageList } from './MessageList';
 
@@ -25,9 +27,32 @@ const Container = styled.section`
     min-height: 0;
     width: 100%;
     display: grid;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: auto 1fr auto;
     background: ${(props): string => props.theme.bgColorLight};
     overflow: hidden;
+
+    .toolbar {
+        display: flex;
+        justify-content: flex-end;
+        padding: 8px 14px 0;
+    }
+
+    .settings-button {
+        width: 26px;
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        background: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
+        cursor: pointer;
+    }
+
+    .settings-button:hover {
+        background: ${(props): string => props.theme.bgColorDark};
+    }
 
     .messages {
         min-height: 0;
@@ -42,12 +67,21 @@ const Container = styled.section`
 `;
 
 export const ChatPanel = (): JSX.Element => {
-    const { messages, messagesRef, pendingPrompt } = useChatState();
+    const { messages, messagesRef, pendingPrompt, respondToPermission } = useChatState();
 
     return (
         <Container>
+            <div className="toolbar">
+                <AgentSettingsDialog
+                    trigger={(
+                        <button aria-label="Agent settings" className="settings-button" type="button">
+                            <SetIcon />
+                        </button>
+                    )}
+                />
+            </div>
             <section className="messages" ref={messagesRef}>
-                <MessageList messages={messages} pendingPrompt={pendingPrompt} />
+                <MessageList messages={messages} pendingPrompt={pendingPrompt} onPermissionDecision={respondToPermission} />
             </section>
 
             <Composer />

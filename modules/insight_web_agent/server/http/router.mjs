@@ -17,12 +17,20 @@
  */
 import { json, readJson } from "./response.mjs";
 
-export const createRouter = ({ agentController, chatController, sessionController, eventController }) => {
+export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController }) => {
     return async (req, res) => {
         const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
         if (req.method === "GET" && url.pathname === "/api/state") {
             return chatController.getState(req, res);
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/agent-config") {
+            return agentConfigController.get(req, res);
+        }
+
+        if (req.method === "PUT" && url.pathname === "/api/agent-config") {
+            return agentConfigController.save(req, res, await readJson(req));
         }
 
         if (req.method === "GET" && url.pathname === "/api/sessions") {
@@ -47,6 +55,14 @@ export const createRouter = ({ agentController, chatController, sessionControlle
 
         if (req.method === "POST" && url.pathname === "/api/prompt") {
             return chatController.prompt(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/context") {
+            return contextController.update(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/permissions/respond") {
+            return permissionController.respond(req, res, await readJson(req));
         }
 
         if (req.method === "POST" && url.pathname === "/api/sessions/load") {

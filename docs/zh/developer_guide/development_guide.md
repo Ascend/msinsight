@@ -391,6 +391,152 @@ security unlock-keychain -p {您当前用户的密码} ~/Library/Keychains/login
 
 进入项目根目录下 `build` 目录，执行 `python build.py`，产物位于项目根目录 `out` 目录下。
 
+### 3.6 Insight Web Agent (ACP server) 单独拉起与调试
+
+Insight Web Agent 是一个独立 Node ESM runtime，承载 ACP（Agent Control Protocol）chat panel 与 agent server 之间的桥接服务，入口文件为 `modules/insight_web_agent/server/index.mjs`，构建产物为 `modules/insight_web_agent/dist-server/index.mjs`。
+
+在对 ACP adapter / session manager / agent config save-reload 逻辑进行修改时，常常只需要让这一个进程生效即可，无需触发 C++ server、前端、Rust 底座、`.dmg` 的全量重出包。本节描述在不改出 `.app/.dmg` 的前提下独立拉起、调试和更新它的几种方式。
+
+#### 3.6.1 目录与产物关系
+
+| 资源 | 路径 | 说明 |
+| --- | --- | --- |
+| 源码入口 | `modules/insight_web_agent/server/index.mjs` | 启动时按目录推断 `--path` |
+| 构建脚本 | `modules/insight_web_agent/scripts/build-server.mjs` | esbuild bundle + 拷贝 configs / prompts / docs |
+| 构建入口 | `pnpm --filter insight-web-agent server:build` 或 `cd modules/insight_web_agent && pnpm server:build` | 产物位于 `dist-server/` |
+| 构建产物 | `modules/insight_web_agent/dist-server/` | `index.mjs`（bundle）+ `agent-servers.json` + `acp-session-conf.json` + `prompts/` + `docs/` |
+| App 内位置 | `<MindStudioInsight.app>/Contents/MacOS/resources/profiler/server/insight_web_agent/` | App 启动时由 `profiler_server` 通过 `node .../index.mjs --path ... --port <port>` 拉起 |
+| 一键更新脚本 | `build/patch-acp-server.py` | 见 [§ 3.6.5](#365-一键更新到已安装-appbuildpatch-acp-serverpy) |
+
+> 注意：因为 `.gitignore` 里有 `**/build`，`build/patch-acp-server.py` 默认被忽略。如要随代码一同提交，需要 `git add -f build/patch-acp-server.py build/test_patch_acp_server.py`。
+
+#### 3.6.2 直接拉起源文件（源码级调试）
+
+适合改 `server/**/*.mjs` 后立刻看效果，不依赖 esbuild。
+
+```bash
+cd modules/insight_web_agent
+node server/index.mjs --path . --port 9002
+```
+
+行为说明：
+
+- `--path` 指定运行时工作目录，等价于 App 内 `--path <app>/Contents/MacOS/resources/profiler/server/insight_web_agent`。该目录必须包含 `agent-servers.json` 与（可选）`acp-session-conf.json`、`prompts/`、`docs/`。
+- `--port` 默认 `9090`；常用本地调试推荐显式指定 `9002`、`9004` 等与 App 错开的端口。
+- 启动后会在 stdout 打印类似 `ACP web extracted API: http://127.0.0.1:9002/` 与 `Agent: <activeAgentName> (<command> <args>)`。
+
+源代码模式支持 Node 原生调试器：
+
+```bash
+cd modules/insight_web_agent
+node --inspect server/index.mjs --path . --port 9002
+# 或启动即断点
+node --inspect-brk server/index.mjs --path . --port 9002
+```
+
+随后在 Chrome DevTools 的 `chrome://inspect` 或者 VS Code 的 "Attach to Node Process" 中挂载即可步入 `server/services/*`、`server/controllers/*`、`server/infrastructure/*` 等模块。
+
+#### 3.6.3 跑构建后 bundle（贴近 App 内行为）
+
+App 内执行的 `node .../index.mjs` 就是 esbuild 打包后的 bundle。要复现 App 内行为，先构建再起服务：
+
+```bash
+cd modules/insight_web_agent
+pnpm server:build
+node dist-server/index.mjs --path dist-server --port 9002
+```
+
+要点：
+
+- `dist-server/index.mjs` 是单一 bundle，源码 `server/index.mjs` 之外不再被解析；调试时直接断点到 `dist-server` 也不再友好，因此建议源码级调试用 [§ 3.6.2](#362-直接拉起源文件源码级调试)。
+- 构建过程会自动复制 `agent-servers.json`、`acp-session-conf.json`、`prompts/`、`docs/` 到 `dist-server/`；不要在 `dist-server/` 里手动改这些文件。
+
+#### 3.6.4 与 App / profiler_server 共存时的注意事项
+
+- **同一时刻只能有一份 web agent 监听同一端口**。App 启动后 `profiler_server` 会自己 spawn 一个 `node .../insight_web_agent/index.mjs --port <port>`；该实例退出前，你单独起的实例会因为端口冲突报 `EADDRINUSE`。
+- 推荐先停 App，再独立调试：
+
+  ```bash
+  # 1. 退出 MindStudioInsight.app
+  # 2. 兜底清理遗留的 web agent 与 profiler_server
+  pkill -f 'insight_web_agent/index.mjs'
+  pkill -f 'profiler_server --wsPort'
+
+  # 3. 单独拉起
+  cd modules/insight_web_agent
+  node server/index.mjs --path . --port 9002
+  ```
+
+- 如果只是要验证 reload-bug / config save / switch agent 这类纯后端逻辑，可以连接本地 `127.0.0.1:9002` + `curl` / 前端本地代理，不需要起 framework。
+
+#### 3.6.5 一键更新到已安装 App：build/patch-acp-server.py
+
+新增的 `build/patch-acp-server.py` 提供"构建并覆盖到 MindStudioInsight.app"或"仅根据现有产物覆盖"两种模式，用于在不改出 `.dmg` 的前提下把当前分支的 ACP server 替换到本机 App。
+
+```bash
+# 仅根据现有 dist-server 覆盖（需要先 pnpm server:build）
+python3 build/patch-acp-server.py
+
+# 等价于：
+python3 build/patch-acp-server.py --app /Applications/MindStudioInsight.app
+```
+
+```bash
+# 重新构建（pnpm server:build）再覆盖
+python3 build/patch-acp-server.py --build
+```
+
+行为：
+
+1. 默认覆盖目标：`/Applications/MindStudioInsight.app/Contents/MacOS/resources/profiler/server/insight_web_agent`，可通过 `--app <path>` 指定自定义 App。
+2. 启用 `--build` 时会在 `modules/insight_web_agent/` 执行 `pnpm server:build`，再覆盖。
+3. 覆盖前校验 `dist-server` 至少包含 `index.mjs`、`agent-servers.json`、`acp-session-conf.json`、`prompts/`，否则不会触碰目标 App。
+4. 采用"临时目录 + 备份"原子替换：替换期间出现异常会回滚到旧目录。
+
+#### 3.6.6 单独拉起后的快速验证
+
+服务起来后可以先做一轮接口探活，再接入前端：
+
+```bash
+PORT=9002
+BASE=http://127.0.0.1:${PORT}
+
+curl -s ${BASE}/api/agents -w '\nstatus: %{http_code}\n'
+curl -s ${BASE}/api/agent-config -w '\nstatus: %{http_code}\n'
+curl -s ${BASE}/api/sessions -w '\nstatus: %{http_code}\n'
+```
+
+对应的响应字段与错误码参见 `docs/zh/design_documents/InsightAgentBridge.md`。
+
+#### 3.6.7 node:test 单测
+
+后端逻辑改动建议同时补充 `server/**/*.test.mjs`，并通过 Node 自带 test runner 跑：
+
+```bash
+cd modules/insight_web_agent
+node --test \
+  server/test/services/agentConfigService.test.mjs \
+  server/test/controllers/agentConfigController.test.mjs \
+  server/test/services/permissionService.test.mjs \
+  server/test/state/runtimeState.test.mjs \
+  server/test/integration/indexReloadLifecycle.test.mjs
+```
+
+`indexReloadLifecycle.test.mjs` 是端到端 reload 生命周期测试，会启动真正的 Node 进程并验证：
+
+- reload 失败时回滚到旧 runtime，旧 adapter 仍可用；
+- 失败的 settings reload 不会让旧会话的状态丢失。
+
+#### 3.6.8 常见错误与排查
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `EADDRINUSE 9002` | App 内已有一个 `insight_web_agent` 监听该端口 | `pkill -f 'insight_web_agent/index.mjs'`，或换一个端口 |
+| `/api/agent-config` 返回 `Not found` | App 内的 web agent 进程跑的是旧 bundle | 用 `python3 build/patch-acp-server.py --build` 替换并退出再重开 App |
+| `No ACP agent servers configured` | `--path` 指向目录里没有 `agent-servers.json` | 显式 `--path` 指向 `dist-server/` 或仓库根目录 |
+| 启动后立即报错 `ACP agent initialization failed` | 当前 `--path` 下的 agent command / args / env 在本机不可达 | 编辑 `--path/agent-servers.json` 或 `acp-session-conf.json` |
+| `--inspect-brk` 后访问 `127.0.0.1:9229` 无响应 | 防火墙或端口冲突 | 改用 `--inspect=0.0.0.0:9229` 或单独 IDE Attach |
+
 ## 4. 开发流程
 
 ### 4.1 新增模块开发

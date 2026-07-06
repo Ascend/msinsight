@@ -17,6 +17,19 @@
  */
 export type MessageRole = 'user' | 'assistant';
 
+export type PermissionDecision = 'allow_once' | 'allow_always' | 'deny';
+export type PermissionState = 'pending' | 'allowed_once' | 'allowed_always' | 'denied' | 'expired' | 'invalidated';
+
+export interface PermissionRequestItem {
+    sessionId: string;
+    requestId: string;
+    path: string;
+    actions: PermissionDecision[];
+    state: PermissionState;
+    error?: string;
+    loadingDecision?: PermissionDecision;
+}
+
 export interface ChatMessage {
     id: string;
     role: MessageRole;
@@ -24,6 +37,7 @@ export interface ChatMessage {
     images?: ImageAttachment[];
     thinking?: string;
     pending?: boolean;
+    permission?: PermissionRequestItem;
 }
 
 export interface ImageAttachment {
@@ -63,6 +77,40 @@ export interface ConfigOption {
 
 export interface AgentServerItem {
     name: string;
+}
+
+export interface AgentConfigServer {
+    name: string;
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+}
+
+export interface AgentSessionConfig {
+    requestTimeoutMs: number;
+    promptRequestTimeoutMs: number;
+    permissionRequestTimeoutMs: number;
+    defaultAllowlist: {
+        includeDocsRoot: boolean;
+        includeAgentWorkspaceRoot: boolean;
+        includeProjectRoot: boolean;
+        extraPaths: string[];
+    };
+}
+
+export interface AgentConfigSnapshot {
+    activeAgentName: string;
+    agentServers: AgentConfigServer[];
+    sessionConfig: AgentSessionConfig;
+}
+
+export interface AgentConfigSaveResult {
+    ok?: boolean;
+    snapshot?: AgentConfigSnapshot;
+    error?: string;
+    message?: string;
+    saved?: boolean;
+    details?: Array<{ field?: string; message: string }>;
 }
 
 export interface AgentInfo {
@@ -141,4 +189,6 @@ export type ServerEvent =
     | { type: 'message_delta'; sessionId?: string; id: string; field: 'images'; delta: ImageAttachment[] }
     | { type: 'message_removed'; sessionId?: string; id: string }
     | { type: 'config_options'; sessionId?: string; configOptions: ConfigOption[] }
+    | { type: 'permission_request'; sessionId: string; requestId: string; path: string; actions: PermissionDecision[] }
+    | { type: 'permission_resolved'; sessionId: string; requestId: string; state: Exclude<PermissionState, 'pending'> }
     | { type: 'prompt_status'; sessionId?: string; pendingPrompt: boolean };

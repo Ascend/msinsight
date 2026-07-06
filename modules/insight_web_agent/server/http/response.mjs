@@ -22,7 +22,7 @@ export const json = (res, body, status = 200) => {
 
 export const applyCors = (res) => {
     res.setHeader("access-control-allow-origin", "*");
-    res.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
+    res.setHeader("access-control-allow-methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("access-control-allow-headers", "content-type");
 };
 

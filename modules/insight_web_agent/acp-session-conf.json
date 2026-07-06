@@ -1,0 +1,11 @@
+{
+  "requestTimeoutMs": 30000,
+  "promptRequestTimeoutMs": 300000,
+  "permissionRequestTimeoutMs": 300000,
+  "defaultAllowlist": {
+    "includeDocsRoot": true,
+    "includeAgentWorkspaceRoot": true,
+    "includeProjectRoot": true,
+    "extraPaths": []
+  }
+}

@@ -17,8 +17,8 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createChatService, createPromptContent } from "./chatService.mjs";
-import { createRuntimeState } from "../state/runtimeState.mjs";
+import { createChatService, createPromptContent } from "../../services/chatService.mjs";
+import { createRuntimeState } from "../../state/runtimeState.mjs";
 
 test("createPromptContent serializes pasted images as ACP image blocks", () => {
     const content = createPromptContent("分析这个图片", [{
@@ -119,7 +119,8 @@ test("prompt applies requested mode to a new session before sending", async () =
     };
 
     const sessionService = {
-        async createSessionContext() {
+        async createSessionContext({ mode }) {
+            assert.equal(mode, "bypass");
             state.sessionContexts.set("session-1", {
                 sessionId: "session-1",
                 messages: [],
