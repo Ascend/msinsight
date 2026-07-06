@@ -134,7 +134,7 @@ python trace_convert.py \
 
 | `--format` | `--output` 要求 | 示例 |
 | --- | --- | --- |
-| `db` | 必须以 `.db` 结尾 | `--format=db --output=ftrace_data.db` |
+| `db` | 必须以 `.db` 结尾，且文件名必须包含 `ftrace_data`（大小写敏感） | `--format=db --output=ftrace_data.db` |
 | `json` | 必须以 `.json` 结尾 | `--format=json --output=ftrace_data.json` |
 
 常用命令：
