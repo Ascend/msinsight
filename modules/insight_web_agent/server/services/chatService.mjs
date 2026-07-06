@@ -19,13 +19,14 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setLocalTitle } from "./messageService.mjs";
 
-export const createChatService = ({ acpClient, eventBus, sessionService, skillService, state, systemPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, systemPrompt = "" }) => {
+    const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
-    const initialize = async () => {
+    const initialize = async ({ targetAdapter = adapter, broadcast = true, refreshSessions = true } = {}) => {
         try {
             console.log("Initializing ACP agent");
-            const init = await acpClient.request("initialize", {
+            const init = await targetAdapter.request("initialize", {
                 protocolVersion: 1,
                 clientCapabilities: {
                     fs: { readTextFile: false, writeTextFile: false },
@@ -40,13 +41,13 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
             state.agentInfo = init.agentInfo ?? init.agent_info;
             setAgentCapabilities(state, init.agentCapabilities ?? init.agent_capabilities ?? {});
             state.availableSkills = await skillService.list();
-            await sessionService.refreshSessions();
-            sessionService.broadcastState();
+            if (refreshSessions) await sessionService.refreshSessions();
+            if (broadcast) sessionService.broadcastState();
             console.log(`Connected to ${init.agentInfo?.name ?? "ACP agent"} ${init.agentInfo?.version ?? ""}`.trim());
         } catch (error) {
             state.initialized = false;
             state.agentError = error.message;
-            sessionService.broadcastState();
+            if (broadcast) sessionService.broadcastState();
             console.error(`Failed to initialize ACP agent: ${error.message}`);
         }
     };
@@ -70,7 +71,7 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
             let sessionId = String(options.sessionId ?? "").trim() || undefined;
             if (options.newSession) {
                 console.log("Prompt is creating a new session");
-                sessionId = await sessionService.createSessionContext({ messages: [] });
+                sessionId = await sessionService.createSessionContext({ messages: [], mode: options.mode });
                 if (options.mode) await sessionService.setMode(options.mode, sessionId);
                 sessionService.broadcastState();
             }
@@ -84,7 +85,8 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
                 console.warn(`Prompt rejected: another prompt is running, sessionId=${sessionId}`);
                 return { error: "another prompt is running", status: 409 };
             }
-            const hiddenContext = updateSessionHiddenContext(sessionContext, incomingHiddenContext);
+            const latestHiddenContext = incomingHiddenContext ?? await sessionManager?.getPromptContext?.(sessionId) ?? sessionContext.hiddenContext;
+            const hiddenContext = updateSessionHiddenContext(sessionContext, latestHiddenContext);
 
             sessionContext.pendingPrompt = true;
             await sessionService.applyPreferredModel(sessionId);
@@ -118,7 +120,7 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
     const runPrompt = async (sessionId, promptText, images, selectedSkills, hiddenContext, assistant) => {
         try {
             console.log(`Prompt execution started: sessionId=${sessionId}, textLength=${promptText.length}, images=${images.length}, skills=${selectedSkills.length}, hiddenContext=${Boolean(hiddenContext)}`);
-            await acpClient.request("session/prompt", {
+            await adapter.request("session/prompt", {
                 sessionId,
                 prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext, systemPrompt),
             });
@@ -145,7 +147,7 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
             return { error: "sessionId is required", status: 400 };
         }
         try {
-            await acpClient.request("session/cancel", { sessionId });
+            await adapter.request("session/cancel", { sessionId });
             console.log(`ACP session cancel completed: sessionId=${sessionId}`);
         } catch (error) {
             console.warn(`Failed to cancel session ${sessionId} with ACP: ${error.message}`);
@@ -171,6 +173,7 @@ export const createChatService = ({ acpClient, eventBus, sessionService, skillSe
 
         if (!sessionId) return;
         getSessionContext(state, sessionId);
+        void sessionManager?.handleAgentEvent?.(sessionId, { kind, update, params });
 
         if (kind === "session_info_update") {
             const title = update.title;

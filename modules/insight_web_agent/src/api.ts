@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import type { AgentServerItem, AppState, ChatMessage, ConfigOption, ImageAttachment, QueuedPrompt, SessionConfigUpdateResult, SessionItem } from './types';
+import type { AgentConfigSaveResult, AgentConfigSnapshot, AgentServerItem, AppState, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, QueuedPrompt, SessionConfigUpdateResult, SessionItem } from './types';
 import { apiUrl } from './env';
 
 interface PromptResponse {
@@ -54,9 +54,11 @@ const requestJson = async <T,>(path: string, init?: RequestInit): Promise<T> => 
             ...init?.headers,
         },
     });
-    const body = await response.json() as T & { error?: string };
+    const body = await response.json() as T & { error?: string; message?: string; details?: unknown; saved?: boolean };
     if (!response.ok) {
-        throw new Error(body.error ?? response.statusText);
+        const error = new Error(body.message ?? body.error ?? response.statusText) as Error & { body?: typeof body };
+        error.body = body;
+        throw error;
     }
     return body;
 };
@@ -120,5 +122,24 @@ export const switchAgent = (name: string): Promise<AgentsResponse> => {
     return requestJson<AgentsResponse>('/api/agents/switch', {
         method: 'POST',
         body: JSON.stringify({ name }),
+    });
+};
+
+export const respondPermission = (sessionId: string, requestId: string, decision: PermissionDecision): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/permissions/respond', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, requestId, decision }),
+    });
+};
+
+export const fetchAgentConfig = async (): Promise<AgentConfigSnapshot> => {
+    const body = await requestJson<{ snapshot: AgentConfigSnapshot }>('/api/agent-config');
+    return body.snapshot;
+};
+
+export const saveAgentConfig = (snapshot: AgentConfigSnapshot): Promise<AgentConfigSaveResult> => {
+    return requestJson<AgentConfigSaveResult>('/api/agent-config', {
+        method: 'PUT',
+        body: JSON.stringify(snapshot),
     });
 };

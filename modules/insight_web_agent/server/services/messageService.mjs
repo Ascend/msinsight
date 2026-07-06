@@ -32,7 +32,7 @@ export const appendChunk = ({ eventBus, state }, sessionId, role, field, delta) 
 };
 
 export const appendContentBlock = (serviceContext, sessionId, role, block, field = "text") => {
-    if (isHiddenContextBlock(block)) return;
+    if (shouldSkipAgentContent(block)) return;
 
     const text = textFromContentBlock(block);
     if (text) appendChunk(serviceContext, sessionId, role, field, text);
@@ -64,10 +64,26 @@ const textFromContentBlock = (block) => {
     return "";
 };
 
-const isHiddenContextBlock = (block) => {
-    if (!block || block.type !== "resource") return false;
-    return String(block.resource?.uri ?? "").startsWith("insight-hidden-context://");
+const shouldSkipAgentContent = (block) => {
+    if (!block) return false;
+    if (block.type === "resource") {
+        return String(block.resource?.uri ?? "").startsWith("insight-");
+    }
+    if (block.type === "text") {
+        return textHeadEchoesSystemContext(block.text);
+    }
+    return false;
 };
+
+const SYSTEM_CONTEXT_URI_PATTERN = /\[(?:\{)?[^\]\n]*insight-(?:hidden-context|system-prompt)[^\]\n]*(?:\})?\]/;
+
+const textHeadEchoesSystemContext = (text) => {
+    const head = String(text ?? "").slice(0, 200);
+    return SYSTEM_CONTEXT_URI_PATTERN.test(head);
+};
+
+const isHiddenContextBlock = (block) => shouldSkipAgentContent(block)
+    && String(block.resource?.uri ?? "").startsWith("insight-hidden-context://");
 
 const imageFromContentBlock = (block) => {
     if (!block || block.type !== "image") return undefined;

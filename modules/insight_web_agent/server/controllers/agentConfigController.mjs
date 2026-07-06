@@ -15,27 +15,17 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App';
-import { apiUrl, parseContextFromQuery } from './env';
-import '@insight/lib/style';
+import { json } from "../http/response.mjs";
 
-const root = createRoot(document.getElementById('root') as HTMLElement);
+export const createAgentConfigController = ({ agentConfigService }) => ({
+    async get(_req, res) {
+        return json(res, { snapshot: await agentConfigService.readSnapshot() });
+    },
 
-const renderApp = (): void => {
-    root.render(
-        <React.StrictMode>
-            <App />
-        </React.StrictMode>
-    );
-};
+    async save(_req, res, body) {
+        const result = await agentConfigService.saveSnapshot(body);
+        return json(res, normalizeBody(result), result.status ?? 200);
+    },
+});
 
-const context = parseContextFromQuery();
-void fetch(apiUrl('/api/context'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(context),
-})
-    .catch(error => console.warn(`Failed to update agent context: ${error.message}`))
-    .finally(renderApp);
+const normalizeBody = ({ status, ...body }) => body;

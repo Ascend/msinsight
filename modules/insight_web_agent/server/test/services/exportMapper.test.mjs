@@ -17,7 +17,7 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { messagesFromExport } from "./exportMapper.mjs";
+import { messagesFromExport } from "../../services/exportMapper.mjs";
 
 test("messagesFromExport restores image file parts", () => {
     const messages = messagesFromExport({

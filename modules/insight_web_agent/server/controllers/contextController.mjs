@@ -15,27 +15,22 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App';
-import { apiUrl, parseContextFromQuery } from './env';
-import '@insight/lib/style';
+import { json } from "../http/response.mjs";
 
-const root = createRoot(document.getElementById('root') as HTMLElement);
-
-const renderApp = (): void => {
-    root.render(
-        <React.StrictMode>
-            <App />
-        </React.StrictMode>
-    );
-};
-
-const context = parseContextFromQuery();
-void fetch(apiUrl('/api/context'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(context),
-})
-    .catch(error => console.warn(`Failed to update agent context: ${error.message}`))
-    .finally(renderApp);
+export const createContextController = ({ state, sessionManager }) => ({
+    async update(_req, res, body) {
+        const ctx = body ?? {};
+        const activeContext = {
+            profileId: ctx.profileId,
+            activeModule: ctx.activeModule,
+            selection: ctx.selection,
+            projectRoot: ctx.projectRoot,
+        };
+        if (sessionManager?.updateContext) {
+            await sessionManager.updateContext(activeContext);
+        } else {
+            state.activeContext = activeContext;
+        }
+        return json(res, { ok: true, activeContext: state.activeContext });
+    },
+});

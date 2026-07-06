@@ -19,7 +19,7 @@ import styled from '@emotion/styled';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type React from 'react';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, PermissionDecision } from '../types';
 
 const markdownComponents = {
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element => {
@@ -52,6 +52,8 @@ const Container = styled.div`
     .message {
         box-sizing: border-box;
         width: 100%;
+        min-width: 0;
+        max-width: 100%;
         border-radius: ${(props): string => props.theme.borderRadiusBase};
         padding: 12px 14px;
         line-height: 1.55;
@@ -95,8 +97,11 @@ const Container = styled.div`
     }
 
     .rich-text {
+        min-width: 0;
+        max-width: 100%;
         display: grid;
         gap: 8px;
+        overflow-wrap: anywhere;
     }
 
     .rich-text.muted {
@@ -105,11 +110,16 @@ const Container = styled.div`
 
     .rich-text p,
     .rich-text ul,
+    .rich-text ol,
+    .rich-text li,
     .rich-text pre,
     .rich-text h3,
     .rich-text h4,
     .rich-text h5 {
+        min-width: 0;
+        max-width: 100%;
         margin: 0;
+        overflow-wrap: anywhere;
     }
 
     .rich-text ul {
@@ -118,7 +128,8 @@ const Container = styled.div`
 
     .rich-text pre {
         max-width: 100%;
-        overflow: auto;
+        overflow-x: auto;
+        overflow-y: hidden;
         border: 1px solid ${(props): string => props.theme.borderColor};
         border-radius: ${(props): string => props.theme.borderRadiusSmall};
         padding: 10px;
@@ -128,7 +139,8 @@ const Container = styled.div`
     .rich-text table {
         display: block;
         max-width: 100%;
-        overflow: auto;
+        overflow-x: auto;
+        overflow-y: hidden;
         border-collapse: collapse;
         border: 1px solid ${(props): string => props.theme.borderColor};
         border-radius: ${(props): string => props.theme.borderRadiusSmall};
@@ -148,6 +160,8 @@ const Container = styled.div`
     }
 
     .rich-text code {
+        overflow-wrap: anywhere;
+        white-space: normal;
         border: 1px solid ${(props): string => props.theme.borderColorLight};
         border-radius: ${(props): string => props.theme.borderRadiusSmall};
         padding: 1px 5px;
@@ -157,9 +171,65 @@ const Container = styled.div`
     }
 
     .rich-text pre code {
+        overflow-wrap: normal;
+        white-space: pre;
         border: 0;
         padding: 0;
         background: transparent;
+    }
+
+    .permission-card {
+        display: grid;
+        gap: 10px;
+    }
+
+    .permission-title {
+        font-weight: 700;
+    }
+
+    .permission-path {
+        overflow-wrap: anywhere;
+        border: 1px solid ${(props): string => props.theme.borderColorLight};
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        padding: 8px;
+        background: ${(props): string => props.theme.bgColorDark};
+        font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+    }
+
+    .permission-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .permission-actions button {
+        cursor: pointer;
+        border: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        padding: 5px 10px;
+        background: ${(props): string => props.theme.bgColor};
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+
+    .permission-actions button.primary {
+        border-color: ${(props): string => props.theme.primaryColor};
+        color: ${(props): string => props.theme.primaryColor};
+    }
+
+    .permission-actions button:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    .permission-state,
+    .permission-error {
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 12px;
+    }
+
+    .permission-error {
+        color: ${(props): string => props.theme.dangerColor};
     }
 
     .attachments {
@@ -202,9 +272,10 @@ const Container = styled.div`
 interface MessageListProps {
     messages: ChatMessage[];
     pendingPrompt: boolean;
+    onPermissionDecision: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
 }
 
-export const MessageList = ({ messages, pendingPrompt }: MessageListProps): JSX.Element => {
+export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
     if (!messages.length) {
         return <Container><div className="empty">No local messages loaded for this session. Send a message to continue.</div></Container>;
     }
@@ -214,9 +285,12 @@ export const MessageList = ({ messages, pendingPrompt }: MessageListProps): JSX.
             {messages.map((message, index) => (
                 <article className={`message ${message.role}`} key={message.id}>
                     {message.thinking ? <div className="thinking">{message.thinking}</div> : null}
-                    <div className={`rich-text ${message.text ? '' : 'muted'}`}>
-                        {message.text ? <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown> : '...'}
-                    </div>
+                    {message.permission ? <PermissionCard message={message} onDecision={onPermissionDecision} /> : null}
+                    {message.text || !message.permission ? (
+                        <div className={`rich-text ${message.text ? '' : 'muted'}`}>
+                            {message.text ? <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown> : '...'}
+                        </div>
+                    ) : null}
                     {message.images?.length ? (
                         <div className="attachments">
                             {message.images.map((image) => (
@@ -233,8 +307,63 @@ export const MessageList = ({ messages, pendingPrompt }: MessageListProps): JSX.
     );
 };
 
+const PermissionCard = ({
+    message,
+    onDecision,
+}: {
+    message: ChatMessage;
+    onDecision: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
+}): JSX.Element | null => {
+    const permission = message.permission;
+    if (!permission) return null;
+    const pending = permission.state === 'pending';
+    return (
+        <div className="permission-card">
+            <div className="permission-title">Allow file read?</div>
+            <div className="permission-path">{permission.path}</div>
+            {pending ? (
+                <div className="permission-actions">
+                    <button
+                        className="primary"
+                        disabled={Boolean(permission.loadingDecision)}
+                        onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'allow_once'); }}
+                        type="button"
+                    >
+                        {permission.loadingDecision === 'allow_once' ? 'Allowing...' : 'Allow once'}
+                    </button>
+                    <button
+                        className="primary"
+                        disabled={Boolean(permission.loadingDecision)}
+                        onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'allow_always'); }}
+                        type="button"
+                    >
+                        {permission.loadingDecision === 'allow_always' ? 'Allowing...' : 'Allow always'}
+                    </button>
+                    <button
+                        disabled={Boolean(permission.loadingDecision)}
+                        onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'deny'); }}
+                        type="button"
+                    >
+                        {permission.loadingDecision === 'deny' ? 'Denying...' : 'Deny'}
+                    </button>
+                </div>
+            ) : <div className="permission-state">{permissionStateText(permission.state)}</div>}
+            {permission.error ? <div className="permission-error">{permission.error}</div> : null}
+        </div>
+    );
+};
+
+const permissionStateText = (state: NonNullable<ChatMessage['permission']>['state']): string => {
+    if (state === 'allowed_once') return 'Allowed once';
+    if (state === 'allowed_always') return 'Allowed for this app run';
+    if (state === 'denied') return 'Denied';
+    if (state === 'expired') return 'Expired';
+    if (state === 'invalidated') return 'No longer actionable';
+    return 'Pending';
+};
+
 const isThinkingMessage = (messages: ChatMessage[], index: number, pendingPrompt: boolean): boolean => {
     if (!pendingPrompt) return false;
     const message = messages[index];
-    return message.role === 'assistant' && index === messages.length - 1;
+    return message.role === 'assistant' && index === messages.length - 1 && !message.permission;
 };
