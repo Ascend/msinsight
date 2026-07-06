@@ -73,6 +73,17 @@ TEST_F(ProjectParserTest, FtraceProjectTypeSupportsBaselineCompare) {
     EXPECT_TRUE(IsComparable(ProjectTypeEnum::DB_FTRACE, ProjectTypeEnum::DB_FTRACE));
 }
 
+TEST_F(ProjectParserTest, FtraceDbFileNameSupportsContainingKeyword) {
+    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data.db"));
+    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data123.db"));
+    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("custom_ftrace_data.db"));
+    EXPECT_TRUE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data_custom.db"));
+
+    EXPECT_FALSE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data.json"));
+    EXPECT_FALSE(ProjectParserFtrace::IsFtraceDbFile("ftrace.db"));
+    EXPECT_FALSE(ProjectParserFtrace::IsFtraceDbFile("ftrace_data.db.bak"));
+}
+
 TEST_F(ProjectParserTest, GetParseFileByImportFile) {
     ProjectParserBase parser;
     std::string error;
