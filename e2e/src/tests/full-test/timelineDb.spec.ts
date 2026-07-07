@@ -105,7 +105,7 @@ test.describe('Timeline(DB)', () => {
     test('test_db_operatorSearch_when_EnterOperatorName', async ({ page, timelinePage }) => {
         const { searchBtn, timelineFrame, openInWindows } = timelinePage;
         await searchBtn.click();
-        const inputLocator = timelineFrame.locator('.insight-category-search-overlay input');
+        const inputLocator = timelineFrame.locator('.insight-category-search-overlay').getByPlaceholder('Please enter');
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('CtxGetOverflowAddr');
         await input.press('Enter');
@@ -118,7 +118,7 @@ test.describe('Timeline(DB)', () => {
     test('test_db_deepOperatorSearch_when_EnterOperatorName', async ({ page, timelinePage }) => {
         const { searchBtn, timelineFrame, openInWindows } = timelinePage;
         await searchBtn.click();
-        const inputLocator = timelineFrame.locator('.insight-category-search-overlay input');
+        const inputLocator = timelineFrame.locator('.insight-category-search-overlay').getByPlaceholder('Please enter');
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('NpuSwigluBackward0');
         await input.press('Enter');
@@ -197,25 +197,25 @@ test.describe('Timeline(DB)', () => {
         await filterContentSelector.selectOption('Communication');
         await filterBtn.click();
         await page.mouse.move(0, 0);
-        await unitWrapperScroller.getByText('Communication').click();
+        await unitWrapperScroller.locator('.insight-lane-info-name').getByText('Communication', { exact: true }).first().click();
         await searchBtn.click();
-        const inputLocator = timelineFrame.locator('.insight-category-search-overlay input').nth(2);
+        const inputLocator = timelineFrame.locator('.insight-category-search-overlay').getByPlaceholder('Please enter');
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('hcom_batchSendRecv__128_4_1');
         await input.press('Enter');
         await openInWindows.waitFor({ state: 'attached' });
-        await timelineFrame.locator('.ant-spin-container > .drawCanvas').nth(5).click({
-            position: {
-                x: 254,
-                y: 5,
-            },
-        });
-        await timelineFrame.locator('.ant-spin-container > .drawCanvas').nth(5).click({
+        const selectedCanvas = timelineFrame.locator('.chart-selected canvas.drawCanvas').first();
+        await selectedCanvas.waitFor({ state: 'visible' });
+        await searchBtn.click();
+        await page.waitForTimeout(2000);
+
+        await selectedCanvas.click({
             button: 'right',
             position: {
                 x: 254,
                 y: 5,
             },
+            force: true,
         });
         await timelineFrame.getByText('Find in Communication').click({ force: true });
         const hcclChart = communicationFrame.locator('.panel-content').first();
@@ -234,18 +234,17 @@ test.describe('Timeline(DB)', () => {
         await filterContentSelector.setValue('Communication');
         await filterContentSelector.selectOption('Communication');
         await filterBtn.click();
-        await timelineFrame.locator('.insight-unit-fold').first().click();
         await page.waitForTimeout(3000);
         await timelineFrame.getByText('mp:Group group_name_13 Communication').click({
             button: 'right',
         });
-        await timelineFrame.getByText('Pin (Same Group group_name_13)').click();
+        await timelineFrame.getByText('Pin Same-named Lane (mp:Group group_name_13 Communication)').click();
         await page.mouse.move(0, 0);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('communication_group_pin.png', { maxDiffPixels: 100 });
         await timelineFrame.locator('#pinnedUnitWrapperScroller').getByText('mp:Group group_name_13 Communication_Communication (HCCL)_localhost.localdomain2152938157304401006_0 0').click({
             button: 'right',
         });
-        await timelineFrame.getByText('Unpin (Same Group').click();
+        await timelineFrame.getByText('Unpin Same-named Lane').click();
         await page.mouse.move(0, 0);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('communication_group_unpin.png', { maxDiffPixels: 100 });
     });

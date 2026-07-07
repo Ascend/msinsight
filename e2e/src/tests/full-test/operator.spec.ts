@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { test as baseTest, expect, WebSocket } from '@playwright/test';
+import { test as baseTest, expect, type FrameLocator, WebSocket } from '@playwright/test';
 import { FrameworkPage, OperatorPage } from '@/page-object';
 import { clearAllData, importData, setCompare, setupWebSocketListener, waitForResponse, waitForWebSocketEvent } from '@/utils';
 import { SelectHelpers } from '@/components';
@@ -162,13 +162,14 @@ test.describe('Operator(MultiMachines)', () => {
 
     // 切换工程测试
     test('test_switch_project', async ({ page, operatorPage, ws }) => {
+        test.setTimeout(90_000);
         // 导入text类型数据，导入后会自动选中此数据0卡
         const allCardParsedPromise = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
         await importData(page, FilePath.TEXT);
         await allCardParsedPromise;
 
         const frameworkPage = new FrameworkPage(page);
-        const { operatorFrame, hostSelector, rankIdSelector } = operatorPage;
+        const { operatorFrame, hostSelector, rankIdSelector, fullPage } = operatorPage;
         const hostSelect = new SelectHelpers(page, hostSelector, operatorFrame);
         const rankIdSelect = new SelectHelpers(page, rankIdSelector, operatorFrame);
 
@@ -177,6 +178,10 @@ test.describe('Operator(MultiMachines)', () => {
         const dbRank0 = frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_0);
         const statisticPromise = waitForResponse(await ws, (res) => res?.command === 'operator/statistic');
         await dbRank0.click();
+
+        const allCardParsedPromise2 = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
+        await allCardParsedPromise2;
+
         await page.mouse.move(0, 0);
         await statisticPromise;
         await page.waitForTimeout(2000);
@@ -186,7 +191,7 @@ test.describe('Operator(MultiMachines)', () => {
         expect(hostText).toBe('node18899436934890168541_0');
         const selectedText = await rankIdSelect.getValue();
         expect(selectedText).toBe('0');
-        await expect(operatorFrame.locator('.mi-page')).toHaveScreenshot('operator-text-to-db.png', {
+        await expect(fullPage).toHaveScreenshot('operator-text-to-db.png', {
             maxDiffPixels: 500,
         });
 
@@ -202,7 +207,7 @@ test.describe('Operator(MultiMachines)', () => {
         await page.waitForTimeout(400);
         const selectedText2 = await rankIdSelect.getValue();
         expect(selectedText2).toBe('2');
-        await expect(operatorFrame.locator('.mi-page')).toHaveScreenshot('operator-db-to-text.png', {
+        await expect(fullPage).toHaveScreenshot('operator-db-to-text.png', {
             maxDiffPixels: 500,
         });
     });

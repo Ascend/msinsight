@@ -78,7 +78,7 @@ test.describe('Timeline(Trace_Json)', () => {
         const secondUnitInfo = timelineFrame.locator('.unit-info').nth(2);
         await secondUnitInfo.click();
         await searchBtn.click();
-        const inputLocator = timelineFrame.locator('.insight-category-search-overlay input');
+        const inputLocator = timelineFrame.locator('.insight-category-search-overlay').getByPlaceholder('Please enter');
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('LD');
         await input.press('Enter');

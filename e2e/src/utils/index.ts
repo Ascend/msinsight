@@ -60,6 +60,8 @@ export async function importData(page: Page, filePath: string = FilePath.TEXT): 
 
 // 清除数据
 export async function clearAllData(page: Page, ws?: Promise<WebSocket>): Promise<void> {
+    await page.waitForTimeout(2000); // 在清空项目之前，等待2秒，确保之前的操作或请求都执行完成，否则容易断连
+
     const frameworkPage = new FrameworkPage(page);
     const { settingsBtn, deleteAllBtn, deleteAllDialog, deleteAllConfirmBtn, projectList } = frameworkPage;
     const isSettingsBtnDisabled = await settingsBtn.evaluate((el) => el.classList.contains('disabled'));
@@ -84,7 +86,7 @@ export async function clearAllData(page: Page, ws?: Promise<WebSocket>): Promise
     const elementText = await projectList.textContent();
     await expect(elementText?.trim()).toBe('');
     // 等待后端完成清理动作
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(2000);
 }
 
 // 等待ws返回指定数据

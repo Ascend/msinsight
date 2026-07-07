@@ -22,6 +22,7 @@ import { FrameworkPage } from './framework';
 export class OperatorPage {
     readonly page: Page;
     readonly operatorFrame: FrameLocator;
+    readonly fullPage: Locator;
     readonly groupIdSelector: Locator;
     readonly hostSelector: Locator;
     readonly rankIdSelector: Locator;
@@ -30,6 +31,7 @@ export class OperatorPage {
     constructor(page: Page) {
         this.page = page;
         this.operatorFrame = page.frameLocator('#Operator');
+        this.fullPage = this.operatorFrame.locator('#root');
         this.groupIdSelector = this.operatorFrame.locator('#select-groupId');
         this.hostSelector = this.operatorFrame.locator('#select-host');
         this.rankIdSelector = this.operatorFrame.locator('#select-rankId');
