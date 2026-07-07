@@ -80,6 +80,7 @@ test.describe('Framework', () => {
             button: 'right',
         });
         await page.getByText('Set as Baseline Data').click();
+        await page.waitForTimeout(1000);
         await page.mouse.move(0, 0);
         await expect(frameworkPage.projectList).toHaveScreenshot('set-project-baseline.png', { maxDiffPixels: 500 });
         await page.waitForTimeout(2000);

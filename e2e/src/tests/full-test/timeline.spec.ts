@@ -191,7 +191,7 @@ test.describe('Timeline', () => {
         await allPagesSuccessRes;
         const { searchBtn, timelineFrame } = timelinePage;
         await searchBtn.click();
-        const inputLocator = timelineFrame.locator('.insight-category-search-overlay input');
+        const inputLocator = timelineFrame.locator('.insight-category-search-overlay').getByPlaceholder('Please enter');
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('add');
         await input.press('Enter');
@@ -205,7 +205,7 @@ test.describe('Timeline', () => {
         await allPagesSuccessRes;
         const { searchBtn, timelineFrame } = timelinePage;
         await searchBtn.click();
-        const inputLocator = timelineFrame.locator('.insight-category-search-overlay input');
+        const inputLocator = timelineFrame.locator('.insight-category-search-overlay').getByPlaceholder('Please enter');
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('NpuSwigluBackward0');
         await input.press('Enter');
@@ -648,6 +648,38 @@ test.describe('Timeline', () => {
         }
         const { x: startX, y: startY } = chartInfo;
 
+        type TestKeyboardEventOptions = {
+            altKey?: boolean;
+            ctrlKey?: boolean;
+            metaKey?: boolean;
+            shiftKey?: boolean;
+        };
+
+        const pressTimelineKeyOnce = async (
+            key: string,
+            code: string,
+            options: TestKeyboardEventOptions = {},
+        ): Promise<void> => {
+            await mainContainer.evaluate((el, { key, code, options }) => {
+                el.focus();
+
+                const eventInit = {
+                    key,
+                    code,
+                    bubbles: true,
+                    cancelable: true,
+                    altKey: options.altKey ?? false,
+                    ctrlKey: options.ctrlKey ?? false,
+                    metaKey: options.metaKey ?? false,
+                    shiftKey: options.shiftKey ?? false,
+                };
+
+                el.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+                el.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+            }, { key, code, options });
+        };
+
+
         await page.keyboard.down('Alt');
         await page.mouse.move(startX + 50, startY + 50);
         await page.mouse.down();
@@ -668,7 +700,7 @@ test.describe('Timeline', () => {
         await page.waitForTimeout(200);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Alt.png', { maxDiffPixels: 100 });
 
-        await page.keyboard.press('Backspace');
+        await pressTimelineKeyOnce('Backspace', 'Backspace');
         await page.waitForTimeout(200);
         await expect(mainContainer).toHaveScreenshot('test-zoom-Backspace.png', { maxDiffPixels: 100 });
 
@@ -680,6 +712,9 @@ test.describe('Timeline', () => {
     // 图形化窗格 - 测试直方图的显示 如NPU_MEM
     test('test_npu_mem', async ({ timelinePage, page }) => {
         const { timelineFrame, mainContainer } = timelinePage;
+        const npuMetricsUnit = timelineFrame.getByText('NPU Metrics');
+        await npuMetricsUnit.click({ force:true });
+
         const npuMemLayerUnit = timelineFrame.getByText('NPU MEM (3513236992)');
         await npuMemLayerUnit.click({ force:true });
         await page.mouse.wheel(0, 250);
@@ -709,15 +744,14 @@ test.describe('Timeline', () => {
         await chart.click();
         await page.mouse.move(0, 0);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('test_lock_selected_area.png', { maxDiffPixels:100 });
-        // 点击算子
+        // 点击算子 hcom_batchSendRecv__128_4_1
         await chart.click({
             position: {
                 x: 277,
                 y: 9,
-            },// hcom_batchSendRecv__128_4_1
+            },
         });
         await page.mouse.move(0, 0);
         await expect(timelineFrame.locator('.bottomPanelContainer ')).toHaveScreenshot('test_lock_selected_area_then_click_operator_detail.png', { maxDiffPixels:100 });
     });
 });
-

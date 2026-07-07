@@ -36,6 +36,7 @@ const Window = styled.div`
     display: flex;
     width: 100vw;
     color: ${(props): string => props.theme.textColor};
+    font-family: ${(props): string => props.theme.fontFamily};
 `;
 
 disableShortcuts();

@@ -233,7 +233,7 @@ test.describe('Leaks(snapshot)', () => {
         const eventViewRadio = leaksFrame.getByTestId('eventViewRadio');
         eventViewRadio.click();
         const eventsTable = leaksFrame.getByTestId('eventsTable');
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(2000);
         const screenshot = await eventsTable.screenshot();
         expect(screenshot).toMatchSnapshot('snapshot-eventsTable.png', { maxDiffPixels: 100 });
 

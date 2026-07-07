@@ -125,7 +125,7 @@ test.describe('Timeline(Operator)', () => {
     test('test_Search_when_EnterInstr', async ({ page, timelinePage }) => {
         const { searchBtn, timelineFrame, openInWindows } = timelinePage;
         await searchBtn.click();
-        const inputLocator = timelineFrame.locator('.insight-category-search-overlay input');
+        const inputLocator = timelineFrame.locator('.insight-category-search-overlay').getByPlaceholder('Please enter');
         const input = new InputHelpers(page, inputLocator, timelineFrame);
         await input.setValue('ST_XD_XN');
         await input.press('Enter');
