@@ -65,9 +65,9 @@ For details about the profile data files that can be imported in the operator tu
 
 - In the operator tuning scenario, to import a JSON file into MindStudio Insight, the file must contain the "profilingType":"op" field before the first square bracket. Otherwise, the file cannot be imported.
 - You can import JSON files by folder. A folder can contain multiple subfolders, but each subfolder can contain no more than one JSON file. Different JSON files must be placed in different subfolders.
-- The size of a single JSON file to be imported cannot exceed 1 GB.
+- The size of a single JSON file to be imported cannot exceed 1GB.
 - Only one binary (`.bin`) file can be imported at a time. The `.bin` files cannot be imported by folder.
-- The size of a single `.bin` file to be imported cannot exceed 500 MB.
+- The size of a single `.bin` file to be imported cannot exceed 500MB.
 - Only the Atlas 350 accelerator card supports the collection of instruction pipeline diagrams using the msopprof method and visualized display of the collected data on the timeline page.
 
 ## Timeline
@@ -122,7 +122,7 @@ The **Timeline** tab page consists of the toolbar (area 1), graphical display (a
 
 You can zoom in or out the **Timeline** interface, or move it left and right. The operations are as follows:
 
-- Click any position in the tree chart or graphical pane on the **Timeline** interface and press **W** (zoom in) or **S** (zoom out) key to zoom. The maximum zoom-in precision is 1 ns.
+- Click any position in the tree chart or graphical pane on the **Timeline** interface and press **W** (zoom in) or **S** (zoom out) key to zoom. The maximum zoom-in precision is 1ns.
 
 - Click any position in the tree chart or graphical pane on the **Timeline** interface and press **A** (move left), **D** (move right), left arrow (move left), or right arrow (move right) key to move it left or right, or press up arrow (move up) or down arrow (move down) key to move it upward or downward.
 
@@ -334,7 +334,7 @@ The **Source** tab page consists of three parts: filter bar (area 1), source fil
   | Cycles                | Number of cycles (clock cycles) consumed when the codes in the line are executed on each core.                                                                                            | 100      |
   | GPR Count             | Number of times the general-purpose register is used when the codes in the line are executed on each core. This field is displayed only when the data is collected by msopprof simulator. | 10       |
   | L2 Cache Hit Rate     | L2 cache hit rate of the line of code executed on all cores. This field is displayed only when the data is collected by msopprof.                                                         | 100%     |
-  | Process Bytes         | Sum of the data volume processed by the line of code on each core, in bytes.                                                                                                              | 2048     |
+  | Process Bytes         | Sum of the data volume processed by the line of code on each core, in Bytes.                                                                                                              | 2048     |
 
 - Area 3: instructions. You can view instruction records, including the address, content, quantity, and times. [**Table 2** Instruction fields](#instruction-fields) describes the fields in the table.
   
@@ -351,7 +351,7 @@ The **Source** tab page consists of three parts: filter bar (area 1), source fil
   | GPR Status                    | Register dependency information is presented graphically as a set of directed lines, each representing a register. A solid leftward arrow indicates a write, a hollow rightward arrow indicates a read, and a vertical bar denotes that the register is still in use. Hovering over a register displays its details.<br> This parameter is displayed only when the data exported from the Atlas 350 accelerator card is used. | -            |
   | Cycles                        | Number of cycles (clock cycles) consumed when the instructions in the line are executed on each core.                                                                                                                                                                                                                                                                                                                         | 100          |
   | L2 Cache Hit Rate             | L2 cache hit rate of the instruction executed on all cores. This field is displayed only when the data is collected by msopprof.                                                                                                                                                                                                                                                                                              | 72%          |
-  | Process Bytes                 | Data volume processed by the instruction on each core, in bytes.                                                                                                                                                                                                                                                                                                                                                              | 2048         |
+  | Process Bytes                 | Data volume processed by the instruction on each core, in Bytes.                                                                                                                                                                                                                                                                                                                                                              | 2048         |
   | UB Read Conflict              | Read conflicts of vector instructions on the UB Bank. This field is displayed only when the data is collected by msopprof simulator.                                                                                                                                                                                                                                                                                          | 1            |
   | UB Write Conflict             | Write conflicts of vector instructions on the UB Bank. This field is displayed only when the data is collected by msopprof simulator.                                                                                                                                                                                                                                                                                         | 0            |
   | Vector Utilization Percentage | Utilization of the vector computing unit, in percentage. This field is displayed only when the data is collected by msopprof simulator.                                                                                                                                                                                                                                                                                       | 35.29        |
@@ -581,7 +581,7 @@ Area 4: **Compute Workload Analysis**. Developers can view the information in a 
 | AICORE            | Name of an AI Core instruction. This parameter is displayed when the operator type is **AiCore**.                                                                                                                                                                                                                                                         |
 | Instructions      | Number of operator instructions.                                                                                                                                                                                                                                                                                                                          |
 | Duration(μs)      | Duration of operator instructions.                                                                                                                                                                                                                                                                                                                        |
-| Data Volume(byte) | Operator instruction data volume.                                                                                                                                                                                                                                                                                                                         |
+| Data Volume(Byte) | Operator instruction data volume.                                                                                                                                                                                                                                                                                                                         |
 
 **Memory Workload Analysis**
 
@@ -649,7 +649,7 @@ The content displayed in the data pane varies according to the operator type. Th
   | Pipe Vector Core1   | Computing channel of the vector unit of core 1 in AI Core.                                |
   | Instructions        | Number of instructions.                                                                   |
   | Cycle               | Clock cycle consumed by the channel.                                                      |
-  | Time(us)            | Running time of the scalar unit.                                                          |
+  | Time(μs)            | Running time of the scalar unit.                                                          |
   | Wait Cycles         | Number of blocked cycles on the corresponding pipe.                                       |
   | Active Rate(%)      | Percentage of the running cycles to the total cycles.                                     |
   | UB Core0            | UB memory unit of core 0 in AI Core of the **mix** operator.                              |
@@ -675,7 +675,7 @@ The content displayed in the data pane varies according to the operator type. Th
   | Pipe             | Computing channel.                                                                        |
   | Instructions     | Number of instructions.                                                                   |
   | Cycle            | Clock cycle consumed by the channel.                                                      |
-  | Time(us)         | Running time of the scalar unit.                                                          |
+  | Time(μs)         | Running time of the scalar unit.                                                          |
   | Wait Cycles      | Number of blocked cycles on the corresponding pipe.                                       |
   | Active Rate(%)   | Percentage of the running cycles to the total cycles.                                     |
   | UB               | UB memory unit.                                                                           |
@@ -706,7 +706,7 @@ The content displayed in the data pane varies according to the operator type. Th
   | Pipe             | Computing channel.                                                                        |
   | Instructions     | Number of instructions.                                                                   |
   | Cycle            | Clock cycle consumed by the channel.                                                      |
-  | Time(us)         | Running time of the scalar unit.                                                          |
+  | Time(μs)         | Running time of the scalar unit.                                                          |
   | Wait Cycles      | Number of blocked cycles on the corresponding pipe.                                       |
   | Active Rate(%)   | Percentage of the running cycles to the total cycles.                                     |
 
@@ -765,7 +765,7 @@ The **Cache** tab page displays the L2 cache access status of kernel functions i
 
 ### GUI Description
 
-The **Cache** tab page displays the L2 cache access status of kernel function in user programs, as shown in [**Figure 1** Cache tab page](#cache-tab-page). Click any graph on the **Cache** tab page to zoom in on the graph.
+The **Cache** tab page displays the L2 cache access status of kernel functions in user programs, as shown in [**Figure 1** Cache tab page](#cache-tab-page). Click any graph on the **Cache** tab page to zoom in on the graph.
 
 Select a memory unit to display details about the memory unit, including the cache line index, number of events, and event proportion.
 
