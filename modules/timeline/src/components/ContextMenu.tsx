@@ -84,10 +84,18 @@ interface Props {
 
 export type ContextMenuItem = typeof CONTEXT_MENU_SEPARATOR | Action;
 
+const MENU_VIEWPORT_MARGIN = 4;
+const SUB_MENU_MAX_WIDTH = 200;
+const SUB_MENU_MAX_HEIGHT = 300;
+const SUB_MENU_OVERLAP = 4;
+
 const MenuContainer = styled.div`
     font-size: 12px;
     padding: 3px 0;
     min-width: 200px;
+    max-height: calc(100vh - 8px);
+    overflow-x: hidden;
+    overflow-y: auto;
     border-radius: ${(props): string => props.theme.borderRadiusBase};
     background-color:  ${(props): string => props.theme.contextMenuBgColor};
     position: fixed;
@@ -155,13 +163,14 @@ const SubMenuContainer = styled.div`
     min-width: 200px;
     border-radius: ${(props): string => props.theme.borderRadiusBase};
     background-color:  ${(props): string => props.theme.contextMenuBgColor};
-    position: absolute;
+    position: fixed;
     z-index: 99999;
     transition: all .1s ease;
     box-shadow: ${(props): string => props.theme.boxShadowLight};
     user-select: none;
     max-height: 300px;
     overflow-y: auto;
+    overflow-x: hidden;
     .menu-item__label {
         grid-column: 1 / -1;
         margin-right: 0 !important;
@@ -207,22 +216,48 @@ export const EmptyUnit = unit<EmptyMetaData>({
         </div>,
 });
 
+function getViewportSize(): { width: number; height: number } {
+    return {
+        width: Math.max(document.documentElement.clientWidth, document.body.clientWidth),
+        height: Math.max(document.documentElement.clientHeight, document.body.clientHeight),
+    };
+}
+
 function adjustMenuPosition({ menu, setPosition, xPos, yPos }: {
     menu: HTMLDivElement;
     setPosition: (_: Position) => void;
     xPos: React.MutableRefObject<number>;
     yPos: React.MutableRefObject<number>;
 }): void {
-    const winWidth = document.documentElement.clientWidth || document.body.clientWidth;
-    const winHeight = document.documentElement.clientHeight || document.body.clientHeight;
-    if (xPos.current >= winWidth - menu.offsetWidth) {
+    const { width, height } = getViewportSize();
+    if (xPos.current >= width - menu.offsetWidth) {
         xPos.current -= menu.offsetWidth;
     }
-    if (yPos.current > winHeight - menu.offsetHeight) {
-        yPos.current -= menu.offsetHeight;
+    if (yPos.current > height - menu.offsetHeight) {
+        yPos.current = Math.max(MENU_VIEWPORT_MARGIN, height - menu.offsetHeight - MENU_VIEWPORT_MARGIN);
     }
     setPosition({ left: `${xPos.current + 1}px`, top: `${yPos.current}px` });
     menu.focus();
+}
+
+function getSubMenuStyle(element: HTMLElement): { top?: string; bottom?: string; left?: string; right?: string } {
+    const { width, height } = getViewportSize();
+    const { top, bottom, left, right } = element.getBoundingClientRect();
+    const style: { top?: string; bottom?: string; left?: string; right?: string } = {};
+
+    if (height - top <= SUB_MENU_MAX_HEIGHT) {
+        style.bottom = `${Math.max(MENU_VIEWPORT_MARGIN, height - bottom)}px`;
+    } else {
+        style.top = `${top}px`;
+    }
+
+    if (width - right <= SUB_MENU_MAX_WIDTH) {
+        style.right = `${Math.max(MENU_VIEWPORT_MARGIN, width - left - SUB_MENU_OVERLAP)}px`;
+    } else {
+        style.left = `${right - SUB_MENU_OVERLAP}px`;
+    }
+
+    return style;
 }
 
 export const CONTEXT_MENU_SEPARATOR = 'separator';
@@ -294,31 +329,18 @@ const SubMenu = (props: { session: Session; subMenus: ContextMenuItem[]; style: 
 
 function mouseEnterEvent(event: React.MouseEvent<HTMLDivElement, MouseEvent>, session: Session, menu: Action, disabled: boolean): void {
     runInAction(() => {
-        const SUB_MENU_MAX_WIDTH = 200;
-        const SUB_MENU_MAX_HEIGHT = 300;
-        const element = event.target as HTMLElement;
-        const style: { top?: string; bottom?: string; left?: string; right?: string } = {};
-        const clientWidth = window.innerWidth || document.documentElement.clientWidth;
-        const clientHeight = window.innerHeight || document.documentElement.clientHeight;
-        if (element.closest('.has-sub-menu')) {
-            const { bottom, right } = element.getBoundingClientRect();
-            if (clientHeight - bottom <= SUB_MENU_MAX_HEIGHT) {
-                style.bottom = '0';
-            } else {
-                style.top = '0';
-            }
-            if (clientWidth - right <= SUB_MENU_MAX_WIDTH) {
-                style.right = '100%';
-            } else {
-                style.left = '100%';
-            }
-        }
-        menu.style = style;
+        menu.style = event.currentTarget.classList.contains('has-sub-menu') ? getSubMenuStyle(event.currentTarget) : {};
         session.contextMenu.activeMenuKey = disabled && !menu.parentMenuKey ? '' : menu.parentMenuKey ?? menu.name;
     });
 }
 
-function mouseLeaveEvent(session: Session, menu: Action): void {
+function mouseLeaveEvent(event: React.MouseEvent<HTMLDivElement, MouseEvent>, session: Session, menu: Action): void {
+    if (menu.subMode) {
+        return;
+    }
+    if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('.sub-menu-container')) {
+        return;
+    }
     runInAction(() => {
         session.contextMenu.activeMenuKey = menu.parentMenuKey ? session.contextMenu.activeMenuKey : '';
     });
@@ -351,12 +373,10 @@ const getMenuItems = (props: Props, t: TFunction, menuItems: ContextMenuItem[]):
                     onClick={(e): void => {
                         if (disabled || item.subMode) { return; }
                         item.perform(session);
-                        runInAction(() => {
-                            session.contextMenu.isVisible = false;
-                        });
+                        closeMenu(session);
                     }}
                     onMouseEnter={(event): void => { mouseEnterEvent(event, session, item, disabled); }}
-                    onMouseLeave={(): void => { mouseLeaveEvent(session, item); }}
+                    onMouseLeave={(event): void => { mouseLeaveEvent(event, session, item); }}
                 >
                     <div className="menu-item__label">{label}</div>
                     <div className="menu-item__shortcut-area">
@@ -403,13 +423,22 @@ const Menu = (props: Props): JSX.Element => {
         }
     };
 
-    const handleCloseMenu = (): void => {
+    const handleCloseMenu = (event: WheelEvent): void => {
+        if (event.target instanceof Node && menuRef.current?.contains(event.target)) {
+            return;
+        }
         closeMenu(session);
+    };
+
+    const handleMenuScroll = (): void => {
+        runInAction(() => {
+            session.contextMenu.activeMenuKey = '';
+        });
     };
 
     return (
         session.contextMenu.isVisible
-            ? <MenuContainer ref={menuRef} style={{ ...position }} tabIndex={-1} onBlur={(): void => {
+            ? <MenuContainer ref={menuRef} style={{ ...position }} tabIndex={-1} onScroll={handleMenuScroll} onBlur={(): void => {
                 closeMenu(session);
             }} >
                 {getMenuItems(props, t, contextMenuItems)}
