@@ -24,7 +24,7 @@ Timeline 中泳道绘制涉及以下几个区域，分别是：
 
 **绘制频率：** 使用自定义的渲染引擎 renderEngine 持续重绘
 
-**绘制内容：** 根据 session.domain 中的 _domainStart 和_domainEnd 计算
+**绘制内容：** 根据 session.domain 中的 domainStart 和 domainEnd 计算
 
 ## 4、标记（插旗）区域
 
@@ -147,7 +147,7 @@ width（区域宽度）、domainStart、domainEnd、 session.timelineMarker.refr
 
 ### 6.3 缩放
 
-缩放通过改变时间域范围驱动图形重新绘制。时间轴区域根据 `session.domain` 中的 `_domainStart` 和 `_domainEnd` 计算刻度，泳道内容也需要使用同一时间域完成坐标换算。
+缩放通过改变时间域范围驱动图形重新绘制。时间轴区域根据 `session.domain` 中的 `domainStart` 和 `domainEnd` 计算刻度，泳道内容也需要使用同一时间域完成坐标换算。
 
 开发时需要关注：
 
