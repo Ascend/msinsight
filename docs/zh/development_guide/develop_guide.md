@@ -521,7 +521,7 @@ MODULES_MAP = {
 
 **1. 后端模块目录结构**
 
-``` shell
+```text
 server
 ├── src
 │   └── modules

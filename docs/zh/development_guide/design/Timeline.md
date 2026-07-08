@@ -1109,7 +1109,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 {
   "timestamp": 20534090,
   "value": {
-    "rx_bandwidth_effciency": 11572.6466,
+    "rx_bandwidth_efficiency": 11572.6466,
     "rx_packets": 11572,
     "rx_error_rate": 11572.6466,
     "rx_dropped_rate": 11572.6466
@@ -1119,7 +1119,7 @@ void DbTraceDataBase::GetCounterUnitsAndDataTypes(PROCESS_TYPE type, std::vector
 {
   "timestamp": 20534090,
   "value": {
-    "tx_bandwidth_effciency": 11572.6466,
+    "tx_bandwidth_efficiency": 11572.6466,
     "tx_packets": 11572,
     "tx_error_rate": 11572.6466,
     "tx_dropped_rate": 11572.6466

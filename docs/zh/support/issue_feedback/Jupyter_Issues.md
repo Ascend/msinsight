@@ -1,4 +1,4 @@
-# jupterlab相关问题修复
+# jupyterlab相关问题修复
 
 ## 使用 mindstudio_insight_jupyterlab 版本无法打开网页
 

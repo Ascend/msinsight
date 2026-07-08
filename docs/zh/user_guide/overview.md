@@ -23,7 +23,7 @@ MindStudio Insight提供了丰富的调优分析手段，能够可视化呈现�
 | --- | --- | --- | --- |
 | 模型整体运行慢、卡间不均衡、通信耗时异常 | [系统调优](./system_tuning.md) | msProf | Summary、Communication、Timeline、Host Bound 分析 |
 | 单个算子耗时高、流水并行度不足、源码热点明显 | [算子调优](./operator_tuning.md) | msOpProf | Timeline、Source、Details、Cache |
-| 推理服务请求时延高、首 Token 慢、KVCache 使用异常 | [服务化调优](./service_optimization.md) | 服务化 Profiling | Timeline、Curve、request_data、batch_info、forward_info |
+| 推理服务请求时延高、首 Token 慢、KV Cache 使用异常 | [服务化调优](./service_optimization.md) | 服务化 Profiling | Timeline、Curve、request_data、batch_info、forward_info |
 | 显存持续增长、OOM、内存未释放或内存池异常 | [内存调优](./memory_tuning.md) | msMemScope | MemScope 内存详情、PyTorch Snapshot、调用栈火焰图 |
 
 ## 相关资源

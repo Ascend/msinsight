@@ -60,7 +60,7 @@ $ pip install mindstudio_insight_jupyterlab-{version}-py3-none-{platform}.whl # 
 > ```
 >
 > ![jupyter-plugin-install.png](figures/Jupyter_Plugin_Installation_Guide/server-extension-list.png)
-> 如果安装后未启动，可使用下面命令拉起
+> 如果安装后未启动，可使用下面命令启动：
 >
 > ```bash
 > $ jupyter server extension enable mindstudio_insight_jupyterlab --sys-prefix

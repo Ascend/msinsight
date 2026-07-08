@@ -51,7 +51,7 @@ localhost.localdomain_139247_20230628101435_ascend_pt
 
 ### 2.2 mstt 集群分析工具
 
-Summary 和 Communication 页面依赖 mstt 集群分析工具的处理结果。工具说明参考：[mstt 集群分析工具](https://gitcode.com/Ascend/mstt/blob/master/profiler/msprof_analyze/README.md)。
+Summary 和 Communication 页面依赖 mstt 集群分析工具的处理结果。工具说明参考：[mstt 集群分析工具](https://gitcode.com/Ascend/msprof-analyze/blob/master/README.md)。
 
 | 平台 | 启动方式 |
 | --- | --- |

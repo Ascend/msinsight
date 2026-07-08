@@ -52,7 +52,7 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 - 支持导入算子打点数据文件，获取文件方式请参见《性能调优工具指南》中的“Ascend PyTorch Profiler”章节“msprof\_tx”相关内容，导入成功后会在时间线（Timeline）界面展示打点数据。
 - 当导入集群数据时，如果性能数据文件中包含cluster\_analysis\_output目录文件，导入成功后，概览（Summary）和通信（Communication）界面会根据cluster\_analysis\_output目录文件内容呈现相关信息；如果性能数据文件中不包含cluster\_analysis\_output目录文件，在MindStudio Insight工具中导入数据时，会生成对应的cluster\_analysis\_output目录文件。
 - 在集群场景下，使用Ascend PyTorch Profiler接口或者MindSpore Profiler接口采集到的性能数据，需要使用MindStudio Insight工具显示，则建议配置repeat=1，不推荐配置为0。如果repeat\>1，则需要将采集的性能数据文件夹分为repeat等份，按照文件夹名称中的时间戳先后将文件分别放到不同文件夹下重新导入，才可正常展示。
-- 在Linux环境下使用MindStudio Insight工具分析集群场景数据时，如果已经安装了msprof-analyze工具，请检查版本并将其升级至最新版本，最新版本的msprof-analyze工具安装可参考[msprof-analyze](https://gitcode.com/ascend/mstt/blob/master/profiler/msprof_analyze/README.md#%E5%AE%89%E8%A3%85)。
+- 在Linux环境下使用MindStudio Insight工具分析集群场景数据时，如果已经安装了msprof-analyze工具，请检查版本并将其升级至最新版本，最新版本的msprof-analyze工具安装可参考[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md#5-%E5%8D%87%E7%BA%A7)。
 - 支持导入含有ACLGraph构图过程数据的单个json文件。
 - 当导入数据的目录中同时存在单卡数据和集群数据，MindStudio Insight仅支持解析集群数据并进行可视化展示。
 - 支持profiling采集数据（.text格式和.db格式）和ftrace采集数据（.json格式和.db格式）联合导入，先添加其中一个采集方式的数据工程，再从该工程中添加另一个采集方式的数据文件。
@@ -62,7 +62,7 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 采集性能数据时，不同的采集等级和参数配置会直接影响生成的数据文件和MindStudio Insight工具中可展示的页面及字段。请根据实际分析需求，选择合适的采集配置。
 
 - 采集等级与生成数据、展示页面的对应关系请参见["表 8"  采集等级与数据对应关系](#采集等级与数据对应关系)。
-- Ascend PyTorch Profiler接口的完整参数配置请参见[_ExperimentalConfig参数说明](#experimentalconfig参数说明)和[torch_npu.profiler.profile主接口参数说明](#torch_npu.profilerprofile主接口参数说明)。
+- Ascend PyTorch Profiler接口的完整参数配置请参见[_ExperimentalConfig参数说明](#experimentalconfig参数说明)和[torch_npu.profiler.profile主接口参数说明](#torch_npu.profiler.profile主接口参数说明)。
 - 采集参数与页面展示字段的关联关系请参见[采集参数与页面展示字段对应关系](#采集参数与页面展示字段对应关系)。
 
 **"表 8"  采集等级与数据对应关系**<a id="采集等级与数据对应关系"></a>
@@ -102,11 +102,11 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 |sys_io|bool|False|是否采集系统IO信息。|设置为True时，时间线（Timeline）界面展示系统IO相关数据。|
 |sys_interconnection|bool|False|是否采集系统互连信息。|设置为True时，时间线（Timeline）界面展示系统互连相关数据。|
 
-**torch_npu.profiler.profile主接口参数说明**<a id="torch_npu.profilerprofile主接口参数说明"></a>
+**torch_npu.profiler.profile主接口参数说明**<a id="torch_npu.profiler.profile主接口参数说明"></a>
 
-torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profiler.profile参数说明](#torch_npu.profilerprofile主接口参数说明)所示。
+torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profiler.profile参数说明](#torch_npu.profiler.profile主接口参数说明)所示。
 
-**"表 10"  torch_npu.profiler.profile参数说明**<a id="torch_npu.profilerprofile主接口参数说明"></a>
+**"表 10"  torch_npu.profiler.profile参数说明**<a id="torch_npu.profiler.profile主接口参数说明"></a>
 
 |参数|说明|对展示界面的影响|
 |--|--|--|
@@ -219,7 +219,7 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
   - npumonitor工具特性说明：https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/user_guide/npumonitor_instruct.md
   - msMonitor产品文档：https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/82RC1alpha003/devaids/Profiling/atlasprofiling_16_1153.html
-  - msMonitor工具下载：https://gitee.com/ascend/mstt/tree/master/msmonitor
+  - msMonitor工具下载：https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/install_guide/msmonitor_install_guide.md
 
   性能数据文件详情请参见**“表 5”  性能数据文件详情表**(#性能数据文件详情表)。
 
@@ -250,7 +250,7 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
    msprof-analyze工具包含在MSTT（MindStudio Tuning Toolset）工具集中，安装方式请参见msprof-analyze工具文档。
 
-2. 使用性能调优工具采集各Rank的性能数据，采集方式请参见《Ascend PyTorch Profiler接口采集指南》。
+2. 使用性能调优工具采集各Rank的性能数据，采集方式请参见《Ascend PyTorch Profiler工具采集指南》。
 
 3. 使用msprof-analyze工具对多Rank数据进行预处理，生成集群分析数据。
 
@@ -292,17 +292,17 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 |字段|说明|含义解读|
 |--|--|--|
-|aicore_time(us)|AI Core执行时间|算子在AI Core上的实际执行时间，不包含等待时间。|
+|aicore_time(μs)|AI Core执行时间|算子在AI Core上的实际执行时间，不包含等待时间。|
 |aic_total_cycles|AI Core总周期数|执行总时钟周期数，可用于估算指令执行效率。|
-|aic_mac_time(us)|MAC单元耗时|矩阵乘单元耗时，MAC单元负责矩阵乘加运算。|
+|aic_mac_time(μs)|MAC单元耗时|矩阵乘单元耗时，MAC单元负责矩阵乘加运算。|
 |aic_mac_ratio|MAC单元占比|MAC耗时/总耗时，高值表示计算密集型算子，计算资源利用率高。|
-|aic_scalar_time(us)|Scalar单元耗时|标量处理单元耗时，Scalar负责控制流和标量运算。|
+|aic_scalar_time(μs)|Scalar单元耗时|标量处理单元耗时，Scalar负责控制流和标量运算。|
 |aic_scalar_ratio|Scalar单元占比|Scalar耗时/总耗时，高值可能表示控制逻辑较复杂。|
-|aic_mte1_time(us)|MTE1耗时|内存传输引擎1耗时，负责从L1缓存读取数据。|
+|aic_mte1_time(μs)|MTE1耗时|内存传输引擎1耗时，负责从L1缓存读取数据。|
 |aic_mte1_ratio|MTE1占比|MTE1耗时/总耗时，高值表示L1缓存读取频繁。|
-|aic_mte2_time(us)|MTE2耗时|内存传输引擎2耗时，负责从DDR/L2读取数据到L1。|
+|aic_mte2_time(μs)|MTE2耗时|内存传输引擎2耗时，负责从DDR/L2读取数据到L1。|
 |aic_mte2_ratio|MTE2占比|MTE2耗时/总耗时，高值表示内存带宽瓶颈，算子为内存bound。|
-|aic_fixpipe_time(us)|FixPipe单元耗时|数据后处理单元耗时，负责格式转换和精度处理。|
+|aic_fixpipe_time(μs)|FixPipe单元耗时|数据后处理单元耗时，负责格式转换和精度处理。|
 |aic_fixpipe_ratio|FixPipe单元占比|FixPipe耗时/总耗时。|
 |aic_icache_miss_rate|AI Core iCache未命中率|指令缓存未命中率，高值表示指令缓存命中率低，可能需要优化指令布局。|
 
@@ -310,15 +310,15 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 |字段|说明|含义解读|
 |--|--|--|
-|aiv_time(us)|AI Vector执行时间|算子在AI Vector Core上的实际执行时间。|
+|aiv_time(μs)|AI Vector执行时间|算子在AI Vector Core上的实际执行时间。|
 |aiv_total_cycles|AI Vector总周期数|执行总时钟周期数。|
-|aiv_vec_time(us)|Vector单元耗时|向量计算单元耗时。|
+|aiv_vec_time(μs)|Vector单元耗时|向量计算单元耗时。|
 |aiv_vec_ratio|Vector单元占比|Vector耗时/总耗时，高值表示向量计算密集。|
-|aiv_scalar_time(us)|Vector Scalar单元耗时|向量标量处理单元耗时。|
+|aiv_scalar_time(μs)|Vector Scalar单元耗时|向量标量处理单元耗时。|
 |aiv_scalar_ratio|Vector Scalar占比|Vector Scalar耗时/总耗时。|
-|aiv_mte2_time(us)|Vector MTE2耗时|向量内存传输引擎2耗时，负责从DDR/L2读取数据。|
+|aiv_mte2_time(μs)|Vector MTE2耗时|向量内存传输引擎2耗时，负责从DDR/L2读取数据。|
 |aiv_mte2_ratio|Vector MTE2占比|Vector MTE2耗时/总耗时，高值表示内存带宽瓶颈。|
-|aiv_mte3_time(us)|Vector MTE3耗时|向量内存传输引擎3耗时，负责将数据写回DDR/L2。|
+|aiv_mte3_time(μs)|Vector MTE3耗时|向量内存传输引擎3耗时，负责将数据写回DDR/L2。|
 |aiv_mte3_ratio|Vector MTE3占比|Vector MTE3耗时/总耗时。|
 |aiv_icache_miss_rate|AI Vector iCache未命中率|向量指令缓存未命中率。|
 |cube_utilization(%)|Cube利用率|矩阵乘单元利用率百分比，反映Cube单元的使用效率。|
@@ -347,9 +347,9 @@ kernel_details.csv文件记录NPU上执行的所有算子信息，字段定义�
 |Type|算子类型（如Conv2D、MatMulV2、TransData等）|
 |OP State|算子状态（如dynamic）|
 |Accelerator Core|加速器核心（AI_CORE、AI_VECTOR_CORE、DSA_SQE、MIX_AIV）|
-|Start Time(us)|开始时间（微秒）|
-|Duration(us)|持续时间（微秒）|
-|Wait Time(us)|等待时间（微秒）|
+|Start Time(μs)|开始时间（微秒）|
+|Duration(μs)|持续时间（微秒）|
+|Wait Time(μs)|等待时间（微秒）|
 |Block Dim|块维度|
 |Mix Block Dim|混合块维度|
 |HF32 Eligible|是否支持HF32（YES/NO）|
@@ -360,8 +360,8 @@ kernel_details.csv文件记录NPU上执行的所有算子信息，字段定义�
 |Output Data Types|输出数据类型|
 |Output Formats|输出数据格式|
 |Context ID|上下文ID|
-|aicore_time(us) ~ aic_icache_miss_rate|AI Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见["表 12"  AI Core性能指标字段说明](#ai-core性能指标字段说明)|
-|aiv_time(us) ~ cube_utilization(%)|AI Vector Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见["表 13"  AI Vector Core性能指标字段说明](#ai-vector-core性能指标字段说明)|
+|aicore_time(μs) ~ aic_icache_miss_rate|AI Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见["表 12"  AI Core性能指标字段说明](#ai-core性能指标字段说明)|
+|aiv_time(μs) ~ cube_utilization(%)|AI Vector Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见["表 13"  AI Vector Core性能指标字段说明](#ai-vector-core性能指标字段说明)|
 
 **"表 15"  step_trace_time.csv字段定义**<a id="step_trace_timecsv字段定义"></a>
 
@@ -388,11 +388,11 @@ operator_memory.csv文件记录算子内存申请情况，字段定义如下：
 |--|--|
 |Name|算子名称|
 |Size(KB)|内存大小（KB）|
-|Allocation Time(us)|分配时间|
-|Release Time(us)|释放时间|
-|Active Release Time(us)|活跃释放时间|
-|Duration(us)|持续时间|
-|Active Duration(us)|活跃持续时间|
+|Allocation Time(μs)|分配时间|
+|Release Time(μs)|释放时间|
+|Active Release Time(μs)|活跃释放时间|
+|Duration(μs)|持续时间|
+|Active Duration(μs)|活跃持续时间|
 |Allocation Total Allocated(MB)|分配时总已分配内存|
 |Allocation Total Reserved(MB)|分配时总预留内存|
 |Allocation Total Active(MB)|分配时总活跃内存|
@@ -409,7 +409,7 @@ memory_record.csv文件记录进程级内存申请情况，字段定义如下：
 |字段|说明|
 |--|--|
 |Component|组件类型（APP/PTA/GE/PTA+GE）|
-|Timestamp(us)|时间戳|
+|Timestamp(μs)|时间戳|
 |Total Allocated(MB)|总已分配内存|
 |Total Reserved(MB)|总预留内存|
 |Total Active(MB)|总活跃内存|
@@ -449,7 +449,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 |场景|卡数量|导入数据|界面展示|
 |--|--|--|--|
 |小集群|不超过32卡。|可导入采集到的全部原始数据。|时间线（Timeline）<br>内存（Memory）<br>算子（Operator）<br>概览（Summary）<br>通信（Communication）|
-|大集群|超过32卡，千卡，万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[msprof-analyze](https://gitcode.com/Ascend/mstt/blob/master/profiler/msprof_analyze/README.md#msprof-analyze)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 7**  cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
+|大集群|超过32卡，千卡，万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 7**  cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
 
 **表 7**  cluster\_analysis\_output目录文件<a id="目录文件"></a>
 
@@ -462,7 +462,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 
 - 集群精简数据，是基于ascend\_pytorch\_profiler\_\{_rank\_id_\}.db文件，提取通信类大算子数据，计算类关键函数和框架关键函数，将数据精简，节约内存，快速进行全局分析，导入集群精简数据后，MindStudio Insight工具只显示时间线（Timeline）界面。
 
-    集群数据精简可使用mstt工具集中的msprof-analyze工具，通过设置`-m filter_db`生成集群精简数据，msprof-analyze工具安装可参考[安装msprof-analyze](https://gitcode.com/ascend/mstt/blob/master/profiler/msprof_analyze/README.md#%E5%AE%89%E8%A3%85)，设置`-m filter_db`可参考[《recipe结果和cluster\_analysis.db交付件表结构说明》](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db)中的“filter\_db”内容，集群数据精简功能只支持统一db场景。
+    集群数据精简可使用mstt工具集中的msprof-analyze工具，通过设置`-m filter_db`生成集群精简数据，msprof-analyze工具安装可参考[安装msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)，设置`-m filter_db`可参考[《recipe结果和cluster\_analysis.db交付件表结构说明》](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db)中的“filter\_db”内容，集群数据精简功能只支持统一db场景。
 
 ## 时间线（Timeline）<a id="timeline"></a>
 
@@ -865,7 +865,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">PCIe_nonpost_latency</td>
-    <td class="tg-0pky">PCIe Non-Posted模式下的传输时延，单位us。Tx表示发送端，Rx表示接收端。PCIe_nonpost_latency无Rx，取固定值0。</td>
+    <td class="tg-0pky">PCIe Non-Posted模式下的传输时延，单位μs。Tx表示发送端，Rx表示接收端。PCIe_nonpost_latency无Rx，取固定值0。</td>
   </tr>
   <tr>
     <td class="tg-0pky">PCIe_post</td>
@@ -1566,12 +1566,12 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |中文字段|英文字段|说明|
   |--|--|--|
   |类别|Category|类别。<br> 可展示多层级信息：<br> 一层级：包含Computing Time（计算时间）、Communication(Not Overlapped) Time（通信时间（未被覆盖））、Free Time（空闲时间）和E2E Time（端到端时间）。<br> 子层级：Computing Time（计算时间）的子层级包括Flash Attention、Conv、Matmul、Cube、Vector等计算流算子的拆解结果。其中，Forward、Backward用于区分前向、反向传播。<br> Communication(Not Overlapped) Time（通信时间（未被覆盖））的子层级为各通信域的分组拆解结果。其中等待时间、传输时间为与通信未被覆盖取交集后的结果。|
-  |总时间(us)|Total Time(us)|该类耗时总和。|
+  |总时间(μs)|Total Time(μs)|该类耗时总和。|
   |时间占比|Time Ratio|该类的耗时占比。|
   |数量|Number|该类算子数目。|
-  |平均值(us)|Avg(us)|该类耗时的平均值。|
-  |最小值(us)|Min(us)|该类耗时的最小值。|
-  |最大值(us)|Max(us)|该类耗时的最大值。|
+  |平均值(μs)|Avg(μs)|该类耗时的平均值。|
+  |最小值(μs)|Min(μs)|该类耗时的最小值。|
+  |最大值(μs)|Max(μs)|该类耗时的最大值。|
   |详情|Details|当选择Computing Time（计算时间）列表中的子层级时，该区域展示所选层级的所有算子详情，可单击任意一个算子，跳转至时间线视图中算子所在的具体位置。|
 
 - 内存拷贝总览
@@ -1589,12 +1589,12 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |中文字段|英文字段|说明|
   |--|--|--|
   |类别|Category|类别。显示内存拷贝数据统计的类型。|
-  |总时间(us)|Total Time(us)|该类耗时总和。|
+  |总时间(μs)|Total Time(μs)|该类耗时总和。|
   |总大小(B)|Total Size(B)|该类内存拷贝数据总量。|
   |数量|Number|该类内存拷贝算子数目。|
-  |平均时间(us)|Avg Time(us)|该类内存拷贝耗时的平均值。|
-  |最小时间(us)|Min Time(us)|该类内存拷贝耗时的最小值。|
-  |最大时间(us)|Max Time(us)|该类内存拷贝耗时的最大值。|
+  |平均时间(μs)|Avg Time(μs)|该类内存拷贝耗时的平均值。|
+  |最小时间(μs)|Min Time(μs)|该类内存拷贝耗时的最小值。|
+  |最大时间(μs)|Max Time(μs)|该类内存拷贝耗时的最大值。|
   |平均大小(B)|Avg Size(B)|该类内存拷贝数据的平均数据量。|
   |最小大小(B)|Min Size(B)|该类内存拷贝数据的最小数据量。|
   |最大大小(B)|Max Size(B)|该类内存拷贝数据的最大数据量。|
@@ -1613,11 +1613,11 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |--|--|--|
   |名称|Name|名称。|
   |时间(%)|Time(%)|总时间占比 = 该类的耗时总时间 / 所有耗时总时间。<br> 当统计类型为覆盖分析（Overlap Analysis）时，时间占比 = 该类的耗时总时间 /（Communication(Not Overlapped)总时间 + Computing总时间 + Free总时间）。|
-  |总时间(us)|Total Time(us)|该类耗时总和。|
+  |总时间(μs)|Total Time(μs)|该类耗时总和。|
   |调用数|Num Calls|被调用次数。|
-  |平均值(us)|Avg(us)|该类耗时的平均值。|
-  |最小值(us)|Min(us)|该类耗时的最小值。|
-  |最大值(us)|Max(us)|该类耗时的最大值。|
+  |平均值(μs)|Avg(μs)|该类耗时的平均值。|
+  |最小值(μs)|Min(μs)|该类耗时的最小值。|
+  |最大值(μs)|Max(μs)|该类耗时的最大值。|
 
 - 算子跟踪
 
@@ -1632,7 +1632,7 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |--|--|--|
   |名称|Name|名称。|
   |开始时间|Start Time|任务开始时间点。|
-  |时长(us)|Duration(us)|任务耗时。|
+  |时长(μs)|Duration(μs)|任务耗时。|
 
 - 算子类型汇总（按类型）
 
@@ -1669,8 +1669,8 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |类型|Type|算子类型。|
   |加速器核|Accelerator Core|计算核类型。|
   |开始时间|Start Time|任务开始时间点。|
-  |时长(us)|Duration(us)|任务耗时。|
-  |等待时间(us)|Wait Time(us)|上一个任务的结束时间与当前任务的开始时间间隔，单位us。|
+  |时长(μs)|Duration(μs)|任务耗时。|
+  |等待时间(μs)|Wait Time(μs)|上一个任务的结束时间与当前任务的开始时间间隔，单位μs。|
   |任务ID|Task ID|任务的ID。|
   |Block数量|Block Num|任务运行切分数量，对应任务运行时核数。MindStudio Insight 8.3.0及之前版本中，“Block数量”对应的英文为“Block Dim”。|
   |输入Shapes|Input Shapes|算子的输入维度。|
@@ -1750,7 +1750,7 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
 |原始算子|Origin Operators|可融合的算子。仅当专家建议系统为算子融合（Operators Fusion）时存在。|
 |融合算子|Fused Operator|CANN层已融合的算子。仅当专家建议系统为算子融合（Operators Fusion）时存在。|
 |开始时间|Start Time|任务开始时间点。|
-|时长(us)|Duration(us)|任务耗时。|
+|时长(μs)|Duration(μs)|任务耗时。|
 |进程Id|Process Id|进程ID。|
 |线程Id|Thread Id|线程ID。|
 |备注|Notes|提示信息。当专家建议系统为亲和优化器（Affinity Optimizer）时无此参数。|

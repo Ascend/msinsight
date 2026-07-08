@@ -50,7 +50,7 @@ pip install msmemscope
 
 | 采集方式 | 适用场景 | 采集命令示例 | 生成文件 |
 | --- | --- | --- | --- |
-| 命令行采集 | 通用命令行方式，适用于多种框架 | `msmemscope --application=./train.py --output=./output` | memscope_dump_{timestamp}.db |
+| 命令行采集 | 通用命令行方式，适用于多种框架 | `msmemscope --output=./output python train.py` | memscope_dump_{timestamp}.db |
 | Python接口采集 | 需要自定义采集范围和参数项 | 参见[msMemScope Python接口采集](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#python接口采集功能介绍) | memscope_dump_{timestamp}.db |
 | mstx打点采集 | 结合mstx打点能力 | 参见[msMemScope mstx打点采集](https://gitcode.com/Ascend/msmemscope/blob/master/docs/zh/user%5Fguide/memory%5Fprofile.md#mstx打点采集功能介绍) | memscope_dump_{timestamp}.db |
 
@@ -490,10 +490,10 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
   - Block类型选中详情，如[**图 5**  Block类型选中详情](#Block类型选中详情)所示，字段解释如[**表 3**  Block类型选中详情字段说明](#Block类型选中详情字段说明)所示，基础事件信息在左侧区域呈现，具体事件信息可切换事件类型查看。
 
-    **图 6**  Block类型选中详情<a id="Block类型选中详情"></a>
+    **图 5**  Block类型选中详情<a id="Block类型选中详情"></a>
     ![](./figures/memory_tuning/memory_pytorch_snapshot_select_detail_block_1.png "Block类型选中详情")
 
-    **表 4**  Block类型选中详情字段说明<a id="Block类型选中详情字段说明"></a>
+    **表 3**  Block类型选中详情字段说明<a id="Block类型选中详情字段说明"></a>
 
     |中文字段|英文字段|可选/必选|说明|
     |-|-|-|-|
@@ -502,12 +502,12 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
     |大小|Size(MBytes)|必选|块大小，单位为MBytes。|
     |地址|Address|必选|块内存地址，16进制。|
 
-  - segment类型选中详情，如[**图 5**  segment类型选中详情](#segment类型选中详情)所示，字段解释如[**表 3**  segment类型选中详情字段说明](#segment类型选中详情字段说明)所示，基础事件信息在左侧区域呈现，具体事件信息可切换事件类型查看。
+  - segment类型选中详情，如[**图 6**  segment类型选中详情](#segment类型选中详情)所示，字段解释如[**表 4**  segment类型选中详情字段说明](#segment类型选中详情字段说明)所示，基础事件信息在左侧区域呈现，具体事件信息可切换事件类型查看。
 
-    **图 7**  segment类型选中详情<a id="segment类型选中详情"></a>
+    **图 6**  segment类型选中详情<a id="segment类型选中详情"></a>
     ![](./figures/memory_tuning/memory_pytorch_snapshot_select_detail_segment_1.png "segment类型选中详情")
 
-    **表 5**  segment类型选中详情字段说明<a id="segment类型选中详情字段说明"></a>
+    **表 4**  segment类型选中详情字段说明<a id="segment类型选中详情字段说明"></a>
 
     |中文字段|英文字段|可选/必选|说明|
     |-|-|-|-|
