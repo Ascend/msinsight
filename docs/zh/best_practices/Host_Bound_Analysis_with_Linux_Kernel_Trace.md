@@ -116,7 +116,7 @@ def ftrace_record_stop(output)
 record脚本中两个接口可以在任意代码中添加，也可以作为整体脚本使用。
 
 Example：
-在代码中中profiling开关开启/关闭处添加采集开始/结束接口调用
+在代码中profiling开关开启/关闭处添加采集开始/结束接口调用
 
 ```python
 import ftrace_record

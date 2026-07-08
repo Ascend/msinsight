@@ -680,12 +680,12 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
     |命中率(%)|Hit Rate(%)|cache命中率。|
     |Cube|Cube|cube计算单元。|
     |HBM Cube|HBM Cube|cube单元的高带宽存储器单元。|
-    |HBM Vector Core0|HBM Vector Core0|aicore内core0的vector单元的高带宽存储器单元。|
-    |HBM Vector Core1|HBM Vector Core1|aicore内core1的vector单元的高带宽存储器单元。|
+    |HBM Vector Core0|HBM Vector Core0|Aicore内core0的vector单元的高带宽存储器单元。|
+    |HBM Vector Core1|HBM Vector Core1|Aicore内core1的vector单元的高带宽存储器单元。|
     |Scalar|Scalar|Scalar计算单元。|
     |Scalar Cube|Scalar Cube|cube单元的Scalar计算单元。|
-    |Scalar Vector Core0|Scalar Vector Core0|aicore内core0的vector单元的Scalar计算单元。|
-    |Scalar Vector Core1|Scalar Vector Core1|aicore内core1的vector单元的Scalar计算单元。|
+    |Scalar Vector Core0|Scalar Vector Core0|Aicore内core0的vector单元的Scalar计算单元。|
+    |Scalar Vector Core1|Scalar Vector Core1|Aicore内core1的vector单元的Scalar计算单元。|
     |L0A|L0A|L0A储存单元。|
     |L0B|L0B|L0B储存单元。|
     |L0C|L0C|L0C储存单元。|
@@ -694,15 +694,15 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
     |吞吐量(GB/s)|Throughput(GB/s)|吞吐量，表示通路每秒的传输数据量，单位为GB/s。|
     |峰值（最大带宽占比）(%)|Peak(%)|与理论带宽的比率。|
     |Pipe Cube|Pipe Cube|cube单元的计算通路。|
-    |Pipe Vector Core0|Pipe Vector Core0|aicore内core0的vector单元的计算通路。|
-    |Pipe Vector Core1|Pipe Vector Core1|aicore内core1的vector单元的计算通路。|
+    |Pipe Vector Core0|Pipe Vector Core0|Aicore内core0的vector单元的计算通路。|
+    |Pipe Vector Core1|Pipe Vector Core1|Aicore内core1的vector单元的计算通路。|
     |指令数|Instructions|指令数量。|
     |时钟周期|Cycle|通路消耗的时钟周期。|
-    |Time(us)|Time(us)|Scalar计算单元的运行时间。|
+    |Time(μs)|Time(μs)|Scalar计算单元的运行时间。|
     |等待周期|Wait Cycles|对应pipe上被阻塞的cycle数。|
     |活跃率（%）|Active Rate(%)|运行cycle数占总的cycle的百分比。|
-    |UB Core0|UB Core0|mix算子aicore内core0的ub储存单元。|
-    |UB Core1|UB Core1|mix算子aicore内core1的ub储存单元。|
+    |UB Core0|UB Core0|mix算子Aicore内core0的ub储存单元。|
+    |UB Core1|UB Core1|mix算子Aicore内core1的ub储存单元。|
     |Vector Core0|Vector Core0|vector计算单元。|
     |Vector Core1|Vector Core1|vector计算单元。|
 
@@ -724,7 +724,7 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
     |Pipe|Pipe|计算通路。|
     |指令数|Instructions|指令数量。|
     |时钟周期|Cycle|通路消耗的时钟周期。|
-    |Time(us)|Time(us)|Scalar计算单元的运行时间。|
+    |Time(μs)|Time(μs)|Scalar计算单元的运行时间。|
     |等待周期|Wait Cycles|对应pipe上被阻塞的cycle数。|
     |活跃率（%）|Active Rate(%)|运行cycle数占总的cycle的百分比。|
     |UB|UB|ub储存单元。|
@@ -755,7 +755,7 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
     |Pipe|Pipe|计算通路。|
     |指令数|Instructions|指令数量。|
     |时钟周期|Cycle|通路消耗的时钟周期。|
-    |Time(us)|Time(us)|Scalar计算单元的运行时间。|
+    |Time(μs)|Time(μs)|Scalar计算单元的运行时间。|
     |等待周期|Wait Cycles|对应pipe上被阻塞的cycle数。|
     |活跃率（%）|Active Rate(%)|运行cycle数占总的cycle的百分比。|
 

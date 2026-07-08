@@ -88,7 +88,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
     shasum -a 256 软件包名
     ```
 
-    Linux系统，使用如下命令获取对应软件包的sha256检验码
+    Linux系统，使用如下命令获取对应软件包的sha256校验码
 
     ```bash
     sha256sum 软件包名
