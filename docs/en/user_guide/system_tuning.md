@@ -40,7 +40,7 @@ Profile data is classified into single-rank scenario and cluster scenario. For d
 - You can import the operator dotting data file. For details about how to obtain the file, see "msprof\_tx" in "Ascend PyTorch Profiler" in the *Profiling Tool Guide*. After the file is imported, the dotting data is displayed on **Timeline**.
 - When cluster data is imported, if the profile data file contains the **cluster\_analysis\_output** directory file, related information is displayed on the **Summary** and **Communication** tab pages based on the **cluster\_analysis\_output** directory file after the import is successful. If the profile data file does not contain the **cluster\_analysis\_output** directory file, the corresponding **cluster\_analysis\_output** directory file is generated when data is imported to MindStudio Insight.
 - In the cluster scenario, if the profile data collected by Ascend PyTorch Profiler or MindSpore Profiler needs to be displayed using MindStudio Insight, you are advised to set **repeat** to **1**. The value **0** is not recommended. If **repeat** is greater than **1**, the collected profile data folder needs to be divided into **repeat** equal parts. The files need to be stored in different folders based on the timestamp in the folder name and re-imported. In this way, the data can be properly displayed.
-- If the msprof-analyze tool has been installed in Linux when you use MindStudio Insight to analyze cluster data, check the tool version and upgrade it to the latest version. For details about how to install the msprof-analyze tool of the latest version, see [msprof-analyze](https://gitcode.com/ascend/mstt/blob/master/profiler/msprof_analyze/README.md#%E5%AE%89%E8%A3%85).
+- If the msprof-analyze tool has been installed in Linux when you use MindStudio Insight to analyze cluster data, check the tool version and upgrade it to the latest version. For details about how to install the msprof-analyze tool of the latest version, see [msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.0.0/docs/en/getting_started/install_guide.md).
 - A single JSON file containing ACLGraph graph construction process data can be imported.
 - If both single-rank data and cluster data exist in the directory of the imported data, MindStudio Insight parses and displays only the cluster data.
 
@@ -130,7 +130,7 @@ In the single-rank scenario, profile data can be classified into the following t
     |Scenario|Rank Count|Importing Data|GUI|
     |--|--|--|--|
     |Small cluster|Up to 32 cards|All collected raw data can be imported.|Timeline<br>Memory<br>Operator<br>Summary<br>Communication|
-    |Large cluster|More than 32 cards, thousands of cards, and tens of thousands of cards.|Use the cluster analysis capability of msprof-analyze in the mstt toolset to preprocess the raw profile data, obtain the communication group-based communication analysis and step duration analysis results, and import the preprocessed data.<br> For details about how to download and use the msprof-analyze tool, see [msprof-analyze](https://gitcode.com/Ascend/mstt/blob/master/profiler/msprof_analyze/README.md#msprof-analyze).<br> 1. Save all directories whose names end with **ascend_pt** or **ascend_ms** to the same folder.<br> 2. Use the msprof-analyze tool to generate the communication-related **cluster_analysis_output** directory. For details about the data files in this directory, see [**Table 7** Files in the cluster\_analysis\_output directory](#directory-files).<br> 3. Copy the generated **cluster_analysis_output** directory to the local PC and import the directory to MindStudio Insight.<br> 4. Go to the **Communication** tab page, analyze the data, import the corresponding small cluster data or single-rank data, and analyze the data again.|Summary<br>Communication|
+    |Large cluster|More than 32 cards, thousands of cards, and tens of thousands of cards.|Use the cluster analysis capability of msprof-analyze in the mstt toolset to preprocess the raw profile data, obtain the communication group-based communication analysis and step duration analysis results, and import the preprocessed data.<br> For details about how to download and use the msprof-analyze tool, see [msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.0.0/docs/en/getting_started/install_guide.md).<br> 1. Save all directories whose names end with **ascend_pt** or **ascend_ms** to the same folder.<br> 2. Use the msprof-analyze tool to generate the communication-related **cluster_analysis_output** directory. For details about the data files in this directory, see [**Table 7** Files in the cluster\_analysis\_output directory](#directory-files).<br> 3. Copy the generated **cluster_analysis_output** directory to the local PC and import the directory to MindStudio Insight.<br> 4. Go to the **Communication** tab page, analyze the data, import the corresponding small cluster data or single-rank data, and analyze the data again.|Summary<br>Communication|
 
     **Table 7** Files in the cluster\_analysis\_output directory<a id="directory-files"></a>
 
@@ -143,7 +143,7 @@ In the single-rank scenario, profile data can be classified into the following t
 
 - The cluster data is simplified based on the **ascend\_pytorch\_profiler\_***\{*rank\_id*\}***.db** file. Large communication operators, key compute functions, and key framework functions are extracted to simplify the data, saving memory and enabling quick global analysis. After the simplified cluster data is imported, only the **Timeline** tab page is displayed in MindStudio Insight.
 
-    The msprof-analyze tool in the MSTT tool set can be used to generate reduced cluster data by setting **-m filter_db**. For details about how to install the msprof-analyze tool, see [Installing msprof-analyze](https://gitcode.com/ascend/mstt/blob/master/profiler/msprof_analyze/README.md#%E5%AE%89%E8%A3%85). For details about how to set **-m filter_db**, see "filter_db" in [Table Structure Description of the Recipe Result and cluster_analysis.db Deliverable](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db). The cluster data reduction function supports only the unified DB scenario.
+    The msprof-analyze tool in the MSTT tool set can be used to generate reduced cluster data by setting **-m filter_db**. For details about how to install the msprof-analyze tool, see [Installing msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.0.0/docs/en/getting_started/install_guide.md). For details about how to set **-m filter_db**, see "filter_db" in [Table Structure Description of the Recipe Result and cluster_analysis.db Deliverable](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db). The cluster data reduction function supports only the unified DB scenario.
 
 ## Timeline
 
@@ -414,7 +414,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="4">PCIe</td>
     <td class="tg-0pky">PCIe_cpl</td>
-    <td class="tg-0pky">Completion packets that receives write requests, in (MB/s. `Tx` indicates transmit, and `Rx` indicates receive.</td>
+    <td class="tg-0pky">Completion packets that receives write requests, in MB/s. `Tx` indicates transmit, and `Rx` indicates receive.</td>
   </tr>
   <tr>
     <td class="tg-0pky">PCIe_nonpost</td>
@@ -1067,12 +1067,12 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Field|Description|
   |--|--|
   |Category|Category.<br> Multi-level information can be displayed.<br> Parent layers: **Computing Time**, **Communication(Not Overlapped) Time**, **Free Time**, and **E2E Time**.<br> Child layers: **Computing Time** is further divided into the disassembling results of computing stream operators such as Flash Attention, Conv, Matmul, Cube, and Vector. **Forward** and **Backward** are used to distinguish the forward and backward propagation.<br> The child layers of **Communication(Not Overlapped) Time** are the grouping and disassembling results of each communication group. The waiting time and transmission time are the intersection results of the not-overlapped communication.|
-  |Total Time(us)|Total time of the category.|
+  |Total Time(μs)|Total time of the category.|
   |Time Ratio|Duration percentage of the category.|
   |Number|Number of operators of the category.|
-  |Avg(us)|Average time of the category.|
-  |Min(us)|Minimum time of the category.|
-  |Max(us)|Maximum time of the category.|
+  |Avg(μs)|Average time of the category.|
+  |Min(μs)|Minimum time of the category.|
+  |Max(μs)|Maximum time of the category.|
   |Details|When you select a child layer from the **Computing Time** list, this area displays details about all operators at the selected layer. You can click any operator to go to the specific location of the operator in the timeline view.|
 
 - Memcpy Overview
@@ -1092,12 +1092,12 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Field|Description|
   |--|--|
   |Category|Category of memory copy statistics.|
-  |Total Time(us)|Total time of the category.|
+  |Total Time(μs)|Total time of the category.|
   |Total Size(B)|Total size of memory copy data of the category.|
   |Number|Number of memory copy operators of the category.|
-  |Avg Time(us)|Average time of memory copy of the category.|
-  |Min Time(us)|Minimum time of memory copy of the category.|
-  |Max Time(us)|Maximum time of memory copy of the category.|
+  |Avg Time(μs)|Average time of memory copy of the category.|
+  |Min Time(μs)|Minimum time of memory copy of the category.|
+  |Max Time(μs)|Maximum time of memory copy of the category.|
   |Avg Size(B)|Average data volume of memory copy of the category.|
   |Min Size(B)|Minimum data volume of memory copy of the category.|
   |Max Size(B)|Maximum data volume of memory copy of the category.|
@@ -1116,12 +1116,12 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Field|Description|
   |--|--|
   |Name|Name.|
-  |Time(%)|Total time ratio = Total time of the category/Total time of all categories<br> When the statistical type is **Overlap Analysis**, **Time (%)** = **Total Time (us)**/**(Total Communication(Not Overlapped)** + **Total Computing** + **Total Free**)|
-  |Total Time(us)|Total time of the category.|
+  |Time(%)|Total time ratio = Total time of the category/Total time of all categories<br> When the statistical type is **Overlap Analysis**, **Time (%)** = **Total Time (μs)**/**(Total Communication(Not Overlapped)** + **Total Computing** + **Total Free**)|
+  |Total Time(μs)|Total time of the category.|
   |Num Calls|Number of calls.|
-  |Avg(us)|Average time of the category.|
-  |Min(us)|Minimum time of the category.|
-  |Max(us)|Maximum time of the category.|
+  |Avg(μs)|Average time of the category.|
+  |Min(μs)|Minimum time of the category.|
+  |Max(μs)|Maximum time of the category.|
 
 - Kernel Details
 
@@ -1139,8 +1139,8 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Type|Operator type.|
   |Accelerator Core|Computing core type.|
   |Start Time|Start time of the task.|
-  |Duration(us)|Duration of the task.|
-  |Wait Time(us)|Interval between the end time of the previous task and the start time of the current task, in microseconds.|
+  |Duration(μs)|Duration of the task.|
+  |Wait Time(μs)|Interval between the end time of the previous task and the start time of the current task, in microseconds.|
   |Task ID|Task ID.|
   |Block Num|Number of task running splits, which corresponds to the number of cores during task running. In MindStudio Insight 8.3.0 and earlier versions, this field is displayed as **Block Dim**.|
   |Input Shapes|Input shape of the operator.|
@@ -1226,7 +1226,7 @@ If you select any advice system, the details about the advice system are display
 |Origin Operators|Operators that can be fused. This parameter is available only when the advice system is **Operators Fusion**.|
 |Fused Operator|An operator that has been fused at the CANN layer. This parameter is available only when the advice system is **Operators Fusion**.|
 |Start Time|Start time of the task.|
-|Duration(us)|Duration of the task.|
+|Duration(μs)|Duration of the task.|
 |Process Id|Process ID.|
 |Thread Id|Thread ID.|
 |Notes|Prompt information. This parameter is unavailable when the advice system is **Affinity Optimizer**.|

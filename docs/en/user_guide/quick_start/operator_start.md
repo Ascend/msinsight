@@ -31,11 +31,11 @@ Import the `msprof-op/details/visualize_data.bin` board data file and switch to 
 
 ![base info question](../figures/quick_start/operator_quick_start_base_info.png)
 
-In the basic information, it is found that the operator takes more than 90 μs.
+In the basic information, it is found that the operator takes more than 90μs.
 
 > For the `matmul_leakyrelu` operator, the performance is mainly determined by the matrix multiplication, and the computation workload of LeakyReLU is relatively small.
 
-Based on prior knowledge, for FP16 small matrix multiplication (1024×1024×1024) on Ascend 910, the expected execution time of the `matmul_leakyrelu` operator is between 16–30 μs. Therefore, this operator is not performing optimally and can be optimized.
+Based on prior knowledge, for FP16 small matrix multiplication (1024×1024×1024) on Ascend 910, the expected execution time of the `matmul_leakyrelu` operator is between 16–30μs. Therefore, this operator is not performing optimally and can be optimized.
 
 ![pipe cube scalar high](../figures/quick_start/operator_quick_start_pipe_cube_scalar.png)
 
