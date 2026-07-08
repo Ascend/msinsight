@@ -66,7 +66,7 @@ MindStudio Insight提供指令流水视图、算子源码视图以及算子运�
 - 建议导入的json文件单文件大小不超过1GB。
 - 支持导入的二进制bin文件只允许单个文件导入，不支持以文件夹方式导入。
 - 建议导入的bin文件单文件大小不超过500MB。
-- 仅<term>Atlas 350 加速卡</term>支持通过“msopprof”方式采集指令流水图可视化呈现文件，数据展示在时间线（Timeline）界面。其他硬件型号可通过“msopprof simulator”仿真模式采集trace.json文件，在时间线界面查看指令流水。
+- 仅<term>Ascend 950 系列产品</term>支持通过“msopprof”方式采集指令流水图可视化呈现文件，数据展示在时间线（Timeline）界面。其他硬件型号可通过“msopprof simulator”仿真模式采集trace.json文件，在时间线界面查看指令流水。
 
 **术语说明**
 
@@ -367,7 +367,7 @@ MindStudio Insight支持指令统计信息和单个指令详情信息查看。
     |源码|Source|指令内容。|BAR PIPE:ALL|
     |执行指令数|Instructions Executed|该行指令在每个Core上执行的指令数量。|100|
     |通用寄存器数|GPR Count|该行指令在每个Core上执行时使用的通用寄存器次数。仅当使用msopprof simulator采集的数据支持显示该参数。|10|
-    |寄存器状态|GPR Status|寄存器依赖信息，以图形化展示。由多列带箭头的直线组成，每一列代表一个寄存器。其中左实心箭头表示为写，右空心箭头为读，竖线表示当前寄存器仍在使用。当鼠标悬停在寄存器上时，会显示寄存器信息。<br> 仅<term>Atlas 350 加速卡</term>导出的数据支持显示该参数。|-|
+    |寄存器状态|GPR Status|寄存器依赖信息，以图形化展示。由多列带箭头的直线组成，每一列代表一个寄存器。其中左实心箭头表示为写，右空心箭头为读，竖线表示当前寄存器仍在使用。当鼠标悬停在寄存器上时，会显示寄存器信息。<br> 仅<term>Ascend 950 系列产品</term>导出的数据支持显示该参数。|-|
     |时钟周期|Cycles|该行指令在每个Core上执行消耗的Cycles（时钟周期）。|100|
     |L2 Cache命中率|L2 Cache Hit Rate|该行指令在所有Core上执行的L2 Cache命中率。仅当使用msopprof采集的数据支持显示该参数。|72%|
     |处理数据量(Bytes)|Process Bytes|该行指令在每个Core上执行处理的数据量，单位Byte。|2048|
@@ -495,7 +495,7 @@ MindStudio Insight支持指令统计信息和单个指令详情信息查看。
 
 > [!NOTE]
 >
-> - <term>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term>、<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>和<term>Atlas 350 加速卡</term>导出的性能数据支持此模块。
+> - <term>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term>、<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>和<term>Ascend 950 系列产品</term>导出的性能数据支持此模块。
 > - 核间负载均衡度分为10个等级，其中4至6级表示均衡度接近平均值，而0至3级和7至10级表示均衡度与平均值存在较大差异。
 
 **Roofline瓶颈分析（Roofline）**
@@ -506,10 +506,10 @@ Roofline模型图上会显示算力名称，用于描述计算最大算力的指
 
 >[!NOTE]
 >
-> - 仅<term>Atlas 350 加速卡</term>、<term>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term>、<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>和<term>Atlas 推理系列产品</term>支持此模块。
-> - 当导入<term>Atlas 350 加速卡</term>的数据时，Roofline模型图上将展示指令类型，可以结合图中参数进行筛选，以便查看Roofline模型图。
+> - 仅<term>Ascend 950 系列产品</term>、<term>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term>、<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>和<term>Atlas 推理系列产品</term>支持此模块。
+> - 当导入<term>Ascend 950 系列产品</term>的数据时，Roofline模型图上将展示指令类型，可以结合图中参数进行筛选，以便查看Roofline模型图。
 
-- 当硬件产品为<term>Atlas 350 加速卡</term>、<term>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term>、<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>时，Roofline性能模型分析包含内存单元、内存通路以及搬运单元页签。
+- 当硬件产品为<term>Ascend 950 系列产品</term>、<term>Atlas A3 训练系列产品/Atlas A3 推理系列产品</term>、<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>时，Roofline性能模型分析包含内存单元、内存通路以及搬运单元页签。
 
     **内存单元**：显示HBM/L2和Memory Unit模型图，如[**图 3**  内存单元](#内存单元)所示，参数解释如[**表 4**  内存单元参数说明](#内存单元参数说明)所示。
 
