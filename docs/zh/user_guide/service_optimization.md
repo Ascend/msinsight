@@ -86,7 +86,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 |convertTensorBatchToBackend|IBIS数据下发中request转化时间，单位ns。|
 |getInputMetadata|IBIS数据下发中获取metadata时间，单位ns。|
 |beforemodelExec|模型执行前处理时间，单位ns。|
-|modelExec|模型执行数据，单位ns，包含执行时间，当前batch的类型（prefill或者decode），请求的rid和迭代次数。|
+|modelExec|模型执行数据，单位ns，包含执行时间、当前batch的类型（prefill或者decode），请求的rid和迭代次数。|
 |instanceExecute|模型实例执行时间，单位ns。|
 |Queue|请求进入队列的时刻。|
 |PDcommunication|PD分离通信时间，单位ns。仅在PD分离场景下存在该泳道。|

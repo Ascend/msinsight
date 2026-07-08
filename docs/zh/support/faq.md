@@ -332,7 +332,7 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 
 **问题现象**
 
-当在同一文件夹下放置多个 JSON 文件时，多开 MindStudio Insight 并同时查看多个 JSON 文件对应的 Timeline 页面时，会出现只有一个页面能显示对的情况，其它页面会出现无显示或者显示错误的情况，举例如下：
+当在同一文件夹下放置多个 JSON 文件时，多开 MindStudio Insight 并同时查看多个 JSON 文件对应的 Timeline 页面时，会出现只有一个页面能显示正确的情况，其它页面会出现无显示或者显示错误的情况，举例如下：
 
 无显示
 

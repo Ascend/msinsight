@@ -401,7 +401,7 @@ JSON部分数据内容示例：
                     "request": uint64,          // 请求数量
                     "request_per_byte": uint8,  // 每次请求数据量
                     "bandwidth": float32,       // 带宽
-                    "peak_ratio": float32,         // 峰值带占比：-1代表数据无效
+                    "peak_ratio": float32,         // 峰值带宽占比：-1代表数据无效
                     "display": bool,            // 是否展示此通路
                 }
             ],
@@ -698,7 +698,7 @@ struct CacheRecord {
 
 ### 时间线视图接口
 
-# 接口列表总览
+#### 接口列表总览
 
 | 接口命令| 作用 | 类型 | 备注 |
 | --- | --- | --- | --- |
@@ -706,9 +706,9 @@ struct CacheRecord {
 | unit/threadTracesSummary | 获取线程预览数据 | WebSocket request | 用于 Process 泳道预览 |
 | unit/threadTraces | 获取线程详细数据 | WebSocket request | 用于 Thread 泳道详情 |
 
-## import/action
+##### import/action
 
-### 请求
+###### 请求
 
 ```json
 {
@@ -724,7 +724,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+###### 响应
 
 ```json
 {
@@ -760,9 +760,9 @@ struct CacheRecord {
 }
 ```
 
-## unit/threadTracesSummary
+##### unit/threadTracesSummary
 
-### 请求
+###### 请求
 
 ```json
 {
@@ -788,7 +788,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+###### 响应
 
 ```json
 {
@@ -813,9 +813,9 @@ struct CacheRecord {
 }
 ```
 
-## unit/threadTraces
+##### unit/threadTraces
 
-### 请求
+###### 请求
 
 ```json
 {
@@ -842,7 +842,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+###### 响应
 
 ```json
 {
@@ -871,9 +871,9 @@ struct CacheRecord {
 }
 ```
 
-## unit/flows
+##### unit/flows
 
-### 请求
+###### 请求
 
 ```json
 {
@@ -894,7 +894,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+###### 响应
 
 ```json
 {
@@ -943,9 +943,9 @@ struct CacheRecord {
 }
 ```
 
-## unit/threadDetail
+##### unit/threadDetail
 
-### 请求
+###### 请求
 
 ```json
 {
@@ -966,7 +966,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+###### 响应
 
 ```json
 {
@@ -996,13 +996,13 @@ struct CacheRecord {
 }
 ```
 
-## 数据类型
+##### 数据类型
 
 数据块的第9个字节如果是整数2，代表数据体内容为timeline的信息。
 
 ![compute_dataType](./figures/compute_data_type.png)
 
-## 数据体格式
+##### 数据体格式
 
 ![compute_data_structure](./figures/compute_data_structure.png)
 
@@ -1060,11 +1060,11 @@ struct CacheRecord {
 
 ```
 
-# 热点指令视图
+## 热点指令视图
 
 本文介绍二进制文件中，相关数据体的结构和内容。
 
-# 数据类型
+### 数据类型
 
 数据块的第9个字节如果是整数1、3、4，代表数据体内容为热点指令视图相关的信息。
 代码中的定义：
@@ -1079,9 +1079,9 @@ struct CacheRecord {
 | 0x03 | API_FILE| 源码行信息，即api.json的files部分 |
 | 0x04 |  API_INSTR| 指令行信息，即api.json的instructions部分 |
 
-# 数据体格式
+### 数据体格式
 
-## SOURCE
+#### SOURCE
 
 二进制结构说明：
 ![compute_hot_instructions_source_binary](./figures/compute_hot_instructions_source_binary.png)
@@ -1097,7 +1097,7 @@ struct CacheRecord {
 #include "kernel_operator.h"\n#include "lib/matmul_intf.h"\n\nusing namespace ...
 ```
 
-## API_FILE
+#### API_FILE
 
 二进制结构说明：
 
@@ -1146,7 +1146,7 @@ struct CacheRecord {
 }
 ```
 
-## API_INSTR
+#### API_INSTR
 
 二进制结构说明：
 
@@ -1198,9 +1198,9 @@ struct CacheRecord {
 }
 ```
 
-# 热点指令接口文档
+## 热点指令接口文档
 
-# 接口列表总览
+### 接口列表总览
 
 | 接口命令 | 作用 | 类型 | 备注 |
 | --- | --- | --- | --- |
@@ -1208,11 +1208,11 @@ struct CacheRecord {
 | source/api/line | 获取源代码行关联的指令信息 | WebSocket request | 根据源码文件和 core 查询 |
 | source/api/instructions | 获取指令信息 | WebSocket request | 示例请求中 params 为空，具体参数以源码为准 |
 
-# 接口详细定义
+### 接口详细定义
 
-## source/code/file
+#### source/code/file
 
-### 请求
+##### 请求
 
 ```json
 {
@@ -1226,7 +1226,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+##### 响应
 
 ```json
 {
@@ -1242,9 +1242,9 @@ struct CacheRecord {
 }
 ```
 
-## source/api/line
+#### source/api/line
 
-### 请求
+##### 请求
 
 ```json
 {
@@ -1259,7 +1259,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+##### 响应
 
 ```json
 {
@@ -1287,9 +1287,9 @@ struct CacheRecord {
 }
 ```
 
-## source/api/instructions
+#### source/api/instructions
 
-### 请求
+##### 请求
 
 ```json
 {
@@ -1302,7 +1302,7 @@ struct CacheRecord {
 }
 ```
 
-### 响应
+##### 响应
 
 ```json
 {
@@ -1318,9 +1318,9 @@ struct CacheRecord {
 }
 ```
 
-# 内存负载视图接口文档
+## 内存负载视图接口文档
 
-# 接口列表总览
+### 接口列表总览
 
 | 接口命令 | 作用 | 类型 |
 | --- | --- | --- |
@@ -1329,9 +1329,9 @@ struct CacheRecord {
 | source/details/memoryGraph | 获取内存热力图 | WebSocket request |
 | source/details/memoryTable | 获取访存表格 | WebSocket request |
 
-# 获取算子基本信息
+### 获取算子基本信息
 
-## Request
+#### Request
 
 ```json
 {
@@ -1344,7 +1344,7 @@ struct CacheRecord {
 }
 ```
 
-## Response
+#### Response
 
 ```json
 {
@@ -1386,9 +1386,9 @@ struct CacheRecord {
 }
 ```
 
-# source/details/computeworkload
+### source/details/computeworkload
 
-## Request
+#### Request
 
 ```json
 {
@@ -1401,7 +1401,7 @@ struct CacheRecord {
 }
 ```
 
-## Response
+#### Response
 
 ```json
 {
@@ -1444,9 +1444,9 @@ struct CacheRecord {
 }
 ```
 
-# source/details/memoryGraph
+### source/details/memoryGraph
 
-## Request
+#### Request
 
 ```json
 {
@@ -1461,7 +1461,7 @@ struct CacheRecord {
 }
 ```
 
-## Response
+#### Response
 
 ```json
 {
@@ -1514,9 +1514,9 @@ struct CacheRecord {
 }
 ```
 
-# source/details/memoryTable
+### source/details/memoryTable
 
-## Request
+#### Request
 
 ```json
 {
@@ -1531,7 +1531,7 @@ struct CacheRecord {
 }
 ```
 
-## Response
+#### Response
 
 ```json
 {
@@ -1581,11 +1581,11 @@ struct CacheRecord {
 
 ```
 
-# 内存视图数据结构说明
+## 内存视图数据结构说明
 
-# 输入bin文件中的数据格式
+### 输入bin文件中的数据格式
 
-## 数据类型
+#### 数据类型
 
 数据块的第9个字节如果是整数5~9，代表数据体内容为访存负载的信息。
 代码中的定义：
@@ -1602,11 +1602,11 @@ struct CacheRecord {
 | 0x08 | DETAILS_MEMORY_GRAPH | 访存热力图 |
 | 0x09 | DETAILS_MEMORY_TABLE | 访存表格 |
 
-## 数据体格式
+#### 数据体格式
 
 数据来源为tracing.json，满足Trace Event Format格式要求，参考以下示例：
 
-### DETAILS_BASE_INFO
+##### DETAILS_BASE_INFO
 
 二进制结构说明：
 
@@ -1645,7 +1645,7 @@ json格式说明：
 
 **注意，block_detail和mix_block_detail字段只会有一个有效。block_detail和mix_block_detail均为列表，包含0~N个dict/map**
 
-### DETAILS_COMPUTE_LOAD_GRAPH
+##### DETAILS_COMPUTE_LOAD_GRAPH
 
 二进制结构说明：
 
@@ -1673,7 +1673,7 @@ Json结构说明：
 
 ```
 
-### DETAILS_COMPUTE_LOAD_TABLE
+##### DETAILS_COMPUTE_LOAD_TABLE
 
 二进制结构说明：
 
@@ -1701,7 +1701,7 @@ Json结构说明：
 }
 ```
 
-### DETAILS_MEMORY_GRAPH
+##### DETAILS_MEMORY_GRAPH
 
 二进制结构说明：
 
@@ -1721,7 +1721,7 @@ Json结构说明
                     "request": uint64,          // 请求数量
                     "request_per_byte": uint8,  // 每次请求数据量
                     "bandwidth": float32,       // 带宽
-                    "peak_ratio": float32,         // 峰值带占比：-1代表数据无效
+                    "peak_ratio": float32,         // 峰值带宽占比：-1代表数据无效
                     "display": bool,            // 是否展示此通路
                 }
             ],
@@ -1739,7 +1739,7 @@ Json结构说明
 }
 ```
 
-### DETAILS_MEMORY_TABLE
+##### DETAILS_MEMORY_TABLE
 
 二进制结构说明：
 
@@ -1780,7 +1780,7 @@ Json结构说明：
 }
 ```
 
-# 内存读写时序图数据结构（POC）
+## 内存读写时序图数据结构（POC）
 
 统一二进制交付件的内容格式如下：
 ![compute_memory_rw_time_diagram](./figures/compute_memory_rw_time_diagram.png)
@@ -1874,7 +1874,7 @@ TraceRecord结构体字段含义说明：
 ]
 ```
 
-# 缓存命中率图数据结构（POC）
+## 缓存命中率图数据结构（POC）
 
 二进制bin文件数据块结构：
 ![compute_cache_hit_binary](./figures/compute_cache_hit_binary.png)
