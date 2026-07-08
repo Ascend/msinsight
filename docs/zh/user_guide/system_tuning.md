@@ -217,9 +217,9 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 - npumonitor数据：支持导入npumonitor采集的性能数据。npumonitor是基于dynolog开源项目的轻量化在线监测工具，支持NPU Monitor（常态监测）和NPU Trace-dump（精准采集）两种模式，采集方式和安装指南请参见：
 
-  - npumonitor工具特性说明：https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/user_guide/npumonitor_instruct.md
-  - msMonitor产品文档：https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/82RC1alpha003/devaids/Profiling/atlasprofiling_16_1153.html
-  - msMonitor工具下载：https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/install_guide/msmonitor_install_guide.md
+  - npumonitor工具特性说明：<https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/user_guide/npumonitor_instruct.md>
+  - msMonitor产品文档：<https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/82RC1alpha003/devaids/Profiling/atlasprofiling_16_1153.html>
+  - msMonitor工具下载：<https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/install_guide/msmonitor_install_guide.md>
 
   性能数据文件详情请参见**“表 5”  性能数据文件详情表**(#性能数据文件详情表)。
 
@@ -244,7 +244,7 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 集群场景下，需要先使用性能调优工具采集各Rank的性能数据，再通过msprof-analyze工具对多Rank数据进行预处理，生成集群分析数据后导入MindStudio Insight工具进行可视化展示。
 
-> 以下内容来源于msprof-analyze工具文档（https://gitcode.com/Ascend/mstt/blob/master/profiler/msprof_analyze/README.md），如有更新请以源文档为准。
+> 以下内容来源于《[msprof-analyze工具](https://gitcode.com/Ascend/msprof-analyze/blob/master/README.md)》文档，如有更新请以源文档为准。
 
 1. 安装msprof-analyze工具。
 
@@ -554,7 +554,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
     <tr>
     <td class="tg-0pky">CCU</td>
     <td class="tg-0pky">Communication</td>
-    <td class="tg-0pky">包含集合通信指令数据，CCU任务的起止时间以及CCU任务的一级索引指令的起止时间，以及同步及数据搬运耗时。<br>CCU泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">包含集合通信指令数据，CCU任务的起止时间以及CCU任务的一级索引指令的起止时间，以及同步及数据搬运耗时。<br>CCU泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
     <tr>
     <td class="tg-0pky" rowspan="4">Overlap Analysis</td>
@@ -585,19 +585,19 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="22">NPU Metrics</td>
     <td class="tg-0pky">Low Power</td>
-    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
-    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。<br>UB泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。<br>UB泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Block Detail</td>
-    <td class="tg-0pky">展示各个算子在最早和最晚的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">展示各个算子在最早和最晚的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">HBM</td>
@@ -709,22 +709,22 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 <tr>
     <td class="tg-0pky">Low Power</td>
     <td class="tg-0pky">-</td>
-    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">低功耗数据，包含功耗、带宽、频率、温度等数据，通过呈现变频曲线，准确识别算子执行过程中的变频情况。<br>Low Power泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
     <td class="tg-0pky">Group&lt;id&gt;-aiv&lt;id&gt;</td>
-    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">呈现SU、VEC、CUBE、MTE等指令执行时间，以及打点数据。<br>Biu Perf泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
     <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;</td>
-    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。<br>UB泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。<br>UB泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Block Detail</td>
     <td class="tg-0pky">AIC/AIV Earliest</td>
-    <td class="tg-0pky">展示各个算子在最早的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示<term>Atlas 350 加速卡</term>导出的性能数据。</td>
+    <td class="tg-0pky">展示各个算子在最早的AI core或AI Vector Core上的执行时间，当算子为Mix类型时，会同时执行在AIC和AIV上。<br>Block Detail泳道仅支持展示<term>Ascend 950 系列产品</term>导出的性能数据。</td>
   </tr>
     <tr>
     <td class="tg-0pky">AIC/AIV Latest</td>
@@ -794,7 +794,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="4">acc_pmu</td>
     <td class="tg-0pky">Accelerator {accId}/readBwLevel</td>
-    <td class="tg-0pky">DVPP和DSA加速器读带宽。<br>acc_pmu泳道在<term>Atlas 350 加速卡</term>不支持该泳道。</td>
+    <td class="tg-0pky">DVPP和DSA加速器读带宽。<br>acc_pmu泳道在<term>Ascend 950 系列产品</term>不支持该泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Accelerator {accId}/readOstLevel</td>
@@ -825,7 +825,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>
     <td class="tg-0pky">dat_rx、dat_tx</td>
-    <td class="tg-0pky">数据流通道的接收、发送带宽。SIO泳道仅支持在text格式文件下展示。<br>SIO泳道仅支持展示<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>和<term>Atlas 350 加速卡</term>DIE间传输带宽信息。</td>
+    <td class="tg-0pky">数据流通道的接收、发送带宽。SIO泳道仅支持在text格式文件下展示。<br>SIO泳道仅支持展示<term>Atlas A2 训练系列产品/Atlas A2 推理系列产品</term>和<term>Ascend 950 系列产品</term>DIE间传输带宽信息。</td>
   </tr>
   <tr>
     <td class="tg-0pky">req_rx、req_tx</td>
@@ -934,7 +934,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="4">Stars Chip Trans</td>
     <td class="tg-0pky">PA Link Rx</td>
-    <td class="tg-0pky">PA流量接收等级。当有集合通信带宽时，不建议参考该字段值，该字段为粗粒度的统计值。Stars Chip Trans泳道仅支持在text格式文件下展示，且<term>Atlas 350 加速卡</term>不支持该泳道。</td>
+    <td class="tg-0pky">PA流量接收等级。当有集合通信带宽时，不建议参考该字段值，该字段为粗粒度的统计值。Stars Chip Trans泳道仅支持在text格式文件下展示，且<term>Ascend 950 系列产品</term>不支持该泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">PA Link Tx</td>
