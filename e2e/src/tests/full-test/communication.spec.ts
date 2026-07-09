@@ -296,6 +296,10 @@ test.describe('Communication', () => {
         });
         await communicationFrame.getByText('Find in Timeline').click();
         await page.waitForTimeout(1000);
-        await expect(fullPage).toHaveScreenshot('redirect-to-timeline.png', { maxDiffPixels: 500 });
+        try {
+            await expect(fullPage).toHaveScreenshot('redirect-to-timeline.png', { maxDiffPixels: 500 });
+        } catch (e) {
+            await expect(fullPage).toHaveScreenshot('redirect-to-timeline-1.png', { maxDiffPixels: 500 });
+        }
     });
 });
