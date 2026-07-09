@@ -16,13 +16,19 @@
  * -------------------------------------------------------------------------
  */
 import { Global, ThemeProvider } from '@emotion/react';
+import i18n from '@insight/lib/i18n';
+import { SharedConfigProvider } from '@insight/lib/SharedConfigProvider';
 import { GlobalStyles, themeInstance } from '@insight/lib/theme';
 import { useEffect, useState } from 'react';
+import { registerHostEventHandlers, requestHostInitStatus } from './connection';
 import { ChatStateProvider } from './hooks/useChatState';
 import { ChatPage } from './components/ChatPage';
 
+type Locale = 'zhCN' | 'enUS';
+
 const App = (): JSX.Element => {
     const [themeName, setThemeName] = useState(themeInstance.getCurrentTheme());
+    const [locale, setLocale] = useState<Locale>((i18n.language as Locale) || 'enUS');
 
     useEffect(() => {
         const applyTheme = (isDark: boolean): void => {
@@ -31,20 +37,23 @@ const App = (): JSX.Element => {
             localStorage.setItem('theme', JSON.stringify(nextTheme));
             setThemeName(nextTheme);
         };
-
-        const handleMessage = (event: MessageEvent): void => {
-            if (event.data?.event !== 'setTheme') return;
-            applyTheme(Boolean(event.data.body?.isDark));
+        const applyLanguage = (nextLocale: Locale): void => {
+            setLocale(nextLocale);
+            void i18n.changeLanguage(nextLocale);
         };
+
         const handleStorage = (event: StorageEvent): void => {
             if (event.key !== 'theme' || event.newValue === null) return;
             applyTheme(event.newValue === '"dark"' || event.newValue === 'dark');
         };
 
-        window.addEventListener('message', handleMessage);
+        registerHostEventHandlers({
+            setTheme: applyTheme,
+            switchLanguage: applyLanguage,
+        });
+        requestHostInitStatus();
         window.addEventListener('storage', handleStorage);
         return () => {
-            window.removeEventListener('message', handleMessage);
             window.removeEventListener('storage', handleStorage);
         };
     }, []);
@@ -54,12 +63,14 @@ const App = (): JSX.Element => {
         <Global styles={{
             html: { width: '100%', height: '100%' },
             body: { width: '100%', height: '100%', margin: 0 },
-            '#root': { width: '100%', height: '100%' },
-            '*': { boxSizing: 'border-box' },
-        }} />
-        <ChatStateProvider>
-            <ChatPage />
-        </ChatStateProvider>
+        '#root': { width: '100%', height: '100%' },
+        '*': { boxSizing: 'border-box' },
+    }} />
+        <SharedConfigProvider locale={locale}>
+            <ChatStateProvider>
+                <ChatPage />
+            </ChatStateProvider>
+        </SharedConfigProvider>
     </ThemeProvider>;
 };
 

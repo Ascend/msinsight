@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { useTranslation } from 'react-i18next';
 import { useChatState } from '../hooks/useChatState';
 import { ChatPanel } from './ChatPanel';
 import { SessionSidebar } from './SessionSidebar';
@@ -46,12 +47,13 @@ const Container = styled.main`
 
 export const ChatPage = (): JSX.Element => {
     const { switchingAgent } = useChatState();
+    const { t } = useTranslation('insightWebAgent');
 
     return (
         <Container>
             <SessionSidebar />
             <ChatPanel />
-            {switchingAgent && <div className="agent-switch-mask">Switching agent...</div>}
+            {switchingAgent && <div className="agent-switch-mask">{t('switchingAgent')}</div>}
         </Container>
     );
 };

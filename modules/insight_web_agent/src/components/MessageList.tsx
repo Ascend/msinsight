@@ -16,9 +16,11 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type React from 'react';
+import { useTranslation } from 'react-i18next';
 import type { ChatMessage, PermissionDecision } from '../types';
 
 const markdownComponents = {
@@ -62,6 +64,7 @@ const Container = styled.div`
 
     .message.user {
         border: 1px solid ${(props): string => props.theme.borderColorLight};
+        border-left: 3px solid ${(props): string => props.theme.primaryColor};
         background: ${(props): string => props.theme.bgColorLight};
     }
 
@@ -71,11 +74,14 @@ const Container = styled.div`
     }
 
     .thinking {
+        min-width: 0;
+        max-width: 100%;
         margin-bottom: 10px;
         padding-left: 10px;
         border-left: 2px solid ${(props): string => props.theme.borderColor};
         color: ${(props): string => props.theme.textColorSecondary};
         font-size: 12px;
+        overflow-wrap: anywhere;
     }
 
     .thinking-indicator {
@@ -101,7 +107,16 @@ const Container = styled.div`
         max-width: 100%;
         display: grid;
         gap: 8px;
+        color: inherit;
         overflow-wrap: anywhere;
+    }
+
+    .rich-text :where(p, ul, ol, li, h1, h2, h3, h4, h5, h6, blockquote, table, th, td, code, pre) {
+        color: inherit;
+    }
+
+    .rich-text a {
+        color: inherit;
     }
 
     .rich-text.muted {
@@ -276,35 +291,44 @@ interface MessageListProps {
 }
 
 export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
     if (!messages.length) {
-        return <Container><div className="empty">No local messages loaded for this session. Send a message to continue.</div></Container>;
+        return <Container><div className="empty">{t('noLocalMessages')}</div></Container>;
     }
 
     return (
         <Container>
-            {messages.map((message, index) => (
-                <article className={`message ${message.role}`} key={message.id}>
-                    {message.thinking ? <div className="thinking">{message.thinking}</div> : null}
-                    {message.permission ? <PermissionCard message={message} onDecision={onPermissionDecision} /> : null}
-                    {message.text || !message.permission ? (
-                        <div className={`rich-text ${message.text ? '' : 'muted'}`}>
-                            {message.text ? <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown> : '...'}
-                        </div>
-                    ) : null}
-                    {message.images?.length ? (
-                        <div className="attachments">
-                            {message.images.map((image) => (
-                                <div className="attachment" key={image.id}>
-                                    <img alt={image.name} src={`data:${image.mimeType};base64,${image.data}`} />
-                                </div>
-                            ))}
-                        </div>
-                    ) : null}
-                    {isThinkingMessage(messages, index, pendingPrompt) ? <div className="thinking-indicator">Thinking...</div> : null}
-                </article>
-            ))}
+            {messages.map((message, index) => {
+                if (isHiddenPermissionMessage(message)) return null;
+                return (
+                    <article className={`message ${message.role}`} key={message.id}>
+                        {message.thinking ? <div className="thinking">{message.thinking}</div> : null}
+                        {message.permission ? <PermissionCard message={message} onDecision={onPermissionDecision} /> : null}
+                        {message.text || !message.permission ? (
+                            <div className={`rich-text ${message.text ? '' : 'muted'}`}>
+                                {message.text ? <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown> : '...'}
+                            </div>
+                        ) : null}
+                        {message.images?.length ? (
+                            <div className="attachments">
+                                {message.images.map((image) => (
+                                    <div className="attachment" key={image.id}>
+                                        <img alt={image.name} src={`data:${image.mimeType};base64,${image.data}`} />
+                                    </div>
+                                ))}
+                            </div>
+                        ) : null}
+                        {isThinkingMessage(messages, index, pendingPrompt) ? <div className="thinking-indicator">{t('thinking')}</div> : null}
+                    </article>
+                );
+            })}
         </Container>
     );
+};
+
+const isHiddenPermissionMessage = (message: ChatMessage): boolean => {
+    const state = message.permission?.state;
+    return state === 'allowed_once' || state === 'allowed_always';
 };
 
 const PermissionCard = ({
@@ -314,12 +338,13 @@ const PermissionCard = ({
     message: ChatMessage;
     onDecision: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
 }): JSX.Element | null => {
+    const { t } = useTranslation('insightWebAgent');
     const permission = message.permission;
     if (!permission) return null;
     const pending = permission.state === 'pending';
     return (
         <div className="permission-card">
-            <div className="permission-title">Allow file read?</div>
+            <div className="permission-title">{t('allowFileRead')}</div>
             <div className="permission-path">{permission.path}</div>
             {pending ? (
                 <div className="permission-actions">
@@ -329,7 +354,7 @@ const PermissionCard = ({
                         onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'allow_once'); }}
                         type="button"
                     >
-                        {permission.loadingDecision === 'allow_once' ? 'Allowing...' : 'Allow once'}
+                        {permission.loadingDecision === 'allow_once' ? t('allowing') : t('allowOnce')}
                     </button>
                     <button
                         className="primary"
@@ -337,29 +362,29 @@ const PermissionCard = ({
                         onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'allow_always'); }}
                         type="button"
                     >
-                        {permission.loadingDecision === 'allow_always' ? 'Allowing...' : 'Allow always'}
+                        {permission.loadingDecision === 'allow_always' ? t('allowing') : t('allowAlways')}
                     </button>
                     <button
                         disabled={Boolean(permission.loadingDecision)}
                         onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'deny'); }}
                         type="button"
                     >
-                        {permission.loadingDecision === 'deny' ? 'Denying...' : 'Deny'}
+                        {permission.loadingDecision === 'deny' ? t('denying') : t('deny')}
                     </button>
                 </div>
-            ) : <div className="permission-state">{permissionStateText(permission.state)}</div>}
+            ) : <div className="permission-state">{permissionStateText(permission.state, t)}</div>}
             {permission.error ? <div className="permission-error">{permission.error}</div> : null}
         </div>
     );
 };
 
-const permissionStateText = (state: NonNullable<ChatMessage['permission']>['state']): string => {
-    if (state === 'allowed_once') return 'Allowed once';
-    if (state === 'allowed_always') return 'Allowed for this app run';
-    if (state === 'denied') return 'Denied';
-    if (state === 'expired') return 'Expired';
-    if (state === 'invalidated') return 'No longer actionable';
-    return 'Pending';
+const permissionStateText = (state: NonNullable<ChatMessage['permission']>['state'], t: TFunction): string => {
+    if (state === 'allowed_once') return t('allowedOnce');
+    if (state === 'allowed_always') return t('allowedAlways');
+    if (state === 'denied') return t('denied');
+    if (state === 'expired') return t('expired');
+    if (state === 'invalidated') return t('invalidated');
+    return t('pending');
 };
 
 const isThinkingMessage = (messages: ChatMessage[], index: number, pendingPrompt: boolean): boolean => {
