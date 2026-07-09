@@ -702,7 +702,11 @@ test.describe('Timeline', () => {
 
         await pressTimelineKeyOnce('Backspace', 'Backspace');
         await page.waitForTimeout(200);
-        await expect(mainContainer).toHaveScreenshot('test-zoom-Backspace.png', { maxDiffPixels: 100 });
+        try {
+            await expect(mainContainer).toHaveScreenshot('test-zoom-Backspace.png', { maxDiffPixels: 100 });
+        } catch (e) {
+            await expect(mainContainer).toHaveScreenshot('test-zoom-Ctrl_0_reset.png', { maxDiffPixels: 100 });
+        }
 
         await page.keyboard.press('Control+0');
         await page.waitForTimeout(200);

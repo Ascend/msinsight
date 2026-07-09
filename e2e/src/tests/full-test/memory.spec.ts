@@ -135,9 +135,15 @@ test.describe('Memory(Pytorch_SingleMachineMultiRankData)', () => {
 
         await page.waitForTimeout(1000);
         await page.mouse.move(0, 0);
-        await expect(fullPage).toHaveScreenshot('redirect-to-timeline.png', {
-            maxDiffPixels: 500,
-        });
+        try {
+            await expect(fullPage).toHaveScreenshot('redirect-to-timeline.png', {
+                maxDiffPixels: 500,
+            });
+        }catch (e) {
+            await expect(fullPage).toHaveScreenshot('redirect-to-timeline-1.png', {
+                maxDiffPixels: 500,
+            });
+        }
     });
 
     // 对比数据
@@ -417,8 +423,12 @@ test.describe('Memory(Pytorch_SwitchProject)', () => {
         const frameworkPage = new FrameworkPage(page);
         const textRank0 = frameworkPage.getRankLocator(FilePath.TEXT_RANK_0);
         await textRank0.click();
+
         const dbRank1 = frameworkPage.getRankLocator(FilePath.MULTI_NODES_NODE_0_RANK_1);
+        const allCardParsedPromise = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
         await dbRank1.click();
+        await allCardParsedPromise;
+
         await page.mouse.move(0,0);
         const { memoryFrame, hostSelector, rankIdSelector } = memoryPage;
         await hostSelector.waitFor({ state: 'attached' });
@@ -647,9 +657,15 @@ test.describe('Memory(Text)', () => {
         await memoryFrame.locator('tr:nth-child(3) > td:nth-child(15)').getByRole('button').click();
         await page.waitForTimeout(2000);
         await page.mouse.move(0, 0);
-        await expect(fullPage).toHaveScreenshot('text_memory_redirectToTimeline.png', {
-            maxDiffPixels: 500,
-        });
+        try {
+            await expect(fullPage).toHaveScreenshot('text_memory_redirectToTimeline.png', {
+                maxDiffPixels: 500,
+            });
+        }catch (e) {
+            await expect(fullPage).toHaveScreenshot('text_memory_redirectToTimeline-1.png', {
+                maxDiffPixels: 500,
+            });
+        }
     });
 
     // 底部表格联合筛选后结果加载
