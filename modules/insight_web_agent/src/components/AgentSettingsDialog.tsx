@@ -18,6 +18,7 @@
 import styled from '@emotion/styled';
 import { Drawer, message } from 'antd';
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Select } from '@insight/lib/components';
 import { fetchAgentConfig, saveAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
@@ -92,11 +93,12 @@ const Container = styled.div`
     input[type='text'],
     input[type='number'] {
         width: 100%;
+        height: 32px;
         min-width: 0;
         box-sizing: border-box;
         border: 1px solid ${(props): string => props.theme.borderColor};
         border-radius: ${(props): string => props.theme.borderRadiusSmall};
-        padding: 8px 10px;
+        padding: 0 10px;
         background: ${(props): string => props.theme.bgColorLight};
         color: ${(props): string => props.theme.textColorPrimary};
         outline: none;
@@ -117,6 +119,22 @@ const Container = styled.div`
 
     .footer-actions {
         justify-content: flex-end;
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+    }
+
+    .advanced-toggle {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: ${(props): string => props.theme.primaryColor};
+        font-size: 12px;
+        cursor: pointer;
     }
 
     .hint,
@@ -178,6 +196,7 @@ const EMPTY_DRAFT = (): DraftAgent => ({
 });
 
 export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
     const { applyAgentConfigSnapshot, pendingPrompt } = useChatState();
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -186,6 +205,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
     const [selectedAgentName, setSelectedAgentName] = useState<string | null>(null);
     const [saveAndSwitchSelected, setSaveAndSwitchSelected] = useState(false);
     const [draftAgent, setDraftAgent] = useState<DraftAgent | null>(null);
+    const [showAdvanced, setShowAdvanced] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -193,6 +213,8 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
         setLoading(true);
         setError(null);
         setSaveAndSwitchSelected(false);
+        setDraftAgent(null);
+        setShowAdvanced(false);
         void fetchAgentConfig()
             .then((nextSnapshot) => {
                 setSnapshot(nextSnapshot);
@@ -207,11 +229,15 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
         return snapshot.agentServers.find((agent) => agent.name === (selectedAgentName ?? snapshot.activeAgentName)) ?? snapshot.agentServers[0];
     }, [selectedAgentName, snapshot]);
 
-    const envEntries = useMemo(() => {
+    const envEntries = useMemo<Array<[string, string]>>(() => {
+        if (draftAgent) return draftAgent.env.length ? draftAgent.env.map((entry) => [entry.key, entry.value]) : [['', '']];
         if (!activeAgent) return [];
-        const entries = Object.entries(activeAgent.env ?? {});
+        const entries = Object.entries(activeAgent.env ?? {}) as Array<[string, string]>;
         return entries.length ? entries : [['', '']];
-    }, [activeAgent]);
+    }, [activeAgent, draftAgent]);
+
+    const editingAgent = draftAgent ?? activeAgent;
+    const isCreatingAgent = Boolean(draftAgent);
 
     const extraPaths = snapshot?.sessionConfig.defaultAllowlist.extraPaths?.length
         ? snapshot.sessionConfig.defaultAllowlist.extraPaths
@@ -230,17 +256,35 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
         });
     };
 
-    const validateSnapshot = (): string | null => {
-        if (!snapshot || !activeAgent) return 'Settings are not loaded yet.';
-        if (pendingPrompt) return 'Agent is busy. Wait for the current prompt to finish before saving settings.';
-        if (!activeAgent.command.trim()) return 'Command cannot be empty.';
-        if (activeAgent.args.some((arg) => !String(arg).trim())) return 'Args cannot be empty.';
-        if (Object.keys(activeAgent.env ?? {}).some((key) => !String(key).trim())) return 'Env keys cannot be empty.';
+    const updateEditingAgent = (updater: (agent: { command: string; args: string[] }) => { command: string; args: string[] }): void => {
         if (draftAgent) {
-            if (!draftAgent.name.trim()) return 'New agent name is required.';
-            if (!draftAgent.command.trim()) return 'New agent command is required.';
-            if (draftAgent.args.some((arg) => !String(arg).trim())) return 'Args cannot be empty.';
-            if (draftAgent.env.some((entry) => !entry.key.trim())) return 'Env keys cannot be empty.';
+            setDraftAgent((current) => current ? { ...current, ...updater(current) } : current);
+            return;
+        }
+        updateActiveAgent((agent) => ({ ...agent, ...updater(agent) }));
+    };
+
+    const updateEditingEnv = (nextEntries: Array<[string, string]>): void => {
+        if (draftAgent) {
+            setDraftAgent((current) => current ? {
+                ...current,
+                env: nextEntries.map(([key, value]) => ({ key, value })),
+            } : current);
+            return;
+        }
+        updateActiveAgent((agent) => ({ ...agent, env: Object.fromEntries(nextEntries) }));
+    };
+
+    const validateSnapshot = (): string | null => {
+        if (!snapshot || !editingAgent) return t('settingsNotLoaded');
+        if (pendingPrompt) return t('agentBusy');
+        if (!editingAgent.command.trim()) return t('commandRequired');
+        if (editingAgent.args.some((arg) => !String(arg).trim())) return t('argsRequired');
+        if (draftAgent) {
+            if (!draftAgent.name.trim()) return t('newAgentNameRequired');
+            if (draftAgent.env.some((entry) => !entry.key.trim())) return t('envKeysRequired');
+        } else if (Object.keys(activeAgent?.env ?? {}).some((key) => !String(key).trim())) {
+            return t('envKeysRequired');
         }
         return null;
     };
@@ -296,7 +340,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
             }
             setDraftAgent(null);
             setOpen(false);
-            message.success('Agent settings saved.');
+            message.success(t('settingsSaved'));
         } catch (nextError) {
             const errorMessage = nextError instanceof Error ? nextError.message : String(nextError);
             setError(errorMessage);
@@ -317,197 +361,136 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                 onClose={() => setOpen(false)}
                 open={open}
                 placement="right"
-                title="Agent Runtime Settings"
+                title={t('agentRuntimeSettings')}
                 width={420}
             >
                 <div className="panel">
-                    {loading ? <div className="hint">Loading settings...</div> : null}
+                    {loading ? <div className="hint">{t('loadingSettings')}</div> : null}
                     {pendingPrompt ? (
                         <div className="warning" role="status">
-                            Agent is busy. Wait for the current prompt to finish before saving settings.
+                            {t('agentBusy')}
                         </div>
                     ) : null}
                     {error ? <div className="error">{error}</div> : null}
-                    {snapshot && activeAgent ? (
+                    {snapshot && editingAgent ? (
                         <>
                             <div className="section">
-                                <div className="section-title">Current Agent</div>
-                                <div className="row">
-                                    <label htmlFor="agent-selector">Agent to edit</label>
-                                    <Select
-                                        aria-label="Agent to edit"
-                                        id="agent-selector"
-                                        onChange={(value) => setSelectedAgentName(String(value))}
-                                        options={snapshot.agentServers.map((agent) => ({ label: agent.name, value: agent.name }))}
-                                        value={activeAgent.name}
-                                        width="100%"
-                                    />
+                                <div className="section-header">
+                                    <div className="section-title">{t('agentSection')}</div>
+                                    {isCreatingAgent
+                                        ? <Button onClick={() => setDraftAgent(null)} size="small" type="default">{t('cancelDraft')}</Button>
+                                        : <Button onClick={() => setDraftAgent(EMPTY_DRAFT())} size="small" type="default">{t('addAgent')}</Button>}
                                 </div>
+                                {isCreatingAgent ? (
+                                    <div className="row">
+                                        <label htmlFor="new-agent-name">{t('newAgentName')}</label>
+                                        <input id="new-agent-name" onChange={(event) => setDraftAgent((current) => current ? { ...current, name: event.target.value } : current)} type="text" value={draftAgent?.name ?? ''} />
+                                    </div>
+                                ) : (
+                                    <div className="row">
+                                        <label htmlFor="agent-selector">{t('agentToEdit')}</label>
+                                        <Select
+                                            aria-label={t('agentToEdit')}
+                                            id="agent-selector"
+                                            onChange={(value) => setSelectedAgentName(String(value))}
+                                            options={snapshot.agentServers.map((agent) => ({ label: agent.name, value: agent.name }))}
+                                            value={activeAgent?.name}
+                                            width="100%"
+                                        />
+                                    </div>
+                                )}
                                 <div className="row">
-                                    <label htmlFor="agent-name">Agent name</label>
-                                    <input id="agent-name" readOnly type="text" value={activeAgent.name} />
-                                </div>
-                                <div className="row">
-                                    <label htmlFor="agent-command">Command</label>
-                                    <input id="agent-command" onChange={(event) => updateActiveAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={activeAgent.command} />
+                                    <label htmlFor="agent-command">{t('command')}</label>
+                                    <input id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={editingAgent.command} />
                                 </div>
                                 <div className="row">
                                     <div className="inline-actions">
-                                        <label>Args</label>
-                                        <Button onClick={() => updateActiveAgent((agent) => ({ ...agent, args: [...agent.args, ''] }))} size="small" type="default">Add arg</Button>
+                                        <label>{t('args')}</label>
+                                        <Button onClick={() => updateEditingAgent((agent) => ({ ...agent, args: [...agent.args, ''] }))} size="small" type="default">{t('addArg')}</Button>
                                     </div>
-                                    {activeAgent.args.map((arg, index) => (
+                                    {editingAgent.args.map((arg, index) => (
                                         <div className="array-row" key={`arg-${index}`}>
                                             <input
-                                                aria-label={`Arg ${index + 1}`}
-                                                onChange={(event) => updateActiveAgent((agent) => ({
+                                                aria-label={t('argLabel', { index: index + 1 })}
+                                                onChange={(event) => updateEditingAgent((agent) => ({
                                                     ...agent,
                                                     args: agent.args.map((item, itemIndex) => itemIndex === index ? event.target.value : item),
                                                 }))}
                                                 type="text"
                                                 value={arg}
                                             />
-                                            <Button onClick={() => updateActiveAgent((agent) => ({ ...agent, args: agent.args.filter((_, itemIndex) => itemIndex !== index) }))} size="small" type="default">Remove arg {index + 1}</Button>
+                                            <Button onClick={() => updateEditingAgent((agent) => ({ ...agent, args: agent.args.filter((_, itemIndex) => itemIndex !== index) }))} size="small" type="default">{t('removeArg', { index: index + 1 })}</Button>
                                         </div>
                                     ))}
                                 </div>
                                 <div className="row">
                                     <div className="inline-actions">
-                                        <label>Env</label>
-                                        <Button onClick={() => updateActiveAgent((agent) => ({ ...agent, env: Object.fromEntries([...envEntries, ['', '']]) }))} size="small" type="default">Add env entry</Button>
+                                        <label>{t('env')}</label>
+                                        <Button onClick={() => updateEditingEnv([...envEntries, ['', '']])} size="small" type="default">{t('addEnvEntry')}</Button>
                                     </div>
                                     {envEntries.map(([key, value], index) => (
                                         <div className="kv-row" key={`env-${index}`}>
                                             <input
-                                                aria-label={`Env key ${index + 1}`}
-                                                onChange={(event) => updateActiveAgent((agent) => ({
-                                                    ...agent,
-                                                    env: Object.fromEntries(envEntries.map((entry, currentIndex) => [currentIndex === index ? event.target.value : entry[0], entry[1]]).filter((pair, currentIndex) => currentIndex === index || Boolean(pair[0]))),
-                                                }))}
+                                                aria-label={t('envKeyLabel', { index: index + 1 })}
+                                                onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => [currentIndex === index ? event.target.value : entry[0], entry[1]]))}
                                                 type="text"
                                                 value={key}
                                             />
                                             <input
-                                                aria-label={`Env value ${index + 1}`}
-                                                onChange={(event) => updateActiveAgent((agent) => ({
-                                                    ...agent,
-                                                    env: Object.fromEntries(envEntries.map((entry, currentIndex) => currentIndex === index ? [entry[0], event.target.value] : entry)),
-                                                }))}
+                                                aria-label={t('envValueLabel', { index: index + 1 })}
+                                                onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => currentIndex === index ? [entry[0], event.target.value] : entry))}
                                                 type="text"
                                                 value={value}
                                             />
-                                            <Button onClick={() => updateActiveAgent((agent) => ({ ...agent, env: Object.fromEntries(envEntries.filter((_, currentIndex) => currentIndex !== index)) }))} size="small" type="default">Remove env {index + 1}</Button>
+                                            <Button onClick={() => updateEditingEnv(envEntries.filter((_, currentIndex) => currentIndex !== index))} size="small" type="default">{t('removeEnv', { index: index + 1 })}</Button>
                                         </div>
                                     ))}
                                 </div>
-                                <label className="check-row">
+                                {isCreatingAgent ? <label className="check-row">
+                                    <input checked={draftAgent?.saveAndSwitch ?? false} onChange={(event) => setDraftAgent((current) => current ? { ...current, saveAndSwitch: event.target.checked } : current)} type="checkbox" />
+                                    <span>{t('saveAndSwitchThisAgent')}</span>
+                                </label> : <label className="check-row">
                                     <input checked={saveAndSwitchSelected} onChange={(event) => setSaveAndSwitchSelected(event.target.checked)} type="checkbox" />
-                                    <span>Save and switch to selected agent</span>
-                                </label>
+                                    <span>{t('saveAndSwitchSelectedAgent')}</span>
+                                </label>}
                             </div>
                             <div className="section">
-                                <div className="inline-actions">
-                                    <div className="section-title">New Agent</div>
-                                    {!draftAgent ? <Button onClick={() => setDraftAgent(EMPTY_DRAFT())} size="small" type="default">Add agent</Button> : null}
-                                    {draftAgent ? <Button onClick={() => setDraftAgent(null)} size="small" type="default">Cancel draft</Button> : null}
+                                <div className="section-header">
+                                    <div className="section-title">{t('sessionConfig')}</div>
+                                    <button className="advanced-toggle" onClick={() => setShowAdvanced((current) => !current)} type="button">
+                                        {showAdvanced ? t('collapse') : t('expand')}
+                                    </button>
                                 </div>
-                                {draftAgent ? (
-                                    <>
-                                        <div className="row">
-                                            <label htmlFor="new-agent-name">New agent name</label>
-                                            <input id="new-agent-name" onChange={(event) => setDraftAgent((current) => current ? { ...current, name: event.target.value } : current)} type="text" value={draftAgent.name} />
-                                        </div>
-                                        <div className="row">
-                                            <label htmlFor="new-agent-command">New agent command</label>
-                                            <input id="new-agent-command" onChange={(event) => setDraftAgent((current) => current ? { ...current, command: event.target.value } : current)} type="text" value={draftAgent.command} />
-                                        </div>
-                                        <div className="row">
-                                            <div className="inline-actions">
-                                                <label>New agent args</label>
-                                                <Button onClick={() => setDraftAgent((current) => current ? { ...current, args: [...current.args, ''] } : current)} size="small" type="default">Add new agent arg</Button>
-                                            </div>
-                                            {draftAgent.args.map((arg, index) => (
-                                                <div className="array-row" key={`draft-arg-${index}`}>
-                                                    <input
-                                                        aria-label={`New agent arg ${index + 1}`}
-                                                        onChange={(event) => setDraftAgent((current) => current ? {
-                                                            ...current,
-                                                            args: current.args.map((item, itemIndex) => itemIndex === index ? event.target.value : item),
-                                                        } : current)}
-                                                        type="text"
-                                                        value={arg}
-                                                    />
-                                                    <Button onClick={() => setDraftAgent((current) => current ? { ...current, args: current.args.filter((_, itemIndex) => itemIndex !== index) } : current)} size="small" type="default">Remove new agent arg {index + 1}</Button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <div className="row">
-                                            <div className="inline-actions">
-                                                <label>New agent env</label>
-                                                <Button onClick={() => setDraftAgent((current) => current ? { ...current, env: [...current.env, { key: '', value: '' }] } : current)} size="small" type="default">Add new agent env entry</Button>
-                                            </div>
-                                            {draftAgent.env.map((entry, index) => (
-                                                <div className="kv-row" key={`draft-env-${index}`}>
-                                                    <input
-                                                        aria-label={`New agent env key ${index + 1}`}
-                                                        onChange={(event) => setDraftAgent((current) => current ? {
-                                                            ...current,
-                                                            env: current.env.map((item, itemIndex) => itemIndex === index ? { ...item, key: event.target.value } : item),
-                                                        } : current)}
-                                                        type="text"
-                                                        value={entry.key}
-                                                    />
-                                                    <input
-                                                        aria-label={`New agent env value ${index + 1}`}
-                                                        onChange={(event) => setDraftAgent((current) => current ? {
-                                                            ...current,
-                                                            env: current.env.map((item, itemIndex) => itemIndex === index ? { ...item, value: event.target.value } : item),
-                                                        } : current)}
-                                                        type="text"
-                                                        value={entry.value}
-                                                    />
-                                                    <Button onClick={() => setDraftAgent((current) => current ? { ...current, env: current.env.filter((_, itemIndex) => itemIndex !== index) } : current)} size="small" type="default">Remove new agent env {index + 1}</Button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                        <label className="check-row">
-                                            <input checked={draftAgent.saveAndSwitch} onChange={(event) => setDraftAgent((current) => current ? { ...current, saveAndSwitch: event.target.checked } : current)} type="checkbox" />
-                                            <span>Save and switch to this agent</span>
-                                        </label>
-                                    </>
-                                ) : <div className="hint">Create a new agent draft without renaming or deleting existing agents.</div>}
-                            </div>
-                            <div className="section">
-                                <div className="section-title">Session Config</div>
+                                {showAdvanced ? <>
                                 <div className="kv-row">
                                     <div className="row">
-                                        <label htmlFor="request-timeout">Request timeout</label>
+                                        <label htmlFor="request-timeout">{t('requestTimeout')}</label>
                                         <input id="request-timeout" onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, requestTimeoutMs: Number(event.target.value) } }) : current)} type="number" value={snapshot.sessionConfig.requestTimeoutMs} />
                                     </div>
                                     <div className="row">
-                                        <label htmlFor="prompt-timeout">Prompt timeout</label>
+                                        <label htmlFor="prompt-timeout">{t('promptTimeout')}</label>
                                         <input id="prompt-timeout" onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, promptRequestTimeoutMs: Number(event.target.value) } }) : current)} type="number" value={snapshot.sessionConfig.promptRequestTimeoutMs} />
                                     </div>
                                 </div>
                                 <div className="row">
-                                    <label htmlFor="permission-timeout">Permission timeout</label>
+                                    <label htmlFor="permission-timeout">{t('permissionTimeout')}</label>
                                     <input id="permission-timeout" onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, permissionRequestTimeoutMs: Number(event.target.value) } }) : current)} type="number" value={snapshot.sessionConfig.permissionRequestTimeoutMs} />
                                 </div>
                                 <label className="check-row">
                                     <input checked={snapshot.sessionConfig.defaultAllowlist.includeDocsRoot} onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, defaultAllowlist: { ...current.sessionConfig.defaultAllowlist, includeDocsRoot: event.target.checked } } }) : current)} type="checkbox" />
-                                    <span>Include docs root</span>
+                                    <span>{t('includeDocsRoot')}</span>
                                 </label>
                                 <label className="check-row">
                                     <input checked={snapshot.sessionConfig.defaultAllowlist.includeAgentWorkspaceRoot} onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, defaultAllowlist: { ...current.sessionConfig.defaultAllowlist, includeAgentWorkspaceRoot: event.target.checked } } }) : current)} type="checkbox" />
-                                    <span>Include agent workspace root</span>
+                                    <span>{t('includeAgentWorkspaceRoot')}</span>
                                 </label>
                                 <label className="check-row">
                                     <input checked={snapshot.sessionConfig.defaultAllowlist.includeProjectRoot} onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, defaultAllowlist: { ...current.sessionConfig.defaultAllowlist, includeProjectRoot: event.target.checked } } }) : current)} type="checkbox" />
-                                    <span>Include project root</span>
+                                    <span>{t('includeProjectRoot')}</span>
                                 </label>
                                 <div className="row">
                                     <div className="inline-actions">
-                                        <label>Extra paths</label>
+                                        <label>{t('extraAllowlistPaths')}</label>
                                         <Button onClick={() => setSnapshot((current) => current ? ({
                                             ...current,
                                             sessionConfig: {
@@ -517,12 +500,12 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                                     extraPaths: [...extraPaths, ''],
                                                 },
                                             },
-                                        }) : current)} size="small" type="default">Add extra path</Button>
+                                        }) : current)} size="small" type="default">{t('addPath')}</Button>
                                     </div>
                                     {extraPaths.map((path, index) => (
                                         <div className="array-row" key={`extra-path-${index}`}>
                                             <input
-                                                aria-label={`Extra path ${index + 1}`}
+                                                aria-label={`${t('extraAllowlistPaths')} ${index + 1}`}
                                                 onChange={(event) => setSnapshot((current) => current ? ({
                                                     ...current,
                                                     sessionConfig: {
@@ -545,15 +528,16 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                                         extraPaths: extraPaths.filter((_, itemIndex) => itemIndex !== index),
                                                     },
                                                 },
-                                            }) : current)} size="small" type="default">Remove extra path {index + 1}</Button>
+                                            }) : current)} size="small" type="default">{t('removePath', { index: index + 1 })}</Button>
                                         </div>
                                     ))}
-                                    <div className="warning">Extra paths may not exist yet; save will still be allowed.</div>
+                                    <div className="warning">{t('extraPathsHint')}</div>
                                 </div>
+                                </> : null}
                             </div>
                             <div className="footer-actions">
-                                <Button onClick={() => setOpen(false)} size="small" type="default">Cancel</Button>
-                                <Button disabled={pendingPrompt || saving} onClick={() => { void handleSave(); }} size="small" type="primary">Save settings</Button>
+                                <Button onClick={() => setOpen(false)} size="small" type="default">{t('cancel')}</Button>
+                                <Button disabled={pendingPrompt || saving} onClick={() => { void handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
                             </div>
                         </>
                     ) : null}

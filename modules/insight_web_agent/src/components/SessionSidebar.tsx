@@ -17,9 +17,11 @@
  */
 import styled from '@emotion/styled';
 import { Drawer } from 'antd';
+import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { Button, Select } from '@insight/lib/components';
 import { AddIcon, CaretRightIcon, DeleteIcon } from '@insight/lib/icon/Icon';
+import { useTranslation } from 'react-i18next';
 import { useChatState } from '../hooks/useChatState';
 
 const Container = styled.div`
@@ -193,6 +195,7 @@ export const SessionSidebar = (): JSX.Element => {
         setAgent,
     } = useChatState();
     const [open, setOpen] = useState(false);
+    const { t } = useTranslation('insightWebAgent');
     const activeSession = sessions.find((session) => session.sessionId === currentSessionId);
     const handleCreateSession = (): void => {
         void createSession();
@@ -208,14 +211,14 @@ export const SessionSidebar = (): JSX.Element => {
                 value={activeAgentName}
                 width="130px"
             />
-            {agentError && <span className="agent-error" title={agentError}>Agent error</span>}
-            <span className="session-title-bar" title={activeSession?.title || activeSession?.sessionId || 'New session'}>
-                {activeSession?.title || activeSession?.sessionId || 'New session'}
+            {agentError && <span className="agent-error" title={agentError}>{t('agentError')}</span>}
+            <span className="session-title-bar" title={activeSession?.title || activeSession?.sessionId || t('newSession')}>
+                {activeSession?.title || activeSession?.sessionId || t('newSession')}
             </span>
-            <button className="icon-button" onClick={() => void createSession()} title="New chat" type="button">
+            <button className="icon-button" onClick={() => void createSession()} title={t('newChat')} type="button">
                 <AddIcon />
             </button>
-            <button className="icon-button drawer-toggle" disabled={!sessions.length} onClick={() => setOpen(true)} title="Open sessions" type="button">
+            <button className="icon-button drawer-toggle" disabled={!sessions.length} onClick={() => setOpen(true)} title={t('openSessions')} type="button">
                 <CaretRightIcon style={{ transform: 'rotate(180deg)' }} />
             </button>
             <Drawer
@@ -226,7 +229,7 @@ export const SessionSidebar = (): JSX.Element => {
                 onClose={() => setOpen(false)}
                 open={open}
                 placement="right"
-                title={<div className="drawer-title"><span>Sessions</span><Button onClick={handleCreateSession} size="small" type="primary">New Chat</Button></div>}
+                title={<div className="drawer-title"><span>{t('sessions')}</span><Button onClick={handleCreateSession} size="small" type="primary">{t('newChat')}</Button></div>}
                 width={280}
             >
                 <div className="session-list">
@@ -243,7 +246,7 @@ export const SessionSidebar = (): JSX.Element => {
                         >
                             <span className="session-content">
                                 <span className="session-title">{session.title || session.sessionId}</span>
-                                <span className="session-meta">{getSessionMeta(session)}</span>
+                                <span className="session-meta">{getSessionMeta(session, t)}</span>
                             </span>
                             <span
                                 className="session-delete"
@@ -264,10 +267,10 @@ export const SessionSidebar = (): JSX.Element => {
     );
 };
 
-const getSessionMeta = (session: { pendingPrompt?: boolean; status?: string; updatedAt?: string; sessionId: string }): string => {
-    if (session.pendingPrompt || session.status === 'working') return 'Working...';
-    if (session.status === 'completed') return 'Completed';
-    if (session.status === 'loading') return 'Loading...';
-    if (session.status === 'error') return 'Load failed';
+const getSessionMeta = (session: { pendingPrompt?: boolean; status?: string; updatedAt?: string; sessionId: string }, t: TFunction): string => {
+    if (session.pendingPrompt || session.status === 'working') return t('working');
+    if (session.status === 'completed') return t('completed');
+    if (session.status === 'loading') return t('loading');
+    if (session.status === 'error') return t('loadFailed');
     return session.updatedAt || session.sessionId;
 };

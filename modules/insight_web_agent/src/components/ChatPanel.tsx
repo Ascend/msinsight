@@ -17,6 +17,7 @@
  */
 import styled from '@emotion/styled';
 import { SetIcon } from '@insight/lib/icon/Icon';
+import { useTranslation } from 'react-i18next';
 import { useChatState } from '../hooks/useChatState';
 import { AgentSettingsDialog } from './AgentSettingsDialog';
 import { Composer } from './Composer';
@@ -68,13 +69,14 @@ const Container = styled.section`
 
 export const ChatPanel = (): JSX.Element => {
     const { messages, messagesRef, pendingPrompt, respondToPermission } = useChatState();
+    const { t } = useTranslation('insightWebAgent');
 
     return (
         <Container>
             <div className="toolbar">
                 <AgentSettingsDialog
                     trigger={(
-                        <button aria-label="Agent settings" className="settings-button" type="button">
+                        <button aria-label={t('agentSettings')} className="settings-button" type="button">
                             <SetIcon />
                         </button>
                     )}
