@@ -125,6 +125,7 @@ python trace_convert.py \
 | `--input` | 输入的原始 ftrace 文件。trace-cmd 后端通常为 `.dat`，debugfs 后端通常为 `.txt` | `trace.dat` |
 | `--output` | 输出文件路径。后缀必须与 `--format` 匹配 | `ftrace_data.db` |
 | `--format` | 输出格式，支持 `db` 或 `json` | `db` |
+| `--cpu` | 转换阶段的 CPU 过滤掩码，支持 `0`、`0,1,4`、`0-3,8`、`0-15` 等写法；未选中的 CPU 事件会在时间转换和 PID 映射前跳过 | 转换全部 CPU |
 | `--profiling_data` | Profiling 数据目录，用于 ftrace 与 Profiling 时间轴对齐 | 不启用 |
 | `--pid_mapping` | 容器 PID 映射文件，用于把宿主机 PID 转为容器内 PID | 不启用 |
 
@@ -148,6 +149,9 @@ python trace_convert.py --input=trace.txt --output=ftrace_data.db --format=db
 
 # 输出 Chrome Trace JSON
 python trace_convert.py --input=trace.dat --output=ftrace_data.json --format=json
+
+# 只转换指定 CPU，减少转换耗时和输出大小
+python trace_convert.py --input=trace.dat --output=ftrace_cpu0_15.db --format=db --cpu=0-15
 ```
 
 > debugfs 模式输出通常为 `trace.txt`。若同目录下仍存在默认文件名 `trace.dat`，转换时未显式指定 `--input=trace.txt`，脚本会读取默认 `trace.dat`，导致转换的不是本次 debugfs 采集结果。

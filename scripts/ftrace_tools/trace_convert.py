@@ -20,6 +20,7 @@ See the Mulan PSL v2 for more details.
 # pylint: skip-file
 # fmt: off
 # black: skip-file
+# pylint: disable=too-many-lines
 from collections import deque
 import json
 import re
@@ -32,7 +33,7 @@ import argparse
 import glob
 import time
 import subprocess  # nosec B404
-from typing import Dict, Deque, List, Any
+from typing import Dict, Deque, List, Any, Optional, Set, Union
 
 from exporters import ExportStrategy, JsonExport, DbExport
 
@@ -70,6 +71,53 @@ def validate_output_suffix(parser, output_path, output_format):
     expected_suffix = ".json" if output_format == "json" else ".db"
     if not output_path.endswith(expected_suffix):
         parser.error(f"--format={output_format} requires --output to end with {expected_suffix}")
+
+
+def _cpu_mask_error(message: str):
+    hint = "Expected comma-separated CPU ids/ranges, e.g. '0', '0,1,4', '0-3,8', or '0-15'."
+    return argparse.ArgumentTypeError(f"Invalid --cpu value: {message}. {hint}")
+
+
+def normalize_cpu_id(cpu_id: Union[str, int]) -> str:
+    return str(int(cpu_id))
+
+
+def _parse_non_negative_cpu(cpu_id: str, item: str) -> int:
+    if cpu_id == "":
+        raise _cpu_mask_error(f"malformed range '{item}'")
+    if cpu_id.startswith("-"):
+        raise _cpu_mask_error(f"negative CPU '{cpu_id}' is not allowed")
+    if not cpu_id.isdigit():
+        raise _cpu_mask_error(f"non-integer CPU '{cpu_id}'")
+    return int(cpu_id)
+
+
+def parse_cpu_mask(cpu_arg: Optional[str]) -> Optional[Set[str]]:
+    if cpu_arg is None:
+        return None
+
+    cpus = set()
+    for raw_item in cpu_arg.split(','):
+        item = raw_item.strip()
+        if item == "":
+            raise _cpu_mask_error("empty item")
+
+        if item.startswith("-") and item[1:].isdigit():
+            raise _cpu_mask_error(f"negative CPU '{item}' is not allowed")
+
+        if '-' in item:
+            if item.count('-') != 1:
+                raise _cpu_mask_error(f"malformed range '{item}'")
+            start_text, end_text = [part.strip() for part in item.split('-', 1)]
+            start = _parse_non_negative_cpu(start_text, item)
+            end = _parse_non_negative_cpu(end_text, item)
+            if start > end:
+                raise _cpu_mask_error(f"reversed range '{item}'")
+            cpus.update(str(cpu) for cpu in range(start, end + 1))
+        else:
+            cpus.add(str(_parse_non_negative_cpu(item, item)))
+
+    return cpus
 
 
 def get_trace_event(name, pid, tid, ts, dur, args=None):
@@ -397,7 +445,7 @@ class FtraceParse:
         task = match.group('task')
         pid = match.group('pid')
         pid = PidTran().get_ns_pid(pid)
-        cpu = match.group('cpu')
+        cpu = normalize_cpu_id(match.group('cpu'))
         action = match.group('action')
         args = match.group('args')
         result = {"task": task, "pid": pid, "cpu": cpu, "timestamp": timestamp, "action": action, "args": args}
@@ -807,7 +855,7 @@ class SchedFtraceParse(FtraceParse):
         comm = match.group('comm')
         pid = PidTran().get_ns_pid(match.group('pid'))
         prio = match.group('prio')
-        cpu = match.group('cpu')
+        cpu = normalize_cpu_id(match.group('cpu'))
         result = {"comm": comm, "pid": pid, "prio": prio, "cpu": cpu}
         return result
 
@@ -848,15 +896,24 @@ class SchedFtraceParse(FtraceParse):
 
 
 class TraceConverter:
-    def __init__(self, trace_file_path, profiling_data=None, pid_mapping=None):
+    def __init__(self, trace_file_path, profiling_data=None, pid_mapping=None, cpu_mask=None):
         self.trace_file_path = trace_file_path
         self.file_type = 'dat' if trace_file_path.endswith('.dat') else 'txt'
+        self.cpu_mask = self.normalize_cpu_filter(cpu_mask)
         self.parse_func_map = []
         self.pid_status = PidTran()
         self.pid_status.initialize(pid_mapping)
         self.time_tran = TimeStampTran()
         self.time_tran.initialize(profiling_data)
         self.register_parser(self.file_type)
+
+    @staticmethod
+    def normalize_cpu_filter(cpu_mask):
+        if cpu_mask is None:
+            return None
+        if isinstance(cpu_mask, str):
+            return parse_cpu_mask(cpu_mask)
+        return {normalize_cpu_id(cpu) for cpu in cpu_mask}
 
     def register_parser(self, file_type='dat'):
         self.parse_func_map.append(SchedFtraceParse(file_type=file_type))
@@ -911,6 +968,13 @@ class TraceConverter:
                 match = parser.belong(line)
                 if not match:
                     continue
+                # 当前各 ftrace parser 的 belong() 返回值均需包含 cpu 命名分组，
+                # 以便在 parse_one_event 前完成 CPU 过滤。
+                cpu = normalize_cpu_id(match.group('cpu'))
+                if self.cpu_mask is not None and cpu not in self.cpu_mask:
+                    # 当前行已被该 parser 识别为一个完整 trace 事件；CPU 不匹配时丢弃整行，
+                    # 不再尝试其他 parser，避免同一行被后续 parser 重复消费。
+                    break
                 # parse_one_event 返回 False =>AFTER_END，直接结束解析
                 keep_parsing = parser.parse_one_event(match)
                 if keep_parsing is False:
@@ -930,11 +994,13 @@ if __name__ == "__main__":
                         help='Output format: json or db (default: db)')
     parser.add_argument('--profiling_data', type=str, help='Use profiling data to adjust start time')
     parser.add_argument('--pid_mapping', type=str, help='Container pid map file')
+    parser.add_argument('--cpu', type=parse_cpu_mask, default=None,
+                        help="Filter CPUs to convert. Supports '0', '0,1,4', '0-3,8', or '0-15'. Default: convert all CPUs.")
     args = parser.parse_args()
     validate_output_suffix(parser, args.output, args.format)
 
     t_start = time.perf_counter()
-    converter = TraceConverter(args.input, args.profiling_data, args.pid_mapping)
+    converter = TraceConverter(args.input, args.profiling_data, args.pid_mapping, args.cpu)
 
     if args.format == 'json':
         strategy = JsonExport()

@@ -16,7 +16,9 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+# pylint: disable=too-many-lines
 from collections import deque
+import argparse
 import json
 import logging
 import os
@@ -82,8 +84,6 @@ class TestValidateOutputSuffix(unittest.TestCase):
     """Test output suffix validation for CLI arguments"""
 
     def setUp(self):
-        import argparse
-
         self.parser = argparse.ArgumentParser()
 
     def test_json_format_requires_json_suffix(self):
@@ -103,6 +103,46 @@ class TestValidateOutputSuffix(unittest.TestCase):
 
     def test_db_format_accepts_db_suffix(self):
         trace_convert.validate_output_suffix(self.parser, "ftrace_data.db", "db")
+
+
+class TestParseCpuMask(unittest.TestCase):
+    """Test CPU mask parser for trace_convert --cpu"""
+
+    def assert_invalid_cpu_mask(self, value, expected_message):
+        with self.assertRaises(argparse.ArgumentTypeError) as context:
+            trace_convert.parse_cpu_mask(value)
+
+        self.assertIn(expected_message, str(context.exception))
+
+    def test_parse_cpu_mask_none(self):
+        self.assertIsNone(trace_convert.parse_cpu_mask(None))
+
+    def test_parse_cpu_mask_single(self):
+        self.assertEqual(trace_convert.parse_cpu_mask("0"), {"0"})
+
+    def test_parse_cpu_mask_comma_separated(self):
+        self.assertEqual(trace_convert.parse_cpu_mask("0,1,4"), {"0", "1", "4"})
+
+    def test_parse_cpu_mask_range(self):
+        self.assertEqual(trace_convert.parse_cpu_mask("0-3,8"), {"0", "1", "2", "3", "8"})
+
+    def test_parse_cpu_mask_normalizes_leading_zeroes(self):
+        self.assertEqual(trace_convert.parse_cpu_mask("000,015"), {"0", "15"})
+
+    def test_parse_cpu_mask_rejects_empty_item(self):
+        self.assert_invalid_cpu_mask("0,,1", "empty item")
+
+    def test_parse_cpu_mask_rejects_negative_cpu(self):
+        self.assert_invalid_cpu_mask("-1", "negative CPU")
+
+    def test_parse_cpu_mask_rejects_non_integer_cpu(self):
+        self.assert_invalid_cpu_mask("0,a", "non-integer CPU")
+
+    def test_parse_cpu_mask_rejects_reversed_range(self):
+        self.assert_invalid_cpu_mask("8-3", "reversed range")
+
+    def test_parse_cpu_mask_rejects_malformed_range(self):
+        self.assert_invalid_cpu_mask("1-2-3", "malformed range")
 
 
 class TestTraceEventHelpers(unittest.TestCase):
@@ -785,6 +825,50 @@ class TestTraceConverterE2E(unittest.TestCase):
         # Verify result structure - should contain process scheduling meta event
         meta_events = [e for e in result if e.get('ph') == 'M']
         self.assertTrue(len(meta_events) >= 1)
+
+    def test_parse_filters_to_selected_cpu_and_normalizes_lane(self):
+        """CPU filtering skips non-selected events before timestamp conversion."""
+        trace_file = os.path.join(self.TEST_DATA_DIR, 'trace.txt')
+        if not os.path.exists(trace_file):
+            self.skipTest("Test data file not found")
+
+        converter = trace_convert.TraceConverter(trace_file, cpu_mask="1")
+        result = converter.parse()
+
+        cpu_tids = {event.get('tid') for event in result if event.get('pid') == trace_convert.CPU_SCHED_PID}
+        self.assertIn("CPU 1", cpu_tids)
+        self.assertNotIn("CPU 0", cpu_tids)
+        self.assertNotIn("CPU 001", cpu_tids)
+        self.assertEqual(trace_convert.TimeStampTran().ftrace_event_count, 5)
+
+    def test_parse_cpu_filter_matches_zero_padded_trace_cpu(self):
+        """--cpu=0 should match ftrace text that renders the CPU as [000]."""
+        trace_file = os.path.join(self.TEST_DATA_DIR, 'trace.txt')
+        if not os.path.exists(trace_file):
+            self.skipTest("Test data file not found")
+
+        converter = trace_convert.TraceConverter(trace_file, cpu_mask=trace_convert.parse_cpu_mask("0"))
+        result = converter.parse()
+
+        cpu_tids = {event.get('tid') for event in result if event.get('pid') == trace_convert.CPU_SCHED_PID}
+        self.assertIn("CPU 0", cpu_tids)
+        self.assertNotIn("CPU 1", cpu_tids)
+        self.assertNotIn("CPU 000", cpu_tids)
+        self.assertEqual(trace_convert.TimeStampTran().ftrace_event_count, 15)
+
+        irq_tids = {event.get("tid") for event in result if event.get("name") in {"irq", "softirq"}}
+        self.assertTrue(irq_tids)
+        self.assertEqual(irq_tids, {"CPU 0"})
+
+        process_event_cpus = {
+            event["args"]["cpu"]
+            for event in result
+            if event.get("pid") == trace_convert.PROCESS_SCHED_PID
+            and isinstance(event.get("args"), dict)
+            and "cpu" in event["args"]
+        }
+        self.assertTrue(process_event_cpus)
+        self.assertTrue(process_event_cpus.issubset({"0"}))
 
     def test_parse_with_pid_mapping(self):
         """Test parsing trace file with PID mapping"""
