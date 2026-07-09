@@ -565,6 +565,31 @@ TEST(FileUtilTest, FindFoldersSkipsHiddenFilesOnWindows) {
     EXPECT_NE(RemoveDirectoryA(childDir.c_str()), 0);
     EXPECT_NE(RemoveDirectoryA(dirPath.c_str()), 0);
 }
+
+TEST(FileUtilTest, FindFoldersReturnsUnsafeNamesWhenNotStrictOnWindows) {
+    char tempPath[MAX_PATH] = {0};
+    ASSERT_GT(GetTempPathA(MAX_PATH, tempPath), 0U);
+    std::string dirPath = FileUtil::SplicePath(tempPath,
+        "FileUtilFindFoldersStrict_" + std::to_string(GetCurrentProcessId()) + "_" + std::to_string(GetTickCount()));
+    ASSERT_NE(CreateDirectoryA(dirPath.c_str(), nullptr), 0);
+    std::string unsafeFile = FileUtil::SplicePath(dirPath, "bad%file.json");
+    std::ofstream file(unsafeFile);
+    ASSERT_TRUE(file.is_open());
+    file.close();
+
+    std::vector<std::string> folders;
+    std::vector<std::string> strictFiles;
+    EXPECT_TRUE(FileUtil::FindFolders(dirPath, folders, strictFiles));
+    EXPECT_EQ(std::find(strictFiles.begin(), strictFiles.end(), "bad%file.json"), strictFiles.end());
+
+    std::vector<std::string> relaxedFolders;
+    std::vector<std::string> relaxedFiles;
+    EXPECT_TRUE(FileUtil::FindFolders(dirPath, relaxedFolders, relaxedFiles, false));
+    EXPECT_NE(std::find(relaxedFiles.begin(), relaxedFiles.end(), "bad%file.json"), relaxedFiles.end());
+
+    EXPECT_EQ(std::remove(unsafeFile.c_str()), 0);
+    EXPECT_NE(RemoveDirectoryA(dirPath.c_str()), 0);
+}
 #endif
 
 TEST(FileUtilTest, FindIfDbTypeByRegex) {

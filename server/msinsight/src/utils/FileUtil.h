@@ -194,7 +194,7 @@ class FileUtil {
                 continue;
             }
 
-            if (!CheckPathSecurity(SplicePath(currentPath, fileName))) {
+            if (strict && !CheckPathSecurity(SplicePath(currentPath, fileName))) {
                 continue;
             }
             if ((fileInfo.attrib & _A_SUBDIR) != 0) {

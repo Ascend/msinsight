@@ -105,6 +105,41 @@ TEST_F(GlobalHandlerTest, TestCheckProjectValidHandlerCollectsPathSecurityErrors
 }
 #endif
 
+#ifdef _WIN32
+TEST_F(GlobalHandlerTest, CheckProjectValidHandlerTraversesWindowsLongPath) {
+    char tempPath[MAX_PATH] = {0};
+    ASSERT_GT(GetTempPathA(MAX_PATH, tempPath), 0U);
+    std::string rootPath = Dic::FileUtil::SplicePath(tempPath,
+        "CheckProjectLongPath_" + std::to_string(GetCurrentProcessId()) + "_" + std::to_string(GetTickCount()));
+    ASSERT_NE(CreateDirectoryW(Dic::FileUtil::ConvertToLongPathW(rootPath).c_str(), nullptr), 0);
+
+    std::vector<std::string> dirs = {rootPath};
+    std::string currentPath = rootPath;
+    while (currentPath.size() <= MAX_PATH + 20) {
+        currentPath = Dic::FileUtil::SplicePath(currentPath, "long_path_segment_1234567890");
+        ASSERT_NE(CreateDirectoryW(Dic::FileUtil::ConvertToLongPathW(currentPath).c_str(), nullptr), 0);
+        dirs.emplace_back(currentPath);
+    }
+
+    std::string filePath = Dic::FileUtil::SplicePath(currentPath, "trace_view.json");
+    HANDLE hFile = CreateFileW(Dic::FileUtil::ConvertToLongPathW(filePath).c_str(), GENERIC_WRITE, 0, nullptr,
+        CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    ASSERT_NE(hFile, INVALID_HANDLE_VALUE);
+    CloseHandle(hFile);
+
+    ProjectErrorType error = ProjectErrorType::NO_ERRORS;
+    std::vector<ProjectCheckBody::ErrorDetail> errors;
+    EXPECT_TRUE(CheckProjectValidHandler::CheckPathByBfs({rootPath}, error, errors));
+    EXPECT_EQ(ProjectErrorType::NO_ERRORS, error);
+    EXPECT_TRUE(errors.empty());
+
+    EXPECT_NE(DeleteFileW(Dic::FileUtil::ConvertToLongPathW(filePath).c_str()), 0);
+    for (auto iter = dirs.rbegin(); iter != dirs.rend(); ++iter) {
+        EXPECT_NE(RemoveDirectoryW(Dic::FileUtil::ConvertToLongPathW(*iter).c_str()), 0);
+    }
+}
+#endif
+
 TEST_F(GlobalHandlerTest, TestDeleteProjectExplorerHandler) {
     auto requestPtr = std::make_unique<ProjectExplorerInfoDeleteRequest>();
     requestPtr->params.projectName = "";

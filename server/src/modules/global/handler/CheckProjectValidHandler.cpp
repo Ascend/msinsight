@@ -19,7 +19,6 @@
 #include "pch.h"
 #include <algorithm>
 #include <queue>
-#include <system_error>
 #include "WsSessionManager.h"
 #include "ProjectExplorerManager.h"
 #include "CheckProjectValidHandler.h"
@@ -56,6 +55,18 @@ void UpdateFirstError(ProjectErrorType &error, const std::vector<ProjectCheckBod
     if (error == ProjectErrorType::NO_ERRORS && !errors.empty()) {
         error = static_cast<ProjectErrorType>(errors.front().error);
     }
+}
+
+std::string GetFileExtension(const std::string &filePath) {
+    std::string fileName = FileUtil::GetFileName(filePath);
+    if (fileName.empty() || fileName == "." || fileName == "..") {
+        return "";
+    }
+    auto dotPos = fileName.find_last_of('.');
+    if (dotPos == std::string::npos || dotPos == 0) {
+        return "";
+    }
+    return fileName.substr(dotPos);
 }
 }
 
@@ -97,28 +108,27 @@ bool Dic::Module::CheckProjectValidHandler::CheckRequestParamsValid(
     return true;
 }
 
-bool Dic::Module::CheckProjectValidHandler::CheckProjectFile(
-    const fs::path &filePath, ProjectErrorType &error, std::vector<ProjectCheckBody::ErrorDetail> &errors, int layer) {
-    if (FILE_MAX_SIZE.count(filePath.extension().string()) == 0) {
+bool Dic::Module::CheckProjectValidHandler::CheckProjectFile(const std::string &filePath, ProjectErrorType &error,
+    std::vector<ProjectCheckBody::ErrorDetail> &errors, int layer) {
+    std::string extension = GetFileExtension(filePath);
+    if (FILE_MAX_SIZE.count(extension) == 0) {
         return true;
     }
-    std::string localFilePath = StringUtil::ToLocalStr(filePath.u8string());
-    if (!CheckFileSize(filePath)) {
+    if (!CheckFileSize(filePath, extension)) {
         error = ProjectErrorType::EXISTING_LARGE_FILES;
-        AddCheckError(errors, error, localFilePath, "The file size exceeds the limit.", layer);
+        AddCheckError(errors, error, filePath, "The file size exceeds the limit.", layer);
         return false;
     }
-    if (!FileUtil::CheckFilePathLength(localFilePath)) {
+    if (!FileUtil::CheckFilePathLength(filePath)) {
         error = ProjectErrorType::EXCEEDS_MXIMUN_LENGTH;
-        AddCheckError(errors, error, localFilePath, "The file path length exceeds the limit.", layer);
+        AddCheckError(errors, error, filePath, "The file path length exceeds the limit.", layer);
         return false;
     }
     return true;
 }
 
-bool Dic::Module::CheckProjectValidHandler::CheckFileSize(const fs::path &filePath) {
-    std::string localFilePath = StringUtil::ToLocalStr(filePath.u8string());
-    if (FileUtil::GetFileSize(localFilePath.c_str()) > FILE_MAX_SIZE[filePath.extension().string()]) {
+bool Dic::Module::CheckProjectValidHandler::CheckFileSize(const std::string &filePath, const std::string &extension) {
+    if (FileUtil::GetFileSize(filePath.c_str()) > FILE_MAX_SIZE[extension]) {
         return false;
     }
     return true;
@@ -155,22 +165,19 @@ bool EnqueuePath(std::queue<PathCheckQueueItem> &pending, std::vector<ProjectChe
 
 bool EnqueueSubPaths(const PathCheckQueueItem &item, std::queue<PathCheckQueueItem> &pending,
     std::vector<ProjectCheckBody::ErrorDetail> &errors) {
-    std::error_code errorCode;
-    std::string tempPath = StringUtil::ToUtf8Str(item.path);
-    fs::directory_iterator iter(fs::u8path(tempPath), errorCode);
-    if (errorCode) {
-        AddCheckError(errors, ProjectErrorType::IS_UNSAFE_PATH, item.path, errorCode.message(), item.layer);
+    std::vector<std::string> folders;
+    std::vector<std::string> files;
+    if (!FileUtil::FindFolders(item.path, folders, files, false)) {
+        AddCheckError(errors, ProjectErrorType::IS_UNSAFE_PATH, item.path, "Open directory failed.", item.layer);
         return true;
     }
-    fs::directory_iterator end;
     std::vector<std::string> subPaths;
-    while (iter != end) {
-        subPaths.emplace_back(StringUtil::ToLocalStr(iter->path().u8string()));
-        iter.increment(errorCode);
-        if (errorCode) {
-            AddCheckError(errors, ProjectErrorType::IS_UNSAFE_PATH, item.path, errorCode.message(), item.layer);
-            return true;
-        }
+    subPaths.reserve(folders.size() + files.size());
+    for (const auto &folder : folders) {
+        subPaths.emplace_back(FileUtil::SplicePath(item.path, folder));
+    }
+    for (const auto &file : files) {
+        subPaths.emplace_back(FileUtil::SplicePath(item.path, file));
     }
     std::sort(subPaths.begin(), subPaths.end());
     for (const auto &subPath : subPaths) {
@@ -203,9 +210,7 @@ bool CheckProjectValidHandler::CheckPathByBfs(const std::vector<std::string> &pa
         if (!CheckPathSafety(item.path, itemError, errors, item.layer)) {
             continue;
         }
-        std::string tempPath = StringUtil::ToUtf8Str(item.path);
-        auto filePath = fs::u8path(tempPath);
-        if (fs::exists(filePath) && !CheckProjectFile(filePath, itemError, errors, item.layer)) {
+        if (FileUtil::IsFilePathExist(item.path) && !CheckProjectFile(item.path, itemError, errors, item.layer)) {
             continue;
         }
         if (FileUtil::IsFolder(item.path)) {
