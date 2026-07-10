@@ -14,7 +14,7 @@ The **WebView2Runtime** file required for running the program is missing.
 
 **Solution**
 
-1. Click [here](https://developer.microsoft.com/en-US/microsoft-edge/webview2/#download-section) to go to the Microsoft official website.
+1. Click [download](https://developer.microsoft.com/en-US/microsoft-edge/webview2/#download-section) to go to the Microsoft official website.
 2. Download the x64 installation package for Evergreen Standalone Installer, as shown in [**Figure 1** WebView2 installation package](#webview2-installation-package).
 
     **Figure 1** WebView2 installation package <a id="webview2-installation-package"></a>   
@@ -194,7 +194,7 @@ The configured source does not have any dependency.
 
 **Solution**
 
-Configure a new source by referring to [here](https://www.hiascend.com/forum/thread-02101178181671140059-1-1.html) and reinstall the corresponding dependency.
+Configure a new source by referring to [solution](https://www.hiascend.com/forum/thread-02101178181671140059-1-1.html) and reinstall the corresponding dependency.
 
 ## A Black Screen Is Displayed During Data Import into MindStudio Insight
 

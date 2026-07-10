@@ -31,7 +31,7 @@ MindStudio Insight provides various import modes based on the file type. For det
 **Precautions**
 
 - The profile data of system tuning and serving tuning can be imported at the same time. You need to place the data of the two scenarios in the same folder and select the folder when importing the data.
-- For details about how to obtain the data, see section "msServiceProfiler" \> "Serving Tuning" \> "[Data Parsing](https://www.hiascend.com/document/detail/zh/mindstudio/830/T&ITools/Profiling/atlasprofiling_16_0033.html)" in the *Profiling Tool Guide*.
+- For details about how to obtain the data, see [msServiceProfiler Multi Analyze](https://gitcode.com/Ascend/msserviceprofiler/blob/26.0.0/docs/en/msserviceprofiler_multi_analyze_instruct.md).
 
 ## Timeline
 
