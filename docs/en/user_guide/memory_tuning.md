@@ -102,7 +102,7 @@ You can import the memory result files in DB format collected by the msMemScope 
 
 ### PyTorch Snapshot Data Description
 
-PyTorch Memory Snapshot is a memory snapshot function provided by PyTorch. It is used to record and analyze the memory usage of the memory pool managed by PyTorch during model running. For details about the original data of memory snapshot, see "[Memory Snapshot Application Scenarios](https://www.hiascend.com/document/detail/zh/Pytorch/730/ptmoddevg/Frameworkfeatures/docs/zh/framework_feature_guide_pytorch/memory_snapshot.md#application-scenarios)(Chinese only)" in Section "Model Development" in the *Ascend Extension for PyTorch*.
+PyTorch Memory Snapshot is a memory snapshot function provided by PyTorch. It is used to record and analyze the memory usage of the memory pool managed by PyTorch during model running. For details about the original data of memory snapshot, see "[Memory Snapshot Application Scenarios](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.0.0/docs/en/framework_feature_guide_pytorch/memory_snapshot.md#use-scenario)" in Section "Model Development" in the *Ascend Extension for PyTorch*.
 
 **Common Memory Problems**
 

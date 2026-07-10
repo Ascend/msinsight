@@ -1725,7 +1725,7 @@ MindStudio Insight支持卡间算子性能对比，可帮助开发者直观、�
 
 当选择“Profiling”，展示专家分布热点图，其是基于Profiling的热点图，统计的每一个MoE层中GroupedMatmul算子的耗时情况，GroupedMatmul算子是MoE模型计算的核心，其效率会决定专家的响应速度。
 
-当选择“Dump”时，展示MoE模型专家负载均衡热力图，其是基于Dump的热力图，统计的每个MoE层中每一个专家处理的token数量。可选择“Dump-均衡前”或“Dump-均衡后”，单击![](./figures/system_tuning/zh-cn_image_0000002532040275.png)按钮导入对应文件，展示MoE模型专家负载均衡热力图，如[**图 7** MoE大模型专家负载均衡分析](#MoE大模型专家负载均衡分析)所示，参数解释如[**表 5** MoE大模型专家负载均衡分析参数说明](#MoE大模型专家负载均衡分析参数说明)所示。“Dump-均衡前”和“Dump-均衡后”的数据文件采集方式可参见《MindIE LLM开发指南》的“特性介绍 \> [负载均衡](https://www.hiascend.com/document/detail/zh/mindie/230/mindiellm/llmdev/mindie_llm0480.html)”章节。
+当选择“Dump”时，展示MoE模型专家负载均衡热力图，其是基于Dump的热力图，统计的每个MoE层中每一个专家处理的token数量。可选择“Dump-均衡前”或“Dump-均衡后”，单击![](./figures/system_tuning/zh-cn_image_0000002532040275.png)按钮导入对应文件，展示MoE模型专家负载均衡热力图，如[**图 7** MoE大模型专家负载均衡分析](#MoE大模型专家负载均衡分析)所示，参数解释如[**表 5** MoE大模型专家负载均衡分析参数说明](#MoE大模型专家负载均衡分析参数说明)所示。“Dump-均衡前”和“Dump-均衡后”的数据文件采集方式可参见《[MoE](https://gitcode.com/Ascend/MindIE-LLM/blob/v3.0.0/docs/zh/user_guide/feature/moe.md)》。
 
 **图 7** MoE大模型专家负载均衡分析<a id="MoE大模型专家负载均衡分析"></a>
 ![](./figures/system_tuning/moe_large_model_expert_load_balancing_analysis_1.png "MoE大模型专家负载均衡分析")
