@@ -40,9 +40,9 @@ class CheckProjectValidHandler : public GlobalHandler {
   private:
     static bool CheckRequestParamsValid(
         ProjectCheckParams &params, ProjectErrorType &error, std::vector<ProjectCheckBody::ErrorDetail> &errors);
-    static bool CheckProjectFile(const fs::path &filePath, ProjectErrorType &error,
+    static bool CheckProjectFile(const std::string &filePath, ProjectErrorType &error,
         std::vector<ProjectCheckBody::ErrorDetail> &errors, int layer);
-    static bool CheckFileSize(const fs::path &filePath);
+    static bool CheckFileSize(const std::string &filePath, const std::string &extension);
     static bool CheckPathSafety(const std::string &path, ProjectErrorType &error,
         std::vector<ProjectCheckBody::ErrorDetail> &errors, int layer);
     static bool CheckPathByBfs(const std::vector<std::string> &paths, ProjectErrorType &error,
