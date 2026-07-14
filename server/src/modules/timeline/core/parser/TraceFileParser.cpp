@@ -85,12 +85,13 @@ bool TraceFileParser::InitParser(const std::vector<std::string> &filePathArr,
     }
     auto db = DataBaseManager::Instance().GetTraceDatabaseByFileId(fileId);
     if (db == nullptr) {
-        ServerLog::Error("Failed to get connection.");
+        ServerLog::Error("Failed to get connection. rankId:", rankId, ", fileId:", fileId,
+            ", file count:", filePathArr.size());
         return false;
     }
     auto database = std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
     if (database == nullptr) {
-        ServerLog::Error("Failed to open trace database. rankId:", rankId);
+        ServerLog::Error("Failed to open trace database. rankId:", rankId, ", fileId:", fileId);
         return false;
     }
     std::string statusInfo = ComputeStatusInfoFromPathArr(filePathArr);
@@ -125,7 +126,7 @@ bool TraceFileParser::InitParser(const std::vector<std::string> &filePathArr,
         return true;
     }
     if (!database->DropTable() || !database->CreateTable() || !database->UpdateParseStatus(NOT_FINISH_STATUS)) {
-        ServerLog::Error("Failed to init trace database. rankId:", rankId);
+        ServerLog::Error("Failed to init trace database. rankId:", rankId, ", fileId:", fileId);
         return false;
     }
     InitFileProcess(filePathArr, rankId);
@@ -178,13 +179,15 @@ void TraceFileParser::ParseTask(const std::string &filePath, const std::string &
     }
     auto db = DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
     if (db == nullptr) {
-        ServerLog::Warn("Failed to get connection when parse timeline json,ID: ", rankId);
+        ServerLog::Warn("Failed to get connection when parse timeline json. rankId:", rankId,
+            ", filePath:", filePath, ", start:", pos.first, ", end:", pos.second);
         return;
     }
     std::shared_ptr<TextTraceDatabase> databasePtr =
             std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
     if (databasePtr == nullptr) {
-        ServerLog::Warn("Failed to get text connection when parse timeline json,ID: ", rankId);
+        ServerLog::Warn("Failed to get text connection when parse timeline json. rankId:", rankId,
+            ", filePath:", filePath, ", start:", pos.first, ", end:", pos.second);
         return;
     }
     EventParser eventParser(filePath, rankId, databasePtr);
@@ -219,13 +222,15 @@ void TraceFileParser::EndParseTask(const std::string &rankId, const std::vector<
                     " Cost time(ms): ", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
     auto db = DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
     if (db == nullptr) {
-        ServerLog::Error("Failed to get connection. fileId:", rankId);
+        ServerLog::Error("Failed to get connection in end parse task. rankId:", rankId,
+            ", file count:", filePathArr.size());
         ParserStatusManager::Instance().SetFinishStatus(rankId);
         return;
     }
     auto database = std::dynamic_pointer_cast<TextTraceDatabase, VirtualTraceDatabase>(db);
     if (database == nullptr) {
-        ServerLog::Error("Failed to convert virtual trace database to json trace database in end parse task.");
+        ServerLog::Error("Failed to convert virtual trace database to json trace database in end parse task. rankId:",
+            rankId, ", file count:", filePathArr.size());
         return;
     }
     database->CreateIndex();

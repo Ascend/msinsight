@@ -89,7 +89,8 @@ std::unordered_map<std::string, std::string> ParserIE::GetRankListMap(
             rankInfo.rankName = fileId;
             TrackInfoManager::Instance().SetRankListByFileId(tasks[0].filePath, rankInfo);
             if (!DataBaseManager::Instance().CreateTraceConnectionPool(fileId, tasks[0].filePath)) {
-                ServerLog::Error("Failed to create connection pool. fileId:", fileId);
+                ServerLog::Error("Failed to create connection pool. fileId:", fileId, ", filePath:", tasks[0].filePath,
+                    ", parseFilePath:", parseFileInfo->parseFilePath);
                 return rankToTraceMap;
             }
             auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(fileId);

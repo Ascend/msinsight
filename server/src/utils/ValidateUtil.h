@@ -33,19 +33,20 @@ namespace Dic {
 class ValidateUtil {
   public:
     static bool CheckCsvFile(const std::string &fileName) {
+        std::string filePath = FileUtil::PathPreprocess(fileName);
         std::ifstream file = OpenReadFileSafely(fileName);
         if (!file.good()) {
-            Server::ServerLog::Error("Check csv file cannot get file");
+            Server::ServerLog::Error("Check csv file cannot get file. fileName:", fileName, ", filePath:", filePath);
             return false;
         }
-        std::string filePath = FileUtil::PathPreprocess(fileName);
         if (access(filePath.c_str(), R_OK) == -1) {
-            Server::ServerLog::Error("Check csv file cannot read file");
+            Server::ServerLog::Error("Check csv file cannot read file. fileName:", fileName, ", filePath:", filePath);
             return false;
         }
         long long size = FileUtil::GetFileSize(filePath.c_str());
         if (size > MAX_FILE_SIZE_2G) {
-            Server::ServerLog::Warn("The csv file is too large, and the max size is 2G");
+            Server::ServerLog::Warn(
+                "The csv file is too large. filePath:", filePath, ", size:", size, ", max size:", MAX_FILE_SIZE_2G);
         }
         return true;
     }

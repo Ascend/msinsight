@@ -26,12 +26,13 @@ int64_t Dic::Module::FileReader::GetFileSize(const std::string &filePath) {
 std::string Dic::Module::FileReader::ReadJsonArray(
     const std::string &filePath, int64_t startPosition, int64_t endPosition) {
     if (endPosition < startPosition) {
-        Server::ServerLog::Warn("Read json array. Illegal position. Start: ", startPosition, " End: ", endPosition);
+        Server::ServerLog::Warn(
+            "Read json array. Illegal position. filePath:", filePath, ", start:", startPosition, ", end:", endPosition);
         return "";
     }
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::in | std::ios::binary);
     if (!file.is_open()) {
-        Server::ServerLog::Error("Read json array. Failed to open file.");
+        Server::ServerLog::Error("Read json array. Failed to open file. filePath:", filePath);
         return "";
     }
     if (startPosition == 0 && endPosition == 0) {
@@ -44,7 +45,8 @@ std::string Dic::Module::FileReader::ReadJsonArray(
     auto buffer = std::make_unique<char[]>(len);
     if (!file.read(buffer.get() + 1, len - suffixLen)) { // reserved '[' and ']'
         file.close();
-        Server::ServerLog::Error("Read json array. Failed to read file. start:", startPosition, ", end:", endPosition);
+        Server::ServerLog::Error("Read json array. Failed to read file. filePath:", filePath, ", start:", startPosition,
+            ", end:", endPosition);
         return "";
     }
     file.close();

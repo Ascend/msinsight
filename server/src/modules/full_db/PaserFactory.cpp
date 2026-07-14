@@ -637,7 +637,7 @@ std::vector<std::string> ProjectParserBase::ParseDeviceInfo(
 std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromCsv(const std::string &filePath) {
     auto file = OpenReadFileSafely(filePath);
     if (!file.is_open()) {
-        ServerLog::Error("Failed to open step_trace_time.csv.");
+        ServerLog::Error("Failed to open step_trace_time.csv. filePath:", filePath);
         return {};
     }
     std::string line;
@@ -671,7 +671,7 @@ std::set<std::string> ProjectParserBase::ParseDeviceIdSetFromDb(const std::strin
         database->OpenDb(dbPath, false);
         database->QueryDeviceIdInStepTraceTime(deviceId);
     } catch (std::exception &e) {
-        ServerLog::Error("Failed to query deviceId from StepTraceTimeTable.");
+        ServerLog::Error("Failed to query deviceId from StepTraceTimeTable. dbPath:", dbPath, ", error:", e.what());
         return deviceId;
     }
     return deviceId;

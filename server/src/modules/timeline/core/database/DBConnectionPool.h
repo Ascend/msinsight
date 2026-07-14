@@ -101,7 +101,8 @@ template <typename T> std::shared_ptr<T> DBConnectionPool<T>::GetConnection() {
         }
     }
     if (conn == nullptr) {
-        ServerLog::Error("Get connection Failed.");
+        ServerLog::Error("Get connection failed. path:", path, ", active pool size:", activePool.size(),
+            ", idle pool size:", idlePool.size(), ", max active connections:", maxActiveConnections);
         return nullptr;
     }
     std::shared_ptr<T> connPtr(conn, [this](T *conn) { ReleaseConnection(conn); });
@@ -143,7 +144,7 @@ template <typename T> T *DBConnectionPool<T>::CreatConnection() {
         activePool.emplace_back(conn);
         return conn;
     }
-    ServerLog::Error("Failed create connect. path:", path);
+    ServerLog::Error("Failed create connect. path:", path, ", retry count:", retryCount);
     return nullptr;
 }
 

@@ -30,7 +30,7 @@ void BaseModule::OnRequest(std::unique_ptr<Protocol::Request> request) {
     static ThreadPool threadPool(MIN_SIZE);
     std::string command = request->command;
     if (requestHandlerMap.count(command) == 0) {
-        ServerLog::Error("Failed to find request handler");
+        ServerLog::Error("Failed to find request handler, command: ", command);
         return;
     }
     auto &requestHandler = requestHandlerMap.at(command);
