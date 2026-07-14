@@ -19,7 +19,7 @@ import { join } from "node:path";
 import { createPromptContent } from "./chatService.mjs";
 import { getSessionContext } from "../state/runtimeState.mjs";
 
-export const createSessionManager = ({ adapter, eventBus, state, config, contextAssembler, auditLogger, permissionService }) => {
+export const createSessionManager = ({ adapter, eventBus, state, config, auditLogger, permissionService }) => {
     let sessionService;
 
     const getAgentCwd = () => join(config.cwd, state.activeAgentName ?? config.agentServer?.name ?? adapter.agentId ?? "");
@@ -30,21 +30,6 @@ export const createSessionManager = ({ adapter, eventBus, state, config, context
         messages: [...(context.messages ?? [])],
         configOptions: [...(context.configOptions ?? [])],
     });
-
-    const refreshHiddenContext = async (context) => {
-        if (!contextAssembler || !context) return context?.hiddenContext;
-        const packet = await contextAssembler.assemble(context);
-        context.hiddenContext = { kind: "AgentContextPacket", packet };
-        void auditLogger?.contextAssembled?.(context.sessionId, packet);
-        return context.hiddenContext;
-    };
-
-    const applyActiveContext = async (context, activeContext = state.activeContext) => {
-        if (!context) return;
-        context.view = activeContext?.activeModule;
-        context.profileId = activeContext?.profileId;
-        await refreshHiddenContext(context);
-    };
 
     const startSession = async ({ agentId, mode, view, profileId, grants } = {}) => {
         const session = await adapter.request("session/new", {
@@ -64,9 +49,8 @@ export const createSessionManager = ({ adapter, eventBus, state, config, context
         context.configOptions = session?.configOptions ?? session?.config_options ?? [];
         context.replayingHistory = false;
         context.createdAt = context.createdAt ?? Date.now();
-        await refreshHiddenContext(context);
         state.sessionContexts.set(session.sessionId, context);
-        void auditLogger?.sessionStart?.(context);
+        auditLogger?.sessionStart?.(context);
         return cloneSessionContext(context);
     };
 
@@ -86,30 +70,29 @@ export const createSessionManager = ({ adapter, eventBus, state, config, context
         } catch (error) {
             console.warn(`[ACP] session/delete failed for ${targetSessionId}: ${error.message}`);
             if (!error.message.includes("not found")) {
-                void auditLogger?.error?.(targetSessionId, error);
+                auditLogger?.error?.(targetSessionId, error);
                 return { error: error.message, status: 500 };
             }
         }
         permissionService?.rejectSessionRequests?.(targetSessionId, "invalidated");
         state.localTitles.delete(targetSessionId);
         state.sessionContexts.delete(targetSessionId);
-        void auditLogger?.sessionEnd?.(targetSessionId);
+        auditLogger?.sessionEnd?.(targetSessionId);
         return { ok: true };
     };
 
-    const pushUserMessage = async (sessionId, { text, images = [], hiddenContext, mode } = {}) => {
+    const pushUserMessage = async (sessionId, { text, images = [], mode } = {}) => {
         const targetSessionId = String(sessionId ?? "").trim();
         if (!targetSessionId) throw new Error("sessionId is required");
         const context = getSessionContext(state, targetSessionId);
         if (context.pendingPrompt) throw new Error("another prompt is running");
         if (mode) context.mode = mode;
-        const contextForPrompt = hiddenContext ?? await refreshHiddenContext(context);
-        const prompt = createPromptContent(String(text ?? "").trim(), images, [], contextForPrompt);
+        const prompt = createPromptContent(String(text ?? "").trim(), images);
         context.pendingPrompt = true;
         try {
             await adapter.request("session/prompt", { sessionId: targetSessionId, prompt });
         } catch (error) {
-            void auditLogger?.error?.(targetSessionId, error);
+            auditLogger?.error?.(targetSessionId, error);
             throw error;
         } finally {
             context.pendingPrompt = false;
@@ -121,23 +104,11 @@ export const createSessionManager = ({ adapter, eventBus, state, config, context
         if (eventBus?.broadcast && event?.audit) eventBus.broadcast({ type: "session_event", sessionId, event });
     };
 
-    const updateContext = async (activeContext) => {
-        state.activeContext = activeContext;
-        await Promise.all([...state.sessionContexts.values()].map((context) => applyActiveContext(context, activeContext)));
-        return state.activeContext;
-    };
-
-    const getPromptContext = async (sessionId) => {
-        return refreshHiddenContext(getSessionContext(state, sessionId));
-    };
-
     return {
         startSession,
         endSession,
         pushUserMessage,
         handleAgentEvent,
-        updateContext,
-        getPromptContext,
         bindSessionService(service) {
             sessionService = service;
         },

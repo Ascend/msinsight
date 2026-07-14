@@ -19,7 +19,7 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setLocalTitle } from "./messageService.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, systemPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, systemPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -58,7 +58,6 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         const promptText = parsedPrompt.text;
         const images = normalizeImages(options.images);
         const selectedSkills = parsedPrompt.skills;
-        const incomingHiddenContext = normalizeHiddenContext(options.hiddenContext);
         if (!promptText && !images.length && !selectedSkills.length) {
             console.warn("Prompt rejected: message is empty");
             return { error: "message cannot be empty", status: 400 };
@@ -85,8 +84,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 console.warn(`Prompt rejected: another prompt is running, sessionId=${sessionId}`);
                 return { error: "another prompt is running", status: 409 };
             }
-            const latestHiddenContext = incomingHiddenContext ?? await sessionManager?.getPromptContext?.(sessionId) ?? sessionContext.hiddenContext;
-            const hiddenContext = updateSessionHiddenContext(sessionContext, latestHiddenContext);
+            const hiddenContext = await contextAssembler?.assemble?.(sessionContext);
 
             sessionContext.pendingPrompt = true;
             await sessionService.applyPreferredModel(sessionId);
@@ -103,8 +101,8 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             eventBus.broadcast({ type: "message_added", sessionId, message: assistant });
             eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: true });
 
-            void runPrompt(sessionId, promptText, images, selectedSkills, hiddenContext, assistant);
-            void sessionService.refreshSessions();
+            runPrompt(sessionId, promptText, images, selectedSkills, hiddenContext, assistant);
+            sessionService.refreshSessions();
             return { ok: true, sessionId };
         } catch (error) {
             const sessionId = String(options.sessionId ?? "").trim();
@@ -122,7 +120,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             console.log(`Prompt execution started: sessionId=${sessionId}, textLength=${promptText.length}, images=${images.length}, skills=${selectedSkills.length}, hiddenContext=${Boolean(hiddenContext)}`);
             await adapter.request("session/prompt", {
                 sessionId,
-                prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext, systemPrompt),
+                prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext),
             });
             console.log(`Prompt execution completed: sessionId=${sessionId}`);
 
@@ -173,7 +171,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
 
         if (!sessionId) return;
         getSessionContext(state, sessionId);
-        void sessionManager?.handleAgentEvent?.(sessionId, { kind, update, params });
+        sessionManager?.handleAgentEvent?.(sessionId, { kind, update, params });
 
         if (kind === "session_info_update") {
             const title = update.title;
@@ -259,7 +257,7 @@ const createSystemPromptBlock = (systemPrompt) => ({
     resource: {
         uri: "insight-system-prompt://project",
         mimeType: "text/plain",
-        text: systemPrompt,
+        text: wrapContextText("insight-system-prompt://project", systemPrompt),
     },
 });
 
@@ -268,19 +266,15 @@ const createHiddenContextBlock = (hiddenContext) => ({
     resource: {
         uri: "insight-hidden-context://project",
         mimeType: "application/json",
-        text: JSON.stringify({
+        text: wrapContextText("insight-hidden-context://project", JSON.stringify({
             contextPolicy: "replace_previous_hidden_context",
             instruction: "Use this hidden context as the authoritative project context for this turn and ignore any previous hidden project context in this session.",
             data: hiddenContext,
-        }),
+        })),
     },
 });
 
-const updateSessionHiddenContext = (sessionContext, incomingHiddenContext) => {
-    if (!incomingHiddenContext) return sessionContext.hiddenContext;
-    sessionContext.hiddenContext = incomingHiddenContext;
-    return sessionContext.hiddenContext;
-};
+const wrapContextText = (ref, text) => `<context ref="${ref}"/>\n${text}`;
 
 const escapeXml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[char]);
 

@@ -286,10 +286,10 @@ export const Composer = (): JSX.Element => {
     };
     const submitOrCancel = (): void => {
         if (pendingPrompt) {
-            void cancelMessage();
+            cancelMessage();
             return;
         }
-        void sendMessage();
+        sendMessage();
     };
 
     const handleKeyDown = (event: any) => {
@@ -303,12 +303,12 @@ export const Composer = (): JSX.Element => {
         }
         if (event.key === 'Escape' && pendingPrompt) {
             event.preventDefault();
-            void cancelMessage();
+            cancelMessage();
             return;
         }
         if (isPlainEnter) {
             event.preventDefault();
-            void sendMessage();
+            sendMessage();
         }
     }
 
@@ -316,7 +316,7 @@ export const Composer = (): JSX.Element => {
         const files = getPastedImageFiles(event.clipboardData);
         if (files.length) {
             event.preventDefault();
-            void readImageFiles(files).then(addImages);
+            readImageFiles(files).then(addImages);
         }
     }
 
@@ -457,7 +457,7 @@ const createConfigPicker = (
         <Select
             disabled={disabled}
             filterOption={searchable ? filterSelectOption : undefined}
-            onChange={(value) => void onChange(String(value))}
+            onChange={(value) => onChange(String(value))}
             optionFilterProp="label"
             options={options.map((option) => ({ value: option.value, label: option.name || option.value }))}
             showSearch={searchable}

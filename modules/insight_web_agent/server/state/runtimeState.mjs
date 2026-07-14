@@ -53,7 +53,6 @@ export const getSessionContext = (state, sessionId) => {
             messages: [],
             pendingPrompt: false,
             configOptions: [],
-            hiddenContext: undefined,
             replayingHistory: false,
             createdAt: Date.now(),
         };

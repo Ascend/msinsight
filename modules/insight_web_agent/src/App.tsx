@@ -20,7 +20,8 @@ import i18n from '@insight/lib/i18n';
 import { SharedConfigProvider } from '@insight/lib/SharedConfigProvider';
 import { GlobalStyles, themeInstance } from '@insight/lib/theme';
 import { useEffect, useState } from 'react';
-import { registerHostEventHandlers, requestHostInitStatus } from './connection';
+import { updateContext } from './api';
+import { notifyHostReady, registerHostEventHandlers, requestHostInitStatus } from './connection';
 import { ChatStateProvider } from './hooks/useChatState';
 import { ChatPage } from './components/ChatPage';
 
@@ -39,7 +40,7 @@ const App = (): JSX.Element => {
         };
         const applyLanguage = (nextLocale: Locale): void => {
             setLocale(nextLocale);
-            void i18n.changeLanguage(nextLocale);
+            i18n.changeLanguage(nextLocale);
         };
 
         const handleStorage = (event: StorageEvent): void => {
@@ -50,8 +51,10 @@ const App = (): JSX.Element => {
         registerHostEventHandlers({
             setTheme: applyTheme,
             switchLanguage: applyLanguage,
+            updateContext: (context): void => { updateContext(context); },
         });
         requestHostInitStatus();
+        notifyHostReady();
         window.addEventListener('storage', handleStorage);
         return () => {
             window.removeEventListener('storage', handleStorage);

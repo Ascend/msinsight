@@ -66,6 +66,7 @@
       "MemScope": "MemScope",
       "RL": "RL",
       "On-Chip Memory": "On-Chip Memory",
+      "AgentView": "Agent View",
       "TimelineSystemTooltip": "System Tuning: Chronologically visualizes host-device execution details on a timeline, correlating API latencies on host with task durations on device to identify bottlenecks, while providing filtering and optimization recommendations, sourced from trace_view.json, msprof_*.json, operator_details.csv, among others",
       "TimelineOperatorTooltip": "Operator Tuning: Chronologically visualizes detailed instruction execution on a timeline, revealing invocation sequences and latency metrics per Pipe across all AI processor Cores, sourced from *trace.json and visualize_data.bin files",
       "TimelineServiceTooltip": "Service-Oriented Tuning: Visualizes the execution status of key phases and end-to-end performance metrics in AI inference serving processes, enabling developers to rapidly identify system-level bottlenecks such as request scheduling inefficiencies, NPU memory management (e.g., KVCache allocation), and suboptimal batching strategies (e.g., BatchSchedule latency), sourced from chrome_tracing.json and profiler.db files",

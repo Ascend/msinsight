@@ -18,6 +18,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createChatService, createPromptContent } from "../../services/chatService.mjs";
+import { createContextAssembler } from "../../services/contextAssembler.mjs";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
 
 test("createPromptContent serializes pasted images as ACP image blocks", () => {
@@ -65,7 +66,7 @@ test("createPromptContent prepends hidden context without changing visible text"
             resource: {
                 uri: "insight-hidden-context://project",
                 mimeType: "application/json",
-                text: '{"contextPolicy":"replace_previous_hidden_context","instruction":"Use this hidden context as the authoritative project context for this turn and ignore any previous hidden project context in this session.","data":{"projectName":"demo","files":["src/index.ts"]}}',
+                text: '<context ref="insight-hidden-context://project"/>\n{"contextPolicy":"replace_previous_hidden_context","instruction":"Use this hidden context as the authoritative project context for this turn and ignore any previous hidden project context in this session.","data":{"projectName":"demo","files":["src/index.ts"]}}',
             },
         },
         { type: "text", text: "visible request" },
@@ -81,7 +82,7 @@ test("createPromptContent injects system prompt as the leading resource block", 
             resource: {
                 uri: "insight-system-prompt://project",
                 mimeType: "text/plain",
-                text: "你是一个 Ascend 调优助手",
+                text: '<context ref="insight-system-prompt://project"/>\n你是一个 Ascend 调优助手',
             },
         },
         { type: "text", text: "hello" },
@@ -157,23 +158,18 @@ test("prompt applies requested mode to a new session before sending", async () =
     assert.deepEqual(calls.map((call) => call.method), ["session/set_config_option", "session/prompt"]);
 });
 
-test("prompt always overwrites previous hidden context", async () => {
+test("prompt reads raw hidden context from the context assembler", async () => {
     const { service, calls } = createPromptTestService();
 
-    await service.prompt("first", {
-        sessionId: "session-1",
-        hiddenContext: { projectRoot: "C:/a", branch: "main" },
-    });
+    await service.prompt("first", { sessionId: "session-1" });
     await waitForPromptCall(calls, 1);
 
-    await service.prompt("second", {
-        sessionId: "session-1",
-        hiddenContext: { projectRoot: "C:/b" },
-    });
+    await service.prompt("second", { sessionId: "session-1" });
     await waitForPromptCall(calls, 2);
 
     const promptCalls = calls.filter((call) => call.method === "session/prompt");
-    assert.equal(promptCalls[1].params.prompt[0].resource.text, '{"contextPolicy":"replace_previous_hidden_context","instruction":"Use this hidden context as the authoritative project context for this turn and ignore any previous hidden project context in this session.","data":{"projectRoot":"C:/b"}}');
+    assert.equal(promptCalls[1].params.prompt[0].resource.uri, "insight-hidden-context://project");
+    assert.match(promptCalls[1].params.prompt[0].resource.text, /"contentRefs":\{"profileId":"profile-1","activeModule":"Timeline"\}/);
 });
 
 const modeConfig = (currentValue) => ({
@@ -192,8 +188,12 @@ const createPromptTestService = () => {
     const calls = [];
     const state = createRuntimeState();
     state.initialized = true;
+    state.activeContext = { profileId: "profile-1", activeModule: "Timeline" };
     state.sessionContexts.set("session-1", {
         sessionId: "session-1",
+        agentId: "mock-agent",
+        runtime: "stdio",
+        mode: "free_chat",
         messages: [],
         pendingPrompt: false,
         configOptions: [],
@@ -216,6 +216,7 @@ const createPromptTestService = () => {
         },
         skillService: { extractFromPrompt: async (text) => ({ text, skills: [] }) },
         state,
+        contextAssembler: createContextAssembler({ state }),
     });
 
     return { service, calls };

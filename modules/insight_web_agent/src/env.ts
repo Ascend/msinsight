@@ -56,15 +56,4 @@ export const apiUrl = (path: string): string => {
     return apiBase ? `${apiBase}${path}` : path;
 };
 
-
-export const parseContextFromQuery = (): { profileId?: string; activeModule?: string; selection?: string } => {
-    const search = typeof window !== 'undefined' ? window.location.search : '';
-    const params = new URLSearchParams(search);
-    return {
-        profileId: params.get('profileId') || undefined,
-        activeModule: params.get('activeModule') || undefined,
-        selection: params.get('selection') || undefined,
-    };
-};
-
 export {};

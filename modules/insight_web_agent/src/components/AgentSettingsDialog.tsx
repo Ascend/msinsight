@@ -215,7 +215,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
         setSaveAndSwitchSelected(false);
         setDraftAgent(null);
         setShowAdvanced(false);
-        void fetchAgentConfig()
+        fetchAgentConfig()
             .then((nextSnapshot) => {
                 setSnapshot(nextSnapshot);
                 setSelectedAgentName(nextSnapshot.activeAgentName);
@@ -537,7 +537,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                             </div>
                             <div className="footer-actions">
                                 <Button onClick={() => setOpen(false)} size="small" type="default">{t('cancel')}</Button>
-                                <Button disabled={pendingPrompt || saving} onClick={() => { void handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
+                                <Button disabled={pendingPrompt || saving} onClick={() => { handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
                             </div>
                         </>
                     ) : null}

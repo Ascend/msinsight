@@ -75,15 +75,12 @@ const shouldSkipAgentContent = (block) => {
     return false;
 };
 
-const SYSTEM_CONTEXT_URI_PATTERN = /\[(?:\{)?[^\]\n]*insight-(?:hidden-context|system-prompt)[^\]\n]*(?:\})?\]/;
+const SYSTEM_CONTEXT_URI_PATTERN = /insight-(?:hidden-context|system-prompt):\/\/project/;
 
 const textHeadEchoesSystemContext = (text) => {
     const head = String(text ?? "").slice(0, 200);
     return SYSTEM_CONTEXT_URI_PATTERN.test(head);
 };
-
-const isHiddenContextBlock = (block) => shouldSkipAgentContent(block)
-    && String(block.resource?.uri ?? "").startsWith("insight-hidden-context://");
 
 const imageFromContentBlock = (block) => {
     if (!block || block.type !== "image") return undefined;

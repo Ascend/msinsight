@@ -47,7 +47,6 @@ const createTestRouter = (agentConfigService) => createRouter({
     chatController: {},
     sessionController: {},
     eventController: {},
-    contextController: {},
     permissionController: {},
     agentConfigController: createAgentConfigController({ agentConfigService }),
 });

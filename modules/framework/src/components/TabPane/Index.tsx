@@ -20,19 +20,17 @@ import { observer } from 'mobx-react';
 import type { Scene, Session } from '@/entity/session';
 import { type MenuProps, message, Menu, Tooltip } from 'antd';
 import { Button } from '@insight/lib/components';
-import { Resizer } from '@insight/lib';
 import { safeJSONParse } from '@insight/lib/utils';
 
-import { type ModuleConfig, modulesConfig, MEM_SCOPE_MODULE_NAME, ON_CHIP_MEMORY_MODULE_NAME, ACP_SESSION_SRC } from '@/moduleConfig';
+import { type ModuleConfig, modulesConfig, MEM_SCOPE_MODULE_NAME, ON_CHIP_MEMORY_MODULE_NAME } from '@/moduleConfig';
 import styled from '@emotion/styled';
 import { SessionAction } from '@/utils/enum';
 import { useTranslation } from 'react-i18next';
 import { getModuleConfig } from '@/utils/Request';
 import { updateSession } from '@/connection/notificationHandler';
 import connector from '@/connection';
-import { ACP_PORT, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
+import { ACP_SESSION_MIN_WIDTH, WebAgentSessionPanel } from './WebAgentSessionPanel';
 
-const ACP_SESSION_MIN_WIDTH = 500;
 const MODULE_FRAME_MIN_WIDTH = 360;
 
 const Container = styled.div`
@@ -170,7 +168,6 @@ const Index = observer(({ session }: { session: Session }) => {
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
     const [activeModule, setActiveModule] = useState('Timeline');
     const [showSessionPanel, setShowSessionPanel] = useState(false);
-    const [sessionPanelWidth, setSessionPanelWidth] = useState(ACP_SESSION_MIN_WIDTH);
     const [mergedModulesConfig, setMergedModulesConfig] = useState(modulesConfig);
     const prevFrameIdsRef = useRef<string[]>([]);
     const iframeLoadHandlersRef = useRef<Map<HTMLIFrameElement, () => void>>(new Map());
@@ -210,12 +207,6 @@ const Index = observer(({ session }: { session: Session }) => {
     }, [availableModules, t]);
     const onClick: MenuProps['onClick'] = e => {
         setActiveModule(e.key);
-    };
-
-    const resizeSessionPanel = (moveWidthLength: number): void => {
-        const bodyWidth = tabBodyRef.current?.clientWidth ?? window.innerWidth;
-        const maxWidth = Math.max(ACP_SESSION_MIN_WIDTH, bodyWidth - MODULE_FRAME_MIN_WIDTH);
-        setSessionPanelWidth((current) => Math.min(maxWidth, Math.max(ACP_SESSION_MIN_WIDTH, current - moveWidthLength)));
     };
 
     useEffect(() => {
@@ -332,15 +323,6 @@ const Index = observer(({ session }: { session: Session }) => {
         }
     }, [isTriton]);
     const sessionToggleType = showSessionPanel ? 'primary' : 'default';
-    const acpSessionParams = new URLSearchParams({
-        acpPort: String(ACP_PORT),
-        profileId: session.activeDataSource.projectName ?? '',
-        activeModule,
-    });
-    if (JUPYTERLABPROXY) {
-        acpSessionParams.set('jupyterlabProxy', 'true');
-    }
-    const acpSessionSrc = `${ACP_SESSION_SRC}${ACP_SESSION_SRC.includes('?') ? '&' : '?'}${acpSessionParams.toString()}`;
     return <Container>
         <div className="tab-toolbar">
             <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
@@ -350,7 +332,7 @@ const Index = observer(({ session }: { session: Session }) => {
                 type={sessionToggleType}
                 onClick={() => setShowSessionPanel(value => !value)}
             >
-                Agent View
+                {t('AgentView')}
             </Button>
         </div>
         <div className="tab-body" ref={tabBodyRef}>
@@ -363,19 +345,13 @@ const Index = observer(({ session }: { session: Session }) => {
                     style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
                 />
             ))}</div>
-            <div className="acp-session-wrapper" style={{ display: showSessionPanel ? 'block' : 'none', width: sessionPanelWidth }}>
-                <Resizer
-                    callback={resizeSessionPanel}
-                    style={{ left: 0, top: 16, height: 'calc(100% - 16px)', zIndex: 1 }}
-                />
-                <iframe
-                    className="acp-session-panel"
-                    id="AcpSession"
-                    name="AcpSession"
-                    src={acpSessionSrc}
-                    title="ACP Session"
-                />
-            </div>
+            <WebAgentSessionPanel
+                activeModule={activeModule}
+                moduleFrameMinWidth={MODULE_FRAME_MIN_WIDTH}
+                session={session}
+                show={showSessionPanel}
+                tabBodyRef={tabBodyRef}
+            />
         </div>
     </Container>;
 });

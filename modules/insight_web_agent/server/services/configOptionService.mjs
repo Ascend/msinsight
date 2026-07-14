@@ -17,7 +17,7 @@
  */
 export const setConfigOptions = ({ eventBus, state }, configOptions = [], sessionId) => {
     if (sessionId) {
-        const context = state.sessionContexts.get(sessionId) ?? { sessionId, messages: [], pendingPrompt: false, configOptions: [], hiddenContext: undefined };
+        const context = state.sessionContexts.get(sessionId) ?? { sessionId, messages: [], pendingPrompt: false, configOptions: [] };
         context.configOptions = configOptions;
         state.sessionContexts.set(sessionId, context);
     } else {

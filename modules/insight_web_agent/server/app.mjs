@@ -19,21 +19,21 @@ import { createServer } from "node:http";
 import { createAgentController } from "./controllers/agentController.mjs";
 import { createAgentConfigController } from "./controllers/agentConfigController.mjs";
 import { createChatController } from "./controllers/chatController.mjs";
-import { createEventController } from "./controllers/eventController.mjs";
 import { createContextController } from "./controllers/contextController.mjs";
+import { createEventController } from "./controllers/eventController.mjs";
 import { createSessionController } from "./controllers/sessionController.mjs";
 import { createPermissionController } from "./controllers/permissionController.mjs";
 import { createRouter } from "./http/router.mjs";
 import { applyCors, json } from "./http/response.mjs";
 
-export const createApp = ({ agentService, eventBus, chatService, sessionService, state, sessionManager, permissionService, agentConfigService }) => {
+export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService }) => {
     const router = createRouter({
         agentController: createAgentController({ agentService }),
         agentConfigController: createAgentConfigController({ agentConfigService }),
         chatController: createChatController({ chatService, state }),
+        contextController: createContextController({ state }),
         eventController: createEventController({ eventBus }),
         sessionController: createSessionController({ sessionService }),
-        contextController: createContextController({ state, sessionManager }),
         permissionController: createPermissionController({ permissionService }),
     });
 

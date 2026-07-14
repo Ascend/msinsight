@@ -126,7 +126,7 @@ const acpAdapter = {
 };
 const auditLogger = createAuditLogger({ cwd: config.cwd, debug: config.debug });
 const contextAssembler = createContextAssembler({ state });
-const sessionManager = createSessionManager({ adapter: acpAdapter, eventBus, state, config, contextAssembler, auditLogger, permissionService });
+const sessionManager = createSessionManager({ adapter: acpAdapter, eventBus, state, config, auditLogger, permissionService });
 const sessionService = createSessionService({
     acpClient: acpAdapter,
     config,
@@ -141,6 +141,7 @@ chatService = createChatService({
     skillService,
     state,
     sessionManager,
+    contextAssembler,
     systemPrompt: config.systemPrompt,
 });
 
@@ -245,7 +246,7 @@ const agentConfigService = createAgentConfigService({
 
 await chatService.initialize();
 
-const server = createApp({ agentService, eventBus, chatService, sessionService, state, sessionManager, permissionService, agentConfigService });
+const server = createApp({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService });
 
 server.listen(config.port, config.host, () => {
     console.log(`ACP web extracted API: http://${config.host}:${config.port}/`);
