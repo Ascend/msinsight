@@ -168,7 +168,8 @@ void WsSessionImpl::SendResponse(const Protocol::Response &response) {
     std::string error;
     std::optional<document_t> json = ProtocolManager::Instance().ToJson(response, error);
     if (!json.has_value()) {
-        ServerLog::Error(error);
+        ServerLog::Error(error, ", command: ", response.command, ", moduleName: ", response.moduleName,
+            ", requestId: ", response.requestId, ", responseId: ", response.id);
         return;
     }
     std::string responseStr = JsonUtil::JsonDump(json.value());

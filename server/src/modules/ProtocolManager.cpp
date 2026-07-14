@@ -47,16 +47,21 @@ void ProtocolManager::UnRegister() {
 std::unique_ptr<Request> ProtocolManager::FromJson(const std::string &requestStr, std::string &error) {
     auto requestJson = JsonUtil::TryParse(requestStr, error);
     if (!requestJson.has_value()) {
-        ServerLog::Warn("Failed to parse request json. ", requestStr);
+        std::string logError = error;
+        const auto detailPos = logError.find(". str:");
+        if (detailPos != std::string::npos) {
+            logError = logError.substr(0, detailPos);
+        }
+        ServerLog::Warn("Failed to parse request json. request size: ", requestStr.size(), ", error: ", logError);
         return nullptr;
     }
     if (!JsonUtil::IsJsonKeyValid(requestJson.value(), "moduleName")) {
-        ServerLog::Warn(R"(Json Key "moduleName" is invalid, request=)", requestStr);
+        ServerLog::Warn(R"(Json Key "moduleName" is invalid, request size: )", requestStr.size());
         return nullptr;
     }
     std::string moduleName = JsonUtil::GetString(requestJson.value(), "moduleName");
     if (moduleName.empty()) {
-        ServerLog::Warn("Unknown module name, request=", requestStr);
+        ServerLog::Warn("Module name is empty, request size: ", requestStr.size());
         return nullptr;
     }
     std::unique_lock<std::mutex> lock(mutex);

@@ -25,7 +25,7 @@ std::vector<std::pair<int64_t, int64_t>> JsonFileProcess::SplitFile(
     const std::string &filePath, std::optional<std::pair<int64_t, int64_t>> position) {
     std::ifstream file = OpenReadFileSafely(filePath, std::ios::in | std::ios::binary);
     if (!file.is_open()) {
-        Dic::Server::ServerLog::Error("Split file failed to open json file. ");
+        Dic::Server::ServerLog::Error("Split file failed to open json file. filePath:", filePath);
         return {};
     }
 

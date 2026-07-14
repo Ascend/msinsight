@@ -52,7 +52,9 @@ ProtocolMessageBuffer &ProtocolMessageBuffer::operator<<(const std::string &data
     std::string dataLengthStr = std::to_string(data.length());
     uint64_t completeDataLength = HEAD_START.length() + dataLengthStr.length() + REQ_DELIMITER.length() + data.length();
     if (completeDataLength + buffer.size() > bufferLimit) {
-        ServerLog::Warn("Request is too long or too many");
+        ServerLog::Warn("Request is too long or too many, data length: ", data.length(),
+            ", buffer size: ", buffer.size(), ", complete data length: ", completeDataLength,
+            ", buffer limit: ", bufferLimit);
         return *this;
     }
     buffer.append(HEAD_START);
@@ -88,7 +90,13 @@ std::unique_ptr<ProtocolMessage> ProtocolMessageBuffer::Pop() {
     bodyStr = StringUtil::ToLocalStr(bodyStr);
     std::unique_ptr<Request> request = ProtocolManager::Instance().FromJson(bodyStr, error);
     if (request == nullptr) {
-        Server::ServerLog::Warn("Dispatch failed requests, detail: %", error);
+        std::string logError = error;
+        const auto detailPos = logError.find(". str:");
+        if (detailPos != std::string::npos) {
+            logError = logError.substr(0, detailPos);
+        }
+        Server::ServerLog::Warn("Dispatch failed requests, detail: ", logError, ", bodyLen: ", bodyLen,
+            ", localBodyLength: ", bodyStr.size(), ", buffer size: ", buffer.size());
         // 从buffer中删除无法处理的请求数据
         buffer = buffer.substr(bodyPos + bodyLen);
         return nullptr;
