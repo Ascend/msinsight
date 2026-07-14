@@ -27,6 +27,11 @@ export type HostLocale = 'zhCN' | 'enUS';
 export interface HostNotificationHandlers {
     setTheme: (isDark: boolean) => void;
     switchLanguage: (locale: HostLocale) => void;
+    updateContext: (context: HostContext) => void;
+}
+
+export interface HostContext {
+    [key: string]: any;
 }
 
 export const registerHostEventHandlers = (handlers: HostNotificationHandlers): void => {
@@ -36,6 +41,9 @@ export const registerHostEventHandlers = (handlers: HostNotificationHandlers): v
     connector.addListener('switchLanguage', (event: MessageEvent<{ body?: { lang?: unknown } }>) => {
         const locale = event.data.body?.lang;
         if (locale === 'zhCN' || locale === 'enUS') handlers.switchLanguage(locale);
+    });
+    connector.addListener('insightWebAgent/context', (event: MessageEvent<{ body?: HostContext }>) => {
+        handlers.updateContext(event.data.body ?? {});
     });
 };
 
@@ -47,4 +55,8 @@ export const requestHostInitStatus = (): void => {
             requests: ['language', 'theme'],
         },
     });
+};
+
+export const notifyHostReady = (): void => {
+    window.parent?.postMessage({ event: 'insightWebAgent/ready' }, '*');
 };

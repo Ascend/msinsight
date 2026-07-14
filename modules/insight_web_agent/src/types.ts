@@ -179,7 +179,6 @@ export interface QueuedPrompt {
     text: string;
     images: ImageAttachment[];
     mode?: string;
-    hiddenContext?: Record<string, unknown>;
 }
 
 export type ServerEvent =

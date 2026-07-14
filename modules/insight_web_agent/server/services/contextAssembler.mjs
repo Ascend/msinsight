@@ -19,13 +19,10 @@ const createStructuredDataProvider = ({ state }) => ({
     name: "structured",
     schemaVersion: "1.0",
     isApplicable: () => true,
-    async produce(sessionContext) {
-        const ac = state.activeContext ?? {};
-        const refs = [];
-        if (ac.profileId) refs.push(`insight://profile/${ac.profileId}`);
-        if (ac.activeModule) refs.push(`insight://view/${ac.activeModule}`);
-        if (sessionContext?.view) refs.push(`insight://session-view/${sessionContext.view}`);
-        return { contentRefs: refs };
+    async produce() {
+        // TODO: Refine hidden-context normalization after the schema is finalized.
+        // For now, /api/context is the source of truth and its raw payload is forwarded unchanged.
+        return { contentRefs: state.activeContext };
     },
 });
 

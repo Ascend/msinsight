@@ -132,25 +132,6 @@ test("endSession preserves local state when remote delete fails", async () => {
     assert.equal(state.sessionContexts.has("session-1"), true);
 });
 
-test("updateContext rebuilds hidden context for existing sessions", async () => {
-    const state = createRuntimeState();
-    const adapter = createMockAdapter();
-    const contextAssembler = {
-        async assemble(context) {
-            return { profileId: context.profileId, view: context.view };
-        },
-    };
-    const manager = createSessionManager({ adapter, eventBus: createMockEventBus(), state, config: createConfig(), contextAssembler });
-    await manager.startSession({ profileId: "old", view: "Timeline" });
-
-    await manager.updateContext({ profileId: "new", activeModule: "Memory" });
-
-    const context = state.sessionContexts.get("session-1");
-    assert.equal(context.profileId, "new");
-    assert.equal(context.view, "Memory");
-    assert.deepEqual(context.hiddenContext, { kind: "AgentContextPacket", packet: { profileId: "new", view: "Memory" } });
-});
-
 test("pushUserMessage blocks concurrent prompts and clears pendingPrompt", async () => {
     const state = createRuntimeState();
     let releasePrompt;

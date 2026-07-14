@@ -66,6 +66,7 @@
       "MemScope": "内存详情",
       "RL": "强化学习",
       "On-Chip Memory": "片上内存",
+      "AgentView": "Agent视图",
       "TimelineSystemTooltip": "系统调优：以时间线的呈现方式将训练/推理过程中的host、device上的运行详细情况平铺在时间轴上，直观呈现host侧的API耗时情况以及device侧的task耗时，并将host与device进行关联呈现，帮助用户快速识别host瓶颈或device瓶颈，同时提供各种筛选分类、专家建议等功能，支撑用户进行深度调优，来源为trace_view.json、msprof_*.json和operator_details.csv等文件",
       "TimelineOperatorTooltip": "算子调优：将算子运行过程中，底层指令的详细执行情况平铺在时间轴上，直观呈现AI处理器每个Core上的每个Pipe中指令的调用顺序和耗时情况，来源为*trace.json和bin文件",
       "TimelineServiceTooltip": "服务化调优：呈现推理服务化进程中各个关键阶段的执行情况和端到端的性能情况，使能开发者快速识别请求调度、显存管理、批处理策略等系统级问题，来源为chrome_tracing.json和profiler.db文件",

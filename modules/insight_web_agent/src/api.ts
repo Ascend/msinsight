@@ -15,7 +15,8 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import type { AgentConfigSaveResult, AgentConfigSnapshot, AgentServerItem, AppState, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, QueuedPrompt, SessionConfigUpdateResult, SessionItem } from './types';
+import type { AgentConfigSaveResult, AgentConfigSnapshot, AgentServerItem, AppState, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionItem } from './types';
+import type { HostContext } from './connection';
 import { apiUrl } from './env';
 
 interface PromptResponse {
@@ -104,10 +105,17 @@ export const deleteSession = (sessionId: string): Promise<OkResponse> => {
     });
 };
 
-export const sendPrompt = (text: string, newSession?: boolean, sessionId?: string, images: ImageAttachment[] = [], mode?: string, hiddenContext?: QueuedPrompt['hiddenContext']): Promise<PromptResponse> => {
+export const sendPrompt = (text: string, newSession?: boolean, sessionId?: string, images: ImageAttachment[] = [], mode?: string): Promise<PromptResponse> => {
     return requestJson<PromptResponse>('/api/prompt', {
         method: 'POST',
-        body: JSON.stringify({ text, newSession, sessionId, images, mode, hiddenContext }),
+        body: JSON.stringify({ text, newSession, sessionId, images, mode }),
+    });
+};
+
+export const updateContext = (context: HostContext): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/context', {
+        method: 'POST',
+        body: JSON.stringify(context),
     });
 };
 

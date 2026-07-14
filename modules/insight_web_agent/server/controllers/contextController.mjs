@@ -17,20 +17,9 @@
  */
 import { json } from "../http/response.mjs";
 
-export const createContextController = ({ state, sessionManager }) => ({
+export const createContextController = ({ state }) => ({
     async update(_req, res, body) {
-        const ctx = body ?? {};
-        const activeContext = {
-            profileId: ctx.profileId,
-            activeModule: ctx.activeModule,
-            selection: ctx.selection,
-            projectRoot: ctx.projectRoot,
-        };
-        if (sessionManager?.updateContext) {
-            await sessionManager.updateContext(activeContext);
-        } else {
-            state.activeContext = activeContext;
-        }
+        state.activeContext = body;
         return json(res, { ok: true, activeContext: state.activeContext });
     },
 });

@@ -181,7 +181,6 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
             messages: [],
             pendingPrompt: false,
             configOptions: [],
-            hiddenContext: undefined,
             replayingHistory: false,
             createdAt: Date.now(),
         };

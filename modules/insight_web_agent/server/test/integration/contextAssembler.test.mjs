@@ -28,23 +28,44 @@ const createSessionContext = () => ({
     view: "Timeline",
 });
 
-test("assemble returns a structured context provider", async () => {
+test("assemble preserves the outer context packet when active context is empty", async () => {
     const state = createRuntimeState();
     const assembler = createContextAssembler({ state });
 
     const packet = await assembler.assemble(createSessionContext());
 
-    assert.equal(packet.contextProviders[0].name, "structured");
+    assert.equal(packet.schemaVersion, "1.0");
+    assert.deepEqual(packet.contextProviders, [{ name: "structured", schemaVersion: "1.0", contentRefs: undefined }]);
 });
 
-test("assemble reflects updated active context profile refs", async () => {
+test("assemble returns the raw active context payload as structured content refs", async () => {
+    const state = createRuntimeState();
+    state.activeContext = { profileId: "profile-1", activeModule: "Timeline", custom: { value: 1 } };
+    const assembler = createContextAssembler({ state });
+
+    const hiddenContext = await assembler.assemble(createSessionContext());
+
+    assert.deepEqual(hiddenContext, {
+        schemaVersion: "1.0",
+        session: {
+            id: "session-1",
+            agentId: "agent-1",
+            agentRuntime: "stdio",
+            mode: "free_chat",
+        },
+        contextProviders: [{ name: "structured", schemaVersion: "1.0", contentRefs: state.activeContext }],
+        hands: { skills: [], tools: [], actions: [], permissions: {} },
+    });
+});
+
+test("assemble reflects updated raw active context", async () => {
     const state = createRuntimeState();
     const assembler = createContextAssembler({ state });
     state.activeContext = { profileId: "old", activeModule: "Timeline" };
     await assembler.assemble(createSessionContext());
 
     state.activeContext.profileId = "xxx";
-    const packet = await assembler.assemble(createSessionContext());
+    const hiddenContext = await assembler.assemble(createSessionContext());
 
-    assert.ok(packet.contextProviders[0].contentRefs.includes("insight://profile/xxx"));
+    assert.equal(hiddenContext.contextProviders[0].contentRefs.profileId, "xxx");
 });
