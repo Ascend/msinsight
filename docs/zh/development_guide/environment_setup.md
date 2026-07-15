@@ -138,6 +138,276 @@ g++ --version
 ninja --version
 ```
 
+### 2.4 VSCode 推荐配置
+
+Linux 环境下可使用 VSCode 作为主要开发入口。建议安装以下扩展：
+
+| 扩展 | 用途 |
+| --- | --- |
+| C/C++ | 后端 C/C++ 代码补全、跳转与调试 |
+| CMake Tools | 后端 CMake 配置、构建与目标管理 |
+| ESLint | 前端代码检查 |
+| Prettier | 前端代码格式化（按团队规范使用） |
+| Python | Python 构建脚本与工具脚本编辑 |
+
+首次打开仓库后，建议确认 VSCode 集成终端使用 Linux 默认 shell，并在终端中完成[初始化后端第三方依赖](#12-初始化后端第三方依赖)和[安装前端依赖](#13-安装前端依赖)。
+
+### 2.5 VSCode 前后端编译、启动与调试配置
+
+项目 `.gitignore` 默认忽略 `.vscode` 目录，因此不建议直接提交工作区级 VSCode 配置。可在本地创建 `.vscode/tasks.json` 和 `.vscode/launch.json`，作为 Linux + VSCode 下前后端编译、启动和调试入口。
+
+#### 2.5.1 tasks.json
+
+`.vscode/tasks.json` 主要用于执行初始化、编译和前后端开发服务启动任务：
+
+```json
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MSInsight: init backend third-party",
+      "type": "shell",
+      "command": "python3 download_third_party.py && python3 preprocess_third_party.py",
+      "options": {
+        "cwd": "${workspaceFolder}/server/build"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MSInsight: install frontend deps",
+      "type": "shell",
+      "command": "pnpm install",
+      "options": {
+        "cwd": "${workspaceFolder}/modules"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MSInsight: build backend",
+      "type": "shell",
+      "command": "python3 build.py build",
+      "options": {
+        "cwd": "${workspaceFolder}/server/build"
+      },
+      "dependsOn": [
+        "MSInsight: init backend third-party"
+      ],
+      "problemMatcher": "$gcc"
+    },
+    {
+      "label": "MSInsight: build frontend",
+      "type": "shell",
+      "command": "pnpm build",
+      "options": {
+        "cwd": "${workspaceFolder}/modules"
+      },
+      "dependsOn": [
+        "MSInsight: install frontend deps"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSInsight: build backend + frontend",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "MSInsight: build backend",
+        "MSInsight: build frontend"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSInsight: run backend ws 9000",
+      "type": "shell",
+      "command": "bash -c 'ws_port=9000; ./profiler_server --wsPort=$ws_port --logPath=\"${workspaceFolder}/.vscode/msinsight-log\" --notStrict & server_pid=$!; trap \"kill $server_pid 2>/dev/null\" EXIT; until (echo > /dev/tcp/127.0.0.1/$ws_port) >/dev/null 2>&1; do if ! kill -0 $server_pid 2>/dev/null; then wait $server_pid; exit $?; fi; sleep 1; done; echo \"MSInsight backend ready on $ws_port\"; wait $server_pid'",
+      "options": {
+        "cwd": "${workspaceFolder}/server/output/linux-${input:linuxArch}/bin"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "msinsight-backend",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "MSInsight backend ready on 9000"
+        }
+      }
+    },
+    {
+      "label": "MSInsight: run frontend framework",
+      "type": "shell",
+      "command": "pnpm start",
+      "options": {
+        "cwd": "${workspaceFolder}/modules/framework"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "msinsight-frontend",
+        "pattern": {
+          "regexp": "."
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "(Compiled successfully|webpack compiled successfully|Local:|ready in)"
+        }
+      }
+    },
+    {
+      "label": "MSInsight: run browser dev",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "MSInsight: run backend ws 9000",
+        "MSInsight: run frontend framework"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSInsight: cargo run platform dev",
+      "type": "shell",
+      "command": "cargo run --features dev",
+      "options": {
+        "cwd": "${workspaceFolder}/platform"
+      },
+      "dependsOn": [
+        "MSInsight: run browser dev"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "MSInsight: package Linux release",
+      "type": "shell",
+      "command": "python3 build.py",
+      "options": {
+        "cwd": "${workspaceFolder}/build"
+      },
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "linuxArch",
+      "type": "pickString",
+      "description": "选择 server/output/linux-<arch>/bin 中的架构目录",
+      "options": [
+        "x86_64",
+        "aarch64"
+      ],
+      "default": "x86_64"
+    }
+  ]
+}
+```
+
+常用任务说明：
+
+| 任务 | 作用 |
+| --- | --- |
+| `MSInsight: build backend` | 初始化后端第三方依赖并编译 `profiler_server` |
+| `MSInsight: build frontend` | 安装前端依赖并构建所有前端模块 |
+| `MSInsight: build backend + frontend` | 顺序执行后端和前端构建 |
+| `MSInsight: run browser dev` | 并行启动后端 WebSocket 服务和前端 `framework` 开发服务，适用于浏览器调试 |
+| `MSInsight: cargo run platform dev` | 启动 Rust 底座开发模式窗口，窗口会加载 `http://localhost:5174?port=9000` |
+| `MSInsight: package Linux release` | 执行 Linux 本地出包，产物输出到项目根目录 `out` |
+
+执行 `MSInsight: run browser dev` 后，在浏览器访问 `http://localhost:5174` 打开开发环境。若后端端口 `9000` 被占用，可复制任务并修改 `ws_port` 和 `problemMatcher.background.endsPattern` 中的端口号，同时同步修改前端访问地址中的 `port` 参数，或先关闭已启动的 Insight 桌面端应用。执行 `MSInsight: cargo run platform dev` 可启动桌面端开发模式窗口；该模式对应 `platform/src/dev.rs`，默认连接 `5174` 前端端口和 `9000` 后端 WebSocket 端口。
+
+#### 2.5.2 launch.json
+
+`.vscode/launch.json` 用于配置前后端调试命令。后端调试使用 VSCode C/C++ 扩展通过 `gdb` 启动 `profiler_server`，前端调试使用 Chrome 调试协议连接到 `framework` 开发服务。
+
+> 说明：如果只调试前端页面，可使用 `MSInsight: Frontend Debug`。如果需要同时调试前后端，可使用 `MSInsight: Full Stack Debug`，该组合会启动后端 `profiler_server` 调试进程，并启动前端开发服务后打开 Chrome。
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "MSInsight: Backend Debug",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/server/output/linux-${input:linuxArch}/bin/profiler_server",
+      "args": [
+        "--wsPort=9000",
+        "--logPath=${workspaceFolder}/.vscode/msinsight-log",
+        "--notStrict"
+      ],
+      "cwd": "${workspaceFolder}/server/output/linux-${input:linuxArch}/bin",
+      "stopAtEntry": false,
+      "environment": [
+        {
+          "name": "LD_LIBRARY_PATH",
+          "value": "${workspaceFolder}/server/output/linux-${input:linuxArch}/bin:${env:LD_LIBRARY_PATH}"
+        }
+      ],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty-printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ]
+    },
+    {
+      "name": "MSInsight: Frontend Debug",
+      "type": "chrome",
+      "request": "launch",
+      "url": "http://localhost:5174?port=9000",
+      "webRoot": "${workspaceFolder}/modules/framework/src",
+      "preLaunchTask": "MSInsight: run frontend framework",
+      "sourceMaps": true,
+      "sourceMapPathOverrides": {
+        "webpack://@insight/framework/src/*": "${workspaceFolder}/modules/framework/src/*",
+        "webpack://@insight/*/src/*": "${workspaceFolder}/modules/*/src/*",
+        "webpack:///src/*": "${workspaceFolder}/modules/framework/src/*"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "MSInsight: Full Stack Debug",
+      "configurations": [
+        "MSInsight: Backend Debug",
+        "MSInsight: Frontend Debug"
+      ],
+      "stopAll": true
+    }
+  ],
+  "inputs": [
+    {
+      "id": "linuxArch",
+      "type": "pickString",
+      "description": "选择 server/output/linux-<arch>/bin 中的架构目录",
+      "options": [
+        "x86_64",
+        "aarch64"
+      ],
+      "default": "x86_64"
+    }
+  ]
+}
+```
+
+常用调试配置说明：
+
+| 配置 | 作用 |
+| --- | --- |
+| `MSInsight: Backend Debug` | 使用 `gdb` 启动并调试后端 `profiler_server`，启动参数为 `--wsPort=9000 --logPath=${workspaceFolder}/.vscode/msinsight-log --notStrict` |
+| `MSInsight: Frontend Debug` | 启动 `framework` 前端开发服务，并打开 Chrome 调试 `http://localhost:5174?port=9000` |
+| `MSInsight: Full Stack Debug` | 同时启动后端调试进程和前端 Chrome 调试会话 |
+
+注意事项：
+
+- 后端 `cppdbg` 配置依赖 VSCode C/C++ 扩展和本机 `gdb`；如使用 `lldb-mi` 或其他调试器，可按本机工具链调整 `MIMode`。
+- 首次调试后端前，请先执行 `MSInsight: build backend`，确保 `server/output/linux-<架构>/bin/profiler_server` 已生成。
+- 前端入口 URL 中的 `port=9000` 需要与后端 `--wsPort=9000` 保持一致。
+- 若 `9000` 端口被占用，请同步修改 `launch.json` 中后端 `--wsPort` 和前端 URL 的 `port` 参数。
+- VSCode 后台任务不会自动结束。调试完成后，可在 VSCode Terminal 面板中手动停止对应的 `pnpm start` 终端。
+
 完成环境准备后，可回到[开发指南](./develop_guide.md)继续执行 Linux 快速构建与运行步骤。
 
 ## 3. Windows 开发环境
