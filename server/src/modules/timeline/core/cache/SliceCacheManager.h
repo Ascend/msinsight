@@ -52,6 +52,10 @@ class SliceCacheManager {
     SliceCacheManager &operator=(const SliceCacheManager &) = delete;
     SliceCacheManager(SliceCacheManager &&) = delete;
     SliceCacheManager &operator=(SliceCacheManager &&) = delete;
+
+    static std::string BuildPythonFunctionCacheKey(const std::string &rankId, uint64_t trackId) {
+        return rankId + "@" + std::to_string(trackId);
+    }
     /* *
      * 全量DB场景下, 获取对应泳道的[start, end]时间区间内的算子
      * @param trackId
@@ -94,15 +98,22 @@ class SliceCacheManager {
         SpinLockGuard lock(mutex);
         std::string key = fileId + "@" + trackId;
         auto it = cache.find(key);
+        auto indexIt = depthIndexCache.find(key);
+        // Python Stack 只需要维护 id->depth 索引，其虚拟泳道 key 不一定存在对应的 slice cache。
+        // 因此必须优先查询 depthIndexCache；如果先要求 cache 命中，trackId@python_stack 会被误判为未缓存，
+        // 调用方随后可能回退到普通 trackId 的深度数据。普通泳道同时存在 slice cache 时仍需 Touch，
+        // 以保持原有 LRU 淘汰语义，避免本次兼容 index-only 缓存后改变普通缓存的生命周期。
+        if (indexIt != depthIndexCache.end()) {
+            if (it != cache.end()) {
+                Touch(it);
+            }
+            depthInfo = indexIt->second.idToDepth;
+            return true;
+        }
         if (it == cache.end()) {
             return false;
         }
         Touch(it);
-        auto indexIt = depthIndexCache.find(key);
-        if (indexIt != depthIndexCache.end()) {
-            depthInfo = indexIt->second.idToDepth;
-            return true;
-        }
         for (const auto &item : it->second.first) {
             depthInfo[item.id] = item.depth;
         }
@@ -268,10 +279,9 @@ class SliceCacheManager {
     void UpdateDepthIndexCache(
         const std::string &trackId, const std::vector<SliceDomain> &value, const SliceQuery &slicePagedQuery) {
         SpinLockGuard lock(mutex);
-        if (std::empty(value)) {
-            return;
-        }
         std::string key = slicePagedQuery.rankId + "@" + trackId;
+        // 空集合也是有效计算结果，例如某个分页区间内只有 Python Function、普通泳道没有算子。
+        // 必须用空索引覆盖 UpdateSliceCache 建立的全量索引，否则裸 trackId 会继续暴露 Python Stack depth。
         depthIndexCache[key] = BuildDepthIndex(value);
         if (slicePagedQuery.endTime != 0) {
             cacheDuration[key] = {slicePagedQuery.startTime, slicePagedQuery.endTime};
@@ -351,17 +361,17 @@ class SliceCacheManager {
         }
     }
 
-    PYTHON_FUNCTION_STATUS GetPythonFunctionStatus(const uint64_t trackId) {
+    PYTHON_FUNCTION_STATUS GetPythonFunctionStatus(const std::string &key) {
         SpinLockGuard lock(mutex);
-        if (trackIdAndPythonFunctionMap.count(trackId) > 0) {
-            return trackIdAndPythonFunctionMap[trackId];
+        if (trackIdAndPythonFunctionMap.count(key) > 0) {
+            return trackIdAndPythonFunctionMap[key];
         }
         return PYTHON_FUNCTION_STATUS::UNKNOWN;
     }
 
-    void SetPythonFunctionStatus(const uint64_t trackId, PYTHON_FUNCTION_STATUS status) {
+    void SetPythonFunctionStatus(const std::string &key, PYTHON_FUNCTION_STATUS status) {
         SpinLockGuard lock(mutex);
-        trackIdAndPythonFunctionMap[trackId] = status;
+        trackIdAndPythonFunctionMap[key] = status;
     }
 
     void Clear() {
@@ -401,8 +411,8 @@ class SliceCacheManager {
     // 当前缓存大小
     uint64_t curCapacity = 0;
 
-    // trackId 是否存在python function
-    std::unordered_map<uint64_t, PYTHON_FUNCTION_STATUS> trackIdAndPythonFunctionMap;
+    // rankId@trackId 是否存在 Python Function。不同导入文件可能复用相同 trackId，不能跨 rank 共享状态。
+    std::unordered_map<std::string, PYTHON_FUNCTION_STATUS> trackIdAndPythonFunctionMap;
 
     // 算子调用栈id缓存
     PythonFunctionMap pythonFunctionIDCache;

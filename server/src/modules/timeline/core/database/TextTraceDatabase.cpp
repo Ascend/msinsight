@@ -645,29 +645,75 @@ bool TextTraceDatabase::QueryUnitFlows(const Protocol::UnitFlowsParams &requestP
     flowQuery.trackId = trackId;
     flowQuery.endTime = requestParams.endTime;
     flowQuery.fileId = requestParams.rankId;
+    flowQuery.isPythonStack = requestParams.isPythonStack;
+
+    // FlowAnalyzer 通过缓存判断点击算子属于普通泳道还是 Python Stack。这里主动建立两套深度信息，
+    // 避免 unit/flows 依赖用户是否提前渲染过对应泳道，也避免 Python Stack 请求回退到普通缓存。
+    SliceQuery selectedSliceQuery;
+    selectedSliceQuery.rankId = requestParams.rankId;
+    selectedSliceQuery.trackId = trackId;
+    selectedSliceQuery.metaType = PROCESS_TYPE::TEXT;
+    selectedSliceQuery.startTime = requestParams.startTime;
+    selectedSliceQuery.endTime = requestParams.endTime;
+    std::vector<SliceDomain> selectedSliceVec;
+    sliceAnalyzerPtr->ComputeSliceDomainVecByTrackId(selectedSliceQuery, selectedSliceVec);
+    std::unordered_map<uint64_t, uint32_t> selectedPythonStackDepth;
+    sliceAnalyzerPtr->ComputePythonFunctionDepthInfoByTrackId(selectedSliceQuery, selectedPythonStackDepth);
+    ServerLog::Info("Text unit flow depth caches prepared. rankId: ", requestParams.rankId,
+        ", selectedSliceId: ", requestParams.id, ", trackId: ", trackId,
+        ", isPythonStack: ", requestParams.isPythonStack, ", ordinarySliceCount: ", selectedSliceVec.size(),
+        ", pythonStackDepthCount: ", selectedPythonStackDepth.size());
+
     std::vector<FlowPoint> flowPointVec = flowAnalyzerPtr->ComputeAllFlowPointBySliceId(flowQuery, requestParams.id);
+    ServerLog::Info("Text unit flow points queried. rankId: ", requestParams.rankId,
+        ", selectedSliceId: ", requestParams.id, ", flowPointCount: ", flowPointVec.size());
     std::unordered_map<std::string, std::vector<FlowPoint>> flowPointMap;
     ThreadQuery threadQuery;
     threadQuery.fileId = requestParams.rankId;
     std::unordered_map<uint64_t, std::pair<std::string, std::string>> threadInfo;
     sliceAnalyzerPtr->ComputeAllThreadInfo(threadQuery, threadInfo);
+    std::unordered_map<uint64_t, std::vector<SliceDomain>> trackSliceCache;
+    std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> trackPythonStackDepthCache;
+    trackSliceCache[trackId] = std::move(selectedSliceVec);
+    trackPythonStackDepthCache[trackId] = std::move(selectedPythonStackDepth);
     for (auto &item : flowPointVec) {
-        std::vector<SliceDomain> sliceVec;
-        SliceQuery sliceQuery;
-        sliceQuery.rankId = requestParams.rankId;
-        sliceQuery.trackId = item.trackId;
-        sliceAnalyzerPtr->ComputeSliceDomainVecByTrackId(sliceQuery, sliceVec);
+        if (trackSliceCache.count(item.trackId) == 0) {
+            SliceQuery sliceQuery;
+            sliceQuery.rankId = requestParams.rankId;
+            sliceQuery.trackId = item.trackId;
+            sliceQuery.metaType = PROCESS_TYPE::TEXT;
+            sliceAnalyzerPtr->ComputeSliceDomainVecByTrackId(sliceQuery, trackSliceCache[item.trackId]);
+            sliceAnalyzerPtr->ComputePythonFunctionDepthInfoByTrackId(
+                sliceQuery, trackPythonStackDepthCache[item.trackId]);
+        }
+        auto &sliceVec = trackSliceCache[item.trackId];
         auto it = flowAnalyzerPtr->ComputeSliceByFlowPoint(item, sliceVec);
         if (it != sliceVec.end()) {
-            item.depth = it->depth;
+            // 先按底层 track 定位实际 slice，再用 Python Function depth map 判断该端点应展示在哪条泳道。
+            // Python Stack depth 是基于过滤后的 slice 集合重新计算的，不能使用 it->depth。
+            auto &pythonStackDepth = trackPythonStackDepthCache[item.trackId];
+            auto pythonDepthIt = pythonStackDepth.find(it->id);
+            const bool isPythonStack = pythonDepthIt != pythonStackDepth.end();
+            item.depth = isPythonStack ? pythonDepthIt->second : it->depth;
             item.id = it->id;
             item.duration = it->endTime - it->timestamp;
+            item.tid = GetTextSearchThreadId(threadInfo[item.trackId].second, isPythonStack);
+            item.metaType = GetTextSearchMetaType(isPythonStack);
+            ServerLog::Info("Text unit flow endpoint resolved. rankId: ", requestParams.rankId,
+                ", flowId: ", item.flowId, ", trackId: ", item.trackId, ", sliceId: ", item.id,
+                ", isPythonStack: ", isPythonStack, ", depth: ", item.depth, ", tid: ", item.tid);
         }
         item.pid = threadInfo[item.trackId].first;
-        item.tid = threadInfo[item.trackId].second;
+        if (item.tid.empty()) {
+            item.tid = threadInfo[item.trackId].second;
+            item.metaType = GetTextSearchMetaType(false);
+        }
+        item.rankId = requestParams.rankId;
         flowPointMap[item.flowId].emplace_back(item);
     }
     AssembleUnitFlowsBody(responseBody, minTimestamp, flowPointMap);
+    ServerLog::Info("Text unit flows assembled. rankId: ", requestParams.rankId,
+        ", selectedSliceId: ", requestParams.id, ", categoryCount: ", responseBody.unitAllFlows.size());
     return true;
 }
 

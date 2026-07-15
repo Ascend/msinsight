@@ -141,8 +141,10 @@ void RenderEngine::QueryThreadTraces(const Protocol::UnitThreadTracesParams &req
     }
     responseBody.maxDepth = maxDepth;
     responseBody.currentMaxDepth = responseBody.data.size();
+    const std::string pythonFunctionCacheKey =
+        SliceCacheManager::BuildPythonFunctionCacheKey(requestParams.cardId, traceId);
     responseBody.havePythonFunction =
-        SliceCacheManager::Instance().GetPythonFunctionStatus(traceId) == PYTHON_FUNCTION_STATUS::EXIST;
+        SliceCacheManager::Instance().GetPythonFunctionStatus(pythonFunctionCacheKey) == PYTHON_FUNCTION_STATUS::EXIST;
 }
 
 bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &params, uint64_t minTimestamp,

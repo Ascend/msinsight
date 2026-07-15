@@ -64,6 +64,10 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
         PythonStackHelper::RestoreThreadTracesParams(queryParams);
         uint64_t trackId =
             TrackInfoManager::Instance().GetTrackId(queryParams.cardId, queryParams.processId, queryParams.threadId);
+        ServerLog::Info("Query thread traces lane resolved. rankId: ", queryParams.cardId,
+            ", pid: ", queryParams.processId, ", tid: ", queryParams.threadId, ", trackId: ", trackId,
+            ", isPythonStack: ", queryParams.isPythonStack,
+            ", filterPythonFunction: ", queryParams.isFilterPythonFunction);
         renderEngine->QueryThreadTraces(queryParams, response.body, minTimestamp, trackId);
     } else {
         QueryTracesByTrackIds(request, response, minTimestamp);
@@ -88,6 +92,10 @@ void QueryThreadTracesHandler::QueryTracesByTrackIds(
         PythonStackHelper::RestoreThreadTracesParams(queryParams);
         uint64_t trackId =
             TrackInfoManager::Instance().GetTrackId(queryParams.cardId, queryParams.processId, queryParams.threadId);
+        ServerLog::Info("Query thread traces lane resolved. rankId: ", queryParams.cardId,
+            ", pid: ", queryParams.processId, ", tid: ", queryParams.threadId, ", trackId: ", trackId,
+            ", isPythonStack: ", queryParams.isPythonStack,
+            ", filterPythonFunction: ", queryParams.isFilterPythonFunction);
         renderEngine->QueryThreadTraces(queryParams, tempBody, minTimestamp, trackId);
         for (size_t i = 0; i < tempBody.data.size(); ++i) {
             while (response.body.data.size() <= i) {

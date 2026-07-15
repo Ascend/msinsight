@@ -263,6 +263,130 @@ TEST_F(TextTraceDatabaseMockTest, QueryThreadsWhenTextPythonStackThenUsePythonSt
     std::remove(dbPath.c_str());
 }
 
+TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsPythonStackUsesVirtualLaneDepth) {
+    const std::string rankId = "text_python_stack_flow_test";
+    const std::string dbPath = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::SRC_TEST_DATA),
+        "msinsight_text_python_stack_flow_test.db");
+    const uint64_t pythonTrackId = 990101;
+    const uint64_t targetTrackId = 990102;
+    std::remove(dbPath.c_str());
+
+    sqlite3 *dbPtr = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &dbPtr), SQLITE_OK);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
+        "VALUES (1, 100, 100, 'normal_parent', 0, 990101, '', '', '', 200, ''), "
+        "(2, 110, 40, 'python_function', 0, 990101, 'python_function', '', '', 150, ''), "
+        "(3, 300, 50, 'target_op', 0, 990102, '', '', '', 350, '');");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+        "(990101, '10', '1', 'python_thread', 0), (990102, '20', '2', 'target_thread', 1);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO flow (id, flow_id, name, cat, track_id, timestamp, type) VALUES "
+        "(1, 'flow_1', 'flow', 'test_flow', 990101, 110, 's'), "
+        "(2, 'flow_1', 'flow', 'test_flow', 990102, 300, 'f');");
+    DatabaseTestCaseMockUtil::ExecuteSql(dbPtr, "PRAGMA user_version = " + std::to_string(DATABASE_VERSION));
+    sqlite3_close(dbPtr);
+
+    DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath);
+    ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool(rankId, dbPath));
+    TrackInfoManager::Instance().UpdateTrackIdMap(rankId, {{pythonTrackId, {"10", "1"}}, {targetTrackId, {"20", "2"}}});
+
+    Protocol::UnitFlowsParams requestParams;
+    requestParams.rankId = rankId;
+    requestParams.pid = "1";
+    requestParams.tid = "10";
+    requestParams.metaType = "TEXT";
+    requestParams.id = "2";
+    requestParams.isPythonStack = true;
+    requestParams.startTime = 0;
+    requestParams.endTime = 400;
+    Protocol::UnitFlowsBody responseBody;
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
+
+    ASSERT_NE(database, nullptr);
+    ASSERT_TRUE(database->QueryUnitFlows(requestParams, responseBody, 0, pythonTrackId));
+    ASSERT_EQ(responseBody.unitAllFlows.size(), 1);
+    ASSERT_EQ(responseBody.unitAllFlows[0].flows.size(), 1);
+    const auto &flow = responseBody.unitAllFlows[0].flows[0];
+    EXPECT_EQ(flow.from.tid, "python_stack:text:10");
+    EXPECT_EQ(flow.from.metaType, "PYTORCH_API_PYTHON_STACK");
+    EXPECT_EQ(flow.from.depth, 0);
+    EXPECT_EQ(flow.to.tid, "20");
+    EXPECT_EQ(flow.to.metaType, "TEXT");
+    EXPECT_EQ(flow.to.depth, 0);
+
+    database.reset();
+    DataBaseManager::Instance().ReleaseDatabaseByRankId(rankId);
+    std::remove(dbPath.c_str());
+}
+
+TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsOrdinaryOperatorExcludesPythonStackDepth) {
+    const std::string rankId = "text_ordinary_flow_depth_test";
+    const std::string dbPath = Dic::FileUtil::SplicePath(
+        Dic::DT::Framework::DtFramework::GetTestDataDirPath(Dic::DT::Framework::TestPathType::SRC_TEST_DATA),
+        "msinsight_text_ordinary_flow_depth_test.db");
+    const uint64_t sourceTrackId = 990103;
+    const uint64_t targetTrackId = 990104;
+    std::remove(dbPath.c_str());
+
+    sqlite3 *dbPtr = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &dbPtr), SQLITE_OK);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, flowTableSql);
+    DatabaseTestCaseMockUtil::CreateTable(dbPtr, processSql);
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO slice (id, timestamp, duration, name, depth, track_id, cat, args, cname, end_time, flag_id) "
+        "VALUES (1, 100, 100, 'python_function', 0, 990103, 'python_function', '', '', 200, ''), "
+        "(2, 110, 40, 'ordinary_op', 1, 990103, '', '', '', 150, ''), "
+        "(3, 300, 50, 'target_op', 0, 990104, '', '', '', 350, '');");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
+        "(990103, '10', '1', 'source_thread', 0), (990104, '20', '2', 'target_thread', 1);");
+    DatabaseTestCaseMockUtil::InsertData(dbPtr,
+        "INSERT INTO flow (id, flow_id, name, cat, track_id, timestamp, type) VALUES "
+        "(1, 'flow_1', 'flow', 'test_flow', 990103, 110, 's'), "
+        "(2, 'flow_1', 'flow', 'test_flow', 990104, 300, 'f');");
+    DatabaseTestCaseMockUtil::ExecuteSql(dbPtr, "PRAGMA user_version = " + std::to_string(DATABASE_VERSION));
+    sqlite3_close(dbPtr);
+
+    DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath);
+    ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool(rankId, dbPath));
+    TrackInfoManager::Instance().UpdateTrackIdMap(rankId, {{sourceTrackId, {"10", "1"}}, {targetTrackId, {"20", "2"}}});
+
+    Protocol::UnitFlowsParams requestParams;
+    requestParams.rankId = rankId;
+    requestParams.pid = "1";
+    requestParams.tid = "10";
+    requestParams.metaType = "TEXT";
+    requestParams.id = "2";
+    requestParams.startTime = 0;
+    requestParams.endTime = 400;
+    Protocol::UnitFlowsBody responseBody;
+    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(rankId);
+
+    ASSERT_NE(database, nullptr);
+    ASSERT_TRUE(database->QueryUnitFlows(requestParams, responseBody, 0, sourceTrackId));
+    ASSERT_EQ(responseBody.unitAllFlows.size(), 1);
+    ASSERT_EQ(responseBody.unitAllFlows[0].flows.size(), 1);
+    const auto &flow = responseBody.unitAllFlows[0].flows[0];
+    EXPECT_EQ(flow.from.id, "2");
+    EXPECT_EQ(flow.from.tid, "10");
+    EXPECT_EQ(flow.from.metaType, "TEXT");
+    // ordinary_op 被 Python Function 完全包裹；普通泳道排除 Python Stack 后应重新落到 depth 0。
+    EXPECT_EQ(flow.from.depth, 0);
+
+    database.reset();
+    DataBaseManager::Instance().ReleaseDatabaseByRankId(rankId);
+    std::remove(dbPath.c_str());
+}
+
 /**
  * text场景创建表,如果db打开，返回true
  */

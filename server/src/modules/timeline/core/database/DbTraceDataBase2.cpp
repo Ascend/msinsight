@@ -24,6 +24,11 @@
 
 namespace Dic::Module::FullDb {
 using namespace Server;
+namespace {
+// Python Stack 与普通 PyTorch 共用底层 trackId，通过后缀区分虚拟泳道的深度索引。
+// 该后缀需要与 SliceAnalyzer 中建立 Python Stack depth index 时使用的 key 保持一致。
+const std::string PYTHON_STACK_CACHE_SUFFIX = "@python_stack";
+}
 
 std::vector<std::string> DbTraceDataBase::GetIdListByFuzzNameFromCache(
     const std::string &path, const std::string &fuzzName, const bool caseSensitive) {
@@ -133,17 +138,77 @@ void DbTraceDataBase::ProcessHostCounterEventsMetadata(
 }
 
 void DbTraceDataBase::FillFlowDepth(const Protocol::UnitFlowsParams &requestParams, FlowLocation &location,
-    std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> &trackIdDepthCache) {
+    std::unordered_map<std::string, std::unordered_map<uint64_t, uint32_t>> &trackIdDepthCache) {
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
-    uint64_t trackId = TrackInfoManager::Instance().GetTrackId(requestParams.rankId, location.pid, location.tid);
-    auto item = trackIdDepthCache.find(trackId);
+    const std::string pythonStackMetaType = ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
+    const bool isPythonStack = location.metaType == pythonStackMetaType ||
+        StringUtil::StartWith(location.tid, Protocol::PYTHON_STACK_THREAD_ID_PREFIX);
+    // Python Stack 是展示层虚拟泳道，TrackInfoManager 中实际可查询数据的仍是 tid=pytorch。
+    // 这里先还原到底层 tid 获取同一个 trackId，再通过 trackCacheKey 区分两种展示语义；
+    // 不能直接用 python_stack:<globalTid> 获取新 trackId，否则深度计算会查询一个不存在的物理泳道。
+    const std::string queryTid = isPythonStack ? Protocol::PYTHON_API_THREAD_ID : location.tid;
+    const uint64_t trackId = TrackInfoManager::Instance().GetTrackId(requestParams.rankId, location.pid, queryTid);
+    // 请求内缓存也必须包含泳道类型。若只使用 trackId，先处理的 Python Stack 或普通 PyTorch 端点
+    // 会污染同一条连线中后续端点，使其直接复用另一种泳道的 id->depth 映射。
+    const std::string trackCacheKey = std::to_string(trackId) + (isPythonStack ? PYTHON_STACK_CACHE_SUFFIX : "");
+    const uint64_t sliceId = NumberUtil::StringToLongLong(location.id);
+    bool depthResolved = false;
+    auto item = trackIdDepthCache.find(trackCacheKey);
     if (item != trackIdDepthCache.end()) {
-        location.depth = item->second[NumberUtil::StringToLongLong(location.id)];
-    } else {
+        auto depthIt = item->second.find(sliceId);
+        if (depthIt != item->second.end()) {
+            location.depth = depthIt->second;
+            depthResolved = true;
+            ServerLog::Info("FullDb unit flow depth hit request cache. rankId: ", requestParams.rankId,
+                ", sliceId: ", location.id, ", cacheKey: ", trackCacheKey, ", depth: ", location.depth);
+        } else {
+            // 同一请求中的两个端点可能位于不同分页区间。请求缓存存在但缺少目标 slice 时不能按 depth=0
+            // 处理，必须继续检查全局缓存并按当前端点时间范围重建。
+            ServerLog::Info("FullDb unit flow request cache misses slice. rankId: ", requestParams.rankId,
+                ", sliceId: ", location.id, ", cacheKey: ", trackCacheKey);
+        }
+    }
+    if (!depthResolved) {
         std::unordered_map<uint64_t, uint32_t> depthCache;
-        sliceCacheManager.QueryDepthInfoWithoutTimeRange(std::to_string(trackId), requestParams.rankId, depthCache);
-        trackIdDepthCache[trackId] = depthCache;
-        location.depth = depthCache[NumberUtil::StringToLongLong(location.id)];
+        bool cacheExists =
+            sliceCacheManager.QueryDepthInfoWithoutTimeRange(trackCacheKey, requestParams.rankId, depthCache);
+        bool cacheContainsSlice = depthCache.find(sliceId) != depthCache.end();
+        ServerLog::Info("FullDb unit flow query global depth cache. rankId: ", requestParams.rankId,
+            ", sliceId: ", location.id, ", cacheKey: ", trackCacheKey, ", cacheHit: ", cacheExists,
+            ", sliceHit: ", cacheContainsSlice, ", isPythonStack: ", isPythonStack);
+        const bool isPytorchApi = location.metaType == ENUM_TO_STR(PROCESS_TYPE::API).value_or("");
+        if (!cacheContainsSlice && (isPytorchApi || isPythonStack)) {
+            // 缓存未建立或现有分页不包含目标 slice 时，必须按目标泳道重新计算：普通 PyTorch 排除 Python Function，
+            // Python Stack 则只保留 Python Function。两者虽然读取同一底层 track，参与深度排布的
+            // slice 集合不同，不能先计算全量数据后再按 id 过滤，否则重叠关系会导致 depth 不一致。
+            SliceQuery sliceQuery =
+                CreateSliceQueryWithTimeRange({requestParams.rankId, location.pid, Protocol::PYTHON_API_THREAD_ID,
+                    ENUM_TO_STR(PROCESS_TYPE::API).value_or(""), location.timestamp, location.duration});
+            sliceQuery.isPythonStack = isPythonStack;
+            sliceQuery.isFilterPythonFunction = !isPythonStack;
+            ServerLog::Info("FullDb unit flow rebuild depth cache. rankId: ", requestParams.rankId,
+                ", trackId: ", trackId, ", cacheKey: ", trackCacheKey, ", isPythonStack: ", isPythonStack,
+                ", filterPythonFunction: ", sliceQuery.isFilterPythonFunction);
+            depthCache.clear();
+            GetSliceDepthCacheForJump(sliceQuery, depthCache);
+        }
+        trackIdDepthCache[trackCacheKey] = depthCache;
+        auto depthIt = depthCache.find(sliceId);
+        if (depthIt != depthCache.end()) {
+            location.depth = depthIt->second;
+            ServerLog::Info("FullDb unit flow depth resolved. rankId: ", requestParams.rankId,
+                ", sliceId: ", location.id, ", cacheKey: ", trackCacheKey, ", depth: ", location.depth);
+        } else {
+            // 非 PyTorch 端点没有专用重建逻辑，或底层查询确实未返回目标 slice 时，保留 SQL 中原始 depth。
+            // 禁止使用 unordered_map::operator[]，避免把“未解析”静默转换成 depth=0 并污染请求缓存。
+            ServerLog::Info("FullDb unit flow depth unresolved, keep database depth. rankId: ", requestParams.rankId,
+                ", sliceId: ", location.id, ", cacheKey: ", trackCacheKey, ", depth: ", location.depth);
+        }
+    }
+    if (isPythonStack) {
+        // 统一响应中的虚拟泳道类型。SQL 已按 type 标记该字段，这里保留兜底，兼容其它调用方仅通过
+        // python_stack tid 构造 FlowLocation 的场景，确保前端能够把端点定位到 Python Stack 泳道。
+        location.metaType = pythonStackMetaType;
     }
 }
 
@@ -161,7 +226,9 @@ std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const P
     }
 
     std::vector<FlowLocation> flowLocations;
-    std::unordered_map<uint64_t, std::unordered_map<uint64_t, uint32_t>> trackIdDepthCache;
+    // key 使用 trackId 或 trackId@python_stack，而不是单纯的数值 trackId；同一请求可能同时包含
+    // 两种端点，必须在请求生命周期内保持与全局 depth index 相同的隔离维度。
+    std::unordered_map<std::string, std::unordered_map<uint64_t, uint32_t>> trackIdDepthCache;
     while (resultSet->Next()) {
         auto metaType = resultSet->GetString("metaType");
         auto rankId = resultSet->GetString("deviceId");
