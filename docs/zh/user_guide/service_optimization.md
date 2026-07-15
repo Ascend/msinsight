@@ -103,7 +103,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 |sample|采样时间，单位ns。|
 |PullKVCache|PD节点之间的KVCache传输时间，单位ns。仅在PD分离场景下存在该泳道。|
 |CANN|算子执行时间，单位ns。仅在开启acl_task_time数据采集开关后采集到的数据才会展示该泳道。|
-|dpBatch|模型推理过程中各请求对应的dp域信息。|
+|dpBatch|模型推理过程中各请求对应的DP域信息。|
 |RequestState|模型推理过程中请求状态变化。|
 
 ### 使用说明
