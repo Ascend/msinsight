@@ -25,6 +25,50 @@
 
 using namespace Dic::Server;
 namespace Dic::Module::Timeline {
+namespace {
+// 与 SliceAnalyzer 建立 Python Stack depth index 时的后缀保持一致，用于在同一 trackId 下区分虚拟泳道。
+const std::string PYTHON_STACK_CACHE_SUFFIX = "@python_stack";
+
+std::vector<SliceDomain> GetTextFlowSliceVec(const FlowQuery &flowQuery) {
+    auto &instance = SliceCacheManager::Instance();
+    const std::string trackKey = std::to_string(flowQuery.trackId);
+    SliceQuery sliceQuery;
+    sliceQuery.startTime = flowQuery.startTime;
+    sliceQuery.endTime = flowQuery.endTime;
+    std::vector<SliceDomain> sliceVec = instance.GetSliceDomainVec(trackKey, flowQuery.fileId, sliceQuery);
+    if (std::empty(sliceVec)) {
+        return sliceVec;
+    }
+
+    // Text Python Stack 是从同一 track 的 slice 中筛出的虚拟泳道。普通泳道与 Python Stack
+    // 必须使用互斥的 slice 集合，否则同一 flow point 可能先匹配到另一泳道的算子。
+    std::unordered_map<uint64_t, uint32_t> pythonStackDepth;
+    const bool hasPythonStackDepth = instance.QueryDepthInfoWithoutTimeRange(
+        trackKey + PYTHON_STACK_CACHE_SUFFIX, flowQuery.fileId, pythonStackDepth);
+    if (!hasPythonStackDepth) {
+        ServerLog::Info("Text unit flow Python Stack depth index not found. rankId: ", flowQuery.fileId,
+            ", trackId: ", flowQuery.trackId, ", isPythonStack: ", flowQuery.isPythonStack,
+            ", ordinarySliceCount: ", sliceVec.size());
+        return flowQuery.isPythonStack ? std::vector<SliceDomain>{} : sliceVec;
+    }
+    sliceVec.erase(std::remove_if(sliceVec.begin(), sliceVec.end(),
+                       [&](SliceDomain &slice) {
+                           auto depthIt = pythonStackDepth.find(slice.id);
+                           const bool isPythonFunction = depthIt != pythonStackDepth.end();
+                           if (isPythonFunction && flowQuery.isPythonStack) {
+                               // Python Stack 会重新排布深度，不能沿用普通 track 中包含其它算子时计算出的 depth。
+                               slice.depth = depthIt->second;
+                           }
+                           return isPythonFunction != flowQuery.isPythonStack;
+                       }),
+        sliceVec.end());
+    ServerLog::Info("Text unit flow selected lane slices resolved. rankId: ", flowQuery.fileId,
+        ", trackId: ", flowQuery.trackId, ", isPythonStack: ", flowQuery.isPythonStack,
+        ", pythonStackDepthCount: ", pythonStackDepth.size(), ", retainedSliceCount: ", sliceVec.size());
+    return sliceVec;
+}
+}
+
 FlowAnalyzer::FlowAnalyzer() {
     if (repository == nullptr) {
         repository = std::make_unique<TextRepository>();
@@ -76,12 +120,7 @@ std::unordered_set<std::string> FlowAnalyzer::ComputeOnSliceFlowPointBySliceId(
     std::vector<FlowPoint> flowPointVec;
     repository->QueryFlowPointByTimeRange(flowQuery, flowPointVec);
     ServerLog::Info("flowPointVec is: ", flowPointVec.size());
-    auto &instance = SliceCacheManager::Instance();
-    SliceQuery sliceQuery;
-    sliceQuery.startTime = flowQuery.startTime;
-    sliceQuery.endTime = flowQuery.endTime;
-    std::vector<SliceDomain> sliceVec =
-        instance.GetSliceDomainVec(std::to_string(flowQuery.trackId), flowQuery.fileId, sliceQuery);
+    std::vector<SliceDomain> sliceVec = GetTextFlowSliceVec(flowQuery);
     // 此时是前端打开泳道点击算子，缓存中必定存在泳道下[startTime, endTime]内的算子数据,若不存在说明是异常情况
     if (std::empty(sliceVec)) {
         return res;
@@ -228,6 +267,7 @@ void FlowAnalyzer::ComputeUintFlows(const std::vector<FlowPoint> &flowEventsVec,
             onePointer.rankId = flow.rankId;
             onePointer.id = std::to_string(flow.id);
             onePointer.duration = flow.duration;
+            onePointer.metaType = flow.metaType;
             flowEvent->from.pid = fromPointer.pid;
             flowEvent->from.tid = fromPointer.tid;
             flowEvent->from.depth = fromPointer.depth;
@@ -235,6 +275,7 @@ void FlowAnalyzer::ComputeUintFlows(const std::vector<FlowPoint> &flowEventsVec,
             flowEvent->from.rankId = fromPointer.rankId;
             flowEvent->from.id = fromPointer.id;
             flowEvent->from.duration = fromPointer.duration;
+            flowEvent->from.metaType = fromPointer.metaType;
             flowEvent->to.pid = flow.pid;
             flowEvent->to.tid = flow.tid;
             flowEvent->to.depth = flow.depth;
@@ -242,6 +283,7 @@ void FlowAnalyzer::ComputeUintFlows(const std::vector<FlowPoint> &flowEventsVec,
             flowEvent->to.rankId = flow.rankId;
             flowEvent->to.id = std::to_string(flow.id);
             flowEvent->to.duration = flow.duration;
+            flowEvent->to.metaType = flow.metaType;
             flowDetailList.emplace_back(std::move(flowEvent));
         }
         curFlowId = flowId;
@@ -258,6 +300,7 @@ Protocol::FlowLocation &FlowAnalyzer::ComputeLocation(
     location.rankId = flow.rankId;
     location.id = std::to_string(flow.id);
     location.duration = flow.duration;
+    location.metaType = flow.metaType;
     return location;
 }
 

@@ -48,6 +48,9 @@ bool QueryFlowsBySliceInfoHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     UnitFlowsParams queryParams = request.params;
     PythonStackHelper::RestoreUnitFlowsParams(queryParams);
     uint64_t trackId = TrackInfoManager::Instance().GetTrackId(queryParams.rankId, queryParams.pid, queryParams.tid);
+    ServerLog::Info("Query unit flows. rankId: ", queryParams.rankId, ", pid: ", queryParams.pid,
+        ", tid: ", queryParams.tid, ", sliceId: ", queryParams.id, ", trackId: ", trackId,
+        ", isPythonStack: ", queryParams.isPythonStack);
     try {
         database->QueryUnitFlows(queryParams, response.body, minTimestamp, trackId);
     } catch (DatabaseException &e) {

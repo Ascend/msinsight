@@ -38,7 +38,9 @@ TEST_F(SliceAnalyzerTest, test_ComputeSliceDomainVecAndSelfTimeByTimeRange_filte
     sliceAnalyzer.SetRepository(ptr);
     SliceQuery sliceQuery = {3, 0, 23, 2};
     SliceCacheFliterPythonMock();
-    SliceCacheManager::Instance().PutPythonFunctionIdVec(std::to_string(sliceQuery.trackId), {1}, sliceQuery);
+    const std::string pythonFunctionCacheKey =
+        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.rankId, sliceQuery.trackId);
+    SliceCacheManager::Instance().PutPythonFunctionIdVec(pythonFunctionCacheKey, {1}, sliceQuery);
     std::vector<CompeteSliceDomain> sliceDomainVec;
     std::map<std::string, uint64_t> selfTimeKeyValue;
     sliceAnalyzer.ComputeSliceDomainVecAndSelfTimeByTimeRange(sliceQuery, sliceDomainVec, selfTimeKeyValue);
@@ -198,6 +200,115 @@ TEST_F(SliceAnalyzerTest, test_ComputePythonFunctionSliceIds_updates_depth_index
     CacheManager::Instance().ClearAll();
 }
 
+TEST_F(SliceAnalyzerTest, test_ComputeScreenSliceIds_writes_only_ordinary_depths_to_track_cache) {
+    class RepositoryMock : public Dic::Module::Timeline::TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            (void)sliceQuery;
+            sliceVec = {SliceDomain{1, 0, 100, 0, ""}, SliceDomain{2, 10, 20, 0, ""}};
+        }
+
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override {
+            (void)sliceQuery;
+            return 1;
+        }
+
+        void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override {
+            (void)sliceQuery;
+            sliceIds = {1};
+        }
+    };
+    CacheManager::Instance().ClearAll();
+    std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
+    SliceAnalyzer sliceAnalyzer;
+    sliceAnalyzer.SetRepository(ptr);
+    SliceQuery sliceQuery;
+    sliceQuery.trackId = 1005;
+    sliceQuery.rankId = "thread_traces_ordinary_cache";
+    sliceQuery.startTime = 0;
+    sliceQuery.endTime = 100;
+    std::set<uint64_t> ids;
+    uint64_t maxDepth = 0;
+    std::map<uint64_t, uint32_t> depthMap;
+
+    sliceAnalyzer.ComputeScreenSliceIds(sliceQuery, ids, maxDepth, depthMap);
+
+    std::unordered_map<uint64_t, uint32_t> cachedDepth;
+    ASSERT_TRUE(SliceCacheManager::Instance().QueryDepthInfoWithoutTimeRange(
+        std::to_string(sliceQuery.trackId), sliceQuery.rankId, cachedDepth));
+    EXPECT_EQ(cachedDepth.count(1), 0);
+    EXPECT_EQ(cachedDepth[2], 0);
+    CacheManager::Instance().ClearAll();
+}
+
+TEST_F(SliceAnalyzerTest, test_ComputeScreenSliceIds_all_python_functions_overwrite_ordinary_depth_index_with_empty) {
+    class RepositoryMock : public Dic::Module::Timeline::TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            (void)sliceQuery;
+            sliceVec = {SliceDomain{1, 0, 100, 0, ""}};
+        }
+
+        uint64_t QueryPythonFunctionCountByTrackId(const SliceQuery &sliceQuery) override {
+            (void)sliceQuery;
+            return 1;
+        }
+
+        void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override {
+            (void)sliceQuery;
+            sliceIds = {1};
+        }
+    };
+    CacheManager::Instance().ClearAll();
+    std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
+    SliceAnalyzer sliceAnalyzer;
+    sliceAnalyzer.SetRepository(ptr);
+    SliceQuery sliceQuery;
+    sliceQuery.trackId = 1006;
+    sliceQuery.rankId = "thread_traces_empty_ordinary_cache";
+    sliceQuery.startTime = 0;
+    sliceQuery.endTime = 100;
+    std::set<uint64_t> ids;
+    uint64_t maxDepth = 0;
+    std::map<uint64_t, uint32_t> depthMap;
+
+    sliceAnalyzer.ComputeScreenSliceIds(sliceQuery, ids, maxDepth, depthMap);
+
+    std::unordered_map<uint64_t, uint32_t> cachedDepth;
+    ASSERT_TRUE(SliceCacheManager::Instance().QueryDepthInfoWithoutTimeRange(
+        std::to_string(sliceQuery.trackId), sliceQuery.rankId, cachedDepth));
+    EXPECT_TRUE(cachedDepth.empty());
+    CacheManager::Instance().ClearAll();
+}
+
+TEST_F(SliceAnalyzerTest, test_PythonFunctionCacheSeparatesRanksWithSameTrackId) {
+    CacheManager::Instance().ClearAll();
+    auto &cache = SliceCacheManager::Instance();
+    const uint64_t trackId = 1007;
+    SliceQuery rankAQuery;
+    rankAQuery.rankId = "rank_a";
+    rankAQuery.trackId = trackId;
+    rankAQuery.startTime = 0;
+    rankAQuery.endTime = 100;
+    SliceQuery rankBQuery = rankAQuery;
+    rankBQuery.rankId = "rank_b";
+    const std::string rankAKey = SliceCacheManager::BuildPythonFunctionCacheKey(rankAQuery.rankId, trackId);
+    const std::string rankBKey = SliceCacheManager::BuildPythonFunctionCacheKey(rankBQuery.rankId, trackId);
+
+    cache.PutPythonFunctionIdVec(rankAKey, {1}, rankAQuery);
+    cache.PutPythonFunctionIdVec(rankBKey, {2}, rankBQuery);
+    cache.SetPythonFunctionStatus(rankAKey, PYTHON_FUNCTION_STATUS::EXIST);
+    cache.SetPythonFunctionStatus(rankBKey, PYTHON_FUNCTION_STATUS::NOT_EXIST);
+
+    EXPECT_EQ(cache.GetPythonFunctionIdVec(rankAKey, rankAQuery), std::vector<uint64_t>({1}));
+    EXPECT_EQ(cache.GetPythonFunctionIdVec(rankBKey, rankBQuery), std::vector<uint64_t>({2}));
+    EXPECT_EQ(cache.GetPythonFunctionStatus(rankAKey), PYTHON_FUNCTION_STATUS::EXIST);
+    EXPECT_EQ(cache.GetPythonFunctionStatus(rankBKey), PYTHON_FUNCTION_STATUS::NOT_EXIST);
+    CacheManager::Instance().ClearAll();
+}
+
 TEST_F(SliceAnalyzerTest, test_ComputeDepthInfoByTrackId_group_id_depth) {
     class RepositoryMock : public Dic::Module::Timeline::TextRepository {
       public:
@@ -265,6 +376,40 @@ TEST_F(SliceAnalyzerTest, test_ComputeDepthInfoByTrackId_group_id_filter_python_
     sliceQuery.endTime = 100;
     sliceQuery.isFilterPythonFunction = true;
     std::unordered_map<uint64_t, uint32_t> depthInfo;
+    sliceAnalyzer.ComputeDepthInfoByTrackId(sliceQuery, depthInfo);
+
+    EXPECT_EQ(depthInfo.count(1), 0);
+    EXPECT_EQ(depthInfo[2], 0);
+    CacheManager::Instance().ClearAll();
+}
+
+TEST_F(SliceAnalyzerTest, test_ComputeDepthInfoByTrackId_enforces_ordinary_lane_filter_when_flag_missing) {
+    class RepositoryMock : public Dic::Module::Timeline::TextRepository {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {
+            (void)sliceQuery;
+            // 普通算子完全落在 Python Function 内；若两者混合排深，普通算子会错误落到 depth 1。
+            sliceVec = {SliceDomain{1, 0, 100, 0, ""}, SliceDomain{2, 10, 20, 0, ""}};
+        }
+
+        void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override {
+            (void)sliceQuery;
+            sliceIds = {1};
+        }
+    };
+    CacheManager::Instance().ClearAll();
+    std::shared_ptr<Dic::Module::Timeline::TextRepository> ptr = std::make_shared<RepositoryMock>();
+    SliceAnalyzer sliceAnalyzer;
+    sliceAnalyzer.SetRepository(ptr);
+    SliceQuery sliceQuery;
+    sliceQuery.trackId = 1004;
+    sliceQuery.rankId = "ordinary_lane_forced_filter";
+    sliceQuery.startTime = 0;
+    sliceQuery.endTime = 100;
+    sliceQuery.isFilterPythonFunction = false;
+    std::unordered_map<uint64_t, uint32_t> depthInfo;
+
     sliceAnalyzer.ComputeDepthInfoByTrackId(sliceQuery, depthInfo);
 
     EXPECT_EQ(depthInfo.count(1), 0);

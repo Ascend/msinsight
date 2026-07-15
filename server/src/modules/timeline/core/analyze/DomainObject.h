@@ -115,6 +115,7 @@ struct FlowPoint {
     std::string tid;
     std::string pid;
     std::string rankId;
+    std::string metaType;
     bool operator<(const FlowPoint &right) const {
         if (trackId < right.trackId) {
             return true;
