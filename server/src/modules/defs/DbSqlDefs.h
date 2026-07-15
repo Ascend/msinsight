@@ -181,9 +181,15 @@ inline std::string GetOsrtSameNameDetailSql(const std::string &pidListStr) {
         pidListStr + " ) AND timestamp + duration >= p.startTime AND timestamp <= p.endTime ";
 }
 // sql of singleUnitFlow
+// Python Stack 是从 PyTorch API 数据中拆出的虚拟泳道，底层仍与普通 PyTorch 共用 globalTid。
+// 连线查询必须在 SQL 阶段根据 type=50003 保留虚拟泳道身份，否则后续只能看到 tid=pytorch，
+// FillFlowDepth 将无法选择 Python Stack 的独立深度缓存，最终会把普通 PyTorch 的 depth 返回给前端。
 const static std::string PYTORCH_UNIT_FLOW_SQL =
-    " select api.ROWID as id, 'pytorch' as tid, depth, startNs - constValue.minTime as startTime, "
-    "     endNs - startNs as duration, globalTid as pid, 'PYTORCH_API' as metaType, name, "
+    " select api.ROWID as id, "
+    "     CASE WHEN api.type = 50003 THEN 'python_stack:' || api.globalTid ELSE 'pytorch' END as tid, "
+    "     depth, startNs - constValue.minTime as startTime, "
+    "     endNs - startNs as duration, globalTid as pid, "
+    "     CASE WHEN api.type = 50003 THEN 'PYTORCH_API_PYTHON_STACK' ELSE 'PYTORCH_API' END as metaType, name, "
     "     '' as deviceId from PYTORCH_API api join constValue "
     "     join CONNECTION_IDS ids on api.connectionId = ids.id and ids.connectionId = constValue.connectionId ";
 const static std::string CANN_UNIT_FLOW_SQL =

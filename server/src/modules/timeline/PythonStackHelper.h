@@ -76,6 +76,10 @@ class PythonStackHelper {
         if (restored) {
             params.isPythonStack = true;
         }
+        // unit/threadTraces 只有两种深度语义：Python Stack 泳道只展示 Python Function，
+        // 其它泳道必须在排深前剔除 Python Function。这里覆盖前端传值，是为了把该约束收敛到
+        // 后端请求恢复入口，避免普通泳道因漏传 isFilterPythonFunction 而写入包含 Python Stack 的 depth cache。
+        params.isFilterPythonFunction = !params.isPythonStack;
         return restored;
     }
 
@@ -88,7 +92,13 @@ class PythonStackHelper {
     }
 
     static bool RestoreUnitFlowsParams(Protocol::UnitFlowsParams &params) {
-        return RestoreThreadIdAndMetaType(params.pid, params.tid, params.metaType);
+        bool restored = RestoreThreadIdAndMetaType(params.pid, params.tid, params.metaType);
+        // tid/metaType 还原后已无法从参数值判断请求原本来自 Python Stack，显式记录该语义，
+        // 避免 Text unit/flows 后续按普通泳道查询 slice 和 depth cache。
+        if (restored) {
+            params.isPythonStack = true;
+        }
+        return restored;
     }
 
     static void RestoreEventsViewParams(Protocol::EventsViewParams &params) {

@@ -55,6 +55,18 @@ bool IsFilteredPythonFunction(const std::vector<uint64_t> &pythonFunctionIds, ui
     return !std::empty(pythonFunctionIds) && std::binary_search(pythonFunctionIds.begin(), pythonFunctionIds.end(), id);
 }
 
+std::vector<SliceDomain> BuildOrdinaryLaneSlices(
+    const std::vector<SliceDomain> &sliceVec, const std::vector<uint64_t> &pythonFunctionIds) {
+    std::vector<SliceDomain> ordinarySlices;
+    ordinarySlices.reserve(sliceVec.size());
+    for (const auto &slice : sliceVec) {
+        if (!IsFilteredPythonFunction(pythonFunctionIds, slice.id)) {
+            ordinarySlices.emplace_back(slice);
+        }
+    }
+    return ordinarySlices;
+}
+
 SliceQuery BuildDepthIndexQuery(SliceCacheManager &sliceCacheManager, const SliceQuery &sliceQuery,
     const std::string &sliceCacheKey, const SliceQuery &slicePagedQuery, bool isHitCache) {
     if (!isHitCache) {
@@ -396,8 +408,19 @@ void SliceAnalyzer::ComputeScreenSliceIds(
         ids.erase(0);
     }
     maxDepth = endList.size();
-    // 此处不管是否命中缓存，都需要刷新，是因为depth信息可能会被更新, 而QueryDepthInfo会查询缓存中的depth信息
+    // 裸 trackId cache 统一表示“其它泳道”的深度语义，因此写入前必须已经排除 Python Function。
+    // Python Stack 不复用该缓存，而是在 ComputePythonFunctionSliceIds 中使用 @python_stack key 写独立索引。
+    // 此处无论是否命中缓存都刷新，是因为本次排深可能修正旧的 depth，后续 unit/flows 会直接读取该结果。
+    SliceQuery depthIndexQuery = BuildDepthIndexQuery(instance, sliceQuery, sliceCacheKey, slicePagedQuery, isHitCache);
     instance.UpdateSliceCache(sliceCacheKey, sliceDomainVec, slicePagedQuery);
+    std::vector<SliceDomain> ordinarySlices = BuildOrdinaryLaneSlices(sliceDomainVec, pythonFunctionIds);
+    // slice cache 需要保留全量数据供 Python Stack 再筛选，但裸 key 的 depth index 只能暴露普通泳道算子。
+    // UpdateSliceCache 会先按全量 slice 建 index，因此这里立即用过滤后的集合覆盖，防止 Python Function
+    // 或受其重叠关系影响的 depth 被 unit/flows 当成普通泳道缓存读取。
+    instance.UpdateDepthIndexCache(sliceCacheKey, ordinarySlices, depthIndexQuery);
+    Server::ServerLog::Info("Thread traces ordinary lane depth cache updated. rankId: ", sliceQuery.rankId,
+        ", trackId: ", sliceQuery.trackId, ", allSliceCount: ", sliceDomainVec.size(),
+        ", filteredPythonFunctionCount: ", pythonFunctionIds.size(), ", ordinaryDepthCount: ", ordinarySlices.size());
 }
 
 void SliceAnalyzer::ComputePythonFunctionSliceIds(
@@ -448,17 +471,18 @@ void SliceAnalyzer::ComputePythonFunctionSliceIds(
 
 void SliceAnalyzer::QueryPythonFuncIds(const SliceQuery &sliceQuery, std::vector<uint64_t> &pythonFunctionIds) {
     auto &instance = SliceCacheManager::Instance();
-    std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
+    const std::string pythonFunctionCacheKey =
+        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.rankId, sliceQuery.trackId);
     const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
-    if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::UNKNOWN) {
+    if (instance.GetPythonFunctionStatus(pythonFunctionCacheKey) == PYTHON_FUNCTION_STATUS::UNKNOWN) {
         uint64_t count = pythonFuncRepo != nullptr ? pythonFuncRepo->QueryPythonFunctionCountByTrackId(sliceQuery) : 0;
         PYTHON_FUNCTION_STATUS status = count == 0 ? PYTHON_FUNCTION_STATUS::NOT_EXIST : PYTHON_FUNCTION_STATUS::EXIST;
-        instance.SetPythonFunctionStatus(sliceQuery.trackId, status);
+        instance.SetPythonFunctionStatus(pythonFunctionCacheKey, status);
     }
-    if (instance.GetPythonFunctionStatus(sliceQuery.trackId) == PYTHON_FUNCTION_STATUS::EXIST) {
-        pythonFunctionIds = instance.GetPythonFunctionIdVec(sliceCacheKey, sliceQuery);
+    if (instance.GetPythonFunctionStatus(pythonFunctionCacheKey) == PYTHON_FUNCTION_STATUS::EXIST) {
+        pythonFunctionIds = instance.GetPythonFunctionIdVec(pythonFunctionCacheKey, sliceQuery);
         if (std::empty(pythonFunctionIds)) {
-            QueryPythonFuncFromDBAndUpdateCache(sliceCacheKey, sliceQuery, pythonFunctionIds);
+            QueryPythonFuncFromDBAndUpdateCache(pythonFunctionCacheKey, sliceQuery, pythonFunctionIds);
         }
     }
 }
@@ -478,15 +502,17 @@ void SliceAnalyzer::ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery
     }
     // 过滤python function
     std::vector<CompeteSliceDomain> competeSliceVec;
-    std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
+    const std::string pythonFunctionCacheKey =
+        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.rankId, sliceQuery.trackId);
     auto &instance = SliceCacheManager::Instance();
     SliceQuery pythonFunctionQuery = sliceQuery;
     if (pythonFunctionQuery.cat.empty()) {
         pythonFunctionQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
     }
-    std::vector<uint64_t> pythonFunctionIds = instance.GetPythonFunctionIdVec(sliceCacheKey, pythonFunctionQuery);
+    std::vector<uint64_t> pythonFunctionIds =
+        instance.GetPythonFunctionIdVec(pythonFunctionCacheKey, pythonFunctionQuery);
     if (std::empty(pythonFunctionIds)) {
-        QueryPythonFuncFromDBAndUpdateCache(sliceCacheKey, pythonFunctionQuery, pythonFunctionIds);
+        QueryPythonFuncFromDBAndUpdateCache(pythonFunctionCacheKey, pythonFunctionQuery, pythonFunctionIds);
     }
     std::unordered_map<uint64_t, uint32_t> depthInfo;
     if (isPythonStack) {
@@ -527,10 +553,15 @@ void SliceAnalyzer::ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery
 
 void SliceAnalyzer::ComputeDepthInfoByTrackId(
     const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo) {
+    // 普通 depth cache 只承载“非 Python Stack”语义。调用方即使漏传过滤标记，也不能让
+    // Python Function 参与普通算子排深并污染裸 trackId cache；Python Stack 必须走
+    // ComputePythonFunctionDepthInfoByTrackId，并使用 @python_stack 独立 key。
+    SliceQuery ordinaryLaneQuery = sliceQuery;
+    ordinaryLaneQuery.isFilterPythonFunction = true;
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
-    bool cacheIsExist = sliceCacheManager.QueryDepthInfo(depthInfo, sliceQuery);
+    bool cacheIsExist = sliceCacheManager.QueryDepthInfo(depthInfo, ordinaryLaneQuery);
     if (!cacheIsExist) {
-        ComputeDepthInfoFromDB(sliceQuery, depthInfo);
+        ComputeDepthInfoFromDB(ordinaryLaneQuery, depthInfo);
     }
 }
 
@@ -626,7 +657,11 @@ void SliceAnalyzer::ComputeSliceDomainVecByTrackId(const SliceQuery &sliceQuery,
     sliceVec = sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId, sliceQuery);
     if (std::empty(sliceVec)) {
         std::unordered_map<uint64_t, uint32_t> depthInfo;
-        ComputeDepthInfoFromDB(sliceQuery, depthInfo);
+        // 返回的是普通泳道 slice，裸 trackId cache 必须按排除 Python Function 后的集合计算深度。
+        // Text unit/flows 会另外建立 Python Stack depth map，因此不能在这里把两类算子混合排深。
+        SliceQuery ordinaryLaneQuery = sliceQuery;
+        ordinaryLaneQuery.isFilterPythonFunction = true;
+        ComputeDepthInfoFromDB(ordinaryLaneQuery, depthInfo);
         sliceVec =
             sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId, sliceQuery);
     }
@@ -636,7 +671,14 @@ void SliceAnalyzer::QueryPythonFuncFromDBAndUpdateCache(
     const std::string &key, const SliceQuery &sliceQuery, std::vector<uint64_t> &pythonFunctionIds) {
     const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
     SliceCacheManager &sliceCache = SliceCacheManager::Instance();
-    SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
+    // pythonFunctionIDCache 的 value 语义固定为 Python Function id，但部分普通泳道调用方不会设置 cat。
+    // 若直接使用空 cat 查询，会把普通算子 id 写进该缓存，随后 Python Stack 请求会复用错误结果。
+    // 因此必须在唯一写入入口归一化查询分类，保证缓存内容不受请求顺序和调用方参数完整性影响。
+    SliceQuery pythonFunctionQuery = sliceQuery;
+    if (pythonFunctionQuery.cat.empty()) {
+        pythonFunctionQuery.cat = TEXT_PYTHON_FUNCTION_CAT;
+    }
+    SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(pythonFunctionQuery);
     if (pythonFuncRepo != nullptr) {
         pythonFuncRepo->QuerySliceIdsByCat(slicePagedQuery, pythonFunctionIds);
     }
@@ -645,14 +687,20 @@ void SliceAnalyzer::QueryPythonFuncFromDBAndUpdateCache(
 
 void SliceAnalyzer::ComputeDepthInfoFromDB(
     const SliceQuery &sliceQuery, std::unordered_map<uint64_t, uint32_t> &depthInfo) {
+    // 该方法是裸 trackId depth cache 的唯一 DB 写入入口。强制过滤而不是依赖调用方传参，
+    // 可以保证所有普通泳道共享同一条稳定规则；新增其它普通泳道时无需继续扩展缓存 key 语义。
+    SliceQuery ordinaryLaneQuery = sliceQuery;
+    ordinaryLaneQuery.isFilterPythonFunction = true;
     std::vector<SliceDomain> sliceVec;
     SliceCacheManager &simpleSliceCache = SliceCacheManager::Instance();
-    std::string pythonFunctionKey = std::to_string(sliceQuery.trackId);
-    std::vector<uint64_t> pythonFunctionIds = simpleSliceCache.GetPythonFunctionIdVec(pythonFunctionKey, sliceQuery);
-    if (sliceQuery.isFilterPythonFunction && std::empty(pythonFunctionIds)) {
-        QueryPythonFuncFromDBAndUpdateCache(pythonFunctionKey, sliceQuery, pythonFunctionIds);
+    const std::string pythonFunctionKey =
+        SliceCacheManager::BuildPythonFunctionCacheKey(ordinaryLaneQuery.rankId, ordinaryLaneQuery.trackId);
+    std::vector<uint64_t> pythonFunctionIds =
+        simpleSliceCache.GetPythonFunctionIdVec(pythonFunctionKey, ordinaryLaneQuery);
+    if (std::empty(pythonFunctionIds)) {
+        QueryPythonFuncFromDBAndUpdateCache(pythonFunctionKey, ordinaryLaneQuery, pythonFunctionIds);
     }
-    SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
+    SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(ordinaryLaneQuery);
     repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceVec);
     AssignSliceDepths(sliceVec, pythonFunctionIds);
     for (auto &item : sliceVec) {
@@ -661,7 +709,14 @@ void SliceAnalyzer::ComputeDepthInfoFromDB(
         }
         depthInfo[item.id] = item.depth;
     }
-    simpleSliceCache.UpdateSliceCache(std::to_string(sliceQuery.trackId), sliceVec, slicePagedQuery);
+    Server::ServerLog::Info("Ordinary lane depth cache rebuilt. rankId: ", ordinaryLaneQuery.rankId,
+        ", trackId: ", ordinaryLaneQuery.trackId, ", sliceCount: ", sliceVec.size(),
+        ", filteredPythonFunctionCount: ", pythonFunctionIds.size(), ", depthCount: ", depthInfo.size());
+    simpleSliceCache.UpdateSliceCache(std::to_string(ordinaryLaneQuery.trackId), sliceVec, slicePagedQuery);
+    std::vector<SliceDomain> ordinarySlices = BuildOrdinaryLaneSlices(sliceVec, pythonFunctionIds);
+    // 与 unit/threadTraces 的写入规则保持一致：全量 slice 用于后续泳道派生，裸 key depth index
+    // 只代表其它泳道。Python Stack 深度由独立方法重排并写入 @python_stack，二者不会互相覆盖。
+    simpleSliceCache.UpdateDepthIndexCache(std::to_string(ordinaryLaneQuery.trackId), ordinarySlices, slicePagedQuery);
 }
 
 void SliceAnalyzer::AddData(

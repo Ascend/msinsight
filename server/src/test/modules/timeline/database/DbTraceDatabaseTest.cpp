@@ -21,6 +21,7 @@
 #include "DataBaseManager.h"
 #include "DbSqlDefs.h"
 #include "NpuInfoRepoMock.h"
+#include "SliceCacheManager.h"
 #include "TraceDatabaseHelper.h"
 #include "TrackInfoManager.h"
 #include "TraceTime.h"
@@ -1869,6 +1870,75 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsFromPyTorchToPyTorchFlowTypeFwdBwd
     EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].to.rankId, "0");
     EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].from.timestamp, 20); // 20
     EXPECT_EQ(responseBody.unitAllFlows[0].flows[0].to.timestamp, 30); // 30
+    RestoreRepoFunc();
+}
+
+TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsSeparatesPythonStackAndPytorchDepthCache) {
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_CONNECTION_IDS, TableName::DB_CANN_API,
+        TableName::DB_PYTORCH_API, TableName::DB_TASK, TableName::DB_NPU_INFO, TableName::DB_MSTX_EVENTS,
+        TableName::DB_COMMUNICATION_OP, TableName::DB_RANK_DEVICE_MAP};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+
+    const std::string pytorchData =
+        "INSERT INTO PYTORCH_API (startNs, endNs, globalTid, connectionId, name, "
+        "sequenceNumber, fwdThreadId, inputDtypes, inputShapes, callchainId, type, depth) VALUES "
+        "(20, 40, 17738580008830245, 1, 268435456, NULL, NULL, NULL, NULL, NULL, 50003, 9),"
+        "(50, 70, 17738580008830245, 2, 268435456, NULL, NULL, NULL, NULL, NULL, 50002, 9);";
+    const std::string connectIdsData =
+        "INSERT INTO CONNECTION_IDS (id, connectionId) VALUES (1, 19), (2, 19);";
+    const std::string npuInfoData = "INSERT INTO NPU_INFO (id, name) VALUES (0, 'abc')";
+    DatabaseTestCaseMockUtil::InsertData(db, pytorchData);
+    DatabaseTestCaseMockUtil::InsertData(db, connectIdsData);
+    DatabaseTestCaseMockUtil::InsertData(db, npuInfoData);
+    DatabaseTestCaseMockUtil::InsertData(db, rankDeviceMapDataInsertForQueryUnitFlows);
+    database.SetDbPtr(db);
+
+    auto &sliceCacheManager = SliceCacheManager::Instance();
+    sliceCacheManager.Clear();
+    const std::string rankId = "0";
+    const std::string pid = "17738580008830245";
+    const uint64_t trackId =
+        TrackInfoManager::Instance().GetTrackId(rankId, pid, Dic::Protocol::PYTHON_API_THREAD_ID);
+    SliceQuery cacheQuery;
+    cacheQuery.rankId = rankId;
+    cacheQuery.startTime = 1000;
+    cacheQuery.endTime = 1100;
+    // 普通缓存 key 已存在，但分页区间不包含当前 PyTorch 端点。旧逻辑只检查 key 是否命中，
+    // 随后通过 operator[] 把缺失 slice 静默解析为 depth=0；修复后必须按端点时间范围重建。
+    sliceCacheManager.UpdateSliceCache(
+        std::to_string(trackId), {SliceDomain{999, 1000, 1100, 7, ""}}, cacheQuery);
+    SliceQuery pythonStackCacheQuery;
+    pythonStackCacheQuery.rankId = rankId;
+    pythonStackCacheQuery.startTime = 0;
+    pythonStackCacheQuery.endTime = 100;
+    sliceCacheManager.UpdateDepthIndexCache(
+        std::to_string(trackId) + "@python_stack", {SliceDomain{1, 20, 40, 2, ""}}, pythonStackCacheQuery);
+
+    Dic::Protocol::UnitFlowsParams requestParams;
+    requestParams.id = "1";
+    requestParams.metaType = "PYTORCH_API";
+    requestParams.rankId = rankId;
+    Dic::Protocol::UnitFlowsBody responseBody;
+
+    MockNpuInfoRepoFunc();
+    bool result = database.QueryUnitFlows(requestParams, responseBody, 0, 0);
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(responseBody.unitAllFlows.size(), 1);
+    ASSERT_EQ(responseBody.unitAllFlows[0].flows.size(), 1);
+    const auto &flow = responseBody.unitAllFlows[0].flows[0];
+    EXPECT_EQ(flow.from.tid, "python_stack:" + pid);
+    EXPECT_EQ(flow.from.metaType, "PYTORCH_API_PYTHON_STACK");
+    EXPECT_EQ(flow.from.depth, 2);
+    EXPECT_EQ(flow.to.tid, Dic::Protocol::PYTHON_API_THREAD_ID);
+    EXPECT_EQ(flow.to.metaType, "PYTORCH_API");
+    EXPECT_EQ(flow.to.depth, 0);
+
+    sliceCacheManager.Clear();
     RestoreRepoFunc();
 }
 
