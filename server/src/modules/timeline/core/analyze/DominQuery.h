@@ -87,6 +87,8 @@ struct SliceQueryByNameList {
 
 struct FlowQuery {
     uint64_t trackId = 0;
+    // Text Python Stack 与普通泳道共用 trackId，该标记决定点击算子匹配时保留哪一组 slice。
+    bool isPythonStack = false;
     /* *
      * 连线的id
      */

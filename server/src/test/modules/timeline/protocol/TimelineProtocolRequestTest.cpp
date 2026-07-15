@@ -369,6 +369,7 @@ TEST_F(TimelineProtocolRequestTest, RestoreTextPythonStackThreadTracesParamsWhen
 
     EXPECT_EQ(restored, true);
     EXPECT_EQ(params.isPythonStack, true);
+    EXPECT_EQ(params.isFilterPythonFunction, false);
     EXPECT_EQ(params.threadId, "100");
     EXPECT_EQ(params.metaType, "TEXT");
 }
@@ -383,8 +384,39 @@ TEST_F(TimelineProtocolRequestTest, RestoreFullDbPythonStackThreadTracesParams) 
 
     EXPECT_EQ(restored, true);
     EXPECT_EQ(params.isPythonStack, true);
+    EXPECT_EQ(params.isFilterPythonFunction, false);
     EXPECT_EQ(params.threadId, "pytorch");
     EXPECT_EQ(params.metaType, "PYTORCH_API");
+}
+
+TEST_F(TimelineProtocolRequestTest, RestoreOrdinaryThreadTracesParamsAlwaysFiltersPythonFunction) {
+    Dic::Protocol::UnitThreadTracesParams params;
+    params.processId = "4294967297";
+    params.threadId = "pytorch";
+    params.metaType = "PYTORCH_API";
+    params.isFilterPythonFunction = false;
+
+    bool restored = Dic::Module::Timeline::PythonStackHelper::RestoreThreadTracesParams(params);
+
+    EXPECT_FALSE(restored);
+    EXPECT_FALSE(params.isPythonStack);
+    EXPECT_TRUE(params.isFilterPythonFunction);
+    EXPECT_EQ(params.threadId, "pytorch");
+    EXPECT_EQ(params.metaType, "PYTORCH_API");
+}
+
+TEST_F(TimelineProtocolRequestTest, RestoreTextPythonStackUnitFlowsParamsKeepsLaneIdentity) {
+    Dic::Protocol::UnitFlowsParams params;
+    params.pid = "100";
+    params.tid = "python_stack:text:100";
+    params.metaType = "PYTORCH_API_PYTHON_STACK";
+
+    bool restored = Dic::Module::Timeline::PythonStackHelper::RestoreUnitFlowsParams(params);
+
+    EXPECT_TRUE(restored);
+    EXPECT_TRUE(params.isPythonStack);
+    EXPECT_EQ(params.tid, "100");
+    EXPECT_EQ(params.metaType, "TEXT");
 }
 
 TEST_F(TimelineProtocolRequestTest, SystemViewFtraceStatParams_CheckParams) {

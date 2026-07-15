@@ -187,6 +187,9 @@ struct UnitFlowsParams {
     std::string pid;
     std::string id;
     std::string metaType;
+    // Python Stack 请求在进入数据库前会把虚拟 tid 还原为底层 Text/PyTorch tid，
+    // 必须保留该标记，后续才能选择虚拟泳道独立的 slice 集合和 depth cache。
+    bool isPythonStack = false;
     uint64_t startTime = 0;
     uint64_t endTime = 0;
     bool isSimulation = false;
