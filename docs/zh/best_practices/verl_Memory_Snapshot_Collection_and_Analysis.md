@@ -182,13 +182,13 @@ mem_snapshots_selected_ranks/
 2. 如果图呈现周期性上升和回落，说明显存主要随forward、backward、optimizer step等阶段正常申请和释放。
 3. 如果图在某一时间点出现大幅跃升，需要点击对应位置的内存块或事件，进一步在“内存池状态图”和“内存详情表”中查看对应调用栈。
 
-![内存块生命周期图1](./figures/verl_Memory_Snapshot_Collection_and_Analysis/block-graph1.png)
+![内存块生命周期图 1](./figures/verl_Memory_Snapshot_Collection_and_Analysis/block-graph1.png)
 
 该样例中，图呈现周期性上升和回落，说明内存申请和释放正常进行。
 
-![内存块生命周期图2](./figures/verl_Memory_Snapshot_Collection_and_Analysis/block-graph2.png)
+![内存块生命周期图 2](./figures/verl_Memory_Snapshot_Collection_and_Analysis/block-graph2.png)
 
-![内存池状态图1](./figures/verl_Memory_Snapshot_Collection_and_Analysis/state-graph1.png)
+![内存池状态图 1](./figures/verl_Memory_Snapshot_Collection_and_Analysis/state-graph1.png)
 
 但是存在一些短促的大内存申请，如果有内存瓶颈问题，可以点击选中这些块，在详情和内存池状态图中具体分析。
 
