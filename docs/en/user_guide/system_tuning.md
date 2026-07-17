@@ -235,22 +235,22 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky">Low Power</td>
     <td class="tg-0pky">-</td>
-    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other metrics, is presented through dynamic frequency scaling curves to accurately identify frequency changes during operator execution.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other metrics, is presented through dynamic frequency scaling curves to accurately identify frequency changes during operator execution.<br>This unit displays only the profile data exported from the Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
     <td class="tg-0pky">Group&lt;id&gt;-aiv&lt;id&gt;</td>
-    <td class="tg-0pky">Execution time of instructions such as SU, VEC, CUBE, and MTE, and dotting data.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">Execution time of instructions such as SU, VEC, CUBE, and MTE, and dotting data.<br>This unit displays only the profile data exported from the Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
     <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;</td>
-    <td class="tg-0pky">Overall receive and transmit bandwidth of the UB for the UDMA and UNIC data types.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">Overall receive and transmit bandwidth of the UB for the UDMA and UNIC data types.<br>This unit displays only the profile data exported from the Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Block Detail</td>
     <td class="tg-0pky">AIC/AIV Earliest</td>
-    <td class="tg-0pky">Time when each operator is executed on the earliest AI Core or AI Vector Core. If the operator is of the Mix type, it is executed on both the AIC and AIV.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">Time when each operator is executed on the earliest AI Core or AI Vector Core. If the operator is of the Mix type, it is executed on both the AIC and AIV.<br>This unit displays only the profile data exported from the Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky">AIC/AIV Latest</td>
@@ -311,7 +311,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky">CCU</td>
     <td class="tg-0pky">Communication</td>
-    <td class="tg-0pky">Collective communication instruction data, start and end time of the CCU task, start and end time of the level-1 index instruction of the CCU task, and synchronization and data transfer duration.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">Collective communication instruction data, start and end time of the CCU task, start and end time of the level-1 index instruction of the CCU task, and synchronization and data transfer duration.<br>This unit displays only the profile data exported from the Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Communication</td>
@@ -334,7 +334,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="4">acc_pmu</td>
     <td class="tg-0pky">Accelerator {accId}/readBwLevel</td>
-    <td class="tg-0pky">Read bandwidth of the DVPP and DSA accelerators<br>This unit is not supported by the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">Read bandwidth of the DVPP and DSA accelerators<br>This unit is not supported by the Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Accelerator {accId}/readOstLevel</td>
@@ -382,7 +382,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>
     <td class="tg-0pky">dat_rx, dat_tx</td>
-    <td class="tg-0pky">Rx and Tx bandwidths of the data stream channel. SIO units can be displayed only in text files.<br>This unit displays only the inter-die transmission bandwidth information of the <term>Atlas A2 training products/Atlas A2 inference products</term> and <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">Rx and Tx bandwidths of the data stream channel. SIO units can be displayed only in text files.<br>This unit displays only the inter-die transmission bandwidth information of the <term>Atlas A2 training products/Atlas A2 inference products</term> and Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky">req_rx, req_tx</td>
@@ -491,7 +491,7 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="4">Stars Chip Trans</td>
     <td class="tg-0pky">PA Link Rx</td>
-    <td class="tg-0pky">PA traffic receive level. When collective communication bandwidth is available, it is not recommended to refer to this field, as it provides only coarse-grained statistical data. Stars Chip Trans units are displayed only in text files and are not supported by the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">PA traffic receive level. When collective communication bandwidth is available, it is not recommended to refer to this field, as it provides only coarse-grained statistical data. Stars Chip Trans units are displayed only in text files and are not supported by the Atlas 350 accelerator card.</td>
   </tr>
   <tr>
     <td class="tg-0pky">PA Link Tx</td>
