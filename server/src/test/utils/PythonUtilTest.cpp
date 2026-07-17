@@ -17,6 +17,7 @@
  */
 #include <vector>
 #include <string>
+#include <optional>
 #include "gtest/gtest.h"
 #include "FileUtil.h"
 #include "PythonUtil.h"
@@ -29,7 +30,7 @@ class PythonUtilTest : public testing::Test {};
 TEST_F(PythonUtilTest, ExecuteCommandListOnLinuxOrMac) {
     std::string executablePath{"ls"};
     std::vector<std::string> arguments{"-l"};
-    int result = PythonUtil::ExecuteCommand(executablePath, arguments);
+    int result = PythonUtil::ExecuteCommand(executablePath, arguments, std::nullopt);
     EXPECT_EQ(result, 0);
 }
 #endif
@@ -45,6 +46,6 @@ TEST_F(PythonUtilTest, ExecuteCommandReturnsFailureWhenExecutableMissingOnWindow
     std::string executablePath =
         FileUtil::SplicePath(FileUtil::GetCurrPath(), "missing_python_for_python_util_test.exe");
 
-    EXPECT_EQ(PythonUtil::ExecuteCommand(executablePath, {}), -1);
+    EXPECT_EQ(PythonUtil::ExecuteCommand(executablePath, {}, std::nullopt), -1);
 }
 #endif

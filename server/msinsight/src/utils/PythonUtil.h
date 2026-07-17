@@ -19,6 +19,7 @@
 #ifndef PROFILER_SERVER_PYTHONUTIL_H
 #define PROFILER_SERVER_PYTHONUTIL_H
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -26,9 +27,12 @@ namespace Dic {
 class PythonUtil {
   public:
     // 执行Python脚本，scriptPath是相对于profiler_server所在目录的相对路径，arguments是脚本的参数
-    static int ExecuteScript(const std::string &scriptPath, const std::vector<std::string> &arguments);
+    // 当logPath有具体值，执行Python脚本的标准输出和标准错误会重定向到logPath文件；当logPath为nullopt时，不进行重定向
+    static int ExecuteScript(const std::string &scriptPath, const std::vector<std::string> &arguments,
+        const std::optional<std::string> &logPath = std::nullopt);
     static std::string GetPythonCommand();
-    static int ExecuteCommand(const std::string &executablePath, const std::vector<std::string> &arguments);
+    static int ExecuteCommand(const std::string &executablePath, const std::vector<std::string> &arguments,
+        const std::optional<std::string> &logPath);
 };
 }
 

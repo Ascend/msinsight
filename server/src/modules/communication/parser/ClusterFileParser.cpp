@@ -417,6 +417,18 @@ bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::s
         ServerLog::Warn("validate string select path failed! select path", selectedPath);
         return false;
     }
+    std::string logPath = FileUtil::SplicePath(selectedPath, "cluster_analysis.log");
+    std::ofstream logFile;
+    logFile.open(logPath, std::ios::out | std::ios::trunc);
+    if (!logFile.is_open()) {
+        ServerLog::Error("Failed to create cluster analysis log file, path:", logPath);
+        return false;
+    }
+    logFile.close();
+#if defined(__linux__) || defined(__APPLE__)
+    mode_t fileMode = 0640; // 业务数据权限要求设置为0640 （rw-r-----）
+    FileUtil::ModifyFilePermissions(logPath, fileMode);
+#endif
 
     const std::string scriptPath =
         std::string("msprof_analyze") + FILE_SEPARATOR + "cluster_analyse" + FILE_SEPARATOR + "cluster_analysis.py";
@@ -426,7 +438,7 @@ bool ClusterFileParser::AttAnalyze(const std::string &selectedPath, const std::s
         arguments.emplace_back(mode);
     }
     ServerLog::Info("Start execute command, selected path:", selectedPath, " ,mode: ", mode);
-    if (PythonUtil::ExecuteScript(scriptPath, arguments) != 0) {
+    if (PythonUtil::ExecuteScript(scriptPath, arguments, logPath) != 0) {
         ServerLog::Warn(
             "Execute cluster analysis failed, skip parse cluster file, selected path:", selectedPath, " ,mode: ", mode);
         return false;
