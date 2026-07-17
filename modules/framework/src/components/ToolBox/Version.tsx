@@ -141,7 +141,7 @@ function Version(): JSX.Element {
             open={popoverVisible}
             getPopupContainer={(triggerNode: HTMLElement): HTMLElement => triggerNode}
         >
-            <HelpIcon className="size-20" tabIndex={-1} onBlur={handleBlur} onClick={handleHelpIconClick} data-testid="help-icon"/>
+            <HelpIcon color="currentColor" className="size-20" tabIndex={-1} onBlur={handleBlur} onClick={handleHelpIconClick} data-testid="help-icon"/>
         </Popover>
         <Modal title={`${t('About')} MindStudio Insight`} open={isModalOpen} onCancel={closeVersion} destroyOnClose={true} footer={null}>
             <VersionContainer className="help-ul">

@@ -112,7 +112,7 @@ export class FileExploreDialogPage {
 
     constructor(page: Page) {
         this.page = page;
-        this.mainDialog = page.getByRole('dialog', { name: 'File Explorer' });
+        this.mainDialog = page.getByRole('dialog', { name: 'Drag or import a file by path' });
         this.cancelBtn = page.getByRole('button', { name: 'Cancel' });
         this.confirmBtn = page.getByRole('button', { name: 'Confirm' });
         this.closeBtn = page.getByLabel('Close this dialog');

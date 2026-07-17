@@ -28,7 +28,6 @@ const IconWrapper = styled.div`
     display: flex;
     align-items: center;
     justify-content: center;
-    color: ${({ theme }) => theme.iconColor};
     svg {
         width: 16px !important;
         height: 16px !important;

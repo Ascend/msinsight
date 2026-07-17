@@ -28,8 +28,9 @@ const Container = styled.div`
   margin: 6px 20px 0 0;
   display: flex;
   align-items: center;
+  color: ${({ theme }): string => theme.textColorPrimary};
   > * {
-    margin-left: 10px;
+    margin-left: 16px;
     cursor: pointer;
   }
   .size-20 > svg {

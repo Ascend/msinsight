@@ -14,7 +14,7 @@
     "BaselineDataComparisonDataCannotDeleted": "Baseline data and comparison data cannot be deleted",
     "BaselineDataComparisonDataCannotRenamed": "Baseline data and comparison data cannot be renamed",
     "DeleteItemConfirmDescribe": "Are you sure to delete this item?",
-    "File Explorer": "File Explorer",
+    "Import File Dialog Title": "Drag or import a file by path",
     "FileSearchDescribe": "Enter the file path and press enter to search",
     "RefreshDirectory": "Refresh directory",
     "FileNotFundDescribe": "File not found, check the file path",

@@ -41,7 +41,7 @@ const Container = styled.div`
     flex-direction: column;
     .ant-menu{
         height: 36px;
-        background: ${(props): string => props.theme.bgColorLight};
+        background: ${(props): string => props.theme.contentBackgroundColor};
     }
     .ant-menu-item{
         height: 32px;

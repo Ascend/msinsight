@@ -45,7 +45,6 @@ import { ReactComponent as AlarmSvg } from './img/alarm.svg';
 import { ReactComponent as DeleteSvg } from './img/delete.svg';
 import { ReactComponent as AddSvg } from './img/add.svg';
 import { ReactComponent as LocalImportSvg } from './img/local_import.svg';
-import { ReactComponent as DataManagerSvg } from './img/data_manager.svg';
 import { ReactComponent as LangZhSvg } from './img/lang_zh.svg';
 import { ReactComponent as LangEnSvg } from './img/lang_en.svg';
 import { ReactComponent as SetSvg } from './img/set.svg';
@@ -299,14 +298,6 @@ export function LocalImportIcon(props: ISVGProps): JSX.Element {
     }];
     return <DrawIcon svgElement={LocalImportSvg} iconChangeList={iconChangeList} {...props }/>;
 }
-export function DataManagerIcon(props: ISVGProps): JSX.Element {
-    const iconChangeList = [{
-        dark: '#595959',
-        light: '#8D98AA',
-    }];
-    return <DrawIcon svgElement={DataManagerSvg} iconChangeList={iconChangeList} {...props }/>;
-}
-
 export function LangZhIcon(props: ISVGProps): JSX.Element {
     return <Icon svgElement={LangZhSvg } {...props }/>;
 }
