@@ -478,7 +478,7 @@ The Roofline model graph displays the computing power name, which describes the 
 
 > [!NOTE]
 > 
-> - This module is supported only by the Atlas 350 accelerator card, <term>Atlas A3 training series/Atlas A3 inference series</term>, <term>Atlas A2 training series/Atlas A2 inference series</term>, and <term>Atlas inference series</term>.
+> - This module is supported only by the Atlas 350 accelerator card, <term>Atlas A3 training products/Atlas A3 inference products</term>, <term>Atlas A2 training products/Atlas A2 inference products</term>, and <term>Atlas inference products</term>.
 > - When the data of the Atlas 350 accelerator card is imported, the instruction types are displayed in the Roofline model graph. You can filter the instruction types based on the parameters in the graph to view the Roofline model graph.
 
 - For the Atlas 350 accelerator card, <term>Atlas A3 training products/Atlas A3 inference products</term>, and <term>Atlas A2 training products/Atlas A2 inference products</term>, the Roofline model analysis includes the memory unit, memory channel, and MTE tabs.
