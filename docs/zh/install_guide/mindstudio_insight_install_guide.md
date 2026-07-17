@@ -82,7 +82,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
     certutil -hashfile 软件包名 SHA256
     ```
 
-    MacOS系统，使用如下命令获取对应软件包的sha256校验码
+    macOS系统，使用如下命令获取对应软件包的sha256校验码
 
     ```shell
     shasum -a 256 软件包名
@@ -283,7 +283,7 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
             sudo yum search webkit2gtk
             ```
 
-            回显信息如下
+            回显信息如下：
 
             ```tex
             = Name 和 Summary 匹配：webkit2gtk =====================================================================================
@@ -374,13 +374,13 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 
 3. 输入密码后，回显如下。<a id="3"></a>
 
-    ```tex
+    ```ColdFusion
     Would you like to enter a view-only password (y/n)?
     ```
 
     按照提示输入n，回显如下，创建启动脚本、默认配置等，首行中的`x`值根据实际情况显示，表示显示序号。
 
-    ```tex
+    ```ColdFusion
     New 'localhost.localdomain:x' desktop is localhost.localdomain:x
     Creating default startup script /home/xxx/.vnc/xstartup
     Creating default config /home/xxx/.vnc/config
@@ -489,7 +489,7 @@ vncserver -localhost -geometry 1920x1080
     ```
 
 > [!NOTE] 说明
-> 如果OpenEuler及其衍生操作系统，在安装过程中提示找不到相关依赖，可能原因是系统配置的源没有相关依赖，可参见[链接](https://www.hiascend.com/forum/thread-02101178181671140059-1-1.html)配置新的源，并重新安装对应依赖。
+> 如果OpenEuler及其衍生操作系统，在安装过程中提示找不到相关依赖，可能原因是系统配置的源没有相关依赖，可参见[配置源](https://www.hiascend.com/forum/thread-02101178181671140059-1-1.html)配置新的源，并重新安装对应依赖。
 
 **操作步骤**
 
@@ -508,9 +508,9 @@ vncserver -localhost -geometry 1920x1080
             sudo yum search webkit2gtk
             ```
 
-            回显信息如下
+            回显信息如下：
 
-            ```tex
+            ```ColdFusion
             = Name 和 Summary 匹配：webkit2gtk =====================================================================================
             webkit2gtk3-devel.aarch64 : Development files for webkit2gtk3
             webkit2gtk3-help.noarch : Documentation files for webkit2gtk3
@@ -677,7 +677,7 @@ vncserver -localhost -geometry 1920x1080
 
     回显中包含如下内容，表示安装成功。
 
-    ```tex
+    ```ColdFusion
     mindstudio_insight_jupyterlab v{version} enabled  X (python, mindstudio_insight_jupyterlab)
     ```
 
@@ -713,7 +713,7 @@ vncserver -localhost -geometry 1920x1080
 
     - 回显如下，表示已开启。
 
-        ```tex
+        ```ColdFusion
         mindstudio_insight_jupyterlab enabled
             - Validating mindstudio_insight_jupyterlab...
               mindstudio_insight_jupyterlab  OK
@@ -789,13 +789,13 @@ MindStudio Insight工具支持插件开发功能，为开发者提供自主开�
     {
         "pluginName":"插件名称",
         "frontend":"前端产物名称",                      # zip压缩包
-        "backend_{platform}_{machine}":"后端产物名称",  # zip或动态库
+        "backend_{platform}_{machine}":"后端产物名称"  # zip或动态库
     }
     ```
 
     其中platform为平台名称，machine为架构名称。
 
-3. 插件包中包含的文件个数不能超过1000个，单个文件大小不能超过200M。
+3. 插件包中包含的文件个数不能超过1000个，单个文件大小不能超过200MB。
 4. 插件包需具有当前用户属主，具有可读可写权限，不支持链接文件和包含链接的文件。
 
 > [!NOTE] 说明

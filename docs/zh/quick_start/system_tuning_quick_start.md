@@ -30,7 +30,7 @@ MindStudio Insight 支持导入 [msProf](https://gitcode.com/Ascend/msprof) 工�
 
 ### 1.3 样例数据
 
-系统数据：[点击下载](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo/blob/main/system)
+可点击下载[系统数据](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo/blob/main/system)
 
 下载后请确认目录中包含如下结构：
 
