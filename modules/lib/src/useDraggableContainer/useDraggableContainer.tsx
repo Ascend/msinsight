@@ -118,7 +118,7 @@ const ContainerLeft = styled(ContainerBase)`
         position: relative;
         height: 100%;
         width: ${(p): string => p.draggableWH};
-        border-right: ${(p): string => p.theme.dividerColor} 2px solid;
+        border-right: ${(p): string => p.theme.bgColorDark} 2px solid;
         display: flex;
         & > .dragContainer {
             overflow: hidden;
@@ -141,8 +141,11 @@ const ContainerLeft = styled(ContainerBase)`
             cursor: pointer;
             top: 50%;
             z-index: 2;
-            transform: rotate(90deg);
+            transform: rotate(${(p): number => p.translateXY === 0 ? 90 : 270}deg);
             right: -38px;
+            svg polygon {
+                fill: ${(p): string => p.translateXY === 0 ? p.theme.bgColorLight : p.theme.contentBackgroundColor} !important;
+            }
         }
         & > .caret {
             position: absolute;
@@ -234,7 +237,6 @@ const ContainerBottom = styled(ContainerBase)`
     & > .bottomC {
         width: 100%;
         height: ${(p): string => p.draggableWH};
-        border-top: ${(p): string => p.theme.dividerColor} 2px solid;
         position: relative;
         user-select: none;
         & > .splitLine {
@@ -257,6 +259,14 @@ const ContainerBottom = styled(ContainerBase)`
             top: 0;
             left: calc(50% - 39px);
             z-index: 4;
+            svg polygon {
+                fill: ${(p): string => p.theme.bgColorLight} !important;
+            }
+            svg path {
+                transform: rotate(${(p): number => p.translateXY === 0 ? 180 : 0}deg);
+                transform-box: fill-box;
+                transform-origin: center;
+            }
         }
 
         & > .caret {
@@ -563,7 +573,10 @@ export const useDraggableContainer = (props: DCProps): [((props: ViewProps) => J
             draggable.current.style.width = `${MIN_DRAG_WH}px`;
         }
     });
-    const DrawerButton = dragTranslate ? ArrowUpIcon : ArrowDownIcon;
+    const useRotatedDrawerButton = dragDirection === DragDirection.LEFT || dragDirection === DragDirection.BOTTOM;
+    const DrawerButton = useRotatedDrawerButton
+        ? ArrowDownIcon
+        : dragTranslate ? ArrowUpIcon : ArrowDownIcon;
     const view = (viewProps: ViewProps): JSX.Element => {
         return <Container
             key={viewProps.id} ref={container} column translateXY={dragTranslate}
@@ -575,7 +588,12 @@ export const useDraggableContainer = (props: DCProps): [((props: ViewProps) => J
             <div className={'topC'}> {viewProps.mainContainer} </div>
             <div className={'bottomC'} ref={draggable}>
                 <div className={'dragContainer'} aria-disabled={dragTranslate !== 0}>{viewProps.draggableContainer}</div>
-                <DrawerButton data-testid={'drawer-btn'} className={'buttonShow'} onClick={(): void => showDraggable()} theme={themeInstance.getCurrentTheme()}/>
+                <DrawerButton
+                    data-testid={'drawer-btn'}
+                    className={'buttonShow'}
+                    onClick={(): void => showDraggable()}
+                    theme={themeInstance.getCurrentTheme()}
+                />
                 <div className={'splitLine'} aria-disabled={dragTranslate !== 0} />
             </div>
             {viewProps.slot}

@@ -14,7 +14,7 @@
     "BaselineDataComparisonDataCannotDeleted": "基线数据和对比数据不允许删除",
     "BaselineDataComparisonDataCannotRenamed": "基线数据和对比数据不允许重命名",
     "DeleteItemConfirmDescribe": "您确认要删除该项吗？",
-    "File Explorer": "文件资源管理器",
+    "Import File Dialog Title": "拖入或按路径导入文件",
     "FileSearchDescribe": "输入文件路径，然后按回车键进行搜索",
     "RefreshDirectory": "刷新目录",
     "FileNotFundDescribe": "文件未找到，请检查文件路径",

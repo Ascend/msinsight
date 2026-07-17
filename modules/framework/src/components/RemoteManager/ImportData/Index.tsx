@@ -44,7 +44,7 @@ export const BtnItem = styled.div`
     justify-content: center;
     padding: 8px;
     background: ${(props): string => props.theme.bgColorCommon};
-    border-radius: var(--mi-border-radius-small);
+    border-radius: var(--mi-border-radius-base);
     cursor: pointer;
     font-size: 12px;
     color: ${(props): string => props.theme.textColorPrimary};

@@ -21,7 +21,6 @@ import { Session } from '@/entity/session';
 import ImportData from './ImportData/Index';
 import styled from '@emotion/styled';
 import ProjectContents from './ProjectContents/Index';
-import { DataManagerIcon } from '@insight/lib/icon';
 import { useTranslation } from 'react-i18next';
 
 const Container = styled.div`
@@ -29,22 +28,13 @@ const Container = styled.div`
 `;
 
 const Header = styled.div`
-    display: flex;
-    justify-content: start;
-    flex-direction: row;
     height: 36px;
-    align-items: center;
-    min-width: 80px;
-    padding: 0 15px 0 5px;
-    background: ${(props): string => props.theme.bgColorLight};
-    border-bottom: 1px solid ${(props): string => props.theme.bgColorLight};
-    font-size: 12px;
-    line-height: 18px;
-    font-weight: 400;
+    padding: 0 8px;
+    color: ${(props): string => props.theme.textColorPrimary};
+    font-size: 14px;
+    line-height: 36px;
+    font-weight: 500;
     user-select: none;
-    > div {
-        margin-right: 5px;
-    }
 `;
 
 interface IProps {
@@ -55,7 +45,7 @@ const Index = observer(({ session }: IProps) => {
     const { t } = useTranslation('framework');
 
     return <Container>
-        <Header><DataManagerIcon/>{ t('Data Manager')}</Header>
+        <Header>{ t('Data Manager')}</Header>
         <ImportData session={session}/>
         <ProjectContents/>
     </Container>;

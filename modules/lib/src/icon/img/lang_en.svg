@@ -11,7 +11,7 @@
                     <mask id="lang-en-mask" fill="white">
                         <use xlink:href="#path-1"></use>
                     </mask>
-                    <rect fill="#8D98AA" fill-rule="nonzero" mask="url(#lang-en-mask)" x="-1" y="-2" width="16" height="16"></rect>
+                    <rect fill="currentColor" fill-rule="nonzero" mask="url(#lang-en-mask)" x="-1" y="-2" width="16" height="16"></rect>
                 </g>
             </g>
         </g>

@@ -89,11 +89,11 @@ const ContentsContainer = styled.div`
     .ant-tree-icon__docu + .ant-tree-title {
         width: 100%;
         font-size: 12px;
-        color: ${(props): string => props.theme.textColorSecondary};
+        color: ${(props): string => props.theme.textColorMenu};
     }
     // 折叠图标
     .ant-tree-switcher-icon {
-        color: ${(props): string => props.theme.icon};
+        color: ${(props): string => props.theme.textColorMenu};
     }
     // 右侧按钮
     .btn-box {
@@ -107,9 +107,13 @@ const ContentsContainer = styled.div`
         width: 16px;
     }
     // 选中效果/鼠标滑动效果
-    .ant-tree-treenode-selected.leaf-node, .ant-tree-treenode:hover {
+    .ant-tree-treenode-selected.leaf-node {
+        background: ${(props): string => props.theme.selectedChartBackgroundColor};
+    }
+    .ant-tree-treenode:not(.ant-tree-treenode-selected):hover {
         background: ${(props): string => props.theme.selectedBgColor};
-
+    }
+    .ant-tree-treenode-selected.leaf-node, .ant-tree-treenode:hover {
         .btn-box {
             visibility: visible;
         }

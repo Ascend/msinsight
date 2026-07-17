@@ -215,7 +215,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
         setHit({ alert: false, message: 'FileSearchDescribe' });
     }, [inputPath]);
 
-    return <><StyledModal title={t('File Explorer')} open={dialogOpen} onCancel={handleCancel}
+    return <><StyledModal title={t('Import File Dialog Title')} open={dialogOpen} onCancel={handleCancel}
         width={800}
         footer={<div>
             <Button onClick={handleConfirm} loading={confirmLoading} type="primary" style={{ marginRight: 8 }} disabled={selectedPath === ''}>{t('Confirm')}</Button>
