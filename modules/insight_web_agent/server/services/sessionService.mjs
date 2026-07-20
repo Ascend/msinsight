@@ -32,6 +32,8 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
                 mcpServers: [],
             });
             const context = getOrCreateSessionContext(session.sessionId);
+            context.agentId = acpClient.agentId ?? state.activeAgentName;
+            context.runtime = acpClient.runtime ?? context.runtime;
             context.configOptions = session?.configOptions ?? [];
             return context;
         },
@@ -328,6 +330,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
 
     const localSessions = () => {
         return [...state.sessionContexts.values()]
+            .filter((context) => context.agentId === state.activeAgentName)
             .map((context) => ({
                 sessionId: context.sessionId,
                 title: state.localTitles.get(context.sessionId) ?? "New session",

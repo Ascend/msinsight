@@ -42,6 +42,7 @@ export const createContextAssembler = ({ state }) => {
             }
             return {
                 schemaVersion: "1.0",
+                ...(state.activeContext?.projectRoot ? { projectRoot: state.activeContext.projectRoot } : {}),
                 session: {
                     id: sessionContext.sessionId,
                     agentId: sessionContext.agentId,
@@ -49,7 +50,12 @@ export const createContextAssembler = ({ state }) => {
                     mode: sessionContext.mode,
                 },
                 contextProviders,
-                hands: { skills: [], tools: [], actions: [], permissions: {} },
+                hands: {
+                    skills: [],
+                    tools: ["msinsight_observe", "msinsight_listActions"],
+                    actions: [],
+                    permissions: { "msinsight_invokeAction": "approval_required" },
+                },
             };
         },
     };

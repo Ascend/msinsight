@@ -31,6 +31,47 @@ export const appendChunk = ({ eventBus, state }, sessionId, role, field, delta) 
     eventBus.broadcast({ type: "message_delta", sessionId, id: message.id, field, delta });
 };
 
+export const setAgentActivity = ({ eventBus, state }, sessionId, activity) => {
+    const context = state.sessionContexts.get(sessionId);
+    if (!context) return;
+    let message = context.messages[context.messages.length - 1];
+    if (!message || message.role !== "assistant") {
+        message = { id: crypto.randomUUID(), role: "assistant", text: "", thinking: "" };
+        context.messages.push(message);
+        eventBus.broadcast({ type: "message_added", sessionId, message });
+    }
+    message.activity = activity;
+    eventBus.broadcast({ type: "message_activity", sessionId, id: message.id, activity });
+};
+
+export const upsertToolCall = ({ eventBus, state }, sessionId, toolCall) => {
+    const context = state.sessionContexts.get(sessionId);
+    if (!context || !toolCall?.toolCallId) return;
+    let message = context.messages[context.messages.length - 1];
+    if (!message || message.role !== "assistant") {
+        message = { id: crypto.randomUUID(), role: "assistant", text: "", thinking: "", toolCalls: [] };
+        context.messages.push(message);
+        eventBus.broadcast({ type: "message_added", sessionId, message });
+    }
+    const toolCalls = [...(message.toolCalls ?? [])];
+    const index = toolCalls.findIndex((item) => item.toolCallId === toolCall.toolCallId);
+    const previousToolCall = index === -1 ? undefined : toolCalls[index];
+    const nextToolCall = index === -1
+        ? { name: "Tool", status: "in_progress", startedAt: Date.now(), ...definedToolCallFields(toolCall) }
+        : { ...previousToolCall, ...definedToolCallFields(toolCall) };
+    if (nextToolCall.status !== "in_progress" && nextToolCall.durationMs === undefined && nextToolCall.startedAt) {
+        nextToolCall.durationMs = Date.now() - nextToolCall.startedAt;
+    }
+    if (index === -1) toolCalls.push(nextToolCall);
+    else toolCalls[index] = nextToolCall;
+    message.toolCalls = toolCalls;
+    eventBus.broadcast({ type: "message_tool_call", sessionId, id: message.id, toolCall: nextToolCall });
+};
+
+const definedToolCallFields = (toolCall) => Object.fromEntries(
+    Object.entries(toolCall).filter(([, value]) => value !== undefined && value !== ""),
+);
+
 export const appendContentBlock = (serviceContext, sessionId, role, block, field = "text") => {
     if (shouldSkipAgentContent(block)) return;
 
