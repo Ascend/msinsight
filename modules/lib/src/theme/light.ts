@@ -158,7 +158,7 @@ export const light: Theme = {
     primaryColorLight6: '#3291FE',
     primaryColorDark: '#337ecc',
     primaryColorHover: '#3291FE',
-    primaryColorDisabled: '#052D5A',
+    primaryColorDisabled: '#A0CFFF',
     successColor: '#24AB36',
     successColorLight1: '#95d475',
     successColorLight2: '#b3e19d',

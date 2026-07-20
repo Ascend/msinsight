@@ -18,9 +18,9 @@
 import React, { useEffect, useState } from 'react';
 import { observer } from 'mobx-react';
 import styled from '@emotion/styled';
-import { Modal, Typography } from 'antd';
+import { Form, Input, Modal, Typography } from 'antd';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, Tooltip } from '@insight/lib/components';
+import { Button, Tooltip } from '@insight/lib/components';
 import { RefreshIcon } from '@insight/lib/icon';
 import { checkPathValid, fileExist, getLastFilePath, getSearchDir, getTrimedPath } from '@/utils/Resource';
 import type { ProjectCheckErrorDetail, ProjectCheckResult } from '@/utils/Resource';
@@ -32,6 +32,7 @@ import { handleProjectAction } from '@/utils/Project';
 import FileConflictDialog from './FileConflictDialog';
 
 const { Text } = Typography;
+const { TextArea } = Input;
 
 const FileExplorerContainer = styled.div`
     .project-name {
@@ -47,31 +48,82 @@ const FileExplorerContainer = styled.div`
         margin-bottom: 10px;
     }
     // 输入框
-    .ant-input-affix-wrapper {
+    .ant-input-textarea {
         width: 100%;
     }
-    .ant-input-show-count-suffix {
+    .ant-input-textarea-show-count::after {
         color: ${(props): string => props.theme.infoColor};
     }
-    .icon-refresh {
-        cursor: pointer;
-        color: ${(props): string => props.theme.textColorPlaceholder};
+    .ant-input-affix-wrapper-textarea-with-clear-btn {
+        background: ${(props): string => props.theme.bgColor} !important;
+        border-color: ${(props): string => props.theme.borderColorLight};
+        &:not(.ant-input-affix-wrapper-disabled):hover,
+        &.ant-input-affix-wrapper-focused {
+            border-color: ${(props): string => props.theme.primaryColor};
+        }
+        &.ant-input-affix-wrapper-status-error,
+        &.ant-input-affix-wrapper-status-error:hover,
+        &.ant-input-affix-wrapper-status-error:focus,
+        &.ant-input-affix-wrapper-status-error.ant-input-affix-wrapper-focused {
+            background: ${(props): string => props.theme.bgColor} !important;
+            border-color: ${(props): string => props.theme.dangerColor};
+        }
+        > textarea.ant-input {
+            background: transparent !important;
+        }
     }
-    .icon-refresh:hover {
-        color: ${(props): string => props.theme.primaryColor};
+    .ant-input-clear-icon {
+        color: ${(props): string => props.theme.textColorTertiary};
+        &:hover {
+            color: ${(props): string => props.theme.textColorPrimary};
+        }
+    }
+    textarea.ant-input {
+        resize: none;
+        background-color: ${(props): string => props.theme.bgColor};
+        border-color: ${(props): string => props.theme.borderColorLight};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 12px;
+        &:hover, &:focus {
+            border-color: ${(props): string => props.theme.primaryColor};
+        }
+        &::placeholder {
+            color: ${(props): string => props.theme.textColorTertiary};
+        }
     }
     //提示文字
     .ant-typography{
-        color: ${(props): string => props.theme.primaryColor};
+        display: inline-block;
+        margin-top: 4px;
+        color: ${(props): string => props.theme.textColorTertiary};
+        font-size: 12px;
     }
-    .ant-typography-danger {
+    .ant-form-item {
+        margin-bottom: 0;
+    }
+    .ant-form-item-explain-error {
+        margin-top: 4px;
         color: ${(props): string => props.theme.dangerColor};
+        font-size: 12px;
     }
 `;
 
 const StyledModal = styled(Modal)`
     .ant-modal-footer {
         padding: 10px 0;
+    }
+    .modal-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-right: 30px;
+    }
+    .modal-refresh {
+        cursor: pointer;
+        color: ${(props): string => props.theme.textColorSecondary};
+        &:hover {
+            color: ${(props): string => props.theme.primaryColor};
+        }
     }
 `;
 
@@ -191,7 +243,7 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
         setCheckErrors([]);
     };
 
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>): void => {
         setInputPath(e.target.value);
         setActionListener({ type: CatalogAction.INPUT_PATH_CHANGE, value: e.target.value });
     };
@@ -215,7 +267,14 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
         setHit({ alert: false, message: 'FileSearchDescribe' });
     }, [inputPath]);
 
-    return <><StyledModal title={t('Import File Dialog Title')} open={dialogOpen} onCancel={handleCancel}
+    const modalTitle = <div className="modal-title">
+        <span>{t('Import File Dialog Title')}</span>
+        <Tooltip placement="bottom" title={t('RefreshDirectory')}>
+            <RefreshIcon className="modal-refresh" onClick={searchCatalog}/>
+        </Tooltip>
+    </div>;
+
+    return <><StyledModal title={modalTitle} open={dialogOpen} onCancel={handleCancel}
         width={800}
         footer={<div>
             <Button onClick={handleConfirm} loading={confirmLoading} type="primary" style={{ marginRight: 8 }} disabled={selectedPath === ''}>{t('Confirm')}</Button>
@@ -224,17 +283,26 @@ const FileExplorer = observer(({ dialogOpen, closeDialog, currentProject, custom
         <FileExplorerContainer>
             {!currentProject ? <></> : <span className="project-name">{t('Current Project')} ：{currentProject}</span>}
             {importTips ? <div className="import-tips">{importTips}</div> : null}
-            <Input
-                placeholder={t('FileSearchDescribe')}
-                showCount
-                maxLength={MAX_FILE_PATH_LENGTH}
-                suffix={<Tooltip placement="bottom" title={t('RefreshDirectory')} ><RefreshIcon className={'icon-refresh'} onClick={searchCatalog}/></Tooltip>}
-                value={inputPath}
-                onChange={handleInputChange}
-                onPressEnter={searchCatalog}
-                data-testid="filePathInput"
-            />
-            <Text type={hit.alert ? 'danger' : undefined}>{t(hit.message, hit.options)}</Text>
+            <Form.Item
+                validateStatus={hit.alert ? 'error' : undefined}
+                help={hit.alert ? t(hit.message, hit.options) : undefined}
+            >
+                <TextArea
+                    placeholder={t('FileSearchDescribe')}
+                    allowClear
+                    showCount
+                    maxLength={MAX_FILE_PATH_LENGTH}
+                    autoSize={{ minRows: 1, maxRows: 2 }}
+                    value={inputPath}
+                    onChange={handleInputChange}
+                    onPressEnter={(event): void => {
+                        event.preventDefault();
+                        searchCatalog();
+                    }}
+                    data-testid="filePathInput"
+                />
+            </Form.Item>
+            {!hit.alert && <Text>{t(hit.message, hit.options)}</Text>}
             <ResourceCatalog
                 actionListener={actionListener}
                 onSelectedChange={handleSelectedChange}
