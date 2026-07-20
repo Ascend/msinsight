@@ -30,12 +30,33 @@ export interface PermissionRequestItem {
     loadingDecision?: PermissionDecision;
 }
 
+export type ToolCallStatus = 'in_progress' | 'completed' | 'failed';
+export type AgentActivity = 'analyzing_tool_results' | {
+    type: 'model_retry';
+    attempt?: number;
+    maxAttempts?: number;
+    retryAfterSeconds?: number;
+};
+
+export interface ToolCallItem {
+    toolCallId: string;
+    name: string;
+    status: ToolCallStatus;
+    input?: string;
+    progress?: string;
+    output?: string;
+    startedAt?: number;
+    durationMs?: number;
+}
+
 export interface ChatMessage {
     id: string;
     role: MessageRole;
     text: string;
     images?: ImageAttachment[];
     thinking?: string;
+    toolCalls?: ToolCallItem[];
+    activity?: AgentActivity;
     pending?: boolean;
     permission?: PermissionRequestItem;
 }
@@ -186,6 +207,8 @@ export type ServerEvent =
     | { type: 'message_added'; sessionId?: string; message: ChatMessage }
     | { type: 'message_delta'; sessionId?: string; id: string; field: 'text' | 'thinking'; delta: string }
     | { type: 'message_delta'; sessionId?: string; id: string; field: 'images'; delta: ImageAttachment[] }
+    | { type: 'message_tool_call'; sessionId?: string; id: string; toolCall: ToolCallItem }
+    | { type: 'message_activity'; sessionId?: string; id: string; activity?: AgentActivity }
     | { type: 'message_removed'; sessionId?: string; id: string }
     | { type: 'config_options'; sessionId?: string; configOptions: ConfigOption[] }
     | { type: 'permission_request'; sessionId: string; requestId: string; path: string; actions: PermissionDecision[] }

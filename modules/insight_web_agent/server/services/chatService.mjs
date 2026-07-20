@@ -17,7 +17,7 @@
  */
 import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
-import { appendChunk, appendContentBlock, setLocalTitle } from "./messageService.mjs";
+import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 
 export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, systemPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
@@ -124,7 +124,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             });
             console.log(`Prompt execution completed: sessionId=${sessionId}`);
 
-            if (!assistant.text && !assistant.thinking) {
+            if (!assistant.text && !assistant.thinking && !assistant.toolCalls?.length) {
                 const sessionContext = getSessionContext(state, sessionId);
                 sessionContext.messages = sessionContext.messages.filter((message) => message !== assistant);
                 eventBus.broadcast({ type: "message_removed", sessionId, id: assistant.id });
@@ -188,6 +188,17 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
 
         const sessionContext = getSessionContext(state, sessionId);
         if (!sessionContext.pendingPrompt && !sessionContext.replayingHistory) return;
+
+        if (kind === "tool_call" || kind === "tool_call_update") {
+            const toolCall = normalizeToolCall(update);
+            if (toolCall) upsertToolCall(serviceContext, sessionId, toolCall);
+            return;
+        }
+
+        if (kind === "agent_status_update") {
+            setAgentActivity(serviceContext, sessionId, normalizeAgentActivity(update.activity));
+            return;
+        }
 
         const content = extractContent(update);
         if (!content.length) return;
@@ -302,3 +313,65 @@ const normalizeAvailableCommands = (commands) => Array.isArray(commands)
         }))
         .filter((command) => command.name)
     : [];
+
+const normalizeAgentActivity = (activity) => {
+    if (activity === "analyzing_tool_results") return activity;
+    if (activity?.type !== "model_retry") return undefined;
+    return {
+        type: "model_retry",
+        attempt: finiteNumber(activity.attempt),
+        maxAttempts: finiteNumber(activity.maxAttempts),
+        retryAfterSeconds: finiteNumber(activity.retryAfterSeconds),
+    };
+};
+
+const normalizeToolCall = (update) => {
+    const source = update.toolCall ?? update.tool_call ?? update;
+    const toolCallId = String(source.toolCallId ?? source.tool_call_id ?? source.id ?? "").trim();
+    if (!toolCallId) return undefined;
+    const status = source.status === undefined ? undefined : normalizeToolStatus(source.status);
+    const progressValue = source.progress ?? source.content ?? source.message;
+    const progress = progressValue === undefined ? undefined : textFromToolValue(progressValue);
+    return {
+        toolCallId,
+        name: optionalToolName(source.name ?? source.title ?? source.toolName ?? source.tool_name),
+        status,
+        input: limitedToolValue(source.input ?? source.rawInput ?? source.raw_input),
+        progress: progress ? progress.slice(0, 2000) : undefined,
+        output: limitedToolValue(source.output ?? source.rawOutput ?? source.raw_output),
+        startedAt: finiteNumber(source.startedAt ?? source.started_at),
+        durationMs: finiteNumber(source.durationMs ?? source.duration_ms),
+    };
+};
+
+const optionalToolName = (name) => {
+    const value = String(name ?? "").trim();
+    return value || undefined;
+};
+
+const finiteNumber = (value) => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : undefined;
+};
+
+const normalizeToolStatus = (status) => {
+    const value = String(status).toLowerCase();
+    if (["completed", "success", "succeeded", "done"].includes(value)) return "completed";
+    if (["failed", "error", "cancelled", "canceled"].includes(value)) return "failed";
+    return "in_progress";
+};
+
+const limitedToolValue = (value) => {
+    if (value === undefined || value === null) return undefined;
+    const text = textFromToolValue(value);
+    return text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
+};
+
+const textFromToolValue = (value) => {
+    if (typeof value === "string") return value;
+    try {
+        return JSON.stringify(value, null, 2);
+    } catch (_error) {
+        return String(value);
+    }
+};

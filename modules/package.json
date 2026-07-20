@@ -13,6 +13,9 @@
         "testTimeline": "cd timeline && pnpm test"
     },
     "dependencies": {
+        "@ai-sdk/anthropic": "3.0.94",
+        "@ai-sdk/deepseek": "2.0.45",
+        "@blade-ai/agent-sdk": "1.1.0",
         "@emotion/react": "11.14.0",
         "@emotion/styled": "11.14.0",
         "@insight/lib": "workspace:*",

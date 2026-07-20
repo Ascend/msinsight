@@ -23,11 +23,35 @@ import { fileURLToPath } from "node:url";
 const rootDir = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const outputDir = join(rootDir, "dist-server");
 const outputEntry = join(outputDir, "index.mjs");
+const outputNativeAgentEntry = join(outputDir, "native-agent", "index.mjs");
 const outputAgentConfig = join(outputDir, "agent-servers.json");
 const outputSessionConfig = join(outputDir, "acp-session-conf.json");
 
+// Blade SDK statically imports optional providers from its shared session chunk.
+const unsupportedProviderFactories = {
+    "@ai-sdk/azure": "createAzure",
+    "@ai-sdk/google": "createGoogleGenerativeAI",
+};
+const unsupportedProviderPlugin = {
+    name: "unsupported-ai-providers",
+    setup(buildContext) {
+        buildContext.onResolve(
+            { filter: /^@ai-sdk\/(?:azure|google)$/ },
+            ({ path }) => ({ path, namespace: "unsupported-ai-provider" }),
+        );
+        buildContext.onLoad(
+            { filter: /.*/, namespace: "unsupported-ai-provider" },
+            ({ path }) => ({
+                contents: `export function ${unsupportedProviderFactories[path]}() { throw new Error("${path} is not supported by insight-web-agent"); }`,
+                loader: "js",
+            }),
+        );
+    },
+};
+
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
+await mkdir(dirname(outputNativeAgentEntry), { recursive: true });
 
 await build({
     bundle: true,
@@ -36,6 +60,17 @@ await build({
     format: "esm",
     platform: "node",
     outfile: outputEntry,
+    sourcemap: false,
+    target: "node18",
+});
+await build({
+    bundle: true,
+    entryPoints: [join(rootDir, "server", "native-agent", "index.mjs")],
+    external: ["node:*"],
+    format: "esm",
+    platform: "node",
+    outfile: outputNativeAgentEntry,
+    plugins: [unsupportedProviderPlugin],
     sourcemap: false,
     target: "node18",
 });
@@ -52,6 +87,7 @@ await cp(join(rootDir, "prompts"), join(outputDir, "prompts"), { recursive: true
 await cp(join(rootDir, "..", "..", "docs"), join(outputDir, "docs"), { recursive: true });
 
 console.log(`Server bundle written to ${outputEntry}`);
+console.log(`Native agent bundle written to ${outputNativeAgentEntry}`);
 console.log(`Agent config copied to ${outputAgentConfig}`);
 console.log(`Session config copied to ${outputSessionConfig}`);
 console.log(`Prompts copied to ${join(outputDir, "prompts")}`);

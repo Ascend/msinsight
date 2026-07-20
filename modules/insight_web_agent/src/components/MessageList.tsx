@@ -19,9 +19,10 @@ import styled from '@emotion/styled';
 import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useEffect, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ChatMessage, PermissionDecision } from '../types';
+import type { ChatMessage, PermissionDecision, ToolCallItem } from '../types';
 
 const markdownComponents = {
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element => {
@@ -193,6 +194,112 @@ const Container = styled.div`
         background: transparent;
     }
 
+    .tool-calls {
+        display: grid;
+        gap: 6px;
+        margin: 8px 0;
+    }
+
+    .tool-call {
+        border: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        background: ${(props): string => props.theme.bgColorLight};
+        font-size: 12px;
+    }
+
+    .tool-call summary {
+        display: grid;
+        min-width: 0;
+        grid-template-columns: auto minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 6px 8px;
+        cursor: pointer;
+        padding: 7px 9px;
+        list-style: none;
+    }
+
+    .tool-call summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .tool-status {
+        width: 8px;
+        height: 8px;
+        flex: 0 0 auto;
+        border-radius: ${(props): string => props.theme.borderRadiusCircle};
+        background: ${(props): string => props.theme.textColorSecondary};
+    }
+
+    .tool-call.in_progress .tool-status {
+        background: ${(props): string => props.theme.primaryColor};
+        animation: pulse 1s ease-in-out infinite;
+    }
+
+    .tool-call.completed .tool-status {
+        background: ${(props): string => props.theme.successColor};
+    }
+
+    .tool-call.failed .tool-status {
+        background: ${(props): string => props.theme.dangerColor};
+    }
+
+    .tool-summary {
+        min-width: 0;
+        display: grid;
+        gap: 2px;
+    }
+
+    .tool-name {
+        min-width: 0;
+        font-weight: 700;
+        overflow-wrap: anywhere;
+    }
+
+    .tool-target {
+        min-width: 0;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .tool-state {
+        align-self: start;
+        color: ${(props): string => props.theme.textColorSecondary};
+        white-space: nowrap;
+    }
+
+    .tool-details {
+        display: grid;
+        gap: 8px;
+        padding: 0 9px 9px 25px;
+    }
+
+    .tool-section {
+        min-width: 0;
+    }
+
+    .tool-label {
+        margin-bottom: 3px;
+        color: ${(props): string => props.theme.textColorSecondary};
+    }
+
+    .tool-value {
+        max-height: 180px;
+        margin: 0;
+        overflow: auto;
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        padding: 7px;
+        background: ${(props): string => props.theme.bgColorDark};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        font-size: 11px;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
     .permission-card {
         display: grid;
         gap: 10px;
@@ -302,12 +409,27 @@ export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: M
                 if (isHiddenPermissionMessage(message)) return null;
                 return (
                     <article className={`message ${message.role}`} key={message.id}>
-                        {message.thinking ? <div className="thinking">{message.thinking}</div> : null}
-                        {message.permission ? <PermissionCard message={message} onDecision={onPermissionDecision} /> : null}
-                        {message.text || !message.permission ? (
-                            <div className={`rich-text ${message.text ? '' : 'muted'}`}>
-                                {message.text ? <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown> : '...'}
+                        {message.thinking ? (
+                            <div className="thinking rich-text">
+                                <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.thinking}</ReactMarkdown>
                             </div>
+                        ) : null}
+                        {message.toolCalls?.length ? <ToolCalls toolCalls={message.toolCalls} /> : null}
+                        {message.permission ? <PermissionCard message={message} onDecision={onPermissionDecision} /> : null}
+                        {message.text ? (
+                            <div className="rich-text">
+                                <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                            </div>
+                        ) : null}
+                        {message.activity === 'analyzing_tool_results' ? (
+                            <div className="thinking-indicator">{t('analyzingToolResults')}</div>
+                        ) : null}
+                        {typeof message.activity === 'object' && message.activity.type === 'model_retry' ? (
+                            <div className="thinking-indicator">{t('modelRetrying', {
+                                attempt: message.activity.attempt,
+                                maxAttempts: message.activity.maxAttempts,
+                                wait: formatRetryWait(message.activity.retryAfterSeconds, t),
+                            })}</div>
                         ) : null}
                         {message.images?.length ? (
                             <div className="attachments">
@@ -330,6 +452,120 @@ const isHiddenPermissionMessage = (message: ChatMessage): boolean => {
     const state = message.permission?.state;
     return state === 'allowed_once' || state === 'allowed_always';
 };
+
+const ToolCalls = ({ toolCalls }: { toolCalls: ToolCallItem[] }): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
+    const hasRunningTool = toolCalls.some((toolCall) => toolCall.status === 'in_progress');
+    const now = useToolClock(hasRunningTool);
+    return (
+        <div className="tool-calls">
+            {toolCalls.map((toolCall) => (
+                <details className={`tool-call ${toolCall.status}`} key={toolCall.toolCallId}>
+                    <summary>
+                        <span className="tool-status" />
+                        <span className="tool-summary">
+                            <span className="tool-name">{toolCallSummary(toolCall, t)}</span>
+                            {toolCallTarget(toolCall.input) ? <span className="tool-target">⎿ {toolCallTarget(toolCall.input)}</span> : null}
+                        </span>
+                        <span className="tool-state">{toolCallState(toolCall, t)} · {formatToolDuration(toolCall, now)}</span>
+                    </summary>
+                    {toolCall.input || toolCall.output ? (
+                        <div className="tool-details">
+                            {toolCall.input ? <ToolSection label={t('toolInput')} value={toolCall.input} /> : null}
+                            {toolCall.output ? <ToolSection label={toolCall.status === 'failed' ? t('toolError') : t('toolOutput')} value={toolCall.output} /> : null}
+                        </div>
+                    ) : null}
+                </details>
+            ))}
+        </div>
+    );
+};
+
+const ToolSection = ({ label, value }: { label: string; value: string }): JSX.Element => (
+    <div className="tool-section">
+        <div className="tool-label">{label}</div>
+        <pre className="tool-value">{value}</pre>
+    </div>
+);
+
+const useToolClock = (enabled: boolean): number => {
+    const [now, setNow] = useState(Date.now());
+    useEffect(() => {
+        if (!enabled) return undefined;
+        setNow(Date.now());
+        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, [enabled]);
+    return now;
+};
+
+const formatRetryWait = (seconds: number | undefined, t: TFunction): string => {
+    if (seconds === undefined) return t('modelRetryWaitUnknown');
+    if (seconds < 60) return t('modelRetryWaitSeconds', { count: seconds });
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return remainder
+        ? t('modelRetryWaitMinutesSeconds', { minutes, seconds: remainder })
+        : t('modelRetryWaitMinutes', { count: minutes });
+};
+
+const formatToolDuration = (toolCall: ToolCallItem, now: number): string => {
+    const durationMs = toolCall.status === 'in_progress'
+        ? Math.max(0, now - (toolCall.startedAt ?? now))
+        : Math.max(0, toolCall.durationMs ?? 0);
+    if (durationMs < 1000) return `${durationMs}ms`;
+    if (durationMs < 10000) return `${(durationMs / 1000).toFixed(1)}s`;
+    return `${Math.round(durationMs / 1000)}s`;
+};
+
+const toolCallState = (toolCall: ToolCallItem, t: TFunction): string => {
+    if (toolCall.status === 'completed') return t('toolCompleted');
+    if (toolCall.status === 'failed') return t('toolFailed');
+    return t('toolRunning');
+};
+
+const toolCallSummary = (toolCall: ToolCallItem, t: TFunction): string => {
+    if (toolCall.status === 'in_progress' && toolCall.progress) return toolCall.progress;
+    if (toolCall.status === 'completed') return t('toolCallCompleted', { name: toolCall.name });
+    if (toolCall.status === 'failed') return t('toolCallFailed', { name: toolCall.name });
+    return t('toolCallRunning', { name: toolCall.name });
+};
+
+const TOOL_TARGET_MAX_LENGTH = 50;
+
+const toolCallTarget = (input?: string): string | undefined => {
+    if (!input) return undefined;
+    try {
+        const value = JSON.parse(input) as Record<string, unknown>;
+        const path = value.file_path ?? value.path;
+        if (typeof path === 'string' && path.trim()) return compactPath(path.trim(), TOOL_TARGET_MAX_LENGTH);
+        const target = value.pattern ?? value.query ?? value.command;
+        if (typeof target === 'string' && target.trim()) return truncateTarget(target.trim(), TOOL_TARGET_MAX_LENGTH);
+    } catch (_error) {
+        return truncateTarget(input.trim(), TOOL_TARGET_MAX_LENGTH) || undefined;
+    }
+    return undefined;
+};
+
+const compactPath = (path: string, maxLength: number): string => {
+    if (path.length <= maxLength) return path;
+    const separator = path.includes('\\') ? '\\' : '/';
+    const segments = path.split(/[\\/]+/).filter(Boolean);
+    const fileName = segments[segments.length - 1] ?? path;
+    const shortSuffix = `…${separator}${fileName}`;
+    if (shortSuffix.length >= maxLength) return `…${fileName.slice(-(maxLength - 1))}`;
+    const firstSegment = segments.length > 1 ? segments[0] : '';
+    const prefix = path.startsWith(separator) ? separator : firstSegment;
+    const suffix = prefix.endsWith(separator)
+        ? `…${separator}${fileName}`
+        : `${separator}…${separator}${fileName}`;
+    const compactPrefix = prefix.slice(0, maxLength - suffix.length);
+    return compactPrefix ? `${compactPrefix}${suffix}` : shortSuffix;
+};
+
+const truncateTarget = (target: string, maxLength: number): string => (
+    target.length <= maxLength ? target : `${target.slice(0, maxLength - 1)}…`
+);
 
 const PermissionCard = ({
     message,
@@ -390,5 +626,5 @@ const permissionStateText = (state: NonNullable<ChatMessage['permission']>['stat
 const isThinkingMessage = (messages: ChatMessage[], index: number, pendingPrompt: boolean): boolean => {
     if (!pendingPrompt) return false;
     const message = messages[index];
-    return message.role === 'assistant' && index === messages.length - 1 && !message.permission;
+    return message.role === 'assistant' && index === messages.length - 1 && !message.permission && !message.activity;
 };
