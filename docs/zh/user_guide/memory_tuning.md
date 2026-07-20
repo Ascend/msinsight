@@ -139,7 +139,7 @@ torch_npu.npu.memory._dump_snapshot("model_memory_snapshot.pickle")
 
 ### PyTorch Snapshot 数据说明
 
-PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记录和分析模型在运行过程中，PyTorch管理的内存池内存使用情况。 内存快照原始数据详细说明可参考 **《Ascend Extension for PyTorch》** 文档“**模型开发**”章节的[“**内存快照使用场景**”](https://www.hiascend.com/document/detail/zh/Pytorch/2600/ptmoddevg/Frameworkfeatures/docs/zh/framework_feature_guide_pytorch/memory_snapshot.md#使用场景)内容介绍。
+PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记录和分析模型在运行过程中，PyTorch管理的内存池内存使用情况。 内存快照原始数据详细说明可参考**《内存快照》**文档的“[**内存快照使用场景**](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.0.0/docs/zh/framework_feature_guide_pytorch/memory_snapshot.md#%E4%BD%BF%E7%94%A8%E5%9C%BA%E6%99%AF)”章节内容介绍。
 
 **常见内存问题**
 
@@ -284,7 +284,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
   > [!NOTE] 说明
   >
   > - 如果导入的数据是使用MindStudio 8.2.RC1之前版本的msMemScope工具采集的，或者数据中没采集到访问事件，那么allocation\_id显示为0，首次访问时间\(ns\)、末次访问时间\(ns\)显示为-1，最大访问时间间隔\(ns\)显示为0。
-  > - 由于msMemScope工具当前仅支持采集ATB和Ascend Extension for PyTorch算子场景的内存访问事件，则首次访问时间\(ns\)、末次访问时间\(ns\)和最大访问间隔\(ns\)也仅支持展示对应场景的详情，其余场景下，首次访问时间\(ns\)、末次访问时间\(ns\)显示为-1，最大访问时间间隔\(ns\)显示为0。
+  > - 由于msMemScope工具当前仅支持采集ATB和Ascend for PyTorch算子场景的内存访问事件，则首次访问时间\(ns\)、末次访问时间\(ns\)和最大访问间隔\(ns\)也仅支持展示对应场景的详情，其余场景下，首次访问时间\(ns\)、末次访问时间\(ns\)显示为-1，最大访问时间间隔\(ns\)显示为0。
 
 - 内存事件视图：展示内存事件的详细信息，如[**图 5**  内存事件视图](#内存事件视图)所示，字段解释如[**表 2**  内存事件视图字段说明](#内存事件视图字段说明)所示。
 

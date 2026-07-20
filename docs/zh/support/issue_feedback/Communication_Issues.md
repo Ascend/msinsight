@@ -59,7 +59,7 @@ A3四卡8die的作业，通信域中有异常大的值，工具版本8.2.RC1
 
 【cann版本】8.0.RC3
 
-【框架】torch 2.5.1；torch-npu 2.5.1.post1.dev20250619
+【框架】torch 2.5.1；TorchNPU 2.5.1.post1.dev20250619
 
 【采集方式】
 

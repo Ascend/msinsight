@@ -17,8 +17,8 @@
 
 ## Host Bound问题定位思路
 
-1. 尝试通用的调度优化手段，包括绑核、流水优化、内存分配库替换三板斧。PyTorch框架调度优化可参考：[调度优化-Ascend Extension for PyTorch-昇腾社区](https://www.hiascend.com/document/detail/zh/Pytorch/720/ptmoddevg/trainingmigrguide/performance_tuning_0059.html)
-2. 若通用优化手段效果不及预期，可采集数据，进一步深入分析。建议同时采集ftrace和profiling数据，Profiling采集方法详见：[MindStudio Profiler工具指南](https://mindstudio-profiler-docs.readthedocs.io/zh-cn/latest/msprof/)。
+1. 尝试通用的调度优化手段，包括绑核、流水优化、内存分配库替换三板斧。Ascend for PyTorch框架调度优化可参考：[调度优化](https://www.hiascend.com/document/detail/zh/Pytorch/latest/ptmoddevg/trainingmigrguide/FrameworkPTAdapter/26.0.0/zh/pytorch_model_migration_fine_tuning/pipeline_opt.md)。
+2. 若通用优化手段效果不及预期，可采集数据，进一步深入分析。建议同时采集ftrace和profiling数据，Profiling采集方法详见：[MindStudio Profiler工具指南](https://gitcode.com/Ascend/msprof/blob/master/README.md)。
 3. 将ftrace数据转换为MindStudio Insight可识别的数据格式。
 4. 同时导入ftrace数据与profiling数据，分析进程调度情况。
 

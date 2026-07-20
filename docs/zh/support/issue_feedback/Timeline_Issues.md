@@ -105,7 +105,7 @@ insight里条目的颜色可以更改吗，compute和free的颜色都是绿色�
 
 1.手动修改 Device Type 列
 
-2.更新8.6后的 torch-npu 版本
+2.更新8.6后的 TorchNPU 版本
 
 ---
 
@@ -168,7 +168,7 @@ json文件中有一个数据的ts值为0，导致时间轴异常，数据有问�
 ![image](figures/Timeline_Issues/timeline-vs-communication-time-2.png)
 
 【解决方案】
-是pta包和CANN版本太旧，请更新版本，重新采集
+是PTA包和CANN版本太旧，请更新版本，重新采集。
 
 ---
 
