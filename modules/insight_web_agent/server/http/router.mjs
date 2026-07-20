@@ -17,7 +17,7 @@
  */
 import { json, readJson } from "./response.mjs";
 
-export const createRouter = ({ agentController, chatController, sessionController, eventController, permissionController, agentConfigController, contextController }) => {
+export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController }) => {
     return async (req, res) => {
         const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
@@ -59,6 +59,14 @@ export const createRouter = ({ agentController, chatController, sessionControlle
 
         if (req.method === "POST" && url.pathname === "/api/context") {
             return contextController.update(req, res, await readJson(req));
+        }
+
+        if (req.method === "GET" && url.pathname === "/api/page/observation") {
+            return pageController.getObservation(req, res);
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/page/observation") {
+            return pageController.updateObservation(req, res, await readJson(req));
         }
 
         if (req.method === "POST" && url.pathname === "/api/permissions/respond") {
