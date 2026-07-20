@@ -86,7 +86,7 @@ msprof 是采集 NPU 卡内的数据。而 Summary 和 Communication 显示的�
 
 【解决方案】
 
-1. 使用 Ascend PyTorch Profiler，可以采集卡内和卡间的数据。https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850alpha001/devaids/Profiling/atlasprofiling_16_0033.html
+1. 使用 Ascend PyTorch Profiler，可以采集卡内和卡间的数据，详情请参见[性能数据采集和自动解析](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/850alpha001/devaids/Profiling/atlasprofiling_16_0033.html)。
 2. mstt 可能支持对 msprof 数据的集群分析。
 
 ---
