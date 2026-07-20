@@ -15,7 +15,7 @@
     "BaselineDataComparisonDataCannotRenamed": "Baseline data and comparison data cannot be renamed",
     "DeleteItemConfirmDescribe": "Are you sure to delete this item?",
     "Import File Dialog Title": "Drag or import a file by path",
-    "FileSearchDescribe": "Enter the file path and press enter to search",
+    "FileSearchDescribe": "Enter a path and press Enter to search, or select a file below",
     "RefreshDirectory": "Refresh directory",
     "FileNotFundDescribe": "File not found, check the file path",
     "FileCheckFailedDescribe": "Failed to validate the file path. Please try again.",
