@@ -13,6 +13,7 @@
     "./hooks": "./src/hooks/index.ts",
     "./components": "./src/components/index.ts",
     "./connection": "./src/connection/index.ts",
+    "./FrontendAgentToolBridge": "./src/FrontendAgentToolBridge/index.ts",
     "./theme": "./src/theme/index.ts",
     "./resize": "./src/resize/index.ts"
   },

@@ -23,10 +23,11 @@ import { createContextController } from "./controllers/contextController.mjs";
 import { createEventController } from "./controllers/eventController.mjs";
 import { createSessionController } from "./controllers/sessionController.mjs";
 import { createPermissionController } from "./controllers/permissionController.mjs";
+import { createPageController } from "./controllers/pageController.mjs";
 import { createRouter } from "./http/router.mjs";
 import { applyCors, json } from "./http/response.mjs";
 
-export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService }) => {
+export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService }) => {
     const router = createRouter({
         agentController: createAgentController({ agentService }),
         agentConfigController: createAgentConfigController({ agentConfigService }),
@@ -35,6 +36,7 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
         eventController: createEventController({ eventBus }),
         sessionController: createSessionController({ sessionService }),
         permissionController: createPermissionController({ permissionService }),
+        pageController: createPageController({ pageContextService }),
     });
 
     return createServer(async (req, res) => {
