@@ -27,11 +27,11 @@ TEST_F(CommucationOpTableTest, TestCommucationOpTableColumnMaping) {
     sqlite3 *db = nullptr;
     std::string sql = "CREATE TABLE COMMUNICATION_OP (opName INTEGER,startNs INTEGER,endNs INTEGER,connectionId "
                       "INTEGER,groupName INTEGER,opId INTEGER PRIMARY KEY,relay INTEGER,retry INTEGER,dataType "
-                      "INTEGER,algType INTEGER,count NUMERIC,opType INTEGER, waitNs INTEGER);";
+                      "INTEGER,algType INTEGER,count NUMERIC,opType INTEGER, waitNs INTEGER, deviceId INTEGER);";
     TestCaseDatabaseUtil::CreateDatabse(db, sql);
     std::string sqlInsert =
         "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, groupName, opId, "
-        "relay,retry,dataType,algType,count,opType,waitNs) VALUES (1, 2,3,4,5,6,7,8,9,10,11,12,13);";
+        "relay,retry,dataType,algType,count,opType,waitNs,deviceId) VALUES (1,2,3,4,5,6,7,8,9,10,11,12,13,14);";
     TestCaseDatabaseUtil::InsertData(db, sqlInsert);
     std::vector<CommucationTaskOpPO> commucationTaskOpPOs;
     Dic::Protocol::CommucationOpTable commucationOpTable;
@@ -43,7 +43,8 @@ TEST_F(CommucationOpTableTest, TestCommucationOpTableColumnMaping) {
         .Select(CommucationTaskOpColumn::GROUPNAME, CommucationTaskOpColumn::OP_ID, CommucationTaskOpColumn::RELAY)
         .Select(CommucationTaskOpColumn::RETRY, CommucationTaskOpColumn::DATA_TYPE)
         .Select(CommucationTaskOpColumn::ALG_TYPE, CommucationTaskOpColumn::COUNT)
-        .Select(CommucationTaskOpColumn::OP_TYPE, CommucationTaskOpColumn::WAIT_TIME)
+        .Select(
+            CommucationTaskOpColumn::OP_TYPE, CommucationTaskOpColumn::WAIT_TIME, CommucationTaskOpColumn::DEVICE_ID)
         .ExcuteQuery(db, commucationTaskOpPOs);
     EXPECT_EQ(commucationTaskOpPOs.size(), expectSize);
     EXPECT_EQ(commucationTaskOpPOs[index].opName, initInt++);
@@ -59,4 +60,5 @@ TEST_F(CommucationOpTableTest, TestCommucationOpTableColumnMaping) {
     EXPECT_EQ(commucationTaskOpPOs[index].count, initInt++);
     EXPECT_EQ(commucationTaskOpPOs[index].opType, initInt++);
     EXPECT_EQ(commucationTaskOpPOs[index].waitTime, initInt++);
+    EXPECT_EQ(commucationTaskOpPOs[index].deviceId, initInt++);
 }

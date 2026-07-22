@@ -35,9 +35,9 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
     nameMatch.append(isMatchCase ? " value like " : "lower(value) like lower(");
     nameMatch.append(isMatchExact ? "?" : "'%'||?||'%'");
     nameMatch.append(isMatchCase ? " " : ")");
-    std::string associationTaskSql;
+    std::string communicationDeviceFilter;
     if (!TraceDatabaseHelper::IsDeviceIdUnique(path)) {
-        associationTaskSql = "join tasks on op.connectionId = tasks.connectionId";
+        communicationDeviceFilter = " where op.deviceId = ?";
     }
     const std::string hostSql =
         " SELECT name, globalTid as pid, metaType,  type as tid, startNs - minTime.value as startTime,endNs "
@@ -54,8 +54,8 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
         " 'OSRT_API' as metaType FROM " + TABLE_OSRT_API + " osrt JOIN ids ON ids.id = osrt.name) api join minTime ";
     std::string comSql = "select opName as name,'HCCL' as pid, 'HCCL' as metaType, groupName||'group' as tid,"
                          " startNs - minTime.value as startTime, endNs - startNs as duration, 0 as depth, op.ROWID"
-                         " as id from COMMUNICATION_OP op join minTime " +
-                         associationTaskSql + " join ids on ids.id = opName group by opId";
+                         " as id from COMMUNICATION_OP op join minTime join ids on ids.id = opName" +
+                         communicationDeviceFilter + " group by opId";
     std::string ccuSql = "select name, 'CCU' as pid, 'CCU' as metaType, deviceId as tid, "
                          "startNs - minTime.value as startTime, endNs - startNs as duration, "
                          "0 as depth, ccu.ROWID as id from " + TABLE_CCU +
@@ -159,7 +159,7 @@ std::string DbTraceDataBase::GetSearchSliceNameCountSql(const SearchSliceSqlPara
     std::string communicationOpSql;
     if (!TraceDatabaseHelper::IsDeviceIdUnique(params.rankId)) {
         communicationOpSql = "select opName as name from COMMUNICATION_OP op "
-                             " join tasks on op.connectionId = tasks.connectionId group by opId";
+                             " where op.deviceId = ? group by opId";
     } else {
         communicationOpSql = "select opName as name from COMMUNICATION_OP op";
     }

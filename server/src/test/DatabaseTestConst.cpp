@@ -52,7 +52,7 @@ const std::string CREATE_TABLE_DB_COMPUTE_TASK_INFO_SQL =
     " waitNs INTEGER);  ";
 const std::string CREATE_TABLE_DB_COMMUNICATION_OP_SQL =
     "CREATE TABLE IF NOT EXISTS COMMUNICATION_OP( opName INTEGER, startNs INTEGER, "
-    " endNs INTEGER, connectionId INTEGER, groupName INTEGER, opId INTEGER primary key, "
+    " endNs INTEGER, connectionId INTEGER, groupName INTEGER, opId INTEGER primary key, deviceId INTEGER, "
     " relay INTEGER, retry INTEGER, dataType INTEGER, algType INTEGER, count NUMERIC, opType INTEGER, waitNs INTEGER,"
     " opConnectionId TEXT);";
 const std::string CREATE_TABLE_DB_COMMUNICATION_TASK_INFO_SQL =

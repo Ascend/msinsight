@@ -388,8 +388,8 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCommunicationTracesSu
     std::string sql;
     if (!IsDeviceIdUnique(requestParams.cardId)) {
         sql = "SELECT startNs - ? as start_time, endNs - startNs as duration, endNs - ? as end_time "
-            "FROM " + TABLE_TASK + " main join " + TABLE_COMMUNICATION_TASK_INFO + " info "
-            " on main.globalTaskId = info.globalTaskId WHERE deviceId = ? AND start_time >= ? AND start_time <= ? ORDER BY startNs;";
+            "FROM " + TABLE_COMMUNICATION_OP +
+            " WHERE deviceId = ? AND start_time >= ? AND start_time <= ? ORDER BY startNs;";
         return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, rankId,
                             requestParams.startTime, requestParams.endTime);
     } else {
@@ -2180,10 +2180,10 @@ std::string TraceDatabaseHelper::GetComOpSliceDetailsSql(const std::string &rank
             "op.endNs - op.startNs as duration, 0 as depth, op.ROWID as id "
             " from COMMUNICATION_OP op join minTime";
     } else {
-        communicationOpSql = " select tasks.deviceId,opName as name,'HCCL' as pid, 'HCCL' as metaType, "
+        communicationOpSql = " select op.deviceId,opName as name,'HCCL' as pid, 'HCCL' as metaType, "
             " groupName||'group' as tid, op.startNs - minTime.value as startTime, "
             " op.endNs - op.startNs as duration, 0 as depth, op.ROWID as id from COMMUNICATION_OP op "
-            " join minTime join tasks on op.connectionId = tasks.connectionId group by opId";
+            " join minTime where op.deviceId = ? group by opId";
     }
     return communicationOpSql;
 }

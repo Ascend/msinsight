@@ -232,8 +232,9 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitsMetadataWhenPlaneTrackExist) {
         "65535, 0, 1);";
     std::string commucationOpInsertSql =
         "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 7);";
     DatabaseTestCaseMockUtil::InsertData(db, taskTableInsert);
     DatabaseTestCaseMockUtil::InsertData(db, commucationInfoInsertSql);
     DatabaseTestCaseMockUtil::InsertData(db, commucationOpInsertSql);
@@ -278,8 +279,9 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitsMetadataWhenDeviceUnique) {
         "0);";
     std::string commucationOpInsertSql =
         "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 0);";
     DatabaseTestCaseMockUtil::InsertData(db, taskTableInsert);
     DatabaseTestCaseMockUtil::InsertData(db, commucationOpInsertSql);
     MockNpuInfoRepoFunc();
@@ -328,8 +330,9 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitsMetadataWhenPlaneTrackIsWrong) {
         "65535, 0, 1);";
     std::string commucationOpInsertSql =
         "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 7);";
     DatabaseTestCaseMockUtil::InsertData(db, taskTableInsert);
     DatabaseTestCaseMockUtil::InsertData(db, commucationInfoInsertSql);
     DatabaseTestCaseMockUtil::InsertData(db, commucationOpInsertSql);
@@ -377,8 +380,9 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitsMetadataWhenPlaneTrackExistVersion_1_
         "65535, 0, 1);";
     std::string commucationOpInsertSql =
         "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 7);";
     const std::string groupNameValue = "90.90.97.96%enp194s0f0_60008_8_1735556595505601";
     const std::string stringIdsInsertSql = "INSERT INTO \"STRING_IDS\" (\"id\",\"value\") "
                                            "VALUES (8, '90.90.97.96%enp194s0f0_60008_8_1735556595505601');";
@@ -433,8 +437,9 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitsMetadataWhenPlaneTrackIsWrongVersion_
         "65535, 0, 1);";
     std::string commucationOpInsertSql =
         "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (6, 1729773871230644118, 1729773871230661178, 144529, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 7);";
     const std::string groupNameValue = "90.90.97.96%enp194s0f0_60008_8_1735556595505601";
     const std::string stringIdsInsertSql = "INSERT INTO \"STRING_IDS\" (\"id\",\"value\") "
                                            "VALUES (8, '90.90.97.96%enp194s0f0_60008_8_1735556595505601');";
@@ -719,8 +724,9 @@ TEST_F(DbTraceDatabaseTest2, TestQueryCommunicationKernelInfoWhenDbOpen) {
     DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
     std::string opData =
         "INSERT INTO \"main\".\"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (322, 1723510445656562660, 1723510445656625680, 149336, 324, 1, 0, 0, 5, 325, 8192, 326, 1412060);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (322, 1723510445656562660, 1723510445656625680, 149336, 324, 1, 0, 0, 5, 325, 8192, 326, 1412060, 0);";
     std::string infoData = "INSERT INTO \"main\".\"COMMUNICATION_TASK_INFO\" (\"name\", \"globalTaskId\", "
                            "\"taskType\", \"planeId\", \"groupName\", \"notifyId\", \"rdmaType\", \"srcRank\", "
                            "\"dstRank\", \"transportType\", \"size\", \"dataType\", \"linkType\", \"opId\") VALUES "
@@ -756,8 +762,9 @@ TEST_F(DbTraceDatabaseTest2, TestQueryCommunicationKernelInfoWhenUniqueDevice) {
     DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
     std::string opData =
         "INSERT INTO \"main\".\"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (1, 1723510445656562660, 1723510445656625680, 149336, 324, 1, 0, 0, 5, 325, 8192, 326, 1412060);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (1, 1723510445656562660, 1723510445656625680, 149336, 324, 1, 0, 0, 5, 325, 8192, 326, 1412060, 0);";
     std::string taskData = "INSERT INTO \"main\".\"TASK\" (\"startNs\", \"endNs\", \"deviceId\", \"connectionId\", "
                            "\"globalTaskId\", \"globalPid\", \"taskType\", \"contextId\", \"streamId\", \"taskId\", "
                            "\"modelId\", \"depth\") VALUES (1723510445634242160, 1723510445634242160, 0, 4294967295, "
@@ -1449,7 +1456,7 @@ TEST_F(DbTraceDatabaseTest2, TestQueryEventsView4PytorchWhenCANNWithHccl) {
     EXPECT_EQ(body.eventDetailList[0]->name, "cann_test");
 }
 
-TEST_F(DbTraceDatabaseTest2, TestQueryEventsView4PytorchWhenHccl) {
+TEST_F(DbTraceDatabaseTest2, TestQueryEventsView4HcclFiltersCommunicationOpByDeviceId) {
     std::recursive_mutex testMutex;
     MockDatabase database(testMutex);
     sqlite3 *db = nullptr;
@@ -1466,10 +1473,13 @@ TEST_F(DbTraceDatabaseTest2, TestQueryEventsView4PytorchWhenHccl) {
                                 "\"planeId\", \"groupName\", \"notifyId\", \"rdmaType\", \"srcRank\", \"dstRank\", "
                                 "\"transportType\", \"size\", \"dataType\", \"linkType\", \"opId\") VALUES (400, "
                                 "3453, 401, 0, 402, 0, 65535, 0, 4294967295, 0, 4, 2, 0, 1);";
-    std::string insertOpSql = "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-                              "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", "
-                              "\"opType\", \"waitNs\") VALUES (400, 1737098043298003143, 1737098043314228587, 19076, "
-                              "402, 1, 0, 0, 5, 1167, 2048, 235, 4865418);";
+    std::string insertOpSql =
+        "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", "
+        "\"opType\", \"waitNs\", \"deviceId\") VALUES (400, 1737098043298003143, 1737098043314228587, 19076, "
+        "402, 1, 0, 0, 5, 1167, 2048, 235, 4865418, 0), "
+        "(400, 1737098043298003143, 1737098043314228587, 19077, "
+        "402, 2, 0, 0, 5, 1167, 2048, 235, 4865418, 1);";
     std::string insertStringIdsSql = "INSERT INTO \"STRING_IDS\" (\"id\", \"value\") "
                                      "VALUES (400, 'hcom_broadcast__559_0_1');";
     DatabaseTestCaseMockUtil::InsertData(db, insertTaskSql);
@@ -1507,10 +1517,11 @@ TEST_F(DbTraceDatabaseTest2, TestQueryEventsView4PytorchWhenHcclAndTidNotEmpty) 
                                 "\"planeId\", \"groupName\", \"notifyId\", \"rdmaType\", \"srcRank\", \"dstRank\", "
                                 "\"transportType\", \"size\", \"dataType\", \"linkType\", \"opId\") VALUES (400, "
                                 "3453, 401, 0, 402, 0, 65535, 0, 4294967295, 0, 4, 2, 0, 1);";
-    std::string insertOpSql = "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-                              "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", "
-                              "\"opType\", \"waitNs\") VALUES (400, 1737098043298003143, 1737098043314228587, 19076, "
-                              "402, 1, 0, 0, 5, 1167, 2048, 235, 4865418);";
+    std::string insertOpSql =
+        "INSERT INTO \"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", "
+        "\"opType\", \"waitNs\", \"deviceId\") VALUES (400, 1737098043298003143, 1737098043314228587, 19076, "
+        "402, 1, 0, 0, 5, 1167, 2048, 235, 4865418, 0);";
     std::string insertStringIdsSql = "INSERT INTO \"STRING_IDS\" (\"id\", \"value\") "
                                      "VALUES (400, 'hcom_broadcast__559_0_1');";
     DatabaseTestCaseMockUtil::InsertData(db, insertTaskSql);

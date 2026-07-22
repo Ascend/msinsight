@@ -128,9 +128,9 @@ TEST_F(FullDbTestSuit, FullDb_of_ThreadTracesSummary) {
     params.metaType = "HCCL";
 
     database->QueryThreadTracesSummary(params, body, minTimestamp);
-    const uint64_t expectSize2 = 8;
-    EXPECT_EQ(body.data.size(), expectSize2); // size = 8
-    EXPECT_EQ(body.data[0].startTime, 175902293); // startTime = 175902293
+    // HCCL 缩略图改为直接查询 COMMUNICATION_OP；该历史测试库只包含通信小算子，
+    // COMMUNICATION_OP 中没有通信大算子，因此结果为空。
+    EXPECT_TRUE(body.data.empty());
 
     body.data.clear();
     params.metaType = "CANN_API";

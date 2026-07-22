@@ -72,8 +72,8 @@ class DbTraceDatabaseTest : public ::testing::Test {
     // 同connectionId，只连接第一个
     std::string communicationOpDataInsertForQueryUnitFlows =
         "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, "
-        "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs) "
-        "VALUES (6, 110, 130, 19, 8, 1, 0, 0, 4, 9, 1, 10, 726280), (8, 150, 170, 19, 8, 2, 0, 0, 4, 9, 1, 10, 2985);";
+        "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs, deviceId) "
+        "VALUES (6, 110, 130, 19, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 0), (8, 150, 170, 19, 8, 2, 0, 0, 4, 9, 1, 10, 2985, 0);";
     std::string rankDeviceMapDataInsertForQueryUnitFlows =
         "INSERT INTO RANK_DEVICE_MAP (rankId, deviceId) VALUES (0, 0);";
     std::string pytorchDataInsertForQueryUnitFlows =
@@ -99,8 +99,8 @@ class DbTraceDatabaseTest : public ::testing::Test {
             "(80, 100, 1, 19, 183022, 20366, 7166, 4294967295, 0, 39, 4294967295, 0);"},
         {TableName::DB_COMMUNICATION_OP,
             "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, "
-            "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs) VALUES (393, "
-            "1723537649878647930, 1723537649878710990, 19, 395, 1, 0, 0, 5, 396, 5, 338, 1097840);"},
+            "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs, deviceId) VALUES (393, "
+            "1723537649878647930, 1723537649878710990, 19, 395, 1, 0, 0, 5, 396, 5, 338, 1097840, 1);"},
     };
 };
 namespace Dic::Protocol {
@@ -206,6 +206,77 @@ TEST_F(DbTraceDatabaseTest, LoadSliceCacheDoesNotConcatenateCcuDeviceId)
     EXPECT_EQ(cache.size(), 0);
     database.CloseDb();
     std::remove(dbPath.c_str());
+}
+
+TEST_F(DbTraceDatabaseTest, AddCommunicationOpDeviceIdForOldDatabase)
+{
+    const std::string dbPath = "test_add_communication_op_device_id.db";
+    std::remove(dbPath.c_str());
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(dbPath.c_str(), &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE COMMUNICATION_OP(opName INTEGER, startNs INTEGER, endNs INTEGER, connectionId INTEGER, "
+        "groupName INTEGER, opId INTEGER PRIMARY KEY);"
+        "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER, opId INTEGER);"
+        "CREATE TABLE TASK(globalTaskId INTEGER, deviceId INTEGER);"
+        "INSERT INTO COMMUNICATION_OP(opName, startNs, endNs, connectionId, groupName, opId) "
+        "VALUES (1, 10, 20, 30, 40, 50);"
+        "INSERT INTO COMMUNICATION_TASK_INFO(globalTaskId, opId) VALUES (60, 50);"
+        "INSERT INTO TASK(globalTaskId, deviceId) VALUES (60, 7);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_close(db);
+
+    std::recursive_mutex testMutex;
+    Dic::Module::FullDb::DbTraceDataBase database(testMutex);
+    ASSERT_TRUE(database.OpenDb(dbPath, false));
+    ASSERT_FALSE(database.CheckColumnExist(TABLE_COMMUNICATION_OP, "deviceId"));
+    ASSERT_TRUE(database.AddCommunicationOpDeviceIdColumnIfNotExists());
+    ASSERT_TRUE(database.CheckColumnExist(TABLE_COMMUNICATION_OP, "deviceId"));
+    auto stmt = database.CreatPreparedStatement("SELECT deviceId FROM COMMUNICATION_OP WHERE opId = 50;");
+    ASSERT_NE(stmt, nullptr);
+    auto resultSet = stmt->ExecuteQuery();
+    ASSERT_NE(resultSet, nullptr);
+    ASSERT_TRUE(resultSet->Next());
+    EXPECT_EQ(resultSet->GetUint64("deviceId"), 7);
+    database.CloseDb();
+    std::remove(dbPath.c_str());
+}
+
+TEST_F(DbTraceDatabaseTest, QueryThreadTracesSummaryFiltersCommunicationOpByDeviceId)
+{
+    class MultiDeviceNpuInfoRepoMock : public Dic::Protocol::NpuInfoRepo {
+      public:
+        std::vector<uint64_t> QueryDeviceIdByFileId(const std::string &) override { return {0, 1}; }
+    };
+
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE STRING_IDS(id INTEGER PRIMARY KEY, value TEXT);"
+        "CREATE TABLE COMMUNICATION_OP(startNs INTEGER, endNs INTEGER, deviceId INTEGER);"
+        "INSERT INTO COMMUNICATION_OP(startNs, endNs, deviceId) VALUES (110, 120, 0), (150, 170, 1);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    database.SetDbPtr(db);
+    TraceDatabaseHelper::SetNpuInfoRepo(std::make_unique<MultiDeviceNpuInfoRepoMock>());
+
+    Dic::Protocol::UnitThreadTracesSummaryParams params;
+    params.cardId = "1";
+    params.processId = "HCCL";
+    params.metaType = "HCCL";
+    params.startTime = 0;
+    params.endTime = 100;
+    Dic::Protocol::UnitThreadTracesSummaryBody body;
+    const bool result = database.QueryThreadTracesSummary(params, body, 100);
+
+    RestoreRepoFunc();
+    database.CloseDb();
+    ASSERT_TRUE(result);
+    ASSERT_EQ(body.data.size(), 1);
+    EXPECT_EQ(body.data[0].startTime, 50);
+    EXPECT_EQ(body.data[0].duration, 20);
 }
 
 TEST_F(DbTraceDatabaseTest, TestAddHelperColumnsAddsKernelSimtDimColumnsForOldComputeTaskInfo)
@@ -1084,7 +1155,7 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetDeviceSlicesReturnsOnlyMatchingSlices
         "(2, 1001, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);");
     DatabaseTestCaseMockUtil::InsertData(db,
         "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, groupName, opId, relay, retry, "
-        "dataType, algType, count, opType, waitNs) VALUES (2, 300, 360, 19, 1, 1, 0, 0, 0, 0, 1, 0, 0);");
+        "dataType, algType, count, opType, waitNs, deviceId) VALUES (2, 300, 360, 19, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0);");
     database.SetDbPtr(db);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
@@ -1111,7 +1182,7 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetDeviceProcessIdsReturnsExistingDevice
         "(100, 160, 0, 19, 1000, 1, 3, 0, 7, 0, 0, 0);");
     DatabaseTestCaseMockUtil::InsertData(db,
         "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, groupName, opId, relay, retry, "
-        "dataType, algType, count, opType, waitNs) VALUES (2, 300, 360, 19, 1, 1, 0, 0, 0, 0, 1, 0, 0);");
+        "dataType, algType, count, opType, waitNs, deviceId) VALUES (2, 300, 360, 19, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0);");
     database.SetDbPtr(db);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
@@ -1616,8 +1687,8 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsFromCANNToAscendHardwareToCommunic
     // 同connectionId，只连接第一个
     const std::string communicationOpData =
         "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, "
-        "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs) "
-        "VALUES (6, 110, 130, 19, 8, 1, 0, 0, 4, 9, 1, 10, 726280), (8, 150, 170, 19, 8, 2, 0, 0, 4, 9, 1, 10, 2985);";
+        "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs, deviceId) "
+        "VALUES (6, 110, 130, 19, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 0), (8, 150, 170, 19, 8, 2, 0, 0, 4, 9, 1, 10, 2985, 0);";
     const std::string npuInfoData = "INSERT INTO NPU_INFO (id, name) VALUES (0, 'abc')";
     DatabaseTestCaseMockUtil::InsertData(db, cannApiData);
     DatabaseTestCaseMockUtil::InsertData(db, taskData);
@@ -1661,8 +1732,8 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitFlowsFromCANNToCommunication) {
     // 同connectionId，只连接第一个
     const std::string communicationOpData =
         "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, "
-        "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs) "
-        "VALUES (6, 110, 130, 19, 8, 1, 0, 0, 4, 9, 1, 10, 726280), (8, 150, 170, 19, 8, 2, 0, 0, 4, 9, 1, 10, 2985);";
+        "groupName, opId, relay, retry, dataType, algType, count, opType, waitNs, deviceId) "
+        "VALUES (6, 110, 130, 19, 8, 1, 0, 0, 4, 9, 1, 10, 726280, 0), (8, 150, 170, 19, 8, 2, 0, 0, 4, 9, 1, 10, 2985, 0);";
     const std::string npuInfoData = "INSERT INTO NPU_INFO (id, name) VALUES (0, 'abc')";
     DatabaseTestCaseMockUtil::InsertData(db, cannApiData);
     DatabaseTestCaseMockUtil::InsertData(db, communicationOpData);

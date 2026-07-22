@@ -110,14 +110,7 @@ void HcclRepo::QuerySimpleSliceFromGroupTrackByDevice(std::vector<CommucationTas
         WHERE co.groupName = ?
           AND co.startNs <= ?
           AND co.endNs > ?
-          AND EXISTS (
-              SELECT 1
-              FROM COMMUNICATION_TASK_INFO cti
-              JOIN TASK t
-                ON t.globalTaskId = cti.globalTaskId
-              WHERE cti.opId = co.opId
-                AND t.deviceId = ?
-          )
+          AND co.deviceId = ?
     )";
     auto stmt = database->CreatPreparedStatement(sql);
     if (stmt == nullptr) {

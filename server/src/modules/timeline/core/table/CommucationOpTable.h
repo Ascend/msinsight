@@ -28,6 +28,7 @@ struct CommucationTaskOpPO {
     int64_t connectionId = 0;
     uint64_t groupName = 0;
     uint64_t opId = 0;
+    uint64_t deviceId = 0;
     uint64_t relay = 0;
     uint64_t retry = 0;
     uint64_t dataType = 0;
@@ -48,10 +49,10 @@ class CommucationOpTable : public Table<CommucationTaskOpPO> {
             {CommucationTaskOpColumn::ENDTIME, EndTimeHandle},
             {CommucationTaskOpColumn::CONNECTION_ID, ConnectionIdHandle},
             {CommucationTaskOpColumn::GROUPNAME, GroupNameIdHandle}, {CommucationTaskOpColumn::OP_ID, OpIdHandle},
-            {CommucationTaskOpColumn::RELAY, RelayHandle}, {CommucationTaskOpColumn::RETRY, RetryHandle},
-            {CommucationTaskOpColumn::DATA_TYPE, DataTypeHandle}, {CommucationTaskOpColumn::ALG_TYPE, AlgTypeHandle},
-            {CommucationTaskOpColumn::COUNT, CountHandle}, {CommucationTaskOpColumn::OP_TYPE, OpTypeHandle},
-            {CommucationTaskOpColumn::WAIT_TIME, WaitTimeHandle}};
+            {CommucationTaskOpColumn::DEVICE_ID, DeviceIdHandle}, {CommucationTaskOpColumn::RELAY, RelayHandle},
+            {CommucationTaskOpColumn::RETRY, RetryHandle}, {CommucationTaskOpColumn::DATA_TYPE, DataTypeHandle},
+            {CommucationTaskOpColumn::ALG_TYPE, AlgTypeHandle}, {CommucationTaskOpColumn::COUNT, CountHandle},
+            {CommucationTaskOpColumn::OP_TYPE, OpTypeHandle}, {CommucationTaskOpColumn::WAIT_TIME, WaitTimeHandle}};
 
         return assignMap;
     }
@@ -70,6 +71,8 @@ class CommucationOpTable : public Table<CommucationTaskOpPO> {
     static void GroupNameIdHandle(
         CommucationTaskOpPO &commucationTaskOpPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void OpIdHandle(CommucationTaskOpPO &commucationTaskOpPO, const std::unique_ptr<SqliteResultSet> &resultSet);
+    static void DeviceIdHandle(
+        CommucationTaskOpPO &commucationTaskOpPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void RelayHandle(
         CommucationTaskOpPO &commucationTaskOpPO, const std::unique_ptr<SqliteResultSet> &resultSet);
     static void RetryHandle(

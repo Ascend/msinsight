@@ -41,6 +41,10 @@ void CommucationOpTable::OpIdHandle(
     CommucationTaskOpPO &commucationTaskOpPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     commucationTaskOpPO.opId = resultSet->GetUint64(CommucationTaskOpColumn::OP_ID);
 }
+void CommucationOpTable::DeviceIdHandle(
+    CommucationTaskOpPO &commucationTaskOpPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
+    commucationTaskOpPO.deviceId = resultSet->GetUint64(CommucationTaskOpColumn::DEVICE_ID);
+}
 void CommucationOpTable::RelayHandle(
     CommucationTaskOpPO &commucationTaskOpPO, const std::unique_ptr<SqliteResultSet> &resultSet) {
     commucationTaskOpPO.relay = resultSet->GetUint64(CommucationTaskOpColumn::RELAY);
