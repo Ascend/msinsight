@@ -96,6 +96,10 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
         ServerLog::Error("Failed to get database connection in init open db.");
         return;
     }
+    if (!database->AddCommunicationOpDeviceIdColumnIfNotExists()) {
+        ServerLog::Error("Failed to initialize deviceId column for COMMUNICATION_OP table.");
+        return;
+    }
     database->AddHelperColumnsAndSetStatus();
     auto &threadPool = FullDbParser::Instance().threadPool;
     std::shared_ptr<std::vector<std::future<void>>> futures = std::make_shared<std::vector<std::future<void>>>();

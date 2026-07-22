@@ -33,7 +33,7 @@ const static std::map<std::string, std::string> FULL_DB_TABLE_MAP = {
         " globalTid INTEGER, connectionId INTEGER primary key, name INTEGER, depth integer);  "},
     {TABLE_COMMUNICATION_OP,
         "create TEMPORARY table if not exists COMMUNICATION_OP( opName INTEGER, startNs INTEGER, "
-        " endNs INTEGER, connectionId INTEGER, groupName INTEGER, opId INTEGER primary key, "
+        " endNs INTEGER, connectionId INTEGER, groupName INTEGER, opId INTEGER primary key, deviceId INTEGER, "
         " relay INTEGER, retry INTEGER, dataType INTEGER, algType INTEGER, count NUMERIC, waitNs INTEGER);  "},
     {TABLE_CCU,
         "create TEMPORARY table if not exists CCU(deviceId INTEGER, globalTaskId INTEGER, name INTEGER, "
@@ -124,10 +124,8 @@ inline std::string GetHcclSameNameDetailSql(const std::string &tidListStr, const
                     "   ) and timestamp + duration >= p.startTime AND timestamp <= p.endTime group by op.opId "
                 : " UNION select op.startNs - p.minTime as timestamp, op.endNs - op.startNs as duration, 0 as depth, "
                   "   op.opId as id , op.groupName || 'group' as tid, 'HCCL' as pid from COMMUNICATION_OP op "
-                  "   join COMMUNICATION_TASK_INFO c ON op.opId = c.opId "
-                  "   join TASK main on c.globalTaskId = main.globalTaskId "
                   "   join nameIds on op.opName = id join params p "
-                  "   where main.deviceId = p.rankId and op.groupName||'group' in (" +
+                  "   where op.deviceId = p.rankId and op.groupName||'group' in (" +
                     tidListStr +
                     "   ) and timestamp+duration >= p.startTime AND timestamp <= p.endTime group by op.opId ");
 }
@@ -308,11 +306,9 @@ const static std::string CCU_THREADS_BY_PID =
 
 // QueryEventsViewData4Db
 const static std::string QUERY_EVENTS_VIEW_FOR_DEVICE_HCCL_DEVICE_ID_NOT_UNIQUE =
-    "with tmp as (select * from TASK main join COMMUNICATION_TASK_INFO "
-    "info on info.globalTaskId = main.globalTaskId where main.deviceId = ?), "
-    "sub as (select COMMUNICATION_OP.ROWID, startNs, endNs, endNs-startNs as duration, si.value as name,"
+    "with sub as (select COMMUNICATION_OP.ROWID, startNs, endNs, endNs-startNs as duration, si.value as name,"
     "groupName from COMMUNICATION_OP LEFT JOIN STRING_IDS AS si ON si.id = opName "
-    "where opId in (select opId from tmp group by opId)) "
+    "where deviceId = ?) "
     "select ROWID as id, name, startNs as start, duration, 0 as depth, 'HCCL' as processId, "
     "groupName||'group' as threadId, "
     "'Group '||((DENSE_RANK() OVER (ORDER BY groupName)) - 1)||' Communication' AS threadName "
@@ -326,11 +322,9 @@ const static std::string QUERY_EVENTS_VIEW_FOR_DEVICE_HCCL_DEVICE_ID_UNIQUE =
     "'Group '||((DENSE_RANK() OVER (ORDER BY groupName)) - 1)||' Communication' AS threadName "
     "from sub ";
 const static std::string QUERY_EVENTS_VIEW_FOR_GROUP_DEVICE_ID_NOT_UNIQUE =
-    "with tmp as (select * from TASK main join COMMUNICATION_TASK_INFO "
-    "info on info.globalTaskId = main.globalTaskId where main.deviceId = ?), "
-    "sub as (select COMMUNICATION_OP.ROWID, startNs, endNs, endNs-startNs as duration, si.value as name,"
+    "with sub as (select COMMUNICATION_OP.ROWID, startNs, endNs, endNs-startNs as duration, si.value as name,"
     "groupName from COMMUNICATION_OP LEFT JOIN STRING_IDS AS si ON si.id = opName "
-    "where opId in (select opId from tmp group by opId)) "
+    "where deviceId = ?) "
     "select ROWID as id, name, startNs as start, duration, 0 as depth, 'HCCL' as processId, "
     "groupName||'group' as threadId, ? AS threadName from sub "
     "WHERE groupName||'group' = ? ";

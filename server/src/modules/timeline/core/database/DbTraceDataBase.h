@@ -87,6 +87,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     ~DbTraceDataBase();
 
     bool OpenDb(const std::string &dbPath, bool clearAllTable) override;
+    bool AddCommunicationOpDeviceIdColumnIfNotExists();
     void AddHelperColumnsAndSetStatus();
     bool InitStmt();
 

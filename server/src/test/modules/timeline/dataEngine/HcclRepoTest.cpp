@@ -31,7 +31,8 @@ class HcclRepoTest : public ::testing::Test {
   protected:
     const std::string opTableSql =
         "CREATE TABLE COMMUNICATION_OP (opName INTEGER,startNs INTEGER,endNs INTEGER,connectionId INTEGER,groupName "
-        "INTEGER,opId INTEGER PRIMARY KEY,relay INTEGER,retry INTEGER,dataType INTEGER,algType INTEGER,count "
+        "INTEGER,opId INTEGER PRIMARY KEY,deviceId INTEGER,relay INTEGER,retry INTEGER,dataType INTEGER,algType "
+        "INTEGER,count "
         "NUMERIC,opType INTEGER, waitNs INTEGER);";
     const std::string dataTypeDataSql = "CREATE TABLE ENUM_HCCL_DATA_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
     const std::string stringIdsSql = "CREATE TABLE STRING_IDS (id INTEGER PRIMARY KEY,value TEXT);";
@@ -432,8 +433,9 @@ TEST_F(HcclRepoTest, TestGroupQueryGroupSliceDetailInfo) {
     DatabaseTestCaseMockUtil::CreateTable(db, stringIdsSql);
     std::string opInsert =
         "INSERT INTO \"main\".\"COMMUNICATION_OP\" (\"opName\", \"startNs\", \"endNs\", \"connectionId\", "
-        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\") "
-        "VALUES (377, 1718180919002130516, 1718180919038847310, 7429, 379, 1, 1, 0, 5, 380, 5, 336, 2259745);";
+        "\"groupName\", \"opId\", \"relay\", \"retry\", \"dataType\", \"algType\", \"count\", \"opType\", \"waitNs\", "
+        "\"deviceId\") "
+        "VALUES (377, 1718180919002130516, 1718180919038847310, 7429, 379, 1, 1, 0, 5, 380, 5, 336, 2259745, 0);";
     std::string dataTypeInsert = "INSERT INTO \"main\".\"ENUM_HCCL_DATA_TYPE\" (\"id\", \"name\") VALUES (5, 'INT16');";
     std::string stringInsert = "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (377, 'mmmm');\n"
                                "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (380, 'aaaa');";

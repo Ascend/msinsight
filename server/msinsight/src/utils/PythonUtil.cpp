@@ -88,29 +88,6 @@ std::string PythonUtil::GetPythonCommand() {
 int PythonUtil::ExecuteCommand(const std::string &executablePath, const std::vector<std::string> &arguments,
     const std::optional<std::string> &logPath) {
 #if defined(_WIN32)
-    /*
-    std::wstring wexecutablePath = StringUtil::String2WString(executablePath);
-    std::vector<const wchar_t *> wptrs;
-    // _wspawnvp参数需要转换为wstring
-    // _wspawnvp的参数列表，第一个参数是可执行文件名，最后一个参数必须是NULL
-    wptrs.reserve(arguments.size() + 2);
-    std::wstring wcommand = StringUtil::String2WString("\"python\"");
-    wptrs.push_back(wcommand.c_str());
-    // _wspawnvp传入的cmdname参数可以包含空格，但是argument参数如果包含空格，会被识别成两项参数，需手动添加双引号包裹
-
-    std::vector<std::wstring> warguments;
-    for (const auto &argument : arguments) {
-        warguments.push_back(StringUtil::String2WString("\"" + argument + "\""));
-    }
-    // 注意生命周期，需要确保取.c_str()方法的字符串在这个函数内始终存在，所以必须等warguments不再变化了才能取.c_str()，而不能在上个循环里取
-    for (const auto &wargument : warguments) {
-        wptrs.push_back(wargument.c_str());
-    }
-    wptrs.push_back(NULL);
-    // 如果executablePath或arguments被销毁或重新分配，argv会成为悬空指针
-    const wchar_t *const *wargv = wptrs.data();
-    */
-
     DWORD flags = CREATE_NO_WINDOW;
 
     STARTUPINFOW startupInfo;

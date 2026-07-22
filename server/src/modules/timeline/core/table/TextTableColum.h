@@ -137,6 +137,7 @@ constexpr std::string_view ENDTIME = "endNs";
 constexpr std::string_view CONNECTION_ID = "connectionId";
 constexpr std::string_view GROUPNAME = "groupName";
 constexpr std::string_view OP_ID = "opId";
+constexpr std::string_view DEVICE_ID = "deviceId";
 constexpr std::string_view RELAY = "relay";
 constexpr std::string_view RETRY = "retry";
 constexpr std::string_view DATA_TYPE = "dataType";

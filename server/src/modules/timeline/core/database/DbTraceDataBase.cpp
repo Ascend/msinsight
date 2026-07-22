@@ -190,7 +190,9 @@ uint32_t DbTraceDataBase::SearchSliceNameCount(const Protocol::SearchCountParams
         return 0;
     }
     std::string deviceId = GetDeviceId(params.rankId);
-    auto resultSet = stmt->ExecuteQuery(params.searchContent, deviceId, deviceId);
+    auto resultSet = TraceDatabaseHelper::IsDeviceIdUnique(params.rankId)
+        ? stmt->ExecuteQuery(params.searchContent, deviceId, deviceId)
+        : stmt->ExecuteQuery(params.searchContent, deviceId, deviceId, deviceId);
     if (resultSet == nullptr) {
         ServerLog::Error("Query_slice_name_count. Failed to get result set.", stmt->GetErrorMessage());
         return 0;
@@ -257,7 +259,9 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
         return false;
     }
     std::string deviceId = GetDeviceId(responseBody.rankId);
-    auto resultSet = stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId, index);
+    auto resultSet = TraceDatabaseHelper::IsDeviceIdUnique(path)
+        ? stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId, index)
+        : stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId, deviceId, index);
     if (resultSet == nullptr || !resultSet->Next()) {
         ServerLog::Error("Query_slice_name. Failed to get result set.", stmt->GetErrorMessage());
         return false;
@@ -1105,7 +1109,7 @@ void DbTraceDataBase::QueryTaskTimeInfo(
     } else {
         sql = "select op.startNs, op.endNs from COMMUNICATION_OP op ";
         if (!isUniqueDevice) {
-            sql += " join TASK task on task.connectionId = op.connectionId where task.deviceId=? ";
+            sql += " where op.deviceId=? ";
         }
         sql += " group by opId  order by op.startNs, op.endNs";
     }
@@ -1353,6 +1357,27 @@ bool DbTraceDataBase::CheckTableDataInvalid(std::string tableName) {
 bool DbTraceDataBase::OpenDb(const std::string &dbPath, bool clearAllTable) {
     this->hostPath = DbTraceDataBase::GetHostPath(dbPath);
     return Database::OpenDb(dbPath, clearAllTable) && QueryMetaVersion() && SetConfig();
+}
+
+bool DbTraceDataBase::AddCommunicationOpDeviceIdColumnIfNotExists() {
+    if (!CheckTableExist(TABLE_COMMUNICATION_OP) || CheckColumnExist(TABLE_COMMUNICATION_OP, "deviceId")) {
+        return true;
+    }
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    if (!ExecSql("ALTER TABLE " + TABLE_COMMUNICATION_OP + " ADD COLUMN deviceId INTEGER;")) {
+        ServerLog::Error("Failed to add deviceId column to table ", TABLE_COMMUNICATION_OP);
+        return false;
+    }
+    const std::string sql =
+        "UPDATE COMMUNICATION_OP AS op SET deviceId = ("
+        "SELECT task.deviceId FROM COMMUNICATION_TASK_INFO info "
+        "JOIN TASK task ON task.globalTaskId = info.globalTaskId "
+        "WHERE info.opId = op.opId LIMIT 1) WHERE op.deviceId IS NULL;";
+    if (!ExecSql(sql)) {
+        ServerLog::Error("Failed to initialize deviceId column of table ", TABLE_COMMUNICATION_OP);
+        return false;
+    }
+    return true;
 }
 
 std::string DbTraceDataBase::GetHostPath(const std::string &filePath) {
@@ -1825,11 +1850,10 @@ std::string DbTraceDataBase::GetHcclOperatorMetaData(const std::string &fileId) 
     // 这里仍然使用关联TASK表去判断deviceId是为了兼容老数据，后续可以完全使用COMMUNICATION_OP表进行判断
     // 届时可以去掉这里globalTaskId的逻辑
     std::string sql = "with main as (SELECT groupTemp.planeId, groupTemp.groupName ,sids.value AS groupNameValue FROM "
-                      " (SELECT info.planeId, op.groupName, info.globalTaskId FROM COMMUNICATION_TASK_INFO info "
-                      " JOIN COMMUNICATION_OP op ON op.opId = info.opId GROUP BY info.planeId,op.groupName ) groupTemp "
-                      " LEFT JOIN TASK task ON task.globalTaskId = groupTemp.globalTaskId "
-                      " LEFT JOIN STRING_IDS sids ON groupTemp.groupName = sids.id "
-                      " WHERE task.deviceId = ?) "
+                      " (SELECT info.planeId, op.groupName FROM COMMUNICATION_TASK_INFO info "
+                      " JOIN COMMUNICATION_OP op ON op.opId = info.opId WHERE op.deviceId = ? "
+                      " GROUP BY info.planeId,op.groupName ) groupTemp "
+                      " LEFT JOIN STRING_IDS sids ON groupTemp.groupName = sids.id) "
                       " select 'Plane ' || planeId as name, groupName || '_' || planeId as tid, 0 as maxDepth, "
                       " groupName, groupNameValue, planeId from main group by planeId, groupName union ";
     if (!TraceDatabaseHelper::IsDeviceIdUnique(fileId)) {
@@ -2109,12 +2133,18 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
 
     std::unique_ptr<SqliteResultSet> resultSet;
     std::string deviceId = GetDeviceId(params.rankId);
+    bool isDeviceIdUnique = TraceDatabaseHelper::IsDeviceIdUnique(params.rankId);
     if (!params.nameFilter.empty()) {
-        resultSet = stmt->ExecuteQuery(params.searchContent, params.nameFilter, minTimestamp,
-            deviceId, deviceId, params.pageSize, offset);
+        resultSet = isDeviceIdUnique
+            ? stmt->ExecuteQuery(params.searchContent, params.nameFilter, minTimestamp,
+                  deviceId, deviceId, params.pageSize, offset)
+            : stmt->ExecuteQuery(params.searchContent, params.nameFilter, minTimestamp,
+                  deviceId, deviceId, deviceId, params.pageSize, offset);
     } else {
-        resultSet = stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId,
-            params.pageSize, offset);
+        resultSet = isDeviceIdUnique
+            ? stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId, params.pageSize, offset)
+            : stmt->ExecuteQuery(params.searchContent, minTimestamp, deviceId, deviceId, deviceId,
+                  params.pageSize, offset);
     }
 
     if (resultSet == nullptr) {
@@ -2146,9 +2176,14 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
         std::unique_ptr<SqliteResultSet> countResult;
         std::string countDeviceId = GetDeviceId(params.rankId);
         if (!params.nameFilter.empty()) {
-            countResult = countStmt->ExecuteQuery(params.searchContent, params.nameFilter, countDeviceId, countDeviceId);
+            countResult = isDeviceIdUnique
+                ? countStmt->ExecuteQuery(params.searchContent, params.nameFilter, countDeviceId, countDeviceId)
+                : countStmt->ExecuteQuery(
+                      params.searchContent, params.nameFilter, countDeviceId, countDeviceId, countDeviceId);
         } else {
-            countResult = countStmt->ExecuteQuery(params.searchContent, countDeviceId, countDeviceId);
+            countResult = isDeviceIdUnique
+                ? countStmt->ExecuteQuery(params.searchContent, countDeviceId, countDeviceId)
+                : countStmt->ExecuteQuery(params.searchContent, countDeviceId, countDeviceId, countDeviceId);
         }
         if (countResult != nullptr && countResult->Next()) {
             count = countResult->GetUint64("count");
