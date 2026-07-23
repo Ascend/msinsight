@@ -822,7 +822,13 @@ bool DbTraceDataBase::QueryCommunicationKernelInfo(
 bool DbTraceDataBase::QueryKernelDepthAndThread(
     const Protocol::KernelParams &params, Protocol::OneKernelBody &responseBody, uint64_t minTimestamp) {
     // 精度缺失，设置500的浮动区间
+    bool hasIdentityFilter = !params.processId.empty() || !params.threadId.empty() || !params.metaType.empty();
     std::string sql = QUERY_KERNEL_SQL;
+    if (hasIdentityFilter) {
+        sql = "SELECT * FROM (" + QUERY_KERNEL_SQL + ") kernel "
+              "WHERE (? = '' OR CAST(pid AS TEXT) = ?) AND (? = '' OR CAST(tid AS TEXT) = ?) "
+              "AND (? = '' OR metaType = ?)";
+    }
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Fail to prepare sql to query kernel depth and thread.");
@@ -833,6 +839,10 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(
     constexpr uint8_t QUERY_KERNEL_SQL_UNION_TABLE_NUM = 10; // 这个值需要等于 QUERY_KERNEL_SQL 联合的表数
     for (uint8_t i = 0; i < QUERY_KERNEL_SQL_UNION_TABLE_NUM; ++i) {
         stmt->BindParams(params.name, timestamp);
+    }
+    if (hasIdentityFilter) {
+        stmt->BindParams(params.processId, params.processId, params.threadId, params.threadId,
+            params.metaType, params.metaType);
     }
     resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
@@ -845,6 +855,7 @@ bool DbTraceDataBase::QueryKernelDepthAndThread(
         responseBody.pid = resultSet->GetString("pid");
         responseBody.rankId = params.rankId;
         std::string metaType = resultSet->GetString("metaType");
+        responseBody.metaType = metaType;
         bool isPythonStack = metaType == ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("");
         std::string queryThreadId = isPythonStack ? "pytorch" : responseBody.threadId;
         std::string queryMetaType = isPythonStack ? ENUM_TO_STR(PROCESS_TYPE::API).value_or("") : metaType;
@@ -2191,6 +2202,8 @@ bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParam
         searchAllSlice.id = resultSet->GetString("id");
         searchAllSlice.tid = resultSet->GetString("tid");
         searchAllSlice.pid = resultSet->GetString("pid");
+        searchAllSlice.metaType = searchAllSlice.tid.rfind(Protocol::PYTHON_STACK_THREAD_ID_PREFIX, 0) == 0 ?
+            ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("") : "";
         searchAllSlice.depth = resultSet->GetUint64("depth");
         auto deviceId = resultSet->GetString("deviceId");
         searchAllSlice.rankId = params.rankId;
@@ -2459,8 +2472,11 @@ std::string DbTraceDataBase::GetSliceDetailSql(SliceTableType type, uint64_t min
                    "type as tid, globalTid as pid, 'CANN_API' as metaType, depth, '' as deviceId "
                    "FROM CANN_API WHERE ROWID IN (" + idList + ")";
         case SliceTableType::PYTORCH_API:
-            return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
-                   "'pytorch' as tid, globalTid as pid, 'PYTORCH_API' as metaType, depth, '' as deviceId "
+            return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr +
+                   " as startTime, endNs - startNs as duration, "
+                   "CASE WHEN type = 50003 THEN 'python_stack:' || globalTid ELSE 'pytorch' END as tid, "
+                   "globalTid as pid, CASE WHEN type = 50003 THEN 'PYTORCH_API_PYTHON_STACK' "
+                   "ELSE 'PYTORCH_API' END as metaType, depth, '' as deviceId "
                    "FROM PYTORCH_API WHERE ROWID IN (" + idList + ")";
         case SliceTableType::COMMUNICATION_OP:
             return "SELECT ROWID as rowId, opName as nameId, startNs - " + minTimeStr + " as startTime, endNs - startNs as duration, "
@@ -2479,8 +2495,9 @@ std::string DbTraceDataBase::GetSliceDetailSql(SliceTableType type, uint64_t min
     }
 }
 
-void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache, const Protocol::SearchAllSliceParams& params,
-    SqliteResultSet* result, Protocol::SearchAllSlicesBody& body)
+void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache,
+    const Protocol::SearchAllSliceParams& params, SliceTableType tableType,
+    SqliteResultSet* result, SliceDetailMap& sliceDetails)
 {
     while (result->Next()) {
         Protocol::SearchAllSlices slice{};
@@ -2494,7 +2511,8 @@ void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache, const Pr
 
         slice.timestamp = result->GetUint64("startTime");
         slice.duration = result->GetUint64("duration");
-        slice.id = std::to_string(result->GetUint64("rowId"));
+        uint64_t rowId = result->GetUint64("rowId");
+        slice.id = std::to_string(rowId);
         slice.tid = result->GetString("tid");
         slice.pid = result->GetString("pid");
         slice.metaType = result->GetString("metaType");
@@ -2503,7 +2521,7 @@ void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache, const Pr
         auto deviceId = result->GetString("deviceId");
         slice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
 
-        body.searchAllSlices.push_back(slice);
+        sliceDetails[{tableType, rowId}] = std::move(slice);
     }
 }
 
@@ -2521,6 +2539,7 @@ bool DbTraceDataBase::FetchSliceDetails(const LightSliceCache& cache,
     }
 
     // 分别查询各表
+    SliceDetailMap sliceDetails;
     for (const auto& [tableType, rowIds] : groupedRows) {
         std::string idList = BuildIdList(rowIds);
         std::string sql = GetSliceDetailSql(tableType, minTimestamp, idList);
@@ -2532,7 +2551,14 @@ bool DbTraceDataBase::FetchSliceDetails(const LightSliceCache& cache,
         auto result = stmt->ExecuteQuery();
         if (result == nullptr) continue;
 
-        FillSearchAllSlices(cache, params, result.get(), body);
+        FillSearchAllSlices(cache, params, tableType, result.get(), sliceDetails);
+    }
+
+    for (const auto& row : rows) {
+        auto it = sliceDetails.find({row.tableType, row.rowId});
+        if (it != sliceDetails.end()) {
+            body.searchAllSlices.push_back(it->second);
+        }
     }
 
     return true;
