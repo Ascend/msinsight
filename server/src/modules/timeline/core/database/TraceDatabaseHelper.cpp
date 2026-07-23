@@ -1876,10 +1876,13 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, c
     std::string filterSuffix = filterJoin.empty() ? "" : filterJoin;
     if (type == PROCESS_TYPE::API) {
         filterSuffix += filterJoin.empty() ? "" : "api.name";
-        tempSql = " SELECT api.ROWID as id, 'pytorch' as tid, api.globalTid as pid, api.startNs as timestamp, "
-            "api.endNs as endTime, api.depth, '' as deviceId, ids.value as value from " + TABLE_API +
+        std::string tidSql = item.isPythonStack ? "'python_stack:' || api.globalTid" : "'pytorch'";
+        std::string pythonFunctionFilter = item.isPythonStack ? " AND api.type = 50003 " : " AND api.type != 50003 ";
+        tempSql = " SELECT api.ROWID as id, " + tidSql +
+            " as tid, api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
+            "'' as deviceId, ids.value as value from " + TABLE_API +
             "  api join ids on ids.id = api.name" + filterSuffix +
-            " WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? ";
+            " WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? " + pythonFunctionFilter;
     } else if (type == PROCESS_TYPE::CANN_API) {
         filterSuffix += filterJoin.empty() ? "" : "cann.name";
         tempSql = " SELECT cann.connectionId as id, cann.globalTid as pid, cann.type as tid, cann.startNs as "

@@ -138,6 +138,140 @@ TEST_F(DbTraceDatabaseTest, FetchSliceDetailsSetsMetaTypeForCcuCachePath)
     database.CloseDb();
 }
 
+TEST_F(DbTraceDatabaseTest, FetchSliceDetailsPreservesTargetRowOrderAcrossTables)
+{
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE CANN_API(startNs INTEGER, endNs INTEGER, type INTEGER, globalTid INTEGER, "
+        "connectionId INTEGER, name INTEGER, depth INTEGER);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "CREATE TABLE PYTORCH_API(startNs TEXT, endNs TEXT, globalTid INTEGER, connectionId INTEGER, "
+        "name INTEGER, sequenceNumber INTEGER, fwdThreadId INTEGER, inputDtypes TEXT, inputShapes TEXT, "
+        "callchainId INTEGER, type INTEGER, depth INTEGER);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "INSERT INTO CANN_API(startNs, endNs, type, globalTid, connectionId, name, depth) VALUES "
+        "(100, 102, 1, 10, 0, 1, 0), (300, 400, 1, 10, 0, 1, 0);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "INSERT INTO PYTORCH_API(startNs, endNs, globalTid, connectionId, name, type, depth) VALUES "
+        "('200', '210', 20, 0, 1, 50003, 0), ('220', '240', 20, 0, 1, 1, 0);",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    database.SetDbPtr(db);
+
+    LightSliceCache cache;
+    cache.dictMap.emplace(1, "mixed_slice");
+    std::vector<TargetRow> rows = {
+        {SliceTableType::CANN_API, 1},
+        {SliceTableType::PYTORCH_API, 1},
+        {SliceTableType::CANN_API, 2},
+        {SliceTableType::PYTORCH_API, 2}
+    };
+    Dic::Protocol::SearchAllSliceParams params;
+    params.fileId = "0";
+    params.rankId = "0";
+    Dic::Protocol::SearchAllSlicesBody body;
+
+    ASSERT_TRUE(database.FetchSliceDetails(cache, rows, params, body, 0));
+
+    ASSERT_EQ(body.searchAllSlices.size(), 4);
+    EXPECT_EQ(body.searchAllSlices[0].metaType, "CANN_API");
+    EXPECT_EQ(body.searchAllSlices[0].duration, 2);
+    EXPECT_EQ(body.searchAllSlices[1].tid, "python_stack:20");
+    EXPECT_EQ(body.searchAllSlices[1].metaType, "PYTORCH_API_PYTHON_STACK");
+    EXPECT_EQ(body.searchAllSlices[1].duration, 10);
+    EXPECT_EQ(body.searchAllSlices[2].metaType, "CANN_API");
+    EXPECT_EQ(body.searchAllSlices[2].duration, 100);
+    EXPECT_EQ(body.searchAllSlices[3].tid, "pytorch");
+    EXPECT_EQ(body.searchAllSlices[3].metaType, "PYTORCH_API");
+    EXPECT_EQ(body.searchAllSlices[3].duration, 20);
+    database.CloseDb();
+}
+
+TEST_F(DbTraceDatabaseTest, SearchAllSlicesSqlMapsPythonStackIdentity)
+{
+    SearchSliceSqlParams params;
+    params.orderByField = "timestamp";
+    params.order = "ascend";
+
+    std::string sql = DbTraceDataBase::GetSearchAllSlicesDetailsSql(params);
+
+    EXPECT_NE(sql.find("CASE WHEN type = 50003 THEN 'python_stack:' || globalTid ELSE 'pytorch' END as tid"),
+        std::string::npos);
+    EXPECT_NE(sql.find("CASE WHEN type = 50003 THEN 'PYTORCH_API_PYTHON_STACK' ELSE 'PYTORCH_API' END as metaType"),
+        std::string::npos);
+}
+
+TEST_F(DbTraceDatabaseTest, QueryKernelDepthAndThreadUsesStrictPythonStackIdentity)
+{
+    sqlite3 *db = nullptr;
+    ASSERT_EQ(sqlite3_open(":memory:", &db), SQLITE_OK);
+    const std::vector<std::string> createSqlList = {
+        "CREATE TABLE STRING_IDS(id INTEGER PRIMARY KEY, value TEXT);",
+        "CREATE TABLE COMMUNICATION_OP(groupName INTEGER, opName INTEGER, startNs INTEGER);",
+        "CREATE TABLE COMMUNICATION_TASK_INFO(globalTaskId INTEGER, taskType INTEGER, groupName INTEGER, planeId INTEGER);",
+        "CREATE TABLE TASK(globalTaskId INTEGER, streamId INTEGER, depth INTEGER, startNs INTEGER, taskType INTEGER);",
+        "CREATE TABLE COMPUTE_TASK_INFO(globalTaskId INTEGER, name INTEGER);",
+        "CREATE TABLE COMMUNICATION_SCHEDULE_TASK_INFO(globalTaskId INTEGER, name INTEGER);",
+        "CREATE TABLE MEMCPY_INFO(globalTaskId INTEGER, name INTEGER);",
+        "CREATE TABLE MSTX_EVENTS(message INTEGER, globalTid INTEGER, domainId INTEGER, depth INTEGER, startNs INTEGER);",
+        "CREATE TABLE CANN_API(name INTEGER, type INTEGER, globalTid INTEGER, depth INTEGER, startNs INTEGER);",
+        "CREATE TABLE PYTORCH_API(name INTEGER, type INTEGER, globalTid INTEGER, depth INTEGER, startNs TEXT, endNs TEXT);",
+        "CREATE TABLE OSRT_API(name INTEGER, globalTid INTEGER, startNs INTEGER);",
+        "CREATE TABLE CCU(name INTEGER, deviceId INTEGER, startNs INTEGER);"
+    };
+    for (const auto& sql : createSqlList) {
+        ASSERT_EQ(sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr), SQLITE_OK);
+    }
+    ASSERT_EQ(sqlite3_exec(db, "INSERT INTO STRING_IDS(id, value) VALUES (1, 'same_op');", nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(db,
+        "INSERT INTO PYTORCH_API(name, type, globalTid, depth, startNs, endNs) VALUES "
+        "(1, 1, 4294967297, 0, '100', '110'), (1, 50003, 4294967297, 1, '100', '110');",
+        nullptr, nullptr, nullptr), SQLITE_OK);
+
+    std::recursive_mutex testMutex;
+    MockDatabase2 database(testMutex);
+    database.SetDbPtr(db);
+
+    Dic::Protocol::KernelParams params;
+    params.rankId = "0";
+    params.name = "same_op";
+    params.timestamp = 100;
+    params.duration = 10;
+    params.processId = "4294967297";
+    params.threadId = "python_stack:4294967297";
+    params.metaType = "PYTORCH_API_PYTHON_STACK";
+    Dic::Protocol::OneKernelBody body;
+
+    ASSERT_TRUE(database.QueryKernelDepthAndThread(params, body, 0));
+    EXPECT_EQ(body.id, "2");
+    EXPECT_EQ(body.threadId, "python_stack:4294967297");
+    EXPECT_EQ(body.pid, "4294967297");
+    EXPECT_EQ(body.metaType, "PYTORCH_API_PYTHON_STACK");
+
+    params.metaType = "PYTORCH_API";
+    body = {};
+    ASSERT_TRUE(database.QueryKernelDepthAndThread(params, body, 0));
+    EXPECT_TRUE(body.id.empty());
+    EXPECT_TRUE(body.threadId.empty());
+    EXPECT_TRUE(body.pid.empty());
+    EXPECT_TRUE(body.metaType.empty());
+
+    params.processId.clear();
+    params.threadId.clear();
+    params.metaType.clear();
+    body = {};
+    ASSERT_TRUE(database.QueryKernelDepthAndThread(params, body, 0));
+    EXPECT_FALSE(body.id.empty());
+    database.CloseDb();
+}
+
 TEST_F(DbTraceDatabaseTest, QueryEventsViewDataReturnsCcuEvents)
 {
     sqlite3 *db = nullptr;
@@ -2312,7 +2446,24 @@ TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenPython) {
         "with ids as (select id, value from STRING_IDS where value like ?)  SELECT api.ROWID as id, 'pytorch' as tid, "
         "api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, '' as deviceId, ids.value as "
         "value from PYTORCH_API  api join ids on ids.id = api.name WHERE api.globalTid = ? AND api.startNs >= ? AND "
-        "api.endNs <= ?  ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
+        "api.endNs <= ?  AND api.type != 50003  ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
+}
+
+TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenPythonStack) {
+    std::vector<Dic::Module::Timeline::TrackQuery> trackQueryVec;
+    Dic::Module::Timeline::TrackQuery item;
+    Dic::Module::Timeline::SearchAllSliceParams params;
+    item.metaType = PROCESS_TYPE_ES.at(PROCESS_TYPE::API);
+    item.isPythonStack = true;
+    trackQueryVec.emplace_back(item);
+    params.order = "descend";
+    params.isMatchCase = true;
+    params.isMatchExact = true;
+
+    std::string sql = Dic::Module::Timeline::TraceDatabaseHelper::GetLockRangeSql(params, trackQueryVec);
+
+    EXPECT_NE(sql.find("'python_stack:' || api.globalTid as tid"), std::string::npos);
+    EXPECT_NE(sql.find("AND api.type = 50003"), std::string::npos);
 }
 
 TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenCANN) {

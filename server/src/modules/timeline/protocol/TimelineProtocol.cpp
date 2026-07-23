@@ -560,6 +560,9 @@ std::unique_ptr<Request> TimelineProtocol::ToOneKernelRequest(const Dic::json_t 
     JsonUtil::SetByJsonKeyValue(reqPtr->params.name, json["params"], "name");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.timestamp, json["params"], "timestamp");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.duration, json["params"], "duration");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.threadId, json["params"], "threadId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.processId, json["params"], "processId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.metaType, json["params"], "metaType");
     return reqPtr;
 }
 

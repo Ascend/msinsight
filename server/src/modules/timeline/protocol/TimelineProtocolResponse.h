@@ -583,6 +583,7 @@ struct OneKernelBody {
     uint64_t duration = 0;
     std::string threadId;
     std::string pid;
+    std::string metaType;
     std::string step;
     std::string group;
     std::string rankId;
