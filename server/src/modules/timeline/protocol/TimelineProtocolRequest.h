@@ -527,6 +527,9 @@ struct KernelParams {
     std::string name;
     uint64_t timestamp = 0;
     uint64_t duration = 0;
+    std::string threadId;
+    std::string processId;
+    std::string metaType;
     bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (timestamp > UINT64_MAX - minTime) {
             warnMsg = "kernel time is invalid";

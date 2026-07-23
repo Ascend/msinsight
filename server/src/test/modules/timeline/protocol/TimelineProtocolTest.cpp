@@ -314,14 +314,42 @@ TEST_F(ProtocolTest, ToOneKernelRequest) {
     auto &allocator = json.GetAllocator();
     Dic::JsonUtil::AddMember(json, "type", "request", allocator);
     Dic::JsonUtil::AddMember(json, "command", "unit/one/kernelDetail", allocator);
-    timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "threadId", "python_stack:4294967297", allocator);
+    Dic::JsonUtil::AddMember(params, "processId", "4294967297", allocator);
+    Dic::JsonUtil::AddMember(params, "metaType", "PYTORCH_API_PYTHON_STACK", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    auto *kernelRequest = dynamic_cast<Dic::Protocol::KernelRequest *>(request.get());
+    ASSERT_NE(kernelRequest, nullptr);
+    EXPECT_EQ(kernelRequest->id, tempId);
+    EXPECT_EQ(kernelRequest->params.threadId, "python_stack:4294967297");
+    EXPECT_EQ(kernelRequest->params.processId, "4294967297");
+    EXPECT_EQ(kernelRequest->params.metaType, "PYTORCH_API_PYTHON_STACK");
+}
+
+TEST_F(ProtocolTest, ToOneKernelRequestUsesEmptyIdentityByDefault) {
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::document_t json(Dic::kObjectType);
+    auto &allocator = json.GetAllocator();
+    Dic::JsonUtil::AddMember(json, "type", "request", allocator);
+    Dic::JsonUtil::AddMember(json, "command", "unit/one/kernelDetail", allocator);
+    Dic::JsonUtil::AddMember(json, "id", 89, allocator);
+    Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
+    Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(json, "params", params, allocator);
+
+    auto request = timelineProtocol.FromJson(json, error);
+    auto *kernelRequest = dynamic_cast<Dic::Protocol::KernelRequest *>(request.get());
+    ASSERT_NE(kernelRequest, nullptr);
+    EXPECT_TRUE(kernelRequest->params.threadId.empty());
+    EXPECT_TRUE(kernelRequest->params.processId.empty());
+    EXPECT_TRUE(kernelRequest->params.metaType.empty());
 }
 TEST_F(ProtocolTest, ToUnitThreadsOperatorsRequest) {
     const uint64_t tempId = 89;
@@ -452,6 +480,21 @@ TEST_F(ProtocolTest, ResponseToJson) {
         Dic::Protocol::UnitThreadsOperatorsResponse response18;
         timelineProtocol.ToJson(response18, error);
     });
+}
+
+TEST_F(ProtocolTest, OneKernelResponseIncludesMetaType) {
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::Protocol::OneKernelResponse response;
+    response.body.metaType = "PYTORCH_API_PYTHON_STACK";
+
+    auto json = timelineProtocol.ToJson(response, error);
+
+    ASSERT_TRUE(json.has_value());
+    ASSERT_TRUE(json.value().HasMember("body"));
+    ASSERT_TRUE(json.value()["body"].HasMember("metaType"));
+    EXPECT_EQ(std::string(json.value()["body"]["metaType"].GetString()), "PYTORCH_API_PYTHON_STACK");
 }
 
 TEST_F(ProtocolTest, ToSystemViewOverallResponseTest) {

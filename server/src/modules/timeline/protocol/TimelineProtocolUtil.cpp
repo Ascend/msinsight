@@ -673,6 +673,7 @@ template <> std::optional<document_t> ToResponseJson<OneKernelResponse>(const On
     JsonUtil::AddMember(body, "duration", response.body.duration, allocator);
     JsonUtil::AddMember(body, "threadId", response.body.threadId, allocator);
     JsonUtil::AddMember(body, "pid", response.body.pid, allocator);
+    JsonUtil::AddMember(body, "metaType", response.body.metaType, allocator);
     JsonUtil::AddMember(body, "step", response.body.step, allocator);
     JsonUtil::AddMember(body, "group", response.body.group, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
