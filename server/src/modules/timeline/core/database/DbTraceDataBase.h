@@ -386,10 +386,13 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     void LoadTableData(LightSliceCache& cache, const std::unordered_set<int32_t>& matchedIds,
         const SliceCacheTableLoadQuery& query);
 
+    using SliceDetailKey = std::pair<SliceTableType, uint64_t>;
+    using SliceDetailMap = std::map<SliceDetailKey, Protocol::SearchAllSlices>;
+
     static std::string GetSliceDetailSql(SliceTableType type, uint64_t minTimestamp, const std::string& idList);
     static std::string BuildIdList(const std::vector<uint64_t>& ids);
     void FillSearchAllSlices(const LightSliceCache& cache, const Protocol::SearchAllSliceParams& params,
-        SqliteResultSet* result, Protocol::SearchAllSlicesBody& body);
+        SliceTableType tableType, SqliteResultSet* result, SliceDetailMap& sliceDetails);
 };
 }
 // clang-format on

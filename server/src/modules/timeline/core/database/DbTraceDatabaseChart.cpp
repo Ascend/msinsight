@@ -127,8 +127,9 @@ std::string DbTraceDataBase::GetSearchAllSlicesDetailsSql(const SearchSliceSqlPa
           " UNION all select '' as deviceId, name, globalTid as pid, 'HOST' as metaType, type as tid, "
           "startNs - minTime.value AS startTime, endNs - startNs AS duration, depth, CANN_API.ROWID as id from "
           "CANN_API JOIN minTime UNION all " + mstxEventsSql +
-          "UNION all select '' as deviceId, name, globalTid as pid,"
-          "'HOST' as metaType, 'pytorch' as tid, "
+          "UNION all select '' as deviceId, name, globalTid as pid, "
+          "CASE WHEN type = 50003 THEN 'PYTORCH_API_PYTHON_STACK' ELSE 'PYTORCH_API' END as metaType, "
+          "CASE WHEN type = 50003 THEN 'python_stack:' || globalTid ELSE 'pytorch' END as tid, "
           "startNs - minTime.value AS startTime, endNs - startNs AS duration, depth, PYTORCH_API.ROWID as id from "
           "PYTORCH_API JOIN minTime "
           "UNION ALL SELECT '' AS deviceId, name, globalTid AS pid, 'HOST' AS metaType, 'OSRT_API' AS tid, "
