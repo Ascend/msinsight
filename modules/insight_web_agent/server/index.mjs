@@ -26,6 +26,7 @@ import { createAgentConfigService } from "./services/agentConfigService.mjs";
 import { createChatService } from "./services/chatService.mjs";
 import { createContextAssembler } from "./services/contextAssembler.mjs";
 import { createFileReadService, createPermissionHostHandler } from "./services/fileReadService.mjs";
+import { createPageContextService } from "./services/pageContextService.mjs";
 import { createPermissionService } from "./services/permissionService.mjs";
 import { createSessionManager } from "./services/sessionManager.mjs";
 import { createSessionService } from "./services/sessionService.mjs";
@@ -48,8 +49,8 @@ const nativeFilesystemPolicy = () => ({
     includeDocsRoot: config.defaultAllowlist?.includeDocsRoot !== false,
     includeAgentWorkspaceRoot: config.defaultAllowlist?.includeAgentWorkspaceRoot !== false,
     includeProjectRoot: config.defaultAllowlist?.includeProjectRoot !== false,
-    docsRoot: resolve(config.resourceDir, "..", "..", "docs"),
-    skillsRoot: resolve(config.resourceDir, "..", "..", "skills"),
+    docsRoot: join(config.resourceDir, "docs"),
+    skillsRoot: join(config.resourceDir, "skills"),
     projectRoot: config.rootDir,
     extraPaths: config.extraAllowlistPaths,
 });
@@ -62,6 +63,9 @@ const withHostEnv = (agentServer) => ({
         INSIGHT_WEB_AGENT_BASE_URL: insightWebAgentBaseUrl(),
         INSIGHT_WEB_AGENT_RESOURCE_DIR: config.resourceDir,
         INSIGHT_WEB_AGENT_FILESYSTEM_POLICY: JSON.stringify(nativeFilesystemPolicy()),
+        ...(agentServer.name === "msinsight-native"
+            ? { MSINSIGHT_NATIVE_STORE_DIR: join(config.rootDir, ".msinsight_native_agent") }
+            : {}),
     },
 });
 
@@ -92,7 +96,7 @@ const ensureResourceSymlink = async (rootDir, name) => {
     }
     if (entry) {
         if (!entry.isSymbolicLink()) {
-            console.warn(`Resource path exists but is not a symlink: ${linkPath}`);
+            if (!entry.isDirectory()) console.warn(`Resource path exists but is not a directory: ${linkPath}`);
             return;
         }
         try {
@@ -166,6 +170,7 @@ await syncProjectRules(join(config.cwd, config.agentServer.name), config.systemP
 
 const state = createRuntimeState();
 const eventBus = createEventBus(state);
+const pageContextService = createPageContextService({ eventBus });
 const skillService = createSkillService({ rootDir: config.resourceDir });
 let chatService;
 let activeAgentServer = config.agentServer;
@@ -306,7 +311,16 @@ const agentConfigService = createAgentConfigService({
 
 await chatService.initialize();
 
-const server = createApp({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService });
+const server = createApp({
+    agentService,
+    eventBus,
+    chatService,
+    sessionService,
+    state,
+    permissionService,
+    agentConfigService,
+    pageContextService,
+});
 
 server.listen(config.port, config.host, () => {
     console.log(`ACP web extracted API: http://${config.host}:${config.port}/`);

@@ -64,6 +64,9 @@ await build({
     target: "node18",
 });
 await build({
+    banner: {
+        js: 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);',
+    },
     bundle: true,
     entryPoints: [join(rootDir, "server", "native-agent", "index.mjs")],
     external: ["node:*"],
@@ -85,6 +88,7 @@ await cp(
 );
 await cp(join(rootDir, "prompts"), join(outputDir, "prompts"), { recursive: true });
 await cp(join(rootDir, "..", "..", "docs"), join(outputDir, "docs"), { recursive: true });
+await cp(join(rootDir, "..", "..", "skills"), join(outputDir, "skills"), { recursive: true });
 
 console.log(`Server bundle written to ${outputEntry}`);
 console.log(`Native agent bundle written to ${outputNativeAgentEntry}`);
@@ -92,3 +96,4 @@ console.log(`Agent config copied to ${outputAgentConfig}`);
 console.log(`Session config copied to ${outputSessionConfig}`);
 console.log(`Prompts copied to ${join(outputDir, "prompts")}`);
 console.log(`Docs copied to ${join(outputDir, "docs")}`);
+console.log(`Skills copied to ${join(outputDir, "skills")}`);
