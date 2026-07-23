@@ -27,6 +27,7 @@ export const createBladeRuntime = ({ env = process.env, cwd = process.cwd(), bla
     const modelRequestContext = new AsyncLocalStorage();
     const configuredSessions = new WeakSet();
     let sdkPromise;
+    let sdkLoadError;
     installFetchObservation({ modelRequestContext, nativeFetch: globalThis.fetch });
 
     /** 功能：准备 Blade 会话和模型上下文，收集完整响应，并把限流或运行错误转换为 ACP 可处理结果。 */
@@ -36,7 +37,10 @@ export const createBladeRuntime = ({ env = process.env, cwd = process.cwd(), bla
         if (!provider) return { ok: false, reason: "Blade runtime is not configured. Set MSINSIGHT_NATIVE_PROVIDER, MSINSIGHT_NATIVE_API_KEY, model, and base URL when required." };
 
         const sdk = await loadSdk();
-        if (!sdk?.createSession) return { ok: false, reason: "@blade-ai/agent-sdk is not available; using fallback runtime." };
+        if (!sdk?.createSession) {
+            const details = sdkLoadError ? `: ${sdkLoadError.message}` : "";
+            return { ok: false, reason: `Failed to load @blade-ai/agent-sdk${details}` };
+        }
 
         let bladeSession;
         try {
@@ -130,8 +134,12 @@ export const createBladeRuntime = ({ env = process.env, cwd = process.cwd(), bla
         return sdkPromise;
     };
 
-    /** 功能：把 Blade SDK 动态导入失败转换为 null，由上层选择诊断降级。 */
-    const handleBladeSdkLoadFailure = () => null;
+    /** 功能：保留 Blade SDK 动态导入异常并输出完整堆栈，供打包环境定位真实加载失败原因。 */
+    const handleBladeSdkLoadFailure = (error) => {
+        sdkLoadError = error instanceof Error ? error : new Error(String(error));
+        console.error(`Failed to load @blade-ai/agent-sdk: ${sdkLoadError.stack ?? sdkLoadError.message}`);
+        return null;
+    };
 
     /** 功能：复用、恢复或创建可用的 Blade 会话，并同步系统提示词与持久化标识。 */
     const getRuntimeSession = async ({ sdk, session }) => {
