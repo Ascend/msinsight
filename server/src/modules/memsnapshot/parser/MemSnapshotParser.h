@@ -37,12 +37,14 @@ enum class ParserState {
 struct MemSnapshotParserContext {
   public:
     MemSnapshotParserContext() = default;
-    void Reset(std::string nPicklePath = "", std::string nLogPath = "", std::string nOutputPath = "");
+    void Reset(std::string nPicklePath = "", std::string nLogPath = "", std::string nOutputPath = "",
+        std::string nFileHash = "");
     bool IsFinished() const;
     bool IsReadyToParse() const;
     std::string GetPicklePath() const;
     std::string GetLogPath() const;
     std::string GetOutputDbPath() const;
+    std::string GetFileHash() const;
     ParserState GetState() const;
     void SetState(const ParserState &newState);
     uint8_t GetProgress() const;
@@ -54,6 +56,7 @@ struct MemSnapshotParserContext {
     std::string picklePath{};
     std::string logPath{};
     std::string outputDbPath{};
+    std::string fileHash{};
     ParserState state{ParserState::INIT};
     std::string workDir{};
     uint8_t progress{0}; // 百分制进度
@@ -70,6 +73,7 @@ class MemSnapshotParser {
     // 异步解析Pickle文件API
     void AsyncParseMemSnapshotPickle(const std::string &pickleFilePath);
     MemSnapshotParserContext &GetParseContext();
+    static std::string CalculateFileHash(const std::string &filePath);
     // 用于检查是否需要解析或重新解析pickle文件
     static bool CheckIfParsingNeed(const MemSnapshotParserContext &context);
 

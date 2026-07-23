@@ -19,6 +19,7 @@
 #include "FileUtil.h"
 #include "PythonUtil.h"
 #include "DataBaseManager.h"
+#include "HashUtil.h"
 #include "MemSnapshotParser.h"
 #include "WsSender.h"
 
@@ -31,11 +32,16 @@
 
 namespace Dic::Module {
 using namespace Dic::Module::Timeline;
-void MemSnapshotParserContext::Reset(std::string nPicklePath, std::string nLogPath, std::string nOutputPath) {
+constexpr std::string_view MEM_SNAPSHOT_PARSER_HASH_SALT = "mem_snapshot_parser_v1";
+const std::string SNAPSHOT_CACHE_HASH_KEY = "SNAPSHOT_CACHE_HASH";
+
+void MemSnapshotParserContext::Reset(
+    std::string nPicklePath, std::string nLogPath, std::string nOutputPath, std::string nFileHash) {
     std::unique_lock<std::shared_mutex> lock(_mutex);
     picklePath = std::move(nPicklePath);
     logPath = std::move(nLogPath);
     outputDbPath = std::move(nOutputPath);
+    fileHash = std::move(nFileHash);
     state = ParserState::INIT;
     progress = 0;
     workDir = FileUtil::GetCurrPath();
@@ -57,6 +63,8 @@ std::string MemSnapshotParserContext::GetPicklePath() const { return picklePath;
 std::string MemSnapshotParserContext::GetLogPath() const { return logPath; }
 
 std::string MemSnapshotParserContext::GetOutputDbPath() const { return outputDbPath; }
+
+std::string MemSnapshotParserContext::GetFileHash() const { return fileHash; }
 
 ParserState MemSnapshotParserContext::GetState() const {
     std::shared_lock<std::shared_mutex> lock(_mutex);
@@ -114,6 +122,14 @@ void MemSnapshotParser::Reset() {
     MemSnapshotDatabase::Reset();
 }
 
+std::string MemSnapshotParser::CalculateFileHash(const std::string &filePath) {
+    const std::string hash = HashUtil::CalculateFileSha256(filePath, MEM_SNAPSHOT_PARSER_HASH_SALT);
+    if (hash.empty()) {
+        Server::ServerLog::Error("[Snapshot] Failed to open pickle file for hashing: %.", filePath);
+    }
+    return hash;
+}
+
 void MemSnapshotParser::AsyncParseMemSnapshotPickle(const std::string &pickleFilePath) {
     const std::string filename = FileUtil::GetFileName(pickleFilePath);
     const auto timeT = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
@@ -122,7 +138,7 @@ void MemSnapshotParser::AsyncParseMemSnapshotPickle(const std::string &pickleFil
     const std::string outputDbPath = StringUtil::StrJoin(pickleFilePath, ".db");
     const std::string logName = StringUtil::FormatString("{}_{}.log", FileUtil::StemFile(filename), timeStr.str());
     const std::string logPath = FileUtil::SplicePath(FileUtil::GetParentPath(pickleFilePath), logName);
-    parseContext.Reset(pickleFilePath, logPath, outputDbPath);
+    parseContext.Reset(pickleFilePath, logPath, outputDbPath, CalculateFileHash(pickleFilePath));
     auto traceId = TraceIdManager::GenerateTraceId();
     Server::ServerLog::Info("[Snapshot] Parsing pickle file: %, log file: %, output db file: %.",
         parseContext.GetPicklePath(), parseContext.GetLogPath(), parseContext.GetOutputDbPath());
@@ -156,9 +172,13 @@ bool MemSnapshotParser::CheckIfParsingNeed(const MemSnapshotParserContext &conte
         MemSnapshotDatabase::Reset();
         return true;
     }
-    if (snapshotDb->IsDatabaseVersionChange()) {
-        Server::ServerLog::Info("[Snapshot] Database version changed. The pickle file need to re-parse.");
-        // 同上述，必须关闭数据库连接并清空db缓存
+    const std::string snapshotCacheHash = context.GetFileHash();
+    const std::string cachedSnapshotHash = snapshotDb->CheckTableExist("META_DATA")
+        ? snapshotDb->QueryValueFromMetaDataByName(SNAPSHOT_CACHE_HASH_KEY)
+        : "";
+    if (snapshotCacheHash.empty() || cachedSnapshotHash.empty() || snapshotCacheHash != cachedSnapshotHash) {
+        Server::ServerLog::Info(
+            "[Snapshot] Snapshot cache hash changed or is unavailable. The file needs to re-parse.");
         MemSnapshotDatabase::Reset();
         return true;
     }
@@ -345,8 +365,9 @@ bool MemSnapshotParser::TryOpenParsingResultDbAndSetVersion() const {
         Server::ServerLog::Warn("[Snapshot] Double Check failed to open database file: %.", dbPath);
         return false;
     }
-    // 缺省目标版本将设置为当前profiler_server编译时间
-    return snapshotDb->SetDataBaseVersion();
+    // Snapshot cache validity is controlled by the salted content hash, not the build version.
+    return snapshotDb->SetDataBaseVersion() && snapshotDb->CreateMetaDataTableForText() &&
+        snapshotDb->UpdateMetaDataTable(SNAPSHOT_CACHE_HASH_KEY, parseContext.GetFileHash());
 }
 
 std::unique_ptr<MemScopeParseSuccessEvent> MemSnapshotParser::BuildParseSuccessEventFromContext() const {
@@ -366,6 +387,7 @@ std::unique_ptr<MemScopeParseSuccessEvent> MemSnapshotParser::BuildParseSuccessE
     event->result = true;
     Protocol::MemScopeParseSuccessEventBody body;
     body.fileId = parseContext.GetPicklePath();
+    body.fileHash = parseContext.GetFileHash();
     auto const devices = snapshotDb->GetDeviceIds();
     Server::ServerLog::Info("[Snapshot] Reconized devices: %", StringUtil::join(devices, ", "));
     for (const auto &deviceId : devices) {

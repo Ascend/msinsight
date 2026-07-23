@@ -137,3 +137,30 @@ TEST_F(MemSnapshotParserTest, CheckIfParsingNeed) {
     // 清理测试文件
     FileUtil::RemoveFile(testOutputDbPath);
 }
+
+TEST_F(MemSnapshotParserTest, CalculateFileHashTracksFileContent) {
+    {
+        std::ofstream pickleFile(testPicklePath, std::ios::binary | std::ios::trunc);
+        pickleFile << "snapshot-content";
+    }
+    const std::string firstHash = parser->CalculateFileHash(testPicklePath);
+    const std::string secondHash = parser->CalculateFileHash(testPicklePath);
+    EXPECT_FALSE(firstHash.empty());
+    EXPECT_EQ(firstHash, secondHash);
+
+    {
+        std::ofstream pickleFile(testPicklePath, std::ios::binary | std::ios::app);
+        pickleFile << "-changed";
+    }
+    EXPECT_NE(firstHash, parser->CalculateFileHash(testPicklePath));
+}
+
+TEST_F(MemSnapshotParserTest, CalculateFileHashIncludesParserSalt) {
+    {
+        std::ofstream pickleFile(testPicklePath, std::ios::binary | std::ios::trunc);
+        pickleFile << "snapshot-content";
+    }
+    // This value changes when MEM_SNAPSHOT_PARSER_HASH_SALT changes.
+    EXPECT_EQ(
+        "811046db6def4f1c5e2ede99b96c23b47221722af51c0484d2251c38bc8f3718", parser->CalculateFileHash(testPicklePath));
+}

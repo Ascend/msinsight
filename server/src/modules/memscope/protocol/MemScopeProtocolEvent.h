@@ -28,6 +28,7 @@ struct MemScopeParseSuccessEventBody {
     std::unordered_map<std::string, std::vector<std::string>> deviceIds;
     std::vector<uint64_t> threadIds;
     std::string module;
+    std::string fileHash;
 };
 
 struct MemScopeParseSuccessEvent : public JsonEvent {
@@ -65,6 +66,7 @@ struct MemScopeParseSuccessEvent : public JsonEvent {
         JsonUtil::AddMember(jsonBody, "threadIds", threadIds, allocator);
         JsonUtil::AddMember(jsonBody, "dbPath", body.fileId, allocator);
         JsonUtil::AddMember(jsonBody, "module", body.module, allocator);
+        JsonUtil::AddMember(jsonBody, "fileHash", body.fileHash, allocator);
         JsonUtil::AddMember(json, "body", jsonBody, allocator);
         JsonUtil::AddMember(json, "errMsg", errMsg, allocator);
         return std::optional<document_t>{std::move(json)};

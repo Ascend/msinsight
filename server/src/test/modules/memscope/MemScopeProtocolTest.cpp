@@ -20,12 +20,23 @@
 #include "MemScopeEntities.h"
 #include "MemScopeProtocolRequest.h"
 #include "MemScopeProtocolResponse.h"
+#include "MemScopeProtocolEvent.h"
 
 class MemScopeProtocolTest : public ::testing::Test {
   public:
     static void SetUpTestSuite() {}
     static void TearDownTestSuite() {}
 };
+
+TEST_F(MemScopeProtocolTest, ParseSuccessEventContainsFileHash) {
+    Dic::Protocol::MemScopeParseSuccessEvent event;
+    event.body.fileHash = "0123456789abcdef";
+    const auto json = event.ToJson();
+    ASSERT_TRUE(json.has_value());
+    ASSERT_TRUE(json->HasMember("body"));
+    ASSERT_TRUE((*json)["body"].HasMember("fileHash"));
+    EXPECT_STREQ((*json)["body"]["fileHash"].GetString(), "0123456789abcdef");
+}
 
 TEST_F(MemScopeProtocolTest, BuildEventTableRequestFromJson) {
     std::string jsonStr =
