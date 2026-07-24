@@ -29,14 +29,13 @@ import { hashToNumber } from '../../../utils/colorUtils';
 import { ChartDesc, UnitHeight } from '../../../entity/insight';
 import type { InsightUnit } from '../../../entity/insight';
 import type { ThreadMetaData } from '../../../entity/data';
-import { colorPalette } from '../../../insight/units/utils';
+import { buildCardIdIndex, type CardIdIndex, colorPalette } from '../../../insight/units/utils';
 import { handlerEmptyString } from '../../../utils/string';
 import { forEach, isNil } from 'lodash';
 import { calculateLinkLines, LinkLineData, checkIsValidArrow } from './calculateLinkLines';
 import { ThemeName } from '@insight/lib/theme';
 import { getClassNameByMetadata } from '../../ChartContainer/Units/Units';
 import type { ChartType } from '../../../entity/chart';
-import { toJS } from 'mobx';
 
 const UP_LINE: number = 30;
 const DOWN_LINE: number = 45;
@@ -69,6 +68,7 @@ interface DrawLinesByLayerParams {
     session: Session;
     category: string;
     units: InsightUnit[];
+    cardIdIndex: CardIdIndex;
 }
 
 function drawArrowPath(ctx: CanvasRenderingContext2D, option: Omit<DrawArrowOption, 'color'>): void {
@@ -648,7 +648,17 @@ export const draw = (props: DrawCanvasArgs): void => {
     updateDrawLines(ctx, session, theme);
 };
 
+export const hasLinkLinesToDraw = (session: Session): boolean => {
+    if (session.drawLineMode === 'single') {
+        return Object.values(session.singleLinkLine).some(list => (list?.length ?? 0) > 0);
+    }
+    return session.drawLineMode === 'all' && (session.linkLineCategories.length > 0 || session.ridLineType !== '');
+};
+
 const updateDrawLines = (ctx: CanvasRenderingContext2D, session: Session, theme: Theme): void => {
+    if (!hasLinkLinesToDraw(session)) {
+        return;
+    }
     heightMap.clear();
     threadIsCol.clear();
     processIsCol.clear();
@@ -761,8 +771,8 @@ export function checkLineIsVisible(data: Record<string, unknown>, checkedCategor
  * @param session
  * @param category
  */
-function drawLinkLinesByLayer({ ctx, rawList, theme, session, category, units }: DrawLinesByLayerParams): void {
-    const linkLineMap = calculateLinkLines(rawList, session, ctx, category, units);
+function drawLinkLinesByLayer({ ctx, rawList, theme, session, category, units, cardIdIndex }: DrawLinesByLayerParams): void {
+    const linkLineMap = calculateLinkLines(rawList, session, ctx, category, units, cardIdIndex);
     const sortedKeys = Object.keys(linkLineMap).sort((a, b) => Number(a) - Number(b));
     const strokeStyle = theme.colorPalette[colorPalette[hashToNumber(category, colorPalette.length)]];
     forEach(sortedKeys, (key) => batchDrawLinkLines(ctx, linkLineMap[key], strokeStyle, theme.selectedChartColor));
@@ -821,17 +831,18 @@ const drawLinkLines = (ctx: CanvasRenderingContext2D, session: Session, theme: T
     const clipTop = pinnedAreaHeight + UNDRAW_HEIGHT;
     ctx.rect(-1, clipTop, ctx.canvas.width + 1, ctx.canvas.height + 1);
     ctx.clip();
-    const units = toJS(session.units);
+    const units = session.units;
+    const cardIdIndex = buildCardIdIndex(units);
     if ((session.linkLineCategories.length > 0 || session.ridLineType !== '') && session.drawLineMode === 'all') {
         const checkedCategories = [...session.linkLineCategories, session.ridLineType];
         for (const checkedCategory of checkedCategories) {
             const rawList = session.linkLines[checkedCategory] ?? [];
-            drawLinkLinesByLayer({ ctx, rawList, theme, session, category: checkedCategory, units });
+            drawLinkLinesByLayer({ ctx, rawList, theme, session, category: checkedCategory, units, cardIdIndex });
         }
     }
     if (session.drawLineMode === 'single') {
         forEach(session.singleLinkLine, (list: any, category: string): void => {
-            drawLinkLinesByLayer({ ctx, rawList: list, theme, session, category, units });
+            drawLinkLinesByLayer({ ctx, rawList: list, theme, session, category, units, cardIdIndex });
         });
     }
     ctx.restore();
