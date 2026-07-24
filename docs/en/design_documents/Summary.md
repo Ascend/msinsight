@@ -4,7 +4,7 @@
 
 ### Data source of the cluster
 
-[Collection Mode](https://www.hiascend.com/document/detail/en/mindstudio/830/TITools/Profiling/atlasprofiling_16_0033.html)    
+[Collection Mode](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.0.0/docs/en/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md)    
 
 Only PyTorch training data is considered. Text format: └── localhost.localdomain_139247_20230628101435_ascend_pt   ├── profiler_info.json   ├── profiler_metadata.json   ├── ASCEND_PROFILER_OUTPUT   │  ├── communication.json // provides visualized data basis for performance analysis in scenarios where multiple cards or clusters communicate with each other. Configure profiler_level=torch_npu.profiler.ProfilerLevel.Level1 or profiler_level=torch_npu.profiler.ProfilerLevel.Level2 of experimental_config to generate basic information files about small │  ├── communication_matrix.json // communication operators. Configure profiler_level=torch_npu.profiler.ProfilerLevel.Level1 or profiler_level=torch_npu.profiler.ProfilerLevel.Level2 of experimental_config to generate basic information files about small operators.
 
