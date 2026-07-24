@@ -34,8 +34,29 @@ export const colorPalette: Array<keyof Theme['colorPalette']> = [
     'amethystPurple',
     'limeGreen',
 ];
-export function getTimeOffset(session: Session, metaData: { cardId?: string; processId?: string }, units: InsightUnit[] = [], timestampOffset?: Record<string, number>): number {
-    const timeOffsetKey = getTimeOffsetKey(session, metaData, units);
+export type CardIdIndex = Map<string, string>;
+
+export function buildCardIdIndex(units: InsightUnit[]): CardIdIndex {
+    const cardIdIndex: CardIdIndex = new Map();
+    const visit = (unit: InsightUnit, rootCardId: string): void => {
+        const cardId = (unit.metadata as CardMetaData)?.cardId;
+        if (cardId !== undefined && !cardIdIndex.has(cardId)) {
+            cardIdIndex.set(cardId, rootCardId);
+        }
+        unit.children?.forEach(child => visit(child, rootCardId));
+    };
+    units.forEach(unit => {
+        const rootCardId = (unit.metadata as CardMetaData)?.cardId;
+        if (rootCardId !== undefined) {
+            visit(unit, rootCardId);
+        }
+    });
+    return cardIdIndex;
+}
+
+export function getTimeOffset(session: Session, metaData: { cardId?: string; processId?: string }, units: InsightUnit[] = [],
+    timestampOffset?: Record<string, number>, cardIdIndex?: CardIdIndex): number {
+    const timeOffsetKey = getTimeOffsetKey(session, metaData, units, cardIdIndex);
     timestampOffset = timestampOffset ?? session?.unitsConfig.offsetConfig.timestampOffset;
     // 查询泳道chart参数加上时间偏移
     return metaData.cardId !== undefined
@@ -43,12 +64,13 @@ export function getTimeOffset(session: Session, metaData: { cardId?: string; pro
         : 0;
 }
 
-export function getTimeOffsetKey(session: Session, metaData: { cardId?: string; processId?: string }, units: InsightUnit[] = []): string {
+export function getTimeOffsetKey(session: Session, metaData: { cardId?: string; processId?: string }, units: InsightUnit[] = [],
+    cardIdIndex?: CardIdIndex): string {
     if (units.length === 0) {
         units = session.units;
     }
-    const unit = units.find(value => containCardId(value, metaData.cardId ?? ''));
-    const realCardId = unit ? (unit.metadata as CardMetaData).cardId : 'Host';
+    const unit = cardIdIndex === undefined ? units.find(value => containCardId(value, metaData.cardId ?? '')) : undefined;
+    const realCardId = cardIdIndex?.get(metaData.cardId ?? '') ?? (unit ? (unit.metadata as CardMetaData).cardId : 'Host');
     let realProcessId = metaData.processId;
     // db数据的Host侧有2层process类型的泳道，第二层的processId的前32位是第一层的ProcessId，后32位是本泳道的threadId
     if (realProcessId !== undefined && !isNaN(Number(realProcessId))) {
