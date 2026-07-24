@@ -106,7 +106,7 @@ In the single-rank scenario, profile data can be classified into the following t
     |msprof_*.db|Indicates a unified .db file. Currently, the data volume of this format is different from that of the data parsed by the TEXT format.|Timeline<br>Memory<br>Operator<br>Summary<br>Communication|
     |Note: The asterisk (*) indicates the timestamp.|-|-|
 
-- npumonitor data: The profile data collected by npumonitor can be imported. For details about the collection mode, see [npumonitor Feature](https://gitcode.com/Ascend/msmonitor/blob/master/docs/en/npumonitor_instruct.md). For details about the profile data file, see [Table 5 Profile data file details](#profile-data-file-details).
+- npumonitor data: The profile data collected by npumonitor can be imported. For details about the collection mode, see [npumonitor Feature](https://gitcode.com/Ascend/msmonitor/blob/26.0.0/docs/en/npumonitor_instruct.md). For details about the profile data file, see [Table 5 Profile data file details](#profile-data-file-details).
 
     **Table 5** Profile data file details <a id="profile-data-file-details"></a>
 
@@ -1079,7 +1079,7 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
 
   > [!NOTE]
   >
-  > The memory copy data can be collected only when the `profiler_level` parameter is set to `Level2`. For details, see [Ascend PyToch profiling data collection](https://www.hiascend.com/document/detail/en/mindstudio/830/TITools/Profiling/atlasprofiling_16_0033.html).
+  > The memory copy data can be collected only when the `profiler_level` parameter is set to `Level2`. For details, see [Ascend PyToch profiling data collection](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.0.0/docs/en/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md).
 
   The **Memcpy Overall** tab page displays details about the memory copy operator, as shown in [**Figure 6** Memcpy Overview](#memcpy-overview). For details about the fields, see [**Table 5** Memcpy Overview fields](#memcpy-overview-fields). When you select a category, you can click any memory copy operator in the **More** area to go to the specific location of the operator in the timeline view.
 
@@ -1500,7 +1500,7 @@ This page is displayed when **Group By** is set to **Computing Operator**. You c
 |Output Formats|Output format of the operator.|
 
 > [!NOTE]NOTE  
-> If the performance file imported by MindStudio Insight contains the collected register values, parameters such as **aicore_time** and **aic_total_cycles** are displayed in the computing operator details. For details about the parameters, see "Profile Data File Reference" \> "[op_summary (Operator Details)](https://www.hiascend.com/document/detail/en/mindstudio/830/T&ITools/Profiling/atlasprofiling_16_0151.html)" in the Profiling Tool Guide.
+> If the performance file imported by MindStudio Insight contains the collected register values, parameters such as **aicore_time** and **aic_total_cycles** are displayed in the computing operator details. For details about the parameters, see [op_summary (Operator Details)](https://gitcode.com/Ascend/msprof/blob/26.0.0/docs/en/user_guide/profile_data_file_references.md#op_summary-operator-details).
 
 **Computing Operator Type**
 
@@ -2098,7 +2098,7 @@ The **RL** tab page displays the pipeline of each phase in the RL process, enabl
 
 **Precautions**
 
-- The **Task Trace Timeline** area is displayed only when control flow data collected using mstx is imported. For details about how to collect data using mstx, see "Sampling and Parsing msprof\_tx" in section "[Ascend PyTorch Profiling Tool](https://www.hiascend.com/document/detail/en/mindstudio/830/TITools/Profiling/atlasprofiling_16_0033.html)" in the *Profiling Tool Guide*.
+- The **Task Trace Timeline** area is displayed only when control flow data collected using mstx is imported. For details about how to collect data using mstx, see [Ascend PyTorch Profiling Tool](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.0.0/docs/en/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md).
 - When importing profile data of Volcano Engine Reinforcement Learning for LLMs (VerL) and MindSpeed, keep their files in different folders. Do not mix them together during import.
 
 ### GUI Description
