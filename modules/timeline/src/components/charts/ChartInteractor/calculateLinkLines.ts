@@ -17,7 +17,7 @@
  */
 import { observable, observe } from 'mobx';
 import * as d3 from 'd3';
-import { getTimeOffset } from '../../../insight/units/utils';
+import { type CardIdIndex, getTimeOffset } from '../../../insight/units/utils';
 import { Session } from '../../../entity/session';
 import { checkLineIsVisible, getHeight, processIsCol, UNDRAW_HEIGHT } from './draw';
 import { DataBlock, FlowEvent } from '../../FilterLinkLine';
@@ -38,13 +38,15 @@ function generateCalculateWHWithCache(): {
     const disposer = observe(WIDTH_DEPENDENCIES, () => {
         WIDTH_CACHE.clear(); // 根据宽度变化更新宽度缓存
     });
-    function getWidthWithCache(paramsOfCache: { timestamp: number; cardId: string; pid: string; getTimeOffset?: Record<string, number>},
-        li: d3.ScaleLinear<number, number>, session: Session, units: InsightUnit[]): number {
+    function getWidthWithCache(paramsOfCache: { timestamp: number; cardId: string; pid: string },
+        li: d3.ScaleLinear<number, number>, session: Session, units: InsightUnit[], timestampOffset?: Record<string, number>,
+        cardIdIndex?: CardIdIndex): number {
         const key = `${paramsOfCache.timestamp}-${paramsOfCache.cardId}-${paramsOfCache.pid}`;
         if (WIDTH_CACHE.has(key)) {
             return WIDTH_CACHE.get(key) ?? 0;
         }
-        const width = li(paramsOfCache.timestamp - getTimeOffset(session, { cardId: paramsOfCache.cardId, processId: paramsOfCache.pid }, units, paramsOfCache?.getTimeOffset));
+        const width = li(paramsOfCache.timestamp - getTimeOffset(session, { cardId: paramsOfCache.cardId, processId: paramsOfCache.pid },
+            units, timestampOffset, cardIdIndex));
         WIDTH_CACHE.set(key, width);
         return width;
     }
@@ -130,7 +132,8 @@ export function checkIsValidArrow(lineOption: LineOption): boolean {
  * @param category
  * @param units
  */
-export function calculateLinkLines(rawList: Array<Record<string, unknown>>, session: Session, ctx: CanvasRenderingContext2D, category: string, units: InsightUnit[] = []): { [key: string]: LinkLineData[] } {
+export function calculateLinkLines(rawList: Array<Record<string, unknown>>, session: Session, ctx: CanvasRenderingContext2D, category: string,
+    units: InsightUnit[] = [], cardIdIndex?: CardIdIndex): { [key: string]: LinkLineData[] } {
     const canvasWidth = ctx.canvas.clientWidth;
     const canvasHeight = ctx.canvas.clientHeight;
     const domainStart = session.domainRange.domainStart;
@@ -145,10 +148,10 @@ export function calculateLinkLines(rawList: Array<Record<string, unknown>>, sess
         const { category: cat, from, to, cardId } = data as unknown as FlowEvent;
         const [targetCardId, sourceCardId] = [handlerEmptyString(to.rankId ?? '', cardId), handlerEmptyString(from.rankId ?? '', cardId)];
 
-        const [targetX, targetY] = [getWidthWithCache({ timestamp: to.timestamp, cardId: targetCardId, pid: to.pid }, li, session, units, timestampOffset),
-            getHeightWithCache(to, targetCardId, cat, session)];
-        const [sourceX, sourceY] = [getWidthWithCache({ timestamp: from.timestamp, cardId: sourceCardId, pid: from.pid }, li, session, units, timestampOffset),
-            getHeightWithCache(from, sourceCardId, cat, session)];
+        const [targetX, targetY] = [getWidthWithCache({ timestamp: to.timestamp, cardId: targetCardId, pid: to.pid }, li, session,
+            units, timestampOffset, cardIdIndex), getHeightWithCache(to, targetCardId, cat, session)];
+        const [sourceX, sourceY] = [getWidthWithCache({ timestamp: from.timestamp, cardId: sourceCardId, pid: from.pid }, li, session,
+            units, timestampOffset, cardIdIndex), getHeightWithCache(from, sourceCardId, cat, session)];
         const targetPos: Array<[x: number, y: number]> = [[targetX, targetY]];
         const offset = ((targetX - sourceX) / 2);
         const isAllCol = (processIsCol.get(`${targetCardId}-${to.pid}`) ?? false) &&
