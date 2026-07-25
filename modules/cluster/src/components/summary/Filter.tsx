@@ -155,6 +155,7 @@ export const Filter = observer(({ session, conditions, isPipeline, onFilterChang
                         id="select-top"
                         value={conditions.top}
                         style={{ width: 120 }}
+                        disabled={session.arrangementRankCount <= 1}
                         onChange={(val: string): void => handleChange('top', val)}
                         options={topOptions}
                     />
