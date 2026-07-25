@@ -191,6 +191,11 @@
           "ElapseTimeOnFastestRank": "Elapsed time of this operator on the fastest rank"
         }
       }
+    },
+    "alignment": {
+      "tipTitle": "Tail alignment is available for this communication operator",
+      "tipDescription": "The operator has been highlighted in the chart. Right-click the highlighted bar and choose tail alignment.",
+      "dismiss": "Got it"
     }
   }
 }
