@@ -178,19 +178,24 @@
       "Elapse Time on Fastest Rank(ms)": "在最快卡中的耗时(ms)",
       "Find in Communication": "在图中高亮",
       "RankTable": {
-        "tooltip":{
+        "tooltip": {
           "ElapseTimeDifference": "当前卡与最快卡通信算子总耗时的差值（= 最快卡耗时 - 当前卡耗时），可一定程度反映可减少的通信时间",
           "ElapseTime": "卡内的通信算子总耗时",
           "FastestRankElapseTime": "最快卡内的通信算子总耗时"
         }
       },
       "ExpandedTable": {
-        "tooltip":{
+        "tooltip": {
           "ElapseTimeDifference": "该算子在当前卡与最快卡上的耗时差值（= 该算子在最快卡耗时 - 该算子在当前卡耗时），可一定程度反映可减少的通信时间（假设通信均衡）",
           "ElapseTimeOnCurrentRank": "该算子在当前卡内的耗时",
           "ElapseTimeOnFastestRank": "该算子在最快卡内的耗时"
         }
       }
+    },
+    "alignment": {
+      "tipTitle": "可按该通信算子尾部对齐",
+      "tipDescription": "已在图中高亮该通信算子。你可以在当前高亮条形图上右键，选择按该算子尾部对齐。",
+      "dismiss": "知道了"
     }
   }
 }

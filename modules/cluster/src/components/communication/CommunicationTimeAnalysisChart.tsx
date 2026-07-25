@@ -25,7 +25,7 @@ import { observer } from 'mobx-react-lite';
 import { getBaselineName, getCompareName, Loading } from '../Common';
 import { colorPalette, hashToNumber } from '../../utils/colorUtil';
 import { Dropdown } from '@insight/lib/components';
-import { type MenuProps, Spin } from 'antd';
+import { type MenuProps, Button, notification, Spin } from 'antd';
 import connector from '../../connection';
 import i18n from '@insight/lib/i18n';
 import { themeInstance } from '@insight/lib/theme';
@@ -34,6 +34,7 @@ import { disposeAdaptiveEchart, getAdaptiveEchart, getDefaultChartOptions, safeS
 import { ChartZoomData, ClickOperatorItem, CompareData, FormatterParams } from '../../utils/interface';
 import { queryTimelineUnitKernelDetail } from '../../utils/RequestUtils';
 import { useEventBus } from '../../utils/eventBus';
+import { shouldShowTailAlignTip } from './tailAlign';
 import type { ECharts, InsideDataZoomComponentOption } from 'echarts';
 
 // 定义点击慢操作排名时的回调参数接口
@@ -188,9 +189,10 @@ function getRenderItem(isCompare: boolean): any {
                 style: api.style(),
                 emphasis: {
                     style: {
-                        stroke: '#999999',
-                        lineWidth: 1,
-                        opacity: 0.6,
+                        stroke: '#ffd666',
+                        lineWidth: 4,
+                        shadowBlur: 12,
+                        shadowColor: 'rgba(255, 214, 102, 0.9)',
                     },
                 },
             }
@@ -550,6 +552,7 @@ const useMenuItems = (session: Session, setDropDownVisible: (_: boolean) => void
         key: 'restoreDefaultState',
         disabled: false,
         onClick: (): void => {
+            setDropDownVisible(false);
             session.communicationChartZoomData = getZoomData(chartInstance);
             session.targetOperator = undefined;
         },
@@ -701,13 +704,13 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
     useEventBus('onClickSlowRankOp', (res): void => {
         // 解构慢算子事件参数
         const { startValue, endValue, name, rankId } = res as OnClickSlowRankOpCallbackParams;
-        const dataSourceAxisY = chartInst.current?.getOption().yAxis as YAxis[];
-        const dataSourceLength = dataSourceAxisY[0]?.data.length || 0;
+        const dataSourceAxisY = (chartInst.current?.getOption()?.yAxis ?? []) as YAxis[];
+        const dataSourceLength = dataSourceAxisY?.[0]?.data?.length ?? 0;
         let startAxisY = 0;
         let endAxisY = 100;
         if (dataSourceLength >= START_POSITION_AXIS_Y) {
             const tempSourceIndex = Number.isNaN(rankId) ? 0 : Number(rankId);
-            const rankIdNumber = dataSourceAxisY[0].data.findIndex(item => Number(item) === tempSourceIndex);
+            const rankIdNumber = dataSourceAxisY?.[0]?.data?.findIndex(item => Number(item) === tempSourceIndex) ?? 0;
             // 计算 Y 轴范围，确保范围在 0 到 dataSourceLength 之间
             startAxisY = Math.floor(Math.max(0, rankIdNumber - 10) / dataSourceLength * 100);
             endAxisY = Math.floor(Math.min(dataSourceLength, rankIdNumber + 10) / dataSourceLength * 100);
@@ -738,7 +741,6 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
             seriesIndex: 0,
             name: `${rankId}-${name}`,
         });
-
         // 延迟取消高亮
         setTimeout(() => {
             chartInst.current?.dispatchAction({
@@ -747,6 +749,24 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
                 name: `${rankId}-${name}`,
             });
         }, 5000);
+
+        // ★ 提示用户可以右键按尾部对齐（仅 allReduce/allToAll/allGather）
+        if (shouldShowTailAlignTip(name)) {
+            const key = `align-tip-${rankId}-${name}-${startValue}-${endValue}`;
+            notification.open({
+                key,
+                className: 'tail-align-notification',
+                message: i18n.t('alignment.tipTitle', { ns: 'communication' }),
+                description: i18n.t('alignment.tipDescription', { ns: 'communication' }),
+                btn: (
+                    <Button size="small" onClick={() => notification.close(key)}>
+                        {i18n.t('alignment.dismiss', { ns: 'communication' })}
+                    </Button>
+                ),
+                duration: 5,
+                placement: 'top',
+            });
+        }
 
         // 滚动到视图中心
         chartRef.current?.scrollIntoView({

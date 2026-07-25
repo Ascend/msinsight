@@ -86,6 +86,12 @@
     color: rgb(211, 220, 233);
 }
 
+.theme_dark .tail-align-notification .ant-notification-notice-message,
+.theme_dark .tail-align-notification .ant-notification-notice-description,
+.theme_dark .tail-align-notification .ant-notification-notice-close {
+    color: #fff;
+}
+
 .theme_dark .CommunicatorContainer .st0 {
     fill-rule: evenodd;
     clip-rule: evenodd;
