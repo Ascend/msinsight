@@ -218,8 +218,15 @@ pub fn main() {
         return;
     };
 
+    #[cfg(target_os = "linux")]
     if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port) {
         run_server(&root_path, &cache_path, port);
         webview::run_event_loop(eventloop, webview)
+    }
+
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
+    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port) {
+        run_server(&root_path, &cache_path, port);
+        webview::run_event_loop(eventloop, webview, window)
     }
 }

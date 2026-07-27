@@ -20,48 +20,46 @@ mod cleanup;
 #[cfg(windows)]
 pub mod webview2err;
 
-use std::{fs::read, path::PathBuf, sync::Arc, process::Command};
+use std::{borrow::Cow, fs::read, path::PathBuf, sync::Arc, process::Command};
 use std::path::Path;
 #[cfg(target_os = "macos")]
-use wry::application::menu::{MenuBar, MenuItem};
-pub use wry::webview::webview_version;
+use muda::{Menu, PredefinedMenuItem, Submenu};
+pub use wry::webview_version;
+use tao::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
+    window::{Window, WindowBuilder},
+};
 use wry::{
-    application::{
-        event::{Event, WindowEvent},
-        event_loop::{ControlFlow, EventLoop, EventLoopProxy},
-        window::{Window, WindowBuilder},
-    },
     http::{header::CONTENT_TYPE, Response},
-    webview::{FileDropEvent, WebView, WebViewBuilder},
+    FileDropEvent, WebView, WebViewBuilder,
 };
 const MIMETYPE_HTML: &str = "text/html";
 
 fn create_webview(
-    window: Window,
+    window: &Window,
     cache_path: Arc<PathBuf>,
     resource_path: Arc<PathBuf>,
     port: u16,
     proxy: Arc<EventLoopProxy<PathBuf>>,
 ) -> wry::Result<WebView> {
-    WebViewBuilder::new(window)?
+    // Wry only borrows Window in newer versions; run_event_loop owns it later.
+    let builder = WebViewBuilder::new(&window)
         .with_custom_protocol("wry".into(), move |request| {
             let path = request.uri().path();
             let content = match read(resource_path.join(&path[1..]).as_path()) {
-                Ok(a) => a.into(),
-                Err(e) => return Err(wry::Error::Io(e)),
+                Ok(content) => Cow::Owned(content),
+                Err(_) => return build_protocol_response(404, MIMETYPE_HTML, Cow::Borrowed(b"Not Found".as_slice())),
             };
 
             let mimetype = extract_mimetype(path);
 
-            Response::builder()
-                .header(CONTENT_TYPE, mimetype)
-                .body(content)
-                .map_err(Into::into)
+            build_protocol_response(200, mimetype, content)
         })
         .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}", port).as_str())?
-        .with_file_drop_handler(move |_, ev| {
+        .with_file_drop_handler(move |ev| {
             match ev {
-                FileDropEvent::Dropped(paths) => {
+                FileDropEvent::Dropped { paths, .. } => {
                     if let Err(e) = proxy.send_event(paths[0].to_owned()) {
                         eprintln!("app closed unexpectedly: {:#?}", e);
                     }
@@ -71,7 +69,7 @@ fn create_webview(
 
             true
         })
-        .with_ipc_handler(move |_, front_end_msg| {
+        .with_ipc_handler(move |front_end_msg| {
             println!("Platform received message from frontend: {}", front_end_msg);
             // "showLogInExplorer"表示打开日志路径
             if front_end_msg == "showLogInExplorer" {
@@ -88,8 +86,20 @@ fn create_webview(
                 handle_open_url_msg(&front_end_msg);
                 return;
             }
-        })
-        .build()
+        });
+    builder.build()
+}
+
+fn build_protocol_response(
+    status: u16,
+    mimetype: &str,
+    content: Cow<'static, [u8]>,
+) -> Response<Cow<'static, [u8]>> {
+    Response::builder()
+        .status(status)
+        .header(CONTENT_TYPE, mimetype)
+        .body(content)
+        .unwrap_or_else(|_| Response::new(Cow::Borrowed(b"Internal Server Error".as_slice())))
 }
 
 fn handle_open_url_msg(front_end_msg: &str) {
@@ -150,14 +160,19 @@ fn handle_user_event(webview: &WebView, path: PathBuf) {
     }
 }
 
-pub fn run_event_loop(event_loop: EventLoop<PathBuf>, webview: WebView) {
+// Keep Window alive because WebView only borrows its native handle.
+pub fn run_event_loop(event_loop: EventLoop<PathBuf>, webview: WebView, window: Window) {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested, ..
+            } => {
+                window.set_visible(false);
+                cleanup::handle_close_requested();
+                *control_flow = ControlFlow::Exit;
             }
-            | Event::WindowEvent { event: WindowEvent::Destroyed, .. } => {
+            Event::WindowEvent { event: WindowEvent::Destroyed, .. } => {
                 cleanup::handle_close_requested();
                 *control_flow = ControlFlow::Exit;
             }
@@ -169,7 +184,7 @@ pub fn run_event_loop(event_loop: EventLoop<PathBuf>, webview: WebView) {
 
 #[cfg(windows)]
 fn set_windows_icon(window: &Window, root_path: &PathBuf) {
-    use wry::application::{platform::windows::IconExtWindows, window::Icon};
+    use tao::{platform::windows::IconExtWindows, window::Icon};
 
     window.set_window_icon(
         Icon::from_path(
@@ -183,30 +198,40 @@ fn set_windows_icon(window: &Window, root_path: &PathBuf) {
 }
 
 #[cfg(target_os = "macos")]
-fn macos_menu() -> MenuBar {
-    let mut menu = MenuBar::new();
+fn init_macos_menu() {
+    let menu = Menu::new();
+    let window_menu = Submenu::with_items(
+        "Window",
+        true,
+        &[
+            &PredefinedMenuItem::minimize(None),
+            &PredefinedMenuItem::hide(None),
+            &PredefinedMenuItem::hide_others(None),
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::services(None),
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::close_window(None),
+            &PredefinedMenuItem::quit(None),
+        ],
+    )
+    .expect("Error occurred when create window menu");
+    window_menu.set_as_windows_menu_for_nsapp();
 
-    let mut window_menu = MenuBar::new();
-    window_menu.add_native_item(MenuItem::Minimize);
-    window_menu.add_native_item(MenuItem::Hide);
-    window_menu.add_native_item(MenuItem::HideOthers);
-    window_menu.add_native_item(MenuItem::Separator);
-    window_menu.add_native_item(MenuItem::Services);
-    window_menu.add_native_item(MenuItem::Separator);
-    window_menu.add_native_item(MenuItem::CloseWindow);
-    window_menu.add_native_item(MenuItem::Quit);
+    let edit_menu = Submenu::with_items(
+        "Edit",
+        true,
+        &[
+            &PredefinedMenuItem::cut(None),
+            &PredefinedMenuItem::copy(None),
+            &PredefinedMenuItem::paste(None),
+            &PredefinedMenuItem::select_all(None),
+        ],
+    )
+    .expect("Error occurred when create edit menu");
 
-    menu.add_submenu("Window", true, window_menu);
-
-    let mut edit_menu = MenuBar::new();
-    edit_menu.add_native_item(MenuItem::Cut);
-    edit_menu.add_native_item(MenuItem::Copy);
-    edit_menu.add_native_item(MenuItem::Paste);
-    edit_menu.add_native_item(MenuItem::SelectAll);
-
-    menu.add_submenu("Edit", true, edit_menu);
-
-    menu
+    menu.append_items(&[&window_menu, &edit_menu])
+        .expect("Error occurred when create app menu");
+    menu.init_for_nsapp();
 }
 
 // run script
@@ -214,21 +239,19 @@ pub fn run_script(
     root_path: &PathBuf,
     cache_path: &PathBuf,
     port: u16,
-) -> wry::Result<(EventLoop<PathBuf>, WebView)> {
-    let event_loop = EventLoop::with_user_event();
+) -> wry::Result<(EventLoop<PathBuf>, WebView, Window)> {
+    let event_loop = EventLoopBuilder::<PathBuf>::with_user_event().build();
 
     let proxy = Arc::new(event_loop.create_proxy());
 
-    let mut window_builder: WindowBuilder = WindowBuilder::new()
+    let window_builder: WindowBuilder = WindowBuilder::new()
         .with_title("MindStudio Insight")
         .with_maximized(true);
 
     #[cfg(target_os = "macos")]
-    {
-        let menu = macos_menu();
-        window_builder = window_builder.with_menu(menu);
-    }
+    init_macos_menu();
 
+    // EventLoop dispatches window events but does not own the Window.
     let window = window_builder
         .build(&event_loop)
         .expect("Error occurred when create App window");
@@ -240,9 +263,9 @@ pub fn run_script(
     #[cfg(windows)]
     set_windows_icon(&window, root_path);
 
-    let webview = create_webview(window, log_path, resource_path, port, proxy)?;
+    let webview = create_webview(&window, log_path, resource_path, port, proxy)?;
 
-    Ok((event_loop, webview))
+    Ok((event_loop, webview, window))
 }
 
 fn extract_mimetype(path: &str) -> &str {
