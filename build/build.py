@@ -131,6 +131,8 @@ def download_dependency_background() -> bool:
     build_modules = [Const.PNPM, 'install', '--force']
     platform_dir = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR)
     build_platform = [Const.CARGO, 'fetch']
+    if platform.system() == Const.LINUX_OS:
+        build_platform.extend(['--manifest-path', os.path.join(platform_dir, 'linux', 'Cargo.toml')])
     try:
         with subprocess.Popen(build_modules, cwd=modules_dir, stdout=subprocess.PIPE):
             logging.info('[download dependency]Start to download dependency for modules in background.')
@@ -379,6 +381,14 @@ def build_package(version, os_name):
     if platform.system() == Const.MAC_OS:
         cmd_list = [Const.CARGO, 'bundle', '--release']
         set_mac_app_signature_certificate_id()
+    elif platform.system() == Const.LINUX_OS:
+        cmd_list = [
+            Const.CARGO,
+            'build',
+            '--release',
+            '--manifest-path',
+            os.path.join(Const.PLATFORM_DIR, 'linux', 'Cargo.toml'),
+        ]
     else:
         cmd_list = [Const.CARGO, 'build', '--release']
     package_name = Const.ASCEND_INSIGHT_PREFIX + '_' + version + '_' + os_name + Const.PACKAGE_SUFFIX
@@ -733,6 +743,8 @@ def update_app_version(build_version):
     # 替换Cargo.toml中的版本信息
     cargo_toml_path = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR, "Cargo.toml")
     replace_placeholders_in_file(cargo_toml_path, Const.PLUGINS_VERSION_PLACEHOLDER, build_version)
+    linux_cargo_toml_path = os.path.join(PROJECT_PATH, Const.PLATFORM_DIR, 'linux', 'Cargo.toml')
+    replace_placeholders_in_file(linux_cargo_toml_path, Const.PLUGINS_VERSION_PLACEHOLDER, build_version)
 
 
 def set_mac_app_signature_certificate_id():

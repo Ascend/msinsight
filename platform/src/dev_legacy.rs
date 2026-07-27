@@ -1,7 +1,7 @@
 /*
  * -------------------------------------------------------------------------
  * This file is part of the MindStudio project.
- * Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
  *
  * MindStudio is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -18,46 +18,45 @@
 
 use std::{env, path::PathBuf};
 
-use tao::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop, EventLoopBuilder, EventLoopProxy},
-    window::{Window, WindowBuilder},
+use wry024::{
+    application::{
+        event::{Event, WindowEvent},
+        event_loop::{ControlFlow, EventLoop, EventLoopProxy},
+        window::{Window, WindowBuilder},
+    },
+    webview::{FileDropEvent, WebView, WebViewBuilder},
 };
-use wry::{FileDropEvent, WebView, WebViewBuilder};
 
 fn create_webview(
-    window: &Window,
+    window: Window,
     proxy: EventLoopProxy<PathBuf>,
-) -> wry::Result<WebView> {
-    // Wry only borrows Window in newer versions; run_event_loop owns it later.
-    let builder = WebViewBuilder::new(&window)
+) -> wry024::Result<WebView> {
+    WebViewBuilder::new(window)?
         .with_url("http://localhost:5174?port=9000")?
-        .with_file_drop_handler(move |ev| {
+        .with_file_drop_handler(move |_, ev| {
             match ev {
-                FileDropEvent::Dropped { paths, .. } => {
+                FileDropEvent::Dropped(paths) => {
                     let _ = proxy.send_event(paths[0].to_owned());
                 }
                 _ => {}
             }
 
             true
-        });
-    builder.build()
+        })
+        .build()
 }
 
 fn handle_user_event(webview: &WebView, path: PathBuf) {
     let _ = webview.evaluate_script(&format!("window.handleDrop({:#?})", path));
 }
 
-// Keep Window alive because WebView only borrows its native handle.
-fn run_event_loop(event_loop: EventLoop<PathBuf>, webview: WebView, window: Window) {
+fn run_event_loop(event_loop: EventLoop<PathBuf>, webview: WebView) {
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested, ..
             } => {
-                window.set_visible(false);
                 *control_flow = ControlFlow::Exit;
             }
             Event::UserEvent(path) => handle_user_event(&webview, path),
@@ -68,7 +67,7 @@ fn run_event_loop(event_loop: EventLoop<PathBuf>, webview: WebView, window: Wind
 
 #[cfg(windows)]
 fn set_windows_icon(window: &Window) {
-    use tao::{platform::windows::IconExtWindows, window::Icon};
+    use wry024::application::{platform::windows::IconExtWindows, window::Icon};
 
     let app_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let icon_path = app_dir.join("resources/images/icons/mindstudio.ico");
@@ -77,7 +76,7 @@ fn set_windows_icon(window: &Window) {
 
 // run script
 pub fn main() {
-    let event_loop = EventLoopBuilder::<PathBuf>::with_user_event().build();
+    let event_loop = EventLoop::with_user_event();
 
     let proxy = event_loop.create_proxy();
 
@@ -85,7 +84,6 @@ pub fn main() {
         .with_title("MindStudio Insight")
         .with_maximized(true);
 
-    // EventLoop dispatches window events but does not own the Window.
     let window = window_builder
         .build(&event_loop)
         .expect("Error occurred when create App window");
@@ -93,7 +91,7 @@ pub fn main() {
     #[cfg(windows)]
     set_windows_icon(&window);
 
-    let webview = create_webview(&window, proxy).unwrap();
+    let webview = create_webview(window, proxy).unwrap();
 
-    run_event_loop(event_loop, webview, window)
+    run_event_loop(event_loop, webview)
 }
