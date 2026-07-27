@@ -10,7 +10,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 
 ### 软件包下载
 
-**MindStudio Insight 26.0.0 现已发布**
+**MindStudio Insight 26.1.0 现已发布**
 
 您可以根据操作系统选择对应的软件包进行下载。下载本软件即表示您同意[华为企业业务最终用户许可协议（EULA）](https://e.huawei.com/cn/about/eula)的条款和条件。
 
@@ -19,34 +19,34 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 <details>
 <summary>下载 Windows 版</summary>
 
-[下载 MindStudio Insight Windows 版本](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.0.0.B120_0012/MindStudio-Insight_26.0.0_win.exe)
+[下载 MindStudio Insight Windows 版本](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_win.exe)
 
 </details>
 
 <details>
 <summary>下载 Linux 版</summary>
 
-[下载 MindStudio Insight Linux 版本 (x86_64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.0.0.B120_0012/MindStudio-Insight_26.0.0_linux_x86_64.zip)
+[下载 MindStudio Insight Linux 版本 (x86_64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_linux_x86_64.zip)
 
-[下载 MindStudio Insight Linux 版本 (aarch64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.0.0.B120_0012/MindStudio-Insight_26.0.0_linux_aarch64.zip)
+[下载 MindStudio Insight Linux 版本 (aarch64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_linux_aarch64.zip)
 
 </details>
 
 <details>
 <summary>下载 macOS 版</summary>
 
-[下载 MindStudio Insight macOS 版本 (arm64 Apple Silicon)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.0.0.B120_0012/MindStudio-Insight_26.0.0_macos_aarch64.dmg)
+[下载 MindStudio Insight macOS 版本 (arm64 Apple Silicon)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_macos_aarch64.dmg)
 
-[下载 MindStudio Insight macOS 版本 (x86_64 Intel Chip)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.0.0.B120_0012/MindStudio-Insight_26.0.0_macos_x86_64.dmg)
+[下载 MindStudio Insight macOS 版本 (x86_64 Intel Chip)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_macos_x86_64.dmg)
 
 </details>
 
 <details>
 <summary>下载 JupyterLab 插件</summary>
 
-[下载 MindStudio Insight JupyterLab 扩展 (x86_64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.0.0.B120_0012/mindstudio_insight_jupyterlab-26.0.0-py3-none-linux_x86_64.whl)
+[下载 MindStudio Insight JupyterLab 扩展 (x86_64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_x86_64.whl)
 
-[下载 MindStudio Insight JupyterLab 扩展 (aarch64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.0.0.B120_0012/mindstudio_insight_jupyterlab-26.0.0-py3-none-linux_aarch64.whl)
+[下载 MindStudio Insight JupyterLab 扩展 (aarch64)](https://gitcode.host/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_aarch64.whl)
 
 </details>
 

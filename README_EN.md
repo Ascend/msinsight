@@ -4,11 +4,13 @@
   <p>🚀 <b>All-scenario Ascend AI visualization profiling tool</b></p>
 
   [![Ask DeepWiki](https://badgen.net/badge/Ask/DeepWiki/blue)](https://deepwiki.com/qianxiaoxixixi/MsInsightForEveryOne/ ) [![Ask ZRead](https://badgen.net/badge/Ask/ZRead/orange)](https://zread.ai/qianxiaoxixixi/MsInsightForEveryOne) [![doc](https://badgen.net/badge/doc/readthedocs/green)](https://msinsight.readthedocs.io/zh-cn/latest/)
-  [![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](./License) [![Version](https://badgen.net/badge/Version/8.3.0/green)](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_8.3.0) [![Ascend](https://img.shields.io/badge/Hardware-Ascend-orange.svg)](https://www.hiascend.com/)
+  [![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](./License) [![Version](https://badgen.net/badge/Version/26.1.0/green)](https://gitcode.com/Ascend/msinsight/releases) [![Ascend](https://img.shields.io/badge/Hardware-Ascend-orange.svg)](https://www.hiascend.com/)
 </div>
 
 ## 🌟 What's New
 
+- **[2026-07-25]** 🎉 **MindStudio Insight 26.1.0 is now available!** This release delivers continued enhancements to host-side performance analysis, memory snapshot analysis, containerized deployment, web access, and the Timeline interaction experience. It is designed primarily for developers working on performance tuning for Ascend AI applications.
+- **[2026-04-29]** 🎉 **MindStudio Insight 26.0.0 is now available!** This release supports Host Bound issue identification, RL performance analysis, and large-scale Snapshot memory analysis.
 - **[2026-02-04]** 🎉 **MindStudio Insight 26.0.0-alpha.1 is now available!** This version focuses on the **host bound** issue and **RL** performance analysis and tuning.
 
 ## 📌 Overview
@@ -86,7 +88,9 @@
 
 | Release Version| Release Date       | Release Tag      | Compatibility   |
 | ------- | --------------- | ------------- | ------------- |
-| 26.0.0-alpha.1 | 2026/02/04  | tag_MindStudio_26.0.0-alpha.1 | Compatible with Ascend CANN 8.5.0 and earlier versions. For details about how to obtain the CANN installation package, see [CANN Installation Guide](https://www.hiascend.com/cann).|
+| 26.1.0 | 2026/07/25 | tag_MindStudio_26.1.0.B100_002 | Compatible with Ascend CANN 9.1.0 and earlier versions. For details about how to obtain the CANN installation package, see [CANN Installation Guide](https://www.hiascend.com/cann). |
+| 26.0.0 | 2026/04/29 | tag_MindStudio_26.0.0.B120_0012 | Compatible with Ascend CANN 9.0.0 and earlier versions. For details about how to obtain the CANN installation package, see [CANN Installation Guide](https://www.hiascend.com/cann). |
+| 26.0.0-alpha.1 | 2026/02/04 | tag_MindStudio_26.0.0-alpha.1 | Compatible with Ascend CANN 8.5.0 and earlier versions. For details about how to obtain the CANN installation package, see [CANN Installation Guide](https://www.hiascend.com/cann). |
 
 ## 🛠️ Installation
 
