@@ -155,7 +155,7 @@ std::string TraceDatabaseHelper::GetSystemViewSqlByLayer(const std::string &laye
     } else if (layer == "Overlap Analysis") {
         mainSql = " with main as (select case type when 0 then 'Computing' when 1 then 'Communication' "
                   " when 2 then 'Communication(Not Overlapped)' else 'Free' end as name, startNs, endNs - startNs as duration "
-                  " from OVERLAP_ANALYSIS task where name like ? and deviceId = ? " + timeCondSql + " ),";
+                  " from OVERLAP_ANALYSIS task where lower(name) like ? and deviceId = ? " + timeCondSql + " ),";
     } else {
         throw DatabaseException("unsupported type!");
     }

@@ -689,6 +689,38 @@ TEST_F(DbTraceDatabaseTest2, TestQuerySystemViewDataWhenOverlap) {
     EXPECT_EQ(result, true);
 }
 
+TEST_F(DbTraceDatabaseTest2, TestQuerySystemViewDataWhenOverlapSearchFree) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_OVERLAP_ANALYSIS, TableName::DB_STRING_IDS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    std::string overlapData = "INSERT INTO \"main\".\"OVERLAP_ANALYSIS\" (\"id\", \"deviceId\", \"startNs\", "
+                              "\"endNs\", \"type\") VALUES (6, 0, 1723510445657974180, 1723510445658074180, 3);";
+    std::string sql = "CREATE TABLE RANK_DEVICE_MAP (rankId INTEGER, deviceId INTEGER);";
+    DatabaseTestCaseMockUtil::CreateTable(db, sql);
+    std::string insertSql = "INSERT INTO RANK_DEVICE_MAP (rankId, deviceId) VALUES (0, 0);";
+    DatabaseTestCaseMockUtil::InsertData(db, insertSql);
+    DatabaseTestCaseMockUtil::InsertData(db, overlapData);
+    database.SetDbPtr(db);
+    Dic::Protocol::SystemViewParams requestParams;
+    requestParams.orderBy = "name";
+    requestParams.layer = "Overlap Analysis";
+    requestParams.searchName = "F";
+    requestParams.rankId = "0";
+    const uint64_t cur = 1;
+    const uint64_t size = 100;
+    requestParams.pageSize = size;
+    requestParams.current = cur;
+    const uint64_t minTimestamp = 0;
+    Dic::Protocol::SystemViewBody responseBody;
+    bool result = database.QuerySystemViewData(requestParams, responseBody, minTimestamp);
+    EXPECT_EQ(result, true);
+    ASSERT_EQ(responseBody.systemViewDetail.size(), 1);
+    EXPECT_EQ(responseBody.systemViewDetail[0].name, "Free");
+}
+
 TEST_F(DbTraceDatabaseTest2, TestQueryFlowCategoryListWhenDbOpen) {
     std::recursive_mutex testMutex;
     MockDatabase database(testMutex);
