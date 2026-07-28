@@ -111,7 +111,7 @@ If the collection log reports lost or overwritten events, the ring buffer experi
 
 ## 4. Converting ftrace Data
 
-`trace_convert.py` converts `trace.dat` or `trace.txt` into a SQLite DB or Chrome Trace JSON file that can be imported into MindStudio Insight. It can also align the ftrace timeline with a Profiling directory.
+`trace_convert.py` converts `trace.dat` or `trace.txt` into a SQLite DB or Chrome Trace JSON file that can be imported into MindStudio Insight. It can also align the ftrace timeline with a Profiling directory. The environment that converts a `trace.dat` file must be able to run `trace-cmd report`; converting a `trace.txt` file does not require `trace-cmd`.
 
 ```bash
 python trace_convert.py \
@@ -185,6 +185,24 @@ When a container is not started with `--pid=host`, Profiling sees container-inte
 sudo python trace_record.py --record_time=30 --cpu=0-15 --NSpid
 python trace_convert.py --input=trace.dat --output=ftrace_data.db --format=db --pid_mapping=pid_mapping.json
 ```
+
+The `--NSpid` CLI option scans only the processes that exist when ftrace collection starts. When using this option, start the service container first and ensure that the target service processes already exist before starting ftrace collection. Processes created after collection starts are not written to the generated `pid_mapping.json`.
+
+If service processes may be created during collection, use `ContainerPidMapper` in a programmatic collection workflow to update the mapping continuously:
+
+```python
+from trace_record import ContainerPidMapper
+
+pid_mapper = ContainerPidMapper("pid_mapping.json")
+pid_mapper.start(duration=1)
+try:
+    # Start and run ftrace collection here.
+    ...
+finally:
+    pid_mapper.stop()
+```
+
+`duration` is the interval in seconds between scans, not the total collection duration, and must be greater than 0. Continuous mapping is not enabled automatically by the `--NSpid` CLI option. The caller must invoke `stop()` when collection ends to stop the background thread, perform a final scan, and write the mapping file.
 
 ## 5. Importing Data into MindStudio Insight
 
