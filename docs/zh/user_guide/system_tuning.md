@@ -34,7 +34,7 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 
 性能数据分为单卡场景和集群场景，具体请参见[**表 1**  性能数据场景说明](#性能数据场景说明)。
 
-**表 1**  性能数据场景说明<a id="性能数据场景说明"></a>
+**表 1** 性能数据场景说明<a id="性能数据场景说明"></a>
 
 |场景|说明|
 |--|--|
@@ -52,7 +52,7 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 - 支持导入算子打点数据文件，获取文件方式请参见《性能调优工具指南》中的“Ascend PyTorch Profiler”章节“msprof\_tx”相关内容，导入成功后会在时间线（Timeline）界面展示打点数据。
 - 当导入集群数据时，如果性能数据文件中包含cluster\_analysis\_output目录文件，导入成功后，概览（Summary）和通信（Communication）界面会根据cluster\_analysis\_output目录文件内容呈现相关信息；如果性能数据文件中不包含cluster\_analysis\_output目录文件，在MindStudio Insight工具中导入数据时，会生成对应的cluster\_analysis\_output目录文件。
 - 在集群场景下，使用Ascend PyTorch Profiler接口或者MindSpore Profiler接口采集到的性能数据，需要使用MindStudio Insight工具显示，则建议配置repeat=1，不推荐配置为0。如果repeat\>1，则需要将采集的性能数据文件夹分为repeat等份，按照文件夹名称中的时间戳先后将文件分别放到不同文件夹下重新导入，才可正常展示。
-- 在Linux环境下使用MindStudio Insight工具分析集群场景数据时，如果已经安装了msprof-analyze工具，请检查版本并将其升级至最新版本，最新版本的msprof-analyze工具安装可参考[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md#5-%E5%8D%87%E7%BA%A7)。
+- 在Linux环境下使用MindStudio Insight工具分析集群场景数据时，如果已经安装了msprof-analyze工具，请检查版本并将其升级至最新版本，最新版本的msprof-analyze工具安装可参考[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.1.0/docs/zh/install_guide/msprof-analyze_install_guide.md#5-%E5%8D%87%E7%BA%A7)。
 - 支持导入含有ACLGraph构图过程数据的单个json文件。
 - 当导入数据的目录中同时存在单卡数据和集群数据，MindStudio Insight仅支持解析集群数据并进行可视化展示。
 - 支持profiling采集数据（.text格式和.db格式）和ftrace采集数据（.json格式和.db格式）联合导入，先添加其中一个采集方式的数据工程，再从该工程中添加另一个采集方式的数据文件。
@@ -61,11 +61,11 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 
 采集性能数据时，不同的采集等级和参数配置会直接影响生成的数据文件和MindStudio Insight工具中可展示的页面及字段。请根据实际分析需求，选择合适的采集配置。
 
-- 采集等级与生成数据、展示页面的对应关系请参见["表 8"  采集等级与数据对应关系](#采集等级与数据对应关系)。
+- 采集等级与生成数据、展示页面的对应关系请参见[表 2 采集等级与数据对应关系](#采集等级与数据对应关系)。
 - Ascend PyTorch Profiler接口的完整参数配置请参见[_ExperimentalConfig参数说明](#experimentalconfig参数说明)和[torch_npu.profiler.profile主接口参数说明](#torch_npu.profiler.profile主接口参数说明)。
 - 采集参数与页面展示字段的关联关系请参见[采集参数与页面展示字段对应关系](#采集参数与页面展示字段对应关系)。
 
-**"表 8"  采集等级与数据对应关系**<a id="采集等级与数据对应关系"></a>
+**表 2** 采集等级与数据对应关系<a id="采集等级与数据对应关系"></a>
 
 |采集等级|生成文件|可展示界面|说明|
 |--|--|--|--|
@@ -79,16 +79,16 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 > - kernel_details.csv中的AI Core性能指标（如aicore_time、aic_mac_ratio等）需要同时配置`aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization`且采集等级为Level1及以上才会采集。
 > - 内存拷贝总览（Memcpy Overall）仅在采集等级为Level2时才会在时间线（Timeline）的系统视图中展示。
 
-**_ExperimentalConfig参数说明**<a id="experimentalconfig参数说明"></a>
+**_ExperimentalConfig参数说明**
 
-使用Ascend PyTorch Profiler接口采集性能数据时，可通过_ExperimentalConfig配置采集参数，参数说明如["表 9"  _ExperimentalConfig参数说明](#experimentalconfig参数说明)所示。
+使用Ascend PyTorch Profiler接口采集性能数据时，可通过_ExperimentalConfig配置采集参数，参数说明如[表 3 _ExperimentalConfig参数说明](#experimentalconfig参数说明)所示。
 
-**"表 9"  _ExperimentalConfig参数说明**<a id="experimentalconfig参数说明"></a>
+**表 3** _ExperimentalConfig参数说明<a id="experimentalconfig参数说明"></a>
 
 |参数|类型|默认值|说明|对展示界面的影响|
 |--|--|--|--|--|
 |export_type|List[ExportType]|[Text, Db]|导出格式，支持Text和Db两种。|Db格式数据在Timeline中额外展示Process泳道；Text和Db格式解析的数据信息量存在差异。|
-|profiler_level|ProfilerLevel|Level0|采集等级，可选Level_none、Level0、Level1、Level2。|不同等级对应不同的生成文件和展示界面，详见["表 8"  采集等级与数据对应关系](#采集等级与数据对应关系)。|
+|profiler_level|ProfilerLevel|Level0|采集等级，可选Level_none、Level0、Level1、Level2。|不同等级对应不同的生成文件和展示界面，详见[表 2 采集等级与数据对应关系](#采集等级与数据对应关系)。|
 |aic_metrics|AiCMetrics|AiCoreNone|AI Core性能指标采集项，可选AiCoreNone、PipeUtilization等。|设置为PipeUtilization且profiler_level为Level1及以上时，算子详情中展示AI Core性能指标字段（如aicore_time、aic_mac_ratio等）。|
 |msprof_tx|bool|False|是否启用msprof_tx打点采集。|设置为True时，时间线（Timeline）界面展示打点数据。|
 |mstx_domain_include|List[str]|[]|MSTX打点包含的域。|仅展示指定域的MSTX打点数据。|
@@ -102,11 +102,11 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 |sys_io|bool|False|是否采集系统IO信息。|设置为True时，时间线（Timeline）界面展示系统IO相关数据。|
 |sys_interconnection|bool|False|是否采集系统互连信息。|设置为True时，时间线（Timeline）界面展示系统互连相关数据。|
 
-**torch_npu.profiler.profile主接口参数说明**<a id="torch_npu.profiler.profile主接口参数说明"></a>
+**torch_npu.profiler.profile主接口参数说明**
 
-torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profiler.profile参数说明](#torch_npu.profiler.profile主接口参数说明)所示。
+torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.profile参数说明](#torch_npu.profiler.profile主接口参数说明)所示。
 
-**"表 10"  torch_npu.profiler.profile参数说明**<a id="torch_npu.profiler.profile主接口参数说明"></a>
+**表 4 torch_npu.profiler.profile参数说明**<a id="torch_npu.profiler.profile主接口参数说明"></a>
 
 |参数|说明|对展示界面的影响|
 |--|--|--|
@@ -119,11 +119,11 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 |with_flops|是否估算FLOPS。|设置为True时，算子详情中展示FLOPS估算值。|
 |experimental_config|_ExperimentalConfig配置对象，用于配置采集参数。|详见[_ExperimentalConfig参数说明](#experimentalconfig参数说明)。|
 
-**采集参数与页面展示字段对应关系**<a id="采集参数与页面展示字段对应关系"></a>
+**采集参数与页面展示字段对应关系**
 
-不同采集参数配置会影响MindStudio Insight各页面中字段的展示情况。当页面中某些字段显示为N/A或为空时，可能是因为未配置对应的采集参数。["表 11"  采集参数与页面展示字段对应关系](#采集参数与页面展示字段对应关系)列出了各页面关键字段所需的采集条件。
+不同采集参数配置会影响MindStudio Insight各页面中字段的展示情况。当页面中某些字段显示为N/A或为空时，可能是因为未配置对应的采集参数。[表 5 采集参数与页面展示字段对应关系](#采集参数与页面展示字段对应关系)列出了各页面关键字段所需的采集条件。
 
-**"表 11"  采集参数与页面展示字段对应关系**<a id="采集参数与页面展示字段对应关系"></a>
+**表 5** 采集参数与页面展示字段对应关系<a id="采集参数与页面展示字段对应关系"></a>
 
 |页面|字段|采集条件|
 |--|--|--|
@@ -157,9 +157,9 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 在单卡场景下，性能数据可分为三大类型，如下所示：
 
-- PyTorch训练/推理数据：支持导入以“ascend\_pt”结尾的性能数据目录，性能数据文件详情请参见[**表 2**  PyTorch训练/推理性能数据文件](#PyTorch训练/推理性能数据文件)。
+- PyTorch训练/推理数据：支持导入以“ascend\_pt”结尾的性能数据目录，性能数据文件详情请参见[**表 6** PyTorch训练/推理性能数据文件](#PyTorch训练/推理性能数据文件)。
 
-    **表 2**  PyTorch训练/推理性能数据文件<a id="PyTorch训练/推理性能数据文件"></a>
+    **表 6** PyTorch训练/推理性能数据文件<a id="PyTorch训练/推理性能数据文件"></a>
 
     |文件名|说明|展示界面|
     |--|--|--|
@@ -178,9 +178,9 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 - MindSpore训练/推理数据：支持导入MindSpore框架性能数据，获取方式请参见《[MindSpore教程](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/index.html)》中的“调试调优 \>  [Ascend性能调优](https://www.mindspore.cn/tutorials/zh-CN/r2.7.0/debug/profiler.html)”章节。
 
-    MindStudio Insight工具支持导入以“ascend\_ms”结尾的性能数据目录，性能数据文件详情请参见[**表 3**  MindSpore训练/推理性能数据文件](#MindSpore训练/推理性能数据文件)。
+    MindStudio Insight工具支持导入以“ascend\_ms”结尾的性能数据目录，性能数据文件详情请参见[**表 7** MindSpore训练/推理性能数据文件](#MindSpore训练/推理性能数据文件)。
 
-    **表 3**  MindSpore训练/推理性能数据文件<a id="MindSpore训练/推理性能数据文件"></a>
+    **表 7** MindSpore训练/推理性能数据文件<a id="MindSpore训练/推理性能数据文件"></a>
 
     |文件名|说明|展示界面|
     |--|--|--|
@@ -195,9 +195,9 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
     |communication_matrix.json|通信小算子基本信息文件。|通信（Communication）|
     |注：“*”表示{timestamp}时间戳。|||
 
-- 离线推理数据：支持导入mindstudio\_profiler\_output目录下性能数据，性能数据文件详情请参见[**表 4**  离线推理性能数据文件](#离线推理性能数据文件)。
+- 离线推理数据：支持导入mindstudio\_profiler\_output目录下性能数据，性能数据文件详情请参见[**表 8** 离线推理性能数据文件](#离线推理性能数据文件)。
 
-    **表 4**  离线推理性能数据文件<a id="离线推理性能数据文件"></a>
+    **表 8** 离线推理性能数据文件<a id="离线推理性能数据文件"></a>
 
     |文件名|说明|展示界面|
     |--|--|--|
@@ -217,13 +217,13 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 - npumonitor数据：支持导入npumonitor采集的性能数据。npumonitor是基于dynolog开源项目的轻量化在线监测工具，支持NPU Monitor（常态监测）和NPU Trace-dump（精准采集）两种模式，采集方式和安装指南请参见：
 
-  - npumonitor工具特性说明：<https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/user_guide/npumonitor_instruct.md>
-  - msMonitor产品文档：<https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/82RC1alpha003/devaids/Profiling/atlasprofiling_16_1153.html>
-  - msMonitor工具下载：<https://gitcode.com/Ascend/msmonitor/blob/master/docs/zh/install_guide/msmonitor_install_guide.md>
+  - 《[npumonitor工具特性说明](https://gitcode.com/Ascend/msmonitor/blob/26.1.0/docs/zh/user_guide/npumonitor_instruct.md)》
+  - 《[msMonitor产品文档](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/82RC1alpha003/devaids/Profiling/atlasprofiling_16_1153.html)》
+  - 《[msMonitor工具下载](https://gitcode.com/Ascend/msmonitor/blob/26.1.0/docs/zh/install_guide/msmonitor_install_guide.md)》
 
-  性能数据文件详情请参见**“表 5”  性能数据文件详情表**(#性能数据文件详情表)。
+  性能数据文件详情请参见[表 9 性能数据文件详情表](#性能数据文件详情表)。
 
-    **表 5**  性能数据文件详情表<a id="性能数据文件详情表"></a>
+    **表 9** 性能数据文件详情表<a id="性能数据文件详情表"></a>
 
     |文件名|说明|展示界面|
     |--|--|--|
@@ -236,7 +236,14 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 **集群场景**
 
-- 集群场景也称多卡场景，由多个单卡组成的集群数据，集群数据可分为小集群和大集群，MindStudio Insight工具导入不同场景的数据时，也有所不同，如[**表 6**  集群场景说明](#集群场景说明)所示。
+- 集群场景也称多卡场景，由多个单卡组成的集群数据，集群数据可分为小集群和大集群，MindStudio Insight工具导入不同场景的数据时，也有所不同，如[表 10 集群场景说明](#集群场景说明)所示。
+
+    **表 10** 集群场景说明<a id="集群场景说明"></a>
+
+    |场景|卡数量|导入数据|界面展示|
+    |--|--|--|--|
+    |小集群|不超过32卡。|可导入采集到的全部原始数据。|时间线（Timeline）<br>内存（Memory）<br>算子（Operator）<br>概览（Summary）<br>通信（Communication）|
+    |大集群|超过32卡，千卡，万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.1.0/docs/zh/install_guide/msprof-analyze_install_guide.md)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 18** cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
 
     如果在大集群场景下，直接导入性能调优工具采集的全部原始数据，解析耗时较长，不建议直接导入。
 
@@ -284,11 +291,11 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 > - 集群分析数据必须与各Rank原始数据在同一目录下，否则MindStudio Insight无法正确关联集群数据。
 > - msprof-analyze工具的详细参数说明请参见msprof-analyze工具文档。
 
-**AI Core/AI Vector Core性能指标字段说明**<a id="ai-core性能指标字段说明"></a><a id="ai-vector-core性能指标字段说明"></a>
+**AI Core/AI Vector Core性能指标字段说明**
 
-当采集配置中设置了`aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization`且profiler_level为Level1及以上时，计算算子详情中会展示AI Core和AI Vector Core性能指标字段。这些指标可以帮助用户分析算子的计算瓶颈，如["表 12"  AI Core性能指标字段说明](#ai-core性能指标字段说明)和["表 13"  AI Vector Core性能指标字段说明](#ai-vector-core性能指标字段说明)所示。
+当采集配置中设置了`aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization`且profiler_level为Level1及以上时，计算算子详情中会展示AI Core和AI Vector Core性能指标字段。这些指标可以帮助用户分析算子的计算瓶颈，如[表 11 AI Core性能指标字段说明](#ai-core性能指标字段说明)和[表 12 AI Vector Core性能指标字段说明](#ai-vector-core性能指标字段说明)所示。
 
-**"表 12"  AI Core性能指标字段说明**<a id="ai-core性能指标字段说明-table"></a>
+**表 11** AI Core性能指标字段说明<a id="ai-core性能指标字段说明"></a>
 
 |字段|说明|含义解读|
 |--|--|--|
@@ -306,7 +313,7 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 |aic_fixpipe_ratio|FixPipe单元占比|FixPipe耗时/总耗时。|
 |aic_icache_miss_rate|AI Core iCache未命中率|指令缓存未命中率，高值表示指令缓存命中率低，可能需要优化指令布局。|
 
-**"表 13"  AI Vector Core性能指标字段说明**<a id="ai-vector-core性能指标字段说明-table"></a>
+**表 12** AI Vector Core性能指标字段说明<a id="ai-vector-core性能指标字段说明"></a>
 
 |字段|说明|含义解读|
 |--|--|--|
@@ -331,9 +338,9 @@ torch_npu.profiler.profile主接口的参数说明如["表 10"  torch_npu.profil
 
 **原始数据文件字段定义**<a id="原始数据文件字段定义"></a>
 
-MindStudio Insight工具导入的原始性能数据文件中包含多个CSV和JSON文件，各文件的关键字段定义如["表 14"  kernel_details.csv字段定义](#kernel_detailscsv字段定义)至["表 17"  memory_record.csv字段定义](#memory_recordcsv字段定义)所示。
+MindStudio Insight工具导入的原始性能数据文件中包含多个CSV和JSON文件，各文件的关键字段定义如[表 13 kernel_details.csv字段定义](#kernel_detailscsv字段定义)至[表 16 memory_record.csv字段定义](#memory_recordcsv字段定义)所示。
 
-**"表 14"  kernel_details.csv字段定义**<a id="kernel_detailscsv字段定义"></a>
+**表 13** kernel_details.csv字段定义<a id="kernel_detailscsv字段定义"></a>
 
 kernel_details.csv文件记录NPU上执行的所有算子信息，字段定义如下：
 
@@ -360,10 +367,10 @@ kernel_details.csv文件记录NPU上执行的所有算子信息，字段定义�
 |Output Data Types|输出数据类型|
 |Output Formats|输出数据格式|
 |Context ID|上下文ID|
-|aicore_time(μs) ~ aic_icache_miss_rate|AI Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见["表 12"  AI Core性能指标字段说明](#ai-core性能指标字段说明)|
-|aiv_time(μs) ~ cube_utilization(%)|AI Vector Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见["表 13"  AI Vector Core性能指标字段说明](#ai-vector-core性能指标字段说明)|
+|aicore_time(μs) ~ aic_icache_miss_rate|AI Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见[表 11 AI Core性能指标字段说明](#ai-core性能指标字段说明)|
+|aiv_time(μs) ~ cube_utilization(%)|AI Vector Core性能指标字段，需配置aic_metrics=PipeUtilization且profiler_level >= Level1，详见[表 12 AI Vector Core性能指标字段说明](#ai-vector-core性能指标字段说明)|
 
-**"表 15"  step_trace_time.csv字段定义**<a id="step_trace_timecsv字段定义"></a>
+**表 14** step_trace_time.csv字段定义<a id="step_trace_timecsv字段定义"></a>
 
 step_trace_time.csv文件记录迭代中计算和通信的时间统计，字段定义如下：
 
@@ -380,7 +387,7 @@ step_trace_time.csv文件记录迭代中计算和通信的时间统计，字段�
 |Communication(Not Overlapped and Exclude Receive)|排除接收的非重叠通信时间|
 |Preparing|准备时间|
 
-**"表 16"  operator_memory.csv字段定义**<a id="operator_memorycsv字段定义"></a>
+**表 15** operator_memory.csv字段定义**<a id="operator_memorycsv字段定义"></a>
 
 operator_memory.csv文件记录算子内存申请情况，字段定义如下：
 
@@ -402,7 +409,7 @@ operator_memory.csv文件记录算子内存申请情况，字段定义如下：
 |Stream Ptr|流指针|
 |Device Type|设备类型（如NPU:1）|
 
-**"表 17"  memory_record.csv字段定义**<a id="memory_recordcsv字段定义"></a>
+**表 16** memory_record.csv字段定义<a id="memory_recordcsv字段定义"></a>
 
 memory_record.csv文件记录进程级内存申请情况，字段定义如下：
 
@@ -418,9 +425,9 @@ memory_record.csv文件记录进程级内存申请情况，字段定义如下：
 
 **DB格式与TEXT格式差异说明**<a id="db格式与text格式差异说明"></a>
 
-MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（SQLite数据库文件）的性能数据。两种格式在数据内容和展示上存在差异，如["表 18"  DB格式与TEXT格式差异](#db格式与text格式差异)所示。
+MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（SQLite数据库文件）的性能数据。两种格式在数据内容和展示上存在差异，如[表 17 DB格式与TEXT格式差异](#db格式与text格式差异)所示。
 
-**"表 18"  DB格式与TEXT格式差异**<a id="db格式与text格式差异"></a>
+**表 17** DB格式与TEXT格式差异<a id="db格式与text格式差异"></a>
 
 |对比项|TEXT格式|DB格式|
 |--|--|--|
@@ -442,16 +449,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 > - DB格式中的数据表（如PYTORCH_API、CANN_API、TASK等）为内部数据结构，用户无需直接操作，MindStudio Insight会自动解析并展示。
 > - 建议在采集性能数据时同时导出Text和Db格式（即export_type=[Text, Db]），以便在不同分析场景下使用。
 
-<a id="集群场景说明"></a>
-
-**表 6**  集群场景说明
-
-|场景|卡数量|导入数据|界面展示|
-|--|--|--|--|
-|小集群|不超过32卡。|可导入采集到的全部原始数据。|时间线（Timeline）<br>内存（Memory）<br>算子（Operator）<br>概览（Summary）<br>通信（Communication）|
-|大集群|超过32卡，千卡，万卡等。|采用mstt工具集中的msprof-analyze的集群分析能力预处理的原始性能数据，可得到基于通信域的通信分析和迭代耗时分析，导入预处理后得到的数据。<br> msprof-analyze工具的下载与使用请参见[msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)。<br> 1. 将所有以“ascend_pt”或“ascend_ms”结尾的目录汇总至同一文件夹。<br> 2. 使用msprof-analyze工具生成通信相关文件“cluster_analysis_output”目录，“cluster_analysis_output”目录中数据文件请参见[**表 7**  cluster\_analysis\_output目录文件](#目录文件)。<br> 3. 将生成的“cluster_analysis_output”目录文件拷贝至本地，并导入MindStudio Insight工具。<br> 4. 可先前往通信（Communication）界面分析后，导入对应小集群数据或者单卡数据，再次仔细分析。|概览（Summary）<br>通信（Communication）|
-
-**表 7**  cluster\_analysis\_output目录文件<a id="目录文件"></a>
+**表 18** cluster\_analysis\_output目录文件<a id="目录文件"></a>
 
 |文件名|说明|
 |--|--|
@@ -462,7 +460,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 
 - 集群精简数据，是基于ascend\_pytorch\_profiler\_\{_rank\_id_\}.db文件，提取通信类大算子数据，计算类关键函数和框架关键函数，将数据精简，节约内存，快速进行全局分析，导入集群精简数据后，MindStudio Insight工具只显示时间线（Timeline）界面。
 
-    集群数据精简可使用mstt工具集中的msprof-analyze工具，通过设置`-m filter_db`生成集群精简数据，msprof-analyze工具安装可参考[安装msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/master/docs/zh/install_guide/msprof-analyze_install_guide.md)，设置`-m filter_db`可参考[《recipe结果和cluster\_analysis.db交付件表结构说明》](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db)中的“filter\_db”内容，集群数据精简功能只支持统一db场景。
+    集群数据精简可使用mstt工具集中的msprof-analyze工具，通过设置`-m filter_db`生成集群精简数据，msprof-analyze工具安装可参考《[安装msprof-analyze](https://gitcode.com/Ascend/msprof-analyze/blob/26.1.0/docs/zh/install_guide/msprof-analyze_install_guide.md)》，设置`-m filter_db`可参考《[recipe结果和cluster\_analysis.db交付件表结构说明](https://gitcode.com/ascend/mstt/blob/pre-research/profiler/msprof_analyze/docs/recipe_output_format.md#filter_db)》中的“filter\_db”内容，集群数据精简功能只支持统一db场景。
 
 ## 时间线（Timeline）<a id="timeline"></a>
 
@@ -2672,4 +2670,4 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 MindStudio Insight工具提供了一套完整的数据采集和转化脚本，能够采集Linux Kernel ftrace数据，并将其转换为支持的json文件格式；同时，该工具还支持将转换后的Linux Kernel ftrace数据和Profiling的数据同时导入，实现在同一界面展示两种数据，便于联合分析，从而提高Host Bound问题定位的效率。
 
-Host Bound问题分析的具体步骤请参见《[Host Bound问题分析案例](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/ReadMe.md)》。
+Host Bound问题分析的具体步骤请参见《[Host Bound问题分析案例](https://gitcode.com/Ascend/msinsight/blob/26.1.0/scripts/ftrace_tools/ReadMe.md)》。
