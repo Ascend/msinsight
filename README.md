@@ -10,12 +10,14 @@
   [![精确搜索](https://badgen.net/badge/精确搜索/ReadTheDocs/blue)](https://msinsight.readthedocs.io/zh-cn/latest/)
   [![昇腾社区](https://badgen.net/badge/昇腾社区/Community/blue)](https://www.hiascend.com/cn/developer/software/mindstudio)
   [![报告问题](https://badgen.net/badge/报告问题/Issues/blue)](https://gitcode.com/Ascend/msinsight/issues)
-  [![Version](https://badgen.net/badge/Version/26.0.0/blue)](https://gitcode.com/Ascend/msinsight/releases)
+  [![Version](https://badgen.net/badge/Version/26.1.0/blue)](https://gitcode.com/Ascend/msinsight/releases)
 </div>
 
 ## ✨ 最新消息
 
 <span style="font-size:14px;">
+
+🔹 **[2026.07.25]**：MindStudio Insight 26.1.0 版本上线，围绕 Host 侧性能分析、内存快照分析、容器化部署、Web 访问和 Timeline 交互体验持续增强，主要面向昇腾 AI 性能调优场景的开发者。
 
 🔹 **[2026.04.29]**：MindStudio Insight 26.0.0 版本上线，支持 Host Bound 问题定位、RL 性能分析和 Snapshot 内存大数据分析。
 

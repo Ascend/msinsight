@@ -221,7 +221,7 @@ def stop(self)
 
 vllm-Ascend镜像获取地址：<https://quay.io/repository/ascend/vllm-ascend?tab=tags>
 
-vllm-Ascend文档：<https://docs.vllm.ai/projects/ascend/zh-cn/v0.11.0-dev/quick_start.html>
+vllm-Ascend文档：<https://docs.vllm.ai/projects/ascend/zh-cn/v0.11.0/quick_start.html>
 
 按照文档所示，获取镜像，启动容器。
 
