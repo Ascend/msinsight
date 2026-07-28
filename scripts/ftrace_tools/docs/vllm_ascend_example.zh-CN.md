@@ -9,7 +9,7 @@
 参考 vllm-ascend 官方文档获取镜像并启动容器：
 
 - vllm-ascend 镜像：<https://quay.io/repository/ascend/vllm-ascend?tab=tags>
-- vllm-ascend 文档：<https://docs.vllm.ai/projects/ascend/zh-cn/v0.11.0-dev/quick_start.html>
+- vllm-ascend 文档：<https://docs.vllm.ai/projects/ascend/zh-cn/latest/quick_start.html>
 
 在宿主机准备 ftrace 工具脚本：
 
