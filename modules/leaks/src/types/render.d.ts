@@ -43,6 +43,81 @@ interface Block {
     path: Array<[number, number]>;
 }
 
+interface PackedRenderData {
+    maxTimestamp: number;
+    minTimestamp: number;
+    maxSize: number;
+    minSize: number;
+    ids: Float64Array;
+    startTimestamps: Float64Array;
+    endTimestamps: Float64Array;
+    sizes: Float64Array;
+    addressIndices: Uint32Array;
+    addresses: string[];
+    reservedLine?: Array<[number, number]>;
+    reservedSizeMax?: number;
+    transferBytes: number;
+}
+
+interface BlockGraphBuildMetrics {
+    generation: number;
+    blockCount: number;
+    eventCount: number;
+    maxActiveBlocks: number;
+    peakActivePathPoints: number;
+    pathPoints: number;
+    droppedPathPoints: number;
+    batchCount: number;
+    opfsPathBytes: number;
+    transferBytes: number;
+    buildDurationMs: number;
+    lodApplied: boolean;
+}
+
+interface ProgressiveRenderMetrics {
+    generation: number;
+    firstBatchCount: number;
+    firstRenderedInstanceCount: number;
+    firstFrameAt: number;
+    completedAt?: number;
+    totalBatchCount?: number;
+}
+
+interface BlockMeta {
+    id: number;
+    addr: string;
+    _startTimestamp: number;
+    _endTimestamp: number;
+    pathStartTimestamp: number;
+    pathEndTimestamp: number;
+    size: number;
+    pathOffset: number;
+    pathLength: number;
+}
+
+interface BatchData {
+    metas: BlockMeta[];
+    pathData: Float32Array;
+}
+
+interface BatchTimeRange {
+    minStartTimestamp: number;
+    maxEndTimestamp: number;
+}
+
+type SyncHandle = FileSystemSyncAccessHandle;
+
+interface BlockGraphMetadata {
+    maxTimestamp: number;
+    minTimestamp: number;
+    maxSize: number;
+    minSize: number;
+    batchCount: number;
+    reservedLine?: Array<[number, number]>;
+    reservedSizeMax?: number;
+    metrics?: BlockGraphBuildMetrics;
+}
+
 interface RenderData {
     maxTimestamp: number;
     minTimestamp: number;
