@@ -60,15 +60,6 @@ MindStudio Insight 26.1.0 围绕内存快照分析、ftrace 主动分析、容�
 - **算子与链路分析能力增强**: 算子调优新增 Top Wall Reason 等分析视图，支持 stall top reason 图表对比；Kernel E2E 增加后端表格和整体耗时分析能力，辅助定位算子下发和执行链路中的耗时问题。
 - **集群分析日志落盘**: 集群分析工具执行过程中的标准输出和标准错误可重定向到数据文件夹日志文件，便于 MindStudio Insight 调用集群分析能力时进行问题定位。
 
-#### 资料更新
-
-- **算子调优指导**: 补充算子调优下流水图常见问题的调优指导，帮助用户结合图表结果识别和优化算子执行瓶颈。
-- **内存快照分析案例**: 补充 verl 场景下 Snapshot 数据采集和分析案例、PyTorch Snapshot 分析案例和 profiler memory analysis case，覆盖强化学习和大模型内存分析场景。
-- **ftrace 工具和分析资料**: 补充 trace_analyze.py 用户指南、ftrace_tools 中英文 README、trace-cmd 与 Linux 内核规格约束、采集无数据告警说明等内容，完善 Host Bound 和 CPU 调度分析资料链路。
-- **容器化部署资料**: 按 Docker 镜像容器规范补充容器化部署资料，并新增 streamer 中英文说明，覆盖镜像选择、容器启动、停止、端口配置、数据目录挂载和 HTTPS + mTLS 使用方式。
-- **系统调优与场景化案例**: 补充 system_tuning 数据采集说明、单卡下发分析案例、慢 rank 调优案例，以及 Top War Stall Reason、算子类型汇总和 Ftrace 任务统计等资料内容。
-- **资料结构与易用性优化**: 优化快速开始、用户指南、开发指南和 README 资料，调整资料目录结构，统一术语、图表编号、产品系列名称和链接格式，提升资料阅读和检索体验。
-
 #### 下载地址
 
 | 平台                     | 下载链接 |
@@ -181,7 +172,3 @@ MindStudio Insight 26.0.0 提供昇腾 AI 全流程可视化调优能力，主�
 
 - [GitCode Releases 页面](https://gitcode.com/Ascend/msinsight/releases)
 - [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_guide.md)
-
----
-
-*最后更新: 2026-06-09*

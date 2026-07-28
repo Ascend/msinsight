@@ -9,7 +9,7 @@ This document uses a vllm-ascend offline inference workload running in a Docker 
 Refer to the official vllm-ascend documentation to obtain the image and start the container:
 
 - vllm-ascend image: <https://quay.io/repository/ascend/vllm-ascend?tab=tags>
-- vllm-ascend documentation: <https://docs.vllm.ai/projects/ascend/zh-cn/v0.11.0-dev/quick_start.html>
+- vllm-ascend documentation: <https://docs.vllm.ai/projects/ascend/en/latest/quick_start.html>
 
 Prepare the ftrace tool scripts on the host:
 
