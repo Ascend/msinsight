@@ -109,7 +109,7 @@ sudo python trace_record.py --backend=debugfs --record_time=30 --cpu=0-15 --outp
 
 ## 4. 转换 ftrace 数据
 
-`trace_convert.py` 将 `trace.dat` 或 `trace.txt` 转换为 MindStudio Insight 可导入的 SQLite DB 或 Chrome Trace JSON，并可通过 Profiling 目录进行时间轴对齐。
+`trace_convert.py` 将 `trace.dat` 或 `trace.txt` 转换为 MindStudio Insight 可导入的 SQLite DB 或 Chrome Trace JSON，并可通过 Profiling 目录进行时间轴对齐。转换 `trace.dat` 的环境需要能够执行 `trace-cmd report`；转换 `trace.txt` 不依赖 `trace-cmd`。
 
 ```bash
 python trace_convert.py \
@@ -179,6 +179,24 @@ python trace_convert.py \
 sudo python trace_record.py --record_time=30 --cpu=0-15 --NSpid
 python trace_convert.py --input=trace.dat --output=ftrace_data.db --format=db --pid_mapping=pid_mapping.json
 ```
+
+命令行参数 `--NSpid` 只在 ftrace 采集开始时扫描一次已有进程。使用该参数时，应先启动业务容器并确保待映射的业务进程已经存在，再启动 ftrace 采集；采集开始后新建的进程不会写入本次生成的 `pid_mapping.json`。
+
+如果业务进程会在采集期间动态创建，可以在程序化采集流程中使用 `ContainerPidMapper` 持续更新映射：
+
+```python
+from trace_record import ContainerPidMapper
+
+pid_mapper = ContainerPidMapper("pid_mapping.json")
+pid_mapper.start(duration=1)
+try:
+    # 在此处启动和执行 ftrace 采集。
+    ...
+finally:
+    pid_mapper.stop()
+```
+
+`duration` 是两次扫描之间的间隔秒数，不是采集总时长，应设置为大于 0 的值。持续映射不会由命令行参数 `--NSpid` 自动启用；调用方必须在采集结束时调用 `stop()`，以停止后台线程、执行最后一次扫描并将结果写入映射文件。
 
 ## 5. 导入 MindStudio Insight
 
