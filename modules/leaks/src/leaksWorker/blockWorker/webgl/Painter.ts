@@ -30,7 +30,7 @@ export class Painter {
     reservedLineProgram: ReservedLineProgram | null = null;
     private uniformData: Float32Array;
 
-    constructor(canvas: OffscreenCanvas) {
+    constructor(canvas: OffscreenCanvas, private readonly opfsRuntimeId: string) {
         this.canvas = canvas;
         this.uniformData = new Float32Array(9);
     }
@@ -42,15 +42,31 @@ export class Painter {
             stencil: false,
             antialias: true,
             premultipliedAlpha: true,
-            preserveDrawingBuffer: false,
+            // Progressive rendering appends committed OPFS ranges across worker tasks.
+            // Retaining the default framebuffer keeps earlier ranges visible between frames.
+            preserveDrawingBuffer: true,
             powerPreference: 'high-performance',
         });
         if (gl === null) { throw new Error('WebGL2 not supported'); }
         this.gl = gl;
-        this.memoryBlockProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
-        this.memoryBlockHighlightProgram = new MemoryBlockProgram(this.gl, this.uniformData, shaders.memoryBlock, false);
+        this.memoryBlockProgram = new MemoryBlockProgram(
+            this.gl,
+            this.uniformData,
+            shaders.memoryBlock,
+            false,
+            this.opfsRuntimeId,
+        );
+        this.memoryBlockHighlightProgram = new MemoryBlockProgram(
+            this.gl,
+            this.uniformData,
+            shaders.memoryBlock,
+            true,
+            this.opfsRuntimeId,
+        );
         this.memoryBlockBorderHightlightProgram = new MemoryBlockBorderProgram(this.gl, this.uniformData, shaders.memoryBlockBorder);
         this.reservedLineProgram = new ReservedLineProgram(this.gl, this.uniformData, shaders.reservedLine);
+        await this.memoryBlockProgram.initOPFS();
+        await this.memoryBlockHighlightProgram.initOPFS();
     }
 
     setReservedLine(reservedLine: Array<[number, number]> = []): void {
@@ -70,14 +86,40 @@ export class Painter {
         this.uniformData[8] = zoom.offset;
     }
 
+    clear(viewport: RenderOptions['viewport']): void {
+        const gl = this.gl;
+        if (gl === null) {
+            return;
+        }
+        gl.viewport(0, 0, viewport.width, viewport.height);
+        gl.clearColor(0, 0, 0, 0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    }
+
+    renderMemoryBlockBatchRange(startBatch: number, endBatch: number, options: RenderOptions): number {
+        const gl = this.gl;
+        if (gl === null || endBatch <= startBatch) {
+            return 0;
+        }
+        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+        gl.enable(gl.BLEND);
+        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        this.updateUniformData(options);
+        const renderedInstanceCount = this.memoryBlockProgram?.renderBlockDataRangeFromOPFS(
+            startBatch,
+            endBatch,
+            options,
+        ) ?? 0;
+        gl.disable(gl.BLEND);
+        return renderedInstanceCount;
+    }
+
     render(options: RenderOptions): void {
         const gl = this.gl;
         if (gl === null) {
             return;
         }
-        gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-        gl.clearColor(0, 0, 0, 0);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        this.clear(options.viewport);
         gl.enable(gl.BLEND);
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         this.updateUniformData(options);

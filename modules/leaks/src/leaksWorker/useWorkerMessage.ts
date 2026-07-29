@@ -18,7 +18,7 @@
 
 import { store } from '../store';
 import { useEffect } from 'react';
-import { BlockWorker } from './blockWorker/worker';
+import { BlockWorker, isCurrentBlockWorkerGeneration } from './blockWorker/worker';
 import { StateWorker } from './stateWorker/worker';
 import { runInAction } from 'mobx';
 
@@ -28,6 +28,9 @@ const useWorkerMessage = (): void => {
     useEffect(() => {
         BlockWorker.onmessage = (ev: MessageEvent<any>): void => {
             if (session === undefined) {
+                return;
+            }
+            if (!isCurrentBlockWorkerGeneration(ev.data.generation)) {
                 return;
             }
             switch (ev.data.type) {
@@ -55,10 +58,64 @@ const useWorkerMessage = (): void => {
                         session.leaksWorkerInfo.renderOptions.transform = ev.data.transform;
                     });
                     break;
-                case 'renderCompleted':
+                case 'renderCompleted': {
+                    const progressiveMetricsTarget = globalThis as {
+                        __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
+                    };
+                    progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__ = {
+                        ...progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__,
+                        generation: ev.data.generation,
+                        firstBatchCount:
+                            progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__?.firstBatchCount ?? 0,
+                        firstRenderedInstanceCount:
+                            progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__?.firstRenderedInstanceCount ?? 0,
+                        firstFrameAt:
+                            progressiveMetricsTarget.__LEAKS_PROGRESSIVE_RENDER_METRICS__?.firstFrameAt ?? 0,
+                        completedAt: Date.now(),
+                        totalBatchCount: ev.data.batchCount ?? 0,
+                    };
                     runInAction(() => {
                         session.loadingBlocks = false;
+                        session.progressiveBlocksVisible = false;
+                        session.progressiveRenderedBatchCount = ev.data.batchCount ?? session.progressiveRenderedBatchCount;
+                        session.progressiveRenderedEventCount = session.progressiveTotalEventCount;
                     });
+                    break;
+                }
+                case 'progressiveRenderStarted':
+                    (globalThis as {
+                        __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
+                    }).__LEAKS_PROGRESSIVE_RENDER_METRICS__ = {
+                        generation: ev.data.generation,
+                        firstBatchCount: ev.data.batchCount ?? 0,
+                        firstRenderedInstanceCount: ev.data.renderedInstanceCount ?? 0,
+                        firstFrameAt: Date.now(),
+                    };
+                    runInAction(() => {
+                        session.progressiveBlocksVisible = true;
+                        session.progressiveRenderedEventCount = Math.max(
+                            session.progressiveRenderedEventCount,
+                            ev.data.processedEventCount ?? 0,
+                        );
+                        session.progressiveTotalEventCount = ev.data.totalEventCount ?? session.progressiveTotalEventCount;
+                        session.progressiveFirstRenderedBatchCount = ev.data.batchCount ?? 0;
+                        session.progressiveFirstRenderedInstanceCount = ev.data.renderedInstanceCount ?? 0;
+                    });
+                    break;
+                case 'progressiveRenderProgress':
+                    runInAction(() => {
+                        session.progressiveRenderedBatchCount = ev.data.batchCount ?? 0;
+                        session.progressiveRenderedInstanceCount += ev.data.renderedInstanceCount ?? 0;
+                        session.progressiveRenderedEventCount = Math.max(
+                            session.progressiveRenderedEventCount,
+                            ev.data.processedEventCount ?? 0,
+                        );
+                        session.progressiveTotalEventCount = ev.data.totalEventCount ?? session.progressiveTotalEventCount;
+                    });
+                    break;
+                case 'memoryMetrics':
+                    (globalThis as { __LEAKS_MEMORY_METRICS__?: BlockGraphBuildMetrics }).__LEAKS_MEMORY_METRICS__ =
+                        ev.data.metrics as BlockGraphBuildMetrics;
                     break;
                 default:
                     break;

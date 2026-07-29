@@ -47,6 +47,8 @@ import {
 } from './tools';
 import { observer } from 'mobx-react';
 import { useTranslation } from 'react-i18next';
+import styled from '@emotion/styled';
+import { Spin } from '@insight/lib';
 import { Tooltip } from '@insight/lib/components';
 import { ColumnWidthOutlined, OneToOneOutlined } from '@ant-design/icons';
 
@@ -57,6 +59,31 @@ const BLOCK_DIAGRAM_OFFSET_LEFT = 100;
 const BLOCK_DIAGRAM_OFFSET_RIGHT = 105;
 const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
+
+const ProgressiveLoadingStatus = styled.div`
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    min-width: 72px;
+    min-height: 28px;
+    padding: 4px 8px;
+    box-sizing: border-box;
+    border: 1px solid ${(props): string => props.theme.borderColor};
+    border-radius: 4px;
+    background: ${(props): string => props.theme.bgColorCommon};
+    box-shadow: ${(props): string => props.theme.boxShadow};
+    color: ${(props): string => props.theme.textColorSecondary};
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    line-height: 18px;
+    pointer-events: none;
+    user-select: none;
+`;
 
 const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX;
 const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY;
@@ -78,6 +105,11 @@ export const MemoryBlockDiagram = observer(({
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
+    const progressiveRenderPercent = session.progressiveTotalEventCount > 0
+        ? Math.min(session.loadingBlocks ? 99 : 100, Math.floor(
+            session.progressiveRenderedEventCount * 100 / session.progressiveTotalEventCount,
+        ))
+        : 0;
 
     const resetTransform = (): void => {
         runInAction(() => {
@@ -495,6 +527,19 @@ export const MemoryBlockDiagram = observer(({
         </div>
         <div
             data-testid="blockDiagramSection"
+            data-loading-blocks={String(session.loadingBlocks)}
+            data-loading-overview={String(session.loadingOverview)}
+            data-blocking-spinner-visible={String(session.loadingBlocks && !session.progressiveBlocksVisible)}
+            data-progressive-loading-visible={String(session.loadingBlocks && session.progressiveBlocksVisible)}
+            data-graph-max-size={String(session.leaksWorkerInfo.sizeInfo.maxSize)}
+            data-progressive-visible={String(session.progressiveBlocksVisible)}
+            data-progressive-batch-count={String(session.progressiveRenderedBatchCount)}
+            data-progressive-instance-count={String(session.progressiveRenderedInstanceCount)}
+            data-progressive-rendered-event-count={String(session.progressiveRenderedEventCount)}
+            data-progressive-total-event-count={String(session.progressiveTotalEventCount)}
+            data-progressive-render-percent={String(progressiveRenderPercent)}
+            data-progressive-first-batch-count={String(session.progressiveFirstRenderedBatchCount)}
+            data-progressive-first-instance-count={String(session.progressiveFirstRenderedInstanceCount)}
             ref={containerRef}
             style={{
                 width: '100%',
@@ -513,7 +558,30 @@ export const MemoryBlockDiagram = observer(({
                 />
                 <MarkLineBlock session={session} />
                 <HoverItem session={session} />
-                <Loading style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }} loading={session.loadingBlocks} />
+                {session.loadingBlocks && session.progressiveBlocksVisible
+                    ? <ProgressiveLoadingStatus
+                        data-testid="progressiveBlockLoading"
+                        role="progressbar"
+                        aria-label={t('parsing')}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={progressiveRenderPercent}
+                    >
+                        <Spin size="small" />
+                        <span>{`${progressiveRenderPercent}%`}</span>
+                    </ProgressiveLoadingStatus>
+                    : <></>}
+                <Loading
+                    style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        background: session.progressiveBlocksVisible ? 'transparent' : undefined,
+                    }}
+                    loading={session.loadingBlocks && !session.progressiveBlocksVisible}
+                />
             </div>
         </div>
     </div>;

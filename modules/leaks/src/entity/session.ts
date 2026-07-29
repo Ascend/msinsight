@@ -176,6 +176,14 @@ export class Session {
     autoFilterPotentialLeaks: boolean = false;
 
     loadingBlocks: boolean = false;
+    loadingOverview: boolean = false;
+    progressiveBlocksVisible: boolean = false;
+    progressiveRenderedBatchCount: number = 0;
+    progressiveRenderedInstanceCount: number = 0;
+    progressiveRenderedEventCount: number = 0;
+    progressiveTotalEventCount: number = 0;
+    progressiveFirstRenderedBatchCount: number = 0;
+    progressiveFirstRenderedInstanceCount: number = 0;
     loadingFunc: boolean = false;
     loadingState: boolean = false;
     memSnapshotParseLoading: boolean = false;

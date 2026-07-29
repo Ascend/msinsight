@@ -42,7 +42,7 @@ const WorkerBackend = {
     hoverItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         StateWorker.postMessage({ type: 'hoverItem', clientX, clientY });
     },
-    clickItem({ clientX, clientY, selectionVersion }: Omit<HoverItemPayload, 'type'>): void {
+    clickItem({ clientX, clientY, selectionVersion }: Omit<ClickItemPayload, 'type'>): void {
         StateWorker.postMessage({ type: 'clickItem', clientX, clientY, selectionVersion });
     },
     selectItem({ item, selectionVersion }: Omit<SelectStateItemPayload, 'type'>): void {
@@ -72,7 +72,7 @@ const MainThreadBackend = {
     hoverItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         mainThreadRender.hoverItemHandler({ clientX, clientY });
     },
-    clickItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
+    clickItem({ clientX, clientY }: Omit<ClickItemPayload, 'type'>): void {
         mainThreadRender.clickItemHandler({ clientX, clientY });
     },
     selectItem({ item }: Omit<SelectStateItemPayload, 'type'>): void {

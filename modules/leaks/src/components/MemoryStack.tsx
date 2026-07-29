@@ -57,7 +57,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     const [zoomData, setZoomData] = useState<Array<[number, number]>>([]);
     const [zoomMinTime, setZoomMinTime] = useState<number>(Number.MAX_SAFE_INTEGER);
     const [zoomMaxTime, setZoomMaxTime] = useState<number>(Number.MIN_SAFE_INTEGER);
-    const [dataZoomKey, setDataZoomKey] = useState(0);
     const [selectedRange, setSelectedRange] = useState<[number, number] | undefined>(undefined);
     const selectedRangeRef = useRef<[number, number] | undefined>(undefined);
     const zoomRangeRef = useRef({ min: Number.MAX_SAFE_INTEGER, max: Number.MIN_SAFE_INTEGER });
@@ -180,7 +179,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         debouncedFuncRangeRef.current?.cancel();
         selectedRangeRef.current = undefined;
         setSelectedRange(undefined);
-        setDataZoomKey(key => key + 1);
         getBarNewData(session);
     }, [session.deviceId, session.eventType, session.threadId]);
 
@@ -197,7 +195,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         setZoomMinTime(minTime);
         setZoomMaxTime(maxTime);
         zoomRangeRef.current = { min: minTime, max: maxTime };
-        if (selectedRange === undefined) {
+        if (selectedRangeRef.current === undefined) {
             commitRangeSideEffects([minTime, maxTime]);
         }
     }, [
@@ -206,7 +204,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         session.leaksWorkerInfo.sizeInfo.maxTimestamp,
         session.funcData.minTimestamp,
         session.funcData.maxTimestamp,
-        selectedRange,
     ]);
 
     useEffect(() => {
@@ -311,12 +308,10 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                                 debouncedCommitRangeRef.current?.cancel();
                                 commitRangeSideEffects(fullRange);
                                 requestFuncRangeData(fullRange);
-                                setDataZoomKey(key => key + 1);
                             }}
                             onTransformChange={syncDataZoomRange}
                         />
                         <MemoryDataZoom
-                            key={dataZoomKey}
                             module={session.module}
                             offsetLeft={95}
                             offsetRight={105}

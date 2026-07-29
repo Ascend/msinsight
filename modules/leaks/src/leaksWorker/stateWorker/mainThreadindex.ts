@@ -83,7 +83,7 @@ export class MainThreadRender {
         }
     }, 10);
 
-    clickItemHandler(payload: Omit<HoverItemPayload, 'type'>): void {
+    clickItemHandler(payload: Omit<ClickItemPayload, 'type'>): void {
         this.clickItem = searchStateDataByPoint(this.memoryStateData, payload, this.transform, this.zoom);
         runInAction(() => {
             this.session.stateWorkerInfo.clickItem = this.clickItem;

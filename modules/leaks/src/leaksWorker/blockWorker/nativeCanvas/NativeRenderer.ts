@@ -17,6 +17,7 @@
  */
 
 import { Painter } from './Painter';
+import { BlockDataOPFS } from '../../tools/BlockDataOPFS';
 
 export class NativeRenderer {
     readonly canvas: HTMLCanvasElement;
@@ -25,6 +26,10 @@ export class NativeRenderer {
     readonly painter: Painter;
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };
+    private renderRequested: boolean = false;
+    private renderRunning: boolean = false;
+    private renderVersion: number = 0;
+    private renderPromise: Promise<void> = Promise.resolve();
 
     constructor(canvas: HTMLCanvasElement, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -36,27 +41,51 @@ export class NativeRenderer {
         await this.painter.initialize();
     }
 
-    setZoom(zoom: RenderOptions['zoom']): this {
+    setZoom(zoom: RenderOptions['zoom'], render: boolean = true): this {
         this.zoom = zoom;
-        this.renderFrame();
+        if (render) {
+            void this.renderFrame();
+        }
+        return this;
+    }
+
+    setReservedLine(reservedLine: Array<[number, number]> = []): this {
+        this.painter.setReservedLine(reservedLine);
         return this;
     }
 
     setData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): this {
         this.painter.processData(data, reservedLine);
-        this.renderFrame();
+        void this.renderFrame();
         return this;
     }
 
-    setHighlightData(highlightData: RenderData['blocks'] = []): this {
+    async setDataFromOPFS(
+        blockDataOPFS: BlockDataOPFS | null,
+        batchCount: number,
+        reservedLine: Array<[number, number]> = [],
+        render: boolean = true,
+    ): Promise<this> {
+        await this.painter.processDataFromOPFS(blockDataOPFS, batchCount, reservedLine);
+        if (render) {
+            await this.renderFrame();
+        }
+        return this;
+    }
+
+    setHighlightData(highlightData: RenderData['blocks'] = [], render: boolean = true): this {
         this.painter.processHighlightData(highlightData);
-        this.renderFrame();
+        if (render) {
+            void this.renderFrame();
+        }
         return this;
     }
 
-    setBaseDimmed(dimBase: boolean): this {
+    setBaseDimmed(dimBase: boolean, render: boolean = true): this {
         this.painter.setBaseDimmed(dimBase);
-        this.renderFrame();
+        if (render) {
+            void this.renderFrame();
+        }
         return this;
     }
 
@@ -80,13 +109,31 @@ export class NativeRenderer {
         this.rafPending = true;
         requestAnimationFrame(() => {
             this.rafPending = false;
-            this.renderFrame();
+            void this.renderFrame();
         });
     }
 
-    renderFrame(): void {
-        const viewport = { width: this.canvas.width, height: this.canvas.height };
-        this.painter.render({ transform: this.transform, viewport, zoom: this.zoom });
+    renderFrame(): Promise<void> {
+        this.renderRequested = true;
+        this.renderVersion++;
+        if (!this.renderRunning) {
+            this.renderRunning = true;
+            this.renderPromise = this.renderLoop();
+        }
+        return this.renderPromise;
+    }
+
+    private async renderLoop(): Promise<void> {
+        while (this.renderRequested) {
+            this.renderRequested = false;
+            const renderVersion = this.renderVersion;
+            const viewport = { width: this.canvas.width, height: this.canvas.height };
+            await this.painter.render(
+                { transform: this.transform, viewport, zoom: this.zoom },
+                () => renderVersion !== this.renderVersion,
+            );
+        }
+        this.renderRunning = false;
     }
 
     destroy(): void {
