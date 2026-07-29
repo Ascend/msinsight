@@ -140,3 +140,17 @@ TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExistAndRankIdNotExist) {
     EXPECT_EQ(trackInfo.deviceId, "9988");
     TrackInfoManager::Instance().Reset();
 }
+
+TEST_F(TrackInfoManagerTest, GetClusterProjectPathByFileIdRequiresUniqueMapping) {
+    auto &manager = TrackInfoManager::Instance();
+    manager.Reset();
+    manager.UpdateClusterDbToFileIdMap("clusterA", "rank0.db");
+    manager.UpdateClusterDbToFileIdMap("clusterA", "rank1.db");
+
+    EXPECT_EQ(manager.GetClusterProjectPathByFileId("rank0.db"), "clusterA");
+    EXPECT_TRUE(manager.GetClusterProjectPathByFileId("missing.db").empty());
+
+    manager.UpdateClusterDbToFileIdMap("clusterB", "rank0.db");
+    EXPECT_TRUE(manager.GetClusterProjectPathByFileId("rank0.db").empty());
+    manager.Reset();
+}

@@ -153,7 +153,7 @@ In the Ascend heterogeneous compute architecture, MindStudio Insight displays th
 
 Check the time consumption and interval at each layer in the timeline view to determine whether the corresponding component and operator have performance problems. For example, check whether there is a bottleneck in operator delivery, whether there is a time-consuming kernel, and whether there are redundant conversion operators.
 
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > By default, the **Timeline** tab page displays a maximum of three minutes of data. If the imported data exceeds three minutes in duration, zooming out is not supported; only zooming in is available. To view other time ranges, pan left or right across the timeline.
 
 ### GUI Description
@@ -328,8 +328,8 @@ The following table describes the unit information displayed on the **Timeline**
     <td class="tg-0pky">SoC transmission bandwidth information and L2 buffer bandwidth level information.</td>
   </tr>
   <tr>
-    <td class="tg-0pky">Mata Bw Level</td>
-    <td class="tg-0pky">Mata bandwidth level information.</td>
+    <td class="tg-0pky">Meta Bw Level</td>
+    <td class="tg-0pky">Meta bandwidth level information.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">acc_pmu</td>
@@ -548,7 +548,7 @@ The **Timeline** tab page supports zooming in, zooming out, and moving left and 
 - Move the pointer to any position in the tree chart or graphical pane on the **Timeline** tab page, and hold down **Ctrl** and scroll the mouse wheel to zoom in or out.
 - In the graphical pane, hold down **Ctrl** and click the left mouse button to drag the unit chart leftward or rightward.
 
-    > [!NOTE]NOTE  
+    > [!NOTE]NOTE
     > On macOS, you need to press the Command key on the keyboard and scroll the mouse wheel to zoom in or out, and press the Command key and left mouse button to drag the lane chart left or right.
 
 - In the graphical pane, right-click to zoom in or out. For details, see [**Table 1** Right-click menu functions](#right-click-menu-functions).
@@ -570,13 +570,13 @@ On the **Timeline** tab page, you can search for operators and APIs by name.
 
     Click the switch button next to the search box to view the previous or next matched operator or API. Alternatively, enter a number next to the text box to search for the corresponding operator or API. The operator or API is selected.
 
-    **Figure 1** Searching for operators<a id="searching-for-operators"></a>  
+    **Figure 1** Searching for operators<a id="searching-for-operators"></a>
     ![Searching for operators](./figures/system_tuning/search_operators_2.png "Searching for operators")
 
 - Click ![icon](./figures/system_tuning/zh-cn_image_0000002500040294.png) on the toolbar in the upper left corner of the page and click ![icon](./figures/system_tuning/zh-cn_image_0000002531920185.png) and ![icon](./figures/system_tuning/zh-cn_image_0000002500040296.png) on the left of the search box to enable case-sensitive matching and full-word matching, respectively.
   - Click ![icon](./figures/system_tuning/zh-cn_image_0000002531920185.png) to enable case-sensitive matching. In the displayed dialog box, enter the content to be searched for and press **Enter**. Operators or APIs whose names contain the search item are matched, as shown in [**Figure 2** Enabling case-sensitive matching or full-word matching](#enabling-case-sensitive-matching-or-full-word-matching).
 
-      **Figure 2** Enabling case-sensitive matching or whole word matching<a id="enabling-case-sensitive-matching-or-full-word-matching"></a>  
+      **Figure 2** Enabling case-sensitive matching or whole word matching<a id="enabling-case-sensitive-matching-or-full-word-matching"></a>
         ![Enabling case-sensitive matching or whole word matching](./figures/system_tuning/enable_case_or_whole_word_matching_1.png "Enabling case-sensitive matching or whole word matching")
 
   - Click ![icon](./figures/system_tuning/zh-cn_image_0000002500040296.png) to enable whole word matching. In the displayed text box, enter the search term and press **Enter**. The system will match operators or APIs with names corresponding to the search term, ignoring case, as shown in [**Figure 2** Enabling case-sensitive matching or whole word matching](#enabling-case-sensitive-matching-or-full-word-matching).
@@ -607,26 +607,26 @@ On the **Timeline** tab page, you can search for operators and APIs by name.
     **Figure 1** Timeline preview<a id="timeline-preview"></a>
     ![Timeline preview](./figures/system_tuning/timeline_interface_preview_1.png "timeline_interface_preview_1")
 
-    > [!NOTE]NOTE  
+    > [!NOTE]NOTE
     > CPU, Memory, and Network usage data, that is, numeric events, are displayed in bar charts on the timeline and cannot be previewed, as shown by 3 in [**Figure 1** Timeline preview](#timeline-preview).
 
 **Displaying Data in the Cluster Scenario**
 
 You can import and display cluster data to MindStudio Insight without manually merging multiple single-rank data. MindStudio Insight supports multiple hosts and cards in the training scenario and multiple cards in the inference scenario. It can automatically identify all **trace\_view.json** and **msprof\*******.json** files in the imported folder. [**Figure 2** Timeline data in the cluster scenario](#timeline-data-in-the-cluster-scenario) uses 16 cards as an example.
 
-**Figure 2** Timeline data in the cluster scenario<a id="timeline-data-in-the-cluster-scenario"></a>  
+**Figure 2** Timeline data in the cluster scenario<a id="timeline-data-in-the-cluster-scenario"></a>
 ![Timeline data in the cluster scenario](./figures/system_tuning/cluster_scenario_timeline_data_display_1.png "Timeline data in cluster scenarios")
 
 In a cluster scenario, you can hover the pointer over the rank number to quickly locate the file directory corresponding to the rank data. For example, if you hover the pointer over **0**, the file directory corresponding to the rank is displayed, as shown in [Figure 3 Locating a folder](#locating-a-folder).
 
-**Figure 3** Locating a folder<a id="locating-a-folder"></a>  
+**Figure 3** Locating a folder<a id="locating-a-folder"></a>
 ![Locating a folder](./figures/system_tuning/locate_folder_1.png "Locating a folder")
 
 **Displaying and Comparing Data by Rank/Unit**
 
 When cluster data is imported, a large amount of timeline information is displayed. To help users compare and analyze data, data can be filtered and displayed by rank or/and unit in MindStudio Insight.
 
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > When filtering data by rank and unit, you can select the rank and unit in sequence to display the filtering information.
 
 - Display by rank: displays only one rank. Click ![icon](./figures/system_tuning/zh-cn_image_0000002532040213.png) in the upper left corner of the page, select **Rank Filter**, click the text box, and select **1** from the drop-down list. The timeline information of rank 1 is displayed, as shown in [**Figure 4** Rank filtering](#rank-filtering).
@@ -636,26 +636,26 @@ When cluster data is imported, a large amount of timeline information is display
 
 - Display by unit: [**Figure 5** Unit filtering](#unit-filtering) displays only the **Overlap Analysis** unit of a rank as an example. Click ![](./figures/system_tuning/zh-cn_image_0000002532040213.png) on the toolbar in the upper left corner of the page, select **Units Filter**, click the text box, and select **Overlap Analysis** from the drop-down list box.
 
-    **Figure 5** Unit filtering <a id="unit-filtering"></a>  
+    **Figure 5** Unit filtering <a id="unit-filtering"></a>
     ![](./figures/system_tuning/lane_filter_1.png "Unit filtering")
 
 **Pinning and Comparing Data by Unit**
 
 - MindStudio Insight supports fixing and pinning units. You can drag the collapsed units to freely sort them, facilitating comparison with other levels of the same type.
 
-    > [!NOTE]NOTE  
+    > [!NOTE]NOTE
     > If the level-2 and level-3 units in the pinned rank are also pinned, you can only drag and drop the rank-level units. Similarly, if the level-3 units in the pinned level-2 units are also pinned, you can only drag and drop the level-2 units.
 
     For example, click ![](./figures/system_tuning/zh-cn_image_0000002532040217.png) next to a level-3 unit name in cards 0, 1, and 2 to pin the unit name. Click ![](./figures/system_tuning/zh-cn_image_0000002531920195.png) again to unpin the unit name, as shown in [**Figure 6** Pinning and comparing](#pinning-and-comparing).
 
-    **Figure 6** Pinning and comparing<a id="pinning-and-comparing"></a>  
+    **Figure 6** Pinning and comparing<a id="pinning-and-comparing"></a>
     ![Pinning and comparing](./figures/system_tuning/pin_comparison_to_top_1.png "Pinning and comparing")
 
 - MindStudio Insight also allows you to pin the communication units in the same communication group by one click.
 
     Right-click the **Group** sub-unit under the **Communication** unit and choose **Pin (Same Group** *group name***)** from the shortcut menu to pin all units in the communication group. This makes it easier to view and compare the units, as shown in [**Figure 7** Pinning the communication unit](#pinning-the-communication-unit).
 
-    **Figure 7** Pinning the communication unit <a id="pinning-the-communication-unit"></a>  
+    **Figure 7** Pinning the communication unit <a id="pinning-the-communication-unit"></a>
     ![](./figures/system_tuning/pin_communication_lane_to_top_1.png "Pinning the communication unit")
 
     Right-click a pinned unit and choose **Unpin (Same Group** *group name***)** or **Unpin (all)** from the shortcut menu to unpin the unit, as shown in [**Figure 8** Unpinning](#unpinning). Click **Unpin (Same Group** *group name***)** to unpin all units in the communication group, and click **Unpin (all)** to unpin all pinned units.
@@ -665,7 +665,7 @@ When cluster data is imported, a large amount of timeline information is display
 
 **Aligning Single Rank and Unit Timeline**
 
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > In the single-rank, cluster, and multi-model scenarios, the relative positions of timelines are automatically aligned. If automatic alignment is not required, right-click anywhere, choose **Recover cards default offset** from the shortcut menu to restore the default offsets of all cards and models, and manually align the relative positions.
 
 - Manually aligning the relative positions to the start position
@@ -674,19 +674,19 @@ When cluster data is imported, a large amount of timeline information is display
 
     As shown in [**Figure 9** Initial position offset](#initial-position-offset), the offset between the leftmost thread data in rank 0 and the initial position of the timeline is 7293500 ns.
 
-    **Figure 9** Initial position offset <a id="initial-position-offset"></a>  
+    **Figure 9** Initial position offset <a id="initial-position-offset"></a>
     ![Initial position offset](./figures/system_tuning/initial_position_offset_1.png "Initial position offset")
 
 - Manually setting the offset
 
     In the multi-host multi-rank scenario, the time on the host may be inaccurate. As a result, the relative positions of timelines of multiple cards may be inaccurate. MindStudio Insight supports time calibration in the single-rank dimension, as shown in [**Figure 10** Single-rank time adjustment](#single-device-time-adjustment). You can set the offset to move the timeline of a single rank leftward or rightward to calibrate the time. The unit of the offset is ns. A negative value indicates rightward movement, and a positive value indicates leftward movement.
 
-    **Figure 10** Single-rank time adjustment <a id="single-device-time-adjustment"></a>  
+    **Figure 10** Single-rank time adjustment <a id="single-device-time-adjustment"></a>
     ![](./figures/system_tuning/single_card_time_adjustment_1.png "Single-rank time adjustment")
 
     To calibrate time more flexibly, MindStudio Insight also supports time calibration by unit, as shown in [**Figure 11** Unit time adjustment](#Unit-time-adjustment). On the **Timeline** tab page, expand the rank, click **Offset** next to the required level-2 unit name, enter a value in the text box, and press **Enter** to adjust the unit time. In the DB scenario, you need to expand the host name and adjust the time on the level-2 units under host and each rank.
 
-    **Figure 11** Unit time adjustment <a id="Unit-time-adjustment"></a>  
+    **Figure 11** Unit time adjustment <a id="Unit-time-adjustment"></a>
     ![](./figures/system_tuning/lane_time_adjustment_1.png "Unit time adjustment")
 
 **Displaying Multiple Hosts and Cards**
@@ -699,10 +699,10 @@ When multiple hosts and cards are imported, data can be displayed by host in Min
 
     If the imported DB file contains the **HOST\_INFO** table, this configuration item is displayed on the **System View** tab page (when **Stats System View** or **Expert System View** is selected) and the **Find** tab page on the **Timeline** tab page.
 
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > This function can be displayed only in the unified DB scenario.
 
-**Figure 12** Displaying multiple hosts and cards <a id="Displaying-multiple-hosts-and-cards"></a>  
+**Figure 12** Displaying multiple hosts and cards <a id="Displaying-multiple-hosts-and-cards"></a>
 ![](./figures/system_tuning/multi_node_multi_card_display_1.png "Displaying multiple hosts and cards")
 
 **Setting and Viewing Markers**
@@ -711,12 +711,12 @@ When multiple hosts and cards are imported, data can be displayed by host in Min
 
     On the **Timeline** tab page, select a region and click ![](./figures/system_tuning/2023-08-10_175758.png) or press **K** to mark and save the selected region, as shown in [Figure 13 Region marker](#Region-marker).
 
-    **Figure 13** Region marker <a id="Region-marker"></a>  
+    **Figure 13** Region marker <a id="Region-marker"></a>
     ![](./figures/system_tuning/region_marker_1.png "Region marker")
 
     Double-click a marker to set the marker pair attributes. You can modify the marker pair name and color, and delete the marker pair, as shown in [Figure 14 Modifying marker pair attributes](#Modifying-marker-pair-attributes).
 
-    **Figure 14** Modifying marker pair attributes <a id="Modifying-marker-pair-attributes"></a>  
+    **Figure 14** Modifying marker pair attributes <a id="Modifying-marker-pair-attributes"></a>
     ![](./figures/system_tuning/modify_marker_pair_attributes_1.png "Modifying marker pair attributes")
 
 - Single-point marker
@@ -757,7 +757,7 @@ When multiple hosts and cards are imported, data can be displayed by host in Min
 
 - MindStudio Insight supports full flows. You can click ![](./figures/system_tuning/zh-cn_image_0000002500200298.png) on the toolbar in the upper left corner of the page. In the dialog box that is displayed, you can select one or more flow types. Alternatively, you can search for a flow type by keyword in the search box and select the corresponding flow type. All flows of the corresponding type are displayed in the graphical pane, as shown in [**Figure 18** Full flows](#Full-flows).
 
-    > [!NOTE]NOTE  
+    > [!NOTE]NOTE
     > A maximum of 10 flow types can be selected.
 
     **Figure 18** Full flows<a id="Full-flows"></a>
@@ -801,7 +801,7 @@ When data of more than 16 cards is imported to MindStudio Insight, you can selec
     **Figure 21** Filtering, displaying, and parsing <a id="Filtering-displaying-and-analyzing"></a>
     ![](./figures/system_tuning/filter_display_and_parse_1.png "Filtering, displaying, and analyzing")
 
-    > [!NOTE]NOTE  
+    > [!NOTE]NOTE
     > In the partial analysis scenario, click **Start Global Analysis**. All rank data is parsed.
 
 - Rank parsing in the same communication group: After a rank is parsed, right-click the **Group** sub-unit in the communication group and choose **Parse Cards of Related Group** from the shortcut menu. All cards related to the communication group of the unit are parsed, as shown in [**Figure 22** Parsing cards in the related communication group](#parsing-cards-in-the-related-communication-group). After the parsing is complete, the shortcut menu changes to **Parsed All Cards of Related Group** and is dimmed.
@@ -830,7 +830,7 @@ MindStudio Insight supports aligning the time of selected operators using the sh
         **Figure 25** Aligning the right boundary of the operator <a id="Aligning-the-right-boundary-of-the-operator"></a>
         ![](./figures/system_tuning/align_operator_right_boundary_1.png "Aligning the right boundary of the operator")
 
-        > [!NOTE]NOTE  
+        > [!NOTE]NOTE
         > Regardless of whether the selected operator is left-aligned or right-aligned, the operator in the **NPU** unit whose device is the same as that of the selected operator also shifts.
 
 - **Clearing base slice**
@@ -873,7 +873,7 @@ On the **Timeline** tab page, you can hide or expand a unit.
 
 If data imported to MindStudio Insight contains Python call stack information, you can hide or display the Python call stack information in the unit on the **Timeline** tab page for analysis personnel to view.
 
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > If the unit does not contain Python call stack information, the unit does not have the **Hide python call stack** function.
 
 - **Hide python call stack**: Right-click a unit where the Python call stack needs to be hidden and choose **Hide python call stack** from the shortcut menu to hide the Python call stack in the unit, as shown in [**Figure 3** Hide python call stack](#Hide-python-call-stack).
@@ -914,7 +914,7 @@ On the **Timeline** tab page, you can right-click to enable or disable the auto 
 - Disable auto unit height: Right-click a unit where the auto unit height function is enabled and choose **Disable auto unit height** from the shortcut menu. The auto unit height function is disabled, and the unit height is restored to the initial height, as shown in [**Figure 8** Disable auto unit height](#disable-auto-unit-height).
 
     **Figure 8** Disable auto unit height <a id="disable-auto-unit-height"></a><br>
-    ![Disable auto unit heigh](./figures/system_tuning/disable_lane_height_auto_adjust_1.png "Disable auto unit height")
+    ![Disable auto unit height](./figures/system_tuning/disable_lane_height_auto_adjust_1.png "Disable auto unit height")
 
 **Locking the Selected Area**
 
@@ -1013,6 +1013,8 @@ MindStudio Insight allows you to view operator statistics and details about a si
     |Start|Start time.|
     |Start(Raw Timestamp)|Original start time of data collection.|
     |Wall Duration|Total duration.|
+    |Transit Time(ms)|Transit time of an HCCL Group operator recorded by Communication Analysis. This field is displayed only when the selected Group Slice can be uniquely associated with a communication analysis record.|
+    |Wait Time(ms)|Wait time of an HCCL Group operator recorded by Communication Analysis. This field is displayed only when the selected Group Slice can be uniquely associated with a communication analysis record.|
     |Self Time|Total time (excluding sub-classes).|
     |Input Shapes|Input shape of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
     |Input Data Types|Input data type of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
@@ -1021,6 +1023,11 @@ MindStudio Insight allows you to view operator statistics and details about a si
     |Output Data Types|Output data type of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
     |Output Formats|Output format of the operator. When **task-time** is set to **l0** during data collection, this field is not collected and is displayed as **N/A**. This field is available only for operators collected on the NPU accelerator core.|
     |Attr Info|Operator attributes. When **task-time** is set to **l0** or **l1** during data collection, this field is not collected and is displayed as **N/A**. This field is available only when **aclnn** is enabled and **task-time** is set to **l2**.|
+    |Communication Bandwidth Info|After the selected Group Slice is uniquely associated with a communication analysis record, displays the RDMA, HCCS, PCIE, SDMA, and SIO bandwidth records that exist in Communication Analysis. Types that are not present in the source data are not displayed.|
+    |Transport Type|Type of the communication bandwidth record: RDMA, HCCS, PCIE, SDMA, or SIO.|
+    |Transit Size(MB)|Amount of data in the corresponding bandwidth record, in MB.|
+    |Transit Time(ms)|Transit time in the corresponding bandwidth record, in ms.|
+    |Bandwidth(GB/s)|Bandwidth in the corresponding bandwidth record, in GB/s.|
     |Args|Operator parameters.|
 
 **System View**
@@ -1167,7 +1174,7 @@ On the **System View** tab page, when you select **Stats System View**, the tab 
   |Running(ns)|Total time consumed by a process in the running state.|
   |Sleeping(ns)|Total time consumed by a process in the sleeping state.|
 
--  
+-
 
   **Ftrace IRQ** obtains the IRQ and soft IRQ data of all CPUs from the slice table, determines the location of the process where the interrupt occurs based on the extended information about the interrupt, and collects statistics on the total time consumed and number of hard and soft interrupts of each CPU process, as shown in [**Figure 9** Ftrace IRQ fields](#ftrace-irq-fields).
 
@@ -1498,7 +1505,7 @@ This page is displayed when **Group By** is set to **Computing Operator**. You c
 |Output Data Types|Output data type of the operator.|
 |Output Formats|Output format of the operator.|
 
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > If the performance file imported by MindStudio Insight contains the collected register values, parameters such as **aicore_time** and **aic_total_cycles** are displayed in the computing operator details. For details about the parameters, see "Profile Data File Reference" \> "[op_summary (Operator Details)](https://www.hiascend.com/document/detail/en/mindstudio/830/T&ITools/Profiling/atlasprofiling_16_0151.html)" in the Profiling Tool Guide.
 
 **Computing Operator Type**
@@ -2008,7 +2015,7 @@ On the **Communication** tab page, right-click a single operator in the communic
 
 On the **Timeline** tab page, right-click a communication operator and choose **Find in Communication** from the shortcut menu. The communication operator thumbnail is displayed on the **Communication** tab page. The filter box automatically matches the operator information, as shown in [**Figure 3** Find in Communication](#find-in-communication).
 
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > The communication operator in the **Plane** unit does not support the **Find in Communication** function. The communication operator thumbnail on the **Communication** tab page cannot be displayed.
 
 **Figure 3** Find in Communication <a id="find-in-communication"></a><br>

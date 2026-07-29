@@ -1507,6 +1507,8 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
     |开始|Start|起始时间。|
     |开始（原始时间戳）|Start(Raw Timestamp)|数据采集到的原始开始时间。|
     |持续时间|Wall Duration|总耗时。|
+    |传输时间(ms)|Transit Time(ms)|Communication Analysis记录的HCCL Group通信算子传输时间。仅在所选Group Slice能够与通信分析记录唯一关联时展示。|
+    |等待时间(ms)|Wait Time(ms)|Communication Analysis记录的HCCL Group通信算子等待时间。仅在所选Group Slice能够与通信分析记录唯一关联时展示。|
     |自用时间|Self Time|总耗时（不包括子类）。|
     |输入Shapes|Input Shapes|算子输入维度。采集数据时task-time配置为l0时，不采集该字段，显示为N/A；NPU加速核上采集到的算子才有此字段。|
     |输入数据类型|Input Data Types|算子输入数据类型。采集数据时task-time配置为l0时，不采集该字段，显示为N/A；NPU加速核上采集到的算子才有此字段。|
@@ -1515,6 +1517,11 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
     |输出数据类型|Output Data Types|算子输出数据类型。采集数据时task-time配置为l0时，不采集该字段，显示为N/A；NPU加速核上采集到的算子才有此字段。|
     |输出格式|Output Formats|算子输出数据格式。采集数据时task-time配置为l0时，不采集该字段，显示为N/A；NPU加速核上采集到的算子才有此字段。|
     |算子属性信息|Attr Info|算子属性信息。采集数据时task-time配置为l0或l1时，不采集该字段，显示为N/A；只有开启aclnn，task-time配置为l2时，才有此字段。|
+    |通信带宽信息|Communication Bandwidth Info|所选Group Slice与通信分析记录唯一关联后，展示Communication Analysis中实际存在的RDMA、HCCS、PCIE、SDMA和SIO通信带宽记录。不存在的类型不展示。|
+    |传输类型|Transport Type|通信带宽记录的类型，包括RDMA、HCCS、PCIE、SDMA或SIO。|
+    |传输大小(MB)|Transit Size(MB)|对应通信带宽记录的传输数据量，单位为MB。|
+    |传输时间(ms)|Transit Time(ms)|对应通信带宽记录的传输时间，单位为ms。|
+    |带宽(GB/s)|Bandwidth(GB/s)|对应通信带宽记录的带宽，单位为GB/s。|
     |参数|Args|算子的相关参数信息。|
 
 **系统视图**

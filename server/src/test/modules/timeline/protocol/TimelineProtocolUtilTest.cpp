@@ -106,6 +106,50 @@ TEST_F(TimelineProtocolUtilTest, TestUnitThreadsResponseToJsonError) {
     EXPECT_EQ(json, jsonStr);
 }
 
+TEST_F(TimelineProtocolUtilTest, UnitThreadDetailSerializesCommunicationAnalysisMetricsIncludingZero) {
+    Dic::Protocol::UnitThreadDetailResponse response;
+    response.body.data.transitTime = 0;
+    response.body.data.waitTime = 1.25;
+    response.body.data.communicationBandwidthInfo = {
+        {"RDMA", 0, 0, 0},
+        {"HCCS", 1907.497088, 193.3286005, 9.8666},
+    };
+
+    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+
+    ASSERT_TRUE(jsonOp.has_value());
+    const auto &data = jsonOp.value()["body"]["data"];
+    ASSERT_TRUE(data.HasMember("transitTime"));
+    ASSERT_TRUE(data.HasMember("waitTime"));
+    EXPECT_DOUBLE_EQ(data["transitTime"].GetDouble(), 0);
+    EXPECT_DOUBLE_EQ(data["waitTime"].GetDouble(), 1.25);
+    ASSERT_TRUE(data.HasMember("communicationBandwidthInfo"));
+    ASSERT_TRUE(data["communicationBandwidthInfo"].IsArray());
+    ASSERT_EQ(data["communicationBandwidthInfo"].Size(), 2);
+    const auto &rdma = data["communicationBandwidthInfo"][0];
+    EXPECT_STREQ(rdma["transportType"].GetString(), "RDMA");
+    EXPECT_DOUBLE_EQ(rdma["transitSize"].GetDouble(), 0);
+    EXPECT_DOUBLE_EQ(rdma["transitTime"].GetDouble(), 0);
+    EXPECT_DOUBLE_EQ(rdma["bandwidth"].GetDouble(), 0);
+    const auto &hccs = data["communicationBandwidthInfo"][1];
+    EXPECT_STREQ(hccs["transportType"].GetString(), "HCCS");
+    EXPECT_DOUBLE_EQ(hccs["transitSize"].GetDouble(), 1907.497088);
+    EXPECT_DOUBLE_EQ(hccs["transitTime"].GetDouble(), 193.3286005);
+    EXPECT_DOUBLE_EQ(hccs["bandwidth"].GetDouble(), 9.8666);
+}
+
+TEST_F(TimelineProtocolUtilTest, UnitThreadDetailOmitsUnavailableCommunicationAnalysisMetrics) {
+    Dic::Protocol::UnitThreadDetailResponse response;
+
+    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+
+    ASSERT_TRUE(jsonOp.has_value());
+    const auto &data = jsonOp.value()["body"]["data"];
+    EXPECT_FALSE(data.HasMember("transitTime"));
+    EXPECT_FALSE(data.HasMember("waitTime"));
+    EXPECT_FALSE(data.HasMember("communicationBandwidthInfo"));
+}
+
 TEST_F(TimelineProtocolUtilTest, TestUnitFlowsResponseToJson) {
     Dic::Protocol::UnitFlowsResponse response;
     Dic::Protocol::UnitSingleFlow unitSingleFlow;

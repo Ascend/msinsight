@@ -25,6 +25,10 @@ namespace Dic {
 using namespace Server;
 namespace Module {
 namespace FullDb {
+namespace {
+constexpr uint64_t DB_COMMUNICATION_TIMESTAMP_TOLERANCE_NS = 1000;
+}
+
 DbClusterDataBase::~DbClusterDataBase() {}
 
 bool DbClusterDataBase::CreateTable() {
@@ -213,6 +217,29 @@ bool DbClusterDataBase::QueryBandwidthData(
         "WHERE rn = 1";
     param.iterationId = "step" + param.iterationId;
     return ExecuteQueryBandwidthData(param, resBody, sql);
+}
+
+bool DbClusterDataBase::QueryCommunicationDetail(
+    const std::string &rankId, const std::string &opName, uint64_t startTimeNs, CommunicationDetailDo &detail) {
+    const std::string timeSql =
+        "SELECT step AS iteration, group_name AS communicationGroup, transit_time AS transitTime, "
+        "wait_time AS waitTime, CASE WHEN step IS NOT NULL AND step != '' "
+        "AND group_name IS NOT NULL AND group_name != '' AND transit_time IS NOT NULL AND wait_time IS NOT NULL "
+        "THEN 1 ELSE 0 END AS isComplete FROM " +
+        TABLE_COMM_ANALYZER_TIME +
+        " WHERE rank_id = ? AND hccl_op_name = ? AND hccl_op_name != 'Total Op Info' "
+        "AND start_timestamp BETWEEN ? / 1000.0 AND ? / 1000.0 LIMIT 2";
+    const std::string bandwidthSql = "SELECT band_type AS transportType, MIN(transit_size) AS transitSize, "
+                                     "MIN(transit_time) AS transitTime, MIN(bandwidth) AS bandwidth FROM " +
+        TABLE_COMM_ANALYZER_BANDWIDTH +
+        " WHERE step = ? AND rank_id = ? AND group_name = ? AND hccl_op_name = ? "
+        "AND band_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO') "
+        "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth IS NOT NULL "
+        "GROUP BY band_type HAVING MIN(transit_size) = MAX(transit_size) "
+        "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
+        "ORDER BY band_type";
+    return ExecuteQueryCommunicationDetail(
+        timeSql, bandwidthSql, rankId, opName, startTimeNs, DB_COMMUNICATION_TIMESTAMP_TOLERANCE_NS, detail);
 }
 
 bool DbClusterDataBase::QueryDistributionData(

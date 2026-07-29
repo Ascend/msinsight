@@ -181,6 +181,16 @@ const singleSliceDetail = singleData({
         ['Raw Start', (data: AscendSliceDetail): string => `${data.rawStartTime ?? ''}ns`, isHiddenRawStartTime],
         ['Raw End', (data: AscendSliceDetail): string => `${data.rawEndTime ?? '0'}ns`, isHiddenRawEndTime],
         ['Wall Duration', (data): string => getDetailTimeDisplay(data.duration as number), isHiddenDuration],
+        [
+            'Transit Time(ms)',
+            (data: AscendSliceDetail): string => data.transitTime === undefined ? '' : `${data.transitTime}`,
+            (data: AscendSliceDetail): boolean => data.transitTime === undefined,
+        ],
+        [
+            'Wait Time(ms)',
+            (data: AscendSliceDetail): string => data.waitTime === undefined ? '' : `${data.waitTime}`,
+            (data: AscendSliceDetail): boolean => data.waitTime === undefined,
+        ],
         ['Self Time', (data): string => getDetailTimeDisplay(data.selfTime as number), isHiddenSelfTime],
         ['Input Shapes', (data: AscendSliceDetail): string => getDisplay(data.inputShapes), (data: AscendSliceDetail): boolean => isHidden(data.inputShapes)],
         ['Input Data Types', (data: AscendSliceDetail): string => getDisplay(data.inputDataTypes), (data: AscendSliceDetail): boolean => isHidden(data.inputDataTypes)],

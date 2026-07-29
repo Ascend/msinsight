@@ -348,6 +348,83 @@ bool VirtualClusterDatabase::ExecuteQueryBandwidthData(
     return true;
 }
 
+bool VirtualClusterDatabase::ExecuteQueryCommunicationDetail(const std::string &timeSql,
+    const std::string &bandwidthSql, const std::string &rankId, const std::string &opName, uint64_t startTimeNs,
+    uint64_t timestampToleranceNs, CommunicationDetailDo &detail) {
+    const uint64_t minStartTime = startTimeNs > timestampToleranceNs ? startTimeNs - timestampToleranceNs : 0;
+    const uint64_t maxStartTime =
+        startTimeNs > UINT64_MAX - timestampToleranceNs ? UINT64_MAX : startTimeNs + timestampToleranceNs;
+    detail = {};
+
+    std::string iteration;
+    std::string group;
+    {
+        auto stmt = CreatPreparedStatement(timeSql);
+        if (stmt == nullptr) {
+            ServerLog::Error("Failed to prepare query communication detail time statement.");
+            return false;
+        }
+        auto resultSet = stmt->ExecuteQuery(rankId, opName, minStartTime, maxStartTime);
+        if (resultSet == nullptr) {
+            ServerLog::Error("Failed to execute query communication detail time statement. error:",
+                stmt->GetErrorMessage(), ", code:", stmt->GetErrorCode());
+            return false;
+        }
+        if (!resultSet->Next()) {
+            if (resultSet->GetErrorCode() != SQLITE_DONE) {
+                ServerLog::Error("Failed to read query communication detail time result. error:",
+                    resultSet->GetErrorMessage(), ", code:", resultSet->GetErrorCode());
+            }
+            return false;
+        }
+        iteration = resultSet->GetString("iteration");
+        group = resultSet->GetString("communicationGroup");
+        detail.transitTime = resultSet->GetDouble("transitTime");
+        detail.waitTime = resultSet->GetDouble("waitTime");
+        const bool isComplete = resultSet->GetInt32("isComplete") != 0;
+        const bool hasMultipleCandidates = resultSet->Next();
+        if (!hasMultipleCandidates && resultSet->GetErrorCode() != SQLITE_DONE) {
+            ServerLog::Error("Failed to read query communication detail time result. error:",
+                resultSet->GetErrorMessage(), ", code:", resultSet->GetErrorCode());
+            detail = {};
+            return false;
+        }
+        if (hasMultipleCandidates || !isComplete) {
+            detail = {};
+            return false;
+        }
+    }
+
+    auto stmt = CreatPreparedStatement(bandwidthSql);
+    if (stmt == nullptr) {
+        ServerLog::Error("Failed to prepare query communication detail bandwidth statement.");
+        detail = {};
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery(iteration, rankId, group, opName);
+    if (resultSet == nullptr) {
+        ServerLog::Error("Failed to execute query communication detail bandwidth statement. error:",
+            stmt->GetErrorMessage(), ", code:", stmt->GetErrorCode());
+        detail = {};
+        return false;
+    }
+    while (resultSet->Next()) {
+        CommunicationBandwidthDo bandwidth;
+        bandwidth.transportType = resultSet->GetString("transportType");
+        bandwidth.transitSize = resultSet->GetDouble("transitSize");
+        bandwidth.transitTime = resultSet->GetDouble("transitTime");
+        bandwidth.bandwidth = resultSet->GetDouble("bandwidth");
+        detail.bandwidthInfo.emplace_back(std::move(bandwidth));
+    }
+    if (resultSet->GetErrorCode() != SQLITE_DONE) {
+        ServerLog::Error("Failed to read query communication detail bandwidth result. error:",
+            resultSet->GetErrorMessage(), ", code:", resultSet->GetErrorCode());
+        detail = {};
+        return false;
+    }
+    return true;
+}
+
 bool VirtualClusterDatabase::ExecuteQueryDistributionData(
     Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody, std::string sql) {
     sqlite3_stmt *stmt = nullptr;

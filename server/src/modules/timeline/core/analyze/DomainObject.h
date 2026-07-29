@@ -78,6 +78,7 @@ struct CompeteSliceDomain {
     std::string bandwidth;
     std::string args;
     std::string cardId;
+    bool isCommunicationGroup = false;
     bool operator<(const CompeteSliceDomain &right) const {
         if (depth < right.depth) {
             return true;

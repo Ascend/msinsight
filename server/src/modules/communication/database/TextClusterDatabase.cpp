@@ -29,6 +29,10 @@ namespace Dic {
 namespace Module {
 using namespace Server;
 using namespace rapidjson;
+namespace {
+constexpr uint64_t TEXT_COMMUNICATION_TIMESTAMP_TOLERANCE_NS = 1000;
+}
+
 TextClusterDatabase::~TextClusterDatabase() noexcept {
     SaveLastDataSafe();
     if (isInitStmt) {
@@ -737,6 +741,29 @@ bool TextClusterDatabase::QueryBandwidthData(
         " b "
         " WHERE iteration_id = ? AND rank_id = ? AND op_suffix = ? AND op_name = ? ";
     return ExecuteQueryBandwidthData(param, resBody, sql);
+}
+
+bool TextClusterDatabase::QueryCommunicationDetail(
+    const std::string &rankId, const std::string &opName, uint64_t startTimeNs, CommunicationDetailDo &detail) {
+    const std::string timeSql =
+        "SELECT iteration_id AS iteration, op_suffix AS communicationGroup, transit_time AS transitTime, "
+        "wait_time AS waitTime, CASE WHEN iteration_id IS NOT NULL AND iteration_id != '' "
+        "AND op_suffix IS NOT NULL AND op_suffix != '' AND transit_time IS NOT NULL AND wait_time IS NOT NULL "
+        "THEN 1 ELSE 0 END AS isComplete FROM " +
+        TABLE_TIME_INFO +
+        " WHERE rank_id = ? AND op_name = ? AND op_name != 'Total Op Info' "
+        "AND start_time BETWEEN ? AND ? LIMIT 2";
+    const std::string bandwidthSql = "SELECT transport_type AS transportType, MIN(transit_size) AS transitSize, "
+                                     "MIN(transit_time) AS transitTime, MIN(bandwidth_size) AS bandwidth FROM " +
+        TABLE_BANDWIDTH +
+        " WHERE iteration_id = ? AND rank_id = ? AND op_suffix = ? AND op_name = ? "
+        "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO') "
+        "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth_size IS NOT NULL "
+        "GROUP BY transport_type HAVING MIN(transit_size) = MAX(transit_size) "
+        "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth_size) = MAX(bandwidth_size) "
+        "ORDER BY transport_type";
+    return ExecuteQueryCommunicationDetail(
+        timeSql, bandwidthSql, rankId, opName, startTimeNs, TEXT_COMMUNICATION_TIMESTAMP_TOLERANCE_NS, detail);
 }
 
 bool TextClusterDatabase::QueryDistributionData(

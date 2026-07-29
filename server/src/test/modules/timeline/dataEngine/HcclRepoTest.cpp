@@ -455,6 +455,7 @@ TEST_F(HcclRepoTest, TestGroupQueryGroupSliceDetailInfo) {
     query.rankId = "hhh";
     bool result = hcclRepoMock.QuerySliceDetailInfo(query, slice);
     EXPECT_EQ(result, true);
+    EXPECT_TRUE(slice.isCommunicationGroup);
     EXPECT_EQ(slice.name, "mmmm");
     const uint64_t expectStart = 1718180919002130516;
     const uint64_t expectEnd = 1718180919038847310;
@@ -537,6 +538,7 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfo) {
     query.rankId = "hhh";
     bool result = hcclRepoMock.QuerySliceDetailInfo(query, slice);
     EXPECT_EQ(result, true);
+    EXPECT_FALSE(slice.isCommunicationGroup);
     EXPECT_EQ(slice.name, "kkkk");
     const uint64_t expectStart = 1718180918997464923;
     const uint64_t expectEnd = 1718180918997464923;

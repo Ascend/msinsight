@@ -460,6 +460,7 @@ bool HcclRepo::QueryGroupSliceDetailInfo(
     JsonUtil::AddConstMember(json, CommucationTaskOpColumn::RELAY, relay, allocator);
     JsonUtil::AddConstMember(json, CommucationTaskOpColumn::RETRY, retry, allocator);
     competeSliceDomain.args = JsonUtil::JsonDump(json);
+    competeSliceDomain.isCommunicationGroup = true;
     return true;
 }
 }

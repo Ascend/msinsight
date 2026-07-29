@@ -166,6 +166,21 @@ std::map<std::string, std::string> TrackInfoManager::GetRankIdToFileIdByClusterD
     return res;
 }
 
+std::string TrackInfoManager::GetClusterProjectPathByFileId(const std::string &fileId) {
+    std::unique_lock<std::mutex> lock(trackMutex);
+    std::string matchedPath;
+    for (const auto &[clusterProjectPath, fileIds] : clusterDbToFileIdMap) {
+        if (fileIds.count(fileId) == 0) {
+            continue;
+        }
+        if (!matchedPath.empty()) {
+            return "";
+        }
+        matchedPath = clusterProjectPath;
+    }
+    return matchedPath;
+}
+
 std::vector<RankInfo> TrackInfoManager::GetRankListByFileId(const std::string &fileId, const std::string &rankId) {
     std::lock_guard lock(trackMutex);
     return fileIdToRankListMap[fileId + rankId];
