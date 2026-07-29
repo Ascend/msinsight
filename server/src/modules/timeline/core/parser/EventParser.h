@@ -22,6 +22,7 @@
 #include <string>
 #include <map>
 #include <functional>
+#include <unordered_set>
 #include "GlobalDefs.h"
 #include "TextTraceDatabase.h"
 #include "IFileReader.h"
@@ -63,6 +64,10 @@ class EventParser {
     void SimulationFlowEventsHandle(Trace::Event *eventPtr);
     void CounterEventsHandle(Trace::Event *eventPtr);
     std::map<std::string, uint64_t> trackIdMap;
+    inline static const std::unordered_set<std::string> SET_FLAG_NAMES = {
+        "SET_FLAG", "set_event", "SET_INTRA_BLOCK", "SET_INTRA_BLOCKI"};
+    inline static const std::unordered_set<std::string> WAIT_FLAG_NAMES = {
+        "WAIT_FLAG", "wait_event", "WAIT_INTRA_BLOCK", "WAIT_INTRA_BLOCKI"};
     std::map<std::string, Trace::Slice> setFlagSliceMap;
     std::map<std::string, Trace::Slice> waitFlagSliceMap;
     uint64_t GetTrackId(const std::string &pid, const std::string &tid);
