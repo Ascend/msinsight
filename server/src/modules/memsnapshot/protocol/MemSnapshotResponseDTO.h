@@ -49,25 +49,44 @@ struct BlockViewItemDTO : public JsonSerializable, Block {
 /**
  * @brief 内存生命周期图-内存分配折线
  */
-struct AllocationRecordDTO : public JsonSerializable {
+struct AllocationRecord {
     int64_t timestamp{0};
     uint64_t allocated{0};
     uint64_t reserved{0};
 
-    AllocationRecordDTO(const int64_t timestamp, const uint64_t allocated)
+    AllocationRecord(const int64_t timestamp, const uint64_t allocated)
         : timestamp(timestamp), allocated(allocated), reserved(allocated) {}
 
-    AllocationRecordDTO(const int64_t timestamp, const uint64_t allocated, const uint64_t reserved)
+    AllocationRecord(const int64_t timestamp, const uint64_t allocated, const uint64_t reserved)
         : timestamp(timestamp), allocated(allocated), reserved(std::max(reserved, allocated)) {}
+};
 
-    AllocationRecordDTO(const MemoryRecord &record)
-        : timestamp(record.id), allocated(record.allocated), reserved(std::max(record.reserved, record.allocated)) {}
+struct AllocationRecordDTO : public JsonSerializable {
+    int64_t timestamp{0};
+    uint64_t totalSize{0};
+
+    AllocationRecordDTO(const int64_t timestamp, const uint64_t totalSize)
+        : timestamp(timestamp), totalSize(totalSize) {}
 
     [[nodiscard]] json_t ToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const override {
         json_t json(kObjectType);
         JsonUtil::AddMember(json, "timestamp", timestamp, allocator);
-        JsonUtil::AddMember(json, "totalSize", allocated, allocator);
-        JsonUtil::AddMember(json, "reservedSize", reserved, allocator);
+        JsonUtil::AddMember(json, "totalSize", totalSize, allocator);
+        return json;
+    }
+};
+
+struct ReservedRecordDTO : public JsonSerializable {
+    int64_t timestamp{0};
+    uint64_t reservedSize{0};
+
+    ReservedRecordDTO(const int64_t timestamp, const uint64_t reservedSize)
+        : timestamp(timestamp), reservedSize(reservedSize) {}
+
+    [[nodiscard]] json_t ToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const override {
+        json_t json(kObjectType);
+        JsonUtil::AddMember(json, "timestamp", timestamp, allocator);
+        JsonUtil::AddMember(json, "reservedSize", reservedSize, allocator);
         return json;
     }
 };

@@ -19,6 +19,18 @@
 import { BlockDataOPFS, blockFromMeta, getPointFromPathData, type PackedBlockPath } from './BlockDataOPFS';
 import { isPackedRenderData } from './packedBlockData';
 
+export const processReservedLine = (points: ReservedLinePoint[]): {
+    reservedLine: Array<[number, number]>;
+    reservedSizeMax: number;
+} => {
+    let reservedSizeMax = 0;
+    const reservedLine = points.map(({ timestamp, reservedSize }) => {
+        reservedSizeMax = Math.max(reservedSizeMax, reservedSize);
+        return [timestamp, reservedSize] as [number, number];
+    });
+    return { reservedLine, reservedSizeMax };
+};
+
 export const getZoom = (
     data: RenderData | BlockGraphMetadata,
     canvas: OffscreenCanvas | HTMLCanvasElement,

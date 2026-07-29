@@ -24,6 +24,7 @@ import {
     buildBlockViewPathAndWriteToOPFS,
     getInitialBlockGraphMetadata,
     getZoom,
+    processReservedLine,
     searchBlockDataByPoint,
     searchBlockDataByPointFromOPFS,
 } from '../tools/dataProcess';
@@ -308,22 +309,23 @@ const setReservedLineHandler = (payload: SetReservedLinePayload): void => {
     if (payload.generation !== latestDataGeneration) {
         return;
     }
+    const { reservedLine: processedReservedLine, reservedSizeMax } = processReservedLine(payload.reservedLine);
     reservedLineOverride = {
         generation: payload.generation,
-        reservedLine: payload.reservedLine,
-        reservedSizeMax: payload.reservedSizeMax,
+        reservedLine: processedReservedLine,
+        reservedSizeMax,
     };
     if (payload.generation !== activeDataGeneration) {
         return;
     }
-    reservedLine = payload.reservedLine;
+    reservedLine = processedReservedLine;
     if (memoryBlockMetadata) {
-        memoryBlockMetadata.reservedLine = payload.reservedLine;
-        memoryBlockMetadata.reservedSizeMax = payload.reservedSizeMax;
+        memoryBlockMetadata.reservedLine = processedReservedLine;
+        memoryBlockMetadata.reservedSizeMax = reservedSizeMax;
         zoom = getZoom(memoryBlockMetadata, canvas);
     } else if (memoryBlockData) {
-        memoryBlockData.reservedLine = payload.reservedLine;
-        memoryBlockData.reservedSizeMax = payload.reservedSizeMax;
+        memoryBlockData.reservedLine = processedReservedLine;
+        memoryBlockData.reservedSizeMax = reservedSizeMax;
         zoom = getZoom(memoryBlockData, canvas);
     } else {
         return;

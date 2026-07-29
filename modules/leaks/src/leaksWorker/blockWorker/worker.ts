@@ -86,12 +86,11 @@ const WorkerBackend = {
         );
         return completion;
     },
-    setReservedLine({ reservedLine, reservedSizeMax }: Omit<SetReservedLinePayload, 'type' | 'generation'>): void {
+    setReservedLine({ reservedLine }: Omit<SetReservedLinePayload, 'type' | 'generation'>): void {
         BlockWorker.postMessage({
             type: 'setReservedLine',
             generation: workerGeneration,
             reservedLine,
-            reservedSizeMax,
         } as SetReservedLinePayload);
     },
     resizeCanvas({ width, height }: Omit<ResizeCanvasPayload, 'type'>): void {
@@ -143,11 +142,10 @@ const MainThreadBackend = {
         mainThreadLoadQueue = task.catch(() => undefined);
         return task;
     },
-    setReservedLine({ reservedLine, reservedSizeMax }: Omit<SetReservedLinePayload, 'type' | 'generation'>): void {
+    setReservedLine({ reservedLine }: Omit<SetReservedLinePayload, 'type' | 'generation'>): void {
         mainThreadRender.setReservedLineHandler({
             generation: mainThreadGeneration,
             reservedLine,
-            reservedSizeMax,
         });
     },
     resizeCanvas({ width, height }: Omit<ResizeCanvasPayload, 'type'>): void {

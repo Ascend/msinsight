@@ -33,8 +33,12 @@ interface SetMemoryBlocksDataPayload {
 interface SetReservedLinePayload {
     type: 'setReservedLine';
     generation: number;
-    reservedLine: Array<[number, number]>;
-    reservedSizeMax: number;
+    reservedLine: ReservedLinePoint[];
+};
+
+interface ReservedLinePoint {
+    timestamp: number;
+    reservedSize: number;
 };
 
 interface DestroyPayload {

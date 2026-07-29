@@ -50,7 +50,7 @@ class MemSnapshotDatabase : public Database {
 
     // 查询内存记录（allocated/reserved/active）用于内存总量曲线
     void QueryMemoryRecords(const MemSnapshotAllocationParams &queryParams, std::vector<MemoryRecord> &records);
-    void QueryMemoryAllocations(const std::string &deviceId, std::vector<AllocationRecordDTO> &records);
+    void QueryMemoryAllocations(const std::string &deviceId, std::vector<AllocationRecord> &records);
     // 查询trace_entry表格数据，支持分页、过滤、排序等
     int64_t QueryTraceEntriesTable(
         const MemSnapshotEventParams &queryParams, std::vector<TraceEntryTableItemDTO> &entries);

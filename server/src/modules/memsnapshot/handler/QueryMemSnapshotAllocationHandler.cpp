@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include "DataBaseManager.h"
+#include "MemSnapshotAllocationDataProcessor.h"
 #include "ProjectExplorerManager.h"
 #include "QueryMemSnapshotAllocationHandler.h"
 
@@ -37,14 +38,17 @@ bool QueryMemSnapshotAllocationHandler::HandleRequest(std::unique_ptr<Protocol::
         SendResponse(std::move(responsePtr), false, errorMsg);
         return false;
     }
-    memoryDatabase->QueryMemoryAllocations(request.params.deviceId, response.records);
-    if (response.records.empty()) {
+    std::vector<Protocol::AllocationRecord> records;
+    memoryDatabase->QueryMemoryAllocations(request.params.deviceId, records);
+    if (records.empty()) {
         Server::ServerLog::Warn("Query memory records: empty data.");
         SendResponse(std::move(responsePtr), true);
         return true;
     }
-    responsePtr->minEventId = 0;
-    responsePtr->maxEventId = memoryDatabase->GetDeviceMaxEntryId(request.params.deviceId);
+    response.allocations = MemSnapshotAllocationDataProcessor::ExtractAllocationTurningPoints(records);
+    response.reservedLine = MemSnapshotAllocationDataProcessor::CompressReservedLine(records);
+    response.minEventId = 0;
+    response.maxEventId = memoryDatabase->GetDeviceMaxEntryId(request.params.deviceId);
     SendResponse(std::move(responsePtr), true);
     return true;
 }

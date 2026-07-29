@@ -625,8 +625,7 @@ void MemSnapshotDatabase::QueryMemoryRecords(
     sqlite3_finalize(stmt);
 }
 
-void MemSnapshotDatabase::QueryMemoryAllocations(
-    const std::string &deviceId, std::vector<AllocationRecordDTO> &records) {
+void MemSnapshotDatabase::QueryMemoryAllocations(const std::string &deviceId, std::vector<AllocationRecord> &records) {
     std::string querySql = "SELECT {}, {}, {} FROM {} WHERE {} >= 0 ORDER BY {} ASC";
     querySql = StringUtil::FormatString(querySql, TraceEntryTableColumn::ID, TraceEntryTableColumn::ALLOCATED,
         TraceEntryTableColumn::RESERVED, GetTraceEntryTableNameByDeviceId(deviceId), TraceEntryTableColumn::ID,
