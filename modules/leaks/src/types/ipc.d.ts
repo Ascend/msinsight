@@ -26,7 +26,20 @@ interface InitCanvasPayload {
 
 interface SetMemoryBlocksDataPayload {
     type: 'setMemoryBlockData';
-    data: RenderData;
+    generation: number;
+    data: RenderData | PackedRenderData;
+};
+
+interface SetReservedLinePayload {
+    type: 'setReservedLine';
+    generation: number;
+    reservedLine: Array<[number, number]>;
+    reservedSizeMax: number;
+};
+
+interface DestroyPayload {
+    type: 'destroy';
+    generation: number;
 };
 
 interface ResizeCanvasPayload {
@@ -42,6 +55,13 @@ interface TransformPayload {
 
 interface HoverItemPayload {
     type: 'hoverItem';
+    clientX: number;
+    clientY: number;
+    selectionVersion?: number;
+};
+
+interface ClickItemPayload {
+    type: 'clickItem';
     clientX: number;
     clientY: number;
     selectionVersion?: number;
@@ -66,21 +86,24 @@ interface SelectStateItemPayload {
 };
 
 interface SetMemoryStateDataPayload {
-    type: 'setMemoryState';
+    type: 'setMemoryStateData';
     data: Segment[];
 };
 
 type Payload =
     | InitCanvasPayload
-    | SetDataPayload
+    | SetMemoryBlocksDataPayload
+    | SetReservedLinePayload
     | ResizeCanvasPayload
     | TransformPayload
     | HoverItemPayload
+    | ClickItemPayload
     | SelectBlockItemPayload
     | SelectBlockByIdPayload
     | SelectStateItemPayload
-    | SetMemoryStateDataPayload;
+    | SetMemoryStateDataPayload
+    | DestroyPayload;
 
 type PayloadHandlers = Partial<{
-    [K in Payload['type']]: (payload: Extract<Payload, { type: K }>) => void;
+    [K in Payload['type']]: (payload: Extract<Payload, { type: K }>) => void | Promise<void>;
 }>;

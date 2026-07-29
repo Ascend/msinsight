@@ -17,6 +17,7 @@
  */
 
 import { getColorStringByAddr, getDimmedColorStringByAddr } from '@/leaksWorker/tools/color';
+import { BlockDataOPFS, getPointFromPathData } from '../../tools/BlockDataOPFS';
 
 const RESERVED_LINE_COLOR = '#0052D9';
 const RESERVED_LABEL_COLOR = '#003CAB';
@@ -29,6 +30,9 @@ export class Painter {
     private highlightData: RenderData['blocks'] = [];
     private dimBase: boolean = false;
     private reservedLine: Array<[number, number]> = [];
+    private blockDataOPFS: BlockDataOPFS | null = null;
+    private batchCount: number = 0;
+    private sourceReadBuffer: Float32Array = new Float32Array(0);
 
     constructor(canvas: HTMLCanvasElement, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -42,10 +46,30 @@ export class Painter {
     processData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): void {
         this.data = data;
         this.reservedLine = reservedLine;
+        this.blockDataOPFS = null;
+        this.batchCount = 0;
+    }
+
+    async processDataFromOPFS(
+        blockDataOPFS: BlockDataOPFS | null,
+        batchCount: number,
+        reservedLine: Array<[number, number]> = [],
+    ): Promise<void> {
+        this.blockDataOPFS = blockDataOPFS;
+        this.batchCount = batchCount;
+        this.data = [];
+        this.reservedLine = reservedLine;
+        if (blockDataOPFS && this.sourceReadBuffer.length < blockDataOPFS.getMaxBatchPathFloats()) {
+            this.sourceReadBuffer = new Float32Array(blockDataOPFS.getMaxBatchPathFloats());
+        }
     }
 
     processHighlightData(highlightData: RenderData['blocks'] = []): void {
         this.highlightData = highlightData;
+    }
+
+    setReservedLine(reservedLine: Array<[number, number]> = []): void {
+        this.reservedLine = reservedLine;
     }
 
     setBaseDimmed(dimBase: boolean): void {
@@ -60,7 +84,7 @@ export class Painter {
         return transform.scaleY;
     }
 
-    render(options: RenderOptions): void {
+    async render(options: RenderOptions, shouldCancel: () => boolean = () => false): Promise<void> {
         if (this.context === null) {
             return;
         }
@@ -70,10 +94,24 @@ export class Painter {
         this.context.translate(transform.x, viewport.height - transform.y);
         this.context.scale(this.getScaleX(transform), -this.getScaleY(transform));
         this.context.save();
-        this.renderData(this.data, options, false, this.dimBase);
-        this.renderReservedLine(options);
-        this.renderData(this.highlightData, options);
-        this.renderData(this.highlightData, options, true);
+        try {
+            if (this.blockDataOPFS && this.batchCount > 0) {
+                await this.renderDataFromOPFS(this.blockDataOPFS, this.batchCount, options, false, this.dimBase, shouldCancel);
+                if (shouldCancel()) {
+                    return;
+                }
+            } else {
+                this.renderData(this.data, options, false, this.dimBase);
+            }
+            if (shouldCancel()) {
+                return;
+            }
+            this.renderReservedLine(options);
+            this.renderData(this.highlightData, options);
+            this.renderData(this.highlightData, options, true);
+        } finally {
+            this.context.restore();
+        }
     }
 
     renderReservedLine(options: RenderOptions): void {
@@ -102,6 +140,136 @@ export class Painter {
         context.font = `${12 / this.getScaleY(options.transform)}px sans-serif`;
         context.fillText('Reserved', (lastPoint[0] - zoom.offset) * zoom.x, -lastPoint[1] * zoom.y);
         context.restore();
+    }
+
+    async renderDataFromOPFS(
+        blockDataOPFS: BlockDataOPFS,
+        batchCount: number,
+        options: RenderOptions,
+        isHighlight: boolean = false,
+        dimBase: boolean = false,
+        shouldCancel: () => boolean = () => false,
+    ): Promise<void> {
+        const { transform, viewport, zoom } = options;
+        const xScale = transform.scaleX * zoom.x;
+        const visibleStart = xScale === 0
+            ? Number.NEGATIVE_INFINITY
+            : zoom.offset - transform.x / xScale;
+        const visibleEnd = xScale === 0
+            ? Number.POSITIVE_INFINITY
+            : zoom.offset + (viewport.width - transform.x) / xScale;
+        const minTimestamp = Math.min(visibleStart, visibleEnd);
+        const maxTimestamp = Math.max(visibleStart, visibleEnd);
+        const batchIndices = blockDataOPFS.findBatchesOverlappingRange(minTimestamp, maxTimestamp);
+        for (const batchIndex of batchIndices) {
+            if (shouldCancel()) {
+                return;
+            }
+            if (batchIndex >= batchCount) {
+                continue;
+            }
+            const batchData = await blockDataOPFS.readBatchAsync(batchIndex, this.sourceReadBuffer);
+            if (!batchData) {
+                continue;
+            }
+            this.sourceReadBuffer = batchData.pathData;
+            const { metas, pathData } = batchData;
+            for (const meta of metas) {
+                if (meta.pathEndTimestamp < minTimestamp || meta.pathStartTimestamp > maxTimestamp || meta.pathLength < 2) {
+                    continue;
+                }
+                let left = 0;
+                let right = meta.pathLength - 1;
+                while (left < right) {
+                    const middle = Math.floor((left + right) / 2);
+                    const timestamp = pathData[(meta.pathOffset + middle) * 2];
+                    if (timestamp < minTimestamp) {
+                        left = middle + 1;
+                    } else {
+                        right = middle;
+                    }
+                }
+                const firstSegment = Math.max(0, left - 1);
+                for (let pathIndex = firstSegment; pathIndex < meta.pathLength - 1; pathIndex++) {
+                    const p0 = getPointFromPathData(pathData, meta.pathOffset, pathIndex);
+                    const p1 = getPointFromPathData(pathData, meta.pathOffset, pathIndex + 1);
+                    if (p0[0] > maxTimestamp) {
+                        break;
+                    }
+                    if (p1[0] < minTimestamp) {
+                        continue;
+                    }
+                    const startPixel = Math.floor((p0[0] - zoom.offset) * xScale + transform.x);
+                    const endPixel = Math.floor((p1[0] - zoom.offset) * xScale + transform.x);
+                    if (xScale > 0 && startPixel === endPixel) {
+                        let pixelLeft = pathIndex + 2;
+                        let pixelRight = meta.pathLength;
+                        while (pixelLeft < pixelRight) {
+                            const middle = Math.floor((pixelLeft + pixelRight) / 2);
+                            const middleTimestamp = pathData[(meta.pathOffset + middle) * 2];
+                            const middlePixel = Math.floor((middleTimestamp - zoom.offset) * xScale + transform.x);
+                            if (middlePixel <= startPixel) {
+                                pixelLeft = middle + 1;
+                            } else {
+                                pixelRight = middle;
+                            }
+                        }
+                        const collapsedEndIndex = Math.max(pathIndex + 1, pixelLeft - 1);
+                        const collapsedEnd = getPointFromPathData(pathData, meta.pathOffset, collapsedEndIndex);
+                        this.drawShape(p0, collapsedEnd, meta.size, meta.addr, options, dimBase);
+                        pathIndex = collapsedEndIndex - 1;
+                        continue;
+                    }
+                    this.drawShape(p0, p1, meta.size, meta.addr, options, dimBase);
+                }
+            }
+        }
+    }
+
+    renderDataFromBatchData(
+        metas: BlockMeta[],
+        pathData: Float32Array,
+        options: RenderOptions,
+        isHighlight: boolean = false,
+        dimBase: boolean = false,
+    ): void {
+        for (let i = 0; i < metas.length; i++) {
+            const meta = metas[i];
+            if (isHighlight) {
+                this.drawBlockOutlineFromMeta(meta, pathData, options);
+                continue;
+            }
+            for (let j = 0; j < meta.pathLength - 1; j++) {
+                const p0 = getPointFromPathData(pathData, meta.pathOffset, j);
+                const p1 = getPointFromPathData(pathData, meta.pathOffset, j + 1);
+                this.drawShape(p0, p1, meta.size, meta.addr, options, dimBase);
+            }
+        }
+    }
+
+    drawBlockOutlineFromMeta(meta: BlockMeta, pathData: Float32Array, options: RenderOptions): void {
+        if (this.context === null || meta.pathLength < 1) {
+            return;
+        }
+        const { zoom } = options;
+        const toX = (point: [number, number]): number => (point[0] - zoom.offset) * zoom.x;
+        const toY = (point: [number, number]): number => point[1] * zoom.y;
+
+        this.context.beginPath();
+        const firstPt = getPointFromPathData(pathData, meta.pathOffset, 0);
+        this.context.moveTo(toX(firstPt), toY(firstPt));
+        for (let i = 1; i < meta.pathLength; i++) {
+            const pt = getPointFromPathData(pathData, meta.pathOffset, i);
+            this.context.lineTo(toX(pt), toY(pt));
+        }
+        for (let i = meta.pathLength - 1; i >= 0; i--) {
+            const pt = getPointFromPathData(pathData, meta.pathOffset, i);
+            this.context.lineTo(toX(pt), (pt[1] + meta.size) * zoom.y);
+        }
+        this.context.closePath();
+        this.context.strokeStyle = getColorStringByAddr(meta.addr, true);
+        this.context.lineWidth = 2 / Math.max(this.getScaleX(options.transform), this.getScaleY(options.transform));
+        this.context.stroke();
     }
 
     renderData(data: RenderData['blocks'], options: RenderOptions, isHighlight: boolean = false, dimBase: boolean = false): void {

@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { workerSetMemoryBlockData, workerTransform } from '@/leaksWorker/blockWorker/worker';
+import { workerSetMemoryBlockData, workerSetReservedLine, workerTransform } from '@/leaksWorker/blockWorker/worker';
 import {
     getMemoryDetailData, getFuncData, getBlockDetails, getEventDetails,
     FuncParam, type BlockParam, EventParam,
@@ -33,6 +33,7 @@ import { message } from 'antd';
 import { runInAction } from 'mobx';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
+const barDataRequestSeqMap = new WeakMap<object, number>();
 
 export const getFuncNewData = async (
     session: any,
@@ -84,33 +85,86 @@ export const getFuncNewData = async (
     }
 };
 export const getBarNewData = async (session: any, startTimestamp?: number, endTimestamp?: number): Promise<void> => {
+    const requestSeq = (barDataRequestSeqMap.get(session) ?? 0) + 1;
+    barDataRequestSeqMap.set(session, requestSeq);
+    const isLatestRequest = (): boolean => barDataRequestSeqMap.get(session) === requestSeq;
     const getBlocksRequest = session.module === 'leaks' ? getBlocksGraphData : getSnapshotBlocks;
     const getAllocationRequest = session.module === 'leaks' ? getLeaksAllocationsData : getSnapshotAllocations;
     runInAction(() => {
         session.loadingBlocks = true;
+        session.loadingOverview = true;
+        session.progressiveBlocksVisible = false;
+        session.progressiveRenderedBatchCount = 0;
+        session.progressiveRenderedInstanceCount = 0;
+        session.progressiveRenderedEventCount = 0;
+        session.progressiveTotalEventCount = 0;
+        session.progressiveFirstRenderedBatchCount = 0;
+        session.progressiveFirstRenderedInstanceCount = 0;
+    });
+    delete (globalThis as {
+        __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
+    }).__LEAKS_PROGRESSIVE_RENDER_METRICS__;
+    let resolveBlockRenderStarted: (started: boolean) => void = () => undefined;
+    let requestActive = true;
+    const blockRenderStarted = new Promise<boolean>(resolve => {
+        resolveBlockRenderStarted = resolve;
     });
     try {
         const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
+        const allocationTask = getAllocationRequest(param).then(async allocationData => {
+            if (!requestActive || !isLatestRequest()) {
+                return { allocationData };
+            }
+            runInAction(() => {
+                session.allocationData = allocationData;
+                session.loadingOverview = false;
+            });
+            const rendererStarted = await blockRenderStarted;
+            if (rendererStarted && isLatestRequest() && session.module === 'memsnapshot') {
+                const reservedLine = allocationData.allocations
+                    .filter((item): item is Allocation & { reservedSize: number } => typeof item.reservedSize === 'number')
+                    .map(item => [item.timestamp, item.reservedSize] as [number, number]);
+                const reservedSizeMax = reservedLine.reduce(
+                    (max, [, reservedSize]) => Math.max(max, reservedSize),
+                    0,
+                );
+                workerSetReservedLine({ reservedLine, reservedSizeMax });
+            }
+            return { allocationData };
+        }, error => ({ error }));
         const blockData = await getBlocksRequest(param);
+        if (!isLatestRequest()) {
+            resolveBlockRenderStarted(false);
+            return;
+        }
         const transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
         workerTransform({ transform });
-        const allocationData = await getAllocationRequest(param);
-        if (session.module === 'memsnapshot') {
-            const reservedLine = allocationData.allocations
-                .filter((item): item is Allocation & { reservedSize: number } => typeof item.reservedSize === 'number')
-                .map(item => [item.timestamp, item.reservedSize] as [number, number]);
-            blockData.reservedLine = reservedLine;
-            blockData.reservedSizeMax = reservedLine.reduce((max, [, reservedSize]) => Math.max(max, reservedSize), blockData.maxSize);
+        const blockRenderTask = workerSetMemoryBlockData({ data: blockData });
+        resolveBlockRenderStarted(true);
+        const [, allocationResult] = await Promise.all([blockRenderTask, allocationTask]);
+        if ('error' in allocationResult) {
+            throw allocationResult.error;
         }
-        workerSetMemoryBlockData({ data: blockData });
+        if (!isLatestRequest()) {
+            return;
+        }
         runInAction(() => {
-            session.allocationData = allocationData;
+            session.loadingBlocks = false;
         });
     } catch (error: any) {
-        message.error(error.message);
+        requestActive = false;
+        resolveBlockRenderStarted(false);
+        if (isLatestRequest()) {
+            runInAction(() => {
+                session.loadingBlocks = false;
+                session.loadingOverview = false;
+                session.progressiveBlocksVisible = false;
+            });
+            message.error(error.message);
+        }
     }
 };
 export const getNewDetailData = async (session: any): Promise<void> => {

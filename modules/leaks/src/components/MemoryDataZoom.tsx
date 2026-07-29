@@ -170,6 +170,9 @@ const MemoryDataZoom = observer(
         const dataZoomRef = useRef<ChartsHandle | null>(null);
         const timeRangeRef = useRef<Range>([minTime, maxTime]);
         const syncingRef = useRef(false);
+        const pendingZoomActionRef = useRef<{ start: number; end: number } | null>(null);
+        const zoomSyncFrameRef = useRef<number | null>(null);
+        const syncReleaseFrameRef = useRef<number | null>(null);
 
         /**
          * 趋势图配置项
@@ -182,15 +185,8 @@ const MemoryDataZoom = observer(
          * 缩略图配置项
          */
         const dataZoomOptions: EChartsOption = useMemo(() => {
-            const options = getOptions({ dataSource, minTime, maxTime, isDataZoom: true, height: 0, dataZoomHeight, offsetLeft, offsetRight, theme, module });
-            if (selectedRange !== undefined && minTime < maxTime && Array.isArray(options.dataZoom)) {
-                const offsetTime = maxTime - minTime;
-                const start = Math.max(0, Math.min(100, (selectedRange[0] - minTime) / offsetTime * 100));
-                const end = Math.max(0, Math.min(100, (selectedRange[1] - minTime) / offsetTime * 100));
-                options.dataZoom = options.dataZoom.map(item => ({ ...item, start, end }));
-            }
-            return options;
-        }, [dataSource, dataZoomHeight, offsetLeft, offsetRight, maxTime, minTime, selectedRange?.[0], selectedRange?.[1], theme, module]);
+            return getOptions({ dataSource, minTime, maxTime, isDataZoom: true, height: 0, dataZoomHeight, offsetLeft, offsetRight, theme, module });
+        }, [dataSource, dataZoomHeight, offsetLeft, offsetRight, maxTime, minTime, theme, module]);
 
         const handleDataZoom = (params: any): void => {
             if (syncingRef.current) return;
@@ -242,18 +238,56 @@ const MemoryDataZoom = observer(
         }, [dataSource, maxTime, minTime]);
 
         useEffect(() => {
-            if (selectedRange === undefined || minTime >= maxTime) return;
-            const chartInstance = dataZoomRef.current?.getInstance();
-            if (!chartInstance) return;
+            if (selectedRange === undefined || minTime >= maxTime || dataSource.length === 0) {
+                pendingZoomActionRef.current = null;
+                if (zoomSyncFrameRef.current !== null) {
+                    cancelAnimationFrame(zoomSyncFrameRef.current);
+                    zoomSyncFrameRef.current = null;
+                }
+                return;
+            }
             const offsetTime = maxTime - minTime;
             const start = Math.max(0, Math.min(100, (selectedRange[0] - minTime) / offsetTime * 100));
             const end = Math.max(0, Math.min(100, (selectedRange[1] - minTime) / offsetTime * 100));
-            syncingRef.current = true;
-            chartInstance.dispatchAction({ type: 'dataZoom', start, end });
-            requestAnimationFrame(() => {
-                syncingRef.current = false;
-            });
-        }, [selectedRange?.[0], selectedRange?.[1], minTime, maxTime]);
+            pendingZoomActionRef.current = { start, end };
+            if (zoomSyncFrameRef.current !== null) {
+                return;
+            }
+            const flushZoomAction = (): void => {
+                const chartInstance = dataZoomRef.current?.getInstance();
+                if (!chartInstance) {
+                    zoomSyncFrameRef.current = requestAnimationFrame(flushZoomAction);
+                    return;
+                }
+                zoomSyncFrameRef.current = null;
+                const action = pendingZoomActionRef.current;
+                pendingZoomActionRef.current = null;
+                if (!action) {
+                    return;
+                }
+                syncingRef.current = true;
+                chartInstance.dispatchAction({ type: 'dataZoom', ...action });
+                if (syncReleaseFrameRef.current !== null) {
+                    cancelAnimationFrame(syncReleaseFrameRef.current);
+                }
+                syncReleaseFrameRef.current = requestAnimationFrame(() => {
+                    syncingRef.current = false;
+                    syncReleaseFrameRef.current = null;
+                });
+            };
+            zoomSyncFrameRef.current = requestAnimationFrame(flushZoomAction);
+        }, [selectedRange?.[0], selectedRange?.[1], minTime, maxTime, dataSource.length, dataZoomOptions]);
+
+        useEffect(() => {
+            return () => {
+                if (zoomSyncFrameRef.current !== null) {
+                    cancelAnimationFrame(zoomSyncFrameRef.current);
+                }
+                if (syncReleaseFrameRef.current !== null) {
+                    cancelAnimationFrame(syncReleaseFrameRef.current);
+                }
+            };
+        }, []);
 
         return (
             dataSource.length > 0

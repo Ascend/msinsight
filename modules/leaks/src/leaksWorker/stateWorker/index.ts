@@ -72,7 +72,7 @@ const debouncedSearchBlockData = debounce((payload: HoverItemPayload): void => {
     }
 }, 10);
 
-const clickItemHandler = (payload: HoverItemPayload): void => {
+const clickItemHandler = (payload: ClickItemPayload): void => {
     clickItem = searchStateDataByPoint(memoryStateData, payload, transform, zoom);
     self.postMessage({ type: 'clickItemResult', result: clickItem, selectionVersion: payload.selectionVersion });
     renderHighlintData();
@@ -142,7 +142,7 @@ self.onmessage = async (ev: MessageEvent<Payload>): Promise<void> => {
     const handler = Handlers[payload.type];
     if (typeof handler === 'function') {
         try {
-            await handler(payload);
+            await handler(payload as never);
         } catch (error) {
             // eslint-disable-next-line no-console
             console.error('State worker handler error:', error);

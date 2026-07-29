@@ -17,6 +17,7 @@
  */
 
 import { Painter } from './Painter';
+import { BlockDataOPFS } from '../../tools/BlockDataOPFS';
 
 export class WebGLRenderer {
     readonly canvas: OffscreenCanvas;
@@ -25,47 +26,89 @@ export class WebGLRenderer {
     readonly painter: Painter;
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };
-    private data: RenderData['blocks'] = [];
     private dimBase: boolean = false;
 
-    constructor(canvas: OffscreenCanvas, devicePixelRatio: number) {
+    constructor(canvas: OffscreenCanvas, devicePixelRatio: number, opfsRuntimeId: string) {
         this.canvas = canvas;
         this.devicePixelRatio = devicePixelRatio;
-        this.painter = new Painter(this.canvas);
+        this.painter = new Painter(this.canvas, opfsRuntimeId);
     }
 
     async initialize(): Promise<void> {
         await this.painter.initialize();
     }
 
-    setZoom(zoom: RenderOptions['zoom']): this {
+    setZoom(zoom: RenderOptions['zoom'], render: boolean = true): this {
         this.zoom = zoom;
-        this.renderFrame();
+        if (render) {
+            this.renderFrame();
+        }
         return this;
     }
 
-    setData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): this {
-        this.data = data;
+    setReservedLine(reservedLine: Array<[number, number]> = []): this {
         this.painter.setReservedLine(reservedLine);
-        this.painter.memoryBlockProgram?.processData(data, this.dimBase);
+        return this;
+    }
+
+    async setData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): Promise<this> {
+        this.painter.setReservedLine(reservedLine);
+        await this.painter.memoryBlockProgram?.processData(data, this.dimBase);
         this.renderFrame();
         return this;
     }
 
-    setHighlightData(highlightData: RenderData['blocks'] = []): this {
-        this.painter.memoryBlockHighlightProgram?.processData(highlightData);
+    async setDataFromOPFS(
+        blockDataOPFS: BlockDataOPFS | null,
+        batchCount: number,
+        reservedLine: Array<[number, number]> = [],
+        render: boolean = true,
+    ): Promise<this> {
+        this.painter.setReservedLine(reservedLine);
+        await this.painter.memoryBlockProgram?.processDataFromOPFS(blockDataOPFS, batchCount, this.dimBase);
+        if (render) {
+            this.renderFrame();
+        }
+        return this;
+    }
+
+    async beginProgressiveDataFromOPFS(
+        blockDataOPFS: BlockDataOPFS,
+        reservedLine: Array<[number, number]> = [],
+    ): Promise<this> {
+        this.painter.setReservedLine(reservedLine);
+        await this.painter.memoryBlockProgram?.processDataFromOPFS(blockDataOPFS, 0, this.dimBase);
+        this.renderFrame();
+        return this;
+    }
+
+    appendDataFromOPFS(startBatch: number, endBatch: number): number {
+        const viewport = { width: this.canvas.width, height: this.canvas.height };
+        return this.painter.renderMemoryBlockBatchRange(
+            startBatch,
+            endBatch,
+            { transform: this.transform, viewport, zoom: this.zoom },
+        );
+    }
+
+    async setHighlightData(highlightData: RenderData['blocks'] = [], render: boolean = true): Promise<this> {
+        await this.painter.memoryBlockHighlightProgram?.processData(highlightData);
         this.painter.memoryBlockBorderHightlightProgram?.processData(highlightData);
-        this.renderFrame();
+        if (render) {
+            this.renderFrame();
+        }
         return this;
     }
 
-    setBaseDimmed(dimBase: boolean): this {
+    setBaseDimmed(dimBase: boolean, render: boolean = true): this {
         if (this.dimBase === dimBase) {
             return this;
         }
         this.dimBase = dimBase;
         this.painter.memoryBlockProgram?.setDimBase(this.dimBase);
-        this.renderFrame();
+        if (render) {
+            this.renderFrame();
+        }
         return this;
     }
 

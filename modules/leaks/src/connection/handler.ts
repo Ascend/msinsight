@@ -342,6 +342,7 @@ export const removeRemoteHandler: NotificationHandler = (data): void => {
             session.stateWorkerInfo = { ...STATE_WORKER_INFO_DEFAULT };
             session.markLineInfo = MARK_LINE_POSITION_DEFAULT;
             session.loadingBlocks = false;
+            session.loadingOverview = false;
             session.loadingState = false;
             clearMemSnapshotParseProgress(session);
             restore(session);
