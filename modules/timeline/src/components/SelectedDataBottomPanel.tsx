@@ -34,6 +34,7 @@ import { ChartErrorBoundary } from './error/ChartErrorBoundary';
 import { MoreContainer, StyledMoreCard } from './BottomPanel';
 import { DETAIL_HEADER_HEIGHT_ETC_PX } from './detailViews/SystemView';
 import { runInAction } from 'mobx';
+import { CommunicationBandwidthInfoTable } from './details/CommunicationBandwidthInfoTable';
 
 interface DetailProps<T extends Record<string, unknown>> {
     session: Session;
@@ -254,6 +255,7 @@ export const SelectedDataBottomPanel = observer(<T extends Record<string, unknow
             <SelectedDataBase renderer={renderFields}/>
             <div></div>
         </StyledSliceDetailDiv>
+        <CommunicationBandwidthInfoTable details={sliceDetailData.communicationBandwidthInfo}/>
         {(data as AscendSliceDetail).args === undefined ? <></> : <ArgsData data={sliceDetailData}/>}
         </div>;
     } else {
@@ -262,6 +264,7 @@ export const SelectedDataBottomPanel = observer(<T extends Record<string, unknow
                 <SelectedDataBase renderer={renderFields}/>
                 <div></div>
             </StyledSliceDetailDiv>
+            <CommunicationBandwidthInfoTable details={sliceDetailData.communicationBandwidthInfo}/>
             {(data as AscendSliceDetail).args === undefined ? <></> : <ArgsData linkUpdater={setDataLink} data={sliceDetailData}/>}
             </div>,
             draggableContainer: <StyledMoreCard

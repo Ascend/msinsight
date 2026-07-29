@@ -25,6 +25,26 @@
 #include "TextRepository.h"
 
 namespace Dic::Module::Timeline {
+namespace {
+const std::string GROUP_PREFIX = "Group ";
+const std::string GROUP_SUFFIX = " Communication";
+
+bool IsCommunicationGroupTrack(const SliceQuery &sliceQuery) {
+    ThreadTable threadTable;
+    std::vector<ThreadPO> threads;
+    threadTable.Select(ThreadColumn::THREAD_NAME)
+        .Eq(ThreadColumn::TRACK_ID, sliceQuery.trackId)
+        .ExcuteQuery(sliceQuery.rankId, threads);
+    if (threads.size() != 1) {
+        return false;
+    }
+    const std::string &threadName = threads.front().threadName;
+    return threadName.size() > GROUP_PREFIX.size() + GROUP_SUFFIX.size() &&
+        threadName.compare(0, GROUP_PREFIX.size(), GROUP_PREFIX) == 0 &&
+        threadName.compare(threadName.size() - GROUP_SUFFIX.size(), GROUP_SUFFIX.size(), GROUP_SUFFIX) == 0;
+}
+} // namespace
+
 void TextRepository::QuerySimpleSliceWithOutNameByTrackId(
     const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
@@ -267,6 +287,7 @@ bool TextRepository::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteS
     bool success = QuerySliceDetailById(sliceQuery, competeSliceDomain);
     if (success) {
         QueryShapeInfoBySlice(sliceQuery, competeSliceDomain);
+        competeSliceDomain.isCommunicationGroup = IsCommunicationGroupTrack(sliceQuery);
     }
     return success;
 }

@@ -59,6 +59,8 @@ class VirtualClusterDatabase : public Database {
     virtual bool QueryOperatorsCount(
         Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody) = 0;
     virtual bool QueryBandwidthData(Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody) = 0;
+    virtual bool QueryCommunicationDetail(
+        const std::string &rankId, const std::string &opName, uint64_t startTimeNs, CommunicationDetailDo &detail) = 0;
     virtual bool QueryDistributionData(
         Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody) = 0;
 
@@ -164,6 +166,9 @@ class VirtualClusterDatabase : public Database {
         Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody, std::string sql);
     bool ExecuteQueryBandwidthData(
         Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody, std::string sql);
+    bool ExecuteQueryCommunicationDetail(const std::string &timeSql, const std::string &bandwidthSql,
+        const std::string &rankId, const std::string &opName, uint64_t startTimeNs, uint64_t timestampToleranceNs,
+        CommunicationDetailDo &detail);
     bool ExecuteQueryDistributionData(
         Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody, std::string sql);
 

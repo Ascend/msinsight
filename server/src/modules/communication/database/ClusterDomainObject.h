@@ -69,6 +69,19 @@ struct OpTypeStatistics {
     std::string opType;
     std::string groupIdHash;
 };
+
+struct CommunicationBandwidthDo {
+    std::string transportType;
+    double transitSize = 0;
+    double transitTime = 0;
+    double bandwidth = 0;
+};
+
+struct CommunicationDetailDo {
+    double transitTime = 0;
+    double waitTime = 0;
+    std::vector<CommunicationBandwidthDo> bandwidthInfo;
+};
 }
 }
 #endif // PROFILER_SERVER_CLUSTERDOMAINOBJECT_H

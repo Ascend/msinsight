@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include "pch.h"
+#include <optional>
 #include "DomainObject.h"
 #include "SliceAnalyzer.h"
 #include "FlowAnalyzer.h"
@@ -23,6 +24,7 @@
 #include "FullDbEnumUtil.h"
 #include "PythonStackHelper.h"
 #include "SliceCacheManager.h"
+#include "DataBaseManager.h"
 #include "RenderEngine.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
@@ -80,6 +82,64 @@ bool TryComputeSelfTimeByDepthIndex(const ThreadDetailParams &requestParams, uin
         responseBody.data.selfTime = responseBody.data.duration - childCoveredDuration;
     }
     return true;
+}
+
+std::string RemoveHostFromRankId(const std::string &rankId) {
+    const std::vector<std::string> rankParts = StringUtil::Split(rankId, " ");
+    return rankParts.size() > 1 ? rankParts[1] : rankId;
+}
+
+std::optional<std::string> ResolveCommunicationRankId(
+    const std::string &timelineRankId, const std::string &traceDbPath) {
+    const std::vector<RankInfo> rankInfos =
+        TrackInfoManager::Instance().GetRankListByFileId(traceDbPath, timelineRankId);
+    if (rankInfos.size() != 1) {
+        return std::nullopt;
+    }
+    const RankInfo &rankInfo = rankInfos.front();
+    const std::string rankWithoutHost = RemoveHostFromRankId(rankInfo.rankId);
+    const std::string clusterPrefix = rankInfo.cluster + "_";
+    std::string rawRankId = rankWithoutHost;
+    if (!rankInfo.cluster.empty() && rankWithoutHost.compare(0, clusterPrefix.size(), clusterPrefix) == 0) {
+        rawRankId = rankWithoutHost.substr(clusterPrefix.size());
+    }
+    if (rawRankId.empty() || rawRankId.find_first_not_of("0123456789") != std::string::npos) {
+        // A suffix such as 0_2 identifies a duplicated Timeline rank and cannot be mapped reliably.
+        return std::nullopt;
+    }
+    return rawRankId;
+}
+
+void AppendCommunicationDetail(
+    const CompeteSliceDomain &slice, const std::string &rankId, UnitThreadDetailBody &responseBody) {
+    if (!slice.isCommunicationGroup) {
+        return;
+    }
+    auto &databaseManager = DataBaseManager::Instance();
+    const std::string traceDbPath = databaseManager.GetDbPathByRankId(rankId);
+    if (traceDbPath.empty()) {
+        return;
+    }
+    const std::string clusterProjectPath = TrackInfoManager::Instance().GetClusterProjectPathByFileId(traceDbPath);
+    const std::optional<std::string> communicationRankId = ResolveCommunicationRankId(rankId, traceDbPath);
+    if (clusterProjectPath.empty() || !communicationRankId.has_value()) {
+        return;
+    }
+    const auto clusterDatabase = databaseManager.GetClusterDatabase(clusterProjectPath);
+    if (clusterDatabase == nullptr) {
+        return;
+    }
+    CommunicationDetailDo detail;
+    if (!clusterDatabase->QueryCommunicationDetail(communicationRankId.value(), slice.name, slice.timestamp, detail)) {
+        return;
+    }
+    responseBody.data.transitTime = detail.transitTime;
+    responseBody.data.waitTime = detail.waitTime;
+    responseBody.data.communicationBandwidthInfo.reserve(detail.bandwidthInfo.size());
+    for (const auto &bandwidth : detail.bandwidthInfo) {
+        responseBody.data.communicationBandwidthInfo.emplace_back(Protocol::CommunicationBandwidthInfo{
+            bandwidth.transportType, bandwidth.transitSize, bandwidth.transitTime, bandwidth.bandwidth});
+    }
 }
 }
 
@@ -323,6 +383,7 @@ void RenderEngine::QueryThreadDetail(
     responseBody.data.outputShapes = competeSliceDomain.sliceShape.outputShapes;
     responseBody.data.outputDataTypes = competeSliceDomain.sliceShape.outputDataTypes;
     responseBody.data.outputFormats = competeSliceDomain.sliceShape.outputFormats;
+    AppendCommunicationDetail(competeSliceDomain, requestParams.rankId, responseBody);
     sliceQuery.startTime = competeSliceDomain.timestamp;
     sliceQuery.endTime = competeSliceDomain.endTime;
     if (TryComputeSelfTimeByDepthIndex(requestParams, trackId, sliceQuery, competeSliceDomain, responseBody)) {

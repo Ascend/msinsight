@@ -44,6 +44,8 @@ class DbClusterDataBase : public VirtualClusterDatabase {
     bool QueryAllOperators(Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody) override;
     bool QueryOperatorsCount(Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody) override;
     bool QueryBandwidthData(Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody) override;
+    bool QueryCommunicationDetail(const std::string &rankId, const std::string &opName, uint64_t startTimeNs,
+        CommunicationDetailDo &detail) override;
     bool QueryDistributionData(Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody) override;
 
     bool QueryRanksHandler(std::vector<Protocol::IterationsOrRanksObject> &responseBody) override;

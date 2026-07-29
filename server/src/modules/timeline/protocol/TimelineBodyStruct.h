@@ -20,6 +20,7 @@
 #define PROFILER_SERVER_TIMELINEBODYSTRUCT_H
 #include <string>
 #include <map>
+#include <optional>
 #include <vector>
 namespace Dic::Protocol {
 struct TableColumn {
@@ -91,6 +92,13 @@ struct SameMemcpyDetails {
 using UnitThreadsOperatorsBody = PaginatedBody<SameOperatorsDetails>;
 using MemcpyDetailsBody = PaginatedBody<SameMemcpyDetails>;
 
+struct CommunicationBandwidthInfo {
+    std::string transportType;
+    double transitSize = 0;
+    double transitTime = 0;
+    double bandwidth = 0;
+};
+
 struct ThreadDetail {
     uint64_t selfTime = 0;
     uint64_t duration = 0;
@@ -106,6 +114,9 @@ struct ThreadDetail {
     std::string outputDataTypes;
     std::string outputFormats;
     std::string attrInfo;
+    std::optional<double> transitTime;
+    std::optional<double> waitTime;
+    std::vector<CommunicationBandwidthInfo> communicationBandwidthInfo;
 };
 } // namespace Dic::Protocol
 #endif // PROFILER_SERVER_TIMELINEBODYSTRUCT_H

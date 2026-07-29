@@ -288,6 +288,24 @@ std::optional<document_t> ToResponseJson<UnitThreadDetailResponse>(const UnitThr
     JsonUtil::AddMember(data, "outputDataTypes", response.body.data.outputDataTypes, allocator);
     JsonUtil::AddMember(data, "outputFormats", response.body.data.outputFormats, allocator);
     JsonUtil::AddMember(data, "attrInfo", response.body.data.attrInfo, allocator);
+    if (response.body.data.transitTime.has_value()) {
+        JsonUtil::AddMember(data, "transitTime", response.body.data.transitTime.value(), allocator);
+    }
+    if (response.body.data.waitTime.has_value()) {
+        JsonUtil::AddMember(data, "waitTime", response.body.data.waitTime.value(), allocator);
+    }
+    if (!response.body.data.communicationBandwidthInfo.empty()) {
+        json_t bandwidthInfo(kArrayType);
+        for (const auto &item : response.body.data.communicationBandwidthInfo) {
+            json_t bandwidthItem(kObjectType);
+            JsonUtil::AddMember(bandwidthItem, "transportType", item.transportType, allocator);
+            JsonUtil::AddMember(bandwidthItem, "transitSize", item.transitSize, allocator);
+            JsonUtil::AddMember(bandwidthItem, "transitTime", item.transitTime, allocator);
+            JsonUtil::AddMember(bandwidthItem, "bandwidth", item.bandwidth, allocator);
+            bandwidthInfo.PushBack(bandwidthItem, allocator);
+        }
+        JsonUtil::AddMember(data, "communicationBandwidthInfo", bandwidthInfo, allocator);
+    }
     JsonUtil::AddMember(body, "data", data, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};

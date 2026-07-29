@@ -813,6 +813,13 @@ export interface ProcessRequest {
     endTime: number;
 };
 
+export interface CommunicationBandwidthInfo {
+    transportType: string;
+    transitSize: number;
+    transitTime: number;
+    bandwidth: number;
+}
+
 export interface AscendSliceDetail extends Record<string, unknown> {
     pid?: string;
     tid?: string;
@@ -831,6 +838,9 @@ export interface AscendSliceDetail extends Record<string, unknown> {
     outputDataTypes?: string;
     outputFormats?: string;
     attrInfo?: string;
+    transitTime?: number;
+    waitTime?: number;
+    communicationBandwidthInfo?: CommunicationBandwidthInfo[];
 };
 
 export interface SimpleProcessItem {

@@ -79,6 +79,7 @@ class TrackInfoManager {
     std::string GetDeviceId(const std::string &cardId);
     void UpdateClusterDbToFileIdMap(const std::string &clusterDb, const std::string &fileId);
     std::map<std::string, std::string> GetRankIdToFileIdByClusterDb(const std::string &clusterDb);
+    std::string GetClusterProjectPathByFileId(const std::string &fileId);
 
     std::vector<RankInfo> GetRankListByFileId(const std::string &fileId, const std::string &rankId);
 
