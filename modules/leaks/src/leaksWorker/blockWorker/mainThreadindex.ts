@@ -23,6 +23,7 @@ import {
     buildBlockViewPathAndWriteToOPFS,
     getInitialBlockGraphMetadata,
     getZoom,
+    processReservedLine,
     searchBlockDataByPoint,
     searchBlockDataByPointFromOPFS,
 } from '../tools/dataProcess';
@@ -313,22 +314,23 @@ export class MainThreadRender {
     }
 
     setReservedLineHandler(payload: Omit<SetReservedLinePayload, 'type'>): void {
+        const { reservedLine: processedReservedLine, reservedSizeMax } = processReservedLine(payload.reservedLine);
         this.reservedLineOverride = {
             generation: payload.generation,
-            reservedLine: payload.reservedLine,
-            reservedSizeMax: payload.reservedSizeMax,
+            reservedLine: processedReservedLine,
+            reservedSizeMax,
         };
         if (payload.generation !== this.activeDataGeneration) {
             return;
         }
-        this.reservedLine = payload.reservedLine;
+        this.reservedLine = processedReservedLine;
         if (this.memoryBlockMetadata) {
-            this.memoryBlockMetadata.reservedLine = payload.reservedLine;
-            this.memoryBlockMetadata.reservedSizeMax = payload.reservedSizeMax;
+            this.memoryBlockMetadata.reservedLine = processedReservedLine;
+            this.memoryBlockMetadata.reservedSizeMax = reservedSizeMax;
             this.zoom = getZoom(this.memoryBlockMetadata, this.canvas);
         } else if (this.memoryBlockData) {
-            this.memoryBlockData.reservedLine = payload.reservedLine;
-            this.memoryBlockData.reservedSizeMax = payload.reservedSizeMax;
+            this.memoryBlockData.reservedLine = processedReservedLine;
+            this.memoryBlockData.reservedSizeMax = reservedSizeMax;
             this.zoom = getZoom(this.memoryBlockData, this.canvas);
         } else {
             return;

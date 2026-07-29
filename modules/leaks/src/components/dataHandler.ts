@@ -26,7 +26,6 @@ import {
     getSnapshotBlockTable,
     getSnapshotEvent,
     getSnapshotAllocations,
-    Allocation,
     getSnapshotLeakStats,
 } from '../utils/RequestUtils';
 import { message } from 'antd';
@@ -113,24 +112,19 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
         const allocationTask = getAllocationRequest(param).then(async allocationData => {
             if (!requestActive || !isLatestRequest()) {
-                return { allocationData };
+                return;
             }
+            const { reservedLine, ...allocationResult } = allocationData;
             runInAction(() => {
-                session.allocationData = allocationData;
+                session.allocationData = allocationResult;
                 session.loadingOverview = false;
             });
             const rendererStarted = await blockRenderStarted;
             if (rendererStarted && isLatestRequest() && session.module === 'memsnapshot') {
-                const reservedLine = allocationData.allocations
-                    .filter((item): item is Allocation & { reservedSize: number } => typeof item.reservedSize === 'number')
-                    .map(item => [item.timestamp, item.reservedSize] as [number, number]);
-                const reservedSizeMax = reservedLine.reduce(
-                    (max, [, reservedSize]) => Math.max(max, reservedSize),
-                    0,
-                );
-                workerSetReservedLine({ reservedLine, reservedSizeMax });
+                if (reservedLine !== undefined) {
+                    workerSetReservedLine({ reservedLine });
+                }
             }
-            return { allocationData };
         }, error => ({ error }));
         const blockData = await getBlocksRequest(param);
         if (!isLatestRequest()) {
@@ -145,7 +139,7 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         const blockRenderTask = workerSetMemoryBlockData({ data: blockData });
         resolveBlockRenderStarted(true);
         const [, allocationResult] = await Promise.all([blockRenderTask, allocationTask]);
-        if ('error' in allocationResult) {
+        if (allocationResult !== undefined) {
             throw allocationResult.error;
         }
         if (!isLatestRequest()) {

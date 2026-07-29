@@ -158,21 +158,26 @@ struct MemSnapshotAllocationsResponse : public JsonResponse {
     MemSnapshotAllocationsResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_ALLOCATIONS) {}
     uint64_t minEventId{0};
     uint64_t maxEventId{0};
-    std::vector<AllocationRecordDTO> records;
+    std::vector<AllocationRecordDTO> allocations;
+    std::vector<ReservedRecordDTO> reservedLine;
 
     [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
         auto &allocator = json.GetAllocator();
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
-        json_t recordsJson(kArrayType);
+        json_t allocationsJson(kArrayType);
+        json_t reservedLineJson(kArrayType);
         JsonUtil::AddMember(body, "minTimestamp", minEventId, allocator);
         JsonUtil::AddMember(body, "maxTimestamp", maxEventId, allocator);
-        for (const auto &record : records) {
-            auto recordJson = record.ToJson(allocator);
-            recordsJson.PushBack(recordJson, allocator);
+        for (const auto &record : allocations) {
+            allocationsJson.PushBack(record.ToJson(allocator), allocator);
         }
-        JsonUtil::AddMember(body, "allocations", recordsJson, allocator);
+        for (const auto &record : reservedLine) {
+            reservedLineJson.PushBack(record.ToJson(allocator), allocator);
+        }
+        JsonUtil::AddMember(body, "allocations", allocationsJson, allocator);
+        JsonUtil::AddMember(body, "reservedLine", reservedLineJson, allocator);
         JsonUtil::AddMember(json, "body", body, allocator);
         return std::optional<document_t>{std::move(json)};
     }
