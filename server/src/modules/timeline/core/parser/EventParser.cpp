@@ -167,7 +167,7 @@ void EventParser::SimulationBeginEventHandle(Trace::Event *eventPtr) {
         return;
     }
     auto &event = dynamic_cast<Trace::Slice &>(*eventPtr);
-    if (event.name == "SET_FLAG" || event.name == "set_event") {
+    if (SET_FLAG_NAMES.count(event.name) > 0) {
         if (setFlagSliceMap.find(event.flagId) == setFlagSliceMap.end()) {
             setFlagSliceMap[event.flagId] = event;
             return;
@@ -179,7 +179,7 @@ void EventParser::SimulationBeginEventHandle(Trace::Event *eventPtr) {
         }
     }
 
-    if (event.name == "WAIT_FLAG" || event.name == "wait_event") {
+    if (WAIT_FLAG_NAMES.count(event.name) > 0) {
         if (waitFlagSliceMap.find(event.flagId) == waitFlagSliceMap.end()) {
             waitFlagSliceMap[event.flagId] = event;
             return;
@@ -198,7 +198,7 @@ void EventParser::SimulationEndEventHandle(Trace::Event *eventPtr) {
     }
     auto &event = dynamic_cast<Trace::Slice &>(*eventPtr);
 
-    if (event.name == "SET_FLAG" || event.name == "set_event") {
+    if (SET_FLAG_NAMES.count(event.name) > 0) {
         if (setFlagSliceMap.find(event.flagId) == setFlagSliceMap.end()) {
             setFlagSliceMap[event.flagId] = event;
             return;
@@ -211,7 +211,7 @@ void EventParser::SimulationEndEventHandle(Trace::Event *eventPtr) {
         }
     }
 
-    if (event.name == "WAIT_FLAG" || event.name == "wait_event") {
+    if (WAIT_FLAG_NAMES.count(event.name) > 0) {
         if (waitFlagSliceMap.find(event.flagId) == waitFlagSliceMap.end()) {
             waitFlagSliceMap[event.flagId] = event;
             return;

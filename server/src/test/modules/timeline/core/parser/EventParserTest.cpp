@@ -1122,6 +1122,56 @@ TEST_F(EventParserTest, TestWAIT_FLAGSimulationPhIsBAndEAndEIsBeforeParse) {
 }
 
 /**
+ * 算子调优测试解析新增的INTRA_BLOCK类型B/E事件
+ */
+TEST_F(EventParserTest, TestIntraBlockFlagNamesSimulationPhIsBAndEParse) {
+    const std::string jsonContent = R"([
+        {"args":{},"cname":"rail_response","id":1,"name":"SET_INTRA_BLOCK","ph":"B",
+            "pid":"core0.cubecore0","tid":"MTE3","ts":1},
+        {"id":1,"name":"SET_INTRA_BLOCK","ph":"E","ts":2},
+        {"args":{},"cname":"rail_response","id":2,"name":"SET_INTRA_BLOCKI","ph":"B",
+            "pid":"core0.cubecore0","tid":"MTE3","ts":3},
+        {"id":2,"name":"SET_INTRA_BLOCKI","ph":"E","ts":4},
+        {"args":{},"cname":"rail_response","id":3,"name":"WAIT_INTRA_BLOCK","ph":"B",
+            "pid":"core0.cubecore0","tid":"MTE3","ts":5},
+        {"id":3,"name":"WAIT_INTRA_BLOCK","ph":"E","ts":6},
+        {"args":{},"cname":"rail_response","id":4,"name":"WAIT_INTRA_BLOCKI","ph":"B",
+            "pid":"core0.cubecore0","tid":"MTE3","ts":7},
+        {"id":4,"name":"WAIT_INTRA_BLOCKI","ph":"E","ts":8}
+    ])";
+    ParserStatusManager::Instance().SetParserStatus(fileId, ParserStatus::RUNNING);
+    EXPECT_CALL(*mockFileReader, ReadJsonArray(filePath, startPosition, endPosition)).WillOnce(Return(jsonContent));
+    sqlite3 *dbPtr = nullptr;
+    Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    mockDatabase->SetDbPtr(dbPtr);
+    mockDatabase->CreateTable();
+    EventParserMock eventParserMock(filePath, fileId, mockDatabase);
+    eventParserMock.SetFileReaderAndDatabase(std::move(mockFileReader));
+    eventParserMock.SetSimulationStatus(true);
+    eventParserMock.Parse(startPosition, endPosition);
+
+    Dic::Module::Timeline::SliceTable sliceTable;
+    std::vector<SlicePO> slicePOs;
+    sliceTable.Select(SliceColumn::ID, SliceColumn::TIMESTAMP)
+        .Select(SliceColumn::DURATION, SliceColumn::NAME)
+        .Select(SliceColumn::TRACKID, SliceColumn::ENDTIME)
+        .Select(SliceColumn::FLAGID)
+        .OrderBy(SliceColumn::ID, TableOrder::ASC)
+        .ExcuteQuery(dbPtr, slicePOs);
+
+    const std::vector<std::string> expectedNames = {
+        "SET_INTRA_BLOCK", "SET_INTRA_BLOCKI", "WAIT_INTRA_BLOCK", "WAIT_INTRA_BLOCKI"};
+    ASSERT_EQ(slicePOs.size(), expectedNames.size());
+    for (size_t i = 0; i < expectedNames.size(); ++i) {
+        EXPECT_EQ(slicePOs[i].name, expectedNames[i]);
+        EXPECT_EQ(slicePOs[i].flagId, std::to_string(i + 1));
+        EXPECT_EQ(slicePOs[i].duration, 1000);
+        EXPECT_EQ(slicePOs[i].trackId, 1);
+        EXPECT_EQ(slicePOs[i].endTime, slicePOs[i].timestamp + slicePOs[i].duration);
+    }
+}
+
+/**
  * 算子调优测试解析type只有为B的SET_FLAG的json
  */
 TEST_F(EventParserTest, TestSET_FLAGSimulationPhIsBParse) {
