@@ -60,6 +60,41 @@ bool AffinityAPIAdvisor::Process(const Protocol::APITypeParams &params, Protocol
     resBody.size = results.size();
     return true;
 }
+bool AffinityAPIAdvisor::ProcessAll(
+    const Protocol::APITypeParams &params, std::vector<Protocol::AffinityAPIData> &allData) {
+    auto database = Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId(params.rankId);
+    if (database == nullptr) {
+        ServerLog::Error("Failed to get connection for Affinity API export. fileId:", params.rankId);
+        SetAdvisorError(ErrorCode::CONNECT_DATABASE_FAILED);
+        return false;
+    }
+    Protocol::APITypeParams exportParams = params;
+    exportParams.currentPage = 1;
+    exportParams.pageSize = UINT32_MAX;
+    std::vector<Protocol::FlowLocation> results = GetFlowLocationData(exportParams);
+    for (const auto &item : results) {
+        Protocol::AffinityAPIData one{};
+        one.name = item.name;
+        one.baseInfo.id = item.id;
+        one.baseInfo.rankId = params.rankId;
+        one.baseInfo.pid = item.pid;
+        one.baseInfo.tid = item.tid;
+        one.baseInfo.startTime = item.timestamp;
+        if (item.duration < item.timestamp) {
+            ServerLog::Error("The original data seems to have an issue, as the end time is smaller than the timestamp."
+                             "Please check the rationality of the data.");
+            SetAdvisorError(ErrorCode::DATA_ANOMALY_END_TIME_SMALLER_TIMESTAMP);
+            return false;
+        }
+        one.baseInfo.duration = item.duration - item.timestamp;
+        one.baseInfo.depth = item.depth;
+        one.originAPI = item.type;
+        one.replaceAPI = item.metaType;
+        one.note = item.deviceId;
+        allData.emplace_back(one);
+    }
+    return true;
+}
 
 std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(const Protocol::APITypeParams &params) {
     std::vector<Protocol::FlowLocation> results;
@@ -88,7 +123,7 @@ std::vector<Protocol::FlowLocation> AffinityAPIAdvisor::GetFlowLocationData(cons
         SetAdvisorError(ErrorCode::QUERY_AFFINITY_API_FAILED);
         return results;
     }
-    for (const auto &it : dataMap) { // 获取某个泳道的数据
+    for (const auto &it : dataMap) { // 获取某个泳道的数据，过滤出符合条件的api序列
         uint64_t trackId = it.first;
         std::vector<Protocol::FlowLocation> data = it.second;
         std::vector<uint32_t> indexList = indexMap[trackId];
@@ -107,7 +142,7 @@ std::set<std::string> AffinityAPIAdvisor::GetFirstApiList(const std::vector<Affi
         if (item.apiList.empty()) {
             continue;
         }
-        std::vector list = StringUtil::Split(item.apiList[0], "\\|"); // 按"|"分割api
+        std::vector list = StringUtil::Split(item.apiList[0], "\\|"); // 以|分隔，获取所有可能的api
         for (const auto &one : list) {
             apiList.insert(one);
         }
@@ -176,7 +211,7 @@ bool AffinityAPIAdvisor::CheckApiSeqWithRule(
         return false; // 真实数据长度 < 预期数据长度，无法匹配
     }
 
-    for (size_t i = 1; i < rule.size(); ++i) { // 上文已匹配索引为0的数据
+    for (size_t i = 1; i < rule.size(); ++i) { // 上文已匹配索引为0的数量
         std::string tmp = dataList[index + i].name;
         std::vector<std::string> list = StringUtil::Split(rule[i], "\\|");
         if (std::find(list.begin(), list.end(), tmp) == list.end()) { // 不完全匹配，则跳过

@@ -370,6 +370,12 @@ export const queryAffinityAPI = async (param: {
     return window.requestData('advisor/affinity_api', param);
 };
 
+export const exportAffinityAPI = async (param: {
+    rankId: string; orderBy: string; order: string; startTime: number; endTime: number;
+}): Promise<{ count: number; filePath: string; exceedingFileLimit: boolean }> => {
+    return window.requestData('advisor/exportAffinityAPI', param);
+};
+
 export const queryOperatorFusion = async (param: {
     rankId: string; dbPath: string; pageSize: number; current: number; orderBy: string; order: string;
     startTime: number; endTime: number;

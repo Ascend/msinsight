@@ -30,6 +30,8 @@ void AdvisorProtocolUtil::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_ADVISOR_ACLNN_OPERATORS, AdvisorProtocolFromRequestJson::ToAclnnOperatorRequest);
     jsonToReqFactory.emplace(
         REQ_RES_ADVISOR_OPERATOR_DISPATCH, AdvisorProtocolFromRequestJson::ToOperatorDispatchRequest);
+    jsonToReqFactory.emplace(
+        REQ_RES_ADVISOR_EXPORT_AFFINITY_API, AdvisorProtocolFromRequestJson::ToExportAffinityAPIRequest);
 }
 
 void AdvisorProtocolUtil::RegisterResponseToJsonFuncs() {
@@ -41,6 +43,8 @@ void AdvisorProtocolUtil::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_ADVISOR_ACLNN_OPERATORS, AdvisorProtocolToResponseJson::ToAclnnOperatorResponse);
     resToJsonFactory.emplace(
         REQ_RES_ADVISOR_OPERATOR_DISPATCH, AdvisorProtocolToResponseJson::ToOperatorDispatchResponse);
+    resToJsonFactory.emplace(
+        REQ_RES_ADVISOR_EXPORT_AFFINITY_API, AdvisorProtocolToResponseJson::ToExportAffinityAPIResponse);
 }
 
 void AdvisorProtocolUtil::RegisterEventToJsonFuncs() {}

@@ -32,6 +32,7 @@ class AdvisorProtocolFromRequestJson {
     static std::unique_ptr<Request> ToAICpuOperatorRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToAclnnOperatorRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToOperatorDispatchRequest(const json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToExportAffinityAPIRequest(const json_t &json, std::string &error);
 };
 }
 

@@ -22,6 +22,7 @@
 #include "QueryAclnnOpAdvisorHandler.h"
 #include "QueryFusedOpAdviceHandler.h"
 #include "QueryOperatorDispatchHandler.h"
+#include "ExportAffinityAPIAdvice.h"
 #include "ProtocolDefs.h"
 #include "AdvisorModule.h"
 
@@ -38,6 +39,7 @@ void AdvisorModule::RegisterRequestHandlers() {
     requestHandlerMap.emplace(REQ_RES_ADVISOR_ACLNN_OPERATORS, std::make_unique<QueryAclnnOpAdvisorHandler>());
     requestHandlerMap.emplace(REQ_RES_ADVISOR_OPERATORS_FUSION, std::make_unique<QueryFusedOpAdviceHandler>());
     requestHandlerMap.emplace(REQ_RES_ADVISOR_OPERATOR_DISPATCH, std::make_unique<QueryOperatorDispatchHandler>());
+    requestHandlerMap.emplace(REQ_RES_ADVISOR_EXPORT_AFFINITY_API, std::make_unique<ExportAffinityAPIAdvice>());
 }
 
 void AdvisorModule::OnRequest(std::unique_ptr<Protocol::Request> request) { BaseModule::OnRequest(std::move(request)); }

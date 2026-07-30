@@ -123,6 +123,7 @@ const std::vector<std::string> AFFINITY_API_ORDER_BY_NAME_LIST = {"startTime", "
 class AffinityAPIAdvisor {
   public:
     static bool Process(const Protocol::APITypeParams &params, Protocol::AffinityAPIResBody &resBody);
+    static bool ProcessAll(const Protocol::APITypeParams &params, std::vector<Protocol::AffinityAPIData> &allData);
 
   private:
     static std::set<std::string> GetFirstApiList(const std::vector<AffinityApiData> &affinityApiData);

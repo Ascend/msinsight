@@ -189,6 +189,19 @@ std::optional<document_t> ToResponseJson<OperatorDispatchResponse>(const Operato
     return std::optional<document_t>{std::move(json)};
 }
 
+template <>
+std::optional<document_t> ToResponseJson<ExportAffinityAPIResponse>(const ExportAffinityAPIResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    JsonUtil::AddMember(body, "count", response.body.size, allocator);
+    JsonUtil::AddMember(body, "filePath", response.body.filePath, allocator);
+    JsonUtil::AddMember(body, "exceedingFileLimit", response.body.exceedingFileLimit, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
 std::optional<document_t> AdvisorProtocolToResponseJson::ToAffinityOptimizerResponse(const Response &response) {
     return ToResponseJson<AffinityOptimizerResponse>(dynamic_cast<const AffinityOptimizerResponse &>(response));
 }
@@ -211,5 +224,9 @@ std::optional<document_t> AdvisorProtocolToResponseJson::ToAclnnOperatorResponse
 
 std::optional<document_t> AdvisorProtocolToResponseJson::ToOperatorDispatchResponse(const Response &response) {
     return ToResponseJson<OperatorDispatchResponse>(dynamic_cast<const OperatorDispatchResponse &>(response));
+}
+
+std::optional<document_t> AdvisorProtocolToResponseJson::ToExportAffinityAPIResponse(const Response &response) {
+    return ToResponseJson<ExportAffinityAPIResponse>(dynamic_cast<const ExportAffinityAPIResponse &>(response));
 }
 }

@@ -27,6 +27,7 @@ import {
     aicpuOperatorColumns,
     aclnnOperatorColumns,
     queryAffinityAPI,
+    exportAffinityAPI,
     affinityAPIColumns,
     queryOperatorFusion,
     fusionOperatorColumns,
@@ -63,7 +64,7 @@ const AffinityAPI = observer((props: SelectContentViewProps) => {
     if (shouldHiddenContent(props)) {
         return <HiddenContent />;
     }
-    return <BaseSummary request={queryAffinityAPI} columns={affinityAPIColumns} {...props} />;
+    return <BaseSummary request={queryAffinityAPI} exportRequest={exportAffinityAPI} columns={affinityAPIColumns} {...props} />;
 });
 
 const AffinityOptimizer = observer((props: SelectContentViewProps) => {
