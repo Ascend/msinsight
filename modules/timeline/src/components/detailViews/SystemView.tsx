@@ -463,6 +463,7 @@ const SelectList = observer((props: { session: Session; viewOption: number; sele
 export interface BaseSummaryProps extends SelectContentViewProps {
     layerType?: string;
     request: (...rest: any[]) => any;
+    exportRequest?: (...rest: any[]) => any;
     isStats?: boolean;
     isFtrace?: boolean;
     isTrace?: boolean;
@@ -492,6 +493,7 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
     const [searchText, setSearchText] = useState('');
     const [searchedColumn, setSearchedColumn] = useState('');
     const [rowData, setRowData] = useState<Partial<BaseSummaryRowItemType>>({});
+    const [exporting, setExporting] = useState(false);
     const { t } = useTranslation('timeline', { keyPrefix: 'tableHead' });
     const status = props.session.units.find((unit: any) => (unit.metadata as CardMetaData).cardId === props.card.cardId)?.phase;
     let columns = props.columns?.map((col: any) => ({
@@ -586,6 +588,35 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
             setLoading(false);
         }
     };
+
+    const handleExport = async (): Promise<void> => {
+        if (!props.exportRequest) {
+            return;
+        }
+        setExporting(true);
+        try {
+            let startTime = props.session.timeAnalysisRange?.[0] ?? 0;
+            startTime = startTime < 0 ? 0 : startTime;
+            let endTime = props.session.timeAnalysisRange?.[1] ?? 0;
+            endTime = endTime < 0 ? 0 : endTime;
+            const timestampOffset = getTimeOffset(props.session, { cardId: props.card.cardId });
+            const res = await props.exportRequest({
+                rankId: props.card.cardId,
+                orderBy: sorter.field === 'startTimeLabel' ? 'startTime' : sorter.field,
+                order: sorter.order ?? 'descend',
+                startTime: Math.floor(startTime + timestampOffset),
+                endTime: Math.ceil(endTime + timestampOffset),
+            });
+            if (res.filePath.length === 0) {
+                console.error('Export failed: empty filePath');
+            }
+        } catch (err) {
+            console.error('Export failed:', err);
+        } finally {
+            setExporting(false);
+        }
+    };
+
     useEffect(() => {
         if (status === 'download') {
             updateData(searchText, page, sorter, props);
@@ -600,19 +631,28 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
 
     return (
         (status === 'download' && props.card !== undefined && props.card.cardId !== '')
-            ? <ResizeTable
-                onChange={(pagination: any, filters: any, nwSorter: any): void => {
-                    setSorter(nwSorter);
-                }}
-                rowClassName={(record: any): string => {
-                    return record.id !== undefined && record.id === rowData.id ? 'selected-row' : 'click-able';
-                }}
-                pagination={getPageData(page, setPage)}
-                dataSource={dataSource}
-                columns={columns}
-                size="small"
-                scroll={{ y: props.bottomHeight - DETAIL_HEADER_HEIGHT_ETC_PX }}
-                loading = {isLoading}/>
+            ? <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                {props.exportRequest && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+                        <Button size="small" loading={exporting} onClick={handleExport}>
+                            Export All
+                        </Button>
+                    </div>
+                )}
+                <ResizeTable
+                    onChange={(pagination: any, filters: any, nwSorter: any): void => {
+                        setSorter(nwSorter);
+                    }}
+                    rowClassName={(record: any): string => {
+                        return record.id !== undefined && record.id === rowData.id ? 'selected-row' : 'click-able';
+                    }}
+                    pagination={getPageData(page, setPage)}
+                    dataSource={dataSource}
+                    columns={columns}
+                    size="small"
+                    scroll={{ y: props.bottomHeight - DETAIL_HEADER_HEIGHT_ETC_PX }}
+                    loading = {isLoading}/>
+            </div>
             : <div style={{ display: 'flex', height: '100%' }}>
                 <StyledEmpty style={{ margin: 'auto' }}/>
             </div>

@@ -33,6 +33,8 @@ template <> std::optional<document_t> ToResponseJson<AICpuOperatorResponse>(cons
 template <> std::optional<document_t> ToResponseJson<AclnnOperatorResponse>(const AclnnOperatorResponse &response);
 template <>
 std::optional<document_t> ToResponseJson<OperatorDispatchResponse>(const OperatorDispatchResponse &response);
+template <>
+std::optional<document_t> ToResponseJson<ExportAffinityAPIResponse>(const ExportAffinityAPIResponse &response);
 
 class AdvisorProtocolToResponseJson {
   public:
@@ -42,6 +44,7 @@ class AdvisorProtocolToResponseJson {
     static std::optional<document_t> ToAICpuOperatorResponse(const Response &response);
     static std::optional<document_t> ToAclnnOperatorResponse(const Response &response);
     static std::optional<document_t> ToOperatorDispatchResponse(const Response &response);
+    static std::optional<document_t> ToExportAffinityAPIResponse(const Response &response);
 };
 }
 

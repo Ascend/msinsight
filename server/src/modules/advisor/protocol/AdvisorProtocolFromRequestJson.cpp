@@ -66,4 +66,19 @@ std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToOperatorDispatchReque
     const json_t &json, std::string &error) {
     return ToRequest<OperatorDispatchRequest>(json, error);
 }
+
+std::unique_ptr<Request> AdvisorProtocolFromRequestJson::ToExportAffinityAPIRequest(
+    const json_t &json, std::string &error) {
+    std::unique_ptr<ExportAffinityAPIRequest> reqPtr = std::make_unique<ExportAffinityAPIRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+        error = "Failed to set request base info, command is: " + reqPtr->command;
+        return nullptr;
+    }
+    JsonUtil::SetByJsonKeyValue(reqPtr->rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->orderBy, json["params"], "orderBy");
+    JsonUtil::SetByJsonKeyValue(reqPtr->orderType, json["params"], "order");
+    JsonUtil::SetByJsonKeyValue(reqPtr->startTime, json["params"], "startTime");
+    JsonUtil::SetByJsonKeyValue(reqPtr->endTime, json["params"], "endTime");
+    return reqPtr;
+}
 }

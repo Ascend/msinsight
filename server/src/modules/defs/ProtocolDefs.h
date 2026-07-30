@@ -214,6 +214,7 @@ const std::string REQ_RES_ADVISOR_OPERATORS_FUSION = "advisor/operator_fusion";
 const std::string REQ_RES_ADVISOR_AICPU_OPERATORS = "advisor/aicpu_operator";
 const std::string REQ_RES_ADVISOR_ACLNN_OPERATORS = "advisor/aclnn_operator";
 const std::string REQ_RES_ADVISOR_OPERATOR_DISPATCH = "advisor/operatorDispatch";
+const std::string REQ_RES_ADVISOR_EXPORT_AFFINITY_API = "advisor/exportAffinityAPI";
 
 // IE
 const std::string REQ_RES_IE_VIEW = "IE/usage/view";

@@ -94,5 +94,34 @@ struct OperatorDispatchRequest : public Request {
     APITypeParams params;
 };
 
+struct ExportAffinityAPIRequest : public Request {
+    ExportAffinityAPIRequest() : Request(REQ_RES_ADVISOR_EXPORT_AFFINITY_API) {};
+    std::string rankId;
+    std::string orderBy = "duration";
+    std::string orderType = "descend";
+    uint64_t startTime = 0;
+    uint64_t endTime = 0;
+    bool Check(std::string &errorMsg) const {
+        std::string paramError;
+        if (!CheckStrParamValid(this->rankId, paramError)) {
+            errorMsg = "[Advisor] Failed to check rankId." + paramError;
+            return false;
+        }
+        if (!CheckStrParamValid(this->orderBy, paramError)) {
+            errorMsg = "[Advisor] Failed to check orderBy." + paramError;
+            return false;
+        }
+        if (!CheckStrParamValid(this->orderType, paramError)) {
+            errorMsg = "[Advisor] Failed to check OrderType." + paramError;
+            return false;
+        }
+        if (startTime > endTime) {
+            errorMsg = "[Advisor] start time is bigger than end time";
+            return false;
+        }
+        return true;
+    }
+};
+
 }
 #endif // PROFILER_SERVER_ADVISORPROTOCOLREQUEST_H

@@ -139,6 +139,17 @@ struct OperatorDispatchResponse : public Response {
     OperatorDispatchResponse() : Response(REQ_RES_ADVISOR_OPERATOR_DISPATCH) {};
     OperatorDispatchResBody body;
 };
+
+struct ExportAffinityAPIResBody {
+    uint64_t size{};
+    std::string filePath;
+    bool exceedingFileLimit{false};
+};
+
+struct ExportAffinityAPIResponse : public Response {
+    ExportAffinityAPIResponse() : Response(REQ_RES_ADVISOR_EXPORT_AFFINITY_API) {};
+    ExportAffinityAPIResBody body;
+};
 }
 
 #endif // PROFILER_SERVER_ADVISORPROTOCOLRESPONSE_H
