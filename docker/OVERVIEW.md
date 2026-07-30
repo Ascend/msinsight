@@ -26,20 +26,21 @@ This Docker image provides an out-of-the-box web access mode for MindStudio Insi
 Tags follow this format:
 
 ```text
-{Version}-{OS}
+{Version}-{OS}-{Python Version}
 ```
 
 | Field | Description | Example Value |
 | ------ | ------ | ------ |
 | Version | MindStudio Insight version | `26.1.0` |
 | OS | Base operating system of the image | `ubuntu22.04`, `openeuler24.03` |
+| Python Version | Built-in Python version of the image | `3.10` |
 
 By default, images are published as multi-architecture manifests. The same tag supports both `x86_64` and `aarch64`, and Docker automatically pulls the image matching the runtime platform.
 
-| Tag | Operating System | Dockerfile |
-| ------ | ------ | ------ |
-| `26.1.0-ubuntu22.04` | Ubuntu 22.04 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
-| `26.1.0-openeuler24.03` | openEuler 24.03 LTS | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
+| Tag | Operating System | Built-in Python Version | Dockerfile |
+| ------ | ------ | ------ | ------ |
+| `26.1.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
+| `26.1.0-openeuler24.03-py3.11` | openEuler 24.03 LTS | 3.11 | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
 
 ### Directory Structure
 
@@ -109,7 +110,7 @@ docker run -d \
   -v /path/to/profile_data:/opt/insight/data \
   -v /path/to/certs:/etc/nginx/certs:ro \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04
+  msinsight:26.1.0-ubuntu22.04-py3.10
 ```
 
 For example, when using host port `9443`, open the following URL in a browser:
@@ -128,7 +129,7 @@ docker run -d \
   -p <host_http_port>:80 \
   -v /path/to/profile_data:/opt/insight/data \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04
+  msinsight:26.1.0-ubuntu22.04-py3.10
 ```
 
 For example, when using host port `9880`, open the following URL in a browser:
@@ -156,6 +157,7 @@ docker build \
   -f Dockerfile.ubuntu \
   --build-arg VERSION={version} \
   --build-arg TAG={tag} \
+  --build-arg TARGETARCH={arch} \
   -t {msinsight_tag} .
 ```
 
@@ -168,6 +170,7 @@ docker build \
   -f Dockerfile.openEuler \
   --build-arg VERSION={version} \
   --build-arg TAG={tag} \
+  --build-arg TARGETARCH={arch} \
   -t {msinsight_tag} .
 ```
 
@@ -176,13 +179,13 @@ docker build \
 You can create a custom image based on the official image:
 
 ```dockerfile
-FROM msinsight:26.1.0-ubuntu22.04
+FROM msinsight:26.1.0-ubuntu22.04-py3.10
 
 # Add custom build steps as needed.
 ```
 
 ## License
 
-MindStudio Insight is licensed under MulanPSL2. For details, see the [LICENSE](../License) file. Before using this image, ensure that you understand and comply with the license agreements of MindStudio Insight and the third-party software included in the image.
+MindStudio Insight is licensed under MulanPSL2. For details, see the [LICENSE](https://gitcode.com/Ascend/msinsight/blob/master/License) file. Before using this image, ensure that you understand and comply with the license agreements of MindStudio Insight and the third-party software included in the image.
 
 As with all container images, pre-installed software packages such as Python and system libraries may be subject to their own license terms.
