@@ -50,6 +50,19 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 
 </details>
 
+<details>
+<summary>下载 镜像</summary>
+
+[下载 MindStudio Insight 镜像（ubuntu_x86_64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_x86_64.tar)
+
+[下载 MindStudio Insight 镜像（ubuntu_aarch64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_aarch64.tar)
+
+[下载 MindStudio Insight 镜像（openEuler_x86_64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_x86_64.tar)
+
+[下载 MindStudio Insight 镜像（openEuler_aarch64）](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_aarch64.tar)
+
+</details>
+
 ### 详细软件包清单
 
 单击[MindStudio Insight Release](https://gitcode.com/Ascend/msinsight/releases)，确认版本信息后获取如[**表 1**  软件包清单](#软件包清单)所示软件包。
@@ -64,7 +77,8 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 |MindStudio-Insight_*{version}*_win.exe|适用于Windows系统的MindStudio Insight软件包，含有GUI的集成开发环境。|
 |MindStudio-Insight_*{version}*_linux-*{arch}*.zip|适用于Linux系统的MindStudio Insight软件包。|
 |MindStudio-Insight_*{version}*_macos-*{arch}*.dmg|适用于macOS系统的MindStudio Insight软件包，含有GUI的集成开发环境。|
-|mindstudio_insight_jupyterlab-{*version*}-py3-none-{*platform*}.whl|基于JupyterLab安装的软件包。|
+|mindstudio_insight_jupyterlab-*{version}*-py3-none-*{platform}*.whl|基于JupyterLab安装的软件包。|
+|MindStudio-Insight_docker_image_*{version}*-*{os}*_*{Python_version}*_*{arch}*.tar|MindStudio Insight的docker镜像包。|
 
 ### 软件完整性验证
 
