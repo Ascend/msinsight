@@ -591,6 +591,192 @@ vncserver -localhost -geometry 1920x1080
 </details>
 
 <details>
+<summary>镜像安装操作</summary>
+
+<h3 id="安装操作镜像">安装操作（镜像）</h3>
+
+**准备环境**
+
+1. 准备一台已安装Docker且Docker服务运行正常的Linux服务器。
+2. 根据服务器的CPU架构，下载对应架构的MindStudio Insight镜像包，并完成[软件完整性验证](#软件完整性验证)。
+3. 确保客户端能够访问服务器上用于MindStudio Insight的映射端口。
+
+> [!NOTE] 说明
+> 镜像中的操作系统和Python运行环境已经预置，无需在服务器上另行安装MindStudio Insight的运行依赖。如果需要自行构建镜像，请参见[MindStudio Insight镜像说明](../../../docker/OVERVIEW.zh.md#本地构建)。
+
+**加载镜像**
+
+1. 将下载的镜像包上传至服务器。
+2. 在镜像包所在目录执行以下命令，加载镜像。
+
+    ```shell
+    docker load -i MindStudio-Insight_docker_image_{version}-{os}_{Python_version}_{arch}.tar
+    ```
+
+    命令回显中将显示已加载镜像的名称和Tag，例如：
+
+    ```text
+    Loaded image: {image_name}:{image_tag}
+    ```
+
+3. 执行以下命令，确认镜像已加载成功。
+
+    ```shell
+    docker images
+    ```
+
+    在回显中找到已加载的MindStudio Insight镜像，并记录镜像名称和Tag。下文使用`{image_name}:{image_tag}`表示该镜像。
+
+**运行镜像**
+
+根据使用场景，选择HTTPS + mTLS模式或HTTP模式运行MindStudio Insight镜像。生产环境或多人共享服务场景推荐使用HTTPS + mTLS模式。
+
+推荐优先使用MindStudio Insight Streamer脚本控制容器启停。脚本可自动完成镜像选择、端口映射、数据和证书目录挂载，并在容器停止后自动删除容器对象。也可根据实际需要直接使用Docker命令运行镜像。
+
+<h4 id="使用streamer脚本运行镜像">方式一：使用Streamer脚本运行镜像（推荐）</h4>
+
+1. 从[MindStudio Insight代码仓](https://gitcode.com/Ascend/msinsight)获取`streamer`目录，并在服务器上进入该目录。
+2. 根据执行`docker load`后的镜像名称选择镜像：
+
+    - 如果镜像仓库名为`msinsight`，脚本会自动选择本地最新的`msinsight`镜像，无需指定`--image`。
+    - 如果镜像仓库名不是`msinsight`，执行脚本时需要通过`--image {image_name}:{image_tag}`指定镜像。
+
+3. 根据使用场景启动MindStudio Insight。
+
+    - HTTPS + mTLS模式（推荐）
+
+        1. 准备服务器证书、服务器私钥和CA证书，并将证书文件放置在服务器的同一目录下。文件名必须如下：
+
+            ```text
+            server.crt
+            server.key
+            ca.crt
+            ```
+
+            > [!NOTE] 说明
+            > 请妥善设置证书目录及私钥文件的访问权限，防止证书或私钥泄露。客户端还需配置由该CA签发的客户端证书，以完成mTLS双向认证。
+
+        2. 执行以下命令，启动容器。
+
+            ```shell
+            python3 run_insight_streamer.py \
+              --image {image_name}:{image_tag} \
+              --cert-dir /path/to/certs \
+              -v /path/to/profile_data
+            ```
+
+            如果镜像仓库名为`msinsight`，可省略`--image`参数。脚本默认将服务器的`8443`端口映射至容器的HTTPS端口。如果默认端口已被占用，可增加`--https-port dynamic`参数自动选择可用端口，或通过`--https-port {host_https_port}`指定端口。
+
+        3. 根据命令回显中的URL，在已配置客户端证书的浏览器中打开MindStudio Insight。默认访问地址如下：
+
+            ```text
+            https://{host_ip}:8443/?proxy=true
+            ```
+
+    - HTTP模式（仅适用于开发、测试或临时访问）
+
+        1. 执行以下命令，启动容器。
+
+            ```shell
+            python3 run_insight_streamer.py \
+              --image {image_name}:{image_tag} \
+              -v /path/to/profile_data
+            ```
+
+            如果镜像仓库名为`msinsight`，可省略`--image`参数。脚本默认将服务器的`8080`端口映射至容器的HTTP端口。如果默认端口已被占用，可增加`--http-port dynamic`参数自动选择可用端口，或通过`--http-port {host_http_port}`指定端口。
+
+        2. 根据命令回显中的URL，在浏览器中打开MindStudio Insight。默认访问地址如下：
+
+            ```text
+            http://{host_ip}:8080/?proxy=true
+            ```
+
+        > [!WARNING] 警告
+        > HTTP模式不提供传输层加密和客户端身份认证，请勿在生产环境或不可信网络中使用。
+
+4. 如需停止通过Streamer脚本启动的默认容器，请在`streamer`目录下执行以下命令：
+
+    ```shell
+    python3 stop_insight_streamer.py
+    ```
+
+    更多镜像指定、端口配置、容器停止及Docker参数透传方式，请参见[MindStudio Insight Streamer脚本说明](../../../streamer/README.zh.md)。
+
+<h4 id="使用docker命令运行镜像">方式二：使用Docker命令运行镜像</h4>
+
+- HTTPS + mTLS模式（推荐）
+
+    1. 按照[方式一](#使用streamer脚本运行镜像)中的证书要求准备证书。
+    2. 执行以下命令，启动容器。
+
+        ```shell
+        docker run -d \
+          -p {host_https_port}:443 \
+          -v /path/to/profile_data:/opt/insight/data \
+          -v /path/to/certs:/etc/nginx/certs:ro \
+          --name msinsight \
+          {image_name}:{image_tag}
+        ```
+
+    3. 在已配置客户端证书的浏览器中访问以下地址，打开MindStudio Insight。
+
+        ```text
+        https://{host_ip}:{host_https_port}/?proxy=true
+        ```
+
+- HTTP模式（仅适用于开发、测试或临时访问）
+
+    1. 执行以下命令，启动容器。
+
+        ```shell
+        docker run -d \
+          -p {host_http_port}:80 \
+          -v /path/to/profile_data:/opt/insight/data \
+          --name msinsight \
+          {image_name}:{image_tag}
+        ```
+
+    2. 在浏览器中访问以下地址，打开MindStudio Insight。
+
+        ```text
+        http://{host_ip}:{host_http_port}/?proxy=true
+        ```
+
+    > [!WARNING] 警告
+    > HTTP模式不提供传输层加密和客户端身份认证，请勿在生产环境或不可信网络中使用。
+
+相关参数说明如下：
+
+|参数|说明|
+|--|--|
+|`{host_https_port}`|服务器上用于访问MindStudio Insight的HTTPS端口，例如`9443`。|
+|`{host_http_port}`|服务器上用于访问MindStudio Insight的HTTP端口，例如`9880`。|
+|`/path/to/profile_data`|服务器上存放待分析性能数据的目录，请替换为实际的绝对路径。|
+|`/path/to/certs`|服务器上存放mTLS证书的目录，请替换为实际的绝对路径。|
+|`msinsight`|容器名称，可根据实际情况修改。|
+|`{image_name}:{image_tag}`|执行`docker load`后得到的镜像名称和Tag。|
+
+执行以下命令，可查看容器是否启动成功：
+
+```shell
+docker ps --filter name=msinsight
+```
+
+如果容器未正常运行，可执行以下命令查看容器日志：
+
+```shell
+docker logs msinsight
+```
+
+> [!NOTE] 说明
+>
+> - `{host_ip}`为运行容器的服务器IP地址。请确保客户端与服务器网络连通，且服务器防火墙已放通相应的映射端口。
+> - 挂载到`/opt/insight/data`的服务器目录可在MindStudio Insight中用于访问待分析性能数据。
+> - 使用Docker命令启动容器时，仅当`/etc/nginx/certs`目录中同时存在`server.crt`、`server.key`和`ca.crt`时，才会启用HTTPS + mTLS模式；否则会启用HTTP模式。
+
+</details>
+
+<details>
 <summary>macOS 系统安装操作</summary>
 
 <h3 id="安装操作macos">安装操作（macOS）</h3>
@@ -889,6 +1075,55 @@ python resources/profiler/plugin_install.py install --path="plugin package path"
         ```shell
         rm -rf ${HOME}/.mindstudio_insight
         ```
+
+</details>
+
+<details>
+<summary>镜像卸载操作</summary>
+
+<h3 id="卸载操作镜像">卸载操作（镜像）</h3>
+
+1. 停止并删除MindStudio Insight容器。
+
+    - 如果使用Streamer脚本启动容器，推荐在`streamer`目录下执行以下命令停止默认容器：
+
+        ```shell
+        python3 stop_insight_streamer.py
+        ```
+
+        Streamer启动的容器配置了`--rm`参数，容器停止后会自动删除容器对象。如果启动时指定了其他容器名称，可通过`-n`指定该名称：
+
+        ```shell
+        python3 stop_insight_streamer.py -n {container_name}
+        ```
+
+    - 如果使用Docker命令启动容器，执行以下命令停止并删除容器：
+
+        ```shell
+        docker rm -f {container_name}
+        ```
+
+        其中，`{container_name}`为启动容器时指定的容器名称，例如`msinsight`。
+
+2. 执行以下命令，确认没有需要保留的容器正在使用待删除镜像：
+
+    ```shell
+    docker ps -a --filter ancestor={image_name}:{image_tag}
+    ```
+
+3. 执行以下命令，删除MindStudio Insight镜像：
+
+    ```shell
+    docker rmi {image_name}:{image_tag}
+    ```
+
+    其中，`{image_name}:{image_tag}`为加载镜像时记录的镜像名称和Tag，可通过`docker images`查询。
+
+> [!NOTE] 说明
+>
+> - 删除容器和镜像不会删除通过`-v`挂载的服务器数据目录。如果确认不再需要其中的性能数据，请根据实际挂载路径手动清理。
+> - 如果`docker rmi`提示镜像正在使用，请先根据回显信息确认并删除关联容器，再重新执行镜像删除命令。不要在未确认容器用途的情况下强制删除镜像。
+> - 更多按端口停止容器、停止所有运行中的`msinsight`容器等方式，请参见[MindStudio Insight Streamer脚本说明](../../../streamer/README.zh.md#停止-insight)。
 
 </details>
 

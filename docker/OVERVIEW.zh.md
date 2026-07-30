@@ -26,20 +26,21 @@
 Tag 遵循以下格式：
 
 ```text
-{版本号}-{操作系统}
+{版本号}-{操作系统}-{Python版本}
 ```
 
 | 字段 | 说明 | 示例值 |
 | ------ | ------ | ------ |
 | 版本号 | MindStudio Insight 版本 | `26.1.0` |
 | 操作系统 | 镜像基础操作系统 | `ubuntu22.04`、`openeuler24.03` |
+| Python版本 | 镜像内置Python版本 | `3.10` |
 
 默认镜像以多架构 manifest 形式发布，同一 Tag 支持 `x86_64` 和 `aarch64`，Docker 会根据运行环境自动拉取匹配架构的镜像。
 
-| Tag | 操作系统 | Dockerfile |
-| ------ | ------ | ------ |
-| `26.1.0-ubuntu22.04` | Ubuntu 22.04 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
-| `26.1.0-openeuler24.03` | openEuler 24.03 LTS | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
+| Tag | 操作系统 | 内置Python版本 | Dockerfile |
+| ------ | ------ | ------ | ------ |
+| `26.1.0-ubuntu22.04-py3.10` | Ubuntu 22.04 | 3.10 | [Dockerfile.ubuntu](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.ubuntu) |
+| `26.1.0-openeuler24.03-py3.11` | openEuler 24.03 LTS | 3.11 | [Dockerfile.openEuler](https://gitcode.com/Ascend/msinsight/blob/master/docker/Dockerfile.openEuler) |
 
 ### 目录结构
 
@@ -109,7 +110,7 @@ docker run -d \
   -v /path/to/profile_data:/opt/insight/data \
   -v /path/to/certs:/etc/nginx/certs:ro \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04
+  msinsight:26.1.0-ubuntu22.04-py3.10
 ```
 
 例如使用宿主机端口 `9443` 时，浏览器访问：
@@ -128,7 +129,7 @@ docker run -d \
   -p <host_http_port>:80 \
   -v /path/to/profile_data:/opt/insight/data \
   --name msinsight \
-  msinsight:26.1.0-ubuntu22.04
+  msinsight:26.1.0-ubuntu22.04-py3.10
 ```
 
 例如使用宿主机端口 `9880` 时，浏览器访问：
@@ -156,6 +157,7 @@ docker build \
   -f Dockerfile.ubuntu \
   --build-arg VERSION={version} \
   --build-arg TAG={tag} \
+  --build-arg TARGETARCH={arch} \
   -t {msinsight_tag} .
 ```
 
@@ -168,6 +170,7 @@ docker build \
   -f Dockerfile.openEuler \
   --build-arg VERSION={version} \
   --build-arg TAG={tag} \
+  --build-arg TARGETARCH={arch} \
   -t {msinsight_tag} .
 ```
 
@@ -176,13 +179,13 @@ docker build \
 可基于正式镜像制作自定义镜像：
 
 ```dockerfile
-FROM msinsight:26.1.0-ubuntu22.04
+FROM msinsight:26.1.0-ubuntu22.04-py3.10
 
 # 根据需要添加自定义构建步骤。
 ```
 
 ## 许可证
 
-MindStudio Insight 遵循 MulanPSL2 许可证，详见 [LICENSE](../License) 文件。使用本镜像前，请确保已了解并遵守 MindStudio Insight 及镜像中包含的第三方软件对应的许可证协议。
+MindStudio Insight 遵循 MulanPSL2 许可证，详见 [LICENSE](https://gitcode.com/Ascend/msinsight/blob/master/License) 文件。使用本镜像前，请确保已了解并遵守 MindStudio Insight 及镜像中包含的第三方软件对应的许可证协议。
 
 与所有容器镜像一样，预装软件包（Python、系统库等）可能受其自身许可证约束。
