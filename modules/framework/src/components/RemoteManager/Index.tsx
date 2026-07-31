@@ -15,8 +15,9 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { observer } from 'mobx-react';
+import { runInAction } from 'mobx';
 import { Session } from '@/entity/session';
 import ImportData from './ImportData/Index';
 import styled from '@emotion/styled';
@@ -43,11 +44,28 @@ interface IProps {
 
 const Index = observer(({ session }: IProps) => {
     const { t } = useTranslation('framework');
+    const [checkedProjectKeys, setCheckedProjectKeys] = useState<React.Key[]>([]);
+    const projectNames = session.dataSources.map(dataSource => dataSource.projectName);
+    const validCheckedProjectKeys = checkedProjectKeys.filter(key => projectNames.includes(String(key)));
+
+    useEffect(() => {
+        if (!session.projectContentEditStatus) {
+            setCheckedProjectKeys([]);
+        }
+    }, [session.projectContentEditStatus]);
+
+    useEffect(() => {
+        if (session.projectContentEditStatus && session.dataSources.length === 0) {
+            runInAction(() => {
+                session.projectContentEditStatus = false;
+            });
+        }
+    }, [session.dataSources.length, session.projectContentEditStatus]);
 
     return <Container>
-        <Header>{ t('Data Manager')}</Header>
-        <ImportData session={session}/>
-        <ProjectContents/>
+        {!session.projectContentEditStatus && <Header>{ t('Data Manager')}</Header>}
+        <ImportData session={session} checkedProjectKeys={validCheckedProjectKeys}/>
+        <ProjectContents checkedProjectKeys={validCheckedProjectKeys} setCheckedProjectKeys={setCheckedProjectKeys}/>
     </Container>;
 });
 

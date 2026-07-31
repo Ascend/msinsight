@@ -20,15 +20,13 @@ import { observer } from 'mobx-react';
 import { Session } from '@/entity/session';
 import { SetIcon } from '@insight/lib/icon';
 import { BtnItem } from './Index';
-import { useTranslation } from 'react-i18next';
 import { runInAction } from 'mobx';
 
 // 设置（按钮）
 const SetBtn = observer(({ session }: {session: Session}) => {
-    const { t } = useTranslation('framework');
-    const switchEditStatus = (): void => {
+    const enterEditMode = (): void => {
         runInAction(() => {
-            session.projectContentEditStatus = !session.projectContentEditStatus;
+            session.projectContentEditStatus = true;
         });
     };
     useEffect(() => {
@@ -39,8 +37,8 @@ const SetBtn = observer(({ session }: {session: Session}) => {
             });
         };
     }, [session.dataSources.length]);
-    return <BtnItem className={`btn-set ${session.dataSources.length > 0 ? '' : 'disabled'}`} data-testid="btn-set" onClick={switchEditStatus}>
-        { session.projectContentEditStatus ? t('Cancel') : <SetIcon/> }
+    return <BtnItem className={`btn-set ${session.dataSources.length > 0 ? '' : 'disabled'}`} data-testid="btn-set" onClick={enterEditMode}>
+        <SetIcon/>
     </BtnItem>;
 });
 

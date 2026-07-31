@@ -23,7 +23,8 @@ export class FrameworkPage {
     readonly page: Page;
     // 顶部功能按钮
     readonly settingsBtn: Locator;
-    readonly deleteAllBtn: Locator;
+    readonly deleteSelectedBtn: Locator;
+    readonly exitEditBtn: Locator;
     readonly importDataBtn: Locator;
     readonly switchThemeBtn: Locator;
     readonly switchLanguageBtn: Locator;
@@ -43,10 +44,10 @@ export class FrameworkPage {
     readonly leaksTab: Locator;
     readonly reinforcementLearningTab: Locator;
 
-    // 删除全部弹窗
-    readonly deleteAllDialog: Locator;
-    readonly deleteAllConfirmBtn: Locator;
-    readonly deleteAllCancelBtn: Locator;
+    // 删除项目弹窗
+    readonly deleteProjectsDialog: Locator;
+    readonly deleteProjectsConfirmBtn: Locator;
+    readonly deleteProjectsCancelBtn: Locator;
 
     // 版本信息弹窗
     readonly helpInfoDialog: Locator;
@@ -59,7 +60,8 @@ export class FrameworkPage {
     constructor(page: Page) {
         this.page = page;
         this.settingsBtn = page.getByTestId('btn-set');
-        this.deleteAllBtn = page.getByTestId('btn-delete');
+        this.deleteSelectedBtn = page.getByTestId('btn-delete');
+        this.exitEditBtn = page.getByTestId('btn-exit');
         this.importDataBtn = page.locator('.btn-import');
         this.switchThemeBtn = page.locator('.switch-theme');
         this.switchLanguageBtn = page.getByTestId('switch-lng');
@@ -73,9 +75,9 @@ export class FrameworkPage {
         this.sourceTab = page.getByRole('menuitem', { name: 'Source' });
         this.detailsTab = page.getByRole('menuitem', { name: 'Details' });
         this.reinforcementLearningTab = page.getByRole('menuitem', { name: 'RL' });
-        this.deleteAllDialog = page.getByText('Are you sure to delete');
-        this.deleteAllConfirmBtn = page.getByRole('button', { name: 'Yes' });
-        this.deleteAllCancelBtn = page.getByRole('button', { name: 'No' });
+        this.deleteProjectsDialog = page.getByText('Are you sure to delete');
+        this.deleteProjectsConfirmBtn = page.getByRole('button', { name: 'Yes' });
+        this.deleteProjectsCancelBtn = page.getByRole('button', { name: 'No' });
         this.projectList = page.getByRole('tree');
         this.shortcutsDialog = page.getByLabel('Keyboard shortcuts');
         this.helpInfoDialog = page.getByLabel('About MindStudio Insight');

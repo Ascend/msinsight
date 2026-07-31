@@ -36,6 +36,31 @@ test.describe('Framework', () => {
         await clearAllData(page);
     });
 
+    test('toggle project delete mode', async ({ page }) => {
+        const frameworkPage = new FrameworkPage(page);
+        const { settingsBtn, deleteSelectedBtn, exitEditBtn, importDataBtn, projectList } = frameworkPage;
+        const waitRes = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
+        await importData(page, FilePath.DB);
+        await waitRes;
+
+        await settingsBtn.click();
+        await expect(importDataBtn).toBeHidden();
+        await expect(exitEditBtn).toBeVisible();
+        await expect(deleteSelectedBtn).toHaveClass(/disabled/);
+        await expect(page.getByText('All', { exact: true })).toBeVisible();
+        const projectCheckbox = projectList.locator('.ant-tree-checkbox').first();
+        await expect(projectCheckbox).not.toHaveClass(/ant-tree-checkbox-checked/);
+
+        await projectCheckbox.click();
+        await expect(projectCheckbox).toHaveClass(/ant-tree-checkbox-checked/);
+        await expect(deleteSelectedBtn).not.toHaveClass(/disabled/);
+
+        await exitEditBtn.click();
+        await expect(importDataBtn).toBeVisible();
+        await expect(settingsBtn).toBeVisible();
+        await expect(projectList.locator('.ant-tree-checkbox')).toBeHidden();
+    });
+
     // 切换主题
     test('toggle theme', async ({ page }) => {
         const frameworkPage = new FrameworkPage(page);

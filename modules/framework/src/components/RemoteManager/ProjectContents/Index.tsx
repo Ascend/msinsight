@@ -22,7 +22,12 @@ import ContextMenu from './ContextMenu';
 import Contents from './Contents';
 import { sendDirectory } from '@/connection/sendNotification';
 
-const Index = observer(() => {
+interface IProps {
+    checkedProjectKeys: React.Key[];
+    setCheckedProjectKeys: React.Dispatch<React.SetStateAction<React.Key[]>>;
+}
+
+const Index = observer(({ checkedProjectKeys, setCheckedProjectKeys }: IProps) => {
     const session = store.sessionStore.activeSession;
 
     useEffect(() => {
@@ -36,7 +41,7 @@ const Index = observer(() => {
     ]);
 
     return <>
-        <Contents session={session}/>
+        <Contents session={session} checkedProjectKeys={checkedProjectKeys} setCheckedProjectKeys={setCheckedProjectKeys}/>
         <ContextMenu session={session}/>
     </>;
 });

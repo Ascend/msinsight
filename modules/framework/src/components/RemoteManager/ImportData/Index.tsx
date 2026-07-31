@@ -17,14 +17,18 @@
  */
 import React, { useEffect, useState } from 'react';
 import { observer } from 'mobx-react';
+import { runInAction } from 'mobx';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
-import { ImportDataIcon } from '@insight/lib/icon';
+import { DeleteIcon, ImportDataIcon } from '@insight/lib/icon';
+import { ArrowLeftOutlined } from '@ant-design/icons';
+import { Popconfirm } from 'antd';
 import { type Session } from '@/entity/session';
 import { SessionAction } from '@/utils/enum';
 import FileExplorer from './FileExplorer';
 import SetBtn from './SetBtn';
 import connector from '@/connection';
+import { removeProjects } from '@/utils/Project';
 
 const ImportContainer = styled.div`
     display: flex;
@@ -34,8 +38,11 @@ const ImportContainer = styled.div`
         margin-right: 8px;
         flex: 1;
     }
-    .btn-import > div:first-of-type{
+    .btn-import > div:first-of-type, .btn-exit > span:first-of-type {
         margin-right: 8px;
+    }
+    .btn-exit {
+        justify-content: flex-start;
     }
 `;
 
@@ -69,7 +76,12 @@ export const BtnItem = styled.div`
     }
 `;
 
-const ImportData = observer(({ session }: {session: Session}) => {
+interface IProps {
+    session: Session;
+    checkedProjectKeys: React.Key[];
+}
+
+const ImportData = observer(({ session, checkedProjectKeys }: IProps) => {
     const { t } = useTranslation('framework');
     const [dialogOpen, setDialogOpen] = useState(false);
     const [currentProject, setCurrentProject] = useState('');
@@ -102,6 +114,16 @@ const ImportData = observer(({ session }: {session: Session}) => {
         session.resetActionListener();
     };
 
+    const exitEditMode = (): void => {
+        runInAction(() => {
+            session.projectContentEditStatus = false;
+        });
+    };
+
+    const deleteSelectedProjects = (): void => {
+        removeProjects(checkedProjectKeys);
+    };
+
     useEffect(() => {
         switch (session.actionListener.type) {
             // 在已有项目下导入
@@ -122,8 +144,32 @@ const ImportData = observer(({ session }: {session: Session}) => {
     }, [session.actionListener]);
     return <>
         <ImportContainer>
-            <BtnItem onClick={importData} className="btn-import"><ImportDataIcon/><span>{t('Import Data')}</span></BtnItem>
-            <SetBtn session={session}/>
+            {session.projectContentEditStatus
+                ? <>
+                    <BtnItem onClick={exitEditMode} className="btn-exit" data-testid="btn-exit">
+                        <ArrowLeftOutlined/><span>{t('Exit')}</span>
+                    </BtnItem>
+                    <Popconfirm
+                        placement="topLeft"
+                        title={t('DeleteConfirmDescribe')}
+                        onConfirm={deleteSelectedProjects}
+                        okText={t('Yes')}
+                        cancelText={t('No')}
+                        destroyTooltipOnHide={{ keepParent: false }}
+                        disabled={checkedProjectKeys.length === 0}
+                    >
+                        <BtnItem
+                            className={`btn-delete danger ${checkedProjectKeys.length === 0 ? 'disabled' : ''}`}
+                            data-testid="btn-delete"
+                        >
+                            <DeleteIcon/>
+                        </BtnItem>
+                    </Popconfirm>
+                </>
+                : <>
+                    <BtnItem onClick={importData} className="btn-import"><ImportDataIcon/><span>{t('Import Data')}</span></BtnItem>
+                    <SetBtn session={session}/>
+                </>}
         </ImportContainer>
         <FileExplorer
             onConfirm={handleConfirm}
