@@ -20,7 +20,7 @@ import { observer } from 'mobx-react';
 import { runInAction } from 'mobx';
 import styled from '@emotion/styled';
 import { Tooltip } from 'antd';
-import { Tree } from '@insight/lib/components';
+import { Checkbox, Tree } from '@insight/lib/components';
 import { HandleSingleDoubleClick } from '@insight/lib/utils';
 import type { EventDataNode } from 'antd/lib/tree';
 import type { DataNode } from 'rc-tree/lib/interface';
@@ -34,7 +34,6 @@ import DeleteConfirm from './DeleteConfirm';
 import { isSameFile } from './ContextMenu';
 import { useTranslation } from 'react-i18next';
 import EditableText from './EditableText';
-import CheckMenu from './CheckMenu';
 import { cancelCompareData, isInClusterCompare } from '@/utils/Compare';
 
 interface ProjectTreeDataNode extends DataNode {
@@ -42,13 +41,23 @@ interface ProjectTreeDataNode extends DataNode {
     layerData: FileOrDirectory | Project;
 }
 
-const ContentsContainer = styled.div`
+const ContentsContainer = styled.div<{ editStatus: boolean }>`
     margin-right: 10px;
-    height: calc(100vh - 84px);
+    height: calc(100vh - ${(props): number => props.editStatus ? 48 : 84}px);
     overflow-y: auto;
     .ant-tree {
         padding: 0.4rem 0.8rem;
         background: none;
+    }
+    .check-all {
+        display: flex;
+        align-items: center;
+        height: 36px;
+        padding: 0 8px;
+        font-size: 12px;
+        .ant-checkbox-wrapper {
+            font-size: 12px;
+        }
     }
     // 目录名
     .ant-tree-node-content-wrapper {
@@ -280,11 +289,20 @@ const getSelectedTreePathList = (tree: ProjectTreeDataNode[], key: string): stri
     return findPathList(tree, 0);
 };
 
+interface IProps {
+    session: Session;
+    checkedProjectKeys: React.Key[];
+    setCheckedProjectKeys: React.Dispatch<React.SetStateAction<React.Key[]>>;
+}
+
 // 目录
-const Contents = observer(({ session }: {session: Session}) => {
+const Contents = observer(({ session, checkedProjectKeys, setCheckedProjectKeys }: IProps) => {
+    const { t } = useTranslation('framework');
     const treeData = useMemo<ProjectTreeDataNode[]>(() => getTreeData(session), [session.dataSources, JSON.stringify(session.compareSet), session.rankMap]);
-    // 展开情况: 默认展开所有工程，新导入工程默认展开
     const allProjectKeys = treeData.map(item => item.key);
+    const isAllProjectChecked = allProjectKeys.length > 0 && checkedProjectKeys.length === allProjectKeys.length;
+    const isIndeterminate = checkedProjectKeys.length > 0 && !isAllProjectChecked;
+    // 展开情况: 默认展开所有工程，新导入工程默认展开
     const [collapsedKeys, setCollapsedKeys] = useState(new Set());
     const expandedKeys = useMemo(() => {
         return getAllTreeNodeKeysWithoutLeaf(treeData).filter(item => !collapsedKeys.has(item));
@@ -301,13 +319,11 @@ const Contents = observer(({ session }: {session: Session}) => {
     }, [treeData, session.activeDataSource]);
 
     // 勾选目录
-    const [checkedKeys, setCheckedKeys] = useState<React.Key[]>([]);
-    const onCheck = (keys: any): void => { setCheckedKeys(keys); };
-    const checkedProjectKeys = useMemo<React.Key[]>(() => checkedKeys.filter(key => allProjectKeys.includes(key)), [allProjectKeys, checkedKeys]);
-    const isAllProjectChecked = checkedProjectKeys.length === allProjectKeys.length;
-    // 全选、取消全选
-    const toggleCheckAll = (checked: boolean): void => {
-        setCheckedKeys(checked ? allProjectKeys : []);
+    const onCheck = (keys: React.Key[] | { checked: React.Key[]; halfChecked: React.Key[] }): void => {
+        setCheckedProjectKeys(Array.isArray(keys) ? keys : keys.checked);
+    };
+    const toggleCheckAll = (): void => {
+        setCheckedProjectKeys(isAllProjectChecked ? [] : allProjectKeys);
     };
 
     // 点击项目
@@ -398,17 +414,13 @@ const Contents = observer(({ session }: {session: Session}) => {
         }
     }, [session.defaultConnected]);
 
-    useEffect(() => {
-        // 进入编辑模式，选中全部
-        if (session.projectContentEditStatus) {
-            setCheckedKeys(allProjectKeys);
-        }
-    }, [session.projectContentEditStatus]);
-    return <ContentsContainer>
-        <CheckMenu editStatus={session.projectContentEditStatus} isAll={isAllProjectChecked} toggleCheckAll={toggleCheckAll} checkedKeys={checkedProjectKeys}/>
+    return <ContentsContainer editStatus={session.projectContentEditStatus}>
+        {session.projectContentEditStatus && <div className="check-all">
+            <Checkbox checked={isAllProjectChecked} indeterminate={isIndeterminate} onChange={toggleCheckAll}>{t('All')}</Checkbox>
+        </div>}
         <Tree<ProjectTreeDataNode>
             checkable={session.projectContentEditStatus}
-            checkedKeys={checkedKeys}
+            checkedKeys={checkedProjectKeys}
             onCheck={onCheck}
             blockNode={true}
             showIcon={true}

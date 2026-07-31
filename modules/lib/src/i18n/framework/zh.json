@@ -2,7 +2,7 @@
   "framework": {
     "buildVersion": "版本号为 {{version}}，构建于 {{modifyTime}}",
     "copyRight": "版权所有 © {{copyrightYear}} 华为技术有限公司。 保留所有权利",
-    "Data Manager": "数据管理器",
+    "Data Manager": "数据管理",
     "Import Data": "导入数据",
     "Dark Theme": "深色主题",
     "Light Theme": "浅色主题",
@@ -23,6 +23,7 @@
     "About": "关于",
     "Confirm": "确认",
     "Cancel": "取消",
+    "Exit": "退出",
     "Yes": "确认",
     "No": "取消",
     "FileNotExist": "文件未找到",

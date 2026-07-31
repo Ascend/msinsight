@@ -63,28 +63,25 @@ export async function clearAllData(page: Page, ws?: Promise<WebSocket>): Promise
     await page.waitForTimeout(2000); // 在清空项目之前，等待2秒，确保之前的操作或请求都执行完成，否则容易断连
 
     const frameworkPage = new FrameworkPage(page);
-    const { settingsBtn, deleteAllBtn, deleteAllDialog, deleteAllConfirmBtn, projectList } = frameworkPage;
+    const { settingsBtn, deleteSelectedBtn, deleteProjectsDialog, deleteProjectsConfirmBtn, importDataBtn, projectList } = frameworkPage;
     const isSettingsBtnDisabled = await settingsBtn.evaluate((el) => el.classList.contains('disabled'));
 
     if (isSettingsBtnDisabled) {
         return;
     }
     await settingsBtn.click();
+    await page.getByText('All', { exact: true }).click();
 
-    await deleteAllBtn.click();
-    await expect(deleteAllDialog).toBeVisible();
-    await deleteAllConfirmBtn.click();
+    await deleteSelectedBtn.click();
+    await expect(deleteProjectsDialog).toBeVisible();
+    await deleteProjectsConfirmBtn.click();
 
     if (ws) {
         await waitForResponse(await ws, (res) => res?.command === 'remote/reset');
     }
 
-    const checkbtn = page.locator('.dragContainer').first().getByText('All');
-    await checkbtn.waitFor({ state: 'hidden' });
-    await page.waitForTimeout(500);
-
-    const elementText = await projectList.textContent();
-    await expect(elementText?.trim()).toBe('');
+    await expect(projectList).toHaveText('');
+    await expect(importDataBtn).toBeVisible();
     // 等待后端完成清理动作
     await page.waitForTimeout(2000);
 }
