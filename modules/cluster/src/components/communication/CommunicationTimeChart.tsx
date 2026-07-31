@@ -25,7 +25,10 @@ import i18n from '@insight/lib/i18n';
 import { cloneDeep } from 'lodash';
 import { chartColors, getAdaptiveEchart, getDefaultChartOptions, safeStr } from '@insight/lib/utils';
 import type { LegendComponentOption, TooltipComponentOption } from 'echarts/components';
+import type { ECharts } from 'echarts';
 import { CompareData, FormatterParams } from '../../utils/interface';
+
+const ZOOM_SIZE = 6;
 
 export interface DataItem {
     index: number;
@@ -57,6 +60,21 @@ export interface ChartData {
     waitTimeRatio?: number[];
 }
 
+function handleChartClick(myChart: ECharts, data: ChartData, event: { dataIndex?: number }): void {
+    const { dataIndex } = event;
+    if (typeof dataIndex !== 'number' || data.rankId.length === 0) {
+        return;
+    }
+
+    const startIndex = Math.max(dataIndex - ZOOM_SIZE / 2, 0);
+    const endIndex = Math.min(dataIndex + ZOOM_SIZE / 2, data.rankId.length - 1);
+    myChart.dispatchAction({
+        type: 'dataZoom',
+        startValue: data.rankId[startIndex],
+        endValue: data.rankId[endIndex],
+    });
+}
+
 function InitCharts(data: ChartData, isCompare: boolean): void {
     const chartDom = document.getElementById('main');
     if (chartDom === null || chartDom.offsetParent === null) {
@@ -64,6 +82,8 @@ function InitCharts(data: ChartData, isCompare: boolean): void {
     }
     const myChart = getAdaptiveEchart(chartDom);
     myChart.setOption(wrapData(data, isCompare), { replaceMerge: ['series', 'xAxis', 'yAxis', 'legend'] });
+    myChart.off('click');
+    myChart.on('click', (event) => handleChartClick(myChart, data, event));
 }
 function wrapData(data: ChartData, isCompare: boolean): any {
     const options = cloneDeep(baseOption);
@@ -149,6 +169,12 @@ const baseOption: any = {
             },
         },
     },
+    dataZoom: [
+        {
+            type: 'inside',
+            xAxisIndex: 0,
+        },
+    ],
     xAxis: [
         {
             type: 'category',
