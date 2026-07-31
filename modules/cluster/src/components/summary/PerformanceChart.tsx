@@ -30,6 +30,7 @@ import type { TFunction } from 'i18next';
 import { GenerateConditions } from '../../store/parallelism';
 
 const VALUE_ALL = 'All';
+const ZOOM_SIZE = 20;
 
 const baseOptions: EChartsOption = {
     legend: {
@@ -47,6 +48,12 @@ const baseOptions: EChartsOption = {
         data: [],
         nameGap: 40,
     },
+    dataZoom: [
+        {
+            type: 'inside',
+            xAxisIndex: 0,
+        },
+    ],
     yAxis: [
         {
             type: 'value',
@@ -160,6 +167,7 @@ export const PerformanceChart = observer((props: PerformanceChartProps): JSX.Ele
     const canvasEl = chartRef.current?.getChartDom()?.querySelector('canvas');
     const [chartOptions, setChartOptions] = useState<EChartsOption>({});
     const [datasource, setDatasource] = useState<PerformanceDataItem[]>([]);
+    const datasourceRef = useRef<PerformanceDataItem[]>([]);
     const [legendSelected, setLegendSelected] = useState<Record<string, boolean> | null>(null);
     const { t } = useTranslation('summary');
 
@@ -224,13 +232,31 @@ export const PerformanceChart = observer((props: PerformanceChartProps): JSX.Ele
 
     useEffect(() => {
         const filteredData = filterData(session.performanceData, session.performanceDataMap);
-        const firsRankId = filteredData[0]?.index;
+        const firstRankId = filteredData[0]?.index;
 
+        datasourceRef.current = filteredData;
         setDatasource(filteredData);
-        if (firsRankId !== undefined) {
-            setActiveRankId(firsRankId.toString());
+        if (firstRankId !== undefined) {
+            setActiveRankId(firstRankId.toString());
         }
     }, [top, group, orderBy, session.performanceData]);
+
+    const handleChartClick = (event: { name: string; dataIndex?: number }): void => {
+        setActiveRankId(event.name);
+        const { dataIndex } = event;
+        const currentDatasource = datasourceRef.current;
+        if (typeof dataIndex !== 'number' || currentDatasource.length === 0) {
+            return;
+        }
+
+        const startIndex = Math.max(dataIndex - ZOOM_SIZE / 2, 0);
+        const endIndex = Math.min(dataIndex + ZOOM_SIZE / 2, currentDatasource.length - 1);
+        chartRef.current?.getInstance()?.dispatchAction({
+            type: 'dataZoom',
+            startValue: currentDatasource[startIndex].index,
+            endValue: currentDatasource[endIndex].index,
+        });
+    };
 
     return <>
         <MIChart
@@ -240,9 +266,7 @@ export const PerformanceChart = observer((props: PerformanceChartProps): JSX.Ele
             options={chartOptions}
             onEvents={
                 {
-                    click: (e): void => {
-                        setActiveRankId(e.name);
-                    },
+                    click: handleChartClick,
                     legendselectchanged(e): void {
                         setLegendSelected((prevState) => ({ ...prevState, ...e.selected }));
                     },
