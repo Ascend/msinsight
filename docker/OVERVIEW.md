@@ -189,3 +189,10 @@ FROM msinsight:26.1.0-ubuntu22.04-py3.10
 MindStudio Insight is licensed under MulanPSL2. For details, see the [LICENSE](https://gitcode.com/Ascend/msinsight/blob/master/License) file. Before using this image, ensure that you understand and comply with the license agreements of MindStudio Insight and the third-party software included in the image.
 
 As with all container images, pre-installed software packages such as Python and system libraries may be subject to their own license terms.
+
+## Disclaimer
+
+- This image is a community edition provided on an "as is" basis and is intended only for learning, research, development, and testing.
+- This image does not constitute any express or implied commercial commitment, quality warranty, or technical support commitment.
+- The community and contributors are not liable for any direct or indirect loss resulting from the use of this image in production environments or for commercial purposes.
+- Before using this image, users must independently evaluate its suitability, security, compliance, and associated risks, and assume responsibility for its use.
