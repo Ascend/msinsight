@@ -49,6 +49,8 @@ jest.mock('../AscendUnit', () => {
             }
         },
         ThreadUnit: class extends MockUnit {
+            chart = { config: {} };
+
             constructor(metadata: Record<string, unknown>) {
                 super('Thread', metadata);
             }
@@ -119,17 +121,123 @@ const createNpuMetricsTree = (): InsightMetaData<'card'> => ({
     }],
 });
 
+const createHostTree = (): InsightMetaData<'card'> => ({
+    type: 'card',
+    dataSource,
+    metadata: {
+        cardId: 'rank0',
+        dbPath: 'rank0.db',
+        dataSource,
+    } as never,
+    children: [{
+        type: 'process',
+        dataSource,
+        metadata: {
+            cardId: 'rank0',
+            dbPath: 'rank0.db',
+            dataSource,
+            processId: 'process-100',
+            processName: 'Process 100',
+            metaType: 'PROCESS',
+        },
+        children: [{
+            type: 'process',
+            dataSource,
+            metadata: {
+                cardId: 'rank0',
+                dbPath: 'rank0.db',
+                dataSource,
+                processId: 'global-tid-200',
+                processName: 'Thread 200',
+                threadId: '200',
+                metaType: 'CANN_API',
+            },
+            children: [{
+                type: 'thread',
+                dataSource,
+                metadata: {
+                    cardId: 'rank0',
+                    dbPath: 'rank0.db',
+                    dataSource,
+                    processId: 'global-tid-200',
+                    processName: '',
+                    threadId: 'pytorch-api',
+                    threadName: 'PyTorch',
+                    metaType: 'PYTORCH_API',
+                    groupNameValue: '',
+                    rankList: [],
+                },
+            }, {
+                type: 'label',
+                dataSource,
+                metadata: {
+                    cardId: 'rank0',
+                    dbPath: 'rank0.db',
+                    dataSource,
+                    processId: 'global-tid-200',
+                    processName: 'CANN',
+                    metaType: 'CANN_API',
+                    label: '',
+                },
+                children: [{
+                    type: 'thread',
+                    dataSource,
+                    metadata: {
+                        cardId: 'rank0',
+                        dbPath: 'rank0.db',
+                        dataSource,
+                        processId: 'global-tid-200',
+                        processName: '',
+                        threadId: 'acl',
+                        threadName: 'acl',
+                        metaType: 'CANN_API',
+                        groupNameValue: '',
+                        rankList: [],
+                    },
+                }],
+            }, {
+                type: 'process',
+                dataSource,
+                metadata: {
+                    cardId: 'rank0',
+                    dbPath: 'rank0.db',
+                    dataSource,
+                    processId: 'global-tid-200',
+                    processName: 'MSTX',
+                    threadId: '200',
+                    metaType: 'MSTX_EVENTS',
+                },
+                children: [{
+                    type: 'thread',
+                    dataSource,
+                    metadata: {
+                        cardId: 'rank0',
+                        dbPath: 'rank0.db',
+                        dataSource,
+                        processId: 'global-tid-200',
+                        processName: '',
+                        threadId: 'domain-0',
+                        threadName: 'domain 0',
+                        metaType: 'MSTX_EVENTS',
+                        groupNameValue: '',
+                        rankList: [],
+                    },
+                }],
+            }],
+        }],
+    }],
+});
+
 describe('timeline unit metadata expansion', () => {
     afterEach(() => {
         clearParentMap();
     });
 
-    it('deduplicates label and counter metric nodes during repeated expansion', () => {
+    it('builds the NPU Metrics hierarchy during metadata expansion', () => {
         const cardUnit = createCardUnit();
         const metadataTree = createNpuMetricsTree();
 
         updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
-        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
         recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
 
         expect(cardUnit.children).toHaveLength(1);
@@ -140,5 +248,28 @@ describe('timeline unit metadata expansion', () => {
         expect(hbm?.name).toBe('Label');
         expect(hbm?.children).toHaveLength(1);
         expect(hbm?.children?.[0].name).toBe('Counter');
+    });
+
+    it('keeps host lanes with the same process id separated during metadata expansion', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createHostTree();
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        expect(cardUnit.children).toHaveLength(1);
+        const threadUnit = cardUnit.children?.[0].children?.[0];
+        expect(threadUnit?.children).toHaveLength(3);
+
+        const pytorch = threadUnit?.children?.find(unit => unit.name === 'Thread' && unit.metadata.threadName === 'PyTorch');
+        const cann = threadUnit?.children?.find(unit => unit.name === 'Label' && unit.metadata.processName === 'CANN');
+        const mstx = threadUnit?.children?.find(unit => unit.name === 'Process' && unit.metadata.processName === 'MSTX');
+
+        expect(pytorch).toBeDefined();
+        expect(pytorch?.children).toBeUndefined();
+        expect(cann?.children).toHaveLength(1);
+        expect(cann?.children?.[0].metadata.threadName).toBe('acl');
+        expect(mstx?.children).toHaveLength(1);
+        expect(mstx?.children?.[0].metadata.threadName).toBe('domain 0');
     });
 });
