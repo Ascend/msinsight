@@ -839,7 +839,7 @@ MindStudio Insight支持两算子间详情对比，可帮助开发者直观明�
 
  - [**图 1**  片上内存-内存块图](#片上内存-内存块图)，该图反映了随时间变化内存的使用情况，整体运行过程中内存的峰值以及碎片情况。横轴代表虚拟的执行顺序，每个时间单位相当于 IR 文件中的一行，纵轴代表片上内存的地址。图中每一个色块代表一块 tensor 内存块。
  - [**图 2**  片上内存-选中详情](#片上内存-选中详情)，其中包括内存块大小、生命周期、申请位置以及是否为临时变量。
- - [**图 3**  片上内存-内存分布](#片上内存-内存分布)，反映内存在物理上的排布，便于用户进行内存调优，减少 bank 冲突。该图的布局理解，需要先了解昇腾芯片的内存布局，可以参考《Ascend C算子开发》文档中“[避免Unified Buffer的bank冲突](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/900/programug/Ascendcopdevg/atlas_ascendc_best_practices_10_00019.html)”章节的内容介绍。
+ - [**图 3**  片上内存-内存分布](#片上内存-内存分布)，反映内存在物理上的排布，便于用户进行内存调优，减少 bank 冲突。该图的布局理解，需要先了解昇腾芯片的内存布局，可以参考《Ascend C算子开发》文档中“[避免UB的bank冲突](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/910/programug/Ascendcopdevg/docs/guide/%E7%AE%97%E5%AD%90%E5%AE%9E%E8%B7%B5%E5%8F%82%E8%80%83/SIMD%E7%AE%97%E5%AD%90%E6%80%A7%E8%83%BD%E4%BC%98%E5%8C%96/%E5%86%85%E5%AD%98%E8%AE%BF%E9%97%AE/%E9%81%BF%E5%85%8DUB%E7%9A%84bank%E5%86%B2%E7%AA%81/%E6%A6%82%E8%BF%B0.md)”章节的内容介绍。
 
 ### 使用说明
 

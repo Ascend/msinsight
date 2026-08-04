@@ -218,7 +218,7 @@ torch_npu.profiler.profile主接口的参数说明如[表 4 torch_npu.profiler.p
 - npumonitor数据：支持导入npumonitor采集的性能数据。npumonitor是基于dynolog开源项目的轻量化在线监测工具，支持NPU Monitor（常态监测）和NPU Trace-dump（精准采集）两种模式，采集方式和安装指南请参见：
 
   - 《[npumonitor工具特性说明](https://gitcode.com/Ascend/msmonitor/blob/26.1.0/docs/zh/user_guide/npumonitor_instruct.md)》
-  - 《[msMonitor产品文档](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/82RC1alpha003/devaids/Profiling/atlasprofiling_16_1153.html)》
+  - 《[msMonitor产品文档](https://gitcode.com/Ascend/msmonitor/blob/26.1.0/docs/zh/quick_start/msmonitor_quick_start.md)》
   - 《[msMonitor工具下载](https://gitcode.com/Ascend/msmonitor/blob/26.1.0/docs/zh/install_guide/msmonitor_install_guide.md)》
 
   性能数据文件详情请参见[表 9 性能数据文件详情表](#性能数据文件详情表)。
@@ -1575,7 +1575,7 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
 - 内存拷贝总览
 
   > [!NOTE] 说明
-  > 当“profiler_level”参数设置为“Level2”时，才能采集到内存拷贝数据，具体使用方法请参见[Ascend PyTorch调优工具数据采集](https://www.hiascend.com/document/detail/zh/mindstudio/2600/msTT_msIT/Profiling/atlasprofiling_16_0121.html#ZH-CN_TOPIC_0000002504198570__zh-cn_topic_0000002534478481_section2015623185118)。
+  > 当“profiler_level”参数设置为“Level2”时，才能采集到内存拷贝数据，具体使用方法请参见[Ascend PyTorch调优工具数据采集](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.1.0/docs/zh/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md#%E9%87%87%E9%9B%86%E5%92%8C%E8%87%AA%E5%8A%A8%E8%A7%A3%E6%9E%90)。
 
   内存拷贝总览（Memcpy Overall）展示内存拷贝算子的详情，如[**图 6** 内存拷贝总览](#内存拷贝总览)所示，字段解释如[**表 5** 内存拷贝总览字段说明](#内存拷贝总览字段说明)所示，当选择任意一个类别时，可单击“详情”区域任意一个内存拷贝算子，会跳转到该算子在时间线视图中的具体位置。
 
@@ -2239,7 +2239,7 @@ MindStudio Insight支持卡间算子性能对比，可帮助开发者直观、�
 
 当选择“Profiling”，展示专家分布热点图，其是基于Profiling的热点图，统计的每一个MoE层中GroupedMatmul算子的耗时情况，GroupedMatmul算子是MoE模型计算的核心，其效率会决定专家的响应速度。
 
-当选择“Dump”时，展示MoE模型专家负载均衡热力图，其是基于Dump的热力图，统计的每个MoE层中每一个专家处理的token数量。可选择“Dump-均衡前”或“Dump-均衡后”，单击![](./figures/system_tuning/zh-cn_image_0000002532040275.png)按钮导入对应文件，展示MoE模型专家负载均衡热力图，如[**图 7** MoE大模型专家负载均衡分析](#MoE大模型专家负载均衡分析)所示，参数解释如[**表 5** MoE大模型专家负载均衡分析参数说明](#MoE大模型专家负载均衡分析参数说明)所示。“Dump-均衡前”和“Dump-均衡后”的数据文件采集方式可参见《MindIE LLM开发指南》的“特性介绍 \> [负载均衡](https://www.hiascend.com/document/detail/zh/mindie/230/mindiellm/llmdev/mindie_llm0480.html)”章节。
+当选择“Dump”时，展示MoE模型专家负载均衡热力图，其是基于Dump的热力图，统计的每个MoE层中每一个专家处理的token数量。可选择“Dump-均衡前”或“Dump-均衡后”，单击![](./figures/system_tuning/zh-cn_image_0000002532040275.png)按钮导入对应文件，展示MoE模型专家负载均衡热力图，如[**图 7** MoE大模型专家负载均衡分析](#MoE大模型专家负载均衡分析)所示，参数解释如[**表 5** MoE大模型专家负载均衡分析参数说明](#MoE大模型专家负载均衡分析参数说明)所示。“Dump-均衡前”和“Dump-均衡后”的数据文件采集方式可参见《MindIE LLM开发指南》的“特性介绍 \> [负载均衡](https://www.hiascend.com/document/detail/zh/mindie/300/mindiellm/llmdev/user_guide/feature/expert_parallelism_load_balancer.md)”章节。
 
 **图 7** MoE大模型专家负载均衡分析<a id="MoE大模型专家负载均衡分析"></a>
 ![](./figures/system_tuning/moe_large_model_expert_load_balancing_analysis_1.png "MoE大模型专家负载均衡分析")
@@ -2647,7 +2647,7 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 
 **注意事项**
 
-- 仅当导入使用mstx打点采集到的控制流数据时，才会展示任务执行时间线。mstx打点采集方式请参见《性能调优工具指南》中“[Ascend PyTorch调优工具](https://www.hiascend.com/document/detail/zh/mindstudio/2600/msTT_msIT/Profiling/atlasprofiling_16_0121.html)”章节的“采集并解析msprof\_tx数据”内容。
+- 仅当导入使用mstx打点采集到的控制流数据时，才会展示任务执行时间线。mstx打点采集方式请参见《Ascend PyTorch调优工具》文档中的“[采集并解析性能数据（torch_npu.profiler.profile）](https://gitcode.com/Ascend/pytorch/blob/v2.7.1-26.1.0/docs/zh/ascend_pytorch_profiler/ascend_pytorch_profiler_user_guide.md#%E9%87%87%E9%9B%86%E5%B9%B6%E8%A7%A3%E6%9E%90%E6%80%A7%E8%83%BD%E6%95%B0%E6%8D%AEtorch_npuprofilerprofile)”章节内容。
 - 当导入verl（Volcano Engine Reinforcement Learning for LLMs）和MindSpeed框架的性能数据时，需分别导入各自的性能数据文件夹，不支持将两种数据合并放在同一文件夹中导入。
 
 ### 界面介绍
