@@ -31,7 +31,7 @@ MindStudio Insight支持导入性能数据文件，并以图形化形式呈现�
 **注意事项**
 
 - 支持同时导入系统调优和服务化调优的性能数据，需将两个场景的数据置于同一文件夹中，导入时选择该文件夹即可。
-- 数据获取方法请参见《性能调优工具指南》中的“msServiceProfiler服务化调优工具 \> msServiceProfiler服务化调优 \> [数据解析](https://www.hiascend.com/document/detail/zh/mindstudio/830/T&ITools/Profiling/atlasprofiling_16_0033.html)”章节。
+- 数据获取方法请参见[服务化多维度解析工具](https://gitcode.com/Ascend/msserviceprofiler/blob/26.1.0/docs/zh/msserviceprofiler_multi_analyze_instruct.md)。
 
 ## 时间线（Timeline）
 
