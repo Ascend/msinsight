@@ -161,12 +161,11 @@ TEST_F(DbCommunicationTest, QueryBandwidthDataWithErrorParamReturnExpectSize0) {
     EXPECT_EQ(responseBody.items.size(), expectSize);
 }
 
-TEST_F(DbCommunicationTest, QueryCommunicationDetailByTimelineIdentity) {
+TEST_F(DbCommunicationTest, QueryCommunicationDetailByRankIdAndOpName) {
     auto database = DataBaseManager::Instance().GetClusterDatabase(COMPARE);
     Dic::Module::CommunicationDetailDo detail;
-    constexpr uint64_t startTimeNs = 1718682999327412800ULL;
 
-    ASSERT_TRUE(database->QueryCommunicationDetail("0", "hcom_broadcast__293_1_1", startTimeNs + 1000, detail));
+    ASSERT_TRUE(database->QueryCommunicationDetail("0", "hcom_broadcast__293_1_1", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0.016620328125);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0.0083001640625);
     // The source DB has two HCCS package-size rows; the detail result keeps one row per transport type.
@@ -178,33 +177,31 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailByTimelineIdentity) {
     EXPECT_DOUBLE_EQ(hccs->transitTime, 0.0088001796875);
     EXPECT_DOUBLE_EQ(hccs->bandwidth, 3.2472);
 
-    // Use an unambiguous out-of-window offset because the fixture stores large microsecond timestamps as SQLite REAL.
-    ASSERT_FALSE(database->QueryCommunicationDetail("0", "hcom_broadcast__293_1_1", startTimeNs + 2000, detail));
+    ASSERT_FALSE(database->QueryCommunicationDetail("0", "hcom_missing", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0);
     EXPECT_TRUE(detail.bandwidthInfo.empty());
 }
 
-TEST_F(DbCommunicationTest, QueryCommunicationDetailUsesInclusiveDbToleranceAndRejectsAmbiguity) {
+TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsDuplicateRankIdAndOpName) {
     std::recursive_mutex sqlMutex;
     DbClusterDataBase database(sqlMutex);
     ASSERT_TRUE(database.AttachDb(":memory:"));
     ASSERT_TRUE(database.ExecSql(
         "CREATE TABLE ClusterCommunicationTime (step TEXT, rank_id INTEGER, hccl_op_name TEXT, group_name TEXT, "
-        "start_timestamp NUMERIC, transit_time NUMERIC, wait_time NUMERIC);"
+        "transit_time NUMERIC, wait_time NUMERIC);"
         "CREATE TABLE ClusterCommunicationBandwidth (step TEXT, rank_id INTEGER, hccl_op_name TEXT, "
         "group_name TEXT, band_type TEXT, transit_size NUMERIC, transit_time NUMERIC, bandwidth NUMERIC);"
         "INSERT INTO ClusterCommunicationTime VALUES "
-        "('step1', 0, 'hcom_boundary', 'group', 100, 3.5, 4.5), "
-        "('step1', 0, 'hcom_ambiguous', 'group', 200, 5.5, 6.5), "
-        "('step1', 0, 'hcom_ambiguous', 'group', 200.5, 7.5, 8.5);"));
+        "('step1', 0, 'hcom_unique', 'group', 3.5, 4.5), "
+        "('step1', 0, 'hcom_duplicate', 'group', 5.5, 6.5), "
+        "('step1', 0, 'hcom_duplicate', 'group', 7.5, 8.5);"));
 
     CommunicationDetailDo detail;
-    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_boundary", 101000, detail));
-    ASSERT_FALSE(database.QueryCommunicationDetail("0", "hcom_boundary", 101001, detail));
+    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_unique", detail));
     EXPECT_TRUE(detail.bandwidthInfo.empty());
 
-    ASSERT_FALSE(database.QueryCommunicationDetail("0", "hcom_ambiguous", 200250, detail));
+    ASSERT_FALSE(database.QueryCommunicationDetail("0", "hcom_duplicate", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0);
     EXPECT_TRUE(detail.bandwidthInfo.empty());
@@ -216,19 +213,19 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsIncompleteRecordsAndP
     ASSERT_TRUE(database.AttachDb(":memory:"));
     ASSERT_TRUE(database.ExecSql(
         "CREATE TABLE ClusterCommunicationTime (step TEXT, rank_id INTEGER, hccl_op_name TEXT, group_name TEXT, "
-        "start_timestamp NUMERIC, transit_time NUMERIC, wait_time NUMERIC);"
+        "transit_time NUMERIC, wait_time NUMERIC);"
         "CREATE TABLE ClusterCommunicationBandwidth (step TEXT, rank_id INTEGER, hccl_op_name TEXT, "
         "group_name TEXT, band_type TEXT, transit_size NUMERIC, transit_time NUMERIC, bandwidth NUMERIC);"
         "INSERT INTO ClusterCommunicationTime VALUES "
-        "('step1', 0, 'hcom_valid', 'group', 300, 0, 0), "
-        "(NULL, 0, 'hcom_null_step', 'group', 300, 1, 1), "
-        "('', 0, 'hcom_empty_step', 'group', 300, 1, 1), "
-        "('step1', 0, 'hcom_null_group', NULL, 300, 1, 1), "
-        "('step1', 0, 'hcom_empty_group', '', 300, 1, 1), "
-        "('step1', 0, 'hcom_null_transit', 'group', 300, NULL, 1), "
-        "('step1', 0, 'hcom_null_wait', 'group', 300, 1, NULL), "
-        "('step1', 0, 'hcom_mixed_candidates', 'group', 300, 1, 1), "
-        "(NULL, 0, 'hcom_mixed_candidates', 'group', 300, 1, 1);"
+        "('step1', 0, 'hcom_valid', 'group', 0, 0), "
+        "(NULL, 0, 'hcom_null_step', 'group', 1, 1), "
+        "('', 0, 'hcom_empty_step', 'group', 1, 1), "
+        "('step1', 0, 'hcom_null_group', NULL, 1, 1), "
+        "('step1', 0, 'hcom_empty_group', '', 1, 1), "
+        "('step1', 0, 'hcom_null_transit', 'group', NULL, 1), "
+        "('step1', 0, 'hcom_null_wait', 'group', 1, NULL), "
+        "('step1', 0, 'hcom_mixed_candidates', 'group', 1, 1), "
+        "(NULL, 0, 'hcom_mixed_candidates', 'group', 1, 1);"
         "INSERT INTO ClusterCommunicationBandwidth VALUES "
         "('step1', 0, 'hcom_valid', 'group', 'HCCS', 0, 0, 0), "
         "('step1', 0, 'hcom_valid', 'group', 'RDMA', NULL, 0, 0), "
@@ -238,7 +235,7 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsIncompleteRecordsAndP
         "('step1', 0, 'hcom_valid', 'group', 'SIO', 2, 1, 1);"));
 
     CommunicationDetailDo detail;
-    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_valid", 300000, detail));
+    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_valid", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0);
     ASSERT_EQ(detail.bandwidthInfo.size(), 1);
@@ -246,7 +243,7 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsIncompleteRecordsAndP
 
     for (const auto &opName : {"hcom_null_step", "hcom_empty_step", "hcom_null_group", "hcom_empty_group",
              "hcom_null_transit", "hcom_null_wait", "hcom_mixed_candidates"}) {
-        ASSERT_FALSE(database.QueryCommunicationDetail("0", opName, 300000, detail));
+        ASSERT_FALSE(database.QueryCommunicationDetail("0", opName, detail));
         EXPECT_TRUE(detail.bandwidthInfo.empty());
     }
 }

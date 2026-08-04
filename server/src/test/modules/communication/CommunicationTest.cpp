@@ -145,13 +145,11 @@ TEST_F(TestSuit, QueryBandwidthDataWithErrorParamReturnExpectSize0) {
     EXPECT_EQ(responseBody.items.size(), expectSize);
 }
 
-TEST_F(TestSuit, QueryCommunicationDetailByTimelineIdentity) {
+TEST_F(TestSuit, QueryCommunicationDetailByRankIdAndOpName) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetClusterDatabase(clusterPath);
     Dic::Module::CommunicationDetailDo detail;
-    constexpr uint64_t startTimeNs = 1695115378810055500ULL;
 
-    // TEXT timestamps are stored in ns, so the inclusive precision window remains 1 us.
-    ASSERT_TRUE(database->QueryCommunicationDetail("1", "hcom_send__822_0", startTimeNs + 1000, detail));
+    ASSERT_TRUE(database->QueryCommunicationDetail("1", "hcom_send__822_0", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0.86382);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0.00002);
     ASSERT_EQ(detail.bandwidthInfo.size(), 4);
@@ -162,22 +160,22 @@ TEST_F(TestSuit, QueryCommunicationDetailByTimelineIdentity) {
     EXPECT_DOUBLE_EQ(rdma->transitTime, 0.86382);
     EXPECT_DOUBLE_EQ(rdma->bandwidth, 24.2777);
 
-    ASSERT_FALSE(database->QueryCommunicationDetail("1", "hcom_send__822_0", startTimeNs + 1001, detail));
+    ASSERT_FALSE(database->QueryCommunicationDetail("1", "hcom_missing", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0);
     EXPECT_TRUE(detail.bandwidthInfo.empty());
 }
 
-TEST_F(TestSuit, QueryCommunicationDetailRejectsAmbiguousTimeMatchAndFiltersTransportTypes) {
+TEST_F(TestSuit, QueryCommunicationDetailRejectsDuplicateRankIdAndOpNameAndFiltersTransportTypes) {
     std::recursive_mutex sqlMutex;
     Dic::Module::TextClusterDatabase database(sqlMutex);
     ASSERT_TRUE(database.AttachDb(":memory:"));
     ASSERT_TRUE(database.CreateTable());
     ASSERT_TRUE(database.ExecSql(
         "INSERT INTO communication_time_info "
-        "(iteration_id, rank_id, op_name, op_suffix, start_time, transit_time, wait_time) VALUES "
-        "('1', '0', 'hcom_test', 'group', 100000, 1.5, 2.5), "
-        "('1', '0', 'hcom_test_extra', 'group', 100000, 9.5, 9.5);"
+        "(iteration_id, rank_id, op_name, op_suffix, transit_time, wait_time) VALUES "
+        "('1', '0', 'hcom_test', 'group', 1.5, 2.5), "
+        "('1', '0', 'hcom_test_extra', 'group', 9.5, 9.5);"
         "INSERT INTO communication_bandwidth_info "
         "(iteration_id, rank_id, op_name, op_suffix, transport_type, transit_size, transit_time, bandwidth_size) "
         "VALUES ('1', '0', 'hcom_test', 'group', 'RDMA', 0, 0, 0), "
@@ -188,7 +186,7 @@ TEST_F(TestSuit, QueryCommunicationDetailRejectsAmbiguousTimeMatchAndFiltersTran
         "('1', '0', 'hcom_test', 'group', 'LOCAL', 10, 10, 10);"));
 
     Dic::Module::CommunicationDetailDo detail;
-    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_test", 100000, detail));
+    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_test", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 1.5);
     EXPECT_DOUBLE_EQ(detail.waitTime, 2.5);
     ASSERT_EQ(detail.bandwidthInfo.size(), 5);
@@ -197,14 +195,14 @@ TEST_F(TestSuit, QueryCommunicationDetailRejectsAmbiguousTimeMatchAndFiltersTran
     }));
 
     // Cluster prefixes are resolved from import metadata before this database API is called.
-    ASSERT_FALSE(database.QueryCommunicationDetail("cluster_alpha_0", "hcom_test", 100000, detail));
-    ASSERT_FALSE(database.QueryCommunicationDetail("0_2", "hcom_test", 100000, detail));
-    ASSERT_FALSE(database.QueryCommunicationDetail("cluster_alpha_rank0", "hcom_test", 100000, detail));
+    ASSERT_FALSE(database.QueryCommunicationDetail("cluster_alpha_0", "hcom_test", detail));
+    ASSERT_FALSE(database.QueryCommunicationDetail("0_2", "hcom_test", detail));
+    ASSERT_FALSE(database.QueryCommunicationDetail("cluster_alpha_rank0", "hcom_test", detail));
 
     ASSERT_TRUE(database.ExecSql("INSERT INTO communication_time_info "
-                                 "(iteration_id, rank_id, op_name, op_suffix, start_time, transit_time, wait_time) "
-                                 "VALUES ('1', '0', 'hcom_test', 'group', 100500, 3.5, 4.5);"));
-    ASSERT_FALSE(database.QueryCommunicationDetail("0", "hcom_test", 100000, detail));
+                                 "(iteration_id, rank_id, op_name, op_suffix, transit_time, wait_time) "
+                                 "VALUES ('1', '0', 'hcom_test', 'group', 3.5, 4.5);"));
+    ASSERT_FALSE(database.QueryCommunicationDetail("0", "hcom_test", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0);
     EXPECT_TRUE(detail.bandwidthInfo.empty());
@@ -217,16 +215,16 @@ TEST_F(TestSuit, QueryCommunicationDetailRejectsIncompleteRecordsAndPreservesRea
     ASSERT_TRUE(database.CreateTable());
     ASSERT_TRUE(database.ExecSql(
         "INSERT INTO communication_time_info "
-        "(iteration_id, rank_id, op_name, op_suffix, start_time, transit_time, wait_time) VALUES "
-        "('1', '0', 'hcom_valid', 'group', 200000, 0, 0), "
-        "(NULL, '0', 'hcom_null_iteration', 'group', 200000, 1, 1), "
-        "('', '0', 'hcom_empty_iteration', 'group', 200000, 1, 1), "
-        "('1', '0', 'hcom_null_group', NULL, 200000, 1, 1), "
-        "('1', '0', 'hcom_empty_group', '', 200000, 1, 1), "
-        "('1', '0', 'hcom_null_transit', 'group', 200000, NULL, 1), "
-        "('1', '0', 'hcom_null_wait', 'group', 200000, 1, NULL), "
-        "('1', '0', 'hcom_mixed_candidates', 'group', 200000, 1, 1), "
-        "(NULL, '0', 'hcom_mixed_candidates', 'group', 200000, 1, 1);"
+        "(iteration_id, rank_id, op_name, op_suffix, transit_time, wait_time) VALUES "
+        "('1', '0', 'hcom_valid', 'group', 0, 0), "
+        "(NULL, '0', 'hcom_null_iteration', 'group', 1, 1), "
+        "('', '0', 'hcom_empty_iteration', 'group', 1, 1), "
+        "('1', '0', 'hcom_null_group', NULL, 1, 1), "
+        "('1', '0', 'hcom_empty_group', '', 1, 1), "
+        "('1', '0', 'hcom_null_transit', 'group', NULL, 1), "
+        "('1', '0', 'hcom_null_wait', 'group', 1, NULL), "
+        "('1', '0', 'hcom_mixed_candidates', 'group', 1, 1), "
+        "(NULL, '0', 'hcom_mixed_candidates', 'group', 1, 1);"
         "INSERT INTO communication_bandwidth_info "
         "(iteration_id, rank_id, op_name, op_suffix, transport_type, transit_size, transit_time, bandwidth_size) "
         "VALUES ('1', '0', 'hcom_valid', 'group', 'HCCS', 0, 0, 0), "
@@ -237,7 +235,7 @@ TEST_F(TestSuit, QueryCommunicationDetailRejectsIncompleteRecordsAndPreservesRea
         "('1', '0', 'hcom_valid', 'group', 'SIO', 2, 1, 1);"));
 
     Dic::Module::CommunicationDetailDo detail;
-    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_valid", 200000, detail));
+    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_valid", detail));
     EXPECT_DOUBLE_EQ(detail.transitTime, 0);
     EXPECT_DOUBLE_EQ(detail.waitTime, 0);
     ASSERT_EQ(detail.bandwidthInfo.size(), 1);
@@ -248,7 +246,7 @@ TEST_F(TestSuit, QueryCommunicationDetailRejectsIncompleteRecordsAndPreservesRea
 
     for (const auto &opName : {"hcom_null_iteration", "hcom_empty_iteration", "hcom_null_group", "hcom_empty_group",
              "hcom_null_transit", "hcom_null_wait", "hcom_mixed_candidates"}) {
-        ASSERT_FALSE(database.QueryCommunicationDetail("0", opName, 200000, detail));
+        ASSERT_FALSE(database.QueryCommunicationDetail("0", opName, detail));
         EXPECT_TRUE(detail.bandwidthInfo.empty());
     }
 }

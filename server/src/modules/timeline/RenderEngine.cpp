@@ -89,8 +89,8 @@ std::string RemoveHostFromRankId(const std::string &rankId) {
     return rankParts.size() > 1 ? rankParts[1] : rankId;
 }
 
-std::optional<std::string> ResolveCommunicationRankId(
-    const std::string &timelineRankId, const std::string &traceDbPath) {
+std::optional<std::string> ResolveCommunicationRankId(const std::string &timelineRankId, const std::string &traceDbPath,
+    const std::shared_ptr<VirtualClusterDatabase> &clusterDatabase) {
     const std::vector<RankInfo> rankInfos =
         TrackInfoManager::Instance().GetRankListByFileId(traceDbPath, timelineRankId);
     if (rankInfos.size() != 1) {
@@ -107,7 +107,17 @@ std::optional<std::string> ResolveCommunicationRankId(
         // A suffix such as 0_2 identifies a duplicated Timeline rank and cannot be mapped reliably.
         return std::nullopt;
     }
-    return rawRankId;
+    auto &databaseManager = DataBaseManager::Instance();
+    if (databaseManager.GetDataType(traceDbPath) != DataType::DB ||
+        databaseManager.GetFileType(traceDbPath) != FileType::MS_PROF) {
+        return rawRankId;
+    }
+    const auto traceDatabase = databaseManager.GetTraceDatabaseByFileId(traceDbPath);
+    if (traceDatabase == nullptr || clusterDatabase == nullptr) {
+        return std::nullopt;
+    }
+    // MS_PROF Timeline ranks come from NPU_INFO.id, which is the local device id.
+    return clusterDatabase->QueryCommunicationRankId(traceDatabase->QueryRawHostInfo(), rawRankId);
 }
 
 void AppendCommunicationDetail(
@@ -121,16 +131,20 @@ void AppendCommunicationDetail(
         return;
     }
     const std::string clusterProjectPath = TrackInfoManager::Instance().GetClusterProjectPathByFileId(traceDbPath);
-    const std::optional<std::string> communicationRankId = ResolveCommunicationRankId(rankId, traceDbPath);
-    if (clusterProjectPath.empty() || !communicationRankId.has_value()) {
+    if (clusterProjectPath.empty()) {
         return;
     }
     const auto clusterDatabase = databaseManager.GetClusterDatabase(clusterProjectPath);
     if (clusterDatabase == nullptr) {
         return;
     }
+    const std::optional<std::string> communicationRankId =
+        ResolveCommunicationRankId(rankId, traceDbPath, clusterDatabase);
+    if (!communicationRankId.has_value()) {
+        return;
+    }
     CommunicationDetailDo detail;
-    if (!clusterDatabase->QueryCommunicationDetail(communicationRankId.value(), slice.name, slice.timestamp, detail)) {
+    if (!clusterDatabase->QueryCommunicationDetail(communicationRankId.value(), slice.name, detail)) {
         return;
     }
     responseBody.data.transitTime = detail.transitTime;

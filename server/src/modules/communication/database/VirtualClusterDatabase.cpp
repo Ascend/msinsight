@@ -349,11 +349,8 @@ bool VirtualClusterDatabase::ExecuteQueryBandwidthData(
 }
 
 bool VirtualClusterDatabase::ExecuteQueryCommunicationDetail(const std::string &timeSql,
-    const std::string &bandwidthSql, const std::string &rankId, const std::string &opName, uint64_t startTimeNs,
-    uint64_t timestampToleranceNs, CommunicationDetailDo &detail) {
-    const uint64_t minStartTime = startTimeNs > timestampToleranceNs ? startTimeNs - timestampToleranceNs : 0;
-    const uint64_t maxStartTime =
-        startTimeNs > UINT64_MAX - timestampToleranceNs ? UINT64_MAX : startTimeNs + timestampToleranceNs;
+    const std::string &bandwidthSql, const std::string &rankId, const std::string &opName,
+    CommunicationDetailDo &detail) {
     detail = {};
 
     std::string iteration;
@@ -364,7 +361,7 @@ bool VirtualClusterDatabase::ExecuteQueryCommunicationDetail(const std::string &
             ServerLog::Error("Failed to prepare query communication detail time statement.");
             return false;
         }
-        auto resultSet = stmt->ExecuteQuery(rankId, opName, minStartTime, maxStartTime);
+        auto resultSet = stmt->ExecuteQuery(rankId, opName);
         if (resultSet == nullptr) {
             ServerLog::Error("Failed to execute query communication detail time statement. error:",
                 stmt->GetErrorMessage(), ", code:", stmt->GetErrorCode());

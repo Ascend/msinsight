@@ -1272,6 +1272,28 @@ std::string DbTraceDataBase::GetDeviceId(const std::string &rankIdWithHost) {
 
 std::string DbTraceDataBase::QueryHostInfo() { return DbTraceDataBase::QueryHostInfoWithHostPath(hostPath); }
 
+std::string DbTraceDataBase::QueryRawHostInfo() {
+    if (!CheckTableDataInvalid(TABLE_HOST_INFO)) {
+        return {};
+    }
+    const std::string sql =
+        "SELECT DISTINCT hostName || hostUid || '' AS host FROM " + TABLE_HOST_INFO + " LIMIT 2";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Error("Failed to prepare raw host info statement.");
+        return {};
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr || !resultSet->Next()) {
+        return {};
+    }
+    const std::string candidate = resultSet->GetString("host");
+    if (candidate.empty() || resultSet->Next() || resultSet->GetErrorCode() != SQLITE_DONE) {
+        return {};
+    }
+    return candidate;
+}
+
 std::string DbTraceDataBase::QueryHostInfoWithHostPath(const std::string &path) {
     if (!host.empty() || !CheckTableDataInvalid(TABLE_HOST_INFO)) {
         return host;
