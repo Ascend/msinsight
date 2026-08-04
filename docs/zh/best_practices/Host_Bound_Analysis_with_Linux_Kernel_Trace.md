@@ -124,97 +124,83 @@ python trace_convert.py \
 
 ### 1. 场景与数据采集
 
-本次实验运行 vLLM 推理，并启动 32 个名为 `hb_hog00`～`hb_hog31` 的周期性 CPU 密集型任务。每个 `hb_hog*` 以 500 ms 为一个周期，其中约 400 ms 执行整数计算、约 100 ms 等待，从而形成重复的 CPU 忙碌区间。下面仅展示与 CPU 负载和亲和性相关的关键实现，推理业务逻辑和数据落盘代码从略。
+本次实验运行 vLLM 推理，并启动 32 个名为 `hb_hog00`～`hb_hog31` 的周期性 CPU 密集型任务。每个 `hb_hog*` 以 500 ms 为一个周期，其中约 400 ms 执行整数计算、约 100 ms 等待，从而形成重复的 CPU 忙碌区间。完整的 Fault/Fixed 构造、vLLM Profiling 启停、PID/TID 元数据记录和 `trace_marker` 标记逻辑，请参见 [`host_bound_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/examples/host_bound_fault_lab.py)。
 
-`hb_hog*` 工作进程启动后，首先设置进程名和 CPU 亲和性，然后等待统一的启动信号。进入忙碌阶段后，进程通过不分配内存的整数运算持续保持 Runnable；进入周期中的等待阶段后，则等待到下一个周期。
+Python 主进程在导入 vLLM 和初始化模型前，调用 `os.sched_setaffinity(0, set(workload_cpus))` 将当前主线程限制到 `--workload-cpus` 指定的 CPU 集合，`--workload-cpus` 和 `--hog-cpus` 接受 Linux CPU-list 写法，例如 `120-127` 或 `120-123,128-131`，区间端点均包含在内。随后创建的 vLLM 进程和线程通常会初始继承这一 CPU 亲和性。
 
-```python
-def cpu_hog_worker(index, cpus, start_event, stop_event,
-                   origin_ns, period_ms, duty_ms):
-    set_process_name(f"hb_hog{index:02d}")
-    os.sched_setaffinity(0, set(cpus))
+`hb_hog*` 工作进程虽然由同一主进程创建，但每个进程都会在 `cpu_hog_worker()` 入口设置进程名，再调用 `os.sched_setaffinity(0, set(cpus))`；此处传入的 `cpus` 就是 `--hog-cpus` 解析得到的 `hog_cpus`。工作进程启动初期会短暂继承主进程的 `workload_cpus`，但在创建实验负载前就会完成重新绑核；绑核成功后，工作进程才向主进程报告就绪并等待统一的启动信号。进入忙碌阶段后，进程持续执行不分配内存的整数运算并保持可运行状态；进入等待阶段后，则等待到下一个周期。所有 `hb_hog*` 共用同一个 `hog_cpus` 允许集合，而不是将 32 个进程逐一固定到其中某个 CPU；它们可以在集合内迁移并相互竞争。
 
-    while not stop_event.is_set() and not start_event.wait(timeout=0.1):
-        pass
-
-    period_ns = period_ms * 1_000_000
-    duty_ns = duty_ms * 1_000_000
-    state = (0x9E3779B97F4A7C15 ^ os.getpid()) & 0xFFFFFFFFFFFFFFFF
-    while not stop_event.is_set():
-        phase_ns = (time.monotonic_ns() - origin_ns.value) % period_ns
-        if phase_ns < duty_ns:
-            busy_deadline = time.monotonic_ns() + min(
-                duty_ns - phase_ns, 2_000_000
-            )
-            while time.monotonic_ns() < busy_deadline:
-                state ^= (state << 13) & 0xFFFFFFFFFFFFFFFF
-                state ^= state >> 7
-                state ^= (state << 17) & 0xFFFFFFFFFFFFFFFF
-        else:
-            sleep_seconds = min((period_ns - phase_ns) / 1e9, 0.01)
-            stop_event.wait(timeout=max(sleep_seconds, 0.0005))
-```
-
-Python 主进程在导入 vLLM 和初始化模型前，先将自身绑定到 `workload_cpus`。随后由该进程创建的 vLLM 进程和线程会继承这一 CPU 亲和性。`hb_hog*` 工作进程虽然由同一主进程创建，但会在 `cpu_hog_worker()` 入口立即将自身重新绑定到 `hog_cpus`，因此两类任务可以独立设置 CPU 集合。
-
-```python
-# 先设置 Python 主进程的 CPU 亲和性。
-os.sched_setaffinity(0, set(workload_cpus))
-
-hog_processes = [
-    ctx.Process(
-        target=cpu_hog_worker,
-        args=(index, hog_cpus, start_event, stop_event, origin_ns, ...),
-    )
-    for index in range(hog_count)
-]
-for process in hog_processes:
-    process.start()
-
-# vLLM 在设置亲和性之后导入和初始化。
-from vllm import LLM, SamplingParams
-
-llm = LLM(**llm_kwargs)
-```
-
-使用其他推理程序或 CPU 密集型任务复现实验时，需要保持下述 CPU 集合、负载规模、忙碌周期和采集时序一致。
-
-本例选择同一 NPU 本地 NUMA 节点中的 CPU 120～135。Fault 和 Fixed 两轮实验的 CPU 设置如下，实际复现时需要根据服务器 CPU 和 NUMA 拓扑替换核号。
+本例选择同一 NPU 本地 NUMA 节点中的 CPU 120～135。实际复现时，可先使用 `lscpu | grep -i numa` 或 `numactl --hardware` 查看在线 CPU 及 NUMA 归属，再根据设备所在 NUMA 节点替换示例核号。Fault 和 Fixed 两轮实验的 CPU 设置如下。
 
 | 数据 | Python/vLLM 进程树 | `hb_hog*` | 预期关系 |
 | --- | --- | --- | --- |
 | Fault | CPU 120～127 | CPU 120～127 | CPU 集合重叠 |
 | Fixed | CPU 120～127 | CPU 128～135 | CPU 集合不重叠 |
 
-除 CPU 亲和性外，两轮实验保持相同配置：模型为 `Qwen/Qwen3-0.6B`，`max_model_len=26240`、`tensor_parallel_size=1`，单轮批量输入 2 个请求，每个请求最多生成 64 个 Token，采样参数为 `temperature=0.8`、`top_p=0.95`，并在正式采集前生成 8 个 Token 完成预热。两轮均只执行 1 轮推理，启动 32 个 `hb_hog*`，使用 500/400 ms 的周期/忙碌时长，并保持 `workload_nice=5`：`hb_hog*` 使用普通优先级，Python/vLLM 进程树的 nice 值增加 5。
+`--workload-cpus` 是 Python 主进程及后续 vLLM 进程和线程通常初始继承的允许 CPU 集合，`--hog-cpus` 是每个 `hb_hog*` 工作进程使用的允许 CPU 集合。脚本会校验 Fault 的两组 CPU 至少存在交集、Fixed 的两组 CPU 完全不相交；本例在 Fault 中使用完全重叠的集合，以稳定复现同核竞争。
 
-每轮开始前，需要确认 `profiling_fault`、`profiling_fixed` 和 `host_bound_state_*` 目录为空。重复实验时，应为每轮创建新的 Profiling 和运行状态输出目录，并在转换命令中使用本轮实际的 Profiling 目录，避免旧数据参与时间轴对齐。
+从仓库根目录执行完整脚本，分别构造 Fault 和 Fixed 数据：
+
+```bash
+# Fault
+python3 scripts/ftrace_tools/examples/host_bound_fault_lab.py \
+  --mode fault \
+  --workload-cpus 120-127 \
+  --hog-cpus 120-127 \
+  --hog-count 32 \
+  --batch-size 2 \
+  --max-tokens 64 \
+  --request-seed 2026 \
+  --rounds 1 \
+  --profile-dir profiling_fault \
+  --state-dir host_bound_state_fault
+
+# Fixed
+python3 scripts/ftrace_tools/examples/host_bound_fault_lab.py \
+  --mode fixed \
+  --workload-cpus 120-127 \
+  --hog-cpus 128-135 \
+  --hog-count 32 \
+  --batch-size 2 \
+  --max-tokens 64 \
+  --request-seed 2026 \
+  --rounds 1 \
+  --profile-dir profiling_fixed \
+  --state-dir host_bound_state_fixed
+```
+
+除 CPU 亲和性外，两轮实验保持相同配置：模型为 `Qwen/Qwen3-0.6B`，`max_model_len=26240`、`tensor_parallel_size=1`，单轮批量输入 2 个请求，每个请求固定生成 64 个 Token，采样参数为 `temperature=0.8`、`top_p=0.95`、`seed=2026`，并在正式采集前生成 8 个 Token 完成预热。脚本通过 `min_tokens=max_tokens` 避免遇到 EOS 提前结束，并在每轮生成后将各请求实际生成的 Token 数写入 `metadata.json`；任一请求实际生成的 Token 数不等于 64 时，本轮实验会被判定为无效。两轮均只执行 1 轮推理，启动 32 个 `hb_hog*`，使用 500/400 ms 的周期/忙碌时长，并设置 `--workload-nice 5`：`hb_hog*` 使用普通优先级，主进程在 `hb_hog*` 完成创建和重新绑核后调用 `os.nice(5)`，使后续 vLLM 任务初始继承较低的调度优先级。`nice` 值只影响调度优先级，不会修改 CPU 亲和性。由于完整脚本的默认批量、生成长度和轮数用于更通用的压力测试，复现本文数据时还需要显式设置 `--batch-size 2 --max-tokens 64 --request-seed 2026 --rounds 1`。
+
+每轮开始前，推荐确认 `profiling_fault`、`profiling_fixed` 和 `host_bound_state_*` 目录为空。重复实验时，应为每轮创建新的 Profiling 和运行状态输出目录，并在转换命令中使用本轮实际的 Profiling 目录，避免旧数据参与时间轴对齐。
 
 每轮实验按以下顺序采集数据：
 
 1. 在推理环境中启动对应的 Fault 或 Fixed 实验。实验程序先完成模型初始化和预热，然后输出 `[ARMED]` 并开始 10 秒倒计时；此时 vLLM 进程树和 `hb_hog*` 进程均已创建，但 CPU 密集型任务尚未开始运行。
-2. 在倒计时结束前，在宿主机或使用宿主机 PID 命名空间、能够看到宿主机 `/proc` 的采集容器中，进入 `scripts/ftrace_tools` 目录并启动 ftrace。两轮都采集 CPU 120～130，以保持观察范围一致。下列命令适用于业务容器未使用宿主机 PID 命名空间的场景；如果采集端与业务使用同一 PID 命名空间，可以省略 `--NSpid` 和随后重命名 `pid_mapping.json` 的命令。
+2. 在倒计时结束前，在宿主机或使用宿主机 PID 命名空间、能够看到宿主机 `/proc` 的采集容器中，进入 `scripts/ftrace_tools` 目录并启动 ftrace。两轮都采集 CPU 120～135，既覆盖 vLLM 的 CPU 120～127，也覆盖 Fixed 中 `hb_hog*` 重新绑定后的 CPU 128～135，并保持观察范围一致。这里的 `--cpu=120-135` 是 ftrace 采集过滤范围，取两轮 `workload_cpus` 和 `hog_cpus` 的并集，不会将采集进程或业务进程绑定到这些 CPU。下列命令适用于业务容器未使用宿主机 PID 命名空间的场景；如果采集端与业务使用同一 PID 命名空间，可以省略 `--NSpid` 和随后重命名 `pid_mapping.json` 的命令。
 
    ```bash
    # Fault
    sudo python trace_record.py \
+     --backend=trace-cmd \
      --record_time=30 \
-     --cpu=120-130 \
+     --cpu=120-135 \
      --output=trace_fault.dat \
      --NSpid
    mv pid_mapping.json pid_mapping_fault.json
 
    # Fixed
    sudo python trace_record.py \
+     --backend=trace-cmd \
      --record_time=30 \
-     --cpu=120-130 \
+     --cpu=120-135 \
      --output=trace_fixed.dat \
      --NSpid
    mv pid_mapping.json pid_mapping_fixed.json
    ```
 
+   上述命令显式指定 `trace-cmd` 后端，确保实际输出与后续转换命令使用的 `.dat` 文件一致；如果 `trace-cmd` 不可用或不兼容，采集会直接失败并给出错误，而不会自动切换到 debugfs 后端并将输出文件改为 `.txt`。如需改用 debugfs，应显式设置 `--backend=debugfs`，将采集输出改为 `trace_fault.txt` 和 `trace_fixed.txt`，并同步修改后续 `trace_convert.py --input` 的文件名。
+
 3. 倒计时结束后，实验程序依次调用 `llm.start_profile()`、启动所有 `hb_hog*` 的忙碌周期并执行推理；推理完成后调用 `llm.stop_profile()`。等待本轮 ftrace 采集结束，再执行下一轮，避免输出文件相互覆盖。
-4. 实验程序分别在 `host_bound_state_fault` 和 `host_bound_state_fixed` 目录生成 `metadata.json`，其中记录 Python/vLLM 根进程、`hb_hog*` PID、采集时已有的 TID 和两类任务的 CPU 集合。可以在推理容器内使用 `taskset -cp <PID>`，或检查 `/proc/<PID>/status` 中的 `Cpus_allowed_list`，确认 CPU 亲和性已经生效。ftrace 使用宿主机视角的 PID；转换时通过对应的 `pid_mapping_*.json` 将宿主机进程 PID 映射为推理容器内的进程 PID，`metadata.json` 中的 TID 列表仅用于辅助核对线程。
 
 完成采集后，将 ftrace 文件和 PID 映射文件置于转换环境可访问的目录，并分别转换两轮数据：
 
@@ -294,14 +280,121 @@ Process Scheduling 中的 `Runnable` 表示任务已经具备运行条件，但�
 
 ![hb_hog 任务与 vLLM 任务的同核竞争细节](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fault-cpu-contention-detail.png)
 
-由此可以形成完整证据链：`hb_hog*` 与 vLLM 进程树使用重叠的 CPU 集合；目标任务被换出后仍保持可运行，并出现较长 `Runnable`，相应 CPU 同期由 `hb_hog*` 占用；这些等待区间又与 Host 下发中断及 Device 侧 Computing 间隙、Free 区间在时间上对应。期间还观察到目标任务多次发生核间迁移，但迁移本身不作为判断根因的充分条件。综合判断，本例的主要瓶颈是 CPU 同核竞争导致的 Host Bound。
+由此可以形成完整证据链：`hb_hog*` 与 vLLM 进程树使用重叠的 CPU 集合；目标任务被换出后仍保持可运行，并出现较长 `Runnable`，相应 CPU 同期由 `hb_hog*` 占用；这些等待区间又与 Host 下发间断及 Device 侧 Computing 间隙、Free 区间在时间上对应。期间还观察到目标任务多次发生核间迁移，但迁移本身不作为判断根因的充分条件。综合判断，本例的主要瓶颈是 CPU 同核竞争导致的 Host Bound。
 
 ### 5. 优化并验证结果
 
-保持 Python/vLLM 进程树绑定在 CPU 120～127，仅将 `hb_hog*` 的 CPU 亲和性从 CPU 120～127 调整到 CPU 128～135，使两类任务使用互不重叠的 CPU 集合。该设置在进程启动阶段通过 `os.sched_setaffinity()` 完成，并可通过 `metadata.json`、`taskset -cp <PID>` 或 `/proc/<PID>/status` 中的 `Cpus_allowed_list` 验证。随后保持其他推理和负载配置不变，重新采集并导入 Profiling 与 ftrace 数据。
+保持 `--workload-cpus 120-127` 不变，仅将 `--hog-cpus` 从 `120-127` 调整为 `128-135`，使两类任务使用互不重叠的 CPU 集合。Fixed 轮次中，Python 主进程仍调用 `os.sched_setaffinity(0, set(workload_cpus))`，每个 `hb_hog*` 则调用 `os.sched_setaffinity(0, set(hog_cpus))` 将自身限制到 CPU 128～135。随后保持其他推理和负载配置不变，重新采集并导入 Profiling 与 ftrace 数据。
 
 重新采集后，同角色关键任务的 ID 变为 3823，这是进程重新创建后的正常变化。在截图所示的代表性时间窗内，目标任务的异常长 `Runnable` 显著减少，vLLM 与 `hb_hog*` 的 Running 切片位于不同 CPU 集合，Host 下发和 Device 计算也更加连续。
 
 ![CPU 亲和性分离后的联合分析结果](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-fixed-cpu-isolation.png)
 
-同核竞争造成的异常长 `Runnable` 及其对应的大段 Host/Device 间隙已经不再出现或显著减弱。但是 CPU affinity 只消除了 vLLM 与 `hb_hog*` 之间的直接同核竞争，并不意味着 CPU 已被独占。实际业务中仍应结合运行环境检查其他进程、cgroup/cpuset、NUMA 和中断亲和性，并在优化后重新采集 Profiling 与 ftrace 数据验证效果。
+同核竞争造成的异常长 `Runnable` 及其对应的大段 Host/Device 间隙已经不再出现或显著减弱。但是 CPU 亲和性只消除了 vLLM 与 `hb_hog*` 之间的直接同核竞争，并不意味着 CPU 已被独占。实际业务中仍应结合运行环境检查其他进程、cgroup/cpuset、NUMA 和中断亲和性，并在优化后重新采集 Profiling 与 ftrace 数据验证效果。
+
+## 联合分析案例：定位网络 SoftIRQ 导致的 Host Bound
+
+本案例将构造即使用户态进程与 vLLM 工作核隔离，其引发的 `NET_RX` SoftIRQ 与 vLLM 关键任务共享 CPU 的场景，用于展示 SoftIRQ 直接占用 vLLM 工作核时较为隐蔽的 Host Bound。完整的 Fault/Fixed 构造、RPS 配置与恢复、vLLM Profiling 启停、SoftIRQ 统计和 `trace_marker` 标记逻辑，请参见 [`vllm_softirq_fault_lab.py`](https://gitcode.com/Ascend/msinsight/blob/master/scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py)。
+
+### 1. 场景与数据采集
+
+实验脚本通过多组本机 UDP 流量构造网络接收负载。与前一案例相同，下列参数接受 `144-151` 或 `144-147,152-155` 等 Linux CPU-list 写法。本例同时使用三组 CPU 参数，但它们的作用对象和设置方式不同：
+
+| 参数 | 作用对象 | 设置方式 |
+| --- | --- | --- |
+| `--workload-cpus` | Python 主进程及后续 vLLM 任务 | RPS 放置探测完成后、导入 vLLM 前，主线程调用 `os.sched_setaffinity(0, set(workload_cpus))`；后续创建的 vLLM 任务通常初始继承该集合 |
+| `--traffic-worker-cpus` | 每个 `sir_tx*`、`sir_rx*` 用户态流量进程 | 每个工作进程在入口调用 `os.sched_setaffinity(0, set(cpus))`，其中 `cpus` 即 `traffic_worker_cpus` |
+| `--softirq-cpus` | 回环设备 `lo/rx-0` 的 `NET_RX` 接收处理 | 脚本将 CPU-list 转换为十六进制 CPU 位图并写入 `/sys/class/net/lo/queues/rx-0/rps_cpus`；这是 RPS 定向，不是调用 `sched_setaffinity()` 绑定某个进程或 SoftIRQ 任务 |
+
+`sir_tx*`、`sir_rx*` 启动初期会短暂继承父进程原有的允许 CPU 集合，但会在创建 socket、报告就绪和开始 RPS 探测前，将自身明确重新绑定到 `traffic_worker_cpus`。所有流量进程共用该允许集合，并非每个进程固定到其中一个 CPU。本例将它们限制在 CPU 160～167，使实际流量阶段的用户态进程与 vLLM 工作核保持隔离。
+
+`--softirq-cpus` 只控制目标 RX 队列的 RPS/`NET_RX` 处理 CPU，不会改写 `sir_tx*`、`sir_rx*`、vLLM 或 `ksoftirqd` 的任务亲和性，也不会迁移 `TIMER`、`RCU` 等其他 SoftIRQ。RPS 会根据流哈希在允许集合中选择 CPU，将报文加入目标 CPU 的 backlog 队列并唤醒该 CPU 处理后续网络协议栈，因此不保证集合中每个 CPU 获得完全相同的包量。脚本会通过放置探测验证实际覆盖范围，具体机制可参见 [Linux 内核 RPS 文档](https://docs.kernel.org/networking/scaling.html#rps-receive-packet-steering)。Fault 将 RPS 目标 CPU 设置为 vLLM 使用的 CPU 144～151，Fixed 则将目标 CPU 调整到 CPU 152～159。
+
+| 数据 | Python/vLLM 进程树 | `NET_RX` 的 RPS 目标 CPU | `sir_tx*`、`sir_rx*` | 预期关系 |
+| --- | --- | --- | --- | --- |
+| Fault | CPU 144～151 | CPU 144～151 | CPU 160～167 | `NET_RX` 与 vLLM 工作核重叠 |
+| Fixed | CPU 144～151 | CPU 152～159 | CPU 160～167 | 三组 CPU 互不重叠 |
+
+>不要使用 `taskset -c 144-151` 等窄 CPU 范围包裹整个脚本；本例的启动进程至少需要允许 CPU 144～167，否则 Fixed 的 RPS 目标 CPU 或流量工作进程无法使用指定范围。
+
+从仓库根目录执行以下命令：
+
+```bash
+# Fault：NET_RX 在 vLLM 工作核上处理
+python3 scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py \
+  --mode fault \
+  --workload-cpus 144-151 \
+  --softirq-cpus 144-151 \
+  --traffic-worker-cpus 160-167 \
+  --max-tokens 64 \
+  --request-seed 2026 \
+  --profile-dir profiling_softirq_direct_fault \
+  --state-dir softirq_state_direct_fault
+
+# Fixed：将 NET_RX 迁移到 CPU 152～159
+python3 scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py \
+  --mode fixed \
+  --workload-cpus 144-151 \
+  --softirq-cpus 152-159 \
+  --traffic-worker-cpus 160-167 \
+  --max-tokens 64 \
+  --request-seed 2026 \
+  --profile-dir profiling_softirq_direct_fixed \
+  --state-dir softirq_state_direct_fixed
+```
+
+两轮实验使用相同的 `--request-seed 2026`，并通过 `min_tokens=max_tokens=64` 让每个请求固定生成 64 个 Token。脚本会将各请求实际生成的 Token 数写入最终的 `metadata.json`，任一请求实际生成的 Token 数不等于 64 时会将本轮实验判定为无效，避免 Fault/Fixed 对比混入生成工作量差异。
+
+当前示例只支持回环设备 `--rps-device lo --rps-queue rx-0`，并需要对 `/sys/class/net/lo/queues/rx-0/rps_cpus` 和 `rps_flow_cnt` 具有写权限。
+
+<span style="color: red;">修改 RPS 配置会暂时影响该网络命名空间内经过目标 RX 队列的全部流量，建议仅在独占测试环境中执行。</span>
+
+> 正式加载 vLLM 前，脚本会运行 RPS 放置探测并检查目标 CPU 上的 `NET_RX` 和 `received_rps` 增量。完整运行时，可从 `metadata_armed.json` 中获取根进程和流量工作进程 PID，通过 `taskset -cp <PID>` 或 `Cpus_allowed_list` 核对用户态任务亲和性；`taskset` 不能证明 RPS 定向已生效，后者需要结合 `rps_cpus` 回读和 `rps_probe.json` 验证。还应检查 `softirq_delta.json` 和 `softnet_delta.json`，确认目标 CPU 覆盖范围、`NET_RX` 增量和流量收发情况符合预期。
+
+正常退出或收到可处理信号后，脚本会恢复原始 `rps_cpus` 和 `rps_flow_cnt` 配置。如果进程被 `SIGKILL` 终止或自动恢复失败，应根据标准错误中的提示，执行 `python3 scripts/ftrace_tools/examples/vllm_softirq_fault_lab.py --restore-rps-state <恢复快照>`，恢复 `softirq_state_*/rps_restore_pending.json` 或 `/run/lock/vllm_softirq_fault_lab/lo_rx-0.json` 中记录的配置，再开始下一轮实验。恢复前，脚本会核对快照中的系统启动标识、网络命名空间和本轮唯一运行标识，并要求本地快照与 `/run/lock` 下的全局 guard 一致；快照过期、被修改或不属于当前运行环境时，会在写入 RPS/RFS 配置前拒绝恢复。
+
+> 本脚本使用回环流量隔离并复现 `NET_RX` SoftIRQ 的影响，不会产生物理网卡硬中断。当前代码会拒绝 `lo/rx-0` 以外的设备或队列；若需要分析真实网卡场景，需要单独配置多 RX 队列、物理 IRQ 及 RPS 亲和性，或先扩展脚本实现。
+
+ftrace 的采集和转换流程沿用前文，并继续显式指定 `--backend=trace-cmd`。为覆盖两轮实验中的 vLLM 工作核、RPS 目标 CPU 和流量进程，两轮均使用 `trace_record.py --cpu=144-167` 采集 CPU 144～167。该参数仍只是 ftrace 采集过滤范围，取 `workload_cpus`、两轮 RPS 目标 CPU 和 `traffic_worker_cpus` 的并集，不会设置任务亲和性或 RPS。Fault 和 Fixed 的 ftrace、PID 映射文件不能重名，Profiling 和状态输出目录在实验前应为空。启动脚本后，应在 `[ARMED]` 倒计时结束前开始 ftrace 采集；如果实际推理时间超过 30 秒，需要相应增加 `--record_time`。两轮还应保持 UDP 流数量、单流发包速率、报文长度、流量周期和生成 Token 数等参数一致。由于两轮推理时长可能不同，校验流量时应优先比较单位时间内的收发速率和 SoftIRQ 增量，而不是只比较累计包数。
+
+### 2. 仅观察任务状态容易遗漏问题
+
+导入 Fault 的 Profiling 与 ftrace 数据后，先定位并置顶目标 `VLLM::EngineCor` 任务。Process Scheduling 中该任务以 `Running` 为主，没有出现前一个案例中明显的长 `Runnable` 区间。若只沿用“通过 `Runnable` 寻找用户态调度竞争”的方法，容易误以为目标任务一直正常执行。
+
+![Fault 中目标 vLLM 任务的 Process Scheduling 以 Running 为主](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-process-scheduling.png)
+
+在 CPU Scheduling 中搜索 vLLM 后，同样可以看到目标任务较长且较为连续的 Running 调度切片。这里的 `VLLM::EngineCor:<TID>` 表示 Linux 调度任务，并不代表某个具体算子，也不能仅凭调度切片连续就判断算子下发没有受到影响。
+
+![Fault 中目标 vLLM 任务的 CPU Scheduling 切片](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-vllm-running-slices.png)
+
+单独观察 Fault 的 Profiling 时间线时，可以看到周期性间隙，但在缺少同配置基线的情况下，这些间隙也可能被误认为正常的推理解码节奏。因此，还需要检查 CPU Scheduling 中与调度切片嵌套的中断事件，并结合 Fixed 数据进行对比。
+
+### 3. 在 CPU Scheduling 中确认 SoftIRQ
+
+展开目标 CPU 的 CPU Scheduling 泳道后，可以在 vLLM 调度切片下方看到密集的 SoftIRQ 执行区间。图中的短事件片段由 `softirq_entry` 和 `softirq_exit` 配对得到，悬浮提示中的名称为 `softirq`。分析时还需要在事件详情中核对 `action=NET_RX`，事件中的 `task=VLLM...` 表示进入 SoftIRQ 时的当前任务，不表示 SoftIRQ 属于 vLLM 线程。同时还应结合脚本生成的 RPS 探测和 SoftIRQ 统计结果，排除 `TIMER`、`RCU` 等其他 SoftIRQ。`softirq_entry`/`softirq_exit` 的含义可参见 [Linux Kernel Tracepoint API](https://docs.kernel.org/core-api/tracepoint.html)。
+
+![Fault 中目标 CPU 泳道上的密集 SoftIRQ 事件](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-softirq-events.png)
+
+SoftIRQ 在当前任务上下文中执行时通常不会触发 `sched_switch`。因此，调度器视角下 vLLM 仍是该 CPU 的当前任务，Process Scheduling 可以持续显示 `Running`，CPU Scheduling 中的 vLLM 调度切片也可以保持连续；但在每个 SoftIRQ 执行区间内，CPU 实际正在运行内核网络协议栈，vLLM 用户态代码并未向前执行。这里的 `Running` 只表示调度状态，不等同于 vLLM 连续占用全部 CPU 执行时间。
+
+### 4. 优化并对比验证
+
+Fixed 仅将 `--softirq-cpus` 从 `144-151` 调整为 `152-159`；`--workload-cpus 144-151`、`--traffic-worker-cpus 160-167`、vLLM 配置和 UDP 流量参数均保持不变。CPU 152～159 只是 Fixed 的 `NET_RX` RPS 目标集合，并不因此成为系统独占 CPU。重新采集后，将两轮 Profiling 数据**按相同时间尺度**展开。下面两图依次为 Fault 和 Fixed：Fault 在相同时间范围内完成的重复推理片段更少，PyTorch、ACL 和 Ascend Hardware 的算子切片整体更稀疏，相邻片段之间的间隔也更长，而 Fixed 的任务下发与 Device 计算节奏更紧凑。这说明 Fault 的 Host 侧下发节奏受到拖延。
+
+![Fault 中较为稀疏的 Profiling 时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-profiling.png)
+
+![Fixed 中更为紧凑的 Profiling 时间线](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fixed-profiling.png)
+
+再分别置顶 Fault 和 Fixed 中对应的 vLLM 任务所在 CPU 泳道。下图上方为 Fault，下方为 Fixed。在截图所示的代表性时间窗内，Fault 的 vLLM 调度切片下方存在密集的 SoftIRQ 事件；Fixed 的 vLLM 工作核上不再出现同样的密集 SoftIRQ，只有少量 IRQ 事件。需要注意，Fixed 并未消除网络 SoftIRQ，而是将相同流量参数产生的 `NET_RX` 处理迁移到了 CPU 152～159。图中的少量 IRQ 可能来自 RPS 使用的核间中断或其他系统活动，并不代表产生了物理网卡硬中断。
+
+![Fault 与 Fixed 中目标任务所在 CPU 泳道的中断事件对比](figures/Host_Bound_Analysis_with_Linux_Kernel_Trace/case-softirq-fault-fixed-cpu-lane-comparison.png)
+
+不同轮次重新创建进程后，目标任务的 PID/TID 可能发生变化。对比时应通过任务角色、Profiling 数据和 PID 映射确认两条泳道均属于对应轮次的 `VLLM::EngineCor`，不能仅按数值 ID 直接匹配。
+
+### 5. 原理与结论
+
+本例的证据链为：用户态流量进程始终与 vLLM 工作核隔离，排除了 `sir_tx*`、`sir_rx*` 与 vLLM 的直接同核竞争；Fault 中，RPS 将 `NET_RX` 定向到 vLLM 工作核，密集 SoftIRQ 在 vLLM 当前上下文中执行；这些 SoftIRQ 执行没有改变目标任务的 `Running` 状态，却占用了原本可供 Host 侧执行和任务下发的 CPU 时间；Profiling 中随之表现为任务下发和 Device 计算间隔增大。将 `NET_RX` 迁移到独立 CPU 后，构造流量产生的密集 `NET_RX` SoftIRQ 不再集中出现在 vLLM 工作核上，Profiling 中的下发与计算节奏也相应改善。综合判断，本例是网络 SoftIRQ 占用 vLLM 工作核所导致的 Host Bound。
+
+这个案例的隐蔽性在于仅观察由任务切换推导出的 Process Scheduling 和 CPU Scheduling 调度切片，无法区分连续的用户态执行与其中嵌套的 SoftIRQ 执行。将 SoftIRQ 事件详情与 Profiling 的下发间隔对齐，再通过仅调整 RPS 目标 CPU 的 Fault/Fixed 对比，观察到 Host 侧执行和下发的稀疏程度才可形成完整的定位与验证闭环。
+
+> 如果网络处理积压并转移到 `ksoftirqd/<CPU>`，目标 vLLM 任务可能被换出并进入 `Runnable`，此时问题会表现为更常见的内核线程调度竞争。本案例通过检查 `time_squeeze`、控制流量速率，并确认 `NET_RX` 事件发生时的当前任务为目标 vLLM，重点复现 SoftIRQ 在当前任务上下文中直接执行的情形。
