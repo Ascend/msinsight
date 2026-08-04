@@ -166,6 +166,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
 
     std::vector<std::string> QueryRankId();
     std::string QueryHostInfo() override;
+    std::string QueryRawHostInfo() override;
     std::string QueryHostInfoWithHostPath(const std::string &path);
     std::string GetDeviceId(const std::string &rankIdWithHost);
     std::string GetDeviceIdFromMemoryTable();

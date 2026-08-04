@@ -156,6 +156,7 @@ class VirtualTraceDatabase : public Database {
     virtual bool QueryEventsViewData(
         const Protocol::EventsViewParams &params, Protocol::EventsViewBody &body, uint64_t minTimestamp) = 0;
     virtual std::string QueryHostInfo() = 0;
+    virtual std::string QueryRawHostInfo() { return QueryHostInfo(); }
     virtual bool QueryFwdBwdDataByFlow(const std::string &rankId, uint64_t offset,
         const Protocol::ExtremumTimestamp &range, std::vector<Protocol::ThreadTraces> &fwdBwdData) = 0;
     virtual bool QueryP2PCommunicationOpData(const std::string &rankId, uint64_t offset,

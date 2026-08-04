@@ -33,6 +33,26 @@ class DbClusterDataBaseTest : public ::testing::Test {
     };
 };
 
+TEST_F(DbClusterDataBaseTest, QueryCommunicationRankIdFallsBackOnlyForUniqueDeviceMapping) {
+    std::recursive_mutex sqlMutex;
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE HostInfo(hostUid INTEGER, hostName TEXT);"
+                                 "CREATE TABLE RankDeviceMap(rankId INTEGER, deviceId INTEGER, hostUid INTEGER);"
+                                 "INSERT INTO HostInfo VALUES (222, 'hostB');"
+                                 "INSERT INTO RankDeviceMap VALUES (8, 0, 222), (8, 0, 222);"));
+
+    const auto uniqueRank = database.QueryCommunicationRankId("", "0");
+    ASSERT_TRUE(uniqueRank.has_value());
+    EXPECT_EQ(uniqueRank.value(), "8");
+
+    ASSERT_TRUE(database.ExecSql("INSERT INTO HostInfo VALUES (111, 'hostA');"
+                                 "INSERT INTO RankDeviceMap VALUES (0, 0, 111);"));
+    EXPECT_FALSE(database.QueryCommunicationRankId("", "0").has_value());
+}
+
 /**
  * DB场景设置并行策略,只设置了dp，pp，tp,兼容老版本
  */

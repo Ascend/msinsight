@@ -25,10 +25,6 @@ namespace Dic {
 using namespace Server;
 namespace Module {
 namespace FullDb {
-namespace {
-constexpr uint64_t DB_COMMUNICATION_TIMESTAMP_TOLERANCE_NS = 1000;
-}
-
 DbClusterDataBase::~DbClusterDataBase() {}
 
 bool DbClusterDataBase::CreateTable() {
@@ -220,15 +216,14 @@ bool DbClusterDataBase::QueryBandwidthData(
 }
 
 bool DbClusterDataBase::QueryCommunicationDetail(
-    const std::string &rankId, const std::string &opName, uint64_t startTimeNs, CommunicationDetailDo &detail) {
+    const std::string &rankId, const std::string &opName, CommunicationDetailDo &detail) {
     const std::string timeSql =
         "SELECT step AS iteration, group_name AS communicationGroup, transit_time AS transitTime, "
         "wait_time AS waitTime, CASE WHEN step IS NOT NULL AND step != '' "
         "AND group_name IS NOT NULL AND group_name != '' AND transit_time IS NOT NULL AND wait_time IS NOT NULL "
         "THEN 1 ELSE 0 END AS isComplete FROM " +
         TABLE_COMM_ANALYZER_TIME +
-        " WHERE rank_id = ? AND hccl_op_name = ? AND hccl_op_name != 'Total Op Info' "
-        "AND start_timestamp BETWEEN ? / 1000.0 AND ? / 1000.0 LIMIT 2";
+        " WHERE rank_id = ? AND hccl_op_name = ? AND hccl_op_name != 'Total Op Info' LIMIT 2";
     const std::string bandwidthSql = "SELECT band_type AS transportType, MIN(transit_size) AS transitSize, "
                                      "MIN(transit_time) AS transitTime, MIN(bandwidth) AS bandwidth FROM " +
         TABLE_COMM_ANALYZER_BANDWIDTH +
@@ -238,8 +233,50 @@ bool DbClusterDataBase::QueryCommunicationDetail(
         "GROUP BY band_type HAVING MIN(transit_size) = MAX(transit_size) "
         "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
         "ORDER BY band_type";
-    return ExecuteQueryCommunicationDetail(
-        timeSql, bandwidthSql, rankId, opName, startTimeNs, DB_COMMUNICATION_TIMESTAMP_TOLERANCE_NS, detail);
+    return ExecuteQueryCommunicationDetail(timeSql, bandwidthSql, rankId, opName, detail);
+}
+
+std::optional<std::string> DbClusterDataBase::QueryCommunicationRankId(
+    const std::string &host, const std::string &deviceId) {
+    if (deviceId.empty() || !CheckTablesExist({"HostInfo", "RankDeviceMap"})) {
+        return std::nullopt;
+    }
+    std::string sql;
+    if (host.empty()) {
+        // Older single-host MS_PROF databases may not contain HostInfo in the trace DB. A device-only mapping is
+        // safe only when the cluster database has exactly one distinct host/rank mapping for that device.
+        sql = "SELECT DISTINCT CAST(rankId AS TEXT) AS rankId, CAST(hostUid AS TEXT) AS mappingHostUid "
+              "FROM RankDeviceMap WHERE CAST(deviceId AS TEXT) = ? LIMIT 2";
+    } else {
+        sql = "SELECT DISTINCT CAST(mapping.rankId AS TEXT) AS rankId FROM RankDeviceMap mapping "
+              "INNER JOIN HostInfo hostInfo ON hostInfo.hostUid = mapping.hostUid "
+              "WHERE CAST(mapping.deviceId AS TEXT) = ? "
+              "AND hostInfo.hostName || hostInfo.hostUid || '' = ? LIMIT 2";
+    }
+
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Error("Failed to prepare communication rank mapping statement.");
+        return std::nullopt;
+    }
+    auto resultSet = host.empty() ? stmt->ExecuteQuery(deviceId) : stmt->ExecuteQuery(deviceId, host);
+    if (resultSet == nullptr) {
+        ServerLog::Error("Failed to execute communication rank mapping statement. error:", stmt->GetErrorMessage());
+        return std::nullopt;
+    }
+    if (!resultSet->Next()) {
+        if (resultSet->GetErrorCode() != SQLITE_DONE) {
+            ServerLog::Error("Failed to read communication rank mapping result. error:", resultSet->GetErrorMessage());
+        }
+        return std::nullopt;
+    }
+    std::string rankId = resultSet->GetString("rankId");
+    const bool hasMultipleMappings = resultSet->Next();
+    if (hasMultipleMappings || resultSet->GetErrorCode() != SQLITE_DONE || rankId.empty() ||
+        rankId.find_first_not_of("0123456789") != std::string::npos) {
+        return std::nullopt;
+    }
+    return rankId;
 }
 
 bool DbClusterDataBase::QueryDistributionData(
