@@ -17,7 +17,7 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { MIChart } from '@insight/lib/components';
+import { MIChart, Tooltip } from '@insight/lib/components';
 import type { ChartsHandle } from '@insight/lib';
 import type { EChartsOption } from 'echarts';
 import { merge } from 'lodash';
@@ -28,9 +28,10 @@ import { observer } from 'mobx-react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { GenerateConditions } from '../../store/parallelism';
+import { ResetIcon } from '@insight/lib/icon';
 
 const VALUE_ALL = 'All';
-const ZOOM_SIZE = 20;
+const ZOOM_SIZE = 21;
 
 const baseOptions: EChartsOption = {
     legend: {
@@ -75,6 +76,17 @@ const baseOptions: EChartsOption = {
         },
     ],
     series: [],
+};
+
+interface DataZoomOption {
+    start?: number;
+    end?: number;
+}
+
+const isChartZoomed = (chart: ChartsHandle['chartInstance']): boolean => {
+    const dataZoom = chart?.getOption().dataZoom as DataZoomOption[] | undefined;
+    const { start = 0, end = 100 } = dataZoom?.[0] ?? {};
+    return start > 0 || end < 100;
 };
 
 interface PerformanceChartProps extends GenerateConditions {
@@ -169,6 +181,7 @@ export const PerformanceChart = observer((props: PerformanceChartProps): JSX.Ele
     const [datasource, setDatasource] = useState<PerformanceDataItem[]>([]);
     const datasourceRef = useRef<PerformanceDataItem[]>([]);
     const [legendSelected, setLegendSelected] = useState<Record<string, boolean> | null>(null);
+    const [isZoomed, setIsZoomed] = useState(false);
     const { t } = useTranslation('summary');
 
     // 图表的默认宽为100，此处是fix图表初始化时宽度未撑开的问题
@@ -235,11 +248,24 @@ export const PerformanceChart = observer((props: PerformanceChartProps): JSX.Ele
         const firstRankId = filteredData[0]?.index;
 
         datasourceRef.current = filteredData;
+        setIsZoomed(false);
         setDatasource(filteredData);
         if (firstRankId !== undefined) {
             setActiveRankId(firstRankId.toString());
         }
     }, [top, group, orderBy, session.performanceData]);
+
+    const handleDataZoom = (): void => {
+        setIsZoomed(isChartZoomed(chartRef.current?.getInstance() ?? null));
+    };
+
+    const handleResetZoom = (): void => {
+        chartRef.current?.getInstance()?.dispatchAction({
+            type: 'dataZoom',
+            start: 0,
+            end: 100,
+        });
+    };
 
     const handleChartClick = (event: { name: string; dataIndex?: number }): void => {
         setActiveRankId(event.name);
@@ -249,16 +275,28 @@ export const PerformanceChart = observer((props: PerformanceChartProps): JSX.Ele
             return;
         }
 
-        const startIndex = Math.max(dataIndex - ZOOM_SIZE / 2, 0);
-        const endIndex = Math.min(dataIndex + ZOOM_SIZE / 2, currentDatasource.length - 1);
+        const halfZoomSize = Math.floor(ZOOM_SIZE / 2);
+        let startIndex = Math.max(dataIndex - halfZoomSize, 0);
+        const endIndex = Math.min(startIndex + ZOOM_SIZE - 1, currentDatasource.length - 1);
+        startIndex = Math.max(endIndex - ZOOM_SIZE + 1, 0);
         chartRef.current?.getInstance()?.dispatchAction({
             type: 'dataZoom',
-            startValue: currentDatasource[startIndex].index,
-            endValue: currentDatasource[endIndex].index,
+            startValue: startIndex,
+            endValue: endIndex,
         });
     };
 
     return <>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '16px' }}>
+            <Tooltip title={t('Reset Zoom')}>
+                <ResetIcon
+                    data-testid="performance-chart-reset-zoom"
+                    disabled={!isZoomed}
+                    style={{ cursor: isZoomed ? 'pointer' : 'not-allowed' }}
+                    onClick={isZoomed ? handleResetZoom : undefined}
+                />
+            </Tooltip>
+        </div>
         <MIChart
             width={'calc(100vw - 80px)'}
             ref={chartRef}
@@ -267,6 +305,7 @@ export const PerformanceChart = observer((props: PerformanceChartProps): JSX.Ele
             onEvents={
                 {
                     click: handleChartClick,
+                    datazoom: handleDataZoom,
                     legendselectchanged(e): void {
                         setLegendSelected((prevState) => ({ ...prevState, ...e.selected }));
                     },

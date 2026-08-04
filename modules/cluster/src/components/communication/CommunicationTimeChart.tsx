@@ -16,9 +16,10 @@
  * -------------------------------------------------------------------------
  */
 import { observer } from 'mobx-react-lite';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Spin, CollapsiblePanel } from '@insight/lib/components';
+import { Spin, CollapsiblePanel, Tooltip } from '@insight/lib/components';
+import { HelpIcon, ResetIcon } from '@insight/lib/icon';
 import { chartVisbilityListener, COLOR, commonEchartsOptions } from '../Common';
 import type { Session } from '../../entity/session';
 import i18n from '@insight/lib/i18n';
@@ -75,15 +76,30 @@ function handleChartClick(myChart: ECharts, data: ChartData, event: { dataIndex?
     });
 }
 
-function InitCharts(data: ChartData, isCompare: boolean): void {
+interface DataZoomOption {
+    start?: number;
+    end?: number;
+}
+
+const isChartZoomed = (chart: ECharts): boolean => {
+    const dataZoom = chart.getOption().dataZoom as DataZoomOption[] | undefined;
+    const { start = 0, end = 100 } = dataZoom?.[0] ?? {};
+    return start > 0 || end < 100;
+};
+
+function InitCharts(data: ChartData, isCompare: boolean, onDataZoom: (isZoomed: boolean) => void): ECharts | null {
     const chartDom = document.getElementById('main');
     if (chartDom === null || chartDom.offsetParent === null) {
-        return;
+        return null;
     }
     const myChart = getAdaptiveEchart(chartDom);
-    myChart.setOption(wrapData(data, isCompare), { replaceMerge: ['series', 'xAxis', 'yAxis', 'legend'] });
+    myChart.setOption(wrapData(data, isCompare), { replaceMerge: ['series', 'xAxis', 'yAxis', 'legend', 'dataZoom'] });
     myChart.off('click');
     myChart.on('click', (event) => handleChartClick(myChart, data, event));
+    myChart.off('datazoom');
+    myChart.on('datazoom', () => onDataZoom(isChartZoomed(myChart)));
+    onDataZoom(false);
+    return myChart;
 }
 function wrapData(data: ChartData, isCompare: boolean): any {
     const options = cloneDeep(baseOption);
@@ -293,21 +309,50 @@ const wrapChartData = (data: DataItem[], isCompare: boolean): ChartData => {
     return chartData;
 };
 
+const ChartTitle = (): JSX.Element => {
+    const { t } = useTranslation('communication');
+    return <>
+        {t('sessionTitle.VisualizedCommunicationTime')}
+        <Tooltip title={<div style={{ padding: '1rem' }}>{t('Chart Zoom Tooltip')}</div>}>
+            <HelpIcon style={{ cursor: 'pointer', marginLeft: '3px' }} height={20} width={20}/>
+        </Tooltip>
+    </>;
+};
+
 // 通信时长图 Visualized Communication Time
 const CommunicationTimeChart = observer(({ dataSource, session }: {dataSource: DataItem[]; session: Session}) => {
     const { t } = useTranslation('communication');
+    const chartRef = useRef<ECharts | null>(null);
+    const [isZoomed, setIsZoomed] = useState(false);
     const data = useMemo(() => wrapChartData(dataSource, session.isCompare), [dataSource, session.isCompare]);
-    chartVisbilityListener('main', () => {
-        InitCharts(data, session.isCompare);
-    });
-    useEffect(() => {
-        setTimeout(() => {
-            InitCharts(data, session.isCompare);
+    const initCharts = (): void => {
+        chartRef.current = InitCharts(data, session.isCompare, setIsZoomed);
+    };
+    const handleResetZoom = (): void => {
+        chartRef.current?.dispatchAction({
+            type: 'dataZoom',
+            start: 0,
+            end: 100,
         });
+    };
+
+    chartVisbilityListener('main', initCharts);
+    useEffect(() => {
+        setTimeout(initCharts);
     }, [dataSource, t, session.isCompare]);
     return (
-        <CollapsiblePanel title={t('sessionTitle.VisualizedCommunicationTime')}>
+        <CollapsiblePanel title={<ChartTitle/>}>
             <Spin spinning={session.clusterCompleted && !session.durationFileCompleted } tip="">
+                <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '16px' }}>
+                    <Tooltip title={t('Reset Zoom')}>
+                        <ResetIcon
+                            data-testid="communication-time-chart-reset-zoom"
+                            disabled={!isZoomed}
+                            style={{ cursor: isZoomed ? 'pointer' : 'not-allowed' }}
+                            onClick={isZoomed ? handleResetZoom : undefined}
+                        />
+                    </Tooltip>
+                </div>
                 <div id={'main'} style={{ height: '400px' }} ></div>
             </Spin>
         </CollapsiblePanel>

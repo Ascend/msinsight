@@ -43,6 +43,8 @@
     "MindIE Size Validate Message": "World Size ( PP × TP × DP ) must be greater than the device count",
     "Megatron Size Validate Message": "World Size ( PP × TP × CP × DP ) must be greater than the device count",
     "Computation/CommunicationOverview": "Computation/Communication Overview",
+    "Chart Zoom Tooltip": "Hover to view Rank details. Use the mouse wheel or touchpad over the chart to zoom, click a data item to focus on nearby Ranks, and click Reset Zoom to restore the full view.",
+    "Reset Zoom": "Reset Zoom",
     "Computation/CommunicationDescribe": [
       "Computing = Sum of kernel time on NPU",
       "Computing(Not Overlapped) = Computing - Computing_Communication Overlapped",
