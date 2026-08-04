@@ -598,13 +598,45 @@ vncserver -localhost -geometry 1920x1080
 **准备环境**
 
 1. 准备一台已安装Docker且Docker服务运行正常的Linux服务器。
-2. 根据服务器的CPU架构，下载对应架构的MindStudio Insight镜像包，并完成[软件完整性验证](#软件完整性验证)。
+2. 根据服务器的网络环境选择镜像获取方式：
+
+    - 在线获取：确保服务器能够访问AscendHub镜像仓库。
+    - 离线获取：根据服务器的CPU架构下载对应架构的MindStudio Insight镜像包，并完成[软件完整性验证](#软件完整性验证)。
+
 3. 确保客户端能够访问服务器上用于MindStudio Insight的映射端口。
 
 > [!NOTE] 说明
 > 镜像中的操作系统和Python运行环境已经预置，无需在服务器上另行安装MindStudio Insight的运行依赖。如果需要自行构建镜像，请参见[MindStudio Insight镜像说明](../../../docker/OVERVIEW.zh.md#本地构建)。
 
-**加载镜像**
+**获取镜像**
+
+用户可根据服务器的网络环境，通过AscendHub镜像仓库在线拉取镜像，或加载已下载的离线镜像包。
+
+<h4 id="在线拉取镜像">方式一：在线拉取镜像</h4>
+
+1. 访问[AscendHub MindStudio Insight镜像页面](https://www.hiascend.com/developer/ascendhub/detail/e40957c8eb4245e3a189b818b2408eb1)，根据镜像基础操作系统和Python版本选择镜像Tag。
+
+    当前提供以下镜像Tag，均支持`x86_64`和`aarch64`架构。
+
+    |镜像Tag|基础操作系统|Python版本|
+    |--|--|--|
+    |`26.1.0-ubuntu22.04-py3.10`|Ubuntu 22.04|3.10|
+    |`26.1.0-openeuler24.03-py3.11`|openEuler 24.03 LTS|3.11|
+
+2. 在镜像页面对应Tag的操作栏中单击“立即下载”，按照页面显示的操作步骤复制并执行镜像拉取命令。
+
+    > [!NOTE] 说明
+    > AscendHub镜像仓库中的镜像地址和拉取命令可能随仓库配置变化，请以镜像页面实时显示的信息为准。
+
+3. 执行以下命令，确认镜像已拉取成功：
+
+    ```shell
+    docker images
+    ```
+
+    在回显中找到已拉取的MindStudio Insight镜像，并记录镜像名称和Tag。下文使用`{image_name}:{image_tag}`表示该镜像。
+
+<h4 id="加载离线镜像">方式二：加载离线镜像</h4>
 
 1. 将下载的镜像包上传至服务器。
 2. 在镜像包所在目录执行以下命令，加载镜像。
@@ -619,7 +651,7 @@ vncserver -localhost -geometry 1920x1080
     Loaded image: {image_name}:{image_tag}
     ```
 
-3. 执行以下命令，确认镜像已加载成功。
+3. 执行以下命令，确认镜像已加载成功：
 
     ```shell
     docker images
@@ -636,7 +668,7 @@ vncserver -localhost -geometry 1920x1080
 <h4 id="使用streamer脚本运行镜像">方式一：使用Streamer脚本运行镜像（推荐）</h4>
 
 1. 从[MindStudio Insight代码仓](https://gitcode.com/Ascend/msinsight)获取`streamer`目录，并在服务器上进入该目录。
-2. 根据执行`docker load`后的镜像名称选择镜像：
+2. 根据获取镜像后的镜像名称选择镜像：
 
     - 如果镜像仓库名为`msinsight`，脚本会自动选择本地最新的`msinsight`镜像，无需指定`--image`。
     - 如果镜像仓库名不是`msinsight`，执行脚本时需要通过`--image {image_name}:{image_tag}`指定镜像。
@@ -754,7 +786,7 @@ vncserver -localhost -geometry 1920x1080
 |`/path/to/profile_data`|服务器上存放待分析性能数据的目录，请替换为实际的绝对路径。|
 |`/path/to/certs`|服务器上存放mTLS证书的目录，请替换为实际的绝对路径。|
 |`msinsight`|容器名称，可根据实际情况修改。|
-|`{image_name}:{image_tag}`|执行`docker load`后得到的镜像名称和Tag。|
+|`{image_name}:{image_tag}`|在线拉取或加载离线镜像后得到的镜像名称和Tag。|
 
 执行以下命令，可查看容器是否启动成功：
 
