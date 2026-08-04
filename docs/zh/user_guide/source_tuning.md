@@ -20,7 +20,7 @@ MTE3泳道：UB--> GM
 
 FixPipe泳道：L0->GM/L1
 
-> 存储单元介绍可以参考：[存储单元-搬运单元介绍](https://www.hiascend.com/document/detail/zh/canncommercial/81RC1/developmentguide/opdevg/Ascendcopdevg/atlas_ascendc_10_0010.html)
+> 存储单元介绍可以参考：[存储单元-搬运单元介绍](https://gitcode.com/cann/asc-devkit/blob/master/docs/zh/guide/%E7%BC%96%E7%A8%8B%E6%8C%87%E5%8D%97/%E9%AB%98%E7%BA%A7%E7%BC%96%E7%A8%8B/%E7%A1%AC%E4%BB%B6%E5%AE%9E%E7%8E%B0/%E5%9F%BA%E6%9C%AC%E6%9E%B6%E6%9E%84.md#%E5%AD%98%E5%82%A8%E5%8D%95%E5%85%83%E5%92%8C%E6%90%AC%E8%BF%90%E5%8D%95%E5%85%83)
 
 **控制流**
 
