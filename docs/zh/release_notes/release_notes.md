@@ -71,6 +71,10 @@ MindStudio Insight 26.1.0 围绕内存快照分析、ftrace 主动分析、容�
 | macOS aarch64 | [MindStudio-Insight_26.1.0_macos_aarch64.dmg](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_26.1.0_macos_aarch64.dmg) |
 | JupyterLab Linux x86_64 | [mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_x86_64.whl](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_x86_64.whl) |
 | JupyterLab Linux aarch64 | [mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_aarch64.whl](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/mindstudio_insight_jupyterlab-26.1.0-py3-none-linux_aarch64.whl) |
+| Docker镜像 Ubuntu 22.04 x86_64 | [MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_x86_64.tar](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_x86_64.tar) |
+| Docker镜像 Ubuntu 22.04 aarch64 | [MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_aarch64.tar](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-ubuntu22.04_py3.10_aarch64.tar) |
+| Docker镜像 openEuler 24.03 x86_64 | [MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_x86_64.tar](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_x86_64.tar) |
+| Docker镜像 openEuler 24.03 aarch64 | [MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_aarch64.tar](https://gitcode.com/Ascend/msinsight/releases/download/tag_MindStudio_26.1.0.B100_002/MindStudio-Insight_docker_image_26.1.0-openeuler24.03_py3.11_aarch64.tar) |
 
 ---
 
