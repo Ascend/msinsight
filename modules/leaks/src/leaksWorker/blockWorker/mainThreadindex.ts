@@ -64,6 +64,7 @@ export class MainThreadRender {
     memoryBlockData: RenderData | undefined;
     memoryBlockMetadata: BlockGraphMetadata | undefined;
     blockDataOPFS: BlockDataOPFS;
+    readonly temporaryBlockDataStorageKey: string;
     reservedLine: Array<[number, number]> = [];
     transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     viewport: RenderOptions['viewport'] = { width: 0, height: 0 };
@@ -85,7 +86,8 @@ export class MainThreadRender {
     constructor() {
         const { sessionStore } = store;
         this.session = sessionStore.activeSession as Session;
-        this.blockDataOPFS = new BlockDataOPFS(`main-thread-${createLeaksOpfsRuntimeId()}`);
+        this.temporaryBlockDataStorageKey = `main-thread-${createLeaksOpfsRuntimeId()}`;
+        this.blockDataOPFS = new BlockDataOPFS(this.temporaryBlockDataStorageKey);
     }
 
     private getSizeInfo(): { maxTimestamp: number; minTimestamp: number; maxSize: number; minSize: number } {
@@ -142,6 +144,20 @@ export class MainThreadRender {
         if (isLeaksOpfsEnabled()) {
             await this.blockDataOPFS.init();
         }
+    }
+
+    private async selectBlockDataStorage(fileHash: unknown): Promise<string> {
+        const result = await BlockDataOPFS.prepareStorage({
+            fileHash,
+            temporaryStorageKey: this.temporaryBlockDataStorageKey,
+            blockDataOPFS: this.blockDataOPFS,
+            mainThread: true,
+            beforeStorageChange: async () => {
+                await this.renderer?.setDataFromOPFS(null, 0, [], false);
+            },
+        });
+        this.blockDataOPFS = result.blockDataOPFS;
+        return result.fileHash;
     }
 
     private resetMemoryBlockDataState(generation: number): void {
@@ -230,8 +246,24 @@ export class MainThreadRender {
     ): Promise<void> {
         this.useOpfs = true;
         this.memoryBlockData = undefined;
+        const fileHash = await this.selectBlockDataStorage(payload.fileHash);
         this.memoryBlockMetadata = getInitialBlockGraphMetadata(payload.data);
         this.reservedLine = this.memoryBlockMetadata.reservedLine ?? [];
+        const cachedMetadata = await this.blockDataOPFS.loadCompleteCacheForBuild(fileHash);
+        if (cachedMetadata) {
+            if (shouldCancel()) {
+                throw new BlockPathBuildCancelledError();
+            }
+            this.storageReadyGeneration = payload.generation;
+            this.updateMetadataView(cachedMetadata, payload.generation);
+            await this.renderer?.setDataFromOPFS(
+                this.blockDataOPFS,
+                cachedMetadata.batchCount,
+                this.reservedLine,
+                false,
+            );
+            return;
+        }
         const progressiveState: ProgressiveRenderState = { enabled: false, framePublished: false, lastBatch: 0 };
         const builtMetadata = await buildBlockViewPathAndWriteToOPFS(payload.data, this.blockDataOPFS, {
             generation: payload.generation,
@@ -240,7 +272,10 @@ export class MainThreadRender {
                 this.updateMetadataView(metadata, payload.generation);
                 progressiveState.enabled = Number.isFinite(this.zoom.x) && Number.isFinite(this.zoom.y);
             },
-            onStorageReady: () => this.initializeProgressiveStorage(payload.generation),
+            onStorageReady: async () => {
+                await this.blockDataOPFS.tryMarkCacheBuilding(fileHash);
+                await this.initializeProgressiveStorage(payload.generation);
+            },
             onBatchesCommitted: (_startBatch, endBatch, progress) =>
                 this.renderProgressiveBatch(payload.generation, endBatch, progress, progressiveState, shouldCancel),
         });
@@ -248,6 +283,7 @@ export class MainThreadRender {
         if (shouldCancel()) {
             throw new BlockPathBuildCancelledError();
         }
+        await this.blockDataOPFS.trySaveCompleteCache(fileHash, builtMetadata);
         this.updateMetadataView(this.memoryBlockMetadata, payload.generation);
         await this.renderer?.setDataFromOPFS(
             this.blockDataOPFS,
@@ -467,8 +503,10 @@ export class MainThreadRender {
             this.session.leaksWorkerInfo.hoverItem = null;
         });
         await this.renderHighlightData(false);
-        await this.blockDataOPFS?.clear();
         await this.renderer?.setDataFromOPFS(null, 0, [], false);
+        if (isLeaksOpfsEnabled()) {
+            await this.blockDataOPFS.release(this.temporaryBlockDataStorageKey);
+        }
         this.renderer?.setTransform(this.transform).setZoom(this.zoom, false).updateCanvasSize(this.viewport);
     }
 }

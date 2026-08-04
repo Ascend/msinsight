@@ -29,6 +29,7 @@ export const BlockWorker = new Worker(new URL('./', import.meta.url));
 
 let workerGeneration = 0;
 const pendingWorkerLoads = new Map<number, { resolve: () => void; reject: (error: Error) => void }>();
+const pendingCacheLoads = new Map<number, { resolve: (hit: boolean) => void; reject: (error: Error) => void }>();
 
 export const isCurrentBlockWorkerGeneration = (generation: number | undefined): boolean =>
     generation === undefined || generation === workerGeneration;
@@ -39,15 +40,36 @@ module.hot?.dispose(() => {
         pending.reject(new Error('Block worker replaced by hot reload'));
     }
     pendingWorkerLoads.clear();
+    for (const pending of pendingCacheLoads.values()) {
+        pending.reject(new Error('Block worker replaced by hot reload'));
+    }
+    pendingCacheLoads.clear();
 });
 
 BlockWorker.addEventListener('message', (event: MessageEvent<{
     type?: string;
     generation?: number;
     error?: string;
+    hit?: boolean;
 }>): void => {
     const generation = event.data.generation;
     if (generation === undefined) {
+        return;
+    }
+    const pendingCache = pendingCacheLoads.get(generation);
+    if (event.data.type === 'blockPathCacheLoadCompleted' && pendingCache) {
+        pendingCache.resolve(event.data.hit === true);
+        pendingCacheLoads.delete(generation);
+        return;
+    }
+    if (event.data.type === 'renderCancelled' && pendingCache) {
+        pendingCache.resolve(false);
+        pendingCacheLoads.delete(generation);
+        return;
+    }
+    if (event.data.type === 'renderFailed' && pendingCache) {
+        pendingCache.reject(new Error(event.data.error ?? 'Block worker cache load failed'));
+        pendingCacheLoads.delete(generation);
         return;
     }
     const pending = pendingWorkerLoads.get(generation);
@@ -73,7 +95,19 @@ const WorkerBackend = {
             [offscreenCanvas],
         );
     },
-    setMemoryBlockData({ data }: { data: RenderData }): Promise<void> {
+    loadMemoryBlockCache({ fileHash }: { fileHash?: string }): Promise<boolean> {
+        const generation = ++workerGeneration;
+        const completion = new Promise<boolean>((resolve, reject) => {
+            pendingCacheLoads.set(generation, { resolve, reject });
+        });
+        BlockWorker.postMessage({
+            type: 'loadMemoryBlockCache',
+            generation,
+            fileHash,
+        } as LoadMemoryBlockCachePayload);
+        return completion;
+    },
+    setMemoryBlockData({ data, fileHash }: { data: RenderData; fileHash?: string }): Promise<void> {
         const generation = ++workerGeneration;
         const packedData = packRenderData(data);
         data.blocks = [];
@@ -81,7 +115,7 @@ const WorkerBackend = {
             pendingWorkerLoads.set(generation, { resolve, reject });
         });
         BlockWorker.postMessage(
-            { type: 'setMemoryBlockData', generation, data: packedData } as SetMemoryBlocksDataPayload,
+            { type: 'setMemoryBlockData', generation, data: packedData, fileHash } as SetMemoryBlocksDataPayload,
             getPackedRenderDataTransferList(packedData),
         );
         return completion;
@@ -126,7 +160,10 @@ const MainThreadBackend = {
         const devicePixelRatio = window.devicePixelRatio || 1;
         await mainThreadRender.initCanvasHandler({ canvas, devicePixelRatio, width, height });
     },
-    setMemoryBlockData({ data }: { data: RenderData }): Promise<void> {
+    loadMemoryBlockCache(): Promise<boolean> {
+        return Promise.resolve(false);
+    },
+    setMemoryBlockData({ data, fileHash }: { data: RenderData; fileHash?: string }): Promise<void> {
         const generation = ++mainThreadGeneration;
         const packedData = packRenderData(data);
         data.blocks = [];
@@ -135,7 +172,7 @@ const MainThreadBackend = {
                 return;
             }
             await mainThreadRender.setMemoryBlockDataHandler(
-                { generation, data: packedData },
+                { generation, data: packedData, fileHash },
                 () => generation !== mainThreadGeneration,
             );
         });
@@ -181,6 +218,7 @@ const backend = isWebGL2Supported() ? WorkerBackend : MainThreadBackend;
 
 // 导出统一接口
 export const workerInitCanvas = backend.initCanvas;
+export const workerLoadMemoryBlockCache = backend.loadMemoryBlockCache;
 export const workerSetMemoryBlockData = backend.setMemoryBlockData;
 export const workerSetReservedLine = backend.setReservedLine;
 export const workerResizeCanvas = backend.resizeCanvas;

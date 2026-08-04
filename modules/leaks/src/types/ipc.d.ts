@@ -28,6 +28,13 @@ interface SetMemoryBlocksDataPayload {
     type: 'setMemoryBlockData';
     generation: number;
     data: RenderData | PackedRenderData;
+    fileHash?: string;
+};
+
+interface LoadMemoryBlockCachePayload {
+    type: 'loadMemoryBlockCache';
+    generation: number;
+    fileHash?: string;
 };
 
 interface SetReservedLinePayload {
@@ -96,6 +103,7 @@ interface SetMemoryStateDataPayload {
 
 type Payload =
     | InitCanvasPayload
+    | LoadMemoryBlockCachePayload
     | SetMemoryBlocksDataPayload
     | SetReservedLinePayload
     | ResizeCanvasPayload

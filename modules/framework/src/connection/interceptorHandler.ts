@@ -63,6 +63,7 @@ interface ParseLeaksNotification {
     threadIds: number[];
     dbPath: string;
     module: string;
+    fileHash?: string;
 }
 
 interface ParseHeatmapNotification {
@@ -126,7 +127,13 @@ export const parseStatisticSuccessHandler: NotificationInterceptor<ParseStatisti
 };
 
 export const parseLeaksSuccessHandler: NotificationInterceptor<ParseLeaksNotification> = (data): void => {
-    updateSession({ deviceIds: data.deviceIds, threadIds: data.threadIds, dbPath: data.dbPath, module: data.module });
+    updateSession({
+        deviceIds: data.deviceIds,
+        threadIds: data.threadIds,
+        dbPath: data.dbPath,
+        module: data.module,
+        fileHash: data.fileHash ?? '',
+    });
 };
 
 export const parseTritonSuccessHandler: NotificationInterceptor<ParseLeaksNotification> = (): void => {

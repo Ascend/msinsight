@@ -15,7 +15,12 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { workerSetMemoryBlockData, workerSetReservedLine, workerTransform } from '@/leaksWorker/blockWorker/worker';
+import {
+    workerLoadMemoryBlockCache,
+    workerSetMemoryBlockData,
+    workerSetReservedLine,
+    workerTransform,
+} from '@/leaksWorker/blockWorker/worker';
 import {
     getMemoryDetailData, getFuncData, getBlockDetails, getEventDetails,
     FuncParam, type BlockParam, EventParam,
@@ -33,6 +38,9 @@ import { runInAction } from 'mobx';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
 const barDataRequestSeqMap = new WeakMap<object, number>();
+
+const createBlockPathCacheHash = (fileHash: string, deviceId: string, eventType: string): string =>
+    fileHash ? `${fileHash}-${deviceId}-${eventType}` : '';
 
 export const getFuncNewData = async (
     session: any,
@@ -110,6 +118,7 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
     });
     try {
         const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
+        const cacheFileHash = createBlockPathCacheHash(session.fileHash, param.deviceId, param.eventType);
         const allocationTask = getAllocationRequest(param).then(async allocationData => {
             if (!requestActive || !isLatestRequest()) {
                 return;
@@ -117,7 +126,9 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             const { reservedLine, ...allocationResult } = allocationData;
             runInAction(() => {
                 session.allocationData = allocationResult;
-                session.loadingOverview = false;
+                if (allocationResult.allocations.length === 0) {
+                    session.loadingOverview = false;
+                }
             });
             const rendererStarted = await blockRenderStarted;
             if (rendererStarted && isLatestRequest() && session.module === 'memsnapshot') {
@@ -126,17 +137,37 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
                 }
             }
         }, error => ({ error }));
-        const blockData = await getBlocksRequest(param);
-        if (!isLatestRequest()) {
-            resolveBlockRenderStarted(false);
-            return;
-        }
         const transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
         workerTransform({ transform });
-        const blockRenderTask = workerSetMemoryBlockData({ data: blockData });
+        const cacheHit = session.module === 'memsnapshot'
+            ? await workerLoadMemoryBlockCache({ fileHash: cacheFileHash })
+            : false;
+        if (!isLatestRequest()) {
+            resolveBlockRenderStarted(false);
+            return;
+        }
+        if (cacheHit) {
+            resolveBlockRenderStarted(true);
+            const allocationResult = await allocationTask;
+            if (allocationResult !== undefined) {
+                throw allocationResult.error;
+            }
+            if (isLatestRequest()) {
+                runInAction(() => {
+                    session.loadingBlocks = false;
+                });
+            }
+            return;
+        }
+        const blockData = await getBlocksRequest(param);
+        if (!isLatestRequest()) {
+            resolveBlockRenderStarted(false);
+            return;
+        }
+        const blockRenderTask = workerSetMemoryBlockData({ data: blockData, fileHash: cacheFileHash });
         resolveBlockRenderStarted(true);
         const [, allocationResult] = await Promise.all([blockRenderTask, allocationTask]);
         if (allocationResult !== undefined) {

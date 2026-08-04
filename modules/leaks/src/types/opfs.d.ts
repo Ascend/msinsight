@@ -44,6 +44,7 @@ interface FileSystemWritableFileStream {
 interface FileSystemDirectoryHandle {
     getDirectoryHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemDirectoryHandle>;
     getFileHandle: (name: string, options?: { create?: boolean }) => Promise<FileSystemFileHandle>;
+    keys: () => AsyncIterableIterator<string>;
     removeEntry?: (name: string, options?: { recursive?: boolean }) => Promise<void>;
 }
 
