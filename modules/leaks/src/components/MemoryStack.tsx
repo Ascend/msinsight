@@ -93,7 +93,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         getFuncNewData(session, range[0], range[1], () => requestSeq === funcRangeRequestSeqRef.current);
     };
 
-    const scheduleRangeChange = (range: [number, number]): void => {
+    const scheduleRangeChange = (range: [number, number], syncDataZoom: boolean = true): void => {
         if (!isValidRange(range)) {
             return;
         }
@@ -101,7 +101,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
             return;
         }
         selectedRangeRef.current = range;
-        setSelectedRange(range);
+        setSelectedRange(syncDataZoom ? range : undefined);
         debouncedFuncRangeRef.current?.cancel();
         debouncedFuncRangeRef.current?.(range);
         debouncedCommitRangeRef.current?.cancel();
@@ -123,7 +123,8 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         if (!isValidRange(range)) {
             return;
         }
-        scheduleRangeChange(range);
+        // 缩略轴已经由用户直接操作，不需要再通过 selectedRange 反向设置一次滑块位置。
+        scheduleRangeChange(range, false);
 
         const { sizeInfo, renderOptions } = session.leaksWorkerInfo;
         const newScale = range[1] - range[0] === 0 ? Number.MAX_SAFE_INTEGER : (sizeInfo.maxTimestamp - sizeInfo.minTimestamp) / (range[1] - range[0]);

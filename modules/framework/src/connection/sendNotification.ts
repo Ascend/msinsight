@@ -162,6 +162,7 @@ export const sendMap: Record<string, (to?: string) => void> = {
     deviceIds: (to) => sendSessionKey('deviceIds', to),
     tritonParsed: (to) => sendSessionKey('tritonParsed', to),
     threadIds: (to) => sendSessionKey('threadIds', to),
+    fileHash: (to) => sendSessionKey('fileHash', to),
     dbPath: (to) => sendSessionKey('dbPath', to),
     module: (to) => sendSessionKey('module', to),
     memoryCardInfos: (to) => sendSessionKey('memoryCardInfos', to),

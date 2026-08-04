@@ -126,6 +126,7 @@ export class Session {
     deviceIds: any = {};
     threadIds: number[] = [];
     module: string = '';
+    fileHash: string = '';
     // triton数据解析完成
     tritonParsed: boolean = false;
     // 模块数据-算子调优
@@ -265,6 +266,7 @@ export class Session {
         this.deviceIds = {};
         this.threadIds = [];
         this.module = '';
+        this.fileHash = '';
     }
 
     // 数据源管理

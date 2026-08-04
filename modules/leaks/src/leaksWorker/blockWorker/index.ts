@@ -52,6 +52,19 @@ let storageReadyGeneration = 0;
 let dataLoadQueue: Promise<void> = Promise.resolve();
 let hoverSearchVersion = 0;
 const opfsRuntimeId = createLeaksOpfsRuntimeId();
+const temporaryBlockDataStorageKey = `main-${opfsRuntimeId}`;
+let resolveInitialization: () => void = () => undefined;
+let initializationError: Error | undefined;
+// 首次加载数据前必须等待渲染器和 OPFS 初始化完成，避免异步初始化期间访问未赋值的存储实例。
+const initializationTask = new Promise<void>(resolve => {
+    resolveInitialization = resolve;
+});
+const waitForInitialization = async (): Promise<void> => {
+    await initializationTask;
+    if (initializationError !== undefined) {
+        throw initializationError;
+    }
+};
 let reservedLineOverride: {
     generation: number;
     reservedLine: Array<[number, number]>;
@@ -147,14 +160,34 @@ const resolveHitBlock = async (payload: Omit<HoverItemPayload, 'type'>): Promise
 };
 
 const initCanvasHandler = async (payload: InitCanvasPayload): Promise<void> => {
-    canvas = payload.canvas as OffscreenCanvas;
-    renderer = new WebGLRenderer(canvas, payload.devicePixelRatio, opfsRuntimeId);
-    viewport = { width: payload.width, height: payload.height };
-    await renderer.initialize();
-    blockDataOPFS = new BlockDataOPFS(`main-${opfsRuntimeId}`);
-    if (isLeaksOpfsEnabled()) {
-        await blockDataOPFS.init();
+    try {
+        canvas = payload.canvas as OffscreenCanvas;
+        renderer = new WebGLRenderer(canvas, payload.devicePixelRatio, opfsRuntimeId);
+        viewport = { width: payload.width, height: payload.height };
+        await renderer.initialize();
+        blockDataOPFS = new BlockDataOPFS(temporaryBlockDataStorageKey);
+        if (isLeaksOpfsEnabled()) {
+            await blockDataOPFS.init();
+        }
+        resolveInitialization();
+    } catch (error) {
+        initializationError = error instanceof Error ? error : new Error(String(error));
+        resolveInitialization();
+        throw initializationError;
     }
+};
+
+const selectBlockDataStorage = async (fileHash: unknown): Promise<string> => {
+    const result = await BlockDataOPFS.prepareStorage({
+        fileHash,
+        temporaryStorageKey: temporaryBlockDataStorageKey,
+        blockDataOPFS,
+        beforeStorageChange: async () => {
+            await renderer?.setDataFromOPFS(null, 0, [], false);
+        },
+    });
+    blockDataOPFS = result.blockDataOPFS;
+    return result.fileHash;
 };
 
 const resetMemoryBlockDataState = (generation: number): void => {
@@ -233,8 +266,24 @@ const setMemoryBlockDataFromOPFS = async (
 ): Promise<void> => {
     useOpfs = true;
     memoryBlockData = undefined;
+    const fileHash = await selectBlockDataStorage(payload.fileHash);
     memoryBlockMetadata = getInitialBlockGraphMetadata(payload.data);
     reservedLine = memoryBlockMetadata.reservedLine ?? [];
+    const cachedMetadata = await blockDataOPFS.loadCompleteCacheForBuild(fileHash);
+    if (cachedMetadata) {
+        if (shouldCancel()) {
+            throw new BlockPathBuildCancelledError();
+        }
+        storageReadyGeneration = payload.generation;
+        updateMetadataView(cachedMetadata, payload.generation);
+        await renderer?.setDataFromOPFS(
+            blockDataOPFS,
+            cachedMetadata.batchCount,
+            reservedLine,
+            false,
+        );
+        return;
+    }
     const progressiveState: ProgressiveRenderState = {
         enabled: false,
         framePublished: false,
@@ -247,7 +296,10 @@ const setMemoryBlockDataFromOPFS = async (
             updateMetadataView(metadata, payload.generation);
             progressiveState.enabled = Number.isFinite(zoom.x) && Number.isFinite(zoom.y);
         },
-        onStorageReady: () => initializeProgressiveStorage(payload.generation),
+        onStorageReady: async () => {
+            await blockDataOPFS.tryMarkCacheBuilding(fileHash);
+            await initializeProgressiveStorage(payload.generation);
+        },
         onBatchesCommitted: (startBatch, endBatch, progress) =>
             renderProgressiveBatch(
                 payload.generation,
@@ -262,6 +314,7 @@ const setMemoryBlockDataFromOPFS = async (
     if (shouldCancel()) {
         throw new BlockPathBuildCancelledError();
     }
+    await blockDataOPFS.trySaveCompleteCache(fileHash, builtMetadata);
     updateMetadataView(memoryBlockMetadata, payload.generation);
     await renderer?.setDataFromOPFS(blockDataOPFS, memoryBlockMetadata.batchCount, reservedLine, false);
 };
@@ -278,7 +331,9 @@ const setMemoryBlockDataInMemory = async (payload: SetMemoryBlocksDataPayload): 
     await renderer?.setData(memoryBlockData.blocks, reservedLine);
 };
 
-const completeMemoryBlockDataRender = async (payload: SetMemoryBlocksDataPayload): Promise<void> => {
+const completeMemoryBlockDataRender = async (
+    payload: Pick<SetMemoryBlocksDataPayload, 'generation'>,
+): Promise<void> => {
     await renderHighlightData(false);
     renderer?.updateCanvasSize(viewport);
     renderer?.renderFrame();
@@ -292,10 +347,43 @@ const completeMemoryBlockDataRender = async (payload: SetMemoryBlocksDataPayload
     });
 };
 
+const loadMemoryBlockCacheHandler = async (
+    payload: LoadMemoryBlockCachePayload,
+    shouldCancel: () => boolean,
+): Promise<boolean> => {
+    await waitForInitialization();
+    if (!isLeaksOpfsEnabled()) {
+        return false;
+    }
+    const fileHash = await selectBlockDataStorage(payload.fileHash);
+    if (!fileHash) {
+        return false;
+    }
+    const cachedMetadata = await blockDataOPFS.loadCompleteCache(fileHash);
+    if (!cachedMetadata) {
+        return false;
+    }
+    if (shouldCancel()) {
+        throw new BlockPathBuildCancelledError();
+    }
+    resetMemoryBlockDataState(payload.generation);
+    useOpfs = true;
+    memoryBlockData = undefined;
+    storageReadyGeneration = payload.generation;
+    updateMetadataView(cachedMetadata, payload.generation);
+    await renderer?.setDataFromOPFS(blockDataOPFS, cachedMetadata.batchCount, reservedLine, false);
+    if (shouldCancel()) {
+        throw new BlockPathBuildCancelledError();
+    }
+    await completeMemoryBlockDataRender(payload);
+    return true;
+};
+
 const setMemoryBlockDataHandler = async (
     payload: SetMemoryBlocksDataPayload,
     shouldCancel: () => boolean,
 ): Promise<void> => {
+    await waitForInitialization();
     resetMemoryBlockDataState(payload.generation);
     if (isLeaksOpfsEnabled()) {
         await setMemoryBlockDataFromOPFS(payload, shouldCancel);
@@ -444,8 +532,10 @@ const destroyHandler = async (): Promise<void> => {
     });
     self.postMessage({ type: 'clickItemResult', result: null });
     await renderHighlightData(false);
-    await blockDataOPFS?.clear();
     await renderer?.setDataFromOPFS(null, 0, [], false);
+    if (isLeaksOpfsEnabled()) {
+        await blockDataOPFS.release(temporaryBlockDataStorageKey);
+    }
     renderer?.setTransform(transform).setZoom(zoom, false).updateCanvasSize(viewport);
 };
 
@@ -463,6 +553,36 @@ const Handlers: PayloadHandlers = {
 
 self.onmessage = (ev: MessageEvent<Payload>): void => {
     const payload = ev.data;
+    if (payload.type === 'loadMemoryBlockCache') {
+        latestDataGeneration = payload.generation;
+        if (reservedLineOverride?.generation !== payload.generation) {
+            reservedLineOverride = null;
+        }
+        const generation = payload.generation;
+        dataLoadQueue = dataLoadQueue.catch(() => undefined).then(async () => {
+            if (generation !== latestDataGeneration) {
+                self.postMessage({ type: 'renderCancelled', generation });
+                return;
+            }
+            try {
+                const hit = await loadMemoryBlockCacheHandler(payload, () => generation !== latestDataGeneration);
+                self.postMessage({
+                    type: 'blockPathCacheLoadCompleted',
+                    generation,
+                    hit,
+                });
+            } catch (error) {
+                if (error instanceof BlockPathBuildCancelledError || generation !== latestDataGeneration) {
+                    self.postMessage({ type: 'renderCancelled', generation });
+                    return;
+                }
+                // eslint-disable-next-line no-console
+                console.error('Block worker cache load error:', error);
+                self.postMessage({ type: 'renderFailed', generation, error: String(error) });
+            }
+        });
+        return;
+    }
     if (payload.type === 'setMemoryBlockData') {
         latestDataGeneration = payload.generation;
         if (reservedLineOverride?.generation !== payload.generation) {

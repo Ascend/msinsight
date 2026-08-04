@@ -189,6 +189,7 @@ export class Session {
     memSnapshotParseLoading: boolean = false;
     memSnapshotParseProgress: number = 0;
     memSnapshotParseFileId: string = '';
+    fileHash: string = '';
 
     constructor() {
         makeAutoObservable(this);

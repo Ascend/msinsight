@@ -16,12 +16,15 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useMemo, useRef, useEffect } from 'react';
+import React, { useCallback, useMemo, useRef, useEffect } from 'react';
 import { MIChart, type ChartsHandle } from '@insight/lib/components';
 import type { EChartsOption, GridComponentOption as GridOption, YAXisComponentOption as YAXisOption, DataZoomComponentOption as DataZoomOption } from 'echarts';
 import { observer } from 'mobx-react';
 import { type Theme, useTheme } from '@emotion/react';
 import { formatTime } from '@/utils/utils';
+import { Loading } from './leaks/tools';
+import { store } from '@/store';
+import { runInAction } from 'mobx';
 
 /** 时间范围 */
 type Range = [number, number];
@@ -165,14 +168,35 @@ const MemoryDataZoom = observer(
         selectedZoomChange,
         selectedRange,
     }: DataZoomProps): React.ReactElement => {
+        const session = store.sessionStore.activeSession;
+        const loading = session?.loadingOverview ?? false;
         const theme = useTheme();
         const chartRef = useRef<ChartsHandle | null>(null);
         const dataZoomRef = useRef<ChartsHandle | null>(null);
         const timeRangeRef = useRef<Range>([minTime, maxTime]);
+        const selectedZoomChangeRef = useRef(selectedZoomChange);
         const syncingRef = useRef(false);
         const pendingZoomActionRef = useRef<{ start: number; end: number } | null>(null);
         const zoomSyncFrameRef = useRef<number | null>(null);
         const syncReleaseFrameRef = useRef<number | null>(null);
+        const waitingForRenderRef = useRef(false);
+
+        useEffect(() => {
+            waitingForRenderRef.current = loading && dataSource.length > 0;
+        }, [dataSource, loading]);
+
+        const handleRenderFinished = useCallback((): void => {
+            if (!waitingForRenderRef.current) {
+                return;
+            }
+            waitingForRenderRef.current = false;
+            const activeSession = store.sessionStore.activeSession;
+            if (activeSession) {
+                runInAction(() => {
+                    activeSession.loadingOverview = false;
+                });
+            }
+        }, []);
 
         /**
          * 趋势图配置项
@@ -188,7 +212,7 @@ const MemoryDataZoom = observer(
             return getOptions({ dataSource, minTime, maxTime, isDataZoom: true, height: 0, dataZoomHeight, offsetLeft, offsetRight, theme, module });
         }, [dataSource, dataZoomHeight, offsetLeft, offsetRight, maxTime, minTime, theme, module]);
 
-        const handleDataZoom = (params: any): void => {
+        const handleDataZoom = useCallback((params: any): void => {
             if (syncingRef.current) return;
             const { start, end, batch } = params as DataZoomItem;
             const batchItem = batch?.[0];
@@ -199,43 +223,16 @@ const MemoryDataZoom = observer(
             const offsetTime = _maxTime - _minTime;
             const startTime = _minTime + Math.floor(offsetTime * _start / 100);
             const endTime = _minTime + Math.floor(offsetTime * _end / 100);
-            selectedZoomChange?.([startTime, endTime]);
-        };
+            selectedZoomChangeRef.current?.([startTime, endTime]);
+        }, []);
 
         useEffect(() => {
             timeRangeRef.current = [minTime, maxTime];
         }, [minTime, maxTime]);
 
         useEffect(() => {
-            if (!selectedZoomChange) return;
-            let disposed: boolean = false;
-            let chartInstance = dataZoomRef.current?.getInstance();
-
-            const retryGetInstance = (): void => {
-                if (disposed) return;
-
-                chartInstance = dataZoomRef.current?.getInstance();
-                if (!chartInstance) {
-                    requestAnimationFrame(retryGetInstance);
-                    return;
-                }
-                chartInstance.on('dataZoom', handleDataZoom);
-            };
-
-            !chartInstance && retryGetInstance();
-
-            return (): void => {
-                disposed = true;
-                chartInstance?.off('dataZoom', handleDataZoom);
-            };
-        }, []);
-
-        useEffect(() => {
-            if (!selectedZoomChange) return;
-            const chartInstance = dataZoomRef.current?.getInstance();
-            chartInstance?.off('dataZoom', handleDataZoom);
-            chartInstance?.on('dataZoom', handleDataZoom);
-        }, [dataSource, maxTime, minTime]);
+            selectedZoomChangeRef.current = selectedZoomChange;
+        }, [selectedZoomChange]);
 
         useEffect(() => {
             if (selectedRange === undefined || minTime >= maxTime || dataSource.length === 0) {
@@ -289,23 +286,43 @@ const MemoryDataZoom = observer(
             };
         }, []);
 
+        if (!loading && dataSource.length === 0) {
+            return <></>;
+        }
+        const chartHeight = (dataZoomHeight ?? DATA_ZOOM_HEIGHT) + DATA_ZOOM_OFFSET;
         return (
-            dataSource.length > 0
-                ? <div style={{ position: 'relative', width: typeof width === 'number' ? `${width}px` : width ?? '100%' }}>
-                    <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%' }}>
+            <div
+                data-testid="memoryDataZoom"
+                data-loading={String(loading)}
+                style={{
+                    position: 'relative',
+                    width: typeof width === 'number' ? `${width}px` : width ?? '100%',
+                    height: chartHeight,
+                }}
+            >
+                {dataSource.length > 0
+                    ? <>
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%' }}>
+                            <MIChart
+                                ref={chartRef}
+                                options={chartOptions}
+                                height={`${(dataZoomHeight ?? DATA_ZOOM_HEIGHT)}px`}
+                            />
+                        </div>
                         <MIChart
-                            ref={chartRef}
-                            options={chartOptions}
-                            height={`${(dataZoomHeight ?? DATA_ZOOM_HEIGHT)}px`}
+                            ref={dataZoomRef}
+                            options={dataZoomOptions}
+                            height={`${chartHeight}px`}
+                            onEvents={{ dataZoom: handleDataZoom, finished: handleRenderFinished }}
                         />
-                    </div>
-                    <MIChart
-                        ref={dataZoomRef}
-                        options={dataZoomOptions}
-                        height={`${(dataZoomHeight ?? DATA_ZOOM_HEIGHT) + DATA_ZOOM_OFFSET}px`}
-                    />
-                </div>
-                : <></>
+                    </>
+                    : <></>}
+                <Loading
+                    size="small"
+                    style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: 'none' }}
+                    loading={loading}
+                />
+            </div>
         );
     },
 );

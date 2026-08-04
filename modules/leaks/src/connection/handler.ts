@@ -324,6 +324,7 @@ export const parseCompletedHandler = (data: any): void => {
             session.deviceIds = data.deviceIds;
             session.threadIds = data.threadIds;
             session.module = data.module;
+            session.fileHash = typeof data.fileHash === 'string' ? data.fileHash.trim() : '';
             restore(session);
         });
     }
@@ -337,6 +338,7 @@ export const removeRemoteHandler: NotificationHandler = (data): void => {
             session.deviceIds = {};
             session.threadIds = [];
             session.module = 'leaks';
+            session.fileHash = '';
             session.clickEventItem = null;
             session.leaksWorkerInfo = { ...LEAKS_WORKER_INFO_DEFAULT, renderOptions: { ...session.leaksWorkerInfo.renderOptions } };
             session.stateWorkerInfo = { ...STATE_WORKER_INFO_DEFAULT };

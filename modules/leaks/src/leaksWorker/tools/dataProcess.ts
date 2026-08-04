@@ -495,6 +495,7 @@ const addPathPoint = (block: Block, time: number, size: number): void => {
 const DEFAULT_MAX_PATH_POINTS = 4000000;
 const DEFAULT_MAX_PATH_POINTS_PER_BLOCK = 8192;
 const BUILD_YIELD_INTERVAL = 4096;
+const BUILD_YIELD_BUDGET_MS = 8;
 const PROGRESSIVE_BOOTSTRAP_FRAGMENT_LIMIT = 64;
 const PROGRESSIVE_BOOTSTRAP_PATH_POINT_LIMIT = 8192;
 
@@ -678,7 +679,36 @@ export const getInitialBlockGraphMetadata = (data: RenderData | PackedRenderData
     reservedSizeMax: data.reservedSizeMax,
 });
 
+let yieldChannel: MessageChannel | undefined;
+const channelYieldResolvers: Array<() => void> = [];
+
+const yieldThroughMessageChannel = async (): Promise<void> => {
+    if (yieldChannel === undefined) {
+        yieldChannel = new MessageChannel();
+        yieldChannel.port1.onmessage = (): void => {
+            channelYieldResolvers.shift()?.();
+        };
+        (yieldChannel.port1 as MessagePort & { unref?: () => void }).unref?.();
+        (yieldChannel.port2 as MessagePort & { unref?: () => void }).unref?.();
+    }
+    await new Promise<void>(resolve => {
+        channelYieldResolvers.push(resolve);
+        yieldChannel?.port2.postMessage(undefined);
+    });
+};
+
 const yieldToWorkerEventLoop = async (): Promise<void> => {
+    const scheduler = (globalThis as typeof globalThis & {
+        scheduler?: { yield?: () => Promise<void> };
+    }).scheduler;
+    if (scheduler?.yield) {
+        await scheduler.yield();
+        return;
+    }
+    if (typeof MessageChannel !== 'undefined') {
+        await yieldThroughMessageChannel();
+        return;
+    }
     await new Promise<void>(resolve => setTimeout(resolve, 0));
 };
 
@@ -745,10 +775,13 @@ export const buildBlockViewPathAndWriteToOPFS = async (
     const minSize = 0;
     let currentPreviewSize = 0;
     let maxSize = 0;
+    let previewSliceStartedAt = getNow();
     for (let eventIndex = 0; eventIndex < eventCount; eventIndex++) {
-        if (eventIndex > 0 && eventIndex % BUILD_YIELD_INTERVAL === 0) {
+        if (eventIndex > 0 && eventIndex % BUILD_YIELD_INTERVAL === 0 &&
+            getNow() - previewSliceStartedAt >= BUILD_YIELD_BUDGET_MS) {
             await yieldToWorkerEventLoop();
             assertNotCancelled();
+            previewSliceStartedAt = getNow();
         }
         const event = sortedEvents[eventIndex];
         const blockIndex = Math.floor(event / 2);
@@ -788,6 +821,7 @@ export const buildBlockViewPathAndWriteToOPFS = async (
     let persistedPathPoints = 0;
     let currentTotalSize = 0;
     let operationCount = 0;
+    let pathSliceStartedAt = getNow();
     let bootstrapFragmentCount = 0;
     let bootstrapPathPoints = 0;
     let processedEventCount = 0;
@@ -868,9 +902,11 @@ export const buildBlockViewPathAndWriteToOPFS = async (
     };
 
     for (let eventIndex = 0; eventIndex < eventCount; eventIndex++) {
-        if (++operationCount % BUILD_YIELD_INTERVAL === 0) {
+        if (++operationCount % BUILD_YIELD_INTERVAL === 0 &&
+            getNow() - pathSliceStartedAt >= BUILD_YIELD_BUDGET_MS) {
             await yieldToWorkerEventLoop();
             assertNotCancelled();
+            pathSliceStartedAt = getNow();
         }
         const event = sortedEvents[eventIndex];
         const eventAction = event % 2;
@@ -898,9 +934,11 @@ export const buildBlockViewPathAndWriteToOPFS = async (
         const freeSize = source.getSize(blockIndex);
         let activeIndex = topBlock;
         while (activeIndex >= 0) {
-            if (++operationCount % BUILD_YIELD_INTERVAL === 0) {
+            if (++operationCount % BUILD_YIELD_INTERVAL === 0 &&
+                getNow() - pathSliceStartedAt >= BUILD_YIELD_BUDGET_MS) {
                 await yieldToWorkerEventLoop();
                 assertNotCancelled();
+                pathSliceStartedAt = getNow();
             }
             const path = paths[activeIndex];
             if (!path) {

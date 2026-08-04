@@ -18,6 +18,21 @@
 
 let opfsUnavailableWarned = false;
 
+// 块路径算法或 OPFS 存储结构发生变化时需要升级此前端缓存版本。
+// 该版本会参与生成 storageKey，确保不兼容的数据不会复用旧缓存。
+export const BLOCK_PATH_CACHE_VERSION = 'v1';
+
+export const normalizeLeaksFileHash = (fileHash: unknown): string => {
+    if (typeof fileHash !== 'string') {
+        return '';
+    }
+    const normalized = fileHash.trim().toLowerCase();
+    return /^[0-9a-f]{64}(?:-[a-z0-9_-]+){0,2}$/.test(normalized) ? normalized : '';
+};
+
+export const createBlockPathCacheStorageKey = (fileHash: string, mainThread: boolean = false): string =>
+    `${mainThread ? 'main-thread' : 'main'}-cache-${BLOCK_PATH_CACHE_VERSION}-${fileHash}`;
+
 export const createLeaksOpfsRuntimeId = (): string => {
     const randomId = globalThis.crypto?.randomUUID?.();
     if (randomId) {

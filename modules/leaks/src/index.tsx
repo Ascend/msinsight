@@ -90,7 +90,7 @@ export function getInitStatus(): void {
         event: 'getParseStatus',
         body: {
             from: 'Leaks',
-            requests: ['language', 'theme', 'module', 'deviceIds', 'threadIds'],
+            requests: ['language', 'theme', 'fileHash', 'module', 'deviceIds', 'threadIds'],
         },
     });
 }
