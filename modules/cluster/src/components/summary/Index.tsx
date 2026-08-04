@@ -58,7 +58,7 @@ const FlowChartContainer = styled.div`
     }
 `;
 
-export const useHit = (containsPreparing: boolean): React.ReactElement => {
+export const useHit = (containsPreparing: boolean, showZoomTips: boolean): React.ReactElement => {
     const { t } = useTranslation('summary');
     const hit = t(containsPreparing ? 'Computation/CommunicationDescribeWithPreparing' : 'Computation/CommunicationDescribe',
         { returnObjects: true }) as string[];
@@ -70,7 +70,9 @@ export const useHit = (containsPreparing: boolean): React.ReactElement => {
                     {hit?.map((item: string, index: number) => <div key={index}>{item}</div>)}
                     <div style={{ marginTop: '2rem' }}>
                         <ExclamationCircleFilled style={{ marginRight: '10px' }}/>
-                        {t('Computation/CommunicationLastDescribe')}</div>
+                        {t('Computation/CommunicationLastDescribe')}
+                    </div>
+                    {showZoomTips && <div style={{ marginTop: '2rem' }}>{t('Chart Zoom Tooltip')}</div>}
                 </div>
             )
         }>
@@ -108,8 +110,8 @@ const defaultSlowRankRes = {
 export const Index = observer(({ session, clusterPath }: { session: Session; clusterPath: string }): JSX.Element => {
     const { generateConditions } = parallelismStore;
     const { t } = useTranslation('summary');
-    const tips = useHit(true);
     const [isPipeline, setIsPipeline] = useState(false);
+    const tips = useHit(true, !isPipeline);
     const [activeRankId, setActiveRankId] = useState('');
     const [performanceLoading, setPerformanceLoading] = useState(false);
     const [slowRankData, setSlowRankData] = useState<GetSlowRankAdviseRes>(defaultSlowRankRes);

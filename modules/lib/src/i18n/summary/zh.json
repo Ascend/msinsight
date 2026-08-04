@@ -43,6 +43,8 @@
     "MindIE Size Validate Message": "总卡数（PP × TP × DP）必须大于设备数量",
     "Megatron Size Validate Message": "总卡数（PP × TP × CP × DP）必须大于设备数量",
     "Computation/CommunicationOverview": "计算/通信概览",
+    "Chart Zoom Tooltip": "鼠标悬停查看 Rank 信息；在图表区域使用鼠标滚轮或触控板可缩放，点击数据项可聚焦查看附近 Rank，点击“重置缩放”可恢复全局视图。",
+    "Reset Zoom": "重置缩放",
     "Computation/CommunicationDescribe": [
       "计算时间 = NPU上的内核时间总和",
       "计算时间（未被覆盖） = 计算时间 – 计算通信间覆盖时间",

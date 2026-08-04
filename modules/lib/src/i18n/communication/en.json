@@ -118,6 +118,8 @@
     "CommunicationIssue": "Communication efficiency is low",
     "Back": "Back",
     "Tooltip": "If the cluster data already includes the cluster_analysis_output folder, it will not be overwritten; if there is a mismatch between the cluster data and the single-card data, please delete the original cluster_analysis_output folder and the cluster.db file and re-import the data.",
+    "Chart Zoom Tooltip": "Hover to view Rank details. Use the mouse wheel or touchpad over the chart to zoom, click a data item to focus on nearby Ranks, and click Reset Zoom to restore the full view.",
+    "Reset Zoom": "Reset Zoom",
     "Difference": "Difference",
     "Same": "Same",
     "Different": "Different",

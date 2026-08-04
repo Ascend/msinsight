@@ -118,6 +118,8 @@
     "CommunicationIssue": "通信效率低",
     "Back": "返回",
     "Tooltip": "导入集群数据中若已包含cluster_analysis_output文件夹，则不会对其进行覆盖；如果出现集群数据和单卡数据不对应，请删除原有cluster_analysis_output文件夹及cluster.db文件并重新导入。",
+    "Chart Zoom Tooltip": "鼠标悬停查看 Rank 信息；在图表区域使用鼠标滚轮或触控板可缩放，点击数据项可聚焦查看附近 Rank，点击“重置缩放”可恢复全局视图。",
+    "Reset Zoom": "重置缩放",
     "Difference": "差值",
     "Same": "相同",
     "Different": "不同",
