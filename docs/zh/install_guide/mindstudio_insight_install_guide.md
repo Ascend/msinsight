@@ -236,7 +236,6 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 | xfce4 | Ubuntu、CentOS、OpenEuler系统中，MindStudio Insight通过VNC转发的依赖文件。当选择VNC转发方式时，必选。 |
 | gnome-desktop | EulerOS系统中，MindStudio Insight通过VNC转发的依赖文件。当选择VNC转发方式时，必选。 |
 | click | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
-| tabulate | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
 | networkx | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
 | jinja2 | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
 | PyYaml | MindStudio Insight已集成msprof-analyze集群分析工具所依赖的Python库。版本要求见msprof-analyze工具的[build.txt文件](https://gitcode.com/Ascend/msprof-analyze/blob/master/requirements/build.txt)。 |
@@ -255,7 +254,6 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 
     ```shell
     pip3 install click
-    pip3 install tabulate
     pip3 install networkx
     pip3 install jinja2
     pip3 install PyYaml
