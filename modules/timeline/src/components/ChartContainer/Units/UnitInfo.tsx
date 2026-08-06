@@ -410,6 +410,7 @@ const UnitInfoContent = observer(({ unit, session, ...props }: UnitInfoContentPr
     }
     const tooltip = (children: JSX.Element): JSX.Element => unit.name === 'Card'
         ? <Tooltip placement="leftBottom"
+            overlayStyle={{ pointerEvents: 'none' }}
             title={getLaneInfoTooltipContent(unit, undefined, <>
                 <div>{(unit.metadata as CardMetaData).cardPath}</div>
                 <div>Timestamp Counter value at t=0: { bigSubtract(session.startTime, getTimeOffset(session, unit.metadata as CardMetaData)) } ns</div>

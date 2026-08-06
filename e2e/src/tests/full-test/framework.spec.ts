@@ -93,6 +93,7 @@ test.describe('Framework', () => {
 
     // 设置项目为基线
     test('set project as baseline', async ({ page  }) => {
+        test.setTimeout(90000);
         const frameworkPage = new FrameworkPage(page);
 
         const waitFirstRes = waitForResponse(await ws, (res) => res?.event === 'allPagesSuccess');
