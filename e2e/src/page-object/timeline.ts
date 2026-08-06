@@ -83,6 +83,11 @@ export class TimelinePage {
         await expandBtn.click();
     }
 
+    getUnitByName(name: string): Locator {
+        const unitName = this.page.locator('.insight-lane-info-name').getByText(name, { exact: true });
+        return this.unitWrapperScroller.locator('.unit').filter({ has: unitName });
+    }
+
     async clickMenu(clickUnit: Locator, timelineFrame: FrameLocator, option: string): Promise<void> {
         await clickUnit.click({ button: 'right' });
         const options = timelineFrame.locator('.menu-item');

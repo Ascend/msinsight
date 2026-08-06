@@ -57,6 +57,8 @@ export const FilePath = {
 
     // 预冒烟数据
     SMOKE_DATA: path.join(getCurrentFilePath(), '..', '..', '..', 'test', 'st', 'level2'),
+    SMOKE_DATA_RANK_0: path.join(getCurrentFilePath(), '..', '..', '..', 'test', 'st', 'level2',
+        'rank_0_ascend_pt', 'ASCEND_PROFILER_OUTPUT'),
 };
 
 export const WEBSOCKET_URL = 'ws://localhost:9000/';
