@@ -620,7 +620,7 @@ test.describe('Timeline', () => {
         const { timelineFrame, mainContainer } = timelinePage;
         const secondUnitInfo = timelineFrame.locator('.unit-info').nth(1);
         await secondUnitInfo.click();
-        await page.waitForTimeout(500);
+        await page.waitForTimeout(1000);
         const chart = timelineFrame.locator('.ant-spin-container > .drawCanvas').first();
         const chartInfo = await chart.boundingBox();
         const { x: startX, y: startY } = chartInfo;

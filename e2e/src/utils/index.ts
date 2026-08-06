@@ -20,42 +20,30 @@ import { expect, type FrameLocator, type Page, WebSocket } from '@playwright/tes
 import { FrameworkPage, FileExploreDialogPage } from '@/page-object';
 import { FilePath, WEBSOCKET_URL } from './constants';
 
-let iterationNum = 0;
 // 导入数据
 export async function importData(page: Page, filePath: string = FilePath.TEXT): Promise<void> {
-    if (iterationNum > 3) {
-        return;
-    }
-    iterationNum++;
-    try {
-        const frameworkPage = new FrameworkPage(page);
-        const fileExploreDialogPage = new FileExploreDialogPage(page);
-        const { importDataBtn, projectList } = frameworkPage;
-        const { mainDialog, input, confirmBtn, fileTree } = fileExploreDialogPage;
+    const frameworkPage = new FrameworkPage(page);
+    const fileExploreDialogPage = new FileExploreDialogPage(page);
+    const { importDataBtn, projectList } = frameworkPage;
+    const { mainDialog, input, confirmBtn, fileTree } = fileExploreDialogPage;
 
-        // 点击“导入数据”按钮
-        await importDataBtn.click();
+    // 点击“导入数据”按钮
+    await importDataBtn.click();
 
-        // 确认弹窗已打开
-        await expect(mainDialog).toBeVisible();
-        const emptyBlock = fileTree.locator('.el-tree__empty-block');
-        await emptyBlock.waitFor({ state: 'hidden', timeout: 2000 });
-        await input.waitFor({ state: 'visible', timeout: 2000 });
-        await input.click();
-        await input.fill(filePath);
-        await input.press('Enter');
-        await page.waitForTimeout(1000);
-        // 点击“确认”按钮
-        await confirmBtn.click();
-        await mainDialog.waitFor({ state: 'hidden', timeout: 3000 });
-        const currentProject = projectList.getByText(filePath, { exact: true }).first();
-        await currentProject.waitFor({ state: 'visible' });
-        await expect(currentProject).toBeVisible();
-    } catch {
-        await page.reload();
-        await importData(page, filePath);
-    }
-    iterationNum = 0;
+    // 确认弹窗已打开
+    await expect(mainDialog).toBeVisible();
+    const emptyBlock = fileTree.locator('.el-tree__empty-block');
+    await emptyBlock.waitFor({ state: 'hidden', timeout: 2000 });
+    await expect(input).toBeVisible({ timeout: 2000 });
+    await input.fill(filePath);
+    await input.press('Enter');
+    await page.waitForTimeout(2000); // 等待项目目录树返回，并选中该项目
+    await expect(confirmBtn).toBeEnabled({ timeout: 10000 });
+    // 点击“确认”按钮
+    await confirmBtn.click();
+    await expect(mainDialog).toBeHidden({ timeout: 10000 });
+    const currentProject = projectList.getByText(filePath, { exact: true }).first();
+    await expect(currentProject).toBeVisible({ timeout: 30000 });
 }
 
 // 清除数据
