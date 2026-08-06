@@ -391,3 +391,27 @@ DB 数据的优点是磁盘占用小，文件解析加载更快。但部分用�
 ![image.png](./figures/FAQ/Profiling_Text_DB_Mixed_Data/6d0ff384-aeb4-4944-bcbd-3a90ab33e7de.png)
 
 ![image.png](./figures/FAQ/Profiling_Text_DB_Mixed_Data/d3e1ab5a-a2be-4dd2-afdf-0fe84b8d66a2.png)
+
+<a id="faq-timeline-host-device-reverse-flow"></a>
+
+## 19. Timeline 中 Host 侧与 Device 侧的连线为什么会从后往前？
+
+**问题现象**
+
+在 Timeline 界面查看 `HostToDevice` 或 `async_npu` 连线时，部分 Device 侧端点位于对应 Host 侧端点的左侧，视觉上表现为连线从右向左（或称“从后往前”）。
+
+**原因分析**
+
+Host 侧事件和 Device 侧事件分别采集，并换算到同一时间轴。由于设备频率换算以及 Host 与 Device 时间同步可能存在误差，换算后的 Device 时间戳可能早于触发该任务的 Host 时间戳。
+
+连线关系依据采集数据中的 `connectionId` 或 `flow_id` 等关联标识建立，而不是根据两个端点在时间轴上的左右位置推断。MindStudio Insight 会保留 Host 为起点、Device 为终点，并按照两端时间戳的实际位置绘制。因此，当 Device 时间戳小于 Host 时间戳时，连线会显示为从右向左。
+
+该现象通常不表示 Device 任务实际先于 Host 下发，也不表示连线关系错误。但在完成时间校准前，不建议根据连线两端的横向距离计算下发延迟或端到端耗时。
+
+**解决方案**
+
+1. 选择“恢复所有卡的默认偏移量”，排除手动设置的卡或泳道时间戳偏移。
+2. 查看连线两端“选中详情”中的 `Raw Start`，确认 Device 侧原始时间戳是否早于 Host 侧。
+3. 若大量连线存在近似固定的时间偏差，可使用卡或泳道的时间戳偏移进行临时展示校准。该操作仅改变显示位置，不会修改原始时间戳。
+4. 若偏差较大、随采集时间持续变化，或影响性能分析，请检查 CANN、Profiler、torch_npu 与 MindStudio Insight 版本是否配套，并使用推荐版本重新采集数据。
+5. 若重新采集后问题仍然存在，请反馈原始 Profiling 数据、相关组件版本、异常连线类型、端点时间戳及问题截图，以便进一步定位。
