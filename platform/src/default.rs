@@ -42,6 +42,19 @@ const DEFAULT_AGENT_SERVERS_CONFIG: &str = r#"{
       "args": [
         "acp"
       ]
+    },
+    {
+      "name": "msinsight-native",
+      "command": "node",
+      "args": [
+        "server/native-agent/index.mjs"
+      ],
+      "env": {
+        "MSINSIGHT_NATIVE_PROVIDER": "openai",
+        "MSINSIGHT_NATIVE_MODEL": "cx/gpt-5.5",
+        "MSINSIGHT_NATIVE_BASE_URL": "http://127.0.0.1:19099/v1",
+        "MSINSIGHT_NATIVE_API_KEY": ""
+      }
     }
   ]
 }

@@ -51,7 +51,12 @@ const waitForResponses = (child, expectedCount) => new Promise((resolveResponses
 
 test("native agent serializes concurrent session store writes", async () => {
     const cwd = await mkdtemp(resolve(tmpdir(), "msinsight-native-store-"));
-    const child = spawn(process.execPath, [nativeAgentPath], { cwd, stdio: ["pipe", "pipe", "pipe"] });
+    const storeDir = resolve(cwd, ".mindstudio_insight", ".msinsight_native_agent");
+    const child = spawn(process.execPath, [nativeAgentPath], {
+        cwd,
+        env: { ...process.env, MSINSIGHT_NATIVE_STORE_DIR: storeDir },
+        stdio: ["pipe", "pipe", "pipe"],
+    });
     try {
         const requestCount = 20;
         const responsesPromise = waitForResponses(child, requestCount);
@@ -61,7 +66,7 @@ test("native agent serializes concurrent session store writes", async () => {
         const responses = await responsesPromise;
         assert.equal(responses.every((response) => response.result?.sessionId && !response.error), true);
 
-        const store = JSON.parse(await readFile(resolve(cwd, ".msinsight-native/sessions.json"), "utf8"));
+        const store = JSON.parse(await readFile(resolve(storeDir, "sessions.json"), "utf8"));
         assert.equal(store.sessions.length, requestCount);
     } finally {
         if (child.exitCode === null) {

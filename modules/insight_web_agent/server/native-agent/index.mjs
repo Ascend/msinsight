@@ -24,7 +24,7 @@ for (const method of ["log", "info", "warn", "debug"]) {
     };
 }
 
-const { join } = await import("node:path");
+const { join, resolve } = await import("node:path");
 const { createAcpProtocolServer } = await import("./acp/protocol.mjs");
 const { createAcpSessionNotifier } = await import("./acp/sessionUpdates.mjs");
 const { createFilesystemPolicyService } = await import("./config/filesystemPolicy.mjs");
@@ -36,7 +36,7 @@ const { createMsinsightTools } = await import("./tools/msinsightTools.mjs");
 
 const sessions = new Map();
 const running = new Map();
-const storeDir = join(process.cwd(), ".msinsight-native");
+const storeDir = resolve(process.env.MSINSIGHT_NATIVE_STORE_DIR ?? join(process.cwd(), ".msinsight_native_agent"));
 const bladeStoragePath = join(storeDir, "blade");
 
 const notifier = createAcpSessionNotifier(process.stdout);

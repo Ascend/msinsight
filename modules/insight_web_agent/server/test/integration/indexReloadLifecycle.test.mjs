@@ -154,6 +154,16 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
     }, { timeoutMs: 5000, errorMessage: () => `server did not initialize\n${serverOutput}` });
     assert.equal(initialState.activeAgentName, "Stable");
 
+    const initialObservation = await requestJson(port, "/api/page/observation");
+    assert.deepEqual(initialObservation, { status: 200, body: { observation: null, updatedAt: null } });
+    const updatedObservation = await requestJson(port, "/api/page/observation", {
+        method: "POST",
+        body: { observation: { route: "timeline" } },
+    });
+    assert.equal(updatedObservation.status, 200);
+    assert.deepEqual(updatedObservation.body.observation, { route: "timeline" });
+    assert.deepEqual((await requestJson(port, "/api/page/observation")).body.observation, { route: "timeline" });
+
     const reloadResult = await requestJson(port, "/api/agent-config", {
         method: "PUT",
         body: {
