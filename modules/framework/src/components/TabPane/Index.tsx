@@ -20,6 +20,7 @@ import { observer } from 'mobx-react';
 import type { Scene, Session } from '@/entity/session';
 import { type MenuProps, message, Menu, Tooltip } from 'antd';
 import { Button } from '@insight/lib/components';
+import { Resizer } from '@insight/lib';
 import { safeJSONParse } from '@insight/lib/utils';
 
 import { type ModuleConfig, modulesConfig, MEM_SCOPE_MODULE_NAME, ON_CHIP_MEMORY_MODULE_NAME, ACP_SESSION_SRC } from '@/moduleConfig';
@@ -36,6 +37,9 @@ import {
 } from '@/vscode-adapter';
 import { ACP_PORT } from '@/centralServer/websocket/defs';
 import { JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
+
+const ACP_SESSION_MIN_WIDTH = 500;
+const MODULE_FRAME_MIN_WIDTH = 360;
 
 const Container = styled.div`
     width: 100%;
@@ -70,7 +74,7 @@ const Container = styled.div`
     }
     .module-frame-area {
         flex: 1 1 auto;
-        min-width: 0;
+        min-width: ${MODULE_FRAME_MIN_WIDTH}px;
         height: 100%;
     }
     .tab-toolbar {
@@ -92,12 +96,17 @@ const Container = styled.div`
         min-width: 88px;
     }
     .acp-session-panel {
-        flex: 0 0 500px;
-        width: 500px;
+        width: 100%;
         height: calc(100% - 16px);
         margin-top: 16px;
         border-radius: 5px;
         background: ${(props): string => props.theme.bgColorLight};
+    }
+    .acp-session-wrapper {
+        position: relative;
+        flex: 0 0 auto;
+        min-width: ${ACP_SESSION_MIN_WIDTH}px;
+        height: 100%;
     }
     iframe {
         width: 100%;
@@ -170,9 +179,11 @@ const Index = observer(({ session }: { session: Session }) => {
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
     const [activeModule, setActiveModule] = useState('Timeline');
     const [showSessionPanel, setShowSessionPanel] = useState(false);
+    const [sessionPanelWidth, setSessionPanelWidth] = useState(ACP_SESSION_MIN_WIDTH);
     const [mergedModulesConfig, setMergedModulesConfig] = useState(modulesConfig);
     const prevFrameIdsRef = useRef<string[]>([]);
     const iframeLoadHandlersRef = useRef<Map<HTMLIFrameElement, () => void>>(new Map());
+    const tabBodyRef = useRef<HTMLDivElement>(null);
 
     const availableModules = useMemo(() => mergedModulesConfig.filter(config => isAvailable(config, scene, dataCompose))
         , [scene, dataCompose, mergedModulesConfig]);
@@ -208,6 +219,12 @@ const Index = observer(({ session }: { session: Session }) => {
     }, [availableModules, t]);
     const onClick: MenuProps['onClick'] = e => {
         setActiveModule(e.key);
+    };
+
+    const resizeSessionPanel = (moveWidthLength: number): void => {
+        const bodyWidth = tabBodyRef.current?.clientWidth ?? window.innerWidth;
+        const maxWidth = Math.max(ACP_SESSION_MIN_WIDTH, bodyWidth - MODULE_FRAME_MIN_WIDTH);
+        setSessionPanelWidth((current) => Math.min(maxWidth, Math.max(ACP_SESSION_MIN_WIDTH, current - moveWidthLength)));
     };
 
     useEffect(() => {
@@ -327,7 +344,7 @@ const Index = observer(({ session }: { session: Session }) => {
     const acpSessionParams = new URLSearchParams({
         acpPort: String(ACP_PORT),
         profileId: session.activeDataSource.projectName ?? '',
-        activeModule: activeModule,
+        activeModule,
     });
     if (JUPYTERLABPROXY) {
         acpSessionParams.set('jupyterlabProxy', 'true');
@@ -345,7 +362,7 @@ const Index = observer(({ session }: { session: Session }) => {
                 Agent View
             </Button>
         </div>
-        <div className="tab-body">
+        <div className="tab-body" ref={tabBodyRef}>
             <div className="module-frame-area">{availableModules.map(moduleConfig => (
                 (isVscodeEnv() && isVscodePluginEnvironment())
                     ? <div
@@ -367,7 +384,11 @@ const Index = observer(({ session }: { session: Session }) => {
                         style={{ display: activeModule === moduleConfig.name ? 'block' : 'none' }}
                     />
             ))}</div>
-            <div className="acp-session-wrapper" style={{ display: showSessionPanel ? 'block' : 'none' }}>
+            <div className="acp-session-wrapper" style={{ display: showSessionPanel ? 'block' : 'none', width: sessionPanelWidth }}>
+                <Resizer
+                    callback={resizeSessionPanel}
+                    style={{ left: 0, top: 16, height: 'calc(100% - 16px)', zIndex: 1 }}
+                />
                 <iframe
                     className="acp-session-panel"
                     id="AcpSession"

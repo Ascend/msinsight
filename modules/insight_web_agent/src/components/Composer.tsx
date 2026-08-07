@@ -18,6 +18,8 @@
 import styled from '@emotion/styled';
 import { useRef } from 'react';
 import { Button, Select } from '@insight/lib/components';
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue } from '../types';
 import { useChatState } from '../hooks/useChatState';
 
@@ -267,17 +269,18 @@ const Container = styled.div`
 
 export const Composer = (): JSX.Element => {
     const isComposingRef = useRef(false);
+    const { t } = useTranslation('insightWebAgent');
     const { addImages, activeAgentName, agentInfo, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, configOptions, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
     const modelConfig = getModelConfig(configOptions);
     const modelOptions = flattenConfigValues(modelConfig?.options ?? []);
     const modeConfig = getModeConfig(configOptions);
     const modeOptions = flattenConfigValues(modeConfig?.options ?? []);
-    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt, setModel);
+    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt, setModel, true);
     const modePicker = createConfigPicker(modeConfig, modeOptions, pendingPrompt, setMode);
     const commandQuery = getCommandQuery(input);
     const commandMatches = getCompletionMatches(availableCommands, availableSkills, commandQuery);
     const showCommandMenu = commandQuery !== undefined && commandMatches.length > 0;
-    const agentLabel = agentInfo?.title || agentInfo?.name || activeAgentName || 'agent';
+    const agentLabel = agentInfo?.title || agentInfo?.name || activeAgentName || t('defaultAgent');
     const insertCompletion = (item: CompletionItem): void => {
         setInput(`/${item.name} `);
     };
@@ -322,14 +325,14 @@ export const Composer = (): JSX.Element => {
             {queuedPrompts.length ? (
                 <div className="queue-preview">
                     <div className="queue-header">
-                        <span className="queue-title">�?{queuedCount} Queued Message{queuedCount > 1 ? 's' : ''}</span>
-                        <button className="queue-clear" onClick={clearQueuedPrompts} type="button">Clear All</button>
+                        <span className="queue-title">{t('queuedMessage', { count: queuedCount })}</span>
+                        <button className="queue-clear" onClick={clearQueuedPrompts} type="button">{t('clearAll')}</button>
                     </div>
                     {queuedPrompts.map((prompt, index) => (
                         <div className="queue-item" key={`${index}-${prompt.text}-${prompt.images.length}`}>
                             <span className="queue-index" />
-                            <span className="queue-text">{getQueuedPromptPreview(prompt)}</span>
-                            <button className="queue-remove" onClick={() => removeQueuedPrompt(index)} title="Remove" type="button">×</button>
+                            <span className="queue-text">{getQueuedPromptPreview(prompt, t)}</span>
+                            <button className="queue-remove" onClick={() => removeQueuedPrompt(index)} title={t('remove')} type="button">×</button>
                         </div>
                     ))}
                 </div>
@@ -338,11 +341,11 @@ export const Composer = (): JSX.Element => {
                 <div className="command-wrap">
                     {showCommandMenu ? (
                         <div className="command-menu">
-                            <div className="command-title">Agent Commands</div>
+                            <div className="command-title">{t('agentCommands')}</div>
                             {commandMatches.map((item, index) => (
                                 <button className={`command-item${index === 0 ? ' active' : ''}`} key={`${item.kind}-${item.name}`} onClick={() => insertCompletion(item)} type="button">
                                     <span className="command-name">{item.name}</span>
-                                    {item.description ? <span className="command-description">{item.kind === 'skill' ? `Skill · ${item.description}` : item.description}</span> : null}
+                                    {item.description ? <span className="command-description">{item.kind === 'skill' ? t('skillDescription', { description: item.description }) : item.description}</span> : null}
                                 </button>
                             ))}
                         </div>
@@ -353,7 +356,7 @@ export const Composer = (): JSX.Element => {
                         onCompositionStart={() => { isComposingRef.current = true; }}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
-                        placeholder={`Message ${agentLabel}`}
+                        placeholder={t('messagePlaceholder', { agent: agentLabel })}
                         rows={3}
                         value={input}
                     />
@@ -375,19 +378,19 @@ export const Composer = (): JSX.Element => {
                     <div className="model-picker">
                         {modePicker}
                     </div>
-                    <span className="shortcut-hint">Enter 发送 · Shift+Enter 换行</span>
-                    <Button className="send-button" onClick={submitOrCancel} size="small" type={pendingPrompt ? 'default' : 'primary'}>{pendingPrompt ? 'Cancel' : 'Send'}</Button>
+                    <span className="shortcut-hint">{t('shortcutHint')}</span>
+                    <Button className="send-button" onClick={submitOrCancel} size="small" type={pendingPrompt ? 'default' : 'primary'}>{pendingPrompt ? t('cancel') : t('send')}</Button>
                 </div>
             </div>
         </Container>
     );
 };
 
-const getQueuedPromptPreview = (prompt: { text: string; images: unknown[] }): string => {
+const getQueuedPromptPreview = (prompt: { text: string; images: unknown[] }, t: TFunction): string => {
     const text = prompt.text.trim().replace(/\s+/g, ' ');
-    if (text && prompt.images.length) return `${text} (${prompt.images.length} image${prompt.images.length > 1 ? 's' : ''})`;
+    if (text && prompt.images.length) return `${text} (${t('imageAttachment', { count: prompt.images.length })})`;
     if (text) return text;
-    return prompt.images.length === 1 ? 'Image' : `${prompt.images.length} images`;
+    return prompt.images.length === 1 ? t('image') : t('images', { count: prompt.images.length });
 };
 
 interface CompletionItem {
@@ -447,17 +450,27 @@ const createConfigPicker = (
     options: ConfigOptionValue[],
     disabled: boolean,
     onChange: (value: string) => Promise<void>,
+    searchable = false,
 ): JSX.Element | null => {
     if (!config?.currentValue || !options.length) return null;
     return (
         <Select
             disabled={disabled}
+            filterOption={searchable ? filterSelectOption : undefined}
             onChange={(value) => void onChange(String(value))}
+            optionFilterProp="label"
             options={options.map((option) => ({ value: option.value, label: option.name || option.value }))}
+            showSearch={searchable}
             value={config.currentValue}
             width="100%"
         />
     );
+};
+
+const filterSelectOption = (input: string, option?: { label?: unknown; value?: unknown }): boolean => {
+    const query = input.toLowerCase();
+    return String(option?.label ?? '').toLowerCase().includes(query)
+        || String(option?.value ?? '').toLowerCase().includes(query);
 };
 
 const getModelConfig = (configOptions: ConfigOption[]): ConfigOption | undefined => {
