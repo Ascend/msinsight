@@ -1,10 +1,12 @@
 # MSInsight MCP 模块说明文档
 
-本文档面向开发者与集成方，系统说明 `mcp/` 模块的整体架构、代码职责、运行方式与扩展指南。
+本文档面向开发者与集成方，系统说明 `msinsight_mcp/` 模块的整体架构、代码职责、运行方式与扩展指南。
+
+当前模块仅以源码形式提供，不包含 wheel、sdist 或独立安装包。运行环境要求 Python >= 3.10，命令应从 `msinsight_mcp/` 的父目录执行。
 
 ## 1. 模块目标
 
-`mcp/` 的职责是把现有 C++ 后端（WebSocket 服务）桥接成一个可被 AI Agent 调用的 MCP 服务。
+`msinsight_mcp/` 的职责是把现有 C++ 后端（WebSocket 服务）桥接成一个可被 AI Agent 调用的 MCP 服务。
 
 - 对内：通过 WebSocket 连接 C++ 后端
 - 对外：提供 MCP 协议（支持 `stdio`、`sse`、`websocket` 三种传输）
@@ -17,7 +19,7 @@ AI Agent / LangChain
         |
         | MCP (stdio / SSE / WebSocket)
         v
-Python MCP Bridge (mcp/)
+Python MCP Bridge (msinsight_mcp/)
         |
         | WebSocket JSON
         v
@@ -58,7 +60,7 @@ State (state/) 横跨所有层，提供 Session → Project → Module 三级状
 ## 3. 目录结构与职责
 
 ```shell
-mcp/
+msinsight_mcp/
 ├── main.py                     # 入口：日志→后端连接→事件注册→MCP启动→优雅关闭
 ├── mcp_server.py               # MCP 协议服务器（3种传输）
 ├── cpp_client.py               # C++ 后端 WebSocket 客户端
@@ -165,7 +167,7 @@ SessionState (会话级)
 通过全局单例 `state` 访问：
 
 ```python
-from state import state
+from msinsight_mcp.state import state
 ps = state.get_or_create_project("my_proj", "/path/to/data")
 ps.get_module("timeline").set("selected_tid", "1234")
 ```
@@ -183,14 +185,18 @@ tools/<name>/
 `tools/loader/global_tools.py` 是例外，将全局管理工具（heartbeat、项目增删等）放在同一模块内。
 `tools/operator/operator.py` 将算子、内存、汇总三组 handler 合并在一个文件中。
 
-在 `tools/__init__.py` 中汇总 loader、timeline、cluster 三个模块：
+在 `tools/__init__.py` 中汇总 loader、global、timeline、cluster 和 operator 模块：
 
 ```python
-ALL_TOOLS = loader.TOOLS + timeline.TOOLS + cluster.TOOLS
-ALL_DISPATCH = {**loader.DISPATCH, **timeline.DISPATCH, **cluster.DISPATCH}
+ALL_TOOLS = loader.TOOLS + global_tools.TOOLS + timeline.TOOLS + cluster.TOOLS + operator.TOOLS
+ALL_DISPATCH = {
+    **loader.DISPATCH,
+    **global_tools.DISPATCH,
+    **timeline.DISPATCH,
+    **cluster.DISPATCH,
+    **operator.DISPATCH,
+}
 ```
-
-> `operator` 模块当前未纳入 `tools/__init__.py`，其工具通过 `operator.py` 中的 TOOLS / DISPATCH 独立管理。
 
 ### 4.6 utils/ — 公共工具
 
@@ -353,23 +359,25 @@ state.mark_event_completed("parse/clusterCompleted", event)
 
 ## 8. 运行方式
 
+当前代码是 source-only 分发，要求 Python >= 3.10。以下命令均从包含 `msinsight_mcp/` 目录的仓库父目录执行。
+
 ### 8.1 安装依赖
 
 ```bash
-pip install -r requirements.txt
+pip install -r msinsight_mcp/requirements.txt
 # SSE 需要额外依赖: pip install uvicorn starlette
 ```
 
 ### 8.2 stdio（本地集成，Claude Desktop）
 
 ```bash
-python main.py
+python -m msinsight_mcp.main
 ```
 
 ### 8.3 SSE（远程 Agent / LangChain）
 
 ```bash
-MSINSIGHT_MCP_TRANSPORT=sse MSINSIGHT_MCP_PORT=8765 python main.py
+MSINSIGHT_MCP_TRANSPORT=sse MSINSIGHT_MCP_PORT=8765 python -m msinsight_mcp.main
 ```
 
 SSE 地址：`http://127.0.0.1:8765/sse`
@@ -377,7 +385,7 @@ SSE 地址：`http://127.0.0.1:8765/sse`
 ### 8.4 WebSocket（原始 WebSocket 客户端）
 
 ```bash
-MSINSIGHT_MCP_TRANSPORT=websocket MSINSIGHT_MCP_PORT=8765 python main.py
+MSINSIGHT_MCP_TRANSPORT=websocket MSINSIGHT_MCP_PORT=8765 python -m msinsight_mcp.main
 ```
 
 WebSocket 地址：`ws://127.0.0.1:8765`
@@ -394,6 +402,8 @@ WebSocket 地址：`ws://127.0.0.1:8765`
 | `MSINSIGHT_MCP_PORT` | 8765 | MCP 端口（sse/ws） |
 | `MSINSIGHT_CPP_AUTO_START_BINARY` | 空 | C++ 后端二进制路径（自动启动） |
 | `MSINSIGHT_LOG_LEVEL` | INFO | 日志级别 |
+
+`MSINSIGHT_CPP_BACKEND_HOST` 和 `MSINSIGHT_CPP_BACKEND_PORT` 必须指向 profiler WebSocket 服务；它们不是固定地址，可按部署环境显式配置。
 
 ## 9. 扩展开发指南
 
@@ -441,3 +451,5 @@ WebSocket 地址：`ws://127.0.0.1:8765`
 - 生产环境不要直接暴露在公网
 - 公网访问建议：网关鉴权、HTTPS 证书、IP 白名单、速率限制
 - SSE 当前为 HTTP 明文，如需 HTTPS 建议通过 Nginx 反代
+- 当前桥接进程按单个 MCP 客户端使用，共享一个后端连接和进程内状态；不支持多个 MCP 客户端并发使用。
+- 当前桥接进程独占 profiler 后端会话，不支持与 MSInsight GUI 同时连接或同时操作同一后端。

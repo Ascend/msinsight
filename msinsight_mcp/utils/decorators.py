@@ -1,6 +1,6 @@
 import functools
 from mcp import types
-from state import state
+from ..state import state
 
 
 def require_events(*event_names):

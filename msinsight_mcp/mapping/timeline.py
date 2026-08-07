@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from cpp_client import get_client
+from ..cpp_client import get_client
 
 
 async def query_communication_kernel_detail_api(

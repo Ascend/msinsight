@@ -25,15 +25,15 @@ from typing import Any, Callable, Dict, Optional
 import websockets
 from websockets.exceptions import ConnectionClosed
 
-from config import settings
-from models import CppRequest, CppResponse
-from utils.errors import (
+from .config import settings
+from .models import CppRequest, CppResponse
+from .utils.errors import (
     BackendConnectionError,
     CppBackendError,
     NotConnectedError,
     RequestTimeoutError,
 )
-from utils.logger import logger
+from .utils.logger import logger
 
 
 class CppBackendClient:
@@ -78,8 +78,13 @@ class CppBackendClient:
     async def connect(self) -> None:
         """Establish the WebSocket connection and start background tasks."""
         await self._do_connect()
-        self._receive_task = asyncio.create_task(self._receive_loop(), name="cpp-backend-receive-loop")
-        if self.keepalive_interval > 0:
+        self.start_background_tasks()
+
+    def start_background_tasks(self) -> None:
+        """Start receive/reconnect and keepalive loops without waiting for a connection."""
+        if self._receive_task is None or self._receive_task.done():
+            self._receive_task = asyncio.create_task(self._receive_loop(), name="cpp-backend-receive-loop")
+        if self.keepalive_interval > 0 and (self._keepalive_task is None or self._keepalive_task.done()):
             self._keepalive_task = asyncio.create_task(self._keepalive_loop(), name="cpp-backend-keepalive")
 
     async def _do_connect(self) -> None:
@@ -99,6 +104,10 @@ class CppBackendClient:
     async def _receive_loop(self) -> None:
         """Background task: read messages and dispatch them."""
         while not self._closing:
+            if not self.is_connected:
+                await self._reconnect()
+                if self._closing:
+                    break
             try:
                 async for raw in self._ws:
                     await self._handle_raw_message(raw)
@@ -106,10 +115,15 @@ class CppBackendClient:
                 logger.warning("C++ backend connection closed: {}", exc)
                 self._connected.clear()
                 self._fail_pending(BackendConnectionError("Connection lost"))
-                if not self._closing:
-                    await self._reconnect()
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:
                 logger.exception("Unexpected error in receive loop: {}", exc)
+                self._connected.clear()
+                self._fail_pending(BackendConnectionError("Connection lost"))
+            else:
+                self._connected.clear()
+                self._fail_pending(BackendConnectionError("Connection lost"))
 
     async def _reconnect(self) -> None:
         while not self._closing:
@@ -181,6 +195,7 @@ class CppBackendClient:
         for task in (self._keepalive_task, self._receive_task):
             if task and not task.done():
                 task.cancel()
+        self._connected.clear()
 
         is_open = False
         if self._ws:

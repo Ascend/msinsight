@@ -1,6 +1,6 @@
 """Custom exception hierarchy for the MSInsight MCP bridge."""
 
-from models import ErrorInfo
+from ..models import ErrorInfo
 
 # --------------------------------------------------------------------
 # Known C++ backend error codes

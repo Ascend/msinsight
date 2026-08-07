@@ -5,7 +5,7 @@ All tool handlers in ``tools/`` should call functions defined here
 instead of talking to the backend directly.
 """
 
-from cpp_client import get_client
+from ..cpp_client import get_client
 
 
 async def import_trace_file_api(project_name: str, file_path: str) -> dict:

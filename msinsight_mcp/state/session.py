@@ -23,7 +23,7 @@ from typing import Any, Optional
 from mcp import types
 
 from .project import ProjectState
-from utils.response import err
+from ..utils.response import err
 
 
 class SessionState:

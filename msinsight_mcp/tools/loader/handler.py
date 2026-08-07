@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from mcp import types
 
-from mapping.framework import import_trace_file_api
-from state import state
+from ...mapping.framework import import_trace_file_api
+from ...state import state
 
 
 async def import_trace_file(
@@ -18,7 +18,7 @@ async def import_trace_file(
         body = await import_trace_file_api(project_name, file_path)
         ps = state.get_or_create_project(project_name, file_path)
         state.set_current_project(project_name)
-        ps.set_import_result(body)
+        ps.set_import_result(body or {})
         status = "succeeded" if body else "pending"
         result = {"message": f"Import {status} for project '{project_name}'."}
         return types.CallToolResult(

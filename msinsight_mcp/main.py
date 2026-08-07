@@ -11,13 +11,13 @@ Startup sequence
 Usage
 -----
     # stdio (for Claude Desktop or any MCP-over-stdio client)
-    python main.py
+    python -m msinsight_mcp.main
 
     # SSE (for remote LangChain / web UIs)
-    MSINSIGHT_MCP_TRANSPORT=sse MSINSIGHT_MCP_PORT=8765 python main.py
+    MSINSIGHT_MCP_TRANSPORT=sse MSINSIGHT_MCP_PORT=8765 python -m msinsight_mcp.main
 
     # WebSocket
-    MSINSIGHT_MCP_TRANSPORT=websocket MSINSIGHT_MCP_PORT=8765 python main.py
+    MSINSIGHT_MCP_TRANSPORT=websocket MSINSIGHT_MCP_PORT=8765 python -m msinsight_mcp.main
 
 Configuration
 -------------
@@ -29,12 +29,12 @@ import asyncio
 import signal
 import sys
 
-import cpp_client as cpp
-from internal.profiler_server import start_profiler_server_if_needed
-import mcp_server
-from config import settings
-from utils.logger import logger, setup_logger
-from state import state
+from . import cpp_client as cpp
+from . import mcp_server
+from .config import settings
+from .internal.profiler_server import start_profiler_server_if_needed
+from .state import state
+from .utils.logger import logger, setup_logger
 
 
 # --------------------------------------------------------------------
@@ -120,14 +120,8 @@ async def _main() -> None:
             "Proceeding without a live backend connection. "
             "Tools will return errors until the backend becomes available."
         )
-        # Instantiate an unconnected client so the import succeeds
-        cpp._client = cpp.CppBackendClient(
-            url=settings.cpp_backend_url,
-            request_timeout=settings.cpp_request_timeout,
-            reconnect_interval=settings.cpp_reconnect_interval,
-            keepalive_interval=settings.cpp_keepalive_interval,
-        )
-        client = cpp._client
+        client = cpp.get_client()
+        client.start_background_tasks()
 
     # Register event listeners
     client.on_event("parse/clusterCompleted", _on_parse_cluster_success)

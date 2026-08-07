@@ -26,7 +26,7 @@ from typing import Any, Optional
 
 from mcp import types
 
-from cpp_client import get_client
+from ...cpp_client import get_client
 
 
 def _fmt(data: Any) -> str:

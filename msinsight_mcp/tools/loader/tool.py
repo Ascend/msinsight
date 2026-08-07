@@ -13,8 +13,8 @@ TOOLS: list[types.Tool] = [
         name="import_trace_file",
         description=(
             "Import / load a trace or profile file into the C++ profiling backend. "
-            "The backend parses the file asynchronously. "
-            "After calling this tool, poll 'get_parse_cards' to confirm completion."
+            "The backend parses the file asynchronously; an empty response means "
+            "the import is pending and completion arrives through backend parse events."
         ),
         inputSchema={
             "type": "object",

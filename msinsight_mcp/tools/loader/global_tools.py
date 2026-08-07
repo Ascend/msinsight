@@ -19,10 +19,10 @@ from typing import Any
 
 from mcp import types
 
-from cpp_client import get_client
-from utils.errors import CppBackendError, NotConnectedError, RequestTimeoutError
-from utils.logger import logger
-from utils.response import fmt_json, err
+from ...cpp_client import get_client
+from ...utils.errors import CppBackendError, NotConnectedError, RequestTimeoutError
+from ...utils.logger import logger
+from ...utils.response import fmt_json, err
 
 
 # --------------------------------------------------------------------

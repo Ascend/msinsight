@@ -6,7 +6,7 @@ from typing import Any
 
 from mcp import types
 
-from utils.response import READ_ONLY_ANNOTATIONS
+from ...utils.response import READ_ONLY_ANNOTATIONS
 
 from .handler import (
     get_thread_detail,
@@ -462,7 +462,6 @@ DISPATCH: dict[str, Any] = {
     "get_thread_detail": get_thread_detail,
     "get_unit_flows": get_unit_flows,
     "get_units_in_range": get_units_in_range,
-    # "get_parse_cards": get_parse_cards,
     # "get_thread_list": get_thread_list,
     # "get_thread_detail": get_thread_detail,
     # "get_system_view": get_system_view,

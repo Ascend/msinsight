@@ -5,8 +5,8 @@ import time
 import threading
 from typing import Optional
 
-from config import settings
-from utils.logger import logger
+from ..config import settings
+from ..utils.logger import logger
 
 _cpp_process: Optional[subprocess.Popen] = None
 

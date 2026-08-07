@@ -19,8 +19,9 @@ the ``mcp.server.Server`` using ``anyio`` in-memory object streams:
     WebSocket ──► ws_to_mcp (MemoryObjectSendStream) ──► Server.run()
     WebSocket ◄── mcp_to_ws (MemoryObjectReceiveStream) ◄── Server.run()
 
-Each connected client gets its own ``Server.run()`` coroutine so sessions
-are fully isolated.
+Each WebSocket connection gets its own ``Server.run()`` coroutine, but tool
+state and the profiler backend connection are process-global. Only one MCP
+client is supported at a time.
 """
 
 from __future__ import annotations
@@ -37,8 +38,8 @@ from mcp import types
 from mcp.server import NotificationOptions, Server
 from mcp.server.models import InitializationOptions
 
-from tools import ALL_DISPATCH, ALL_TOOLS
-from utils.logger import logger
+from .tools import ALL_DISPATCH, ALL_TOOLS
+from .utils.logger import logger
 
 # --------------------------------------------------------------------
 # MCP Server instance
@@ -65,7 +66,7 @@ async def list_tools() -> list[types.Tool]:
 @server.call_tool()
 async def call_tool(
     name: str, arguments: dict[str, Any]
-) -> list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
+) -> types.CallToolResult | list[types.TextContent | types.ImageContent | types.EmbeddedResource]:
     handler = ALL_DISPATCH.get(name)
     if handler is None:
         return [
@@ -79,7 +80,8 @@ async def call_tool(
         results = await handler(**arguments)
 
         # 打印实际的 tool 输出，辅助排查 outputSchema 校验错误（如返回值未能完全匹配定义格式）
-        for idx, res in enumerate(results):
+        content = results.content if isinstance(results, types.CallToolResult) else results
+        for idx, res in enumerate(content):
             if isinstance(res, types.TextContent):
                 # 如果返回文本较长，可以通过截断或完整打印来排查
                 logger.info("Tool {} response part {} text: {}", name, idx, res.text)
@@ -160,7 +162,7 @@ async def run_sse(host: str, port: int) -> None:
 async def run_websocket(host: str, port: int) -> None:
     """Run the MCP server over raw WebSocket.
 
-    Each client connection gets an isolated MCP session.
+    Each client connection gets an MCP protocol session. Application state is shared.
     The MCP JSON-RPC messages are plain JSON text frames.
     """
     logger.info("Starting MCP server — transport: WebSocket  ws://{}:{}", host, port)

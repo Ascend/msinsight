@@ -6,7 +6,7 @@ from typing import Any
 
 from mcp import types
 
-from utils.response import READ_ONLY_ANNOTATIONS
+from ...utils.response import READ_ONLY_ANNOTATIONS
 
 from .handler import (
     communication_duration_iterations,
