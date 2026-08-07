@@ -54,7 +54,12 @@ test("assemble returns the raw active context payload as structured content refs
             mode: "free_chat",
         },
         contextProviders: [{ name: "structured", schemaVersion: "1.0", contentRefs: state.activeContext }],
-        hands: { skills: [], tools: [], actions: [], permissions: {} },
+        hands: {
+            skills: [],
+            tools: ["msinsight_observe", "msinsight_listActions"],
+            actions: [],
+            permissions: { msinsight_invokeAction: "approval_required" },
+        },
     });
 });
 
@@ -68,4 +73,14 @@ test("assemble reflects updated raw active context", async () => {
     const hiddenContext = await assembler.assemble(createSessionContext());
 
     assert.equal(hiddenContext.contextProviders[0].contentRefs.profileId, "xxx");
+});
+
+test("assemble includes the active project root when available", async () => {
+    const state = createRuntimeState();
+    state.activeContext = { projectRoot: "D:/workspace/project" };
+    const assembler = createContextAssembler({ state });
+
+    const packet = await assembler.assemble(createSessionContext());
+
+    assert.equal(packet.projectRoot, "D:/workspace/project");
 });

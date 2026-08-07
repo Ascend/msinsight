@@ -28,3 +28,11 @@ product
 /opensource/
 /modules/framework/public/plugins
 **/.pnpm-store
+
+# ACP agent workspace (auto-generated per-agent cwd, written by insight_web_agent server on startup)
+/modules/insight_web_agent/agent-workspace/
+
+# Claude Code local state (settings, skills cache, worktrees)
+/.claude/
+
+insight_web_agent_20260707_9090.log

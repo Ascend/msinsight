@@ -15,8 +15,9 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { lstat, mkdir, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { existsSync } from "node:fs";
+import { lstat, mkdir, realpath, symlink, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { createApp } from "./app.mjs";
 import { config, reloadConfig, saveActiveAgent } from "./config/index.mjs";
 import { createAcpAdapter } from "./infrastructure/acpAdapter.mjs";
@@ -41,21 +42,77 @@ const syncProjectRules = async (workspacePath, systemPrompt) => {
     await Promise.all(PROJECT_RULE_FILES.map((name) => writeFile(join(workspacePath, name), content, "utf8")));
 };
 
-const ensureDocsSymlink = async (rootDir) => {
-    const linkPath = join(rootDir, "docs");
+const insightWebAgentBaseUrl = () => `http://${config.host}:${config.port}`;
+
+const nativeFilesystemPolicy = () => ({
+    includeDocsRoot: config.defaultAllowlist?.includeDocsRoot !== false,
+    includeAgentWorkspaceRoot: config.defaultAllowlist?.includeAgentWorkspaceRoot !== false,
+    includeProjectRoot: config.defaultAllowlist?.includeProjectRoot !== false,
+    docsRoot: resolve(config.resourceDir, "..", "..", "docs"),
+    skillsRoot: resolve(config.resourceDir, "..", "..", "skills"),
+    projectRoot: config.rootDir,
+    extraPaths: config.extraAllowlistPaths,
+});
+
+const withHostEnv = (agentServer) => ({
+    ...agentServer,
+    args: resolveAgentArgs(agentServer),
+    env: {
+        ...(agentServer.env ?? {}),
+        INSIGHT_WEB_AGENT_BASE_URL: insightWebAgentBaseUrl(),
+        INSIGHT_WEB_AGENT_RESOURCE_DIR: config.resourceDir,
+        INSIGHT_WEB_AGENT_FILESYSTEM_POLICY: JSON.stringify(nativeFilesystemPolicy()),
+    },
+});
+
+const resolveAgentArgs = (agentServer) => {
+    if (agentServer.name !== "msinsight-native") return agentServer.args;
+    return (agentServer.args ?? []).map((arg) => (
+        arg === "server/native-agent/index.mjs" ? resolveNativeAgentEntry() : arg
+    ));
+};
+
+const resolveNativeAgentEntry = () => {
+    const bundledEntry = join(config.resourceDir, "native-agent", "index.mjs");
+    if (existsSync(bundledEntry)) return bundledEntry;
+    return join(config.resourceDir, "server", "native-agent", "index.mjs");
+};
+
+const ensureResourceSymlink = async (rootDir, name) => {
+    const linkPath = join(rootDir, name);
+    const targetPath = resolve(rootDir, "..", "..", name);
+    let entry;
     try {
-        await lstat(linkPath);
-        return;
+        entry = await lstat(linkPath);
     } catch (error) {
         if (error.code !== "ENOENT") {
-            console.warn(`Failed to check docs symlink: ${error.message}`);
+            console.warn(`Failed to check ${name} symlink: ${error.message}`);
             return;
         }
     }
+    if (entry) {
+        if (!entry.isSymbolicLink()) {
+            console.warn(`Resource path exists but is not a symlink: ${linkPath}`);
+            return;
+        }
+        try {
+            const actualTarget = await realpath(linkPath);
+            const expectedTarget = await realpath(targetPath);
+            if (actualTarget !== expectedTarget) {
+                console.warn(`Resource symlink points to ${actualTarget}, expected ${expectedTarget}`);
+            }
+        } catch (error) {
+            console.warn(`Failed to resolve ${name} symlink ${linkPath}: ${error.message}`);
+        }
+        return;
+    }
     try {
-        await symlink("../../docs", linkPath, "dir");
+        await symlink(targetPath, linkPath, "dir");
     } catch (error) {
-        console.warn(`Failed to create docs symlink at ${linkPath}: ${error.message}`);
+        const hint = process.platform === "win32"
+            ? " Enable Windows Developer Mode or run with permission to create symbolic links."
+            : "";
+        console.warn(`Failed to create ${name} symlink ${linkPath} -> ${targetPath}: ${error.message}.${hint}`);
     }
 };
 
@@ -75,7 +132,7 @@ const installHostHandlers = (adapter, agentServer) => {
 const createActiveAcpAdapter = (agentServer, { autoConnect = true } = {}) => {
     const agentWorkspacePath = join(config.cwd, agentServer.name);
     const adapter = createAcpAdapter({
-        agentServer,
+        agentServer: withHostEnv(agentServer),
         cwd: agentWorkspacePath,
         debug: config.debug,
         requestTimeoutMs: config.requestTimeoutMs,
@@ -99,7 +156,10 @@ const createActiveAcpAdapter = (agentServer, { autoConnect = true } = {}) => {
     return adapter;
 };
 
-await ensureDocsSymlink(config.resourceDir);
+await Promise.all([
+    ensureResourceSymlink(config.resourceDir, "docs"),
+    ensureResourceSymlink(config.resourceDir, "skills"),
+]);
 await mkdir(config.cwd, { recursive: true });
 await mkdir(join(config.cwd, config.agentServer.name), { recursive: true });
 await syncProjectRules(join(config.cwd, config.agentServer.name), config.systemPrompt);
