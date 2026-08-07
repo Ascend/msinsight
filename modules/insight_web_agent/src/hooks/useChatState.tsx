@@ -268,7 +268,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     useEffect(() => {
-        void initializeActiveSession();
+        initializeActiveSession();
 
         const events = new EventSource(apiUrl('/api/events'));
         events.onmessage = (event): void => applyEvent(JSON.parse(event.data) as ServerEvent);
@@ -285,7 +285,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         if (queuedPromptInFlightRef.current) return;
         queuedPromptInFlightRef.current = true;
         setState((current) => dequeuePrompt(current, nextPrompt));
-        void sendPromptNow(nextPrompt.prompt, nextPrompt.isDraftSession, nextPrompt.sessionId).finally(() => {
+        sendPromptNow(nextPrompt.prompt, nextPrompt.isDraftSession, nextPrompt.sessionId).finally(() => {
             queuedPromptInFlightRef.current = false;
         });
     }, [state]);
@@ -431,7 +431,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => markPromptStarted(current, prompt, isDraftSession, sessionId, optimisticSession));
 
         try {
-            const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode, prompt.hiddenContext);
+            const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode);
             setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
         } catch (error) {
             setState((current) => markPromptFailed(current, optimisticSession, sessionId));

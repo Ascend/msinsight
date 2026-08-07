@@ -351,7 +351,7 @@ const PermissionCard = ({
                     <button
                         className="primary"
                         disabled={Boolean(permission.loadingDecision)}
-                        onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'allow_once'); }}
+                        onClick={() => { onDecision(permission.sessionId, permission.requestId, 'allow_once'); }}
                         type="button"
                     >
                         {permission.loadingDecision === 'allow_once' ? t('allowing') : t('allowOnce')}
@@ -359,14 +359,14 @@ const PermissionCard = ({
                     <button
                         className="primary"
                         disabled={Boolean(permission.loadingDecision)}
-                        onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'allow_always'); }}
+                        onClick={() => { onDecision(permission.sessionId, permission.requestId, 'allow_always'); }}
                         type="button"
                     >
                         {permission.loadingDecision === 'allow_always' ? t('allowing') : t('allowAlways')}
                     </button>
                     <button
                         disabled={Boolean(permission.loadingDecision)}
-                        onClick={() => { void onDecision(permission.sessionId, permission.requestId, 'deny'); }}
+                        onClick={() => { onDecision(permission.sessionId, permission.requestId, 'deny'); }}
                         type="button"
                     >
                         {permission.loadingDecision === 'deny' ? t('denying') : t('deny')}

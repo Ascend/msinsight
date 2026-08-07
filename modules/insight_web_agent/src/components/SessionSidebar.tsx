@@ -198,7 +198,7 @@ export const SessionSidebar = (): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const activeSession = sessions.find((session) => session.sessionId === currentSessionId);
     const handleCreateSession = (): void => {
-        void createSession();
+        createSession();
         setOpen(false);
     };
 
@@ -206,7 +206,7 @@ export const SessionSidebar = (): JSX.Element => {
         <Container>
             <Select
                 className="agent-picker"
-                onChange={(value) => void setAgent(String(value))}
+                onChange={(value) => setAgent(String(value))}
                 options={agentServers.map((agent) => ({ value: agent.name, label: agent.name }))}
                 value={activeAgentName}
                 width="130px"
@@ -215,7 +215,7 @@ export const SessionSidebar = (): JSX.Element => {
             <span className="session-title-bar" title={activeSession?.title || activeSession?.sessionId || t('newSession')}>
                 {activeSession?.title || activeSession?.sessionId || t('newSession')}
             </span>
-            <button className="icon-button" onClick={() => void createSession()} title={t('newChat')} type="button">
+            <button className="icon-button" onClick={() => createSession()} title={t('newChat')} type="button">
                 <AddIcon />
             </button>
             <button className="icon-button drawer-toggle" disabled={!sessions.length} onClick={() => setOpen(true)} title={t('openSessions')} type="button">
@@ -239,7 +239,7 @@ export const SessionSidebar = (): JSX.Element => {
                             disabled={session.isPending}
                             key={session.sessionId}
                             onClick={() => {
-                                void selectSession(session);
+                                selectSession(session);
                                 setOpen(false);
                             }}
                             type="button"
@@ -252,7 +252,7 @@ export const SessionSidebar = (): JSX.Element => {
                                 className="session-delete"
                                 onClick={(event) => {
                                     event.stopPropagation();
-                                    void deleteSession(session);
+                                    deleteSession(session);
                                 }}
                                 role="button"
                                 tabIndex={0}

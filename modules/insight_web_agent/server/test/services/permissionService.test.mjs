@@ -33,7 +33,7 @@ const createFixture = async () => {
     return { root, docs, cwd, agentRoot, external };
 };
 
-const nextTick = () => new Promise((resolve) => setImmediate(resolve));
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const writeText = (path, text) => writeFile(path, text, "utf8");
 const permissionRequests = (events) => events.filter((event) => event.type === "permission_request");
 const expectNoPrompt = (fixture) => assert.deepEqual(fixture.events, []);
@@ -45,18 +45,20 @@ const expectSettlesSoon = (promise) => Promise.race([
 ]);
 const settleOutcome = (promise) => promise.then(() => "resolved", (error) => `rejected:${error.message}`);
 const waitForPermissionRequest = async (events) => {
-    for (let index = 0; index < 20; index += 1) {
+    for (let index = 0; index < 100; index += 1) {
         const request = events.findLast((event) => event.type === "permission_request");
         if (request) return request;
-        await nextTick();
+        await delay(5);
     }
-    return undefined;
+    throw new Error("permission request was not emitted");
 };
 
 const waitForRequestCount = async (events, count) => {
-    while (permissionRequests(events).length < count) {
-        await nextTick();
+    for (let index = 0; index < 100; index += 1) {
+        if (permissionRequests(events).length >= count) return;
+        await delay(5);
     }
+    throw new Error(`expected ${count} permission requests, got ${permissionRequests(events).length}`);
 };
 
 const ensureProjectRoot = async (fixture) => {
@@ -95,7 +97,7 @@ const createService = async (options = {}) => {
                 ? options.extraAllowlistPaths(fixture)
                 : (options.extraAllowlistPaths ?? []),
         },
-        timeoutMs: options.timeoutMs,
+        timeoutMs: options.timeoutMs ?? 1000,
     });
     return { ...fixture, events, state, service };
 };

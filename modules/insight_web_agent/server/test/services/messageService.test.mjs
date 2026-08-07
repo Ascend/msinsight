@@ -147,20 +147,39 @@ test("appendContentBlock ignores assistant text blocks whose head echoes insight
     assert.deepEqual(events, []);
 });
 
-test("appendContentBlock keeps assistant text blocks that only mention insight- URIs later in the message", () => {
+test("appendContentBlock ignores replayed context tag text blocks", () => {
     const state = createRuntimeState();
     state.sessionContexts.set("session-1", buildSessionContext());
     const events = [];
 
+    appendContentBlock({ eventBus: { broadcast: (event) => events.push(event) }, state }, "session-1", "user", {
+        type: "text",
+        text: '<context ref="insight-hidden-context://project">\n{"contextPolicy":"replace_previous_hidden_context","data":{}}',
+    });
+    appendContentBlock({ eventBus: { broadcast: (event) => events.push(event) }, state }, "session-1", "user", {
+        type: "text",
+        text: '<context ref="insight-system-prompt://project">\n你是 MindStudio Insight 的项目上下文助手...',
+    });
+
+    assert.deepEqual(state.sessionContexts.get("session-1").messages, []);
+    assert.deepEqual(events, []);
+});
+
+test("appendContentBlock keeps assistant text blocks that only mention insight- URIs later in the message", () => {
+    const state = createRuntimeState();
+    state.sessionContexts.set("session-1", buildSessionContext());
+    const events = [];
+    const prefix = `${"This is regular assistant text. ".repeat(8)}Reference: `;
+
     appendContentBlock({ eventBus: { broadcast: (event) => events.push(event) }, state }, "session-1", "assistant", {
         type: "text",
-        text: "Sure, here is what I found.\n\nReference: insight-hidden-context://project is a system URI; you should not echo it back to the user.",
+        text: `${prefix}insight-hidden-context://project is a system URI; you should not echo it back to the user.`,
     });
 
     const messages = state.sessionContexts.get("session-1").messages;
     assert.equal(messages.length, 1);
     assert.equal(messages[0].role, "assistant");
-    assert.match(messages[0].text, /Sure, here is what I found\./);
+    assert.match(messages[0].text, /This is regular assistant text\./);
     assert.match(messages[0].text, /insight-hidden-context:\/\/project/);
     assert.ok(events.some((event) => event.type === "message_added"));
 });

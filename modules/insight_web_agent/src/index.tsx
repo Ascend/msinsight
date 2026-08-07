@@ -18,24 +18,12 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { apiUrl, parseContextFromQuery } from './env';
 import '@insight/lib/style';
 
 const root = createRoot(document.getElementById('root') as HTMLElement);
 
-const renderApp = (): void => {
-    root.render(
-        <React.StrictMode>
-            <App />
-        </React.StrictMode>
-    );
-};
-
-const context = parseContextFromQuery();
-void fetch(apiUrl('/api/context'), {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(context),
-})
-    .catch(error => console.warn(`Failed to update agent context: ${error.message}`))
-    .finally(renderApp);
+root.render(
+    <React.StrictMode>
+        <App />
+    </React.StrictMode>
+);

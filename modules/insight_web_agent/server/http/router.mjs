@@ -17,7 +17,7 @@
  */
 import { json, readJson } from "./response.mjs";
 
-export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController }) => {
+export const createRouter = ({ agentController, chatController, sessionController, eventController, permissionController, agentConfigController, contextController }) => {
     return async (req, res) => {
         const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
