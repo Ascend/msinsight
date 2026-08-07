@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { useRef } from 'react';
 import { Button, Select } from '@insight/lib/components';
 import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue } from '../types';
 import { useChatState } from '../hooks/useChatState';
@@ -250,6 +251,13 @@ const Container = styled.div`
         gap: 6px;
     }
 
+    .shortcut-hint {
+        flex: 0 0 auto;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 12px;
+        white-space: nowrap;
+    }
+
     .send-button {
         flex: 0 0 auto;
         min-width: 32px;
@@ -258,6 +266,7 @@ const Container = styled.div`
 `;
 
 export const Composer = (): JSX.Element => {
+    const isComposingRef = useRef(false);
     const { addImages, activeAgentName, agentInfo, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, configOptions, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
     const modelConfig = getModelConfig(configOptions);
     const modelOptions = flattenConfigValues(modelConfig?.options ?? []);
@@ -281,7 +290,10 @@ export const Composer = (): JSX.Element => {
     };
 
     const handleKeyDown = (event: any) => {
-        if (showCommandMenu && (event.key === 'Tab' || event.key === 'Enter') && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+        const isPlainEnter = event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey;
+        const isComposing = isComposingRef.current || event.nativeEvent?.isComposing || event.isComposing;
+        if (isComposing && event.key === 'Enter') return;
+        if (showCommandMenu && (event.key === 'Tab' || isPlainEnter)) {
             event.preventDefault();
             insertCompletion(commandMatches[0]);
             return;
@@ -291,7 +303,7 @@ export const Composer = (): JSX.Element => {
             void cancelMessage();
             return;
         }
-        if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+        if (isPlainEnter) {
             event.preventDefault();
             void sendMessage();
         }
@@ -337,6 +349,8 @@ export const Composer = (): JSX.Element => {
                     ) : null}
                     <textarea
                         onChange={(event) => setInput(event.target.value)}
+                        onCompositionEnd={() => { isComposingRef.current = false; }}
+                        onCompositionStart={() => { isComposingRef.current = true; }}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
                         placeholder={`Message ${agentLabel}`}
@@ -361,6 +375,7 @@ export const Composer = (): JSX.Element => {
                     <div className="model-picker">
                         {modePicker}
                     </div>
+                    <span className="shortcut-hint">Enter 发送 · Shift+Enter 换行</span>
                     <Button className="send-button" onClick={submitOrCancel} size="small" type={pendingPrompt ? 'default' : 'primary'}>{pendingPrompt ? 'Cancel' : 'Send'}</Button>
                 </div>
             </div>

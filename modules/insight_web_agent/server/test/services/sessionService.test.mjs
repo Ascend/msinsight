@@ -17,8 +17,8 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRuntimeState } from "../state/runtimeState.mjs";
-import { createSessionService } from "./sessionService.mjs";
+import { createRuntimeState } from "../../state/runtimeState.mjs";
+import { createSessionService } from "../../services/sessionService.mjs";
 
 test("setMode sends the session mode config option to ACP", async () => {
     const calls = [];
@@ -54,6 +54,28 @@ test("setMode sends the session mode config option to ACP", async () => {
     assert.equal(result.ok, true);
     assert.equal(calls.length, 1);
     assert.equal(state.sessionContexts.get("session-1").configOptions[0].currentValue, "bypass");
+});
+
+test("deleteSessionById rejects deletion while a prompt is pending", async () => {
+    const state = createRuntimeState();
+    state.agentCapabilities = { session: { delete: true } };
+    state.sessionContexts.set("session-1", {
+        sessionId: "session-1",
+        messages: [],
+        pendingPrompt: true,
+        configOptions: [],
+    });
+    const service = createSessionService({
+        acpClient: { async request() { throw new Error("should not be called"); } },
+        config: {},
+        eventBus: { broadcast: () => {} },
+        state,
+    });
+
+    const result = await service.deleteSessionById("session-1");
+
+    assert.equal(result.status, 409);
+    assert.equal(result.error, "cannot delete a session while prompting");
 });
 
 const modeConfig = (currentValue) => ({

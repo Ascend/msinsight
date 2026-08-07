@@ -324,7 +324,11 @@ const Index = observer(({ session }: { session: Session }) => {
         }
     }, [isTriton]);
     const sessionToggleType = showSessionPanel ? 'primary' : 'default';
-    const acpSessionParams = new URLSearchParams({ acpPort: String(ACP_PORT) });
+    const acpSessionParams = new URLSearchParams({
+        acpPort: String(ACP_PORT),
+        profileId: session.activeDataSource.projectName ?? '',
+        activeModule: activeModule,
+    });
     if (JUPYTERLABPROXY) {
         acpSessionParams.set('jupyterlabProxy', 'true');
     }
