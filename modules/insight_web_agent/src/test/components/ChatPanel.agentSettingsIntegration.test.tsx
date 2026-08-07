@@ -182,7 +182,7 @@ test('settings save success preserves visible messages, applies agent state from
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     act(() => {
@@ -203,7 +203,7 @@ test('settings save success preserves visible messages, applies agent state from
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
-    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after event reload', true, undefined, [], undefined, undefined);
+    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after event reload', true, undefined, [], undefined);
 });
 
 test('settings save-and-switch preserves visible messages, refreshes agent state, and does not send the next prompt to the stale session', async () => {
@@ -222,7 +222,7 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
     fireEvent.change(screen.getByLabelText('Agent to edit'), { target: { value: 'Claude' } });
     fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByLabelText('active agent')).toHaveTextContent('Claude'));
@@ -233,5 +233,5 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
-    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after reload', true, undefined, [], undefined, undefined);
+    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after reload', true, undefined, [], undefined);
 });

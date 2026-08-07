@@ -115,5 +115,5 @@ test('uses Enter to insert command completion without sending when not composing
 test('shows the Enter and Shift Enter shortcut hint', () => {
     renderComposer();
 
-    expect(screen.getByText('Enter 发送 · Shift+Enter 换行')).toBeVisible();
+    expect(screen.getByText('Enter to send · Shift+Enter for newline')).toBeVisible();
 });

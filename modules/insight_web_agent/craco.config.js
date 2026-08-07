@@ -46,4 +46,12 @@ module.exports = {
             return webpackConfig;
         },
     },
+    jest: {
+        configure: {
+            moduleNameMapper: {
+                '^@insight/lib$': '<rootDir>/../lib/src',
+                '^@insight/lib/(.*)$': '<rootDir>/../lib/src/$1',
+            },
+        },
+    },
 };

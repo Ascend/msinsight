@@ -107,11 +107,11 @@ test('settings entry opens and displays current config snapshot', async () => {
 
     expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
     expect(mockFetchAgentConfig).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText('Agent name')).toHaveValue('OpenCode');
-    expect(screen.getByLabelText('Agent name')).toHaveAttribute('readOnly');
+    expect(screen.getByLabelText('Agent to edit')).toHaveValue('OpenCode');
     expect(screen.getByLabelText('Command')).toHaveValue('opencode');
     expect(screen.getByDisplayValue('acp')).toBeVisible();
     expect(screen.getByDisplayValue('ACP_DEBUG')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
     expect(screen.getByDisplayValue('missing/path')).toBeVisible();
 });
 
@@ -138,7 +138,7 @@ test('switches to edited non-active existing agent on save', async () => {
     fireEvent.change(screen.getByLabelText('Env key 1'), { target: { value: 'ANTHROPIC_AUTH_TOKEN' } });
     fireEvent.change(screen.getByLabelText('Env value 1'), { target: { value: 'token' } });
     fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     expect(mockSaveAgentConfig.mock.calls[0][0]).toEqual(expect.objectContaining({
@@ -160,7 +160,7 @@ test('rejects empty args before save', async () => {
     await screen.findByText('Agent Runtime Settings');
 
     fireEvent.change(screen.getByDisplayValue('acp'), { target: { value: '' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText('Args cannot be empty.')).toBeVisible();
     expect(mockSaveAgentConfig).not.toHaveBeenCalled();
@@ -173,8 +173,8 @@ test('adds a new agent and saves without switching by default', async () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
     fireEvent.change(screen.getByLabelText('New agent name'), { target: { value: 'Claude' } });
-    fireEvent.change(screen.getByLabelText('New agent command'), { target: { value: 'claude' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     expect(mockSaveAgentConfig.mock.calls[0][0].activeAgentName).toBe('OpenCode');
@@ -189,7 +189,7 @@ test('removes the last existing env row and saves an empty env object', async ()
     await screen.findByText('Agent Runtime Settings');
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove env 1' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     expect(mockSaveAgentConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
@@ -204,17 +204,16 @@ test('adds draft agent args and multiple env rows when saving and switching to t
 
     fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
     fireEvent.change(screen.getByLabelText('New agent name'), { target: { value: 'Claude' } });
-    fireEvent.change(screen.getByLabelText('New agent command'), { target: { value: 'claude' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add new agent arg' }));
-    fireEvent.change(screen.getByLabelText('New agent arg 1'), { target: { value: '--model=sonnet' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add new agent env entry' }));
-    fireEvent.change(screen.getByLabelText('New agent env key 1'), { target: { value: 'ANTHROPIC_AUTH_TOKEN' } });
-    fireEvent.change(screen.getByLabelText('New agent env value 1'), { target: { value: 'token' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add new agent env entry' }));
-    fireEvent.change(screen.getByLabelText('New agent env key 2'), { target: { value: 'ANTHROPIC_BASE_URL' } });
-    fireEvent.change(screen.getByLabelText('New agent env value 2'), { target: { value: 'https://example.test' } });
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add arg' }));
+    fireEvent.change(screen.getByLabelText('Arg 1'), { target: { value: '--model=sonnet' } });
+    fireEvent.change(screen.getByLabelText('Env key 1'), { target: { value: 'ANTHROPIC_AUTH_TOKEN' } });
+    fireEvent.change(screen.getByLabelText('Env value 1'), { target: { value: 'token' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add env entry' }));
+    fireEvent.change(screen.getByLabelText('Env key 2'), { target: { value: 'ANTHROPIC_BASE_URL' } });
+    fireEvent.change(screen.getByLabelText('Env value 2'), { target: { value: 'https://example.test' } });
     fireEvent.click(screen.getByLabelText('Save and switch to this agent'));
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     expect(mockSaveAgentConfig.mock.calls[0][0]).toEqual(expect.objectContaining({
@@ -238,12 +237,13 @@ test('adds and removes multiple extra path rows before save', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByText('Agent Runtime Settings');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add extra path' }));
-    fireEvent.change(screen.getByLabelText('Extra path 2'), { target: { value: 'tmp/path' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add extra path' }));
-    fireEvent.change(screen.getByLabelText('Extra path 3'), { target: { value: 'remove/me' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Remove extra path 3' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add path' }));
+    fireEvent.change(screen.getByLabelText('Extra allowlist paths 2'), { target: { value: 'tmp/path' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add path' }));
+    fireEvent.change(screen.getByLabelText('Extra allowlist paths 3'), { target: { value: 'remove/me' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Remove path 3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     expect(mockSaveAgentConfig.mock.calls[0][0].sessionConfig.defaultAllowlist.extraPaths).toEqual([
@@ -266,7 +266,7 @@ test('shows a clear busy message and disables save while a prompt is in flight',
     await screen.findByText('Agent Runtime Settings');
 
     expect(screen.getByText('Agent is busy. Wait for the current prompt to finish before saving settings.')).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Save settings' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
     expect(mockSaveAgentConfig).not.toHaveBeenCalled();
 });
 
@@ -294,7 +294,7 @@ test('settings save and reload keep the messages list untouched', async () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     await screen.findByText('Agent Runtime Settings');
-    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(applyMock).toHaveBeenCalledTimes(1));
