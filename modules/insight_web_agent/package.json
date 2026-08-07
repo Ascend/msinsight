@@ -1,0 +1,24 @@
+{
+  "name": "insight-web-agent",
+  "version": "0.1.0",
+  "private": true,
+  "homepage": "./",
+  "scripts": {
+    "start": "cross-env DISABLE_ESLINT_PLUGIN=true craco start",
+    "server": "node server/index.mjs",
+    "server:build": "node scripts/build-server.mjs",
+    "build": "cross-env DISABLE_ESLINT_PLUGIN=true craco build"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  }
+}

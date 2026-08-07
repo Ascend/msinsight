@@ -149,3 +149,5 @@ export const modulesConfig: ModuleConfig[] = [
         isTriton: true,
     },
 ];
+
+export const ACP_SESSION_SRC = isDev ? 'http://localhost:3010' : './plugins/InsightWebAgent/index.html';

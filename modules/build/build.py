@@ -43,6 +43,7 @@ MODULES_MAP = {
     'leaks': 'Leaks',
     'memory-on-chip': 'MemoryOnChip',
     'timeline': 'Timeline',
+    'insight_web_agent': 'InsightWebAgent',
 }
 
 BUILD_PROCESS_COUNT = 3

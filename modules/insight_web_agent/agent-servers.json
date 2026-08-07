@@ -1,0 +1,12 @@
+{
+  "activeAgent": "OpenCode",
+  "agentServers": [
+    {
+      "name": "OpenCode",
+      "command": "opencode",
+      "args": [
+        "acp"
+      ]
+    }
+  ]
+}
