@@ -19,15 +19,17 @@ import { spawn } from "node:child_process";
 
 export const createAcpClient = ({ agentServer, cwd, debug, onNotification }) => {
     const { command, args } = resolveCommand(agentServer);
+    const env = createAcpEnv(agentServer, command);
+    console.log(`Starting ACP server: name=${agentServer.name}, command=${command}, args=${args.join(" ")}, cwd=${cwd}, path=${env.PATH ?? ""}`);
     const child = spawn(command, args, {
         cwd,
-        env: { ...process.env, ...(agentServer.env ?? {}) },
+        env,
         stdio: ["pipe", "pipe", "pipe"],
         windowsHide: process.platform === "win32",
     });
 
     child.stderr.setEncoding("utf8");
-    child.stderr.on("data", (chunk) => process.stderr.write(chunk));
+    child.stderr.on("data", (chunk) => console.error(chunk.trimEnd()));
     child.on("error", (error) => {
         console.error(`Failed to start ACP server: ${error.message}`);
         rejectPending(pending, error);
@@ -56,19 +58,16 @@ export const createAcpClient = ({ agentServer, cwd, debug, onNotification }) => 
     return {
         request(method, params) {
             const id = nextId++;
+            console.log(`ACP request start: id=${id}, method=${method}`);
             writeJson(child, { jsonrpc: "2.0", id, method, params });
             return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    pending.delete(id);
-                    reject(new Error(`ACP request timed out: ${method}`));
-                }, 30000);
-                pending.set(id, { resolve, reject, method, timeout });
+                pending.set(id, { resolve, reject, method });
             });
         },
         dispose() {
+            console.log(`Disposing ACP server: name=${agentServer.name}`);
             child.kill();
             for (const waiter of pending.values()) {
-                clearTimeout(waiter.timeout);
                 waiter.reject(new Error("ACP client disposed"));
             }
             pending.clear();
@@ -97,12 +96,13 @@ const handleAcpLine = ({ child, debug, line, onNotification, pending }) => {
     const waiter = pending.get(message.id);
     if (!waiter) return;
     pending.delete(message.id);
-    clearTimeout(waiter.timeout);
 
     if (message.error) {
         const errorDetail = message.error.data?.details ?? message.error.message ?? JSON.stringify(message.error);
+        console.warn(`ACP request failed: id=${message.id}, method=${waiter.method}, error=${errorDetail}`);
         waiter.reject(new Error(errorDetail));
     } else {
+        console.log(`ACP request completed: id=${message.id}, method=${waiter.method}`);
         waiter.resolve(message.result ?? null);
     }
 };
@@ -113,10 +113,14 @@ const writeJson = (child, value) => {
 
 const rejectPending = (pending, error) => {
     for (const waiter of pending.values()) {
-        clearTimeout(waiter.timeout);
         waiter.reject(error);
     }
     pending.clear();
+};
+
+const createAcpEnv = (agentServer, command) => {
+    const env = { ...process.env, ...(agentServer.env ?? {}) };
+    return env;
 };
 
 const resolveCommand = (agentServer) => {

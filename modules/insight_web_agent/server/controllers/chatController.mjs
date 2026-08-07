@@ -20,10 +20,12 @@ import { publicState } from "../state/runtimeState.mjs";
 
 export const createChatController = ({ chatService, state }) => ({
     getState(_req, res) {
+        console.log("Returning public state");
         return json(res, publicState(state));
     },
 
     async prompt(_req, res, body) {
+        console.log(`Prompt requested: sessionId=${String(body?.sessionId ?? "")}, newSession=${Boolean(body?.newSession)}, images=${Array.isArray(body?.images) ? body.images.length : 0}`);
         const result = await chatService.prompt(body?.text, {
             newSession: Boolean(body?.newSession),
             sessionId: body?.sessionId,
@@ -31,11 +33,16 @@ export const createChatController = ({ chatService, state }) => ({
             mode: body?.mode,
             hiddenContext: body?.hiddenContext,
         });
+        if (result.error) console.warn(`Prompt request failed: sessionId=${String(body?.sessionId ?? "")}, error=${result.error}`);
+        else console.log(`Prompt request accepted: sessionId=${result.sessionId}`);
         return json(res, normalizeBody(result), result.status ?? 200);
     },
 
     async cancel(_req, res, body) {
-        return json(res, await chatService.cancel(body?.sessionId));
+        console.log(`Cancel prompt requested: sessionId=${String(body?.sessionId ?? "")}`);
+        const result = await chatService.cancel(body?.sessionId);
+        if (result.error) console.warn(`Cancel prompt failed: sessionId=${String(body?.sessionId ?? "")}, error=${result.error}`);
+        return json(res, result);
     },
 });
 

@@ -18,7 +18,23 @@
 import styled from '@emotion/styled';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import type React from 'react';
 import type { ChatMessage } from '../types';
+
+const markdownComponents = {
+    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element => {
+        return (
+            <a
+                {...props}
+                href={href}
+                rel="noopener noreferrer"
+                target="_blank"
+            >
+                {children}
+            </a>
+        );
+    },
+};
 
 const Container = styled.div`
     display: flex;
@@ -199,7 +215,7 @@ export const MessageList = ({ messages, pendingPrompt }: MessageListProps): JSX.
                 <article className={`message ${message.role}`} key={message.id}>
                     {message.thinking ? <div className="thinking">{message.thinking}</div> : null}
                     <div className={`rich-text ${message.text ? '' : 'muted'}`}>
-                        {message.text ? <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown> : '...'}
+                        {message.text ? <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown> : '...'}
                     </div>
                     {message.images?.length ? (
                         <div className="attachments">

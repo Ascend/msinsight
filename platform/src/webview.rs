@@ -58,11 +58,13 @@ fn create_webview(
             build_protocol_response(200, mimetype, content)
         })
         .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}&acpPort={}", port, acp_port).as_str())?
-        .with_file_drop_handler(move |_, ev| {
+        .with_file_drop_handler(move |ev| {
             match ev {
                 FileDropEvent::Dropped { paths, .. } => {
-                    if let Err(e) = proxy.send_event(paths[0].to_owned()) {
-                        eprintln!("app closed unexpectedly: {:#?}", e);
+                    if let Some(path) = paths.first() {
+                        if let Err(e) = proxy.send_event(path.to_owned()) {
+                            eprintln!("app closed unexpectedly: {:#?}", e);
+                        }
                     }
                 }
                 _ => {}

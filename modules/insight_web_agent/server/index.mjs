@@ -64,14 +64,14 @@ const createActiveAcpClient = (agentServer) => {
     });
 };
 
-await ensureDocsSymlink(config.rootDir);
+await ensureDocsSymlink(config.resourceDir);
 await mkdir(config.cwd, { recursive: true });
 await mkdir(join(config.cwd, config.agentServer.name), { recursive: true });
 await syncProjectRules(join(config.cwd, config.agentServer.name), config.systemPrompt);
 
 const state = createRuntimeState();
 const eventBus = createEventBus(state);
-const skillService = createSkillService({ rootDir: config.rootDir });
+const skillService = createSkillService({ rootDir: config.resourceDir });
 let chatService;
 let activeAgentServer = config.agentServer;
 let activeAcpClient = createActiveAcpClient(activeAgentServer);
@@ -131,8 +131,8 @@ await chatService.initialize();
 
 const server = createApp({ agentService, eventBus, chatService, sessionService, state });
 
-server.listen(config.port, "127.0.0.1", () => {
-    console.log(`ACP web extracted API: http://127.0.0.1:${config.port}/`);
+server.listen(config.port, config.host, () => {
+    console.log(`ACP web extracted API: http://${config.host}:${config.port}/`);
     console.log(`Agent: ${config.activeAgentName} (${config.agentServer.command} ${config.agentServer.args.join(" ")})`);
 });
 

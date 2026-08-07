@@ -20,32 +20,34 @@ See the Mulan PSL v2 for more details.
 """
 
 # pylint: disable=logging-fstring-interpolation,unspecified-encoding,inconsistent-return-statements,global-variable-not-assigned,consider-using-with,useless-return
-import os
-import sys
 import json
-import subprocess  # nosec B404
-import socket
 import logging
+import os
 import re
+import shlex
 import shutil
+import socket
+import subprocess  # nosec B404
+import sys
 import uuid
+
 import psutil
+import tornado
 from jupyter_server.base.handlers import APIHandler
 from jupyter_server.utils import url_path_join
-import tornado
 from tornado.web import StaticFileHandler
 
 
-# 配置日志
 logging.basicConfig(
     level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', handlers=[logging.StreamHandler()]
 )
-# init profiler_server process
+
 profiler_process = {}
-# default profiler_server port
+acp_process = {}
 available_port = 9000
-# default profiler_server_id
+acp_available_port = 9001
 profiler_server_id = str(uuid.uuid4())
+login_shell_env = None
 
 HOST_PATTERN = (
     r"^(?=.{1,261}$)(?:"
@@ -56,49 +58,54 @@ HOST_PATTERN = (
     r")$"
 )
 
+DEFAULT_AGENT_SERVERS_CONFIG = """{
+  "activeAgent": "OpenCode",
+  "agentServers": [
+    {
+      "name": "OpenCode",
+      "command": "opencode",
+      "args": [
+        "acp"
+      ]
+    }
+  ]
+}
+"""
+
 
 def check_jupyter_server_proxy_installed():
     try:
-        # 动态查找 jupyter 的绝对路径
-        jupyter_path = shutil.which('jupyter')
+        env = get_process_env()
+        jupyter_path = shutil.which('jupyter', path=env.get('PATH'))
         if not jupyter_path:
             raise FileNotFoundError("jupyter executable not found in PATH")
 
-        # 执行命令
         result = subprocess.run(  # nosec B603
             [jupyter_path, 'labextension', 'list'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
             check=True,
+            env=env,
         )
-        # 获取标准输出和标准错误输出
-        output = result.stdout + result.stderr
-        # 检查扩展是否在输出中
-        return 'jupyter-server-proxy' in output
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Failed to check jupyter-server-proxy, because {e}")
-    except FileNotFoundError as e:
-        logging.error(f"Failed to check jupyter-server-proxy, because {e}")
-    return False
+        return 'jupyter-server-proxy' in result.stdout + result.stderr
+    except (subprocess.CalledProcessError, FileNotFoundError) as error:
+        logging.error("Failed to check jupyter-server-proxy, because %s", error)
+        return False
 
 
 def get_host_ip():
-    user_dir = os.path.expanduser('~')
-    config_path = os.path.join(user_dir, '.jupyter', 'jupyter_lab_config.py')
-    host_ip = '127.0.0.1'  # 默认值
-
+    config_path = os.path.join(os.path.expanduser('~'), '.jupyter', 'jupyter_lab_config.py')
+    host_ip = '127.0.0.1'
     if not os.path.exists(config_path):
         return host_ip
 
     try:
-        with open(config_path, 'r') as f:
-            content = f.read()
-
-        # 匹配 c.ServerApp.ip 的值
-        ip_pattern = r'^[ \t]*(?!\s*#)c\.ServerApp\.ip\s*=\s*[\'"](.*?)[\'"]'
-        match = re.search(ip_pattern, content, flags=re.MULTILINE)
-
+        with open(config_path, 'r', encoding='utf-8') as file:
+            content = file.read()
+        match = re.search(
+            r'^[ \t]*(?!\s*#)c\.ServerApp\.ip\s*=\s*[\'\"](.*?)[\'\"]', content, flags=re.MULTILINE
+        )
         if match:
             configured_ip = match.group(1).strip()
             if configured_ip == '*':
@@ -108,122 +115,270 @@ def get_host_ip():
                     socket.getaddrinfo(configured_ip, None, socket.AF_INET)
                     host_ip = configured_ip
                 except socket.gaierror:
-                    logging.error(f"Invalid ServerApp.ip in jupyter config: {configured_ip}")
-    except Exception as e:
-        logging.error(f"Failed to check jupyter-lab-config, because {e}")
-
+                    logging.error('Invalid ServerApp.ip in jupyter config: %s', configured_ip)
+    except (OSError, UnicodeError) as error:
+        logging.error("Failed to check jupyter-lab-config, because %s", error)
     return host_ip
 
 
 def get_local_ip():
-    if check_jupyter_server_proxy_installed():
-        return '127.0.0.1'
-    else:
-        return get_host_ip()
+    return '127.0.0.1' if check_jupyter_server_proxy_installed() else get_host_ip()
 
 
 def find_available_port(host, start_port=9000, max_tries=100):
-    global available_port
-    available_port = start_port
-    tries = 0
-    while tries < max_tries:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    current_port = start_port
+    for _ in range(max_tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             try:
-                s.bind((host, available_port))
-                return available_port
-            except socket.error:
-                available_port += 1
-                tries += 1
-                continue
+                sock.bind((host, current_port))
+                return current_port
+            except OSError:
+                current_port += 1
+    return None
+
+
+def ensure_mindstudio_insight_dir():
+    mindstudio_insight_dir = os.path.join(os.path.expanduser('~'), '.mindstudio_insight')
+    os.makedirs(mindstudio_insight_dir, mode=0o750, exist_ok=True)
+
+    config_path = os.path.join(mindstudio_insight_dir, 'agent-servers.json')
+    if not os.path.exists(config_path):
+        with open(config_path, 'w', encoding='utf-8') as file:
+            file.write(DEFAULT_AGENT_SERVERS_CONFIG)
+    return mindstudio_insight_dir
 
 
 def start_profiler_server():
-    user_home_dir = os.path.expanduser('~')
-    mindstudio_insight_dir = os.path.join(user_home_dir, '.mindstudio_insight')
-
-    if not os.path.exists(mindstudio_insight_dir):
-        os.makedirs(mindstudio_insight_dir, 0o750)
-
-    global profiler_process
-    profiler_server_path = os.path.join(os.path.dirname(__file__), 'resources', 'profiler', 'server', 'profiler_server')
-
     global available_port
-    available_port = find_available_port(get_local_ip())
-    # 配置参数
-    command = [
-        profiler_server_path,
-        '--wsPort',
-        str(available_port),
-        '--wsHost',
-        get_local_ip(),
-        '--logPath',
-        mindstudio_insight_dir,
-    ]
-
-    # 生成唯一profiler标识符
     global profiler_server_id
-    profiler_server_id = str(uuid.uuid4())
 
-    if sys.platform == 'win32':
-        profiler_server_path = profiler_server_path + '.exe'
-        # 设置执行权限
-        os.chmod(profiler_server_path, 0o550)  # nosec B103
-        command[0] = profiler_server_path
-        # start profiler server and set port
-        process = subprocess.Popen(command)  # nosec B603
-        profiler_process[profiler_server_id] = process
-    else:
-        # 设置执行权限
-        os.chmod(profiler_server_path, 0o550)  # nosec B103
+    try:
+        mindstudio_insight_dir = ensure_mindstudio_insight_dir()
+        host = get_local_ip()
+        selected_port = find_available_port(host)
+        if selected_port is None:
+            logging.error('No available profiler port')
+            return False
+
         server_dir = os.path.join(os.path.dirname(__file__), 'resources', 'profiler', 'server')
-        env = os.environ.copy()
-        env["LD_LIBRARY_PATH"] = f".:{env.get('LD_LIBRARY_PATH', '')}"
-        command[0] = './profiler_server'
-        process = subprocess.Popen(command, cwd=server_dir, env=env)  # nosec B603
-        profiler_process[profiler_server_id] = process
+        executable = os.path.join(server_dir, 'profiler_server')
+        if sys.platform == 'win32':
+            executable += '.exe'
+        if not os.path.isfile(executable):
+            logging.error('Profiler server executable does not exist: %s', executable)
+            return False
+
+        os.chmod(executable, 0o550)  # nosec B103
+        command = [
+            executable if sys.platform == 'win32' else './profiler_server',
+            '--wsPort',
+            str(selected_port),
+            '--wsHost',
+            host,
+            '--logPath',
+            mindstudio_insight_dir,
+        ]
+        env = get_process_env()
+        popen_options = {'env': env}
+        if sys.platform != 'win32':
+            env['LD_LIBRARY_PATH'] = f".:{env.get('LD_LIBRARY_PATH', '')}"
+            popen_options['cwd'] = server_dir
+        process = subprocess.Popen(command, **popen_options)  # nosec B603
+    except (OSError, subprocess.SubprocessError) as error:
+        logging.error('Failed to start profiler server, because %s', error)
+        return False
+
+    server_id = str(uuid.uuid4())
+    profiler_process[server_id] = process
+    profiler_server_id = server_id
+    available_port = selected_port
+    return True
+
+
+def start_acp_node_service():
+    global acp_available_port
+
+    try:
+        mindstudio_insight_dir = ensure_mindstudio_insight_dir()
+        acp_service_dir = os.path.join(
+            os.path.dirname(__file__), 'resources', 'profiler', 'server', 'insight_web_agent'
+        )
+        acp_entry_path = os.path.join(acp_service_dir, 'index.mjs')
+        if not os.path.isfile(acp_entry_path):
+            logging.error('ACP node service entry does not exist: %s', acp_entry_path)
+            return None
+
+        env = get_process_env()
+        node_path = shutil.which('node', path=env.get('PATH'))
+        if not node_path:
+            logging.error('Node executable was not found in PATH')
+            return None
+        if profiler_server_id not in profiler_process:
+            logging.error('Cannot start ACP without a running profiler server')
+            return None
+
+        acp_host = get_local_ip()
+        selected_port = find_available_port(acp_host, available_port + 1)
+        if selected_port is None:
+            logging.error('No available ACP port')
+            return None
+
+        command = [
+            node_path,
+            acp_entry_path,
+            '--path',
+            mindstudio_insight_dir,
+            '--resource-path',
+            acp_service_dir,
+            '--port',
+            str(selected_port),
+            '--host',
+            acp_host,
+        ]
+        process = subprocess.Popen(command, cwd=acp_service_dir, env=env)  # nosec B603
+    except (OSError, subprocess.SubprocessError) as error:
+        logging.error('Failed to start ACP node service, because %s', error)
+        return None
+
+    acp_process[profiler_server_id] = process
+    acp_available_port = selected_port
+    return selected_port
+
+
+def get_process_env():
+    if sys.platform != 'darwin':
+        return os.environ.copy()
+
+    global login_shell_env
+    if login_shell_env is None:
+        login_shell_env = load_login_shell_env()
+    return login_shell_env.copy()
+
+
+def load_login_shell_env():
+    env = os.environ.copy()
+    shell = get_login_shell(env)
+    home = os.path.expanduser('~')
+    user = env.get('USER', '')
+    capture_env = {
+        'HOME': home,
+        'USER': user,
+        'LOGNAME': env.get('LOGNAME', user),
+        'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
+        'SHELL': shell,
+    }
+    try:
+        result = subprocess.run(  # nosec B603
+            [shell, '-l', '-i', '-c', f"cd {shlex.quote(home)}; env -0"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            env=capture_env,
+            timeout=10,
+        )
+        captured_env = parse_env_output(result.stdout)
+        if captured_env:
+            captured_env.pop('SHLVL', None)
+            return captured_env
+    except (OSError, subprocess.SubprocessError) as error:
+        logging.error('Failed to load login shell environment, because %s', error)
+
+    env['PATH'] = merge_path(
+        [env.get('PATH', ''), '/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin', '/usr/sbin', '/sbin']
+    )
+    return env
+
+
+def get_login_shell(env):
+    shell = env.get('SHELL')
+    return shell if shell and os.path.exists(shell) else '/bin/zsh'
+
+
+def parse_env_output(output):
+    result = {}
+    for entry in output.split(b'\0'):
+        if not entry or b'=' not in entry:
+            continue
+        name, value = entry.split(b'=', 1)
+        try:
+            result[name.decode('utf-8')] = value.decode('utf-8')
+        except UnicodeDecodeError:
+            continue
+    return result
+
+
+def merge_path(paths):
+    result = []
+    for path in paths:
+        for item in str(path).split(os.pathsep):
+            if item and item not in result:
+                result.append(item)
+    return os.pathsep.join(result)
 
 
 def is_port_in_use(port):
-    for conn in psutil.net_connections():
-        if conn.status == 'LISTEN' and conn.laddr.port == port:
+    for connection in psutil.net_connections():
+        if connection.status == 'LISTEN' and connection.laddr.port == port:
             return True
     return False
 
 
-def stop_profiler_server():
-    global profiler_process
-    if not profiler_process:
+def _terminate_process(process):
+    if process is None:
         return
-    for server_id, process in profiler_process.items():
-        if process:
-            try:
-                process.terminate()
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                process.kill()  # 强制终止进程
-            finally:
-                del profiler_process[server_id]
-    profiler_process = {}
+    try:
+        process.terminate()
+        process.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        process.kill()
+    except OSError as error:
+        logging.error('Failed to stop child process, because %s', error)
+
+
+def stop_acp_node_service(server_id=None):
+    server_ids = list(acp_process) if server_id is None else [server_id]
+    for current_server_id in server_ids:
+        process = acp_process.pop(current_server_id, None)
+        _terminate_process(process)
+
+
+def stop_profiler_server(server_id=None):
+    server_ids = list(profiler_process) if server_id is None else [server_id]
+    for current_server_id in server_ids:
+        process = profiler_process.pop(current_server_id, None)
+        _terminate_process(process)
+        stop_acp_node_service(current_server_id)
 
 
 def shutdown_hook(web_app):
+    del web_app
     stop_profiler_server()
+    stop_acp_node_service()
 
 
 class IFrameConfigHandler(APIHandler):
     @tornado.web.authenticated
     def get(self):
-        start_profiler_server()
-        # find available port
-        global available_port
-        # find start profiler server id
-        global profiler_server_id
+        if not start_profiler_server():
+            self.set_status(503)
+            self.finish(json.dumps({'error': 'Failed to start profiler server'}))
+            return
+
+        started_server_id = profiler_server_id
+        acp_port = start_acp_node_service()
+        if acp_port is None:
+            stop_profiler_server(started_server_id)
+            self.set_status(503)
+            self.finish(json.dumps({'error': 'Failed to start ACP node service'}))
+            return
+
         self.finish(
             json.dumps(
                 {
-                    "proxy": check_jupyter_server_proxy_installed(),
-                    "port": available_port,
-                    "profilerServerId": profiler_server_id,
+                    'proxy': check_jupyter_server_proxy_installed(),
+                    'port': available_port,
+                    'acpPort': acp_port,
+                    'profilerServerId': started_server_id,
                 }
             )
         )
@@ -232,74 +387,45 @@ class IFrameConfigHandler(APIHandler):
 class TerminateProfilerHandler(APIHandler):
     @tornado.web.authenticated
     def get(self):
-        query_profiler_server_id = self.get_query_argument("profilerServerId")
-        global profiler_process
-        process = profiler_process.get(query_profiler_server_id)
-        if process:
-            try:
-                process.terminate()
-                process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                process.kill()
-            finally:
-                del profiler_process[query_profiler_server_id]
-
-            self.finish(
-                json.dumps(
-                    {
-                        "status": "terminated",
-                        "profilerServerId": query_profiler_server_id,
-                    }
-                )
-            )
-        else:
+        server_id = self.get_query_argument('profilerServerId')
+        if server_id not in profiler_process:
             self.set_status(404)
-            self.finish(
-                json.dumps(
-                    {
-                        "error": "Profiler server not found",
-                    }
-                )
-            )
+            self.finish(json.dumps({'error': 'Profiler server not found'}))
+            return
+
+        stop_profiler_server(server_id)
+        self.finish(json.dumps({'status': 'terminated', 'profilerServerId': server_id}))
 
 
 class RouteHandler(APIHandler):
-    # The following decorator should be present on all verb methods (head, get, post,
-    # patch, put, delete, options) to ensure only authorized user can request the
-    # Jupyter server
     @tornado.web.authenticated
     def get(self):
-        self.finish(json.dumps({"data": "This is mindstudio_insight_jupyterlab get_example endpoint!"}))
+        self.finish(json.dumps({'data': 'This is mindstudio_insight_jupyterlab get_example endpoint!'}))
 
 
 class IFrameStaticFileHandler(StaticFileHandler):
     def prepare(self):
         if is_port_in_use(available_port):
             super().prepare()
-        else:
-            self.set_status(403)
-            self.finish(json.dumps({"error": "Failed to start profiler server, please check it."}))
             return
+        self.set_status(403)
+        self.finish(json.dumps({'error': 'Failed to start profiler server, please check it.'}))
 
 
 def setup_handlers(web_app):
-    web_app.settings["shutdown_hook"] = shutdown_hook
-    host_pattern = HOST_PATTERN
-    base_url = web_app.settings["base_url"]
-
-    iframe_route_pattern = url_path_join(base_url, "/mindstudio_insight_jupyterlab/get_iframe_config")
-    iframe_handlers = [(iframe_route_pattern, IFrameConfigHandler)]
-
-    terminate_route_pattern = url_path_join(base_url, "/mindstudio_insight_jupyterlab/terminate_profiler_server")
-    terminate_handlers = [(terminate_route_pattern, TerminateProfilerHandler)]
-
-    static_frontend_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), 'resources', 'profiler', 'frontend'
+    web_app.settings['shutdown_hook'] = shutdown_hook
+    base_url = web_app.settings['base_url']
+    iframe_route = url_path_join(base_url, '/mindstudio_insight_jupyterlab/get_iframe_config')
+    terminate_route = url_path_join(base_url, '/mindstudio_insight_jupyterlab/terminate_profiler_server')
+    static_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'resources', 'profiler', 'frontend')
+    static_route = url_path_join(base_url, '/resources/profiler/frontend/(.*)')
+    api_route = url_path_join(base_url, '/mindstudio_insight_jupyterlab/get_example')
+    web_app.add_handlers(
+        HOST_PATTERN,
+        [
+            (iframe_route, IFrameConfigHandler),
+            (terminate_route, TerminateProfilerHandler),
+            (static_route, IFrameStaticFileHandler, {'path': static_path}),
+            (api_route, RouteHandler),
+        ],
     )
-    static_route_pattern = url_path_join(base_url, "/resources/profiler/frontend/(.*)")
-    static_handlers = [(static_route_pattern, IFrameStaticFileHandler, {'path': static_frontend_path})]
-
-    api_route_pattern = url_path_join(base_url, "/mindstudio_insight_jupyterlab/get_example")
-    api_handlers = [(api_route_pattern, RouteHandler)]
-
-    web_app.add_handlers(host_pattern, iframe_handlers + terminate_handlers + static_handlers + api_handlers)

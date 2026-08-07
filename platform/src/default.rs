@@ -21,6 +21,7 @@ use std::os::windows::process::CommandExt;
 use std::{
     env,
     env::current_exe,
+    ffi::OsStr,
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener},
     path::PathBuf,
     process::Command,
@@ -32,6 +33,19 @@ const SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "profiler_server"];
 const ACP_SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "insight_web_agent"];
+const DEFAULT_AGENT_SERVERS_CONFIG: &str = r#"{
+  "activeAgent": "OpenCode",
+  "agentServers": [
+    {
+      "name": "OpenCode",
+      "command": "opencode",
+      "args": [
+        "acp"
+      ]
+    }
+  ]
+}
+"#;
 #[cfg(windows)]
 const NO_WINDOW_FLAG: u32 = 0x08000000;
 
@@ -110,7 +124,7 @@ fn acp_server_path(root_path: &PathBuf) -> Option<PathBuf> {
     Some(server_path)
 }
 
-fn run_acp_server(root_path: &PathBuf, port: u16) {
+fn run_acp_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
     let Some(acp_path) = acp_server_path(root_path) else {
         eprintln!("ACP node server path does not exist");
         return;
@@ -125,6 +139,8 @@ fn run_acp_server(root_path: &PathBuf, port: u16) {
     match server_command
         .arg(entry_path)
         .arg("--path")
+        .arg(cache_path)
+        .arg("--resource-path")
         .arg(acp_path)
         .arg("--port")
         .arg(port.to_string())
@@ -200,10 +216,82 @@ fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
     None
 }
 
+#[cfg(target_os = "macos")]
+fn load_login_shell_environment() {
+    let shell = env::var("SHELL")
+        .ok()
+        .filter(|shell| PathBuf::from(shell).exists())
+        .unwrap_or_else(|| "/bin/zsh".to_string());
+    let home = home_dir().unwrap_or_else(|| PathBuf::from("/"));
+    let home_arg = shell_single_quote(home.as_os_str());
+    let user = env::var("USER").unwrap_or_default();
+    let logname = env::var("LOGNAME").unwrap_or_else(|_| user.clone());
+    let command = format!("cd {home_arg}; env -0");
+
+    let output = Command::new("/usr/bin/env")
+        .arg("-i")
+        .arg(format!("HOME={}", home.display()))
+        .arg(format!("USER={user}"))
+        .arg(format!("LOGNAME={logname}"))
+        .arg("PATH=/usr/bin:/bin:/usr/sbin:/sbin")
+        .arg(format!("SHELL={shell}"))
+        .arg(&shell)
+        .arg("-l")
+        .arg("-i")
+        .arg("-c")
+        .arg(command)
+        .output();
+
+    match output {
+        Ok(output) => {
+            for entry in output.stdout.split(|byte| *byte == 0) {
+                if entry.is_empty() {
+                    continue;
+                }
+                if let Some(index) = entry.iter().position(|byte| *byte == b'=')
+                {
+                    let name = String::from_utf8_lossy(&entry[..index]);
+                    if name == "SHLVL" || name.is_empty() {
+                        continue;
+                    }
+                    let value = String::from_utf8_lossy(&entry[index + 1..]);
+                    env::set_var(name.as_ref(), value.as_ref());
+                }
+            }
+            eprintln!("Loaded login shell environment from {shell}");
+        }
+        Err(error) => {
+            eprintln!("Failed to load login shell environment: {error}")
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn shell_single_quote(value: &OsStr) -> String {
+    let value = value.to_string_lossy();
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn ensure_agent_servers_config(cache_path: &PathBuf) {
+    let config_path = cache_path.join("agent-servers.json");
+    if config_path.exists() {
+        return;
+    }
+
+    if let Err(error) =
+        std::fs::write(&config_path, DEFAULT_AGENT_SERVERS_CONFIG)
+    {
+        eprintln!("Failed to create ACP agent server config: {error}");
+    }
+}
+
 pub static mut PID: u32 = u32::MAX;
 pub static mut ACP_PID: u32 = u32::MAX;
 
 pub fn main() {
+    #[cfg(target_os = "macos")]
+    load_login_shell_environment();
+
     let mut cache_path = home_dir()
         .expect("Home dir not exists, check your env variable")
         .join(".mindstudio_insight"); //cache folder generated for each user.
@@ -249,6 +337,8 @@ pub fn main() {
         }
     }
 
+    ensure_agent_servers_config(&cache_path);
+
     if webview::webview_version().is_err() {
         #[cfg(windows)]
         webview::webview2err::show_webview_err_message();
@@ -267,15 +357,16 @@ pub fn main() {
     };
 
     #[cfg(target_os = "linux")]
-    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port, acp_port) {
+    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port, acp_port) {
         run_server(&root_path, &cache_path, port);
-        run_acp_server(&root_path, acp_port);
-        webview::run_event_loop(eventloop, webview, window)
+        run_acp_server(&root_path, &cache_path, acp_port);
+        webview::run_event_loop(eventloop, webview)
     }
 
     #[cfg(any(target_os = "windows", target_os = "macos"))]
     if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port, acp_port) {
         run_server(&root_path, &cache_path, port);
+        run_acp_server(&root_path, &cache_path, acp_port);
         webview::run_event_loop(eventloop, webview, window)
     }
 }

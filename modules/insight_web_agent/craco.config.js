@@ -24,7 +24,7 @@ module.exports = {
         open: false,
         proxy: {
             '/api': {
-                target: 'http://127.0.0.1:9090',
+                target: 'http://localhost:9090',
                 changeOrigin: true,
             },
         },
