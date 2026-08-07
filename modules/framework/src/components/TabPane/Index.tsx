@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { getModuleConfig } from '@/utils/Request';
 import { updateSession } from '@/connection/notificationHandler';
 import connector from '@/connection';
+import { getModuleFrames } from '@/connection/targetWindow';
 import {
     onDivLoad,
     isVscodePluginEnvironment,
@@ -267,7 +268,7 @@ const Index = observer(({ session }: { session: Session }) => {
 
     // 添加监听新的页签加载后发送当前工程
     useEffect(() => {
-        const frames = document.querySelectorAll('iframe:not(.acp-session-panel)');
+        const frames = getModuleFrames();
         const frameIds = Array.prototype.map.call(frames, (frame: HTMLIFrameElement) => frame.id) as string[];
         const newFrames = Array.prototype.filter.call(frames, (frame: HTMLIFrameElement) => !prevFrameIdsRef.current.includes(frame.id)) as HTMLIFrameElement[];
 
