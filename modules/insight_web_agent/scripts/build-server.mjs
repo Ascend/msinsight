@@ -61,7 +61,7 @@ await build({
     platform: "node",
     outfile: outputEntry,
     sourcemap: false,
-    target: "node18",
+    target: "node22.14",
 });
 await build({
     banner: {
@@ -75,7 +75,7 @@ await build({
     outfile: outputNativeAgentEntry,
     plugins: [unsupportedProviderPlugin],
     sourcemap: false,
-    target: "node18",
+    target: "node22.14",
 });
 
 await cp(

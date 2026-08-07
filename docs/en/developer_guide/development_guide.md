@@ -11,7 +11,7 @@
 
 | Software| Version Requirement| Usage|
 | --- | --- | --- |
-| Node.js | v18.17.1 or later| Frontend|
+| Node.js | v22.14.0 or later| Frontend and ACP agent runtime|
 | Python | v3.11.x (recommended)| Tool script|
 | MinGW | v11.2 (msvcrt version recommended)| Compiling program running|
 | Git | None| Code pulling and submitting|
@@ -952,7 +952,7 @@ You can install the dependencies by yourself. If you have any questions about in
 | CMake         | 3.16~3.20        |                    |
 | nsis          | No requirements             | Installation package packing software           |
 | nsProcess plugin  | unicode support  | Packaging software plugin, which is used to check whether there are duplicate running processes.|
-| node          | v18.20.8+        | Frontend build              |
+| node          | v22.14.0+        | Frontend build and ACP agent runtime |
 | pnpm          | No requirements             | Frontend build              |
 | Python        | 3.11+            | Cluster tool packaging            |
 
@@ -1051,7 +1051,7 @@ pyinstaller
    
    Official website: <https://nodejs.org>
    
-   Version requirement: v18.20.8 or later (LTS version recommended)
+   Version requirement: v22.14.0 or later (required by the Blade agent runtime; LTS version recommended)
 
    Verification after installation:
 
@@ -1100,7 +1100,7 @@ pyinstaller
 | Rust         | 1.89      | Base compilation and build|
 | cargo-bundle | No requirements      |              |
 | Ninja        | No requirements      | Background compilation    |
-| node         | v18.20.8+ | Frontend build    |
+| node         | v22.14.0+ | Frontend build and ACP agent runtime |
 | pnpm         | No requirements      | Frontend build    |
 | Python       | 3.11+     | Package cluster tool|
 | Clang        | 15      |              |

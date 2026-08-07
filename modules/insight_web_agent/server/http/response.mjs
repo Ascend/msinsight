@@ -20,8 +20,12 @@ export const json = (res, body, status = 200) => {
     res.end(JSON.stringify(body));
 };
 
-export const applyCors = (res) => {
-    res.setHeader("access-control-allow-origin", "*");
+export const applyCors = (req, res, allowedOrigins = []) => {
+    const origin = String(req.headers.origin ?? "").replace(/\/$/, "");
+    if (origin && allowedOrigins.includes(origin)) {
+        res.setHeader("access-control-allow-origin", origin);
+        res.setHeader("vary", "origin");
+    }
     res.setHeader("access-control-allow-methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("access-control-allow-headers", "content-type");
 };

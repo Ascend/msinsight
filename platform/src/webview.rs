@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-mod cleanup;
+pub(crate) mod cleanup;
 #[cfg(windows)]
 pub mod webview2err;
 
@@ -42,6 +42,7 @@ fn create_webview(
     resource_path: Arc<PathBuf>,
     port: u16,
     acp_port: u16,
+    capability_token: &str,
     proxy: Arc<EventLoopProxy<PathBuf>>,
 ) -> wry::Result<WebView> {
     // Wry only borrows Window in newer versions; run_event_loop owns it later.
@@ -57,7 +58,7 @@ fn create_webview(
 
             build_protocol_response(200, mimetype, content)
         })
-        .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}&acpPort={}", port, acp_port).as_str())?
+        .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}&acpPort={}&acpCapabilityToken={}", port, acp_port, capability_token).as_str())?
         .with_file_drop_handler(move |ev| {
             match ev {
                 FileDropEvent::Dropped { paths, .. } => {
@@ -243,6 +244,7 @@ pub fn run_script(
     cache_path: &PathBuf,
     port: u16,
     acp_port: u16,
+    capability_token: &str,
 ) -> wry::Result<(EventLoop<PathBuf>, WebView, Window)> {
     let event_loop = EventLoopBuilder::<PathBuf>::with_user_event().build();
 
@@ -267,7 +269,7 @@ pub fn run_script(
     #[cfg(windows)]
     set_windows_icon(&window, root_path);
 
-    let webview = create_webview(&window, log_path, resource_path, port, acp_port, proxy)?;
+    let webview = create_webview(&window, log_path, resource_path, port, acp_port, capability_token, proxy)?;
 
     Ok((event_loop, webview, window))
 }

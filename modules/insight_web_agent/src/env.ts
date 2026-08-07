@@ -22,11 +22,12 @@ declare global {
 }
 
 const acpPort = new URLSearchParams(window.location.search).get('acpPort');
+const capabilityToken = new URLSearchParams(window.location.search).get('capabilityToken');
 const jupyterlabProxy = new URLSearchParams(window.location.search).get('jupyterlabProxy') === 'true';
 const defaultApiBase = process.env.NODE_ENV === 'development' ? 'http://localhost:9090' : '';
 
-if (process.env.NODE_ENV !== 'development' && !window.__ACP_API_BASE__ && !acpPort) {
-    throw new Error('Missing required acpPort parameter.');
+if (process.env.NODE_ENV !== 'development' && (!window.__ACP_API_BASE__ && !acpPort || !capabilityToken)) {
+    throw new Error('Missing required ACP connection parameters.');
 }
 
 const resolveAcpApiBase = (): string => {
@@ -53,7 +54,10 @@ const resolveAcpPortBase = (port: string): string => {
 export const apiBase = resolveAcpApiBase();
 
 export const apiUrl = (path: string): string => {
-    return apiBase ? `${apiBase}${path}` : path;
+    const url = apiBase ? `${apiBase}${path}` : path;
+    if (!capabilityToken) return url;
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}capabilityToken=${encodeURIComponent(capabilityToken)}`;
 };
 
 export {};

@@ -87,7 +87,7 @@ Linux 本地开发建议准备如下工具：
 | 软件名 | 版本要求 | 用途 |
 | --- | --- | --- |
 | git | 无特殊要求 | 代码拉取与提交 |
-| Node.js | v18.20.8+ | 前端开发与构建 |
+| Node.js | v22.14.0+ | 前端开发、构建与 ACP Agent 运行时 |
 | pnpm | 建议使用与 lockfile 兼容的版本 | 前端包管理 |
 | Python | 3.11+ | 工具脚本、pre-commit、第三方依赖预处理 |
 | CMake | 3.16~3.20 | 后端项目构建与编译 |
@@ -107,7 +107,7 @@ openEuler / CentOS / RHEL 类系统可参考：
 sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-Node.js 建议通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v18.20.8+。
+Node.js 建议通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v22.14.0+（Blade Agent 运行时的最低要求）。
 
 完成安装后可执行如下命令验证：
 

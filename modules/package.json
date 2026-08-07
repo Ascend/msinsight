@@ -3,6 +3,9 @@
     "version": "0.1.0",
     "license": "MIT",
     "private": true,
+    "engines": {
+        "node": ">=22.14.0"
+    },
     "scripts": {
         "build:release": "pnpm build && pnpm sync",
         "build": "cross-env DISABLE_ESLINT_PLUGIN=true pnpm -r build",

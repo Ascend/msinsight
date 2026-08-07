@@ -23,7 +23,7 @@ import { toStoredSession } from "../shared/utils.mjs";
 const BLADE_SESSION_FILE_EXTENSION = ".jsonl";
 
 /** 功能：创建 ACP 会话文件存储，负责加载、串行保存和原子替换 sessions.json。 */
-export const createSessionStore = ({ sessions, storeDir = join(process.cwd(), ".msinsight_native_agent"), bladeStoragePath = join(storeDir, "blade"), createFilesystemRoots, canonicalizeFilesystemRoots }) => {
+export const createSessionStore = ({ sessions, storeDir = join(process.cwd(), ".msinsight_native_agent"), bladeStoragePath = join(storeDir, "blade"), createFilesystemRoots, canonicalizeFilesystemRoots, canonicalizeProjectRoot }) => {
     const sessionStorePath = join(storeDir, "sessions.json");
     let saveQueue = Promise.resolve();
     let loadPromise;
@@ -107,6 +107,7 @@ export const createSessionStore = ({ sessions, storeDir = join(process.cwd(), ".
             updatedAt: Number(item.updatedAt ?? item.createdAt ?? Date.now()),
         });
         const session = sessions.get(sessionId);
+        session.projectRoot = await canonicalizeProjectRoot(session.projectRoot);
         session.filesystemRoots = createFilesystemRoots(session.projectRoot);
         session.canonicalFilesystemRoots = await canonicalizeFilesystemRoots(session.filesystemRoots);
     };

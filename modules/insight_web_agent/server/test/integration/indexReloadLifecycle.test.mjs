@@ -26,6 +26,7 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 
 const serverEntry = fileURLToPath(new URL("../../index.mjs", import.meta.url));
+const CAPABILITY_TOKEN = "reload-lifecycle-test-capability";
 
 const fakeAgentSource = `
 import { appendFileSync, existsSync, unlinkSync } from "node:fs";
@@ -132,7 +133,8 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
     });
     await writeJson(join(rootDir, "acp-session-conf.json"), sessionConfig());
 
-    const server = spawn(process.execPath, [serverEntry, "--path", rootDir, "--port", String(port)], {
+    const server = spawn(process.execPath, [serverEntry, "--path", rootDir, "--resource-path", rootDir,
+        "--port", String(port), "--capability-token", CAPABILITY_TOKEN], {
         cwd: rootDir,
         env: {
             ...process.env,
@@ -217,7 +219,8 @@ test("failed settings reload preserves old-runtime notifications and never broad
     });
     await writeJson(join(rootDir, "acp-session-conf.json"), sessionConfig());
 
-    const server = spawn(process.execPath, [serverEntry, "--path", rootDir, "--port", String(port)], {
+    const server = spawn(process.execPath, [serverEntry, "--path", rootDir, "--resource-path", rootDir,
+        "--port", String(port), "--capability-token", CAPABILITY_TOKEN], {
         cwd: rootDir,
         env: {
             ...process.env,
@@ -268,6 +271,41 @@ test("failed settings reload preserves old-runtime notifications and never broad
     assert.equal(recorder.states.some((eventState) => eventState.activeAgentName === "Broken" || eventState.initialized === false), false);
 });
 
+test("SIGTERM closes the HTTP server and active ACP process", async () => {
+    const fixture = await createServerFixture();
+    const server = launchServer(fixture);
+    await waitFor(async () => (await requestJson(fixture.port, "/api/state")).status === 200, { timeoutMs: 5000 });
+
+    server.kill("SIGTERM");
+    await once(server, "exit");
+
+    assert.equal(server.exitCode, 0);
+    await waitFor(async () => /signal:ok:SIGTERM|stdin_end:ok/.test(await readText(fixture.logPath)), {
+        timeoutMs: 1000,
+        errorMessage: "active ACP process was not terminated",
+    });
+});
+
+test("listen failure disconnects the ACP process and exits unsuccessfully", async () => {
+    const fixture = await createServerFixture();
+    const blocker = createServer();
+    await new Promise((resolve, reject) => {
+        blocker.once("error", reject);
+        blocker.listen(fixture.port, "127.0.0.1", resolve);
+    });
+    try {
+        const server = launchServer(fixture);
+        await once(server, "exit");
+        assert.equal(server.exitCode, 1);
+        await waitFor(async () => /signal:ok:SIGTERM|stdin_end:ok/.test(await readText(fixture.logPath)), {
+            timeoutMs: 1000,
+            errorMessage: "ACP process survived HTTP listen failure",
+        });
+    } finally {
+        await new Promise((resolve) => blocker.close(resolve));
+    }
+});
+
 const stableAgent = (fakeAgentPath) => ({
     name: "Stable",
     command: process.execPath,
@@ -294,6 +332,36 @@ const sessionConfig = () => ({
     },
 });
 
+const createServerFixture = async () => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-index-shutdown-"));
+    const fakeAgentPath = join(rootDir, "fake-agent.mjs");
+    const logPath = join(rootDir, "fake-agent.log");
+    await mkdir(join(rootDir, "prompts"), { recursive: true });
+    await writeFile(fakeAgentPath, fakeAgentSource, "utf8");
+    await writeJson(join(rootDir, "agent-servers.json"), {
+        activeAgent: "Stable",
+        agentServers: [stableAgent(fakeAgentPath)],
+    });
+    await writeJson(join(rootDir, "acp-session-conf.json"), sessionConfig());
+    return { rootDir, fakeAgentPath, logPath, port: await getFreePort() };
+};
+
+const launchServer = ({ rootDir, logPath, port }) => spawn(process.execPath, [
+    serverEntry,
+    "--path", rootDir,
+    "--resource-path", rootDir,
+    "--port", String(port),
+    "--capability-token", CAPABILITY_TOKEN,
+], {
+    cwd: rootDir,
+    env: {
+        ...process.env,
+        ACP_CWD: join(rootDir, "agent-workspace"),
+        FAKE_AGENT_LOG: logPath,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+});
+
 const writeJson = (path, value) => writeFile(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
 
 const readText = async (path) => {
@@ -306,7 +374,8 @@ const readText = async (path) => {
 };
 
 const requestJson = async (port, path, { method = "GET", body } = {}) => {
-    const response = await fetch(`http://127.0.0.1:${port}${path}`, {
+    const separator = path.includes("?") ? "&" : "?";
+    const response = await fetch(`http://127.0.0.1:${port}${path}${separator}capabilityToken=${CAPABILITY_TOKEN}`, {
         method,
         headers: body === undefined ? undefined : { "content-type": "application/json" },
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -319,7 +388,7 @@ const recordStateEvents = async (port) => {
     const states = [];
     let resolveReady;
     const ready = new Promise((resolve) => { resolveReady = resolve; });
-    const response = await fetch(`http://127.0.0.1:${port}/api/events`, { signal: controller.signal });
+    const response = await fetch(`http://127.0.0.1:${port}/api/events?capabilityToken=${CAPABILITY_TOKEN}`, { signal: controller.signal });
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";

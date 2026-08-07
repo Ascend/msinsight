@@ -33,7 +33,12 @@ export const createBladeRuntime = ({ env = process.env, cwd = process.cwd(), bla
     /** 功能：准备 Blade 会话和模型上下文，收集完整响应，并把限流或运行错误转换为 ACP 可处理结果。 */
     const runPrompt = async ({ session, sessionId, userText, controller }) => {
         const timing = createBladeTimingLogger(sessionId);
-        const provider = createBladeProvider(env);
+        let provider;
+        try {
+            provider = createBladeProvider(env);
+        } catch (error) {
+            return { ok: false, reason: error.message };
+        }
         if (!provider) return { ok: false, reason: "Blade runtime is not configured. Set MSINSIGHT_NATIVE_PROVIDER, MSINSIGHT_NATIVE_API_KEY, model, and base URL when required." };
 
         const sdk = await loadSdk();
@@ -584,11 +589,15 @@ const setInferredActivity = ({ state, sessionId, notifier }, activity) => {
 };
 
 /** 功能：从 native-agent 环境变量构造 Blade 支持的模型 Provider 配置。 */
-const createBladeProvider = (env) => {
-    const providerType = env.MSINSIGHT_NATIVE_PROVIDER;
+export const createBladeProvider = (env) => {
+    const providerType = String(env.MSINSIGHT_NATIVE_PROVIDER ?? "").trim();
     const apiKey = env.MSINSIGHT_NATIVE_API_KEY;
     const baseUrl = env.MSINSIGHT_NATIVE_BASE_URL;
-    if (!providerType || !apiKey) return undefined;
+    if (!providerType) return undefined;
+    if (!["openai", "anthropic", "deepseek", "openai-compatible"].includes(providerType)) {
+        throw new Error(`unsupported_provider:${providerType}`);
+    }
+    if (!apiKey) return undefined;
     if (providerType === "openai") return withOptionalBaseUrl({ type: "openai", apiKey }, baseUrl);
     if (providerType === "anthropic") return withOptionalBaseUrl({ type: "anthropic", apiKey }, baseUrl);
     if (providerType === "deepseek") return withOptionalBaseUrl({ type: "deepseek", apiKey }, baseUrl);

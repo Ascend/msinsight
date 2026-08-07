@@ -2,6 +2,9 @@
   "name": "insight-web-agent",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.14.0"
+  },
   "homepage": "./",
   "dependencies": {
     "@blade-ai/agent-sdk": "1.1.0"

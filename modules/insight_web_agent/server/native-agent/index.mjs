@@ -48,6 +48,7 @@ const sessionStore = createSessionStore({
     bladeStoragePath,
     createFilesystemRoots: filesystem.createSessionFilesystemRoots,
     canonicalizeFilesystemRoots: filesystem.canonicalizeFilesystemRoots,
+    canonicalizeProjectRoot: filesystem.canonicalizeProjectRoot,
 });
 const aiRuntime = createBladeRuntime({
     bladeStoragePath,

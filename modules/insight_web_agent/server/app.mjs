@@ -26,8 +26,9 @@ import { createPermissionController } from "./controllers/permissionController.m
 import { createPageController } from "./controllers/pageController.mjs";
 import { createRouter } from "./http/router.mjs";
 import { applyCors, json } from "./http/response.mjs";
+import { hasValidCapability, normalizeRequestOrigin } from "./http/security.mjs";
 
-export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService }) => {
+export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService, capabilityToken, allowedOrigins = [] }) => {
     const router = createRouter({
         agentController: createAgentController({ agentService }),
         agentConfigController: createAgentConfigController({ agentConfigService }),
@@ -41,7 +42,14 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
 
     return createServer(async (req, res) => {
         try {
-            applyCors(res);
+            applyCors(req, res, allowedOrigins);
+            const requestOrigin = normalizeRequestOrigin(req);
+            if (requestOrigin && !allowedOrigins.includes(requestOrigin)) {
+                return json(res, { error: "Origin not allowed" }, 403);
+            }
+            if ((req.url ?? "").startsWith("/api/") && !hasValidCapability(req, capabilityToken)) {
+                return json(res, { error: "Unauthorized" }, 401);
+            }
             if (req.method === "OPTIONS") {
                 res.writeHead(204);
                 res.end();

@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { realpath } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 /** 功能：判断请求是否发往指定模型服务，仅比较 URL 的 origin；
  * 输入：请求地址或 Request 对象 input、模型服务地址 baseUrl；
@@ -66,7 +66,9 @@ export const canonicalPath = async (path) => {
     try {
         return await realpath(absolutePath);
     } catch (_error) {
-        return absolutePath;
+        const parent = dirname(absolutePath);
+        if (parent === absolutePath) return absolutePath;
+        return join(await canonicalPath(parent), basename(absolutePath));
     }
 };
 

@@ -320,7 +320,27 @@ const server = createApp({
     permissionService,
     agentConfigService,
     pageContextService,
+    capabilityToken: config.capabilityToken,
+    allowedOrigins: config.allowedOrigins,
 });
+
+let shutdownPromise;
+const shutdown = (exitCode = 0) => {
+    if (shutdownPromise) return shutdownPromise;
+    shutdownPromise = (async () => {
+        eventBus.close();
+        await new Promise((done) => {
+            if (!server.listening) return done();
+            server.close(() => done());
+        });
+        server.closeAllConnections?.();
+        await activeAcpClient?.disconnect?.().catch((error) => {
+            console.warn(`Failed to disconnect ACP adapter: ${error.message}`);
+        });
+        process.exitCode = exitCode;
+    })();
+    return shutdownPromise;
+};
 
 server.listen(config.port, config.host, () => {
     console.log(`ACP web extracted API: http://${config.host}:${config.port}/`);
@@ -329,5 +349,9 @@ server.listen(config.port, config.host, () => {
 
 server.on("error", (error) => {
     console.error(`Failed to start HTTP server: ${error.message}`);
-    process.exitCode = 1;
+    void shutdown(1);
 });
+
+for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.once(signal, () => void shutdown(0));
+}

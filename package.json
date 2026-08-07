@@ -3,6 +3,9 @@
     "version": "1.0.0",
     "license": "MIT",
     "private": true,
+    "engines": {
+        "node": ">=22.14.0"
+    },
     "scripts": {
         "start": "cd .\\framework&&npm start",
         "build": "npm run buildWin",

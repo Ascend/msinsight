@@ -211,3 +211,56 @@ test("packaged native agent responds to ACP initialize and session/new", async (
         await rm(cwd, { recursive: true, force: true });
     }
 });
+
+const assertPackagedUnsupportedProvider = async (provider) => {
+    await access(packagedNativeAgentPath);
+    const cwd = await mkdtemp(join(tmpdir(), `msinsight-native-packaged-${provider}-`));
+    const storeDir = join(cwd, ".mindstudio_insight", ".msinsight_native_agent");
+    const child = spawn(process.execPath, [packagedNativeAgentPath], {
+        cwd,
+        env: {
+            ...process.env,
+            MSINSIGHT_NATIVE_PROVIDER: provider,
+            MSINSIGHT_NATIVE_API_KEY: "test-key",
+            MSINSIGHT_NATIVE_STORE_DIR: storeDir,
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+    });
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => { stderr += chunk; });
+
+    try {
+        let responsePromise = waitForResponse(child, 1, () => stderr);
+        writeJsonLine(child, { jsonrpc: "2.0", id: 1, method: "session/new", params: {} });
+        const sessionId = (await responsePromise).response.result.sessionId;
+
+        responsePromise = waitForResponse(child, 2, () => stderr);
+        writeJsonLine(child, {
+            jsonrpc: "2.0",
+            id: 2,
+            method: "session/prompt",
+            params: { sessionId, prompt: [{ type: "text", text: "test" }] },
+        });
+        const promptResult = await responsePromise;
+        const chunks = promptResult.messages
+            .filter((message) => message.method === "session/update")
+            .map((message) => message.params?.update?.content?.text ?? "")
+            .join("");
+
+        assert.deepEqual(promptResult.response, { jsonrpc: "2.0", id: 2, result: {} });
+        assert.match(chunks, new RegExp(`Fallback reason: unsupported_provider:${provider}`));
+    } finally {
+        if (child.exitCode === null) {
+            child.kill();
+            await once(child, "exit");
+        }
+        await rm(cwd, { recursive: true, force: true });
+    }
+};
+
+test("packaged native agent reports unsupported providers explicitly", async () => {
+    for (const provider of ["azure", "google", "custom-provider"]) {
+        await assertPackagedUnsupportedProvider(provider);
+    }
+});

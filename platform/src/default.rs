@@ -33,32 +33,7 @@ const SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "profiler_server"];
 const ACP_SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "insight_web_agent"];
-const DEFAULT_AGENT_SERVERS_CONFIG: &str = r#"{
-  "activeAgent": "OpenCode",
-  "agentServers": [
-    {
-      "name": "OpenCode",
-      "command": "opencode",
-      "args": [
-        "acp"
-      ]
-    },
-    {
-      "name": "msinsight-native",
-      "command": "node",
-      "args": [
-        "server/native-agent/index.mjs"
-      ],
-      "env": {
-        "MSINSIGHT_NATIVE_PROVIDER": "openai",
-        "MSINSIGHT_NATIVE_MODEL": "cx/gpt-5.5",
-        "MSINSIGHT_NATIVE_BASE_URL": "http://127.0.0.1:19099/v1",
-        "MSINSIGHT_NATIVE_API_KEY": ""
-      }
-    }
-  ]
-}
-"#;
+const MINIMUM_NODE_VERSION: (u32, u32, u32) = (22, 14, 0);
 #[cfg(windows)]
 const NO_WINDOW_FLAG: u32 = 0x08000000;
 
@@ -137,10 +112,15 @@ fn acp_server_path(root_path: &PathBuf) -> Option<PathBuf> {
     Some(server_path)
 }
 
-fn run_acp_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
+fn run_acp_server(
+    root_path: &PathBuf,
+    cache_path: &PathBuf,
+    port: u16,
+    capability_token: &str,
+) -> bool {
     let Some(acp_path) = acp_server_path(root_path) else {
         eprintln!("ACP node server path does not exist");
-        return;
+        return false;
     };
     let entry_path = acp_path.join("index.mjs");
 
@@ -157,13 +137,57 @@ fn run_acp_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
         .arg(acp_path)
         .arg("--port")
         .arg(port.to_string())
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--capability-token")
+        .arg(capability_token)
+        .arg("--allowed-origin")
+        .arg("wry://localhost")
         .spawn()
     {
         Ok(child) => unsafe {
             ACP_PID = child.id();
+            true
         },
-        _ => eprintln!("Failed to start ACP node server"),
+        Err(error) => {
+            eprintln!("Failed to start ACP node server: {error}");
+            false
+        }
     }
+}
+
+fn node_version_supported() -> bool {
+    let Ok(output) = Command::new("node").arg("--version").output() else {
+        eprintln!("Node executable was not found in PATH");
+        return false;
+    };
+    let version = String::from_utf8_lossy(&output.stdout);
+    let supported = output.status.success() && parse_node_version(&version)
+        .is_some_and(|version| version >= MINIMUM_NODE_VERSION);
+    if !supported {
+        eprintln!("ACP requires Node.js 22.14.0 or later");
+    }
+    supported
+}
+
+fn parse_node_version(version: &str) -> Option<(u32, u32, u32)> {
+    let parts: Vec<u32> = version
+        .trim()
+        .trim_start_matches('v')
+        .split('.')
+        .take(3)
+        .filter_map(|part| part.parse().ok())
+        .collect();
+    (parts.len() == 3).then(|| (parts[0], parts[1], parts[2]))
+}
+
+fn generate_capability_token() -> Option<String> {
+    let mut bytes = [0_u8; 32];
+    if let Err(error) = getrandom::fill(&mut bytes) {
+        eprintln!("Failed to generate ACP capability token: {error}");
+        return None;
+    }
+    Some(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 fn home_dir() -> Option<PathBuf> {
@@ -285,19 +309,6 @@ fn shell_single_quote(value: &OsStr) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
 }
 
-fn ensure_agent_servers_config(cache_path: &PathBuf) {
-    let config_path = cache_path.join("agent-servers.json");
-    if config_path.exists() {
-        return;
-    }
-
-    if let Err(error) =
-        std::fs::write(&config_path, DEFAULT_AGENT_SERVERS_CONFIG)
-    {
-        eprintln!("Failed to create ACP agent server config: {error}");
-    }
-}
-
 pub static mut PID: u32 = u32::MAX;
 pub static mut ACP_PID: u32 = u32::MAX;
 
@@ -350,8 +361,6 @@ pub fn main() {
         }
     }
 
-    ensure_agent_servers_config(&cache_path);
-
     if webview::webview_version().is_err() {
         #[cfg(windows)]
         webview::webview2err::show_webview_err_message();
@@ -368,18 +377,40 @@ pub fn main() {
         eprintln!("No available ACP port between 9000 and 9100");
         return;
     };
+    if !node_version_supported() {
+        return;
+    }
+    let Some(capability_token) = generate_capability_token() else {
+        return;
+    };
+
+    run_server(&root_path, &cache_path, port);
+    if !run_acp_server(&root_path, &cache_path, acp_port, &capability_token) {
+        webview::cleanup::handle_close_requested();
+        return;
+    }
 
     #[cfg(target_os = "linux")]
-    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port, acp_port) {
-        run_server(&root_path, &cache_path, port);
-        run_acp_server(&root_path, &cache_path, acp_port);
+    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port, acp_port, &capability_token) {
         webview::run_event_loop(eventloop, webview)
     }
 
     #[cfg(any(target_os = "windows", target_os = "macos"))]
-    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port, acp_port) {
-        run_server(&root_path, &cache_path, port);
-        run_acp_server(&root_path, &cache_path, acp_port);
+    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port, acp_port, &capability_token) {
         webview::run_event_loop(eventloop, webview, window)
+    }
+
+    webview::cleanup::handle_close_requested();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_node_version, MINIMUM_NODE_VERSION};
+
+    #[test]
+    fn enforces_blade_node_runtime_floor() {
+        assert!(parse_node_version("v22.14.0").unwrap() >= MINIMUM_NODE_VERSION);
+        assert!(parse_node_version("v22.13.1").unwrap() < MINIMUM_NODE_VERSION);
+        assert_eq!(parse_node_version("not-node"), None);
     }
 }

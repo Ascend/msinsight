@@ -46,7 +46,7 @@ export function startNew(
     const header = new Headers({ [contentType]: 'application/json' });
 
     const data = JSON.stringify({
-        name: name,
+        name: name
     });
 
     const init = { method: 'POST', headers: header, body: data };
@@ -61,7 +61,7 @@ export function startNew(
         .then((model: MindStudio.IModel) => {
             return new DefaultMindStudio(model.name, {
                 ...options,
-                serverSettings,
+                serverSettings
             });
         });
 }
@@ -119,10 +119,10 @@ export function listRunning(
             );
             for (const runningUrl of Object.keys(Private.running)) {
                 if (!urls.includes(runningUrl)) {
-                  const mindstudio = Private.running[runningUrl];
-                  mindstudio.dispose();
+                    const mindstudio = Private.running[runningUrl];
+                    mindstudio.dispose();
                 }
-            };
+            }
             return data;
         });
 }
@@ -143,9 +143,11 @@ export function shutdown(
     const localSettings = settings || ServerConnection.makeSettings();
     const url = Private.getMindStudioUrl(localSettings.baseUrl, name);
     const init = { method: 'DELETE' };
-    return ServerConnection.makeRequest(url, init, localSettings).then((response: Response) => {
-        Private.killMindStudio(url);
-    });
+    return ServerConnection.makeRequest(url, init, localSettings).then(
+        (response: Response) => {
+            Private.killMindStudio(url);
+        }
+    );
 }
 
 /**
@@ -162,7 +164,7 @@ export function shutdownAll(
     return listRunning(localSettings).then(running => {
         running.forEach((s: MindStudio.IModel) => {
             shutdown(s.name, localSettings);
-          });
+        });
     });
 }
 
@@ -175,15 +177,22 @@ export function startIframeUrl(
     const localSettings = settings || ServerConnection.makeSettings();
     const iframConfigUrl = Private.getIFrameConfigUrl(localSettings.baseUrl);
     return ServerConnection.makeRequest(iframConfigUrl, {}, localSettings)
-    .then((response: Response) => {
-        if (response.status !== 200) {
-            throw new ServerConnection.ResponseError(response);
-        }
-        return response.json();
-    })
-    .then((data: any) => {
-        return Private.getMindStudioInstanceUrl(localSettings.baseUrl, data.proxy, data.port, data.profilerServerId, data.acpPort);
-    });
+        .then((response: Response) => {
+            if (response.status !== 200) {
+                throw new ServerConnection.ResponseError(response);
+            }
+            return response.json();
+        })
+        .then((data: any) => {
+            return Private.getMindStudioInstanceUrl(
+                localSettings.baseUrl,
+                data.proxy,
+                data.port,
+                data.profilerServerId,
+                data.acpPort,
+                data.acpCapabilityToken
+            );
+        });
 }
 
 /**
@@ -194,9 +203,15 @@ export function terminateIframe(
     settings?: ServerConnection.ISettings
 ): Promise<void> {
     const localSettings = settings || ServerConnection.makeSettings();
-    const terminateProfilerUrl = Private.terminateIframe(localSettings.baseUrl, encodeURIComponent(profilerServerId));
-    return ServerConnection.makeRequest(terminateProfilerUrl, {}, localSettings)
-    .then((response: Response) => {
+    const terminateProfilerUrl = Private.terminateIframe(
+        localSettings.baseUrl,
+        encodeURIComponent(profilerServerId)
+    );
+    return ServerConnection.makeRequest(
+        terminateProfilerUrl,
+        {},
+        localSettings
+    ).then((response: Response) => {
         if (response.status !== 200) {
             throw new ServerConnection.ResponseError(response);
         }

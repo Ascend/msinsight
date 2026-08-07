@@ -35,8 +35,6 @@ import {
     isVscodePluginEnvironment,
     isVscodeEnv,
 } from '@/vscode-adapter';
-import { ACP_PORT } from '@/centralServer/websocket/defs';
-import { JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
 import { ACP_SESSION_MIN_WIDTH, WebAgentSessionPanel } from './WebAgentSessionPanel';
 
 const MODULE_FRAME_MIN_WIDTH = 360;

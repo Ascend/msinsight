@@ -102,7 +102,7 @@ Linux 是开发指南默认采用的本地开发环境。
 | 软件名 | 版本要求 | 用途 |
 | --- | --- | --- |
 | git | 无特殊要求 | 代码拉取与提交 |
-| Node.js | v18.20.8+ | 前端开发与构建 |
+| Node.js | v22.14.0+ | 前端开发、构建与 ACP Agent 运行时 |
 | pnpm | 建议使用与 lockfile 兼容的版本 | 前端包管理 |
 | Python | 3.11+ | 工具脚本、pre-commit、第三方依赖预处理 |
 | CMake | 3.16~3.20 | 后端项目构建与编译 |
@@ -124,7 +124,7 @@ openEuler / CentOS / RHEL 类系统可参考：
 sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-Node.js 可通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v18.20.8+。
+Node.js 可通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v22.14.0+（Blade Agent 运行时的最低要求）。
 
 ### 2.3 环境验证
 
@@ -419,7 +419,7 @@ Windows 平台后端编译使用 MinGW 工具链。
 | 软件名 | 版本要求 | 用途 |
 | --- | --- | --- |
 | git | 无特殊要求 | 代码拉取与提交 |
-| Node.js | v18.20.8+ | 前端开发与构建 |
+| Node.js | v22.14.0+ | 前端开发、构建与 ACP Agent 运行时 |
 | pnpm | 建议使用与 lockfile 兼容的版本 | 前端包管理 |
 | Python | 3.11+ | 工具脚本、pre-commit、第三方依赖预处理 |
 | MinGW | 10.0+（msvcrt 版本）；出包建议 11.0+ | 后端编译 |
@@ -453,7 +453,7 @@ macOS 平台后端编译使用 Clang 工具链。
 | 软件名 | 版本要求 | 用途 |
 | --- | --- | --- |
 | git | 无特殊要求 | 代码拉取与提交 |
-| Node.js | v18.20.8+ | 前端开发与构建 |
+| Node.js | v22.14.0+ | 前端开发、构建与 ACP Agent 运行时 |
 | pnpm | 建议使用与 lockfile 兼容的版本 | 前端包管理 |
 | Python | 3.11+ | 工具脚本、pre-commit、第三方依赖预处理 |
 | Clang | 15 | 后端编译 |
@@ -513,7 +513,7 @@ python3 build.py
 | CMake | 3.16~3.20 | 后端构建 |
 | NSIS | 无要求 | 安装包打包软件 |
 | nsProcess 插件 | unicode support | 检查是否有重复运行 |
-| Node.js | v18.20.8+ | 前端构建 |
+| Node.js | v22.14.0+ | 前端构建与 ACP Agent 运行时 |
 | pnpm | 无要求 | 前端构建 |
 | Python | 3.11+ | 集群工具打包 |
 
@@ -574,7 +574,7 @@ pyinstaller
 - nsProcess 插件安装：首先安装 NSIS（需装在 `C:\Program Files (x86)` 下）。从 [NsProcess plugin](https://nsis.sourceforge.io/NsProcess_plugin) 获取压缩包，将 `Include/nsProcess.h` 放到 `C:\Program Files (x86)\NSIS\Include`，将 `Plugin/nsProcess.dll` 和 `Plugin/nsProcessw.dll` 放到 `C:\Program Files (x86)\NSIS\Plugins\x86-unicode`。
 - Rust：可通过 [rustup](https://www.rust-lang.org) 安装，验证：`rustc --version` 和 `cargo --version`。
 - Ninja：通过 [官网](https://ninja-build.org) 下载二进制文件或包管理器安装，验证：`ninja --version`。
-- Node.js：通过 [官网](https://nodejs.org) 安装 LTS 版本（v18.20.8+），验证：`node --version`。
+- Node.js：通过 [官网](https://nodejs.org) 安装 LTS 版本（v22.14.0+），验证：`node --version`。
 - pnpm：执行 `npm install -g pnpm`，验证：`pnpm --version`。
 - Python：通过 [官网](https://www.python.org) 安装 3.11+，勾选“Add Python to PATH”，验证：`python --version`。
 
@@ -587,7 +587,7 @@ pyinstaller
 | rust | 1.89 | 底座编译构建 |
 | cargo-bundle | 无要求 | 打包 |
 | Ninja | 无要求 | 后端编译 |
-| Node.js | v18.20.8+ | 前端构建 |
+| Node.js | v22.14.0+ | 前端构建与 ACP Agent 运行时 |
 | pnpm | 无要求 | 前端构建 |
 | Python | 3.11+ | 集群工具打包 |
 | Clang | 15 | 编译 |

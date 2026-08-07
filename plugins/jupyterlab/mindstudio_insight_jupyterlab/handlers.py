@@ -24,6 +24,8 @@ import json
 import logging
 import os
 import re
+import secrets
+import signal
 import shlex
 import shutil
 import socket
@@ -48,6 +50,9 @@ available_port = 9000
 acp_available_port = 9001
 profiler_server_id = str(uuid.uuid4())
 login_shell_env = None
+acp_capability_tokens = {}
+
+MINIMUM_NODE_VERSION = (22, 14, 0)
 
 HOST_PATTERN = (
     r"^(?=.{1,261}$)(?:"
@@ -57,21 +62,6 @@ HOST_PATTERN = (
     r"|\[[0-9A-Fa-f:]{2,45}\](?::\d{1,5})?"
     r")$"
 )
-
-DEFAULT_AGENT_SERVERS_CONFIG = """{
-  "activeAgent": "OpenCode",
-  "agentServers": [
-    {
-      "name": "OpenCode",
-      "command": "opencode",
-      "args": [
-        "acp"
-      ]
-    }
-  ]
-}
-"""
-
 
 def check_jupyter_server_proxy_installed():
     try:
@@ -137,15 +127,38 @@ def find_available_port(host, start_port=9000, max_tries=100):
     return None
 
 
-def ensure_mindstudio_insight_dir():
+def ensure_mindstudio_insight_dir(packaged_config_path=None):
     mindstudio_insight_dir = os.path.join(os.path.expanduser('~'), '.mindstudio_insight')
     os.makedirs(mindstudio_insight_dir, mode=0o750, exist_ok=True)
 
     config_path = os.path.join(mindstudio_insight_dir, 'agent-servers.json')
-    if not os.path.exists(config_path):
-        with open(config_path, 'w', encoding='utf-8') as file:
-            file.write(DEFAULT_AGENT_SERVERS_CONFIG)
+    if packaged_config_path:
+        _merge_packaged_agent_config(config_path, packaged_config_path)
     return mindstudio_insight_dir
+
+
+def _merge_packaged_agent_config(config_path, packaged_config_path):
+    with open(packaged_config_path, 'r', encoding='utf-8') as file:
+        packaged = json.load(file)
+    if os.path.exists(config_path):
+        with open(config_path, 'r', encoding='utf-8') as file:
+            user_config = json.load(file)
+        user_servers = user_config.get('agentServers') if isinstance(user_config.get('agentServers'), list) else []
+        user_names = {str(server.get('name', '')).strip() for server in user_servers if isinstance(server, dict)}
+        missing = [
+            server for server in packaged.get('agentServers', [])
+            if str(server.get('name', '')).strip() not in user_names
+        ]
+        if not missing:
+            return
+        merged = {**user_config, 'agentServers': [*user_servers, *missing]}
+    else:
+        merged = packaged
+    temp_path = f'{config_path}.{os.getpid()}.tmp'
+    with open(temp_path, 'w', encoding='utf-8') as file:
+        json.dump(merged, file, indent=2)
+        file.write('\n')
+    os.replace(temp_path, config_path)
 
 
 def start_profiler_server():
@@ -183,6 +196,7 @@ def start_profiler_server():
         if sys.platform != 'win32':
             env['LD_LIBRARY_PATH'] = f".:{env.get('LD_LIBRARY_PATH', '')}"
             popen_options['cwd'] = server_dir
+            popen_options['start_new_session'] = True
         process = subprocess.Popen(command, **popen_options)  # nosec B603
     except (OSError, subprocess.SubprocessError) as error:
         logging.error('Failed to start profiler server, because %s', error)
@@ -195,14 +209,26 @@ def start_profiler_server():
     return True
 
 
-def start_acp_node_service():
+def _node_version_supported(node_path, env):
+    try:
+        result = subprocess.run(  # nosec B603
+            [node_path, '--version'], capture_output=True, text=True, check=True, env=env, timeout=5
+        )
+        match = re.match(r'^v?(\d+)\.(\d+)\.(\d+)', result.stdout.strip())
+        return bool(match and tuple(map(int, match.groups())) >= MINIMUM_NODE_VERSION)
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def start_acp_node_service(allowed_origin):
     global acp_available_port
 
     try:
-        mindstudio_insight_dir = ensure_mindstudio_insight_dir()
         acp_service_dir = os.path.join(
             os.path.dirname(__file__), 'resources', 'profiler', 'server', 'insight_web_agent'
         )
+        packaged_config_path = os.path.join(acp_service_dir, 'agent-servers.json')
+        mindstudio_insight_dir = ensure_mindstudio_insight_dir(packaged_config_path)
         acp_entry_path = os.path.join(acp_service_dir, 'index.mjs')
         if not os.path.isfile(acp_entry_path):
             logging.error('ACP node service entry does not exist: %s', acp_entry_path)
@@ -212,6 +238,9 @@ def start_acp_node_service():
         node_path = shutil.which('node', path=env.get('PATH'))
         if not node_path:
             logging.error('Node executable was not found in PATH')
+            return None
+        if not _node_version_supported(node_path, env):
+            logging.error('ACP requires Node.js %s or later', '.'.join(map(str, MINIMUM_NODE_VERSION)))
             return None
         if profiler_server_id not in profiler_process:
             logging.error('Cannot start ACP without a running profiler server')
@@ -223,6 +252,7 @@ def start_acp_node_service():
             logging.error('No available ACP port')
             return None
 
+        capability_token = secrets.token_urlsafe(32)
         command = [
             node_path,
             acp_entry_path,
@@ -234,13 +264,21 @@ def start_acp_node_service():
             str(selected_port),
             '--host',
             acp_host,
+            '--capability-token',
+            capability_token,
+            '--allowed-origin',
+            allowed_origin,
         ]
-        process = subprocess.Popen(command, cwd=acp_service_dir, env=env)  # nosec B603
+        popen_options = {'cwd': acp_service_dir, 'env': env}
+        if sys.platform != 'win32':
+            popen_options['start_new_session'] = True
+        process = subprocess.Popen(command, **popen_options)  # nosec B603
     except (OSError, subprocess.SubprocessError) as error:
         logging.error('Failed to start ACP node service, because %s', error)
         return None
 
     acp_process[profiler_server_id] = process
+    acp_capability_tokens[profiler_server_id] = capability_token
     acp_available_port = selected_port
     return selected_port
 
@@ -327,10 +365,21 @@ def _terminate_process(process):
     if process is None:
         return
     try:
-        process.terminate()
+        if sys.platform == 'win32' and getattr(process, 'pid', None):
+            subprocess.run(  # nosec B603
+                ['taskkill', '/pid', str(process.pid), '/t', '/f'], check=False, timeout=3,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+        elif getattr(process, 'pid', None):
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
         process.wait(timeout=3)
     except subprocess.TimeoutExpired:
-        process.kill()
+        if sys.platform != 'win32' and getattr(process, 'pid', None):
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
     except OSError as error:
         logging.error('Failed to stop child process, because %s', error)
 
@@ -339,6 +388,7 @@ def stop_acp_node_service(server_id=None):
     server_ids = list(acp_process) if server_id is None else [server_id]
     for current_server_id in server_ids:
         process = acp_process.pop(current_server_id, None)
+        acp_capability_tokens.pop(current_server_id, None)
         _terminate_process(process)
 
 
@@ -365,7 +415,8 @@ class IFrameConfigHandler(APIHandler):
             return
 
         started_server_id = profiler_server_id
-        acp_port = start_acp_node_service()
+        allowed_origin = f'{self.request.protocol}://{self.request.host}'.rstrip('/')
+        acp_port = start_acp_node_service(allowed_origin)
         if acp_port is None:
             stop_profiler_server(started_server_id)
             self.set_status(503)
@@ -378,6 +429,7 @@ class IFrameConfigHandler(APIHandler):
                     'proxy': check_jupyter_server_proxy_installed(),
                     'port': available_port,
                     'acpPort': acp_port,
+                    'acpCapabilityToken': acp_capability_tokens[started_server_id],
                     'profilerServerId': started_server_id,
                 }
             )

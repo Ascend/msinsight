@@ -68,6 +68,7 @@ export const createAcpAdapter = ({
             env: { ...process.env, ...(agentServer.env ?? {}) },
             stdio: ["pipe", "pipe", "pipe"],
             windowsHide: process.platform === "win32",
+            detached: process.platform !== "win32",
         });
 
         child.stderr?.setEncoding?.("utf8");
@@ -135,12 +136,15 @@ export const createAcpAdapter = ({
             disconnecting = true;
             if (current) {
                 await new Promise((resolve) => {
-                    const timeout = setTimeout(resolve, 1000);
+                    const timeout = setTimeout(() => {
+                        terminateProcessTree(current, "SIGKILL");
+                        resolve();
+                    }, 1000);
                     current.once?.("exit", () => {
                         clearTimeout(timeout);
                         resolve();
                     });
-                    current.kill?.();
+                    terminateProcessTree(current, "SIGTERM");
                 });
             }
             rejectPending(pending, new Error("ACP adapter disconnected"));
@@ -154,6 +158,25 @@ export const createAcpAdapter = ({
             return () => subscribers.delete(handler);
         },
     };
+};
+
+const terminateProcessTree = (child, signal) => {
+    if (!child?.pid) return;
+    try {
+        if (process.platform === "win32") {
+            spawn("taskkill", ["/pid", String(child.pid), "/t", "/f"], {
+                stdio: "ignore",
+                windowsHide: true,
+            }).unref();
+            return;
+        }
+        if (process.platform !== "win32") {
+            process.kill(-child.pid, signal);
+            return;
+        }
+    } catch (error) {
+        if (error.code !== "ESRCH") child.kill?.(signal);
+    }
 };
 
 const handleAcpLine = async ({ child, debug, line, hostHandlers, notifySubscribers, pending }) => {

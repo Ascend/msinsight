@@ -22,7 +22,7 @@ import { FrontendAgentToolBridgeServer, AGENT_TOOL_REQUEST, type ToolRequestMess
 import type { ModuleConfig } from '@/moduleConfig';
 import type { Session } from '@/entity/session';
 import { ACP_SESSION_SRC } from '@/moduleConfig';
-import { ACP_PORT, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
+import { ACP_CAPABILITY_TOKEN, ACP_PORT, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
 import { setFrontendAgentToolBridgeServer } from '@/agent/frontendAgentToolRegistry';
 import { registerObserveTool } from '@/agent/tools/observe';
 
@@ -45,6 +45,7 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
     const acpSessionSrc = useMemo(() => {
         const acpSessionParams = new URLSearchParams({
             acpPort: String(ACP_PORT),
+            capabilityToken: ACP_CAPABILITY_TOKEN,
         });
         if (JUPYTERLABPROXY) {
             acpSessionParams.set('jupyterlabProxy', 'true');

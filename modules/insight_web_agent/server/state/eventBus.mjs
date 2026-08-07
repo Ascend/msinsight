@@ -28,7 +28,6 @@ export const createEventBus = (state) => {
             "content-type": "text/event-stream",
             "cache-control": "no-cache",
             connection: "keep-alive",
-            "access-control-allow-origin": "*",
             "x-accel-buffering": "no",
         });
         res.flushHeaders?.();
@@ -37,5 +36,10 @@ export const createEventBus = (state) => {
         req.on("close", () => state.clients.delete(res));
     };
 
-    return { broadcast, connect };
+    const close = () => {
+        for (const client of state.clients) client.end();
+        state.clients.clear();
+    };
+
+    return { broadcast, connect, close };
 };

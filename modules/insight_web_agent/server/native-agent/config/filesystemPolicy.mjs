@@ -15,7 +15,8 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { join, resolve } from "node:path";
+import { stat } from "node:fs/promises";
+import { isAbsolute, join, resolve } from "node:path";
 import { canonicalPath } from "../shared/utils.mjs";
 
 /** 功能：创建 native-agent 文件系统访问策略服务。 */
@@ -29,13 +30,23 @@ export const createFilesystemPolicyService = ({ env = process.env, cwd = process
     /** 功能：并行规范化所有文件系统根目录，消除可解析的符号链接。 */
     const canonicalizeFilesystemRoots = (roots) => Promise.all(roots.map(canonicalPath));
 
+    /** 功能：仅接受宿主提供的绝对且存在的项目目录，并消除符号链接。 */
+    const canonicalizeProjectRoot = async (projectRoot) => {
+        const value = typeof projectRoot === "string" ? projectRoot.trim() : "";
+        if (!policy.includeProjectRoot || !value || !isAbsolute(value)) return undefined;
+        try {
+            const canonicalRoot = await canonicalPath(value);
+            return (await stat(canonicalRoot)).isDirectory() ? canonicalRoot : undefined;
+        } catch (_error) {
+            return undefined;
+        }
+    };
+
     /** 功能：根据隐藏上下文中的项目根更新会话文件白名单，返回是否发生变化。 */
     const updateSessionFilesystemRoots = async (session, projectRoot) => {
-        const nextProjectRoot = policy.includeProjectRoot && projectRoot
-            ? resolve(projectRoot)
-            : session.projectRoot;
+        const nextProjectRoot = await canonicalizeProjectRoot(projectRoot);
         const nextRoots = createSessionFilesystemRoots(nextProjectRoot);
-        if (JSON.stringify(nextRoots) === JSON.stringify(session.filesystemRoots)) return false;
+        if (nextProjectRoot === session.projectRoot && JSON.stringify(nextRoots) === JSON.stringify(session.filesystemRoots)) return false;
         session.projectRoot = nextProjectRoot;
         session.filesystemRoots = nextRoots;
         session.canonicalFilesystemRoots = await canonicalizeFilesystemRoots(nextRoots);
@@ -47,6 +58,7 @@ export const createFilesystemPolicyService = ({ env = process.env, cwd = process
         resourceDir,
         createSessionFilesystemRoots,
         canonicalizeFilesystemRoots,
+        canonicalizeProjectRoot,
         updateSessionFilesystemRoots,
     };
 };
@@ -61,7 +73,6 @@ const parseFilesystemPolicy = (value, resourceDir) => {
             includeProjectRoot: policy.includeProjectRoot !== false,
             docsRoot: policy.docsRoot ? resolve(String(policy.docsRoot)) : join(resourceDir, "docs"),
             skillsRoot: policy.skillsRoot ? resolve(String(policy.skillsRoot)) : join(resourceDir, "skills"),
-            projectRoot: policy.projectRoot ? resolve(String(policy.projectRoot)) : resourceDir,
             extraPaths: Array.isArray(policy.extraPaths) ? policy.extraPaths.map((path) => resolve(String(path))) : [],
         };
     } catch (error) {
@@ -72,7 +83,6 @@ const parseFilesystemPolicy = (value, resourceDir) => {
             includeProjectRoot: true,
             docsRoot: join(resourceDir, "docs"),
             skillsRoot: join(resourceDir, "skills"),
-            projectRoot: resourceDir,
             extraPaths: [],
         };
     }
@@ -83,7 +93,7 @@ const createFilesystemRoots = (policy, dynamicProjectRoot, agentWorkspaceRoot) =
     policy.includeAgentWorkspaceRoot ? agentWorkspaceRoot : undefined,
     policy.includeDocsRoot ? policy.docsRoot : undefined,
     policy.skillsRoot,
-    policy.includeProjectRoot ? (dynamicProjectRoot || policy.projectRoot) : undefined,
+    policy.includeProjectRoot ? dynamicProjectRoot : undefined,
     ...policy.extraPaths,
 ].filter(isPresentPath).map(resolveFilesystemPath))];
 

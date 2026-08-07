@@ -17,6 +17,8 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { isIP } from "node:net";
+import { bootstrapAgentServersConfig } from "./bootstrap.mjs";
 import { initLogger } from "../utils/logger.mjs";
 
 const defaultRootDir = (() => {
@@ -62,6 +64,24 @@ const parseCliOptions = (args) => {
         }
         if (arg.startsWith("--host=")) {
             options.host = arg.slice("--host=".length);
+            continue;
+        }
+        if (arg === "--capability-token") {
+            options.capabilityToken = args[index + 1];
+            index += 1;
+            continue;
+        }
+        if (arg.startsWith("--capability-token=")) {
+            options.capabilityToken = arg.slice("--capability-token=".length);
+            continue;
+        }
+        if (arg === "--allowed-origin") {
+            options.allowedOrigins = [...(options.allowedOrigins ?? []), args[index + 1]];
+            index += 1;
+            continue;
+        }
+        if (arg.startsWith("--allowed-origin=")) {
+            options.allowedOrigins = [...(options.allowedOrigins ?? []), arg.slice("--allowed-origin=".length)];
         }
     }
     return options;
@@ -204,6 +224,13 @@ const cliOptions = parseCliOptions(process.argv.slice(2));
 const rootDir = normalizeRootDir(cliOptions.path ?? process.env.ACP_ROOT ?? defaultRootDir);
 const resourceDir = normalizeRootDir(cliOptions.resourcePath ?? process.env.ACP_RESOURCE_ROOT ?? defaultRootDir);
 
+bootstrapAgentServersConfig(rootDir, resourceDir);
+
+const isLoopbackHost = (host) => {
+    const normalized = String(host ?? "").trim().replace(/^\[|\]$/g, "").toLowerCase();
+    return normalized === "localhost" || normalized === "::1" || (isIP(normalized) === 4 && normalized.startsWith("127."));
+};
+
 const createRuntimeConfig = (rootDir, resourceDir, env) => {
     const {
         agentServersConfigPath,
@@ -219,6 +246,15 @@ const createRuntimeConfig = (rootDir, resourceDir, env) => {
     const requestedActiveAgentName = env.ACP_AGENT ?? agentServersConfig.activeAgent ?? agentServers[0]?.name;
     const agentServer = agentServers.find((server) => server.name === requestedActiveAgentName) ?? agentServers[0];
     const port = normalizePort(cliOptions.port ?? env.PORT, 9090);
+    const host = normalizeHost(cliOptions.host ?? env.HOST, "127.0.0.1");
+    const capabilityToken = String(cliOptions.capabilityToken ?? env.ACP_CAPABILITY_TOKEN ?? "").trim();
+    const allowedOrigins = (cliOptions.allowedOrigins ?? String(env.ACP_ALLOWED_ORIGINS ?? "").split(","))
+        .map((origin) => String(origin ?? "").trim().replace(/\/$/, ""))
+        .filter(Boolean);
+
+    if (!isLoopbackHost(host) && !capabilityToken) {
+        throw new Error(`Refusing non-loopback ACP host "${host}" without a capability token`);
+    }
 
     if (!agentServer) {
         throw new Error(`No ACP agent servers configured in ${agentServersConfigPath}`);
@@ -232,8 +268,10 @@ const createRuntimeConfig = (rootDir, resourceDir, env) => {
         agentServers,
         activeAgentName: agentServer.name,
         agentServer,
-        host: normalizeHost(cliOptions.host ?? env.HOST, "127.0.0.1"),
+        host,
         port,
+        capabilityToken,
+        allowedOrigins,
         cwd: env.ACP_CWD ?? join(rootDir, "agent-workspace"),
         debug: env.ACP_DEBUG === "1",
         defaultModel: env.ACP_MODEL,

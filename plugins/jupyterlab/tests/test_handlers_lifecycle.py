@@ -4,6 +4,7 @@
 """Focused process lifecycle tests for the JupyterLab handlers."""
 
 import ast
+import json
 import os
 import sys
 import types
@@ -73,13 +74,20 @@ class FakeProcess:
         self.killed = True
 
 
+class NodeVersionResult:
+    def __init__(self, version='v22.14.0'):
+        self.stdout = version
+
+
 @pytest.fixture(autouse=True)
 def reset_process_state():
     handlers.profiler_process.clear()
     handlers.acp_process.clear()
+    handlers.acp_capability_tokens.clear()
     yield
     handlers.profiler_process.clear()
     handlers.acp_process.clear()
+    handlers.acp_capability_tokens.clear()
 
 
 def test_handlers_module_has_one_header_and_one_definition_per_name():
@@ -94,7 +102,7 @@ def test_handlers_module_has_one_header_and_one_definition_per_name():
 
 def test_start_profiler_server_records_spawn_and_returns_true(monkeypatch):
     process = FakeProcess()
-    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda: '/tmp/cache')
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
     monkeypatch.setattr(handlers, 'get_local_ip', lambda: '127.0.0.1')
     monkeypatch.setattr(handlers, 'find_available_port', lambda *_args: 9010)
     monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: True)
@@ -133,10 +141,11 @@ def test_start_profiler_server_controls_expected_failures(monkeypatch, failure):
 def test_start_acp_returns_none_for_path_node_and_spawn_failures(monkeypatch, failure):
     handlers.profiler_server_id = 'profiler'
     handlers.profiler_process['profiler'] = FakeProcess()
-    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda: '/tmp/cache')
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
     monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: failure != 'entry')
     monkeypatch.setattr(handlers, 'get_process_env', lambda: {'PATH': '/bin'})
     monkeypatch.setattr(handlers.shutil, 'which', lambda *_args, **_kwargs: None if failure == 'node' else '/bin/node')
+    monkeypatch.setattr(handlers.subprocess, 'run', lambda *_args, **_kwargs: NodeVersionResult())
     monkeypatch.setattr(handlers, 'get_local_ip', lambda: '127.0.0.1')
     monkeypatch.setattr(handlers, 'find_available_port', lambda *_args: 9011)
 
@@ -147,7 +156,7 @@ def test_start_acp_returns_none_for_path_node_and_spawn_failures(monkeypatch, fa
 
     monkeypatch.setattr(handlers.subprocess, 'Popen', popen)
 
-    assert handlers.start_acp_node_service() is None
+    assert handlers.start_acp_node_service('http://127.0.0.1:8888') is None
     assert handlers.acp_process == {}
 
 
@@ -162,9 +171,11 @@ def test_acp_failure_rolls_back_only_just_started_profiler(monkeypatch):
         return True
 
     monkeypatch.setattr(handlers, 'start_profiler_server', start_profiler)
-    monkeypatch.setattr(handlers, 'start_acp_node_service', lambda: None)
+    monkeypatch.setattr(handlers, 'start_acp_node_service', lambda _origin: None)
 
     class FakeHandler:
+        request = types.SimpleNamespace(protocol='http', host='127.0.0.1:8888')
+
         def set_status(self, status):
             self.status = status
 
@@ -202,3 +213,75 @@ def test_id_scoped_and_shutdown_cleanup_terminate_paired_children_safely():
     assert handlers.profiler_process == {}
     assert handlers.acp_process == {}
     assert profiler_two.terminated and acp_two.terminated and orphan_acp.terminated
+
+
+def test_rejects_old_node_before_allocating_or_spawning_acp(monkeypatch):
+    handlers.profiler_server_id = 'profiler'
+    handlers.profiler_process['profiler'] = FakeProcess()
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
+    monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: True)
+    monkeypatch.setattr(handlers, 'get_process_env', lambda: {'PATH': '/bin'})
+    monkeypatch.setattr(handlers.shutil, 'which', lambda *_args, **_kwargs: '/bin/node')
+    monkeypatch.setattr(handlers.subprocess, 'run', lambda *_args, **_kwargs: NodeVersionResult('v22.13.9'))
+    monkeypatch.setattr(handlers, 'find_available_port', lambda *_args: pytest.fail('port must not be exposed'))
+    monkeypatch.setattr(handlers.subprocess, 'Popen', lambda *_args, **_kwargs: pytest.fail('must not spawn'))
+
+    assert handlers.start_acp_node_service('http://127.0.0.1:8888') is None
+
+
+def test_acp_launch_passes_random_capability_and_allowed_origin(monkeypatch):
+    handlers.profiler_server_id = 'profiler'
+    handlers.profiler_process['profiler'] = FakeProcess()
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
+    monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: True)
+    monkeypatch.setattr(handlers, 'get_process_env', lambda: {'PATH': '/bin'})
+    monkeypatch.setattr(handlers.shutil, 'which', lambda *_args, **_kwargs: '/bin/node')
+    monkeypatch.setattr(handlers.subprocess, 'run', lambda *_args, **_kwargs: NodeVersionResult())
+    monkeypatch.setattr(handlers, 'get_local_ip', lambda: '127.0.0.1')
+    monkeypatch.setattr(handlers, 'find_available_port', lambda *_args: 9011)
+    monkeypatch.setattr(handlers.secrets, 'token_urlsafe', lambda _size: 'random-capability')
+    captured = {}
+
+    def popen(command, **options):
+        captured['command'] = command
+        captured['options'] = options
+        return FakeProcess()
+
+    monkeypatch.setattr(handlers.subprocess, 'Popen', popen)
+
+    assert handlers.start_acp_node_service('http://127.0.0.1:8888') == 9011
+    assert captured['command'][-4:] == [
+        '--capability-token', 'random-capability', '--allowed-origin', 'http://127.0.0.1:8888'
+    ]
+    assert handlers.acp_capability_tokens == {'profiler': 'random-capability'}
+    if sys.platform != 'win32':
+        assert captured['options']['start_new_session'] is True
+
+
+def test_packaged_config_merge_is_idempotent_and_preserves_user_selection(tmp_path):
+    cache_dir = tmp_path / 'cache'
+    cache_dir.mkdir()
+    user_path = cache_dir / 'agent-servers.json'
+    packaged_path = tmp_path / 'packaged.json'
+    user_path.write_text(json.dumps({
+        'activeAgent': 'Custom',
+        'agentServers': [
+            {'name': 'OpenCode', 'command': 'custom-opencode', 'args': ['acp']},
+            {'name': 'Custom', 'command': 'custom', 'args': []},
+        ],
+    }), encoding='utf-8')
+    packaged_path.write_text(json.dumps({
+        'activeAgent': 'Native',
+        'agentServers': [
+            {'name': 'OpenCode', 'command': 'opencode', 'args': ['acp']},
+            {'name': 'Native', 'command': 'node', 'args': ['native.mjs'], 'env': {}},
+        ],
+    }), encoding='utf-8')
+
+    handlers._merge_packaged_agent_config(str(user_path), str(packaged_path))
+    handlers._merge_packaged_agent_config(str(user_path), str(packaged_path))
+    result = json.loads(user_path.read_text(encoding='utf-8'))
+
+    assert result['activeAgent'] == 'Custom'
+    assert [agent['name'] for agent in result['agentServers']] == ['OpenCode', 'Custom', 'Native']
+    assert result['agentServers'][0]['command'] == 'custom-opencode'
