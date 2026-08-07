@@ -17,14 +17,18 @@
  */
 
 /** 功能：创建基于 stdin/stdout 的 ACP JSON-RPC 协议服务。 */
-export const createAcpProtocolServer = ({ input = process.stdin, writeJson, handleRequest, beforeRequest }) => {
+export const createAcpProtocolServer = ({ input = process.stdin, writeJson, handleRequest, beforeRequest, onClose }) => {
     let buffer = "";
+    let closed = false;
+    const pending = new Set();
 
     /** 功能：启动输入监听，并把完整 JSON-RPC 行交给请求处理器。 */
     const start = async () => {
         await beforeRequest?.();
         input.setEncoding("utf8");
         input.on("data", handleInputChunk);
+        input.once("end", handleInputClose);
+        input.once("close", handleInputClose);
     };
 
     /** 功能：累积 stdin 数据，按换行切分完整 JSON-RPC 消息并交给协议处理器。 */
@@ -35,8 +39,19 @@ export const createAcpProtocolServer = ({ input = process.stdin, writeJson, hand
             if (newline === -1) break;
             const line = buffer.slice(0, newline).trim();
             buffer = buffer.slice(newline + 1);
-            if (line) void handleLine(line);
+            if (line) {
+                const request = handleLine(line).finally(() => pending.delete(request));
+                pending.add(request);
+            }
         }
+    };
+
+    const handleInputClose = async () => {
+        if (closed) return;
+        closed = true;
+        input.off("data", handleInputChunk);
+        await Promise.allSettled(pending);
+        await onClose?.();
     };
 
     /** 功能：解析一行 JSON-RPC 请求，等待准备工作后执行方法并输出结果或错误。 */

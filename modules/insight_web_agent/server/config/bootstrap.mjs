@@ -6,12 +6,24 @@
  * MindStudio is licensed under Mulan PSL v2.
  * -------------------------------------------------------------------------
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CONFIG_FILE = "agent-servers.json";
 
 const readJson = (path) => JSON.parse(readFileSync(path, "utf8").replace(/^﻿/, ""));
+
+const writeJsonAtomic = (path, value) => {
+    const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+        writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+        renameSync(tempPath, path);
+    } catch (error) {
+        rmSync(tempPath, { force: true });
+        throw error;
+    }
+};
 
 export const bootstrapAgentServersConfig = (rootDir, resourceDir) => {
     const packagedPath = join(resourceDir, CONFIG_FILE);
@@ -19,7 +31,7 @@ export const bootstrapAgentServersConfig = (rootDir, resourceDir) => {
     const packaged = readJson(packagedPath);
 
     if (!existsSync(userPath)) {
-        writeFileSync(userPath, `${JSON.stringify(packaged, null, 2)}\n`, "utf8");
+        writeJsonAtomic(userPath, packaged);
         return packaged;
     }
 
@@ -31,6 +43,6 @@ export const bootstrapAgentServersConfig = (rootDir, resourceDir) => {
     if (!missingBuiltIns.length) return user;
 
     const merged = { ...user, agentServers: [...userServers, ...missingBuiltIns] };
-    writeFileSync(userPath, `${JSON.stringify(merged, null, 2)}\n`, "utf8");
+    writeJsonAtomic(userPath, merged);
     return merged;
 };

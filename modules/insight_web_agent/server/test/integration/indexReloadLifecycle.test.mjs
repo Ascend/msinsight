@@ -134,10 +134,11 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
     await writeJson(join(rootDir, "acp-session-conf.json"), sessionConfig());
 
     const server = spawn(process.execPath, [serverEntry, "--path", rootDir, "--resource-path", rootDir,
-        "--port", String(port), "--capability-token", CAPABILITY_TOKEN], {
+        "--port", String(port)], {
         cwd: rootDir,
         env: {
             ...process.env,
+            ACP_CAPABILITY_TOKEN: CAPABILITY_TOKEN,
             ACP_CWD: workspaceDir,
             FAKE_AGENT_LOG: logPath,
         },
@@ -220,10 +221,11 @@ test("failed settings reload preserves old-runtime notifications and never broad
     await writeJson(join(rootDir, "acp-session-conf.json"), sessionConfig());
 
     const server = spawn(process.execPath, [serverEntry, "--path", rootDir, "--resource-path", rootDir,
-        "--port", String(port), "--capability-token", CAPABILITY_TOKEN], {
+        "--port", String(port)], {
         cwd: rootDir,
         env: {
             ...process.env,
+            ACP_CAPABILITY_TOKEN: CAPABILITY_TOKEN,
             ACP_CWD: workspaceDir,
             FAKE_AGENT_LOG: logPath,
             FAKE_AGENT_NOTIFY_FLAG: notifyFlagPath,
@@ -306,6 +308,19 @@ test("listen failure disconnects the ACP process and exits unsuccessfully", asyn
     }
 });
 
+test("startup rejects a missing capability token even on loopback", async () => {
+    const fixture = await createServerFixture();
+    const server = launchServer(fixture, { capabilityToken: "" });
+    let stderr = "";
+    server.stderr.setEncoding("utf8");
+    server.stderr.on("data", (chunk) => { stderr += chunk; });
+
+    await once(server, "exit");
+
+    assert.equal(server.exitCode, 1);
+    assert.match(stderr, /ACP_CAPABILITY_TOKEN is required/);
+});
+
 const stableAgent = (fakeAgentPath) => ({
     name: "Stable",
     command: process.execPath,
@@ -346,16 +361,16 @@ const createServerFixture = async () => {
     return { rootDir, fakeAgentPath, logPath, port: await getFreePort() };
 };
 
-const launchServer = ({ rootDir, logPath, port }) => spawn(process.execPath, [
+const launchServer = ({ rootDir, logPath, port }, { capabilityToken = CAPABILITY_TOKEN } = {}) => spawn(process.execPath, [
     serverEntry,
     "--path", rootDir,
     "--resource-path", rootDir,
     "--port", String(port),
-    "--capability-token", CAPABILITY_TOKEN,
 ], {
     cwd: rootDir,
     env: {
         ...process.env,
+        ACP_CAPABILITY_TOKEN: capabilityToken,
         ACP_CWD: join(rootDir, "agent-workspace"),
         FAKE_AGENT_LOG: logPath,
     },

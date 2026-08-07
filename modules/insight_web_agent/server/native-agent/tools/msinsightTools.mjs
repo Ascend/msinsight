@@ -19,7 +19,10 @@
 const DEFAULT_BASE_URL = "http://127.0.0.1:9090";
 const DEFAULT_OBSERVE_TIMEOUT_MS = 5000;
 
-export const createMsinsightTools = ({ baseUrl = process.env.INSIGHT_WEB_AGENT_BASE_URL ?? DEFAULT_BASE_URL } = {}) => [
+export const createMsinsightTools = ({
+    baseUrl = process.env.INSIGHT_WEB_AGENT_BASE_URL ?? DEFAULT_BASE_URL,
+    capabilityToken = process.env.ACP_CAPABILITY_TOKEN,
+} = {}) => [
     {
         name: "msinsight_observe",
         description: "Observe the current MindStudio Insight page state.",
@@ -29,7 +32,7 @@ export const createMsinsightTools = ({ baseUrl = process.env.INSIGHT_WEB_AGENT_B
             additionalProperties: false,
         },
         async execute() {
-            return readPageObservation(baseUrl);
+            return readPageObservation(baseUrl, capabilityToken);
         },
     },
     {
@@ -41,7 +44,7 @@ export const createMsinsightTools = ({ baseUrl = process.env.INSIGHT_WEB_AGENT_B
             additionalProperties: false,
         },
         async execute() {
-            const { observation } = await readPageObservation(baseUrl);
+            const { observation } = await readPageObservation(baseUrl, capabilityToken);
             return { actions: observation?.availableActions ?? [] };
         },
     },
@@ -65,10 +68,12 @@ export const createMsinsightTools = ({ baseUrl = process.env.INSIGHT_WEB_AGENT_B
     },
 ];
 
-const readPageObservation = async (baseUrl) => {
+const readPageObservation = async (baseUrl, capabilityToken) => {
     try {
         const timeoutMs = Number(process.env.MSINSIGHT_OBSERVE_TIMEOUT_MS ?? DEFAULT_OBSERVE_TIMEOUT_MS);
-        const response = await fetch(new URL("/api/page/observation", baseUrl), {
+        const observationUrl = new URL("/api/page/observation", baseUrl);
+        if (capabilityToken) observationUrl.searchParams.set("capabilityToken", capabilityToken);
+        const response = await fetch(observationUrl, {
             signal: AbortSignal.timeout(timeoutMs),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);

@@ -146,20 +146,14 @@ async def _main() -> None:
             await mcp_server.run_stdio()
 
         elif transport == "sse":
-            server_task = asyncio.create_task(mcp_server.run_sse(settings.mcp_host, settings.mcp_port))
-            await asyncio.wait(
-                [server_task, asyncio.create_task(_shutdown_event.wait())],
-                return_when=asyncio.FIRST_COMPLETED,
+            await _run_until_shutdown(
+                mcp_server.run_sse(settings.mcp_host, settings.mcp_port)
             )
-            server_task.cancel()
 
         elif transport == "websocket":
-            server_task = asyncio.create_task(mcp_server.run_websocket(settings.mcp_host, settings.mcp_port))
-            await asyncio.wait(
-                [server_task, asyncio.create_task(_shutdown_event.wait())],
-                return_when=asyncio.FIRST_COMPLETED,
+            await _run_until_shutdown(
+                mcp_server.run_websocket(settings.mcp_host, settings.mcp_port)
             )
-            server_task.cancel()
 
         else:
             logger.error("Unknown transport '{}'. Use stdio | sse | websocket.", transport)
@@ -169,6 +163,22 @@ async def _main() -> None:
         logger.info("Shutting down C++ backend connection …")
         await cpp.shutdown()
         logger.info("MSInsight MCP Bridge stopped.")
+
+
+async def _run_until_shutdown(server, shutdown_event: asyncio.Event = _shutdown_event) -> None:
+    server_task = asyncio.create_task(server)
+    shutdown_task = asyncio.create_task(shutdown_event.wait())
+    try:
+        done, _ = await asyncio.wait(
+            [server_task, shutdown_task], return_when=asyncio.FIRST_COMPLETED
+        )
+        if server_task in done:
+            await server_task
+    finally:
+        for task in (server_task, shutdown_task):
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(server_task, shutdown_task, return_exceptions=True)
 
 
 # --------------------------------------------------------------------

@@ -617,7 +617,7 @@ AgentPanel、ChatPanel、AgentSettingsDialog 的设计见：
 参见 `docs/zh/development_guide/develop_guide.md` § 3.6 中的：
 
 - 源码级拉起与 `--inspect` 调试
-- `pnpm server:build` + `node dist-server/index.mjs`
+- `pnpm server:build` + `ACP_CAPABILITY_TOKEN=<development-token> node dist-server/index.mjs`
 - `build/patch-acp-server.py` 一键构建并覆盖到 `MindStudioInsight.app`
 - 常见错误与排查（端口冲突、`Not found`、未初始化等）
 

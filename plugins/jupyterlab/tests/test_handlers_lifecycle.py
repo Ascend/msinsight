@@ -250,12 +250,23 @@ def test_acp_launch_passes_random_capability_and_allowed_origin(monkeypatch):
     monkeypatch.setattr(handlers.subprocess, 'Popen', popen)
 
     assert handlers.start_acp_node_service('http://127.0.0.1:8888') == 9011
-    assert captured['command'][-4:] == [
-        '--capability-token', 'random-capability', '--allowed-origin', 'http://127.0.0.1:8888'
-    ]
+    assert captured['command'][-2:] == ['--allowed-origin', 'http://127.0.0.1:8888']
+    assert '--capability-token' not in captured['command']
+    assert captured['options']['env']['ACP_CAPABILITY_TOKEN'] == 'random-capability'
     assert handlers.acp_capability_tokens == {'profiler': 'random-capability'}
     if sys.platform != 'win32':
         assert captured['options']['start_new_session'] is True
+
+
+def test_allowed_origin_uses_forwarded_values_only_when_proxy_headers_are_trusted():
+    request = types.SimpleNamespace(
+        protocol='http',
+        host='127.0.0.1:8888',
+        headers={'X-Forwarded-Proto': 'https', 'X-Forwarded-Host': 'notebooks.example.com'},
+    )
+
+    assert handlers._get_allowed_origin(request) == 'http://127.0.0.1:8888'
+    assert handlers._get_allowed_origin(request, trust_xheaders=True) == 'https://notebooks.example.com'
 
 
 def test_packaged_config_merge_is_idempotent_and_preserves_user_selection(tmp_path):

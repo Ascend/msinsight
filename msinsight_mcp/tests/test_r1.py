@@ -170,3 +170,29 @@ def test_main_starts_mcp_while_initial_connection_reconnects(monkeypatch) -> Non
         assert cpp_client._client is None
 
     asyncio.run(scenario())
+
+
+def test_transport_shutdown_awaits_cancelled_server_task() -> None:
+    from msinsight_mcp import main
+
+    async def scenario() -> None:
+        shutdown = asyncio.Event()
+        server_started = asyncio.Event()
+        server_stopped = asyncio.Event()
+
+        async def server() -> None:
+            server_started.set()
+            try:
+                await asyncio.Future()
+            finally:
+                await asyncio.sleep(0)
+                server_stopped.set()
+
+        lifecycle = asyncio.create_task(main._run_until_shutdown(server(), shutdown))
+        await asyncio.wait_for(server_started.wait(), timeout=1)
+        shutdown.set()
+        await asyncio.wait_for(lifecycle, timeout=1)
+
+        assert server_stopped.is_set()
+
+    asyncio.run(scenario())

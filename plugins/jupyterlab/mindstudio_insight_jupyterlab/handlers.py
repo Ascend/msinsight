@@ -253,6 +253,7 @@ def start_acp_node_service(allowed_origin):
             return None
 
         capability_token = secrets.token_urlsafe(32)
+        env['ACP_CAPABILITY_TOKEN'] = capability_token
         command = [
             node_path,
             acp_entry_path,
@@ -264,8 +265,6 @@ def start_acp_node_service(allowed_origin):
             str(selected_port),
             '--host',
             acp_host,
-            '--capability-token',
-            capability_token,
             '--allowed-origin',
             allowed_origin,
         ]
@@ -415,7 +414,7 @@ class IFrameConfigHandler(APIHandler):
             return
 
         started_server_id = profiler_server_id
-        allowed_origin = f'{self.request.protocol}://{self.request.host}'.rstrip('/')
+        allowed_origin = _get_allowed_origin(self.request, getattr(self, 'settings', {}).get('trust_xheaders', False))
         acp_port = start_acp_node_service(allowed_origin)
         if acp_port is None:
             stop_profiler_server(started_server_id)
@@ -434,6 +433,19 @@ class IFrameConfigHandler(APIHandler):
                 }
             )
         )
+
+
+def _get_allowed_origin(request, trust_xheaders=False):
+    protocol = request.protocol
+    host = request.host
+    if trust_xheaders:
+        forwarded_protocol = request.headers.get('X-Forwarded-Proto', '').split(',', 1)[0].strip().lower()
+        forwarded_host = request.headers.get('X-Forwarded-Host', '').split(',', 1)[0].strip()
+        if forwarded_protocol in ('http', 'https'):
+            protocol = forwarded_protocol
+        if re.fullmatch(HOST_PATTERN, forwarded_host):
+            host = forwarded_host
+    return f'{protocol}://{host}'.rstrip('/')
 
 
 class TerminateProfilerHandler(APIHandler):

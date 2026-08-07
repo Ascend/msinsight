@@ -26,6 +26,13 @@ use std::{
     path::PathBuf,
     process::Command,
 };
+#[cfg(target_os = "macos")]
+use std::{
+    io::{self, Read},
+    process::{Child, Stdio},
+    thread,
+    time::{Duration, Instant},
+};
 
 use crate::webview;
 
@@ -76,9 +83,11 @@ fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
     Some(server_path)
 }
 
-fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
-    let binding = server_path(root_path).unwrap();
-    let Some(path) = binding.to_str() else { unreachable!() };
+fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) -> bool {
+    let Some(path) = server_path(root_path) else {
+        eprintln!("Profiler server path does not exist");
+        return false;
+    };
 
     let mut server_command = Command::new(path);
 
@@ -86,16 +95,23 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
     server_command.creation_flags(NO_WINDOW_FLAG);
 
     // 通过Rust底座拉起后端时，为本地使用场景，不涉及远程通信，传入--notStrict选项，导入文件时不要求权限和属主校验通过
-    match server_command
+    server_command
         .arg(format!("--wsPort={port}"))
         .arg(format!("--logPath={}", cache_path.display()))
-        .arg("--notStrict")
-        .spawn()
-    {
+        .arg("--notStrict");
+    spawn_profiler_server(&mut server_command)
+}
+
+fn spawn_profiler_server(server_command: &mut Command) -> bool {
+    match server_command.spawn() {
         Ok(child) => unsafe {
             PID = child.id();
+            true
         },
-        _ => eprintln!("Failed to start server"),
+        Err(error) => {
+            eprintln!("Failed to start profiler server: {error}");
+            false
+        }
     }
 }
 
@@ -139,10 +155,9 @@ fn run_acp_server(
         .arg(port.to_string())
         .arg("--host")
         .arg("127.0.0.1")
-        .arg("--capability-token")
-        .arg(capability_token)
         .arg("--allowed-origin")
         .arg("wry://localhost")
+        .env("ACP_CAPABILITY_TOKEN", capability_token)
         .spawn()
     {
         Ok(child) => unsafe {
@@ -265,7 +280,8 @@ fn load_login_shell_environment() {
     let logname = env::var("LOGNAME").unwrap_or_else(|_| user.clone());
     let command = format!("cd {home_arg}; env -0");
 
-    let output = Command::new("/usr/bin/env")
+    let mut shell_command = Command::new("/usr/bin/env");
+    shell_command
         .arg("-i")
         .arg(format!("HOME={}", home.display()))
         .arg(format!("USER={user}"))
@@ -277,11 +293,16 @@ fn load_login_shell_environment() {
         .arg("-i")
         .arg("-c")
         .arg(command)
-        .output();
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    let output = shell_command.spawn().and_then(|child| {
+        wait_for_child_output(child, Duration::from_secs(10))
+    });
 
     match output {
-        Ok(output) => {
-            for entry in output.stdout.split(|byte| *byte == 0) {
+        Ok(Some(output)) => {
+            for entry in output.split(|byte| *byte == 0) {
                 if entry.is_empty() {
                     continue;
                 }
@@ -297,9 +318,38 @@ fn load_login_shell_environment() {
             }
             eprintln!("Loaded login shell environment from {shell}");
         }
+        Ok(None) => {
+            eprintln!("Timed out loading login shell environment; using inherited environment")
+        }
         Err(error) => {
             eprintln!("Failed to load login shell environment: {error}")
         }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn wait_for_child_output(
+    mut child: Child,
+    timeout: Duration,
+) -> io::Result<Option<Vec<u8>>> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            if !status.success() {
+                return Ok(None);
+            }
+            let mut output = Vec::new();
+            if let Some(mut stdout) = child.stdout.take() {
+                stdout.read_to_end(&mut output)?;
+            }
+            return Ok(Some(output));
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            child.wait()?;
+            return Ok(None);
+        }
+        thread::sleep(Duration::from_millis(50));
     }
 }
 
@@ -384,7 +434,9 @@ pub fn main() {
         return;
     };
 
-    run_server(&root_path, &cache_path, port);
+    if !run_server(&root_path, &cache_path, port) {
+        return;
+    }
     if !run_acp_server(&root_path, &cache_path, acp_port, &capability_token) {
         webview::cleanup::handle_close_requested();
         return;
@@ -405,12 +457,48 @@ pub fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_node_version, MINIMUM_NODE_VERSION};
+    use std::process::Command;
+
+    #[cfg(target_os = "macos")]
+    use std::{
+        process::Stdio,
+        time::{Duration, Instant},
+    };
+
+    #[cfg(target_os = "macos")]
+    use super::wait_for_child_output;
+    use super::{parse_node_version, spawn_profiler_server, MINIMUM_NODE_VERSION};
 
     #[test]
     fn enforces_blade_node_runtime_floor() {
         assert!(parse_node_version("v22.14.0").unwrap() >= MINIMUM_NODE_VERSION);
         assert!(parse_node_version("v22.13.1").unwrap() < MINIMUM_NODE_VERSION);
         assert_eq!(parse_node_version("not-node"), None);
+    }
+
+    #[test]
+    fn profiler_spawn_failure_is_reported() {
+        let mut command = Command::new("mindstudio-profiler-server-does-not-exist");
+
+        assert!(!spawn_profiler_server(&mut command));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn timed_out_child_is_killed_and_reaped() {
+        let mut command = Command::new("/bin/sh");
+        let child = command
+            .arg("-c")
+            .arg("while :; do :; done")
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let started = Instant::now();
+
+        assert_eq!(
+            wait_for_child_output(child, Duration::from_millis(20)).unwrap(),
+            None
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 }

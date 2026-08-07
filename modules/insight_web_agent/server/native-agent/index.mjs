@@ -69,6 +69,7 @@ const acpProtocol = createAcpProtocolServer({
     writeJson: notifier.writeJson,
     handleRequest: sessionService.handleRequest,
     beforeRequest: sessionStore.load,
+    onClose: () => process.exit(0),
 });
 
 await acpProtocol.start();

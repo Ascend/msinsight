@@ -26,6 +26,8 @@ const capabilityToken = new URLSearchParams(window.location.search).get('capabil
 const jupyterlabProxy = new URLSearchParams(window.location.search).get('jupyterlabProxy') === 'true';
 const defaultApiBase = process.env.NODE_ENV === 'development' ? 'http://localhost:9090' : '';
 
+type AcpLocation = Pick<Location, 'host' | 'hostname' | 'pathname' | 'protocol'>;
+
 if (process.env.NODE_ENV !== 'development' && (!window.__ACP_API_BASE__ && !acpPort || !capabilityToken)) {
     throw new Error('Missing required ACP connection parameters.');
 }
@@ -36,15 +38,19 @@ const resolveAcpApiBase = (): string => {
     return defaultApiBase;
 };
 
-const resolveAcpPortBase = (port: string): string => {
-    const { host, pathname, protocol } = window.location;
+export const resolveAcpPortBase = (
+    port: string,
+    location: AcpLocation = window.location,
+    useJupyterlabProxy: boolean = jupyterlabProxy,
+): string => {
+    const { host, pathname, protocol } = location;
     const apiProtocol = `${protocol === 'https:' && host !== 'wry.localhost' ? 'https:' : 'http:'}//`;
-    if (jupyterlabProxy) {
+    if (useJupyterlabProxy) {
         const path = pathname.replace(/\/resources\/profiler\/frontend.*/, '').replace(/\/proxy\/\d+.*/, '');
         return `${apiProtocol}${host}${path}/proxy/${port}`;
     }
     if (!pathname.includes('/proxy/')) {
-        const hostname = window.location.hostname || 'localhost';
+        const hostname = protocol === 'wry:' ? '127.0.0.1' : location.hostname || 'localhost';
         return `${apiProtocol}${hostname}:${port}`;
     }
     const path = pathname.replace(/\/proxy\/\d+.*/, `/proxy/${port}`);

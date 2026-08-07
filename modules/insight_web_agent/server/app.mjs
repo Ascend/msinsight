@@ -30,7 +30,7 @@ import { hasValidCapability, normalizeRequestOrigin } from "./http/security.mjs"
 
 export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService, capabilityToken, allowedOrigins = [] }) => {
     const router = createRouter({
-        agentController: createAgentController({ agentService }),
+        agentController: createAgentController({ agentService, state }),
         agentConfigController: createAgentConfigController({ agentConfigService }),
         chatController: createChatController({ chatService, state }),
         contextController: createContextController({ state }),

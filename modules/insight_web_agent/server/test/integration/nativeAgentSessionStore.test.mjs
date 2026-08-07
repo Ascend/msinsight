@@ -76,3 +76,27 @@ test("native agent serializes concurrent session store writes", async () => {
         await rm(cwd, { recursive: true, force: true });
     }
 });
+
+test("native agent exits successfully when stdin ends", async () => {
+    const cwd = await mkdtemp(resolve(tmpdir(), "msinsight-native-eof-"));
+    const child = spawn(process.execPath, [nativeAgentPath], {
+        cwd,
+        env: { ...process.env, MSINSIGHT_NATIVE_STORE_DIR: resolve(cwd, "store") },
+        stdio: ["pipe", "pipe", "pipe"],
+    });
+    try {
+        child.stdin.end();
+        const [code, signal] = await Promise.race([
+            once(child, "exit"),
+            new Promise((_, reject) => setTimeout(() => reject(new Error("native agent did not exit after stdin EOF")), 3000)),
+        ]);
+        assert.equal(code, 0);
+        assert.equal(signal, null);
+    } finally {
+        if (child.exitCode === null) {
+            child.kill();
+            await once(child, "exit");
+        }
+        await rm(cwd, { recursive: true, force: true });
+    }
+});

@@ -64,7 +64,10 @@ const withHostEnv = (agentServer) => ({
         INSIGHT_WEB_AGENT_RESOURCE_DIR: config.resourceDir,
         INSIGHT_WEB_AGENT_FILESYSTEM_POLICY: JSON.stringify(nativeFilesystemPolicy()),
         ...(agentServer.name === "msinsight-native"
-            ? { MSINSIGHT_NATIVE_STORE_DIR: join(config.rootDir, ".msinsight_native_agent") }
+            ? {
+                ACP_CAPABILITY_TOKEN: config.capabilityToken,
+                MSINSIGHT_NATIVE_STORE_DIR: join(config.rootDir, ".msinsight_native_agent"),
+            }
             : {}),
     },
 });

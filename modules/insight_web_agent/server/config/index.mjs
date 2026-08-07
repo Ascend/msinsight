@@ -15,9 +15,9 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { isIP } from "node:net";
 import { bootstrapAgentServersConfig } from "./bootstrap.mjs";
 import { initLogger } from "../utils/logger.mjs";
 
@@ -64,15 +64,6 @@ const parseCliOptions = (args) => {
         }
         if (arg.startsWith("--host=")) {
             options.host = arg.slice("--host=".length);
-            continue;
-        }
-        if (arg === "--capability-token") {
-            options.capabilityToken = args[index + 1];
-            index += 1;
-            continue;
-        }
-        if (arg.startsWith("--capability-token=")) {
-            options.capabilityToken = arg.slice("--capability-token=".length);
             continue;
         }
         if (arg === "--allowed-origin") {
@@ -226,11 +217,6 @@ const resourceDir = normalizeRootDir(cliOptions.resourcePath ?? process.env.ACP_
 
 bootstrapAgentServersConfig(rootDir, resourceDir);
 
-const isLoopbackHost = (host) => {
-    const normalized = String(host ?? "").trim().replace(/^\[|\]$/g, "").toLowerCase();
-    return normalized === "localhost" || normalized === "::1" || (isIP(normalized) === 4 && normalized.startsWith("127."));
-};
-
 const createRuntimeConfig = (rootDir, resourceDir, env) => {
     const {
         agentServersConfigPath,
@@ -247,13 +233,13 @@ const createRuntimeConfig = (rootDir, resourceDir, env) => {
     const agentServer = agentServers.find((server) => server.name === requestedActiveAgentName) ?? agentServers[0];
     const port = normalizePort(cliOptions.port ?? env.PORT, 9090);
     const host = normalizeHost(cliOptions.host ?? env.HOST, "127.0.0.1");
-    const capabilityToken = String(cliOptions.capabilityToken ?? env.ACP_CAPABILITY_TOKEN ?? "").trim();
+    const capabilityToken = String(env.ACP_CAPABILITY_TOKEN ?? "").trim();
     const allowedOrigins = (cliOptions.allowedOrigins ?? String(env.ACP_ALLOWED_ORIGINS ?? "").split(","))
         .map((origin) => String(origin ?? "").trim().replace(/\/$/, ""))
         .filter(Boolean);
 
-    if (!isLoopbackHost(host) && !capabilityToken) {
-        throw new Error(`Refusing non-loopback ACP host "${host}" without a capability token`);
+    if (!capabilityToken) {
+        throw new Error("ACP_CAPABILITY_TOKEN is required");
     }
 
     if (!agentServer) {
@@ -298,7 +284,18 @@ export const reloadConfig = (env = process.env) => {
 export const saveActiveAgent = (name) => {
     const currentConfig = loadResolvedAgentServersConfig(config.rootDir);
     const nextConfig = { ...currentConfig, activeAgent: name };
-    writeFileSync(config.agentServersConfigPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
+    writeJsonAtomic(config.agentServersConfigPath, nextConfig);
+};
+
+const writeJsonAtomic = (path, value) => {
+    const tempPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+    try {
+        writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+        renameSync(tempPath, path);
+    } catch (error) {
+        rmSync(tempPath, { force: true });
+        throw error;
+    }
 };
 
 if (!process.env.ACP_AGENT && config.requestedActiveAgentName && config.requestedActiveAgentName !== config.agentServer.name) {

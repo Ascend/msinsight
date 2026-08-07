@@ -16,8 +16,9 @@
  * -------------------------------------------------------------------------
  */
 import { json } from "../http/response.mjs";
+import { isBusy } from "../services/agentConfigService.mjs";
 
-export const createAgentController = ({ agentService }) => ({
+export const createAgentController = ({ agentService, state }) => ({
     list(_req, res) {
         console.log("Listing agent servers");
         return json(res, agentService.list());
@@ -25,6 +26,7 @@ export const createAgentController = ({ agentService }) => ({
 
     async switch(_req, res, body) {
         console.log(`Switch agent requested: ${String(body?.name ?? "")}`);
+        if (isBusy(state)) return json(res, { error: "agent_busy", message: "Agent is busy" }, 409);
         const result = await agentService.switchAgent(body?.name);
         if (result.error) console.warn(`Switch agent failed: ${result.error}`);
         else console.log(`Switch agent completed: ${result.activeAgentName}`);

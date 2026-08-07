@@ -19,7 +19,16 @@ import { json } from "../http/response.mjs";
 
 export const createContextController = ({ state }) => ({
     async update(_req, res, body) {
-        state.activeContext = body;
+        if (!body || typeof body !== "object" || Array.isArray(body)) {
+            return json(res, { error: "context must be an object" }, 400);
+        }
+        if (Object.hasOwn(body, "projectRoot")) {
+            return json(res, { error: "projectRoot is host-owned" }, 400);
+        }
+        state.activeContext = {
+            profileId: body.profileId,
+            activeModule: body.activeModule,
+        };
         return json(res, { ok: true, activeContext: state.activeContext });
     },
 });

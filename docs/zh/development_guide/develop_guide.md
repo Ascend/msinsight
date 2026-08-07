@@ -259,22 +259,23 @@ Insight Web Agent 是一个独立 Node ESM runtime，承载 ACP（Agent Control 
 
 ```bash
 cd modules/insight_web_agent
-node server/index.mjs --path . --port 9002
+ACP_CAPABILITY_TOKEN=<development-token> node server/index.mjs --path . --port 9002
 ```
 
 行为说明：
 
 - `--path` 指定运行时工作目录，等价于 App 内 `--path <app>/Contents/MacOS/resources/profiler/server/insight_web_agent`。该目录必须包含 `agent-servers.json` 与（可选）`acp-session-conf.json`、`prompts/`、`docs/`。
 - `--port` 默认 `9090`；常用本地调试推荐显式指定 `9002`、`9004` 等与 App 错开的端口。
+- `ACP_CAPABILITY_TOKEN` 必须显式设置（包括仅监听 loopback 的开发环境），并通过请求查询参数 `capabilityToken` 传入；token 不通过进程参数传递。
 - 启动后会在 stdout 打印类似 `ACP web extracted API: http://127.0.0.1:9002/` 与 `Agent: <activeAgentName> (<command> <args>)`。
 
 源代码模式支持 Node 原生调试器：
 
 ```bash
 cd modules/insight_web_agent
-node --inspect server/index.mjs --path . --port 9002
+ACP_CAPABILITY_TOKEN=<development-token> node --inspect server/index.mjs --path . --port 9002
 # 或启动即断点
-node --inspect-brk server/index.mjs --path . --port 9002
+ACP_CAPABILITY_TOKEN=<development-token> node --inspect-brk server/index.mjs --path . --port 9002
 ```
 
 随后在 Chrome DevTools 的 `chrome://inspect` 或者 VS Code 的 "Attach to Node Process" 中挂载即可步入 `server/services/*`、`server/controllers/*`、`server/infrastructure/*` 等模块。
@@ -286,7 +287,7 @@ App 内执行的 `node .../index.mjs` 就是 esbuild 打包后的 bundle。要�
 ```bash
 cd modules/insight_web_agent
 pnpm server:build
-node dist-server/index.mjs --path dist-server --port 9002
+ACP_CAPABILITY_TOKEN=<development-token> node dist-server/index.mjs --path dist-server --port 9002
 ```
 
 要点：
@@ -307,7 +308,7 @@ node dist-server/index.mjs --path dist-server --port 9002
 
   # 3. 单独拉起
   cd modules/insight_web_agent
-  node server/index.mjs --path . --port 9002
+  ACP_CAPABILITY_TOKEN=<development-token> node server/index.mjs --path . --port 9002
   ```
 
 - 如果只是要验证 reload-bug / config save / switch agent 这类纯后端逻辑，可以连接本地 `127.0.0.1:9002` + `curl` / 前端本地代理，不需要起 framework。

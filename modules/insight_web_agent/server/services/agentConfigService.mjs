@@ -240,7 +240,7 @@ const saveConfigFiles = async ({ agentConfigPath, sessionConfigPath, snapshot, t
     }
 };
 
-const isBusy = (state) => {
+export const isBusy = (state) => {
     if (!state) return false;
     if ([...(state.sessionContexts?.values?.() ?? [])].some((context) => context?.pendingPrompt)) return true;
     return [...(state.pendingPermissions?.values?.() ?? [])].some((request) => request?.state === "pending");

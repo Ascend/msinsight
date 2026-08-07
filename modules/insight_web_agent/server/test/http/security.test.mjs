@@ -13,11 +13,19 @@ import { createRuntimeState } from "../../state/runtimeState.mjs";
 
 const startFixture = async () => {
     let sseConnections = 0;
+    let agentSwitches = 0;
+    const state = createRuntimeState();
     const server = createApp({
         capabilityToken: "test-capability",
         allowedOrigins: ["http://127.0.0.1:9000"],
-        state: createRuntimeState(),
-        agentService: { list: () => ({ agentServers: [] }) },
+        state,
+        agentService: {
+            list: () => ({ agentServers: [] }),
+            switchAgent: async () => {
+                agentSwitches += 1;
+                return { ok: true, activeAgentName: "next" };
+            },
+        },
         eventBus: {
             connect(_req, res) {
                 sseConnections += 1;
@@ -31,6 +39,8 @@ const startFixture = async () => {
     return {
         server,
         url: `http://127.0.0.1:${port}`,
+        state,
+        agentSwitches: () => agentSwitches,
         sseConnections: () => sseConnections,
     };
 };
@@ -58,4 +68,38 @@ test("emits CORS only for the explicit allowed origin and rejects other origins"
     const rejected = await fetch(path, { headers: { origin: "https://attacker.invalid" } });
     assert.equal(rejected.status, 403);
     assert.equal(rejected.headers.get("access-control-allow-origin"), null);
+});
+
+test("rejects agent switching while a prompt is busy", async (t) => {
+    const fixture = await startFixture();
+    t.after(() => fixture.server.close());
+    fixture.state.sessionContexts.set("session-1", { pendingPrompt: true });
+
+    const response = await fetch(`${fixture.url}/api/agents/switch?capabilityToken=test-capability`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "next" }),
+    });
+
+    assert.equal(response.status, 409);
+    assert.deepEqual(await response.json(), { error: "agent_busy", message: "Agent is busy" });
+    assert.equal(fixture.agentSwitches(), 0);
+});
+
+test("context accepts Framework fields but rejects a client-supplied projectRoot", async (t) => {
+    const fixture = await startFixture();
+    t.after(() => fixture.server.close());
+    const request = (body) => fetch(`${fixture.url}/api/context?capabilityToken=test-capability`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+    });
+
+    const accepted = await request({ profileId: "profile-1", activeModule: "Timeline", ignored: "value" });
+    assert.equal(accepted.status, 200);
+    assert.deepEqual(fixture.state.activeContext, { profileId: "profile-1", activeModule: "Timeline" });
+
+    const rejected = await request({ profileId: "profile-1", activeModule: "Timeline", projectRoot: "/tmp/attacker" });
+    assert.equal(rejected.status, 400);
+    assert.deepEqual(fixture.state.activeContext, { profileId: "profile-1", activeModule: "Timeline" });
 });
