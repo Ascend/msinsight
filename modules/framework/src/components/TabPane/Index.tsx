@@ -369,6 +369,7 @@ const Index = observer(({ session }: { session: Session }) => {
             ))}</div>
             <WebAgentSessionPanel
                 activeModule={activeModule}
+                availableModules={availableModules}
                 moduleFrameMinWidth={MODULE_FRAME_MIN_WIDTH}
                 session={session}
                 show={showSessionPanel}

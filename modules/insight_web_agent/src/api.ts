@@ -119,6 +119,17 @@ export const updateContext = (context: HostContext): Promise<OkResponse> => {
     });
 };
 
+export const updatePageObservation = (observation: Record<string, unknown>): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/page/observation', {
+        method: 'POST',
+        body: JSON.stringify({ observation }),
+    });
+};
+
+export const fetchPageObservation = (): Promise<{ observation?: Record<string, unknown> | null; updatedAt?: number | null }> => {
+    return requestJson('/api/page/observation');
+};
+
 export const cancelPrompt = (sessionId?: string): Promise<OkResponse> => {
     return requestJson<OkResponse>('/api/cancel', {
         method: 'POST',

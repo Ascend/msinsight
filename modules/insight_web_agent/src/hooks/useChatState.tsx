@@ -26,7 +26,8 @@ import {
     type RefObject,
 } from 'react';
 import { message } from 'antd';
-import { cancelPrompt, createSession, deleteSession, fetchSessions, fetchState, loadSession, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { cancelPrompt, createSession, deleteSession, fetchSessions, fetchState, loadSession, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent, updatePageObservation } from '../api';
+import { observeInsightPage } from '../bridge/frontendAgentToolBridge';
 import { apiUrl } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
@@ -196,6 +197,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             }));
             return;
         }
+
 
         if (event.type === 'message_removed' && event.sessionId) {
             updateSessionRecord(event.sessionId, (record) => ({
@@ -431,6 +433,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => markPromptStarted(current, prompt, isDraftSession, sessionId, optimisticSession));
 
         try {
+            const observation = await observeInsightPage().catch(() => undefined);
+            if (observation) await updatePageObservation(observation).catch(() => undefined);
             const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode);
             setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
         } catch (error) {
@@ -767,6 +771,7 @@ const dequeuePrompt = (
         sessions: mergeSessionStatuses(state.sessions, sessionRecords),
     };
 };
+
 
 const markLastAssistantComplete = (messages: ChatMessage[]): ChatMessage[] => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
