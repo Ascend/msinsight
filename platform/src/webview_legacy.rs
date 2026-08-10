@@ -17,7 +17,7 @@
  */
 
 #[path = "webview/cleanup.rs"]
-mod cleanup;
+pub(crate) mod cleanup;
 
 use std::path::Path;
 use std::{fs::read, path::PathBuf, process::Command, sync::Arc};
@@ -40,6 +40,8 @@ fn create_webview(
     cache_path: Arc<PathBuf>,
     resource_path: Arc<PathBuf>,
     port: u16,
+    acp_port: u16,
+    capability_token: &str,
     proxy: Arc<EventLoopProxy<PathBuf>>,
 ) -> wry024::Result<WebView> {
     WebViewBuilder::new(window)?
@@ -59,8 +61,8 @@ fn create_webview(
         })
         .with_url(
             format!(
-                "wry://localhost/resources/profiler/frontend/index.html?port={}",
-                port
+                "wry://localhost/resources/profiler/frontend/index.html?port={}&acpPort={}&acpCapabilityToken={}",
+                port, acp_port, capability_token
             )
             .as_str(),
         )?
@@ -168,6 +170,8 @@ pub fn run_script(
     root_path: &PathBuf,
     cache_path: &PathBuf,
     port: u16,
+    acp_port: u16,
+    capability_token: &str,
 ) -> wry024::Result<(EventLoop<PathBuf>, WebView)> {
     let event_loop = EventLoop::with_user_event();
 
@@ -181,7 +185,7 @@ pub fn run_script(
 
     let resource_path = Arc::new(root_path.to_path_buf());
     let log_path = Arc::new(cache_path.to_path_buf());
-    let webview = create_webview(window, log_path, resource_path, port, proxy)?;
+    let webview = create_webview(window, log_path, resource_path, port, acp_port, capability_token, proxy)?;
 
     Ok((event_loop, webview))
 }

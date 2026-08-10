@@ -2,6 +2,8 @@
   "compilerOptions": {
     "paths": {
       "@/*": ["src/*"],
+      "@insight/lib/*": ["../lib/src/*"],
+      "@insight/lib": ["../lib/src"]
     },
     "experimentalDecorators": true,
     "target": "es2020",

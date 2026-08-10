@@ -2,6 +2,9 @@
   "name": "@insight/framework",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.14.0"
+  },
   "homepage": "./",
   "scripts": {
     "build:vscode": "cross-env NODE_OPTIONS=--openssl-legacy-provider NODE_ENV=production REACT_APP_IS_VSCODE=true DISABLE_ESLINT_PLUGIN=true GENERATE_SOURCEMAP=false CI=false craco build && node ../inline-build.js",

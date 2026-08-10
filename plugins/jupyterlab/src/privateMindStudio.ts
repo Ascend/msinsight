@@ -28,9 +28,11 @@ const MINDSTUDIO_STATIC_CONFIG_URL = '';
 
 const MINDSTUDIO_URL = '/resources/profiler/frontend/index.html';
 
-const MINDSTUDIO_IFRAME_CONFIG_URL = '/mindstudio_insight_jupyterlab/get_iframe_config';
+const MINDSTUDIO_IFRAME_CONFIG_URL =
+    '/mindstudio_insight_jupyterlab/get_iframe_config';
 
-const MINDSTUDIO_TERMINATE_PROFILER_URL = '/mindstudio_insight_jupyterlab/terminate_profiler_server';
+const MINDSTUDIO_TERMINATE_PROFILER_URL =
+    '/mindstudio_insight_jupyterlab/terminate_profiler_server';
 
 /**
  * A namespace for private data.
@@ -65,7 +67,7 @@ export function getServiceUrl(baseUrl: string): string {
 
 /**
  * Kill mindstudio by url.
-*/
+ */
 export function killMindStudio(url: string): void {
     // Update the local data store.
     if (running[url]) {
@@ -84,8 +86,11 @@ export function getIFrameConfigUrl(baseUrl: string): string {
 /**
  * Terminate profiler server.
  */
-export function terminateIframe(baseUrl: string, profilerServerId: string): string {
-    let url = URLExt.join(baseUrl, MINDSTUDIO_TERMINATE_PROFILER_URL);
+export function terminateIframe(
+    baseUrl: string,
+    profilerServerId: string
+): string {
+    const url = URLExt.join(baseUrl, MINDSTUDIO_TERMINATE_PROFILER_URL);
     return `${url}?profilerServerId=${profilerServerId}`;
 }
 
@@ -98,10 +103,18 @@ export function getMindStudioInstanceUrl(
     proxy: boolean,
     port: string,
     profilerServerId: string,
+    acpPort?: string,
+    acpCapabilityToken?: string
 ): string {
-    let url = URLExt.join(baseUrl, MINDSTUDIO_URL);
+    const url = URLExt.join(baseUrl, MINDSTUDIO_URL);
+    const acpPortParam = acpPort
+        ? `&acpPort=${encodeURIComponent(acpPort)}`
+        : '';
+    const capabilityParam = acpCapabilityToken
+        ? `&acpCapabilityToken=${encodeURIComponent(acpCapabilityToken)}`
+        : '';
     if (proxy) {
-        return `${url}?jupyterlabProxy=true&port=${port}&profilerServerId=${profilerServerId}`;
+        return `${url}?jupyterlabProxy=true&port=${port}&profilerServerId=${profilerServerId}${acpPortParam}${capabilityParam}`;
     }
-    return `${url}?port=${port}&profilerServerId=${profilerServerId}`;
+    return `${url}?port=${port}&profilerServerId=${profilerServerId}${acpPortParam}${capabilityParam}`;
 }

@@ -1,0 +1,21 @@
+{
+  "activeAgent": "msinsight-native",
+  "agentServers": [
+    {
+      "name": "OpenCode",
+      "command": "opencode",
+      "args": [
+        "acp"
+      ],
+      "env": {}
+    },
+    {
+      "name": "msinsight-native",
+      "command": "node",
+      "args": [
+        "server/native-agent/index.mjs"
+      ],
+      "env": {}
+    }
+  ]
+}

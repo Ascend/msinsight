@@ -21,15 +21,26 @@ use std::os::windows::process::CommandExt;
 use std::{
     env,
     env::current_exe,
+    ffi::OsStr,
     net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener},
     path::PathBuf,
     process::Command,
+};
+#[cfg(target_os = "macos")]
+use std::{
+    io::{self, Read},
+    process::{Child, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 
 use crate::webview;
 
 const SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "profiler_server"];
+const ACP_SERVER_RELATIVE_LIST: [&str; 4] =
+    ["resources", "profiler", "server", "insight_web_agent"];
+const MINIMUM_NODE_VERSION: (u32, u32, u32) = (22, 14, 0);
 #[cfg(windows)]
 const NO_WINDOW_FLAG: u32 = 0x08000000;
 
@@ -72,9 +83,11 @@ fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
     Some(server_path)
 }
 
-fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
-    let binding = server_path(root_path).unwrap();
-    let Some(path) = binding.to_str() else { unreachable!() };
+fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) -> bool {
+    let Some(path) = server_path(root_path) else {
+        eprintln!("Profiler server path does not exist");
+        return false;
+    };
 
     let mut server_command = Command::new(path);
 
@@ -82,17 +95,114 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
     server_command.creation_flags(NO_WINDOW_FLAG);
 
     // 通过Rust底座拉起后端时，为本地使用场景，不涉及远程通信，传入--notStrict选项，导入文件时不要求权限和属主校验通过
-    match server_command
+    server_command
         .arg(format!("--wsPort={port}"))
         .arg(format!("--logPath={}", cache_path.display()))
-        .arg("--notStrict")
+        .arg("--notStrict");
+    spawn_profiler_server(&mut server_command)
+}
+
+fn spawn_profiler_server(server_command: &mut Command) -> bool {
+    match server_command.spawn() {
+        Ok(child) => unsafe {
+            PID = child.id();
+            true
+        },
+        Err(error) => {
+            eprintln!("Failed to start profiler server: {error}");
+            false
+        }
+    }
+}
+
+fn acp_server_path(root_path: &PathBuf) -> Option<PathBuf> {
+    let mut server_path = root_path.to_path_buf();
+    for tmp in ACP_SERVER_RELATIVE_LIST {
+        server_path.push(tmp);
+    }
+
+    if !server_path.join("index.mjs").exists() {
+        return None;
+    }
+
+    Some(server_path)
+}
+
+fn run_acp_server(
+    root_path: &PathBuf,
+    cache_path: &PathBuf,
+    port: u16,
+    capability_token: &str,
+) -> bool {
+    let Some(acp_path) = acp_server_path(root_path) else {
+        eprintln!("ACP node server path does not exist");
+        return false;
+    };
+    let entry_path = acp_path.join("index.mjs");
+
+    let mut server_command = Command::new("node");
+
+    #[cfg(windows)]
+    server_command.creation_flags(NO_WINDOW_FLAG);
+
+    match server_command
+        .arg(entry_path)
+        .arg("--path")
+        .arg(cache_path)
+        .arg("--resource-path")
+        .arg(acp_path)
+        .arg("--port")
+        .arg(port.to_string())
+        .arg("--host")
+        .arg("127.0.0.1")
+        .arg("--allowed-origin")
+        .arg("wry://localhost")
+        .env("ACP_CAPABILITY_TOKEN", capability_token)
         .spawn()
     {
         Ok(child) => unsafe {
-            PID = child.id();
+            ACP_PID = child.id();
+            true
         },
-        _ => eprintln!("Failed to start server"),
+        Err(error) => {
+            eprintln!("Failed to start ACP node server: {error}");
+            false
+        }
     }
+}
+
+fn node_version_supported() -> bool {
+    let Ok(output) = Command::new("node").arg("--version").output() else {
+        eprintln!("Node executable was not found in PATH");
+        return false;
+    };
+    let version = String::from_utf8_lossy(&output.stdout);
+    let supported = output.status.success() && parse_node_version(&version)
+        .is_some_and(|version| version >= MINIMUM_NODE_VERSION);
+    if !supported {
+        eprintln!("ACP requires Node.js 22.14.0 or later");
+    }
+    supported
+}
+
+fn parse_node_version(version: &str) -> Option<(u32, u32, u32)> {
+    let parts: Vec<u32> = version
+        .trim()
+        .trim_start_matches('v')
+        .split('.')
+        .take(3)
+        .filter_map(|part| part.parse().ok())
+        .collect();
+    (parts.len() == 3).then(|| (parts[0], parts[1], parts[2]))
+}
+
+fn generate_capability_token() -> Option<String> {
+    let mut bytes = [0_u8; 32];
+    if let Err(error) = getrandom::fill(&mut bytes) {
+        eprintln!("Failed to generate ACP capability token: {error}");
+        return None;
+    }
+    Some(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 fn home_dir() -> Option<PathBuf> {
@@ -158,9 +268,104 @@ fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
     None
 }
 
+#[cfg(target_os = "macos")]
+fn load_login_shell_environment() {
+    let shell = env::var("SHELL")
+        .ok()
+        .filter(|shell| PathBuf::from(shell).exists())
+        .unwrap_or_else(|| "/bin/zsh".to_string());
+    let home = home_dir().unwrap_or_else(|| PathBuf::from("/"));
+    let home_arg = shell_single_quote(home.as_os_str());
+    let user = env::var("USER").unwrap_or_default();
+    let logname = env::var("LOGNAME").unwrap_or_else(|_| user.clone());
+    let command = format!("cd {home_arg}; env -0");
+
+    let mut shell_command = Command::new("/usr/bin/env");
+    shell_command
+        .arg("-i")
+        .arg(format!("HOME={}", home.display()))
+        .arg(format!("USER={user}"))
+        .arg(format!("LOGNAME={logname}"))
+        .arg("PATH=/usr/bin:/bin:/usr/sbin:/sbin")
+        .arg(format!("SHELL={shell}"))
+        .arg(&shell)
+        .arg("-l")
+        .arg("-i")
+        .arg("-c")
+        .arg(command)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null());
+
+    let output = shell_command.spawn().and_then(|child| {
+        wait_for_child_output(child, Duration::from_secs(10))
+    });
+
+    match output {
+        Ok(Some(output)) => {
+            for entry in output.split(|byte| *byte == 0) {
+                if entry.is_empty() {
+                    continue;
+                }
+                if let Some(index) = entry.iter().position(|byte| *byte == b'=')
+                {
+                    let name = String::from_utf8_lossy(&entry[..index]);
+                    if name == "SHLVL" || name.is_empty() {
+                        continue;
+                    }
+                    let value = String::from_utf8_lossy(&entry[index + 1..]);
+                    env::set_var(name.as_ref(), value.as_ref());
+                }
+            }
+            eprintln!("Loaded login shell environment from {shell}");
+        }
+        Ok(None) => {
+            eprintln!("Timed out loading login shell environment; using inherited environment")
+        }
+        Err(error) => {
+            eprintln!("Failed to load login shell environment: {error}")
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn wait_for_child_output(
+    mut child: Child,
+    timeout: Duration,
+) -> io::Result<Option<Vec<u8>>> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if let Some(status) = child.try_wait()? {
+            if !status.success() {
+                return Ok(None);
+            }
+            let mut output = Vec::new();
+            if let Some(mut stdout) = child.stdout.take() {
+                stdout.read_to_end(&mut output)?;
+            }
+            return Ok(Some(output));
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            child.wait()?;
+            return Ok(None);
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn shell_single_quote(value: &OsStr) -> String {
+    let value = value.to_string_lossy();
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
 pub static mut PID: u32 = u32::MAX;
+pub static mut ACP_PID: u32 = u32::MAX;
 
 pub fn main() {
+    #[cfg(target_os = "macos")]
+    load_login_shell_environment();
+
     let mut cache_path = home_dir()
         .expect("Home dir not exists, check your env variable")
         .join(".mindstudio_insight"); //cache folder generated for each user.
@@ -218,15 +423,82 @@ pub fn main() {
         return;
     };
 
+    let Some(acp_port) = find_first_available_port(port.saturating_add(1), 9100) else {
+        eprintln!("No available ACP port between 9000 and 9100");
+        return;
+    };
+    if !node_version_supported() {
+        return;
+    }
+    let Some(capability_token) = generate_capability_token() else {
+        return;
+    };
+
+    if !run_server(&root_path, &cache_path, port) {
+        return;
+    }
+    if !run_acp_server(&root_path, &cache_path, acp_port, &capability_token) {
+        webview::cleanup::handle_close_requested();
+        return;
+    }
+
     #[cfg(target_os = "linux")]
-    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port) {
-        run_server(&root_path, &cache_path, port);
+    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port, acp_port, &capability_token) {
         webview::run_event_loop(eventloop, webview)
     }
 
     #[cfg(any(target_os = "windows", target_os = "macos"))]
-    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port) {
-        run_server(&root_path, &cache_path, port);
+    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port, acp_port, &capability_token) {
         webview::run_event_loop(eventloop, webview, window)
+    }
+
+    webview::cleanup::handle_close_requested();
+}
+
+#[cfg(test)]
+mod tests {
+    use std::process::Command;
+
+    #[cfg(target_os = "macos")]
+    use std::{
+        process::Stdio,
+        time::{Duration, Instant},
+    };
+
+    #[cfg(target_os = "macos")]
+    use super::wait_for_child_output;
+    use super::{parse_node_version, spawn_profiler_server, MINIMUM_NODE_VERSION};
+
+    #[test]
+    fn enforces_blade_node_runtime_floor() {
+        assert!(parse_node_version("v22.14.0").unwrap() >= MINIMUM_NODE_VERSION);
+        assert!(parse_node_version("v22.13.1").unwrap() < MINIMUM_NODE_VERSION);
+        assert_eq!(parse_node_version("not-node"), None);
+    }
+
+    #[test]
+    fn profiler_spawn_failure_is_reported() {
+        let mut command = Command::new("mindstudio-profiler-server-does-not-exist");
+
+        assert!(!spawn_profiler_server(&mut command));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn timed_out_child_is_killed_and_reaped() {
+        let mut command = Command::new("/bin/sh");
+        let child = command
+            .arg("-c")
+            .arg("while :; do :; done")
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let started = Instant::now();
+
+        assert_eq!(
+            wait_for_child_output(child, Duration::from_millis(20)).unwrap(),
+            None
+        );
+        assert!(started.elapsed() < Duration::from_secs(2));
     }
 }

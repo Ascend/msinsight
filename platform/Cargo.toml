@@ -12,6 +12,7 @@ opt-level = 3
 strip = "symbols"
 
 [dependencies]
+getrandom = "0.3"
 
 [target.'cfg(any(target_os = "windows", target_os = "macos"))'.dependencies]
 wry = { registry = "crates-io", version="0.36", features = ["file-drop"], optional = true }
