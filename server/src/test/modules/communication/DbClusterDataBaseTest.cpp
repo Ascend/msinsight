@@ -33,24 +33,47 @@ class DbClusterDataBaseTest : public ::testing::Test {
     };
 };
 
-TEST_F(DbClusterDataBaseTest, QueryCommunicationRankIdFallsBackOnlyForUniqueDeviceMapping) {
+TEST_F(DbClusterDataBaseTest, QueryCommunicationRankIdFallsBackOnlyForMissingTraceHostAndSingleHostMapping) {
     std::recursive_mutex sqlMutex;
     sqlite3 *dbPtr = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(dbPtr);
     MockDatabase database(sqlMutex);
     database.SetDbPtr(dbPtr);
-    ASSERT_TRUE(database.ExecSql("CREATE TABLE HostInfo(hostUid INTEGER, hostName TEXT);"
-                                 "CREATE TABLE RankDeviceMap(rankId INTEGER, deviceId INTEGER, hostUid INTEGER);"
-                                 "INSERT INTO HostInfo VALUES (222, 'hostB');"
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE RankDeviceMap(rankId INTEGER, deviceId INTEGER, hostUid INTEGER);"
                                  "INSERT INTO RankDeviceMap VALUES (8, 0, 222), (8, 0, 222);"));
 
     const auto uniqueRank = database.QueryCommunicationRankId("", "0");
     ASSERT_TRUE(uniqueRank.has_value());
     EXPECT_EQ(uniqueRank.value(), "8");
 
-    ASSERT_TRUE(database.ExecSql("INSERT INTO HostInfo VALUES (111, 'hostA');"
-                                 "INSERT INTO RankDeviceMap VALUES (0, 0, 111);"));
+    // A non-empty trace host cannot be verified when the cluster database has no HostInfo table.
+    EXPECT_FALSE(database.QueryCommunicationRankId("hostB222", "0").has_value());
+
+    ASSERT_TRUE(database.ExecSql("INSERT INTO RankDeviceMap VALUES (9, 1, NULL);"));
     EXPECT_FALSE(database.QueryCommunicationRankId("", "0").has_value());
+    ASSERT_TRUE(database.ExecSql("DELETE FROM RankDeviceMap WHERE hostUid IS NULL;"));
+
+    // Even when device 0 itself has one candidate, device-only fallback is unsafe in a multi-host mapping table.
+    ASSERT_TRUE(database.ExecSql("INSERT INTO RankDeviceMap VALUES (9, 1, 111);"));
+    EXPECT_FALSE(database.QueryCommunicationRankId("", "0").has_value());
+    EXPECT_FALSE(database.QueryCommunicationRankId("hostB222", "0").has_value());
+}
+
+TEST_F(DbClusterDataBaseTest, QueryCommunicationRankIdUsesHostInfoForSameDeviceOnDifferentHosts) {
+    std::recursive_mutex sqlMutex;
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    MockDatabase database(sqlMutex);
+    database.SetDbPtr(dbPtr);
+    ASSERT_TRUE(database.ExecSql("CREATE TABLE RankDeviceMap(rankId INTEGER, deviceId INTEGER, hostUid INTEGER);"
+                                 "CREATE TABLE HostInfo(hostUid INTEGER, hostName TEXT);"
+                                 "INSERT INTO RankDeviceMap VALUES (0, 0, 111), (8, 0, 222);"
+                                 "INSERT INTO HostInfo VALUES (111, 'hostA'), (222, 'hostB');"));
+
+    const auto hostBRank = database.QueryCommunicationRankId("hostB222", "0");
+    ASSERT_TRUE(hostBRank.has_value());
+    EXPECT_EQ(hostBRank.value(), "8");
+    EXPECT_FALSE(database.QueryCommunicationRankId("hostC333", "0").has_value());
 }
 
 /**

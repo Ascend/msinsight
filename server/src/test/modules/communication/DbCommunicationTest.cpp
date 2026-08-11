@@ -248,6 +248,87 @@ TEST_F(DbCommunicationTest, QueryCommunicationDetailRejectsIncompleteRecordsAndP
     }
 }
 
+TEST_F(DbCommunicationTest, QueryCommunicationDetailFromSingleRankAnalysisDb) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(database.AttachDb(":memory:"));
+    ASSERT_TRUE(
+        database.ExecSql("CREATE TABLE CommAnalyzerTime (hccl_op_name TEXT, group_name TEXT, transit_time NUMERIC, "
+                         "wait_time NUMERIC, step TEXT);"
+                         "CREATE TABLE CommAnalyzerBandwidth (hccl_op_name TEXT, group_name TEXT, transport_type TEXT, "
+                         "transit_size NUMERIC, transit_time NUMERIC, bandwidth NUMERIC, step TEXT);"
+                         "INSERT INTO CommAnalyzerTime VALUES "
+                         "('hcom_valid', 'group', 0, 4.5, 'step1'), "
+                         "('hcom_duplicate', 'group', 1, 2, 'step1'), "
+                         "('hcom_duplicate', 'group', 3, 4, 'step1');"
+                         "INSERT INTO CommAnalyzerBandwidth VALUES "
+                         "('hcom_valid', 'group', 'HCCS', 5, 6, 7, 'step1'), "
+                         "('hcom_valid', 'group', 'HCCS', 5, 6, 7, 'step1'), "
+                         "('hcom_valid', 'group', 'SDMA', 8, 9, 10, 'step1');"));
+
+    CommunicationDetailDo detail;
+    ASSERT_TRUE(database.QueryCommunicationDetail(
+        "", "hcom_valid", detail, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL));
+    EXPECT_DOUBLE_EQ(detail.transitTime, 0);
+    EXPECT_DOUBLE_EQ(detail.waitTime, 4.5);
+    ASSERT_EQ(detail.bandwidthInfo.size(), 2);
+    EXPECT_EQ(detail.bandwidthInfo[0].transportType, "HCCS");
+    EXPECT_EQ(detail.bandwidthInfo[1].transportType, "SDMA");
+
+    ASSERT_FALSE(database.QueryCommunicationDetail(
+        "", "hcom_duplicate", detail, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL));
+    EXPECT_TRUE(detail.bandwidthInfo.empty());
+}
+
+TEST_F(DbCommunicationTest, QueryCommunicationDetailSelectsClusterOrSingleRankSchemaExplicitly) {
+    std::recursive_mutex sqlMutex;
+    DbClusterDataBase database(sqlMutex);
+    ASSERT_TRUE(database.AttachDb(":memory:"));
+    ASSERT_TRUE(database.ExecSql(
+        "CREATE TABLE ClusterCommunicationTime (step TEXT, rank_id INTEGER, hccl_op_name TEXT, group_name TEXT, "
+        "transit_time NUMERIC, wait_time NUMERIC);"
+        "CREATE TABLE ClusterCommunicationBandwidth (step TEXT, rank_id INTEGER, hccl_op_name TEXT, "
+        "group_name TEXT, band_type TEXT, transit_size NUMERIC, transit_time NUMERIC, bandwidth NUMERIC);"
+        "CREATE TABLE CommAnalyzerTime (hccl_op_name TEXT, group_name TEXT, transit_time NUMERIC, "
+        "wait_time NUMERIC, step TEXT);"
+        "CREATE TABLE CommAnalyzerBandwidth (hccl_op_name TEXT, group_name TEXT, transport_type TEXT, "
+        "transit_size NUMERIC, transit_time NUMERIC, bandwidth NUMERIC, step TEXT);"
+        "INSERT INTO ClusterCommunicationTime VALUES "
+        "('step1', 0, 'hcom_shared', 'cluster_group', 3, 4), "
+        "('step1', 0, 'hcom_cluster_only', 'cluster_group', 5, 6), "
+        "('step1', '', 'hcom_cluster_empty_rank', 'cluster_group', 9, 10);"
+        "INSERT INTO ClusterCommunicationBandwidth VALUES "
+        "('step1', 0, 'hcom_shared', 'cluster_group', 'RDMA', 30, 31, 32), "
+        "('step1', '', 'hcom_cluster_empty_rank', 'cluster_group', 'HCCS', 33, 34, 35);"
+        "INSERT INTO CommAnalyzerTime VALUES "
+        "('hcom_shared', 'local_group', 1, 2, 'step1'), "
+        "('hcom_local_only', 'local_group', 7, 8, 'step1');"
+        "INSERT INTO CommAnalyzerBandwidth VALUES "
+        "('hcom_shared', 'local_group', 'HCCS', 10, 11, 12, 'step1');"));
+
+    CommunicationDetailDo detail;
+    ASSERT_TRUE(database.QueryCommunicationDetail(
+        "ignored_rank", "hcom_shared", detail, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL));
+    EXPECT_DOUBLE_EQ(detail.transitTime, 1);
+    EXPECT_DOUBLE_EQ(detail.waitTime, 2);
+    ASSERT_EQ(detail.bandwidthInfo.size(), 1);
+    EXPECT_EQ(detail.bandwidthInfo[0].transportType, "HCCS");
+
+    ASSERT_TRUE(database.QueryCommunicationDetail("0", "hcom_shared", detail));
+    EXPECT_DOUBLE_EQ(detail.transitTime, 3);
+    EXPECT_DOUBLE_EQ(detail.waitTime, 4);
+    ASSERT_EQ(detail.bandwidthInfo.size(), 1);
+    EXPECT_EQ(detail.bandwidthInfo[0].transportType, "RDMA");
+
+    ASSERT_TRUE(database.QueryCommunicationDetail("", "hcom_cluster_empty_rank", detail));
+    EXPECT_DOUBLE_EQ(detail.transitTime, 9);
+    EXPECT_DOUBLE_EQ(detail.waitTime, 10);
+
+    EXPECT_FALSE(database.QueryCommunicationDetail(
+        "ignored_rank", "hcom_cluster_only", detail, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL));
+    EXPECT_FALSE(database.QueryCommunicationDetail("0", "hcom_local_only", detail));
+}
+
 TEST_F(DbCommunicationTest, QueryOperatorsCount) {
     auto database = DataBaseManager::Instance().GetClusterDatabase(COMPARE);
     Dic::Protocol::OperatorDetailsParam requestParams;

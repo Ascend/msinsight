@@ -249,6 +249,7 @@ std::unique_ptr<Request> TimelineProtocol::ToThreadDetailRequest(const json_t &j
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.tid, json["params"], "tid");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pid, json["params"], "pid");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");

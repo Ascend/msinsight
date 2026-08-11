@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_set>
 #include "DBConnectionPool.h"
 #include "TextTraceDatabase.h"
@@ -39,6 +40,16 @@ using namespace Dic::Module::FullDb;
 enum class DatabaseType { TRACE, SUMMARY, MEMORY, MEM_SCOPE, MEM_SNAPSHOT };
 enum class DataType { TEXT, DB };
 enum class FileType { MS_PROF, PYTORCH };
+
+struct CommunicationDetailDatabaseHandle {
+    std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>> pool;
+    CommunicationDetailSourceMode sourceMode = CommunicationDetailSourceMode::RANK_LOCAL;
+
+    std::shared_ptr<VirtualClusterDatabase> GetConnection() const {
+        return pool == nullptr ? nullptr : pool->GetConnection();
+    }
+};
+
 class DataBaseManager {
   public:
     static DataBaseManager &Instance();
@@ -61,8 +72,14 @@ class DataBaseManager {
     void ReleaseDatabaseByFileId(const std::string &fileId);
     bool HasRankId(DatabaseType type, const std::string &rankId);
     void CreateClusterConnectionPool(const std::string &projectPath, const std::string &dbPath, DataType type);
+    bool HasClusterDatabase(const std::string &projectPath);
     std::shared_ptr<VirtualClusterDatabase> GetClusterDatabase(const std::string &uniqueKey);
     std::vector<std::shared_ptr<VirtualClusterDatabase>> GetAllClusterDatabase();
+    bool CreateCommunicationDetailConnectionPool(const std::string &fileId, const std::string &dbPath,
+        CommunicationDetailSourceMode sourceMode = CommunicationDetailSourceMode::RANK_LOCAL,
+        bool requireTraceDatabase = false);
+    std::optional<CommunicationDetailDatabaseHandle> GetCommunicationDetailDatabaseHandleByFileId(
+        const std::string &fileId);
 
     std::shared_ptr<Memory::VirtualMemoryDataBase> CreateMemoryDataBase(
         const std::string &rankId, const std::string &dbPath);
@@ -125,7 +142,7 @@ class DataBaseManager {
     std::unordered_map<FileId, DataType> dataTypeMap;
     std::unordered_map<FileId, FileType> fileTypeMap;
 
-    std::map<std::string, std::recursive_mutex> dbMutexMap;
+    std::map<std::string, std::shared_ptr<std::recursive_mutex>> dbMutexMap;
     std::map<RankId, DbPath> dbFilePathMap;
     std::map<RankId, FileId> rankId2FileIdMap;
     std::map<FileId, RankId> fileIdToRankIdMap;
@@ -134,6 +151,8 @@ class DataBaseManager {
     std::unordered_set<std::string> databasePathSet;
     std::map<FileId, std::shared_ptr<DBConnectionPool<VirtualTraceDatabase>>> traceDatabaseMap;
     std::map<ClusterDbPath, std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> clusterDatabaseMap;
+    std::map<FileId, std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailDatabaseMap;
+    std::map<FileId, CommunicationDetailSourceMode> communicationDetailSourceModeMap;
     std::map<RankId, std::shared_ptr<Memory::VirtualMemoryDataBase>> memoryDatabaseMap;
     std::map<FileId, std::shared_ptr<FullDb::MemScopeDatabase>> memScopeDatabaseMap;
     std::map<FileId, std::shared_ptr<FullDb::MemSnapshotDatabase>> memSnapshotDatabaseMap;
@@ -144,6 +163,7 @@ class DataBaseManager {
 
     std::map<std::string, std::string> rankIdToDeviceIdMap; // key: fileId + rankId , value: deviceId
     std::recursive_mutex &GetDbMutex(const std::string &fileId);
+    std::shared_ptr<std::recursive_mutex> GetDbMutexHandle(const std::string &fileId);
     void SetClusterProjectDbPathMapping(const std::string &projectPath, const std::string &dbPath);
 };
 } // end of namespace Timeline

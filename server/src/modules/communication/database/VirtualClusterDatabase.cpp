@@ -349,7 +349,7 @@ bool VirtualClusterDatabase::ExecuteQueryBandwidthData(
 }
 
 bool VirtualClusterDatabase::ExecuteQueryCommunicationDetail(const std::string &timeSql,
-    const std::string &bandwidthSql, const std::string &rankId, const std::string &opName,
+    const std::string &bandwidthSql, const std::string &rankId, const std::string &opName, bool hasRankColumn,
     CommunicationDetailDo &detail) {
     detail = {};
 
@@ -361,7 +361,7 @@ bool VirtualClusterDatabase::ExecuteQueryCommunicationDetail(const std::string &
             ServerLog::Error("Failed to prepare query communication detail time statement.");
             return false;
         }
-        auto resultSet = stmt->ExecuteQuery(rankId, opName);
+        auto resultSet = hasRankColumn ? stmt->ExecuteQuery(rankId, opName) : stmt->ExecuteQuery(opName);
         if (resultSet == nullptr) {
             ServerLog::Error("Failed to execute query communication detail time statement. error:",
                 stmt->GetErrorMessage(), ", code:", stmt->GetErrorCode());
@@ -398,7 +398,8 @@ bool VirtualClusterDatabase::ExecuteQueryCommunicationDetail(const std::string &
         detail = {};
         return false;
     }
-    auto resultSet = stmt->ExecuteQuery(iteration, rankId, group, opName);
+    auto resultSet = hasRankColumn ? stmt->ExecuteQuery(iteration, rankId, group, opName)
+                                   : stmt->ExecuteQuery(iteration, group, opName);
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to execute query communication detail bandwidth statement. error:",
             stmt->GetErrorMessage(), ", code:", stmt->GetErrorCode());

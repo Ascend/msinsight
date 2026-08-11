@@ -60,6 +60,7 @@ struct PageParam {
 
 struct ThreadDetailParams {
     std::string rankId;
+    std::string dbPath;
     std::string pid;
     std::string tid;
     std::string id;

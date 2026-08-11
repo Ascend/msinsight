@@ -114,11 +114,15 @@ TEST_F(ProtocolTest, ToThreadDetailRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "trace.db", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->id, tempId);
+    const auto &threadDetailRequest = dynamic_cast<const Dic::Protocol::ThreadDetailRequest &>(*request);
+    EXPECT_EQ(threadDetailRequest.params.dbPath, "trace.db");
 }
 
 TEST_F(ProtocolTest, ToResetWindowRequest) {

@@ -37,6 +37,58 @@ namespace Dic {
 namespace Module {
 using namespace Timeline;
 using namespace Dic::Server;
+
+namespace {
+bool ContainsParseFilePath(const std::shared_ptr<ParseFileInfo> &fileInfo, const std::string &parseFilePath) {
+    if (fileInfo == nullptr) {
+        return false;
+    }
+    if (fileInfo->parseFilePath == parseFilePath) {
+        return true;
+    }
+    return std::any_of(fileInfo->subParseFile.cbegin(), fileInfo->subParseFile.cend(),
+        [&parseFilePath](const auto &child) { return ContainsParseFilePath(child, parseFilePath); });
+}
+
+std::string GetBaselineClusterPath(const Global::ProjectExplorerInfo &projectInfo, const std::string &parseFilePath) {
+    const auto clusterInfos = projectInfo.GetClusterInfos();
+    if (clusterInfos.empty()) {
+        return projectInfo.fileName;
+    }
+    std::string matchedPath;
+    for (const auto &clusterInfo : clusterInfos) {
+        if (!ContainsParseFilePath(clusterInfo, parseFilePath)) {
+            continue;
+        }
+        if (!matchedPath.empty()) {
+            return "";
+        }
+        matchedPath = clusterInfo->parseFilePath;
+    }
+    return matchedPath;
+}
+
+void CreateBaselineCommunicationDetailConnection(
+    const Global::ProjectExplorerInfo &projectInfo, const std::string &parseFilePath, const std::string &traceDbPath) {
+    if (projectInfo.projectType != static_cast<int64_t>(ProjectTypeEnum::DB_CLUSTER)) {
+        return;
+    }
+    const std::string clusterPath = GetBaselineClusterPath(projectInfo, parseFilePath);
+    if (clusterPath.empty()) {
+        ServerLog::Warn("Failed to uniquely locate the cluster of baseline rank. path:", parseFilePath);
+        return;
+    }
+    const std::vector<std::string> clusterDbPaths =
+        FileUtil::FindFilesWithFilter(clusterPath, std::regex(clusterDBReg));
+    if (clusterDbPaths.size() != 1) {
+        ServerLog::Warn("Failed to uniquely locate baseline cluster analysis database. path:", clusterPath);
+        return;
+    }
+    DataBaseManager::Instance().CreateCommunicationDetailConnectionPool(
+        traceDbPath, clusterDbPaths.front(), CommunicationDetailSourceMode::CLUSTER);
+}
+} // namespace
+
 void ProjectParserDb::Parser(const std::vector<Global::ProjectExplorerInfo> &projectInfos, ImportActionRequest &request,
     ImportActionResponse &response) {
     ModuleRequestHandler::SetBaseResponse(request, response);
@@ -282,6 +334,7 @@ void ProjectParserDb::ParserBaseline(
     baselineInfo.host = hostInfoMap.begin()->first;
     baselineInfo.fileId = file;
     Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
+    CreateBaselineCommunicationDetailConnection(projectInfo, parseFilePath, file);
     if (!Timeline::DataBaseManager::Instance().CreateTraceConnectionPool(baselineInfo.rankId, file)) {
         ServerLog::Error("Failed to create baseline connection pool. ");
     }
