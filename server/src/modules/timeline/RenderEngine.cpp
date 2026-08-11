@@ -89,8 +89,14 @@ std::string RemoveHostFromRankId(const std::string &rankId) {
     return rankParts.size() > 1 ? rankParts[1] : rankId;
 }
 
-std::optional<std::string> ResolveCommunicationRankId(const std::string &timelineRankId, const std::string &traceDbPath,
-    const std::shared_ptr<VirtualClusterDatabase> &clusterDatabase) {
+struct CommunicationRankContext {
+    std::string rawRankId;
+    std::string traceHost;
+    bool requiresDeviceMapping = false;
+};
+
+std::optional<CommunicationRankContext> PrepareCommunicationRankContext(
+    const std::string &timelineRankId, const std::string &traceDbPath) {
     const std::vector<RankInfo> rankInfos =
         TrackInfoManager::Instance().GetRankListByFileId(traceDbPath, timelineRankId);
     if (rankInfos.size() != 1) {
@@ -110,41 +116,105 @@ std::optional<std::string> ResolveCommunicationRankId(const std::string &timelin
     auto &databaseManager = DataBaseManager::Instance();
     if (databaseManager.GetDataType(traceDbPath) != DataType::DB ||
         databaseManager.GetFileType(traceDbPath) != FileType::MS_PROF) {
-        return rawRankId;
+        return CommunicationRankContext{rawRankId, "", false};
     }
     const auto traceDatabase = databaseManager.GetTraceDatabaseByFileId(traceDbPath);
-    if (traceDatabase == nullptr || clusterDatabase == nullptr) {
+    if (traceDatabase == nullptr) {
+        return std::nullopt;
+    }
+    return CommunicationRankContext{rawRankId, traceDatabase->QueryRawHostInfo(), true};
+}
+
+std::optional<std::string> ResolveCommunicationRankId(
+    const CommunicationRankContext &rankContext, const std::shared_ptr<VirtualClusterDatabase> &clusterDatabase) {
+    if (!rankContext.requiresDeviceMapping) {
+        return rankContext.rawRankId;
+    }
+    if (clusterDatabase == nullptr) {
         return std::nullopt;
     }
     // MS_PROF Timeline ranks come from NPU_INFO.id, which is the local device id.
-    return clusterDatabase->QueryCommunicationRankId(traceDatabase->QueryRawHostInfo(), rawRankId);
+    return clusterDatabase->QueryCommunicationRankId(rankContext.traceHost, rankContext.rawRankId);
+}
+
+std::optional<CommunicationDetailDatabaseHandle> GetSingleRankCommunicationDatabase(const std::string &traceDbPath) {
+    auto &databaseManager = DataBaseManager::Instance();
+    auto databaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
+    if (databaseHandle.has_value()) {
+        return databaseHandle;
+    }
+    if (databaseManager.GetDataType(traceDbPath) != DataType::DB) {
+        return std::nullopt;
+    }
+    const std::string analysisDbPath = FileUtil::SplicePath(FileUtil::GetParentPath(traceDbPath), "analysis.db");
+    if (!FileUtil::IsRegularFile(analysisDbPath)) {
+        return std::nullopt;
+    }
+    if (!databaseManager.CreateCommunicationDetailConnectionPool(
+            traceDbPath, analysisDbPath, CommunicationDetailSourceMode::RANK_LOCAL, true)) {
+        return std::nullopt;
+    }
+    return databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
 }
 
 void AppendCommunicationDetail(
-    const CompeteSliceDomain &slice, const std::string &rankId, UnitThreadDetailBody &responseBody) {
+    const CompeteSliceDomain &slice, const ThreadDetailParams &requestParams, UnitThreadDetailBody &responseBody) {
     if (!slice.isCommunicationGroup) {
         return;
     }
     auto &databaseManager = DataBaseManager::Instance();
-    const std::string traceDbPath = databaseManager.GetDbPathByRankId(rankId);
+    const std::string traceDbPath =
+        requestParams.dbPath.empty() ? databaseManager.GetDbPathByRankId(requestParams.rankId) : requestParams.dbPath;
     if (traceDbPath.empty()) {
         return;
     }
+    auto communicationDatabaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
     const std::string clusterProjectPath = TrackInfoManager::Instance().GetClusterProjectPathByFileId(traceDbPath);
-    if (clusterProjectPath.empty()) {
+    const bool hasClusterDatabase =
+        !clusterProjectPath.empty() && databaseManager.HasClusterDatabase(clusterProjectPath);
+    const bool useCachedClusterDatabase = communicationDatabaseHandle.has_value() &&
+        communicationDatabaseHandle->sourceMode == CommunicationDetailSourceMode::CLUSTER;
+    std::optional<CommunicationRankContext> communicationRankContext;
+    if (useCachedClusterDatabase || hasClusterDatabase) {
+        communicationRankContext = PrepareCommunicationRankContext(requestParams.rankId, traceDbPath);
+        if (!communicationRankContext.has_value()) {
+            return;
+        }
+    }
+    const auto clusterDatabase = hasClusterDatabase ? databaseManager.GetClusterDatabase(clusterProjectPath) : nullptr;
+    std::shared_ptr<VirtualClusterDatabase> communicationDatabase =
+        useCachedClusterDatabase ? communicationDatabaseHandle->GetConnection() : clusterDatabase;
+    CommunicationDetailSourceMode sourceMode =
+        useCachedClusterDatabase ? communicationDatabaseHandle->sourceMode : CommunicationDetailSourceMode::CLUSTER;
+    std::string communicationRankId;
+    if (communicationDatabase == nullptr && (useCachedClusterDatabase || hasClusterDatabase)) {
         return;
     }
-    const auto clusterDatabase = databaseManager.GetClusterDatabase(clusterProjectPath);
-    if (clusterDatabase == nullptr) {
-        return;
+    if (communicationDatabase == nullptr) {
+        if (!communicationDatabaseHandle.has_value()) {
+            communicationDatabaseHandle = GetSingleRankCommunicationDatabase(traceDbPath);
+        }
+        if (!communicationDatabaseHandle.has_value()) {
+            return;
+        }
+        sourceMode = communicationDatabaseHandle->sourceMode;
+        communicationDatabase = communicationDatabaseHandle->GetConnection();
+        if (communicationDatabase == nullptr) {
+            return;
+        }
     }
-    const std::optional<std::string> communicationRankId =
-        ResolveCommunicationRankId(rankId, traceDbPath, clusterDatabase);
-    if (!communicationRankId.has_value()) {
-        return;
+    if (sourceMode == CommunicationDetailSourceMode::CLUSTER) {
+        if (!communicationRankContext.has_value()) {
+            return;
+        }
+        const auto resolvedRankId = ResolveCommunicationRankId(communicationRankContext.value(), communicationDatabase);
+        if (!resolvedRankId.has_value()) {
+            return;
+        }
+        communicationRankId = resolvedRankId.value();
     }
     CommunicationDetailDo detail;
-    if (!clusterDatabase->QueryCommunicationDetail(communicationRankId.value(), slice.name, detail)) {
+    if (!communicationDatabase->QueryCommunicationDetail(communicationRankId, slice.name, detail, sourceMode)) {
         return;
     }
     responseBody.data.transitTime = detail.transitTime;
@@ -397,7 +467,7 @@ void RenderEngine::QueryThreadDetail(
     responseBody.data.outputShapes = competeSliceDomain.sliceShape.outputShapes;
     responseBody.data.outputDataTypes = competeSliceDomain.sliceShape.outputDataTypes;
     responseBody.data.outputFormats = competeSliceDomain.sliceShape.outputFormats;
-    AppendCommunicationDetail(competeSliceDomain, requestParams.rankId, responseBody);
+    AppendCommunicationDetail(competeSliceDomain, requestParams, responseBody);
     sliceQuery.startTime = competeSliceDomain.timestamp;
     sliceQuery.endTime = competeSliceDomain.endTime;
     if (TryComputeSelfTimeByDepthIndex(requestParams, trackId, sliceQuery, competeSliceDomain, responseBody)) {

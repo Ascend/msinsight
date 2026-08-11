@@ -154,3 +154,32 @@ TEST_F(TrackInfoManagerTest, GetClusterProjectPathByFileIdRequiresUniqueMapping)
     EXPECT_TRUE(manager.GetClusterProjectPathByFileId("rank0.db").empty());
     manager.Reset();
 }
+
+TEST_F(TrackInfoManagerTest, SetRankListByFileIdIgnoresIdenticalEntry) {
+    auto &manager = TrackInfoManager::Instance();
+    manager.Reset();
+    const std::string fileId = "rank4_trace.db";
+    const Dic::RankInfo rankInfo{"clusterA", "hostA ", "hostA 4", "4", "4"};
+
+    manager.SetRankListByFileId(fileId, rankInfo);
+    manager.SetRankListByFileId(fileId, rankInfo);
+
+    const auto rankInfos = manager.GetRankListByFileId(fileId, rankInfo.rankId);
+    EXPECT_EQ(rankInfos.size(), 1);
+    manager.Reset();
+}
+
+TEST_F(TrackInfoManagerTest, SetRankListByFileIdKeepsConflictingEntryForSameRank) {
+    auto &manager = TrackInfoManager::Instance();
+    manager.Reset();
+    const std::string fileId = "rank4_trace.db";
+    const Dic::RankInfo rankInfo{"clusterA", "hostA ", "hostA 4", "4", "4"};
+    const Dic::RankInfo conflictingRankInfo{"clusterA", "hostA ", "hostA 4", "5", "4"};
+
+    manager.SetRankListByFileId(fileId, rankInfo);
+    manager.SetRankListByFileId(fileId, conflictingRankInfo);
+
+    const auto rankInfos = manager.GetRankListByFileId(fileId, rankInfo.rankId);
+    EXPECT_EQ(rankInfos.size(), 2);
+    manager.Reset();
+}

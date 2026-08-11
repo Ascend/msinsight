@@ -739,8 +739,12 @@ bool TextClusterDatabase::QueryBandwidthData(
     return ExecuteQueryBandwidthData(param, resBody, sql);
 }
 
-bool TextClusterDatabase::QueryCommunicationDetail(
-    const std::string &rankId, const std::string &opName, CommunicationDetailDo &detail) {
+bool TextClusterDatabase::QueryCommunicationDetail(const std::string &rankId, const std::string &opName,
+    CommunicationDetailDo &detail, CommunicationDetailSourceMode sourceMode) {
+    if (sourceMode != CommunicationDetailSourceMode::CLUSTER) {
+        detail = {};
+        return false;
+    }
     const std::string timeSql =
         "SELECT iteration_id AS iteration, op_suffix AS communicationGroup, transit_time AS transitTime, "
         "wait_time AS waitTime, CASE WHEN iteration_id IS NOT NULL AND iteration_id != '' "
@@ -756,7 +760,7 @@ bool TextClusterDatabase::QueryCommunicationDetail(
         "GROUP BY transport_type HAVING MIN(transit_size) = MAX(transit_size) "
         "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth_size) = MAX(bandwidth_size) "
         "ORDER BY transport_type";
-    return ExecuteQueryCommunicationDetail(timeSql, bandwidthSql, rankId, opName, detail);
+    return ExecuteQueryCommunicationDetail(timeSql, bandwidthSql, rankId, opName, true, detail);
 }
 
 bool TextClusterDatabase::QueryDistributionData(

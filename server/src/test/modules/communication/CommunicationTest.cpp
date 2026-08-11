@@ -208,6 +208,27 @@ TEST_F(TestSuit, QueryCommunicationDetailRejectsDuplicateRankIdAndOpNameAndFilte
     EXPECT_TRUE(detail.bandwidthInfo.empty());
 }
 
+TEST_F(TestSuit, QueryCommunicationDetailBindsEmptyTextRankAsRankColumnValue) {
+    std::recursive_mutex sqlMutex;
+    Dic::Module::TextClusterDatabase database(sqlMutex);
+    ASSERT_TRUE(database.AttachDb(":memory:"));
+    ASSERT_TRUE(database.CreateTable());
+    ASSERT_TRUE(database.ExecSql(
+        "INSERT INTO communication_time_info "
+        "(iteration_id, rank_id, op_name, op_suffix, transit_time, wait_time) "
+        "VALUES ('1', '', 'hcom_empty_rank', 'group', 1.5, 2.5);"
+        "INSERT INTO communication_bandwidth_info "
+        "(iteration_id, rank_id, op_name, op_suffix, transport_type, transit_size, transit_time, bandwidth_size) "
+        "VALUES ('1', '', 'hcom_empty_rank', 'group', 'HCCS', 3.5, 4.5, 5.5);"));
+
+    Dic::Module::CommunicationDetailDo detail;
+    ASSERT_TRUE(database.QueryCommunicationDetail("", "hcom_empty_rank", detail));
+    EXPECT_DOUBLE_EQ(detail.transitTime, 1.5);
+    EXPECT_DOUBLE_EQ(detail.waitTime, 2.5);
+    ASSERT_EQ(detail.bandwidthInfo.size(), 1);
+    EXPECT_EQ(detail.bandwidthInfo[0].transportType, "HCCS");
+}
+
 TEST_F(TestSuit, QueryCommunicationDetailRejectsIncompleteRecordsAndPreservesRealZero) {
     std::recursive_mutex sqlMutex;
     Dic::Module::TextClusterDatabase database(sqlMutex);

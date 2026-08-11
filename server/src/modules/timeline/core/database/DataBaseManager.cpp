@@ -197,11 +197,18 @@ void DataBaseManager::ReleaseDatabaseByRankId(const std::string &rankId)
 
 void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
 {
+    std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>> communicationDetailPool;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     auto traceDataBase = traceDatabaseMap.find(fileId);
     if (traceDataBase != traceDatabaseMap.end()) {
         traceDatabaseMap.erase(traceDataBase);
     }
+    auto communicationDetailDatabase = communicationDetailDatabaseMap.find(fileId);
+    if (communicationDetailDatabase != communicationDetailDatabaseMap.end()) {
+        communicationDetailPool = std::move(communicationDetailDatabase->second);
+        communicationDetailDatabaseMap.erase(communicationDetailDatabase);
+    }
+    communicationDetailSourceModeMap.erase(fileId);
     auto memory = memoryDatabaseMap.find(fileId);
     if (memory != memoryDatabaseMap.end()) {
         memoryDatabaseMap.erase(memory);
@@ -216,6 +223,8 @@ void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
     if (!rankId.empty()) {
         SearchSliceCacheManager::Instance().clear(rankId);
     }
+    lock.unlock();
+    communicationDetailPool.reset();
 }
 
 bool DataBaseManager::HasRankId(DatabaseType type, const std::string &rankId)
@@ -271,11 +280,17 @@ std::vector<Summary::VirtualSummaryDataBase *> DataBaseManager::GetAllSummaryDat
 
 void DataBaseManager::Clear()
 {
+    std::vector<std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailPools;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     traceDatabaseMap.clear();
     memoryDatabaseMap.clear();
     summaryDatabaseMap.clear();
     clusterDatabaseMap.clear();
+    for (auto &item : communicationDetailDatabaseMap) {
+        communicationDetailPools.emplace_back(std::move(item.second));
+    }
+    communicationDetailDatabaseMap.clear();
+    communicationDetailSourceModeMap.clear();
     clusterProject2DbPathMap.clear();
     dbMutexMap.clear();
     dbFilePathMap.clear();
@@ -288,14 +303,22 @@ void DataBaseManager::Clear()
     rankIdToDeviceIdMap.clear();
     // 清理所有缓存
     SearchSliceCacheManager::Instance().clearAll();
+    lock.unlock();
+    communicationDetailPools.clear();
 }
 
 void DataBaseManager::Clear(DatabaseType type)
 {
+    std::vector<std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailPools;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     switch (type) {
         case DatabaseType::TRACE:
             traceDatabaseMap.clear();
+            for (auto &item : communicationDetailDatabaseMap) {
+                communicationDetailPools.emplace_back(std::move(item.second));
+            }
+            communicationDetailDatabaseMap.clear();
+            communicationDetailSourceModeMap.clear();
             break;
         case DatabaseType::SUMMARY:
             summaryDatabaseMap.clear();
@@ -312,6 +335,8 @@ void DataBaseManager::Clear(DatabaseType type)
         default:
             break;
     }
+    lock.unlock();
+    communicationDetailPools.clear();
 }
 
 void DataBaseManager::EraseClusterDb(const std::string &uniqueKey)
@@ -400,6 +425,61 @@ std::shared_ptr<VirtualClusterDatabase> DataBaseManager::GetClusterDatabase(cons
     return ptr;
 }
 
+bool DataBaseManager::HasClusterDatabase(const std::string &projectPath)
+{
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    const auto pathIt = clusterProject2DbPathMap.find(projectPath);
+    if (pathIt == clusterProject2DbPathMap.end()) {
+        return false;
+    }
+    return clusterDatabaseMap.count(pathIt->second) != 0;
+}
+
+bool DataBaseManager::CreateCommunicationDetailConnectionPool(const std::string &fileId, const std::string &dbPath,
+    CommunicationDetailSourceMode sourceMode, bool requireTraceDatabase)
+{
+    const static unsigned int CPU_CORE_COUNT = SystemUtil::GetCpuCoreCount();
+    std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>> oldPool;
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    if (requireTraceDatabase && traceDatabaseMap.count(fileId) == 0) {
+        return false;
+    }
+    const auto databaseIt = communicationDetailDatabaseMap.find(fileId);
+    const auto sourceModeIt = communicationDetailSourceModeMap.find(fileId);
+    if (databaseIt != communicationDetailDatabaseMap.end() &&
+        sourceModeIt != communicationDetailSourceModeMap.end() && sourceModeIt->second == sourceMode &&
+        databaseIt->second->GetDbPath() == dbPath) {
+        return true;
+    }
+    if (databaseIt != communicationDetailDatabaseMap.end()) {
+        oldPool = std::move(databaseIt->second);
+        communicationDetailDatabaseMap.erase(databaseIt);
+    }
+    communicationDetailSourceModeMap.erase(fileId);
+    const auto dbMutex = GetDbMutexHandle(dbPath);
+    auto conn = std::make_shared<DBConnectionPool<VirtualClusterDatabase>>(dbPath,
+        [dbMutex]() { return new FullDb::DbClusterDataBase(*dbMutex); });
+    conn->SetMaxActiveCount(CPU_CORE_COUNT);
+    communicationDetailDatabaseMap.emplace(fileId, std::move(conn));
+    communicationDetailSourceModeMap[fileId] = sourceMode;
+    lock.unlock();
+    oldPool.reset();
+    return true;
+}
+
+std::optional<CommunicationDetailDatabaseHandle> DataBaseManager::GetCommunicationDetailDatabaseHandleByFileId(
+    const std::string &fileId)
+{
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    const auto databaseIt = communicationDetailDatabaseMap.find(fileId);
+    const auto sourceModeIt = communicationDetailSourceModeMap.find(fileId);
+    if (databaseIt == communicationDetailDatabaseMap.end() ||
+        sourceModeIt == communicationDetailSourceModeMap.end()) {
+        return std::nullopt;
+    }
+    return CommunicationDetailDatabaseHandle{databaseIt->second, sourceModeIt->second};
+}
+
 std::vector<std::shared_ptr<VirtualClusterDatabase>> DataBaseManager::GetAllClusterDatabase()
 {
     std::vector<std::shared_ptr<VirtualClusterDatabase>> res;
@@ -450,7 +530,16 @@ std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseWithOutHo
 
 std::recursive_mutex &DataBaseManager::GetDbMutex(const std::string &fileId)
 {
-    return dbMutexMap[fileId];
+    return *GetDbMutexHandle(fileId);
+}
+
+std::shared_ptr<std::recursive_mutex> DataBaseManager::GetDbMutexHandle(const std::string &fileId)
+{
+    auto &dbMutex = dbMutexMap[fileId];
+    if (dbMutex == nullptr) {
+        dbMutex = std::make_shared<std::recursive_mutex>();
+    }
+    return dbMutex;
 }
 
 DataType DataBaseManager::GetDataType(const std::string &fileId)
@@ -499,7 +588,8 @@ void DataBaseManager::SetDbPathMapping(const std::string &rankId, const std::str
 
 bool DataBaseManager::ResetBaseline(bool force)
 {
-    std::lock_guard<std::recursive_mutex> lock(mutex);
+    std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>> communicationDetailPool;
+    std::unique_lock<std::recursive_mutex> lock(mutex);
     for (const auto &item : memoryBaselineDatabaseMap) {
         if (item.second != nullptr) {
             item.second->CloseDb();
@@ -516,10 +606,18 @@ bool DataBaseManager::ResetBaseline(bool force)
     if (force) {
         auto baseFileId = GetFileIdByRankId(baselineRankId);
         traceDatabaseMap.erase(baseFileId);
+        auto communicationDetailDatabase = communicationDetailDatabaseMap.find(baseFileId);
+        if (communicationDetailDatabase != communicationDetailDatabaseMap.end()) {
+            communicationDetailPool = std::move(communicationDetailDatabase->second);
+            communicationDetailDatabaseMap.erase(communicationDetailDatabase);
+        }
+        communicationDetailSourceModeMap.erase(baseFileId);
         rankId2FileIdMap.erase(baselineRankId);
         fileIdToRankIdMap.erase(baseFileId);
         databasePathSet.erase(baseFileId);
     }
+    lock.unlock();
+    communicationDetailPool.reset();
     return true;
 }
 

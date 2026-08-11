@@ -37,6 +37,8 @@
 
 namespace Dic {
 namespace Module {
+enum class CommunicationDetailSourceMode { CLUSTER, RANK_LOCAL };
+
 class VirtualClusterDatabase : public Database {
   public:
     explicit VirtualClusterDatabase(std::recursive_mutex &sqlMutex) : Database(sqlMutex) {};
@@ -60,8 +62,9 @@ class VirtualClusterDatabase : public Database {
     virtual bool QueryOperatorsCount(
         Protocol::OperatorDetailsParam &param, Protocol::OperatorDetailsResBody &resBody) = 0;
     virtual bool QueryBandwidthData(Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody) = 0;
-    virtual bool QueryCommunicationDetail(
-        const std::string &rankId, const std::string &opName, CommunicationDetailDo &detail) = 0;
+    virtual bool QueryCommunicationDetail(const std::string &rankId, const std::string &opName,
+        CommunicationDetailDo &detail,
+        CommunicationDetailSourceMode sourceMode = CommunicationDetailSourceMode::CLUSTER) = 0;
     virtual std::optional<std::string> QueryCommunicationRankId(const std::string &, const std::string &) {
         return std::nullopt;
     }
@@ -171,7 +174,7 @@ class VirtualClusterDatabase : public Database {
     bool ExecuteQueryBandwidthData(
         Protocol::BandwidthDataParam &param, Protocol::BandwidthDataResBody &resBody, std::string sql);
     bool ExecuteQueryCommunicationDetail(const std::string &timeSql, const std::string &bandwidthSql,
-        const std::string &rankId, const std::string &opName, CommunicationDetailDo &detail);
+        const std::string &rankId, const std::string &opName, bool hasRankColumn, CommunicationDetailDo &detail);
     bool ExecuteQueryDistributionData(
         Protocol::DistributionDataParam &param, Protocol::DistributionResBody &resBody, std::string sql);
 

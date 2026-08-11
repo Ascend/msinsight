@@ -45,6 +45,9 @@ bool QueryThreadDetailHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
         return false;
     }
     ThreadDetailParams queryParams = request.params;
+    if (!request.fileId.empty()) {
+        queryParams.dbPath = request.fileId;
+    }
     PythonStackHelper::RestoreThreadDetailParams(queryParams);
     uint64_t trackId = TrackInfoManager::Instance().GetTrackId(queryParams.rankId, queryParams.pid, queryParams.tid);
     renderEngine->QueryThreadDetail(queryParams, response.body, trackId);

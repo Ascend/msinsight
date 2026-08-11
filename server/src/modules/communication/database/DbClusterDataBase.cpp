@@ -215,8 +215,38 @@ bool DbClusterDataBase::QueryBandwidthData(
     return ExecuteQueryBandwidthData(param, resBody, sql);
 }
 
-bool DbClusterDataBase::QueryCommunicationDetail(
-    const std::string &rankId, const std::string &opName, CommunicationDetailDo &detail) {
+bool DbClusterDataBase::QueryCommunicationDetail(const std::string &rankId, const std::string &opName,
+    CommunicationDetailDo &detail, CommunicationDetailSourceMode sourceMode) {
+    const std::string singleRankTimeTable = "CommAnalyzerTime";
+    const std::string singleRankBandwidthTable = "CommAnalyzerBandwidth";
+    const bool querySingleRankSchema = sourceMode == CommunicationDetailSourceMode::RANK_LOCAL;
+    if (querySingleRankSchema) {
+        if (!CheckTableExist(singleRankTimeTable) || !CheckTableExist(singleRankBandwidthTable)) {
+            detail = {};
+            return false;
+        }
+        const std::string timeSql =
+            "SELECT step AS iteration, group_name AS communicationGroup, transit_time AS transitTime, "
+            "wait_time AS waitTime, CASE WHEN step IS NOT NULL AND step != '' "
+            "AND group_name IS NOT NULL AND group_name != '' AND transit_time IS NOT NULL AND wait_time IS NOT NULL "
+            "THEN 1 ELSE 0 END AS isComplete FROM " +
+            singleRankTimeTable + " WHERE hccl_op_name = ? AND hccl_op_name != 'Total Op Info' LIMIT 2";
+        const std::string bandwidthSql = "SELECT transport_type AS transportType, MIN(transit_size) AS transitSize, "
+                                         "MIN(transit_time) AS transitTime, MIN(bandwidth) AS bandwidth FROM " +
+            singleRankBandwidthTable +
+            " WHERE step = ? AND group_name = ? AND hccl_op_name = ? "
+            "AND transport_type IN ('RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO') "
+            "AND transit_size IS NOT NULL AND transit_time IS NOT NULL AND bandwidth IS NOT NULL "
+            "GROUP BY transport_type HAVING MIN(transit_size) = MAX(transit_size) "
+            "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
+            "ORDER BY transport_type";
+        return ExecuteQueryCommunicationDetail(timeSql, bandwidthSql, rankId, opName, false, detail);
+    }
+
+    if (!CheckTableExist(TABLE_COMM_ANALYZER_TIME) || !CheckTableExist(TABLE_COMM_ANALYZER_BANDWIDTH)) {
+        detail = {};
+        return false;
+    }
     const std::string timeSql =
         "SELECT step AS iteration, group_name AS communicationGroup, transit_time AS transitTime, "
         "wait_time AS waitTime, CASE WHEN step IS NOT NULL AND step != '' "
@@ -233,20 +263,27 @@ bool DbClusterDataBase::QueryCommunicationDetail(
         "GROUP BY band_type HAVING MIN(transit_size) = MAX(transit_size) "
         "AND MIN(transit_time) = MAX(transit_time) AND MIN(bandwidth) = MAX(bandwidth) "
         "ORDER BY band_type";
-    return ExecuteQueryCommunicationDetail(timeSql, bandwidthSql, rankId, opName, detail);
+    return ExecuteQueryCommunicationDetail(timeSql, bandwidthSql, rankId, opName, true, detail);
 }
 
 std::optional<std::string> DbClusterDataBase::QueryCommunicationRankId(
     const std::string &host, const std::string &deviceId) {
-    if (deviceId.empty() || !CheckTablesExist({"HostInfo", "RankDeviceMap"})) {
+    if (deviceId.empty() || !CheckTableExist("RankDeviceMap")) {
         return std::nullopt;
     }
     std::string sql;
-    if (host.empty()) {
-        // Older single-host MS_PROF databases may not contain HostInfo in the trace DB. A device-only mapping is
-        // safe only when the cluster database has exactly one distinct host/rank mapping for that device.
+    const bool queryByHost = !host.empty();
+    if (queryByHost && !CheckTableExist("HostInfo")) {
+        // The trace host cannot be verified without HostInfo. Never fall back to another host's same local device.
+        return std::nullopt;
+    }
+    if (!queryByHost) {
+        // Older single-host MS_PROF data may not provide trace host information. Device-only fallback is safe only
+        // when the entire mapping table belongs to one host and the device maps to one rank.
         sql = "SELECT DISTINCT CAST(rankId AS TEXT) AS rankId, CAST(hostUid AS TEXT) AS mappingHostUid "
-              "FROM RankDeviceMap WHERE CAST(deviceId AS TEXT) = ? LIMIT 2";
+              "FROM RankDeviceMap WHERE CAST(deviceId AS TEXT) = ? "
+              "AND NOT EXISTS (SELECT 1 FROM RankDeviceMap WHERE hostUid IS NULL) "
+              "AND (SELECT COUNT(DISTINCT hostUid) FROM RankDeviceMap) = 1 LIMIT 2";
     } else {
         sql = "SELECT DISTINCT CAST(mapping.rankId AS TEXT) AS rankId FROM RankDeviceMap mapping "
               "INNER JOIN HostInfo hostInfo ON hostInfo.hostUid = mapping.hostUid "
@@ -259,7 +296,7 @@ std::optional<std::string> DbClusterDataBase::QueryCommunicationRankId(
         ServerLog::Error("Failed to prepare communication rank mapping statement.");
         return std::nullopt;
     }
-    auto resultSet = host.empty() ? stmt->ExecuteQuery(deviceId) : stmt->ExecuteQuery(deviceId, host);
+    auto resultSet = queryByHost ? stmt->ExecuteQuery(deviceId, host) : stmt->ExecuteQuery(deviceId);
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to execute communication rank mapping statement. error:", stmt->GetErrorMessage());
         return std::nullopt;

@@ -23,11 +23,14 @@
 #include "CacheManager.h"
 #include "RenderEngine.h"
 #include "DominQuery.h"
+#include "BaselineManager.h"
+#include "TestSuit.h"
 
 using namespace Dic::Module::Timeline;
 class RenderEngineTest : public ::testing::Test {
   protected:
     void SetUp() override {
+        Dic::Module::Global::BaselineManager::Instance().Reset();
         DataBaseManager::Instance().Clear();
         TrackInfoManager::Instance().Reset();
         CacheManager::Instance().ClearAll();
@@ -43,6 +46,7 @@ class RenderEngineTest : public ::testing::Test {
         }
         TrackInfoManager::Instance().Reset();
         CacheManager::Instance().ClearAll();
+        Dic::Module::Global::BaselineManager::Instance().Reset();
     }
 
     std::vector<std::string> tempDbPaths;
@@ -150,7 +154,6 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     constexpr uint64_t sliceEndNs = sliceStartNs + 100;
     const std::string opName = "hcom_allReduce_multi_host";
     const std::string timelineRankId = "hostB222_0 0";
-    const std::string clusterProjectPath = "multi-host-msprof";
     const std::string uniqueId = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
     const std::string traceDbPath =
         FileUtil::SplicePath(::testing::TempDir(), "RenderEngineTest_trace_" + uniqueId + ".db");
@@ -184,8 +187,11 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     ASSERT_TRUE(traceDatabase->ExecSql("CREATE TABLE HOST_INFO(hostUid INTEGER, hostName TEXT);"
                                        "INSERT INTO HOST_INFO VALUES (222, 'hostB');"));
     traceDatabase.reset();
-    databaseManager.CreateClusterConnectionPool(clusterProjectPath, clusterDbPath, DataType::DB);
-    auto clusterDatabase = databaseManager.GetClusterDatabase(clusterProjectPath);
+    databaseManager.CreateCommunicationDetailConnectionPool(
+        traceDbPath, clusterDbPath, Dic::Module::CommunicationDetailSourceMode::CLUSTER);
+    auto clusterDatabaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
+    ASSERT_TRUE(clusterDatabaseHandle.has_value());
+    auto clusterDatabase = clusterDatabaseHandle->GetConnection();
     ASSERT_NE(clusterDatabase, nullptr);
     ASSERT_TRUE(clusterDatabase->ExecSql(
         "CREATE TABLE HostInfo(hostUid INTEGER, hostName TEXT);"
@@ -205,8 +211,10 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     // Return the initialized connection to the pool so QueryThreadDetail reuses it.
     clusterDatabase.reset();
 
-    TrackInfoManager::Instance().UpdateClusterDbToFileIdMap(clusterProjectPath, traceDbPath);
-    TrackInfoManager::Instance().SetRankListByFileId(traceDbPath, {"cluster", "hostB222_0 ", timelineRankId, "0", "0"});
+    const Dic::RankInfo rankInfo{"cluster", "hostB222_0 ", timelineRankId, "0", "0"};
+    TrackInfoManager::Instance().SetRankListByFileId(traceDbPath, rankInfo);
+    // Setting a parsed rank as the baseline registers the same RankInfo again. Exact duplicates must remain unique.
+    TrackInfoManager::Instance().SetRankListByFileId(traceDbPath, rankInfo);
 
     SliceQuery cacheQuery;
     cacheQuery.rankId = timelineRankId;
@@ -226,6 +234,7 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     request.id = std::to_string(sliceId);
     request.metaType = "TEXT";
     request.rankId = timelineRankId;
+    request.dbPath = traceDbPath;
     UnitThreadDetailBody response;
 
     renderEngine.QueryThreadDetail(request, response, trackId);
@@ -239,7 +248,7 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     EXPECT_EQ(response.data.communicationBandwidthInfo[0].transportType, "RDMA");
     EXPECT_DOUBLE_EQ(response.data.communicationBandwidthInfo[0].transitSize, 8);
 
-    clusterDatabase = databaseManager.GetClusterDatabase(clusterProjectPath);
+    clusterDatabase = clusterDatabaseHandle->GetConnection();
     ASSERT_NE(clusterDatabase, nullptr);
     ASSERT_TRUE(clusterDatabase->ExecSql("UPDATE HostInfo SET hostName = 'unknownHost' WHERE hostUid = 222;"));
     clusterDatabase.reset();
@@ -252,7 +261,7 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     EXPECT_FALSE(missingHostMappingResponse.data.waitTime.has_value());
     EXPECT_TRUE(missingHostMappingResponse.data.communicationBandwidthInfo.empty());
 
-    clusterDatabase = databaseManager.GetClusterDatabase(clusterProjectPath);
+    clusterDatabase = clusterDatabaseHandle->GetConnection();
     ASSERT_NE(clusterDatabase, nullptr);
     ASSERT_TRUE(clusterDatabase->ExecSql("UPDATE HostInfo SET hostName = 'hostB' WHERE hostUid = 222;"
                                          "INSERT INTO RankDeviceMap VALUES (9, 0, 222);"));
@@ -265,4 +274,120 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     EXPECT_FALSE(ambiguousMappingResponse.data.transitTime.has_value());
     EXPECT_FALSE(ambiguousMappingResponse.data.waitTime.has_value());
     EXPECT_TRUE(ambiguousMappingResponse.data.communicationBandwidthInfo.empty());
+}
+
+TEST_F(RenderEngineTest, QueryThreadDetailSupportsSingleCardPytorchAnalysisDb) {
+    constexpr uint64_t trackId = 8;
+    constexpr uint64_t sliceId = 1;
+    constexpr uint64_t sliceStartNs = 1000000;
+    constexpr uint64_t sliceEndNs = sliceStartNs + 100;
+    const std::string opName = "hcom_allReduce__865_0_1";
+    const std::string timelineRankId = "0";
+    const std::string traceDbPath = FileUtil::SplicePath(TestSuit::GetRootTestPath(), "data", "pytorch", "db", "level2",
+        "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler_0.db");
+    const std::string analysisDbPath = FileUtil::SplicePath(FileUtil::GetParentPath(traceDbPath), "analysis.db");
+    ASSERT_TRUE(FileUtil::IsRegularFile(traceDbPath));
+    ASSERT_TRUE(FileUtil::IsRegularFile(analysisDbPath));
+
+    class DataEngineMock : public DataEngine {
+      public:
+        bool QuerySliceDetailInfo(const SliceQuery &, CompeteSliceDomain &slice) override {
+            slice.id = id;
+            slice.timestamp = startTime;
+            slice.endTime = endTime;
+            slice.name = opName;
+            slice.isCommunicationGroup = true;
+            return true;
+        }
+
+        uint64_t id = 0;
+        uint64_t startTime = 0;
+        uint64_t endTime = 0;
+        std::string opName;
+    };
+
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.SetDataType(DataType::DB, traceDbPath);
+    databaseManager.SetFileType(FileType::PYTORCH, traceDbPath);
+    ASSERT_TRUE(databaseManager.CreateTraceConnectionPool(timelineRankId, traceDbPath));
+    ASSERT_FALSE(databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath).has_value());
+    // A single-rank project still registers a synthetic project-to-rank relation, but it has no cluster DB pool.
+    // This must not prevent the sibling analysis.db from being used in RANK_LOCAL mode.
+    TrackInfoManager::Instance().UpdateClusterDbToFileIdMap("single-rank-project", traceDbPath);
+    ASSERT_FALSE(databaseManager.HasClusterDatabase("single-rank-project"));
+
+    SliceQuery cacheQuery;
+    cacheQuery.rankId = timelineRankId;
+    cacheQuery.startTime = sliceStartNs;
+    cacheQuery.endTime = sliceEndNs;
+    SliceCacheManager::Instance().UpdateSliceCache(
+        std::to_string(trackId), {SliceDomain{sliceId, sliceStartNs, sliceEndNs, 0, ""}}, cacheQuery);
+
+    RenderEngine renderEngine;
+    auto dataEngine = std::make_shared<DataEngineMock>();
+    dataEngine->id = sliceId;
+    dataEngine->startTime = sliceStartNs;
+    dataEngine->endTime = sliceEndNs;
+    dataEngine->opName = opName;
+    renderEngine.SetDataEngineInterface(dataEngine);
+    ThreadDetailParams request;
+    request.id = std::to_string(sliceId);
+    request.metaType = "HCCL";
+    request.rankId = timelineRankId;
+    request.dbPath = traceDbPath;
+    UnitThreadDetailBody response;
+
+    renderEngine.QueryThreadDetail(request, response, trackId);
+
+    EXPECT_EQ(response.data.title, opName);
+    EXPECT_EQ(response.data.duration, sliceEndNs - sliceStartNs);
+    ASSERT_TRUE(response.data.transitTime.has_value());
+    ASSERT_TRUE(response.data.waitTime.has_value());
+    EXPECT_DOUBLE_EQ(response.data.transitTime.value(), 0.23684471875);
+    EXPECT_DOUBLE_EQ(response.data.waitTime.value(), 0.048080968749999994);
+    ASSERT_EQ(response.data.communicationBandwidthInfo.size(), 2);
+    EXPECT_EQ(response.data.communicationBandwidthInfo[0].transportType, "HCCS");
+    EXPECT_DOUBLE_EQ(response.data.communicationBandwidthInfo[0].transitSize, 28.647232000000002);
+    EXPECT_DOUBLE_EQ(response.data.communicationBandwidthInfo[0].transitTime, 1.8092962187500001);
+    EXPECT_DOUBLE_EQ(response.data.communicationBandwidthInfo[0].bandwidth, 15.8334);
+    EXPECT_EQ(response.data.communicationBandwidthInfo[1].transportType, "SDMA");
+    const auto communicationDatabaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
+    ASSERT_TRUE(communicationDatabaseHandle.has_value());
+    ASSERT_NE(communicationDatabaseHandle->GetConnection(), nullptr);
+}
+
+TEST_F(RenderEngineTest, ResetBaselineReleasesSingleCardCommunicationDetailDatabase) {
+    const std::string rankId = "baseline_rank";
+    const std::string fileId = "baseline_trace.db";
+    const auto uniqueId = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const std::string analysisDbPath =
+        FileUtil::SplicePath(::testing::TempDir(), "RenderEngineTest_baseline_analysis_" + uniqueId + ".db");
+    const std::string replacementAnalysisDbPath =
+        FileUtil::SplicePath(::testing::TempDir(), "RenderEngineTest_replacement_analysis_" + uniqueId + ".db");
+    tempDbPaths.emplace_back(analysisDbPath);
+    tempDbPaths.emplace_back(replacementAnalysisDbPath);
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.SetRankIdFileIdMapping(rankId, fileId);
+    databaseManager.CreateCommunicationDetailConnectionPool(fileId, analysisDbPath);
+    auto communicationDatabaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(fileId);
+    ASSERT_TRUE(communicationDatabaseHandle.has_value());
+    EXPECT_EQ(communicationDatabaseHandle->sourceMode, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL);
+    ASSERT_NE(communicationDatabaseHandle->GetConnection(), nullptr);
+    communicationDatabaseHandle.reset();
+
+    databaseManager.CreateCommunicationDetailConnectionPool(fileId, replacementAnalysisDbPath);
+    communicationDatabaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(fileId);
+    ASSERT_TRUE(communicationDatabaseHandle.has_value());
+    EXPECT_EQ(communicationDatabaseHandle->pool->GetDbPath(), replacementAnalysisDbPath);
+    communicationDatabaseHandle.reset();
+
+    Dic::Module::Global::BaselineInfo baselineInfo;
+    baselineInfo.rankId = rankId;
+    Dic::Module::Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
+    EXPECT_TRUE(databaseManager.ResetBaseline(true));
+    EXPECT_FALSE(databaseManager.GetCommunicationDetailDatabaseHandleByFileId(fileId).has_value());
+    EXPECT_FALSE(databaseManager.CreateCommunicationDetailConnectionPool(
+        fileId, analysisDbPath, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL, true));
+    EXPECT_FALSE(databaseManager.GetCommunicationDetailDatabaseHandleByFileId(fileId).has_value());
+    Dic::Module::Global::BaselineManager::Instance().Reset();
 }

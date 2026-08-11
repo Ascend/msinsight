@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include "pch.h"
+#include <algorithm>
 #include "DataBaseManager.h"
 #include "TrackInfoManager.h"
 namespace Dic::Module::Timeline {
@@ -188,7 +189,15 @@ std::vector<RankInfo> TrackInfoManager::GetRankListByFileId(const std::string &f
 
 void TrackInfoManager::SetRankListByFileId(const std::string &fileId, const RankInfo &rankInfo) {
     std::lock_guard lock(trackMutex);
-    fileIdToRankListMap[fileId + rankInfo.rankId].push_back(rankInfo);
+    auto &rankInfos = fileIdToRankListMap[fileId + rankInfo.rankId];
+    const auto duplicate = std::find_if(rankInfos.cbegin(), rankInfos.cend(), [&rankInfo](const RankInfo &item) {
+        return item.cluster == rankInfo.cluster && item.host == rankInfo.host && item.rankId == rankInfo.rankId &&
+            item.deviceId == rankInfo.deviceId && item.rankName == rankInfo.rankName;
+    });
+    if (duplicate != rankInfos.cend()) {
+        return;
+    }
+    rankInfos.push_back(rankInfo);
 }
 
 std::string TrackInfoManager::GetClusterByFileId(const std::string &fileId) {
