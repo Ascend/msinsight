@@ -21,6 +21,8 @@ import React from 'react';
 import type { CommunicationBandwidthInfo } from '../../entity/data';
 import { CommunicationBandwidthInfoTable } from './CommunicationBandwidthInfoTable';
 
+let mockResizeTableProps: any;
+
 jest.mock('react-i18next', () => ({
     useTranslation: (): { t: (key: string) => string } => ({
         t: (key: string): string => key,
@@ -30,32 +32,40 @@ jest.mock('react-i18next', () => ({
 jest.mock('@insight/lib/resize', () => {
     const ReactForMock = require('react');
     return {
-        ResizeTable: ({ columns, dataSource }: { columns: any[]; dataSource: any[] }): JSX.Element => ReactForMock.createElement(
-            'table',
-            {},
-            ReactForMock.createElement('thead', {}, ReactForMock.createElement(
-                'tr',
+        ResizeTable: (props: { columns: any[]; dataSource: any[] }): JSX.Element => {
+            mockResizeTableProps = props;
+            const { columns, dataSource } = props;
+            return ReactForMock.createElement(
+                'table',
                 {},
-                columns.map(column => ReactForMock.createElement('th', { key: column.dataIndex }, column.title)),
-            )),
-            ReactForMock.createElement(
-                'tbody',
-                {},
-                dataSource.map((record, rowIndex) => ReactForMock.createElement(
+                ReactForMock.createElement('thead', {}, ReactForMock.createElement(
                     'tr',
-                    { key: `${record.transportType}-${rowIndex}` },
-                    columns.map(column => ReactForMock.createElement(
-                        'td',
-                        { key: column.dataIndex },
-                        record[column.dataIndex],
-                    )),
+                    {},
+                    columns.map(column => ReactForMock.createElement('th', { key: column.dataIndex }, column.title)),
                 )),
-            ),
-        ),
+                ReactForMock.createElement(
+                    'tbody',
+                    {},
+                    dataSource.map((record, rowIndex) => ReactForMock.createElement(
+                        'tr',
+                        { key: `${record.transportType}-${rowIndex}` },
+                        columns.map(column => ReactForMock.createElement(
+                            'td',
+                            { key: column.dataIndex },
+                            record[column.dataIndex],
+                        )),
+                    )),
+                ),
+            );
+        },
     };
 }, { virtual: true });
 
 describe('CommunicationBandwidthInfoTable', () => {
+    beforeEach(() => {
+        mockResizeTableProps = undefined;
+    });
+
     it('does not render when communication bandwidth data is unavailable', () => {
         const { container, rerender } = render(<CommunicationBandwidthInfoTable />);
         expect(container).toBeEmptyDOMElement();
@@ -88,7 +98,7 @@ describe('CommunicationBandwidthInfoTable', () => {
         expect(queryByText('RDMA')).not.toBeInTheDocument();
     });
 
-    it('orders all supported transport types consistently', () => {
+    it('uses the same expandable transport hierarchy as the communication bandwidth table', () => {
         const details: CommunicationBandwidthInfo[] = [
             { transportType: 'SDMA', transitSize: 4, transitTime: 4, bandwidth: 4 },
             { transportType: 'PCIE', transitSize: 3, transitTime: 3, bandwidth: 3 },
@@ -97,8 +107,14 @@ describe('CommunicationBandwidthInfoTable', () => {
             { transportType: 'HCCS', transitSize: 2, transitTime: 2, bandwidth: 2 },
         ];
 
-        const { getAllByRole } = render(<CommunicationBandwidthInfoTable details={details} />);
-        expect(getAllByRole('row').slice(1).map(row => row.firstChild?.textContent))
-            .toEqual(['RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO']);
+        render(<CommunicationBandwidthInfoTable details={details} />);
+
+        expect(mockResizeTableProps.dataSource.map((row: CommunicationBandwidthInfo) => row.transportType))
+            .toEqual(['SDMA', 'RDMA']);
+        expect(mockResizeTableProps.dataSource[0].children.map((row: CommunicationBandwidthInfo) => row.transportType))
+            .toEqual(['HCCS', 'PCIE', 'SIO']);
+        expect(mockResizeTableProps.expandable.defaultExpandedRowKeys).toEqual(['SDMA']);
+        expect(mockResizeTableProps.rowKey).toBe('transportType');
+        expect(mockResizeTableProps.allowCopy).toBeUndefined();
     });
 });
