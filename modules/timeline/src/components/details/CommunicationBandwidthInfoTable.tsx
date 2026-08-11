@@ -23,8 +23,8 @@ import { useTranslation } from 'react-i18next';
 import { ResizeTable } from '@insight/lib/resize';
 import type { CommunicationBandwidthInfo } from '../../entity/data';
 
-const TRANSPORT_TYPE_ORDER = ['RDMA', 'HCCS', 'PCIE', 'SDMA', 'SIO'];
-const TRANSPORT_TYPE_INDEX = new Map(TRANSPORT_TYPE_ORDER.map((type, index) => [type, index]));
+const CHILD_TRANSPORT_TYPE_ORDER = ['HCCS', 'PCIE', 'SIO'];
+const KNOWN_TRANSPORT_TYPES = new Set(['SDMA', 'RDMA', ...CHILD_TRANSPORT_TYPE_ORDER]);
 
 const StyledBandwidthInfo = styled.div`
     width: 100%;
@@ -41,12 +41,28 @@ const StyledBandwidthInfo = styled.div`
     }
 `;
 
-const sortByTransportType = (details: CommunicationBandwidthInfo[]): CommunicationBandwidthInfo[] => {
-    return [...details].sort((left, right) => {
-        const leftIndex = TRANSPORT_TYPE_INDEX.get(left.transportType.toUpperCase()) ?? Number.MAX_SAFE_INTEGER;
-        const rightIndex = TRANSPORT_TYPE_INDEX.get(right.transportType.toUpperCase()) ?? Number.MAX_SAFE_INTEGER;
-        return leftIndex - rightIndex || left.transportType.localeCompare(right.transportType);
-    });
+interface CommunicationBandwidthInfoTableRow extends CommunicationBandwidthInfo {
+    children?: CommunicationBandwidthInfoTableRow[];
+}
+
+const buildTableDataSource = (details: CommunicationBandwidthInfo[]): CommunicationBandwidthInfoTableRow[] => {
+    const rowsByTransportType = (transportType: string): CommunicationBandwidthInfoTableRow[] => details
+        .filter(detail => detail.transportType.toUpperCase() === transportType);
+    const children = CHILD_TRANSPORT_TYPE_ORDER.flatMap(rowsByTransportType);
+    const sdma = rowsByTransportType('SDMA')[0];
+    const roots: CommunicationBandwidthInfoTableRow[] = [];
+
+    if (sdma !== undefined) {
+        roots.push(children.length > 0 ? { ...sdma, children } : sdma);
+    } else {
+        roots.push(...children);
+    }
+
+    roots.push(...rowsByTransportType('RDMA'));
+    roots.push(...details
+        .filter(detail => !KNOWN_TRANSPORT_TYPES.has(detail.transportType.toUpperCase()))
+        .sort((left, right) => left.transportType.localeCompare(right.transportType)));
+    return roots;
 };
 
 interface CommunicationBandwidthInfoTableProps {
@@ -55,8 +71,8 @@ interface CommunicationBandwidthInfoTableProps {
 
 export const CommunicationBandwidthInfoTable = ({ details }: CommunicationBandwidthInfoTableProps): JSX.Element | null => {
     const { t } = useTranslation('timeline', { keyPrefix: 'sliceDetail' });
-    const dataSource = useMemo(() => sortByTransportType(details ?? []), [details]);
-    const columns = useMemo<ColumnsType<CommunicationBandwidthInfo>>(() => [
+    const dataSource = useMemo(() => buildTableDataSource(details ?? []), [details]);
+    const columns = useMemo<ColumnsType<CommunicationBandwidthInfoTableRow>>(() => [
         {
             title: t('Transport Type'),
             dataIndex: 'transportType',
@@ -85,13 +101,13 @@ export const CommunicationBandwidthInfoTable = ({ details }: CommunicationBandwi
 
     return <StyledBandwidthInfo>
         <div className="communicationBandwidthInfoTitle">{t('Communication Bandwidth Info')}</div>
-        <ResizeTable<CommunicationBandwidthInfo>
-            allowCopy={false}
+        <ResizeTable<CommunicationBandwidthInfoTableRow>
             className="communicationBandwidthInfoTable"
             columns={columns}
             dataSource={dataSource}
+            expandable={{ defaultExpandedRowKeys: ['SDMA'] }}
             pagination={false}
-            rowKey={(record): string => record.transportType}
+            rowKey="transportType"
             size="small"
         />
     </StyledBandwidthInfo>;
