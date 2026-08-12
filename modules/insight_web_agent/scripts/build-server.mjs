@@ -26,6 +26,7 @@ const outputEntry = join(outputDir, "index.mjs");
 const outputNativeAgentEntry = join(outputDir, "native-agent", "index.mjs");
 const outputAgentConfig = join(outputDir, "agent-servers.json");
 const outputSessionConfig = join(outputDir, "acp-session-conf.json");
+const outputNativeConfig = join(outputDir, "msinsight-native.json");
 
 // Blade SDK statically imports optional providers from its shared session chunk.
 const unsupportedProviderFactories = {
@@ -86,6 +87,7 @@ await cp(
     join(rootDir, "acp-session-conf.json"),
     outputSessionConfig,
 );
+await cp(join(rootDir, "msinsight-native.json"), outputNativeConfig);
 await cp(join(rootDir, "prompts"), join(outputDir, "prompts"), { recursive: true });
 await cp(join(rootDir, "..", "..", "docs"), join(outputDir, "docs"), { recursive: true });
 await cp(join(rootDir, "..", "..", "skills"), join(outputDir, "skills"), { recursive: true });

@@ -40,6 +40,7 @@ export const createAcpAdapter = ({
     spawnProcess = spawn,
     requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
     promptRequestTimeoutMs = DEFAULT_PROMPT_TIMEOUT_MS,
+    forwardStderr = true,
 }) => {
     const { command, args } = resolveCommand(agentServer);
     const subscribers = new Set();
@@ -72,7 +73,7 @@ export const createAcpAdapter = ({
         });
 
         child.stderr?.setEncoding?.("utf8");
-        child.stderr?.on?.("data", (chunk) => process.stderr.write(chunk));
+        if (forwardStderr) child.stderr?.on?.("data", (chunk) => process.stderr.write(chunk));
         child.on?.("error", (error) => {
             notifySubscribers({ kind: "transport_error", error });
             rejectPending(pending, error);

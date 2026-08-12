@@ -139,6 +139,7 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
         env: {
             ...process.env,
             ACP_CAPABILITY_TOKEN: CAPABILITY_TOKEN,
+            ACP_AUTO_DISCOVERY: "0",
             ACP_CWD: workspaceDir,
             FAKE_AGENT_LOG: logPath,
         },
@@ -167,12 +168,11 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
     assert.deepEqual(updatedObservation.body.observation, { route: "timeline" });
     assert.deepEqual((await requestJson(port, "/api/page/observation")).body.observation, { route: "timeline" });
 
-    const reloadResult = await requestJson(port, "/api/agent-config", {
+    const reloadResult = await requestJson(port, "/api/agent-config/servers", {
         method: "PUT",
         body: {
             activeAgentName: "Broken",
             agentServers: [stableAgent(fakeAgentPath), brokenAgent(fakeAgentPath)],
-            sessionConfig: sessionConfig(),
         },
     });
 
@@ -198,7 +198,7 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
         initialized: true,
         activeAgentName: "Stable",
         agentInfoName: "Stable",
-        agentServerNames: ["Stable"],
+        agentServerNames: ["msinsight-native", "Stable"],
         availableCommands: [],
         failedDisconnected: true,
     });
@@ -226,6 +226,7 @@ test("failed settings reload preserves old-runtime notifications and never broad
         env: {
             ...process.env,
             ACP_CAPABILITY_TOKEN: CAPABILITY_TOKEN,
+            ACP_AUTO_DISCOVERY: "0",
             ACP_CWD: workspaceDir,
             FAKE_AGENT_LOG: logPath,
             FAKE_AGENT_NOTIFY_FLAG: notifyFlagPath,
@@ -250,12 +251,11 @@ test("failed settings reload preserves old-runtime notifications and never broad
     t.after(() => recorder.stop());
     await recorder.ready;
 
-    const reloadPromise = requestJson(port, "/api/agent-config", {
+    const reloadPromise = requestJson(port, "/api/agent-config/servers", {
         method: "PUT",
         body: {
             activeAgentName: "Broken",
             agentServers: [stableAgent(fakeAgentPath), brokenAgent(fakeAgentPath)],
-            sessionConfig: sessionConfig(),
         },
     });
     await waitFor(async () => {

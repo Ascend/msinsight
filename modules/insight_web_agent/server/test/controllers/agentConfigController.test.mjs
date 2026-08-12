@@ -62,20 +62,53 @@ test("GET /api/agent-config returns the normalized settings snapshot", async () 
     assert.deepEqual(res.body, { snapshot });
 });
 
-test("PUT /api/agent-config saves the submitted snapshot and returns structured errors", async () => {
-    const submitted = { activeAgentName: "OpenCode" };
+test("configuration sections use independent save endpoints", async () => {
+    const calls = [];
+    const service = {
+        saveAgentServers: async (body) => {
+            calls.push(["servers", body]);
+            return { error: "agent_busy", message: "Agent is busy", status: 409 };
+        },
+        saveBuiltinAgent: async (body) => {
+            calls.push(["builtin", body]);
+            return { ok: true };
+        },
+        saveSessionConfig: async (body) => {
+            calls.push(["session", body]);
+            return { ok: true };
+        },
+    };
+    const router = createTestRouter(service);
+    const serverConfig = { activeAgentName: "OpenCode", agentServers: [] };
+    const builtinConfig = { provider: "openai" };
+    const sessionConfig = { requestTimeoutMs: 1000 };
+    const serverResponse = createResponse();
+
+    await router(createJsonRequest("PUT", "/api/agent-config/servers", serverConfig), serverResponse);
+    await router(createJsonRequest("PUT", "/api/agent-config/builtin", builtinConfig), createResponse());
+    await router(createJsonRequest("PUT", "/api/agent-config/session", sessionConfig), createResponse());
+
+    assert.deepEqual(calls, [
+        ["servers", serverConfig],
+        ["builtin", builtinConfig],
+        ["session", sessionConfig],
+    ]);
+    assert.equal(serverResponse.status, 409);
+    assert.deepEqual(serverResponse.body, { error: "agent_busy", message: "Agent is busy" });
+});
+
+test("legacy aggregate save endpoint is not available", async () => {
     const calls = [];
     const router = createTestRouter({
-        saveSnapshot: async (body) => {
+        saveAgentServers: async (body) => {
             calls.push(body);
-            return { error: "agent_busy", message: "Agent is busy", status: 409 };
+            return { ok: true };
         },
     });
     const res = createResponse();
 
-    await router(createJsonRequest("PUT", "/api/agent-config", submitted), res);
+    await router(createJsonRequest("PUT", "/api/agent-config", {}), res);
 
-    assert.deepEqual(calls, [submitted]);
-    assert.equal(res.status, 409);
-    assert.deepEqual(res.body, { error: "agent_busy", message: "Agent is busy" });
+    assert.deepEqual(calls, []);
+    assert.equal(res.status, 404);
 });

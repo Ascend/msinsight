@@ -20,7 +20,6 @@ import { isBusy } from "../services/agentConfigService.mjs";
 
 export const createAgentController = ({ agentService, state }) => ({
     list(_req, res) {
-        console.log("Listing agent servers");
         return json(res, agentService.list());
     },
 
@@ -30,6 +29,13 @@ export const createAgentController = ({ agentService, state }) => ({
         const result = await agentService.switchAgent(body?.name);
         if (result.error) console.warn(`Switch agent failed: ${result.error}`);
         else console.log(`Switch agent completed: ${result.activeAgentName}`);
+        return json(res, result, result.status ?? 200);
+    },
+
+    async refresh(_req, res) {
+        console.log("Refreshing agent servers");
+        const result = await agentService.refreshAgents();
+        if (result.error) console.warn(`Refresh agents failed: ${result.error}`);
         return json(res, result, result.status ?? 200);
     },
 });

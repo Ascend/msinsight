@@ -107,6 +107,15 @@ export interface AgentConfigServer {
     env: Record<string, string>;
 }
 
+export interface BuiltinAgentConfig {
+    schemaVersion: number;
+    name: 'msinsight-native';
+    provider: string;
+    model: string;
+    baseUrl: string;
+    apiKey: string;
+}
+
 export interface AgentSessionConfig {
     requestTimeoutMs: number;
     promptRequestTimeoutMs: number;
@@ -122,6 +131,7 @@ export interface AgentSessionConfig {
 export interface AgentConfigSnapshot {
     activeAgentName: string;
     agentServers: AgentConfigServer[];
+    builtinAgent: BuiltinAgentConfig;
     sessionConfig: AgentSessionConfig;
 }
 
@@ -204,6 +214,8 @@ export interface QueuedPrompt {
 
 export type ServerEvent =
     | { type: 'state'; state: Partial<AppState> }
+    | { type: 'agent_discovery_started' }
+    | { type: 'agent_discovery_completed'; runtimeChanged?: boolean }
     | { type: 'message_added'; sessionId?: string; message: ChatMessage }
     | { type: 'message_delta'; sessionId?: string; id: string; field: 'text' | 'thinking'; delta: string }
     | { type: 'message_delta'; sessionId?: string; id: string; field: 'images'; delta: ImageAttachment[] }

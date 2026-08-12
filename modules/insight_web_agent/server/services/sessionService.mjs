@@ -23,7 +23,7 @@ import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setCo
 export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager }) => {
     let mutationQueue = Promise.resolve();
 
-    const getAgentCwd = () => join(config.cwd, state.activeAgentName);
+    const getAgentCwd = () => join(config.cwd, state.activeAgentWorkspaceKey ?? state.activeAgentName);
     const manager = sessionManager ?? {
         async startSession() {
             const session = await acpClient.request("session/new", {
@@ -50,9 +50,21 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
     };
 
     const enqueueMutation = async (operation) => {
-        const next = mutationQueue.then(operation);
-        mutationQueue = next.catch(() => {});
-        return next;
+        const previousMutation = mutationQueue;
+        let releaseMutation;
+        mutationQueue = new Promise((resolve) => {
+            releaseMutation = resolve;
+        });
+        try {
+            try {
+                await previousMutation;
+            } catch {
+                // A failed mutation must not prevent later queued mutations.
+            }
+            return await operation();
+        } finally {
+            releaseMutation();
+        }
     };
 
     const listSessions = async () => {
@@ -154,10 +166,12 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         context.replayingHistory = true;
         state.sessionContexts.set(targetSessionId, context);
 
-        const response = await openExistingSession(targetSessionId)
-            .finally(() => {
-                context.replayingHistory = false;
-            });
+        let response;
+        try {
+            response = await openExistingSession(targetSessionId);
+        } finally {
+            context.replayingHistory = false;
+        }
         const configOptions = response?.configOptions ?? [];
         setConfigOptions({ eventBus, state }, configOptions, targetSessionId);
         console.log(`Session loaded: sessionId=${targetSessionId}, messages=${context.messages.length}, configOptions=${configOptions.length}`);

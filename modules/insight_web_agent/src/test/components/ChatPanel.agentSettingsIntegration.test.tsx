@@ -71,11 +71,15 @@ jest.mock('../../api', () => ({
     createSession: jest.fn(),
     deleteSession: jest.fn(),
     fetchAgentConfig: jest.fn(),
+    fetchAgents: jest.fn(),
     fetchSessions: jest.fn(),
     fetchState: jest.fn(),
     loadSession: jest.fn(),
     respondPermission: jest.fn(),
-    saveAgentConfig: jest.fn(),
+    refreshAgents: jest.fn(),
+    saveAgentServersConfig: jest.fn(),
+    saveAgentSessionConfig: jest.fn(),
+    saveBuiltinAgentConfig: jest.fn(),
     sendPrompt: jest.fn(),
     setSessionMode: jest.fn(),
     setSessionModel: jest.fn(),
@@ -86,7 +90,8 @@ const mockFetchState = api.fetchState as jest.Mock;
 const mockFetchSessions = api.fetchSessions as jest.Mock;
 const mockLoadSession = api.loadSession as jest.Mock;
 const mockFetchAgentConfig = api.fetchAgentConfig as jest.Mock;
-const mockSaveAgentConfig = api.saveAgentConfig as jest.Mock;
+const mockFetchAgents = api.fetchAgents as jest.Mock;
+const mockSaveAgentServersConfig = api.saveAgentServersConfig as jest.Mock;
 const mockSendPrompt = api.sendPrompt as jest.Mock;
 
 const previousAssistantReply = 'previous assistant reply that must stay visible';
@@ -97,6 +102,7 @@ const snapshot = {
         { name: 'OpenCode', command: 'opencode', args: ['acp'], env: {} },
         { name: 'Claude', command: 'claude', args: ['--print'], env: {} },
     ],
+    builtinAgent: { schemaVersion: 1, name: 'msinsight-native' as const, provider: 'openai', model: 'cx/gpt-5.5', baseUrl: 'http://127.0.0.1:19099/v1', apiKey: '' },
     sessionConfig: {
         requestTimeoutMs: 30000,
         promptRequestTimeoutMs: 300000,
@@ -160,7 +166,12 @@ beforeEach(() => {
         pendingPrompt: false,
     });
     mockFetchAgentConfig.mockResolvedValue(snapshot);
-    mockSaveAgentConfig.mockResolvedValue({ ok: true, snapshot: { ...snapshot, activeAgentName: 'Claude' } });
+    mockFetchAgents.mockResolvedValue({
+        activeAgentName: 'Claude',
+        agentServers: [{ name: 'OpenCode' }, { name: 'Claude' }],
+        discoveryLoading: false,
+    });
+    mockSaveAgentServersConfig.mockResolvedValue({ ok: true, snapshot: { ...snapshot, activeAgentName: 'Claude' } });
     mockSendPrompt.mockResolvedValue({ ok: true, sessionId: 'session-claude' });
 });
 
@@ -169,7 +180,7 @@ afterEach(() => {
 });
 
 test('settings save success preserves visible messages, applies agent state from a backend event, and avoids the stale session', async () => {
-    mockSaveAgentConfig.mockResolvedValue({ ok: true });
+    mockSaveAgentServersConfig.mockResolvedValue({ ok: true });
 
     render(
         <ChatStateProvider>
@@ -182,9 +193,10 @@ test('settings save success preserves visible messages, applies agent state from
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'opencode-updated' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
     act(() => {
         fakeEventSourceInstances[0].emit({
             type: 'state',
@@ -224,7 +236,7 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(screen.getByLabelText('active agent')).toHaveTextContent('Claude'));
     expect(screen.getByLabelText('agent servers')).toHaveTextContent('OpenCode,Claude');
     expect(screen.getByText(previousAssistantReply)).toBeVisible();

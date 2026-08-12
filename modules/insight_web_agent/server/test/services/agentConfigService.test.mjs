@@ -43,6 +43,13 @@ const createFixture = async () => {
             extraPaths: ["missing/path"],
         },
     });
+    await writeJson(join(rootDir, "msinsight-native.json"), {
+        schemaVersion: 1,
+        provider: "openai",
+        model: "cx/gpt-5.5",
+        baseUrl: "http://127.0.0.1:19099/v1",
+        apiKey: "",
+    });
     const state = createRuntimeState();
     state.activeAgentName = "OpenCode";
     const reloads = [];
@@ -68,6 +75,14 @@ const validSnapshot = () => ({
         { name: "Claude", command: "claude", args: [], env: {} },
         { name: "NewAgent", command: "new-agent", args: ["serve"], env: { TOKEN: "abc" } },
     ],
+    builtinAgent: {
+        schemaVersion: 1,
+        name: "msinsight-native",
+        provider: "openai",
+        model: "cx/gpt-5.5",
+        baseUrl: "http://127.0.0.1:19099/v1",
+        apiKey: "secret",
+    },
     sessionConfig: {
         requestTimeoutMs: 5000,
         promptRequestTimeoutMs: 6000,
@@ -81,6 +96,11 @@ const validSnapshot = () => ({
     },
 });
 
+const agentConfigFrom = (snapshot) => ({
+    activeAgentName: snapshot.activeAgentName,
+    agentServers: snapshot.agentServers,
+});
+
 test("reads a normalized agent and session config snapshot", async () => {
     const fixture = await createFixture();
 
@@ -92,6 +112,14 @@ test("reads a normalized agent and session config snapshot", async () => {
             { name: "OpenCode", command: "opencode", args: ["acp"], env: { ACP_DEBUG: "1" } },
             { name: "Claude", command: "claude", args: [], env: {} },
         ],
+        builtinAgent: {
+            schemaVersion: 1,
+            name: "msinsight-native",
+            provider: "openai",
+            model: "cx/gpt-5.5",
+            baseUrl: "http://127.0.0.1:19099/v1",
+            apiKey: "",
+        },
         sessionConfig: {
             requestTimeoutMs: 1000,
             promptRequestTimeoutMs: 2000,
@@ -106,15 +134,18 @@ test("reads a normalized agent and session config snapshot", async () => {
     });
 });
 
-test("saves valid config with temp-file replacement before triggering reload", async () => {
+test("saves each configuration section independently", async () => {
     const fixture = await createFixture();
     const snapshot = validSnapshot();
 
-    const result = await fixture.service.saveSnapshot(snapshot);
+    const builtinResult = await fixture.service.saveBuiltinAgent(snapshot.builtinAgent);
+    const sessionResult = await fixture.service.saveSessionConfig(snapshot.sessionConfig);
+    const agentResult = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
 
-    assert.equal(result.ok, true);
-    assert.equal(fixture.reloads.length, 1);
-    assert.deepEqual(fixture.reloads[0], result.snapshot);
+    assert.equal(builtinResult.ok, true);
+    assert.equal(sessionResult.ok, true);
+    assert.equal(agentResult.ok, true);
+    assert.equal(fixture.reloads.length, 3);
     assert.deepEqual(await readJson(join(fixture.rootDir, "agent-servers.json")), {
         activeAgent: "OpenCode",
         agentServers: snapshot.agentServers,
@@ -130,19 +161,91 @@ test("saves valid config with temp-file replacement before triggering reload", a
             extraPaths: ["does/not/exist"],
         },
     });
+    assert.deepEqual(await readJson(join(fixture.rootDir, "msinsight-native.json")), {
+        schemaVersion: 1,
+        provider: "openai",
+        model: "cx/gpt-5.5",
+        baseUrl: "http://127.0.0.1:19099/v1",
+        apiKey: "secret",
+    });
+});
+
+test("rejects duplicate ACP launch commands with a concrete conflict", async () => {
+    const fixture = await createFixture();
+    const snapshot = validSnapshot();
+    snapshot.agentServers.push({ name: "OpenCode Copy", command: "opencode", args: ["acp", "--debug"], env: { OTHER: "value" } });
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.error, "duplicate_agent_launch");
+    assert.equal(result.status, 409);
+    assert.equal(result.conflictingAgent, "OpenCode");
+    assert.equal(result.duplicateAgent, "OpenCode Copy");
+});
+
+test("supports the built-in agent as active with no generic agents", async () => {
+    const fixture = await createFixture();
+    await writeJson(join(fixture.rootDir, "agent-servers.json"), { activeAgent: "msinsight-native", agentServers: [] });
+    const snapshot = validSnapshot();
+    snapshot.activeAgentName = "msinsight-native";
+    snapshot.agentServers = [];
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.ok, true);
+    assert.equal(result.snapshot.activeAgentName, "msinsight-native");
+    assert.deepEqual(result.snapshot.agentServers, []);
+});
+
+test("removes matching transient agents before runtime reload", async () => {
+    const fixture = await createFixture();
+    const calls = [];
+    const service = createAgentConfigService({
+        rootDir: fixture.rootDir,
+        state: fixture.state,
+        beforeReload: async (snapshot) => {
+            calls.push(`before:${snapshot.agentServers.at(-1).name}`);
+        },
+        reloadRuntime: async () => {
+            calls.push("reload");
+        },
+    });
+
+    const result = await service.saveAgentServers(agentConfigFrom(validSnapshot()));
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(calls, ["before:NewAgent", "reload"]);
 });
 
 test("adds a new agent and switches active agent only when requested by the snapshot", async () => {
     const fixture = await createFixture();
     const withoutSwitch = validSnapshot();
 
-    await fixture.service.saveSnapshot(withoutSwitch);
+    await fixture.service.saveAgentServers(agentConfigFrom(withoutSwitch));
     assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "OpenCode");
 
     const withSwitch = { ...withoutSwitch, activeAgentName: "NewAgent" };
-    await fixture.service.saveSnapshot(withSwitch);
+    await fixture.service.saveAgentServers(agentConfigFrom(withSwitch));
 
     assert.equal((await readJson(join(fixture.rootDir, "agent-servers.json"))).activeAgent, "NewAgent");
+});
+
+test("allows adding a generic agent when the unchanged built-in agent is not configured", async () => {
+    const fixture = await createFixture();
+    await writeJson(join(fixture.rootDir, "msinsight-native.json"), {
+        schemaVersion: 1,
+        provider: "openai",
+        model: "cx/gpt-5.5",
+        baseUrl: "",
+        apiKey: "",
+    });
+    const snapshot = await fixture.service.readSnapshot();
+    snapshot.agentServers.push({ name: "NewAgent", command: "new-agent", args: ["serve"], env: {} });
+
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
+
+    assert.equal(result.ok, true);
+    assert.equal(result.snapshot.agentServers.at(-1).name, "NewAgent");
 });
 
 test("rejects invalid config snapshots without writing or reloading", async () => {
@@ -152,6 +255,8 @@ test("rejects invalid config snapshots without writing or reloading", async () =
 
     const cases = [
         { name: "duplicate names", patch: { agentServers: [{ name: "A", command: "a", args: [], env: {} }, { name: "A", command: "b", args: [], env: {} }], activeAgentName: "A" } },
+        { name: "built-in reserved name", patch: { agentServers: [{ name: "msinsight-native", command: "other", args: [], env: {} }], activeAgentName: "msinsight-native" } },
+        { name: "auto reserved suffix", patch: { agentServers: [{ name: "Other(auto)", command: "other", args: [], env: {} }], activeAgentName: "Other(auto)" } },
         { name: "empty command", patch: { agentServers: [{ name: "A", command: "", args: [], env: {} }], activeAgentName: "A" } },
         { name: "empty arg", patch: { agentServers: [{ name: "A", command: "a", args: [""], env: {} }], activeAgentName: "A" } },
         { name: "empty env key", patch: { agentServers: [{ name: "A", command: "a", args: [], env: { "": "value" } }], activeAgentName: "A" } },
@@ -160,7 +265,10 @@ test("rejects invalid config snapshots without writing or reloading", async () =
     ];
 
     for (const item of cases) {
-        const result = await fixture.service.saveSnapshot({ ...validSnapshot(), ...item.patch });
+        const snapshot = { ...validSnapshot(), ...item.patch };
+        const result = item.name === "non-positive timeout"
+            ? await fixture.service.saveSessionConfig(snapshot.sessionConfig)
+            : await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
         assert.equal(result.error, "validation_failed", item.name);
     }
     assert.equal(fixture.reloads.length, 0);
@@ -175,7 +283,7 @@ test("rejects trim-empty args without writing or reloading", async () => {
     const snapshot = validSnapshot();
     snapshot.agentServers[0].args = ["   "];
 
-    const result = await fixture.service.saveSnapshot(snapshot);
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
 
     assert.equal(result.error, "validation_failed");
     assert.equal(result.message, "agent args cannot be empty");
@@ -191,7 +299,7 @@ test("rejects trim-empty env keys without writing or reloading", async () => {
     const snapshot = validSnapshot();
     snapshot.agentServers[0].env = { "   ": "value" };
 
-    const result = await fixture.service.saveSnapshot(snapshot);
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
 
     assert.equal(result.error, "validation_failed");
     assert.equal(result.message, "env keys cannot be empty");
@@ -207,7 +315,7 @@ test("rejects env keys that collide after trimming without writing or reloading"
     const snapshot = validSnapshot();
     snapshot.agentServers[0].env = { TOKEN: "one", " TOKEN ": "two" };
 
-    const result = await fixture.service.saveSnapshot(snapshot);
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(snapshot));
 
     assert.equal(result.error, "validation_failed");
     assert.equal(result.message, "env keys must be unique");
@@ -227,7 +335,7 @@ test("blocks saves while a prompt or permission is pending without writing or re
             fixture.state.pendingPermissions.set("session-1:req-1", { sessionId: "session-1", requestId: "req-1", state: "pending" });
         }
 
-        const result = await fixture.service.saveSnapshot(validSnapshot());
+        const result = await fixture.service.saveAgentServers(agentConfigFrom(validSnapshot()));
 
         assert.equal(result.error, "agent_busy");
         assert.equal(result.status, 409);
@@ -247,7 +355,7 @@ test("returns reload_failed after a successful file save without rolling config 
         },
     });
 
-    const result = await fixture.service.saveSnapshot(validSnapshot());
+    const result = await fixture.service.saveAgentServers(agentConfigFrom(validSnapshot()));
 
     assert.equal(result.error, "reload_failed");
     assert.match(result.message, /adapter failed/);
@@ -258,26 +366,21 @@ test("returns config_write_failed without reload or single-file replacement when
     const fixture = await createFixture();
     const beforeAgentConfig = await readText(join(fixture.rootDir, "agent-servers.json"));
     const beforeSessionConfig = await readText(join(fixture.rootDir, "acp-session-conf.json"));
-    const tempIds = ["agent-temp", "session-temp"];
     await mkdir(join(fixture.rootDir, `acp-session-conf.json.${process.pid}.session-temp.tmp`));
     const service = createAgentConfigService({
         rootDir: fixture.rootDir,
         state: fixture.state,
-        tempId: () => tempIds.shift(),
+        tempId: () => "session-temp",
         reloadRuntime: async (snapshot) => {
             fixture.reloads.push(snapshot);
             return { snapshot };
         },
     });
 
-    const result = await service.saveSnapshot(validSnapshot());
+    const result = await service.saveSessionConfig(validSnapshot().sessionConfig);
 
     assert.equal(result.error, "config_write_failed");
     assert.match(result.message, /EISDIR|EPERM|EACCES/);
-    await assert.rejects(
-        readText(join(fixture.rootDir, `agent-servers.json.${process.pid}.agent-temp.tmp`)),
-        { code: "ENOENT" },
-    );
     await rm(join(fixture.rootDir, `acp-session-conf.json.${process.pid}.session-temp.tmp`), { recursive: true, force: true });
     assert.equal(fixture.reloads.length, 0);
     assert.equal(await readText(join(fixture.rootDir, "agent-servers.json")), beforeAgentConfig);
@@ -307,7 +410,7 @@ test("returns config_write_failed when output files cannot be written and leaves
 
     let result;
     try {
-        result = await blockedService.saveSnapshot(validSnapshot());
+        result = await blockedService.saveSessionConfig(validSnapshot().sessionConfig);
     } finally {
         await chmod(blockedRoot, 0o755);
     }

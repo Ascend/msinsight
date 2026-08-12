@@ -113,15 +113,24 @@ export const createSessionStore = ({ sessions, storeDir = join(process.cwd(), ".
     };
 
     /** 功能：串行调度 ACP 会话快照写入，避免并发请求互相覆盖。 */
-    const save = () => {
+    const save = async () => {
         // 多个 ACP 请求可并发触发保存；用 Promise 链串行执行原子替换，避免后一次写入抢先移动临时文件或旧快照覆盖新快照。
-        const pendingSave = saveQueue.then(writeSnapshot, writeSnapshot);
-        saveQueue = pendingSave.catch(ignoreSaveQueueFailure);
-        return pendingSave;
+        const previousSave = saveQueue;
+        let releaseSave;
+        saveQueue = new Promise((resolve) => {
+            releaseSave = resolve;
+        });
+        try {
+            try {
+                await previousSave;
+            } catch {
+                // A failed snapshot must not prevent later queued saves.
+            }
+            return await writeSnapshot();
+        } finally {
+            releaseSave();
+        }
     };
-
-    /** 功能：吞掉仅用于串行调度的 Promise 链失败，实际调用者仍通过 pendingSave 收到原始错误。 */
-    const ignoreSaveQueueFailure = () => {};
 
     /** 功能：生成当前 ACP 会话快照，并通过唯一临时文件原子替换 sessions.json。 */
     const writeSnapshot = async () => {

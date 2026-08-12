@@ -17,10 +17,10 @@
  */
 import styled from '@emotion/styled';
 import { Drawer, message } from 'antd';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Select } from '@insight/lib/components';
-import { fetchAgentConfig, saveAgentConfig } from '../api';
+import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
 
@@ -91,6 +91,7 @@ const Container = styled.div`
     }
 
     input[type='text'],
+    input[type='password'],
     input[type='number'] {
         width: 100%;
         height: 32px;
@@ -99,13 +100,31 @@ const Container = styled.div`
         border: 1px solid ${(props): string => props.theme.borderColor};
         border-radius: ${(props): string => props.theme.borderRadiusSmall};
         padding: 0 10px;
-        background: ${(props): string => props.theme.bgColorLight};
+        background: ${(props): string => props.theme.bgColor};
         color: ${(props): string => props.theme.textColorPrimary};
         outline: none;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
     }
 
-    input[readonly] {
+    input[type='text']:not(:disabled):not([readonly]):hover,
+    input[type='password']:not(:disabled):not([readonly]):hover,
+    input[type='number']:not(:disabled):not([readonly]):hover {
+        border-color: ${(props): string => props.theme.primaryColor};
+    }
+
+    input[type='text']:not(:disabled):not([readonly]):focus,
+    input[type='password']:not(:disabled):not([readonly]):focus,
+    input[type='number']:not(:disabled):not([readonly]):focus {
+        border-color: ${(props): string => props.theme.primaryColor};
+        box-shadow: 0 0 0 2px ${(props): string => `${props.theme.primaryColor}33`};
+    }
+
+    input[readonly],
+    input:disabled {
+        background: ${(props): string => props.theme.bgColorLight};
         color: ${(props): string => props.theme.textColorSecondary};
+        cursor: not-allowed;
+        opacity: 0.72;
     }
 
     .inline-actions,
@@ -202,6 +221,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [snapshot, setSnapshot] = useState<AgentConfigSnapshot | null>(null);
+    const initialSnapshotRef = useRef<AgentConfigSnapshot | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string | null>(null);
     const [saveAndSwitchSelected, setSaveAndSwitchSelected] = useState(false);
     const [draftAgent, setDraftAgent] = useState<DraftAgent | null>(null);
@@ -215,25 +235,34 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
         setSaveAndSwitchSelected(false);
         setDraftAgent(null);
         setShowAdvanced(false);
-        fetchAgentConfig()
-            .then((nextSnapshot) => {
+        const loadSettings = async (): Promise<void> => {
+            try {
+                const nextSnapshot = await fetchAgentConfig();
                 setSnapshot(nextSnapshot);
-                setSelectedAgentName(nextSnapshot.activeAgentName);
-            })
-            .catch((nextError) => setError(nextError instanceof Error ? nextError.message : String(nextError)))
-            .finally(() => setLoading(false));
+                initialSnapshotRef.current = nextSnapshot;
+                const editableActiveAgent = nextSnapshot.activeAgentName === 'msinsight-native'
+                    || nextSnapshot.agentServers.some((agent) => agent.name === nextSnapshot.activeAgentName);
+                setSelectedAgentName(editableActiveAgent ? nextSnapshot.activeAgentName : 'msinsight-native');
+            } catch (nextError) {
+                setError(nextError instanceof Error ? nextError.message : String(nextError));
+            } finally {
+                setLoading(false);
+            }
+        };
+        void loadSettings();
     }, [open]);
 
     const activeAgent = useMemo(() => {
         if (!snapshot) return undefined;
-        return snapshot.agentServers.find((agent) => agent.name === (selectedAgentName ?? snapshot.activeAgentName)) ?? snapshot.agentServers[0];
+        return snapshot.agentServers.find((agent) => agent.name === (selectedAgentName ?? snapshot.activeAgentName));
     }, [selectedAgentName, snapshot]);
 
+    const isBuiltinSelected = !draftAgent && selectedAgentName === 'msinsight-native';
+
     const envEntries = useMemo<Array<[string, string]>>(() => {
-        if (draftAgent) return draftAgent.env.length ? draftAgent.env.map((entry) => [entry.key, entry.value]) : [['', '']];
+        if (draftAgent) return draftAgent.env.map((entry) => [entry.key, entry.value]);
         if (!activeAgent) return [];
-        const entries = Object.entries(activeAgent.env ?? {}) as Array<[string, string]>;
-        return entries.length ? entries : [['', '']];
+        return Object.entries(activeAgent.env ?? {}) as Array<[string, string]>;
     }, [activeAgent, draftAgent]);
 
     const editingAgent = draftAgent ?? activeAgent;
@@ -275,13 +304,23 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
         updateActiveAgent((agent) => ({ ...agent, env: Object.fromEntries(nextEntries) }));
     };
 
-    const validateSnapshot = (): string | null => {
-        if (!snapshot || !editingAgent) return t('settingsNotLoaded');
+    const validateSnapshot = ({ agentDefinitionsChanged, builtinValidationRequired }: { agentDefinitionsChanged: boolean; builtinValidationRequired: boolean }): string | null => {
+        if (!snapshot || (!editingAgent && !isBuiltinSelected)) return t('settingsNotLoaded');
         if (pendingPrompt) return t('agentBusy');
+        if (builtinValidationRequired) {
+            if (!snapshot.builtinAgent.provider.trim()) return t('providerRequired');
+            if (!snapshot.builtinAgent.model.trim()) return t('modelRequired');
+            if (!snapshot.builtinAgent.baseUrl.trim()) return t('baseUrlRequired');
+        }
+        if (!agentDefinitionsChanged) return null;
+        if (!editingAgent) return t('settingsNotLoaded');
         if (!editingAgent.command.trim()) return t('commandRequired');
         if (editingAgent.args.some((arg) => !String(arg).trim())) return t('argsRequired');
         if (draftAgent) {
             if (!draftAgent.name.trim()) return t('newAgentNameRequired');
+            if (snapshot.agentServers.some((agent) => agent.name === draftAgent.name.trim()) || draftAgent.name.trim() === 'msinsight-native') {
+                return t('agentNameUnique');
+            }
             if (draftAgent.env.some((entry) => !entry.key.trim())) return t('envKeysRequired');
         } else if (Object.keys(activeAgent?.env ?? {}).some((key) => !String(key).trim())) {
             return t('envKeysRequired');
@@ -296,7 +335,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
             args: agent.args.map((arg) => String(arg).trim()),
             env: Object.fromEntries(Object.entries(agent.env).map(([key, value]) => [String(key).trim(), String(value)])),
         }));
-        let activeAgentName = saveAndSwitchSelected && activeAgent ? activeAgent.name : snapshot.activeAgentName;
+        let activeAgentName = saveAndSwitchSelected && selectedAgentName ? selectedAgentName : snapshot.activeAgentName;
         const agentServers = [...normalizedActive];
         if (draftAgent) {
             const newAgent = {
@@ -323,21 +362,48 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
     };
 
     const handleSave = async (): Promise<void> => {
-        const validationError = validateSnapshot();
+        const payload = buildSavePayload();
+        const initialSnapshot = initialSnapshotRef.current;
+        if (!payload || !initialSnapshot) return;
+        const agentServersChanged = JSON.stringify({
+            activeAgentName: payload.activeAgentName,
+            agentServers: payload.agentServers,
+        }) !== JSON.stringify({
+            activeAgentName: initialSnapshot.activeAgentName,
+            agentServers: initialSnapshot.agentServers,
+        });
+        const builtinAgentChanged = JSON.stringify(payload.builtinAgent) !== JSON.stringify(initialSnapshot.builtinAgent);
+        const agentDefinitionsChanged = JSON.stringify(payload.agentServers) !== JSON.stringify(initialSnapshot.agentServers);
+        const sessionConfigChanged = JSON.stringify(payload.sessionConfig) !== JSON.stringify(initialSnapshot.sessionConfig);
+        const builtinValidationRequired = builtinAgentChanged
+            || (payload.activeAgentName === 'msinsight-native' && payload.activeAgentName !== initialSnapshot.activeAgentName);
+        const validationError = validateSnapshot({ agentDefinitionsChanged, builtinValidationRequired });
         if (validationError) {
             setError(validationError);
             return;
         }
-        const payload = buildSavePayload();
-        if (!payload) return;
         setSaving(true);
         setError(null);
         try {
-            const result = await saveAgentConfig(payload);
-            if (result.snapshot) {
-                setSnapshot(result.snapshot);
-                applyAgentConfigSnapshot(result.snapshot);
+            let savedSnapshot = payload;
+            if (builtinAgentChanged) {
+                const result = await saveBuiltinAgentConfig(payload.builtinAgent);
+                savedSnapshot = result.snapshot ?? savedSnapshot;
             }
+            if (sessionConfigChanged) {
+                const result = await saveAgentSessionConfig(payload.sessionConfig);
+                savedSnapshot = result.snapshot ?? savedSnapshot;
+            }
+            if (agentServersChanged) {
+                const result = await saveAgentServersConfig({
+                    activeAgentName: payload.activeAgentName,
+                    agentServers: payload.agentServers,
+                });
+                savedSnapshot = result.snapshot ?? savedSnapshot;
+            }
+            setSnapshot(savedSnapshot);
+            initialSnapshotRef.current = savedSnapshot;
+            await applyAgentConfigSnapshot(savedSnapshot);
             setDraftAgent(null);
             setOpen(false);
             message.success(t('settingsSaved'));
@@ -372,7 +438,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                         </div>
                     ) : null}
                     {error ? <div className="error">{error}</div> : null}
-                    {snapshot && editingAgent ? (
+                    {snapshot && (editingAgent || isBuiltinSelected) ? (
                         <>
                             <div className="section">
                                 <div className="section-header">
@@ -393,12 +459,34 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                             aria-label={t('agentToEdit')}
                                             id="agent-selector"
                                             onChange={(value) => setSelectedAgentName(String(value))}
-                                            options={snapshot.agentServers.map((agent) => ({ label: agent.name, value: agent.name }))}
-                                            value={activeAgent?.name}
+                                            options={[
+                                                { label: t('builtinAgentName'), value: 'msinsight-native' },
+                                                ...snapshot.agentServers.map((agent) => ({ label: agent.name, value: agent.name })),
+                                            ]}
+                                            value={selectedAgentName ?? snapshot.activeAgentName}
                                             width="100%"
                                         />
                                     </div>
                                 )}
+                                {isBuiltinSelected ? <>
+                                <div className="hint">{t('builtinAgentHint')}</div>
+                                <div className="row">
+                                    <label htmlFor="builtin-provider">{t('provider')}</label>
+                                    <input id="builtin-provider" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, provider: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.provider} />
+                                </div>
+                                <div className="row">
+                                    <label htmlFor="builtin-model">{t('model')}</label>
+                                    <input id="builtin-model" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.model} />
+                                </div>
+                                <div className="row">
+                                    <label htmlFor="builtin-base-url">{t('baseUrl')}</label>
+                                    <input id="builtin-base-url" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, baseUrl: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.baseUrl} />
+                                </div>
+                                <div className="row">
+                                    <label htmlFor="builtin-api-key">{t('apiKey')}</label>
+                                    <input id="builtin-api-key" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, apiKey: event.target.value } }) : current)} type="password" value={snapshot.builtinAgent.apiKey} />
+                                </div>
+                                </> : editingAgent ? <>
                                 <div className="row">
                                     <label htmlFor="agent-command">{t('command')}</label>
                                     <input id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={editingAgent.command} />
@@ -446,6 +534,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                         </div>
                                     ))}
                                 </div>
+                                </> : null}
                                 {isCreatingAgent ? <label className="check-row">
                                     <input checked={draftAgent?.saveAndSwitch ?? false} onChange={(event) => setDraftAgent((current) => current ? { ...current, saveAndSwitch: event.target.checked } : current)} type="checkbox" />
                                     <span>{t('saveAndSwitchThisAgent')}</span>

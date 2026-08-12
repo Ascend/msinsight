@@ -31,7 +31,8 @@ const Container = styled.main`
     color: ${(props): string => props.theme.textColorPrimary};
     position: relative;
 
-    .agent-switch-mask {
+    .agent-switch-mask,
+    .agent-discovery-mask {
         position: absolute;
         inset: 0;
         z-index: 10;
@@ -43,10 +44,30 @@ const Container = styled.main`
         font-size: 13px;
         font-weight: 700;
     }
+
+    .agent-discovery-mask {
+        z-index: 20;
+        flex-direction: column;
+        gap: 12px;
+        background: ${(props): string => props.theme.bgColorDark};
+    }
+
+    .agent-discovery-spinner {
+        width: 28px;
+        height: 28px;
+        border: 3px solid ${(props): string => props.theme.borderColor};
+        border-top-color: ${(props): string => props.theme.primaryColor};
+        border-radius: 50%;
+        animation: agent-discovery-spin 0.8s linear infinite;
+    }
+
+    @keyframes agent-discovery-spin {
+        to { transform: rotate(360deg); }
+    }
 `;
 
 export const ChatPage = (): JSX.Element => {
-    const { switchingAgent } = useChatState();
+    const { agentDiscoveryLoading, switchingAgent } = useChatState();
     const { t } = useTranslation('insightWebAgent');
 
     return (
@@ -54,6 +75,12 @@ export const ChatPage = (): JSX.Element => {
             <SessionSidebar />
             <ChatPanel />
             {switchingAgent && <div className="agent-switch-mask">{t('switchingAgent')}</div>}
+            {agentDiscoveryLoading && (
+                <div className="agent-discovery-mask" role="status">
+                    <div className="agent-discovery-spinner" />
+                    <span>{t('loading')}</span>
+                </div>
+            )}
         </Container>
     );
 };

@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import type { AgentConfigSaveResult, AgentConfigSnapshot, AgentServerItem, AppState, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionItem } from './types';
+import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionItem } from './types';
 import type { HostContext } from './connection';
 import { apiUrl } from './env';
 
@@ -32,6 +32,7 @@ interface SessionsResponse {
 
 interface OkResponse {
     ok?: boolean;
+    runtimeChanged?: boolean;
     sessionId?: string;
     configOptions?: ConfigOption[];
     error?: string;
@@ -40,7 +41,16 @@ interface OkResponse {
 interface AgentsResponse extends OkResponse {
     activeAgentName?: string;
     agentServers?: AgentServerItem[];
+    discoveryLoading?: boolean;
 }
+
+export const fetchAgents = (): Promise<AgentsResponse> => {
+    return requestJson<AgentsResponse>('/api/agents');
+};
+
+export const refreshAgents = (): Promise<OkResponse> => {
+    return requestJson<OkResponse>('/api/agents/refresh', { method: 'POST' });
+};
 
 interface LoadSessionResponse extends OkResponse {
     messages?: ChatMessage[];
@@ -156,9 +166,23 @@ export const fetchAgentConfig = async (): Promise<AgentConfigSnapshot> => {
     return body.snapshot;
 };
 
-export const saveAgentConfig = (snapshot: AgentConfigSnapshot): Promise<AgentConfigSaveResult> => {
-    return requestJson<AgentConfigSaveResult>('/api/agent-config', {
+export const saveAgentServersConfig = (config: { activeAgentName: string; agentServers: AgentConfigServer[] }): Promise<AgentConfigSaveResult> => {
+    return requestJson<AgentConfigSaveResult>('/api/agent-config/servers', {
         method: 'PUT',
-        body: JSON.stringify(snapshot),
+        body: JSON.stringify(config),
+    });
+};
+
+export const saveBuiltinAgentConfig = (config: BuiltinAgentConfig): Promise<AgentConfigSaveResult> => {
+    return requestJson<AgentConfigSaveResult>('/api/agent-config/builtin', {
+        method: 'PUT',
+        body: JSON.stringify(config),
+    });
+};
+
+export const saveAgentSessionConfig = (config: AgentSessionConfig): Promise<AgentConfigSaveResult> => {
+    return requestJson<AgentConfigSaveResult>('/api/agent-config/session', {
+        method: 'PUT',
+        body: JSON.stringify(config),
     });
 };
