@@ -26,7 +26,7 @@ import {
     type RefObject,
 } from 'react';
 import { message } from 'antd';
-import { cancelPrompt, createSession, deleteSession, fetchSessions, fetchState, loadSession, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent, updatePageObservation } from '../api';
+import { cancelPrompt, createSession, deleteSession, fetchAgents, fetchSessions, fetchState, loadSession, refreshAgents as requestAgentRefresh, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent, updatePageObservation } from '../api';
 import { observeInsightPage } from '../bridge/frontendAgentToolBridge';
 import { apiUrl } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
@@ -42,6 +42,7 @@ interface ChatStateValue {
     availableCommands: AvailableCommand[];
     availableSkills: AvailableSkill[];
     switchingAgent: boolean;
+    agentDiscoveryLoading: boolean;
     currentSessionId?: string;
     input: string;
     images: ImageAttachment[];
@@ -65,7 +66,8 @@ interface ChatStateValue {
     setModel: (model: string) => Promise<void>;
     setMode: (mode: string, sessionId?: string) => Promise<void>;
     setAgent: (name: string) => Promise<void>;
-    applyAgentConfigSnapshot: (snapshot: AgentConfigSnapshot) => void;
+    refreshAgents: () => Promise<void>;
+    applyAgentConfigSnapshot: (snapshot: AgentConfigSnapshot) => Promise<void>;
     respondToPermission: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
 }
 
@@ -85,16 +87,30 @@ interface ChatState {
     availableCommands: AvailableCommand[];
     availableSkills: AvailableSkill[];
     switchingAgent: boolean;
+    agentDiscoveryLoading: boolean;
     sessions: SessionItem[];
     sessionRecords: Record<string, SessionRecord>;
     draftQueuedPrompts: QueuedPrompt[];
 }
+
+export const resolveAppliedAgentChange = (
+    currentAgentName: string | undefined,
+    snapshotAgentName: string,
+    fetchedAgentName: string | undefined,
+): { effectiveAgentName: string; changed: boolean } => {
+    const effectiveAgentName = fetchedAgentName ?? snapshotAgentName;
+    return {
+        effectiveAgentName,
+        changed: Boolean(currentAgentName) && effectiveAgentName !== currentAgentName,
+    };
+};
 
 const initialState: ChatState = {
     isDraftSession: false,
     draftMessages: [],
     draftPendingPrompt: false,
     switchingAgent: false,
+    agentDiscoveryLoading: true,
     sessions: [],
     configOptions: [],
     agentServers: [],
@@ -113,6 +129,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const messagesRef = useRef<HTMLDivElement>(null);
     const stateRef = useRef(state);
     const queuedPromptInFlightRef = useRef(false);
+    const initialSessionInitializedRef = useRef(false);
+    const discoverySyncPromiseRef = useRef<Promise<void> | null>(null);
 
     useEffect(() => {
         stateRef.current = state;
@@ -129,7 +147,6 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             ...current,
             initialized: nextState.initialized,
             configOptions: nextState.configOptions ?? current.configOptions,
-            agentServers: nextState.agentServers ?? current.agentServers,
             activeAgentName: nextState.activeAgentName ?? current.activeAgentName,
             agentInfo: nextState.agentInfo ?? current.agentInfo,
             agentError: nextState.agentError,
@@ -140,7 +157,78 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         return nextState;
     };
 
+    const refreshAgentList = async (): Promise<{ activeAgentName?: string; discoveryLoading?: boolean }> => {
+        const agents = await fetchAgents();
+        setState((current) => ({
+            ...current,
+            agentServers: agents.agentServers ?? [],
+            activeAgentName: agents.activeAgentName ?? current.activeAgentName,
+            agentDiscoveryLoading: agents.discoveryLoading ?? current.agentDiscoveryLoading,
+        }));
+        return agents;
+    };
+
+    const handleAgentDiscoveryCompleted = async (event: Extract<ServerEvent, { type: 'agent_discovery_completed' }>): Promise<void> => {
+        if (discoverySyncPromiseRef.current) {
+            await discoverySyncPromiseRef.current;
+            return;
+        }
+        const synchronize = async (): Promise<void> => {
+            const agents = await fetchAgents();
+            const previousActiveAgentName = stateRef.current.activeAgentName;
+            const activeAgentName = agents.activeAgentName ?? previousActiveAgentName;
+            const activeAgentChanged = Boolean(previousActiveAgentName)
+                && Boolean(activeAgentName)
+                && activeAgentName !== previousActiveAgentName;
+            const runtimeChanged = Boolean(event.runtimeChanged || activeAgentChanged);
+            if (runtimeChanged) initialSessionInitializedRef.current = true;
+            setState((current) => {
+                const refreshed = {
+                    ...current,
+                    agentDiscoveryLoading: agents.discoveryLoading ?? false,
+                    agentServers: agents.agentServers ?? [],
+                    activeAgentName,
+                };
+                if (!runtimeChanged) return refreshed;
+                return {
+                    ...refreshed,
+                    activeSessionId: undefined,
+                    isDraftSession: false,
+                    draftMode: undefined,
+                    draftMessages: [],
+                    draftPendingPrompt: false,
+                    draftQueuedPrompts: [],
+                    sessions: [],
+                    sessionRecords: {},
+                };
+            });
+            if (runtimeChanged) {
+                await initializeActiveSession();
+            }
+        };
+        const syncPromise = synchronize();
+        discoverySyncPromiseRef.current = syncPromise;
+        try {
+            await syncPromise;
+        } catch (error) {
+            setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+            message.error(error instanceof Error ? error.message : String(error));
+        } finally {
+            if (discoverySyncPromiseRef.current === syncPromise) discoverySyncPromiseRef.current = null;
+        }
+    };
+
     const applyEvent = (event: ServerEvent): void => {
+        if (event.type === 'agent_discovery_started') {
+            setState((current) => ({ ...current, agentDiscoveryLoading: true }));
+            return;
+        }
+
+        if (event.type === 'agent_discovery_completed') {
+            void handleAgentDiscoveryCompleted(event);
+            return;
+        }
+
         if (event.type === 'state') {
             setState((current) => {
                 const activeAgentChanged = Boolean(current.activeAgentName)
@@ -150,7 +238,6 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     ...current,
                     initialized: event.state.initialized ?? current.initialized,
                     configOptions: event.state.configOptions ?? current.configOptions,
-                    agentServers: event.state.agentServers ?? current.agentServers,
                     activeAgentName: event.state.activeAgentName ?? current.activeAgentName,
                     agentInfo: event.state.agentInfo ?? current.agentInfo,
                     agentError: event.state.agentError,
@@ -270,12 +357,34 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     useEffect(() => {
-        initializeActiveSession();
+        const loadInitialData = async (): Promise<void> => {
+            try {
+                await Promise.all([refreshInitialState(), refreshAgentList()]);
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : String(error));
+            }
+        };
+        void loadInitialData();
 
         const events = new EventSource(apiUrl('/api/events'));
         events.onmessage = (event): void => applyEvent(JSON.parse(event.data) as ServerEvent);
         return () => events.close();
     }, []);
+
+    useEffect(() => {
+        if (state.agentDiscoveryLoading) return;
+        if (initialSessionInitializedRef.current) return;
+        initialSessionInitializedRef.current = true;
+        const initialize = async (): Promise<void> => {
+            try {
+                await initializeActiveSession();
+            } catch (error) {
+                initialSessionInitializedRef.current = false;
+                message.error(error instanceof Error ? error.message : String(error));
+            }
+        };
+        void initialize();
+    }, [state.agentDiscoveryLoading]);
 
     useEffect(() => {
         messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight });
@@ -287,9 +396,14 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         if (queuedPromptInFlightRef.current) return;
         queuedPromptInFlightRef.current = true;
         setState((current) => dequeuePrompt(current, nextPrompt));
-        sendPromptNow(nextPrompt.prompt, nextPrompt.isDraftSession, nextPrompt.sessionId).finally(() => {
-            queuedPromptInFlightRef.current = false;
-        });
+        const runQueuedPrompt = async (): Promise<void> => {
+            try {
+                await sendPromptNow(nextPrompt.prompt, nextPrompt.isDraftSession, nextPrompt.sessionId);
+            } finally {
+                queuedPromptInFlightRef.current = false;
+            }
+        };
+        void runQueuedPrompt();
     }, [state]);
 
     const initializeActiveSession = async (): Promise<void> => {
@@ -433,8 +547,19 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => markPromptStarted(current, prompt, isDraftSession, sessionId, optimisticSession));
 
         try {
-            const observation = await observeInsightPage().catch(() => undefined);
-            if (observation) await updatePageObservation(observation).catch(() => undefined);
+            let observation;
+            try {
+                observation = await observeInsightPage();
+            } catch {
+                observation = undefined;
+            }
+            if (observation) {
+                try {
+                    await updatePageObservation(observation);
+                } catch {
+                    // Page observation is best-effort context and must not block prompts.
+                }
+            }
             const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode);
             setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
         } catch (error) {
@@ -553,6 +678,20 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
+    const refreshAgents = async (): Promise<void> => {
+        if (activePendingPrompt(stateRef.current) || stateRef.current.agentDiscoveryLoading) return;
+        setState((current) => ({ ...current, agentDiscoveryLoading: true }));
+        try {
+            const result = await requestAgentRefresh();
+            if (stateRef.current.agentDiscoveryLoading) {
+                await handleAgentDiscoveryCompleted({ type: 'agent_discovery_completed', runtimeChanged: result.runtimeChanged });
+            }
+        } catch (error) {
+            setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+            message.error(error instanceof Error ? error.message : String(error));
+        }
+    };
+
     const respondToPermission = async (sessionId: string, requestId: string, decision: PermissionDecision): Promise<void> => {
         updateSessionRecord(sessionId, (record) => ({
             ...record,
@@ -573,14 +712,19 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
-    const applyAgentConfigSnapshot = (snapshot: AgentConfigSnapshot): void => {
+    const applyAgentConfigSnapshot = async (snapshot: AgentConfigSnapshot): Promise<void> => {
+        const agents = await fetchAgents();
         setState((current) => {
-            const activeAgentChanged = Boolean(current.activeAgentName)
-                && snapshot.activeAgentName !== current.activeAgentName;
+            const { effectiveAgentName, changed: activeAgentChanged } = resolveAppliedAgentChange(
+                current.activeAgentName,
+                snapshot.activeAgentName,
+                agents.activeAgentName,
+            );
             const nextState = {
                 ...current,
-                agentServers: snapshot.agentServers.map(({ name }) => ({ name })),
-                activeAgentName: snapshot.activeAgentName,
+                activeAgentName: effectiveAgentName,
+                agentServers: agents.agentServers ?? current.agentServers,
+                agentDiscoveryLoading: agents.discoveryLoading ?? current.agentDiscoveryLoading,
             };
             if (!activeAgentChanged) return nextState;
 
@@ -607,6 +751,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         availableCommands: state.availableCommands,
         availableSkills: state.availableSkills,
         switchingAgent: state.switchingAgent,
+        agentDiscoveryLoading: state.agentDiscoveryLoading,
         currentSessionId: state.activeSessionId,
         input,
         images,
@@ -630,6 +775,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setModel: updateModel,
         setMode: updateMode,
         setAgent: updateAgent,
+        refreshAgents,
         applyAgentConfigSnapshot,
         respondToPermission,
     }), [images, input, state]);

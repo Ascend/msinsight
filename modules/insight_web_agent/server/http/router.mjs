@@ -29,8 +29,16 @@ export const createRouter = ({ agentController, chatController, sessionControlle
             return agentConfigController.get(req, res);
         }
 
-        if (req.method === "PUT" && url.pathname === "/api/agent-config") {
-            return agentConfigController.save(req, res, await readJson(req));
+        if (req.method === "PUT" && url.pathname === "/api/agent-config/servers") {
+            return agentConfigController.saveAgentServers(req, res, await readJson(req));
+        }
+
+        if (req.method === "PUT" && url.pathname === "/api/agent-config/builtin") {
+            return agentConfigController.saveBuiltinAgent(req, res, await readJson(req));
+        }
+
+        if (req.method === "PUT" && url.pathname === "/api/agent-config/session") {
+            return agentConfigController.saveSessionConfig(req, res, await readJson(req));
         }
 
         if (req.method === "GET" && url.pathname === "/api/sessions") {
@@ -51,6 +59,10 @@ export const createRouter = ({ agentController, chatController, sessionControlle
 
         if (req.method === "POST" && url.pathname === "/api/agents/switch") {
             return agentController.switch(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/agents/refresh") {
+            return agentController.refresh(req, res);
         }
 
         if (req.method === "POST" && url.pathname === "/api/prompt") {

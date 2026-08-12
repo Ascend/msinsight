@@ -312,11 +312,11 @@ export const Composer = (): JSX.Element => {
         }
     }
 
-    const handlePaste = (event: any) => {
+    const handlePaste = async (event: any): Promise<void> => {
         const files = getPastedImageFiles(event.clipboardData);
         if (files.length) {
             event.preventDefault();
-            readImageFiles(files).then(addImages);
+            addImages(await readImageFiles(files));
         }
     }
 

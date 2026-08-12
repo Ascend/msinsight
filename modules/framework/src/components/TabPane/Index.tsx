@@ -81,7 +81,7 @@ const Container = styled.div`
         align-items: center;
         justify-content: space-between;
         padding-right: 150px;
-        background: ${(props): string => props.theme.bgColorLight};
+        background: ${(props): string => props.theme.bgColor};
     }
     .tab-toolbar .ant-menu {
         flex: 1 1 auto;
@@ -98,7 +98,6 @@ const Container = styled.div`
         height: calc(100% - 16px);
         margin-top: 16px;
         border-radius: 5px;
-        background: ${(props): string => props.theme.bgColorLight};
     }
     .acp-session-wrapper {
         position: relative;

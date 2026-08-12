@@ -19,6 +19,7 @@ import { publicCapabilities } from "../services/capabilityService.mjs";
 
 export const createRuntimeState = () => ({
     initialized: false,
+    agentDiscoveryLoading: false,
     sessions: [],
     sessionContexts: new Map(),
     localTitles: new Map(),
@@ -27,6 +28,7 @@ export const createRuntimeState = () => ({
     clients: new Set(),
     agentServers: [],
     activeAgentName: undefined,
+    activeAgentWorkspaceKey: undefined,
     agentInfo: undefined,
     agentError: undefined,
     agentCapabilities: undefined,
@@ -64,7 +66,6 @@ export const getSessionContext = (state, sessionId) => {
 export const publicState = (state) => ({
     initialized: state.initialized,
     configOptions: state.configOptions,
-    agentServers: state.agentServers.map(({ name }) => ({ name })),
     activeAgentName: state.activeAgentName,
     agentInfo: state.agentInfo,
     agentError: state.agentError,
@@ -76,6 +77,7 @@ export const publicState = (state) => ({
 
 export const snapshotRuntimeState = (state) => ({
     initialized: state.initialized,
+    agentDiscoveryLoading: state.agentDiscoveryLoading,
     sessions: [...state.sessions],
     sessionContexts: cloneSessionContexts(state.sessionContexts),
     localTitles: new Map(state.localTitles),
@@ -83,6 +85,7 @@ export const snapshotRuntimeState = (state) => ({
     preferredModel: state.preferredModel,
     agentServers: [...state.agentServers],
     activeAgentName: state.activeAgentName,
+    activeAgentWorkspaceKey: state.activeAgentWorkspaceKey,
     agentInfo: state.agentInfo,
     agentError: state.agentError,
     agentCapabilities: state.agentCapabilities,
@@ -97,6 +100,7 @@ export const snapshotRuntimeState = (state) => ({
 export const restoreRuntimeState = (state, snapshot) => {
     cancelOverwrittenPendingPermissions(state.pendingPermissions, snapshot.pendingPermissions);
     state.initialized = snapshot.initialized;
+    state.agentDiscoveryLoading = snapshot.agentDiscoveryLoading;
     state.sessions = snapshot.sessions;
     state.sessionContexts = snapshot.sessionContexts;
     state.localTitles = snapshot.localTitles;
@@ -104,6 +108,7 @@ export const restoreRuntimeState = (state, snapshot) => {
     state.preferredModel = snapshot.preferredModel;
     state.agentServers = snapshot.agentServers;
     state.activeAgentName = snapshot.activeAgentName;
+    state.activeAgentWorkspaceKey = snapshot.activeAgentWorkspaceKey;
     state.agentInfo = snapshot.agentInfo;
     state.agentError = snapshot.agentError;
     state.agentCapabilities = snapshot.agentCapabilities;
@@ -115,7 +120,7 @@ export const restoreRuntimeState = (state, snapshot) => {
     state.resolvedPermissions = snapshot.resolvedPermissions;
 };
 
-export const resetRuntimeForAgent = (state, { agentServers, activeAgentName }) => {
+export const resetRuntimeForAgent = (state, { agentServers, activeAgentName, activeAgentWorkspaceKey }) => {
     state.initialized = false;
     state.sessions = [];
     state.sessionContexts = new Map();
@@ -124,6 +129,7 @@ export const resetRuntimeForAgent = (state, { agentServers, activeAgentName }) =
     state.preferredModel = undefined;
     state.agentServers = agentServers;
     state.activeAgentName = activeAgentName;
+    state.activeAgentWorkspaceKey = activeAgentWorkspaceKey;
     state.agentInfo = undefined;
     state.agentError = undefined;
     state.agentCapabilities = undefined;

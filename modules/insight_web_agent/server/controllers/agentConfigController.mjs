@@ -22,8 +22,18 @@ export const createAgentConfigController = ({ agentConfigService }) => ({
         return json(res, { snapshot: await agentConfigService.readSnapshot() });
     },
 
-    async save(_req, res, body) {
-        const result = await agentConfigService.saveSnapshot(body);
+    async saveAgentServers(_req, res, body) {
+        const result = await agentConfigService.saveAgentServers(body);
+        return json(res, normalizeBody(result), result.status ?? 200);
+    },
+
+    async saveBuiltinAgent(_req, res, body) {
+        const result = await agentConfigService.saveBuiltinAgent(body);
+        return json(res, normalizeBody(result), result.status ?? 200);
+    },
+
+    async saveSessionConfig(_req, res, body) {
+        const result = await agentConfigService.saveSessionConfig(body);
         return json(res, normalizeBody(result), result.status ?? 200);
     },
 });

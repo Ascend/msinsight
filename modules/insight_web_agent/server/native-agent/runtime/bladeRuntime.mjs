@@ -134,8 +134,16 @@ export const createBladeRuntime = ({ env = process.env, cwd = process.cwd(), bla
     };
 
     /** 功能：延迟加载并缓存 Blade SDK，加载失败时返回 null 以启用诊断降级。 */
+    const importBladeSdk = async () => {
+        try {
+            return await import("@blade-ai/agent-sdk");
+        } catch (error) {
+            return handleBladeSdkLoadFailure(error);
+        }
+    };
+
     const loadSdk = async () => {
-        if (!sdkPromise) sdkPromise = import("@blade-ai/agent-sdk").catch(handleBladeSdkLoadFailure);
+        if (!sdkPromise) sdkPromise = importBladeSdk();
         return sdkPromise;
     };
 

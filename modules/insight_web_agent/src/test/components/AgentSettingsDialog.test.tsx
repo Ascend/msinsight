@@ -17,7 +17,7 @@
  */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { fetchAgentConfig, saveAgentConfig } from '../../api';
+import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../../api';
 import { useChatState } from '../../hooks/useChatState';
 import { AgentSettingsDialog } from '../../components/AgentSettingsDialog';
 import { ChatPanel } from '../../components/ChatPanel';
@@ -46,7 +46,9 @@ jest.mock('@insight/lib/icon/Icon', () => ({
 
 jest.mock('../../api', () => ({
     fetchAgentConfig: jest.fn(),
-    saveAgentConfig: jest.fn(),
+    saveAgentServersConfig: jest.fn(),
+    saveAgentSessionConfig: jest.fn(),
+    saveBuiltinAgentConfig: jest.fn(),
 }));
 
 jest.mock('../../hooks/useChatState', () => ({
@@ -68,6 +70,7 @@ const snapshot = {
     agentServers: [
         { name: 'OpenCode', command: 'opencode', args: ['acp'], env: { ACP_DEBUG: '1' } },
     ],
+    builtinAgent: { schemaVersion: 1, name: 'msinsight-native' as const, provider: 'openai', model: 'cx/gpt-5.5', baseUrl: 'http://127.0.0.1:19099/v1', apiKey: '' },
     sessionConfig: {
         requestTimeoutMs: 30000,
         promptRequestTimeoutMs: 300000,
@@ -82,7 +85,9 @@ const snapshot = {
 };
 
 const mockFetchAgentConfig = fetchAgentConfig as jest.Mock;
-const mockSaveAgentConfig = saveAgentConfig as jest.Mock;
+const mockSaveAgentServersConfig = saveAgentServersConfig as jest.Mock;
+const mockSaveAgentSessionConfig = saveAgentSessionConfig as jest.Mock;
+const mockSaveBuiltinAgentConfig = saveBuiltinAgentConfig as jest.Mock;
 
 beforeEach(() => {
     mockUseChatState.mockReturnValue({
@@ -93,7 +98,9 @@ beforeEach(() => {
         applyAgentConfigSnapshot: jest.fn(),
     });
     mockFetchAgentConfig.mockResolvedValue(snapshot);
-    mockSaveAgentConfig.mockResolvedValue({ ok: true, snapshot });
+    mockSaveAgentServersConfig.mockResolvedValue({ ok: true, snapshot });
+    mockSaveAgentSessionConfig.mockResolvedValue({ ok: true, snapshot });
+    mockSaveBuiltinAgentConfig.mockResolvedValue({ ok: true, snapshot });
 });
 
 afterEach(() => {
@@ -140,8 +147,8 @@ test('switches to edited non-active existing agent on save', async () => {
     fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
-    expect(mockSaveAgentConfig.mock.calls[0][0]).toEqual(expect.objectContaining({
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    expect(mockSaveAgentServersConfig.mock.calls[0][0]).toEqual(expect.objectContaining({
         activeAgentName: 'Claude',
         agentServers: expect.arrayContaining([
             expect.objectContaining({
@@ -163,7 +170,7 @@ test('rejects empty args before save', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByText('Args cannot be empty.')).toBeVisible();
-    expect(mockSaveAgentConfig).not.toHaveBeenCalled();
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
 });
 
 test('adds a new agent and saves without switching by default', async () => {
@@ -176,9 +183,9 @@ test('adds a new agent and saves without switching by default', async () => {
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
-    expect(mockSaveAgentConfig.mock.calls[0][0].activeAgentName).toBe('OpenCode');
-    expect(mockSaveAgentConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    expect(mockSaveAgentServersConfig.mock.calls[0][0].activeAgentName).toBe('OpenCode');
+    expect(mockSaveAgentServersConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: 'Claude', command: 'claude' }),
     ]));
 });
@@ -191,8 +198,8 @@ test('removes the last existing env row and saves an empty env object', async ()
     fireEvent.click(screen.getByRole('button', { name: 'Remove env 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
-    expect(mockSaveAgentConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    expect(mockSaveAgentServersConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
         expect.objectContaining({ name: 'OpenCode', env: {} }),
     ]));
 });
@@ -215,8 +222,8 @@ test('adds draft agent args and multiple env rows when saving and switching to t
     fireEvent.click(screen.getByLabelText('Save and switch to this agent'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
-    expect(mockSaveAgentConfig.mock.calls[0][0]).toEqual(expect.objectContaining({
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    expect(mockSaveAgentServersConfig.mock.calls[0][0]).toEqual(expect.objectContaining({
         activeAgentName: 'Claude',
         agentServers: expect.arrayContaining([
             expect.objectContaining({
@@ -245,8 +252,8 @@ test('adds and removes multiple extra path rows before save', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Remove path 3' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
-    expect(mockSaveAgentConfig.mock.calls[0][0].sessionConfig.defaultAllowlist.extraPaths).toEqual([
+    await waitFor(() => expect(mockSaveAgentSessionConfig).toHaveBeenCalledTimes(1));
+    expect(mockSaveAgentSessionConfig.mock.calls[0][0].defaultAllowlist.extraPaths).toEqual([
         'missing/path',
         'tmp/path',
     ]);
@@ -267,7 +274,7 @@ test('shows a clear busy message and disables save while a prompt is in flight',
 
     expect(screen.getByText('Agent is busy. Wait for the current prompt to finish before saving settings.')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
-    expect(mockSaveAgentConfig).not.toHaveBeenCalled();
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
 });
 
 test('settings save and reload keep the messages list untouched', async () => {
@@ -286,7 +293,7 @@ test('settings save and reload keep the messages list untouched', async () => {
             currentMessages = existingMessages;
         },
     }));
-    mockSaveAgentConfig.mockResolvedValue({ ok: true, snapshot: { ...snapshot, activeAgentName: 'OpenCode' } });
+    mockSaveAgentServersConfig.mockResolvedValue({ ok: true, snapshot: { ...snapshot, activeAgentName: 'OpenCode' } });
 
     render(<ChatPanel />);
 
@@ -296,7 +303,7 @@ test('settings save and reload keep the messages list untouched', async () => {
     await screen.findByText('Agent Runtime Settings');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(mockSaveAgentConfig).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(applyMock).toHaveBeenCalledTimes(1));
 
     expect(screen.getByText('messages')).toBeVisible();

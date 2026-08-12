@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "provider": "openai",
+  "model": "cx/gpt-5.5",
+  "baseUrl": "",
+  "apiKey": ""
+}

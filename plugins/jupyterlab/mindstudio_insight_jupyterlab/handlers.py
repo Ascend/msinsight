@@ -127,38 +127,10 @@ def find_available_port(host, start_port=9000, max_tries=100):
     return None
 
 
-def ensure_mindstudio_insight_dir(packaged_config_path=None):
+def ensure_mindstudio_insight_dir():
     mindstudio_insight_dir = os.path.join(os.path.expanduser('~'), '.mindstudio_insight')
     os.makedirs(mindstudio_insight_dir, mode=0o750, exist_ok=True)
-
-    config_path = os.path.join(mindstudio_insight_dir, 'agent-servers.json')
-    if packaged_config_path:
-        _merge_packaged_agent_config(config_path, packaged_config_path)
     return mindstudio_insight_dir
-
-
-def _merge_packaged_agent_config(config_path, packaged_config_path):
-    with open(packaged_config_path, 'r', encoding='utf-8') as file:
-        packaged = json.load(file)
-    if os.path.exists(config_path):
-        with open(config_path, 'r', encoding='utf-8') as file:
-            user_config = json.load(file)
-        user_servers = user_config.get('agentServers') if isinstance(user_config.get('agentServers'), list) else []
-        user_names = {str(server.get('name', '')).strip() for server in user_servers if isinstance(server, dict)}
-        missing = [
-            server for server in packaged.get('agentServers', [])
-            if str(server.get('name', '')).strip() not in user_names
-        ]
-        if not missing:
-            return
-        merged = {**user_config, 'agentServers': [*user_servers, *missing]}
-    else:
-        merged = packaged
-    temp_path = f'{config_path}.{os.getpid()}.tmp'
-    with open(temp_path, 'w', encoding='utf-8') as file:
-        json.dump(merged, file, indent=2)
-        file.write('\n')
-    os.replace(temp_path, config_path)
 
 
 def start_profiler_server():
@@ -227,8 +199,7 @@ def start_acp_node_service(allowed_origin):
         acp_service_dir = os.path.join(
             os.path.dirname(__file__), 'resources', 'profiler', 'server', 'insight_web_agent'
         )
-        packaged_config_path = os.path.join(acp_service_dir, 'agent-servers.json')
-        mindstudio_insight_dir = ensure_mindstudio_insight_dir(packaged_config_path)
+        mindstudio_insight_dir = ensure_mindstudio_insight_dir()
         acp_entry_path = os.path.join(acp_service_dir, 'index.mjs')
         if not os.path.isfile(acp_entry_path):
             logging.error('ACP node service entry does not exist: %s', acp_entry_path)

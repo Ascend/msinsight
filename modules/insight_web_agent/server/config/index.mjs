@@ -16,10 +16,15 @@
  * -------------------------------------------------------------------------
  */
 import { randomUUID } from "node:crypto";
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { bootstrapAgentServersConfig } from "./bootstrap.mjs";
 import { initLogger } from "../utils/logger.mjs";
+import { withAgentIdentity } from "../services/agentIdentityService.mjs";
+
+const NATIVE_CONFIG_FILE = "msinsight-native.json";
+const AGENT_SERVERS_CONFIG_FILE = "agent-servers.json";
+const DEFAULT_AGENT_SERVERS_CONFIG = { agentServers: [] };
+const DEFAULT_NATIVE_CONFIG = { schemaVersion: 1, provider: "openai", model: "cx/gpt-5.5", baseUrl: "http://127.0.0.1:19099/v1", apiKey: "" };
 
 const defaultRootDir = (() => {
     const entryDir = dirname(resolve(process.argv[1] ?? "."));
@@ -136,7 +141,36 @@ const mergeSessionConfig = (sessionConfig, env) => ({
 });
 
 const sessionConfigPathForRoot = (rootDir) => join(rootDir, "acp-session-conf.json");
-const agentServersConfigPathForRoot = (rootDir) => join(rootDir, "agent-servers.json");
+const agentServersConfigPathForRoot = (rootDir) => join(rootDir, AGENT_SERVERS_CONFIG_FILE);
+const nativeConfigPathForRoot = (rootDir) => join(rootDir, NATIVE_CONFIG_FILE);
+
+const ensureJsonConfig = ({ target, bundled, fallback, label }) => {
+    if (existsSync(target)) return target;
+    const value = existsSync(bundled) ? loadJsonConfig(bundled, label) : fallback;
+    try {
+        writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`, { encoding: "utf8", flag: "wx" });
+    } catch (error) {
+        // Another server process may have created the file after the existence check.
+        if (error?.code !== "EEXIST") throw error;
+    }
+    return target;
+};
+
+const ensureRuntimeConfigFiles = (rootDir, resourceDir) => {
+    mkdirSync(rootDir, { recursive: true });
+    ensureJsonConfig({
+        target: agentServersConfigPathForRoot(rootDir),
+        bundled: agentServersConfigPathForRoot(resourceDir),
+        fallback: DEFAULT_AGENT_SERVERS_CONFIG,
+        label: "ACP agent server config",
+    });
+    return ensureJsonConfig({
+        target: nativeConfigPathForRoot(rootDir),
+        bundled: nativeConfigPathForRoot(resourceDir),
+        fallback: DEFAULT_NATIVE_CONFIG,
+        label: "native agent config",
+    });
+};
 
 const loadResolvedSessionConfig = (rootDir, env) => mergeSessionConfig(
     normalizeSessionConfig(loadSessionConfig(sessionConfigPathForRoot(rootDir))),
@@ -215,9 +249,9 @@ const cliOptions = parseCliOptions(process.argv.slice(2));
 const rootDir = normalizeRootDir(cliOptions.path ?? process.env.ACP_ROOT ?? defaultRootDir);
 const resourceDir = normalizeRootDir(cliOptions.resourcePath ?? process.env.ACP_RESOURCE_ROOT ?? defaultRootDir);
 
-bootstrapAgentServersConfig(rootDir, resourceDir);
-
 const createRuntimeConfig = (rootDir, resourceDir, env) => {
+    const nativeConfigPath = ensureRuntimeConfigFiles(rootDir, resourceDir);
+    const nativeConfig = loadJsonConfig(nativeConfigPath, "native agent config");
     const {
         agentServersConfigPath,
         agentServersConfig,
@@ -228,7 +262,21 @@ const createRuntimeConfig = (rootDir, resourceDir, env) => {
         defaultAllowlist,
         extraAllowlistPaths,
     } = readRuntimeConfigBundle(rootDir, env);
-    const agentServers = normalizeAgentServers(agentServersConfig.agentServers);
+    const configuredAgentServers = normalizeAgentServers(agentServersConfig.agentServers)
+        .filter(({ name }) => name !== "msinsight-native")
+        .map((server) => withAgentIdentity(server, "configured"));
+    const builtinAgentServer = withAgentIdentity({
+        name: "msinsight-native",
+        command: "node",
+        args: ["server/native-agent/index.mjs"],
+        env: {
+            MSINSIGHT_NATIVE_PROVIDER: String(nativeConfig.provider ?? "openai"),
+            MSINSIGHT_NATIVE_MODEL: String(nativeConfig.model ?? ""),
+            MSINSIGHT_NATIVE_BASE_URL: String(nativeConfig.baseUrl ?? ""),
+            MSINSIGHT_NATIVE_API_KEY: String(nativeConfig.apiKey ?? ""),
+        },
+    }, "builtin");
+    const agentServers = [builtinAgentServer, ...configuredAgentServers];
     const requestedActiveAgentName = env.ACP_AGENT ?? agentServersConfig.activeAgent ?? agentServers[0]?.name;
     const agentServer = agentServers.find((server) => server.name === requestedActiveAgentName) ?? agentServers[0];
     const port = normalizePort(cliOptions.port ?? env.PORT, 9090);
@@ -252,6 +300,10 @@ const createRuntimeConfig = (rootDir, resourceDir, env) => {
         agentServersConfigPath,
         sessionConfigPath,
         agentServers,
+        configuredAgentServers,
+        builtinAgentServer,
+        builtinAgentConfig: nativeConfig,
+        nativeConfigPath,
         activeAgentName: agentServer.name,
         agentServer,
         host,
@@ -298,11 +350,9 @@ const writeJsonAtomic = (path, value) => {
     }
 };
 
-if (!process.env.ACP_AGENT && config.requestedActiveAgentName && config.requestedActiveAgentName !== config.agentServer.name) {
+if (!process.env.ACP_AGENT
+    && config.requestedActiveAgentName
+    && config.requestedActiveAgentName !== config.agentServer.name
+    && !/\(auto\)$/i.test(config.requestedActiveAgentName)) {
     console.warn(`Configured active agent "${config.requestedActiveAgentName}" is unavailable; using "${config.agentServer.name}".`);
-    try {
-        saveActiveAgent(config.agentServer.name);
-    } catch (error) {
-        console.warn(`Failed to save active agent fallback: ${error.message}`);
-    }
 }

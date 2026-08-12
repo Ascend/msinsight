@@ -4,7 +4,6 @@
 """Focused process lifecycle tests for the JupyterLab handlers."""
 
 import ast
-import json
 import os
 import sys
 import types
@@ -102,7 +101,7 @@ def test_handlers_module_has_one_header_and_one_definition_per_name():
 
 def test_start_profiler_server_records_spawn_and_returns_true(monkeypatch):
     process = FakeProcess()
-    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda: '/tmp/cache')
     monkeypatch.setattr(handlers, 'get_local_ip', lambda: '127.0.0.1')
     monkeypatch.setattr(handlers, 'find_available_port', lambda *_args: 9010)
     monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: True)
@@ -141,7 +140,7 @@ def test_start_profiler_server_controls_expected_failures(monkeypatch, failure):
 def test_start_acp_returns_none_for_path_node_and_spawn_failures(monkeypatch, failure):
     handlers.profiler_server_id = 'profiler'
     handlers.profiler_process['profiler'] = FakeProcess()
-    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda: '/tmp/cache')
     monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: failure != 'entry')
     monkeypatch.setattr(handlers, 'get_process_env', lambda: {'PATH': '/bin'})
     monkeypatch.setattr(handlers.shutil, 'which', lambda *_args, **_kwargs: None if failure == 'node' else '/bin/node')
@@ -218,7 +217,7 @@ def test_id_scoped_and_shutdown_cleanup_terminate_paired_children_safely():
 def test_rejects_old_node_before_allocating_or_spawning_acp(monkeypatch):
     handlers.profiler_server_id = 'profiler'
     handlers.profiler_process['profiler'] = FakeProcess()
-    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda: '/tmp/cache')
     monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: True)
     monkeypatch.setattr(handlers, 'get_process_env', lambda: {'PATH': '/bin'})
     monkeypatch.setattr(handlers.shutil, 'which', lambda *_args, **_kwargs: '/bin/node')
@@ -232,7 +231,7 @@ def test_rejects_old_node_before_allocating_or_spawning_acp(monkeypatch):
 def test_acp_launch_passes_random_capability_and_allowed_origin(monkeypatch):
     handlers.profiler_server_id = 'profiler'
     handlers.profiler_process['profiler'] = FakeProcess()
-    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda *_args: '/tmp/cache')
+    monkeypatch.setattr(handlers, 'ensure_mindstudio_insight_dir', lambda: '/tmp/cache')
     monkeypatch.setattr(handlers.os.path, 'isfile', lambda _path: True)
     monkeypatch.setattr(handlers, 'get_process_env', lambda: {'PATH': '/bin'})
     monkeypatch.setattr(handlers.shutil, 'which', lambda *_args, **_kwargs: '/bin/node')
@@ -267,32 +266,3 @@ def test_allowed_origin_uses_forwarded_values_only_when_proxy_headers_are_truste
 
     assert handlers._get_allowed_origin(request) == 'http://127.0.0.1:8888'
     assert handlers._get_allowed_origin(request, trust_xheaders=True) == 'https://notebooks.example.com'
-
-
-def test_packaged_config_merge_is_idempotent_and_preserves_user_selection(tmp_path):
-    cache_dir = tmp_path / 'cache'
-    cache_dir.mkdir()
-    user_path = cache_dir / 'agent-servers.json'
-    packaged_path = tmp_path / 'packaged.json'
-    user_path.write_text(json.dumps({
-        'activeAgent': 'Custom',
-        'agentServers': [
-            {'name': 'OpenCode', 'command': 'custom-opencode', 'args': ['acp']},
-            {'name': 'Custom', 'command': 'custom', 'args': []},
-        ],
-    }), encoding='utf-8')
-    packaged_path.write_text(json.dumps({
-        'activeAgent': 'Native',
-        'agentServers': [
-            {'name': 'OpenCode', 'command': 'opencode', 'args': ['acp']},
-            {'name': 'Native', 'command': 'node', 'args': ['native.mjs'], 'env': {}},
-        ],
-    }), encoding='utf-8')
-
-    handlers._merge_packaged_agent_config(str(user_path), str(packaged_path))
-    handlers._merge_packaged_agent_config(str(user_path), str(packaged_path))
-    result = json.loads(user_path.read_text(encoding='utf-8'))
-
-    assert result['activeAgent'] == 'Custom'
-    assert [agent['name'] for agent in result['agentServers']] == ['OpenCode', 'Custom', 'Native']
-    assert result['agentServers'][0]['command'] == 'custom-opencode'

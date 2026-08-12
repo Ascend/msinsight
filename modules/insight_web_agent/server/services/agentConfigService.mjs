@@ -18,49 +18,74 @@
 import { randomUUID } from "node:crypto";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { agentLaunchKey, BUILTIN_AGENT_NAME } from "./agentIdentityService.mjs";
 
 const AGENT_CONFIG_FILE = "agent-servers.json";
 const SESSION_CONFIG_FILE = "acp-session-conf.json";
+const NATIVE_CONFIG_FILE = "msinsight-native.json";
 const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 const DEFAULT_PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
 
-export const createAgentConfigService = ({ rootDir, state, reloadRuntime, tempId = randomUUID } = {}) => {
+export const createAgentConfigService = ({ rootDir, state, beforeReload, reloadRuntime, tempId = randomUUID } = {}) => {
     const agentConfigPath = join(rootDir, AGENT_CONFIG_FILE);
     const sessionConfigPath = join(rootDir, SESSION_CONFIG_FILE);
+    const nativeConfigPath = join(rootDir, NATIVE_CONFIG_FILE);
 
     const readSnapshot = async () => {
-        const [agentConfig, sessionConfig] = await Promise.all([
+        const [agentConfig, sessionConfig, builtinAgent] = await Promise.all([
             readJson(agentConfigPath),
             readOptionalJson(sessionConfigPath),
+            readJson(nativeConfigPath),
         ]);
-        return normalizeSnapshot(agentConfig, sessionConfig);
+        return normalizeSnapshot(agentConfig, sessionConfig, builtinAgent);
     };
 
-    const saveSnapshot = async (input) => {
+    const saveAgentServers = async (input) => {
         const currentSnapshot = await readSnapshot();
         if (isBusy(state)) return structuredError("agent_busy", "Agent is busy", 409);
-
-        const validation = validateSnapshot(input, currentSnapshot);
+        const validation = validateAgentConfig(input, currentSnapshot);
         if (validation.error) return validation;
-
-        const snapshot = validation.snapshot;
-        try {
-            await saveConfigFiles({ agentConfigPath, sessionConfigPath, snapshot, tempId });
-        } catch (error) {
-            return structuredError("config_write_failed", error.message, 500);
-        }
-
-        try {
-            const latestSnapshot = await readSnapshot();
-            await reloadRuntime?.(latestSnapshot);
-            return { ok: true, snapshot: latestSnapshot };
-        } catch (error) {
-            return structuredError("reload_failed", error.message, 500, { saved: true });
-        }
+        return saveSection({
+            path: agentConfigPath,
+            value: validation.config,
+            readSnapshot,
+            beforeReload,
+            reloadRuntime,
+            tempId,
+            section: "agentServers",
+        });
     };
 
-    return { readSnapshot, saveSnapshot };
+    const saveBuiltinAgent = async (input) => {
+        if (isBusy(state)) return structuredError("agent_busy", "Agent is busy", 409);
+        const validation = validateBuiltinConfig(input);
+        if (validation.error) return validation;
+        return saveSection({
+            path: nativeConfigPath,
+            value: validation.config,
+            readSnapshot,
+            reloadRuntime,
+            tempId,
+            section: "builtinAgent",
+        });
+    };
+
+    const saveSessionConfig = async (input) => {
+        if (isBusy(state)) return structuredError("agent_busy", "Agent is busy", 409);
+        const validation = validateSessionConfigInput(input);
+        if (validation.error) return validation;
+        return saveSection({
+            path: sessionConfigPath,
+            value: validation.config,
+            readSnapshot,
+            reloadRuntime,
+            tempId,
+            section: "sessionConfig",
+        });
+    };
+
+    return { readSnapshot, saveAgentServers, saveBuiltinAgent, saveSessionConfig };
 };
 
 const readJson = async (path) => JSON.parse((await readFile(path, "utf8")).replace(/^﻿/, ""));
@@ -74,18 +99,30 @@ const readOptionalJson = async (path) => {
     }
 };
 
-const normalizeSnapshot = (agentConfig = {}, sessionConfig = {}) => {
+const normalizeSnapshot = (agentConfig = {}, sessionConfig = {}, builtinAgent = {}) => {
     const agentServers = normalizeAgentServers(agentConfig.agentServers);
     const requestedActiveAgentName = String(agentConfig.activeAgent ?? agentServers[0]?.name ?? "").trim();
-    const activeAgentName = agentServers.some((server) => server.name === requestedActiveAgentName)
+    const activeAgentName = requestedActiveAgentName === BUILTIN_AGENT_NAME
+        || isDiscoveredAgentName(requestedActiveAgentName)
+        || agentServers.some((server) => server.name === requestedActiveAgentName)
         ? requestedActiveAgentName
-        : agentServers[0]?.name;
+        : agentServers[0]?.name ?? BUILTIN_AGENT_NAME;
     return {
         activeAgentName,
         agentServers,
+        builtinAgent: normalizeBuiltinAgent(builtinAgent),
         sessionConfig: normalizeSessionConfig(sessionConfig),
     };
 };
+
+const normalizeBuiltinAgent = (config = {}) => ({
+    schemaVersion: 1,
+    name: BUILTIN_AGENT_NAME,
+    provider: String(config.provider ?? "openai"),
+    model: String(config.model ?? ""),
+    baseUrl: String(config.baseUrl ?? ""),
+    apiKey: String(config.apiKey ?? ""),
+});
 
 const normalizeAgentServers = (servers) => Array.isArray(servers)
     ? servers.map((server) => ({
@@ -120,24 +157,60 @@ const normalizeTimeout = (value, fallback) => {
     return Number.isFinite(timeout) && timeout > 0 ? timeout : fallback;
 };
 
-const validateSnapshot = (input, currentSnapshot) => {
-    if (!input || typeof input !== "object" || Array.isArray(input)) return structuredError("validation_failed", "snapshot must be an object", 400);
+const validateAgentConfig = (input, currentSnapshot) => {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return structuredError("validation_failed", "agent config must be an object", 400);
     const errors = [];
     const agentServers = validateAgentServers(input.agentServers, currentSnapshot, errors);
     const activeAgentName = String(input.activeAgentName ?? "").trim();
     if (!activeAgentName) errors.push({ field: "activeAgentName", message: "active agent is required" });
-    if (activeAgentName && !agentServers.some((server) => server.name === activeAgentName)) {
+    if (activeAgentName
+        && activeAgentName !== BUILTIN_AGENT_NAME
+        && !isDiscoveredAgentName(activeAgentName)
+        && !agentServers.some((server) => server.name === activeAgentName)) {
         errors.push({ field: "activeAgentName", message: "active agent must reference a configured agent" });
     }
-    const sessionConfig = validateSessionConfig(input.sessionConfig, errors);
+    const duplicateLaunch = findLaunchDuplicate(agentServers);
 
     if (errors.length) return structuredError("validation_failed", errors[0].message, 400, { details: errors });
-    return { snapshot: { activeAgentName, agentServers, sessionConfig } };
+    if (duplicateLaunch) {
+        return structuredError(
+            "duplicate_agent_launch",
+            `ACP launch command duplicates configured agent: ${duplicateLaunch.existing.name}`,
+            409,
+            {
+                conflictingAgent: duplicateLaunch.existing.name,
+                duplicateAgent: duplicateLaunch.duplicate.name,
+                launchKey: duplicateLaunch.launchKey,
+            },
+        );
+    }
+    return { config: { activeAgent: activeAgentName, agentServers } };
+};
+
+const validateBuiltinConfig = (input) => {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return structuredError("validation_failed", "built-in agent config must be an object", 400);
+    const errors = [];
+    const config = validateBuiltinAgent(input, errors);
+    if (errors.length) return structuredError("validation_failed", errors[0].message, 400, { details: errors });
+    return { config: {
+        schemaVersion: 1,
+        provider: config.provider,
+        model: config.model,
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+    } };
+};
+
+const validateSessionConfigInput = (input) => {
+    const errors = [];
+    const config = validateSessionConfig(input, errors);
+    if (errors.length) return structuredError("validation_failed", errors[0].message, 400, { details: errors });
+    return { config };
 };
 
 const validateAgentServers = (servers, currentSnapshot, errors) => {
-    if (!Array.isArray(servers) || !servers.length) {
-        errors.push({ field: "agentServers", message: "at least one agent server is required" });
+    if (!Array.isArray(servers)) {
+        errors.push({ field: "agentServers", message: "agent servers must be an array" });
         return [];
     }
 
@@ -148,6 +221,8 @@ const validateAgentServers = (servers, currentSnapshot, errors) => {
         const args = Array.isArray(server?.args) ? server.args.map((arg) => String(arg).trim()) : undefined;
         const env = validateEnv(server?.env, `agentServers.${index}.env`, errors);
         if (!name) errors.push({ field: `agentServers.${index}.name`, message: "agent name is required" });
+        if (name === BUILTIN_AGENT_NAME) errors.push({ field: `agentServers.${index}.name`, message: `${BUILTIN_AGENT_NAME} is reserved for the built-in agent` });
+        if (/\(auto\)$/i.test(name)) errors.push({ field: `agentServers.${index}.name`, message: "agent names ending in (auto) are reserved for discovered agents" });
         if (seen.has(name)) errors.push({ field: `agentServers.${index}.name`, message: "agent names must be unique" });
         seen.add(name);
         if (!command) errors.push({ field: `agentServers.${index}.command`, message: "agent command is required" });
@@ -166,6 +241,27 @@ const validateAgentServers = (servers, currentSnapshot, errors) => {
     }
     return normalized;
 };
+
+const validateBuiltinAgent = (input, errors) => {
+    const config = normalizeBuiltinAgent(input);
+    if (!config.provider.trim()) errors.push({ field: "builtinAgent.provider", message: "provider is required" });
+    if (!config.model.trim()) errors.push({ field: "builtinAgent.model", message: "model is required" });
+    if (!config.baseUrl.trim()) errors.push({ field: "builtinAgent.baseUrl", message: "base URL is required" });
+    return config;
+};
+
+const findLaunchDuplicate = (servers) => {
+    const seen = new Map();
+    for (const server of servers) {
+        const key = agentLaunchKey(server);
+        const existing = seen.get(key);
+        if (existing) return { existing, duplicate: server, launchKey: key };
+        seen.set(key, server);
+    }
+    return undefined;
+};
+
+const isDiscoveredAgentName = (name) => /\(auto\)$/i.test(String(name ?? "").trim());
 
 const validateEnv = (env, field, errors) => {
     if (!env || typeof env !== "object" || Array.isArray(env)) return {};
@@ -213,30 +309,29 @@ const validateDefaultAllowlist = (input = {}, errors) => {
     };
 };
 
-const saveConfigFiles = async ({ agentConfigPath, sessionConfigPath, snapshot, tempId }) => {
-    const agentConfig = {
-        activeAgent: snapshot.activeAgentName,
-        agentServers: snapshot.agentServers,
-    };
-    const pendingWrites = [
-        { path: agentConfigPath, value: agentConfig },
-        { path: sessionConfigPath, value: snapshot.sessionConfig },
-    ].map(({ path, value }) => ({
-        path,
-        value,
-        tempPath: `${path}.${process.pid}.${tempId()}.tmp`,
-    }));
-
+const saveSection = async ({ path, value, readSnapshot, beforeReload, reloadRuntime, tempId, section }) => {
+    const tempPath = `${path}.${process.pid}.${tempId()}.tmp`;
     try {
-        for (const pending of pendingWrites) {
-            await writeFile(pending.tempPath, `${JSON.stringify(pending.value, null, 2)}\n`, "utf8");
-        }
-        for (const pending of pendingWrites) {
-            await rename(pending.tempPath, pending.path);
-        }
+        await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+        await rename(tempPath, path);
     } catch (error) {
-        await Promise.all(pendingWrites.map(({ tempPath }) => rm(tempPath, { force: true }).catch(() => {})));
-        throw error;
+        try {
+            await rm(tempPath, { force: true });
+        } catch {
+            // Preserve the original write error when temporary cleanup fails.
+        }
+        return structuredError("config_write_failed", error.message, 500);
+    }
+
+    let rollbackBeforeReload;
+    try {
+        const snapshot = await readSnapshot();
+        rollbackBeforeReload = await beforeReload?.(snapshot);
+        await reloadRuntime?.(snapshot, section);
+        return { ok: true, snapshot };
+    } catch (error) {
+        await rollbackBeforeReload?.();
+        return structuredError("reload_failed", error.message, 500, { saved: true });
     }
 };
 

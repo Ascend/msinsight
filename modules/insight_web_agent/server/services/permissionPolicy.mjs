@@ -38,6 +38,7 @@ export const createDefaultAllowlist = async ({
     rootDir,
     cwd,
     activeAgentName,
+    activeAgentWorkspaceKey,
     projectRoot,
     includeDocsRoot = true,
     includeAgentWorkspaceRoot = true,
@@ -46,7 +47,7 @@ export const createDefaultAllowlist = async ({
 } = {}) => {
     const candidates = [
         includeDocsRoot && rootDir ? join(rootDir, "docs") : undefined,
-        includeAgentWorkspaceRoot ? (cwd && activeAgentName ? join(cwd, activeAgentName) : cwd) : undefined,
+        includeAgentWorkspaceRoot ? (cwd && activeAgentName ? join(cwd, activeAgentWorkspaceKey ?? activeAgentName) : cwd) : undefined,
         includeProjectRoot ? projectRoot : undefined,
         ...extraPaths,
     ].filter(Boolean);

@@ -20,7 +20,7 @@ import { Drawer } from 'antd';
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { Button, Select } from '@insight/lib/components';
-import { AddIcon, CaretRightIcon, DeleteIcon } from '@insight/lib/icon/Icon';
+import { AddIcon, CaretRightIcon, DeleteIcon, RefreshIcon } from '@insight/lib/icon/Icon';
 import { useTranslation } from 'react-i18next';
 import { useChatState } from '../hooks/useChatState';
 
@@ -188,11 +188,13 @@ export const SessionSidebar = (): JSX.Element => {
         activeAgentName,
         agentError,
         agentServers,
+        agentDiscoveryLoading,
         currentSessionId,
         deleteSession,
         sessions,
         selectSession,
         setAgent,
+        refreshAgents,
     } = useChatState();
     const [open, setOpen] = useState(false);
     const { t } = useTranslation('insightWebAgent');
@@ -211,6 +213,16 @@ export const SessionSidebar = (): JSX.Element => {
                 value={activeAgentName}
                 width="130px"
             />
+            <button
+                aria-label={t('refreshAgents')}
+                className="icon-button"
+                disabled={agentDiscoveryLoading}
+                onClick={() => { refreshAgents(); }}
+                title={t('refreshAgents')}
+                type="button"
+            >
+                <RefreshIcon />
+            </button>
             {agentError && <span className="agent-error" title={agentError}>{t('agentError')}</span>}
             <span className="session-title-bar" title={activeSession?.title || activeSession?.sessionId || t('newSession')}>
                 {activeSession?.title || activeSession?.sessionId || t('newSession')}

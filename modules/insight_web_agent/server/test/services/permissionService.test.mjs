@@ -39,11 +39,18 @@ const permissionRequests = (events) => events.filter((event) => event.type === "
 const expectNoPrompt = (fixture) => assert.deepEqual(fixture.events, []);
 const evaluatePath = (fixture, path) => fixture.service.evaluate({ sessionId: "s1", path });
 const realExternalPath = async (fixture) => realpath(fixture.external);
+const settleOutcome = async (promise) => {
+    try {
+        await promise;
+        return "resolved";
+    } catch (error) {
+        return `rejected:${error.message}`;
+    }
+};
 const expectSettlesSoon = (promise) => Promise.race([
-    promise.then(() => "resolved", (error) => `rejected:${error.message}`),
+    settleOutcome(promise),
     new Promise((resolve) => setTimeout(() => resolve("pending"), 100)),
 ]);
-const settleOutcome = (promise) => promise.then(() => "resolved", (error) => `rejected:${error.message}`);
 const waitForPermissionRequest = async (events) => {
     for (let index = 0; index < 100; index += 1) {
         const request = events.findLast((event) => event.type === "permission_request");

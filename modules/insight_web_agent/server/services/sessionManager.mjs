@@ -22,7 +22,7 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 export const createSessionManager = ({ adapter, eventBus, state, config, auditLogger, permissionService }) => {
     let sessionService;
 
-    const getAgentCwd = () => join(config.cwd, state.activeAgentName ?? config.agentServer?.name ?? adapter.agentId ?? "");
+    const getAgentCwd = () => join(config.cwd, state.activeAgentWorkspaceKey ?? state.activeAgentName ?? config.agentServer?.name ?? adapter.agentId ?? "");
 
     const cloneSessionContext = (context) => ({
         ...context,
