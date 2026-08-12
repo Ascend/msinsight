@@ -258,6 +258,20 @@ Insight Web Agent 是一个独立 Node ESM runtime，承载 ACP（Agent Control 
 
 适合改 `server/**/*.mjs` 后立刻看效果，不依赖 esbuild。
 
+同时调试 Web Agent 前端和服务端时，可分别在两个终端执行以下命令。开发脚本会使用仅供本机调试的共享 token，并将服务端限制在默认 loopback 地址；无需额外设置环境变量。
+
+```bash
+cd modules/insight_web_agent
+pnpm server
+```
+
+```bash
+cd modules/insight_web_agent
+pnpm start
+```
+
+浏览器访问 `http://127.0.0.1:3010`。开发前端和服务端均仅监听 loopback，前端直接请求 `127.0.0.1:9090`，不通过开发服务器代理。直接执行 Node 入口时仍必须显式提供 token：
+
 ```bash
 cd modules/insight_web_agent
 ACP_CAPABILITY_TOKEN=<development-token> node server/index.mjs --path . --port 9002

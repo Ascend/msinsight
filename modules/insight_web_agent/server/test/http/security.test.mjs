@@ -11,13 +11,13 @@ import test from "node:test";
 import { createApp } from "../../app.mjs";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
 
-const startFixture = async () => {
+const startFixture = async (allowedOrigins = ["http://127.0.0.1:9000"]) => {
     let sseConnections = 0;
     let agentSwitches = 0;
     const state = createRuntimeState();
     const server = createApp({
         capabilityToken: "test-capability",
-        allowedOrigins: ["http://127.0.0.1:9000"],
+        allowedOrigins,
         state,
         agentService: {
             list: () => ({ agentServers: [] }),
@@ -64,6 +64,26 @@ test("emits CORS only for the explicit allowed origin and rejects other origins"
     const allowed = await fetch(path, { headers: { origin: "http://127.0.0.1:9000" } });
     assert.equal(allowed.status, 200);
     assert.equal(allowed.headers.get("access-control-allow-origin"), "http://127.0.0.1:9000");
+
+    const rejected = await fetch(path, { headers: { origin: "https://attacker.invalid" } });
+    assert.equal(rejected.status, 403);
+    assert.equal(rejected.headers.get("access-control-allow-origin"), null);
+});
+
+test("supports packaged Wry origins without allowing arbitrary browser origins", async (t) => {
+    const fixture = await startFixture(["wry://localhost", "http://wry.localhost", "*"]);
+    t.after(() => fixture.server.close());
+    const path = `${fixture.url}/api/state?capabilityToken=test-capability`;
+
+    for (const origin of ["wry://localhost", "http://wry.localhost"]) {
+        const response = await fetch(path, { headers: { origin } });
+        assert.equal(response.status, 200);
+        assert.equal(response.headers.get("access-control-allow-origin"), origin);
+    }
+
+    const legacyLinux = await fetch(path);
+    assert.equal(legacyLinux.status, 200);
+    assert.equal(legacyLinux.headers.get("access-control-allow-origin"), "*");
 
     const rejected = await fetch(path, { headers: { origin: "https://attacker.invalid" } });
     assert.equal(rejected.status, 403);
