@@ -22,12 +22,6 @@ module.exports = {
     devServer: {
         port: 3010,
         open: false,
-        proxy: {
-            '/api': {
-                target: 'http://localhost:9090',
-                changeOrigin: true,
-            },
-        },
     },
     webpack: {
         alias: {

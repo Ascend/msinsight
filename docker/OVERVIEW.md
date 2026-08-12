@@ -146,6 +146,8 @@ In the examples above, `<host_ip>` is the IP address of the host where the conta
 
 The container redirects `/` to `/?proxy=true`. The frontend connects to the current browser port, and nginx proxies WebSocket traffic to the backend service inside the container.
 
+> **Known limitation:** The current single-service Docker image does not start the Insight Web Agent ACP/Node runtime or configure its nginx API/SSE proxy and capability token. The Agent entry may be visible in the UI, but the feature is currently unavailable in the Docker deployment. Do not expose the container's ACP management port directly as a workaround.
+
 ### Local Build
 
 #### Build Ubuntu Image

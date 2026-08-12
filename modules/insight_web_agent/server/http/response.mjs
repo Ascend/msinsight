@@ -25,6 +25,9 @@ export const applyCors = (req, res, allowedOrigins = []) => {
     if (origin && allowedOrigins.includes(origin)) {
         res.setHeader("access-control-allow-origin", origin);
         res.setHeader("vary", "origin");
+    } else if (!origin && allowedOrigins.includes("*")) {
+        // Legacy Linux Wry omits Origin for custom-protocol pages but still enforces CORS.
+        res.setHeader("access-control-allow-origin", "*");
     }
     res.setHeader("access-control-allow-methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("access-control-allow-headers", "content-type");

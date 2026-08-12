@@ -22,9 +22,16 @@ declare global {
 }
 
 const acpPort = new URLSearchParams(window.location.search).get('acpPort');
-const capabilityToken = new URLSearchParams(window.location.search).get('capabilityToken');
+export const resolveCapabilityToken = (
+    search: string = window.location.search,
+    nodeEnv: string | undefined = process.env.NODE_ENV,
+    developmentToken: string | undefined = process.env.REACT_APP_ACP_CAPABILITY_TOKEN,
+): string => new URLSearchParams(search).get('capabilityToken')
+    || (nodeEnv === 'development' ? developmentToken ?? '' : '');
+
+const capabilityToken = resolveCapabilityToken();
 const jupyterlabProxy = new URLSearchParams(window.location.search).get('jupyterlabProxy') === 'true';
-const defaultApiBase = process.env.NODE_ENV === 'development' ? 'http://localhost:9090' : '';
+const defaultApiBase = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:9090' : '';
 
 type AcpLocation = Pick<Location, 'host' | 'hostname' | 'pathname' | 'protocol'>;
 
@@ -50,7 +57,8 @@ export const resolveAcpPortBase = (
         return `${apiProtocol}${host}${path}/proxy/${port}`;
     }
     if (!pathname.includes('/proxy/')) {
-        const hostname = protocol === 'wry:' ? '127.0.0.1' : location.hostname || 'localhost';
+        const isWryProtocol = protocol === 'wry:' || location.hostname === 'wry.localhost';
+        const hostname = isWryProtocol ? '127.0.0.1' : location.hostname || 'localhost';
         return `${apiProtocol}${hostname}:${port}`;
     }
     const path = pathname.replace(/\/proxy\/\d+.*/, `/proxy/${port}`);

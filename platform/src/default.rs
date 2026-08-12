@@ -145,7 +145,7 @@ fn run_acp_server(
     #[cfg(windows)]
     server_command.creation_flags(NO_WINDOW_FLAG);
 
-    match server_command
+    server_command
         .arg(entry_path)
         .arg("--path")
         .arg(cache_path)
@@ -154,12 +154,27 @@ fn run_acp_server(
         .arg("--port")
         .arg(port.to_string())
         .arg("--host")
-        .arg("127.0.0.1")
+        .arg("127.0.0.1");
+
+    #[cfg(target_os = "macos")]
+    server_command
+        .arg("--allowed-origin")
+        .arg("wry://localhost");
+    #[cfg(windows)]
+    server_command
+        .arg("--allowed-origin")
+        .arg("http://wry.localhost");
+    #[cfg(target_os = "linux")]
+    // Legacy Wry omits Origin on Linux but still requires a CORS response.
+    server_command
         .arg("--allowed-origin")
         .arg("wry://localhost")
-        .env("ACP_CAPABILITY_TOKEN", capability_token)
-        .spawn()
-    {
+        .arg("--allowed-origin")
+        .arg("*");
+
+    server_command.env("ACP_CAPABILITY_TOKEN", capability_token);
+
+    match server_command.spawn() {
         Ok(child) => unsafe {
             ACP_PID = child.id();
             true

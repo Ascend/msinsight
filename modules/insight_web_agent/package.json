@@ -10,8 +10,8 @@
     "@blade-ai/agent-sdk": "1.1.0"
   },
   "scripts": {
-    "start": "cross-env DISABLE_ESLINT_PLUGIN=true craco start",
-    "server": "node server/index.mjs",
+    "start": "cross-env HOST=127.0.0.1 DISABLE_ESLINT_PLUGIN=true REACT_APP_ACP_CAPABILITY_TOKEN=msinsight-local-development-only craco start",
+    "server": "cross-env ACP_CAPABILITY_TOKEN=msinsight-local-development-only ACP_ALLOWED_ORIGINS=http://localhost:3010,http://127.0.0.1:3010 node server/index.mjs --host 127.0.0.1 --port 9090",
     "server:build": "node scripts/build-server.mjs",
     "server:build:test": "node --test server/test/integration/nativeAgentPackagedEntry.test.mjs",
     "build": "cross-env DISABLE_ESLINT_PLUGIN=true craco build"
