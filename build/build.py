@@ -31,6 +31,14 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from typing import List
+from pathlib import Path
+from sign_windows import (
+    signing_enabled,
+    sign_many,
+    sign_and_verify,
+    print_sha256,
+)
+
 
 PROJECT_PATH = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -433,6 +441,28 @@ def package_win(dst_file: str, preview_dir: str) -> bool:
     return False
 
 
+def collect_inner_exes(preview_dir: str) -> List[Path]:
+    preview_path = Path(preview_dir)
+    candidates = [preview_path / 'MindStudio-Insight.exe']
+    resources_path = preview_path / 'resources'
+
+    if resources_path.is_dir():
+        candidates.extend(resources_path.rglob('*.exe'))
+
+    result = []
+    seen = set()
+    for candidate in candidates:
+        candidate = candidate.resolve()
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        if candidate.is_file():
+            result.append(candidate)
+        else:
+            logging.info('[%s] Inner exe not found, skip signing: %s', 'sign', candidate)
+    return result
+
+
 def package_linux(dst_file: str, preview_dir: str) -> bool:
     """
         Linux版本打包，输出件为MindStudio-Insight_{版本}_linux_{arch}.zip压缩包
@@ -483,7 +513,11 @@ def package_mac(dst_file: str, package_name: str, preview_dir: str, target_dir: 
 def build_platform_package(dst_file: str, package_name: str, preview_dir: str, target_dir: str) -> bool:
     system = platform.system()
     if system == Const.WINDOWS_OS:
-        return package_win(dst_file, preview_dir)
+        result = package_win(dst_file, preview_dir)
+        if result and signing_enabled():
+            sign_and_verify(dst_file)
+            print_sha256(dst_file)
+        return result
     if system == Const.MAC_OS:
         return package_mac(dst_file, package_name, preview_dir, target_dir)
     return package_linux(dst_file, preview_dir)
@@ -513,6 +547,8 @@ def zip_package(profiler_path, package_name, preview_dir: str, target_dir: str):
     # ------ {cluster_analyze}  可能为源码引入或二进制
     server_dir = os.path.join(profiler_path, Const.SERVER_DIR)
     msprof_analyze_dir = os.path.join(server_dir, "msprof_analyze")
+    if system == Const.WINDOWS_OS and signing_enabled():
+        sign_many(collect_inner_exes(preview_dir))
     traverse_folder_and_chmod(preview_dir, 0o750, 0o440)
     traverse_folder_and_chmod(server_dir, 0o750, 0o550)
     if not os.path.isdir(msprof_analyze_dir):
