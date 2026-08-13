@@ -23,6 +23,7 @@ import { BottomTab } from './BottomTab';
 import useWorkerMessage from '@/leaksWorker/useWorkerMessage';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
+import OpfsFallbackNotice from '../OpfsFallbackNotice';
 
 const LeaksPage = styled.div`
     position: relative;
@@ -141,6 +142,7 @@ const index = observer((props: { session: Session }) => {
             <MemoryStack session={session} />
         </ContentArea>
         <BottomTab session={session} />
+        <OpfsFallbackNotice />
         {session.memSnapshotParseLoading
             ? <ParseLoadingMask>
                 <ParseLoadingPanel>

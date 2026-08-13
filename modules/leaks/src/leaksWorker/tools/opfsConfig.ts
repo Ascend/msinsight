@@ -17,6 +17,18 @@
  */
 
 let opfsUnavailableWarned = false;
+let opfsRuntimeUnavailable = false;
+const OPFS_PROBE_FILE = 'probe';
+
+export const markLeaksOpfsUnavailable = (error?: unknown): void => {
+    opfsRuntimeUnavailable = true;
+    if (opfsUnavailableWarned) {
+        return;
+    }
+    opfsUnavailableWarned = true;
+    // eslint-disable-next-line no-console
+    console.warn('[leaks] OPFS unavailable, non-cached loading requires user confirmation.', error);
+};
 
 // 块路径算法或 OPFS 存储结构发生变化时需要升级此前端缓存版本。
 // 该版本会参与生成 storageKey，确保不兼容的数据不会复用旧缓存。
@@ -43,15 +55,107 @@ export const createLeaksOpfsRuntimeId = (): string => {
 
 export const isLeaksOpfsEnabled = (): boolean => {
     const globalFlag = (globalThis as { LEAKS_OPFS_ENABLED?: boolean }).LEAKS_OPFS_ENABLED;
-    if (globalFlag === false) {
+    if (globalFlag === false || opfsRuntimeUnavailable) {
         return false;
     }
     const available = typeof navigator !== 'undefined' &&
         typeof navigator.storage?.getDirectory === 'function';
     if (!available && !opfsUnavailableWarned) {
-        opfsUnavailableWarned = true;
-        // eslint-disable-next-line no-console
-        console.warn('[leaks] OPFS unavailable, falling back to in-memory block path storage.');
+        markLeaksOpfsUnavailable();
     }
     return available;
+};
+
+export const getLeaksOpfsRoot = async (): Promise<FileSystemDirectoryHandle | null> => {
+    if (!isLeaksOpfsEnabled()) {
+        return null;
+    }
+    try {
+        return await navigator.storage.getDirectory();
+    } catch (error) {
+        markLeaksOpfsUnavailable(error);
+        return null;
+    }
+};
+
+export const getLeaksOpfsDirectory = async (name: string): Promise<FileSystemDirectoryHandle | null> => {
+    const root = await getLeaksOpfsRoot();
+    if (!root) {
+        return null;
+    }
+    try {
+        return await root.getDirectoryHandle(name, { create: true });
+    } catch (error) {
+        markLeaksOpfsUnavailable(error);
+        return null;
+    }
+};
+
+const removeProbeDirectory = async (
+    root: FileSystemDirectoryHandle,
+    directoryName: string,
+): Promise<void> => {
+    try {
+        await root.removeEntry?.(directoryName, { recursive: true });
+    } catch {
+        // Probe cleanup must not change the capability result.
+    }
+};
+
+const createProbeDirectoryName = (): string => `leaks-opfs-probe-${createLeaksOpfsRuntimeId()}`;
+
+export const checkLeaksOpfsAvailability = async (): Promise<boolean> => {
+    const root = await getLeaksOpfsRoot();
+    if (!root) {
+        return false;
+    }
+    const directoryName = createProbeDirectoryName();
+    try {
+        const directory = await root.getDirectoryHandle(directoryName, { create: true });
+        const file = await directory.getFileHandle(OPFS_PROBE_FILE, { create: true });
+        const writable = await file.createWritable();
+        await writable.write(new Uint8Array([1]));
+        await writable.close();
+        return true;
+    } catch (error) {
+        markLeaksOpfsUnavailable(error);
+        return false;
+    } finally {
+        await removeProbeDirectory(root, directoryName);
+    }
+};
+
+export const checkLeaksOpfsSyncAvailability = async (): Promise<boolean> => {
+    const root = await getLeaksOpfsRoot();
+    if (!root) {
+        return false;
+    }
+    const directoryName = createProbeDirectoryName();
+    let accessHandle: FileSystemSyncAccessHandle | null = null;
+    try {
+        const directory = await root.getDirectoryHandle(directoryName, { create: true });
+        const file = await directory.getFileHandle(OPFS_PROBE_FILE, { create: true });
+        accessHandle = await file.createSyncAccessHandle();
+        accessHandle.truncate(0);
+        const probe = new Uint8Array([1]);
+        if (accessHandle.write(probe, { at: 0 }) !== probe.byteLength) {
+            throw new Error('Failed to write OPFS probe data');
+        }
+        accessHandle.flush();
+        const result = new Uint8Array(1);
+        if (accessHandle.read(result, { at: 0 }) !== result.byteLength || result[0] !== probe[0]) {
+            throw new Error('Failed to read OPFS probe data');
+        }
+        return true;
+    } catch (error) {
+        markLeaksOpfsUnavailable(error);
+        return false;
+    } finally {
+        try {
+            accessHandle?.close();
+        } catch {
+            // A failed probe handle no longer needs to be reused.
+        }
+        await removeProbeDirectory(root, directoryName);
+    }
 };

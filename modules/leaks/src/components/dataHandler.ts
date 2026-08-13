@@ -35,6 +35,7 @@ import {
 } from '../utils/RequestUtils';
 import { message } from 'antd';
 import { runInAction } from 'mobx';
+import { ensureOpfsOrWaitForFallbackApproval } from './opfsFallback';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
 const barDataRequestSeqMap = new WeakMap<object, number>();
@@ -95,6 +96,12 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
     const requestSeq = (barDataRequestSeqMap.get(session) ?? 0) + 1;
     barDataRequestSeqMap.set(session, requestSeq);
     const isLatestRequest = (): boolean => barDataRequestSeqMap.get(session) === requestSeq;
+    if (session.module === 'memsnapshot') {
+        await ensureOpfsOrWaitForFallbackApproval();
+        if (!isLatestRequest()) {
+            return;
+        }
+    }
     const getBlocksRequest = session.module === 'leaks' ? getBlocksGraphData : getSnapshotBlocks;
     const getAllocationRequest = session.module === 'leaks' ? getLeaksAllocationsData : getSnapshotAllocations;
     runInAction(() => {

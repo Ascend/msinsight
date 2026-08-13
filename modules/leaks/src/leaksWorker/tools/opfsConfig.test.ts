@@ -17,6 +17,8 @@
  */
 
 import {
+    checkLeaksOpfsAvailability,
+    checkLeaksOpfsSyncAvailability,
     createBlockPathCacheStorageKey,
     normalizeLeaksFileHash,
 } from './opfsConfig';
@@ -48,4 +50,114 @@ describe('OPFS block path cache configuration', () => {
         expect(normalizeLeaksFileHash(device1Block)).not.toBe(normalizeLeaksFileHash(device0Block));
         expect(normalizeLeaksFileHash(device0Segment)).not.toBe(normalizeLeaksFileHash(device0Block));
     });
+
+    it('probes directory and asynchronous file writes', async () => {
+        const storageDescriptor = Object.getOwnPropertyDescriptor(navigator, 'storage');
+        const writable = {
+            write: jest.fn().mockResolvedValue(undefined),
+            close: jest.fn().mockResolvedValue(undefined),
+        } as unknown as FileSystemWritableFileStream;
+        const file = {
+            createWritable: jest.fn().mockResolvedValue(writable),
+        } as unknown as FileSystemFileHandle;
+        const directory = {
+            getFileHandle: jest.fn().mockResolvedValue(file),
+        } as unknown as FileSystemDirectoryHandle;
+        const root = {
+            getDirectoryHandle: jest.fn().mockResolvedValue(directory),
+            removeEntry: jest.fn().mockResolvedValue(undefined),
+        } as unknown as FileSystemDirectoryHandle;
+        Object.defineProperty(navigator, 'storage', {
+            configurable: true,
+            value: { getDirectory: jest.fn().mockResolvedValue(root) },
+        });
+
+        try {
+            await expect(checkLeaksOpfsAvailability()).resolves.toBe(true);
+            expect(directory.getFileHandle).toHaveBeenCalledTimes(1);
+            expect(writable.write).toHaveBeenCalledTimes(1);
+            expect(writable.close).toHaveBeenCalledTimes(1);
+            expect(root.removeEntry).toHaveBeenCalledTimes(1);
+        } finally {
+            if (storageDescriptor) {
+                Object.defineProperty(navigator, 'storage', storageDescriptor);
+            } else {
+                Reflect.deleteProperty(navigator, 'storage');
+            }
+        }
+    });
+
+    it('probes synchronous file reads and writes in a worker', async () => {
+        const storageDescriptor = Object.getOwnPropertyDescriptor(navigator, 'storage');
+        const accessHandle = {
+            truncate: jest.fn(),
+            write: jest.fn().mockReturnValue(1),
+            flush: jest.fn(),
+            read: jest.fn((target: Uint8Array) => {
+                target[0] = 1;
+                return 1;
+            }),
+            close: jest.fn(),
+        } as unknown as FileSystemSyncAccessHandle;
+        const file = {
+            createSyncAccessHandle: jest.fn().mockResolvedValue(accessHandle),
+        } as unknown as FileSystemFileHandle;
+        const directory = {
+            getFileHandle: jest.fn().mockResolvedValue(file),
+        } as unknown as FileSystemDirectoryHandle;
+        const root = {
+            getDirectoryHandle: jest.fn().mockResolvedValue(directory),
+            removeEntry: jest.fn().mockResolvedValue(undefined),
+        } as unknown as FileSystemDirectoryHandle;
+        Object.defineProperty(navigator, 'storage', {
+            configurable: true,
+            value: { getDirectory: jest.fn().mockResolvedValue(root) },
+        });
+
+        try {
+            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe(true);
+            expect(accessHandle.write).toHaveBeenCalledTimes(1);
+            expect(accessHandle.read).toHaveBeenCalledTimes(1);
+            expect(accessHandle.close).toHaveBeenCalledTimes(1);
+            expect(root.removeEntry).toHaveBeenCalledTimes(1);
+        } finally {
+            if (storageDescriptor) {
+                Object.defineProperty(navigator, 'storage', storageDescriptor);
+            } else {
+                Reflect.deleteProperty(navigator, 'storage');
+            }
+        }
+    });
+
+    it('rejects a root that cannot create a synchronous access handle', async () => {
+        const storageDescriptor = Object.getOwnPropertyDescriptor(navigator, 'storage');
+        const file = {
+            createSyncAccessHandle: jest.fn().mockRejectedValue(new Error('Sync access denied')),
+        } as unknown as FileSystemFileHandle;
+        const directory = {
+            getFileHandle: jest.fn().mockResolvedValue(file),
+        } as unknown as FileSystemDirectoryHandle;
+        const root = {
+            getDirectoryHandle: jest.fn().mockResolvedValue(directory),
+            removeEntry: jest.fn().mockResolvedValue(undefined),
+        } as unknown as FileSystemDirectoryHandle;
+        Object.defineProperty(navigator, 'storage', {
+            configurable: true,
+            value: { getDirectory: jest.fn().mockResolvedValue(root) },
+        });
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        try {
+            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe(false);
+            expect(root.removeEntry).toHaveBeenCalledTimes(1);
+        } finally {
+            warn.mockRestore();
+            if (storageDescriptor) {
+                Object.defineProperty(navigator, 'storage', storageDescriptor);
+            } else {
+                Reflect.deleteProperty(navigator, 'storage');
+            }
+        }
+    });
+
 });

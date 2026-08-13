@@ -146,7 +146,9 @@ export class MainThreadRender {
         }
     }
 
-    private async selectBlockDataStorage(fileHash: unknown): Promise<string> {
+    private async selectBlockDataStorage(
+        fileHash: unknown,
+    ): Promise<{ fileHash: string; available: boolean }> {
         const result = await BlockDataOPFS.prepareStorage({
             fileHash,
             temporaryStorageKey: this.temporaryBlockDataStorageKey,
@@ -157,7 +159,7 @@ export class MainThreadRender {
             },
         });
         this.blockDataOPFS = result.blockDataOPFS;
-        return result.fileHash;
+        return { fileHash: result.fileHash, available: result.available };
     }
 
     private resetMemoryBlockDataState(generation: number): void {
@@ -243,10 +245,15 @@ export class MainThreadRender {
     private async setMemoryBlockDataFromOPFS(
         payload: Omit<SetMemoryBlocksDataPayload, 'type'>,
         shouldCancel: () => boolean,
-    ): Promise<void> {
+    ): Promise<boolean> {
         this.useOpfs = true;
         this.memoryBlockData = undefined;
-        const fileHash = await this.selectBlockDataStorage(payload.fileHash);
+        const storage = await this.selectBlockDataStorage(payload.fileHash);
+        if (!storage.available) {
+            this.useOpfs = false;
+            return false;
+        }
+        const { fileHash } = storage;
         this.memoryBlockMetadata = getInitialBlockGraphMetadata(payload.data);
         this.reservedLine = this.memoryBlockMetadata.reservedLine ?? [];
         const cachedMetadata = await this.blockDataOPFS.loadCompleteCacheForBuild(fileHash);
@@ -262,7 +269,7 @@ export class MainThreadRender {
                 this.reservedLine,
                 false,
             );
-            return;
+            return true;
         }
         const progressiveState: ProgressiveRenderState = { enabled: false, framePublished: false, lastBatch: 0 };
         const builtMetadata = await buildBlockViewPathAndWriteToOPFS(payload.data, this.blockDataOPFS, {
@@ -291,6 +298,7 @@ export class MainThreadRender {
             this.reservedLine,
             false,
         );
+        return true;
     }
 
     private setMemoryBlockDataInMemory(payload: Omit<SetMemoryBlocksDataPayload, 'type'>): void {
@@ -341,9 +349,20 @@ export class MainThreadRender {
         shouldCancel: () => boolean = () => false,
     ): Promise<void> {
         this.resetMemoryBlockDataState(payload.generation);
+        let renderedFromOpfs = false;
         if (isLeaksOpfsEnabled()) {
-            await this.setMemoryBlockDataFromOPFS(payload, shouldCancel);
-        } else {
+            try {
+                renderedFromOpfs = await this.setMemoryBlockDataFromOPFS(payload, shouldCancel);
+            } catch (error) {
+                if (error instanceof BlockPathBuildCancelledError || isLeaksOpfsEnabled()) {
+                    throw error;
+                }
+            }
+        }
+        if (!renderedFromOpfs) {
+            if (shouldCancel()) {
+                throw new BlockPathBuildCancelledError();
+            }
             this.setMemoryBlockDataInMemory(payload);
         }
         await this.completeMemoryBlockDataRender(payload);

@@ -120,6 +120,9 @@
     "viewFreeEvent": "查看释放事件",
     "eventLocateNotFound": "未找到对应事件",
     "eventLocateContextMismatch": "当前内存池状态图与目标事件所属设备不一致",
+    "opfsUnavailableTitle": "本地缓存能力不可用",
+    "opfsUnavailableContent": "当前运行环境不支持浏览器本地文件缓存（OPFS），生命周期图数据将无法使用本地缓存。\n\n继续加载时，相关数据不会写入本地缓存，可能显著增加内存占用。处理大规模数据时，可能导致响应速度变慢，或因内存溢出而加载失败。",
+    "opfsFallbackConfirm": "继续",
     "slice": {
       "id": "ID",
       "addr": "地址",

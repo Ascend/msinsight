@@ -19,6 +19,8 @@
 import {
     BLOCK_PATH_CACHE_VERSION,
     createBlockPathCacheStorageKey,
+    getLeaksOpfsDirectory,
+    getLeaksOpfsRoot,
     normalizeLeaksFileHash,
 } from './opfsConfig';
 
@@ -108,11 +110,11 @@ interface PrepareBlockDataStorageOptions {
 interface BlockDataStorageResult {
     fileHash: string;
     blockDataOPFS: BlockDataOPFS;
+    available: boolean;
 }
 
 export class BlockDataOPFS {
     private readonly storageKey: string;
-    private rootHandle: FileSystemDirectoryHandle | null = null;
     private dirHandle: FileSystemDirectoryHandle | null = null;
     private pathHandle: SyncHandle | null = null;
     private readonly asyncHandles: Map<number, AsyncHandle> = new Map();
@@ -187,7 +189,10 @@ export class BlockDataOPFS {
         currentFileHash: string,
         maxCacheCount: number = MAX_PERSISTENT_CACHE_COUNT,
     ): Promise<void> {
-        const root = await navigator.storage.getDirectory();
+        const root = await getLeaksOpfsRoot();
+        if (!root) {
+            return;
+        }
         const completeEntries: PersistentCacheEntry[] = [];
         for await (const directoryName of root.keys()) {
             const match = CACHE_DIRECTORY_PATTERN.exec(directoryName);
@@ -258,10 +263,9 @@ export class BlockDataOPFS {
             .map(entry => this.removeCacheDirectory(root, entry.directoryName)));
     }
 
-    async init(): Promise<void> {
-        const root = await navigator.storage.getDirectory();
-        this.rootHandle = root;
-        this.dirHandle = await root.getDirectoryHandle(`${DIR_NAME}-${this.storageKey}`, { create: true });
+    async init(): Promise<boolean> {
+        this.dirHandle = await getLeaksOpfsDirectory(`${DIR_NAME}-${this.storageKey}`);
+        return this.dirHandle !== null;
     }
 
     private resetMemoryState(): void {
@@ -283,23 +287,19 @@ export class BlockDataOPFS {
     dispose(): void {
         this.resetMemoryState();
         this.dirHandle = null;
-        this.rootHandle = null;
     }
 
     async removeStorage(): Promise<void> {
         this.resetMemoryState();
-        if (!this.rootHandle) {
-            this.rootHandle = await navigator.storage.getDirectory();
-        }
-        if (this.rootHandle.removeEntry) {
+        const root = await getLeaksOpfsRoot();
+        if (root?.removeEntry) {
             try {
-                await this.rootHandle.removeEntry(`${DIR_NAME}-${this.storageKey}`, { recursive: true });
+                await root.removeEntry(`${DIR_NAME}-${this.storageKey}`, { recursive: true });
             } catch {
                 // 临时缓存目录不存在时，无需再次删除。
             }
         }
         this.dirHandle = null;
-        this.rootHandle = null;
     }
 
     async clear(): Promise<void> {
@@ -912,8 +912,8 @@ export class BlockDataOPFS {
         } catch {
             // 缓存淘汰失败不能阻止当前数据继续加载。
         }
-        await blockDataOPFS.init();
-        return { fileHash, blockDataOPFS };
+        const available = await blockDataOPFS.init();
+        return { fileHash, blockDataOPFS, available };
     }
 
     async loadCompleteCacheForBuild(fileHash: string): Promise<BlockGraphMetadata | null> {

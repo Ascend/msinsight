@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { isWebGL2Supported } from '../tools/detection';
+import { checkLeaksOpfsAvailability } from '../tools/opfsConfig';
 import { getPackedRenderDataTransferList, packRenderData } from '../tools/packedBlockData';
 import { MainThreadRender } from './mainThreadindex';
 
@@ -30,6 +31,8 @@ export const BlockWorker = new Worker(new URL('./', import.meta.url));
 let workerGeneration = 0;
 const pendingWorkerLoads = new Map<number, { resolve: () => void; reject: (error: Error) => void }>();
 const pendingCacheLoads = new Map<number, { resolve: (hit: boolean) => void; reject: (error: Error) => void }>();
+const pendingOpfsProbes = new Map<number, (available: boolean) => void>();
+let opfsProbeRequestId = 0;
 
 export const isCurrentBlockWorkerGeneration = (generation: number | undefined): boolean =>
     generation === undefined || generation === workerGeneration;
@@ -44,6 +47,10 @@ module.hot?.dispose(() => {
         pending.reject(new Error('Block worker replaced by hot reload'));
     }
     pendingCacheLoads.clear();
+    for (const resolve of pendingOpfsProbes.values()) {
+        resolve(false);
+    }
+    pendingOpfsProbes.clear();
 });
 
 BlockWorker.addEventListener('message', (event: MessageEvent<{
@@ -51,7 +58,14 @@ BlockWorker.addEventListener('message', (event: MessageEvent<{
     generation?: number;
     error?: string;
     hit?: boolean;
+    requestId?: number;
+    available?: boolean;
 }>): void => {
+    if (event.data.type === 'opfsAvailabilityChecked' && event.data.requestId !== undefined) {
+        pendingOpfsProbes.get(event.data.requestId)?.(event.data.available === true);
+        pendingOpfsProbes.delete(event.data.requestId);
+        return;
+    }
     const generation = event.data.generation;
     if (generation === undefined) {
         return;
@@ -87,6 +101,14 @@ BlockWorker.addEventListener('message', (event: MessageEvent<{
 
 // Worker 实现
 const WorkerBackend = {
+    checkOpfsAvailability(): Promise<boolean> {
+        const requestId = ++opfsProbeRequestId;
+        const result = new Promise<boolean>(resolve => {
+            pendingOpfsProbes.set(requestId, resolve);
+        });
+        BlockWorker.postMessage({ type: 'checkOpfsAvailability', requestId } as CheckOpfsAvailabilityPayload);
+        return result;
+    },
     initCanvas({ canvas, width, height }: Omit<InitCanvasPayload, 'type' | 'devicePixelRatio'>): void {
         const devicePixelRatio = window.devicePixelRatio || 1;
         const offscreenCanvas = (canvas as HTMLCanvasElement).transferControlToOffscreen();
@@ -156,6 +178,7 @@ const mainThreadRender = new MainThreadRender();
 let mainThreadGeneration = 0;
 let mainThreadLoadQueue: Promise<void> = Promise.resolve();
 const MainThreadBackend = {
+    checkOpfsAvailability: checkLeaksOpfsAvailability,
     async initCanvas({ canvas, width, height }: Omit<InitCanvasPayload, 'type' | 'devicePixelRatio'>): Promise<void> {
         const devicePixelRatio = window.devicePixelRatio || 1;
         await mainThreadRender.initCanvasHandler({ canvas, devicePixelRatio, width, height });
@@ -218,6 +241,7 @@ const backend = isWebGL2Supported() ? WorkerBackend : MainThreadBackend;
 
 // 导出统一接口
 export const workerInitCanvas = backend.initCanvas;
+export const workerCheckOpfsAvailability = backend.checkOpfsAvailability;
 export const workerLoadMemoryBlockCache = backend.loadMemoryBlockCache;
 export const workerSetMemoryBlockData = backend.setMemoryBlockData;
 export const workerSetReservedLine = backend.setReservedLine;

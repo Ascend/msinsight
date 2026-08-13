@@ -16,21 +16,25 @@
  * -------------------------------------------------------------------------
  */
 
+import { getLeaksOpfsDirectory, markLeaksOpfsUnavailable } from './opfsConfig';
+
 const DIR_NAME = 'memory-block-batches';
 
 export class BatchOPFS {
     private readonly accessHandles: Map<number, FileSystemSyncAccessHandle> = new Map();
+    private readonly memoryBatches: Map<number, Float32Array> = new Map();
     private readonly storageKey: string;
     private dirHandle: FileSystemDirectoryHandle | null = null;
     private fileCount: number = 0;
+    private initialized = false;
 
     constructor(storageKey: string = 'default') {
         this.storageKey = storageKey;
     }
 
     async init(): Promise<void> {
-        const root = await navigator.storage.getDirectory();
-        this.dirHandle = await root.getDirectoryHandle(`${DIR_NAME}-${this.storageKey}`, { create: true });
+        this.dirHandle = await getLeaksOpfsDirectory(`${DIR_NAME}-${this.storageKey}`);
+        this.initialized = true;
     }
 
     async clear(): Promise<void> {
@@ -39,6 +43,7 @@ export class BatchOPFS {
             handle.close();
         }
         this.accessHandles.clear();
+        this.memoryBatches.clear();
         this.fileCount = 0;
         if (this.dirHandle?.removeEntry) {
             for (let index = 0; index < previousFileCount; index++) {
@@ -60,7 +65,7 @@ export class BatchOPFS {
         if (existing) {
             return existing;
         }
-        if (!this.dirHandle) {
+        if (!this.initialized) {
             await this.init();
         }
         const dir = this.dirHandle;
@@ -73,22 +78,57 @@ export class BatchOPFS {
         return accessHandle;
     }
 
-    async write(index: number, data: Float32Array): Promise<void> {
-        const accessHandle = await this.getOrCreateAccessHandle(index);
-        const buffer = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-        accessHandle.truncate(0);
-        const bytesWritten = accessHandle.write(buffer, { at: 0 });
-        if (bytesWritten !== buffer.byteLength) {
-            throw new Error(`Failed to write complete render batch: ${bytesWritten}/${buffer.byteLength}`);
+    private fallbackToMemory(index: number, data: Float32Array, error: unknown): void {
+        const failedHandle = this.accessHandles.get(index);
+        try {
+            failedHandle?.close();
+        } catch {
+            // The failed handle must not be reused.
         }
-        accessHandle.flush();
+        this.accessHandles.delete(index);
+        this.dirHandle = null;
+        this.initialized = true;
+        markLeaksOpfsUnavailable(error);
+        this.memoryBatches.set(index, data.slice());
         this.fileCount = Math.max(this.fileCount, index + 1);
+    }
+
+    async write(index: number, data: Float32Array): Promise<void> {
+        if (!this.initialized) {
+            await this.init();
+        }
+        if (!this.dirHandle) {
+            this.memoryBatches.set(index, data.slice());
+            this.fileCount = Math.max(this.fileCount, index + 1);
+            return;
+        }
+        try {
+            const accessHandle = await this.getOrCreateAccessHandle(index);
+            const buffer = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+            accessHandle.truncate(0);
+            const bytesWritten = accessHandle.write(buffer, { at: 0 });
+            if (bytesWritten !== buffer.byteLength) {
+                throw new Error(`Failed to write complete render batch: ${bytesWritten}/${buffer.byteLength}`);
+            }
+            accessHandle.flush();
+            this.fileCount = Math.max(this.fileCount, index + 1);
+        } catch (error) {
+            this.fallbackToMemory(index, data, error);
+        }
     }
 
     read(index: number, target?: Float32Array): Float32Array | null {
         const accessHandle = this.accessHandles.get(index);
         if (!accessHandle) {
-            return null;
+            const memoryBatch = this.memoryBatches.get(index);
+            if (!memoryBatch) {
+                return null;
+            }
+            if (target !== undefined && target.length >= memoryBatch.length) {
+                target.set(memoryBatch);
+                return target.subarray(0, memoryBatch.length);
+            }
+            return memoryBatch.slice();
         }
         const size = accessHandle.getSize();
         if (size === 0) {

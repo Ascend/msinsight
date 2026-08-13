@@ -31,7 +31,11 @@ import {
 import { debounce } from 'lodash';
 import { getCenteredBlockTransform } from '../tools/blockTransform';
 import { BlockDataOPFS } from '../tools/BlockDataOPFS';
-import { createLeaksOpfsRuntimeId, isLeaksOpfsEnabled } from '../tools/opfsConfig';
+import {
+    checkLeaksOpfsSyncAvailability,
+    createLeaksOpfsRuntimeId,
+    isLeaksOpfsEnabled,
+} from '../tools/opfsConfig';
 import { isPackedRenderData, unpackRenderData } from '../tools/packedBlockData';
 
 let canvas: OffscreenCanvas;
@@ -177,7 +181,9 @@ const initCanvasHandler = async (payload: InitCanvasPayload): Promise<void> => {
     }
 };
 
-const selectBlockDataStorage = async (fileHash: unknown): Promise<string> => {
+const selectBlockDataStorage = async (
+    fileHash: unknown,
+): Promise<{ fileHash: string; available: boolean }> => {
     const result = await BlockDataOPFS.prepareStorage({
         fileHash,
         temporaryStorageKey: temporaryBlockDataStorageKey,
@@ -187,7 +193,7 @@ const selectBlockDataStorage = async (fileHash: unknown): Promise<string> => {
         },
     });
     blockDataOPFS = result.blockDataOPFS;
-    return result.fileHash;
+    return { fileHash: result.fileHash, available: result.available };
 };
 
 const resetMemoryBlockDataState = (generation: number): void => {
@@ -263,10 +269,15 @@ const renderProgressiveBatch = async (
 const setMemoryBlockDataFromOPFS = async (
     payload: SetMemoryBlocksDataPayload,
     shouldCancel: () => boolean,
-): Promise<void> => {
+): Promise<boolean> => {
     useOpfs = true;
     memoryBlockData = undefined;
-    const fileHash = await selectBlockDataStorage(payload.fileHash);
+    const storage = await selectBlockDataStorage(payload.fileHash);
+    if (!storage.available) {
+        useOpfs = false;
+        return false;
+    }
+    const { fileHash } = storage;
     memoryBlockMetadata = getInitialBlockGraphMetadata(payload.data);
     reservedLine = memoryBlockMetadata.reservedLine ?? [];
     const cachedMetadata = await blockDataOPFS.loadCompleteCacheForBuild(fileHash);
@@ -282,7 +293,7 @@ const setMemoryBlockDataFromOPFS = async (
             reservedLine,
             false,
         );
-        return;
+        return true;
     }
     const progressiveState: ProgressiveRenderState = {
         enabled: false,
@@ -317,6 +328,7 @@ const setMemoryBlockDataFromOPFS = async (
     await blockDataOPFS.trySaveCompleteCache(fileHash, builtMetadata);
     updateMetadataView(memoryBlockMetadata, payload.generation);
     await renderer?.setDataFromOPFS(blockDataOPFS, memoryBlockMetadata.batchCount, reservedLine, false);
+    return true;
 };
 
 const setMemoryBlockDataInMemory = async (payload: SetMemoryBlocksDataPayload): Promise<void> => {
@@ -355,10 +367,11 @@ const loadMemoryBlockCacheHandler = async (
     if (!isLeaksOpfsEnabled()) {
         return false;
     }
-    const fileHash = await selectBlockDataStorage(payload.fileHash);
-    if (!fileHash) {
+    const storage = await selectBlockDataStorage(payload.fileHash);
+    if (!storage.available || !storage.fileHash) {
         return false;
     }
+    const { fileHash } = storage;
     const cachedMetadata = await blockDataOPFS.loadCompleteCache(fileHash);
     if (!cachedMetadata) {
         return false;
@@ -385,9 +398,20 @@ const setMemoryBlockDataHandler = async (
 ): Promise<void> => {
     await waitForInitialization();
     resetMemoryBlockDataState(payload.generation);
+    let renderedFromOpfs = false;
     if (isLeaksOpfsEnabled()) {
-        await setMemoryBlockDataFromOPFS(payload, shouldCancel);
-    } else {
+        try {
+            renderedFromOpfs = await setMemoryBlockDataFromOPFS(payload, shouldCancel);
+        } catch (error) {
+            if (error instanceof BlockPathBuildCancelledError || isLeaksOpfsEnabled()) {
+                throw error;
+            }
+        }
+    }
+    if (!renderedFromOpfs) {
+        if (shouldCancel()) {
+            throw new BlockPathBuildCancelledError();
+        }
         await setMemoryBlockDataInMemory(payload);
     }
     await completeMemoryBlockDataRender(payload);
@@ -553,6 +577,12 @@ const Handlers: PayloadHandlers = {
 
 self.onmessage = (ev: MessageEvent<Payload>): void => {
     const payload = ev.data;
+    if (payload.type === 'checkOpfsAvailability') {
+        checkLeaksOpfsSyncAvailability().then(available => {
+            self.postMessage({ type: 'opfsAvailabilityChecked', requestId: payload.requestId, available });
+        });
+        return;
+    }
     if (payload.type === 'loadMemoryBlockCache') {
         latestDataGeneration = payload.generation;
         if (reservedLineOverride?.generation !== payload.generation) {
