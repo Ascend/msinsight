@@ -30,6 +30,7 @@ import { runInAction } from 'mobx';
 import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
 import { addAddressOffset, convertBytesToMBytes } from '@/utils/utils';
+import { CallStackViewer } from './CallStackViewer';
 
 const MARGIN = 38;
 const HEIGHT_DEFAULT = 420;
@@ -469,53 +470,6 @@ const DetailPre = styled.pre`
     line-height: 18px;
     white-space: pre-wrap;
     word-break: break-word;
-`;
-
-const CallStackViewer = styled.div`
-    box-sizing: border-box;
-    flex: 1;
-    min-height: 0;
-    height: 100%;
-    overflow: auto;
-    border: 1px solid ${(props): string => props.theme.borderColorLight};
-    border-radius: 4px;
-    background: ${(props): string => props.theme.bgColor};
-`;
-
-const CallStackGroup = styled.div`
-    &:not(:first-of-type) {
-        border-top: 1px solid ${(props): string => props.theme.borderColorLight};
-    }
-`;
-
-const CallStackGroupTitle = styled.div`
-    padding: 5px 8px;
-    color: ${(props): string => props.theme.textColorSecondary};
-    font-size: 12px;
-    font-weight: 600;
-`;
-
-const CallStackLine = styled.div`
-    display: grid;
-    grid-template-columns: 32px minmax(0, 1fr);
-    min-width: 0;
-    padding: 1px 8px 1px 0;
-    font-family: Consolas, "Courier New", monospace;
-    font-size: 12px;
-    line-height: 17px;
-`;
-
-const CallStackLineNumber = styled.div`
-    color: ${(props): string => props.theme.textColorSecondary};
-    text-align: right;
-    user-select: none;
-`;
-
-const CallStackLineText = styled.div`
-    min-width: 0;
-    padding-left: 8px;
-    overflow-wrap: anywhere;
-    white-space: pre-wrap;
 `;
 
 const SNAPSHOT_EVENT_KEYS = ['Alloc Event', 'Free Requested Event', 'Free Completed Event', 'Alloc Or Map Event'];
@@ -1113,15 +1067,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             return <NoData>{t('empty')}</NoData>;
         }
 
-        return <CallStackViewer>
-            {groups.map(group => <CallStackGroup key={group.key}>
-                <CallStackGroupTitle>{group.label}</CallStackGroupTitle>
-                {group.lines.map((line, index) => <CallStackLine key={`${group.key}_${index}`}>
-                    <CallStackLineNumber>{index + 1}</CallStackLineNumber>
-                    <CallStackLineText>{line}</CallStackLineText>
-                </CallStackLine>)}
-            </CallStackGroup>)}
-        </CallStackViewer>;
+        return <CallStackViewer groups={groups} />;
     };
 
     const getRelatedEvents = (data?: SnapshotDetailData): Array<{ key: string; value: any }> => {
