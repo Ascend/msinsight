@@ -79,6 +79,7 @@ MindStudio Insight 围绕昇腾 AI 性能分析主路径提供多维可视化调
 🔹 《[Timeline 常见泳道与接口](./docs/zh/best_practices/Timeline_Common_Lanes_and_Interface.md)》<br>
 🔹 《[verl Memory Snapshot 采集与分析](./docs/zh/best_practices/verl_Memory_Snapshot_Collection_and_Analysis.md)》<br>
 🔹 《[PyTorch Snapshot 定位 ResNet50 训练内存泄漏](./docs/zh/best_practices/pytorch_snapshot_memory_leak_optimization.md)》
+🔹 《[Cube-Vector 融合算子性能分析](./docs/zh/best_practices/Operator_Fusion_Analysis.md)》
 
 ## ❓ FAQ
 
