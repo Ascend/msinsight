@@ -30,7 +30,7 @@ import {
 import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { Session } from '@/entity/session';
 import { Progress, ResizeTable, ResizeTableRef } from '@insight/lib';
-import { ArrowDownOutlined, ArrowUpOutlined, CloseCircleFilled, ColumnWidthOutlined, OneToOneOutlined, SearchOutlined } from '@ant-design/icons';
+import { ArrowDownOutlined, ArrowUpOutlined, CloseCircleFilled, OneToOneOutlined, SearchOutlined } from '@ant-design/icons';
 import { Tooltip } from '@insight/lib/components';
 import { formatBytes } from '@/utils/utils';
 import { type EvenItem, getMemoryStateData, getSnapshotEvent } from '@/utils/RequestUtils';
@@ -42,17 +42,22 @@ import {
     GraphKeycap,
     GraphMouseIcon,
     GraphShortcutActions,
-    GraphShortcutRow,
     GraphShortcutTip,
     GraphShortcutTitle,
     GraphToolbar,
     GraphToolbarTooltipStyle,
-    GraphWheelCombo,
-    GraphWheelIcon,
     Loading,
     StateHoverItem,
 } from './tools';
 import { message } from 'antd';
+import {
+    calculateLifecyclePanTransform,
+    calculateLifecycleZoomTransform,
+    isEditableKeyboardTarget,
+    isLifecycleHostZoomShortcut,
+    resolveLifecycleKeyboardAction,
+} from './lifecycleNavigation';
+import { LifecycleZoomModeIcon, LifecycleZoomModeTooltip } from './LifecycleGraphToolbar';
 
 export const MemoryStateDiagram = ({ session }: { session: Session }): JSX.Element => {
     return <div data-testid="stateDiagramSection" style={{ display: 'flex', height: 800 }}>
@@ -828,6 +833,7 @@ const NavButton = styled.button<{ disabled?: boolean }>`
 
 const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 const STATE_X_ZOOM_STEP_MULTIPLIER = 3;
+const STATE_MOVE_STEP = 5;
 const getTransformScaleX = (transform: RenderOptions['transform']): number => transform.scaleX;
 const getTransformScaleY = (transform: RenderOptions['transform']): number => transform.scaleY;
 
@@ -836,11 +842,13 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
     const containerRef = useRef<HTMLDivElement>(null);
     const ref = useRef<HTMLCanvasElement>(null);
     const [hoverPoint, setHoverPoint] = useState({ x: -1, y: -1 });
-    const [xZoomMode, setXZoomMode] = useState(true);
-    const xZoomModeRef = useRef(true);
+    const [xZoomMode, setXZoomMode] = useState(false);
+    const xZoomModeRef = useRef(false);
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
+    const lastPointerPosition = useRef<{ x: number; y: number } | null>(null);
+    const plotInteractionActive = useRef(false);
 
     const resetTransform = (): void => {
         runInAction(() => {
@@ -944,8 +952,11 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
     };
 
     const handleMouseLeave = (): void => {
+        ref.current?.blur();
+        plotInteractionActive.current = false;
         isDragging.current = false;
         isClick.current = false;
+        lastPointerPosition.current = null;
         setHoverPoint({ x: -1, y: -1 });
         workerHoverItem({ clientX: -1, clientY: -1 });
         runInAction(() => {
@@ -957,9 +968,12 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         if (ref.current === null) {
             return;
         }
+        ref.current.focus({ preventScroll: true });
         const rect = ref.current.getBoundingClientRect();
         const currentX = ev.clientX - rect.left;
         const currentY = ev.clientY - rect.top;
+        lastPointerPosition.current = { x: currentX, y: currentY };
+        plotInteractionActive.current = true;
 
         if (isClick.current) {
             const moved = Math.abs(currentX - dragStartPoint.current.x) > 1 ||
@@ -1020,61 +1034,110 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
     };
 
     const handleKeyDown = (ev: KeyboardEvent): void => {
-        if (ref.current !== null && (ev.ctrlKey || ev.shiftKey) && ['+', '=', '-', '_'].includes(ev.key)) {
+        if (ref.current === null || isEditableKeyboardTarget(ev.target) || ev.isComposing) {
+            return;
+        }
+        const rect = ref.current.getBoundingClientRect();
+        const pointer = lastPointerPosition.current;
+        const anchorX = pointer?.x ?? rect.width / 2;
+        const anchorY = pointer?.y ?? rect.height / 2;
+
+        if ((ev.ctrlKey || ev.shiftKey) && ['+', '=', '-', '_'].includes(ev.key)) {
             ev.preventDefault();
-            const rect = ref.current.getBoundingClientRect();
             const direction = ev.key === '-' || ev.key === '_' ? -1 : 1;
             const onlyScaleX = ev.shiftKey && !ev.ctrlKey;
-            const mouseX = rect.width / 2;
-            const mouseY = rect.height / 2;
-            const currentTransform = session.stateWorkerInfo.renderOptions.transform;
-            const currentScaleX = getTransformScaleX(currentTransform);
-            const currentScaleY = getTransformScaleY(currentTransform);
-            const originalContentMouseX = (mouseX - currentTransform.x) / currentScaleX;
-            const originalContentMouseY = (mouseY - currentTransform.y) / currentScaleY;
-            const deltaScale = 0.1 * direction;
-            const newScaleX = Math.max(0.1, currentScaleX + deltaScale);
-            const newScaleY = onlyScaleX ? currentScaleY : Math.max(0.1, currentScaleY + deltaScale);
-            const maxRangeX = rect.width;
-            const minRangeX = -rect.width * newScaleX;
-            const maxRangeY = rect.height;
-            const minRangeY = -rect.height * newScaleY;
-            const transform = {
-                x: Math.min(Math.max(mouseX - originalContentMouseX * newScaleX, minRangeX), maxRangeX),
-                y: onlyScaleX ? currentTransform.y : Math.min(Math.max(mouseY - originalContentMouseY * newScaleY, minRangeY), maxRangeY),
-                scaleX: newScaleX,
-                scaleY: newScaleY,
-            };
+            const transform = calculateLifecycleZoomTransform({
+                transform: session.stateWorkerInfo.renderOptions.transform,
+                viewport: { width: rect.width, height: rect.height },
+                anchorX,
+                anchorY,
+                direction,
+                onlyScaleX,
+            });
             runInAction(() => {
                 session.stateWorkerInfo.renderOptions.transform = transform;
             });
             workerTransform({ transform });
             return;
         }
-        if (ev.key.toLowerCase() === 'r') {
+
+        const hasModifier = ev.ctrlKey || ev.metaKey || ev.altKey || ev.shiftKey;
+        if (!hasModifier && ev.key.toLowerCase() === 'r') {
+            ev.preventDefault();
             resetTransform();
             return;
         }
-        if (ev.key.toLowerCase() === 'h') {
+        if (!hasModifier && ev.key.toLowerCase() === 'h') {
+            ev.preventDefault();
             toggleXZoomMode();
+            return;
         }
+
+        const action = resolveLifecycleKeyboardAction(ev);
+        if (action === null) {
+            return;
+        }
+        ev.preventDefault();
+
+        const currentTransform = session.stateWorkerInfo.renderOptions.transform;
+        const isZoomAction = action === 'zoom-x-in' || action === 'zoom-x-out' ||
+            action === 'zoom-all-in' || action === 'zoom-all-out';
+        let deltaX = 0;
+        let deltaY = 0;
+        if (action === 'pan-left') deltaX = STATE_MOVE_STEP * currentTransform.scaleX;
+        if (action === 'pan-right') deltaX = -STATE_MOVE_STEP * currentTransform.scaleX;
+        if (action === 'pan-up') deltaY = -STATE_MOVE_STEP * currentTransform.scaleY;
+        if (action === 'pan-down') deltaY = STATE_MOVE_STEP * currentTransform.scaleY;
+        const transform = isZoomAction
+            ? calculateLifecycleZoomTransform({
+                transform: currentTransform,
+                viewport: { width: rect.width, height: rect.height },
+                anchorX,
+                anchorY,
+                direction: action === 'zoom-x-in' || action === 'zoom-all-in' ? 1 : -1,
+                onlyScaleX: action === 'zoom-x-in' || action === 'zoom-x-out',
+            })
+            : calculateLifecyclePanTransform(
+                currentTransform,
+                { width: rect.width, height: rect.height },
+                deltaX,
+                deltaY,
+            );
+        runInAction(() => {
+            session.stateWorkerInfo.renderOptions.transform = transform;
+        });
+        workerTransform({ transform });
+    };
+
+    const handleCanvasFocus = (): void => {
+        plotInteractionActive.current = true;
+    };
+
+    const handleCanvasBlur = (): void => {
+        plotInteractionActive.current = false;
+    };
+
+    const handleCanvasMouseEnter = (): void => {
+        plotInteractionActive.current = true;
+    };
+
+    const handleHostZoomShortcut = (ev: KeyboardEvent): void => {
+        if (
+            !isLifecycleHostZoomShortcut(ev, plotInteractionActive.current) ||
+            isEditableKeyboardTarget(ev.target) ||
+            ev.isComposing
+        ) {
+            return;
+        }
+        ev.preventDefault();
+        ev.stopPropagation();
+        ev.stopImmediatePropagation();
+        handleKeyDown(ev);
     };
 
     useEffect(() => {
         xZoomModeRef.current = xZoomMode;
     }, [xZoomMode]);
-
-    const renderXZoomTooltip = (): JSX.Element => <GraphShortcutTip>
-        <GraphShortcutTitle>{t('enableDisableXZoom')}<GraphShortcutActions><GraphKeycap>H</GraphKeycap></GraphShortcutActions></GraphShortcutTitle>
-        <GraphShortcutRow>
-            <span>{t('equalZoomHelp')}</span>
-            <GraphWheelCombo><GraphKeycap>Ctrl</GraphKeycap><span>+</span><GraphWheelIcon /><span>/</span><GraphKeycap>+</GraphKeycap><GraphKeycap>-</GraphKeycap></GraphWheelCombo>
-        </GraphShortcutRow>
-        <GraphShortcutRow>
-            <span>{t('xZoomWheelHelp')}</span>
-            <GraphWheelCombo><GraphKeycap>Shift</GraphKeycap><span>+</span><GraphWheelIcon /><span>/</span><GraphKeycap>+</GraphKeycap><GraphKeycap>-</GraphKeycap></GraphWheelCombo>
-        </GraphShortcutRow>
-    </GraphShortcutTip>;
 
     const renderResetTooltip = (): JSX.Element => <GraphShortcutTip>
         <GraphShortcutTitle>
@@ -1111,25 +1174,35 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
         const canvas = ref.current;
 
         window.addEventListener('resize', handleResize);
+        window.addEventListener('blur', handleMouseLeave);
+        window.addEventListener('keydown', handleHostZoomShortcut, true);
 
         canvas.addEventListener('wheel', handleWheel, { passive: false, capture: true });
         canvas.addEventListener('mousedown', handleMouseDown);
         canvas.addEventListener('auxclick', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseenter', handleCanvasMouseEnter);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseLeave);
+        canvas.addEventListener('focus', handleCanvasFocus);
+        canvas.addEventListener('blur', handleCanvasBlur);
         canvas.addEventListener('click', handleClick);
         canvas.addEventListener('keydown', handleKeyDown);
 
         return () => {
             window.removeEventListener('resize', handleResize);
+            window.removeEventListener('blur', handleMouseLeave);
+            window.removeEventListener('keydown', handleHostZoomShortcut, true);
 
             canvas.removeEventListener('wheel', handleWheel, { capture: true });
             canvas.removeEventListener('mousedown', handleMouseDown);
             canvas.removeEventListener('auxclick', handleMouseDown);
             canvas.removeEventListener('mousemove', handleMouseMove);
+            canvas.removeEventListener('mouseenter', handleCanvasMouseEnter);
             canvas.removeEventListener('mouseup', handleMouseUp);
             canvas.removeEventListener('mouseleave', handleMouseLeave);
+            canvas.removeEventListener('focus', handleCanvasFocus);
+            canvas.removeEventListener('blur', handleCanvasBlur);
             canvas.removeEventListener('click', handleClick);
             canvas.removeEventListener('keydown', handleKeyDown);
         };
@@ -1143,15 +1216,13 @@ const StateDiagramCanvas = observer(({ session }: { session: Session }): JSX.Ele
                     <OneToOneOutlined />
                 </button>
             </Tooltip>
-            <Tooltip title={renderXZoomTooltip()} placement="topRight" overlayClassName={graphToolbarTooltipClassName} mouseEnterDelay={0} mouseLeaveDelay={0}>
+            <Tooltip title={<LifecycleZoomModeTooltip zoomMode={xZoomMode ? 'horizontal' : 'proportional'} />} placement="topRight" overlayClassName={graphToolbarTooltipClassName} mouseEnterDelay={0} mouseLeaveDelay={0}>
                 <button
                     type="button"
-                    className={xZoomMode ? 'active' : undefined}
-                    aria-label={xZoomMode ? t('disableXZoom') : t('enableXZoom')}
-                    aria-pressed={xZoomMode}
+                    aria-label={xZoomMode ? t('switchToProportionalZoom') : t('switchToHorizontalZoom')}
                     onClick={toggleXZoomMode}
                 >
-                    <ColumnWidthOutlined />
+                    <LifecycleZoomModeIcon zoomMode={xZoomMode ? 'horizontal' : 'proportional'} />
                 </button>
             </Tooltip>
         </GraphToolbar>
