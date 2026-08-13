@@ -143,9 +143,8 @@ std::optional<CommunicationDetailDatabaseHandle> GetSingleRankCommunicationDatab
     if (databaseHandle.has_value()) {
         return databaseHandle;
     }
-    if (databaseManager.GetDataType(traceDbPath) != DataType::DB) {
-        return std::nullopt;
-    }
+    // Text Timeline data is materialized as mindstudio_insight_data.db and can also have a sibling analysis.db.
+    // The communication analysis database schema is independent of the Timeline trace source format.
     const std::string analysisDbPath = FileUtil::SplicePath(FileUtil::GetParentPath(traceDbPath), "analysis.db");
     if (!FileUtil::IsRegularFile(analysisDbPath)) {
         return std::nullopt;

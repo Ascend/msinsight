@@ -52,6 +52,9 @@ class RenderEngineTest : public ::testing::Test {
     std::vector<std::string> tempDbPaths;
 };
 
+class SingleRankCommunicationRenderEngineTest : public RenderEngineTest,
+                                                public ::testing::WithParamInterface<DataType> {};
+
 /**
  * 根据时间点查询算子，名字存在，但没有算子信息
  */
@@ -276,7 +279,7 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHos
     EXPECT_TRUE(ambiguousMappingResponse.data.communicationBandwidthInfo.empty());
 }
 
-TEST_F(RenderEngineTest, QueryThreadDetailSupportsSingleCardPytorchAnalysisDb) {
+TEST_P(SingleRankCommunicationRenderEngineTest, QueryThreadDetailSupportsSingleCardPytorchAnalysisDb) {
     constexpr uint64_t trackId = 8;
     constexpr uint64_t sliceId = 1;
     constexpr uint64_t sliceStartNs = 1000000;
@@ -307,7 +310,7 @@ TEST_F(RenderEngineTest, QueryThreadDetailSupportsSingleCardPytorchAnalysisDb) {
     };
 
     auto &databaseManager = DataBaseManager::Instance();
-    databaseManager.SetDataType(DataType::DB, traceDbPath);
+    databaseManager.SetDataType(GetParam(), traceDbPath);
     databaseManager.SetFileType(FileType::PYTORCH, traceDbPath);
     ASSERT_TRUE(databaseManager.CreateTraceConnectionPool(timelineRankId, traceDbPath));
     ASSERT_FALSE(databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath).has_value());
@@ -353,8 +356,13 @@ TEST_F(RenderEngineTest, QueryThreadDetailSupportsSingleCardPytorchAnalysisDb) {
     EXPECT_EQ(response.data.communicationBandwidthInfo[1].transportType, "SDMA");
     const auto communicationDatabaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
     ASSERT_TRUE(communicationDatabaseHandle.has_value());
+    EXPECT_EQ(communicationDatabaseHandle->sourceMode, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL);
+    EXPECT_EQ(communicationDatabaseHandle->pool->GetDbPath(), analysisDbPath);
     ASSERT_NE(communicationDatabaseHandle->GetConnection(), nullptr);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    DbAndTextTraceData, SingleRankCommunicationRenderEngineTest, ::testing::Values(DataType::DB, DataType::TEXT));
 
 TEST_F(RenderEngineTest, ResetBaselineReleasesSingleCardCommunicationDetailDatabase) {
     const std::string rankId = "baseline_rank";
