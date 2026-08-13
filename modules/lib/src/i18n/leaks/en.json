@@ -120,6 +120,9 @@
     "viewFreeEvent": "View Free Event",
     "eventLocateNotFound": "Event not found",
     "eventLocateContextMismatch": "The current memory pool state diagram uses a different device from the target event",
+    "opfsUnavailableTitle": "Local caching unavailable",
+    "opfsUnavailableContent": "Browser-local file caching (OPFS) is unavailable in the current runtime, so lifecycle graph data cannot use local caching.\n\nIf loading continues, the data will not be written to local cache, which can significantly increase memory usage. Large datasets may slow response times or fail to load because of an out-of-memory error.",
+    "opfsFallbackConfirm": "Continue",
     "slice": {
       "id": "ID",
       "addr": "Address",

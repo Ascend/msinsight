@@ -332,4 +332,28 @@ describe('BlockDataOPFS persistent cache', () => {
             status: 'complete',
         });
     });
+
+    it('reports unavailable storage when OPFS access is rejected', async () => {
+        const getDirectory = jest.fn().mockRejectedValue(new Error('OPFS access denied'));
+        Object.defineProperty(navigator, 'storage', {
+            configurable: true,
+            value: { getDirectory },
+        });
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const beforeStorageChange = jest.fn().mockResolvedValue(undefined);
+
+        const result = await BlockDataOPFS.prepareStorage({
+            fileHash: FILE_HASH,
+            temporaryStorageKey: 'temporary',
+            blockDataOPFS: new BlockDataOPFS('temporary'),
+            beforeStorageChange,
+        });
+
+        expect(result.available).toBe(false);
+        expect(beforeStorageChange).toHaveBeenCalledTimes(1);
+        expect(getDirectory).toHaveBeenCalledTimes(1);
+        await expect(result.blockDataOPFS.removeStorage()).resolves.toBeUndefined();
+        expect(getDirectory).toHaveBeenCalledTimes(1);
+        warn.mockRestore();
+    });
 });

@@ -37,6 +37,11 @@ interface LoadMemoryBlockCachePayload {
     fileHash?: string;
 };
 
+interface CheckOpfsAvailabilityPayload {
+    type: 'checkOpfsAvailability';
+    requestId: number;
+};
+
 interface SetReservedLinePayload {
     type: 'setReservedLine';
     generation: number;
@@ -103,6 +108,7 @@ interface SetMemoryStateDataPayload {
 
 type Payload =
     | InitCanvasPayload
+    | CheckOpfsAvailabilityPayload
     | LoadMemoryBlockCachePayload
     | SetMemoryBlocksDataPayload
     | SetReservedLinePayload
