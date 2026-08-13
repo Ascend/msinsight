@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <gtest/gtest.h>
@@ -44,12 +45,20 @@ class RenderEngineTest : public ::testing::Test {
                 std::remove(file.c_str());
             }
         }
+        for (const auto &path : tempDirs) {
+            try {
+                fs::remove_all(path);
+            } catch (const fs::filesystem_error &) {
+                // The database manager has already released all handles. Leave cleanup failures to the OS temp area.
+            }
+        }
         TrackInfoManager::Instance().Reset();
         CacheManager::Instance().ClearAll();
         Dic::Module::Global::BaselineManager::Instance().Reset();
     }
 
     std::vector<std::string> tempDbPaths;
+    std::vector<std::string> tempDirs;
 };
 
 class SingleRankCommunicationRenderEngineTest : public RenderEngineTest,
@@ -286,9 +295,20 @@ TEST_P(SingleRankCommunicationRenderEngineTest, QueryThreadDetailSupportsSingleC
     constexpr uint64_t sliceEndNs = sliceStartNs + 100;
     const std::string opName = "hcom_allReduce__865_0_1";
     const std::string timelineRankId = "0";
-    const std::string traceDbPath = FileUtil::SplicePath(TestSuit::GetRootTestPath(), "data", "pytorch", "db", "level2",
-        "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT", "ascend_pytorch_profiler_0.db");
-    const std::string analysisDbPath = FileUtil::SplicePath(FileUtil::GetParentPath(traceDbPath), "analysis.db");
+    const std::string dbSourceDir = FileUtil::SplicePath(
+        TestSuit::GetRootTestPath(), "data", "pytorch", "db", "level2", "rank0_ascend_pt", "ASCEND_PROFILER_OUTPUT");
+    const std::string traceSourcePath = GetParam() == DataType::DB
+        ? FileUtil::SplicePath(dbSourceDir, "ascend_pytorch_profiler_0.db")
+        : TestSuit::GetTestDataFile("test_rank_0", "ASCEND_PROFILER_OUTPUT", "mindstudio_insight_data.db");
+    const auto uniqueId = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const std::string tempDir = FileUtil::SplicePath(::testing::TempDir(),
+        "RenderEngineTest_single_rank_analysis_" + std::to_string(static_cast<int>(GetParam())) + "_" + uniqueId);
+    tempDirs.emplace_back(tempDir);
+    ASSERT_TRUE(fs::create_directories(tempDir));
+    const std::string traceDbPath = FileUtil::SplicePath(tempDir, FileUtil::GetFileName(traceSourcePath));
+    const std::string analysisDbPath = FileUtil::SplicePath(tempDir, "analysis.db");
+    ASSERT_TRUE(FileUtil::CopyFileByPath(traceSourcePath, traceDbPath));
+    ASSERT_TRUE(FileUtil::CopyFileByPath(FileUtil::SplicePath(dbSourceDir, "analysis.db"), analysisDbPath));
     ASSERT_TRUE(FileUtil::IsRegularFile(traceDbPath));
     ASSERT_TRUE(FileUtil::IsRegularFile(analysisDbPath));
 
@@ -363,6 +383,97 @@ TEST_P(SingleRankCommunicationRenderEngineTest, QueryThreadDetailSupportsSingleC
 
 INSTANTIATE_TEST_SUITE_P(
     DbAndTextTraceData, SingleRankCommunicationRenderEngineTest, ::testing::Values(DataType::DB, DataType::TEXT));
+
+TEST_F(RenderEngineTest, QueryThreadDetailSupportsSingleCardTextCommunicationJson) {
+    constexpr uint64_t trackId = 17;
+    constexpr uint64_t sliceId = 4408;
+    constexpr uint64_t sliceStartNs = 1695115378810042500ULL;
+    constexpr uint64_t sliceEndNs = sliceStartNs + 896487;
+    const std::string opName = "hcom_send__822_0";
+    const std::string timelineRankId = "0";
+    const std::string sourceDir = TestSuit::GetTestDataFile("test_rank_0", "ASCEND_PROFILER_OUTPUT");
+    const auto uniqueId = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const std::string tempDir =
+        FileUtil::SplicePath(::testing::TempDir(), "RenderEngineTest_single_rank_text_" + uniqueId);
+    tempDirs.emplace_back(tempDir);
+    ASSERT_TRUE(fs::create_directories(tempDir));
+
+    const std::string traceDbPath = FileUtil::SplicePath(tempDir, "mindstudio_insight_data.db");
+    const std::string communicationJsonPath = FileUtil::SplicePath(tempDir, "communication.json");
+    ASSERT_TRUE(FileUtil::CopyFileByPath(FileUtil::SplicePath(sourceDir, "mindstudio_insight_data.db"), traceDbPath));
+    ASSERT_TRUE(FileUtil::CopyFileByPath(FileUtil::SplicePath(sourceDir, "communication.json"), communicationJsonPath));
+    ASSERT_FALSE(FileUtil::IsRegularFile(FileUtil::SplicePath(tempDir, "analysis.db")));
+
+    class DataEngineMock : public DataEngine {
+      public:
+        bool QuerySliceDetailInfo(const SliceQuery &, CompeteSliceDomain &slice) override {
+            slice.id = id;
+            slice.timestamp = startTime;
+            slice.endTime = endTime;
+            slice.name = opName;
+            slice.isCommunicationGroup = true;
+            return true;
+        }
+
+        uint64_t id = 0;
+        uint64_t startTime = 0;
+        uint64_t endTime = 0;
+        std::string opName;
+    };
+
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.SetDataType(DataType::TEXT, traceDbPath);
+    databaseManager.SetFileType(FileType::PYTORCH, traceDbPath);
+    ASSERT_TRUE(databaseManager.CreateTraceConnectionPool(timelineRankId, traceDbPath));
+    ASSERT_FALSE(databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath).has_value());
+
+    SliceQuery cacheQuery;
+    cacheQuery.rankId = timelineRankId;
+    cacheQuery.startTime = sliceStartNs;
+    cacheQuery.endTime = sliceEndNs;
+    SliceCacheManager::Instance().UpdateSliceCache(
+        std::to_string(trackId), {SliceDomain{sliceId, sliceStartNs, sliceEndNs, 0, ""}}, cacheQuery);
+
+    RenderEngine renderEngine;
+    auto dataEngine = std::make_shared<DataEngineMock>();
+    dataEngine->id = sliceId;
+    dataEngine->startTime = sliceStartNs;
+    dataEngine->endTime = sliceEndNs;
+    dataEngine->opName = opName;
+    renderEngine.SetDataEngineInterface(dataEngine);
+    ThreadDetailParams request;
+    request.id = std::to_string(sliceId);
+    request.metaType = "HCCL";
+    request.rankId = timelineRankId;
+    request.dbPath = traceDbPath;
+    UnitThreadDetailBody response;
+
+    renderEngine.QueryThreadDetail(request, response, trackId);
+
+    EXPECT_EQ(response.data.title, opName);
+    ASSERT_TRUE(response.data.transitTime.has_value());
+    ASSERT_TRUE(response.data.waitTime.has_value());
+    EXPECT_DOUBLE_EQ(response.data.transitTime.value(), 0.86381540625);
+    EXPECT_DOUBLE_EQ(response.data.waitTime.value(), 0);
+    ASSERT_EQ(response.data.communicationBandwidthInfo.size(), 4);
+    const auto rdma = std::find_if(response.data.communicationBandwidthInfo.begin(),
+        response.data.communicationBandwidthInfo.end(), [](const auto &item) { return item.transportType == "RDMA"; });
+    ASSERT_NE(rdma, response.data.communicationBandwidthInfo.end());
+    EXPECT_DOUBLE_EQ(rdma->transitSize, 20.97152);
+    EXPECT_DOUBLE_EQ(rdma->transitTime, 0.86381540625);
+    EXPECT_DOUBLE_EQ(rdma->bandwidth, 24.2778);
+    EXPECT_TRUE(std::any_of(response.data.communicationBandwidthInfo.begin(),
+        response.data.communicationBandwidthInfo.end(), [](const auto &item) {
+            return item.transportType != "RDMA" && item.transitSize == 0 && item.transitTime == 0 &&
+                item.bandwidth == 0;
+        }));
+
+    const auto communicationDatabaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
+    ASSERT_TRUE(communicationDatabaseHandle.has_value());
+    EXPECT_EQ(communicationDatabaseHandle->sourceMode, Dic::Module::CommunicationDetailSourceMode::RANK_LOCAL);
+    EXPECT_EQ(communicationDatabaseHandle->pool->GetDbPath(), traceDbPath + ".communication_detail.db");
+    ASSERT_NE(communicationDatabaseHandle->GetConnection(), nullptr);
+}
 
 TEST_F(RenderEngineTest, ResetBaselineReleasesSingleCardCommunicationDetailDatabase) {
     const std::string rankId = "baseline_rank";

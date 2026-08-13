@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include "pch.h"
+#include <mutex>
 #include <optional>
 #include "DomainObject.h"
 #include "SliceAnalyzer.h"
@@ -25,12 +26,14 @@
 #include "PythonStackHelper.h"
 #include "SliceCacheManager.h"
 #include "DataBaseManager.h"
+#include "SingleRankCommunicationJsonParser.h"
 #include "RenderEngine.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Server;
 using namespace Dic::Protocol;
 namespace {
 const std::string PYTHON_STACK_CACHE_SUFFIX = "@python_stack";
+std::mutex singleRankCommunicationDatabaseMutex;
 
 std::string BuildPythonStackCacheKey(uint64_t trackId) { return std::to_string(trackId) + PYTHON_STACK_CACHE_SUFFIX; }
 
@@ -143,14 +146,38 @@ std::optional<CommunicationDetailDatabaseHandle> GetSingleRankCommunicationDatab
     if (databaseHandle.has_value()) {
         return databaseHandle;
     }
+    // A detail request can be issued concurrently for the same trace. Build and publish the optional JSON cache once.
+    std::lock_guard<std::mutex> lock(singleRankCommunicationDatabaseMutex);
+    databaseHandle = databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
+    if (databaseHandle.has_value()) {
+        return databaseHandle;
+    }
     // Text Timeline data is materialized as mindstudio_insight_data.db and can also have a sibling analysis.db.
     // The communication analysis database schema is independent of the Timeline trace source format.
     const std::string analysisDbPath = FileUtil::SplicePath(FileUtil::GetParentPath(traceDbPath), "analysis.db");
-    if (!FileUtil::IsRegularFile(analysisDbPath)) {
+    if (FileUtil::IsRegularFile(analysisDbPath)) {
+        if (!databaseManager.CreateCommunicationDetailConnectionPool(
+                traceDbPath, analysisDbPath, CommunicationDetailSourceMode::RANK_LOCAL, true)) {
+            return std::nullopt;
+        }
+        return databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
+    }
+    // DB-only profiler data does not guarantee communication.json. Keep analysis.db as its authoritative source and
+    // use the raw JSON only for a Text single-rank trace that has no analysis database.
+    if (databaseManager.GetDataType(traceDbPath) != DataType::TEXT) {
+        return std::nullopt;
+    }
+    const std::string communicationJsonPath =
+        FileUtil::SplicePath(FileUtil::GetParentPath(traceDbPath), "communication.json");
+    if (!FileUtil::IsRegularFile(communicationJsonPath)) {
+        return std::nullopt;
+    }
+    const auto communicationCachePath = PrepareSingleRankCommunicationJsonCache(traceDbPath, communicationJsonPath);
+    if (!communicationCachePath.has_value()) {
         return std::nullopt;
     }
     if (!databaseManager.CreateCommunicationDetailConnectionPool(
-            traceDbPath, analysisDbPath, CommunicationDetailSourceMode::RANK_LOCAL, true)) {
+            traceDbPath, communicationCachePath.value(), CommunicationDetailSourceMode::RANK_LOCAL, true)) {
         return std::nullopt;
     }
     return databaseManager.GetCommunicationDetailDatabaseHandleByFileId(traceDbPath);
