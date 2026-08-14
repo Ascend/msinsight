@@ -34,7 +34,7 @@
 
 ### 问题描述
 
-报错 missing Dependencies，please install from https://developer.microsoft.com/en-US/microsoft-edge/webview2/#download-section
+报错 missing Dependencies，please install from `https://developer.microsoft.com/en-US/microsoft-edge/webview2/#download-section`
 
 ### 解决方法
 

@@ -78,7 +78,7 @@ MindStudio Insight支持在Windows、Linux和macOS系统上安装使用，并且
 |MindStudio-Insight_*{version}*_linux-*{arch}*.zip|适用于Linux系统的MindStudio Insight软件包。|
 |MindStudio-Insight_*{version}*_macos-*{arch}*.dmg|适用于macOS系统的MindStudio Insight软件包，含有GUI的集成开发环境。|
 |mindstudio_insight_jupyterlab-*{version}*-py3-none-*{platform}*.whl|基于JupyterLab安装的软件包。|
-|MindStudio-Insight_docker_image_*{version}*-*{os}*_*{Python_version}*_*{arch}*.tar|MindStudio Insight的docker镜像包。|
+|MindStudio-Insight_docker_image_*{version}*-*{os}*_*{Python_version}*_*{arch}*.tar|MindStudio Insight的Docker镜像包。|
 
 ### 软件完整性验证
 
@@ -211,7 +211,7 @@ MindStudio Insight工具的安装与可视化呈现对Windows系统及设备配�
 |--|--|
 |硬件|- 内存：最小4GB，推荐8GB及以上<br> - 磁盘空间：最小6GB|
 |系统要求|- glibc版本应大于或等于2.27<br> - 操作系统自带GUI桌面或具有X11或VNC转发功能|
-|支持的操作系统|以apt作为包管理软件类型的操作系统：<br> - Ubuntu 18.04-x86_64/aarch64<br> - Ubuntu 20.04-x86_64/aarch64<br> - Ubuntu 22.04-x86_64/aarch64<br> - CentOS 8.2-x86_64/aarch64<br> - Debian 10.0<br> - Debian 10.8<br> 以yum/dnf作为包管理软件类型的操作系统：<br> - EulerOS 2.8-aarch64<br> - EulerOS 2.12-aarch64<br> - OpenEuler 20.03-x86_64/aarch64<br> - OpenEuler 22.03 LTS-x86_64/aarch64<br> - OpenEuler 22.03 LTS<br> - OpenEuler 22.03 LTS SP4<br> - HCE 2.0<br> - CUlinux 3.0<br> - Kylin V10 SP3<br> - Euler 2.13(ARM)<br> - HCE 2.0.2503(x86)<br> - Tlinux 3.1-内核版本5.4<br> - BClinux 21.10 U4<br> - TencentOS Server 4.4_x86|
+|支持的操作系统|以apt作为包管理软件类型的操作系统：<br> - Ubuntu 18.04-x86_64/aarch64<br> - Ubuntu 20.04-x86_64/aarch64<br> - Ubuntu 22.04-x86_64/aarch64<br> - CentOS 8.2-x86_64/aarch64<br> - Debian 10.0<br> - Debian 10.8<br> 以yum/dnf作为包管理软件类型的操作系统：<br> - EulerOS 2.8-aarch64<br> - EulerOS 2.12-aarch64<br> - OpenEuler 20.03-x86_64/aarch64<br> - OpenEuler 22.03 LTS-x86_64/aarch64<br> - OpenEuler 22.03 LTS<br> - OpenEuler 22.03 LTS SP4<br> - HCE 2.0<br> - CUlinux 3.0<br> - Kylin V10 SP3<br> - EulerOS 2.13-aarch64<br> - HCE 2.0.2503-x86<br> - Tlinux 3.1-内核版本5.4<br> - BClinux 21.10 U4<br> - TencentOS Server 4.4-x86|
 
 > [!NOTE]  说明
 > 在直通虚拟机velinux 5.15系统上安装和使用MindStudio Insight工具时，推荐使用JupyterLab插件的安装方式使用MindStudio Insight工具，JupyterLab插件安装请参见[安装操作（JupyterLab插件）](#安装操作jupyterlab插件)章节进行操作。
@@ -454,7 +454,7 @@ vncserver -localhost -geometry 1920x1080
     |--|--|--|
     |Remote server|Linux服务器的地址。|127.0.0.1|
     |Remote port|Linux服务器的端口，值为5900加设置VNC Server中的x（显示序号）值。|5901|
-    |SSH server|SSH连接时的IP或URL地址。|192.168.25.38|
+    |SSH server|SSH连接时的IP或URL地址。|192.168.x.x|
     |SSH login|SSH登录的用户名/密码对。|-|
     |SSH port|SSH登录时使用的端口，一般为22。|22|
     |Forwarded port|端口转发到本地Windows对应的端口，可以与Remote port一致。|5901|
@@ -1018,12 +1018,12 @@ MindStudio Insight工具支持插件开发功能，为开发者提供自主开�
     ```json
     {
         "pluginName":"插件名称",
-        "frontend":"前端产物名称",                      # zip压缩包
-        "backend_{platform}_{machine}":"后端产物名称"  # zip或动态库
+        "frontend":"前端产物名称",
+        "backend_{platform}_{machine}":"后端产物名称"
     }
     ```
 
-    其中platform为平台名称，machine为架构名称。
+    frontend为zip压缩包；backend_{platform}_{machine}为zip或动态库，platform为平台名称，machine为架构名称。
 
 3. 插件包中包含的文件个数不能超过1000个，单个文件大小不能超过200MB。
 4. 插件包需具有当前用户属主，具有可读可写权限，不支持链接文件和包含链接的文件。

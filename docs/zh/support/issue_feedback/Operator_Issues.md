@@ -8,7 +8,7 @@
 
 ### 解决方法
 
-1. 提供产品文档，按文档操作未实现对比效果https://www.hiascend.com/document/detail/zh/mindstudio/81RC1/GUI_baseddevelopmenttool/msascendinsightug/Insight_userguide_0028.html
+1. 提供产品文档，按文档操作未实现对比效果 `https://www.hiascend.com/document/detail/zh/mindstudio/81RC1/GUI_baseddevelopmenttool/msascendinsightug/Insight_userguide_0028.html`
 
 2. 放在不同的工程下，分别设置baseline、compare即可。
 

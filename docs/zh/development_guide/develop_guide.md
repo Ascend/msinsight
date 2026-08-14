@@ -1077,7 +1077,7 @@ bash cpp_coverage.sh
 | --- | --- | --- |
 | timeout | 60s | 单用例超时时间 |
 | workers | 1 | 并行 Worker 数 |
-| baseURL | http://localhost:5174 | 前端开发服务地址 |
+| baseURL | `http://localhost:5174` | 前端开发服务地址 |
 | headless | true | 默认无头模式 |
 | viewport | 1920x1080 | 浏览器视口尺寸 |
 | webServer[0] | profiler_server --wsPort=9000 | 自动拉起后端服务 |
@@ -1141,7 +1141,7 @@ const test = baseTest.extend<TestFixtures>({
 | `SMOKE_DATA` | `../../test/st/level2` | CI 冒烟测试数据（相对路径） |
 | `JOINT_DATA` | `/home/profiler_performance/task` | 联调测试数据（Linux 路径） |
 
-- 测试数据可从数据仓库下载：https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo.git
+- 测试数据可从数据仓库下载：[下载测试数据](https://gitcode.com/zhangruoyu2/msinsight-quick-start-demo.git)
 - 请在 `constants.ts` 中修改路径为本地实际路径
 
 #### 4.2.5 常用测试命令
