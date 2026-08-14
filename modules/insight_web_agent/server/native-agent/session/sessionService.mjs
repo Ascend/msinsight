@@ -71,6 +71,7 @@ const createSession = async ({ sessions, sessionStore, filesystem }) => {
         runtimeContextNeedsRestore: false,
         bladeContextNeedsRestore: false,
         projectRoot: undefined,
+        lastPageObservationFingerprint: undefined,
         filesystemRoots,
         canonicalFilesystemRoots: await filesystem.canonicalizeFilesystemRoots(filesystemRoots),
         createdAt: now,
@@ -122,9 +123,8 @@ const runPrompt = async (context, { sessionId, prompt }) => {
     const controller = new AbortController();
     context.running.set(id, controller);
     try {
-        await prepareUserPrompt(context, session, prompt);
-        const userText = extractPromptText(prompt);
-        const result = await context.aiRuntime.runPrompt({ session, sessionId: id, userText, controller });
+        const { userText, pageObservation } = await prepareUserPrompt(context, session, prompt);
+        const result = await context.aiRuntime.runPrompt({ session, sessionId: id, userText, pageObservation, controller });
         if (!result.ok && !controller.signal.aborted) await runFallbackPrompt(context, { session, sessionId: id, userText, reason: result.reason, controller });
         session.updatedAt = Date.now();
         await context.sessionStore.save();
@@ -144,11 +144,12 @@ const prepareUserPrompt = async ({ filesystem, aiRuntime }, session, prompt) => 
     if (userText && !session.messages.length) session.title = userText.slice(0, 80);
     session.messages.push({ role: "user", text: userText });
     session.updatedAt = Date.now();
+    return { userText, pageObservation: extractPromptPageObservation(prompt) };
 };
 
 /** 功能：模型不可用时执行页面观测，并以流式分块输出诊断降级回复。 */
 const runFallbackPrompt = async ({ toolRegistry, notifier }, { session, sessionId, userText, reason, controller }) => {
-    const observationResult = await toolRegistry.execute("msinsight_observe", {}, { sessionId });
+    const observationResult = await toolRegistry.execute("msinsight", { command: "observe", args: {} }, { sessionId });
     const text = createFallbackResponse({ userText, observationResult, tools: toolRegistry.list(), reason });
     for (const chunk of chunkText(text)) {
         if (controller.signal.aborted) break;
@@ -230,15 +231,24 @@ const unwrapContextText = (value, ref) => String(value ?? "").replace(new RegExp
 /** 功能：转义字符串，使其可以安全嵌入正则表达式。 */
 const escapeRegExp = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** 功能：从隐藏上下文资源 JSON 中递归提取 projectRoot。 */
+/** 功能：只从宿主控制的隐藏上下文顶层读取 projectRoot，页面 observation 不能扩展文件白名单。 */
 const extractPromptProjectRoot = (prompt = []) => {
+    const projectRoot = extractPromptHiddenContext(prompt)?.projectRoot;
+    return typeof projectRoot === "string" && projectRoot.trim() ? projectRoot.trim() : undefined;
+};
+
+const extractPromptPageObservation = (prompt = []) => {
+    const observation = extractPromptHiddenContext(prompt)?.pageObservation;
+    return observation && typeof observation === "object" && !Array.isArray(observation) ? observation : undefined;
+};
+
+const extractPromptHiddenContext = (prompt = []) => {
     const blocks = Array.isArray(prompt) ? prompt : [prompt];
     for (const block of blocks) {
         if (block?.type !== "resource" || block.resource?.uri !== "insight-hidden-context://project") continue;
         try {
-            const payload = JSON.parse(String(block.resource?.text ?? "{}"));
-            const root = findProjectRoot(payload?.data ?? payload);
-            if (root) return root;
+            const payload = JSON.parse(unwrapContextText(block.resource?.text, "insight-hidden-context://project"));
+            return payload?.data ?? payload;
         } catch (_error) {
             return undefined;
         }
@@ -246,32 +256,21 @@ const extractPromptProjectRoot = (prompt = []) => {
     return undefined;
 };
 
-/** 功能：递归搜索对象树中的非空 projectRoot。 */
-const findProjectRoot = (value) => {
-    if (!value || typeof value !== "object") return undefined;
-    if (typeof value.projectRoot === "string" && value.projectRoot.trim()) return value.projectRoot.trim();
-    for (const item of Object.values(value)) {
-        const root = findProjectRoot(item);
-        if (root) return root;
-    }
-    return undefined;
-};
-
 /** 功能：根据用户问题、页面观测、工具列表和降级原因生成诊断回复。 */
 const createFallbackResponse = ({ userText, observationResult, tools, reason }) => {
-    const observation = observationResult?.observation;
+    const observation = observationResult?.observation ?? observationResult;
     const app = observation?.app ?? {};
     const moduleObservation = observation?.module ?? {};
     const lines = ["msinsight-native ACP fallback runtime is running."];
     if (reason) lines.push("", `Fallback reason: ${reason}`);
-    lines.push("", "Latest msinsight_observe result:");
+    lines.push("", "Latest msinsight observe command result:");
     if (!observation) {
         lines.push("- No page observation has been received yet.");
     } else {
-        lines.push(`- activeModule: ${app.activeModule ?? moduleObservation.module ?? "unknown"}`);
+        lines.push(`- activeModule: ${app.activeModule ?? moduleObservation.moduleId ?? moduleObservation.module ?? "unknown"}`);
         lines.push(`- scene: ${app.scene ?? "unknown"}`);
         lines.push(`- selectedProjectName: ${app.selectedProjectName ?? "unknown"}`);
-        lines.push(`- availableActions: ${(observation.availableActions ?? []).map((action) => action.id).join(", ") || "none"}`);
+        lines.push(`- activeModuleObservation: ${moduleObservation.moduleId ?? "unknown"}`);
     }
     lines.push("", `Available native tools: ${tools.map((tool) => tool.name).join(", ")}`);
     if (userText) lines.push("", `User prompt: ${userText}`);

@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { customConsole as console } from '../utils';
+import { getWindowMessageRouter, recordWindowMessageDebug } from '../WindowMessageRouter';
 
 type ReservedEventHandler = 'request';
 type EventHanlder = string;
@@ -30,10 +31,22 @@ export interface ListenerHandler { event: EventHanlder; sequence: number }
 type TargetWindow = Window;
 type GetTragetWindows = () => TargetWindow[];
 type SendTargetKey = number | string;
+const isConnectorMessage = (data: unknown): boolean => typeof data === 'object' && data !== null && !('channel' in data);
+const connectorWindows = new WeakSet<Window>();
+
+const targetWindowName = (target: Window): string => {
+    if (typeof document !== 'object') return 'iframe';
+    for (const frame of Array.from(document.querySelectorAll('iframe'))) {
+        if (frame.contentWindow === target) return frame.name || frame.id || 'iframe';
+    }
+    return target === window.parent ? 'parent' : 'iframe';
+};
+
 abstract class BaseConnector {
     protected readonly _errMsgType = 'postMessage';
     protected invalidFunc: null | (() => void) = null;
     protected _listeners: Map<EventHanlder, Array<ListenerCallback | null>> = new Map();
+    private readonly unsubscribeMessage: () => void;
 
     protected constructor() {
         if (typeof window !== 'object') {
@@ -42,37 +55,39 @@ abstract class BaseConnector {
             this.invalidFunc = (): void => { throw new Error(this.printErrMsg(errMsg)); };
         }
 
-        window.onmessage = (event: MessageEvent): void => {
-            const res = { ...event };
-            try {
-                if (typeof event.data === 'string') {
-                    res.data = JSON.parse(event.data);
-                } else {
-                    res.data = event.data;
-                }
-                if (res.data?.source === 'react-devtools-content-script') {
-                    return; // 调试模式不处理 react-devtools 发送的消息
-                }
-                const listener = this._listeners.get(res.data.event);
-                if (res.data.event === 'request') {
-                    this.awaitFetch(res);
-                } else if (listener) {
-                    listener.forEach(cb => cb?.(res));
-                } else if (['mouseover'].includes(res.data.event)) {
-                    // 鼠标事件，无操作
-                } else {
-                    console.warn(this.printErrMsg('missed [event] in your message, please check your params, or maybe have an invalid send'));
-                }
-            } catch (e) {
-                console.error(e);
+        if (connectorWindows.has(window)) {
+            throw new Error(this.printErrMsg('only one Connector can be created for each Window'));
+        }
+        connectorWindows.add(window);
+        // Connector 保留原有 event/request 协议，但原生 message 入口由共享 Router 统一管理。
+        this.unsubscribeMessage = getWindowMessageRouter().subscribe(this.handleMessage, event => isConnectorMessage(event.data));
+    }
+
+    private readonly handleMessage = (event: MessageEvent): void => {
+        const data = event.data;
+        try {
+            if (data?.source === 'react-devtools-content-script') {
+                return; // 调试模式不处理 react-devtools 发送的消息
             }
-        };
-        Object.defineProperty(window, 'onmessage', {
-            configurable: false,
-            set: () => {
-                console.warn(this.printErrMsg('the property \'window.onmessage\' in used, reassign it is invalid'));
-            },
-        });
+            const listener = this._listeners.get(data?.event);
+            if (data?.event === 'request') {
+                this.awaitFetch(event);
+            } else if (listener) {
+                listener.forEach(cb => cb?.(event));
+            } else if (['mouseover'].includes(data?.event)) {
+                // 鼠标事件，无操作
+            } else {
+                console.warn(this.printErrMsg('missed [event] in your message, please check your params, or maybe have an invalid send'));
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    dispose(): void {
+        this.unsubscribeMessage();
+        this._listeners.clear();
+        connectorWindows.delete(window);
     }
 
     send<T extends EventHanlder>(body: SendParams<T>, reject?: (err: Error) => void): void {
@@ -91,6 +106,12 @@ abstract class BaseConnector {
         body.from = window.name;
         const postBody = JSON.stringify(body);
         targetWindows.forEach(targetWindow => {
+            recordWindowMessageDebug({
+                direction: 'outbound',
+                data: body,
+                origin: window.location.origin,
+                target: body.to || targetWindowName(targetWindow),
+            });
             targetWindow.postMessage(postBody, this.getTargetOrigin());
         });
     }

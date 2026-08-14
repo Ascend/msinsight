@@ -8,4 +8,6 @@ export * from './src/utils';
 export * from './src/useDraggableContainer';
 export { default as i18n } from './src/i18n';
 export { ServerConnector, ClientConnector } from './src/connection';
+export * from './src/WindowMessageRouter';
+export * from './src/FrontendAgentCommand';
 export { SharedConfigProvider } from './src/SharedConfigProvider';

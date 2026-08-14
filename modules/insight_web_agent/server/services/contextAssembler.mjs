@@ -15,6 +15,8 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { sanitizePageObservation } from "./pageContextService.mjs";
+
 const createStructuredDataProvider = ({ state }) => ({
     name: "structured",
     schemaVersion: "1.0",
@@ -29,7 +31,8 @@ const createStructuredDataProvider = ({ state }) => ({
 export const createContextAssembler = ({ state }) => {
     const providers = [createStructuredDataProvider({ state })];
     return {
-        async assemble(sessionContext) {
+        async assemble(sessionContext, pageObservation) {
+            const sanitizedPageObservation = isObject(pageObservation) ? sanitizePageObservation(pageObservation) : undefined;
             const contextProviders = [];
             for (const provider of providers) {
                 if (!provider.isApplicable(sessionContext)) continue;
@@ -43,6 +46,7 @@ export const createContextAssembler = ({ state }) => {
             return {
                 schemaVersion: "1.0",
                 ...(state.activeContext?.projectRoot ? { projectRoot: state.activeContext.projectRoot } : {}),
+                ...(isObject(sanitizedPageObservation) ? { pageObservation: sanitizedPageObservation } : {}),
                 session: {
                     id: sessionContext.sessionId,
                     agentId: sessionContext.agentId,
@@ -52,11 +56,13 @@ export const createContextAssembler = ({ state }) => {
                 contextProviders,
                 hands: {
                     skills: [],
-                    tools: ["msinsight_observe", "msinsight_listActions"],
+                    tools: ["msinsight"],
                     actions: [],
-                    permissions: { "msinsight_invokeAction": "approval_required" },
+                    permissions: {},
                 },
             };
         },
     };
 };
+
+const isObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);

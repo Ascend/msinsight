@@ -158,6 +158,25 @@ test("prompt applies requested mode to a new session before sending", async () =
     assert.deepEqual(calls.map((call) => call.method), ["session/set_config_option", "session/prompt"]);
 });
 
+test("prompt includes the prompt-scoped page observation in hidden context", async () => {
+    const { service, calls } = createPromptTestService();
+    const pageObservation = {
+        collectedAt: 100,
+        module: {
+            module: "MemScope",
+            supported: true,
+            tables: [{ tableKey: "memscope.system.blocks", revision: 2 }],
+        },
+    };
+
+    await service.prompt("observe", { sessionId: "session-1", pageObservation });
+    await waitForPromptCall(calls, 1);
+
+    const promptCall = calls.find((call) => call.method === "session/prompt");
+    const hiddenContext = JSON.parse(promptCall.params.prompt[0].resource.text.split("\n").slice(1).join("\n"));
+    assert.deepEqual(hiddenContext.data.pageObservation, pageObservation);
+});
+
 test("prompt reads raw hidden context from the context assembler", async () => {
     const { service, calls } = createPromptTestService();
 

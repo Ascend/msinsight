@@ -86,7 +86,7 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
         {
             label: t('systemView'),
             key: 'systemView',
-            children: <TabContentWrapper height={containerHeight}><MemoryTable session={session} height={containerHeight - 50} /></TabContentWrapper>,
+            children: <TabContentWrapper height={containerHeight}><MemoryTable session={session} height={containerHeight - 50} visible={isExpand && activeTab === 'systemView'} /></TabContentWrapper>,
         },
     ];
 

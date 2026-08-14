@@ -526,9 +526,20 @@ const toolCallState = (toolCall: ToolCallItem, t: TFunction): string => {
 
 const toolCallSummary = (toolCall: ToolCallItem, t: TFunction): string => {
     if (toolCall.status === 'in_progress' && toolCall.progress) return toolCall.progress;
-    if (toolCall.status === 'completed') return t('toolCallCompleted', { name: toolCall.name });
-    if (toolCall.status === 'failed') return t('toolCallFailed', { name: toolCall.name });
-    return t('toolCallRunning', { name: toolCall.name });
+    const displayName = toolCallDisplayName(toolCall);
+    if (toolCall.status === 'completed') return t('toolCallCompleted', { name: displayName });
+    if (toolCall.status === 'failed') return t('toolCallFailed', { name: displayName });
+    return t('toolCallRunning', { name: displayName });
+};
+
+export const toolCallDisplayName = (toolCall: ToolCallItem): string => {
+    if (toolCall.name !== 'msinsight' || !toolCall.input) return toolCall.name;
+    try {
+        const command = (JSON.parse(toolCall.input) as Record<string, unknown>).command;
+        return typeof command === 'string' && command.trim() ? command.trim() : toolCall.name;
+    } catch (_error) {
+        return toolCall.name;
+    }
 };
 
 const TOOL_TARGET_MAX_LENGTH = 50;

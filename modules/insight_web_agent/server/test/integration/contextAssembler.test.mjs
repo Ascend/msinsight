@@ -56,11 +56,26 @@ test("assemble returns the raw active context payload as structured content refs
         contextProviders: [{ name: "structured", schemaVersion: "1.0", contentRefs: state.activeContext }],
         hands: {
             skills: [],
-            tools: ["msinsight_observe", "msinsight_listActions"],
+            tools: ["msinsight"],
             actions: [],
-            permissions: { msinsight_invokeAction: "approval_required" },
+            permissions: {},
         },
     });
+});
+
+test("assemble binds a sanitized page observation to the current context packet", async () => {
+    const state = createRuntimeState();
+    const assembler = createContextAssembler({ state });
+    const pageObservation = {
+        module: { module: "MemScope", tables: [] },
+        oversized: "x".repeat(1200),
+    };
+
+    const packet = await assembler.assemble(createSessionContext(), pageObservation);
+
+    assert.deepEqual(packet.pageObservation.module, pageObservation.module);
+    assert.equal(packet.pageObservation.oversized.length, 1000);
+    assert.notEqual(packet.pageObservation, pageObservation);
 });
 
 test("assemble reflects updated raw active context", async () => {

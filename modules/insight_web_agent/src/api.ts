@@ -115,10 +115,17 @@ export const deleteSession = (sessionId: string): Promise<OkResponse> => {
     });
 };
 
-export const sendPrompt = (text: string, newSession?: boolean, sessionId?: string, images: ImageAttachment[] = [], mode?: string): Promise<PromptResponse> => {
+export const sendPrompt = (
+    text: string,
+    newSession?: boolean,
+    sessionId?: string,
+    images: ImageAttachment[] = [],
+    mode?: string,
+    pageObservation?: Record<string, unknown>,
+): Promise<PromptResponse> => {
     return requestJson<PromptResponse>('/api/prompt', {
         method: 'POST',
-        body: JSON.stringify({ text, newSession, sessionId, images, mode }),
+        body: JSON.stringify({ text, newSession, sessionId, images, mode, pageObservation }),
     });
 };
 
@@ -139,6 +146,22 @@ export const updatePageObservation = (observation: Record<string, unknown>): Pro
 export const fetchPageObservation = (): Promise<{ observation?: Record<string, unknown> | null; updatedAt?: number | null }> => {
     return requestJson('/api/page/observation');
 };
+
+export const claimFrontendCommand = (requestId: string): Promise<{ ok?: boolean; claimed?: boolean; claimToken?: string }> => requestJson('/api/frontend-commands/claim', {
+    method: 'POST',
+    body: JSON.stringify({ requestId }),
+});
+
+export const respondFrontendCommand = (body: {
+    requestId: string;
+    claimToken: string;
+    status: 'completed' | 'failed' | 'cancelled';
+    result?: unknown;
+    error?: unknown;
+}): Promise<OkResponse> => requestJson<OkResponse>('/api/frontend-commands/respond', {
+    method: 'POST',
+    body: JSON.stringify(body),
+});
 
 export const cancelPrompt = (sessionId?: string): Promise<OkResponse> => {
     return requestJson<OkResponse>('/api/cancel', {

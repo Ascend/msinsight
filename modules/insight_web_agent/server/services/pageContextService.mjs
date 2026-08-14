@@ -27,7 +27,7 @@ export const createPageContextService = ({ eventBus } = {}) => {
     const getObservation = () => ({ observation, updatedAt });
 
     const updateObservation = (nextObservation) => {
-        observation = sanitizeValue(nextObservation);
+        observation = sanitizePageObservation(nextObservation);
         updatedAt = Date.now();
         eventBus?.broadcast?.({ type: "page_observation_updated", updatedAt });
         return getObservation();
@@ -35,6 +35,8 @@ export const createPageContextService = ({ eventBus } = {}) => {
 
     return { getObservation, updateObservation };
 };
+
+export const sanitizePageObservation = (value) => sanitizeValue(value);
 
 const sanitizeValue = (value, depth = 0) => {
     if (depth > MAX_DEPTH) return undefined;

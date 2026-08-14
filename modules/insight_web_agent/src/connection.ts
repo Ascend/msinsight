@@ -16,6 +16,13 @@
  * -------------------------------------------------------------------------
  */
 import { ClientConnector } from '@insight/lib/connection';
+import { ACP_MESSAGE_CHANNEL } from '@insight/lib/FrontendAgentCommand';
+import {
+    getWindowMessageRouter,
+    isWindowMessageChannel,
+    parentWindowMessageOrigin,
+    withWindowMessageChannel,
+} from '@insight/lib/WindowMessageRouter';
 
 export const connector = new ClientConnector({
     getTargetWindow: (): Window[] => [window.parent],
@@ -34,7 +41,7 @@ export interface HostContext {
     [key: string]: any;
 }
 
-export const registerHostEventHandlers = (handlers: HostNotificationHandlers): void => {
+export const registerHostEventHandlers = (handlers: HostNotificationHandlers): (() => void) => {
     connector.addListener('setTheme', (event: MessageEvent<{ body?: { isDark?: unknown } }>) => {
         handlers.setTheme(Boolean(event.data.body?.isDark));
     });
@@ -42,9 +49,9 @@ export const registerHostEventHandlers = (handlers: HostNotificationHandlers): v
         const locale = event.data.body?.lang;
         if (locale === 'zhCN' || locale === 'enUS') handlers.switchLanguage(locale);
     });
-    connector.addListener('insightWebAgent/context', (event: MessageEvent<{ body?: HostContext }>) => {
-        handlers.updateContext(event.data.body ?? {});
-    });
+    return getWindowMessageRouter().subscribe((event: MessageEvent<{ event?: unknown; body?: HostContext }>) => {
+        if (event.data?.event === 'insightWebAgent/context') handlers.updateContext(event.data.body ?? {});
+    }, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
 };
 
 export const requestHostInitStatus = (): void => {
@@ -58,5 +65,5 @@ export const requestHostInitStatus = (): void => {
 };
 
 export const notifyHostReady = (): void => {
-    window.parent?.postMessage({ event: 'insightWebAgent/ready' }, '*');
+    window.parent?.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, { event: 'insightWebAgent/ready' }), parentWindowMessageOrigin());
 };

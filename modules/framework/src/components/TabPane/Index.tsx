@@ -35,7 +35,9 @@ import {
     isVscodePluginEnvironment,
     isVscodeEnv,
 } from '@/vscode-adapter';
+import { WindowMessageDebugger } from './WindowMessageDebugger';
 import { ACP_SESSION_MIN_WIDTH, WebAgentSessionPanel } from './WebAgentSessionPanel';
+import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 
 const MODULE_FRAME_MIN_WIDTH = 360;
 
@@ -80,7 +82,7 @@ const Container = styled.div`
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding-right: 150px;
+        padding-right: 0;
         background: ${(props): string => props.theme.bgColor};
     }
     .tab-toolbar .ant-menu {
@@ -88,9 +90,16 @@ const Container = styled.div`
         min-width: 0;
         border-bottom: 0;
     }
+    .tab-toolbar-actions {
+        display: flex;
+        flex: 0 0 auto;
+        align-items: center;
+        margin-right: 100px;
+        gap: 8px;
+    }
     .session-toggle {
         flex: 0 0 auto;
-        margin: 0 12px 0 8px;
+        margin-right: 12px;
         min-width: 88px;
     }
     .acp-session-panel {
@@ -170,15 +179,21 @@ function isAllowedIframeSrc(src: string | undefined | null): boolean {
     return cleanSrc.startsWith('./plugins/');
 }
 
+const getModuleFrameId = (frame: HTMLIFrameElement): string => frame.id !== ''
+    ? frame.id
+    : frame.name !== '' ? frame.name : frame.parentElement?.id ?? '';
+
 const Index = observer(({ session }: { session: Session }) => {
     const { t } = useTranslation('framework', { keyPrefix: 'tabs' });
     const [scene, setScene] = useState<Scene>('Default');
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
     const [activeModule, setActiveModule] = useState('Timeline');
     const [showSessionPanel, setShowSessionPanel] = useState(false);
+    const [showWindowMessageDebugger, setShowWindowMessageDebugger] = useState(false);
     const [mergedModulesConfig, setMergedModulesConfig] = useState(modulesConfig);
-    const prevFrameIdsRef = useRef<string[]>([]);
     const iframeLoadHandlersRef = useRef<Map<HTMLIFrameElement, () => void>>(new Map());
+    const moduleFramesRef = useRef(new Map<string, HTMLIFrameElement>());
+    const moduleBridgeCleanupRef = useRef(new Map<string, () => void>());
     const tabBodyRef = useRef<HTMLDivElement>(null);
 
     const availableModules = useMemo(() => mergedModulesConfig.filter(config => isAvailable(config, scene, dataCompose))
@@ -218,6 +233,15 @@ const Index = observer(({ session }: { session: Session }) => {
     };
 
     useEffect(() => {
+        return () => {
+            moduleBridgeCleanupRef.current.forEach((cleanup) => cleanup());
+            moduleBridgeCleanupRef.current.clear();
+            moduleFramesRef.current.clear();
+        };
+    }, []);
+
+    useEffect(() => {
+        frontendAgentCommandController.setActiveModule(activeModule);
         connector.send({
             event: 'moduleActive',
             to: activeModule,
@@ -265,45 +289,65 @@ const Index = observer(({ session }: { session: Session }) => {
 
     // 添加监听新的页签加载后发送当前工程
     useEffect(() => {
-        const frames = getModuleFrames();
-        const frameIds = Array.prototype.map.call(frames, (frame: HTMLIFrameElement) => frame.id) as string[];
-        const newFrames = Array.prototype.filter.call(frames, (frame: HTMLIFrameElement) => !prevFrameIdsRef.current.includes(frame.id)) as HTMLIFrameElement[];
+        const syncModuleFrames = (): void => {
+            const currentFrames = new Map(getModuleFrames()
+                .map(frame => [getModuleFrameId(frame), frame] as const)
+                .filter(([moduleId]) => moduleId !== ''));
 
-        const sendBody = {
-            event: 'frame/loaded',
-            body: {
-                selectedFileType: session.activeDataSource.selectedFileType,
-                selectedFilePath: session.activeDataSource.selectedFilePath,
-                selectedProjectName: session.activeDataSource.projectName,
-                pageInfo: {
-                    cluster: session.clusterPageInfo,
-                    timeline: session.timelinePageInfo,
-                },
-            },
-        };
-        newFrames.forEach((frame) => {
-            // 设置 onload 监听器等待 iframe 加载完成
-            // 如果之前已经有监听器，先清除
-            if (iframeLoadHandlersRef.current.has(frame)) {
-                frame.onload = null; // 清除已存在的监听器
-            }
-            // 创建并绑定新的监听器
-            const onLoadHandler = (): void => {
-                connector.send({
-                    ...sendBody,
-                    to: frame.id,
-                });
-            };
-            // 保存监听器用于后续清除
-            iframeLoadHandlersRef.current.set(frame, onLoadHandler);
-            frame.onload = onLoadHandler;
-        });
-        prevFrameIdsRef.current = frameIds;
-        return (): void => {
-            iframeLoadHandlersRef.current.forEach((handler, frame) => {
-                frame.onload = null; // 移除监听器
+            // Bridge 绑定具体 iframe Window；先注销已移除或被同 ID 新 iframe 替换的旧实例。
+            moduleFramesRef.current.forEach((registeredFrame, moduleId) => {
+                if (currentFrames.get(moduleId) === registeredFrame) return;
+                // Map.get(moduleId) 返回注册 bridge 时保存的 cleanup 函数，?.() 立即调用它以释放旧 bridge 和未完成请求。
+                moduleBridgeCleanupRef.current.get(moduleId)?.();
+                moduleBridgeCleanupRef.current.delete(moduleId);
+                moduleFramesRef.current.delete(moduleId);
+                const loadHandler = iframeLoadHandlersRef.current.get(registeredFrame);
+                if (loadHandler) registeredFrame.removeEventListener('load', loadHandler);
+                iframeLoadHandlersRef.current.delete(registeredFrame);
             });
-            iframeLoadHandlersRef.current.clear(); // 清空 map
+
+            const sendBody = {
+                event: 'frame/loaded',
+                body: {
+                    selectedFileType: session.activeDataSource.selectedFileType,
+                    selectedFilePath: session.activeDataSource.selectedFilePath,
+                    selectedProjectName: session.activeDataSource.projectName,
+                    pageInfo: {
+                        cluster: session.clusterPageInfo,
+                        timeline: session.timelinePageInfo,
+                    },
+                },
+            };
+            // 再为新增或替换后的真实 DOM 实例注册 bridge，同一实例不重复注册。
+            currentFrames.forEach((frame, moduleId) => {
+                const onLoadHandler = (): void => {
+                    connector.send({ ...sendBody, to: moduleId });
+                };
+                if (moduleFramesRef.current.get(moduleId) === frame) {
+                    if (!iframeLoadHandlersRef.current.has(frame)) {
+                        iframeLoadHandlersRef.current.set(frame, onLoadHandler);
+                        frame.addEventListener('load', onLoadHandler);
+                    }
+                    return;
+                }
+                // Map.get(moduleId) 返回旧 bridge 的 cleanup 函数；注册新实例前调用它，避免同 moduleId 的两个 bridge 同时存活。
+                moduleBridgeCleanupRef.current.get(moduleId)?.();
+                moduleFramesRef.current.set(moduleId, frame);
+                moduleBridgeCleanupRef.current.set(moduleId, frontendAgentCommandController.attachModuleFrame(moduleId, frame));
+                iframeLoadHandlersRef.current.set(frame, onLoadHandler);
+                frame.addEventListener('load', onLoadHandler);
+            });
+        };
+
+        syncModuleFrames();
+        const observer = new MutationObserver(syncModuleFrames);
+        observer.observe(document.body, { childList: true, subtree: true });
+        return (): void => {
+            observer.disconnect();
+            iframeLoadHandlersRef.current.forEach((handler, frame) => {
+                frame.removeEventListener('load', handler);
+            });
+            iframeLoadHandlersRef.current.clear();
         };
     }, [availableModules]);
 
@@ -334,14 +378,21 @@ const Index = observer(({ session }: { session: Session }) => {
     return <Container>
         <div className="tab-toolbar">
             <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
-            <Button
-                className="session-toggle"
-                size="small"
-                type={sessionToggleType}
-                onClick={() => setShowSessionPanel(value => !value)}
-            >
-                {t('AgentView')}
-            </Button>
+            <div className="tab-toolbar-actions">
+                {process.env.NODE_ENV === 'development'
+                    ? <Button size="small" onClick={() => setShowWindowMessageDebugger(true)}>
+                        Window Messages
+                    </Button>
+                    : null}
+                <Button
+                    className="session-toggle"
+                    size="small"
+                    type={sessionToggleType}
+                    onClick={() => setShowSessionPanel(value => !value)}
+                >
+                    {t('AgentView')}
+                </Button>
+            </div>
         </div>
         <div className="tab-body" ref={tabBodyRef}>
             <div className="module-frame-area">{availableModules.map(moduleConfig => (
@@ -374,6 +425,9 @@ const Index = observer(({ session }: { session: Session }) => {
                 tabBodyRef={tabBodyRef}
             />
         </div>
+        {process.env.NODE_ENV === 'development'
+            ? <WindowMessageDebugger open={showWindowMessageDebugger} onClose={() => setShowWindowMessageDebugger(false)} />
+            : null}
     </Container>;
 });
 

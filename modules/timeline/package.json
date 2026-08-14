@@ -54,6 +54,7 @@
     "moduleNameMapper": {
       "@insight/lib/icon": "<rootDir>/../lib/src/icon/index.ts",
       "@insight/lib/utils": "<rootDir>/../lib/src/utils/index.ts",
+      "@insight/lib/WindowMessageRouter": "<rootDir>/../lib/src/WindowMessageRouter/index.ts",
       "@insight/lib/i18n": "<rootDir>/../lib/src/i18n/index.ts",
       "@insight/lib/components": "<rootDir>/../lib/src/components/index.ts"
     }

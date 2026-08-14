@@ -33,7 +33,7 @@ export interface ResizeTableRef {
     clearAllFilters: () => void;
     clearAllSorts: () => void;
     getVirtualBoxDom: () => HTMLDivElement | null;
-    // ... 其他需要暴露的方法
+    copy: () => Promise<void>;
 }
 
 const Support = React.forwardRef(
@@ -475,8 +475,8 @@ export function ResizeTableInner<T extends object>(prop: ResizeTableProps<T>, re
         }),
         // ============================ filters ============================
         ...((isArray(col.filters) && col.filters.length > 0) ? getColumnSearchProps() : {}),
-        ...(col.onFilter ? {} : { filteredValue: getFilteredValue(col, filtersState) }),
-        ...(col.sorter === true ? { sortOrder: getSortedValue(col, sortState) } : {}),
+        ...(col.onFilter || col.filteredValue !== undefined ? {} : { filteredValue: getFilteredValue(col, filtersState) }),
+        ...(col.sorter === true && col.sortOrder === undefined ? { sortOrder: getSortedValue(col, sortState) } : {}),
     })), [columns, filtersState, sortState]);
 
     // ============================ virtual ============================
@@ -496,6 +496,7 @@ export function ResizeTableInner<T extends object>(prop: ResizeTableProps<T>, re
         clearAllFilters: () => clearAllFilters(mergeColumns, setFiltersState),
         clearAllSorts(): void { setSortState({}); },
         getVirtualBoxDom(): HTMLDivElement | null { return boxRef.current; },
+        copy: copyTable,
     }));
 
     // 出现分页跳转输入框

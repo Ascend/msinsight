@@ -17,7 +17,7 @@
  */
 import { json, readJson } from "./response.mjs";
 
-export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController }) => {
+export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController }) => {
     return async (req, res) => {
         const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
@@ -103,6 +103,22 @@ export const createRouter = ({ agentController, chatController, sessionControlle
 
         if (req.method === "POST" && url.pathname === "/api/cancel") {
             return chatController.cancel(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/request") {
+            return frontendCommandController.request(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/claim") {
+            return frontendCommandController.claim(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/respond") {
+            return frontendCommandController.respond(req, res, await readJson(req));
+        }
+
+        if (req.method === "POST" && url.pathname === "/api/frontend-commands/cancel") {
+            return frontendCommandController.cancel(req, res, await readJson(req));
         }
 
         return json(res, { error: "Not found" }, 404);

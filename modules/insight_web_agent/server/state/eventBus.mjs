@@ -18,9 +18,10 @@
 import { publicState } from "./runtimeState.mjs";
 
 export const createEventBus = (state) => {
+    const connectListeners = new Set();
+    const send = (client, event) => client.write(`data: ${JSON.stringify(event)}\n\n`);
     const broadcast = (event) => {
-        const data = `data: ${JSON.stringify(event)}\n\n`;
-        for (const client of state.clients) client.write(data);
+        for (const client of state.clients) send(client, event);
     };
 
     const connect = (req, res) => {
@@ -32,14 +33,21 @@ export const createEventBus = (state) => {
         });
         res.flushHeaders?.();
         state.clients.add(res);
-        res.write(`data: ${JSON.stringify({ type: "state", state: publicState(state) })}\n\n`);
+        send(res, { type: "state", state: publicState(state) });
+        connectListeners.forEach((listener) => listener((event) => send(res, event)));
         req.on("close", () => state.clients.delete(res));
+    };
+
+    const onConnect = (listener) => {
+        connectListeners.add(listener);
+        return () => connectListeners.delete(listener);
     };
 
     const close = () => {
         for (const client of state.clients) client.end();
         state.clients.clear();
+        connectListeners.clear();
     };
 
-    return { broadcast, connect, close };
+    return { broadcast, connect, onConnect, close };
 };

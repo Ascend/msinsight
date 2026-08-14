@@ -31,6 +31,7 @@ export const createChatController = ({ chatService, state }) => ({
             sessionId: body?.sessionId,
             images: Array.isArray(body?.images) ? body.images : [],
             mode: body?.mode,
+            pageObservation: body?.pageObservation,
         });
         if (result.error) console.warn(`Prompt request failed: sessionId=${String(body?.sessionId ?? "")}, error=${result.error}`);
         else console.log(`Prompt request accepted: sessionId=${result.sessionId}`);

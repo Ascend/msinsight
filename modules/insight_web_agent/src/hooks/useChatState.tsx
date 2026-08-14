@@ -26,10 +26,12 @@ import {
     type RefObject,
 } from 'react';
 import { message } from 'antd';
-import { cancelPrompt, createSession, deleteSession, fetchAgents, fetchSessions, fetchState, loadSession, refreshAgents as requestAgentRefresh, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent, updatePageObservation } from '../api';
-import { observeInsightPage } from '../bridge/frontendAgentToolBridge';
+import { toCommandError } from '@insight/lib/FrontendAgentCommand';
+import { cancelPrompt, claimFrontendCommand, createSession, deleteSession, fetchAgents, fetchSessions, fetchState, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { apiUrl } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+import { upsertToolCall } from './toolCalls';
 
 interface ChatStateValue {
     configOptions: ConfigOption[];
@@ -129,6 +131,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const messagesRef = useRef<HTMLDivElement>(null);
     const stateRef = useRef(state);
     const queuedPromptInFlightRef = useRef(false);
+    const frontendCommandsRef = useRef(new Set<string>());
+    const cancelledFrontendCommandsRef = useRef(new Set<string>());
     const initialSessionInitializedRef = useRef(false);
     const discoverySyncPromiseRef = useRef<Promise<void> | null>(null);
 
@@ -219,6 +223,17 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const applyEvent = (event: ServerEvent): void => {
+        if (event.type === 'frontend_command_request') {
+            void handleFrontendCommand(event);
+            return;
+        }
+        if (event.type === 'frontend_command_cancel') {
+            if (!frontendCommandsRef.current.has(event.requestId)) return;
+            cancelledFrontendCommandsRef.current.add(event.requestId);
+            cancelFrontendCommand(event.requestId);
+            return;
+        }
+
         if (event.type === 'agent_discovery_started') {
             setState((current) => ({ ...current, agentDiscoveryLoading: true }));
             return;
@@ -285,6 +300,27 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             return;
         }
 
+        if (event.type === 'message_tool_call' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.id === event.id
+                    ? { ...message, toolCalls: upsertToolCall(message.toolCalls, event.toolCall) }
+                    : message),
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'message_activity' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.id === event.id
+                    ? { ...message, activity: event.activity }
+                    : message),
+                loaded: true,
+            }));
+            return;
+        }
 
         if (event.type === 'message_removed' && event.sessionId) {
             updateSessionRecord(event.sessionId, (record) => ({
@@ -344,6 +380,31 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
     };
 
+    const handleFrontendCommand = async (event: Extract<ServerEvent, { type: 'frontend_command_request' }>): Promise<void> => {
+        if (frontendCommandsRef.current.has(event.requestId)) return;
+        if (Date.now() >= event.deadline) return;
+        frontendCommandsRef.current.add(event.requestId);
+        let claimToken: string | undefined;
+        try {
+            const claim = await claimFrontendCommand(event.requestId).catch(() => undefined);
+            claimToken = claim?.claimToken;
+            if (!claim?.claimed || !claimToken || cancelledFrontendCommandsRef.current.has(event.requestId)) return;
+            const result = await executeFrontendCommand(event.command, event.args, event.requestId, event.deadline);
+            await respondFrontendCommand({ requestId: event.requestId, claimToken, status: 'completed', result });
+        } catch (error) {
+            if (!claimToken) return;
+            await respondFrontendCommand({
+                requestId: event.requestId,
+                claimToken,
+                status: 'failed',
+                error: toCommandError(error),
+            }).catch(() => undefined);
+        } finally {
+            frontendCommandsRef.current.delete(event.requestId);
+            cancelledFrontendCommandsRef.current.delete(event.requestId);
+        }
+    };
+
     const updateSessionRecord = (sessionId: string, updater: (record: SessionRecord) => SessionRecord): void => {
         setState((current) => {
             const record = updater(getSessionRecord(current, sessionId));
@@ -368,7 +429,12 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
         const events = new EventSource(apiUrl('/api/events'));
         events.onmessage = (event): void => applyEvent(JSON.parse(event.data) as ServerEvent);
-        return () => events.close();
+        return () => {
+            events.close();
+            frontendCommandsRef.current.forEach(cancelFrontendCommand);
+            frontendCommandsRef.current.clear();
+            cancelledFrontendCommandsRef.current.clear();
+        };
     }, []);
 
     useEffect(() => {
@@ -547,19 +613,6 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => markPromptStarted(current, prompt, isDraftSession, sessionId, optimisticSession));
 
         try {
-            let observation;
-            try {
-                observation = await observeInsightPage();
-            } catch {
-                observation = undefined;
-            }
-            if (observation) {
-                try {
-                    await updatePageObservation(observation);
-                } catch {
-                    // Page observation is best-effort context and must not block prompts.
-                }
-            }
             const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode);
             setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
         } catch (error) {
