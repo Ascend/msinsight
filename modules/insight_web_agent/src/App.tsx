@@ -48,7 +48,7 @@ const App = (): JSX.Element => {
             applyTheme(event.newValue === '"dark"' || event.newValue === 'dark');
         };
 
-        registerHostEventHandlers({
+        const unregisterAgentContext = registerHostEventHandlers({
             setTheme: applyTheme,
             switchLanguage: applyLanguage,
             updateContext: (context): void => { updateContext(context); },
@@ -57,6 +57,7 @@ const App = (): JSX.Element => {
         notifyHostReady();
         window.addEventListener('storage', handleStorage);
         return () => {
+            unregisterAgentContext();
             window.removeEventListener('storage', handleStorage);
         };
     }, []);

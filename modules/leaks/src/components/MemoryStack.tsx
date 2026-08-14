@@ -24,7 +24,7 @@ import type { CheckboxChangeEvent } from 'antd/lib/checkbox';
 import MemorySliceChart from './MemorySliceChart';
 import MemoryFunctionCall from './MemoryFunctionCall';
 import { Label } from './Common';
-import { getFuncNewData, getBarNewData, getBlockTableData, getEventTableData, getPotentialLeakStats } from './dataHandler';
+import { getFuncNewData, getBarNewData, getPotentialLeakStats } from './dataHandler';
 import { convertNanoseconds } from '../utils/utils';
 import { MemoryBlockDiagram } from './leaks/MemoryBlockDiagram';
 import { getInitialZoomDomain } from './leaks/zoomDomain';
@@ -73,12 +73,6 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
 
     const commitRangeSideEffects = (range: [number, number]): void => {
         commitSessionRange(range);
-        if (session.module === 'memsnapshot') {
-            if (session.autoFilterPotentialLeaks) {
-                getBlockTableData(session);
-                getEventTableData(session);
-            }
-        }
     };
 
     const getCurrentFuncRange = (): [number, number] => {

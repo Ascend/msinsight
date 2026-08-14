@@ -133,13 +133,17 @@ export interface FuncData {
     traces: Trace[];
     maxDepth: number;
 }
-interface TableHead {
+export interface TableHead {
     name: string;
     key: string;
+    type?: string;
     sortable: boolean;
     searchable: boolean;
+    rangeFilterable?: boolean;
+    min?: number;
+    max?: number;
 }
-interface TableDetail {
+export interface TableDetail {
     id: number;
     event: string;
     eventType: string;

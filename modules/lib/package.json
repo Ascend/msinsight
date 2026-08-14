@@ -13,7 +13,10 @@
     "./hooks": "./src/hooks/index.ts",
     "./components": "./src/components/index.ts",
     "./connection": "./src/connection/index.ts",
-    "./FrontendAgentToolBridge": "./src/FrontendAgentToolBridge/index.ts",
+    "./WindowMessageRouter": "./src/WindowMessageRouter/index.ts",
+    "./FrontendAgentCommand": "./src/FrontendAgentCommand/index.ts",
+    "./AgentTable": "./src/AgentTable/index.ts",
+    "./ModuleAgentCommandClient": "./src/ModuleAgentCommandClient/index.ts",
     "./theme": "./src/theme/index.ts",
     "./resize": "./src/resize/index.ts"
   },

@@ -28,6 +28,7 @@ import { agentLaunchKey } from "./services/agentIdentityService.mjs";
 import { createChatService } from "./services/chatService.mjs";
 import { createContextAssembler } from "./services/contextAssembler.mjs";
 import { createFileReadService, createPermissionHostHandler } from "./services/fileReadService.mjs";
+import { createFrontendCommandService } from "./services/frontendCommandService.mjs";
 import { createPageContextService } from "./services/pageContextService.mjs";
 import { createPermissionService } from "./services/permissionService.mjs";
 import { createSessionManager } from "./services/sessionManager.mjs";
@@ -177,6 +178,7 @@ const state = createRuntimeState();
 const autoDiscoveryEnabled = process.env.ACP_AUTO_DISCOVERY !== "0";
 state.agentDiscoveryLoading = autoDiscoveryEnabled;
 const eventBus = createEventBus(state);
+const frontendCommandService = createFrontendCommandService({ eventBus });
 const pageContextService = createPageContextService({ eventBus });
 const skillService = createSkillService({ rootDir: config.resourceDir });
 let chatService;
@@ -216,6 +218,7 @@ chatService = createChatService({
     state,
     sessionManager,
     contextAssembler,
+    frontendCommandService,
     systemPrompt: config.systemPrompt,
 });
 
@@ -232,6 +235,7 @@ const restoreRuntimeConfig = (previousConfig) => {
 };
 
 const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, reloadFromDisk = false, broadcast = true } = {}) => {
+    frontendCommandService.cancelAll("runtime_reloading");
     const previousConfig = cloneRuntimeConfig();
     const previousAgentServer = activeAgentServer;
     const previousClient = activeAcpClient;
@@ -408,6 +412,7 @@ const server = createApp({
     permissionService,
     agentConfigService,
     pageContextService,
+    frontendCommandService,
     capabilityToken: config.capabilityToken,
     allowedOrigins: config.allowedOrigins,
 });
@@ -416,6 +421,7 @@ let shutdownPromise;
 const shutdown = (exitCode = 0) => {
     if (shutdownPromise) return shutdownPromise;
     shutdownPromise = (async () => {
+        frontendCommandService.dispose();
         eventBus.close();
         await new Promise((done) => {
             if (!server.listening) return done();

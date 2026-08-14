@@ -101,6 +101,7 @@ export const createSessionStore = ({ sessions, storeDir = join(process.cwd(), ".
             bladeSystemPrompt: String(item.bladeSystemPrompt ?? ""),
             bladeContextNeedsRestore: Boolean(item.bladeContextNeedsRestore),
             projectRoot: item.projectRoot ? String(item.projectRoot) : undefined,
+            lastPageObservationFingerprint: item.lastPageObservationFingerprint ? String(item.lastPageObservationFingerprint) : undefined,
             filesystemRoots: [],
             canonicalFilesystemRoots: [],
             createdAt: Number(item.createdAt ?? Date.now()),

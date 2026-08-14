@@ -28,7 +28,7 @@ import EventsTable from './EventsTable';
 import ThresholdModal from './ThresholdModal';
 const SYSTEM_TABLE_TOOLBAR_HEIGHT = 42;
 
-const MemoryTable = observer(({ session, height }: { session: Session; height?: number }): React.ReactElement => {
+const MemoryTable = observer(({ session, height, visible }: { session: Session; height?: number; visible: boolean }): React.ReactElement => {
     const { t } = useTranslation('leaks');
     const { tableType, module, eventType, autoFilterPotentialLeaks } = session;
     const [open, setOpen] = useState(false);
@@ -95,8 +95,8 @@ const MemoryTable = observer(({ session, height }: { session: Session; height?: 
                     : <></>}
             </div>
             {tableType === 'blocks'
-                ? <><BlocksTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} /><ThresholdModal session={session} open={open} setOpen={setOpen} /></>
-                : <EventsTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} />}
+                ? <><BlocksTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} visible={visible} /><ThresholdModal session={session} open={open} setOpen={setOpen} /></>
+                : <EventsTable session={session} height={height === undefined ? undefined : height - SYSTEM_TABLE_TOOLBAR_HEIGHT} visible={visible} />}
         </>
     );
 });

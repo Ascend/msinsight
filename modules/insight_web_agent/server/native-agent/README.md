@@ -89,7 +89,7 @@ native agent 采用两级 runtime 策略：
    当 SDK 缺失、模型 provider 未配置，或 Blade runtime 创建失败时使用。
 ```
 
-Fallback runtime 只用于诊断，不自己实现 LLM tool loop。它仍会调用 `msinsight_observe`，并返回最新页面 observation，以及未使用 Blade 的原因。
+Fallback runtime 只用于诊断，不自己实现 LLM tool loop。它仍会调用 `msinsight({ command: "observe", args: {} })`，并返回最新页面 observation，以及未使用 Blade 的原因。
 
 ## 依赖
 
@@ -152,7 +152,7 @@ MSINSIGHT_NATIVE_MODEL=...
 ```text
 MSINSIGHT_NATIVE_TEMPERATURE=0.2
 MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS=4096
-MSINSIGHT_OBSERVE_TIMEOUT_MS=5000
+MSINSIGHT_FRONTEND_COMMAND_TIMEOUT_MS=30000
 ```
 
 ## 页面观察
@@ -163,34 +163,21 @@ MSINSIGHT_OBSERVE_TIMEOUT_MS=5000
 INSIGHT_WEB_AGENT_BASE_URL=http://<host>:<port>
 ```
 
-`msinsight_observe` 通过这个接口读取最新的 server-side page context：
+固定 `msinsight({ command, args })` Tool 通过 `/api/frontend-commands/request` 创建实时浏览器请求，经 SSE 发送到 Agent View iframe，再以 `executeCommand/cancelCommand` 转发给 framework 的 `FrontendAgentCommandController`。
 
-```text
-GET /api/page/observation
-```
-
-浏览器侧链路是：
-
-```text
-Agent View iframe
-  -> agentToolBridge.observeInsightPage()  (@insight/lib/agentToolBridge client, tool='observe')
-  -> framework WebAgentSessionPanel  (via @insight/lib/agentToolBridge server, handle('observe', ...))
-  -> POST /api/page/observation
-  -> pageContextService
-  -> msinsight_observe
-```
+动态能力通过内置 `help` 发现；内置 `observe` 聚合 framework 与当前 active Module 的 observation provider。Module 使用 `ModuleAgentCommandClient.registerCommand(definition, handler)` 注册一次，并按连接代次同步完整 Command 快照。
 
 Observation payload 必须只包含摘要和能力信息。不要暴露原始 profiling 数据、完整 MobX store、任意 DOM dump 或通用 JavaScript 执行能力。
 
 ## 工具
 
-Insight 工具通过 `ToolRegistry` 注册在 `tools/msinsightTools.mjs` 中：
+页面能力通过 `tools/msinsightTools.mjs` 注册的单一 Tool 暴露：
 
 ```text
-msinsight_observe
-msinsight_listActions
-msinsight_invokeAction
+msinsight({ command, args })
 ```
+
+模型先调用 `help {}` 获取轻量目录，再调用 `help { command }` 获取单个 Command 的完整 schema；页面状态通过 `observe {}` 获取。
 
 native-agent 同时启用 Blade SDK 的只读文件工具：
 
@@ -202,7 +189,7 @@ Grep
 
 这些工具仅允许访问当前 agent workspace，以及 host 注入的资源目录下的 `docs/` 和 `skills/`；未启用 `Edit`、`Write`、`Bash` 等写入或执行工具。
 
-`msinsight_invokeAction` 目前只返回 `approval_required`，还不会真正执行页面动作。
+namespaced Command 由 framework 路由到 Framework 本地 handler 或当前 active Module handler；Agent iframe 不保存 Command 目录和路由状态。
 
 ## 安全边界
 
@@ -215,7 +202,7 @@ native agent 不应暴露：
 - 任意 JavaScript 执行；
 - 坐标级 click/type/scroll 作为普通工具。
 
-后续页面控制必须通过 allowlist 中的语义 action，例如：
+后续页面控制必须通过命名空间约束下的语义 Command，例如：
 
 ```text
 framework.switchModule

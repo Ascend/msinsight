@@ -32,6 +32,8 @@ import {
     getSnapshotEvent,
     getSnapshotAllocations,
     getSnapshotLeakStats,
+    type BlocksTableData,
+    type EventsTableData,
 } from '../utils/RequestUtils';
 import { message } from 'antd';
 import { runInAction } from 'mobx';
@@ -233,53 +235,32 @@ const handleThreshold = (blockParam: any, session: any): void => {
         }
     });
 };
-export const getBlockTableData = async (session: any): Promise<void> => {
+export const getBlockTableData = async (session: any): Promise<BlocksTableData> => {
     const request = session.module === 'leaks' ? getBlockDetails : getSnapshotBlockTable;
+    const blockParam: BlockParam = {
+        deviceId: session.deviceId,
+        relativeTime: true,
+        eventType: session.eventType,
+        isTable: true,
+        startTimestamp: session.minTime,
+        endTimestamp: session.maxTime,
+        currentPage: session.blocksCurrentPage,
+        pageSize: session.blocksPageSize,
+    };
+    if (session.blocksOrder !== '') {
+        blockParam.desc = session.blocksOrder;
+        blockParam.orderBy = session.blocksOrderBy;
+    }
+    if (Object.keys(session.blocksFilters).length > 0) blockParam.filters = session.blocksFilters;
+    if (Object.keys(session.blocksRangeFilters).length > 0) blockParam.rangeFilters = session.blocksRangeFilters;
+    if (session.onlyInefficient) blockParam.onlyInefficient = true;
+    if (session.autoFilterPotentialLeaks) blockParam.onlyUnreleasedInRange = true;
+    handleThreshold(blockParam, session);
     try {
-        const currentPage = session.blocksCurrentPage;
-        const pageSize = session.blocksPageSize;
-        const blockParam: BlockParam = {
-            deviceId: session.deviceId,
-            relativeTime: true,
-            eventType: session.eventType,
-            isTable: true,
-            startTimestamp: session.minTime,
-            endTimestamp: session.maxTime,
-            currentPage,
-            pageSize,
-        };
-        if (session.blocksOrder !== '') {
-            blockParam.desc = session.blocksOrder;
-            blockParam.orderBy = session.blocksOrderBy;
-        }
-        if (Object.keys(session.blocksFilters).length > 0) {
-            blockParam.filters = session.blocksFilters;
-        }
-        if (Object.keys(session.blocksRangeFilters).length > 0) {
-            blockParam.rangeFilters = session.blocksRangeFilters;
-        }
-        if (session.onlyInefficient) {
-            blockParam.onlyInefficient = true;
-        }
-        if (session.autoFilterPotentialLeaks) {
-            blockParam.onlyUnreleasedInRange = true;
-        }
-        handleThreshold(blockParam, session);
-        const blockTableData = await request(blockParam);
-        const maxPage = Math.max(Math.ceil(blockTableData.total / pageSize), 1);
-        if (currentPage > maxPage) {
-            runInAction(() => {
-                session.blocksCurrentPage = maxPage;
-            });
-            return;
-        }
-        runInAction(() => {
-            session.blocksTableData = blockTableData.blocks;
-            session.blocksTableHeader = blockTableData.headers;
-            session.blocksTotal = blockTableData.total;
-        });
+        return await request(blockParam);
     } catch (error: any) {
         message.error(error.message);
+        throw error;
     }
 };
 export const getPotentialLeakStats = async (session: any, range?: [number, number]): Promise<void> => {
@@ -319,44 +300,27 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
         message.error(error.message);
     }
 };
-export const getEventTableData = async (session: any): Promise<void> => {
+export const getEventTableData = async (session: any): Promise<EventsTableData> => {
     const request = session.module === 'leaks' ? getEventDetails : getSnapshotEvent;
+    const eventParam: EventParam = {
+        deviceId: session.deviceId,
+        relativeTime: true,
+        startTimestamp: session.minTime,
+        endTimestamp: session.maxTime,
+        currentPage: session.eventsCurrentPage,
+        pageSize: session.eventsPageSize,
+        isTable: true,
+    };
+    if (session.eventsOrder !== '') {
+        eventParam.desc = session.eventsOrder;
+        eventParam.orderBy = session.eventsOrderBy;
+    }
+    if (Object.keys(session.eventsFilters).length > 0) eventParam.filters = session.eventsFilters;
+    if (Object.keys(session.eventsRangeFilters).length > 0) eventParam.rangeFilters = session.eventsRangeFilters;
     try {
-        const currentPage = session.eventsCurrentPage;
-        const pageSize = session.eventsPageSize;
-        const eventParam: EventParam = {
-            deviceId: session.deviceId,
-            relativeTime: true,
-            startTimestamp: session.minTime,
-            endTimestamp: session.maxTime,
-            currentPage,
-            pageSize,
-            isTable: true,
-        };
-        if (session.eventsOrder !== '') {
-            eventParam.desc = session.eventsOrder;
-            eventParam.orderBy = session.eventsOrderBy;
-        }
-        if (Object.keys(session.eventsFilters).length > 0) {
-            eventParam.filters = session.eventsFilters;
-        }
-        if (Object.keys(session.eventsRangeFilters).length > 0) {
-            eventParam.rangeFilters = session.eventsRangeFilters;
-        }
-        const eventTableData = await request(eventParam);
-        const maxPage = Math.max(Math.ceil(eventTableData.total / pageSize), 1);
-        if (currentPage > maxPage) {
-            runInAction(() => {
-                session.eventsCurrentPage = maxPage;
-            });
-            return;
-        }
-        runInAction(() => {
-            session.eventsTableData = eventTableData.events;
-            session.eventsTableHeader = eventTableData.headers;
-            session.eventsTotal = eventTableData.total;
-        });
+        return await request(eventParam);
     } catch (error: any) {
         message.error(error.message);
+        throw error;
     }
 };

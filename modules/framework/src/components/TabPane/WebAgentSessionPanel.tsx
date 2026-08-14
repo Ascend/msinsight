@@ -17,14 +17,21 @@
  */
 import React, { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Resizer } from '@insight/lib';
-import { FrontendAgentToolBridgeServer, AGENT_TOOL_REQUEST, type ToolRequestMessage } from '@insight/lib/FrontendAgentToolBridge';
+import { ACP_MESSAGE_CHANNEL } from '@insight/lib/FrontendAgentCommand';
+import {
+    frameWindowMessageOrigin,
+    getWindowMessageRouter,
+    recordWindowMessageDebug,
+    isWindowMessageChannel,
+    matchesWindowMessageOrigin,
+    withWindowMessageChannel,
+} from '@insight/lib/WindowMessageRouter';
 
 import type { ModuleConfig } from '@/moduleConfig';
 import type { Session } from '@/entity/session';
 import { ACP_SESSION_SRC } from '@/moduleConfig';
 import { ACP_CAPABILITY_TOKEN, ACP_PORT, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
-import { setFrontendAgentToolBridgeServer } from '@/agent/frontendAgentToolRegistry';
-import { registerObserveTool } from '@/agent/tools/observe';
+import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 
 export const ACP_SESSION_MIN_WIDTH = 500;
 
@@ -39,8 +46,8 @@ interface WebAgentSessionPanelProps {
 
 export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFrameMinWidth, session, show, tabBodyRef }: WebAgentSessionPanelProps): JSX.Element => {
     const [sessionPanelWidth, setSessionPanelWidth] = useState(ACP_SESSION_MIN_WIDTH);
-    const [acpSessionReady, setAcpSessionReady] = useState(false);
     const acpSessionFrameRef = useRef<HTMLIFrameElement>(null);
+    const acpSessionReadyRef = useRef(false);
 
     const acpSessionSrc = useMemo(() => {
         const acpSessionParams = new URLSearchParams({
@@ -52,6 +59,7 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
         }
         return `${ACP_SESSION_SRC}${ACP_SESSION_SRC.includes('?') ? '&' : '?'}${acpSessionParams.toString()}`;
     }, []);
+    const acpSessionOrigin = useMemo(() => frameWindowMessageOrigin(acpSessionSrc), [acpSessionSrc]);
 
     const resizeSessionPanel = (moveWidthLength: number): void => {
         const bodyWidth = tabBodyRef.current?.clientWidth ?? window.innerWidth;
@@ -62,61 +70,58 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
     const sendAcpSessionContext = useCallback((): void => {
         const targetWindow = acpSessionFrameRef.current?.contentWindow;
         if (!targetWindow) return;
-        targetWindow.postMessage({
+        const contextMessage = withWindowMessageChannel(ACP_MESSAGE_CHANNEL, {
             event: 'insightWebAgent/context',
             body: {
                 profileId: session.activeDataSource.projectName ?? '',
                 activeModule,
             },
-        }, '*');
-    }, [session.activeDataSource.projectName, activeModule]);
+        });
+        recordWindowMessageDebug({
+            direction: 'outbound',
+            data: contextMessage,
+            origin: window.location.origin,
+            target: 'AcpSession',
+        });
+        targetWindow.postMessage(contextMessage, acpSessionOrigin);
+    }, [session.activeDataSource.projectName, activeModule, acpSessionOrigin]);
 
-    // FrontendAgentToolBridgeServer：接收 iframe 的工具调用请求，按 tool 名分发到对应 handler。
-    // 不自注册 listener，由下方单一 listener 按 event 分发委托给它。
-    // 工具实现通过 `frontendAgentToolRegistry` 注册，与 server 实例化解耦。
-    const toolBridge = useMemo(() => new FrontendAgentToolBridgeServer({
-        targetFrame: () => acpSessionFrameRef.current,
-    }), []);
-
-    // 把 server 注册到全局注册表，并注册 observe 工具（getter 注入当前状态）。
-    // 工具注册随组件生命周期——WebAgentSessionPanel 卸载时工具无意义。
     useEffect(() => {
-        setFrontendAgentToolBridgeServer(toolBridge);
-        const unregisterObserve = registerObserveTool(() => ({
-            activeModule,
-            availableModules,
-            session,
-        }));
-        return () => {
-            unregisterObserve();
-            setFrontendAgentToolBridgeServer(null);
-            toolBridge.dispose();
+        const frame = acpSessionFrameRef.current;
+        if (!frame) return;
+        return frontendAgentCommandController.attachAgentFrame(frame);
+    }, [acpSessionOrigin]);
+
+    useEffect(() => frontendAgentCommandController.setFrameworkObservationProvider(() => ({
+        activeModule,
+        availableModules: availableModules.map(module => module.name),
+        scene: session.scene,
+        loading: session.loading,
+        selectedProjectName: session.activeDataSource.projectName,
+        hasSelectedFile: Boolean(session.activeDataSource.selectedFilePath),
+        selectedFileType: session.activeDataSource.selectedFileType,
+        clusterPageInfo: {
+            selectedClusterPath: session.clusterPageInfo.selectedClusterPath,
+            clusterCount: session.clusterPageInfo.clusterList.length,
+        },
+        timelinePageInfo: {
+            unitCount: session.timelinePageInfo.unitCount,
+        },
+    })), [activeModule, availableModules, session]);
+
+    useEffect(() => {
+        const handleReady = (event: MessageEvent): void => {
+            if (event.source !== acpSessionFrameRef.current?.contentWindow || !matchesWindowMessageOrigin(event.origin, acpSessionOrigin)) return;
+            if ((event.data as { event?: string })?.event !== 'insightWebAgent/ready') return;
+            acpSessionReadyRef.current = true;
+            sendAcpSessionContext();
         };
-    }, [toolBridge, activeModule, availableModules, session]);
-
-    // 单一 message listener：整合 ready 通知 + 工具调用请求。
-    // 这是对 reviewer 意见 #1 的响应——消除原 AgentBridge.ts + WebAgentSessionPanel
-    // 两个并行 listener 的结构混乱。
-    useEffect(() => {
-        const handleMessage = (event: MessageEvent): void => {
-            if (event.source !== acpSessionFrameRef.current?.contentWindow) return;
-            switch ((event.data as { event?: string })?.event) {
-                case 'insightWebAgent/ready':
-                    setAcpSessionReady(true);
-                    break;
-                case AGENT_TOOL_REQUEST:
-                    toolBridge.handleMessage(event as MessageEvent<ToolRequestMessage>);
-                    break;
-            }
-        };
-        window.addEventListener('message', handleMessage);
-        return () => window.removeEventListener('message', handleMessage);
-    }, [toolBridge]);
+        return getWindowMessageRouter().subscribe(handleReady, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
+    }, [acpSessionOrigin, sendAcpSessionContext]);
 
     useEffect(() => {
-        if (!acpSessionReady) return;
-        sendAcpSessionContext();
-    }, [acpSessionReady, sendAcpSessionContext]);
+        if (acpSessionReadyRef.current) sendAcpSessionContext();
+    }, [sendAcpSessionContext]);
 
     return <div className="acp-session-wrapper" style={{ display: show ? 'block' : 'none', width: sessionPanelWidth }}>
         <Resizer

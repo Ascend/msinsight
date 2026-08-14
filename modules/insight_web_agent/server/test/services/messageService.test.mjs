@@ -18,13 +18,42 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
-import { appendContentBlock } from "../../services/messageService.mjs";
+import { appendContentBlock, upsertToolCall } from "../../services/messageService.mjs";
 
 const buildSessionContext = () => ({
     sessionId: "session-1",
     messages: [],
     pendingPrompt: false,
     configOptions: [],
+});
+
+test("upsertToolCall broadcasts live start and completion updates on one assistant message", () => {
+    const state = createRuntimeState();
+    state.sessionContexts.set("session-1", buildSessionContext());
+    const events = [];
+    const context = { eventBus: { broadcast: (event) => events.push(event) }, state };
+
+    upsertToolCall(context, "session-1", {
+        toolCallId: "call-1",
+        name: "msinsight",
+        status: "in_progress",
+        input: "{}",
+        startedAt: 100,
+    });
+    upsertToolCall(context, "session-1", {
+        toolCallId: "call-1",
+        name: "msinsight",
+        status: "completed",
+        output: "{}",
+        durationMs: 50,
+    });
+
+    const messages = state.sessionContexts.get("session-1").messages;
+    assert.equal(messages.length, 1);
+    assert.equal(messages[0].toolCalls.length, 1);
+    assert.equal(messages[0].toolCalls[0].status, "completed");
+    assert.equal(events.filter((event) => event.type === "message_added").length, 1);
+    assert.deepEqual(events.filter((event) => event.type === "message_tool_call").map((event) => event.toolCall.status), ["in_progress", "completed"]);
 });
 
 test("appendContentBlock ignores hidden context resources", () => {

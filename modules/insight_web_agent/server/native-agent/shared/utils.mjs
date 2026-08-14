@@ -110,6 +110,7 @@ export const toStoredSession = (session) => ({
     bladeSystemPrompt: session.runtimeSystemPrompt ?? session.bladeSystemPrompt,
     bladeContextNeedsRestore: session.runtimeContextNeedsRestore ?? session.bladeContextNeedsRestore,
     projectRoot: session.projectRoot,
+    lastPageObservationFingerprint: session.lastPageObservationFingerprint,
     createdAt: session.createdAt,
     updatedAt: session.updatedAt,
 });

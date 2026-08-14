@@ -69,6 +69,8 @@
 | --- | --- |
 | 首次参与开发 | 本文 `2. Linux 环境快速搭建与运行`、`4. 测试指南` |
 | 新增前端/后端模块 | 本文 `3.1 新增模块开发` |
+| 新增前端 Agent Command | [Frontend Agent Command 实践指南](./frontend_agent_command_implementation.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
+| 为业务表格接入 Agent 能力 | [表格 Command 接入指南](./agent_table_command_implementation.md)、[AgentTable Command 设计](./design/AgentTableCommand.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
 | 新增或维护 Timeline 泳道 | 本文 `3.2 DB 场景新增泳道`、[TrackRender](./design/TrackRender.md)、[Timeline](./design/Timeline.md) |
 | 维护概览和通信模块 | [Summary](./design/Summary.md)、[Communication](./design/Communication.md) |
 | 维护内存模块 | [Memory](./design/Memory.md)、[Device 内存分析](./design/support_device_memory_analysis.md)、[Snapshot 分析](./design/support_snapshot_analysis.md) |

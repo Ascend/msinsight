@@ -19,7 +19,7 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, systemPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, frontendCommandService, systemPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -84,7 +84,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 console.warn(`Prompt rejected: another prompt is running, sessionId=${sessionId}`);
                 return { error: "another prompt is running", status: 409 };
             }
-            const hiddenContext = await contextAssembler?.assemble?.(sessionContext);
+            const hiddenContext = await contextAssembler?.assemble?.(sessionContext, options.pageObservation);
 
             sessionContext.pendingPrompt = true;
             await sessionService.applyPreferredModel(sessionId);
@@ -144,6 +144,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             console.warn("Cancel rejected: sessionId is required");
             return { error: "sessionId is required", status: 400 };
         }
+        frontendCommandService?.cancelSession?.(sessionId);
         try {
             await adapter.request("session/cancel", { sessionId });
             console.log(`ACP session cancel completed: sessionId=${sessionId}`);

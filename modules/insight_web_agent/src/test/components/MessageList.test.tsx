@@ -28,7 +28,8 @@ jest.mock('remark-gfm', () => ({
     default: jest.fn(),
 }));
 
-import { MessageList } from '../../components/MessageList';
+import { MessageList, toolCallDisplayName } from '../../components/MessageList';
+import { upsertToolCall } from '../../hooks/toolCalls';
 
 const noopPermissionDecision = jest.fn();
 
@@ -41,6 +42,54 @@ const MockMarkdown = ({ text }: { text: string }): JSX.Element => {
     }
     return <p>A very long token abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz and <code>/workspace/really/long/path/that/should/wrap/in/the/panel/file.ts</code></p>;
 };
+
+test('shows the msinsight command as the tool card name', () => {
+    expect(toolCallDisplayName({
+        toolCallId: 'call-1',
+        name: 'msinsight',
+        status: 'in_progress',
+        input: '{"command":"MemScope.table.getDisplayedData","args":{"targetId":"table-1"}}',
+    })).toBe('MemScope.table.getDisplayedData');
+    expect(toolCallDisplayName({
+        toolCallId: 'call-2',
+        name: 'msinsight',
+        status: 'in_progress',
+        input: 'invalid JSON',
+    })).toBe('msinsight');
+    expect(toolCallDisplayName({
+        toolCallId: 'call-3',
+        name: 'other-tool',
+        status: 'in_progress',
+        input: '{"command":"observe"}',
+    })).toBe('other-tool');
+});
+
+test('upserts live tool call completion without duplicating its card', () => {
+    const started = upsertToolCall([], {
+        toolCallId: 'call-1',
+        name: 'msinsight',
+        status: 'in_progress',
+        input: '{}',
+        startedAt: 100,
+    });
+    const completed = upsertToolCall(started, {
+        toolCallId: 'call-1',
+        name: 'msinsight',
+        status: 'completed',
+        output: '{"module":{"tables":[]}}',
+        durationMs: 50,
+    });
+
+    expect(completed).toEqual([{
+        toolCallId: 'call-1',
+        name: 'msinsight',
+        status: 'completed',
+        input: '{}',
+        output: '{"module":{"tables":[]}}',
+        startedAt: 100,
+        durationMs: 50,
+    }]);
+});
 
 test('wraps long markdown text and inline code inside the message width', () => {
     render(<MessageList

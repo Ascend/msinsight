@@ -1,0 +1,11 @@
+/*
+ * -------------------------------------------------------------------------
+ * This file is part of the MindStudio project.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
+ *
+ * MindStudio is licensed under Mulan PSL v2.
+ * -------------------------------------------------------------------------
+ */
+import { FrontendAgentCommandController } from './FrontendAgentCommandController';
+
+export const frontendAgentCommandController = new FrontendAgentCommandController();

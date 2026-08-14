@@ -24,6 +24,7 @@ import { themeInstance } from './theme/theme';
 import { registerEventHandlers, getInitStatus } from './index';
 import { GlobalStyles } from '@insight/lib/theme';
 import { SharedConfigProvider } from '@insight/lib';
+import { startMemScopeAgentRuntime, stopMemScopeAgentRuntime } from './agent/runtime';
 import './index.css';
 const App = observer(() => {
     const { sessionStore } = useRootStore();
@@ -33,6 +34,8 @@ const App = observer(() => {
         session = sessionStore.activeSession;
         registerEventHandlers();
         getInitStatus();
+        startMemScopeAgentRuntime();
+        return stopMemScopeAgentRuntime;
     }, []);
     useEffect(() => {
         if (session) {

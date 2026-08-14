@@ -225,4 +225,6 @@ export type ServerEvent =
     | { type: 'config_options'; sessionId?: string; configOptions: ConfigOption[] }
     | { type: 'permission_request'; sessionId: string; requestId: string; path: string; actions: PermissionDecision[] }
     | { type: 'permission_resolved'; sessionId: string; requestId: string; state: Exclude<PermissionState, 'pending'> }
-    | { type: 'prompt_status'; sessionId?: string; pendingPrompt: boolean };
+    | { type: 'prompt_status'; sessionId?: string; pendingPrompt: boolean }
+    | { type: 'frontend_command_request'; requestId: string; sessionId?: string; command: string; args: Record<string, unknown>; deadline: number }
+    | { type: 'frontend_command_cancel'; requestId: string; reason?: string };

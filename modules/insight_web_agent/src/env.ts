@@ -15,6 +15,13 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+declare const process: {
+    readonly env: {
+        readonly NODE_ENV?: 'development' | 'production' | 'test';
+        readonly REACT_APP_ACP_CAPABILITY_TOKEN?: string;
+    };
+};
+
 declare global {
     interface Window {
         __ACP_API_BASE__?: string;
