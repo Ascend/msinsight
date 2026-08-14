@@ -39,9 +39,10 @@ const commandRequest = (targetId: string, requestId: string, expectedRevision = 
 
 describe('TableControllerRegistry', () => {
     beforeAll(() => {
+        let sequence = 0;
         Object.defineProperty(globalThis, 'crypto', {
             configurable: true,
-            value: { randomUUID: jest.fn(() => '00000000-0000-4000-8000-000000000001') },
+            value: { randomUUID: () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}` },
         });
     });
 

@@ -16,6 +16,12 @@
     "server:build:test": "node --test server/test/integration/nativeAgentPackagedEntry.test.mjs",
     "build": "cross-env DISABLE_ESLINT_PLUGIN=true craco build"
   },
+  "jest": {
+    "moduleNameMapper": {
+      "^@insight/lib$": "<rootDir>/../lib/src",
+      "^@insight/lib/(.*)$": "<rootDir>/../lib/src/$1"
+    }
+  },
   "browserslist": {
     "production": [
       ">0.2%",
