@@ -68,7 +68,7 @@ export class Session {
     // 右键选中的算子
     targetOperator: ClickOperatorItem | undefined = undefined;
     communicationChartZoomData?: ChartZoomData; // start 图表缩放的起始位置百分比, end 图表缩放的结束位置百分比
-    profilingExpertDataParsed: boolean | null = null; // 专家热力图数据解析结果
+    profilingExpertDataParsed: boolean | null = null; // 专家热力图数据解析结果，一次项目导入只需更新一次
     private _clusterList: ClusterInfo[] = [];
 
     constructor(conf?: Partial<Session>) {
@@ -113,6 +113,11 @@ export class Session {
         return this._clusterList.find(({ path }) => path === this.selectedClusterPath)?.durationParsed ?? false;
     }
 
+    // 当前 selectedClusterPath 是否在 clusterList 中（即当前数据是否有 cluster 维度）
+    get isClusterPathInList(): boolean {
+        return this._clusterList.some(({ path }) => path === this.selectedClusterPath);
+    }
+
     get clusterList(): ClusterInfo[] {
         return this._clusterList;
     }
@@ -152,6 +157,7 @@ export class Session {
         this.parseCompleted = false;
         this.unitcount = 0;
         this.communicatorData = { clusterPath: '', partitionModes: [], defaultPPSize: 0 };
+        this.profilingExpertDataParsed = null;
         this.resetForClusterChange();
     }
 
@@ -167,6 +173,5 @@ export class Session {
         this.rankDyeingData = {};
         this.arrangementRankCount = 0;
         this.targetOperator = undefined;
-        this.profilingExpertDataParsed = null;
     }
 }

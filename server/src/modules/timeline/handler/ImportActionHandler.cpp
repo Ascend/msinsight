@@ -170,6 +170,10 @@ std::vector<ParserType> ImportActionHandler::GetParserTypeList(const std::string
         return result;
     }
     result.emplace_back(parserType.second);
+    // 对 result 根据 ParserType 的大小进行排序，保证 DB JSON 这种集群数据先于 IE 数据解析
+    // 从而保证前端切换项目时，选中的第一个子项是集群而不是 IE 数据
+    // C++ 中的枚举（enum\enum class）默认支持 < 运算符
+    std::sort(result.begin(), result.end());
     return result;
 }
 

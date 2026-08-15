@@ -75,7 +75,7 @@ struct ParseFileInfo {
     std::string subId; // 用于下一级的parseFileInfo去寻找自己的上一级目录
     std::string curDirName; // 当前目录名
     ParseFileType type;
-    int64_t projectType;
+    int64_t projectType{};
     std::vector<std::shared_ptr<ParseFileInfo>> subParseFile;
     inline json_t SerializeToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
         json_t res(rapidjson::kObjectType);

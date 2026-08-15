@@ -53,11 +53,16 @@ export const App = observer(() => {
         });
     };
 
+    // 当前数据无 cluster 维度（不在 clusterList 中）或 cluster 已解析完成时，显示真实内容
+    const showContent = React.useMemo(() => {
+        return !session?.isClusterPathInList || !!session?.clusterCompleted;
+    }, [session?.isClusterPathInList, session?.clusterCompleted]);
+
     return (<ThemeProvider theme={themeInstance.getThemeType()}>
         <GlobalStyles />
         <SharedConfigProvider locale={locale}>
-            {session?.clusterCompleted && <CommunicationAnalysis session={session} />}
-            <div className={`fullmask ${session?.clusterCompleted ? 'hide' : ''}`}>{Loading}</div>
+            {showContent && <CommunicationAnalysis session={session} />}
+            <div className={`fullmask ${showContent ? 'hide' : ''}`}>{Loading}</div>
         </SharedConfigProvider>
     </ThemeProvider>);
 });

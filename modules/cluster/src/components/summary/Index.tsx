@@ -238,11 +238,12 @@ export const Index = observer(({ session, clusterPath }: { session: Session; clu
     }, [performanceChartConditions.step, performanceChartConditions.baselineStep, JSON.stringify(generateConditions), session.isCompare]);
 
     useEffect(() => {
-        if (isDefaultGenerateConditions) {
+        if (isDefaultGenerateConditions || !session.isClusterPathInList) {
             return;
         }
         getAllConnections();
     }, [
+        session.isClusterPathInList,
         generateConditions.algorithm,
         generateConditions.ppSize,
         generateConditions.tpSize,

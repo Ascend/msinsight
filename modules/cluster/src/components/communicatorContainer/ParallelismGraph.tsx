@@ -134,6 +134,9 @@ const useFetchData = (params: GenerateConditions | null, session: Session): UseF
     };
 
     useEffect(() => {
+        if (!session?.isClusterPathInList) {
+            return;
+        }
         const isDefaultParams = params?.dpSize === 1 && params?.tpSize === 1 && params?.ppSize === 1 && params.cpSize === 1 && params?.epSize === 1;
         if (params !== null && !isDefaultParams) {
             fetchData();
@@ -142,7 +145,7 @@ const useFetchData = (params: GenerateConditions | null, session: Session): UseF
         if (unitcount && unitcount <= 64 && isDefaultParams) {
             fetchData();
         }
-    }, [JSON.stringify(params)]);
+    }, [JSON.stringify(params), session?.isClusterPathInList]);
 
     return { data, loading, error, isUpdated };
 };
