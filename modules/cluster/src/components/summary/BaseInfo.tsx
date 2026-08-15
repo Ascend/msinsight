@@ -113,14 +113,15 @@ const BaseInfo = observer(({ session }: { session: Session}): JSX.Element => {
         , [baseinfo, displayFields]);
 
     useEffect(() => {
-        if (!session.clusterCompleted) {
+        if (!session.isClusterPathInList || !session.clusterCompleted) {
             setBaseinfo({});
             return;
         }
-        setTimeout(() => {
+        const timer = setTimeout(() => {
             updateBaseInfoData(setBaseinfo, session);
         });
-    }, [session.isCompare, session.renderId]);
+        return () => clearTimeout(timer);
+    }, [session.isCompare, session.renderId, session.isClusterPathInList]);
 
     return <CollapsiblePanel title={t('BaseInfo')}>
         <MIDescriptions>

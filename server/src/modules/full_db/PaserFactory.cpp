@@ -686,7 +686,8 @@ void ProjectParserBase::MergeFileTree(std::vector<std::shared_ptr<ParseFileInfo>
         return;
     }
     if (rootTree[0]->subId == childrenTree[0]->subId) {
-        rootTree[0]->subParseFile.insert(rootTree[0]->subParseFile.begin(), childrenTree[0]->subParseFile.begin(),
+        // 从头部插入改成从尾部插入
+        rootTree[0]->subParseFile.insert(rootTree[0]->subParseFile.end(), childrenTree[0]->subParseFile.begin(),
             childrenTree[0]->subParseFile.end());
     } else {
         rootTree.insert(rootTree.end(), childrenTree.begin(), childrenTree.end());

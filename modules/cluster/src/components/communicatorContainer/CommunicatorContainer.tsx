@@ -228,8 +228,11 @@ const CommunicatorHeader = observer(({ session, showRank, setShowRank, isNoData,
     };
 
     useEffect(() => {
+        if (!session?.isClusterPathInList) {
+            return;
+        }
         init(clusterPath);
-    }, [clusterPath]);
+    }, [clusterPath, session?.isClusterPathInList]);
 
     const clickGenerate = async (): Promise<void> => {
         const formData: GenerateConditions = form.getFieldsValue();
