@@ -280,7 +280,8 @@ const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, metada
         session.selectedData = clickedData
             ? {
                 ...clickedData,
-                threadId: (metadata as ThreadMetaData).threadId ?? clickedData.threadId ?? '',
+                // Merged lanes have an empty metadata.threadId. Keep the exact TASK thread selected.
+                threadId: clickedData.threadId ?? (metadata as ThreadMetaData).threadId ?? '',
                 processId: (metadata as ThreadMetaData).processId ?? '',
                 timestamp: clickedData.originalStartTime as number,
                 metaType: (metadata as ThreadMetaData).metaType ?? '',

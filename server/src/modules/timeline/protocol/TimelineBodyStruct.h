@@ -105,6 +105,7 @@ struct ThreadDetail {
     uint64_t rawTimestamp = 0;
     uint64_t rawEndstamp = 0;
     std::string args;
+    std::vector<std::string> modelStreamIds;
     std::string title;
     std::string cat;
     std::string inputShapes;

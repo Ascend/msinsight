@@ -77,6 +77,7 @@ struct CompeteSliceDomain {
     std::string memcpyDirection;
     std::string bandwidth;
     std::string args;
+    std::vector<std::string> modelStreamIds;
     std::string cardId;
     bool isCommunicationGroup = false;
     bool operator<(const CompeteSliceDomain &right) const {

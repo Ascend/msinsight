@@ -62,7 +62,14 @@ class HardWareRepoTest : public ::testing::Test {
             "(1718180918997521124, 1718180918999870771, 0, 7422, 5, 2045554, 320, 4294967295, 16, 3731, 4294967295, 0);"
             "INSERT INTO \"main\".\"TASK\" (\"startNs\", \"endNs\", \"deviceId\", \"connectionId\", \"globalTaskId\", "
             "\"globalPid\", \"taskType\", \"contextId\", \"streamId\", \"taskId\", \"modelId\", \"depth\") VALUES "
-            "(1718180918997621124, 1718180918999870771, 0, 7422, 6, 2045554, 320, 4294967295, 16, 3731, 4294967295,0);";
+            "(1718180918997621124, 1718180918999870771, 0, 7422, 6, 2045554, 320, 4294967295, 16, 3731, 4294967295,0);"
+            "INSERT INTO \"main\".\"TASK\" (\"startNs\", \"endNs\", \"deviceId\", \"connectionId\", \"globalTaskId\", "
+            "\"globalPid\", \"taskType\", \"contextId\", \"streamId\", \"taskId\", \"modelId\", \"depth\") VALUES "
+            "(1718180918997721124, 1718180918999870771, 0, 7423, 7, 2045554, 321, 4294967295, 47, 3732, 48, 0),"
+            "(1718180918997821124, 1718180918999870771, 0, 7424, 8, 2045554, 320, 4294967295, 11, 3733, 48, 0),"
+            "(1718180918997921124, 1718180918999870771, 0, 7425, 9, 2045554, 320, 4294967295, 12, 3734, 48, 0),"
+            "(1718180918998021124, 1718180918999870771, 1, 7426, 10, 2045554, 320, 4294967295, 99, 3735, 48, 0),"
+            "(1718180918998121124, 1718180918999870771, 0, 7427, 11, 2045554, 320, 4294967295, 13, 3736, 49, 0);";
         std::string computeInsert =
             "INSERT INTO \"main\".\"COMPUTE_TASK_INFO\" (\"name\", \"globalTaskId\", \"blockNum\", "
             "\"mixBlockDim\", \"taskType\", \"opType\", \"inputFormats\", \"inputDataTypes\", "
@@ -71,6 +78,7 @@ class HardWareRepoTest : public ::testing::Test {
             "VALUES (7, 5, 9, 0, 320, 8, 1, 2, 3, 4, 5, 6, 7, 5340, 11, 12);";
         std::string stringInsert =
             "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (320, 'KERNEL_SIMT');\n"
+            "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (321, 'MODEL_EXECUTE');\n"
             "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (1, 'aaa');\n"
             "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (2, 'bbb');\n"
             "INSERT INTO \"main\".\"STRING_IDS\" (\"id\", \"value\") VALUES (3, 'ccc');\n"
@@ -167,6 +175,23 @@ TEST_F(HardWareRepoTest, TestQuerySliceDetailInfoNormal) {
     EXPECT_EQ(slice.sliceShape.outputFormats, "ddd");
     EXPECT_EQ(slice.sliceShape.outputDataTypes, "eee");
     EXPECT_EQ(slice.sliceShape.attrInfo, "ggg");
+}
+
+TEST_F(HardWareRepoTest, TestModelExecuteDetailContainsSameDeviceModelStreams) {
+    HardWareDependency dependency;
+    HardWareRepoMock hardWareRepoMock;
+    TestQuerySliceDetailInfoNormalPrepare(dependency, hardWareRepoMock.db);
+    hardWareRepoMock.SetMock(dependency);
+    SliceQuery query;
+    query.sliceId = "3";
+    query.rankId = "0";
+    CompeteSliceDomain slice;
+
+    const bool result = hardWareRepoMock.QuerySliceDetailInfo(query, slice);
+
+    EXPECT_TRUE(result);
+    const std::vector<std::string> expectedStreamIds{"11", "12", "47"};
+    EXPECT_EQ(slice.modelStreamIds, expectedStreamIds);
 }
 
 TEST_F(HardWareRepoTest, TestQuerySliceDetailInfoNormalWithMemory) {

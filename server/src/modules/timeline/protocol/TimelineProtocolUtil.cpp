@@ -276,6 +276,7 @@ std::optional<document_t> ToResponseJson<UnitThreadDetailResponse>(const UnitThr
     json_t data(kObjectType);
     JsonUtil::AddMember(data, "selfTime", response.body.data.selfTime, allocator);
     JsonUtil::AddMember(data, "args", response.body.data.args, allocator);
+    JsonUtil::AddMember(data, "modelStreamIds", response.body.data.modelStreamIds, allocator);
     JsonUtil::AddMember(data, "title", response.body.data.title, allocator);
     JsonUtil::AddMember(data, "rawStartTime", std::to_string(response.body.data.rawTimestamp), allocator);
     JsonUtil::AddMember(data, "rawEndTime", std::to_string(response.body.data.rawEndstamp), allocator);

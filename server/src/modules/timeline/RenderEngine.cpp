@@ -483,6 +483,7 @@ void RenderEngine::QueryThreadDetail(
     dataEngine->QuerySliceDetailInfo(sliceQuery, competeSliceDomain);
     responseBody.data.selfTime = 0;
     responseBody.data.args = competeSliceDomain.args;
+    responseBody.data.modelStreamIds = competeSliceDomain.modelStreamIds;
     responseBody.data.title = competeSliceDomain.name;
     responseBody.data.duration = competeSliceDomain.endTime - competeSliceDomain.timestamp; // 保证 endTime >= timestamp
     responseBody.data.rawTimestamp = competeSliceDomain.timestamp;
