@@ -259,6 +259,7 @@ const detailsRestore = (session: any): void => {
     session.autoFilterPotentialLeaks = false;
 };
 const restore = (session: any): void => {
+    session.clearLifecycleMemoryMarkers();
     commonRestore(session);
     funcRestore(session);
     barRestore(session);

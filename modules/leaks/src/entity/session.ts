@@ -18,6 +18,12 @@
 import { makeAutoObservable } from 'mobx';
 import { type BlocksTableData, EvenItem, EventsTableData, ThreShold } from '../utils/RequestUtils';
 import { type MenuItemModel } from '../components/ContextMenu';
+import {
+    addLifecycleMemoryMarker,
+    deleteLifecycleMemoryMarker,
+    getLifecycleMemoryMarkerContextKey,
+    type LifecycleMemoryMarker,
+} from './lifecycleMemoryMarkers';
 interface TypeOption {
     label: string | number;
     value: string | number;
@@ -190,8 +196,60 @@ export class Session {
     memSnapshotParseProgress: number = 0;
     memSnapshotParseFileId: string = '';
     fileHash: string = '';
+    lifecycleMemoryMarkers: Map<string, LifecycleMemoryMarker[]> = new Map();
+    lifecycleMemoryMarkerOrdinals: Map<string, number> = new Map();
 
     constructor() {
         makeAutoObservable(this);
+    }
+
+    getLifecycleMemoryMarkerContextKey(): string {
+        return getLifecycleMemoryMarkerContextKey({
+            fileHash: this.fileHash,
+            module: this.module,
+            deviceId: this.deviceId,
+            eventType: this.eventType,
+        });
+    }
+
+    getLifecycleMemoryMarkers(): LifecycleMemoryMarker[] {
+        return this.lifecycleMemoryMarkers.get(this.getLifecycleMemoryMarkerContextKey()) ?? [];
+    }
+
+    addLifecycleMemoryMarker(
+        memoryBytes: number,
+        id: string,
+        color?: string,
+    ): boolean {
+        const contextKey = this.getLifecycleMemoryMarkerContextKey();
+        const currentMarkers = this.lifecycleMemoryMarkers.get(contextKey) ?? [];
+        const nextOrdinal = Math.max(
+            this.lifecycleMemoryMarkerOrdinals.get(contextKey) ?? 0,
+            ...currentMarkers.map(marker => marker.ordinal ?? 0),
+        ) + 1;
+        const nextMarkers = addLifecycleMemoryMarker(
+            currentMarkers,
+            memoryBytes,
+            id,
+            color,
+            nextOrdinal,
+        );
+        if (nextMarkers === currentMarkers) {
+            return false;
+        }
+        this.lifecycleMemoryMarkers.set(contextKey, nextMarkers);
+        this.lifecycleMemoryMarkerOrdinals.set(contextKey, nextOrdinal);
+        return true;
+    }
+
+    deleteLifecycleMemoryMarker(id: string): void {
+        const contextKey = this.getLifecycleMemoryMarkerContextKey();
+        const currentMarkers = this.lifecycleMemoryMarkers.get(contextKey) ?? [];
+        this.lifecycleMemoryMarkers.set(contextKey, deleteLifecycleMemoryMarker(currentMarkers, id));
+    }
+
+    clearLifecycleMemoryMarkers(): void {
+        this.lifecycleMemoryMarkers.clear();
+        this.lifecycleMemoryMarkerOrdinals.clear();
     }
 }

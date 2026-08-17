@@ -21,7 +21,9 @@ import {
     calculateLifecycleZoomTransform,
     isEditableKeyboardTarget,
     isLifecycleHostZoomShortcut,
+    memoryValueToScreenY,
     resolveLifecycleKeyboardAction,
+    screenYToMemoryValue,
 } from '../lifecycleNavigation';
 
 describe('lifecycleNavigation', () => {
@@ -31,6 +33,22 @@ describe('lifecycleNavigation', () => {
         expect(resolveLifecycleKeyboardAction({ key: 'ArrowLeft' })).toBe('pan-left');
         expect(resolveLifecycleKeyboardAction({ key: 'ArrowUp' })).toBe('pan-up');
         expect(resolveLifecycleKeyboardAction({ key: 'w', isComposing: true })).toBeNull();
+    });
+
+    it('projects stable memory values after vertical zoom and pan', () => {
+        const options = {
+            minSize: 0,
+            maxSize: 1_000,
+            transformY: -100,
+            scaleY: 2,
+            zoomY: 0.2,
+            viewportHeight: 200,
+        };
+        expect(screenYToMemoryValue(200, options)).toBe(250);
+        expect(screenYToMemoryValue(100, options)).toBe(500);
+        expect(screenYToMemoryValue(0, options)).toBe(750);
+        expect(memoryValueToScreenY(500, options)).toBe(100);
+        expect(screenYToMemoryValue(-1, options)).toBeNull();
     });
 
     it('reserves host close and save shortcuts only for an active lifecycle graph', () => {
