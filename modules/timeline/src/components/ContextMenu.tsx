@@ -62,6 +62,7 @@ import {
     actionMergeUnits,
     actionUnmergeUnits,
     actionSliceSelection,
+    actionJumpToModelStream,
     actionJumpToLinkSlice,
 } from '../actions';
 import { Action } from '../actions/types';
@@ -268,6 +269,7 @@ const contextMenuItems: ContextMenuItem[] = [
     actionGenerateBubbleCurve,
     actionSetCardAlias,
     actionParseCardsOfRelatedGroup,
+    actionJumpToModelStream,
     CONTEXT_MENU_SEPARATOR,
     // 时间范围分析
     actionTimeRangeAnalysis,

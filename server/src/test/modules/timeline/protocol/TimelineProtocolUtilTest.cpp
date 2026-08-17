@@ -33,6 +33,23 @@ TEST_F(TimelineProtocolUtilTest, ParseSuccessEventSerializesIsFtrace) {
     EXPECT_TRUE(json["body"]["isFtrace"].GetBool());
 }
 
+TEST_F(TimelineProtocolUtilTest, UnitThreadDetailSerializesModelStreamIds) {
+    Dic::Protocol::UnitThreadDetailResponse response;
+    response.body.data.modelStreamIds = {"11", "12", "47"};
+
+    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+
+    ASSERT_TRUE(jsonOp.has_value());
+    const auto &data = jsonOp.value()["body"]["data"];
+    ASSERT_TRUE(data.HasMember("modelStreamIds"));
+    const auto &streamIds = data["modelStreamIds"];
+    ASSERT_TRUE(streamIds.IsArray());
+    ASSERT_EQ(streamIds.Size(), 3);
+    EXPECT_STREQ(streamIds[0].GetString(), "11");
+    EXPECT_STREQ(streamIds[1].GetString(), "12");
+    EXPECT_STREQ(streamIds[2].GetString(), "47");
+}
+
 /**
  * 测试ThreadTracesResponseToJson正常情况
  */

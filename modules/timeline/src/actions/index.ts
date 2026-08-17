@@ -61,4 +61,5 @@ export {
 export { actionParseCardsOfRelatedGroup } from './actionParseCardsOfRelatedGroup';
 export { actionMergeUnits, actionUnmergeUnits } from './actionMergeUnits';
 export { actionFlagMarkCreation } from './actionFlagMarkCreation';
+export { actionJumpToModelStream } from './actionJumpToModelStream';
 export { actionJumpToLinkSlice } from './actionJumpToLinkSlice';

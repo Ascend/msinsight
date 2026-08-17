@@ -79,6 +79,7 @@ export type ActionName =
   | 'generateBubbleCurveByBlock'
   | 'createFlagMark'
   | 'sliceSelection'
+  | 'jumpToModelStream'
   | 'jumpToLinkSlice';
 
 export interface Action {

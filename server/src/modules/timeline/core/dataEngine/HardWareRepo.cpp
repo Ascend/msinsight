@@ -140,7 +140,7 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
         .Select(TaskColumn::TASK_TYPE, TaskColumn::STREAM_ID)
         .Select(TaskColumn::TASK_ID, TaskColumn::CONNECTION_ID)
         .Select(TaskColumn::GLOBAL_TASK_ID, TaskColumn::TIMESTAMP)
-        .Select(TaskColumn::ENDTIME)
+        .Select(TaskColumn::ENDTIME, TaskColumn::DECICED_ID)
         .Eq(TaskColumn::ROW_ID, sliceQuery.sliceId)
         .ExcuteQuery(sliceQuery.rankId, taskPOS);
     if (std::empty(taskPOS)) {
@@ -157,7 +157,10 @@ bool HardWareRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSli
     } else {
         competeSliceDomain = std::move(competeSliceVec[0]);
     }
-    QuerySliceArgs(sliceQuery, competeSliceDomain, targetTask);
+    const std::string taskTypeName = QuerySliceArgs(sliceQuery, competeSliceDomain, targetTask);
+    if (taskTypeName == "MODEL_EXECUTE") {
+        QueryModelStreamIds(sliceQuery, competeSliceDomain, targetTask);
+    }
     QuerySliceShape(sliceQuery, competeSliceDomain, targetTask);
     QuerySlicePmuInfo(sliceQuery, competeSliceDomain, targetTask.globalTaskId);
     return true;
@@ -223,7 +226,7 @@ void HardWareRepo::QuerySlicePmuInfo(
     competeSliceDomain.args = JsonUtil::JsonDump(json.value());
 }
 
-void HardWareRepo::QuerySliceArgs(
+std::string HardWareRepo::QuerySliceArgs(
     const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask) {
     std::string modelIdName = std::to_string(targetTask.modelId);
     std::unordered_map<uint64_t, std::string> strMap =
@@ -252,6 +255,32 @@ void HardWareRepo::QuerySliceArgs(
         }
     }
     competeSliceDomain.args = JsonUtil::JsonDump(json);
+    return taskTypeName;
+}
+
+void HardWareRepo::QueryModelStreamIds(
+    const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain, const TaskPO &targetTask) {
+    constexpr uint64_t INVALID_MODEL_ID = UINT32_MAX;
+    if (targetTask.modelId == INVALID_MODEL_ID) {
+        return;
+    }
+    const std::string sql = "SELECT DISTINCT main.streamId AS streamId FROM TASK main "
+                            "WHERE main.deviceId = ? AND main.modelId = ? "
+                            "AND main.connectionId NOT IN (SELECT connectionId FROM MSTX_EVENTS) "
+                            "ORDER BY main.streamId ASC;";
+    auto stmt = CreatPreparedStatement(sql, sliceQuery);
+    if (stmt == nullptr) {
+        ServerLog::Warn("Failed to prepare query model stream ids statement.");
+        return;
+    }
+    auto resultSet = stmt->ExecuteQuery(targetTask.deviceId, targetTask.modelId);
+    if (resultSet == nullptr) {
+        ServerLog::Warn("Failed to query model stream ids.", stmt->GetErrorMessage());
+        return;
+    }
+    while (resultSet->Next()) {
+        competeSliceDomain.modelStreamIds.emplace_back(resultSet->GetString("streamId"));
+    }
 }
 
 void HardWareRepo::AppendKernelSimtDims(

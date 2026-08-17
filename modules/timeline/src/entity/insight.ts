@@ -415,6 +415,7 @@ export interface UnitMatcher {
     target: (ele: InsightUnit) => boolean;
     onSuccess: (ele: InsightUnit) => void;
     showDetail?: boolean;
+    tuneToSelectedSlice?: boolean;
 };
 
 export type LinkLine = Array<Record<string, unknown>>;

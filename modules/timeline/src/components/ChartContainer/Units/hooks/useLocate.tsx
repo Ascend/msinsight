@@ -121,7 +121,8 @@ export const useJumpTarget = (session: Session, unitsArea: InsightUnit[], suppor
                 const scrollHResult = getNormalUnitHeight(unitsArea, orderOptions, targetUnit);
                 if (scrollHResult !== undefined) {
                     // 第一次 scrollToResult 到 scrollHResult，会请求后端重新绘制泳道
-                    scrollToResult(scrollHResult, tuningScroller);
+                    const tuningCallback = session.locateUnit?.tuneToSelectedSlice === false ? undefined : tuningScroller;
+                    scrollToResult(scrollHResult, tuningCallback);
                 }
             }
             runInAction(() => {
