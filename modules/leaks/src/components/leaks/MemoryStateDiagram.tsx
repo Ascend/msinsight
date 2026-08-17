@@ -53,6 +53,7 @@ import {
     StateHoverItem,
 } from './tools';
 import { message } from 'antd';
+import { clearMemoryPoolSummary, updateMemoryPoolSummary } from '@/agent/graphController';
 
 export const MemoryStateDiagram = ({ session }: { session: Session }): JSX.Element => {
     return <div data-testid="stateDiagramSection" style={{ display: 'flex', height: 800 }}>
@@ -351,10 +352,11 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         });
     };
 
-    const setMemoryStateData = (): void => {
+    const setMemoryStateData = async (): Promise<void> => {
         const currentRow = dataSource[currentSelectRow];
         if (currentRow === undefined) {
             workerSetMemoryStateData({ data: [] });
+            clearMemoryPoolSummary();
             runInAction(() => {
                 session.stateWorkerInfo.eventId = -1;
             });
@@ -363,17 +365,27 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         const requestRowIndex = currentSelectRow;
         const requestEventId = currentRow.id;
         const requestDeviceId = session.deviceId;
-        getMemoryStateData({ eventId: requestEventId, deviceId: requestDeviceId }).then(data => {
+        clearMemoryPoolSummary();
+        try {
+            const data = await getMemoryStateData({ eventId: requestEventId, deviceId: requestDeviceId });
             if (deviceIdRef.current !== requestDeviceId || currentSelectRowRef.current !== requestRowIndex ||
                 dataSourceRef.current[requestRowIndex]?.id !== requestEventId) {
                 return;
             }
             workerSetMemoryStateData({ data: data.segments });
+            updateMemoryPoolSummary(requestEventId, data.segments);
             runInAction(() => {
                 session.stateWorkerInfo.eventId = requestEventId;
                 session.loadingState = false; // 实际只有第一次获取数据时才需要显示loading
             });
-        });
+        } catch (_error) {
+            if (deviceIdRef.current !== requestDeviceId || currentSelectRowRef.current !== requestRowIndex) return;
+            clearMemoryPoolSummary();
+            runInAction(() => {
+                session.stateWorkerInfo.eventId = -1;
+                session.loadingState = false;
+            });
+        }
     };
 
     useEffect(() => {
@@ -385,7 +397,8 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         // table使用了不自动恢复滚动条模式，需要手动恢复到0
         tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 0 });
         workerSetMemoryStateData({ data: [] });
-        getAllEventListData(session);
+        clearMemoryPoolSummary();
+        void getAllEventListData(session);
     }, [session.deviceId, deviceIdsSignature]);
 
     useEffect(() => {
@@ -461,13 +474,13 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
 
     useEffect(() => {
         if (session.deviceId === '') return;
-        setMemoryStateData();
+        void setMemoryStateData();
     }, [currentSelectRow]);
 
     useEffect(() => {
         if (dataSource.length < 1001 && dataSource.length > 0) {
             // 事件列表第一次变化时，设置内存状态数据
-            setMemoryStateData();
+            void setMemoryStateData();
         }
     }, [dataSource]);
 

@@ -300,6 +300,22 @@ const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, relo
 };
 
 let agentRefreshPromise;
+const logAgentDiscoveryResults = (label, results) => {
+    for (const { candidate, available, reason, message, elapsedMs } of results) {
+        const status = available ? "available" : reason;
+        const details = {
+            id: candidate.id,
+            name: candidate.config.name,
+            command: candidate.config.command,
+            args: candidate.config.args ?? [],
+            status,
+            elapsedMs,
+        };
+        if (message) details.message = message;
+        console.log(`ACP agent ${label} probe: ${JSON.stringify(details)}`);
+    }
+};
+
 const refreshDiscoveredAgents = async () => {
     if (agentRefreshPromise) return agentRefreshPromise;
     const runRefresh = async () => {
@@ -313,6 +329,7 @@ const refreshDiscoveredAgents = async () => {
             permissionService.updateTimeout(config.permissionRequestTimeoutMs);
             const excludedLaunchKeys = new Set(config.configuredAgentServers.map(agentLaunchKey));
             const discovery = await discoverAgents({ cwd: config.cwd, excludedLaunchKeys });
+            logAgentDiscoveryResults("refresh", discovery.results);
             discoveredAgentServers = discovery.agentServers;
 
             const nextServers = availableAgentServers();
@@ -450,6 +467,7 @@ if (autoDiscoveryEnabled) {
     try {
         const excludedLaunchKeys = new Set(config.configuredAgentServers.map(agentLaunchKey));
         const discovery = await discoverAgents({ cwd: config.cwd, excludedLaunchKeys });
+        logAgentDiscoveryResults("discovery", discovery.results);
         discoveredAgentServers = discovery.agentServers;
         state.agentServers = availableAgentServers();
         const discoveredActive = discoveredAgentServers.find(({ name }) => name === config.requestedActiveAgentName);

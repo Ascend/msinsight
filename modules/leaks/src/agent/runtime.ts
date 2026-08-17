@@ -8,6 +8,7 @@
  */
 import { observeTableCommands, registerTableCommands, TableControllerRegistry } from '@insight/lib/AgentTable';
 import { ModuleAgentCommandClient } from '@insight/lib/ModuleAgentCommandClient';
+import { registerMemScopeGraphCommands } from './graphController';
 
 const MODULE_ID = 'MemScope';
 
@@ -23,6 +24,7 @@ const moduleAgentCommandClient = new ModuleAgentCommandClient({
 });
 
 registerTableCommands(moduleAgentCommandClient, MODULE_ID, memScopeTableControllerRegistry);
+registerMemScopeGraphCommands(moduleAgentCommandClient);
 
 let stopClient: (() => void) | undefined;
 

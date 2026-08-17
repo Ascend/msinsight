@@ -30,6 +30,8 @@ export const BlockWorker = new Worker(new URL('./', import.meta.url));
 let workerGeneration = 0;
 const pendingWorkerLoads = new Map<number, { resolve: () => void; reject: (error: Error) => void }>();
 const pendingCacheLoads = new Map<number, { resolve: (hit: boolean) => void; reject: (error: Error) => void }>();
+const pendingBlockQueries = new Map<string, { resolve: (result: BlockQueryResult) => void; reject: (error: Error) => void }>();
+let blockQueryRequestId = 0;
 
 export const isCurrentBlockWorkerGeneration = (generation: number | undefined): boolean =>
     generation === undefined || generation === workerGeneration;
@@ -44,14 +46,22 @@ module.hot?.dispose(() => {
         pending.reject(new Error('Block worker replaced by hot reload'));
     }
     pendingCacheLoads.clear();
+    for (const pending of pendingBlockQueries.values()) {
+        pending.reject(new Error('Block worker replaced by hot reload'));
+    }
+    pendingBlockQueries.clear();
 });
 
-BlockWorker.addEventListener('message', (event: MessageEvent<{
-    type?: string;
-    generation?: number;
-    error?: string;
-    hit?: boolean;
-}>): void => {
+BlockWorker.addEventListener('message', (event: MessageEvent<BlockWorkerResponsePayload>): void => {
+    if (event.data.type === 'queryBlocksResult' && event.data.requestId) {
+        const pendingQuery = pendingBlockQueries.get(event.data.requestId);
+        if (!pendingQuery) return;
+        if (event.data.error) pendingQuery.reject(new Error(event.data.error));
+        else if (event.data.result) pendingQuery.resolve(event.data.result);
+        else pendingQuery.reject(new Error('Block worker returned an invalid query result'));
+        pendingBlockQueries.delete(event.data.requestId);
+        return;
+    }
     const generation = event.data.generation;
     if (generation === undefined) {
         return;
@@ -145,6 +155,14 @@ const WorkerBackend = {
     selectBlockById({ blockId, selectionVersion }: Omit<SelectBlockByIdPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'selectBlockById', blockId, selectionVersion });
     },
+    queryBlocks(query: BlockQuery): Promise<BlockQueryResult> {
+        const requestId = `block-query-${++blockQueryRequestId}`;
+        const completion = new Promise<BlockQueryResult>((resolve, reject) => {
+            pendingBlockQueries.set(requestId, { resolve, reject });
+        });
+        BlockWorker.postMessage({ type: 'queryBlocks', requestId, query } as QueryBlocksPayload);
+        return completion;
+    },
     destroy(): void {
         const generation = ++workerGeneration;
         BlockWorker.postMessage({ type: 'destroy', generation } as DestroyPayload);
@@ -203,6 +221,9 @@ const MainThreadBackend = {
     async selectBlockById({ blockId, selectionVersion }: Omit<SelectBlockByIdPayload, 'type'>): Promise<void> {
         await mainThreadRender.selectBlockByIdHandler({ blockId, selectionVersion });
     },
+    queryBlocks(query: BlockQuery): Promise<BlockQueryResult> {
+        return Promise.resolve(mainThreadRender.queryBlocksHandler(query));
+    },
     async destroy(): Promise<void> {
         mainThreadGeneration++;
         const task = mainThreadLoadQueue.then(async () => {
@@ -227,4 +248,5 @@ export const workerHoverItem = backend.hoverItem;
 export const workerClickItem = backend.clickItem;
 export const workerSelectItem = backend.selectItem;
 export const workerSelectBlockById = backend.selectBlockById;
+export const workerQueryBlocks = backend.queryBlocks;
 export const workerDestroy = backend.destroy;

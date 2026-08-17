@@ -36,6 +36,7 @@ import { getCenteredBlockTransform } from '../tools/blockTransform';
 import { BlockDataOPFS } from '../tools/BlockDataOPFS';
 import { createLeaksOpfsRuntimeId, isLeaksOpfsEnabled } from '../tools/opfsConfig';
 import { isPackedRenderData, unpackRenderData } from '../tools/packedBlockData';
+import { queryBlockSummaries } from '../tools/blockQuery';
 
 const MAIN_THREAD_PROGRESSIVE_BATCH_INTERVAL = 16;
 
@@ -458,6 +459,12 @@ export class MainThreadRender {
             this.session.leaksWorkerInfo.renderOptions.transform = this.transform;
             this.session.leaksWorkerInfo.clickItem = this.clickItem;
         });
+    }
+
+    queryBlocksHandler(query: BlockQuery): BlockQueryResult {
+        return this.useOpfs
+            ? this.blockDataOPFS.queryBlockSummaries(query)
+            : queryBlockSummaries(this.memoryBlockData?.blocks ?? [], query);
     }
 
     hoverItemHandler(payload: Omit<HoverItemPayload, 'type'>): void {

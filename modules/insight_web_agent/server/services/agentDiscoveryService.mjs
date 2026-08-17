@@ -59,12 +59,21 @@ export const discoverAgents = async ({
     const discoveryRoot = join(cwd, ".discovery");
     await mkdir(discoveryRoot, { recursive: true });
 
-    const candidates = catalog.filter(({ config }) => !excludedLaunchKeys.has(agentLaunchKey(config)));
-    const results = await Promise.all(candidates.map((candidate) => probeAgent(candidate, {
-        adapterFactory,
-        cwd: join(discoveryRoot, candidate.id),
-        timeoutMs,
-    })));
+    const results = await Promise.all(catalog.map((candidate) => {
+        if (excludedLaunchKeys.has(agentLaunchKey(candidate.config))) {
+            return {
+                candidate,
+                available: false,
+                reason: "skipped_configured",
+                elapsedMs: 0,
+            };
+        }
+        return probeAgent(candidate, {
+            adapterFactory,
+            cwd: join(discoveryRoot, candidate.id),
+            timeoutMs,
+        });
+    }));
     return {
         agentServers: results
             .filter((result) => result.available)
@@ -93,24 +102,27 @@ export const agentConfigForLog = (agentServer) => ({
 });
 
 const probeAgent = async (candidate, { adapterFactory, cwd, timeoutMs }) => {
-    await mkdir(cwd, { recursive: true });
-    const adapter = adapterFactory({
-        agentServer: candidate.config,
-        cwd,
-        requestTimeoutMs: timeoutMs,
-        promptRequestTimeoutMs: timeoutMs,
-        forwardStderr: false,
-    });
+    const startedAt = Date.now();
+    let adapter;
 
     try {
+        await mkdir(cwd, { recursive: true });
+        adapter = adapterFactory({
+            agentServer: candidate.config,
+            cwd,
+            requestTimeoutMs: timeoutMs,
+            promptRequestTimeoutMs: timeoutMs,
+            forwardStderr: false,
+        });
         const result = await adapter.request("initialize", INITIALIZE_PARAMS);
         if (!result || typeof result !== "object") {
-            return { candidate, available: false, reason: "invalid_response" };
+            return { candidate, available: false, reason: "invalid_response", elapsedMs: Date.now() - startedAt };
         }
         return {
             candidate,
             available: true,
             agentInfo: result.agentInfo ?? result.agent_info,
+            elapsedMs: Date.now() - startedAt,
         };
     } catch (error) {
         return {
@@ -118,12 +130,15 @@ const probeAgent = async (candidate, { adapterFactory, cwd, timeoutMs }) => {
             available: false,
             reason: classifyProbeError(error),
             message: error.message,
+            elapsedMs: Date.now() - startedAt,
         };
     } finally {
-        try {
-            await adapter.disconnect();
-        } catch {
-            // Probe cleanup failures do not change the discovery result.
+        if (adapter) {
+            try {
+                await adapter.disconnect();
+            } catch {
+                // Probe cleanup failures do not change the discovery result.
+            }
         }
     }
 };
