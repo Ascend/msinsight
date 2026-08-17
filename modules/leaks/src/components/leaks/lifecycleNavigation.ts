@@ -26,6 +26,21 @@ export interface LifecycleKeyboardEventLike {
     isComposing?: boolean;
 }
 
+export interface MemoryProjectionOptions {
+    minSize: number;
+    maxSize: number;
+    transformY: number;
+    scaleY: number;
+    zoomY: number;
+    viewportHeight: number;
+}
+
+export interface VisibleMemoryRange {
+    min: number;
+    max: number;
+    span: number;
+}
+
 export interface LifecycleGraphTransform {
     x: number;
     y: number;
@@ -120,20 +135,74 @@ export const resolveLifecycleKeyboardAction = (
     const key = event.key.toLowerCase();
     const isCommandModifier = [event.ctrlKey, event.metaKey].some(Boolean);
     if (isCommandModifier) {
-        if (key === 'w') return 'zoom-all-in';
-        if (key === 's') return 'zoom-all-out';
+        if (key === 'w') {
+            return 'zoom-all-in';
+        }
+        if (key === 's') {
+            return 'zoom-all-out';
+        }
         return null;
     }
 
     switch (key) {
-        case 'w': return 'zoom-x-in';
-        case 's': return 'zoom-x-out';
+        case 'w':
+            return 'zoom-x-in';
+        case 's':
+            return 'zoom-x-out';
         case 'a':
-        case 'arrowleft': return 'pan-left';
+        case 'arrowleft':
+            return 'pan-left';
         case 'd':
-        case 'arrowright': return 'pan-right';
-        case 'arrowup': return 'pan-up';
-        case 'arrowdown': return 'pan-down';
-        default: return null;
+        case 'arrowright':
+            return 'pan-right';
+        case 'arrowup':
+            return 'pan-up';
+        case 'arrowdown':
+            return 'pan-down';
+        default:
+            return null;
     }
+};
+
+export const getVisibleMemoryRange = (options: MemoryProjectionOptions): VisibleMemoryRange | null => {
+    const { minSize, maxSize, transformY, scaleY, zoomY, viewportHeight } = options;
+    if (
+        ![minSize, maxSize, transformY, scaleY, zoomY, viewportHeight].every(Number.isFinite) ||
+        maxSize <= minSize || scaleY <= 0 || zoomY <= 0 || viewportHeight <= 0
+    ) {
+        return null;
+    }
+    const span = viewportHeight / scaleY / zoomY;
+    const min = minSize - transformY / scaleY / zoomY;
+    return { min, max: min + span, span };
+};
+
+export const screenYToMemoryValue = (
+    screenY: number,
+    options: MemoryProjectionOptions,
+): number | null => {
+    if (!Number.isFinite(screenY) || screenY < 0 || screenY > options.viewportHeight) {
+        return null;
+    }
+    const visibleRange = getVisibleMemoryRange(options);
+    if (visibleRange === null) {
+        return null;
+    }
+    const bottomOffset = options.viewportHeight - screenY;
+    return visibleRange.min + (bottomOffset / options.viewportHeight) * visibleRange.span;
+};
+
+export const memoryValueToScreenY = (
+    memoryBytes: number,
+    options: MemoryProjectionOptions,
+): number | null => {
+    if (!Number.isFinite(memoryBytes)) {
+        return null;
+    }
+    const visibleRange = getVisibleMemoryRange(options);
+    if (visibleRange === null) {
+        return null;
+    }
+    const bottomOffset = ((memoryBytes - visibleRange.min) / visibleRange.span) * options.viewportHeight;
+    return options.viewportHeight - bottomOffset;
 };

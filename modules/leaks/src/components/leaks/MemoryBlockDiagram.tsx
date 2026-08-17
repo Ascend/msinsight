@@ -55,6 +55,7 @@ import {
     isLifecycleHostZoomShortcut,
     resolveLifecycleKeyboardAction,
 } from './lifecycleNavigation';
+import { LifecycleMemoryMarkerOverlay } from './LifecycleMemoryMarkerOverlay';
 import {
     LifecycleGraphToolbar,
     LifecycleZoomModeIcon,
@@ -72,7 +73,7 @@ type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
 const ProgressiveLoadingStatus = styled.div`
     position: absolute;
     top: 8px;
-    right: 8px;
+    right: 48px;
     z-index: 2;
     display: flex;
     justify-content: center;
@@ -113,12 +114,25 @@ export const MemoryBlockDiagram = observer(({
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
     const lastPointerPosition = useRef<{ x: number; y: number } | null>(null);
+    const markerIdSequence = useRef(0);
     const plotInteractionActive = useRef(false);
     const progressiveRenderPercent = session.progressiveTotalEventCount > 0
         ? Math.min(session.loadingBlocks ? 99 : 100, Math.floor(
             session.progressiveRenderedEventCount * 100 / session.progressiveTotalEventCount,
         ))
         : 0;
+    const createMemoryMarker = (memoryBytes: number): void => {
+        const { minSize, maxSize } = session.leaksWorkerInfo.sizeInfo;
+        if (
+            !Number.isFinite(memoryBytes) ||
+            memoryBytes < minSize ||
+            memoryBytes > maxSize
+        ) {
+            return;
+        }
+        markerIdSequence.current += 1;
+        session.addLifecycleMemoryMarker(memoryBytes, `memory-marker-${Date.now()}-${markerIdSequence.current}`);
+    };
 
     const resetTransform = (): void => {
         runInAction(() => {
@@ -321,14 +335,18 @@ export const MemoryBlockDiagram = observer(({
         if ((ev.ctrlKey || ev.shiftKey) && ['+', '=', '-', '_'].includes(ev.key)) {
             ev.preventDefault();
             const direction = ev.key === '-' || ev.key === '_' ? -1 : 1;
+            const onlyScaleX = ev.shiftKey && !ev.ctrlKey;
             const pointer = lastPointerPosition.current;
+            const mouseX = pointer?.x ?? rect.width / 2;
+            const mouseY = pointer === null ? rect.height / 2 : rect.height - pointer.y;
+            const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
             const transform = calculateLifecycleZoomTransform({
-                transform: session.leaksWorkerInfo.renderOptions.transform,
+                transform: currentTransform,
                 viewport: { width: rect.width, height: rect.height },
-                anchorX: pointer?.x ?? rect.width / 2,
-                anchorY: pointer === null ? rect.height / 2 : rect.height - pointer.y,
+                anchorX: mouseX,
+                anchorY: mouseY,
                 direction,
-                onlyScaleX: ev.shiftKey && !ev.ctrlKey,
+                onlyScaleX,
             });
             applyTransform(transform, 'keyboard');
             return;
@@ -347,6 +365,8 @@ export const MemoryBlockDiagram = observer(({
         }
 
         const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
+        let newTransformX = 0;
+        let newTransformY = 0;
         const action = resolveLifecycleKeyboardAction(ev);
         if (action === 'zoom-x-in' || action === 'zoom-x-out' || action === 'zoom-all-in' || action === 'zoom-all-out') {
             ev.preventDefault();
@@ -363,25 +383,26 @@ export const MemoryBlockDiagram = observer(({
             return;
         }
 
-        let deltaX = 0;
-        let deltaY = 0;
         if (action !== null) {
             ev.preventDefault();
-            if (action === 'pan-left') deltaX = BASE_MOVE_STEP * currentTransform.scaleX;
-            if (action === 'pan-right') deltaX = -BASE_MOVE_STEP * currentTransform.scaleX;
-            if (action === 'pan-up') deltaY = -BASE_MOVE_STEP * currentTransform.scaleY;
-            if (action === 'pan-down') deltaY = BASE_MOVE_STEP * currentTransform.scaleY;
+            if (action === 'pan-left') newTransformX = BASE_MOVE_STEP * currentTransform.scaleX;
+            if (action === 'pan-right') newTransformX = -BASE_MOVE_STEP * currentTransform.scaleX;
+            if (action === 'pan-up') newTransformY = -BASE_MOVE_STEP * currentTransform.scaleY;
+            if (action === 'pan-down') newTransformY = BASE_MOVE_STEP * currentTransform.scaleY;
         } else {
             return;
         }
 
         const currentMousePosition = session.markLineInfo.block;
         workerHoverItem({ clientX: currentMousePosition.x, clientY: rect.height - currentMousePosition.y });
+        runInAction(() => {
+            session.markLineInfo.block = { ...currentMousePosition };
+        });
         const transform = calculateLifecyclePanTransform(
             currentTransform,
             { width: rect.width, height: rect.height },
-            deltaX,
-            deltaY,
+            newTransformX,
+            newTransformY,
         );
         applyTransform(transform, 'keyboard');
     };
@@ -555,6 +576,12 @@ export const MemoryBlockDiagram = observer(({
                     style={{ imageRendering: 'pixelated', touchAction: 'none', outline: 'none' }}
                 />
                 <MarkLineBlock session={session} />
+                {session.module === 'memsnapshot'
+                    ? <LifecycleMemoryMarkerOverlay
+                        session={session}
+                        onCreateMarker={createMemoryMarker}
+                    />
+                    : <></>}
                 <HoverItem session={session} />
                 {session.loadingBlocks && session.progressiveBlocksVisible
                     ? <ProgressiveLoadingStatus
