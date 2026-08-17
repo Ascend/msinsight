@@ -28,6 +28,7 @@ import {
     searchBlockDataByPoint,
     searchBlockDataByPointFromOPFS,
 } from '../tools/dataProcess';
+import { queryBlockSummaries } from '../tools/blockQuery';
 import { debounce } from 'lodash';
 import { getCenteredBlockTransform } from '../tools/blockTransform';
 import { BlockDataOPFS } from '../tools/BlockDataOPFS';
@@ -497,6 +498,21 @@ const selectBlockByIdHandler = async (payload: SelectBlockByIdPayload): Promise<
     self.postMessage({ type: 'clickItemResult', result: clickItem, selectionVersion: payload.selectionVersion });
 };
 
+const queryBlocksHandler = (payload: QueryBlocksPayload): void => {
+    try {
+        const result = useOpfs && blockDataOPFS
+            ? blockDataOPFS.queryBlockSummaries(payload.query)
+            : queryBlockSummaries(memoryBlockData?.blocks ?? [], payload.query);
+        self.postMessage({ type: 'queryBlocksResult', requestId: payload.requestId, result });
+    } catch (error) {
+        self.postMessage({
+            type: 'queryBlocksResult',
+            requestId: payload.requestId,
+            error: error instanceof Error ? error.message : String(error),
+        });
+    }
+};
+
 const hoverItemHandler = (payload: HoverItemPayload): void => {
     const requestVersion = ++hoverSearchVersion;
     debouncedSearchBlockData(payload, requestVersion);
@@ -548,6 +564,7 @@ const Handlers: PayloadHandlers = {
     clickItem: clickItemHandler,
     selectBlockItem: selectItemHandler,
     selectBlockById: selectBlockByIdHandler,
+    queryBlocks: queryBlocksHandler,
     destroy: destroyHandler,
 };
 

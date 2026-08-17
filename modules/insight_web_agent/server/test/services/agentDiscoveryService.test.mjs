@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { ACP_AGENT_CATALOG, agentConfigForLog, discoverAgents, mergeAgentServers, sameAgentLaunch } from "../../services/agentDiscoveryService.mjs";
+import { agentLaunchKey } from "../../services/agentIdentityService.mjs";
 
 const catalog = [
     { id: "existing", config: { name: "Existing", command: "existing", args: ["acp"], env: {} } },
@@ -70,6 +71,26 @@ test("places discovered agents first and hides configured entries with the same 
         catalog[1].config,
         configured[1],
     ]);
+});
+
+test("reports configured launch commands as skipped without probing them", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "insight-agent-discovery-skipped-"));
+    const excludedLaunchKeys = new Set([agentLaunchKey(catalog[0].config)]);
+    const probed = [];
+    const adapterFactory = ({ agentServer }) => ({
+        async request() {
+            probed.push(agentServer.name);
+            return { agentInfo: { name: agentServer.name } };
+        },
+        async disconnect() {},
+    });
+
+    const result = await discoverAgents({ adapterFactory, catalog, cwd, excludedLaunchKeys });
+    const skipped = result.results.find(({ candidate }) => candidate.id === "existing");
+
+    assert.equal(skipped.reason, "skipped_configured");
+    assert.equal(skipped.elapsedMs, 0);
+    assert.equal(probed.includes("Existing"), false);
 });
 
 test("compares complete ACP launch settings", () => {
