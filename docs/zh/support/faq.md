@@ -415,3 +415,60 @@ Host 侧事件和 Device 侧事件分别采集，并换算到同一时间轴。�
 3. 若大量连线存在近似固定的时间偏差，可使用卡或泳道的时间戳偏移进行临时展示校准。该操作仅改变显示位置，不会修改原始时间戳。
 4. 若偏差较大、随采集时间持续变化，或影响性能分析，请检查 CANN、Profiler、torch_npu 与 MindStudio Insight 版本是否配套，并使用推荐版本重新采集数据。
 5. 若重新采集后问题仍然存在，请反馈原始 Profiling 数据、相关组件版本、异常连线类型、端点时间戳及问题截图，以便进一步定位。
+
+<a id="faq-communication-cluster-data-type"></a>
+
+## 20. Communication 页面导入集群时如何判断数据类型，正常数据目录是什么样的？
+
+**判断规则**
+
+MindStudio Insight 在导入集群数据时确定数据类型，Communication 页面使用导入阶段确定的类型和对应的集群数据库，不会在打开页面时重新判断。
+
+1. 在导入目录中找到主 Profiler DB（`ascend_pytorch_profiler_<rank_id>.db`）时，将数据识别为 DB 格式。
+2. 未找到主 Profiler DB，但找到 `trace_view.json`、`communication.json` 等 JSON/CSV 交付件时，将数据识别为 TEXT 格式。
+3. `analysis.db` 保存通信细节信息，不是主 Profiler DB。MindStudio Insight 不会仅根据 `analysis.db` 将整个 Profiling 数据识别为 DB 格式。
+
+若同一目录同时包含 TEXT 和 DB 交付件，MindStudio Insight 优先按 DB 格式导入。若需要按纯 TEXT 格式导入，请参考 FAQ 18。
+
+**正常数据目录（适用于 msprof 26.1.0）**
+
+以下目录结构由 msprof 26.1.0 的数据导出约定保证，目录示例可参考 [26.1.0 集群分析工具文档](https://gitcode.com/Ascend/msprof-analyze/blob/tag_MindStudio_26.1.0.B100_002/docs/zh/user_guide/cluster_analyse_instruct.md)。该目录结构仅适用于 msprof 26.1.0，后续版本如有变化，请以对应版本的上游文档为准。
+
+以下目录树仅列出 Communication 页面判断和读取通信数据时使用的关键文件。集群目录中通常包含多个 Rank 目录，每个 Rank 的文件结构应保持一致。
+
+DB 格式：
+
+```text
+<cluster_root>/
+└── <rank_directory>/
+    ├── ASCEND_PROFILER_OUTPUT/
+    │   ├── analysis.db                         # 通信细节信息，包含传输量、传输链路、通信矩阵等
+    │   └── ascend_pytorch_profiler_<rank_id>.db # 主 Profiler DB
+    └── profiler_info_<rank_id>.json
+```
+
+纯 TEXT 格式：
+
+```text
+<cluster_root>/
+└── <rank_directory>/
+    ├── ASCEND_PROFILER_OUTPUT/
+    │   ├── step_trace_time.csv       # 迭代耗时
+    │   ├── communication.json        # 通信耗时及通信带宽信息
+    │   └── communication_matrix.json # 通信矩阵信息
+    └── profiler_info_<rank_id>.json
+```
+
+部分版本在导出 TEXT 交付件时也会同时生成主 Profiler DB 和 `analysis.db`。这种完整混合交付属于正常数据，MindStudio Insight 会按 DB 格式优先导入。
+
+**注意事项**
+
+请勿将不同任务、不同 Rank 或不同版本生成的文件混合到同一集群目录。以下目录结构不是完整的 DB 或纯 TEXT 交付件：
+
+```text
+TEXT JSON/CSV 文件 + analysis.db + 缺少 ascend_pytorch_profiler_<rank_id>.db
+```
+
+在该结构下，MindStudio Insight 会按 TEXT 格式导入，但 msprof-analyze 26.1.0 会根据 `analysis.db` 按 DB 格式生成集群分析结果，导致 Communication 页面读取的文件格式与实际生成结果不一致。
+
+若发现该目录结构，请优先重新获取完整 Profiling 数据。若确认需要按纯 TEXT 格式使用，请先备份原始数据，再在数据副本中移出 `analysis.db`，清理此前生成的 `cluster_analysis_output` 和 `cluster.db` 后重新导入。
