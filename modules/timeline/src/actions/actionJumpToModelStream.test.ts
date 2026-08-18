@@ -107,6 +107,7 @@ const createSession = (
 ): Session => ({
     selectedData,
     selectedUnits: [sourceUnit],
+    selectedDataUnit: sourceUnit,
     selectedUnitKeys: [],
     units,
     domain: { timePerPx: 1, domainRange: { domainStart: 0, domainEnd: 1000 } },
@@ -197,6 +198,32 @@ describe('actionJumpToModelStream', () => {
         expect(testSession.domain.domainRange).toBe(originalDomainRange);
         expect(testSession.locateUnit?.showDetail).toBe(false);
         expect(testSession.locateUnit?.tuneToSelectedSlice).toBe(false);
+    });
+
+    it('uses the selected slice source when a range selection keeps another lane first', async () => {
+        requestMock.mockResolvedValue({
+            data: { args: JSON.stringify({ modelId: '48' }), modelStreamIds: ['47'] },
+        });
+        const firstRangeUnit = createThreadUnit({
+            processId: '100', threadId: 'acl', threadName: 'acl', metaType: 'CANN_API',
+        });
+        const source = createThreadUnit();
+        const testSession = createSession(source, [firstRangeUnit, source]);
+        testSession.selectedUnits = [firstRangeUnit, source];
+
+        actionJumpToModelStream.perform(testSession);
+        await flushPromises();
+
+        expect(getTimeOffsetMock).toHaveBeenCalledWith(testSession, source.metadata);
+        expect(requestMock).toHaveBeenCalledWith(DATA_SOURCE, {
+            command: 'unit/threadDetail',
+            params: expect.objectContaining({
+                metaType: 'Ascend Hardware',
+                pid: 'Ascend Hardware',
+                tid: '47',
+            }),
+        });
+        expect(warningMock).not.toHaveBeenCalled();
     });
 
     it('treats the MODEL_EXECUTE source stream as a valid single-stream target', async () => {

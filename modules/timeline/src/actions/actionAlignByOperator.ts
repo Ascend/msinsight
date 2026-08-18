@@ -37,6 +37,9 @@ const ALIGN_TYPE = {
 } as const;
 
 function getSelectedUnit(session: Session): InsightUnit | undefined {
+    if (session.selectedDataUnit !== undefined) {
+        return session.selectedDataUnit;
+    }
     if (session.selectedUnits.length === 1) {
         return session.selectedUnits[0];
     }

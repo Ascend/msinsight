@@ -190,16 +190,15 @@ describe('hooks test', () => {
             fetchData: jest.fn().mockResolvedValue({ result: '' }),
             renderFields: [],
         };
-        let selectedRecord: Record<string, string> | undefined;
+        const selectedRecord: Record<string, string> = { name: 'test' };
         session.phase = 'download';
         const { result, rerender } = renderHook(
             ({ session, detail, selectedData }) => useSelectedDataDetailUpdater(session, detail, selectedData),
-            { initialProps: { session, detail: dataDesc, selectedData: selectedRecord } },
+            { initialProps: { session, detail: dataDesc, selectedData: undefined as Record<string, string> | undefined } },
         );
         expect(result.current).toStrictEqual({ renderFields: undefined, data: {} });
 
         session.selectedUnits = [unit];
-        selectedRecord = { name: 'test' };
         await act(async () => {
             rerender({ session, detail: dataDesc, selectedData: selectedRecord });
         });
@@ -252,5 +251,29 @@ describe('hooks test', () => {
         });
         expect(dataDesc.fetchData).toBeCalled();
         expect(result.current).toStrictEqual(expectedRes);
+    });
+
+    it('uses the selected slice source metadata instead of the first range-selected lane', async () => {
+        const firstMetadata = { lane: 'first' } as unknown as MetaDataBase;
+        const sourceMetadata = { lane: 'source' } as unknown as MetaDataBase;
+        const firstUnit = { ...unit, metadata: firstMetadata };
+        const sourceUnit = { ...unit, metadata: sourceMetadata };
+        const fetchData = jest.fn().mockResolvedValue({ title: 'source slice' });
+        const dataDesc: SingleDataDesc<Record<string, unknown>, unknown> = {
+            fetchData,
+            renderFields: [],
+        };
+
+        session.phase = 'download';
+        session.selectedUnits = [firstUnit, sourceUnit];
+        session.selectedDataUnit = sourceUnit;
+        const selectedRecord = { name: 'source slice' };
+
+        const { result } = renderHook(() => useSelectedDataDetailUpdater(session, dataDesc, selectedRecord));
+        await act(async () => { await Promise.resolve(); });
+
+        expect(fetchData).toHaveBeenCalledWith(session, sourceMetadata);
+        expect(fetchData).not.toHaveBeenCalledWith(session, firstMetadata);
+        expect(result.current.data).toEqual({ title: 'source slice' });
     });
 });

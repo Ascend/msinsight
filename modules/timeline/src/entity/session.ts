@@ -310,6 +310,9 @@ export class Session {
     private readonly _rankCardInfoMap: Map<string, CardRankInfo> = new Map(); // rank key(clusterId+host+realRankId+deviceId) -> CardInfo
     private _availableUnits: InsightUnit[] = [];
     private _selectedData?: SelectedDataType;
+    // The unit that owns selectedData. Keep this separate from selectedUnits because
+    // selectedUnits can continue to represent a multi-lane range selection.
+    selectedDataUnit?: InsightUnit;
     private _benchMarkData?: Record<string, unknown>;
     private _alignSliceData: SliceData[] = [];
     private _selectedRangeData?: Array<Record<string, unknown>>;
@@ -506,6 +509,9 @@ export class Session {
 
     set selectedData(data: SelectedDataType | undefined) {
         this._selectedData = data;
+        // Callers that set selectedData must also set its source unit when known.
+        // Clearing here prevents a newly selected slice from reusing stale lane context.
+        this.selectedDataUnit = undefined;
     }
 
     set benchMarkData(data: Record<string, unknown> | undefined) {
@@ -563,7 +569,7 @@ export class Session {
     }
 
     printSessionInfo(): string {
-        return `${JSON.stringify({ ...omit(this, ['caches', 'sharedState', '_units']) })}`;
+        return `${JSON.stringify({ ...omit(this, ['caches', 'sharedState', '_units', 'selectedDataUnit']) })}`;
     }
 
     // 对于 Text 的单 Host 多 Device 场景，只保留一个卡，对于 db 的单 Host 多 Device 场景，只保留一个 host

@@ -27,6 +27,7 @@ import { logger } from '../../utils/Logger';
 import { EMPTY_TABLE_STATE, type TableState } from './types';
 import { onExpandForChildren, parseColDef, treeAttachInfo } from './utils';
 import i18n from '@insight/lib/i18n';
+import { getSelectedDataUnit } from '../../utils/selectionContext';
 
 interface HandleFetchDataParams {
     result: Array<Record<string, unknown>>;
@@ -186,23 +187,22 @@ export const useSelectedDataDetailUpdater = (session: Session, detail: SingleDat
 { renderFields?: Array<[string, string | JSX.Element]>; data: Record<string, unknown> } => {
     const [renderFields, setRenderFields] = React.useState<Array<[string, string | JSX.Element]>>();
     const [state, setState] = React.useState<Record<string, unknown>>({});
-    const { selectedUnits } = session;
-    const selectedUnit = selectedUnits.length > 0 ? selectedUnits[0] : undefined;
+    const selectedUnit = getSelectedDataUnit(session);
     const fetchData = session.phase === 'error' ? undefined : detail?.fetchData;
-    const onDataFetched = React.useMemo(() => ([selectedUnits, selectedData].filter(_.isEmpty).length === 0
+    const onDataFetched = React.useMemo(() => (selectedUnit !== undefined && !_.isEmpty(selectedData)
         ? fetchData?.(session, selectedUnit?.metadata)
-        : undefined), [selectedUnits, selectedData, detail]);
+        : undefined), [selectedUnit, selectedData, detail]);
 
-    const recentUnits = React.useRef(selectedUnits);
+    const recentUnit = React.useRef(selectedUnit);
     const recentData = React.useRef(selectedData);
     const { t } = useTranslation();
-    recentUnits.current = selectedUnits; recentData.current = selectedData;
+    recentUnit.current = selectedUnit; recentData.current = selectedData;
 
     const loadData = (): void => {
         if (onDataFetched !== undefined && selectedData !== undefined && session.phase === 'download') {
             logger('DetailPanel', `[DetailPanel] calling ${selectedUnit?.name ?? ''}'s fetchData`);
             onDataFetched?.then(result => {
-                if (recentUnits.current !== selectedUnits || recentData.current !== selectedData) { return; }
+                if (recentUnit.current !== selectedUnit || recentData.current !== selectedData) { return; }
                 setState(result);
                 const renderField: Array<[string, string | JSX.Element]> = [];
                 detail.renderFields.forEach(item => {
@@ -223,6 +223,6 @@ export const useSelectedDataDetailUpdater = (session: Session, detail: SingleDat
         }
     };
 
-    React.useEffect(loadData, [selectedUnits, selectedData, detail]);
+    React.useEffect(loadData, [selectedUnit, selectedData, detail]);
     return { renderFields, data: state };
 };

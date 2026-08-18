@@ -35,7 +35,7 @@ import type {
     ProcessData,
     ProcessMetaData,
     ThreadMetaData,
-    ThreadTrace, HostMetaData, SliceMeta, SliceData, LabelMetaData,
+    HostMetaData, SliceMeta, SliceData, LabelMetaData,
 } from '../../entity/data';
 import { createCounterParam, createStatusParam } from './unitFunc';
 import { SelectedDataBottomPanel } from '../../components/SelectedDataBottomPanel';
@@ -56,6 +56,7 @@ import { getDefaultColumData, getPageData, PageType } from '../../components/det
 import { safeJSONParse } from '@insight/lib/utils';
 import { SorterResult } from 'antd/lib/table/interface';
 import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
+import { findOperatorUnit } from '../../utils/operatorUnit';
 import { getUnitFlows, queryAllSameOperatorsDuration } from '../../api/request';
 import { GetUnitFlowsParams, OpData } from '../../api/interface';
 import connector from '../../connection';
@@ -201,30 +202,43 @@ const singleSliceDetail = singleData({
         ['Attr Info', (data: AscendSliceDetail): string => getDisplay(data.attrInfo), (data: AscendSliceDetail): boolean => isHidden(data.attrInfo)],
     ],
     fetchData: async (session: Session, metadata: ThreadMetaData) => {
-        const selectedSliceData = session.selectedData as unknown as ThreadTrace;
-        const timestampOffset = getTimeOffset(session, metadata);
+        const selectedSliceData = session.selectedData as SelectedDataType;
+        const selectedDataUnit = session.selectedDataUnit;
+        const selectedMetaType = selectedSliceData.metaType ?? '';
+        const selectedProcessId = selectedSliceData.processId ?? '';
+        const selectedThreadId = selectedSliceData.threadId ?? '';
+        const selectedMetadata = {
+            ...metadata,
+            cardId: selectedSliceData.cardId ?? metadata.cardId,
+            dbPath: selectedSliceData.dbPath ?? metadata.dbPath,
+            metaType: selectedMetaType === '' ? metadata.metaType : selectedMetaType,
+            processId: selectedProcessId === '' ? metadata.processId : selectedProcessId,
+            threadId: selectedThreadId === '' ? metadata.threadId : selectedThreadId,
+        } as ThreadMetaData;
+        const timestampOffset = getTimeOffset(session, selectedMetadata);
         // 因为泳道chart数据减去了偏移，所有点选的时候得把偏移加回来
         const params = {
-            rankId: metadata.cardId,
-            dbPath: metadata.dbPath,
-            metaType: metadata.metaType,
-            pid: metadata.processId,
-            tid: metadata.threadId,
+            rankId: selectedMetadata.cardId,
+            dbPath: selectedMetadata.dbPath,
+            metaType: selectedMetadata.metaType,
+            pid: selectedMetadata.processId,
+            tid: selectedMetadata.threadId,
             id: selectedSliceData.id,
             startTime: Math.floor(selectedSliceData.startTime + timestampOffset),
             depth: selectedSliceData.depth,
             timePerPx: session.domain.timePerPx,
         };
-        const result = await window.request(metadata.dataSource, { command: 'unit/threadDetail', params });
+        const result = await window.request(selectedMetadata.dataSource, { command: 'unit/threadDetail', params });
         const res = result?.data ?? {};
         const data: AscendSliceDetail = {
-            pid: metadata?.processId,
-            tid: metadata?.threadId,
+            pid: selectedMetadata.processId,
+            tid: selectedMetadata.threadId,
             startTime: selectedSliceData?.startTime,
             depth: selectedSliceData?.depth,
             ...res,
         };
-        if (data.rawStartTime !== undefined && session.selectedData?.id === selectedSliceData.id) {
+        if (data.rawStartTime !== undefined && session.selectedData === selectedSliceData &&
+            session.selectedDataUnit === selectedDataUnit) {
             runInAction(() => {
                 (session.selectedData as SelectedDataType).rawStartTime = data.rawStartTime;
             });
@@ -890,8 +904,15 @@ export const SameOperatorsList = observer(({ session, metadata, updater }: { ses
             const res = await queryAllSameOperatorsDuration(params);
             const { currentPage, pageSize, sameOperatorsDetails } = res;
             const data = sameOperatorsDetails as OpData[];
-            const timestampoffset = getTimeOffset(session, metadata as ThreadMetaData);
             data.forEach(item => {
+                const fallbackMetadata = metadata as ThreadMetaData;
+                const sourceUnit = findOperatorUnit(session.selectedUnits, {
+                    cardId: slice.rankId ?? fallbackMetadata.cardId ?? '',
+                    pid: item.pid,
+                    tid: item.tid,
+                    metaType: item.metaType,
+                });
+                const timestampoffset = getTimeOffset(session, (sourceUnit?.metadata ?? fallbackMetadata) as ThreadMetaData);
                 item.startTime = getDetailTimeDisplay(item.timestamp - timestampoffset);
             });
             setDataSource((data).map((item, index) => ({ ...item, index: ((currentPage - 1) * pageSize) + index + 1 })));
@@ -926,12 +947,20 @@ export const SameOperatorsList = observer(({ session, metadata, updater }: { ses
             onRow={(record: OpData): {onClick: () => void} => {
                 return {
                     onClick: (): void => {
+                        const fallbackMetadata = metadata as ThreadMetaData;
+                        const sourceUnit = findOperatorUnit(session.selectedUnits, {
+                            cardId: slice?.rankId ?? fallbackMetadata.cardId ?? '',
+                            pid: record.pid,
+                            tid: record.tid,
+                            metaType: record.metaType,
+                        });
+                        const sourceMetadata = sourceUnit?.metadata as ThreadMetaData | undefined;
                         jumpToUnitOperator({
                             ...record,
                             name: slice?.name,
-                            cardId: (metadata as ThreadMetaData).cardId,
-                            dbPath: (metadata as ThreadMetaData).dbPath,
-                            metaType: (metadata as ThreadMetaData).metaType,
+                            cardId: sourceMetadata?.cardId ?? slice?.rankId ?? fallbackMetadata.cardId ?? '',
+                            dbPath: sourceMetadata?.dbPath ?? slice?.dbPath ?? fallbackMetadata.dbPath,
+                            metaType: sourceMetadata?.metaType ?? record.metaType,
                         });
                         setSelectedRowKey(record.id);
                     },

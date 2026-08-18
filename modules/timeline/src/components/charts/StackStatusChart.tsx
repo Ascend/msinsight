@@ -268,10 +268,11 @@ interface MouseUpFuncParams {
     datasState: StackStatusData[][];
     rangeAndDomain: Array<[number, number]>;
     rowHeight: UnitHeight; session: Session;
+    unit: StackStatusChartProps['unit'];
     metadata: unknown;
     onClick?: ChartReaction<'stackStatus'>;
 }
-const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, metadata, onClick }: MouseUpFuncParams): void => {
+const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, unit, metadata, onClick }: MouseUpFuncParams): void => {
     const clickedData = findDataByXY({ x: e.offsetX, y: e.offsetY }, datasState, rangeAndDomain, rowHeight, session.endTimeAll ?? 0);
     if (clickedData !== undefined) {
         clickedData.showSelectedData = true; // 强制设置优先显示“选中详情”
@@ -287,6 +288,7 @@ const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, metada
                 metaType: (metadata as ThreadMetaData).metaType ?? '',
             }
             : undefined;
+        session.selectedDataUnit = clickedData === undefined ? undefined : unit;
         if (!session.selectedData) {
             session.drawLineMode = 'all';
         }
@@ -340,6 +342,7 @@ export const StackStatusChart = observer(({ // 绘制 slice 的画布
             rangeAndDomain,
             rowHeight,
             session,
+            unit,
             metadata,
             onClick,
         });
