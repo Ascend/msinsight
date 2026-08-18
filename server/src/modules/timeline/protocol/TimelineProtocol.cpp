@@ -56,6 +56,8 @@ void TimelineProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_SYSTEM_VIEW_OVERALL, ToSystemViewOverallRequest);
     jsonToReqFactory.emplace(REQ_RES_SYSTEM_VIEW_OVERALL_MORE_DETAILS, ToSystemViewOverallMoreDetailsRequest);
     jsonToReqFactory.emplace(REQ_RES_SYSTEM_VIEW_FTRACE_STAT, ToSystemViewFtraceStatRequest);
+    jsonToReqFactory.emplace(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_AVAILABILITY, ToKernelMfuAvailabilityRequest);
+    jsonToReqFactory.emplace(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_LIST, ToKernelMfuListRequest);
     jsonToReqFactory.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, ToExpAnaAICoreFreqRequest);
     jsonToReqFactory.emplace(REQ_RES_MEMCPY_OVERALL, ToMemcpyOverallRequest);
     jsonToReqFactory.emplace(REQ_RES_KERNEL_OVERALL, ToKernelOverallRequest);
@@ -94,6 +96,8 @@ void TimelineProtocol::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_SYSTEM_VIEW_OVERALL, ToSystemViewOverallResponseJson);
     resToJsonFactory.emplace(REQ_RES_SYSTEM_VIEW_OVERALL_MORE_DETAILS, ToOverallMoreDetailsResponseJson);
     resToJsonFactory.emplace(REQ_RES_SYSTEM_VIEW_FTRACE_STAT, ToSystemViewFtraceStatResponseJson);
+    resToJsonFactory.emplace(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_AVAILABILITY, ToKernelMfuAvailabilityResponseJson);
+    resToJsonFactory.emplace(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_LIST, ToKernelMfuListResponseJson);
     resToJsonFactory.emplace(REQ_RES_EXPERT_ANALYSIS_AICORE_FREQ, ToExpAnaAICoreFreqResponseJson);
     resToJsonFactory.emplace(REQ_RES_CREATE_CURVE, ToCreateCurveResponseJson);
     resToJsonFactory.emplace(REQ_RES_MEMCPY_OVERALL, ToMemcpyOverallListResponseJson);
@@ -750,6 +754,33 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewFtraceStatRequest(const D
     return reqPtr;
 }
 
+std::unique_ptr<Request> TimelineProtocol::ToKernelMfuAvailabilityRequest(const Dic::json_t &json, std::string &error) {
+    auto reqPtr = std::make_unique<KernelMfuAvailabilityRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+        error = "Failed to set request base info for kernel MFU availability command.";
+        return nullptr;
+    }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.clusterPath, json["params"], "clusterPath");
+    return reqPtr;
+}
+
+std::unique_ptr<Request> TimelineProtocol::ToKernelMfuListRequest(const Dic::json_t &json, std::string &error) {
+    auto reqPtr = std::make_unique<KernelMfuListRequest>();
+    if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+        error = "Failed to set request base info for kernel MFU list command.";
+        return nullptr;
+    }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.clusterPath, json["params"], "clusterPath");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.current, json["params"], "current");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.pageSize, json["params"], "pageSize");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.opName, json["params"], "opName");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.kernelName, json["params"], "kernelName");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.orderBy, json["params"], "orderBy");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.order, json["params"], "order");
+    reqPtr->params.rankIds = JsonUtil::GetVector<std::string>(json["params"], "rankIds");
+    return reqPtr;
+}
+
 std::unique_ptr<Request> TimelineProtocol::ToMemcpyOverallRequest(const Dic::json_t &json, std::string &error) {
     std::unique_ptr<MemcpyOverallRequest> reqPtr = std::make_unique<MemcpyOverallRequest>();
     if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
@@ -999,6 +1030,14 @@ std::optional<document_t> TimelineProtocol::ToOverallMoreDetailsResponseJson(con
 
 std::optional<document_t> TimelineProtocol::ToSystemViewFtraceStatResponseJson(const Response &response) {
     return ToResponseJson<SystemViewFtraceStatResponse>(dynamic_cast<const SystemViewFtraceStatResponse &>(response));
+}
+
+std::optional<document_t> TimelineProtocol::ToKernelMfuAvailabilityResponseJson(const Response &response) {
+    return ToResponseJson<KernelMfuAvailabilityResponse>(dynamic_cast<const KernelMfuAvailabilityResponse &>(response));
+}
+
+std::optional<document_t> TimelineProtocol::ToKernelMfuListResponseJson(const Response &response) {
+    return ToResponseJson<KernelMfuListResponse>(dynamic_cast<const KernelMfuListResponse &>(response));
 }
 #pragma endregion
 } // namespace Protocol

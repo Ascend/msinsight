@@ -58,6 +58,7 @@ const std::map<ErrorCode, std::string> errorMessages = {
     {ErrorCode::QUERY_MEMCPY_OVERALL_FAILED, "Failed to query memcpy overall"},
     {ErrorCode::QUERY_MEMCPY_DETAIL_FAILED, "Failed to query memcpy detail"},
     {ErrorCode::QUERY_KERNEL_OVERALL_FAILED, "Failed to query kernel overall"},
+    {ErrorCode::QUERY_KERNEL_MFU_FAILED, "Failed to query kernel MFU"},
 
     {ErrorCode::FILE_PATH_IS_EMPTY, "Import file path is empty"},
     {ErrorCode::FOLDER_IS_EMPTY, "Import path is empty folder"},

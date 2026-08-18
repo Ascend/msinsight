@@ -415,6 +415,35 @@ struct SystemViewFtraceStatRequest : public Request {
     SystemViewFtraceStatParams params;
 };
 
+struct KernelMfuAvailabilityParams {
+    std::string clusterPath;
+
+    bool CheckParams(std::string &errorMsg) const;
+};
+
+struct KernelMfuAvailabilityRequest : public Request {
+    KernelMfuAvailabilityRequest() : Request(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_AVAILABILITY) {}
+    KernelMfuAvailabilityParams params;
+};
+
+struct KernelMfuListParams {
+    std::string clusterPath;
+    uint64_t current = 0;
+    uint64_t pageSize = 0;
+    std::vector<std::string> rankIds;
+    std::string opName;
+    std::string kernelName;
+    std::string orderBy;
+    std::string order;
+
+    bool CheckParams(std::string &errorMsg) const;
+};
+
+struct KernelMfuListRequest : public Request {
+    KernelMfuListRequest() : Request(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_LIST) {}
+    KernelMfuListParams params;
+};
+
 struct SystemViewParams {
     std::string orderBy;
     std::string order;

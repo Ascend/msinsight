@@ -66,6 +66,56 @@ TEST_F(ProtocolTest, ToUnitThreadTracesRequestTest) {
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
+
+TEST_F(ProtocolTest, ToKernelMfuRequests) {
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+
+    Dic::document_t availabilityJson(Dic::kObjectType);
+    auto &availabilityAllocator = availabilityJson.GetAllocator();
+    Dic::JsonUtil::AddMember(availabilityJson, "id", 1, availabilityAllocator);
+    Dic::JsonUtil::AddMember(availabilityJson, "moduleName", "timeline", availabilityAllocator);
+    Dic::JsonUtil::AddMember(availabilityJson, "type", "request", availabilityAllocator);
+    Dic::JsonUtil::AddMember(availabilityJson, "command", "systemView/kernelMfu/availability", availabilityAllocator);
+    Dic::json_t availabilityParams(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(availabilityParams, "clusterPath", "cluster_0", availabilityAllocator);
+    Dic::JsonUtil::AddMember(availabilityJson, "params", availabilityParams, availabilityAllocator);
+    auto availabilityRequest = timelineProtocol.FromJson(availabilityJson, error);
+    ASSERT_NE(availabilityRequest, nullptr);
+    EXPECT_NE(dynamic_cast<Dic::Protocol::KernelMfuAvailabilityRequest *>(availabilityRequest.get()), nullptr);
+
+    Dic::document_t listJson(Dic::kObjectType);
+    auto &listAllocator = listJson.GetAllocator();
+    Dic::JsonUtil::AddMember(listJson, "id", 2, listAllocator);
+    Dic::JsonUtil::AddMember(listJson, "moduleName", "timeline", listAllocator);
+    Dic::JsonUtil::AddMember(listJson, "type", "request", listAllocator);
+    Dic::JsonUtil::AddMember(listJson, "command", "systemView/kernelMfu/list", listAllocator);
+    Dic::json_t listParams(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(listParams, "clusterPath", "cluster_0", listAllocator);
+    Dic::JsonUtil::AddMember(listParams, "current", 1, listAllocator);
+    Dic::JsonUtil::AddMember(listParams, "pageSize", 10, listAllocator);
+    Dic::json_t rankIds(Dic::kArrayType);
+    rankIds.PushBack("0", listAllocator);
+    rankIds.PushBack("1", listAllocator);
+    Dic::JsonUtil::AddMember(listParams, "rankIds", rankIds, listAllocator);
+    Dic::JsonUtil::AddMember(listParams, "opName", "matmul_op", listAllocator);
+    Dic::JsonUtil::AddMember(listParams, "kernelName", "matmul", listAllocator);
+    Dic::JsonUtil::AddMember(listParams, "orderBy", "mfu", listAllocator);
+    Dic::JsonUtil::AddMember(listParams, "order", "descend", listAllocator);
+    Dic::JsonUtil::AddMember(listJson, "params", listParams, listAllocator);
+    auto listRequest = timelineProtocol.FromJson(listJson, error);
+    ASSERT_NE(listRequest, nullptr);
+    auto *typedListRequest = dynamic_cast<Dic::Protocol::KernelMfuListRequest *>(listRequest.get());
+    ASSERT_NE(typedListRequest, nullptr);
+    ASSERT_EQ(typedListRequest->params.rankIds.size(), 2);
+    EXPECT_EQ(typedListRequest->params.rankIds[0], "0");
+    EXPECT_EQ(typedListRequest->params.rankIds[1], "1");
+    EXPECT_EQ(typedListRequest->params.opName, "matmul_op");
+    EXPECT_EQ(typedListRequest->params.orderBy, "mfu");
+    EXPECT_EQ(typedListRequest->params.order, "descend");
+}
+
 TEST_F(ProtocolTest, ToUnitThreadTracesSummaryRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
