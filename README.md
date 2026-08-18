@@ -7,7 +7,7 @@
   [![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](./License) [![Version](https://badgen.net/badge/Version/26.0.0/green)](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_26.0.0.B120_0012) [![Ascend](https://img.shields.io/badge/Hardware-Ascend-orange.svg)](https://www.hiascend.com/)
 </div>
 
- [English](./README_EN.md) | 简体中文
+简体中文 | [English](./README_EN.md)
 
 ## 📢 最新动态
 
