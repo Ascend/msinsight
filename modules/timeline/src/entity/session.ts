@@ -32,7 +32,10 @@ import { SimpleCache } from '../cache/simplecache';
 import { InsightUnitSet } from '../utils/PageSetting';
 import { getTimeOffsetKey, setTimeOffsetForUnitTree, visitUnitTree } from '../insight/units/utils';
 import { CardMetaData, SliceData, SliceMeta, ThreadMetaData, ThreadTrace } from './data';
-import { CardRankInfo } from '../api/interface';
+import type {
+    CardRankInfo,
+    KernelMfuAvailabilityResponse,
+} from '../api/interface';
 import { getRootUnit } from '../utils';
 import { getAutoKey } from '../utils/dataAutoKey';
 import type { FlowPoint } from '../insight/units/AscendUnit';
@@ -150,6 +153,16 @@ export class Session {
     // 当前项目已导入的数据类型，用于 System View 标签过滤
     hasFtraceData: boolean = false;
     hasNonFtraceData: boolean = false;
+
+    // Kernel MFU 数据源由当前集群决定，不能随 Timeline 当前筛选条件变化
+    kernelMfuProjectGeneration = 0;
+    selectedClusterPath = '';
+    kernelMfuProjectName = '';
+    kernelMfuClusterList: Array<{ path: string; durationParsed: boolean }> = [];
+    kernelMfuDurationParsed = false;
+    kernelMfuAvailability: boolean | undefined = undefined;
+    kernelMfuAvailabilityChecking = false;
+    kernelMfuAvailabilityRequestSequence = 0;
     // context menu state
     contextMenu: ContextMenu = {
         isVisible: false,
@@ -409,6 +422,72 @@ export class Session {
 
     get rankCardInfoMap(): Map<string, CardRankInfo> {
         return this._rankCardInfoMap;
+    }
+
+    resetKernelMfuState(): void {
+        this.kernelMfuProjectGeneration += 1;
+        this.selectedClusterPath = '';
+        this.kernelMfuProjectName = '';
+        this.kernelMfuClusterList = [];
+        this.kernelMfuDurationParsed = false;
+        this.kernelMfuAvailability = undefined;
+        this.kernelMfuAvailabilityChecking = false;
+        this.kernelMfuAvailabilityRequestSequence += 1;
+    }
+
+    updateKernelMfuClusterContext(
+        projectName: string,
+        clusterPath: string,
+        clusterList: Array<{ path: string; durationParsed?: boolean }>,
+    ): void {
+        const contextChanged = this.selectedClusterPath !== clusterPath || this.kernelMfuProjectName !== projectName;
+        if (contextChanged) {
+            this.resetKernelMfuState();
+        }
+        this.selectedClusterPath = clusterPath;
+        this.kernelMfuProjectName = projectName;
+        this.kernelMfuClusterList = clusterList.map(({ path, durationParsed }) => ({
+            path,
+            durationParsed: durationParsed === true,
+        }));
+        this.kernelMfuDurationParsed = this.kernelMfuClusterList.some(
+            (item) => item.path === clusterPath && item.durationParsed,
+        );
+    }
+
+    markKernelMfuDurationParsed(clusterPath: string): void {
+        if (clusterPath !== this.selectedClusterPath) {
+            return;
+        }
+        this.kernelMfuDurationParsed = true;
+        this.kernelMfuClusterList = this.kernelMfuClusterList.map((item) =>
+            item.path === clusterPath ? { ...item, durationParsed: true } : item,
+        );
+    }
+
+    startKernelMfuAvailabilityRequest(clusterPath: string): number | undefined {
+        if (clusterPath === '' || clusterPath !== this.selectedClusterPath || !this.kernelMfuDurationParsed ||
+            this.kernelMfuAvailability !== undefined || this.kernelMfuAvailabilityChecking) {
+            return undefined;
+        }
+        const sequence = this.kernelMfuAvailabilityRequestSequence + 1;
+        this.kernelMfuAvailabilityRequestSequence = sequence;
+        this.kernelMfuAvailabilityChecking = true;
+        return sequence;
+    }
+
+    isCurrentKernelMfuAvailabilityRequest(sequence: number, clusterPath: string): boolean {
+        return this.kernelMfuAvailabilityRequestSequence === sequence && this.selectedClusterPath === clusterPath;
+    }
+
+    updateKernelMfuAvailability(response: KernelMfuAvailabilityResponse): void {
+        this.kernelMfuAvailability = response.available;
+        this.kernelMfuAvailabilityChecking = false;
+    }
+
+    markKernelMfuAvailabilityError(): void {
+        this.kernelMfuAvailability = false;
+        this.kernelMfuAvailabilityChecking = false;
     }
 
     get availableUnits(): InsightUnit[] {

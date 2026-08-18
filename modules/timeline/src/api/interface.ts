@@ -41,6 +41,45 @@ export interface CardRankInfo {
     isFtrace?: boolean;
 }
 
+export interface KernelMfuAvailabilityParams {
+    clusterPath: string;
+}
+
+export interface KernelMfuAvailabilityResponse {
+    available: boolean;
+}
+
+export interface KernelMfuListParams extends PaginationParams {
+    clusterPath: string;
+    rankIds?: string[];
+    opName?: string;
+    kernelName?: string;
+    orderBy?: string;
+    order?: 'ascend' | 'descend';
+}
+
+export interface KernelMfuRow {
+    rankId: string;
+    opName: string;
+    kernelName: string;
+    kernelStartNs: number;
+    kernelEndNs: number;
+    kernelDurationNs: number;
+    mfu: number;
+    actualTflops: number;
+    chipPeakTflops: number;
+    flops: number;
+    flopsOpName: string;
+    inputShapes: string;
+    outputShapes: string;
+}
+
+export interface KernelMfuListResponse extends PaginationModel {
+    available: boolean;
+    data: KernelMfuRow[];
+    rankOptions: string[];
+}
+
 // 算子详情信息
 export interface OpDetail {
     id?: string;

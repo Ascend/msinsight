@@ -221,6 +221,9 @@ export interface SystemViewItem {
     tips?: string;
     description?: string;
 }
+
+export const KERNEL_MFU_VIEW_NAME = 'Kernel-level MFU Analysis';
+
 export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Overall Metrics', tips: 'OverallMetricsTips' },
     { name: 'Python API Summary', tips: 'PythonAPISummaryTips' },
@@ -236,6 +239,7 @@ export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Kernel Details', tips: 'KernelDetailsTips' },
     { name: 'Operator Details', tips: 'OperatorDetailsTips' },
     { name: 'Memcpy Overall' },
+    { name: KERNEL_MFU_VIEW_NAME, tips: 'KernelMfuTips' },
     { name: 'Ftrace Task Summary' },
 ];
 
@@ -261,8 +265,12 @@ export const getVisibleStatsSystemViewItems = (
     items: SystemViewItem[],
     hasFtraceData: boolean,
     hasNonFtraceData: boolean,
+    showKernelMfu = true,
 ): IndexedSystemViewItem[] => {
     return items.map((item, index) => ({ ...item, originIndex: index })).filter((item) => {
+        if (item.name === KERNEL_MFU_VIEW_NAME) {
+            return showKernelMfu;
+        }
         const isFtraceItem = ftraceTypes.includes(item.name);
         if (hasFtraceData && !hasNonFtraceData) {
             return isFtraceItem;
