@@ -39,6 +39,10 @@ import {
     GetMemcpyOverallMetricsMoreListResultItem,
     QueryTimelineOffsetParams,
     QueryTimelineOffsetResult,
+    KernelMfuAvailabilityParams,
+    KernelMfuAvailabilityResponse,
+    KernelMfuListParams,
+    KernelMfuListResponse,
 } from './interface';
 import connector from '../connection';
 
@@ -151,4 +155,14 @@ export async function getUnitFlows(params: GetUnitFlowsParams): Promise<GetUnitF
 
 export async function queryTimelineOffset(params: QueryTimelineOffsetParams): Promise<QueryTimelineOffsetResult> {
     return window.requestData('timeline/rankOffset', params, 'timeline');
+}
+
+export async function queryKernelMfuAvailability(
+    params: KernelMfuAvailabilityParams,
+): Promise<KernelMfuAvailabilityResponse> {
+    return window.requestData('systemView/kernelMfu/availability', params, 'timeline');
+}
+
+export async function queryKernelMfuList(params: KernelMfuListParams): Promise<KernelMfuListResponse> {
+    return window.requestData('systemView/kernelMfu/list', params, 'timeline');
 }

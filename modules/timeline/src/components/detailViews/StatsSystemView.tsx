@@ -42,6 +42,7 @@ import { MemcpyOverallMetrics } from './MemcpyOverallMetrics';
 import OperatorDetailView from './OperatorDetailView';
 import { KernelE2ETimeTable } from './KernelE2ETimeTable';
 import { FtraceTaskSummary } from './FtraceTaskSummary';
+import { KernelMfuTable } from './KernelMfuTable';
 
 const filterColumn = [
     'name', 'type', 'acceleratorCore', 'taskId', 'inputShapes', 'inputDataTypes',
@@ -222,5 +223,6 @@ export const StatsSystemView = [
     KernelDetails,
     OperatorDetailView,
     MemcpyOverallMetrics,
+    KernelMfuTable,
     FtraceTaskSummary,
 ];

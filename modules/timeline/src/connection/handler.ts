@@ -49,6 +49,35 @@ const getPropFromData = function <T extends keyof U, U extends Record<string, un
     }
     return data[key];
 };
+
+interface KernelMfuClusterPageInfo {
+    clusterList?: Array<{ path: string; durationParsed?: boolean }>;
+    selectedClusterPath?: string;
+}
+
+interface KernelMfuPageNotification {
+    selectedProjectName?: string;
+    pageInfo?: {
+        cluster?: KernelMfuClusterPageInfo;
+    };
+}
+
+const updateKernelMfuClusterContext = (data: KernelMfuPageNotification): void => {
+    const session = store.sessionStore.activeSession;
+    const clusterPageInfo = data.pageInfo?.cluster;
+    const clusterPath = clusterPageInfo?.selectedClusterPath;
+    if (session === undefined || clusterPageInfo === undefined || typeof clusterPath !== 'string') {
+        return;
+    }
+    runInAction(() => {
+        session.updateKernelMfuClusterContext(
+            data.selectedProjectName ?? session.kernelMfuProjectName,
+            clusterPath,
+            clusterPageInfo.clusterList ?? [],
+        );
+    });
+};
+
 function updateRankDbPathMap(rankList: RankInfo[], dbPath: string, isFtrace?: boolean): void {
     const { sessionStore } = store;
     const session = sessionStore.activeSession;
@@ -467,6 +496,9 @@ export const importRemoteHandler: NotificationHandler = async (data): Promise<vo
         }
         session.isNeedResetRankId = isNeedResetRankId;
         runInAction(() => {
+            if (result.reset || isNeedResetRankId) {
+                session.resetKernelMfuState();
+            }
             initUnitInfo(session, result, dataSource, isNeedResetRankId);
             clearTimeMarkerFlags(session);
         });
@@ -841,6 +873,18 @@ export const setTheme: NotificationHandler = (data): void => {
     window.setTheme(Boolean(data.isDark)); // 将 `isDark` 转换为布尔值并设置主题
 };
 
+export const frameLoadedHandler: NotificationHandler = (data): void => {
+    updateKernelMfuClusterContext(data as KernelMfuPageNotification);
+};
+
+export const switchDirectoryHandler: NotificationHandler = (data): void => {
+    updateKernelMfuClusterContext(data as KernelMfuPageNotification);
+};
+
+export const updateClusterPageInfoHandler: NotificationHandler = (data): void => {
+    updateKernelMfuClusterContext({ pageInfo: { cluster: data as KernelMfuClusterPageInfo } });
+};
+
 /**
  * 集群完成处理函数。
  * @param data - 包含集群解析结果和路径的对象。
@@ -873,6 +917,12 @@ export const clusterDurationCompletedHandler: NotificationHandler = (data): void
     const clusterRes = data?.parseResult === 'ok';
     // 获取集群路径，若不存在则设为空字符串
     const clusterPath = data?.clusterPath as string ?? '';
+    const session = store.sessionStore.activeSession;
+    if (clusterRes && session !== undefined) {
+        runInAction(() => {
+            session.markKernelMfuDurationParsed(clusterPath);
+        });
+    }
     // 发送集群持续时间完成事件
     connector.send({
         event: 'frame:parseClusterDurationCompleted',

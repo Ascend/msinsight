@@ -19,6 +19,7 @@ import {
     ftraceTypes,
     getVisibleStatsSystemViewItems,
     statsSystemViewItems,
+    KERNEL_MFU_VIEW_NAME,
     type SystemViewItem,
 } from '../Common';
 
@@ -32,7 +33,9 @@ describe('getVisibleStatsSystemViewItems', () => {
         const visibleItems = getVisibleStatsSystemViewItems(itemsWithDynamicLayer, true, false);
 
         expect(getNames(visibleItems)).toEqual(ftraceTypes);
-        expect(visibleItems.map(item => item.originIndex)).toEqual([2, 3, 4]);
+        expect(visibleItems.map(item => item.originIndex)).toEqual(
+            ftraceTypes.map(name => statsSystemViewItems.findIndex(item => item.name === name)),
+        );
     });
 
     it('shows non-ftrace labels and dynamic layers when only non-ftrace data has been imported', () => {
@@ -47,8 +50,20 @@ describe('getVisibleStatsSystemViewItems', () => {
             'Communication Summary',
             'Overlap Analysis',
             'Kernel Details',
+            KERNEL_MFU_VIEW_NAME,
             'Custom Layer',
         ]);
+    });
+
+    it('hides the MFU label without changing the original indexes', () => {
+        const visibleItems = getVisibleStatsSystemViewItems(itemsWithDynamicLayer, true, true, false);
+        const mfuIndex = statsSystemViewItems.findIndex(item => item.name === KERNEL_MFU_VIEW_NAME);
+
+        expect(getNames(visibleItems)).not.toContain(KERNEL_MFU_VIEW_NAME);
+        expect(visibleItems.find(item => item.name === 'Ftrace Task Summary')?.originIndex).toBe(
+            statsSystemViewItems.findIndex(item => item.name === 'Ftrace Task Summary'),
+        );
+        expect(visibleItems.find(item => item.originIndex > mfuIndex)?.originIndex).toBeGreaterThan(mfuIndex);
     });
 
     it('shows all labels after ftrace and non-ftrace data are both imported', () => {
