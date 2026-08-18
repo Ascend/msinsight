@@ -449,6 +449,37 @@ struct SystemViewFtraceStatResponse : public Response {
     PageParam pageParam;
 };
 
+struct KernelMfuAvailabilityResponse : public Response {
+    KernelMfuAvailabilityResponse() : Response(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_AVAILABILITY) {}
+    bool available = false;
+};
+
+struct KernelMfuRow {
+    std::string rankId;
+    std::string opName;
+    std::string kernelName;
+    uint64_t kernelStartNs = 0;
+    uint64_t kernelEndNs = 0;
+    uint64_t kernelDurationNs = 0;
+    double mfu = 0.0;
+    double actualTflops = 0.0;
+    double chipPeakTflops = 0.0;
+    double flops = 0.0;
+    std::string flopsOpName;
+    std::string inputShapes;
+    std::string outputShapes;
+};
+
+struct KernelMfuListResponse : public Response {
+    KernelMfuListResponse() : Response(REQ_RES_SYSTEM_VIEW_KERNEL_MFU_LIST) {}
+    bool available = false;
+    std::vector<KernelMfuRow> data;
+    std::vector<std::string> rankOptions;
+    uint64_t count = 0;
+    uint64_t current = 0;
+    uint64_t pageSize = 0;
+};
+
 class EventDetail {
   public:
     virtual ~EventDetail() = default;

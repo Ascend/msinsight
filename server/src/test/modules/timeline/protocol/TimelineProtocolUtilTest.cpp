@@ -378,3 +378,22 @@ TEST_F(TimelineProtocolUtilTest, TestParseProgressEventToJson) {
     auto jsonOp = Dic::Protocol::ToEventJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
 }
+
+TEST_F(TimelineProtocolUtilTest, KernelMfuListResponseSerializesRankOptions) {
+    Dic::Protocol::KernelMfuListResponse response;
+    response.available = true;
+    response.rankOptions = {"0", "1"};
+    response.current = 1;
+    response.pageSize = 10;
+
+    auto jsonOp = Dic::Protocol::ToResponseJson(response);
+
+    ASSERT_TRUE(jsonOp.has_value());
+    const auto &body = jsonOp.value()["body"];
+    ASSERT_TRUE(body.HasMember("rankOptions"));
+    ASSERT_TRUE(body["rankOptions"].IsArray());
+    ASSERT_EQ(body["rankOptions"].Size(), 2);
+    EXPECT_STREQ(body["rankOptions"][0].GetString(), "0");
+    EXPECT_STREQ(body["rankOptions"][1].GetString(), "1");
+    EXPECT_FALSE(body.HasMember("ready"));
+}

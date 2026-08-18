@@ -890,6 +890,51 @@ std::optional<document_t> ToResponseJson<SystemViewFtraceStatResponse>(const Sys
     return std::optional<document_t>{std::move(json)};
 }
 
+template <>
+std::optional<document_t> ToResponseJson<KernelMfuAvailabilityResponse>(const KernelMfuAvailabilityResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    JsonUtil::AddMember(body, "available", response.available, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
+template <> std::optional<document_t> ToResponseJson<KernelMfuListResponse>(const KernelMfuListResponse &response) {
+    document_t json(kObjectType);
+    auto &allocator = json.GetAllocator();
+    ProtocolUtil::SetResponseJsonBaseInfo(response, json);
+    json_t body(kObjectType);
+    JsonUtil::AddMember(body, "available", response.available, allocator);
+
+    json_t data(kArrayType);
+    for (const auto &row : response.data) {
+        json_t item(kObjectType);
+        JsonUtil::AddMember(item, "rankId", row.rankId, allocator);
+        JsonUtil::AddMember(item, "opName", row.opName, allocator);
+        JsonUtil::AddMember(item, "kernelName", row.kernelName, allocator);
+        JsonUtil::AddMember(item, "kernelStartNs", row.kernelStartNs, allocator);
+        JsonUtil::AddMember(item, "kernelEndNs", row.kernelEndNs, allocator);
+        JsonUtil::AddMember(item, "kernelDurationNs", row.kernelDurationNs, allocator);
+        JsonUtil::AddMember(item, "mfu", row.mfu, allocator);
+        JsonUtil::AddMember(item, "actualTflops", row.actualTflops, allocator);
+        JsonUtil::AddMember(item, "chipPeakTflops", row.chipPeakTflops, allocator);
+        JsonUtil::AddMember(item, "flops", row.flops, allocator);
+        JsonUtil::AddMember(item, "flopsOpName", row.flopsOpName, allocator);
+        JsonUtil::AddMember(item, "inputShapes", row.inputShapes, allocator);
+        JsonUtil::AddMember(item, "outputShapes", row.outputShapes, allocator);
+        data.PushBack(item, allocator);
+    }
+    JsonUtil::AddMember(body, "data", data, allocator);
+    JsonUtil::AddMember(body, "rankOptions", response.rankOptions, allocator);
+    JsonUtil::AddMember(body, "count", response.count, allocator);
+    JsonUtil::AddMember(body, "current", response.current, allocator);
+    JsonUtil::AddMember(body, "pageSize", response.pageSize, allocator);
+    JsonUtil::AddMember(json, "body", body, allocator);
+    return std::optional<document_t>{std::move(json)};
+}
+
 json_t MemcpyOverallResToJson(const MemcpyOverallRes &res, RAPIDJSON_DEFAULT_ALLOCATOR &allocator, uint64_t depth = 1) {
     json_t json(kObjectType);
     JsonUtil::AddMember(json, "key", res.key, allocator);

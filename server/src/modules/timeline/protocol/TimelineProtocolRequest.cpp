@@ -18,6 +18,8 @@
 
 #include "TimelineProtocolRequest.h"
 
+#include <algorithm>
+
 namespace Dic {
 namespace Protocol {
 void KernelDetailsParams::Check(uint64_t minTime, std::string &error) const {
@@ -242,6 +244,44 @@ bool SystemViewFtraceStatParams::CheckParams(std::string &warnMsg) const {
             warnMsg = "filters contain invalid string value for ftrace stat.";
             return false;
         }
+    }
+    return true;
+}
+
+bool KernelMfuAvailabilityParams::CheckParams(std::string &errorMsg) const {
+    (void)errorMsg;
+    return true;
+}
+
+bool KernelMfuListParams::CheckParams(std::string &errorMsg) const {
+    for (const auto &rankId : rankIds) {
+        if (!CheckStrParamValid(rankId, errorMsg)) {
+            return false;
+        }
+    }
+    if (!CheckUnsignPageValid(pageSize, current, errorMsg)) {
+        return false;
+    }
+    if (!CheckStrParamValidEmptyAllowed(opName, errorMsg)) {
+        return false;
+    }
+    if (!CheckStrParamValidEmptyAllowed(kernelName, errorMsg)) {
+        return false;
+    }
+    if (orderBy.empty() != order.empty()) {
+        errorMsg = "Kernel MFU orderBy and order must be provided together.";
+        return false;
+    }
+    static const std::vector<std::string> validOrderBy = {"rankId", "opName", "kernelName", "kernelStartNs",
+        "kernelEndNs", "kernelDurationNs", "mfu", "actualTflops", "chipPeakTflops", "flops", "flopsOpName",
+        "inputShapes", "outputShapes"};
+    if (!orderBy.empty() && std::find(validOrderBy.begin(), validOrderBy.end(), orderBy) == validOrderBy.end()) {
+        errorMsg = "Kernel MFU orderBy is invalid.";
+        return false;
+    }
+    if (!order.empty() && order != "ascend" && order != "descend") {
+        errorMsg = "Kernel MFU order is invalid.";
+        return false;
     }
     return true;
 }

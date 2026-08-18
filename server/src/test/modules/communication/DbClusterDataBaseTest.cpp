@@ -18,6 +18,7 @@
 #include <gtest/gtest.h>
 #include "../../DatabaseTestCaseMockUtil.h"
 #include "DbClusterDataBase.h"
+#include "KernelMfuDatabaseAccesser.h"
 
 using namespace Dic::Global::PROFILER::MockUtil;
 class DbClusterDataBaseTest : public ::testing::Test {
@@ -179,4 +180,86 @@ TEST_F(DbClusterDataBaseTest, TestUpdateParallelStrategyConfigWhenDbNotOpen) {
     std::string level = "configed";
     bool ans = database.UpdateParallelStrategyConfig(config, level, msg);
     EXPECT_EQ(ans, false);
+}
+
+TEST_F(DbClusterDataBaseTest, KernelMfuQueryListUsesFixedSchemaAndFilters) {
+    std::recursive_mutex sqlMutex;
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    auto database = std::make_shared<MockDatabase>(sqlMutex);
+    database->SetDbPtr(dbPtr);
+    ASSERT_TRUE(
+        database->ExecSql("CREATE TABLE OperatorMFU ("
+                          "rank_id TEXT, op_name TEXT, kernel_name TEXT, \"kernel_start(ns)\" INTEGER, "
+                          "\"kernel_end(ns)\" INTEGER, \"kernel_duration(ns)\" INTEGER, mfu REAL, "
+                          "actual_tflops REAL, chip_peak_tflops REAL, flops REAL, flops_op_name TEXT, "
+                          "input_shapes TEXT, output_shapes TEXT);"
+                          "INSERT INTO OperatorMFU VALUES "
+                          "('0', 'op0', 'Kernel_10%', 10, 20, 10, 0.5, 1.0, 2.0, 3.0, 'flops0', '[1]', '[2]'),"
+                          "('1', 'op1', 'Kernel_20', 30, 40, 10, 0.6, 1.1, 2.1, 3.1, 'flops1', '[3]', '[4]');"));
+
+    Dic::Protocol::KernelMfuListParams params;
+    params.clusterPath = "cluster_0";
+    params.rankIds = {"0", "1"};
+    params.current = 1;
+    params.pageSize = 10;
+    std::string errorMsg;
+    ASSERT_TRUE(params.CheckParams(errorMsg));
+
+    std::vector<Dic::Protocol::KernelMfuRow> rows;
+    std::vector<std::string> rankOptions;
+    uint64_t count = 0;
+    EXPECT_EQ(Dic::Module::Timeline::KernelMfuDatabaseAccesser::QueryList(database, params, rows, rankOptions, count),
+        Dic::Module::Timeline::KernelMfuQueryStatus::SUCCESS);
+    ASSERT_EQ(rows.size(), 2);
+    ASSERT_EQ(rankOptions, std::vector<std::string>({"0", "1"}));
+    EXPECT_EQ(count, 2);
+
+    params.kernelName = "10%";
+    rows.clear();
+    rankOptions.clear();
+    count = 0;
+    EXPECT_EQ(Dic::Module::Timeline::KernelMfuDatabaseAccesser::QueryList(database, params, rows, rankOptions, count),
+        Dic::Module::Timeline::KernelMfuQueryStatus::SUCCESS);
+    ASSERT_EQ(rows.size(), 1);
+    EXPECT_EQ(rows[0].rankId, "0");
+    EXPECT_EQ(rows[0].kernelName, "Kernel_10%");
+    ASSERT_EQ(rankOptions, std::vector<std::string>({"0", "1"}));
+    EXPECT_EQ(count, 1);
+
+    params.kernelName.clear();
+    params.opName = "OP0";
+    rows.clear();
+    rankOptions.clear();
+    count = 0;
+    EXPECT_EQ(Dic::Module::Timeline::KernelMfuDatabaseAccesser::QueryList(database, params, rows, rankOptions, count),
+        Dic::Module::Timeline::KernelMfuQueryStatus::SUCCESS);
+    ASSERT_EQ(rows.size(), 1);
+    EXPECT_EQ(rows[0].rankId, "0");
+    EXPECT_EQ(rows[0].opName, "op0");
+    ASSERT_EQ(rankOptions, std::vector<std::string>({"0", "1"}));
+    EXPECT_EQ(count, 1);
+
+    params.kernelName = "10%";
+    rows.clear();
+    rankOptions.clear();
+    count = 0;
+    EXPECT_EQ(Dic::Module::Timeline::KernelMfuDatabaseAccesser::QueryList(database, params, rows, rankOptions, count),
+        Dic::Module::Timeline::KernelMfuQueryStatus::SUCCESS);
+    ASSERT_EQ(rows.size(), 1);
+    EXPECT_EQ(rows[0].rankId, "0");
+    EXPECT_EQ(rows[0].opName, "op0");
+    EXPECT_EQ(rows[0].kernelName, "Kernel_10%");
+    EXPECT_EQ(count, 1);
+}
+
+TEST_F(DbClusterDataBaseTest, KernelMfuAvailabilityRequiresAllKnownColumns) {
+    std::recursive_mutex sqlMutex;
+    sqlite3 *dbPtr = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    auto database = std::make_shared<MockDatabase>(sqlMutex);
+    database->SetDbPtr(dbPtr);
+    ASSERT_TRUE(database->ExecSql("CREATE TABLE OperatorMFU (rank_id TEXT);"));
+    EXPECT_EQ(Dic::Module::Timeline::KernelMfuDatabaseAccesser::CheckAvailability(database),
+        Dic::Module::Timeline::KernelMfuQueryStatus::UNAVAILABLE);
 }

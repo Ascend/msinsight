@@ -67,6 +67,8 @@ class TimelineProtocol : public ProtocolUtil {
     static std::unique_ptr<Request> ToSystemViewOverallRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToSystemViewOverallMoreDetailsRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToSystemViewFtraceStatRequest(const json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToKernelMfuAvailabilityRequest(const json_t &json, std::string &error);
+    static std::unique_ptr<Request> ToKernelMfuListRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToMemcpyOverallRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToKernelOverallRequest(const json_t &json, std::string &error);
     static std::unique_ptr<Request> ToRankOffsetRequest(const json_t &json, std::string &error);
@@ -113,6 +115,8 @@ class TimelineProtocol : public ProtocolUtil {
     static std::optional<document_t> ToSystemViewOverallResponseJson(const Response &response);
     static std::optional<document_t> ToOverallMoreDetailsResponseJson(const Response &response);
     static std::optional<document_t> ToSystemViewFtraceStatResponseJson(const Response &response);
+    static std::optional<document_t> ToKernelMfuAvailabilityResponseJson(const Response &response);
+    static std::optional<document_t> ToKernelMfuListResponseJson(const Response &response);
     static std::optional<document_t> ToParseHeatmapCompletedEventJson(const Event &event);
     static std::optional<document_t> ToParseUnitCompletedEventJson(const Event &event);
 };

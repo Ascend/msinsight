@@ -248,6 +248,35 @@ TEST_F(TimelineProtocolRequestTest, KernelOverallParams) {
     EXPECT_EQ(params.CheckParams(0, errorMsg), false);
 }
 
+TEST_F(TimelineProtocolRequestTest, KernelMfuParams) {
+    Dic::Protocol::KernelMfuAvailabilityParams availabilityParams;
+    std::string errorMsg;
+    EXPECT_TRUE(availabilityParams.CheckParams(errorMsg));
+    availabilityParams.clusterPath = "cluster_0";
+    EXPECT_TRUE(availabilityParams.CheckParams(errorMsg));
+
+    Dic::Protocol::KernelMfuListParams listParams;
+    listParams.clusterPath = availabilityParams.clusterPath;
+    listParams.rankIds = {"0", "1"};
+    listParams.current = 1;
+    listParams.pageSize = 10;
+    EXPECT_TRUE(listParams.CheckParams(errorMsg));
+
+    listParams.orderBy = "invalid";
+    listParams.order = "ascend";
+    EXPECT_FALSE(listParams.CheckParams(errorMsg));
+    listParams.orderBy = "kernelName";
+    listParams.order = "descend";
+    EXPECT_TRUE(listParams.CheckParams(errorMsg));
+
+    listParams.kernelName = std::string(501, 'k');
+    EXPECT_FALSE(listParams.CheckParams(errorMsg));
+
+    listParams.kernelName.clear();
+    listParams.opName = std::string(501, 'o');
+    EXPECT_FALSE(listParams.CheckParams(errorMsg));
+}
+
 TEST_F(TimelineProtocolRequestTest, TestRankOffsetParamsValidInput) {
     Dic::Protocol::RankOffsetParams params;
     params.sliceName = "MatMul";

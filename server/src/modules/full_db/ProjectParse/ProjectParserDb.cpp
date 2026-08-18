@@ -267,8 +267,8 @@ ProjectTypeEnum ProjectParserDb::GetProjectType(const std::string &dataPath) {
     std::vector<std::string> msprofFiles = FileUtil::FindFilesWithFilter(dataPath, std::regex(msprofDBReg));
     std::vector<std::string> clusterPath = FileUtil::FindFilesWithFilter(dataPath, std::regex(clusterDBReg));
     uint64_t rankCount = frameworkFiles.size() + msprofFiles.size();
-    // 如果rank的数据大于1个或导入的为cluster_analysis.db单文件，则判断需要进行集群分析
-    bool isCluster = (rankCount > 1) || (rankCount == 0 && (clusterPath.size() > 0));
+    // 如果rank的数据大于1个或导入数据包含了cluster_analysis.db文件，则判断需要进行集群分析
+    bool isCluster = rankCount > 1 || clusterPath.size() > 0;
     return isCluster ? ProjectTypeEnum::DB_CLUSTER : ProjectTypeEnum::DB;
 }
 
