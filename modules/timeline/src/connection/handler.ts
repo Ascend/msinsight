@@ -944,6 +944,7 @@ export const locateUnitHandler: NotificationHandler = (data): void => {
                     metaType: (unit.metadata as ThreadMetaData).metaType,
                     showSelectedData: (slice.showSelectedData as boolean) ?? false,
                 };
+                session.selectedDataUnit = unit;
             },
             showDetail: true, // 显示详细信息
         };

@@ -26,6 +26,7 @@ import type { SelectedDataType, Session } from '../entity/session';
 import { ThreadUnit } from '../insight/units/AscendUnit';
 import { getTimeOffset } from '../insight/units/utils';
 import { getRootUnit, isStreamUnit } from '../utils';
+import { getSelectedDataUnit } from '../utils/selectionContext';
 import { register } from './register';
 
 const MODEL_EXECUTE = 'MODELEXECUTE';
@@ -145,7 +146,7 @@ const jumpToModelStream = async (session: Session): Promise<void> => {
         return;
     }
     const selectedData = session.selectedData;
-    const selectedUnit = session.selectedUnits[0];
+    const selectedUnit = getSelectedDataUnit(session);
     if (selectedData === undefined || !(selectedUnit instanceof ThreadUnit) || !selectedData.threadId) {
         showModelIdUnavailableWarning();
         return;
@@ -161,7 +162,7 @@ const jumpToModelStream = async (session: Session): Promise<void> => {
         return;
     }
     // Ignore a late detail response after the user has selected another slice.
-    if (session.selectedData !== selectedData || session.selectedUnits[0] !== selectedUnit) {
+    if (session.selectedData !== selectedData || getSelectedDataUnit(session) !== selectedUnit) {
         return;
     }
     if (modelStreamInfo.modelId === undefined) {

@@ -31,6 +31,7 @@ import { getDetailViewItem } from './detailViews/DetailView';
 import { useFindDetail } from './detailViews/FindInWindow';
 import { StyledTabs } from './base/StyledTabs';
 import i18n from '@insight/lib/i18n';
+import { getBottomPanelUnit } from '../utils/selectionContext';
 
 interface CssProps {
     className?: string;
@@ -182,13 +183,17 @@ interface BottomPanelReactNodes {
     open?: boolean;
 }
 
-const useBottomPanelReactNodes = (session: Session, height: number, type: string): BottomPanelReactNodes => {
+export const useBottomPanelReactNodes = (session: Session, height: number, type: string): BottomPanelReactNodes => {
     const isSliceDetail = type === TriggerType.SELECTED_DATA;
-    const { selectedUnitKeys, selectedUnits } = session;
+    const sessionUnit = getBottomPanelUnit(session, isSliceDetail);
+    // Keep the range list mounted while right-clicking slices. Its cached rows and More data
+    // belong to selectedRange; only Slice Detail should react to selectedDataUnit changes.
+    const rendererSelection = isSliceDetail
+        ? (session.selectedDataUnit === undefined ? String(session.selectedUnitKeys) : undefined)
+        : session.selectedRange;
     const bottomPanelComponents = React.useMemo(() => {
-        const sessionUnit = selectedUnits?.find(unit => unit.bottomPanelRender);
         return sessionUnit?.bottomPanelRender?.(session, sessionUnit?.metadata);
-    }, [session, session.units.length, isSliceDetail ? String(selectedUnitKeys) : session.selectedRange]);
+    }, [session, session.units.length, isSliceDetail, sessionUnit, rendererSelection]);
     const bottomPanelComponent = isSliceDetail ? bottomPanelComponents?.[0] : bottomPanelComponents?.[1];
     const contentHeight = bottomPanelComponent?.Toolbar !== undefined
         ? (height - DETAIL_HEADER_HEIGHT_PX - FILTER_HEIGHT - BOTTOM_PANEL_PADDING_X)

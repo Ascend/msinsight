@@ -143,6 +143,7 @@ export const StatusChart = observer(({
             session.selectedData = clickedData
                 ? { ...clickedData, threadId: (metadata as ThreadMetaData).threadId ?? '', processId: (metadata as ThreadMetaData).processId ?? '' }
                 : undefined;
+            session.selectedDataUnit = clickedData === undefined ? undefined : unit;
             if (!session.selectedData) {
                 session.drawLineMode = 'all';
             }
