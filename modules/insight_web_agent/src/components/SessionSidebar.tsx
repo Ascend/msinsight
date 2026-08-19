@@ -20,34 +20,60 @@ import { Drawer } from 'antd';
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { Button, Select } from '@insight/lib/components';
-import { AddIcon, CaretRightIcon, DeleteIcon, RefreshIcon } from '@insight/lib/icon/Icon';
+import { DeleteIcon } from '@insight/lib/icon/Icon';
 import { useTranslation } from 'react-i18next';
+import { requestHostClose } from '../connection';
 import { useChatState } from '../hooks/useChatState';
+import closeIcon from '../icons/close.svg';
+import historyIcon from '../icons/history-session.svg';
+import logo from '../icons/logo.png';
+import newSessionIcon from '../icons/new-session.svg';
+import settingsIcon from '../icons/settings.svg';
+import { AgentSettingsDialog } from './AgentSettingsDialog';
 
 const Container = styled.div`
     position: relative;
     flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 10px 10px;
-    border-bottom: 1px solid ${(props): string => props.theme.borderColor};
-    background: ${(props): string => props.theme.bgColorLight};
+    min-height: 54px;
+    gap: 0;
+    padding: 10px 16px;
+    background: ${(props): string => props.theme.bgColor};
 
-    .session-title-bar {
+    .agent-brand {
         flex: 1 1 auto;
         min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        color: ${(props): string => props.theme.textColorPrimary};
-        font-size: 12px;
-        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .agent-logo {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+        object-fit: contain;
+    }
+
+    .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 2px;
     }
 
     .agent-picker {
-        flex: 0 0 130px;
+        width: min(220px, calc(100vw - 260px));
+        flex: 0 1 220px;
         min-width: 0;
+    }
+
+    .agent-picker .ant-select-selector {
+        border: 0 !important;
+        padding-left: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font-size: 14px;
     }
 
     .agent-error {
@@ -57,14 +83,15 @@ const Container = styled.div`
     }
 
     .icon-button {
-        width: 26px;
-        height: 26px;
-        flex: 0 0 26px;
+        width: 28px;
+        height: 28px;
+        flex: 0 0 28px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         border: 0;
-        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        padding: 6px;
+        border-radius: 6px;
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};
         cursor: pointer;
@@ -72,6 +99,12 @@ const Container = styled.div`
 
     .icon-button:hover {
         background: ${(props): string => props.theme.bgColorDark};
+    }
+
+    .icon-button img {
+        width: 16px;
+        height: 16px;
+        filter: ${(props): string => props.theme.mode === 'dark' ? 'invert(1)' : 'none'};
     }
 
     .icon-button:disabled {
@@ -188,17 +221,14 @@ export const SessionSidebar = (): JSX.Element => {
         activeAgentName,
         agentError,
         agentServers,
-        agentDiscoveryLoading,
         currentSessionId,
         deleteSession,
         sessions,
         selectSession,
         setAgent,
-        refreshAgents,
     } = useChatState();
     const [open, setOpen] = useState(false);
     const { t } = useTranslation('insightWebAgent');
-    const activeSession = sessions.find((session) => session.sessionId === currentSessionId);
     const handleCreateSession = (): void => {
         createSession();
         setOpen(false);
@@ -206,33 +236,33 @@ export const SessionSidebar = (): JSX.Element => {
 
     return (
         <Container>
-            <Select
-                className="agent-picker"
-                onChange={(value) => setAgent(String(value))}
-                options={agentServers.map((agent) => ({ value: agent.name, label: agent.name }))}
-                value={activeAgentName}
-                width="130px"
-            />
-            <button
-                aria-label={t('refreshAgents')}
-                className="icon-button"
-                disabled={agentDiscoveryLoading}
-                onClick={() => { refreshAgents(); }}
-                title={t('refreshAgents')}
-                type="button"
-            >
-                <RefreshIcon />
-            </button>
+            <div className="agent-brand">
+                <img className="agent-logo" src={logo} alt="" />
+                <Select
+                    className="agent-picker"
+                    onChange={(value) => setAgent(String(value))}
+                    options={agentServers.map((agent) => ({ value: agent.name, label: agent.name }))}
+                    value={activeAgentName}
+                    width="100%"
+                />
+            </div>
             {agentError && <span className="agent-error" title={agentError}>{t('agentError')}</span>}
-            <span className="session-title-bar" title={activeSession?.title || activeSession?.sessionId || t('newSession')}>
-                {activeSession?.title || activeSession?.sessionId || t('newSession')}
-            </span>
-            <button className="icon-button" onClick={() => createSession()} title={t('newChat')} type="button">
-                <AddIcon />
-            </button>
-            <button className="icon-button drawer-toggle" disabled={!sessions.length} onClick={() => setOpen(true)} title={t('openSessions')} type="button">
-                <CaretRightIcon style={{ transform: 'rotate(180deg)' }} />
-            </button>
+            <div className="toolbar-actions">
+                <button className="icon-button" onClick={() => createSession()} title={t('newChat')} type="button">
+                    <img src={newSessionIcon} alt="" />
+                </button>
+                <button className="icon-button drawer-toggle" disabled={!sessions.length} onClick={() => setOpen(true)} title={t('openSessions')} type="button">
+                    <img src={historyIcon} alt="" />
+                </button>
+                <AgentSettingsDialog trigger={(
+                    <button aria-label={t('agentSettings')} className="icon-button" title={t('agentSettings')} type="button">
+                        <img src={settingsIcon} alt="" />
+                    </button>
+                )} />
+                <button className="icon-button" onClick={requestHostClose} title={t('close')} type="button">
+                    <img src={closeIcon} alt="" />
+                </button>
+            </div>
             <Drawer
                 className="session-drawer"
                 getContainer={false}

@@ -94,13 +94,8 @@ const Container = styled.div`
         display: flex;
         flex: 0 0 auto;
         align-items: center;
-        margin-right: 100px;
+        margin-right: 240px;
         gap: 8px;
-    }
-    .session-toggle {
-        flex: 0 0 auto;
-        margin-right: 12px;
-        min-width: 88px;
     }
     .acp-session-panel {
         width: 100%;
@@ -183,12 +178,17 @@ const getModuleFrameId = (frame: HTMLIFrameElement): string => frame.id !== ''
     ? frame.id
     : frame.name !== '' ? frame.name : frame.parentElement?.id ?? '';
 
-const Index = observer(({ session }: { session: Session }) => {
+interface TabPaneProps {
+    onCloseSessionPanel: () => void;
+    session: Session;
+    showSessionPanel: boolean;
+}
+
+const Index = observer(({ onCloseSessionPanel, session, showSessionPanel }: TabPaneProps) => {
     const { t } = useTranslation('framework', { keyPrefix: 'tabs' });
     const [scene, setScene] = useState<Scene>('Default');
     const [dataCompose, setDataCompose] = useState<Record<string, boolean>>({});
     const [activeModule, setActiveModule] = useState('Timeline');
-    const [showSessionPanel, setShowSessionPanel] = useState(false);
     const [showWindowMessageDebugger, setShowWindowMessageDebugger] = useState(false);
     const [mergedModulesConfig, setMergedModulesConfig] = useState(modulesConfig);
     const iframeLoadHandlersRef = useRef<Map<HTMLIFrameElement, () => void>>(new Map());
@@ -374,7 +374,6 @@ const Index = observer(({ session }: { session: Session }) => {
             setActiveModule(ON_CHIP_MEMORY_MODULE_NAME);
         }
     }, [isTriton]);
-    const sessionToggleType = showSessionPanel ? 'primary' : 'default';
     return <Container>
         <div className="tab-toolbar">
             <Menu onClick={onClick} selectedKeys={[activeModule]} mode="horizontal" items={items} />
@@ -384,14 +383,6 @@ const Index = observer(({ session }: { session: Session }) => {
                         Window Messages
                     </Button>
                     : null}
-                <Button
-                    className="session-toggle"
-                    size="small"
-                    type={sessionToggleType}
-                    onClick={() => setShowSessionPanel(value => !value)}
-                >
-                    {t('AgentView')}
-                </Button>
             </div>
         </div>
         <div className="tab-body" ref={tabBodyRef}>
@@ -420,6 +411,7 @@ const Index = observer(({ session }: { session: Session }) => {
                 activeModule={activeModule}
                 availableModules={availableModules}
                 moduleFrameMinWidth={MODULE_FRAME_MIN_WIDTH}
+                onRequestClose={onCloseSessionPanel}
                 session={session}
                 show={showSessionPanel}
                 tabBodyRef={tabBodyRef}

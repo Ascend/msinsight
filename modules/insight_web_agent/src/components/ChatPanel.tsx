@@ -16,44 +16,19 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
-import { SetIcon } from '@insight/lib/icon/Icon';
-import { useTranslation } from 'react-i18next';
 import { useChatState } from '../hooks/useChatState';
-import { AgentSettingsDialog } from './AgentSettingsDialog';
 import { Composer } from './Composer';
 import { MessageList } from './MessageList';
+import { WelcomePanel } from './WelcomePanel';
 
 const Container = styled.section`
     flex: 1 1 auto;
     min-height: 0;
     width: 100%;
     display: grid;
-    grid-template-rows: auto 1fr auto;
-    background: ${(props): string => props.theme.bgColorLight};
+    grid-template-rows: 1fr auto;
+    background: ${(props): string => props.theme.bgColor};
     overflow: hidden;
-
-    .toolbar {
-        display: flex;
-        justify-content: flex-end;
-        padding: 8px 14px 0;
-    }
-
-    .settings-button {
-        width: 26px;
-        height: 26px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border: 0;
-        border-radius: ${(props): string => props.theme.borderRadiusSmall};
-        background: transparent;
-        color: ${(props): string => props.theme.textColorPrimary};
-        cursor: pointer;
-    }
-
-    .settings-button:hover {
-        background: ${(props): string => props.theme.bgColorDark};
-    }
 
     .messages {
         min-height: 0;
@@ -69,22 +44,14 @@ const Container = styled.section`
 
 export const ChatPanel = (): JSX.Element => {
     const { messages, messagesRef, pendingPrompt, respondToPermission } = useChatState();
-    const { t } = useTranslation('insightWebAgent');
 
     return (
         <Container>
-            <div className="toolbar">
-                <AgentSettingsDialog
-                    trigger={(
-                        <button aria-label={t('agentSettings')} className="settings-button" type="button">
-                            <SetIcon />
-                        </button>
-                    )}
-                />
-            </div>
-            <section className="messages" ref={messagesRef}>
-                <MessageList messages={messages} pendingPrompt={pendingPrompt} onPermissionDecision={respondToPermission} />
-            </section>
+            {messages.length
+                ? <section className="messages" ref={messagesRef}>
+                    <MessageList messages={messages} pendingPrompt={pendingPrompt} onPermissionDecision={respondToPermission} />
+                </section>
+                : <WelcomePanel />}
 
             <Composer />
         </Container>

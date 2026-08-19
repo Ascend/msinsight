@@ -27,7 +27,7 @@ const Container = styled.main`
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: ${(props): string => props.theme.bgColorDark};
+    background: ${(props): string => props.theme.bgColor};
     color: ${(props): string => props.theme.textColorPrimary};
     position: relative;
 

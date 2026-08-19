@@ -59,6 +59,7 @@ export const light: Theme = {
     timelineAxisColor: '#C3CEDF',
     searchInputCaretColor: '#0A59F7',
     allSessionHeadBgColor: 'rgba(0, 0, 0, 0.05)',
+    agentWelcomeCardBackgroundColor: 'rgba(0, 0, 0, 0.03)',
     deviceProcessActiveBackgroundColor: '#FFFFFF', // 设备和进程下拉框选中范围的背景颜色
     placeholderFontColor: 'rgb(150, 150, 150, 0.9)',
     unitTagInfoBackgroundColor: 'rgb(0, 0, 0, 0.15)',

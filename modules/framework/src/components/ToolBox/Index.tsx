@@ -21,6 +21,7 @@ import styled from '@emotion/styled';
 import SwitchTheme from './SwitchTheme';
 import SwitchLanguage from './SwitchLanguage';
 import Version from './Version';
+import InsightBotEntry from './InsightBotEntry';
 
 const Container = styled.div`
   position: absolute;
@@ -39,11 +40,17 @@ const Container = styled.div`
   }
 `;
 
-const Index = observer(() => {
+interface ToolBoxProps {
+    insightBotActive: boolean;
+    onInsightBotClick: () => void;
+}
+
+const Index = observer(({ insightBotActive, onInsightBotClick }: ToolBoxProps) => {
     return <Container>
         <SwitchTheme/>
         <SwitchLanguage/>
         <Version/>
+        <InsightBotEntry active={insightBotActive} onClick={onInsightBotClick} />
     </Container>;
 });
 
