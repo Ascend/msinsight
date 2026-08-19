@@ -328,7 +328,8 @@ private:
     static std::string GetOrderByCondition(const EventsViewParams &params);
     static std::string GetTextEventViewSql(const Protocol::EventsViewParams &params, const std::string &orderBy);
     static std::string GetSql4QueryEventsViewDetailsInText(const Protocol::EventsViewParams &params);
-    static std::string GetSystemViewSqlByLayer(const std::string &layer, const std::string &rankId, const std::string &timeCondSql);
+    static std::string GetSystemViewSqlByLayer(const std::string &layer, const std::string &rankId,
+        const std::string &timeCondSql, bool excludeMstx);
     static std::string GetQueryThreadSameOperatorsDetailsHeadSql(const QUERY_THREAD_SAME_OPERATORS_PARAMS &params,
         bool uniqueDevice, int overlapType, PROCESS_TYPE type);
 
