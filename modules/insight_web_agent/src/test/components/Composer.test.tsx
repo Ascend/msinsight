@@ -69,7 +69,7 @@ afterEach(() => {
 
 test('does not send or prevent Enter while IME composition is active', () => {
     const state = renderComposer();
-    const input = screen.getByPlaceholderText('Message claude');
+    const input = screen.getByRole('textbox');
 
     fireEvent.compositionStart(input);
     const defaultAllowed = fireEvent.keyDown(input, { key: 'Enter' });
@@ -80,7 +80,7 @@ test('does not send or prevent Enter while IME composition is active', () => {
 
 test('sends on normal Enter when not composing', () => {
     const state = renderComposer();
-    const input = screen.getByPlaceholderText('Message claude');
+    const input = screen.getByRole('textbox');
 
     const defaultAllowed = fireEvent.keyDown(input, { key: 'Enter' });
 
@@ -90,7 +90,7 @@ test('sends on normal Enter when not composing', () => {
 
 test('keeps Shift Enter for textarea newline insertion', () => {
     const state = renderComposer();
-    const input = screen.getByPlaceholderText('Message claude');
+    const input = screen.getByRole('textbox');
 
     const defaultAllowed = fireEvent.keyDown(input, { key: 'Enter', shiftKey: true });
 
@@ -103,7 +103,7 @@ test('uses Enter to insert command completion without sending when not composing
         input: '/hel',
         availableSkills: [{ name: 'help-me', description: 'Show help' }],
     });
-    const input = screen.getByPlaceholderText('Message claude');
+    const input = screen.getByRole('textbox');
 
     const defaultAllowed = fireEvent.keyDown(input, { key: 'Enter' });
 
@@ -112,8 +112,8 @@ test('uses Enter to insert command completion without sending when not composing
     expect(state.sendMessage).not.toHaveBeenCalled();
 });
 
-test('shows the Enter and Shift Enter shortcut hint', () => {
+test('shows the new conversation command placeholder', () => {
     renderComposer();
 
-    expect(screen.getByText('Enter to send · Shift+Enter for newline')).toBeVisible();
+    expect(screen.getByPlaceholderText('Type # to add context, or / to use a command')).toBeVisible();
 });

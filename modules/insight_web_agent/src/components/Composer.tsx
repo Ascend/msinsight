@@ -17,7 +17,8 @@
  */
 import styled from '@emotion/styled';
 import { useRef } from 'react';
-import { Button, Select } from '@insight/lib/components';
+import { ArrowUpOutlined, RobotOutlined, StopOutlined } from '@ant-design/icons';
+import { Select } from '@insight/lib/components';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue } from '../types';
@@ -26,17 +27,21 @@ import { useChatState } from '../hooks/useChatState';
 const Container = styled.div`
     display: grid;
     gap: 8px;
-    padding: 12px ${(props): string => `${14 + (props.theme.scrollBarWidth ?? 8)}px`} 12px 14px;
-    border-top: 1px solid ${(props): string => props.theme.borderColor};
-    background: ${(props): string => props.theme.bgColorLight};
+    padding: 10px 16px 16px;
+    background: ${(props): string => props.theme.bgColor};
 
     .composer-box {
+        height: 124px;
         display: grid;
-        gap: 8px;
-        border: 1px solid ${(props): string => props.theme.borderColor};
-        border-radius: ${(props): string => props.theme.borderRadiusBase};
-        padding: 10px;
-        background: ${(props): string => props.theme.bgColor};
+        grid-template-rows: minmax(0, 1fr) auto;
+        gap: 10px;
+        border: 1px solid transparent;
+        border-radius: 22px;
+        padding: 12px 14px 12px;
+        background:
+            linear-gradient(${(props): string => props.theme.bgColor}, ${(props): string => props.theme.bgColor}) padding-box,
+            linear-gradient(90deg, rgba(46, 83, 250, 1), rgba(123, 37, 244, 1)) border-box;
+        box-shadow: 0 2px 8px rgba(91, 83, 255, 0.06);
     }
 
     .attachments {
@@ -166,13 +171,15 @@ const Container = styled.div`
 
     textarea {
         width: 100%;
-        min-height: 58px;
+        height: 100%;
+        min-height: 0;
         resize: none;
         border: 0;
         padding: 0;
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};
         font: inherit;
+        font-size: 14px;
         outline: none;
     }
 
@@ -183,12 +190,14 @@ const Container = styled.div`
     .actions {
         display: flex;
         align-items: center;
-        gap: 8px;
+        align-self: end;
+        gap: 12px;
         min-width: 0;
     }
 
     .command-wrap {
         position: relative;
+        min-height: 0;
     }
 
     .command-menu {
@@ -246,23 +255,59 @@ const Container = styled.div`
     }
 
     .model-picker {
-        flex: 1 1 auto;
+        flex: 0 1 auto;
         min-width: 0;
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 5px;
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 13px;
+    }
+
+    .model-picker .ant-select-selector {
+        min-width: 92px;
+        border: 0 !important;
+        padding: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+    }
+
+    .model-picker .ant-select-selection-item {
+        padding-right: 18px !important;
     }
 
     .shortcut-hint {
-        flex: 0 0 auto;
-        color: ${(props): string => props.theme.textColorSecondary};
-        font-size: 12px;
-        white-space: nowrap;
+        flex: 1 1 auto;
     }
 
     .send-button {
-        flex: 0 0 auto;
-        min-width: 32px;
+        width: 30px;
+        height: 30px;
+        flex: 0 0 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 50%;
+        cursor: pointer;
+    }
+
+    .send-button {
+        background: ${(props): string => props.theme.primaryColor};
+        color: #ffffff;
+        font-size: 17px;
+        transition: transform 0.18s ease, background 0.18s ease;
+    }
+
+    .send-button:hover {
+        background: ${(props): string => props.theme.primaryColorHover};
+        transform: translateY(-1px);
+    }
+
+    .send-button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+        transform: none;
     }
 
 `;
@@ -270,7 +315,7 @@ const Container = styled.div`
 export const Composer = (): JSX.Element => {
     const isComposingRef = useRef(false);
     const { t } = useTranslation('insightWebAgent');
-    const { addImages, activeAgentName, agentInfo, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, configOptions, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
+    const { addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, configOptions, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
     const modelConfig = getModelConfig(configOptions);
     const modelOptions = flattenConfigValues(modelConfig?.options ?? []);
     const modeConfig = getModeConfig(configOptions);
@@ -280,7 +325,6 @@ export const Composer = (): JSX.Element => {
     const commandQuery = getCommandQuery(input);
     const commandMatches = getCompletionMatches(availableCommands, availableSkills, commandQuery);
     const showCommandMenu = commandQuery !== undefined && commandMatches.length > 0;
-    const agentLabel = agentInfo?.title || agentInfo?.name || activeAgentName || t('defaultAgent');
     const insertCompletion = (item: CompletionItem): void => {
         setInput(`/${item.name} `);
     };
@@ -356,7 +400,7 @@ export const Composer = (): JSX.Element => {
                         onCompositionStart={() => { isComposingRef.current = true; }}
                         onKeyDown={handleKeyDown}
                         onPaste={handlePaste}
-                        placeholder={t('messagePlaceholder', { agent: agentLabel })}
+                        placeholder={t('newMessagePlaceholder')}
                         rows={3}
                         value={input}
                     />
@@ -373,13 +417,23 @@ export const Composer = (): JSX.Element => {
                 ) : null}
                 <div className="actions">
                     <div className="model-picker">
-                        {modelPicker}
+                        <RobotOutlined />
+                        {modePicker ?? <span>{t('agentMode')}</span>}
                     </div>
                     <div className="model-picker">
-                        {modePicker}
+                        {modelPicker}
                     </div>
-                    <span className="shortcut-hint">{t('shortcutHint')}</span>
-                    <Button className="send-button" onClick={submitOrCancel} size="small" type={pendingPrompt ? 'default' : 'primary'}>{pendingPrompt ? t('cancel') : t('send')}</Button>
+                    <span className="shortcut-hint" />
+                    <button
+                        aria-label={pendingPrompt ? t('cancel') : t('send')}
+                        className="send-button"
+                        disabled={!pendingPrompt && !input.trim() && !images.length}
+                        onClick={submitOrCancel}
+                        title={pendingPrompt ? t('cancel') : t('send')}
+                        type="button"
+                    >
+                        {pendingPrompt ? <StopOutlined /> : <ArrowUpOutlined />}
+                    </button>
                 </div>
             </div>
         </Container>

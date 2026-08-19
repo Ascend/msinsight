@@ -91,6 +91,7 @@ declare module '@emotion/react' {
         timelineAxisColor: string; // 时间轴颜色
         searchInputCaretColor: string; // 搜索输入框光标颜色
         allSessionHeadBgColor: string; // session列表页头部背景色
+        agentWelcomeCardBackgroundColor: string; // InsightBot 欢迎页卡片背景色
         deviceProcessActiveBackgroundColor: string; // 设备和进程下拉框选中范围的背景颜色
         placeholderFontColor: string;
         unitTagInfoBackgroundColor: string; // 泳道tag背景色

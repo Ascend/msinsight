@@ -25,8 +25,22 @@ import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
 
 const Container = styled.div`
+    display: inline-flex;
+    align-items: center;
+
+    .settings-trigger {
+        display: inline-flex;
+        align-items: center;
+    }
+
     .settings-drawer .ant-drawer-content {
         background: ${(props): string => props.theme.bgColorLight};
+    }
+
+    .settings-drawer.ant-drawer-right {
+        position: fixed;
+        inset: 0;
+        z-index: 1200 !important;
     }
 
     .settings-drawer .ant-drawer-header {
@@ -418,7 +432,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
 
     return (
         <Container>
-            <span onClick={() => setOpen(true)}>{trigger}</span>
+            <span className="settings-trigger" onClick={() => setOpen(true)}>{trigger}</span>
             <Drawer
                 className="settings-drawer"
                 getContainer={false}
@@ -429,6 +443,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                 placement="right"
                 title={t('agentRuntimeSettings')}
                 width={420}
+                zIndex={1200}
             >
                 <div className="panel">
                     {loading ? <div className="hint">{t('loadingSettings')}</div> : null}

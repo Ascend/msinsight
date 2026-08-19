@@ -67,3 +67,7 @@ export const requestHostInitStatus = (): void => {
 export const notifyHostReady = (): void => {
     window.parent?.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, { event: 'insightWebAgent/ready' }), parentWindowMessageOrigin());
 };
+
+export const requestHostClose = (): void => {
+    window.parent?.postMessage(withWindowMessageChannel(ACP_MESSAGE_CHANNEL, { event: 'insightWebAgent/close' }), parentWindowMessageOrigin());
+};

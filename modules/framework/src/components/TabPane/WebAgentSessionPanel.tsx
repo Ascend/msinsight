@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import React, { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTheme } from '@emotion/react';
 import { Resizer } from '@insight/lib';
 import { ACP_MESSAGE_CHANNEL } from '@insight/lib/FrontendAgentCommand';
 import {
@@ -39,12 +40,14 @@ interface WebAgentSessionPanelProps {
     activeModule: string;
     availableModules: ModuleConfig[];
     moduleFrameMinWidth: number;
+    onRequestClose: () => void;
     session: Session;
     show: boolean;
     tabBodyRef: RefObject<HTMLDivElement>;
 }
 
-export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFrameMinWidth, session, show, tabBodyRef }: WebAgentSessionPanelProps): JSX.Element => {
+export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFrameMinWidth, onRequestClose, session, show, tabBodyRef }: WebAgentSessionPanelProps): JSX.Element => {
+    const theme = useTheme();
     const [sessionPanelWidth, setSessionPanelWidth] = useState(ACP_SESSION_MIN_WIDTH);
     const acpSessionFrameRef = useRef<HTMLIFrameElement>(null);
     const acpSessionReadyRef = useRef(false);
@@ -110,14 +113,18 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
     })), [activeModule, availableModules, session]);
 
     useEffect(() => {
-        const handleReady = (event: MessageEvent): void => {
+        const handleAgentEvent = (event: MessageEvent): void => {
             if (event.source !== acpSessionFrameRef.current?.contentWindow || !matchesWindowMessageOrigin(event.origin, acpSessionOrigin)) return;
-            if ((event.data as { event?: string })?.event !== 'insightWebAgent/ready') return;
-            acpSessionReadyRef.current = true;
-            sendAcpSessionContext();
+            const eventName = (event.data as { event?: string })?.event;
+            if (eventName === 'insightWebAgent/ready') {
+                acpSessionReadyRef.current = true;
+                sendAcpSessionContext();
+            } else if (eventName === 'insightWebAgent/close') {
+                onRequestClose();
+            }
         };
-        return getWindowMessageRouter().subscribe(handleReady, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
-    }, [acpSessionOrigin, sendAcpSessionContext]);
+        return getWindowMessageRouter().subscribe(handleAgentEvent, isWindowMessageChannel(ACP_MESSAGE_CHANNEL));
+    }, [acpSessionOrigin, onRequestClose, sendAcpSessionContext]);
 
     useEffect(() => {
         if (acpSessionReadyRef.current) sendAcpSessionContext();
@@ -126,7 +133,17 @@ export const WebAgentSessionPanel = ({ activeModule, availableModules, moduleFra
     return <div className="acp-session-wrapper" style={{ display: show ? 'block' : 'none', width: sessionPanelWidth }}>
         <Resizer
             callback={resizeSessionPanel}
-            style={{ left: 0, top: 16, height: 'calc(100% - 16px)', zIndex: 1 }}
+            style={{
+                left: -8,
+                top: '50%',
+                width: 3,
+                height: 48,
+                zIndex: 2,
+                borderRadius: 2,
+                background: theme.scrollbarColor,
+                cursor: 'col-resize',
+                transform: 'translate(-50%, -50%)',
+            }}
         />
         <iframe
             ref={acpSessionFrameRef}

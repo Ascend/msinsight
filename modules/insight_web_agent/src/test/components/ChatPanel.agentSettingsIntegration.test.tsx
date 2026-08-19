@@ -20,6 +20,7 @@ import '@testing-library/jest-dom';
 import * as api from '../../api';
 import { ChatStateProvider, useChatState } from '../../hooks/useChatState';
 import { ChatPanel } from '../../components/ChatPanel';
+import { SessionSidebar } from '../../components/SessionSidebar';
 
 jest.mock('antd', () => ({
     Drawer: ({ children, open, title }: any) => open ? <section aria-label="Agent Settings"><h2>{title}</h2>{children}</section> : null,
@@ -46,7 +47,7 @@ jest.mock('@insight/lib/components', () => ({
 }), { virtual: true });
 
 jest.mock('@insight/lib/icon/Icon', () => ({
-    SetIcon: () => <span>settings-icon</span>,
+    DeleteIcon: () => <span>delete-icon</span>,
 }), { virtual: true });
 
 jest.mock('react-markdown', () => {
@@ -184,6 +185,7 @@ test('settings save success preserves visible messages, applies agent state from
 
     render(
         <ChatStateProvider>
+            <SessionSidebar />
             <ChatPanel />
             <ChatStateProbe />
         </ChatStateProvider>,
@@ -193,7 +195,7 @@ test('settings save success preserves visible messages, applies agent state from
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
-    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'opencode-updated' } });
+    fireEvent.change(await screen.findByLabelText('Command'), { target: { value: 'opencode-updated' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
@@ -211,7 +213,7 @@ test('settings save success preserves visible messages, applies agent state from
     expect(screen.getByLabelText('agent servers')).toHaveTextContent('OpenCode,Claude');
     expect(screen.getByText(previousAssistantReply)).toBeVisible();
 
-    fireEvent.change(screen.getByPlaceholderText('Message Claude'), { target: { value: 'prompt after event reload' } });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'prompt after event reload' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
@@ -221,6 +223,7 @@ test('settings save success preserves visible messages, applies agent state from
 test('settings save-and-switch preserves visible messages, refreshes agent state, and does not send the next prompt to the stale session', async () => {
     render(
         <ChatStateProvider>
+            <SessionSidebar />
             <ChatPanel />
             <ChatStateProbe />
         </ChatStateProvider>,
@@ -232,7 +235,7 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
-    fireEvent.change(screen.getByLabelText('Agent to edit'), { target: { value: 'Claude' } });
+    fireEvent.change(await screen.findByLabelText('Agent to edit'), { target: { value: 'Claude' } });
     fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -241,7 +244,7 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     expect(screen.getByLabelText('agent servers')).toHaveTextContent('OpenCode,Claude');
     expect(screen.getByText(previousAssistantReply)).toBeVisible();
 
-    fireEvent.change(screen.getByPlaceholderText('Message Claude'), { target: { value: 'prompt after reload' } });
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'prompt after reload' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
