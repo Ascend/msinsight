@@ -110,19 +110,27 @@ std::optional<std::string> TraceDatabaseHelper::QueryConnectionId(std::unique_pt
 }
 
 std::string TraceDatabaseHelper::GetSystemViewSqlByLayer(const std::string &layer, const std::string &rankId,
-    const std::string &timeCondSql)
+    const std::string &timeCondSql, bool excludeMstx)
 {
     std::string mainSql;
     if (layer == "Ascend Hardware") {
+        // TASK has no MSTX marker. Match valid connection IDs before aggregation; DISTINCT avoids duplicate TASK rows.
+        const std::string excludeMstxJoinSql = excludeMstx
+            ? "  left join (select distinct connectionId from MSTX_EVENTS where connectionId is not null and "
+              "connectionId != " + WRONG_DATA + ") mstx "
+              "on mstx.connectionId = task.connectionId "
+            : "";
+        const std::string excludeMstxConditionSql = excludeMstx ? "and mstx.connectionId is null " : "";
         mainSql = "with nameIds as ( select id, value as realName from STRING_IDS where lower(value) like ?),\n"
                   "  main as (select coalesce(a.realName, c.realName, b.realName) as name, startNs, "
                   "  endNs - startNs as duration from TASK task\n"
+                  + excludeMstxJoinSql +
                   "  left join COMPUTE_TASK_INFO info on info.globalTaskId = task.globalTaskId "
                   "  left join COMMUNICATION_SCHEDULE_TASK_INFO schedule on task.globalTaskId = schedule.globalTaskId"
                   "  left join nameIds a on info.name = a.id "
                   "  left join nameIds b on task.taskType = b.id"
                   "  left join nameIds c on schedule.name = c.id"
-                  "  where deviceId = ? " + timeCondSql + " ),";
+                   "  where deviceId = ? " + excludeMstxConditionSql + timeCondSql + " ),";
     } else if (layer == "HCCL" || layer == "COMMUNICATION") {
         std::string comSql;
         if (IsDeviceIdUnique(rankId)) {
@@ -183,7 +191,7 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QuerySystemViewData(
      "sum(duration) / 1000.0 as totalTime, count(1) as numberCalls, round(avg(duration) / 1000.0, 2) as avg, "
      "min(duration) / 1000.0 as min, max(duration) / 1000.0 as max, total.num from main join total where main.name != '' group by name ";
     auto limitSql = " limit ? offset ?";
-    std::string mainSql = GetSystemViewSqlByLayer(requestParams.layer, requestParams.rankId, timeCondSql);
+    std::string mainSql = GetSystemViewSqlByLayer(requestParams.layer, requestParams.rankId, timeCondSql, true);
     if (requestParams.startTime == requestParams.endTime) {
         return ExecuteQuery(stmt, mainSql + sql + orderBy + limitSql, searchName, rankId,
                             requestParams.pageSize, (requestParams.current - 1) * requestParams.pageSize);
@@ -214,7 +222,7 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QuerySystemViewTraceData(
                 "count(name) as num from main where name != '') "
                 "select name, startNs as startTime, round(duration/1000.0, 3) as duration, num from main join total where main.name != ''";
     auto limitSql = " limit ? offset ?";
-    std::string mainSql = GetSystemViewSqlByLayer(requestParams.layer, requestParams.rankId, timeCondSql);
+    std::string mainSql = GetSystemViewSqlByLayer(requestParams.layer, requestParams.rankId, timeCondSql, false);
     if (requestParams.startTime == requestParams.endTime) {
         return ExecuteQuery(stmt, mainSql + sql + orderBy + limitSql, searchName, rankId,
                             requestParams.pageSize, (requestParams.current - 1) * requestParams.pageSize);

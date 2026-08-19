@@ -577,16 +577,98 @@ TEST_F(DbTraceDatabaseTest2, TestQuerySystemViewDataWhenHardware) {
     sqlite3 *db = nullptr;
     DatabaseTestCaseMockUtil::OpenDB(db);
     const std::vector<TableName> list{TableName::DB_TASK, TableName::DB_COMPUTE_TASK_INFO, TableName::DB_STRING_IDS,
-        TableName::DB_COMMUNICATION_SCHEDULE_TASK_INFO};
+        TableName::DB_COMMUNICATION_SCHEDULE_TASK_INFO, TableName::DB_MSTX_EVENTS};
     DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
     database.SetDbPtr(db);
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO STRING_IDS (id, value) VALUES (1, 'NormalTask'), (2, 'SharedTask');"
+        "INSERT INTO TASK (startNs, endNs, deviceId, connectionId, globalTaskId, taskType) VALUES "
+        "(10, 30, 0, 100, 1, 1), (40, 80, 0, 200, 2, 2), "
+        "(90, 120, 0, 300, 3, 2), (130, 140, 0, NULL, 4, 1);"
+        "INSERT INTO MSTX_EVENTS (connectionId) VALUES (200), (NULL);");
     Dic::Protocol::SystemViewParams requestParams;
     requestParams.orderBy = "name";
+    requestParams.order = "ascend";
+    requestParams.current = 1;
+    requestParams.pageSize = 10;
     requestParams.layer = "Ascend Hardware";
+    requestParams.rankId = "0";
     const uint64_t minTimestamp = 0;
     Dic::Protocol::SystemViewBody responseBody;
     bool result = database.QuerySystemViewData(requestParams, responseBody, minTimestamp);
     EXPECT_EQ(result, true);
+    ASSERT_EQ(responseBody.systemViewDetail.size(), 2);
+    EXPECT_EQ(responseBody.systemViewDetail[0].name, "NormalTask");
+    EXPECT_EQ(responseBody.systemViewDetail[0].numberCalls, 2);
+    EXPECT_DOUBLE_EQ(responseBody.systemViewDetail[0].totalTime, 0.03);
+    EXPECT_DOUBLE_EQ(responseBody.systemViewDetail[0].time, 50.0);
+    EXPECT_EQ(responseBody.systemViewDetail[1].name, "SharedTask");
+    EXPECT_EQ(responseBody.systemViewDetail[1].numberCalls, 1);
+    EXPECT_DOUBLE_EQ(responseBody.systemViewDetail[1].totalTime, 0.03);
+    EXPECT_DOUBLE_EQ(responseBody.systemViewDetail[1].time, 50.0);
+    EXPECT_EQ(responseBody.total, 2);
+}
+
+TEST_F(DbTraceDatabaseTest2, TestQuerySystemViewDataWhenHardwareKeepsInvalidConnectionId) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_TASK, TableName::DB_COMPUTE_TASK_INFO, TableName::DB_STRING_IDS,
+        TableName::DB_COMMUNICATION_SCHEDULE_TASK_INFO, TableName::DB_MSTX_EVENTS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    database.SetDbPtr(db);
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO STRING_IDS (id, value) VALUES (1, 'InvalidConnectionTask');"
+        "INSERT INTO TASK (startNs, endNs, deviceId, connectionId, globalTaskId, taskType) VALUES "
+        "(10, 30, 0, 4294967295, 1, 1);"
+        "INSERT INTO MSTX_EVENTS (connectionId) VALUES (4294967295);");
+    Dic::Protocol::SystemViewParams requestParams;
+    requestParams.orderBy = "name";
+    requestParams.order = "ascend";
+    requestParams.current = 1;
+    requestParams.pageSize = 10;
+    requestParams.layer = "Ascend Hardware";
+    requestParams.rankId = "0";
+    const uint64_t minTimestamp = 0;
+    Dic::Protocol::SystemViewBody responseBody;
+    bool result = database.QuerySystemViewData(requestParams, responseBody, minTimestamp);
+    EXPECT_EQ(result, true);
+    ASSERT_EQ(responseBody.systemViewDetail.size(), 1);
+    EXPECT_EQ(responseBody.systemViewDetail[0].name, "InvalidConnectionTask");
+    EXPECT_EQ(responseBody.systemViewDetail[0].numberCalls, 1);
+    EXPECT_EQ(responseBody.total, 1);
+}
+
+TEST_F(DbTraceDatabaseTest2, TestQuerySystemViewTraceDataWhenHardwareKeepsMstx) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    const std::vector<TableName> list{TableName::DB_TASK, TableName::DB_COMPUTE_TASK_INFO, TableName::DB_STRING_IDS,
+        TableName::DB_COMMUNICATION_SCHEDULE_TASK_INFO, TableName::DB_MSTX_EVENTS};
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
+    database.SetDbPtr(db);
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO STRING_IDS (id, value) VALUES (1, 'NormalTask'), (2, 'MstxTask');"
+        "INSERT INTO TASK (startNs, endNs, deviceId, connectionId, globalTaskId, taskType) VALUES "
+        "(10, 30, 0, 100, 1, 1), (40, 80, 0, 200, 2, 2);"
+        "INSERT INTO MSTX_EVENTS (connectionId) VALUES (200);");
+    Dic::Protocol::SystemViewParams requestParams;
+    requestParams.orderBy = "startTime";
+    requestParams.order = "ascend";
+    requestParams.current = 1;
+    requestParams.pageSize = 10;
+    requestParams.layer = "Ascend Hardware";
+    requestParams.rankId = "0";
+    const uint64_t minTimestamp = 0;
+    Dic::Protocol::SystemViewTraceBody responseBody;
+    bool result = database.QuerySystemViewTraceData(requestParams, responseBody, minTimestamp);
+    EXPECT_EQ(result, true);
+    ASSERT_EQ(responseBody.systemViewDetail.size(), 2);
+    EXPECT_EQ(responseBody.systemViewDetail[0].name, "NormalTask");
+    EXPECT_EQ(responseBody.systemViewDetail[1].name, "MstxTask");
+    EXPECT_EQ(responseBody.total, 2);
 }
 
 TEST_F(DbTraceDatabaseTest2, TestQuerySystemViewDataWhenHCCL) {
