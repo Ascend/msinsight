@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { ThemeProvider } from '@emotion/react';
-import { act, fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, within } from '@testing-library/react';
 import { runInAction } from 'mobx';
 import { Session } from '../../../entity/session';
 import { LifecycleMemoryMarkerOverlay } from '../LifecycleMemoryMarkerOverlay';
@@ -114,5 +114,55 @@ describe('LifecycleMemoryMarkerOverlay', () => {
             });
         });
         expect(view.getByRole('button', { name: /Flag 1/ }).parentElement?.style.top).toBe('20px');
+    });
+
+    it('projects a block hover as a colored flag and dashed-line preview', () => {
+        const session = createSession();
+        const view = render(<ThemeProvider theme={theme}>
+            <LifecycleMemoryMarkerOverlay
+                session={session}
+                onCreateMarker={(): void => undefined}
+                blockPreview={{ memoryBytes: 500, color: '#59A14F' }}
+            />
+        </ThemeProvider>);
+        expect(view.getByTestId('memoryMarkerAxisPreviewLine').style.top).toBe('100px');
+        expect(view.getByTestId('memoryMarkerAxisPreviewFlag').getAttribute('data-preview-source')).toBe('block');
+        expect(view.getByTestId('memoryMarkerAxisPreviewFlag').style.color).toBe('rgb(89, 161, 79)');
+    });
+
+    it('keeps adjacent differences visible and highlights both linked endpoints', () => {
+        const session = createSession();
+        session.addLifecycleMemoryMarker(250, 'flag-1', 'block', '#4C7DFF', 101);
+        session.addLifecycleMemoryMarker(750, 'flag-2', 'block', '#FF7A45', 202);
+        const onMarkerHoverChange = jest.fn();
+        const onGapHoverChange = jest.fn();
+        const view = render(<ThemeProvider theme={theme}>
+            <LifecycleMemoryMarkerOverlay
+                session={session}
+                onCreateMarker={(): void => undefined}
+                onMarkerHoverChange={onMarkerHoverChange}
+                onGapHoverChange={onGapHoverChange}
+            />
+        </ThemeProvider>);
+
+        const gap = view.getByTestId('memoryMarkerGapSegment');
+        expect(view.getByTestId('memoryMarkerInlineGapValue').textContent).toMatch(/^Δ /);
+
+        fireEvent.mouseEnter(gap);
+        expect(onGapHoverChange).toHaveBeenLastCalledWith(true, expect.arrayContaining([101, 202]));
+        expect(view.container.querySelectorAll('[data-emphasized="true"]')).toHaveLength(4);
+
+        fireEvent.mouseLeave(gap);
+        expect(onGapHoverChange).toHaveBeenLastCalledWith(false, []);
+        expect(view.container.querySelectorAll('[data-emphasized="true"]')).toHaveLength(0);
+
+        const flag = view.getByRole('button', { name: /Flag 1/ });
+        fireEvent.mouseEnter(flag);
+        expect(onMarkerHoverChange).toHaveBeenLastCalledWith(expect.objectContaining({ blockId: 101 }));
+        expect(view.container.querySelectorAll('[data-emphasized="true"]')).toHaveLength(2);
+        const details = flag.parentElement?.querySelector('[data-marker-details]') as HTMLElement;
+        expect(within(details).getAllByTestId('memoryMarkerRelationFlag')).toHaveLength(2);
+        expect(within(details).getAllByTestId('memoryMarkerRelationBaseline')).toHaveLength(2);
+        expect(within(details).getByTestId('memoryMarkerRelationGap').textContent).toMatch(/^[↑↓] /);
     });
 });

@@ -24,6 +24,7 @@ import {
     workerHoverItem,
     workerClickItem,
     workerSelectBlockById,
+    workerSetMarkerHoverHighlight,
 } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
 import { Session } from '@/entity/session';
@@ -51,11 +52,19 @@ import { OneToOneOutlined } from '@ant-design/icons';
 import {
     calculateLifecyclePanTransform,
     calculateLifecycleZoomTransform,
+    getLifecycleMarkerBaseline,
     isEditableKeyboardTarget,
     isLifecycleHostZoomShortcut,
     resolveLifecycleKeyboardAction,
 } from './lifecycleNavigation';
 import { LifecycleMemoryMarkerOverlay } from './LifecycleMemoryMarkerOverlay';
+import { TimelineFlagIcon } from './TimelineFlagIcon';
+import { getColorStringByAddr } from '../../leaksWorker/tools/color';
+import {
+    DEFAULT_LIFECYCLE_MEMORY_MARKER_COLOR,
+    findLifecycleBlockMarkerAtMemory,
+    type LifecycleMemoryMarkerSource,
+} from '../../entity/lifecycleMemoryMarkers';
 import {
     LifecycleGraphToolbar,
     LifecycleZoomModeIcon,
@@ -95,6 +104,55 @@ const ProgressiveLoadingStatus = styled.div`
     user-select: none;
 `;
 
+const LifecycleCanvas = styled.canvas`
+    image-rendering: pixelated;
+    touch-action: none;
+    outline: none;
+`;
+
+const BlockMarkerShortcutHint = styled.div<{ $markerColor: string }>`
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 4;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 3px 8px;
+    box-sizing: border-box;
+    color: ${(props): string => props.theme.textColorSecondary};
+    font-size: 11px;
+    line-height: 18px;
+    background: ${(props): string => props.theme.bgColorCommon};
+    border: 1px solid ${(props): string => props.theme.borderColorLight};
+    border-radius: 4px;
+    box-shadow: ${(props): string => props.theme.boxShadow};
+    pointer-events: none;
+    user-select: none;
+
+    svg {
+        width: 17px;
+        height: 16px;
+        color: ${(props): string => props.$markerColor};
+        flex: 0 0 auto;
+    }
+`;
+
+const ShortcutKey = styled.kbd`
+    min-width: 18px;
+    padding: 0 4px;
+    color: ${(props): string => props.theme.textColorPrimary};
+    font-family: inherit;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 16px;
+    text-align: center;
+    background: ${(props): string => props.theme.bgColorLight};
+    border: 1px solid ${(props): string => props.theme.borderColor};
+    border-radius: 3px;
+`;
+
 export const MemoryBlockDiagram = observer(({
     session,
     onResetTransform,
@@ -110,18 +168,57 @@ export const MemoryBlockDiagram = observer(({
     const defaultXZoomMode = false;
     const [xZoomMode, setXZoomMode] = useState(defaultXZoomMode);
     const xZoomModeRef = useRef(defaultXZoomMode);
+    const lifecycleDataContextKey = session.getLifecycleMemoryMarkerContextKey();
+    const previousDataContextKeyRef = useRef(lifecycleDataContextKey);
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
     const lastPointerPosition = useRef<{ x: number; y: number } | null>(null);
     const markerIdSequence = useRef(0);
     const plotInteractionActive = useRef(false);
+    const [pointerInsidePlot, setPointerInsidePlot] = useState(false);
     const progressiveRenderPercent = session.progressiveTotalEventCount > 0
         ? Math.min(session.loadingBlocks ? 99 : 100, Math.floor(
             session.progressiveRenderedEventCount * 100 / session.progressiveTotalEventCount,
         ))
         : 0;
-    const createMemoryMarker = (memoryBytes: number): void => {
+    const pointerInsideCurrentData = pointerInsidePlot &&
+        previousDataContextKeyRef.current === lifecycleDataContextKey;
+    const hoveredBlockBaseline = pointerInsideCurrentData && session.module === 'memsnapshot'
+        ? getLifecycleMarkerBaseline(session.leaksWorkerInfo.hoverItem)
+        : null;
+    const hoveredBlockMarker = hoveredBlockBaseline === null
+        ? null
+        : findLifecycleBlockMarkerAtMemory(
+            session.getLifecycleMemoryMarkers(),
+            hoveredBlockBaseline,
+            session.leaksWorkerInfo.hoverItem?.id,
+        );
+    const hoveredBlockColor = session.leaksWorkerInfo.hoverItem === null
+        ? null
+        : getColorStringByAddr(session.leaksWorkerInfo.hoverItem.addr);
+
+    const clearBlockHover = (): void => {
+        plotInteractionActive.current = false;
+        setPointerInsidePlot(false);
+        isDragging.current = false;
+        isClick.current = false;
+        lastPointerPosition.current = null;
+        runInAction(() => {
+            session.leaksWorkerInfo.hoverItem = null;
+            session.markLineInfo.block = { x: -1, y: -1 };
+            session.markLineInfo.stack = { x: -1, y: -1 };
+        });
+        workerHoverItem({ clientX: -1, clientY: -1 });
+        workerSetMarkerHoverHighlight({ active: false });
+    };
+
+    const createMemoryMarker = (
+        memoryBytes: number,
+        source: LifecycleMemoryMarkerSource = 'custom',
+        color?: string,
+        blockId?: number,
+    ): void => {
         const { minSize, maxSize } = session.leaksWorkerInfo.sizeInfo;
         if (
             !Number.isFinite(memoryBytes) ||
@@ -131,7 +228,13 @@ export const MemoryBlockDiagram = observer(({
             return;
         }
         markerIdSequence.current += 1;
-        session.addLifecycleMemoryMarker(memoryBytes, `memory-marker-${Date.now()}-${markerIdSequence.current}`);
+        session.addLifecycleMemoryMarker(
+            memoryBytes,
+            `memory-marker-${Date.now()}-${markerIdSequence.current}`,
+            source,
+            color,
+            blockId,
+        );
     };
 
     const resetTransform = (): void => {
@@ -238,25 +341,14 @@ export const MemoryBlockDiagram = observer(({
         plotInteractionActive.current = true;
     };
 
-    const handleCanvasBlur = (): void => {
-        plotInteractionActive.current = false;
-    };
-
     const handleCanvasMouseEnter = (): void => {
         plotInteractionActive.current = true;
+        setPointerInsidePlot(true);
     };
 
     const handleMouseLeave = (): void => {
         ref.current?.blur();
-        plotInteractionActive.current = false;
-        isDragging.current = false;
-        isClick.current = false;
-        lastPointerPosition.current = null;
-        runInAction(() => {
-            session.markLineInfo.block = { x: -1, y: -1 };
-            session.markLineInfo.stack = { x: -1, y: -1 };
-        });
-        workerHoverItem({ clientX: -1, clientY: -1 });
+        clearBlockHover();
     };
 
     const handleMouseMove = (ev: MouseEvent): void => {
@@ -269,6 +361,7 @@ export const MemoryBlockDiagram = observer(({
         const currentY = ev.clientY - rect.top;
         lastPointerPosition.current = { x: currentX, y: currentY };
         plotInteractionActive.current = true;
+        setPointerInsidePlot(true);
 
         if (isClick.current) {
             const moved = Math.abs(currentX - dragStartPoint.current.x) > 1 ||
@@ -367,7 +460,30 @@ export const MemoryBlockDiagram = observer(({
         const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
         let newTransformX = 0;
         let newTransformY = 0;
-        const action = resolveLifecycleKeyboardAction(ev);
+        const action = resolveLifecycleKeyboardAction(ev, session.module === 'memsnapshot');
+        if (action === 'add-marker') {
+            const baseline = getLifecycleMarkerBaseline(session.leaksWorkerInfo.hoverItem);
+            if (!plotInteractionActive.current || baseline === null) {
+                return;
+            }
+            ev.preventDefault();
+            const existingMarker = findLifecycleBlockMarkerAtMemory(
+                session.getLifecycleMemoryMarkers(),
+                baseline,
+                session.leaksWorkerInfo.hoverItem?.id,
+            );
+            if (existingMarker === null) {
+                createMemoryMarker(
+                    baseline,
+                    'block',
+                    hoveredBlockColor ?? undefined,
+                    session.leaksWorkerInfo.hoverItem?.id,
+                );
+            } else {
+                session.deleteLifecycleMemoryMarker(existingMarker.id);
+            }
+            return;
+        }
         if (action === 'zoom-x-in' || action === 'zoom-x-out' || action === 'zoom-all-in' || action === 'zoom-all-out') {
             ev.preventDefault();
             const pointer = lastPointerPosition.current;
@@ -425,6 +541,13 @@ export const MemoryBlockDiagram = observer(({
         xZoomModeRef.current = xZoomMode;
     }, [xZoomMode]);
 
+    useEffect(() => {
+        if (previousDataContextKeyRef.current === lifecycleDataContextKey) {
+            return;
+        }
+        previousDataContextKeyRef.current = lifecycleDataContextKey;
+        clearBlockHover();
+    }, [lifecycleDataContextKey]);
     const renderResetTooltip = (): JSX.Element => <GraphShortcutTip>
         <GraphShortcutTitle>
             {t('resetView')}
@@ -477,8 +600,14 @@ export const MemoryBlockDiagram = observer(({
         canvas.tabIndex = 0;
 
         window.addEventListener('resize', handleResize);
-        window.addEventListener('blur', handleMouseLeave);
+        window.addEventListener('blur', clearBlockHover);
         window.addEventListener('keydown', handleHostZoomShortcut, true);
+        const clearWhenDocumentHidden = (): void => {
+            if (document.visibilityState === 'hidden') {
+                clearBlockHover();
+            }
+        };
+        document.addEventListener('visibilitychange', clearWhenDocumentHidden);
 
         canvas.addEventListener('wheel', handleWheel, { passive: false, capture: true });
         canvas.addEventListener('mousedown', handleMouseDown);
@@ -487,15 +616,17 @@ export const MemoryBlockDiagram = observer(({
         canvas.addEventListener('mouseenter', handleCanvasMouseEnter);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('mouseleave', handleMouseLeave);
+        canvas.addEventListener('blur', clearBlockHover);
         canvas.addEventListener('focus', handleCanvasFocus);
-        canvas.addEventListener('blur', handleCanvasBlur);
         canvas.addEventListener('click', handleClick);
         canvas.addEventListener('keydown', handleKeyDown);
 
         return () => {
+            workerSetMarkerHoverHighlight({ active: false });
             window.removeEventListener('resize', handleResize);
-            window.removeEventListener('blur', handleMouseLeave);
+            window.removeEventListener('blur', clearBlockHover);
             window.removeEventListener('keydown', handleHostZoomShortcut, true);
+            document.removeEventListener('visibilitychange', clearWhenDocumentHidden);
 
             canvas.removeEventListener('wheel', handleWheel, { capture: true });
             canvas.removeEventListener('mousedown', handleMouseDown);
@@ -504,8 +635,8 @@ export const MemoryBlockDiagram = observer(({
             canvas.removeEventListener('mouseenter', handleCanvasMouseEnter);
             canvas.removeEventListener('mouseup', handleMouseUp);
             canvas.removeEventListener('mouseleave', handleMouseLeave);
+            canvas.removeEventListener('blur', clearBlockHover);
             canvas.removeEventListener('focus', handleCanvasFocus);
-            canvas.removeEventListener('blur', handleCanvasBlur);
             canvas.removeEventListener('click', handleClick);
             canvas.removeEventListener('keydown', handleKeyDown);
         };
@@ -571,18 +702,45 @@ export const MemoryBlockDiagram = observer(({
                     />
                     : <></>}
                 <Axis session={session} />
-                <canvas
+                <LifecycleCanvas
                     ref={ref}
-                    style={{ imageRendering: 'pixelated', touchAction: 'none', outline: 'none' }}
                 />
                 <MarkLineBlock session={session} />
                 {session.module === 'memsnapshot'
                     ? <LifecycleMemoryMarkerOverlay
                         session={session}
                         onCreateMarker={createMemoryMarker}
+                        onMarkerHoverChange={(marker): void => {
+                            workerSetMarkerHoverHighlight({
+                                active: marker !== null,
+                                blockId: marker?.source === 'block' ? marker.blockId : undefined,
+                            });
+                        }}
+                        onGapHoverChange={(active, blockIds): void => {
+                            workerSetMarkerHoverHighlight({ active, blockIds });
+                        }}
+                        blockPreview={hoveredBlockBaseline === null || hoveredBlockColor === null || hoveredBlockMarker !== null
+                            ? null
+                            : { memoryBytes: hoveredBlockBaseline, color: hoveredBlockColor }}
                     />
                     : <></>}
                 <HoverItem session={session} />
+                {hoveredBlockBaseline === null
+                    ? <></>
+                    : <BlockMarkerShortcutHint
+                        data-testid="blockMarkerShortcutHint"
+                        $markerColor={hoveredBlockColor ?? DEFAULT_LIFECYCLE_MEMORY_MARKER_COLOR}
+                        aria-label={`${t('blockMarkerShortcutPress')} K ${t(hoveredBlockMarker === null
+                            ? 'createHoveredBlockMarkerHint'
+                            : 'removeHoveredBlockMarkerHint')}`}
+                    >
+                        <span>{t('blockMarkerShortcutPress')}</span>
+                        <ShortcutKey>K</ShortcutKey>
+                        <span>{t(hoveredBlockMarker === null
+                            ? 'createHoveredBlockMarkerHint'
+                            : 'removeHoveredBlockMarkerHint')}</span>
+                        <TimelineFlagIcon aria-hidden="true" />
+                    </BlockMarkerShortcutHint>}
                 {session.loadingBlocks && session.progressiveBlocksVisible
                     ? <ProgressiveLoadingStatus
                         data-testid="progressiveBlockLoading"

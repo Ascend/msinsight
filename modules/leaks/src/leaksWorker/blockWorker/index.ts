@@ -50,6 +50,9 @@ let zoom: RenderOptions['zoom'];
 let renderer: WebGLRenderer | null;
 let hoverItem: Block | null = null;
 let clickItem: Block | null = null;
+let markerHoverBlocks: Block[] = [];
+let markerHoverActive = false;
+let markerHoverVersion = 0;
 let latestDataGeneration = 0;
 let activeDataGeneration = 0;
 let storageReadyGeneration = 0;
@@ -475,6 +478,34 @@ const transformHandler = (payload: TransformPayload): void => {
     renderer?.setTransform(transform);
 };
 
+const setMarkerHoverHighlightHandler = async (payload: SetMarkerHoverHighlightPayload): Promise<void> => {
+    const requestVersion = ++markerHoverVersion;
+    markerHoverActive = payload.active;
+    let nextMarkerHoverBlocks: Block[] = [];
+    if (payload.active) {
+        hoverSearchVersion++;
+        debouncedSearchBlockData.cancel();
+        hoverItem = null;
+        self.postMessage({ type: 'hoverItemResult', result: null });
+        const blockIds = Array.from(new Set([
+            ...(payload.blockIds ?? []),
+            ...(payload.blockId === undefined ? [] : [payload.blockId]),
+        ]));
+        if (useOpfs && blockDataOPFS) {
+            const resolvedBlocks = await Promise.all(blockIds.map(blockId => blockDataOPFS?.findBlockById(blockId)));
+            nextMarkerHoverBlocks = resolvedBlocks.filter((block): block is Block => block !== null && block !== undefined);
+        } else if (blockIds.length > 0) {
+            const blockIdSet = new Set(blockIds);
+            nextMarkerHoverBlocks = memoryBlockData?.blocks?.filter(block => blockIdSet.has(block.id)) ?? [];
+        }
+    }
+    if (requestVersion !== markerHoverVersion) {
+        return;
+    }
+    markerHoverBlocks = nextMarkerHoverBlocks;
+    await renderHighlightData();
+};
+
 const debouncedSearchBlockData = debounce(async (
     payload: HoverItemPayload,
     requestVersion: number,
@@ -534,7 +565,12 @@ const renderHighlightData = async (render: boolean = true): Promise<void> => {
     if (hoverItem !== null && hoverItem.id !== clickItem?.id) {
         result.push(hoverItem);
     }
-    renderer?.setBaseDimmed(clickItem !== null, false);
+    for (const markerHoverBlock of markerHoverBlocks) {
+        if (!result.some(block => block.id === markerHoverBlock.id)) {
+            result.push(markerHoverBlock);
+        }
+    }
+    renderer?.setBaseDimmed(clickItem !== null || markerHoverActive, false);
     await renderer?.setHighlightData(result, render);
 };
 
@@ -549,6 +585,9 @@ const destroyHandler = async (): Promise<void> => {
     zoom = { x: 1, y: 1, offset: 0 };
     hoverItem = null;
     clickItem = null;
+    markerHoverBlocks = [];
+    markerHoverActive = false;
+    markerHoverVersion++;
     self.postMessage({
         type: 'dataInfo',
         sizeInfo: { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0 },
@@ -568,6 +607,7 @@ const Handlers: PayloadHandlers = {
     setReservedLine: setReservedLineHandler,
     resizeCanvas: resizeCanvasHandler,
     transform: transformHandler,
+    setMarkerHoverHighlight: setMarkerHoverHighlightHandler,
     hoverItem: hoverItemHandler,
     clickItem: clickItemHandler,
     selectBlockItem: selectItemHandler,

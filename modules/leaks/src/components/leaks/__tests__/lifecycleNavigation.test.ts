@@ -19,6 +19,7 @@
 import {
     calculateLifecyclePanTransform,
     calculateLifecycleZoomTransform,
+    getLifecycleMarkerBaseline,
     isEditableKeyboardTarget,
     isLifecycleHostZoomShortcut,
     memoryValueToScreenY,
@@ -32,7 +33,18 @@ describe('lifecycleNavigation', () => {
         expect(resolveLifecycleKeyboardAction({ key: 'S', ctrlKey: true })).toBe('zoom-all-out');
         expect(resolveLifecycleKeyboardAction({ key: 'ArrowLeft' })).toBe('pan-left');
         expect(resolveLifecycleKeyboardAction({ key: 'ArrowUp' })).toBe('pan-up');
+        expect(resolveLifecycleKeyboardAction({ key: 'k' }, true)).toBe('add-marker');
+        expect(resolveLifecycleKeyboardAction({ key: 'k', repeat: true }, true)).toBeNull();
+        expect(resolveLifecycleKeyboardAction({ key: 'k' })).toBeNull();
+        expect(resolveLifecycleKeyboardAction({ key: 'k' }, false)).toBeNull();
+        expect(resolveLifecycleKeyboardAction({ key: 'w' }, false)).toBe('zoom-x-in');
         expect(resolveLifecycleKeyboardAction({ key: 'w', isComposing: true })).toBeNull();
+    });
+
+    it('uses the hovered block lower-left path point as the marker baseline', () => {
+        expect(getLifecycleMarkerBaseline({ path: [[10, 256], [20, 768]] })).toBe(256);
+        expect(getLifecycleMarkerBaseline({ path: [] })).toBeNull();
+        expect(getLifecycleMarkerBaseline(undefined)).toBeNull();
     });
 
     it('projects stable memory values after vertical zoom and pan', () => {

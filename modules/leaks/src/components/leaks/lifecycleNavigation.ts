@@ -15,7 +15,8 @@ export type LifecycleKeyboardAction =
     | 'pan-left'
     | 'pan-right'
     | 'pan-up'
-    | 'pan-down';
+    | 'pan-down'
+    | 'add-marker';
 
 export interface LifecycleKeyboardEventLike {
     key: string;
@@ -23,6 +24,7 @@ export interface LifecycleKeyboardEventLike {
     metaKey?: boolean;
     altKey?: boolean;
     shiftKey?: boolean;
+    repeat?: boolean;
     isComposing?: boolean;
 }
 
@@ -127,6 +129,7 @@ export const isLifecycleHostZoomShortcut = (
 
 export const resolveLifecycleKeyboardAction = (
     event: LifecycleKeyboardEventLike,
+    markerShortcutEnabled = false,
 ): LifecycleKeyboardAction | null => {
     if ([event.isComposing, event.altKey, event.shiftKey].some(Boolean)) {
         return null;
@@ -159,9 +162,18 @@ export const resolveLifecycleKeyboardAction = (
             return 'pan-up';
         case 'arrowdown':
             return 'pan-down';
+        case 'k':
+            return markerShortcutEnabled && !event.repeat ? 'add-marker' : null;
         default:
             return null;
     }
+};
+
+export const getLifecycleMarkerBaseline = (
+    block: Pick<Block, 'path'> | null | undefined,
+): number | null => {
+    const baseline = block?.path[0]?.[1];
+    return baseline !== undefined && Number.isFinite(baseline) ? baseline : null;
 };
 
 export const getVisibleMemoryRange = (options: MemoryProjectionOptions): VisibleMemoryRange | null => {
