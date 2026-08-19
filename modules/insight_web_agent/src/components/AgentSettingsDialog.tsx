@@ -41,7 +41,6 @@ const Container = styled.div`
     .settings-drawer.ant-drawer-right {
         position: fixed;
         inset: 0;
-        z-index: 1200 !important;
     }
 
     .settings-drawer .ant-drawer-header {
@@ -483,7 +482,6 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                     </div>
                 )}
                 width="100%"
-                zIndex={1200}
             >
                 <div className="panel">
                     {loading ? <div className="hint">{t('loadingSettings')}</div> : null}
