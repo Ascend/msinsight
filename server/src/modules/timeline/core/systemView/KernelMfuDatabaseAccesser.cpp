@@ -181,7 +181,7 @@ bool ExecuteCount(const std::shared_ptr<VirtualClusterDatabase> &database, const
     if (result == nullptr || !result->Next()) {
         return false;
     }
-    count = result->GetUint64(0);
+    count = result->GetUint64(static_cast<int>(0));
     return result->GetErrorCode() == SQLITE_ROW;
 }
 
@@ -199,7 +199,7 @@ bool ExecuteRankOptions(
     }
     rankOptions.clear();
     while (result->Next()) {
-        rankOptions.emplace_back(result->GetString(0));
+        rankOptions.emplace_back(result->GetString(static_cast<int>(0)));
     }
     return result->GetErrorCode() == SQLITE_DONE;
 }
