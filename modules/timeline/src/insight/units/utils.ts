@@ -17,8 +17,14 @@
  */
 import type { Theme } from '@emotion/react';
 import type { Session } from '../../entity/session';
-import type { CardMetaData } from '../../entity/data';
 import type { InsightUnit } from '../../entity/insight';
+import {
+    getTimeOffset as getCategoryTimeOffset,
+    type CardIdIndex,
+} from './offset';
+
+export { buildCardIdIndex } from './offset';
+export type { CardIdIndex } from './offset';
 
 export const colorPalette: Array<keyof Theme['colorPalette']> = [
     'deepBlue',
@@ -34,96 +40,9 @@ export const colorPalette: Array<keyof Theme['colorPalette']> = [
     'amethystPurple',
     'limeGreen',
 ];
-export type CardIdIndex = Map<string, string>;
-
-export function buildCardIdIndex(units: InsightUnit[]): CardIdIndex {
-    const cardIdIndex: CardIdIndex = new Map();
-    const visit = (unit: InsightUnit, rootCardId: string): void => {
-        const cardId = (unit.metadata as CardMetaData)?.cardId;
-        if (cardId !== undefined && !cardIdIndex.has(cardId)) {
-            cardIdIndex.set(cardId, rootCardId);
-        }
-        unit.children?.forEach(child => visit(child, rootCardId));
-    };
-    units.forEach(unit => {
-        const rootCardId = (unit.metadata as CardMetaData)?.cardId;
-        if (rootCardId !== undefined) {
-            visit(unit, rootCardId);
-        }
-    });
-    return cardIdIndex;
-}
-
-export function getTimeOffset(session: Session, metaData: { cardId?: string; processId?: string }, units: InsightUnit[] = [],
+export function getTimeOffset(session: Session, metaData: { cardId?: string; processId?: string; metaType?: string }, units: InsightUnit[] = [],
     timestampOffset?: Record<string, number>, cardIdIndex?: CardIdIndex): number {
-    const timeOffsetKey = getTimeOffsetKey(session, metaData, units, cardIdIndex);
-    timestampOffset = timestampOffset ?? session?.unitsConfig.offsetConfig.timestampOffset;
-    // 查询泳道chart参数加上时间偏移
-    return metaData.cardId !== undefined
-        ? timestampOffset?.[timeOffsetKey] ?? 0
-        : 0;
-}
-
-export function getTimeOffsetKey(session: Session, metaData: { cardId?: string; processId?: string }, units: InsightUnit[] = [],
-    cardIdIndex?: CardIdIndex): string {
-    if (units.length === 0) {
-        units = session.units;
-    }
-    const unit = cardIdIndex === undefined ? units.find(value => containCardId(value, metaData.cardId ?? '')) : undefined;
-    const realCardId = cardIdIndex?.get(metaData.cardId ?? '') ?? (unit ? (unit.metadata as CardMetaData).cardId : 'Host');
-    let realProcessId = metaData.processId;
-    // db数据的Host侧有2层process类型的泳道，第二层的processId的前32位是第一层的ProcessId，后32位是本泳道的threadId
-    if (realProcessId !== undefined && !isNaN(Number(realProcessId))) {
-        const upper32BitProcessId = Math.floor(Number(realProcessId) / Math.pow(2, 32));
-        if (upper32BitProcessId !== 0) {
-            realProcessId = upper32BitProcessId.toString();
-        }
-    }
-    return (realProcessId != null) ? `${realCardId}__${realProcessId}` : realCardId;
-}
-
-// 判断cardUnit自身以及子单元是否包含指定的cardId
-export interface TimeOffsetUnitTree {
-    metadata?: Record<string, unknown>;
-    children?: TimeOffsetUnitTree[];
-    alignStartTimestamp?: number;
-}
-
-export function visitUnitTree(unit: TimeOffsetUnitTree | undefined, visitor: (unit: TimeOffsetUnitTree) => void, loopIndex = 0): void {
-    const MaxLoop = 100;
-    if (unit === undefined || loopIndex > MaxLoop) {
-        return;
-    }
-    visitor(unit);
-    unit.children?.forEach(child => {
-        visitUnitTree(child, visitor, loopIndex + 1);
-    });
-}
-
-export function setTimeOffsetForUnitTree(
-    session: Session,
-    unit: TimeOffsetUnitTree | undefined,
-    offset: number | undefined,
-    timestampOffsetConfig: Record<string, number>,
-): void {
-    if (offset === undefined) {
-        return;
-    }
-    visitUnitTree(unit, (item) => {
-        if (item.metadata === undefined) {
-            return;
-        }
-        item.alignStartTimestamp = offset;
-        const key = getTimeOffsetKey(session, item.metadata as { cardId?: string; processId?: string });
-        timestampOffsetConfig[key] = offset;
-    });
-}
-
-function containCardId(unit: InsightUnit, cardId: string): boolean {
-    if ((unit.metadata as CardMetaData)?.cardId === cardId) {
-        return true;
-    }
-    return unit.children?.some(childUnit => containCardId(childUnit, cardId)) ?? false;
+    return getCategoryTimeOffset(session, metaData, units, timestampOffset, cardIdIndex);
 }
 
 function parseDecimal(str: string): {

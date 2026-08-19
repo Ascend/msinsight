@@ -30,7 +30,7 @@ import { platform } from '../platforms';
 import { type Phase, stateTexts } from '../utils/constant';
 import { SimpleCache } from '../cache/simplecache';
 import { InsightUnitSet } from '../utils/PageSetting';
-import { getTimeOffsetKey, setTimeOffsetForUnitTree, visitUnitTree } from '../insight/units/utils';
+import { getCardOffsetKey, getCardSideOffset, type OffsetSide } from '../insight/units/offset';
 import { CardMetaData, SliceData, SliceMeta, ThreadMetaData, ThreadTrace } from './data';
 import type {
     CardRankInfo,
@@ -70,7 +70,7 @@ export interface LinkData {
 export interface ContextMenu {
     isVisible: boolean;
     zoomHistory: DomainRange[];
-    activeMenuKey: string;
+    activeMenuPath: string[];
 }
 
 interface UnitsConfig {
@@ -167,7 +167,7 @@ export class Session {
     contextMenu: ContextMenu = {
         isVisible: false,
         zoomHistory: [],
-        activeMenuKey: '',
+        activeMenuPath: [],
     };
 
     // 是否有值为超过了最大安全值
@@ -626,25 +626,27 @@ export class Session {
         this._domain !== undefined && (this._domain.endTimeAll = this._endTimeAll ?? this.domain.maxDuration);
     }
 
-    setTimestampOffset(key: string, value: number): void {
-        const prevObj = this.unitsConfig.offsetConfig.timestampOffset;
-        this.unitsConfig.offsetConfig.timestampOffset = { ...prevObj, [key]: (value) };
-        this.updateEndTimeAll();
+    setCardSideOffset(cardId: string, side: OffsetSide, value: number): void {
+        const key = getCardOffsetKey(this, { cardId, side });
+        this.replaceTimestampOffsets({
+            ...this.unitsConfig.offsetConfig.timestampOffset,
+            [key]: value,
+        });
     }
 
-    setTimestampOffsetAll(offsetConfig: Record<string, number>): void {
+    setCardOffsets(cardId: string, offsets: Record<OffsetSide, number>): void {
+        const hostKey = getCardOffsetKey(this, { cardId, side: 'host' });
+        const deviceKey = getCardOffsetKey(this, { cardId, side: 'device' });
+        this.replaceTimestampOffsets({
+            ...this.unitsConfig.offsetConfig.timestampOffset,
+            [hostKey]: offsets.host,
+            [deviceKey]: offsets.device,
+        });
+    }
+
+    replaceTimestampOffsets(offsetConfig: Record<string, number>): void {
         this.unitsConfig.offsetConfig.timestampOffset = { ...offsetConfig };
         this.updateEndTimeAll();
-    }
-
-    setTimestampOffsetByUnit(unit: InsightUnit, value: number, shouldUpdate: boolean = true): void {
-        const prevObj = { ...this.unitsConfig.offsetConfig.timestampOffset };
-        setTimeOffsetForUnitTree(this, unit, value, prevObj);
-        this.unitsConfig.offsetConfig.timestampOffset = {
-            ...prevObj,
-            [(unit.metadata as unknown as CardMetaData).cardId]: (value),
-        };
-        if (shouldUpdate) { this.updateEndTimeAll(); }
     }
 
     printSessionInfo(): string {
@@ -722,26 +724,19 @@ export class Session {
     }
 
     private getMaxRelativeOffset(): number {
-        if (!Array.isArray(this._units) ||
-            this.unitsConfig.offsetConfig.timestampOffset === undefined ||
-            Object.keys(this.unitsConfig.offsetConfig.timestampOffset).length === 0) {
+        if (!Array.isArray(this._units) || this._units.length === 0) {
             return 0;
         }
 
-        const getRelativeOffset = (unit: InsightUnit): number => {
+        return this._units.reduce((maxOffset, unit) => {
+            const cardId = (unit.metadata as CardMetaData)?.cardId;
+            if (cardId === undefined) {
+                return maxOffset;
+            }
             const initTimeOffset = unit.alignStartTimestamp ?? 0;
-            const timeOffsetKey = getTimeOffsetKey(this, unit.metadata as { cardId?: string; processId?: string });
-            const currentTimeOffset = this.unitsConfig.offsetConfig.timestampOffset[timeOffsetKey] ?? 0;
-            return Math.max(0, initTimeOffset - currentTimeOffset);
-        };
-
-        const result = this._units.flatMap((unit: InsightUnit): number[] => {
-            const relativeOffsets: number[] = [];
-            visitUnitTree(unit, (item) => {
-                relativeOffsets.push(getRelativeOffset(item as InsightUnit));
-            });
-            return relativeOffsets;
-        });
-        return Math.max(...result);
+            const hostRelativeOffset = Math.max(0, initTimeOffset - getCardSideOffset(this, cardId, 'host'));
+            const deviceRelativeOffset = Math.max(0, initTimeOffset - getCardSideOffset(this, cardId, 'device'));
+            return Math.max(maxOffset, hostRelativeOffset, deviceRelativeOffset);
+        }, 0);
     }
 }

@@ -68,6 +68,7 @@ import {
 import { Action } from '../actions/types';
 import { getShortcutFromShortcutName, ShortcutName } from '../actions/shortcuts';
 import { EmptyMetaData } from '../entity/data';
+import { activateMenuAtDepth, truncateMenuPath } from './contextMenuPath';
 
 interface Position {
     left: string;
@@ -82,6 +83,8 @@ interface Props {
     subMenus?: ContextMenuItem[];
     style?: { [key: string]: any };
 }
+
+type MenuItemsProps = Pick<Props, 'session'>;
 
 export type ContextMenuItem = typeof CONTEXT_MENU_SEPARATOR | Action;
 
@@ -186,7 +189,7 @@ const Separator = styled.hr`
 function closeMenu(session: Session): void {
     runInAction(() => {
         session.contextMenu.isVisible = false;
-        session.contextMenu.activeMenuKey = '';
+        session.contextMenu.activeMenuPath = [];
     });
 }
 
@@ -319,36 +322,37 @@ const contextMenuItems: ContextMenuItem[] = [
     actionJumpToLinkSlice,
 ];
 
-const SubMenu = (props: { session: Session; subMenus: ContextMenuItem[]; style: {[key: string]: any} }): JSX.Element => {
-    const { subMenus, style } = props;
+const SubMenu = (props: { session: Session; subMenus: ContextMenuItem[]; style: {[key: string]: any}; depth: number }): JSX.Element => {
+    const { subMenus, style, depth } = props;
     const { t } = useTranslation();
     return (
         <SubMenuContainer className="sub-menu-container" style={style}>
-            {getMenuItems(props as Props, t, subMenus ?? [])}
+            {getMenuItems(props, t, subMenus ?? [], depth)}
         </SubMenuContainer>
     );
 };
 
-function mouseEnterEvent(event: React.MouseEvent<HTMLDivElement, MouseEvent>, session: Session, menu: Action, disabled: boolean): void {
+function mouseEnterEvent(event: React.MouseEvent<HTMLDivElement, MouseEvent>, session: Session, menu: Action,
+    disabled: boolean, depth: number): void {
     runInAction(() => {
         menu.style = event.currentTarget.classList.contains('has-sub-menu') ? getSubMenuStyle(event.currentTarget) : {};
-        session.contextMenu.activeMenuKey = disabled && !menu.parentMenuKey ? '' : menu.parentMenuKey ?? menu.name;
+        session.contextMenu.activeMenuPath = disabled
+            ? truncateMenuPath(session.contextMenu.activeMenuPath, depth)
+            : activateMenuAtDepth(session.contextMenu.activeMenuPath, depth, menu.name);
     });
 }
 
-function mouseLeaveEvent(event: React.MouseEvent<HTMLDivElement, MouseEvent>, session: Session, menu: Action): void {
-    if (menu.subMode) {
-        return;
-    }
-    if (event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('.sub-menu-container')) {
+function mouseLeaveEvent(event: React.MouseEvent<HTMLDivElement, MouseEvent>, session: Session, menu: Action,
+    depth: number): void {
+    if (menu.subMode ?? (event.relatedTarget instanceof HTMLElement && event.relatedTarget.closest('.sub-menu-container') !== null)) {
         return;
     }
     runInAction(() => {
-        session.contextMenu.activeMenuKey = menu.parentMenuKey ? session.contextMenu.activeMenuKey : '';
+        session.contextMenu.activeMenuPath = truncateMenuPath(session.contextMenu.activeMenuPath, depth);
     });
 }
 
-const getMenuItems = (props: Props, t: TFunction, menuItems: ContextMenuItem[]): JSX.Element => {
+const getMenuItems = (props: MenuItemsProps, t: TFunction, menuItems: ContextMenuItem[], depth = 0): JSX.Element => {
     const { session } = props;
     if (!Array.isArray(session.selectedUnits) || session.selectedUnits.length === 0 || menuItems.length === 0) {
         return <></>;
@@ -367,7 +371,7 @@ const getMenuItems = (props: Props, t: TFunction, menuItems: ContextMenuItem[]):
                 const disabled = item.disabled?.(session) ?? false;
                 const label = typeof item.label === 'function' ? item.label(session, t) : t(item.label);
                 const subMenus = item.subMenus?.(session) ?? [];
-                const subMenuIsVisible = item.subMode && session.contextMenu.activeMenuKey === item.name && session.contextMenu.isVisible;
+                const subMenuIsVisible = item.subMode && session.contextMenu.activeMenuPath[depth] === item.name && session.contextMenu.isVisible;
                 return <MenuItem
                     className={`menu-item ${disabled ? 'disabled' : ''} ${item.checked?.(session) ? 'checkmark' : ''} ${item.subMode ? 'has-sub-menu' : ''}`}
                     key={item.name}
@@ -377,15 +381,17 @@ const getMenuItems = (props: Props, t: TFunction, menuItems: ContextMenuItem[]):
                         item.perform(session);
                         closeMenu(session);
                     }}
-                    onMouseEnter={(event): void => { mouseEnterEvent(event, session, item, disabled); }}
-                    onMouseLeave={(event): void => { mouseLeaveEvent(event, session, item); }}
+                    onMouseEnter={(event): void => { mouseEnterEvent(event, session, item, disabled, depth); }}
+                    onMouseLeave={(event): void => { mouseLeaveEvent(event, session, item, depth); }}
                 >
                     <div className="menu-item__label">{label}</div>
                     <div className="menu-item__shortcut-area">
                         <kbd className="menu-item__shortcut">{item.name ? getShortcutFromShortcutName(item.name as ShortcutName) : ''}</kbd>
                         {item.subMode && <span className="menu-item__arrow" />}
                     </div>
-                    {subMenuIsVisible ? <SubMenu style={item.style ?? {}} session={session} subMenus={subMenus}></SubMenu> : <></>}
+                    {subMenuIsVisible
+                        ? <SubMenu style={item.style ?? {}} session={session} subMenus={subMenus} depth={depth + 1}></SubMenu>
+                        : <></>}
                 </MenuItem>;
             })
         }
@@ -434,7 +440,7 @@ const Menu = (props: Props): JSX.Element => {
 
     const handleMenuScroll = (): void => {
         runInAction(() => {
-            session.contextMenu.activeMenuKey = '';
+            session.contextMenu.activeMenuPath = [];
         });
     };
 

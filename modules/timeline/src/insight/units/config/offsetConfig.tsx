@@ -1,7 +1,7 @@
 /*
  * -------------------------------------------------------------------------
  * This file is part of the MindStudio project.
- * Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
  *
  * MindStudio is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,26 +16,22 @@
  * -------------------------------------------------------------------------
  */
 import type { InputRef } from 'antd';
-import { StyledInput } from '../../../components/base/StyledInput';
-import React, { RefObject, useRef, useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { observer } from 'mobx-react-lite';
-import { runInAction } from 'mobx';
-import type { Session } from '../../../entity/session';
 import styled from '@emotion/styled';
-import { Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
-import type { ThreadTraceRequest } from '../../../entity/data';
-import { getTimeOffset, getTimeOffsetKey } from '../utils';
+import { Tooltip } from '@insight/lib/components';
+import { StyledInput } from '../../../components/base/StyledInput';
 import { CustomButton } from '../../../components/base/StyledButton';
+import type { Session } from '../../../entity/session';
+import type { CardMetaData } from '../../../entity/data';
+import { getCardSideOffset, type OffsetSide } from '../offset';
 import type { SvgType } from '../../../components/base/rc-table/types';
 import { ReactComponent as AlignStartIcon } from '../../../assets/images/timeline/ic_align_start.svg';
+
 const AlignIcon = AlignStartIcon as SvgType;
-const defaultOffset = '0';
-const MAX_OFFSET_TIME = 30 * 24 * 60 * 60 * 1000_000_000; // 30 天，单位 ns
-const minOffset = -MAX_OFFSET_TIME;
-const maxOffset = MAX_OFFSET_TIME;
+const MAX_OFFSET_TIME = 30 * 24 * 60 * 60 * 1000_000_000;
 const defaultBorderColor = '#838383FF';
 const inputBorderColor = '#1890ff';
 const invalidBorderColor = '#C61E37FF';
@@ -67,191 +63,192 @@ const OffsetIndicatorDot = styled.div`
     background-color: ${(props): string => props.theme.primaryColor || '#1890ff'};
 `;
 
-// Changing the border color of the input box when the input value is invalid
-const onChange = ({ e, session, setOffset, setVisible, setTitle, t }: {
-    e: ChangeEvent<HTMLInputElement>; session: Session;
-    setOffset: React.Dispatch<React.SetStateAction<string>>;
-    setVisible: React.Dispatch<React.SetStateAction<boolean>>;
-    setTitle: React.Dispatch<React.SetStateAction<string>>;
-    t: TFunction;
-}): void => {
-    runInAction(() => {
-        setOffset(e.target.value);
-        const inputValue = Number(e.target.value);
-        if (!isNaN(inputValue) && inputValue >= minOffset && inputValue <= maxOffset) {
-            e.target.style.borderColor = inputBorderColor;
-            e.target.style.boxShadow = inputBorderShadow;
-            setVisible(false);
-        } else {
-            e.target.style.borderColor = invalidBorderColor;
-            e.target.style.boxShadow = invalidBorderShadow;
-            setTitle(t('headerButtonTooltip:TimeStampOffset') ?? '');
-            setVisible(true);
-        }
-    });
-};
-
-function hasStringValue(str: string = ''): boolean {
-    return str !== '';
-}
-
-// 设置一级泳道偏移量时，同步其二级泳道的偏移量
-export function handleTimestampOffsetReassignment(
-    session: Session,
-    cardMetaData: ThreadTraceRequest,
-    inputValue: number,
-): boolean {
-    if (cardMetaData.processId === null || !hasStringValue(cardMetaData.processId) || session.isTimeAnalysisMode) {
-        const cardId = cardMetaData.cardId;
-        const timestampOffsetConfig = { ...session.unitsConfig.offsetConfig.timestampOffset };
-        const offsetKeys = Object.keys(timestampOffsetConfig);
-        let isReassigned = false;
-
-        const timestampOffsetKey = getTimeOffsetKey(session, cardMetaData);
-        timestampOffsetConfig[timestampOffsetKey] = inputValue;
-        for (const key of offsetKeys) {
-            if (key.startsWith(`${cardId}__`) && timestampOffsetConfig[key] !== inputValue) {
-                timestampOffsetConfig[key] = inputValue;
-                isReassigned = true;
-            }
-        }
-        session.setTimestampOffsetAll(timestampOffsetConfig);
-        return isReassigned;
-    }
-    return false;
-}
-
-function checkValue(inputElement: HTMLInputElement, session: Session, setValue: React.Dispatch<React.SetStateAction<string>>,
-    setVisible: React.Dispatch<React.SetStateAction<boolean>>, metaData: any): void {
-    const inputValue = Number(inputElement.value);
-    if (!isNaN(inputValue) && (inputValue >= minOffset && inputValue <= maxOffset)) {
-        const cardMetaData = (metaData as ThreadTraceRequest);
-        const timestampOffsetKey = getTimeOffsetKey(session, metaData as ThreadTraceRequest);
-        // preValue = curValue, directly return
-        const preTimestampOffset = getTimeOffset(session, cardMetaData);
-        const isReassigned = handleTimestampOffsetReassignment(session, cardMetaData, inputValue);
-
-        if (preTimestampOffset === inputValue && !isReassigned) {
-            return;
-        }
-        session.setTimestampOffset(timestampOffsetKey, inputValue);
-        session.setDomainWithoutHistory({ domainStart: 0, domainEnd: session.endTimeAll ?? session.domain.defaultDuration });
-    } else {
-        setValue(defaultOffset);
-    }
-    inputElement.style.borderColor = defaultBorderColor;
-    inputElement.style.boxShadow = 'none';
-    setVisible(false);
-}
-
-// The input value in the input box is changed to the default value when the focus is lost and the input value is invalid.
-const onBlur = (e: ChangeEvent<HTMLInputElement>, session: Session, setValue: React.Dispatch<React.SetStateAction<string>>,
-    setVisible: React.Dispatch<React.SetStateAction<boolean>>, metaData: any): void => {
-    runInAction(() => {
-        checkValue(e.target, session, setValue, setVisible, metaData);
-        session.renderTrigger = !session.renderTrigger;
-    });
-};
-
-const onFocus = (e: ChangeEvent<HTMLInputElement>): void => {
-    runInAction(() => {
-        e.target.style.borderColor = inputBorderColor;
-        e.target.style.boxShadow = inputBorderShadow;
-    });
-};
-
-const onPressEnter = (session: Session, setValue: React.Dispatch<React.SetStateAction<string>>,
-    setVisible: React.Dispatch<React.SetStateAction<boolean>>,
-    e: React.KeyboardEvent<HTMLInputElement> | React.MouseEvent<SVGSVGElement, MouseEvent>, metaData: any): void => {
-    runInAction(() => {
-        const input = (e.target as HTMLInputElement);
-        checkValue(input, session, setValue, setVisible, metaData);
-        session.renderTrigger = !session.renderTrigger;
-    });
-};
-
 const InputContainer = styled.div`
     padding: 5px 10px;
-    color: ${(props): string => props.theme.fontColor}
+    color: ${(props): string => props.theme.fontColor};
 `;
 
-const InputDiv = styled.div`
+const InputRow = styled.div`
+    display: flex;
     align-items: center;
     justify-content: space-between;
-    display: flex;
+    gap: 8px;
+    min-width: 330px;
+    & + & {
+        margin-top: 8px;
+    }
+    > label {
+        width: 110px;
+        flex-shrink: 0;
+    }
     .ant-input-disabled {
         background-color: ${(props): string => props.theme.templateBackgroundColor};
         border: none;
     }
 `;
 
-function handleAlignStart(inputRef: RefObject<InputRef>, session: Session, setValue: React.Dispatch<React.SetStateAction<string>>): void {
-    const alignStartTimestamp = session.selectedUnits[0]?.alignStartTimestamp ?? session.selectedUnits[0]?.parent?.alignStartTimestamp;
-    if (alignStartTimestamp === undefined) {
-        return;
-    }
-    setValue(alignStartTimestamp.toString());
-    inputRef?.current?.focus();
+interface OffsetInputRowProps {
+    session: Session;
+    cardId: string;
+    side: OffsetSide;
+    alignStartTimestamp?: number;
 }
 
-export const InputOption = observer(({ session, metaData, onClick, isHovered, isSelected }: { session: Session; metaData: any; onClick?: () => void; isHovered?: boolean; isSelected?: boolean }): JSX.Element | null => {
-    const timestampOffsetKey = getTimeOffsetKey(session, metaData as ThreadTraceRequest);
-    const timestampOffset = (session.unitsConfig.offsetConfig.timestampOffset as Record<string, number>)?.[timestampOffsetKey] ?? 0;
-    const [offset, setOffset] = useState(String(timestampOffset));
-    const [visible, setVisible] = useState(false);
-    const [title, setTitle] = useState('Please enter a proper value');
+function isValidOffset(value: string): boolean {
+    const offset = Number(value);
+    return value.trim() !== '' && Number.isFinite(offset) && offset >= -MAX_OFFSET_TIME && offset <= MAX_OFFSET_TIME;
+}
+
+const OffsetInputRow = observer(({ session, cardId, side, alignStartTimestamp }: OffsetInputRowProps): JSX.Element => {
+    const currentOffset = getCardSideOffset(session, cardId, side);
+    const [value, setValue] = useState(String(currentOffset));
+    const [invalid, setInvalid] = useState(false);
     const inputRef = useRef<InputRef>(null);
     const { t } = useTranslation();
-    useEffect(() => {
-        setOffset(String(timestampOffset));
-    }, [timestampOffset]);
-    useEffect(() => {
-        if (session.isTimeAnalysisMode) {
-            // 时间范围分析模式，需要将卡级别的偏移量同步到进程级别上做统一分析
-            handleTimestampOffsetReassignment(session, metaData, timestampOffset);
-        }
-    }, [session.isTimeAnalysisMode]);
+    const label = side === 'host' ? 'Host Offset' : 'Device Offset';
 
-    const hasOffset = timestampOffset !== 0;
+    useEffect(() => {
+        setValue(String(currentOffset));
+    }, [currentOffset]);
+
+    const resetStyle = (input: HTMLInputElement): void => {
+        input.style.borderColor = defaultBorderColor;
+        input.style.boxShadow = 'none';
+    };
+
+    const commit = (input: HTMLInputElement): void => {
+        if (!isValidOffset(input.value)) {
+            setValue(String(currentOffset));
+            setInvalid(false);
+            resetStyle(input);
+            return;
+        }
+        const nextOffset = Number(input.value);
+        if (nextOffset !== currentOffset) {
+            session.setCardSideOffset(cardId, side, nextOffset);
+            session.setDomainWithoutHistory({
+                domainStart: 0,
+                domainEnd: session.endTimeAll ?? session.domain.defaultDuration,
+            });
+            session.renderTrigger = !session.renderTrigger;
+        }
+        setInvalid(false);
+        resetStyle(input);
+    };
+
+    const onChange = (event: ChangeEvent<HTMLInputElement>): void => {
+        setValue(event.target.value);
+        const valid = isValidOffset(event.target.value);
+        setInvalid(!valid);
+        event.target.style.borderColor = valid ? inputBorderColor : invalidBorderColor;
+        event.target.style.boxShadow = valid ? inputBorderShadow : invalidBorderShadow;
+    };
+
+    const alignToStart = (): void => {
+        if (alignStartTimestamp === undefined) {
+            return;
+        }
+        setValue(String(alignStartTimestamp));
+        if (alignStartTimestamp !== currentOffset) {
+            session.setCardSideOffset(cardId, side, alignStartTimestamp);
+            session.setDomainWithoutHistory({
+                domainStart: 0,
+                domainEnd: session.endTimeAll ?? session.domain.defaultDuration,
+            });
+            session.renderTrigger = !session.renderTrigger;
+        }
+        inputRef.current?.focus();
+    };
+
+    return <InputRow>
+        <label htmlFor={`${cardId}-${side}-offset`}>{t(label, { ns: 'timeline' })}(ns):</label>
+        <div>
+            <StyledInput
+                id={`${cardId}-${side}-offset`}
+                aria-label={label}
+                minwidth={20}
+                height={18}
+                width={155}
+                isshow={1}
+                value={value}
+                disabled={session.phase === 'analyzing'}
+                ref={inputRef}
+                maxLength={500}
+                onChange={onChange}
+                onBlur={(event): void => commit(event.target)}
+                onFocus={(event): void => {
+                    event.target.style.borderColor = inputBorderColor;
+                    event.target.style.boxShadow = inputBorderShadow;
+                }}
+                onPressEnter={(event): void => commit(event.target as HTMLInputElement)}
+                allowClear
+            />
+            {invalid && <div>{t('headerButtonTooltip:TimeStampOffset')}</div>}
+        </div>
+        <CustomButton
+            aria-label={`Align ${side === 'host' ? 'Host' : 'Device'} to Start`}
+            tooltip={t('Align to Start', { ns: 'timeline' })}
+            icon={AlignIcon}
+            type="primary"
+            disabled={session.phase === 'analyzing'}
+            onClick={alignToStart}
+        />
+    </InputRow>;
+});
+
+interface CardOffsetConfigProps {
+    session: Session;
+    metadata: CardMetaData;
+    onClick?: () => void;
+    isHovered?: boolean;
+    isSelected?: boolean;
+}
+
+export const CardOffsetConfig = observer(({
+    session,
+    metadata,
+    onClick,
+    isHovered,
+    isSelected,
+}: CardOffsetConfigProps): JSX.Element | null => {
+    const hostOffset = getCardSideOffset(session, metadata.cardId, 'host');
+    const deviceOffset = getCardSideOffset(session, metadata.cardId, 'device');
+    const hasOffset = hostOffset !== 0 || deviceOffset !== 0;
+    const { t } = useTranslation();
+    const cardUnit = session.units.find(unit => (unit.metadata as CardMetaData)?.cardId === metadata.cardId);
+    const alignStartTimestamp = cardUnit?.alignStartTimestamp;
 
     if (!hasOffset && !isHovered && !isSelected) {
         return null;
     }
 
     return <Tooltip
-        trigger={'click'}
-        placement={'bottom'}
-        title={
-            <InputContainer>
-                <InputDiv>
-                    <div className="flex-none">{t('Timestamp Offset', { ns: 'timeline' })}(ns):</div>
-                    <div>
-                        <StyledInput minwidth={20} height={18} width={155} isshow={1} value={offset} disabled={session.phase === 'analyzing'} ref={inputRef} maxLength={500}
-                            onChange={(e): void => onChange({ e, session, setOffset, setVisible, setTitle, t })}
-                            onBlur={(e): void => onBlur(e, session, setOffset, setVisible, metaData)}
-                            onFocus={onFocus}
-                            onPressEnter={(e): void => onPressEnter(session, setOffset, setVisible, e, metaData)}
-                            allowClear
-                        />
-                        {visible && <div>{title}</div>}
-                    </div>
-                    <CustomButton aria-label="align to start" tooltip={t('Align to Start', { ns: 'timeline' })} icon={AlignIcon} type="primary" onClick={(): void => handleAlignStart(inputRef, session, setOffset)} />
-                </InputDiv>
-            </InputContainer>}
-        overlayInnerStyle={{ borderRadius: 2 }}>
-        {(!isHovered && !isSelected && hasOffset)
-            ? (
-                <OffsetIndicatorWrapper data-testid={'offset-btn'} onClick={onClick}>
-                    <OffsetIndicatorDot title={t('Offset set', { ns: 'timeline' })} />
-                </OffsetIndicatorWrapper>
-            )
-            : (
-                <OffsetButton data-testid={'offset-btn'} onClick={onClick}>{t('Offset', { ns: 'timeline' })}</OffsetButton>
-            )}
-    </Tooltip>
-    ;
+        trigger="click"
+        placement="bottom"
+        title={<InputContainer>
+            <OffsetInputRow session={session} cardId={metadata.cardId} side="host" alignStartTimestamp={alignStartTimestamp} />
+            <OffsetInputRow session={session} cardId={metadata.cardId} side="device" alignStartTimestamp={alignStartTimestamp} />
+        </InputContainer>}
+        overlayInnerStyle={{ borderRadius: 2 }}
+    >
+        {!isHovered && !isSelected && hasOffset
+            ? <OffsetIndicatorWrapper data-testid="offset-btn" onClick={onClick}>
+                <OffsetIndicatorDot title={t('Offset set', { ns: 'timeline' })} />
+            </OffsetIndicatorWrapper>
+            : <OffsetButton data-testid="offset-btn" onClick={onClick}>{t('Offset', { ns: 'timeline' })}</OffsetButton>}
+    </Tooltip>;
 });
 
-export const offsetConfig = (session: Session, metadata: any, onClick?: () => void, isHovered?: boolean, isSelected?: boolean): JSX.Element | null => {
-    return <InputOption session={session} metaData={metadata} onClick={onClick} isHovered={isHovered} isSelected={isSelected} />;
-};
+export const cardOffsetConfig = (
+    session: Session,
+    metadata: CardMetaData,
+    onClick?: () => void,
+    isHovered?: boolean,
+    isSelected?: boolean,
+): JSX.Element | null => <CardOffsetConfig
+    session={session}
+    metadata={metadata}
+    onClick={onClick}
+    isHovered={isHovered}
+    isSelected={isSelected}
+/>;

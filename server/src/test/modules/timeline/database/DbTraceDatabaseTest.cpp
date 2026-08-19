@@ -1140,8 +1140,7 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostSlicesReturnsOnlyMatchingSlices) 
     Dic::Module::Timeline::TraceTime::Instance().UpdateTime(20, 300);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result = database.QueryHostSlicesByName("rank_offset_target", "CANN_API", slices, processIds);
+    bool result = database.QueryHostSlicesByName("rank_offset_target", "CANN_API", slices);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(slices.size(), 1);
@@ -1167,9 +1166,8 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetPythonStackSlicesReturnsOnlyPythonSta
     database.SetDbPtr(db);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
     bool result = database.QueryHostSlicesByName(
-        "multiprocessing/popen_fork.py(19): __init__", "PYTORCH_API_PYTHON_STACK", slices, processIds);
+        "multiprocessing/popen_fork.py(19): __init__", "PYTORCH_API_PYTHON_STACK", slices);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(slices.size(), 1);
@@ -1177,8 +1175,6 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetPythonStackSlicesReturnsOnlyPythonSta
     EXPECT_EQ(slices.front().metaType, "PYTORCH_API_PYTHON_STACK");
     EXPECT_EQ(slices.front().timestamp, 140);
     EXPECT_EQ(slices.front().duration, 40);
-    EXPECT_EQ(processIds.size(), 1);
-    EXPECT_EQ(processIds.count("1704908"), 1);
 }
 
 TEST_F(DbTraceDatabaseTest, QueryRankOffsetPytorchApiSlicesExcludesPythonStack) {
@@ -1197,73 +1193,13 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetPytorchApiSlicesExcludesPythonStack) 
     database.SetDbPtr(db);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result = database.QueryHostSlicesByName("rank_offset_target", "PYTORCH_API", slices, processIds);
+    bool result = database.QueryHostSlicesByName("rank_offset_target", "PYTORCH_API", slices);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(slices.size(), 1);
     EXPECT_EQ(slices.front().pid, "20");
     EXPECT_EQ(slices.front().metaType, "PYTORCH_API");
     EXPECT_EQ(slices.front().timestamp, 100);
-    EXPECT_EQ(processIds.size(), 2);
-    EXPECT_EQ(processIds.count("20"), 1);
-    EXPECT_EQ(processIds.count("30"), 1);
-}
-
-TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostProcessIdsReturnsAllExistingHostLanes) {
-    std::recursive_mutex testMutex;
-    MockDatabase2 database(testMutex);
-    sqlite3 *db = nullptr;
-    DatabaseTestCaseMockUtil::OpenDB(db);
-    const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_CANN_API, TableName::DB_MSTX_EVENTS,
-        TableName::DB_PYTORCH_API, TableName::DB_OSRT_API};
-    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
-    DatabaseTestCaseMockUtil::InsertData(db,
-        "INSERT INTO CANN_API (startNs, endNs, type, globalTid, connectionId, name, depth) "
-        "VALUES (100, 130, 0, 10, 1, 1, 0);");
-    DatabaseTestCaseMockUtil::InsertData(db,
-        "INSERT INTO PYTORCH_API (startNs, endNs, globalTid, connectionId, name, sequenceNumber, fwdThreadId, "
-        "inputDtypes, inputShapes, callchainId, type, depth) VALUES (140, 180, 20, 2, 2, NULL, NULL, NULL, "
-        "NULL, NULL, 0, 0);");
-    DatabaseTestCaseMockUtil::InsertData(db,
-        "INSERT INTO MSTX_EVENTS (startNs, endNs, eventType, rangeId, category, message, globalTid, "
-        "endGlobalTid, domainId, connectionId, depth) VALUES (190, 210, 0, 0, 0, 2, 30, 30, 0, 3, 0);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO OSRT_API (name, globalTid, startNs, endNs) VALUES (2, 40, 220, 240);");
-    database.SetDbPtr(db);
-
-    std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    // Query with a name that matches all host slices to verify processIds collection
-    bool result = database.QueryHostSlicesByName("rank_offset_target", "CANN_API", slices, processIds);
-
-    ASSERT_TRUE(result);
-    EXPECT_EQ(processIds.size(), 4);
-    EXPECT_EQ(processIds.count("10"), 1);
-    EXPECT_EQ(processIds.count("20"), 1);
-    EXPECT_EQ(processIds.count("30"), 1);
-    EXPECT_EQ(processIds.count("40"), 1);
-}
-
-TEST_F(DbTraceDatabaseTest, QueryRankOffsetHostProcessIdsSkipsMissingHostTables) {
-    std::recursive_mutex testMutex;
-    MockDatabase2 database(testMutex);
-    sqlite3 *db = nullptr;
-    DatabaseTestCaseMockUtil::OpenDB(db);
-    const std::vector<TableName> list{TableName::DB_STRING_IDS, TableName::DB_CANN_API};
-    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
-    DatabaseTestCaseMockUtil::InsertData(db,
-        "INSERT INTO CANN_API (startNs, endNs, type, globalTid, connectionId, name, depth) "
-        "VALUES (100, 130, 0, 10, 1, 1, 0);");
-    database.SetDbPtr(db);
-
-    std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result = database.QueryHostSlicesByName("rank_offset_target", "CANN_API", slices, processIds);
-
-    ASSERT_TRUE(result);
-    EXPECT_EQ(processIds.size(), 1);
-    EXPECT_EQ(processIds.count("10"), 1);
 }
 
 TEST_F(DbTraceDatabaseTest, QueryRankOffsetDeviceSlicesReturnsOnlyMatchingSlices) {
@@ -1293,42 +1229,11 @@ TEST_F(DbTraceDatabaseTest, QueryRankOffsetDeviceSlicesReturnsOnlyMatchingSlices
     database.SetDbPtr(db);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result =
-        database.QueryDeviceSlicesByName("0", "rank_offset_device_target", "Ascend Hardware", slices, processIds);
+    bool result = database.QueryDeviceSlicesByName("0", "rank_offset_device_target", "Ascend Hardware", slices);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(slices.size(), 1);
     EXPECT_EQ(slices.front().pid, "Ascend Hardware");
-}
-
-TEST_F(DbTraceDatabaseTest, QueryRankOffsetDeviceProcessIdsReturnsExistingDeviceLanes) {
-    std::recursive_mutex testMutex;
-    MockDatabase2 database(testMutex);
-    sqlite3 *db = nullptr;
-    DatabaseTestCaseMockUtil::OpenDB(db);
-    const std::vector<TableName> list{
-        TableName::DB_STRING_IDS, TableName::DB_TASK, TableName::DB_COMMUNICATION_OP, TableName::DB_OVERLAP_ANALYSIS};
-    DatabaseTestCaseMockUtil::CreateTablesFromList(db, list);
-    DatabaseTestCaseMockUtil::InsertData(db,
-        "INSERT INTO TASK (startNs, endNs, deviceId, connectionId, globalTaskId, globalPid, taskType, "
-        "contextId, streamId, taskId, modelId, depth) VALUES "
-        "(100, 160, 0, 19, 1000, 1, 3, 0, 7, 0, 0, 0);");
-    DatabaseTestCaseMockUtil::InsertData(db,
-        "INSERT INTO COMMUNICATION_OP (opName, startNs, endNs, connectionId, groupName, opId, relay, retry, "
-        "dataType, algType, count, opType, waitNs, deviceId) VALUES (2, 300, 360, 19, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0);");
-    database.SetDbPtr(db);
-
-    std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result =
-        database.QueryDeviceSlicesByName("0", "rank_offset_device_target", "Ascend Hardware", slices, processIds);
-
-    ASSERT_TRUE(result);
-    EXPECT_EQ(processIds.size(), 3);
-    EXPECT_EQ(processIds.count("Ascend Hardware"), 1);
-    EXPECT_EQ(processIds.count("HCCL"), 1);
-    EXPECT_EQ(processIds.count("OVERLAP_ANALYSIS"), 1);
 }
 
 TEST_F(DbTraceDatabaseTest, TestQueryAclnnOpCountExceedThresholdWhenDbNotOpen) {

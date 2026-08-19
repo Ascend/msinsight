@@ -27,7 +27,7 @@ import { LineChart } from './LineChart';
 import { Session } from '../entity/session';
 import { MemorySession, GroupBy, type RangeFlagList } from '../entity/memorySession';
 import { memoryCurveGet } from '../utils/RequestUtils';
-import { getTimelineOffsetByKey } from '../connection/handler';
+import { getTimelineCardOffset } from '../connection/handler';
 import { Label } from './Common';
 import { FlexDiv } from '../utils/styleUtils';
 
@@ -188,7 +188,7 @@ const RangeFlagSelect = observer(({ memorySession, rankOffsetNs, callback }: { m
     }, [memorySession.rangeFlagList]);
 
     useEffect(() => {
-        getTimelineOffsetByKey();
+        getTimelineCardOffset();
     }, [memorySession.hostCondition.value, memorySession.rankCondition.value]);
 
     useEffect(() => {

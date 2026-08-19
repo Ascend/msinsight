@@ -135,6 +135,7 @@ export interface DataBlock {
     height?: number;
     rankId?: string;
     duration?: number;
+    metaType?: string;
 }
 export interface FlowEvent {
     category: string;
@@ -387,7 +388,7 @@ const getSingleFlow = async (session: Session): Promise<void> => {
         if (cardId === undefined || id === undefined) {
             return;
         }
-        const timestampOffset = getTimeOffset(session, { cardId, processId });
+        const timestampOffset = getTimeOffset(session, { cardId, processId, metaType });
         const startTimeWithOffset = timestampOffset + startTime;
         const raw = await getUnitFlows({
             dbPath,

@@ -28,7 +28,7 @@ import DynamicLineChart from '../DynamicLineChart';
 import { memoryCurveGet } from '../../utils/RequestUtils';
 import { LineChart } from '../LineChart';
 import { GroupBy } from '../../entity/memorySession';
-import { getTimelineOffsetByKey } from '../../connection/handler';
+import { getTimelineCardOffset } from '../../connection/handler';
 import { Label } from '../Common';
 import { FlexDiv } from '../../utils/styleUtils';
 
@@ -42,7 +42,7 @@ jest.mock('mobx', () => ({
 }));
 
 jest.mock('../../connection/handler', () => ({
-    getTimelineOffsetByKey: jest.fn((fn) => fn()),
+    getTimelineCardOffset: jest.fn((fn) => fn()),
 }));
 
 jest.mock('../Common', () => ({

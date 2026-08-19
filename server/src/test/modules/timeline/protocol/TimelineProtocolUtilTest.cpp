@@ -254,7 +254,6 @@ TEST_F(TimelineProtocolUtilTest, RankOffsetResponseSerializesWithNestedResultAnd
     Dic::Protocol::RankOffsetItem item;
     item.rankId = "rank1";
     item.offset = 100;
-    item.processId = {"pid1", "pid2"};
     response.body.successList.emplace_back(item);
 
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
@@ -268,6 +267,8 @@ TEST_F(TimelineProtocolUtilTest, RankOffsetResponseSerializesWithNestedResultAnd
     ASSERT_EQ(json["body"]["result"].Size(), 1);
     EXPECT_TRUE(json["body"]["result"][0].HasMember("rankId"));
     EXPECT_STREQ(json["body"]["result"][0]["rankId"].GetString(), "rank1");
+    EXPECT_EQ(json["body"]["result"][0]["offset"].GetInt64(), 100);
+    EXPECT_FALSE(json["body"]["result"][0].HasMember("processId"));
     EXPECT_FALSE(json["body"]["result"][0].HasMember("cardId"));
     EXPECT_FALSE(json["body"]["result"][0].HasMember("body"));
     ASSERT_TRUE(json["body"].HasMember("baseOffset"));

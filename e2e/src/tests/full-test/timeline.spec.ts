@@ -89,11 +89,18 @@ test.describe('Timeline', () => {
         await page.waitForTimeout(1500);
         const offsetBtn = timelineFrame.getByTestId('offset-btn').first();
         await offsetBtn.click();
-        const offsetInput = timelineFrame.getByRole('tooltip', { name: /Timestamp Offset/i }).getByRole('textbox');
-        await offsetInput.fill('300000000');
-        await offsetInput.press('Enter');
+        const tooltip = timelineFrame.getByRole('tooltip');
+        const hostInput = tooltip.getByRole('textbox', { name: 'Host Offset' });
+        const deviceInput = tooltip.getByRole('textbox', { name: 'Device Offset' });
+        await expect(hostInput).toBeVisible();
+        await expect(deviceInput).toBeVisible();
+        const deviceOffset = await deviceInput.inputValue();
+        await hostInput.fill('300000000');
+        await hostInput.press('Enter');
+        await expect(deviceInput).toHaveValue(deviceOffset);
         await offsetBtn.click();
         await page.mouse.move(0, 0);
+        await expect(secondUnitInfo.getByTestId('offset-btn')).toHaveCount(0);
         await expect(timelineFrame.locator('#main-container')).toHaveScreenshot('unit-offset.png', { maxDiffPixels: 100 });
     });
 

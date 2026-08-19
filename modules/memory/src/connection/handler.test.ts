@@ -18,6 +18,7 @@
 
 import { runInAction } from 'mobx';
 import i18n from '@insight/lib/i18n';
+import connector from './index';
 import {
     parseMemoryCompletedHandler,
     removeRemoteHandler,
@@ -27,6 +28,7 @@ import {
     deleteCardHandler,
     switchLanguageHandler,
     switchDirectoryHandler,
+    getTimelineCardOffset,
 } from './handler';
 import type { MemoryRankInfo } from '../entity/memory';
 import type { CardInfo, CardRankInfo } from '../entity/session';
@@ -51,6 +53,10 @@ jest.mock('../store', () => ({
 
 jest.mock('@insight/lib/i18n');
 jest.mock('@insight/lib/utils');
+jest.mock('./index', () => ({
+    __esModule: true,
+    default: { send: jest.fn() },
+}));
 
 const mockConsoleError = jest.fn();
 
@@ -61,7 +67,7 @@ Object.defineProperty(window, 'setTheme', {
 });
 
 // Create a helper to safely modify store properties
-const setStoreSession = (session: any) => {
+const setStoreSession = (session: any): void => {
     Object.defineProperty(store.sessionStore, 'activeSession', {
         value: session,
         writable: true,
@@ -69,7 +75,7 @@ const setStoreSession = (session: any) => {
     });
 };
 
-const setMemoryStoreSession = (session: any) => {
+const setMemoryStoreSession = (session: any): void => {
     Object.defineProperty(store.memoryStore, 'activeSession', {
         value: session,
         writable: true,
@@ -178,6 +184,29 @@ describe('removeRemoteHandler', () => {
         // No changes should be made
         expect(store.sessionStore.activeSession).toBeNull();
         spy.mockRestore();
+    });
+});
+
+describe('getTimelineCardOffset', () => {
+    it('requests the selected card Device offset without exposing an internal key', () => {
+        setMemoryStoreSession({
+            rankCondition: {
+                value: 0,
+                options: [{ rankInfo: { rankId: 'host0 7' } }],
+            },
+            selectedRankId: 'host0 7',
+        });
+
+        getTimelineCardOffset();
+
+        expect(connector.send).toHaveBeenCalledWith({
+            event: 'getTimelineCardOffset',
+            to: 'Timeline',
+            body: {
+                cardId: 'host0 7',
+                side: 'device',
+            },
+        });
     });
 });
 

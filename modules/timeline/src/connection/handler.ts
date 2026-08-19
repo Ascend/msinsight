@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { store } from '../store';
-import type { CardMetaData, ThreadMetaData, ThreadTrace, ThreadTraceRequest } from '../entity/data';
+import type { CardMetaData, ThreadMetaData, ThreadTrace } from '../entity/data';
 import { runInAction } from 'mobx';
 import { updateDataSourceAndParentMetaDataMap, recursiveExpandUnit, clearParentMap } from '../insight/units/unitFunc';
 import { setUnitPhaseByCardId, setUnitProgressByFileId } from '../entity/insight';
@@ -27,7 +27,8 @@ import { Session } from '../entity/session';
 import { ImportResult, NotificationHandler } from './defs';
 import connector from '../connection/index';
 import { message } from 'antd';
-import { getTimeOffset, getTimeOffsetKey, setTimeOffsetForUnitTree } from '../insight/units/utils';
+import { getTimeOffset } from '../insight/units/utils';
+import { getCardSideOffset, initializeCardOffsets } from '../insight/units/offset';
 import { calculateDomainRange } from '../components/CategorySearch';
 import i18n from '@insight/lib/i18n';
 import { forEach, groupBy, isEmpty, cloneDeep } from 'lodash';
@@ -166,30 +167,19 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
                     // 更新数据库路径和标签
                     updateDbPathAndLabelForCardUnit(unit, unitData);
                     (unit.metadata as CardMetaData).isFtrace = isFtrace;
-                    // 更新对齐开始时间戳
+                    // 更新卡默认对齐时间，并仅补充缺失的 Host/Device 偏移量
                     unit.alignStartTimestamp = unitData.offset as number;
-                    const nextOffset = { ...session.unitsConfig.offsetConfig.timestampOffset };
-                    setTimeOffsetForUnitTree(session, unitData.unit, unit.alignStartTimestamp, nextOffset);
-                    // 如果 unitData 的 children 不为空
-                    if (unitData.unit.children !== undefined && unitData.unit.children.length > 0) {
-                        for (const item of unitData.unit.children) {
-                            // 获取时间偏移键
-                            const key = getTimeOffsetKey(session, item.metadata);
-                            // 更新子项的对齐开始时间戳
-                            item.alignStartTimestamp = unit.alignStartTimestamp;
-                            session.unitsConfig.offsetConfig.timestampOffset[key] = unit.alignStartTimestamp;
-                        }
-                    }
-                    // 更新时间戳偏移配置
-                    session.unitsConfig.offsetConfig.timestampOffset = nextOffset;
+                    const nextOffset = initializeCardOffsets(
+                        session.unitsConfig.offsetConfig.timestampOffset,
+                        (unit.metadata as CardMetaData).cardId,
+                        unit.alignStartTimestamp,
+                    );
+                    session.replaceTimestampOffsets(nextOffset);
                     // 更新数据源和父元数据映射
                     updateDataSourceAndParentMetaDataMap(unitData.unit, (unit.metadata as CardMetaData).dataSource, !isGlobal);
                     // 根据是否为全局解析模式，决定是否将解析任务推入队列
                     const expandParsedUnits = (): void => {
                         recursiveExpandUnit(unitData.unit.children ?? [], unit, 0);
-                        const expandedOffset = { ...session.unitsConfig.offsetConfig.timestampOffset };
-                        setTimeOffsetForUnitTree(session, unit, unit.alignStartTimestamp, expandedOffset);
-                        session.unitsConfig.offsetConfig.timestampOffset = expandedOffset;
                     };
                     isGlobal ? session.parseQueue.push(expandParsedUnits) : expandParsedUnits();
                 }
@@ -1052,22 +1042,15 @@ export const allSuccessHandler: NotificationHandler = async (data): Promise<void
                 session.isParserLoading = false;
                 session.startTime = data.minTime as string;
             }
+            let nextOffsets = { ...session.unitsConfig.offsetConfig.timestampOffset };
             session.units.forEach((unit) => {
-                unit.alignStartTimestamp = offsetMap.get((unit.metadata as CardMetaData).cardId);
-                const prevObj = session.unitsConfig.offsetConfig.timestampOffset;
+                const cardId = (unit.metadata as CardMetaData).cardId;
+                unit.alignStartTimestamp = offsetMap.get(cardId);
                 if (unit.alignStartTimestamp !== undefined) {
-                    setTimeOffsetForUnitTree(session, unit, unit.alignStartTimestamp, prevObj);
-                    if (unit.children !== undefined && unit.children.length > 0) {
-                        for (const item of unit.children) {
-                            const key = getTimeOffsetKey(session, item.metadata as unknown as ThreadTraceRequest);
-                            item.alignStartTimestamp = unit.alignStartTimestamp;
-                            session.unitsConfig.offsetConfig.timestampOffset[key] = unit.alignStartTimestamp;
-                        }
-                    }
-                    session.unitsConfig.offsetConfig.timestampOffset = { ...prevObj, [(unit.metadata as CardMetaData).cardId]: (unit.alignStartTimestamp) };
+                    nextOffsets = initializeCardOffsets(nextOffsets, cardId, unit.alignStartTimestamp);
                 }
             });
-            session.updateEndTimeAll();
+            session.replaceTimestampOffsets(nextOffsets);
         });
     } catch (error) {
         console.error(error);
@@ -1110,21 +1093,24 @@ export const getTimelineRangeFlagListHandler: NotificationHandler = (): void => 
 };
 
 /**
- * 通过key获取timeline模块的rank偏移量，通过触发事件返回。
- * @param data.offsetKey 需要获取的偏移量的key。
+ * 获取指定卡分类的偏移量，通过事件返回。
+ * @param data.cardId 卡 ID。
+ * @param data.side 偏移分类，Memory 当前固定请求 Device。
  * @returns 无返回值。
  */
-export const getTimelineOffsetByKeyHandler: NotificationHandler = (data): void => {
+export const getTimelineCardOffsetHandler: NotificationHandler = (data): void => {
     const session = store.sessionStore.activeSession;
+    const cardId = data.cardId as string;
+    const side = data.side;
     if (session === undefined) {
         return;
     }
-
+    const offset = side === 'device' && cardId
+        ? getCardSideOffset(session, cardId, 'device')
+        : 0;
     connector.send({
         event: 'updateTimelineOffset',
         to: 'Memory',
-        body: {
-            offset: session.unitsConfig.offsetConfig.timestampOffset[(data as any).offsetKey],
-        },
+        body: { offset },
     });
 };

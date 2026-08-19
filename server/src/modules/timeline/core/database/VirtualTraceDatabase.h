@@ -90,11 +90,11 @@ class VirtualTraceDatabase : public Database {
     virtual bool SearchSliceName(const Protocol::SearchSliceParams &params, int index, uint64_t minTimestamp,
         Protocol::SearchSliceBody &responseBody, const std::vector<TrackQuery> &trackQuery) = 0;
     virtual bool QueryHostSlicesByName(const std::string &sliceName, const std::string &metaType,
-        std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) = 0;
+        std::vector<Protocol::SimpleSlice> &result) = 0;
     virtual bool QueryDeviceSlicesByName(const std::string &rankId, const std::string &sliceName,
-        const std::string &metaType, std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) = 0;
+        const std::string &metaType, std::vector<Protocol::SimpleSlice> &result) = 0;
     virtual bool QueryTextSlicesByName(const std::string &sliceName, const std::string &metaType,
-        std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) = 0;
+        std::vector<Protocol::SimpleSlice> &result) = 0;
     virtual bool QueryFlowCategoryList(std::vector<std::string> &categories, const std::string &rankId) = 0;
     virtual bool QueryUnitCounter(Protocol::UnitCounterParams &params, uint64_t minTimestamp,
         std::vector<Protocol::UnitCounterData> &dataList) = 0;

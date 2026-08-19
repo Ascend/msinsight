@@ -2,6 +2,8 @@
   "timeline": {
     "Align to Start": "Align to Start",
     "Timestamp Offset": "Timestamp Offset",
+    "Host Offset": "Host Offset",
+    "Device Offset": "Device Offset",
     "Slice Detail": "Slice Detail",
     "Slice List": "Slice List",
     "Find": "Find",
@@ -48,6 +50,7 @@
       "Recover cards default offset": "Recover cards default offset",
       "Set base slice": "Set base slice",
       "Clear base slice": "Clear base slice",
+      "Same Card Category Offset": "Slices in the same card and category share one offset.",
       "Time Alignment": "Time Alignment",
       "Align Left": "Align Left",
       "Align Right": "Align Right",

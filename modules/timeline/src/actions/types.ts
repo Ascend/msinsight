@@ -95,6 +95,5 @@ export interface Action {
     checked?: (session: Session) => boolean;
     subMode?: boolean;
     subMenus?: (session: Session) => ContextMenuItem[];
-    parentMenuKey?: string;
     style?: { [key: string]: any };
 }

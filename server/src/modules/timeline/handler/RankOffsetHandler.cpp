@@ -32,7 +32,6 @@ struct FailedRank {
 
 struct SortedSliceQuery {
     std::vector<Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
 };
 
 namespace {
@@ -84,13 +83,13 @@ std::string BuildFailedRanksMessage(const std::vector<FailedRank> &failedRanks) 
 bool QuerySlicesByName(VirtualTraceDatabase &db, const std::string &rankId, const std::string &sliceName,
     const std::string &metaType, RankOffsetSide side, SortedSliceQuery &query) {
     if (metaType == "TEXT") {
-        return db.QueryTextSlicesByName(sliceName, metaType, query.slices, query.processIds);
+        return db.QueryTextSlicesByName(sliceName, metaType, query.slices);
     }
     if (side == RankOffsetSide::HOST) {
-        return db.QueryHostSlicesByName(sliceName, metaType, query.slices, query.processIds);
+        return db.QueryHostSlicesByName(sliceName, metaType, query.slices);
     }
     if (side == RankOffsetSide::DEVICE) {
-        return db.QueryDeviceSlicesByName(rankId, sliceName, metaType, query.slices, query.processIds);
+        return db.QueryDeviceSlicesByName(rankId, sliceName, metaType, query.slices);
     }
     return true;
 }
@@ -252,7 +251,6 @@ void RankOffsetHandler::ProcessTargetRank(const std::string &targetRankId, const
     RankOffsetItem item;
     item.rankId = targetRankId;
     item.offset = offset;
-    item.processId.assign(query.processIds.begin(), query.processIds.end());
     successList.push_back(item);
 }
 

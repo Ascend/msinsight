@@ -11,7 +11,7 @@
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
- * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
+ * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
@@ -23,7 +23,12 @@ import { register } from './register';
 import type { Session } from '../entity/session';
 import type { ThreadMetaData } from '../entity/data';
 import type { InsightUnit } from '../entity/insight';
-import { getTimeOffsetKey } from '../insight/units/utils';
+import {
+    getCardOffsetKey,
+    getCardSideOffset,
+    getOffsetSide,
+    type OffsetSide,
+} from '../insight/units/offset';
 import { queryTimelineOffset } from '../api/request';
 import type {
     QueryTimelineOffsetParams,
@@ -36,6 +41,11 @@ const ALIGN_TYPE = {
     RIGHT: 'RIGHT',
 } as const;
 
+interface AlignmentApplication {
+    selectedSide: OffsetSide;
+    offsetDelta: number;
+}
+
 function getSelectedUnit(session: Session): InsightUnit | undefined {
     if (session.selectedDataUnit !== undefined) {
         return session.selectedDataUnit;
@@ -44,10 +54,7 @@ function getSelectedUnit(session: Session): InsightUnit | undefined {
         return session.selectedUnits[0];
     }
     const selectedData = session.selectedData;
-    if (!selectedData?.cardId) {
-        return undefined;
-    }
-    if (!selectedData.processId) {
+    if (!selectedData?.cardId || !selectedData.processId) {
         return undefined;
     }
     return session.units.find((unit) => {
@@ -56,36 +63,32 @@ function getSelectedUnit(session: Session): InsightUnit | undefined {
     });
 }
 
-function applyOffsetItems(session: Session, items: TimelineOffsetItem[], offsetDelta: number): void {
-    const nextOffset = { ...session.unitsConfig.offsetConfig.timestampOffset };
-    items.forEach(({ rankId, offset, processId }) => {
-        if (!rankId) {
-            return;
-        }
-        if (!Number.isFinite(offset)) {
-            return;
-        }
-        if (!Array.isArray(processId)) {
-            return;
-        }
-        if (processId.length === 0) {
-            return;
-        }
-        processId.forEach((pid) => {
-            const key = getTimeOffsetKey(session, { cardId: rankId, processId: pid });
-            nextOffset[key] = offset + offsetDelta;
-        });
+export function applyAlignmentResult(
+    session: Session,
+    items: TimelineOffsetItem[],
+    application: AlignmentApplication,
+): boolean {
+    const validItems = items.filter(({ rankId, offset }) => Boolean(rankId) && Number.isFinite(offset));
+    if (validItems.length === 0) {
+        return false;
+    }
+
+    const nextOffsets = { ...session.unitsConfig.offsetConfig.timestampOffset };
+    validItems.forEach(({ rankId, offset }) => {
+        nextOffsets[getCardOffsetKey(session, {
+            cardId: rankId,
+            side: application.selectedSide,
+        })] = offset + application.offsetDelta;
     });
-    session.setTimestampOffsetAll(nextOffset);
+    session.replaceTimestampOffsets(nextOffsets);
+    return true;
 }
 
 function getSelectedOffsetDelta(session: Session, params: QueryTimelineOffsetParams, baseOffset: number): number {
     if (!Number.isFinite(baseOffset)) {
         return 0;
     }
-    const offsetKey = getTimeOffsetKey(session, { cardId: params.rankId, processId: params.pid });
-    const currentOffset = session.unitsConfig.offsetConfig.timestampOffset[offsetKey] ?? 0;
-    return currentOffset - baseOffset;
+    return getCardSideOffset(session, params.rankId, getOffsetSide(params.metaType)) - baseOffset;
 }
 
 function buildRequestParams(session: Session, alignType: TimelineAlignmentType): QueryTimelineOffsetParams | undefined {
@@ -99,31 +102,16 @@ function buildRequestParams(session: Session, alignType: TimelineAlignmentType):
     const metaType = selectedData?.metaType ?? metadata?.metaType;
     const startTime = selectedData?.rawStartTime;
     const duration = selectedData?.duration;
-    if (!sliceName) {
-        return undefined;
-    }
-    if (!rankId) {
-        return undefined;
-    }
-    if (!fileId) {
-        return undefined;
-    }
-    if (!pid) {
-        return undefined;
-    }
-    if (!metaType) {
-        return undefined;
-    }
-    if (!startTime) {
-        return undefined;
-    }
-    if (duration === undefined || !Number.isFinite(duration)) {
+    if (!sliceName || !rankId || !fileId || !pid || !metaType || !startTime || duration === undefined || !Number.isFinite(duration)) {
         return undefined;
     }
     return { sliceName, rankId, fileId, pid, metaType, startTime, duration, alignType };
 }
 
-async function alignByOperator(session: Session, alignType: TimelineAlignmentType): Promise<void> {
+async function alignByOperator(
+    session: Session,
+    alignType: TimelineAlignmentType,
+): Promise<void> {
     const params = buildRequestParams(session, alignType);
     if (!params) {
         message.warning(i18n.t('timeline:contextMenu.AlignOperatorRawStartNotReady'));
@@ -133,8 +121,10 @@ async function alignByOperator(session: Session, alignType: TimelineAlignmentTyp
     try {
         const res = await queryTimelineOffset(params);
         runInAction(() => {
-            const offsetDelta = getSelectedOffsetDelta(session, params, res.baseOffset);
-            applyOffsetItems(session, res.result, offsetDelta);
+            applyAlignmentResult(session, res.result, {
+                selectedSide: getOffsetSide(params.metaType),
+                offsetDelta: getSelectedOffsetDelta(session, params, res.baseOffset),
+            });
         });
     } catch {
     } finally {
@@ -152,21 +142,15 @@ const isOperatorAlignVisible = (session: Session): boolean => {
 export const actionAlignByOperatorLeft = register({
     name: 'alignByOperatorLeft',
     label: 'timeline:contextMenu.Align Left',
-    parentMenuKey: 'alignByOperator',
     visible: isOperatorAlignVisible,
-    perform: (session): void => {
-        void alignByOperator(session, ALIGN_TYPE.LEFT);
-    },
+    perform: (session): void => { void alignByOperator(session, ALIGN_TYPE.LEFT); },
 });
 
 export const actionAlignByOperatorRight = register({
     name: 'alignByOperatorRight',
     label: 'timeline:contextMenu.Align Right',
-    parentMenuKey: 'alignByOperator',
     visible: isOperatorAlignVisible,
-    perform: (session): void => {
-        void alignByOperator(session, ALIGN_TYPE.RIGHT);
-    },
+    perform: (session): void => { void alignByOperator(session, ALIGN_TYPE.RIGHT); },
 });
 
 export const actionAlignByOperator = register({
