@@ -22,8 +22,11 @@ import {
     findLifecycleBlockMarkerAtMemory,
     getLifecycleMemoryMarkerColor,
     getLifecycleMemoryMarkerContextKey,
+    getLifecycleMemoryMarkerLabel,
     getLifecycleMemoryMarkerOrdinal,
     getLifecycleMemoryMarkerSource,
+    updateLifecycleMemoryMarkerColor,
+    updateLifecycleMemoryMarkerPresentation,
 } from '../lifecycleMemoryMarkers';
 import { Session } from '../session';
 
@@ -87,6 +90,27 @@ describe('lifecycleMemoryMarkers', () => {
         expect(addLifecycleMemoryMarker(markers, 128, 'same-custom', undefined, 4, 'custom')).toBe(markers);
     });
 
+    it('updates marker colors without changing identity', () => {
+        const markers = [
+            { id: 'custom', memoryBytes: 128, source: 'custom' as const, ordinal: 1, color: '#8C8C8C' },
+            { id: 'other', memoryBytes: 256, source: 'custom' as const, ordinal: 2, color: '#4C7DFF' },
+        ];
+        expect(updateLifecycleMemoryMarkerColor(markers, 'custom', '#00aa00')
+            .find(marker => marker.id === 'custom')?.color).toBe('#00AA00');
+        expect(updateLifecycleMemoryMarkerColor(markers, 'custom', 'invalid')).toBe(markers);
+    });
+
+    it('keeps stable identity while renaming and temporarily hiding a marker', () => {
+        const markers = addLifecycleMemoryMarker([], 128, 'flag');
+        const updated = updateLifecycleMemoryMarkerPresentation(markers, 'flag', {
+            name: '  Peak memory  ',
+            hidden: true,
+        });
+        expect(updated[0]).toMatchObject({ ordinal: 1, name: 'Peak memory', hidden: true });
+        expect(getLifecycleMemoryMarkerLabel(updated[0], 0)).toBe('Peak memory');
+        expect(updateLifecycleMemoryMarkerPresentation(updated, 'flag', { name: '' })[0].name).toBeUndefined();
+    });
+
     it('isolates session markers and clears them during session cleanup', () => {
         const session = new Session();
         session.fileHash = 'snapshot';
@@ -98,6 +122,10 @@ describe('lifecycleMemoryMarkers', () => {
         session.addLifecycleMemoryMarker(256, 'device-1');
         session.deviceId = '0';
         expect(session.getLifecycleMemoryMarkers().map(marker => marker.id)).toEqual(['device-0']);
+        session.clearCurrentLifecycleMemoryMarkers();
+        expect(session.getLifecycleMemoryMarkers()).toEqual([]);
+        session.deviceId = '1';
+        expect(session.getLifecycleMemoryMarkers().map(marker => marker.id)).toEqual(['device-1']);
         session.clearLifecycleMemoryMarkers();
         expect(session.getLifecycleMemoryMarkers()).toEqual([]);
     });

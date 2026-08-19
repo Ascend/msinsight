@@ -16,6 +16,8 @@ export interface LifecycleMemoryMarker {
     ordinal?: number;
     source?: LifecycleMemoryMarkerSource;
     blockId?: number;
+    name?: string;
+    hidden?: boolean;
 }
 
 export const DEFAULT_LIFECYCLE_MEMORY_MARKER_COLOR = '#8C8C8C';
@@ -65,6 +67,15 @@ export const getLifecycleMemoryMarkerColor = (
 export const getLifecycleMemoryMarkerSource = (
     marker: LifecycleMemoryMarker,
 ): LifecycleMemoryMarkerSource => marker.source ?? 'custom';
+
+export const getLifecycleMemoryMarkerLabel = (
+    marker: LifecycleMemoryMarker,
+    fallbackIndex: number,
+): string => {
+    const numberedLabel = `Flag ${getLifecycleMemoryMarkerOrdinal(marker, fallbackIndex)}`;
+    const name = marker.name?.trim();
+    return name === undefined || name === '' ? numberedLabel : name;
+};
 
 export const findLifecycleBlockMarkerAtMemory = (
     markers: LifecycleMemoryMarker[],
@@ -148,3 +159,27 @@ export const deleteLifecycleMemoryMarker = (
     markers: LifecycleMemoryMarker[],
     id: string,
 ): LifecycleMemoryMarker[] => markers.filter(marker => marker.id !== id);
+
+export const updateLifecycleMemoryMarkerColor = (
+    markers: LifecycleMemoryMarker[],
+    id: string,
+    color: string,
+): LifecycleMemoryMarker[] => {
+    if (!/^#[0-9a-f]{6}$/i.test(color)) {
+        return markers;
+    }
+    return markers.map(marker => marker.id === id ? { ...marker, color: color.toUpperCase() } : marker);
+};
+
+export const updateLifecycleMemoryMarkerPresentation = (
+    markers: LifecycleMemoryMarker[],
+    id: string,
+    updates: { name?: string; hidden?: boolean },
+): LifecycleMemoryMarker[] => {
+    const marker = markers.find(item => item.id === id);
+    if (marker === undefined) return markers;
+    const name = updates.name === undefined ? marker.name : updates.name.trim().slice(0, 40) || undefined;
+    const hidden = updates.hidden === undefined ? marker.hidden : updates.hidden;
+    if (name === marker.name && hidden === marker.hidden) return markers;
+    return markers.map(item => item.id === id ? { ...item, name, hidden } : item);
+};
