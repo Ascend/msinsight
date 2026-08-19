@@ -23,6 +23,7 @@ import { Button, Select } from '@insight/lib/components';
 import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
+import backIcon from '../icons/back.svg';
 
 const Container = styled.div`
     display: inline-flex;
@@ -34,7 +35,7 @@ const Container = styled.div`
     }
 
     .settings-drawer .ant-drawer-content {
-        background: ${(props): string => props.theme.bgColorLight};
+        background: ${(props): string => props.theme.bgColor};
     }
 
     .settings-drawer.ant-drawer-right {
@@ -45,8 +46,8 @@ const Container = styled.div`
 
     .settings-drawer .ant-drawer-header {
         padding: 14px 16px;
-        border-bottom: 1px solid ${(props): string => props.theme.borderColor};
-        background: ${(props): string => props.theme.bgColorLight};
+        border-bottom: 0;
+        background: ${(props): string => props.theme.bgColor};
     }
 
     .settings-drawer .ant-drawer-title,
@@ -54,9 +55,40 @@ const Container = styled.div`
         color: ${(props): string => props.theme.textColorPrimary};
     }
 
+    .settings-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 32px;
+    }
+
+    .settings-back {
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusCircle};
+        padding: 0;
+        background: ${(props): string => props.theme.bgColorDark};
+        cursor: pointer;
+    }
+
+    .settings-back img {
+        width: 16px;
+        height: 16px;
+        filter: ${(props): string => props.theme.mode === 'dark' ? 'invert(1)' : 'none'};
+        opacity: 0.45;
+    }
+
     .settings-drawer .ant-drawer-body {
         padding: 12px 14px 16px;
-        background: ${(props): string => props.theme.bgColorLight};
+        background: ${(props): string => props.theme.bgColor};
     }
 
     .panel {
@@ -435,14 +467,22 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
             <span className="settings-trigger" onClick={() => setOpen(true)}>{trigger}</span>
             <Drawer
                 className="settings-drawer"
+                closable={false}
                 getContainer={false}
                 mask
                 maskClosable
                 onClose={() => setOpen(false)}
                 open={open}
                 placement="right"
-                title={t('agentRuntimeSettings')}
-                width={420}
+                title={(
+                    <div className="settings-header">
+                        <button aria-label={t('back')} className="settings-back" onClick={() => setOpen(false)} type="button">
+                            <img alt="" src={backIcon} />
+                        </button>
+                        <span>{t('agentRuntimeSettings')}</span>
+                    </div>
+                )}
+                width="100%"
                 zIndex={1200}
             >
                 <div className="panel">

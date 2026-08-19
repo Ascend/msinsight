@@ -44,6 +44,12 @@ const Container = styled.div`
         box-shadow: 0 2px 8px rgba(91, 83, 255, 0.06);
     }
 
+    .composer-box.has-attachments {
+        height: auto;
+        min-height: 180px;
+        grid-template-rows: minmax(40px, 1fr) auto auto;
+    }
+
     .attachments {
         display: flex;
         flex-wrap: wrap;
@@ -380,7 +386,7 @@ export const Composer = (): JSX.Element => {
                     ))}
                 </div>
             ) : null}
-            <div className="composer-box">
+            <div className={`composer-box${images.length ? ' has-attachments' : ''}`}>
                 <div className="command-wrap">
                     {showCommandMenu ? (
                         <div className="command-menu">

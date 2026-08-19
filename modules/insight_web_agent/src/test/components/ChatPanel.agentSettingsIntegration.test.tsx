@@ -194,7 +194,7 @@ test('settings save success preserves visible messages, applies agent state from
     expect(await screen.findByText(previousAssistantReply)).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
-    expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
+    expect(await screen.findByText('Agent Configuration')).toBeVisible();
     fireEvent.change(await screen.findByLabelText('Command'), { target: { value: 'opencode-updated' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -234,7 +234,7 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     expect(screen.getByLabelText('current session')).toHaveTextContent('session-open');
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
-    expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
+    expect(await screen.findByText('Agent Configuration')).toBeVisible();
     fireEvent.change(await screen.findByLabelText('Agent to edit'), { target: { value: 'Claude' } });
     fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));

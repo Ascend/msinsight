@@ -112,7 +112,7 @@ test('settings entry opens and displays current config snapshot', async () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
 
-    expect(await screen.findByText('Agent Runtime Settings')).toBeVisible();
+    expect(await screen.findByText('Agent Configuration')).toBeVisible();
     expect(mockFetchAgentConfig).toHaveBeenCalledTimes(1);
     expect(screen.getByLabelText('Agent to edit')).toHaveValue('OpenCode');
     expect(screen.getByLabelText('Command')).toHaveValue('opencode');
@@ -133,7 +133,7 @@ test('switches to edited non-active existing agent on save', async () => {
 
     render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
 
     fireEvent.change(screen.getByLabelText('Agent to edit'), { target: { value: 'Claude' } });
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude-code' } });
@@ -164,7 +164,7 @@ test('switches to edited non-active existing agent on save', async () => {
 test('rejects empty args before save', async () => {
     render(<ChatPanel />);
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
 
     fireEvent.change(screen.getByDisplayValue('acp'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -176,7 +176,7 @@ test('rejects empty args before save', async () => {
 test('adds a new agent and saves without switching by default', async () => {
     render(<ChatPanel />);
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
 
     fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
     fireEvent.change(screen.getByLabelText('New agent name'), { target: { value: 'Claude' } });
@@ -193,7 +193,7 @@ test('adds a new agent and saves without switching by default', async () => {
 test('removes the last existing env row and saves an empty env object', async () => {
     render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove env 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -207,7 +207,7 @@ test('removes the last existing env row and saves an empty env object', async ()
 test('adds draft agent args and multiple env rows when saving and switching to the new agent', async () => {
     render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
 
     fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
     fireEvent.change(screen.getByLabelText('New agent name'), { target: { value: 'Claude' } });
@@ -242,7 +242,7 @@ test('adds draft agent args and multiple env rows when saving and switching to t
 test('adds and removes multiple extra path rows before save', async () => {
     render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
 
     fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add path' }));
@@ -270,7 +270,7 @@ test('shows a clear busy message and disables save while a prompt is in flight',
 
     render(<ChatPanel />);
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
 
     expect(screen.getByText('Agent is busy. Wait for the current prompt to finish before saving settings.')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -300,7 +300,7 @@ test('settings save and reload keep the messages list untouched', async () => {
     expect(screen.getByText('messages')).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
-    await screen.findByText('Agent Runtime Settings');
+    await screen.findByText('Agent Configuration');
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
