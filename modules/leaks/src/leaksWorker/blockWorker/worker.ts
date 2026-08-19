@@ -155,6 +155,9 @@ const WorkerBackend = {
     transform({ transform }: Omit<TransformPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'transform', transform });
     },
+    setMarkerHoverHighlight({ active, blockId, blockIds }: Omit<SetMarkerHoverHighlightPayload, 'type'>): void {
+        BlockWorker.postMessage({ type: 'setMarkerHoverHighlight', active, blockId, blockIds });
+    },
     hoverItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'hoverItem', clientX, clientY });
     },
@@ -214,6 +217,11 @@ const MainThreadBackend = {
     transform({ transform }: Omit<TransformPayload, 'type'>): void {
         mainThreadRender.transformHandler({ transform });
     },
+    async setMarkerHoverHighlight(
+        { active, blockId, blockIds }: Omit<SetMarkerHoverHighlightPayload, 'type'>,
+    ): Promise<void> {
+        await mainThreadRender.setMarkerHoverHighlightHandler({ active, blockId, blockIds });
+    },
     hoverItem({ clientX, clientY }: Omit<HoverItemPayload, 'type'>): void {
         mainThreadRender.hoverItemHandler({ clientX, clientY });
     },
@@ -247,6 +255,7 @@ export const workerSetMemoryBlockData = backend.setMemoryBlockData;
 export const workerSetReservedLine = backend.setReservedLine;
 export const workerResizeCanvas = backend.resizeCanvas;
 export const workerTransform = backend.transform;
+export const workerSetMarkerHoverHighlight = backend.setMarkerHoverHighlight;
 export const workerHoverItem = backend.hoverItem;
 export const workerClickItem = backend.clickItem;
 export const workerSelectItem = backend.selectItem;

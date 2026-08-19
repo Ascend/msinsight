@@ -23,6 +23,7 @@ import {
     deleteLifecycleMemoryMarker,
     getLifecycleMemoryMarkerContextKey,
     type LifecycleMemoryMarker,
+    type LifecycleMemoryMarkerSource,
 } from './lifecycleMemoryMarkers';
 interface TypeOption {
     label: string | number;
@@ -219,7 +220,9 @@ export class Session {
     addLifecycleMemoryMarker(
         memoryBytes: number,
         id: string,
+        source: LifecycleMemoryMarkerSource = 'custom',
         color?: string,
+        blockId?: number,
     ): boolean {
         const contextKey = this.getLifecycleMemoryMarkerContextKey();
         const currentMarkers = this.lifecycleMemoryMarkers.get(contextKey) ?? [];
@@ -233,6 +236,8 @@ export class Session {
             id,
             color,
             nextOrdinal,
+            source,
+            blockId,
         );
         if (nextMarkers === currentMarkers) {
             return false;

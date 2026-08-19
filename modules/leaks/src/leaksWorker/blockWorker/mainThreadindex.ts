@@ -72,6 +72,9 @@ export class MainThreadRender {
     renderer: NativeRenderer | null = null;
     hoverItem: Block | null = null;
     clickItem: Block | null = null;
+    markerHoverBlocks: Block[] = [];
+    markerHoverActive: boolean = false;
+    markerHoverVersion: number = 0;
     hoverSearchVersion: number = 0;
     activeDataGeneration: number = 0;
     storageReadyGeneration: number = 0;
@@ -425,6 +428,40 @@ export class MainThreadRender {
         this.renderer?.setTransform(this.transform);
     }
 
+    async setMarkerHoverHighlightHandler(
+        payload: Omit<SetMarkerHoverHighlightPayload, 'type'>,
+    ): Promise<void> {
+        const requestVersion = ++this.markerHoverVersion;
+        this.markerHoverActive = payload.active;
+        let nextMarkerHoverBlocks: Block[] = [];
+        if (payload.active) {
+            this.hoverSearchVersion++;
+            this.debouncedSearchBlockData.cancel();
+            this.hoverItem = null;
+            runInAction(() => {
+                this.session.leaksWorkerInfo.hoverItem = null;
+            });
+            const blockIds = Array.from(new Set([
+                ...(payload.blockIds ?? []),
+                ...(payload.blockId === undefined ? [] : [payload.blockId]),
+            ]));
+            if (this.useOpfs && this.blockDataOPFS) {
+                const resolvedBlocks = await Promise.all(
+                    blockIds.map(blockId => this.blockDataOPFS.findBlockById(blockId)),
+                );
+                nextMarkerHoverBlocks = resolvedBlocks.filter((block): block is Block => block !== null);
+            } else if (blockIds.length > 0) {
+                const blockIdSet = new Set(blockIds);
+                nextMarkerHoverBlocks = this.memoryBlockData?.blocks?.filter(block => blockIdSet.has(block.id)) ?? [];
+            }
+        }
+        if (requestVersion !== this.markerHoverVersion) {
+            return;
+        }
+        this.markerHoverBlocks = nextMarkerHoverBlocks;
+        await this.renderHighlightData();
+    }
+
     debouncedSearchBlockData = debounce(async (
         payload: Omit<HoverItemPayload, 'type'>,
         requestVersion: number,
@@ -492,7 +529,12 @@ export class MainThreadRender {
         if (this.hoverItem !== null && this.hoverItem.id !== this.clickItem?.id) {
             result.push(this.hoverItem);
         }
-        this.renderer?.setBaseDimmed(this.clickItem !== null, false);
+        for (const markerHoverBlock of this.markerHoverBlocks) {
+            if (!result.some(block => block.id === markerHoverBlock.id)) {
+                result.push(markerHoverBlock);
+            }
+        }
+        this.renderer?.setBaseDimmed(this.clickItem !== null || this.markerHoverActive, false);
         this.renderer?.setHighlightData(result, render);
     }
 
@@ -515,6 +557,9 @@ export class MainThreadRender {
         this.zoom = { x: 1, y: 1, offset: 0 };
         this.hoverItem = null;
         this.clickItem = null;
+        this.markerHoverBlocks = [];
+        this.markerHoverActive = false;
+        this.markerHoverVersion++;
         runInAction(() => {
             this.session.leaksWorkerInfo.sizeInfo = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0 };
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;

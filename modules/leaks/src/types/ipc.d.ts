@@ -69,6 +69,13 @@ interface TransformPayload {
     transform: RenderOptions['transform'];
 };
 
+interface SetMarkerHoverHighlightPayload {
+    type: 'setMarkerHoverHighlight';
+    active: boolean;
+    blockId?: number;
+    blockIds?: number[];
+}
+
 interface HoverItemPayload {
     type: 'hoverItem';
     clientX: number;
@@ -114,6 +121,7 @@ type Payload =
     | SetReservedLinePayload
     | ResizeCanvasPayload
     | TransformPayload
+    | SetMarkerHoverHighlightPayload
     | HoverItemPayload
     | ClickItemPayload
     | SelectBlockItemPayload
