@@ -367,7 +367,6 @@ export interface QueryTimelineOffsetParams {
 export interface TimelineOffsetItem {
     rankId: string;
     offset: number;
-    processId: string[];
 }
 
 export interface QueryTimelineOffsetResult {

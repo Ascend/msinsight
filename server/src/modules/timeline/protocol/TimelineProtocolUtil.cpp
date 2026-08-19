@@ -1047,11 +1047,6 @@ template <> std::optional<document_t> ToResponseJson<RankOffsetResponse>(const R
         json_t itemJson(kObjectType);
         JsonUtil::AddMember(itemJson, "rankId", item.rankId, allocator);
         JsonUtil::AddMember(itemJson, "offset", item.offset, allocator);
-        json_t pidArray(kArrayType);
-        for (const auto &pid : item.processId) {
-            pidArray.PushBack(rapidjson::Value(pid.c_str(), allocator), allocator);
-        }
-        JsonUtil::AddMember(itemJson, "processId", pidArray, allocator);
         successArray.PushBack(itemJson, allocator);
     }
     json_t body(kObjectType);

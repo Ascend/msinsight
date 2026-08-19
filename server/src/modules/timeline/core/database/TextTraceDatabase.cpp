@@ -1406,109 +1406,8 @@ bool TextTraceDatabase::SearchSliceName(const Protocol::SearchSliceParams &param
     return true;
 }
 
-namespace {
-
-bool IsNpuCounterName(const std::string &name) {
-    const std::string lowerName = StringUtil::ToLower(name);
-    return StringUtil::Contains(lowerName, "npu") || StringUtil::Contains(lowerName, "hbm") ||
-        StringUtil::Contains(lowerName, "llc") || StringUtil::Contains(lowerName, "ai core") ||
-        StringUtil::Contains(lowerName, "acc_pmu") || StringUtil::Contains(lowerName, "stars") ||
-        StringUtil::Contains(lowerName, "qos") || StringUtil::Contains(lowerName, "ddr") ||
-        StringUtil::Contains(lowerName, "pcie") || StringUtil::Contains(lowerName, "nic") ||
-        StringUtil::Contains(lowerName, "hccs") || StringUtil::Contains(lowerName, "sample_pmu");
-}
-
-bool TextHasNpuMetrics(TextTraceDatabase &database) {
-    if (!database.CheckTableExist("counter")) {
-        return false;
-    }
-    auto stmt = database.CreatPreparedStatement("SELECT DISTINCT name FROM counter");
-    if (stmt == nullptr) {
-        ServerLog::Error("Query text NPU metrics process id failed to prepare sql.");
-        return false;
-    }
-    auto resultSet = stmt->ExecuteQuery();
-    if (resultSet == nullptr) {
-        ServerLog::Error("Query text NPU metrics process id failed to get result set.", stmt->GetErrorMessage());
-        return false;
-    }
-    while (resultSet->Next()) {
-        if (IsNpuCounterName(resultSet->GetString("name"))) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool LoadTextDeviceProcessIdsFromProcess(TextTraceDatabase &database, std::set<std::string> &allProcessIds,
-    std::set<std::string> &deviceProcessIds) {
-    if (!database.CheckTableExist("process")) {
-        return true;
-    }
-    auto stmt = database.CreatPreparedStatement("SELECT pid, label FROM process");
-    if (stmt == nullptr) {
-        ServerLog::Error("Query text rank offset process side failed to prepare process sql.");
-        return false;
-    }
-    auto resultSet = stmt->ExecuteQuery();
-    if (resultSet == nullptr) {
-        ServerLog::Error("Query text rank offset process side failed to get process result set.", stmt->GetErrorMessage());
-        return false;
-    }
-    while (resultSet->Next()) {
-        std::string pid = resultSet->GetString("pid");
-        if (pid.empty()) {
-            continue;
-        }
-        allProcessIds.insert(pid);
-        if (resultSet->GetString("label") != "CPU") {
-            deviceProcessIds.insert(pid);
-        }
-    }
-    return true;
-}
-
-bool CollectSameSideTextProcessIds(TextTraceDatabase &database, const std::string &threadTable,
-    const std::set<std::string> &selectedProcessIds, std::set<std::string> &processIds) {
-    std::set<std::string> allProcessIds;
-    std::set<std::string> deviceProcessIds;
-    if (!LoadTextDeviceProcessIdsFromProcess(database, allProcessIds, deviceProcessIds)) {
-        return false;
-    }
-    if (allProcessIds.empty()) {
-        processIds.insert(selectedProcessIds.begin(), selectedProcessIds.end());
-        return true;
-    }
-
-    bool selectedProcessInMetadata = false;
-    bool selectedDeviceSide = false;
-    for (const auto &pid : selectedProcessIds) {
-        if (allProcessIds.count(pid) == 0) {
-            continue;
-        }
-        selectedProcessInMetadata = true;
-        if (deviceProcessIds.count(pid) != 0) {
-            selectedDeviceSide = true;
-            break;
-        }
-    }
-    if (!selectedProcessInMetadata) {
-        processIds.insert(selectedProcessIds.begin(), selectedProcessIds.end());
-        return true;
-    }
-    for (const auto &pid : allProcessIds) {
-        bool isDevicePid = deviceProcessIds.count(pid) != 0;
-        if (isDevicePid == selectedDeviceSide) {
-            processIds.insert(pid);
-        }
-    }
-    return true;
-}
-
-} // namespace
-
 bool TextTraceDatabase::QueryHostSlicesByName(const std::string &sliceName, const std::string &metaType,
-    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    std::vector<Protocol::SimpleSlice> &result) {
     if (metaType != "PYTORCH_API_PYTHON_STACK") {
         return true;
     }
@@ -1526,7 +1425,6 @@ bool TextTraceDatabase::QueryHostSlicesByName(const std::string &sliceName, cons
         ServerLog::Error("Query text python stack slices by name failed to get result set.", stmt->GetErrorMessage());
         return false;
     }
-    std::set<std::string> selectedProcessIds;
     while (resultSet->Next()) {
         Protocol::SimpleSlice slice;
         slice.name = sliceName;
@@ -1535,28 +1433,22 @@ bool TextTraceDatabase::QueryHostSlicesByName(const std::string &sliceName, cons
         slice.timestamp = resultSet->GetUint64("timestamp");
         slice.duration = resultSet->GetUint64("duration");
         slice.id = resultSet->GetUint64("id");
-        selectedProcessIds.insert(slice.pid);
         result.emplace_back(slice);
-    }
-    return CollectSameSideTextProcessIds(*this, threadTable, selectedProcessIds, processIds);
-}
-
-bool TextTraceDatabase::QueryDeviceSlicesByName(const std::string &rankId, const std::string &sliceName,
-    const std::string &metaType, std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
-    (void)rankId;
-    (void)sliceName;
-    (void)result;
-    if (metaType == "OVERLAP_ANALYSIS") {
-        processIds.insert("OVERLAP_ANALYSIS");
-    }
-    if (metaType == "NPU_METRICS" || TextHasNpuMetrics(*this)) {
-        processIds.insert(NPU_METRICS_PROCESS_ID);
     }
     return true;
 }
 
+bool TextTraceDatabase::QueryDeviceSlicesByName(const std::string &rankId, const std::string &sliceName,
+    const std::string &metaType, std::vector<Protocol::SimpleSlice> &result) {
+    (void)rankId;
+    (void)sliceName;
+    (void)metaType;
+    (void)result;
+    return true;
+}
+
 bool TextTraceDatabase::QueryTextSlicesByName(const std::string &sliceName, const std::string &metaType,
-    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    std::vector<Protocol::SimpleSlice> &result) {
     if (metaType != "TEXT") {
         return true;
     }
@@ -1574,7 +1466,6 @@ bool TextTraceDatabase::QueryTextSlicesByName(const std::string &sliceName, cons
         ServerLog::Error("Query text slices by name failed to get result set.", stmt->GetErrorMessage());
         return false;
     }
-    std::set<std::string> selectedProcessIds;
     while (resultSet->Next()) {
         Protocol::SimpleSlice slice;
         slice.name = sliceName;
@@ -1583,10 +1474,9 @@ bool TextTraceDatabase::QueryTextSlicesByName(const std::string &sliceName, cons
         slice.timestamp = resultSet->GetUint64("timestamp");
         slice.duration = resultSet->GetUint64("duration");
         slice.id = resultSet->GetUint64("id");
-        selectedProcessIds.insert(slice.pid);
         result.emplace_back(slice);
     }
-    return CollectSameSideTextProcessIds(*this, threadTable, selectedProcessIds, processIds);
+    return true;
 }
 
 bool TextTraceDatabase::QueryFlowCategoryList(std::vector<std::string> &categories, const std::string &rankId) {

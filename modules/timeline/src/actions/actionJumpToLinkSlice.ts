@@ -38,15 +38,13 @@ function getMenuBySlices(mapValue: MapValueOfLinkLines, linkType: 'from' | 'to')
     }
     const menuItems: ContextMenuItem[] = [];
     const label = `timeline:contextMenu.${linkType === 'to' ? 'To' : 'From'}`;
-    const parentMenuKey = 'jumpToLinkSlice';
-    menuItems.push(register({ name: '' as ActionName, label, parentMenuKey, disabled: () => true, perform: () => {} }), CONTEXT_MENU_SEPARATOR);
+    menuItems.push(register({ name: '' as ActionName, label, disabled: () => true, perform: () => {} }), CONTEXT_MENU_SEPARATOR);
     for (let i = 0; i < slices.length; i++) {
         const slice = slices[i];
         const isValidLabel = mapValue.cat && slice.name;
         const menuItem = register({
             name: '' as ActionName,
             label: isValidLabel ? `${slice.name}(${mapValue.cat})` : slice.name || mapValue.cat || '--',
-            parentMenuKey,
             perform: (session: Session) => {
                 if (!session.selectedData) {
                     return;

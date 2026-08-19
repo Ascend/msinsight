@@ -38,15 +38,19 @@ function generateCalculateWHWithCache(): {
     const disposer = observe(WIDTH_DEPENDENCIES, () => {
         WIDTH_CACHE.clear(); // 根据宽度变化更新宽度缓存
     });
-    function getWidthWithCache(paramsOfCache: { timestamp: number; cardId: string; pid: string },
+    function getWidthWithCache(paramsOfCache: { timestamp: number; cardId: string; pid: string; metaType?: string },
         li: d3.ScaleLinear<number, number>, session: Session, units: InsightUnit[], timestampOffset?: Record<string, number>,
         cardIdIndex?: CardIdIndex): number {
-        const key = `${paramsOfCache.timestamp}-${paramsOfCache.cardId}-${paramsOfCache.pid}`;
+        const effectiveOffset = getTimeOffset(session, {
+            cardId: paramsOfCache.cardId,
+            processId: paramsOfCache.pid,
+            metaType: paramsOfCache.metaType,
+        }, units, timestampOffset, cardIdIndex);
+        const key = `${paramsOfCache.timestamp}-${paramsOfCache.cardId}-${paramsOfCache.pid}-${effectiveOffset}`;
         if (WIDTH_CACHE.has(key)) {
             return WIDTH_CACHE.get(key) ?? 0;
         }
-        const width = li(paramsOfCache.timestamp - getTimeOffset(session, { cardId: paramsOfCache.cardId, processId: paramsOfCache.pid },
-            units, timestampOffset, cardIdIndex));
+        const width = li(paramsOfCache.timestamp - effectiveOffset);
         WIDTH_CACHE.set(key, width);
         return width;
     }
@@ -148,10 +152,18 @@ export function calculateLinkLines(rawList: Array<Record<string, unknown>>, sess
         const { category: cat, from, to, cardId } = data as unknown as FlowEvent;
         const [targetCardId, sourceCardId] = [handlerEmptyString(to.rankId ?? '', cardId), handlerEmptyString(from.rankId ?? '', cardId)];
 
-        const [targetX, targetY] = [getWidthWithCache({ timestamp: to.timestamp, cardId: targetCardId, pid: to.pid }, li, session,
-            units, timestampOffset, cardIdIndex), getHeightWithCache(to, targetCardId, cat, session)];
-        const [sourceX, sourceY] = [getWidthWithCache({ timestamp: from.timestamp, cardId: sourceCardId, pid: from.pid }, li, session,
-            units, timestampOffset, cardIdIndex), getHeightWithCache(from, sourceCardId, cat, session)];
+        const [targetX, targetY] = [getWidthWithCache({
+            timestamp: to.timestamp,
+            cardId: targetCardId,
+            pid: to.pid,
+            metaType: to.metaType,
+        }, li, session, units, timestampOffset, cardIdIndex), getHeightWithCache(to, targetCardId, cat, session)];
+        const [sourceX, sourceY] = [getWidthWithCache({
+            timestamp: from.timestamp,
+            cardId: sourceCardId,
+            pid: from.pid,
+            metaType: from.metaType,
+        }, li, session, units, timestampOffset, cardIdIndex), getHeightWithCache(from, sourceCardId, cat, session)];
         const targetPos: Array<[x: number, y: number]> = [[targetX, targetY]];
         const offset = ((targetX - sourceX) / 2);
         const isAllCol = (processIsCol.get(`${targetCardId}-${to.pid}`) ?? false) &&

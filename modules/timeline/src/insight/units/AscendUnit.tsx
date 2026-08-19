@@ -47,7 +47,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { observer } from 'mobx-react-lite';
 import _ from 'lodash';
 import { runInAction } from 'mobx';
-import { offsetConfig } from './config/offsetConfig';
+import { cardOffsetConfig } from './config/offsetConfig';
 import { isPinned, isSonPinned } from '../../components/ChartContainer/unitPin';
 import type { Theme } from '@emotion/react';
 import type { ChartHandle, ChartType, Scale, StackStatusConfig, StackStatusData, StatusData } from '../../entity/chart';
@@ -738,13 +738,6 @@ const LabelSummaryChart = chart({
 
 export const ProcessUnit = unit<ProcessMetaData>({
     name: 'Process',
-    configBar: (session: Session, metadata: ProcessMetaData, onClick?: () => void, isHovered?: boolean, isSelected?: boolean) => {
-        // Host侧第三级泳道不显示offset
-        if ((metadata as ThreadMetaData).threadId !== '') {
-            return null;
-        }
-        return offsetConfig(session, metadata, onClick, isHovered, isSelected);
-    },
     tag: (session: Session, metadata: { label?: string }) => metadata.label === undefined ? '' : `${metadata.label}`,
     pinType: 'copied',
     chart: ProcessSummaryChart,
@@ -765,7 +758,7 @@ export const LabelUnit = unit<LabelMetaData>({
 
 export const CardUnit = unit<CardMetaData>({
     name: 'Card',
-    configBar: offsetConfig,
+    configBar: cardOffsetConfig,
     pinType: 'copied',
     renderInfo: (session: Session, metadata: { cardName: string; cluster?: string; cardPath: string }) =>
         <span style={{ marginLeft: 6 }}>

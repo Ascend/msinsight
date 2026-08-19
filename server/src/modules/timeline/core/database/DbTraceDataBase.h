@@ -112,11 +112,11 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool SearchSliceName(const Protocol::SearchSliceParams &params, int index, uint64_t minTimestamp,
         Protocol::SearchSliceBody &responseBody, const std::vector<TrackQuery> &trackQuery) override;
     bool QueryHostSlicesByName(const std::string &sliceName, const std::string &metaType,
-        std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) override;
+        std::vector<Protocol::SimpleSlice> &result) override;
     bool QueryDeviceSlicesByName(const std::string &rankId, const std::string &sliceName, const std::string &metaType,
-        std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) override;
+        std::vector<Protocol::SimpleSlice> &result) override;
     bool QueryTextSlicesByName(const std::string &sliceName, const std::string &metaType,
-        std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) override;
+        std::vector<Protocol::SimpleSlice> &result) override;
     bool QueryFlowCategoryList(std::vector<std::string> &categories, const std::string &rankId) override;
     bool QueryUnitCounter(Protocol::UnitCounterParams &params, uint64_t minTimestamp,
         std::vector<Protocol::UnitCounterData> &dataList) override;

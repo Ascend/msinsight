@@ -1,7 +1,7 @@
 /*
  * -------------------------------------------------------------------------
  * This file is part of the MindStudio project.
- * Copyright (c) 2025 Huawei Technologies Co.,Ltd.
+ * Copyright (c) 2026 Huawei Technologies Co.,Ltd.
  *
  * MindStudio is licensed under Mulan PSL v2.
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
@@ -16,12 +16,14 @@
  * -------------------------------------------------------------------------
  */
 
-import { register } from './register';
-import { KEYS } from '@insight/lib/utils';
-import type { Session } from '../entity/session';
+import { message } from 'antd';
+import i18n from '@insight/lib/i18n';
 import { runInAction } from 'mobx';
-import { CardMetaData, SliceData, SliceMeta, ThreadTrace } from '../entity/data';
-import { getTimeOffsetKey, visitUnitTree } from '../insight/units/utils';
+import { KEYS } from '@insight/lib/utils';
+import { register } from './register';
+import type { Session } from '../entity/session';
+import type { SliceData, SliceMeta, ThreadTrace } from '../entity/data';
+import { getCardSideOffset, getOffsetSide } from '../insight/units/offset';
 
 const setBenchmarkSlice = (session: Session): void => {
     runInAction(() => {
@@ -46,128 +48,70 @@ const isSetBaseSliceMenuVisible = (session: Session): boolean => {
     }
     const selectedData = session.selectedData;
     const benchMarkData = session.benchMarkData as ThreadTrace;
-    if (selectedData.id === benchMarkData.id && selectedData.threadId === benchMarkData.threadId) {
+    return selectedData.id !== benchMarkData.id || selectedData.threadId !== benchMarkData.threadId;
+};
+
+export function canAlignToBenchmark(session: Session): boolean {
+    if (session.benchMarkData === undefined || session.selectedData === undefined) {
         return false;
     }
-    return true;
-};
+    const selected = session.selectedData as unknown as SliceMeta;
+    const benchmark = session.benchMarkData as SliceMeta;
+    return selected.cardId !== benchmark.cardId || getOffsetSide(selected.metaType as string) !== getOffsetSide(benchmark.metaType as string);
+}
 
-const extractDeviceId = (processId: number): number => {
-    const DEVICE_ID_MASK = 0x1F;
-    return processId & DEVICE_ID_MASK;
-};
-
-const updateSameDeviceOffset = (selectSliceMeta: SliceMeta, session: Session, selectOffsetKey: string, offsetDiff: number): void => {
-    const deviceId = extractDeviceId(parseInt(selectSliceMeta.processId));
-    const benchMeta = session.benchMarkData as SliceMeta;
-    const benchKey = getTimeOffsetKey(session, benchMeta);
-    session.units.forEach((unit) => {
-        if ((unit.metadata as CardMetaData).cardId !== selectSliceMeta.cardId) {
-            return;
-        }
-        visitUnitTree(unit, (item) => {
-            const tempMeta = item.metadata as SliceMeta;
-            if (tempMeta.label !== 'NPU') {
-                return;
-            }
-            const key = getTimeOffsetKey(session, tempMeta);
-            if (key === selectOffsetKey || key === benchKey) {
-                return;
-            }
-            if (isNaN(Number(tempMeta.processId))) {
-                return;
-            }
-            const tempDeviceId = extractDeviceId(parseInt(tempMeta.processId));
-            if (tempDeviceId !== deviceId) {
-                return;
-            }
-            const currentOffset = session.unitsConfig.offsetConfig.timestampOffset[key] ?? 0;
-            session.unitsConfig.offsetConfig.timestampOffset[key] = currentOffset + offsetDiff;
-        });
-    });
-    session.updateEndTimeAll();
-};
-
-const processOffsetEvent = (session: Session, isLeft: boolean): void => {
-    if (session.benchMarkData === undefined || session.selectedData === undefined) {
+export function alignToBenchmark(session: Session, isLeft: boolean): void {
+    if (!canAlignToBenchmark(session)) {
+        message.warning(i18n.t('timeline:contextMenu.Same Card Category Offset'));
         return;
     }
-    const selectSliceMeta = session.selectedData as unknown as SliceMeta;
-    const benchSliceMeta = session.benchMarkData as SliceMeta;
-    const selectOffsetKey = getTimeOffsetKey(session, selectSliceMeta);
-    const benchSliceOffsetKey = getTimeOffsetKey(session, benchSliceMeta);
-    if (selectOffsetKey === benchSliceOffsetKey) {
-        return;
-    }
-    let offsetDiff = 0;
-    if (isLeft) {
-        offsetDiff = selectSliceMeta.startTime - benchSliceMeta.startTime;
-    } else {
-        offsetDiff = selectSliceMeta.startTime + selectSliceMeta.duration - benchSliceMeta.startTime - benchSliceMeta.duration;
-    }
-    if (!isNaN(Number(selectSliceMeta.processId))) {
-        updateSameDeviceOffset(selectSliceMeta, session, selectOffsetKey, offsetDiff);
-    }
-    const before = session.unitsConfig.offsetConfig.timestampOffset[selectOffsetKey];
-    session.setTimestampOffset(selectOffsetKey, before + offsetDiff);
+    const selected = session.selectedData as unknown as SliceMeta;
+    const benchmark = session.benchMarkData as SliceMeta;
+    const selectedSide = getOffsetSide(selected.metaType as string);
+    const offsetDiff = isLeft
+        ? selected.startTime - benchmark.startTime
+        : selected.startTime + selected.duration - benchmark.startTime - benchmark.duration;
+    const currentOffset = getCardSideOffset(session, selected.cardId, selectedSide);
+    session.setCardSideOffset(selected.cardId, selectedSide, currentOffset + offsetDiff);
+
     runInAction(() => {
         if (session.selectedData === undefined) {
             return;
         }
-        const temp = session.selectedData as unknown as SliceData;
-        temp.startTime -= offsetDiff;
-        const newAlignSliceData: SliceData[] = [];
-        newAlignSliceData.push(temp);
-        session.alignSliceData.forEach((item) => {
-            const itemTemp = item as unknown as SliceMeta;
-            if (itemTemp.cardId === selectSliceMeta.cardId && itemTemp.processId === selectSliceMeta.processId) {
-                return;
-            }
-            newAlignSliceData.push(item);
-        });
-        session.alignSliceData = newAlignSliceData;
-
+        const aligned = session.selectedData as unknown as SliceData;
+        aligned.startTime -= offsetDiff;
+        session.alignSliceData = [aligned, ...session.alignSliceData.filter((item) => {
+            const itemMeta = item as unknown as SliceMeta;
+            return itemMeta.cardId !== selected.cardId || getOffsetSide(itemMeta.metaType as string) !== selectedSide;
+        })];
         session.alignRender = !session.alignRender;
     });
-};
+}
 
-// 设置基准算子（用于其他算子与其对齐）
 export const actionSetBenchmarkSlice = register({
     name: 'setBaseSlice',
     label: 'timeline:contextMenu.Set base slice',
-    visible: (session): boolean => {
-        return isSetBaseSliceMenuVisible(session);
-    },
-    perform: (session): void => {
-        setBenchmarkSlice(session);
-    },
+    visible: isSetBaseSliceMenuVisible,
+    perform: setBenchmarkSlice,
 });
 
 export const actionClearBenchmarkSlice = register({
     name: 'clearBaseSlice',
     label: 'timeline:contextMenu.Clear base slice',
     visible: (session) => session.benchMarkData !== undefined,
-    perform: (session): void => {
-        clearBenchmarkSlice(session);
-    },
+    perform: clearBenchmarkSlice,
 });
 
-// 与基准算子左（开始时间）对齐
 export const actionAlignToBenchmarkLeft = register({
     name: 'alignToBenchmarkLeft',
     label: '',
-    perform: (session): void => {
-        processOffsetEvent(session, true);
-    },
+    perform: (session): void => { alignToBenchmark(session, true); },
     keyTest: (event) => event.key.toLowerCase() === KEYS.L,
 });
 
-// 与基准算子右（结束时间）对齐
 export const actionAlignToBenchmarkRight = register({
     name: 'alignToBenchmarkRight',
     label: '',
-    perform: (session): void => {
-        processOffsetEvent(session, false);
-    },
+    perform: (session): void => { alignToBenchmark(session, false); },
     keyTest: (event) => event.key.toLowerCase() === KEYS.R,
 });

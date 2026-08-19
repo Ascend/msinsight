@@ -332,13 +332,12 @@ bool DbTraceDataBase::SearchSliceName(const Protocol::SearchSliceParams &params,
 }
 
 bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const std::string &metaType,
-    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    std::vector<Protocol::SimpleSlice> &result) {
     if (!CheckTableExist(TABLE_STRING_IDS)) {
         return true;
     }
 
     std::string sql;
-    std::vector<std::string> processSqlList;
     if (metaType == TABLE_CANN_API && CheckTableExist(TABLE_CANN_API)) {
         sql = "with ids as (select id, value from STRING_IDS where value = ?) "
               "select ids.value as name, cann.globalTid as pid, 'CANN_API' as metaType, "
@@ -370,20 +369,6 @@ bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const 
               "osrt.ROWID as id from " +
             TABLE_OSRT_API + " osrt join ids on ids.id = osrt.name";
     }
-    if (CheckTableExist(TABLE_CANN_API)) {
-        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_CANN_API);
-    }
-    if (CheckTableExist(TABLE_API)) {
-        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type != 50003");
-        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_API + " WHERE type = 50003");
-    }
-    if (CheckTableExist(TABLE_MSTX_EVENTS)) {
-        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_MSTX_EVENTS);
-    }
-    if (CheckTableExist(TABLE_OSRT_API)) {
-        processSqlList.emplace_back("SELECT DISTINCT globalTid AS pid FROM " + TABLE_OSRT_API);
-    }
-
     if (!sql.empty()) {
         auto stmt = CreatPreparedStatement(sql);
         if (stmt == nullptr) {
@@ -407,33 +392,16 @@ bool DbTraceDataBase::QueryHostSlicesByName(const std::string &sliceName, const 
         }
     }
 
-    for (const auto &processSql : processSqlList) {
-        auto processStmt = CreatPreparedStatement(processSql);
-        if (processStmt == nullptr) {
-            ServerLog::Error("Query host rank offset process ids failed to prepare sql.");
-            return false;
-        }
-        auto processResultSet = processStmt->ExecuteQuery();
-        if (processResultSet == nullptr) {
-            ServerLog::Error(
-                "Query host rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
-            return false;
-        }
-        while (processResultSet->Next()) {
-            processIds.insert(processResultSet->GetString("pid"));
-        }
-    }
     return true;
 }
 
 bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const std::string &sliceName,
-    const std::string &metaType, std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    const std::string &metaType, std::vector<Protocol::SimpleSlice> &result) {
     if (!CheckTableExist(TABLE_STRING_IDS)) {
         return true;
     }
 
     std::string sql;
-    std::vector<std::pair<std::string, bool>> processSqlList;
     std::string deviceId = GetDeviceId(rankId);
     bool bindDeviceIdForSlice = false;
     if (metaType == "Ascend Hardware" && CheckTableExist(TABLE_TASK)) {
@@ -475,31 +443,6 @@ bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const s
               "from " + TABLE_CCU + " ccu join ids on ids.id = ccu.name where ccu.deviceId = ?";
         bindDeviceIdForSlice = true;
     }
-    if (CheckTableExist(TABLE_TASK)) {
-        processSqlList.emplace_back("SELECT DISTINCT 'Ascend Hardware' AS pid FROM TASK WHERE deviceId = ?", true);
-    }
-    if (CheckTableExist(TABLE_COMMUNICATION_OP)) {
-        processSqlList.emplace_back("SELECT DISTINCT 'HCCL' AS pid FROM COMMUNICATION_OP", false);
-    }
-    if (CheckTableExist(TABLE_CCU)) {
-        processSqlList.emplace_back("SELECT DISTINCT 'CCU' AS pid FROM " + TABLE_CCU + " WHERE deviceId = ?", true);
-    }
-    bool hasOverlapAnalysis = CheckTableExist(TABLE_TASK) || CheckTableExist(TABLE_COMMUNICATION_OP) ||
-        CheckTableExist(TABLE_OVERLAP_ANALYSIS);
-    bool hasNpuMetrics = false;
-    CounterEventHelper counterHelper;
-    counterHelper.RegisterDeviceMap();
-    PROCESS_TYPE counterTypes[] = {PROCESS_TYPE::HBM, PROCESS_TYPE::LLC, PROCESS_TYPE::SAMPLE_PMU,
-        PROCESS_TYPE::QOS, PROCESS_TYPE::NIC, PROCESS_TYPE::ROCE, PROCESS_TYPE::NETDEV_STATS, PROCESS_TYPE::PCIE,
-        PROCESS_TYPE::HCCS, PROCESS_TYPE::AI_CORE, PROCESS_TYPE::ACC_PMU, PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC,
-        PROCESS_TYPE::NPU_MEM};
-    for (const auto &counterType : counterTypes) {
-        if (CheckTableExist(counterHelper.GetDeviceTableName(counterType))) {
-            hasNpuMetrics = true;
-            break;
-        }
-    }
-
     if (!sql.empty()) {
         auto stmt = CreatPreparedStatement(sql);
         if (stmt == nullptr) {
@@ -524,34 +467,14 @@ bool DbTraceDataBase::QueryDeviceSlicesByName(const std::string &rankId, const s
         }
     }
 
-    for (const auto &[processSql, bindDeviceId] : processSqlList) {
-        auto processStmt = CreatPreparedStatement(processSql);
-        if (processStmt == nullptr) {
-            ServerLog::Error("Query device rank offset process ids failed to prepare sql.");
-            return false;
-        }
-        std::unique_ptr<SqliteResultSet> processResultSet =
-            bindDeviceId ? processStmt->ExecuteQuery(deviceId) : processStmt->ExecuteQuery();
-        if (processResultSet == nullptr) {
-            ServerLog::Error(
-                "Query device rank offset process ids failed to get result set.", processStmt->GetErrorMessage());
-            return false;
-        }
-        while (processResultSet->Next()) {
-            processIds.insert(processResultSet->GetString("pid"));
-        }
-    }
-    if (hasOverlapAnalysis) {
-        processIds.insert("OVERLAP_ANALYSIS");
-    }
-    if (hasNpuMetrics) {
-        processIds.insert(NPU_METRICS_PROCESS_ID);
-    }
     return true;
 }
 
 bool DbTraceDataBase::QueryTextSlicesByName(const std::string &sliceName, const std::string &metaType,
-    std::vector<Protocol::SimpleSlice> &result, std::set<std::string> &processIds) {
+    std::vector<Protocol::SimpleSlice> &result) {
+    (void)sliceName;
+    (void)metaType;
+    (void)result;
     return true;
 }
 

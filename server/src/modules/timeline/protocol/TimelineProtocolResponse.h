@@ -717,7 +717,6 @@ struct MemcpyDetailResponse : public Response {
 struct RankOffsetItem {
     std::string rankId;
     int64_t offset = 0;
-    std::vector<std::string> processId;
 };
 
 struct RankOffsetError {

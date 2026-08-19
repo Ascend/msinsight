@@ -103,14 +103,12 @@ TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetHostSlicesReturnsOnlyMatchingTe
     Dic::Module::Timeline::TraceTime::Instance().UpdateTime(20, 300);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result = database.QueryTextSlicesByName("rank_offset_target", "TEXT", slices, processIds);
+    bool result = database.QueryTextSlicesByName("rank_offset_target", "TEXT", slices);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(slices.size(), 1);
     EXPECT_EQ(slices.front().pid, "10");
     EXPECT_EQ(slices.front().timestamp, 100);
-    EXPECT_EQ(processIds.count("10"), 1);
     Dic::Module::Timeline::TraceTime::Instance().Reset();
 }
 
@@ -131,9 +129,8 @@ TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetTextPythonStackSlicesReturnsOnl
     database.SetDbPtr(dbPtr);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
     bool result = database.QueryHostSlicesByName(
-        "multiprocessing/popen_fork.py(19): __init__", "PYTORCH_API_PYTHON_STACK", slices, processIds);
+        "multiprocessing/popen_fork.py(19): __init__", "PYTORCH_API_PYTHON_STACK", slices);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(slices.size(), 1);
@@ -141,7 +138,6 @@ TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetTextPythonStackSlicesReturnsOnl
     EXPECT_EQ(slices.front().metaType, "PYTORCH_API_PYTHON_STACK");
     EXPECT_EQ(slices.front().timestamp, 200);
     EXPECT_EQ(slices.front().duration, 40);
-    EXPECT_EQ(processIds.count("1704908"), 1);
 }
 
 TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetTextSlicesExcludePythonFunction) {
@@ -161,40 +157,13 @@ TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetTextSlicesExcludePythonFunction
     database.SetDbPtr(dbPtr);
 
     std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result = database.QueryTextSlicesByName("rank_offset_target", "TEXT", slices, processIds);
+    bool result = database.QueryTextSlicesByName("rank_offset_target", "TEXT", slices);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(slices.size(), 1);
     EXPECT_EQ(slices.front().pid, "10");
     EXPECT_EQ(slices.front().metaType, "TEXT");
     EXPECT_EQ(slices.front().timestamp, 100);
-    EXPECT_EQ(processIds.count("10"), 1);
-    EXPECT_EQ(processIds.count("20"), 0);
-}
-
-TEST_F(TextTraceDatabaseMockTest, QueryRankOffsetHostProcessIdsReturnsAllTextProcessIds) {
-    sqlite3 *dbPtr = nullptr;
-    DatabaseTestCaseMockUtil::OpenDB(dbPtr);
-    DatabaseTestCaseMockUtil::CreateTable(dbPtr, sliceTableSql);
-    DatabaseTestCaseMockUtil::CreateTable(dbPtr, threadTableSql);
-    DatabaseTestCaseMockUtil::InsertData(dbPtr,
-        "INSERT INTO slice (track_id, name, timestamp, duration) VALUES "
-        "(100, 'op1', 100, 50), (200, 'op2', 200, 60);");
-    DatabaseTestCaseMockUtil::InsertData(dbPtr,
-        "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
-        "(100, '1', '10', 'thread_10', 0), (200, '2', '20', 'thread_20', 0);");
-    std::recursive_mutex sqlMutex;
-    MockDatabase database(sqlMutex);
-    database.SetDbPtr(dbPtr);
-
-    std::vector<Dic::Protocol::SimpleSlice> slices;
-    std::set<std::string> processIds;
-    bool result = database.QueryTextSlicesByName("op1", "TEXT", slices, processIds);
-
-    ASSERT_TRUE(result);
-    EXPECT_EQ(processIds.count("10"), 1);
-    EXPECT_EQ(processIds.count("20"), 0);
 }
 
 TEST_F(TextTraceDatabaseMockTest, QueryThreadsWhenTextPythonStackThenUsePythonStackTidAndDepth) {

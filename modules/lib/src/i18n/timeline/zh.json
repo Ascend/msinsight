@@ -2,6 +2,8 @@
   "timeline": {
     "Align to Start": "对齐到起始位置",
     "Timestamp Offset": "时间戳偏移",
+    "Host Offset": "Host偏移量",
+    "Device Offset": "Device偏移量",
     "Slice Detail": "选中详情",
     "Slice List": "选中列表",
     "Find": "查找",
@@ -48,6 +50,7 @@
       "Recover cards default offset": "恢复所有卡的默认偏移量",
       "Set base slice": "设置基准算子",
       "Clear base slice": "清除基准算子",
+      "Same Card Category Offset": "同一卡同一分类中的算子共享一个偏移量。",
       "Time Alignment": "时间对齐",
       "Align Left": "左对齐",
       "Align Right": "右对齐",

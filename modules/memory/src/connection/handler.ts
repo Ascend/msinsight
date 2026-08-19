@@ -192,23 +192,17 @@ export const updateTimelineOffsetHandler: NotificationHandler = (data): void => 
     }
 };
 
-export const getTimelineOffsetByKey = (): void => {
+export const getTimelineCardOffset = (): void => {
     const session = store.memoryStore.activeSession;
     if (session === undefined || session.rankCondition.value === undefined) {
         return;
     }
-    let offsetKey: string;
-    if (session.hostCondition.value.length > 0) {
-        offsetKey = `${session.hostCondition.value} ${session.rankCondition.value}`;
-    } else {
-        offsetKey = String(session.rankCondition.value);
-    }
     connector.send({
-        event: 'getTimelineOffsetByKey',
+        event: 'getTimelineCardOffset',
         to: 'Timeline',
         body: {
-            from: 'Memory',
-            offsetKey,
+            cardId: session.selectedRankId,
+            side: 'device',
         },
     });
 };
@@ -225,5 +219,5 @@ const getTimelineRangeFlagList = (): void => {
 
 export const moduleActiveHandler: NotificationHandler = (): void => {
     getTimelineRangeFlagList();
-    getTimelineOffsetByKey();
+    getTimelineCardOffset();
 };
