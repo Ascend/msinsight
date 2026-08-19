@@ -17,12 +17,12 @@
  */
 import styled from '@emotion/styled';
 import { useRef } from 'react';
-import { ArrowUpOutlined, RobotOutlined, StopOutlined } from '@ant-design/icons';
-import { Select } from '@insight/lib/components';
+import { ArrowUpOutlined, StopOutlined } from '@ant-design/icons';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue } from '../types';
 import { useChatState } from '../hooks/useChatState';
+import { AgentSelect } from './AgentSelect';
 
 const Container = styled.div`
     display: grid;
@@ -264,16 +264,15 @@ const Container = styled.div`
         font-size: 13px;
     }
 
-    .model-picker .ant-select-selector {
-        min-width: 92px;
-        border: 0 !important;
-        padding: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
+    .config-picker {
+        width: fit-content;
+        max-width: 38vw;
+        flex: 0 1 auto;
     }
 
-    .model-picker .ant-select-selection-item {
-        padding-right: 18px !important;
+    .config-picker .agent-select-label {
+        font-size: 13px;
+        line-height: 20px;
     }
 
     .shortcut-hint {
@@ -320,7 +319,7 @@ export const Composer = (): JSX.Element => {
     const modelOptions = flattenConfigValues(modelConfig?.options ?? []);
     const modeConfig = getModeConfig(configOptions);
     const modeOptions = flattenConfigValues(modeConfig?.options ?? []);
-    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt, setModel, true);
+    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt, setModel);
     const modePicker = createConfigPicker(modeConfig, modeOptions, pendingPrompt, setMode);
     const commandQuery = getCommandQuery(input);
     const commandMatches = getCompletionMatches(availableCommands, availableSkills, commandQuery);
@@ -416,10 +415,7 @@ export const Composer = (): JSX.Element => {
                     </div>
                 ) : null}
                 <div className="actions">
-                    <div className="model-picker">
-                        <RobotOutlined />
-                        {modePicker ?? <span>{t('agentMode')}</span>}
-                    </div>
+                    {modePicker ? <div className="model-picker">{modePicker}</div> : null}
                     <div className="model-picker">
                         {modelPicker}
                     </div>
@@ -504,27 +500,19 @@ const createConfigPicker = (
     options: ConfigOptionValue[],
     disabled: boolean,
     onChange: (value: string) => Promise<void>,
-    searchable = false,
 ): JSX.Element | null => {
     if (!config?.currentValue || !options.length) return null;
     return (
-        <Select
+        <AgentSelect
+            className="config-picker"
+            compact
             disabled={disabled}
-            filterOption={searchable ? filterSelectOption : undefined}
-            onChange={(value) => onChange(String(value))}
-            optionFilterProp="label"
+            onChange={(value) => { void onChange(value); }}
             options={options.map((option) => ({ value: option.value, label: option.name || option.value }))}
-            showSearch={searchable}
+            placement="top"
             value={config.currentValue}
-            width="100%"
         />
     );
-};
-
-const filterSelectOption = (input: string, option?: { label?: unknown; value?: unknown }): boolean => {
-    const query = input.toLowerCase();
-    return String(option?.label ?? '').toLowerCase().includes(query)
-        || String(option?.value ?? '').toLowerCase().includes(query);
 };
 
 const getModelConfig = (configOptions: ConfigOption[]): ConfigOption | undefined => {

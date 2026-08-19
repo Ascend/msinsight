@@ -34,7 +34,7 @@ import { ACP_SESSION_SRC } from '@/moduleConfig';
 import { ACP_CAPABILITY_TOKEN, ACP_PORT, JUPYTERLABPROXY } from '@/centralServer/websocket/defs';
 import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 
-export const ACP_SESSION_MIN_WIDTH = 500;
+export const ACP_SESSION_MIN_WIDTH = 480;
 
 interface WebAgentSessionPanelProps {
     activeModule: string;

@@ -19,7 +19,7 @@ import styled from '@emotion/styled';
 import { Drawer } from 'antd';
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
-import { Button, Select } from '@insight/lib/components';
+import { Button } from '@insight/lib/components';
 import { DeleteIcon } from '@insight/lib/icon/Icon';
 import { useTranslation } from 'react-i18next';
 import { requestHostClose } from '../connection';
@@ -29,6 +29,7 @@ import historyIcon from '../icons/history-session.svg';
 import logo from '../icons/logo.png';
 import newSessionIcon from '../icons/new-session.svg';
 import settingsIcon from '../icons/settings.svg';
+import { AgentSelect } from './AgentSelect';
 import { AgentSettingsDialog } from './AgentSettingsDialog';
 
 const Container = styled.div`
@@ -46,14 +47,7 @@ const Container = styled.div`
         min-width: 0;
         display: flex;
         align-items: center;
-        gap: 10px;
-    }
-
-    .agent-logo {
-        width: 20px;
-        height: 20px;
-        flex: 0 0 20px;
-        object-fit: contain;
+        gap: 0;
     }
 
     .toolbar-actions {
@@ -63,17 +57,10 @@ const Container = styled.div`
     }
 
     .agent-picker {
-        width: min(220px, calc(100vw - 260px));
-        flex: 0 1 220px;
+        width: fit-content;
+        max-width: calc(100vw - 260px);
+        flex: 0 1 auto;
         min-width: 0;
-    }
-
-    .agent-picker .ant-select-selector {
-        border: 0 !important;
-        padding-left: 0 !important;
-        background: transparent !important;
-        box-shadow: none !important;
-        font-size: 14px;
     }
 
     .agent-error {
@@ -215,6 +202,47 @@ const Container = styled.div`
     }
 `;
 
+const AgentAvatar = styled.span`
+    width: 100%;
+    height: 100%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: ${(props): string => props.theme.primaryColorLight5};
+    color: ${(props): string => props.theme.primaryColor};
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+
+    &.native {
+        border-radius: 0;
+        background: transparent;
+    }
+
+    img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+`;
+
+const AddAgentButton = styled.button`
+    width: 100%;
+    height: 32px;
+    border: 1px solid ${(props): string => props.theme.borderColorLighter};
+    border-radius: 8px;
+    background: transparent;
+    color: ${(props): string => props.theme.textColorPrimary};
+    font-size: 14px;
+    cursor: pointer;
+
+    &:hover {
+        border-color: ${(props): string => props.theme.primaryColor};
+        color: ${(props): string => props.theme.primaryColor};
+    }
+`;
+
 export const SessionSidebar = (): JSX.Element => {
     const {
         createSession,
@@ -237,13 +265,22 @@ export const SessionSidebar = (): JSX.Element => {
     return (
         <Container>
             <div className="agent-brand">
-                <img className="agent-logo" src={logo} alt="" />
-                <Select
+                <AgentSelect
                     className="agent-picker"
-                    onChange={(value) => setAgent(String(value))}
-                    options={agentServers.map((agent) => ({ value: agent.name, label: agent.name }))}
+                    footer={(
+                        <AgentSettingsDialog trigger={(
+                            <AddAgentButton type="button">{t('addAgent')}</AddAgentButton>
+                        )} />
+                    )}
+                    onChange={(value) => { void setAgent(value); }}
+                    options={agentServers.map((agent) => ({
+                        value: agent.name,
+                        label: agent.name,
+                        icon: getAgentIcon(agent.name),
+                    }))}
+                    placeholder={t('defaultAgent')}
+                    title={t('switchAgent')}
                     value={activeAgentName}
-                    width="100%"
                 />
             </div>
             {agentError && <span className="agent-error" title={agentError}>{t('agentError')}</span>}
@@ -307,6 +344,14 @@ export const SessionSidebar = (): JSX.Element => {
             </Drawer>
         </Container>
     );
+};
+
+const getAgentIcon = (agentName: string): JSX.Element => {
+    const normalizedName = agentName.toLowerCase();
+    if (normalizedName === 'msinsight-native' || normalizedName.includes('insight')) {
+        return <AgentAvatar className="native"><img alt="" src={logo} /></AgentAvatar>;
+    }
+    return <AgentAvatar>{agentName.slice(0, 1)}</AgentAvatar>;
 };
 
 const getSessionMeta = (session: { pendingPrompt?: boolean; status?: string; updatedAt?: string; sessionId: string }, t: TFunction): string => {
