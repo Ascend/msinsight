@@ -17,6 +17,7 @@ import { formatBytes } from '../../utils/utils';
 import {
     DEFAULT_LIFECYCLE_MEMORY_MARKER_COLOR,
     getLifecycleMemoryMarkerColor,
+    getLifecycleMemoryMarkerLabel,
     getLifecycleMemoryMarkerOrdinal,
     getLifecycleMemoryMarkerSource,
     sortLifecycleMemoryMarkers,
@@ -427,7 +428,9 @@ export const LifecycleMemoryMarkerOverlay = observer(({
     const [emphasizedMarkerId, setEmphasizedMarkerId] = useState<string | null>(null);
     const [activeGapMarkerIds, setActiveGapMarkerIds] = useState<[string, string] | null>(null);
     const { sizeInfo, renderOptions: { transform, zoom, viewport } } = session.leaksWorkerInfo;
-    const markers = sortLifecycleMemoryMarkers(session.getLifecycleMemoryMarkers());
+    const markers = sortLifecycleMemoryMarkers(
+        session.getLifecycleMemoryMarkers().filter(marker => marker.hidden !== true),
+    );
     const projectionOptions = {
         minSize: sizeInfo.minSize,
         maxSize: sizeInfo.maxSize,
@@ -588,8 +591,8 @@ export const LifecycleMemoryMarkerOverlay = observer(({
                     type="button"
                     $active={isActive}
                     aria-label={t('memoryMarkerGapBetween', {
-                        first: `Flag ${firstMarker.ordinal}`,
-                        second: `Flag ${secondMarker.ordinal}`,
+                        first: getLifecycleMemoryMarkerLabel(firstMarker, 0),
+                        second: getLifecycleMemoryMarkerLabel(secondMarker, 0),
                         value: formatBytes(difference),
                     })}
                     style={{
@@ -623,7 +626,7 @@ export const LifecycleMemoryMarkerOverlay = observer(({
                 if (layout === undefined) {
                     return <React.Fragment key={marker.id} />;
                 }
-                const markerLabel = `Flag ${marker.ordinal}`;
+                const markerLabel = getLifecycleMemoryMarkerLabel(marker, markerIndex);
                 const upperMarker = markerIndex < markers.length - 1 ? markers[markerIndex + 1] : null;
                 const lowerMarker = markerIndex > 0 ? markers[markerIndex - 1] : null;
                 const upperSpacing = getSpacing(markerIndex, 'upper');
@@ -692,7 +695,7 @@ export const LifecycleMemoryMarkerOverlay = observer(({
                                             markerColor={getLifecycleMemoryMarkerColor(upperMarker, markerIndex + 1)}
                                             data-testid="memoryMarkerRelationFlag"
                                         ><TimelineFlagIcon aria-hidden="true" /></RelationFlag>
-                                        <RelationMarkerIdentity>{`Flag ${getLifecycleMemoryMarkerOrdinal(upperMarker, markerIndex + 1)}`}</RelationMarkerIdentity>
+                                        <RelationMarkerIdentity>{getLifecycleMemoryMarkerLabel(upperMarker, markerIndex + 1)}</RelationMarkerIdentity>
                                         <RelationBaselineValue data-testid="memoryMarkerRelationBaseline">{formatBytes(upperMarker.memoryBytes)}</RelationBaselineValue>
                                     </RelationNode>
                                     <RelationGap>
@@ -719,7 +722,7 @@ export const LifecycleMemoryMarkerOverlay = observer(({
                                             markerColor={getLifecycleMemoryMarkerColor(lowerMarker, markerIndex - 1)}
                                             data-testid="memoryMarkerRelationFlag"
                                         ><TimelineFlagIcon aria-hidden="true" /></RelationFlag>
-                                        <RelationMarkerIdentity>{`Flag ${getLifecycleMemoryMarkerOrdinal(lowerMarker, markerIndex - 1)}`}</RelationMarkerIdentity>
+                                        <RelationMarkerIdentity>{getLifecycleMemoryMarkerLabel(lowerMarker, markerIndex - 1)}</RelationMarkerIdentity>
                                         <RelationBaselineValue data-testid="memoryMarkerRelationBaseline">{formatBytes(lowerMarker.memoryBytes)}</RelationBaselineValue>
                                     </RelationNode>
                                 </>

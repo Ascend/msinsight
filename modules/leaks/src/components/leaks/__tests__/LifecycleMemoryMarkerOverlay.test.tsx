@@ -18,7 +18,7 @@
 
 import React from 'react';
 import { ThemeProvider } from '@emotion/react';
-import { act, fireEvent, render, within } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { runInAction } from 'mobx';
 import { Session } from '../../../entity/session';
 import { LifecycleMemoryMarkerOverlay } from '../LifecycleMemoryMarkerOverlay';
@@ -116,6 +116,20 @@ describe('LifecycleMemoryMarkerOverlay', () => {
         expect(view.getByRole('button', { name: /Flag 1/ }).parentElement?.style.top).toBe('20px');
     });
 
+    it('uses renamed labels and excludes temporarily hidden flags from graph relationships', () => {
+        const session = createSession();
+        session.addLifecycleMemoryMarker(250, 'visible');
+        session.addLifecycleMemoryMarker(750, 'hidden');
+        session.updateLifecycleMemoryMarkerPresentation('visible', { name: 'Peak memory' });
+        session.updateLifecycleMemoryMarkerPresentation('hidden', { hidden: true });
+        const view = render(<ThemeProvider theme={theme}>
+            <LifecycleMemoryMarkerOverlay session={session} onCreateMarker={(): void => undefined} />
+        </ThemeProvider>);
+        expect(view.getByRole('button', { name: /^Peak memory,/ })).toBeTruthy();
+        expect(view.queryByRole('button', { name: /Flag 2/ })).toBeNull();
+        expect(view.queryByTestId('memoryMarkerGapSegment')).toBeNull();
+    });
+
     it('projects a block hover as a colored flag and dashed-line preview', () => {
         const session = createSession();
         const view = render(<ThemeProvider theme={theme}>
@@ -161,8 +175,8 @@ describe('LifecycleMemoryMarkerOverlay', () => {
         expect(onMarkerHoverChange).toHaveBeenLastCalledWith(expect.objectContaining({ blockId: 101 }));
         expect(view.container.querySelectorAll('[data-emphasized="true"]')).toHaveLength(2);
         const details = flag.parentElement?.querySelector('[data-marker-details]') as HTMLElement;
-        expect(within(details).getAllByTestId('memoryMarkerRelationFlag')).toHaveLength(2);
-        expect(within(details).getAllByTestId('memoryMarkerRelationBaseline')).toHaveLength(2);
-        expect(within(details).getByTestId('memoryMarkerRelationGap').textContent).toMatch(/^[↑↓] /);
+        expect(details.querySelectorAll('[data-testid="memoryMarkerRelationFlag"]')).toHaveLength(2);
+        expect(details.querySelectorAll('[data-testid="memoryMarkerRelationBaseline"]')).toHaveLength(2);
+        expect(details.querySelector('[data-testid="memoryMarkerRelationGap"]')?.textContent).toMatch(/^[↑↓] /);
     });
 });

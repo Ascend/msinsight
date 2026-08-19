@@ -64,6 +64,7 @@ describe('LifecycleGraphToolbar', () => {
     it('combines zoom-mode switching and reset in one operation area', () => {
         const onZoomModeChange = jest.fn();
         const onReset = jest.fn();
+        const onMarkerManagementOpen = jest.fn();
         const view = render(React.createElement(
             TestThemeProvider,
             { theme: testTheme },
@@ -71,6 +72,7 @@ describe('LifecycleGraphToolbar', () => {
                 zoomMode: 'proportional',
                 onZoomModeChange,
                 onReset,
+                onMarkerManagementOpen,
             }),
         ));
 
@@ -85,6 +87,8 @@ describe('LifecycleGraphToolbar', () => {
         expect(onZoomModeChange).toHaveBeenCalledWith('horizontal');
         fireEvent.click(view.getByRole('button', { name: 'resetView' }));
         expect(onReset).toHaveBeenCalledTimes(1);
+        fireEvent.click(view.getByRole('button', { name: 'manageMemoryMarkers' }));
+        expect(onMarkerManagementOpen).toHaveBeenCalledTimes(1);
     });
 
     it('shows the horizontal icon and switches back to proportional zoom', () => {

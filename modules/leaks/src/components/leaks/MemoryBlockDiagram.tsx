@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     workerInitCanvas,
     workerResizeCanvas,
@@ -58,6 +58,7 @@ import {
     resolveLifecycleKeyboardAction,
 } from './lifecycleNavigation';
 import { LifecycleMemoryMarkerOverlay } from './LifecycleMemoryMarkerOverlay';
+import { LifecycleMemoryMarkerManager } from './LifecycleMemoryMarkerManager';
 import { TimelineFlagIcon } from './TimelineFlagIcon';
 import { getColorStringByAddr } from '../../leaksWorker/tools/color';
 import {
@@ -170,6 +171,9 @@ export const MemoryBlockDiagram = observer(({
     const xZoomModeRef = useRef(defaultXZoomMode);
     const lifecycleDataContextKey = session.getLifecycleMemoryMarkerContextKey();
     const previousDataContextKeyRef = useRef(lifecycleDataContextKey);
+    const [markerManagerContextKey, setMarkerManagerContextKey] = useState<string | null>(null);
+    const markerManagerOpen = markerManagerContextKey === lifecycleDataContextKey;
+    const closeMarkerManagement = useCallback((): void => setMarkerManagerContextKey(null), []);
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
@@ -194,9 +198,16 @@ export const MemoryBlockDiagram = observer(({
             hoveredBlockBaseline,
             session.leaksWorkerInfo.hoverItem?.id,
         );
+    const hoveredBlockMarkerHint = hoveredBlockMarker === null
+        ? 'createHoveredBlockMarkerHint'
+        : hoveredBlockMarker.hidden === true
+            ? 'restoreHoveredBlockMarkerHint'
+            : 'removeHoveredBlockMarkerHint';
     const hoveredBlockColor = session.leaksWorkerInfo.hoverItem === null
         ? null
         : getColorStringByAddr(session.leaksWorkerInfo.hoverItem.addr);
+
+    const openMarkerManagement = (): void => setMarkerManagerContextKey(lifecycleDataContextKey);
 
     const clearBlockHover = (): void => {
         plotInteractionActive.current = false;
@@ -479,6 +490,8 @@ export const MemoryBlockDiagram = observer(({
                     hoveredBlockColor ?? undefined,
                     session.leaksWorkerInfo.hoverItem?.id,
                 );
+            } else if (existingMarker.hidden === true) {
+                session.updateLifecycleMemoryMarkerPresentation(existingMarker.id, { hidden: false });
             } else {
                 session.deleteLifecycleMemoryMarker(existingMarker.id);
             }
@@ -546,6 +559,7 @@ export const MemoryBlockDiagram = observer(({
             return;
         }
         previousDataContextKeyRef.current = lifecycleDataContextKey;
+        closeMarkerManagement();
         clearBlockHover();
     }, [lifecycleDataContextKey]);
     const renderResetTooltip = (): JSX.Element => <GraphShortcutTip>
@@ -699,6 +713,9 @@ export const MemoryBlockDiagram = observer(({
                         zoomMode={xZoomMode ? 'horizontal' : 'proportional'}
                         onZoomModeChange={setZoomMode}
                         onReset={resetTransform}
+                        markerManagerOpen={markerManagerOpen}
+                        onMarkerManagementOpen={openMarkerManagement}
+                        onMarkerManagementClose={closeMarkerManagement}
                     />
                     : <></>}
                 <Axis session={session} />
@@ -719,10 +736,14 @@ export const MemoryBlockDiagram = observer(({
                         onGapHoverChange={(active, blockIds): void => {
                             workerSetMarkerHoverHighlight({ active, blockIds });
                         }}
-                        blockPreview={hoveredBlockBaseline === null || hoveredBlockColor === null || hoveredBlockMarker !== null
+                        blockPreview={hoveredBlockBaseline === null || hoveredBlockColor === null ||
+                            (hoveredBlockMarker !== null && hoveredBlockMarker.hidden !== true)
                             ? null
                             : { memoryBytes: hoveredBlockBaseline, color: hoveredBlockColor }}
                     />
+                    : <></>}
+                {session.module === 'memsnapshot' && markerManagerOpen
+                    ? <LifecycleMemoryMarkerManager session={session} onClose={closeMarkerManagement} />
                     : <></>}
                 <HoverItem session={session} />
                 {hoveredBlockBaseline === null
@@ -730,15 +751,11 @@ export const MemoryBlockDiagram = observer(({
                     : <BlockMarkerShortcutHint
                         data-testid="blockMarkerShortcutHint"
                         $markerColor={hoveredBlockColor ?? DEFAULT_LIFECYCLE_MEMORY_MARKER_COLOR}
-                        aria-label={`${t('blockMarkerShortcutPress')} K ${t(hoveredBlockMarker === null
-                            ? 'createHoveredBlockMarkerHint'
-                            : 'removeHoveredBlockMarkerHint')}`}
+                        aria-label={`${t('blockMarkerShortcutPress')} K ${t(hoveredBlockMarkerHint)}`}
                     >
                         <span>{t('blockMarkerShortcutPress')}</span>
                         <ShortcutKey>K</ShortcutKey>
-                        <span>{t(hoveredBlockMarker === null
-                            ? 'createHoveredBlockMarkerHint'
-                            : 'removeHoveredBlockMarkerHint')}</span>
+                        <span>{t(hoveredBlockMarkerHint)}</span>
                         <TimelineFlagIcon aria-hidden="true" />
                     </BlockMarkerShortcutHint>}
                 {session.loadingBlocks && session.progressiveBlocksVisible

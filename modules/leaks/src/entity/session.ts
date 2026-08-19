@@ -22,6 +22,8 @@ import {
     addLifecycleMemoryMarker,
     deleteLifecycleMemoryMarker,
     getLifecycleMemoryMarkerContextKey,
+    updateLifecycleMemoryMarkerColor,
+    updateLifecycleMemoryMarkerPresentation,
     type LifecycleMemoryMarker,
     type LifecycleMemoryMarkerSource,
 } from './lifecycleMemoryMarkers';
@@ -251,6 +253,35 @@ export class Session {
         const contextKey = this.getLifecycleMemoryMarkerContextKey();
         const currentMarkers = this.lifecycleMemoryMarkers.get(contextKey) ?? [];
         this.lifecycleMemoryMarkers.set(contextKey, deleteLifecycleMemoryMarker(currentMarkers, id));
+    }
+
+    updateLifecycleMemoryMarkerColor(id: string, color: string): boolean {
+        const contextKey = this.getLifecycleMemoryMarkerContextKey();
+        const currentMarkers = this.lifecycleMemoryMarkers.get(contextKey) ?? [];
+        const nextMarkers = updateLifecycleMemoryMarkerColor(currentMarkers, id, color);
+        if (nextMarkers === currentMarkers) {
+            return false;
+        }
+        this.lifecycleMemoryMarkers.set(contextKey, nextMarkers);
+        return true;
+    }
+
+    updateLifecycleMemoryMarkerPresentation(
+        id: string,
+        updates: { name?: string; hidden?: boolean },
+    ): boolean {
+        const contextKey = this.getLifecycleMemoryMarkerContextKey();
+        const currentMarkers = this.lifecycleMemoryMarkers.get(contextKey) ?? [];
+        const nextMarkers = updateLifecycleMemoryMarkerPresentation(currentMarkers, id, updates);
+        if (nextMarkers === currentMarkers) return false;
+        this.lifecycleMemoryMarkers.set(contextKey, nextMarkers);
+        return true;
+    }
+
+    clearCurrentLifecycleMemoryMarkers(): void {
+        const contextKey = this.getLifecycleMemoryMarkerContextKey();
+        this.lifecycleMemoryMarkers.delete(contextKey);
+        this.lifecycleMemoryMarkerOrdinals.delete(contextKey);
     }
 
     clearLifecycleMemoryMarkers(): void {

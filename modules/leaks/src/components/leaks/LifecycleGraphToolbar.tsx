@@ -9,7 +9,7 @@
 
 import React from 'react';
 import styled from '@emotion/styled';
-import { ColumnWidthOutlined, ExpandAltOutlined, OneToOneOutlined } from '@ant-design/icons';
+import { ColumnWidthOutlined, ExpandAltOutlined, FlagOutlined, OneToOneOutlined } from '@ant-design/icons';
 import { Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import {
@@ -64,6 +64,9 @@ interface LifecycleGraphToolbarProps {
     zoomMode: LifecycleZoomMode;
     onZoomModeChange: (mode: LifecycleZoomMode) => void;
     onReset: () => void;
+    markerManagerOpen?: boolean;
+    onMarkerManagementOpen?: () => void;
+    onMarkerManagementClose?: () => void;
 }
 
 const Container = styled.div`
@@ -116,10 +119,19 @@ const ToolButton = styled.button`
     }
 `;
 
+const Divider = styled.div`
+    width: 18px;
+    height: 1px;
+    background: ${(props): string => props.theme.borderColor};
+`;
+
 export const LifecycleGraphToolbar = ({
     zoomMode,
     onZoomModeChange,
     onReset,
+    markerManagerOpen = false,
+    onMarkerManagementOpen = (): void => undefined,
+    onMarkerManagementClose = (): void => undefined,
 }: LifecycleGraphToolbarProps): JSX.Element => {
     const { t } = useTranslation('leaks');
     const nextZoomMode: LifecycleZoomMode = zoomMode === 'proportional' ? 'horizontal' : 'proportional';
@@ -152,6 +164,15 @@ export const LifecycleGraphToolbar = ({
                 <ToolButton type="button" aria-label={t('resetView')} onClick={onReset}>
                     <OneToOneOutlined />
                 </ToolButton>
+            </Tooltip>
+            <Divider />
+            <Tooltip title={t('manageMemoryMarkers')} placement="left">
+                <ToolButton
+                    type="button"
+                    aria-label={t('manageMemoryMarkers')}
+                    aria-expanded={markerManagerOpen}
+                    onClick={markerManagerOpen ? onMarkerManagementClose : onMarkerManagementOpen}
+                ><FlagOutlined /></ToolButton>
             </Tooltip>
         </Panel>
     </Container>;
