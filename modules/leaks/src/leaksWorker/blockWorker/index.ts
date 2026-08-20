@@ -478,6 +478,10 @@ const transformHandler = (payload: TransformPayload): void => {
     renderer?.setTransform(transform);
 };
 
+const setBlockGraphLayerVisibilityHandler = (payload: SetBlockGraphLayerVisibilityPayload): void => {
+    renderer?.setLayerVisibility(payload.visibility);
+};
+
 const setMarkerHoverHighlightHandler = async (payload: SetMarkerHoverHighlightPayload): Promise<void> => {
     const requestVersion = ++markerHoverVersion;
     markerHoverActive = payload.active;
@@ -607,6 +611,7 @@ const Handlers: PayloadHandlers = {
     setReservedLine: setReservedLineHandler,
     resizeCanvas: resizeCanvasHandler,
     transform: transformHandler,
+    setBlockGraphLayerVisibility: setBlockGraphLayerVisibilityHandler,
     setMarkerHoverHighlight: setMarkerHoverHighlightHandler,
     hoverItem: hoverItemHandler,
     clickItem: clickItemHandler,

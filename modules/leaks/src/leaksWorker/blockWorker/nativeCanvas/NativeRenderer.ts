@@ -30,6 +30,7 @@ export class NativeRenderer {
     private renderRunning: boolean = false;
     private renderVersion: number = 0;
     private renderPromise: Promise<void> = Promise.resolve();
+    private layerVisibility: BlockGraphLayerVisibility = { blocks: true, overview: true };
 
     constructor(canvas: HTMLCanvasElement, devicePixelRatio: number) {
         this.canvas = canvas;
@@ -89,6 +90,12 @@ export class NativeRenderer {
         return this;
     }
 
+    setLayerVisibility(visibility: BlockGraphLayerVisibility): this {
+        this.layerVisibility = visibility;
+        this.requestRender();
+        return this;
+    }
+
     setTransform(transform: RenderOptions['transform']): this {
         this.transform = transform;
         this.requestRender();
@@ -131,6 +138,7 @@ export class NativeRenderer {
             await this.painter.render(
                 { transform: this.transform, viewport, zoom: this.zoom },
                 () => renderVersion !== this.renderVersion,
+                this.layerVisibility,
             );
         }
         this.renderRunning = false;

@@ -155,6 +155,9 @@ const WorkerBackend = {
     transform({ transform }: Omit<TransformPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'transform', transform });
     },
+    setBlockGraphLayerVisibility({ visibility }: Omit<SetBlockGraphLayerVisibilityPayload, 'type'>): void {
+        BlockWorker.postMessage({ type: 'setBlockGraphLayerVisibility', visibility });
+    },
     setMarkerHoverHighlight({ active, blockId, blockIds }: Omit<SetMarkerHoverHighlightPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'setMarkerHoverHighlight', active, blockId, blockIds });
     },
@@ -217,6 +220,9 @@ const MainThreadBackend = {
     transform({ transform }: Omit<TransformPayload, 'type'>): void {
         mainThreadRender.transformHandler({ transform });
     },
+    setBlockGraphLayerVisibility({ visibility }: Omit<SetBlockGraphLayerVisibilityPayload, 'type'>): void {
+        mainThreadRender.setBlockGraphLayerVisibilityHandler({ visibility });
+    },
     async setMarkerHoverHighlight(
         { active, blockId, blockIds }: Omit<SetMarkerHoverHighlightPayload, 'type'>,
     ): Promise<void> {
@@ -255,6 +261,7 @@ export const workerSetMemoryBlockData = backend.setMemoryBlockData;
 export const workerSetReservedLine = backend.setReservedLine;
 export const workerResizeCanvas = backend.resizeCanvas;
 export const workerTransform = backend.transform;
+export const workerSetBlockGraphLayerVisibility = backend.setBlockGraphLayerVisibility;
 export const workerSetMarkerHoverHighlight = backend.setMarkerHoverHighlight;
 export const workerHoverItem = backend.hoverItem;
 export const workerClickItem = backend.clickItem;

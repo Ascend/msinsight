@@ -114,7 +114,10 @@ export class Painter {
         return renderedInstanceCount;
     }
 
-    render(options: RenderOptions): void {
+    render(
+        options: RenderOptions,
+        visibility: BlockGraphLayerVisibility = { blocks: true, overview: true },
+    ): void {
         const gl = this.gl;
         if (gl === null) {
             return;
@@ -123,10 +126,12 @@ export class Painter {
         gl.enable(gl.BLEND);
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
         this.updateUniformData(options);
-        this.memoryBlockProgram?.render(options);
-        this.reservedLineProgram?.render(options);
-        this.memoryBlockHighlightProgram?.render(options);
-        this.memoryBlockBorderHightlightProgram?.render(options);
+        if (visibility.blocks) {
+            this.memoryBlockProgram?.render(options);
+            this.memoryBlockHighlightProgram?.render(options);
+            this.memoryBlockBorderHightlightProgram?.render(options);
+        }
+        if (visibility.overview) this.reservedLineProgram?.render(options);
         gl.disable(gl.BLEND);
     }
 }

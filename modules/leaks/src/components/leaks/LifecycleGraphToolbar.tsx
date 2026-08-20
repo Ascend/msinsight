@@ -7,9 +7,16 @@
  * -------------------------------------------------------------------------
  */
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from '@emotion/styled';
-import { ColumnWidthOutlined, ExpandAltOutlined, FlagOutlined, OneToOneOutlined } from '@ant-design/icons';
+import {
+    ColumnWidthOutlined,
+    ExpandAltOutlined,
+    FlagOutlined,
+    GroupOutlined,
+    OneToOneOutlined,
+    QuestionCircleOutlined,
+} from '@ant-design/icons';
 import { Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,6 +30,12 @@ import {
     GraphWheelCombo,
     GraphWheelIcon,
 } from './tools';
+import {
+    LifecycleGraphLayerPanel,
+    type LifecycleGraphLayer,
+    type LifecycleGraphLayerVisibility,
+} from './LifecycleGraphLayerPanel';
+import { LifecycleGraphInteractionGuide } from './LifecycleGraphInteractionGuide';
 
 export type LifecycleZoomMode = 'proportional' | 'horizontal';
 
@@ -62,8 +75,10 @@ export const LifecycleZoomModeTooltip = ({ zoomMode }: { zoomMode: LifecycleZoom
 
 interface LifecycleGraphToolbarProps {
     zoomMode: LifecycleZoomMode;
+    layerVisibility?: LifecycleGraphLayerVisibility;
     onZoomModeChange: (mode: LifecycleZoomMode) => void;
     onReset: () => void;
+    onLayerVisibilityChange?: (layer: LifecycleGraphLayer) => void;
     markerManagerOpen?: boolean;
     onMarkerManagementOpen?: () => void;
     onMarkerManagementClose?: () => void;
@@ -73,7 +88,9 @@ const Container = styled.div`
     position: absolute;
     top: 8px;
     right: -98px;
-    z-index: 5;
+    z-index: 12;
+    display: flex;
+    align-items: flex-start;
 `;
 
 const Panel = styled.div`
@@ -113,38 +130,83 @@ const ToolButton = styled.button`
         outline-offset: 1px;
     }
 
+    &:disabled {
+        color: ${(props): string => props.theme.textColorSecondary};
+        opacity: 0.45;
+        cursor: default;
+    }
+
     svg {
         width: 16px;
         height: 16px;
     }
+
 `;
 
 const Divider = styled.div`
-    width: 18px;
-    height: 1px;
-    background: ${(props): string => props.theme.borderColor};
+    width: 20px;
+    border-top: 1px solid ${(props): string => props.theme.borderColorLighter};
 `;
 
 export const LifecycleGraphToolbar = ({
     zoomMode,
+    layerVisibility = { blocks: true, overview: true, markers: true },
     onZoomModeChange,
     onReset,
+    onLayerVisibilityChange = (): void => undefined,
     markerManagerOpen = false,
     onMarkerManagementOpen = (): void => undefined,
     onMarkerManagementClose = (): void => undefined,
 }: LifecycleGraphToolbarProps): JSX.Element => {
     const { t } = useTranslation('leaks');
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [activePanel, setActivePanel] = useState<'layers' | 'guide' | null>(null);
     const nextZoomMode: LifecycleZoomMode = zoomMode === 'proportional' ? 'horizontal' : 'proportional';
     const zoomToggleLabel = zoomMode === 'proportional'
         ? t('switchToHorizontalZoom')
         : t('switchToProportionalZoom');
 
+    useEffect(() => {
+        if (activePanel === null) return undefined;
+        const closeOutside = (event: MouseEvent): void => {
+            const target = event.target;
+            const insideFloatingPanel = target instanceof Element &&
+                target.closest('[data-lifecycle-floating-panel]') !== null;
+            if (!containerRef.current?.contains(target as Node) && !insideFloatingPanel) {
+                setActivePanel(null);
+            }
+        };
+        const closeOnEscape = (event: KeyboardEvent): void => {
+            if (event.key === 'Escape') setActivePanel(null);
+        };
+        document.addEventListener('mousedown', closeOutside);
+        document.addEventListener('keydown', closeOnEscape);
+        return () => {
+            document.removeEventListener('mousedown', closeOutside);
+            document.removeEventListener('keydown', closeOnEscape);
+        };
+    }, [activePanel]);
+
     return <Container
+        ref={containerRef}
         data-testid="lifecycleGraphToolbar"
         onMouseDown={(event): void => event.stopPropagation()}
         onClick={(event): void => event.stopPropagation()}
     >
         <GraphToolbarTooltipStyle />
+        {activePanel === 'layers'
+            ? <LifecycleGraphLayerPanel
+                visibility={layerVisibility}
+                onChange={onLayerVisibilityChange}
+                onClose={(): void => setActivePanel(null)}
+            />
+            : <></>}
+        {activePanel === 'guide'
+            ? <LifecycleGraphInteractionGuide
+                anchorElement={containerRef.current}
+                onClose={(): void => setActivePanel(null)}
+            />
+            : <></>}
         <Panel>
             <Tooltip
                 title={<LifecycleZoomModeTooltip zoomMode={zoomMode} />}
@@ -166,13 +228,40 @@ export const LifecycleGraphToolbar = ({
                 </ToolButton>
             </Tooltip>
             <Divider />
+            <Tooltip title={t('graphLayers')} placement="left">
+                <ToolButton
+                    type="button"
+                    aria-label={t('graphLayers')}
+                    aria-expanded={activePanel === 'layers'}
+                    onClick={(): void => {
+                        setActivePanel(activePanel === 'layers' ? null : 'layers');
+                        onMarkerManagementClose();
+                    }}
+                ><GroupOutlined /></ToolButton>
+            </Tooltip>
             <Tooltip title={t('manageMemoryMarkers')} placement="left">
                 <ToolButton
                     type="button"
                     aria-label={t('manageMemoryMarkers')}
                     aria-expanded={markerManagerOpen}
-                    onClick={markerManagerOpen ? onMarkerManagementClose : onMarkerManagementOpen}
+                    onClick={(): void => {
+                        setActivePanel(null);
+                        if (markerManagerOpen) onMarkerManagementClose();
+                        else onMarkerManagementOpen();
+                    }}
                 ><FlagOutlined /></ToolButton>
+            </Tooltip>
+            <Divider />
+            <Tooltip title={t('lifecycleGraphGuideTitle')} placement="left">
+                <ToolButton
+                    type="button"
+                    aria-label={t('lifecycleGraphGuideTitle')}
+                    aria-expanded={activePanel === 'guide'}
+                    onClick={(): void => {
+                        setActivePanel(activePanel === 'guide' ? null : 'guide');
+                        onMarkerManagementClose();
+                    }}
+                ><QuestionCircleOutlined /></ToolButton>
             </Tooltip>
         </Panel>
     </Container>;
