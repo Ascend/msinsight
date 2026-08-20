@@ -84,7 +84,11 @@ export class Painter {
         return transform.scaleY;
     }
 
-    async render(options: RenderOptions, shouldCancel: () => boolean = () => false): Promise<void> {
+    async render(
+        options: RenderOptions,
+        shouldCancel: () => boolean = () => false,
+        visibility: BlockGraphLayerVisibility = { blocks: true, overview: true },
+    ): Promise<void> {
         if (this.context === null) {
             return;
         }
@@ -95,20 +99,22 @@ export class Painter {
         this.context.scale(this.getScaleX(transform), -this.getScaleY(transform));
         this.context.save();
         try {
-            if (this.blockDataOPFS && this.batchCount > 0) {
-                await this.renderDataFromOPFS(this.blockDataOPFS, this.batchCount, options, false, this.dimBase, shouldCancel);
-                if (shouldCancel()) {
-                    return;
+            if (visibility.blocks) {
+                if (this.blockDataOPFS && this.batchCount > 0) {
+                    await this.renderDataFromOPFS(this.blockDataOPFS, this.batchCount, options, false, this.dimBase, shouldCancel);
+                    if (shouldCancel()) return;
+                } else {
+                    this.renderData(this.data, options, false, this.dimBase);
                 }
-            } else {
-                this.renderData(this.data, options, false, this.dimBase);
             }
             if (shouldCancel()) {
                 return;
             }
-            this.renderReservedLine(options);
-            this.renderData(this.highlightData, options);
-            this.renderData(this.highlightData, options, true);
+            if (visibility.overview) this.renderReservedLine(options);
+            if (visibility.blocks) {
+                this.renderData(this.highlightData, options);
+                this.renderData(this.highlightData, options, true);
+            }
         } finally {
             this.context.restore();
         }

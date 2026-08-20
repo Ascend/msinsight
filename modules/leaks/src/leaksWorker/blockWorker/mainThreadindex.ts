@@ -428,6 +428,10 @@ export class MainThreadRender {
         this.renderer?.setTransform(this.transform);
     }
 
+    setBlockGraphLayerVisibilityHandler(payload: Omit<SetBlockGraphLayerVisibilityPayload, 'type'>): void {
+        this.renderer?.setLayerVisibility(payload.visibility);
+    }
+
     async setMarkerHoverHighlightHandler(
         payload: Omit<SetMarkerHoverHighlightPayload, 'type'>,
     ): Promise<void> {

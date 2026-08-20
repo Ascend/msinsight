@@ -24,6 +24,7 @@ import {
     workerHoverItem,
     workerClickItem,
     workerSelectBlockById,
+    workerSetBlockGraphLayerVisibility,
     workerSetMarkerHoverHighlight,
 } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
@@ -72,6 +73,10 @@ import {
     LifecycleZoomModeTooltip,
     type LifecycleZoomMode,
 } from './LifecycleGraphToolbar';
+import {
+    type LifecycleGraphLayer,
+    type LifecycleGraphLayerVisibility,
+} from './LifecycleGraphLayerPanel';
 
 const BASE_MOVE_STEP = 5;
 const TOOLBAR_HEIGHT = 36;
@@ -174,6 +179,12 @@ export const MemoryBlockDiagram = observer(({
     const [markerManagerContextKey, setMarkerManagerContextKey] = useState<string | null>(null);
     const markerManagerOpen = markerManagerContextKey === lifecycleDataContextKey;
     const closeMarkerManagement = useCallback((): void => setMarkerManagerContextKey(null), []);
+    const [layerVisibility, setLayerVisibility] = useState<LifecycleGraphLayerVisibility>({
+        blocks: true,
+        overview: true,
+        markers: true,
+    });
+    const layerVisibilityRef = useRef(layerVisibility);
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
@@ -188,7 +199,8 @@ export const MemoryBlockDiagram = observer(({
         : 0;
     const pointerInsideCurrentData = pointerInsidePlot &&
         previousDataContextKeyRef.current === lifecycleDataContextKey;
-    const hoveredBlockBaseline = pointerInsideCurrentData && session.module === 'memsnapshot'
+    const hoveredBlockBaseline = pointerInsideCurrentData && session.module === 'memsnapshot' &&
+        layerVisibility.blocks && layerVisibility.markers
         ? getLifecycleMarkerBaseline(session.leaksWorkerInfo.hoverItem)
         : null;
     const hoveredBlockMarker = hoveredBlockBaseline === null
@@ -203,7 +215,7 @@ export const MemoryBlockDiagram = observer(({
         : hoveredBlockMarker.hidden === true
             ? 'restoreHoveredBlockMarkerHint'
             : 'removeHoveredBlockMarkerHint';
-    const hoveredBlockColor = session.leaksWorkerInfo.hoverItem === null
+    const hoveredBlockColor = hoveredBlockBaseline === null || session.leaksWorkerInfo.hoverItem === null
         ? null
         : getColorStringByAddr(session.leaksWorkerInfo.hoverItem.addr);
 
@@ -222,6 +234,22 @@ export const MemoryBlockDiagram = observer(({
         });
         workerHoverItem({ clientX: -1, clientY: -1 });
         workerSetMarkerHoverHighlight({ active: false });
+    };
+
+    const toggleLayerVisibility = (layer: LifecycleGraphLayer): void => {
+        const next = { ...layerVisibilityRef.current, [layer]: !layerVisibilityRef.current[layer] };
+        layerVisibilityRef.current = next;
+        setLayerVisibility(next);
+        if (layer === 'blocks' && !next.blocks) {
+            clearBlockHover();
+        }
+        if (layer === 'blocks' || layer === 'overview') {
+            workerSetBlockGraphLayerVisibility({ visibility: { blocks: next.blocks, overview: next.overview } });
+        }
+        if (layer === 'markers' && !next.markers) {
+            closeMarkerManagement();
+            workerSetMarkerHoverHighlight({ active: false });
+        }
     };
 
     const createMemoryMarker = (
@@ -383,7 +411,9 @@ export const MemoryBlockDiagram = observer(({
             }
         }
         if (!isDragging.current) {
-            workerHoverItem({ clientX: currentX, clientY: rect.height - currentY });
+            if (layerVisibilityRef.current.blocks) {
+                workerHoverItem({ clientX: currentX, clientY: rect.height - currentY });
+            }
             runInAction(() => {
                 session.markLineInfo.block = { x: currentX, y: currentY };
             });
@@ -413,6 +443,9 @@ export const MemoryBlockDiagram = observer(({
         }
         if (isClick.current) {
             isClick.current = false;
+            if (!layerVisibilityRef.current.blocks) {
+                return;
+            }
             const rect = ref.current.getBoundingClientRect();
             const selectionVersion = session.selectionVersion + 1;
             workerSelectStateItem({ item: null, selectionVersion });
@@ -474,7 +507,8 @@ export const MemoryBlockDiagram = observer(({
         const action = resolveLifecycleKeyboardAction(ev, session.module === 'memsnapshot');
         if (action === 'add-marker') {
             const baseline = getLifecycleMarkerBaseline(session.leaksWorkerInfo.hoverItem);
-            if (!plotInteractionActive.current || baseline === null) {
+            if (!layerVisibilityRef.current.blocks || !layerVisibilityRef.current.markers ||
+                !plotInteractionActive.current || baseline === null) {
                 return;
             }
             ev.preventDefault();
@@ -697,6 +731,9 @@ export const MemoryBlockDiagram = observer(({
             data-progressive-render-percent={String(progressiveRenderPercent)}
             data-progressive-first-batch-count={String(session.progressiveFirstRenderedBatchCount)}
             data-progressive-first-instance-count={String(session.progressiveFirstRenderedInstanceCount)}
+            data-block-layer-visible={String(layerVisibility.blocks)}
+            data-overview-layer-visible={String(layerVisibility.overview)}
+            data-marker-layer-visible={String(layerVisibility.markers)}
             ref={containerRef}
             style={{
                 width: '100%',
@@ -710,9 +747,12 @@ export const MemoryBlockDiagram = observer(({
             <div style={{ position: 'relative' }}>
                 {session.module === 'memsnapshot'
                     ? <LifecycleGraphToolbar
+                        key={lifecycleDataContextKey}
                         zoomMode={xZoomMode ? 'horizontal' : 'proportional'}
+                        layerVisibility={layerVisibility}
                         onZoomModeChange={setZoomMode}
                         onReset={resetTransform}
+                        onLayerVisibilityChange={toggleLayerVisibility}
                         markerManagerOpen={markerManagerOpen}
                         onMarkerManagementOpen={openMarkerManagement}
                         onMarkerManagementClose={closeMarkerManagement}
@@ -723,7 +763,7 @@ export const MemoryBlockDiagram = observer(({
                     ref={ref}
                 />
                 <MarkLineBlock session={session} />
-                {session.module === 'memsnapshot'
+                {session.module === 'memsnapshot' && layerVisibility.markers
                     ? <LifecycleMemoryMarkerOverlay
                         session={session}
                         onCreateMarker={createMemoryMarker}
@@ -745,7 +785,7 @@ export const MemoryBlockDiagram = observer(({
                 {session.module === 'memsnapshot' && markerManagerOpen
                     ? <LifecycleMemoryMarkerManager session={session} onClose={closeMarkerManagement} />
                     : <></>}
-                <HoverItem session={session} />
+                {layerVisibility.blocks ? <HoverItem session={session} /> : <></>}
                 {hoveredBlockBaseline === null
                     ? <></>
                     : <BlockMarkerShortcutHint

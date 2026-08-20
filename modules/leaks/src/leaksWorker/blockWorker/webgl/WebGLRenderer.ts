@@ -27,6 +27,7 @@ export class WebGLRenderer {
     private rafPending: boolean = false;
     private zoom: RenderOptions['zoom'] = { x: 0, y: 0, offset: 0 };
     private dimBase: boolean = false;
+    private layerVisibility: BlockGraphLayerVisibility = { blocks: true, overview: true };
 
     constructor(canvas: OffscreenCanvas, devicePixelRatio: number, opfsRuntimeId: string) {
         this.canvas = canvas;
@@ -84,11 +85,13 @@ export class WebGLRenderer {
 
     appendDataFromOPFS(startBatch: number, endBatch: number): number {
         const viewport = { width: this.canvas.width, height: this.canvas.height };
-        return this.painter.renderMemoryBlockBatchRange(
+        const renderedCount = this.painter.renderMemoryBlockBatchRange(
             startBatch,
             endBatch,
             { transform: this.transform, viewport, zoom: this.zoom },
         );
+        if (!this.layerVisibility.blocks) this.renderFrame();
+        return renderedCount;
     }
 
     async setHighlightData(highlightData: RenderData['blocks'] = [], render: boolean = true): Promise<this> {
@@ -109,6 +112,12 @@ export class WebGLRenderer {
         if (render) {
             this.renderFrame();
         }
+        return this;
+    }
+
+    setLayerVisibility(visibility: BlockGraphLayerVisibility): this {
+        this.layerVisibility = visibility;
+        this.requestRender();
         return this;
     }
 
@@ -138,7 +147,7 @@ export class WebGLRenderer {
 
     renderFrame(): void {
         const viewport = { width: this.canvas.width, height: this.canvas.height };
-        this.painter.render({ transform: this.transform, viewport, zoom: this.zoom });
+        this.painter.render({ transform: this.transform, viewport, zoom: this.zoom }, this.layerVisibility);
     }
 
     destroy(): void {

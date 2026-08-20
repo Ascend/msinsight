@@ -69,6 +69,16 @@ interface TransformPayload {
     transform: RenderOptions['transform'];
 };
 
+interface BlockGraphLayerVisibility {
+    blocks: boolean;
+    overview: boolean;
+}
+
+interface SetBlockGraphLayerVisibilityPayload {
+    type: 'setBlockGraphLayerVisibility';
+    visibility: BlockGraphLayerVisibility;
+}
+
 interface SetMarkerHoverHighlightPayload {
     type: 'setMarkerHoverHighlight';
     active: boolean;
@@ -121,6 +131,7 @@ type Payload =
     | SetReservedLinePayload
     | ResizeCanvasPayload
     | TransformPayload
+    | SetBlockGraphLayerVisibilityPayload
     | SetMarkerHoverHighlightPayload
     | HoverItemPayload
     | ClickItemPayload
