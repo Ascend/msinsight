@@ -11,13 +11,13 @@ MindStudio Insight 的可操作能力分布在 framework 与多个业务 Module 
 - framework 通过 Action Registry 聚合本地 Action 与 Module Action；
 - Module 通过独立 Bridge 注册并执行 Action。
 
-这使一次业务能力新增需要理解多层注册、发现和调用模型，也让 Tool 与 Action 的语义边界不清晰。特别是，当前使用的 `@blade-ai/agent-sdk@1.1.0` 只允许在创建或恢复 Session 时通过 `SessionOptions.tools` 注入 Tool；`SendOptions` 和公开 `ISession` API 不支持按轮次替换 Tool。因此，不能把页面动态能力可靠地映射成每轮动态 Blade Tool。
+这使一次业务能力新增需要理解多层注册、发现和调用模型，也让 Tool 与 Action 的语义边界不清晰。特别是，模型 Tool 集合只在 Runtime 会话建立时注入，运行中的 Tool Loop 不支持按轮次替换 Tool。因此，不能把页面动态能力可靠地映射成每轮动态模型 Tool。
 
-本设计将整个 MindStudio Insight 前端视为一个向 Agent 提供结构化命令的远程 CLI：Blade 只看到一个稳定的 `msinsight` Tool，framework 对外提供动态 Command。
+本设计将整个 MindStudio Insight 前端视为一个向 Agent 提供结构化命令的远程 CLI：Native Agent 只通过稳定的 `msinsight` Tool 执行页面 Command，framework 对外提供动态 Command。跨 ACP Agent 的回复 Action 使用普通文本标记，其边界见 [Agent 回复 Action 设计](./AgentReplyAction.md)。
 
 ## 2. 目标
 
-1. Native Agent 只向模型注册一个固定 `msinsight` Tool；
+1. Native Agent 只通过固定 `msinsight` Tool 向模型提供页面 Command 执行能力；
 2. framework 只对外暴露一个 `FrontendAgentCommandController`；
 3. Agent iframe 只负责请求转发，不保存 Command 目录或业务状态；
 4. Module 只暴露一个 `ModuleAgentCommandClient`；
@@ -33,7 +33,7 @@ MindStudio Insight 的可操作能力分布在 framework 与多个业务 Module 
 本设计不包含：
 
 - 解析 shell 命令行字符串、引号、管道或重定向；
-- 把每个前端 Command 动态注册为 Blade Tool；
+- 把每个前端 Command 动态注册为模型 Tool；
 - 让 Agent iframe 缓存、校验或路由 Command；
 - 让通信层感知 Table、Graph、MemScope 等业务领域；
 - 本阶段实现用户审批 UI、approval challenge 或 approval grant；
@@ -43,7 +43,7 @@ MindStudio Insight 的可操作能力分布在 framework 与多个业务 Module 
 
 ### 4.1 Native Tool
 
-Native Tool 是 Blade/LLM 可以直接调用的函数。本设计中，页面能力只通过一个固定 Tool 暴露：
+Native Tool 是 LLM 可以直接调用的函数。本设计中，页面能力只通过一个固定 Tool 暴露：
 
 ```ts
 msinsight({
@@ -82,9 +82,9 @@ Native msinsight Tool
 ## 5. 总体拓扑
 
 ```text
-Blade / LLM
+LLM
     │
-    │ 固定 Tool：msinsight({ command, args })
+    │ 页面执行 Tool：msinsight({ command, args })
     ▼
 Native Agent Runtime
     │
@@ -113,7 +113,7 @@ ModuleAgentCommandClient
 
 ### 6.1 Native Agent Runtime
 
-Native Agent 只注册一个固定的 `msinsight` Tool：
+Native Agent 只使用一个固定的 `msinsight` Tool 执行页面 Command：
 
 ```ts
 interface MsinsightToolInput {

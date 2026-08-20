@@ -58,9 +58,11 @@ export const createSessionManager = ({ adapter, eventBus, state, config, auditLo
         const targetSessionId = String(sessionId ?? "").trim();
         if (!targetSessionId) return { error: "sessionId is required", status: 400 };
         const context = state.sessionContexts.get(targetSessionId);
+        permissionService?.rejectSessionRequests?.(targetSessionId, "invalidated", true);
         if (context?.pendingPrompt) {
             try {
-                await adapter.request("session/cancel", { sessionId: targetSessionId });
+                if (adapter.notify) adapter.notify("session/cancel", { sessionId: targetSessionId });
+                else await adapter.request("session/cancel", { sessionId: targetSessionId });
             } catch (error) {
                 console.warn(`[ACP] session/cancel failed for ${targetSessionId}: ${error.message}`);
             }
@@ -74,7 +76,6 @@ export const createSessionManager = ({ adapter, eventBus, state, config, auditLo
                 return { error: error.message, status: 500 };
             }
         }
-        permissionService?.rejectSessionRequests?.(targetSessionId, "invalidated");
         state.localTitles.delete(targetSessionId);
         state.sessionContexts.delete(targetSessionId);
         auditLogger?.sessionEnd?.(targetSessionId);
@@ -115,6 +116,7 @@ export const createSessionManager = ({ adapter, eventBus, state, config, auditLo
         listSessions: (...args) => sessionService.listSessions(...args),
         loadSessionById: (...args) => sessionService.loadSessionById(...args),
         deleteSessionById: (...args) => sessionService.deleteSessionById(...args),
+        setConfigOption: (...args) => sessionService.setConfigOption(...args),
         setModel: (...args) => sessionService.setModel(...args),
         setMode: (...args) => sessionService.setMode(...args),
     };

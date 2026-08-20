@@ -124,7 +124,7 @@ openEuler / CentOS / RHEL 类系统可参考：
 sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-Node.js 可通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v22.14.0+（Blade Agent 运行时的最低要求）。
+Node.js 可通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v22.14.0+（Native Agent 运行时的最低要求）。
 
 ### 2.3 环境验证
 

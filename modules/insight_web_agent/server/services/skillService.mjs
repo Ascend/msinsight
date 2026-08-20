@@ -20,8 +20,7 @@ import { join } from "node:path";
 
 const SKILL_FILE = "SKILL.md";
 
-export const createSkillService = ({ rootDir }) => {
-    const skillsDir = join(rootDir, "skills");
+export const createSkillService = ({ rootDir, skillsDir = join(rootDir, "skills") }) => {
     let cache = [];
 
     const refresh = async () => {

@@ -19,84 +19,29 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { messagesFromExport } from "../../services/exportMapper.mjs";
 
-test("messagesFromExport restores image file parts", () => {
+test("messagesFromExport preserves ordered content and ignores file parts", () => {
     const messages = messagesFromExport({
         messages: [{
-            info: { id: "msg-1", role: "user" },
+            info: { id: "msg-1", role: "assistant" },
             parts: [
-                { type: "text", text: "分析这个图片" },
-                {
-                    id: "part-1",
-                    type: "file",
-                    mime: "image/png",
-                    filename: "clipboard",
-                    url: "data:image/png;base64,iVBORw0KGgo=",
-                },
+                { id: "text-1", type: "text", text: "before" },
+                { id: "file-1", type: "file", mime: "image/png", url: "data:image/png;base64,iVBORw0KGgo=" },
+                { id: "call-1", type: "tool", callID: "call-1", tool: "Read", state: { status: "completed", output: "done" } },
+                { id: "reason-1", type: "reasoning", text: "thinking" },
+                { id: "text-2", type: "text", text: "after" },
             ],
         }],
     });
 
-    assert.deepEqual(messages, [{
-        id: "msg-1",
-        role: "user",
-        text: "分析这个图片",
-        images: [{
-            id: "part-1",
-            name: "clipboard",
-            mimeType: "image/png",
-            data: "iVBORw0KGgo=",
-        }],
-    }]);
+    assert.deepEqual(messages[0].content.map((block) => block.type), ["text", "tool", "thinking", "text"]);
+    assert.equal(messages[0].content.some((block) => block.type === "image"), false);
 });
 
-test("messagesFromExport preserves non-png image mime types", () => {
-    const messages = messagesFromExport({
+test("messagesFromExport drops messages containing only file parts", () => {
+    assert.deepEqual(messagesFromExport({
         messages: [{
             info: { id: "msg-1", role: "user" },
-            parts: [
-                {
-                    id: "part-jpeg",
-                    type: "file",
-                    mime: "image/jpeg",
-                    filename: "photo.jpg",
-                    url: "data:image/jpeg;base64,/9j/4AAQSkZJRg==",
-                },
-                {
-                    id: "part-webp",
-                    type: "file",
-                    mime: "image/webp",
-                    filename: "image.webp",
-                    url: "data:image/webp;base64,UklGRiIAAABXRUJQVlA=",
-                },
-                {
-                    id: "part-svg",
-                    type: "file",
-                    mime: "image/svg+xml",
-                    filename: "diagram.svg",
-                    url: "data:image/svg+xml;base64,PHN2Zy8+",
-                },
-            ],
+            parts: [{ id: "file-1", type: "file", mime: "image/jpeg", url: "data:image/jpeg;base64,/9j/4AAQSkZJRg==" }],
         }],
-    });
-
-    assert.deepEqual(messages[0].images, [
-        {
-            id: "part-jpeg",
-            name: "photo.jpg",
-            mimeType: "image/jpeg",
-            data: "/9j/4AAQSkZJRg==",
-        },
-        {
-            id: "part-webp",
-            name: "image.webp",
-            mimeType: "image/webp",
-            data: "UklGRiIAAABXRUJQVlA=",
-        },
-        {
-            id: "part-svg",
-            name: "diagram.svg",
-            mimeType: "image/svg+xml",
-            data: "PHN2Zy8+",
-        },
-    ]);
+    }), []);
 });

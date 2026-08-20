@@ -275,7 +275,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
                     return { error: "config options are not supported by this agent", status: 409 };
                 }
                 console.error(`Set config option failed: sessionId=${sessionId}, configId=${configId}, error=${error.message}`);
-                return { error: error.message, status: 500 };
+                return { error: error.message, status: configOptionErrorStatus(error.message) };
             }
         });
     };
@@ -357,10 +357,17 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         await acpClient.request("session/delete", { sessionId });
     };
 
+    const configOptionErrorStatus = (message) => {
+        if (/cannot be changed|prompting has started|running prompt/i.test(message)) return 409;
+        if (/unavailable|unsupported config option|session not found/i.test(message)) return 400;
+        return 500;
+    };
+
     sessionManager?.bindSessionService?.({
         deleteSessionById,
         listSessions,
         loadSessionById,
+        setConfigOption: setSessionConfigOption,
         setMode,
         setModel,
     });
@@ -376,6 +383,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         loadConfigOptions,
         refreshSessions,
         resumeSession,
+        setConfigOption: setSessionConfigOption,
         setConfigOptions: (configOptions, sessionId) => setConfigOptions({ eventBus, state }, configOptions, sessionId),
         setMode,
         setModel,

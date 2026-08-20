@@ -18,7 +18,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import test from "node:test";
@@ -66,8 +66,12 @@ test("native agent serializes concurrent session store writes", async () => {
         const responses = await responsesPromise;
         assert.equal(responses.every((response) => response.result?.sessionId && !response.error), true);
 
-        const store = JSON.parse(await readFile(resolve(storeDir, "sessions.json"), "utf8"));
-        assert.equal(store.sessions.length, requestCount);
+        const files = await readdir(resolve(storeDir, "sessions"));
+        assert.equal(files.length, requestCount);
+        const records = (await readFile(resolve(storeDir, "sessions", files[0]), "utf8")).trim().split(/\r?\n/).map(JSON.parse);
+        assert.equal(records.length, 1);
+        assert.equal(records[0].type, "session_metadata");
+        assert.equal(records[0].version, 3);
     } finally {
         if (child.exitCode === null) {
             child.kill();

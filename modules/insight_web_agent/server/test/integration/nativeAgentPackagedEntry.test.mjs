@@ -18,7 +18,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { access, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -94,7 +94,7 @@ const writeJsonLine = (child, message) => {
     child.stdin.write(`${JSON.stringify(message)}\n`);
 };
 
-test("packaged native agent loads Blade SDK and reaches the Responses API", async () => {
+test("packaged native agent loads AI SDK and surfaces Responses API errors", async () => {
     await access(packagedNativeAgentPath);
     const cwd = await mkdtemp(join(tmpdir(), "msinsight-native-packaged-sdk-"));
     const storeDir = join(cwd, ".mindstudio_insight", ".msinsight_native_agent");
@@ -143,20 +143,15 @@ test("packaged native agent loads Blade SDK and reaches the Responses API", asyn
         });
         const promptResult = await responsePromise;
 
-        assert.deepEqual(promptResult.response, { jsonrpc: "2.0", id: 2, result: {} });
+        assert.equal(promptResult.response.jsonrpc, "2.0");
+        assert.equal(promptResult.response.id, 2);
+        assert.equal(promptResult.response.error?.code, -32000);
+        assert.match(promptResult.response.error?.message ?? "", /Unauthorized|invalid test API key/i);
         assert.equal(requests.length > 0, true);
         assert.equal(requests[0].method, "POST");
         assert.equal(requests[0].url, "/v1/responses");
         assert.equal(requests[0].authorization, "Bearer test-key");
         assert.equal(JSON.parse(requests[0].body).model, "test-model");
-        assert.equal(stderr.includes("Failed to load @blade-ai/agent-sdk"), false);
-        const chunks = promptResult.messages
-            .filter((message) => message.method === "session/update")
-            .map((message) => message.params?.update?.content?.text ?? "")
-            .join("");
-        assert.match(chunks, /Unauthorized|invalid test API key/i);
-        const bladeSessions = await readdir(join(storeDir, "blade", "sessions"));
-        assert.equal(bladeSessions.some((name) => name.endsWith(".jsonl")), true);
     } finally {
         if (child.exitCode === null) {
             child.kill();
@@ -200,9 +195,11 @@ test("packaged native agent responds to ACP initialize and session/new", async (
         assert.equal(initialize?.result?.agentCapabilities?.loadSession, true);
         assert.match(sessionNew?.result?.sessionId, /^[0-9a-f-]{36}$/i);
 
-        const store = JSON.parse(await readFile(join(storeDir, "sessions.json"), "utf8"));
-        assert.equal(store.sessions.length, 1);
-        assert.equal(store.sessions[0].sessionId, sessionNew.result.sessionId);
+        const records = (await readFile(join(storeDir, "sessions", `${sessionNew.result.sessionId}.jsonl`), "utf8"))
+            .trim().split(/\r?\n/).map(JSON.parse);
+        assert.equal(records.length, 1);
+        assert.equal(records[0].version, 3);
+        assert.equal(records[0].session.sessionId, sessionNew.result.sessionId);
     } finally {
         if (child.exitCode === null) {
             child.kill();
@@ -243,13 +240,10 @@ const assertPackagedUnsupportedProvider = async (provider) => {
             params: { sessionId, prompt: [{ type: "text", text: "test" }] },
         });
         const promptResult = await responsePromise;
-        const chunks = promptResult.messages
-            .filter((message) => message.method === "session/update")
-            .map((message) => message.params?.update?.content?.text ?? "")
-            .join("");
-
-        assert.deepEqual(promptResult.response, { jsonrpc: "2.0", id: 2, result: {} });
-        assert.match(chunks, new RegExp(`Fallback reason: unsupported_provider:${provider}`));
+        assert.equal(promptResult.response.jsonrpc, "2.0");
+        assert.equal(promptResult.response.id, 2);
+        assert.equal(promptResult.response.error?.code, -32000);
+        assert.equal(promptResult.response.error?.message, `unsupported_provider:${provider}`);
     } finally {
         if (child.exitCode === null) {
             child.kill();

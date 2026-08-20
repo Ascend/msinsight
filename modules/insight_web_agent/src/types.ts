@@ -23,7 +23,11 @@ export type PermissionState = 'pending' | 'allowed_once' | 'allowed_always' | 'd
 export interface PermissionRequestItem {
     sessionId: string;
     requestId: string;
-    path: string;
+    kind?: 'filesystem' | 'bash';
+    title?: string;
+    target: string;
+    path?: string;
+    details?: Record<string, unknown>;
     actions: PermissionDecision[];
     state: PermissionState;
     error?: string;
@@ -49,15 +53,27 @@ export interface ToolCallItem {
     durationMs?: number;
 }
 
+export interface ActionItem {
+    actionId: string;
+    label: string;
+    description: string;
+    command: string;
+    args: Record<string, unknown>;
+}
+
+export type MessageContentBlock =
+    | { id: string; type: 'text'; text: string }
+    | { id: string; type: 'thinking'; text: string }
+    | { id: string; type: 'tool'; toolCall: ToolCallItem };
+
 export interface ChatMessage {
     id: string;
     role: MessageRole;
-    text: string;
-    images?: ImageAttachment[];
-    thinking?: string;
-    toolCalls?: ToolCallItem[];
+    content: MessageContentBlock[];
     activity?: AgentActivity;
     pending?: boolean;
+    startedAt?: number;
+    durationMs?: number;
     permission?: PermissionRequestItem;
 }
 
@@ -74,6 +90,8 @@ export interface SessionItem {
     sessionId: string;
     title?: string;
     updatedAt?: string;
+    primaryAgentId?: string;
+    primaryAgentName?: string;
     isPending?: boolean;
     pendingPrompt?: boolean;
     status?: SessionStatus;
@@ -83,6 +101,26 @@ export interface ConfigOptionValue {
     value: string;
     name: string;
     description?: string;
+    source?: {
+        id?: string;
+        kind?: string;
+    };
+    diagnostics?: Array<{
+        code?: string;
+        message?: string;
+    }>;
+    available?: boolean;
+    _meta?: {
+        'msinsight.dev/source'?: {
+            id?: string;
+            kind?: string;
+        };
+        'msinsight.dev/available'?: boolean;
+        'msinsight.dev/diagnostics'?: Array<{
+            code?: string;
+            message?: string;
+        }>;
+    };
     options?: ConfigOptionValue[];
 }
 
@@ -217,13 +255,13 @@ export type ServerEvent =
     | { type: 'agent_discovery_started' }
     | { type: 'agent_discovery_completed'; runtimeChanged?: boolean }
     | { type: 'message_added'; sessionId?: string; message: ChatMessage }
-    | { type: 'message_delta'; sessionId?: string; id: string; field: 'text' | 'thinking'; delta: string }
-    | { type: 'message_delta'; sessionId?: string; id: string; field: 'images'; delta: ImageAttachment[] }
+    | { type: 'message_content_delta'; sessionId?: string; id: string; blockId: string; blockType: 'text' | 'thinking'; delta: string }
+    | { type: 'message_content_added'; sessionId?: string; id: string; block: MessageContentBlock }
     | { type: 'message_tool_call'; sessionId?: string; id: string; toolCall: ToolCallItem }
     | { type: 'message_activity'; sessionId?: string; id: string; activity?: AgentActivity }
     | { type: 'message_removed'; sessionId?: string; id: string }
     | { type: 'config_options'; sessionId?: string; configOptions: ConfigOption[] }
-    | { type: 'permission_request'; sessionId: string; requestId: string; path: string; actions: PermissionDecision[] }
+    | { type: 'permission_request'; sessionId: string; requestId: string; kind?: 'filesystem' | 'bash'; title?: string; target?: string; path?: string; details?: Record<string, unknown>; actions: PermissionDecision[] }
     | { type: 'permission_resolved'; sessionId: string; requestId: string; state: Exclude<PermissionState, 'pending'> }
     | { type: 'prompt_status'; sessionId?: string; pendingPrompt: boolean }
     | { type: 'frontend_command_request'; requestId: string; sessionId?: string; command: string; args: Record<string, unknown>; deadline: number }

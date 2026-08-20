@@ -87,6 +87,13 @@ export const createSession = (): Promise<LoadSessionResponse> => {
     return requestJson<LoadSessionResponse>('/api/sessions/new', { method: 'POST' });
 };
 
+export const setSessionConfigOption = (configId: string, value: string, sessionId: string): Promise<SessionConfigUpdateResult> => {
+    return requestJson<SessionConfigUpdateResult>('/api/session-config/option', {
+        method: 'POST',
+        body: JSON.stringify({ configId, value, sessionId }),
+    });
+};
+
 export const setSessionModel = (model: string, sessionId?: string): Promise<OkResponse> => {
     return requestJson<OkResponse>('/api/session-config/model', {
         method: 'POST',

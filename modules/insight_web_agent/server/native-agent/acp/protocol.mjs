@@ -17,7 +17,7 @@
  */
 
 /** 功能：创建基于 stdin/stdout 的 ACP JSON-RPC 协议服务。 */
-export const createAcpProtocolServer = ({ input = process.stdin, writeJson, handleRequest, beforeRequest, onClose }) => {
+export const createAcpProtocolServer = ({ input = process.stdin, writeJson, handleRequest, handleResponse, beforeRequest, onClose }) => {
     let buffer = "";
     let closed = false;
     const pending = new Set();
@@ -50,8 +50,8 @@ export const createAcpProtocolServer = ({ input = process.stdin, writeJson, hand
         if (closed) return;
         closed = true;
         input.off("data", handleInputChunk);
-        await Promise.allSettled(pending);
         await onClose?.();
+        await Promise.allSettled(pending);
     };
 
     /** 功能：解析一行 JSON-RPC 请求，等待准备工作后执行方法并输出结果或错误。 */
@@ -62,13 +62,21 @@ export const createAcpProtocolServer = ({ input = process.stdin, writeJson, hand
         } catch (_error) {
             return;
         }
-        if (!message?.method || message.id === undefined) return;
+        if (!message?.method && message.id !== undefined) {
+            handleResponse?.(message);
+            return;
+        }
+        if (!message?.method) return;
 
         try {
             await beforeRequest?.();
             const result = await handleRequest(message.method, message.params ?? {});
-            writeJson({ jsonrpc: "2.0", id: message.id, result });
+            if (message.id !== undefined) writeJson({ jsonrpc: "2.0", id: message.id, result });
         } catch (error) {
+            if (message.id === undefined) {
+                console.warn(`ACP notification failed: method=${message.method}, error=${error.message}`);
+                return;
+            }
             writeJson({
                 jsonrpc: "2.0",
                 id: message.id,

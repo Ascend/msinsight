@@ -8,8 +8,7 @@ Agent View frontend
      -> createAcpAdapter()
         -> node server/native-agent/index.mjs
            -> ACP JSON-RPC over stdio
-           -> 配置完整时使用 @blade-ai/agent-sdk runtime
-           -> 否则使用 deterministic fallback runtime
+           -> Vercel AI SDK runtime
 ```
 
 ## Agent Server 配置
@@ -53,61 +52,39 @@ session/set_config_option
 session/update -> agent_message_chunk
 ```
 
-会话元数据持久化在当前 agent workspace 下：
+Insight 会话 metadata sidecar 保存在 Native Store 下：
 
 ```text
-.msinsight-native/sessions.json
+.msinsight_native_agent/sessions/<sessionId>.jsonl
 ```
 
-Blade runtime 的会话存储使用：
+AI SDK runtime 单独持久化模型消息与 UI 投影：
 
 ```text
-.msinsight-native/blade/
+.msinsight_native_agent/ai-sdk/sessions/<sessionId>.json
 ```
 
-因此 native-agent 子进程重启后，`session/list`、`session/load`、`session/resume` 仍能找到历史 ACP session，并尝试通过 Blade sessionId 恢复 LLM 上下文。
+## System Prompt 与 Primary Agent
 
-## System Prompt
-
-`insight_web_agent` 会把 `prompts/system.md` 作为以下 ACP resource block 随 prompt 发送：
+Native 的有效 System Prompt 由三部分组成：
 
 ```text
-insight-system-prompt://project
+不可覆盖的产品基础规则
++ Insight Web Agent Host System Prompt
++ 当前 Session 绑定的 Primary Agent Markdown 正文
 ```
 
-native-agent 会提取该 resource，并与自身的工具和安全规则组合成 Blade system prompt。组合后的内容随 session 持久化；如果 host system prompt 发生变化，native-agent 会关闭旧 Blade session 并按新规则创建 session。
+产品基础规则由 `runtime/aiSdkRuntime.mjs` 固定生成；Web Server 每轮通过 `insight-system-prompt://project` resource 发送 Host Prompt，resource 缺失时 Native 兼容读取 workspace 的 `AGENTS.md` / `CLAUDE.md`；通用专项行为来自当前 Agent。Session 通过 `session/set_config_option(primaryAgent)` 在首次 Prompt 前绑定 Agent，Prompt 开始后不可切换。AI SDK runtime 在每轮调用时组合当前 Host Prompt 和 Agent 正文。
 
 ## Runtime 行为
 
-native agent 采用两级 runtime 策略：
-
-```text
-1. Blade runtime
-   当 @blade-ai/agent-sdk 已安装，并且模型环境变量配置完整时使用。
-
-2. Fallback runtime
-   当 SDK 缺失、模型 provider 未配置，或 Blade runtime 创建失败时使用。
-```
-
-Fallback runtime 只用于诊断，不自己实现 LLM tool loop。它仍会调用 `msinsight({ command: "observe", args: {} })`，并返回最新页面 observation，以及未使用 Blade 的原因。
+native agent 使用 Vercel AI SDK 的 `streamText` 完成多步 tool loop，暴露当前 Native Tool Registry 中的 `msinsight`、`Bash` 和 `skill`。Runtime 初始化或模型调用失败会明确返回错误。
 
 ## 依赖
 
-`@blade-ai/agent-sdk` 声明在 `modules/insight_web_agent/package.json` 中：
+`ai` 以及各模型 Provider SDK 都直接声明在 `modules/insight_web_agent/package.json` 中，并随 native-agent 入口静态打包。
 
-```json
-"@blade-ai/agent-sdk": "1.1.0"
-```
-
-native agent 通过 dynamic import 加载它：
-
-```js
-await import('@blade-ai/agent-sdk')
-```
-
-因此即使目标机器上没有该依赖，启动也不会失败；这种情况下 `msinsight-native` 会进入 fallback 诊断模式。
-
-生产打包时 `scripts/build-server.mjs` 会把 `server/native-agent/index.mjs` 单独 bundle 到 `dist-server/native-agent/index.mjs`，使 SDK 进入 native-agent 产物。
+生产打包时 `scripts/build-server.mjs` 会把 `server/native-agent/index.mjs` 单独 bundle 到 `dist-server/native-agent/index.mjs`。
 
 ## 模型配置
 
@@ -150,6 +127,7 @@ MSINSIGHT_NATIVE_MODEL=...
 可选 runtime 参数：
 
 ```text
+MSINSIGHT_NATIVE_MAX_STEPS=12
 MSINSIGHT_NATIVE_TEMPERATURE=0.2
 MSINSIGHT_NATIVE_MAX_OUTPUT_TOKENS=4096
 MSINSIGHT_FRONTEND_COMMAND_TIMEOUT_MS=30000
@@ -171,23 +149,23 @@ Observation payload 必须只包含摘要和能力信息。不要暴露原始 pr
 
 ## 工具
 
-页面能力通过 `tools/msinsightTools.mjs` 注册的单一 Tool 暴露：
+页面执行能力只通过 `tools/msinsightTools.mjs` 注册的 `msinsight` Tool 暴露：
 
 ```text
 msinsight({ command, args })
 ```
 
-模型先调用 `help {}` 获取轻量目录，再调用 `help { command }` 获取单个 Command 的完整 schema；页面状态通过 `observe {}` 获取。
+模型先调用 `help {}` 获取轻量目录，再调用 `help { command }` 获取单个 Command 的完整 schema；页面状态通过 `observe {}` 获取。回复中的可确认页面操作由 Host System Prompt 定义的 `<insight-action>` 文本协议承载，不属于 Native Tool。
 
-native-agent 同时启用 Blade SDK 的只读文件工具：
+native-agent 在 AI SDK Tool Loop 中提供：
 
 ```text
-Read
-Glob
-Grep
+msinsight
+Bash
+skill
 ```
 
-这些工具仅允许访问当前 agent workspace，以及 host 注入的资源目录下的 `docs/` 和 `skills/`；未启用 `Edit`、`Write`、`Bash` 等写入或执行工具。
+`skill` 使用 Native Registry 惰性加载纯指令和资源清单，不执行 `!` 内联命令、Hooks 或 Runtime Patch。`Bash` 是 Native 实现的受控前台非交互工具，执行前强制 Agent policy、产品 deny、Session 用户审批、cwd 白名单、timeout、200 KiB 输出上限、单 Session 并发和进程树取消；子进程环境会过滤密钥类变量。不提供后台 Bash。
 
 namespaced Command 由 framework 路由到 Framework 本地 handler 或当前 active Module handler；Agent iframe 不保存 Command 目录和路由状态。
 
@@ -195,8 +173,8 @@ namespaced Command 由 framework 路由到 Framework 本地 handler 或当前 ac
 
 native agent 不应暴露：
 
-- 任意 shell 访问；
-- `docs/`、`skills/` 和 agent workspace 之外的文件系统访问；
+- 未经 Agent policy、产品硬策略和用户审批的 shell 访问；
+- Session 文件系统 roots 之外的文件访问；
 - 通用浏览器自动化；
 - profiling 原始数据导出；
 - 任意 JavaScript 执行；

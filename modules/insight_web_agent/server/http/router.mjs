@@ -93,6 +93,10 @@ export const createRouter = ({ agentController, chatController, sessionControlle
             return sessionController.delete(req, res, await readJson(req));
         }
 
+        if (req.method === "POST" && url.pathname === "/api/session-config/option") {
+            return sessionController.setConfigOption(req, res, await readJson(req));
+        }
+
         if (req.method === "POST" && url.pathname === "/api/session-config/model") {
             return sessionController.setModel(req, res, await readJson(req));
         }

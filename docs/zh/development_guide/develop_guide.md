@@ -70,6 +70,8 @@
 | 首次参与开发 | 本文 `2. Linux 环境快速搭建与运行`、`4. 测试指南` |
 | 新增前端/后端模块 | 本文 `3.1 新增模块开发` |
 | 新增前端 Agent Command | [Frontend Agent Command 实践指南](./frontend_agent_command_implementation.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
+| 在 Agent 回复中展示可确认的页面操作 | [Agent 回复 Action 设计](./design/AgentReplyAction.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
+| 新增 Native 分析助手或 Skill | [为 Native Agent 添加分析助手](./native_primary_agent_implementation.md)、[Native Primary Agent 与 Skill 架构设计](./design/NativePrimaryAgentAndSkill.md) |
 | 为业务表格接入 Agent 能力 | [表格 Command 接入指南](./agent_table_command_implementation.md)、[AgentTable Command 设计](./design/AgentTableCommand.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
 | 新增或维护 Timeline 泳道 | 本文 `3.2 DB 场景新增泳道`、[TrackRender](./design/TrackRender.md)、[Timeline](./design/Timeline.md) |
 | 维护概览和通信模块 | [Summary](./design/Summary.md)、[Communication](./design/Communication.md) |
@@ -109,7 +111,7 @@ openEuler / CentOS / RHEL 类系统可参考：
 sudo yum install -y git python3 python3-pip cmake ninja-build gcc gcc-c++
 ```
 
-Node.js 建议通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v22.14.0+（Blade Agent 运行时的最低要求）。
+Node.js 建议通过官方安装包、系统包管理器或版本管理工具安装，并确保版本满足 v22.14.0+（Native Agent 运行时的最低要求）。
 
 完成安装后可执行如下命令验证：
 
@@ -248,9 +250,9 @@ Insight Web Agent 是一个独立 Node ESM runtime，承载 ACP（Agent Control 
 | 资源 | 路径 | 说明 |
 | --- | --- | --- |
 | 源码入口 | `modules/insight_web_agent/server/index.mjs` | 启动时按目录推断 `--path` |
-| 构建脚本 | `modules/insight_web_agent/scripts/build-server.mjs` | esbuild bundle + 拷贝 configs / prompts / docs |
+| 构建脚本 | `modules/insight_web_agent/scripts/build-server.mjs` | esbuild bundle + 拷贝 configs / prompts / agents / skills / docs |
 | 构建入口 | `pnpm --filter insight-web-agent server:build` 或 `cd modules/insight_web_agent && pnpm server:build` | 产物位于 `dist-server/` |
-| 构建产物 | `modules/insight_web_agent/dist-server/` | `index.mjs`（bundle）+ `agent-servers.json` + `acp-session-conf.json` + `prompts/` + `docs/` |
+| 构建产物 | `modules/insight_web_agent/dist-server/` | `index.mjs`、`native-agent/index.mjs`、配置文件以及 `prompts/`、`agents/`、`skills/`、`docs/` |
 | App 内位置 | `<MindStudioInsight.app>/Contents/MacOS/resources/profiler/server/insight_web_agent/` | App 启动时由 `profiler_server` 通过 `node .../index.mjs --path ... --port <port>` 拉起 |
 | 一键更新脚本 | `build/patch-acp-server.py` | 见 [§ 3.6.5](#365-一键更新到已安装-appbuildpatch-acp-serverpy) |
 
@@ -310,7 +312,7 @@ ACP_CAPABILITY_TOKEN=<development-token> node dist-server/index.mjs --path dist-
 要点：
 
 - `dist-server/index.mjs` 是单一 bundle，源码 `server/index.mjs` 之外不再被解析；调试时直接断点到 `dist-server` 也不再友好，因此建议源码级调试用 [§ 3.6.2](#362-直接拉起源文件源码级调试)。
-- 构建过程会自动复制 `agent-servers.json`、`acp-session-conf.json`、`prompts/`、`docs/` 到 `dist-server/`；不要在 `dist-server/` 里手动改这些文件。
+- 构建过程会自动复制 `agent-servers.json`、`acp-session-conf.json`、`prompts/`、`agents/`、`skills/`、`docs/` 到 `dist-server/`；不要在 `dist-server/` 里手动改这些文件。
 
 #### 3.6.4 与 App / profiler_server 共存时的注意事项
 

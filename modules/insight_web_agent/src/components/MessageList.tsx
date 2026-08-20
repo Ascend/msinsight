@@ -22,7 +22,9 @@ import remarkGfm from 'remark-gfm';
 import { useEffect, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ChatMessage, PermissionDecision, ToolCallItem } from '../types';
+import type { ChatMessage, MessageContentBlock, PermissionDecision, ToolCallItem } from '../types';
+import { ActionBlock } from './ActionBlock';
+import { parseActionMarkup } from './actionMarkup';
 
 const markdownComponents = {
     a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>): JSX.Element => {
@@ -101,6 +103,12 @@ const Container = styled.div`
         background: ${(props): string => props.theme.primaryColor};
         content: "";
         animation: pulse 1s ease-in-out infinite;
+    }
+
+    .answer-duration {
+        margin-top: 8px;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 12px;
     }
 
     .rich-text {
@@ -192,6 +200,20 @@ const Container = styled.div`
         border: 0;
         padding: 0;
         background: transparent;
+    }
+
+    .action-literal {
+        max-width: 100%;
+        margin: 0;
+        overflow-x: auto;
+        border: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        padding: 8px;
+        background: ${(props): string => props.theme.bgColorDark};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
     }
 
     .tool-calls {
@@ -399,6 +421,7 @@ interface MessageListProps {
 
 export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
+    const now = useToolClock(pendingPrompt);
     if (!messages.length) {
         return <Container><div className="empty">{t('noLocalMessages')}</div></Container>;
     }
@@ -409,18 +432,13 @@ export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: M
                 if (isHiddenPermissionMessage(message)) return null;
                 return (
                     <article className={`message ${message.role}`} key={message.id}>
-                        {message.thinking ? (
-                            <div className="thinking rich-text">
-                                <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.thinking}</ReactMarkdown>
-                            </div>
-                        ) : null}
-                        {message.toolCalls?.length ? <ToolCalls toolCalls={message.toolCalls} /> : null}
+                        {message.content.map((block) => <ContentBlock
+                            allowActions={message.role === 'assistant'}
+                            block={block}
+                            key={block.id}
+                            streaming={isStreamingAssistantMessage(messages, index, pendingPrompt)}
+                        />)}
                         {message.permission ? <PermissionCard message={message} onDecision={onPermissionDecision} /> : null}
-                        {message.text ? (
-                            <div className="rich-text">
-                                <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
-                            </div>
-                        ) : null}
                         {message.activity === 'analyzing_tool_results' ? (
                             <div className="thinking-indicator">{t('analyzingToolResults')}</div>
                         ) : null}
@@ -431,21 +449,32 @@ export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: M
                                 wait: formatRetryWait(message.activity.retryAfterSeconds, t),
                             })}</div>
                         ) : null}
-                        {message.images?.length ? (
-                            <div className="attachments">
-                                {message.images.map((image) => (
-                                    <div className="attachment" key={image.id}>
-                                        <img alt={image.name} src={`data:${image.mimeType};base64,${image.data}`} />
-                                    </div>
-                                ))}
-                            </div>
-                        ) : null}
                         {isThinkingMessage(messages, index, pendingPrompt) ? <div className="thinking-indicator">{t('thinking')}</div> : null}
+                        {message.role === 'assistant' && message.startedAt !== undefined ? (
+                            <div className="answer-duration">{t('answerDuration', { duration: formatDuration(message.durationMs ?? now - message.startedAt) })}</div>
+                        ) : null}
                     </article>
                 );
             })}
         </Container>
     );
+};
+
+const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolean; block: MessageContentBlock; streaming: boolean }): JSX.Element => {
+    if (block.type === 'thinking') {
+        return <div className="thinking rich-text"><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{block.text}</ReactMarkdown></div>;
+    }
+    if (block.type === 'text') {
+        const segments = allowActions
+            ? parseActionMarkup(block.text, { streaming, keyPrefix: block.id })
+            : [{ key: block.id, type: 'markdown' as const, text: block.text }];
+        return <>{segments.map((segment) => {
+            if (segment.type === 'action') return <ActionBlock action={segment.action} key={segment.key} />;
+            if (segment.type === 'literal') return <pre className="action-literal" key={segment.key}>{segment.text}</pre>;
+            return <div className="rich-text" key={segment.key}><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{segment.text}</ReactMarkdown></div>;
+        })}</>;
+    }
+    return <ToolCalls toolCalls={[block.toolCall]} />;
 };
 
 const isHiddenPermissionMessage = (message: ChatMessage): boolean => {
@@ -509,10 +538,12 @@ const formatRetryWait = (seconds: number | undefined, t: TFunction): string => {
         : t('modelRetryWaitMinutes', { count: minutes });
 };
 
-const formatToolDuration = (toolCall: ToolCallItem, now: number): string => {
-    const durationMs = toolCall.status === 'in_progress'
-        ? Math.max(0, now - (toolCall.startedAt ?? now))
-        : Math.max(0, toolCall.durationMs ?? 0);
+const formatToolDuration = (toolCall: ToolCallItem, now: number): string => formatDuration(
+    toolCall.status === 'in_progress' ? now - (toolCall.startedAt ?? now) : toolCall.durationMs ?? 0,
+);
+
+const formatDuration = (value: number): string => {
+    const durationMs = Math.max(0, value);
     if (durationMs < 1000) return `${durationMs}ms`;
     if (durationMs < 10000) return `${(durationMs / 1000).toFixed(1)}s`;
     return `${Math.round(durationMs / 1000)}s`;
@@ -591,8 +622,9 @@ const PermissionCard = ({
     const pending = permission.state === 'pending';
     return (
         <div className="permission-card">
-            <div className="permission-title">{t('allowFileRead')}</div>
-            <div className="permission-path">{permission.path}</div>
+            <div className="permission-title">{permission.title ?? (permission.kind === 'bash' ? t('allowBashCommand') : t('allowFileRead'))}</div>
+            <div className="permission-path" title={permission.target}>{truncatePermissionTarget(permission.target)}</div>
+            {permission.kind === 'bash' && permission.details?.cwd ? <div className="permission-state">{t('workingDirectory')}: {String(permission.details.cwd)}</div> : null}
             {pending ? (
                 <div className="permission-actions">
                     <button
@@ -625,6 +657,8 @@ const PermissionCard = ({
     );
 };
 
+const truncatePermissionTarget = (target: string): string => target.length <= 2000 ? target : `${target.slice(0, 1999)}…`;
+
 const permissionStateText = (state: NonNullable<ChatMessage['permission']>['state'], t: TFunction): string => {
     if (state === 'allowed_once') return t('allowedOnce');
     if (state === 'allowed_always') return t('allowedAlways');
@@ -632,6 +666,12 @@ const permissionStateText = (state: NonNullable<ChatMessage['permission']>['stat
     if (state === 'expired') return t('expired');
     if (state === 'invalidated') return t('invalidated');
     return t('pending');
+};
+
+const isStreamingAssistantMessage = (messages: ChatMessage[], index: number, pendingPrompt: boolean): boolean => {
+    const message = messages[index];
+    if (!pendingPrompt || message.role !== 'assistant' || message.permission) return false;
+    return !messages.slice(index + 1).some(item => item.role === 'assistant' && !item.permission);
 };
 
 const isThinkingMessage = (messages: ChatMessage[], index: number, pendingPrompt: boolean): boolean => {

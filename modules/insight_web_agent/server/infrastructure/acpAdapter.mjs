@@ -114,11 +114,19 @@ export const createAcpAdapter = ({
             send({ jsonrpc: "2.0", id, method, params });
             return new Promise((resolve, reject) => {
                 const timeoutMs = method === "session/prompt" ? promptRequestTimeoutMs : requestTimeoutMs;
-                const timeout = setTimeout(() => {
+                const sessionId = method === "session/prompt" ? String(params?.sessionId ?? params?.session_id ?? "").trim() : undefined;
+                const waiter = { resolve, reject, method, sessionId, timeout: undefined };
+                const onTimeout = () => {
                     pending.delete(id);
-                    reject(new Error(`ACP request timed out: ${method}`));
-                }, timeoutMs);
-                pending.set(id, { resolve, reject, method, timeout });
+                    if (sessionId && child && !disconnecting) writeJson(child, { jsonrpc: "2.0", method: "session/cancel", params: { sessionId } });
+                    reject(new Error(`ACP request ${sessionId ? "idle " : ""}timed out: ${method}`));
+                };
+                waiter.refreshTimeout = () => {
+                    clearTimeout(waiter.timeout);
+                    waiter.timeout = setTimeout(onTimeout, timeoutMs);
+                };
+                waiter.refreshTimeout();
+                pending.set(id, waiter);
             });
         },
         notify(method, params) {
@@ -188,6 +196,7 @@ const handleAcpLine = async ({ child, debug, line, hostHandlers, notifySubscribe
         if (debug) console.error(`Ignoring non-ACP stdout: ${line}`);
         return;
     }
+    refreshPromptIdleTimeout(pending, message);
 
     if (message.method && message.id === undefined) {
         if (debug) console.error("ACP notification", JSON.stringify(message));
@@ -203,6 +212,7 @@ const handleAcpLine = async ({ child, debug, line, hostHandlers, notifySubscribe
         }
         try {
             const response = await handler(message.params);
+            refreshPromptIdleTimeout(pending, message);
             if (response?.error) {
                 writeJson(child, { jsonrpc: "2.0", id: message.id, error: response.error });
             } else if (response && Object.hasOwn(response, "result")) {
@@ -211,6 +221,7 @@ const handleAcpLine = async ({ child, debug, line, hostHandlers, notifySubscribe
                 writeJson(child, { jsonrpc: "2.0", id: message.id, result: response ?? null });
             }
         } catch (error) {
+            refreshPromptIdleTimeout(pending, message);
             writeJson(child, { jsonrpc: "2.0", id: message.id, error: { code: -32603, message: error.message } });
         }
         return;
@@ -231,6 +242,15 @@ const handleAcpLine = async ({ child, debug, line, hostHandlers, notifySubscribe
 
 const writeJson = (child, value) => {
     child.stdin.write(`${JSON.stringify(value)}\n`);
+};
+
+// 只有同一会话的 token、工具、状态或 Host 请求才能证明该 Prompt 仍有活动。
+const refreshPromptIdleTimeout = (pending, message) => {
+    const sessionId = String(message.params?.sessionId ?? message.params?.session_id ?? "").trim();
+    if (!sessionId) return;
+    for (const waiter of pending.values()) {
+        if (waiter.method === "session/prompt" && waiter.sessionId === sessionId) waiter.refreshTimeout();
+    }
 };
 
 const rejectPending = (pendingRequests, error) => {

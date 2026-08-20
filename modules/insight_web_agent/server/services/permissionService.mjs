@@ -35,6 +35,8 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         : Number.isFinite(Number(config?.permissionRequestTimeoutMs)) && Number(config.permissionRequestTimeoutMs) > 0
             ? Number(config.permissionRequestTimeoutMs)
             : DEFAULT_TIMEOUT_MS;
+    // 同一会话只激活队首，排队请求在展示后才开始超时；不同会话互不阻塞。
+    const requestQueues = new Map();
 
     const ensureRuntimeAllowlist = (sessionId) => {
         const key = String(sessionId ?? "").trim();
@@ -62,18 +64,29 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         targetPath: path,
         cwd,
         defaultAllowlist: await defaultAllowlist(),
-        runtimeAllowlist: [...ensureRuntimeAllowlist(sessionId)],
+        runtimeAllowlist: [...ensureRuntimeAllowlist(sessionId)].filter((entry) => !entry.startsWith("bash:")),
     });
 
-    const requestApproval = async ({ sessionId, path, normalizedPath, source = "fs/read_text_file", options = defaultOptions() }) => {
+    const isRemembered = (sessionId, rememberKey) => {
+        const key = normalizeRememberKey("bash", rememberKey);
+        return Boolean(key && ensureRuntimeAllowlist(sessionId).has(key));
+    };
+
+    const requestApproval = async ({ sessionId, path, normalizedPath, kind = "filesystem", title, target, details, rememberKey, source = "fs/read_text_file", options = defaultOptions() }) => {
         const targetSessionId = String(sessionId ?? "").trim();
         if (!targetSessionId) throw new Error("sessionId is required");
         const requestId = randomUUID();
+        const permissionTarget = target ?? normalizedPath ?? path;
         const request = {
             sessionId: targetSessionId,
             requestId,
-            path: normalizedPath ?? path,
+            kind,
+            title: title ?? (kind === "bash" ? "Run Bash command" : "Read file"),
+            target: permissionTarget,
+            path: permissionTarget,
             originalPath: path,
+            details,
+            rememberKey: normalizeRememberKey(kind, rememberKey),
             source,
             options,
             state: "pending",
@@ -83,16 +96,27 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         const promise = new Promise((resolve) => {
             request.resolve = resolve;
         });
-        request.timeout = setTimeout(() => resolveRequest(request, "expired"), requestTimeoutMs);
         state.pendingPermissions.set(permissionKey(targetSessionId, requestId), request);
+        const queue = requestQueues.get(targetSessionId) ?? [];
+        queue.push(request);
+        requestQueues.set(targetSessionId, queue);
+        if (queue.length === 1) activateRequest(request);
+        return promise;
+    };
+
+    const activateRequest = (request) => {
+        request.timeout = setTimeout(() => resolveRequest(request, "expired"), requestTimeoutMs);
         eventBus.broadcast({
             type: "permission_request",
-            sessionId: targetSessionId,
-            requestId,
+            sessionId: request.sessionId,
+            requestId: request.requestId,
+            kind: request.kind,
+            title: request.title,
+            target: request.target,
             path: request.path,
+            details: request.details,
             actions: ["allow_once", "allow_always", "deny"],
         });
-        return promise;
     };
 
     const ensureReadAllowed = async ({ sessionId, path, cwd, source } = {}) => {
@@ -129,12 +153,12 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         return { ok: true, requestId: targetRequestId, state: finalState };
     };
 
-    const rejectSessionRequests = (sessionId, reason = "invalidated") => {
+    const rejectSessionRequests = (sessionId, reason = "invalidated", clearRemembered = false) => {
         const targetSessionId = String(sessionId ?? "").trim();
         for (const request of [...state.pendingPermissions.values()]) {
-            if (!targetSessionId || request.sessionId === targetSessionId) resolveRequest(request, reason);
+            if (!targetSessionId || request.sessionId === targetSessionId) resolveRequest(request, reason, false);
         }
-        if (targetSessionId) state.permissionRuntimeAllowlist.delete(targetSessionId);
+        if (targetSessionId && clearRemembered) state.permissionRuntimeAllowlist.delete(targetSessionId);
     };
 
     const resetRuntime = () => {
@@ -142,7 +166,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         state.permissionRuntimeAllowlist.clear();
     };
 
-    const resolveRequest = (request, finalState) => {
+    const resolveRequest = (request, finalState, activateNext = true) => {
         if (!request || request.state !== "pending") return;
         const stateName = RESOLVED_STATES.has(finalState) ? finalState : "invalidated";
         clearTimeout(request.timeout);
@@ -150,8 +174,14 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         request.resolvedAt = Date.now();
         state.pendingPermissions.delete(permissionKey(request.sessionId, request.requestId));
         state.resolvedPermissions.set(permissionKey(request.sessionId, request.requestId), request);
+        const queue = requestQueues.get(request.sessionId) ?? [];
+        const wasActive = queue[0] === request;
+        const nextQueue = queue.filter((item) => item !== request);
+        if (nextQueue.length) requestQueues.set(request.sessionId, nextQueue);
+        else requestQueues.delete(request.sessionId);
         if (stateName === "allowed_always") {
-            ensureRuntimeAllowlist(request.sessionId).add(parentAllowlistEntry(request.path));
+            const entry = request.kind === "bash" ? request.rememberKey : parentAllowlistEntry(request.path);
+            if (entry) ensureRuntimeAllowlist(request.sessionId).add(entry);
         }
         eventBus.broadcast({
             type: "permission_resolved",
@@ -160,6 +190,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
             state: stateName,
         });
         request.resolve({ allowed: stateName === "allowed_once" || stateName === "allowed_always", state: stateName, reason: stateName });
+        if (activateNext && wasActive && nextQueue[0]) activateRequest(nextQueue[0]);
     };
 
     const updateTimeout = (timeoutMs) => {
@@ -170,6 +201,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
     return {
         evaluate,
         ensureReadAllowed,
+        isRemembered,
         requestApproval,
         respond,
         rejectSessionRequests,
@@ -179,6 +211,10 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
 };
 
 const permissionKey = (sessionId, requestId) => `${sessionId}:${requestId}`;
+const normalizeRememberKey = (kind, rememberKey) => {
+    const key = String(rememberKey ?? "").trim();
+    return kind === "bash" && key.startsWith("bash:") ? key : undefined;
+};
 
 const defaultOptions = () => [
     { optionId: "allow_once", kind: "allow_once", name: "Allow once" },

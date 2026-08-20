@@ -158,6 +158,17 @@ test("prompt applies requested mode to a new session before sending", async () =
     assert.deepEqual(calls.map((call) => call.method), ["session/set_config_option", "session/prompt"]);
 });
 
+test("prompt sends the configured Host System Prompt as an ACP resource", async () => {
+    const { service, calls } = createPromptTestService("Host system instructions");
+
+    await service.prompt("analyze", { sessionId: "session-1" });
+    await waitForPromptCall(calls, 1);
+
+    const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
+    assert.equal(prompt[0].resource.uri, "insight-system-prompt://project");
+    assert.match(prompt[0].resource.text, /Host system instructions/);
+});
+
 test("prompt includes the prompt-scoped page observation in hidden context", async () => {
     const { service, calls } = createPromptTestService();
     const pageObservation = {
@@ -191,6 +202,31 @@ test("prompt reads raw hidden context from the context assembler", async () => {
     assert.match(promptCalls[1].params.prompt[0].resource.text, /"contentRefs":\{"profileId":"profile-1","activeModule":"Timeline"\}/);
 });
 
+test("prompt completion clears the current agent activity", async () => {
+    let finishPrompt;
+    const promptResult = new Promise((resolve) => {
+        finishPrompt = resolve;
+    });
+    const { service, state, events } = createPromptTestService("", () => promptResult);
+
+    await service.prompt("analyze", { sessionId: "session-1" });
+    service.handleAcpNotification({
+        method: "session/update",
+        params: { sessionId: "session-1", update: { kind: "agent_message_chunk", content: { type: "text", text: "result" } } },
+    });
+    service.handleAcpNotification({
+        method: "session/update",
+        params: { sessionId: "session-1", update: { kind: "agent_status_update", activity: "analyzing_tool_results" } },
+    });
+    assert.equal(state.sessionContexts.get("session-1").messages.at(-1).activity, "analyzing_tool_results");
+
+    finishPrompt({ stopReason: "end_turn" });
+    await waitForPromptCompletion(state);
+
+    assert.equal(state.sessionContexts.get("session-1").messages.at(-1).activity, undefined);
+    assert.equal(events.filter((event) => event.type === "message_activity").at(-1).activity, undefined);
+});
+
 const modeConfig = (currentValue) => ({
     id: "mode",
     name: "Mode",
@@ -203,8 +239,9 @@ const modeConfig = (currentValue) => ({
     ],
 });
 
-const createPromptTestService = () => {
+const createPromptTestService = (systemPrompt = "", promptRequest) => {
     const calls = [];
+    const events = [];
     const state = createRuntimeState();
     state.initialized = true;
     state.activeContext = { profileId: "profile-1", activeModule: "Timeline" };
@@ -221,14 +258,14 @@ const createPromptTestService = () => {
     const acpClient = {
         async request(method, params) {
             calls.push({ method, params });
-            if (method === "session/prompt") return { stopReason: "end_turn" };
+            if (method === "session/prompt") return promptRequest ? promptRequest(params) : { stopReason: "end_turn" };
             throw new Error(`unexpected ACP method: ${method}`);
         },
     };
 
     const service = createChatService({
         acpClient,
-        eventBus: { broadcast: () => {} },
+        eventBus: { broadcast: (event) => events.push(event) },
         sessionService: {
             applyPreferredModel: async () => {},
             refreshSessions: async () => {},
@@ -236,9 +273,17 @@ const createPromptTestService = () => {
         skillService: { extractFromPrompt: async (text) => ({ text, skills: [] }) },
         state,
         contextAssembler: createContextAssembler({ state }),
+        systemPrompt,
     });
 
-    return { service, calls };
+    return { service, calls, events, state };
+};
+
+const waitForPromptCompletion = async (state) => {
+    for (let index = 0; index < 10; index += 1) {
+        if (!state.sessionContexts.get("session-1").pendingPrompt) return;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    }
 };
 
 const waitForPromptCall = async (calls, count) => {

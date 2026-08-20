@@ -27,12 +27,13 @@ const buildSessionContext = () => ({
     configOptions: [],
 });
 
-test("upsertToolCall broadcasts live start and completion updates on one assistant message", () => {
+test("assistant content preserves text-tool-text order while updating the tool in place", () => {
     const state = createRuntimeState();
     state.sessionContexts.set("session-1", buildSessionContext());
     const events = [];
     const context = { eventBus: { broadcast: (event) => events.push(event) }, state };
 
+    appendContentBlock(context, "session-1", "assistant", { type: "text", text: "before" });
     upsertToolCall(context, "session-1", {
         toolCallId: "call-1",
         name: "msinsight",
@@ -40,6 +41,7 @@ test("upsertToolCall broadcasts live start and completion updates on one assista
         input: "{}",
         startedAt: 100,
     });
+    appendContentBlock(context, "session-1", "assistant", { type: "text", text: "after" });
     upsertToolCall(context, "session-1", {
         toolCallId: "call-1",
         name: "msinsight",
@@ -48,12 +50,38 @@ test("upsertToolCall broadcasts live start and completion updates on one assista
         durationMs: 50,
     });
 
-    const messages = state.sessionContexts.get("session-1").messages;
-    assert.equal(messages.length, 1);
-    assert.equal(messages[0].toolCalls.length, 1);
-    assert.equal(messages[0].toolCalls[0].status, "completed");
-    assert.equal(events.filter((event) => event.type === "message_added").length, 1);
+    const content = state.sessionContexts.get("session-1").messages[0].content;
+    assert.deepEqual(content.map((block) => block.type), ["text", "tool", "text"]);
+    assert.equal(content[0].text, "before");
+    assert.equal(content[1].toolCall.status, "completed");
+    assert.equal(content[2].text, "after");
     assert.deepEqual(events.filter((event) => event.type === "message_tool_call").map((event) => event.toolCall.status), ["in_progress", "completed"]);
+});
+
+test("assistant Action XML remains unchanged in the server text block", () => {
+    const state = createRuntimeState();
+    state.sessionContexts.set("session-1", buildSessionContext());
+    const source = '<insight-action>{"label":"Observe","description":"Observe the page.","command":"observe","args":{}}</insight-action>';
+
+    appendContentBlock({ eventBus: { broadcast: () => {} }, state }, "session-1", "assistant", { type: "text", text: source });
+
+    assert.equal(state.sessionContexts.get("session-1").messages[0].content[0].text, source);
+});
+
+test("consecutive text deltas merge until another content type starts", () => {
+    const state = createRuntimeState();
+    state.sessionContexts.set("session-1", buildSessionContext());
+    const events = [];
+    const context = { eventBus: { broadcast: (event) => events.push(event) }, state };
+
+    appendContentBlock(context, "session-1", "assistant", { type: "text", text: "hello " });
+    appendContentBlock(context, "session-1", "assistant", { type: "text", text: "world" });
+
+    assert.equal(state.sessionContexts.get("session-1").messages[0].content[0].text, "hello world");
+    assert.deepEqual(events.filter((event) => event.type.startsWith("message_content")).map((event) => event.type), [
+        "message_content_added",
+        "message_content_delta",
+    ]);
 });
 
 test("appendContentBlock ignores hidden context resources", () => {
@@ -108,9 +136,9 @@ test("appendContentBlock does not drop non-insight resource blocks", () => {
 
     const messages = state.sessionContexts.get("session-1").messages;
     assert.equal(messages.length, 1);
-    assert.equal(messages[0].text, "# Notes");
+    assert.deepEqual(messages[0].content.map(({ type, text }) => ({ type, text })), [{ type: "text", text: "# Notes" }]);
     assert.ok(events.some((event) => event.type === "message_added"));
-    assert.ok(events.some((event) => event.type === "message_delta" && event.field === "text"));
+    assert.ok(events.some((event) => event.type === "message_content_added"));
 });
 
 test("appendContentBlock keeps regular text blocks visible (regression)", () => {
@@ -126,7 +154,7 @@ test("appendContentBlock keeps regular text blocks visible (regression)", () => 
     const messages = state.sessionContexts.get("session-1").messages;
     assert.equal(messages.length, 1);
     assert.equal(messages[0].role, "assistant");
-    assert.equal(messages[0].text, "Hello, how can I help?");
+    assert.equal(messages[0].content[0].text, "Hello, how can I help?");
     assert.ok(events.some((event) => event.type === "message_added"));
 });
 
@@ -208,7 +236,7 @@ test("appendContentBlock keeps assistant text blocks that only mention insight- 
     const messages = state.sessionContexts.get("session-1").messages;
     assert.equal(messages.length, 1);
     assert.equal(messages[0].role, "assistant");
-    assert.match(messages[0].text, /This is regular assistant text\./);
-    assert.match(messages[0].text, /insight-hidden-context:\/\/project/);
+    assert.match(messages[0].content[0].text, /This is regular assistant text\./);
+    assert.match(messages[0].content[0].text, /insight-hidden-context:\/\/project/);
     assert.ok(events.some((event) => event.type === "message_added"));
 });
