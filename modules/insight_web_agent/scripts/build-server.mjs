@@ -28,28 +28,6 @@ const outputAgentConfig = join(outputDir, "agent-servers.json");
 const outputSessionConfig = join(outputDir, "acp-session-conf.json");
 const outputNativeConfig = join(outputDir, "msinsight-native.json");
 
-// Blade SDK statically imports optional providers from its shared session chunk.
-const unsupportedProviderFactories = {
-    "@ai-sdk/azure": "createAzure",
-    "@ai-sdk/google": "createGoogleGenerativeAI",
-};
-const unsupportedProviderPlugin = {
-    name: "unsupported-ai-providers",
-    setup(buildContext) {
-        buildContext.onResolve(
-            { filter: /^@ai-sdk\/(?:azure|google)$/ },
-            ({ path }) => ({ path, namespace: "unsupported-ai-provider" }),
-        );
-        buildContext.onLoad(
-            { filter: /.*/, namespace: "unsupported-ai-provider" },
-            ({ path }) => ({
-                contents: `export function ${unsupportedProviderFactories[path]}() { throw new Error("${path} is not supported by insight-web-agent"); }`,
-                loader: "js",
-            }),
-        );
-    },
-};
-
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 await mkdir(dirname(outputNativeAgentEntry), { recursive: true });
@@ -74,7 +52,6 @@ await build({
     format: "esm",
     platform: "node",
     outfile: outputNativeAgentEntry,
-    plugins: [unsupportedProviderPlugin],
     sourcemap: false,
     target: "node22.14",
 });
@@ -89,6 +66,7 @@ await cp(
 );
 await cp(join(rootDir, "msinsight-native.json"), outputNativeConfig);
 await cp(join(rootDir, "prompts"), join(outputDir, "prompts"), { recursive: true });
+await cp(join(rootDir, "agents"), join(outputDir, "agents"), { recursive: true });
 await cp(join(rootDir, "..", "..", "docs"), join(outputDir, "docs"), { recursive: true });
 await cp(join(rootDir, "..", "..", "skills"), join(outputDir, "skills"), { recursive: true });
 
@@ -97,5 +75,6 @@ console.log(`Native agent bundle written to ${outputNativeAgentEntry}`);
 console.log(`Agent config copied to ${outputAgentConfig}`);
 console.log(`Session config copied to ${outputSessionConfig}`);
 console.log(`Prompts copied to ${join(outputDir, "prompts")}`);
+console.log(`Agents copied to ${join(outputDir, "agents")}`);
 console.log(`Docs copied to ${join(outputDir, "docs")}`);
 console.log(`Skills copied to ${join(outputDir, "skills")}`);

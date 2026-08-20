@@ -30,8 +30,7 @@ import { toCommandError } from '@insight/lib/FrontendAgentCommand';
 import { cancelPrompt, claimFrontendCommand, createSession, deleteSession, fetchAgents, fetchSessions, fetchState, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { apiUrl } from '../env';
-import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
-import { upsertToolCall } from './toolCalls';
+import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
     configOptions: ConfigOption[];
@@ -285,16 +284,23 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             return;
         }
 
-        if (event.type === 'message_delta' && event.sessionId) {
+        if (event.type === 'message_content_added' && event.sessionId) {
             updateSessionRecord(event.sessionId, (record) => ({
                 ...record,
-                messages: record.messages.map((message) => {
-                    if (message.id !== event.id) return message;
-                    if (event.field === 'images') {
-                        return { ...message, images: [...(message.images ?? []), ...event.delta] };
-                    }
-                    return { ...message, [event.field]: `${message[event.field] ?? ''}${event.delta}` };
-                }),
+                messages: record.messages.map((message) => message.id === event.id
+                    ? { ...message, content: appendContentBlock(message.content, event.block) }
+                    : message),
+                loaded: true,
+            }));
+            return;
+        }
+
+        if (event.type === 'message_content_delta' && event.sessionId) {
+            updateSessionRecord(event.sessionId, (record) => ({
+                ...record,
+                messages: record.messages.map((message) => message.id === event.id
+                    ? { ...message, content: appendContentDelta(message.content, event) }
+                    : message),
                 loaded: true,
             }));
             return;
@@ -304,7 +310,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             updateSessionRecord(event.sessionId, (record) => ({
                 ...record,
                 messages: record.messages.map((message) => message.id === event.id
-                    ? { ...message, toolCalls: upsertToolCall(message.toolCalls, event.toolCall) }
+                    ? { ...message, content: updateToolContent(message.content, event.toolCall) }
                     : message),
                 loaded: true,
             }));
@@ -333,7 +339,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         if (event.type === 'prompt_status' && event.sessionId) {
             updateSessionRecord(event.sessionId, (record) => ({
                 ...record,
-                messages: event.pendingPrompt ? record.messages : markLastAssistantComplete(record.messages),
+                messages: event.pendingPrompt ? markLastAssistantStarted(record.messages) : markLastAssistantComplete(record.messages),
                 pendingPrompt: event.pendingPrompt,
                 status: event.pendingPrompt ? 'working' : 'completed',
             }));
@@ -355,11 +361,15 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 messages: [...record.messages, {
                     id: `permission:${event.requestId}`,
                     role: 'assistant',
-                    text: '',
+                    content: [],
                     permission: {
                         sessionId: event.sessionId,
                         requestId: event.requestId,
+                        kind: event.kind,
+                        title: event.title,
+                        target: event.target ?? event.path ?? '',
                         path: event.path,
+                        details: event.details,
                         actions: event.actions,
                         state: 'pending',
                     },
@@ -972,15 +982,39 @@ const dequeuePrompt = (
 };
 
 
-const markLastAssistantComplete = (messages: ChatMessage[]): ChatMessage[] => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-        if (messages[index].role === 'assistant') {
-            return messages.map((message, messageIndex) => (
-                messageIndex === index ? { ...message, pending: false } : message
-            ));
-        }
-    }
-    return messages;
+const appendContentBlock = (content: MessageContentBlock[], block: MessageContentBlock): MessageContentBlock[] => (
+    content.some((item) => item.id === block.id) ? content : [...content, block]
+);
+
+const appendContentDelta = (
+    content: MessageContentBlock[],
+    event: Extract<ServerEvent, { type: 'message_content_delta' }>,
+): MessageContentBlock[] => content.map((block) => block.id === event.blockId && (block.type === 'text' || block.type === 'thinking')
+    ? { ...block, text: `${block.text}${event.delta}` }
+    : block);
+
+const updateToolContent = (content: MessageContentBlock[], toolCall: Extract<MessageContentBlock, { type: 'tool' }>['toolCall']): MessageContentBlock[] => {
+    const index = content.findIndex((block) => block.type === 'tool' && block.toolCall.toolCallId === toolCall.toolCallId);
+    if (index < 0) return [...content, { id: toolCall.toolCallId, type: 'tool', toolCall }];
+    return content.map((block, blockIndex) => blockIndex === index && block.type === 'tool'
+        ? { ...block, toolCall: { ...block.toolCall, ...toolCall } }
+        : block);
+};
+
+const markLastAssistantStarted = (messages: ChatMessage[]): ChatMessage[] => updateLastAssistant(messages, (message) => (
+    message.startedAt === undefined ? { ...message, startedAt: Date.now() } : message
+));
+
+const markLastAssistantComplete = (messages: ChatMessage[]): ChatMessage[] => updateLastAssistant(messages, (message) => ({
+    ...message,
+    pending: false,
+    activity: undefined,
+    durationMs: message.durationMs ?? (message.startedAt === undefined ? undefined : Date.now() - message.startedAt),
+}));
+
+const updateLastAssistant = (messages: ChatMessage[], update: (message: ChatMessage) => ChatMessage): ChatMessage[] => {
+    const index = messages.reduce((last, message, current) => message.role === 'assistant' && !message.permission ? current : last, -1);
+    return index < 0 ? messages : messages.map((message, messageIndex) => messageIndex === index ? update(message) : message);
 };
 
 const mergeSessionStatuses = (sessions: SessionItem[], records: Record<string, SessionRecord>): SessionItem[] => {

@@ -21,7 +21,7 @@ import { strict as assert } from "node:assert";
 import test from "node:test";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
 import { createPermissionService } from "../../services/permissionService.mjs";
-import { createFileReadService } from "../../services/fileReadService.mjs";
+import { createFileReadService, createPermissionHostHandler } from "../../services/fileReadService.mjs";
 
 const createFixture = async () => {
     const root = await mkdtemp(join(tmpdir(), "insight-permission-"));
@@ -39,18 +39,6 @@ const permissionRequests = (events) => events.filter((event) => event.type === "
 const expectNoPrompt = (fixture) => assert.deepEqual(fixture.events, []);
 const evaluatePath = (fixture, path) => fixture.service.evaluate({ sessionId: "s1", path });
 const realExternalPath = async (fixture) => realpath(fixture.external);
-const settleOutcome = async (promise) => {
-    try {
-        await promise;
-        return "resolved";
-    } catch (error) {
-        return `rejected:${error.message}`;
-    }
-};
-const expectSettlesSoon = (promise) => Promise.race([
-    settleOutcome(promise),
-    new Promise((resolve) => setTimeout(() => resolve("pending"), 100)),
-]);
 const waitForPermissionRequest = async (events) => {
     for (let index = 0; index < 100; index += 1) {
         const request = events.findLast((event) => event.type === "permission_request");
@@ -187,27 +175,56 @@ test("allow once resolves only the current request", async () => {
     assert.equal(fixture.state.permissionRuntimeAllowlist.get("s1")?.size ?? 0, 0);
 });
 
-test("concurrent requests for the same path are independent by requestId", async () => {
+test("concurrent requests in one session are shown in FIFO order", async () => {
     const fixture = await createService({ timeoutMs: 1000 });
     const target = join(fixture.external, "same.txt");
     await writeText(target, "content");
 
     const first = fixture.service.ensureReadAllowed({ sessionId: "s1", path: target });
     const second = fixture.service.ensureReadAllowed({ sessionId: "s1", path: target });
+    await waitForRequestCount(fixture.events, 1);
+    assert.equal(permissionRequests(fixture.events).length, 1);
+    assert.equal(fixture.state.pendingPermissions.size, 2);
+
+    const firstRequest = permissionRequests(fixture.events)[0];
+    await fixture.service.respond({ sessionId: "s1", requestId: firstRequest.requestId, decision: "allow_once" });
+    await first;
     await waitForRequestCount(fixture.events, 2);
-    const requests = permissionRequests(fixture.events);
+    const secondRequest = permissionRequests(fixture.events)[1];
+    assert.notEqual(firstRequest.requestId, secondRequest.requestId);
 
-    assert.equal(requests.length, 2);
-    assert.notEqual(requests[0].requestId, requests[1].requestId);
-    await fixture.service.respond({ sessionId: "s1", requestId: requests[0].requestId, decision: "allow_once" });
-    const firstOutcome = await expectSettlesSoon(first);
-    const secondOutcome = await expectSettlesSoon(second);
-    assert.deepEqual([firstOutcome, secondOutcome].sort(), ["pending", "resolved"]);
-    assert.equal(fixture.state.pendingPermissions.size, 1);
+    await fixture.service.respond({ sessionId: "s1", requestId: secondRequest.requestId, decision: "deny" });
+    await assert.rejects(second, /denied/);
+});
 
-    await fixture.service.respond({ sessionId: "s1", requestId: requests[1].requestId, decision: "deny" });
-    const finalOutcomes = [await settleOutcome(first), await settleOutcome(second)].sort();
-    assert.deepEqual(finalOutcomes, ["rejected:denied", "resolved"]);
+test("permission queues are independent between sessions", async () => {
+    const fixture = await createService();
+    const first = fixture.service.requestApproval({ sessionId: "s1", path: "first" });
+    const queued = fixture.service.requestApproval({ sessionId: "s1", path: "queued" });
+    const other = fixture.service.requestApproval({ sessionId: "s2", path: "other" });
+    await waitForRequestCount(fixture.events, 2);
+
+    assert.deepEqual(permissionRequests(fixture.events).map((request) => request.sessionId), ["s1", "s2"]);
+    fixture.service.rejectSessionRequests(undefined);
+    await Promise.all([first, queued, other]);
+});
+
+test("queued requests start timing out only after they are shown", async () => {
+    const fixture = await createService({ timeoutMs: 100 });
+    const first = fixture.service.requestApproval({ sessionId: "s1", path: "first" });
+    fixture.service.updateTimeout(10);
+    const second = fixture.service.requestApproval({ sessionId: "s1", path: "second" });
+
+    await delay(20);
+    assert.equal(permissionRequests(fixture.events).length, 1);
+    assert.equal(fixture.state.pendingPermissions.size, 2);
+
+    const firstRequest = permissionRequests(fixture.events)[0];
+    await fixture.service.respond({ sessionId: "s1", requestId: firstRequest.requestId, decision: "allow_once" });
+    await first;
+    const secondRequest = permissionRequests(fixture.events)[1];
+    await fixture.service.respond({ sessionId: "s1", requestId: secondRequest.requestId, decision: "allow_once" });
+    await second;
 });
 
 test("timeout expires pending requests and does not add allowlist entries", async () => {
@@ -250,6 +267,68 @@ test("invalid and already resolved responses return explicit statuses", async ()
     const request = await allowRequest(fixture, "deny");
     await assert.rejects(pending, /denied/);
     assert.equal((await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "deny" })).status, 409);
+});
+
+test("Bash allow always is isolated by session and namespaced remember key", async () => {
+    const fixture = await createService();
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const params = {
+        sessionId: "s1",
+        kind: "bash",
+        target: "python -V",
+        rememberKey: "bash:general:python -V",
+        options: [
+            { optionId: "allow_once", kind: "allow_once" },
+            { optionId: "allow_always", kind: "allow_always" },
+            { optionId: "deny", kind: "reject_once" },
+        ],
+    };
+
+    const pending = handler(params);
+    const request = await waitForPermissionRequest(fixture.events);
+    await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "allow_always" });
+    assert.equal((await pending).result.outcome.optionId, "allow_always");
+    assert.equal(fixture.service.isRemembered("s1", params.rememberKey), true);
+    assert.equal(fixture.service.isRemembered("s2", params.rememberKey), false);
+    assert.equal(fixture.service.isRemembered("s1", "python -V"), false);
+
+    const remembered = await handler(params);
+    assert.equal(remembered.result.outcome.optionId, "allow_once");
+});
+
+test("cancelling pending requests preserves remembered Session approvals", async () => {
+    const fixture = await createService();
+    fixture.state.permissionRuntimeAllowlist.set("s1", new Set(["bash:general:python -V"]));
+    const pending = fixture.service.requestApproval({
+        sessionId: "s1",
+        kind: "bash",
+        path: "python -c fail",
+        rememberKey: "bash:general:python -c fail",
+    });
+    const queued = fixture.service.requestApproval({ sessionId: "s1", path: "queued" });
+    fixture.service.rejectSessionRequests("s1", "invalidated");
+
+    assert.deepEqual(await pending, { allowed: false, state: "invalidated", reason: "invalidated" });
+    assert.deepEqual(await queued, { allowed: false, state: "invalidated", reason: "invalidated" });
+    assert.equal(permissionRequests(fixture.events).length, 1);
+    assert.equal(fixture.service.isRemembered("s1", "bash:general:python -V"), true);
+
+    fixture.service.rejectSessionRequests("s1", "invalidated", true);
+    assert.equal(fixture.service.isRemembered("s1", "bash:general:python -V"), false);
+});
+
+test("filesystem requests cannot inject Bash remember keys", async () => {
+    const fixture = await createService();
+    const pending = fixture.service.requestApproval({
+        sessionId: "s1",
+        path: join(fixture.external, "file.txt"),
+        rememberKey: "bash:general:*",
+    });
+    const request = await waitForPermissionRequest(fixture.events);
+    await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "allow_always" });
+    await pending;
+
+    assert.equal(fixture.service.isRemembered("s1", "bash:general:*"), false);
 });
 
 test("file read service returns content, permission denial, and distinct I/O errors", async () => {

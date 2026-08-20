@@ -7,7 +7,12 @@
   },
   "homepage": "./",
   "dependencies": {
-    "@blade-ai/agent-sdk": "1.1.0"
+    "@ai-sdk/anthropic": "3.0.94",
+    "@ai-sdk/deepseek": "2.0.45",
+    "@ai-sdk/openai": "3.0.81",
+    "@ai-sdk/openai-compatible": "2.0.57",
+    "ai": "6.0.220",
+    "yaml": "2.9.0"
   },
   "scripts": {
     "start": "cross-env HOST=127.0.0.1 DISABLE_ESLINT_PLUGIN=true REACT_APP_ACP_CAPABILITY_TOKEN=msinsight-local-development-only craco start",

@@ -19,7 +19,7 @@ import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, frontendCommandService, systemPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -39,8 +39,13 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             state.initialized = true;
             state.agentError = undefined;
             state.agentInfo = init.agentInfo ?? init.agent_info;
-            setAgentCapabilities(state, init.agentCapabilities ?? init.agent_capabilities ?? {});
-            state.availableSkills = await skillService.list();
+            setAgentCapabilities(
+                state,
+                init.agentCapabilities ?? init.agent_capabilities ?? {},
+                init._meta ?? {},
+            );
+            const nativeSkills = init._meta?.["msinsight.dev/skills"] ?? init.meta?.skills;
+            state.availableSkills = Array.isArray(nativeSkills) ? nativeSkills.map(({ name, description }) => ({ name, description })) : await skillService.list();
             if (refreshSessions) await sessionService.refreshSessions();
             if (broadcast) sessionService.broadcastState();
             console.log(`Connected to ${init.agentInfo?.name ?? "ACP agent"} ${init.agentInfo?.version ?? ""}`.trim());
@@ -54,7 +59,8 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
 
     const prompt = async (text, options = {}) => {
         const rawText = String(text ?? "").trim();
-        const parsedPrompt = await skillService.extractFromPrompt(text);
+        const nativeSkillFlow = state.activeAgentName === "msinsight-native";
+        const parsedPrompt = nativeSkillFlow ? { text: rawText, skills: [] } : await skillService.extractFromPrompt(text);
         const promptText = parsedPrompt.text;
         const images = normalizeImages(options.images);
         const selectedSkills = parsedPrompt.skills;
@@ -94,8 +100,12 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 setLocalTitle(state, sessionId, displayText);
             }
 
-            const assistant = { id: crypto.randomUUID(), role: "assistant", text: "", thinking: "" };
-            const userMessage = { id: crypto.randomUUID(), role: "user", text: displayText, images };
+            const assistant = { id: crypto.randomUUID(), role: "assistant", content: [] };
+            const userMessage = {
+                id: crypto.randomUUID(),
+                role: "user",
+                content: displayText ? [{ id: crypto.randomUUID(), type: "text", text: displayText }] : [],
+            };
             sessionContext.messages.push(userMessage, assistant);
             eventBus.broadcast({ type: "message_added", sessionId, message: userMessage });
             eventBus.broadcast({ type: "message_added", sessionId, message: assistant });
@@ -120,11 +130,11 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             console.log(`Prompt execution started: sessionId=${sessionId}, textLength=${promptText.length}, images=${images.length}, skills=${selectedSkills.length}, hiddenContext=${Boolean(hiddenContext)}`);
             await adapter.request("session/prompt", {
                 sessionId,
-                prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext),
+                prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext, systemPrompt),
             });
             console.log(`Prompt execution completed: sessionId=${sessionId}`);
 
-            if (!assistant.text && !assistant.thinking && !assistant.toolCalls?.length) {
+            if (!assistant.content.length) {
                 const sessionContext = getSessionContext(state, sessionId);
                 sessionContext.messages = sessionContext.messages.filter((message) => message !== assistant);
                 eventBus.broadcast({ type: "message_removed", sessionId, id: assistant.id });
@@ -134,6 +144,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${error.message}`);
         } finally {
             const sessionContext = getSessionContext(state, sessionId);
+            setAgentActivity(serviceContext, sessionId, undefined);
             sessionContext.pendingPrompt = false;
             eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false });
         }
@@ -145,13 +156,16 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             return { error: "sessionId is required", status: 400 };
         }
         frontendCommandService?.cancelSession?.(sessionId);
+        permissionService?.rejectSessionRequests?.(sessionId, "invalidated");
         try {
-            await adapter.request("session/cancel", { sessionId });
-            console.log(`ACP session cancel completed: sessionId=${sessionId}`);
+            if (adapter.notify) adapter.notify("session/cancel", { sessionId });
+            else await adapter.request("session/cancel", { sessionId });
+            console.log(`ACP session cancel sent: sessionId=${sessionId}`);
         } catch (error) {
             console.warn(`Failed to cancel session ${sessionId} with ACP: ${error.message}`);
         }
         const sessionContext = getSessionContext(state, sessionId);
+        setAgentActivity(serviceContext, sessionId, undefined);
         sessionContext.pendingPrompt = false;
         eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false });
         return { ok: true };

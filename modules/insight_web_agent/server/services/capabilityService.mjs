@@ -31,8 +31,11 @@ export const normalizeAgentCapabilities = (capabilities = {}) => ({
     auth: pick(capabilities, "auth") ?? {},
 });
 
-export const setAgentCapabilities = (state, capabilities) => {
+export const setAgentCapabilities = (state, capabilities, metadata = {}) => {
     state.agentCapabilities = normalizeAgentCapabilities(capabilities);
+    if (metadata["msinsight.dev/setConfigOption"]) {
+        state.agentCapabilities.session.setConfigOption = true;
+    }
 };
 
 export const supportsSessionList = (state) => hasCapability(state.agentCapabilities?.session?.list);

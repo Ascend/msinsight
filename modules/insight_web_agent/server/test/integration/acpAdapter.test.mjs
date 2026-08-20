@@ -116,15 +116,33 @@ test("request rejects after timeout", async () => {
     await assert.rejects(adapter.request("slow", {}), /ACP request timed out: slow/);
 });
 
-test("session/prompt uses the longer prompt timeout", async () => {
-    const { adapter, children } = createAdapter({ requestTimeoutMs: 1, promptRequestTimeoutMs: 50 });
+test("session/prompt activity refreshes its idle timeout", async () => {
+    const { adapter, children } = createAdapter({ promptRequestTimeoutMs: 100 });
     adapter.connect();
 
     const pending = adapter.request("session/prompt", { sessionId: "s1" });
-    await sleep(5);
+    await sleep(40);
+    emitLine(children[0], { jsonrpc: "2.0", method: "session/update", params: { sessionId: "s1", update: { kind: "agent_message_chunk" } } });
+    await sleep(40);
     emitLine(children[0], { jsonrpc: "2.0", id: 1, result: { ok: true } });
 
     await assert.doesNotReject(pending);
+});
+
+test("activity from another session does not refresh a prompt idle timeout", async () => {
+    const { adapter, children } = createAdapter({ promptRequestTimeoutMs: 20 });
+    adapter.connect();
+
+    const pending = adapter.request("session/prompt", { sessionId: "s1" });
+    await sleep(10);
+    emitLine(children[0], { jsonrpc: "2.0", method: "session/update", params: { sessionId: "s2", update: { kind: "agent_message_chunk" } } });
+
+    await assert.rejects(pending, /ACP request idle timed out: session\/prompt/);
+    assert.deepEqual(children[0].stdin.writes.at(-1), {
+        jsonrpc: "2.0",
+        method: "session/cancel",
+        params: { sessionId: "s1" },
+    });
 });
 
 test("disconnect rejects pending requests and cleans up", async () => {

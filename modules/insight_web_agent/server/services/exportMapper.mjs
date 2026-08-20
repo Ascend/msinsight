@@ -20,52 +20,24 @@ export const messagesFromExport = (exported) => {
         const role = message.info?.role;
         if (role !== "user" && role !== "assistant") return [];
 
-        const result = {
-            id: message.info?.id ?? crypto.randomUUID(),
-            role,
-            text: "",
-            images: [],
-            ...(role === "assistant" ? { thinking: "" } : {}),
-        };
-
-        for (const part of message.parts ?? []) {
-            if (part.type === "text") result.text += part.text ?? "";
-            if (role === "user" && part.type === "file") {
-                const image = imageFromFilePart(part);
-                if (image) result.images.push(image);
-            }
+        const content = (message.parts ?? []).flatMap((part) => {
+            if (part.type === "text") return [{ id: part.id ?? crypto.randomUUID(), type: "text", text: part.text ?? "" }];
             if (role === "assistant" && part.type === "reasoning") {
-                result.thinking += part.text ?? "";
+                return [{ id: part.id ?? crypto.randomUUID(), type: "thinking", text: part.text ?? "" }];
             }
-        }
-
-        if (!result.images.length) delete result.images;
-        return result.text || result.thinking || result.images?.length ? [result] : [];
+            if (role === "assistant" && part.type === "tool") {
+                return [{ id: part.id ?? crypto.randomUUID(), type: "tool", toolCall: toolCallFromPart(part) }];
+            }
+            return [];
+        });
+        return content.length ? [{ id: message.info?.id ?? crypto.randomUUID(), role, content }] : [];
     });
 };
 
-const imageFromFilePart = (part) => {
-    const mimeType = String(part.mime ?? "");
-    if (!mimeType.startsWith("image/")) return undefined;
-
-    const data = imageDataFromUrl(part.url, mimeType);
-    if (!data) return undefined;
-
-    return {
-        id: part.id ?? crypto.randomUUID(),
-        name: part.filename ?? part.source?.path ?? "image",
-        mimeType,
-        data,
-    };
-};
-
-const imageDataFromUrl = (url, mimeType) => {
-    const value = String(url ?? "");
-    const prefix = `data:${mimeType};base64,`;
-    if (value.startsWith(prefix)) return value.slice(prefix.length);
-
-    const genericDataUrl = /^data:([^;,]+);base64,(.*)$/s.exec(value);
-    if (genericDataUrl?.[1]?.startsWith("image/")) return genericDataUrl[2];
-
-    return "";
-};
+const toolCallFromPart = (part) => ({
+    toolCallId: String(part.callID ?? part.id ?? crypto.randomUUID()),
+    name: String(part.tool ?? "Tool"),
+    status: part.state?.status === "completed" ? "completed" : part.state?.status === "error" ? "failed" : "in_progress",
+    input: part.state?.input === undefined ? undefined : JSON.stringify(part.state.input, null, 2),
+    output: part.state?.output === undefined ? undefined : String(part.state.output),
+});

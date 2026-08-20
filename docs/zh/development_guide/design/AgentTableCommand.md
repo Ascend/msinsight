@@ -27,7 +27,7 @@
 ## 3. 运行时拓扑
 
 ```text
-Blade / LLM
+LLM
     │ msinsight({ command, args })
     ▼
 Native Agent → Web Agent server → Agent iframe

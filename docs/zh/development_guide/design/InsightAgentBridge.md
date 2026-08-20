@@ -125,6 +125,8 @@ runtime 启动时按以下顺序加载：
 }
 ```
 
+`promptRequestTimeoutMs` 是 `session/prompt` 的无活动超时：同一会话收到文本、thinking、工具、状态或权限活动时重新计时；连续无活动达到该值后发送 `session/cancel`。它不是整个 Agent 任务的总时长限制。
+
 ## 4. HTTP 接口契约
 
 所有路由在 `modules/insight_web_agent/server/http/router.mjs` 内集中注册，并以 `127.0.0.1:<port>` 监听。
@@ -474,7 +476,25 @@ runtime 启动时按以下顺序加载：
 
 prompt 响应是"提交即返回"，实际回复通过 `/api/events` SSE 流推送。
 
-### 4.13 `POST /api/cancel`
+### 4.13 消息内容模型
+
+用户和助手消息都使用有序 `content[]`，block 只允许 `text`、`thinking`、`tool`；图片仅作为 Prompt 输入附件传给 Agent，不进入消息历史。不再维护 `text`、`thinking`、`toolCalls` 等按类型聚合字段：
+
+```json
+{
+  "id": "assistant-1",
+  "role": "assistant",
+  "content": [
+    { "id": "text-1", "type": "text", "text": "我先读取文件。" },
+    { "id": "call-1", "type": "tool", "toolCall": { "toolCallId": "call-1", "name": "Read", "status": "completed" } },
+    { "id": "text-2", "type": "text", "text": "读取完成。" }
+  ]
+}
+```
+
+新文本或 thinking block 按流事件顺序追加；连续同类 delta 合并到当前 block。工具进度和结果通过 `toolCallId` 原地更新已有 tool block，不改变数组位置。前端严格按 `content[]` 顺序渲染。
+
+### 4.14 `POST /api/cancel`
 
 **请求 body：**
 
@@ -485,7 +505,7 @@ prompt 响应是"提交即返回"，实际回复通过 `/api/events` SSE 流推�
 **响应 200：** `{ "ok": true }`
 错误：缺少 `sessionId` 时返回 `400`。
 
-### 4.14 `POST /api/context`
+### 4.15 `POST /api/context`
 
 更新 `state.activeContext`，并通过 SessionManager（如果存在）推送给 agent。
 
@@ -509,7 +529,7 @@ prompt 响应是"提交即返回"，实际回复通过 `/api/events` SSE 流推�
 }
 ```
 
-### 4.15 `POST /api/permissions/respond`
+### 4.16 `POST /api/permissions/respond`
 
 响应 agent 提出的权限请求（来源为 `session/request_permission` / `fs/read_text_file`）。
 
@@ -533,7 +553,7 @@ prompt 响应是"提交即返回"，实际回复通过 `/api/events` SSE 流推�
 **响应 404：** `{ "error": "permission request not found", "status": 404 }`
 **响应 409：** `{ "error": "permission request already resolved", "status": 409 }`
 
-### 4.16 `GET /api/events`
+### 4.17 `GET /api/events`
 
 SSE 事件流。客户端通过 `EventSource` 订阅，服务端会持续推送：
 
@@ -548,7 +568,7 @@ data: {"type":"permission_resolved","sessionId":"...","requestId":"...","state":
 
 事件定义在 `server/state/eventBus.mjs` 与 `server/services/*`。
 
-### 4.17 错误码约定
+### 4.18 错误码约定
 
 | error | 出现接口 | HTTP | 触发条件 |
 | --- | --- | --- | --- |
@@ -568,6 +588,9 @@ data: {"type":"permission_resolved","sessionId":"...","requestId":"...","state":
 | --- | --- | --- |
 | `state` | reload 完成、broadcastState 等 | `{ state }` |
 | `message_added` | 用户/助手消息追加 | `{ sessionId, message }` |
+| `message_content_added` | 追加一个有序 content block | `{ sessionId, id, block }` |
+| `message_content_delta` | 更新 text/thinking block | `{ sessionId, id, blockId, blockType, delta }` |
+| `message_tool_call` | 按 toolCallId 原地更新 tool block | `{ sessionId, id, toolCall }` |
 | `message_removed` | 删除空 assistant 占位 | `{ sessionId, id }` |
 | `prompt_status` | prompt 开始/结束 | `{ sessionId, pendingPrompt }` |
 | `permission_request` | 服务端发起权限审批 | `{ sessionId, requestId, path, actions }` |

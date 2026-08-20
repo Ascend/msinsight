@@ -16,7 +16,14 @@
  * -------------------------------------------------------------------------
  */
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+
+const mockExecuteFrontendCommand = jest.fn();
+
+jest.mock('../../bridge/frontendAgentCommandTransport', () => ({
+    executeFrontendCommand: (...args: unknown[]) => mockExecuteFrontendCommand(...args),
+}));
 
 jest.mock('react-markdown', () => ({
     __esModule: true,
@@ -29,9 +36,20 @@ jest.mock('remark-gfm', () => ({
 }));
 
 import { MessageList, toolCallDisplayName } from '../../components/MessageList';
-import { upsertToolCall } from '../../hooks/toolCalls';
 
 const noopPermissionDecision = jest.fn();
+const actionXml = (blockId: number): string => `<insight-action>
+{
+  "label": "Block #${blockId}",
+  "description": "Highlight block #${blockId}.",
+  "command": "MemScope.lifecycleGraph.selectBlock",
+  "args": { "blockId": ${blockId} }
+}
+</insight-action>`;
+
+beforeEach(() => {
+    mockExecuteFrontendCommand.mockReset();
+});
 
 const MockMarkdown = ({ text }: { text: string }): JSX.Element => {
     if (text.includes('```')) {
@@ -64,31 +82,164 @@ test('shows the msinsight command as the tool card name', () => {
     })).toBe('other-tool');
 });
 
-test('upserts live tool call completion without duplicating its card', () => {
-    const started = upsertToolCall([], {
-        toolCallId: 'call-1',
-        name: 'msinsight',
-        status: 'in_progress',
-        input: '{}',
-        startedAt: 100,
-    });
-    const completed = upsertToolCall(started, {
-        toolCallId: 'call-1',
-        name: 'msinsight',
-        status: 'completed',
-        output: '{"module":{"tables":[]}}',
-        durationMs: 50,
-    });
+test('renders assistant content blocks in text-tool-text order', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-ordered',
+            role: 'assistant',
+            content: [
+                { id: 'text-before', type: 'text', text: 'before tool' },
+                { id: 'call-1', type: 'tool', toolCall: { toolCallId: 'call-1', name: 'Read', status: 'completed', output: 'done' } },
+                { id: 'text-after', type: 'text', text: 'after tool' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
 
-    expect(completed).toEqual([{
-        toolCallId: 'call-1',
-        name: 'msinsight',
-        status: 'completed',
-        input: '{}',
-        output: '{"module":{"tables":[]}}',
-        startedAt: 100,
-        durationMs: 50,
-    }]);
+    const message = document.querySelector('.message') as HTMLElement;
+    expect(Array.from(message.children).slice(0, 3).map((node) => node.className)).toEqual(['rich-text', 'tool-calls', 'rich-text']);
+});
+
+test('renders a valid action from assistant XML text', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-actions',
+            role: 'assistant',
+            content: [{ id: 'text-1', type: 'text', text: `Found a block.\n${actionXml(123)}` }],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(screen.getByRole('button', { name: 'Block #123' })).toBeInTheDocument();
+});
+
+test('does not turn user-authored XML into an action', () => {
+    render(<MessageList
+        messages={[{
+            id: 'user-actions',
+            role: 'user',
+            content: [{ id: 'text-1', type: 'text', text: actionXml(123) }],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(screen.queryByRole('button', { name: 'Block #123' })).not.toBeInTheDocument();
+});
+
+test('preflights an action and executes it only after approval', async () => {
+    mockExecuteFrontendCommand
+        .mockResolvedValueOnce({ command: { name: 'MemScope.lifecycleGraph.selectBlock', title: 'Select memory block', description: 'Select one block in the lifecycle graph.', inputSchema: { type: 'object' } } })
+        .mockResolvedValueOnce({ accepted: true });
+    render(<MessageList
+        messages={[{
+            id: 'assistant-actions',
+            role: 'assistant',
+            content: [{ id: 'text-1', type: 'text', text: actionXml(123) }],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Block #123' }));
+
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(1);
+    expect(mockExecuteFrontendCommand.mock.calls[0][0]).toBe('help');
+    expect(mockExecuteFrontendCommand.mock.calls[0][1]).toEqual({ command: 'MemScope.lifecycleGraph.selectBlock' });
+    expect(await screen.findByText('Select memory block')).toBeInTheDocument();
+    expect(screen.getByText('Highlight block #123.')).toBeInTheDocument();
+    expect(screen.getByText(/"blockId": 123/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Approve and run' }));
+
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(2);
+    expect(mockExecuteFrontendCommand.mock.calls[1][0]).toBe('MemScope.lifecycleGraph.selectBlock');
+    expect(mockExecuteFrontendCommand.mock.calls[1][1]).toEqual({ blockId: 123 });
+    expect(await screen.findByText(/Command completed.*accepted.*true/)).toBeInTheDocument();
+});
+
+test('hides an unclosed action while streaming and shows it literally after completion', () => {
+    const source = 'Before<insight-action>{"label":"Block';
+    const { rerender } = render(<MessageList
+        messages={[{ id: 'assistant-actions', role: 'assistant', content: [{ id: 'text-1', type: 'text', text: source }] }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    expect(screen.getByText(/Before/)).toBeInTheDocument();
+    expect(screen.queryByText(/insight-action/)).not.toBeInTheDocument();
+
+    rerender(<MessageList
+        messages={[{ id: 'assistant-actions', role: 'assistant', content: [{ id: 'text-1', type: 'text', text: source }] }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(screen.getByText(/<insight-action>/)).toBeInTheDocument();
+});
+
+test('bounds a string command result in the local Action UI', async () => {
+    mockExecuteFrontendCommand
+        .mockResolvedValueOnce({ command: { name: 'observe', title: 'Observe page', description: 'Observe the current page.', inputSchema: { type: 'object' } } })
+        .mockResolvedValueOnce('x'.repeat(600));
+    render(<MessageList
+        messages={[{ id: 'assistant-actions', role: 'assistant', content: [{ id: 'text-1', type: 'text', text: '<insight-action>{"label":"Observe","description":"Observe the page.","command":"observe","args":{}}</insight-action>' }] }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Approve and run' }));
+
+    const result = await screen.findByText(/Command completed/);
+    expect(result.textContent?.endsWith('…')).toBe(true);
+    expect(result.textContent?.length).toBeLessThan(600);
+});
+
+test('allows multiple action approval cards to remain open', async () => {
+    mockExecuteFrontendCommand.mockImplementation(async (_command: string, args: Record<string, unknown>) => ({
+        command: {
+            name: args.command,
+            title: String(args.command),
+            description: 'Trusted capability.',
+            inputSchema: { type: 'object' },
+        },
+    }));
+    render(<MessageList
+        messages={[{
+            id: 'assistant-actions',
+            role: 'assistant',
+            content: [{ id: 'text-1', type: 'text', text: `${actionXml(1)}\n${actionXml(2)}` }],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Block #1' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Block #2' }));
+
+    expect(screen.getAllByText('Confirm page action')).toHaveLength(2);
+});
+
+test('cancel closes approval without executing the target command', async () => {
+    mockExecuteFrontendCommand.mockResolvedValue({ command: { name: 'observe', title: 'Observe page', description: 'Observe the current page.', inputSchema: { type: 'object' } } });
+    render(<MessageList
+        messages={[{
+            id: 'assistant-actions',
+            role: 'assistant',
+            content: [{ id: 'text-1', type: 'text', text: '<insight-action>{"label":"Observe","description":"Observe the page.","command":"observe","args":{}}</insight-action>' }],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Observe' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(mockExecuteFrontendCommand).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText('Confirm page action')).not.toBeInTheDocument();
 });
 
 test('wraps long markdown text and inline code inside the message width', () => {
@@ -96,7 +247,7 @@ test('wraps long markdown text and inline code inside the message width', () => 
         messages={[{
             id: 'assistant-long-text',
             role: 'assistant',
-            text: 'A very long token abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz and `/workspace/really/long/path/that/should/wrap/in/the/panel/file.ts`',
+            content: [{ id: 'text-1', type: 'text', text: 'A very long token abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz and `/workspace/really/long/path/that/should/wrap/in/the/panel/file.ts`' }],
         }]}
         onPermissionDecision={noopPermissionDecision}
         pendingPrompt={false}
@@ -120,7 +271,7 @@ test('keeps wide code blocks and tables horizontally scrollable inside their own
         messages={[{
             id: 'assistant-wide-blocks',
             role: 'assistant',
-            text: '```ts\nconst value = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";\n```\n\n| HeaderHeaderHeaderHeader | OtherHeaderHeaderHeader |\n| --- | --- |\n| CellCellCellCellCell | OtherCellCellCellCell |',
+            content: [{ id: 'text-1', type: 'text', text: '```ts\nconst value = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz";\n```\n\n| HeaderHeaderHeaderHeader | OtherHeaderHeaderHeader |\n| --- | --- |\n| CellCellCellCellCell | OtherCellCellCellCell |' }],
         }]}
         onPermissionDecision={noopPermissionDecision}
         pendingPrompt={false}

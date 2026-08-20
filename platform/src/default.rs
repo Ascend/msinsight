@@ -485,7 +485,7 @@ mod tests {
     use super::{parse_node_version, spawn_profiler_server, MINIMUM_NODE_VERSION};
 
     #[test]
-    fn enforces_blade_node_runtime_floor() {
+    fn enforces_node_runtime_floor() {
         assert!(parse_node_version("v22.14.0").unwrap() >= MINIMUM_NODE_VERSION);
         assert!(parse_node_version("v22.13.1").unwrap() < MINIMUM_NODE_VERSION);
         assert_eq!(parse_node_version("not-node"), None);

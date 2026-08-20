@@ -246,7 +246,7 @@ After performing the pre-smoke test, view the test result.
    ```
 
 2. Build configurations
-   
+
    craco.config.js
 
    ```js
@@ -280,7 +280,7 @@ After performing the pre-smoke test, view the test result.
    ```
 
 3. Basic script configuration
-   
+
    package.json
 
    ```json
@@ -323,7 +323,7 @@ After performing the pre-smoke test, view the test result.
 5. Adding a new module (microservice) to the main service
 
    In the **moduleConfig.ts** file of the framework module, configure the new module in modulesConfig.
-   
+
    ```ts
    {
         name: '[new_module]',   // Microservice name of the new module, which is user-defined.
@@ -529,7 +529,7 @@ server
 ├── src
 │   ├── modules
 │   │   ├── xxx_module
-│   │   │   ├── database 
+│   │   │   ├── database
 │   │   │   │   ├── xxxBase.h
 │   │   │   │   └── xxxBase.cpp
 │   │   │   ├── handler
@@ -709,7 +709,7 @@ void FullDbParser::BuildProfilingInitTask(std::shared_ptr<std::vector<std::futur
    framework/src/moduleConfig.ts
 
    ```ts
-   
+
     [
        {
           name: 'Timeline',
@@ -750,7 +750,7 @@ void FullDbParser::BuildProfilingInitTask(std::shared_ptr<std::vector<std::futur
    ```
 
    **Code source:** `modules/framework/src/units/Project.tsx`
-   
+
 3. The main service sends the parsing result to the microservice.
 
    ```ts
@@ -1019,9 +1019,9 @@ pyinstaller
 + Rust
 
    Recommended installation method: Use the official tool rustup.
-   
+
    Official website: <https://www.rust-lang.org>
-   
+
    Verification after installation:
 
    ```bash
@@ -1030,28 +1030,28 @@ pyinstaller
    ```
 
    Note: This tool is used to compile and build the base code. You are advised to use a stable version and ensure that the version meets the requirements.
-   
+
 + Ninja
-   
+
    Installation method:
-   
+
    For Windows, download the binary file from the official website or use a package management tool (such as Chocolatey or Scoop) to install it.
 
    Official website: <https://ninja-build.org>
-   
+
    Verification after installation:
-   
+
    `ninja --version`
-   
+
    Note: This tool is used as the backend build tool of CMake.
 
 + Node.js
 
    Installation method: Use the official Node.js installation package.
-   
+
    Official website: <https://nodejs.org>
-   
-   Version requirement: v22.14.0 or later (required by the Blade agent runtime; LTS version recommended)
+
+   Version requirement: v22.14.0 or later (required by the Native Agent runtime; LTS version recommended)
 
    Verification after installation:
 
@@ -1065,23 +1065,23 @@ pyinstaller
 + pnpm
 
    Installation method: Use npm to perform a global installation after Node.js has been installed.
-   
+
    `npm install -g pnpm`
-   
+
    Verification after installation:
-   
+
    `pnpm --version`
-   
+
    Note: This is a package management tool for frontend projects.
 
 + Python
-   
+
    Installation method: Use the official Python installation package.
-   
+
    Official website: <https://www.python.org>
-   
+
    Version requirement: Python 3.11 or later
-   
+
    Verification after installation:
 
    ```bash

@@ -47,6 +47,13 @@ export const createSessionController = ({ sessionService }) => ({
         return json(res, normalizeBody(result), result.status ?? 200);
     },
 
+    async setConfigOption(_req, res, body) {
+        console.log(`Set config option requested: sessionId=${String(body?.sessionId ?? "")}, configId=${String(body?.configId ?? "")}`);
+        const result = await sessionService.setConfigOption(body?.configId, body?.value, body?.sessionId);
+        if (result.error) console.warn(`Set config option failed: sessionId=${String(body?.sessionId ?? "")}, error=${result.error}`);
+        return json(res, normalizeBody(result), result.status ?? 200);
+    },
+
     async setModel(_req, res, body) {
         console.log(`Set model requested: sessionId=${String(body?.sessionId ?? "")}, model=${String(body?.model ?? "")}`);
         const result = await sessionService.setModel(body?.model, body?.sessionId);

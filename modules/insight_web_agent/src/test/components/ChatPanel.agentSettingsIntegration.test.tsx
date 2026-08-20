@@ -162,7 +162,7 @@ beforeEach(() => {
     });
     mockFetchSessions.mockResolvedValue([{ sessionId: 'session-open', title: 'Open session', updatedAt: 'Earlier' }]);
     mockLoadSession.mockResolvedValue({
-        messages: [{ id: 'assistant-1', role: 'assistant', text: previousAssistantReply }],
+        messages: [{ id: 'assistant-1', role: 'assistant', content: [{ id: 'text-1', type: 'text', text: previousAssistantReply }] }],
         configOptions: [],
         pendingPrompt: false,
     });

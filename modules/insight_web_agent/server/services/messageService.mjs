@@ -11,24 +11,22 @@
  *
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
  * EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
- * MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
+ * MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-export const appendChunk = ({ eventBus, state }, sessionId, role, field, delta) => {
-    const context = state.sessionContexts.get(sessionId);
-    if (!context) return;
-    let message = context.messages[context.messages.length - 1];
-    if (!message || message.role !== role) {
-        message = role === "assistant"
-            ? { id: crypto.randomUUID(), role, text: "", thinking: "" }
-            : { id: crypto.randomUUID(), role, text: "" };
-        context.messages.push(message);
-        eventBus.broadcast({ type: "message_added", sessionId, message });
+export const appendChunk = ({ eventBus, state }, sessionId, role, type, delta) => {
+    const message = ensureMessage({ eventBus, state }, sessionId, role);
+    if (!message) return;
+    const block = message.content.at(-1);
+    if (!block || block.type !== type) {
+        const nextBlock = { id: crypto.randomUUID(), type, text: delta };
+        message.content.push(nextBlock);
+        eventBus.broadcast({ type: "message_content_added", sessionId, id: message.id, block: nextBlock });
+        return;
     }
-
-    message[field] = `${message[field] ?? ""}${delta}`;
-    eventBus.broadcast({ type: "message_delta", sessionId, id: message.id, field, delta });
+    block.text += delta;
+    eventBus.broadcast({ type: "message_content_delta", sessionId, id: message.id, blockId: block.id, blockType: type, delta });
 };
 
 export const setAgentActivity = ({ eventBus, state }, sessionId, activity) => {
@@ -36,7 +34,8 @@ export const setAgentActivity = ({ eventBus, state }, sessionId, activity) => {
     if (!context) return;
     let message = context.messages[context.messages.length - 1];
     if (!message || message.role !== "assistant") {
-        message = { id: crypto.randomUUID(), role: "assistant", text: "", thinking: "" };
+        if (activity === undefined) return;
+        message = { id: crypto.randomUUID(), role: "assistant", content: [] };
         context.messages.push(message);
         eventBus.broadcast({ type: "message_added", sessionId, message });
     }
@@ -45,54 +44,46 @@ export const setAgentActivity = ({ eventBus, state }, sessionId, activity) => {
 };
 
 export const upsertToolCall = ({ eventBus, state }, sessionId, toolCall) => {
-    const context = state.sessionContexts.get(sessionId);
-    if (!context || !toolCall?.toolCallId) return;
-    let message = context.messages[context.messages.length - 1];
-    if (!message || message.role !== "assistant") {
-        message = { id: crypto.randomUUID(), role: "assistant", text: "", thinking: "", toolCalls: [] };
-        context.messages.push(message);
-        eventBus.broadcast({ type: "message_added", sessionId, message });
-    }
-    const toolCalls = [...(message.toolCalls ?? [])];
-    const index = toolCalls.findIndex((item) => item.toolCallId === toolCall.toolCallId);
-    const previousToolCall = index === -1 ? undefined : toolCalls[index];
-    const nextToolCall = index === -1
-        ? { name: "Tool", status: "in_progress", startedAt: Date.now(), ...definedToolCallFields(toolCall) }
-        : { ...previousToolCall, ...definedToolCallFields(toolCall) };
+    if (!toolCall?.toolCallId) return;
+    const message = ensureMessage({ eventBus, state }, sessionId, "assistant");
+    if (!message) return;
+    const block = message.content.find((item) => item.type === "tool" && item.toolCall.toolCallId === toolCall.toolCallId);
+    const nextToolCall = {
+        ...(block?.toolCall ?? { name: "Tool", status: "in_progress", startedAt: Date.now() }),
+        ...definedToolCallFields(toolCall),
+    };
     if (nextToolCall.status !== "in_progress" && nextToolCall.durationMs === undefined && nextToolCall.startedAt) {
         nextToolCall.durationMs = Date.now() - nextToolCall.startedAt;
     }
-    if (index === -1) toolCalls.push(nextToolCall);
-    else toolCalls[index] = nextToolCall;
-    message.toolCalls = toolCalls;
+    if (block) block.toolCall = nextToolCall;
+    else {
+        message.content.push({ id: toolCall.toolCallId, type: "tool", toolCall: nextToolCall });
+        eventBus.broadcast({ type: "message_content_added", sessionId, id: message.id, block: message.content.at(-1) });
+    }
     eventBus.broadcast({ type: "message_tool_call", sessionId, id: message.id, toolCall: nextToolCall });
+};
+
+const ensureMessage = ({ eventBus, state }, sessionId, role) => {
+    const context = state.sessionContexts.get(sessionId);
+    if (!context) return undefined;
+    let message = context.messages[context.messages.length - 1];
+    if (!message || message.role !== role) {
+        message = { id: crypto.randomUUID(), role, content: [] };
+        context.messages.push(message);
+        eventBus.broadcast({ type: "message_added", sessionId, message });
+    }
+    return message;
 };
 
 const definedToolCallFields = (toolCall) => Object.fromEntries(
     Object.entries(toolCall).filter(([, value]) => value !== undefined && value !== ""),
 );
 
-export const appendContentBlock = (serviceContext, sessionId, role, block, field = "text") => {
+export const appendContentBlock = (serviceContext, sessionId, role, block, type = "text") => {
     if (shouldSkipAgentContent(block)) return;
 
     const text = textFromContentBlock(block);
-    if (text) appendChunk(serviceContext, sessionId, role, field, text);
-
-    const image = imageFromContentBlock(block);
-    if (!image) return;
-
-    const context = serviceContext.state.sessionContexts.get(sessionId);
-    if (!context) return;
-    let message = context.messages[context.messages.length - 1];
-    if (!message || message.role !== role) {
-        message = role === "assistant"
-            ? { id: crypto.randomUUID(), role, text: "", thinking: "", images: [] }
-            : { id: crypto.randomUUID(), role, text: "", images: [] };
-        context.messages.push(message);
-        serviceContext.eventBus.broadcast({ type: "message_added", sessionId, message });
-    }
-    message.images = [...(message.images ?? []), image];
-    serviceContext.eventBus.broadcast({ type: "message_delta", sessionId, id: message.id, field: "images", delta: [image] });
+    if (text) appendChunk(serviceContext, sessionId, role, type, text);
 };
 
 const textFromContentBlock = (block) => {
@@ -107,42 +98,13 @@ const textFromContentBlock = (block) => {
 
 const shouldSkipAgentContent = (block) => {
     if (!block) return false;
-    if (block.type === "resource") {
-        return String(block.resource?.uri ?? "").startsWith("insight-");
-    }
-    if (block.type === "text") {
-        return textHeadEchoesSystemContext(block.text);
-    }
+    if (block.type === "resource") return String(block.resource?.uri ?? "").startsWith("insight-");
+    if (block.type === "text") return textHeadEchoesSystemContext(block.text);
     return false;
 };
 
 const SYSTEM_CONTEXT_URI_PATTERN = /insight-(?:hidden-context|system-prompt):\/\/project/;
-
-const textHeadEchoesSystemContext = (text) => {
-    const head = String(text ?? "").slice(0, 200);
-    return SYSTEM_CONTEXT_URI_PATTERN.test(head);
-};
-
-const imageFromContentBlock = (block) => {
-    if (!block || block.type !== "image") return undefined;
-    const data = String(block.data ?? "").trim();
-    const mimeType = String(block.mimeType ?? block.mime_type ?? "").trim();
-    if (!data || !mimeType.startsWith("image/")) return undefined;
-    return {
-        id: crypto.randomUUID(),
-        name: imageNameFromUri(block.uri),
-        data,
-        mimeType,
-    };
-};
-
-const imageNameFromUri = (uri) => {
-    try {
-        return new URL(uri).searchParams.get("name") || "image";
-    } catch (_error) {
-        return "image";
-    }
-};
+const textHeadEchoesSystemContext = (text) => SYSTEM_CONTEXT_URI_PATTERN.test(String(text ?? "").slice(0, 200));
 
 export const setLocalTitle = (state, sessionId, title) => {
     if (!sessionId || !title) return;

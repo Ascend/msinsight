@@ -25,14 +25,19 @@ const createConfig = () => ({ cwd: "/tmp/insight-agent", agentServer: { name: "f
 
 const createMockAdapter = () => {
     const requests = [];
+    const notifications = [];
     return {
         agentId: "mock-agent",
         runtime: "stdio",
         requests,
+        notifications,
         async request(method, params) {
             requests.push({ method, params });
             if (method === "session/new") return { sessionId: "session-1", configOptions: [{ id: "mode" }] };
             return { ok: true };
+        },
+        notify(method, params) {
+            notifications.push({ method, params });
         },
     };
 };
@@ -77,8 +82,8 @@ test("endSession rejects pending permissions and clears session allowlist", asyn
     const adapter = createMockAdapter();
     const rejected = [];
     const permissionService = {
-        rejectSessionRequests(sessionId, reason) {
-            rejected.push({ sessionId, reason });
+        rejectSessionRequests(sessionId, reason, clearRemembered) {
+            rejected.push({ sessionId, reason, clearRemembered });
         },
     };
     const manager = createSessionManager({ adapter, eventBus: createMockEventBus(), state, config: createConfig(), permissionService });
@@ -86,10 +91,10 @@ test("endSession rejects pending permissions and clears session allowlist", asyn
 
     await manager.endSession("session-1");
 
-    assert.deepEqual(rejected, [{ sessionId: "session-1", reason: "invalidated" }]);
+    assert.deepEqual(rejected, [{ sessionId: "session-1", reason: "invalidated", clearRemembered: true }]);
 });
 
-test("endSession sends session/cancel before delete when a prompt is pending", async () => {
+test("endSession notifies session/cancel before deleting a pending prompt", async () => {
     const state = createRuntimeState();
     const adapter = createMockAdapter();
     const manager = createSessionManager({ adapter, eventBus: createMockEventBus(), state, config: createConfig() });
@@ -98,7 +103,8 @@ test("endSession sends session/cancel before delete when a prompt is pending", a
 
     await manager.endSession("session-1");
 
-    assert.deepEqual(adapter.requests.slice(1).map((request) => request.method), ["session/cancel", "session/delete"]);
+    assert.deepEqual(adapter.notifications, [{ method: "session/cancel", params: { sessionId: "session-1" } }]);
+    assert.deepEqual(adapter.requests.slice(1).map((request) => request.method), ["session/delete"]);
 });
 
 test("pushUserMessage sends a session/prompt request", async () => {

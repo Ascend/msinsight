@@ -279,7 +279,7 @@ test('shows a clear busy message and disables save while a prompt is in flight',
 
 test('settings save and reload keep the messages list untouched', async () => {
     const existingMessages = [
-        { id: 'msg-1', role: 'assistant' as const, text: 'previous assistant reply that must stay visible' },
+        { id: 'msg-1', role: 'assistant' as const, content: [{ id: 'text-1', type: 'text' as const, text: 'previous assistant reply that must stay visible' }] },
     ];
     let applyMock = jest.fn();
     let currentMessages: typeof existingMessages = existingMessages;
