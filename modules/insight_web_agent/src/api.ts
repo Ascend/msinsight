@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionItem } from './types';
+import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
 import { apiUrl } from './env';
 
@@ -57,7 +58,7 @@ interface LoadSessionResponse extends OkResponse {
     pendingPrompt?: boolean;
 }
 
-const requestJson = async <T,>(path: string, init?: RequestInit): Promise<T> => {
+const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
     const response = await fetch(apiUrl(path), {
         ...init,
         headers: {
@@ -80,7 +81,7 @@ export const fetchState = (): Promise<Partial<AppState>> => {
 
 export const fetchSessions = async (): Promise<SessionItem[]> => {
     const body = await requestJson<SessionsResponse>('/api/sessions');
-    return body.sessions ?? [];
+    return sortByTimeDescending(body.sessions ?? [], (session) => session.updatedAt);
 };
 
 export const createSession = (): Promise<LoadSessionResponse> => {
