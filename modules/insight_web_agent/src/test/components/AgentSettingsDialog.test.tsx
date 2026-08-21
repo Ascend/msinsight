@@ -58,6 +58,12 @@ jest.mock('../../hooks/useChatState', () => ({
     useChatState: jest.fn(),
 }));
 
+jest.mock('../../components/JsonEditor', () => ({
+    JsonEditor: ({ ariaLabel, onChange, value }: any) => (
+        <textarea aria-label={ariaLabel} onChange={(event) => onChange(event.target.value)} value={value} />
+    ),
+}));
+
 const mockUseChatState = useChatState as jest.Mock;
 
 jest.mock('../../components/Composer', () => ({
@@ -92,6 +98,14 @@ const mockSaveAgentServersConfig = saveAgentServersConfig as jest.Mock;
 const mockSaveAgentSessionConfig = saveAgentSessionConfig as jest.Mock;
 const mockSaveBuiltinAgentConfig = saveBuiltinAgentConfig as jest.Mock;
 
+const renderChatPanelWithSettings = (): void => {
+    render(<>
+        <ChatPanel />
+        <AgentSettingsDialog trigger={<button type="button">Open settings</button>} />
+    </>);
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
+};
+
 beforeEach(() => {
     mockUseChatState.mockReturnValue({
         messages: [],
@@ -100,10 +114,11 @@ beforeEach(() => {
         respondToPermission: jest.fn(),
         applyAgentConfigSnapshot: jest.fn(),
     });
-    mockFetchAgentConfig.mockResolvedValue(snapshot);
-    mockSaveAgentServersConfig.mockResolvedValue({ ok: true, snapshot });
-    mockSaveAgentSessionConfig.mockResolvedValue({ ok: true, snapshot });
-    mockSaveBuiltinAgentConfig.mockResolvedValue({ ok: true, snapshot });
+    const freshSnapshot = JSON.parse(JSON.stringify(snapshot));
+    mockFetchAgentConfig.mockResolvedValue(freshSnapshot);
+    mockSaveAgentServersConfig.mockResolvedValue({ ok: true, snapshot: freshSnapshot });
+    mockSaveAgentSessionConfig.mockResolvedValue({ ok: true, snapshot: freshSnapshot });
+    mockSaveBuiltinAgentConfig.mockResolvedValue({ ok: true, snapshot: freshSnapshot });
 });
 
 afterEach(() => {
@@ -138,12 +153,12 @@ test('switches to edited non-active existing agent on save', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByText('Agent Configuration');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Claude' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Claude/ }));
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude-code' } });
     fireEvent.click(screen.getByRole('button', { name: 'Remove arg 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add arg' }));
     fireEvent.change(screen.getByLabelText('Arg 1'), { target: { value: '--model=sonnet' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Remove env 1' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove env 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add env entry' }));
     fireEvent.change(screen.getByLabelText('Env key 1'), { target: { value: 'ANTHROPIC_AUTH_TOKEN' } });
     fireEvent.change(screen.getByLabelText('Env value 1'), { target: { value: 'token' } });
@@ -165,9 +180,9 @@ test('switches to edited non-active existing agent on save', async () => {
 });
 
 test('rejects empty args before save', async () => {
-    render(<ChatPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
+    renderChatPanelWithSettings();
     await screen.findByText('Agent Configuration');
+    await screen.findByRole('button', { name: /OpenCode/ });
 
     fireEvent.change(screen.getByDisplayValue('acp'), { target: { value: '' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -177,11 +192,10 @@ test('rejects empty args before save', async () => {
 });
 
 test('adds a new agent and saves without switching by default', async () => {
-    render(<ChatPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
+    renderChatPanelWithSettings();
     await screen.findByText('Agent Configuration');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add agent' }));
     fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Claude' } });
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -198,7 +212,7 @@ test('removes the last existing env row and saves an empty env object', async ()
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByText('Agent Configuration');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove env 1' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove env 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
@@ -212,11 +226,12 @@ test('adds draft agent args and multiple env rows when saving and switching to t
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByText('Agent Configuration');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Add agent' }));
     fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Claude' } });
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add arg' }));
     fireEvent.change(screen.getByLabelText('Arg 1'), { target: { value: '--model=sonnet' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add env entry' }));
     fireEvent.change(screen.getByLabelText('Env key 1'), { target: { value: 'ANTHROPIC_AUTH_TOKEN' } });
     fireEvent.change(screen.getByLabelText('Env value 1'), { target: { value: 'token' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add env entry' }));
@@ -272,9 +287,9 @@ test('shows a clear busy message and disables save while a prompt is in flight',
         applyAgentConfigSnapshot: jest.fn(),
     });
 
-    render(<ChatPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
+    renderChatPanelWithSettings();
     await screen.findByText('Agent Configuration');
+    await screen.findByRole('button', { name: /OpenCode/ });
 
     expect(screen.getByText('Agent is busy. Wait for the current prompt to finish before saving settings.')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
@@ -299,13 +314,13 @@ test('settings save and reload keep the messages list untouched', async () => {
     }));
     mockSaveAgentServersConfig.mockResolvedValue({ ok: true, snapshot: { ...snapshot, activeAgentName: 'OpenCode' } });
 
-    render(<ChatPanel />);
+    renderChatPanelWithSettings();
 
     expect(screen.getByText('messages')).toBeVisible();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     await screen.findByText('Agent Configuration');
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    fireEvent.change(await screen.findByLabelText('Command'), { target: { value: 'opencode-updated' } });
+    fireEvent.click(await screen.findByRole('button', { name: 'Save' }));
 
     await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(applyMock).toHaveBeenCalledTimes(1));

@@ -33,6 +33,9 @@ jest.mock('antd', () => ({
 
 jest.mock('@insight/lib/components', () => ({
     Button: ({ children, size: _size, type: _buttonType, ...props }: any) => <button {...props} type="button">{children}</button>,
+    Input: (props: any) => <input {...props} />,
+    InputNumber: ({ onChange, value, ...props }: any) => <input {...props} onChange={(event) => onChange(Number(event.target.value))} type="number" value={value} />,
+    PasswordInput: (props: any) => <input {...props} type="password" />,
     Select: ({ onChange, options, value, width: _width, ...props }: any) => (
         <select
             aria-label={props['aria-label'] ?? 'select'}
@@ -166,7 +169,7 @@ beforeEach(() => {
         configOptions: [],
         pendingPrompt: false,
     });
-    mockFetchAgentConfig.mockResolvedValue(snapshot);
+    mockFetchAgentConfig.mockResolvedValue(JSON.parse(JSON.stringify(snapshot)));
     mockFetchAgents.mockResolvedValue({
         activeAgentName: 'Claude',
         agentServers: [{ name: 'OpenCode' }, { name: 'Claude' }],
@@ -235,7 +238,7 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
 
     fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
     expect(await screen.findByText('Agent Configuration')).toBeVisible();
-    fireEvent.change(await screen.findByLabelText('Agent to edit'), { target: { value: 'Claude' } });
+    fireEvent.click(await screen.findByRole('button', { name: /Claude/ }));
     fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
