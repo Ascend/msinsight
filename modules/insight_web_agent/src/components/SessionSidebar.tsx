@@ -78,7 +78,7 @@ const Container = styled.div`
         justify-content: center;
         border: 0;
         padding: 6px;
-        border-radius: 6px;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};
         cursor: pointer;
@@ -145,7 +145,7 @@ const Container = styled.div`
         gap: 8px;
         padding: 10px;
         border: 1px solid transparent;
-        border-radius: ${(props): string => props.theme.borderRadiusBase};
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};
         text-align: left;
@@ -165,7 +165,7 @@ const Container = styled.div`
         align-items: center;
         justify-content: center;
         border: 0;
-        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         background: transparent;
         color: ${(props): string => props.theme.textColorSecondary};
         cursor: pointer;
@@ -231,7 +231,7 @@ const AddAgentButton = styled.button`
     width: 100%;
     height: 32px;
     border: 1px solid ${(props): string => props.theme.borderColorLighter};
-    border-radius: 8px;
+    border-radius: ${(props): string => props.theme.borderRadiusLarge};
     background: transparent;
     color: ${(props): string => props.theme.textColorPrimary};
     font-size: 14px;
@@ -256,10 +256,16 @@ export const SessionSidebar = (): JSX.Element => {
         setAgent,
     } = useChatState();
     const [open, setOpen] = useState(false);
+    const [settingsOpen, setSettingsOpen] = useState(false);
+    const [createAgentOnOpen, setCreateAgentOnOpen] = useState(false);
     const { t } = useTranslation('insightWebAgent');
     const handleCreateSession = (): void => {
         createSession();
         setOpen(false);
+    };
+    const openSettings = (createAgent: boolean): void => {
+        setCreateAgentOnOpen(createAgent);
+        setSettingsOpen(true);
     };
 
     return (
@@ -268,9 +274,7 @@ export const SessionSidebar = (): JSX.Element => {
                 <AgentSelect
                     className="agent-picker"
                     footer={(
-                        <AgentSettingsDialog trigger={(
-                            <AddAgentButton type="button">{t('addAgent')}</AddAgentButton>
-                        )} />
+                        <AddAgentButton onClick={() => openSettings(true)} type="button">{t('addAgent')}</AddAgentButton>
                     )}
                     onChange={(value) => { void setAgent(value); }}
                     options={agentServers.map((agent) => ({
@@ -291,15 +295,18 @@ export const SessionSidebar = (): JSX.Element => {
                 <button className="icon-button drawer-toggle" disabled={!sessions.length} onClick={() => setOpen(true)} title={t('openSessions')} type="button">
                     <img src={historyIcon} alt="" />
                 </button>
-                <AgentSettingsDialog trigger={(
-                    <button aria-label={t('agentSettings')} className="icon-button" title={t('agentSettings')} type="button">
-                        <img src={settingsIcon} alt="" />
-                    </button>
-                )} />
+                <button aria-label={t('agentSettings')} className="icon-button" onClick={() => openSettings(false)} title={t('agentSettings')} type="button">
+                    <img src={settingsIcon} alt="" />
+                </button>
                 <button className="icon-button" onClick={requestHostClose} title={t('close')} type="button">
                     <img src={closeIcon} alt="" />
                 </button>
             </div>
+            <AgentSettingsDialog
+                createOnOpen={createAgentOnOpen}
+                onOpenChange={setSettingsOpen}
+                open={settingsOpen}
+            />
             <Drawer
                 className="session-drawer"
                 getContainer={false}

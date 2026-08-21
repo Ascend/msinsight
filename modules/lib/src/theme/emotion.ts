@@ -233,6 +233,7 @@ declare module '@emotion/react' {
         fontFamily: string;
         borderRadiusBase: string; // 基础圆角
         borderRadiusSmall: string;
+        borderRadiusLarge: string;
         borderRadiusRound: string;
         borderRadiusCircle: string;
         pagePadding: string;

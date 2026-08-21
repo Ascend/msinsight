@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-export { MIInput as Input, MIInputGroup as InputGroup, MIInputSplit as InputSplit, MIInputNumber as InputNumber } from './MIInput';
+export { MIInput as Input, MIInputGroup as InputGroup, MIInputSplit as InputSplit, MIInputNumber as InputNumber, MIPasswordInput as PasswordInput } from './MIInput';
 export { MISelect as Select } from './MISelect';
 export { MIButton as Button } from './MIButton';
 export { MITooltip as Tooltip, MITooltipHelp } from './MITooltip';

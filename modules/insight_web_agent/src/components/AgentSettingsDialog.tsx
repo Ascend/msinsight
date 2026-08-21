@@ -19,11 +19,15 @@ import styled from '@emotion/styled';
 import { Drawer, message } from 'antd';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Select } from '@insight/lib/components';
+import { Button, Input, InputNumber, PasswordInput } from '@insight/lib/components';
 import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
+import addIcon from '../icons/add.svg';
+import arrowDownIcon from '../icons/arrow-down.svg';
 import backIcon from '../icons/back.svg';
+import agentLogo from '../icons/logo.png';
+import deleteIcon from '../icons/delete.svg';
 
 const Container = styled.div`
     display: inline-flex;
@@ -47,6 +51,12 @@ const Container = styled.div`
         padding: 14px 16px;
         border-bottom: 0;
         background: ${(props): string => props.theme.bgColor};
+        transition: box-shadow 0.15s ease;
+    }
+
+    .settings-drawer.content-scrolled .ant-drawer-header {
+        z-index: 1;
+        box-shadow: ${(props): string => props.theme.boxShadowLighter};
     }
 
     .settings-drawer .ant-drawer-title,
@@ -86,22 +96,76 @@ const Container = styled.div`
     }
 
     .settings-drawer .ant-drawer-body {
-        padding: 12px 14px 16px;
+        padding: 0;
         background: ${(props): string => props.theme.bgColor};
+        overflow: hidden;
+    }
+
+    .settings-layout {
+        height: 100%;
+        min-height: 0;
+        display: grid;
+        grid-template-rows: minmax(0, 1fr) auto;
     }
 
     .panel {
+        min-height: 0;
         display: grid;
+        align-content: start;
         gap: 14px;
+        padding: 16px;
+        overflow: auto;
     }
 
     .section {
         display: grid;
         gap: 10px;
-        padding: 12px;
-        border: 1px solid ${(props): string => props.theme.borderColor};
+        padding: 0;
+        border: 0;
         border-radius: ${(props): string => props.theme.borderRadiusBase};
         background: ${(props): string => props.theme.bgColor};
+    }
+
+    .session-section {
+        padding-top: 16px;
+        border-top: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: 0;
+    }
+
+    .session-toggle {
+        width: fit-content;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 24px;
+        cursor: pointer;
+    }
+
+    .session-chevron {
+        width: 16px;
+        height: 16px;
+        filter: ${(props): string => props.theme.mode === 'dark' ? 'invert(1)' : 'none'};
+        opacity: 0.85;
+        transform: rotate(-90deg);
+        transition: transform 0.15s ease;
+    }
+
+    .session-toggle[aria-expanded='true'] .session-chevron {
+        transform: rotate(0deg);
+    }
+
+    .session-content {
+        display: grid;
+        gap: 10px;
+        margin-left: 8px;
+        border-left: 1px solid ${(props): string => props.theme.borderColor};
+        padding-left: 18px;
     }
 
     .section-title {
@@ -110,6 +174,135 @@ const Container = styled.div`
         font-weight: 700;
         letter-spacing: 0.04em;
         text-transform: uppercase;
+    }
+
+    .agent-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .agent-card {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        border: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        padding: 14px 12px;
+        background: ${(props): string => props.theme.bgColor};
+        color: ${(props): string => props.theme.textColorPrimary};
+        cursor: pointer;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+
+    .agent-card:hover {
+        border-color: ${(props): string => props.theme.primaryColor};
+    }
+
+    .agent-card.selected {
+        border-color: ${(props): string => props.theme.primaryColor};
+        box-shadow: inset 0 0 0 1px ${(props): string => props.theme.primaryColor};
+    }
+
+    .agent-card-icon {
+        width: 26px;
+        height: 26px;
+        flex: 0 0 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: ${(props): string => props.theme.borderRadiusCircle};
+        background: ${(props): string => props.theme.bgColorDark};
+        color: ${(props): string => props.theme.primaryColor};
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .agent-card-icon.logo {
+        border-radius: 0;
+        background: transparent;
+    }
+
+    .agent-card-icon img {
+        width: 26px;
+        height: 26px;
+        object-fit: contain;
+    }
+
+    .agent-card-name {
+        width: 100%;
+        overflow: hidden;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 20px;
+        text-align: center;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .agent-card.add-card {
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+
+    .add-icon {
+        position: relative;
+        width: 26px;
+        height: 26px;
+    }
+
+    .add-icon::before,
+    .add-icon::after {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        content: '';
+        background: ${(props): string => props.theme.textColorSecondary};
+        transform: translate(-50%, -50%);
+    }
+
+    .add-icon::before {
+        width: 22px;
+        height: 1px;
+    }
+
+    .add-icon::after {
+        width: 1px;
+        height: 22px;
+    }
+
+    .config-tabs {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 8px;
+        padding: 2px;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        background: ${(props): string => props.theme.bgColorDark};
+    }
+
+    .config-tab {
+        height: 28px;
+        border: 0;
+        border-radius: 7px;
+        padding: 0 12px;
+        background: transparent;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 14px;
+        font-weight: 400;
+        cursor: pointer;
+    }
+
+    .config-tab.active {
+        background: ${(props): string => props.theme.bgColor};
+        color: ${(props): string => props.theme.primaryColor};
+        font-weight: 500;
+    }
+
+    .script-config-panel {
+        min-height: 1px;
     }
 
     .row,
@@ -131,49 +324,139 @@ const Container = styled.div`
 
     label {
         color: ${(props): string => props.theme.textColorSecondary};
-        font-size: 12px;
-        font-weight: 600;
+        font-size: 14px;
+        font-weight: 400;
     }
 
-    input[type='text'],
-    input[type='password'],
-    input[type='number'] {
+    .settings-password {
         width: 100%;
-        height: 32px;
-        min-width: 0;
-        box-sizing: border-box;
-        border: 1px solid ${(props): string => props.theme.borderColor};
-        border-radius: ${(props): string => props.theme.borderRadiusSmall};
-        padding: 0 10px;
-        background: ${(props): string => props.theme.bgColor};
-        color: ${(props): string => props.theme.textColorPrimary};
-        outline: none;
-        transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+        font-size: 14px;
     }
 
-    input[type='text']:not(:disabled):not([readonly]):hover,
-    input[type='password']:not(:disabled):not([readonly]):hover,
-    input[type='number']:not(:disabled):not([readonly]):hover {
-        border-color: ${(props): string => props.theme.primaryColor};
+    .settings-input {
+        width: 100%;
+        font-size: 14px;
     }
 
-    input[type='text']:not(:disabled):not([readonly]):focus,
-    input[type='password']:not(:disabled):not([readonly]):focus,
-    input[type='number']:not(:disabled):not([readonly]):focus {
-        border-color: ${(props): string => props.theme.primaryColor};
-        box-shadow: 0 0 0 2px ${(props): string => `${props.theme.primaryColor}33`};
-    }
-
-    input[readonly],
-    input:disabled {
+    .settings-input[readonly] {
         background: ${(props): string => props.theme.bgColorLight};
         color: ${(props): string => props.theme.textColorSecondary};
-        cursor: not-allowed;
-        opacity: 0.72;
+        cursor: default;
+    }
+
+    .number-field {
+        width: 50%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .session-number {
+        width: 100%;
+        font-size: 14px;
+    }
+
+    .number-unit {
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 12px;
+        line-height: 32px;
+    }
+
+    .config-group-title {
+        margin-top: 6px;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 22px;
+    }
+
+    .session-content .check-row {
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+
+    .extra-path-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+    }
+
+    .extra-path-section {
+        margin-top: 8px;
+    }
+
+    .path-add {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        flex: 0 0 auto;
+        border: 0;
+        padding: 2px 0;
+        background: transparent;
+        color: ${(props): string => props.theme.primaryColor};
+        font-size: 14px;
+        cursor: pointer;
+    }
+
+    .path-add-icon {
+        width: 16px;
+        height: 16px;
+        background: currentColor;
+        mask: url(${addIcon}) center / contain no-repeat;
+    }
+
+    .path-row {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 28px;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .env-row {
+        min-width: 0;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .path-remove {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        padding: 0;
+        background: transparent;
+        color: ${(props): string => props.theme.textColorSecondary};
+        cursor: pointer;
+    }
+
+    .path-remove:hover {
+        background: ${(props): string => props.theme.bgColorDark};
+        color: ${(props): string => props.theme.dangerColor};
+    }
+
+    .path-remove-icon {
+        width: 16px;
+        height: 16px;
+        background: currentColor;
+        mask: url(${deleteIcon}) center / contain no-repeat;
+    }
+
+    .path-empty {
+        padding: 4px 0;
+        color: ${(props): string => props.theme.textColorPlaceholder};
+        font-size: 12px;
+        line-height: 20px;
+        text-align: center;
     }
 
     .inline-actions,
-    .footer-actions,
     .check-row {
         display: flex;
         align-items: center;
@@ -181,24 +464,26 @@ const Container = styled.div`
         flex-wrap: wrap;
     }
 
-    .footer-actions {
-        justify-content: flex-end;
-    }
-
-    .section-header {
+    .settings-footer {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 8px;
+        gap: 16px;
+        padding: 12px 16px 16px;
+        background: ${(props): string => props.theme.bgColor};
+        transition: box-shadow 0.15s ease;
     }
 
-    .advanced-toggle {
-        border: 0;
-        padding: 0;
-        background: transparent;
-        color: ${(props): string => props.theme.primaryColor};
-        font-size: 12px;
-        cursor: pointer;
+    .settings-footer.has-content-below {
+        z-index: 1;
+        box-shadow: ${(props): string => props.theme.boxShadowLighter};
+    }
+
+    .settings-footer-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 0 0 auto;
     }
 
     .hint,
@@ -228,7 +513,7 @@ const Container = styled.div`
         align-items: center;
         justify-content: center;
         border: 0;
-        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};
         cursor: pointer;
@@ -240,7 +525,10 @@ const Container = styled.div`
 `;
 
 interface AgentSettingsDialogProps {
-    trigger: React.ReactNode;
+    trigger?: React.ReactNode;
+    open?: boolean;
+    createOnOpen?: boolean;
+    onOpenChange?: (open: boolean) => void;
 }
 
 interface DraftAgent {
@@ -259,27 +547,46 @@ const EMPTY_DRAFT = (): DraftAgent => ({
     saveAndSwitch: false,
 });
 
-export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.Element => {
+export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpen = false, onOpenChange }: AgentSettingsDialogProps): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const { applyAgentConfigSnapshot, pendingPrompt } = useChatState();
-    const [open, setOpen] = useState(false);
+    const [internalOpen, setInternalOpen] = useState(false);
+    const open = controlledOpen ?? internalOpen;
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [snapshot, setSnapshot] = useState<AgentConfigSnapshot | null>(null);
     const initialSnapshotRef = useRef<AgentConfigSnapshot | null>(null);
+    const panelRef = useRef<HTMLDivElement | null>(null);
     const [selectedAgentName, setSelectedAgentName] = useState<string | null>(null);
     const [saveAndSwitchSelected, setSaveAndSwitchSelected] = useState(false);
     const [draftAgent, setDraftAgent] = useState<DraftAgent | null>(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
+    const [configMode, setConfigMode] = useState<'form' | 'script'>('form');
+    const [panelScrollState, setPanelScrollState] = useState({ hasContentAbove: false, hasContentBelow: false });
     const [error, setError] = useState<string | null>(null);
+
+    const setOpen = (nextOpen: boolean): void => {
+        if (controlledOpen === undefined) setInternalOpen(nextOpen);
+        onOpenChange?.(nextOpen);
+    };
+
+    const updatePanelScrollState = (element: HTMLDivElement | null): void => {
+        if (!element) return;
+        setPanelScrollState({
+            hasContentAbove: element.scrollTop > 0,
+            hasContentBelow: element.scrollTop + element.clientHeight < element.scrollHeight - 1,
+        });
+    };
 
     useEffect(() => {
         if (!open) return;
         setLoading(true);
         setError(null);
         setSaveAndSwitchSelected(false);
-        setDraftAgent(null);
+        setDraftAgent(createOnOpen ? EMPTY_DRAFT() : null);
         setShowAdvanced(false);
+        setConfigMode('form');
+        setPanelScrollState({ hasContentAbove: false, hasContentBelow: false });
         const loadSettings = async (): Promise<void> => {
             try {
                 const nextSnapshot = await fetchAgentConfig();
@@ -288,6 +595,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                 const editableActiveAgent = nextSnapshot.activeAgentName === 'msinsight-native'
                     || nextSnapshot.agentServers.some((agent) => agent.name === nextSnapshot.activeAgentName);
                 setSelectedAgentName(editableActiveAgent ? nextSnapshot.activeAgentName : 'msinsight-native');
+                if (createOnOpen) setDraftAgent(EMPTY_DRAFT());
             } catch (nextError) {
                 setError(nextError instanceof Error ? nextError.message : String(nextError));
             } finally {
@@ -295,7 +603,13 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
             }
         };
         void loadSettings();
-    }, [open]);
+    }, [createOnOpen, open]);
+
+    useEffect(() => {
+        if (!open) return;
+        const frame = requestAnimationFrame(() => updatePanelScrollState(panelRef.current));
+        return () => cancelAnimationFrame(frame);
+    }, [configMode, draftAgent, loading, open, showAdvanced, snapshot]);
 
     const activeAgent = useMemo(() => {
         if (!snapshot) return undefined;
@@ -313,9 +627,18 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
     const editingAgent = draftAgent ?? activeAgent;
     const isCreatingAgent = Boolean(draftAgent);
 
-    const extraPaths = snapshot?.sessionConfig.defaultAllowlist.extraPaths?.length
-        ? snapshot.sessionConfig.defaultAllowlist.extraPaths
-        : [''];
+    const selectAgent = (agentName: string): void => {
+        setDraftAgent(null);
+        setSelectedAgentName(agentName);
+        setSaveAndSwitchSelected(false);
+    };
+
+    const createAgent = (): void => {
+        setDraftAgent(EMPTY_DRAFT());
+        setSaveAndSwitchSelected(false);
+    };
+
+    const extraPaths = snapshot?.sessionConfig.defaultAllowlist.extraPaths ?? [];
 
     const updateActiveAgent = (updater: (agent: NonNullable<typeof activeAgent>) => NonNullable<typeof activeAgent>) => {
         setSnapshot((current) => {
@@ -463,9 +786,9 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
 
     return (
         <Container>
-            <span className="settings-trigger" onClick={() => setOpen(true)}>{trigger}</span>
+            {trigger ? <span className="settings-trigger" onClick={() => setOpen(true)}>{trigger}</span> : null}
             <Drawer
-                className="settings-drawer"
+                className={`settings-drawer${panelScrollState.hasContentAbove ? ' content-scrolled' : ''}`}
                 closable={false}
                 getContainer={false}
                 mask
@@ -483,7 +806,8 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                 )}
                 width="100%"
             >
-                <div className="panel">
+                <div className="settings-layout">
+                    <div className="panel" onScroll={(event) => updatePanelScrollState(event.currentTarget)} ref={panelRef}>
                     {loading ? <div className="hint">{t('loadingSettings')}</div> : null}
                     {pendingPrompt ? (
                         <div className="warning" role="status">
@@ -494,65 +818,106 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                     {snapshot && (editingAgent || isBuiltinSelected) ? (
                         <>
                             <div className="section">
-                                <div className="section-header">
-                                    <div className="section-title">{t('agentSection')}</div>
-                                    {isCreatingAgent
-                                        ? <Button onClick={() => setDraftAgent(null)} size="small" type="default">{t('cancelDraft')}</Button>
-                                        : <Button onClick={() => setDraftAgent(EMPTY_DRAFT())} size="small" type="default">{t('addAgent')}</Button>}
+                                <div aria-label={t('agentToEdit')} className="agent-grid" role="group">
+                                    <button
+                                        aria-pressed={isBuiltinSelected}
+                                        className={`agent-card${isBuiltinSelected ? ' selected' : ''}`}
+                                        onClick={() => selectAgent('msinsight-native')}
+                                        title={t('builtinAgentCardName')}
+                                        type="button"
+                                    >
+                                        <span className="agent-card-icon logo"><img alt="" src={agentLogo} /></span>
+                                        <span className="agent-card-name">{t('builtinAgentCardName')}</span>
+                                    </button>
+                                    {snapshot.agentServers.map((agent) => {
+                                        const selected = !isCreatingAgent && selectedAgentName === agent.name;
+                                        return <button
+                                            aria-pressed={selected}
+                                            className={`agent-card${selected ? ' selected' : ''}`}
+                                            key={agent.name}
+                                            onClick={() => selectAgent(agent.name)}
+                                            title={agent.name}
+                                            type="button"
+                                        >
+                                            <span className="agent-card-icon">{agent.name.trim().charAt(0) || 'A'}</span>
+                                            <span className="agent-card-name">{agent.name}</span>
+                                        </button>;
+                                    })}
+                                    {isCreatingAgent ? <button aria-pressed="true" className="agent-card selected" type="button">
+                                        <span className="agent-card-icon logo"><img alt="" src={agentLogo} /></span>
+                                        <span className="agent-card-name">{draftAgent?.name.trim() || t('newAgent')}</span>
+                                    </button> : null}
+                                    <button className="agent-card add-card" onClick={createAgent} type="button">
+                                        <span aria-hidden="true" className="add-icon" />
+                                        <span className="agent-card-name">{t('addAgent')}</span>
+                                    </button>
                                 </div>
+                                <div aria-label={t('configMode')} className="config-tabs" role="tablist">
+                                    <button
+                                        aria-selected={configMode === 'form'}
+                                        className={`config-tab${configMode === 'form' ? ' active' : ''}`}
+                                        onClick={() => setConfigMode('form')}
+                                        role="tab"
+                                        type="button"
+                                    >
+                                        {t('formConfig')}
+                                    </button>
+                                    <button
+                                        aria-selected={configMode === 'script'}
+                                        className={`config-tab${configMode === 'script' ? ' active' : ''}`}
+                                        onClick={() => setConfigMode('script')}
+                                        role="tab"
+                                        type="button"
+                                    >
+                                        {t('scriptConfig')}
+                                    </button>
+                                </div>
+                                {configMode === 'form' ? <>
                                 {isCreatingAgent ? (
                                     <div className="row">
                                         <label htmlFor="new-agent-name">{t('newAgentName')}</label>
-                                        <input id="new-agent-name" onChange={(event) => setDraftAgent((current) => current ? { ...current, name: event.target.value } : current)} type="text" value={draftAgent?.name ?? ''} />
+                                        <Input className="settings-input" id="new-agent-name" onChange={(event) => setDraftAgent((current) => current ? { ...current, name: event.target.value } : current)} type="text" value={draftAgent?.name ?? ''} />
                                     </div>
-                                ) : (
-                                    <div className="row">
-                                        <label htmlFor="agent-selector">{t('agentToEdit')}</label>
-                                        <Select
-                                            aria-label={t('agentToEdit')}
-                                            id="agent-selector"
-                                            onChange={(value) => setSelectedAgentName(String(value))}
-                                            options={[
-                                                { label: t('builtinAgentName'), value: 'msinsight-native' },
-                                                ...snapshot.agentServers.map((agent) => ({ label: agent.name, value: agent.name })),
-                                            ]}
-                                            value={selectedAgentName ?? snapshot.activeAgentName}
-                                            width="100%"
-                                        />
-                                    </div>
-                                )}
+                                ) : <div className="row">
+                                    <label htmlFor="agent-name">{t('agentName')}</label>
+                                    <Input className="settings-input" id="agent-name" readOnly type="text" value={isBuiltinSelected ? t('builtinAgentCardName') : activeAgent?.name ?? ''} />
+                                </div>}
                                 {isBuiltinSelected ? <>
-                                <div className="hint">{t('builtinAgentHint')}</div>
                                 <div className="row">
                                     <label htmlFor="builtin-provider">{t('provider')}</label>
-                                    <input id="builtin-provider" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, provider: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.provider} />
+                                    <Input className="settings-input" id="builtin-provider" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, provider: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.provider} />
                                 </div>
                                 <div className="row">
                                     <label htmlFor="builtin-model">{t('model')}</label>
-                                    <input id="builtin-model" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.model} />
+                                    <Input className="settings-input" id="builtin-model" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.model} />
                                 </div>
                                 <div className="row">
                                     <label htmlFor="builtin-base-url">{t('baseUrl')}</label>
-                                    <input id="builtin-base-url" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, baseUrl: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.baseUrl} />
+                                    <Input className="settings-input" id="builtin-base-url" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, baseUrl: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.baseUrl} />
                                 </div>
                                 <div className="row">
                                     <label htmlFor="builtin-api-key">{t('apiKey')}</label>
-                                    <input id="builtin-api-key" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, apiKey: event.target.value } }) : current)} type="password" value={snapshot.builtinAgent.apiKey} />
+                                    <PasswordInput className="settings-password" id="builtin-api-key" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, apiKey: event.target.value } }) : current)} value={snapshot.builtinAgent.apiKey} />
                                 </div>
                                 </> : editingAgent ? <>
                                 <div className="row">
                                     <label htmlFor="agent-command">{t('command')}</label>
-                                    <input id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={editingAgent.command} />
+                                    <Input className="settings-input" id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={editingAgent.command} />
                                 </div>
                                 <div className="row">
-                                    <div className="inline-actions">
+                                    <div className="extra-path-header">
                                         <label>{t('args')}</label>
-                                        <Button onClick={() => updateEditingAgent((agent) => ({ ...agent, args: [...agent.args, ''] }))} size="small" type="default">{t('addArg')}</Button>
+                                        <button className="path-add" onClick={() => updateEditingAgent((agent) => ({ ...agent, args: [...agent.args, ''] }))} type="button">
+                                            <span aria-hidden="true" className="path-add-icon" />
+                                            <span>{t('addArg')}</span>
+                                        </button>
                                     </div>
+                                    {!editingAgent.args.length ? <div className="path-empty">{t('noArgs')}</div> : null}
                                     {editingAgent.args.map((arg, index) => (
-                                        <div className="array-row" key={`arg-${index}`}>
-                                            <input
+                                        <div className="path-row" key={`arg-${index}`}>
+                                            <Input
                                                 aria-label={t('argLabel', { index: index + 1 })}
+                                                className="settings-input"
                                                 onChange={(event) => updateEditingAgent((agent) => ({
                                                     ...agent,
                                                     args: agent.args.map((item, itemIndex) => itemIndex === index ? event.target.value : item),
@@ -560,64 +925,78 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                                 type="text"
                                                 value={arg}
                                             />
-                                            <Button onClick={() => updateEditingAgent((agent) => ({ ...agent, args: agent.args.filter((_, itemIndex) => itemIndex !== index) }))} size="small" type="default">{t('removeArg', { index: index + 1 })}</Button>
+                                            <button aria-label={t('removeArg', { index: index + 1 })} className="path-remove" onClick={() => updateEditingAgent((agent) => ({ ...agent, args: agent.args.filter((_, itemIndex) => itemIndex !== index) }))} title={t('removeArg', { index: index + 1 })} type="button">
+                                                <span aria-hidden="true" className="path-remove-icon" />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
                                 <div className="row">
-                                    <div className="inline-actions">
+                                    <div className="extra-path-header">
                                         <label>{t('env')}</label>
-                                        <Button onClick={() => updateEditingEnv([...envEntries, ['', '']])} size="small" type="default">{t('addEnvEntry')}</Button>
+                                        <button className="path-add" onClick={() => updateEditingEnv([...envEntries, ['', '']])} type="button">
+                                            <span aria-hidden="true" className="path-add-icon" />
+                                            <span>{t('addEnvEntry')}</span>
+                                        </button>
                                     </div>
+                                    {!envEntries.length ? <div className="path-empty">{t('noEnvEntries')}</div> : null}
                                     {envEntries.map(([key, value], index) => (
-                                        <div className="kv-row" key={`env-${index}`}>
-                                            <input
+                                        <div className="env-row" key={`env-${index}`}>
+                                            <Input
                                                 aria-label={t('envKeyLabel', { index: index + 1 })}
+                                                className="settings-input"
                                                 onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => [currentIndex === index ? event.target.value : entry[0], entry[1]]))}
+                                                placeholder={t('envKeyPlaceholder')}
                                                 type="text"
                                                 value={key}
                                             />
-                                            <input
+                                            <Input
                                                 aria-label={t('envValueLabel', { index: index + 1 })}
+                                                className="settings-input"
                                                 onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => currentIndex === index ? [entry[0], event.target.value] : entry))}
+                                                placeholder={t('envValuePlaceholder')}
                                                 type="text"
                                                 value={value}
                                             />
-                                            <Button onClick={() => updateEditingEnv(envEntries.filter((_, currentIndex) => currentIndex !== index))} size="small" type="default">{t('removeEnv', { index: index + 1 })}</Button>
+                                            <button aria-label={t('removeEnv', { index: index + 1 })} className="path-remove" onClick={() => updateEditingEnv(envEntries.filter((_, currentIndex) => currentIndex !== index))} title={t('removeEnv', { index: index + 1 })} type="button">
+                                                <span aria-hidden="true" className="path-remove-icon" />
+                                            </button>
                                         </div>
                                     ))}
                                 </div>
                                 </> : null}
-                                {isCreatingAgent ? <label className="check-row">
-                                    <input checked={draftAgent?.saveAndSwitch ?? false} onChange={(event) => setDraftAgent((current) => current ? { ...current, saveAndSwitch: event.target.checked } : current)} type="checkbox" />
-                                    <span>{t('saveAndSwitchThisAgent')}</span>
-                                </label> : <label className="check-row">
-                                    <input checked={saveAndSwitchSelected} onChange={(event) => setSaveAndSwitchSelected(event.target.checked)} type="checkbox" />
-                                    <span>{t('saveAndSwitchSelectedAgent')}</span>
-                                </label>}
+                                </> : <div className="script-config-panel" role="tabpanel" />}
                             </div>
-                            <div className="section">
-                                <div className="section-header">
-                                    <div className="section-title">{t('sessionConfig')}</div>
-                                    <button className="advanced-toggle" onClick={() => setShowAdvanced((current) => !current)} type="button">
-                                        {showAdvanced ? t('collapse') : t('expand')}
-                                    </button>
-                                </div>
-                                {showAdvanced ? <>
-                                <div className="kv-row">
+                            <div className="section session-section">
+                                <button aria-expanded={showAdvanced} className="session-toggle" onClick={() => setShowAdvanced((current) => !current)} type="button">
+                                    <img alt="" className="session-chevron" src={arrowDownIcon} />
+                                    <span>{t('sessionConfig')}</span>
+                                </button>
+                                {showAdvanced ? <div className="session-content">
+                                <div className="row">
                                     <div className="row">
                                         <label htmlFor="request-timeout">{t('requestTimeout')}</label>
-                                        <input id="request-timeout" onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, requestTimeoutMs: Number(event.target.value) } }) : current)} type="number" value={snapshot.sessionConfig.requestTimeoutMs} />
+                                        <div className="number-field">
+                                            <InputNumber className="session-number" id="request-timeout" min={0} onChange={(value) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, requestTimeoutMs: Number(value ?? 0) } }) : current)} step={1000} value={snapshot.sessionConfig.requestTimeoutMs} />
+                                            <span aria-hidden="true" className="number-unit">ms</span>
+                                        </div>
                                     </div>
                                     <div className="row">
                                         <label htmlFor="prompt-timeout">{t('promptTimeout')}</label>
-                                        <input id="prompt-timeout" onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, promptRequestTimeoutMs: Number(event.target.value) } }) : current)} type="number" value={snapshot.sessionConfig.promptRequestTimeoutMs} />
+                                        <div className="number-field">
+                                            <InputNumber className="session-number" id="prompt-timeout" min={0} onChange={(value) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, promptRequestTimeoutMs: Number(value ?? 0) } }) : current)} step={1000} value={snapshot.sessionConfig.promptRequestTimeoutMs} />
+                                            <span aria-hidden="true" className="number-unit">ms</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="row">
                                     <label htmlFor="permission-timeout">{t('permissionTimeout')}</label>
-                                    <input id="permission-timeout" onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, permissionRequestTimeoutMs: Number(event.target.value) } }) : current)} type="number" value={snapshot.sessionConfig.permissionRequestTimeoutMs} />
+                                    <div className="number-field">
+                                        <InputNumber className="session-number" id="permission-timeout" min={0} onChange={(value) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, permissionRequestTimeoutMs: Number(value ?? 0) } }) : current)} step={1000} value={snapshot.sessionConfig.permissionRequestTimeoutMs} />
+                                        <span aria-hidden="true" className="number-unit">ms</span>
+                                    </div>
                                 </div>
+                                <div className="config-group-title">{t('rootContentConfig')}</div>
                                 <label className="check-row">
                                     <input checked={snapshot.sessionConfig.defaultAllowlist.includeDocsRoot} onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, defaultAllowlist: { ...current.sessionConfig.defaultAllowlist, includeDocsRoot: event.target.checked } } }) : current)} type="checkbox" />
                                     <span>{t('includeDocsRoot')}</span>
@@ -630,10 +1009,10 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                     <input checked={snapshot.sessionConfig.defaultAllowlist.includeProjectRoot} onChange={(event) => setSnapshot((current) => current ? ({ ...current, sessionConfig: { ...current.sessionConfig, defaultAllowlist: { ...current.sessionConfig.defaultAllowlist, includeProjectRoot: event.target.checked } } }) : current)} type="checkbox" />
                                     <span>{t('includeProjectRoot')}</span>
                                 </label>
-                                <div className="row">
-                                    <div className="inline-actions">
+                                <div className="row extra-path-section">
+                                    <div className="extra-path-header">
                                         <label>{t('extraAllowlistPaths')}</label>
-                                        <Button onClick={() => setSnapshot((current) => current ? ({
+                                        <button className="path-add" onClick={() => setSnapshot((current) => current ? ({
                                             ...current,
                                             sessionConfig: {
                                                 ...current.sessionConfig,
@@ -642,12 +1021,17 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                                     extraPaths: [...extraPaths, ''],
                                                 },
                                             },
-                                        }) : current)} size="small" type="default">{t('addPath')}</Button>
+                                        }) : current)} type="button">
+                                            <span aria-hidden="true" className="path-add-icon" />
+                                            <span>{t('addPath')}</span>
+                                        </button>
                                     </div>
+                                    {!extraPaths.length ? <div className="path-empty">{t('noExtraPaths')}</div> : null}
                                     {extraPaths.map((path, index) => (
-                                        <div className="array-row" key={`extra-path-${index}`}>
-                                            <input
+                                        <div className="path-row" key={`extra-path-${index}`}>
+                                            <Input
                                                 aria-label={`${t('extraAllowlistPaths')} ${index + 1}`}
+                                                className="settings-input"
                                                 onChange={(event) => setSnapshot((current) => current ? ({
                                                     ...current,
                                                     sessionConfig: {
@@ -661,7 +1045,7 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                                 type="text"
                                                 value={path}
                                             />
-                                            <Button onClick={() => setSnapshot((current) => current ? ({
+                                            <button aria-label={t('removePath', { index: index + 1 })} className="path-remove" onClick={() => setSnapshot((current) => current ? ({
                                                 ...current,
                                                 sessionConfig: {
                                                     ...current.sessionConfig,
@@ -670,19 +1054,30 @@ export const AgentSettingsDialog = ({ trigger }: AgentSettingsDialogProps): JSX.
                                                         extraPaths: extraPaths.filter((_, itemIndex) => itemIndex !== index),
                                                     },
                                                 },
-                                            }) : current)} size="small" type="default">{t('removePath', { index: index + 1 })}</Button>
+                                            }) : current)} title={t('removePath', { index: index + 1 })} type="button">
+                                                <span aria-hidden="true" className="path-remove-icon" />
+                                            </button>
                                         </div>
                                     ))}
-                                    <div className="warning">{t('extraPathsHint')}</div>
                                 </div>
-                                </> : null}
-                            </div>
-                            <div className="footer-actions">
-                                <Button onClick={() => setOpen(false)} size="small" type="default">{t('cancel')}</Button>
-                                <Button disabled={pendingPrompt || saving} onClick={() => { handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
+                                </div> : null}
                             </div>
                         </>
                     ) : null}
+                    </div>
+                    {snapshot && (editingAgent || isBuiltinSelected) ? <div className={`settings-footer${panelScrollState.hasContentBelow ? ' has-content-below' : ''}`}>
+                        {isCreatingAgent ? <label className="check-row">
+                            <input checked={draftAgent?.saveAndSwitch ?? false} onChange={(event) => setDraftAgent((current) => current ? { ...current, saveAndSwitch: event.target.checked } : current)} type="checkbox" />
+                            <span>{t('saveAndSwitchThisAgent')}</span>
+                        </label> : <label className="check-row">
+                            <input checked={saveAndSwitchSelected} onChange={(event) => setSaveAndSwitchSelected(event.target.checked)} type="checkbox" />
+                            <span>{t('saveAndSwitchSelectedAgent')}</span>
+                        </label>}
+                        <div className="settings-footer-actions">
+                            <Button onClick={() => setOpen(false)} size="small" type="default">{t('cancel')}</Button>
+                            <Button disabled={pendingPrompt || saving} onClick={() => { handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
+                        </div>
+                    </div> : null}
                 </div>
             </Drawer>
         </Container>
