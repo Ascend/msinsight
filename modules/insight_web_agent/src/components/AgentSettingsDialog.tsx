@@ -17,9 +17,10 @@
  */
 import styled from '@emotion/styled';
 import { Drawer, message } from 'antd';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button, Input, InputNumber, PasswordInput } from '@insight/lib/components';
+import { copyToClipboard } from '@insight/lib/utils';
 import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
@@ -28,6 +29,12 @@ import arrowDownIcon from '../icons/arrow-down.svg';
 import backIcon from '../icons/back.svg';
 import agentLogo from '../icons/logo.png';
 import deleteIcon from '../icons/delete.svg';
+import copyIcon from '../icons/copy.svg';
+
+const JsonEditor = lazy(async () => {
+    const module = await import('./JsonEditor');
+    return { default: module.JsonEditor };
+});
 
 const Container = styled.div`
     display: inline-flex;
@@ -302,7 +309,85 @@ const Container = styled.div`
     }
 
     .script-config-panel {
-        min-height: 1px;
+        display: grid;
+        gap: 8px;
+    }
+
+    .script-editor-shell {
+        min-width: 0;
+        overflow: hidden;
+        border: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        background: ${(props): string => props.theme.bgColor};
+    }
+
+    .script-editor-shell:focus-within {
+        border-color: ${(props): string => props.theme.primaryColor};
+        box-shadow: 0 0 0 1px ${(props): string => props.theme.primaryColor};
+    }
+
+    .script-config-toolbar {
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        border-bottom: 1px solid ${(props): string => props.theme.borderColor};
+        padding: 0 12px;
+        background: ${(props): string => props.theme.bgColorLight};
+    }
+
+    .script-config-label {
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 20px;
+    }
+
+    .script-config-actions {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .script-format-button {
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusBase};
+        padding: 5px 8px;
+        background: transparent;
+        color: ${(props): string => props.theme.primaryColor};
+        font-size: 13px;
+        cursor: pointer;
+    }
+
+    .script-format-button:hover,
+    .script-copy-button:hover {
+        background: ${(props): string => props.theme.bgColorDark};
+    }
+
+    .script-copy-button {
+        width: 32px;
+        height: 32px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusBase};
+        padding: 0;
+        background: transparent;
+        cursor: pointer;
+    }
+
+    .script-copy-button img {
+        width: 20px;
+        height: 20px;
+        filter: ${(props): string => props.theme.mode === 'dark' ? 'brightness(0) invert(1)' : 'none'};
+        opacity: 0.85;
+    }
+
+    .script-error {
+        color: ${(props): string => props.theme.dangerColor};
+        font-size: 12px;
+        line-height: 18px;
     }
 
     .row,
@@ -562,6 +647,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     const [draftAgent, setDraftAgent] = useState<DraftAgent | null>(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [configMode, setConfigMode] = useState<'form' | 'script'>('form');
+    const [scriptValue, setScriptValue] = useState('');
+    const [scriptError, setScriptError] = useState<string | null>(null);
     const [panelScrollState, setPanelScrollState] = useState({ hasContentAbove: false, hasContentBelow: false });
     const [error, setError] = useState<string | null>(null);
 
@@ -627,14 +714,122 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     const editingAgent = draftAgent ?? activeAgent;
     const isCreatingAgent = Boolean(draftAgent);
 
+    const getBuiltinScriptConfig = (): Record<string, unknown> => {
+        const { provider = '', model = '', baseUrl = '', apiKey = '' } = snapshot?.builtinAgent ?? {};
+        return { provider, model, baseUrl, apiKey };
+    };
+
+    const getExternalScriptConfig = (agent: { name?: string; command: string; args: string[]; env: Record<string, string> }, includeName: boolean): Record<string, unknown> => ({
+        ...(includeName ? { name: agent.name ?? '' } : {}),
+        command: agent.command,
+        args: agent.args,
+        env: agent.env,
+    });
+
+    const getScriptConfig = (): Record<string, unknown> => {
+        if (isBuiltinSelected) return getBuiltinScriptConfig();
+        if (draftAgent) {
+            return getExternalScriptConfig({
+                name: draftAgent.name,
+                command: draftAgent.command,
+                args: draftAgent.args,
+                env: Object.fromEntries(draftAgent.env.map(({ key, value }) => [key, value])),
+            }, true);
+        }
+        return getExternalScriptConfig(activeAgent ?? { command: '', args: [], env: {} }, false);
+    };
+
+    const resetScriptValue = (): void => {
+        setScriptValue(JSON.stringify(getScriptConfig(), null, 2));
+        setScriptError(null);
+    };
+
+    const applyScriptValue = (value: string): void => {
+        setScriptValue(value);
+        try {
+            const parsed: unknown = JSON.parse(value);
+            if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(t('jsonObjectRequired'));
+            const config = parsed as Record<string, unknown>;
+            if (isBuiltinSelected) {
+                if (['provider', 'model', 'baseUrl', 'apiKey'].some((key) => typeof config[key] !== 'string')) throw new Error(t('builtinJsonInvalid'));
+                setSnapshot((current) => current ? ({
+                    ...current,
+                    builtinAgent: {
+                        ...current.builtinAgent,
+                        provider: config.provider as string,
+                        model: config.model as string,
+                        baseUrl: config.baseUrl as string,
+                        apiKey: config.apiKey as string,
+                    },
+                }) : current);
+            } else {
+                const validEnv = config.env && typeof config.env === 'object' && !Array.isArray(config.env)
+                    && Object.values(config.env).every((item) => typeof item === 'string');
+                if (typeof config.command !== 'string' || !Array.isArray(config.args)
+                    || !config.args.every((item) => typeof item === 'string') || !validEnv) throw new Error(t('agentJsonInvalid'));
+                const env = config.env as Record<string, string>;
+                if (draftAgent) {
+                    if (typeof config.name !== 'string') throw new Error(t('agentJsonInvalid'));
+                    setDraftAgent((current) => current ? ({
+                        ...current,
+                        name: config.name as string,
+                        command: config.command as string,
+                        args: config.args as string[],
+                        env: Object.entries(env).map(([key, entryValue]) => ({ key, value: entryValue })),
+                    }) : current);
+                } else {
+                    updateActiveAgent((agent) => ({
+                        ...agent,
+                        command: config.command as string,
+                        args: config.args as string[],
+                        env,
+                    }));
+                }
+            }
+            setScriptError(null);
+        } catch (nextError) {
+            setScriptError(nextError instanceof Error ? nextError.message : String(nextError));
+        }
+    };
+
+    const switchConfigMode = (mode: 'form' | 'script'): void => {
+        if (mode === 'script') resetScriptValue();
+        if (mode === 'form' && scriptError) return;
+        setConfigMode(mode);
+    };
+
+    const formatScriptValue = (): void => {
+        try {
+            applyScriptValue(JSON.stringify(JSON.parse(scriptValue), null, 2));
+        } catch (nextError) {
+            setScriptError(nextError instanceof Error ? nextError.message : String(nextError));
+        }
+    };
+
+    const copyScriptValue = async (): Promise<void> => {
+        await copyToClipboard(scriptValue);
+    };
+
     const selectAgent = (agentName: string): void => {
+        if (configMode === 'script') {
+            const nextConfig = agentName === 'msinsight-native'
+                ? getBuiltinScriptConfig()
+                : getExternalScriptConfig(snapshot?.agentServers.find((agent) => agent.name === agentName) ?? { command: '', args: [], env: {} }, false);
+            setScriptValue(JSON.stringify(nextConfig, null, 2));
+            setScriptError(null);
+        }
         setDraftAgent(null);
         setSelectedAgentName(agentName);
         setSaveAndSwitchSelected(false);
     };
 
     const createAgent = (): void => {
-        setDraftAgent(EMPTY_DRAFT());
+        const emptyDraft = EMPTY_DRAFT();
+        if (configMode === 'script') {
+            setScriptValue(JSON.stringify(getExternalScriptConfig({ ...emptyDraft, env: {} }, true), null, 2));
+            setScriptError(null);
+        }
+        setDraftAgent(emptyDraft);
         setSaveAndSwitchSelected(false);
     };
 
@@ -730,6 +925,10 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     };
 
     const handleSave = async (): Promise<void> => {
+        if (configMode === 'script' && scriptError) {
+            setError(scriptError);
+            return;
+        }
         const payload = buildSavePayload();
         const initialSnapshot = initialSnapshotRef.current;
         if (!payload || !initialSnapshot) return;
@@ -856,7 +1055,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                     <button
                                         aria-selected={configMode === 'form'}
                                         className={`config-tab${configMode === 'form' ? ' active' : ''}`}
-                                        onClick={() => setConfigMode('form')}
+                                        onClick={() => switchConfigMode('form')}
                                         role="tab"
                                         type="button"
                                     >
@@ -865,7 +1064,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                     <button
                                         aria-selected={configMode === 'script'}
                                         className={`config-tab${configMode === 'script' ? ' active' : ''}`}
-                                        onClick={() => setConfigMode('script')}
+                                        onClick={() => switchConfigMode('script')}
                                         role="tab"
                                         type="button"
                                     >
@@ -965,7 +1164,23 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                     ))}
                                 </div>
                                 </> : null}
-                                </> : <div className="script-config-panel" role="tabpanel" />}
+                                </> : <div className="script-config-panel" role="tabpanel">
+                                    <div className="script-editor-shell">
+                                        <div className="script-config-toolbar">
+                                            <span className="script-config-label">JSON</span>
+                                            <div className="script-config-actions">
+                                                <button className="script-format-button" onClick={formatScriptValue} type="button">{t('formatJson')}</button>
+                                                <button aria-label={t('copyJson')} className="script-copy-button" onClick={() => { void copyScriptValue(); }} title={t('copyJson')} type="button">
+                                                    <img alt="" src={copyIcon} />
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <Suspense fallback={<div className="hint">{t('loadingEditor')}</div>}>
+                                            <JsonEditor ariaLabel={t('scriptConfig')} onChange={applyScriptValue} value={scriptValue} />
+                                        </Suspense>
+                                    </div>
+                                    {scriptError ? <div className="script-error" role="alert">{scriptError}</div> : null}
+                                </div>}
                             </div>
                             <div className="section session-section">
                                 <button aria-expanded={showAdvanced} className="session-toggle" onClick={() => setShowAdvanced((current) => !current)} type="button">
