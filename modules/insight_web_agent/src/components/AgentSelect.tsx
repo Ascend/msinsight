@@ -66,7 +66,7 @@ const Container = styled.div`
         align-items: center;
         gap: 8px;
         border: 0;
-        border-radius: 8px;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         padding: 4px;
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};
@@ -94,7 +94,7 @@ const Container = styled.div`
     .agent-select-trigger.compact {
         height: 28px;
         gap: 4px;
-        border-radius: 8px;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         padding: 2px 4px;
     }
 
@@ -202,7 +202,7 @@ const Container = styled.div`
         align-items: center;
         gap: 4px;
         border: 0;
-        border-radius: 8px;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         padding: 4px 8px;
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};

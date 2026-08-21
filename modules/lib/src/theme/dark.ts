@@ -228,6 +228,7 @@ export const dark: Theme = {
     fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Oxygen, Ubuntu, Cantarell, \'Fira Sans\', \'Droid Sans\', sans-serif',
     borderRadiusBase: '4px',
     borderRadiusSmall: '2px',
+    borderRadiusLarge: '8px',
     borderRadiusRound: '20px',
     borderRadiusCircle: '100%',
     pagePadding: '16px',

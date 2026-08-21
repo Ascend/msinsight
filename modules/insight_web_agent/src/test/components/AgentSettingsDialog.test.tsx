@@ -33,6 +33,9 @@ jest.mock('antd', () => ({
 
 jest.mock('@insight/lib/components', () => ({
     Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
+    Input: (props: any) => <input {...props} />,
+    InputNumber: ({ onChange, value, ...props }: any) => <input {...props} onChange={(event) => onChange(Number(event.target.value))} type="number" value={value} />,
+    PasswordInput: (props: any) => <input {...props} type="password" />,
     Select: ({ onChange, options, value, ...props }: any) => (
         <select aria-label={props['aria-label'] ?? 'select'} onChange={(event) => onChange(event.target.value)} value={value}>
             {options.map((option: any) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -108,18 +111,18 @@ afterEach(() => {
 });
 
 test('settings entry opens and displays current config snapshot', async () => {
-    render(<ChatPanel />);
+    render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Agent settings' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
 
     expect(await screen.findByText('Agent Configuration')).toBeVisible();
     expect(mockFetchAgentConfig).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText('Agent to edit')).toHaveValue('OpenCode');
+    expect(await screen.findByRole('button', { name: /OpenCode/ })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByLabelText('Command')).toHaveValue('opencode');
     expect(screen.getByDisplayValue('acp')).toBeVisible();
     expect(screen.getByDisplayValue('ACP_DEBUG')).toBeVisible();
-    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
-    expect(screen.getByDisplayValue('missing/path')).toBeVisible();
+    fireEvent.click(await screen.findByRole('button', { name: 'Session Config' }));
+    expect(await screen.findByDisplayValue('missing/path')).toBeVisible();
 });
 
 test('switches to edited non-active existing agent on save', async () => {
@@ -135,7 +138,7 @@ test('switches to edited non-active existing agent on save', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByText('Agent Configuration');
 
-    fireEvent.change(screen.getByLabelText('Agent to edit'), { target: { value: 'Claude' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Claude' }));
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude-code' } });
     fireEvent.click(screen.getByRole('button', { name: 'Remove arg 1' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add arg' }));
@@ -179,7 +182,7 @@ test('adds a new agent and saves without switching by default', async () => {
     await screen.findByText('Agent Configuration');
 
     fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
-    fireEvent.change(screen.getByLabelText('New agent name'), { target: { value: 'Claude' } });
+    fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Claude' } });
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -210,7 +213,7 @@ test('adds draft agent args and multiple env rows when saving and switching to t
     await screen.findByText('Agent Configuration');
 
     fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
-    fireEvent.change(screen.getByLabelText('New agent name'), { target: { value: 'Claude' } });
+    fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Claude' } });
     fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add arg' }));
     fireEvent.change(screen.getByLabelText('Arg 1'), { target: { value: '--model=sonnet' } });
@@ -244,7 +247,8 @@ test('adds and removes multiple extra path rows before save', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
     await screen.findByText('Agent Configuration');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Expand' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Session Config' }));
+    expect(await screen.findByDisplayValue('missing/path')).toBeVisible();
     fireEvent.click(screen.getByRole('button', { name: 'Add path' }));
     fireEvent.change(screen.getByLabelText('Extra allowlist paths 2'), { target: { value: 'tmp/path' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add path' }));

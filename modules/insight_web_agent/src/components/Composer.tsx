@@ -234,6 +234,7 @@ const Container = styled.div`
         display: grid;
         gap: 2px;
         border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
         padding: 7px 10px;
         background: transparent;
         color: ${(props): string => props.theme.textColorPrimary};
