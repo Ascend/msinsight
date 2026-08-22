@@ -32,6 +32,7 @@ jest.mock('antd', () => ({
 }));
 
 jest.mock('@insight/lib/components', () => ({
+    Alert: ({ message }: any) => <div role="alert">{message}</div>,
     Button: ({ children, ...props }: any) => <button {...props}>{children}</button>,
     Input: (props: any) => <input {...props} />,
     InputNumber: ({ onChange, value, ...props }: any) => <input {...props} onChange={(event) => onChange(Number(event.target.value))} type="number" value={value} />,
@@ -136,6 +137,9 @@ test('settings entry opens and displays current config snapshot', async () => {
     expect(screen.getByLabelText('Command')).toHaveValue('opencode');
     expect(screen.getByDisplayValue('acp')).toBeVisible();
     expect(screen.getByDisplayValue('ACP_DEBUG')).toBeVisible();
+    expect(screen.queryByText('Built-in agent settings are stored separately from generic ACP launch configurations.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /MS Insight_Native/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent('Built-in agent settings are stored separately from generic ACP launch configurations.');
     fireEvent.click(await screen.findByRole('button', { name: 'Session Config' }));
     expect(await screen.findByDisplayValue('missing/path')).toBeVisible();
 });

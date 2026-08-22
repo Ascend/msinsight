@@ -126,24 +126,6 @@ const Container = styled.section`
         line-height: 1.45;
     }
 
-    .guide-tag {
-        display: inline-flex;
-        align-items: center;
-        margin-right: 8px;
-        padding: 1px 6px;
-        border: 1px solid ${(props): string => props.theme.primaryColorLight4};
-        border-radius: 4px;
-        background: ${(props): string => props.theme.primaryColorLight5};
-        color: ${(props): string => props.theme.textColorPrimary};
-        font-weight: 400;
-        white-space: nowrap;
-    }
-
-    .guide-tag-mark {
-        margin-right: 3px;
-        color: ${(props): string => props.theme.primaryColor};
-    }
-
     @keyframes welcome-rise {
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }
@@ -157,8 +139,8 @@ const Container = styled.section`
 `;
 
 const guides = [
-    { icon: guideOne, title: 'memoryGuideTitle', tag: 'memoryGuideTag', description: 'memoryGuideDescription' },
-    { icon: guideTwo, title: 'slowGuideTitle', tag: 'slowGuideTag', description: 'slowGuideDescription' },
+    { icon: guideOne, title: 'memoryGuideTitle', description: 'memoryGuideDescription' },
+    { icon: guideTwo, title: 'slowGuideTitle', description: 'slowGuideDescription' },
     { icon: guideThree, title: 'ragGuideTitle', description: 'ragGuideDescription' },
 ] as const;
 
@@ -176,7 +158,6 @@ export const WelcomePanel = (): JSX.Element => {
                     <div className="guide-copy">
                         <div className="guide-title">{t(guide.title)}</div>
                         <div className="guide-description">
-                            {'tag' in guide ? <span className="guide-tag"><span className="guide-tag-mark">#</span>{t(guide.tag)}</span> : null}
                             {t(guide.description)}
                         </div>
                     </div>
