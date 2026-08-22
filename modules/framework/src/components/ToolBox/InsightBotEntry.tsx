@@ -57,12 +57,12 @@ interface InsightBotEntryProps {
 const InsightBotEntry = ({ active, onClick }: InsightBotEntryProps): JSX.Element => {
     return <EntryButton
         type="button"
-        aria-label="InsightBot"
+        aria-label="Insight Bot"
         aria-pressed={active}
         onClick={onClick}
     >
         <img src={InsightBotLogo} alt="" />
-        <span>InsightBot</span>
+        <span>Insight Bot</span>
     </EntryButton>;
 };
 
