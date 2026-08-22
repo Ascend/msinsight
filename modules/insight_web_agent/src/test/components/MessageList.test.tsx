@@ -285,7 +285,7 @@ test('keeps user prompts sticky and expands overflowing content', async () => {
     Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 120 });
     fireEvent(window, new Event('resize'));
 
-    expect(getComputedStyle(message).position).toBe('sticky');
+    expect(getComputedStyle(message.closest('.user-prompt-sticky') as HTMLElement).position).toBe('sticky');
     expect(message).toHaveClass('overflowing');
 
     await userEvent.click(screen.getByRole('button', { name: 'Expand' }));
@@ -406,6 +406,31 @@ test('shows historical thinking content collapsed by default', async () => {
     expect(details.querySelector('.thinking-content')).toBeInTheDocument();
 
     await userEvent.click(screen.getByText('Thinking process'));
+    expect(details).toHaveAttribute('open');
+});
+
+test('uses the elapsed time as the thinking details toggle when duration is available', async () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-with-duration-and-thinking',
+            role: 'assistant',
+            content: [
+                { id: 'thinking-1', type: 'thinking', text: 'Reasoning details' },
+                { id: 'text-1', type: 'text', text: 'Answer text' },
+            ],
+            startedAt: 1000,
+            durationMs: 5000,
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(screen.queryByText('Thinking process')).not.toBeInTheDocument();
+    const details = screen.getByText('Elapsed 5.0s').closest('details') as HTMLDetailsElement;
+    expect(details.querySelector('.thinking-chevron')).toBeInTheDocument();
+    expect(details).not.toHaveAttribute('open');
+
+    await userEvent.click(screen.getByText('Elapsed 5.0s'));
     expect(details).toHaveAttribute('open');
 });
 

@@ -73,10 +73,35 @@ const Container = styled.div`
         color: ${(props): string => props.theme.textColorPrimary};
     }
 
-    .message.user {
+    .user-prompt-sticky {
         position: sticky;
         top: 0;
         z-index: 4;
+        min-width: 0;
+    }
+
+    .user-prompt-sticky::before,
+    .user-prompt-sticky::after {
+        position: absolute;
+        top: 0;
+        width: 16px;
+        height: 16px;
+        background: ${(props): string => props.theme.bgColor};
+        pointer-events: none;
+        content: "";
+    }
+
+    .user-prompt-sticky::before {
+        left: 0;
+    }
+
+    .user-prompt-sticky::after {
+        right: 0;
+    }
+
+    .message.user {
+        position: relative;
+        z-index: 1;
         display: grid;
         grid-template-columns: 24px minmax(0, 1fr);
         align-items: start;
@@ -164,16 +189,17 @@ const Container = styled.div`
         background: transparent;
     }
 
-    .thinking-details {
+    .answer-meta,
+    .answer-meta-details {
         min-width: 0;
         max-width: 100%;
-        margin-bottom: 10px;
+        margin-bottom: 16px;
         color: ${(props): string => props.theme.textColorSecondary};
         font-size: 12px;
         overflow-wrap: anywhere;
     }
 
-    .thinking-details summary {
+    .answer-meta-details summary {
         width: fit-content;
         display: flex;
         align-items: center;
@@ -184,12 +210,8 @@ const Container = styled.div`
         list-style: none;
     }
 
-    .thinking-details summary::-webkit-details-marker {
+    .answer-meta-details summary::-webkit-details-marker {
         display: none;
-    }
-
-    .thinking-details summary:hover {
-        background: ${(props): string => props.theme.bgColorLight};
     }
 
     .thinking-chevron {
@@ -203,7 +225,7 @@ const Container = styled.div`
         transition: transform 0.18s ease;
     }
 
-    .thinking-details[open] .thinking-chevron {
+    .answer-meta-details[open] .thinking-chevron {
         transform: rotate(0deg);
     }
 
@@ -229,12 +251,6 @@ const Container = styled.div`
         background: ${(props): string => props.theme.primaryColor};
         content: "";
         animation: pulse 1s ease-in-out infinite;
-    }
-
-    .answer-duration {
-        margin-bottom: 16px;
-        color: ${(props): string => props.theme.textColorSecondary};
-        font-size: 12px;
     }
 
     .rich-text {
@@ -563,12 +579,8 @@ export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: M
                         }
                         return (
                             <article className={`message ${message.role}`} key={message.id}>
-                                {message.startedAt !== undefined
-                                    ? <div className="answer-duration">{t('answerDuration', {
-                                        duration: formatDuration(message.durationMs ?? now - message.startedAt),
-                                    })}</div>
-                                    : null}
-                                {message.content.map((block) => <ContentBlock
+                                <AnswerMeta message={message} now={now} />
+                                {message.content.filter((block) => block.type !== 'thinking').map((block) => <ContentBlock
                                     allowActions={message.role === 'assistant'}
                                     block={block}
                                     key={block.id}
@@ -644,30 +656,30 @@ const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
 
     const className = `message user${overflowing ? ' overflowing' : ''}${expanded ? ' expanded' : ''}`;
     return (
-        <article className={className}>
-            {overflowing ? (
-                <button
-                    aria-label={expanded ? t('collapse') : t('expand')}
-                    className="user-prompt-toggle"
-                    onClick={toggleExpanded}
-                    type="button"
-                >
-                    <span aria-hidden="true" className="user-prompt-chevron" />
-                </button>
-            ) : null}
-            <div className="user-prompt-shell">
-                <div className="user-prompt-content" onWheel={handleWheel} ref={contentRef}>
-                    {message.content.map((block) => <ContentBlock allowActions={false} block={block} key={block.id} streaming={false} />)}
+        <div className="user-prompt-sticky">
+            <article className={className}>
+                {overflowing ? (
+                    <button
+                        aria-label={expanded ? t('collapse') : t('expand')}
+                        className="user-prompt-toggle"
+                        onClick={toggleExpanded}
+                        type="button"
+                    >
+                        <span aria-hidden="true" className="user-prompt-chevron" />
+                    </button>
+                ) : null}
+                <div className="user-prompt-shell">
+                    <div className="user-prompt-content" onWheel={handleWheel} ref={contentRef}>
+                        {message.content.map((block) => <ContentBlock allowActions={false} block={block} key={block.id} streaming={false} />)}
+                    </div>
                 </div>
-            </div>
-        </article>
+            </article>
+        </div>
     );
 };
 
-const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolean; block: MessageContentBlock; streaming: boolean }): JSX.Element => {
-    if (block.type === 'thinking') {
-        return <ThinkingBlock text={block.text} />;
-    }
+const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolean; block: MessageContentBlock; streaming: boolean }): JSX.Element | null => {
+    if (block.type === 'thinking') return null;
     if (block.type === 'text') {
         const segments = allowActions
             ? parseActionMarkup(block.text, { streaming, keyPrefix: block.id })
@@ -681,16 +693,27 @@ const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolea
     return <ToolCalls toolCalls={[block.toolCall]} />;
 };
 
-const ThinkingBlock = ({ text }: { text: string }): JSX.Element => {
+const AnswerMeta = ({ message, now }: { message: ChatMessage; now: number }): JSX.Element | null => {
     const { t } = useTranslation('insightWebAgent');
+    const thinkingBlocks = message.content.filter((block): block is Extract<MessageContentBlock, { type: 'thinking' }> => block.type === 'thinking');
+    const label = message.startedAt === undefined
+        ? t('thinkingProcess')
+        : t('answerDuration', { duration: formatDuration(message.durationMs ?? now - message.startedAt) });
+
+    if (!thinkingBlocks.length) {
+        return message.startedAt === undefined ? null : <div className="answer-meta">{label}</div>;
+    }
+
     return (
-        <details className="thinking-details">
+        <details className="answer-meta-details">
             <summary>
+                <span>{label}</span>
                 <span aria-hidden="true" className="thinking-chevron" />
-                <span>{t('thinkingProcess')}</span>
             </summary>
             <div className="thinking-content rich-text">
-                <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                {thinkingBlocks.map((block) => (
+                    <ReactMarkdown components={markdownComponents} key={block.id} remarkPlugins={[remarkGfm]}>{block.text}</ReactMarkdown>
+                ))}
             </div>
         </details>
     );
