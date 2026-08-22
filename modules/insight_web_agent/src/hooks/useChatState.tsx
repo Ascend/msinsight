@@ -27,7 +27,7 @@ import {
 } from 'react';
 import { message } from 'antd';
 import { toCommandError } from '@insight/lib/FrontendAgentCommand';
-import { cancelPrompt, claimFrontendCommand, createSession, deleteSession, fetchAgents, fetchSessions, fetchState, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { apiUrl } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
@@ -493,32 +493,22 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             await selectSessionById(firstSession.sessionId);
             return;
         }
-        await createRealSession();
+        await createDraftSession();
     };
 
-    const createRealSession = async (): Promise<void> => {
+    const createDraftSession = async (): Promise<void> => {
         if (activePendingPrompt(stateRef.current)) return;
-        try {
-            const response = await createSession();
-            if (!response.sessionId) return;
-            setState((current) => {
-                const sessions = ensureCreatedSession(current.sessions, undefined, response.sessionId!, 'New session');
-                return cacheLoadedSession({
-                    ...current,
-                    activeSessionId: response.sessionId,
-                    isDraftSession: false,
-                    draftMode: undefined,
-                    draftMessages: [],
-                    draftPendingPrompt: false,
-                    draftQueuedPrompts: [],
-                    sessions,
-                }, response.sessionId!, response);
-            });
-            await refreshSessions();
-        } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
-            await refreshInitialState();
-        }
+        setInput('');
+        setImages([]);
+        setState((current) => ({
+            ...current,
+            activeSessionId: undefined,
+            isDraftSession: true,
+            draftMode: undefined,
+            draftMessages: [],
+            draftPendingPrompt: false,
+            draftQueuedPrompts: [],
+        }));
     };
 
     const handleSelectSession = async (session: SessionItem): Promise<void> => {
@@ -732,9 +722,9 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 activeAgentName: response.activeAgentName ?? name,
                 agentInfo: undefined,
                 agentError: undefined,
-                switchingAgent: false,
             }));
             await initializeActiveSession();
+            setState((current) => ({ ...current, switchingAgent: false }));
         } catch (error) {
             setState((current) => ({ ...current, switchingAgent: false }));
             message.error(error instanceof Error ? error.message : String(error));
@@ -825,7 +815,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         queuedCount: activeQueuedCount(state),
         queuedPrompts: activeQueuedPrompts(state),
         sessions: state.sessions,
-        createSession: createRealSession,
+        createSession: createDraftSession,
         deleteSession: handleDeleteSession,
         sendMessage,
         cancelMessage,

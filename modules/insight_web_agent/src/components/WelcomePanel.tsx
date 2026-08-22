@@ -22,6 +22,7 @@ import guideTwo from '../icons/guide-2.svg';
 import guideThree from '../icons/guide-3.svg';
 import logo from '../icons/logo.png';
 import welcomeBackground from '../icons/welcome-bg.png';
+import { useChatState } from '../hooks/useChatState';
 
 const Container = styled.section`
     min-height: 0;
@@ -85,6 +86,7 @@ const Container = styled.section`
     }
 
     .guide-card {
+        width: 100%;
         min-height: 86px;
         display: grid;
         grid-template-columns: 48px minmax(0, 1fr);
@@ -94,6 +96,10 @@ const Container = styled.section`
         border: 1px solid ${(props): string => props.theme.agentWelcomeCardBackgroundColor};
         border-radius: 18px;
         background: ${(props): string => props.theme.agentWelcomeCardBackgroundColor};
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
         box-shadow: 0 1px 2px rgba(18, 25, 38, 0.02);
         animation: welcome-rise 0.42s ease-out both;
     }
@@ -146,6 +152,7 @@ const guides = [
 
 export const WelcomePanel = (): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
+    const { setInput } = useChatState();
 
     return <Container>
         <div className="welcome-content">
@@ -153,7 +160,7 @@ export const WelcomePanel = (): JSX.Element => {
             <img className="welcome-logo" src={logo} alt="" />
             <h1 className="welcome-title">{t('welcomeTitle')}</h1>
             <div className="guide-list">
-                {guides.map((guide) => <article className="guide-card" key={guide.title}>
+                {guides.map((guide) => <button className="guide-card" key={guide.title} onClick={() => setInput(t(guide.description))} type="button">
                     <img className="guide-icon" src={guide.icon} alt="" />
                     <div className="guide-copy">
                         <div className="guide-title">{t(guide.title)}</div>
@@ -161,7 +168,7 @@ export const WelcomePanel = (): JSX.Element => {
                             {t(guide.description)}
                         </div>
                     </div>
-                </article>)}
+                </button>)}
             </div>
         </div>
     </Container>;

@@ -26,9 +26,35 @@ const Container = styled.section`
     min-height: 0;
     width: 100%;
     display: grid;
-    grid-template-rows: 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
     background: ${(props): string => props.theme.bgColor};
     overflow: hidden;
+
+    .session-title-slot {
+        min-width: 0;
+        overflow: hidden;
+        padding: 8px 16px 12px;
+    }
+
+    .session-title-slot:empty {
+        display: none;
+    }
+
+    .session-title {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        display: block;
+        overflow: hidden;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 22px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
     .messages {
         min-height: 0;
@@ -43,10 +69,16 @@ const Container = styled.section`
 `;
 
 export const ChatPanel = (): JSX.Element => {
-    const { messages, messagesRef, pendingPrompt, respondToPermission } = useChatState();
+    const { currentSessionId, isDraftSession, messages, messagesRef, pendingPrompt, respondToPermission, sessions } = useChatState();
+    const currentTitle = isDraftSession
+        ? undefined
+        : sessions.find((session) => session.sessionId === currentSessionId)?.title?.trim();
 
     return (
         <Container>
+            <div className="session-title-slot">
+                {currentTitle ? <div className="session-title" title={currentTitle}>{currentTitle}</div> : null}
+            </div>
             {messages.length
                 ? <section className="messages" ref={messagesRef}>
                     <MessageList messages={messages} pendingPrompt={pendingPrompt} onPermissionDecision={respondToPermission} />
