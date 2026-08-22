@@ -16,12 +16,15 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
-import { useRef } from 'react';
-import { ArrowUpOutlined, StopOutlined } from '@ant-design/icons';
+import { useRef, useState } from 'react';
+import { ArrowUpOutlined } from '@ant-design/icons';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import type { AvailableCommand, AvailableSkill, ConfigOption, ConfigOptionValue } from '../types';
 import { useChatState } from '../hooks/useChatState';
+import arrowDownIcon from '../icons/arrow-down.svg';
+import closeIcon from '../icons/close.svg';
+import stopIcon from '../icons/stop.svg';
 import { AgentSelect } from './AgentSelect';
 
 const Container = styled.div`
@@ -31,6 +34,8 @@ const Container = styled.div`
     background: ${(props): string => props.theme.bgColor};
 
     .composer-box {
+        position: relative;
+        z-index: 1;
         height: 124px;
         display: grid;
         grid-template-rows: minmax(0, 1fr) auto;
@@ -39,7 +44,10 @@ const Container = styled.div`
         border-radius: 22px;
         padding: 12px 14px 12px;
         background:
-            linear-gradient(${(props): string => props.theme.bgColor}, ${(props): string => props.theme.bgColor}) padding-box,
+            linear-gradient(
+                ${(props): string => props.theme.mode === 'dark' ? props.theme.bgColorDark : props.theme.bgColor},
+                ${(props): string => props.theme.mode === 'dark' ? props.theme.bgColorDark : props.theme.bgColor}
+            ) padding-box,
             linear-gradient(90deg, rgba(46, 83, 250, 1), rgba(123, 37, 244, 1)) border-box;
         box-shadow: 0 2px 8px rgba(91, 83, 255, 0.06);
     }
@@ -100,19 +108,55 @@ const Container = styled.div`
         display: grid;
         overflow: hidden;
         border: 1px solid ${(props): string => props.theme.borderColor};
-        border-radius: ${(props): string => props.theme.borderRadiusBase};
+        border-radius: 16px;
+        padding: 10px 12px;
         background: ${(props): string => props.theme.bgColor};
+    }
+
+    .queue-preview.collapsed {
+        position: relative;
+        z-index: 0;
+        margin: 0 12px -18px;
+        padding-top: 6px;
+        padding-bottom: 14px;
+        background: color-mix(in srgb, ${(props): string => props.theme.bgColorLight} 45%, ${(props): string => props.theme.bgColor} 55%);
     }
 
     .queue-header {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 7px 10px;
-        border-bottom: 1px solid ${(props): string => props.theme.borderColor};
+        min-height: 28px;
+        gap: 12px;
         color: ${(props): string => props.theme.textColorPrimary};
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 14px;
+    }
+
+    .queue-toggle {
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .queue-chevron {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+        background: currentColor;
+        -webkit-mask: url(${arrowDownIcon}) center / contain no-repeat;
+        mask: url(${arrowDownIcon}) center / contain no-repeat;
+        transition: transform 0.18s ease;
+    }
+
+    .queue-toggle[aria-expanded='false'] .queue-chevron {
+        transform: rotate(-90deg);
     }
 
     .queue-title {
@@ -123,35 +167,44 @@ const Container = styled.div`
     }
 
     .queue-clear {
+        flex: 0 0 auto;
         border: 0;
+        padding: 4px;
         background: transparent;
-        color: ${(props): string => props.theme.textColorPrimary};
-        font-size: 12px;
-        font-weight: 700;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 13px;
         cursor: pointer;
+    }
+
+    .queue-list {
+        display: grid;
+        gap: 2px;
+        padding-top: 6px;
     }
 
     .queue-item {
         min-width: 0;
         display: flex;
         align-items: center;
-        gap: 8px;
-        padding: 7px 10px;
-        border-bottom: 1px solid ${(props): string => props.theme.borderColor};
-        color: ${(props): string => props.theme.textColorSecondary};
-        font-size: 12px;
+        gap: 10px;
+        min-height: 34px;
+        padding: 4px 6px;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 14px;
+        transition: background 0.15s ease;
     }
 
-    .queue-item:last-child {
-        border-bottom: 0;
+    .queue-item:hover {
+        background: ${(props): string => props.theme.primaryColorLight5};
     }
 
     .queue-index {
-        width: 6px;
-        height: 6px;
-        flex: 0 0 6px;
+        width: 8px;
+        height: 8px;
+        flex: 0 0 8px;
         border-radius: ${(props): string => props.theme.borderRadiusCircle};
-        background: ${(props): string => props.theme.primaryColor};
+        background: ${(props): string => props.theme.borderColorHover};
     }
 
     .queue-text {
@@ -163,11 +216,26 @@ const Container = styled.div`
     }
 
     .queue-remove {
-        flex: 0 0 auto;
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
         border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        padding: 0;
         background: transparent;
         color: ${(props): string => props.theme.textColorSecondary};
         cursor: pointer;
+    }
+
+    .queue-remove-icon {
+        width: 10px;
+        height: 10px;
+        background: currentColor;
+        -webkit-mask: url(${closeIcon}) center / contain no-repeat;
+        mask: url(${closeIcon}) center / contain no-repeat;
     }
 
     .queue-remove:hover,
@@ -310,6 +378,22 @@ const Container = styled.div`
         transform: translateY(-1px);
     }
 
+    .send-button.executing {
+        background: ${(props): string => props.theme.bgColorDark};
+        transform: none;
+    }
+
+    .send-button.executing:hover {
+        background: ${(props): string => props.theme.bgColorLight};
+        transform: none;
+    }
+
+    .send-button.executing img {
+        width: 18px;
+        height: 18px;
+        display: block;
+    }
+
     .send-button:disabled {
         cursor: not-allowed;
         opacity: 0.55;
@@ -320,6 +404,7 @@ const Container = styled.div`
 
 export const Composer = (): JSX.Element => {
     const isComposingRef = useRef(false);
+    const [queueExpanded, setQueueExpanded] = useState(true);
     const { t } = useTranslation('insightWebAgent');
     const { addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, configOptions, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
     const modelConfig = getModelConfig(configOptions);
@@ -373,18 +458,32 @@ export const Composer = (): JSX.Element => {
     return (
         <Container>
             {queuedPrompts.length ? (
-                <div className="queue-preview">
+                <div className={`queue-preview${queueExpanded ? '' : ' collapsed'}`}>
                     <div className="queue-header">
-                        <span className="queue-title">{t('queuedMessage', { count: queuedCount })}</span>
+                        <button
+                            aria-expanded={queueExpanded}
+                            className="queue-toggle"
+                            onClick={() => setQueueExpanded((current) => !current)}
+                            type="button"
+                        >
+                            <span aria-hidden="true" className="queue-chevron" />
+                            <span className="queue-title">{t('queuedMessage', { count: queuedCount })}</span>
+                        </button>
                         <button className="queue-clear" onClick={clearQueuedPrompts} type="button">{t('clearAll')}</button>
                     </div>
-                    {queuedPrompts.map((prompt, index) => (
-                        <div className="queue-item" key={`${index}-${prompt.text}-${prompt.images.length}`}>
-                            <span className="queue-index" />
-                            <span className="queue-text">{getQueuedPromptPreview(prompt, t)}</span>
-                            <button className="queue-remove" onClick={() => removeQueuedPrompt(index)} title={t('remove')} type="button">×</button>
+                    {queueExpanded ? (
+                        <div className="queue-list">
+                            {queuedPrompts.map((prompt, index) => (
+                                <div className="queue-item" key={`${index}-${prompt.text}-${prompt.images.length}`}>
+                                    <span className="queue-index" />
+                                    <span className="queue-text">{getQueuedPromptPreview(prompt, t)}</span>
+                                    <button aria-label={t('remove')} className="queue-remove" onClick={() => removeQueuedPrompt(index)} title={t('remove')} type="button">
+                                        <span aria-hidden="true" className="queue-remove-icon" />
+                                    </button>
+                                </div>
+                            ))}
                         </div>
-                    ))}
+                    ) : null}
                 </div>
             ) : null}
             <div className={`composer-box${images.length ? ' has-attachments' : ''}`}>
@@ -429,13 +528,13 @@ export const Composer = (): JSX.Element => {
                     <span className="shortcut-hint" />
                     <button
                         aria-label={pendingPrompt ? t('cancel') : t('send')}
-                        className="send-button"
+                        className={`send-button${pendingPrompt ? ' executing' : ''}`}
                         disabled={!pendingPrompt && !input.trim() && !images.length}
                         onClick={submitOrCancel}
                         title={pendingPrompt ? t('cancel') : t('send')}
                         type="button"
                     >
-                        {pendingPrompt ? <StopOutlined /> : <ArrowUpOutlined />}
+                        {pendingPrompt ? <img alt="" aria-hidden="true" src={stopIcon} /> : <ArrowUpOutlined />}
                     </button>
                 </div>
             </div>

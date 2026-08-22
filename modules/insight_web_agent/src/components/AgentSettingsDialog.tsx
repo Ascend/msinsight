@@ -19,7 +19,7 @@ import styled from '@emotion/styled';
 import { Drawer, message } from 'antd';
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Button, Input, InputNumber, PasswordInput } from '@insight/lib/components';
+import { Alert, Button, Input, InputNumber, PasswordInput } from '@insight/lib/components';
 import { copyToClipboard } from '@insight/lib/utils';
 import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
@@ -1051,6 +1051,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                         <span className="agent-card-name">{t('addAgent')}</span>
                                     </button>
                                 </div>
+                                {isBuiltinSelected ? <Alert message={t('builtinAgentHint')} /> : null}
                                 <div aria-label={t('configMode')} className="config-tabs" role="tablist">
                                     <button
                                         aria-selected={configMode === 'form'}

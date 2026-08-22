@@ -112,8 +112,44 @@ test('uses Enter to insert command completion without sending when not composing
     expect(state.sendMessage).not.toHaveBeenCalled();
 });
 
-test('shows the new conversation command placeholder', () => {
+test('shows the command placeholder', () => {
     renderComposer();
 
-    expect(screen.getByPlaceholderText('Type # to add context, or / to use a command')).toBeVisible();
+    expect(screen.getByPlaceholderText('Type / to use a command')).toBeVisible();
+});
+
+test('shows the stop icon and cancels while a prompt is running', () => {
+    const state = renderComposer({ pendingPrompt: true });
+    const cancelButton = screen.getByRole('button', { name: 'Cancel' });
+
+    expect(cancelButton).toHaveClass('executing');
+    expect(cancelButton.querySelector('img')).toHaveAttribute('src', 'stop.svg');
+    fireEvent.click(cancelButton);
+
+    expect(state.cancelMessage).toHaveBeenCalledTimes(1);
+    expect(state.sendMessage).not.toHaveBeenCalled();
+});
+
+test('expands, collapses, and removes queued prompts', () => {
+    const state = renderComposer({
+        queuedCount: 2,
+        queuedPrompts: [
+            { text: 'first queued prompt', images: [] },
+            { text: 'second queued prompt', images: [] },
+        ],
+    });
+
+    const toggle = screen.getByRole('button', { name: /2 Queued Message/ });
+    expect(screen.getByText('first queued prompt')).toBeVisible();
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0]);
+    expect(state.removeQueuedPrompt).toHaveBeenCalledWith(0);
+
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle.closest('.queue-preview')).toHaveClass('collapsed');
+    expect(screen.queryByText('first queued prompt')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear All' }));
+    expect(state.clearQueuedPrompts).toHaveBeenCalledTimes(1);
 });
