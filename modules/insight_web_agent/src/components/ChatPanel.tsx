@@ -37,7 +37,7 @@ const Container = styled.section`
         gap: 14px;
         overflow: auto;
         scrollbar-gutter: stable;
-        padding: 12px 14px;
+        padding: 0 16px;
     }
 
 `;

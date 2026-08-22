@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 
@@ -264,6 +264,149 @@ test('wraps long markdown text and inline code inside the message width', () => 
     expect(getComputedStyle(paragraph).overflowWrap).toBe('anywhere');
     expect(getComputedStyle(inlineCode).whiteSpace).toBe('normal');
     expect(getComputedStyle(inlineCode).overflowWrap).toBe('anywhere');
+});
+
+test('keeps user prompts sticky and expands overflowing content', async () => {
+    const onOuterWheel = jest.fn();
+    render(<div onWheel={onOuterWheel}>
+        <MessageList
+            messages={[{
+                id: 'user-long-prompt',
+                role: 'user',
+                content: [{ id: 'text-1', type: 'text', text: 'A long user prompt' }],
+            }]}
+            onPermissionDecision={noopPermissionDecision}
+            pendingPrompt={false}
+        />
+    </div>);
+
+    const message = document.querySelector('.message.user') as HTMLElement;
+    const content = message.querySelector('.user-prompt-content') as HTMLElement;
+    Object.defineProperty(content, 'scrollHeight', { configurable: true, value: 120 });
+    fireEvent(window, new Event('resize'));
+
+    expect(getComputedStyle(message).position).toBe('sticky');
+    expect(message).toHaveClass('overflowing');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Expand' }));
+    expect(message).toHaveClass('expanded');
+    expect(screen.getByRole('button', { name: 'Collapse' })).toBeEnabled();
+
+    Object.defineProperty(content, 'clientHeight', { configurable: true, value: 50 });
+    Object.defineProperty(content, 'scrollTop', { configurable: true, writable: true, value: 20 });
+    fireEvent.wheel(content, { deltaY: 10 });
+    expect(onOuterWheel).not.toHaveBeenCalled();
+
+    content.scrollTop = 70;
+    fireEvent.wheel(content, { deltaY: 10 });
+    expect(onOuterWheel).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Collapse' }));
+    expect(content.scrollTop).toBe(0);
+    expect(message).not.toHaveClass('expanded');
+});
+
+test('bounds each sticky prompt to its own conversation turn', () => {
+    render(<MessageList
+        messages={[
+            { id: 'user-1', role: 'user', content: [{ id: 'user-text-1', type: 'text', text: 'Long first prompt' }] },
+            { id: 'assistant-1', role: 'assistant', content: [{ id: 'answer-1', type: 'text', text: 'First answer' }] },
+            { id: 'user-2', role: 'user', content: [{ id: 'user-text-2', type: 'text', text: 'Short second prompt' }] },
+            { id: 'assistant-2', role: 'assistant', content: [{ id: 'answer-2', type: 'text', text: 'Second answer' }] },
+        ]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const turns = document.querySelectorAll('.message-turn');
+    expect(turns).toHaveLength(2);
+    expect(turns[0].querySelector('.message.user')).toBeInTheDocument();
+    expect(turns[0].querySelector('.message.assistant')).toBeInTheDocument();
+    expect(turns[1].querySelector('.message.user')).toBeInTheDocument();
+});
+
+test('shows completed thinking time before the assistant answer', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-with-duration',
+            role: 'assistant',
+            content: [{ id: 'text-1', type: 'text', text: 'Answer text' }],
+            startedAt: 1000,
+            durationMs: 126000,
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const message = document.querySelector('.message.assistant') as HTMLElement;
+    const duration = screen.getByText('Elapsed 126s');
+    const richText = message.querySelector('.rich-text') as HTMLElement;
+
+    expect(message.firstElementChild).toBe(duration);
+    expect(duration.compareDocumentPosition(richText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(getComputedStyle(message).borderTopWidth).toBe('0px');
+    expect(getComputedStyle(message).backgroundColor).toBe('transparent');
+});
+
+test('updates the elapsed time while the assistant is thinking', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(5000);
+
+    render(<MessageList
+        messages={[{
+            id: 'assistant-thinking',
+            role: 'assistant',
+            content: [],
+            startedAt: 1000,
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    expect(screen.getByText('Elapsed 4.0s')).toBeInTheDocument();
+
+    act(() => jest.advanceTimersByTime(1000));
+    expect(screen.getByText('Elapsed 5.0s')).toBeInTheDocument();
+
+    jest.useRealTimers();
+});
+
+test('hides the thinking indicator once answer text starts streaming', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-streaming-answer',
+            role: 'assistant',
+            content: [{ id: 'answer-1', type: 'text', text: 'Partial answer' }],
+            startedAt: Date.now() - 1000,
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
+    expect(screen.getByText('Elapsed 1.0s')).toBeInTheDocument();
+});
+
+test('shows historical thinking content collapsed by default', async () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-with-thinking',
+            role: 'assistant',
+            content: [
+                { id: 'thinking-1', type: 'thinking', text: 'Historical reasoning' },
+                { id: 'text-1', type: 'text', text: 'Answer text' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const details = screen.getByText('Thinking process').closest('details') as HTMLDetailsElement;
+    expect(details).not.toHaveAttribute('open');
+    expect(details.querySelector('.thinking-content')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText('Thinking process'));
+    expect(details).toHaveAttribute('open');
 });
 
 test('keeps wide code blocks and tables horizontally scrollable inside their own blocks', () => {
