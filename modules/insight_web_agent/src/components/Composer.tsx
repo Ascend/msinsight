@@ -30,7 +30,7 @@ import { AgentSelect } from './AgentSelect';
 const Container = styled.div`
     display: grid;
     gap: 8px;
-    padding: 10px 16px 16px;
+    padding: 18px 16px 16px;
     background: ${(props): string => props.theme.bgColor};
 
     .composer-box {
@@ -49,7 +49,7 @@ const Container = styled.div`
                 ${(props): string => props.theme.mode === 'dark' ? props.theme.bgColorDark : props.theme.bgColor}
             ) padding-box,
             linear-gradient(90deg, rgba(46, 83, 250, 1), rgba(123, 37, 244, 1)) border-box;
-        box-shadow: 0 2px 8px rgba(91, 83, 255, 0.06);
+        box-shadow: ${(props): string => props.theme.boxShadowLighter};
     }
 
     .composer-box.has-attachments {

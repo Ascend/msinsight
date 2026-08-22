@@ -103,6 +103,7 @@
     "loadFailed": "加载失败",
     "noLocalMessages": "当前会话未加载本地消息，请发送消息继续。",
     "thinking": "思考中...",
+    "thinkingProcess": "思考过程",
     "answerDuration": "耗时 {{duration}}",
     "analyzingToolResults": "正在分析工具结果...",
     "modelRetrying": "模型服务限流，正在进行第 {{attempt}}/{{maxAttempts}} 次请求，预计 {{wait}} 后可恢复...",

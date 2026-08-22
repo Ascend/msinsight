@@ -103,6 +103,7 @@
     "loadFailed": "Load failed",
     "noLocalMessages": "No local messages loaded for this session. Send a message to continue.",
     "thinking": "Thinking...",
+    "thinkingProcess": "Thinking process",
     "answerDuration": "Elapsed {{duration}}",
     "analyzingToolResults": "Analyzing tool results...",
     "modelRetrying": "The model service is rate limited. Request {{attempt}}/{{maxAttempts}} is in progress; recovery is expected in {{wait}}...",

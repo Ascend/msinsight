@@ -19,10 +19,11 @@ import styled from '@emotion/styled';
 import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ChatMessage, MessageContentBlock, PermissionDecision, ToolCallItem } from '../types';
+import arrowDownIcon from '../icons/arrow-down.svg';
 import { ActionBlock } from './ActionBlock';
 import { parseActionMarkup } from './actionMarkup';
 
@@ -46,6 +47,13 @@ const Container = styled.div`
     flex-direction: column;
     gap: 14px;
 
+    .message-turn {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
     .empty {
         margin: auto;
         max-width: 260px;
@@ -66,25 +74,143 @@ const Container = styled.div`
     }
 
     .message.user {
-        border: 1px solid ${(props): string => props.theme.borderColorLight};
-        border-left: 3px solid ${(props): string => props.theme.primaryColor};
-        background: ${(props): string => props.theme.bgColorLight};
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr);
+        align-items: start;
+        gap: 8px;
+        overflow: hidden;
+        border: 0;
+        border-radius: 16px;
+        padding: 12px 16px;
+        background: ${(props): string => props.theme.mode === 'dark' ? props.theme.primaryColorLight3 : props.theme.primaryColorLight4};
+    }
+
+    .message.user:not(.overflowing) {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .user-prompt-toggle {
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        padding: 0;
+        background: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
+        cursor: pointer;
+    }
+
+    .user-prompt-toggle:disabled {
+        cursor: default;
+    }
+
+    .user-prompt-chevron {
+        width: 16px;
+        height: 16px;
+        background: currentColor;
+        -webkit-mask: url(${arrowDownIcon}) center / contain no-repeat;
+        mask: url(${arrowDownIcon}) center / contain no-repeat;
+        transform: rotate(-90deg);
+        transition: transform 0.18s ease;
+    }
+
+    .message.user.expanded .user-prompt-chevron {
+        transform: rotate(0deg);
+    }
+
+    .user-prompt-shell {
+        position: relative;
+        min-width: 0;
+    }
+
+    .user-prompt-content {
+        max-height: 65px;
+        overflow: hidden;
+        font-size: 14px;
+        line-height: 1.55;
+        transition: max-height 0.2s ease;
+    }
+
+    .message.user.expanded .user-prompt-content {
+        max-height: 300px;
+        overflow-y: auto;
+        scrollbar-gutter: stable;
+    }
+
+    .message.user.overflowing:not(.expanded) .user-prompt-shell::after {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: 28px;
+        pointer-events: none;
+        background: linear-gradient(
+            to bottom,
+            transparent,
+            ${(props): string => props.theme.mode === 'dark' ? props.theme.primaryColorLight3 : props.theme.primaryColorLight4}
+        );
+        content: "";
     }
 
     .message.assistant {
-        border: 1px solid ${(props): string => props.theme.borderColor};
-        background: ${(props): string => props.theme.bgColor};
+        border: 0;
+        padding: 0;
+        background: transparent;
     }
 
-    .thinking {
+    .thinking-details {
         min-width: 0;
         max-width: 100%;
         margin-bottom: 10px;
-        padding-left: 10px;
-        border-left: 2px solid ${(props): string => props.theme.borderColor};
         color: ${(props): string => props.theme.textColorSecondary};
         font-size: 12px;
         overflow-wrap: anywhere;
+    }
+
+    .thinking-details summary {
+        width: fit-content;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: ${(props): string => props.theme.borderRadiusBase};
+        padding: 2px 4px;
+        cursor: pointer;
+        list-style: none;
+    }
+
+    .thinking-details summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .thinking-details summary:hover {
+        background: ${(props): string => props.theme.bgColorLight};
+    }
+
+    .thinking-chevron {
+        width: 14px;
+        height: 14px;
+        flex: 0 0 auto;
+        background: currentColor;
+        -webkit-mask: url(${arrowDownIcon}) center / contain no-repeat;
+        mask: url(${arrowDownIcon}) center / contain no-repeat;
+        transform: rotate(-90deg);
+        transition: transform 0.18s ease;
+    }
+
+    .thinking-details[open] .thinking-chevron {
+        transform: rotate(0deg);
+    }
+
+    .thinking-content {
+        margin-top: 6px;
+        padding-left: 18px;
+        border-left: 2px solid ${(props): string => props.theme.borderColor};
     }
 
     .thinking-indicator {
@@ -106,7 +232,7 @@ const Container = styled.div`
     }
 
     .answer-duration {
-        margin-top: 8px;
+        margin-bottom: 16px;
         color: ${(props): string => props.theme.textColorSecondary};
         font-size: 12px;
     }
@@ -186,10 +312,10 @@ const Container = styled.div`
     .rich-text code {
         overflow-wrap: anywhere;
         white-space: normal;
-        border: 1px solid ${(props): string => props.theme.borderColorLight};
-        border-radius: ${(props): string => props.theme.borderRadiusSmall};
-        padding: 1px 5px;
-        background: ${(props): string => props.theme.bgColorDark};
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusLarge};
+        padding: 2px 8px;
+        background: ${(props): string => props.theme.bgColorLight};
         font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
         font-size: 0.92em;
     }
@@ -428,41 +554,119 @@ export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: M
 
     return (
         <Container>
-            {messages.map((message, index) => {
-                if (isHiddenPermissionMessage(message)) return null;
-                return (
-                    <article className={`message ${message.role}`} key={message.id}>
-                        {message.content.map((block) => <ContentBlock
-                            allowActions={message.role === 'assistant'}
-                            block={block}
-                            key={block.id}
-                            streaming={isStreamingAssistantMessage(messages, index, pendingPrompt)}
-                        />)}
-                        {message.permission ? <PermissionCard message={message} onDecision={onPermissionDecision} /> : null}
-                        {message.activity === 'analyzing_tool_results' ? (
-                            <div className="thinking-indicator">{t('analyzingToolResults')}</div>
-                        ) : null}
-                        {typeof message.activity === 'object' && message.activity.type === 'model_retry' ? (
-                            <div className="thinking-indicator">{t('modelRetrying', {
-                                attempt: message.activity.attempt,
-                                maxAttempts: message.activity.maxAttempts,
-                                wait: formatRetryWait(message.activity.retryAfterSeconds, t),
-                            })}</div>
-                        ) : null}
-                        {isThinkingMessage(messages, index, pendingPrompt) ? <div className="thinking-indicator">{t('thinking')}</div> : null}
-                        {message.role === 'assistant' && message.startedAt !== undefined ? (
-                            <div className="answer-duration">{t('answerDuration', { duration: formatDuration(message.durationMs ?? now - message.startedAt) })}</div>
-                        ) : null}
-                    </article>
-                );
-            })}
+            {groupMessagesIntoTurns(messages).map((turn) => (
+                <section className="message-turn" key={turn[0].message.id}>
+                    {turn.map(({ message, index }) => {
+                        if (isHiddenPermissionMessage(message)) return null;
+                        if (message.role === 'user') {
+                            return <UserPromptCard key={message.id} message={message} />;
+                        }
+                        return (
+                            <article className={`message ${message.role}`} key={message.id}>
+                                {message.startedAt !== undefined
+                                    ? <div className="answer-duration">{t('answerDuration', {
+                                        duration: formatDuration(message.durationMs ?? now - message.startedAt),
+                                    })}</div>
+                                    : null}
+                                {message.content.map((block) => <ContentBlock
+                                    allowActions={message.role === 'assistant'}
+                                    block={block}
+                                    key={block.id}
+                                    streaming={isStreamingAssistantMessage(messages, index, pendingPrompt)}
+                                />)}
+                                {message.permission
+                                    ? <PermissionCard message={message} onDecision={onPermissionDecision} />
+                                    : null}
+                                {message.activity === 'analyzing_tool_results'
+                                    ? <div className="thinking-indicator">{t('analyzingToolResults')}</div>
+                                    : null}
+                                {typeof message.activity === 'object' && message.activity.type === 'model_retry'
+                                    ? <div className="thinking-indicator">{t('modelRetrying', {
+                                        attempt: message.activity.attempt,
+                                        maxAttempts: message.activity.maxAttempts,
+                                        wait: formatRetryWait(message.activity.retryAfterSeconds, t),
+                                    })}</div>
+                                    : null}
+                                {isThinkingMessage(messages, index, pendingPrompt)
+                                    ? <div className="thinking-indicator">{t('thinking')}</div>
+                                    : null}
+                            </article>
+                        );
+                    })}
+                </section>
+            ))}
         </Container>
+    );
+};
+
+const groupMessagesIntoTurns = (messages: ChatMessage[]): Array<Array<{ message: ChatMessage; index: number }>> => {
+    return messages.reduce<Array<Array<{ message: ChatMessage; index: number }>>>((turns, message, index) => {
+        if (message.role === 'user' || !turns.length) turns.push([]);
+        turns[turns.length - 1].push({ message, index });
+        return turns;
+    }, []);
+};
+
+const COLLAPSED_PROMPT_HEIGHT = 65;
+
+const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
+    const contentRef = useRef<HTMLDivElement>(null);
+    const [expanded, setExpanded] = useState(false);
+    const [overflowing, setOverflowing] = useState(false);
+
+    useEffect(() => {
+        const content = contentRef.current;
+        if (!content) return undefined;
+        const measure = (): void => setOverflowing(content.scrollHeight > COLLAPSED_PROMPT_HEIGHT + 1);
+        measure();
+        const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+        observer?.observe(content);
+        window.addEventListener('resize', measure);
+        return () => {
+            observer?.disconnect();
+            window.removeEventListener('resize', measure);
+        };
+    }, [message.content]);
+
+    const handleWheel = (event: React.WheelEvent<HTMLDivElement>): void => {
+        if (!expanded) return;
+        const content = event.currentTarget;
+        const canScrollUp = event.deltaY < 0 && content.scrollTop > 0;
+        const canScrollDown = event.deltaY > 0 && content.scrollTop + content.clientHeight < content.scrollHeight - 1;
+        if (canScrollUp || canScrollDown) event.stopPropagation();
+    };
+
+    const toggleExpanded = (): void => {
+        if (expanded && contentRef.current) contentRef.current.scrollTop = 0;
+        setExpanded((current) => !current);
+    };
+
+    const className = `message user${overflowing ? ' overflowing' : ''}${expanded ? ' expanded' : ''}`;
+    return (
+        <article className={className}>
+            {overflowing ? (
+                <button
+                    aria-label={expanded ? t('collapse') : t('expand')}
+                    className="user-prompt-toggle"
+                    onClick={toggleExpanded}
+                    type="button"
+                >
+                    <span aria-hidden="true" className="user-prompt-chevron" />
+                </button>
+            ) : null}
+            <div className="user-prompt-shell">
+                <div className="user-prompt-content" onWheel={handleWheel} ref={contentRef}>
+                    {message.content.map((block) => <ContentBlock allowActions={false} block={block} key={block.id} streaming={false} />)}
+                </div>
+            </div>
+        </article>
     );
 };
 
 const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolean; block: MessageContentBlock; streaming: boolean }): JSX.Element => {
     if (block.type === 'thinking') {
-        return <div className="thinking rich-text"><ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{block.text}</ReactMarkdown></div>;
+        return <ThinkingBlock text={block.text} />;
     }
     if (block.type === 'text') {
         const segments = allowActions
@@ -475,6 +679,21 @@ const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolea
         })}</>;
     }
     return <ToolCalls toolCalls={[block.toolCall]} />;
+};
+
+const ThinkingBlock = ({ text }: { text: string }): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
+    return (
+        <details className="thinking-details">
+            <summary>
+                <span aria-hidden="true" className="thinking-chevron" />
+                <span>{t('thinkingProcess')}</span>
+            </summary>
+            <div className="thinking-content rich-text">
+                <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+            </div>
+        </details>
+    );
 };
 
 const isHiddenPermissionMessage = (message: ChatMessage): boolean => {
@@ -677,5 +896,10 @@ const isStreamingAssistantMessage = (messages: ChatMessage[], index: number, pen
 const isThinkingMessage = (messages: ChatMessage[], index: number, pendingPrompt: boolean): boolean => {
     if (!pendingPrompt) return false;
     const message = messages[index];
-    return message.role === 'assistant' && index === messages.length - 1 && !message.permission && !message.activity;
+    const hasAnswerContent = message.content.some((block) => block.type === 'text' && block.text.trim());
+    return message.role === 'assistant' &&
+        index === messages.length - 1 &&
+        !message.permission &&
+        !message.activity &&
+        !hasAnswerContent;
 };
