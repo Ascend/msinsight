@@ -32,6 +32,7 @@ const Container = styled.section`
     overflow: hidden;
 
     .session-title-slot {
+        grid-row: 1;
         min-width: 0;
         overflow: hidden;
         padding: 8px 16px 12px;
@@ -57,6 +58,7 @@ const Container = styled.section`
     }
 
     .messages {
+        height: 100%;
         min-height: 0;
         display: flex;
         flex-direction: column;
@@ -64,6 +66,17 @@ const Container = styled.section`
         overflow: auto;
         scrollbar-gutter: stable;
         padding: 0 16px;
+    }
+
+    .conversation-content {
+        grid-row: 2;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .composer-slot {
+        grid-row: 3;
+        min-width: 0;
     }
 
 `;
@@ -79,13 +92,14 @@ export const ChatPanel = (): JSX.Element => {
             <div className="session-title-slot">
                 {currentTitle ? <div className="session-title" title={currentTitle}>{currentTitle}</div> : null}
             </div>
-            {messages.length
-                ? <section className="messages" ref={messagesRef}>
-                    <MessageList messages={messages} pendingPrompt={pendingPrompt} onPermissionDecision={respondToPermission} />
-                </section>
-                : <WelcomePanel />}
-
-            <Composer />
+            <div className="conversation-content">
+                {messages.length
+                    ? <section className="messages" ref={messagesRef}>
+                        <MessageList messages={messages} pendingPrompt={pendingPrompt} onPermissionDecision={respondToPermission} />
+                    </section>
+                    : <WelcomePanel />}
+            </div>
+            <div className="composer-slot"><Composer /></div>
         </Container>
     );
 };
