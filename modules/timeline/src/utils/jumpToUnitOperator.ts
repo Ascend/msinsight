@@ -53,6 +53,11 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                 isOperatorMetadata(unit.metadata, { cardId: cid, pid, tid, metaType }),
             onSuccess: (unit): void => {
                 const unitMetaData = unit.metadata as ThreadMetaData;
+                const normalizedThreadId = tid ?? unitMetaData.threadId;
+                const normalizedProcessId = unitMetaData.processId ?? pid;
+                const normalizedCardId = unitMetaData.cardId ?? cid;
+                const normalizedDbPath = unitMetaData.dbPath ?? dbPath ?? '';
+                const normalizedMetaType = unitMetaData.metaType ?? metaType;
                 const startTime = timestamp - getTimeOffset(session, unitMetaData);
                 const [rangeStart, rangeEnd] = calculateDomainRange(session, startTime, duration);
                 session.domainRange = { domainStart: rangeStart, domainEnd: rangeEnd };
@@ -63,15 +68,27 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                     color: colorPalette[hashToNumber(name, colorPalette.length)],
                     duration,
                     depth,
-                    threadId: tid ?? unitMetaData.threadId,
-                    processId: unitMetaData.processId ?? pid,
-                    cardId: unitMetaData.cardId ?? cid,
-                    dbPath: unitMetaData.dbPath ?? dbPath,
+                    threadId: normalizedThreadId,
+                    processId: normalizedProcessId,
+                    cardId: normalizedCardId,
+                    dbPath: normalizedDbPath,
                     startRecordTime: session.startRecordTime,
                     showSelectedData: true,
-                    metaType: unitMetaData.metaType ?? metaType,
+                    metaType: normalizedMetaType,
                 };
                 session.selectedDataUnit = unit;
+                session.foregroundTarget = {
+                    rankId: normalizedCardId,
+                    dbPath: normalizedDbPath,
+                    pid: normalizedProcessId,
+                    tid: normalizedThreadId,
+                    id,
+                    name,
+                    startTime: timestamp,
+                    duration,
+                    depth,
+                    metaType: normalizedMetaType,
+                };
             },
             showDetail: false,
         };

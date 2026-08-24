@@ -26,7 +26,7 @@ import {
 import type {
     ChartDesc, InsightUnit, LinkLine, LinkLines,
 } from '../../entity/insight';
-import type { MapValueOfLinkLines, SelectedDataType, Session } from '../../entity/session';
+import type { ForegroundTarget, MapValueOfLinkLines, SearchData, SelectedDataType, Session } from '../../entity/session';
 import { hashToNumber } from '../../utils/colorUtils';
 import type {
     AscendSliceDetail,
@@ -276,7 +276,13 @@ interface CategoryFlows {
     flows: FlowEvent[];
 }
 
-const drawRectBorder = (selectedData: SliceData,
+interface SliceRectData {
+    startTime: number;
+    duration: number;
+    depth: number;
+}
+
+const drawRectBorder = (selectedData: SliceRectData,
     session: Session, xScale: (num: number) => number, yScale: (num: number) => number, ctx: CanvasRenderingContext2D): void => {
     const duration = selectedData.duration < 0 ? session.endTimeAll as number : selectedData.startTime + selectedData.duration;
     const bottomRight = xScale(duration) - xScale(selectedData.startTime);
@@ -467,20 +473,30 @@ export const ThreadUnit = unit<ThreadMetaData>({
         decorator: (session: Session, metaData: unknown) => {
             return {
                 action: async (handle, xScale, yScale, theme): Promise<void> => {
-                    maskedNotSelectData(session, handle, xScale, yScale);
-                    // click
+                    const threadMetaData = metaData as ThreadMetaData;
+                    drawSearchResultLayers(session.searchData, handle, xScale, yScale);
+                    // Keep every jumpToUnitOperator target visible, including non-search panel jumps.
+                    const foregroundTargetData = drawForegroundTargetLayer(
+                        session.foregroundTarget, handle, threadMetaData, xScale, yScale,
+                    );
                     const ctx = handle.context;
                     const selectedData = session.selectedData as unknown as SliceData;
                     const selectedUnitMetaData = session.selectedData;
-                    const threadMetaData = metaData as ThreadMetaData;
                     if (ctx === null) {
                         return;
                     }
 
                     const check = selectedData !== undefined && isSameUnit(selectedUnitMetaData, threadMetaData);
-                    // 来自本泳道点击的数据，给数据描边+画线
                     ctx.strokeStyle = theme.textColorPrimary;
-                    if (check) {
+                    if (foregroundTargetData !== undefined) {
+                        drawRectBorder(foregroundTargetData, session, xScale, yScale, ctx);
+                    }
+                    // 来自本泳道点击的数据，给数据描边+画线
+                    const isSameForegroundRect = foregroundTargetData !== undefined &&
+                        selectedData?.startTime === foregroundTargetData.startTime &&
+                        selectedData.duration === foregroundTargetData.duration &&
+                        selectedData.depth === foregroundTargetData.depth;
+                    if (check && !isSameForegroundRect) {
                         drawRectBorder(selectedData, session, xScale, yScale, ctx);
                     }
                     const benchMarkData = session.benchMarkData as SliceData | undefined;
@@ -506,6 +522,7 @@ export const ThreadUnit = unit<ThreadMetaData>({
                     session.selectedData,
                     session.selectedData?.duration,
                     session?.searchData,
+                    session.foregroundTarget,
                     session.alignRender,
                 ],
             };
@@ -618,31 +635,77 @@ const updateUnitData = (currentUnit: InsightUnit, threadTraceMaxDepth: number, h
     });
 };
 
-function maskedNotSelectData<T extends ChartType>(session: Session, handle: ChartHandle<T>, xScale: Scale, yScale: Scale): void {
-    if (session.searchData) {
-        const name = session.searchData.content;
-        const isAble = (item: any): boolean => {
-            if (session.searchData?.isMatchCase === undefined || name === '') {
-                return false;
-            }
-            const it = item as {name: string};
-            if (session.searchData.isMatchExact && session.searchData.isMatchCase) {
-                return it.name !== name;
-            }
-            if (session.searchData.isMatchExact) {
-                return it.name?.toLocaleLowerCase() !== session.searchData.content.toLocaleLowerCase();
-            } else if (session.searchData.isMatchCase) {
-                return !it.name?.includes(name);
-            } else {
-                return !it.name?.toLocaleLowerCase().includes(session.searchData.content.toLocaleLowerCase());
-            }
-        };
-        const data = handle.findAll(isAble).map((it: any) => it.map((notSelectedData: any) => ({
-            ...notSelectedData,
-            color: 'transparentMask' as const,
-        })));
-        handle.draw(data, xScale, yScale);
+export function isSearchMatched(searchData: SearchData, item: { name?: string | null }): boolean {
+    const { content, isMatchCase, isMatchExact } = searchData;
+    if (typeof content !== 'string' || content === '' || typeof item.name !== 'string') {
+        return false;
     }
+    const itemName = isMatchCase ? item.name : item.name.toLocaleLowerCase();
+    const searchContent = isMatchCase ? content : content.toLocaleLowerCase();
+    return isMatchExact ? itemName === searchContent : itemName.includes(searchContent);
+}
+
+export function isForegroundTargetSlice(item: StackStatusData,
+    target: ForegroundTarget | null | undefined): boolean {
+    if (target === undefined || target === null || typeof target.tid !== 'string' || target.tid === '' ||
+        item.threadId !== target.tid) {
+        return false;
+    }
+    if (target.id !== undefined && target.id !== '') {
+        return item.id === target.id;
+    }
+    if (!Number.isFinite(target.startTime) || !Number.isFinite(target.depth) || !Number.isFinite(target.duration) ||
+        typeof target.name !== 'string') {
+        return false;
+    }
+    return item.originalStartTime === target.startTime &&
+        item.depth === target.depth &&
+        item.duration === target.duration &&
+        item.name === target.name;
+}
+
+function isForegroundTargetInUnit(target: ForegroundTarget, threadMetaData: ThreadMetaData): boolean {
+    if (typeof target.rankId !== 'string' || typeof target.dbPath !== 'string' ||
+        typeof target.pid !== 'string' || typeof target.tid !== 'string' || target.tid === '') {
+        return false;
+    }
+    const isSameDbPath = target.dbPath === '' || target.dbPath === threadMetaData.dbPath;
+    const isSameMetaType = target.metaType === undefined || target.metaType === '' || target.metaType === threadMetaData.metaType;
+    return target.rankId === threadMetaData.cardId &&
+        target.pid === threadMetaData.processId &&
+        isSameDbPath &&
+        isSameMetaType &&
+        isSameThreadId(target.tid, threadMetaData);
+}
+
+export function drawSearchResultLayers(searchData: SearchData | undefined, handle: ChartHandle<'stackStatus'>,
+    xScale: Scale, yScale: Scale): void {
+    if (searchData === undefined || typeof searchData.content !== 'string' || searchData.content === '') {
+        return;
+    }
+
+    const maskedData = handle.findAll(item => !isSearchMatched(searchData, item)).map(row => row.map(item => ({
+        ...item,
+        color: 'transparentMask' as const,
+    })));
+    handle.draw(maskedData, xScale, yScale);
+
+    const matchedData = handle.findAll(item => isSearchMatched(searchData, item));
+    handle.draw(matchedData, xScale, yScale);
+}
+
+export function drawForegroundTargetLayer(target: ForegroundTarget | null | undefined,
+    handle: ChartHandle<'stackStatus'>, threadMetaData: ThreadMetaData,
+    xScale: Scale, yScale: Scale): StackStatusData | undefined {
+    if (target === undefined || target === null || !isForegroundTargetInUnit(target, threadMetaData)) {
+        return undefined;
+    }
+    const targetData = handle.findAll(item => isForegroundTargetSlice(item, target));
+    const targetItem = targetData.find(row => row.length > 0)?.[0];
+    if (targetItem !== undefined) {
+        handle.draw(targetData, xScale, yScale);
+    }
+    return targetItem;
 }
 
 async function createSummaryChart<T extends ProcessMetaData | LabelMetaData>(

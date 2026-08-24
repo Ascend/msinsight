@@ -91,6 +91,28 @@ interface RemoteCount {
 
 let remoteCntArray: RemoteCount[] = [];
 
+interface SearchCriteria {
+    content: string;
+    isMatchCase: boolean;
+    isMatchExact: boolean;
+    rankId: string;
+}
+
+const isCurrentSearch = (session: Session, criteria: SearchCriteria): boolean => {
+    const { searchData } = session;
+    return searchData?.content === criteria.content &&
+        searchData.isMatchCase === criteria.isMatchCase &&
+        searchData.isMatchExact === criteria.isMatchExact &&
+        searchData.rankId === criteria.rankId;
+};
+
+const clearForegroundTarget = action((session: Session, criteria?: SearchCriteria): void => {
+    if (criteria !== undefined && !isCurrentSearch(session, criteria)) {
+        return;
+    }
+    session.foregroundTarget = undefined;
+});
+
 const getLockRangeMetaList = (session: Session): any => {
     return session.lockUnit.map(selectUnit => {
         const { threadId, processId, metaType, cardId, dbPath } = selectUnit?.metadata as ThreadMetaData ?? {};
@@ -145,10 +167,15 @@ interface JumpSliceParams {
     index: number;
     isMatchCase: boolean;
     isMatchExact: boolean;
+    selectedRankId: string;
     setIsSearching: (val: boolean) => void;
 }
 // 跳转函数
-const jumpSlice = async ({ session, searchContent, index, isMatchExact, isMatchCase, setIsSearching }: JumpSliceParams): Promise<void> => {
+const jumpSlice = async ({
+    session, searchContent, index, isMatchExact, isMatchCase, selectedRankId, setIsSearching,
+}: JumpSliceParams): Promise<void> => {
+    const criteria = { content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId };
+    clearForegroundTarget(session, criteria);
     let finalDataSource;
     let finalRankId;
     let finalDbPath;
@@ -177,14 +204,19 @@ const jumpSlice = async ({ session, searchContent, index, isMatchExact, isMatchC
     }).finally(() => {
         setIsSearching(false);
     });
-    if (slice === undefined) { return; }
-    jumpToUnitOperator({
+    if (slice === undefined || !isCurrentSearch(session, criteria)) { return; }
+    const targetThreadId = slice.tid?.toString();
+    if (targetThreadId === undefined || targetThreadId === '') { return; }
+    const targetSlice = {
         ...slice,
+        name: slice.name ?? searchContent,
+        tid: targetThreadId,
+    };
+    jumpToUnitOperator({
+        ...targetSlice,
         cardId: slice.rankId,
         dbPath: slice.dbPath,
         timestamp: slice.startTime,
-        name: slice.name ?? searchContent,
-        tid: slice.tid.toString(),
     });
 };
 
@@ -248,7 +280,9 @@ const CategorySearchContent = (session: Session): JSX.Element => {
 
     useEffect(action(() => {
         setSearchIconVisible(true); setSearchContent(''); setInputSearchContent(''); setIsMatchCase(false); setIsMatchExact(false);
-        updatePaginationData({ current: 1, total: 0 }); session.searchData = undefined;
+        updatePaginationData({ current: 1, total: 0 });
+        session.searchData = undefined;
+        session.foregroundTarget = undefined;
         // 切换数据源时，重置为新数据源的第一个 rankId
         const newRankId = rankIdOptions.length > 1 ? rankIdOptions[0] : ALL_RANK_ID;
         setSelectedRankId(newRankId);
@@ -258,17 +292,27 @@ const CategorySearchContent = (session: Session): JSX.Element => {
             return;
         }
         updatePaginationData(prevState => ({ current, total: prevState.total }));
-        jumpSlice({ session, searchContent, index: current, isMatchCase, isMatchExact, setIsSearching });
+        jumpSlice({ session, searchContent, index: current, isMatchCase, isMatchExact, selectedRankId, setIsSearching });
     };
     const onInputPressEnter = async (): Promise<void> => {
         if (searchContent === '') { return; }
+        const criteria = { content: searchContent, isMatchCase, isMatchExact, rankId: selectedRankId };
+        runInAction(() => {
+            session.searchData = criteria;
+            session.foregroundTarget = undefined;
+        });
         setSearchingStatus(true);
         const totalCnt = await queryDataCount(session, searchContent, isMatchCase, isMatchExact, selectedRankId);
+        if (!isCurrentSearch(session, criteria)) {
+            setSearchingStatus(false);
+            return;
+        }
         if (totalCnt > 0) {
             updatePaginationData({ current: 1, total: totalCnt });
-            jumpSlice({ session, searchContent, index: 1, isMatchCase, isMatchExact, setIsSearching });
+            jumpSlice({ session, searchContent, index: 1, isMatchCase, isMatchExact, selectedRankId, setIsSearching });
             setSearchIconVisible(false);
         } else {
+            clearForegroundTarget(session, criteria);
             messageApi.warning(t('notify:SearchEmpty'));
         }
         setSearchingStatus(false);
@@ -279,7 +323,8 @@ const CategorySearchContent = (session: Session): JSX.Element => {
         setSearchContent(trimmedValue);
         setInputSearchContent(inputContent);
         setSearchIconVisible(true);
-        session.searchData = { content: trimmedValue, isMatchCase, isMatchExact };
+        session.searchData = { content: trimmedValue, isMatchCase, isMatchExact, rankId: selectedRankId };
+        session.foregroundTarget = undefined;
     });
 
     function changeMatchCaseStatus(): void {
@@ -292,6 +337,7 @@ const CategorySearchContent = (session: Session): JSX.Element => {
                     isMatchCase: status,
                 };
             }
+            session.foregroundTarget = undefined;
         });
     }
 
@@ -305,6 +351,7 @@ const CategorySearchContent = (session: Session): JSX.Element => {
                     isMatchExact: status,
                 };
             }
+            session.foregroundTarget = undefined;
         });
     }
     const doSearchList = (): void => {
@@ -318,6 +365,12 @@ const CategorySearchContent = (session: Session): JSX.Element => {
 
     const onRankIdChange = (value: string): void => {
         setSelectedRankId(value);
+        runInAction(() => {
+            if (session.searchData !== undefined) {
+                session.searchData = { ...session.searchData, rankId: value };
+            }
+            session.foregroundTarget = undefined;
+        });
         // 切换 rankId 时重置搜索状态
         setSearchIconVisible(true);
         updatePaginationData({ current: 1, total: 0 });
