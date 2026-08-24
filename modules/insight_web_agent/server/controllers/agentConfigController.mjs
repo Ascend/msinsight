@@ -16,10 +16,19 @@
  * -------------------------------------------------------------------------
  */
 import { json } from "../http/response.mjs";
+import { errorCause } from "../services/errorResult.mjs";
 
 export const createAgentConfigController = ({ agentConfigService }) => ({
     async get(_req, res) {
-        return json(res, { snapshot: await agentConfigService.readSnapshot() });
+        try {
+            return json(res, { snapshot: await agentConfigService.readSnapshot() });
+        } catch (error) {
+            return json(res, {
+                error: "agent_config_read_failed",
+                message: "Agent settings could not be read from the local configuration files",
+                details: { cause: errorCause(error) },
+            }, 500);
+        }
     },
 
     async saveAgentServers(_req, res, body) {

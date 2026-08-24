@@ -15,10 +15,33 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { HttpError } from "./errors.mjs";
+
 export const json = (res, body, status = 200) => {
+    const responseBody = status >= 400 ? normalizeErrorResponse(body, status) : body;
     res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
-    res.end(JSON.stringify(body));
+    res.end(JSON.stringify(responseBody));
 };
+
+const normalizeErrorResponse = (body, status) => {
+    const source = body && typeof body === "object" ? body : { error: String(body ?? "") };
+    const nestedError = source.error && typeof source.error === "object" ? source.error : undefined;
+    const originalError = String(nestedError?.code ?? source.error ?? "").trim();
+    const code = String(source.code ?? nestedError?.code ?? (isErrorCode(originalError) ? originalError : `http_${status}`));
+    const message = String(source.message ?? nestedError?.message ?? (originalError || `Request failed with HTTP ${status}`));
+    const details = source.details ?? nestedError?.details;
+    return {
+        ...source,
+        error: originalError || code,
+        code,
+        message,
+        ...(details === undefined ? {} : { details }),
+    };
+};
+
+const isErrorCode = (value) => /^[a-z][a-z0-9_]*$/.test(value);
+
+const MAX_JSON_BODY_BYTES = 10 * 1024 * 1024;
 
 export const applyCors = (req, res, allowedOrigins = []) => {
     const origin = String(req.headers.origin ?? "").replace(/\/$/, "");
@@ -35,6 +58,18 @@ export const applyCors = (req, res, allowedOrigins = []) => {
 
 export const readJson = async (req) => {
     let body = "";
-    for await (const chunk of req) body += chunk;
+    let bytes = 0;
+    for await (const chunk of req) {
+        bytes += Buffer.byteLength(chunk);
+        if (bytes > MAX_JSON_BODY_BYTES) {
+            throw new HttpError(
+                413,
+                "request_body_too_large",
+                "Request body is too large",
+                { limitBytes: MAX_JSON_BODY_BYTES, receivedBytes: bytes },
+            );
+        }
+        body += chunk;
+    }
     return body ? JSON.parse(body) : undefined;
 };

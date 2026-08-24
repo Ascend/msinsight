@@ -19,6 +19,7 @@ import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, Age
 import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
 import { apiUrl } from './env';
+import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
 
 interface PromptResponse {
     ok?: boolean;
@@ -58,21 +59,93 @@ interface LoadSessionResponse extends OkResponse {
     pendingPrompt?: boolean;
 }
 
-const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
-    const response = await fetch(apiUrl(path), {
-        ...init,
-        headers: {
-            ...(init?.body ? { 'content-type': 'application/json' } : {}),
-            ...init?.headers,
-        },
-    });
-    const body = await response.json() as T & { error?: string; message?: string; details?: unknown; saved?: boolean };
-    if (!response.ok) {
-        const error = new Error(body.message ?? body.error ?? response.statusText) as Error & { body?: typeof body };
-        error.body = body;
-        throw error;
+interface ErrorResponseBody {
+    error?: string;
+    code?: string;
+    message?: string;
+    details?: unknown;
+    saved?: boolean;
+}
+
+export class ApiRequestError extends Error {
+    constructor(
+        message: string,
+        readonly status: number | undefined,
+        readonly path: string,
+        readonly body?: ErrorResponseBody,
+    ) {
+        super(message);
+        this.name = 'ApiRequestError';
     }
-    return body;
+}
+
+export const isBackendUnavailableError = (error: unknown): error is ApiRequestError => (
+    error instanceof ApiRequestError && error.status === undefined
+);
+
+const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
+    const url = apiUrl(path);
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            ...init,
+            headers: {
+                ...(init?.body ? { 'content-type': 'application/json' } : {}),
+                ...init?.headers,
+            },
+        });
+        reportBackendAvailable();
+    } catch (error) {
+        const cause = error instanceof Error ? error.message : String(error);
+        reportBackendUnavailable({ url: safeEndpoint(url), cause });
+        throw new ApiRequestError(`Unable to connect to the Node.js backend: ${cause}`, undefined, path);
+    }
+
+    const rawBody = await response.text();
+    let body: (T & ErrorResponseBody) | undefined;
+    try {
+        body = rawBody ? JSON.parse(rawBody) as T & ErrorResponseBody : undefined;
+    } catch (_error) {
+        throw new ApiRequestError(
+            `The backend returned an invalid JSON response (HTTP ${response.status}).`,
+            response.status,
+            path,
+            { details: rawBody.slice(0, 500) },
+        );
+    }
+    if (!response.ok) {
+        const detail = formatErrorDetails(body?.details);
+        throw new ApiRequestError(
+            `${body?.message ?? body?.error ?? response.statusText}${detail}`,
+            response.status,
+            path,
+            body,
+        );
+    }
+    return body as T;
+};
+
+const safeEndpoint = (url: string): string => {
+    try {
+        const parsed = new URL(url, window.location.href);
+        return `${parsed.origin}${parsed.pathname}`;
+    } catch (_error) {
+        return url.split('?')[0];
+    }
+};
+
+const formatErrorDetails = (details: unknown): string => {
+    if (details === undefined || details === null || details === '') {
+        return '';
+    }
+    if (typeof details === 'string') {
+        return `: ${details}`;
+    }
+    try {
+        return `: ${JSON.stringify(details)}`;
+    } catch (_error) {
+        return '';
+    }
 };
 
 export const fetchState = (): Promise<Partial<AppState>> => {

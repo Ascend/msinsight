@@ -20,10 +20,17 @@ import { json } from "../http/response.mjs";
 export const createContextController = ({ state }) => ({
     async update(_req, res, body) {
         if (!body || typeof body !== "object" || Array.isArray(body)) {
-            return json(res, { error: "context must be an object" }, 400);
+            return json(res, {
+                error: "invalid_context",
+                message: "Context must be a JSON object",
+            }, 400);
         }
         if (Object.hasOwn(body, "projectRoot")) {
-            return json(res, { error: "projectRoot is host-owned" }, 400);
+            return json(res, {
+                error: "host_owned_field",
+                message: "projectRoot is managed by the host and cannot be updated through this API",
+                details: { field: "projectRoot" },
+            }, 400);
         }
         state.activeContext = {
             profileId: body.profileId,

@@ -21,7 +21,7 @@ import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next';
 import { Alert, Button, Input, InputNumber, PasswordInput } from '@insight/lib/components';
 import { copyToClipboard } from '@insight/lib/utils';
-import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
+import { fetchAgentConfig, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
 import addIcon from '../icons/add.svg';
@@ -689,7 +689,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 setLoading(false);
             }
         };
-        void loadSettings();
+        loadSettings();
     }, [createOnOpen, open]);
 
     useEffect(() => {
@@ -975,6 +975,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             setOpen(false);
             message.success(t('settingsSaved'));
         } catch (nextError) {
+            if (isBackendUnavailableError(nextError)) {
+                return;
+            }
             const errorMessage = nextError instanceof Error ? nextError.message : String(nextError);
             setError(errorMessage);
             message.error(errorMessage);
@@ -1171,7 +1174,15 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                             <span className="script-config-label">JSON</span>
                                             <div className="script-config-actions">
                                                 <button className="script-format-button" onClick={formatScriptValue} type="button">{t('formatJson')}</button>
-                                                <button aria-label={t('copyJson')} className="script-copy-button" onClick={() => { void copyScriptValue(); }} title={t('copyJson')} type="button">
+                                                <button
+                                                    aria-label={t('copyJson')}
+                                                    className="script-copy-button"
+                                                    onClick={() => {
+                                                        copyScriptValue();
+                                                    }}
+                                                    title={t('copyJson')}
+                                                    type="button"
+                                                >
                                                     <img alt="" src={copyIcon} />
                                                 </button>
                                             </div>

@@ -20,7 +20,10 @@ import { json } from "../http/response.mjs";
 export const createPermissionController = ({ permissionService }) => ({
     async respond(_req, res, body) {
         const result = await permissionService.respond(body ?? {});
-        if (result.error) return json(res, { error: result.error }, result.status ?? 500);
+        if (result.error) {
+            const { status, ...response } = result;
+            return json(res, response, status ?? 500);
+        }
         return json(res, result);
     },
 });

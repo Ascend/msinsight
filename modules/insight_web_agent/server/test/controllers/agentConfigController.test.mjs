@@ -94,7 +94,27 @@ test("configuration sections use independent save endpoints", async () => {
         ["session", sessionConfig],
     ]);
     assert.equal(serverResponse.status, 409);
-    assert.deepEqual(serverResponse.body, { error: "agent_busy", message: "Agent is busy" });
+    assert.deepEqual(serverResponse.body, {
+        error: "agent_busy",
+        code: "agent_busy",
+        message: "Agent is busy",
+    });
+});
+
+test("GET /api/agent-config returns a specific configuration read error", async () => {
+    const router = createTestRouter({
+        readSnapshot: async () => {
+            throw new Error("invalid JSON in agent-servers.json");
+        },
+    });
+    const res = createResponse();
+
+    await router(createJsonRequest("GET", "/api/agent-config"), res);
+
+    assert.equal(res.status, 500);
+    assert.equal(res.body.error, "agent_config_read_failed");
+    assert.equal(res.body.message, "Agent settings could not be read from the local configuration files");
+    assert.deepEqual(res.body.details, { cause: "invalid JSON in agent-servers.json" });
 });
 
 test("legacy aggregate save endpoint is not available", async () => {

@@ -1,6 +1,12 @@
 {
   "insightWebAgent": {
     "agentError": "Agent error",
+    "nodeBackendUnavailableTitle": "Node.js runtime unavailable",
+    "nodeBackendUnavailableDescription": "The local Node.js service could not be reached. Node.js may not be installed, or the backend may have failed to start.",
+    "nodeBackendUnavailableAction": "Install Node.js 22.14.0 or later and reopen the tool. If Node.js is already installed, check the backend startup log.",
+    "nodeDownloadAddress": "Node.js download URL:",
+    "nodeDownloadUrl": "https://nodejs.org/en/download",
+    "dismiss": "Close",
     "agentSettings": "Agent settings",
     "refreshAgents": "Refresh agents",
     "agentRuntimeSettings": "Agent Configuration",

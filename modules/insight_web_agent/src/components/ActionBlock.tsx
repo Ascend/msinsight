@@ -132,7 +132,9 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
             <button
                 className="action-trigger"
                 disabled={state === 'loading' || state === 'executing'}
-                onClick={() => { void openApproval(); }}
+                onClick={() => {
+                    openApproval();
+                }}
                 type="button"
             >
                 {state === 'loading' ? t('actionLoading') : action.label}
@@ -142,7 +144,9 @@ export const ActionBlock = ({ action }: { action: ActionItem }): JSX.Element => 
                     action={frozenAction}
                     definition={definition}
                     executing={false}
-                    onApprove={() => { void approve(); }}
+                    onApprove={() => {
+                        approve();
+                    }}
                     onCancel={cancel}
                 />
             ) : null}

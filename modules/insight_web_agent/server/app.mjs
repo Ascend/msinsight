@@ -28,6 +28,7 @@ import { createFrontendCommandController } from "./controllers/frontendCommandCo
 import { createRouter } from "./http/router.mjs";
 import { applyCors, json } from "./http/response.mjs";
 import { hasValidCapability, normalizeRequestOrigin } from "./http/security.mjs";
+import { errorBody, normalizeHttpError } from "./http/errors.mjs";
 
 export const createApp = ({ agentService, eventBus, chatService, sessionService, state, permissionService, agentConfigService, pageContextService, frontendCommandService, capabilityToken, allowedOrigins = [] }) => {
     const router = createRouter({
@@ -47,10 +48,17 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
             applyCors(req, res, allowedOrigins);
             const requestOrigin = normalizeRequestOrigin(req);
             if (requestOrigin && !allowedOrigins.includes(requestOrigin)) {
-                return json(res, { error: "Origin not allowed" }, 403);
+                return json(res, errorBody({
+                    code: "origin_not_allowed",
+                    message: "Request origin is not allowed",
+                    details: { origin: requestOrigin },
+                }), 403);
             }
             if ((req.url ?? "").startsWith("/api/") && !hasValidCapability(req, capabilityToken)) {
-                return json(res, { error: "Unauthorized" }, 401);
+                return json(res, errorBody({
+                    code: "unauthorized",
+                    message: "The ACP capability token is missing or invalid",
+                }), 401);
             }
             if (req.method === "OPTIONS") {
                 res.writeHead(204);
@@ -60,8 +68,11 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
 
             return await router(req, res);
         } catch (error) {
-            console.error(error);
-            return json(res, { error: String(error?.message ?? error) }, 500);
+            const normalized = error?.status && error?.code
+                ? { status: error.status, body: errorBody({ code: error.code, message: error.message, details: error.details }) }
+                : normalizeHttpError(error);
+            console.error(`${req.method ?? "UNKNOWN"} ${req.url ?? "/"}:`, error);
+            return json(res, normalized.body, normalized.status);
         }
     });
 };
