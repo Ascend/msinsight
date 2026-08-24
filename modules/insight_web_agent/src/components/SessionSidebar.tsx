@@ -182,7 +182,9 @@ export const SessionSidebar = (): JSX.Element => {
                     footer={(
                         <AddAgentButton onClick={() => openSettings(true)} type="button">{t('addAgent')}</AddAgentButton>
                     )}
-                    onChange={(value) => { void setAgent(value); }}
+                    onChange={(value) => {
+                        setAgent(value);
+                    }}
                     options={agentServers.map((agent) => ({
                         value: agent.name,
                         label: agent.name,

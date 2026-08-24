@@ -20,10 +20,11 @@ import i18n from '@insight/lib/i18n';
 import { SharedConfigProvider } from '@insight/lib/SharedConfigProvider';
 import { GlobalStyles, themeInstance } from '@insight/lib/theme';
 import { useEffect, useState } from 'react';
-import { updateContext } from './api';
+import { isBackendUnavailableError, updateContext } from './api';
 import { notifyHostReady, registerHostEventHandlers, requestHostInitStatus } from './connection';
 import { ChatStateProvider } from './hooks/useChatState';
 import { ChatPage } from './components/ChatPage';
+import { BackendUnavailableDialog } from './components/BackendUnavailableDialog';
 
 type Locale = 'zhCN' | 'enUS';
 
@@ -32,6 +33,15 @@ const App = (): JSX.Element => {
     const [locale, setLocale] = useState<Locale>((i18n.language as Locale) || 'enUS');
 
     useEffect(() => {
+        const synchronizeContext = async (context: Parameters<typeof updateContext>[0]): Promise<void> => {
+            try {
+                await updateContext(context);
+            } catch (error) {
+                if (!isBackendUnavailableError(error)) {
+                    console.error('Failed to update Insight Bot context:', error);
+                }
+            }
+        };
         const applyTheme = (isDark: boolean): void => {
             const nextTheme = isDark ? 'dark' : 'light';
             themeInstance.setCurrentTheme(nextTheme);
@@ -44,14 +54,18 @@ const App = (): JSX.Element => {
         };
 
         const handleStorage = (event: StorageEvent): void => {
-            if (event.key !== 'theme' || event.newValue === null) return;
+            if (event.key !== 'theme' || event.newValue === null) {
+                return;
+            }
             applyTheme(event.newValue === '"dark"' || event.newValue === 'dark');
         };
 
         const unregisterAgentContext = registerHostEventHandlers({
             setTheme: applyTheme,
             switchLanguage: applyLanguage,
-            updateContext: (context): void => { updateContext(context); },
+            updateContext: (context): void => {
+                synchronizeContext(context);
+            },
         });
         requestHostInitStatus();
         notifyHostReady();
@@ -73,6 +87,7 @@ const App = (): JSX.Element => {
         <SharedConfigProvider locale={locale}>
             <ChatStateProvider>
                 <ChatPage />
+                <BackendUnavailableDialog />
             </ChatStateProvider>
         </SharedConfigProvider>
     </ThemeProvider>;

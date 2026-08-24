@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { json } from "../http/response.mjs";
+import { errorCause } from "../services/errorResult.mjs";
 
 export const createSessionController = ({ sessionService }) => ({
     async create(_req, res) {
@@ -28,7 +29,17 @@ export const createSessionController = ({ sessionService }) => ({
 
     async list(_req, res) {
         console.log("List sessions requested");
-        return json(res, { sessions: await sessionService.listSessions() });
+        try {
+            return json(res, { sessions: await sessionService.listSessions() });
+        } catch (error) {
+            const cause = errorCause(error);
+            console.error(`List sessions failed: ${cause}`);
+            return json(res, {
+                error: "session_list_failed",
+                message: "Sessions could not be loaded from the selected Agent",
+                details: { cause },
+            }, 502);
+        }
     },
 
     async load(_req, res, body) {

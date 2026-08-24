@@ -42,7 +42,7 @@ export const createChatController = ({ chatService, state }) => ({
         console.log(`Cancel prompt requested: sessionId=${String(body?.sessionId ?? "")}`);
         const result = await chatService.cancel(body?.sessionId);
         if (result.error) console.warn(`Cancel prompt failed: sessionId=${String(body?.sessionId ?? "")}, error=${result.error}`);
-        return json(res, result);
+        return json(res, normalizeBody(result), result.status ?? 200);
     },
 });
 

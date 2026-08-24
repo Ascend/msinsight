@@ -16,6 +16,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { createDefaultAllowlist, evaluateReadPolicy, parentAllowlistEntry } from "./permissionPolicy.mjs";
+import { errorResult } from "./errorResult.mjs";
 
 export class PermissionDeniedError extends Error {
     constructor(message = "permission denied") {
@@ -137,12 +138,30 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         const targetRequestId = String(requestId ?? "").trim();
         const targetDecision = String(decision ?? "").trim();
         if (!targetSessionId || !targetRequestId || !DECISIONS.has(targetDecision)) {
-            return { error: "malformed permission response", status: 400 };
+            return errorResult(
+                "invalid_permission_response",
+                "sessionId, requestId, and a valid decision are required",
+                400,
+                { validDecisions: [...DECISIONS] },
+            );
         }
         const key = permissionKey(targetSessionId, targetRequestId);
         const request = state.pendingPermissions.get(key) ?? state.resolvedPermissions.get(key);
-        if (!request) return { error: "permission request not found", status: 404 };
-        if (request.state !== "pending") return { error: "permission request already resolved", status: 409 };
+        if (!request) {
+            return errorResult(
+                "permission_request_not_found",
+                "The permission request does not exist or is no longer available",
+                404,
+            );
+        }
+        if (request.state !== "pending") {
+            return errorResult(
+                "permission_request_resolved",
+                `The permission request has already been resolved with state '${request.state}'`,
+                409,
+                { state: request.state },
+            );
+        }
 
         const finalState = targetDecision === "allow_once"
             ? "allowed_once"

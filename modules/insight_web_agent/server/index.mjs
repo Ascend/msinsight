@@ -27,6 +27,7 @@ import { agentConfigForLog, discoverAgents, mergeAgentServers, sameAgentLaunch }
 import { agentLaunchKey } from "./services/agentIdentityService.mjs";
 import { createChatService } from "./services/chatService.mjs";
 import { createContextAssembler } from "./services/contextAssembler.mjs";
+import { errorCause, errorResult } from "./services/errorResult.mjs";
 import { createFileReadService, createPermissionHostHandler } from "./services/fileReadService.mjs";
 import { createFrontendCommandService } from "./services/frontendCommandService.mjs";
 import { createPageContextService } from "./services/pageContextService.mjs";
@@ -350,27 +351,55 @@ const agentService = {
     },
 
     async switchAgent(name) {
-        if (state.agentDiscoveryLoading) return { error: "agent discovery is running", status: 409 };
+        if (state.agentDiscoveryLoading) {
+            return errorResult(
+                "agent_discovery_in_progress",
+                "Wait for Agent discovery to finish before switching Agents",
+                409,
+            );
+        }
         const nextAgentServer = availableAgentServers().find((server) => server.name === String(name ?? "").trim());
-        if (!nextAgentServer) return { error: "agent is unavailable", status: 400 };
-        if (nextAgentServer.name === activeAgentServer.name) return { ok: true, ...this.list() };
+        if (!nextAgentServer) {
+            return errorResult(
+                "agent_unavailable",
+                `Agent '${String(name ?? "").trim()}' is not available in the current configuration or discovery results`,
+                400,
+            );
+        }
+        if (nextAgentServer.name === activeAgentServer.name) {
+            return { ok: true, ...this.list() };
+        }
 
         try {
             await reloadRuntime({ activeAgentName: nextAgentServer.name, persistActiveAgent: true });
             return { ok: true, ...this.list() };
         } catch (error) {
-            return { error: error.message, status: 500 };
+            return errorResult(
+                "agent_switch_failed",
+                `Failed to start Agent '${nextAgentServer.name}'`,
+                502,
+                { cause: errorCause(error) },
+            );
         }
     },
 
     async refreshAgents() {
         if (isAgentRuntimeBusy()) {
-            return { error: "agent is busy", status: 409 };
+            return errorResult(
+                "agent_busy",
+                "Agent discovery cannot run while a message or permission request is pending",
+                409,
+            );
         }
         try {
             return await refreshDiscoveredAgents();
         } catch (error) {
-            return { error: error.message, status: 500 };
+            return errorResult(
+                "agent_discovery_failed",
+                "Automatic Agent discovery did not complete successfully",
+                500,
+                { cause: errorCause(error) },
+            );
         }
     },
 };

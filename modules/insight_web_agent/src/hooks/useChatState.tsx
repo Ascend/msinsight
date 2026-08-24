@@ -27,7 +27,7 @@ import {
 } from 'react';
 import { message } from 'antd';
 import { toCommandError } from '@insight/lib/FrontendAgentCommand';
-import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
+import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { apiUrl } from '../env';
 import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
@@ -123,6 +123,13 @@ const initialState: ChatState = {
 
 const ChatStateContext = createContext<ChatStateValue | null>(null);
 
+const showError = (error: unknown): void => {
+    if (isBackendUnavailableError(error)) {
+        return;
+    }
+    message.error(error instanceof Error ? error.message : String(error));
+};
+
 export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.Element => {
     const [state, setState] = useState<ChatState>(initialState);
     const [input, setInput] = useState('');
@@ -215,19 +222,23 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             await syncPromise;
         } catch (error) {
             setState((current) => ({ ...current, agentDiscoveryLoading: false }));
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
         } finally {
-            if (discoverySyncPromiseRef.current === syncPromise) discoverySyncPromiseRef.current = null;
+            if (discoverySyncPromiseRef.current === syncPromise) {
+                discoverySyncPromiseRef.current = null;
+            }
         }
     };
 
     const applyEvent = (event: ServerEvent): void => {
         if (event.type === 'frontend_command_request') {
-            void handleFrontendCommand(event);
+            handleFrontendCommand(event);
             return;
         }
         if (event.type === 'frontend_command_cancel') {
-            if (!frontendCommandsRef.current.has(event.requestId)) return;
+            if (!frontendCommandsRef.current.has(event.requestId)) {
+                return;
+            }
             cancelledFrontendCommandsRef.current.add(event.requestId);
             cancelFrontendCommand(event.requestId);
             return;
@@ -239,7 +250,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         }
 
         if (event.type === 'agent_discovery_completed') {
-            void handleAgentDiscoveryCompleted(event);
+            handleAgentDiscoveryCompleted(event);
             return;
         }
 
@@ -396,19 +407,32 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         frontendCommandsRef.current.add(event.requestId);
         let claimToken: string | undefined;
         try {
-            const claim = await claimFrontendCommand(event.requestId).catch(() => undefined);
+            let claim: Awaited<ReturnType<typeof claimFrontendCommand>> | undefined;
+            try {
+                claim = await claimFrontendCommand(event.requestId);
+            } catch (_error) {
+                return;
+            }
             claimToken = claim?.claimToken;
-            if (!claim?.claimed || !claimToken || cancelledFrontendCommandsRef.current.has(event.requestId)) return;
+            if (!claim?.claimed || !claimToken || cancelledFrontendCommandsRef.current.has(event.requestId)) {
+                return;
+            }
             const result = await executeFrontendCommand(event.command, event.args, event.requestId, event.deadline);
             await respondFrontendCommand({ requestId: event.requestId, claimToken, status: 'completed', result });
         } catch (error) {
-            if (!claimToken) return;
-            await respondFrontendCommand({
-                requestId: event.requestId,
-                claimToken,
-                status: 'failed',
-                error: toCommandError(error),
-            }).catch(() => undefined);
+            if (!claimToken) {
+                return;
+            }
+            try {
+                await respondFrontendCommand({
+                    requestId: event.requestId,
+                    claimToken,
+                    status: 'failed',
+                    error: toCommandError(error),
+                });
+            } catch (_error) {
+                // The backend may already be unavailable; the connection dialog handles that case.
+            }
         } finally {
             frontendCommandsRef.current.delete(event.requestId);
             cancelledFrontendCommandsRef.current.delete(event.requestId);
@@ -432,10 +456,12 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             try {
                 await Promise.all([refreshInitialState(), refreshAgentList()]);
             } catch (error) {
-                message.error(error instanceof Error ? error.message : String(error));
+                initialSessionInitializedRef.current = true;
+                setState((current) => ({ ...current, agentDiscoveryLoading: false }));
+                showError(error);
             }
         };
-        void loadInitialData();
+        loadInitialData();
 
         const events = new EventSource(apiUrl('/api/events'));
         events.onmessage = (event): void => applyEvent(JSON.parse(event.data) as ServerEvent);
@@ -456,10 +482,10 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 await initializeActiveSession();
             } catch (error) {
                 initialSessionInitializedRef.current = false;
-                message.error(error instanceof Error ? error.message : String(error));
+                showError(error);
             }
         };
-        void initialize();
+        initialize();
     }, [state.agentDiscoveryLoading]);
 
     useEffect(() => {
@@ -479,7 +505,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 queuedPromptInFlightRef.current = false;
             }
         };
-        void runQueuedPrompt();
+        runQueuedPrompt();
     }, [state]);
 
     const initializeActiveSession = async (): Promise<void> => {
@@ -542,7 +568,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             setState((current) => cacheLoadedSession(current, sessionId, response));
         } catch (error) {
             updateSessionRecord(sessionId, (record) => ({ ...record, status: 'error' }));
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
         }
     };
 
@@ -562,7 +588,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             }
         } catch (error) {
             setState(previousState);
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
         }
     };
 
@@ -617,7 +643,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
         } catch (error) {
             setState((current) => markPromptFailed(current, optimisticSession, sessionId));
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
             await refreshInitialState();
         }
     };
@@ -645,7 +671,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         try {
             await cancelPrompt(sessionId);
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
             await refreshInitialState();
         }
     };
@@ -668,7 +694,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 };
             });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
             await refreshInitialState();
         }
     };
@@ -697,7 +723,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 };
             });
         } catch (error) {
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
             await refreshInitialState();
         }
     };
@@ -727,7 +753,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             setState((current) => ({ ...current, switchingAgent: false }));
         } catch (error) {
             setState((current) => ({ ...current, switchingAgent: false }));
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
         }
     };
 
@@ -741,7 +767,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             }
         } catch (error) {
             setState((current) => ({ ...current, agentDiscoveryLoading: false }));
-            message.error(error instanceof Error ? error.message : String(error));
+            showError(error);
         }
     };
 

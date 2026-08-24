@@ -1,6 +1,12 @@
 {
   "insightWebAgent": {
     "agentError": "Agent 异常",
+    "nodeBackendUnavailableTitle": "Node.js 运行环境不可用",
+    "nodeBackendUnavailableDescription": "未能连接本地 Node.js 服务。通常是当前环境未安装 Node.js，或后台服务启动失败。",
+    "nodeBackendUnavailableAction": "请安装 Node.js 22.14.0 或更高版本，然后重新打开工具；如果已经安装，请检查后台启动日志。",
+    "nodeDownloadAddress": "Node.js 下载地址：",
+    "nodeDownloadUrl": "https://nodejs.org/zh-cn/download",
+    "dismiss": "关闭",
     "agentSettings": "Agent 设置",
     "refreshAgents": "刷新 Agent",
     "agentRuntimeSettings": "Agent 配置",

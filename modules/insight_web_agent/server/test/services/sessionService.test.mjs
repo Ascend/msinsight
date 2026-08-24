@@ -75,7 +75,8 @@ test("deleteSessionById rejects deletion while a prompt is pending", async () =>
     const result = await service.deleteSessionById("session-1");
 
     assert.equal(result.status, 409);
-    assert.equal(result.error, "cannot delete a session while prompting");
+    assert.equal(result.error, "session_busy");
+    assert.equal(result.message, "The session cannot be deleted while a message is being processed");
 });
 
 const modeConfig = (currentValue) => ({

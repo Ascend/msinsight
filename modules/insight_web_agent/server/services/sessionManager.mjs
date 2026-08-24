@@ -18,6 +18,7 @@
 import { join } from "node:path";
 import { createPromptContent } from "./chatService.mjs";
 import { getSessionContext } from "../state/runtimeState.mjs";
+import { errorCause, errorResult } from "./errorResult.mjs";
 
 export const createSessionManager = ({ adapter, eventBus, state, config, auditLogger, permissionService }) => {
     let sessionService;
@@ -56,7 +57,9 @@ export const createSessionManager = ({ adapter, eventBus, state, config, auditLo
 
     const endSession = async (sessionId) => {
         const targetSessionId = String(sessionId ?? "").trim();
-        if (!targetSessionId) return { error: "sessionId is required", status: 400 };
+        if (!targetSessionId) {
+            return errorResult("session_id_required", "sessionId is required to end a session", 400);
+        }
         const context = state.sessionContexts.get(targetSessionId);
         permissionService?.rejectSessionRequests?.(targetSessionId, "invalidated", true);
         if (context?.pendingPrompt) {
@@ -70,10 +73,16 @@ export const createSessionManager = ({ adapter, eventBus, state, config, auditLo
         try {
             await adapter.request("session/delete", { sessionId: targetSessionId });
         } catch (error) {
-            console.warn(`[ACP] session/delete failed for ${targetSessionId}: ${error.message}`);
-            if (!error.message.includes("not found")) {
+            const cause = errorCause(error);
+            console.warn(`[ACP] session/delete failed for ${targetSessionId}: ${cause}`);
+            if (!cause.includes("not found")) {
                 auditLogger?.error?.(targetSessionId, error);
-                return { error: error.message, status: 500 };
+                return errorResult(
+                    "session_delete_failed",
+                    `Session '${targetSessionId}' could not be deleted from the selected Agent`,
+                    502,
+                    { cause },
+                );
             }
         }
         state.localTitles.delete(targetSessionId);

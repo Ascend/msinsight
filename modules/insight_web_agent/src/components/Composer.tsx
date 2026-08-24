@@ -613,7 +613,9 @@ const createConfigPicker = (
             className="config-picker"
             compact
             disabled={disabled}
-            onChange={(value) => { void onChange(value); }}
+            onChange={(value) => {
+                onChange(value);
+            }}
             options={options.map((option) => ({ value: option.value, label: option.name || option.value }))}
             placement="top"
             value={config.currentValue}

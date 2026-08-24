@@ -25,17 +25,24 @@ export const createAgentController = ({ agentService, state }) => ({
 
     async switch(_req, res, body) {
         console.log(`Switch agent requested: ${String(body?.name ?? "")}`);
-        if (isBusy(state)) return json(res, { error: "agent_busy", message: "Agent is busy" }, 409);
+        if (isBusy(state)) {
+            return json(res, {
+                error: "agent_busy",
+                message: "The Agent cannot be switched while a message or permission request is pending",
+            }, 409);
+        }
         const result = await agentService.switchAgent(body?.name);
         if (result.error) console.warn(`Switch agent failed: ${result.error}`);
         else console.log(`Switch agent completed: ${result.activeAgentName}`);
-        return json(res, result, result.status ?? 200);
+        return json(res, normalizeBody(result), result.status ?? 200);
     },
 
     async refresh(_req, res) {
         console.log("Refreshing agent servers");
         const result = await agentService.refreshAgents();
         if (result.error) console.warn(`Refresh agents failed: ${result.error}`);
-        return json(res, result, result.status ?? 200);
+        return json(res, normalizeBody(result), result.status ?? 200);
     },
 });
+
+const normalizeBody = ({ status, ...body }) => body;

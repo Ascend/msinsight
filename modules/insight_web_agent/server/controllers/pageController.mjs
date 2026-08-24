@@ -25,7 +25,10 @@ export const createPageController = ({ pageContextService }) => ({
     updateObservation(_req, res, body) {
         const observation = body?.observation;
         if (!observation || typeof observation !== "object" || Array.isArray(observation)) {
-            return json(res, { error: "observation must be an object" }, 400);
+            return json(res, {
+                error: "invalid_page_observation",
+                message: "Page observation must be a non-null JSON object",
+            }, 400);
         }
         return json(res, { ok: true, ...pageContextService.updateObservation(observation) });
     },

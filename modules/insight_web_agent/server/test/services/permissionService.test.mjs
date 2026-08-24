@@ -260,13 +260,19 @@ test("invalid and already resolved responses return explicit statuses", async ()
     const target = join(fixture.external, "target.txt");
     await writeText(target, "content");
 
-    assert.equal((await fixture.service.respond({ sessionId: "s1", requestId: "missing", decision: "allow_once" })).status, 404);
-    assert.equal((await fixture.service.respond({ sessionId: "s1", requestId: "", decision: "nope" })).status, 400);
+    const missing = await fixture.service.respond({ sessionId: "s1", requestId: "missing", decision: "allow_once" });
+    assert.equal(missing.status, 404);
+    assert.equal(missing.error, "permission_request_not_found");
+    const invalid = await fixture.service.respond({ sessionId: "s1", requestId: "", decision: "nope" });
+    assert.equal(invalid.status, 400);
+    assert.equal(invalid.error, "invalid_permission_response");
 
     const pending = fixture.service.ensureReadAllowed({ sessionId: "s1", path: target });
     const request = await allowRequest(fixture, "deny");
     await assert.rejects(pending, /denied/);
-    assert.equal((await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "deny" })).status, 409);
+    const resolved = await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "deny" });
+    assert.equal(resolved.status, 409);
+    assert.equal(resolved.error, "permission_request_resolved");
 });
 
 test("Bash allow always is isolated by session and namespaced remember key", async () => {

@@ -102,7 +102,10 @@ test("rejects agent switching while a prompt is busy", async (t) => {
     });
 
     assert.equal(response.status, 409);
-    assert.deepEqual(await response.json(), { error: "agent_busy", message: "Agent is busy" });
+    const body = await response.json();
+    assert.equal(body.error, "agent_busy");
+    assert.equal(body.code, "agent_busy");
+    assert.equal(body.message, "The Agent cannot be switched while a message or permission request is pending");
     assert.equal(fixture.agentSwitches(), 0);
 });
 

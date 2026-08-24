@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { json, readJson } from "./response.mjs";
+import { errorBody } from "./errors.mjs";
 
 export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController }) => {
     return async (req, res) => {
@@ -125,6 +126,10 @@ export const createRouter = ({ agentController, chatController, sessionControlle
             return frontendCommandController.cancel(req, res, await readJson(req));
         }
 
-        return json(res, { error: "Not found" }, 404);
+        return json(res, errorBody({
+            code: "route_not_found",
+            message: "API route not found",
+            details: { method: req.method, path: url.pathname },
+        }), 404);
     };
 };

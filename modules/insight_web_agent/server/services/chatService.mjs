@@ -18,6 +18,7 @@
 import { getSessionContext } from "../state/runtimeState.mjs";
 import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
+import { errorCause, errorResult } from "./errorResult.mjs";
 
 export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
@@ -66,29 +67,44 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         const selectedSkills = parsedPrompt.skills;
         if (!promptText && !images.length && !selectedSkills.length) {
             console.warn("Prompt rejected: message is empty");
-            return { error: "message cannot be empty", status: 400 };
+            return errorResult("empty_prompt", "Enter a message or attach an image before sending", 400);
         }
         if (!state.initialized) {
             console.warn(`Prompt rejected: ACP agent is not initialized, error=${state.agentError ?? ""}`);
-            return { error: state.agentError ?? "ACP agent is not initialized", status: 503 };
+            return errorResult(
+                "agent_not_ready",
+                "The selected Agent is not initialized and cannot accept messages",
+                503,
+                state.agentError ? { cause: state.agentError } : undefined,
+            );
         }
         try {
             let sessionId = String(options.sessionId ?? "").trim() || undefined;
             if (options.newSession) {
                 console.log("Prompt is creating a new session");
                 sessionId = await sessionService.createSessionContext({ messages: [], mode: options.mode });
-                if (options.mode) await sessionService.setMode(options.mode, sessionId);
+                if (options.mode) {
+                    const modeResult = await sessionService.setMode(options.mode, sessionId);
+                    if (modeResult?.error) {
+                        throw new Error(modeResult.message ?? modeResult.error);
+                    }
+                }
                 sessionService.broadcastState();
             }
 
             if (!sessionId) {
                 console.warn("Prompt rejected: sessionId is required");
-                return { error: "sessionId is required", status: 400 };
+                return errorResult("session_id_required", "sessionId is required to send a message", 400);
             }
             const sessionContext = getSessionContext(state, sessionId);
             if (sessionContext.pendingPrompt) {
                 console.warn(`Prompt rejected: another prompt is running, sessionId=${sessionId}`);
-                return { error: "another prompt is running", status: 409 };
+                return errorResult(
+                    "prompt_in_progress",
+                    "Another message is already being processed in this session",
+                    409,
+                    { sessionId },
+                );
             }
             const hiddenContext = await contextAssembler?.assemble?.(sessionContext, options.pageObservation);
 
@@ -117,11 +133,19 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         } catch (error) {
             const sessionId = String(options.sessionId ?? "").trim();
             const sessionContext = getSessionContext(state, sessionId);
-            if (sessionContext) sessionContext.pendingPrompt = false;
-            appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${error.message}`);
+            if (sessionContext) {
+                sessionContext.pendingPrompt = false;
+            }
+            const cause = errorCause(error);
+            appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${cause}`);
             eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false });
-            console.error(`Prompt setup failed: sessionId=${sessionId}, error=${error.message}`);
-            return { error: error.message, status: 500 };
+            console.error(`Prompt setup failed: sessionId=${sessionId}, error=${cause}`);
+            return errorResult(
+                "prompt_setup_failed",
+                "The message could not be prepared for the selected Agent",
+                500,
+                { sessionId, cause },
+            );
         }
     };
 
@@ -153,7 +177,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
     const cancel = async (sessionId) => {
         if (!sessionId) {
             console.warn("Cancel rejected: sessionId is required");
-            return { error: "sessionId is required", status: 400 };
+            return errorResult("session_id_required", "sessionId is required to cancel a message", 400);
         }
         frontendCommandService?.cancelSession?.(sessionId);
         permissionService?.rejectSessionRequests?.(sessionId, "invalidated");
