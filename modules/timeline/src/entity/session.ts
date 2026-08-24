@@ -106,6 +106,17 @@ export interface SelectedDataType extends Pick<ThreadTrace, 'duration' | 'startT
     timestamp?: number;
 }
 
+export interface ForegroundTarget extends SliceData {
+    metaType?: ThreadMetaData['metaType'];
+}
+
+export interface SearchData {
+    content: string;
+    isMatchCase: boolean;
+    isMatchExact: boolean;
+    rankId?: string;
+}
+
 export type TimelineScale = (x: number) => number;
 
 interface ScaleBag {
@@ -212,7 +223,9 @@ export class Session {
         },
     };
 
-    searchData?: { content: string; isMatchCase: boolean; isMatchExact: boolean; rankId?: string };
+    searchData?: SearchData;
+    // Exact slice selected by a programmatic Timeline jump and drawn above merged-stream overlaps.
+    foregroundTarget?: ForegroundTarget;
     doContextSearch?: boolean;
     showEvent?: boolean;
     linkLines: LinkLines = {};
@@ -588,6 +601,7 @@ export class Session {
 
     set selectedData(data: SelectedDataType | undefined) {
         this._selectedData = data;
+        this.foregroundTarget = undefined;
         // Callers that set selectedData must also set its source unit when known.
         // Clearing here prevents a newly selected slice from reusing stale lane context.
         this.selectedDataUnit = undefined;
