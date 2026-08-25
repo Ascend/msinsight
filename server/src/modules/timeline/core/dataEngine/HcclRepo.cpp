@@ -339,7 +339,7 @@ void HcclRepo::SetPlaneSliceArgs(const SliceQuery &sliceQuery, CompeteSliceDomai
     JsonUtil::AddConstMember(json, std::string(CommucationTaskInfoColumn::SIZE) + "(Byte)", size, allocator);
     JsonUtil::AddConstMember(json, CommucationTaskInfoColumn::DATA_TYPE, dataTypeName, allocator);
     JsonUtil::AddConstMember(json, CommucationTaskInfoColumn::LINK_TYPE, linkTypeName, allocator);
-    JsonUtil::AddConstMember(json, std::string(CommucationTaskInfoColumn::BANDWIDTH) + "(B/s)", bandwidth, allocator);
+    JsonUtil::AddConstMember(json, std::string(CommucationTaskInfoColumn::BANDWIDTH) + "(GB/s)", bandwidth, allocator);
     JsonUtil::AddConstMember(json, CommucationTaskInfoColumn::RDMA_TYPE, rdmaTypeName, allocator);
     competeSliceDomain.args = JsonUtil::JsonDump(json);
 }
@@ -363,13 +363,14 @@ std::optional<ParallelGroupInfo> HcclRepo::GetGroupInfoByGroupNameId(
 }
 
 std::string HcclRepo::QueryBandwidth(const SliceQuery &sliceQuery, const TaskPO &targetPO) {
+    constexpr double bytesPerGb = 1e9;
     std::vector<CommucationTaskInfoPO> commucationTaskInfoPOs =
         commucationTaskInfoTable->Select(CommucationTaskInfoColumn::BANDWIDTH)
             .Eq(CommucationTaskInfoColumn::GLOBAL_TASK_ID, targetPO.globalTaskId)
             .ExcuteQuery(sliceQuery.rankId);
     std::string bandwidth;
     if (!std::empty(commucationTaskInfoPOs)) {
-        bandwidth = std::to_string(commucationTaskInfoPOs[0].bandwidth);
+        bandwidth = StringUtil::DoubleToStringWithTwoDecimalPlaces(commucationTaskInfoPOs[0].bandwidth / bytesPerGb);
     }
     return bandwidth;
 }

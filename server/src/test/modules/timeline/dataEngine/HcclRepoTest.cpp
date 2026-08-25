@@ -42,7 +42,7 @@ class HcclRepoTest : public ::testing::Test {
     const std::string taskInfoSql =
         "CREATE TABLE COMMUNICATION_TASK_INFO (name INTEGER,globalTaskId INTEGER,taskType INTEGER,planeId "
         "INTEGER,groupName INTEGER,notifyId INTEGER,rdmaType INTEGER,srcRank INTEGER,dstRank INTEGER,transportType "
-        "INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,opId INTEGER);";
+        "INTEGER,size INTEGER,dataType INTEGER,linkType INTEGER,bandwidth NUMERIC,opId INTEGER);";
     const std::string linkTypeSql = "CREATE TABLE ENUM_HCCL_LINK_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
     const std::string rdmaSql = "CREATE TABLE ENUM_HCCL_RDMA_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
     const std::string transSql = "CREATE TABLE ENUM_HCCL_TRANSPORT_TYPE (id INTEGER PRIMARY KEY,name TEXT);";
@@ -74,8 +74,8 @@ class HcclRepoTest : public ::testing::Test {
         std::string taskInfoInsert =
             "INSERT INTO \"main\".\"COMMUNICATION_TASK_INFO\" (\"name\", \"globalTaskId\", \"taskType\", \"planeId\", "
             "\"groupName\", \"notifyId\", \"rdmaType\", \"srcRank\", \"dstRank\", \"transportType\", \"size\", "
-            "\"dataType\", \"linkType\", \"opId\") VALUES (377, 1669, 319, 0, 379, 9223372036854775807, 4, 1, 2, 2, "
-            "40, 3, 2, 1);";
+            "\"dataType\", \"linkType\", \"bandwidth\", \"opId\") VALUES (377, 1669, 319, 0, 379, "
+            "9223372036854775807, 4, 1, 2, 2, 40, 3, 2, 12345678900, 1);";
         DatabaseTestCaseMockUtil::InsertData(db, taskInfoInsert);
         std::string dataTypeInsert =
             "INSERT INTO \"main\".\"ENUM_HCCL_DATA_TYPE\" (\"id\", \"name\") VALUES (3, 'INT16');";
@@ -548,7 +548,7 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfo) {
         "{\"notifyId\":\"0\",\"streamId\":\"16\",\"taskId\":\"3730\",\"contextId\":\"4294967295\",\"taskType\":"
         "\"kkkk\",\"srcRank\":\"1\",\"dstRank\":\"2\",\"transportType\":\"LOCAL\",\"size(Byte)\":\"40\",\"dataType\":"
         "\"INT16\","
-        "\"linkType\":\"PCIE\",\"bandwidth(B/s)\":\"\",\"rdmaType\":\"RDMA_SEND_OP\"}";
+        "\"linkType\":\"PCIE\",\"bandwidth(GB/s)\":\"12.35\",\"rdmaType\":\"RDMA_SEND_OP\"}";
     EXPECT_EQ(slice.args, expectArgs);
 }
 
@@ -590,7 +590,7 @@ TEST_F(HcclRepoTest, TestPlaneQueryGroupSliceDetailInfoWithGroupInfo) {
         "{\"notifyId\":\"0\",\"streamId\":\"16\",\"taskId\":\"3730\",\"contextId\":\"4294967295\",\"taskType\":"
         "\"kkkk\",\"srcRank\":\"1\",\"dstRank\":\"2\",\"globalSrcRank\":\"5\",\"globalDstRank\":\"6\","
         "\"transportType\":\"LOCAL\",\"size(Byte)\":\"40\",\"dataType\":"
-        "\"INT16\",\"linkType\":\"PCIE\",\"bandwidth(B/s)\":\"\",\"rdmaType\":\"RDMA_SEND_OP\"}";
+        "\"INT16\",\"linkType\":\"PCIE\",\"bandwidth(GB/s)\":\"12.35\",\"rdmaType\":\"RDMA_SEND_OP\"}";
     EXPECT_EQ(slice.args, expectArgs);
     MetaDataCacheManager::Instance().Clear();
 }
