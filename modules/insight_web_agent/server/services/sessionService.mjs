@@ -21,17 +21,20 @@ import { supportsSessionDelete, supportsSessionList, supportsSessionLoad, suppor
 import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setConfigOptions } from "./configOptionService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 
-export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager }) => {
+export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration }) => {
     let mutationQueue = Promise.resolve();
 
     const getAgentCwd = () => join(config.cwd, state.activeAgentWorkspaceKey ?? state.activeAgentName);
     const manager = sessionManager ?? {
         async startSession() {
-            const session = await acpClient.request("session/new", {
+            const create = (mcpServers) => acpClient.request("session/new", {
                 cwd: getAgentCwd(),
                 additionalDirectories: [],
-                mcpServers: [],
+                mcpServers,
             });
+            const session = capabilitySessionIntegration?.withMcpServers
+                ? await capabilitySessionIntegration.withMcpServers(create)
+                : await create([]);
             const context = getOrCreateSessionContext(session.sessionId);
             context.agentId = acpClient.agentId ?? state.activeAgentName;
             context.runtime = acpClient.runtime ?? context.runtime;
@@ -272,23 +275,26 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
 
     const openExistingSession = (sessionId) => {
         if (supportsSessionLoad(state)) {
-            return acpClient.request("session/load", {
-                sessionId,
-                cwd: getAgentCwd(),
-                additionalDirectories: [],
-                mcpServers: [],
-            });
+            return restoreSessionWithCapabilities("session/load", sessionId);
         }
         if (supportsSessionResume(state)) return resumeSession(sessionId);
         throw new Error("load session is not supported by this agent");
     };
 
-    const resumeSession = (sessionId) => acpClient.request("session/resume", {
-        sessionId,
-        cwd: getAgentCwd(),
-        additionalDirectories: [],
-        mcpServers: [],
-    });
+    const resumeSession = (sessionId) => restoreSessionWithCapabilities("session/resume", sessionId);
+
+    const restoreSessionWithCapabilities = (method, sessionId) => {
+        // load/resume 必须重新声明期望的 MCP Server；OpenCode 的重复注入例外由 Integration 内部处理。
+        const restore = (mcpServers) => acpClient.request(method, {
+            sessionId,
+            cwd: getAgentCwd(),
+            additionalDirectories: [],
+            mcpServers,
+        });
+        return capabilitySessionIntegration?.withMcpServers
+            ? capabilitySessionIntegration.withMcpServers(restore)
+            : restore([]);
+    };
 
     const setSessionConfigOption = async (configId, value, targetSessionId) => {
         return enqueueMutation(async () => {

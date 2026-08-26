@@ -242,6 +242,34 @@ test('cancel closes approval without executing the target command', async () => 
     expect(screen.queryByText('Confirm page action')).not.toBeInTheDocument();
 });
 
+test('renders generic Tool permission details and only Agent-provided actions', () => {
+    render(<MessageList
+        messages={[{
+            id: 'permission:tool-1',
+            role: 'assistant',
+            content: [],
+            permission: {
+                sessionId: 'session-1',
+                requestId: 'tool-1',
+                kind: 'tool',
+                target: 'msinsight-capabilities_msinsight',
+                details: { input: { command: 'observe' } },
+                actions: ['allow_once', 'deny'],
+                state: 'pending',
+            },
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(screen.getByText('Allow tool use?')).toBeInTheDocument();
+    expect(screen.getByText('msinsight-capabilities_msinsight')).toBeInTheDocument();
+    expect(screen.getByText(/"command": "observe"/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Allow once' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Deny' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Allow for this session' })).not.toBeInTheDocument();
+});
+
 test('wraps long markdown text and inline code inside the message width', () => {
     render(<MessageList
         messages={[{

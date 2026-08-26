@@ -15,10 +15,15 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createApp } from "./app.mjs";
+import { createHttpMcpAdapter } from "./capability-adapters/http-mcp/adapter.mjs";
+import { registerConfiguredCapabilities } from "./capability-center/configuredCapabilities.mjs";
+import { createCapabilityCenter } from "./capability-center/service.mjs";
+import { createCapabilitySessionIntegration } from "./capability-center/sessionIntegration.mjs";
 import { config, reloadConfig, saveActiveAgent } from "./config/index.mjs";
 import { createAcpAdapter } from "./infrastructure/acpAdapter.mjs";
 import { createAuditLogger } from "./observability/auditLogger.mjs";
@@ -77,6 +82,7 @@ const withHostEnv = (agentServer) => ({
         ...(agentServer.name === "msinsight-native"
             ? {
                 ACP_CAPABILITY_TOKEN: config.capabilityToken,
+                MSINSIGHT_NATIVE_CAPABILITY_TOKEN: nativeCapabilityAccessToken,
                 MSINSIGHT_NATIVE_STORE_DIR: join(config.rootDir, ".msinsight_native_agent"),
             }
             : {}),
@@ -129,6 +135,12 @@ const createActiveAcpAdapter = (agentServer, { autoConnect = true } = {}) => {
             activeAcpMessageBuffer.push(message);
             return;
         }
+        if (message.kind === "transport_error") {
+            capabilitySessionIntegration?.reset?.();
+            void httpMcpAdapter?.close?.().catch((error) => {
+                console.warn(`Failed to close MCP sessions after ACP transport error: ${error.message}`);
+            });
+        }
         chatService?.handleAcpNotification(message);
     });
     installHostHandlers(adapter, agentServer);
@@ -145,6 +157,25 @@ const autoDiscoveryEnabled = process.env.ACP_AUTO_DISCOVERY !== "0";
 state.agentDiscoveryLoading = autoDiscoveryEnabled;
 const eventBus = createEventBus(state);
 const frontendCommandService = createFrontendCommandService({ eventBus });
+// 两个 Token 都固定于当前 Host 进程且不写盘，分别隔离 MCP 与 Native 内部执行边界。
+const capabilityAccessToken = randomUUID();
+const nativeCapabilityAccessToken = randomUUID();
+// 先创建协议无关核心，再分别挂接 HTTP MCP 与 Native 两条 Adapter。
+const capabilityCenter = createCapabilityCenter({ frontendCommandService });
+registerConfiguredCapabilities({
+    capabilityCenter,
+    definitions: config.configuredCapabilities,
+    cwd: config.rootDir,
+});
+state.availableCapabilities = capabilityCenter.list();
+const httpMcpAdapter = createHttpMcpAdapter({ capabilityCenter, accessToken: capabilityAccessToken });
+const capabilitySessionIntegration = createCapabilitySessionIntegration({
+    baseUrl: insightWebAgentBaseUrl(),
+    accessToken: capabilityAccessToken,
+    state,
+    connectionVersion: httpMcpAdapter.connectionVersion,
+    hasConnections: httpMcpAdapter.hasConnections,
+});
 const pageContextService = createPageContextService({ eventBus });
 const skillService = createSkillService({ rootDir: config.resourceDir, skillsDir: bundledResourceDirectory("skills") });
 let chatService;
@@ -171,13 +202,22 @@ const acpAdapter = {
 };
 const auditLogger = createAuditLogger({ cwd: config.cwd, debug: config.debug });
 const contextAssembler = createContextAssembler({ state });
-const sessionManager = createSessionManager({ adapter: acpAdapter, eventBus, state, config, auditLogger, permissionService });
+const sessionManager = createSessionManager({
+    adapter: acpAdapter,
+    eventBus,
+    state,
+    config,
+    auditLogger,
+    permissionService,
+    capabilitySessionIntegration,
+});
 const sessionService = createSessionService({
     acpClient: acpAdapter,
     config,
     eventBus,
     state,
     sessionManager,
+    capabilitySessionIntegration,
 });
 chatService = createChatService({
     acpAdapter,
@@ -244,6 +284,9 @@ const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, relo
         } catch (disconnectError) {
             console.warn(`Failed to disconnect previous ACP adapter: ${disconnectError.message}`);
         }
+        // 新 Agent 接管后再释放旧 MCP 协议状态；切换失败时 catch 分支仍保留旧连接。
+        await httpMcpAdapter.close();
+        capabilitySessionIntegration.reset();
         if (broadcast) eventBus.broadcast({ type: "state", state: publicState(state) });
         return { ok: true };
     } catch (error) {
@@ -428,7 +471,10 @@ const server = createApp({
     agentConfigService,
     pageContextService,
     frontendCommandService,
+    capabilityCenter,
+    httpMcpAdapter,
     capabilityToken: config.capabilityToken,
+    nativeCapabilityToken: nativeCapabilityAccessToken,
     allowedOrigins: config.allowedOrigins,
 });
 
@@ -437,6 +483,7 @@ const shutdown = (exitCode = 0) => {
     if (shutdownPromise) return shutdownPromise;
     shutdownPromise = (async () => {
         frontendCommandService.dispose();
+        await httpMcpAdapter.close();
         eventBus.close();
         await new Promise((done) => {
             if (!server.listening) return done();

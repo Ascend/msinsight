@@ -15,10 +15,11 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { CAPABILITY_MCP_PATH } from "../capability-center/definitions.mjs";
 import { json, readJson } from "./response.mjs";
 import { errorBody } from "./errors.mjs";
 
-export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController }) => {
+export const createRouter = ({ agentController, chatController, sessionController, eventController, contextController, permissionController, agentConfigController, pageController, frontendCommandController, capabilityController, httpMcpAdapter }) => {
     return async (req, res) => {
         const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
 
@@ -124,6 +125,14 @@ export const createRouter = ({ agentController, chatController, sessionControlle
 
         if (req.method === "POST" && url.pathname === "/api/frontend-commands/cancel") {
             return frontendCommandController.cancel(req, res, await readJson(req));
+        }
+
+        if (capabilityController && req.method === "POST" && url.pathname === "/api/capabilities/invoke") {
+            return capabilityController.invoke(req, res, await readJson(req));
+        }
+
+        if (httpMcpAdapter && url.pathname === CAPABILITY_MCP_PATH && ["GET", "POST", "DELETE"].includes(req.method)) {
+            return httpMcpAdapter.handle(req, res);
         }
 
         return json(res, errorBody({

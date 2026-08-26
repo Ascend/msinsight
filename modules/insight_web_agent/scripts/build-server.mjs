@@ -27,6 +27,7 @@ const outputNativeAgentEntry = join(outputDir, "native-agent", "index.mjs");
 const outputAgentConfig = join(outputDir, "agent-servers.json");
 const outputSessionConfig = join(outputDir, "acp-session-conf.json");
 const outputNativeConfig = join(outputDir, "msinsight-native.json");
+const outputCapabilityCenterConfig = join(outputDir, "capability-center.json");
 
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
@@ -65,6 +66,7 @@ await cp(
     outputSessionConfig,
 );
 await cp(join(rootDir, "msinsight-native.json"), outputNativeConfig);
+await cp(join(rootDir, "capability-center.json"), outputCapabilityCenterConfig);
 await cp(join(rootDir, "prompts"), join(outputDir, "prompts"), { recursive: true });
 await cp(join(rootDir, "agents"), join(outputDir, "agents"), { recursive: true });
 await cp(join(rootDir, "..", "..", "docs"), join(outputDir, "docs"), { recursive: true });
@@ -74,6 +76,7 @@ console.log(`Server bundle written to ${outputEntry}`);
 console.log(`Native agent bundle written to ${outputNativeAgentEntry}`);
 console.log(`Agent config copied to ${outputAgentConfig}`);
 console.log(`Session config copied to ${outputSessionConfig}`);
+console.log(`Capability center config copied to ${outputCapabilityCenterConfig}`);
 console.log(`Prompts copied to ${join(outputDir, "prompts")}`);
 console.log(`Agents copied to ${join(outputDir, "agents")}`);
 console.log(`Docs copied to ${join(outputDir, "docs")}`);

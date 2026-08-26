@@ -38,7 +38,7 @@ const { createSkillRegistry } = await import("./skills/skillRegistry.mjs");
 const { createNativeSessionService } = await import("./session/sessionService.mjs");
 const { createToolRegistry } = await import("./tools/ToolRegistry.mjs");
 const { createBashTools } = await import("./tools/bashTools.mjs");
-const { createMsinsightTools } = await import("./tools/msinsightTools.mjs");
+const { createCapabilityTools, loadNativeCapabilityDefinitions } = await import("./tools/capabilityTools.mjs");
 const { createSkillTools } = await import("./tools/skillTools.mjs");
 
 
@@ -100,8 +100,11 @@ for (const diagnostic of [...agentRegistry.diagnostics(), ...skillRegistry.diagn
     console.warn(JSON.stringify({ component: "native-agent", ...diagnostic }));
 }
 const hostClient = createAcpHostClient({ writeJson: notifier.writeJson });
+const capabilityDefinitions = loadNativeCapabilityDefinitions({
+    resourceDir: process.env.INSIGHT_WEB_AGENT_RESOURCE_DIR ?? defaultResourceDir,
+});
 const toolRegistry = createToolRegistry({ tools: [
-    ...createMsinsightTools(),
+    ...createCapabilityTools({ definitions: capabilityDefinitions, sessions, hostClient }),
     ...createBashTools({ sessions, hostClient }),
     ...createSkillTools({ skillRegistry }),
 ] });

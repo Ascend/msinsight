@@ -9,12 +9,14 @@
 import { timingSafeEqual } from "node:crypto";
 
 export const hasValidCapability = (req, expectedToken) => {
-    if (!expectedToken) return false;
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-    const suppliedToken = url.searchParams.get("capabilityToken") ?? "";
-    const expected = Buffer.from(expectedToken);
-    const supplied = Buffer.from(suppliedToken);
-    return expected.length === supplied.length && timingSafeEqual(expected, supplied);
+    return tokensEqual(expectedToken, url.searchParams.get("capabilityToken"));
+};
+
+export const tokensEqual = (expectedToken, suppliedToken) => {
+    const expected = Buffer.from(String(expectedToken ?? ""));
+    const supplied = Buffer.from(String(suppliedToken ?? ""));
+    return expected.length > 0 && expected.length === supplied.length && timingSafeEqual(expected, supplied);
 };
 
 export const normalizeRequestOrigin = (req) => String(req.headers.origin ?? "").replace(/\/$/, "");

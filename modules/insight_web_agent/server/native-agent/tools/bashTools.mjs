@@ -29,7 +29,7 @@ export const createBashTools = ({
             type: "object",
             properties: {
                 command: { type: "string", minLength: 1 },
-                cwd: { type: "string", description: "Absolute working directory inside an allowed root." },
+                cwd: { type: "string", description: "Working directory. Relative paths resolve from the Native Agent workspace; omit to use that workspace." },
                 timeout: { type: "number", minimum: 1000, maximum: 300000 },
             },
             required: ["command"],

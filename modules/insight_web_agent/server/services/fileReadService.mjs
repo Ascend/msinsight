@@ -44,45 +44,39 @@ export const createFileReadService = ({ permissionService, cwd }) => {
 
 export const createPermissionHostHandler = ({ permissionService, cwd }) => async (params = {}) => {
     const requestOptions = Array.isArray(params.options) && params.options.length ? params.options : defaultProtocolOptions();
-    const kind = params.kind === "bash" ? "bash" : "filesystem";
-    const path = permissionPath(params, kind);
-    if (!path) return { error: { code: -32602, message: "permission_target_required" } };
+    const target = permissionTarget(params);
+    const kind = permissionKind(params, target.path);
+    if (kind !== "tool" && !target.value) return { error: { code: -32602, message: "permission_target_required" } };
     if (kind === "bash" && permissionService.isRemembered(params.sessionId, params.rememberKey)) {
-        return { result: { outcome: { outcome: "selected", optionId: selectOption(requestOptions, "allowed_once") } } };
+        return selectedOutcome(requestOptions, "allowed_once");
     }
 
-    let normalizedPath = path;
+    let normalizedPath = target.value;
     if (kind === "filesystem") {
         const policy = await permissionService.evaluate({
             sessionId: params.sessionId,
-            path,
+            path: target.value,
             cwd: typeof cwd === "function" ? cwd() : cwd,
         });
-        if (policy.action === "allow") {
-            return { result: { outcome: { outcome: "selected", optionId: selectOption(requestOptions, "allowed_once") } } };
-        }
+        if (policy.action === "allow") return selectedOutcome(requestOptions, "allowed_once");
         normalizedPath = policy.normalizedPath;
     }
 
     const result = await permissionService.requestApproval({
         sessionId: params.sessionId,
-        path,
+        path: target.value,
         normalizedPath,
         kind,
         title: params.title,
-        target: params.target,
-        details: params.details,
+        target: kind === "tool" ? target.toolName : params.target ?? target.value,
+        details: permissionDetails(params, kind, target.toolName),
         rememberKey: params.rememberKey,
         source: "session/request_permission",
         options: requestOptions,
     });
-    if (result.allowed) {
-        return { result: { outcome: { outcome: "selected", optionId: selectOption(requestOptions, result.state) } } };
-    }
-    if (result.state === "denied") {
-        return { result: { outcome: { outcome: "selected", optionId: selectOption(requestOptions, "denied") } } };
-    }
-    return { result: { outcome: { outcome: "cancelled" } } };
+    if (result.allowed) return selectedOutcome(requestOptions, result.state);
+    if (result.state === "denied") return selectedOutcome(requestOptions, "denied");
+    return cancelledOutcome();
 };
 
 const defaultProtocolOptions = () => [
@@ -91,18 +85,61 @@ const defaultProtocolOptions = () => [
     { optionId: "deny", kind: "reject_once", name: "Deny" },
 ];
 
-const permissionPath = (params, kind) => {
-    const locations = params.toolCall?.locations;
-    const firstLocationPath = Array.isArray(locations) ? locations.find((location) => location?.path)?.path : undefined;
-    if (kind === "bash") return params.target ?? params.toolCall?.rawInput?.command;
-    return params.path ?? firstLocationPath ?? params.toolCall?.rawInput?.path ?? params.target;
+// 只有明确的文件类 Tool 才进入路径策略；普通 MCP Tool 即使参数名叫 path 也必须走通用 Tool 授权。
+const permissionKind = (params, path) => {
+    const toolKind = String(params.toolCall?.kind ?? "").toLowerCase();
+    if (params.kind === "bash" || toolKind === "execute") return "bash";
+    if (params.kind === "filesystem" || (path && ["read", "edit", "search"].includes(toolKind))) return "filesystem";
+    return "tool";
 };
 
+const permissionTarget = (params) => {
+    const locations = params.toolCall?.locations;
+    const path = params.path
+        ?? (Array.isArray(locations) ? locations.find((location) => location?.path)?.path : undefined)
+        ?? params.toolCall?.rawInput?.path;
+    const toolName = String(params.toolCall?.title ?? params.title ?? "").trim() || "Tool";
+    const isBash = params.kind === "bash" || String(params.toolCall?.kind ?? "").toLowerCase() === "execute";
+    const value = isBash ? params.target ?? params.toolCall?.rawInput?.command : path ?? params.target;
+    return { path, toolName, value };
+};
+
+const permissionDetails = (params, kind, toolName) => {
+    const details = params.details && typeof params.details === "object" ? { ...params.details } : {};
+    if (kind === "bash" && !details.cwd && params.toolCall?.rawInput?.cwd) details.cwd = params.toolCall.rawInput.cwd;
+    if (kind !== "tool") return Object.keys(details).length ? details : undefined;
+    const input = permissionInputPreview(params.toolCall?.rawInput);
+    return {
+        ...details,
+        toolName,
+        ...(input === undefined ? {} : { input }),
+    };
+};
+
+const permissionInputPreview = (input) => {
+    if (!input || typeof input !== "object" || !Object.keys(input).length) return undefined;
+    try {
+        const text = JSON.stringify(input);
+        return text.length <= 4000 ? input : `${text.slice(0, 3999)}…`;
+    } catch (_error) {
+        return "[Unserializable tool input]";
+    }
+};
+
+const selectedOutcome = (options, state) => {
+    const optionId = selectOption(options, state);
+    return optionId ? { result: { outcome: { outcome: "selected", optionId } } } : cancelledOutcome();
+};
+const cancelledOutcome = () => ({ result: { outcome: { outcome: "cancelled" } } });
+
 const selectOption = (options, state) => {
-    const desiredKind = state === "allowed_once" ? "allow_once" : state === "allowed_always" ? "allow_always" : "reject_once";
-    return options.find((option) => option.kind === desiredKind)?.optionId
-        ?? options.find((option) => option.optionId === desiredKind)?.optionId
-        ?? options[0]?.optionId;
+    const desiredKinds = state === "allowed_once"
+        ? ["allow_once"]
+        : state === "allowed_always"
+            ? ["allow_always"]
+            : ["reject_once", "reject_always"];
+    return options.find((option) => desiredKinds.includes(option.kind))?.optionId
+        ?? options.find((option) => desiredKinds.includes(option.optionId))?.optionId;
 };
 
 const sliceLines = (content, line, limit) => {

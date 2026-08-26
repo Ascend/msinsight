@@ -47,6 +47,7 @@ jest.mock('@insight/lib/components', () => ({
             {options.map((option: any) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
     ),
+    Tooltip: ({ children }: any) => <>{children}</>,
 }), { virtual: true });
 
 jest.mock('@insight/lib/icon/Icon', () => ({

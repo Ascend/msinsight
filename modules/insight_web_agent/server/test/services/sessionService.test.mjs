@@ -56,6 +56,31 @@ test("setMode sends the session mode config option to ACP", async () => {
     assert.equal(state.sessionContexts.get("session-1").configOptions[0].currentValue, "bypass");
 });
 
+test("loadSessionById injects the global capability MCP server", async () => {
+    const calls = [];
+    const state = createRuntimeState();
+    state.activeAgentWorkspaceKey = "OpenCode";
+    state.agentCapabilities = { loadSession: true, session: {}, mcp: { http: true } };
+    const mcpServers = [{ type: "http", name: "msinsight-capabilities", url: "http://127.0.0.1/mcp/capabilities" }];
+    const service = createSessionService({
+        acpClient: {
+            async request(method, params) {
+                calls.push({ method, params });
+                return { configOptions: [] };
+            },
+        },
+        capabilitySessionIntegration: { withMcpServers: (operation) => operation(mcpServers) },
+        config: { cwd: "/tmp", activeAgentWorkspaceKey: "OpenCode" },
+        eventBus: { broadcast: () => {} },
+        state,
+    });
+
+    await service.loadSessionById("session-1");
+
+    assert.equal(calls[0].method, "session/load");
+    assert.deepEqual(calls[0].params.mcpServers, mcpServers);
+});
+
 test("deleteSessionById rejects deletion while a prompt is pending", async () => {
     const state = createRuntimeState();
     state.agentCapabilities = { session: { delete: true } };

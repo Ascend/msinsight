@@ -18,11 +18,13 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { initLogger } from "../utils/logger.mjs";
 import { withAgentIdentity } from "../services/agentIdentityService.mjs";
+import { initLogger } from "../utils/logger.mjs";
+import { loadCapabilityCenterConfig } from "./capabilityCenterConfig.mjs";
 
 const NATIVE_CONFIG_FILE = "msinsight-native.json";
 const AGENT_SERVERS_CONFIG_FILE = "agent-servers.json";
+const CAPABILITY_CENTER_CONFIG_FILE = "capability-center.json";
 const DEFAULT_AGENT_SERVERS_CONFIG = { agentServers: [] };
 const DEFAULT_NATIVE_CONFIG = { schemaVersion: 1, provider: "openai", model: "cx/gpt-5.5", baseUrl: "http://127.0.0.1:19099/v1", apiKey: "" };
 
@@ -143,6 +145,7 @@ const mergeSessionConfig = (sessionConfig, env) => ({
 const sessionConfigPathForRoot = (rootDir) => join(rootDir, "acp-session-conf.json");
 const agentServersConfigPathForRoot = (rootDir) => join(rootDir, AGENT_SERVERS_CONFIG_FILE);
 const nativeConfigPathForRoot = (rootDir) => join(rootDir, NATIVE_CONFIG_FILE);
+const capabilityCenterConfigPathForResource = (resourceDir) => join(resourceDir, CAPABILITY_CENTER_CONFIG_FILE);
 
 const ensureJsonConfig = ({ target, bundled, fallback, label }) => {
     if (existsSync(target)) return target;
@@ -164,7 +167,7 @@ const ensureRuntimeConfigFiles = (rootDir, resourceDir) => {
         fallback: DEFAULT_AGENT_SERVERS_CONFIG,
         label: "ACP agent server config",
     });
-    return ensureJsonConfig({
+    ensureJsonConfig({
         target: nativeConfigPathForRoot(rootDir),
         bundled: nativeConfigPathForRoot(resourceDir),
         fallback: DEFAULT_NATIVE_CONFIG,
@@ -249,9 +252,18 @@ const cliOptions = parseCliOptions(process.argv.slice(2));
 const rootDir = normalizeRootDir(cliOptions.path ?? process.env.ACP_ROOT ?? defaultRootDir);
 const resourceDir = normalizeRootDir(cliOptions.resourcePath ?? process.env.ACP_RESOURCE_ROOT ?? defaultRootDir);
 
-const createRuntimeConfig = (rootDir, resourceDir, env) => {
-    const nativeConfigPath = ensureRuntimeConfigFiles(rootDir, resourceDir);
+const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => {
+    ensureRuntimeConfigFiles(rootDir, resourceDir);
+    const nativeConfigPath = nativeConfigPathForRoot(rootDir);
+    const capabilityCenterConfigPath = capabilityCenterConfigPathForResource(resourceDir);
     const nativeConfig = loadJsonConfig(nativeConfigPath, "native agent config");
+    const configuredCapabilities = startupCapabilities ?? (existsSync(capabilityCenterConfigPath)
+        ? loadCapabilityCenterConfig({
+            configPath: capabilityCenterConfigPath,
+            resourceDir,
+            env,
+        })
+        : []);
     const {
         agentServersConfigPath,
         agentServersConfig,
@@ -304,6 +316,8 @@ const createRuntimeConfig = (rootDir, resourceDir, env) => {
         builtinAgentServer,
         builtinAgentConfig: nativeConfig,
         nativeConfigPath,
+        capabilityCenterConfigPath,
+        configuredCapabilities,
         activeAgentName: agentServer.name,
         agentServer,
         host,
@@ -327,7 +341,7 @@ export const config = createRuntimeConfig(rootDir, resourceDir, process.env);
 initLogger({ rootDir: config.rootDir, port: config.port });
 
 export const reloadConfig = (env = process.env) => {
-    const nextConfig = createRuntimeConfig(rootDir, resourceDir, env);
+    const nextConfig = createRuntimeConfig(rootDir, resourceDir, env, config.configuredCapabilities);
     Object.keys(config).forEach((key) => delete config[key]);
     Object.assign(config, nextConfig);
     return config;

@@ -275,6 +275,120 @@ test("invalid and already resolved responses return explicit statuses", async ()
     assert.equal(resolved.error, "permission_request_resolved");
 });
 
+test("generic MCP Tool permission succeeds without a filesystem path", async () => {
+    const fixture = await createService();
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const pending = handler({
+        sessionId: "s1",
+        toolCall: {
+            toolCallId: "call-1",
+            title: "msinsight-capabilities_msinsight",
+            kind: "other",
+            rawInput: {},
+        },
+        options: [
+            { optionId: "once", kind: "allow_once" },
+            { optionId: "always", kind: "allow_always" },
+            { optionId: "reject", kind: "reject_once" },
+        ],
+    });
+    const request = await waitForPermissionRequest(fixture.events);
+
+    assert.equal(request.kind, "tool");
+    assert.equal(request.title, undefined);
+    assert.equal(request.target, "msinsight-capabilities_msinsight");
+    assert.equal(request.details.toolName, "msinsight-capabilities_msinsight");
+    assert.deepEqual(request.actions, ["allow_once", "allow_always", "deny"]);
+
+    await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "allow_always" });
+    assert.equal((await pending).result.outcome.optionId, "always");
+    assert.equal(fixture.state.permissionRuntimeAllowlist.get("s1")?.size ?? 0, 0);
+});
+
+test("generic Tool input paths do not enter filesystem permission policy", async () => {
+    const fixture = await createService();
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const pending = handler({
+        sessionId: "s1",
+        toolCall: { toolCallId: "call-1", title: "remote_tool", kind: "other", rawInput: { path: "virtual://resource" } },
+        options: [
+            { optionId: "once", kind: "allow_once" },
+            { optionId: "reject", kind: "reject_once" },
+        ],
+    });
+    const request = await waitForPermissionRequest(fixture.events);
+
+    assert.equal(request.kind, "tool");
+    assert.equal(request.target, "remote_tool");
+    assert.deepEqual(request.details.input, { path: "virtual://resource" });
+
+    await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "deny" });
+    assert.equal((await pending).result.outcome.optionId, "reject");
+});
+
+test("generic Tool permission only exposes options provided by the Agent", async () => {
+    const fixture = await createService();
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const pending = handler({
+        sessionId: "s1",
+        toolCall: { toolCallId: "call-1", title: "remote_tool", kind: "other", rawInput: { value: 1 } },
+        options: [
+            { optionId: "once", kind: "allow_once" },
+            { optionId: "reject-forever", kind: "reject_always" },
+        ],
+    });
+    const request = await waitForPermissionRequest(fixture.events);
+
+    assert.deepEqual(request.actions, ["allow_once", "deny"]);
+    assert.deepEqual(request.details.input, { value: 1 });
+
+    await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "deny" });
+    assert.equal((await pending).result.outcome.optionId, "reject-forever");
+});
+
+test("permission outcome cancels instead of selecting an unrelated option", async () => {
+    const fixture = await createService();
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const pending = handler({
+        sessionId: "s1",
+        toolCall: { toolCallId: "call-1", title: "remote_tool", kind: "other", rawInput: {} },
+        options: [{ optionId: "once", kind: "allow_once" }],
+    });
+    const request = await waitForPermissionRequest(fixture.events);
+
+    assert.deepEqual(request.actions, ["allow_once"]);
+    assert.equal((await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "deny" })).status, 400);
+    fixture.service.rejectSessionRequests("s1", "invalidated");
+
+    assert.deepEqual((await pending).result.outcome, { outcome: "cancelled" });
+});
+
+test("ACP execute Tool calls are rendered as Bash permissions", async () => {
+    const fixture = await createService();
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const pending = handler({
+        sessionId: "s1",
+        toolCall: {
+            toolCallId: "call-1",
+            title: "python -V",
+            kind: "execute",
+            locations: [{ path: fixture.agentRoot }],
+            rawInput: { command: "python -V", cwd: fixture.agentRoot },
+        },
+        options: [
+            { optionId: "once", kind: "allow_once" },
+            { optionId: "reject", kind: "reject_once" },
+        ],
+    });
+    const request = await waitForPermissionRequest(fixture.events);
+
+    assert.equal(request.kind, "bash");
+    assert.equal(request.target, "python -V");
+
+    await fixture.service.respond({ sessionId: "s1", requestId: request.requestId, decision: "deny" });
+    assert.equal((await pending).result.outcome.optionId, "reject");
+});
+
 test("Bash allow always is isolated by session and namespaced remember key", async () => {
     const fixture = await createService();
     const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });

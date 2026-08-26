@@ -149,18 +149,19 @@ Observation payload 必须只包含摘要和能力信息。不要暴露原始 pr
 
 ## 工具
 
-页面执行能力只通过 `tools/msinsightTools.mjs` 注册的 `msinsight` Tool 暴露：
+Host 能力通过 `tools/capabilityTools.mjs` 代理到 Native Tool Registry，包括 `msinsight` 和当前可用的配置型能力：
 
 ```text
 msinsight({ command, args })
+pt_snap({ args, timeoutMs? })
 ```
 
-模型先调用 `help {}` 获取轻量目录，再调用 `help { command }` 获取单个 Command 的完整 schema；页面状态通过 `observe {}` 获取。回复中的可确认页面操作由 Host System Prompt 定义的 `<insight-action>` 文本协议承载，不属于 Native Tool。
+模型先调用 `msinsight.help {}` 获取页面 Command 目录，再调用 `help { command }` 获取单个 Command 的完整 schema；页面状态通过 `observe {}` 获取。配置型能力执行前必须经 ACP 用户授权，支持仅允许一次、本会话允许和拒绝。
 
 native-agent 在 AI SDK Tool Loop 中提供：
 
 ```text
-msinsight
+Host Capability Tools
 Bash
 skill
 ```

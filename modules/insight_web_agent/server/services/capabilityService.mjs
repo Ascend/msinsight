@@ -28,6 +28,7 @@ export const normalizeAgentCapabilities = (capabilities = {}) => ({
     loadSession: Boolean(pick(capabilities, "loadSession", "load_session")),
     prompt: pick(capabilities, "promptCapabilities", "prompt_capabilities") ?? {},
     session: pick(capabilities, "sessionCapabilities", "session_capabilities") ?? {},
+    mcp: pick(capabilities, "mcpCapabilities", "mcp_capabilities") ?? {},
     auth: pick(capabilities, "auth") ?? {},
 });
 

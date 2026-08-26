@@ -20,7 +20,7 @@ import { createPromptContent } from "./chatService.mjs";
 import { getSessionContext } from "../state/runtimeState.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 
-export const createSessionManager = ({ adapter, eventBus, state, config, auditLogger, permissionService }) => {
+export const createSessionManager = ({ adapter, eventBus, state, config, auditLogger, permissionService, capabilitySessionIntegration }) => {
     let sessionService;
 
     const getAgentCwd = () => join(config.cwd, state.activeAgentWorkspaceKey ?? state.activeAgentName ?? config.agentServer?.name ?? adapter.agentId ?? "");
@@ -33,11 +33,15 @@ export const createSessionManager = ({ adapter, eventBus, state, config, auditLo
     });
 
     const startSession = async ({ agentId, mode, view, profileId, grants } = {}) => {
-        const session = await adapter.request("session/new", {
+        // Session Integration 只包装 ACP 参数，真正的 Session 创建仍由原 Agent 完成。
+        const create = (mcpServers) => adapter.request("session/new", {
             cwd: getAgentCwd(),
             additionalDirectories: [],
-            mcpServers: [],
+            mcpServers,
         });
+        const session = capabilitySessionIntegration?.withMcpServers
+            ? await capabilitySessionIntegration.withMcpServers(create)
+            : await create([]);
         const context = getSessionContext(state, session.sessionId);
         context.agentId = agentId ?? adapter.agentId ?? state.activeAgentName;
         context.runtime = adapter.runtime ?? "stdio";
