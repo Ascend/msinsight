@@ -42,6 +42,24 @@ const createMockAdapter = () => {
     };
 };
 
+test("startSession injects the global capability MCP server", async () => {
+    const state = createRuntimeState();
+    const adapter = createMockAdapter();
+    const mcpServers = [{ type: "http", name: "msinsight-capabilities", url: "http://127.0.0.1/mcp/capabilities" }];
+    const capabilitySessionIntegration = { withMcpServers: (operation) => operation(mcpServers) };
+    const manager = createSessionManager({
+        adapter,
+        eventBus: createMockEventBus(),
+        state,
+        config: createConfig(),
+        capabilitySessionIntegration,
+    });
+
+    await manager.startSession({});
+
+    assert.deepEqual(adapter.requests[0].params.mcpServers, mcpServers);
+});
+
 test("startSession returns a cloned SessionContext with contract fields", async () => {
     const state = createRuntimeState();
     const adapter = createMockAdapter();

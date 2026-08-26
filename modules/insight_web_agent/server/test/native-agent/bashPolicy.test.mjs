@@ -116,7 +116,7 @@ test("wildcards can match inside command patterns", () => {
     }).behavior, "allow");
 });
 
-test("Bash input requires an allowed absolute cwd and bounded timeout", async (t) => {
+test("Bash input resolves relative cwd and requires a bounded timeout", async (t) => {
     const root = await mkdtemp(join(tmpdir(), "msinsight-bash-policy-"));
     t.after(() => rm(root, { recursive: true, force: true }));
     const workspace = join(root, "workspace");
@@ -130,8 +130,9 @@ test("Bash input requires an allowed absolute cwd and bounded timeout", async (t
         cwd: workspace,
         run_in_background: false,
     });
-    await assert.rejects(normalizeBashInput({ command: "python -V", cwd: "relative" }, session, workspace), /must be an absolute path/);
-    await assert.rejects(normalizeBashInput({ command: "python -V", cwd: outside }, session, workspace), /outside allowed roots/);
+    assert.equal((await normalizeBashInput({ command: "python -V", cwd: "." }, session, workspace)).cwd, workspace);
+    assert.equal((await normalizeBashInput({ command: "python -V", cwd: "../outside" }, session, workspace)).cwd, outside);
+    assert.equal((await normalizeBashInput({ command: "python -V", cwd: outside }, session, workspace)).cwd, outside);
     await assert.rejects(normalizeBashInput({ command: "python -V", timeout: 999 }, session, workspace), /between 1000 and 300000/);
     await assert.rejects(normalizeBashInput({ command: "python -V", timeout: 300001 }, session, workspace), /between 1000 and 300000/);
 });

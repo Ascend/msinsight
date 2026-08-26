@@ -82,7 +82,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
             sessionId: targetSessionId,
             requestId,
             kind,
-            title: title ?? (kind === "bash" ? "Run Bash command" : "Read file"),
+            title,
             target: permissionTarget,
             path: permissionTarget,
             originalPath: path,
@@ -116,7 +116,7 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
             target: request.target,
             path: request.path,
             details: request.details,
-            actions: ["allow_once", "allow_always", "deny"],
+            actions: permissionActions(request.options),
         });
     };
 
@@ -162,6 +162,13 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
                 { state: request.state },
             );
         }
+        if (!permissionActions(request.options).includes(targetDecision)) {
+            return errorResult(
+                "permission decision is unavailable",
+                "permission decision is unavailable",
+                400
+            );
+        }
 
         const finalState = targetDecision === "allow_once"
             ? "allowed_once"
@@ -199,7 +206,12 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
         if (nextQueue.length) requestQueues.set(request.sessionId, nextQueue);
         else requestQueues.delete(request.sessionId);
         if (stateName === "allowed_always") {
-            const entry = request.kind === "bash" ? request.rememberKey : parentAllowlistEntry(request.path);
+            // 通用 Tool 的长期规则由 Agent 自己保存；Host 只持久化自己能安全解释的文件目录和 Bash 规则。
+            const entry = request.kind === "bash"
+                ? request.rememberKey
+                : request.kind === "filesystem"
+                    ? parentAllowlistEntry(request.path)
+                    : undefined;
             if (entry) ensureRuntimeAllowlist(request.sessionId).add(entry);
         }
         eventBus.broadcast({
@@ -230,6 +242,14 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
 };
 
 const permissionKey = (sessionId, requestId) => `${sessionId}:${requestId}`;
+const permissionActions = (options = []) => {
+    const kinds = new Set(options.map(({ kind }) => kind));
+    return [
+        kinds.has("allow_once") ? "allow_once" : undefined,
+        kinds.has("allow_always") ? "allow_always" : undefined,
+        kinds.has("reject_once") || kinds.has("reject_always") ? "deny" : undefined,
+    ].filter(Boolean);
+};
 const normalizeRememberKey = (kind, rememberKey) => {
     const key = String(rememberKey ?? "").trim();
     return kind === "bash" && key.startsWith("bash:") ? key : undefined;

@@ -21,6 +21,7 @@ export const createToolRegistry = ({ tools = [] } = {}) => {
 
     const register = (tool) => {
         if (!tool?.name || typeof tool.execute !== "function") throw new Error("invalid tool");
+        if (registry.has(tool.name)) throw new Error(`tool is already registered: ${tool.name}`);
         registry.set(tool.name, tool);
         return tool;
     };

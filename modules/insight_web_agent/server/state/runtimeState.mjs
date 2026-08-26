@@ -34,6 +34,7 @@ export const createRuntimeState = () => ({
     agentCapabilities: undefined,
     availableCommands: [],
     availableSkills: [],
+    availableCapabilities: [],
     activeContext: undefined,
     permissionRuntimeAllowlist: new Map(),
     pendingPermissions: new Map(),
@@ -72,6 +73,7 @@ export const publicState = (state) => ({
     agentCapabilities: publicCapabilities(state),
     availableCommands: state.availableCommands,
     availableSkills: state.availableSkills.map(({ name, description }) => ({ name, description })),
+    availableCapabilities: state.availableCapabilities.map(({ name, description }) => ({ name, description })),
     activeContext: state.activeContext,
 });
 
@@ -91,6 +93,7 @@ export const snapshotRuntimeState = (state) => ({
     agentCapabilities: state.agentCapabilities,
     availableCommands: [...state.availableCommands],
     availableSkills: [...state.availableSkills],
+    availableCapabilities: [...state.availableCapabilities],
     activeContext: state.activeContext,
     permissionRuntimeAllowlist: cloneMapOfSets(state.permissionRuntimeAllowlist),
     pendingPermissions: new Map(state.pendingPermissions),
@@ -114,6 +117,7 @@ export const restoreRuntimeState = (state, snapshot) => {
     state.agentCapabilities = snapshot.agentCapabilities;
     state.availableCommands = snapshot.availableCommands;
     state.availableSkills = snapshot.availableSkills;
+    state.availableCapabilities = snapshot.availableCapabilities;
     state.activeContext = snapshot.activeContext;
     state.permissionRuntimeAllowlist = snapshot.permissionRuntimeAllowlist;
     state.pendingPermissions = snapshot.pendingPermissions;

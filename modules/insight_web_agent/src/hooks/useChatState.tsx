@@ -30,7 +30,7 @@ import { toCommandError } from '@insight/lib/FrontendAgentCommand';
 import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { apiUrl } from '../env';
-import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
     configOptions: ConfigOption[];
@@ -42,6 +42,7 @@ interface ChatStateValue {
     draftMode?: string;
     availableCommands: AvailableCommand[];
     availableSkills: AvailableSkill[];
+    availableCapabilities: AvailableCapability[];
     switchingAgent: boolean;
     agentDiscoveryLoading: boolean;
     currentSessionId?: string;
@@ -87,6 +88,7 @@ interface ChatState {
     draftMode?: string;
     availableCommands: AvailableCommand[];
     availableSkills: AvailableSkill[];
+    availableCapabilities: AvailableCapability[];
     switchingAgent: boolean;
     agentDiscoveryLoading: boolean;
     sessions: SessionItem[];
@@ -117,6 +119,7 @@ const initialState: ChatState = {
     agentServers: [],
     availableCommands: [],
     availableSkills: [],
+    availableCapabilities: [],
     sessionRecords: {},
     draftQueuedPrompts: [],
 };
@@ -163,6 +166,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             agentCapabilities: nextState.agentCapabilities ?? current.agentCapabilities,
             availableCommands: nextState.availableCommands ?? current.availableCommands,
             availableSkills: nextState.availableSkills ?? current.availableSkills,
+            availableCapabilities: nextState.availableCapabilities ?? current.availableCapabilities,
         }));
         return nextState;
     };
@@ -269,6 +273,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     agentCapabilities: event.state.agentCapabilities ?? current.agentCapabilities,
                     availableCommands: event.state.availableCommands ?? current.availableCommands,
                     availableSkills: event.state.availableSkills ?? current.availableSkills,
+                    availableCapabilities: event.state.availableCapabilities ?? current.availableCapabilities,
                 };
                 if (!activeAgentChanged) return nextState;
 
@@ -829,6 +834,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         agentCapabilities: state.agentCapabilities,
         availableCommands: state.availableCommands,
         availableSkills: state.availableSkills,
+        availableCapabilities: state.availableCapabilities,
         switchingAgent: state.switchingAgent,
         agentDiscoveryLoading: state.agentDiscoveryLoading,
         currentSessionId: state.activeSessionId,

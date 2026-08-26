@@ -9,7 +9,12 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { publicCapabilities, setAgentCapabilities } from "../../services/capabilityService.mjs";
+import { normalizeAgentCapabilities, publicCapabilities, setAgentCapabilities } from "../../services/capabilityService.mjs";
+
+test("HTTP MCP capability is normalized from camel and snake case agents", () => {
+    assert.equal(normalizeAgentCapabilities({ mcpCapabilities: { http: true } }).mcp.http, true);
+    assert.equal(normalizeAgentCapabilities({ mcp_capabilities: { http: true } }).mcp.http, true);
+});
 
 test("standard ACP capability objects and extension metadata are normalized", () => {
     const state = {};

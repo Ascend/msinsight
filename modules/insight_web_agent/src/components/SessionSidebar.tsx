@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { ToolOutlined } from '@ant-design/icons';
 import React, { useRef, useState } from 'react';
+import { Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
 import { requestHostClose } from '../connection';
 import { useChatState } from '../hooks/useChatState';
@@ -26,6 +28,7 @@ import logo from '../icons/logo.png';
 import newSessionIcon from '../icons/new-session.svg';
 import settingsIcon from '../icons/settings.svg';
 import statusDotIcon from '../icons/status-dot.svg';
+import type { AvailableCapability } from '../types';
 import { AgentSelect } from './AgentSelect';
 import { AgentSettingsDialog } from './AgentSettingsDialog';
 import { SessionHistoryPopover } from './SessionHistoryPopover';
@@ -45,7 +48,7 @@ const Container = styled.div`
         min-width: 0;
         display: flex;
         align-items: center;
-        gap: 0;
+        gap: 4px;
     }
 
     .toolbar-actions {
@@ -59,6 +62,27 @@ const Container = styled.div`
         max-width: calc(100vw - 260px);
         flex: 0 1 auto;
         min-width: 0;
+    }
+
+    .capability-indicator {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        color: ${(props): string => props.theme.dangerColor};
+        font-size: 15px;
+        outline: none;
+    }
+
+    .capability-indicator.available {
+        color: ${(props): string => props.theme.successColor};
+    }
+
+    .capability-indicator:focus-visible {
+        box-shadow: 0 0 0 2px ${(props): string => props.theme.primaryColorLight2};
     }
 
     .agent-error {
@@ -110,6 +134,26 @@ const Container = styled.div`
 
 `;
 
+const CapabilityTooltipContent = styled.div`
+    display: grid;
+    gap: 8px;
+    min-width: 180px;
+
+    .title {
+        font-weight: 700;
+    }
+
+    .item {
+        display: grid;
+        gap: 2px;
+    }
+
+    .description,
+    .empty {
+        color: ${(props): string => props.theme.textColorSecondary};
+    }
+`;
+
 const AgentAvatar = styled.span`
     width: 100%;
     height: 100%;
@@ -157,6 +201,7 @@ export const SessionSidebar = (): JSX.Element => {
         activeAgentName,
         agentError,
         agentServers,
+        availableCapabilities,
         currentSessionId,
         deleteSession,
         sessions,
@@ -194,6 +239,7 @@ export const SessionSidebar = (): JSX.Element => {
                     title={t('switchAgent')}
                     value={activeAgentName}
                 />
+                <CapabilityIndicator capabilities={availableCapabilities} />
             </div>
             {agentError && <span className="agent-error" title={agentError}>{t('agentError')}</span>}
             <div className="toolbar-actions">
@@ -237,6 +283,31 @@ export const SessionSidebar = (): JSX.Element => {
             />
         </Container>
     );
+};
+
+const CapabilityIndicator = ({ capabilities }: { capabilities: AvailableCapability[] }): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
+    const available = capabilities.length > 0;
+    const content = <CapabilityTooltipContent>
+        <span className="title">{t('availableCapabilities')}</span>
+        {available ? capabilities.map((capability) => (
+            <span className="item" key={capability.name}>
+                <strong>{capability.name}</strong>
+                {capability.description ? <span className="description">{capability.description}</span> : null}
+            </span>
+        )) : <span className="empty">{t('noAvailableCapabilities')}</span>}
+    </CapabilityTooltipContent>;
+
+    return <Tooltip title={content}>
+        <span
+            aria-label={available ? t('capabilitiesAvailable') : t('capabilitiesUnavailable')}
+            className={`capability-indicator${available ? ' available' : ''}`}
+            role="status"
+            tabIndex={0}
+        >
+            <ToolOutlined aria-hidden />
+        </span>
+    </Tooltip>;
 };
 
 const getAgentIcon = (agentName: string): JSX.Element => {

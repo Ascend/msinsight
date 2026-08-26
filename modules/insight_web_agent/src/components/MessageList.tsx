@@ -864,39 +864,61 @@ const PermissionCard = ({
     const pending = permission.state === 'pending';
     return (
         <div className="permission-card">
-            <div className="permission-title">{permission.title ?? (permission.kind === 'bash' ? t('allowBashCommand') : t('allowFileRead'))}</div>
+            <div className="permission-title">{permission.title ?? permissionTitle(permission.kind, t)}</div>
             <div className="permission-path" title={permission.target}>{truncatePermissionTarget(permission.target)}</div>
             {permission.kind === 'bash' && permission.details?.cwd ? <div className="permission-state">{t('workingDirectory')}: {String(permission.details.cwd)}</div> : null}
+            {permission.kind === 'tool' && permission.details?.input ? <ToolSection label={t('toolInput')} value={formatPermissionInput(permission.details.input)} /> : null}
             {pending ? (
                 <div className="permission-actions">
-                    <button
-                        className="primary"
-                        disabled={Boolean(permission.loadingDecision)}
-                        onClick={() => { onDecision(permission.sessionId, permission.requestId, 'allow_once'); }}
-                        type="button"
-                    >
-                        {permission.loadingDecision === 'allow_once' ? t('allowing') : t('allowOnce')}
-                    </button>
-                    <button
-                        className="primary"
-                        disabled={Boolean(permission.loadingDecision)}
-                        onClick={() => { onDecision(permission.sessionId, permission.requestId, 'allow_always'); }}
-                        type="button"
-                    >
-                        {permission.loadingDecision === 'allow_always' ? t('allowing') : t('allowAlways')}
-                    </button>
-                    <button
-                        disabled={Boolean(permission.loadingDecision)}
-                        onClick={() => { onDecision(permission.sessionId, permission.requestId, 'deny'); }}
-                        type="button"
-                    >
-                        {permission.loadingDecision === 'deny' ? t('denying') : t('deny')}
-                    </button>
+                    {permission.actions.includes('allow_once') ? (
+                        <button
+                            className="primary"
+                            disabled={Boolean(permission.loadingDecision)}
+                            onClick={() => { onDecision(permission.sessionId, permission.requestId, 'allow_once'); }}
+                            type="button"
+                        >
+                            {permission.loadingDecision === 'allow_once' ? t('allowing') : t('allowOnce')}
+                        </button>
+                    ) : null}
+                    {permission.actions.includes('allow_always') ? (
+                        <button
+                            className="primary"
+                            disabled={Boolean(permission.loadingDecision)}
+                            onClick={() => { onDecision(permission.sessionId, permission.requestId, 'allow_always'); }}
+                            type="button"
+                        >
+                            {permission.loadingDecision === 'allow_always' ? t('allowing') : t('allowAlways')}
+                        </button>
+                    ) : null}
+                    {permission.actions.includes('deny') ? (
+                        <button
+                            disabled={Boolean(permission.loadingDecision)}
+                            onClick={() => { onDecision(permission.sessionId, permission.requestId, 'deny'); }}
+                            type="button"
+                        >
+                            {permission.loadingDecision === 'deny' ? t('denying') : t('deny')}
+                        </button>
+                    ) : null}
                 </div>
             ) : <div className="permission-state">{permissionStateText(permission.state, t)}</div>}
             {permission.error ? <div className="permission-error">{permission.error}</div> : null}
         </div>
     );
+};
+
+const permissionTitle = (kind: NonNullable<ChatMessage['permission']>['kind'], t: TFunction): string => {
+    if (kind === 'bash') return t('allowBashCommand');
+    if (kind === 'tool') return t('allowToolUse');
+    return t('allowFileRead');
+};
+
+const formatPermissionInput = (input: unknown): string => {
+    try {
+        const value = JSON.stringify(input, null, 2);
+        return value.length <= 4000 ? value : `${value.slice(0, 3999)}…`;
+    } catch (_error) {
+        return String(input);
+    }
 };
 
 const truncatePermissionTarget = (target: string): string => target.length <= 2000 ? target : `${target.slice(0, 1999)}…`;

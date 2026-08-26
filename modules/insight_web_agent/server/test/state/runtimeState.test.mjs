@@ -17,7 +17,54 @@
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createRuntimeState, restoreRuntimeState, snapshotRuntimeState } from "../../state/runtimeState.mjs";
+import {
+    createRuntimeState,
+    publicState,
+    resetRuntimeForAgent,
+    restoreRuntimeState,
+    snapshotRuntimeState,
+} from "../../state/runtimeState.mjs";
+
+test("publicState exposes only model-visible capability metadata", () => {
+    const state = createRuntimeState();
+    state.availableCapabilities = [{
+        name: "pt_snap",
+        description: "Run the bundled pt-snap CLI",
+        inputSchema: { type: "object" },
+        execute: () => undefined,
+    }];
+
+    assert.deepEqual(publicState(state).availableCapabilities, [{
+        name: "pt_snap",
+        description: "Run the bundled pt-snap CLI",
+    }]);
+});
+
+test("snapshot restore preserves host-global available capabilities", () => {
+    const state = createRuntimeState();
+    const capabilities = [{ name: "msinsight", description: "Operate the current page" }];
+    state.availableCapabilities = capabilities;
+    const snapshot = snapshotRuntimeState(state);
+    state.availableCapabilities = [];
+
+    restoreRuntimeState(state, snapshot);
+
+    assert.deepEqual(state.availableCapabilities, capabilities);
+});
+
+test("agent runtime reset does not clear host-global available capabilities", () => {
+    const state = createRuntimeState();
+    const capabilities = [{ name: "msinsight", description: "Operate the current page" }];
+    state.availableCapabilities = capabilities;
+
+    resetRuntimeForAgent(state, {
+        agentServers: [{ name: "OpenCode" }],
+        activeAgentName: "OpenCode",
+        activeAgentWorkspaceKey: "opencode",
+    });
+
+    assert.deepEqual(state.availableCapabilities, capabilities);
+});
 
 test("restoreRuntimeState cancels pending permission requests overwritten by rollback", async () => {
     const state = createRuntimeState();

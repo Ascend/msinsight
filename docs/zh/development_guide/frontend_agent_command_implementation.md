@@ -536,7 +536,7 @@ client.registerGraphCommands(...);
 新增普通 Command 时，以下层通常不需要任何修改：
 
 ```text
-modules/insight_web_agent/server/native-agent/tools/msinsightTools.mjs
+modules/insight_web_agent/server/native-agent/tools/capabilityTools.mjs
 modules/insight_web_agent/server/services/frontendCommandService.mjs
 modules/insight_web_agent/src/bridge/frontendAgentCommandTransport.ts
 modules/lib/src/FrontendAgentCommand/protocol.ts
@@ -751,4 +751,4 @@ msinsight_refreshTable
 | MemScope Module runtime | `modules/leaks/src/agent/runtime.ts` |
 | 表格领域适配器 | `modules/lib/src/AgentTable/registerTableCommands.ts` |
 | Agent iframe relay | `modules/insight_web_agent/src/bridge/frontendAgentCommandTransport.ts` |
-| Native 固定 Tool | `modules/insight_web_agent/server/native-agent/tools/msinsightTools.mjs` |
+| Native Capability Adapter | `modules/insight_web_agent/server/native-agent/tools/capabilityTools.mjs` |

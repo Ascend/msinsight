@@ -7,8 +7,7 @@
  * You can use this software according to the terms and conditions of the Mulan PSL v2.
  * -------------------------------------------------------------------------
  */
-import { isAbsolute, resolve } from "node:path";
-import { isAllowedFilesystemPath } from "../shared/utils.mjs";
+import { resolve } from "node:path";
 
 const MAX_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = 30 * 1000;
@@ -34,12 +33,9 @@ export const normalizeBashInput = async (input, session, defaultCwd) => {
     if (!Number.isFinite(timeout) || timeout < 1000 || timeout > MAX_TIMEOUT_MS) {
         throw new Error(`Bash timeout must be between 1000 and ${MAX_TIMEOUT_MS} milliseconds`);
     }
-    const requestedCwd = String(input?.cwd ?? defaultCwd);
-    if (input?.cwd !== undefined && !isAbsolute(requestedCwd)) throw new Error("Bash cwd must be an absolute path");
-    const cwd = resolve(requestedCwd);
-    if (!await isAllowedFilesystemPath(cwd, session.canonicalFilesystemRoots)) {
-        throw new Error(`Bash cwd is outside allowed roots: ${cwd}`);
-    }
+    const requestedCwd = String(input?.cwd ?? "").trim();
+    const cwd = resolve(defaultCwd, requestedCwd || ".");
+    // 临时放开 Bash cwd 的 Session roots 限制；相对路径以 Native Agent workspace 为基准。
     return { command, timeout, cwd, run_in_background: false };
 };
 

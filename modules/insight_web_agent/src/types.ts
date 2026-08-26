@@ -23,7 +23,7 @@ export type PermissionState = 'pending' | 'allowed_once' | 'allowed_always' | 'd
 export interface PermissionRequestItem {
     sessionId: string;
     requestId: string;
-    kind?: 'filesystem' | 'bash';
+    kind?: 'filesystem' | 'bash' | 'tool';
     title?: string;
     target: string;
     path?: string;
@@ -199,6 +199,11 @@ export interface AvailableSkill {
     description?: string;
 }
 
+export interface AvailableCapability {
+    name: string;
+    description?: string;
+}
+
 export interface AppState {
     initialized?: boolean;
     agentError?: string;
@@ -206,6 +211,7 @@ export interface AppState {
     agentCapabilities?: AgentCapabilities;
     availableCommands?: AvailableCommand[];
     availableSkills?: AvailableSkill[];
+    availableCapabilities?: AvailableCapability[];
     sessionId?: string;
     pendingPrompt: boolean;
     messages: ChatMessage[];
@@ -261,7 +267,7 @@ export type ServerEvent =
     | { type: 'message_activity'; sessionId?: string; id: string; activity?: AgentActivity }
     | { type: 'message_removed'; sessionId?: string; id: string }
     | { type: 'config_options'; sessionId?: string; configOptions: ConfigOption[] }
-    | { type: 'permission_request'; sessionId: string; requestId: string; kind?: 'filesystem' | 'bash'; title?: string; target?: string; path?: string; details?: Record<string, unknown>; actions: PermissionDecision[] }
+    | { type: 'permission_request'; sessionId: string; requestId: string; kind?: 'filesystem' | 'bash' | 'tool'; title?: string; target?: string; path?: string; details?: Record<string, unknown>; actions: PermissionDecision[] }
     | { type: 'permission_resolved'; sessionId: string; requestId: string; state: Exclude<PermissionState, 'pending'> }
     | { type: 'prompt_status'; sessionId?: string; pendingPrompt: boolean }
     | { type: 'frontend_command_request'; requestId: string; sessionId?: string; command: string; args: Record<string, unknown>; deadline: number }

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "capabilities": [
+    {
+      "type": "cli",
+      "name": "pt_snap",
+      "description": "Run the pt-snap CLI. Pass each command-line argument as one item in args and use pt-snap's native command syntax. Every call is subject to the Agent's tool approval policy.",
+      "executable": {
+        "win32": [
+          "../pt-snap/bin/pt-snap.exe",
+          "pt-snap.exe",
+          "pt-snap"
+        ],
+        "default": [
+          "../pt-snap/bin/pt-snap",
+          "pt-snap"
+        ]
+      }
+    }
+  ]
+}
