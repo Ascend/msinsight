@@ -47,13 +47,14 @@ IProps): JSX.Element {
     const [allSelected, setAllSelected] = useState(false);
     const [curChange, setCurChange] = useState<{ curIndex?: number; checked?: boolean }>({ });
     const [checkItems, setCheckItems] = useState<CheckItem[]>([]);
+    const normalizedSearchText = searchText.trim();
     const displayItems = useMemo(() => {
-        if (searchText === '') {
+        if (normalizedSearchText === '') {
             return checkItems;
         } else {
-            return checkItems.filter(item => String(item.text).includes(String(searchText)));
+            return checkItems.filter(item => String(item.text).includes(normalizedSearchText));
         }
-    }, [checkItems, searchText]);
+    }, [checkItems, normalizedSearchText]);
     const { data, boxRef, targetRef } = useWatchVirtualRender({
         visibleHeight: height,
         itemHeight,
@@ -74,7 +75,7 @@ IProps): JSX.Element {
         let newCheckItems;
         if (curIndex === ALL_SELECTED_INDEX) {
             newCheckItems = checkItems.map((item) => {
-                if (searchText === '' || (searchText !== '' && String(item.text).includes(String(searchText)))) {
+                if (normalizedSearchText === '' || String(item.text).includes(normalizedSearchText)) {
                     return { ...item, checked: checked ?? item.checked };
                 } else {
                     return { ...item };
