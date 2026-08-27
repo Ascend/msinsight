@@ -1,197 +1,126 @@
+<!-- md-trans-meta sourceCommit=8ba87048c67a1e13d2b4097e6b7e7ed22a41559a translatedAt=2026-08-17T09:15:14.033Z pushedAt=2026-08-17T09:15:32.958Z -->
+
 <h1 align="center">MindStudio Insight</h1>
 <div align="center">
-  <img src="./modules/framework/public/favicon.ico" width="200" alt="MindStudio Insight Logo">
-  <p>🚀 <b>All-scenario Ascend AI visualization profiling tool</b></p>
+  <img src="./modules/framework/public/favicon.ico" width="160" alt="MindStudio Insight Logo">
+  <p><b><span style="font-size:24px;">A Powerful Visual Tuning Tool for the Full Ascend AI Workflow</span></b></p>
 
-  [![Ask DeepWiki](https://badgen.net/badge/Ask/DeepWiki/blue)](https://deepwiki.com/qianxiaoxixixi/MsInsightForEveryOne/ ) [![Ask ZRead](https://badgen.net/badge/Ask/ZRead/orange)](https://zread.ai/qianxiaoxixixi/MsInsightForEveryOne) [![doc](https://badgen.net/badge/doc/readthedocs/green)](https://msinsight.readthedocs.io/zh-cn/latest/)
-  [![License](https://badgen.net/badge/License/MulanPSL-2.0/blue)](./License) [![Version](https://badgen.net/badge/Version/8.3.0/green)](https://gitcode.com/Ascend/msinsight/releases/tag_MindStudio_8.3.0) [![Ascend](https://img.shields.io/badge/Hardware-Ascend-orange.svg)](https://www.hiascend.com/)
+  [![Quick Start](https://badgen.net/badge/Quick%20Start/QuickStart/blue)](./docs/en/quick_start/system_tuning_quick_start.md)
+  [![AI FAQ (DeepWiki)](https://badgen.net/badge/AI%20FAQ/DeepWiki/blue)](https://deepwiki.com/mindstudio-docs/master)
+  [![AI FAQ (ZRead)](https://badgen.net/badge/AI%20FAQ/ZRead/blue)](https://zread.ai/mindstudio-docs/master)
+  [![Exact Search](https://badgen.net/badge/Exact%20Search/ReadTheDocs/blue)](https://msinsight.readthedocs.io/zh-cn/latest/)
+  [![Ascend Community](https://badgen.net/badge/Ascend%20Community/Community/blue)](https://www.hiascend.com/cn/developer/software/mindstudio)
+  [![Report Issues](https://badgen.net/badge/Report%20Issues/Issues/blue)](https://gitcode.com/Ascend/msinsight/issues)
+  [![Version](https://badgen.net/badge/Version/26.1.0/blue)](https://gitcode.com/Ascend/msinsight/releases)
 </div>
 
-## 🌟 What's New
+English | [简体中文](./README.md)
 
-- **[2026-02-04]** 🎉 **MindStudio Insight 26.0.0-alpha.1 is now available!** This version focuses on the **host bound** issue and **RL** performance analysis and tuning.
+## ✨ Latest News
 
-## 📌 Overview
+<span style="font-size:14px;">
 
-**MindStudio Insight** is an advanced visualization tuning and analysis tool designed for Ascend AI developers. It displays real software and hardware running data in a visualized manner, helping developers accurately locate and resolve performance bottlenecks within days.
+🔹 **[2026.07.25]**: MindStudio Insight 26.1.0 is released, with continuous enhancements in host-side performance analysis, memory snapshot analysis, containerized deployment, web access, and Timeline interaction experience, primarily targeting developers in Ascend AI performance tuning scenarios.
 
-### Core Values
+🔹 **[2026.04.29]**: MindStudio Insight 26.0.0 is released, supporting Host Bound issue locating, RL performance analysis, and Snapshot memory big data analysis.
 
-- **All-scenario coverage:** supports system tuning, operator tuning, serving tuning, and memory tuning.
-- **Ultra-large scale cluster support:** easily handles cluster analysis with hundreds or thousands of ranks and can process up to **20 GB+** of profile data.
-- **Simplified operations:** automatically traverses profile data, eliminating the need for manual file merging and supporting plug-and-play.
+</span>
 
-### Demo
+## ℹ️ Introduction
 
-<div style="
-  padding: 4px 0 2px 0;            /* Extremely narrow top and bottom */
-  font-weight: 600;                 Semi-bold
-  color: #1a2639;
-  letter-spacing: 1px;
-">
-  System Tuning
+**MindStudio Insight** is a visualized performance tuning and analysis tool for Ascend AI developers. It presents real software and hardware runtime data graphically, helping developers quickly locate performance bottlenecks in system, operator, serving, and memory tuning.
+
+| Core Value | Description |
+| --- | --- |
+| **Full-Scenario Coverage** | Supports System Tuning, Operator Tuning, serving Tuning, and Memory Tuning. |
+| **Large-Scale Analysis** | Supports analysis of hundred-rank and thousand-rank clusters, and adapts to processing 20 GB+ profile data. |
+| **Convenient Import** | Automatically traverses profile data, reducing the cost of manual merging and data preprocessing. |
+
+<div align="left">
+  <h4>▶️ Core Capability Quick Demo</h4>
+  <img src="./assets/demo-system.gif" alt="System Tuning Demo" width="800">
+  <p><sup>Illustration: system tuning data import and performance analysis process</sup></p>
 </div>
-<div style="padding: 0;">
-  <img style="width: 100%; height: auto; display: block;" alt="Importing large files" src="./assets/demo-system.gif" />
-</div>
 
-<details>
-<summary>🔍 Directory structure </summary>
+## ⚙️ Features
 
-```tex
-├── build                              # Build script
-├── docs                               # Project documentation
-├── e2e                                # Test cases
-├── modules                            # Module directory
-│   ├── build                          # Build script
-│   ├── cluster                        # Summary and Communication
-│   ├── compute                        # Operator tuning module
-│   ├── framework                      # Frontend main framework module
-│   ├── leaks                          # Memory leak module
-│   ├── lib                            # Public directory
-│   ├── memory                         # Memory module
-│   ├── operator                       # Operator module
-│   ├── reinforcement-learning         # RL module
-│   ├── statistic                      # Serving tuning module
-│   ├── timeline                       # Timeline module
-├── platform                           # Base directory
-├── plugins                            # Plugin directory
-├── scripts                            # Script directory
-├── server                             # Backend service module
-│   ├── build                          # Build script
-│   ├── cmake                          # Build script for open-source software
-│   ├── src
-│   │   ├── channel                    # Network communication
-│   │   ├── defs                       # Global definition
-│   │   ├── entry                       # Compilation module
-│   │   │   ├── server
-│   │   │      ├── bin                 # Server module
-│   │   ├── protocol                   # Message definition
-│   │   ├── module
-│   │   │   ├── base                   # Base class shared by modules
-│   │   │   ├── global                 # Global message
-│   │   │   ├── timeline               # Timeline message processing
-│   │   │   │   ├── core               # Core processing logic
-│   │   │   │   ├── handler            # Message processing
-│   │   │   │   ├──protocol            # Message format conversion
-│   │   │   ├── ...
-│   │   ├── server                     # Server service
-│   │   ├── utils                      # Utility class
-│   ├── third_party                    # Open-source software
-```
+MindStudio Insight provides multi-dimensional visualized tuning capabilities around the Ascend AI performance analysis:
 
-</details>
-
-## 🔖 Version Description
-
-| Release Version| Release Date       | Release Tag      | Compatibility   |
-| ------- | --------------- | ------------- | ------------- |
-| 26.0.0-alpha.1 | 2026/02/04  | tag_MindStudio_26.0.0-alpha.1 | Compatible with Ascend CANN 8.5.0 and earlier versions. For details about how to obtain the CANN installation package, see [CANN Installation Guide](https://www.hiascend.com/cann).|
-
-## 🛠️ Installation
-
-MindStudio Insight can be installed and used on Windows, Linux, and macOS systems, and can be installed as a plugin. For details about the installation procedure, see [MindStudio Insight Installation Guide](./docs/en/user_guide/mindstudio_insight_install_guide.md).
+| Feature Name | Feature Description | Detailed Description |
+| --- | --- | --- |
+| **System Tuning** | Analyzes system performance bottlenecks such as Timeline, communication, memory, and operator duration. | *[System Tuning](./docs/en/user_guide/system_tuning.md)* |
+| **Operator Tuning** | Displays operator performance information such as instruction pipeline, source code mapping, load analysis, and Cache. | *[Operator Tuning](./docs/en/user_guide/operator_tuning.md)* |
+| **Serving Tuning** | Locates inference service bottlenecks through request end-to-end Timeline and performance curves. | *[Service-Oriented Tuning](./docs/en/user_guide/service_optimization.md)* |
+| **Memory Tuning** | Displays device-side memory allocation, call stacks, and tag information to help locate memory issues. | *[Memory Tuning](./docs/en/user_guide/memory_tuning.md)* |
 
 ## 🚀 Quick Start
 
-- [System Tuning](./docs/zh/quick_start/system_tuning_quick_start.md): Learn how to use the **Summary**, **Communication**, and **Timeline** tabs to analyze the model system performance.
-- [Operator Tuning](./docs/zh/quick_start/operator_tuning_quick_start.md): Learn how to use the **Details**, **Timeline**, and **Source** tabs to analyze operator performance.
+To quickly experience the core tuning capabilities of MindStudio Insight, see:<br>
+🔹 *[System Tuning Quick Start](./docs/en/quick_start/system_tuning_quick_start.md)*: Learn how to use the **Summary**, **Communication**, and **Timeline** tabs to analyze model system performance.<br>
+🔹 *[Operator Tuning Quick Start](./docs/en/quick_start/operator_tuning_quick_start.md)*: Learn how to use the **Details**, **Timeline**, and **Source** tabs to analyze operator performance.
 
----
+## 📦 Installation Guide
 
-## ⚠️ Constraints and Precautions
+For the environment dependencies, software package acquisition, and installation methods of MindStudio Insight, see *[MindStudio Insight Installation Guide](./docs/en/install_guide/mindstudio_insight_install_guide.md)*.
 
-MindStudio Insight allows you to import and display profile data files in various formats and provides suggestions and restrictions on file specifications.
+## 📘 User Guide
 
-| File Type| Suggestions                                           | Specification Restrictions              |
-| ----------- | --------------------------------------------- | ---------------------- |
-| JSON| Recommended single file size: not exceed 1 GB. Recommended total file size: not exceed 20 GB.         | Single file size: Must not exceed 20 GB.|
-| BIN | Recommended single file size: not exceed 500 MB.                                | Single file size: Must not exceed 20 GB.|
-| DB  | - System tuning: Keep files under 1 GB each.<br> - Serving tuning: Keep files under 1 GB each.| - System tuning: Keep files under 20 GB each.<br> - Serving tuning: Keep files under 10 GB each.|
-| CSV | CSV files are stored in text data. Recommended single file size: not exceed 500 MB.    | Single file size: Must not exceed 2 GB. |
+For detailed usage and feature descriptions of the tool, see the following documents:<br>
+🔹 [Product Overview](./docs/en/user_guide/overview.md)<br>
+🔹 [Basic Operations](./docs/en/user_guide/basic_operations.md)<br>
+🔹 [System Tuning](./docs/en/user_guide/system_tuning.md)<br>
+🔹 [Operator Tuning](./docs/en/user_guide/operator_tuning.md)<br>
+🔹 [Serving Tuning](./docs/en/user_guide/service_optimization.md)<br>
+🔹 [Memory Tuning](./docs/en/user_guide/memory_tuning.md)
 
-## 💻 Basic Operations
+## 💡 Typical Cases
 
-The basic operations of MindStudio Insight include basic settings, data import, and shortcut keys. For details, see [Basic Operations of MindStudio Insight](./docs/en/user_guide/basic_operations.md).
+Help users understand and master the tool through typical problem scenarios:<br>
+🔹 [Host Bound Problem Analysis](./docs/en/best_practices/host_bound_analysis_with_linux_kernel_trace.md)<br>
+🔹 [Jupyter Plugin Installation Guide](./docs/en/best_practices/Jupyter_Plugin_Installation_Guide.md)<br>
+🔹 [Keyboard Shortcut Use Cases](./docs/en/best_practices/Keyboard_Shortcuts.md)<br>
+🔹 [Timeline Common Lanes and Interfaces](./docs/en/best_practices/Timeline_Common_Lanes_and_Interface.md)<br>
+🔹 [verl Memory Snapshot Collection and Analysis](./docs/en/best_practices/verl_Memory_Snapshot_Collection_and_Analysis.md)
 
-## Feature Description
+## ❓ FAQs
 
-MindStudio Insight supports system, operator, serving, and memory tuning, and visualizes the data for display, enabling developers to quickly tune performance.
+For common issues and solutions, see [MindStudio Insight FAQs](./docs/en/support/faq.md).
 
-- System Tuning
+## 🌌 Intelligent Search
 
-  MindStudio Insight provides the timeline view, memory, operator duration, and communication bottleneck analysis to allow developers to quickly locate model performance bottlenecks and perform in-depth tuning. For details, see [System Tuning](./docs/en/user_guide/system_tuning.md).
+To improve document lookup efficiency, we provide multiple efficient search methods:<br>
+🔹 [AI FAQs (DeepWiki)](https://deepwiki.com/mindstudio-docs/master): Natural language Q&A to quickly grasp the project architecture and module relationships.<br>
+🔹 [AI FAQs (ZRead)](https://zread.ai/mindstudio-docs/master): Better Chinese Q&A experience, precisely locating feature usage and details.<br>
 
-  | Function Interface             | Description                                                        | Scenario Description                        |
-  | --------------------- | ------------------------------------------------------------ | -------------------------------- |
-  | Timeline   | Displays the running status of the entire online inference and training process in the timeline view based on the scheduling process, and provides functions such as cluster timeline display and system view details viewing.| -                                |
-  | Memory       | Provides visualized display of memory information during collection. Displays the operator memory trend in an operator memory curves.| -                                |
-  | Operator     | Provides operator duration statistics and analysis.                                    | -                                |
-  | Summary      | Displays the computing and communication operator duration analysis, and displays the analysis results in a bar chart, curve, and data pane.| PyTorch cluster scenario is supported.|
-  | Communication| Displays the network link performance across the cluster and the communication performance of all nodes. By analyzing the overlapped duration between cluster communication and computation, slow hosts or nodes in the cluster training can be identified.| PyTorch cluster scenario is supported.|
-  | Reinforcement Learning (RL)       | Performs high-level abstraction based on the collected data, and visualizes the timing relationships of the control flows. This helps to quickly identify time-consuming tasks and pipeline bubbles, and supports further performance analysis.| -                                |
+## 🛠️ Contribution
 
-- Operator Tuning
+Welcome to contribute to the MindStudio Insight project:<br>
+🔹 For the contribution process, see [Contributing Guide](./CONTRIBUTING.md).<br>
+🔹 For the development environment, build method, and project structure, see [Development Guide](./docs/en/development_guide/develop_guide.md).
 
-  MindStudio Insight provides the instruction pipeline view, operator source code view, and operator runtime load analysis view to visualize the key performance metrics of operators running on the Ascend AI Processor, helping developers quickly locate software and hardware performance bottlenecks and improve operator performance analysis efficiency. For details, see [Operator Tuning](./docs/en/user_guide/operator_tuning.md).
+## ⚖️ Related Notes
 
-  | Function Interface          | Description                                                        | Remarks                                    |
-    | ------------------ | ------------------------------------------------------------ | ---------------------------------------- |
-    | Timeline| Displays the running status of instructions on the Ascend AI Processor in a timeline view, displays the overall running status based on the scheduling process, and allows users to view instruction details and search for instructions.| -                                        |
-    | Source    | Displays the operator instruction heatmap, and allows developers to view the mapping between the operator source code and instruction sets as well as the time consumption.| BIN files of operator profiling collected by msProf are supported.|
-    | Details   | Displays the basic operator information, compute workload analysis, and memory workload analysis, as well as the analysis results in charts and data panes.| BIN files of operator profiling collected by msProf are supported.|
-    | Cache     | Displays the L2 cache access of kernel functions in user programs, helping users optimize the cache hit rate.| BIN files of operator profiling collected by msProf are supported.|
+🔹 [Release Notes](./docs/en/release_notes/release_notes.md)<br>
+🔹 [Project License](./License)<br>
+🔹 [Documentation License](./docs/LICENSE)<br>
+🔹 [Security Statement](./docs/en/legal/security_statement.md)<br>
+🔹 [Disclaimer](./DISCLAIMER.md)
 
-- Serving tuning
+## 🤝 Suggestions and Communication
 
-  MindStudio Insight displays the end-to-end request execution in the timeline view, showing the duration of the request in each key phase and the status of the request. This helps users quickly identify service performance bottlenecks and adjust the profiling policy accordingly. For details, see [Serving Tuning](./docs/en/user_guide/service_optimization.md).
+Everyone is welcome to contribute to the community. If you have any questions or suggestions, please submit them via [Issues](https://gitcode.com/Ascend/msinsight/issues), and we will respond as soon as possible. Thank you for your support.
+You are cordially invited to participate in the [satisfaction survey](https://rdccucd.wjx.cn/vm/PKPfKqO.aspx) for a chance to win a surprise gift 😎.
 
-  | Function Interface          | Description                                                        | Scenario Description                               |
-  | ------------------ | ------------------------------------------------------------ | --------------------------------------- |
-  | Timeline| Displays the end-to-end request execution status in a timeline view, helping users intuitively view the duration of the request in each key phase and the current request status.| JSON files of trace data of inference service requests are supported.|
-  | Curve   | Displays the end-to-end performance of the inference service process in a curve and a data details table.| The **profiler.db** file is supported.                  |
+|             Real-time Interaction (WeChat Group)             |             Official Updates (Official Account)              | In-depth Support (Assistant/Forum)                           |
+| :----------------------------------------------------------: | :----------------------------------------------------------: | :----------------------------------------------------------- |
+| <img src="./docs/en/user_guide/figures/readme/officialGroupChat.png" width="120"><br><sub>*Scan the QR code to join the technical exchange group*</sub> | <img src="./docs/en/user_guide/figures/readme/officialAccount.png" width="120"><br><sub>*Scan the QR code to follow the official account*</sub> | Scan the QR code to join the group and follow the official account to access the MindStudio user and developer communication platform:<br>**Quick Questions:** Discuss technical issues with community members in real time<br>**Stay Updated:** Get version release and feature update notifications as soon as possible<br>**Experience Sharing:** Exchange best practices and hands-on insights with developers<br><br>**More Support Channels**: 👉 Ascend Assistant [![WeChat](https://img.shields.io/badge/WeChat-07C160?style=flat-square&logo=wechat&logoColor=white)](https://gitcode.com/Ascend/msit/blob/master/docs/zh/figures/readme/xiaozhushou.png) 👉 Ascend Forum: [![Website](https://img.shields.io/badge/Website-%231e37ff?style=flat-square&logo=RSS&logoColor=white)](https://www.hiascend.com/forum/) |
 
-- Memory Tuning
+## 🙏 Acknowledgments
 
-  MindStudio Insight displays the detailed memory allocation on the device in graphics, and marks the usage details of various memory allocations based on the Python call stack and custom dotting tags to locate and optimize memory problems. For details, see [Memory Tuning](./docs/en/user_guide/memory_tuning.md).
+MindStudio Insight is jointly contributed by the following departments of Huawei:<br>
+🔹 Computing Product Line <br>
+🔹 2012 Laboratories
 
-  | Function Interface         | Description                                                        | Scenario Description                                     |
-  | ----------------- | ------------------------------------------------------------ | --------------------------------------------- |
-  | Leaks| Displays call stack diagrams, curve block charts, and memory breakdown diagrams to visualize memory usage, helping developers analyze and locate memory issues and effectively reduce diagnosis time.| DB memory result files collected by msLeaks are supported.|
+We appreciate every PR from the community and welcome contributions to MindStudio Insight!
 
-## 📝 Related Information
-
-- [FAQ](./docs/en/user_guide/FAQ.md)
-- [Contribution Guide](CONTRIBUTING.md)
-- License<br>
-  For details about the license for using MindStudio Insight, see [LICENSE](./License).<br>Documents in the `docs` directory of MindStudio Insight are licensed under CC-BY 4.0. For details, see [DOC LICENSE](./docs/LICENSE).
-- [Security and Disclaimer](./DISCLAIMER.md)
-
-## 💬 Suggestions and Feedback
-
-You are welcome to contribute to the community. If you have any questions or suggestions, please submit an [issue](https://gitcode.com/Ascend/msinsight/issues). We will reply as soon as possible. Thank you for your support.
-
-## 🤝 Acknowledgments
-
-MindStudio Insight is jointly developed by the following Huawei departments:
-
-- Computing Product Line
-
-Thank you to everyone in the community for your PRs. We warmly welcome contributions to MindStudio Insight!
-
-## About the Team
-
-The Huawei MindStudio full-pipeline development toolchain team is dedicated to providing an end-to-end solution for building Ascend AI applications, accelerating the processes of training, inference, and operator development. You can learn more about the Huawei MindStudio team through the following channels:
-<div style="display: flex; align-items: center; gap: 10px;">
-    <span>MindStudio official account:</span>
-    <img width="100" src="./docs/zh/user_guide/figures/readme/officialAccount.png" />
-    <span style="margin-left: 20px;">Ascend Assistant: </span>
-    <a href="https://gitcode.com/Ascend/msinsight/blob/master/docs/zh/user_guide/figures/readme/xiaozhushou.png">
-        <img src="https://camo.githubusercontent.com/22bbaa8aaa1bd0d664b5374d133c565213636ae50831af284ef901724e420f8f/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f5765436861742d3037433136303f7374796c653d666f722d7468652d6261646765266c6f676f3d776563686174266c6f676f436f6c6f723d7768697465" data-canonical-src="./docs/zh/user_guide/figures/readme/xiaozhushou.png" style="max-width: 100%;">
-    </a>
-    <span style="margin-left: 20px;">Ascend Forum: </span>
-    <a href="https://www.hiascend.com/forum/" rel="nofollow">
-        <img src="https://camo.githubusercontent.com/dd0b7ef70793ab93ce46688c049386e0755a18faab780e519df5d7f61153655e/68747470733a2f2f696d672e736869656c64732e696f2f62616467652f576562736974652d2532333165333766663f7374796c653d666f722d7468652d6261646765266c6f676f3d6279746564616e6365266c6f676f436f6c6f723d7768697465" data-canonical-src="https://img.shields.io/badge/Website-%231e37ff?style=for-the-badge&amp;logo=bytedance&amp;logoColor=white" style="max-width: 100%;">
-    </a>
-</div>
-Send "communication group" to the official account to obtain the QR code of the technical communication group.
+The Huawei MindStudio full-process development toolchain team is committed to providing end-to-end Ascend AI app development solutions, enabling developers to efficiently complete training development, inference development, and operator development.

@@ -8,7 +8,7 @@ MindStudio Insight displays the end-to-end request execution in the timeline vie
 
 **Environment Preparation**
 
-Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](./mindstudio_insight_install_guide.md).
+Install MindStudio Insight first. For details, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md).
 
 **Data preparation**
 
@@ -31,7 +31,7 @@ MindStudio Insight provides various import modes based on the file type. For det
 **Precautions**
 
 - The profile data of system tuning and serving tuning can be imported at the same time. You need to place the data of the two scenarios in the same folder and select the folder when importing the data.
-- For details about how to obtain the data, see section "msServiceProfiler" \> "Serving Tuning" \> "[Data Parsing](https://www.hiascend.com/document/detail/zh/mindstudio/830/T&ITools/Profiling/atlasprofiling_16_0033.html)" in the *Profiling Tool Guide*.
+- For details about how to obtain the data, see [msServiceProfiler Multi Analyze](https://gitcode.com/Ascend/msserviceprofiler/blob/26.1.0/docs/en/msserviceprofiler_multi_analyze_instruct.md).
 
 ## Timeline
 
@@ -56,7 +56,7 @@ The **Timeline** tab page consists of the toolbar (area 1), graphical display (a
 
 **Unit Information**<a id="unit-information"></a>
 
-**Table 1** Unit information
+**Table 2** Unit information
 
 |Unit|Description|
 |--|--|
@@ -112,87 +112,87 @@ For details about how to use the **Timeline** tab page in the serving tuning sce
 
 **Slice Detail**
 
-When you select a key phase block, the details about the key phase are displayed on the **Slice Detail** tab page in the lower part. If **res\_list** exists on the **Slice Detail** tab page, click any row in the **rid** list. The request details of the corresponding RID are displayed in the right pane of the **Slice Detail** tab page, as shown in [**Figure 1** Slice Detail](#slice-detail-12). For details about the fields, see [**Table 1** Slice Detail fields](#slice-detail-fields).
+When you select a key phase block, the details about the key phase are displayed on the **Slice Detail** tab page in the lower part. If **res\_list** exists on the **Slice Detail** tab page, click any row in the **rid** list. The request details of the corresponding RID are displayed in the right pane of the **Slice Detail** tab page, as shown in [**Figure 2** Slice Detail](#slice-detail-12). For details about the fields, see [**Table 3** Slice Detail fields](#slice-detail-fields).
 
-**Figure 1** Slice Detail <a id="slice-detail-12"></a> 
+**Figure 2** Slice Detail <a id="slice-detail-12"></a> 
 ![](./figures/service_optimization/selected_details_12_1.png "Slice Detail-12")
 
-**Table 1** Slice Detail fields <a id="slice-detail-fields"></a>
+**Table 3** Slice Detail fields <a id="slice-detail-fields"></a>
 
-|Chinese|Field|Description|
-|--|--|--|
-|Title|Title|Name.|
-|Start|Start|Start time.|
-| |Start(Raw Timestamp)|Original start time of data collection.|
-|Duration|Wall Duration|Total duration.|
-| |Args|Key phase parameters.|
+|Field|Description|
+|--|--|
+|Title|Name.|
+|Start|Start time.|
+|Start(Raw Timestamp)|Original start time of data collection.|
+|Wall Duration|Total duration.|
+|Args|Key phase parameters.|
 
 **System View**
 
 On the **System View** tab page, when you select **Stats System View**, the **Rank ID** selection box and serving data are displayed. You can select the rank to be viewed from the **Rank ID** selection box.
 
-The serving data includes the **kvcache\_usage**, **batch\_info**, **request\_data**, and **forward\_info** tab pages, as shown in [**Figure 2** System View](#system-view).
+The serving data includes the **kvcache\_usage**, **batch\_info**, **request\_data**, and **forward\_info** tab pages, as shown in [**Figure 3** System View](#system-view).
 
-When you select a serving data type, the corresponding details are displayed in the right area. For details about the fields, see [**Table 2** Servitization View fields](#servitization-view-fields). You can search for information by clicking ![](./figures/service_optimization/zh-cn_image_0000002500200444.png) next to the field name.
+When you select a serving data type, the corresponding details are displayed in the right area. For details about the fields, see [**Table 4** Servitization View fields](#servitization-view-fields). You can search for information by clicking ![](./figures/service_optimization/en-us_image_0000002500200444.png) next to the field name.
 
-**Figure 2** System View <a id="system-view"></a> 
+**Figure 3** System View <a id="system-view"></a> 
 ![](./figures/service_optimization/system_view_1.png "System view")
 
-**Table 2** Servitization View fields <a id="servitization-view-fields"></a>
+**Table 4** Servitization View fields <a id="servitization-view-fields"></a>
 
-|Chinese|Field|Description|
-|--|--|--|
-|**kvcache_usage**|-|-|
-|rid|rid|Request ID.|
-|name|name|Method that changes the graphics memory usage.|
-|real_start_time_ms|real_start_time_ms|Time when the device memory usage changes, in milliseconds.|
-|device_kvcache_left|device_kvcache_left|Number of left blocks in the graphics memory.|
-|kvcache_usage_rate|kvcache_usage_rate|KV cache usage.|
-|**batch_info**|-|-|
-|name|name|Batch grouping or execution. **batchFrameworkProcessing** refers to batch grouping, while **modelExec** refers to batch execution.|
-|res_list|res_list|Batch composition information.|
-|start_time_ms|start_time_ms|Start time of batch grouping or batch execution, in milliseconds.|
-|end_time_ms|end_time_ms|End time of batch grouping or batch execution, in milliseconds.|
-|batch_size|batch_size|Number of requests in a batch.|
-|batch_type|batch_type|Request status (`prefill` or `decode`) in a batch.|
-|during_time_ms|during_time_ms|Execution time, in ms.|
-|dp*_rid|dp*_rid|ID of the request contained in the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|dp*_size|dp*_size|Batch size of the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|dp*_forward_ms|dp*_forward_ms|The longest forward execution time in the DP domain, in milliseconds. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
-|**request_data**|-|-|
-|http_rid|http_rid|HTTP request ID.|
-|start_time_ms|start_time_ms|Request arrival time, in milliseconds.|
-|recv_token_size|recv_token_size|Input token length of a request.|
-|reply_token_size|reply_token_size|Output token length of a request.|
-|execution_time_ms|execution_time_ms|End-to-end request duration, in ms.|
-|queue_wait_time_ms|queue_wait_time_ms|The total waiting time of a request in the queue throughout the inference process includes both waiting and pending periods, measured in milliseconds.|
-|first_token_latency|first_token_latency|Time to first token (TTFT), in milliseconds.|
-|**forward_info**|-|-|
-|name|name|Labels a forward event, indicating the model forward execution process.|
-|relative_start_time(ms)|relative_start_time(ms)|Time elapsed since the initial forward on each device.|
-|start_time(ms)|start_time(ms)|Forward start time.|
-|end_time(ms)|end_time(ms)|Forward end time.|
-|during_time(ms)|during_time(ms)|Execution duration of a forward event, in ms.|
-|bubble_time(ms)|bubble_time(ms)|Bubble time between forward events, in ms.|
-|batch_size|batch_size|Number of requests processed in a forward event.|
-|batch_type|batch_type|Request status in a forward event.|
-|forward_iter|forward_iter|Forward iteration number on each device.|
-|dp_rank|dp_rank|DP information of the forward. The values for the same DP domain are the same.|
-|prof_id|prof_id|Identifies different devices. This value is the same for the same device.|
-|hostname|hostname|Identifies different hosts. This value is the same for the same host.|
+|Field|Description|
+|--|--|
+|**kvcache_usage**|-|
+|rid|Request ID.|
+|name|Method that changes the graphics memory usage.|
+|real_start_time_ms|Time when the device memory usage changes, in milliseconds.|
+|device_kvcache_left|Number of left blocks in the graphics memory.|
+|kvcache_usage_rate|KV cache usage.|
+|**batch_info**|-|
+|name|Batch grouping or execution. **batchFrameworkProcessing** refers to batch grouping, while **modelExec** refers to batch execution.|
+|res_list|Batch composition information.|
+|start_time_ms|Start time of batch grouping or batch execution, in milliseconds.|
+|end_time_ms|End time of batch grouping or batch execution, in milliseconds.|
+|batch_size|Number of requests in a batch.|
+|batch_type|Request status (`prefill` or `decode`) in a batch.|
+|during_time_ms|Execution time, in ms.|
+|dp*_rid|ID of the request contained in the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
+|dp*_size|Batch size of the DP domain. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
+|dp*_forward_ms|The longest forward execution time in the DP domain, in milliseconds. The asterisk (*) indicates the DP domain ID, and the value range is [0, n-1].|
+|**request_data**|-|
+|http_rid|HTTP request ID.|
+|start_time_ms|Request arrival time, in milliseconds.|
+|recv_token_size|Input token length of a request.|
+|reply_token_size|Output token length of a request.|
+|execution_time_ms|End-to-end request duration, in ms.|
+|queue_wait_time_ms|The total waiting time of a request in the queue throughout the inference process includes both waiting and pending periods, measured in milliseconds.|
+|first_token_latency|Time to first token (TTFT), in milliseconds.|
+|**forward_info**|-|
+|name|Labels a forward event, indicating the model forward execution process.|
+|relative_start_time(ms)|Time elapsed since the initial forward on each device.|
+|start_time(ms)|Forward start time.|
+|end_time(ms)|Forward end time.|
+|during_time(ms)|Execution duration of a forward event, in ms.|
+|bubble_time(ms)|Bubble time between forward events, in ms.|
+|batch_size|Number of requests processed in a forward event.|
+|batch_type|Request status in a forward event.|
+|forward_iter|Forward iteration number on each device.|
+|dp_rank|DP information of the forward. The values for the same DP domain are the same.|
+|prof_id|Identifies different devices. This value is the same for the same device.|
+|hostname|Identifies different hosts. This value is the same for the same host.|
 
 **Generating Line Charts by Blocks**
 
 The duration and bubble line charts of blocks are available in the serving tuning scenario, facilitating fault analysis.
 
-On the **Timeline** tab page, right-click a block in any unit and choose **Generate Duration Line Chart By Block** or **Generate Bubble Line Chart By Block** from the shortcut menu. The **Curve** tab page is displayed, showing the curve (duration and average duration) and data details of the unit where the block is located, as shown in [**Figure 3** Generating a curve by block](#generating-a-curve-by-block).
+On the **Timeline** tab page, right-click a block in any unit and choose **Generate Duration Line Chart By Block** or **Generate Bubble Line Chart By Block** from the shortcut menu. The **Curve** tab page is displayed, showing the curve (duration and average duration) and data details of the unit where the block is located, as shown in [**Figure 4** Generating a curve by block](#generating-a-curve-by-block).
 
-**Figure 3** Generating a curve by block <a id="generating-a-curve-by-block"> </a>
+**Figure 4** Generating a curve by block <a id="generating-a-curve-by-block"> </a>
 ![](./figures/service_optimization/generate_heatmap_line_chart_1.png "Generating a curve by block")
 
-If you spot an anomaly in the curve, zoom into that area and click on the anomaly. Check the related information in the data details table below the curve. Right-click the data row and choose **Find in Timeline** from the shortcut menu. The **Timeline** page is displayed, as shown in [**Figure 4** Find in Timeline](#find-in-timeline-13).
+If you spot an anomaly in the curve, zoom into that area and click on the anomaly. Check the related information in the data details table below the curve. Right-click the data row and choose **Find in Timeline** from the shortcut menu. The **Timeline** page is displayed, as shown in [**Figure 5** Find in Timeline](#find-in-timeline-13).
 
-**Figure 4** Find in Timeline <a id="find-in-timeline-13"> </a> 
+**Figure 5** Find in Timeline <a id="find-in-timeline-13"> </a> 
 ![](./figures/service_optimization/jump_to_timeline_view_13_1.png "Find in Timeline-13")
 
 ## Curve
@@ -203,10 +203,10 @@ Data changes can be displayed in curves and data details tables, facilitating an
 
 ### GUI Description
 
-The **Curve** tab page consists of the parameter configuration area (area 1), curve data (area 2), and table data details (area 3), as shown in [**Figure 1** Curve page](#curve-page).
+The **Curve** tab page consists of the parameter configuration area (area 1), curve data (area 2), and table data details (area 3), as shown in [**Figure 6** Curve page](#curve-page).
 
-**Figure 1** Curve page <a id="curve-page"> </a> 
-![**Figure 1** Curve page](./figures/service_optimization/line_chart_interface_1.png "Curve page")
+**Figure 6** Curve page <a id="curve-page"> </a> 
+![**Figure 6** Curve page](./figures/service_optimization/line_chart_interface_1.png "Curve page")
 
 - Area 1: parameter configuration area, including the card ID and grouping mode.
 - Area 2: curve chart, showing data changes.
@@ -218,15 +218,15 @@ The **Curve** tab page consists of the parameter configuration area (area 1), cu
 
 MindStudio Insight allows you to left-click to drag select and zoom in on the selected part of the curve and right-click to zoom out on the curve. To improve the display performance, most points are hidden in the curve when the data volume is large. You can select a fine area to display all points or right-click the selected part to restore the original display effect.
 
-In the curve, click and drag the mouse to the end point to be zoomed in and release the mouse. The selected region is zoomed in. If some points are still hidden, repeat the zoom-in operation to display the hidden points. [**Figure 1** Selected zoom-in region](#selected-zoom-in-region-14) shows the selected zoom-in region.
+In the curve, click and drag the mouse to the end point to be zoomed in and release the mouse. The selected region is zoomed in. If some points are still hidden, repeat the zoom-in operation to display the hidden points. [**Figure 7** Selected zoom-in region](#selected-zoom-in-region-14) shows the selected zoom-in region.
 
 You can click to dim a legend on the top to hide the curve. You can also click the dimmed legend to show the curve.
 
-**Figure 1** Selected zoom-in region <a id="selected-zoom-in-region-14"> </a> 
+**Figure 7** Selected zoom-in region <a id="selected-zoom-in-region-14"> </a> 
 ![](./figures/service_optimization/selected_zoom_region_14_1.png "Selected zoom-in region-14")
 
-> [!NOTE]NOTE
+>[!NOTE]
 >
-> - Click ![](./figures/service_optimization/zh-cn_image_0000002500040464.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
-> - You can click ![](./figures/service_optimization/zh-cn_image_0000002500200460.png) in the upper right corner of the curve to cancel the last zoom-in operation.
-> - Click ![](./figures/service_optimization/zh-cn_image_0000002532040385.png) in the upper right corner of the curve. The curve is restored to the initial state.
+> - Click ![](./figures/service_optimization/en-us_image_0000002500040464.png) in the upper right corner of the curve. If the button is dimmed, the curve is locked and cannot be zoomed in by clicking and dragging the mouse. You can click the button again or right-click the curve to restore the chart. The zoom-in function is enabled by default.
+> - You can click ![](./figures/service_optimization/en-us_image_0000002500200460.png) in the upper right corner of the curve to cancel the last zoom-in operation.
+> - Click ![](./figures/service_optimization/en-us_image_0000002532040385.png) in the upper right corner of the curve. The curve is restored to the initial state.
