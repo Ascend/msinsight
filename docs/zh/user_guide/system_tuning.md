@@ -670,9 +670,13 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
     <td class="tg-0pky">具体说明见<a href="#NPU Metrics泳道信息">表 2 NPU Metrics泳道信息</a>中“Stars Chip Trans”泳道说明</td>
   </tr>
   <tr>
-    <td class="tg-0pky" rowspan="4">CPU Metrics</td>
+    <td class="tg-0pky" rowspan="5">CPU Metrics</td>
     <td class="tg-0pky">CPU Usage</td>
     <td class="tg-0pky">Host侧CPU利用率数据。</td>
+  </tr>
+  <tr>
+    <td class="tg-0pky">CPU Freq</td>
+    <td class="tg-0pky">Host侧各CPU的频率数据，单位为KHz。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Memory Usage</td>
@@ -965,6 +969,11 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
     <td class="tg-0pky">Host侧CPU利用率数据。</td>
   </tr>
   <tr>
+    <td class="tg-0pky">CPU Freq</td>
+    <td class="tg-0pky">CPU &lt;id&gt;</td>
+    <td class="tg-0pky">Host侧各CPU的频率数据，单位为KHz。</td>
+  </tr>
+  <tr>
     <td class="tg-0pky">Memory Usage</td>
     <td class="tg-0pky">Memory Usage</td>
     <td class="tg-0pky">Host侧内存利用率数据。</td>
@@ -996,7 +1005,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
 5. 悬浮工具栏可以通过按键隐藏和展示。
 
     **图 1**  悬浮工具栏<a id="悬浮工具栏"></a>
-    
+
     ![](./figures/system_tuning/floating_toolbar_1.png "悬浮工具栏")
 
 **支持界面缩放**
@@ -1174,7 +1183,7 @@ MindStudio Insight支持导入和展示集群场景数据，无需手动合并�
     如[**图 10**  初始位置偏移量](#初始位置偏移量)所示，0卡中最左侧线程数据与时间轴初始位置的偏移量如图所示为0。
 
     **图 10**  初始位置偏移量<a id="初始位置偏移量"></a>
-    
+
     ![](./figures/system_tuning/initial_position_offset_1.png "初始位置偏移量")
 
 - 手动设置偏移量
@@ -1384,7 +1393,7 @@ MindStudio Insight工具支持使用快捷键将选中算子进行时间对齐�
     ![](./figures/system_tuning/reset_all_cards_to_default_offset_1.png "恢复所有卡的默认偏移量")
 
 - **支持跳转到对应流**
-    
+
     点击选中算子`MODEL_EXECUTE`，单击鼠标右键，选择“跳转到对应流”，可直接跳转对应的泳道并将对应泳道高亮显示，如[**图 20** 跳转到对应流](#跳转到对应流)和[**图 21** 跳转到对应流效果图](#跳转到对应流效果图)所示。
 
     **图 20** 跳转到对应流<a id="跳转到对应流"></a>
@@ -1456,13 +1465,13 @@ MindStudio Insight工具支持使用快捷键将选中算子进行时间对齐�
 - 开启泳道高度自适应：在展开的泳道上，单击鼠标右键，在弹出菜单中选择“开启泳道高度自适应”，可自动调整泳道高度，以适配当前页面显示，如[**图 6** 开启泳道高度自适应](#开启泳道高度自适应)所示。
 
     **图 6** 开启泳道高度自适应<a id="开启泳道高度自适应"></a>
-    
+
     ![](./figures/system_tuning/enable_lane_height_auto_adjust_1.png "开启泳道高度自适应")
 
 - 关闭泳道高度自适应：在已开启泳道高度自适应功能的泳道上，单击鼠标右键，在弹出菜单中选择“关闭泳道高度自适应”，关闭泳道高度自适应功能，泳道恢复初始高度，如[**图 7** 关闭泳道高度自适应](#关闭泳道高度自适应)所示。
 
     **图 7** 关闭泳道高度自适应<a id="关闭泳道高度自适应"></a>
-    
+
     ![](./figures/system_tuning/disable_lane_height_auto_adjust_1.png "关闭泳道高度自适应")
 
 **支持锁定框选区域**
@@ -1492,7 +1501,7 @@ MindStudio Insight工具支持使用快捷键将选中算子进行时间对齐�
     在同一张卡内勾选多个需要合并的Stream泳道，单击鼠标右键，选择“合并泳道”，所选的泳道将被合并为一个新泳道，如[**图 10** 合并泳道](#合并泳道)所示。合并后的泳道连线功能、算子搜索功能以及算子跳转等功能均可正常使用。
 
     **图 10** 合并泳道<a id="合并泳道"></a>
-    
+
     ![](./figures/system_tuning/merge_lanes_1.png "合并泳道")
 
 - 取消合并
@@ -1500,7 +1509,7 @@ MindStudio Insight工具支持使用快捷键将选中算子进行时间对齐�
     如果需要取消Stream泳道的合并，可在合并的Stream泳道上，单击鼠标右键，选择“取消合并泳道”，便可取消合并，重新展示各Stream泳道，如[**图 11** 取消合并泳道](#取消合并泳道)所示。
 
     **图 11** 取消合并泳道<a id="取消合并泳道"></a>
-    
+
     ![](./figures/system_tuning/cancel_merge_lanes_1.png "取消合并泳道")
 
 #### 系统功能展示
