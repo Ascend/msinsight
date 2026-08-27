@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { ThemeProvider } from '@emotion/react';
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { runInAction } from 'mobx';
 import { Session } from '../../../entity/session';
 import { MemoryBlockDiagram } from '../MemoryBlockDiagram';
@@ -31,14 +31,30 @@ jest.mock('@/leaksWorker/blockWorker/worker', () => ({
 jest.mock('@/leaksWorker/stateWorker/worker', () => ({ workerSelectItem: jest.fn() }), { virtual: true });
 jest.mock('../../../leaksWorker/tools/color', () => ({ getColorStringByAddr: () => '#59A14F' }));
 jest.mock('../LifecycleGraphToolbar', () => ({
-    LifecycleGraphToolbar: ({ onLayerVisibilityChange }: {
-        onLayerVisibilityChange: (layer: 'blocks') => void;
+    LifecycleGraphToolbar: ({ zoomMode, onZoomModeChange, onLayerVisibilityChange }: {
+        zoomMode: 'proportional' | 'horizontal';
+        onZoomModeChange: (mode: 'proportional' | 'horizontal') => void;
+        onLayerVisibilityChange: (layer: 'blocks' | 'overview' | 'markers') => void;
     }) => {
         const ReactModule = require('react');
-        return ReactModule.createElement('button', {
-            'data-testid': 'toggle-block-layer',
-            onClick: () => onLayerVisibilityChange('blocks'),
-        });
+        return ReactModule.createElement('div', { 'data-testid': 'mock-lifecycle-toolbar', 'data-zoom-mode': zoomMode },
+            ReactModule.createElement('button', {
+                'data-testid': 'toggle-block-layer',
+                onClick: () => onLayerVisibilityChange('blocks'),
+            }),
+            ReactModule.createElement('button', {
+                'data-testid': 'toggle-overview-layer',
+                onClick: () => onLayerVisibilityChange('overview'),
+            }),
+            ReactModule.createElement('button', {
+                'data-testid': 'toggle-marker-layer',
+                onClick: () => onLayerVisibilityChange('markers'),
+            }),
+            ReactModule.createElement('button', {
+                'data-testid': 'toggle-zoom-mode',
+                onClick: () => onZoomModeChange(zoomMode === 'proportional' ? 'horizontal' : 'proportional'),
+            }),
+        );
     },
     LifecycleZoomModeIcon: () => null,
     LifecycleZoomModeTooltip: () => null,
@@ -85,6 +101,8 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         session.module = 'memsnapshot'; session.fileHash = 'snapshot'; session.deviceId = '0'; session.eventType = 'malloc';
         session.addLifecycleMemoryMarker(500, 'block-flag', 'block', '#59A14F', 42);
         session.updateLifecycleMemoryMarkerPresentation('block-flag', { name: 'Peak', hidden: true });
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
+        const canvas = view.container.querySelector('canvas') as HTMLCanvasElement;
         runInAction(() => {
             session.leaksWorkerInfo.hoverItem = {
                 id: 42,
@@ -95,8 +113,6 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
                 path: [[0, 500]],
             };
         });
-        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
-        const canvas = view.container.querySelector('canvas') as HTMLCanvasElement;
 
         fireEvent.mouseEnter(canvas);
         expect(view.getByTestId('marker-overlay').getAttribute('data-block-preview')).toBe('500');
@@ -123,9 +139,6 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
             size: 1,
             path: [[0, 500]],
         };
-        runInAction(() => {
-            session.leaksWorkerInfo.hoverItem = hoveredBlock;
-        });
         const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
         const canvas = view.container.querySelector('canvas') as HTMLCanvasElement;
         const blockWorker = jest.requireMock('@/leaksWorker/blockWorker/worker') as {
@@ -133,6 +146,9 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
             workerClickItem: jest.Mock;
             workerSetBlockGraphLayerVisibility: jest.Mock;
         };
+        runInAction(() => {
+            session.leaksWorkerInfo.hoverItem = hoveredBlock;
+        });
 
         fireEvent.mouseEnter(canvas);
         expect(view.getByTestId('block-hover-item')).toBeTruthy();
@@ -174,5 +190,85 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         fireEvent.click(canvas, { clientX: 16, clientY: 20 });
         expect(blockWorker.workerHoverItem).toHaveBeenCalled();
         expect(blockWorker.workerClickItem).toHaveBeenCalled();
+    });
+
+    it('restores MemScope lifecycle view state when the imported data context changes', () => {
+        const session = new Session();
+        session.module = 'memsnapshot'; session.fileHash = 'snapshot-a'; session.deviceId = '0'; session.eventType = 'malloc';
+        runInAction(() => {
+            session.leaksWorkerInfo.hoverItem = {
+                id: 42,
+                addr: '0x2a',
+                _startTimestamp: 0,
+                _endTimestamp: 1,
+                size: 1,
+                path: [[0, 500]],
+            };
+        });
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
+        const section = view.getByTestId('blockDiagramSection');
+        const blockWorker = jest.requireMock('@/leaksWorker/blockWorker/worker') as {
+            workerSetBlockGraphLayerVisibility: jest.Mock;
+            workerSetMarkerHoverHighlight: jest.Mock;
+            workerTransform: jest.Mock;
+        };
+
+        fireEvent.click(view.getByTestId('toggle-block-layer'));
+        fireEvent.click(view.getByTestId('toggle-overview-layer'));
+        fireEvent.click(view.getByTestId('toggle-marker-layer'));
+        fireEvent.click(view.getByTestId('toggle-zoom-mode'));
+
+        expect(section.getAttribute('data-block-layer-visible')).toBe('false');
+        expect(section.getAttribute('data-overview-layer-visible')).toBe('false');
+        expect(section.getAttribute('data-marker-layer-visible')).toBe('false');
+        expect(view.getByTestId('mock-lifecycle-toolbar').getAttribute('data-zoom-mode')).toBe('horizontal');
+
+        runInAction(() => {
+            session.leaksWorkerInfo.renderOptions.transform = { x: 12, y: 34, scaleX: 2, scaleY: 3 };
+        });
+
+        jest.clearAllMocks();
+        act(() => {
+            runInAction(() => {
+                session.fileHash = 'snapshot-b';
+            });
+        });
+
+        expect(section.getAttribute('data-block-layer-visible')).toBe('true');
+        expect(section.getAttribute('data-overview-layer-visible')).toBe('true');
+        expect(section.getAttribute('data-marker-layer-visible')).toBe('true');
+        expect(view.getByTestId('mock-lifecycle-toolbar').getAttribute('data-zoom-mode')).toBe('proportional');
+        expect(blockWorker.workerSetBlockGraphLayerVisibility).toHaveBeenLastCalledWith({
+            visibility: { blocks: true, overview: true },
+        });
+        expect(blockWorker.workerTransform).toHaveBeenLastCalledWith({
+            transform: { x: 0, y: 0, scaleX: 1, scaleY: 1 },
+        });
+        expect(blockWorker.workerSetMarkerHoverHighlight).toHaveBeenLastCalledWith({ active: false });
+        expect(session.leaksWorkerInfo.renderOptions.transform).toEqual({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
+        expect(session.leaksWorkerInfo.hoverItem).toBeNull();
+    });
+
+    it('synchronizes default lifecycle view state when MemScope remounts with a reused Worker', () => {
+        const session = new Session();
+        session.module = 'memsnapshot'; session.fileHash = 'snapshot-b'; session.deviceId = '0'; session.eventType = 'malloc';
+        runInAction(() => {
+            session.leaksWorkerInfo.renderOptions.transform = { x: -40, y: 25, scaleX: 4, scaleY: 5 };
+        });
+        const blockWorker = jest.requireMock('@/leaksWorker/blockWorker/worker') as {
+            workerSetBlockGraphLayerVisibility: jest.Mock;
+            workerTransform: jest.Mock;
+        };
+
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
+
+        expect(view.getByTestId('blockDiagramSection').getAttribute('data-overview-layer-visible')).toBe('true');
+        expect(blockWorker.workerSetBlockGraphLayerVisibility).toHaveBeenLastCalledWith({
+            visibility: { blocks: true, overview: true },
+        });
+        expect(blockWorker.workerTransform).toHaveBeenLastCalledWith({
+            transform: { x: 0, y: 0, scaleX: 1, scaleY: 1 },
+        });
+        expect(session.leaksWorkerInfo.renderOptions.transform).toEqual({ x: 0, y: 0, scaleX: 1, scaleY: 1 });
     });
 });

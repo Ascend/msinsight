@@ -83,6 +83,12 @@ const TOOLBAR_HEIGHT = 36;
 const BLOCK_DIAGRAM_OFFSET_LEFT = 100;
 const BLOCK_DIAGRAM_OFFSET_RIGHT = 105;
 const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
+const DEFAULT_X_ZOOM_MODE = false;
+const DEFAULT_LAYER_VISIBILITY: LifecycleGraphLayerVisibility = {
+    blocks: true,
+    overview: true,
+    markers: true,
+};
 type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
 
 const ProgressiveLoadingStatus = styled.div`
@@ -171,18 +177,15 @@ export const MemoryBlockDiagram = observer(({
     const { t } = useTranslation('leaks');
     const containerRef = useRef<HTMLDivElement>(null);
     const ref = useRef<HTMLCanvasElement>(null);
-    const defaultXZoomMode = false;
-    const [xZoomMode, setXZoomMode] = useState(defaultXZoomMode);
-    const xZoomModeRef = useRef(defaultXZoomMode);
+    const [xZoomMode, setXZoomMode] = useState(DEFAULT_X_ZOOM_MODE);
+    const xZoomModeRef = useRef(DEFAULT_X_ZOOM_MODE);
     const lifecycleDataContextKey = session.getLifecycleMemoryMarkerContextKey();
-    const previousDataContextKeyRef = useRef(lifecycleDataContextKey);
+    const previousDataContextKeyRef = useRef<string | null>(null);
     const [markerManagerContextKey, setMarkerManagerContextKey] = useState<string | null>(null);
     const markerManagerOpen = markerManagerContextKey === lifecycleDataContextKey;
     const closeMarkerManagement = useCallback((): void => setMarkerManagerContextKey(null), []);
     const [layerVisibility, setLayerVisibility] = useState<LifecycleGraphLayerVisibility>({
-        blocks: true,
-        overview: true,
-        markers: true,
+        ...DEFAULT_LAYER_VISIBILITY,
     });
     const layerVisibilityRef = useRef(layerVisibility);
     const isDragging = useRef(false);
@@ -593,6 +596,18 @@ export const MemoryBlockDiagram = observer(({
             return;
         }
         previousDataContextKeyRef.current = lifecycleDataContextKey;
+        const defaultLayerVisibility = { ...DEFAULT_LAYER_VISIBILITY };
+        layerVisibilityRef.current = defaultLayerVisibility;
+        setLayerVisibility(defaultLayerVisibility);
+        xZoomModeRef.current = DEFAULT_X_ZOOM_MODE;
+        setXZoomMode(DEFAULT_X_ZOOM_MODE);
+        workerSetBlockGraphLayerVisibility({
+            visibility: {
+                blocks: defaultLayerVisibility.blocks,
+                overview: defaultLayerVisibility.overview,
+            },
+        });
+        resetTransform();
         closeMarkerManagement();
         clearBlockHover();
     }, [lifecycleDataContextKey]);
