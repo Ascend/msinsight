@@ -13,6 +13,8 @@
   [![Version](https://badgen.net/badge/Version/26.1.0/blue)](https://gitcode.com/Ascend/msinsight/releases)
 </div>
 
+简体中文 | [English](./README_EN.md)
+
 ## ✨ 最新消息
 
 <span style="font-size:14px;">

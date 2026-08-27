@@ -21,7 +21,7 @@
 
 ## 模型Profiling采集
 
-参考昇腾社区有关profiling采集相关的文档：[简介-CANN商用版8.3.RC1-昇腾社区](https://www.hiascend.com/document/detail/zh/canncommercial/83RC1/devaids/Profiling/atlasprofiling_16_0001.html)
+参考昇腾社区有关profiling采集相关的文档：[简介](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/910/devaids/Profiling/atlasprofiling_16_0001.html)
 
 > 请注意Profiling采集配置。当前仅支持ftrace与Text类型的Profiling联合导入，暂不支持与DB类型的Profiling数据联合导入。
 
@@ -256,7 +256,7 @@ export VLLM_TORCH_PROFILER_DIR="/path/to/profiling/data"
 export CPU_AFFINITY_CONF=2,npu0:0-15
 ```
 
-此处绑核仅为示例，请根据实际业务需要确定CPU绑核区间，建议采用NPU与CPU亲和性绑核。详见：[绑核优化-Ascend Extension for PyTorch-昇腾社区](https://www.hiascend.com/document/detail/zh/Pytorch/720/ptmoddevg/trainingmigrguide/performance_tuning_0060.html)
+此处绑核仅为示例，请根据实际业务需要确定CPU绑核区间，建议采用NPU与CPU亲和性绑核。详见：[绑核优化](https://www.hiascend.com/document/detail/zh/Pytorch/2610/devguide/fwfeatures/docs/zh/framework_feature_guide_pytorch/automatic_core_binding.md)
 
 ### 2. 进入容器，运行vllm-ascend离线推理任务，同步采集ftrace与Profiling数据
 
@@ -432,7 +432,7 @@ Process Scheduling泳道，可查看特定进程的调度状态。
 
 **联合分析思路**
 
-一般而言，若在Profiling中观察到下发瓶颈点，可先通过CPU Scheduling泳道，概览性地观察该时间段内，下发流水中的热点线程，如Pytorch主线程、前向算子下发、反向算子下发、PTA二级流水下发（aclThread）等，是否存在进程抢占、软中断等情况。随后，观察特定进程的Process Scheduling泳道，进一步了解进程状态。最后，根据分析结果，进行针对性优化，例如改进绑核方案、核隔离、流水优化等。
+一般而言，若在Profiling中观察到下发瓶颈点，可先通过CPU Scheduling泳道，概览性地观察该时间段内，下发流水中的热点线程，如PyTorch主线程、前向算子下发、反向算子下发、PTA二级流水下发（aclThread）等，是否存在进程抢占、软中断等情况。随后，观察特定进程的Process Scheduling泳道，进一步了解进程状态。最后，根据分析结果，进行针对性优化，例如改进绑核方案、核隔离、流水优化等。
 
 ## tracefs/debugfs模式支持
 
@@ -512,7 +512,7 @@ debugfs模式:
 
 ![](./assets/partial_cpu_core_blank.png)
 
-**可能性1**：ftrace采用环形缓冲区，这意味着缓冲区满后新数据会覆盖旧数据，可以在脚本`trace_record.py`中调整缓冲区大小`buffer_size`，例如调整至`--bf_size=4096'`，tracefs/debugfs模式建议调整至大于`40960`KB。
+**可能性1**：ftrace采用环形缓冲区，这意味着缓冲区满后新数据会覆盖旧数据，可以在脚本`trace_record.py`中调整缓冲区大小`buffer_size`，例如调整至`--bf_size=4096`，tracefs/debugfs模式建议调整至大于`40960`KB。
 
 另外，当前脚本会在采集停止时读取tracefs per-CPU stats。如果日志中出现如下告警，说明本次采集过程中已经感知到环形缓冲区覆盖或事件丢失，建议增大`--bf_size`（优先）、缩短采集时长、减少采集事件或缩小CPU采集范围后重新采集。
 
