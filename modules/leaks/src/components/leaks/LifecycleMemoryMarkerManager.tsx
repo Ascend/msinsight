@@ -7,7 +7,7 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styled from '@emotion/styled';
 import { CloseOutlined, DeleteOutlined, EyeInvisibleOutlined, EyeOutlined, LinkOutlined } from '@ant-design/icons';
 import { Modal } from 'antd';
@@ -20,7 +20,7 @@ import {
     getLifecycleMemoryMarkerSource,
     sortLifecycleMemoryMarkers,
 } from '../../entity/lifecycleMemoryMarkers';
-import { formatBytes } from '../../utils/utils';
+import { formatBytes, formatBytesWithFullPrecision, formatBytesWithTruncatedPrecision } from '../../utils/utils';
 import { TimelineFlagIcon } from './TimelineFlagIcon';
 const MARKER_LAYOUT = { panelWidth: 480, relationshipWidth: 130, nodeWidth: 28, rowHeight: 76, stride: 108 };
 
@@ -200,11 +200,37 @@ const SourceBadge = styled.span`
     span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 `;
 const Baseline = styled.span`
+    position: relative;
+    z-index: 1;
     overflow: hidden;
     color: ${(props): string => props.theme.textColorSecondary};
     font-size: 11px;
     opacity: 0.72; text-overflow: ellipsis; white-space: nowrap;
+
+    &[data-full-precision='true'] {
+        align-self: flex-start;
+        width: max-content;
+        padding-right: 4px;
+        overflow: visible;
+        background: ${(props): string => props.theme.contentBackgroundColor};
+        text-overflow: clip;
+    }
 `;
+const MemoryMarkerBaseline = ({ label, memoryBytes }: { label: string; memoryBytes: number }): JSX.Element => {
+    const [showFullPrecision, setShowFullPrecision] = useState(false);
+    const value = showFullPrecision
+        ? formatBytesWithFullPrecision(memoryBytes)
+        : formatBytesWithTruncatedPrecision(memoryBytes);
+
+    return <Baseline
+        data-full-precision={String(showFullPrecision)}
+        data-testid="memoryMarkerBaseline"
+        onMouseEnter={(): void => setShowFullPrecision(true)}
+        onMouseLeave={(): void => setShowFullPrecision(false)}
+    >
+        {`${label}: ${value}`}
+    </Baseline>;
+};
 const ColorInput = styled.input`
     width: 24px;
     height: 22px;
@@ -378,7 +404,10 @@ export const LifecycleMemoryMarkerManager = observer(({
                                                 <span>{t('linkedBlockId', { id: marker.blockId ?? '--' })}</span>
                                             </SourceBadge>
                                             : <></>}
-                                        <Baseline>{`${t('memoryMarkerBaseline')}: ${formatBytes(marker.memoryBytes)}`}</Baseline>
+                                        <MemoryMarkerBaseline
+                                            label={t('memoryMarkerBaseline')}
+                                            memoryBytes={marker.memoryBytes}
+                                        />
                                     </CardMain>
                                     <ColorInput
                                         type="color"

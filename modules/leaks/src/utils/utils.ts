@@ -65,19 +65,34 @@ const thresholds = [
     1024 * 1024 * 1024 * 1024,
 ];
 
-export const formatBytes = (bytes: number): string => {
-    const symbol = bytes < 1 ? -1 : 1;
-    // 找到合适的单位
+const getByteUnitIndex = (bytes: number): number => {
     let unitIndex = 0;
     for (let i = thresholds.length - 1; i >= 0; i--) {
-        if (bytes * symbol >= thresholds[i]) {
+        if (Math.abs(bytes) >= thresholds[i]) {
             unitIndex = i;
             break;
         }
     }
+    return unitIndex;
+};
 
+export const formatBytes = (bytes: number): string => {
+    const unitIndex = getByteUnitIndex(bytes);
     const value = (bytes / thresholds[unitIndex]).toFixed(3);
     return `${value} ${units[unitIndex]}`;
+};
+
+export const formatBytesWithFullPrecision = (bytes: number): string => {
+    const unitIndex = getByteUnitIndex(bytes);
+    return `${bytes / thresholds[unitIndex]} ${units[unitIndex]}`;
+};
+
+export const formatBytesWithTruncatedPrecision = (bytes: number): string => {
+    const unitIndex = getByteUnitIndex(bytes);
+    const value = bytes / thresholds[unitIndex];
+    const truncatedValue = Math.trunc(value * 1000) / 1000;
+    const suffix = value === truncatedValue ? '' : '...';
+    return `${truncatedValue.toFixed(3)}${suffix} ${units[unitIndex]}`;
 };
 
 export const addAddressOffset = (address: string, offset: number): string => {

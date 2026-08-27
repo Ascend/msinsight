@@ -111,6 +111,31 @@ describe('LifecycleMemoryMarkerManager', () => {
         expect(session.getLifecycleMemoryMarkers().map(marker => marker.id)).toEqual(['ordinary', 'middle']);
     });
 
+    it('replaces the compact baseline with the unrounded value while hovered', () => {
+        const session = new Session();
+        session.module = 'memsnapshot';
+        session.fileHash = 'snapshot';
+        session.deviceId = '0';
+        session.eventType = 'malloc';
+        session.addLifecycleMemoryMarker(536872960, 'precise');
+        const view = render(<ThemeProvider theme={theme}>
+            <LifecycleMemoryMarkerManager session={session} onClose={jest.fn()} />
+        </ThemeProvider>);
+
+        const baseline = view.getByTestId('memoryMarkerBaseline');
+        expect(baseline.textContent).toBe('memoryMarkerBaseline: 512.001... MB');
+        expect(baseline.getAttribute('data-full-precision')).toBe('false');
+
+        fireEvent.mouseEnter(baseline);
+        expect(baseline.textContent).toBe('memoryMarkerBaseline: 512.001953125 MB');
+        expect(baseline.getAttribute('data-full-precision')).toBe('true');
+        expect(view.queryByRole('tooltip')).toBeNull();
+
+        fireEvent.mouseLeave(baseline);
+        expect(baseline.textContent).toBe('memoryMarkerBaseline: 512.001... MB');
+        expect(baseline.getAttribute('data-full-precision')).toBe('false');
+    });
+
     it('closes after clearing the active context and supports external dismissal', () => {
         const session = createSession();
         const onClose = jest.fn();
