@@ -125,6 +125,8 @@
     "clearAllMemoryMarkers": "Clear all",
     "clearAllMemoryMarkersConfirm": "Clear all flags in this context?",
     "clearAllMemoryMarkersDescription": "This removes every flag for the current snapshot, device, and event type and cannot be undone.",
+    "clearAllMemoryMarkersConfirmButton": "OK",
+    "clearAllMemoryMarkersCancelButton": "Cancel",
     "blockMarkerShortcutPress": "Press",
     "createHoveredBlockMarkerHint": "Add",
     "restoreHoveredBlockMarkerHint": "Restore",

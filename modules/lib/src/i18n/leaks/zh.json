@@ -125,6 +125,8 @@
     "clearAllMemoryMarkers": "清空全部",
     "clearAllMemoryMarkersConfirm": "清空当前全部 Flag？",
     "clearAllMemoryMarkersDescription": "该操作只清空当前快照、设备和事件类型下的 Flag，且无法撤销。",
+    "clearAllMemoryMarkersConfirmButton": "确定",
+    "clearAllMemoryMarkersCancelButton": "取消",
     "blockMarkerShortcutPress": "按",
     "createHoveredBlockMarkerHint": "添加",
     "restoreHoveredBlockMarkerHint": "恢复",

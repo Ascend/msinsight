@@ -262,10 +262,17 @@ export const LifecycleMemoryMarkerManager = observer(({
 }): JSX.Element => {
     const { t } = useTranslation('leaks');
     const panelRef = useRef<HTMLDivElement>(null);
+    const clearAllModalRef = useRef<ReturnType<typeof Modal.confirm> | null>(null);
     const markers = sortLifecycleMemoryMarkers(session.getLifecycleMemoryMarkers());
     const displayedMarkers = [...markers].reverse();
     const visibleMarkers = displayedMarkers.map((marker, index) => ({ marker, index }))
         .filter(item => item.marker.hidden !== true);
+    const clearAllModalText = {
+        title: t('clearAllMemoryMarkersConfirm'),
+        content: t('clearAllMemoryMarkersDescription'),
+        okText: t('clearAllMemoryMarkersConfirmButton'),
+        cancelText: t('clearAllMemoryMarkersCancelButton'),
+    };
 
     useEffect(() => {
         const closeOutside = (event: MouseEvent): void => {
@@ -281,16 +288,23 @@ export const LifecycleMemoryMarkerManager = observer(({
             document.removeEventListener('keydown', closeOnEscape);
         };
     }, [onClose]);
+    useEffect(() => {
+        clearAllModalRef.current?.update(clearAllModalText);
+    }, [session.language, clearAllModalText.title, clearAllModalText.content, clearAllModalText.okText, clearAllModalText.cancelText]);
     const clearAll = (): void => {
-        Modal.confirm({
-            title: t('clearAllMemoryMarkersConfirm'),
-            content: t('clearAllMemoryMarkersDescription'),
+        if (clearAllModalRef.current) return;
+        const clearAllModal = Modal.confirm({
+            ...clearAllModalText,
             okButtonProps: { danger: true },
             onOk: (): void => {
                 session.clearCurrentLifecycleMemoryMarkers();
                 onClose();
             },
+            afterClose: (): void => {
+                if (clearAllModalRef.current === clearAllModal) clearAllModalRef.current = null;
+            },
         });
+        clearAllModalRef.current = clearAllModal;
     };
     return <Panel
         ref={panelRef}
