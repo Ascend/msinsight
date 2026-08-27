@@ -118,15 +118,12 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
     delete (globalThis as {
         __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
     }).__LEAKS_PROGRESSIVE_RENDER_METRICS__;
-    let resolveBlockRenderStarted: (started: boolean) => void = () => undefined;
     let requestActive = true;
-    const blockRenderStarted = new Promise<boolean>(resolve => {
-        resolveBlockRenderStarted = resolve;
-    });
     try {
         const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
         const cacheFileHash = createBlockPathCacheHash(session.fileHash, param.deviceId, param.eventType);
-        const allocationTask = getAllocationRequest(param).then(async allocationData => {
+        const loadAllocation = async (): Promise<void> => {
+            const allocationData = await getAllocationRequest(param);
             if (!requestActive || !isLatestRequest()) {
                 return;
             }
@@ -137,13 +134,12 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
                     session.loadingOverview = false;
                 }
             });
-            const rendererStarted = await blockRenderStarted;
-            if (rendererStarted && isLatestRequest() && session.module === 'memsnapshot') {
+            if (isLatestRequest() && session.module === 'memsnapshot') {
                 if (reservedLine !== undefined) {
                     workerSetReservedLine({ reservedLine });
                 }
             }
-        }, error => ({ error }));
+        };
         const transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         runInAction(() => {
             session.leaksWorkerInfo.renderOptions.transform = transform;
@@ -153,15 +149,10 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             ? await workerLoadMemoryBlockCache({ fileHash: cacheFileHash })
             : false;
         if (!isLatestRequest()) {
-            resolveBlockRenderStarted(false);
             return;
         }
         if (cacheHit) {
-            resolveBlockRenderStarted(true);
-            const allocationResult = await allocationTask;
-            if (allocationResult !== undefined) {
-                throw allocationResult.error;
-            }
+            await loadAllocation();
             if (isLatestRequest()) {
                 runInAction(() => {
                     session.loadingBlocks = false;
@@ -171,15 +162,10 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         }
         const blockData = await getBlocksRequest(param);
         if (!isLatestRequest()) {
-            resolveBlockRenderStarted(false);
             return;
         }
         const blockRenderTask = workerSetMemoryBlockData({ data: blockData, fileHash: cacheFileHash });
-        resolveBlockRenderStarted(true);
-        const [, allocationResult] = await Promise.all([blockRenderTask, allocationTask]);
-        if (allocationResult !== undefined) {
-            throw allocationResult.error;
-        }
+        await Promise.all([blockRenderTask, loadAllocation()]);
         if (!isLatestRequest()) {
             return;
         }
@@ -188,7 +174,6 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         });
     } catch (error: any) {
         requestActive = false;
-        resolveBlockRenderStarted(false);
         if (isLatestRequest()) {
             runInAction(() => {
                 session.loadingBlocks = false;
