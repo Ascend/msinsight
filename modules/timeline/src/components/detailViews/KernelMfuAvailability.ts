@@ -28,7 +28,7 @@ interface KernelMfuAvailabilityProps {
 export const useKernelMfuAvailability = ({ session, enabled }: KernelMfuAvailabilityProps): void => {
     useEffect(() => {
         const clusterPath = session.selectedClusterPath;
-        if (!enabled || clusterPath === '' || !session.kernelMfuDurationParsed) {
+        if (!enabled || !session.isCluster || clusterPath === '' || !session.kernelMfuDurationParsed) {
             return;
         }
         const sequence = session.startKernelMfuAvailabilityRequest(clusterPath);
@@ -52,6 +52,7 @@ export const useKernelMfuAvailability = ({ session, enabled }: KernelMfuAvailabi
         session.kernelMfuAvailability,
         session.kernelMfuAvailabilityChecking,
         session.kernelMfuDurationParsed,
+        session.isCluster,
         session.kernelMfuProjectGeneration,
         session.selectedClusterPath,
     ]);
