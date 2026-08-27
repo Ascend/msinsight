@@ -1141,6 +1141,35 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenNPUQuerySuccess) {
     EXPECT_EQ(args, "{\"Byte\":28036571136}");
 }
 
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenCPUFreqQuerySuccess) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(
+        db, "CREATE TABLE CPU_FREQ (timestampNs NUMERIC, cpuId NUMERIC, freq NUMERIC);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO CPU_FREQ (timestampNs, cpuId, freq) VALUES "
+        "(1010, 1, 1200000), (1015, 0, 999999), (1020, 1, 1200000);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams requestParams;
+    requestParams.metaType = "CPU_FREQ";
+    requestParams.threadId = "CPU 1";
+    requestParams.rankId = "7";
+    requestParams.startTime = 5;
+    requestParams.endTime = 30;
+    const uint64_t minTimestamp = 1000;
+    std::vector<Dic::Protocol::UnitCounterData> dataList;
+
+    ASSERT_TRUE(database.QueryUnitCounter(requestParams, minTimestamp, dataList));
+    ASSERT_EQ(dataList.size(), 2);
+    EXPECT_EQ(dataList[0].timestamp, 10);
+    EXPECT_EQ(dataList[0].valueJsonStr, "{\"Frequency(KHz)\":1200000}");
+    EXPECT_EQ(dataList[1].timestamp, 20);
+    EXPECT_EQ(dataList[1].valueJsonStr, "{\"Frequency(KHz)\":1200000}");
+}
+
 TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenQOSQuerySuccess) {
     std::recursive_mutex testMutex;
     MockDatabase database(testMutex);

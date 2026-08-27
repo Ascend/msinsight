@@ -511,6 +511,11 @@ The following table describes the unit information displayed on the **Timeline**
     <td class="tg-0pky">CPU usage on the host.</td>
   </tr>
   <tr>
+    <td class="tg-0pky">CPU Freq</td>
+    <td class="tg-0pky">CPU &lt;id&gt;</td>
+    <td class="tg-0pky">Frequency of each CPU on the host, in KHz.</td>
+  </tr>
+  <tr>
     <td class="tg-0pky">Memory Usage</td>
     <td class="tg-0pky">Memory Usage</td>
     <td class="tg-0pky">Memory usage on the host.</td>

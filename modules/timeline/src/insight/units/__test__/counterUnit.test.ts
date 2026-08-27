@@ -18,6 +18,8 @@ describe('getCounterLaneDisplayName', () => {
             .toBe('HBM 0 read/Bandwidth (Byte/s)');
         expect(getCounterLaneDisplayName(createCounterMetaData('AI Core Freq', ['Frequency(Mhz)'])))
             .toBe('AI Core Freq (Mhz)');
+        expect(getCounterLaneDisplayName(createCounterMetaData('CPU 239', ['Frequency(KHz)'])))
+            .toBe('CPU 239 (KHz)');
     });
 
     it('appends unit-only data type values', () => {

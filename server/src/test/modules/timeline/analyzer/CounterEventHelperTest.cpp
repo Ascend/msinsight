@@ -28,6 +28,12 @@ TEST_F(CounterEventHelperTest, GenerateHostMetaDataSQLTest) {
     const std::string cpuUsageSQL =
         "SELECT DISTINCT 'CPU ' || cpuId || '' AS name, 'Usage(%)' AS types FROM CPU_USAGE;";
     EXPECT_EQ(sql, cpuUsageSQL);
+    type = Dic::Protocol::PROCESS_TYPE::CPU_FREQ;
+    sql = helper.GenerateHostMetadataSQL(type);
+    const std::string cpuFreqSQL =
+        "SELECT DISTINCT 'CPU ' || cpuId || '' AS name, 'Frequency(KHz)' AS types FROM CPU_FREQ;";
+    EXPECT_EQ(sql, cpuFreqSQL);
+    EXPECT_EQ(helper.hostCounterEventMap.at(type).processName, "CPU Freq");
     type = Dic::Protocol::PROCESS_TYPE::HOST_DISK_USAGE;
     sql = helper.GenerateHostMetadataSQL(type);
     const std::string diskUsageSQL = "SELECT DISTINCT 'Disk Usage' AS name, 'Usage(%)' AS types FROM HOST_DISK_USAGE;";
@@ -52,6 +58,12 @@ TEST_F(CounterEventHelperTest, GenerateHostCounterSQLTest) {
         "SELECT timestampNs - ? AS startTime, '{\"Usage(%)\":' || usage || '}' AS args FROM CPU_USAGE"
         " WHERE 'CPU ' || cpuId || '' = ? AND startTime >= ? AND startTime <= ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, cpuUsageSQL);
+    type = Dic::Protocol::PROCESS_TYPE::CPU_FREQ;
+    sql = helper.GenerateHostCounterSQL(type);
+    const std::string cpuFreqSQL =
+        "SELECT timestampNs - ? AS startTime, '{\"Frequency(KHz)\":' || freq || '}' AS args FROM CPU_FREQ"
+        " WHERE 'CPU ' || cpuId || '' = ? AND startTime >= ? AND startTime <= ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, cpuFreqSQL);
     type = Dic::Protocol::PROCESS_TYPE::HOST_DISK_USAGE;
     sql = helper.GenerateHostCounterSQL(type);
     const std::string diskUsageSQL =

@@ -28,6 +28,8 @@ const std::map<std::string, std::string> CounterEventHelper::displayNameToValueN
 void CounterEventHelper::RegisterHostMap() {
     hostCounterEventMap.insert({PROCESS_TYPE::CPU_USAGE,
         {"CPU Usage", PROCESS_TYPE_ES.at(PROCESS_TYPE::CPU_USAGE), "usage", "CPU {cpuId}", "Usage(%)"}});
+    hostCounterEventMap.insert({PROCESS_TYPE::CPU_FREQ,
+        {"CPU Freq", PROCESS_TYPE_ES.at(PROCESS_TYPE::CPU_FREQ), "freq", "CPU {cpuId}", "Frequency(KHz)"}});
     hostCounterEventMap.insert({PROCESS_TYPE::HOST_DISK_USAGE,
         {"Disk Usage", PROCESS_TYPE_ES.at(PROCESS_TYPE::HOST_DISK_USAGE), "usage", "Disk Usage", "Usage(%)"}});
     hostCounterEventMap.insert({PROCESS_TYPE::HOST_NETWORK_USAGE,
