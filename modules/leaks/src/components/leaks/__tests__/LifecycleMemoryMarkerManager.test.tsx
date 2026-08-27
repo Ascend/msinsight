@@ -9,10 +9,27 @@
 
 import React from 'react';
 import { ThemeProvider } from '@emotion/react';
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { Modal } from 'antd';
+import { runInAction } from 'mobx';
 import { Session } from '../../../entity/session';
 import { LifecycleMemoryMarkerManager } from '../LifecycleMemoryMarkerManager';
+
+let mockLanguage: 'zhCN' | 'enUS' = 'enUS';
+const mockTranslations: Record<'zhCN' | 'enUS', Record<string, string>> = {
+    enUS: {
+        clearAllMemoryMarkersConfirm: 'Clear all flags in this context?',
+        clearAllMemoryMarkersDescription: 'This removes every flag for the current context.',
+        clearAllMemoryMarkersConfirmButton: 'OK',
+        clearAllMemoryMarkersCancelButton: 'Cancel',
+    },
+    zhCN: {
+        clearAllMemoryMarkersConfirm: '清空当前全部 Flag？',
+        clearAllMemoryMarkersDescription: '该操作会清空当前上下文中的全部 Flag。',
+        clearAllMemoryMarkersConfirmButton: '确定',
+        clearAllMemoryMarkersCancelButton: '取消',
+    },
+};
 
 jest.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -22,6 +39,9 @@ jest.mock('react-i18next', () => ({
             if (key === 'renameMemoryMarker') return `Rename ${options?.marker ?? ''}`;
             if (key === 'hideMemoryMarker') return `Hide ${options?.marker ?? ''}`;
             if (key === 'showMemoryMarker') return `Show ${options?.marker ?? ''}`;
+            if (key in mockTranslations[mockLanguage]) {
+                return mockTranslations[mockLanguage][key];
+            }
             return key;
         },
     }),
@@ -57,6 +77,10 @@ const createSession = (): Session => {
 };
 
 describe('LifecycleMemoryMarkerManager', () => {
+    beforeEach(() => {
+        mockLanguage = 'enUS';
+    });
+
     it('shows spatial relationships and edits color or individual flags', () => {
         const session = createSession();
         const view = render(<ThemeProvider theme={theme}>
@@ -99,14 +123,56 @@ describe('LifecycleMemoryMarkerManager', () => {
         </ThemeProvider>);
         fireEvent.click(view.getByRole('button', { name: 'clearAllMemoryMarkers' }));
         expect(confirm).toHaveBeenCalledWith(expect.objectContaining({
-            title: 'clearAllMemoryMarkersConfirm',
-            content: 'clearAllMemoryMarkersDescription',
+            title: 'Clear all flags in this context?',
+            content: 'This removes every flag for the current context.',
+            okText: 'OK',
+            cancelText: 'Cancel',
         }));
         expect(session.getLifecycleMemoryMarkers()).toEqual([]);
         expect(onClose).toHaveBeenCalledTimes(1);
 
         fireEvent.keyDown(document, { key: 'Escape' });
         expect(onClose).toHaveBeenCalledTimes(2);
+        confirm.mockRestore();
+    });
+
+    it('updates an open clear confirmation when the language changes', () => {
+        const session = createSession();
+        const onClose = jest.fn();
+        const update = jest.fn();
+        let confirmOptions: Parameters<typeof Modal.confirm>[0] | undefined;
+        const confirm = jest.spyOn(Modal, 'confirm').mockImplementation(options => {
+            confirmOptions = options;
+            return { destroy: jest.fn(), update } as any;
+        });
+        const view = render(<ThemeProvider theme={theme}>
+            <LifecycleMemoryMarkerManager session={session} onClose={onClose} />
+        </ThemeProvider>);
+
+        fireEvent.click(view.getByRole('button', { name: 'clearAllMemoryMarkers' }));
+        expect(session.getLifecycleMemoryMarkers()).toHaveLength(3);
+
+        act(() => {
+            mockLanguage = 'zhCN';
+            runInAction(() => {
+                session.language = 'zhCN';
+            });
+        });
+
+        expect(update).toHaveBeenLastCalledWith({
+            title: '清空当前全部 Flag？',
+            content: '该操作会清空当前上下文中的全部 Flag。',
+            okText: '确定',
+            cancelText: '取消',
+        });
+        expect(session.getLifecycleMemoryMarkers()).toHaveLength(3);
+        expect(onClose).not.toHaveBeenCalled();
+
+        act(() => {
+            (confirmOptions?.onOk as (() => void))();
+        });
+        expect(session.getLifecycleMemoryMarkers()).toEqual([]);
+        expect(onClose).toHaveBeenCalledTimes(1);
         confirm.mockRestore();
     });
 });
