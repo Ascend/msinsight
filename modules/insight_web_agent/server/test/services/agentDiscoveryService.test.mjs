@@ -102,16 +102,16 @@ test("marks every built-in discovered agent as automatic", () => {
     assert.equal(ACP_AGENT_CATALOG.every(({ config }) => config.name.endsWith("(auto)")), true);
 });
 
-test("redacts credentials when discovered configurations are written to logs", () => {
+test("logs only ACP launch shape without credentials, arguments, endpoints, or paths", () => {
     assert.deepEqual(agentConfigForLog({
         name: "Secure(auto)",
-        command: "secure-acp",
-        args: ["serve"],
+        command: "C:\\sensitive\\secure-acp.exe",
+        args: ["serve", "--endpoint=https://credential.example"],
         env: { API_KEY: "key-value", ACCESS_TOKEN: "token-value", ENDPOINT: "https://example.test" },
     }), {
         name: "Secure(auto)",
-        command: "secure-acp",
-        args: ["serve"],
-        env: { API_KEY: "***", ACCESS_TOKEN: "***", ENDPOINT: "https://example.test" },
+        commandName: "secure-acp.exe",
+        argCount: 2,
+        envKeys: ["ACCESS_TOKEN", "API_KEY", "ENDPOINT"],
     });
 });

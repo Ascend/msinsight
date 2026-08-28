@@ -44,10 +44,27 @@ test("capability center lists registered tools and routes a global invocation", 
         input: { command: "observe", args: {} },
     });
 
-    assert.deepEqual(capabilities.map(({ name }) => name), ["msinsight", "pt_snap"]);
+    assert.deepEqual(capabilities.map(({ name }) => name), ["msinsight", "rag_retrieve", "pt_snap"]);
     assert.deepEqual(result, { command: "observe" });
     assert.equal(requests[0].requestId, "invocation-1");
     assert.equal(requests[0].sessionId, "");
+});
+
+test("capability center exposes an unavailable RAG tool when the runtime is not loaded", async () => {
+    const { capabilityCenter } = fixture();
+
+    const result = await capabilityCenter.invoke({
+        name: "rag_retrieve",
+        input: { query: "MindStudio Insight 如何导入数据" },
+    });
+
+    assert.deepEqual(result, {
+        schemaVersion: "1.0",
+        status: "unavailable",
+        query: "MindStudio Insight 如何导入数据",
+        sources: [],
+        reason: "unavailable",
+    });
 });
 
 test("capability registry validates msinsight arguments", async () => {

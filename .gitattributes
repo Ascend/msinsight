@@ -1,0 +1,11 @@
+* text=auto
+
+*.mjs text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.cmd text eol=crlf
+*.f32 binary
+*.onnx binary
+*.zip binary

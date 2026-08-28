@@ -27,7 +27,10 @@ import { fileURLToPath } from "node:url";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(testDir, "../../..");
-const packagedNativeAgentPath = join(packageRoot, "dist-server", "native-agent", "index.mjs");
+const distDir = process.env.MSINSIGHT_DIST_SERVER_DIR
+    ? resolve(process.env.MSINSIGHT_DIST_SERVER_DIR)
+    : join(packageRoot, "dist-server");
+const packagedNativeAgentPath = join(distDir, "native-agent", "index.mjs");
 
 const waitForResponses = (child, expectedCount, stderr) => new Promise((resolveResponses, reject) => {
     const responses = [];

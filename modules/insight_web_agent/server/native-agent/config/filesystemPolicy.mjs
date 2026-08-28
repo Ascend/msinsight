@@ -68,7 +68,7 @@ const parseFilesystemPolicy = (value, resourceDir) => {
     try {
         const policy = JSON.parse(String(value ?? "{}"));
         return {
-            includeDocsRoot: policy.includeDocsRoot !== false,
+            includeDocsRoot: policy.includeDocsRoot === true,
             includeAgentWorkspaceRoot: policy.includeAgentWorkspaceRoot !== false,
             includeProjectRoot: policy.includeProjectRoot !== false,
             docsRoot: policy.docsRoot ? resolve(String(policy.docsRoot)) : join(resourceDir, "docs"),
@@ -78,7 +78,7 @@ const parseFilesystemPolicy = (value, resourceDir) => {
     } catch (error) {
         console.warn(`Failed to parse native filesystem policy: ${error.message}`);
         return {
-            includeDocsRoot: true,
+            includeDocsRoot: false,
             includeAgentWorkspaceRoot: true,
             includeProjectRoot: true,
             docsRoot: join(resourceDir, "docs"),

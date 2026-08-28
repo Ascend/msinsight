@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "1.0",
+  "packageSchemaVersion": "4.0",
+  "packageMembers": [
+    "manifest.json",
+    "sources.jsonl",
+    "documents.jsonl",
+    "chunks.jsonl",
+    "vectors.f32",
+    "bm25-domain-dict.txt",
+    "bm25.json",
+    "build-audit.json",
+    "checksums.json"
+  ],
+  "resourceLimits": {
+    "maxArchiveBytes": 536870912,
+    "maxMemberBytes": 536870912,
+    "maxUncompressedBytes": 1073741824,
+    "maxJsonlLineBytes": 400000
+  },
+  "embedding": {
+    "modelId": "BAAI/bge-small-zh-v1.5",
+    "modelRevision": "75c43b069aac4d136ba6bc1122f995fedcfd2781",
+    "tokenizerId": "BAAI/bge-small-zh-v1.5",
+    "dimension": 512,
+    "maxSequenceLength": 512,
+    "pooling": "mean",
+    "normalize": true,
+    "queryPrefix": "",
+    "modelManifestSha256": "4e4eb912426215a0a7b0b5aec49da786d81910cbd7f3cf76561581eb69acd123"
+  },
+  "retrieval": {
+    "vectorMetric": "cosine",
+    "vectorStoredAs": "normalized-dot-product",
+    "bm25Tokenizer": "jieba_search_hmm0+domain_terms+latin",
+    "bm25K1": 1.5,
+    "bm25B": 0.75,
+    "fusionType": "rrf",
+    "rrfK": 60,
+    "vectorTopK": 30,
+    "bm25TopK": 30,
+    "finalTopK": 5
+  }
+}

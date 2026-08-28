@@ -19,7 +19,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { createCliCapabilityDefinition } from "../../capability-center/cliCapability.mjs";
-import { MSINSIGHT_CAPABILITY } from "../../capability-center/definitions.mjs";
+import { MSINSIGHT_CAPABILITY, RAG_RETRIEVE_CAPABILITY } from "../../capability-center/definitions.mjs";
 import { loadCapabilityCenterConfig } from "../../config/capabilityCenterConfig.mjs";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:9090";
@@ -29,7 +29,10 @@ const SESSION_APPROVALS = Symbol("nativeCapabilityApprovals");
 const SESSION_ACTIVE_CAPABILITIES = Symbol("nativeActiveCapabilities");
 
 export const loadNativeCapabilityDefinitions = ({ resourceDir, env = process.env } = {}) => {
-    const definitions = [{ ...MSINSIGHT_CAPABILITY, requiresApproval: false }];
+    const definitions = [
+        { ...MSINSIGHT_CAPABILITY, requiresApproval: false },
+        { ...RAG_RETRIEVE_CAPABILITY, requiresApproval: false },
+    ];
     const configPath = join(resourceDir, "capability-center.json");
     if (!existsSync(configPath)) return definitions;
     const configured = loadCapabilityCenterConfig({ configPath, resourceDir, env });

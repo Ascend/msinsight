@@ -3,9 +3,16 @@
   "promptRequestTimeoutMs": 300000,
   "permissionRequestTimeoutMs": 300000,
   "defaultAllowlist": {
-    "includeDocsRoot": true,
+    "includeDocsRoot": false,
     "includeAgentWorkspaceRoot": true,
     "includeProjectRoot": true,
     "extraPaths": []
+  },
+  "rag": {
+    "enabled": true,
+    "failOpen": true,
+    "debug": false,
+    "topK": 5,
+    "maxContextChars": 100000
   }
 }

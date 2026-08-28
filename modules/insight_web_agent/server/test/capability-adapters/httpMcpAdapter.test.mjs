@@ -26,7 +26,23 @@ const startFixture = async () => {
             return { activeModule: "Timeline", command: request.command };
         },
     };
-    const capabilityCenter = createCapabilityCenter({ frontendCommandService });
+    const ragRequests = [];
+    const capabilityCenter = createCapabilityCenter({
+        frontendCommandService,
+        ragService: {
+            isEnabled: () => true,
+            getStatus: () => ({ enabled: true }),
+            async retrieve(query) {
+                ragRequests.push(query);
+                return {
+                    status: "ok",
+                    kbId: "mindstudio-insight",
+                    kbVersion: "26.1.3",
+                    retrievedChunks: [{ sourceLabel: "用户指南", knowledgeText: "检索结果" }],
+                };
+            },
+        },
+    });
     capabilityCenter.register(createCliCapability({
         name: "pt_snap",
         executable: resolve("pt-snap"),
@@ -42,7 +58,7 @@ const startFixture = async () => {
     });
     server.listen(0, "127.0.0.1");
     await once(server, "listening");
-    return { accessToken, httpMcpAdapter, requests, server, url: `http://127.0.0.1:${server.address().port}` };
+    return { accessToken, httpMcpAdapter, ragRequests, requests, server, url: `http://127.0.0.1:${server.address().port}` };
 };
 
 test("HTTP MCP adapter exposes and invokes global capability center tools", async (t) => {
@@ -62,10 +78,15 @@ test("HTTP MCP adapter exposes and invokes global capability center tools", asyn
 
     const listed = await client.listTools();
     const result = await client.callTool({ name: "msinsight", arguments: { command: "observe", args: {} } });
+    const ragResult = await client.callTool({ name: "rag_retrieve", arguments: { query: "如何导入数据" } });
 
-    assert.deepEqual(listed.tools.map(({ name }) => name), ["msinsight", "pt_snap"]);
+    assert.deepEqual(listed.tools.map(({ name }) => name), ["msinsight", "rag_retrieve", "pt_snap"]);
     assert.equal(result.isError, undefined);
     assert.deepEqual(result.structuredContent, { activeModule: "Timeline", command: "observe" });
+    assert.equal(ragResult.isError, undefined);
+    assert.equal(ragResult.structuredContent.status, "ok");
+    assert.equal(ragResult.structuredContent.sources[0].sourceLabel, "用户指南");
+    assert.deepEqual(fixture.ragRequests, ["如何导入数据"]);
     assert.equal(fixture.requests[0].sessionId, "");
 });
 

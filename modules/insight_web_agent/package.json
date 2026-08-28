@@ -12,14 +12,26 @@
     "@ai-sdk/deepseek": "2.0.45",
     "@ai-sdk/openai": "3.0.81",
     "@ai-sdk/openai-compatible": "2.0.57",
+    "@huggingface/tokenizers": "0.1.3",
+    "@node-rs/jieba": "2.0.1",
     "ai": "6.0.220",
+    "onnxruntime-common": "1.27.0",
+    "onnxruntime-node": "1.27.0",
+    "pend": "1.2.0",
+    "proper-lockfile": "4.1.2",
+    "yauzl": "3.4.0",
     "yaml": "2.9.0"
   },
   "scripts": {
     "start": "cross-env HOST=127.0.0.1 DISABLE_ESLINT_PLUGIN=true REACT_APP_ACP_CAPABILITY_TOKEN=msinsight-local-development-only craco start",
     "server": "cross-env ACP_CAPABILITY_TOKEN=msinsight-local-development-only ACP_ALLOWED_ORIGINS=http://localhost:3010,http://127.0.0.1:3010 node server/index.mjs --host 127.0.0.1 --port 9090",
     "server:build": "node scripts/build-server.mjs",
-    "server:build:test": "node --test server/test/integration/nativeAgentPackagedEntry.test.mjs",
+    "server:build:test": "node --test server/test/integration/nativeAgentPackagedEntry.test.mjs server/test/integration/ragPackagedEntry.test.mjs server/test/integration/ragPackagedSmoke.test.mjs",
+    "rag": "node server/rag-cli.mjs",
+    "rag:test": "node --test --test-concurrency=1 server/test/services/rag/*.test.mjs server/test/integration/rag*.test.mjs",
+    "rag:coverage": "node scripts/check-rag-coverage.mjs",
+    "rag:preview:scan": "node scripts/scan-rag-preview.mjs --root dist-server",
+    "rag:smoke:required": "node scripts/run-required-rag-smoke.mjs",
     "build": "cross-env DISABLE_ESLINT_PLUGIN=true craco build"
   },
   "jest": {

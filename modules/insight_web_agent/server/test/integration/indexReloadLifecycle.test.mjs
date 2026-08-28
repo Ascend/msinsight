@@ -273,7 +273,9 @@ test("failed settings reload preserves old-runtime notifications and never broad
     assert.equal(recorder.states.some((eventState) => eventState.activeAgentName === "Broken" || eventState.initialized === false), false);
 });
 
-test("SIGTERM closes the HTTP server and active ACP process", async () => {
+test("SIGTERM closes the HTTP server and active ACP process", {
+    skip: process.platform === "win32" ? "Windows terminates child processes directly instead of delivering SIGTERM" : false,
+}, async () => {
     const fixture = await createServerFixture();
     const server = launchServer(fixture);
     await waitFor(async () => (await requestJson(fixture.port, "/api/state")).status === 200, { timeoutMs: 5000 });

@@ -14,6 +14,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createCliCapabilityDefinition } from "../../capability-center/cliCapability.mjs";
+import { RAG_RETRIEVE_CAPABILITY } from "../../capability-center/definitions.mjs";
 import { createCapabilityTools, loadNativeCapabilityDefinitions } from "../../native-agent/tools/capabilityTools.mjs";
 
 const MSINSIGHT_DEFINITION = {
@@ -53,14 +54,15 @@ const createCapabilityServer = async (t, capabilityToken = "native-command-capab
     return { baseUrl: `http://127.0.0.1:${port}`, capabilityToken, requests };
 };
 
-test("native capability adapter exposes only msinsight without a product config", async (t) => {
+test("native capability adapter exposes built-in capabilities without a product config", async (t) => {
     const resourceDir = await mkdtemp(join(tmpdir(), "native-capability-empty-"));
     t.after(() => rm(resourceDir, { recursive: true, force: true }));
 
     const definitions = loadNativeCapabilityDefinitions({ resourceDir });
 
-    assert.deepEqual(definitions.map(({ name }) => name), ["msinsight"]);
+    assert.deepEqual(definitions.map(({ name }) => name), ["msinsight", "rag_retrieve"]);
     assert.equal(definitions[0].requiresApproval, false);
+    assert.equal(definitions[1].requiresApproval, false);
 });
 
 test("native capability adapter rejects an invalid product config", async (t) => {
@@ -96,10 +98,29 @@ test("native capability adapter loads CLI definitions from the product config", 
     const definitions = loadNativeCapabilityDefinitions({ resourceDir, env: { PATH: "" } });
     const tools = createCapabilityTools({ definitions });
 
-    assert.deepEqual(tools.map(({ name }) => name), ["msinsight", "pt_snap"]);
+    assert.deepEqual(tools.map(({ name }) => name), ["msinsight", "rag_retrieve", "pt_snap"]);
     assert.equal(definitions[0].requiresApproval, false);
-    assert.equal(definitions[1].requiresApproval, true);
-    assert.deepEqual(tools[1].inputSchema, PT_SNAP_DEFINITION.inputSchema);
+    assert.equal(definitions[1].requiresApproval, false);
+    assert.equal(definitions[2].requiresApproval, true);
+    assert.deepEqual(tools[2].inputSchema, PT_SNAP_DEFINITION.inputSchema);
+});
+
+test("native RAG capability forwards queries without approval", async (t) => {
+    const fixture = await createCapabilityServer(t);
+    const hostClient = { request: async () => { throw new Error("approval must not be requested"); } };
+    const [tool] = createCapabilityTools({
+        definitions: [{ ...RAG_RETRIEVE_CAPABILITY, requiresApproval: false }],
+        sessions: new Map(),
+        hostClient,
+        baseUrl: fixture.baseUrl,
+        capabilityToken: fixture.capabilityToken,
+    });
+
+    await tool.execute({ query: "如何导入数据" }, { sessionId: "session-1" });
+
+    assert.equal(fixture.requests[0].name, "rag_retrieve");
+    assert.deepEqual(fixture.requests[0].input, { query: "如何导入数据" });
+    assert.equal(fixture.requests[0].sessionId, "session-1");
 });
 
 test("native msinsight forwards structured requests without approval", async (t) => {

@@ -21,6 +21,7 @@ See the Mulan PSL v2 for more details.
 #
 # build modules
 
+import argparse
 import logging
 import multiprocessing
 import os
@@ -94,7 +95,7 @@ def build_module(module):
     return result
 
 
-def parallel_build():
+def parallel_build(install_dependencies=True):
     """
     采用多进程实现并行构建，
 
@@ -102,11 +103,12 @@ def parallel_build():
     """
     logging.info('Start to build modules')
 
-    pnpm_cmd = 'pnpm.cmd' if platform.system() == 'Windows' else 'pnpm'
-    result = execute_cmd('modules', MODULES_DIR, [pnpm_cmd, 'install'])
-    if result != 0:
-        logging.error('Failed to install dependencies, %s', result)
-        return 1
+    if install_dependencies:
+        pnpm_cmd = 'pnpm.cmd' if platform.system() == 'Windows' else 'pnpm'
+        result = execute_cmd('modules', MODULES_DIR, [pnpm_cmd, 'install'])
+        if result != 0:
+            logging.error('Failed to install dependencies, %s', result)
+            return 1
 
     modules = list(MODULES_MAP.keys())
     with multiprocessing.Pool(processes=BUILD_PROCESS_COUNT) as pool:
@@ -125,9 +127,13 @@ def main():
     if platform.system() != 'Windows':
         multiprocessing.set_start_method('fork')
 
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--no-install', action='store_true')
+    args = parser.parse_args()
+
     clean()
 
-    return parallel_build()
+    return parallel_build(install_dependencies=not args.no_install)
 
 
 if __name__ == '__main__':

@@ -37,6 +37,7 @@ import { createFileReadService, createPermissionHostHandler } from "./services/f
 import { createFrontendCommandService } from "./services/frontendCommandService.mjs";
 import { createPageContextService } from "./services/pageContextService.mjs";
 import { createPermissionService } from "./services/permissionService.mjs";
+import { createRagService } from "./services/rag/ragService.mjs";
 import { createSessionManager } from "./services/sessionManager.mjs";
 import { createSessionService } from "./services/sessionService.mjs";
 import { createSkillService } from "./services/skillService.mjs";
@@ -55,12 +56,12 @@ const syncProjectRules = async (workspacePath, systemPrompt) => {
 const insightWebAgentBaseUrl = () => `http://${config.host}:${config.port}`;
 
 const sourceResourceRoot = existsSync(join(config.resourceDir, "server", "native-agent", "index.mjs"));
-const bundledResourceDirectory = (name) => sourceResourceRoot && ["docs", "skills"].includes(name)
+const bundledResourceDirectory = (name) => sourceResourceRoot && name === "skills"
     ? resolve(config.resourceDir, "..", "..", name)
     : join(config.resourceDir, name);
 
 const nativeFilesystemPolicy = () => ({
-    includeDocsRoot: config.defaultAllowlist?.includeDocsRoot !== false,
+    includeDocsRoot: false,
     includeAgentWorkspaceRoot: config.defaultAllowlist?.includeAgentWorkspaceRoot !== false,
     includeProjectRoot: config.defaultAllowlist?.includeProjectRoot !== false,
     docsRoot: bundledResourceDirectory("docs"),
@@ -152,6 +153,8 @@ await mkdir(config.cwd, { recursive: true });
 await mkdir(join(config.cwd, config.agentServer.workspaceKey), { recursive: true });
 await syncProjectRules(join(config.cwd, config.agentServer.workspaceKey), config.systemPrompt);
 
+const ragService = await createRagService({ config: config.rag });
+
 const state = createRuntimeState();
 const autoDiscoveryEnabled = process.env.ACP_AUTO_DISCOVERY !== "0";
 state.agentDiscoveryLoading = autoDiscoveryEnabled;
@@ -161,7 +164,7 @@ const frontendCommandService = createFrontendCommandService({ eventBus });
 const capabilityAccessToken = randomUUID();
 const nativeCapabilityAccessToken = randomUUID();
 // 先创建协议无关核心，再分别挂接 HTTP MCP 与 Native 两条 Adapter。
-const capabilityCenter = createCapabilityCenter({ frontendCommandService });
+const capabilityCenter = createCapabilityCenter({ frontendCommandService, ragService });
 registerConfiguredCapabilities({
     capabilityCenter,
     definitions: config.configuredCapabilities,
@@ -479,8 +482,10 @@ const server = createApp({
 });
 
 let shutdownPromise;
+let shuttingDown = false;
 const shutdown = (exitCode = 0) => {
     if (shutdownPromise) return shutdownPromise;
+    shuttingDown = true;
     shutdownPromise = (async () => {
         frontendCommandService.dispose();
         await httpMcpAdapter.close();
@@ -498,17 +503,41 @@ const shutdown = (exitCode = 0) => {
     return shutdownPromise;
 };
 
-server.listen(config.port, config.host, () => {
-    console.log(`ACP web extracted API: http://${config.host}:${config.port}/`);
-    console.log(`Agent: ${config.activeAgentName} (${config.agentServer.command} ${config.agentServer.args.join(" ")})`);
+for (const signal of ["SIGINT", "SIGTERM"]) {
+    process.once(signal, () => void shutdown(0));
+}
+
+const listen = () => new Promise((resolveListen, rejectListen) => {
+    const onListening = () => {
+        server.off("error", onError);
+        resolveListen();
+    };
+    const onError = (error) => {
+        server.off("listening", onListening);
+        rejectListen(error);
+    };
+    server.once("listening", onListening);
+    server.once("error", onError);
+    server.listen(config.port, config.host);
 });
 
-server.on("error", (error) => {
+let listening = false;
+try {
+    await listen();
+    listening = true;
+    console.log(`ACP web extracted API: http://${config.host}:${config.port}/`);
+    console.log(`Agent: ${config.activeAgentName} (${config.agentServer.command} ${config.agentServer.args.join(" ")})`);
+} catch (error) {
     console.error(`Failed to start HTTP server: ${error.message}`);
+    await shutdown(1);
+}
+
+server.on("error", (error) => {
+    console.error(`HTTP server failed: ${error.message}`);
     void shutdown(1);
 });
 
-if (autoDiscoveryEnabled) {
+if (listening && !shuttingDown && autoDiscoveryEnabled) {
     try {
         const excludedLaunchKeys = new Set(config.configuredAgentServers.map(agentLaunchKey));
         const discovery = await discoverAgents({ cwd: config.cwd, excludedLaunchKeys });
@@ -531,10 +560,6 @@ if (autoDiscoveryEnabled) {
         state.agentServers = availableAgentServers();
         eventBus.broadcast({ type: "agent_discovery_completed", runtimeChanged: true });
     }
-} else {
+} else if (listening && !shuttingDown) {
     await chatService.initialize();
-}
-
-for (const signal of ["SIGINT", "SIGTERM"]) {
-    process.once(signal, () => void shutdown(0));
 }
