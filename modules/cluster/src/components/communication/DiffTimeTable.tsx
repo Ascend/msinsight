@@ -29,14 +29,14 @@ import eventBus from '../../utils/eventBus';
 
 interface DiffTimeTableProps {
     fastTotalElapseTime: number;
-    fastRankId: number;
+    fastRankId: string;
     data: SlowRankListItem[];
     loading: boolean;
 }
 
 interface ExpandedDataType extends SlowRankOpListItem {
     topK: string;
-    rankId: number;
+    rankId: string;
 }
 
 const usToMs = (value: number): string => {

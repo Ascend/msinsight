@@ -237,7 +237,7 @@ export interface SlowRankOpListItem {
 }
 
 export interface SlowRankListItem {
-    rankId: number;
+    rankId: string;
     totalElapseTime: number;
     totalDiffTime: number;
     opList: SlowRankOpListItem[];
@@ -246,6 +246,6 @@ export interface SlowRankListItem {
 export interface GetSlowRankListResult {
     hasAdvice: boolean;
     fastTotalElapseTime: number;
-    fastRankId: number;
+    fastRankId: string;
     data: SlowRankListItem[];
 }

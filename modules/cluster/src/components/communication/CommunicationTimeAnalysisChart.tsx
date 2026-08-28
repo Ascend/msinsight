@@ -36,12 +36,27 @@ import { queryTimelineUnitKernelDetail } from '../../utils/RequestUtils';
 import { useEventBus } from '../../utils/eventBus';
 import { shouldShowTailAlignTip } from './tailAlign';
 import type { ECharts, InsideDataZoomComponentOption } from 'echarts';
+import {
+    buildCommunicationWebGLIndex,
+    CommunicationOperatorSource,
+    findCommunicationOperator,
+    hitTestCommunicationOperator,
+    selectVisibleCommunicationOperators,
+    type CommunicationWebGLIndex,
+    type CommunicationWebGLOperator,
+} from './communicationTimeWebglData';
+import {
+    createCommunicationTimeWebGLRenderer,
+    getCommunicationWebGLRankGeometry,
+    type CommunicationTimeWebGLRenderer,
+    type CommunicationWebGLLayout,
+} from './CommunicationTimeWebGLRenderer';
 
 // 定义点击慢操作排名时的回调参数接口
 interface OnClickSlowRankOpCallbackParams {
     startValue: number;
     endValue: number;
-    rankId: number;
+    rankId: string | number;
     name: string;
 }
 
@@ -61,30 +76,40 @@ const MAX_VISIBLE_OPERATOR_NUMBER = 10000;
 const START_POSITION_AXIS_Y = 20;
 
 // 計算位置
-function initDataZoom(totalNum: number, dataLength: number, communicationChartZoomData?: ChartZoomData): void {
-    if (dataLength <= 0 || totalNum <= 0 || option.dataZoom.length <= 1) {
+function initDataZoom(chartOption: any, totalNum: number, dataLength: number, communicationChartZoomData?: ChartZoomData): void {
+    if (dataLength <= 0 || totalNum <= 0 || chartOption.dataZoom.length <= 1) {
         return;
     }
     // 计算 Communication 缩略图纵轴显示范围，限定最多显示516列，如果rank数量超过516则计算比例，计算 范围 = (516 ÷ rank数量) * 100
     // 显示区间为[100 - 范围, 100]
     if (dataLength > INITINAL_MAX_VISIBLE_RANK_NUMBER) {
         const yPercentage = Math.ceil(INITINAL_MAX_VISIBLE_RANK_NUMBER / dataLength * 100);
-        option.dataZoom[1].start = 100 - yPercentage;
-        option.dataZoom[1].end = 100;
+        chartOption.dataZoom[1].start = 100 - yPercentage;
+        chartOption.dataZoom[1].end = 100;
     } else {
-        option.dataZoom[1].start = 0;
-        option.dataZoom[1].end = 100;
+        chartOption.dataZoom[1].start = 0;
+        chartOption.dataZoom[1].end = 100;
     }
     // 计算 Communication 缩略图横轴显示范围，限定最多显示10000条（10000是估值，实际显示范围会有所波动），计算 范围 = (10000 ÷ 数据总量) * 100
     // 显示区间为[0, 范围]
     if (totalNum > MAX_VISIBLE_OPERATOR_NUMBER) {
         const xPercentage = Math.ceil(MAX_VISIBLE_OPERATOR_NUMBER / totalNum * 100);
-        option.dataZoom[0].start = communicationChartZoomData?.start ?? 0;
-        option.dataZoom[0].end = communicationChartZoomData?.end ?? xPercentage;
+        chartOption.dataZoom[0].start = communicationChartZoomData?.start ?? 0;
+        chartOption.dataZoom[0].end = communicationChartZoomData?.end ?? xPercentage;
     } else {
-        option.dataZoom[0].start = communicationChartZoomData?.start ?? 0;
-        option.dataZoom[0].end = communicationChartZoomData?.end ?? 100;
+        chartOption.dataZoom[0].start = communicationChartZoomData?.start ?? 0;
+        chartOption.dataZoom[0].end = communicationChartZoomData?.end ?? 100;
     }
+}
+
+export function initWebGLDataZoom(chartOption: any, communicationChartZoomData?: ChartZoomData): void {
+    if (chartOption.dataZoom.length <= 1) {
+        return;
+    }
+    chartOption.dataZoom[0].start = communicationChartZoomData?.start ?? 0;
+    chartOption.dataZoom[0].end = communicationChartZoomData?.end ?? 100;
+    chartOption.dataZoom[1].start = 0;
+    chartOption.dataZoom[1].end = 100;
 }
 enum compareSource {
     COMPARISON = 0,
@@ -116,7 +141,7 @@ function wrapData(dataSource: AnalysisChartData, isCompare: boolean, communicati
     const dataHeight = calculateDataHeight(dataSource);
     option.grid.height = dataHeight;
     option.dataZoom[0].top = dataHeight - DEFAULT_INNER_CHART_HEIGHT + DEFAULT_CHART_ZOOM_HEIGHT;
-    initDataZoom(totalNumber, dataLength, communicationChartZoomData);
+    initDataZoom(option, totalNumber, dataLength, communicationChartZoomData);
     option.series = getSeries({ data, isCompare });
     option.tooltip = getTooltip({ isCompare });
     return option;
@@ -324,11 +349,370 @@ let selectedOpDetail: OpDetail | null;
 interface ChartInstance {
     chart: echarts.ECharts;
     resizeObserver: ResizeObserver;
+    webgl?: CommunicationWebGLState;
     cleanup: () => void;
+}
+
+interface CommunicationWebGLState {
+    renderer: CommunicationTimeWebGLRenderer;
+    index: CommunicationWebGLIndex | null;
+    dataSource: AnalysisChartData | null;
+    session: Session | null;
+    isCompare: boolean;
+    layout: CommunicationWebGLLayout | null;
+    tooltip: HTMLDivElement;
+    renderFrameId: number | null;
+    mouseMoveHandler: (event: any) => void;
+    mouseOutHandler: () => void;
+    contextMenuHandler: (event: any) => void;
+    dataZoomHandler: () => void;
 }
 
 // 全局存储（按容器隔离，支持多图表）
 const chartInstanceMap: WeakMap<HTMLElement, ChartInstance> = new WeakMap<HTMLElement, ChartInstance>();
+
+const getWebGLChartOption = (
+    dataSource: AnalysisChartData,
+    communicationChartZoomData?: ChartZoomData,
+): any => {
+    const dataHeight = calculateDataHeight(dataSource);
+    const dataZoom = option.dataZoom.map((item: any) => ({ ...item }));
+    const chartOption = {
+        animation: false,
+        textStyle: option.textStyle,
+        dataZoom,
+        grid: { ...option.grid, height: dataHeight },
+        xAxis: {
+            ...option.xAxis,
+            min: nsToMs(dataSource.minTime),
+            max: nsToMs(dataSource.maxTime),
+        },
+        yAxis: {
+            ...option.yAxis,
+            data: (dataSource.data ?? []).slice().reverse().map(item => item.rankId),
+        },
+        tooltip: { show: false },
+        series: [],
+    };
+    chartOption.dataZoom[0].top = dataHeight - DEFAULT_INNER_CHART_HEIGHT + DEFAULT_CHART_ZOOM_HEIGHT;
+    initWebGLDataZoom(chartOption, communicationChartZoomData);
+    return chartOption;
+};
+
+export const getEChartsTooltipStyle = (): {
+    background: string;
+    color: string;
+    boxShadow: string;
+    borderRadius: string;
+    borderStyle: string;
+    borderWidth: string;
+    padding: string;
+    fontFamily: string;
+    fontSize: string;
+    lineHeight: string;
+} => {
+    const fontFamily = getDefaultChartOptions().textStyle.fontFamily;
+    return {
+        background: '#fff',
+        color: '#666',
+        boxShadow: '1px 2px 10px rgba(0, 0, 0, .2)',
+        borderRadius: '4px',
+        borderStyle: 'solid',
+        borderWidth: '1px',
+        padding: '10px',
+        fontFamily,
+        fontSize: '14px',
+        lineHeight: '21px',
+    };
+};
+
+const createWebGLTooltip = (chartDom: HTMLElement): HTMLDivElement => {
+    const tooltip = document.createElement('div');
+    Object.assign(tooltip.style, {
+        position: 'absolute',
+        display: 'none',
+        pointerEvents: 'none',
+        zIndex: '3',
+        maxWidth: '360px',
+        ...getEChartsTooltipStyle(),
+        whiteSpace: 'nowrap',
+    });
+    chartDom.appendChild(tooltip);
+    return tooltip;
+};
+
+const getWebGLOperatorColor = (operator: CommunicationWebGLOperator): string => {
+    const theme = themeInstance.getThemeType();
+    return theme.colorPalette[colorPalette[operator.colorIndex]];
+};
+
+const getWebGLOperatorTooltip = (
+    operator: CommunicationWebGLOperator,
+    rankId: string,
+    isCompare: boolean,
+): string => {
+    let getName = (value: string): string => value;
+    if (isCompare) {
+        getName = operator.source === CommunicationOperatorSource.BASELINE ? getBaselineName : getCompareName;
+    }
+    const operatorColor = safeStr(getWebGLOperatorColor(operator));
+    let markup = '<span style="display:inline-block;margin-right:4px;border-radius:10px;' +
+        `width:10px;height:10px;background-color:${operatorColor};"></span> `;
+    markup += getTipLineStr('Rank ID', rankId);
+    markup += getTipLineStr(getName('Operator Name'), operator.operatorName);
+    markup += getTipLineStr(getName('Start Time'), `${numberToStr(operator.startTime)}ms`);
+    markup += getTipLineStr(getName('Elapse Time'), `${numberToStr(operator.duration)}ms`);
+    return markup;
+};
+
+const getWebGLLayout = (
+    chartDom: HTMLElement,
+    chart: echarts.ECharts,
+    index: CommunicationWebGLIndex,
+    isCompare: boolean,
+): CommunicationWebGLLayout | null => {
+    if (index.ranks.length === 0) {
+        return null;
+    }
+    const gridModel = (chart as any).getModel()?.getComponent('grid', 0);
+    const gridCoordinateSystem = gridModel?.coordinateSystem;
+    const coordinateSystem = gridCoordinateSystem?.getCartesian?.(0, 0) ??
+        gridCoordinateSystem?.getCartesians?.()?.[0];
+    const gridRect = gridCoordinateSystem?.getRect?.() ?? coordinateSystem?.getArea?.();
+    const xAxis = coordinateSystem?.getAxis?.('x');
+    const yAxis = coordinateSystem?.getAxis?.('y');
+    const xExtent = xAxis?.scale?.getExtent?.();
+    const yExtent = yAxis?.scale?.getExtent?.();
+    const yAxisExtent = yAxis?.getExtent?.();
+    if (!gridRect || !xExtent || xExtent.length < 2 || !yExtent || !yAxisExtent) {
+        return null;
+    }
+    const xMin = Math.min(xExtent[0], xExtent[1]);
+    const xMax = Math.max(xExtent[0], xExtent[1]);
+    const getRankY = (rankIndex: number): number => {
+        const rankId = index.ranks[rankIndex]?.rankId;
+        if (rankId === undefined) {
+            return Number.NaN;
+        }
+        const point = coordinateSystem?.dataToPoint?.([xMin, rankId]) ??
+            chart.convertToPixel({ gridIndex: 0 }, [xMin, rankId]);
+        return Array.isArray(point) ? point[1] : Number.NaN;
+    };
+    const bandWidth = Math.abs(yAxis?.getBandWidth?.() ?? gridRect.height / Math.max(1, index.ranks.length));
+    const rankGeometry = getCommunicationWebGLRankGeometry({
+        rankCount: index.ranks.length,
+        visibleExtent: yExtent,
+        axisExtent: yAxisExtent,
+        bandWidth,
+        getRankY,
+    });
+    if (!rankGeometry) {
+        return null;
+    }
+    return {
+        canvasWidth: chartDom.clientWidth,
+        canvasHeight: chartDom.clientHeight,
+        gridLeft: gridRect.x,
+        gridTop: gridRect.y,
+        gridWidth: gridRect.width,
+        gridHeight: gridRect.height,
+        xMin,
+        xMax,
+        ...rankGeometry,
+        isCompare,
+    };
+};
+
+const getWebGLViewport = (
+    layout: CommunicationWebGLLayout,
+    index: CommunicationWebGLIndex,
+): { xMin: number; xMax: number; yStartIndex: number; yEndIndex: number } => {
+    const firstVisibleRank = layout.rankStep === 0
+        ? 0
+        : (layout.gridTop - layout.rankY0) / layout.rankStep;
+    const lastVisibleRank = layout.rankStep === 0
+        ? index.ranks.length - 1
+        : (layout.gridTop + layout.gridHeight - layout.rankY0) / layout.rankStep;
+    return {
+        xMin: layout.xMin,
+        xMax: layout.xMax,
+        yStartIndex: Math.max(0, Math.min(firstVisibleRank, lastVisibleRank)),
+        yEndIndex: Math.min(index.ranks.length - 1, Math.max(firstVisibleRank, lastVisibleRank)),
+    };
+};
+
+const renderWebGLChart = (chartDom: HTMLElement): void => {
+    const instance = chartInstanceMap.get(chartDom);
+    const state = instance?.webgl;
+    if (!instance || !state?.index) {
+        return;
+    }
+    const layout = getWebGLLayout(chartDom, instance.chart, state.index, state.isCompare);
+    if (!layout) {
+        state.renderer.clear();
+        return;
+    }
+    state.layout = layout;
+    const visible = selectVisibleCommunicationOperators(state.index, getWebGLViewport(layout, state.index));
+    const theme = themeInstance.getThemeType();
+    state.renderer.setColors(colorPalette.map(color => theme.colorPalette[color]));
+    state.renderer.setData(visible, layout);
+};
+
+const scheduleWebGLRender = (chartDom: HTMLElement): void => {
+    const state = chartInstanceMap.get(chartDom)?.webgl;
+    if (!state || state.renderFrameId !== null) {
+        return;
+    }
+    state.renderFrameId = window.requestAnimationFrame(() => {
+        state.renderFrameId = null;
+        renderWebGLChart(chartDom);
+    });
+};
+
+const hitTestWebGLChart = (
+    state: CommunicationWebGLState,
+    offsetX: number,
+    offsetY: number,
+): CommunicationWebGLOperator | null => {
+    const { index, layout } = state;
+    if (!index || !layout || offsetX < layout.gridLeft || offsetX > layout.gridLeft + layout.gridWidth ||
+        offsetY < layout.gridTop || offsetY > layout.gridTop + layout.gridHeight) {
+        return null;
+    }
+    const rankIndex = Math.round((offsetY - layout.rankY0) / layout.rankStep);
+    if (!Number.isFinite(rankIndex) || !index.ranks[rankIndex]) {
+        return null;
+    }
+    const rankCenter = layout.rankY0 + rankIndex * layout.rankStep;
+    const operatorHeight = layout.rowHeight * 0.6 * (layout.isCompare ? 0.5 : 1);
+    let source: CommunicationOperatorSource | undefined;
+    if (layout.isCompare) {
+        if (offsetY >= rankCenter - operatorHeight && offsetY <= rankCenter) {
+            source = CommunicationOperatorSource.COMPARISON;
+        } else if (offsetY >= rankCenter + operatorHeight / 3 && offsetY <= rankCenter + operatorHeight * 4 / 3) {
+            source = CommunicationOperatorSource.BASELINE;
+        } else {
+            return null;
+        }
+    } else if (Math.abs(offsetY - rankCenter) > operatorHeight / 2) {
+        return null;
+    }
+    const time = layout.xMin + (offsetX - layout.gridLeft) / layout.gridWidth * (layout.xMax - layout.xMin);
+    return hitTestCommunicationOperator(index, rankIndex, time, source);
+};
+
+const hideWebGLTooltip = (state: CommunicationWebGLState): void => {
+    state.tooltip.style.display = 'none';
+    state.renderer.setHoveredOperator(null);
+};
+
+const showWebGLTooltip = (
+    chartDom: HTMLElement,
+    state: CommunicationWebGLState,
+    operator: CommunicationWebGLOperator,
+    offsetX: number,
+    offsetY: number,
+): void => {
+    const rankId = state.index?.ranks[operator.rankIndex]?.rankId ?? '';
+    state.tooltip.style.borderColor = getWebGLOperatorColor(operator);
+    state.tooltip.innerHTML = getWebGLOperatorTooltip(operator, rankId, state.isCompare);
+    state.tooltip.style.display = 'block';
+    const left = Math.min(offsetX + 12, Math.max(0, chartDom.clientWidth - state.tooltip.offsetWidth - 8));
+    const top = Math.min(offsetY + 12, Math.max(0, chartDom.clientHeight - state.tooltip.offsetHeight - 8));
+    state.tooltip.style.left = `${left}px`;
+    state.tooltip.style.top = `${top}px`;
+    state.renderer.setHoveredOperator(operator.id);
+};
+
+const disposeWebGLState = (chart: echarts.ECharts, state: CommunicationWebGLState): void => {
+    if (state.renderFrameId !== null) {
+        window.cancelAnimationFrame(state.renderFrameId);
+    }
+    chart.off('datazoom', state.dataZoomHandler);
+    chart.getZr().off('mousemove', state.mouseMoveHandler);
+    chart.getZr().off('globalout', state.mouseOutHandler);
+    chart.getZr().off('contextmenu', state.contextMenuHandler);
+    state.tooltip.remove();
+    state.renderer.dispose();
+};
+
+const switchToEChartsFallback = (chartDom: HTMLElement): void => {
+    const instance = chartInstanceMap.get(chartDom);
+    const state = instance?.webgl;
+    if (!instance || !state) {
+        return;
+    }
+    const { dataSource, session } = state;
+    const zoomData = getZoomData(instance.chart);
+    disposeWebGLState(instance.chart, state);
+    instance.webgl = undefined;
+    chartDom.dataset.renderer = 'echarts';
+    if (dataSource && session) {
+        instance.chart.setOption(wrapData(
+            dataSource,
+            session.isCompare,
+            zoomData,
+        ), { notMerge: true });
+    }
+};
+
+const initWebGLState = (
+    chartDom: HTMLElement,
+    chart: echarts.ECharts,
+    setDropDownVisible: (_: boolean) => void,
+): CommunicationWebGLState | undefined => {
+    const renderer = createCommunicationTimeWebGLRenderer(chartDom, () => switchToEChartsFallback(chartDom));
+    if (!renderer) {
+        chartDom.dataset.renderer = 'echarts';
+        return undefined;
+    }
+    chartDom.dataset.renderer = 'webgl';
+    const tooltip = createWebGLTooltip(chartDom);
+    const state = {
+        renderer,
+        index: null,
+        dataSource: null,
+        session: null,
+        isCompare: false,
+        layout: null,
+        tooltip,
+        renderFrameId: null,
+    } as CommunicationWebGLState;
+    state.mouseMoveHandler = (event: any): void => {
+        const operator = hitTestWebGLChart(state, event.offsetX, event.offsetY);
+        if (!operator) {
+            hideWebGLTooltip(state);
+            return;
+        }
+        showWebGLTooltip(chartDom, state, operator, event.offsetX, event.offsetY);
+    };
+    state.mouseOutHandler = (): void => hideWebGLTooltip(state);
+    state.contextMenuHandler = (event: any): void => {
+        const operator = hitTestWebGLChart(state, event.offsetX, event.offsetY);
+        if (!operator) {
+            setDropDownVisible(false);
+            return;
+        }
+        event.event?.preventDefault?.();
+        hideWebGLTooltip(state);
+        const rank = state.index?.ranks[operator.rankIndex];
+        selectedOpDetail = {
+            name: operator.operatorName,
+            rankId: Number(rank?.rankId ?? 0),
+            dbPath: rank?.dbPath ?? '',
+            timestamp: msToNs(operator.startTime),
+            duration: msToNs(operator.duration),
+        };
+        setDropDownVisible(true);
+    };
+    state.dataZoomHandler = (): void => scheduleWebGLRender(chartDom);
+    chart.on('datazoom', state.dataZoomHandler);
+    chart.getZr().on('mousemove', state.mouseMoveHandler);
+    chart.getZr().on('globalout', state.mouseOutHandler);
+    chart.getZr().on('contextmenu', state.contextMenuHandler);
+    return state;
+};
 
 /**
  * 初始化图表
@@ -353,6 +737,7 @@ function initChartInstance(chartDom: HTMLElement, setDropDownVisible: (_: boolea
         resizeObserverTimer = window.setTimeout((): void => {
             if (!chart.isDisposed() && chartDom.offsetHeight > 0 && chartDom.offsetWidth > 0) {
                 chart.resize();
+                scheduleWebGLRender(chartDom);
             }
             resizeObserverTimer = null;
         }, 100);
@@ -380,11 +765,18 @@ function initChartInstance(chartDom: HTMLElement, setDropDownVisible: (_: boolea
     const cleanup = (): void => {
         resizeObserver.disconnect();
         chart.off('contextmenu', contextMenuHandler);
+        const state = chartInstanceMap.get(chartDom)?.webgl;
+        if (state) {
+            disposeWebGLState(chart, state);
+        }
+        delete chartDom.dataset.renderer;
         disposeAdaptiveEchart(chartDom);
         chartInstanceMap.delete(chartDom);
     };
 
-    chartInstanceMap.set(chartDom, { chart, resizeObserver, cleanup });
+    const instance: ChartInstance = { chart, resizeObserver, cleanup };
+    chartInstanceMap.set(chartDom, instance);
+    instance.webgl = initWebGLState(chartDom, chart, setDropDownVisible);
     return chart;
 }
 
@@ -394,7 +786,12 @@ function initChartInstance(chartDom: HTMLElement, setDropDownVisible: (_: boolea
  * @param dataSource 数据源
  * @param session 会话
  */
-function updateChartData(chartDom: HTMLElement, dataSource: AnalysisChartData, session: Session): boolean {
+function updateChartData(
+    chartDom: HTMLElement,
+    dataSource: AnalysisChartData,
+    session: Session,
+    communicationChartZoomData?: ChartZoomData,
+): boolean {
     const instance = chartInstanceMap.get(chartDom);
     if (!instance || instance.chart.isDisposed()) {
         return false;
@@ -408,7 +805,20 @@ function updateChartData(chartDom: HTMLElement, dataSource: AnalysisChartData, s
 
     // 更新图表数据
     if (dataSource !== undefined) {
-        chart.setOption(wrapData(dataSource, session.isCompare, session.communicationChartZoomData), { notMerge: true });
+        if (instance.webgl) {
+            instance.webgl.renderer.setSelectedOperator(null);
+            instance.webgl.index = buildCommunicationWebGLIndex(dataSource, session.isCompare);
+            instance.webgl.dataSource = dataSource;
+            instance.webgl.session = session;
+            instance.webgl.isCompare = session.isCompare;
+            chart.setOption(getWebGLChartOption(
+                dataSource,
+                communicationChartZoomData,
+            ), { notMerge: true });
+            scheduleWebGLRender(chartDom);
+        } else {
+            chart.setOption(wrapData(dataSource, session.isCompare, communicationChartZoomData), { notMerge: true });
+        }
     }
     return true;
 }
@@ -513,6 +923,14 @@ const getZoomData = (chartInstance: ECharts | null): ChartZoomData => {
     };
 };
 
+export const consumeCommunicationChartZoomData = (
+    session: Pick<Session, 'communicationChartZoomData'>,
+    update: (zoomData?: ChartZoomData) => void,
+): void => {
+    update(session.communicationChartZoomData);
+    session.communicationChartZoomData = undefined;
+};
+
 /**
  * 生成菜单项
  * @param session - 会话对象
@@ -584,6 +1002,25 @@ export interface YAxis {
     show?: boolean;
 }
 
+export const getRankDataZoomRange = (
+    rankIds: string[],
+    rankId: string | number,
+): { start: number; end: number } | { startValue: string; endValue: string } => {
+    if (rankIds.length < START_POSITION_AXIS_Y) {
+        return { start: 0, end: 100 };
+    }
+    const rankIndex = rankIds.findIndex(item => item === `${rankId}`);
+    if (rankIndex < 0) {
+        return { start: 0, end: 100 };
+    }
+    const startIndex = Math.max(0, rankIndex - 10);
+    const endIndex = Math.min(rankIds.length - 1, rankIndex + 10);
+    return {
+        startValue: rankIds[startIndex],
+        endValue: rankIds[endIndex],
+    };
+};
+
 /**
  * CommunicationTimeAnalysisChart组件，用于展示通信时间分析图表。
  * @param dataSource - 分析图表的数据源。
@@ -592,6 +1029,7 @@ export interface YAxis {
  * @returns 返回一个React组件，用于展示通信时间分析图表。
  */
 const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading }: { dataSource: AnalysisChartData; session: Session; loading: boolean }) => {
+    const durationFileCompleted = session.durationFileCompleted;
     // 设置图表高度的state
     const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT);
     // 控制下拉菜单可见性的state
@@ -626,16 +1064,16 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
         const chartDom = chartRef.current;
         if (chartDom && chartInst.current && dataSource) {
             runInAction(() => {
-                // 重置通信图表缩放数据
-                session.communicationChartZoomData = undefined;
-                updateChartData(chartDom, dataSource, session);
+                consumeCommunicationChartZoomData(session, (zoomData): void => {
+                    updateChartData(chartDom, dataSource, session, zoomData);
+                });
             });
             setTimeout(() => {
                 // 设置图表高度
                 setChartHeight(getChartHeight(dataSource));
             });
         }
-    }, [chartRef.current, chartInst.current, session]);
+    }, [session]);
 
     /**
      * 使用useEffect更新图表数据
@@ -652,6 +1090,9 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
      * @returns void
      */
     useEffect(() => {
+        if (!durationFileCompleted) {
+            return;
+        }
         const dom = chartRef.current;
         if (!dom) {
             return;
@@ -694,7 +1135,7 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
             disposeChartInstance(dom); // 清理全局实例记录
             chartRef.current?.removeEventListener('wheel', syncScroll, true);
         };
-    }, [updateData]);
+    }, [durationFileCompleted, updateData]);
 
     /**
      * 监听并处理慢算子点击事件的函数。
@@ -705,19 +1146,11 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
         // 解构慢算子事件参数
         const { startValue, endValue, name, rankId } = res as OnClickSlowRankOpCallbackParams;
         const dataSourceAxisY = (chartInst.current?.getOption()?.yAxis ?? []) as YAxis[];
-        const dataSourceLength = dataSourceAxisY?.[0]?.data?.length ?? 0;
-        let startAxisY = 0;
-        let endAxisY = 100;
-        if (dataSourceLength >= START_POSITION_AXIS_Y) {
-            const tempSourceIndex = Number.isNaN(rankId) ? 0 : Number(rankId);
-            const rankIdNumber = dataSourceAxisY?.[0]?.data?.findIndex(item => Number(item) === tempSourceIndex) ?? 0;
-            // 计算 Y 轴范围，确保范围在 0 到 dataSourceLength 之间
-            startAxisY = Math.floor(Math.max(0, rankIdNumber - 10) / dataSourceLength * 100);
-            endAxisY = Math.floor(Math.min(dataSourceLength, rankIdNumber + 10) / dataSourceLength * 100);
-        }
+        const rankZoomRange = getRankDataZoomRange(dataSourceAxisY?.[0]?.data ?? [], rankId);
         // 根据接收到的起始值和结束值调整图表横轴范围
         chartInst.current?.dispatchAction({
             type: 'dataZoom',
+            dataZoomIndex: 0,
             startValue,
             endValue,
         });
@@ -725,29 +1158,41 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
         chartInst.current?.dispatchAction({
             type: 'dataZoom',
             dataZoomIndex: 1, // 指定纵轴
-            start: startAxisY,
-            end: endAxisY,
+            ...rankZoomRange,
         });
 
-        // 先取消所有高亮
-        chartInst.current?.dispatchAction({
-            type: 'downplay',
-            seriesIndex: 0,
-        });
-
-        // 再高亮具体算子
-        chartInst.current?.dispatchAction({
-            type: 'highlight',
-            seriesIndex: 0,
-            name: `${rankId}-${name}`,
-        });
-        // 延迟取消高亮
-        setTimeout(() => {
+        const webglState = chartRef.current ? chartInstanceMap.get(chartRef.current)?.webgl : undefined;
+        const webglOperator = webglState?.index
+            ? findCommunicationOperator(webglState.index, rankId, name, startValue)
+            : null;
+        if (webglState) {
+            scheduleWebGLRender(chartRef.current as HTMLElement);
+            webglState.renderer.setSelectedOperator(webglOperator?.id ?? null);
+        } else {
+            // 先取消所有高亮
             chartInst.current?.dispatchAction({
                 type: 'downplay',
                 seriesIndex: 0,
+            });
+
+            // 再高亮具体算子
+            chartInst.current?.dispatchAction({
+                type: 'highlight',
+                seriesIndex: 0,
                 name: `${rankId}-${name}`,
             });
+        }
+        // 延迟取消高亮
+        setTimeout(() => {
+            if (webglState) {
+                webglState.renderer.setSelectedOperator(null);
+            } else {
+                chartInst.current?.dispatchAction({
+                    type: 'downplay',
+                    seriesIndex: 0,
+                    name: `${rankId}-${name}`,
+                });
+            }
         }, 5000);
 
         // ★ 提示用户可以右键按尾部对齐（仅 allReduce/allToAll/allGather）
@@ -775,7 +1220,7 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
         });
     });
 
-    return session.durationFileCompleted
+    return durationFileCompleted
         ? <Dropdown
             menu={{
                 items: menuItems,
