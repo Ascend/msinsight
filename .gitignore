@@ -11,6 +11,10 @@ log.txt
 **/node_modules
 **/dist
 **/build
+!/build/
+/build/*
+!/build/rag_development.py
+!/build/test_rag_development.py
 ./packages/extension/profiler
 **/.vscode
 **/.idea
@@ -28,6 +32,9 @@ product
 /opensource/
 /modules/framework/public/plugins
 **/.pnpm-store
+**/__pycache__/
+*.py[cod]
+/platform/bundle/main.lib
 
 # ACP agent workspace (auto-generated per-agent cwd, written by insight_web_agent server on startup)
 /modules/insight_web_agent/agent-workspace/
@@ -37,3 +44,13 @@ product
 /.claude/
 
 insight_web_agent_*.log
+
+# RAG runtime artifacts are externally provisioned build inputs, never source files.
+/modules/insight_web_agent/rag-runtime/models/
+/modules/insight_web_agent/rag-seed/
+/modules/insight_web_agent/rag-data/
+/modules/insight_web_agent/.rag-staging/
+/modules/insight_web_agent/dist-server/
+**/knowledge-pack*.zip
+**/knowledge-pack*.zip.sha256
+**/.rag-coverage/

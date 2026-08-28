@@ -68,6 +68,8 @@ export const publicState = (state) => ({
     initialized: state.initialized,
     configOptions: state.configOptions,
     activeAgentName: state.activeAgentName,
+    agentServers: state.agentServers.map(({ name }) => ({ name })),
+    discoveryLoading: state.agentDiscoveryLoading,
     agentInfo: state.agentInfo,
     agentError: state.agentError,
     agentCapabilities: publicCapabilities(state),

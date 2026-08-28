@@ -227,6 +227,23 @@ test("prompt completion clears the current agent activity", async () => {
     assert.equal(events.filter((event) => event.type === "message_activity").at(-1).activity, undefined);
 });
 
+test("prompt and hidden context do not invoke or embed RAG automatically", async () => {
+    let retrievals = 0;
+    const ragService = { retrieve: async () => { retrievals += 1; } };
+    const { service, calls, state } = createPromptTestService("", undefined, undefined, ragService);
+
+    await service.prompt("analyze", { sessionId: "session-1" });
+    await waitForPromptCall(calls, 1);
+    const assembled = await createContextAssembler({ state }).assemble(
+        state.sessionContexts.get("session-1"),
+        undefined,
+        { status: "ok", retrievedChunks: [{ sourceLabel: "must-not-appear" }] },
+    );
+
+    assert.equal(retrievals, 0);
+    assert.deepEqual(assembled.contextProviders.map(({ name }) => name), ["structured"]);
+});
+
 const modeConfig = (currentValue) => ({
     id: "mode",
     name: "Mode",
@@ -239,7 +256,7 @@ const modeConfig = (currentValue) => ({
     ],
 });
 
-const createPromptTestService = (systemPrompt = "", promptRequest) => {
+const createPromptTestService = (systemPrompt = "", promptRequest, skillService, ragService) => {
     const calls = [];
     const events = [];
     const state = createRuntimeState();
@@ -270,9 +287,10 @@ const createPromptTestService = (systemPrompt = "", promptRequest) => {
             applyPreferredModel: async () => {},
             refreshSessions: async () => {},
         },
-        skillService: { extractFromPrompt: async (text) => ({ text, skills: [] }) },
+        skillService: skillService ?? { extractFromPrompt: async (text) => ({ text, skills: [] }) },
         state,
         contextAssembler: createContextAssembler({ state }),
+        ragService,
         systemPrompt,
     });
 

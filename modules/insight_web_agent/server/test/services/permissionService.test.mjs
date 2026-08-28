@@ -22,6 +22,7 @@ import test from "node:test";
 import { createRuntimeState } from "../../state/runtimeState.mjs";
 import { createPermissionService } from "../../services/permissionService.mjs";
 import { createFileReadService, createPermissionHostHandler } from "../../services/fileReadService.mjs";
+import { createDefaultAllowlist } from "../../services/permissionPolicy.mjs";
 
 const createFixture = async () => {
     const root = await mkdtemp(join(tmpdir(), "insight-permission-"));
@@ -111,6 +112,19 @@ test("default allowlist allows docs, agent workspace, and known project root wit
     assert.equal((await evaluatePath(fixture, workspaceFile)).action, "allow");
     assert.equal((await evaluatePath(fixture, projectFile)).action, "allow");
     expectNoPrompt(fixture);
+});
+
+test("permission policy does not allow the raw docs root when its flag is omitted", async () => {
+    const fixture = await createFixture();
+
+    const allowlist = await createDefaultAllowlist({
+        rootDir: fixture.root,
+        cwd: fixture.cwd,
+        activeAgentName: "opencode",
+    });
+
+    assert.equal(allowlist.includes(await realpath(fixture.docs)), false);
+    assert.equal(allowlist.includes(await realpath(fixture.agentRoot)), true);
 });
 
 test("session config extra allowlist paths are honored", async () => {

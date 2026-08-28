@@ -1,0 +1,9 @@
+{
+  "domainTerms": ["data processing", "distributed training", "memory analysis", "数据处理", "系统性能"],
+  "text": "系统性能与数据处理，distributed training uses memory analysis",
+  "requiredTokens": ["系统性能", "数据处理", "distributed", "training", "distributed training", "memory", "analysis", "memory analysis"],
+  "forbiddenTokens": ["统性", "据处"],
+  "query": "memory analysis",
+  "documents": ["Memory analysis for distributed training", "Frontend color reference"],
+  "expectedTopDocument": 0
+}

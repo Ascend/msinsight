@@ -145,7 +145,7 @@ const normalizeSessionConfig = (config = {}) => ({
     promptRequestTimeoutMs: normalizeTimeout(config.promptRequestTimeoutMs, DEFAULT_PROMPT_TIMEOUT_MS),
     permissionRequestTimeoutMs: normalizeTimeout(config.permissionRequestTimeoutMs, DEFAULT_PERMISSION_TIMEOUT_MS),
     defaultAllowlist: {
-        includeDocsRoot: config.defaultAllowlist?.includeDocsRoot !== false,
+        includeDocsRoot: config.defaultAllowlist?.includeDocsRoot === true,
         includeAgentWorkspaceRoot: config.defaultAllowlist?.includeAgentWorkspaceRoot !== false,
         includeProjectRoot: config.defaultAllowlist?.includeProjectRoot !== false,
         extraPaths: Array.isArray(config.defaultAllowlist?.extraPaths) ? config.defaultAllowlist.extraPaths.map(String).filter((path) => path.trim()) : [],

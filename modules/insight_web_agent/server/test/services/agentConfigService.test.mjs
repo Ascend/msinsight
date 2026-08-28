@@ -134,6 +134,24 @@ test("reads a normalized agent and session config snapshot", async () => {
     });
 });
 
+test("normalizes an omitted docs allowlist flag to false", async () => {
+    const fixture = await createFixture();
+    await writeJson(join(fixture.rootDir, "acp-session-conf.json"), {
+        requestTimeoutMs: 1000,
+        promptRequestTimeoutMs: 2000,
+        permissionRequestTimeoutMs: 3000,
+        defaultAllowlist: {
+            includeAgentWorkspaceRoot: true,
+            includeProjectRoot: true,
+            extraPaths: [],
+        },
+    });
+
+    const snapshot = await fixture.service.readSnapshot();
+
+    assert.equal(snapshot.sessionConfig.defaultAllowlist.includeDocsRoot, false);
+});
+
 test("saves each configuration section independently", async () => {
     const fixture = await createFixture();
     const snapshot = validSnapshot();

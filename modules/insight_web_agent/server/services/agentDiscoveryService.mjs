@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join, win32 } from "node:path";
 import { createAcpAdapter } from "../infrastructure/acpAdapter.mjs";
 import { agentLaunchKey, withAgentIdentity } from "./agentIdentityService.mjs";
 
@@ -93,13 +93,14 @@ export const sameAgentLaunch = (left, right) => left?.command === right?.command
 
 export const agentConfigForLog = (agentServer) => ({
     name: agentServer.name,
-    command: agentServer.command,
-    args: [...(agentServer.args ?? [])],
-    env: Object.fromEntries(Object.entries(agentServer.env ?? {}).map(([key, value]) => [
-        key,
-        /key|token|secret|password|auth|credential/i.test(key) ? "***" : value,
-    ])),
+    commandName: commandBasename(agentServer.command),
+    argCount: (agentServer.args ?? []).length,
+    envKeys: Object.keys(agentServer.env ?? {}).sort(),
 });
+
+const commandBasename = (command) => String(command ?? "").includes("\\")
+    ? win32.basename(String(command))
+    : basename(String(command));
 
 const probeAgent = async (candidate, { adapterFactory, cwd, timeoutMs }) => {
     const startedAt = Date.now();

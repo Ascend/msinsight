@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { withAgentIdentity } from "../services/agentIdentityService.mjs";
+import { fixedRagPaths } from "../services/rag/runtimePaths.mjs";
 import { initLogger } from "../utils/logger.mjs";
 import { loadCapabilityCenterConfig } from "./capabilityCenterConfig.mjs";
 
@@ -32,6 +33,7 @@ const defaultRootDir = (() => {
     const entryDir = dirname(resolve(process.argv[1] ?? "."));
     return basename(entryDir) === "server" ? dirname(entryDir) : entryDir;
 })();
+const fixedProductRagPaths = fixedRagPaths(process.argv[1] ?? join(defaultRootDir, "index.mjs"));
 
 const parseCliOptions = (args) => {
     const options = {};
@@ -122,10 +124,24 @@ const normalizeTimeout = (value, fallback) => {
 };
 
 const normalizeDefaultAllowlistConfig = (config = {}) => ({
-    includeDocsRoot: config.includeDocsRoot !== false,
+    includeDocsRoot: false,
     includeAgentWorkspaceRoot: config.includeAgentWorkspaceRoot !== false,
     includeProjectRoot: config.includeProjectRoot !== false,
     extraPaths: Array.isArray(config.extraPaths) ? config.extraPaths.map(String) : [],
+});
+
+const normalizePositiveInteger = (value, fallback) => {
+    const number = Number(value);
+    return Number.isInteger(number) && number > 0 ? number : fallback;
+};
+
+const normalizeRagConfig = (config = {}) => ({
+    enabled: config.enabled !== false,
+    failOpen: config.failOpen !== false,
+    debug: config.debug === true,
+    topK: normalizePositiveInteger(config.topK, 5),
+    maxContextChars: normalizePositiveInteger(config.maxContextChars, 100000),
+    ...fixedProductRagPaths,
 });
 
 const normalizeSessionConfig = (config = {}) => ({
@@ -133,6 +149,7 @@ const normalizeSessionConfig = (config = {}) => ({
     promptRequestTimeoutMs: normalizeTimeout(config.promptRequestTimeoutMs, 5 * 60 * 1000),
     permissionRequestTimeoutMs: normalizeTimeout(config.permissionRequestTimeoutMs, 5 * 60 * 1000),
     defaultAllowlist: normalizeDefaultAllowlistConfig(config.defaultAllowlist),
+    rag: config.rag && typeof config.rag === "object" && !Array.isArray(config.rag) ? config.rag : {},
 });
 
 const mergeSessionConfig = (sessionConfig, env) => ({
@@ -273,13 +290,14 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         permissionRequestTimeoutMs,
         defaultAllowlist,
         extraAllowlistPaths,
+        rag,
     } = readRuntimeConfigBundle(rootDir, env);
     const configuredAgentServers = normalizeAgentServers(agentServersConfig.agentServers)
         .filter(({ name }) => name !== "msinsight-native")
         .map((server) => withAgentIdentity(server, "configured"));
     const builtinAgentServer = withAgentIdentity({
         name: "msinsight-native",
-        command: "node",
+        command: process.execPath,
         args: ["server/native-agent/index.mjs"],
         env: {
             MSINSIGHT_NATIVE_PROVIDER: String(nativeConfig.provider ?? "openai"),
@@ -333,6 +351,7 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         permissionRequestTimeoutMs,
         defaultAllowlist,
         extraAllowlistPaths,
+        rag: normalizeRagConfig(rag),
         requestedActiveAgentName,
     };
 };

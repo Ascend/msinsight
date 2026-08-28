@@ -73,7 +73,11 @@ export const createAcpAdapter = ({
         });
 
         child.stderr?.setEncoding?.("utf8");
-        if (forwardStderr) child.stderr?.on?.("data", (chunk) => process.stderr.write(chunk));
+        if (forwardStderr) {
+            child.stderr?.on?.("data", (chunk) => {
+                console.error(`ACP stderr: bytes=${Buffer.byteLength(String(chunk), "utf8")}`);
+            });
+        }
         child.on?.("error", (error) => {
             notifySubscribers({ kind: "transport_error", error });
             rejectPending(pending, error);
@@ -153,7 +157,7 @@ export const createAcpAdapter = ({
                         clearTimeout(timeout);
                         resolve();
                     });
-                    terminateProcessTree(current, "SIGTERM");
+                    if (!requestGracefulExit(current)) terminateProcessTree(current, "SIGTERM");
                 });
             }
             rejectPending(pending, new Error("ACP adapter disconnected"));
@@ -167,6 +171,16 @@ export const createAcpAdapter = ({
             return () => subscribers.delete(handler);
         },
     };
+};
+
+const requestGracefulExit = (child) => {
+    try {
+        if (typeof child?.stdin?.end !== "function" || child.stdin.destroyed) return false;
+        child.stdin.end();
+        return true;
+    } catch {
+        return false;
+    }
 };
 
 const terminateProcessTree = (child, signal) => {
@@ -193,13 +207,13 @@ const handleAcpLine = async ({ child, debug, line, hostHandlers, notifySubscribe
     try {
         message = JSON.parse(line);
     } catch (_error) {
-        if (debug) console.error(`Ignoring non-ACP stdout: ${line}`);
+        if (debug) console.error(`Ignoring non-ACP stdout: bytes=${Buffer.byteLength(line, "utf8")}`);
         return;
     }
     refreshPromptIdleTimeout(pending, message);
 
     if (message.method && message.id === undefined) {
-        if (debug) console.error("ACP notification", JSON.stringify(message));
+        if (debug) console.error(`ACP notification: method=${String(message.method)}`);
         notifySubscribers(message);
         return;
     }
@@ -261,8 +275,8 @@ const rejectPending = (pendingRequests, error) => {
     pendingRequests.clear();
 };
 
-const resolveCommand = (agentServer) => {
-    if (process.platform === "win32") {
+export const resolveCommand = (agentServer, platform = process.platform) => {
+    if (platform === "win32" && !/\.(?:com|exe)$/i.test(agentServer.command)) {
         return { command: "cmd.exe", args: ["/c", agentServer.command, ...agentServer.args] };
     }
     return { command: agentServer.command, args: agentServer.args };

@@ -1,6 +1,9 @@
 !include MUI2.nsh
 !include nsDialogs.nsh
 
+RequestExecutionLevel admin
+CRCCheck force
+
 !define PRODUCT_PUBLISHER "huawei"
 
 Outfile "MindStudio-Insight_{plugins_version}_win.exe"
@@ -9,6 +12,15 @@ Caption "MindStudio Insight Setup"
 Name "MindStudio Insight"
 
 !define CURRENT_VERSION "{plugins_version}"
+!define PE_NUMERIC_VERSION "{plugins_numeric_version}"
+
+VIProductVersion "${PE_NUMERIC_VERSION}"
+VIAddVersionKey /LANG=1033 "ProductName" "MindStudio Insight"
+VIAddVersionKey /LANG=1033 "CompanyName" "Huawei Technologies CO.,Ltd."
+VIAddVersionKey /LANG=1033 "FileDescription" "MindStudio Insight Setup"
+VIAddVersionKey /LANG=1033 "FileVersion" "${PE_NUMERIC_VERSION}"
+VIAddVersionKey /LANG=1033 "LegalCopyright" "Copyright (c) 2026 Huawei Technologies Co.,Ltd."
+VIAddVersionKey /LANG=1033 "ProductVersion" "${CURRENT_VERSION}"
 
 !define REGKEY "Software\huawei\MindStudio Insight"
 
@@ -77,6 +89,7 @@ Function .onInit
     MessageBox MB_OK "ascend_insight.exe is running. Please close it first."
     Abort
   ${EndIf}
+
   nsProcessW::_FindProcess "MindStudio-Insight.exe" $R0
   Pop $0
   ${If} $0 = "0"
@@ -100,17 +113,28 @@ FunctionEnd
 ; Components
 Section "MindStudio Insight" Secascend_insight
 
+  ; Only the fixed installed RAG root is replaced; NSIS owns payload integrity and extraction errors.
+  ClearErrors
+  RMDir /r "$INSTDIR\resources\profiler\server\insight_web_agent\rag-data"
+  ${If} ${Errors}
+    Abort
+  ${EndIf}
+
   ; Remove Start Menu shortcut
   Delete "$DESKTOP\MindStudio Insight.lnk"
   Delete "$DESKTOP\Ascend Insight.lnk"
   RMDir /r "$SMPROGRAMS\MindStudio Insight"
 
   SetOutPath $INSTDIR
+  ClearErrors
   File /r "MindStudio-Insight.exe"
   SetOutPath $INSTDIR\resources
   File /r "resources\*"
   SetOutPath $INSTDIR\config
   File /r "config\*"
+  ${If} ${Errors}
+    Abort
+  ${EndIf}
 
   SetOutPath $INSTDIR
 

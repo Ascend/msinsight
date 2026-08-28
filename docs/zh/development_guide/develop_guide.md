@@ -229,6 +229,52 @@ python3 build.py
 
 产物位于项目根目录 `out` 目录下。Windows 和 macOS 出包需要额外准备 Rust、平台运行时、打包工具和集成 Python 解释器，详见[开发环境搭建](./environment_setup.md#5-本地出包环境)。
 
+#### 2.7.1 构建预激活 RAG 的开发软件包
+
+RAG 开发软件包通过环境变量提供知识包和 ONNX 模型输入，构建命令不再显式传递这些路径。三个变量全部设置时，构建脚本自动进入 development RAG 模式；全部未设置时执行普通软件包构建；只设置部分变量会在清理和编译前直接报错。
+
+| 环境变量 | 含义 | 输入要求 |
+| --- | --- | --- |
+| `MSINSIGHT_RAG_PACKAGE` | RAG Knowledge Package v4 路径 | 指向 `knowledge-pack-v4.zip` 普通文件 |
+| `MSINSIGHT_RAG_PACKAGE_SHA256` | 知识包 SHA256 sidecar 路径 | 指向与知识包匹配的 `knowledge-pack-v4.zip.sha256` 普通文件 |
+| `MSINSIGHT_RAG_MODEL_DIR` | 已解压的 ONNX Embedding 模型目录 | 包含 `model-manifest.json`、`onnx/model.onnx` 和 Tokenizer 配置文件 |
+
+Package schemaVersion 仍为 `4.0`，但知识包必须包含 `bm25-domain-dict.txt`，并满足以下约束：
+
+- `manifest.json.retrieval.keyword.domainDictionarySha256` 等于词典文件 SHA256；
+- `checksums.json.files` 包含 `bm25-domain-dict.txt`；
+- ZIP member closure 和顺序包含该词典文件；
+- 词典使用 UTF-8、LF 结尾，每行一个非空领域词，忽略大小写后不得重复；
+- BM25 索引生产和消费端 query 分词必须使用同一份词典。
+
+旧的 v4 知识包不包含该 member，不能继续使用，必须由知识库生产仓按新契约重新构建。领域词由知识库维护，`msinsight` 的生产 runtime 不再内置产品或工具关键词。
+
+Windows PowerShell 示例：
+
+```powershell
+$env:MSINSIGHT_RAG_PACKAGE = "D:\rag\knowledge-pack-v4.zip"
+$env:MSINSIGHT_RAG_PACKAGE_SHA256 = "D:\rag\knowledge-pack-v4.zip.sha256"
+$env:MSINSIGHT_RAG_MODEL_DIR = "D:\models\bge-small-zh-v1.5"
+
+Set-Location build
+python build.py --build_version 26.1.1-rag-dev.1
+```
+
+Linux 或 macOS 示例：
+
+```bash
+export MSINSIGHT_RAG_PACKAGE=/opt/rag/knowledge-pack-v4.zip
+export MSINSIGHT_RAG_PACKAGE_SHA256=/opt/rag/knowledge-pack-v4.zip.sha256
+export MSINSIGHT_RAG_MODEL_DIR=/opt/models/bge-small-zh-v1.5
+
+cd build
+python3 build.py --build_version 26.1.1-rag-dev.1
+```
+
+RAG 开发包版本必须使用 `MAJOR.MINOR.PATCH-rag-dev.SERIAL` 格式，例如 `26.1.1-rag-dev.1`。构建脚本会在产生输出前校验知识包摘要、Package manifest 和模型目录，并在 Agent Server 子构建中继续通过环境变量传递路径，避免路径出现在子进程命令行。
+
+旧的 `--rag-mode`、`--rag-dev-pack`、`--rag-dev-sidecar` 和 `--rag-model-dir` 参数仅为已有自动化保留，已从 `--help` 隐藏并会输出弃用警告。环境变量与旧参数同时存在时，以环境变量为准。新脚本不得继续使用旧参数。
+
 ## 3. 开发流程
 
 ### 3.1 新增模块开发

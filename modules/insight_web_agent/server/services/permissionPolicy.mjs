@@ -40,7 +40,7 @@ export const createDefaultAllowlist = async ({
     activeAgentName,
     activeAgentWorkspaceKey,
     projectRoot,
-    includeDocsRoot = true,
+    includeDocsRoot = false,
     includeAgentWorkspaceRoot = true,
     includeProjectRoot = true,
     extraPaths = [],

@@ -19,7 +19,7 @@
 import { EventEmitter } from "node:events";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createAcpAdapter } from "../../infrastructure/acpAdapter.mjs";
+import { createAcpAdapter, resolveCommand } from "../../infrastructure/acpAdapter.mjs";
 
 const createMockChild = () => {
     const child = new EventEmitter();
@@ -28,9 +28,15 @@ const createMockChild = () => {
     child.stderr = new EventEmitter();
     child.stderr.setEncoding = () => {};
     child.stdin = {
+        destroyed: false,
+        ended: false,
         writes: [],
         write(line) {
             this.writes.push(JSON.parse(line));
+        },
+        end() {
+            this.ended = true;
+            queueMicrotask(() => child.emit("exit", 0, null));
         },
     };
     child.kill = () => queueMicrotask(() => child.emit("exit", 0, null));
@@ -49,6 +55,7 @@ const createAdapter = (options = {}) => {
         },
         requestTimeoutMs: options.requestTimeoutMs ?? 30000,
         promptRequestTimeoutMs: options.promptRequestTimeoutMs ?? 300000,
+        debug: options.debug === true,
     });
     return { adapter, children };
 };
@@ -64,6 +71,25 @@ test("createAcpAdapter returns public adapter shape", () => {
     for (const key of ["request", "notify", "registerHandler", "unregisterHandler", "connect", "disconnect", "send", "onMessage"]) {
         assert.equal(typeof adapter[key], "function", key);
     }
+});
+
+test("Windows spawns explicit executables directly and retains cmd shims for command-name resolution", () => {
+    assert.deepEqual(resolveCommand({ command: "C:\\Program Files\\nodejs\\node.exe", args: ["agent.mjs"] }, "win32"), {
+        command: "C:\\Program Files\\nodejs\\node.exe",
+        args: ["agent.mjs"],
+    });
+    assert.deepEqual(resolveCommand({ command: "agent.COM", args: ["serve"] }, "win32"), {
+        command: "agent.COM",
+        args: ["serve"],
+    });
+    assert.deepEqual(resolveCommand({ command: "opencode", args: ["acp"] }, "win32"), {
+        command: "cmd.exe",
+        args: ["/c", "opencode", "acp"],
+    });
+    assert.deepEqual(resolveCommand({ command: "agent.cmd", args: ["serve"] }, "win32"), {
+        command: "cmd.exe",
+        args: ["/c", "agent.cmd", "serve"],
+    });
 });
 
 test("onMessage unsubscribe prevents further notification delivery", async () => {
@@ -145,11 +171,12 @@ test("activity from another session does not refresh a prompt idle timeout", asy
     });
 });
 
-test("disconnect rejects pending requests and cleans up", async () => {
-    const { adapter } = createAdapter();
+test("disconnect closes ACP stdin before rejecting pending requests", async () => {
+    const { adapter, children } = createAdapter();
     adapter.connect();
     const pending = adapter.request("never", {});
     await adapter.disconnect();
+    assert.equal(children[0].stdin.ended, true);
     await assert.rejects(pending, /ACP adapter disconnected/);
 });
 
@@ -164,4 +191,26 @@ test("unexpected process exit notifies subscribers", async () => {
 
     assert.equal(messages[0].kind, "transport_error");
     assert.match(messages[0].error.message, /ACP server exited/);
+});
+
+test("debug transport logs redact non-ACP bodies and ACP notification payloads", async (t) => {
+    const marker = "query-body-prompt-context-credential-C:/sensitive/path";
+    const logs = [];
+    t.mock.method(console, "error", (...values) => logs.push(values.join(" ")));
+    const { adapter, children } = createAdapter({ debug: true });
+    adapter.connect();
+
+    children[0].stdout.emit("data", `${marker}\n`);
+    children[0].stderr.emit("data", marker);
+    emitLine(children[0], {
+        jsonrpc: "2.0",
+        method: "session/update",
+        params: { sessionId: "s1", update: { kind: "agent_message_chunk", text: marker } },
+    });
+    await sleep();
+
+    assert.equal(logs.some((line) => line.includes(marker)), false);
+    assert.equal(logs.some((line) => line.includes("bytes=")), true);
+    assert.equal(logs.some((line) => line.includes("method=session/update")), true);
+    assert.equal(logs.some((line) => line.includes("ACP stderr: bytes=")), true);
 });

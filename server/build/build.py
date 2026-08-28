@@ -107,7 +107,7 @@ def get_gxx_type():
     return gxx_type
 
 
-def build():
+def build(*, allow_dependency_install=True, jobs=MAKE_JOBS):
     build_log('begin build...\n')
     gxx_type = get_gxx_type()
     build_dir = os.path.join(CMAKE_BUILD_DIR, gxx_type)
@@ -121,7 +121,7 @@ def build():
         build_log('Failed to execute cmake command.')
         return result
 
-    build_cmds = ['cmake', '--build', '.', '-j', str(MAKE_JOBS)]
+    build_cmds = ['cmake', '--build', '.', '-j', str(jobs)]
     result = execute_cmd(build_cmds, build_dir)
     if result != 0:
         build_log('Failed to execute cmake build command.')
@@ -132,7 +132,7 @@ def build():
         if copy_python_interpreter() != 0:
             build_log('Failed to copy python interpreter.')
             return -1
-        if pip_install_third_party_for_cluster_analysis() != 0:
+        if allow_dependency_install and pip_install_third_party_for_cluster_analysis() != 0:
             build_log('Failed to pip install third party for cluster analysis.')
             return -1
     build_log('end build.\n')
@@ -155,7 +155,8 @@ def move_snapdump2server_dir():
     script_target_path = os.path.join(bin_dir, 'mem_snap_dump')
     if os.path.exists(script_target_path):
         shutil.rmtree(script_target_path)
-    shutil.move(os.path.join(SCRIPTS_DIR, 'MemSnapDump'), script_target_path)
+    # Packaging must not consume the tracked source tree on a successful build.
+    shutil.copytree(os.path.join(SCRIPTS_DIR, 'MemSnapDump'), script_target_path)
 
 
 def copy_python_interpreter():
@@ -299,6 +300,8 @@ def main():
     parser_build.add_argument(
         '--release', action='store_true', help='compatibility option; server builds are release builds by default'
     )
+    parser_build.add_argument('--no-install', action='store_true', help='use pre-prepared packaged Python dependencies')
+    parser_build.add_argument('--jobs', type=int, default=MAKE_JOBS, help='maximum native compile jobs')
     parser_build.set_defaults(func=build)
 
     parser_test = subparsers.add_parser('test', help='test build')
@@ -311,6 +314,10 @@ def main():
     if not hasattr(args, 'func'):
         args = parser.parse_args(['build'] + sys.argv[1:])
 
+    if args.func is build:
+        if args.jobs < 1:
+            parser.error('--jobs must be positive')
+        return build(allow_dependency_install=not args.no_install, jobs=args.jobs)
     return args.func()
 
 
