@@ -26,6 +26,7 @@ import { Tooltip } from '@insight/lib/components';
 import { Session } from '../entity/session';
 import { getEventTableData } from './dataHandler';
 import { generateJsonShow } from '../utils/utils';
+import { isMemoryBlockLoadReady } from './blockLoadState';
 
 const DEFAULT_TABLE_HEIGHT = 400;
 const TABLE_CHROME_HEIGHT = 88;
@@ -167,6 +168,7 @@ const EventsTable = observer(({ session, height }: { session: Session; height?: 
         eventsPageSize, eventsTotal, eventsOrder, eventsOrderBy, eventsFilters,
         eventsRangeFilters, maxTime, minTime,
     } = session;
+    const blockLoadReady = isMemoryBlockLoadReady(session);
     const [loading, setLoading] = useState(false);
     const defaultDataSource = (process.env.NODE_ENV === 'development' ? [{}] : []);
     const columns = useMemo(() => getTableColumns(t, session), [JSON.stringify(eventsTableHeader), session.module, t]);
@@ -194,11 +196,12 @@ const EventsTable = observer(({ session, height }: { session: Session; height?: 
         });
     };
     useEffect(() => {
-        if (deviceId === '' || maxTime === 0 || maxTime === undefined) return;
+        if (deviceId === '' || maxTime === 0 || maxTime === undefined || !blockLoadReady) return;
         setLoading(true);
         getEventTableData(session);
         setLoading(false);
-    }, [deviceId, maxTime, minTime, eventsCurrentPage, eventsPageSize, eventsOrder, eventsOrderBy, JSON.stringify(eventsFilters), JSON.stringify(eventsRangeFilters)]);
+    }, [deviceId, maxTime, minTime, eventsCurrentPage, eventsPageSize, eventsOrder, eventsOrderBy,
+        JSON.stringify(eventsFilters), JSON.stringify(eventsRangeFilters), blockLoadReady]);
     return (
         <>
             <ResizeTable

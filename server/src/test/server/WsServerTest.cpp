@@ -34,6 +34,7 @@ class WsServerDerived : public WsServer {
     void OnMessageCb(WsChannel *ws, std::string_view message, uWS::OpCode opCode) {
         WsServer::OnMessageCb(ws, message, opCode);
     }
+    uWS::App::WebSocketBehavior<WsUserData> CreateWsBehavior() { return WsServer::CreateWsBehavior(); }
 };
 
 /**
@@ -89,4 +90,11 @@ TEST_F(WsServerTest, ws_server_on_message_cb_test_002) {
 TEST_F(WsServerTest, server_def_WsUserData_init) {
     WsUserData data;
     data.reqUrl = "test";
+}
+
+TEST_F(WsServerTest, ws_server_uses_enlarged_backpressure_limit) {
+    int port = 8080;
+    WsServerDerived wsServer("localhost", port);
+    auto behavior = wsServer.CreateWsBehavior();
+    EXPECT_EQ(behavior.maxBackpressure, 200U * 1024U * 1024U);
 }

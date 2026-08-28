@@ -185,6 +185,7 @@ export class Session {
     autoFilterPotentialLeaks: boolean = false;
 
     loadingBlocks: boolean = false;
+    loadedMemoryBlockContextKey: string = '';
     loadingOverview: boolean = false;
     progressiveBlocksVisible: boolean = false;
     progressiveRenderedBatchCount: number = 0;
