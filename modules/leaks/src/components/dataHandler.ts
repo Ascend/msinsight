@@ -36,6 +36,7 @@ import {
 import { message } from 'antd';
 import { runInAction } from 'mobx';
 import { ensureOpfsOrWaitForFallbackApproval } from './opfsFallback';
+import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from './blockLoadState';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
 const barDataRequestSeqMap = new WeakMap<object, number>();
@@ -104,8 +105,10 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
     }
     const getBlocksRequest = session.module === 'leaks' ? getBlocksGraphData : getSnapshotBlocks;
     const getAllocationRequest = session.module === 'leaks' ? getLeaksAllocationsData : getSnapshotAllocations;
+    const blockContextKey = createMemoryBlockContextKey(session);
     runInAction(() => {
         session.loadingBlocks = true;
+        session.loadedMemoryBlockContextKey = '';
         session.loadingOverview = true;
         session.progressiveBlocksVisible = false;
         session.progressiveRenderedBatchCount = 0;
@@ -156,6 +159,7 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             if (isLatestRequest()) {
                 runInAction(() => {
                     session.loadingBlocks = false;
+                    session.loadedMemoryBlockContextKey = blockContextKey;
                 });
             }
             return;
@@ -171,6 +175,7 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         }
         runInAction(() => {
             session.loadingBlocks = false;
+            session.loadedMemoryBlockContextKey = blockContextKey;
         });
     } catch (error: any) {
         requestActive = false;
@@ -312,6 +317,9 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
     }
 };
 export const getEventTableData = async (session: any): Promise<void> => {
+    if (!isMemoryBlockLoadReady(session)) {
+        return;
+    }
     const request = session.module === 'leaks' ? getEventDetails : getSnapshotEvent;
     try {
         const currentPage = session.eventsCurrentPage;

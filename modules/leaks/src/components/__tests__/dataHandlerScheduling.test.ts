@@ -19,6 +19,7 @@
 import { getBarNewData } from '../dataHandler';
 import { getSnapshotAllocations, getSnapshotBlocks } from '../../utils/RequestUtils';
 import { workerLoadMemoryBlockCache, workerSetMemoryBlockData } from '@/leaksWorker/blockWorker/worker';
+import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from '../blockLoadState';
 
 jest.mock('antd', () => ({ message: { error: jest.fn() } }));
 jest.mock('mobx', () => ({ runInAction: (action: () => void) => action() }));
@@ -46,6 +47,7 @@ const createSession = (): any => ({
     deviceId: '0',
     eventType: 'BLOCK',
     fileHash: 'a'.repeat(64),
+    loadedMemoryBlockContextKey: '',
     leaksWorkerInfo: { renderOptions: {} },
 });
 
@@ -63,7 +65,8 @@ describe('memory block data request scheduling', () => {
             resolveBlocks = resolve;
         }));
 
-        const loading = getBarNewData(createSession());
+        const session = createSession();
+        const loading = getBarNewData(session);
         await new Promise(resolve => setTimeout(resolve, 0));
         expect(mockedGetSnapshotBlocks).toHaveBeenCalledTimes(1);
         expect(mockedGetSnapshotAllocations).not.toHaveBeenCalled();
@@ -73,14 +76,36 @@ describe('memory block data request scheduling', () => {
 
         expect(mockedSetMemoryBlockData).toHaveBeenCalledTimes(1);
         expect(mockedGetSnapshotAllocations).toHaveBeenCalledTimes(1);
+        expect(session.loadedMemoryBlockContextKey).toBe(createMemoryBlockContextKey(session));
+        expect(isMemoryBlockLoadReady(session)).toBe(true);
     });
 
     it('requests allocations after a cache hit without requesting blocks', async () => {
         mockedLoadCache.mockResolvedValue(true);
 
-        await getBarNewData(createSession());
+        const session = createSession();
+        await getBarNewData(session);
 
         expect(mockedGetSnapshotBlocks).not.toHaveBeenCalled();
         expect(mockedGetSnapshotAllocations).toHaveBeenCalledTimes(1);
+        expect(isMemoryBlockLoadReady(session)).toBe(true);
+    });
+
+    it('does not mark block data ready before rendering completes', async () => {
+        let resolveRender: () => void = () => undefined;
+        mockedLoadCache.mockResolvedValue(false);
+        mockedGetSnapshotBlocks.mockResolvedValue({ blocks: [] } as any);
+        mockedSetMemoryBlockData.mockImplementation(() => new Promise(resolve => {
+            resolveRender = resolve;
+        }));
+        const session = createSession();
+
+        const loading = getBarNewData(session);
+        await new Promise(resolve => setTimeout(resolve, 0));
+
+        expect(isMemoryBlockLoadReady(session)).toBe(false);
+        resolveRender();
+        await loading;
+        expect(isMemoryBlockLoadReady(session)).toBe(true);
     });
 });

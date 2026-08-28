@@ -73,7 +73,9 @@ void WsServer::StartListen() {
 uWS::App::WebSocketBehavior<WsUserData> WsServer::CreateWsBehavior() {
     const int maxPayLoadSize = 16 * 1024 * 1024;
     const int idleTimeout = 120;
-    const int maxBackPressureSize = 100 * 1024 * 1024;
+    // Temporary mitigation for large snapshot responses over JupyterLab proxy.
+    // Application-level chunking and drain-based flow control should replace this enlarged buffer budget.
+    const int maxBackPressureSize = 200 * 1024 * 1024;
     uWS::App::WebSocketBehavior<WsUserData> wsBehavior = {.compression = uWS::SHARED_COMPRESSOR,
         .maxPayloadLength = maxPayLoadSize,
         .idleTimeout = idleTimeout,

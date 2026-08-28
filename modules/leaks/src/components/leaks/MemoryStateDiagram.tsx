@@ -34,6 +34,7 @@ import { ArrowDownOutlined, ArrowUpOutlined, CloseCircleFilled, OneToOneOutlined
 import { Tooltip } from '@insight/lib/components';
 import { formatBytes } from '@/utils/utils';
 import { type EvenItem, getMemoryStateData, getSnapshotEvent } from '@/utils/RequestUtils';
+import { isMemoryBlockLoadReady } from '../blockLoadState';
 import { observer } from 'mobx-react';
 import { useTranslation } from 'react-i18next';
 import styled from '@emotion/styled/macro';
@@ -381,6 +382,8 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         });
     };
 
+    const blockLoadReady = isMemoryBlockLoadReady(session);
+
     useEffect(() => {
         if (session.deviceId === '') return;
         setDataSource([]);
@@ -390,8 +393,9 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         // table使用了不自动恢复滚动条模式，需要手动恢复到0
         tableRef.current?.getVirtualBoxDom()?.scrollTo({ top: 0 });
         workerSetMemoryStateData({ data: [] });
+        if (!blockLoadReady) return;
         getAllEventListData(session);
-    }, [session.deviceId, deviceIdsSignature]);
+    }, [session.deviceId, deviceIdsSignature, blockLoadReady]);
 
     useEffect(() => {
         const result = getMatchedIndexes();
