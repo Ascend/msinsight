@@ -17,6 +17,7 @@ export interface WindowMessageDebugRecord {
     sessionId?: string;
     moduleId?: string;
     command?: string;
+    args?: unknown;
     targetRequestId?: string;
     connectionToken?: string;
     status?: string;
@@ -63,6 +64,7 @@ export const recordWindowMessageDebug = ({ direction, data, origin, source, targ
         sessionId: readString(message.sessionId),
         moduleId: readString(message.moduleId),
         command: readString(message.command),
+        args: isJsonObject(message.args) ? message.args : undefined,
         targetRequestId: readString(message.targetRequestId),
         connectionToken: readString(message.connectionToken),
         status: readString(message.status),
@@ -132,6 +134,10 @@ const serializeDebugPayload = (data: unknown): { value: string; truncated: boole
 };
 
 const readString = (value: unknown): string | undefined => typeof value === 'string' && value ? value : undefined;
+
+const isJsonObject = (value: unknown): value is Record<string, unknown> => (
+    Boolean(value) && typeof value === 'object' && !Array.isArray(value)
+);
 
 const createDebugSummary = (message: Record<string, unknown>): string => {
     const body = asRecord(message.body);

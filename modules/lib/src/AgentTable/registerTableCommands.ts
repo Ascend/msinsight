@@ -13,6 +13,7 @@ import {
     type JsonObject,
 } from '../FrontendAgentCommand';
 import type { ModuleAgentCommandClient } from '../ModuleAgentCommandClient';
+import { registerDynamicCommands } from '../ModuleAgentCommandClient/registerDynamicCommands';
 import { TABLE_COMMAND_DEFINITIONS } from './commands';
 import {
     TABLE_COMMAND_IDS,
@@ -34,33 +35,16 @@ export const registerTableCommands = (
     client: ModuleAgentCommandClient,
     moduleId: string,
     tables: TableControllerRegistry,
-): (() => void) => {
-    let unregisterCommands: Array<() => void> = [];
-    let commandKey = '';
-
-    const synchronize = (): void => {
-        const commandIds = [...tables.listCommandIds()].sort();
-        const nextKey = commandIds.join('\n');
-        if (nextKey === commandKey) return;
-        commandKey = nextKey;
-        unregisterCommands.forEach(unregister => unregister());
-        unregisterCommands = commandIds.map((commandId) => {
-            const definition = requireDefinition(commandId);
-            return client.registerCommand(toCommandDefinition(moduleId, definition), (args, context) => tables.invoke(
-                toTableCommandRequest(commandId, args, context.requestId, context.deadline),
-                context.signal,
-            ));
-        });
+): (() => void) => registerDynamicCommands(client, tables, (commandId) => {
+    const definition = requireDefinition(commandId);
+    return {
+        definition: toCommandDefinition(moduleId, definition),
+        handler: (args, context) => tables.invoke(
+            toTableCommandRequest(commandId, args, context.requestId, context.deadline),
+            context.signal,
+        ),
     };
-
-    const unsubscribe = tables.subscribeCommandsChanged(synchronize);
-    synchronize();
-    return () => {
-        unsubscribe();
-        unregisterCommands.forEach(unregister => unregister());
-        unregisterCommands = [];
-    };
-};
+});
 
 const commandName = (moduleId: string, commandId: TableCommandId): string => `${moduleId}.${commandId}`;
 
