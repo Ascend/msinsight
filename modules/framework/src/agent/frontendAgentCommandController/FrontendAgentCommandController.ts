@@ -9,6 +9,7 @@
 import {
     COMMAND_ERROR_CODES,
     CommandError,
+    FRONTEND_AGENT_EXECUTE_COMMAND,
     type CommandContext,
     type CommandDefinition,
     type CommandHandler,
@@ -26,6 +27,8 @@ interface RunningCommand {
     controller: AbortController;
     cancel?: () => Promise<void> | void;
 }
+
+const DEBUG_COMMAND_TIMEOUT_MS = 30000;
 
 export class FrontendAgentCommandController {
     private readonly catalog = new CommandCatalog();
@@ -89,6 +92,22 @@ export class FrontendAgentCommandController {
     setActiveModule(moduleId: string): void {
         this.ensureActive();
         this.activeModule = moduleId;
+    }
+
+    /**
+     * 重放一条已捕获的前端命令，走与 Agent 请求完全相同的执行路径
+     * （目录查找、help/observe 内置命令处理、模块 transport），仅跳过 agent iframe 这一跳。
+     * 仅供 window message 调试面板使用，用于定位命令失败的具体环节。
+     */
+    replayCommandForDebug(command: string, args: JsonObject): Promise<unknown> {
+        this.ensureActive();
+        return this.execute({
+            event: FRONTEND_AGENT_EXECUTE_COMMAND,
+            requestId: crypto.randomUUID(),
+            command,
+            args,
+            deadline: Date.now() + DEBUG_COMMAND_TIMEOUT_MS,
+        });
     }
 
     dispose(): void {

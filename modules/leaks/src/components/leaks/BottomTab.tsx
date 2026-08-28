@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Spin, Tabs } from 'antd';
 import { DrawerButton, Resizer } from '@insight/lib';
 import { type Theme, useTheme } from '@emotion/react';
@@ -30,6 +30,7 @@ import { runInAction } from 'mobx';
 import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
 import { addAddressOffset, convertBytesToMBytes } from '@/utils/utils';
+import { notifyMemScopeInteractionsChanged, registerBottomDrawerController, type BottomDrawerTab } from '@/agent/interactionController';
 
 const MARGIN = 38;
 const HEIGHT_DEFAULT = 420;
@@ -38,17 +39,37 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
     const { t } = useTranslation('leaks');
     const [isExpand, setIsExpand] = useState(false);
     const [containerHeight, setContainerHeight] = useState(Math.min(HEIGHT_DEFAULT, window.innerHeight - 70));
-    const [activeTab, setActiveTab] = useState('sliceDetail');
+    const [activeTab, setActiveTab] = useState<BottomDrawerTab>('sliceDetail');
     const theme: Theme = useTheme();
+    const isExpandRef = useRef(isExpand);
+    const activeTabRef = useRef(activeTab);
     const autoExpandedKeysRef = useRef(new Set<string>());
     const detailContextKey = `${session.module}_${session.deviceId}_${session.eventType}`;
+    const setDrawerOpen = useCallback((open: boolean): void => {
+        isExpandRef.current = open;
+        setIsExpand(open);
+    }, []);
+    const selectDrawerTab = useCallback((tab: BottomDrawerTab): void => {
+        activeTabRef.current = tab;
+        setActiveTab(tab);
+    }, []);
+
+    useEffect(() => registerBottomDrawerController({
+        observe: () => ({ open: isExpandRef.current, tab: activeTabRef.current }),
+        setOpen: setDrawerOpen,
+        selectTab: selectDrawerTab,
+    }), [selectDrawerTab, setDrawerOpen]);
+
+    useEffect(() => {
+        notifyMemScopeInteractionsChanged();
+    }, [isExpand, activeTab]);
 
     useEffect(() => {
         if (session.leaksWorkerInfo.clickItem !== null || session.stateWorkerInfo.clickItem !== null || session.clickEventItem !== null) {
             if (!autoExpandedKeysRef.current.has(detailContextKey)) {
                 autoExpandedKeysRef.current.add(detailContextKey);
-                setIsExpand(true);
-                setActiveTab('sliceDetail');
+                setDrawerOpen(true);
+                selectDrawerTab('sliceDetail');
             }
         }
     }, [detailContextKey, session.leaksWorkerInfo.clickItem, session.stateWorkerInfo.clickItem, session.clickEventItem]);
@@ -58,7 +79,7 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
             return;
         }
         autoExpandedKeysRef.current.clear();
-        setActiveTab('sliceDetail');
+        selectDrawerTab('sliceDetail');
     }, [session.deviceId, session.deviceIds]);
 
     const changeHeight = (_: number, moveY: number): void => {
@@ -102,10 +123,16 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
             callback={changeHeight}
         />
         <DrawerButton
-            isExpand={isExpand} onClick={() => setIsExpand(oVal => !oVal)}
+            isExpand={isExpand} onClick={() => setDrawerOpen(!isExpandRef.current)}
             style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 1 }}
         />
-        <Tabs activeKey={activeTab} onChange={setActiveTab} size="small" items={TabItems} tabBarStyle={{ padding: '0 25px' }} />
+        <Tabs
+            activeKey={activeTab}
+            onChange={tab => selectDrawerTab(tab as BottomDrawerTab)}
+            size="small"
+            items={TabItems}
+            tabBarStyle={{ padding: '0 25px' }}
+        />
     </div>;
 });
 

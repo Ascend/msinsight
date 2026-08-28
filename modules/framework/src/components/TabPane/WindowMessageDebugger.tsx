@@ -9,6 +9,11 @@
 import styled from '@emotion/styled';
 import { Button } from '@insight/lib/components';
 import {
+    FRONTEND_AGENT_EXECUTE_COMMAND,
+    toCommandError,
+    type JsonObject,
+} from '@insight/lib/FrontendAgentCommand';
+import {
     clearWindowMessageDebugRecords,
     getWindowMessageDebugRecords,
     setWindowMessageDebugEnabled,
@@ -16,20 +21,65 @@ import {
     type WindowMessageDebugRecord,
 } from '@insight/lib/WindowMessageRouter';
 import { Input, Modal, Select, Tag } from 'antd';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { frontendAgentCommandController } from '@/agent/frontendAgentCommandController';
 
 interface WindowMessageDebuggerProps {
     open: boolean;
     onClose: () => void;
 }
 
+interface ReplayResult {
+    ok: boolean;
+    durationMs: number;
+    text: string;
+}
+
 const ALL = 'all';
+const safeStringify = (value: unknown): string => {
+    try {
+        return JSON.stringify(value, null, 2) ?? String(value);
+    } catch {
+        return String(value);
+    }
+};
 
 export const WindowMessageDebugger = ({ open, onClose }: WindowMessageDebuggerProps): JSX.Element => {
     const [records, setRecords] = useState<readonly WindowMessageDebugRecord[]>(() => getWindowMessageDebugRecords());
     const [direction, setDirection] = useState(ALL);
     const [channel, setChannel] = useState(ALL);
     const [query, setQuery] = useState('');
+    const [replaying, setReplaying] = useState<ReadonlySet<number>>(new Set());
+    const [replayResults, setReplayResults] = useState<ReadonlyMap<number, ReplayResult>>(new Map());
+
+    const replay = useCallback(async (record: WindowMessageDebugRecord): Promise<void> => {
+        if (!record.command || replaying.has(record.id)) return;
+        setReplaying(current => new Set(current).add(record.id));
+        const startedAt = performance.now();
+        try {
+            const output = await frontendAgentCommandController.replayCommandForDebug(
+                record.command,
+                (record.args ?? {}) as JsonObject,
+            );
+            setReplayResults(current => new Map(current).set(record.id, {
+                ok: true,
+                durationMs: performance.now() - startedAt,
+                text: safeStringify(output),
+            }));
+        } catch (error) {
+            setReplayResults(current => new Map(current).set(record.id, {
+                ok: false,
+                durationMs: performance.now() - startedAt,
+                text: safeStringify(toCommandError(error)),
+            }));
+        } finally {
+            setReplaying(current => {
+                const next = new Set(current);
+                next.delete(record.id);
+                return next;
+            });
+        }
+    }, [replaying]);
 
     useEffect(() => {
         setWindowMessageDebugEnabled(true);
@@ -96,13 +146,29 @@ export const WindowMessageDebugger = ({ open, onClose }: WindowMessageDebuggerPr
         <RecordList>
             {filteredRecords.length === 0
                 ? <EmptyState>No window messages match the current filters.</EmptyState>
-                : filteredRecords.map(record => <WindowMessageRecordView key={record.id} record={record} />)}
+                : filteredRecords.map(record => <WindowMessageRecordView
+                    key={record.id}
+                    record={record}
+                    replaying={replaying.has(record.id)}
+                    replayResult={replayResults.get(record.id)}
+                    onReplay={() => {
+                        void replay(record);
+                    }}
+                />)}
         </RecordList>
     </Modal>;
 };
 
-const WindowMessageRecordView = ({ record }: { record: WindowMessageDebugRecord }): JSX.Element => {
+interface WindowMessageRecordViewProps {
+    record: WindowMessageDebugRecord;
+    replaying: boolean;
+    replayResult?: ReplayResult;
+    onReplay: () => void;
+}
+
+const WindowMessageRecordView = ({ record, replaying, replayResult, onReplay }: WindowMessageRecordViewProps): JSX.Element => {
     const [expanded, setExpanded] = useState(false);
+    const replayable = record.event === FRONTEND_AGENT_EXECUTE_COMMAND && record.direction === 'inbound' && Boolean(record.command);
     return <Record>
         <RecordHeader type="button" onClick={() => setExpanded(value => !value)}>
             <Time>{formatTime(record.timestamp)}</Time>
@@ -118,6 +184,19 @@ const WindowMessageRecordView = ({ record }: { record: WindowMessageDebugRecord 
             <TruncatedCell>{record.truncated ? <Tag color="orange">truncated</Tag> : null}</TruncatedCell>
             <Expand>{expanded ? 'Hide' : 'Payload'}</Expand>
         </RecordHeader>
+        {replayable
+            ? <ReplayBar>
+                <Button size="small" loading={replaying} onClick={onReplay}>Replay</Button>
+                {replayResult
+                    ? <>
+                        <Tag color={replayResult.ok ? 'green' : 'red'}>
+                            {replayResult.ok ? 'ok' : 'error'} · {replayResult.durationMs.toFixed(0)} ms
+                        </Tag>
+                        <ReplayResultText ok={replayResult.ok}>{replayResult.text || '(empty response)'}</ReplayResultText>
+                    </>
+                    : <ReplayHint>按原参数重跑该命令，仅经过 framework 执行路径（跳过 agent iframe）。</ReplayHint>}
+            </ReplayBar>
+            : null}
         {expanded
             ? <RecordDetails>
                 <Metadata>
@@ -143,6 +222,43 @@ const formatTime = (timestamp: number): string => new Date(timestamp).toLocaleTi
     second: '2-digit',
     fractionalSecondDigits: 3,
 });
+
+const ReplayBar = styled.div`
+    display: flex;
+    align-items: flex-start;
+    padding: 4px 10px 8px;
+    gap: 8px;
+    border-top: 1px dashed ${(props): string => props.theme.borderColorLight};
+
+    > .ant-btn {
+        flex-shrink: 0;
+    }
+
+    > .ant-tag {
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+`;
+
+const ReplayHint = styled.span`
+    color: ${(props): string => props.theme.textColorSecondary};
+    font-size: 12px;
+`;
+
+const ReplayResultText = styled.pre<{ ok: boolean }>`
+    max-height: 180px;
+    margin: 0;
+    padding: 6px 8px;
+    overflow: auto;
+    border-radius: 4px;
+    background: ${(props): string => props.theme.bgColorDark};
+    color: ${(props): string => props.ok ? props.theme.tableTextColor : '#ff7875'};
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    line-height: 16px;
+    white-space: pre-wrap;
+    word-break: break-word;
+`;
 
 const Toolbar = styled.div`
     display: grid;

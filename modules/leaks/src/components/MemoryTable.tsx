@@ -26,6 +26,7 @@ import { Session } from '../entity/session';
 import BlocksTable from './BlocksTable';
 import EventsTable from './EventsTable';
 import ThresholdModal from './ThresholdModal';
+import { selectSystemTableView, type SystemTableView } from '@/agent/interactionController';
 const SYSTEM_TABLE_TOOLBAR_HEIGHT = 42;
 
 const MemoryTable = observer(({ session, height, visible }: { session: Session; height?: number; visible: boolean }): React.ReactElement => {
@@ -47,35 +48,7 @@ const MemoryTable = observer(({ session, height, visible }: { session: Session; 
         closeAutoFilter();
     };
     const radioChange = (e: RadioChangeEvent): void => {
-        runInAction(() => {
-            const type = e.target.value;
-            session.tableType = type;
-            if (type === 'blocks') {
-                session.blocksTableData = [];
-                session.blocksTableHeader = [];
-                session.blocksCurrentPage = 1;
-                session.blocksPageSize = 10;
-                session.blocksTotal = 0;
-                session.blocksOrder = '';
-                session.blocksOrderBy = '';
-                session.blocksFilters = {};
-                session.blocksRangeFilters = {};
-            } else {
-                session.eventsTableData = [];
-                session.eventsTableHeader = [];
-                session.eventsCurrentPage = 1;
-                session.eventsPageSize = 10;
-                session.eventsTotal = 0;
-                session.eventsOrder = '';
-                session.eventsOrderBy = '';
-                session.eventsFilters = {};
-                session.eventsRangeFilters = {};
-                session.lazyUsedThreshold = { perT: null, valueT: null };
-                session.delayedFreeThreshold = { perT: null, valueT: null };
-                session.longIdleThreshold = { perT: null, valueT: null };
-                session.onlyInefficient = false;
-            }
-        });
+        selectSystemTableView(session, e.target.value as SystemTableView);
     };
     return (
         <>
