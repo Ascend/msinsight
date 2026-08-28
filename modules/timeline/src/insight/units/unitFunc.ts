@@ -105,6 +105,7 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             meta.metaType = insightMetaData.metadata.metaType;
             meta.groupNameValue = insightMetaData.metadata.groupNameValue;
             meta.rankList = insightMetaData.metadata.rankList;
+            meta.headerTooltip = insightMetaData.metadata.headerTooltip;
             const threadUnit = new ThreadUnit(meta);
             const chart = threadUnit.chart as ChartDesc<'stackStatus'>;
             if (insightMetaData.metadata.maxDepth === 1 || insightMetaData.metadata.maxDepth === 0) {
@@ -124,6 +125,8 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.dataType = insightMetaData.metadata.dataType;
             meta.metaType = insightMetaData.metadata.metaType;
+            meta.headerTooltip = insightMetaData.metadata.headerTooltip;
+            meta.maxValue = insightMetaData.metadata.maxValue;
             return new CounterUnit(meta);
         }
         default:
