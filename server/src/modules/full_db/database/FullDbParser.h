@@ -44,6 +44,7 @@ class FullDbParser : public FileParser {
 
     static void InitMemory(const std::vector<std::string> &rankIds, const std::string &path);
     static void InitSummary(const std::vector<std::string> &rankIds, const std::string &path);
+    static bool InitPlatform(const std::string &rankId, const std::string &path);
 
     static void ParserCallBack(std::string rankId, const std::string &fileId, bool result);
     static std::shared_ptr<DbTraceDataBase> GetTraceDatabase(const std::string &filePath);
