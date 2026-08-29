@@ -192,6 +192,25 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         expect(blockWorker.workerClickItem).toHaveBeenCalled();
     });
 
+    it('shows the allocation line legend only while the overview layer is visible', () => {
+        const session = new Session();
+        session.module = 'memsnapshot'; session.fileHash = 'snapshot'; session.deviceId = '0'; session.eventType = 'malloc';
+        session.allocationData.allocationLineAvailability = {
+            reservedLine: true,
+            processUsedLine: false,
+            deviceUsedLine: true,
+        };
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
+
+        expect(view.getByTestId('allocationLineLegend')).toBeTruthy();
+        expect(view.getByText('reservedLineLegend')).toBeTruthy();
+        expect(view.queryByText('processUsedLineLegend')).toBeNull();
+        expect(view.getByText('deviceUsedLineLegend')).toBeTruthy();
+
+        fireEvent.click(view.getByTestId('toggle-overview-layer'));
+        expect(view.queryByTestId('allocationLineLegend')).toBeNull();
+    });
+
     it('restores MemScope lifecycle view state when the imported data context changes', () => {
         const session = new Session();
         session.module = 'memsnapshot'; session.fileHash = 'snapshot-a'; session.deviceId = '0'; session.eventType = 'malloc';

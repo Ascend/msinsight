@@ -42,15 +42,27 @@ interface CheckOpfsAvailabilityPayload {
     requestId: number;
 };
 
-interface SetReservedLinePayload {
-    type: 'setReservedLine';
+interface SetAllocationLinesPayload {
+    type: 'setAllocationLines';
     generation: number;
-    reservedLine: ReservedLinePoint[];
+    reservedLine?: ReservedLinePoint[];
+    processUsedLine?: ProcessUsedLinePoint[];
+    deviceUsedLine?: DeviceUsedLinePoint[];
 };
 
 interface ReservedLinePoint {
     timestamp: number;
     reservedSize: number;
+};
+
+interface ProcessUsedLinePoint {
+    timestamp: number;
+    processUsed: number;
+};
+
+interface DeviceUsedLinePoint {
+    timestamp: number;
+    deviceUsed: number;
 };
 
 interface DestroyPayload {
@@ -128,7 +140,7 @@ type Payload =
     | CheckOpfsAvailabilityPayload
     | LoadMemoryBlockCachePayload
     | SetMemoryBlocksDataPayload
-    | SetReservedLinePayload
+    | SetAllocationLinesPayload
     | ResizeCanvasPayload
     | TransformPayload
     | SetBlockGraphLayerVisibilityPayload

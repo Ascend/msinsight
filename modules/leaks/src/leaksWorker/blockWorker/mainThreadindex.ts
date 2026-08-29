@@ -23,7 +23,7 @@ import {
     buildBlockViewPathAndWriteToOPFS,
     getInitialBlockGraphMetadata,
     getZoom,
-    processReservedLine,
+    processAllocationLines,
     searchBlockDataByPoint,
     searchBlockDataByPointFromOPFS,
 } from '../tools/dataProcess';
@@ -65,7 +65,7 @@ export class MainThreadRender {
     memoryBlockMetadata: BlockGraphMetadata | undefined;
     blockDataOPFS: BlockDataOPFS;
     readonly temporaryBlockDataStorageKey: string;
-    reservedLine: Array<[number, number]> = [];
+    allocationLines: AllocationLineData = { reservedLine: [], processUsedLine: [], deviceUsedLine: [] };
     transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     viewport: RenderOptions['viewport'] = { width: 0, height: 0 };
     zoom: RenderOptions['zoom'] = { x: 1, y: 1, offset: 0 };
@@ -78,9 +78,9 @@ export class MainThreadRender {
     hoverSearchVersion: number = 0;
     activeDataGeneration: number = 0;
     storageReadyGeneration: number = 0;
-    reservedLineOverride: {
+    allocationLinesOverride: {
         generation: number;
-        reservedLine: Array<[number, number]>;
+        lines: AllocationLineData;
         reservedSizeMax: number;
     } | null = null;
 
@@ -118,15 +118,20 @@ export class MainThreadRender {
         return { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0 };
     }
 
-    private applyReservedLineOverride(metadata: BlockGraphMetadata, generation: number): BlockGraphMetadata {
-        if (this.reservedLineOverride?.generation !== generation) {
+    private applyAllocationLinesOverride(metadata: BlockGraphMetadata, generation: number): BlockGraphMetadata {
+        if (this.allocationLinesOverride?.generation !== generation) {
             return metadata;
         }
         return {
             ...metadata,
-            reservedLine: this.reservedLineOverride.reservedLine,
-            reservedSizeMax: this.reservedLineOverride.reservedSizeMax,
+            reservedLine: this.allocationLinesOverride.lines.reservedLine,
+            reservedSizeMax: this.allocationLinesOverride.reservedSizeMax,
         };
+    }
+
+    private resolveAllocationLines(generation: number, reservedLine: Array<[number, number]>): AllocationLineData {
+        if (this.allocationLinesOverride?.generation === generation) return this.allocationLinesOverride.lines;
+        return { reservedLine, processUsedLine: [], deviceUsedLine: [] };
     }
 
     private async resolveHitBlock(payload: Omit<HoverItemPayload, 'type'>): Promise<Block | null> {
@@ -158,7 +163,9 @@ export class MainThreadRender {
             blockDataOPFS: this.blockDataOPFS,
             mainThread: true,
             beforeStorageChange: async () => {
-                await this.renderer?.setDataFromOPFS(null, 0, [], false);
+                await this.renderer?.setDataFromOPFS(
+                    null, 0, { reservedLine: [], processUsedLine: [], deviceUsedLine: [] }, false,
+                );
             },
         });
         this.blockDataOPFS = result.blockDataOPFS;
@@ -168,8 +175,8 @@ export class MainThreadRender {
     private resetMemoryBlockDataState(generation: number): void {
         this.activeDataGeneration = generation;
         this.storageReadyGeneration = 0;
-        if (this.reservedLineOverride?.generation !== generation) {
-            this.reservedLineOverride = null;
+        if (this.allocationLinesOverride?.generation !== generation) {
+            this.allocationLinesOverride = null;
         }
         this.hoverSearchVersion++;
         this.debouncedSearchBlockData.cancel();
@@ -178,8 +185,8 @@ export class MainThreadRender {
     }
 
     private updateMetadataView(metadata: BlockGraphMetadata, generation: number): void {
-        this.memoryBlockMetadata = this.applyReservedLineOverride(metadata, generation);
-        this.reservedLine = this.memoryBlockMetadata.reservedLine ?? [];
+        this.memoryBlockMetadata = this.applyAllocationLinesOverride(metadata, generation);
+        this.allocationLines = this.resolveAllocationLines(generation, this.memoryBlockMetadata.reservedLine ?? []);
         this.zoom = getZoom(this.memoryBlockMetadata, this.canvas);
         runInAction(() => {
             this.session.leaksWorkerInfo.sizeInfo = this.getSizeInfo();
@@ -190,7 +197,7 @@ export class MainThreadRender {
 
     private async initializeProgressiveStorage(generation: number): Promise<void> {
         this.storageReadyGeneration = generation;
-        await this.renderer?.setDataFromOPFS(this.blockDataOPFS, 0, this.reservedLine, false);
+        await this.renderer?.setDataFromOPFS(this.blockDataOPFS, 0, this.allocationLines, false);
         this.renderer?.updateCanvasSize(this.viewport);
     }
 
@@ -214,7 +221,7 @@ export class MainThreadRender {
             return;
         }
         state.lastBatch = endBatch;
-        await this.renderer?.setDataFromOPFS(this.blockDataOPFS, endBatch, this.reservedLine);
+        await this.renderer?.setDataFromOPFS(this.blockDataOPFS, endBatch, this.allocationLines);
         if (shouldCancel()) {
             return;
         }
@@ -258,7 +265,7 @@ export class MainThreadRender {
         }
         const { fileHash } = storage;
         this.memoryBlockMetadata = getInitialBlockGraphMetadata(payload.data);
-        this.reservedLine = this.memoryBlockMetadata.reservedLine ?? [];
+        this.allocationLines = this.resolveAllocationLines(payload.generation, this.memoryBlockMetadata.reservedLine ?? []);
         const cachedMetadata = await this.blockDataOPFS.loadCompleteCacheForBuild(fileHash);
         if (cachedMetadata) {
             if (shouldCancel()) {
@@ -269,7 +276,7 @@ export class MainThreadRender {
             await this.renderer?.setDataFromOPFS(
                 this.blockDataOPFS,
                 cachedMetadata.batchCount,
-                this.reservedLine,
+                this.allocationLines,
                 false,
             );
             return true;
@@ -289,7 +296,7 @@ export class MainThreadRender {
             onBatchesCommitted: (_startBatch, endBatch, progress) =>
                 this.renderProgressiveBatch(payload.generation, endBatch, progress, progressiveState, shouldCancel),
         });
-        this.memoryBlockMetadata = this.applyReservedLineOverride(builtMetadata, payload.generation);
+        this.memoryBlockMetadata = this.applyAllocationLinesOverride(builtMetadata, payload.generation);
         if (shouldCancel()) {
             throw new BlockPathBuildCancelledError();
         }
@@ -298,7 +305,7 @@ export class MainThreadRender {
         await this.renderer?.setDataFromOPFS(
             this.blockDataOPFS,
             this.memoryBlockMetadata.batchCount,
-            this.reservedLine,
+            this.allocationLines,
             false,
         );
         return true;
@@ -309,13 +316,13 @@ export class MainThreadRender {
         this.memoryBlockMetadata = undefined;
         const renderData = isPackedRenderData(payload.data) ? unpackRenderData(payload.data) : payload.data;
         this.memoryBlockData = buildBlockViewPath(renderData);
-        this.reservedLine = this.memoryBlockData.reservedLine ?? [];
+        this.allocationLines = this.resolveAllocationLines(payload.generation, this.memoryBlockData.reservedLine ?? []);
         this.zoom = getZoom(this.memoryBlockData, this.canvas);
         runInAction(() => {
             this.session.leaksWorkerInfo.sizeInfo = this.getSizeInfo();
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
         });
-        this.renderer?.setZoom(this.zoom).setData(this.memoryBlockData.blocks, this.reservedLine);
+        this.renderer?.setZoom(this.zoom).setData(this.memoryBlockData.blocks, this.allocationLines);
     }
 
     private async completeMemoryBlockDataRender(payload: Omit<SetMemoryBlocksDataPayload, 'type'>): Promise<void> {
@@ -371,24 +378,24 @@ export class MainThreadRender {
         await this.completeMemoryBlockDataRender(payload);
     }
 
-    setReservedLineHandler(payload: Omit<SetReservedLinePayload, 'type'>): void {
-        const { reservedLine: processedReservedLine, reservedSizeMax } = processReservedLine(payload.reservedLine);
-        this.reservedLineOverride = {
+    setAllocationLinesHandler(payload: Omit<SetAllocationLinesPayload, 'type'>): void {
+        const { lines, allocationLineSizeMax } = processAllocationLines(payload);
+        this.allocationLinesOverride = {
             generation: payload.generation,
-            reservedLine: processedReservedLine,
-            reservedSizeMax,
+            lines,
+            reservedSizeMax: allocationLineSizeMax,
         };
         if (payload.generation !== this.activeDataGeneration) {
             return;
         }
-        this.reservedLine = processedReservedLine;
+        this.allocationLines = lines;
         if (this.memoryBlockMetadata) {
-            this.memoryBlockMetadata.reservedLine = processedReservedLine;
-            this.memoryBlockMetadata.reservedSizeMax = reservedSizeMax;
+            this.memoryBlockMetadata.reservedLine = lines.reservedLine;
+            this.memoryBlockMetadata.reservedSizeMax = allocationLineSizeMax;
             this.zoom = getZoom(this.memoryBlockMetadata, this.canvas);
         } else if (this.memoryBlockData) {
-            this.memoryBlockData.reservedLine = processedReservedLine;
-            this.memoryBlockData.reservedSizeMax = reservedSizeMax;
+            this.memoryBlockData.reservedLine = lines.reservedLine;
+            this.memoryBlockData.reservedSizeMax = allocationLineSizeMax;
             this.zoom = getZoom(this.memoryBlockData, this.canvas);
         } else {
             return;
@@ -400,7 +407,7 @@ export class MainThreadRender {
             this.session.leaksWorkerInfo.sizeInfo = this.getSizeInfo();
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
         });
-        this.renderer?.setReservedLine(this.reservedLine).setZoom(
+        this.renderer?.setAllocationLines(this.allocationLines).setZoom(
             this.zoom,
             !this.useOpfs || this.storageReadyGeneration === payload.generation,
         );
@@ -556,7 +563,7 @@ export class MainThreadRender {
             reservedSizeMax: 0,
         };
         this.memoryBlockMetadata = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, batchCount: 0 };
-        this.reservedLine = [];
+        this.allocationLines = { reservedLine: [], processUsedLine: [], deviceUsedLine: [] };
         this.transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         this.zoom = { x: 1, y: 1, offset: 0 };
         this.hoverItem = null;
@@ -571,7 +578,9 @@ export class MainThreadRender {
             this.session.leaksWorkerInfo.hoverItem = null;
         });
         await this.renderHighlightData(false);
-        await this.renderer?.setDataFromOPFS(null, 0, [], false);
+        await this.renderer?.setDataFromOPFS(
+            null, 0, { reservedLine: [], processUsedLine: [], deviceUsedLine: [] }, false,
+        );
         if (isLeaksOpfsEnabled()) {
             await this.blockDataOPFS.release(this.temporaryBlockDataStorageKey);
         }

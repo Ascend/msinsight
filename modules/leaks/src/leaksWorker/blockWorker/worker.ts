@@ -142,12 +142,12 @@ const WorkerBackend = {
         );
         return completion;
     },
-    setReservedLine({ reservedLine }: Omit<SetReservedLinePayload, 'type' | 'generation'>): void {
+    setAllocationLines(lines: Omit<SetAllocationLinesPayload, 'type' | 'generation'>): void {
         BlockWorker.postMessage({
-            type: 'setReservedLine',
+            type: 'setAllocationLines',
             generation: workerGeneration,
-            reservedLine,
-        } as SetReservedLinePayload);
+            ...lines,
+        } as SetAllocationLinesPayload);
     },
     resizeCanvas({ width, height }: Omit<ResizeCanvasPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'resizeCanvas', width, height });
@@ -208,10 +208,10 @@ const MainThreadBackend = {
         mainThreadLoadQueue = task.catch(() => undefined);
         return task;
     },
-    setReservedLine({ reservedLine }: Omit<SetReservedLinePayload, 'type' | 'generation'>): void {
-        mainThreadRender.setReservedLineHandler({
+    setAllocationLines(lines: Omit<SetAllocationLinesPayload, 'type' | 'generation'>): void {
+        mainThreadRender.setAllocationLinesHandler({
             generation: mainThreadGeneration,
-            reservedLine,
+            ...lines,
         });
     },
     resizeCanvas({ width, height }: Omit<ResizeCanvasPayload, 'type'>): void {
@@ -258,7 +258,7 @@ export const workerInitCanvas = backend.initCanvas;
 export const workerCheckOpfsAvailability = backend.checkOpfsAvailability;
 export const workerLoadMemoryBlockCache = backend.loadMemoryBlockCache;
 export const workerSetMemoryBlockData = backend.setMemoryBlockData;
-export const workerSetReservedLine = backend.setReservedLine;
+export const workerSetAllocationLines = backend.setAllocationLines;
 export const workerResizeCanvas = backend.resizeCanvas;
 export const workerTransform = backend.transform;
 export const workerSetBlockGraphLayerVisibility = backend.setBlockGraphLayerVisibility;
