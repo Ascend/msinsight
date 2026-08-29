@@ -101,12 +101,24 @@ struct MemoryAllocation {
     std::string deviceId;
     std::string eventType;
     bool optimized{false};
+    uint64_t reservedSize{0};
+    uint64_t processUsed{0};
+    uint64_t deviceUsed{0};
 
     MemoryAllocation() = default;
-    MemoryAllocation(
-        uint64_t timestamp, uint64_t totalSize, std::string deviceId, std::string eventType, bool optimized)
+    MemoryAllocation(uint64_t timestamp, uint64_t totalSize, std::string deviceId, std::string eventType,
+        bool optimized, uint64_t reservedSize = 0, uint64_t processUsed = 0, uint64_t deviceUsed = 0)
         : id(0), timestamp(timestamp), totalSize(totalSize), deviceId(std::move(deviceId)),
-          eventType(std::move(eventType)), optimized(optimized) {}
+          eventType(std::move(eventType)), optimized(optimized), reservedSize(reservedSize), processUsed(processUsed),
+          deviceUsed(deviceUsed) {}
+};
+
+struct MemScopeUsageLinePoint {
+    uint64_t timestamp{0};
+    uint64_t value{0};
+
+    MemScopeUsageLinePoint() = default;
+    MemScopeUsageLinePoint(uint64_t timestamp, uint64_t value) : timestamp(timestamp), value(value) {}
 };
 
 struct MemoryBlock {

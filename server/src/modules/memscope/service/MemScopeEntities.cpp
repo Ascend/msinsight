@@ -130,6 +130,8 @@ void MallocFreeEventAttrs::SetByJson(const json_t &json) {
     MemoryEventBaseAttrs::SetByJson(json);
     total = NumberUtil::StringToUnsignedLongLong(JsonUtil::GetString(json, BLOCK_EVENT_ATTR_TOTAL_FIELD));
     used = NumberUtil::StringToUnsignedLongLong(JsonUtil::GetString(json, BLOCK_EVENT_ATTR_USED_FIELD));
+    processUsed = NumberUtil::StringToUnsignedLongLong(JsonUtil::GetString(json, BLOCK_EVENT_ATTR_PROCESS_USED_FIELD));
+    deviceUsed = NumberUtil::StringToUnsignedLongLong(JsonUtil::GetString(json, BLOCK_EVENT_ATTR_DEVICE_USED_FIELD));
     owner = JsonUtil::GetString(json, BLOCK_EVENT_ATTR_OWNER_FIELD);
 }
 

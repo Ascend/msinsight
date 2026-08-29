@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include "MemScopeAllocationDataProcessor.h"
 #include "MemScopeParser.h"
 #include "../../TestSuit.h"
 
@@ -53,11 +54,25 @@ TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithValidJsonAttr) {
     MemScopeEvent event;
     event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
     auto eventAttr = BuildEventAttrsFromJson<MallocFreeEventAttrs>(
-        R"({"addr": "20617055174656", "size": "7849984", "total": "132120576","used": "116313600", "owner": "PTA@init_model"})");
+        R"({"addr": "20617055174656", "size": "7849984", "total": "132120576","used": "116313600", "process_used": "200000000", "device_used": "300000000", "owner": "PTA@init_model"})");
     ASSERT_TRUE(eventAttr.has_value());
     const int64_t expectSize = 7849984;
     EXPECT_EQ(eventAttr->size, expectSize);
     EXPECT_EQ(eventAttr->owner, "PTA@init_model");
+    EXPECT_EQ(eventAttr->total, 132120576);
+    EXPECT_EQ(eventAttr->used, 116313600);
+    EXPECT_EQ(eventAttr->processUsed, 200000000);
+    EXPECT_EQ(eventAttr->deviceUsed, 300000000);
+}
+
+TEST_F(MemScopeParserTest, BuildBlockEventAttrFromLegacyJsonWithoutProcessAndDeviceUsed) {
+    auto eventAttr = BuildEventAttrsFromJson<MallocFreeEventAttrs>(
+        R"({"addr": "20617055174656", "size": "7849984", "total": "132120576","used": "116313600", "owner": "PTA@init_model"})");
+    ASSERT_TRUE(eventAttr.has_value());
+    EXPECT_EQ(eventAttr->total, 132120576);
+    EXPECT_EQ(eventAttr->used, 116313600);
+    EXPECT_EQ(eventAttr->processUsed, 0);
+    EXPECT_EQ(eventAttr->deviceUsed, 0);
 }
 
 TEST_F(MemScopeParserTest, TestParseEventsToAllocationsAndBlocks) {
@@ -89,6 +104,26 @@ TEST_F(MemScopeParserTest, TestParseEventsToAllocationsAndBlocks) {
     memoryDatabase->QueryMemoryAllocations(allocationParams, allocations);
     EXPECT_EQ(blocks.size(), expectBlockSize);
     EXPECT_EQ(allocations.size(), expectAllocationSize);
+    bool hasReservedUsage = false;
+    bool hasProcessUsed = false;
+    bool hasDeviceUsed = false;
+    for (const auto &allocation : allocations) {
+        if (allocation.reservedSize > 0) {
+            hasReservedUsage = true;
+        }
+        if (allocation.processUsed > 0) {
+            hasProcessUsed = true;
+        }
+        if (allocation.deviceUsed > 0) {
+            hasDeviceUsed = true;
+        }
+    }
+    EXPECT_TRUE(hasReservedUsage);
+    EXPECT_FALSE(hasProcessUsed);
+    EXPECT_FALSE(hasDeviceUsed);
+    EXPECT_FALSE(MemScopeAllocationDataProcessor::CompressReservedLine(allocations).empty());
+    EXPECT_TRUE(MemScopeAllocationDataProcessor::CompressProcessUsedLine(allocations).empty());
+    EXPECT_TRUE(MemScopeAllocationDataProcessor::CompressDeviceUsedLine(allocations).empty());
 }
 
 TEST_F(MemScopeParserTest, TestParseLeaksDump) {

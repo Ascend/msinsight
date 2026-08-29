@@ -158,7 +158,7 @@ void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext &context
             Server::ServerLog::Error("Invalid device id: %.", event.deviceId);
             continue;
         }
-        auto eventAttrs = BuildEventAttrsFromJson<MemoryEventBaseAttrs>(event.attr);
+        auto eventAttrs = BuildEventAttrsFromJson<MallocFreeEventAttrs>(event.attr);
         if (eventAttrs.has_value() && eventAttrs->groupId > 0) {
             context.eventGroupMap[eventAttrs->groupId].groupId = static_cast<int64_t>(eventAttrs->groupId);
             context.eventGroupMap[eventAttrs->groupId].AddEvent(event);
@@ -171,9 +171,9 @@ void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext &context
         }
         context.deviceTotalSize[event.deviceId + event.eventType] =
             SafeCalculateAllocationSize(context.deviceTotalSize[event.deviceId + event.eventType], eventAttrs->size);
-        // 构造allocation折线图元素
+        // 构造allocation折线图元素；reserved/process/device 来自当次事件 Attr usage
         MemoryAllocation allocation(event.timestamp, context.deviceTotalSize[event.deviceId + event.eventType],
-            event.deviceId, event.eventType, false);
+            event.deviceId, event.eventType, false, eventAttrs->total, eventAttrs->processUsed, eventAttrs->deviceUsed);
         context.db->InsertMemoryAllocation(allocation);
     }
     ParseRemainMallocEvents(context);

@@ -148,6 +148,7 @@ TEST_F(MemScopeDatabaseTest, QueryAllocationWithTimeAndRelativeCondition) {
     EXPECT_EQ(firstAllocation.timestamp, expectTimestamp);
     uint64_t totalSize = 37888;
     EXPECT_EQ(firstAllocation.totalSize, totalSize);
+    EXPECT_GT(firstAllocation.reservedSize, 0);
 }
 
 TEST_F(MemScopeDatabaseTest, QueryLatestAllocationWithinTimestamp) {
