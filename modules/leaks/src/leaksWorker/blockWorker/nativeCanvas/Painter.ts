@@ -18,9 +18,7 @@
 
 import { getColorStringByAddr, getDimmedColorStringByAddr } from '@/leaksWorker/tools/color';
 import { BlockDataOPFS, getPointFromPathData } from '../../tools/BlockDataOPFS';
-
-const RESERVED_LINE_COLOR = '#0052D9';
-const RESERVED_LABEL_COLOR = '#003CAB';
+import { ALLOCATION_LINE_STYLES } from '../allocationLineStyles';
 
 export class Painter {
     readonly canvas: HTMLCanvasElement;
@@ -29,7 +27,12 @@ export class Painter {
     private data: RenderData['blocks'] = [];
     private highlightData: RenderData['blocks'] = [];
     private dimBase: boolean = false;
-    private reservedLine: Array<[number, number]> = [];
+    private allocationLines: AllocationLineData = {
+        reservedLine: [],
+        processUsedLine: [],
+        deviceUsedLine: [],
+    };
+
     private blockDataOPFS: BlockDataOPFS | null = null;
     private batchCount: number = 0;
     private sourceReadBuffer: Float32Array = new Float32Array(0);
@@ -43,9 +46,9 @@ export class Painter {
         this.context = this.canvas.getContext('2d');
     }
 
-    processData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): void {
+    processData(data: RenderData['blocks'], lines: AllocationLineData): void {
         this.data = data;
-        this.reservedLine = reservedLine;
+        this.allocationLines = lines;
         this.blockDataOPFS = null;
         this.batchCount = 0;
     }
@@ -53,12 +56,12 @@ export class Painter {
     async processDataFromOPFS(
         blockDataOPFS: BlockDataOPFS | null,
         batchCount: number,
-        reservedLine: Array<[number, number]> = [],
+        lines: AllocationLineData,
     ): Promise<void> {
         this.blockDataOPFS = blockDataOPFS;
         this.batchCount = batchCount;
         this.data = [];
-        this.reservedLine = reservedLine;
+        this.allocationLines = lines;
         if (blockDataOPFS && this.sourceReadBuffer.length < blockDataOPFS.getMaxBatchPathFloats()) {
             this.sourceReadBuffer = new Float32Array(blockDataOPFS.getMaxBatchPathFloats());
         }
@@ -68,8 +71,8 @@ export class Painter {
         this.highlightData = highlightData;
     }
 
-    setReservedLine(reservedLine: Array<[number, number]> = []): void {
-        this.reservedLine = reservedLine;
+    setAllocationLines(lines: AllocationLineData): void {
+        this.allocationLines = lines;
     }
 
     setBaseDimmed(dimBase: boolean): void {
@@ -110,7 +113,7 @@ export class Painter {
             if (shouldCancel()) {
                 return;
             }
-            if (visibility.overview) this.renderReservedLine(options);
+            if (visibility.overview) this.renderAllocationLines(options);
             if (visibility.blocks) {
                 this.renderData(this.highlightData, options);
                 this.renderData(this.highlightData, options, true);
@@ -120,18 +123,26 @@ export class Painter {
         }
     }
 
-    renderReservedLine(options: RenderOptions): void {
-        if (this.context === null || this.reservedLine.length < 2) {
-            return;
-        }
+    renderAllocationLines(options: RenderOptions): void {
+        ALLOCATION_LINE_STYLES.forEach(style => {
+            this.renderAllocationLine(this.allocationLines[style.key], style, options);
+        });
+    }
+
+    private renderAllocationLine(
+        line: Array<[number, number]>,
+        style: typeof ALLOCATION_LINE_STYLES[number],
+        options: RenderOptions,
+    ): void {
+        if (this.context === null || line.length < 2) return;
         const { zoom } = options;
         const context = this.context;
         context.beginPath();
-        context.strokeStyle = RESERVED_LINE_COLOR;
+        context.strokeStyle = style.color;
         context.lineWidth = 2 / Math.max(this.getScaleX(options.transform), this.getScaleY(options.transform));
-        this.reservedLine.forEach(([timestamp, reservedSize], index) => {
+        line.forEach(([timestamp, value], index) => {
             const x = (timestamp - zoom.offset) * zoom.x;
-            const y = reservedSize * zoom.y;
+            const y = value * zoom.y;
             if (index === 0) {
                 context.moveTo(x, y);
             } else {
@@ -139,13 +150,6 @@ export class Painter {
             }
         });
         context.stroke();
-        const lastPoint = this.reservedLine[this.reservedLine.length - 1];
-        context.save();
-        context.scale(1, -1);
-        context.fillStyle = RESERVED_LABEL_COLOR;
-        context.font = `${12 / this.getScaleY(options.transform)}px sans-serif`;
-        context.fillText('Reserved', (lastPoint[0] - zoom.offset) * zoom.x, -lastPoint[1] * zoom.y);
-        context.restore();
     }
 
     async renderDataFromOPFS(

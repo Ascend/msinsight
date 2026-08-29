@@ -20,6 +20,11 @@ import { MemoryBlockProgram } from './programs/MemoryBlockProgram';
 import { MemoryBlockBorderProgram } from './programs/MemoryBlockBorderProgram';
 import { ReservedLineProgram } from './programs/ReservedLineProgram';
 import shaders from './shaders';
+import {
+    DEVICE_USED_LINE_STYLE,
+    PROCESS_USED_LINE_STYLE,
+    RESERVED_LINE_STYLE,
+} from '../allocationLineStyles';
 
 export class Painter {
     private gl: WebGL2RenderingContext | null = null;
@@ -28,6 +33,8 @@ export class Painter {
     memoryBlockHighlightProgram: MemoryBlockProgram | null = null;
     memoryBlockBorderHightlightProgram: MemoryBlockBorderProgram | null = null;
     reservedLineProgram: ReservedLineProgram | null = null;
+    processUsedLineProgram: ReservedLineProgram | null = null;
+    deviceUsedLineProgram: ReservedLineProgram | null = null;
     private uniformData: Float32Array;
 
     constructor(canvas: OffscreenCanvas, private readonly opfsRuntimeId: string) {
@@ -64,13 +71,23 @@ export class Painter {
             this.opfsRuntimeId,
         );
         this.memoryBlockBorderHightlightProgram = new MemoryBlockBorderProgram(this.gl, this.uniformData, shaders.memoryBlockBorder);
-        this.reservedLineProgram = new ReservedLineProgram(this.gl, this.uniformData, shaders.reservedLine);
+        this.reservedLineProgram = new ReservedLineProgram(
+            this.gl, this.uniformData, shaders.reservedLine, RESERVED_LINE_STYLE.webglColor,
+        );
+        this.processUsedLineProgram = new ReservedLineProgram(
+            this.gl, this.uniformData, shaders.reservedLine, PROCESS_USED_LINE_STYLE.webglColor,
+        );
+        this.deviceUsedLineProgram = new ReservedLineProgram(
+            this.gl, this.uniformData, shaders.reservedLine, DEVICE_USED_LINE_STYLE.webglColor,
+        );
         await this.memoryBlockProgram.initOPFS();
         await this.memoryBlockHighlightProgram.initOPFS();
     }
 
-    setReservedLine(reservedLine: Array<[number, number]> = []): void {
-        this.reservedLineProgram?.processData(reservedLine);
+    setAllocationLines(lines: AllocationLineData): void {
+        this.reservedLineProgram?.processData(lines.reservedLine);
+        this.processUsedLineProgram?.processData(lines.processUsedLine);
+        this.deviceUsedLineProgram?.processData(lines.deviceUsedLine);
     }
 
     private updateUniformData(options: RenderOptions): void {
@@ -131,7 +148,11 @@ export class Painter {
             this.memoryBlockHighlightProgram?.render(options);
             this.memoryBlockBorderHightlightProgram?.render(options);
         }
-        if (visibility.overview) this.reservedLineProgram?.render(options);
+        if (visibility.overview) {
+            this.reservedLineProgram?.render(options);
+            this.processUsedLineProgram?.render(options);
+            this.deviceUsedLineProgram?.render(options);
+        }
         gl.disable(gl.BLEND);
     }
 }

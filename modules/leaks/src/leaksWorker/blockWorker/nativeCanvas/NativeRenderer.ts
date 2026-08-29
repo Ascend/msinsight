@@ -50,13 +50,13 @@ export class NativeRenderer {
         return this;
     }
 
-    setReservedLine(reservedLine: Array<[number, number]> = []): this {
-        this.painter.setReservedLine(reservedLine);
+    setAllocationLines(lines: AllocationLineData): this {
+        this.painter.setAllocationLines(lines);
         return this;
     }
 
-    setData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): this {
-        this.painter.processData(data, reservedLine);
+    setData(data: RenderData['blocks'], lines: AllocationLineData): this {
+        this.painter.processData(data, lines);
         void this.renderFrame();
         return this;
     }
@@ -64,10 +64,10 @@ export class NativeRenderer {
     async setDataFromOPFS(
         blockDataOPFS: BlockDataOPFS | null,
         batchCount: number,
-        reservedLine: Array<[number, number]> = [],
+        lines: AllocationLineData,
         render: boolean = true,
     ): Promise<this> {
-        await this.painter.processDataFromOPFS(blockDataOPFS, batchCount, reservedLine);
+        await this.painter.processDataFromOPFS(blockDataOPFS, batchCount, lines);
         if (render) {
             await this.renderFrame();
         }

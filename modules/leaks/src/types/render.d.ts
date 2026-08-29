@@ -34,6 +34,12 @@ interface RenderOptions {
     };
 }
 
+interface AllocationLineData {
+    reservedLine: Array<[number, number]>;
+    processUsedLine: Array<[number, number]>;
+    deviceUsedLine: Array<[number, number]>;
+}
+
 interface Block {
     id: number;
     addr: string;

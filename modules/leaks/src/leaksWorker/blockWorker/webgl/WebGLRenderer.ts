@@ -47,13 +47,13 @@ export class WebGLRenderer {
         return this;
     }
 
-    setReservedLine(reservedLine: Array<[number, number]> = []): this {
-        this.painter.setReservedLine(reservedLine);
+    setAllocationLines(lines: AllocationLineData): this {
+        this.painter.setAllocationLines(lines);
         return this;
     }
 
-    async setData(data: RenderData['blocks'] = [], reservedLine: Array<[number, number]> = []): Promise<this> {
-        this.painter.setReservedLine(reservedLine);
+    async setData(data: RenderData['blocks'], lines: AllocationLineData): Promise<this> {
+        this.painter.setAllocationLines(lines);
         await this.painter.memoryBlockProgram?.processData(data, this.dimBase);
         this.renderFrame();
         return this;
@@ -62,10 +62,10 @@ export class WebGLRenderer {
     async setDataFromOPFS(
         blockDataOPFS: BlockDataOPFS | null,
         batchCount: number,
-        reservedLine: Array<[number, number]> = [],
+        lines: AllocationLineData,
         render: boolean = true,
     ): Promise<this> {
-        this.painter.setReservedLine(reservedLine);
+        this.painter.setAllocationLines(lines);
         await this.painter.memoryBlockProgram?.processDataFromOPFS(blockDataOPFS, batchCount, this.dimBase);
         if (render) {
             this.renderFrame();
@@ -75,9 +75,9 @@ export class WebGLRenderer {
 
     async beginProgressiveDataFromOPFS(
         blockDataOPFS: BlockDataOPFS,
-        reservedLine: Array<[number, number]> = [],
+        lines: AllocationLineData,
     ): Promise<this> {
-        this.painter.setReservedLine(reservedLine);
+        this.painter.setAllocationLines(lines);
         await this.painter.memoryBlockProgram?.processDataFromOPFS(blockDataOPFS, 0, this.dimBase);
         this.renderFrame();
         return this;

@@ -18,7 +18,11 @@
 
 import { getBarNewData } from '../dataHandler';
 import { getSnapshotAllocations, getSnapshotBlocks } from '../../utils/RequestUtils';
-import { workerLoadMemoryBlockCache, workerSetMemoryBlockData } from '@/leaksWorker/blockWorker/worker';
+import {
+    workerLoadMemoryBlockCache,
+    workerSetAllocationLines,
+    workerSetMemoryBlockData,
+} from '@/leaksWorker/blockWorker/worker';
 import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from '../blockLoadState';
 
 jest.mock('antd', () => ({ message: { error: jest.fn() } }));
@@ -30,7 +34,7 @@ jest.mock('../../utils/RequestUtils', () => ({
 jest.mock('@/leaksWorker/blockWorker/worker', () => ({
     workerLoadMemoryBlockCache: jest.fn(),
     workerSetMemoryBlockData: jest.fn(),
-    workerSetReservedLine: jest.fn(),
+    workerSetAllocationLines: jest.fn(),
     workerTransform: jest.fn(),
 }), { virtual: true });
 jest.mock('../opfsFallback', () => ({
@@ -41,6 +45,7 @@ const mockedGetSnapshotBlocks = getSnapshotBlocks as jest.MockedFunction<typeof 
 const mockedGetSnapshotAllocations = getSnapshotAllocations as jest.MockedFunction<typeof getSnapshotAllocations>;
 const mockedLoadCache = workerLoadMemoryBlockCache as jest.MockedFunction<typeof workerLoadMemoryBlockCache>;
 const mockedSetMemoryBlockData = workerSetMemoryBlockData as jest.MockedFunction<typeof workerSetMemoryBlockData>;
+const mockedSetAllocationLines = workerSetAllocationLines as jest.MockedFunction<typeof workerSetAllocationLines>;
 
 const createSession = (): any => ({
     module: 'memsnapshot',
@@ -82,12 +87,31 @@ describe('memory block data request scheduling', () => {
 
     it('requests allocations after a cache hit without requesting blocks', async () => {
         mockedLoadCache.mockResolvedValue(true);
+        const reservedLine = [{ timestamp: 1, reservedSize: 10 }];
+        const processUsedLine = [{ timestamp: 1, processUsed: 20 }];
+        const deviceUsedLine = [{ timestamp: 1, deviceUsed: 30 }];
+        mockedGetSnapshotAllocations.mockResolvedValue({
+            allocations: [],
+            reservedLine,
+            processUsedLine,
+            deviceUsedLine,
+        } as any);
 
         const session = createSession();
         await getBarNewData(session);
 
         expect(mockedGetSnapshotBlocks).not.toHaveBeenCalled();
         expect(mockedGetSnapshotAllocations).toHaveBeenCalledTimes(1);
+        expect(mockedSetAllocationLines).toHaveBeenCalledWith({
+            reservedLine,
+            processUsedLine,
+            deviceUsedLine,
+        });
+        expect(session.allocationData.allocationLineAvailability).toEqual({
+            reservedLine: true,
+            processUsedLine: true,
+            deviceUsedLine: true,
+        });
         expect(isMemoryBlockLoadReady(session)).toBe(true);
     });
 

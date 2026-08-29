@@ -43,6 +43,8 @@ export interface AllocationData {
     maxTimestamp: number;
     allocations: Allocation[];
     reservedLine?: ReservedPoint[];
+    processUsedLine?: ProcessUsedPoint[];
+    deviceUsedLine?: DeviceUsedPoint[];
 }
 export interface Allocation {
     id: number;
@@ -52,6 +54,14 @@ export interface Allocation {
 export interface ReservedPoint {
     timestamp: number;
     reservedSize: number;
+}
+export interface ProcessUsedPoint {
+    timestamp: number;
+    processUsed: number;
+}
+export interface DeviceUsedPoint {
+    timestamp: number;
+    deviceUsed: number;
 }
 export interface GraphParam {
     deviceId: string;

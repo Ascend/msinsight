@@ -18,13 +18,16 @@
 
 import { Program } from './Program';
 
-const RESERVED_LINE_COLOR = [0, 0.32, 0.85, 1];
-
 export class ReservedLineProgram extends Program {
     private vertices = new Float32Array(0);
     private pointCount = 0;
 
-    constructor(gl: WebGL2RenderingContext, uniformData: Float32Array, shader: Shader) {
+    constructor(
+        gl: WebGL2RenderingContext,
+        uniformData: Float32Array,
+        shader: Shader,
+        private readonly color: readonly [number, number, number, number],
+    ) {
         super(gl, uniformData, shader);
         const program = this.program;
         if (program === null) {
@@ -60,7 +63,7 @@ export class ReservedLineProgram extends Program {
         gl.useProgram(this.program);
         this.setBaseUniforms();
         gl.uniform1f(this.uniformLoc.uOffset, this.uniformData[8]);
-        gl.uniform4f(this.uniformLoc.uColor, RESERVED_LINE_COLOR[0], RESERVED_LINE_COLOR[1], RESERVED_LINE_COLOR[2], RESERVED_LINE_COLOR[3]);
+        gl.uniform4f(this.uniformLoc.uColor, this.color[0], this.color[1], this.color[2], this.color[3]);
         gl.bindVertexArray(this.vao);
         gl.drawArrays(gl.LINE_STRIP, 0, this.pointCount);
         this.cleanupGL();

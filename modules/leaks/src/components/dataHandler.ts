@@ -18,7 +18,7 @@
 import {
     workerLoadMemoryBlockCache,
     workerSetMemoryBlockData,
-    workerSetReservedLine,
+    workerSetAllocationLines,
     workerTransform,
 } from '@/leaksWorker/blockWorker/worker';
 import {
@@ -110,6 +110,10 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         session.loadingBlocks = true;
         session.loadedMemoryBlockContextKey = '';
         session.loadingOverview = true;
+        session.allocationData = {
+            ...session.allocationData,
+            allocationLineAvailability: undefined,
+        };
         session.progressiveBlocksVisible = false;
         session.progressiveRenderedBatchCount = 0;
         session.progressiveRenderedInstanceCount = 0;
@@ -130,17 +134,22 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             if (!requestActive || !isLatestRequest()) {
                 return;
             }
-            const { reservedLine, ...allocationResult } = allocationData;
+            const { reservedLine, processUsedLine, deviceUsedLine, ...allocationResult } = allocationData;
             runInAction(() => {
-                session.allocationData = allocationResult;
+                session.allocationData = {
+                    ...allocationResult,
+                    allocationLineAvailability: {
+                        reservedLine: (reservedLine?.length ?? 0) > 0,
+                        processUsedLine: (processUsedLine?.length ?? 0) > 0,
+                        deviceUsedLine: (deviceUsedLine?.length ?? 0) > 0,
+                    },
+                };
                 if (allocationResult.allocations.length === 0) {
                     session.loadingOverview = false;
                 }
             });
-            if (isLatestRequest() && session.module === 'memsnapshot') {
-                if (reservedLine !== undefined) {
-                    workerSetReservedLine({ reservedLine });
-                }
+            if (isLatestRequest()) {
+                workerSetAllocationLines({ reservedLine, processUsedLine, deviceUsedLine });
             }
         };
         const transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };

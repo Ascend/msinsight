@@ -77,6 +77,7 @@ import {
     type LifecycleGraphLayer,
     type LifecycleGraphLayerVisibility,
 } from './LifecycleGraphLayerPanel';
+import { ALLOCATION_LINE_STYLES } from '../../leaksWorker/blockWorker/allocationLineStyles';
 
 const BASE_MOVE_STEP = 5;
 const TOOLBAR_HEIGHT = 36;
@@ -120,6 +121,38 @@ const LifecycleCanvas = styled.canvas`
     image-rendering: pixelated;
     touch-action: none;
     outline: none;
+`;
+
+const AllocationLineLegend = styled.div`
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 5px 9px;
+    color: ${(props): string => props.theme.textColorSecondary};
+    font-size: 11px;
+    line-height: 16px;
+    background: ${(props): string => props.theme.bgColorCommon};
+    border: 1px solid ${(props): string => props.theme.borderColorLight};
+    border-radius: 4px;
+    box-shadow: ${(props): string => props.theme.boxShadow};
+    pointer-events: none;
+    user-select: none;
+`;
+
+const AllocationLineLegendItem = styled.span`
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+`;
+
+const AllocationLineLegendMark = styled.span<{ $color: string }>`
+    width: 18px;
+    border-top: 2px solid ${(props): string => props.$color};
 `;
 
 const BlockMarkerShortcutHint = styled.div<{ $markerColor: string }>`
@@ -187,6 +220,9 @@ export const MemoryBlockDiagram = observer(({
     const [layerVisibility, setLayerVisibility] = useState<LifecycleGraphLayerVisibility>({
         ...DEFAULT_LAYER_VISIBILITY,
     });
+    const visibleAllocationLineStyles = ALLOCATION_LINE_STYLES.filter(
+        style => session.allocationData.allocationLineAvailability?.[style.key] === true,
+    );
     const layerVisibilityRef = useRef(layerVisibility);
     const isDragging = useRef(false);
     const isClick = useRef(false);
@@ -777,6 +813,14 @@ export const MemoryBlockDiagram = observer(({
                 <LifecycleCanvas
                     ref={ref}
                 />
+                {layerVisibility.overview && visibleAllocationLineStyles.length > 0
+                    ? <AllocationLineLegend data-testid="allocationLineLegend">
+                        {visibleAllocationLineStyles.map(style => <AllocationLineLegendItem key={style.key}>
+                            <AllocationLineLegendMark $color={style.color} aria-hidden="true" />
+                            <span>{t(style.labelKey)}</span>
+                        </AllocationLineLegendItem>)}
+                    </AllocationLineLegend>
+                    : <></>}
                 <MarkLineBlock session={session} />
                 {session.module === 'memsnapshot' && layerVisibility.markers
                     ? <LifecycleMemoryMarkerOverlay

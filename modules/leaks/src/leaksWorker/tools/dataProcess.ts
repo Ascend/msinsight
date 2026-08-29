@@ -19,16 +19,35 @@
 import { BlockDataOPFS, blockFromMeta, getPointFromPathData, type PackedBlockPath } from './BlockDataOPFS';
 import { isPackedRenderData } from './packedBlockData';
 
-export const processReservedLine = (points: ReservedLinePoint[]): {
-    reservedLine: Array<[number, number]>;
-    reservedSizeMax: number;
+const processAllocationLine = <T extends { timestamp: number }>(points: T[] | undefined, valueKey: keyof T): {
+    points: Array<[number, number]>;
+    maxSize: number;
 } => {
-    let reservedSizeMax = 0;
-    const reservedLine = points.map(({ timestamp, reservedSize }) => {
-        reservedSizeMax = Math.max(reservedSizeMax, reservedSize);
-        return [timestamp, reservedSize] as [number, number];
+    let maxSize = 0;
+    const processedPoints = (points ?? []).map(point => {
+        const timestamp = Number(point.timestamp);
+        const value = Number(point[valueKey]);
+        maxSize = Math.max(maxSize, value);
+        return [timestamp, value] as [number, number];
     });
-    return { reservedLine, reservedSizeMax };
+    return { points: processedPoints, maxSize };
+};
+
+export const processAllocationLines = (payload: Omit<SetAllocationLinesPayload, 'type' | 'generation'>): {
+    lines: AllocationLineData;
+    allocationLineSizeMax: number;
+} => {
+    const reserved = processAllocationLine(payload.reservedLine, 'reservedSize');
+    const processUsed = processAllocationLine(payload.processUsedLine, 'processUsed');
+    const deviceUsed = processAllocationLine(payload.deviceUsedLine, 'deviceUsed');
+    return {
+        lines: {
+            reservedLine: reserved.points,
+            processUsedLine: processUsed.points,
+            deviceUsedLine: deviceUsed.points,
+        },
+        allocationLineSizeMax: Math.max(reserved.maxSize, processUsed.maxSize, deviceUsed.maxSize),
+    };
 };
 
 export const getZoom = (
