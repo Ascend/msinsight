@@ -214,7 +214,7 @@ export const parseSuccessHandler: NotificationHandler = (data): void => {
             }
             session.setDomainWithoutHistory({ domainStart: 0, domainEnd });
             // 设置各卡的默认合并泳道
-            session.mergedThreadData.concatThreadGroupList(unitData.threadGroupList);
+            session.mergedThreadData.registerAutoThreadGroups(unitData.threadGroupList);
 
             // 检查所有卡是否解析完成
             const parseCompleted = !(session.units.find(item => item.phase === 'analyzing'));
@@ -350,7 +350,9 @@ const initUnitInfo = (session: Session | undefined, result: ImportResult, dataSo
             unit.children = cardUnits;
         }
     });
-    session.mergedThreadData.clear(); // units 完全刷新，清空合并数据
+    if (result.reset || isNeedResetRankId) {
+        session.mergedThreadData.clear(); // units 完全刷新，清空合并数据
+    }
 
     if (session?.units?.[0]) {
         session.units[0].isExpanded = true;
@@ -560,6 +562,17 @@ const clearIpynbInfo = (session: Session): void => {
     });
 };
 
+const pruneMergedThreadDataForRemovedUnits = (session: Session, removedUnits: InsightUnit[]): void => {
+    if (session.units.length === 0) {
+        session.mergedThreadData.clear();
+        return;
+    }
+    const remainingCardIds = new Set(session.units.map(unit => (unit.metadata as CardMetaData).cardId));
+    const removedCardIds = Array.from(new Set(removedUnits.map(unit => (unit.metadata as CardMetaData).cardId)))
+        .filter(cardId => typeof cardId === 'string' && !remainingCardIds.has(cardId));
+    session.mergedThreadData.removeThreadGroupsByCardIds(removedCardIds);
+};
+
 export const removeRemoteHandler: NotificationHandler = async (data): Promise<void> => {
     resetPage(data);
     updatePageSetting({ type: 'removeDataSource', data: getPropFromData(data, 'dataSource') });
@@ -582,6 +595,7 @@ const clearUnits = (session: Session, data?: Record<string, unknown>): void => {
         dataSource = getPropFromData(data, 'dataSource') as DataSource;
     }
     if (dataSource !== null && dataSource !== undefined) {
+        const unitsBeforeRemoval = [...session.units];
         const removeUnits = session.pinnedUnits.concat(session.units).filter((unit) => {
             const metadata = unit.metadata as any;
             if (metadata.dataSource.dataPath === undefined) {
@@ -598,6 +612,7 @@ const clearUnits = (session: Session, data?: Record<string, unknown>): void => {
             const metadata = unit.metadata as any;
             return metadata.dataSource.remote !== dataSource?.remote && !removeUnits.includes(unit);
         });
+        pruneMergedThreadDataForRemovedUnits(session, unitsBeforeRemoval.filter(unit => !session.units.includes(unit)));
         session.pinnedUnits = session?.pinnedUnits.filter((unit) => {
             const metadata = unit.metadata as any;
             return metadata.dataSource.remote !== dataSource?.remote && !removeUnits.includes(unit);
@@ -737,6 +752,7 @@ export const removeBaselineHandler: NotificationHandler = async (data): Promise<
                 }
                 return metadata.dataSource.remote !== dataSource.remote || !(metadata.dataSource.dataPath as string[]).includes(singleDataPath);
             });
+            pruneMergedThreadDataForRemovedUnits(session, removeUnits);
             if (session.selectedUnits[0] !== undefined && !session.units.includes(session.selectedUnits[0])) {
                 session.selectedUnits = [];
             }
@@ -802,6 +818,7 @@ export const removeSingleRemoteHandler: NotificationHandler = async (data): Prom
             }
             return metadata.dataSource.remote !== dataSource.remote || !(metadata.dataSource.dataPath as string[]).includes(singleDataPath);
         });
+        pruneMergedThreadDataForRemovedUnits(session, removeUnits);
         if (session.selectedUnits[0] !== undefined && !session.units.includes(session.selectedUnits[0])) {
             session.selectedUnits = [];
         }

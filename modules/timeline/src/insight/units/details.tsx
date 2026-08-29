@@ -25,7 +25,7 @@ import type { Session } from '../../entity/session';
 import { getSliceTimeDisplay } from './AscendUnit';
 import { getTimeOffset } from './utils';
 import { checkIsValidSlice } from '../../components/charts/ChartInteractor/draw';
-import { checkIsSameUnit } from '../../components/ChartContainer/Units/UnitInfo';
+import { checkIsSameUnit } from '../../utils';
 import { GetUnitFlowsParams } from '../../api/interface';
 
 const isSelfTimeHidden = (session: Session): boolean => {

@@ -20,18 +20,22 @@ import { runInAction } from 'mobx';
 import { register } from './register';
 import type { Session } from '../entity/session';
 import { ThreadMetaData } from '../entity/data';
-import { ThreadUnit } from '../insight/units/AscendUnit';
 import { type ChartDesc, InsightUnit, UnitHeight } from '../entity/insight';
 import { message } from 'antd';
 import type { StackStatusConfig } from '../entity/chart';
 import i18n from '@insight/lib/i18n';
-import { checkIsSliceMode } from '../components/charts/ChartInteractor/draw';
 import { isStreamUnit } from '../utils';
 import { ThreadGroup } from '../entity/mergedThreadData';
+import { isAncestorPinned, isPinned, switchPinned } from '../components/ChartContainer/unitPin';
 
 const clearSelectedUnits = (session: Session): void => {
     session.selectedUnits = [];
 };
+
+interface MergeUnitListResult {
+    mergedMeta: ThreadMetaData;
+    sourceUnits: InsightUnit[];
+}
 
 const findInsertIndex = (allUnits: InsightUnit[], selectedUnits: InsightUnit[]): number => {
     let minIndex = Infinity;
@@ -56,7 +60,28 @@ const extractThreadIds = (units: InsightUnit[]): string[] => {
     return units.flatMap(unit => {
         const { threadIdList, threadId } = unit.metadata as ThreadMetaData;
         return threadIdList ?? [threadId];
-    }) as string[];
+    }).filter((threadId): threadId is string => typeof threadId === 'string' && threadId !== '');
+};
+
+const normalizeThreadIds = (threadIds: string[]): string[] => Array.from(new Set(threadIds)).sort();
+
+const hasSameThreadIds = (unit: InsightUnit, threadIds: string[]): boolean => {
+    const unitThreadIds = (unit.metadata as ThreadMetaData).threadIdList;
+    if (!Array.isArray(unitThreadIds)) { return false; }
+    const normalizedUnitThreadIds = normalizeThreadIds(unitThreadIds);
+    const normalizedThreadIds = normalizeThreadIds(threadIds);
+    return normalizedUnitThreadIds.length === normalizedThreadIds.length &&
+        normalizedUnitThreadIds.every((threadId, index) => threadId === normalizedThreadIds[index]);
+};
+
+const canMergeUnitList = (units: InsightUnit[]): boolean => {
+    const [firstUnit] = units;
+    const unitParent = firstUnit?.parent;
+    if (!unitParent?.children || units.length === 0 || units.some(unit => unit.parent !== unitParent)) {
+        return false;
+    }
+    const threadIds = extractThreadIds(units);
+    return threadIds.length > 0 && !unitParent.children.some(unit => hasSameThreadIds(unit, threadIds));
 };
 
 const getThreadNameList = (threadIds: string[], firstUnit: InsightUnit): string[] => {
@@ -105,8 +130,11 @@ const markMergedUnits = (selectedUnits: InsightUnit[], allUnitList: InsightUnit[
     }
 };
 
-const createMergedUnit = (mergedMeta: ThreadMetaData): InsightUnit => {
-    const threadUnit = new ThreadUnit(mergedMeta);
+type ThreadUnitConstructor = new (metadata: ThreadMetaData) => InsightUnit;
+
+const createMergedUnit = (mergedMeta: ThreadMetaData, sourceUnit: InsightUnit, isAutoMergedUnit = false): InsightUnit => {
+    const UnitConstructor = sourceUnit.constructor as ThreadUnitConstructor;
+    const threadUnit = new UnitConstructor(mergedMeta);
     const chart = threadUnit.chart as ChartDesc<'stackStatus'>;
     const chartConfig = chart.config as StackStatusConfig;
 
@@ -118,10 +146,42 @@ const createMergedUnit = (mergedMeta: ThreadMetaData): InsightUnit => {
     chartConfig.maxDepth = 0;
     chartConfig.isCollapse = false;
     threadUnit.collapsible = false;
+    threadUnit.isAutoMergedUnit = isAutoMergedUnit;
     threadUnit.notifications = [(): string => i18n.t('Merged unit', { ns: 'timeline' })];
 
     return threadUnit;
 };
+
+/**
+ * 在同一父节点下创建合并泳道，并更新源泳道在树中的状态。
+ * Session 级的合并记录和渲染状态由调用方按操作类型处理。
+ * @returns 合并结果；不满足合并条件时返回 undefined。
+ */
+const mergeUnitList = (units: InsightUnit[], isAutoMergedUnit = false): MergeUnitListResult | undefined => {
+    const [firstUnit] = units;
+    const unitParent = firstUnit?.parent;
+    if (!unitParent?.children || !canMergeUnitList(units)) {
+        return undefined;
+    }
+
+    // 构建合并泳道的 metadata 和实例。
+    const mergedMeta = getMergedUnitMetaData(units);
+    const threadUnit = createMergedUnit(mergedMeta, firstUnit, isAutoMergedUnit);
+    threadUnit.parent = unitParent;
+
+    // 插入到最靠前的源泳道位置，并标记或移除原泳道。
+    const insertIndex = findInsertIndex(unitParent.children, units);
+    unitParent.children.splice(insertIndex, 0, threadUnit);
+    markMergedUnits(units, unitParent.children);
+
+    return { mergedMeta, sourceUnits: units };
+};
+
+const toThreadGroup = (mergedMeta: ThreadMetaData): ThreadGroup => ({
+    cardId: mergedMeta.cardId ?? '',
+    processId: mergedMeta.processId ?? '',
+    threadIds: mergedMeta.threadIdList ?? [],
+});
 
 /**
  * 合并泳道，用户操作情况，需要 addMergedGroup
@@ -150,32 +210,11 @@ const mergeUnits = (session: Session): void => {
         return;
     }
 
-    const unitParent = firstUnit.parent;
-    if (!unitParent?.children) { return; }
-
-    // 2. 构建合并泳道的 metadata
-    const mergedMeta = getMergedUnitMetaData(selectedUnits);
-    if (!mergedMeta) { return; }
-
-    // 3. 创建 ThreadUnit 类型的合并泳道
-    const threadUnit = createMergedUnit(mergedMeta);
-
-    // 4. 插入合并泳道 & 更新原始泳道状态
-    const insertIndex = findInsertIndex(unitParent.children, selectedUnits);
-
     runInAction(() => {
-        if (!unitParent?.children) { return; }
-        unitParent.children.splice(insertIndex, 0, threadUnit);
-
-        markMergedUnits(selectedUnits, unitParent.children);
+        const result = mergeUnitList(selectedUnits);
+        if (result === undefined) { return; }
         clearSelectedUnits(session);
-        // 5. 更新 session.mergedThreadData
-        const addedGroup: ThreadGroup = {
-            cardId: mergedMeta.cardId ?? '',
-            processId: mergedMeta.processId ?? '',
-            threadIds: mergedMeta.threadIdList ?? [],
-        };
-        session.mergedThreadData.addMergedGroup(addedGroup);
+        session.mergedThreadData.addMergedGroup(toThreadGroup(result.mergedMeta));
         session.renderTrigger = !session.renderTrigger;
     });
 };
@@ -188,28 +227,113 @@ export const mergeUnitsWhenLoadProject = (session: Session): void => {
     const needMergeThreadLists = session.mergedThreadData.getNeedMergeThreadLists(session);
 
     runInAction(() => {
+        let hasMerged = false;
         needMergeThreadLists.forEach((needMergeThreadList) => {
-            if (needMergeThreadList.length <= 0) { return; }
-
-            const unitParent = needMergeThreadList[0].parent;
-            if (!unitParent?.children) { return; }
-
-            // 1. 构建合并泳道的 metadata
+            if (needMergeThreadList.length === 0) { return; }
             const mergedMeta = getMergedUnitMetaData(needMergeThreadList);
-            if (!mergedMeta) { return; }
-
-            // 2. 创建 ThreadUnit 类型的合并泳道
-            const threadUnit = createMergedUnit(mergedMeta);
-
-            // 3. 插入合并泳道 & 更新原始泳道状态
-            const insertIndex = findInsertIndex(unitParent.children, needMergeThreadList);
-
-            unitParent.children.splice(insertIndex, 0, threadUnit);
-
-            markMergedUnits(needMergeThreadList, unitParent.children);
+            const isAutoMergedUnit = session.mergedThreadData.isAutoMergedGroup(mergedMeta);
+            hasMerged = mergeUnitList(needMergeThreadList, isAutoMergedUnit) !== undefined || hasMerged;
         });
-        session.renderTrigger = !session.renderTrigger;
+        if (hasMerged) {
+            session.renderTrigger = !session.renderTrigger;
+        }
     });
+};
+
+const clearAffectedSourceSelections = (session: Session, sourceUnits: Set<InsightUnit>): void => {
+    const selectedUnits = session.selectedUnits.filter(unit => !sourceUnits.has(unit));
+    if (selectedUnits.length !== session.selectedUnits.length) {
+        session.selectedUnits = selectedUnits;
+    }
+    if (session.sliceSelection.targetUnit !== null && sourceUnits.has(session.sliceSelection.targetUnit)) {
+        session.selectedRange = undefined;
+        session.sliceSelection.targetUnit = null;
+    }
+};
+
+const mergeAutoThreadLists = (session: Session, threadLists: InsightUnit[][]): Set<InsightUnit> => {
+    const affectedUnits = new Set<InsightUnit>();
+    threadLists.forEach((threadList) => {
+        const result = mergeUnitList(threadList, true);
+        if (result === undefined) { return; }
+        result.sourceUnits.forEach(unit => affectedUnits.add(unit));
+        session.mergedThreadData.addMergedGroup(toThreadGroup(result.mergedMeta));
+    });
+    return affectedUnits;
+};
+
+interface AutoMergeRestorePlan {
+    threadLists: InsightUnit[][];
+    reasons: string[];
+}
+
+const getAutoMergeRestorePlan = (session: Session, relatedSourceUnits?: InsightUnit[]): AutoMergeRestorePlan => {
+    const groupUnitsList = session.mergedThreadData.getAutoMergeGroupUnits(session, relatedSourceUnits);
+    const reasons = new Set<string>();
+    const threadLists: InsightUnit[][] = [];
+    const plannedSourceUnits = new Set<InsightUnit>();
+
+    if (groupUnitsList.length === 0) {
+        reasons.add(i18n.t('timeline:autoMerge.restoreBlockedByIncomplete'));
+    }
+    groupUnitsList.forEach(groupUnits => {
+        let isGroupBlocked = false;
+        if (groupUnits.sourceUnits.some(unit => unit === undefined)) {
+            reasons.add(i18n.t('timeline:autoMerge.restoreBlockedByIncomplete'));
+            return;
+        }
+        const completeSourceUnits = groupUnits.sourceUnits as InsightUnit[];
+        const parent = completeSourceUnits[0]?.parent;
+        if (parent === undefined || completeSourceUnits.some(unit => unit.parent !== parent) ||
+            completeSourceUnits.some(unit => plannedSourceUnits.has(unit))) {
+            reasons.add(i18n.t('timeline:autoMerge.restoreBlockedByIncomplete'));
+            isGroupBlocked = true;
+        }
+        if (completeSourceUnits.some(unit => unit.isMerged) || (!isGroupBlocked && !canMergeUnitList(completeSourceUnits))) {
+            reasons.add(i18n.t('timeline:autoMerge.restoreBlockedByMerged'));
+            isGroupBlocked = true;
+        }
+        if (completeSourceUnits.some(unit => !unit.isUnitVisible)) {
+            reasons.add(i18n.t('timeline:autoMerge.restoreBlockedByHidden'));
+            isGroupBlocked = true;
+        }
+        if (completeSourceUnits.some(unit => isPinned(unit) || isAncestorPinned(unit))) {
+            reasons.add(i18n.t('timeline:autoMerge.restoreBlockedByPinned'));
+            isGroupBlocked = true;
+        }
+        if (!isGroupBlocked) {
+            completeSourceUnits.forEach(unit => plannedSourceUnits.add(unit));
+            threadLists.push(completeSourceUnits);
+        }
+    });
+
+    return { threadLists, reasons: Array.from(reasons) };
+};
+
+const applyAutoMergeRestorePlan = (session: Session, threadLists: InsightUnit[][]): boolean => {
+    let restored = false;
+    runInAction(() => {
+        const affectedUnits = mergeAutoThreadLists(session, threadLists);
+        if (affectedUnits.size === 0) { return; }
+        clearAffectedSourceSelections(session, affectedUnits);
+        session.renderTrigger = !session.renderTrigger;
+        restored = true;
+    });
+    return restored;
+};
+
+export const isAutoMergeActionDisabled = (session: Session): boolean => {
+    return session.phase !== 'download' || session.units.some(unit => unit.phase === 'analyzing');
+};
+
+export const tryRestoreAutoMergedGroup = (session: Session, sourceUnit: InsightUnit): boolean => {
+    if (isAutoMergeActionDisabled(session)) { return false; }
+    const { threadLists, reasons } = getAutoMergeRestorePlan(session, [sourceUnit]);
+    if (reasons.length > 0) {
+        message.error(i18n.t('timeline:autoMerge.restoreFailed', { reason: reasons.join('; ') }));
+        return false;
+    }
+    return threadLists.length > 0 && applyAutoMergeRestorePlan(session, threadLists);
 };
 
 const hasMergedUnit = (selectedUnits: InsightUnit[]): boolean => {
@@ -233,20 +357,27 @@ const removeUnitFromParent = (unit: InsightUnit, parent?: { children?: InsightUn
     }
 };
 
-// 获取合并泳道的 threadId 并 移除合并泳道
-const getMergedThreadIdsAndRemoveMergedUnit = (selectedUnits: InsightUnit[], parent: InsightUnit): Set<string> => {
+interface UnmergedUnitListResult {
+    threadIds: Set<string>;
+    removedGroups: ThreadGroup[];
+}
+
+// 获取合并泳道的 threadId 并移除合并泳道
+const getMergedThreadIdsAndRemoveMergedUnit = (selectedUnits: InsightUnit[], parent: InsightUnit): UnmergedUnitListResult => {
     const threadIds = new Set<string>();
+    const removedGroups: ThreadGroup[] = [];
 
     for (const unit of selectedUnits) {
         const metadata = unit.metadata as ThreadMetaData;
 
-        if (Array.isArray(metadata.threadIdList)) {
+        if (Array.isArray(metadata.threadIdList) && parent.children?.includes(unit)) {
             removeUnitFromParent(unit, parent);
             metadata.threadIdList.forEach(id => threadIds.add(id));
+            removedGroups.push(toThreadGroup(metadata));
         }
     }
 
-    return threadIds;
+    return { threadIds, removedGroups };
 };
 
 // 取消指定泳道的合并标记
@@ -261,29 +392,68 @@ const unmarkMergedUnits = (threadIds: Set<string>, children?: InsightUnit[]): vo
     }
 };
 
-const unmergeUnits = (session: Session): void => {
-    const selectedUnits = session.selectedUnits;
+const removeDirectlyPinnedMergedUnits = (session: Session, mergedUnits: InsightUnit[]): void => {
+    const pinnedMergedUnits = mergedUnits.filter(unit => isPinned(unit) || session.pinnedUnits.includes(unit));
+    if (pinnedMergedUnits.length === 0) { return; }
+    session.pinnedUnits = session.pinnedUnits.filter(unit => !pinnedMergedUnits.includes(unit));
+    pinnedMergedUnits.forEach(unit => {
+        if (isPinned(unit)) {
+            switchPinned(unit);
+        }
+    });
+};
 
-    if (!hasMergedUnit(selectedUnits)) {
-        return;
+const isSliceSelectionMode = (session: Session): boolean => {
+    const { active, targetUnit } = session.sliceSelection;
+    return active && targetUnit?.name === 'Thread';
+};
+
+const unmergeUnits = (session: Session, mergedUnits: InsightUnit[] = session.selectedUnits, clearAllSelected = true): boolean => {
+    if (!hasMergedUnit(mergedUnits)) {
+        return false;
+    }
+    const parent = mergedUnits[0].parent;
+    const children = parent?.children;
+    if (!children) {
+        return false;
     }
 
+    let unmerged = false;
     runInAction(() => {
-        const parent = selectedUnits[0].parent;
-        const children = parent?.children;
-
-        if (!children) { return; }
-
-        const mergedThreadIds = getMergedThreadIdsAndRemoveMergedUnit(selectedUnits, parent);
+        const {
+            threadIds: mergedThreadIds,
+            removedGroups,
+        } = getMergedThreadIdsAndRemoveMergedUnit(mergedUnits, parent);
+        if (removedGroups.length === 0) { return; }
 
         unmarkMergedUnits(mergedThreadIds, children);
-        clearSelectedUnits(session);
-        if (checkIsSliceMode(session)) {
+        session.mergedThreadData.removeMergedGroups(removedGroups);
+        removeDirectlyPinnedMergedUnits(session, mergedUnits);
+        if (clearAllSelected) {
+            clearSelectedUnits(session);
+        } else if (session.selectedUnits.some(unit => mergedUnits.includes(unit))) {
+            session.selectedUnits = session.selectedUnits.filter(unit => !mergedUnits.includes(unit));
+        }
+        if (isSliceSelectionMode(session) && (clearAllSelected ||
+            (session.sliceSelection.targetUnit !== null && mergedUnits.includes(session.sliceSelection.targetUnit)))) {
             session.selectedRange = undefined;
             session.sliceSelection.targetUnit = null;
         }
         session.renderTrigger = !session.renderTrigger;
+        unmerged = true;
     });
+    return unmerged;
+};
+
+export const unmergeAutoMergedGroup = (session: Session, mergedUnit: InsightUnit): boolean => {
+    if (isAutoMergeActionDisabled(session)) {
+        return false;
+    }
+    const metadata = mergedUnit.metadata as ThreadMetaData;
+    if (mergedUnit.isAutoMergedUnit !== true || !session.mergedThreadData.isAutoMergedGroup(metadata)) {
+        return false;
+    }
+    return unmergeUnits(session, [mergedUnit], false);
 };
 
 export const actionMergeUnits = register({
