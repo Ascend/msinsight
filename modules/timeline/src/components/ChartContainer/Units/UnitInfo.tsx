@@ -39,6 +39,8 @@ import { Checkbox, Tooltip } from '@insight/lib/components';
 import { StartIcon, PinIcon, UnPinIcon } from '@insight/lib/icon';
 import { StyledButton } from '../../base/StyledButton';
 import { ReactComponent as Supported } from '../../../assets/images/insights/Supported.svg';
+import { ReactComponent as AutoMergeIcon } from '../../../assets/images/auto_merge.svg';
+import { ReactComponent as AutoUnmergeIcon } from '../../../assets/images/auto_unmerge.svg';
 import { CardUnit, ROOT_UNIT, ThreadUnit } from '../../../insight/units/AscendUnit';
 import { UnitProgress } from '../../charts/UnitProgress';
 // trace/platform
@@ -57,8 +59,13 @@ import { getTimeOffset, bigSubtract } from '../../../insight/units/utils';
 import connector from '../../../connection/index';
 import { useEffect } from 'react';
 import { updateThreadsToFetch } from '../../../actions/actionExpandUnits';
-import { getUnitUniqueId } from '../../../utils';
+import { checkIsSameUnit, getUnitUniqueId } from '../../../utils';
 import { getLaneDescriptionKey } from '../../../insight/units/laneDescription';
+import {
+    isAutoMergeActionDisabled,
+    tryRestoreAutoMergedGroup,
+    unmergeAutoMergedGroup,
+} from '../../../actions/actionMergeUnits';
 
 const DefaultInfoContainer = styled.div`
     display: flex;
@@ -113,6 +120,68 @@ const DefaultInfoContainer = styled.div`
     }
 `;
 
+const AutoMergeActionButton = styled.button`
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    margin: 0 8px 0 0;
+    padding: 0;
+    color: #007AFF;
+    line-height: 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+
+    &[aria-disabled='true'] {
+        cursor: not-allowed;
+        opacity: 0.4;
+    }
+
+    &:focus-visible {
+        border-radius: 2px;
+        outline: 1px solid #007AFF;
+        outline-offset: 1px;
+    }
+`;
+
+interface AutoMergeActionIconProps {
+    label: string;
+    buttonTestId: string;
+    disabled: boolean;
+    icon: JSX.Element;
+    action: () => void;
+}
+
+const AutoMergeActionIcon = ({ label, buttonTestId, disabled, icon, action }: AutoMergeActionIconProps): JSX.Element => {
+    const stopLaneEvent = (event: React.MouseEvent<HTMLButtonElement>): void => {
+        event.stopPropagation();
+        event.preventDefault();
+    };
+    const onClick = (event: React.MouseEvent<HTMLButtonElement>): void => {
+        stopLaneEvent(event);
+        if (!disabled) {
+            action();
+        }
+    };
+
+    return <Tooltip title={label}>
+        <AutoMergeActionButton
+            type="button"
+            aria-label={label}
+            aria-disabled={disabled}
+            data-testid={buttonTestId}
+            onMouseDown={stopLaneEvent}
+            onMouseUp={stopLaneEvent}
+            onClick={onClick}
+        >
+            {icon}
+        </AutoMergeActionButton>
+    </Tooltip>;
+};
+
 const TagDiv = styled.div`
     overflow: hidden;
     white-space: nowrap;
@@ -155,11 +224,26 @@ interface DefaultInfoProps {
     onConfigBarClick?: () => void;
 }
 
+export const shouldShowAutoMergeSourceIcon = (session: Session, unit: InsightUnit): boolean => {
+    const metadata = unit.metadata as ThreadMetaData;
+    return unit.name === 'Thread' && !unit.isMerged && !Array.isArray(metadata.threadIdList) &&
+        session.mergedThreadData.isAutoMergeSource(metadata);
+};
+
+export const shouldShowAutoMergedGroupIcon = (session: Session, unit: InsightUnit): boolean => {
+    const metadata = unit.metadata as ThreadMetaData;
+    return unit.name === 'Thread' && !unit.isMerged && unit.isAutoMergedUnit === true && Array.isArray(metadata.threadIdList) &&
+        session.mergedThreadData.isAutoMergedGroup(metadata);
+};
+
 const DefaultInfo = observer(({ unit, name, session, ...props }: DefaultInfoProps): JSX.Element => {
     const { t } = useTranslation('timeline');
     const tag = (typeof unit.tag === 'string') ? `${unit.tag}` : unit.tag?.(session, unit.metadata) ?? undefined;
     const tooltipInfo = getDefaultInfoTooltipTitle(unit, name);
     const allNumeric = tooltipInfo.cardNames?.every(str => str?.trim() !== '' && !isNaN(Number(str))) ?? false;
+    const isUnmergedAutoMergeSource = shouldShowAutoMergeSourceIcon(session, unit);
+    const isAutoMergedGroup = shouldShowAutoMergedGroupIcon(session, unit);
+    const isActionDisabled = isAutoMergeActionDisabled(session);
     return <DefaultInfoContainer>
         <div
             key={ `${getAutoKey(unit)} lane info` }
@@ -171,13 +255,28 @@ const DefaultInfo = observer(({ unit, name, session, ...props }: DefaultInfoProp
             onMouseDown={props.mouseDown}
         >
             <div className={cls('insight-lane-info-outer-name', { noTag: isEmpty(tag) })}>
-                { [...unit.notifications ?? []]?.map((item, index) => {
-                    const notifyRes = item(unit.metadata);
-                    if (notifyRes !== false) {
-                        return <Tooltip key={index} title={notifyRes}><Supported style={{ flex: 'none', marginRight: 8 }}/></Tooltip>;
-                    }
-                    return null;
-                })}
+                {isUnmergedAutoMergeSource && <AutoMergeActionIcon
+                    label={t('autoMerge.restore')}
+                    buttonTestId="auto-merge-source-button"
+                    disabled={isActionDisabled}
+                    icon={<AutoMergeIcon data-testid="auto-merge-source-icon" />}
+                    action={(): void => { tryRestoreAutoMergedGroup(session, unit); }}
+                />}
+                {isAutoMergedGroup
+                    ? <AutoMergeActionIcon
+                        label={t('autoMerge.unmerge')}
+                        buttonTestId="auto-unmerge-group-button"
+                        disabled={isActionDisabled}
+                        icon={<AutoUnmergeIcon data-testid="auto-unmerge-group-icon" />}
+                        action={(): void => { unmergeAutoMergedGroup(session, unit); }}
+                    />
+                    : [...unit.notifications ?? []]?.map((item, index) => {
+                        const notifyRes = item(unit.metadata);
+                        if (notifyRes !== false) {
+                            return <Tooltip key={index} title={notifyRes}><Supported style={{ flex: 'none', marginRight: 8 }}/></Tooltip>;
+                        }
+                        return null;
+                    })}
                 <Tooltip title={getLaneInfoTooltipContent(unit, name, tooltipInfo.content, t)}>
                     <div style={{ width: '100%' }}>
                         <div className="insight-lane-info-name">{name}</div>
@@ -540,18 +639,6 @@ interface UnitInfoProps {
     isPinnedArea?: boolean;
     enableDrag?: boolean;
     onMouseDown: (e: React.MouseEvent) => void;
-}
-
-export function checkIsSameUnit(referenceMetadata?: ThreadMetaData, comparisonMetadata?: ThreadMetaData): boolean {
-    if (!referenceMetadata || !comparisonMetadata) {
-        return false;
-    }
-    const isSameBase = referenceMetadata.processId === comparisonMetadata.processId &&
-        referenceMetadata.cardId === comparisonMetadata.cardId &&
-        referenceMetadata.metaType === comparisonMetadata.metaType;
-    return Array.isArray(referenceMetadata.threadIdList)
-        ? isSameBase && referenceMetadata?.threadIdList.toString() === comparisonMetadata.threadIdList?.toString()
-        : isSameBase && referenceMetadata.threadId === comparisonMetadata.threadId;
 }
 
 export const UnitInfo = observer(({ session, unit, laneInfoWidth, hasExpandIcon, className, ...props }: UnitInfoProps): JSX.Element => {

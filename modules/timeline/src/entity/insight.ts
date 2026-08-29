@@ -266,6 +266,7 @@ export interface InsightUnit extends InsightUnitParams<MetaDataBase, Record<stri
     phase: string;
     isUnitVisible: boolean;
     isMerged: boolean; // 是否被合并
+    isAutoMergedUnit?: boolean; // 是否由导入时的自动合并配置生成
     isSummaryLoading: boolean; // 泳道缩略图是否加载中
     isTraceLoading: boolean; // 泳道内容是否加载中
     parent?: InsightUnit;
@@ -338,6 +339,7 @@ Omit<InsightUnitParams<T, Record<string, unknown>, Record<string, unknown>, Reco
         isMultiDeviceHidden = false;
         isUnitVisible = true;
         isMerged = false;
+        isAutoMergedUnit = false;
         isSummaryLoading: boolean = false; // 泳道缩略图是否加载中
         isTraceLoading: boolean = false;
         type = 'basic' as const;

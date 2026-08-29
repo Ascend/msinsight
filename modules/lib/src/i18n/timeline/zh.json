@@ -299,6 +299,15 @@
       "selectionModeDescription": "精细化框选算子，高亮显示、聚焦定位。"
     },
     "Merged unit": "合并的泳道",
+    "autoMerge": {
+      "restore": "恢复自动合并泳道",
+      "unmerge": "取消自动合并泳道",
+      "restoreFailed": "恢复自动合并泳道失败：{{reason}}",
+      "restoreBlockedByMerged": "组内存在已参与其他合并的泳道",
+      "restoreBlockedByHidden": "组内存在已隐藏的泳道",
+      "restoreBlockedByPinned": "组内存在已置顶的泳道",
+      "restoreBlockedByIncomplete": "自动合并泳道组数据不完整"
+    },
     "MergeStreamOnly": "只允许合并 Stream 泳道",
     "InterceptedMaximum": "加载时间超过JS最大安全值(5003小时 59分 58秒), 显示数据已截取",
     "MergeInSameCardOnly": "请选择同一张卡内的 Stream 泳道",

@@ -62,3 +62,15 @@ export const isStreamUnit = (unit: InsightUnit): boolean => {
 
     return metaData.processName.startsWith('Ascend Hardware') && metaData.threadName.startsWith('Stream');
 };
+
+export const checkIsSameUnit = (referenceMetadata?: ThreadMetaData, comparisonMetadata?: ThreadMetaData): boolean => {
+    if (!referenceMetadata || !comparisonMetadata) {
+        return false;
+    }
+    const isSameBase = referenceMetadata.processId === comparisonMetadata.processId &&
+        referenceMetadata.cardId === comparisonMetadata.cardId &&
+        referenceMetadata.metaType === comparisonMetadata.metaType;
+    return Array.isArray(referenceMetadata.threadIdList)
+        ? isSameBase && referenceMetadata.threadIdList.toString() === comparisonMetadata.threadIdList?.toString()
+        : isSameBase && referenceMetadata.threadId === comparisonMetadata.threadId;
+};
