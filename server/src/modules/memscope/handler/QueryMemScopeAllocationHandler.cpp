@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include "DataBaseManager.h"
+#include "MemScopeAllocationDataProcessor.h"
 #include "ProjectExplorerManager.h"
 #include "QueryMemScopeAllocationHandler.h"
 
@@ -48,9 +49,12 @@ bool QueryMemScopeAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Req
         SendResponse(std::move(responsePtr), true);
         return true;
     }
-    responsePtr->minTimestamp = allocations[0].timestamp;
-    responsePtr->maxTimestamp = allocations.back().timestamp;
-    responsePtr->allocations = std::move(allocations);
+    response.reservedLine = MemScopeAllocationDataProcessor::CompressReservedLine(allocations);
+    response.processUsedLine = MemScopeAllocationDataProcessor::CompressProcessUsedLine(allocations);
+    response.deviceUsedLine = MemScopeAllocationDataProcessor::CompressDeviceUsedLine(allocations);
+    response.minTimestamp = allocations[0].timestamp;
+    response.maxTimestamp = allocations.back().timestamp;
+    response.allocations = std::move(allocations);
     SendResponse(std::move(responsePtr), true);
     return true;
 }
@@ -83,8 +87,9 @@ void QueryMemScopeAllocationHandler::PaddingAllocations(
         allocations.insert(allocations.begin(), beforeAllocation.value());
     }
     if (allocations.back().timestamp != endTimestamp) {
-        allocations.emplace_back(endTimestamp, allocations.back().totalSize, queryParams.deviceId,
-            queryParams.eventType, queryParams.optimized);
+        const auto &last = allocations.back();
+        allocations.emplace_back(endTimestamp, last.totalSize, queryParams.deviceId, queryParams.eventType,
+            queryParams.optimized, last.reservedSize, last.processUsed, last.deviceUsed);
     }
 }
 } // Memory

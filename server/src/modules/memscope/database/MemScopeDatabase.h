@@ -116,6 +116,7 @@ class MemScopeDatabase : public Database {
     uint64_t GetProcessIdByPythonTraceTableName(const std::string &tableName);
     std::string GetCreateMemoryAllocationTableSql();
     std::string GetCreateMemoryBlockTableSql();
+    bool EnsureAllocationUsageColumns();
     std::string GetSelectEventsFullColumns(const bool relativeTime);
     std::string GetSelectBlocksFullColumns(const bool relativeTime);
     std::vector<std::string> GetAlterPythonTraceTablesAddDepthColumnSql();

@@ -76,6 +76,8 @@ inline const std::string BLOCK_EVENT_ATTR_SIZE_FIELD = "size";
 inline const std::string BLOCK_EVENT_ATTR_OWNER_FIELD = "owner";
 inline const std::string BLOCK_EVENT_ATTR_TOTAL_FIELD = "total";
 inline const std::string BLOCK_EVENT_ATTR_USED_FIELD = "used";
+inline const std::string BLOCK_EVENT_ATTR_PROCESS_USED_FIELD = "process_used";
+inline const std::string BLOCK_EVENT_ATTR_DEVICE_USED_FIELD = "device_used";
 inline const std::string BLOCK_EVENT_ATTR_GROUP_ID_FIELD = "allocation_id";
 inline const std::string ACCESS_EVENT_ATTR_TYPE = "type";
 inline const std::string ACCESS_EVENT_ATTR_DTYPE = "dtype";
@@ -91,6 +93,8 @@ struct MemoryEventBaseAttrs {
 struct MallocFreeEventAttrs : public MemoryEventBaseAttrs {
     uint64_t total{0};
     uint64_t used{0};
+    uint64_t processUsed{0};
+    uint64_t deviceUsed{0};
     std::string owner;
 
     void SetByJson(const json_t &json) override;

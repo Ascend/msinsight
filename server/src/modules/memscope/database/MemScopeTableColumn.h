@@ -59,8 +59,13 @@ constexpr std::string_view TOTAL_SIZE = "totalSize";
 constexpr std::string_view OPTIMIZED = "optimized";
 constexpr std::string_view DEVICE_ID = "deviceId";
 constexpr std::string_view EVENT_TYPE = "eventType";
-constexpr std::string_view FULL_COLUMNS_WITHOUT_ID[] = {TIMESTAMP, TOTAL_SIZE, OPTIMIZED, DEVICE_ID, EVENT_TYPE};
-constexpr std::string_view FULL_COLUMNS[] = {ID, TIMESTAMP, TOTAL_SIZE, OPTIMIZED, DEVICE_ID, EVENT_TYPE};
+constexpr std::string_view RESERVED_SIZE = "reservedSize";
+constexpr std::string_view PROCESS_USED = "processUsed";
+constexpr std::string_view DEVICE_USED = "deviceUsed";
+constexpr std::string_view FULL_COLUMNS_WITHOUT_ID[] = {
+    TIMESTAMP, TOTAL_SIZE, OPTIMIZED, DEVICE_ID, EVENT_TYPE, RESERVED_SIZE, PROCESS_USED, DEVICE_USED};
+constexpr std::string_view FULL_COLUMNS[] = {
+    ID, TIMESTAMP, TOTAL_SIZE, OPTIMIZED, DEVICE_ID, EVENT_TYPE, RESERVED_SIZE, PROCESS_USED, DEVICE_USED};
 }
 namespace MemoryBlockTableColumn {
 constexpr std::string_view ID = "id";

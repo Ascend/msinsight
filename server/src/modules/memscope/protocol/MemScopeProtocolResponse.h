@@ -95,6 +95,9 @@ struct MemScopeMemoryAllocationsResponse : public JsonResponse {
     uint64_t minTimestamp{};
     uint64_t maxTimestamp{};
     std::vector<MemoryAllocation> allocations;
+    std::vector<MemScopeUsageLinePoint> reservedLine;
+    std::vector<MemScopeUsageLinePoint> processUsedLine;
+    std::vector<MemScopeUsageLinePoint> deviceUsedLine;
 
     [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
@@ -111,6 +114,9 @@ struct MemScopeMemoryAllocationsResponse : public JsonResponse {
             }
         }
         JsonUtil::AddMember(body, "allocations", allocationsJson, allocator);
+        AddUsageLine(body, "reservedLine", "reservedSize", reservedLine, allocator);
+        AddUsageLine(body, "processUsedLine", "processUsed", processUsedLine, allocator);
+        AddUsageLine(body, "deviceUsedLine", "deviceUsed", deviceUsedLine, allocator);
         JsonUtil::AddMember(json, "body", body, allocator);
         return std::optional<document_t>{std::move(json)};
     }
@@ -122,6 +128,18 @@ struct MemScopeMemoryAllocationsResponse : public JsonResponse {
         JsonUtil::AddMember(json, "timestamp", allocation.timestamp, allocator);
         JsonUtil::AddMember(json, "totalSize", allocation.totalSize, allocator);
         return std::optional<document_t>{std::move(json)};
+    }
+
+    static void AddUsageLine(json_t &body, const char *arrayKey, const char *valueKey,
+        const std::vector<MemScopeUsageLinePoint> &points, Document::AllocatorType &allocator) {
+        json_t lineJson(kArrayType);
+        for (const auto &point : points) {
+            json_t pointJson(kObjectType);
+            JsonUtil::AddMember(pointJson, "timestamp", point.timestamp, allocator);
+            JsonUtil::AddMember(pointJson, valueKey, point.value, allocator);
+            lineJson.PushBack(pointJson, allocator);
+        }
+        JsonUtil::AddMember(body, arrayKey, lineJson, allocator);
     }
 };
 

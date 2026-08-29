@@ -255,3 +255,28 @@ TEST_F(MemScopeProtocolTest, BuildBlockTableThresholdParamsFromJson) {
     EXPECT_EQ(request.params.longIdleThreshold.perT, 0);
     EXPECT_EQ(request.params.longIdleThreshold.valueT, 0);
 }
+
+TEST_F(MemScopeProtocolTest, AllocationResponseIncludesUsageLines) {
+    Dic::Protocol::MemScopeMemoryAllocationsResponse response;
+    response.minTimestamp = 1;
+    response.maxTimestamp = 2;
+    response.allocations.emplace_back(1, 100, "1", "PTA", false, 200, 300, 400);
+    response.reservedLine.emplace_back(1, 200);
+    response.processUsedLine.emplace_back(1, 300);
+    response.deviceUsedLine.emplace_back(1, 400);
+
+    const auto json = response.ToJson();
+    ASSERT_TRUE(json.has_value());
+    ASSERT_TRUE((*json)["body"]["allocations"].IsArray());
+    ASSERT_TRUE((*json)["body"]["reservedLine"].IsArray());
+    ASSERT_TRUE((*json)["body"]["processUsedLine"].IsArray());
+    ASSERT_TRUE((*json)["body"]["deviceUsedLine"].IsArray());
+    const auto &allocation = (*json)["body"]["allocations"][0];
+    EXPECT_TRUE(allocation.HasMember("timestamp"));
+    EXPECT_TRUE(allocation.HasMember("totalSize"));
+    EXPECT_FALSE(allocation.HasMember("reservedSize"));
+    EXPECT_EQ((*json)["body"]["reservedLine"][0]["timestamp"].GetUint64(), 1);
+    EXPECT_EQ((*json)["body"]["reservedLine"][0]["reservedSize"].GetUint64(), 200);
+    EXPECT_EQ((*json)["body"]["processUsedLine"][0]["processUsed"].GetUint64(), 300);
+    EXPECT_EQ((*json)["body"]["deviceUsedLine"][0]["deviceUsed"].GetUint64(), 400);
+}

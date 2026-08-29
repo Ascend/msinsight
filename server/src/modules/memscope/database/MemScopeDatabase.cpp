@@ -76,6 +76,11 @@ bool MemScopeDatabase::OpenDb(const std::string &dbPath, bool clearAllTable) {
         CloseDb();
         return false;
     }
+    if (!EnsureAllocationUsageColumns()) {
+        ServerLog::Error("[MemScope] Failed to ensure allocation usage columns.");
+        CloseDb();
+        return false;
+    }
     if (!IsDatabaseVersionChange()) {
         return true;
     }
@@ -103,11 +108,14 @@ std::string MemScopeDatabase::GetCreateMemoryAllocationTableSql() {
                             "  {} integer,"
                             "  {} integer,"
                             "  {} text(255),"
-                            "  {} text(255)"
+                            "  {} text(255),"
+                            "  {} integer,"
+                            "  {} integer,"
+                            "  {} integer"
                             ");";
     createSql = StringUtil::FormatString(createSql, memoryAllocationTable, memoryAllocationTable, ALLOCATION::ID,
         ALLOCATION::TIMESTAMP, ALLOCATION::TOTAL_SIZE, ALLOCATION::OPTIMIZED, ALLOCATION::DEVICE_ID,
-        ALLOCATION::EVENT_TYPE);
+        ALLOCATION::EVENT_TYPE, ALLOCATION::RESERVED_SIZE, ALLOCATION::PROCESS_USED, ALLOCATION::DEVICE_USED);
     return createSql;
 }
 
@@ -315,6 +323,9 @@ void MemScopeDatabase::InsertMemoryAllocationList(const std::vector<MemoryAlloca
         sqlite3_bind_int(stmt, idx++, alloc.optimized ? 1 : 0);
         sqlite3_bind_text(stmt, idx++, alloc.deviceId.c_str(), alloc.deviceId.length(), SQLITE_TRANSIENT);
         sqlite3_bind_text(stmt, idx++, alloc.eventType.c_str(), alloc.eventType.length(), SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, idx++, alloc.reservedSize > INT64_MAX ? INT64_MAX : alloc.reservedSize);
+        sqlite3_bind_int64(stmt, idx++, alloc.processUsed > INT64_MAX ? INT64_MAX : alloc.processUsed);
+        sqlite3_bind_int64(stmt, idx++, alloc.deviceUsed > INT64_MAX ? INT64_MAX : alloc.deviceUsed);
     }
     std::unique_lock<std::recursive_mutex> lock(mutex);
     auto result = sqlite3_step(stmt);
@@ -607,6 +618,9 @@ bool MemScopeDatabase::QueryMemoryAllocationsByStep(sqlite3_stmt *stmt, std::vec
         allocation.optimized = sqlite3_column_int64(stmt, col++) != 0;
         allocation.deviceId = sqlite3_column_string(stmt, col++);
         allocation.eventType = sqlite3_column_string(stmt, col++);
+        allocation.reservedSize = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
+        allocation.processUsed = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
+        allocation.deviceUsed = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, col++));
         allocations.emplace_back(allocation);
     }
     return true;
@@ -621,13 +635,13 @@ void MemScopeDatabase::QueryMemoryAllocations(
     std::string minTimestampStr = std::to_string(minTimestamp);
     querySql = "SELECT {},"
                "({} - {}) AS {}, "
-               "{}, {}, {}, {} "
+               "{}, {}, {}, {}, {}, {}, {} "
                "FROM {} WHERE {}=? AND {}=? AND {}=? ";
     std::string errMsg;
     querySql = StringUtil::FormatString(querySql, ALLOCATION::ID, ALLOCATION::TIMESTAMP, minTimestampStr,
         ALLOCATION::TIMESTAMP, ALLOCATION::TOTAL_SIZE, ALLOCATION::OPTIMIZED, ALLOCATION::DEVICE_ID,
-        ALLOCATION::EVENT_TYPE, memoryAllocationTable, ALLOCATION::OPTIMIZED, ALLOCATION::DEVICE_ID,
-        ALLOCATION::EVENT_TYPE);
+        ALLOCATION::EVENT_TYPE, ALLOCATION::RESERVED_SIZE, ALLOCATION::PROCESS_USED, ALLOCATION::DEVICE_USED,
+        memoryAllocationTable, ALLOCATION::OPTIMIZED, ALLOCATION::DEVICE_ID, ALLOCATION::EVENT_TYPE);
     if (queryParams.endTimestamp > 0) {
         querySql.append(StringUtil::FormatString(" AND ({} - {}) >= {} AND ({} - {}) <= {} ", ALLOCATION::TIMESTAMP,
             minTimestampStr, std::to_string(queryParams.startTimestamp), ALLOCATION::TIMESTAMP, minTimestampStr,
@@ -1167,6 +1181,36 @@ uint64_t MemScopeDatabase::GetProcessIdByPythonTraceTableName(const std::string 
         return NumberUtil::StringToUnsignedLongLong(tableName.substr(pythonTraceTablePrefix.length()));
     }
     return 0;
+}
+
+bool MemScopeDatabase::EnsureAllocationUsageColumns() {
+    if (!isOpen) {
+        ServerLog::Error("[MemScope] Failed to ensure allocation usage columns. Database is not open.");
+        return false;
+    }
+    if (!CheckTableExist(memoryAllocationTable)) {
+        return true;
+    }
+    bool addedColumn = false;
+    const std::string_view usageColumns[] = {
+        ALLOCATION::RESERVED_SIZE, ALLOCATION::PROCESS_USED, ALLOCATION::DEVICE_USED};
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    for (const auto &column : usageColumns) {
+        if (CheckColumnExist(memoryAllocationTable, std::string(column))) {
+            continue;
+        }
+        if (!ExecSql(StringUtil::FormatString(
+                "ALTER TABLE {} ADD COLUMN {} INTEGER DEFAULT 0;", memoryAllocationTable, column))) {
+            ServerLog::Error("[MemScope] Failed to add allocation usage column: ", column);
+            return false;
+        }
+        addedColumn = true;
+    }
+    lock.unlock();
+    if (addedColumn && !UpdateParseStatus(NOT_FINISH_STATUS)) {
+        ServerLog::Warn("[MemScope] Failed to mark parse unfinished after adding allocation usage columns.");
+    }
+    return true;
 }
 
 bool MemScopeDatabase::AppendDepthColumnForPythonTraceTables() {
