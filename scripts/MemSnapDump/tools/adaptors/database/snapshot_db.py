@@ -15,11 +15,9 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
+
 from util.sqlite_meta import SqliteColumn, SqliteTable, SqliteDB
-from .defs import (
-    EventFieldDefs,
-    BlockFieldDefs
-)
+from .defs import EventFieldDefs, BlockFieldDefs
 
 TRACE_ENTRY_ACTION_VALUE_MAP = {
     'segment_map': 0,
@@ -29,14 +27,10 @@ TRACE_ENTRY_ACTION_VALUE_MAP = {
     'alloc': 4,
     'free_requested': 5,
     'free_completed': 6,
-    'workspace_snapshot': 7
+    'workspace_snapshot': 7,
 }
 
-BLOCK_STATE_VALUE_MAP = {
-    'inactive': -1,
-    'active_allocated': 1,
-    'active_pending_free': 0
-}
+BLOCK_STATE_VALUE_MAP = {'inactive': -1, 'active_allocated': 1, 'active_pending_free': 0}
 
 _TRACE_ENTRY_TABLE_COLUMNS = [
     SqliteColumn(name=EventFieldDefs.ID, data_type=int, primary_key=True),
@@ -47,7 +41,7 @@ _TRACE_ENTRY_TABLE_COLUMNS = [
     SqliteColumn(name=EventFieldDefs.ALLOCATED, data_type=int),
     SqliteColumn(name=EventFieldDefs.ACTIVE, data_type=int),
     SqliteColumn(name=EventFieldDefs.RESERVED, data_type=int),
-    SqliteColumn(name=EventFieldDefs.CALLSTACK)
+    SqliteColumn(name=EventFieldDefs.CALLSTACK),
 ]
 
 _BLOCK_TABLE_COLUMNS = [
@@ -67,16 +61,28 @@ class SnapshotDb(SqliteDB):
 
     def __init__(self, path: str):
         super().__init__(path, auto_create=True, with_dictionary_table=True)
+        # Import builds a replaceable database, so favor write throughput over crash recovery.
+        self.conn.execute("PRAGMA journal_mode = MEMORY")
+        self.conn.execute("PRAGMA synchronous = OFF")
+        self.conn.execute("PRAGMA cache_size = -65536")
         # 清理旧版本表格
         self._clear_old_tables()
 
     def create_trace_entry_table(self, device: int = 0):
-        self.create_table(SqliteTable(self.get_trace_table_name_by_device(device), _TRACE_ENTRY_TABLE_COLUMNS),
-                          delete_if_exists=True)
+        self.create_table(
+            SqliteTable(self.get_trace_table_name_by_device(device), _TRACE_ENTRY_TABLE_COLUMNS), delete_if_exists=True
+        )
+        table = self.get_trace_entry_table(device)
+        for column in (EventFieldDefs.ALLOCATED, EventFieldDefs.ACTIVE, EventFieldDefs.RESERVED):
+            table.create_index(self.conn, column)
 
     def create_block_table(self, device: int = 0):
-        self.create_table(SqliteTable(self.get_block_table_name_by_device(device), _BLOCK_TABLE_COLUMNS),
-                          delete_if_exists=True)
+        self.create_table(
+            SqliteTable(self.get_block_table_name_by_device(device), _BLOCK_TABLE_COLUMNS), delete_if_exists=True
+        )
+        table = self.get_block_table(device)
+        for column in (BlockFieldDefs.ALLOC_EVENT_ID, BlockFieldDefs.FREE_EVENT_ID, BlockFieldDefs.SIZE):
+            table.create_index(self.conn, column)
 
     def get_trace_entry_table(self, device: int = 0):
         return self.get_table_by_name(self.get_trace_table_name_by_device(device))
@@ -86,7 +92,7 @@ class SnapshotDb(SqliteDB):
 
     def _clear_old_tables(self):
         """
-            旧版本中创建的db不带device前缀，如果通过旧db打开，需要清理旧表
+        旧版本中创建的db不带device前缀，如果通过旧db打开，需要清理旧表
         """
         self.delete_table(self.TRACE_ENTRY_TABLE_NAME)
         self.delete_table(self.BLOCK_TABLE_NAME)
