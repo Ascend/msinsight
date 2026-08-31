@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { getLeaksOpfsDirectory, markLeaksOpfsUnavailable } from './opfsConfig';
+import { getLeaksOpfsDirectory, reportLeaksOpfsAccessFailure } from './opfsConfig';
 
 const DIR_NAME = 'memory-block-batches';
 
@@ -88,7 +88,7 @@ export class BatchOPFS {
         this.accessHandles.delete(index);
         this.dirHandle = null;
         this.initialized = true;
-        markLeaksOpfsUnavailable(error);
+        reportLeaksOpfsAccessFailure('render batch write', error);
         this.memoryBatches.set(index, data.slice());
         this.fileCount = Math.max(this.fileCount, index + 1);
     }

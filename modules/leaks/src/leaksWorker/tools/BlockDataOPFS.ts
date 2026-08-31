@@ -36,6 +36,9 @@ const MAX_HIT_TEST_CACHE_BYTES = 8 * 1024 * 1024;
 const CACHE_DIRECTORY_PATTERN =
     /^block-data-(?:main|main-thread)-cache-(.+)-([0-9a-f]{64}(?:-[a-z0-9_-]+){0,2})$/;
 
+const isMissingEntryError = (error: unknown): boolean =>
+    typeof error === 'object' && error !== null && 'name' in error && error.name === 'NotFoundError';
+
 type AsyncHandle = FileSystemFileHandle;
 
 const isInWorker = typeof self !== 'undefined' && typeof self.document === 'undefined';
@@ -128,6 +131,7 @@ export class BlockDataOPFS {
     private readonly hitTestCache: Map<number, BatchData> = new Map();
     private hitTestCacheBytes: number = 0;
     private dataVersion: number = 0;
+    private cacheAccessFailed: boolean = false;
     private readonly batchSize: number;
     private readonly maxBatchPathPoints: number = 300000;
     private readonly isWorker: boolean;
@@ -270,7 +274,11 @@ export class BlockDataOPFS {
 
     private resetMemoryState(): void {
         this.dataVersion++;
-        this.pathHandle?.close();
+        try {
+            this.pathHandle?.close();
+        } catch {
+            // A stale platform handle must not block cache recovery or renderer cleanup.
+        }
         this.pathHandle = null;
         this.asyncHandles.clear();
         this.blockMetas.clear();
@@ -338,9 +346,25 @@ export class BlockDataOPFS {
         if (!this.dirHandle) {
             await this.init();
         }
-        return this.dirHandle
-            ? BlockDataOPFS.readJsonFile<BlockDataCacheManifest>(this.dirHandle, CACHE_MANIFEST_FILE)
-            : null;
+        if (!this.dirHandle) {
+            return null;
+        }
+        let manifestBytes: ArrayBuffer;
+        try {
+            const fileHandle = await this.dirHandle.getFileHandle(CACHE_MANIFEST_FILE);
+            const file = await fileHandle.getFile();
+            manifestBytes = await file.arrayBuffer();
+        } catch (error) {
+            if (!isMissingEntryError(error)) {
+                this.cacheAccessFailed = true;
+            }
+            return null;
+        }
+        try {
+            return JSON.parse(new TextDecoder().decode(manifestBytes)) as BlockDataCacheManifest;
+        } catch {
+            return null;
+        }
     }
 
     private async writeManifest(manifest: BlockDataCacheManifest): Promise<void> {
@@ -443,7 +467,10 @@ export class BlockDataOPFS {
                 const fileHandle = await this.dirHandle.getFileHandle(this.getWorkerPathFileName());
                 this.pathHandle = await fileHandle.createSyncAccessHandle();
                 return this.pathHandle.getSize() === manifest.storedPathBytes;
-            } catch {
+            } catch (error) {
+                if (!isMissingEntryError(error)) {
+                    this.cacheAccessFailed = true;
+                }
                 return false;
             }
         }
@@ -462,7 +489,10 @@ export class BlockDataOPFS {
                 storedBytes += file.size;
                 this.asyncHandles.set(index, fileHandle);
             }
-        } catch {
+        } catch (error) {
+            if (!isMissingEntryError(error)) {
+                this.cacheAccessFailed = true;
+            }
             return false;
         }
         return storedBytes === manifest.storedPathBytes;
@@ -470,6 +500,7 @@ export class BlockDataOPFS {
 
     async loadCompleteCache(fileHash: string): Promise<BlockGraphMetadata | null> {
         this.resetMemoryState();
+        this.cacheAccessFailed = false;
         const manifest = await this.readManifest();
         if (!manifest || !this.isCompleteManifest(manifest, fileHash) ||
             !await this.validateStoredPaths(manifest)) {
@@ -487,6 +518,12 @@ export class BlockDataOPFS {
             // 访问时间更新失败不能使有效的缓存命中变为缓存未命中。
         }
         return manifest.metadata;
+    }
+
+    consumeCacheAccessFailure(): boolean {
+        const failed = this.cacheAccessFailed;
+        this.cacheAccessFailed = false;
+        return failed;
     }
 
     getBatchCount(): number {

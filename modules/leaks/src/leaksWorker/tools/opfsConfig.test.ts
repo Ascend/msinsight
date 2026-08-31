@@ -20,6 +20,7 @@ import {
     checkLeaksOpfsAvailability,
     checkLeaksOpfsSyncAvailability,
     createBlockPathCacheStorageKey,
+    isLeaksOpfsEnabled,
     normalizeLeaksFileHash,
 } from './opfsConfig';
 
@@ -73,7 +74,7 @@ describe('OPFS block path cache configuration', () => {
         });
 
         try {
-            await expect(checkLeaksOpfsAvailability()).resolves.toBe(true);
+            await expect(checkLeaksOpfsAvailability()).resolves.toBe('available');
             expect(directory.getFileHandle).toHaveBeenCalledTimes(1);
             expect(writable.write).toHaveBeenCalledTimes(1);
             expect(writable.close).toHaveBeenCalledTimes(1);
@@ -115,7 +116,7 @@ describe('OPFS block path cache configuration', () => {
         });
 
         try {
-            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe(true);
+            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe('available');
             expect(accessHandle.write).toHaveBeenCalledTimes(1);
             expect(accessHandle.read).toHaveBeenCalledTimes(1);
             expect(accessHandle.close).toHaveBeenCalledTimes(1);
@@ -129,7 +130,7 @@ describe('OPFS block path cache configuration', () => {
         }
     });
 
-    it('rejects a root that cannot create a synchronous access handle', async () => {
+    it('reports transient when repeated synchronous access attempts fail recoverably', async () => {
         const storageDescriptor = Object.getOwnPropertyDescriptor(navigator, 'storage');
         const file = {
             createSyncAccessHandle: jest.fn().mockRejectedValue(new Error('Sync access denied')),
@@ -148,8 +149,87 @@ describe('OPFS block path cache configuration', () => {
         const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
 
         try {
-            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe(false);
-            expect(root.removeEntry).toHaveBeenCalledTimes(1);
+            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe('transient');
+            expect(file.createSyncAccessHandle).toHaveBeenCalledTimes(2);
+            expect(root.removeEntry).toHaveBeenCalledTimes(2);
+            expect(isLeaksOpfsEnabled()).toBe(true);
+        } finally {
+            warn.mockRestore();
+            if (storageDescriptor) {
+                Object.defineProperty(navigator, 'storage', storageDescriptor);
+            } else {
+                Reflect.deleteProperty(navigator, 'storage');
+            }
+        }
+    });
+
+    it('recovers when a transient synchronous access failure succeeds on retry', async () => {
+        const storageDescriptor = Object.getOwnPropertyDescriptor(navigator, 'storage');
+        const accessHandle = {
+            truncate: jest.fn(),
+            write: jest.fn().mockReturnValue(1),
+            flush: jest.fn(),
+            read: jest.fn((target: Uint8Array) => {
+                target[0] = 1;
+                return 1;
+            }),
+            close: jest.fn(),
+        } as unknown as FileSystemSyncAccessHandle;
+        const transientError = new Error('The access handle is temporarily unavailable');
+        transientError.name = 'NoModificationAllowedError';
+        const createSyncAccessHandle = jest.fn()
+            .mockRejectedValueOnce(transientError)
+            .mockResolvedValueOnce(accessHandle);
+        const file = { createSyncAccessHandle } as unknown as FileSystemFileHandle;
+        const directory = {
+            getFileHandle: jest.fn().mockResolvedValue(file),
+        } as unknown as FileSystemDirectoryHandle;
+        const root = {
+            getDirectoryHandle: jest.fn().mockResolvedValue(directory),
+            removeEntry: jest.fn().mockResolvedValue(undefined),
+        } as unknown as FileSystemDirectoryHandle;
+        Object.defineProperty(navigator, 'storage', {
+            configurable: true,
+            value: { getDirectory: jest.fn().mockResolvedValue(root) },
+        });
+
+        try {
+            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe('available');
+            expect(createSyncAccessHandle).toHaveBeenCalledTimes(2);
+            expect(root.removeEntry).toHaveBeenCalledTimes(2);
+            expect(isLeaksOpfsEnabled()).toBe(true);
+        } finally {
+            if (storageDescriptor) {
+                Object.defineProperty(navigator, 'storage', storageDescriptor);
+            } else {
+                Reflect.deleteProperty(navigator, 'storage');
+            }
+        }
+    });
+
+    it('permanently disables OPFS for a definitive security restriction', async () => {
+        const storageDescriptor = Object.getOwnPropertyDescriptor(navigator, 'storage');
+        const securityError = new Error('OPFS requires a secure context');
+        securityError.name = 'SecurityError';
+        const createSyncAccessHandle = jest.fn().mockRejectedValue(securityError);
+        const file = { createSyncAccessHandle } as unknown as FileSystemFileHandle;
+        const directory = {
+            getFileHandle: jest.fn().mockResolvedValue(file),
+        } as unknown as FileSystemDirectoryHandle;
+        const root = {
+            getDirectoryHandle: jest.fn().mockResolvedValue(directory),
+            removeEntry: jest.fn().mockResolvedValue(undefined),
+        } as unknown as FileSystemDirectoryHandle;
+        Object.defineProperty(navigator, 'storage', {
+            configurable: true,
+            value: { getDirectory: jest.fn().mockResolvedValue(root) },
+        });
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+        try {
+            await expect(checkLeaksOpfsSyncAvailability()).resolves.toBe('unavailable');
+            expect(createSyncAccessHandle).toHaveBeenCalledTimes(1);
+            expect(isLeaksOpfsEnabled()).toBe(false);
         } finally {
             warn.mockRestore();
             if (storageDescriptor) {

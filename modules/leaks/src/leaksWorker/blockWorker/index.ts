@@ -58,6 +58,7 @@ let activeDataGeneration = 0;
 let storageReadyGeneration = 0;
 let dataLoadQueue: Promise<void> = Promise.resolve();
 let hoverSearchVersion = 0;
+let useTemporaryStorageForNextBuild = false;
 const opfsRuntimeId = createLeaksOpfsRuntimeId();
 const temporaryBlockDataStorageKey = `main-${opfsRuntimeId}`;
 let resolveInitialization: () => void = () => undefined;
@@ -282,9 +283,14 @@ const setMemoryBlockDataFromOPFS = async (
 ): Promise<boolean> => {
     useOpfs = true;
     memoryBlockData = undefined;
-    const storage = await selectBlockDataStorage(payload.fileHash);
+    const forceTemporaryStorage = useTemporaryStorageForNextBuild;
+    useTemporaryStorageForNextBuild = false;
+    const storage = await selectBlockDataStorage(forceTemporaryStorage ? undefined : payload.fileHash);
     if (!storage.available) {
         useOpfs = false;
+        if (isLeaksOpfsEnabled()) {
+            throw new Error('Temporary OPFS storage is unavailable');
+        }
         return false;
     }
     const { fileHash } = storage;
@@ -372,19 +378,32 @@ const completeMemoryBlockDataRender = async (
 const loadMemoryBlockCacheHandler = async (
     payload: LoadMemoryBlockCachePayload,
     shouldCancel: () => boolean,
-): Promise<boolean> => {
+): Promise<BlockPathCacheLoadStatus> => {
     await waitForInitialization();
+    useTemporaryStorageForNextBuild = false;
     if (!isLeaksOpfsEnabled()) {
-        return false;
+        return 'unavailable';
     }
     const storage = await selectBlockDataStorage(payload.fileHash);
-    if (!storage.available || !storage.fileHash) {
-        return false;
+    if (!storage.available) {
+        if (isLeaksOpfsEnabled()) {
+            useTemporaryStorageForNextBuild = true;
+            return 'transient';
+        }
+        return 'unavailable';
+    }
+    if (!storage.fileHash) {
+        return 'miss';
     }
     const { fileHash } = storage;
     const cachedMetadata = await blockDataOPFS.loadCompleteCache(fileHash);
     if (!cachedMetadata) {
-        return false;
+        const cacheAccessFailed = blockDataOPFS.consumeCacheAccessFailure();
+        useTemporaryStorageForNextBuild = cacheAccessFailed;
+        if (!isLeaksOpfsEnabled()) {
+            return 'unavailable';
+        }
+        return cacheAccessFailed ? 'transient' : 'miss';
     }
     if (shouldCancel()) {
         throw new BlockPathBuildCancelledError();
@@ -399,7 +418,7 @@ const loadMemoryBlockCacheHandler = async (
         throw new BlockPathBuildCancelledError();
     }
     await completeMemoryBlockDataRender(payload);
-    return true;
+    return 'hit';
 };
 
 const setMemoryBlockDataHandler = async (
@@ -588,6 +607,7 @@ const renderHighlightData = async (render: boolean = true): Promise<void> => {
 const destroyHandler = async (): Promise<void> => {
     hoverSearchVersion++;
     debouncedSearchBlockData.cancel();
+    useTemporaryStorageForNextBuild = false;
     useOpfs = false;
     memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
     memoryBlockMetadata = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, batchCount: 0 };
@@ -610,7 +630,7 @@ const destroyHandler = async (): Promise<void> => {
         null, 0, { reservedLine: [], processUsedLine: [], deviceUsedLine: [] }, false,
     );
     if (isLeaksOpfsEnabled()) {
-        await blockDataOPFS.release(temporaryBlockDataStorageKey);
+        await blockDataOPFS?.release(temporaryBlockDataStorageKey);
     }
     renderer?.setTransform(transform).setZoom(zoom, false).updateCanvasSize(viewport);
 };
@@ -632,8 +652,8 @@ const Handlers: PayloadHandlers = {
 self.onmessage = (ev: MessageEvent<Payload>): void => {
     const payload = ev.data;
     if (payload.type === 'checkOpfsAvailability') {
-        checkLeaksOpfsSyncAvailability().then(available => {
-            self.postMessage({ type: 'opfsAvailabilityChecked', requestId: payload.requestId, available });
+        checkLeaksOpfsSyncAvailability().then(availabilityStatus => {
+            self.postMessage({ type: 'opfsAvailabilityChecked', requestId: payload.requestId, availabilityStatus });
         });
         return;
     }
@@ -649,11 +669,11 @@ self.onmessage = (ev: MessageEvent<Payload>): void => {
                 return;
             }
             try {
-                const hit = await loadMemoryBlockCacheHandler(payload, () => generation !== latestDataGeneration);
+                const status = await loadMemoryBlockCacheHandler(payload, () => generation !== latestDataGeneration);
                 self.postMessage({
                     type: 'blockPathCacheLoadCompleted',
                     generation,
-                    hit,
+                    status,
                 });
             } catch (error) {
                 if (error instanceof BlockPathBuildCancelledError || generation !== latestDataGeneration) {

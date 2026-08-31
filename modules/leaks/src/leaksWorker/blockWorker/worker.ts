@@ -30,8 +30,11 @@ export const BlockWorker = new Worker(new URL('./', import.meta.url));
 
 let workerGeneration = 0;
 const pendingWorkerLoads = new Map<number, { resolve: () => void; reject: (error: Error) => void }>();
-const pendingCacheLoads = new Map<number, { resolve: (hit: boolean) => void; reject: (error: Error) => void }>();
-const pendingOpfsProbes = new Map<number, (available: boolean) => void>();
+const pendingCacheLoads = new Map<number, {
+    resolve: (status: BlockPathCacheLoadStatus) => void;
+    reject: (error: Error) => void;
+}>();
+const pendingOpfsProbes = new Map<number, (status: OpfsAvailabilityStatus) => void>();
 let opfsProbeRequestId = 0;
 
 export const isCurrentBlockWorkerGeneration = (generation: number | undefined): boolean =>
@@ -48,7 +51,7 @@ module.hot?.dispose(() => {
     }
     pendingCacheLoads.clear();
     for (const resolve of pendingOpfsProbes.values()) {
-        resolve(false);
+        resolve('transient');
     }
     pendingOpfsProbes.clear();
 });
@@ -57,12 +60,12 @@ BlockWorker.addEventListener('message', (event: MessageEvent<{
     type?: string;
     generation?: number;
     error?: string;
-    hit?: boolean;
+    status?: BlockPathCacheLoadStatus;
     requestId?: number;
-    available?: boolean;
+    availabilityStatus?: OpfsAvailabilityStatus;
 }>): void => {
     if (event.data.type === 'opfsAvailabilityChecked' && event.data.requestId !== undefined) {
-        pendingOpfsProbes.get(event.data.requestId)?.(event.data.available === true);
+        pendingOpfsProbes.get(event.data.requestId)?.(event.data.availabilityStatus ?? 'transient');
         pendingOpfsProbes.delete(event.data.requestId);
         return;
     }
@@ -72,12 +75,12 @@ BlockWorker.addEventListener('message', (event: MessageEvent<{
     }
     const pendingCache = pendingCacheLoads.get(generation);
     if (event.data.type === 'blockPathCacheLoadCompleted' && pendingCache) {
-        pendingCache.resolve(event.data.hit === true);
+        pendingCache.resolve(event.data.status ?? 'miss');
         pendingCacheLoads.delete(generation);
         return;
     }
     if (event.data.type === 'renderCancelled' && pendingCache) {
-        pendingCache.resolve(false);
+        pendingCache.resolve('miss');
         pendingCacheLoads.delete(generation);
         return;
     }
@@ -101,9 +104,9 @@ BlockWorker.addEventListener('message', (event: MessageEvent<{
 
 // Worker 实现
 const WorkerBackend = {
-    checkOpfsAvailability(): Promise<boolean> {
+    checkOpfsAvailability(): Promise<OpfsAvailabilityStatus> {
         const requestId = ++opfsProbeRequestId;
-        const result = new Promise<boolean>(resolve => {
+        const result = new Promise<OpfsAvailabilityStatus>(resolve => {
             pendingOpfsProbes.set(requestId, resolve);
         });
         BlockWorker.postMessage({ type: 'checkOpfsAvailability', requestId } as CheckOpfsAvailabilityPayload);
@@ -117,9 +120,9 @@ const WorkerBackend = {
             [offscreenCanvas],
         );
     },
-    loadMemoryBlockCache({ fileHash }: { fileHash?: string }): Promise<boolean> {
+    loadMemoryBlockCache({ fileHash }: { fileHash?: string }): Promise<BlockPathCacheLoadStatus> {
         const generation = ++workerGeneration;
-        const completion = new Promise<boolean>((resolve, reject) => {
+        const completion = new Promise<BlockPathCacheLoadStatus>((resolve, reject) => {
             pendingCacheLoads.set(generation, { resolve, reject });
         });
         BlockWorker.postMessage({
@@ -189,8 +192,19 @@ const MainThreadBackend = {
         const devicePixelRatio = window.devicePixelRatio || 1;
         await mainThreadRender.initCanvasHandler({ canvas, devicePixelRatio, width, height });
     },
-    loadMemoryBlockCache(): Promise<boolean> {
-        return Promise.resolve(false);
+    loadMemoryBlockCache({ fileHash }: { fileHash?: string }): Promise<BlockPathCacheLoadStatus> {
+        const generation = ++mainThreadGeneration;
+        const task = mainThreadLoadQueue.then(async () => {
+            if (generation !== mainThreadGeneration) {
+                return 'miss' as const;
+            }
+            return mainThreadRender.loadMemoryBlockCacheHandler(
+                { generation, fileHash },
+                () => generation !== mainThreadGeneration,
+            );
+        });
+        mainThreadLoadQueue = task.then(() => undefined, () => undefined);
+        return task;
     },
     setMemoryBlockData({ data, fileHash }: { data: RenderData; fileHash?: string }): Promise<void> {
         const generation = ++mainThreadGeneration;

@@ -22,7 +22,10 @@ import { createOpfsFallbackPrompt } from './opfsFallbackPrompt';
 
 export const opfsFallbackPrompt = createOpfsFallbackPrompt();
 
-export const ensureOpfsOrWaitForFallbackApproval = createOpfsFallbackGuard(
+const opfsFallbackGuard = createOpfsFallbackGuard(
     workerCheckOpfsAvailability,
     opfsFallbackPrompt.requestApproval,
 );
+
+export const ensureOpfsOrWaitForFallbackApproval = opfsFallbackGuard.ensureAvailability;
+export const ensureOpfsFallbackApproval = opfsFallbackGuard.ensureFallbackApproval;

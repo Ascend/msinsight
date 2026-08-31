@@ -35,7 +35,7 @@ import {
 } from '../utils/RequestUtils';
 import { message } from 'antd';
 import { runInAction } from 'mobx';
-import { ensureOpfsOrWaitForFallbackApproval } from './opfsFallback';
+import { ensureOpfsFallbackApproval, ensureOpfsOrWaitForFallbackApproval } from './opfsFallback';
 import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from './blockLoadState';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
@@ -157,13 +157,19 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             session.leaksWorkerInfo.renderOptions.transform = transform;
         });
         workerTransform({ transform });
-        const cacheHit = session.module === 'memsnapshot'
+        const cacheStatus: BlockPathCacheLoadStatus = session.module === 'memsnapshot'
             ? await workerLoadMemoryBlockCache({ fileHash: cacheFileHash })
-            : false;
+            : 'miss';
         if (!isLatestRequest()) {
             return;
         }
-        if (cacheHit) {
+        if (cacheStatus === 'unavailable') {
+            await ensureOpfsFallbackApproval();
+            if (!isLatestRequest()) {
+                return;
+            }
+        }
+        if (cacheStatus === 'hit') {
             await loadAllocation();
             if (isLatestRequest()) {
                 runInAction(() => {

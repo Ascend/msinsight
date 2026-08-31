@@ -17,6 +17,7 @@
  */
 
 import { BlockDataOPFS } from './BlockDataOPFS';
+import { isLeaksOpfsEnabled } from './opfsConfig';
 import { TextDecoder, TextEncoder } from 'util';
 
 Object.assign(globalThis, { TextDecoder, TextEncoder });
@@ -24,6 +25,12 @@ Object.assign(globalThis, { TextDecoder, TextEncoder });
 class FakeFileStore {
     bytes = new Uint8Array();
 }
+
+const createNotFoundError = (message: string): Error => {
+    const error = new Error(message);
+    error.name = 'NotFoundError';
+    return error;
+};
 
 class FakeSyncAccessHandle {
     constructor(private readonly store: FakeFileStore) {}
@@ -63,6 +70,8 @@ class FakeSyncAccessHandle {
 }
 
 class FakeFileHandle {
+    getFileError: Error | null = null;
+
     constructor(readonly store: FakeFileStore) {}
 
     async createSyncAccessHandle(): Promise<FileSystemSyncAccessHandle> {
@@ -86,6 +95,9 @@ class FakeFileHandle {
     }
 
     async getFile(): Promise<File> {
+        if (this.getFileError) {
+            throw this.getFileError;
+        }
         const file = {
             size: this.store.bytes.byteLength,
             arrayBuffer: async () => this.store.bytes.slice().buffer,
@@ -104,7 +116,7 @@ class FakeDirectoryHandle {
             return existing as unknown as FileSystemDirectoryHandle;
         }
         if (!options?.create) {
-            throw new Error('Directory not found');
+            throw createNotFoundError('Directory not found');
         }
         const directory = new FakeDirectoryHandle();
         this.directories.set(name, directory);
@@ -117,7 +129,7 @@ class FakeDirectoryHandle {
             return existing as unknown as FileSystemFileHandle;
         }
         if (!options?.create) {
-            throw new Error('File not found');
+            throw createNotFoundError('File not found');
         }
         const file = new FakeFileHandle(new FakeFileStore());
         this.files.set(name, file);
@@ -245,6 +257,32 @@ describe('BlockDataOPFS persistent cache', () => {
         await expect(restored.loadCompleteCache('b'.repeat(64))).resolves.toBeNull();
     });
 
+    it('treats a persistent cache file access error as a one-time cache failure', async () => {
+        await writeCompleteCache();
+        const directory = root.directories.get(`block-data-${STORAGE_KEY}`);
+        const manifestFile = directory?.files.get('cache-manifest.json');
+        if (!manifestFile) {
+            throw new Error('Expected cache manifest to exist');
+        }
+        const accessError = new Error('The file is temporarily locked');
+        accessError.name = 'NoModificationAllowedError';
+        manifestFile.getFileError = accessError;
+
+        const restored = new BlockDataOPFS(STORAGE_KEY);
+
+        await expect(restored.loadCompleteCache(FILE_HASH)).resolves.toBeNull();
+        expect(restored.consumeCacheAccessFailure()).toBe(true);
+        expect(restored.consumeCacheAccessFailure()).toBe(false);
+        expect(isLeaksOpfsEnabled()).toBe(true);
+    });
+
+    it('keeps a missing cache manifest as a normal cache miss', async () => {
+        const restored = new BlockDataOPFS(STORAGE_KEY);
+
+        await expect(restored.loadCompleteCache(FILE_HASH)).resolves.toBeNull();
+        expect(restored.consumeCacheAccessFailure()).toBe(false);
+    });
+
     it('removes an invalid cache directory before rebuilding it', async () => {
         await writeCompleteCache();
         const cache = new BlockDataOPFS(STORAGE_KEY);
@@ -333,7 +371,7 @@ describe('BlockDataOPFS persistent cache', () => {
         });
     });
 
-    it('reports unavailable storage when OPFS access is rejected', async () => {
+    it('reports the current storage operation unavailable without disabling later OPFS attempts', async () => {
         const getDirectory = jest.fn().mockRejectedValue(new Error('OPFS access denied'));
         Object.defineProperty(navigator, 'storage', {
             configurable: true,
@@ -351,9 +389,11 @@ describe('BlockDataOPFS persistent cache', () => {
 
         expect(result.available).toBe(false);
         expect(beforeStorageChange).toHaveBeenCalledTimes(1);
-        expect(getDirectory).toHaveBeenCalledTimes(1);
+        const attemptsAfterPrepare = getDirectory.mock.calls.length;
+        expect(attemptsAfterPrepare).toBeGreaterThan(1);
+        expect(isLeaksOpfsEnabled()).toBe(true);
         await expect(result.blockDataOPFS.removeStorage()).resolves.toBeUndefined();
-        expect(getDirectory).toHaveBeenCalledTimes(1);
+        expect(getDirectory.mock.calls.length).toBeGreaterThan(attemptsAfterPrepare);
         warn.mockRestore();
     });
 });
