@@ -17,6 +17,7 @@
  */
 
 import { BatchOPFS } from '../BatchOPFS';
+import { isLeaksOpfsEnabled } from '../opfsConfig';
 
 describe('BatchOPFS', () => {
     it('falls back to memory when file access fails after directory initialization', async () => {
@@ -42,6 +43,7 @@ describe('BatchOPFS', () => {
             expect(getFileHandle).toHaveBeenCalledTimes(1);
             expect(Array.from(batches.read(0) ?? [])).toEqual([1, 2]);
             expect(Array.from(batches.read(1) ?? [])).toEqual([3, 4]);
+            expect(isLeaksOpfsEnabled()).toBe(true);
         } finally {
             warn.mockRestore();
             if (storageDescriptor) {

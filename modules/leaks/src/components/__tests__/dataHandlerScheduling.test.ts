@@ -39,6 +39,7 @@ jest.mock('@/leaksWorker/blockWorker/worker', () => ({
 }), { virtual: true });
 jest.mock('../opfsFallback', () => ({
     ensureOpfsOrWaitForFallbackApproval: jest.fn(),
+    ensureOpfsFallbackApproval: jest.fn(),
 }));
 
 const mockedGetSnapshotBlocks = getSnapshotBlocks as jest.MockedFunction<typeof getSnapshotBlocks>;
@@ -65,7 +66,7 @@ describe('memory block data request scheduling', () => {
 
     it('starts the allocation request after a cache miss block response', async () => {
         let resolveBlocks: (data: any) => void = () => undefined;
-        mockedLoadCache.mockResolvedValue(false);
+        mockedLoadCache.mockResolvedValue('miss');
         mockedGetSnapshotBlocks.mockImplementation(() => new Promise(resolve => {
             resolveBlocks = resolve;
         }));
@@ -86,7 +87,7 @@ describe('memory block data request scheduling', () => {
     });
 
     it('requests allocations after a cache hit without requesting blocks', async () => {
-        mockedLoadCache.mockResolvedValue(true);
+        mockedLoadCache.mockResolvedValue('hit');
         const reservedLine = [{ timestamp: 1, reservedSize: 10 }];
         const processUsedLine = [{ timestamp: 1, processUsed: 20 }];
         const deviceUsedLine = [{ timestamp: 1, deviceUsed: 30 }];
@@ -117,7 +118,7 @@ describe('memory block data request scheduling', () => {
 
     it('does not mark block data ready before rendering completes', async () => {
         let resolveRender: () => void = () => undefined;
-        mockedLoadCache.mockResolvedValue(false);
+        mockedLoadCache.mockResolvedValue('miss');
         mockedGetSnapshotBlocks.mockResolvedValue({ blocks: [] } as any);
         mockedSetMemoryBlockData.mockImplementation(() => new Promise(resolve => {
             resolveRender = resolve;

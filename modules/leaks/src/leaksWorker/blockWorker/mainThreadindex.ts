@@ -78,6 +78,7 @@ export class MainThreadRender {
     hoverSearchVersion: number = 0;
     activeDataGeneration: number = 0;
     storageReadyGeneration: number = 0;
+    useTemporaryStorageForNextBuild: boolean = false;
     allocationLinesOverride: {
         generation: number;
         lines: AllocationLineData;
@@ -258,9 +259,14 @@ export class MainThreadRender {
     ): Promise<boolean> {
         this.useOpfs = true;
         this.memoryBlockData = undefined;
-        const storage = await this.selectBlockDataStorage(payload.fileHash);
+        const forceTemporaryStorage = this.useTemporaryStorageForNextBuild;
+        this.useTemporaryStorageForNextBuild = false;
+        const storage = await this.selectBlockDataStorage(forceTemporaryStorage ? undefined : payload.fileHash);
         if (!storage.available) {
             this.useOpfs = false;
+            if (isLeaksOpfsEnabled()) {
+                throw new Error('Temporary OPFS storage is unavailable');
+            }
             return false;
         }
         const { fileHash } = storage;
@@ -325,7 +331,9 @@ export class MainThreadRender {
         this.renderer?.setZoom(this.zoom).setData(this.memoryBlockData.blocks, this.allocationLines);
     }
 
-    private async completeMemoryBlockDataRender(payload: Omit<SetMemoryBlocksDataPayload, 'type'>): Promise<void> {
+    private async completeMemoryBlockDataRender(
+        payload: Pick<SetMemoryBlocksDataPayload, 'generation'>,
+    ): Promise<void> {
         await this.renderHighlightData(false);
         this.renderer?.updateCanvasSize(this.viewport);
         await this.renderer?.renderFrame();
@@ -352,6 +360,55 @@ export class MainThreadRender {
             this.session.progressiveRenderedBatchCount = this.memoryBlockMetadata?.batchCount ?? 0;
             this.session.progressiveRenderedEventCount = this.session.progressiveTotalEventCount;
         });
+    }
+
+    async loadMemoryBlockCacheHandler(
+        payload: Omit<LoadMemoryBlockCachePayload, 'type'>,
+        shouldCancel: () => boolean = () => false,
+    ): Promise<BlockPathCacheLoadStatus> {
+        this.useTemporaryStorageForNextBuild = false;
+        if (!isLeaksOpfsEnabled()) {
+            return 'unavailable';
+        }
+        const storage = await this.selectBlockDataStorage(payload.fileHash);
+        if (!storage.available) {
+            if (isLeaksOpfsEnabled()) {
+                this.useTemporaryStorageForNextBuild = true;
+                return 'transient';
+            }
+            return 'unavailable';
+        }
+        if (!storage.fileHash) {
+            return 'miss';
+        }
+        const cachedMetadata = await this.blockDataOPFS.loadCompleteCache(storage.fileHash);
+        if (!cachedMetadata) {
+            const cacheAccessFailed = this.blockDataOPFS.consumeCacheAccessFailure();
+            this.useTemporaryStorageForNextBuild = cacheAccessFailed;
+            if (!isLeaksOpfsEnabled()) {
+                return 'unavailable';
+            }
+            return cacheAccessFailed ? 'transient' : 'miss';
+        }
+        if (shouldCancel()) {
+            throw new BlockPathBuildCancelledError();
+        }
+        this.resetMemoryBlockDataState(payload.generation);
+        this.useOpfs = true;
+        this.memoryBlockData = undefined;
+        this.storageReadyGeneration = payload.generation;
+        this.updateMetadataView(cachedMetadata, payload.generation);
+        await this.renderer?.setDataFromOPFS(
+            this.blockDataOPFS,
+            cachedMetadata.batchCount,
+            this.allocationLines,
+            false,
+        );
+        if (shouldCancel()) {
+            throw new BlockPathBuildCancelledError();
+        }
+        await this.completeMemoryBlockDataRender(payload);
+        return 'hit';
     }
 
     async setMemoryBlockDataHandler(
@@ -552,6 +609,7 @@ export class MainThreadRender {
     async destroyHandler(): Promise<void> {
         this.hoverSearchVersion++;
         this.debouncedSearchBlockData.cancel();
+        this.useTemporaryStorageForNextBuild = false;
         this.useOpfs = false;
         this.memoryBlockData = {
             maxTimestamp: 0,

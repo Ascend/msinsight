@@ -16,30 +16,53 @@
  * -------------------------------------------------------------------------
  */
 
-type OpfsAvailabilityProbe = () => Promise<boolean>;
+type OpfsAvailabilityProbe = () => Promise<OpfsAvailabilityStatus>;
 type FallbackApproval = () => Promise<void>;
+
+interface OpfsFallbackGuard {
+    ensureAvailability: () => Promise<void>;
+    ensureFallbackApproval: () => Promise<void>;
+}
 
 export const createOpfsFallbackGuard = (
     probeAvailability: OpfsAvailabilityProbe,
     requestFallbackApproval: FallbackApproval,
-): (() => Promise<void>) => {
+): OpfsFallbackGuard => {
     let availabilityConfirmed = false;
     let fallbackApproved = false;
     let pendingCheck: Promise<void> | undefined;
+    let pendingApproval: Promise<void> | undefined;
 
-    return (): Promise<void> => {
+    const ensureFallbackApproval = (): Promise<void> => {
+        if (fallbackApproved) {
+            return Promise.resolve();
+        }
+        if (!pendingApproval) {
+            pendingApproval = requestFallbackApproval()
+                .then(() => {
+                    fallbackApproved = true;
+                })
+                .finally(() => {
+                    pendingApproval = undefined;
+                });
+        }
+        return pendingApproval;
+    };
+
+    const ensureAvailability = (): Promise<void> => {
         if (availabilityConfirmed || fallbackApproved) {
             return Promise.resolve();
         }
         if (!pendingCheck) {
             pendingCheck = probeAvailability()
-                .then(async available => {
-                    if (available) {
+                .then(async status => {
+                    if (status === 'available') {
                         availabilityConfirmed = true;
                         return;
                     }
-                    await requestFallbackApproval();
-                    fallbackApproved = true;
+                    if (status === 'unavailable') {
+                        await ensureFallbackApproval();
+                    }
                 })
                 .finally(() => {
                     pendingCheck = undefined;
@@ -47,4 +70,6 @@ export const createOpfsFallbackGuard = (
         }
         return pendingCheck;
     };
+
+    return { ensureAvailability, ensureFallbackApproval };
 };

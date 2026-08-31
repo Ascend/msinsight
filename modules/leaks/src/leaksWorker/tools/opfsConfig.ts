@@ -19,6 +19,18 @@
 let opfsUnavailableWarned = false;
 let opfsRuntimeUnavailable = false;
 const OPFS_PROBE_FILE = 'probe';
+const OPFS_OPERATION_ATTEMPTS = 2;
+const OPFS_RETRY_DELAY_MS = 20;
+const DEFINITIVE_OPFS_UNAVAILABLE_ERRORS = new Set(['SecurityError', 'NotSupportedError']);
+
+const getErrorName = (error: unknown): string => (
+    error !== null && typeof error === 'object' && 'name' in error && typeof error.name === 'string'
+        ? error.name
+        : ''
+);
+
+export const isDefinitiveLeaksOpfsUnavailableError = (error: unknown): boolean =>
+    DEFINITIVE_OPFS_UNAVAILABLE_ERRORS.has(getErrorName(error));
 
 export const markLeaksOpfsUnavailable = (error?: unknown): void => {
     opfsRuntimeUnavailable = true;
@@ -28,6 +40,52 @@ export const markLeaksOpfsUnavailable = (error?: unknown): void => {
     opfsUnavailableWarned = true;
     // eslint-disable-next-line no-console
     console.warn('[leaks] OPFS unavailable, non-cached loading requires user confirmation.', error);
+};
+
+export const reportLeaksOpfsAccessFailure = (operation: string, error: unknown): boolean => {
+    if (isDefinitiveLeaksOpfsUnavailableError(error)) {
+        markLeaksOpfsUnavailable(error);
+        return true;
+    }
+    // eslint-disable-next-line no-console
+    console.warn(`[leaks] Transient OPFS failure during ${operation}; the next load may retry.`, error);
+    return false;
+};
+
+const waitBeforeOpfsRetry = async (): Promise<void> => {
+    await new Promise<void>(resolve => setTimeout(resolve, OPFS_RETRY_DELAY_MS));
+};
+
+interface OpfsOperationResult<T> {
+    status: OpfsAvailabilityStatus;
+    value: T | null;
+}
+
+const runOpfsOperationWithStatus = async <T>(
+    operation: string,
+    action: () => Promise<T>,
+): Promise<OpfsOperationResult<T>> => {
+    let lastError: unknown;
+    for (let attempt = 0; attempt < OPFS_OPERATION_ATTEMPTS; attempt++) {
+        try {
+            return { status: 'available', value: await action() };
+        } catch (error) {
+            lastError = error;
+            if (isDefinitiveLeaksOpfsUnavailableError(error)) {
+                markLeaksOpfsUnavailable(error);
+                return { status: 'unavailable', value: null };
+            }
+            if (attempt + 1 < OPFS_OPERATION_ATTEMPTS) {
+                await waitBeforeOpfsRetry();
+            }
+        }
+    }
+    reportLeaksOpfsAccessFailure(operation, lastError);
+    return { status: 'transient', value: null };
+};
+
+const runOpfsOperation = async <T>(operation: string, action: () => Promise<T>): Promise<T | null> => {
+    return (await runOpfsOperationWithStatus(operation, action)).value;
 };
 
 // 块路径算法或 OPFS 存储结构发生变化时需要升级此前端缓存版本。
@@ -70,12 +128,7 @@ export const getLeaksOpfsRoot = async (): Promise<FileSystemDirectoryHandle | nu
     if (!isLeaksOpfsEnabled()) {
         return null;
     }
-    try {
-        return await navigator.storage.getDirectory();
-    } catch (error) {
-        markLeaksOpfsUnavailable(error);
-        return null;
-    }
+    return runOpfsOperation('root directory access', () => navigator.storage.getDirectory());
 };
 
 export const getLeaksOpfsDirectory = async (name: string): Promise<FileSystemDirectoryHandle | null> => {
@@ -83,12 +136,7 @@ export const getLeaksOpfsDirectory = async (name: string): Promise<FileSystemDir
     if (!root) {
         return null;
     }
-    try {
-        return await root.getDirectoryHandle(name, { create: true });
-    } catch (error) {
-        markLeaksOpfsUnavailable(error);
-        return null;
-    }
+    return runOpfsOperation('directory access', () => root.getDirectoryHandle(name, { create: true }));
 };
 
 const removeProbeDirectory = async (
@@ -104,58 +152,76 @@ const removeProbeDirectory = async (
 
 const createProbeDirectoryName = (): string => `leaks-opfs-probe-${createLeaksOpfsRuntimeId()}`;
 
-export const checkLeaksOpfsAvailability = async (): Promise<boolean> => {
-    const root = await getLeaksOpfsRoot();
-    if (!root) {
-        return false;
+const runOpfsProbe = async (
+    probe: (root: FileSystemDirectoryHandle, directoryName: string) => Promise<void>,
+): Promise<OpfsAvailabilityStatus> => {
+    if (!isLeaksOpfsEnabled()) {
+        return 'unavailable';
     }
-    const directoryName = createProbeDirectoryName();
-    try {
+    const rootResult = await runOpfsOperationWithStatus(
+        'root directory access',
+        () => navigator.storage.getDirectory(),
+    );
+    if (rootResult.status !== 'available' || !rootResult.value) {
+        return rootResult.status;
+    }
+    const root = rootResult.value;
+    let lastError: unknown;
+    for (let attempt = 0; attempt < OPFS_OPERATION_ATTEMPTS; attempt++) {
+        const directoryName = createProbeDirectoryName();
+        try {
+            await probe(root, directoryName);
+            return 'available';
+        } catch (error) {
+            lastError = error;
+            if (isDefinitiveLeaksOpfsUnavailableError(error)) {
+                markLeaksOpfsUnavailable(error);
+                return 'unavailable';
+            }
+        } finally {
+            await removeProbeDirectory(root, directoryName);
+        }
+        if (attempt + 1 < OPFS_OPERATION_ATTEMPTS) {
+            await waitBeforeOpfsRetry();
+        }
+    }
+    reportLeaksOpfsAccessFailure('capability probe', lastError);
+    return 'transient';
+};
+
+export const checkLeaksOpfsAvailability = async (): Promise<OpfsAvailabilityStatus> => {
+    return runOpfsProbe(async (root, directoryName) => {
         const directory = await root.getDirectoryHandle(directoryName, { create: true });
         const file = await directory.getFileHandle(OPFS_PROBE_FILE, { create: true });
         const writable = await file.createWritable();
         await writable.write(new Uint8Array([1]));
         await writable.close();
-        return true;
-    } catch (error) {
-        markLeaksOpfsUnavailable(error);
-        return false;
-    } finally {
-        await removeProbeDirectory(root, directoryName);
-    }
+    });
 };
 
-export const checkLeaksOpfsSyncAvailability = async (): Promise<boolean> => {
-    const root = await getLeaksOpfsRoot();
-    if (!root) {
-        return false;
-    }
-    const directoryName = createProbeDirectoryName();
-    let accessHandle: FileSystemSyncAccessHandle | null = null;
-    try {
-        const directory = await root.getDirectoryHandle(directoryName, { create: true });
-        const file = await directory.getFileHandle(OPFS_PROBE_FILE, { create: true });
-        accessHandle = await file.createSyncAccessHandle();
-        accessHandle.truncate(0);
-        const probe = new Uint8Array([1]);
-        if (accessHandle.write(probe, { at: 0 }) !== probe.byteLength) {
-            throw new Error('Failed to write OPFS probe data');
-        }
-        accessHandle.flush();
-        const result = new Uint8Array(1);
-        if (accessHandle.read(result, { at: 0 }) !== result.byteLength || result[0] !== probe[0]) {
-            throw new Error('Failed to read OPFS probe data');
-        }
-        return true;
-    } catch (error) {
-        markLeaksOpfsUnavailable(error);
-        return false;
-    } finally {
+export const checkLeaksOpfsSyncAvailability = async (): Promise<OpfsAvailabilityStatus> => {
+    return runOpfsProbe(async (root, directoryName) => {
+        let accessHandle: FileSystemSyncAccessHandle | null = null;
         try {
-            accessHandle?.close();
-        } catch {
-            // A failed probe handle no longer needs to be reused.
+            const directory = await root.getDirectoryHandle(directoryName, { create: true });
+            const file = await directory.getFileHandle(OPFS_PROBE_FILE, { create: true });
+            accessHandle = await file.createSyncAccessHandle();
+            accessHandle.truncate(0);
+            const probe = new Uint8Array([1]);
+            if (accessHandle.write(probe, { at: 0 }) !== probe.byteLength) {
+                throw new Error('Failed to write OPFS probe data');
+            }
+            accessHandle.flush();
+            const result = new Uint8Array(1);
+            if (accessHandle.read(result, { at: 0 }) !== result.byteLength || result[0] !== probe[0]) {
+                throw new Error('Failed to read OPFS probe data');
+            }
+        } finally {
+            try {
+                accessHandle?.close();
+            } catch {
+                // A failed probe handle no longer needs to be reused.
+            }
         }
-        await removeProbeDirectory(root, directoryName);
-    }
+    });
 };

@@ -37,6 +37,9 @@ interface LoadMemoryBlockCachePayload {
     fileHash?: string;
 };
 
+type BlockPathCacheLoadStatus = 'hit' | 'miss' | 'transient' | 'unavailable';
+type OpfsAvailabilityStatus = 'available' | 'transient' | 'unavailable';
+
 interface CheckOpfsAvailabilityPayload {
     type: 'checkOpfsAvailability';
     requestId: number;

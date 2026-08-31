@@ -21,34 +21,65 @@ import { createOpfsFallbackPrompt } from '../opfsFallbackPrompt';
 
 describe('OPFS fallback guard', () => {
     it('continues without confirmation when OPFS is available', async () => {
-        const probe = jest.fn().mockResolvedValue(true);
+        const probe = jest.fn().mockResolvedValue('available');
         const requestApproval = jest.fn().mockResolvedValue(undefined);
         const guard = createOpfsFallbackGuard(probe, requestApproval);
 
-        await expect(Promise.all([guard(), guard()])).resolves.toEqual([undefined, undefined]);
-        await expect(guard()).resolves.toBeUndefined();
+        await expect(Promise.all([
+            guard.ensureAvailability(),
+            guard.ensureAvailability(),
+        ])).resolves.toEqual([undefined, undefined]);
+        await expect(guard.ensureAvailability()).resolves.toBeUndefined();
         expect(probe).toHaveBeenCalledTimes(1);
         expect(requestApproval).not.toHaveBeenCalled();
     });
 
+    it('requests fallback approval when OPFS fails after a successful probe', async () => {
+        const probe = jest.fn().mockResolvedValue('available');
+        const requestApproval = jest.fn().mockResolvedValue(undefined);
+        const guard = createOpfsFallbackGuard(probe, requestApproval);
+
+        await guard.ensureAvailability();
+        await guard.ensureFallbackApproval();
+        await guard.ensureFallbackApproval();
+
+        expect(probe).toHaveBeenCalledTimes(1);
+        expect(requestApproval).toHaveBeenCalledTimes(1);
+    });
+
     it('shares one approval and remembers an approved fallback', async () => {
         let approveFallback: () => void = () => undefined;
-        const probe = jest.fn().mockResolvedValue(false);
+        const probe = jest.fn().mockResolvedValue('unavailable');
         const requestApproval = jest.fn(() => new Promise<void>(resolve => {
             approveFallback = resolve;
         }));
         const guard = createOpfsFallbackGuard(probe, requestApproval);
 
-        const first = guard();
-        const second = guard();
+        const first = guard.ensureAvailability();
+        const second = guard.ensureAvailability();
         await new Promise(resolve => setTimeout(resolve, 0));
         expect(probe).toHaveBeenCalledTimes(1);
         expect(requestApproval).toHaveBeenCalledTimes(1);
 
         approveFallback();
         await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
-        await expect(guard()).resolves.toBeUndefined();
+        await expect(guard.ensureFallbackApproval()).resolves.toBeUndefined();
         expect(requestApproval).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not request fallback approval for an exhausted transient probe failure', async () => {
+        const probe = jest.fn()
+            .mockResolvedValueOnce('transient')
+            .mockResolvedValueOnce('available');
+        const requestApproval = jest.fn().mockResolvedValue(undefined);
+        const guard = createOpfsFallbackGuard(probe, requestApproval);
+
+        await expect(guard.ensureAvailability()).resolves.toBeUndefined();
+        expect(requestApproval).not.toHaveBeenCalled();
+
+        await expect(guard.ensureAvailability()).resolves.toBeUndefined();
+        expect(probe).toHaveBeenCalledTimes(2);
+        expect(requestApproval).not.toHaveBeenCalled();
     });
 
     it('keeps the inline notice visible until the user approves', async () => {
