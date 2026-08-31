@@ -15,16 +15,20 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
+
 import unittest
 from pathlib import Path
 from base import TraceEntry, DeviceSnapshot, Segment, Block, BlockState
 from util.file_util import load_pickle_to_dict
 from util.logger import suppress_logs, restore_logs
 from simulate import SimulateDeviceSnapshot, SimulateHooker
+from simulate.allocator_context import AllocatorContext
 from simulate.hooker_defs import AllocatorHooker
+from simulate.simulated_caching_allocator import SimulatedCachingAllocator
 from test.common import valid_segments
 
 test_data_dir = Path(__file__).parent.parent.resolve() / 'test' / 'test-data'
+
 
 class ReplayEventHooker(SimulateHooker):
     def __init__(self, test_util, valid_interval: int = 100):
@@ -65,22 +69,22 @@ class ReplayBlockHooker(AllocatorHooker):
     def post_replay_alloc_block(self, allocated_block: Block, current_snapshot: DeviceSnapshot):
         super().post_replay_alloc_block(allocated_block, current_snapshot)
         self.test_util.assertEqual(self.pre_seg_active_size + allocated_block.size, self._segment.active_size)
-        self.test_util.assertEqual(self.pre_snapshot_total_active_size + allocated_block.size,
-                                   current_snapshot.total_activated)
+        self.test_util.assertEqual(
+            self.pre_snapshot_total_active_size + allocated_block.size, current_snapshot.total_activated
+        )
         if allocated_block.state == BlockState.ACTIVE_ALLOCATED:
             self.test_util.assertEqual(self.pre_seg_allocated_size + allocated_block.size, self._segment.allocated_size)
-            self.test_util.assertEqual(self.pre_snapshot_total_allocated_size + allocated_block.size,
-                                       current_snapshot.total_allocated)
-
-    def pre_replay_free_block(self, wait4free_block: Block, current_snapshot: DeviceSnapshot):
-        super().pre_replay_free_block(wait4free_block, current_snapshot)
+            self.test_util.assertEqual(
+                self.pre_snapshot_total_allocated_size + allocated_block.size, current_snapshot.total_allocated
+            )
 
     def post_replay_free_block(self, released_block: Block, current_snapshot: DeviceSnapshot):
         super().post_replay_free_block(released_block, current_snapshot)
+        self.test_util.assertIsNotNone(released_block.segment_ptr)
+        self.test_util.assertIn(released_block.segment_ptr, current_snapshot.segments)
 
 
 class TestSimulate(unittest.TestCase):
-
     snapshot_path = test_data_dir / 'snapshot_1768383987920985470.pkl'
     vmem_snapshot_path = test_data_dir / 'snapshot_expandable.pkl'
     snapshot_with_empty_cache_path = test_data_dir / 'snapshot_with_empty_cache.pkl'
@@ -141,3 +145,50 @@ class TestSimulate(unittest.TestCase):
         snapshot = TestSimulate.get_simulate_snapshot(self.vmem_snapshot_with_empty_cache_path)
         snapshot.register_hooker(ReplayEventHooker(self))
         self.assertTrue(snapshot.replay())
+
+
+class CapturePostFreeHooker(AllocatorHooker):
+    def __init__(self):
+        self.released_block = None
+
+    def post_replay_free_block(self, released_block: Block, current_snapshot: DeviceSnapshot):
+        self.released_block = released_block
+
+
+class TestPostFreeHookSegmentPtr(unittest.TestCase):
+    def test_post_free_hook_keeps_original_segment_ptr(self):
+        segment = Segment(
+            address=0x10000,
+            total_size=4096,
+            stream=0,
+            allocated_size=1024,
+            active_size=1024,
+            blocks=[],
+        )
+        block = Block(
+            size=1024,
+            requested_size=1024,
+            address=0x10000,
+            state=BlockState.ACTIVE_ALLOCATED,
+            segment_ptr=segment,
+        )
+        segment.blocks.append(block)
+
+        snapshot = DeviceSnapshot()
+        snapshot.segments = [segment]
+        snapshot.trace_entries = []
+        snapshot.total_allocated = 1024
+        snapshot.total_reserved = 4096
+        snapshot.total_activated = 1024
+        snapshot.device = 0
+
+        allocator = SimulatedCachingAllocator(AllocatorContext(snapshot))
+        hooker = CapturePostFreeHooker()
+        allocator.register_hooker(hooker)
+
+        alloc_event = TraceEntry(action="alloc", addr=0x10000, size=1024, stream=0, idx=1)
+        self.assertTrue(allocator.free_block(alloc_event))
+        self.assertIsNotNone(hooker.released_block)
+        self.assertIs(hooker.released_block.segment_ptr, segment)
+        self.assertIsNone(block.segment_ptr)
+        self.assertEqual(segment.blocks, [])

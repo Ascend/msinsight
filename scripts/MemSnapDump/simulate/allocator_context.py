@@ -7,7 +7,7 @@ MindStudio is licensed under Mulan PSL v2.
 You can use this software according to the terms and conditions of the Mulan PSL v2.
 You may obtain a copy of Mulan PSL v2 at:
 
-         http://license.coscl.org.cn/MulanPSL2
+    http://license.coscl.org.cn/MulanPSL2
 
 THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
 EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
@@ -16,8 +16,14 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
-from .simulate import SimulateDeviceSnapshot
-from .hooker_defs import SimulateHooker, AllocatorHooker
-from .allocator_context import AllocatorContext
+from base import DeviceSnapshot, TraceEntry
 
-__all__ = ['SimulateDeviceSnapshot', 'SimulateHooker', 'AllocatorHooker', 'AllocatorContext']
+
+class AllocatorContext:
+    def __init__(self, snapshot: DeviceSnapshot):
+        self.device_snapshot = snapshot
+        self.current_undo_event: TraceEntry = None
+        self.workspace_flag = False
+
+    def set_current_undo_event(self, undo_event: TraceEntry):
+        self.current_undo_event = undo_event
