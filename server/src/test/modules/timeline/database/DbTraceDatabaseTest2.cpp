@@ -1208,6 +1208,94 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenQOSQuerySuccess) {
     EXPECT_EQ(args, "{\"Bandwidth(Byte/s)\":3611295744}");
 }
 
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenAICoreFreqHasTwoDiesAtSameTimestamp) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(
+        db, "CREATE TABLE AICORE_FREQ (deviceId NUMERIC,timestampNs NUMERIC,freq NUMERIC,dieId NUMERIC)");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO AICORE_FREQ (deviceId,timestampNs,freq,dieId) VALUES (1,1000,1650,0),(1,1000,1200,1);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "AICORE_FREQ";
+    params.startTime = 0;
+    params.endTime = 2000;
+    auto stmt = database.CreatPreparedStatement();
+    params.threadId = "AI Core Freq Die 0";
+    auto die0 = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+    ASSERT_TRUE(die0->Next());
+    EXPECT_EQ(die0->GetString("args"), "{\"Frequency(Mhz)\":1650}");
+    EXPECT_FALSE(die0->Next());
+    die0.reset();
+
+    params.threadId = "AI Core Freq Die 1";
+    auto die1 = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+    ASSERT_TRUE(die1->Next());
+    EXPECT_EQ(die1->GetString("args"), "{\"Frequency(Mhz)\":1200}");
+    EXPECT_FALSE(die1->Next());
+}
+
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenAICoreFreqLegacySchemaHasNoDieId) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(
+        db, "CREATE TABLE AICORE_FREQ (deviceId NUMERIC,timestampNs NUMERIC,freq NUMERIC)");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO AICORE_FREQ (deviceId,timestampNs,freq) VALUES "
+        "(1,1000,1650),(1,2000,1200),(2,1500,800);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "AICORE_FREQ";
+    params.threadId = "AI Core Freq";
+    params.startTime = 0;
+    params.endTime = 3000;
+    auto stmt = database.CreatPreparedStatement();
+    auto result = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetUint64("startTime"), 1000);
+    EXPECT_EQ(result->GetString("args"), "{\"Frequency(Mhz)\":1650}");
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetUint64("startTime"), 2000);
+    EXPECT_EQ(result->GetString("args"), "{\"Frequency(Mhz)\":1200}");
+    EXPECT_FALSE(result->Next());
+}
+
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenAICoreFreqUsesLegacySentinel) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(
+        db, "CREATE TABLE AICORE_FREQ (deviceId NUMERIC,timestampNs NUMERIC,freq NUMERIC,dieId NUMERIC)");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO AICORE_FREQ (deviceId,timestampNs,freq,dieId) VALUES "
+        "(1,1000,1500,-1),(1,2000,900,-1),(2,1500,1200,-1);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "AICORE_FREQ";
+    params.threadId = "AI Core Freq";
+    params.startTime = 0;
+    params.endTime = 3000;
+    auto stmt = database.CreatPreparedStatement();
+    auto result = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetUint64("startTime"), 1000);
+    EXPECT_EQ(result->GetString("args"), "{\"Frequency(Mhz)\":1500}");
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetUint64("startTime"), 2000);
+    EXPECT_EQ(result->GetString("args"), "{\"Frequency(Mhz)\":900}");
+    EXPECT_FALSE(result->Next());
+}
+
 TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenSimple) {
     std::recursive_mutex testMutex;
     MockDatabase database(testMutex);

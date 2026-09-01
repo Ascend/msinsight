@@ -94,6 +94,29 @@ TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAICoreFreqTest) {
     EXPECT_EQ(sql, aiCoreFreqSQL);
 }
 
+TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAICoreFreqWithDieTest) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    const std::string sql = helper.GenerateDeviceMetadataSQL(Dic::Protocol::PROCESS_TYPE::AI_CORE, true);
+    const std::string aiCoreFreqSQL =
+        "SELECT DISTINCT CASE WHEN COALESCE(AICORE_FREQ.dieId, -1) = -1 THEN 'AI Core Freq' "
+        "ELSE 'AI Core Freq Die ' || AICORE_FREQ.dieId END AS name, 'Frequency(Mhz)' AS types "
+        "FROM AICORE_FREQ WHERE deviceId = ?;";
+    EXPECT_EQ(sql, aiCoreFreqSQL);
+}
+
+TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAICoreFreqWithDieTest) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    const std::string threadId = "AI Core Freq Die 0";
+    const std::string sql = helper.GenerateDeviceCounterSQL(Dic::Protocol::PROCESS_TYPE::AI_CORE, threadId);
+    const std::string aiCoreFreqSQL =
+        "SELECT timestampNs - ? AS startTime, '{\"Frequency(Mhz)\":' || freq || '}' AS args FROM AICORE_FREQ "
+        "WHERE 'AI Core Freq Die ' || AICORE_FREQ.dieId = ? AND startTime >= ? AND startTime <= ? "
+        "AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(sql, aiCoreFreqSQL);
+}
+
 TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAICoreFreqTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();

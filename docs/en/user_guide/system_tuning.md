@@ -376,8 +376,8 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">Frequency changes of AI Cores during AI task running.<br>This unit displays only the profile data exported from the <term>Atlas A2 training products/Atlas A2 inference products</term>.</td>
+    <td class="tg-0pky">AI Core Freq<br>AI Core Freq Die &lt;id&gt;</td>
+    <td class="tg-0pky">Frequency changes of AI Cores during AI task running. For DB files exported from the <term>Ascend 950PR/Ascend 950DT</term>, data is displayed by die in AI Core Freq Die &lt;id&gt; units.<br>This unit displays the profile data exported from the <term>Atlas A2 training products/Atlas A2 inference products</term> and <term>Ascend 950PR/Ascend 950DT</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>

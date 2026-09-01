@@ -627,7 +627,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。<br>AI Core Freq泳道仅支持展示昇腾A2系列产品导出的性能数据。</td>
+    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。导入昇腾950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为AI Core Freq Die &lt;id&gt;泳道。<br>AI Core Freq泳道支持展示昇腾A2系列产品和昇腾950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">SIO</td>
@@ -821,8 +821,8 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">AI Core Freq</td>
-    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。<br>AI Core Freq泳道仅支持展示昇腾A2系列产品导出的性能数据。</td>
+    <td class="tg-0pky">AI Core Freq<br>AI Core Freq Die &lt;id&gt;</td>
+    <td class="tg-0pky">展示AI Core芯片在执行AI任务的过程中频率的变化情况。导入昇腾950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为AI Core Freq Die &lt;id&gt;泳道。<br>AI Core Freq泳道支持展示昇腾A2系列产品和昇腾950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>

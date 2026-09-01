@@ -21,6 +21,10 @@
 #include "TableDefs.h"
 namespace Dic::Module::Timeline {
 using namespace Dic::Protocol;
+namespace {
+const std::string AI_CORE_FREQ_LEGACY_NAME = "AI Core Freq";
+const std::string AI_CORE_FREQ_DIE_PREFIX = "AI Core Freq Die ";
+}
 const std::map<std::string, std::string> CounterEventHelper::displayNameToValueName = {{"AI Core Freq", "freq"},
     {"Read", "read"}, {"Write", "write"}, {"L2 Buffer Bw Level", "l2BufferBwLevel"}, {"Mata Bw Level", "mataBwLevel"},
     {"DDR", "ddr"}, {"HBM", "hbm"}, {"Bandwidth", "bandwidth"}, {"Hit Rate", "hitRate"}, {"Throughput", "throughput"},
@@ -288,7 +292,8 @@ std::string CounterEventHelper::GetDeviceTableName(const Dic::Module::Timeline::
     return it->second.tableName;
 }
 
-std::string CounterEventHelper::GenerateDeviceMetadataSQL(const Dic::Module::Timeline::PROCESS_TYPE type) {
+std::string CounterEventHelper::GenerateDeviceMetadataSQL(
+    const Dic::Module::Timeline::PROCESS_TYPE type, bool hasAICoreFreqDieId) {
     std::string sql;
     for (auto [beg, end] = deviceCounterEventMap.equal_range(type); beg != end; ++beg) {
         CounterEventConfig config = beg->second;
@@ -298,6 +303,10 @@ std::string CounterEventHelper::GenerateDeviceMetadataSQL(const Dic::Module::Tim
         sql += "SELECT DISTINCT ";
         std::vector<std::string> valueNamesToJoin;
         std::string substitutedFormat = SubstituteThreadNameFormat(config.threadNameFormat, valueNamesToJoin);
+        if (type == PROCESS_TYPE::AI_CORE && hasAICoreFreqDieId) {
+            substitutedFormat = "CASE WHEN COALESCE(AICORE_FREQ.dieId, -1) = -1 THEN '" + AI_CORE_FREQ_LEGACY_NAME +
+                "' ELSE '" + AI_CORE_FREQ_DIE_PREFIX + "' || AICORE_FREQ.dieId END";
+        }
         sql += substitutedFormat;
         sql += " AS name, '" + config.type + "' AS types FROM " + config.tableName;
         for (size_t i = 0; i < valueNamesToJoin.size(); ++i) {
@@ -312,6 +321,8 @@ std::string CounterEventHelper::GenerateDeviceMetadataSQL(const Dic::Module::Tim
 
 std::string CounterEventHelper::GenerateDeviceCounterSQL(
     const Dic::Module::Timeline::PROCESS_TYPE type, const std::string &threadId) {
+    const bool isAICoreFreqDie =
+        type == PROCESS_TYPE::AI_CORE && StringUtil::StartWith(threadId, AI_CORE_FREQ_DIE_PREFIX);
     std::string expectedDisplayName;
     size_t index = threadId.find_last_of('/');
     if (index == std::string::npos) {
@@ -320,7 +331,9 @@ std::string CounterEventHelper::GenerateDeviceCounterSQL(
         expectedDisplayName = threadId.substr(index + 1);
     }
     std::string expectedValueName;
-    if (displayNameToValueName.find(expectedDisplayName) == displayNameToValueName.end()) {
+    if (isAICoreFreqDie) {
+        expectedValueName = "freq";
+    } else if (displayNameToValueName.find(expectedDisplayName) == displayNameToValueName.end()) {
         expectedValueName = expectedDisplayName;
     } else {
         expectedValueName = displayNameToValueName.at(expectedDisplayName);
@@ -340,12 +353,13 @@ std::string CounterEventHelper::GenerateDeviceCounterSQL(
     std::string sql = "SELECT timestampNs - ? AS startTime, '{\"" + config.type + "\":' || " + config.valueName +
         " || '}' AS args FROM " + config.tableName;
     std::vector<std::string> valueNamesToJoin;
-    std::string substitutedFormat = SubstituteThreadNameFormat(config.threadNameFormat, valueNamesToJoin);
+    std::string queryIdentity = isAICoreFreqDie ? "'" + AI_CORE_FREQ_DIE_PREFIX + "' || AICORE_FREQ.dieId"
+                                                : SubstituteThreadNameFormat(config.threadNameFormat, valueNamesToJoin);
     for (size_t i = 0; i < valueNamesToJoin.size(); ++i) {
         sql += " INNER JOIN " + TABLE_STRING_IDS + " AS id" + std::to_string(i) + " ON " + config.tableName + "." +
             valueNamesToJoin[i] + " = id" + std::to_string(i) + ".id";
     }
-    sql += " WHERE " + substitutedFormat;
+    sql += " WHERE " + queryIdentity;
     sql += " = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     return sql;
 }
