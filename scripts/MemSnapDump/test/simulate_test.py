@@ -192,3 +192,53 @@ class TestPostFreeHookSegmentPtr(unittest.TestCase):
         self.assertIs(hooker.released_block.segment_ptr, segment)
         self.assertIsNone(block.segment_ptr)
         self.assertEqual(segment.blocks, [])
+
+
+def _workspace_snapshot_dict():
+    return {
+        "segments": [
+            {
+                "address": 1000,
+                "total_size": 4096,
+                "stream": 1,
+                "segment_type": "small",
+                "allocated_size": 0,
+                "active_size": 0,
+                "device": 0,
+                "is_expandable": False,
+                "frames": [],
+                "blocks": [
+                    {
+                        "size": 4096,
+                        "requested_size": 4096,
+                        "state": "inactive",
+                        "address": 1000,
+                        "frames": [],
+                    }
+                ],
+            }
+        ],
+        "device_traces": [
+            [
+                {"action": "workspace_snapshot", "addr": 1000, "size": 4096, "stream": 1, "frames": []},
+                {"action": "segment_alloc", "addr": 1000, "size": 4096, "stream": 1, "frames": []},
+                {"action": "alloc", "addr": 1000, "size": 4096, "stream": 1, "frames": []},
+            ]
+        ],
+    }
+
+
+class TestWorkspaceSnapshotAdapt(unittest.TestCase):
+    def test_workspace_triplet_corrects_dump_time_occupancy(self):
+        snapshot = SimulateDeviceSnapshot(_workspace_snapshot_dict(), 0)
+        device_snapshot = snapshot.device_snapshot
+        self.assertTrue(snapshot.simulated_allocator_context.workspace_flag)
+        self.assertEqual(len(device_snapshot.segments), 1)
+        seg = device_snapshot.segments[0]
+        self.assertEqual(seg.allocated_size, 4096)
+        self.assertEqual(seg.active_size, 4096)
+        self.assertEqual(len(seg.blocks), 1)
+        self.assertEqual(seg.blocks[0].state, BlockState.ACTIVE_ALLOCATED)
+        self.assertEqual(device_snapshot.total_allocated, 4096)
+        self.assertEqual(device_snapshot.total_activated, 4096)
+        self.assertEqual(device_snapshot.total_reserved, 4096)

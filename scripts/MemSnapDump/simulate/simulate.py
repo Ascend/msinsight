@@ -27,6 +27,7 @@ from .allocator_hook_dispatcher import HookerRegistry
 from .hooker_defs import SimulateHooker, AllocatorHooker
 from .replay_executor import ReplayExecutor
 from .simulated_caching_allocator import SimulatedCachingAllocator
+from . import snapshot_lookup, snapshot_mutator
 
 loading_logger = get_logger("LOAD")
 replay_logger = get_logger("REPLAY")
@@ -40,14 +41,16 @@ class SimulateDeviceSnapshot(HookerRegistry):
     _loading_logger: Logger
     _replay_logger: Logger
 
-    def __init__(self, snapshot_dict: dict, device: int):
+    def __init__(self, snapshot_dict: dict, device: int, *, _raw_frames: bool = False):
         # 基于device初始化logger
         self._loading_logger = loading_logger.getChild(f"{device}")
         self._replay_logger = replay_logger.getChild(f"{device}")
         if not snapshot_dict:
             raise RuntimeError("Cannot init snapshot from empty data.")
         self._loading_logger.info("Loading snapshot data...")
-        self.device_snapshot = DeviceSnapshot.from_dict(snapshot_dict, device, ignore_inactive_blocks=True)
+        self.device_snapshot = DeviceSnapshot.from_dict(
+            snapshot_dict, device, ignore_inactive_blocks=True, _raw_frames=_raw_frames
+        )
         self._loading_logger.info(
             "Finished to load snapshot data: total of %s entries and %s segments.",
             len(self.device_snapshot.trace_entries),
@@ -64,58 +67,92 @@ class SimulateDeviceSnapshot(HookerRegistry):
             self._adapt_workspace_snapshot()
 
     def _adapt_workspace_snapshot(self):
-        """
-        背景：
-            昇腾torch-npu在处理dump-snapshot时，粗暴的将每个dump时刻仍然存在的workspace（按流区分）池，分成三个连续的事件，且插入到snapshot事件列表的头
-            T1. workspace_snapshot事件：workspace标志事件，具有size
-            T2. segment_alloc事件：workspace segment扩容事件，size与workspace_snapshot中的size一致
-            T3. alloc事件：全部分配掉segment_alloc，与segment_alloc中的size一致
+        """Fix dump-time occupancy for torch-npu workspace pools.
 
-            而该粗暴的适配造成了以下几个问题：
-            1. workspace segment的状态错误
-                - 其dump时刻仅存在一个完整size的inactive Block。这与其T3. alloc事件严重不符
-                - active、allocated大小均为0，，导致数据不准确（社区Memory Viz可视化后同样存在该问题）
-                - 预期在dump时刻的snapshot中，地址与workspace_snapshot相同且stream相同的segment，应该具有以下特征：
-                    - active_size == allocated_size == total_size
-                    - blocks的数组长度为1 且 blocks[0].size == total_size 且 blocks[0].state == active_allocated
-            2. 无法真实反应workspace内存池的变化过程，仅记录dump时刻的状态。
+        torch-npu prepends consecutive ``workspace_snapshot`` + ``segment_alloc``
+        + ``alloc`` groups for each live workspace pool, but dumps the matching
+        segment as one inactive block with allocated/active size 0. After
+        ``ignore_inactive_blocks=True`` that block is gone, so replay cannot
+        find it and dump-time curves stay at zero.
 
-        该方法旨在解决问题1的数据一致性问题，对于问题2需要pytorch-npu侧适配，以记录真实的内存池变化过程。
+        Matched groups become a single ``active_allocated`` block covering the
+        segment, with allocated/active/device totals equal to the workspace
+        size. Missing segments, size mismatches, internally inconsistent
+        triplets, or leftover live blocks warn and stop later groups.
+        ``workspace_flag`` remains the fallback for those skipped cases.
         """
-        # 以连续事件组的形式，提取workspace相关事件
-        # 遍历到不满足上述T1->T2->T3顺序的事件组或大小不正确时结束
         self._loading_logger.info("Recognized workspace events in snapshot, start adapting...")
-        total_events = self.device_snapshot.trace_entries
-        workspace_events_grp = []
-        cur_grp_idx_start = 0
-        while cur_grp_idx_start + 2 < len(total_events):
-            workspace_events_grp = total_events[cur_grp_idx_start : cur_grp_idx_start + 3]
-            if [event.action for event in workspace_events_grp] != ['workspace_snapshot', 'segment_alloc', 'alloc']:
+        snapshot = self.device_snapshot
+        events = snapshot.trace_entries
+        group_start = 0
+        while group_start + 2 < len(events):
+            workspace_snapshot = events[group_start]
+            segment_alloc = events[group_start + 1]
+            alloc = events[group_start + 2]
+            if (
+                workspace_snapshot.action != "workspace_snapshot"
+                or segment_alloc.action != "segment_alloc"
+                or alloc.action != "alloc"
+            ):
                 break
-            workspace_snapshot = workspace_events_grp[0]
-            segment_idx = self.device_snapshot.find_segment_idx_by_addr(
-                workspace_snapshot.addr, workspace_snapshot.stream
-            )
-            if segment_idx < 0 or segment_idx >= len(self.device_snapshot.segments):
+            if (
+                segment_alloc.addr != workspace_snapshot.addr
+                or segment_alloc.size != workspace_snapshot.size
+                or alloc.addr != workspace_snapshot.addr
+                or alloc.size != workspace_snapshot.size
+            ):
+                self._loading_logger.warning(
+                    "Workspace snapshot triplet at addr %s (stream %s) is internally inconsistent",
+                    workspace_snapshot.addr,
+                    workspace_snapshot.stream,
+                )
+                break
+            _, existed_seg = snapshot_lookup.find_segment(snapshot, workspace_snapshot.addr, workspace_snapshot.stream)
+            if existed_seg is None:
                 self._loading_logger.warning(
                     "Workspace snapshot at addr %s (stream %s) not found in device snapshot",
                     workspace_snapshot.addr,
                     workspace_snapshot.stream,
                 )
                 break
-            existed_seg = self.device_snapshot.segments[segment_idx]
-            existed_seg.allocated_size = workspace_snapshot.size
-            existed_seg.active_size = workspace_snapshot.size
-            existed_seg.blocks = [
+            if existed_seg.total_size != workspace_snapshot.size:
+                self._loading_logger.warning(
+                    "Workspace snapshot at addr %s (stream %s) size %s does not match segment total_size %s",
+                    workspace_snapshot.addr,
+                    workspace_snapshot.stream,
+                    workspace_snapshot.size,
+                    existed_seg.total_size,
+                )
+                break
+            if existed_seg.blocks:
+                n_live = len(existed_seg.blocks)
+                self._loading_logger.warning(
+                    "Workspace snapshot at addr %s (stream %s) skipped because the matching segment still has %s live block%s",
+                    workspace_snapshot.addr,
+                    workspace_snapshot.stream,
+                    n_live,
+                    "s" if n_live != 1 else "",
+                )
+                break
+            snapshot.total_allocated -= existed_seg.allocated_size
+            snapshot.total_activated -= existed_seg.active_size
+            existed_seg.allocated_size = 0
+            existed_seg.active_size = 0
+            existed_seg.blocks = []
+            snapshot_mutator.attach_block(
+                snapshot,
+                existed_seg,
                 Block(
                     size=existed_seg.total_size,
-                    state=BlockState.ACTIVE_ALLOCATED,
+                    requested_size=existed_seg.total_size,
                     address=existed_seg.address,
+                    state=BlockState.ACTIVE_ALLOCATED,
                     frames=existed_seg.frames,
                     segment_ptr=existed_seg,
-                )
-            ]
-            cur_grp_idx_start += 3
+                ),
+                0,
+            )
+            group_start += 3
         self._loading_logger.info("Finished to adapt workspace snapshot.")
 
     def register_allocator_hooker(self, hooker: AllocatorHooker) -> int:

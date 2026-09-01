@@ -20,6 +20,7 @@ import os
 import shutil
 import unittest
 from pathlib import Path
+from unittest import mock
 from util.file_util import load_pickle_to_dict
 from util.logger import suppress_logs, restore_logs
 from base import TraceEntry, DeviceSnapshot, BlockState
@@ -96,21 +97,64 @@ class Snapshot2DbTest(unittest.TestCase):
         self.assertTrue(snapshot2db.dump(self.vmem_snapshot_path, self.cache_dir / self.vmem_snapshot_dump_db, 0))
         self.assertTrue(os.path.exists(self.cache_dir / self.vmem_snapshot_dump_db))
         vmem_snapshot = SimulateDeviceSnapshot(load_pickle_to_dict(self.vmem_snapshot_path), 0)
-        vmem_snapshot.register_hooker(SnapshotDbHookerForTest(self.cache_dir / self.vmem_snapshot_dump_db, 0, self,
-                                                              is_expandable=True))
+        vmem_snapshot.register_hooker(
+            SnapshotDbHookerForTest(self.cache_dir / self.vmem_snapshot_dump_db, 0, self, is_expandable=True)
+        )
         self.assertTrue(vmem_snapshot.replay())
 
     def testEmptyDeviceSnapshot(self):
         self.assertFalse(snapshot2db.dump(self.snapshot_path, self.cache_dir / self.snapshot_dump_db, 1))
         self.assertFalse(os.path.exists(self.cache_dir / self.snapshot_dump_db))
+        leftovers = list(self.cache_dir.glob(".*.tmp"))
+        self.assertEqual(leftovers, [])
+
+    def testFailedRedumpPreservesExistingDatabase(self):
+        dest = self.cache_dir / "preserve_on_fail.db"
+        self.assertTrue(snapshot2db.dump(self.snapshot_path, dest, 0))
+        original = dest.read_bytes()
+        original_replay = SimulateDeviceSnapshot.replay
+
+        def fail_replay(self):
+            return False
+
+        SimulateDeviceSnapshot.replay = fail_replay
+        try:
+            self.assertFalse(snapshot2db.dump(self.snapshot_path, dest, 0))
+        finally:
+            SimulateDeviceSnapshot.replay = original_replay
+        self.assertTrue(dest.is_file())
+        self.assertEqual(dest.read_bytes(), original)
+        leftovers = list(self.cache_dir.glob(".*.tmp"))
+        self.assertEqual(leftovers, [])
+
+    def testDatabaseInitializationFailureCleansTemporaryFile(self):
+        dest = self.cache_dir / "database_init_failure.db"
+        dest.write_bytes(b"existing database")
+
+        def fail_snapshot_db(path):
+            Path(path).touch()
+            raise RuntimeError("database initialization failed")
+
+        with mock.patch.object(snapshot2db, "SnapshotDb", side_effect=fail_snapshot_db):
+            with self.assertRaisesRegex(RuntimeError, "database initialization failed"):
+                snapshot2db.dump(self.snapshot_path, dest, 0)
+
+        self.assertEqual(dest.read_bytes(), b"existing database")
+        leftovers = list(self.cache_dir.glob(f".{dest.name}.*.tmp"))
+        self.assertEqual(leftovers, [])
 
     def testDumpAllMultipleDeviceSnapshot(self):
-        self.assertTrue(snapshot2db.dump(self.multi_devices_snapshot_path,
-                                         self.cache_dir / self.multi_devices_snapshot_dump_db))
+        self.assertTrue(
+            snapshot2db.dump(self.multi_devices_snapshot_path, self.cache_dir / self.multi_devices_snapshot_dump_db)
+        )
         self.assertTrue(os.path.exists(self.cache_dir / self.multi_devices_snapshot_dump_db))
         snapshot_0 = SimulateDeviceSnapshot(load_pickle_to_dict(self.multi_devices_snapshot_path), 0)
-        snapshot_0.register_hooker(SnapshotDbHookerForTest(self.cache_dir / self.multi_devices_snapshot_dump_db, 0, self))
+        snapshot_0.register_hooker(
+            SnapshotDbHookerForTest(self.cache_dir / self.multi_devices_snapshot_dump_db, 0, self)
+        )
         self.assertTrue(snapshot_0.replay())
         snapshot_1 = SimulateDeviceSnapshot(load_pickle_to_dict(self.multi_devices_snapshot_path), 1)
-        snapshot_1.register_hooker(SnapshotDbHookerForTest(self.cache_dir / self.multi_devices_snapshot_dump_db, 1, self))
+        snapshot_1.register_hooker(
+            SnapshotDbHookerForTest(self.cache_dir / self.multi_devices_snapshot_dump_db, 1, self)
+        )
         self.assertTrue(snapshot_1.replay())
