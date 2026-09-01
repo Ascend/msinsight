@@ -60,7 +60,7 @@ class CounterEventHelper {
     std::string GenerateHostCounterSQL(const PROCESS_TYPE type);
     std::string GetDeviceProcessName(const PROCESS_TYPE type);
     std::string GetDeviceTableName(const PROCESS_TYPE type);
-    std::string GenerateDeviceMetadataSQL(const PROCESS_TYPE type);
+    std::string GenerateDeviceMetadataSQL(const PROCESS_TYPE type, bool hasAICoreFreqDieId = false);
     std::string GenerateDeviceCounterSQL(const PROCESS_TYPE type, const std::string &threadId);
     std::map<PROCESS_TYPE, CounterEventConfig> hostCounterEventMap;
     std::multimap<PROCESS_TYPE, CounterEventConfig> deviceCounterEventMap;
