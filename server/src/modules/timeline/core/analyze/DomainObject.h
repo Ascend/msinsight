@@ -177,6 +177,7 @@ enum class PROCESS_TYPE {
     PYTHON_GC,
     PYTHON_STACK,
     PROCESS,
+    SIO,
 };
 
 struct ParallelGroupInfo {

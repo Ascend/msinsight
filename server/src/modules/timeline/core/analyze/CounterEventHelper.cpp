@@ -28,7 +28,9 @@ const std::string AI_CORE_FREQ_DIE_PREFIX = "AI Core Freq Die ";
 const std::map<std::string, std::string> CounterEventHelper::displayNameToValueName = {{"AI Core Freq", "freq"},
     {"Read", "read"}, {"Write", "write"}, {"L2 Buffer Bw Level", "l2BufferBwLevel"}, {"Mata Bw Level", "mataBwLevel"},
     {"DDR", "ddr"}, {"HBM", "hbm"}, {"Bandwidth", "bandwidth"}, {"Hit Rate", "hitRate"}, {"Throughput", "throughput"},
-    {"Freq", "freq"}, {"Usage", "usage"}, {"Total Cycle", "totalCycle"}};
+    {"Freq", "freq"}, {"Usage", "usage"}, {"Total Cycle", "totalCycle"}, {"dat_rx", "rxDat"}, {"dat_tx", "txDat"},
+    {"req_rx", "rxReq"}, {"req_tx", "txReq"}, {"rsp_rx", "rxRsp"}, {"rsp_tx", "txRsp"}, {"snp_rx", "rxSnp"},
+    {"snp_tx", "txSnp"}};
 void CounterEventHelper::RegisterHostMap() {
     hostCounterEventMap.insert({PROCESS_TYPE::CPU_USAGE,
         {"CPU Usage", PROCESS_TYPE_ES.at(PROCESS_TYPE::CPU_USAGE), "usage", "CPU {cpuId}", "Usage(%)"}});
@@ -57,6 +59,7 @@ void CounterEventHelper::RegisterDeviceMap() {
     RegisterDevicePCIeMap();
     RegisterDeviceHCCSMap();
     RegisterDeviceQOSMap();
+    RegisterDeviceSIOMap();
 }
 
 void CounterEventHelper::RegisterDeviceAICoreFreqMap() {
@@ -246,6 +249,16 @@ void CounterEventHelper::RegisterDeviceQOSMap() {
         {PROCESS_TYPE::QOS, {"QOS", "QOS", "bandwidth", "{eventName:s}/Bandwidth", "Bandwidth(Byte/s)"}});
 }
 
+void CounterEventHelper::RegisterDeviceSIOMap() {
+    const std::vector<std::pair<std::string, std::string>> metrics = {{"rxDat", "dat_rx"}, {"txDat", "dat_tx"},
+        {"rxReq", "req_rx"}, {"txReq", "req_tx"}, {"rxRsp", "rsp_rx"}, {"txRsp", "rsp_tx"}, {"rxSnp", "snp_rx"},
+        {"txSnp", "snp_tx"}};
+    for (const auto &[columnName, displayName] : metrics) {
+        deviceCounterEventMap.insert(
+            {PROCESS_TYPE::SIO, {"SIO", "SIO", columnName, displayName + "/{name:s}", "Bandwidth(Byte/s)"}});
+    }
+}
+
 std::string CounterEventHelper::GenerateHostMetadataSQL(const PROCESS_TYPE type) {
     CounterEventConfig config = hostCounterEventMap.at(type);
     std::string sql = "SELECT DISTINCT ";
@@ -328,9 +341,11 @@ std::string CounterEventHelper::GenerateDeviceCounterSQL(
         type == PROCESS_TYPE::AI_CORE && StringUtil::StartWith(threadId, AI_CORE_FREQ_DIE_PREFIX);
     const bool isQosDie = type == PROCESS_TYPE::QOS && threadId.find("/Die ") != std::string::npos;
     std::string expectedDisplayName;
-    size_t index = threadId.find_last_of('/');
+    size_t index = type == PROCESS_TYPE::SIO ? threadId.find_first_of('/') : threadId.find_last_of('/');
     if (index == std::string::npos) {
         expectedDisplayName = threadId;
+    } else if (type == PROCESS_TYPE::SIO) {
+        expectedDisplayName = threadId.substr(0, index);
     } else {
         expectedDisplayName = threadId.substr(index + 1);
     }

@@ -2067,3 +2067,30 @@ TEST_F(DbTraceDatabaseTest2, TestQueryGroupedAscendHardwareThreads_ValidModelId)
     EXPECT_EQ(groups[1].threadIds[0], "3");
     EXPECT_EQ(groups[1].threadIds[1], "4");
 }
+
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenSIORetainsNameIdentity) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE STRING_IDS (id INTEGER PRIMARY KEY, value TEXT NOT NULL)");
+    DatabaseTestCaseMockUtil::CreateTable(db,
+        "CREATE TABLE SIO (deviceId NUMERIC,name NUMERIC,timestampNs NUMERIC,rxReq NUMERIC,rxRsp NUMERIC,"
+        "rxSnp NUMERIC,rxDat NUMERIC,txReq NUMERIC,txRsp NUMERIC,txSnp NUMERIC,txDat NUMERIC)");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO STRING_IDS VALUES (14,'SIO0'),(16,'SIO1');");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO SIO VALUES (1,14,1000,10,20,30,40,50,60,70,80),"
+        "(1,16,1000,11,21,31,41,51,61,71,81),(2,16,1000,12,22,32,42,52,62,72,82);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "SIO";
+    params.threadId = "snp_tx/SIO1";
+    params.startTime = 0;
+    params.endTime = 2000;
+    auto stmt = database.CreatPreparedStatement();
+    auto result = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetString("args"), "{\"Bandwidth(Byte/s)\":71}");
+    EXPECT_FALSE(result->Next());
+}

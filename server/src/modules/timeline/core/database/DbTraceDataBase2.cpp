@@ -63,7 +63,7 @@ bool DbTraceDataBase::QueryUnitCounter(
     const std::vector<PROCESS_TYPE> deviceCounterEvents = {PROCESS_TYPE::AI_CORE, PROCESS_TYPE::ACC_PMU,
         PROCESS_TYPE::DDR, PROCESS_TYPE::STARS_SOC, PROCESS_TYPE::NPU_MEM, PROCESS_TYPE::HBM, PROCESS_TYPE::LLC,
         PROCESS_TYPE::SAMPLE_PMU, PROCESS_TYPE::NIC, PROCESS_TYPE::ROCE, PROCESS_TYPE::NETDEV_STATS, PROCESS_TYPE::PCIE,
-        PROCESS_TYPE::HCCS, PROCESS_TYPE::QOS};
+        PROCESS_TYPE::HCCS, PROCESS_TYPE::QOS, PROCESS_TYPE::SIO};
     if (std::find(hostCounterEvents.begin(), hostCounterEvents.end(),
             Timeline::TraceDatabaseHelper::GetProcessType(params.metaType)) != hostCounterEvents.end()) {
         try {
