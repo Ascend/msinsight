@@ -22,20 +22,24 @@
 namespace Dic {
 void SendEvent(std::unique_ptr<Dic::Protocol::Event> eventPtr) {
     auto &wsSessionManager = Dic::Server::WsSessionManager::Instance();
-    if (!wsSessionManager.CheckSession()) {
+    // Hold the session via shared_ptr so it cannot be destroyed between the
+    // status check and the virtual call (issue #499 close race).
+    std::shared_ptr<Dic::Server::WsSession> session = wsSessionManager.GetSessionPtr();
+    if (session == nullptr || session->GetStatus() == Dic::Server::WsSession::Status::CLOSED) {
         Server::ServerLog::Warn("SendEvent failed. Can't get session");
         return;
     }
-    Dic::Server::WsSession *session = wsSessionManager.GetSession();
     session->OnEvent(std::move(eventPtr));
 }
 void SendResponse(
     std::unique_ptr<Protocol::Response> responsePtr, bool result, const std::string &errorMsg, const int errorCode) {
-    if (!Dic::Server::WsSessionManager::Instance().CheckSession()) {
+    // Hold the session via shared_ptr so it cannot be destroyed between the
+    // status check and the virtual call (issue #499 close race).
+    std::shared_ptr<Server::WsSession> session = Server::WsSessionManager::Instance().GetSessionPtr();
+    if (session == nullptr || session->GetStatus() == Server::WsSession::Status::CLOSED) {
         Server::ServerLog::Warn("SendResponse failed. Can't get session");
         return;
     }
-    auto session = Server::WsSessionManager::Instance().GetSession();
     Module::ModuleRequestHandler::SetResponseResult(*responsePtr, result, errorMsg, errorCode);
     session->OnResponse(std::move(responsePtr));
 }

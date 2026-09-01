@@ -35,12 +35,18 @@ bool ModuleRequestHandler::HandleRequestEntrance(std::unique_ptr<Request> reques
     std::string key = GetRequestKey(*requestPtr);
     if (requestFilter.IsNeedFilter(GetRequestKey(*requestPtr), id)) {
         ServerLog::Warn("Request is outdated, intercepted,id:", id, ", key:", key);
-        WsSession &session = *Server::WsSessionManager::Instance().GetSession();
+        // Hold the session via shared_ptr and bail out safely when the
+        // session is already gone (issue #499 close race).
+        std::shared_ptr<Server::WsSession> session = Server::WsSessionManager::Instance().GetSessionPtr();
+        if (session == nullptr) {
+            ServerLog::Warn("Outdated request dropped, session is gone, id:", id, ", key:", key);
+            return false;
+        }
         std::unique_ptr<Response> responsePtr = std::make_unique<Response>();
         SetBaseResponse(*requestPtr, *responsePtr);
         SetCommonError(Common::ErrorCode::OUTDATED_REQUEST_ERROR);
         SetResponseResult(*responsePtr, false);
-        session.SendBaseResponse(std::move(responsePtr));
+        session->SendBaseResponse(std::move(responsePtr));
         return false;
     }
     ServerLog::Info("Start handle request, module = ", moduleName, ", command = ", command, ", id = ", id);
