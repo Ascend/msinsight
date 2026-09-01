@@ -115,6 +115,15 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
         ServerLog::Error("Failed to get database connection in init open db.");
         return;
     }
+    if (database->IsThreadingAnalysisDatabase() && !database->HasStandardTimelineData()) {
+        for (const auto &rankId : rankIds) {
+            database->UpdateStartTime(rankId);
+            Timeline::ParserStatusManager::Instance().SetParserStatus(rankId, Timeline::ParserStatus::FINISH_ALL);
+            ParserCallBack(rankId, filePath, true);
+        }
+        ServerLog::Info("Threading analysis database parse completed.");
+        return;
+    }
     if (!database->AddCommunicationOpDeviceIdColumnIfNotExists()) {
         ServerLog::Error("Failed to initialize deviceId column for COMMUNICATION_OP table.");
         return;

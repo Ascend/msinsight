@@ -696,6 +696,8 @@ export interface MetaDataInnerBase extends MetaDataBase {
     threadId?: string;
     headerTooltip?: string;
     maxValue?: number;
+    bucketWidthNs?: number;
+    metricGroup?: string;
 }
 
 export interface LabelMetaData extends MetaDataInnerBase {
@@ -803,7 +805,11 @@ export interface ThreadTraceRequest {
 export interface CounterRequest {
     rankId: string;
     pid: string;
-    threadName: number;
+    dbPath?: string;
+    threadName?: string;
+    threadId?: string;
+    metaType?: string;
+    metricGroup?: string;
     startTime: number;
     endTime: number;
 };

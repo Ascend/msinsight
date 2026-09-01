@@ -105,6 +105,9 @@ std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::strin
     if (FileUtil::FindIfDbTypeByRegex(path, std::regex(traceViewReg), std::regex(DB_REG))) {
         return std::make_pair(path, ParserType::DB);
     }
+    if (ProjectParserDb::IsThreadingAnalysisDbFile(path)) {
+        return std::make_pair(path, ParserType::DB);
+    }
     if (ProjectParserJson::ExistJsonFormatFile(path) || ClusterFileParser::CheckIsCluster(path)) {
         return std::make_pair(path, ParserType::JSON);
     }

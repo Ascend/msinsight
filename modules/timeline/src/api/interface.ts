@@ -43,6 +43,7 @@ export interface CardRankInfo {
 
 export interface KernelMfuAvailabilityParams {
     clusterPath: string;
+    allowMissingDatabase?: boolean;
 }
 
 export interface KernelMfuAvailabilityResponse {

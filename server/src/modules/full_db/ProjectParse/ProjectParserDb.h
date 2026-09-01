@@ -40,6 +40,7 @@ class ProjectParserDb : public ProjectParserBase {
     static void BuildProjectExploreInfo(ProjectExplorerInfo &info, const std::vector<std::string> &parsedFiles);
     static void BuildProjectFromParseFile(ProjectExplorerInfo &info, const std::string &parsedFile);
     static std::string GetFileIdWithDb(const std::string &filePath);
+    static bool IsThreadingAnalysisDbFile(const std::string &filePath);
 
   protected:
     std::map<std::string, HostInfo> GetReportFiles(const std::vector<ProjectExplorerInfo> &projectInfos,

@@ -33,6 +33,8 @@ export class SimpleCache {
     data: Map<string, any>;
     timePerPx: number = -1;
 
+    private readonly rawCounterRequests = new Map<string, Promise<CounterData[]>>();
+
     private readonly methodSemaphores = new Map<Method, MethodSemaphore>();
 
     private getSemaphore(method: Method): MethodSemaphore | undefined {
@@ -98,10 +100,29 @@ export class SimpleCache {
         };
     };
 
+    fetchRawCounterData = async (
+        requestKey: string, params: Record<string, unknown>,
+    ): Promise<CounterData[]> => {
+        const cachedRequest = this.rawCounterRequests.get(requestKey);
+        if (cachedRequest !== undefined) {
+            return cachedRequest;
+        }
+        const request = window.request(params.dataSource as DataSource, {
+            command: 'unit/counter',
+            params: { ...params },
+        }).then((response) => (response?.data ?? []) as CounterData[]).catch((error) => {
+            this.rawCounterRequests.delete(requestKey);
+            throw error;
+        });
+        this.rawCounterRequests.set(requestKey, request);
+        return request;
+    };
+
     clear(): void {
         this.data.forEach((value) => {
             value?.clear();
         });
+        this.rawCounterRequests.clear();
         this.methodSemaphores.forEach(s => s.clear());
     }
 }
