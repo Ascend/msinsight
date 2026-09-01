@@ -508,7 +508,6 @@ void ProjectParserBase::SearchGroupedAscendHardwareThreads(
                 groupedThread.processId = item->metaData.processId;
                 groupedThread.cardId = unit.metadata.cardId;
                 updatedGroupNum++;
-                break;
             }
         }
     }
