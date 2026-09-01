@@ -635,7 +635,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">QoS</td>
-    <td class="tg-0pky">设备QoS带宽信息。</td>
+    <td class="tg-0pky">设备QoS带宽信息。导入昇腾950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">NIC</td>
@@ -843,8 +843,8 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">QoS</td>
-    <td class="tg-0pky">QoS &lt;id&gt;:OTHERS</td>
-    <td class="tg-0pky">设备QoS带宽信息。</td>
+    <td class="tg-0pky">QoS &lt;id&gt;:OTHERS<br>QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth</td>
+    <td class="tg-0pky">设备QoS带宽信息。导入昇腾950PR&950DT系列产品的DB格式文件时，按Die ID分别展示为QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">NIC</td>

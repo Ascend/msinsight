@@ -129,6 +129,33 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForAICoreFreqTest) {
     EXPECT_EQ(sql, aiCoreFreqSQL);
 }
 
+TEST_F(CounterEventHelperTest, GenerateDeviceSQLForQOSWithDieTest) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    const std::string legacyMetadataSql = helper.GenerateDeviceMetadataSQL(Dic::Protocol::PROCESS_TYPE::QOS);
+    const std::string expectedLegacyMetadataSql =
+        "SELECT DISTINCT '' || id0.value || '/Bandwidth' AS name, 'Bandwidth(Byte/s)' AS types FROM QOS "
+        "INNER JOIN STRING_IDS AS id0 ON QOS.eventName = id0.id WHERE deviceId = ?;";
+    EXPECT_EQ(legacyMetadataSql, expectedLegacyMetadataSql);
+
+    const std::string metadataSql = helper.GenerateDeviceMetadataSQL(Dic::Protocol::PROCESS_TYPE::QOS, true);
+    const std::string expectedMetadataSql =
+        "SELECT DISTINCT CASE WHEN COALESCE(QOS.dieId, -1) = -1 THEN '' || id0.value || '/Bandwidth' "
+        "ELSE id0.value || '/Die ' || QOS.dieId || '/Bandwidth' END AS name, "
+        "'Bandwidth(Byte/s)' AS types FROM QOS INNER JOIN STRING_IDS AS id0 ON QOS.eventName = id0.id "
+        "WHERE deviceId = ?;";
+    EXPECT_EQ(metadataSql, expectedMetadataSql);
+
+    const std::string counterSql =
+        helper.GenerateDeviceCounterSQL(Dic::Protocol::PROCESS_TYPE::QOS, "QoS 0:OTHERS/Die 1/Bandwidth");
+    const std::string expectedCounterSql =
+        "SELECT timestampNs - ? AS startTime, '{\"Bandwidth(Byte/s)\":' || bandwidth || '}' AS args FROM QOS "
+        "INNER JOIN STRING_IDS AS id0 ON QOS.eventName = id0.id WHERE "
+        "id0.value || '/Die ' || QOS.dieId || '/Bandwidth' = ? AND startTime >= ? AND startTime <= ? "
+        "AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(counterSql, expectedCounterSql);
+}
+
 TEST_F(CounterEventHelperTest, GenerateDeviceMetaDataSQLForAccPMUTest) {
     CounterEventHelper helper;
     helper.RegisterDeviceMap();

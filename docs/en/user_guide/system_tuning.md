@@ -398,8 +398,8 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">QoS</td>
-    <td class="tg-0pky">QoS &lt;id&gt;:OTHERS</td>
-    <td class="tg-0pky">Device QoS bandwidth information.</td>
+    <td class="tg-0pky">QoS &lt;id&gt;:OTHERS<br>QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth</td>
+    <td class="tg-0pky">Device QoS bandwidth information. For DB files exported from the <term>Ascend 950PR/Ascend 950DT</term>, data is displayed by die in QoS &lt;id&gt;:OTHERS/Die &lt;id&gt;/Bandwidth units.</td>
   </tr>
   <tr>
     <td class="tg-0pky">NIC</td>

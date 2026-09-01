@@ -2062,9 +2062,9 @@ bool DbTraceDataBase::QueryCounterMetadataGenerateInfo(const Dic::Module::Timeli
         ServerLog::Warn("Query counter metadata failed, table ", tableName, " Not Exist.");
         return false;
     }
-    const bool hasAICoreFreqDieId =
-        type == PROCESS_TYPE::AI_CORE && CheckColumnExist(tableName, "dieId");
-    sql = helper.GenerateDeviceMetadataSQL(type, hasAICoreFreqDieId);
+    const bool hasDieId =
+        (type == PROCESS_TYPE::AI_CORE || type == PROCESS_TYPE::QOS) && CheckColumnExist(tableName, "dieId");
+    sql = helper.GenerateDeviceMetadataSQL(type, hasDieId);
     return true;
 }
 
