@@ -589,19 +589,19 @@ The following table describes the unit information displayed on the **Timeline**
   <tr>
     <td class="tg-0pky" rowspan="22">NPU Metrics</td>
     <td class="tg-0pky">Low Power</td>
-    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other data. By presenting frequency variation curves, it accurately identifies frequency changes during operator execution.<br>The Low Power unit only supports displaying profile data exported from <term>Ascend 950 series products</term>.</td>
+    <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other data. By presenting frequency variation curves, it accurately identifies frequency changes during operator execution.<br>The Low Power unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Biu Perf</td>
-    <td class="tg-0pky">Presents the execution time of instructions such as SU, VEC, CUBE, and MTE, as well as instrumentation data.<br>The Biu Perf unit only supports displaying profile data exported from <term>Ascend 950 series products</term>.</td>
+    <td class="tg-0pky">Presents the execution time of instructions such as SU, VEC, CUBE, and MTE, as well as instrumentation data.<br>The Biu Perf unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">Presents the overall UB transmit and receive bandwidth for two data types: UDMA and UNIC.<br>The UB unit only supports displaying profile data exported from <term>Ascend 950 series products</term>.</td>
+    <td class="tg-0pky">Presents the overall UB transmit and receive bandwidth for two data types: UDMA and UNIC.<br>The UB unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">Block Detail</td>
-    <td class="tg-0pky">Displays the execution time of each operator on the earliest and latest AI Core or AI Vector Core. When the operator is of the Mix type, it executes on both AI Core and AI Vector Core simultaneously.<br>The Block Detail unit only supports displaying profile data exported from <term>Ascend 950 series products</term>.</td>
+    <td class="tg-0pky">Displays the execution time of each operator on the earliest and latest AI Core or AI Vector Core. When the operator is of the Mix type, it executes on both AI Core and AI Vector Core simultaneously.<br>The Block Detail unit only supports displaying profile data exported from <term>Ascend 950 products</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky">HBM</td>
