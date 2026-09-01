@@ -460,7 +460,9 @@ void KernelParse::ParseEndCallBack(
 
 void KernelParse::ParseCallBack(
     const std::string &rankId, const std::string &fileId, bool result, const std::string &msg) {
-    auto *session = WsSessionManager::Instance().GetSession();
+    // Hold the session via shared_ptr: this callback runs on a thread-pool
+    // worker, the session may be removed concurrently (issue #499 close race).
+    std::shared_ptr<WsSession> session = WsSessionManager::Instance().GetSessionPtr();
     if (session == nullptr) {
         ServerLog::Error("Failed to get session for summary callback.");
         return;

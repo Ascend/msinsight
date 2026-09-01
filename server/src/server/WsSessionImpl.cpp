@@ -224,13 +224,19 @@ void WsSessionImpl::SendEvent(Protocol::Event &event) {
 void WsSessionImpl::Start() {
     SetStatus(Status::STARTED);
     startTime = TimeUtil::Instance().NowUTC();
+    // Start() must only be called while the session is owned by a shared_ptr
+    // (today only WsSessionManager::AddSession does this), so shared_from_this()
+    // is valid. Each worker thread captures the shared_ptr by value so the
+    // session outlives in-flight handling even if RemoveSession() drops the
+    // manager's reference before the thread observes CLOSED (issue #499).
+    std::shared_ptr<WsSessionImpl> self = shared_from_this();
     if (useResponseQueue) {
         // start response queue handle thread
-        onHandleResponseThread = std::make_unique<std::thread>(OnHandleResponseQueue, std::ref(*this));
+        onHandleResponseThread = std::make_unique<std::thread>([self]() { OnHandleResponseQueue(*self); });
         onHandleResponseThread->detach();
     }
     // start request message handle thread
-    onHandleMsgThread = std::make_unique<std::thread>(OnHandleMsgBuffer, std::ref(*this));
+    onHandleMsgThread = std::make_unique<std::thread>([self]() { OnHandleMsgBuffer(*self); });
     onHandleMsgThread->detach();
 }
 

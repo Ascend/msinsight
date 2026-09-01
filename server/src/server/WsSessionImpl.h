@@ -19,6 +19,7 @@
 #ifndef DATA_INSIGHT_CORE_SERVER_SESSION_H
 #define DATA_INSIGHT_CORE_SERVER_SESSION_H
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <condition_variable>
@@ -69,7 +70,7 @@ class WsSessionImpl : public WsSession, public std::enable_shared_from_this<WsSe
     uint32_t startTime = 0;
     uint32_t stopTime = 0;
     uint32_t deadTime = 0;
-    volatile Status status;
+    std::atomic<Status> status;
     // message buffer
     std::unique_ptr<Protocol::ProtocolMessageBuffer> msgBuffer = nullptr;
     std::unique_ptr<std::thread> onHandleMsgThread;

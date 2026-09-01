@@ -40,5 +40,8 @@ std::shared_ptr<WsSession> WsSessionManager::GetSessionPtr() {
     std::unique_lock<std::mutex> lock(sessionMutex);
     return session;
 }
-bool WsSessionManager::CheckSession() { return session && session->GetStatus() != WsSession::Status::CLOSED; }
+bool WsSessionManager::CheckSession() {
+    std::unique_lock<std::mutex> lock(sessionMutex);
+    return session && session->GetStatus() != WsSession::Status::CLOSED;
+}
 } // end of namespace Dic
