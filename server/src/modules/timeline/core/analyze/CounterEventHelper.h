@@ -80,6 +80,7 @@ class CounterEventHelper {
     void RegisterDevicePCIeMap();
     void RegisterDeviceHCCSMap();
     void RegisterDeviceQOSMap();
+    void RegisterDeviceSIOMap();
     std::string SubstituteThreadNameFormat(const std::string &format, std::vector<std::string> &valueNamesToJoin);
     const static std::map<std::string, std::string> displayNameToValueName;
 };

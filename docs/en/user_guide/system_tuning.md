@@ -381,20 +381,20 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>
-    <td class="tg-0pky">dat_rx, dat_tx</td>
-    <td class="tg-0pky">Rx and Tx bandwidths of the data stream channel. SIO units can be displayed only in text files.<br>This unit displays only the inter-die transmission bandwidth information of the <term>Atlas A2 training products/Atlas A2 inference products</term> and <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">dat_rx, dat_tx<br>dat_rx/&lt;name&gt;, dat_tx/&lt;name&gt; (DB)</td>
+    <td class="tg-0pky">Rx and Tx bandwidths of the data stream channel. SIO units can be displayed in text files. For the <term>Ascend 950PR/Ascend 950DT</term>, DB files are also supported. In DB files, /&lt;name&gt; is appended to each child unit name to distinguish SIO channels.<br>This unit displays only the inter-die transmission bandwidth information of the <term>Atlas A2 training products/Atlas A2 inference products</term> and <term>Ascend 950PR/Ascend 950DT</term>.</td>
   </tr>
   <tr>
-    <td class="tg-0pky">req_rx, req_tx</td>
+    <td class="tg-0pky">req_rx, req_tx<br>req_rx/&lt;name&gt;, req_tx/&lt;name&gt; (DB)</td>
     <td class="tg-0pky">Rx and Tx bandwidths of the request stream channel.</td>
   </tr>
   <tr>
-    <td class="tg-0pky">rsp_rx, rsp_tx</td>
+    <td class="tg-0pky">rsp_rx, rsp_tx<br>rsp_rx/&lt;name&gt;, rsp_tx/&lt;name&gt; (DB)</td>
     <td class="tg-0pky">Rx and Tx bandwidths of the response stream channel.</td>
   </tr>
   <tr>
-    <td class="tg-0pky">rsp_rx, rsp_tx</td>
-    <td class="tg-0pky">Rx and Tx bandwidths of the monitor stream channel.</td>
+    <td class="tg-0pky">snp_rx, snp_tx<br>snp_rx/&lt;name&gt;, snp_tx/&lt;name&gt; (DB)</td>
+    <td class="tg-0pky">Rx and Tx bandwidths of the snoop stream channel.</td>
   </tr>
   <tr>
     <td class="tg-0pky">QoS</td>

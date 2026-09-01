@@ -826,19 +826,19 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="4">SIO</td>
-    <td class="tg-0pky">dat_rx、dat_tx</td>
-    <td class="tg-0pky">数据流通道的接收、发送带宽。SIO泳道仅支持在text格式文件下展示。<br>SIO泳道仅支持展示昇腾A2系列产品和昇腾950PR&950DT系列产品DIE间传输带宽信息。</td>
+    <td class="tg-0pky">dat_rx、dat_tx<br>dat_rx/&lt;name&gt;、dat_tx/&lt;name&gt;（DB格式）</td>
+    <td class="tg-0pky">数据流通道的接收、发送带宽。SIO泳道支持在text格式文件下展示；对于昇腾950PR&950DT系列产品，还支持在DB格式文件下展示。DB格式下，各子泳道名称末尾会追加“/&lt;name&gt;”以区分SIO通道。<br>SIO泳道仅支持展示昇腾A2系列产品和昇腾950PR&950DT系列产品DIE间传输带宽信息。</td>
   </tr>
   <tr>
-    <td class="tg-0pky">req_rx、req_tx</td>
+    <td class="tg-0pky">req_rx、req_tx<br>req_rx/&lt;name&gt;、req_tx/&lt;name&gt;（DB格式）</td>
     <td class="tg-0pky">请求流通道的接收、发送带宽。</td>
   </tr>
   <tr>
-    <td class="tg-0pky">rsp_rx、rsp_tx</td>
+    <td class="tg-0pky">rsp_rx、rsp_tx<br>rsp_rx/&lt;name&gt;、rsp_tx/&lt;name&gt;（DB格式）</td>
     <td class="tg-0pky">回应流通道的接收、发送带宽。</td>
   </tr>
   <tr>
-    <td class="tg-0pky">snp_rx、snp_tx</td>
+    <td class="tg-0pky">snp_rx、snp_tx<br>snp_rx/&lt;name&gt;、snp_tx/&lt;name&gt;（DB格式）</td>
     <td class="tg-0pky">侦听流通道的接收、发送带宽。</td>
   </tr>
   <tr>

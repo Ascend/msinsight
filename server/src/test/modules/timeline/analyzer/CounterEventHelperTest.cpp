@@ -1175,3 +1175,20 @@ TEST_F(CounterEventHelperTest, GenerateDeviceCounterSQLForHCCSTest) {
         "WHERE 'HCCS/rxThroughput' = ? AND startTime >= ? AND startTime <= ? AND deviceId = ? ORDER BY startTime ASC;";
     EXPECT_EQ(sql, hccsSQL2);
 }
+
+TEST_F(CounterEventHelperTest, GenerateDeviceSQLForSIOTest) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    const std::vector<std::pair<std::string, std::string>> metrics = {{"dat_rx", "rxDat"}, {"dat_tx", "txDat"},
+        {"req_rx", "rxReq"}, {"req_tx", "txReq"}, {"rsp_rx", "rxRsp"}, {"rsp_tx", "txRsp"}, {"snp_rx", "rxSnp"},
+        {"snp_tx", "txSnp"}};
+    const std::string metadataSql = helper.GenerateDeviceMetadataSQL(Dic::Protocol::PROCESS_TYPE::SIO);
+    for (const auto &[laneName, valueName] : metrics) {
+        EXPECT_NE(metadataSql.find("'" + laneName + "/'"), std::string::npos);
+        const std::string counterSql =
+            helper.GenerateDeviceCounterSQL(Dic::Protocol::PROCESS_TYPE::SIO, laneName + "/SIO0");
+        EXPECT_NE(counterSql.find("'{\"Bandwidth(Byte/s)\":' || " + valueName + " || '}' AS args"), std::string::npos);
+        EXPECT_NE(counterSql.find("WHERE '" + laneName + "/' || id0.value || '' = ?"), std::string::npos);
+    }
+    EXPECT_NE(metadataSql.find("SIO.name = id0.id"), std::string::npos);
+}
