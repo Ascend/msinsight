@@ -336,9 +336,10 @@ interface IProps {
     updateSort?: VoidFunction;
     session: Session;
     level?: TableLevel;
+    loading?: boolean;
 }
 const rowKey = 'index';
-const CommunicationTimeTable = observer(({ dataSource, showOperator, conditions, session, updateSort, level }: IProps) => {
+const CommunicationTimeTable = observer(({ dataSource, showOperator, conditions, session, updateSort, level, loading = false }: IProps) => {
     const { t } = useTranslation('communication');
     const [expandedRowKeys, setExpandedKeys] = useState<React.Key[]>([]);
     const handleExpand = (record: DataType): void => {
@@ -401,7 +402,7 @@ const CommunicationTimeTable = observer(({ dataSource, showOperator, conditions,
     return <ResizeTable
         data-testid={'dataAnalysisTable'}
         allowCopy
-        loading={!session.durationFileCompleted}
+        loading={loading || !session.durationFileCompleted}
         dataSource={tableData}
         columns={columns}
         expandable={{
