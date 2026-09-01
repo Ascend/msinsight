@@ -31,6 +31,7 @@ void EventUtil::Register() {
     jsonToEventFactory.emplace("M", ToMetaDataEvent);
     jsonToEventFactory.emplace("X", ToSliceEvent);
     jsonToEventFactory.emplace("I", ToSliceEvent);
+    jsonToEventFactory.emplace("i", ToSliceEvent);
     jsonToEventFactory.emplace("SX", ToSimulationSliceEvent);
     jsonToEventFactory.emplace("SB", ToSimulationBeginSliceEvent);
     jsonToEventFactory.emplace("SE", ToSimulationEndSliceEvent);

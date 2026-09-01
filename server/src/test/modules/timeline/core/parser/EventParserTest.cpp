@@ -78,6 +78,20 @@ TEST_F(EventParserTest, TestEventUtilParseGroupId) {
     EXPECT_EQ(slice.groupId, "groupA");
 }
 
+TEST_F(EventParserTest, TestEventUtilParseLowercaseInstantEvent) {
+    document_t json;
+    json.Parse(R"({"ph":"i","ts":1,"name":"RV_VLOOPv2","pid":1,"tid":2,"s":"t","args":{}})");
+    auto event = EventUtil::Instance().FromJson(json, "i");
+    ASSERT_NE(event, nullptr);
+    auto &slice = dynamic_cast<Trace::Slice &>(*event);
+    EXPECT_EQ(slice.type, "i");
+    EXPECT_EQ(slice.name, "RV_VLOOPv2");
+    EXPECT_EQ(slice.ts, 1000);
+    EXPECT_EQ(slice.dur, 0);
+    EXPECT_EQ(slice.pid, "1");
+    EXPECT_EQ(slice.tid, "2");
+}
+
 TEST_F(EventParserTest, TestEventUtilParseSimulationGroupId) {
     document_t json;
     json.Parse(R"({"ph":"SX","ts":1,"dur":2,"name":"slice","pid":"p","tid":"t","group_id":"groupA"})");
