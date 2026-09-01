@@ -1296,6 +1296,68 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenAICoreFreqUsesLegacySentine
     EXPECT_FALSE(result->Next());
 }
 
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenQOSHasTwoDiesAtSameTimestamp) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE STRING_IDS (id INTEGER, value VARCHAR);");
+    DatabaseTestCaseMockUtil::CreateTable(db,
+        "CREATE TABLE QOS (deviceId NUMERIC,eventName NUMERIC,bandwidth NUMERIC,timestampNs NUMERIC,dieId NUMERIC)");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO STRING_IDS (id, value) VALUES (2, 'QoS 0:OTHERS');");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO QOS (deviceId,eventName,bandwidth,timestampNs,dieId) VALUES "
+        "(1,2,100,1000,0),(1,2,200,1000,1);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "QOS";
+    params.startTime = 0;
+    params.endTime = 2000;
+    auto stmt = database.CreatPreparedStatement();
+    params.threadId = "QoS 0:OTHERS/Die 0/Bandwidth";
+    auto die0 = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+    ASSERT_TRUE(die0->Next());
+    EXPECT_EQ(die0->GetString("args"), "{\"Bandwidth(Byte/s)\":100}");
+    EXPECT_FALSE(die0->Next());
+    die0.reset();
+
+    params.threadId = "QoS 0:OTHERS/Die 1/Bandwidth";
+    auto die1 = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+    ASSERT_TRUE(die1->Next());
+    EXPECT_EQ(die1->GetString("args"), "{\"Bandwidth(Byte/s)\":200}");
+    EXPECT_FALSE(die1->Next());
+}
+
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenQOSUsesLegacyDieSentinel) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE STRING_IDS (id INTEGER, value VARCHAR);");
+    DatabaseTestCaseMockUtil::CreateTable(db,
+        "CREATE TABLE QOS (deviceId NUMERIC,eventName NUMERIC,bandwidth NUMERIC,timestampNs NUMERIC,dieId NUMERIC)");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO STRING_IDS (id, value) VALUES (2, 'QoS 0:OTHERS');");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO QOS (deviceId,eventName,bandwidth,timestampNs,dieId) VALUES "
+        "(1,2,100,1000,-1),(1,2,200,2000,-1),(2,2,300,1500,-1);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "QOS";
+    params.threadId = "QoS 0:OTHERS/Bandwidth";
+    params.startTime = 0;
+    params.endTime = 3000;
+    auto stmt = database.CreatPreparedStatement();
+    auto result = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetString("args"), "{\"Bandwidth(Byte/s)\":100}");
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetString("args"), "{\"Bandwidth(Byte/s)\":200}");
+    EXPECT_FALSE(result->Next());
+}
+
 TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenSimple) {
     std::recursive_mutex testMutex;
     MockDatabase database(testMutex);

@@ -293,7 +293,7 @@ std::string CounterEventHelper::GetDeviceTableName(const Dic::Module::Timeline::
 }
 
 std::string CounterEventHelper::GenerateDeviceMetadataSQL(
-    const Dic::Module::Timeline::PROCESS_TYPE type, bool hasAICoreFreqDieId) {
+    const Dic::Module::Timeline::PROCESS_TYPE type, bool hasDieId) {
     std::string sql;
     for (auto [beg, end] = deviceCounterEventMap.equal_range(type); beg != end; ++beg) {
         CounterEventConfig config = beg->second;
@@ -303,9 +303,12 @@ std::string CounterEventHelper::GenerateDeviceMetadataSQL(
         sql += "SELECT DISTINCT ";
         std::vector<std::string> valueNamesToJoin;
         std::string substitutedFormat = SubstituteThreadNameFormat(config.threadNameFormat, valueNamesToJoin);
-        if (type == PROCESS_TYPE::AI_CORE && hasAICoreFreqDieId) {
+        if (type == PROCESS_TYPE::AI_CORE && hasDieId) {
             substitutedFormat = "CASE WHEN COALESCE(AICORE_FREQ.dieId, -1) = -1 THEN '" + AI_CORE_FREQ_LEGACY_NAME +
                 "' ELSE '" + AI_CORE_FREQ_DIE_PREFIX + "' || AICORE_FREQ.dieId END";
+        } else if (type == PROCESS_TYPE::QOS && hasDieId) {
+            substitutedFormat = "CASE WHEN COALESCE(QOS.dieId, -1) = -1 THEN " + substitutedFormat +
+                " ELSE id0.value || '/Die ' || QOS.dieId || '/Bandwidth' END";
         }
         sql += substitutedFormat;
         sql += " AS name, '" + config.type + "' AS types FROM " + config.tableName;
@@ -323,6 +326,7 @@ std::string CounterEventHelper::GenerateDeviceCounterSQL(
     const Dic::Module::Timeline::PROCESS_TYPE type, const std::string &threadId) {
     const bool isAICoreFreqDie =
         type == PROCESS_TYPE::AI_CORE && StringUtil::StartWith(threadId, AI_CORE_FREQ_DIE_PREFIX);
+    const bool isQosDie = type == PROCESS_TYPE::QOS && threadId.find("/Die ") != std::string::npos;
     std::string expectedDisplayName;
     size_t index = threadId.find_last_of('/');
     if (index == std::string::npos) {
@@ -353,8 +357,12 @@ std::string CounterEventHelper::GenerateDeviceCounterSQL(
     std::string sql = "SELECT timestampNs - ? AS startTime, '{\"" + config.type + "\":' || " + config.valueName +
         " || '}' AS args FROM " + config.tableName;
     std::vector<std::string> valueNamesToJoin;
-    std::string queryIdentity = isAICoreFreqDie ? "'" + AI_CORE_FREQ_DIE_PREFIX + "' || AICORE_FREQ.dieId"
-                                                : SubstituteThreadNameFormat(config.threadNameFormat, valueNamesToJoin);
+    std::string queryIdentity = SubstituteThreadNameFormat(config.threadNameFormat, valueNamesToJoin);
+    if (isAICoreFreqDie) {
+        queryIdentity = "'" + AI_CORE_FREQ_DIE_PREFIX + "' || AICORE_FREQ.dieId";
+    } else if (isQosDie) {
+        queryIdentity = "id0.value || '/Die ' || QOS.dieId || '/Bandwidth'";
+    }
     for (size_t i = 0; i < valueNamesToJoin.size(); ++i) {
         sql += " INNER JOIN " + TABLE_STRING_IDS + " AS id" + std::to_string(i) + " ON " + config.tableName + "." +
             valueNamesToJoin[i] + " = id" + std::to_string(i) + ".id";
