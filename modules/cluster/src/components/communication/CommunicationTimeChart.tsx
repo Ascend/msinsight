@@ -320,7 +320,7 @@ const ChartTitle = (): JSX.Element => {
 };
 
 // 通信时长图 Visualized Communication Time
-const CommunicationTimeChart = observer(({ dataSource, session }: {dataSource: DataItem[]; session: Session}) => {
+const CommunicationTimeChart = observer(({ dataSource, session, loading }: {dataSource: DataItem[]; session: Session; loading: boolean}) => {
     const { t } = useTranslation('communication');
     const chartRef = useRef<ECharts | null>(null);
     const [isZoomed, setIsZoomed] = useState(false);
@@ -342,7 +342,7 @@ const CommunicationTimeChart = observer(({ dataSource, session }: {dataSource: D
     }, [dataSource, t, session.isCompare]);
     return (
         <CollapsiblePanel title={<ChartTitle/>}>
-            <Spin spinning={session.clusterCompleted && !session.durationFileCompleted } tip="">
+            <Spin spinning={loading || (session.clusterCompleted && !session.durationFileCompleted)} tip="">
                 <div style={{ display: 'flex', justifyContent: 'flex-end', paddingRight: '16px' }}>
                     <Tooltip title={t('Reset Zoom')}>
                         <ResetIcon

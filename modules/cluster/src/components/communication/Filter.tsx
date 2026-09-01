@@ -17,7 +17,7 @@
  */
 import { observer } from 'mobx-react';
 import { observable, observe } from 'mobx';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { RadioChangeEvent } from 'antd';
 import { useTranslation } from 'react-i18next';
 import { Select, Radio, Form } from '@insight/lib/components';
@@ -61,8 +61,10 @@ const defaultOptionMap = {
 };
 
 const observeCondition = observable<{ value: Partial<ConditionDataType> }>({ value: defaultCondition });
+let pendingConditionUpdate: Partial<ConditionDataType> | undefined;
 
 export function updateData(filterParams: Partial<ConditionDataType>): void {
+    pendingConditionUpdate = filterParams;
     observeCondition.value = filterParams;
 }
 
@@ -290,42 +292,77 @@ Promise<optionDataType[]> => {
     return options;
 };
 
-const Filter = observer(({ session, handleFilterChange }: {session: Session;handleFilterChange: VoidFunction}) => {
+interface FilterProps {
+    session: Session;
+    handleFilterChange: VoidFunction;
+    onLoadingChange?: (loading: boolean) => void;
+}
+
+const Filter = observer(({ session, handleFilterChange, onLoadingChange }: FilterProps) => {
     const [condition, setCondition] = useState<ConditionDataType>(defaultCondition);
     const [optionMap, setOptionMap] = useState<optionMapDataType>(defaultOptionMap);
+    const conditionRef = useRef<ConditionDataType>(condition);
+    const latestOptionRequestId = useRef(0);
     const activeCommunicator = session.activeCommunicator?.value;
 
     const handleChange = (key: keyof ConditionDataType, val: any): void => {
-        updateCondition(condition, key, val);
+        updateCondition(conditionRef.current, key, val);
     };
     const updateCondition = async (initObj: ConditionDataType, key?: keyof ConditionDataType, val?: any): Promise<void> => {
         if (!session.clusterCompleted) {
             delayExecute(() => {
                 if (!session.clusterCompleted) {
-                    setCondition({ ...defaultCondition, type: condition.type });
+                    const resetCondition = { ...defaultCondition, type: conditionRef.current.type };
+                    conditionRef.current = resetCondition;
+                    setCondition(resetCondition);
                     setOptionMap(defaultOptionMap);
                 }
             });
             return;
         }
-        const { condition: newCondition, optionMap: newOptionMap } = await getOptionsAndValue(session, initObj, optionMap, key, val);
-        newCondition.targetOperatorName = session.targetOperator?.name;
-        setCondition(newCondition);
-        setOptionMap(newOptionMap);
+        const requestId = ++latestOptionRequestId.current;
+        onLoadingChange?.(true);
+        try {
+            const { condition: newCondition, optionMap: newOptionMap } = await getOptionsAndValue(session, initObj, optionMap, key, val);
+            if (requestId !== latestOptionRequestId.current) {
+                return;
+            }
+            newCondition.targetOperatorName = session.targetOperator?.name;
+            conditionRef.current = newCondition;
+            setCondition(newCondition);
+            setOptionMap(newOptionMap);
+        } finally {
+            if (requestId === latestOptionRequestId.current) {
+                onLoadingChange?.(false);
+            }
+        }
     };
 
     useEffect(() => {
-        observe(observeCondition, () => {
-            updateCondition({ ...condition, ...observeCondition.value });
-        });
+        const applyPendingCondition = (): void => {
+            const externalCondition = pendingConditionUpdate ?? observeCondition.value;
+            pendingConditionUpdate = undefined;
+            const newCondition = { ...conditionRef.current, ...externalCondition };
+            conditionRef.current = newCondition;
+            updateCondition(newCondition);
+        };
+        const disposer = observe(observeCondition, applyPendingCondition);
+        if (pendingConditionUpdate !== undefined) {
+            applyPendingCondition();
+        }
+        return () => {
+            disposer();
+            latestOptionRequestId.current += 1;
+            onLoadingChange?.(false);
+        };
     }, []);
     useEffect(() => {
-        updateCondition(condition);
-    }, [session.clusterCompleted, session.durationFileCompleted, session.selectedClusterPath, session.communicatorData.partitionModes, session.isCompare, session.targetOperator]);
+        updateCondition(conditionRef.current);
+    }, [session.clusterCompleted, session.durationFileCompleted, session.selectedClusterPath, session.communicatorData.partitionModes, session.isCompare]);
     useEffect(() => {
         setTimeout(() => {
-            if (activeCommunicator !== undefined && activeCommunicator !== condition.stage) {
-                updateCondition(condition, 'stage', activeCommunicator);
+            if (activeCommunicator !== undefined && activeCommunicator !== conditionRef.current.stage) {
+                updateCondition(conditionRef.current, 'stage', activeCommunicator);
             }
         });
     }, [activeCommunicator]);

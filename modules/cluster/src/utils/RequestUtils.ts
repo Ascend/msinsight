@@ -100,7 +100,19 @@ export const queryMatrixOperators = async(param: {iterationId: string ;stage: st
  * @param {string} operatorName 算子名
  * @return {[]} 返回数组
  */
-export const queryCommunication = async(param: { iterationId: string ; operatorName: string ; pgName: string; groupIdHash: string; baselineGroupIdHash: string}): Promise<any> => {
+interface CommunicationDurationParams {
+    iterationId: string;
+    baselineIterationId?: string;
+    operatorName: string;
+    stage?: string;
+    targetOperatorName?: string;
+    isCompare?: boolean;
+    pgName: string;
+    groupIdHash: string;
+    baselineGroupIdHash: string;
+}
+
+export const queryCommunication = async(param: CommunicationDurationParams): Promise<any> => {
     return window.requestData('communication/duration/list', withClusterPath(param));
 };
 
@@ -120,7 +132,7 @@ export const queryCommunicationExpertAdvisor = async(): Promise<any> => {
  * @param {number[]} rankIds
  * @param {string} operatorName 算子名
  */
-export const queryCommunicationOperatorLists = async(param: { iterationId: string ; operatorName: string ; pgName: string; groupIdHash: string; baselineGroupIdHash: string}): Promise<any> => {
+export const queryCommunicationOperatorLists = async(param: CommunicationDurationParams): Promise<any> => {
     return window.requestData('communication/operatorLists', withClusterPath(param));
 };
 

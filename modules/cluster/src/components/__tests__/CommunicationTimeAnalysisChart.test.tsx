@@ -8,6 +8,7 @@ import CommunicationTimeAnalysisChart, {
     initWebGLDataZoom,
 } from '../communication/CommunicationTimeAnalysisChart';
 import { useEventBus } from '../../utils/eventBus';
+import * as insightUtils from '@insight/lib/utils';
 
 const mockRefValues: Array<{ current: unknown }> = [];
 
@@ -20,7 +21,20 @@ jest.mock('react', () => {
 jest.mock('mobx-react-lite', () => ({ observer: (component: React.ComponentType) => component }));
 jest.mock('../../utils/eventBus', () => ({ useEventBus: jest.fn() }));
 jest.mock('../../connection', () => ({ __esModule: true, default: { send: jest.fn() } }));
-jest.mock('@insight/lib/theme', () => ({ themeInstance: { getThemeType: () => 'light' } }), { virtual: true });
+jest.mock('@insight/lib/theme', () => ({
+    themeInstance: {
+        getThemeType: () => ({ colorPalette: new Proxy({}, { get: () => '#000' }) }),
+    },
+}), { virtual: true });
+jest.mock('@insight/lib/utils', () => ({
+    ...jest.requireActual('@insight/lib/utils'),
+    disposeAdaptiveEchart: jest.fn(),
+    getAdaptiveEchart: jest.fn(),
+}));
+jest.mock('../communication/CommunicationTimeWebGLRenderer', () => ({
+    ...jest.requireActual('../communication/CommunicationTimeWebGLRenderer'),
+    createCommunicationTimeWebGLRenderer: jest.fn(() => null),
+}));
 
 it('uses the same visual defaults as the ECharts HTML tooltip', () => {
     expect(getEChartsTooltipStyle()).toEqual({
@@ -86,6 +100,82 @@ it('uses string rank values when positioning within ten thousand ranks', () => {
         startValue: '5040',
         endValue: '5060',
     });
+});
+
+it('uses the latest operator data when a hidden chart initializes after becoming visible', () => {
+    jest.useFakeTimers();
+    const originalResizeObserver = global.ResizeObserver;
+    let resizeCallback: ResizeObserverCallback = () => {};
+    global.ResizeObserver = class {
+        constructor(callback: ResizeObserverCallback) {
+            resizeCallback = callback;
+        }
+
+        observe(): void {}
+        unobserve(): void {}
+        disconnect(): void {}
+    } as unknown as typeof ResizeObserver;
+    const chart = {
+        on: jest.fn(),
+        off: jest.fn(),
+        getZr: jest.fn(() => ({ on: jest.fn(), off: jest.fn() })),
+        isDisposed: jest.fn(() => false),
+        setOption: jest.fn(),
+        resize: jest.fn(),
+    };
+    const getAdaptiveEchart = insightUtils.getAdaptiveEchart as jest.Mock;
+    const disposeAdaptiveEchart = insightUtils.disposeAdaptiveEchart as jest.Mock;
+    getAdaptiveEchart.mockReturnValue(chart);
+    global.session.selectedClusterPath = 'cluster';
+    global.session.clusterList = [{
+        name: 'cluster',
+        path: 'cluster',
+        parsed: true,
+        durationParsed: true,
+    }];
+    const emptyData = { minTime: 0, maxTime: 0, data: [] } as AnalysisChartData;
+    const operatorData = {
+        minTime: 0,
+        maxTime: 100,
+        data: [{
+            rankId: '0',
+            dbPath: 'rank-0.db',
+            lists: {
+                compare: [{ operatorName: 'AllReduce', startTime: 0, duration: 100 }],
+                baseline: [],
+            },
+        }],
+    } as AnalysisChartData;
+
+    const { container, rerender } = render(<CommunicationTimeAnalysisChart
+        dataSource={emptyData}
+        session={global.session}
+        loading={false}
+    />);
+    rerender(<CommunicationTimeAnalysisChart
+        dataSource={operatorData}
+        session={global.session}
+        loading={false}
+    />);
+    const chartDom = container.querySelector('#hccl') as HTMLDivElement;
+    Object.defineProperties(chartDom, {
+        clientHeight: { configurable: true, value: 460 },
+        clientWidth: { configurable: true, value: 1000 },
+    });
+
+    act(() => {
+        resizeCallback([], {} as ResizeObserver);
+        jest.advanceTimersByTime(20);
+    });
+
+    expect(getAdaptiveEchart).toHaveBeenCalledTimes(1);
+    expect(chart.setOption).toHaveBeenCalledWith(expect.objectContaining({
+        yAxis: expect.objectContaining({ data: ['0'] }),
+    }), { notMerge: true });
+
+    getAdaptiveEchart.mockReset();
+    disposeAdaptiveEchart.mockReset();
+    global.ResizeObserver = originalResizeObserver;
 });
 
 it('targets both zoom axes when locating a slow operator with a string rank ID', () => {

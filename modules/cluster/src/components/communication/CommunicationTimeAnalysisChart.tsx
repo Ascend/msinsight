@@ -938,7 +938,12 @@ export const consumeCommunicationChartZoomData = (
  * @param chartInstance - 图表实例
  * @returns 菜单项数组
  */
-const useMenuItems = (session: Session, setDropDownVisible: (_: boolean) => void, chartInstance: ECharts | null): MenuProps['items'] => {
+const useMenuItems = (
+    session: Session,
+    setDropDownVisible: (_: boolean) => void,
+    chartInstance: ECharts | null,
+    onAlignmentChange?: (targetOperator?: ClickOperatorItem) => void,
+): MenuProps['items'] => {
     const { t } = useTranslation('communication');
     const findInTimeline = {
         label: t('Find in Timeline'),
@@ -963,6 +968,7 @@ const useMenuItems = (session: Session, setDropDownVisible: (_: boolean) => void
             }
             session.communicationChartZoomData = getZoomData(chartInstance);
             session.targetOperator = selectedOpDetail as ClickOperatorItem;
+            onAlignmentChange?.(session.targetOperator);
         },
     };
     const restoredefault = {
@@ -973,6 +979,7 @@ const useMenuItems = (session: Session, setDropDownVisible: (_: boolean) => void
             setDropDownVisible(false);
             session.communicationChartZoomData = getZoomData(chartInstance);
             session.targetOperator = undefined;
+            onAlignmentChange?.();
         },
     };
     if (session.unitcount === 0) {
@@ -1028,7 +1035,17 @@ export const getRankDataZoomRange = (
  * @param loading - 是否正在加载数据。
  * @returns 返回一个React组件，用于展示通信时间分析图表。
  */
-const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading }: { dataSource: AnalysisChartData; session: Session; loading: boolean }) => {
+const CommunicationTimeAnalysisChart = observer(({
+    dataSource,
+    session,
+    loading,
+    onAlignmentChange,
+}: {
+    dataSource: AnalysisChartData;
+    session: Session;
+    loading: boolean;
+    onAlignmentChange?: (targetOperator?: ClickOperatorItem) => void;
+}) => {
     const durationFileCompleted = session.durationFileCompleted;
     // 设置图表高度的state
     const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT);
@@ -1038,8 +1055,11 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
     const chartRef = useRef<HTMLDivElement>(null);
     // 图表实例的引用
     const chartInst = useRef<echarts.ECharts | null>(null);
+    // 图表可能在隐藏状态下延迟初始化，初始化时必须读取最新接口数据。
+    const latestDataSource = useRef(dataSource);
+    latestDataSource.current = dataSource;
     // 获取菜单项
-    const menuItems = useMenuItems(session, setDropDownVisible, chartInst.current);
+    const menuItems = useMenuItems(session, setDropDownVisible, chartInst.current, onAlignmentChange);
 
     /**
      * 同步滚动事件处理函数，用于处理鼠标滚轮缩放时的页面滚动问题。
@@ -1101,7 +1121,7 @@ const CommunicationTimeAnalysisChart = observer(({ dataSource, session, loading 
             chartInst.current = initChartInstance(dom, setDropDownVisible);
             // 添加滚轮事件监听
             chartRef.current?.addEventListener('wheel', syncScroll, true);
-            updateData(dataSource);
+            updateData(latestDataSource.current);
         };
 
         // 创建初始化 EChart 监听器，等待 DOM 元素准备就绪
