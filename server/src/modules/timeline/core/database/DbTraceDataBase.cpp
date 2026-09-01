@@ -53,6 +53,15 @@ DbTraceDataBase::~DbTraceDataBase() {
     flowAnalyzerPtr = nullptr;
 }
 
+bool DbTraceDataBase::IsThreadingAnalysisDatabase() {
+    return CheckTablesExist({"p_process", "p_thread", "p_core_metric_desc", "p_core_metric"});
+}
+
+bool DbTraceDataBase::HasStandardTimelineData() {
+    return CheckTableExist(TABLE_TASK) || CheckTableExist(TABLE_CANN_API) || CheckTableExist(TABLE_API) ||
+        CheckTableExist(TABLE_COMMUNICATION_OP);
+}
+
 bool DbTraceDataBase::QueryThreads(const Protocol::UnitThreadsParams &requestParams,
     Protocol::UnitThreadsBody &responseBody, uint64_t minTimestamp, const std::vector<uint64_t> &trackIdList) {
     uint64_t startTime = requestParams.startTime + minTimestamp;
@@ -111,6 +120,10 @@ std::map<std::string, std::string> DbTraceDataBase::QueryAllModelIdOfAscendHardw
 
 bool DbTraceDataBase::QueryUnitsMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
+    const bool hasThreadingAnalysis = IsThreadingAnalysisDatabase();
+    if (hasThreadingAnalysis && !HasStandardTimelineData()) {
+        return QueryThreadingAnalysisMetadata(fileId, metaData);
+    }
     QueryHostMetadata(fileId, metaData);
     bool existOverlapAnalysis = false;
     if (CheckTableExist(TABLE_TASK)) {
@@ -135,7 +148,136 @@ bool DbTraceDataBase::QueryUnitsMetadata(
     }
     ProcessHostCounterEventsMetadata(fileId, metaData);
     QueryCounterMetadata(fileId, metaData);
-    return false;
+    return hasThreadingAnalysis ? QueryThreadingAnalysisMetadata(fileId, metaData) : false;
+}
+
+bool DbTraceDataBase::HasThreadingAnalysisLlcMetrics() {
+    const std::string sql =
+        "SELECT 1 FROM p_core_metric_desc d "
+        "WHERE REPLACE(LOWER(TRIM(d.name)), '_', ' ') IN "
+        "('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits', "
+        "'llc miss', 'llc misses', 'llc cache miss', 'llc cache misses') LIMIT 1";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    return resultSet != nullptr && resultSet->Next();
+}
+
+uint64_t DbTraceDataBase::QueryThreadingAnalysisLlcBucketWidth() {
+    const std::string metricFilter =
+        "REPLACE(LOWER(TRIM(d.name)), '_', ' ') IN "
+        "('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits', "
+        "'llc miss', 'llc misses', 'llc cache miss', 'llc cache misses')";
+    const std::string sql =
+        "WITH llc_samples AS ("
+        " SELECT DISTINCT m.tid_id, m.ts FROM p_core_metric m "
+        " JOIN p_core_metric_desc d ON d.id = m.desc_id WHERE " + metricFilter +
+        "), llc_gaps AS ("
+        " SELECT ts - LAG(ts) OVER (PARTITION BY tid_id ORDER BY ts) AS gap FROM llc_samples"
+        ") SELECT MIN(gap) AS bucketWidth FROM llc_gaps WHERE gap > 0";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        return 0;
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    return resultSet != nullptr && resultSet->Next() ? resultSet->GetUint64("bucketWidth") : 0;
+}
+
+bool DbTraceDataBase::QueryThreadingAnalysisMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
+    const bool hasLlcMetrics = HasThreadingAnalysisLlcMetrics();
+    const uint64_t llcBucketWidthNs = hasLlcMetrics ? QueryThreadingAnalysisLlcBucketWidth() : 0;
+    const bool hasGlobalTid = CheckColumnExist("p_thread", "global_tid");
+    const std::string hostGlobalTidColumn = hasGlobalTid ? "CAST(t.global_tid AS TEXT)" : "''";
+    const std::string sql =
+        "SELECT p.id AS processRowId, p.pid AS processId, p.name AS processName, "
+        "t.tid AS threadId, t.name AS threadName, " + hostGlobalTidColumn + " AS hostGlobalTid, "
+        "EXISTS(SELECT 1 FROM p_core_metric lm JOIN p_core_metric_desc ld ON ld.id = lm.desc_id "
+        "WHERE lm.tid_id = t.id AND REPLACE(LOWER(TRIM(ld.name)), '_', ' ') IN "
+        "('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits', "
+        "'llc miss', 'llc misses', 'llc cache miss', 'llc cache misses')) AS hasLlc "
+        "FROM p_process p JOIN p_thread t ON t.process_id = p.id ORDER BY p.id, t.id";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr) {
+        return false;
+    }
+
+    std::map<std::string, Protocol::UnitTrack *> hostThreadsByGlobalTid;
+    const std::string hostProcessMetaType = ENUM_TO_STR(PROCESS_TYPE::PROCESS).value_or("");
+    if (hasGlobalTid) {
+        for (auto &unit : metaData) {
+            if (unit == nullptr || unit->metaData.metaType != hostProcessMetaType) {
+                continue;
+            }
+            for (auto &thread : unit->children) {
+                if (thread != nullptr && !thread->metaData.threadId.empty()) {
+                    hostThreadsByGlobalTid.emplace(thread->metaData.processId, thread.get());
+                }
+            }
+        }
+    }
+
+    uint64_t currentProcessRowId = UINT64_MAX;
+    std::unique_ptr<Protocol::UnitTrack> process;
+    while (resultSet->Next()) {
+        const uint64_t processRowId = resultSet->GetUint64("processRowId");
+        const std::string processId = resultSet->GetString("processId");
+        std::string processName = resultSet->GetString("processName");
+        if (processName.empty()) {
+            processName = "Process " + processId;
+        }
+        if (process == nullptr || processRowId != currentProcessRowId) {
+            if (process != nullptr && !process->children.empty()) {
+                metaData.emplace_back(std::move(process));
+            }
+            process = GenerateBaseUnitTrack(
+                "process", fileId, processId, processName, THREADING_ANALYSIS_META_TYPE);
+            currentProcessRowId = processRowId;
+        }
+
+        const std::string threadId = resultSet->GetString("threadId");
+        std::string threadName = resultSet->GetString("threadName");
+        if (threadName.empty()) {
+            threadName = "Thread " + threadId;
+        }
+        auto thread = GenerateBaseUnitTrack(
+            "thread", fileId, processId, processName, THREADING_ANALYSIS_META_TYPE);
+        thread->metaData.threadId = threadId;
+        thread->metaData.threadName = threadName;
+
+        if (hasLlcMetrics && resultSet->GetUint64("hasLlc") > 0) {
+            auto llcCache = GenerateBaseUnitTrack(
+                "counter", fileId, processId, processName, THREADING_ANALYSIS_META_TYPE);
+            llcCache->metaData.threadId = threadId;
+            llcCache->metaData.threadName = "LLC Cache";
+            llcCache->metaData.metricGroup = THREADING_LLC_METRIC_GROUP;
+            llcCache->metaData.bucketWidthNs = llcBucketWidthNs;
+            llcCache->metaData.dataType = {"LLC Hits", "LLC Misses"};
+            thread->children.emplace_back(std::move(llcCache));
+        }
+        if (!thread->children.empty()) {
+            const std::string hostGlobalTid = resultSet->GetString("hostGlobalTid");
+            auto hostThread = hostThreadsByGlobalTid.find(hostGlobalTid);
+            if (!hostGlobalTid.empty() && hostThread != hostThreadsByGlobalTid.end()) {
+                auto &hostChildren = hostThread->second->children;
+                hostChildren.insert(hostChildren.end(),
+                    std::make_move_iterator(thread->children.begin()),
+                    std::make_move_iterator(thread->children.end()));
+            } else {
+                process->children.emplace_back(std::move(thread));
+            }
+        }
+    }
+    if (process != nullptr && !process->children.empty()) {
+        metaData.emplace_back(std::move(process));
+    }
+    return true;
 }
 
 bool DbTraceDataBase::GenerateOverlapAnalysisMetadata(
@@ -157,7 +299,22 @@ bool DbTraceDataBase::GenerateOverlapAnalysisMetadata(
     return true;
 }
 
-bool DbTraceDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) { return true; }
+bool DbTraceDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) {
+    if (!IsThreadingAnalysisDatabase() || HasStandardTimelineData()) {
+        return true;
+    }
+    auto stmt = CreatPreparedStatement("SELECT MIN(start_ts) AS minTs, MAX(end_ts) AS maxTs FROM p_process");
+    if (stmt == nullptr) {
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr || !resultSet->Next()) {
+        return false;
+    }
+    min = resultSet->GetUint64("minTs");
+    max = resultSet->GetUint64("maxTs");
+    return min <= max;
+}
 
 bool DbTraceDataBase::SetCardAlias(
     const Protocol::SetCardAliasParams &requestParams, Protocol::SetCardAliasBody &responseBody) {
@@ -169,6 +326,9 @@ bool DbTraceDataBase::SetCardAlias(
 }
 
 std::string DbTraceDataBase::QueryCardAlias() {
+    if (IsThreadingAnalysisDatabase() && !HasStandardTimelineData()) {
+        return "Threading Analysis";
+    }
     std::string cardAlias = GetValueFromMetaDataTable(cardAliasName);
     if (cardAlias.empty()) {
         return "";
@@ -852,6 +1012,17 @@ bool DbTraceDataBase::QueryThreadTracesSummary(const Protocol::UnitThreadTracesS
     return true;
 }
 void DbTraceDataBase::UpdateStartTime(const std::string &fileId) {
+    if (IsThreadingAnalysisDatabase() && !HasStandardTimelineData()) {
+        uint64_t startTime = 0;
+        uint64_t endTime = 0;
+        if (!QueryExtremumTimestamp(startTime, endTime)) {
+            return;
+        }
+        TraceTime::Instance().UpdateTime(startTime, endTime);
+        TraceTime::Instance().UpdateCardMinTimestamp(fileId, startTime);
+        TraceTime::Instance().UpdateCardTimeDuration(fileId, startTime, endTime);
+        return;
+    }
     sqlite3_stmt *stmt = nullptr;
     std::string sql;
     if (CheckTableExist(TABLE_API) && !CheckTableExist(TABLE_SESSION_TIME_INFO)) {
@@ -1257,6 +1428,10 @@ std::string DbTraceDataBase::QueryHostInfoWithHostPath(const std::string &path) 
 
 std::vector<std::string> DbTraceDataBase::QueryRankId() {
     if (!rankIds.empty()) {
+        return rankIds;
+    }
+    if (IsThreadingAnalysisDatabase() && !HasStandardTimelineData()) {
+        rankIds.emplace_back("Threading");
         return rankIds;
     }
     sqlite3_stmt *stmt = nullptr;

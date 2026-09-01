@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import type { Theme } from '@emotion/react';
+import type { ReactNode } from 'react';
 import type { Readable } from '../utils/humanReadable';
 import type { AtomicObjectElementType } from './common';
 import type { Session } from './session';
@@ -30,7 +31,7 @@ interface ChartDataType<T, U> {
 
 interface ChartDataDefinition {
     filledLine: ChartDataType<FilledLineConfig, number[][]>;
-    stackedBar: ChartDataType<StackBarConfig, Array<{ timestamp: number; values: number[] }>>;
+    stackedBar: ChartDataType<StackBarConfig, StackedBarData[]>;
     keyEvent: ChartDataType<Record<string, unknown>, EventData[]>;
     status: ChartDataType<StatusConfig, StatusData[]>;
     stackStatus: ChartDataType<StackStatusConfig, StackStatusData[][]>; // data is grouped by depth
@@ -102,7 +103,7 @@ export interface MapFunc<T extends ChartType> {
 }
 
 export interface RenderTooltip<T extends ChartType> {
-    (data: AtomicObjectElementType<ChartData<T>>, metadata?: unknown): Map<string, string>;
+    (data: AtomicObjectElementType<ChartData<T>>, metadata?: unknown): Map<string, string> | ReactNode;
 }
 
 // #region chart-specific data types
@@ -141,6 +142,11 @@ export interface StackStatusData {
     threadId?: string;
 };
 
+export interface StackedBarData {
+    timestamp: number;
+    values: number[];
+}
+
 export interface FilledLineConfig {
     legend?: string[];
     valueRange?: [ number, number ];
@@ -156,8 +162,10 @@ export interface StackBarConfig {
     // number - bar width stand for ms
     // string - '100px' fixed bar width
     barWidth: number | string;
+    barTimestampPosition?: 'center' | 'start';
     valueRange?: [ number, number ] ;
     palette?: string[];
+    autoScaleHeadroom?: number;
 };
 
 export interface StatusConfig {

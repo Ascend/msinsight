@@ -1081,7 +1081,9 @@ json_t UnitTrackToJson(const UnitTrack &unitTrack, RAPIDJSON_DEFAULT_ALLOCATOR &
     JsonUtil::AddMember(metadata, "groupNameValue", unitTrack.metaData.groupNameValue, allocator);
     JsonUtil::AddMember(metadata, "rankList", unitTrack.metaData.rankList, allocator);
     JsonUtil::AddMember(metadata, "metaType", unitTrack.metaData.metaType, allocator);
+    JsonUtil::AddMember(metadata, "metricGroup", unitTrack.metaData.metricGroup, allocator);
     JsonUtil::AddMember(metadata, "maxDepth", unitTrack.metaData.maxDepth, allocator);
+    JsonUtil::AddMember(metadata, "bucketWidthNs", unitTrack.metaData.bucketWidthNs, allocator);
     json_t dataType(kArrayType);
     for (const auto &type : unitTrack.metaData.dataType) {
         dataType.PushBack(json_t().SetString(type.c_str(), type.length(), allocator), allocator);

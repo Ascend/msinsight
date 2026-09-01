@@ -50,7 +50,14 @@ import { runInAction } from 'mobx';
 import { cardOffsetConfig } from './config/offsetConfig';
 import { isPinned, isSonPinned } from '../../components/ChartContainer/unitPin';
 import type { Theme } from '@emotion/react';
-import type { ChartHandle, ChartType, Scale, StackStatusConfig, StackStatusData, StatusData } from '../../entity/chart';
+import type {
+    ChartHandle,
+    ChartType,
+    Scale,
+    StackStatusConfig,
+    StackStatusData,
+    StatusData,
+} from '../../entity/chart';
 import { ResizeTable } from '@insight/lib/resize';
 import { getDefaultColumData, getPageData, PageType } from '../../components/detailViews/Common';
 import { safeJSONParse } from '@insight/lib/utils';
@@ -61,6 +68,15 @@ import { getUnitFlows, queryAllSameOperatorsDuration } from '../../api/request';
 import { GetUnitFlowsParams, OpData } from '../../api/interface';
 import connector from '../../connection';
 import { getCounterLaneDisplayName } from './counterUnit';
+import {
+    DEFAULT_LLC_BUCKET_WIDTH_NS,
+    getLlcBucketWidthNs,
+    LLC_CACHE_COLORS,
+    mapLlcCacheCounterData,
+    type LlcCacheCounterData,
+    type LlcCacheStackedBarData,
+} from './llcCache';
+import { LlcCacheTooltip } from './LlcCacheTooltip';
 
 const MAX_UNIT_CANVAS_HEIGHT = 50_000; // 画布高度上限
 const MAX_UNIT_DEPTH = Math.floor(MAX_UNIT_CANVAS_HEIGHT / UnitHeight.STANDARD); // 泳道深度上限
@@ -402,6 +418,76 @@ export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow:
     setLinkLinesMap('from');
     setLinkLinesMap('to');
 }
+
+const LlcCacheChart: ChartDesc<ChartType> = chart({
+    type: 'stackedBar',
+    height: UnitHeight.UPPER,
+    mapFunc: async (session: Session, metadata: unknown) => {
+        const llcMetadata = metadata as CounterMetaData;
+        const timestampOffset = getTimeOffset(session, llcMetadata);
+        const requestParam = {
+            rankId: llcMetadata.cardId,
+            dbPath: llcMetadata.dbPath,
+            pid: llcMetadata.processId,
+            threadName: llcMetadata.threadName ?? '',
+            threadId: llcMetadata.threadId ?? '',
+            metaType: llcMetadata.metaType,
+            metricGroup: llcMetadata.metricGroup,
+            startTime: Math.floor(Math.max(0, timestampOffset)),
+            endTime: Math.ceil(Math.max(0, (session.endTimeAll ?? 0) + timestampOffset)),
+            dataSource: llcMetadata.dataSource,
+            timePerPx: session.domain.timePerPx,
+        };
+        const requestKey = createCounterParam('unit/counter', requestParam);
+        const data = await session.simpleCache.fetchRawCounterData(requestKey, requestParam);
+        return mapLlcCacheCounterData(
+            data as LlcCacheCounterData[],
+            timestampOffset,
+            getLlcBucketWidthNs(llcMetadata.bucketWidthNs, DEFAULT_LLC_BUCKET_WIDTH_NS),
+        );
+    },
+    config: (session: Session, metadata: unknown) => ({
+        radius: 0,
+        yScaleType: 'linear',
+        barWidth: getLlcBucketWidthNs(
+            (metadata as CounterMetaData).bucketWidthNs,
+            DEFAULT_LLC_BUCKET_WIDTH_NS,
+        ),
+        barTimestampPosition: 'start',
+        palette: LLC_CACHE_COLORS,
+        autoScaleHeadroom: 1.05,
+    }),
+    renderTooltip: (rawData) => <LlcCacheTooltip data={rawData as LlcCacheStackedBarData}/>,
+});
+
+export const ThreadingProcessUnit = unit<ProcessMetaData>({
+    name: 'Process',
+    pinType: 'copied',
+    renderInfo: (session: Session, metadata: ProcessMetaData, thisUnit) => {
+        return isPinned(thisUnit) && !isSonPinned(thisUnit)
+            ? `${metadata.cardId}_${metadata.processName}`
+            : metadata.processName;
+    },
+});
+
+export const ThreadingThreadUnit = unit<ThreadMetaData>({
+    name: 'Thread',
+    pinType: 'copied',
+    renderInfo: (session: Session, metadata: ThreadMetaData, thisUnit) => {
+        return isPinned(thisUnit) && !isSonPinned(thisUnit)
+            ? `${metadata.threadName}_${metadata.processName} (${metadata.processId})_${metadata.cardId}`
+            : metadata.threadName;
+    },
+});
+
+export const ThreadingLlcCacheUnit = unit<CounterMetaData>({
+    name: 'LLC Cache',
+    pinType: 'copied',
+    collapsible: false,
+    description: 'LLC Hits / LLC Misses',
+    chart: LlcCacheChart,
+    renderInfo: () => 'LLC Cache',
+});
 
 export const ThreadUnit = unit<ThreadMetaData>({
     name: 'Thread',

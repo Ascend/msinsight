@@ -18,6 +18,7 @@
 
 import { useEffect } from 'react';
 import { queryKernelMfuAvailability } from '../../api/request';
+import type { InsightUnit } from '../../entity/insight';
 import type { Session } from '../../entity/session';
 
 interface KernelMfuAvailabilityProps {
@@ -25,7 +26,13 @@ interface KernelMfuAvailabilityProps {
     enabled: boolean;
 }
 
+export const containsThreadingAnalysisUnit = (units: InsightUnit[]): boolean => units.some((unit) =>
+    (unit.metadata as { metaType?: string }).metaType === 'THREADING_ANALYSIS' ||
+    containsThreadingAnalysisUnit(unit.children ?? []),
+);
+
 export const useKernelMfuAvailability = ({ session, enabled }: KernelMfuAvailabilityProps): void => {
+    const allowMissingDatabase = containsThreadingAnalysisUnit(session.units);
     useEffect(() => {
         const clusterPath = session.selectedClusterPath;
         if (!enabled || !session.isCluster || clusterPath === '' || !session.kernelMfuDurationParsed) {
@@ -35,7 +42,7 @@ export const useKernelMfuAvailability = ({ session, enabled }: KernelMfuAvailabi
         if (sequence === undefined) {
             return;
         }
-        void queryKernelMfuAvailability({ clusterPath }).then((response) => {
+        void queryKernelMfuAvailability({ clusterPath, allowMissingDatabase }).then((response) => {
             if (!session.isCurrentKernelMfuAvailabilityRequest(sequence, clusterPath)) {
                 return;
             }
@@ -55,5 +62,6 @@ export const useKernelMfuAvailability = ({ session, enabled }: KernelMfuAvailabi
         session.isCluster,
         session.kernelMfuProjectGeneration,
         session.selectedClusterPath,
+        allowMissingDatabase,
     ]);
 };

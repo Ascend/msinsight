@@ -40,6 +40,10 @@ bool QueryKernelMfuAvailabilityHandler::HandleRequest(std::unique_ptr<Protocol::
 
     const auto database = DataBaseManager::Instance().GetClusterDatabase(request.params.clusterPath);
     if (database == nullptr) {
+        if (request.params.allowMissingDatabase) {
+            SendResponse(std::move(responsePtr), true);
+            return true;
+        }
         SetTimelineError(ErrorCode::QUERY_KERNEL_MFU_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;

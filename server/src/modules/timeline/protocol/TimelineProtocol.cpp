@@ -416,6 +416,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitCounterRequest(const json_t &js
     JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.threadId, json["params"], "threadId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.metaType, json["params"], "metaType");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.metricGroup, json["params"], "metricGroup");
     return reqPtr;
 }
 
@@ -761,6 +762,7 @@ std::unique_ptr<Request> TimelineProtocol::ToKernelMfuAvailabilityRequest(const 
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.clusterPath, json["params"], "clusterPath");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.allowMissingDatabase, json["params"], "allowMissingDatabase");
     return reqPtr;
 }
 

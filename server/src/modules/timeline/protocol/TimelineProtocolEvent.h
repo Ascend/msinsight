@@ -43,7 +43,9 @@ struct UnitTrackMetaData {
     std::string groupNameValue; // type = thread, DB 在 PROCESS_TYPE::HCCL 时赋值；TEXT 看 threadName 形式符合赋值
     std::vector<std::string> rankList; // type = thread, 为HCCL中group甬道时赋值，内容为通信域内所有rankId信息
     std::string metaType;
+    std::string metricGroup; // stable semantic group for specialized counters
     int maxDepth = 0; // type = thread
+    uint64_t bucketWidthNs = 0; // type = THREADING_ANALYSIS counter
     std::vector<std::string> dataType; // type = counter
     std::string headerTooltip;
     double maxValue = 0.;

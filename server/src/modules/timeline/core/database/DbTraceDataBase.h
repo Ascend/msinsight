@@ -90,6 +90,8 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool AddCommunicationOpDeviceIdColumnIfNotExists();
     void AddHelperColumnsAndSetStatus();
     bool InitStmt();
+    bool IsThreadingAnalysisDatabase();
+    bool HasStandardTimelineData();
 
     // Test-only entry point. Production code should rely on OpenDb() to invoke SetConfig() implicitly.
     // Do NOT call from non-test code.
@@ -291,6 +293,16 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool QueryCounterMetadata(const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     bool QueryCounterMetadataGenerateInfo(
         const PROCESS_TYPE &type, std::string &processName, std::string &metaType, std::string &sql);
+
+    static constexpr const char *THREADING_ANALYSIS_META_TYPE = "THREADING_ANALYSIS";
+    static constexpr const char *THREADING_LLC_METRIC_GROUP = "llc_cache";
+    static constexpr uint64_t THREADING_TIMESTAMP_TOLERANCE_NS = 10000000;
+    bool QueryThreadingAnalysisMetadata(
+        const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+    bool QueryThreadingAnalysisLlcCounter(const Protocol::UnitCounterParams &params, uint64_t minTimestamp,
+        std::vector<Protocol::UnitCounterData> &dataList);
+    uint64_t QueryThreadingAnalysisLlcBucketWidth();
+    bool HasThreadingAnalysisLlcMetrics();
 
     static constexpr const char *CPU_METRICS_PROCESS_ID = "__cpu_metrics__";
     static constexpr const char *CPU_METRICS_PROCESS_NAME = "CPU Metrics";

@@ -344,6 +344,7 @@ struct UnitCounterParams {
     uint64_t startTime = 0;
     uint64_t endTime = 0;
     std::string metaType;
+    std::string metricGroup;
     bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
             warnMsg = "unit counter start time is bigger than end time";
@@ -417,6 +418,7 @@ struct SystemViewFtraceStatRequest : public Request {
 
 struct KernelMfuAvailabilityParams {
     std::string clusterPath;
+    bool allowMissingDatabase = false;
 
     bool CheckParams(std::string &errorMsg) const;
 };

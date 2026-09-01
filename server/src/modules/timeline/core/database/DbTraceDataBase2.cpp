@@ -21,6 +21,9 @@
 #include "TraceDatabaseHelper.h"
 #include "CounterEventHelper.h"
 #include "HardWareRepo.h"
+#include <algorithm>
+#include <iomanip>
+#include <sstream>
 
 namespace Dic::Module::FullDb {
 using namespace Server;
@@ -52,6 +55,13 @@ std::vector<std::string> DbTraceDataBase::GetIdListByFuzzNameFromCache(
 
 bool DbTraceDataBase::QueryUnitCounter(
     Protocol::UnitCounterParams &params, uint64_t minTimestamp, std::vector<Protocol::UnitCounterData> &dataList) {
+    if (params.metaType == THREADING_ANALYSIS_META_TYPE && IsThreadingAnalysisDatabase()) {
+        if (params.metricGroup == THREADING_LLC_METRIC_GROUP) {
+            return QueryThreadingAnalysisLlcCounter(params, minTimestamp, dataList);
+        }
+        ServerLog::Error("Threading counter metric group % is not supported.", params.metricGroup);
+        return false;
+    }
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
         ServerLog::Error("Query_unit_counter. Failed to prepare sql.", sqlite3_errmsg(db));
@@ -98,6 +108,60 @@ bool DbTraceDataBase::QueryUnitCounter(
     if (!dataList.empty()) {
         dataList = DownSampleUnitCounterData(dataList, counterSampleSize);
         dataList.emplace_back(unitCounterData);
+    }
+    return true;
+}
+
+bool DbTraceDataBase::QueryThreadingAnalysisLlcCounter(const Protocol::UnitCounterParams &params, uint64_t minTimestamp,
+    std::vector<Protocol::UnitCounterData> &dataList) {
+    if (params.pid.empty() || params.threadId.empty()) {
+        return false;
+    }
+    const std::string sql =
+        "WITH metric_data AS ("
+        " SELECT m.ts, m.value, REPLACE(LOWER(TRIM(d.name)), '_', ' ') AS metricName,"
+        " CAST((m.ts - ?) / ? AS INTEGER) AS bucketId"
+        " FROM p_core_metric m"
+        " JOIN p_core_metric_desc d ON d.id = m.desc_id"
+        " JOIN p_thread t ON t.id = m.tid_id"
+        " JOIN p_process p ON p.id = t.process_id"
+        " WHERE p.pid = CAST(? AS INTEGER) AND t.tid = CAST(? AS INTEGER) AND m.ts >= ? AND m.ts <= ? "
+        " AND REPLACE(LOWER(TRIM(d.name)), '_', ' ') IN "
+        " ('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits',"
+        " 'llc miss', 'llc misses', 'llc cache miss', 'llc cache misses')"
+        ") SELECT MIN(ts) - ? AS startTime,"
+        " SUM(CASE WHEN metricName IN ('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits')"
+        " THEN value ELSE 0 END) AS hits,"
+        " SUM(CASE WHEN metricName IN ('llc miss', 'llc misses', 'llc cache miss', 'llc cache misses')"
+        " THEN value ELSE 0 END) AS misses"
+        " FROM metric_data GROUP BY bucketId ORDER BY MIN(ts)";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        return false;
+    }
+    const uint64_t absoluteStart = minTimestamp + params.startTime;
+    const uint64_t absoluteEnd = minTimestamp + params.endTime;
+    auto resultSet = stmt->ExecuteQuery(minTimestamp, THREADING_TIMESTAMP_TOLERANCE_NS, params.pid, params.threadId,
+        absoluteStart, absoluteEnd, minTimestamp);
+    if (resultSet == nullptr) {
+        return false;
+    }
+    const uint64_t bucketWidthNs = QueryThreadingAnalysisLlcBucketWidth();
+    while (resultSet->Next()) {
+        const double hits = std::max(0.0, resultSet->GetDouble("hits"));
+        const double misses = std::max(0.0, resultSet->GetDouble("misses"));
+        const double totalAccesses = hits + misses;
+        if (totalAccesses <= 0) {
+            continue;
+        }
+        std::ostringstream value;
+        value << std::fixed << std::setprecision(6) << "{\"hits\":" << hits << ",\"misses\":" << misses
+              << ",\"totalAccesses\":" << totalAccesses << ",\"hitRate\":" << hits * 100.0 / totalAccesses
+              << ",\"missRate\":" << misses * 100.0 / totalAccesses << ",\"bucketWidthNs\":" << bucketWidthNs << "}";
+        Protocol::UnitCounterData item;
+        item.timestamp = resultSet->GetUint64("startTime");
+        item.valueJsonStr = value.str();
+        dataList.emplace_back(std::move(item));
     }
     return true;
 }

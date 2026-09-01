@@ -475,6 +475,15 @@ std::string ProjectParserDb::GetFileIdWithDb(const std::string &filePath) {
     return dbFiles[0]; // 以找到的第一个文件为准
 }
 
+bool ProjectParserDb::IsThreadingAnalysisDbFile(const std::string &filePath) {
+    if (FileUtil::IsFolder(filePath) || !StringUtil::EndWith(filePath, ".db")) {
+        return false;
+    }
+    std::recursive_mutex databaseMutex;
+    FullDb::DbTraceDataBase database(databaseMutex);
+    return database.OpenDb(filePath, false) && database.IsThreadingAnalysisDatabase();
+}
+
 std::vector<std::string> ProjectParserDb::GetDbFilesInDir(const std::string &filePath) {
     std::vector<std::string> dbFiles;
     if (!FileUtil::IsFolder(filePath)) {

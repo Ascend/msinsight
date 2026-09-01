@@ -28,7 +28,18 @@ import type {
 } from '../../entity/data';
 import { UnitHeight } from '../../entity/insight';
 import type { ChartDesc, InsightUnit } from '../../entity/insight';
-import { CounterUnit, ProcessUnit, ThreadUnit, LabelUnit } from './AscendUnit';
+import {
+    CounterUnit,
+    ProcessUnit,
+    ThreadUnit,
+    LabelUnit,
+    ThreadingProcessUnit,
+    ThreadingLlcCacheUnit,
+    ThreadingThreadUnit,
+} from './AscendUnit';
+import { LLC_CACHE_METRIC_GROUP } from './llcCache';
+
+const THREADING_ANALYSIS_META_TYPE = 'THREADING_ANALYSIS';
 
 const parentMetaDataTree = new Map();
 
@@ -95,7 +106,10 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.label = insightMetaData.metadata.label;
             meta.metaType = insightMetaData.metadata.metaType;
-            return new ProcessUnit(meta);
+            meta.bucketWidthNs = insightMetaData.metadata.bucketWidthNs;
+            return meta.metaType === THREADING_ANALYSIS_META_TYPE
+                ? new ThreadingProcessUnit(meta)
+                : new ProcessUnit(meta);
         }
         case 'thread': {
             const meta = generateMetaData<ThreadMetaData>({ cardId: insightMetaData.metadata.cardId, dbPath: parentMetaData.dbPath },
@@ -106,6 +120,10 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             meta.groupNameValue = insightMetaData.metadata.groupNameValue;
             meta.rankList = insightMetaData.metadata.rankList;
             meta.headerTooltip = insightMetaData.metadata.headerTooltip;
+            meta.bucketWidthNs = insightMetaData.metadata.bucketWidthNs;
+            if (meta.metaType === THREADING_ANALYSIS_META_TYPE) {
+                return new ThreadingThreadUnit(meta);
+            }
             const threadUnit = new ThreadUnit(meta);
             const chart = threadUnit.chart as ChartDesc<'stackStatus'>;
             if (insightMetaData.metadata.maxDepth === 1 || insightMetaData.metadata.maxDepth === 0) {
@@ -117,6 +135,22 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             return threadUnit;
         }
         case 'counter': {
+            if (insightMetaData.metadata.metaType === THREADING_ANALYSIS_META_TYPE) {
+                const sourceMetaData = parentMetaDataTree.get(insightMetaData.metadata);
+                const meta = generateMetaData<CounterMetaData>(
+                    { cardId: insightMetaData.metadata.cardId, dbPath: parentMetaData.dbPath },
+                    insightMetaData.metadata.processId ?? '', insightMetaData.metadata.processName ?? 'Threading Analysis',
+                    insightMetaData.metadata.threadId, insightMetaData.metadata.threadName,
+                );
+                meta.dataSource = sourceMetaData.dataSource;
+                meta.dataType = insightMetaData.metadata.dataType;
+                meta.metaType = insightMetaData.metadata.metaType;
+                meta.bucketWidthNs = insightMetaData.metadata.bucketWidthNs;
+                meta.metricGroup = insightMetaData.metadata.metricGroup;
+                return meta.metricGroup === LLC_CACHE_METRIC_GROUP
+                    ? new ThreadingLlcCacheUnit(meta)
+                    : undefined;
+            }
             const grandParentMetaData = parentMetaDataTree.get(parentMetaDataTree.get(insightMetaData.metadata));
             const meta = generateMetaData<CounterMetaData>({ cardId: grandParentMetaData.cardId, dbPath: grandParentMetaData.dbPath },
                 (parentMetaData as ProcessMetaData).processId, insightMetaData.metadata.processName, insightMetaData.metadata.threadId,
@@ -164,6 +198,15 @@ export function createStatusParam(method: string, params: Record<string, unknown
 
 export function createCounterParam(method: string, params: Record<string, unknown>): string {
     const counterParams = params as unknown as CounterRequest;
-    return `cardId${counterParams.rankId}&processId${counterParams.pid}&threadId${counterParams.threadName}` +
-        `&s${counterParams.startTime}&e${counterParams.endTime}`;
+    return [
+        method,
+        counterParams.rankId,
+        counterParams.dbPath ?? '',
+        counterParams.pid,
+        counterParams.threadId ?? '',
+        counterParams.metricGroup ?? '',
+        counterParams.metaType ?? '',
+        counterParams.startTime,
+        counterParams.endTime,
+    ].join('&');
 }

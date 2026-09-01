@@ -17,6 +17,7 @@
  */
 import styled from '@emotion/styled';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { Session } from '../../entity/session';
 import { CHARTINTERACTOR_NAME } from '../ChartContainer/ChartContainer';
@@ -33,18 +34,18 @@ export interface TooltipArg {
      * Property3: Value3
      * Property4: Value4
     */
-    content: Map<string, string>;
+    content: Map<string, string> | ReactNode;
 };
 
 // 默认展示在鼠标右侧，needReverse为true时转为左侧
-const Tooltip = styled.div<{ needReverse?: boolean }>(props => ({
+const Tooltip = styled.div<{ needReverse?: boolean; isCustom?: boolean }>(props => ({
     position: 'absolute',
-    backgroundColor: props.theme.bgColorLight,
-    color: props.theme.textColorSecondary,
+    backgroundColor: props.theme.tooltipBGColor,
+    color: props.theme.tooltipFontColor,
     border: `1px solid ${props.theme.borderColorLight}`,
-    borderRadius: 2,
-    padding: '0 10px 0 10px',
-    whiteSpace: 'pre',
+    borderRadius: props.isCustom ? 3 : 2,
+    padding: props.isCustom ? 0 : '0 10px 0 10px',
+    whiteSpace: props.isCustom ? 'normal' : 'pre',
     zIndex: 2,
     pointerEvents: 'none',
     transform: 'translatey(-50%)',
@@ -56,7 +57,7 @@ const Tooltip = styled.div<{ needReverse?: boolean }>(props => ({
         content: '""',
         height: 10,
         width: 10,
-        background: props.theme.bgColorLight,
+        background: props.theme.tooltipBGColor,
         top: '50%',
         left: props.needReverse ? 'unset' : -2,
         right: props.needReverse ? -2 : 'unset',
@@ -82,11 +83,17 @@ const TooltipComp = (tooltipArg: TooltipArg): JSX.Element => {
         }
         tooltipDiv.current.style.top = `${tooltipArg.y}px`;
     });
+    const isCustom = !(tooltipArg.content instanceof Map);
     useEffect(() => {
+        if (isCustom) {
+            setTable([]);
+            return;
+        }
         const tableContent: JSX.Element[] = [];
         const trContent: JSX.Element[][] = [];
+        const defaultContent = tooltipArg.content as Map<string, string>;
         let row = 0;
-        tooltipArg.content.forEach((value, key) => {
+        defaultContent.forEach((value, key) => {
             trContent[row] = trContent[row] ?? [];
             trContent[row].push(<td style={{ textAlign: 'left' }} key={`key_${key}`}>{trContent[row].length === 0 ? key : `  ${key}`}</td>);
             trContent[row].push(<td key={`colon_${key}`}>:  </td>);
@@ -97,9 +104,11 @@ const TooltipComp = (tooltipArg: TooltipArg): JSX.Element => {
             return tableContent.push(<tr key={`tr_${index}`}>{value}</tr>);
         });
         setTable(tableContent);
-    }, [tooltipArg.content]);
+    }, [isCustom, tooltipArg.content]);
     return createPortal(
-        <Tooltip ref={tooltipDiv} needReverse={needReverse}><table><tbody>{table}</tbody></table></Tooltip>,
+        <Tooltip ref={tooltipDiv} needReverse={needReverse} isCustom={isCustom} role="tooltip">
+            {isCustom ? tooltipArg.content : <table><tbody>{table}</tbody></table>}
+        </Tooltip>,
         document.getElementById(CHARTINTERACTOR_NAME) as Element,
     );
 };
@@ -112,7 +121,7 @@ export interface TooltipProps<F, T> {
     calcHeight: (data: F) => number;
     dataset: T;
     dom: React.RefObject<HTMLDivElement>;
-    renderContent: (data: F) => Map<string, string> | undefined;
+    renderContent: (data: F) => Map<string, string> | ReactNode | undefined;
 }
 
 export function TooltipComponent<F, T>({ data, session, x, calcHeight, mouseX, dataset, dom, renderContent }: TooltipProps<F, T>): JSX.Element | null {
