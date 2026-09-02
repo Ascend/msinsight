@@ -93,6 +93,76 @@ export const getFuncNewData = async (
         message.error(error.message);
     }
 };
+// 1000 起步、2 倍翻倍；blocks 单项比 events 更宽，上限 32000，为代理 10 MiB 限制保留余量
+const BLOCKS_MIN_PAGE_SIZE = 1000;
+const BLOCKS_MAX_PAGE_SIZE = 32000;
+
+// blocks 分片拉取中途被新请求取代时抛出的哨兵：catch 中按对象身份识别（throw 与 catch 之间无包装），
+// 静默 return（状态由新请求管理）
+const PAGINATION_SUPERSEDED = new Error('blocks pagination superseded by a newer request');
+
+type SnapshotBlocksPage = RenderData & { total?: number };
+
+/**
+ * 图视图 blocks 分片拉取（issue #499）：单条全量响应可达数十 MB，超过 JupyterLab 代理 10MB 上限导致断连。
+ * 翻页策略：前两页 1000 条，此后页大小翻倍至 32000 上限，再按页码递增；
+ * 以响应 total（COUNT 总数）为终止条件，各页 blocks 顺序拼接，等价于原全量数据。
+ */
+const fetchSnapshotViewBlocksPaginated = async (
+    baseParam: BlockParam,
+    isLatestRequest: () => boolean,
+): Promise<RenderData> => {
+    let currentDataCount = 0;
+    let currentPage = 1;
+    let pageSize = BLOCKS_MIN_PAGE_SIZE;
+    let merged: SnapshotBlocksPage | null = null;
+    let expectedTotal: number | undefined;
+    for (;;) {
+        const res: SnapshotBlocksPage = await getSnapshotBlocks({ ...baseParam, currentPage, pageSize });
+        if (!isLatestRequest()) {
+            throw PAGINATION_SUPERSEDED;
+        }
+        if (merged === null) {
+            // 首页：spread 后清空 blocks 作为合并容器（min/max 等元信息各页相同）
+            merged = { ...res, blocks: [] };
+            expectedTotal = res.total;
+            if (expectedTotal !== undefined && (!Number.isSafeInteger(expectedTotal) || expectedTotal < 0)) {
+                throw new Error('Invalid blocks pagination total');
+            }
+        } else if (res.total !== expectedTotal) {
+            throw new Error('Blocks pagination total changed while loading');
+        }
+        merged.blocks = merged.blocks.concat(res.blocks);
+        currentDataCount += res.blocks.length;
+        // 旧后端若不返回 total，则将首页视为原全量响应并保持兼容。
+        if (expectedTotal === undefined) {
+            break;
+        }
+        if (currentDataCount > expectedTotal) {
+            throw new Error('Blocks pagination returned more rows than total');
+        }
+        if (currentDataCount === expectedTotal) {
+            break;
+        }
+        if (res.blocks.length === 0) {
+            throw new Error('Blocks pagination returned an empty page before total was reached');
+        }
+        if (res.blocks.length < pageSize) {
+            throw new Error('Blocks pagination returned a short page before total was reached');
+        }
+        if (pageSize < BLOCKS_MAX_PAGE_SIZE) {
+            if (currentPage === 1) {
+                currentPage = 2; // 第二页仍用 1000 小页
+            } else {
+                pageSize = Math.min(pageSize * 2, BLOCKS_MAX_PAGE_SIZE); // 停留在第二页持续翻倍页大小
+            }
+        } else {
+            currentPage++;
+        }
+    }
+    return merged as RenderData;
+};
+
 export const getBarNewData = async (session: any, startTimestamp?: number, endTimestamp?: number): Promise<void> => {
     const requestSeq = (barDataRequestSeqMap.get(session) ?? 0) + 1;
     barDataRequestSeqMap.set(session, requestSeq);
@@ -179,7 +249,9 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             }
             return;
         }
-        const blockData = await getBlocksRequest(param);
+        const blockData = session.module === 'memsnapshot'
+            ? await fetchSnapshotViewBlocksPaginated(param, isLatestRequest)
+            : await getBlocksRequest(param); // leaks（Memory/leaks/blocks）保持单次请求
         if (!isLatestRequest()) {
             return;
         }
@@ -193,6 +265,10 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             session.loadedMemoryBlockContextKey = blockContextKey;
         });
     } catch (error: any) {
+        // 分片拉取被新请求取代：静默作废，loading 等状态由新请求管理
+        if (error === PAGINATION_SUPERSEDED) {
+            return;
+        }
         requestActive = false;
         if (isLatestRequest()) {
             runInAction(() => {
@@ -333,6 +409,10 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
 };
 export const getEventTableData = async (session: any): Promise<void> => {
     if (!isMemoryBlockLoadReady(session)) {
+        runInAction(() => {
+            session.eventsTableData = [];
+            session.eventsTotal = 0;
+        });
         return;
     }
     const request = session.module === 'leaks' ? getEventDetails : getSnapshotEvent;

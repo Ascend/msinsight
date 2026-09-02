@@ -38,6 +38,10 @@ class MemSnapshotDatabase : public Database {
     // API
     // 查询所有的block，用于内存块生命周期图展示
     template <typename T = Block> bool QueryAllBlocks(std::vector<T> &blocks, const std::string &deviceId);
+    // 按分页查询block，用于内存块生命周期图分片拉取场景；返回总行数(COUNT)，SQL失败返回-1
+    template <typename T = Block>
+    int64_t QueryBlocksByPage(
+        const PaginationParam &paginationParam, const std::string &deviceId, std::vector<T> &blocks);
     // 基于id查询单个block的详细信息
     std::optional<Block> QueryBlockById(int64_t blockId, const std::string &deviceId);
     // 查询指定事件ID时活跃的blocks

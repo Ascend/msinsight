@@ -17,6 +17,9 @@
  */
 
 #include "../../TestSuit.h"
+#include <limits>
+#include "stringbuffer.h"
+#include "writer.h"
 #include "MemSnapshotDefs.h"
 #include "MemSnapshotProtocolRequest.h"
 #include "MemSnapshotProtocolResponse.h"
@@ -105,6 +108,110 @@ TEST_F(MemSnapshotProtocolTest, BuildBlocksViewRequestFromJson) {
     EXPECT_EQ(request.params.eventType, "PTA");
     EXPECT_FALSE(request.isTable);
     EXPECT_EQ(request.params.orderBy, "allocEventId");
+}
+
+TEST_F(MemSnapshotProtocolTest, BuildBlocksViewRequestFromJsonWithPagination) {
+    std::string jsonStr = "{"
+                          "  \"id\": 41, "
+                          "  \"moduleName\": \"leaks\", "
+                          "  \"type\": \"request\", "
+                          "  \"command\": \"Memory/snapshot/blocks\", "
+                          "  \"fileId\": \"\", "
+                          "  \"projectName\": \"/home/test/data/memsnapshot/test.db\", "
+                          "  \"params\": { "
+                          "    \"deviceId\": \"1\", "
+                          "    \"eventType\": \"PTA\", "
+                          "    \"isTable\": false, "
+                          "    \"currentPage\": 3, "
+                          "    \"pageSize\": 4000 "
+                          "  } "
+                          "}";
+    std::string errMsg;
+    auto json = JsonUtil::TryParse(jsonStr, errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    EXPECT_TRUE(json.has_value());
+    auto requestPtr = Dic::Protocol::MemSnapshotBlocksRequest::FromJson(json.value(), errMsg);
+    EXPECT_TRUE(errMsg.empty());
+    auto &request = dynamic_cast<Dic::Protocol::MemSnapshotBlocksRequest &>(*requestPtr);
+    // 图视图分页走宽松校验（pageSize 可超过全局 MAX_PAGESIZE=1000）
+    EXPECT_TRUE(request.params.CommonCheckForView(errMsg));
+    EXPECT_EQ(request.params.currentPage, 3);
+    EXPECT_EQ(request.params.pageSize, 4000);
+    EXPECT_EQ(request.params.orderBy, "allocEventId");
+}
+
+TEST_F(MemSnapshotProtocolTest, BlocksViewCheckForViewWithoutPagination) {
+    std::string errMsg;
+    Dic::Protocol::MemSnapshotBlockParams params;
+    params.deviceId = "1";
+    params.eventType = "PTA";
+    // 不带分页参数（0/0）：全量兼容路径，校验通过
+    EXPECT_TRUE(params.CommonCheckForView(errMsg));
+}
+
+TEST_F(MemSnapshotProtocolTest, BlocksViewCheckForViewInvalidPagination) {
+    std::string errMsg;
+    {
+        Dic::Protocol::MemSnapshotBlockParams params;
+        params.deviceId = "1";
+        params.eventType = "PTA";
+        params.currentPage = 2; // 半填：currentPage>0 但 pageSize=0
+        EXPECT_FALSE(params.CommonCheckForView(errMsg));
+        EXPECT_FALSE(errMsg.empty());
+    }
+    {
+        Dic::Protocol::MemSnapshotBlockParams params;
+        params.deviceId = "1";
+        params.eventType = "PTA";
+        params.currentPage = 1;
+        params.pageSize = Dic::Protocol::MemSnapshotBlockParams::MAX_VIEW_PAGE_SIZE + 1;
+        EXPECT_FALSE(params.CommonCheckForView(errMsg));
+        EXPECT_FALSE(errMsg.empty());
+    }
+}
+
+TEST_F(MemSnapshotProtocolTest, BlocksViewCheckForViewAcceptsSafeMaximumPageSize) {
+    std::string errMsg;
+    Dic::Protocol::MemSnapshotBlockParams params;
+    params.deviceId = "1";
+    params.eventType = "PTA";
+    params.currentPage = 1;
+    params.pageSize = Dic::Protocol::MemSnapshotBlockParams::MAX_VIEW_PAGE_SIZE;
+
+    EXPECT_TRUE(params.CommonCheckForView(errMsg));
+}
+
+TEST_F(MemSnapshotProtocolTest, BlocksViewSafeMaximumStaysBelowProxyMessageLimit) {
+    Dic::Protocol::MemSnapshotBlocksResponse response;
+    response.isTable = false;
+    response.total = Dic::Protocol::MemSnapshotBlockParams::MAX_VIEW_PAGE_SIZE;
+    Dic::Protocol::BlockViewItemDTO block;
+    block.id = std::numeric_limits<int64_t>::min();
+    block.address = std::numeric_limits<uint64_t>::max();
+    block.size = std::numeric_limits<uint64_t>::max();
+    block.allocEventId = std::numeric_limits<int64_t>::max();
+    block.freeEventId = std::numeric_limits<int64_t>::max();
+    response.viewBlocks.assign(Dic::Protocol::MemSnapshotBlockParams::MAX_VIEW_PAGE_SIZE, block);
+
+    const auto json = response.ToJson();
+    ASSERT_TRUE(json.has_value());
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    json->Accept(writer);
+
+    constexpr size_t PROXY_MESSAGE_LIMIT = 10 * 1024 * 1024;
+    EXPECT_LT(buffer.GetSize(), PROXY_MESSAGE_LIMIT);
+}
+
+TEST_F(MemSnapshotProtocolTest, BlocksViewTableCheckUnaffectedByRelaxedCheck) {
+    std::string errMsg;
+    Dic::Protocol::MemSnapshotBlockParams params;
+    params.deviceId = "1";
+    params.eventType = "PTA";
+    params.currentPage = 1;
+    params.pageSize = 1001; // 表格场景仍受全局 MAX_PAGESIZE=1000 限制
+    EXPECT_FALSE(params.CommonCheck(errMsg));
+    EXPECT_FALSE(errMsg.empty());
 }
 
 TEST_F(MemSnapshotProtocolTest, BuildLeakStatsRequestFromJson) {

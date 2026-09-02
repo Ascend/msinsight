@@ -17,7 +17,10 @@
  * -------------------------------------------------------------------------
  */
 
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
+#include <set>
 #include <gtest/gtest.h>
 #include "DataBaseManager.h"
 #include "MemSnapshotDatabase.h"
@@ -59,6 +62,28 @@ class MemSnapshotDatabaseTest : public ::testing::Test {
     static std::string testDbPath;
     static std::shared_ptr<MemSnapshotDatabase> snapshotDb;
 };
+
+class FaultInjectableMemSnapshotDatabase : public MemSnapshotDatabase {
+  public:
+    explicit FaultInjectableMemSnapshotDatabase(std::recursive_mutex &sqlMutex) : MemSnapshotDatabase(sqlMutex) {}
+    sqlite3 *GetRawDb() const { return db; }
+};
+
+namespace {
+int InterruptPagedBlockQueryAfterFirstRow(unsigned type, void *ctx, void *p, void *) {
+    if (type != SQLITE_TRACE_ROW) {
+        return 0;
+    }
+    auto *stmt = static_cast<sqlite3_stmt *>(p);
+    const char *sql = sqlite3_sql(stmt);
+    // COUNT 语句不能中断：只对分页 SELECT * 在产出首行后注入 SQLITE_INTERRUPT。
+    if (sql == nullptr || std::strncmp(sql, "SELECT *", 8) != 0) {
+        return 0;
+    }
+    sqlite3_interrupt(static_cast<sqlite3 *>(ctx));
+    return 0;
+}
+} // namespace
 
 std::string MemSnapshotDatabaseTest::testDbPath;
 std::shared_ptr<MemSnapshotDatabase> MemSnapshotDatabaseTest::snapshotDb = nullptr;
@@ -103,6 +128,133 @@ TEST_F(MemSnapshotDatabaseTest, QueryAllBlocks) {
     result = snapshotDb->QueryAllBlocks(blocks, "1");
     EXPECT_TRUE(result);
     EXPECT_EQ(blocks.size(), 6435);
+}
+
+// 测试分页查询内存块：首页与全量结果一致
+TEST_F(MemSnapshotDatabaseTest, QueryBlocksByPageFirstPage) {
+    PaginationParam page;
+    page.currentPage = 1;
+    page.pageSize = 1000;
+    std::vector<Block> blocks;
+    const int64_t total = snapshotDb->QueryBlocksByPage<Block>(page, "0", blocks);
+
+    EXPECT_EQ(total, 3219);
+    EXPECT_EQ(blocks.size(), 1000);
+
+    // 全量结果按 (allocEventId, id) 稳定排序后，前 1000 条应与分页首页一致（不重不漏）
+    std::vector<Block> allBlocks;
+    ASSERT_TRUE(snapshotDb->QueryAllBlocks(allBlocks, "0"));
+    std::stable_sort(allBlocks.begin(), allBlocks.end(), [](const Block &a, const Block &b) {
+        return std::make_pair(a.allocEventId, a.id) < std::make_pair(b.allocEventId, b.id);
+    });
+    ASSERT_EQ(allBlocks.size(), 3219);
+    for (size_t i = 0; i < blocks.size(); ++i) {
+        EXPECT_EQ(blocks[i].id, allBlocks[i].id);
+    }
+}
+
+// 测试分页查询内存块：多页拼接与全量 id 集合一致
+TEST_F(MemSnapshotDatabaseTest, QueryBlocksByPageMultiPageConsistency) {
+    PaginationParam page;
+    page.pageSize = 2000;
+
+    std::vector<Block> merged;
+    int64_t total = -1;
+    for (int currentPage = 1;; ++currentPage) {
+        page.currentPage = currentPage;
+        std::vector<Block> blocks;
+        total = snapshotDb->QueryBlocksByPage<Block>(page, "0", blocks);
+        ASSERT_EQ(total, 3219);
+        merged.insert(merged.end(), blocks.begin(), blocks.end());
+        if (merged.size() >= static_cast<size_t>(total) || blocks.empty()) {
+            break;
+        }
+    }
+
+    EXPECT_EQ(merged.size(), 3219);
+    std::vector<Block> allBlocks;
+    ASSERT_TRUE(snapshotDb->QueryAllBlocks(allBlocks, "0"));
+    std::set<int64_t> mergedIds;
+    std::set<int64_t> allIds;
+    for (const auto &block : merged) {
+        mergedIds.insert(block.id);
+    }
+    for (const auto &block : allBlocks) {
+        allIds.insert(block.id);
+    }
+    // 不重不漏：id 集合完全一致（merged 无重复由 size==3219 保证）
+    EXPECT_EQ(mergedIds, allIds);
+}
+
+// 测试分页查询内存块：越界页返回空但 total 不变
+TEST_F(MemSnapshotDatabaseTest, QueryBlocksByPageOutOfRange) {
+    PaginationParam page;
+    page.currentPage = 100; // 3219 行，pageSize=1000 时最多 4 页
+    page.pageSize = 1000;
+    std::vector<Block> blocks;
+    const int64_t total = snapshotDb->QueryBlocksByPage<Block>(page, "0", blocks);
+
+    EXPECT_EQ(total, 3219);
+    EXPECT_TRUE(blocks.empty());
+}
+
+TEST_F(MemSnapshotDatabaseTest, QueryBlocksByPageReturnsFailureWhenStepDoesNotFinish) {
+    std::recursive_mutex sqlMutex;
+    FaultInjectableMemSnapshotDatabase database(sqlMutex);
+    ASSERT_TRUE(database.OpenDbReadOnly(testDbPath));
+    sqlite3 *rawDb = database.GetRawDb();
+    ASSERT_NE(rawDb, nullptr);
+    // 必须在 prepare 成功后失败：SQLITE_LIMIT_LENGTH 会因列名过长在 prepare 阶段返回，
+    // 覆盖不到 sqlite3_step != SQLITE_DONE 的回滚路径。
+    ASSERT_EQ(sqlite3_trace_v2(rawDb, SQLITE_TRACE_ROW, InterruptPagedBlockQueryAfterFirstRow, rawDb), SQLITE_OK);
+
+    PaginationParam page;
+    page.currentPage = 1;
+    page.pageSize = 1000;
+    std::vector<Block> blocks(1); // 验证失败时撤销本次 append，保留调用者原数据
+    EXPECT_EQ(database.QueryBlocksByPage<Block>(page, "0", blocks), -1);
+    EXPECT_EQ(blocks.size(), 1);
+
+    sqlite3_trace_v2(rawDb, 0, nullptr, nullptr);
+    database.CloseDb();
+}
+
+// 测试分页查询内存块：模拟前端真实翻倍序列拉取全量
+TEST_F(MemSnapshotDatabaseTest, QueryBlocksByPageWithFrontendDoublingSequence) {
+    constexpr int64_t MIN_PAGE_SIZE = 1000;
+    constexpr int64_t MAX_PAGE_SIZE = MemSnapshotBlockParams::MAX_VIEW_PAGE_SIZE;
+    int64_t currentPage = 1;
+    int64_t pageSize = MIN_PAGE_SIZE;
+    size_t currentDataCount = 0;
+    int64_t total = -1;
+    std::vector<Block> merged;
+    for (;;) {
+        PaginationParam page;
+        page.currentPage = currentPage;
+        page.pageSize = pageSize;
+        std::vector<Block> blocks;
+        total = snapshotDb->QueryBlocksByPage<Block>(page, "1", blocks);
+        ASSERT_GE(total, 0);
+        merged.insert(merged.end(), blocks.begin(), blocks.end());
+        currentDataCount += blocks.size();
+        if (currentDataCount >= static_cast<size_t>(total)) {
+            break;
+        }
+        // 与前端 fetchSnapshotViewBlocksPaginated 一致的翻页推进
+        if (pageSize < MAX_PAGE_SIZE) {
+            if (currentPage == 1) {
+                currentPage = 2;
+            } else {
+                pageSize = std::min(pageSize * 2, MAX_PAGE_SIZE);
+            }
+        } else {
+            currentPage++;
+        }
+    }
+
+    // 注意：device "1" 实际 3216 行（既有 QueryAllBlocks 用例中的 6435 是 3219+3216 的累计值）
+    EXPECT_EQ(total, 3216);
+    EXPECT_EQ(merged.size(), 3216);
 }
 
 // 测试根据ID查询内存块

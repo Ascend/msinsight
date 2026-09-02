@@ -134,6 +134,68 @@ template <typename T> bool MemSnapshotDatabase::QueryAllBlocks(std::vector<T> &b
 }
 
 /**
+ * 该方法用于内存块生命周期图分片请求场景，先 COUNT 取总行数，再按 allocEventId 升序分页取数
+ * @param paginationParam 分片参数（pageSize/currentPage 必须 > 0，由协议层宽松校验保证）
+ * @param deviceId 设备id
+ * @param blocks 本页block列表（append 语义）
+ * @return 总行数；SQL 失败返回 -1
+ */
+template <typename T>
+int64_t MemSnapshotDatabase::QueryBlocksByPage(
+    const PaginationParam &paginationParam, const std::string &deviceId, std::vector<T> &blocks) {
+    if (!IsDeviceIdValid(deviceId)) {
+        ServerLog::Error(LOG_TAG + "Failed to query blocks by pagination: invalid device.");
+        return -1;
+    }
+    // 事件id不连续（存在负值），不能用 max(id)+1 估算总数，必须 COUNT
+    std::string countSql = "SELECT COUNT(*) FROM {};";
+    countSql = StringUtil::FormatString(countSql, GetBlockTableNameByDeviceId(deviceId));
+    sqlite3_stmt *countStmt = nullptr;
+    int result = sqlite3_prepare_v2(db, countSql.c_str(), -1, &countStmt, nullptr);
+    if (result != SQLITE_OK) {
+        Server::ServerLog::Error(LOG_TAG + "Failed to prepare count block sql, error: ", sqlite3_errmsg(db));
+        sqlite3_finalize(countStmt);
+        return -1;
+    }
+    int64_t total = -1;
+    if (sqlite3_step(countStmt) == SQLITE_ROW) {
+        total = sqlite3_column_int64(countStmt, 0);
+    }
+    sqlite3_finalize(countStmt);
+    if (total < 0) {
+        Server::ServerLog::Error(LOG_TAG + "Failed to count blocks, device: ", deviceId);
+        return -1;
+    }
+    // 第二排序键 id（主键）：保证 allocEventId 相同的行跨页顺序稳定、不重不漏（分页正确性必需；
+    // QueryAllBlocks 保持原单键排序不动，全量语义不受影响）
+    std::string querySql = "SELECT * FROM {} ORDER BY {}, {} LIMIT ? OFFSET ?;";
+    querySql = StringUtil::FormatString(
+        querySql, GetBlockTableNameByDeviceId(deviceId), BlockTableColumn::ALLOC_EVENT_ID, BlockTableColumn::ID);
+    sqlite3_stmt *stmt = nullptr;
+    result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
+    if (result != SQLITE_OK) {
+        Server::ServerLog::Error(LOG_TAG + "Failed to prepared query block sql, error: ", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    int bindIdx = bindStartIndex;
+    CommonBindPaginationParams(paginationParam.pageSize, paginationParam.currentPage, stmt, bindIdx);
+    const size_t initialBlockCount = blocks.size();
+    int stepResult = SQLITE_OK;
+    while ((stepResult = sqlite3_step(stmt)) == SQLITE_ROW) {
+        blocks.push_back(QueryBlockByStep<T>(stmt));
+    };
+    if (stepResult != SQLITE_DONE) {
+        Server::ServerLog::Error(LOG_TAG + "Failed to step query block sql, error: ", sqlite3_errmsg(db));
+        blocks.resize(initialBlockCount);
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    sqlite3_finalize(stmt);
+    return total;
+}
+
+/**
  * 该方法用于分片请求全量事件场景，该场景只要查询成功则固定返回全量事件数量
  * @param paginationParam 分片参数
  * @param deviceId 设备id
@@ -855,4 +917,8 @@ bool MemSnapshotDatabase::QueryActiveBlocksByEventId(
 template bool MemSnapshotDatabase::QueryAllBlocks<Block>(std::vector<Block> &, const std::string &);
 template bool MemSnapshotDatabase::QueryAllBlocks<BlockViewItemDTO>(
     std::vector<BlockViewItemDTO> &, const std::string &);
+template int64_t MemSnapshotDatabase::QueryBlocksByPage<Block>(
+    const PaginationParam &, const std::string &, std::vector<Block> &);
+template int64_t MemSnapshotDatabase::QueryBlocksByPage<BlockViewItemDTO>(
+    const PaginationParam &, const std::string &, std::vector<BlockViewItemDTO> &);
 } // namespace Dic::Module::FullDb
