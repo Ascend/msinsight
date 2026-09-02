@@ -18,7 +18,7 @@
 
 import type { InsightMetaData } from '../../../entity/data';
 import type { InsightUnit } from '../../../entity/insight';
-import { clearParentMap, recursiveExpandUnit, updateDataSourceAndParentMetaDataMap } from '../unitFunc';
+import { clearParentMap, createCounterParam, recursiveExpandUnit, updateDataSourceAndParentMetaDataMap } from '../unitFunc';
 
 jest.mock('../AscendUnit', () => {
     class MockUnit {
@@ -53,6 +53,21 @@ jest.mock('../AscendUnit', () => {
 
             constructor(metadata: Record<string, unknown>) {
                 super('Thread', metadata);
+            }
+        },
+        ThreadingProcessUnit: class extends MockUnit {
+            constructor(metadata: Record<string, unknown>) {
+                super('Process', metadata);
+            }
+        },
+        ThreadingThreadUnit: class extends MockUnit {
+            constructor(metadata: Record<string, unknown>) {
+                super('Thread', metadata);
+            }
+        },
+        ThreadingLlcCacheUnit: class extends MockUnit {
+            constructor(metadata: Record<string, unknown>) {
+                super('LLC Cache', metadata);
             }
         },
     };
@@ -228,6 +243,59 @@ const createHostTree = (): InsightMetaData<'card'> => ({
     }],
 });
 
+const createThreadingTree = (): InsightMetaData<'card'> => ({
+    type: 'card',
+    dataSource,
+    metadata: {
+        cardId: 'Threading',
+        dbPath: 'threading.db',
+        dataSource,
+    } as never,
+    children: [{
+        type: 'process',
+        dataSource,
+        metadata: {
+            cardId: 'Threading',
+            dbPath: 'threading.db',
+            dataSource,
+            processId: '1000',
+            processName: 'Process_1000',
+            metaType: 'THREADING_ANALYSIS',
+        },
+        children: ['10000', '10001'].map((threadId) => ({
+            type: 'thread' as const,
+            dataSource,
+            metadata: {
+                cardId: 'Threading',
+                dbPath: 'threading.db',
+                dataSource,
+                processId: '1000',
+                processName: 'Process_1000',
+                threadId,
+                threadName: `Thread_${threadId}`,
+                metaType: 'THREADING_ANALYSIS',
+            },
+            children: [{
+                type: 'counter' as const,
+                dataSource,
+                metadata: {
+                    cardId: 'Threading',
+                    dbPath: 'threading.db',
+                    dataSource,
+                    processId: '1000',
+                    processName: 'Process_1000',
+                    threadId,
+                    threadName: 'LLC Cache',
+                    dataType: ['LLC Hits', 'LLC Misses'],
+                    metaType: 'THREADING_ANALYSIS',
+                    metricGroup: 'llc_cache',
+                    bucketWidthNs: 500_000_000,
+                },
+            }],
+        })),
+    }],
+});
+
 describe('timeline unit metadata expansion', () => {
     afterEach(() => {
         clearParentMap();
@@ -271,5 +339,48 @@ describe('timeline unit metadata expansion', () => {
         expect(cann?.children?.[0].metadata.threadName).toBe('acl');
         expect(mstx?.children).toHaveLength(1);
         expect(mstx?.children?.[0].metadata.threadName).toBe('domain 0');
+    });
+
+    it('creates an LLC Cache lane under every Process and Thread group', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createThreadingTree();
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        expect(cardUnit.children).toHaveLength(1);
+        const processUnit = cardUnit.children?.[0];
+        expect(processUnit?.name).toBe('Process');
+        expect(processUnit?.metadata.processId).toBe('1000');
+        expect(processUnit?.children).toHaveLength(2);
+        expect(processUnit?.children?.map((thread) => thread.name)).toEqual(['Thread', 'Thread']);
+        expect(processUnit?.children?.map((thread) => thread.metadata.threadId)).toEqual(['10000', '10001']);
+        processUnit?.children?.forEach((thread) => {
+            expect(thread.children).toHaveLength(1);
+            expect(thread.children?.[0].name).toBe('LLC Cache');
+            expect(thread.children?.[0].metadata.threadId).toBe(thread.metadata.threadId);
+            expect(thread.children?.[0].metadata.bucketWidthNs).toBe(500_000_000);
+            expect(thread.children?.[0].metadata.metricGroup).toBe('llc_cache');
+        });
+    });
+});
+
+describe('counter request cache identity', () => {
+    const baseParams = {
+        rankId: '0',
+        dbPath: 'threading.db',
+        pid: '1000',
+        threadName: 'LLC Cache',
+        threadId: '10001',
+        metricGroup: 'llc_cache',
+        metaType: 'THREADING_ANALYSIS',
+        startTime: 0,
+        endTime: 100,
+    };
+
+    it('isolates the cache by real thread id and metric group', () => {
+        const key = createCounterParam('unit/counter', baseParams);
+        expect(createCounterParam('unit/counter', { ...baseParams, threadId: '10002' })).not.toBe(key);
+        expect(createCounterParam('unit/counter', { ...baseParams, metricGroup: 'thread_state' })).not.toBe(key);
     });
 });

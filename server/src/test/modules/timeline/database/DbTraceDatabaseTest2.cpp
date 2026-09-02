@@ -59,6 +59,221 @@ class MockDatabase : public Dic::Module::FullDb::DbTraceDataBase {
     }
     void SetMetaVersion(const std::string &version) { metaVersion = version; }
 };
+
+namespace {
+void CreateThreadingAnalysisTables(sqlite3 *db) {
+    DatabaseTestCaseMockUtil::CreateTable(
+        db, "CREATE TABLE p_process (id INTEGER, pid INTEGER, name TEXT, start_ts INTEGER, end_ts INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db,
+        "CREATE TABLE p_thread (id INTEGER, process_id INTEGER, tid INTEGER, name TEXT, "
+        "start_ts INTEGER, end_ts INTEGER);");
+    DatabaseTestCaseMockUtil::CreateTable(db, "CREATE TABLE p_core_metric_desc (id INTEGER, name TEXT);");
+    DatabaseTestCaseMockUtil::CreateTable(
+        db, "CREATE TABLE p_core_metric (tid_id INTEGER, desc_id INTEGER, ts INTEGER, value NUMERIC);");
+}
+
+void InsertThreadingAnalysisData(sqlite3 *db) {
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO p_process VALUES (1, 1000, 'Process_1000', 1000000000, 3000000000);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO p_thread VALUES "
+        "(1, 1, 10001, 'Thread_10001', 1000000000, 3000000000),"
+        "(2, 1, 10002, 'Thread_10002', 1000000000, 3000000000);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO p_core_metric_desc VALUES "
+        "(5, 'LLC Hits'), (6, 'LLC Misses');");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO p_core_metric VALUES "
+        "(1, 5, 1000000000, 900), (1, 6, 1000000000, 100),"
+        "(1, 5, 1500000000, 800), (1, 6, 1500000000, 200),"
+        "(2, 5, 1004000000, 720), (2, 6, 1004000000, 80);");
+}
+} // namespace
+
+TEST_F(DbTraceDatabaseTest2, TestThreadingAnalysisSchemaRangeAndMetadata) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    CreateThreadingAnalysisTables(db);
+    InsertThreadingAnalysisData(db);
+    database.SetDbPtr(db);
+
+    EXPECT_TRUE(database.IsThreadingAnalysisDatabase());
+    uint64_t minTimestamp = 0;
+    uint64_t maxTimestamp = 0;
+    EXPECT_TRUE(database.QueryExtremumTimestamp(minTimestamp, maxTimestamp));
+    EXPECT_EQ(minTimestamp, 1000000000);
+    EXPECT_EQ(maxTimestamp, 3000000000);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    EXPECT_TRUE(database.QueryUnitsMetadata("Threading", metaData));
+    ASSERT_EQ(metaData.size(), 1);
+    EXPECT_EQ(metaData[0]->type, "process");
+    EXPECT_EQ(metaData[0]->metaData.metaType, "THREADING_ANALYSIS");
+    EXPECT_EQ(metaData[0]->metaData.processId, "1000");
+    EXPECT_EQ(metaData[0]->metaData.processName, "Process_1000");
+    ASSERT_EQ(metaData[0]->children.size(), 2);
+    EXPECT_EQ(metaData[0]->children[0]->type, "thread");
+    EXPECT_EQ(metaData[0]->children[0]->metaData.threadId, "10001");
+    EXPECT_EQ(metaData[0]->children[0]->metaData.threadName, "Thread_10001");
+    ASSERT_EQ(metaData[0]->children[0]->children.size(), 1);
+    const auto &llcCache = metaData[0]->children[0]->children[0];
+    EXPECT_EQ(llcCache->type, "counter");
+    EXPECT_EQ(llcCache->metaData.threadName, "LLC Cache");
+    EXPECT_EQ(llcCache->metaData.metricGroup, "llc_cache");
+    EXPECT_EQ(llcCache->metaData.threadId, "10001");
+    EXPECT_EQ(llcCache->metaData.bucketWidthNs, 500000000);
+    ASSERT_EQ(llcCache->metaData.dataType.size(), 2);
+    EXPECT_EQ(llcCache->metaData.dataType[0], "LLC Hits");
+    EXPECT_EQ(llcCache->metaData.dataType[1], "LLC Misses");
+}
+
+TEST_F(DbTraceDatabaseTest2, TestThreadingAnalysisMetadataOmitsThreadsWithoutLlcSamples) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    CreateThreadingAnalysisTables(db);
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO p_process VALUES "
+        "(1, 1000, 'Process_1000', 1000000000, 3000000000),"
+        "(2, 2000, 'Process_2000', 1000000000, 3000000000);"
+        "INSERT INTO p_thread VALUES "
+        "(1, 1, 10001, 'Llc_Thread', 1000000000, 3000000000),"
+        "(2, 1, 10002, 'Empty_Thread', 1000000000, 3000000000),"
+        "(3, 2, 20001, 'Empty_Process_Thread', 1000000000, 3000000000);"
+        "INSERT INTO p_core_metric_desc VALUES (1, 'LLC Hits'), (2, 'LLC Misses');"
+        "INSERT INTO p_core_metric VALUES "
+        "(1, 1, 1000000000, 80), (1, 2, 1000000000, 20);");
+    database.SetDbPtr(db);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    EXPECT_TRUE(database.QueryUnitsMetadata("Threading", metaData));
+    ASSERT_EQ(metaData.size(), 1);
+    EXPECT_EQ(metaData[0]->metaData.processId, "1000");
+    ASSERT_EQ(metaData[0]->children.size(), 1);
+    EXPECT_EQ(metaData[0]->children[0]->metaData.threadId, "10001");
+    ASSERT_EQ(metaData[0]->children[0]->children.size(), 1);
+    EXPECT_EQ(metaData[0]->children[0]->children[0]->metaData.metricGroup, "llc_cache");
+}
+
+TEST_F(DbTraceDatabaseTest2, TestThreadingAnalysisLlcUsesDeclaredHostGlobalTidAsParent) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    CreateThreadingAnalysisTables(db);
+    DatabaseTestCaseMockUtil::CreateTablesFromList(db, {TableName::DB_PYTORCH_API});
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "ALTER TABLE p_thread ADD COLUMN global_tid INTEGER;"
+        "INSERT INTO PYTORCH_API(startNs, endNs, globalTid, name, depth) VALUES "
+        "(1000000000, 1100000000, 13073176077431292, 1, 0);"
+        "INSERT INTO p_process VALUES (1, 3043836, 'Process 3043836', 1000000000, 3000000000);"
+        "INSERT INTO p_thread VALUES "
+        "(1, 1, 3043836, 'Thread 3043836', 1000000000, 3000000000, 13073176077431292);"
+        "INSERT INTO p_core_metric_desc VALUES (1, 'LLC Hits'), (2, 'LLC Misses');"
+        "INSERT INTO p_core_metric VALUES "
+        "(1, 1, 1000000000, 900), (1, 2, 1000000000, 100);");
+    database.SetDbPtr(db);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    EXPECT_TRUE(database.QueryUnitsMetadata("Combined", metaData));
+    ASSERT_EQ(metaData.size(), 1);
+    EXPECT_EQ(metaData[0]->metaData.metaType, "PROCESS");
+    ASSERT_EQ(metaData[0]->children.size(), 1);
+    const auto &hostThread = metaData[0]->children[0];
+    EXPECT_EQ(hostThread->metaData.processId, "13073176077431292");
+    EXPECT_EQ(hostThread->metaData.threadId, "3043836");
+    ASSERT_EQ(hostThread->children.size(), 2);
+    EXPECT_EQ(hostThread->children[0]->metaData.threadName, "PyTorch");
+    EXPECT_EQ(hostThread->children[1]->metaData.metricGroup, "llc_cache");
+}
+
+TEST_F(DbTraceDatabaseTest2, TestThreadingAnalysisLlcBucketWidthUsesAnotherThreadWithMultipleSamples) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    CreateThreadingAnalysisTables(db);
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO p_process VALUES (1, 1000, 'Process_1000', 1000000000, 3000000000);"
+        "INSERT INTO p_thread VALUES "
+        "(1, 1, 10001, 'Single_Sample', 1000000000, 3000000000),"
+        "(2, 1, 10002, 'Multiple_Samples', 1000000000, 3000000000);"
+        "INSERT INTO p_core_metric_desc VALUES (5, 'LLC Hits'), (6, 'LLC Misses');"
+        "INSERT INTO p_core_metric VALUES "
+        "(1, 5, 1000000000, 900), (1, 6, 1000000000, 100),"
+        "(2, 5, 1100000000, 800), (2, 6, 1100000000, 200),"
+        "(2, 5, 1600000000, 700), (2, 6, 1600000000, 300);");
+    database.SetDbPtr(db);
+
+    std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
+    EXPECT_TRUE(database.QueryUnitsMetadata("Threading", metaData));
+    ASSERT_EQ(metaData.size(), 1);
+    ASSERT_EQ(metaData[0]->children.size(), 2);
+    EXPECT_EQ(metaData[0]->children[0]->children[0]->metaData.bucketWidthNs, 500000000);
+    EXPECT_EQ(metaData[0]->children[1]->children[0]->metaData.bucketWidthNs, 500000000);
+}
+
+TEST_F(DbTraceDatabaseTest2, TestThreadingAnalysisLlcCounterNormalization) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    CreateThreadingAnalysisTables(db);
+    InsertThreadingAnalysisData(db);
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "THREADING_ANALYSIS";
+    params.metricGroup = "llc_cache";
+    params.pid = "1000";
+    params.threadId = "10001";
+    params.startTime = 0;
+    params.endTime = 400000000;
+    std::vector<Dic::Protocol::UnitCounterData> data;
+    EXPECT_TRUE(database.QueryUnitCounter(params, 1000000000, data));
+    ASSERT_EQ(data.size(), 1);
+    EXPECT_EQ(data[0].timestamp, 0);
+    EXPECT_NE(data[0].valueJsonStr.find("\"hits\":900.000000"), std::string::npos);
+    EXPECT_NE(data[0].valueJsonStr.find("\"misses\":100.000000"), std::string::npos);
+    EXPECT_NE(data[0].valueJsonStr.find("\"totalAccesses\":1000.000000"), std::string::npos);
+    EXPECT_NE(data[0].valueJsonStr.find("\"hitRate\":90.000000"), std::string::npos);
+    EXPECT_NE(data[0].valueJsonStr.find("\"missRate\":10.000000"), std::string::npos);
+    EXPECT_NE(data[0].valueJsonStr.find("\"bucketWidthNs\":500000000"), std::string::npos);
+    EXPECT_EQ(data[0].valueJsonStr.find("Active"), std::string::npos);
+}
+
+TEST_F(DbTraceDatabaseTest2, TestThreadingAnalysisCounterIsolatedByProcessAndThread) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    CreateThreadingAnalysisTables(db);
+    InsertThreadingAnalysisData(db);
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO p_process VALUES (2, 2000, 'Process_2000', 1000000000, 3000000000);");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO p_thread VALUES (3, 2, 10001, 'Reused_Thread_10001', 1000000000, 3000000000);");
+    DatabaseTestCaseMockUtil::InsertData(db,
+        "INSERT INTO p_core_metric VALUES "
+        "(3, 5, 1000000000, 1), (3, 6, 1000000000, 999);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "THREADING_ANALYSIS";
+    params.metricGroup = "llc_cache";
+    params.pid = "1000";
+    params.threadId = "10001";
+    params.startTime = 0;
+    params.endTime = 400000000;
+    std::vector<Dic::Protocol::UnitCounterData> llcData;
+    EXPECT_TRUE(database.QueryUnitCounter(params, 1000000000, llcData));
+    ASSERT_EQ(llcData.size(), 1);
+    EXPECT_NE(llcData[0].valueJsonStr.find("\"hits\":900.000000"), std::string::npos);
+    EXPECT_NE(llcData[0].valueJsonStr.find("\"misses\":100.000000"), std::string::npos);
+}
 TEST_F(DbTraceDatabaseTest2, TestQueryUnitsMetadataWhenTaskNotExist) {
     std::recursive_mutex testMutex;
     MockDatabase database(testMutex);
