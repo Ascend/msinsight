@@ -58,7 +58,7 @@ bool BaselineManager::IsBaselineRankId(const std::string &rankId) {
 
 void BaselineManager::SetBaselineInfo(const BaselineInfo &baselineInfo) {
     std::unique_lock<std::shared_mutex> uniqueLock(sharedMutex);
-    baselineRankId = baselineInfo.rankId;
+    baselineRankId = baselineInfo.cardId.empty() ? baselineInfo.rankId : baselineInfo.cardId;
     baselineHost = baselineInfo.host;
     baselineCardName = baselineInfo.cardName;
     isCluster = baselineInfo.isCluster;

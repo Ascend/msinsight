@@ -21,6 +21,7 @@
 #include "BaselineManagerService.h"
 #include "ProjectExplorerManager.h"
 #include "DataBaseManager.h"
+#include "TrackInfoManager.h"
 #include "ParserStatusManager.h"
 #include "TestSuit.h"
 #include "FileUtil.h"
@@ -122,6 +123,17 @@ TEST_F(BaselineManagerTest, TestText) {
     Dic::Module::Timeline::DataBaseManager::Instance().Clear();
 }
 
+TEST_F(BaselineManagerTest, TestBaselineCardIdFallback) {
+    BaselineInfo baselineInfo;
+    baselineInfo.rankId = "rank0";
+    BaselineManager::Instance().SetBaselineInfo(baselineInfo);
+    EXPECT_EQ(BaselineManager::Instance().GetBaselineId(), baselineInfo.rankId);
+
+    baselineInfo.cardId = "Baseline_rank0";
+    BaselineManager::Instance().SetBaselineInfo(baselineInfo);
+    EXPECT_EQ(BaselineManager::Instance().GetBaselineId(), baselineInfo.cardId);
+}
+
 // 测试db数据baseline设置正常情况
 TEST_F(BaselineManagerTest, TestDb) {
     std::string filePathDb = TestSuit::GetTestDataFile("full_db", "ascend_pytorch_profiler.db");
@@ -141,7 +153,22 @@ TEST_F(BaselineManagerTest, TestDb) {
         index++;
     }
     EXPECT_TRUE(result);
-    EXPECT_EQ(BaselineManager::Instance().GetBaselineId(), baselineInfo.rankId);
+    EXPECT_EQ(baselineInfo.rankId.find("Baseline_"), std::string::npos);
+    EXPECT_EQ(baselineInfo.cardId.find("Baseline_"), 0);
+    EXPECT_NE(
+        Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByFileId(baselineInfo.cardId), nullptr);
+    auto rankList = Dic::Module::Timeline::TrackInfoManager::Instance().GetRankListByFileId(
+        baselineInfo.fileId, baselineInfo.cardId);
+    ASSERT_FALSE(rankList.empty());
+    EXPECT_EQ(rankList[0].rankId, baselineInfo.cardId);
+    auto trackId = Dic::Module::Timeline::TrackInfoManager::Instance().GetTrackId(
+        baselineInfo.cardId, "Ascend Hardware", rankList[0].deviceId);
+    Dic::Module::Timeline::TrackInfo trackInfo;
+    ASSERT_TRUE(
+        Dic::Module::Timeline::TrackInfoManager::Instance().GetTrackInfo(trackId, trackInfo, baselineInfo.cardId));
+    EXPECT_EQ(trackInfo.rankId, rankList[0].rankName);
+    EXPECT_EQ(trackInfo.deviceId, rankList[0].deviceId);
+    EXPECT_EQ(BaselineManager::Instance().GetBaselineId(), baselineInfo.cardId);
     Dic::Module::Timeline::DataBaseManager::Instance().Clear();
 }
 

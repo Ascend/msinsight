@@ -316,6 +316,8 @@ struct BaselineInfo {
     std::string clusterBaseLine;
     std::string fileId;
     std::string parsedFilePath;
+    // Timeline 内部使用的唯一卡片标识。为空时表示沿用 rankId。
+    std::string cardId;
 };
 }
 #endif // PROFILER_SERVER_FILEMENUDATABASEDEF_H

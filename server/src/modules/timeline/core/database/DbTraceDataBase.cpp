@@ -1354,8 +1354,12 @@ std::string DbTraceDataBase::GetDeviceId(const std::string &rankIdWithHost) {
     auto hostStr = QueryHostInfo();
     auto rankAndDeviceMap = QueryRankIdAndDeviceMap();
     std::string realRankId = rankIdWithHost;
-    if (!hostStr.empty() && StringUtil::StartWith(rankIdWithHost, hostStr)) {
-        realRankId = rankIdWithHost.substr(hostStr.length());
+    const std::string baselinePrefix = "Baseline_";
+    if (StringUtil::StartWith(realRankId, baselinePrefix)) {
+        realRankId = realRankId.substr(baselinePrefix.length());
+    }
+    if (!hostStr.empty() && StringUtil::StartWith(realRankId, hostStr)) {
+        realRankId = realRankId.substr(hostStr.length());
     }
     if (rankAndDeviceMap.count(realRankId) > 0) {
         return rankAndDeviceMap[realRankId];

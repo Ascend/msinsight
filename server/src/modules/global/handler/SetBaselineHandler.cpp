@@ -41,6 +41,7 @@ bool SetBaselineHandler::HandleRequest(std::unique_ptr<Request> requestPtr) {
     baselineInfo.parsedFilePath = request.params.filePath;
     bool res = BaselineManagerService::InitBaselineData(request, baselineInfo);
     response.body.rankId = baselineInfo.rankId;
+    response.body.cardId = baselineInfo.cardId.empty() ? baselineInfo.rankId : baselineInfo.cardId;
     response.body.host = baselineInfo.host;
     response.body.errorMessage = baselineInfo.errorMessage;
     response.body.cardName = baselineInfo.cardName;
