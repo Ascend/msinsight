@@ -1204,6 +1204,129 @@ bool DbTraceDataBase::InsertOverlapAnalysisInfo(
     return result;
 }
 
+bool DbTraceDataBase::QueryRankOverlapInput(const std::string &deviceId, RANK_OVERLAP_INPUT &input)
+{
+    std::lock_guard<std::recursive_mutex> lockGuard(mutex);
+    input = {};
+    if (!CheckTableExist(TABLE_TASK)) {
+        return false;
+    }
+
+    auto queryIntervals = [this, &deviceId](const std::string &sql, bool bindDevice,
+                              int64_t type, std::vector<OVERLAP_INFO> &result) {
+        sqlite3_stmt *statement = nullptr;
+        if (sqlite3_prepare_v2(db, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
+            sqlite3_finalize(statement);
+            return false;
+        }
+        if (bindDevice) {
+            sqlite3_bind_text(statement, bindStartIndex, deviceId.c_str(), static_cast<int>(deviceId.size()),
+                SQLITE_TRANSIENT);
+        }
+        while (sqlite3_step(statement) == SQLITE_ROW) {
+            const int64_t startNs = sqlite3_column_int64(statement, 0);
+            const int64_t endNs = sqlite3_column_int64(statement, 1);
+            if (endNs > startNs) {
+                result.emplace_back(startNs, endNs, type);
+            }
+        }
+        sqlite3_finalize(statement);
+        return true;
+    };
+
+    if (CheckTableExist(TABLE_COMPUTE_TASK_INFO)) {
+        const std::string computeSql = "SELECT main.startNs, main.endNs FROM " + TABLE_TASK +
+            " main INNER JOIN " + TABLE_COMPUTE_TASK_INFO +
+            " info ON info.globalTaskId = main.globalTaskId WHERE main.deviceId = ?";
+        if (!queryIntervals(computeSql, true, 0, input.computing)) {
+            return false;
+        }
+    }
+    if (CheckTableExist(TABLE_COMMUNICATION_OP)) {
+        const bool hasDeviceId = CheckColumnExist(TABLE_COMMUNICATION_OP, "deviceId");
+        std::string communicationSql = "SELECT startNs, endNs FROM " + TABLE_COMMUNICATION_OP;
+        if (hasDeviceId) {
+            communicationSql += " WHERE deviceId = ?";
+        }
+        if (!queryIntervals(communicationSql, hasDeviceId, 1, input.communication)) {
+            return false;
+        }
+    }
+
+    sqlite3_stmt *taskStatement = nullptr;
+    const std::string taskSql = "SELECT MIN(startNs), MAX(endNs) FROM " + TABLE_TASK +
+        " WHERE deviceId = ? AND endNs > startNs";
+    if (sqlite3_prepare_v2(db, taskSql.c_str(), -1, &taskStatement, nullptr) != SQLITE_OK) {
+        sqlite3_finalize(taskStatement);
+        return false;
+    }
+    sqlite3_bind_text(taskStatement, bindStartIndex, deviceId.c_str(), static_cast<int>(deviceId.size()),
+        SQLITE_TRANSIENT);
+    if (sqlite3_step(taskStatement) == SQLITE_ROW && sqlite3_column_type(taskStatement, 0) != SQLITE_NULL &&
+        sqlite3_column_type(taskStatement, 1) != SQLITE_NULL) {
+        input.taskSpan = std::make_pair(sqlite3_column_int64(taskStatement, 0), sqlite3_column_int64(taskStatement, 1));
+    }
+    sqlite3_finalize(taskStatement);
+    return input.taskSpan.has_value() && (!input.computing.empty() || !input.communication.empty());
+}
+
+bool DbTraceDataBase::ReplaceOverlapAnalysisForDevice(
+    const std::string &deviceId, const std::vector<OVERLAP_INFO> &rows)
+{
+    std::lock_guard<std::recursive_mutex> lockGuard(mutex);
+    if (!ExecSql("CREATE TABLE IF NOT EXISTS OVERLAP_ANALYSIS (id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                 "deviceId INTEGER, startNs INTEGER, endNs INTEGER, type INTEGER);")) {
+        return false;
+    }
+    if (!StartTransaction()) {
+        return false;
+    }
+    sqlite3_stmt *deleteStatement = nullptr;
+    sqlite3_stmt *insertStatement = nullptr;
+    bool success = sqlite3_prepare_v2(db, "DELETE FROM OVERLAP_ANALYSIS WHERE deviceId = ?", -1,
+                       &deleteStatement, nullptr) == SQLITE_OK;
+    if (success) {
+        sqlite3_bind_text(deleteStatement, bindStartIndex, deviceId.c_str(), static_cast<int>(deviceId.size()),
+            SQLITE_TRANSIENT);
+        success = sqlite3_step(deleteStatement) == SQLITE_DONE;
+    }
+    sqlite3_finalize(deleteStatement);
+
+    std::vector<OVERLAP_INFO> orderedRows = rows;
+    std::sort(orderedRows.begin(), orderedRows.end(), [](const auto &left, const auto &right) {
+        if (left.startNs != right.startNs) return left.startNs < right.startNs;
+        if (left.endNs != right.endNs) return left.endNs < right.endNs;
+        return left.type < right.type;
+    });
+    if (success) {
+        success = sqlite3_prepare_v2(db,
+            "INSERT INTO OVERLAP_ANALYSIS(deviceId,startNs,endNs,type) VALUES(?,?,?,?)", -1,
+            &insertStatement, nullptr) == SQLITE_OK;
+    }
+    for (const auto &row : orderedRows) {
+        if (!success) {
+            break;
+        }
+        sqlite3_reset(insertStatement);
+        sqlite3_clear_bindings(insertStatement);
+        sqlite3_bind_text(insertStatement, 1, deviceId.c_str(), static_cast<int>(deviceId.size()), SQLITE_TRANSIENT);
+        sqlite3_bind_int64(insertStatement, 2, row.startNs);
+        sqlite3_bind_int64(insertStatement, 3, row.endNs);
+        sqlite3_bind_int64(insertStatement, 4, row.type);
+        success = sqlite3_step(insertStatement) == SQLITE_DONE;
+    }
+    sqlite3_finalize(insertStatement);
+    if (!success) {
+        RollbackTransaction();
+        return false;
+    }
+    if (!EndTransaction()) {
+        RollbackTransaction();
+        return false;
+    }
+    return true;
+}
+
 void DbTraceDataBase::QueryTaskTimeInfo(
     bool isComputing, std::vector<OVERLAP_INFO> &timeInfoList, const std::string &deviceId) {
     std::string sql;
@@ -1363,6 +1486,12 @@ std::string DbTraceDataBase::GetDeviceId(const std::string &rankIdWithHost) {
     }
     if (rankAndDeviceMap.count(realRankId) > 0) {
         return rankAndDeviceMap[realRankId];
+    }
+
+    const std::string mappedDeviceId = Timeline::DataBaseManager::Instance()
+        .FindDeviceIdByFileIdAndRankId(path, rankIdWithHost);
+    if (!mappedDeviceId.empty()) {
+        return mappedDeviceId;
     }
 
     return realRankId;

@@ -130,7 +130,7 @@ class SliceCacheManager {
     bool QueryDepthInfo(std::unordered_map<uint64_t, uint32_t> &depthInfo, const SliceQuery &sliceQuery) {
         SpinLockGuard lock(mutex);
         // key: filedId @ trackId
-        std::string key = sliceQuery.rankId + "@" + std::to_string(sliceQuery.trackId);
+        std::string key = sliceQuery.GetDataSourceId() + "@" + std::to_string(sliceQuery.trackId);
         auto it = cache.find(key);
         if (it == cache.end()) {
             return false;
@@ -247,7 +247,7 @@ class SliceCacheManager {
         if (std::empty(value)) {
             return;
         }
-        std::string key = slicePagedQuery.rankId + "@" + trackId;
+        std::string key = slicePagedQuery.GetDataSourceId() + "@" + trackId;
         auto it = cache.find(key);
         if (it == cache.end()) {
             while (curCapacity >= allCapacity) {
@@ -279,7 +279,7 @@ class SliceCacheManager {
     void UpdateDepthIndexCache(
         const std::string &trackId, const std::vector<SliceDomain> &value, const SliceQuery &slicePagedQuery) {
         SpinLockGuard lock(mutex);
-        std::string key = slicePagedQuery.rankId + "@" + trackId;
+        std::string key = slicePagedQuery.GetDataSourceId() + "@" + trackId;
         // 空集合也是有效计算结果，例如某个分页区间内只有 Python Function、普通泳道没有算子。
         // 必须用空索引覆盖 UpdateSliceCache 建立的全量索引，否则裸 trackId 会继续暴露 Python Stack depth。
         depthIndexCache[key] = BuildDepthIndex(value);

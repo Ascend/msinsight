@@ -45,6 +45,10 @@
 #include "JsonParseMemPool.h"
 #include "MemScopeParser.h"
 #include "MemSnapshotParser.h"
+#include "RankLaneMergeCoordinator.h"
+#include "RankOverlapStore.h"
+#include "RankMetadataMergePolicy.h"
+#include "FullDbEnumUtil.h"
 #include "ProjectParserTriton.h"
 #include "ProjectParserFtrace.h"
 #include "DbPlatformDataBase.h"
@@ -167,6 +171,8 @@ void ParserFactory::Reset() {
     Summary::KernelParse::Instance().Reset();
     Memory::MemoryParse::Instance().Reset();
     FullDb::FullDbParser::Instance().Reset();
+    Timeline::RankLaneMergeCoordinator::Instance().Reset();
+    Timeline::RankOverlapStore::Instance().Clear();
     MetaDataCacheManager::Instance().Clear();
     MemScopeParser::Instance().Reset();
     MemSnapshotParser::Instance().Reset();
@@ -243,8 +249,27 @@ void ProjectParserBase::SendParseSuccessEvent(const std::string &rankId, const s
         return;
     }
     event->body.unit.metadata.cardAlias = database->QueryCardAlias();
-    if (!database->QueryExtremumTimestamp(min, max)) {
-        return;
+    auto successfulSources = RankLaneMergeCoordinator::Instance().GetSuccessfulSources(rankId);
+    if (successfulSources.size() <= 1) {
+        if (!database->QueryExtremumTimestamp(min, max)) {
+            return;
+        }
+    } else {
+        for (const auto &source : successfulSources) {
+            auto sourceDatabase = DataBaseManager::Instance().GetTraceDatabaseByFileId(source);
+            uint64_t sourceMin = UINT64_MAX;
+            uint64_t sourceMax = 0;
+            if (sourceDatabase != nullptr && sourceDatabase->QueryExtremumTimestamp(sourceMin, sourceMax)) {
+                min = std::min(min, sourceMin);
+                max = std::max(max, sourceMax);
+            }
+        }
+        if (min == UINT64_MAX) {
+            ServerLog::Warn("Failed to aggregate rank timestamp; retain representative timing. rankId:", rankId);
+            if (!database->QueryExtremumTimestamp(min, max)) {
+                return;
+            }
+        }
     }
     if (min == max && max == 0) {
         event->body.startTimeUpdated = false;
@@ -518,12 +543,89 @@ void ProjectParserBase::SearchGroupedAscendHardwareThreads(
 
 void ProjectParserBase::SearchMetaData(
     const std::string &rankId, const std::string &fileId, std::vector<std::unique_ptr<UnitTrack>> &metaData) {
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByFileId(fileId);
-    if (database == nullptr) {
-        ServerLog::Error("Failed to get connection. fileId:", fileId);
+    auto sources = RankLaneMergeCoordinator::Instance().GetSuccessfulSources(rankId);
+    if (sources.size() <= 1) {
+        auto database = DataBaseManager::Instance().GetTraceDatabaseByFileId(fileId);
+        if (database == nullptr) {
+            ServerLog::Error("Failed to get connection. fileId:", fileId);
+            return;
+        }
+        database->QueryUnitsMetadata(rankId, metaData);
+        ProcessMetadata(metaData);
         return;
     }
-    database->QueryUnitsMetadata(rankId, metaData);
+    const auto hardwareMetaType =
+        Dic::Protocol::ENUM_TO_STR(PROCESS_TYPE::ASCEND_HARDWARE).value_or("Ascend Hardware");
+    const auto overlapMetaType =
+        Dic::Protocol::ENUM_TO_STR(PROCESS_TYPE::OVERLAP_ANALYSIS).value_or("OVERLAP_ANALYSIS");
+    const std::string derivedOverlapSource = RankOverlapStore::Instance().ResolveSource(rankId);
+    UnitTrack *hardwareMetadata = nullptr;
+    std::function<void(UnitTrack &, const std::string &)> setSourceDbPath;
+    setSourceDbPath = [&setSourceDbPath](UnitTrack &unit, const std::string &dbPath) {
+        unit.metaData.dbPath = dbPath;
+        for (auto &child : unit.children) {
+            if (child != nullptr) {
+                setSourceDbPath(*child, dbPath);
+            }
+        }
+    };
+    std::unique_ptr<UnitTrack> derivedOverlapMetadata;
+    if (!derivedOverlapSource.empty()) {
+        auto derivedDatabase = DataBaseManager::Instance().GetTraceDatabaseByFileId(derivedOverlapSource);
+        if (derivedDatabase != nullptr) {
+            std::vector<std::unique_ptr<UnitTrack>> derivedMetadata;
+            derivedDatabase->QueryUnitsMetadata(rankId, derivedMetadata);
+            auto overlap = std::find_if(derivedMetadata.begin(), derivedMetadata.end(), [&](const auto &unit) {
+                return unit != nullptr && unit->metaData.metaType == overlapMetaType;
+            });
+            if (overlap != derivedMetadata.end()) {
+                derivedOverlapMetadata = std::move(*overlap);
+                setSourceDbPath(*derivedOverlapMetadata, derivedOverlapSource);
+            }
+        }
+    }
+    for (size_t sourceIndex = 0; sourceIndex < sources.size(); ++sourceIndex) {
+        const auto &source = sources[sourceIndex];
+        auto database = DataBaseManager::Instance().GetTraceDatabaseByFileId(source);
+        if (database == nullptr) {
+            ServerLog::Error("Failed to get connection. fileId:", source);
+            continue;
+        }
+        std::vector<std::unique_ptr<UnitTrack>> sourceMetadata;
+        database->QueryUnitsMetadata(rankId, sourceMetadata);
+        const bool representative = source == fileId;
+        for (auto &unit : sourceMetadata) {
+            if (unit == nullptr || !RankMetadataMergePolicy::ShouldInclude(unit->metaData.metaType, representative)) {
+                continue;
+            }
+            if (unit->metaData.metaType == overlapMetaType && derivedOverlapMetadata != nullptr) {
+                metaData.emplace_back(std::move(derivedOverlapMetadata));
+                continue;
+            }
+            const std::string metadataSource = unit->metaData.metaType == overlapMetaType && !derivedOverlapSource.empty()
+                ? derivedOverlapSource
+                : source;
+            setSourceDbPath(*unit, metadataSource);
+            if (unit->metaData.metaType == hardwareMetaType) {
+                const std::string sourceLabel = "Thread " + std::to_string(sourceIndex + 1);
+                for (auto &thread : unit->children) {
+                    if (thread != nullptr) {
+                        thread->metaData.sourceLabel = sourceLabel;
+                    }
+                }
+                if (hardwareMetadata == nullptr) {
+                    hardwareMetadata = unit.get();
+                    metaData.emplace_back(std::move(unit));
+                } else {
+                    for (auto &child : unit->children) {
+                        hardwareMetadata->children.emplace_back(std::move(child));
+                    }
+                }
+            } else {
+                metaData.emplace_back(std::move(unit));
+            }
+        }
+    }
     ProcessMetadata(metaData);
 }
 

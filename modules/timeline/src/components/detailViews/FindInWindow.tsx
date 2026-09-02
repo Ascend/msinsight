@@ -29,8 +29,7 @@ import { DEFAULT_CARD_VALUE, RankFilter, SelectedCardInfo } from './SystemView';
 import { getDetailTimeDisplay } from '../../insight/units/AscendUnit';
 import type { InsightUnit } from '../../entity/insight';
 import { getTimeOffset } from '../../insight/units/utils';
-import type { ThreadMetaData } from '../../entity/data';
-import { ProcessMetaData } from '../../entity/data';
+import { type CardMetaData, getCardSourceDbPaths, ProcessMetaData, type ThreadMetaData } from '../../entity/data';
 import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
 
 const CONTAINER = styled.div`
@@ -305,7 +304,7 @@ const FindDetail = observer((props: FindDetailProps) => {
 
 const searchData = async(pages: any, sorters: {field: string;order: string}, prop: FindDetailProps, nameFilter?: string): Promise<SearchTableData> => {
     const metadataList = (prop.session.lockUnit as InsightUnit[]).map(selectUnit => {
-        const { threadId, processId, metaType, cardId } = selectUnit?.metadata as ThreadMetaData ?? {};
+        const { threadId, processId, metaType, cardId, dbPath } = selectUnit?.metadata as ThreadMetaData ?? {};
         const timestampOffset = getTimeOffset(prop.session, selectUnit?.metadata as ProcessMetaData);
         const lockStartTime = prop.session.lockRange === undefined ? 0 : Math.floor(prop.session.lockRange[0] + timestampOffset);
         const lockEndTime = prop.session.lockRange === undefined ? 0 : Math.ceil(prop.session.lockRange[1] + timestampOffset);
@@ -314,24 +313,46 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
             pid: processId,
             metaType,
             rankId: cardId,
+            dbPath,
             lockStartTime,
             lockEndTime,
         };
     });
-    const res = await searchAllSlices({
+    const cardUnit = prop.session.units.find(unit =>
+        (unit.metadata as CardMetaData)?.cardId === prop.card.cardId);
+    const sourceDbPaths = cardUnit === undefined ? [] : getCardSourceDbPaths(cardUnit, prop.card.cardId);
+    const queryDbPaths = sourceDbPaths.length > 0 ? sourceDbPaths : [prop.card.dbPath];
+    const orderBy = sorters.field === 'startTime' ? 'timestamp' : sorters.field ?? defaultSorter.field;
+    const order = sorters.order ?? defaultSorter.order;
+    const candidateCount = pages.current * pages.pageSize;
+    const responses = await Promise.all(queryDbPaths.map(dbPath => searchAllSlices({
         rankId: prop.card.cardId,
-        dbPath: prop.card.dbPath,
-        pageSize: pages.pageSize,
-        current: pages.current,
-        orderBy: sorters.field === 'startTime' ? 'timestamp' : sorters.field ?? defaultSorter.field,
-        order: sorters.order ?? defaultSorter.order,
+        dbPath,
+        pageSize: candidateCount,
+        current: 1,
+        orderBy,
+        order,
         searchContent: prop.session.searchData?.content,
         isMatchCase: prop.session.searchData?.isMatchCase,
         isMatchExact: prop.session.searchData?.isMatchExact,
-        metadataList,
+        metadataList: metadataList.filter(item => item.dbPath === undefined || item.dbPath === dbPath),
         nameFilter,
+    })));
+    const searchAllSlicesDetails = responses.flatMap(response => response.searchAllSlicesDetails);
+    const direction = order === 'ascend' ? 1 : -1;
+    searchAllSlicesDetails.sort((first, second) => {
+        const firstValue = first[orderBy as keyof SearchAllSlicesDetails];
+        const secondValue = second[orderBy as keyof SearchAllSlicesDetails];
+        if (typeof firstValue === 'string' && typeof secondValue === 'string') {
+            return firstValue.localeCompare(secondValue) * direction;
+        }
+        return (Number(firstValue) - Number(secondValue)) * direction;
     });
-    return res;
+    const offset = (pages.current - 1) * pages.pageSize;
+    return {
+        searchAllSlicesDetails: searchAllSlicesDetails.slice(offset, offset + pages.pageSize),
+        count: responses.reduce((total, response) => total + response.count, 0),
+    };
 };
 
 const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptimizer: string }, props: FindDetailProps): Promise<void> => {

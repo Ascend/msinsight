@@ -153,6 +153,35 @@ TEST_F(CANNApiRepoTest, test_QuerySimpleSliceWithOutNameByTrackId_with_normal) {
     TrackInfoManager::Instance().Reset();
 }
 
+TEST_F(CANNApiRepoTest, QuerySimpleSliceUsesDbPathForMultiSourceTrack) {
+    class TableMock : public Dic::Module::Timeline::CANNApiTable {
+      public:
+        void ExcuteQuery(const std::string &fileId, std::vector<CANNApiPO> &result) override {
+            queriedFileId = fileId;
+            if (fileId == "source-1.db") {
+                QuerySimpleSliceWithOutNameByTrackIdWithNormalExcuteQuery(fileId, result);
+            }
+            ClearThreadLocal();
+        }
+        std::string queriedFileId;
+    };
+    auto table = std::make_unique<TableMock>();
+    TableMock *tablePtr = table.get();
+    CANNApiRepo cannApiRepo;
+    cannApiRepo.SetCANNApiTable(std::move(table));
+    SliceQuery sliceQuery;
+    sliceQuery.rankId = "rank-0";
+    sliceQuery.dbPath = "source-1.db";
+    sliceQuery.trackId = TrackInfoManager::Instance().GetTrackId(sliceQuery.dbPath, "process-1", "thread-1");
+    sliceQuery.endTime = UINT64_MAX;
+    std::vector<SliceDomain> sliceVec;
+
+    cannApiRepo.QuerySimpleSliceWithOutNameByTrackId(sliceQuery, sliceVec);
+
+    EXPECT_EQ(tablePtr->queriedFileId, sliceQuery.dbPath);
+    EXPECT_EQ(sliceVec.size(), 2);
+}
+
 /**
  * 测试根据id查询算子详情,正常情况
  */

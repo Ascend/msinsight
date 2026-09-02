@@ -37,7 +37,11 @@ import type {
     ThreadMetaData,
     HostMetaData, SliceMeta, SliceData, LabelMetaData,
 } from '../../entity/data';
-import { createCounterParam, createStatusParam } from './unitFunc';
+import { getFlowPointIdentity, getLaneIdentity } from '../../entity/data';
+import {
+    convertSummaryProcessData, createCounterParam, createStatusParam,
+    getHardwareSummaryDbPaths, mergeSummaryStatusData,
+} from './unitFunc';
 import { SelectedDataBottomPanel } from '../../components/SelectedDataBottomPanel';
 import { SelectSimpleTabularDetail } from '../../components/details/SelectSimpleDetail';
 import { renderRadiusBorder } from '../../components/details/utils';
@@ -276,6 +280,7 @@ export interface FlowPoint {
     tid: string;
     timestamp: number;
     rankId: string;
+    dbPath?: string;
     metaType: string;
 }
 
@@ -356,6 +361,7 @@ const drawSingleAlignSlice = ({ item, threadMetaData, session, xScale, yScale, c
     }
     const singleMeta = item as unknown as SliceMeta;
     const alignCheck = singleMeta.cardId === threadMetaData.cardId &&
+        (singleMeta.dbPath === undefined || singleMeta.dbPath === threadMetaData.dbPath) &&
         singleMeta.processId === threadMetaData.processId &&
         singleMeta.metaType === threadMetaData.metaType &&
         isSameThreadId(singleMeta.threadId, threadMetaData);
@@ -365,8 +371,10 @@ const drawSingleAlignSlice = ({ item, threadMetaData, session, xScale, yScale, c
 };
 
 const getThreadTracesRequestParams = (session: Session, threadMetaData: ThreadMetaData, timestampOffset: number): Record<string, unknown> => {
-    const key = threadMetaData.cardId !== undefined ? `${threadMetaData.cardId}_${threadMetaData.threadName}` : null;
-    const isFilterPythonFunction = key !== null ? (session?.unitsConfig.filterConfig.pythonFunction as Record<string, boolean>)?.[key] ?? false : false;
+    const filterConfig = session?.unitsConfig.filterConfig.pythonFunction as Record<string, boolean>;
+    const key = getLaneIdentity(threadMetaData);
+    const legacyKey = `${threadMetaData.cardId}_${threadMetaData.threadName}`;
+    const isFilterPythonFunction = filterConfig?.[key] ?? filterConfig?.[legacyKey] ?? false;
     return {
         cardId: threadMetaData.cardId,
         dbPath: threadMetaData.dbPath,
@@ -401,16 +409,13 @@ function isSameUnit(selectedMeta?: SelectedDataType, currentMeta?: ThreadMetaDat
  * @param referFlow
  */
 export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow: { rankId: string; dbPath: string }): void {
-    const getKey = (point: FlowPoint): string => {
-        const { pid, tid, depth, timestamp } = point;
-        return `${pid}_${tid}_${depth}_${timestamp}`;
-    };
+    flow.from = { ...flow.from, ...referFlow };
+    flow.to = { ...flow.to, ...referFlow };
     const setLinkLinesMap = (lineType: 'from' | 'to'): void => {
-        const mKey = getKey(flow[lineType]);
+        const mKey = getFlowPointIdentity(flow[lineType]);
         const mVal = (session.mapOfLinkLines.get(mKey) ?? { cat: flow.cat, from: [], to: [], current: flow[lineType] }) as MapValueOfLinkLines;
         const attr = lineType === 'from' ? 'to' : 'from';
-        if (!mVal[attr].find(item => getKey(item) === getKey(flow[attr]))) {
-            flow[attr] = { ...flow[attr], ...referFlow };
+        if (!mVal[attr].find(item => getFlowPointIdentity(item) === getFlowPointIdentity(flow[attr]))) {
             mVal[attr].push(flow[attr]);
             session.mapOfLinkLines.set(mKey, mVal);
         }
@@ -493,7 +498,12 @@ export const ThreadUnit = unit<ThreadMetaData>({
     name: 'Thread',
     pinType: 'copied',
     renderInfo: (session: Session, thread: ThreadMetaData, thisUnit: InsightUnit) => {
-        return isPinned(thisUnit) && !isSonPinned(thisUnit) ? `${thread.threadName}_${thread.processName} (${thread.processId})_${thread.cardId}` : `${thread.threadName}`;
+        const displayName = thread.sourceLabel === undefined || thread.sourceLabel === ''
+            ? thread.threadName
+            : `${thread.threadName} [${thread.sourceLabel}]`;
+        return isPinned(thisUnit) && !isSonPinned(thisUnit)
+            ? `${displayName}_${thread.processName} (${thread.processId})_${thread.cardId}`
+            : displayName;
     },
     chart: chart({
         type: 'stackStatus',
@@ -822,6 +832,25 @@ async function createSummaryChart<T extends ProcessMetaData | LabelMetaData>(
         }
         if (unit !== undefined) {
             unit.isSummaryLoading = true;
+        }
+        const hardwareDbPaths = metaData.metaType === 'Ascend Hardware' ? getHardwareSummaryDbPaths(unit) : [];
+        if (hardwareDbPaths.length > 1) {
+            const sourceData = await Promise.all(hardwareDbPaths.map(async dbPath => {
+                const sourceParam = { ...requestParam, dbPath };
+                const sourceKey = createStatusParam('unit/threadTracesSummary', sourceParam);
+                try {
+                    const result = await session.simpleCache.tryFetchFromCache(
+                        'unit/threadTracesSummary', sourceKey, sourceParam,
+                    );
+                    return convertSummaryProcessData(result?.data as ProcessData[] | undefined, timestampOffset);
+                } catch (e) {
+                    return [];
+                }
+            }));
+            if (unit !== undefined) {
+                unit.isSummaryLoading = false;
+            }
+            return mergeSummaryStatusData(sourceData.flat());
         }
         const request: any = await session.simpleCache.tryFetchFromCache('unit/threadTracesSummary', requestKey, requestParam);
         if (unit !== undefined) {

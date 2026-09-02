@@ -29,6 +29,7 @@
 #include "DataBaseManager.h"
 #include "SearchSliceCacheManager.h"
 #include "MemSnapshotStateCache.h"
+#include "RankLaneMergeCoordinator.h"
 
 // clang-format off
 namespace Dic {
@@ -77,7 +78,27 @@ bool DataBaseManager::CreateTraceConnectionPool(const std::string &rankId, const
 std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseByRankId(const std::string &rankId)
 {
     std::string fileId = GetFileIdByRankId(rankId);
+    if (fileId.empty()) {
+        fileId = rankId;
+    }
     return GetTraceDatabaseByFileId(fileId);
+}
+
+bool DataBaseManager::CreateDerivedTraceConnectionPool(
+    const std::string &fileId, const std::string &dbPath, bool sharedMemory)
+{
+    const static unsigned int CPU_CORE_COUNT = SystemUtil::GetCpuCoreCount();
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    databasePathSet.emplace(dbPath);
+    if (traceDatabaseMap.count(fileId) != 0) {
+        return false;
+    }
+    std::recursive_mutex &dbMutex = GetDbMutex(fileId);
+    auto conn = std::make_shared<DBConnectionPool<VirtualTraceDatabase>>(dbPath,
+        [&dbMutex]() { return new FullDb::DbTraceDataBase(dbMutex); }, sharedMemory);
+    conn->SetMaxActiveCount(CPU_CORE_COUNT);
+    traceDatabaseMap.emplace(fileId, std::move(conn));
+    return true;
 }
 
 std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseByFileId(const std::string &fileId)
@@ -86,6 +107,16 @@ std::shared_ptr<VirtualTraceDatabase> DataBaseManager::GetTraceDatabaseByFileId(
     auto it = traceDatabaseMap.find(fileId);
     if (it == traceDatabaseMap.end() && dbFilePathMap.count(fileId) != 0) {
         it = traceDatabaseMap.find(dbFilePathMap[fileId]);
+    }
+    if (it == traceDatabaseMap.end()) {
+        const std::string normalizedFileId = RankLaneMergeCoordinator::NormalizeSourceFileId(fileId);
+        it = std::find_if(traceDatabaseMap.begin(), traceDatabaseMap.end(), [&normalizedFileId](const auto &item) {
+            return RankLaneMergeCoordinator::NormalizeSourceFileId(item.first) == normalizedFileId;
+        });
+        if (it != traceDatabaseMap.end()) {
+            ServerLog::Warn("Resolved trace database by normalized fileId. requested:", fileId,
+                ", actual:", it->first);
+        }
     }
     if (it == traceDatabaseMap.end()) {
         ServerLog::Error("Can't find connection pool. fileId:", fileId);
@@ -200,6 +231,15 @@ void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
 {
     std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>> communicationDetailPool;
     std::unique_lock<std::recursive_mutex> lock(mutex);
+    const std::string normalizedFileId = RankLaneMergeCoordinator::NormalizeSourceFileId(fileId);
+    std::string rankId;
+    auto rankMapping = fileIdToRankIdMap.find(fileId);
+    if (rankMapping == fileIdToRankIdMap.end()) {
+        rankMapping = fileIdToRankIdMap.find(normalizedFileId);
+    }
+    if (rankMapping != fileIdToRankIdMap.end()) {
+        rankId = rankMapping->second;
+    }
     auto traceDataBase = traceDatabaseMap.find(fileId);
     if (traceDataBase != traceDatabaseMap.end()) {
         traceDatabaseMap.erase(traceDataBase);
@@ -220,10 +260,24 @@ void DataBaseManager::ReleaseDatabaseByFileId(const std::string &fileId)
     }
     Dic::Module::MemSnapshot::MemSnapshotStateCache::ClearData(fileId);
     // 清理对应的缓存
-    std::string rankId = GetRankIdByFileId(fileId);
     if (!rankId.empty()) {
         SearchSliceCacheManager::Instance().clear(rankId);
+        auto sources = rankId2SourceFileIdsMap.find(rankId);
+        if (sources != rankId2SourceFileIdsMap.end()) {
+            sources->second.erase(normalizedFileId);
+            if (sources->second.empty()) {
+                rankId2SourceFileIdsMap.erase(sources);
+                rankId2FileIdMap.erase(rankId);
+            } else if (rankId2FileIdMap[rankId] == fileId || rankId2FileIdMap[rankId] == normalizedFileId) {
+                rankId2FileIdMap[rankId] = sources->second.begin()->second;
+            }
+        }
+        rankIdToDeviceIdMap.erase(fileId + rankId);
+        rankIdToDeviceIdMap.erase(normalizedFileId + rankId);
+        RankLaneMergeCoordinator::Instance().RemoveSource(rankId, fileId);
     }
+    fileIdToRankIdMap.erase(fileId);
+    fileIdToRankIdMap.erase(normalizedFileId);
     lock.unlock();
     communicationDetailPool.reset();
 }
@@ -347,6 +401,8 @@ void DataBaseManager::Clear()
     databasePathSet.clear();
     memScopeDatabaseMap.clear();
     rankId2FileIdMap.clear();
+    rankId2SourceFileIdsMap.clear();
+    fileIdToRankIdMap.clear();
     dataTypeMap.clear();
     fileTypeMap.clear();
     rankIdToDeviceIdMap.clear();
@@ -363,6 +419,9 @@ void DataBaseManager::Clear(DatabaseType type)
     switch (type) {
         case DatabaseType::TRACE:
             traceDatabaseMap.clear();
+            rankId2FileIdMap.clear();
+            rankId2SourceFileIdsMap.clear();
+            fileIdToRankIdMap.clear();
             for (auto &item : communicationDetailDatabaseMap) {
                 communicationDetailPools.emplace_back(std::move(item.second));
             }
@@ -735,8 +794,46 @@ std::string DataBaseManager::GetAnyTraceDatabaseId()
 }
 void DataBaseManager::SetRankIdFileIdMapping(const std::string &rankId, const std::string &fileId)
 {
+    RegisterRankSource(rankId, fileId);
     rankId2FileIdMap[rankId] = fileId;
     fileIdToRankIdMap[fileId] = rankId;
+}
+
+void DataBaseManager::RegisterRankSource(const std::string &rankId, const std::string &fileId)
+{
+    if (rankId.empty() || fileId.empty()) {
+        return;
+    }
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    const auto normalizedFileId = RankLaneMergeCoordinator::NormalizeSourceFileId(fileId);
+    rankId2SourceFileIdsMap[rankId].try_emplace(normalizedFileId, fileId);
+    fileIdToRankIdMap[fileId] = rankId;
+    fileIdToRankIdMap[normalizedFileId] = rankId;
+}
+
+void DataBaseManager::SetRepresentativeSource(const std::string &rankId, const std::string &fileId)
+{
+    if (rankId.empty() || fileId.empty()) {
+        return;
+    }
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    RegisterRankSource(rankId, fileId);
+    rankId2FileIdMap[rankId] = fileId;
+}
+
+std::vector<std::string> DataBaseManager::GetSourceFileIdsByRankId(const std::string &rankId)
+{
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    std::vector<std::string> result;
+    auto sources = rankId2SourceFileIdsMap.find(rankId);
+    if (sources == rankId2SourceFileIdsMap.end()) {
+        return result;
+    }
+    for (const auto &[normalizedFileId, originalFileId] : sources->second) {
+        (void)normalizedFileId;
+        result.emplace_back(originalFileId);
+    }
+    return result;
 }
 std::string DataBaseManager::GetFileIdByRankId(const std::string &rankId) const
 {
@@ -764,12 +861,31 @@ void DataBaseManager::UpdateRankIdToDeviceId(const std::string &fileId,
 std::string DataBaseManager::GetDeviceIdFromRankId(const std::string &rankId)
 {
     std::string fileId = GetFileIdByRankId(rankId);
-    const auto key = fileId + rankId;
-    if (rankIdToDeviceIdMap.count(key) == 0) {
+    return GetDeviceIdByFileIdAndRankId(fileId, rankId);
+}
+
+std::string DataBaseManager::GetDeviceIdByFileIdAndRankId(
+    const std::string &fileId, const std::string &rankId)
+{
+    const std::string deviceId = FindDeviceIdByFileIdAndRankId(fileId, rankId);
+    if (deviceId.empty()) {
         ServerLog::Warn("Don't find deviceId in rankIdToDeviceIdMap");
-        return "";
     }
-    return rankIdToDeviceIdMap[key];
+    return deviceId;
+}
+
+std::string DataBaseManager::FindDeviceIdByFileIdAndRankId(
+    const std::string &fileId, const std::string &rankId)
+{
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    const auto device = rankIdToDeviceIdMap.find(fileId + rankId);
+    return device == rankIdToDeviceIdMap.end() ? "" : device->second;
+}
+
+void DataBaseManager::RemoveRankIdToDeviceId(const std::string &fileId, const std::string &rankId)
+{
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    rankIdToDeviceIdMap.erase(fileId + rankId);
 }
 
 std::shared_ptr<Summary::VirtualSummaryDataBase> DataBaseManager::GetSummaryDatabaseWithCluster(

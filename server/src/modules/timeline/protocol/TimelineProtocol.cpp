@@ -178,6 +178,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesRequest(const json_
         }
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.cardId, json["params"], "cardId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.processId, json["params"], "processId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.threadId, json["params"], "threadId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.metaType, json["params"], "metaType");
@@ -215,6 +216,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadTracesSummaryRequest(cons
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.cardId, json["params"], "cardId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.processId, json["params"], "processId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.metaType, json["params"], "metaType");
@@ -230,6 +232,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsRequest(const json_t &js
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startDepth, json["params"], "startDepth");
@@ -269,6 +272,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitFlowsRequest(const json_t &json
         error = "Failed to set request base info, command is: " + reqPtr->command;
         return nullptr;
     }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.tid, json["params"], "tid");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pid, json["params"], "pid");
@@ -309,6 +313,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchCountRequest(const json_t &js
     JsonUtil::SetByJsonKeyValue(reqPtr->params.isMatchCase, json["params"], "isMatchCase");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.isMatchExact, json["params"], "isMatchExact");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.searchContent, json["params"], "searchContent");
     if (json["params"].HasMember("metadataList") && json["params"]["metadataList"].IsArray()) {
         for (const auto &metaData : json["params"]["metadataList"].GetArray()) {
@@ -335,6 +340,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchSliceRequest(const json_t &js
     JsonUtil::SetByJsonKeyValue(reqPtr->params.isMatchCase, json["params"], "isMatchCase");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.isMatchExact, json["params"], "isMatchExact");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.searchContent, json["params"], "searchContent");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.index, json["params"], "index");
     if (json["params"].HasMember("metadataList") && json["params"]["metadataList"].IsArray()) {
@@ -373,6 +379,7 @@ std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryListRequest(const json_
         error = "Failed to set request base info, command is: " + reqPtr->command;
         return nullptr;
     }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
     return reqPtr;
 }
@@ -383,6 +390,7 @@ std::unique_ptr<Request> TimelineProtocol::ToFlowCategoryEventsRequest(const jso
         error = "Failed to set request base info, command is: " + reqPtr->command;
         return nullptr;
     }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.host, json["params"], "host");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.category, json["params"], "category");
@@ -409,6 +417,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitCounterRequest(const json_t &js
         error = "Failed to set request base info, command is: " + reqPtr->command;
         return nullptr;
     }
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pid, json["params"], "pid");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.threadName, json["params"], "threadName");
@@ -427,6 +436,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewRequest(const Dic::json_t
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.orderBy, json["params"], "orderBy");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.type, json["params"], "type");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
@@ -465,6 +475,7 @@ std::unique_ptr<Request> TimelineProtocol::ToEventsViewRequest(const Dic::json_t
     JsonUtil::SetByJsonKeyValue(reqPtr->params.order, json["params"], "order");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.currentPage, json["params"], "currentPage");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pageSize, json["params"], "pageSize");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pid, json["params"], "pid");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.processName, json["params"], "processName");
@@ -563,6 +574,7 @@ std::unique_ptr<Request> TimelineProtocol::ToOneKernelRequest(const Dic::json_t 
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.name, json["params"], "name");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.timestamp, json["params"], "timestamp");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.duration, json["params"], "duration");
@@ -622,6 +634,7 @@ std::unique_ptr<Request> TimelineProtocol::ToUnitThreadsOperatorsRequest(const D
         return nullptr;
     }
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     if (json["params"].HasMember("processes") && json["params"]["processes"].IsArray()) {
         for (const auto &process : json["params"]["processes"].GetArray()) {
             SimpleProcess p;
@@ -664,6 +677,7 @@ std::unique_ptr<Request> TimelineProtocol::ToSearchAllSlicesRequest(const Dic::j
     JsonUtil::SetByJsonKeyValue(reqPtr->params.isMatchCase, json["params"], "isMatchCase");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.isMatchExact, json["params"], "isMatchExact");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.rankId, json["params"], "rankId");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.dbPath, json["params"], "dbPath");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.searchContent, json["params"], "searchContent");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.nameFilter, json["params"], "nameFilter");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.orderBy, json["params"], "orderBy");

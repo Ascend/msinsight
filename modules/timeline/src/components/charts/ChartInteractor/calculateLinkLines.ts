@@ -23,6 +23,7 @@ import { checkLineIsVisible, getHeight, processIsCol, UNDRAW_HEIGHT } from './dr
 import { DataBlock, FlowEvent } from '../../FilterLinkLine';
 import { handlerEmptyString } from '../../../utils/string';
 import { InsightUnit } from '../../../entity/insight';
+import { getLaneProcessIdentity } from '../../../entity/data';
 
 function generateCalculateWHWithCache(): {
     calculateWHWithCacheFunc: Function;
@@ -38,7 +39,7 @@ function generateCalculateWHWithCache(): {
     const disposer = observe(WIDTH_DEPENDENCIES, () => {
         WIDTH_CACHE.clear(); // 根据宽度变化更新宽度缓存
     });
-    function getWidthWithCache(paramsOfCache: { timestamp: number; cardId: string; pid: string; metaType?: string },
+    function getWidthWithCache(paramsOfCache: { timestamp: number; cardId: string; dbPath?: string; pid: string; metaType?: string },
         li: d3.ScaleLinear<number, number>, session: Session, units: InsightUnit[], timestampOffset?: Record<string, number>,
         cardIdIndex?: CardIdIndex): number {
         const effectiveOffset = getTimeOffset(session, {
@@ -46,7 +47,7 @@ function generateCalculateWHWithCache(): {
             processId: paramsOfCache.pid,
             metaType: paramsOfCache.metaType,
         }, units, timestampOffset, cardIdIndex);
-        const key = `${paramsOfCache.timestamp}-${paramsOfCache.cardId}-${paramsOfCache.pid}-${effectiveOffset}`;
+        const key = `${paramsOfCache.timestamp}-${paramsOfCache.cardId}-${paramsOfCache.dbPath ?? ''}-${paramsOfCache.pid}-${effectiveOffset}`;
         if (WIDTH_CACHE.has(key)) {
             return WIDTH_CACHE.get(key) ?? 0;
         }
@@ -56,7 +57,7 @@ function generateCalculateWHWithCache(): {
     }
 
     function generateDataBlockKey(block: DataBlock): string {
-        return `${block.pid}-${block.tid}-${block.depth}`;
+        return `${block.dbPath ?? ''}-${block.pid}-${block.tid}-${block.depth}`;
     }
 
     function getHeightWithCache(block: DataBlock, cardId: string, category: string, session: Session): number | undefined {
@@ -155,19 +156,21 @@ export function calculateLinkLines(rawList: Array<Record<string, unknown>>, sess
         const [targetX, targetY] = [getWidthWithCache({
             timestamp: to.timestamp,
             cardId: targetCardId,
+            dbPath: to.dbPath,
             pid: to.pid,
             metaType: to.metaType,
         }, li, session, units, timestampOffset, cardIdIndex), getHeightWithCache(to, targetCardId, cat, session)];
         const [sourceX, sourceY] = [getWidthWithCache({
             timestamp: from.timestamp,
             cardId: sourceCardId,
+            dbPath: from.dbPath,
             pid: from.pid,
             metaType: from.metaType,
         }, li, session, units, timestampOffset, cardIdIndex), getHeightWithCache(from, sourceCardId, cat, session)];
         const targetPos: Array<[x: number, y: number]> = [[targetX, targetY]];
         const offset = ((targetX - sourceX) / 2);
-        const isAllCol = (processIsCol.get(`${targetCardId}-${to.pid}`) ?? false) &&
-            (processIsCol.get(`${sourceCardId}-${from.pid}`) ?? false);
+        const isAllCol = (processIsCol.get(getLaneProcessIdentity(targetCardId, to.pid, to.dbPath)) ?? false) &&
+            (processIsCol.get(getLaneProcessIdentity(sourceCardId, from.pid, from.dbPath)) ?? false);
         if (isAllCol || sourceY === undefined || targetY === undefined) { continue; }
         const isInUnit = !(sourceY < UNDRAW_HEIGHT && targetY < UNDRAW_HEIGHT);
         const isInside = checkIsValidLine({ targetX, targetY, sourceX, sourceY, width: canvasWidth, height: canvasHeight });

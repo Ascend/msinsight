@@ -28,7 +28,8 @@ void MstxRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery
         ServerLog::Warn("mstx query all slice track info is not exist, track is: ", sliceQuery.trackId);
         return;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Warn("mstx open database is failed");
         return;
@@ -69,7 +70,8 @@ void MstxRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::v
         "    where 1 = 1 and id in (";
     std::string sliceidvecStr = StringUtil::join(sliceIds, ", ");
     sql += sliceidvecStr + ");";
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Warn("mstx open database is failed");
         return;

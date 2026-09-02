@@ -33,6 +33,10 @@ class ProjectParserDbTest : public testing::Test {
             const std::string &rank) {
             SetRankDeviceMap(parseFileInfo, rankDeviceMap, deviceIdInMem, rank);
         }
+        void SetHostInfoHelper(
+            std::map<std::string, HostInfo> &hostInfoMap, ImportActionResponse &response, int64_t projectType) {
+            SetHostInfo(hostInfoMap, response, projectType);
+        }
     };
     std::string GetMultiDeviceTestDataPath() {
         std::string current = Dic::FileUtil::GetCurrPath();
@@ -112,4 +116,19 @@ TEST_F(ProjectParserDbTest, set_rank_device_map_multi_device) {
     std::unordered_map<std::string, std::string> rankDeviceMap;
     dbParser.SetRankDeviceMapHelper(fileInfo, rankDeviceMap, "", "");
     EXPECT_EQ(rankDeviceMap[fileInfo->rankId], fileInfo->deviceId);
+}
+
+TEST_F(ProjectParserDbTest, SetHostInfoEmitsOneActionForSameLogicalRank) {
+    ProjectParserDbTestHelper parser;
+    std::map<std::string, HostInfo> hostInfoMap = {{"host", {{"z.db", {"0"}}, {"a.db", {"0"}}, {"b.db", {"1"}}}}};
+    ImportActionResponse response;
+
+    parser.SetHostInfoHelper(hostInfoMap, response, static_cast<int64_t>(ProjectTypeEnum::DB));
+
+    ASSERT_EQ(response.body.result.size(), 2U);
+    EXPECT_EQ(response.body.result[0].rankId, "host0");
+    EXPECT_EQ(response.body.result[0].fileId, "a.db");
+    EXPECT_EQ(response.body.result[1].rankId, "host1");
+    EXPECT_EQ(hostInfoMap["host"]["z.db"][0], "host0");
+    EXPECT_EQ(hostInfoMap["host"]["a.db"][0], "host0");
 }

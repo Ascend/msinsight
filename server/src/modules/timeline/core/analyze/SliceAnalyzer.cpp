@@ -75,7 +75,8 @@ SliceQuery BuildDepthIndexQuery(SliceCacheManager &sliceCacheManager, const Slic
     SliceQuery depthIndexQuery = sliceQuery;
     uint64_t cacheStartTime = 0;
     uint64_t cacheEndTime = 0;
-    if (sliceCacheManager.QueryCacheDuration(sliceCacheKey, sliceQuery.rankId, cacheStartTime, cacheEndTime)) {
+    if (sliceCacheManager.QueryCacheDuration(
+            sliceCacheKey, sliceQuery.GetDataSourceId(), cacheStartTime, cacheEndTime)) {
         depthIndexQuery.startTime = cacheStartTime;
         depthIndexQuery.endTime = cacheEndTime;
     }
@@ -376,7 +377,8 @@ void SliceAnalyzer::ComputeScreenSliceIds(
     const SliceQuery &sliceQuery, std::set<uint64_t> &ids, uint64_t &maxDepth, std::map<uint64_t, uint32_t> &depthMap) {
     std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
     auto &instance = SliceCacheManager::Instance();
-    std::vector<SliceDomain> sliceDomainVec = instance.GetSliceDomainVec(sliceCacheKey, sliceQuery.rankId, sliceQuery);
+    std::vector<SliceDomain> sliceDomainVec =
+        instance.GetSliceDomainVec(sliceCacheKey, sliceQuery.GetDataSourceId(), sliceQuery);
     // 用于分页缓存的查询参数, 只有未命中缓存时，会被赋值；命中缓存时，其为空值，可以作为后续是否刷新cacheDuration的判断依据
     SliceQuery slicePagedQuery;
     bool isHitCache = !std::empty(sliceDomainVec);
@@ -427,7 +429,8 @@ void SliceAnalyzer::ComputePythonFunctionSliceIds(
     const SliceQuery &sliceQuery, std::set<uint64_t> &ids, uint64_t &maxDepth, std::map<uint64_t, uint32_t> &depthMap) {
     std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
     auto &instance = SliceCacheManager::Instance();
-    std::vector<SliceDomain> sliceDomainVec = instance.GetSliceDomainVec(sliceCacheKey, sliceQuery.rankId, sliceQuery);
+    std::vector<SliceDomain> sliceDomainVec =
+        instance.GetSliceDomainVec(sliceCacheKey, sliceQuery.GetDataSourceId(), sliceQuery);
     SliceQuery slicePagedQuery;
     bool isHitCache = !std::empty(sliceDomainVec);
     if (!isHitCache) {
@@ -472,7 +475,7 @@ void SliceAnalyzer::ComputePythonFunctionSliceIds(
 void SliceAnalyzer::QueryPythonFuncIds(const SliceQuery &sliceQuery, std::vector<uint64_t> &pythonFunctionIds) {
     auto &instance = SliceCacheManager::Instance();
     const std::string pythonFunctionCacheKey =
-        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.rankId, sliceQuery.trackId);
+        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.GetDataSourceId(), sliceQuery.trackId);
     const auto pythonFuncRepo = dynamic_cast<IPythonFuncSlice *>(repository.get());
     if (instance.GetPythonFunctionStatus(pythonFunctionCacheKey) == PYTHON_FUNCTION_STATUS::UNKNOWN) {
         uint64_t count = pythonFuncRepo != nullptr ? pythonFuncRepo->QueryPythonFunctionCountByTrackId(sliceQuery) : 0;
@@ -503,7 +506,7 @@ void SliceAnalyzer::ComputeSliceDomainVecAndSelfTimeByTimeRange(const SliceQuery
     // 过滤python function
     std::vector<CompeteSliceDomain> competeSliceVec;
     const std::string pythonFunctionCacheKey =
-        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.rankId, sliceQuery.trackId);
+        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.GetDataSourceId(), sliceQuery.trackId);
     auto &instance = SliceCacheManager::Instance();
     SliceQuery pythonFunctionQuery = sliceQuery;
     if (pythonFunctionQuery.cat.empty()) {
@@ -570,7 +573,7 @@ void SliceAnalyzer::ComputePythonFunctionDepthInfoByTrackId(
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
     std::string sliceCacheKey = std::to_string(sliceQuery.trackId);
     std::vector<SliceDomain> sliceVec =
-        sliceCacheManager.GetSliceDomainVec(sliceCacheKey, sliceQuery.rankId, sliceQuery);
+        sliceCacheManager.GetSliceDomainVec(sliceCacheKey, sliceQuery.GetDataSourceId(), sliceQuery);
     if (std::empty(sliceVec)) {
         SliceQuery slicePagedQuery = SliceCacheManager::GetSlicePagedQuery(sliceQuery);
         repository->QuerySimpleSliceWithOutNameByTrackId(slicePagedQuery, sliceVec);
@@ -601,7 +604,8 @@ void SliceAnalyzer::ComputePythonFunctionDepthInfoByTrackId(
     SliceQuery depthIndexQuery = sliceQuery;
     uint64_t cacheStartTime = 0;
     uint64_t cacheEndTime = 0;
-    if (sliceCacheManager.QueryCacheDuration(sliceCacheKey, sliceQuery.rankId, cacheStartTime, cacheEndTime)) {
+    if (sliceCacheManager.QueryCacheDuration(
+            sliceCacheKey, sliceQuery.GetDataSourceId(), cacheStartTime, cacheEndTime)) {
         depthIndexQuery.startTime = cacheStartTime;
         depthIndexQuery.endTime = cacheEndTime;
     }
@@ -654,7 +658,8 @@ void SliceAnalyzer::ComputePythonFunctionSliceVecByTimeRange(
 
 void SliceAnalyzer::ComputeSliceDomainVecByTrackId(const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     SliceCacheManager &sliceCacheManager = SliceCacheManager::Instance();
-    sliceVec = sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId, sliceQuery);
+    sliceVec = sliceCacheManager.GetSliceDomainVec(
+        std::to_string(sliceQuery.trackId), sliceQuery.GetDataSourceId(), sliceQuery);
     if (std::empty(sliceVec)) {
         std::unordered_map<uint64_t, uint32_t> depthInfo;
         // 返回的是普通泳道 slice，裸 trackId cache 必须按排除 Python Function 后的集合计算深度。
@@ -662,8 +667,8 @@ void SliceAnalyzer::ComputeSliceDomainVecByTrackId(const SliceQuery &sliceQuery,
         SliceQuery ordinaryLaneQuery = sliceQuery;
         ordinaryLaneQuery.isFilterPythonFunction = true;
         ComputeDepthInfoFromDB(ordinaryLaneQuery, depthInfo);
-        sliceVec =
-            sliceCacheManager.GetSliceDomainVec(std::to_string(sliceQuery.trackId), sliceQuery.rankId, sliceQuery);
+        sliceVec = sliceCacheManager.GetSliceDomainVec(
+            std::to_string(sliceQuery.trackId), sliceQuery.GetDataSourceId(), sliceQuery);
     }
 }
 
@@ -694,7 +699,7 @@ void SliceAnalyzer::ComputeDepthInfoFromDB(
     std::vector<SliceDomain> sliceVec;
     SliceCacheManager &simpleSliceCache = SliceCacheManager::Instance();
     const std::string pythonFunctionKey =
-        SliceCacheManager::BuildPythonFunctionCacheKey(ordinaryLaneQuery.rankId, ordinaryLaneQuery.trackId);
+        SliceCacheManager::BuildPythonFunctionCacheKey(ordinaryLaneQuery.GetDataSourceId(), ordinaryLaneQuery.trackId);
     std::vector<uint64_t> pythonFunctionIds =
         simpleSliceCache.GetPythonFunctionIdVec(pythonFunctionKey, ordinaryLaneQuery);
     if (std::empty(pythonFunctionIds)) {

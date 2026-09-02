@@ -41,6 +41,16 @@ TEST_F(TrackInfoManagerTest, TestGetTrackIdFirst) {
     TrackInfoManager::Instance().Reset();
 }
 
+TEST_F(TrackInfoManagerTest, GetTrackInfoReturnsFalseForDifferentSource) {
+    TrackInfoManager::Instance().Reset();
+    const uint64_t trackId = TrackInfoManager::Instance().GetTrackId("thread-1.db", "10", "20");
+    TrackInfo trackInfo;
+
+    EXPECT_FALSE(TrackInfoManager::Instance().GetTrackInfo(trackId, trackInfo, "thread-2.db"));
+
+    TrackInfoManager::Instance().Reset();
+}
+
 /**
  * 测试TrackId不存在
  */

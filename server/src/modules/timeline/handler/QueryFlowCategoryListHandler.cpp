@@ -28,7 +28,9 @@ bool QueryFlowCategoryListHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     std::unique_ptr<FlowCategoryListResponse> responsePtr = std::make_unique<FlowCategoryListResponse>();
     FlowCategoryListResponse &response = *responsePtr.get();
     SetBaseResponse(request, response);
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
+    auto database = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
     if (database == nullptr) {
         ServerLog::Error("Query flow category list failed to get connection. ");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);

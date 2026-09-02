@@ -26,6 +26,7 @@ import type {
     LabelMetaData,
     CounterMetaData,
 } from '../../entity/data';
+import type { StatusData } from '../../entity/chart';
 import { UnitHeight } from '../../entity/insight';
 import type { ChartDesc, InsightUnit } from '../../entity/insight';
 import {
@@ -49,7 +50,7 @@ export function recursiveExpandUnit<T extends keyof MetaDataEnumType>(metaDataLi
         return;
     }
     for (const metaData of metaDataList) {
-        metaData.metadata.dbPath = parentUnit.metadata.dbPath as string;
+        metaData.metadata.dbPath = (metaData.metadata.dbPath as string | undefined) ?? parentUnit.metadata.dbPath as string;
         const existingUnit = parentUnit?.children?.find(unit => checkMetaData(unit.metadata, metaData));
         if (existingUnit) {
             recursiveExpandUnit(metaData.children ?? [], existingUnit, depth + 1);
@@ -62,6 +63,70 @@ export function recursiveExpandUnit<T extends keyof MetaDataEnumType>(metaDataLi
             }
         }
     }
+    if (depth === 0) {
+        reorderMultiSourceCardLanes(parentUnit);
+    }
+}
+
+export function getHardwareSummaryDbPaths(unit: InsightUnit | undefined): string[] {
+    const paths: string[] = [];
+    const seen = new Set<string>();
+    unit?.children?.forEach(child => {
+        const dbPath = child.metadata.dbPath as string | undefined;
+        if (dbPath !== undefined && dbPath !== '' && !seen.has(dbPath)) {
+            seen.add(dbPath);
+            paths.push(dbPath);
+        }
+    });
+    return paths;
+}
+
+export function mergeSummaryStatusData(data: StatusData[]): StatusData[] {
+    const sorted = [...data].filter(item => item.duration > 0).sort((left, right) => left.startTime - right.startTime);
+    const merged: StatusData[] = [];
+    sorted.forEach(item => {
+        const previous = merged[merged.length - 1];
+        if (previous === undefined || item.startTime > previous.startTime + previous.duration) {
+            merged.push({ ...item });
+            return;
+        }
+        const endTime = Math.max(previous.startTime + previous.duration, item.startTime + item.duration);
+        previous.duration = endTime - previous.startTime;
+    });
+    return merged;
+}
+
+export function convertSummaryProcessData(
+    data: Array<{ startTime: number; duration: number }> | undefined, timestampOffset: number,
+): StatusData[] {
+    return (data ?? []).map(item => ({
+        startTime: item.startTime - timestampOffset,
+        duration: item.duration,
+        name: '',
+        type: '',
+    }));
+}
+
+export function reorderMultiSourceCardLanes(cardUnit: InsightUnit): void {
+    const children = cardUnit.children;
+    if (children === undefined) {
+        return;
+    }
+    const hardware = children.find(unit => unit.metadata.metaType === 'Ascend Hardware');
+    if (getHardwareSummaryDbPaths(hardware).length <= 1) {
+        return;
+    }
+    const processUnits: InsightUnit[] = [];
+    const otherUnits: InsightUnit[] = [];
+    children.forEach(unit => {
+        const processName = unit.metadata.processName as string | undefined;
+        if (unit.name === 'Process' && processName?.startsWith('Process ') === true) {
+            processUnits.push(unit);
+        } else {
+            otherUnits.push(unit);
+        }
+    });
+    cardUnit.children = [...processUnits, ...otherUnits];
 }
 
 export function clearParentMap(): void {
@@ -101,7 +166,7 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             return new LabelUnit(meta);
         }
         case 'process': {
-            const meta = generateMetaData<ProcessMetaData>({ cardId: insightMetaData.metadata.cardId, dbPath: parentMetaData.dbPath },
+            const meta = generateMetaData<ProcessMetaData>({ cardId: insightMetaData.metadata.cardId, dbPath: insightMetaData.metadata.dbPath ?? parentMetaData.dbPath },
                 insightMetaData.metadata.processId, insightMetaData.metadata.processName, insightMetaData.metadata.threadId);
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.label = insightMetaData.metadata.label;
@@ -112,11 +177,12 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
                 : new ProcessUnit(meta);
         }
         case 'thread': {
-            const meta = generateMetaData<ThreadMetaData>({ cardId: insightMetaData.metadata.cardId, dbPath: parentMetaData.dbPath },
+            const meta = generateMetaData<ThreadMetaData>({ cardId: insightMetaData.metadata.cardId, dbPath: insightMetaData.metadata.dbPath ?? parentMetaData.dbPath },
                 (parentMetaData as ProcessMetaData).processId, (parentMetaData as ProcessMetaData).processName,
                 insightMetaData.metadata.threadId, insightMetaData.metadata.threadName);
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.metaType = insightMetaData.metadata.metaType;
+            meta.sourceLabel = insightMetaData.metadata.sourceLabel;
             meta.groupNameValue = insightMetaData.metadata.groupNameValue;
             meta.rankList = insightMetaData.metadata.rankList;
             meta.headerTooltip = insightMetaData.metadata.headerTooltip;
@@ -182,9 +248,12 @@ function generateMetaData<T extends MetaDataInnerBase = MetaDataInnerBase>(
 }
 
 function checkMetaData<T extends keyof MetaDataEnumType>(unitMetaData: any, paramMetaData: InsightMetaData<T>): boolean {
-    if (paramMetaData.type === 'thread' && (unitMetaData as ThreadMetaData).threadId === (paramMetaData.metadata as ThreadMetaData).threadId) {
+    const sameDbPath = unitMetaData.dbPath === paramMetaData.metadata.dbPath;
+    if (paramMetaData.type === 'thread' && sameDbPath &&
+        (unitMetaData as ThreadMetaData).threadId === (paramMetaData.metadata as ThreadMetaData).threadId) {
         return true;
-    } else if (unitMetaData.type === 'process' && paramMetaData.type === 'process' && (unitMetaData as ProcessMetaData).processId === (paramMetaData.metadata as ProcessMetaData).processId) {
+    } else if (unitMetaData.type === 'process' && paramMetaData.type === 'process' && sameDbPath &&
+        (unitMetaData as ProcessMetaData).processId === (paramMetaData.metadata as ProcessMetaData).processId) {
         return true;
     } else {
         return false;
@@ -193,7 +262,10 @@ function checkMetaData<T extends keyof MetaDataEnumType>(unitMetaData: any, para
 
 export function createStatusParam(method: string, params: Record<string, unknown>): string {
     const processParams = params as unknown as ThreadTraceRequest;
-    return `cardId${processParams.cardId}&processId${processParams.processId}&metaType${processParams.metaType}&unitType${processParams.unitType}&s${processParams.startTime}&e${processParams.endTime}`;
+    const threadIds = processParams.threadIdList?.join(',') ?? '';
+    return `cardId${processParams.cardId}&dbPath${processParams.dbPath ?? ''}&processId${processParams.processId}` +
+        `&threadId${processParams.threadId ?? ''}&threadIdList${threadIds}&metaType${processParams.metaType}` +
+        `&unitType${processParams.unitType}&s${processParams.startTime}&e${processParams.endTime}`;
 }
 
 export function createCounterParam(method: string, params: Record<string, unknown>): string {

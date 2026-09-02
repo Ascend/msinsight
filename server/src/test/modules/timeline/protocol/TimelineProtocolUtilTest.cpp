@@ -33,6 +33,36 @@ TEST_F(TimelineProtocolUtilTest, ParseSuccessEventSerializesIsFtrace) {
     EXPECT_TRUE(json["body"]["isFtrace"].GetBool());
 }
 
+TEST_F(TimelineProtocolUtilTest, ParseSuccessEventSerializesTrackDatabasePath) {
+    Dic::Protocol::ParseSuccessEvent event;
+    auto track = std::make_unique<Dic::Protocol::UnitTrack>();
+    track->type = "process";
+    track->metaData.dbPath = "source.db";
+    event.body.unit.children.emplace_back(std::move(track));
+
+    auto jsonOp = Dic::Protocol::ToEventJson(event);
+
+    ASSERT_TRUE(jsonOp.has_value());
+    const auto &metadata = jsonOp.value()["body"]["unit"]["children"][0]["metadata"];
+    ASSERT_TRUE(metadata.HasMember("dbPath"));
+    EXPECT_STREQ(metadata["dbPath"].GetString(), "source.db");
+}
+
+TEST_F(TimelineProtocolUtilTest, ParseSuccessEventSerializesTrackSourceLabel) {
+    Dic::Protocol::ParseSuccessEvent event;
+    auto track = std::make_unique<Dic::Protocol::UnitTrack>();
+    track->type = "thread";
+    track->metaData.sourceLabel = "Thread 2";
+    event.body.unit.children.emplace_back(std::move(track));
+
+    auto jsonOp = Dic::Protocol::ToEventJson(event);
+
+    ASSERT_TRUE(jsonOp.has_value());
+    const auto &metadata = jsonOp.value()["body"]["unit"]["children"][0]["metadata"];
+    ASSERT_TRUE(metadata.HasMember("sourceLabel"));
+    EXPECT_STREQ(metadata["sourceLabel"].GetString(), "Thread 2");
+}
+
 TEST_F(TimelineProtocolUtilTest, UnitThreadDetailSerializesModelStreamIds) {
     Dic::Protocol::UnitThreadDetailResponse response;
     response.body.data.modelStreamIds = {"11", "12", "47"};
@@ -170,6 +200,8 @@ TEST_F(TimelineProtocolUtilTest, UnitThreadDetailOmitsUnavailableCommunicationAn
 TEST_F(TimelineProtocolUtilTest, TestUnitFlowsResponseToJson) {
     Dic::Protocol::UnitFlowsResponse response;
     Dic::Protocol::UnitSingleFlow unitSingleFlow;
+    unitSingleFlow.from.dbPath = "thread-1.db";
+    unitSingleFlow.to.dbPath = "thread-1.db";
     Dic::Protocol::UnitCatFlows unitCatFlows;
     unitCatFlows.flows.emplace_back(unitSingleFlow);
     response.body.unitAllFlows.emplace_back(unitCatFlows);
@@ -179,8 +211,10 @@ TEST_F(TimelineProtocolUtilTest, TestUnitFlowsResponseToJson) {
     const std::string jsonStr =
         "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":false,\"command\":\"unit/"
         "flows\",\"moduleName\":\"unknown\",\"body\":{\"unitAllFlows\":[{\"cat\":\"\",\"flows\":[{\"title\":\"\","
-        "\"cat\":\"\",\"id\":\"\",\"from\":{\"pid\":\"\",\"tid\":\"\",\"timestamp\":0,\"duration\":0,\"depth\":0,"
-        "\"name\":\"\",\"id\":\"\",\"metaType\":\"\",\"rankId\":\"\"},\"to\":{\"pid\":\"\",\"tid\":\"\",\"timestamp\":"
+        "\"cat\":\"\",\"id\":\"\",\"from\":{\"dbPath\":\"thread-1.db\",\"pid\":\"\",\"tid\":\"\",\"timestamp\":0,"
+        "\"duration\":0,\"depth\":0,"
+        "\"name\":\"\",\"id\":\"\",\"metaType\":\"\",\"rankId\":\"\"},\"to\":{\"dbPath\":\"thread-1.db\",\"pid\":\"\","
+        "\"tid\":\"\",\"timestamp\":"
         "0,\"duration\":0,\"depth\":0,\"name\":\"\",\"id\":\"\",\"metaType\":\"\",\"rankId\":\"\"}}]}]}}";
     EXPECT_EQ(json, jsonStr);
 }

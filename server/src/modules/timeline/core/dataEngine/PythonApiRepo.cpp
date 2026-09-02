@@ -29,7 +29,8 @@ void PythonApiRepo::QuerySimpleSliceWithOutNameByTrackId(
         ServerLog::Warn("python api query all slice track info is not exist, track is: ", sliceQuery.trackId);
         return;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Warn("python api open database is failed");
         return;
@@ -70,7 +71,8 @@ void PythonApiRepo::QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector
         TABLE_ENUM_API_TYPE +
         " enum ON enum.id = api.type "
         " where api.globalTid = ? and enum.name = 'trace' and startNs <= ? and endNs >= ? ";
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Warn("python api open database is failed");
         return;
@@ -100,7 +102,8 @@ bool PythonApiRepo::QuerySliceByCatAndTimeRange(const SliceQuery &sliceQuery, st
             "python api query slice by cat and range track info is not exist, track is: ", sliceQuery.trackId);
         return false;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Warn("python api open database is failed");
         return false;
@@ -148,7 +151,8 @@ uint64_t PythonApiRepo::QueryPythonFunctionCountByTrackId(const SliceQuery &slic
         TABLE_ENUM_API_TYPE +
         " enum ON enum.id = api.type "
         " where api.globalTid = ? and enum.name = 'trace'";
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Warn("python api open database is failed");
         return 0;
@@ -180,7 +184,8 @@ void PythonApiRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const s
         TABLE_API + " where 1 = 1 and id in (";
     std::string sliceidvecStr = StringUtil::join(sliceIds, ", ");
     sql += sliceidvecStr + ");";
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Warn("python api open database is failed");
         return;
@@ -214,7 +219,7 @@ bool PythonApiRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSl
         .Select(PytorchApiColumn::INPUT_DTYPES, PytorchApiColumn::INPUT_SHAPES)
         .Select(PytorchApiColumn::CALL_CHAIN_ID, PytorchApiColumn::CONNECTIONID)
         .Eq(PytorchApiColumn::ID, sliceQuery.sliceId)
-        .ExcuteQuery(sliceQuery.rankId, apiPOs);
+        .ExcuteQuery(sliceQuery.GetDataSourceId(), apiPOs);
     if (std::empty(apiPOs)) {
         ServerLog::Warn("Failed to query pytorch api slice detail by id. id is: %", sliceQuery.sliceId);
         return false;
@@ -237,7 +242,8 @@ void PythonApiRepo::QuerySliceArgs(
     if (!std::empty(target.inputDtypes)) {
         strIds.emplace_back(NumberUtil::TryParseInt(target.inputDtypes));
     }
-    std::unordered_map<uint64_t, std::string> strMap = stringIdsTable->QueryStrMap(strIds, sliceQuery.rankId);
+    std::unordered_map<uint64_t, std::string> strMap =
+        stringIdsTable->QueryStrMap(strIds, sliceQuery.GetDataSourceId());
     const std::string correlationId = std::to_string(target.connectionId);
     const std::string inputShapeName = strMap[NumberUtil::TryParseInt(target.inputShapes)];
     const std::string inputTypeName = strMap[NumberUtil::TryParseInt(target.inputDtypes)];
@@ -273,14 +279,14 @@ std::string PythonApiRepo::QuerySliceCallStack(const SliceQuery &sliceQuery, con
         pytorchCallchainsTable->Select(PytorchCallchainsColumn::STACK)
             .Eq(PytorchCallchainsColumn::ID, target.callchainId)
             .OrderBy(PytorchCallchainsColumn::STACK_DEPTH, TableOrder::ASC)
-            .ExcuteQuery(sliceQuery.rankId, chainPOs);
+            .ExcuteQuery(sliceQuery.GetDataSourceId(), chainPOs);
         std::vector<uint64_t> callStrIds;
         callStrIds.reserve(chainPOs.size());
         for (const auto &item : chainPOs) {
             callStrIds.emplace_back(item.stack);
         }
         std::unordered_map<uint64_t, std::string> callStrMap =
-            stringIdsTable->QueryStrMap(callStrIds, sliceQuery.rankId);
+            stringIdsTable->QueryStrMap(callStrIds, sliceQuery.GetDataSourceId());
         for (const auto &item : chainPOs) {
             callStack += callStrMap[item.stack];
             callStack += ";\n";
@@ -292,7 +298,7 @@ std::string PythonApiRepo::QuerySliceCallStack(const SliceQuery &sliceQuery, con
 bool PythonApiRepo::QuerySliceByVagueNameAndTime(const SliceQuery &sliceQuery, std::vector<CompeteSliceDomain> &res) {
     auto ids = stringIdsTable->Select(StringIdsColumn::ID, StringIdsColumn::VALUE)
                    .Like(StringIdsColumn::VALUE, sliceQuery.name)
-                   .ExcuteQuery(sliceQuery.rankId);
+                   .ExcuteQuery(sliceQuery.GetDataSourceId());
     if (ids.empty()) {
         ServerLog::Warn("Failed to query pytorch slice name by vague name");
         return false;
@@ -308,7 +314,7 @@ bool PythonApiRepo::QuerySliceByVagueNameAndTime(const SliceQuery &sliceQuery, s
     if (sliceQuery.depth != std::numeric_limits<uint64_t>::max()) {
         pytorchApiTable->Eq(PytorchApiColumn::DEPTH, sliceQuery.depth);
     }
-    pytorchApiTable->ExcuteQuery(sliceQuery.rankId, apiPos);
+    pytorchApiTable->ExcuteQuery(sliceQuery.GetDataSourceId(), apiPos);
     if (apiPos.empty()) {
         ServerLog::Warn("No pytorch api find in vague name");
         return false;
@@ -327,7 +333,7 @@ bool PythonApiRepo::QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, C
     std::vector<StringIdsPO> strPOs;
     stringIdsTable->Select(StringIdsColumn::ID)
         .Eq(StringIdsColumn::VALUE, sliceQuery.name)
-        .ExcuteQuery(sliceQuery.rankId, strPOs);
+        .ExcuteQuery(sliceQuery.GetDataSourceId(), strPOs);
     if (std::empty(strPOs)) {
         ServerLog::Warn("Failed to query pytorch slice name by time point in db scene!");
         return false;
@@ -341,7 +347,7 @@ bool PythonApiRepo::QuerySliceByTimepointAndName(const SliceQuery &sliceQuery, C
         .GreaterEq(PytorchApiColumn::ENDTIME, sliceQuery.timePoint)
         .In(PytorchApiColumn::NAME, strIds)
         .OrderBy(PytorchApiColumn::TIMESTAMP, Timeline::TableOrder::DESC)
-        .ExcuteQuery(sliceQuery.rankId, apiPOs);
+        .ExcuteQuery(sliceQuery.GetDataSourceId(), apiPOs);
     if (std::empty(apiPOs)) {
         ServerLog::Warn("Failed to query pytorch slice by time point in db scene!");
         return false;

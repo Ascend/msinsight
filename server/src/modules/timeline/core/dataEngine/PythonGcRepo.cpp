@@ -29,7 +29,8 @@ void PythonGcRepo::QuerySimpleSliceWithOutNameByTrackId(
         ServerLog::Warn("gcRecord query all slice track info is not exist, track is: ", sliceQuery.trackId);
         return;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Error("gcRecord open database is failed");
         return;
@@ -70,7 +71,8 @@ void PythonGcRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const st
         "    where 1 = 1 and id in (";
     std::string sliceidvecStr = StringUtil::join(sliceIds, ", ");
     sql += sliceidvecStr + ");";
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         ServerLog::Error("gcRecord open database is failed");
         return;

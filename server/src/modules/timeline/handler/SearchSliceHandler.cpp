@@ -40,7 +40,9 @@ bool SearchSliceHandler::HandleRequest(std::unique_ptr<Protocol::Request> reques
         return false;
     }
     response.body.rankId = request.params.rankId;
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
+    auto database = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
     if (database == nullptr) {
         ServerLog::Error("Search slice can't find rankId.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);

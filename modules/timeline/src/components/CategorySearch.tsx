@@ -29,7 +29,7 @@ import type { SvgType } from './base/rc-table/types';
 import { action, runInAction } from 'mobx';
 import { useTranslation } from 'react-i18next';
 import { LeftOutlined, RightOutlined } from '@ant-design/icons';
-import type { ProcessMetaData, SliceData, ThreadMetaData } from '../entity/data';
+import { getCardSourceDbPaths, type ProcessMetaData, type SliceData, type ThreadMetaData } from '../entity/data';
 import { getTimeOffset } from '../insight/units/utils';
 import jumpToUnitOperator from '../utils/jumpToUnitOperator';
 
@@ -98,6 +98,16 @@ interface SearchCriteria {
     rankId: string;
 }
 
+interface LockRangeMetadata {
+    tid?: string;
+    pid?: string;
+    metaType?: string;
+    rankId?: string;
+    dbPath?: string;
+    lockStartTime: number;
+    lockEndTime: number;
+}
+
 const isCurrentSearch = (session: Session, criteria: SearchCriteria): boolean => {
     const { searchData } = session;
     return searchData?.content === criteria.content &&
@@ -113,7 +123,7 @@ const clearForegroundTarget = action((session: Session, criteria?: SearchCriteri
     session.foregroundTarget = undefined;
 });
 
-const getLockRangeMetaList = (session: Session): any => {
+const getLockRangeMetaList = (session: Session): LockRangeMetadata[] => {
     return session.lockUnit.map(selectUnit => {
         const { threadId, processId, metaType, cardId, dbPath } = selectUnit?.metadata as ThreadMetaData ?? {};
         const timestampOffset = getTimeOffset(session, selectUnit?.metadata as ProcessMetaData);
@@ -148,15 +158,20 @@ const queryDataCount = async (session: Session, searchContent: string, isMatchCa
         if (selectedRankId !== undefined && selectedRankId !== ALL_RANK_ID && metadata.cardId !== selectedRankId) {
             continue;
         }
-        const res = await window.request(metadata.dataSource, {
-            command: 'search/count',
-            params: { rankId: metadata.cardId, dbPath: metadata.dbPath, searchContent, isMatchCase, isMatchExact, metadataList },
-        });
-        if (res.totalCount === 0) {
-            continue;
+        const sourceDbPaths = getCardSourceDbPaths(unit, metadata.cardId);
+        const queryDbPaths = sourceDbPaths.length > 0 ? sourceDbPaths : [metadata.dbPath];
+        for (const dbPath of queryDbPaths) {
+            const sourceMetadataList = metadataList.filter(item => item.dbPath === undefined || item.dbPath === dbPath);
+            const res = await window.request(metadata.dataSource, {
+                command: 'search/count',
+                params: { rankId: metadata.cardId, dbPath, searchContent, isMatchCase, isMatchExact, metadataList: sourceMetadataList },
+            });
+            if (res.totalCount === 0) {
+                continue;
+            }
+            totalCnt += res.totalCount;
+            remoteCntArray.push({ dataSource: metadata.dataSource, countList: res.countList });
         }
-        totalCnt += res.totalCount;
-        remoteCntArray.push({ dataSource: metadata.dataSource, countList: res.countList });
     }
     return totalCnt;
 };
@@ -178,7 +193,7 @@ const jumpSlice = async ({
     clearForegroundTarget(session, criteria);
     let finalDataSource;
     let finalRankId;
-    let finalDbPath;
+    let finalDbPath: string | undefined;
     let flag = false;
     let currentIndex = index;
     for (const remoteCount of remoteCntArray) {
@@ -197,7 +212,8 @@ const jumpSlice = async ({
         }
     }
     setIsSearching(true);
-    const metadataList = getLockRangeMetaList(session);
+    const metadataList = getLockRangeMetaList(session)
+        .filter(item => item.dbPath === undefined || item.dbPath === finalDbPath);
     const slice: SliceData = await window.request(finalDataSource as DataSource, {
         command: 'search/slice',
         params: { rankId: finalRankId, dbPath: finalDbPath, searchContent, index: Math.max(1, currentIndex), isMatchCase, isMatchExact, metadataList },

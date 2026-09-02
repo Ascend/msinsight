@@ -27,6 +27,7 @@
 #include "DomainObject.h"
 #include "SliceAnalyzer.h"
 #include "FlowAnalyzer.h"
+#include <optional>
 
 // clang-format off
 namespace Dic::Module::FullDb {
@@ -70,6 +71,12 @@ struct OVERLAP_INFO {
         }
         return false;
     }
+};
+
+struct RANK_OVERLAP_INPUT {
+    std::vector<OVERLAP_INFO> computing;
+    std::vector<OVERLAP_INFO> communication;
+    std::optional<std::pair<int64_t, int64_t>> taskSpan;
 };
 
 struct QUERY_THREAD_SAME_OPERATORS_PARAMS {
@@ -204,6 +211,8 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     bool InitConnectionCats();
     void UpdateWaitTime();
     bool GenerateOverlapAnalysis();
+    bool QueryRankOverlapInput(const std::string &deviceId, RANK_OVERLAP_INPUT &input);
+    bool ReplaceOverlapAnalysisForDevice(const std::string &deviceId, const std::vector<OVERLAP_INFO> &rows);
     std::vector<OVERLAP_INFO> BuildOverlapInfoList(
         const std::vector<OVERLAP_INFO> &timeInfoList, const std::string &deviceId);
     bool QueryTaskEarliestAndLatestTimeExcludingCertainEvent(

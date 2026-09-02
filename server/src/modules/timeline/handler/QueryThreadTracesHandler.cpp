@@ -40,7 +40,9 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.cardId);
+    auto database = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.cardId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
     if (database == nullptr) {
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
         SendResponse(std::move(responsePtr), false);
@@ -62,8 +64,9 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
     if (std::empty(request.params.threadIdList)) {
         UnitThreadTracesParams queryParams = request.params;
         PythonStackHelper::RestoreThreadTracesParams(queryParams);
+        const std::string &dataSourceId = queryParams.dbPath.empty() ? queryParams.cardId : queryParams.dbPath;
         uint64_t trackId =
-            TrackInfoManager::Instance().GetTrackId(queryParams.cardId, queryParams.processId, queryParams.threadId);
+            TrackInfoManager::Instance().GetTrackId(dataSourceId, queryParams.processId, queryParams.threadId);
         ServerLog::Info("Query thread traces lane resolved. rankId: ", queryParams.cardId,
             ", pid: ", queryParams.processId, ", tid: ", queryParams.threadId, ", trackId: ", trackId,
             ", isPythonStack: ", queryParams.isPythonStack,
@@ -78,8 +81,8 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
 
 std::string QueryThreadTracesHandler::GetRequestKey(Request &requestPtr) {
     UnitThreadTracesRequest &request = dynamic_cast<UnitThreadTracesRequest &>(requestPtr);
-    std::vector<std::string> keyContentList = {
-        request.command, request.params.cardId, request.params.processId, request.params.threadId};
+    std::vector<std::string> keyContentList = {request.command, request.params.cardId, request.params.dbPath,
+        request.params.processId, request.params.threadId};
     return StringUtil::join(keyContentList, "_");
 }
 
@@ -90,8 +93,9 @@ void QueryThreadTracesHandler::QueryTracesByTrackIds(
         UnitThreadTracesParams queryParams = request.params;
         queryParams.threadId = threadId;
         PythonStackHelper::RestoreThreadTracesParams(queryParams);
+        const std::string &dataSourceId = queryParams.dbPath.empty() ? queryParams.cardId : queryParams.dbPath;
         uint64_t trackId =
-            TrackInfoManager::Instance().GetTrackId(queryParams.cardId, queryParams.processId, queryParams.threadId);
+            TrackInfoManager::Instance().GetTrackId(dataSourceId, queryParams.processId, queryParams.threadId);
         ServerLog::Info("Query thread traces lane resolved. rankId: ", queryParams.cardId,
             ", pid: ", queryParams.processId, ", tid: ", queryParams.threadId, ", trackId: ", trackId,
             ", isPythonStack: ", queryParams.isPythonStack,

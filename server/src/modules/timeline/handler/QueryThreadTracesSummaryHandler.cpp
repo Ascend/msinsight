@@ -37,7 +37,9 @@ bool QueryThreadTracesSummaryHandler::HandleRequest(std::unique_ptr<Protocol::Re
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.cardId);
+    auto database = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.cardId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
     if (database == nullptr) {
         ServerLog::Error("Query thread traces summary failed to get connection.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);

@@ -314,6 +314,7 @@ std::optional<document_t> ToResponseJson<UnitThreadDetailResponse>(const UnitThr
 
 json_t FlowLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
     json_t json(kObjectType);
+    JsonUtil::AddMember(json, "dbPath", flowLocation.dbPath, allocator);
     JsonUtil::AddMember(json, "pid", flowLocation.pid, allocator);
     JsonUtil::AddMember(json, "tid", flowLocation.tid, allocator);
     JsonUtil::AddMember(json, "timestamp", flowLocation.timestamp, allocator);
@@ -435,6 +436,9 @@ std::optional<document_t> ToResponseJson<FlowCategoryListResponse>(const FlowCat
 
 json_t FlowEventLocationToJson(const FlowLocation &flowLocation, RAPIDJSON_DEFAULT_ALLOCATOR &allocator) {
     json_t json(kObjectType);
+    if (!flowLocation.dbPath.empty()) {
+        JsonUtil::AddMember(json, "dbPath", flowLocation.dbPath, allocator);
+    }
     JsonUtil::AddMember(json, "pid", flowLocation.pid, allocator);
     JsonUtil::AddMember(json, "tid", flowLocation.tid, allocator);
     JsonUtil::AddMember(json, "timestamp", flowLocation.timestamp, allocator);
@@ -1073,11 +1077,13 @@ json_t UnitTrackToJson(const UnitTrack &unitTrack, RAPIDJSON_DEFAULT_ALLOCATOR &
     JsonUtil::AddMember(json, "type", unitTrack.type, allocator);
     json_t metadata(kObjectType);
     JsonUtil::AddMember(metadata, "cardId", unitTrack.metaData.cardId, allocator);
+    JsonUtil::AddMember(metadata, "dbPath", unitTrack.metaData.dbPath, allocator);
     JsonUtil::AddMember(metadata, "processId", unitTrack.metaData.processId, allocator);
     JsonUtil::AddMember(metadata, "processName", unitTrack.metaData.processName, allocator);
     JsonUtil::AddMember(metadata, "label", unitTrack.metaData.label, allocator);
     JsonUtil::AddMember(metadata, "threadId", unitTrack.metaData.threadId, allocator);
     JsonUtil::AddMember(metadata, "threadName", unitTrack.metaData.threadName, allocator);
+    JsonUtil::AddMember(metadata, "sourceLabel", unitTrack.metaData.sourceLabel, allocator);
     JsonUtil::AddMember(metadata, "groupNameValue", unitTrack.metaData.groupNameValue, allocator);
     JsonUtil::AddMember(metadata, "rankList", unitTrack.metaData.rankList, allocator);
     JsonUtil::AddMember(metadata, "metaType", unitTrack.metaData.metaType, allocator);

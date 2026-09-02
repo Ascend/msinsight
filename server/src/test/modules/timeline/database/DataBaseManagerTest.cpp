@@ -101,3 +101,69 @@ TEST_F(DataBaseManagerTest, ReleaseDatabaseByFileIdReleasesOnlyTargetCommunicati
     EXPECT_NE(survivorHandle->GetConnection(), nullptr);
     EXPECT_EQ(std::remove(targetDbPath.c_str()), 0);
 }
+
+TEST_F(DataBaseManagerTest, TracksOrderedSourcesSeparatelyFromRepresentative) {
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.RegisterRankSource("rank0", "z.db");
+    databaseManager.RegisterRankSource("rank0", "a.db");
+    databaseManager.RegisterRankSource("rank0", "a.db");
+
+    auto sources = databaseManager.GetSourceFileIdsByRankId("rank0");
+    ASSERT_EQ(sources.size(), 2U);
+    EXPECT_LT(sources[0], sources[1]);
+
+    databaseManager.SetRepresentativeSource("rank0", "z.db");
+    EXPECT_EQ(databaseManager.GetFileIdByRankId("rank0"), "z.db");
+    EXPECT_EQ(databaseManager.GetSourceFileIdsByRankId("rank0"), sources);
+}
+
+TEST_F(DataBaseManagerTest, GetTraceDatabaseByRankIdAcceptsPhysicalFileId) {
+    const std::string fileId = "thread-2.db";
+    const std::string dbPath = MakeTempDbPath("DataBaseManagerTest_physical_file_id_");
+    auto &databaseManager = DataBaseManager::Instance();
+    ASSERT_TRUE(databaseManager.CreateTraceConnectionPool(fileId, dbPath));
+
+    auto database = databaseManager.GetTraceDatabaseByRankId(fileId);
+
+    ASSERT_NE(database, nullptr);
+    EXPECT_EQ(database->GetDbPath(), dbPath);
+}
+
+TEST_F(DataBaseManagerTest, ClearRemovesRankSourceAndRepresentativeMappings) {
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.RegisterRankSource("rank0", "a.db");
+    databaseManager.SetRepresentativeSource("rank0", "a.db");
+
+    databaseManager.Clear();
+
+    EXPECT_TRUE(databaseManager.GetSourceFileIdsByRankId("rank0").empty());
+    EXPECT_TRUE(databaseManager.GetFileIdByRankId("rank0").empty());
+}
+
+TEST_F(DataBaseManagerTest, ReleaseSourceSelectsRemainingRepresentativeAndClearsRemovedMapping) {
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.RegisterRankSource("rank0", "a.db");
+    databaseManager.RegisterRankSource("rank0", "b.db");
+    databaseManager.SetRepresentativeSource("rank0", "a.db");
+
+    databaseManager.ReleaseDatabaseByFileId("a.db");
+
+    auto sources = databaseManager.GetSourceFileIdsByRankId("rank0");
+    ASSERT_EQ(sources.size(), 1U);
+    EXPECT_EQ(databaseManager.GetFileIdByRankId("rank0"), sources.front());
+    EXPECT_TRUE(databaseManager.GetRankIdByFileId("a.db").empty());
+}
+
+TEST_F(DataBaseManagerTest, SourceMappingsPreserveOriginalFileIdsWhileOrderingByNormalizedPath) {
+    auto &databaseManager = DataBaseManager::Instance();
+    const std::string windowsStyle = R"(D:\data\profile\z.db)";
+    const std::string slashStyle = "D:/data/profile/a.db";
+
+    databaseManager.RegisterRankSource("rank0", windowsStyle);
+    databaseManager.RegisterRankSource("rank0", slashStyle);
+
+    auto sources = databaseManager.GetSourceFileIdsByRankId("rank0");
+    ASSERT_EQ(sources.size(), 2U);
+    EXPECT_EQ(sources[0], slashStyle);
+    EXPECT_EQ(sources[1], windowsStyle);
+}

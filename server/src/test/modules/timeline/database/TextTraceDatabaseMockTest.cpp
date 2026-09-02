@@ -254,7 +254,7 @@ TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsPythonStackUsesVir
         "(3, 300, 50, 'target_op', 0, 990102, '', '', '', 350, '');");
     DatabaseTestCaseMockUtil::InsertData(dbPtr,
         "INSERT INTO thread (track_id, tid, pid, thread_name, thread_sort_index) VALUES "
-        "(990101, '10', '1', 'python_thread', 0), (990102, '20', '2', 'target_thread', 1);");
+        "(990101, '10', '1', 'python_thread', 0), (990102, '20', '1', 'target_thread', 1);");
     DatabaseTestCaseMockUtil::InsertData(dbPtr,
         "INSERT INTO flow (id, flow_id, name, cat, track_id, timestamp, type) VALUES "
         "(1, 'flow_1', 'flow', 'test_flow', 990101, 110, 's'), "
@@ -264,7 +264,7 @@ TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsPythonStackUsesVir
 
     DataBaseManager::Instance().SetDataType(DataType::TEXT, dbPath);
     ASSERT_TRUE(DataBaseManager::Instance().CreateTraceConnectionPool(rankId, dbPath));
-    TrackInfoManager::Instance().UpdateTrackIdMap(rankId, {{pythonTrackId, {"10", "1"}}, {targetTrackId, {"20", "2"}}});
+    TrackInfoManager::Instance().UpdateTrackIdMap(rankId, {{pythonTrackId, {"10", "1"}}, {targetTrackId, {"20", "1"}}});
 
     Protocol::UnitFlowsParams requestParams;
     requestParams.rankId = rankId;
@@ -283,9 +283,11 @@ TEST_F(TextTraceDatabaseMockTest, QueryUnitFlowsWhenEndpointIsPythonStackUsesVir
     ASSERT_EQ(responseBody.unitAllFlows.size(), 1);
     ASSERT_EQ(responseBody.unitAllFlows[0].flows.size(), 1);
     const auto &flow = responseBody.unitAllFlows[0].flows[0];
+    EXPECT_EQ(flow.from.pid, "1");
     EXPECT_EQ(flow.from.tid, "python_stack:text:10");
     EXPECT_EQ(flow.from.metaType, "PYTORCH_API_PYTHON_STACK");
     EXPECT_EQ(flow.from.depth, 0);
+    EXPECT_EQ(flow.to.pid, "1");
     EXPECT_EQ(flow.to.tid, "20");
     EXPECT_EQ(flow.to.metaType, "TEXT");
     EXPECT_EQ(flow.to.depth, 0);

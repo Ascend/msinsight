@@ -54,6 +54,10 @@ class ProjectParserDb : public ProjectParserBase {
         const std::string &rank);
     static std::vector<std::string> GetDbFilesInDir(const std::string &filePath);
     void SetParseCallBack();
+    static void ParseRankEndCallBack(
+        const std::string &rankId, const std::string &fileId, bool result, const std::string &message);
+    static bool FinalizeRankOverlap(const std::string &rankId, const std::string &representative,
+        const std::vector<std::string> &successfulSources);
     static void SetBaseActionOfResponse(ImportActionResponse &response, const std::string &rankId,
         const std::string &host, const std::string &dbFile, int64_t projectType);
     static void SetHostInfo(

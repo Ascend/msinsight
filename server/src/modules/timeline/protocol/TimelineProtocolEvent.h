@@ -34,12 +34,14 @@ struct UnitMetaData {
 
 struct UnitTrackMetaData {
     std::string cardId;
+    std::string dbPath;
     std::string processId;
     std::string parentProcessId = "0";
     std::string processName; // type = process
     std::string label; // type = process
     std::string threadId; // type = thread
     std::string threadName; // type = thread, counter
+    std::string sourceLabel;
     std::string groupNameValue; // type = thread, DB 在 PROCESS_TYPE::HCCL 时赋值；TEXT 看 threadName 形式符合赋值
     std::vector<std::string> rankList; // type = thread, 为HCCL中group甬道时赋值，内容为通信域内所有rankId信息
     std::string metaType;

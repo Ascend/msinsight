@@ -17,12 +17,32 @@
  */
 #include <gtest/gtest.h>
 #include "QuerySystemViewHandler.h"
+#include "RankOverlapStore.h"
+#include "SystemViewDatabaseResolver.h"
 #include "HandlerTest.cpp"
 
-class QuerySystemViewHandlerTest : HandlerTest {};
+class QuerySystemViewHandlerTest : public HandlerTest {
+  protected:
+    void TearDown() override { Dic::Module::Timeline::RankOverlapStore::Instance().Clear(); }
+};
 
 TEST_F(HandlerTest, QuerySystemViewHandlerTestNormal) {
     Dic::Module::Timeline::QuerySystemViewHandler handler;
     std::unique_ptr<Dic::Protocol::Request> requestPtr = std::make_unique<Dic::Protocol::SystemViewRequest>();
     handler.HandleRequest(std::move(requestPtr));
+}
+
+TEST_F(QuerySystemViewHandlerTest, OverlapAnalysisUsesDerivedRankDatabase) {
+    auto &store = Dic::Module::Timeline::RankOverlapStore::Instance();
+    const std::string source = store.Publish("system-view-rank", "0", {{10, 20, 0}});
+    ASSERT_FALSE(source.empty());
+    Dic::Protocol::SystemViewParams params;
+    params.rankId = "system-view-rank";
+    params.dbPath = "representative.db";
+    params.layer = "Overlap Analysis";
+
+    auto database = Dic::Module::Timeline::ResolveSystemViewDatabase(params);
+
+    ASSERT_NE(database, nullptr);
+    EXPECT_EQ(database->GetDbPath(), source);
 }

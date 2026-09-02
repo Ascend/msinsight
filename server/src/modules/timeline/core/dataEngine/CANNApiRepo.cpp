@@ -23,7 +23,8 @@ namespace Dic::Module::Timeline {
 void CANNApiRepo::QuerySimpleSliceWithOutNameByTrackId(
     const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) {
     TrackInfo trackInfo;
-    const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
+    const bool isSuccess =
+        TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.GetDataSourceId());
     if (!isSuccess) {
         return;
     }
@@ -49,7 +50,8 @@ void CANNApiRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std
         return;
     }
     TrackInfo trackInfo;
-    const bool isSuccess = TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.rankId);
+    const bool isSuccess =
+        TrackInfoManager::Instance().GetTrackInfo(sliceQuery.trackId, trackInfo, sliceQuery.GetDataSourceId());
     if (!isSuccess) {
         return;
     }
@@ -81,7 +83,7 @@ bool CANNApiRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSlic
         .Select(CANNApiColumn::ENDTIME, CANNApiColumn::NAME)
         .Select(CANNApiColumn::GLOBAL_TID, CANNApiColumn::TYPE)
         .Eq(CANNApiColumn::ID, sliceQuery.sliceId)
-        .ExcuteQuery(sliceQuery.rankId, cannApiPOVec);
+        .ExcuteQuery(sliceQuery.GetDataSourceId(), cannApiPOVec);
     if (std::empty(cannApiPOVec)) {
         ServerLog::Warn("Failed to query CANN slice detail by id. id is: %", sliceQuery.sliceId);
         return false;
@@ -90,9 +92,11 @@ bool CANNApiRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSlic
     competeSliceDomain.id = target.id;
     competeSliceDomain.timestamp = target.timestamp;
     competeSliceDomain.endTime = target.endTime;
-    std::unordered_map<uint64_t, std::string> strMap = stringIdsTable->QueryStrMap({target.name}, sliceQuery.rankId);
+    std::unordered_map<uint64_t, std::string> strMap =
+        stringIdsTable->QueryStrMap({target.name}, sliceQuery.GetDataSourceId());
     competeSliceDomain.name = strMap[target.name];
-    std::unordered_map<uint64_t, std::string> levelMap = apiTypeTable->QueryStrMap({target.type}, sliceQuery.rankId);
+    std::unordered_map<uint64_t, std::string> levelMap =
+        apiTypeTable->QueryStrMap({target.type}, sliceQuery.GetDataSourceId());
     std::string level = levelMap[target.type];
     document_t json(kObjectType);
     auto &allocator = json.GetAllocator();

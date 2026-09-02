@@ -30,7 +30,7 @@ import type { InsightUnit, LinkLine, LinkLines } from '../entity/insight';
 import { CardUnit, ProcessUnit } from '../insight/units/AscendUnit';
 import { customDebounce } from '../utils/customDebounce';
 import { getTimeOffset } from '../insight/units/utils';
-import { CardMetaData, type HostMetaData, ProcessMetaData, ThreadMetaData } from '../entity/data';
+import { CardMetaData, getCardFlowSourceDbPaths, type HostMetaData, ProcessMetaData, ThreadMetaData } from '../entity/data';
 import i18n from '@insight/lib/i18n';
 import { message, Spin } from 'antd';
 import connector from '../connection/index';
@@ -134,6 +134,7 @@ export interface DataBlock {
     depth: number;
     height?: number;
     rankId?: string;
+    dbPath?: string;
     duration?: number;
     metaType?: string;
 }
@@ -244,7 +245,7 @@ Promise<CategoryEvents['flowDetailList']> => {
 function uniqueLinkLines(arr: CategoryEvents['flowDetailList']): CategoryEvents['flowDetailList'] {
     const uniqueLinkLineMap: Map<string, CategoryEvents['flowDetailList'][number]> = new Map();
     const generateKey = (obj: CategoryEvents['flowDetailList'][number]): string => {
-        return `${obj.category}_${obj.from.timestamp}/${obj.from.pid}-${obj.from.tid}-${obj.from.depth}_${obj.to.timestamp}/${obj.to.pid}-${obj.to.tid}-${obj.to.depth}`;
+        return `${obj.category}_${obj.from.dbPath ?? ''}/${obj.from.timestamp}/${obj.from.pid}-${obj.from.tid}-${obj.from.depth}_${obj.to.dbPath ?? ''}/${obj.to.timestamp}/${obj.to.pid}-${obj.to.tid}-${obj.to.depth}`;
     };
     arr.forEach(obj => {
         const key = generateKey(obj);
@@ -289,7 +290,11 @@ const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<str
                     if (cardId?.endsWith('Host')) {
                         cardLinkLines = await queryLinkLinesForHostCards(unit, viewedCardIdSet, session, config);
                     } else {
-                        cardLinkLines = await fetchLinkLineForCard(viewedCardIdSet, session, { ...config, cardId, dbPath });
+                        const sourceDbPaths = getCardFlowSourceDbPaths(unit, cardId);
+                        const queryDbPaths = sourceDbPaths.length > 0 ? sourceDbPaths : [dbPath];
+                        const results = await Promise.all(queryDbPaths.map(sourceDbPath =>
+                            fetchLinkLineForCard(viewedCardIdSet, session, { ...config, cardId, dbPath: sourceDbPath })));
+                        cardLinkLines = results.flat();
                     }
                     res = res.concat(cardLinkLines);
                 }
@@ -316,7 +321,12 @@ const useGetCategories = (session: Session, isSuspend: boolean): {categories: st
         const fetchList: Array<Promise<{ category: string[] }>> = [];
         for (const unit of cardUnitsParsed) {
             const { dataSource, cardId, dbPath } = unit.metadata as CardMetaData;
-            fetchList.push(window.request(dataSource, { command: 'flow/categoryList', params: { rankId: cardId, dbPath } }));
+            const sourceDbPaths = getCardFlowSourceDbPaths(unit, cardId);
+            const queryDbPaths = sourceDbPaths.length > 0 ? sourceDbPaths : [dbPath];
+            queryDbPaths.forEach(sourceDbPath => {
+                fetchList.push(window.request(dataSource,
+                    { command: 'flow/categoryList', params: { rankId: cardId, dbPath: sourceDbPath } }));
+            });
         }
         setLoading(true);
         Promise.all(fetchList).then((results) => {

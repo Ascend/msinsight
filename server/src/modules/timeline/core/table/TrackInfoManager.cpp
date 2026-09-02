@@ -100,10 +100,10 @@ bool TrackInfoManager::GetTrackInfo(uint64_t trackId, TrackInfo &trackInfo, cons
     for (auto it = trackInfos.first; it != trackInfos.second; ++it) {
         if (it->second.cardId == fileId || fileId.empty()) {
             trackInfo = it->second;
-            break;
+            return true;
         }
     }
-    return true;
+    return false;
 }
 
 void TrackInfoManager::UpdateTrackIdMap(

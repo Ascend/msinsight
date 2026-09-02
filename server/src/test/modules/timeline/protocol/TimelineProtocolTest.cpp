@@ -209,11 +209,15 @@ TEST_F(ProtocolTest, ToSearchCountRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-1.db", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    auto *searchRequest = dynamic_cast<Dic::Protocol::SearchCountRequest *>(request.get());
+    ASSERT_NE(searchRequest, nullptr);
+    EXPECT_EQ(searchRequest->id, tempId);
+    EXPECT_EQ(searchRequest->params.dbPath, "thread-1.db");
 }
 TEST_F(ProtocolTest, ToSearchSliceRequest) {
     const uint64_t tempId = 89;
@@ -227,11 +231,34 @@ TEST_F(ProtocolTest, ToSearchSliceRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-2.db", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    auto *searchRequest = dynamic_cast<Dic::Protocol::SearchSliceRequest *>(request.get());
+    ASSERT_NE(searchRequest, nullptr);
+    EXPECT_EQ(searchRequest->id, tempId);
+    EXPECT_EQ(searchRequest->params.dbPath, "thread-2.db");
+}
+TEST_F(ProtocolTest, ToSearchAllSlicesRequestPreservesDbPath) {
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::document_t json(Dic::kObjectType);
+    auto &allocator = json.GetAllocator();
+    Dic::JsonUtil::AddMember(json, "type", "request", allocator);
+    Dic::JsonUtil::AddMember(json, "command", "search/all/slices", allocator);
+    Dic::JsonUtil::AddMember(json, "id", 89, allocator);
+    Dic::JsonUtil::AddMember(json, "moduleName", "timeline", allocator);
+    Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-3.db", allocator);
+    Dic::JsonUtil::AddMember(json, "params", params, allocator);
+
+    auto request = timelineProtocol.FromJson(json, error);
+    auto *searchRequest = dynamic_cast<Dic::Protocol::SearchAllSlicesRequest *>(request.get());
+    ASSERT_NE(searchRequest, nullptr);
+    EXPECT_EQ(searchRequest->params.dbPath, "thread-3.db");
 }
 TEST_F(ProtocolTest, ToRemoteDeleteRequest) {
     const uint64_t tempId = 89;
@@ -266,11 +293,17 @@ TEST_F(ProtocolTest, ToFlowCategoryListRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "rankId", "rank0", allocator);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-2.db", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->id, tempId);
+    const auto &categoryListRequest = dynamic_cast<const Dic::Protocol::FlowCategoryListRequest &>(*request);
+    EXPECT_EQ(categoryListRequest.params.rankId, "rank0");
+    EXPECT_EQ(categoryListRequest.params.dbPath, "thread-2.db");
 }
 TEST_F(ProtocolTest, ToFlowCategoryEventsRequest) {
     const uint64_t tempId = 89;
@@ -290,6 +323,51 @@ TEST_F(ProtocolTest, ToFlowCategoryEventsRequest) {
     unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
     EXPECT_EQ(id, tempId);
 }
+TEST_F(ProtocolTest, ToUnitFlowsRequestPreservesDbPath) {
+    const uint64_t tempId = 89;
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::document_t json(Dic::kObjectType);
+    auto &allocator = json.GetAllocator();
+    Dic::JsonUtil::AddMember(json, "type", "request", allocator);
+    Dic::JsonUtil::AddMember(json, "command", "unit/flows", allocator);
+
+    Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-2.db", allocator);
+    Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
+    Dic::JsonUtil::AddMember(json, "moduleName", "timeline", allocator);
+    Dic::JsonUtil::AddMember(json, "params", params, allocator);
+
+    auto request = timelineProtocol.FromJson(json, error);
+
+    ASSERT_NE(request, nullptr);
+    const auto &unitFlowsRequest = dynamic_cast<const Dic::Protocol::UnitFlowsRequest &>(*request);
+    EXPECT_EQ(unitFlowsRequest.params.dbPath, "thread-2.db");
+}
+
+TEST_F(ProtocolTest, ToEventsViewRequestPreservesDbPath) {
+    const uint64_t tempId = 89;
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::document_t json(Dic::kObjectType);
+    auto &allocator = json.GetAllocator();
+    Dic::JsonUtil::AddMember(json, "type", "request", allocator);
+    Dic::JsonUtil::AddMember(json, "command", "unit/eventView", allocator);
+
+    Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-2.db", allocator);
+    Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
+    Dic::JsonUtil::AddMember(json, "moduleName", "timeline", allocator);
+    Dic::JsonUtil::AddMember(json, "params", params, allocator);
+
+    auto request = timelineProtocol.FromJson(json, error);
+
+    ASSERT_NE(request, nullptr);
+    const auto &eventsViewRequest = dynamic_cast<const Dic::Protocol::EventsViewRequest &>(*request);
+    EXPECT_EQ(eventsViewRequest.params.dbPath, "thread-2.db");
+}
 TEST_F(ProtocolTest, ToUnitCounterRequest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
@@ -302,11 +380,15 @@ TEST_F(ProtocolTest, ToUnitCounterRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-2.db", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->id, tempId);
+    const auto &counterRequest = dynamic_cast<const Dic::Protocol::UnitCounterRequest &>(*request);
+    EXPECT_EQ(counterRequest.params.dbPath, "thread-2.db");
 }
 TEST_F(ProtocolTest, ToSystemViewRequest) {
     const uint64_t tempId = 89;
@@ -320,11 +402,15 @@ TEST_F(ProtocolTest, ToSystemViewRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-1.db", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    ASSERT_NE(request, nullptr);
+    EXPECT_EQ(request->id, tempId);
+    const auto &systemViewRequest = dynamic_cast<const Dic::Protocol::SystemViewRequest &>(*request);
+    EXPECT_EQ(systemViewRequest.params.dbPath, "thread-1.db");
 }
 TEST_F(ProtocolTest, ToSystemViewTraceRequest) {
     const uint64_t tempId = 89;
@@ -374,6 +460,7 @@ TEST_F(ProtocolTest, ToOneKernelRequest) {
     Dic::JsonUtil::AddMember(json, "command", "unit/one/kernelDetail", allocator);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread_1.db", allocator);
     Dic::JsonUtil::AddMember(params, "threadId", "python_stack:4294967297", allocator);
     Dic::JsonUtil::AddMember(params, "processId", "4294967297", allocator);
     Dic::JsonUtil::AddMember(params, "metaType", "PYTORCH_API_PYTHON_STACK", allocator);
@@ -384,6 +471,7 @@ TEST_F(ProtocolTest, ToOneKernelRequest) {
     auto *kernelRequest = dynamic_cast<Dic::Protocol::KernelRequest *>(request.get());
     ASSERT_NE(kernelRequest, nullptr);
     EXPECT_EQ(kernelRequest->id, tempId);
+    EXPECT_EQ(kernelRequest->params.dbPath, "thread_1.db");
     EXPECT_EQ(kernelRequest->params.threadId, "python_stack:4294967297");
     EXPECT_EQ(kernelRequest->params.processId, "4294967297");
     EXPECT_EQ(kernelRequest->params.metaType, "PYTORCH_API_PYTHON_STACK");
@@ -421,11 +509,15 @@ TEST_F(ProtocolTest, ToUnitThreadsOperatorsRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "dbPath", "thread-2.db", allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    auto *sameOperatorsRequest = dynamic_cast<Dic::Protocol::UnitThreadsOperatorsRequest *>(request.get());
+    ASSERT_NE(sameOperatorsRequest, nullptr);
+    EXPECT_EQ(sameOperatorsRequest->id, tempId);
+    EXPECT_EQ(sameOperatorsRequest->params.dbPath, "thread-2.db");
 }
 
 TEST_F(ProtocolTest, ToTableDataNameListRequest) {

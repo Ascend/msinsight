@@ -28,7 +28,8 @@ void OSRTApiRepo::QuerySimpleSliceWithOutNameByTrackId(
         ServerLog::Error("OSRT_API query all slice track info does not exist, track is: ", sliceQuery.trackId);
         return;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (!database) {
         ServerLog::Error("OSRT_API open database failed.");
         return;
@@ -67,7 +68,8 @@ void OSRTApiRepo::QueryCompeteSliceByIds(const Dic::Module::Timeline::SliceQuery
     if (std::empty(sliceIds)) {
         return;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (!database) {
         ServerLog::Error("OSRT_API open database failed.");
         return;
@@ -105,7 +107,8 @@ void OSRTApiRepo::QueryCompeteSliceByIdsExecuteSQL(std::shared_ptr<VirtualTraceD
 
 bool OSRTApiRepo::QuerySliceDetailInfo(const Dic::Module::Timeline::SliceQuery &sliceQuery,
     Dic::Module::Timeline::CompeteSliceDomain &competeSliceDomain) {
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (!database) {
         ServerLog::Error("OSRT_API open database failed.");
         return false;

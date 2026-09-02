@@ -302,15 +302,16 @@ std::vector<FlowLocation> DbTraceDataBase::ExecuteQueryUnitFlowsForTable(const P
             }
         }
         rankId = rankId.empty() ? path : QueryHostInfo() + rankId;
-        FlowLocation location{.tid = resultSet->GetString("tid"),
-            .id = resultSet->GetString("id"),
-            .metaType = metaType,
-            .rankId = rankId,
-            .depth = 0,
-            .timestamp = resultSet->GetUint64("startTime"),
-            .duration = resultSet->GetUint64("duration"),
-            .pid = resultSet->GetString("pid"),
-            .name = stringsCache.at(path)[resultSet->GetString("name")]};
+        FlowLocation location;
+        location.tid = resultSet->GetString("tid");
+        location.id = resultSet->GetString("id");
+        location.metaType = metaType;
+        location.rankId = rankId;
+        location.timestamp = resultSet->GetUint64("startTime");
+        location.duration = resultSet->GetUint64("duration");
+        location.pid = resultSet->GetString("pid");
+        location.name = stringsCache.at(path)[resultSet->GetString("name")];
+        location.dbPath = requestParams.dbPath;
         FillFlowDepth(requestParams, location, trackIdDepthCache);
         if (tableAndSql.first == "TASK") {
             std::string domainId = resultSet->GetString("domainId");

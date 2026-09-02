@@ -97,7 +97,8 @@ void HcclRepo::QuerySimpleSliceFromGroupTrack(std::vector<SliceDomain> &sliceVec
 
 void HcclRepo::QuerySimpleSliceFromGroupTrackByDevice(std::vector<CommucationTaskOpPO> &commucationTaskOpPOVec,
     const TrackInfo &trackInfo, const std::string &tid, const SliceQuery &sliceQuery) {
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(trackInfo.cardId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(trackInfo.cardId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (database == nullptr) {
         return;
     }

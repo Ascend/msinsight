@@ -38,14 +38,16 @@ bool QueryOneKernelHandler::HandleRequest(std::unique_ptr<Protocol::Request> req
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
-    if (database == nullptr) {
+    auto database = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
+    if (database == nullptr && request.params.dbPath.empty()) {
         database = Timeline::DataBaseManager::Instance().GetTraceDatabaseWithOutHost(request.params.rankId);
-        if (database == nullptr) {
-            SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
-            SendResponse(std::move(responsePtr), false);
-            return false;
-        }
+    }
+    if (database == nullptr) {
+        SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);
+        SendResponse(std::move(responsePtr), false);
+        return false;
     }
     if (!database->QueryKernelDepthAndThread(request.params, response.body, TraceTime::Instance().GetStartTime())) {
         SetTimelineError(ErrorCode::QUERY_KERNEL_DEPTH_AND_THREAD_FAILED);

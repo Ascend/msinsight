@@ -18,6 +18,7 @@
 #include "WsSessionManager.h"
 #include "DataBaseManager.h"
 #include "QuerySystemViewTraceHandler.h"
+#include "SystemViewDatabaseResolver.h"
 
 namespace Dic {
 namespace Module {
@@ -38,7 +39,7 @@ bool QuerySystemViewTraceHandler::HandleRequest(std::unique_ptr<Protocol::Reques
         return false;
     }
     SetResponseResult(response, true);
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
+    auto database = ResolveSystemViewDatabase(request.params);
     if (database == nullptr) {
         ServerLog::Error("Query system view trace failed to get connection.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);

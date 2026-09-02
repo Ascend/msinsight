@@ -104,7 +104,7 @@ bool SearchAllSlicesHandler::LoadOrRefreshCache(CacheGuard& guard, SearchSliceCa
 bool SearchAllSlicesHandler::HandleWithSoACache(VirtualTraceDatabase* database,
     const Protocol::SearchAllSliceParams& params, Protocol::SearchAllSlicesBody& body, uint64_t minTimestamp)
 {
-    std::string cacheKey = SearchSliceCacheManager::makeKey(params.rankId, params.searchContent);
+    std::string cacheKey = SearchSliceCacheManager::makeKey(params.rankId, params.dbPath, params.searchContent);
     auto& cacheManager = SearchSliceCacheManager::Instance();
     CacheGuard guard; // 空句柄，由 LoadOrRefreshCache 填充
 
@@ -144,7 +144,9 @@ bool SearchAllSlicesHandler::HandleRequest(std::unique_ptr<Protocol::Request> re
         return false;
     }
 
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
+    auto database = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
     if (database == nullptr) {
         ServerLog::Error("Failed to get search all slices connection.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);

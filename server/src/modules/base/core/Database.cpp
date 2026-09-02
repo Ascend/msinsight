@@ -115,6 +115,29 @@ bool Database::OpenDb(const std::string &dbPath, bool clearAllTable) {
     return false;
 }
 
+bool Database::OpenSharedMemoryDb(const std::string &dbUri) {
+    if (dbUri.rfind("file:msinsight_overlap_", 0) != 0 || dbUri.find("mode=memory") == std::string::npos) {
+        ServerLog::Error("Invalid shared memory database URI.");
+        return false;
+    }
+    if (isOpen) {
+        ServerLog::Error("The database has been opened.");
+        return false;
+    }
+    const int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX | SQLITE_OPEN_URI;
+    const int result = sqlite3_open_v2(dbUri.c_str(), &db, flags, nullptr);
+    if (result != SQLITE_OK) {
+        sqlite3_close(db);
+        db = nullptr;
+        ServerLog::Error("Failed to open shared memory database.");
+        return false;
+    }
+    isOpen = true;
+    path = dbUri;
+    sqlite3_busy_timeout(db, timeoutMs);
+    return true;
+}
+
 /*
  * connect exist db
  */
@@ -982,8 +1005,8 @@ std::string Database::BuildQueryFiltersConditionSql(const std::map<std::string, 
 std::string Database::BuildQueryRangeFiltersConditionSql(
     const std::map<std::string, std::pair<double, double>> &rangeFilters) {
     std::string sql;
-    for (const auto &[colName, rangePair] : rangeFilters) {
-        sql.append(StringUtil::FormatString(" AND ({} BETWEEN ? AND ?) ", colName));
+    for (const auto &rangeFilter : rangeFilters) {
+        sql.append(StringUtil::FormatString(" AND ({} BETWEEN ? AND ?) ", rangeFilter.first));
     }
     return sql;
 }
@@ -1051,9 +1074,9 @@ void Database::CommonBindFiltersParams(
 
 void Database::CommonBindRangeFiltersParams(
     const std::map<std::string, std::pair<double, double>> &rangeFilters, sqlite3_stmt *stmt, int &bindIdx) {
-    for (const auto &[colName, rangePair] : rangeFilters) {
-        sqlite3_bind_double(stmt, bindIdx++, rangePair.first);
-        sqlite3_bind_double(stmt, bindIdx++, rangePair.second);
+    for (const auto &rangeFilter : rangeFilters) {
+        sqlite3_bind_double(stmt, bindIdx++, rangeFilter.second.first);
+        sqlite3_bind_double(stmt, bindIdx++, rangeFilter.second.second);
     }
 }
 
