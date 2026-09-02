@@ -18,7 +18,7 @@
 
 import type { InsightMetaData } from '../../../entity/data';
 import type { InsightUnit } from '../../../entity/insight';
-import { clearParentMap, createCounterParam, recursiveExpandUnit, updateDataSourceAndParentMetaDataMap } from '../unitFunc';
+import { clearParentMap, createCounterParam, createStatusParam, getHardwareSummaryDbPaths, mergeSummaryStatusData, reorderMultiSourceCardLanes, recursiveExpandUnit, updateDataSourceAndParentMetaDataMap } from '../unitFunc';
 
 jest.mock('../AscendUnit', () => {
     class MockUnit {
@@ -382,5 +382,118 @@ describe('counter request cache identity', () => {
         const key = createCounterParam('unit/counter', baseParams);
         expect(createCounterParam('unit/counter', { ...baseParams, threadId: '10002' })).not.toBe(key);
         expect(createCounterParam('unit/counter', { ...baseParams, metricGroup: 'thread_state' })).not.toBe(key);
+    });
+
+    it('preserves the source database path from merged metadata', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createHostTree();
+        const sourceProcess = metadataTree.children?.[0];
+        if (sourceProcess !== undefined) {
+            sourceProcess.metadata.dbPath = 'worker.db';
+            sourceProcess.children?.forEach(child => {
+                child.metadata.dbPath = 'worker.db';
+            });
+        }
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        expect(cardUnit.children?.[0].metadata.dbPath).toBe('worker.db');
+        expect(cardUnit.children?.[0].children?.[0].metadata.dbPath).toBe('worker.db');
+    });
+
+    it('preserves the source label from merged hardware metadata', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createHostTree();
+        const sourceThread = metadataTree.children?.[0].children?.[0].children?.[0];
+        if (sourceThread !== undefined) {
+            (sourceThread.metadata as any).sourceLabel = 'Thread 2';
+        }
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        expect((cardUnit.children?.[0].children?.[0].children?.[0].metadata as any).sourceLabel).toBe('Thread 2');
+    });
+
+    it('separates thread trace cache keys by physical thread and database', () => {
+        const base = {
+            cardId: 'rank0',
+            dbPath: 'thread-1.db',
+            processId: 'Ascend Hardware',
+            metaType: 'Ascend Hardware',
+            unitType: 'thread',
+            threadId: '7',
+            threadIdList: [],
+            startTime: 0,
+            endTime: 100,
+        };
+
+        expect(createStatusParam('unit/threadTraces', base)).not.toBe(createStatusParam('unit/threadTraces', {
+            ...base,
+            dbPath: 'thread-2.db',
+        }));
+        expect(createStatusParam('unit/threadTraces', base)).not.toBe(createStatusParam('unit/threadTraces', {
+            ...base,
+            threadId: '8',
+        }));
+    });
+
+    it('moves top-level Process lanes first for multi-source hardware', () => {
+        const process1 = { name: 'Process', metadata: { processName: 'Process 1', metaType: 'PROCESS' } } as unknown as InsightUnit;
+        const hardware = {
+            name: 'Process',
+            metadata: { processName: 'Ascend Hardware', metaType: 'Ascend Hardware' },
+            children: [
+                { name: 'Thread', metadata: { dbPath: 'thread-1.db' } },
+                { name: 'Thread', metadata: { dbPath: 'thread-2.db' } },
+            ],
+        } as unknown as InsightUnit;
+        const overlap = { name: 'Process', metadata: { processName: 'Overlap Analysis', metaType: 'Overlap Analysis' } } as unknown as InsightUnit;
+        const process2 = { name: 'Process', metadata: { processName: 'Process 2', metaType: 'PROCESS' } } as unknown as InsightUnit;
+        const card = { name: 'Card', metadata: {}, children: [hardware, process1, overlap, process2] } as unknown as InsightUnit;
+
+        reorderMultiSourceCardLanes(card);
+
+        expect(card.children).toEqual([process1, process2, hardware, overlap]);
+    });
+
+    it('keeps the original top-level order for single-source hardware', () => {
+        const process = { name: 'Process', metadata: { processName: 'Process 1', metaType: 'PROCESS' } } as unknown as InsightUnit;
+        const hardware = {
+            name: 'Process',
+            metadata: { processName: 'Ascend Hardware', metaType: 'Ascend Hardware' },
+            children: [{ name: 'Thread', metadata: { dbPath: 'thread-1.db' } }],
+        } as unknown as InsightUnit;
+        const card = { name: 'Card', metadata: {}, children: [hardware, process] } as unknown as InsightUnit;
+
+        reorderMultiSourceCardLanes(card);
+
+        expect(card.children).toEqual([hardware, process]);
+    });
+
+    it('collects stable unique database paths from hardware Stream children', () => {
+        const unit = {
+            children: [
+                { metadata: { dbPath: 'thread-2.db' } },
+                { metadata: { dbPath: 'thread-1.db' } },
+                { metadata: { dbPath: 'thread-2.db' } },
+                { metadata: { dbPath: '' } },
+            ],
+        } as unknown as InsightUnit;
+
+        expect(getHardwareSummaryDbPaths(unit)).toEqual(['thread-2.db', 'thread-1.db']);
+    });
+
+    it('sorts and merges overlapping or adjacent summary intervals', () => {
+        expect(mergeSummaryStatusData([
+            { startTime: 30, duration: 10, name: '', type: '' },
+            { startTime: 0, duration: 10, name: '', type: '' },
+            { startTime: 8, duration: 12, name: '', type: '' },
+            { startTime: 20, duration: 5, name: '', type: '' },
+        ])).toEqual([
+            { startTime: 0, duration: 25, name: '', type: '' },
+            { startTime: 30, duration: 10, name: '', type: '' },
+        ]);
     });
 });

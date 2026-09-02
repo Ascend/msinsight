@@ -718,10 +718,100 @@ export interface ThreadMetaData extends MetaDataInnerBase {
     threadId: string;
     threadIdList?: string[];
     threadName: string;
+    sourceLabel?: string;
     groupNameValue: string;
     maxDepth?: number;
     rankList: string[];
 }
+
+type LaneIdentityMetadata = Pick<ThreadMetaData,
+'cardId' | 'dbPath' | 'processId' | 'metaType' | 'threadId'>;
+
+export const getLaneIdentity = (metadata: LaneIdentityMetadata): string => [
+    metadata.cardId,
+    metadata.dbPath,
+    metadata.processId ?? '',
+    metadata.metaType,
+    metadata.threadId,
+].join('\u001f');
+
+interface FlowPointIdentityInput {
+    rankId?: string;
+    dbPath?: string;
+    pid: string;
+    tid: string;
+    depth: number;
+    timestamp: number;
+}
+
+const SOURCE_SEPARATOR = '\u001f';
+
+export const getFlowPointIdentity = (point: FlowPointIdentityInput): string => {
+    const legacyIdentity = `${point.pid}_${point.tid}_${point.depth}_${point.timestamp}`;
+    if (point.dbPath === undefined || point.dbPath === '') {
+        return legacyIdentity;
+    }
+    return [point.rankId ?? '', point.dbPath, legacyIdentity].join(SOURCE_SEPARATOR);
+};
+
+export const getLaneProcessIdentity = (cardId: string, processId: string, dbPath?: string): string => {
+    if (dbPath === undefined || dbPath === '') {
+        return `${cardId}-${processId}`;
+    }
+    return [cardId, dbPath, processId].join(SOURCE_SEPARATOR);
+};
+
+export const getLaneThreadIdentity = (cardId: string, processId: string, threadId: string, dbPath?: string): string => {
+    if (dbPath === undefined || dbPath === '') {
+        return `${cardId}-${processId}-${threadId}`;
+    }
+    return [cardId, dbPath, processId, threadId].join(SOURCE_SEPARATOR);
+};
+
+export const getLaneSourceThreadIdentity = (cardId: string, threadId: string, dbPath?: string): string => {
+    if (dbPath === undefined || dbPath === '') {
+        return `${cardId}-${threadId}`;
+    }
+    return [cardId, dbPath, threadId].join(SOURCE_SEPARATOR);
+};
+
+interface CardSourceNode {
+    metadata?: Record<string, unknown>;
+    children?: CardSourceNode[];
+}
+
+export const getCardSourceDbPaths = (unit: CardSourceNode, cardId: string): string[] => {
+    const dbPaths = new Set<string>();
+    const collect = (currentUnit: CardSourceNode): void => {
+        const { metadata } = currentUnit;
+        const sourceCardId = metadata?.cardId;
+        const sourceDbPath = metadata?.dbPath;
+        if (sourceCardId === cardId && typeof sourceDbPath === 'string' && sourceDbPath.length > 0) {
+            dbPaths.add(sourceDbPath);
+        }
+        currentUnit.children?.forEach(collect);
+    };
+    collect(unit);
+    return [...dbPaths];
+};
+
+export const getCardFlowSourceDbPaths = (unit: CardSourceNode, cardId: string): string[] => {
+    const dbPaths = new Set<string>();
+    const collect = (currentUnit: CardSourceNode): void => {
+        const { metadata } = currentUnit;
+        if (metadata?.metaType === 'OVERLAP_ANALYSIS') {
+            return;
+        }
+        const sourceCardId = metadata?.cardId;
+        const sourceDbPath = metadata?.dbPath;
+        if (sourceCardId === cardId && typeof sourceDbPath === 'string' && sourceDbPath.length > 0) {
+            dbPaths.add(sourceDbPath);
+        }
+        currentUnit.children?.forEach(collect);
+    };
+    collect(unit);
+    return [...dbPaths];
+};
 
 export interface ProcessMetaData extends MetaDataInnerBase {
     processId: string;
@@ -794,8 +884,10 @@ export interface CounterData {
 
 export interface ThreadTraceRequest {
     cardId: string;
+    dbPath?: string;
     processId: string;
     threadId: string;
+    threadIdList?: string[];
     startTime: number;
     endTime: number;
     metaType: string;

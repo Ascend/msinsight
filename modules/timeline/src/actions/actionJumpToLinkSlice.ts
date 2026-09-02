@@ -21,14 +21,34 @@ import type { Session, MapValueOfLinkLines } from '../entity/session';
 import jumpToUnitOperator from '../utils/jumpToUnitOperator';
 import { CONTEXT_MENU_SEPARATOR, type ContextMenuItem } from '../components/ContextMenu';
 import type { ActionName } from './types';
+import { getFlowPointIdentity } from '../entity/data';
 
 function getLinkSlices(session: Session): MapValueOfLinkLines | undefined {
     if (!session.selectedData) {
         return undefined;
     }
-    const { depth, timestamp, threadId, processId } = session.selectedData;
-    const mapKey = `${processId}_${threadId}_${depth}_${timestamp}`;
-    return session.mapOfLinkLines.get(mapKey);
+    const { cardId, dbPath, depth, timestamp, threadId, processId } = session.selectedData;
+    if (depth === undefined || timestamp === undefined) {
+        return undefined;
+    }
+    const mapKey = getFlowPointIdentity({
+        rankId: cardId,
+        dbPath,
+        pid: processId,
+        tid: threadId,
+        depth,
+        timestamp,
+    });
+    const sourceMatch = session.mapOfLinkLines.get(mapKey);
+    if (sourceMatch !== undefined || dbPath === undefined || dbPath === '') {
+        return sourceMatch;
+    }
+    return session.mapOfLinkLines.get(getFlowPointIdentity({
+        pid: processId,
+        tid: threadId,
+        depth,
+        timestamp,
+    }));
 }
 
 function getMenuBySlices(mapValue: MapValueOfLinkLines, linkType: 'from' | 'to'): ContextMenuItem[] {

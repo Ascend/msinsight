@@ -40,7 +40,9 @@ bool QueryThreadsSameOperatorHandler::HandleRequest(std::unique_ptr<Protocol::Re
         SendResponse(std::move(responsePtr), false);
         return false;
     }
-    auto db = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
+    auto db = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
     if (db == nullptr) {
         ServerLog::Error("Query threads same operator failed to get connection.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);

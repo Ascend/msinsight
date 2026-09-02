@@ -53,7 +53,9 @@ bool QueryUnitCounterHandler::HandleRequest(std::unique_ptr<Protocol::Request> r
         SendResponse(std::move(responsePtr), true);
         return result;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId);
+    auto database = request.params.dbPath.empty()
+        ? DataBaseManager::Instance().GetTraceDatabaseByRankId(request.params.rankId)
+        : DataBaseManager::Instance().GetTraceDatabaseByFileId(request.params.dbPath);
     if (database == nullptr) {
         ServerLog::Error("Query unit counter failed to get connection.");
         SetTimelineError(ErrorCode::CONNECT_DATABASE_FAILED);

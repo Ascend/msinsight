@@ -159,6 +159,50 @@ TEST_F(RenderEngineTest, QueryThreadDetailUsesDepthIndexForSelfTime) {
     EXPECT_EQ(response.data.selfTime, 10);
 }
 
+TEST_F(RenderEngineTest, QueryThreadTracesReadsPythonFunctionStatusFromDbPathSource) {
+    class DataEngineMock : public DataEngine {
+      public:
+        void QuerySimpleSliceWithOutNameByTrackId(
+            const SliceQuery &sliceQuery, std::vector<SliceDomain> &sliceVec) override {}
+
+        void QuerySliceIdsByCat(const SliceQuery &sliceQuery, std::vector<uint64_t> &sliceIds) override {}
+
+        void QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::vector<uint64_t> &sliceIds,
+            std::vector<CompeteSliceDomain> &competeSliceVec) override {}
+    };
+
+    constexpr uint64_t traceId = 8;
+    UnitThreadTracesParams request;
+    request.cardId = "rank0";
+    request.dbPath = "thread-2.db";
+    request.metaType = "TEXT";
+    request.startTime = 0;
+    request.endTime = 100;
+
+    SliceQuery sliceQuery;
+    sliceQuery.rankId = request.cardId;
+    sliceQuery.dbPath = request.dbPath;
+    sliceQuery.trackId = traceId;
+    sliceQuery.startTime = request.startTime;
+    sliceQuery.endTime = request.endTime;
+    const std::string sourceKey = SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.GetDataSourceId(), traceId);
+    auto &cache = SliceCacheManager::Instance();
+    cache.Clear();
+    cache.SetPythonFunctionStatus(sourceKey, PYTHON_FUNCTION_STATUS::EXIST);
+    cache.PutPythonFunctionIdVec(sourceKey, {1}, sliceQuery);
+
+    RenderEngine renderEngine;
+    renderEngine.SetDataEngineInterface(std::make_shared<DataEngineMock>());
+    UnitThreadTracesBody response;
+    renderEngine.QueryThreadTraces(request, response, 0, traceId);
+
+    EXPECT_TRUE(response.havePythonFunction);
+    EXPECT_EQ(cache.GetPythonFunctionStatus(sourceKey), PYTHON_FUNCTION_STATUS::EXIST);
+    EXPECT_EQ(cache.GetPythonFunctionStatus(SliceCacheManager::BuildPythonFunctionCacheKey(request.cardId, traceId)),
+        PYTHON_FUNCTION_STATUS::UNKNOWN);
+    cache.Clear();
+}
+
 TEST_F(RenderEngineTest, QueryThreadDetailUsesGlobalCommunicationRankForMultiHostMsprof) {
     constexpr uint64_t trackId = 8;
     constexpr uint64_t sliceId = 1;

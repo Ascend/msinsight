@@ -28,7 +28,12 @@ import type { DataBlock, FlowEvent } from '../../FilterLinkLine';
 import { hashToNumber } from '../../../utils/colorUtils';
 import { ChartDesc, UnitHeight } from '../../../entity/insight';
 import type { InsightUnit } from '../../../entity/insight';
-import type { ThreadMetaData } from '../../../entity/data';
+import {
+    getLaneProcessIdentity,
+    getLaneSourceThreadIdentity,
+    getLaneThreadIdentity,
+    type ThreadMetaData,
+} from '../../../entity/data';
 import { buildCardIdIndex, type CardIdIndex, colorPalette } from '../../../insight/units/utils';
 import { handlerEmptyString } from '../../../utils/string';
 import { forEach, isNil } from 'lodash';
@@ -516,6 +521,7 @@ export const drawOnMove = ({ interactorMouseState, ...args }: DrawArgs): void =>
 };
 
 const heightMap = new Map();
+const sourceThreadHeightMap = new Map<string, number>();
 // 是否是线程缩略图
 const threadIsCol: Map<string, boolean> = new Map();
 // 是否是进程缩略图
@@ -530,10 +536,10 @@ const markUnitHidden = (unit: InsightUnit, metadata: ThreadMetaData): void => {
     if (!unit.isUnitVisible) {
         let key = metadata.cardId;
         if (!isNil(metadata.processId) && metadata.processId !== '') {
-            key += `_${metadata.processId}`;
+            key = getLaneProcessIdentity(metadata.cardId, metadata.processId, metadata.dbPath);
         }
         if (!isNil(metadata.threadId) && metadata.threadId !== '') {
-            key += `_${metadata.threadId}`;
+            key = getLaneThreadIdentity(metadata.cardId, metadata.processId ?? '', metadata.threadId, metadata.dbPath);
         }
         unitIsHidden.add(key);
     }
@@ -542,10 +548,10 @@ const markUnitHidden = (unit: InsightUnit, metadata: ThreadMetaData): void => {
 const markUnitCollapsed = (metadata: ThreadMetaData): void => {
     if (metadata.threadIdList?.length) {
         for (const threadId of metadata.threadIdList) {
-            threadIsCol.set(`${metadata.cardId}-${metadata.processId}-${threadId}`, true);
+            threadIsCol.set(getLaneThreadIdentity(metadata.cardId, metadata.processId ?? '', threadId, metadata.dbPath), true);
         }
     } else if (metadata.threadId !== undefined) {
-        threadIsCol.set(`${metadata.cardId}-${metadata.processId}-${metadata.threadId}`, true);
+        threadIsCol.set(getLaneThreadIdentity(metadata.cardId, metadata.processId ?? '', metadata.threadId, metadata.dbPath), true);
     }
 };
 
@@ -556,21 +562,27 @@ const recordUnitHeight = (unit: InsightUnit, height: number): void => {
         heightMap.set(`${metadata.cardId}`, height);
     }
     if (metadata.processId !== undefined) {
-        heightMap.set(`${metadata.cardId}-${metadata.processId}`, height);
+        const processKey = getLaneProcessIdentity(metadata.cardId, metadata.processId, metadata.dbPath);
+        heightMap.set(processKey, height);
+        if (unit.children?.length && unit.collapsible && !unit.isExpanded) {
+            processIsCol.set(processKey, true);
+        }
     }
 
     // 此处记录 CANN 泳道所在高度，为了适配 MSTX 泳道导致 HostToDevice 连线不准的问题
     if (metadata.processName === 'CANN') {
-        heightMap.set(`${metadata.cardId}-${metadata.processId}-CANN`, height);
+        heightMap.set(`${getLaneProcessIdentity(metadata.cardId, metadata.processId ?? '', metadata.dbPath)}-CANN`, height);
     }
 
     if (metadata.threadId !== undefined && metadata.processId !== undefined) {
         if (metadata.threadIdList) {
             for (const threadId of metadata.threadIdList) {
-                heightMap.set(`${metadata.cardId}-${metadata.processId}-${threadId}`, height);
+                heightMap.set(getLaneThreadIdentity(metadata.cardId, metadata.processId, threadId, metadata.dbPath), height);
+                sourceThreadHeightMap.set(getLaneSourceThreadIdentity(metadata.cardId, threadId, metadata.dbPath), height);
             }
         } else {
-            heightMap.set(`${metadata.cardId}-${metadata.processId}-${metadata.threadId}`, height);
+            heightMap.set(getLaneThreadIdentity(metadata.cardId, metadata.processId, metadata.threadId, metadata.dbPath), height);
+            sourceThreadHeightMap.set(getLaneSourceThreadIdentity(metadata.cardId, metadata.threadId, metadata.dbPath), height);
         }
 
         if (unit.collapsible && !unit.isExpanded) {
@@ -660,6 +672,7 @@ const updateDrawLines = (ctx: CanvasRenderingContext2D, session: Session, theme:
         return;
     }
     heightMap.clear();
+    sourceThreadHeightMap.clear();
     threadIsCol.clear();
     processIsCol.clear();
     unitIsHidden.clear();
@@ -699,8 +712,12 @@ export const drawMEventMask = (props: DrawCanvasArgs): void => {
 export const UNDRAW_HEIGHT = 45 + 2; // 45 指时间轴+旗帜轴的高度之和，2 指 useDraggableContainerEx css 中的 border-top: ${(p): string => p.theme.dividerColor} 2px solid;
 export const getHeight = (session: Session, data: DataBlock, cardId: string, category: string): number | undefined => {
     let height;
-    const unitHeight = heightMap.get(`${cardId}-${data.pid}-${data.tid}`);
-    let processHeight = heightMap.get(`${cardId}-${data.pid}`);
+    const threadKey = getLaneThreadIdentity(cardId, data.pid, data.tid, data.dbPath);
+    const processKey = getLaneProcessIdentity(cardId, data.pid, data.dbPath);
+    const unitHeight = heightMap.get(threadKey) ?? sourceThreadHeightMap.get(
+        getLaneSourceThreadIdentity(cardId, data.tid, data.dbPath),
+    );
+    let processHeight = heightMap.get(processKey);
     // 卡折叠的情况
     if (unitHeight === undefined && processHeight === undefined) {
         return undefined;
@@ -708,16 +725,14 @@ export const getHeight = (session: Session, data: DataBlock, cardId: string, cat
     // 进程折叠的情况
     if (unitHeight === undefined && processHeight !== undefined) {
         // 此处单独适配 MSTX 泳道导致 HostToDevice 连线不准的问题
-        if (category === 'HostToDevice' && heightMap.has(`${cardId}-${data.pid}-CANN`)) {
-            processHeight = heightMap.get(`${cardId}-${data.pid}-CANN`);
+        const cannKey = `${processKey}-CANN`;
+        if (category === 'HostToDevice' && heightMap.has(cannKey)) {
+            processHeight = heightMap.get(cannKey);
         }
         height = UNDRAW_HEIGHT + processHeight - session.scrollTop + (0.5 * UnitHeight.UPPER);
-        if (!session.isFullDb) { // 非全量 db 情况，进程折叠时隐藏
-            processIsCol.set(`${cardId}-${data.pid}`, true);
-        }
         return height;
     }
-    const isCol = threadIsCol.get(`${cardId}-${data.pid}-${data.tid}`);
+    const isCol = threadIsCol.get(threadKey);
     if (isCol) {
         // 缩略泳道连线位置
         height = UNDRAW_HEIGHT + unitHeight - session.scrollTop + (0.5 * UnitHeight.COLL);
@@ -741,11 +756,11 @@ function sourceOrTargetLinkUnitIsHidden({
 }): boolean {
     return (
         unitIsHidden.has(targetCardId) ||
-        unitIsHidden.has(`${targetCardId}_${to.pid}`) ||
-        unitIsHidden.has(`${targetCardId}_${to.pid}_${to.tid}`) ||
+        unitIsHidden.has(getLaneProcessIdentity(targetCardId, to.pid, to.dbPath)) ||
+        unitIsHidden.has(getLaneThreadIdentity(targetCardId, to.pid, to.tid, to.dbPath)) ||
         unitIsHidden.has(sourceCardId) ||
-        unitIsHidden.has(`${sourceCardId}_${from.pid}`) ||
-        unitIsHidden.has(`${sourceCardId}_${from.pid}_${from.tid}`)
+        unitIsHidden.has(getLaneProcessIdentity(sourceCardId, from.pid, from.dbPath)) ||
+        unitIsHidden.has(getLaneThreadIdentity(sourceCardId, from.pid, from.tid, from.dbPath))
     );
 }
 

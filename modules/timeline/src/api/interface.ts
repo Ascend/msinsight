@@ -324,6 +324,7 @@ export interface GetUnitFlowsParams {
 }
 
 interface FlowItemInfoPoint {
+    dbPath?: string;
     depth: number;
     duration: number;
     id: string;

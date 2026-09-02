@@ -32,6 +32,9 @@
 #include "ProjectParserJson.h"
 #include "ProjectAnalyze.h"
 #include "ProjectParserDb.h"
+#include "RankLaneMergeCoordinator.h"
+#include "RankOverlapStore.h"
+#include "RankOverlapCalculator.h"
 
 namespace Dic {
 namespace Module {
@@ -126,17 +129,31 @@ void ProjectParserDb::Parser(const std::vector<Global::ProjectExplorerInfo> &pro
 
 void ProjectParserDb::SetHostInfo(
     std::map<std::string, HostInfo> &hostInfoMap, ImportActionResponse &response, int64_t projectType) {
-    uint32_t rankSize = 0;
+    struct RankActionSource {
+        std::string rankName;
+        std::string host;
+        std::string fileId;
+        std::string normalizedFileId;
+    };
+    std::map<std::string, RankActionSource> rankActions;
     for (auto &hostInfo : hostInfoMap) {
-        rankSize += hostInfo.second.size();
         for (auto &ranks : hostInfo.second) {
             for (auto &rank : ranks.second) {
-                SetBaseActionOfResponse(response, rank, hostInfo.first, ranks.first, projectType);
-                rank = hostInfo.first + rank;
+                const std::string rankName = rank;
+                rank = hostInfo.first + rankName;
+                const std::string normalizedFileId = RankLaneMergeCoordinator::NormalizeSourceFileId(ranks.first);
+                auto action = rankActions.find(rank);
+                if (action == rankActions.end() || normalizedFileId < action->second.normalizedFileId) {
+                    rankActions[rank] = {rankName, hostInfo.first, ranks.first, normalizedFileId};
+                }
             }
         }
     }
-    bool isPendingParse = rankSize >= PENDIND_CRITICAL_VALUE;
+    for (const auto &item : rankActions) {
+        const auto &action = item.second;
+        SetBaseActionOfResponse(response, action.rankName, action.host, action.fileId, projectType);
+    }
+    bool isPendingParse = rankActions.size() >= PENDIND_CRITICAL_VALUE;
     response.body.isPending = isPendingParse;
 }
 
@@ -221,6 +238,8 @@ void ProjectParserDb::GetReportFilesOneFile(const Dic::Module::Global::ProjectEx
         hostMap[host][file].push_back(rank);
         DataBaseManager::Instance().SetDbPathMapping(host + rank, file, host + "Host");
         DataBaseManager::Instance().SetRankIdFileIdMapping(host + rank, file);
+        RankLaneMergeCoordinator::Instance().RegisterSource(host + rank, file);
+        ServerLog::Info("Registered rank lane source. rankId:", host + rank, ", fileId:", file);
         TrackInfoManager::Instance().UpdateHost(host + rank, host);
         TrackInfoManager::Instance().UpdateDeviceMap(host + rank, rankIdDeviceMap);
         TrackInfoManager::Instance().UpdateDeviceToRankIdMap(host + parsefileInfo->deviceId, rank);
@@ -234,9 +253,107 @@ void ProjectParserDb::GetReportFilesOneFile(const Dic::Module::Global::ProjectEx
 }
 
 void ProjectParserDb::SetParseCallBack() {
-    std::function<void(const std::string, const std::string, bool, const std::string)> func = std::bind(
-        ParseEndCallBack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4);
+    std::function<void(const std::string, const std::string, bool, const std::string)> func =
+        std::bind(ParseRankEndCallBack, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+            std::placeholders::_4);
     FullDb::FullDbParser::Instance().SetParseEndCallBack(func);
+}
+
+void ProjectParserDb::ParseRankEndCallBack(
+    const std::string &rankId, const std::string &fileId, bool result, const std::string &message) {
+    auto &coordinator = RankLaneMergeCoordinator::Instance();
+    if (result) {
+        coordinator.MarkSourceSucceeded(rankId, fileId);
+    } else {
+        coordinator.MarkSourceFailed(rankId, fileId, message);
+    }
+    if (coordinator.GetRegisteredSourceCount(rankId) <= 1) {
+        ParseEndCallBack(rankId, fileId, result, message);
+        if (result) {
+            coordinator.MarkRankEventEmitted(rankId);
+        }
+        return;
+    }
+    if (!result) {
+        SendParseFailEvent(rankId, fileId, message);
+    }
+    if (!coordinator.IsRankReady(rankId)) {
+        ServerLog::Info("Rank lane merge is waiting for remaining sources. rankId:", rankId, ", fileId:", fileId);
+        return;
+    }
+    const std::string representative = coordinator.GetRepresentativeSource(rankId);
+    if (representative.empty()) {
+        return;
+    }
+    if (!coordinator.TryStartRankFinalization(rankId)) {
+        ServerLog::Info("Suppress duplicate rank lane finalization. rankId:", rankId);
+        return;
+    }
+    ServerLog::Info("Selected representative rank lane source. rankId:", rankId, ", fileId:", representative);
+    DataBaseManager::Instance().SetRepresentativeSource(rankId, representative);
+    const bool requiresRankMerge = coordinator.GetRegisteredSourceCount(rankId) > 1;
+    if (requiresRankMerge && !FinalizeRankOverlap(rankId, representative, coordinator.GetSuccessfulSources(rankId))) {
+        coordinator.MarkRankFinalizationFailed(rankId);
+        SendParseFailEvent(rankId, representative, "Failed to finalize same-rank timeline lanes.");
+        return;
+    }
+    SendParseSuccessEvent(rankId, representative);
+    coordinator.MarkRankEventEmitted(rankId);
+}
+
+bool ProjectParserDb::FinalizeRankOverlap(
+    const std::string &rankId, const std::string &representative, const std::vector<std::string> &successfulSources) {
+    std::vector<RankInterval> computing;
+    std::vector<RankInterval> communication;
+    std::optional<RankInterval> taskSpan;
+    size_t usableSourceCount = 0;
+    auto &databaseManager = DataBaseManager::Instance();
+    for (const auto &source : successfulSources) {
+        auto database =
+            std::dynamic_pointer_cast<FullDb::DbTraceDataBase>(databaseManager.GetTraceDatabaseByFileId(source));
+        if (database == nullptr) {
+            ServerLog::Warn("Exclude rank overlap source without full DB connection. fileId:", source);
+            continue;
+        }
+        const std::string deviceId = databaseManager.GetDeviceIdByFileIdAndRankId(source, rankId);
+        FullDb::RANK_OVERLAP_INPUT input;
+        if (deviceId.empty() || !database->QueryRankOverlapInput(deviceId, input)) {
+            ServerLog::Warn("Exclude rank overlap source without usable raw input. fileId:", source);
+            continue;
+        }
+        ++usableSourceCount;
+        for (const auto &interval : input.computing) {
+            computing.push_back({interval.startNs, interval.endNs});
+        }
+        for (const auto &interval : input.communication) {
+            communication.push_back({interval.startNs, interval.endNs});
+        }
+        if (input.taskSpan.has_value()) {
+            if (!taskSpan.has_value()) {
+                taskSpan = {input.taskSpan->first, input.taskSpan->second};
+            } else {
+                taskSpan->startNs = std::min(taskSpan->startNs, input.taskSpan->first);
+                taskSpan->endNs = std::max(taskSpan->endNs, input.taskSpan->second);
+            }
+        }
+    }
+    if (usableSourceCount == 0) {
+        ServerLog::Warn("No usable raw rank overlap input; retain representative overlap. rankId:", rankId);
+        return true;
+    }
+
+    const std::string representativeDeviceId = databaseManager.GetDeviceIdByFileIdAndRankId(representative, rankId);
+    if (representativeDeviceId.empty()) {
+        ServerLog::Error("Failed to locate representative device for rank overlap. rankId:", rankId);
+        return false;
+    }
+    const auto rows = RankOverlapCalculator::Calculate(computing, communication, taskSpan);
+    if (RankOverlapStore::Instance().Publish(rankId, representativeDeviceId, rows).empty()) {
+        ServerLog::Error("Failed to publish derived rank overlap. rankId:", rankId);
+        return false;
+    }
+    ServerLog::Info("Finalized rank overlap. rankId:", rankId, ", sources:", usableSourceCount, ", rows:", rows.size());
+    return true;
 }
 
 void ProjectParserDb::SetBaseActionOfResponse(ImportActionResponse &response, const std::string &rankId,

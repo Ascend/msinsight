@@ -85,8 +85,6 @@ export const slicesListDetail = detail<AscendMultiSliceList, any, any, ThreadMet
         startTime = startTime < 0 ? 0 : startTime;
         let endTime = session.selectedRange?.[1] ?? 0;
         endTime = endTime < 0 ? 0 : endTime;
-        const timestampOffset = getTimeOffset(session, metadata);
-
         const { rangeOfLevels } = session.sliceSelection;
         const isValidSliceMode = checkIsValidSlice(session);
         const selectedUnits = isValidSliceMode ? getSelectedUnitsOfSliceMode(session) : [...session.selectedUnits];
@@ -94,42 +92,52 @@ export const slicesListDetail = detail<AscendMultiSliceList, any, any, ThreadMet
         session.sliceSelection.searchOfSlice = isValidSliceMode;
         const pythonFunctionConfig = session.unitsConfig.filterConfig.pythonFunction;
 
-        const metadataList = selectedUnits.flatMap(selectUnit => {
-            const { cardId, threadId, threadIdList, threadName, processId, metaType } = selectUnit?.metadata as ThreadMetaData;
+        const querySources = new Map<string, { metadata: ThreadMetaData; metadataList: Array<Record<string, unknown>> }>();
+        selectedUnits.forEach(selectUnit => {
+            const sourceMetadata = selectUnit?.metadata as ThreadMetaData;
+            const { cardId, dbPath, threadId, threadIdList, threadName, processId, metaType } = sourceMetadata;
             const hidePythonFunction = pythonFunctionConfig?.[`${cardId}_${threadName}`] ?? false;
-            if (Array.isArray(threadIdList)) {
-                return threadIdList.map(tid => ({ tid, metaType, pid: processId, hidePythonFunction }));
+            const metadataList = Array.isArray(threadIdList)
+                ? threadIdList.map(tid => ({ tid, metaType, pid: processId, hidePythonFunction }))
+                : [{ tid: threadId, pid: processId, metaType, hidePythonFunction }];
+            const source = querySources.get(dbPath);
+            if (source === undefined) {
+                querySources.set(dbPath, { metadata: sourceMetadata, metadataList });
+            } else {
+                source.metadataList.push(...metadataList);
             }
-            return [{ tid: threadId, pid: processId, metaType, hidePythonFunction }];
         });
-
-        const params = {
-            rankId: metadata.cardId,
-            dbPath: metadata.dbPath,
-            startTime: Math.floor(startTime + timestampOffset),
-            endTime: Math.ceil(endTime + timestampOffset),
-            metadataList,
-            ...paramsOfDepth,
-        };
+        if (querySources.size === 0) {
+            querySources.set(metadata.dbPath, { metadata, metadataList: [] });
+        }
 
         // 这里判断必要入参，如隐藏的泳道无rankId，则不发起请求
-        if (params.rankId === undefined) {
-            return;
+        if (paramsOfDepth.startDepth !== undefined && paramsOfDepth.startDepth > paramsOfDepth.endDepth) {
+            return [];
         }
-        if (params.startDepth !== undefined && params.startDepth > params.endDepth) {
-            return;
-        }
-
-        const raw = await window.request(metadata.dataSource, { command: 'unit/threads', params });
-        const res = raw.data;
-
-        res.forEach((element: AscendMultiSliceList) => {
-            element.rankId = metadata.cardId;
-            element.dbPath = metadata.dbPath;
-            element.startTime = Math.floor(startTime + timestampOffset);
-            element.endTime = Math.ceil(endTime + timestampOffset);
-        });
-        return res;
+        const responses = await Promise.all([...querySources.values()].map(async source => {
+            const timestampOffset = getTimeOffset(session, source.metadata);
+            const params = {
+                rankId: source.metadata.cardId,
+                dbPath: source.metadata.dbPath,
+                startTime: Math.floor(startTime + timestampOffset),
+                endTime: Math.ceil(endTime + timestampOffset),
+                metadataList: source.metadataList,
+                ...paramsOfDepth,
+            };
+            if (params.rankId === undefined) {
+                return [];
+            }
+            const raw = await window.request(source.metadata.dataSource, { command: 'unit/threads', params });
+            return raw.data.map((element: AscendMultiSliceList) => ({
+                ...element,
+                rankId: source.metadata.cardId,
+                dbPath: source.metadata.dbPath,
+                startTime: params.startTime,
+                endTime: params.endTime,
+            }));
+        }));
+        return responses.flat();
     },
     mouseEnterCallback: ({ session, row }) => {
         const selectedRangeData = session.selectedRangeData;

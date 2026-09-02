@@ -32,7 +32,8 @@ void CcuRepo::QuerySimpleSliceWithOutNameByTrackId(const SliceQuery &sliceQuery,
         ServerLog::Error("CCU query all slice track info does not exist, track is: ", sliceQuery.trackId);
         return;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (!database) {
         ServerLog::Error("CCU open database failed.");
         return;
@@ -65,7 +66,8 @@ void CcuRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::ve
     if (std::empty(sliceIds)) {
         return;
     }
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (!database) {
         ServerLog::Error("CCU open database failed.");
         return;
@@ -94,7 +96,8 @@ void CcuRepo::QueryCompeteSliceByIds(const SliceQuery &sliceQuery, const std::ve
 }
 
 bool CcuRepo::QuerySliceDetailInfo(const SliceQuery &sliceQuery, CompeteSliceDomain &competeSliceDomain) {
-    auto database = DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId);
+    auto database = sliceQuery.dbPath.empty() ? DataBaseManager::Instance().GetTraceDatabaseByRankId(sliceQuery.rankId)
+                                              : DataBaseManager::Instance().GetTraceDatabaseByFileId(sliceQuery.dbPath);
     if (!database) {
         ServerLog::Error("CCU open database failed.");
         return false;

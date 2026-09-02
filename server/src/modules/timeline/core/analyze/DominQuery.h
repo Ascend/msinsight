@@ -42,6 +42,8 @@ struct SliceQuery {
      * timeline框选时使用
     */
     std::string rankId;
+    std::string dbPath;
+    const std::string &GetDataSourceId() const { return dbPath.empty() ? rankId : dbPath; }
     std::string pid;
     std::string tid;
     std::string sliceId;

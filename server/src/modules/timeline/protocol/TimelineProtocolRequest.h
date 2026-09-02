@@ -108,6 +108,7 @@ struct ParseCardsRequest : public Request {
 
 struct UnitThreadTracesParams {
     std::string cardId;
+    std::string dbPath;
     std::string processId;
     std::string threadId;
     std::vector<std::string> threadIdList;
@@ -138,6 +139,7 @@ struct UnitThreadTracesRequest : public Request {
 
 struct UnitThreadTracesSummaryParams {
     std::string cardId;
+    std::string dbPath;
     std::string processId;
     std::string metaType;
     std::string unitType;
@@ -163,6 +165,7 @@ struct UnitThreadTracesSummaryRequest : public Request {
 
 struct UnitThreadsParams {
     std::string rankId;
+    std::string dbPath;
     std::vector<Metadata> metadataList;
     uint64_t startTime = 0;
     uint64_t endTime = 0;
@@ -182,6 +185,7 @@ struct ThreadDetailRequest : public Request {
 };
 
 struct UnitFlowsParams {
+    std::string dbPath;
     std::string rankId;
     std::string tid;
     std::string pid;
@@ -227,6 +231,7 @@ struct SearchCountParams {
     bool isMatchCase = false;
     bool isMatchExact = false;
     std::string rankId;
+    std::string dbPath;
     std::string searchContent;
     std::string nameFilter; // 二级筛选关键字
     std::vector<Metadata> metadataList;
@@ -254,6 +259,7 @@ struct SearchSliceParams {
     bool isMatchCase = false;
     bool isMatchExact = false;
     std::string rankId;
+    std::string dbPath;
     std::string searchContent;
     int index = 0;
     std::vector<Metadata> metadataList;
@@ -291,6 +297,7 @@ struct RemoteDeleteRequest : public Request {
 };
 
 struct FlowCategoryListParams {
+    std::string dbPath;
     std::string rankId;
 };
 
@@ -300,6 +307,7 @@ struct FlowCategoryListRequest : public Request {
 };
 
 struct FlowCategoryEventsParams {
+    std::string dbPath;
     std::string rankId;
     std::string host;
     std::string category;
@@ -344,6 +352,7 @@ struct UnitCounterParams {
     uint64_t startTime = 0;
     uint64_t endTime = 0;
     std::string metaType;
+    std::string dbPath;
     std::string metricGroup;
     bool CheckParams(uint64_t minTime, std::string &warnMsg) const {
         if (startTime > endTime) {
@@ -453,6 +462,7 @@ struct SystemViewParams {
     uint64_t pageSize = 0;
     std::string type;
     std::string rankId;
+    std::string dbPath;
     std::string deviceId;
     uint64_t startTime = 0;
     uint64_t endTime = 0;
@@ -482,6 +492,7 @@ struct EventsViewParams {
     std::string order;
     uint64_t currentPage = 0;
     uint64_t pageSize = 0;
+    std::string dbPath;
     std::string rankId;
     std::string pid;
     std::string processName;
@@ -555,6 +566,7 @@ struct KernelE2ETimeRequest : public Request {
 
 struct KernelParams {
     std::string rankId;
+    std::string dbPath;
     std::string name;
     uint64_t timestamp = 0;
     uint64_t duration = 0;
@@ -593,6 +605,7 @@ struct SimpleProcess {
 
 struct UnitThreadsOperatorsParams {
     std::string rankId;
+    std::string dbPath;
     std::vector<SimpleProcess> processes;
     std::vector<std::string> metaTypeList;
     bool isPythonStack = false;

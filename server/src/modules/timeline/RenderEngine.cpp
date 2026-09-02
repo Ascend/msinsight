@@ -70,13 +70,13 @@ bool TryComputeSelfTimeByDepthIndex(const ThreadDetailParams &requestParams, uin
     uint32_t targetDepth = 0;
     auto &sliceCacheManager = SliceCacheManager::Instance();
     if (!sliceCacheManager.QueryDepthBySliceId(
-            sliceCacheKey, requestParams.rankId, sliceQuery, competeSliceDomain.id, targetDepth)) {
+            sliceCacheKey, sliceQuery.GetDataSourceId(), sliceQuery, competeSliceDomain.id, targetDepth)) {
         return false;
     }
 
     std::vector<SliceDomain> childSlices;
     if (!sliceCacheManager.QuerySlicesByDepthAndTimeRange(
-            sliceCacheKey, requestParams.rankId, sliceQuery, targetDepth + 1, childSlices)) {
+            sliceCacheKey, sliceQuery.GetDataSourceId(), sliceQuery, targetDepth + 1, childSlices)) {
         return false;
     }
     const uint64_t childCoveredDuration =
@@ -267,6 +267,7 @@ void RenderEngine::QueryThreadTraces(const Protocol::UnitThreadTracesParams &req
     sliceQuery.cat = "python_function";
     sliceQuery.trackId = traceId;
     sliceQuery.rankId = requestParams.cardId;
+    sliceQuery.dbPath = requestParams.dbPath;
     sliceQuery.metaType = Protocol::STR_TO_ENUM<PROCESS_TYPE>(requestParams.metaType).value();
 
     std::unique_ptr<SliceAnalyzer> sliceAnalyzerPtr = std::make_unique<SliceAnalyzer>();
@@ -312,7 +313,7 @@ void RenderEngine::QueryThreadTraces(const Protocol::UnitThreadTracesParams &req
     responseBody.maxDepth = maxDepth;
     responseBody.currentMaxDepth = responseBody.data.size();
     const std::string pythonFunctionCacheKey =
-        SliceCacheManager::BuildPythonFunctionCacheKey(requestParams.cardId, traceId);
+        SliceCacheManager::BuildPythonFunctionCacheKey(sliceQuery.GetDataSourceId(), traceId);
     responseBody.havePythonFunction =
         SliceCacheManager::Instance().GetPythonFunctionStatus(pythonFunctionCacheKey) == PYTHON_FUNCTION_STATUS::EXIST;
 }
@@ -323,7 +324,8 @@ bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &p
     std::vector<FlowPoint> flowEventsVec;
     FlowQuery flowQuery;
     flowQuery.cat = params.category;
-    flowQuery.fileId = params.rankId;
+    const std::string queryFileId = params.dbPath.empty() ? params.rankId : params.dbPath;
+    flowQuery.fileId = queryFileId;
     flowQuery.minTimestamp = minTimestamp;
     dataEngine->QueryFlowPointByCategory(flowQuery, flowEventsVec);
     flowEventsVec = ComputeLockRangePoints(params, flowEventsVec);
@@ -332,7 +334,7 @@ bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &p
     std::unique_ptr<SliceAnalyzer> sliceAnalyzerPtr = std::make_unique<SliceAnalyzer>();
     flowAnalyzerPtr->SortByTrackIdASC(flowPointResult);
     ThreadQuery threadQuery;
-    threadQuery.fileId = params.rankId;
+    threadQuery.fileId = queryFileId;
     TrackInfo trackInfo;
     if (params.isSimulation) {
         ComputeSimulationFlows(params, flowDetailList, flowPointResult);
@@ -347,9 +349,16 @@ bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &p
             SliceQuery sliceQuery;
             sliceQuery.startTime = params.startTime;
             sliceQuery.endTime = params.endTime;
-            cacheSlices = SliceCacheManager::Instance().GetSliceDomainVec(sliceCacheKey, params.rankId, sliceQuery);
+            cacheSlices = SliceCacheManager::Instance().GetSliceDomainVec(sliceCacheKey, queryFileId, sliceQuery);
             curTrackId = item.trackId;
-            TrackInfoManager::Instance().GetTrackInfo(curTrackId, trackInfo, flowQuery.fileId);
+            const std::string endpointSourceId = item.rankId.empty() ? queryFileId : item.rankId;
+            TrackInfo endpointTrackInfo;
+            bool trackInfoFound =
+                TrackInfoManager::Instance().GetTrackInfo(curTrackId, endpointTrackInfo, endpointSourceId);
+            if (!trackInfoFound && endpointSourceId != queryFileId) {
+                trackInfoFound = TrackInfoManager::Instance().GetTrackInfo(curTrackId, endpointTrackInfo, queryFileId);
+            }
+            trackInfo = trackInfoFound ? endpointTrackInfo : TrackInfo{};
             sliceAnalyzerPtr->SortByTimestampASC(cacheSlices);
         }
         // item.timestamp = timestamp - flowQuery.minTimestamp，timestamp 是从数据库中查出，一定有 timestamp <= INT64_MAX
@@ -360,6 +369,20 @@ bool RenderEngine::QueryFlowCategoryEvents(Protocol::FlowCategoryEventsParams &p
     }
     flowAnalyzerPtr->SortByFlowIdAndTimestampASC(flowPointResult);
     flowAnalyzerPtr->ComputeUintFlows(flowPointResult, params.category, flowDetailList);
+    const bool includeSourceIdentity =
+        !params.dbPath.empty() && DataBaseManager::Instance().GetSourceFileIdsByRankId(params.rankId).size() > 1;
+    for (auto &flow : flowDetailList) {
+        if (flow->from.rankId == queryFileId) {
+            flow->from.rankId = params.rankId;
+        }
+        if (flow->to.rankId == queryFileId) {
+            flow->to.rankId = params.rankId;
+        }
+        if (includeSourceIdentity) {
+            flow->from.dbPath = params.dbPath;
+            flow->to.dbPath = params.dbPath;
+        }
+    }
     ServerLog::Info("Query flow category events. size:", flowDetailList.size());
     return true;
 }
@@ -374,7 +397,8 @@ std::vector<FlowPoint> RenderEngine::ComputeLockRangePoints(
         }
         Protocol::Metadata queryMetadata = metadata;
         PythonStackHelper::RestoreMetadata(queryMetadata);
-        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(params.rankId, queryMetadata.pid, queryMetadata.tid);
+        const std::string queryFileId = params.dbPath.empty() ? params.rankId : params.dbPath;
+        uint64_t trackId = TrackInfoManager::Instance().GetTrackId(queryFileId, queryMetadata.pid, queryMetadata.tid);
         trackIdSet.emplace(trackId);
     }
     if (std::empty(trackIdSet)) {
@@ -478,6 +502,7 @@ void RenderEngine::QueryThreadDetail(
     SliceQuery sliceQuery;
     sliceQuery.trackId = trackId;
     sliceQuery.rankId = requestParams.rankId;
+    sliceQuery.dbPath = requestParams.dbPath;
     sliceQuery.sliceId = requestParams.id;
     sliceQuery.metaType = Protocol::STR_TO_ENUM<PROCESS_TYPE>(requestParams.metaType).value();
     dataEngine->QuerySliceDetailInfo(sliceQuery, competeSliceDomain);

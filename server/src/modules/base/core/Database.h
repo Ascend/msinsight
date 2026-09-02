@@ -53,6 +53,7 @@ class Database {
     virtual ~Database();
     virtual bool CreateDbIfNotExist(const std::string &dbPath);
     virtual bool OpenDb(const std::string &dbPath, bool clearAllTable);
+    bool OpenSharedMemoryDb(const std::string &dbUri);
     virtual bool AttachDb(const std::string &dbPath);
     virtual bool IsOpen() const;
     void CloseDb();

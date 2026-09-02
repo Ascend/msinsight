@@ -77,6 +77,7 @@ struct SearchAllSliceParams {
     bool isMatchCase = false;
     bool isMatchExact = false;
     std::string rankId;
+    std::string dbPath;
     std::string searchContent;
     std::string nameFilter;  // 二级筛选关键字
     std::string orderBy;

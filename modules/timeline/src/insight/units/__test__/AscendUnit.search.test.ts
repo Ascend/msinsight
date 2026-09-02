@@ -22,6 +22,7 @@ import type { ForegroundTarget, SearchData } from '../../../entity/session';
 import {
     drawForegroundTargetLayer,
     drawSearchResultLayers,
+    handleLinkLinesMap,
     isForegroundTargetSlice,
     isSearchMatched,
 } from '../AscendUnit';
@@ -83,6 +84,38 @@ const createStackStatusData = (overrides: Partial<StackStatusData> = {}): StackS
     cname: '',
     threadId: '2',
     ...overrides,
+});
+
+describe('AscendUnit link line identity', () => {
+    const createFlow = (): Parameters<typeof handleLinkLinesMap>[1] => ({
+        cat: 'HostToDevice',
+        id: 'flow',
+        title: 'flow',
+        from: { depth: 0, duration: 1, id: 'from', name: 'from', pid: '10', tid: '20', timestamp: 100, rankId: '', metaType: 'PROCESS' },
+        to: { depth: 1, duration: 1, id: 'to', name: 'to', pid: '30', tid: '40', timestamp: 200, rankId: '', metaType: 'Ascend Hardware' },
+    });
+
+    it('keeps equal flow endpoints from different databases separate', () => {
+        const session = { mapOfLinkLines: new Map() } as unknown as import('../../../entity/session').Session;
+
+        handleLinkLinesMap(session, createFlow(), { rankId: 'rank0', dbPath: 'thread-1.db' });
+        handleLinkLinesMap(session, createFlow(), { rankId: 'rank0', dbPath: 'thread-2.db' });
+
+        expect(session.mapOfLinkLines.size).toBe(4);
+        expect(Array.from(session.mapOfLinkLines.values()).every(value => value.current.dbPath !== undefined)).toBe(true);
+    });
+
+    it('maps backend endpoint ranks to the clicked frontend card identity', () => {
+        const session = { mapOfLinkLines: new Map() } as unknown as import('../../../entity/session').Session;
+        const flow = createFlow();
+        flow.from.rankId = 'device-0';
+        flow.to.rankId = 'device-0';
+
+        handleLinkLinesMap(session, flow, { rankId: 'merged-card', dbPath: 'thread-1.db' });
+
+        expect(flow.from.rankId).toBe('merged-card');
+        expect(flow.to.rankId).toBe('merged-card');
+    });
 });
 
 const createForegroundTarget = (overrides: Partial<ForegroundTarget> = {}): ForegroundTarget => ({

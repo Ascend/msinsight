@@ -23,6 +23,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <unordered_set>
 #include "DBConnectionPool.h"
 #include "TextTraceDatabase.h"
@@ -60,6 +61,8 @@ class DataBaseManager {
     DataBaseManager &operator=(DataBaseManager &&) = delete;
 
     bool CreateTraceConnectionPool(const std::string &rankId, const std::string &dbPath);
+    bool CreateDerivedTraceConnectionPool(
+        const std::string &fileId, const std::string &dbPath, bool sharedMemory = false);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByRankId(const std::string &rankId);
     std::shared_ptr<VirtualTraceDatabase> GetTraceDatabaseByFileId(const std::string &fileId);
 
@@ -120,6 +123,9 @@ class DataBaseManager {
     void SetDbPathMapping(const std::string &rankId, const std::string &dbPath, const std::string &hostId);
     bool IsContainDatabasePath(const std::string &databasePath);
     std::string GetDeviceIdFromRankId(const std::string &rankId);
+    std::string GetDeviceIdByFileIdAndRankId(const std::string &fileId, const std::string &rankId);
+    std::string FindDeviceIdByFileIdAndRankId(const std::string &fileId, const std::string &rankId);
+    void RemoveRankIdToDeviceId(const std::string &fileId, const std::string &rankId);
     inline std::vector<std::string> GetDbPathByHost(const std::string &id) {
         if (host2DbPath.find(id) != host2DbPath.end()) {
             return host2DbPath[id];
@@ -131,8 +137,11 @@ class DataBaseManager {
     std::string GetAnyTraceDatabaseId();
 
     std::string GetFileIdByRankId(const std::string &rankId) const;
+    std::vector<std::string> GetSourceFileIdsByRankId(const std::string &rankId);
 
     void UpdateRankIdToDeviceId(const std::string &fileId, const std::string &rankId, const std::string &deviceId);
+    void RegisterRankSource(const std::string &rankId, const std::string &fileId);
+    void SetRepresentativeSource(const std::string &rankId, const std::string &fileId);
     void SetRankIdFileIdMapping(const std::string &rankId, const std::string &fileId);
 
   private:
@@ -151,6 +160,7 @@ class DataBaseManager {
     std::map<std::string, std::shared_ptr<std::recursive_mutex>> dbMutexMap;
     std::map<RankId, DbPath> dbFilePathMap;
     std::map<RankId, FileId> rankId2FileIdMap;
+    std::map<RankId, std::map<std::string, FileId>> rankId2SourceFileIdsMap;
     std::map<FileId, RankId> fileIdToRankIdMap;
     std::map<ClusterProjectPath, ClusterDbPath> clusterProject2DbPathMap;
     std::map<HostId, std::vector<DbPath>> host2DbPath;

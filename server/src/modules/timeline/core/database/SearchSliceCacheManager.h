@@ -217,8 +217,9 @@ class SearchSliceCacheManager {
     }
 
     // 生成缓存 key
-    static std::string makeKey(const std::string &rankId, const std::string &searchContent) {
-        return rankId + "|" + searchContent;
+    static std::string makeKey(
+        const std::string &rankId, const std::string &dbPath, const std::string &searchContent) {
+        return rankId + "|" + dbPath + "|" + searchContent;
     }
 
     // 初始化排序索引

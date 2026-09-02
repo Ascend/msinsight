@@ -33,10 +33,12 @@ TEST_F(HandlerTest, QueryThreadTracesHandlerTestNormal) {
 TEST_F(HandlerTest, QueryTracesByTrackIdsTestNormal) {
     class MockRender : public Dic::Module::Timeline::RenderEngineInterface {
       public:
+        uint64_t capturedTraceId = 0;
         ~MockRender() override = default;
         void SetDataEngineInterface(std::shared_ptr<Dic::Module::Timeline::DataEngineInterface>){};
         void QueryThreadTraces(const Protocol::UnitThreadTracesParams &requestParams,
             Protocol::UnitThreadTracesBody &responseBody, uint64_t minTimestamp, uint64_t traceId) {
+            capturedTraceId = traceId;
             std::vector<ThreadTraces> temp;
             ThreadTraces temp1;
             temp1.startTime = 100; // 100;
@@ -67,11 +69,17 @@ TEST_F(HandlerTest, QueryTracesByTrackIdsTestNormal) {
     std::shared_ptr<MockRender> mockRender = std::make_shared<MockRender>();
     handler.SetRenderEngine(mockRender);
     UnitThreadTracesRequest request;
+    request.params.cardId = "rank-0";
+    request.params.dbPath = "source-1.db";
+    request.params.processId = "process-1";
     request.params.threadIdList.emplace_back("lllllll");
+    const uint64_t expectedTrackId = Dic::Module::Timeline::TrackInfoManager::Instance().GetTrackId(
+        request.params.dbPath, request.params.processId, request.params.threadIdList.front());
     UnitThreadTracesResponse response;
     handler.QueryTracesByTrackIds(request, response, 0);
     EXPECT_EQ(response.body.data.size(), 1); // 1;
     EXPECT_EQ(response.body.data[0].size(), 2); // 2;
     EXPECT_EQ(response.body.data[0][0].endTime, 170); // 170
+    EXPECT_EQ(mockRender->capturedTraceId, expectedTrackId);
     Dic::Module::Timeline::TrackInfoManager::Instance().Reset();
 }

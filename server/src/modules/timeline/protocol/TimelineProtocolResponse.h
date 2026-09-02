@@ -168,6 +168,7 @@ struct FlowLocation {
     std::string deviceId;
     std::string type;
     std::string note;
+    std::string dbPath;
 };
 
 struct UnitSingleFlow {

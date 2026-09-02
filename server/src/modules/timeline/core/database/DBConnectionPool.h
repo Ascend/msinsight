@@ -32,7 +32,7 @@ namespace Dic::Module::Timeline {
 using namespace Dic::Server;
 template <typename T> class DBConnectionPool {
   public:
-    explicit DBConnectionPool(std::string dbPath, std::function<T *()> call);
+    explicit DBConnectionPool(std::string dbPath, std::function<T *()> call, bool sharedMemory = false);
 
     ~DBConnectionPool();
 
@@ -57,6 +57,7 @@ template <typename T> class DBConnectionPool {
     std::mutex mutex;
     std::condition_variable cv;
     std::string path;
+    bool sharedMemory;
     bool valid = true;
     unsigned int maxActiveConnections = 30;
     int maxRetryAttempts = 3;
@@ -70,8 +71,8 @@ template <typename T> class DBConnectionPool {
 };
 
 template <typename T>
-DBConnectionPool<T>::DBConnectionPool(std::string dbPath, std::function<T *()> call)
-    : databaseCreateCall(std::move(call)), path(std::move(dbPath)) {}
+DBConnectionPool<T>::DBConnectionPool(std::string dbPath, std::function<T *()> call, bool sharedMemory)
+    : databaseCreateCall(std::move(call)), path(std::move(dbPath)), sharedMemory(sharedMemory) {}
 
 template <typename T> DBConnectionPool<T>::~DBConnectionPool() {
     try {
@@ -136,7 +137,8 @@ template <typename T> T *DBConnectionPool<T>::CreatConnection() {
     int retryCount = 0;
     while (retryCount < maxRetryAttempts) {
         T *conn = databaseCreateCall();
-        if (!conn->OpenDb(path, false)) {
+        const bool opened = sharedMemory ? conn->OpenSharedMemoryDb(path) : conn->OpenDb(path, false);
+        if (!opened) {
             delete conn;
             retryCount++;
             continue;
