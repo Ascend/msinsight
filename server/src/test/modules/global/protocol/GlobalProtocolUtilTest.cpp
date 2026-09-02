@@ -107,14 +107,17 @@ TEST_F(GlobalProtocolUtilTest, TestProjectCheckValidResponseToJsonWithErrors) {
 
 TEST_F(GlobalProtocolUtilTest, TestBaselineSettingResponseToJson) {
     Dic::Protocol::BaselineSettingResponse response;
+    response.body.rankId = "localhost0";
+    response.body.cardId = "Baseline_localhost0";
     response.body.isFtrace = true;
     auto jsonOp = Dic::Protocol::ToResponseJson(response);
     EXPECT_EQ(jsonOp.has_value(), true);
     const std::string json = Dic::JsonUtil::JsonDump(jsonOp.value());
-    const std::string jsonStr = "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":false,\"command\":"
-                                "\"global/setBaseline\",\"moduleName\":\"unknown\",\"body\":{\"rankId\":\"\","
-                                "\"host\":\"\",\"cardName\":\"\",\"isCluster\":false,\"errorMessage\":\"\",\""
-                                "dbPath\":\"\",\"isFtrace\":true}}";
+    const std::string jsonStr =
+        "{\"type\":\"response\",\"id\":0,\"requestId\":0,\"result\":false,\"command\":"
+        "\"global/setBaseline\",\"moduleName\":\"unknown\",\"body\":{\"rankId\":\"localhost0\","
+        "\"cardId\":\"Baseline_localhost0\",\"host\":\"\",\"cardName\":\"\",\"isCluster\":false,"
+        "\"errorMessage\":\"\",\"dbPath\":\"\",\"isFtrace\":true}}";
     EXPECT_EQ(json, jsonStr);
 }
 

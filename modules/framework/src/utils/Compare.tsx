@@ -29,6 +29,7 @@ import { getRankInfo } from '@/utils/Rank';
 
 export interface CompareData extends File {
     rankId: string;
+    cardId?: string;
     dbPath?: string;
     host?: string;
     cardName?: string;
@@ -41,6 +42,7 @@ export interface TimelineCard {
     cardPath: string;
     host: string;
     rankId: string;
+    cardId: string;
     dbPath?: string;
     result: boolean;
     isFtrace?: boolean;
@@ -84,9 +86,10 @@ export const setBaselineData = async ({ projectName, fileType, filePath, rankId,
     } else if (isClusterCompare) {
         handleClusterCompare({ projectName, fileType, filePath, ...result } as CompareData);
     } else {
-        const { rankId: resultRankId, dbPath, cardName, host, isFtrace } = result as CompareData;
+        const { rankId: resultRankId, cardId: resultCardId, dbPath, cardName, host, isFtrace } = result as CompareData;
         const timelineCard: TimelineCard = {
             rankId: resultRankId,
+            cardId: resultCardId ?? resultRankId,
             dbPath,
             result: true,
             cardName: cardName ?? '',
@@ -99,7 +102,9 @@ export const setBaselineData = async ({ projectName, fileType, filePath, rankId,
         sendTabAddBaseline(dataSourceForTimeline, [timelineCard]);
         // 选中基线
         runInAction(() => {
-            session.compareSet.baseline = { projectName, fileType, filePath, rankId: resultRankId };
+            // compareSet 用于匹配项目树节点，应保留用户选中的原始 rankId；
+            // resultRankId 是后端解析基线使用的独立标识，仅用于页签数据请求。
+            session.compareSet.baseline = { projectName, fileType, filePath, rankId: rankId ?? resultRankId };
         });
     }
 };

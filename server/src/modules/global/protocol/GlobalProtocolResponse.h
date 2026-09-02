@@ -129,6 +129,7 @@ struct ProjectCheckValidResponse : public Response {
 
 struct BaselineSettingBody {
     std::string rankId;
+    std::string cardId;
     std::string host;
     std::string cluster;
     std::string cardName;

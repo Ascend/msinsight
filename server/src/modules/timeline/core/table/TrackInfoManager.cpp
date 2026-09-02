@@ -58,10 +58,18 @@ void TrackInfoManager::UpdateHost(const std::string &cardId, const std::string &
 }
 
 std::string TrackInfoManager::GetRankId(const std::string &cardId) {
-    if (hostMap.count(cardId) == 0 || !StringUtil::StartWith(cardId, hostMap.at(cardId))) {
+    if (hostMap.count(cardId) == 0) {
         return cardId;
     }
-    return cardId.substr(hostMap.at(cardId).length());
+    std::string originalCardId = cardId;
+    const std::string baselinePrefix = "Baseline_";
+    if (StringUtil::StartWith(originalCardId, baselinePrefix)) {
+        originalCardId = originalCardId.substr(baselinePrefix.length());
+    }
+    if (!StringUtil::StartWith(originalCardId, hostMap.at(cardId))) {
+        return originalCardId;
+    }
+    return originalCardId.substr(hostMap.at(cardId).length());
 }
 
 std::string TrackInfoManager::GetDeviceId(const std::string &cardId) {

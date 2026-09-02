@@ -25,6 +25,7 @@ export interface TimelineCard {
     cluster: string;
     host: string;
     rankId: string;
+    cardId?: string;
     dbPath?: string;
     result: boolean;
     isFtrace?: boolean;
@@ -35,7 +36,7 @@ export const buildBaselineCardMetadata = (item: TimelineCard, dataSource: any): 
     curDataSource.dataPath = [item.cardPath];
     return {
         dataSource: curDataSource,
-        cardId: item.rankId,
+        cardId: item.cardId ?? item.rankId,
         dbPath: item.dbPath ?? '',
         cluster: item.cluster,
         cardName: item.cardName,

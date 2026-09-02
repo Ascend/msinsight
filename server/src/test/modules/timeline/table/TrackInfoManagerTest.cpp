@@ -119,6 +119,25 @@ TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExist) {
 }
 
 /**
+ * 测试DB基线场景能够使用原始rankId查询deviceId
+ */
+TEST_F(TrackInfoManagerTest, TestBaselineHostAndDeviceMapExist) {
+    TrackInfoManager::Instance().Reset();
+    const std::string host = "hhhhhhhhhhh ";
+    const std::string cardId = "Baseline_" + host + "9988";
+    TrackInfoManager::Instance().UpdateHost(cardId, host);
+    std::unordered_map<std::string, std::string> deviceMap = {{"9988", "1122"}};
+    TrackInfoManager::Instance().UpdateDeviceMap(cardId, deviceMap);
+    uint64_t expectTrackId = TrackInfoManager::Instance().GetTrackId(cardId, "ppp", "ttt");
+    TrackInfo trackInfo;
+    ASSERT_TRUE(TrackInfoManager::Instance().GetTrackInfo(expectTrackId, trackInfo, cardId));
+    EXPECT_EQ(trackInfo.host, host);
+    EXPECT_EQ(trackInfo.rankId, "9988");
+    EXPECT_EQ(trackInfo.deviceId, "1122");
+    TrackInfoManager::Instance().Reset();
+}
+
+/**
  * 测试DB场景host和devicemap都存在,但deviceMap里rankId不存在
  */
 TEST_F(TrackInfoManagerTest, TestHostAndDeviceMapExistAndRankIdNotExist) {

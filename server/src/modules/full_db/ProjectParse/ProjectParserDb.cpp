@@ -331,22 +331,39 @@ void ProjectParserDb::ParserBaseline(
         baselineInfo.errorMessage = "Can't get rank info, and failed to compare!";
         return;
     }
-    std::string rankId = hostInfoMap.begin()->first + hostInfoMap.begin()->second.begin()->second[0];
-    const std::string &cardId = rankId;
-    baselineInfo.rankId = rankId;
-    baselineInfo.cardName = "Baseline_" + cardId;
+    const std::string cardId = hostInfoMap.begin()->first + hostInfoMap.begin()->second.begin()->second[0];
+    baselineInfo.rankId = cardId;
+    baselineInfo.cardId = "Baseline_" + cardId;
+    baselineInfo.cardName = baselineInfo.cardId;
     baselineInfo.host = hostInfoMap.begin()->first;
     baselineInfo.fileId = file;
     Global::BaselineManager::Instance().SetBaselineInfo(baselineInfo);
     CreateBaselineCommunicationDetailConnection(projectInfo, parseFilePath, file);
-    if (!Timeline::DataBaseManager::Instance().CreateTraceConnectionPool(baselineInfo.rankId, file)) {
+    // 基线新增独立 cardId 后，Timeline 的数据库及泳道映射必须统一使用 cardId；
+    // 否则只能修复卡片颜色，详细泳道和框选仍可能命中相同 rankId 的对比卡数据。
+    auto rankList = Timeline::TrackInfoManager::Instance().GetRankListByFileId(file, cardId);
+    std::unordered_map<std::string, std::string> rankAndDeviceMap;
+    for (const auto &rankInfo : rankList) {
+        rankAndDeviceMap[rankInfo.rankName] = rankInfo.deviceId;
+    }
+    Timeline::TrackInfoManager::Instance().UpdateHost(baselineInfo.cardId, baselineInfo.host);
+    Timeline::TrackInfoManager::Instance().UpdateDeviceMap(baselineInfo.cardId, rankAndDeviceMap);
+    Timeline::TrackInfoManager::Instance().UpdateHostCardId(baselineInfo.cardId, file);
+    for (auto &rankInfo : rankList) {
+        rankInfo.rankId = baselineInfo.cardId;
+        Timeline::TrackInfoManager::Instance().SetRankListByFileId(file, rankInfo);
+        Timeline::DataBaseManager::Instance().UpdateRankIdToDeviceId(file, baselineInfo.cardId, rankInfo.deviceId);
+    }
+    Timeline::DataBaseManager::Instance().SetDbPathMapping(
+        baselineInfo.cardId, file, "Baseline_" + baselineInfo.host + "Host");
+    if (!Timeline::DataBaseManager::Instance().CreateTraceConnectionPool(baselineInfo.cardId, file)) {
         ServerLog::Error("Failed to create baseline connection pool. ");
     }
     if (isParsed) {
         ServerLog::Info("Baseline has parsed.");
         return;
     }
-    FullDb::FullDbParser::Instance().Parse(std::vector<std::string>{baselineInfo.rankId}, file);
+    FullDb::FullDbParser::Instance().Parse(std::vector<std::string>{baselineInfo.cardId}, file);
 }
 
 void ProjectParserDb::FilterHostMap(std::map<std::string, HostInfo> &hostInfoMap, const std::string &filePath) {

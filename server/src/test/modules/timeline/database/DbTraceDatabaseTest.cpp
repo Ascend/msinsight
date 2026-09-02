@@ -660,6 +660,7 @@ TEST_F(DbTraceDatabaseTest, TestGetDeviceIdWithHostExist) {
     std::string deviceId = database.GetDeviceId(fileId);
     const std::string expectDeviceId = "8";
     EXPECT_EQ(deviceId, expectDeviceId);
+    EXPECT_EQ(database.GetDeviceId("Baseline_" + fileId), expectDeviceId);
     Dic::Protocol::DataBaseManager::Instance().Clear();
 }
 
