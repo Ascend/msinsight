@@ -29,7 +29,10 @@ bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Reque
     response.isTable = request.isTable;
     SetBaseResponse(request, response);
     std::string errMsg;
-    if (!request.params.CommonCheck(errMsg)) {
+    // 表格请求走通用分页校验；图视图请求走宽松分页校验（支持前端分片拉取，0/0 表示全量，与 events 场景一致）
+    const bool paramsValid =
+        request.isTable ? request.params.CommonCheck(errMsg) : request.params.CommonCheckForView(errMsg);
+    if (!paramsValid) {
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
@@ -50,12 +53,23 @@ bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         response.maxTimestamp = database->GetDeviceMaxEntryId(request.params.deviceId);
         BuildBlockTableResponseColumnsBounds(request.params.deviceId, database, response.rangeFiltersBoundsMap);
     } else {
-        if (!database->QueryAllBlocks<Protocol::BlockViewItemDTO>(response.viewBlocks, request.params.deviceId)) {
+        int64_t total = -1;
+        if (request.params.pageSize > 0) {
+            // 分片拉取：total 为 COUNT 总行数，前端 do-while 以累计条数达到 total 终止
+            total = database->QueryBlocksByPage<Protocol::BlockViewItemDTO>(
+                request.params, request.params.deviceId, response.viewBlocks);
+        } else {
+            // 全量兼容路径（不带分页参数），行为与历史版本一致
+            if (database->QueryAllBlocks<Protocol::BlockViewItemDTO>(response.viewBlocks, request.params.deviceId)) {
+                total = static_cast<int64_t>(response.viewBlocks.size());
+            }
+        }
+        if (total < 0) {
             errMsg = LOG_TAG + "Failed to query blocks: query db failed.";
             SendResponse(std::move(responsePtr), false, errMsg);
             return false;
         }
-        response.total = response.viewBlocks.size();
+        response.total = static_cast<uint64_t>(total);
         response.maxTimestamp = database->GetDeviceMaxEntryId(request.params.deviceId);
     }
     SendResponse(std::move(responsePtr), true);

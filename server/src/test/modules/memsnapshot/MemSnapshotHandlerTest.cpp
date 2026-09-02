@@ -81,6 +81,50 @@ TEST_F(MemSnapshotHandlerTest, QueryBlocksViewWithValidParams) {
     EXPECT_TRUE(result);
 }
 
+TEST_F(MemSnapshotHandlerTest, QueryBlocksViewWithPagination) {
+    QueryMemSnapshotBlockHandler handler;
+    std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->projectName = testDbPath;
+    requestPtr->isTable = false;
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.eventType = "BLOCK";
+    requestPtr->params.currentPage = 1;
+    requestPtr->params.pageSize = 4000; // 超过全局 MAX_PAGESIZE，图视图宽松校验放行
+
+    bool result = handler.HandleRequest(std::move(requestPtr));
+    EXPECT_TRUE(result);
+}
+
+TEST_F(MemSnapshotHandlerTest, QueryBlocksViewWithInvalidPagination) {
+    {
+        QueryMemSnapshotBlockHandler handler;
+        std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();
+        requestPtr->moduleName = MODULE_MEM_SCOPE;
+        requestPtr->projectName = testDbPath;
+        requestPtr->isTable = false;
+        requestPtr->params.deviceId = "0";
+        requestPtr->params.eventType = "BLOCK";
+        requestPtr->params.currentPage = 1;
+        requestPtr->params.pageSize = 100001; // 超过宽松上限
+
+        EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+    }
+    {
+        QueryMemSnapshotBlockHandler handler;
+        std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();
+        requestPtr->moduleName = MODULE_MEM_SCOPE;
+        requestPtr->projectName = testDbPath;
+        requestPtr->isTable = false;
+        requestPtr->params.deviceId = "0";
+        requestPtr->params.eventType = "BLOCK";
+        requestPtr->params.currentPage = 1;
+        requestPtr->params.pageSize = 0; // 半填：pageSize 必须与 currentPage 同缺省或同有效
+
+        EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+    }
+}
+
 TEST_F(MemSnapshotHandlerTest, QueryBlocksWithInvalidEventIdxRange) {
     QueryMemSnapshotBlockHandler handler;
     std::unique_ptr<MemSnapshotBlocksRequest> requestPtr = std::make_unique<MemSnapshotBlocksRequest>();

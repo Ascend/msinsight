@@ -196,7 +196,15 @@ const EventsTable = observer(({ session, height }: { session: Session; height?: 
         });
     };
     useEffect(() => {
-        if (deviceId === '' || maxTime === 0 || maxTime === undefined || !blockLoadReady) return;
+        if (deviceId === '' || maxTime === 0 || maxTime === undefined) return;
+        if (!blockLoadReady) {
+            runInAction(() => {
+                session.eventsTableData = [];
+                session.eventsTotal = 0;
+            });
+            setLoading(true);
+            return;
+        }
         setLoading(true);
         getEventTableData(session);
         setLoading(false);

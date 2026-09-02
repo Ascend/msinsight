@@ -52,6 +52,9 @@ struct MemSnapshotLeakStatsParams {
 };
 
 struct MemSnapshotBlockParams : public CommonTableParams {
+    // BlockViewItemDTO 按最大字段宽度序列化约 160 bytes/条；限制为 32000，
+    // 为 JupyterLab 代理的 10 MiB 单消息上限保留充足余量。
+    static constexpr int64_t MAX_VIEW_PAGE_SIZE = 32000;
     uint64_t startEventIdx{0};
     uint64_t endEventIdx{0};
     uint64_t minSize{0};
@@ -63,6 +66,40 @@ struct MemSnapshotBlockParams : public CommonTableParams {
     bool onlyUnreleasedInRange{false};
 
     bool CommonCheck(std::string &errorMsg) const {
+        if (!CheckBaseFields(errorMsg)) {
+            return false;
+        }
+        return PaginationParam::Check(errorMsg);
+    }
+
+    // 图视图（isTable=false）场景校验：不带分页参数(0/0)表示全量，兼容旧前端；
+    // 带分页参数时放宽 pageSize 上限（前端分片拉取会逐步翻倍到 32000，全局
+    // MAX_PAGESIZE=1000 不适用，与 events 列表场景的宽松校验保持一致）
+    bool CommonCheckForView(std::string &errorMsg) const {
+        if (!CheckBaseFields(errorMsg)) {
+            return false;
+        }
+        if (currentPage == 0 && pageSize == 0) {
+            return true; // 全量兼容路径
+        }
+        if (currentPage <= 0 || pageSize <= 0) {
+            errorMsg = "Invalid pagination params, detail: pageSize and currentPage must be greater than 0";
+            return false;
+        }
+        if (pageSize > MAX_VIEW_PAGE_SIZE) {
+            errorMsg =
+                "Invalid pagination params, detail: pageSize must not exceed " + std::to_string(MAX_VIEW_PAGE_SIZE);
+            return false;
+        }
+        if (INT64_MAX / pageSize < currentPage) {
+            errorMsg = "Invalid pagination params, detail: currentPage exceeds the maximum value";
+            return false;
+        }
+        return true;
+    }
+
+  private:
+    bool CheckBaseFields(std::string &errorMsg) const {
         if (minSize > maxSize) {
             errorMsg = "[minSize] must be less than [maxSize].";
             return false;
@@ -83,7 +120,7 @@ struct MemSnapshotBlockParams : public CommonTableParams {
             errorMsg = "Invalid eventType, detail: " + errorMsg;
             return false;
         }
-        return PaginationParam::Check(errorMsg);
+        return true;
     }
 };
 
@@ -184,6 +221,8 @@ struct MemSnapshotBlocksRequest : Request {
         } else {
             // 展示block图时，只可根据allocEventId排序
             reqPtr->params.orderBy = std::string(BlockTableColumn::ALLOC_EVENT_ID);
+            // 图视图支持分页拉取（不带分页参数时 currentPage=pageSize=0，表示全量，兼容旧前端）
+            reqPtr->params.SetPaginationParamFromJson(param_json);
         }
         return reqPtr;
     }
