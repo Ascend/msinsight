@@ -158,6 +158,9 @@ struct MemSnapshotAllocationsResponse : public JsonResponse {
     MemSnapshotAllocationsResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_ALLOCATIONS) {}
     uint64_t minEventId{0};
     uint64_t maxEventId{0};
+    uint64_t allocationsTotal{0};
+    uint64_t reservedLineTotal{0};
+    bool paginated{false};
     std::vector<AllocationRecordDTO> allocations;
     std::vector<ReservedRecordDTO> reservedLine;
 
@@ -170,6 +173,12 @@ struct MemSnapshotAllocationsResponse : public JsonResponse {
         json_t reservedLineJson(kArrayType);
         JsonUtil::AddMember(body, "minTimestamp", minEventId, allocator);
         JsonUtil::AddMember(body, "maxTimestamp", maxEventId, allocator);
+        if (paginated) {
+            json_t totalJson(kObjectType);
+            JsonUtil::AddMember(totalJson, "allocations", allocationsTotal, allocator);
+            JsonUtil::AddMember(totalJson, "reservedLine", reservedLineTotal, allocator);
+            JsonUtil::AddMember(body, "total", totalJson, allocator);
+        }
         for (const auto &record : allocations) {
             allocationsJson.PushBack(record.ToJson(allocator), allocator);
         }

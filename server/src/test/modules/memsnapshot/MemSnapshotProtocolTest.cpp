@@ -358,6 +358,76 @@ TEST_F(MemSnapshotProtocolTest, BuildAllocationsRequestFromJson) {
     EXPECT_TRUE(request.params.CommonCheck(errMsg));
     EXPECT_EQ(request.params.deviceId, "1");
     EXPECT_EQ(request.params.eventType, "PTA");
+    EXPECT_EQ(request.params.currentPage, 0);
+    EXPECT_EQ(request.params.pageSize, 0);
+}
+
+TEST_F(MemSnapshotProtocolTest, BuildAllocationsRequestFromJsonWithPagination) {
+    std::string jsonStr = "{"
+                          "  \"id\": 25, "
+                          "  \"moduleName\": \"leaks\", "
+                          "  \"type\": \"request\", "
+                          "  \"command\": \"Memory/snapshot/allocations\", "
+                          "  \"projectName\": \"/home/test/data/memsnapshot/test.db\", "
+                          "  \"params\": { "
+                          "    \"deviceId\": \"1\", "
+                          "    \"eventType\": \"PTA\", "
+                          "    \"currentPage\": 2, "
+                          "    \"pageSize\": 30000 "
+                          "  } "
+                          "}";
+    std::string errMsg;
+    auto json = JsonUtil::TryParse(jsonStr, errMsg);
+    ASSERT_TRUE(json.has_value());
+    auto requestPtr = Dic::Protocol::MemSnapshotAllocationsRequest::FromJson(json.value(), errMsg);
+    ASSERT_NE(requestPtr, nullptr);
+    auto &request = dynamic_cast<Dic::Protocol::MemSnapshotAllocationsRequest &>(*requestPtr);
+    EXPECT_TRUE(request.params.CommonCheck(errMsg));
+    EXPECT_EQ(request.params.currentPage, 2);
+    EXPECT_EQ(request.params.pageSize, 30000);
+}
+
+TEST_F(MemSnapshotProtocolTest, AllocationsPaginationRejectsInvalidParams) {
+    std::string errMsg;
+    Dic::Protocol::MemSnapshotAllocationParams params;
+    params.deviceId = "1";
+    params.eventType = "PTA";
+    params.currentPage = 1;
+    params.pageSize = Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE + 1;
+    EXPECT_FALSE(params.CommonCheck(errMsg));
+    EXPECT_NE(errMsg.find("must not exceed 30000"), std::string::npos);
+
+    errMsg.clear();
+    params.currentPage = 1;
+    params.pageSize = 0;
+    EXPECT_FALSE(params.CommonCheck(errMsg));
+
+    errMsg.clear();
+    params.currentPage = INT64_MAX;
+    params.pageSize = 2;
+    EXPECT_FALSE(params.CommonCheck(errMsg));
+}
+
+TEST_F(MemSnapshotProtocolTest, AllocationsSafeMaximumStaysBelowProxyMessageLimit) {
+    Dic::Protocol::MemSnapshotAllocationsResponse response;
+    response.paginated = true;
+    response.allocationsTotal = Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE;
+    response.reservedLineTotal = Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE;
+    const Dic::Protocol::AllocationRecordDTO allocation(
+        std::numeric_limits<int64_t>::max(), std::numeric_limits<uint64_t>::max());
+    const Dic::Protocol::ReservedRecordDTO reserved(
+        std::numeric_limits<int64_t>::max(), std::numeric_limits<uint64_t>::max());
+    response.allocations.assign(Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE, allocation);
+    response.reservedLine.assign(Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE, reserved);
+
+    const auto json = response.ToJson();
+    ASSERT_TRUE(json.has_value());
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    json->Accept(writer);
+
+    constexpr size_t PROXY_MESSAGE_LIMIT = 10 * 1024 * 1024;
+    EXPECT_LT(buffer.GetSize(), PROXY_MESSAGE_LIMIT);
 }
 
 TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonCheckInvalidMinSize) {
