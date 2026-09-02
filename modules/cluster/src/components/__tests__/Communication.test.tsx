@@ -76,6 +76,43 @@ it('testCommunicationFilterComponent', async() => {
     expect(testingLibrary.screen.getByText('Communication Duration Analysis')).toBeInTheDocument();
 });
 
+it('keeps communication matrix analysis when matrix operators are available', async() => {
+    const handleFilterChange = jest.fn();
+
+    testingLibrary.render(<Filter session={session} handleFilterChange={handleFilterChange} />);
+
+    await testingLibrary.waitFor(() => expect(handleFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({
+        type: AnalysisType.COMMUNICATION_MATRIX,
+        operatorName: 'Total Op Info',
+    })));
+    expect(queryMatrixOperators).toHaveBeenCalledWith({
+        iterationId: '1',
+        stage: '(0, 1)',
+        pgName: 'dp',
+        groupIdHash: 'group',
+    });
+    expect(queryOperators).not.toHaveBeenCalled();
+});
+
+it('falls back to communication duration analysis when matrix operators are unavailable', async() => {
+    const handleFilterChange = jest.fn();
+    (queryMatrixOperators as jest.Mock).mockRejectedValue(new Error('matrix table does not exist'));
+    (queryOperators as jest.Mock).mockResolvedValue({ operatorName: ['hcom_allReduce_'] });
+
+    testingLibrary.render(<Filter session={session} handleFilterChange={handleFilterChange} />);
+
+    await testingLibrary.waitFor(() => expect(handleFilterChange).toHaveBeenLastCalledWith(expect.objectContaining({
+        type: AnalysisType.COMMUNICATION_DURATION_ANALYSIS,
+        operatorName: 'hcom_allReduce_',
+    })));
+    expect(queryOperators).toHaveBeenCalledWith({
+        iterationId: '1',
+        stage: '(0, 1)',
+        pgName: 'dp',
+        groupIdHash: 'group',
+    });
+});
+
 it('shows loading while communication duration options are loading', async() => {
     let resolveOperators: (value: {operatorName: string[]}) => void = () => {};
     (queryOperators as jest.Mock).mockImplementation(async() => await new Promise(resolve => {
