@@ -158,8 +158,10 @@ Promise<{condition: ConditionDataType;optionMap: optionMapDataType}> => {
                 condition.groupIdHash = groupIdHashList.length >= 1 ? groupIdHashList[0] : '';
                 condition.baselineGroupIdHash = groupIdHashList.length >= 2 ? groupIdHashList[1] : '';
             }
-            const operatorOptions: optionDataType[] = await getOperatorOptions(
+            const operatorResult = await getOperatorOptionsWithFallback(session,
                 { iterationId: condition.iterationId, stage: condition.stage, type: condition.type, pgName: condition.pgName, groupIdHash: condition.groupIdHash });
+            condition.type = operatorResult.type;
+            const operatorOptions = operatorResult.operatorOptions;
             optionMap.operatorOptions = operatorOptions;
             condition.operatorName = getUsableVal(initObj.operatorName, operatorOptions, totalOperator).toString();
         }
@@ -184,11 +186,12 @@ Promise<{condition: ConditionDataType;optionMap: optionMapDataType}> => {
 
     // type
     // stage === '' 时，页面不显示单选框，此时应该恢复 type 的默认值
-    const type = value !== '' ? initObj.type ?? defaultCondition.type : defaultCondition.type;
+    let type = value !== '' ? initObj.type ?? defaultCondition.type : defaultCondition.type;
 
     // Operator Name
-    const operatorOptions: optionDataType[] =
-        await getOperatorOptions({ iterationId, stage, type, pgName, groupIdHash });
+    const operatorResult = await getOperatorOptionsWithFallback(session, { iterationId, stage, type, pgName, groupIdHash });
+    type = operatorResult.type;
+    const operatorOptions = operatorResult.operatorOptions;
     const operatorName = getUsableVal(initObj.operatorName === '' ? totalOperator : initObj.operatorName, operatorOptions, totalOperator).toString();
     return {
         optionMap: { iterationOptions, baselineIterationOptions, stageOptions, operatorOptions },
@@ -290,6 +293,20 @@ Promise<optionDataType[]> => {
     const list = res?.operatorName ?? [];
     const options: optionDataType[] = list.map(item => ({ value: item, label: item }));
     return options;
+};
+
+const getOperatorOptionsWithFallback = async (session: Session, params: {iterationId: string;
+    stage: string;type: AnalysisType; pgName: string; groupIdHash: string;}):
+Promise<{type: AnalysisType;operatorOptions: optionDataType[]}> => {
+    try {
+        return { type: params.type, operatorOptions: await getOperatorOptions(params) };
+    } catch (error) {
+        if (params.type !== AnalysisType.COMMUNICATION_MATRIX || !session.durationFileCompleted) {
+            throw error;
+        }
+        const type = AnalysisType.COMMUNICATION_DURATION_ANALYSIS;
+        return { type, operatorOptions: await getOperatorOptions({ ...params, type }) };
+    }
 };
 
 interface FilterProps {
