@@ -21,6 +21,20 @@
 #include "QueryMemSnapshotAllocationHandler.h"
 
 namespace Dic::Module::MemSnapshot {
+namespace {
+template <typename T> void Paginate(std::vector<T> &values, const MemSnapshotAllocationParams &params) {
+    const size_t offset = static_cast<size_t>((params.currentPage - 1) * params.pageSize);
+    if (offset >= values.size()) {
+        values.clear();
+        return;
+    }
+    const size_t end = std::min(values.size(), offset + static_cast<size_t>(params.pageSize));
+    std::vector<T> page(
+        values.begin() + static_cast<std::ptrdiff_t>(offset), values.begin() + static_cast<std::ptrdiff_t>(end));
+    values = std::move(page);
+}
+} // namespace
+
 bool QueryMemSnapshotAllocationHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     auto &request = dynamic_cast<MemSnapshotAllocationsRequest &>(*requestPtr);
     std::unique_ptr<MemSnapshotAllocationsResponse> responsePtr = std::make_unique<MemSnapshotAllocationsResponse>();
@@ -42,6 +56,9 @@ bool QueryMemSnapshotAllocationHandler::HandleRequest(std::unique_ptr<Protocol::
     memoryDatabase->QueryMemoryAllocations(request.params.deviceId, records);
     if (records.empty()) {
         Server::ServerLog::Warn("Query memory records: empty data.");
+        if (request.params.pageSize > 0) {
+            response.paginated = true;
+        }
         SendResponse(std::move(responsePtr), true);
         return true;
     }
@@ -49,6 +66,13 @@ bool QueryMemSnapshotAllocationHandler::HandleRequest(std::unique_ptr<Protocol::
     response.reservedLine = MemSnapshotAllocationDataProcessor::CompressReservedLine(records);
     response.minEventId = 0;
     response.maxEventId = memoryDatabase->GetDeviceMaxEntryId(request.params.deviceId);
+    if (request.params.pageSize > 0) {
+        response.paginated = true;
+        response.allocationsTotal = response.allocations.size();
+        response.reservedLineTotal = response.reservedLine.size();
+        Paginate(response.allocations, request.params);
+        Paginate(response.reservedLine, request.params);
+    }
     SendResponse(std::move(responsePtr), true);
     return true;
 }

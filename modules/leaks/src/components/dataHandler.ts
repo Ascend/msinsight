@@ -23,7 +23,7 @@ import {
 } from '@/leaksWorker/blockWorker/worker';
 import {
     getMemoryDetailData, getFuncData, getBlockDetails, getEventDetails,
-    FuncParam, type BlockParam, EventParam,
+    FuncParam, type AllocationData, type BlockParam, EventParam, type GraphParam,
     ThreShold,
     getBlocksGraphData,
     getLeaksAllocationsData,
@@ -99,7 +99,7 @@ const BLOCKS_MAX_PAGE_SIZE = 32000;
 
 // blocks 分片拉取中途被新请求取代时抛出的哨兵：catch 中按对象身份识别（throw 与 catch 之间无包装），
 // 静默 return（状态由新请求管理）
-const PAGINATION_SUPERSEDED = new Error('blocks pagination superseded by a newer request');
+const SNAPSHOT_PAGINATION_SUPERSEDED = new Error('snapshot pagination superseded by a newer request');
 
 type SnapshotBlocksPage = RenderData & { total?: number };
 
@@ -120,7 +120,7 @@ const fetchSnapshotViewBlocksPaginated = async (
     for (;;) {
         const res: SnapshotBlocksPage = await getSnapshotBlocks({ ...baseParam, currentPage, pageSize });
         if (!isLatestRequest()) {
-            throw PAGINATION_SUPERSEDED;
+            throw SNAPSHOT_PAGINATION_SUPERSEDED;
         }
         if (merged === null) {
             // 首页：spread 后清空 blocks 作为合并容器（min/max 等元信息各页相同）
@@ -163,6 +163,70 @@ const fetchSnapshotViewBlocksPaginated = async (
     return merged as RenderData;
 };
 
+const ALLOCATIONS_PAGE_SIZE = 30000;
+
+type SnapshotAllocationPage = AllocationData;
+
+const validateAllocationTotal = (total: SnapshotAllocationPage['total']): void => {
+    if (total === undefined || total === null || !Number.isSafeInteger(total.allocations) || total.allocations < 0 ||
+        !Number.isSafeInteger(total.reservedLine) || total.reservedLine < 0) {
+        throw new Error('Invalid allocations pagination total');
+    }
+};
+
+const getExpectedPageLength = (total: number, currentPage: number): number => {
+    const offset = (currentPage - 1) * ALLOCATIONS_PAGE_SIZE;
+    return Math.min(ALLOCATIONS_PAGE_SIZE, Math.max(0, total - offset));
+};
+
+const fetchSnapshotAllocationsPaginated = async (
+    baseParam: GraphParam,
+    isLatestRequest: () => boolean,
+): Promise<AllocationData> => {
+    let currentPage = 1;
+    let firstPage: SnapshotAllocationPage | undefined;
+    let expectedTotal: NonNullable<SnapshotAllocationPage['total']> | undefined;
+    const allocationChunks: Array<AllocationData['allocations']> = [];
+    const reservedLineChunks: Array<NonNullable<AllocationData['reservedLine']>> = [];
+    for (;;) {
+        const page = await getSnapshotAllocations({ ...baseParam, currentPage, pageSize: ALLOCATIONS_PAGE_SIZE });
+        if (!isLatestRequest()) {
+            throw SNAPSHOT_PAGINATION_SUPERSEDED;
+        }
+        if (firstPage === undefined) {
+            firstPage = page;
+            if (page.total === undefined) {
+                return page; // 旧后端忽略分页参数并返回历史全量响应。
+            }
+            validateAllocationTotal(page.total);
+            expectedTotal = page.total;
+        } else if (page.total?.allocations !== expectedTotal?.allocations ||
+            page.total?.reservedLine !== expectedTotal?.reservedLine ||
+            page.minTimestamp !== firstPage.minTimestamp || page.maxTimestamp !== firstPage.maxTimestamp) {
+            throw new Error('Allocations pagination metadata changed while loading');
+        }
+        const reservedLine = page.reservedLine ?? [];
+        if (!Array.isArray(page.allocations) || !Array.isArray(reservedLine) || expectedTotal === undefined ||
+            page.allocations.length !== getExpectedPageLength(expectedTotal.allocations, currentPage) ||
+            reservedLine.length !== getExpectedPageLength(expectedTotal.reservedLine, currentPage)) {
+            throw new Error('Allocations pagination returned an unexpected page length');
+        }
+        allocationChunks.push(page.allocations);
+        reservedLineChunks.push(reservedLine);
+        if (currentPage * ALLOCATIONS_PAGE_SIZE >= Math.max(expectedTotal.allocations, expectedTotal.reservedLine)) {
+            break;
+        }
+        currentPage++;
+    }
+    const merged: SnapshotAllocationPage = {
+        ...firstPage,
+        allocations: allocationChunks.flat(),
+        reservedLine: reservedLineChunks.flat(),
+    };
+    delete merged.total;
+    return merged;
+};
+
 export const getBarNewData = async (session: any, startTimestamp?: number, endTimestamp?: number): Promise<void> => {
     const requestSeq = (barDataRequestSeqMap.get(session) ?? 0) + 1;
     barDataRequestSeqMap.set(session, requestSeq);
@@ -174,7 +238,6 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         }
     }
     const getBlocksRequest = session.module === 'leaks' ? getBlocksGraphData : getSnapshotBlocks;
-    const getAllocationRequest = session.module === 'leaks' ? getLeaksAllocationsData : getSnapshotAllocations;
     const blockContextKey = createMemoryBlockContextKey(session);
     runInAction(() => {
         session.loadingBlocks = true;
@@ -200,7 +263,9 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
         const cacheFileHash = createBlockPathCacheHash(session.fileHash, param.deviceId, param.eventType);
         const loadAllocation = async (): Promise<void> => {
-            const allocationData = await getAllocationRequest(param);
+            const allocationData = session.module === 'memsnapshot'
+                ? await fetchSnapshotAllocationsPaginated(param, isLatestRequest)
+                : await getLeaksAllocationsData(param);
             if (!requestActive || !isLatestRequest()) {
                 return;
             }
@@ -266,7 +331,7 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         });
     } catch (error: any) {
         // 分片拉取被新请求取代：静默作废，loading 等状态由新请求管理
-        if (error === PAGINATION_SUPERSEDED) {
+        if (error === SNAPSHOT_PAGINATION_SUPERSEDED) {
             return;
         }
         requestActive = false;

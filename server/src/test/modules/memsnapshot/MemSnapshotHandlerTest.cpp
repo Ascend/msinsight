@@ -215,6 +215,32 @@ TEST_F(MemSnapshotHandlerTest, QueryAllocationsWithValidParams) {
     EXPECT_TRUE(result);
 }
 
+TEST_F(MemSnapshotHandlerTest, QueryAllocationsWithPagination) {
+    QueryMemSnapshotAllocationHandler handler;
+    std::unique_ptr<MemSnapshotAllocationsRequest> requestPtr = std::make_unique<MemSnapshotAllocationsRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->projectName = testDbPath;
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.eventType = "BLOCK";
+    requestPtr->params.currentPage = 1;
+    requestPtr->params.pageSize = 1000;
+
+    EXPECT_TRUE(handler.HandleRequest(std::move(requestPtr)));
+}
+
+TEST_F(MemSnapshotHandlerTest, QueryAllocationsRejectsOversizedPage) {
+    QueryMemSnapshotAllocationHandler handler;
+    std::unique_ptr<MemSnapshotAllocationsRequest> requestPtr = std::make_unique<MemSnapshotAllocationsRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->projectName = testDbPath;
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.eventType = "BLOCK";
+    requestPtr->params.currentPage = 1;
+    requestPtr->params.pageSize = MemSnapshotAllocationParams::MAX_PAGE_SIZE + 1;
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+}
+
 // ============== QueryMemSnapshotLeakStatsHandler Tests ==============
 
 TEST_F(MemSnapshotHandlerTest, QueryLeakStatsWithValidParams) {

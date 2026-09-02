@@ -124,7 +124,9 @@ struct MemSnapshotBlockParams : public CommonTableParams {
     }
 };
 
-struct MemSnapshotAllocationParams {
+struct MemSnapshotAllocationParams : public PaginationParam {
+    // allocations 与 reservedLine 同页最坏序列化显著低于代理 10 MiB 上限。
+    static constexpr int64_t MAX_PAGE_SIZE = 30000;
     std::string deviceId;
     std::string eventType;
 
@@ -137,6 +139,21 @@ struct MemSnapshotAllocationParams {
         }
         if (!CheckStrParamValid(eventType, errorMsg)) {
             errorMsg = "Invalid eventType, detail: " + errorMsg;
+            return false;
+        }
+        if (currentPage == 0 && pageSize == 0) {
+            return true;
+        }
+        if (currentPage <= 0 || pageSize <= 0) {
+            errorMsg = "Invalid pagination params, detail: pageSize and currentPage must be greater than 0";
+            return false;
+        }
+        if (pageSize > MAX_PAGE_SIZE) {
+            errorMsg = "Invalid pagination params, detail: pageSize must not exceed " + std::to_string(MAX_PAGE_SIZE);
+            return false;
+        }
+        if (INT64_MAX / pageSize < currentPage) {
+            errorMsg = "Invalid pagination params, detail: currentPage exceeds the maximum value";
             return false;
         }
         return true;
@@ -282,6 +299,7 @@ struct MemSnapshotAllocationsRequest : Request {
         const json_t &param_json = json["params"];
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.eventType, param_json, "eventType");
+        reqPtr->params.SetPaginationParamFromJson(param_json);
         return reqPtr;
     }
 };

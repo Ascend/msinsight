@@ -45,9 +45,14 @@ export interface AllocationData {
     reservedLine?: ReservedPoint[];
     processUsedLine?: ProcessUsedPoint[];
     deviceUsedLine?: DeviceUsedPoint[];
+    total?: AllocationPaginationTotal;
+}
+export interface AllocationPaginationTotal {
+    allocations: number;
+    reservedLine: number;
 }
 export interface Allocation {
-    id: number;
+    id?: number;
     timestamp: number;
     totalSize: number;
 }
@@ -69,6 +74,8 @@ export interface GraphParam {
     relativeTime?: boolean;
     startTimestamp?: number;
     endTimestamp?: number;
+    currentPage?: number;
+    pageSize?: number;
 }
 export interface FuncParam {
     deviceId: string;

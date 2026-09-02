@@ -113,6 +113,7 @@ TEST(MemSnapshotAllocationDataProcessorTest, ResponseSeparatesAllocatedAndReserv
     ASSERT_TRUE(json.has_value());
     ASSERT_TRUE((*json)["body"]["allocations"].IsArray());
     ASSERT_TRUE((*json)["body"]["reservedLine"].IsArray());
+    EXPECT_FALSE((*json)["body"].HasMember("total"));
     const auto &allocation = (*json)["body"]["allocations"][0];
     EXPECT_TRUE(allocation.HasMember("timestamp"));
     EXPECT_TRUE(allocation.HasMember("totalSize"));
@@ -121,4 +122,19 @@ TEST(MemSnapshotAllocationDataProcessorTest, ResponseSeparatesAllocatedAndReserv
     EXPECT_TRUE(reserved.HasMember("timestamp"));
     EXPECT_TRUE(reserved.HasMember("reservedSize"));
     EXPECT_FALSE(reserved.HasMember("totalSize"));
+}
+
+TEST(MemSnapshotAllocationDataProcessorTest, PaginatedResponseIncludesSeriesTotals) {
+    Dic::Protocol::MemSnapshotAllocationsResponse response;
+    response.paginated = true;
+    response.allocationsTotal = 11;
+    response.reservedLineTotal = 7;
+
+    const auto json = response.ToJson();
+
+    ASSERT_TRUE(json.has_value());
+    ASSERT_TRUE((*json)["body"].HasMember("total"));
+    const auto &total = (*json)["body"]["total"];
+    EXPECT_EQ(total["allocations"].GetUint64(), uint64_t{11});
+    EXPECT_EQ(total["reservedLine"].GetUint64(), uint64_t{7});
 }
