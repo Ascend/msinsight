@@ -153,6 +153,7 @@ export interface FilledLineConfig {
     valueFormat?: Readable;
     auxiliaryValue?: number;
     palette: Array<keyof Theme['colorPalette']>;
+    seriesMode?: 'stacked' | 'overlay';
 };
 
 export interface StackBarConfig {

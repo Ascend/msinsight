@@ -178,6 +178,7 @@ enum class PROCESS_TYPE {
     PYTHON_STACK,
     PROCESS,
     SIO,
+    UB,
 };
 
 struct ParallelGroupInfo {

@@ -60,3 +60,12 @@ export const getCounterLaneDisplayName = (metadata: CounterMetaData): string => 
     }
     return `${metadata.threadName} (${unit})`;
 };
+
+export const getCounterSeriesMode = (metadata: CounterMetaData): 'stacked' | 'overlay' => {
+    // Rx and Tx are independent measurements. Stacking them would imply a value that does not exist.
+    return metadata.metaType === 'UB' && metadata.dataType.length > 1 ? 'overlay' : 'stacked';
+};
+
+export const getCounterLegend = (metadata: CounterMetaData): string[] | undefined => {
+    return getCounterSeriesMode(metadata) === 'overlay' ? metadata.dataType : undefined;
+};

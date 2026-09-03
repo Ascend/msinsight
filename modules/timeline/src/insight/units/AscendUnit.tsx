@@ -71,7 +71,7 @@ import { findOperatorUnit } from '../../utils/operatorUnit';
 import { getUnitFlows, queryAllSameOperatorsDuration } from '../../api/request';
 import { GetUnitFlowsParams, OpData } from '../../api/interface';
 import connector from '../../connection';
-import { getCounterLaneDisplayName } from './counterUnit';
+import { getCounterLaneDisplayName, getCounterLegend, getCounterSeriesMode } from './counterUnit';
 import {
     DEFAULT_LLC_BUCKET_WIDTH_NS,
     getLlcBucketWidthNs,
@@ -1007,6 +1007,8 @@ export const CounterUnit = unit<CounterMetaData>({
             return {
                 palette,
                 valueRange: countMetaData.maxValue ? [0, countMetaData.maxValue] : undefined,
+                seriesMode: getCounterSeriesMode(countMetaData),
+                legend: getCounterLegend(countMetaData),
             };
         },
         renderTooltip: (data, metadata) => {

@@ -60,6 +60,7 @@ void CounterEventHelper::RegisterDeviceMap() {
     RegisterDeviceHCCSMap();
     RegisterDeviceQOSMap();
     RegisterDeviceSIOMap();
+    RegisterDeviceUBMap();
 }
 
 void CounterEventHelper::RegisterDeviceAICoreFreqMap() {
@@ -259,6 +260,11 @@ void CounterEventHelper::RegisterDeviceSIOMap() {
     }
 }
 
+void CounterEventHelper::RegisterDeviceUBMap() {
+    deviceCounterEventMap.insert(
+        {PROCESS_TYPE::UB, {"UB", "UB", "", "UB Port{portId:03d}", "Rx Bandwidth(Byte/s),Tx Bandwidth(Byte/s)"}});
+}
+
 std::string CounterEventHelper::GenerateHostMetadataSQL(const PROCESS_TYPE type) {
     CounterEventConfig config = hostCounterEventMap.at(type);
     std::string sql = "SELECT DISTINCT ";
@@ -359,9 +365,11 @@ std::string CounterEventHelper::GenerateDeviceCounterSQL(
     }
     auto beg = deviceCounterEventMap.lower_bound(type);
     auto end = deviceCounterEventMap.upper_bound(type);
-    for (; beg != end; ++beg) {
-        if (beg->second.valueName == expectedValueName) {
-            break;
+    if (type != PROCESS_TYPE::UB) {
+        for (; beg != end; ++beg) {
+            if (beg->second.valueName == expectedValueName) {
+                break;
+            }
         }
     }
     if (beg == end) {
@@ -369,8 +377,16 @@ std::string CounterEventHelper::GenerateDeviceCounterSQL(
     }
 
     CounterEventConfig config = beg->second;
-    std::string sql = "SELECT timestampNs - ? AS startTime, '{\"" + config.type + "\":' || " + config.valueName +
-        " || '}' AS args FROM " + config.tableName;
+    std::string sql;
+    if (type == PROCESS_TYPE::UB) {
+        sql = "SELECT timestampNs - ? AS startTime, "
+              "'{\"Rx Bandwidth(Byte/s)\":' || rxUdmaBind || "
+              "',\"Tx Bandwidth(Byte/s)\":' || txUdmaBind || '}' AS args FROM " +
+            config.tableName;
+    } else {
+        sql = "SELECT timestampNs - ? AS startTime, '{\"" + config.type + "\":' || " + config.valueName +
+            " || '}' AS args FROM " + config.tableName;
+    }
     std::vector<std::string> valueNamesToJoin;
     std::string queryIdentity = SubstituteThreadNameFormat(config.threadNameFormat, valueNamesToJoin);
     if (isAICoreFreqDie) {
@@ -399,6 +415,9 @@ std::string CounterEventHelper::SubstituteThreadNameFormat(
         if (StringUtil::EndWith(contentInBrace, ":s")) {
             substitutedFormat += "id" + std::to_string(valueNamesToJoin.size()) + ".value";
             valueNamesToJoin.emplace_back(contentInBrace.substr(0, contentInBrace.size() - 2)); // 2 is the size of :s
+        } else if (StringUtil::EndWith(contentInBrace, ":03d")) {
+            const std::string columnName = contentInBrace.substr(0, contentInBrace.size() - 4); // 4 is :03d
+            substitutedFormat += "printf('%03d', " + columnName + ")";
         } else {
             substitutedFormat += contentInBrace;
         }

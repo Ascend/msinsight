@@ -1192,3 +1192,21 @@ TEST_F(CounterEventHelperTest, GenerateDeviceSQLForSIOTest) {
     }
     EXPECT_NE(metadataSql.find("SIO.name = id0.id"), std::string::npos);
 }
+
+TEST_F(CounterEventHelperTest, GenerateDeviceSQLForUBTest) {
+    CounterEventHelper helper;
+    helper.RegisterDeviceMap();
+    const std::string metadataSql = helper.GenerateDeviceMetadataSQL(Dic::Protocol::PROCESS_TYPE::UB);
+    const std::string expectedMetadataSql =
+        "SELECT DISTINCT 'UB Port' || printf('%03d', portId) || '' AS name, "
+        "'Rx Bandwidth(Byte/s),Tx Bandwidth(Byte/s)' AS types FROM UB WHERE deviceId = ?;";
+    EXPECT_EQ(metadataSql, expectedMetadataSql);
+
+    const std::string counterSql = helper.GenerateDeviceCounterSQL(Dic::Protocol::PROCESS_TYPE::UB, "UB Port004");
+    const std::string expectedCounterSql =
+        "SELECT timestampNs - ? AS startTime, '{\"Rx Bandwidth(Byte/s)\":' || rxUdmaBind || "
+        "',\"Tx Bandwidth(Byte/s)\":' || txUdmaBind || '}' AS args FROM UB WHERE "
+        "'UB Port' || printf('%03d', portId) || '' = ? AND startTime >= ? AND startTime <= ? "
+        "AND deviceId = ? ORDER BY startTime ASC;";
+    EXPECT_EQ(counterSql, expectedCounterSql);
+}
