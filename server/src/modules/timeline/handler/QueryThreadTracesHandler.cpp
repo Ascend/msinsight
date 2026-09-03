@@ -26,6 +26,14 @@ namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Dic::Server;
+namespace {
+const std::string &GetTrackDataSourceId(const UnitThreadTracesParams &params) {
+    if (params.metaType == "CANN_API" && !params.dbPath.empty()) {
+        return params.dbPath;
+    }
+    return params.cardId;
+}
+}
 
 bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     UnitThreadTracesRequest &request = dynamic_cast<UnitThreadTracesRequest &>(*requestPtr.get());
@@ -64,7 +72,7 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
     if (std::empty(request.params.threadIdList)) {
         UnitThreadTracesParams queryParams = request.params;
         PythonStackHelper::RestoreThreadTracesParams(queryParams);
-        const std::string &dataSourceId = queryParams.dbPath.empty() ? queryParams.cardId : queryParams.dbPath;
+        const std::string &dataSourceId = GetTrackDataSourceId(queryParams);
         uint64_t trackId =
             TrackInfoManager::Instance().GetTrackId(dataSourceId, queryParams.processId, queryParams.threadId);
         ServerLog::Info("Query thread traces lane resolved. rankId: ", queryParams.cardId,
@@ -93,7 +101,7 @@ void QueryThreadTracesHandler::QueryTracesByTrackIds(
         UnitThreadTracesParams queryParams = request.params;
         queryParams.threadId = threadId;
         PythonStackHelper::RestoreThreadTracesParams(queryParams);
-        const std::string &dataSourceId = queryParams.dbPath.empty() ? queryParams.cardId : queryParams.dbPath;
+        const std::string &dataSourceId = GetTrackDataSourceId(queryParams);
         uint64_t trackId =
             TrackInfoManager::Instance().GetTrackId(dataSourceId, queryParams.processId, queryParams.threadId);
         ServerLog::Info("Query thread traces lane resolved. rankId: ", queryParams.cardId,

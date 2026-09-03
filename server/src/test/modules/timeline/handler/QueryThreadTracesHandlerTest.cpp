@@ -73,13 +73,21 @@ TEST_F(HandlerTest, QueryTracesByTrackIdsTestNormal) {
     request.params.dbPath = "source-1.db";
     request.params.processId = "process-1";
     request.params.threadIdList.emplace_back("lllllll");
-    const uint64_t expectedTrackId = Dic::Module::Timeline::TrackInfoManager::Instance().GetTrackId(
+    request.params.metaType = "CANN_API";
+    const uint64_t sourceTrackId = Dic::Module::Timeline::TrackInfoManager::Instance().GetTrackId(
         request.params.dbPath, request.params.processId, request.params.threadIdList.front());
+    const uint64_t rankTrackId = Dic::Module::Timeline::TrackInfoManager::Instance().GetTrackId(
+        request.params.cardId, request.params.processId, request.params.threadIdList.front());
     UnitThreadTracesResponse response;
     handler.QueryTracesByTrackIds(request, response, 0);
     EXPECT_EQ(response.body.data.size(), 1); // 1;
     EXPECT_EQ(response.body.data[0].size(), 2); // 2;
     EXPECT_EQ(response.body.data[0][0].endTime, 170); // 170
-    EXPECT_EQ(mockRender->capturedTraceId, expectedTrackId);
+    EXPECT_EQ(mockRender->capturedTraceId, sourceTrackId);
+    for (const std::string &metaType : {"ASCEND_HARDWARE", "OVERLAP_ANALYSIS", "PYTORCH_API"}) {
+        request.params.metaType = metaType;
+        handler.QueryTracesByTrackIds(request, response, 0);
+        EXPECT_EQ(mockRender->capturedTraceId, rankTrackId) << metaType;
+    }
     Dic::Module::Timeline::TrackInfoManager::Instance().Reset();
 }
