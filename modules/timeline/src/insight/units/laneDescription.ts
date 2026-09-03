@@ -33,7 +33,7 @@ const NPU_METRICS_LANE_DESCRIPTION_RULES: LaneDescriptionRule[] = [
     },
     {
         keywords: ['UB'],
-        patterns: [/^UDMA-?Ports?\d+/i],
+        patterns: [/^UDMA-?Ports?\d+/i, /^(?:UB\s+)?Port\s*0*\d+/i],
         descriptionKey: 'laneDescriptions.npuMetrics.ubUdmaPorts',
     },
     {

@@ -244,8 +244,8 @@ The following table describes the unit information displayed on the **Timeline**
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;</td>
-    <td class="tg-0pky">Overall receive and transmit bandwidth of the UB for the UDMA and UNIC data types.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>
+    <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;<br>UB Port&lt;id&gt;</td>
+    <td class="tg-0pky">Overall receive and transmit bandwidth of the UB for the UDMA and UNIC data types. In DB files, each port is displayed in one UB Port&lt;id&gt; unit that contains both Rx Bandwidth and Tx Bandwidth.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Block Detail</td>

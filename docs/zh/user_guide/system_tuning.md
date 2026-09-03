@@ -591,7 +591,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。<br>UB泳道仅支持展示昇腾950PR&950DT系列产品导出的性能数据。</td>
+    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。DB格式文件下，每个Port对应一条UB Port&lt;id&gt;泳道，泳道同时展示Rx Bandwidth和Tx Bandwidth。<br>UB泳道仅支持展示昇腾950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Block Detail</td>
@@ -720,8 +720,8 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">UB</td>
-    <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;</td>
-    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。<br>UB泳道仅支持展示昇腾950PR&950DT系列产品导出的性能数据。</td>
+    <td class="tg-0pky">UDMA/UNIC-Ports&lt;id&gt;<br>UB Port&lt;id&gt;</td>
+    <td class="tg-0pky">为UDMA和UNIC两种数据类型，呈现UB总体收发带宽情况。DB格式文件下，每个Port对应一条UB Port&lt;id&gt;泳道，泳道同时展示Rx Bandwidth和Tx Bandwidth。<br>UB泳道仅支持展示昇腾950PR&950DT系列产品导出的性能数据。</td>
   </tr>
   <tr>
     <td class="tg-0pky" rowspan="2">Block Detail</td>

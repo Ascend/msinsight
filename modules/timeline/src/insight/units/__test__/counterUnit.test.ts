@@ -1,5 +1,5 @@
 import type { CounterMetaData } from '../../../entity/data';
-import { getCounterLaneDisplayName } from '../counterUnit';
+import { getCounterLaneDisplayName, getCounterLegend, getCounterSeriesMode } from '../counterUnit';
 
 const createCounterMetaData = (threadName: string, dataType: string[]): CounterMetaData => ({
     dataSource: { remote: 'local' } as unknown as DataSource,
@@ -43,5 +43,22 @@ describe('getCounterLaneDisplayName', () => {
 
     it('keeps the original name when no clear unit exists', () => {
         expect(getCounterLaneDisplayName(createCounterMetaData('Unknown Counter', ['unknownMetric']))).toBe('Unknown Counter');
+    });
+});
+
+describe('getCounterSeriesMode', () => {
+    it('overlays the two independent UB port values and exposes their legend', () => {
+        const metadata = createCounterMetaData('UB Port004', ['Rx Bandwidth(Byte/s)', 'Tx Bandwidth(Byte/s)']);
+        metadata.metaType = 'UB';
+        expect(getCounterSeriesMode(metadata)).toBe('overlay');
+        expect(getCounterLegend(metadata)).toEqual(['Rx Bandwidth(Byte/s)', 'Tx Bandwidth(Byte/s)']);
+    });
+
+    it('keeps existing counters and single-value UB counters stacked without a legend', () => {
+        const ubMetadata = createCounterMetaData('UB Port004', ['Rx Bandwidth(Byte/s)']);
+        ubMetadata.metaType = 'UB';
+        expect(getCounterSeriesMode(ubMetadata)).toBe('stacked');
+        expect(getCounterLegend(ubMetadata)).toBeUndefined();
+        expect(getCounterSeriesMode(createCounterMetaData('DDR', ['Read(Byte/s)', 'Write(Byte/s)']))).toBe('stacked');
     });
 });

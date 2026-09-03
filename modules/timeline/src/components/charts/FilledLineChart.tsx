@@ -25,24 +25,9 @@ import type { Readable } from '../../utils/humanReadable';
 import { Canvas, CanvasContainer, LegendArea, search, zipTimeSeriesData } from './common';
 import { useBatchedRender, useData, useHoverPosX, useRangeAndDomain } from './hooks';
 import { TooltipComponent, type TooltipProps } from './TooltipComp';
+import { findFilledLineValueRange, type FilledLineSeriesMode } from './filledLineUtils';
 
 type FilledLineChartProps = ChartProps<'filledLine'>;
-
-const findHeights = (dataList: number[][]): [number, number] => {
-    if (dataList.length === 0) { return [0, 0]; }
-    let minHeight = 0;
-    let maxHeight = 0;
-    dataList.forEach(data => {
-        let height = 0;
-        data.forEach((val, index) => {
-            if (index === 0) { return; }
-            height += isNaN(Number(val)) ? 0 : Number(val);
-        });
-        minHeight = Math.min(minHeight, height);
-        maxHeight = Math.max(maxHeight, height);
-    });
-    return [minHeight, maxHeight * 1.2];
-};
 
 const drawAuxiliaryLine = (context: CanvasRenderingContext2D, yScale: Scale,
     auxiliaryValue: number, width: number): void => {
@@ -93,6 +78,30 @@ const drawArea = ({ context, dataList, minHeight, maxHeight, xScale, yScale, pal
     };
 };
 
+const drawOverlayLines = ({ context, dataList, xScale, yScale, palette }: DrawAreaParams): void => {
+    if (dataList.length === 0) { return; }
+    const lastPointWidth = 1;
+    context.setLineDash([]);
+    context.globalAlpha = 1;
+    context.lineWidth = 1.5;
+    for (let seriesIndex = 1; seriesIndex < dataList[0].length; seriesIndex++) {
+        context.beginPath();
+        dataList.forEach((row, rowIndex) => {
+            const x = xScale(row[0]);
+            const y = yScale(isNaN(Number(row[seriesIndex])) ? 0 : Number(row[seriesIndex]));
+            if (rowIndex === 0) {
+                context.moveTo(x, y);
+            } else {
+                context.lineTo(x, y);
+            }
+            const nextX = rowIndex + 1 < dataList.length ? xScale(dataList[rowIndex + 1][0]) : x + lastPointWidth;
+            context.lineTo(nextX, y);
+        });
+        context.strokeStyle = palette[seriesIndex - 1];
+        context.stroke();
+    }
+};
+
 interface DrawParams {
     ctx: CanvasRenderingContext2D | null;
     dataList: number[][];
@@ -106,22 +115,27 @@ interface DrawParams {
     legend?: string[];
     valueFormat?: Readable;
     isIE: boolean;
+    seriesMode: FilledLineSeriesMode;
 }
 
-const draw = ({ ctx, dataList, width, height, palette, rangeAndDomain, hideLayer, valueRange, auxiliaryValue, legend, valueFormat, isIE }: DrawParams):
+const draw = ({ ctx, dataList, width, height, palette, rangeAndDomain, hideLayer, valueRange, auxiliaryValue, legend, valueFormat, isIE, seriesMode }: DrawParams):
 (HTMLCanvasElement | undefined) => {
     if (!ctx) { return; }
     if (dataList.length === 0 || dataList[0].length > palette.length + 1) { return; }
     const [drawDataList, newPalette] = removeHideLayerDatas(dataList, palette, hideLayer);
     let minHeight = 0;
     let maxHeight = 0;
-    [minHeight, maxHeight] = valueRange ?? findHeights(drawDataList);
+    [minHeight, maxHeight] = valueRange ?? findFilledLineValueRange(drawDataList, seriesMode);
     maxHeight = maxHeight === 0 ? 1 : maxHeight;
     const xScale = d3.scaleLinear().range(rangeAndDomain[0]).domain(rangeAndDomain[1]).clamp(false);
     const yScale = d3.scaleLinear().range([height, 0]).domain([minHeight, maxHeight]);
     if (auxiliaryValue !== undefined) { drawAuxiliaryLine(ctx, yScale, auxiliaryValue, width); }
-    // draw line and area
-    drawArea({ context: ctx, dataList: drawDataList, minHeight, maxHeight, xScale, yScale, palette: newPalette, width, isIE });
+    const drawParams = { context: ctx, dataList: drawDataList, minHeight, maxHeight, xScale, yScale, palette: newPalette, width, isIE };
+    if (seriesMode === 'overlay') {
+        drawOverlayLines(drawParams);
+    } else {
+        drawArea(drawParams);
+    }
 };
 
 const findDataByX = (mousePosX: number | undefined, dataListState: number[][],
@@ -212,7 +226,7 @@ const removeHideLayerDatas = (dataList: number[][], palette: string[], hideLayer
 
 // eslint-disable-next-line max-lines-per-function
 export const FilledLineChart = observer(({
-    margin, session, mapFunc, valueFormat, valueRange, legend, auxiliaryValue, palette, renderTooltip, metadata, height, width, unit,
+    margin, session, mapFunc, valueFormat, valueRange, legend, auxiliaryValue, palette, seriesMode = 'stacked', renderTooltip, metadata, height, width, unit,
 }: FilledLineChartProps) => {
     const theme = useTheme();
     const canvasContainer = useRef<HTMLDivElement>(null);
@@ -251,9 +265,10 @@ export const FilledLineChart = observer(({
             legend,
             valueFormat,
             isIE: session.isIE,
+            seriesMode,
         };
         draw(param);
-    }, [dataListState, rangeAndDomain, theme, valueRange, hideLayer, colorPalette]);
+    }, [dataListState, rangeAndDomain, theme, valueRange, hideLayer, colorPalette, seriesMode]);
 
     const tooltipProp: TooltipProps<number[], number[][]> = {
         data: hoveredData,

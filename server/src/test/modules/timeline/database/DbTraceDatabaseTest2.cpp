@@ -2309,3 +2309,30 @@ TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenSIORetainsNameIdentity) {
     EXPECT_EQ(result->GetString("args"), "{\"Bandwidth(Byte/s)\":71}");
     EXPECT_FALSE(result->Next());
 }
+
+TEST_F(DbTraceDatabaseTest2, TestQueryUnitCounterWhenUBReturnsRxAndTx) {
+    std::recursive_mutex testMutex;
+    MockDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db,
+        "CREATE TABLE UB (deviceId NUMERIC,portId NUMERIC,timestampNs NUMERIC,rxUdmaBind NUMERIC,txUdmaBind NUMERIC)");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO UB (deviceId,portId,timestampNs,rxUdmaBind,txUdmaBind) VALUES (1,4,1000,11,22);");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO UB (deviceId,portId,timestampNs,rxUdmaBind,txUdmaBind) VALUES (1,5,1000,33,44);");
+    DatabaseTestCaseMockUtil::InsertData(
+        db, "INSERT INTO UB (deviceId,portId,timestampNs,rxUdmaBind,txUdmaBind) VALUES (2,4,1000,55,66);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.metaType = "UB";
+    params.threadId = "UB Port004";
+    params.startTime = 0;
+    params.endTime = 2000;
+    auto stmt = database.CreatPreparedStatement();
+    auto result = Dic::Protocol::TraceDatabaseHelper::QueryDeviceUnitCounter(stmt, params, 0, "1");
+    ASSERT_TRUE(result->Next());
+    EXPECT_EQ(result->GetString("args"), "{\"Rx Bandwidth(Byte/s)\":11,\"Tx Bandwidth(Byte/s)\":22}");
+    EXPECT_FALSE(result->Next());
+}
