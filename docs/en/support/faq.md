@@ -332,33 +332,7 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 
 5. If the keyword does not exist and the modification is ineffective, contact the MindStudio Insight tool contact for further diagnosis.
 
-## 17. What should I do if the Timeline display is abnormal for multiple JSON files in the same folder?
-
-**Symptom**
-
-When multiple JSON files are placed in the same folder, and you open multiple instances of MindStudio Insight to simultaneously view the Timeline pages corresponding to multiple JSON files, only one page displays correctly, while the other pages may show no display or display errors. Examples are as follows:
-
-No display
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/no-display.png)
-
-Display error
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/display-error.png)
-
-Example version number
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/version-example.png)
-
-**Cause Analysis**
-
-After parsing a JSON file, MindStudio Insight generates a DB file for subsequent queries. If multiple JSON files exist in the same directory, only one DB file is generated. As a result, the content of the file parsed later overwrites the content of the file parsed earlier, causing the previously opened file to display incorrect content.
-
-**Solution**
-
-Delete the DB file, place the JSON files in separate directories, and then re-import them.
-
-## 18. How can I view only text data when profiling both DB and text mixed data?
+## 17. How can I view only text data when profiling both DB and text mixed data?
 
 **Symptom**
 

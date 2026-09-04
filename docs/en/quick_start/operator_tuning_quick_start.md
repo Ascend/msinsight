@@ -29,7 +29,7 @@ This document is intended for developers who want to quickly experience the oper
 | Tool installation | MindStudio Insight has been installed. For the installation method, see [MindStudio Insight Installation Guide](../install_guide/mindstudio_insight_install_guide.md). |
 | Version compatibility | The versions of MindStudio Insight, CANN, and the collection tool must be compatible. For version relationships, see [Release Notes](../release_notes/release_notes.md). |
 | Sample data | The operator sample data provided in this document has been downloaded and is accessible locally. |
-| Data source | The sample data is collected by [msOpProf](https://gitcode.com/Ascend/msopprof) and includes on-board data and simulation data. |
+| Data source | The sample data is collected by [msOpProf](https://gitcode.com/Ascend/msopprof/blob/26.1.0/docs/en/quick_start/msopprof_quick_start.md) and includes on-board data and simulation data. |
 | Applicable scenario | Suitable for getting started with Ascend operator performance analysis, especially for learning the positioning relationships among the Details, Timeline, and Source tabs. |
 
 ### 1.3 Sample Data

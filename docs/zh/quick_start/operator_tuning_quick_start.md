@@ -24,7 +24,7 @@ MindStudio Insight 支持导入 [msOpProf](https://gitcode.com/Ascend/msopprof) 
 | 工具安装 | 已完成 MindStudio Insight 安装，安装方法请参见 [MindStudio Insight 安装指南](../install_guide/mindstudio_insight_install_guide.md)。 |
 | 版本配套 | MindStudio Insight、CANN 与采集工具版本需匹配，版本关系请参见 [版本发布说明](../release_notes/release_notes.md)。 |
 | 样例数据 | 已下载本文提供的算子样例数据，并能在本地访问。 |
-| 数据来源 | 样例数据由 [msOpProf](https://gitcode.com/Ascend/msopprof) 采集，包含上板数据和仿真数据。 |
+| 数据来源 | 样例数据由 [msOpProf](https://gitcode.com/Ascend/msopprof/blob/26.1.0/docs/zh/quick_start/msopprof_quick_start.md) 采集，包含上板数据和仿真数据。 |
 | 适用场景 | 适用于 Ascend 算子性能分析入门，尤其适合学习 Details、Timeline、Source 页签之间的定位关系。 |
 
 ### 1.3 样例数据
