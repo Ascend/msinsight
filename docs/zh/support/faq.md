@@ -328,33 +328,7 @@ WebSocket is already in CLOSING or CLOSED state! You are advised to restart Mind
 4. 若去掉该白名单后影响本地 Web 的一些访问，可以增加关键字![image.png](./figures/FAQ/MindStudio_Insight_Disconnect/localhost-keyword.png)，然后重新打开 MindStudio Insight 使用；
 5. 若不存在该关键字且修改后无效，请联系 MindStudio Insight 工具接口人进一步定位。
 
-## 17. 同一文件夹下多个 JSON 文件的 Timeline 显示异常怎么办？
-
-**问题现象**
-
-当在同一文件夹下放置多个 JSON 文件时，多开 MindStudio Insight 并同时查看多个 JSON 文件对应的 Timeline 页面时，会出现只有一个页面能显示正确的情况，其它页面会出现无显示或者显示错误的情况，举例如下：
-
-无显示
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/no-display.png)
-
-显示错误
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/display-error.png)
-
-示例版本号
-
-![](./figures/FAQ/Multiple_JSON_Timeline_Display_Error/version-example.png)
-
-**原因分析**
-
-MindStudio Insight 解析 JSON 文件后会生成 DB 文件，方便后续查询，如果一个目录下有多个 JSON 文件，仍然只会生成一个 DB 文件，所以后解析的文件内容会覆盖先解析的文件内容，导致先打开的文件内容不对。
-
-**解决方案**
-
-删除 DB 文件后，将多个 JSON 文件分开在不同文件夹下，重新导入。
-
-## 18. Profiling DB 与 text 数据混合时如何只查看 text 数据？
+## 17. Profiling DB 与 text 数据混合时如何只查看 text 数据？
 
 **问题现象**
 

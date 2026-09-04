@@ -2,7 +2,7 @@
 
 <!-- md-trans-meta sourceCommit=4d31aa7808cfa63b1e9a65d9252c982b334ca6f5 translatedAt=2026-08-12T11:44:14.805Z pushedAt=2026-08-12T11:57:31.124Z -->
 
-MindStudio Insight supports importing system profile data of models running on Ascend AI Processors, collected by the [msProf](https://gitcode.com/Ascend/msprof) tool. Based on the key performance metrics displayed, you can quickly identify software and hardware performance bottlenecks of the model and perform system performance tuning.
+MindStudio Insight supports importing system profile data of models running on Ascend AI Processors, collected by the [msProf](https://gitcode.com/Ascend/msprof/blob/26.1.0/docs/en/quick_start/msprof_quick_start.md) tool. Based on the key performance metrics displayed, you can quickly identify software and hardware performance bottlenecks of the model and perform system performance tuning.
 
 This document uses two-server 16-rank sample data as an example to demonstrate how to progressively locate system performance bottlenecks caused by fast/slow ranks (i.e., performance imbalance among ranks) from the **Summary**, **Communication**, and **Timeline** tabs.
 
