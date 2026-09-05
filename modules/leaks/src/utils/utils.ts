@@ -37,6 +37,8 @@ export const generateJsonShow = (text: string): string => {
     Object.keys(jsonObj).forEach((key: string) => { res += `${key}:${jsonObj[key]}\n`; });
     return res;
 };
+export const isHostMemoryEventType = (eventType: string): boolean =>
+    eventType === 'HOST' || eventType === 'HOST_PINNED';
 export const convertNanoseconds = (totalNs: number): string => {
     const seconds = Math.floor(totalNs / 1e9);
     const remainingAfterSeconds = totalNs % 1e9;

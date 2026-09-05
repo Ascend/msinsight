@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include <filesystem>
 #include <gtest/gtest.h>
 #include <WsSessionManager.h>
 #include "WsSessionImpl.h"
@@ -40,7 +41,12 @@ class MemScopeRequestHandlerTest : public ::testing::Test {
     static const uint64_t SECOND = 1000000000;
     static const uint64_t INT64MAX = INT64_MAX;
     static void SetUpTestSuite() {
-        std::string dbPath = TestSuit::GetTestDataFile("memscope", "host_pinned", "memscope_dump_20260527062213.db");
+        std::string srcPath = TestSuit::GetTestDataFile("memscope", "host_pinned", "memscope_dump_20260527062213.db");
+        const auto workDir = std::filesystem::temp_directory_path() / "memscope_host_pinned_handler_test";
+        std::filesystem::create_directories(workDir);
+        const auto dest = workDir / "memscope_dump_20260527062213.db";
+        std::filesystem::copy_file(srcPath, dest, std::filesystem::copy_options::overwrite_existing);
+        std::string dbPath = dest.string();
         auto memoryDatabase = DataBaseManager::Instance().GetMemScopeDatabase("0");
         ASSERT_TRUE(memoryDatabase != nullptr);
         ASSERT_TRUE(memoryDatabase->OpenDb(dbPath, false));
@@ -127,7 +133,7 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsAddsTailStepForHostPinn
     std::unique_ptr<Dic::Protocol::MemScopeMemoryAllocationRequest> requestPtr =
         std::make_unique<Dic::Protocol::MemScopeMemoryAllocationRequest>();
     requestPtr->params.deviceId = "cpu";
-    requestPtr->params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    requestPtr->params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
     requestPtr->params.relativeTime = true;
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     bool result = handler.HandleRequest(std::move(requestPtr));
@@ -138,7 +144,7 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryAllocationsAddsTailStepForHostPinn
 
     MemScopeMemoryAllocationParams params;
     params.deviceId = "cpu";
-    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
     params.relativeTime = true;
 
     std::vector<MemoryAllocation> allocations;
@@ -156,7 +162,7 @@ TEST_F(MemScopeRequestHandlerTest, PaddingAllocationsKeepsFlatLineWhenRangeHasNo
 
     MemScopeMemoryAllocationParams params;
     params.deviceId = "cpu";
-    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
     params.relativeTime = true;
 
     std::vector<MemoryAllocation> allAllocations;
@@ -186,7 +192,7 @@ TEST_F(MemScopeRequestHandlerTest, PaddingAllocationsDoesNotDuplicateExactBounda
 
     MemScopeMemoryAllocationParams params;
     params.deviceId = "cpu";
-    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
     params.relativeTime = true;
 
     std::vector<MemoryAllocation> allAllocations;
@@ -216,7 +222,7 @@ TEST_F(MemScopeRequestHandlerTest, PaddingAllocationsUsesRelativeSessionBoundsWi
 
     MemScopeMemoryAllocationParams params;
     params.deviceId = "cpu";
-    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
     params.relativeTime = true;
 
     std::vector<MemoryAllocation> allocations;
@@ -375,7 +381,7 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailAcceptsHostPinnedEventType) 
 
     MemScopeMemoryAllocationParams params;
     params.deviceId = "cpu";
-    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
     params.relativeTime = true;
     std::vector<MemoryAllocation> allocations;
     memoryDatabase->QueryMemoryAllocations(params, allocations);
@@ -386,7 +392,7 @@ TEST_F(MemScopeRequestHandlerTest, QueryMemoryDetailAcceptsHostPinnedEventType) 
         std::make_unique<Dic::Protocol::MemScopeMemoryDetailRequest>();
     requestPtr->moduleName = Protocol::MODULE_MEMORY;
     requestPtr->params.deviceId = "cpu";
-    requestPtr->params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    requestPtr->params.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
     requestPtr->params.timestamp = allocations.front().timestamp;
     requestPtr->params.relativeTime = true;
     bool result = handler.HandleRequest(std::move(requestPtr));

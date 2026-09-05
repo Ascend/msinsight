@@ -211,6 +211,22 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         expect(view.queryByTestId('allocationLineLegend')).toBeNull();
     });
 
+    it('labels the reserved allocation line as host used for HOST event types', () => {
+        const session = new Session();
+        session.module = 'leaks'; session.fileHash = 'host'; session.deviceId = 'cpu'; session.eventType = 'HOST';
+        session.allocationData.allocationLineAvailability = {
+            reservedLine: true,
+            processUsedLine: true,
+            deviceUsedLine: false,
+        };
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
+
+        expect(view.getByText('hostUsedLineLegend')).toBeTruthy();
+        expect(view.queryByText('reservedLineLegend')).toBeNull();
+        expect(view.getByText('processUsedLineLegend')).toBeTruthy();
+        expect(view.queryByText('deviceUsedLineLegend')).toBeNull();
+    });
+
     it('restores MemScope lifecycle view state when the imported data context changes', () => {
         const session = new Session();
         session.module = 'memsnapshot'; session.fileHash = 'snapshot-a'; session.deviceId = '0'; session.eventType = 'malloc';

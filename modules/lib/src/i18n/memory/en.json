@@ -83,6 +83,7 @@
       "GE Reserved": "GE Reserved",
       "GE Activated": "GE Activated",
       "APP Reserved": "APP Reserved",
+      "HOST": "Host Memory",
       "HOST_PINNED": "Host Pinned Memory",
       "START_TRACE": "Trace Start",
       "STOP_TRACE": "Trace Stop",

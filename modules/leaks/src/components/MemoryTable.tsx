@@ -23,6 +23,7 @@ import { runInAction } from 'mobx';
 import { observer } from 'mobx-react';
 import { Radio, Button, Checkbox } from '@insight/lib/components';
 import { Session } from '../entity/session';
+import { isHostMemoryEventType } from '../utils/utils';
 import BlocksTable from './BlocksTable';
 import EventsTable from './EventsTable';
 import ThresholdModal from './ThresholdModal';
@@ -32,7 +33,7 @@ const MemoryTable = observer(({ session, height }: { session: Session; height?: 
     const { t } = useTranslation('leaks');
     const { tableType, module, eventType, autoFilterPotentialLeaks } = session;
     const [open, setOpen] = useState(false);
-    const supportsInefficientFilter = eventType !== 'HOST_PINNED';
+    const supportsInefficientFilter = !isHostMemoryEventType(eventType);
     const closeAutoFilter = (): void => {
         runInAction(() => {
             session.autoFilterPotentialLeaks = false;

@@ -25,7 +25,7 @@ import MemorySliceChart from './MemorySliceChart';
 import MemoryFunctionCall from './MemoryFunctionCall';
 import { Label } from './Common';
 import { getFuncNewData, getBarNewData, getBlockTableData, getEventTableData, getPotentialLeakStats } from './dataHandler';
-import { convertNanoseconds } from '../utils/utils';
+import { convertNanoseconds, isHostMemoryEventType } from '../utils/utils';
 import { MemoryBlockDiagram } from './leaks/MemoryBlockDiagram';
 import { getInitialZoomDomain } from './leaks/zoomDomain';
 import MemoryDataZoom from './MemoryDataZoom';
@@ -324,7 +324,7 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                     </div>
                 </CollapsiblePanel>
             </div>
-            {session.memoryStamp && session.module === 'leaks' && session.eventType !== 'HOST_PINNED'
+            {session.memoryStamp && session.module === 'leaks' && !isHostMemoryEventType(session.eventType)
                 ? (
                     <CollapsiblePanel title={t('DetailsDiagram')} collapsible style={{ minWidth: 1000 }}>
                         <div id="detailsContent" style={{ position: 'relative' }}>

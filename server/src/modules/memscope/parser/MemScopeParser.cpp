@@ -109,7 +109,10 @@ bool MemScopeParser::ParseMemoryMemScopeDumpEventsAndPythonTraces(const std::str
         return false;
     }
     // 解析memscope_dump中的内存事件，生成memory_block及memory_allocation
-    ParseEventsToBlockAndAllocations(*context);
+    if (!ParseEventsToBlockAndAllocations(*context)) {
+        Server::ServerLog::Error("Parse failed: parse events to blocks and allocations failed.");
+        return false;
+    }
     // 解析pythonTrace
     std::vector<uint64_t> threadIds;
     database->QueryThreadIds(threadIds);
@@ -148,10 +151,54 @@ uint64_t SafeCalculateAllocationSize(uint64_t currentSize, int64_t eventSize) {
     return 0;
 }
 
-void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext &context) {
+namespace {
+bool RewriteHostDumpEvents(ParseEventContext &context) {
+    std::vector<MemScopeEvent> rewritten;
+    for (auto &event : context.events) {
+        const bool typeChanged = NormalizeLegacyHostPinnedEvent(event);
+        const bool usageChanged = NormalizeHostUsageAttr(event);
+        if (typeChanged || usageChanged) {
+            rewritten.push_back(event);
+        }
+    }
+    if (rewritten.empty()) {
+        return true;
+    }
+    if (context.db == nullptr) {
+        Server::ServerLog::Error("Cannot rewrite HOST dump events: invalid db connections.");
+        return false;
+    }
+    if (!context.db->UpdateDumpEventsTypeAndAttr(rewritten)) {
+        Server::ServerLog::Error("Failed to rewrite % HOST dump events.", rewritten.size());
+        return false;
+    }
+    return true;
+}
+
+void FillAllocationUsage(const MemScopeEvent &event, const MallocFreeEventAttrs &eventAttrs, uint64_t &reservedSize,
+    uint64_t &processUsed, uint64_t &deviceUsed) {
+    // HOST：used→累计用量折线（旧 total 已在 NormalizeHostUsageAttr 中刷入 used）；process_used→进程占用。
+    // 无 used / process_used 时对应折线为空。非 HOST 仍用 total 作为 PTA 缓存池大小。
+    processUsed = eventAttrs.processUsed;
+    if (event.eventType == MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST) {
+        reservedSize = eventAttrs.used;
+        deviceUsed = 0;
+        return;
+    }
+    reservedSize = eventAttrs.total;
+    deviceUsed = eventAttrs.deviceUsed;
+}
+}
+
+bool MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext &context) {
     if (context.db == nullptr) {
         Server::ServerLog::Error("Cannot parse event to blocks and allocations: invalid db connections");
-        return;
+        return false;
+    }
+    // dump 表刷写失败时不得生成 HOST 派生表或标记 FINISH，否则类型选择器与 allocation 分裂且无法自愈。
+    if (!RewriteHostDumpEvents(context)) {
+        Server::ServerLog::Error("Parse failed: rewrite HOST dump events failed.");
+        return false;
     }
     for (auto &event : context.events) {
         if (!context.CheckDeviceIdValid(event.deviceId)) {
@@ -171,15 +218,19 @@ void MemScopeParser::ParseEventsToBlockAndAllocations(ParseEventContext &context
         }
         context.deviceTotalSize[event.deviceId + event.eventType] =
             SafeCalculateAllocationSize(context.deviceTotalSize[event.deviceId + event.eventType], eventAttrs->size);
-        // 构造allocation折线图元素；reserved/process/device 来自当次事件 Attr usage
+        uint64_t reservedSize = 0;
+        uint64_t processUsed = 0;
+        uint64_t deviceUsed = 0;
+        FillAllocationUsage(event, *eventAttrs, reservedSize, processUsed, deviceUsed);
         MemoryAllocation allocation(event.timestamp, context.deviceTotalSize[event.deviceId + event.eventType],
-            event.deviceId, event.eventType, false, eventAttrs->total, eventAttrs->processUsed, eventAttrs->deviceUsed);
+            event.deviceId, event.eventType, false, reservedSize, processUsed, deviceUsed);
         context.db->InsertMemoryAllocation(allocation);
     }
     ParseRemainMallocEvents(context);
     context.db->FlushMemoryBlocksCache();
     context.db->FlushMemoryAllocationsCache();
     context.db->UpdateParseStatus(FINISH_STATUS);
+    return true;
 }
 
 bool MemScopeParser::ParseThreadPythonTrace(MemScopePythonTrace &trace, ParseEventContext &context) {

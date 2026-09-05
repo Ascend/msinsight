@@ -87,6 +87,7 @@ class MemScopeDatabase : public Database {
     void FlushMemoryBlocksCache();
     void FlushMemoryAllocationsCache();
     void FlushPythonTraceCache();
+    bool UpdateDumpEventsTypeAndAttr(const std::vector<MemScopeEvent> &events);
     uint64_t GetGlobalMinTimestamp() const;
     uint64_t GetGlobalMaxTimestamp() const;
 
