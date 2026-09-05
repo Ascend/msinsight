@@ -48,7 +48,7 @@ class MemScopeParser {
     static std::optional<ParseEventContext> BuildParseContext(std::shared_ptr<FullDb::MemScopeDatabase> &db);
     static bool ParseMemoryMemScopeDumpEventsAndPythonTraces(const std::string &fileId);
 
-    static void ParseEventsToBlockAndAllocations(ParseEventContext &context);
+    static bool ParseEventsToBlockAndAllocations(ParseEventContext &context);
 
     // 传入slices必须为已按照startTimestamp升序排序的数组
     static bool ParseThreadPythonTrace(MemScopePythonTrace &trace, ParseEventContext &context);

@@ -62,6 +62,10 @@ class MemScopeServiceTest : public ::testing::Test {
 
 TEST_F(MemScopeServiceTest, IsValidMemoryEventTypeAcceptsHostPinnedAndTraceLifecycleEvents) {
     EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
+        MEM_SCOPE_DUMP_EVENT::MALLOC, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST));
+    EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
+        MEM_SCOPE_DUMP_EVENT::FREE, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST));
+    EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
         MEM_SCOPE_DUMP_EVENT::MALLOC, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED));
     EXPECT_TRUE(MemScopeService::IsValidMemoryEventType(
         MEM_SCOPE_DUMP_EVENT::FREE, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED));

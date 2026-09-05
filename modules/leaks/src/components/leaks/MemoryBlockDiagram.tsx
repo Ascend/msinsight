@@ -78,6 +78,7 @@ import {
     type LifecycleGraphLayerVisibility,
 } from './LifecycleGraphLayerPanel';
 import { ALLOCATION_LINE_STYLES } from '../../leaksWorker/blockWorker/allocationLineStyles';
+import { isHostMemoryEventType } from '../../utils/utils';
 
 const BASE_MOVE_STEP = 5;
 const TOOLBAR_HEIGHT = 36;
@@ -222,7 +223,12 @@ export const MemoryBlockDiagram = observer(({
     });
     const visibleAllocationLineStyles = ALLOCATION_LINE_STYLES.filter(
         style => session.allocationData.allocationLineAvailability?.[style.key] === true,
-    );
+    ).map(style => (
+        // HOST 的 reservedLine 存的是 used（采集累计用量），不是 PTA 缓存；旧版 total 已在解析时刷为 used。
+        style.key === 'reservedLine' && isHostMemoryEventType(session.eventType)
+            ? { ...style, labelKey: 'hostUsedLineLegend' }
+            : style
+    ));
     const layerVisibilityRef = useRef(layerVisibility);
     const isDragging = useRef(false);
     const isClick = useRef(false);

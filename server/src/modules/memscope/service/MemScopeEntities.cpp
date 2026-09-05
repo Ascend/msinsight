@@ -135,6 +135,76 @@ void MallocFreeEventAttrs::SetByJson(const json_t &json) {
     owner = JsonUtil::GetString(json, BLOCK_EVENT_ATTR_OWNER_FIELD);
 }
 
+namespace {
+const std::string PINNED_TRUE_VALUE = "true";
+
+std::string BuildPinnedTrueAttrObject() {
+    document_t doc(kObjectType);
+    JsonUtil::AddConstMember(doc, BLOCK_EVENT_ATTR_PINNED_FIELD, PINNED_TRUE_VALUE, doc.GetAllocator());
+    return JsonUtil::JsonDump(doc);
+}
+
+std::string EnsurePinnedTrueAttr(const std::string &attrJson) {
+    if (attrJson.empty()) {
+        return BuildPinnedTrueAttrObject();
+    }
+    std::string error;
+    auto jsonDoc = JsonUtil::TryParse(attrJson, error);
+    if (!jsonDoc.has_value() || !jsonDoc->IsObject()) {
+        Server::ServerLog::Warn("Failed to parse HOST_PINNED event attr, rebuild pinned attr: ", error);
+        return BuildPinnedTrueAttrObject();
+    }
+    auto &json = jsonDoc.value();
+    if (json.HasMember(BLOCK_EVENT_ATTR_PINNED_FIELD.c_str())) {
+        json[BLOCK_EVENT_ATTR_PINNED_FIELD.c_str()].SetString(PINNED_TRUE_VALUE.c_str(), json.GetAllocator());
+    } else {
+        JsonUtil::AddConstMember(json, BLOCK_EVENT_ATTR_PINNED_FIELD, PINNED_TRUE_VALUE, json.GetAllocator());
+    }
+    return JsonUtil::JsonDump(json);
+}
+}
+
+bool NormalizeLegacyHostPinnedEvent(MemScopeEvent &event) {
+    if (event.eventType != MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED) {
+        return false;
+    }
+    if (event.event != MEM_SCOPE_DUMP_EVENT::MALLOC && event.event != MEM_SCOPE_DUMP_EVENT::FREE) {
+        return false;
+    }
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
+    event.attr = EnsurePinnedTrueAttr(event.attr);
+    return true;
+}
+
+bool NormalizeHostUsageAttr(MemScopeEvent &event) {
+    if (event.eventType != MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST) {
+        return false;
+    }
+    if (event.event != MEM_SCOPE_DUMP_EVENT::MALLOC && event.event != MEM_SCOPE_DUMP_EVENT::FREE) {
+        return false;
+    }
+    if (event.attr.empty()) {
+        return false;
+    }
+    std::string error;
+    auto jsonDoc = JsonUtil::TryParse(event.attr, error);
+    if (!jsonDoc.has_value() || !jsonDoc->IsObject()) {
+        return false;
+    }
+    auto &json = jsonDoc.value();
+    if (!json.HasMember(BLOCK_EVENT_ATTR_TOTAL_FIELD.c_str())) {
+        return false;
+    }
+    if (JsonUtil::GetString(json, BLOCK_EVENT_ATTR_USED_FIELD).empty()) {
+        const std::string totalValue = JsonUtil::GetString(json, BLOCK_EVENT_ATTR_TOTAL_FIELD);
+        json.RemoveMember(BLOCK_EVENT_ATTR_USED_FIELD.c_str());
+        JsonUtil::AddConstMember(json, BLOCK_EVENT_ATTR_USED_FIELD, totalValue, json.GetAllocator());
+    }
+    json.RemoveMember(BLOCK_EVENT_ATTR_TOTAL_FIELD.c_str());
+    event.attr = JsonUtil::JsonDump(json);
+    return true;
+}
+
 void AccessEventAttrs::SetByJson(const json_t &json) {
     MemoryEventBaseAttrs::SetByJson(json);
     type = JsonUtil::GetString(json, ACCESS_EVENT_ATTR_TYPE);

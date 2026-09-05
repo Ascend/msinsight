@@ -1254,6 +1254,59 @@ void MemScopeDatabase::FlushPythonTraceCache() {
     }
 }
 
+bool MemScopeDatabase::UpdateDumpEventsTypeAndAttr(const std::vector<MemScopeEvent> &events) {
+    if (events.empty()) {
+        return true;
+    }
+    std::string sql = StringUtil::FormatString(
+        "UPDATE {} SET {} = ?, {} = ? WHERE {} = ?;", memScopeDumpTable, EVENT::EVENT_TYPE, EVENT::ATTR, EVENT::ID);
+    sqlite3_stmt *stmt = nullptr;
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (result != SQLITE_OK) {
+        ServerLog::Error(
+            "Failed to prepare update dump event sql. table=%, Error: %", memScopeDumpTable, sqlite3_errmsg(db));
+        return false;
+    }
+    if (!ExecSql("BEGIN TRANSACTION;")) {
+        ServerLog::Error(
+            "An error occurred while begin the transaction. table=%, Error: %", memScopeDumpTable, sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    for (const auto &event : events) {
+        int idx = bindStartIndex;
+        sqlite3_bind_text(stmt, idx++, event.eventType.c_str(), event.eventType.length(), SQLITE_TRANSIENT);
+        sqlite3_bind_text(stmt, idx++, event.attr.c_str(), event.attr.length(), SQLITE_TRANSIENT);
+        sqlite3_bind_int64(stmt, idx++, event.id > INT64_MAX ? INT64_MAX : event.id);
+        result = sqlite3_step(stmt);
+        if (result != SQLITE_DONE) {
+            ServerLog::Error(
+                "Failed to update dump event id %. table=%, Error: %", event.id, memScopeDumpTable, sqlite3_errmsg(db));
+            if (!ExecSql("ROLLBACK;")) {
+                ServerLog::Error("An error occurred while rolling back the transaction. table=%, Error: %",
+                    memScopeDumpTable, sqlite3_errmsg(db));
+            }
+            sqlite3_finalize(stmt);
+            return false;
+        }
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+    }
+    if (!ExecSql("COMMIT;")) {
+        ServerLog::Error(
+            "An error occurred while commit the transaction. table=%, Error: %", memScopeDumpTable, sqlite3_errmsg(db));
+        if (!ExecSql("ROLLBACK;")) {
+            ServerLog::Error("An error occurred while rolling back the transaction. table=%, Error: %",
+                memScopeDumpTable, sqlite3_errmsg(db));
+        }
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    sqlite3_finalize(stmt);
+    return true;
+}
+
 bool MemScopeDatabase::QueryAndSetGlobalExtremumTimestamp() {
     std::string queryEventExTSSql = StringUtil::FormatString("SELECT MIN({}), MAX({}) FROM {} WHERE {} != 'N/A';",
         EVENT::TIMESTAMP, EVENT::TIMESTAMP, memScopeDumpTable, EVENT::TIMESTAMP);

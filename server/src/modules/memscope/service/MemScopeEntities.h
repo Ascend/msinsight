@@ -79,6 +79,7 @@ inline const std::string BLOCK_EVENT_ATTR_USED_FIELD = "used";
 inline const std::string BLOCK_EVENT_ATTR_PROCESS_USED_FIELD = "process_used";
 inline const std::string BLOCK_EVENT_ATTR_DEVICE_USED_FIELD = "device_used";
 inline const std::string BLOCK_EVENT_ATTR_GROUP_ID_FIELD = "allocation_id";
+inline const std::string BLOCK_EVENT_ATTR_PINNED_FIELD = "pinned";
 inline const std::string ACCESS_EVENT_ATTR_TYPE = "type";
 inline const std::string ACCESS_EVENT_ATTR_DTYPE = "dtype";
 inline const std::string ACCESS_EVENT_ATTR_SHAPE = "shape";
@@ -107,6 +108,23 @@ struct AccessEventAttrs : public MemoryEventBaseAttrs {
 
     void SetByJson(const json_t &json) override;
 };
+
+/***
+ * 将旧版 HOST_PINNED 的 MALLOC/FREE 刷为 HOST，并确保 Attr 含 pinned=true。
+ * 导入仍接受 HOST_PINNED；解析后 Event View / 类型选择器与 block、allocation 统一为 HOST。
+ * Attr 无法解析时以空 Object 重建 {"pinned":"true"}。
+ * @return 发生刷写时为 true
+ */
+bool NormalizeLegacyHostPinnedEvent(MemScopeEvent &event);
+
+/***
+ * HOST 用量字段兼容：旧版 Attr.total 等价于新版 used（采集生命周期内 Host 累计申请）。
+ * 无 used 时 total→used；已有 used 则保留 used。两种情况都删除 total。
+ * 新版 HOST（无论是否 pinned）只有 used 与 process_used，不再有 total。
+ * process_used 为 GetProcessVmRss 的进程实际占用，与采集窗口无关；缺失时不补。
+ * @return Attr 发生变化时为 true
+ */
+bool NormalizeHostUsageAttr(MemScopeEvent &event);
 
 /***
  * 从json字符串构建EventAttrs

@@ -138,6 +138,7 @@
     "memoryBlockLayer": "内存块",
     "memoryOverviewLayer": "内存使用折线",
     "reservedLineLegend": "PTA缓存池大小",
+    "hostUsedLineLegend": "Host累计用量",
     "processUsedLineLegend": "进程占用",
     "deviceUsedLineLegend": "设备占用",
     "memoryMarkerLayer": "差值标记",

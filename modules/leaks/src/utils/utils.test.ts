@@ -7,7 +7,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { formatBytes, formatBytesWithFullPrecision, formatBytesWithTruncatedPrecision } from './utils';
+import { formatBytes, formatBytesWithFullPrecision, formatBytesWithTruncatedPrecision, isHostMemoryEventType } from './utils';
 
 jest.mock('@insight/lib/utils', () => ({
     safeJSONParse: (value: string) => JSON.parse(value),
@@ -29,5 +29,13 @@ describe('byte formatting', () => {
 
     it('omits the ellipsis when the value has no precision to hide', () => {
         expect(formatBytesWithTruncatedPrecision(1024)).toBe('1.000 KB');
+    });
+});
+
+describe('isHostMemoryEventType', () => {
+    it('treats HOST and legacy HOST_PINNED as host memory', () => {
+        expect(isHostMemoryEventType('HOST')).toBe(true);
+        expect(isHostMemoryEventType('HOST_PINNED')).toBe(true);
+        expect(isHostMemoryEventType('PTA')).toBe(false);
     });
 });

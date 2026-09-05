@@ -83,6 +83,7 @@
       "GE Reserved": "GE保留",
       "GE Activated": "GE持有",
       "APP Reserved": "进程保留",
+      "HOST": "Host内存",
       "HOST_PINNED": "Host锁页内存",
       "START_TRACE": "采集开始",
       "STOP_TRACE": "采集结束",

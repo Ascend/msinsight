@@ -138,6 +138,7 @@
     "memoryBlockLayer": "Memory blocks",
     "memoryOverviewLayer": "Memory usage lines",
     "reservedLineLegend": "Reserved",
+    "hostUsedLineLegend": "Host Accumulated Used",
     "processUsedLineLegend": "Process Used",
     "deviceUsedLineLegend": "Device Used",
     "memoryMarkerLayer": "Difference markers",

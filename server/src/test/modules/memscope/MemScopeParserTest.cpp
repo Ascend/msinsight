@@ -17,6 +17,7 @@
  */
 #include "MemScopeAllocationDataProcessor.h"
 #include "MemScopeParser.h"
+#include "JsonUtil.h"
 #include "../../TestSuit.h"
 
 using namespace Dic::Module;
@@ -37,6 +38,134 @@ class MemScopeParserTest : public ::testing::Test {
         DataBaseManager::Instance().Clear();
     }
 };
+
+TEST_F(MemScopeParserTest, NormalizeLegacyHostPinnedRewritesTypeAndAddsPinnedTrue) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    event.attr = R"({"allocation_id":"4","addr":"0x1","size":"8"})";
+    EXPECT_TRUE(NormalizeLegacyHostPinnedEvent(event));
+    EXPECT_EQ(event.eventType, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST);
+    std::string error;
+    auto attrsJson = JsonUtil::TryParse(event.attr, error);
+    ASSERT_TRUE(attrsJson.has_value());
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_PINNED_FIELD), "true");
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_SIZE_FIELD), "8");
+}
+
+TEST_F(MemScopeParserTest, NormalizeLegacyHostPinnedSkipsNativeHostEvents) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
+    event.attr = R"({"allocation_id":"1","addr":"0x1","size":"8","total":"8"})";
+    const std::string originalAttr = event.attr;
+    EXPECT_FALSE(NormalizeLegacyHostPinnedEvent(event));
+    EXPECT_EQ(event.eventType, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST);
+    EXPECT_EQ(event.attr, originalAttr);
+}
+
+TEST_F(MemScopeParserTest, NormalizeLegacyHostPinnedAddsPinnedWhenAttrEmpty) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::FREE;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    event.attr = "";
+    EXPECT_TRUE(NormalizeLegacyHostPinnedEvent(event));
+    EXPECT_EQ(event.eventType, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST);
+    std::string error;
+    auto attrsJson = JsonUtil::TryParse(event.attr, error);
+    ASSERT_TRUE(attrsJson.has_value());
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_PINNED_FIELD), "true");
+}
+
+TEST_F(MemScopeParserTest, NormalizeLegacyHostPinnedRebuildsPinnedWhenAttrInvalid) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    event.attr = "{]";
+    EXPECT_TRUE(NormalizeLegacyHostPinnedEvent(event));
+    EXPECT_EQ(event.eventType, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST);
+    std::string error;
+    auto attrsJson = JsonUtil::TryParse(event.attr, error);
+    ASSERT_TRUE(attrsJson.has_value());
+    EXPECT_TRUE(attrsJson->IsObject());
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_PINNED_FIELD), "true");
+}
+
+TEST_F(MemScopeParserTest, NormalizeLegacyHostPinnedSkipsNonMallocFreeEvents) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::SYSTEM;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    event.attr = R"({"size":"8"})";
+    const std::string originalAttr = event.attr;
+    EXPECT_FALSE(NormalizeLegacyHostPinnedEvent(event));
+    EXPECT_EQ(event.eventType, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED);
+    EXPECT_EQ(event.attr, originalAttr);
+}
+
+TEST_F(MemScopeParserTest, NormalizeHostUsageAttrMigratesLegacyTotalToUsed) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
+    event.attr = R"({"allocation_id":"1","size":"8","total":"12"})";
+    EXPECT_TRUE(NormalizeHostUsageAttr(event));
+    std::string error;
+    auto attrsJson = JsonUtil::TryParse(event.attr, error);
+    ASSERT_TRUE(attrsJson.has_value());
+    EXPECT_FALSE(attrsJson->HasMember(BLOCK_EVENT_ATTR_TOTAL_FIELD.c_str()));
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_USED_FIELD), "12");
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_SIZE_FIELD), "8");
+}
+
+TEST_F(MemScopeParserTest, NormalizeHostUsageAttrKeepsUsedAndDropsTotal) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::FREE;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
+    event.attr = R"({"size":"8","used":"16","total":"12","process_used":"100"})";
+    EXPECT_TRUE(NormalizeHostUsageAttr(event));
+    std::string error;
+    auto attrsJson = JsonUtil::TryParse(event.attr, error);
+    ASSERT_TRUE(attrsJson.has_value());
+    EXPECT_FALSE(attrsJson->HasMember(BLOCK_EVENT_ATTR_TOTAL_FIELD.c_str()));
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_USED_FIELD), "16");
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_PROCESS_USED_FIELD), "100");
+}
+
+TEST_F(MemScopeParserTest, NormalizeHostUsageAttrSkipsWhenTotalAbsent) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST;
+    event.attr = R"({"size":"8","used":"16","process_used":"100"})";
+    const std::string originalAttr = event.attr;
+    EXPECT_FALSE(NormalizeHostUsageAttr(event));
+    EXPECT_EQ(event.attr, originalAttr);
+}
+
+TEST_F(MemScopeParserTest, NormalizeHostUsageAttrSkipsNonHostEvents) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_PTA;
+    event.attr = R"({"size":"8","total":"12"})";
+    const std::string originalAttr = event.attr;
+    EXPECT_FALSE(NormalizeHostUsageAttr(event));
+    EXPECT_EQ(event.attr, originalAttr);
+}
+
+TEST_F(MemScopeParserTest, NormalizeLegacyHostPinnedMigratesTotalAfterTypeRewrite) {
+    MemScopeEvent event;
+    event.event = MEM_SCOPE_DUMP_EVENT::MALLOC;
+    event.eventType = MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST_PINNED;
+    event.attr = R"({"allocation_id":"4","size":"8","total":"12"})";
+    EXPECT_TRUE(NormalizeLegacyHostPinnedEvent(event));
+    EXPECT_TRUE(NormalizeHostUsageAttr(event));
+    EXPECT_EQ(event.eventType, MEM_SCOPE_DUMP_EVENT_TYPE::MALLOC_FREE_HOST);
+    std::string error;
+    auto attrsJson = JsonUtil::TryParse(event.attr, error);
+    ASSERT_TRUE(attrsJson.has_value());
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_PINNED_FIELD), "true");
+    EXPECT_FALSE(attrsJson->HasMember(BLOCK_EVENT_ATTR_TOTAL_FIELD.c_str()));
+    EXPECT_EQ(JsonUtil::GetString(attrsJson.value(), BLOCK_EVENT_ATTR_USED_FIELD), "12");
+}
 
 TEST_F(MemScopeParserTest, BuildBlockEventAttrFromEventWithEmptyAttr) {
     MemScopeEvent event;
@@ -87,7 +216,7 @@ TEST_F(MemScopeParserTest, TestParseEventsToAllocationsAndBlocks) {
     const size_t expectAllocationSize = 6534;
     auto context = MemScopeParser::BuildParseContext(memoryDatabase);
     EXPECT_TRUE(context.has_value());
-    MemScopeParser::ParseEventsToBlockAndAllocations(*context);
+    EXPECT_TRUE(MemScopeParser::ParseEventsToBlockAndAllocations(*context));
     // 校验blocks
     MemScopeMemoryBlockParams blockParams;
     blockParams.deviceId = "1";
