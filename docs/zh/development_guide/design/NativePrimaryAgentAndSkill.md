@@ -1,10 +1,10 @@
 # Native Primary Agent 与 Skill 架构设计
 
-> 状态：设计已确认，按本文实施。本文只适用于 `msinsight-native`；OpenCode、Claude Code、Codex 等外部 ACP Runtime 保持现有行为。
+> 状态：设计已确认，按本文实施。本文定义 `msinsight-native` 内部行为；安装包 Skill 向其他 Runtime 的交付见[安装包 Skill 的 Runtime 原生发现集成](./PackagedSkillIntegration.md)。
 
 ## 1. 背景
 
-`msinsight-native` 当前有固定系统提示词和 `msinsight` Native Tool。Web Agent 已能扫描 `skills/<name>/SKILL.md`，但只在用户输入 `/skill-name` 时把 Skill 全文注入当前 Prompt，不具备 Agent 自主发现和按需加载能力。
+`msinsight-native` 原先只有固定系统提示词和 `msinsight` Native Tool；旧 Web Agent 仅在用户输入 `/skill-name` 时扫描 `skills/<name>/SKILL.md` 并把全文注入当前 Prompt，不具备 Agent 自主发现和按需加载能力。该 Host 注入路线现已由 Runtime 原生发现取代。
 
 PyTorch Snapshot 分析包采用 OpenCode 的目录模型：
 
@@ -187,7 +187,7 @@ Host System Prompt
 Primary Agent Markdown 正文
 ```
 
-Host System Prompt 优先来自 Web Server 的 `insight-system-prompt://project` ACP resource；resource 缺失时兼容读取 Agent workspace 中的 `AGENTS.md`/`CLAUDE.md`。Host 与 Agent 指令都只能追加行为，不能覆盖产品基础规则和 Tool 硬策略。
+Host System Prompt 优先来自 Web Server 的 `insight-system-prompt://project` ACP resource；resource 缺失时兼容读取所有正式 Runtime 共用的 Agent workspace 中的 `AGENTS.md`/`CLAUDE.md`。Host 与 Agent 指令都只能追加行为，不能覆盖产品基础规则和 Tool 硬策略。
 
 产品基础 Prompt 定义：
 
@@ -351,7 +351,7 @@ normalizedCommandRule
 
 - 使用 Native 实现的受控前台 `Bash`，不提供后台执行；
 - 输入校验拒绝 `run_in_background: true`；
-- 默认 `cwd` 为 Agent workspace，显式 `cwd` 必须位于 Session 文件系统 roots；
+- 默认 `cwd` 为所有正式 Runtime 共用的 Agent workspace，显式 `cwd` 必须位于 Session 文件系统 roots；
 - 不允许覆盖环境变量；
 - 默认超时 30 秒，最大 5 分钟；
 - 不支持要求 stdin、TTY、密码或交互确认的命令；
@@ -473,8 +473,8 @@ BASH_INVALID_CWD
 
 - Native v2 Session 未指定 `primaryAgentId` 时使用 `general`；
 - v1 `sessions.json` 不加载、不迁移；
-- 现有外部 ACP Agent 不受影响；
-- 现有 `/skill-name` Web Server 注入可暂时保留给外部 ACP Agent，`msinsight-native` 使用受控 `skill` adapter；
+- 外部 ACP Agent 与 Native 共用同一 Agent workspace 和 `.agents/skills/` 实体目录；Claude Code 通过 `.claude/skills` 目录链接发现同一份安装包 Skill；
+- Web Server 不再读取、注入 Skill 正文或转换调用语法；所有 Prompt 原样下发，Skill 调用和正文加载由 Runtime 自身处理；
 - 当前固定 Native 领域行为迁入 `general.md`，产品安全基础仍保留在代码/产品 Prompt；
 - Native Session 使用 `sessions/<sessionId>.jsonl` v3 metadata sidecar；消息与工具历史由 AI SDK runtime 持久化（`ai-sdk/sessions/<sessionId>.json`），加载后投影为 UI `content[]`；旧 `sessions.json` 和 v2 message JSONL 不加载、不迁移；
 - Build Server 必须同时打包 `agents/` 和 `skills/`。

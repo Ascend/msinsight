@@ -20,7 +20,7 @@ import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, skillService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -45,8 +45,8 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 init.agentCapabilities ?? init.agent_capabilities ?? {},
                 init._meta ?? {},
             );
-            const nativeSkills = init._meta?.["msinsight.dev/skills"] ?? init.meta?.skills;
-            state.availableSkills = Array.isArray(nativeSkills) ? nativeSkills.map(({ name, description }) => ({ name, description })) : await skillService.list();
+            const runtimeSkills = init._meta?.["msinsight.dev/skills"] ?? init.meta?.skills;
+            state.availableSkills = normalizeAvailableSkills(runtimeSkills);
             if (refreshSessions) await sessionService.refreshSessions();
             if (broadcast) sessionService.broadcastState();
             console.log(`Connected to ${init.agentInfo?.name ?? "ACP agent"} ${init.agentInfo?.version ?? ""}`.trim());
@@ -59,13 +59,9 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
     };
 
     const prompt = async (text, options = {}) => {
-        const rawText = String(text ?? "").trim();
-        const nativeSkillFlow = state.activeAgentName === "msinsight-native";
-        const parsedPrompt = nativeSkillFlow ? { text: rawText, skills: [] } : await skillService.extractFromPrompt(text);
-        const promptText = parsedPrompt.text;
+        const promptText = String(text ?? "").trim();
         const images = normalizeImages(options.images);
-        const selectedSkills = parsedPrompt.skills;
-        if (!promptText && !images.length && !selectedSkills.length) {
+        if (!promptText && !images.length) {
             console.warn("Prompt rejected: message is empty");
             return errorResult("empty_prompt", "Enter a message or attach an image before sending", 400);
         }
@@ -111,7 +107,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             sessionContext.pendingPrompt = true;
             await sessionService.applyPreferredModel(sessionId);
 
-            const displayText = rawText || imagePromptTitle(images);
+            const displayText = promptText || imagePromptTitle(images);
             if (!sessionContext.messages.some((message) => message.role === "user")) {
                 setLocalTitle(state, sessionId, displayText);
             }
@@ -127,7 +123,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             eventBus.broadcast({ type: "message_added", sessionId, message: assistant });
             eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: true });
 
-            runPrompt(sessionId, promptText, images, selectedSkills, hiddenContext, assistant);
+            runPrompt(sessionId, promptText, images, hiddenContext, assistant);
             sessionService.refreshSessions();
             return { ok: true, sessionId };
         } catch (error) {
@@ -149,12 +145,12 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         }
     };
 
-    const runPrompt = async (sessionId, promptText, images, selectedSkills, hiddenContext, assistant) => {
+    const runPrompt = async (sessionId, promptText, images, hiddenContext, assistant) => {
         try {
-            console.log(`Prompt execution started: sessionId=${sessionId}, textLength=${promptText.length}, images=${images.length}, skills=${selectedSkills.length}, hiddenContext=${Boolean(hiddenContext)}`);
+            console.log(`Prompt execution started: sessionId=${sessionId}, textLength=${promptText.length}, images=${images.length}, hiddenContext=${Boolean(hiddenContext)}`);
             await adapter.request("session/prompt", {
                 sessionId,
-                prompt: createPromptContent(promptText, images, selectedSkills, hiddenContext, systemPrompt),
+                prompt: createPromptContent(promptText, images, hiddenContext, systemPrompt),
             });
             console.log(`Prompt execution completed: sessionId=${sessionId}`);
 
@@ -267,7 +263,7 @@ const normalizeImages = (images = []) => images
     }))
     .filter((image) => image.data && image.mimeType.startsWith("image/"));
 
-export const createPromptContent = (text, images, skills = [], hiddenContextValue, systemPromptValue) => {
+export const createPromptContent = (text, images, hiddenContextValue, systemPromptValue) => {
     const content = [];
     const systemPrompt = normalizeSystemPrompt(systemPromptValue);
     if (systemPrompt) {
@@ -276,12 +272,6 @@ export const createPromptContent = (text, images, skills = [], hiddenContextValu
     const hiddenContext = normalizeHiddenContext(hiddenContextValue);
     if (hiddenContext) {
         content.push(createHiddenContextBlock(hiddenContext));
-    }
-    for (const skill of skills) {
-        content.push({
-            type: "text",
-            text: `<skill name="${escapeXml(skill.name)}">\n${skill.content}\n</skill>`,
-        });
     }
     if (text) content.push({ type: "text", text });
     for (const image of images) {
@@ -326,8 +316,6 @@ const createHiddenContextBlock = (hiddenContext) => ({
 
 const wrapContextText = (ref, text) => `<context ref="${ref}"/>\n${text}`;
 
-const escapeXml = (value) => String(value).replace(/[&<>"]/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" })[char]);
-
 const pastedImageUri = (name) => `zed:///agent/pasted-image?name=${encodeURIComponent(name || "Image")}`;
 
 const imagePromptTitle = (images) => images.length === 1 ? "Image" : `${images.length} images`;
@@ -351,6 +339,15 @@ const normalizeAvailableCommands = (commands) => Array.isArray(commands)
             input: command?.input,
         }))
         .filter((command) => command.name)
+    : [];
+
+const normalizeAvailableSkills = (skills) => Array.isArray(skills)
+    ? skills
+        .map((skill) => ({
+            name: String(skill?.name ?? "").trim(),
+            description: String(skill?.description ?? "").trim(),
+        }))
+        .filter((skill) => skill.name)
     : [];
 
 const normalizeAgentActivity = (activity) => {

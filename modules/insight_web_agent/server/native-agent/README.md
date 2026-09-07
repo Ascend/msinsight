@@ -28,7 +28,7 @@ Agent View frontend
 }
 ```
 
-由于 ACP 子进程的 `cwd` 是每个 agent 独立的 workspace，`insight_web_agent` 在启动前会把 `server/native-agent/index.mjs` 解析成绝对路径。
+所有正式 Runtime 的 ACP 子进程共用 `ACP_CWD` 指定的 workspace 和 `.agents/skills/` Skill 实体目录；Native 直接从该目录发现 Skill，目录不存在时回退安装包资源。Claude Code 的 `.claude/skills` 映射到该目录。`insight_web_agent` 在启动前会把 `server/native-agent/index.mjs` 解析成绝对路径。
 
 ## ACP 方法
 

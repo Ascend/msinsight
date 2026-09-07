@@ -15,7 +15,6 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { join } from "node:path";
 import { createPromptContent } from "./chatService.mjs";
 import { getSessionContext } from "../state/runtimeState.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
@@ -23,7 +22,7 @@ import { errorCause, errorResult } from "./errorResult.mjs";
 export const createSessionManager = ({ adapter, eventBus, state, config, auditLogger, permissionService, capabilitySessionIntegration }) => {
     let sessionService;
 
-    const getAgentCwd = () => join(config.cwd, state.activeAgentWorkspaceKey ?? state.activeAgentName ?? config.agentServer?.name ?? adapter.agentId ?? "");
+    const getAgentCwd = () => config.cwd;
 
     const cloneSessionContext = (context) => ({
         ...context,

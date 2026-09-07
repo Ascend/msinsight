@@ -8,25 +8,25 @@
  */
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { agentLaunchKey, agentWorkspaceKey, withAgentIdentity } from "../../services/agentIdentityService.mjs";
+import { agentLaunchKey, withAgentIdentity } from "../../services/agentIdentityService.mjs";
 
 test("launch identity ignores display name and environment", () => {
     const left = { name: "OpenCode", command: "opencode", args: ["acp"], env: { TOKEN: "one" } };
     const right = { name: "OpenCode Alias", command: "opencode", args: ["acp"], env: { TOKEN: "two" } };
 
     assert.equal(agentLaunchKey(left), agentLaunchKey(right));
-    assert.equal(agentWorkspaceKey(left), agentWorkspaceKey(right));
 });
 
-test("generic argument variants use distinct workspaces", () => {
+test("generic argument variants use distinct launch identities", () => {
     assert.notEqual(
-        agentWorkspaceKey({ command: "agent", args: ["serve"] }),
-        agentWorkspaceKey({ command: "agent", args: ["acp"] }),
+        agentLaunchKey({ command: "agent", args: ["serve"] }),
+        agentLaunchKey({ command: "agent", args: ["acp"] }),
     );
 });
 
-test("the built-in agent always uses its fixed workspace", () => {
+test("agent identity contains launch metadata", () => {
     const builtin = withAgentIdentity({ name: "msinsight-native", command: "node", args: ["entry.mjs"], env: {} }, "builtin");
 
-    assert.equal(builtin.workspaceKey, "msinsight-native");
+    assert.equal(builtin.kind, "builtin");
+    assert.equal(builtin.launchKey, agentLaunchKey(builtin));
 });

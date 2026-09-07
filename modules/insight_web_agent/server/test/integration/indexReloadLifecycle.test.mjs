@@ -17,7 +17,7 @@
  */
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -30,18 +30,28 @@ const CAPABILITY_TOKEN = "reload-lifecycle-test-capability";
 
 const fakeAgentSource = `
 import { appendFileSync, existsSync, unlinkSync } from "node:fs";
+import { resolve } from "node:path";
 import readline from "node:readline";
 
 const mode = process.argv[2] ?? "ok";
 const logPath = process.env.FAKE_AGENT_LOG;
 const notifyFlagPath = process.env.FAKE_AGENT_NOTIFY_FLAG;
+const requiredSkillPath = process.env.FAKE_AGENT_REQUIRED_SKILL;
+const requiredClaudeSkillPath = process.env.FAKE_AGENT_REQUIRED_CLAUDE_SKILL;
+const requiredCwd = process.env.FAKE_AGENT_REQUIRED_CWD;
 const oldRuntimeCommandName = process.env.FAKE_AGENT_OLD_COMMAND ?? "stable-live";
 const brokenInitDelayMs = Number(process.env.BROKEN_INIT_DELAY_MS ?? 0);
 const log = (message) => {
     if (logPath) appendFileSync(logPath, message + "\\n");
 };
 
+log("skill_ready:" + String(!requiredSkillPath || existsSync(requiredSkillPath)));
+log("claude_skill_ready:" + String(!requiredClaudeSkillPath || existsSync(requiredClaudeSkillPath)));
+log("cwd_ready:" + String(!requiredCwd || resolve(process.cwd()) === resolve(requiredCwd)));
 log("start:" + mode + ":" + process.pid);
+if (requiredSkillPath && !existsSync(requiredSkillPath)) process.exit(86);
+if (requiredCwd && resolve(process.cwd()) !== resolve(requiredCwd)) process.exit(87);
+if (requiredClaudeSkillPath && !existsSync(requiredClaudeSkillPath)) process.exit(88);
 let initialized = false;
 const notifyFlagInterval = setInterval(() => {
     if (mode !== "ok" || !initialized || !notifyFlagPath || !existsSync(notifyFlagPath)) return;
@@ -118,6 +128,97 @@ lineReader.on("line", (line) => {
 });
 `;
 
+test("workspace Skills are installed before the ACP process starts", async (t) => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-index-skill-startup-"));
+    const workspaceDir = join(rootDir, "agent-workspace");
+    const fakeAgentPath = join(rootDir, "fake-agent.mjs");
+    const logPath = join(rootDir, "fake-agent.log");
+    const port = await getFreePort();
+    const configuredAgent = stableAgent(fakeAgentPath);
+    const installedSkillPath = join(workspaceDir, ".agents", "skills", "inspect-memory", "SKILL.md");
+    const claudeSkillPath = join(workspaceDir, ".claude", "skills", "inspect-memory", "SKILL.md");
+
+    await Promise.all([
+        mkdir(join(rootDir, "prompts"), { recursive: true }),
+        mkdir(join(rootDir, "skills"), { recursive: true }),
+    ]);
+    await writePackagedSkill(rootDir, "inspect-memory", "Inspect memory safely");
+    await writeFile(fakeAgentPath, fakeAgentSource, "utf8");
+    configuredAgent.env.FAKE_AGENT_REQUIRED_SKILL = installedSkillPath;
+    configuredAgent.env.FAKE_AGENT_REQUIRED_CLAUDE_SKILL = claudeSkillPath;
+    configuredAgent.env.FAKE_AGENT_REQUIRED_CWD = workspaceDir;
+    await writeJson(join(rootDir, "agent-servers.json"), {
+        activeAgent: configuredAgent.name,
+        agentServers: [configuredAgent],
+    });
+    await writeJson(join(rootDir, "acp-session-conf.json"), sessionConfig());
+
+    const server = launchServer({ rootDir, logPath, port }, {
+        workspaceDir,
+        autoDiscovery: false,
+    });
+    t.after(async () => {
+        await stopProcess(server);
+        await rm(rootDir, { recursive: true, force: true });
+    });
+
+    await waitFor(async () => {
+        const response = await requestJson(port, "/api/state");
+        return response.status === 200 && response.body.initialized ? response.body : undefined;
+    }, { timeoutMs: 5000 });
+
+    assert.match(await readFile(installedSkillPath, "utf8"), /Inspect memory safely/);
+    assert.match(await readFile(claudeSkillPath, "utf8"), /Inspect memory safely/);
+    assert.match(await readFile(logPath, "utf8"), /^skill_ready:true$/m);
+    assert.match(await readFile(logPath, "utf8"), /^claude_skill_ready:true$/m);
+    assert.match(await readFile(logPath, "utf8"), /^cwd_ready:true$/m);
+});
+
+test("workspace setup failure prevents the ACP process from starting", async (t) => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-index-workspace-startup-failure-"));
+    const workspaceDir = join(rootDir, "agent-workspace");
+    const fakeAgentPath = join(rootDir, "fake-agent.mjs");
+    const logPath = join(rootDir, "fake-agent.log");
+    const port = await getFreePort();
+    const stable = stableAgent(fakeAgentPath);
+
+    await Promise.all([
+        mkdir(join(rootDir, "prompts"), { recursive: true }),
+        mkdir(join(rootDir, "skills"), { recursive: true }),
+        mkdir(join(workspaceDir, ".claude", "skills"), { recursive: true }),
+    ]);
+    await writePackagedSkill(rootDir, "inspect-memory", "Inspect memory safely");
+    await writeFile(join(rootDir, "prompts", "system.md"), "host rules", "utf8");
+    await writeFile(fakeAgentPath, fakeAgentSource, "utf8");
+    await writeJson(join(rootDir, "agent-servers.json"), {
+        activeAgent: stable.name,
+        agentServers: [stable],
+    });
+    await writeJson(join(rootDir, "acp-session-conf.json"), sessionConfig());
+
+    const server = launchServer({ rootDir, logPath, port }, {
+        workspaceDir,
+        autoDiscovery: false,
+    });
+    let serverOutput = "";
+    server.stdout.setEncoding("utf8");
+    server.stderr.setEncoding("utf8");
+    server.stdout.on("data", (chunk) => { serverOutput += chunk; });
+    server.stderr.on("data", (chunk) => { serverOutput += chunk; });
+    t.after(async () => {
+        await stopProcess(server);
+        await rm(rootDir, { recursive: true, force: true });
+    });
+
+    await once(server, "exit");
+
+    assert.notEqual(server.exitCode, 0);
+    assert.match(serverOutput, /Claude Skill path is not a directory link/);
+    assert.equal(await readText(join(workspaceDir, "AGENTS.md")), "");
+    assert.equal(await readText(join(workspaceDir, "CLAUDE.md")), "");
+    assert.equal(await readText(logPath), "");
+});
+
 test("settings-triggered reload failure keeps the previous runtime usable and disconnects the failed adapter", async (t) => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-index-reload-"));
     const workspaceDir = join(rootDir, "agent-workspace");
@@ -125,7 +226,10 @@ test("settings-triggered reload failure keeps the previous runtime usable and di
     const logPath = join(rootDir, "fake-agent.log");
     const port = await getFreePort();
 
-    await mkdir(join(rootDir, "prompts"), { recursive: true });
+    await Promise.all([
+        mkdir(join(rootDir, "prompts"), { recursive: true }),
+        mkdir(join(rootDir, "skills"), { recursive: true }),
+    ]);
     await writeFile(fakeAgentPath, fakeAgentSource, "utf8");
     await writeJson(join(rootDir, "agent-servers.json"), {
         activeAgent: "Stable",
@@ -212,7 +316,10 @@ test("failed settings reload preserves old-runtime notifications and never broad
     const notifyFlagPath = join(rootDir, "notify-old-runtime");
     const port = await getFreePort();
 
-    await mkdir(join(rootDir, "prompts"), { recursive: true });
+    await Promise.all([
+        mkdir(join(rootDir, "prompts"), { recursive: true }),
+        mkdir(join(rootDir, "skills"), { recursive: true }),
+    ]);
     await writeFile(fakeAgentPath, fakeAgentSource, "utf8");
     await writeJson(join(rootDir, "agent-servers.json"), {
         activeAgent: "Stable",
@@ -337,6 +444,12 @@ const brokenAgent = (fakeAgentPath) => ({
     env: {},
 });
 
+const writePackagedSkill = async (rootDir, name, instructions) => {
+    const directory = join(rootDir, "skills", name);
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "SKILL.md"), `---\nname: ${name}\ndescription: Test Skill\n---\n\n${instructions}\n`, "utf8");
+};
+
 const sessionConfig = () => ({
     requestTimeoutMs: 1000,
     promptRequestTimeoutMs: 1000,
@@ -353,7 +466,10 @@ const createServerFixture = async () => {
     const rootDir = await mkdtemp(join(tmpdir(), "insight-index-shutdown-"));
     const fakeAgentPath = join(rootDir, "fake-agent.mjs");
     const logPath = join(rootDir, "fake-agent.log");
-    await mkdir(join(rootDir, "prompts"), { recursive: true });
+    await Promise.all([
+        mkdir(join(rootDir, "prompts"), { recursive: true }),
+        mkdir(join(rootDir, "skills"), { recursive: true }),
+    ]);
     await writeFile(fakeAgentPath, fakeAgentSource, "utf8");
     await writeJson(join(rootDir, "agent-servers.json"), {
         activeAgent: "Stable",
@@ -363,7 +479,11 @@ const createServerFixture = async () => {
     return { rootDir, fakeAgentPath, logPath, port: await getFreePort() };
 };
 
-const launchServer = ({ rootDir, logPath, port }, { capabilityToken = CAPABILITY_TOKEN } = {}) => spawn(process.execPath, [
+const launchServer = ({ rootDir, logPath, port }, {
+    capabilityToken = CAPABILITY_TOKEN,
+    workspaceDir = join(rootDir, "agent-workspace"),
+    autoDiscovery,
+} = {}) => spawn(process.execPath, [
     serverEntry,
     "--path", rootDir,
     "--resource-path", rootDir,
@@ -373,8 +493,9 @@ const launchServer = ({ rootDir, logPath, port }, { capabilityToken = CAPABILITY
     env: {
         ...process.env,
         ACP_CAPABILITY_TOKEN: capabilityToken,
-        ACP_CWD: join(rootDir, "agent-workspace"),
+        ACP_CWD: workspaceDir,
         FAKE_AGENT_LOG: logPath,
+        ...(autoDiscovery === undefined ? {} : { ACP_AUTO_DISCOVERY: autoDiscovery ? "1" : "0" }),
     },
     stdio: ["ignore", "pipe", "pipe"],
 });

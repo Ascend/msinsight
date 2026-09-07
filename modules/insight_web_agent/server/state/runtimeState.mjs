@@ -28,7 +28,6 @@ export const createRuntimeState = () => ({
     clients: new Set(),
     agentServers: [],
     activeAgentName: undefined,
-    activeAgentWorkspaceKey: undefined,
     agentInfo: undefined,
     agentError: undefined,
     agentCapabilities: undefined,
@@ -89,7 +88,6 @@ export const snapshotRuntimeState = (state) => ({
     preferredModel: state.preferredModel,
     agentServers: [...state.agentServers],
     activeAgentName: state.activeAgentName,
-    activeAgentWorkspaceKey: state.activeAgentWorkspaceKey,
     agentInfo: state.agentInfo,
     agentError: state.agentError,
     agentCapabilities: state.agentCapabilities,
@@ -113,7 +111,6 @@ export const restoreRuntimeState = (state, snapshot) => {
     state.preferredModel = snapshot.preferredModel;
     state.agentServers = snapshot.agentServers;
     state.activeAgentName = snapshot.activeAgentName;
-    state.activeAgentWorkspaceKey = snapshot.activeAgentWorkspaceKey;
     state.agentInfo = snapshot.agentInfo;
     state.agentError = snapshot.agentError;
     state.agentCapabilities = snapshot.agentCapabilities;
@@ -126,7 +123,7 @@ export const restoreRuntimeState = (state, snapshot) => {
     state.resolvedPermissions = snapshot.resolvedPermissions;
 };
 
-export const resetRuntimeForAgent = (state, { agentServers, activeAgentName, activeAgentWorkspaceKey }) => {
+export const resetRuntimeForAgent = (state, { agentServers, activeAgentName }) => {
     state.initialized = false;
     state.sessions = [];
     state.sessionContexts = new Map();
@@ -135,7 +132,6 @@ export const resetRuntimeForAgent = (state, { agentServers, activeAgentName, act
     state.preferredModel = undefined;
     state.agentServers = agentServers;
     state.activeAgentName = activeAgentName;
-    state.activeAgentWorkspaceKey = activeAgentWorkspaceKey;
     state.agentInfo = undefined;
     state.agentError = undefined;
     state.agentCapabilities = undefined;

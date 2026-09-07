@@ -60,7 +60,6 @@ test("agent runtime reset does not clear host-global available capabilities", ()
     resetRuntimeForAgent(state, {
         agentServers: [{ name: "OpenCode" }],
         activeAgentName: "OpenCode",
-        activeAgentWorkspaceKey: "opencode",
     });
 
     assert.deepEqual(state.availableCapabilities, capabilities);

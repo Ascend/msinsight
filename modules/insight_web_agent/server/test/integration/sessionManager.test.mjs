@@ -57,6 +57,7 @@ test("startSession injects the global capability MCP server", async () => {
 
     await manager.startSession({});
 
+    assert.equal(adapter.requests[0].params.cwd, "/tmp/insight-agent");
     assert.deepEqual(adapter.requests[0].params.mcpServers, mcpServers);
 });
 
@@ -152,7 +153,7 @@ test("endSession preserves local state when remote delete fails", async () => {
 
     const result = await manager.endSession("session-1");
 
-    assert.equal(result.status, 500);
+    assert.equal(result.status, 502);
     assert.equal(state.sessionContexts.has("session-1"), true);
 });
 

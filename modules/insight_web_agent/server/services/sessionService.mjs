@@ -15,7 +15,6 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { join } from "node:path";
 import { publicState } from "../state/runtimeState.mjs";
 import { supportsSessionDelete, supportsSessionList, supportsSessionLoad, supportsSessionResume, supportsSetConfigOption } from "./capabilityService.mjs";
 import { getModelConfig, normalizeModelValue, setConfigOptionCurrentValue, setConfigOptions } from "./configOptionService.mjs";
@@ -24,7 +23,7 @@ import { errorCause, errorResult } from "./errorResult.mjs";
 export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration }) => {
     let mutationQueue = Promise.resolve();
 
-    const getAgentCwd = () => join(config.cwd, state.activeAgentWorkspaceKey ?? state.activeAgentName);
+    const getAgentCwd = () => config.cwd;
     const manager = sessionManager ?? {
         async startSession() {
             const create = (mcpServers) => acpClient.request("session/new", {
