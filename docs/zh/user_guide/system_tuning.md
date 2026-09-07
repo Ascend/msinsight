@@ -514,7 +514,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky">Python</td>
     <td class="tg-0pky">Thread</td>
-    <td class="tg-0pky">应用层数据，每个子泳道Thread包含上层应用线程运行的耗时信息，需要使用PyTorch Profiler或msproftx采集。仅支持在text格式文件下展示该泳道。</td>
+    <td class="tg-0pky">应用层数据，每个子泳道Thread包含上层应用线程运行的耗时信息，需要使用PyTorch Profiler或msprof_tx采集。仅支持在text格式文件下展示该泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">CANN</td>
@@ -676,7 +676,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   </tr>
   <tr>
     <td class="tg-0pky">CPU Freq</td>
-    <td class="tg-0pky">Host侧各CPU的频率数据，单位为KHz。</td>
+    <td class="tg-0pky">Host侧各CPU的频率数据，单位为kHz。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Memory Usage</td>
@@ -796,7 +796,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky" rowspan="4">acc_pmu</td>
     <td class="tg-0pky">Accelerator {accId}/readBwLevel</td>
-    <td class="tg-0pky">DVPP和DSA加速器读带宽。<br>acc_pmu泳道在昇腾950PR&950DT系列产品不支持该泳道。</td>
+    <td class="tg-0pky">DVPP和DSA加速器读带宽。<br>昇腾950PR&950DT系列产品不支持acc_pmu泳道。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Accelerator {accId}/readOstLevel</td>
@@ -971,7 +971,7 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
   <tr>
     <td class="tg-0pky">CPU Freq</td>
     <td class="tg-0pky">CPU &lt;id&gt;</td>
-    <td class="tg-0pky">Host侧各CPU的频率数据，单位为KHz。</td>
+    <td class="tg-0pky">Host侧各CPU的频率数据，单位为kHz。</td>
   </tr>
   <tr>
     <td class="tg-0pky">Memory Usage</td>
@@ -989,6 +989,10 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
     <td class="tg-0pky">Host侧网络I/O利用率数据。</td>
   </tr>
 </tbody></table>
+
+>[!NOTE]
+>
+>单卡多进程场景下，所有进程对应的Stream合入到一个Ascend Hardware泳道下，Overlap Analysis以统计卡维度展示数据（仅适配DB格式数据）。
 
 ### 使用说明
 
@@ -1406,7 +1410,7 @@ MindStudio Insight工具支持使用快捷键将选中算子进行时间对齐�
 
     >[!NOTE]
     >
-    >当前仅支持算子`MODEL_EXECUTE`支持**跳转到对应流**功能。
+    >当前仅算子`MODEL_EXECUTE`支持**跳转到对应流**功能。
 
 #### 页面调优展示
 
@@ -1586,7 +1590,7 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
     |算子属性信息|Attr Info|算子属性信息。采集数据时task-time配置为l0或l1时，不采集该字段，显示为N/A；只有开启aclnn，task-time配置为l2时，才有此字段。|
     |通信带宽信息|Communication Bandwidth Info|所选Group Slice与通信分析记录唯一关联后，展示Communication Analysis中实际存在的RDMA、HCCS、PCIE、SDMA和SIO通信带宽记录。不存在的类型不展示。|
     |传输类型|Transport Type|通信带宽记录的类型，包括RDMA、HCCS、PCIE、SDMA或SIO。|
-    |传输大小(MB)|Transit Size(MB)|对应通信带宽记录的传输数据量，单位为MB。|
+    |传输大小（MB）|Transit Size(MB)|对应通信带宽记录的传输数据量，单位为MB。|
     |传输时间(ms)|Transit Time(ms)|对应通信带宽记录的传输时间，单位为ms。|
     |带宽(GB/s)|Bandwidth(GB/s)|对应通信带宽记录的带宽，单位为GB/s。|
     |参数|Args|算子的相关参数信息。|
@@ -1662,14 +1666,14 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
   |--|--|--|
   |类别|Category|类别。显示内存拷贝数据统计的类型。|
   |总时间(μs)|Total Time(μs)|该类耗时总和。|
-  |总大小(B)|Total Size(B)|该类内存拷贝数据总量。|
+  |总大小（Byte）|Total Size(Byte)|该类内存拷贝数据总量。|
   |数量|Number|该类内存拷贝算子数目。|
   |平均时间(μs)|Avg Time(μs)|该类内存拷贝耗时的平均值。|
   |最小时间(μs)|Min Time(μs)|该类内存拷贝耗时的最小值。|
   |最大时间(μs)|Max Time(μs)|该类内存拷贝耗时的最大值。|
-  |平均大小(B)|Avg Size(B)|该类内存拷贝数据的平均数据量。|
-  |最小大小(B)|Min Size(B)|该类内存拷贝数据的最小数据量。|
-  |最大大小(B)|Max Size(B)|该类内存拷贝数据的最大数据量。|
+  |平均大小（Byte）|Avg Size(Byte)|该类内存拷贝数据的平均数据量。|
+  |最小大小（Byte）|Min Size(Byte)|该类内存拷贝数据的最小数据量。|
+  |最大大小（Byte）|Max Size(Byte)|该类内存拷贝数据的最大数据量。|
   |详情|Details|该区域展示所选内存拷贝数据的所有算子详情，可单击任意一个算子，跳转至时间线视图中算子所在的具体位置。|
 
 - 算子类型汇总
@@ -2006,18 +2010,18 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
   |中文字段|英文字段|说明|
   |--|--|--|
   |名称|Name|算子名称。|
-  |大小(KB)|Size(KB)|申请内存大小，单位KB。|
+  |大小（KB）|Size(KB)|申请内存大小，单位KB。|
   |分配时间(ms)|Allocation Time(ms)|Tensor内存分配时间。（从采集开始时计算，单位ms）。|
   |释放时间(ms)|Release Time(ms)|Tensor内存释放时间。（从采集开始时计算，单位ms）。|
   |时长(ms)|Duration(ms)|内存持有时间。|
   |持有内存释放时间(ms)|Active Release Time(ms)|内存实际归还内存池时间。|
   |内存持有时长(ms)|Active Duration(ms)|内存实际占用时间。|
-  |总分配内存(MB)|Allocation Total Allocated(MB)|算子内存分配时，PyTorch和GE内存实际分配总额。|
-  |总保留内存(MB)|Allocation Total Reserved(MB)|算子内存分配时，PyTorch和GE内存预留总额。|
-  |总持有内存(MB)|Allocation Total Active(MB)|算子内存分配时，当前流所申请的总内存（包括被其他流复用的未释放的内存）。|
-  |总释放已分配内存(MB)|Release Total Allocated(MB)|算子内存释放后，内存池中PyTorch和GE正在使用的内存大小。|
-  |总释放保留内存(MB)|Release Total Reserved(MB)|算子内存释放后，内存池中PyTorch和GE所占用的内存大小。|
-  |总释放持有内存(MB)|Release Total Active(MB)|算子内存释放后，PyTorch和GE内存中被其他流复用的内存总额。|
+  |总分配内存（MB）|Allocation Total Allocated(MB)|算子内存分配时，PyTorch和GE内存实际分配总额。|
+  |总保留内存（MB）|Allocation Total Reserved(MB)|算子内存分配时，PyTorch和GE内存预留总额。|
+  |总持有内存（MB）|Allocation Total Active(MB)|算子内存分配时，当前流所申请的总内存（包括被其他流复用的未释放的内存）。|
+  |总释放已分配内存（MB）|Release Total Allocated(MB)|算子内存释放后，内存池中PyTorch和GE正在使用的内存大小。|
+  |总释放保留内存（MB）|Release Total Reserved(MB)|算子内存释放后，内存池中PyTorch和GE所占用的内存大小。|
+  |总释放持有内存（MB）|Release Total Active(MB)|算子内存释放后，PyTorch和GE内存中被其他流复用的内存总额。|
   |流|Stream|AscendCL流的内存地址，用于标记不同的AscendCL流。|
   |操作|Operation|单击在时间线中显示，可跳转至时间线视图中对应算子。|
 
@@ -2037,7 +2041,7 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
     |名称|Name|算子名称。|
     |节点索引开始|Node Index Start|搜索开始节点。|
     |节点索引结束|Node Index End|搜索结束节点。<br> 其中显示为“4294967295”的值为索引最终结束节点，该节点在静态图中表示为实际结束节点加1的节点，例如，实际结束节点为32，静态图中横坐标节点索引则显示33，表格中节点索引结束值显示为“4294967295”。|
-    |大小(MB)|Size(MB)|申请内存大小，单位MB。|
+    |大小（MB）|Size(MB)|申请内存大小，单位MB。|
     |操作|Operation|单击在时间线中显示，可跳转至时间线视图中对应算子。|
 
 - 当“分组方式”选择“组件”时，不支持算子搜索功能。界面如[**图 6** 组件级内存申请/释放详情](#组件级内存申请/释放详情)所示，字段解释如[**表 3** 字段说明](#字段说明)所示。
@@ -2051,7 +2055,7 @@ MindStudio Insight支持通过鼠标左键框选放大选中部分和右键还�
   |中文字段|英文字段|说明|
   |--|--|--|
   |组件|Component|组件名称。|
-  |保留内存峰值(MB)|Peak Memory Reserved(MB)|组件占用内存大小的峰值，单位MB。只显示占用内存峰值大于等于100M的组件。|
+  |保留内存峰值（MB）|Peak Memory Reserved(MB)|组件占用内存大小的峰值，单位MB。只显示占用内存峰值大于等于100MB的组件。|
   |时间戳(ms)|Timestamp(ms)|组件内存占用达到峰值的时刻，单位ms。|
 
 **支持高亮显示**
@@ -2537,7 +2541,7 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 |通信域|Communication Group|通信域，下拉框支持选择一个、多个或者所有节点，对应纵坐标进行节点的展示。|
 |算子名称|Operator Name|通信算子名称，下拉框支持选择“Total Op info”或某一类算子。<br> 为方便查看，会对通信算子进行聚类统计，例如allreduce-total等分类。当分别选择top、bottom或middle等算子分类时，鼠标移至通信矩阵热力图中，选择任一窗格即可显示具体通信算子名称。<br> - Total Op info：为对选中的迭代ID和通信域中所有通信算子数据的统计和。<br> - total类：表示该类算子的平均带宽水平（某类通信算子的总传输量 / 总传输时间），推荐优先查看。<br> - top类：带宽最高的通信算子，topN即为前N高。<br> - middle类：带宽处于中位数的通信算子。<br> - bottom类：带宽最低的通信算子，bottomN即为前N低。|
 |通信矩阵|Matrix Model|通信矩阵热力图。|
-|通信矩阵类型|Communication Matrix Type|通信矩阵类型。<br> - 带宽(GB/s)（Bandwidth(GB/s)）：带宽。<br> - 传输大小(MB)（Transit Size(MB)）：通信尺寸。<br> - 链路方式（Transport Type）：链路类型。<br> - 传输时长(ms)（Transit Time(ms)）：通信时长。|
+|通信矩阵类型|Communication Matrix Type|通信矩阵类型。<br> - 带宽(GB/s)（Bandwidth(GB/s)）：带宽。<br> - 传输大小（MB）（Transit Size(MB)）：通信尺寸。<br> - 链路方式（Transport Type）：链路类型。<br> - 传输时长(ms)（Transit Time(ms)）：通信时长。|
 |显示卡内通信|Show Inner Communication|展示卡内通信数据。默认不勾选。|
 |筛选范围|Visible Range|数据可视范围。默认为全量展示，可手动设置数据呈现区间。|
 |Src Rank Id|Src Rank Id|Source Rank Id，横坐标为链路信息中源卡的Id。|
@@ -2593,11 +2597,11 @@ MindStudio Insight支持集群数据对比，可帮助开发者直观、清晰�
 |中文字段|英文字段|说明|
 |--|--|--|
 |包数量|Packet Number|通信包数量。|
-|包大小(MB)|Packet Size(MB)|通信包大小。|
+|包大小（MB）|Packet Size(MB)|通信包大小。|
 |链路方式|Transport Type|链路方式。|
 |SDMA|SDMA|SDMA链路（节点内Device间通信链路），包括HCCS、PCIE和SIO三种类型。|
 |RDMA|RDMA|RDMA链路（跨节点Device间通信链路）。|
-|传输大小(MB)|Transit Size(MB)|一次通信包的大小。|
+|传输大小（MB）|Transit Size(MB)|一次通信包的大小。|
 |传输时长(ms)|Transit Time(ms)|一次通信的时长。|
 |带宽(GB/s)|Bandwidth(GB/s)|带宽。带宽一般为通信量除以通信时间。经验带宽参考值分别为RDMA_Bandwidth = 12.5，HCCS_Bandwidth = 18，PCIe_Bandwidth = 20。|
 |大通信包占比|Large Packet Ratio|大通信包占比。通信包的大小足以使得通信链路能达到经验带宽的包的比率。|
