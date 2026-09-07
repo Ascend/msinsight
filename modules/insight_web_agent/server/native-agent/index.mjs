@@ -69,6 +69,10 @@ const defaultBundledDocsDir = packagedResources
 const defaultBundledSkillsDir = packagedResources
     ? join(defaultResourceDir, "skills")
     : resolve(defaultResourceDir, "..", "..", "skills");
+const workspaceSkillsDir = join(process.cwd(), ".agents", "skills");
+const skillDirectory = existsSync(workspaceSkillsDir)
+    ? workspaceSkillsDir
+    : resolve(process.env.MSINSIGHT_NATIVE_BUNDLED_SKILLS_DIR ?? defaultBundledSkillsDir);
 const storeDir = resolve(process.env.MSINSIGHT_NATIVE_STORE_DIR ?? join(process.cwd(), ".msinsight_native_agent"));
 const aiSdkStoragePath = join(storeDir, "ai-sdk");
 
@@ -92,7 +96,7 @@ const agentRegistry = createAgentRegistry({
     developmentDirs: developmentRoots.map((root) => join(resolve(root), "agents")),
 });
 const skillRegistry = createSkillRegistry({
-    bundledDir: resolve(process.env.MSINSIGHT_NATIVE_BUNDLED_SKILLS_DIR ?? defaultBundledSkillsDir),
+    bundledDir: skillDirectory,
     developmentDirs: developmentRoots.map((root) => join(resolve(root), "skills")),
 });
 await Promise.all([agentRegistry.initialize(), skillRegistry.initialize()]);

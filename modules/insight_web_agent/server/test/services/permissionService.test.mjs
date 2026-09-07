@@ -28,10 +28,9 @@ const createFixture = async () => {
     const root = await mkdtemp(join(tmpdir(), "insight-permission-"));
     const docs = join(root, "docs");
     const cwd = join(root, "agent-workspace");
-    const agentRoot = join(cwd, "opencode");
     const external = join(root, "external");
-    await Promise.all([mkdir(docs, { recursive: true }), mkdir(agentRoot, { recursive: true }), mkdir(external, { recursive: true })]);
-    return { root, docs, cwd, agentRoot, external };
+    await Promise.all([mkdir(docs, { recursive: true }), mkdir(cwd, { recursive: true }), mkdir(external, { recursive: true })]);
+    return { root, docs, cwd, external };
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,14 +73,12 @@ const createService = async (options = {}) => {
     const fixture = await createFixture();
     const events = [];
     const state = createRuntimeState();
-    state.activeAgentName = "opencode";
     const service = createPermissionService({
         state,
         eventBus: { broadcast: (event) => events.push(event) },
         config: {
             rootDir: fixture.root,
             cwd: fixture.cwd,
-            activeAgentName: "opencode",
             permissionRequestTimeoutMs: options.permissionRequestTimeoutMs,
             defaultAllowlist: {
                 includeDocsRoot: true,
@@ -102,7 +99,7 @@ test("default allowlist allows docs, agent workspace, and known project root wit
     const fixture = await createService();
     const projectRoot = await ensureProjectRoot(fixture);
     const docsFile = join(fixture.docs, "guide.md");
-    const workspaceFile = join(fixture.agentRoot, "prompt.md");
+    const workspaceFile = join(fixture.cwd, "prompt.md");
     const projectFile = join(projectRoot, "source.py");
     await writeText(docsFile, "docs");
     await writeText(workspaceFile, "workspace");
@@ -120,11 +117,10 @@ test("permission policy does not allow the raw docs root when its flag is omitte
     const allowlist = await createDefaultAllowlist({
         rootDir: fixture.root,
         cwd: fixture.cwd,
-        activeAgentName: "opencode",
     });
 
     assert.equal(allowlist.includes(await realpath(fixture.docs)), false);
-    assert.equal(allowlist.includes(await realpath(fixture.agentRoot)), true);
+    assert.equal(allowlist.includes(await realpath(fixture.cwd)), true);
 });
 
 test("session config extra allowlist paths are honored", async () => {
@@ -146,7 +142,7 @@ test("session config can disable docs root allowlist", async () => {
 
 test("session config can disable agent workspace root allowlist", async () => {
     const fixture = await createService({ defaultAllowlist: { includeAgentWorkspaceRoot: false } });
-    const target = join(fixture.agentRoot, "prompt.md");
+    const target = join(fixture.cwd, "prompt.md");
     await writeText(target, "workspace");
 
     assert.equal((await evaluatePath(fixture, target)).action, "prompt");
@@ -291,7 +287,7 @@ test("invalid and already resolved responses return explicit statuses", async ()
 
 test("generic MCP Tool permission succeeds without a filesystem path", async () => {
     const fixture = await createService();
-    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.cwd });
     const pending = handler({
         sessionId: "s1",
         toolCall: {
@@ -321,7 +317,7 @@ test("generic MCP Tool permission succeeds without a filesystem path", async () 
 
 test("generic Tool input paths do not enter filesystem permission policy", async () => {
     const fixture = await createService();
-    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.cwd });
     const pending = handler({
         sessionId: "s1",
         toolCall: { toolCallId: "call-1", title: "remote_tool", kind: "other", rawInput: { path: "virtual://resource" } },
@@ -342,7 +338,7 @@ test("generic Tool input paths do not enter filesystem permission policy", async
 
 test("generic Tool permission only exposes options provided by the Agent", async () => {
     const fixture = await createService();
-    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.cwd });
     const pending = handler({
         sessionId: "s1",
         toolCall: { toolCallId: "call-1", title: "remote_tool", kind: "other", rawInput: { value: 1 } },
@@ -362,7 +358,7 @@ test("generic Tool permission only exposes options provided by the Agent", async
 
 test("permission outcome cancels instead of selecting an unrelated option", async () => {
     const fixture = await createService();
-    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.cwd });
     const pending = handler({
         sessionId: "s1",
         toolCall: { toolCallId: "call-1", title: "remote_tool", kind: "other", rawInput: {} },
@@ -379,15 +375,15 @@ test("permission outcome cancels instead of selecting an unrelated option", asyn
 
 test("ACP execute Tool calls are rendered as Bash permissions", async () => {
     const fixture = await createService();
-    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.cwd });
     const pending = handler({
         sessionId: "s1",
         toolCall: {
             toolCallId: "call-1",
             title: "python -V",
             kind: "execute",
-            locations: [{ path: fixture.agentRoot }],
-            rawInput: { command: "python -V", cwd: fixture.agentRoot },
+            locations: [{ path: fixture.cwd }],
+            rawInput: { command: "python -V", cwd: fixture.cwd },
         },
         options: [
             { optionId: "once", kind: "allow_once" },
@@ -405,7 +401,7 @@ test("ACP execute Tool calls are rendered as Bash permissions", async () => {
 
 test("Bash allow always is isolated by session and namespaced remember key", async () => {
     const fixture = await createService();
-    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const handler = createPermissionHostHandler({ permissionService: fixture.service, cwd: fixture.cwd });
     const params = {
         sessionId: "s1",
         kind: "bash",
@@ -473,7 +469,7 @@ test("file read service returns content, permission denial, and distinct I/O err
     await writeText(allowedFile, "hello");
     await writeText(deniedFile, "secret");
     fixture.state.permissionRuntimeAllowlist.set("s1", new Set([fixture.external]));
-    const fileReadService = createFileReadService({ permissionService: fixture.service, cwd: fixture.agentRoot });
+    const fileReadService = createFileReadService({ permissionService: fixture.service, cwd: fixture.cwd });
 
     assert.deepEqual(await fileReadService.readTextFile({ sessionId: "s1", path: allowedFile }), { result: { content: "hello" } });
     assert.equal((await fileReadService.readTextFile({ sessionId: "s1", path: missingFile })).error.message, "file_io_error");

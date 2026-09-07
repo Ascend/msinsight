@@ -55,7 +55,7 @@ test("createPromptContent preserves image mime types", () => {
 });
 
 test("createPromptContent prepends hidden context without changing visible text", () => {
-    const content = createPromptContent("visible request", [], [], {
+    const content = createPromptContent("visible request", [], {
         projectName: "demo",
         files: ["src/index.ts"],
     });
@@ -74,7 +74,7 @@ test("createPromptContent prepends hidden context without changing visible text"
 });
 
 test("createPromptContent injects system prompt as the leading resource block", () => {
-    const content = createPromptContent("hello", [], [], undefined, "你是一个 Ascend 调优助手");
+    const content = createPromptContent("hello", [], undefined, "你是一个 Ascend 调优助手");
 
     assert.deepEqual(content, [
         {
@@ -91,12 +91,51 @@ test("createPromptContent injects system prompt as the leading resource block", 
 
 test("createPromptContent skips empty system prompt for backward compatibility", () => {
     const withoutSystem = createPromptContent("hello", []);
-    const withEmptySystem = createPromptContent("hello", [], [], undefined, "   ");
-    const withNullSystem = createPromptContent("hello", [], [], undefined, null);
+    const withEmptySystem = createPromptContent("hello", [], undefined, "   ");
+    const withNullSystem = createPromptContent("hello", [], undefined, null);
 
     assert.deepEqual(withoutSystem, [{ type: "text", text: "hello" }]);
     assert.deepEqual(withEmptySystem, [{ type: "text", text: "hello" }]);
     assert.deepEqual(withNullSystem, [{ type: "text", text: "hello" }]);
+});
+
+test("initialize publishes only Skill metadata reported by the Runtime", async () => {
+    const state = createRuntimeState();
+    const service = createChatService({
+        acpClient: {
+            request: async (method) => {
+                assert.equal(method, "initialize");
+                return {
+                    agentInfo: { name: "Runtime" },
+                    _meta: {
+                        "msinsight.dev/skills": [
+                            { name: " inspect-memory ", description: " Inspect memory ", instructions: "must not leak" },
+                            { description: "missing name" },
+                        ],
+                    },
+                };
+            },
+        },
+        eventBus: { broadcast: () => {} },
+        sessionService: { refreshSessions: async () => {}, broadcastState: () => {} },
+        state,
+    });
+
+    await service.initialize();
+
+    assert.deepEqual(state.availableSkills, [{ name: "inspect-memory", description: "Inspect memory" }]);
+});
+
+test("prompt leaves explicit Skill syntax for the Runtime", async () => {
+    const { service, calls, state } = createPromptTestService();
+    state.availableSkills = [{ name: "inspect-memory", description: "Inspect memory" }];
+
+    await service.prompt("/inspect-memory focus=peak", { sessionId: "session-1" });
+    await waitForPromptCall(calls, 1);
+
+    const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
+    assert.equal(prompt.at(-1).text, "/inspect-memory focus=peak");
+    assert.doesNotMatch(JSON.stringify(prompt), /<skill/);
 });
 
 test("prompt applies requested mode to a new session before sending", async () => {
@@ -148,7 +187,6 @@ test("prompt applies requested mode to a new session before sending", async () =
         acpClient,
         eventBus: { broadcast: () => {} },
         sessionService,
-        skillService: { extractFromPrompt: async (text) => ({ text, skills: [] }) },
         state,
     });
 
@@ -230,7 +268,7 @@ test("prompt completion clears the current agent activity", async () => {
 test("prompt and hidden context do not invoke or embed RAG automatically", async () => {
     let retrievals = 0;
     const ragService = { retrieve: async () => { retrievals += 1; } };
-    const { service, calls, state } = createPromptTestService("", undefined, undefined, ragService);
+    const { service, calls, state } = createPromptTestService("", undefined, ragService);
 
     await service.prompt("analyze", { sessionId: "session-1" });
     await waitForPromptCall(calls, 1);
@@ -256,7 +294,7 @@ const modeConfig = (currentValue) => ({
     ],
 });
 
-const createPromptTestService = (systemPrompt = "", promptRequest, skillService, ragService) => {
+const createPromptTestService = (systemPrompt = "", promptRequest, ragService) => {
     const calls = [];
     const events = [];
     const state = createRuntimeState();
@@ -287,7 +325,6 @@ const createPromptTestService = (systemPrompt = "", promptRequest, skillService,
             applyPreferredModel: async () => {},
             refreshSessions: async () => {},
         },
-        skillService: skillService ?? { extractFromPrompt: async (text) => ({ text, skills: [] }) },
         state,
         contextAssembler: createContextAssembler({ state }),
         ragService,

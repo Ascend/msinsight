@@ -59,7 +59,6 @@ test("setMode sends the session mode config option to ACP", async () => {
 test("loadSessionById injects the global capability MCP server", async () => {
     const calls = [];
     const state = createRuntimeState();
-    state.activeAgentWorkspaceKey = "OpenCode";
     state.agentCapabilities = { loadSession: true, session: {}, mcp: { http: true } };
     const mcpServers = [{ type: "http", name: "msinsight-capabilities", url: "http://127.0.0.1/mcp/capabilities" }];
     const service = createSessionService({
@@ -70,7 +69,7 @@ test("loadSessionById injects the global capability MCP server", async () => {
             },
         },
         capabilitySessionIntegration: { withMcpServers: (operation) => operation(mcpServers) },
-        config: { cwd: "/tmp", activeAgentWorkspaceKey: "OpenCode" },
+        config: { cwd: "/tmp" },
         eventBus: { broadcast: () => {} },
         state,
     });
@@ -78,6 +77,7 @@ test("loadSessionById injects the global capability MCP server", async () => {
     await service.loadSessionById("session-1");
 
     assert.equal(calls[0].method, "session/load");
+    assert.equal(calls[0].params.cwd, "/tmp");
     assert.deepEqual(calls[0].params.mcpServers, mcpServers);
 });
 

@@ -40,7 +40,7 @@ import { createPermissionService } from "./services/permissionService.mjs";
 import { createRagService } from "./services/rag/ragService.mjs";
 import { createSessionManager } from "./services/sessionManager.mjs";
 import { createSessionService } from "./services/sessionService.mjs";
-import { createSkillService } from "./services/skillService.mjs";
+import { syncPackagedSkills } from "./services/workspaceSkillSync.mjs";
 import { createEventBus } from "./state/eventBus.mjs";
 import { createRuntimeState, publicState, resetRuntimeForAgent, restoreRuntimeState, snapshotRuntimeState } from "./state/runtimeState.mjs";
 
@@ -107,20 +107,19 @@ let activeAcpClient;
 let activeAcpMessageBuffer;
 const stagedAcpMessageBuffers = new WeakMap();
 
-const installHostHandlers = (adapter, agentServer) => {
+const installHostHandlers = (adapter, sharedWorkspacePath) => {
     if (!adapter) return;
-    const cwd = () => join(config.cwd, agentServer.workspaceKey);
+    const cwd = () => sharedWorkspacePath;
     const adapterFileReadService = createFileReadService({ permissionService, cwd });
     const adapterPermissionHostHandler = createPermissionHostHandler({ permissionService, cwd });
     adapter.registerHandler("session/request_permission", adapterPermissionHostHandler);
     adapter.registerHandler("fs/read_text_file", (params) => adapterFileReadService.readTextFile(params));
 };
 
-const createActiveAcpAdapter = (agentServer, { autoConnect = true } = {}) => {
-    const agentWorkspacePath = join(config.cwd, agentServer.workspaceKey);
+const createActiveAcpAdapter = (agentServer, sharedWorkspacePath, { autoConnect = true } = {}) => {
     const adapter = createAcpAdapter({
         agentServer: withHostEnv(agentServer),
-        cwd: agentWorkspacePath,
+        cwd: sharedWorkspacePath,
         debug: config.debug,
         requestTimeoutMs: config.requestTimeoutMs,
         promptRequestTimeoutMs: config.promptRequestTimeoutMs,
@@ -144,14 +143,24 @@ const createActiveAcpAdapter = (agentServer, { autoConnect = true } = {}) => {
         }
         chatService?.handleAcpNotification(message);
     });
-    installHostHandlers(adapter, agentServer);
+    installHostHandlers(adapter, sharedWorkspacePath);
     if (autoConnect) adapter.connect();
     return adapter;
 };
 
+const initializeSharedWorkspace = async () => {
+    const result = await syncPackagedSkills({
+        sourceSkillsDir: bundledResourceDirectory("skills"),
+        agentWorkspacePath: config.cwd,
+    });
+    config.cwd = result.workspaceRoot;
+    await syncProjectRules(result.workspaceRoot, config.systemPrompt);
+    console.log(`Packaged Skills synchronized: count=${result.installed.length}`);
+    return result.workspaceRoot;
+};
+
 await mkdir(config.cwd, { recursive: true });
-await mkdir(join(config.cwd, config.agentServer.workspaceKey), { recursive: true });
-await syncProjectRules(join(config.cwd, config.agentServer.workspaceKey), config.systemPrompt);
+const sharedWorkspacePath = await initializeSharedWorkspace();
 
 const ragService = await createRagService({ config: config.rag });
 
@@ -180,14 +189,13 @@ const capabilitySessionIntegration = createCapabilitySessionIntegration({
     hasConnections: httpMcpAdapter.hasConnections,
 });
 const pageContextService = createPageContextService({ eventBus });
-const skillService = createSkillService({ rootDir: config.resourceDir, skillsDir: bundledResourceDirectory("skills") });
 let chatService;
 let activeAgentServer = config.agentServer;
 let discoveredAgentServers = [];
 const availableAgentServers = () => mergeAgentServers(discoveredAgentServers, config.agentServers);
-resetRuntimeForAgent(state, { agentServers: availableAgentServers(), activeAgentName: activeAgentServer.name, activeAgentWorkspaceKey: activeAgentServer.workspaceKey });
+resetRuntimeForAgent(state, { agentServers: availableAgentServers(), activeAgentName: activeAgentServer.name });
 const permissionService = createPermissionService({ state, eventBus, config, timeoutMs: config.permissionRequestTimeoutMs });
-activeAcpClient = createActiveAcpAdapter(activeAgentServer);
+activeAcpClient = createActiveAcpAdapter(activeAgentServer, sharedWorkspacePath);
 
 const acpAdapter = {
     get agentId() {
@@ -226,7 +234,6 @@ chatService = createChatService({
     acpAdapter,
     eventBus,
     sessionService,
-    skillService,
     state,
     sessionManager,
     contextAssembler,
@@ -259,18 +266,19 @@ const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, relo
 
     activeAcpMessageBuffer = previousClientMessages;
     try {
-        if (reloadFromDisk) reloadConfig();
+        if (reloadFromDisk) {
+            reloadConfig();
+            config.cwd = sharedWorkspacePath;
+        }
         const requestedAgentName = String(activeAgentName ?? config.activeAgentName ?? "").trim();
         const nextAgentServer = availableAgentServers().find((server) => server.name === requestedAgentName) ?? config.agentServer;
         if (!nextAgentServer) throw new Error("agent is unavailable");
-        await mkdir(join(config.cwd, nextAgentServer.workspaceKey), { recursive: true });
-        await syncProjectRules(join(config.cwd, nextAgentServer.workspaceKey), config.systemPrompt);
 
-        nextClient = createActiveAcpAdapter(nextAgentServer, { autoConnect: false });
+        nextClient = createActiveAcpAdapter(nextAgentServer, sharedWorkspacePath, { autoConnect: false });
         stagedAcpMessageBuffers.set(nextClient, nextClientMessages);
         permissionService.updateTimeout(config.permissionRequestTimeoutMs);
         permissionService.resetRuntime();
-        resetRuntimeForAgent(state, { agentServers: availableAgentServers(), activeAgentName: nextAgentServer.name, activeAgentWorkspaceKey: nextAgentServer.workspaceKey });
+        resetRuntimeForAgent(state, { agentServers: availableAgentServers(), activeAgentName: nextAgentServer.name });
         state.activeContext = previousState.activeContext;
         nextClient.connect();
         await chatService.initialize({ targetAdapter: nextClient, broadcast: false, refreshSessions: false });
@@ -342,6 +350,7 @@ const refreshDiscoveredAgents = async () => {
         eventBus.broadcast({ type: "agent_discovery_started" });
         try {
             reloadConfig();
+            config.cwd = sharedWorkspacePath;
             permissionService.updateTimeout(config.permissionRequestTimeoutMs);
             const excludedLaunchKeys = new Set(config.configuredAgentServers.map(agentLaunchKey));
             const discovery = await discoverAgents({ cwd: config.cwd, excludedLaunchKeys });

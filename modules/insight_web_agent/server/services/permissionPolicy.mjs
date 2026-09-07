@@ -37,8 +37,6 @@ export const normalizeReadPath = async (targetPath, cwd = process.cwd()) => {
 export const createDefaultAllowlist = async ({
     rootDir,
     cwd,
-    activeAgentName,
-    activeAgentWorkspaceKey,
     projectRoot,
     includeDocsRoot = false,
     includeAgentWorkspaceRoot = true,
@@ -47,7 +45,7 @@ export const createDefaultAllowlist = async ({
 } = {}) => {
     const candidates = [
         includeDocsRoot && rootDir ? join(rootDir, "docs") : undefined,
-        includeAgentWorkspaceRoot ? (cwd && activeAgentName ? join(cwd, activeAgentWorkspaceKey ?? activeAgentName) : cwd) : undefined,
+        includeAgentWorkspaceRoot ? cwd : undefined,
         includeProjectRoot ? projectRoot : undefined,
         ...extraPaths,
     ].filter(Boolean);

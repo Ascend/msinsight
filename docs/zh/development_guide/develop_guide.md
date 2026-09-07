@@ -71,7 +71,7 @@
 | 新增前端/后端模块 | 本文 `3.1 新增模块开发` |
 | 新增前端 Agent Command | [Frontend Agent Command 实践指南](./frontend_agent_command_implementation.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
 | 在 Agent 回复中展示可确认的页面操作 | [Agent 回复 Action 设计](./design/AgentReplyAction.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
-| 新增 Native 分析助手或 Skill | [为 Native Agent 添加分析助手](./native_primary_agent_implementation.md)、[Native Primary Agent 与 Skill 架构设计](./design/NativePrimaryAgentAndSkill.md) |
+| 新增 Native 分析助手或安装包 Skill | [为 Native Agent 添加分析助手](./native_primary_agent_implementation.md)、[Native Primary Agent 与 Skill 架构设计](./design/NativePrimaryAgentAndSkill.md)、[安装包 Skill 的 Runtime 原生发现集成](./design/PackagedSkillIntegration.md) |
 | 为业务表格接入 Agent 能力 | [表格 Command 接入指南](./agent_table_command_implementation.md)、[AgentTable Command 设计](./design/AgentTableCommand.md)、[Frontend Agent Command 架构](./design/FrontendAgentCommandArchitecture.md) |
 | 新增或维护 Timeline 泳道 | 本文 `3.2 DB 场景新增泳道`、[TrackRender](./design/TrackRender.md)、[Timeline](./design/Timeline.md) |
 | 维护概览和通信模块 | [Summary](./design/Summary.md)、[Communication](./design/Communication.md) |

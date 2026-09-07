@@ -52,8 +52,6 @@ export const createPermissionService = ({ state, eventBus, config, timeoutMs } =
     const defaultAllowlist = async () => createDefaultAllowlist({
         rootDir: config.rootDir,
         cwd: config.cwd,
-        activeAgentName: state.activeAgentName ?? config.activeAgentName ?? config.agentServer?.name,
-        activeAgentWorkspaceKey: state.activeAgentWorkspaceKey,
         projectRoot: state.activeContext?.projectRoot,
         includeDocsRoot: config.defaultAllowlist?.includeDocsRoot,
         includeAgentWorkspaceRoot: config.defaultAllowlist?.includeAgentWorkspaceRoot,
