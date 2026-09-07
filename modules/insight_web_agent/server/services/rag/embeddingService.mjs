@@ -10,8 +10,16 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createEmbeddingRuntime, EmbeddingRuntimeError } from "./embeddingRuntime.mjs";
 
-export const createEmbeddingService = async ({ modelDir, runtime, platform, arch } = {}) => {
-    const activeRuntime = runtime ?? await createEmbeddingRuntime({ modelDir, platform, arch });
+export const createEmbeddingService = async ({ modelDir, runtimeDir, bundleRoot, nativeManifestRequired, runtime, platform, arch, libc } = {}) => {
+    const activeRuntime = runtime ?? await createEmbeddingRuntime({
+        modelDir,
+        runtimeDir,
+        bundleRoot,
+        nativeManifestRequired,
+        platform,
+        arch,
+        libc,
+    });
     const [{ Tokenizer }, ort] = await Promise.all([
         import("@huggingface/tokenizers"),
         import("onnxruntime-node"),

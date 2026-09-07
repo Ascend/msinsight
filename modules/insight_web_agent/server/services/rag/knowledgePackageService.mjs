@@ -93,10 +93,11 @@ export const createKnowledgePackageService = ({
         mode,
         sidecarPath = `${packPath}.sha256`,
     } = {}) => {
-        if (mode !== "development") {
+        const installMode = installModeForImportMode(mode);
+        if (!installMode) {
             throw new KnowledgePackageError(
                 "configuration_error",
-                "RAG import mode must be development",
+                "RAG import mode is invalid",
             );
         }
         const sourceArchive = await requireSourceFile(packPath, ARCHIVE_NAME, "pack_missing", "pack_unreadable");
@@ -127,7 +128,7 @@ export const createKnowledgePackageService = ({
                     throw new KnowledgePackageError("version_conflict", `Knowledge package version ${version} is already installed with a different SHA-256`);
                 }
                 await loadInstalledAndVerify(target, existing, { modelContract, runtimeContract, validateArchive, loadInstalledPack });
-                return importResult("already_imported", validated);
+                return importResult("already_imported", validated, existing.installMode);
             }
             await mkdir(packageStage, { recursive: false, mode: 0o700 });
             for (const name of PACKAGE_MEMBERS) await writeDurableFile(join(packageStage, name), validated.members.get(name));
@@ -141,7 +142,7 @@ export const createKnowledgePackageService = ({
                 schemaVersion: "1.0",
                 kbId: KB_ID,
                 kbVersion: version,
-                installMode: "development-local",
+                installMode,
                 package: { sha256: validated.sha256, sizeBytes: validated.sizeBytes },
                 runtimeContractSha256: validated.pack.contract.contractSha256,
                 memberSha256: Object.fromEntries(
@@ -156,9 +157,9 @@ export const createKnowledgePackageService = ({
                 const concurrent = await inspectExistingInstall(target);
                 if (!concurrent || concurrent.package.sha256 !== validated.sha256) throw error;
                 await loadInstalledAndVerify(target, concurrent, { modelContract, runtimeContract, validateArchive, loadInstalledPack });
-                return importResult("already_imported", validated);
+                return importResult("already_imported", validated, concurrent.installMode);
             }
-            return importResult("imported", validated);
+            return importResult("imported", validated, installMode);
         } catch (error) {
             throw normalizeError(error);
         } finally {
@@ -600,15 +601,20 @@ const validateVersion = (value) => {
 
 const pointerEntry = (kbVersion, digest) => ({ kbVersion, sha256: digest, directory: kbVersion });
 
-const importResult = (status, validated) => ({
+const importResult = (status, validated, installMode) => ({
     status,
     version: validated.pack.manifest.kbVersion,
     kbId: KB_ID,
     sha256: validated.sha256,
     sizeBytes: validated.sizeBytes,
     chunks: validated.pack.chunks.length,
-    installMode: "development-local",
+    installMode,
 });
+
+const installModeForImportMode = (mode) => ({
+    development: "development-local",
+    "product-bundled": "product-bundled",
+})[mode];
 
 const sha256File = async (path) => {
     const digest = createHash("sha256");

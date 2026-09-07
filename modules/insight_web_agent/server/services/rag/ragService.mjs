@@ -28,6 +28,7 @@ import {
     VECTOR_TOP_K,
 } from "./hybridRetriever.mjs";
 import { createVectorRetriever } from "./vectorRetriever.mjs";
+import { resolveRagTarget } from "./platformSupport.mjs";
 
 const DEFAULT_TOP_K = 5;
 const DEFAULT_MAX_CONTEXT_CHARS = 100000;
@@ -49,13 +50,21 @@ export const createRagService = async ({
     createEmbedding,
     platform = process.platform,
     arch = process.arch,
+    libc,
 } = {}) => {
     const ragConfig = normalizeConfig(config.rag ?? config);
     if (!ragConfig.enabled) return createDisabledRagService("disabled");
-    if (platform !== "win32" || arch !== "x64") return createDisabledRagService("unsupported_rag_platform");
     try {
+        resolveRagTarget({ platform, arch, libc });
         const createService = createEmbedding ?? (await import("./embeddingService.mjs")).createEmbeddingService;
-        const embeddingService = await createService({ modelDir: ragConfig.modelDir, platform, arch });
+        const embeddingService = await createService({
+            modelDir: ragConfig.modelDir,
+            runtimeDir: ragConfig.runtimeDir,
+            nativeManifestRequired: ragConfig.nativeManifestRequired,
+            platform,
+            arch,
+            libc,
+        });
         const knowledgePack = await loadPack(ragConfig.ragDataDir, {
             runtimeDir: ragConfig.runtimeDir,
             modelContract: embeddingService.contract,
@@ -167,6 +176,7 @@ const normalizeConfig = (config = {}) => ({
     ragDataDir: String(config.ragDataDir ?? "").trim(),
     modelDir: String(config.modelDir ?? "").trim(),
     runtimeDir: String(config.runtimeDir ?? "").trim(),
+    nativeManifestRequired: config.nativeManifestRequired === true,
     topK: normalizePositiveInteger(config.topK, DEFAULT_TOP_K),
     maxContextChars: normalizePositiveInteger(config.maxContextChars, DEFAULT_MAX_CONTEXT_CHARS),
     failOpen: config.failOpen !== false,

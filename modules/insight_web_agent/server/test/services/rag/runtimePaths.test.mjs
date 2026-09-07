@@ -7,24 +7,29 @@
  */
 
 import assert from "node:assert/strict";
+import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { fixedRagPaths } from "../../../services/rag/runtimePaths.mjs";
 
 test("fixed RAG paths derive only from source or bundled entry location", () => {
+    const bundledRoot = resolve("product", "resources", "profiler", "server", "insight_web_agent");
     assert.deepEqual(
-        fixedRagPaths("C:/Product/resources/profiler/server/insight_web_agent/rag-cli.mjs"),
+        fixedRagPaths(join(bundledRoot, "rag-cli.mjs")),
         {
-            ragDataDir: "C:\\Product\\resources\\profiler\\server\\insight_web_agent\\rag-data",
-            runtimeDir: "C:\\Product\\resources\\profiler\\server\\insight_web_agent\\rag-runtime",
-            modelDir: "C:\\Product\\resources\\profiler\\server\\insight_web_agent\\rag-runtime\\models\\bge-small-zh-v1.5",
+            ragDataDir: join(bundledRoot, "rag-data"),
+            runtimeDir: join(bundledRoot, "rag-runtime"),
+            modelDir: join(bundledRoot, "rag-runtime", "models", "bge-small-zh-v1.5"),
+            nativeManifestRequired: true,
         },
     );
+    const sourceRoot = resolve("source", "insight_web_agent");
     assert.deepEqual(
-        fixedRagPaths("C:/source/insight_web_agent/server/rag-cli.mjs"),
+        fixedRagPaths(join(sourceRoot, "server", "rag-cli.mjs")),
         {
-            ragDataDir: "C:\\source\\insight_web_agent\\rag-data",
-            runtimeDir: "C:\\source\\insight_web_agent\\rag-runtime",
-            modelDir: "C:\\source\\insight_web_agent\\rag-runtime\\models\\bge-small-zh-v1.5",
+            ragDataDir: join(sourceRoot, "rag-data"),
+            runtimeDir: join(sourceRoot, "rag-runtime"),
+            modelDir: join(sourceRoot, "rag-runtime", "models", "bge-small-zh-v1.5"),
+            nativeManifestRequired: false,
         },
     );
 });

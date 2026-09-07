@@ -12,6 +12,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { expectedNativeFiles } from "../../services/rag/nativeRuntimeManifest.mjs";
+import { resolveRagTarget } from "../../services/rag/platformSupport.mjs";
 
 const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const distDir = process.env.MSINSIGHT_DIST_SERVER_DIR
@@ -43,11 +45,11 @@ test("packaged server preserves capability resources and contains RAG runtime co
         "index.mjs",
         "rag-cli.mjs",
         "capability-center.json",
-        "docs",
         "rag-runtime/runtime-contract.json",
     ]) {
         assert.equal(existsSync(join(distDir, path)), true, path);
     }
+    assert.equal(existsSync(join(distDir, "docs")), false);
     for (const name of ["bm25-domain-dict.txt", "bm25-tokenizer-fixture.json", "rerank-context-v1.json", "semantic-input-v1.json"]) {
         assert.equal(existsSync(join(distDir, "rag-runtime", name)), false, name);
     }
@@ -55,14 +57,15 @@ test("packaged server preserves capability resources and contains RAG runtime co
     assert.equal(existsSync(join(distDir, "rag-runtime/contracts/msinsight-default-consumer-contract.json")), false);
 });
 
-test("Windows x64 package contains the native RAG runtime bindings", {
-    skip: process.platform !== "win32" || process.arch !== "x64",
-}, () => {
-    for (const path of [
-        "node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node",
-        "node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll",
-        "node_modules/@node-rs/jieba-win32-x64-msvc/jieba.win32-x64-msvc.node",
-    ]) {
+test("package contains only the current product target native RAG bindings", () => {
+    const target = resolveRagTarget();
+    for (const path of expectedNativeFiles(target)) {
         assert.equal(existsSync(join(distDir, path)), true, path);
+    }
+    const manifestPath = join(distDir, "rag-runtime", "native-runtime-manifest.json");
+    if (existsSync(manifestPath)) {
+        const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+        assert.deepEqual(manifest.target, { arch: target.arch, id: target.id, platform: target.platform });
+        assert.deepEqual(manifest.files.map(({ path }) => path), expectedNativeFiles(target));
     }
 });

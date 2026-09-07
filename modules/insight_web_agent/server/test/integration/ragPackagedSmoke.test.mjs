@@ -54,14 +54,14 @@ test("bundled CLI ignores root environment and CWD redirection inputs", () => {
     if (existsSync(join(distDir, "rag-data", "active.json"))) {
         const metadata = JSON.parse(readFileSync(join(distDir, "rag-build-mode.json"), "utf8"));
         assert.equal(status.active.kbVersion, metadata.package.kbVersion);
-        assert.equal(status.installMode, "development-local");
+        assert.equal(status.installMode, metadata.mode === "product-bundled" ? "product-bundled" : "development-local");
     } else {
         assert.deepEqual(status, { active: null, previous: null });
     }
     assert.equal(existsSync(redirected), false);
 });
 
-test("development bundle is preactivated and passes bundled lifecycle verify", {
+test("bundled RAG is preactivated and passes lifecycle verify", {
     skip: !existsSync(join(distDir, "rag-data", "active.json")),
 }, () => {
     const result = spawnSync(process.execPath, [join(distDir, "rag-cli.mjs"), "verify"], {
@@ -75,13 +75,16 @@ test("development bundle is preactivated and passes bundled lifecycle verify", {
     assert.equal(verified.status, "verified");
     assert.equal(verified.kbVersion, metadata.package.kbVersion);
     assert.ok(verified.chunks > 0);
-    assert.equal(verified.installMode, "development-local");
+    assert.equal(verified.installMode, metadata.mode === "product-bundled" ? "product-bundled" : "development-local");
     assert.equal(existsSync(join(distDir, "rag-data", verified.kbVersion, "bm25-domain-dict.txt")), true);
     assert.equal(existsSync(join(distDir, "rag-seed")), false);
-    assert.equal(metadata.productVersion, "26.1.1-rag-dev.1");
-    assert.equal(metadata.peNumericVersion, "26.1.1.1");
-    assert.equal(metadata.releaseEligible, false);
+    assert.equal(["development", "product-bundled"].includes(metadata.mode), true);
+    assert.equal(metadata.releaseEligible, metadata.mode === "product-bundled");
+    if (metadata.mode === "development") {
+        assert.equal(metadata.productVersion, "26.1.1-rag-dev.1");
+        assert.equal(metadata.peNumericVersion, "26.1.1.1");
+    }
     assert.equal(metadata.consumerAcceptanceEvaluated, false);
     assert.equal(metadata.promotionEvaluated, false);
-    assert.equal(metadata.softwareSource.treeState, "dirty");
+    assert.equal(["clean", "dirty"].includes(metadata.softwareSource.treeState), true);
 });

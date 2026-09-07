@@ -123,7 +123,7 @@ test("query completion inherits exactly one previous project without mutating th
 test("createRagService disables unsupported platforms and honors load fail-open semantics", async () => {
     const unsupported = await createRagService({
         config: { enabled: true },
-        platform: "linux",
+        platform: "freebsd",
         arch: "x64",
         createEmbedding: async () => { throw new Error("must not load"); },
     });

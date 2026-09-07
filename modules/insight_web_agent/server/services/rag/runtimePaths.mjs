@@ -18,5 +18,6 @@ export const fixedRagPaths = (entryPath) => {
         ragDataDir: join(bundleRoot, "rag-data"),
         runtimeDir,
         modelDir: join(runtimeDir, "models", "bge-small-zh-v1.5"),
+        nativeManifestRequired: basename(entryDirectory) !== "server",
     });
 };

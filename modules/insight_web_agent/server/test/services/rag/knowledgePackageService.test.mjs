@@ -150,7 +150,7 @@ test("same version with different canonical bytes is a permanent version conflic
     );
 });
 
-test("service accepts only development imports and exposes no seed provision operation", async () => {
+test("service rejects unknown import modes and exposes no seed provision operation", async () => {
     const fixture = await createFixture();
     const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
     const service = createService(fixture);
@@ -180,6 +180,24 @@ test("all-enabled Package still installs only as development-local", async () =>
         "utf8",
     ));
     assert.equal(install.installMode, "development-local");
+});
+
+test("product-bundled import records a release install without opening the CLI mode", async () => {
+    const fixture = await createFixture();
+    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "product" });
+    const service = createService(fixture);
+
+    const imported = await service.importPackage(handoff.archivePath, {
+        mode: "product-bundled",
+        sidecarPath: handoff.sidecarPath,
+    });
+    await service.activate(imported.version, { sha256: imported.sha256 });
+    const verified = await service.verify();
+    const install = JSON.parse(await readFile(join(fixture.ragDataDir, "26.1.1", "install.json"), "utf8"));
+
+    assert.equal(imported.installMode, "product-bundled");
+    assert.equal(install.installMode, "product-bundled");
+    assert.equal(verified.installMode, "product-bundled");
 });
 
 test("all lifecycle mutations reject immediately while another process owns the sentinel lock", async () => {

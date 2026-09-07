@@ -18,7 +18,10 @@
 
 import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
+import { loadAndVerifyNativeRuntimeManifest } from "./nativeRuntimeManifest.mjs";
+import { resolveRagTarget } from "./platformSupport.mjs";
+import { loadRuntimeContract } from "./runtimeContract.mjs";
 
 const MODEL_MANIFEST_FILE = "model-manifest.json";
 const REQUIRED_FILES = new Set([
@@ -38,20 +41,45 @@ export class EmbeddingRuntimeError extends Error {
     }
 }
 
-export const createEmbeddingRuntime = async ({ modelDir, platform = process.platform, arch = process.arch } = {}) => {
-    if (platform !== "win32" || arch !== "x64") {
-        throw new EmbeddingRuntimeError("unsupported_rag_platform", `Unsupported RAG embedding platform: ${platform}-${arch}`);
-    }
+export const createEmbeddingRuntime = async ({
+    modelDir,
+    runtimeDir,
+    bundleRoot,
+    nativeManifestRequired = false,
+    platform = process.platform,
+    arch = process.arch,
+    libc,
+} = {}) => {
+    resolveRagTarget({ platform, arch, libc });
     const { modelDir: directory, manifest } = await loadEmbeddingModelContract({ modelDir });
+    let nativeRuntimeManifest;
+    if (nativeManifestRequired) {
+        const runtimeDirectory = resolveRequiredDirectory(runtimeDir, "runtime directory");
+        const runtime = await loadRuntimeContract(runtimeDirectory);
+        nativeRuntimeManifest = await loadAndVerifyNativeRuntimeManifest({
+            bundleRoot: bundleRoot ?? dirname(runtimeDirectory),
+            runtimeDir: runtimeDirectory,
+            platform,
+            arch,
+            libc,
+            modelManifestSha256: manifest.manifestSha256,
+            runtimeContractSha256: runtime.contract.contractSha256,
+        });
+    }
+    let ort;
+    try {
+        ort = await import("onnxruntime-node");
+    } catch {
+        throw new EmbeddingRuntimeError("native_runtime_load_failed", "Unable to load the RAG native runtime");
+    }
     let session;
     try {
-        const ort = await import("onnxruntime-node");
         session = await ort.InferenceSession.create(join(directory, "onnx", "model.onnx"), { executionProviders: ["cpu"] });
-    } catch (error) {
-        throw new EmbeddingRuntimeError("onnx_initialization_failed", `Unable to initialize ONNX embedding model: ${error.message}`);
+    } catch {
+        throw new EmbeddingRuntimeError("onnx_initialization_failed", "Unable to initialize ONNX embedding model");
     }
     validateSession(session, manifest);
-    return { modelDir: directory, manifest, session };
+    return { modelDir: directory, manifest, session, ...(nativeRuntimeManifest ? { nativeRuntimeManifest } : {}) };
 };
 
 export const loadEmbeddingModelContract = async ({ modelDir } = {}) => {

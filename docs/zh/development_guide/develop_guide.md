@@ -229,12 +229,13 @@ python3 build.py
 
 产物位于项目根目录 `out` 目录下。Windows 和 macOS 出包需要额外准备 Rust、平台运行时、打包工具和集成 Python 解释器，详见[开发环境搭建](./environment_setup.md#5-本地出包环境)。
 
-#### 2.7.1 构建预激活 RAG 的开发软件包
+#### 2.7.1 构建预激活 RAG 软件包
 
-RAG 开发软件包通过环境变量提供知识包和 ONNX 模型输入，构建命令不再显式传递这些路径。三个变量全部设置时，构建脚本自动进入 development RAG 模式；全部未设置时执行普通软件包构建；只设置部分变量会在清理和编译前直接报错。
+RAG 软件包通过环境变量提供知识包和 ONNX 模型输入，构建命令不再显式传递这些路径。路径变量全部设置时构建预激活 RAG；全部未设置时执行 code-only 构建；只设置部分变量会在清理和编译前直接报错。
 
 | 环境变量 | 含义 | 输入要求 |
 | --- | --- | --- |
+| `MSINSIGHT_RAG_MODE` | RAG 构建模式 | 可选。`development`（默认）或 `product-bundled` |
 | `MSINSIGHT_RAG_PACKAGE` | RAG Knowledge Package v4 路径 | 指向 `knowledge-pack-v4.zip` 普通文件 |
 | `MSINSIGHT_RAG_PACKAGE_SHA256` | 知识包 SHA256 sidecar 路径 | 指向与知识包匹配的 `knowledge-pack-v4.zip.sha256` 普通文件 |
 | `MSINSIGHT_RAG_MODEL_DIR` | 已解压的 ONNX Embedding 模型目录 | 包含 `model-manifest.json`、`onnx/model.onnx` 和 Tokenizer 配置文件 |
@@ -255,6 +256,7 @@ Windows PowerShell 示例：
 $env:MSINSIGHT_RAG_PACKAGE = "D:\rag\knowledge-pack-v4.zip"
 $env:MSINSIGHT_RAG_PACKAGE_SHA256 = "D:\rag\knowledge-pack-v4.zip.sha256"
 $env:MSINSIGHT_RAG_MODEL_DIR = "D:\models\bge-small-zh-v1.5"
+$env:MSINSIGHT_RAG_MODE = "development"
 
 Set-Location build
 python build.py --build_version 26.1.1-rag-dev.1
@@ -266,14 +268,17 @@ Linux 或 macOS 示例：
 export MSINSIGHT_RAG_PACKAGE=/opt/rag/knowledge-pack-v4.zip
 export MSINSIGHT_RAG_PACKAGE_SHA256=/opt/rag/knowledge-pack-v4.zip.sha256
 export MSINSIGHT_RAG_MODEL_DIR=/opt/models/bge-small-zh-v1.5
+export MSINSIGHT_RAG_MODE=development
 
 cd build
 python3 build.py --build_version 26.1.1-rag-dev.1
 ```
 
-RAG 开发包版本必须使用 `MAJOR.MINOR.PATCH-rag-dev.SERIAL` 格式，例如 `26.1.1-rag-dev.1`。构建脚本会在产生输出前校验知识包摘要、Package manifest 和模型目录，并在 Agent Server 子构建中继续通过环境变量传递路径，避免路径出现在子进程命令行。
+development RAG 包版本必须使用 `MAJOR.MINOR.PATCH-rag-dev.SERIAL` 格式，例如 `26.1.1-rag-dev.1`。正式产品构建设置 `MSINSIGHT_RAG_MODE=product-bundled`，并使用普通 `MAJOR.MINOR.PATCH` 产品版本。构建脚本会在产生输出前校验知识包摘要、Package manifest、模型目录和目标平台原生运行时；正式模式任一输入缺失都会失败。
 
-旧的 `--rag-mode`、`--rag-dev-pack`、`--rag-dev-sidecar` 和 `--rag-model-dir` 参数仅为已有自动化保留，已从 `--help` 隐藏并会输出弃用警告。环境变量与旧参数同时存在时，以环境变量为准。新脚本不得继续使用旧参数。
+Agent Server 根据根构建的产品目标自动选择 Windows x64、Linux x86_64/aarch64 或 macOS x86_64/arm64 原生依赖。各平台统一使用 `onnxruntime-node/onnxruntime-common 1.22.0`、`@node-rs/jieba 2.0.1` 和 N-API v6；一个安装包只包含当前目标的原生文件。
+
+RAG 构建输入仅支持 `MSINSIGHT_RAG_*` 环境变量，不再接受任何 RAG 命令行参数（如已删除的 `--rag-mode`、`--rag-dev-pack`、`--rag-dev-sidecar`、`--rag-model-dir`）；传入未知或残留的 RAG 参数时构建直接报错退出。非 RAG 参数（`--revision`、`--build_version`、`--whl_version`、`clean`）保持不变。
 
 ## 3. 开发流程
 
