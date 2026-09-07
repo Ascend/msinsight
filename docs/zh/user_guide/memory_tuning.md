@@ -177,6 +177,11 @@ PyTorch Memory Snapshot是PyTorch提供的一种内存快照功能，用于记�
 
 - 区域二：内存块生命周期图，展示内存申请/释放折线图和内存块图，选择内存块图上的色块，展示该内存块的详情，可通过选择设备ID和类型来展示对应的内存块生命周期图，如[**图 2** 内存块生命周期图](#内存块生命周期图)所示。
 
+  图中包含三条折线图辅助用户进行数据分析，具体折线图介绍如下：
+  1. **reserved折线图**：AI框架级别，从驱动申请的用于二次分配（如分配给tensor使用）的缓存池总大小；
+  2. **process_used折线图**：进程级别总显存占用，包含reserved数据；
+  3. **device_used折线图**：设备级别总显存占用，包含process_used数据。
+
   **图 2**  内存块生命周期图<a id="内存块生命周期图"></a>
 
   ![](./figures/memory_tuning/memscope_memory_block_timeline_graph_1.png "内存块生命周期图")
@@ -278,7 +283,7 @@ MindStudio Insight 调用栈火焰图和内存块生命周期图通过控制下�
     |--|--|--|
     |内存块ID|ID|内存块ID，内存块唯一标识，可支持点击跳转至调用栈火焰图对应的内存块并高亮。|
     |内存块地址|Addr|内存块地址，对应内存申请/释放/访问事件的地址。|
-    |内存块大小(KBytes)|Size(KBytes)|内存块大小，对应内存申请事件，单位为KBytes。|
+    |内存块大小（KB）|Size(KB)|内存块大小，对应内存申请事件，单位为KB。|
     |申请时间(ns)|Malloc Timestamp(ns)|内存块申请时间，对应内存申请事件的时间，单位ns。|
     |释放时间(ns)|Free Timestamp(ns)|内存块释放时间，对应内存释放事件的时间，单位ns。|
     |申请者|Owner|内存块持有者所属标签。|
@@ -407,7 +412,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 - **重置视图**：点击重置按钮，也可通过`R`键或者鼠标中键恢复完整视图。
 - **图层管理**：点击分别显示或者隐藏**内存块图**、**reserved折线**以及**差值标记**，图层恢复显示时自动对齐当前视口。
 - **差值标记**：点击右侧标记轴创建Flag；悬停内存块后点击`K`键添加或取消关联Flag。
-- **标记管理**：集中重命名、隐藏、改色或删除Flag，隐藏差值标记不影响标记刮管理。
+- **标记管理**：集中重命名、隐藏、改色或删除Flag，隐藏差值标记不影响标记管理。
 
 具体介绍也可通过界面右侧工具栏触发，如[**图3** 生命周期图工具条指引](#生命周期图工具条指引)图例所示。
 
@@ -437,7 +442,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 > [!NOTE] 说明
 >
 > - 系统默认隐藏内存详情展示。如需查看，需要点击上拉按键，将内存详情信息上拉展示。如无需查看内存详情信息，点击下拉按键，隐藏内存详情信息。
-> - “内存块视图”中的“内存大小（KBytes）”和“分配事件需求大小（KBytes）”字段，“内存事件视图”中的“内存大小（KBytes）”、“总二次分配内存（KBytes）”、“总活跃内存（KBytes）”和“总预留内存（KBytes）”字段，单击![](./figures/memory_tuning/zh-cn_image_0000002532040401.png)，可输入最小值和最大值进行区间筛选。
+> - “内存块视图”中的“内存大小（KB）”和“分配事件需求大小（KB）”字段，“内存事件视图”中的“内存大小（KB）”、“总二次分配内存（KB）”、“总活跃内存（KB）”和“总预留内存（KB）”字段，单击![](./figures/memory_tuning/zh-cn_image_0000002532040401.png)，可输入最小值和最大值进行区间筛选。
 
 - 内存块视图：展示缩放条选中区间内存块的详细信息，如[**图 5**  快照内存块视图](#快照内存块视图)所示，字段解释如[**表 1**  快照内存块视图字段说明](#快照内存块视图字段说明)所示。鼠标悬浮在视图中，右上角会浮现![](./figures/system_tuning/zh-cn_image_0000002500040346.png)按钮，单击复制表中当前所展示的内容。
 
@@ -450,8 +455,8 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
     |字段名称|可选/必选|释义|类型|示例值|额外说明|
     |--|--|--|--|--|--|
     |ID|必选|内存块ID，唯一标识内存块。|整数|0|可通过点击ID跳转至内存生命周期图对应的内存块并高亮。<ul><li>值为负数代表该内存块申请事件在内存快照采集生命周期中未被记录（负数大小无实际含义）</li><br><li>值为非负数时代表内存块申请事件ID。</li></ul>|
-    |Requested Size(KBytes)|必选|内存块申请大小，单位为 KBytes 。|浮点数|12.5|分配事件需求的内存大小。PTA会基于申请大小进行padding和对齐，所以分配大小可能会大于申请大小。|
-    |Size(KBytes)|必选|内存事件操作的内存大小，单位为 KBytes 。|浮点数|12.5|实际分配给内存块的内存大小，单位为 KBytes 。其值大于或等于申请大小。|
+    |Requested Size(KB)|必选|内存块申请大小，单位为 KB 。|浮点数|12.5|分配事件需求的内存大小。PTA会基于申请大小进行padding和对齐，所以分配大小可能会大于申请大小。|
+    |Size(KB)|必选|内存事件操作的内存大小，单位为 KB 。|浮点数|12.5|实际分配给内存块的内存大小，单位为 KB 。其值大于或等于申请大小。|
     |Address|必选|内存事件地址。|0x十六进制地址|0x7f9f00000000|内存块在内存中的地址。|
     |State|必选|内存块状态。|枚举中的一个，详情参考说明。|`active_allocated`|内存块的当前状态，包括：<br><ul><li>`active_allocated`：内存块已被分配且正在被使用，不可以被复用。</li><br><li>`active_pending_free`：内存块已被释放请求，但（可能因跨流依赖）尚未完成释放，仍然不可以被复用。</li><br><li>`inactive`：未被分配状态的内存块（或内存块已被释放完成），可以被复用。</li></ul>|
     |Alloc Event ID|可选|内存块申请事件ID。|整数|1|内存块申请事件ID，唯一标识内存块的申请事件。**值为-1代表该内存块的申请事件在内存快照采集生命周期中未被记录**。可点击内存块申请事件ID跳转至内存池状态图对应的事件并高亮。|
@@ -490,11 +495,11 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
     |ID|必选|内存事件ID，唯一标识内存事件。|整数|0|可点击内存事件ID，跳转至内存池状态图对应的事件并高亮。|
     |Action|必选|内存事件操作类型。|枚举中的一个，详情参考说明。|alloc|<ul><li>内存段操作：</li><br><ul><li>`segment_alloc`：内存段申请事件，会触发PTA内存池从驱动申请物理内存，触发扩容。</li><br><li>`segment_free`：内存段释放事件，会触发PTA内存池释放物理内存，触发缩容。</li><br><li>`segment_map`：内存段映射事件，开启虚拟内存场景，会触发PTA内存池将物理内存映射到虚拟地址空间。</li><br><li>`segment_unmap`：内存段取消映射事件，开启虚拟内存场景，会触发PTA内存池取消将物理内存映射到虚拟地址空间。</li></ul><li>内存块操作：</li><br><ul><li>`alloc`：内存块申请事件，PTA从内存池中查找可用的inactive状态的内存块，进行二次分配。</li><br><li>`free_requested`：内存块释放请求事件，PTA内存池将内存块状态设置为active_pending_free，等待后续释放。</li><li>`free_completed`：内存块释放完成事件，PTA内存池将内存块状态设置为inactive，释放给内存池。</li></ul><li>算子workspace快照：`workspace_snapshot`。</li></ul>|
     |Address|必选|内存事件地址。|0x十六进制地址|0x7f9f00000000|内存事件操作的内存地址。|
-    |Size(KBytes)|必选|内存事件操作的内存大小，单位为 KBytes 。|浮点数|12.5|无|
+    |Size(KB)|必选|内存事件操作的内存大小，单位为 KB 。|浮点数|12.5|无|
     |Stream|必选|内存事件所属的流ID。|整数|0|无|
-    |Allocated(KBytes)|必选|事件发生后的PTA内存池总二次分配大小，单位为 KBytes 。|浮点数|12.5|所有Segment中所有的active_allocated状态的block总大小， 反映事件发生时刻，PTA内存池中已二次分配给tensor实际使用的内存大小。|
-    |Active(KBytes)|必选|事件发生后的PTA内存池总活跃内存大小，单位为 KBytes 。|浮点数|12.5|所有Segment中所有的active_allocated状态的block总大小， 反映事件发生时刻，PTA内存池中已二次分配给tensor实际使用的内存大小。|
-    |Reserved(KBytes)|必选|事件发生后的PTA内存池总保留内存大小，单位为 KBytes 。|浮点数|12.5|其值为所有内存段Segment的大小总和。反映事件发生时刻，PTA内存池中实际从驱动申请，预留的内存大小。|
+    |Allocated(KB)|必选|事件发生后的PTA内存池总二次分配大小，单位为 KB 。|浮点数|12.5|所有Segment中所有的active_allocated状态的block总大小， 反映事件发生时刻，PTA内存池中已二次分配给tensor实际使用的内存大小。|
+    |Active(KB)|必选|事件发生后的PTA内存池总活跃内存大小，单位为 KB 。|浮点数|12.5|所有Segment中所有的active_allocated状态的block总大小， 反映事件发生时刻，PTA内存池中已二次分配给tensor实际使用的内存大小。|
+    |Reserved(KB)|必选|事件发生后的PTA内存池总保留内存大小，单位为 KB 。|浮点数|12.5|其值为所有内存段Segment的大小总和。反映事件发生时刻，PTA内存池中实际从驱动申请，预留的内存大小。|
     |Call Stack|可选|内存事件调用栈。|字符串|`/home/xxx/test/demo.py: 60 main`|内存事件的调用栈，展示了内存事件发生时的触发调用栈，若为空可能是以下几种情况之一：<br><ul><li>_record_memory_history时未启用stacks。</li><br><li>该事件发生在反向backward时的autograd中，可能无调用栈信息。</li></ul>|
 
     > [!NOTE] 说明
@@ -517,11 +522,11 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
     |ID|必选|内存事件ID，唯一标识内存事件。可通过点击内存事件ID，跳转至内存池状态图对应的事件并高亮。|整数|0|可点击跳转至内存池状态图|
     |Action|必选|内存事件操作类型。|枚举中的一个，详情参考说明。|alloc|<ul><li>内存段操作：</li><br><ul><li>`segment_alloc`：内存段申请事件，会触发PTA内存池从驱动申请物理内存，触发扩容。</li><br><li>`segment_free`：内存段释放事件，会触发PTA内存池释放物理内存，触发缩容。</li><br><li>`segment_map`：内存段映射事件，开启虚拟内存场景，会触发PTA内存池将物理内存映射到虚拟地址空间。</li><br><li>`segment_unmap`：内存段取消映射事件，开启虚拟内存场景，会触发PTA内存池取消将物理内存映射到虚拟地址空间。</li></ul><li>内存块操作：</li><br><ul><li>`alloc`：内存块申请事件，PTA从内存池中查找可用的inactive状态的内存块，进行二次分配。</li><br><li>`free_requested`：内存块释放请求事件，PTA内存池将内存块状态设置为active_pending_free，等待后续释放。</li><li>`free_completed`：内存块释放完成事件，PTA内存池将内存块状态设置为inactive，释放给内存池。</li></ul><li>算子workspace快照：`workspace_snapshot`。</li></ul>|
     |Address|必选|内存事件地址。|0x十六进制地址|0x7f9f00000000|内存事件操作的内存地址。|
-    |Size(MBytes)|必选|内存事件操作的内存大小，单位为 MBytes 。|浮点数|12.5|无|
+    |Size(MB)|必选|内存事件操作的内存大小，单位为 MB 。|浮点数|12.5|无|
     |Stream|必选|内存事件所属的流ID。|整数|0|无|
-    |Caching Allocated(MBytes)|必选|事件发生后的PTA内存池总二次分配大小，单位为 MBytes 。|浮点数|12.5|所有Segment中所有的active_allocated状态的block总大小， 反映事件发生时刻，PTA内存池中已二次分配给tensor实际使用的内存大小。|
-    |Caching Active(MBytes)|必选|事件发生后的PTA内存池总活跃内存大小，单位为 MBytes 。|浮点数|12.5|其值应为所有Segment中所有的active_allocated状态的block总大小与所有active_pending_free状态的block大小之和。反映事件发生时刻，PTA内存池中实际占用而无法被复用的内存大小。|
-    |Caching Reserved(MBytes)|必选|事件发生后的PTA内存池总保留内存大小，单位为 MBytes 。|浮点数|12.5|其值为所有内存段Segment的大小总和。反映事件发生时刻，PTA内存池中实际从驱动申请，预留的内存大小。|
+    |Caching Allocated(MB)|必选|事件发生后的PTA内存池总二次分配大小，单位为 MB 。|浮点数|12.5|所有Segment中所有的active_allocated状态的block总大小， 反映事件发生时刻，PTA内存池中已二次分配给tensor实际使用的内存大小。|
+    |Caching Active(MB)|必选|事件发生后的PTA内存池总活跃内存大小，单位为 MB 。|浮点数|12.5|其值应为所有Segment中所有的active_allocated状态的block总大小与所有active_pending_free状态的block大小之和。反映事件发生时刻，PTA内存池中实际占用而无法被复用的内存大小。|
+    |Caching Reserved(MB)|必选|事件发生后的PTA内存池总保留内存大小，单位为 MB 。|浮点数|12.5|其值为所有内存段Segment的大小总和。反映事件发生时刻，PTA内存池中实际从驱动申请，预留的内存大小。|
     |Call Stack|可选|内存事件调用栈。|字符串|`/home/xxx/test/demo.py: 60 main`|内存事件的调用栈，展示了内存事件发生时的触发调用栈，若为空可能是以下几种情况之一：<br><ul><li>_record_memory_history时未启用stacks。</li><br><li>该事件发生在反向backward时的autograd中，可能无调用栈信息。</li></ul>|
 
   - Block类型选中详情，如[**图 11**  Block类型选中详情](#Block类型选中详情)所示，字段解释如[**表 4**  Block类型选中详情字段说明](#Block类型选中详情字段说明)所示，基础事件信息在左侧区域呈现，具体事件信息可切换事件类型查看。
@@ -535,8 +540,8 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
     |中文字段|英文字段|可选/必选|说明|
     |-|-|-|-|
     |ID|ID|必选|block id标识，若大于零则表示申请事件id，若小于零则表示该块未采集到申请事件，具体负值大小无含义。|
-    |分配事件需求大小|Requested Size(MBytes)|必选|实际触发该block分配的申请事件所需内存大小，因对齐等会原因，block实际大小会略大于申请事件所需大小，单位为MBytes。|
-    |大小|Size(MBytes)|必选|块大小，单位为MBytes。|
+    |分配事件需求大小|Requested Size(MB)|必选|实际触发该block分配的申请事件所需内存大小，因对齐等原因，block实际大小会略大于申请事件所需大小，单位为MB。|
+    |大小|Size(MB)|必选|块大小，单位为MB。|
     |地址|Address|必选|块内存地址，16进制。|
 
   - segment类型选中详情，如[**图 12**  segment类型选中详情](#segment类型选中详情)所示，字段解释如[**表 5**  segment类型选中详情字段说明](#segment类型选中详情字段说明)所示，基础事件信息在左侧区域呈现，具体事件信息可切换事件类型查看。
@@ -551,12 +556,12 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
     |-|-|-|-|
     |地址|Address|必选|segment内存地址，16进制。|
     |流id|Stream|必选|stream id，与地址共同标识一个唯一的segment。|
-    |段大小|Segment Size(MBytes)|必选|segment总大小，单位为MBytes。|
-    |已分配大小|Allocated Size(MBytes)|必选|segment中已（以block的形式）二次分配出去的内存，即实际被占用，暂时无法被复用的内存大小，等于所有活跃内存块大小总合，单位为MBytes。|
-    |空间间隙大小|Gap Size(MBytes)|必选|segment中块与块之间地址不连续而存在间隙gap，该值标识内存段中总的间隙大小，等于“段大小 - 已分配大小”的值，单位为MBytes。|
+    |段大小|Segment Size(MB)|必选|segment总大小，单位为MB。|
+    |已分配大小|Allocated Size(MB)|必选|segment中已（以block的形式）二次分配出去的内存，即实际被占用，暂时无法被复用的内存大小，等于所有活跃内存块大小总和，单位为MB。|
+    |空间间隙大小|Gap Size(MB)|必选|segment中块与块之间地址不连续而存在间隙gap，该值标识内存段中总的间隙大小，等于“段大小 - 已分配大小”的值，单位为MB。|
     |块数量|Block Count|必选|已二次分配的活跃block数量。|
     |空间间隙数量|Gap Count|必选|块与块之间gap的数量。|
-    |最大空闲间隙|Max Gap Size(MBytes)|必选|最大gap的大小，单位为MBytes。|
+    |最大空闲间隙|Max Gap Size(MB)|必选|最大gap的大小，单位为MB。|
 
 ## MemScope 数据采集对比 PyTorch Snapshot 数据采集
 
@@ -571,7 +576,7 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
   1. 调优数据分析：内存快照数据为python pickle数据文件，上手成本较高，基本上在分析时完全依赖可视化能力；如需对原始数据进行解析分析，需要对内存事件及采集原理有一定的了解。
   2. 社区可视化工具能力/性能有限：虽然内存快照数据可以通过社区在线可视化进行分析，但其稳定性、性能及联动性存在较大不足：
       - 稳定性：在线网页可能因客户端环境（如仅内网环境）、网络问题（如CDN资源异常等）而导致无法正常使用。
-      - 性能：在线可视化网页在处理大规模内存快照（事件数量超过15,000， 快照体积超过10M）数据时，性能可能存在一定问题，如加载时间较长、交互响应延迟等较大。
+      - 性能：在线可视化网页在处理大规模内存快照（事件数量超过15,000， 快照体积超过10MB）数据时，性能可能存在一定问题，如加载时间较长、交互响应延迟等较大。
       - 联动性：在线可视化网页在分析过程中，从内存块生命周期图关联到内存池状态图的唯一方法是通过手动复制内存地址-在网页中进行搜索，且无法实现从内存池状态反向关联到内存块生命周期图。
 
 ## 内存问题分析案例
@@ -683,19 +688,19 @@ MindStudio Insight 内存块生命周期图通过控制下方内存快照趋势�
 
     ![](./figures/memory_tuning/tensor_object_1.png "Tensor对象")
 
-4. 对照leaks\_mem标记的代码段，查看“内存详情拆解图”，发现leaks\_mem标记的代码段存在明显的增长，从Step 1开始leaks\_mem标签内存占用首次出现为40M，如[**图 3**  查看Step 1的内存占用](#查看Step-1的内存占用)所示。
+4. 对照leaks\_mem标记的代码段，查看“内存详情拆解图”，发现leaks\_mem标记的代码段存在明显的增长，从Step 1开始leaks\_mem标签内存占用首次出现为40MB，如[**图 3**  查看Step 1的内存占用](#查看Step-1的内存占用)所示。
 
     **图 3**  查看Step 1的内存占用<a id="查看Step-1的内存占用"></a>
 
     ![](./figures/memory_tuning/view_step1_memory_usage_1.png "查看Step-1的内存占用")
 
-    如[**图 4**  查看Step 2的内存占用](#查看Step-2的内存占用)所示，Step 2中leaks\_mem标签内存占用从40M增长到了80M。
+    如[**图 4**  查看Step 2的内存占用](#查看Step-2的内存占用)所示，Step 2中leaks\_mem标签内存占用从40MB增长到了80MB。
 
     **图 4**  查看Step 2的内存占用<a id="查看Step-2的内存占用"></a>
 
     ![](./figures/memory_tuning/view_step2_memory_usage_1.png "查看Step-2的内存占用")
 
-    如[**图 5**  查看Step 3的内存占用](#查看Step-3的内存占用)所示，Step 3中leaks\_mem标签内存占用从80M增长到了120M。
+    如[**图 5**  查看Step 3的内存占用](#查看Step-3的内存占用)所示，Step 3中leaks\_mem标签内存占用从80MB增长到了120MB。
 
     **图 5**  查看Step 3的内存占用<a id="查看Step-3的内存占用"></a>
 
