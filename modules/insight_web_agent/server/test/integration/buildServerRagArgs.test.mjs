@@ -16,11 +16,12 @@ import { test } from "node:test";
 const packageRoot = fileURLToPath(new URL("../../../", import.meta.url));
 const script = join(packageRoot, "scripts", "build-server.mjs");
 const outputDir = join(packageRoot, "dist-server");
-const ragEnvironmentNames = ["MSINSIGHT_RAG_PACKAGE", "MSINSIGHT_RAG_PACKAGE_SHA256", "MSINSIGHT_RAG_MODEL_DIR"];
+const ragEnvironmentNames = ["MSINSIGHT_RAG_MODE", "MSINSIGHT_RAG_PACKAGE", "MSINSIGHT_RAG_PACKAGE_SHA256", "MSINSIGHT_RAG_MODEL_DIR"];
+const targetEnvironmentNames = ["MSINSIGHT_RAG_TARGET_PLATFORM", "MSINSIGHT_RAG_TARGET_ARCH", "MSINSIGHT_RAG_TARGET_LIBC"];
 
 const cleanEnvironment = () => {
     const env = { ...process.env };
-    for (const name of ragEnvironmentNames) delete env[name];
+    for (const name of [...ragEnvironmentNames, ...targetEnvironmentNames]) delete env[name];
     return env;
 };
 
@@ -30,31 +31,30 @@ test("RAG build input failures preserve existing output before preflight", async
     t.after(() => rm(sentinel, { force: true }));
 
     const cases = [
-        { args: ["--rag-dev-pack", "pack.zip"] },
-        { args: ["--rag-pack", "pack.zip"] },
-        { args: ["--data-dir", "other"] },
-        { args: ["--build-report", "report.json"] },
-        {
-            args: [
-                "--rag-dev-pack", "one.zip",
-                "--rag-dev-pack", "two.zip",
-                "--rag-dev-sidecar", "pack.sha256",
-                "--rag-model-dir", "model",
-            ],
-        },
-        {
-            args: ["--rag-dev-pack", "pack.zip", "--rag-dev-sidecar", "pack.sha256", "--rag-model-dir", "model"],
-            error: /deprecated/,
-        },
+        { args: ["--rag-dev-pack", "pack.zip"], error: /Unknown server build option: --rag-dev-pack/ },
+        { args: ["--rag-pack", "pack.zip"], error: /no command-line options/ },
+        { args: ["--data-dir", "other"], error: /no command-line options/ },
+        { args: ["--build-report", "report.json"], error: /no command-line options/ },
+        { args: ["--", "--rag-dev-pack", "pack.zip"], error: /Unknown server build option: --/ },
         {
             args: [],
             env: { MSINSIGHT_RAG_PACKAGE: "pack.zip" },
             error: /MSINSIGHT_RAG_PACKAGE_SHA256/,
         },
         {
-            args: ["--rag-dev-pack", "legacy.zip", "--rag-dev-sidecar", "legacy.sha256", "--rag-model-dir", "legacy-model"],
-            env: { MSINSIGHT_RAG_PACKAGE: "environment.zip" },
-            error: /override deprecated/,
+            args: [],
+            env: { MSINSIGHT_RAG_MODE: "release" },
+            error: /Unsupported RAG build mode/,
+        },
+        {
+            args: [],
+            env: { MSINSIGHT_RAG_MODE: "product-bundled" },
+            error: /MSINSIGHT_RAG_PACKAGE/,
+        },
+        {
+            args: [],
+            env: { MSINSIGHT_RAG_TARGET_PLATFORM: "freebsd", MSINSIGHT_RAG_TARGET_ARCH: "x64" },
+            error: /Unsupported RAG platform/,
         },
     ];
     for (const testCase of cases) {

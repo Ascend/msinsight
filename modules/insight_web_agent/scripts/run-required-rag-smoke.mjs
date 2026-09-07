@@ -11,17 +11,20 @@ import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { expectedNativeFiles } from "../server/services/rag/nativeRuntimeManifest.mjs";
+import { resolveRagTarget } from "../server/services/rag/platformSupport.mjs";
 
 const packageRoot = fileURLToPath(new URL("../", import.meta.url));
 const distDir = resolve(process.env.MSINSIGHT_DIST_SERVER_DIR ?? join(packageRoot, "dist-server"));
+const target = resolveRagTarget();
 const required = [
     "rag-required-smoke.mjs",
     "rag-build-mode.json",
     "rag-data/active.json",
+    "rag-runtime/native-runtime-manifest.json",
     "rag-runtime/models/bge-small-zh-v1.5/model-manifest.json",
     "rag-runtime/models/bge-small-zh-v1.5/onnx/model.onnx",
-    "node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime_binding.node",
-    "node_modules/onnxruntime-node/bin/napi-v6/win32/x64/onnxruntime.dll",
+    ...expectedNativeFiles(target),
 ];
 
 try {

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterable
 
 VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)-rag-dev\.([1-9]\d*)$")
+PRODUCT_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 KB_VERSION_RE = re.compile(r"^\d{2}\.[012]\.[1-9]\d*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
@@ -33,8 +34,22 @@ class DevelopmentVersion:
 
 
 @dataclass(frozen=True)
+class ProductVersion:
+    product: str
+    pe_numeric: str
+
+    @classmethod
+    def parse(cls, value: str) -> "ProductVersion":
+        match = PRODUCT_VERSION_RE.fullmatch(value)
+        if match is None:
+            raise ValueError("product-bundled version must use MAJOR.MINOR.PATCH")
+        major, minor, patch = match.groups()
+        return cls(value, f"{int(major)}.{int(minor)}.{int(patch)}.0")
+
+
+@dataclass(frozen=True)
 class RagArguments:
-    version: DevelopmentVersion
+    version: DevelopmentVersion | ProductVersion
     mode: str
     pack: Path
     sidecar: Path
@@ -80,10 +95,11 @@ def validate_rag_arguments(
     values = (mode, pack, sidecar, model_dir)
     if not any(value is not None for value in values):
         return None
-    if mode != "development" or pack is None or sidecar is None or model_dir is None:
-        raise ValueError("development RAG options must be complete and mode must be development")
+    if mode not in {"development", "product-bundled"} or pack is None or sidecar is None or model_dir is None:
+        raise ValueError("bundled RAG options must be complete and mode must be supported")
+    version = DevelopmentVersion.parse(build_version) if mode == "development" else ProductVersion.parse(build_version)
     return RagArguments(
-        version=DevelopmentVersion.parse(build_version),
+        version=version,
         mode=mode,
         pack=Path(pack),
         sidecar=Path(sidecar),

@@ -124,7 +124,7 @@ const validateInstallRecord = (install) => {
         throw codedError("pack_unreadable", "Installed RAG package identity is invalid");
     }
     if (!SHA256_RE.test(install.runtimeContractSha256)) throw codedError("pack_unreadable", "Installed RAG runtime contract digest is invalid");
-    if (install.installMode !== "development-local") throw codedError("pack_unreadable", "Installed RAG mode is invalid");
+    if (!["development-local", "product-bundled"].includes(install.installMode)) throw codedError("pack_unreadable", "Installed RAG mode is invalid");
     exactKeys(install.package, ["sha256", "sizeBytes"], "install package identity");
     if (!SHA256_RE.test(install.package.sha256) || !Number.isSafeInteger(install.package.sizeBytes) || install.package.sizeBytes <= 0) {
         throw codedError("pack_unreadable", "Installed RAG package digest or size is invalid");

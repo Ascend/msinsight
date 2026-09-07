@@ -11,6 +11,7 @@ import pytest
 
 from rag_development import (
     DevelopmentVersion,
+    ProductVersion,
     VersionFileTransaction,
     capture_source_snapshot,
     preflight_rag_inputs,
@@ -31,6 +32,15 @@ def test_development_version_maps_string_to_exact_pe_numeric_identity() -> None:
             DevelopmentVersion.parse(invalid)
 
 
+def test_product_version_maps_plain_release_to_stable_pe_identity() -> None:
+    version = ProductVersion.parse("26.1.1")
+    assert version.product == "26.1.1"
+    assert version.pe_numeric == "26.1.1.0"
+    for invalid in ["26.1.1-rag-dev.1", "26.1", "26.1.1.0"]:
+        with pytest.raises(ValueError):
+            ProductVersion.parse(invalid)
+
+
 def test_rag_arguments_are_all_or_none_and_reject_forbidden_values(tmp_path: Path) -> None:
     pack = tmp_path / "knowledge-pack-v4.zip"
     sidecar = tmp_path / "knowledge-pack-v4.zip.sha256"
@@ -45,6 +55,16 @@ def test_rag_arguments_are_all_or_none_and_reject_forbidden_values(tmp_path: Pat
         model_dir=model,
     )
     assert options.version.pe_numeric == "26.1.1.1"
+
+    product = validate_rag_arguments(
+        build_version="26.1.1",
+        mode="product-bundled",
+        pack=pack,
+        sidecar=sidecar,
+        model_dir=model,
+    )
+    assert product.version.pe_numeric == "26.1.1.0"
+    assert product.mode == "product-bundled"
 
     with pytest.raises(ValueError):
         validate_rag_arguments(
@@ -216,18 +236,15 @@ def test_top_level_version_helpers_update_string_numeric_and_cargo_identity(tmp_
     assert 'version = "26.1.1-rag-dev.1"' in cargo.read_text(encoding="utf-8")
 
 
-def test_top_level_reads_complete_rag_environment_and_environment_wins(tmp_path: Path) -> None:
+def test_top_level_reads_complete_rag_environment(tmp_path: Path) -> None:
     top = load_top_build_module()
     args = SimpleNamespace(
         build_version="26.1.1-rag-dev.1",
         whl_version=None,
-        rag_mode="development",
-        rag_dev_pack=tmp_path / "legacy-pack.zip",
-        rag_dev_sidecar=tmp_path / "legacy-pack.zip.sha256",
-        rag_model_dir=tmp_path / "legacy-model",
         type=None,
     )
     environment = {
+        top.Const.RAG_MODE_ENV: "development",
         top.Const.RAG_PACKAGE_ENV: str(tmp_path / "environment-pack.zip"),
         top.Const.RAG_PACKAGE_SHA256_ENV: str(tmp_path / "environment-pack.zip.sha256"),
         top.Const.RAG_MODEL_DIR_ENV: str(tmp_path / "environment-model"),
@@ -246,31 +263,35 @@ def test_top_level_rejects_partial_rag_environment() -> None:
     args = SimpleNamespace(
         build_version="26.1.1-rag-dev.1",
         whl_version=None,
-        rag_mode=None,
-        rag_dev_pack=None,
-        rag_dev_sidecar=None,
-        rag_model_dir=None,
         type=None,
     )
 
-    with pytest.raises(ValueError, match="development RAG options must be complete"):
+    with pytest.raises(ValueError, match="bundled RAG options must be complete"):
         top.build_context_from_args(args, {top.Const.RAG_PACKAGE_ENV: "pack.zip"})
+    with pytest.raises(ValueError, match="bundled RAG options must be complete"):
+        top.build_context_from_args(args, {top.Const.RAG_MODE_ENV: "development"})
+    with pytest.raises(ValueError, match="bundled RAG options must be complete"):
+        top.build_context_from_args(args, {top.Const.RAG_MODE_ENV: "release"})
 
 
 def test_top_level_passes_resolved_rag_inputs_only_through_child_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     top = load_top_build_module()
+    # Pin the product target so the expected child environment is host-independent.
+    monkeypatch.setattr(top, "get_os_tag", lambda: "win")
     args = SimpleNamespace(
         build_version="26.1.1-rag-dev.1",
         whl_version=None,
-        rag_mode="development",
-        rag_dev_pack=tmp_path / "pack.zip",
-        rag_dev_sidecar=tmp_path / "pack.zip.sha256",
-        rag_model_dir=tmp_path / "model",
         type=None,
     )
-    context = top.build_context_from_args(args, {})
+    environment = {
+        top.Const.RAG_MODE_ENV: "development",
+        top.Const.RAG_PACKAGE_ENV: str(tmp_path / "pack.zip"),
+        top.Const.RAG_PACKAGE_SHA256_ENV: str(tmp_path / "pack.zip.sha256"),
+        top.Const.RAG_MODEL_DIR_ENV: str(tmp_path / "model"),
+    }
+    context = top.build_context_from_args(args, environment)
 
     child_environment = top.rag_subprocess_environment(context, {"PATH": "test-path"})
     source = (Path(__file__).parent / "build.py").read_text(encoding="utf-8")
@@ -278,6 +299,9 @@ def test_top_level_passes_resolved_rag_inputs_only_through_child_environment(
 
     assert child_environment == {
         "PATH": "test-path",
+        top.Const.RAG_TARGET_PLATFORM_ENV: "win32",
+        top.Const.RAG_TARGET_ARCH_ENV: "x64",
+        top.Const.RAG_MODE_ENV: "development",
         top.Const.RAG_PACKAGE_ENV: str(tmp_path / "pack.zip"),
         top.Const.RAG_PACKAGE_SHA256_ENV: str(tmp_path / "pack.zip.sha256"),
         top.Const.RAG_MODEL_DIR_ENV: str(tmp_path / "model"),
@@ -300,10 +324,215 @@ def test_top_level_passes_resolved_rag_inputs_only_through_child_environment(
     assert captured["env"] == child_environment
 
 
-def test_top_level_hides_legacy_rag_options_and_rejects_invalid_inputs_before_cleanup() -> None:
+def test_top_level_maps_every_product_os_tag_to_one_rag_target() -> None:
+    top = load_top_build_module()
+    assert top.rag_target_environment("win") == {
+        top.Const.RAG_TARGET_PLATFORM_ENV: "win32",
+        top.Const.RAG_TARGET_ARCH_ENV: "x64",
+    }
+    assert top.rag_target_environment("linux_x86_64") == {
+        top.Const.RAG_TARGET_PLATFORM_ENV: "linux",
+        top.Const.RAG_TARGET_ARCH_ENV: "x64",
+        top.Const.RAG_TARGET_LIBC_ENV: "glibc",
+    }
+    assert top.rag_target_environment("linux_aarch64")[top.Const.RAG_TARGET_ARCH_ENV] == "arm64"
+    assert top.rag_target_environment("macos_x86_64")[top.Const.RAG_TARGET_PLATFORM_ENV] == "darwin"
+    assert top.rag_target_environment("macos_aarch64")[top.Const.RAG_TARGET_ARCH_ENV] == "arm64"
+    with pytest.raises(ValueError, match="Unsupported RAG product target"):
+        top.rag_target_environment("linux_musl")
+
+
+def test_mac_native_runtime_signing_orders_dylibs_before_node_bindings(tmp_path: Path) -> None:
+    top = load_top_build_module()
+    dylib = tmp_path / "runtime" / "libonnxruntime.1.22.0.dylib"
+    shared_object = tmp_path / "runtime" / "python-extension.so"
+    binding = tmp_path / "runtime" / "onnxruntime_binding.node"
+    executable = tmp_path / "runtime" / "profiler_server"
+    ignored = tmp_path / "runtime" / "package.json"
+    dylib.parent.mkdir(parents=True)
+    for path in (dylib, shared_object, binding, executable):
+        path.write_bytes(b"\xcf\xfa\xed\xfe" + b"fixture")
+    ignored.write_text("fixture", encoding="utf-8")
+
+    assert top.mac_native_sign_targets(str(tmp_path)) == [
+        str(dylib),
+        str(shared_object),
+        str(binding),
+        str(executable),
+    ]
+
+
+def test_mac_rag_bundle_root_supports_only_standard_resources_layout(tmp_path: Path) -> None:
+    top = load_top_build_module()
+    app = tmp_path / "MindStudioInsight.app"
+    legacy = app / "Contents" / "MacOS" / "resources" / "profiler" / "server" / "insight_web_agent"
+    manifest_path = legacy / "rag-runtime" / "native-runtime-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(json.dumps({"schemaVersion": "1.0", "files": []}), encoding="utf-8")
+
+    assert top.find_mac_rag_bundle_root(str(app)) is None
+    # Legacy layouts are skipped instead of refreshed.
+    assert top.refresh_mac_native_runtime_manifest(str(app)) is True
+    assert top.verify_mac_packaged_rag(str(app)) is True
+
+
+def test_mac_signing_does_not_deep_resign_native_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    top = load_top_build_module()
+    app = tmp_path / "MindStudioInsight.app"
+    bundle = app / "Contents" / "Resources" / "profiler" / "server" / "insight_web_agent"
+    native = bundle / "node_modules" / "onnxruntime-node" / "binding.node"
+    native.parent.mkdir(parents=True)
+    native.write_bytes(b"\xcf\xfa\xed\xfe" + b"unsigned")
+    manifest_path = bundle / "rag-runtime" / "native-runtime-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schemaVersion": "1.0",
+                "files": [
+                    {
+                        "path": str(native.relative_to(bundle)).replace("\\", "/"),
+                        "sha256": "0" * 64,
+                        "sizeBytes": 1,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    calls = []
+
+    def sign(command, path, module_name, env=None):  # type: ignore[no-untyped-def]
+        calls.append(command)
+        if command[-1] == str(native):
+            native.write_bytes(native.read_bytes() + b"-signed")
+        return 0
+
+    monkeypatch.setattr(top, "exec_command", sign)
+
+    assert top.sign_mac_app(str(app), "-") is True
+    outer_sign = calls[-2]
+    verification = calls[-1]
+    assert outer_sign[-1] == str(app)
+    assert "--deep" not in outer_sign
+    assert verification == ["codesign", "--verify", "--deep", "--strict", str(app)]
+    refreshed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert refreshed["files"][0]["sha256"] == hashlib.sha256(native.read_bytes()).hexdigest()
+
+
+def test_package_mac_uses_standard_resources_with_executable_compatibility_link(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    top = load_top_build_module()
+    preview = tmp_path / "preview"
+    target = tmp_path / "target"
+    app = target / "release" / "bundle" / "osx" / top.Const.MAC_OS_APPNAME
+    macos = app / "Contents" / "MacOS"
+    resources = app / "Contents" / "Resources"
+    macos.mkdir(parents=True)
+    resources.mkdir(parents=True)
+    (macos / "MindStudioInsight").write_bytes(b"binary")
+    python = preview / "resources" / "profiler" / "server" / "python" / "bin" / "python3"
+    python.parent.mkdir(parents=True)
+    python.write_bytes(b"python")
+    symlinks = []
+
+    monkeypatch.setattr(top.platform, "system", lambda: top.Const.MAC_OS)
+    monkeypatch.setattr(
+        top.os,
+        "symlink",
+        lambda source, destination, target_is_directory=False: symlinks.append(
+            (source, destination, target_is_directory)
+        ),
+    )
+    monkeypatch.setattr(top, "resign_mac_app", lambda _: True)
+    monkeypatch.setattr(top, "chmod_mac_app", lambda *_: True)
+    monkeypatch.setattr(top, "verify_mac_packaged_rag", lambda _: True)
+    monkeypatch.setattr(top, "build_dmg_for_mac_app", lambda path: Path(path).write_bytes(b"dmg") > 0)
+
+    assert (
+        top.package_mac(
+            str(tmp_path / "out.dmg"), "package_macos_aarch64.dmg", str(preview), str(target)
+        )
+        is True
+    )
+    packaged = preview / top.Const.MAC_OS_APPNAME
+    assert (packaged / "Contents" / "Resources" / "python" / "bin" / "python3").is_file()
+    assert not (packaged / "Contents" / "Resources" / "profiler" / "server" / "python").exists()
+    assert symlinks == [("../Resources", str(macos / "resources"), True)]
+
+
+def test_mac_signing_refreshes_native_runtime_manifest_after_nested_signatures(tmp_path: Path) -> None:
+    top = load_top_build_module()
+    bundle = (
+        tmp_path
+        / "MindStudioInsight.app"
+        / "Contents"
+        / "Resources"
+        / "profiler"
+        / "server"
+        / "insight_web_agent"
+    )
+    native = bundle / "node_modules" / "onnxruntime-node" / "binding.node"
+    native.parent.mkdir(parents=True)
+    native.write_bytes(b"signed-native-bytes")
+    manifest_path = bundle / "rag-runtime" / "native-runtime-manifest.json"
+    manifest_path.parent.mkdir(parents=True)
+    manifest = {
+        "schemaVersion": "1.0",
+        "files": [
+            {
+                "path": "node_modules/onnxruntime-node/binding.node",
+                "sha256": "0" * 64,
+                "sizeBytes": 1,
+            }
+        ],
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert top.refresh_mac_native_runtime_manifest(str(tmp_path / "MindStudioInsight.app")) is True
+    refreshed = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert refreshed["files"][0]["sizeBytes"] == len(b"signed-native-bytes")
+    assert refreshed["files"][0]["sha256"] == hashlib.sha256(b"signed-native-bytes").hexdigest()
+
+    refreshed["files"][0]["path"] = "../../outside.node"
+    manifest_path.write_text(json.dumps(refreshed), encoding="utf-8")
+    assert top.refresh_mac_native_runtime_manifest(str(tmp_path / "MindStudioInsight.app")) is False
+
+
+def test_offline_jupyter_build_checks_preprovisioned_dependencies_without_pip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    top = load_top_build_module()
+    calls = []
+
+    def capture(command, path, module_name, env=None):  # type: ignore[no-untyped-def]
+        calls.append((command, path, module_name, env))
+        return 0
+
+    monkeypatch.setattr(top, "exec_command", capture)
+    assert top.prepare_jupyterlab_build_dependencies(str(tmp_path), False) == 0
+    assert calls == [
+        (
+            [top.Const.PYTHON, "-c", "import jupyter_packaging, jupyterlab, setuptools, wheel"],
+            str(tmp_path),
+            "jupyterlab_plugin",
+            None,
+        )
+    ]
+
+    calls.clear()
+    assert top.prepare_jupyterlab_build_dependencies(str(tmp_path), True) == 0
+    assert calls[0][0][0:2] == [top.Const.PIP, "install"]
+    assert calls[0][0][-2:] == ["-r", str(tmp_path / "requirements.txt")]
+
+
+def test_top_level_rejects_removed_rag_options_and_invalid_inputs_before_cleanup() -> None:
     script = Path(__file__).with_name("build.py")
     clean_environment = os.environ.copy()
-    for name in ("MSINSIGHT_RAG_PACKAGE", "MSINSIGHT_RAG_PACKAGE_SHA256", "MSINSIGHT_RAG_MODEL_DIR"):
+    for name in ("MSINSIGHT_RAG_MODE", "MSINSIGHT_RAG_PACKAGE", "MSINSIGHT_RAG_PACKAGE_SHA256", "MSINSIGHT_RAG_MODEL_DIR"):
         clean_environment.pop(name, None)
     help_result = subprocess.run(
         [str(Path(sys.executable)), str(script), "--help"],
@@ -312,8 +541,7 @@ def test_top_level_hides_legacy_rag_options_and_rejects_invalid_inputs_before_cl
         env=clean_environment,
     )
     assert help_result.returncode == 0
-    assert b"--rag-dev-pack" not in help_result.stdout
-    assert b"--rag-model-dir" not in help_result.stdout
+    assert b"--rag-" not in help_result.stdout
 
     for args in [
         ["--unknown-option"],
@@ -347,6 +575,8 @@ def test_top_level_hides_legacy_rag_options_and_rejects_invalid_inputs_before_cl
             env=clean_environment,
         )
         assert result.returncode != 0
+        # Removed options must be rejected by argparse itself, not by later validation.
+        assert b"unrecognized arguments" in result.stderr
 
     partial_environment = {**clean_environment, "MSINSIGHT_RAG_PACKAGE": "pack.zip"}
     result = subprocess.run(
@@ -356,6 +586,7 @@ def test_top_level_hides_legacy_rag_options_and_rejects_invalid_inputs_before_cl
         env=partial_environment,
     )
     assert result.returncode != 0
+    assert b"bundled RAG options must be complete" in result.stderr
 
     result = subprocess.run(
         [str(Path(sys.executable)), str(script), "clean"],
@@ -364,6 +595,7 @@ def test_top_level_hides_legacy_rag_options_and_rejects_invalid_inputs_before_cl
         env=partial_environment,
     )
     assert result.returncode != 0
+    assert b"clean command does not accept" in result.stderr
 
 
 def test_cleanup_preserves_historical_rag_evidence_and_tracked_test_paths(tmp_path: Path) -> None:
@@ -431,6 +663,8 @@ def test_development_server_build_uses_prepared_offline_dependencies() -> None:
     assert "def build_server_offline" in top_level
     assert "preprocess_command.append('--offline')" in top_level
     assert "server_command.extend(['--no-install', '--jobs', '2'])" in top_level
+    assert "cmd_list.insert(1, '--offline')" in top_level
+    assert "cmd_list.append('--offline')" not in top_level
     assert "if context.rag is not None:" in top_level
     assert "for name, builder in [('server', server_builder), ('frontend', frontend_builder)]" in top_level
     assert "allow_dependency_install and pip_install_third_party" in server_build

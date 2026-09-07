@@ -15,6 +15,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createKnowledgePackageService, validatePackageArchive } from "../server/services/rag/knowledgePackageService.mjs";
 import { loadEmbeddingModelContract } from "../server/services/rag/embeddingRuntime.mjs";
+import { writeNativeRuntimeManifest } from "../server/services/rag/nativeRuntimeManifest.mjs";
+import { resolveRagTarget } from "../server/services/rag/platformSupport.mjs";
 import { loadRuntimeContract } from "../server/services/rag/runtimeContract.mjs";
 
 const rootDir = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
@@ -23,13 +25,19 @@ const outputDir = join(rootDir, "dist-server");
 const externalRagModules = ["onnxruntime-node", "@huggingface/tokenizers", "@node-rs/jieba", "@node-rs/jieba/dict.js"];
 const esmRequireBanner = 'import { createRequire as __createRequire } from "node:module"; const require = __createRequire(import.meta.url);';
 const ragEnvironment = Object.freeze({
+    mode: "MSINSIGHT_RAG_MODE",
     pack: "MSINSIGHT_RAG_PACKAGE",
     sidecar: "MSINSIGHT_RAG_PACKAGE_SHA256",
     modelDir: "MSINSIGHT_RAG_MODEL_DIR",
 });
+const targetEnvironment = Object.freeze({
+    arch: "MSINSIGHT_RAG_TARGET_ARCH",
+    libc: "MSINSIGHT_RAG_TARGET_LIBC",
+    platform: "MSINSIGHT_RAG_TARGET_PLATFORM",
+});
 
 const options = parseBuildOptions(process.argv.slice(2));
-const preflight = options.mode === "development" ? await preflightDevelopment(options) : null;
+const preflight = options.mode === "code-only" ? null : await preflightBundledRag(options);
 const staging = join(rootDir, `.dist-server.${process.pid}.${randomUUID()}.staging`);
 
 try {
@@ -44,15 +52,14 @@ console.log(`Native agent bundle written to ${join(outputDir, "native-agent", "i
 console.log(`RAG CLI bundle written to ${join(outputDir, "rag-cli.mjs")}`);
 console.log(`RAG CLI wrapper copied to ${join(outputDir, "mindstudio-insight-rag.cmd")}`);
 console.log(`Capability center config copied to ${join(outputDir, "capability-center.json")}`);
-console.log(`Docs copied to ${join(outputDir, "docs")}`);
 console.log(`Skills copied to ${join(outputDir, "skills")}`);
 
-async function preflightDevelopment({ ragDevPack, ragDevSidecar, ragModelDir }) {
+async function preflightBundledRag({ ragPack, ragSidecar, ragModelDir }) {
     const model = await loadEmbeddingModelContract({ modelDir: ragModelDir });
     const runtime = await loadRuntimeContract(join(rootDir, "rag-runtime"));
     const validated = await validatePackageArchive({
-        archivePath: ragDevPack,
-        sidecarPath: ragDevSidecar,
+        archivePath: ragPack,
+        sidecarPath: ragSidecar,
         modelContract: model.manifest,
         runtimeContract: runtime.contract,
     });
@@ -63,11 +70,17 @@ async function assembleBundle(target, buildOptions, preflightResult) {
     await mkdir(target, { recursive: false });
     await buildEntries(target);
     await copyStaticRuntime(target);
-    if (process.platform === "win32" && process.arch === "x64") {
-        await copyWindowsRagDependencies(target);
-    }
-    if (buildOptions.mode === "development") {
-        await assembleDevelopmentRag(target, buildOptions, preflightResult);
+    await copyPlatformRagDependencies(target, buildOptions.target);
+    if (buildOptions.mode !== "code-only") {
+        await assembleBundledRag(target, buildOptions, preflightResult);
+        await writeNativeRuntimeManifest({
+            bundleRoot: target,
+            runtimeDir: join(target, "rag-runtime"),
+            target: buildOptions.target,
+            modelManifestSha256: preflightResult.model.manifest.manifestSha256,
+            runtimeContractSha256: preflightResult.runtime.contract.contractSha256,
+            nodeTarget: "22.14",
+        });
     }
     if (existsSync(join(target, "rag-seed")) || existsSync(join(target, "rag-build-mode.json"))) {
         throw new Error("Server bundle contains a forbidden seed or placeholder RAG metadata");
@@ -104,7 +117,6 @@ async function copyStaticRuntime(target) {
     for (const name of ["prompts", "agents"]) {
         await cp(join(rootDir, name), join(target, name), { recursive: true });
     }
-    await cp(join(rootDir, "..", "..", "docs"), join(target, "docs"), { recursive: true });
     await cp(join(rootDir, "..", "..", "skills"), join(target, "skills"), { recursive: true });
     await cp(join(rootDir, "rag-runtime"), join(target, "rag-runtime"), { recursive: true });
     await copyFile(
@@ -113,7 +125,7 @@ async function copyStaticRuntime(target) {
     );
 }
 
-async function assembleDevelopmentRag(target, options, preflightResult) {
+async function assembleBundledRag(target, options, preflightResult) {
     const modelOutput = join(target, "rag-runtime", "models", "bge-small-zh-v1.5");
     await copyReviewedModel(preflightResult.model, modelOutput);
     const service = createKnowledgePackageService({
@@ -121,14 +133,15 @@ async function assembleDevelopmentRag(target, options, preflightResult) {
         modelDir: modelOutput,
         runtimeDir: join(target, "rag-runtime"),
     });
-    const imported = await service.importPackage(options.ragDevPack, {
-        mode: "development",
-        sidecarPath: options.ragDevSidecar,
+    const imported = await service.importPackage(options.ragPack, {
+        mode: options.mode,
+        sidecarPath: options.ragSidecar,
     });
     await service.activate(imported.version, { sha256: imported.sha256 });
     const verified = await service.verify();
-    if (verified.installMode !== "development-local") {
-        throw new Error("Preactivated RAG install is not development-local");
+    const expectedInstallMode = options.mode === "development" ? "development-local" : "product-bundled";
+    if (verified.installMode !== expectedInstallMode) {
+        throw new Error("Preactivated RAG install mode is invalid");
     }
 }
 
@@ -155,58 +168,41 @@ async function publishBundle(stagingDirectory) {
 }
 
 function parseBuildOptions(args, env = process.env) {
-    const legacyValues = parseLegacyBuildValues(args);
+    const target = resolveRagTarget({
+        platform: env[targetEnvironment.platform] ?? process.platform,
+        arch: env[targetEnvironment.arch] ?? process.arch,
+        libc: env[targetEnvironment.libc],
+    });
+    // The server build accepts no command-line options; RAG inputs come from MSINSIGHT_RAG_* only.
+    // A lone `--` separator is a conventional no-op (e.g. `npm run server:build --`) and is ignored.
+    const effectiveArgs = args.length === 1 && args[0] === "--" ? [] : args;
+    if (effectiveArgs.length > 0) {
+        throw new Error(`Unknown server build option: ${effectiveArgs[0]} (the server build accepts no command-line options)`);
+    }
     const environmentConfigured = Object.values(ragEnvironment).some((name) => Object.hasOwn(env, name));
     if (environmentConfigured) {
-        if (legacyValues.provided) {
-            console.warn("MSINSIGHT_RAG_* environment variables override deprecated RAG command-line options.");
-        }
-        return developmentBuildOptions({
+        return { ...bundledBuildOptions(env[ragEnvironment.mode] || "development", {
             pack: env[ragEnvironment.pack],
             sidecar: env[ragEnvironment.sidecar],
             modelDir: env[ragEnvironment.modelDir],
-        }, `${Object.values(ragEnvironment).join(", ")} are all required when any RAG environment variable is set`);
+        }, `${ragEnvironment.pack}, ${ragEnvironment.sidecar}, and ${ragEnvironment.modelDir} are required for a bundled RAG build`), target };
     }
-    if (!legacyValues.provided) return { mode: "code-only" };
-    console.warn("RAG command-line options are deprecated; use MSINSIGHT_RAG_* environment variables.");
-    return developmentBuildOptions({
-        pack: legacyValues.values["--rag-dev-pack"],
-        sidecar: legacyValues.values["--rag-dev-sidecar"],
-        modelDir: legacyValues.values["--rag-model-dir"],
-    }, "--rag-dev-pack, --rag-dev-sidecar, and --rag-model-dir are all required");
+    return { mode: "code-only", target };
 }
 
-function parseLegacyBuildValues(args) {
-    const allowed = new Set(["--rag-dev-pack", "--rag-dev-sidecar", "--rag-model-dir"]);
-    const values = {};
-    let provided = false;
-    for (let index = 0; index < args.length; index += 1) {
-        const argument = args[index];
-        if (argument === "--") continue;
-        provided = true;
-        const [flag, inline] = argument.split("=", 2);
-        if (!allowed.has(flag) || values[flag] !== undefined) {
-            throw new Error(`Unknown or duplicate server build option: ${flag}`);
-        }
-        const value = inline ?? args[++index];
-        if (!value || value.startsWith("--")) throw new Error(`${flag} requires a path`);
-        values[flag] = resolve(value);
-    }
-    return { provided, values };
-}
-
-function developmentBuildOptions(values, missingMessage) {
+function bundledBuildOptions(mode, values, missingMessage) {
+    if (!["development", "product-bundled"].includes(mode)) throw new Error(`Unsupported RAG build mode: ${mode}`);
     const normalized = Object.fromEntries(Object.entries(values).map(([name, value]) => [name, String(value ?? "").trim()]));
     if (Object.values(normalized).some((value) => !value)) throw new Error(missingMessage);
     return {
-        mode: "development",
-        ragDevPack: resolve(normalized.pack),
-        ragDevSidecar: resolve(normalized.sidecar),
+        mode,
+        ragPack: resolve(normalized.pack),
+        ragSidecar: resolve(normalized.sidecar),
         ragModelDir: resolve(normalized.modelDir),
     };
 }
 
-async function copyWindowsRagDependencies(target) {
+async function copyPlatformRagDependencies(target, ragTarget) {
     const onnxRoot = packageDirectory("onnxruntime-node");
     const onnxFiles = [
         "package.json",
@@ -214,8 +210,7 @@ async function copyWindowsRagDependencies(target) {
         "dist/backend.js",
         "dist/binding.js",
         "dist/version.js",
-        "bin/napi-v6/win32/x64/onnxruntime_binding.node",
-        "bin/napi-v6/win32/x64/onnxruntime.dll",
+        ...ragTarget.onnx.files,
     ];
     for (const file of onnxFiles) {
         await copyFileTree(
@@ -231,8 +226,8 @@ async function copyWindowsRagDependencies(target) {
     }
     const jiebaRequire = createRequire(require.resolve("@node-rs/jieba"));
     await cp(
-        packageDirectory("@node-rs/jieba-win32-x64-msvc", jiebaRequire),
-        join(target, "node_modules", "@node-rs/jieba-win32-x64-msvc"),
+        packageDirectory(ragTarget.jieba.packageName, jiebaRequire),
+        join(target, "node_modules", ragTarget.jieba.packageName),
         { recursive: true, dereference: true },
     );
 }

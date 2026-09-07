@@ -30,6 +30,7 @@ try {
         "rag-required-smoke.mjs",
         "rag-build-mode.json",
         "rag-data/active.json",
+        "rag-runtime/native-runtime-manifest.json",
         "rag-runtime/runtime-contract.json",
         "rag-runtime/models/bge-small-zh-v1.5/model-manifest.json",
     ];
@@ -45,8 +46,8 @@ try {
         }
     }
     const metadata = JSON.parse(readFileSync(join(bundle, "rag-build-mode.json"), "utf8"));
-    assert.equal(metadata.mode, "development");
-    assert.equal(metadata.releaseEligible, false);
+    assert.equal(["development", "product-bundled"].includes(metadata.mode), true);
+    assert.equal(metadata.releaseEligible, metadata.mode === "product-bundled");
     assert.equal(metadata.consumerAcceptanceEvaluated, false);
     assert.equal(metadata.promotionEvaluated, false);
 
