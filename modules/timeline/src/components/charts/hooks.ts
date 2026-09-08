@@ -44,6 +44,8 @@ interface UseDataParams<T extends ChartType> {
     metadata: unknown;
     width: number;
     processor?: DataProcessor<T>;
+    // Full-trace datasets can be redrawn for a new domain without being fetched again.
+    refetchOnDomainChange?: boolean;
 }
 
 let timer: NodeJS.Timeout | null = null;
@@ -89,9 +91,13 @@ function onAutoFetchLines(session: Session, unit: InsightUnit): void {
  * @param width width
  * @returns the data that this chart is currently rendering
  */
-export const useData = <T extends ChartType>({ session, mapFunc, unit, metadata, width, processor }: UseDataParams<T>): ChartData<T> => {
+export const useData = <T extends ChartType>({
+    session, mapFunc, unit, metadata, width, processor, refetchOnDomainChange = true,
+}: UseDataParams<T>): ChartData<T> => {
     const { domainStart, domainEnd } = session.domainRange;
     const { endTimeAll } = session;
+    const dataDomainStart = refetchOnDomainChange ? domainStart : 0;
+    const dataDomainEnd = refetchOnDomainChange ? domainEnd : (endTimeAll ?? 0);
     const [dataState, setDatasState] = useState<ChartData<T>>([]);
     const requestedWidth = useRef(0);
     const theme = useTheme();
@@ -110,13 +116,13 @@ export const useData = <T extends ChartType>({ session, mapFunc, unit, metadata,
                 return;
             }
             // the data should be sorted by startTime(min -> max).
-            setDatasState(processor?.(data, width, domainStart, domainEnd) ?? data);
+            setDatasState(processor?.(data, width, dataDomainStart, dataDomainEnd) ?? data);
         }).catch(() => {
             logger('hooks useData', 'mapFunc occurred an exception.');
         }).finally(() => {
             runInAction(() => { unit.phase = 'download'; });
         });
-    }, [session.phase, domainStart, domainEnd, endTimeAll, width,
+    }, [session.phase, dataDomainStart, dataDomainEnd, endTimeAll, width,
         timestampOffset,
         session.unitsConfig.filterConfig.pythonFunction,
         session.autoAdjustUnitHeight,

@@ -17,14 +17,16 @@
  */
 
 import type { ChartHandle, Scale, StackStatusData } from '../../../entity/chart';
-import type { ThreadMetaData } from '../../../entity/data';
-import type { ForegroundTarget, SearchData } from '../../../entity/session';
+import type { LabelMetaData, ThreadMetaData } from '../../../entity/data';
+import type { ChartDesc, InsightUnit } from '../../../entity/insight';
+import type { ForegroundTarget, SearchData, Session } from '../../../entity/session';
 import {
     drawForegroundTargetLayer,
     drawSearchResultLayers,
     handleLinkLinesMap,
     isForegroundTargetSlice,
     isSearchMatched,
+    LabelUnit,
 } from '../AscendUnit';
 
 jest.mock('@insight/lib/resize', () => ({
@@ -294,5 +296,71 @@ describe('AscendUnit search and foreground drawing', () => {
         const item = createStackStatusData({ id: undefined, threadId: target.tid, originalStartTime: undefined });
 
         expect(isForegroundTargetSlice(item, target)).toBe(false);
+    });
+});
+
+const createLabelMetadata = (overrides: Partial<LabelMetaData> = {}): LabelMetaData => ({
+    dataSource: { remote: 'local' } as unknown as DataSource,
+    cardId: 'rank0',
+    dbPath: 'rank0.db',
+    metaType: 'DPU',
+    processId: 'DPU',
+    processName: 'DPU',
+    label: '',
+    ...overrides,
+});
+
+const createSummarySession = (tryFetchFromCache: jest.Mock): Session => ({
+    endTimeAll: 100,
+    domain: { timePerPx: 1 },
+    units: [],
+    unitsConfig: { offsetConfig: { timestampOffset: {} } },
+    simpleCache: { tryFetchFromCache },
+} as unknown as Session);
+
+function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+    let resolvePromise = (_value: T): void => {};
+    const promise = new Promise<T>(resolve => {
+        resolvePromise = resolve;
+    });
+    return { promise, resolve: resolvePromise };
+}
+
+describe('AscendUnit summary loading', () => {
+    it('clears the initial skeleton when the summary request finishes', async () => {
+        const metadata = createLabelMetadata();
+        const unit = new LabelUnit(metadata);
+        unit.children = [{
+            name: 'Process',
+            children: [{ name: 'Thread' } as unknown as InsightUnit],
+        } as unknown as InsightUnit];
+        const initialResult = createDeferred<undefined>();
+        const tryFetchFromCache = jest.fn().mockReturnValueOnce(initialResult.promise);
+        const session = createSummarySession(tryFetchFromCache);
+        const summaryChart = unit.chart as ChartDesc<'status'>;
+
+        const initialRequest = summaryChart.mapFunc(session, metadata, unit);
+        expect(unit.isSummaryLoading).toBe(true);
+        initialResult.resolve(undefined);
+        await expect(initialRequest).resolves.toEqual([]);
+        expect(unit.isSummaryLoading).toBe(false);
+        expect(tryFetchFromCache).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips summary requests for nested counter-only labels', async () => {
+        const metadata = createLabelMetadata({ metaType: 'NPU_METRICS', processId: 'NPU Metrics', processName: 'NPU Metrics' });
+        const unit = new LabelUnit(metadata);
+        const metricGroup = new LabelUnit(createLabelMetadata({ processId: 'HBM', processName: 'HBM' }));
+        metricGroup.children = [{ name: 'Counter' } as unknown as InsightUnit];
+        unit.children = [metricGroup];
+        const tryFetchFromCache = jest.fn();
+        const session = createSummarySession(tryFetchFromCache);
+        const summaryChart = unit.chart as ChartDesc<'status'>;
+
+        const request = summaryChart.mapFunc(session, metadata, unit);
+        expect(unit.isSummaryLoading).toBe(false);
+        await expect(request).resolves.toEqual([]);
+        expect(tryFetchFromCache).not.toHaveBeenCalled();
+        expect(unit.isSummaryLoading).toBe(false);
     });
 });
