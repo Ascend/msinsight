@@ -63,6 +63,7 @@ struct ImportActionResBody {
     // 导入文件是否待解析
     bool isPending = false;
     bool hasCachelineRecords = false;
+    bool hasNumaData = false;
     uint16_t version = 0x5a;
     bool isIE = false;
     bool isMultiDevice{false};

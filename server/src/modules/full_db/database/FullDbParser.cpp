@@ -90,22 +90,6 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
     ParserStatusManager::Instance().WaitStartParse();
     auto start = std::chrono::high_resolution_clock::now();
 
-    bool isPlatform =
-        !rankIds.empty() ? DataBaseManager::Instance().GetFileTypeByRankId(rankIds[0]) == FileType::PLATFORM : false;
-    // Init Platform metrics data
-    if (isPlatform) {
-        ServerLog::Info("Platform data parsing has started");
-        for (const auto &id : rankIds) {
-            bool result = InitPlatform(id, filePath);
-            ParserCallBack(id, filePath, result);
-            Timeline::ParserStatusManager::Instance().SetParserStatus(id, Timeline::ParserStatus::FINISH_ALL);
-        }
-        auto end = std::chrono::high_resolution_clock::now();
-        ServerLog::Info("Platform data parsing has finished.",
-            " Cost time(ms): ", std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
-        return;
-    }
-
     std::string dbId = (rankIds.size() > 0 && Global::BaselineManager::Instance().IsBaselineRankId(rankIds[0]))
         ? rankIds[0]
         : filePath;
@@ -124,6 +108,14 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
         ServerLog::Info("Threading analysis database parse completed.");
         return;
     }
+    std::string embeddedPlatformRankId;
+    if (!rankIds.empty() && HasPlatformTimelineData(database)) {
+        embeddedPlatformRankId = BuildEmbeddedPlatformRankId(rankIds.front());
+        if (!InitPlatform(embeddedPlatformRankId, filePath)) {
+            ServerLog::Error("Failed to initialize embedded Platform Metrics from Insight database.");
+            embeddedPlatformRankId.clear();
+        }
+    }
     if (!database->AddCommunicationOpDeviceIdColumnIfNotExists()) {
         ServerLog::Error("Failed to initialize deviceId column for COMMUNICATION_OP table.");
         return;
@@ -138,7 +130,8 @@ void FullDbParser::InitOpenDb(const std::string &filePath, const std::vector<std
     database->InitStringsCache();
     BuildProfilingInitTask(futures, dbId, threadPool);
     // EndParseTask中会等待所有future执行完成，然后发送parse/success事件，最后在执行一些需要异步完成的解析任务
-    threadPool->AddTask(EndParseTask, TraceIdManager::GetTraceId(), rankIds, filePath, futures, start);
+    threadPool->AddTask(
+        EndParseTask, TraceIdManager::GetTraceId(), rankIds, filePath, futures, start, embeddedPlatformRankId);
 
     // Init Memory
     if (type == FileType::MS_PROF && !database->CheckTableDataInvalid(TABLE_OPERATOR_MEMORY)) {
@@ -176,7 +169,7 @@ void FullDbParser::BuildProfilingInitTask(
 
 void FullDbParser::EndParseTask(const std::vector<std::string> &rankIds, const std::string &filePath,
     const std::shared_ptr<std::vector<std::future<void>>> &futures,
-    std::chrono::time_point<std::chrono::high_resolution_clock> start) {
+    std::chrono::time_point<std::chrono::high_resolution_clock> start, const std::string &embeddedPlatformRankId) {
     for (const auto &future : *futures) {
         future.wait();
     }
@@ -185,6 +178,11 @@ void FullDbParser::EndParseTask(const std::vector<std::string> &rankIds, const s
         : filePath;
     for (const std::string &id : rankIds) {
         ParserCallBack(id, filePath, true);
+    }
+    if (!embeddedPlatformRankId.empty()) {
+        ParserCallBack(embeddedPlatformRankId, filePath, true);
+        Timeline::ParserStatusManager::Instance().SetParserStatus(
+            embeddedPlatformRankId, Timeline::ParserStatus::FINISH_ALL);
     }
 
     auto end = std::chrono::high_resolution_clock::now();
@@ -253,7 +251,7 @@ bool FullDbParser::InitPlatform(const std::string &rankId, const std::string &pa
         ServerLog::Error("[Platform] Failed to create database for rankId: ", rankId);
         return false;
     }
-    if (!platformDatabase->OpenDb(path, false)) {
+    if (!platformDatabase->IsOpen() && !platformDatabase->OpenDb(path, false)) {
         ServerLog::Error("[Platform] Failed to open database for rankId: ", rankId);
         return false;
     }

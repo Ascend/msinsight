@@ -167,3 +167,17 @@ TEST_F(DataBaseManagerTest, SourceMappingsPreserveOriginalFileIdsWhileOrderingBy
     EXPECT_EQ(sources[0], slashStyle);
     EXPECT_EQ(sources[1], windowsStyle);
 }
+
+TEST_F(DataBaseManagerTest, PlatformRepresentativeDoesNotDependOnRegistrationOrder) {
+    auto &databaseManager = DataBaseManager::Instance();
+    databaseManager.CreatePlatformDataBase("rank0#platform", "a.db");
+    databaseManager.CreatePlatformDataBase("rank0#platform", "z.db");
+
+    EXPECT_EQ(databaseManager.GetFileIdByRankId("rank0#platform"), "a.db");
+
+    databaseManager.Clear();
+    databaseManager.CreatePlatformDataBase("rank0#platform", "z.db");
+    databaseManager.CreatePlatformDataBase("rank0#platform", "a.db");
+
+    EXPECT_EQ(databaseManager.GetFileIdByRankId("rank0#platform"), "a.db");
+}

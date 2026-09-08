@@ -212,8 +212,7 @@ void ProjectParserBase::ParseEndCallBack(
     const std::string &rankId, const std::string &fileId, bool result, const std::string &message) {
     ServerLog::Info("Parse end, fileId:", rankId, ", result:", result);
     if (result) {
-        auto type = DataBaseManager::Instance().GetFileTypeByRankId(rankId);
-        if (type == FileType::PLATFORM) {
+        if (FullDb::IsEmbeddedPlatformRankId(rankId)) {
             SendPlatformParseSuccessEvent(rankId, fileId);
         } else {
             SendParseSuccessEvent(rankId, fileId);
@@ -350,12 +349,8 @@ void ProjectParserBase::SendPlatformParseSuccessEvent(const std::string &rankId,
         return;
     }
 
-    int64_t minTs = metrics.front().ts;
-    int64_t maxTs = metrics.back().ts;
-    TraceTime::Instance().UpdateTime(minTs, maxTs);
-    TraceTime::Instance().UpdateCardTimeDuration(rankId, minTs, maxTs);
-    event->body.startTimeUpdated = true;
-    event->body.startTime = minTs;
+    event->body.startTime = TraceTime::Instance().GetStartTime();
+    event->body.maxTimeStamp = TraceTime::Instance().GetDuration();
     event->body.offset = 0;
 
     std::map<int64_t, TreeNode> tree;

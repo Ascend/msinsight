@@ -43,6 +43,7 @@ const std::string MODULE_JUPYTER = "jupyter";
 const std::string MODULE_IE = "IE";
 const std::string MODULE_MEM_SCOPE = "leaks";
 const std::string MODULE_TRITON = "triton";
+const std::string MODULE_NUMA = "numa";
 const std::string MODULE_MEM_SNAPSHOT = "memsnapshot";
 #pragma endregion
 
@@ -115,6 +116,7 @@ const std::string REQ_RES_MEMCPY_OVERALL = "memcpy/total/list";
 const std::string REQ_RES_MEMCPY_DETAIL = "memcpy/detail/list";
 const std::string REQ_RES_KERNEL_OVERALL = "kernel/total/list";
 const std::string REQ_RES_RANK_OFFSET = "timeline/rankOffset";
+const std::string REQ_RES_NUMA_OVERVIEW = "numa/overview";
 
 // communication
 const std::string REQ_RES_COMMUNICATION_OPERATOR_DETAILS = "communication/operatorDetails";

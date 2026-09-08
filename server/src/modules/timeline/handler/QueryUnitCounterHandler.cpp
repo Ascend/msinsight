@@ -18,6 +18,7 @@
 #include "WsSessionManager.h"
 #include "TraceTime.h"
 #include "DataBaseManager.h"
+#include "DbPlatformDataBase.h"
 #include "QueryUnitCounterHandler.h"
 
 namespace Dic {
@@ -42,7 +43,7 @@ bool QueryUnitCounterHandler::HandleRequest(std::unique_ptr<Protocol::Request> r
         request.params.rankId = DataBaseManager::Instance().GetAnyTraceDatabaseId();
     }
     std::shared_ptr<Platform::VirtualPlatformDataBase> databasePlatform;
-    if (DataBaseManager::Instance().GetFileTypeByRankId(request.params.rankId) == FileType::PLATFORM) {
+    if (FullDb::IsEmbeddedPlatformRankId(request.params.rankId)) {
         databasePlatform = DataBaseManager::Instance().GetPlatformDatabaseByRankId(request.params.rankId);
     }
     if (databasePlatform != nullptr) {

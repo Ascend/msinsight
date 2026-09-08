@@ -246,6 +246,19 @@ include_directories(${SRC_HOME_DIR}/modules/triton/service)
 include_directories(${SRC_HOME_DIR}/modules/triton/handler)
 include_directories(${SRC_HOME_DIR}/modules/triton/allocator)
 include_directories(${SRC_HOME_DIR}/modules/triton/defs)
+
+# NUMA
+aux_source_directory(${SRC_HOME_DIR}/modules/numa DIC_MODULES_NUMA_SRC)
+aux_source_directory(${SRC_HOME_DIR}/modules/numa/core DIC_MODULES_NUMA_CORE_SRC)
+aux_source_directory(${SRC_HOME_DIR}/modules/numa/database DIC_MODULES_NUMA_DATABASE_SRC)
+aux_source_directory(${SRC_HOME_DIR}/modules/numa/protocol DIC_MODULES_NUMA_PROTOCOL_SRC)
+aux_source_directory(${SRC_HOME_DIR}/modules/numa/handler DIC_MODULES_NUMA_HANDLER_SRC)
+include_directories(${SRC_HOME_DIR}/modules/numa)
+include_directories(${SRC_HOME_DIR}/modules/numa/core)
+include_directories(${SRC_HOME_DIR}/modules/numa/database)
+include_directories(${SRC_HOME_DIR}/modules/numa/model)
+include_directories(${SRC_HOME_DIR}/modules/numa/protocol)
+include_directories(${SRC_HOME_DIR}/modules/numa/handler)
 list(APPEND DIC_MODULES_SRC_LIST
         ${DIC_MODULES_SRC}
         ${DIC_MODULES_BASE_SRC}
@@ -337,7 +350,12 @@ list(APPEND DIC_MODULES_SRC_LIST
         ${DIC_MODULES_RL_CORE_SRC}
         ${DIC_MODULES_RL_PROTOCOL_SRC}
         ${DIC_MODULES_RL_HANDLER_SRC}
-        ${DIC_MODULES_TRITON_SRC})
+        ${DIC_MODULES_TRITON_SRC}
+        ${DIC_MODULES_NUMA_SRC}
+        ${DIC_MODULES_NUMA_CORE_SRC}
+        ${DIC_MODULES_NUMA_DATABASE_SRC}
+        ${DIC_MODULES_NUMA_PROTOCOL_SRC}
+        ${DIC_MODULES_NUMA_HANDLER_SRC})
 add_subdirectory(entry)
 if (${_PROJECT_TYPE} MATCHES "test|fuzz")
     enable_testing()

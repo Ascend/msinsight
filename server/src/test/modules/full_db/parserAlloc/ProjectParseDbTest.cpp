@@ -20,12 +20,20 @@
 #include "ProjectParserFactory.h"
 #include "ProjectParserDb.h"
 #include "DataBaseManager.h"
+#include "DbPlatformDataBase.h"
 #include "FileUtil.h"
+#include "../../../DatabaseTestCaseMockUtil.h"
 using namespace Dic::Module;
 using namespace Dic::Module::Global;
+using namespace Dic::Global::PROFILER::MockUtil;
 
 class ProjectParserDbTest : public testing::Test {
   protected:
+    void SetUp() override {
+        FullDb::DataBaseManager::Instance().Clear();
+        Timeline::DataBaseManager::Instance().Clear();
+    }
+
     class ProjectParserDbTestHelper : public ProjectParserDb {
       public:
         void SetRankDeviceMapHelper(std::shared_ptr<ParseFileInfo> parseFileInfo,
@@ -33,9 +41,14 @@ class ProjectParserDbTest : public testing::Test {
             const std::string &rank) {
             SetRankDeviceMap(parseFileInfo, rankDeviceMap, deviceIdInMem, rank);
         }
+
         void SetHostInfoHelper(
             std::map<std::string, HostInfo> &hostInfoMap, ImportActionResponse &response, int64_t projectType) {
             SetHostInfo(hostInfoMap, response, projectType);
+        }
+
+        std::vector<std::string> GetDbFilesInDirHelper(const std::string &filePath) {
+            return GetDbFilesInDir(filePath);
         }
     };
     std::string GetMultiDeviceTestDataPath() {
@@ -60,7 +73,14 @@ class ProjectParserDbTest : public testing::Test {
         std::string newAnalysisDbPath = FileUtil::SplicePath(path, "ASCEND_PROFILER_OUTPUT", "analysis.db");
         fs::rename(analysisDbPath, newAnalysisDbPath);
     }
-    void TearDown() override { FullDb::DataBaseManager::Instance().Clear(); }
+    void TearDown() override {
+        FullDb::DataBaseManager::Instance().Clear();
+        Timeline::DataBaseManager::Instance().Clear();
+        for (const auto &path : temporaryFiles_) {
+            std::error_code error;
+            fs::remove_all(path, error);
+        }
+    }
 
     class DbParserTestHelper : public ProjectParserDb {
       public:
@@ -68,6 +88,35 @@ class ProjectParserDbTest : public testing::Test {
             return GetReportFiles(projectInfos);
         }
     };
+
+    fs::path CreatePlatformDatabase(const std::string &name) {
+        const fs::path path = fs::temp_directory_path() / name;
+        temporaryFiles_.push_back(path);
+        std::error_code error;
+        fs::remove(path, error);
+        sqlite3 *database = nullptr;
+        EXPECT_EQ(sqlite3_open(path.string().c_str(), &database), SQLITE_OK);
+        DatabaseTestCaseMockUtil::CreateTable(database,
+            "CREATE TABLE NUMA_TITLES_NAMES (name TEXT, description TEXT, summary_flag INTEGER, "
+            "measurement_unit TEXT, unique_id INTEGER);"
+            "CREATE TABLE NUMA_LEVELS_HIERARCHY_NAMES (title0_id INTEGER, title1_id INTEGER, title2_id INTEGER);"
+            "CREATE TABLE NUMA_METRICS (ts INTEGER, value REAL, levels_id INTEGER);"
+            "CREATE TABLE NUMA_SCALING_VALUES (id INTEGER PRIMARY KEY, level_id INTEGER, max_value REAL);");
+        EXPECT_EQ(sqlite3_close(database), SQLITE_OK);
+        auto &manager = Timeline::DataBaseManager::Instance();
+        manager.SetDataType(Timeline::DataType::DB, path.string());
+        EXPECT_TRUE(manager.CreateTraceConnectionPool(path.string(), path.string()));
+        return path;
+    }
+
+    ImportActionResponse SetHostInfo(const fs::path &path) {
+        std::map<std::string, HostInfo> hosts = {{"msprof0_", {{path.string(), {"-1"}}}}};
+        ImportActionResponse response;
+        ProjectParserDbTestHelper().SetHostInfoHelper(hosts, response, static_cast<int64_t>(ProjectTypeEnum::DB));
+        return response;
+    }
+
+    std::vector<fs::path> temporaryFiles_;
 };
 
 TEST_F(ProjectParserDbTest, multiDeivce) {
@@ -118,6 +167,33 @@ TEST_F(ProjectParserDbTest, set_rank_device_map_multi_device) {
     EXPECT_EQ(rankDeviceMap[fileInfo->rankId], fileInfo->deviceId);
 }
 
+TEST_F(ProjectParserDbTest, SetHostInfoAddsPlatformCardForMergedDatabase) {
+    const auto merged = CreatePlatformDatabase("msinsight_merged_platform_timeline_test.db");
+    const auto mergedResponse = SetHostInfo(merged);
+    ASSERT_EQ(mergedResponse.body.result.size(), 2);
+    EXPECT_EQ(mergedResponse.body.result[1].cardName, "Platform Metrics");
+    EXPECT_EQ(mergedResponse.body.result[1].rankId, FullDb::BuildEmbeddedPlatformRankId("msprof0_-1"));
+    EXPECT_EQ(mergedResponse.body.result[1].fileId, merged.string());
+}
+
+TEST_F(ProjectParserDbTest, GetDbFilesInDirIgnoresStandalonePlatformDatabase) {
+    const fs::path directory = fs::temp_directory_path() / "msinsight-platform-discovery-test";
+    temporaryFiles_.push_back(directory);
+    fs::create_directories(directory);
+    const fs::path merged = directory / "ascend_pytorch_profiler.db";
+    const fs::path standalone = directory / "platform.db";
+    sqlite3 *database = nullptr;
+    ASSERT_EQ(sqlite3_open(merged.string().c_str(), &database), SQLITE_OK);
+    ASSERT_EQ(sqlite3_close(database), SQLITE_OK);
+    ASSERT_EQ(sqlite3_open(standalone.string().c_str(), &database), SQLITE_OK);
+    ASSERT_EQ(sqlite3_close(database), SQLITE_OK);
+
+    const auto files = ProjectParserDbTestHelper().GetDbFilesInDirHelper(directory.string());
+    ASSERT_EQ(files.size(), 1U);
+    EXPECT_EQ(files.front(), merged.string());
+    EXPECT_TRUE(ProjectParserDbTestHelper().GetDbFilesInDirHelper(standalone.string()).empty());
+}
+
 TEST_F(ProjectParserDbTest, SetHostInfoEmitsOneActionForSameLogicalRank) {
     ProjectParserDbTestHelper parser;
     std::map<std::string, HostInfo> hostInfoMap = {{"host", {{"z.db", {"0"}}, {"a.db", {"0"}}, {"b.db", {"1"}}}}};
@@ -131,4 +207,21 @@ TEST_F(ProjectParserDbTest, SetHostInfoEmitsOneActionForSameLogicalRank) {
     EXPECT_EQ(response.body.result[1].rankId, "host1");
     EXPECT_EQ(hostInfoMap["host"]["z.db"][0], "host0");
     EXPECT_EQ(hostInfoMap["host"]["a.db"][0], "host0");
+}
+
+TEST_F(ProjectParserDbTest, SetHostInfoEmitsOnePlatformActionForSameLogicalRank) {
+    const auto first = CreatePlatformDatabase("msinsight-platform-source-a.db");
+    const auto second = CreatePlatformDatabase("msinsight-platform-source-b.db");
+    ProjectParserDbTestHelper parser;
+    std::map<std::string, HostInfo> hostInfoMap = {
+        {"host", {{second.string(), {"0"}}, {first.string(), {"0"}}}},
+    };
+    ImportActionResponse response;
+
+    parser.SetHostInfoHelper(hostInfoMap, response, static_cast<int64_t>(ProjectTypeEnum::DB));
+
+    ASSERT_EQ(response.body.result.size(), 2U);
+    EXPECT_EQ(response.body.result[0].rankId, "host0");
+    EXPECT_EQ(response.body.result[1].rankId, FullDb::BuildEmbeddedPlatformRankId("host0"));
+    EXPECT_EQ(response.body.result[1].fileId, first.string());
 }

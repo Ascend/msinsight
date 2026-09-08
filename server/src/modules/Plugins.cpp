@@ -27,6 +27,7 @@
 #include "MemScopePlugin.h"
 #include "RLPlugin.h"
 #include "TritonPlugin.h"
+#include "NumaPlugin.h"
 namespace Dic::Module {
 Core::PluginRegister ADVISOR_PLUGIN(std::make_unique<Advisor::AdvisorPlugin>());
 Core::PluginRegister GLOBAL_PLUGIN(std::make_unique<Global::GlobalPlugin>());
@@ -40,4 +41,5 @@ Core::PluginRegister IE_PLUGIN(std::make_unique<IE::IEPlugin>());
 Core::PluginRegister MEM_SCOPE_PLUGIN(std::make_unique<MemScope::MemScopePlugin>());
 Core::PluginRegister RL_PLUGIN(std::make_unique<RL::RLPlugin>());
 Core::PluginRegister TRITON_PLUGIN(std::make_unique<Triton::TritonPlugin>());
+Core::PluginRegister NUMA_PLUGIN(std::make_unique<Numa::NumaPlugin>());
 }
