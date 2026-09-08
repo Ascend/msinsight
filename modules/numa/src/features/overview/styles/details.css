@@ -1,0 +1,109 @@
+.panel-kicker {
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 400;
+    letter-spacing: 0;
+}
+
+.details-panel {
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface);
+}
+
+.details-panel {
+    align-self: stretch;
+    min-height: 0;
+    padding: 12px;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.details-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding-bottom: 9px;
+    border-bottom: 1px solid var(--border-strong);
+}
+
+.details-heading h2 {
+    margin: 2px 0 0;
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 20px;
+}
+
+.details-description {
+    min-height: 36px;
+    margin: 9px 0;
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 18px;
+}
+
+.details-metrics {
+    border-top: 1px solid var(--border-strong);
+}
+
+.detail-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 42px;
+    padding: 7px 4px;
+    border-bottom: 1px solid var(--border-strong);
+}
+
+.detail-row > div {
+    flex: 1 1 auto;
+    width: 0;
+    min-width: 0;
+}
+
+.detail-row:hover {
+    background: var(--surface-muted);
+}
+
+.detail-row div > span,
+.detail-row small {
+    display: block;
+}
+
+.detail-row div > span {
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 16px;
+}
+
+.detail-row small {
+    margin-top: 1px;
+    color: var(--muted);
+    font-size: 9px;
+}
+
+.detail-row strong {
+    flex: 0 0 92px;
+    min-width: 92px;
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.detail-placeholder {
+    padding: 24px 8px;
+    color: var(--muted);
+    text-align: center;
+    font-size: 12px;
+}
+
+@media (max-width: 1050px) {
+    .details-panel {
+        min-height: 240px;
+    }
+}
