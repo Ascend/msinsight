@@ -38,6 +38,9 @@ const static std::map<std::string, std::string> FULL_DB_TABLE_MAP = {
     {TABLE_CCU,
         "create TEMPORARY table if not exists CCU(deviceId INTEGER, globalTaskId INTEGER, name INTEGER, "
         "startNs INTEGER, endNs INTEGER, args INTEGER);"},
+    {TABLE_DPU_TASK,
+        "create TEMPORARY table if not exists DPU_TASK(dpuDeviceId INTEGER, globalTid INTEGER, startNs INTEGER, "
+        "endNs INTEGER, globalTaskId INTEGER, streamId INTEGER, taskId INTEGER, opName INTEGER, args INTEGER);"},
     {TABLE_COMMUNICATION_TASK_INFO,
         "create TEMPORARY table if not exists COMMUNICATION_TASK_INFO( name INTEGER, "
         " globalTaskId INTEGER, taskType INTEGER, planeId INTEGER, groupName INTEGER, notifyId INTEGER,"
@@ -172,6 +175,26 @@ inline std::string GetCcuSameNameDetailSql(const std::string &tidListStr) {
            " join params p where deviceId = p.rankId and deviceId in (" +
         tidListStr + " ) and timestamp + duration >= p.startTime AND timestamp <= p.endTime ";
 }
+inline std::string GetDpuSameNameDetailSql(
+    const std::vector<std::string> &pidList, const std::vector<std::string> &tidList) {
+    std::vector<std::string> laneConditions;
+    const auto laneCount = std::min(pidList.size(), tidList.size());
+    laneConditions.reserve(laneCount);
+    for (size_t index = 0; index < laneCount; ++index) {
+        laneConditions.emplace_back(
+            "(('DPU_' || CAST(main.globalTid AS TEXT) || '_' || CAST(main.dpuDeviceId AS TEXT)) = " +
+            StringUtil::Join4SqlGroup({pidList[index]}) +
+            " AND CAST(main.streamId AS TEXT) = " + StringUtil::Join4SqlGroup({tidList[index]}) + ")");
+    }
+    const std::string laneFilter = laneConditions.empty() ? "1 = 0" : StringUtil::join(laneConditions, " OR ");
+    return " select main.startNs - p.minTime as timestamp, main.endNs - main.startNs as duration, 0 as depth, "
+           " main.ROWID as id, CAST(main.streamId AS TEXT) as tid, "
+           " 'DPU_' || CAST(main.globalTid AS TEXT) || '_' || CAST(main.dpuDeviceId AS TEXT) as pid from " +
+        TABLE_DPU_TASK +
+        " main join nameIds n on main.opName = n.id join params p "
+        " where (" +
+        laneFilter + ") and timestamp + duration >= p.startTime AND timestamp <= p.endTime ";
+}
 inline std::string GetOsrtSameNameDetailSql(const std::string &pidListStr) {
     return "SELECT startNs - p.minTime AS timestamp, endNs - startNs AS duration, 0 AS depth,"
            " main.ROWID AS id, 'OSRT_API' AS tid, globalTid AS pid"
@@ -303,6 +326,12 @@ const static std::string CCU_THREADS_BY_PID =
     "SELECT ROWID as id, startNs as startNs, endNs - startNs AS duration, endNs as endNs, "
     "name, 0 AS depth FROM " +
     TABLE_CCU + " WHERE deviceId = ? AND endNs >= ? AND startNs <= ? ORDER BY startNs ASC;";
+
+const static std::string DPU_THREADS_BY_PID =
+    "SELECT ROWID AS id, startNs, endNs - startNs AS duration, endNs, opName AS name, 0 AS depth FROM " +
+    TABLE_DPU_TASK +
+    " WHERE ('DPU_' || CAST(globalTid AS TEXT) || '_' || CAST(dpuDeviceId AS TEXT)) = ? AND streamId = ? "
+    "AND endNs >= ? AND startNs <= ? ORDER BY startNs ASC;";
 
 // QueryEventsViewData4Db
 const static std::string QUERY_EVENTS_VIEW_FOR_DEVICE_HCCL_DEVICE_ID_NOT_UNIQUE =

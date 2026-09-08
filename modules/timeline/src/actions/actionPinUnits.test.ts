@@ -134,3 +134,20 @@ describe('actionPinUnits visible', () => {
         expect(actionUnpinByUnitName.visible?.(session)).toBe(false);
     });
 });
+
+describe('actionPinUnits DPU stream names', () => {
+    it('pins matching DPU streams without pinning the NPU stream with the same id', () => {
+        const dpuStream = createThreadUnit({ threadId: '0', threadName: 'DPU Stream 0' });
+        const anotherDpuStream = createThreadUnit({ threadId: '0', threadName: 'DPU Stream 0' });
+        const npuStream = createThreadUnit({ threadId: '0', threadName: 'Stream 0' });
+        const session = {
+            ...createSession([dpuStream]),
+            units: [dpuStream, anotherDpuStream, npuStream],
+        };
+
+        actionPinByUnitName.perform(session);
+
+        expect(session.pinnedUnits).toEqual([dpuStream, anotherDpuStream]);
+        expect(session.pinnedUnits).not.toContain(npuStream);
+    });
+});

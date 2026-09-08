@@ -2349,8 +2349,8 @@ TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenPython) {
     params.isMatchExact = true;
     std::string sql = Dic::Module::Timeline::TraceDatabaseHelper::GetLockRangeSql(params, trackQueryVec);
     EXPECT_EQ(sql,
-        "with ids as (select id, value from STRING_IDS where value like ?)  SELECT api.ROWID as id, 'pytorch' as tid, "
-        "api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, '' as deviceId, ids.value as "
+        "with ids as (select id, value from STRING_IDS where value like ?)  SELECT api.ROWID as id, api.globalTid as pid, "
+        "'pytorch' as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, '' as deviceId, ids.value as "
         "value from PYTORCH_API  api join ids on ids.id = api.name WHERE api.globalTid = ? AND api.startNs >= ? AND "
         "api.endNs <= ?  AND api.type != 50003  ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
 }
@@ -2419,7 +2419,7 @@ TEST_F(DbTraceDatabaseTest, GetLockRangeSqlWhenOsrt) {
     std::string sql = Dic::Module::Timeline::TraceDatabaseHelper::GetLockRangeSql(params, trackQueryVec);
     EXPECT_EQ(sql,
         "with ids as (select id, value from STRING_IDS where lower(value) like lower('%'||?||'%'))  "
-        "SELECT osrt.ROWID AS id, 'OSRT_API' AS tid, osrt.globalTid AS pid, osrt.startNs AS timestamp, "
+        "SELECT osrt.ROWID AS id, osrt.globalTid AS pid, 'OSRT_API' AS tid, osrt.startNs AS timestamp, "
         "osrt.endNs AS endTime, 0 AS depth, '' AS deviceId, ids.value AS value FROM OSRT_API  osrt "
         "JOIN ids ON ids.id = osrt.name WHERE osrt.globalTid = ? AND osrt.startNs >= ? AND osrt.endNs <= ?  "
         "ORDER BY timestamp DESC  LIMIT ? OFFSET ?");
@@ -2498,8 +2498,8 @@ TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenPython) {
     std::string sql =
         Dic::Module::Timeline::TraceDatabaseHelper::GetSearchSliceNameWithLockRangeSql(params, trackQueryVec, path);
     EXPECT_EQ(sql,
-        "with ids as (select id from STRING_IDS where value like ?)  SELECT api.ROWID as id, 'pytorch' "
-        "as tid, api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
+        "with ids as (select id from STRING_IDS where value like ?)  SELECT api.ROWID as id, api.globalTid as pid, "
+        "'pytorch' as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
         "'PYTORCH_API' as metaType from PYTORCH_API  api join ids on ids.id = api.name WHERE api.globalTid = ? "
         "AND api.startNs >= ? AND api.endNs <= ?  AND api.type != 50003  ORDER BY timestamp ASC LIMIT 1 OFFSET ?");
 }
@@ -2557,7 +2557,7 @@ TEST_F(DbTraceDatabaseTest, GetSearchSliceNameWithLockRangeSqlWhenOsrt) {
         Dic::Module::Timeline::TraceDatabaseHelper::GetSearchSliceNameWithLockRangeSql(params, trackQueryVec, path);
     EXPECT_EQ(sql,
         "with ids as (select id from STRING_IDS where lower(value) like lower('%'||?||'%'))  SELECT osrt.ROWID AS id, "
-        "'OSRT_API' AS tid, osrt.globalTid AS pid, osrt.startNs AS timestamp, osrt.endNs AS endTime, 0 AS depth, "
+        "osrt.globalTid AS pid, 'OSRT_API' AS tid, osrt.startNs AS timestamp, osrt.endNs AS endTime, 0 AS depth, "
         "'OSRT_API' as metaType FROM OSRT_API  osrt JOIN ids ON ids.id = osrt.name WHERE osrt.globalTid = ? AND "
         "osrt.startNs >= ? AND osrt.endNs <= ?  ORDER BY timestamp ASC LIMIT 1 OFFSET ?");
 }

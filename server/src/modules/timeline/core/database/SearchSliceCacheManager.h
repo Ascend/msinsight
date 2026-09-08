@@ -43,6 +43,7 @@ enum class SliceTableType : int8_t {
     COMMUNICATION_OP = 3,
     MSTX = 4,
     CCU = 5,
+    DPU_TASK = 6,
     UNKNOWN = -1
 };
 

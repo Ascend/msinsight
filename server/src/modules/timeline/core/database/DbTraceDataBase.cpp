@@ -59,7 +59,7 @@ bool DbTraceDataBase::IsThreadingAnalysisDatabase() {
 
 bool DbTraceDataBase::HasStandardTimelineData() {
     return CheckTableExist(TABLE_TASK) || CheckTableExist(TABLE_CANN_API) || CheckTableExist(TABLE_API) ||
-        CheckTableExist(TABLE_COMMUNICATION_OP);
+        CheckTableExist(TABLE_COMMUNICATION_OP) || CheckTableExist(TABLE_DPU_TASK);
 }
 
 bool DbTraceDataBase::QueryThreads(const Protocol::UnitThreadsParams &requestParams,
@@ -141,6 +141,9 @@ bool DbTraceDataBase::QueryUnitsMetadata(
     }
     if (CheckTableExist(TABLE_CCU)) {
         QueryCcuOperatorMetadata(fileId, metaData);
+    }
+    if (CheckTableExist(TABLE_DPU_TASK)) {
+        QueryDpuOperatorMetadata(fileId, metaData);
     }
     // 只要TASK表或者COMMUNICATION_OP表存在，展示覆盖分析，TASK表反映计算信息，COMMUNICATION_OP表反映通信信息
     if (existOverlapAnalysis) {
@@ -2232,6 +2235,113 @@ bool DbTraceDataBase::QueryCcuOperatorMetadata(
     return true;
 }
 
+bool DbTraceDataBase::QueryDpuOperatorMetadata(
+    const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
+    auto stmt = CreatPreparedStatement(
+        "SELECT DISTINCT globalTid, dpuDeviceId, streamId FROM " + TABLE_DPU_TASK +
+        " WHERE globalTid IS NOT NULL AND dpuDeviceId IS NOT NULL AND streamId IS NOT NULL"
+        " ORDER BY globalTid, dpuDeviceId, streamId");
+    if (stmt == nullptr) {
+        ServerLog::Error("Failed to prepare sql for query DPU operator metadata.");
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr) {
+        ServerLog::Error("Failed to execute query DPU operator metadata.");
+        return false;
+    }
+
+    const std::string metaType = ENUM_TO_STR(PROCESS_TYPE::DPU).value_or("");
+    const std::string hostProcessMetaType = ENUM_TO_STR(PROCESS_TYPE::PROCESS).value_or("");
+    const std::string hostThreadMetaType = ENUM_TO_STR(PROCESS_TYPE::CANN_API).value_or("");
+    auto findOrCreateHostThread = [&](const std::string &globalTid) -> Protocol::UnitTrack * {
+        for (auto &unit : metaData) {
+            if (unit == nullptr || unit->metaData.metaType != hostProcessMetaType) {
+                continue;
+            }
+            for (auto &thread : unit->children) {
+                if (thread != nullptr && thread->metaData.processId == globalTid) {
+                    return thread.get();
+                }
+            }
+        }
+
+        // DPU_TASK.globalTid follows the Host globalTid layout: high 32 bits are PID and low 32 bits are TID.
+        const uint64_t globalTidValue = NumberUtil::StringToUnsignedLongLong(globalTid);
+        const uint64_t pid = globalTidValue >> 32;
+        const uint64_t tid = globalTidValue & 0XFFFFFFFF;
+        Protocol::UnitTrack *hostProcess = nullptr;
+        for (auto &unit : metaData) {
+            if (unit != nullptr && unit->metaData.metaType == hostProcessMetaType &&
+                (NumberUtil::StringToUnsignedLongLong(unit->metaData.processId) >> 32) == pid) {
+                hostProcess = unit.get();
+                break;
+            }
+        }
+        if (hostProcess == nullptr) {
+            auto process = GenerateBaseUnitTrack("process", fileId, globalTid, "Process " + std::to_string(pid),
+                hostProcessMetaType);
+            hostProcess = process.get();
+            const auto processPosition = std::find_if(metaData.begin(), metaData.end(), [&](const auto &unit) {
+                return unit == nullptr || unit->metaData.metaType != hostProcessMetaType;
+            });
+            metaData.insert(processPosition, std::move(process));
+        }
+        auto thread = GenerateBaseUnitTrack(
+            "process", fileId, globalTid, "Thread " + std::to_string(tid), hostThreadMetaType);
+        thread->metaData.threadId = std::to_string(tid);
+        Protocol::UnitTrack *hostThread = thread.get();
+        const auto threadPosition = std::find_if(hostProcess->children.begin(), hostProcess->children.end(),
+            [&](const auto &item) {
+                return item != nullptr &&
+                    NumberUtil::StringToUnsignedLongLong(item->metaData.processId) > globalTidValue;
+            });
+        hostProcess->children.insert(threadPosition, std::move(thread));
+        return hostThread;
+    };
+
+    std::string currentGlobalTid;
+    std::string currentDeviceId;
+    std::unique_ptr<Protocol::UnitTrack> dpuLabel;
+    std::unique_ptr<Protocol::UnitTrack> device;
+    auto appendDevice = [&]() {
+        if (device != nullptr && dpuLabel != nullptr) {
+            dpuLabel->children.emplace_back(std::move(device));
+        }
+    };
+    auto appendDpuLabel = [&]() {
+        appendDevice();
+        if (dpuLabel == nullptr) {
+            return;
+        }
+        findOrCreateHostThread(currentGlobalTid)->children.emplace_back(std::move(dpuLabel));
+    };
+    while (resultSet->Next()) {
+        const std::string globalTid = resultSet->GetString("globalTid");
+        const std::string dpuDeviceId = resultSet->GetString("dpuDeviceId");
+        if (dpuLabel == nullptr || globalTid != currentGlobalTid) {
+            appendDpuLabel();
+            currentGlobalTid = globalTid;
+            currentDeviceId.clear();
+            dpuLabel = GenerateBaseUnitTrack("label", fileId, globalTid, "DPU", metaType);
+        }
+        if (device == nullptr || dpuDeviceId != currentDeviceId) {
+            appendDevice();
+            currentDeviceId = dpuDeviceId;
+            const std::string processId = "DPU_" + globalTid + "_" + dpuDeviceId;
+            device = GenerateBaseUnitTrack("process", fileId, processId, "DPU " + dpuDeviceId, metaType);
+        }
+        const std::string streamId = resultSet->GetString("streamId");
+        auto thread = GenerateBaseUnitTrack("thread", fileId, device->metaData.processId, "", metaType);
+        thread->metaData.threadId = streamId;
+        thread->metaData.threadName = "DPU Stream " + streamId;
+        thread->metaData.maxDepth = 1;
+        device->children.emplace_back(std::move(thread));
+    }
+    appendDpuLabel();
+    return true;
+}
+
 bool DbTraceDataBase::QueryHCCLOperatorMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
     PROCESS_TYPE type = PROCESS_TYPE::HCCL;
@@ -2433,6 +2543,7 @@ bool DbTraceDataBase::SearchAllSlicesDetails(
         auto deviceId = resultSet->GetString("deviceId");
         searchAllSlice.rankId = params.rankId;
         searchAllSlice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
+        SetDpuSearchSliceDepth(searchAllSlice);
         body.searchAllSlices.emplace_back(searchAllSlice);
     }
     body.currentPage = params.current;
@@ -2496,10 +2607,14 @@ bool DbTraceDataBase::SearchAllSlicesDetails(const Protocol::SearchAllSliceParam
         searchAllSlice.pid = resultSet->GetString("pid");
         searchAllSlice.metaType = searchAllSlice.tid.rfind(Protocol::PYTHON_STACK_THREAD_ID_PREFIX, 0) == 0 ?
             ENUM_TO_STR(PROCESS_TYPE::PYTHON_STACK).value_or("") : "";
+        if (StringUtil::StartWith(searchAllSlice.pid, "DPU_")) {
+            searchAllSlice.metaType = ENUM_TO_STR(PROCESS_TYPE::DPU).value_or("");
+        }
         searchAllSlice.depth = resultSet->GetUint64("depth");
         auto deviceId = resultSet->GetString("deviceId");
         searchAllSlice.rankId = params.rankId;
         searchAllSlice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
+        SetDpuSearchSliceDepth(searchAllSlice);
         body.searchAllSlices.emplace_back(searchAllSlice);
     }
     body.currentPage = params.current;
@@ -2730,6 +2845,15 @@ bool DbTraceDataBase::LoadSliceCache(LightSliceCache& cache,
     }
     LoadTableData(cache, matchedIds, ccuQuery);
 
+    // DPU devices belong to Host threads; do not filter them by the NPU deviceId.
+    SliceCacheTableLoadQuery dpuQuery;
+    dpuQuery.isExist = CheckTableExist(TABLE_DPU_TASK);
+    dpuQuery.sql = "SELECT ROWID as rowId, opName as nameId, startNs - " + std::to_string(minTimestamp) +
+        " as startTime, endNs - startNs as duration FROM " + TABLE_DPU_TASK +
+        " WHERE globalTid IS NOT NULL AND dpuDeviceId IS NOT NULL AND streamId IS NOT NULL";
+    dpuQuery.tableType = SliceTableType::DPU_TASK;
+    LoadTableData(cache, matchedIds, dpuQuery);
+
     // Step 3: 初始化排序索引
     SearchSliceCacheManager::InitializeSortedIndices(cache);
 
@@ -2782,9 +2906,31 @@ std::string DbTraceDataBase::GetSliceDetailSql(SliceTableType type, uint64_t min
             return "SELECT ROWID as rowId, name as nameId, startNs - " + minTimeStr +
                    " as startTime, endNs - startNs as duration, deviceId as tid, 'CCU' as pid, "
                    "'CCU' as metaType, 0 as depth, deviceId as deviceId FROM " + TABLE_CCU + " WHERE ROWID IN (" + idList + ")";
+        case SliceTableType::DPU_TASK:
+            return "SELECT ROWID as rowId, opName as nameId, startNs - " + minTimeStr +
+                   " as startTime, endNs - startNs as duration, streamId as tid, "
+                   "'DPU_' || globalTid || '_' || dpuDeviceId as pid, 'DPU' as metaType, "
+                   "0 as depth, '' as deviceId FROM " + TABLE_DPU_TASK + " WHERE ROWID IN (" + idList + ")";
         default:
             return "";
     }
+}
+
+void DbTraceDataBase::SetDpuSearchSliceDepth(Protocol::SearchAllSlices &slice)
+{
+    if (slice.metaType != ENUM_TO_STR(PROCESS_TYPE::DPU).value_or("")) {
+        return;
+    }
+    const SliceQuery query = CreateSliceQueryWithTimeRange(
+        {slice.rankId, slice.pid, slice.tid, slice.metaType, slice.timestamp, slice.duration});
+    const uint64_t sliceId = NumberUtil::StringToUnsignedLongLong(slice.id);
+    uint32_t depth = 0;
+    if (SliceCacheManager::Instance().QueryDepthBySliceId(
+        std::to_string(query.trackId), query.rankId, query, sliceId, depth)) {
+        slice.depth = depth;
+        return;
+    }
+    slice.depth = GetSliceDepthForJump(query, sliceId);
 }
 
 void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache,
@@ -2812,6 +2958,7 @@ void DbTraceDataBase::FillSearchAllSlices(const LightSliceCache& cache,
         slice.rankId = params.rankId;
         auto deviceId = result->GetString("deviceId");
         slice.deviceId = deviceId.empty() ? params.rankId : QueryHostInfo() + deviceId;
+        SetDpuSearchSliceDepth(slice);
 
         sliceDetails[{tableType, rowId}] = std::move(slice);
     }
