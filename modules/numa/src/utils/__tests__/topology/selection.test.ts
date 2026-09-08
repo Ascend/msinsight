@@ -1,0 +1,38 @@
+import type { TFunction } from 'i18next';
+import { selectedItemForConnection, selectedItemForNuma, selectedItemForSocket } from '@/features/topology/model/selection';
+import { numaOverviewFixture } from '@/testUtils/numaOverview.fixture';
+
+const t = ((key: string, options?: { count?: number }) => `${key}:${options?.count ?? ''}`) as TFunction<'numa'>;
+
+describe('topology selection', () => {
+    it('builds socket, NUMA, and connection selections from backend data', () => {
+        const socket = numaOverviewFixture.sockets[0];
+        const numa = socket.numas[0];
+        const connection = numaOverviewFixture.connections[1];
+
+        expect(selectedItemForSocket(socket, t)).toMatchObject({
+            kind: 'socket', id: 'socket-0', title: 'Socket 0', description: 'diagram.socketDescription:2',
+        });
+        expect(selectedItemForNuma(numa, socket, t)).toMatchObject({
+            kind: 'numa',
+            id: 'numa-0',
+            title: 'NUMA Node 0 / Socket 0',
+            metrics: [numa.metrics[0], numa.metrics[5], numa.metrics[3], numa.metrics[2], numa.metrics[1]],
+        });
+        expect(selectedItemForConnection(connection)).toEqual({
+            kind: 'connection',
+            id: connection.id,
+            title: connection.label,
+            description: connection.description,
+            metrics: connection.metrics,
+        });
+    });
+
+    it('omits unavailable NUMA detail metrics without changing order', () => {
+        const socket = numaOverviewFixture.sockets[0];
+        expect(selectedItemForNuma(socket.numas[1], socket, t).metrics.map(({ key }) => key)).toEqual([
+            'externalImpact',
+            'crossSocketRead',
+        ]);
+    });
+});
