@@ -1,0 +1,42 @@
+{
+  "numa": {
+    "title": "NUMA 高层架构图",
+    "systemMetrics": "系统指标",
+    "details": "详细信息",
+    "selectTarget": "请选择 Socket、NUMA 节点、DRAM 或通信链路以查看对应指标。",
+    "noData": "请打开包含 NUMA 指标的 ascend_pytorch_profiler.db 主数据库以查看 NUMA 架构图。",
+    "loading": "正在根据平台指标构建 NUMA 拓扑...",
+    "noDataCollected": "未采集到数据",
+    "protocolAdapterUnavailable": "Protocol Adapter 未启用或不受支持（A2）",
+    "communicationLink": "通信链路",
+    "metricRange": "指标时间范围",
+    "showConnectionMetrics": "显示连线指标",
+    "topologySummary": "平台拓扑 / {{socketCount}} 个 Socket / {{numaCount}} 个 NUMA 域",
+    "zoom": {
+      "gesture": "Ctrl + 滚轮",
+      "out": "缩小",
+      "reset": "重置缩放",
+      "in": "放大"
+    },
+    "diagram": {
+      "ariaLabel": "NUMA 高层架构图",
+      "socketDescription": "该 Socket 上 {{count}} 个 NUMA 节点的汇总指标。",
+      "numaDescription": "当前 NUMA 内存域的流量指标。",
+      "crossSocket": "跨 Socket"
+    },
+    "metricDescriptions": {
+      "crossSocketRead": "所选时间范围内通过 Socket 间互连完成的跨 Socket 读取流量总量，可用于发现内存放置或线程亲和性问题。",
+      "totalCrossSocketRead": "所选时间范围内全部 NUMA 节点的跨 Socket 读取流量总量。",
+      "crossScclRead": "所选时间范围内同一 Socket 中不同 SCCL 芯粒之间的读取流量总量。",
+      "totalRead": "所选时间范围内当前 NUMA 节点完成的全部读取流量，包括本地读取和远端读取。",
+      "innerRead": "所选时间范围内 CPU 核与当前 NUMA 节点本地内存之间的读取流量总量。",
+      "dramRead": "所选时间范围内当前 NUMA 节点从直连 DRAM 读取的数据总量。",
+      "dramWrite": "所选时间范围内当前 NUMA 节点向直连 DRAM 写入的数据总量。",
+      "llcTraffic": "所选时间范围内当前 NUMA 节点实际记录的 LLC 流量总量。",
+      "totalDramTraffic": "所选时间范围内全部 NUMA 节点读取和写入 DRAM 的数据总量。",
+      "sourceToTarget": "所选时间范围内数据库 Outgoing/Incoming 字段明确记录的从起点 Socket 到终点 Socket 的通信流量总量。",
+      "targetToSource": "所选时间范围内数据库 Outgoing/Incoming 字段明确记录的从终点 Socket 到起点 Socket 的通信流量总量。",
+      "noDescription": "数据库未提供该指标的说明。"
+    }
+  }
+}

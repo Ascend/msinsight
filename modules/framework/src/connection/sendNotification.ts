@@ -169,4 +169,5 @@ export const sendMap: Record<string, (to?: string) => void> = {
     operatorCardInfos: (to) => sendSessionKey('operatorCardInfos', to),
     iERankIds: (to) => sendSessionKey('iERankIds', to),
     parseCompleted: (to) => sendSessionKey('parseCompleted', to),
+    timeAnalysisRange: (to) => sendSessionKey('timeAnalysisRange', to),
 };

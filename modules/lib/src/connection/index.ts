@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { customConsole as console } from '../utils';
+import { customConsole as console } from '../utils/Console';
 
 type ReservedEventHandler = 'request';
 type EventHanlder = string;

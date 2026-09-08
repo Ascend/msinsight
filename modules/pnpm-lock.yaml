@@ -165,6 +165,8 @@ importers:
 
   memory-on-chip: {}
 
+  numa: {}
+
   operator: {}
 
   reinforcement-learning: {}

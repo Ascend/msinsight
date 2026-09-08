@@ -21,7 +21,13 @@ import type { Scene, Session } from '@/entity/session';
 import { type MenuProps, message, Menu, Tooltip } from 'antd';
 import { safeJSONParse } from '@insight/lib/utils';
 
-import { type ModuleConfig, modulesConfig, MEM_SCOPE_MODULE_NAME, ON_CHIP_MEMORY_MODULE_NAME } from '@/moduleConfig';
+import {
+    type ModuleConfig,
+    modulesConfig,
+    MEM_SCOPE_MODULE_NAME,
+    ON_CHIP_MEMORY_MODULE_NAME,
+    NUMA_MODULE_NAME,
+} from '@/moduleConfig';
 import styled from '@emotion/styled';
 import { SessionAction } from '@/utils/enum';
 import { useTranslation } from 'react-i18next';
@@ -86,6 +92,8 @@ export function updateDataScene(data: Record<string, any>): void {
         isIE: data.isIE ?? false,
         isRL: false,
         isHybridParse: data.isCluster && data.isIE,
+        isFullDb: data.isFullDb ?? false,
+        hasNumaData: data.hasNumaData ?? false,
     };
     updateSession(scenceInfo);
 }
@@ -98,6 +106,7 @@ function getActive(session: Session, scene: Scene, activeModule: string, availab
         return activeModule;
     }
 }
+
 function isAvailable(moduleConfig: ModuleConfig, scene: Scene, dataCompose: Record<string, boolean>): boolean {
     // 根据包含某种数据，控制页签显隐
     const composeList = Object.keys(dataCompose);
@@ -107,6 +116,19 @@ function isAvailable(moduleConfig: ModuleConfig, scene: Scene, dataCompose: Reco
         }
     }
     return Boolean(moduleConfig[`is${scene}`]);
+}
+
+export function getAvailableModules(
+    configs: ModuleConfig[],
+    scene: Scene,
+    dataCompose: Record<string, boolean>,
+): ModuleConfig[] {
+    const availableModules = configs.filter(config => isAvailable(config, scene, dataCompose));
+    // 保持其他页签的原始顺序，并将 NUMA 页签统一放到最后。
+    return [
+        ...availableModules.filter(config => config.name !== NUMA_MODULE_NAME),
+        ...availableModules.filter(config => config.name === NUMA_MODULE_NAME),
+    ];
 }
 
 // 校验插件地址
@@ -137,7 +159,7 @@ const Index = observer(({ session }: {session: Session}) => {
     const prevFrameIdsRef = useRef<string[]>([]);
     const iframeLoadHandlersRef = useRef<Map<HTMLIFrameElement, () => void>>(new Map());
 
-    const availableModules = useMemo(() => mergedModulesConfig.filter(config => isAvailable(config, scene, dataCompose))
+    const availableModules = useMemo(() => getAvailableModules(mergedModulesConfig, scene, dataCompose)
         , [scene, dataCompose, mergedModulesConfig]);
     const isLeaks = useMemo(() => availableModules.some(module => module.isLeaks && module.name === MEM_SCOPE_MODULE_NAME)
         , [availableModules]);
@@ -213,11 +235,17 @@ const Index = observer(({ session }: {session: Session}) => {
     useEffect(() => {
         // 删除工程的场景：不改变页签
         if (session.isBinary === null && session.isCluster === null) {
+            setDataCompose(previous => ({ ...previous, hasNumaData: session.hasNumaData }));
             return;
         }
         setScene(session.scene);
-        setDataCompose({ hasCachelineRecords: session.hasCachelineRecords, isRL: session.isRL });
-    }, [session.isBinary, session.isCluster, session.hasCachelineRecords, session.isOnlyTraceJson, session.isIE, session.isLeaks, session.isTriton, session.isRL, session.isHybridParse]);
+        setDataCompose({
+            hasCachelineRecords: session.hasCachelineRecords,
+            isRL: session.isRL,
+            isFullDb: session.isFullDb,
+            hasNumaData: session.hasNumaData,
+        });
+    }, [session.isBinary, session.isCluster, session.hasCachelineRecords, session.isOnlyTraceJson, session.isIE, session.isLeaks, session.isTriton, session.isRL, session.isHybridParse, session.isFullDb, session.hasNumaData]);
 
     // 添加监听新的页签加载后发送当前工程
     useEffect(() => {

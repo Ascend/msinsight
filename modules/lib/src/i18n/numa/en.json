@@ -1,0 +1,42 @@
+{
+  "numa": {
+    "title": "NUMA High Level Architecture",
+    "systemMetrics": "System Metrics",
+    "details": "Details",
+    "selectTarget": "Select a socket, NUMA node, DRAM block, or communication link to inspect its metrics.",
+    "noData": "Open an ascend_pytorch_profiler.db main database containing NUMA metrics to view the NUMA architecture.",
+    "loading": "Building NUMA topology from platform metrics...",
+    "noDataCollected": "No data",
+    "protocolAdapterUnavailable": "Protocol Adapter wasn't enabled or not supported (A2)",
+    "communicationLink": "Communication Link",
+    "metricRange": "Metric range",
+    "showConnectionMetrics": "Show connection metrics",
+    "topologySummary": "PLATFORM TOPOLOGY / {{socketCount}} SOCKETS / {{numaCount}} NUMA DOMAINS",
+    "zoom": {
+      "gesture": "Ctrl + Wheel",
+      "out": "Zoom out",
+      "reset": "Reset zoom",
+      "in": "Zoom in"
+    },
+    "diagram": {
+      "ariaLabel": "NUMA high level architecture",
+      "socketDescription": "Aggregated metrics for {{count}} NUMA nodes on this socket.",
+      "numaDescription": "Traffic metrics for this NUMA memory domain.",
+      "crossSocket": "Cross socket"
+    },
+    "metricDescriptions": {
+      "crossSocketRead": "Total cross-socket read traffic performed through the inter-socket link during the selected time range.",
+      "totalCrossSocketRead": "Total cross-socket read traffic from all NUMA nodes during the selected time range.",
+      "crossScclRead": "Total read traffic between different SCCL dies in the same socket during the selected time range.",
+      "totalRead": "All local and remote read traffic completed by this NUMA node during the selected time range.",
+      "innerRead": "Total local read traffic between CPU cores and memory in this NUMA node during the selected time range.",
+      "dramRead": "Total data read by this NUMA node from its directly connected DRAM during the selected time range.",
+      "dramWrite": "Total data written by this NUMA node to its directly connected DRAM during the selected time range.",
+      "llcTraffic": "Total LLC traffic recorded for this NUMA node during the selected time range.",
+      "totalDramTraffic": "Total DRAM read and write traffic from all NUMA nodes during the selected time range.",
+      "sourceToTarget": "Communication traffic explicitly recorded by database Outgoing/Incoming fields from the source socket to the target socket during the selected time range.",
+      "targetToSource": "Communication traffic explicitly recorded by database Outgoing/Incoming fields from the target socket to the source socket during the selected time range.",
+      "noDescription": "No description is available for this metric."
+    }
+  }
+}

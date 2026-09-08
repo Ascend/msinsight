@@ -105,6 +105,7 @@ export class Session {
     isIE: boolean | null = false;
     isReset: boolean = false;
     isFullDb: boolean = false;
+    hasNumaData: boolean = false;
     isOnlyTraceJson: boolean = false;
     isLeaks: boolean = false;
     isTriton: boolean = false;
@@ -119,6 +120,7 @@ export class Session {
     // 模块数据
     startTime: number = -1;
     endTimeAll: number = -1;
+    timeAnalysisRange: [number, number] | null = null;
     unitcount: number = 0;
     memoryCardInfos: Array<Required<CardRankInfo>> = [];
     operatorCardInfos: Array<Required<CardRankInfo>> = [];
@@ -245,9 +247,11 @@ export class Session {
         this.isIE = remove ? false : null;
         this.isRL = false;
         this.hasCachelineRecords = false;
+        this.hasNumaData = false;
         this.toIframeUrl = '';
         this.startTime = -1;
         this.endTimeAll = -1;
+        this.timeAnalysisRange = null;
         this.parseCompleted = false;
         this.clusterPageInfo = { clusterList: [], selectedClusterPath: '' };
         this.timelinePageInfo = { unitCount: 0 };
