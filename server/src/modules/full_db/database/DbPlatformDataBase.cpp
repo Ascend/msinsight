@@ -28,8 +28,40 @@ namespace FullDb {
 using namespace Dic::Server;
 using namespace Dic::Module::Timeline;
 
+namespace {
+const std::vector<std::string> PLATFORM_TIMELINE_TABLES = {
+    "NUMA_TITLES_NAMES",
+    "NUMA_LEVELS_HIERARCHY_NAMES",
+    "NUMA_METRICS",
+    "NUMA_SCALING_VALUES",
+};
+constexpr char EMBEDDED_PLATFORM_RANK_SUFFIX[] = "#platform";
+} // namespace
+
+bool HasPlatformTimelineData(const std::shared_ptr<Database> &database) {
+    return database != nullptr && database->IsOpen() && database->CheckTablesExist(PLATFORM_TIMELINE_TABLES);
+}
+
+std::string BuildEmbeddedPlatformRankId(const std::string &traceRankId) {
+    return traceRankId + EMBEDDED_PLATFORM_RANK_SUFFIX;
+}
+
+bool IsEmbeddedPlatformRankId(const std::string &rankId) {
+    const size_t suffixLength = std::char_traits<char>::length(EMBEDDED_PLATFORM_RANK_SUFFIX);
+    return rankId.size() >= suffixLength &&
+        rankId.compare(rankId.size() - suffixLength, suffixLength, EMBEDDED_PLATFORM_RANK_SUFFIX) == 0;
+}
+
+std::string GetTraceRankIdFromEmbeddedPlatformRankId(const std::string &rankId) {
+    if (!IsEmbeddedPlatformRankId(rankId)) {
+        return rankId;
+    }
+    return rankId.substr(0, rankId.size() - std::char_traits<char>::length(EMBEDDED_PLATFORM_RANK_SUFFIX));
+}
+
 bool DbPlatformDataBase::QueryLevelData(LevelDataMap &levels) {
-    const std::string sql = "SELECT id, title0_id, title1_id, title2_id FROM p_levels_hierarchy_names";
+    const std::string sql =
+        "SELECT rowid AS level_id, title0_id, title1_id, title2_id FROM NUMA_LEVELS_HIERARCHY_NAMES";
 
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -42,7 +74,7 @@ bool DbPlatformDataBase::QueryLevelData(LevelDataMap &levels) {
 
     while (resultSet->Next()) {
         LevelData info;
-        info.levelId = resultSet->GetInt64("id");
+        info.levelId = resultSet->GetInt64("level_id");
         info.title0Id = resultSet->GetInt64("title0_id");
         info.title1Id = resultSet->GetInt64("title1_id");
         info.title2Id = resultSet->GetInt64("title2_id");
@@ -52,7 +84,8 @@ bool DbPlatformDataBase::QueryLevelData(LevelDataMap &levels) {
 }
 
 bool DbPlatformDataBase::QueryTitleData(TitleDataMap &titles) {
-    const std::string sql = "SELECT id, name, description, measurement_unit, summary_flag FROM p_titles_names";
+    const std::string sql =
+        "SELECT unique_id AS id, name, description, measurement_unit, summary_flag FROM NUMA_TITLES_NAMES";
 
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -77,8 +110,8 @@ bool DbPlatformDataBase::QueryTitleData(TitleDataMap &titles) {
 
 bool DbPlatformDataBase::QueryPlatformMetrics(std::vector<PlatformMetric> &metrics) {
     const std::string sql = "SELECT m.ts, m.levels_id, m.value, l.title0_id "
-                            "FROM p_metrics m "
-                            "JOIN p_levels_hierarchy_names l ON m.levels_id = l.id "
+                            "FROM NUMA_METRICS m "
+                            "JOIN NUMA_LEVELS_HIERARCHY_NAMES l ON m.levels_id = l.rowid "
                             "ORDER BY m.ts ASC";
 
     auto stmt = CreatPreparedStatement(sql);
@@ -102,14 +135,18 @@ bool DbPlatformDataBase::QueryPlatformMetrics(std::vector<PlatformMetric> &metri
     return true;
 }
 
-bool DbPlatformDataBase::QueryPlatformCounterData(
-    int64_t levelId, uint64_t startTime, uint64_t endTime, std::vector<PlatformCounterData> &dataList) {
-    std::string sql = "SELECT ts, value FROM p_metrics";
-    sql += " WHERE levels_id = ? ";
-    if (startTime != endTime) {
-        sql += " AND ts >= ? AND ts <= ? ";
+bool DbPlatformDataBase::QueryPlatformCounterData(int64_t levelId, uint64_t startTime, uint64_t endTime,
+    uint64_t minTimestamp, std::vector<PlatformCounterData> &dataList) {
+    if (startTime > UINT64_MAX - minTimestamp || endTime > UINT64_MAX - minTimestamp) {
+        ServerLog::Error("QueryPlatformCounterData - time range overflows timestamp origin");
+        return false;
     }
-    sql += " ORDER BY ts ASC";
+    std::string sql = "SELECT metrics.ts, metrics.value FROM NUMA_METRICS metrics "
+                      "WHERE metrics.levels_id = ? ";
+    if (startTime != endTime) {
+        sql += " AND metrics.ts >= ? AND metrics.ts <= ? ";
+    }
+    sql += " ORDER BY metrics.ts ASC";
 
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -118,7 +155,7 @@ bool DbPlatformDataBase::QueryPlatformCounterData(
     }
 
     if (startTime != endTime) {
-        stmt->BindParams(levelId, startTime, endTime);
+        stmt->BindParams(levelId, minTimestamp + startTime, minTimestamp + endTime);
     } else {
         stmt->BindParams(levelId);
     }
@@ -131,7 +168,7 @@ bool DbPlatformDataBase::QueryPlatformCounterData(
 
     while (resultSet->Next()) {
         PlatformCounterData data;
-        data.timestamp = static_cast<uint64_t>(resultSet->GetDouble("ts"));
+        data.timestamp = static_cast<uint64_t>(resultSet->GetInt64("ts"));
         data.value = resultSet->GetDouble("value");
         dataList.emplace_back(data);
     }
@@ -142,12 +179,12 @@ bool DbPlatformDataBase::QueryPlatformCounterData(
 
 bool DbPlatformDataBase::QueryMeasurementUnit(int64_t levelId, std::string &measurementUnit) {
     const std::string sql = "SELECT titles.measurement_unit "
-                            "FROM p_levels_hierarchy_names as levels "
-                            "JOIN p_titles_names as titles ON titles.id = COALESCE( "
+                            "FROM NUMA_LEVELS_HIERARCHY_NAMES as levels "
+                            "JOIN NUMA_TITLES_NAMES as titles ON titles.unique_id = COALESCE( "
                             "NULLIF(levels.title2_id, 0), "
                             "NULLIF(levels.title1_id, 0), "
                             "NULLIF(levels.title0_id, 0)) "
-                            "WHERE levels.id = ?";
+                            "WHERE levels.rowid = ?";
 
     auto stmt = CreatPreparedStatement(sql);
     if (!stmt) {
@@ -173,7 +210,7 @@ bool DbPlatformDataBase::QueryMeasurementUnit(int64_t levelId, std::string &meas
 }
 
 bool DbPlatformDataBase::QueryScalingValuesData(ScalingValueMap &scalingValueMap) {
-    std::string sql = "SELECT level_id, max_value FROM p_scaling_values";
+    std::string sql = "SELECT level_id, max_value FROM NUMA_SCALING_VALUES";
 
     auto stmt = CreatPreparedStatement(sql);
     if (!stmt) {
@@ -235,8 +272,7 @@ bool DbPlatformDataBase::QueryUnitCounter(Dic::Protocol::UnitCounterParams &para
     }
 
     std::vector<PlatformCounterData> counterData;
-    if (!QueryPlatformCounterData(
-            levelId, minTimestamp + params.startTime, minTimestamp + params.endTime, counterData)) {
+    if (!QueryPlatformCounterData(levelId, params.startTime, params.endTime, minTimestamp, counterData)) {
         ServerLog::Error("DbPlatformDataBase::QueryUnitCounter - QueryPlatformCounterData failed");
         return false;
     }
@@ -264,7 +300,7 @@ bool DbPlatformDataBase::QueryUnitCounter(Dic::Protocol::UnitCounterParams &para
         }
         lastValue = curValue;
         Dic::Protocol::UnitCounterData data;
-        data.timestamp = item.timestamp > minTimestamp ? item.timestamp - minTimestamp : 0;
+        data.timestamp = item.timestamp >= minTimestamp ? item.timestamp - minTimestamp : 0;
         data.valueJsonStr = "{" + escapedMeasurementUnit + ":" + std::to_string(curValue) + "}";
         dataList.emplace_back(data);
     }

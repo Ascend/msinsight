@@ -46,43 +46,44 @@ class DbPlatformDatabaseTest : public ::testing::Test {
 
     void InsertTestTitles(sqlite3 *db) {
         DatabaseTestCaseMockUtil::InsertData(
-            db, "INSERT INTO p_titles_names VALUES (1, 'Total External Traffic Ratio', 'desc', 1, 'Ratio');");
-        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO p_titles_names VALUES (2, 'Socket 0', 'desc', 0, '');");
+            db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('Total External Traffic Ratio', 'desc', 1, 'Ratio', 1);");
         DatabaseTestCaseMockUtil::InsertData(
-            db, "INSERT INTO p_titles_names VALUES (3, 'External Traffic Ratio', 'desc', 1, 'Ratio');");
-        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO p_titles_names VALUES (4, 'Numa 0', 'desc', 0, '');");
+            db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('Socket 0', 'desc', 0, '', 2);");
         DatabaseTestCaseMockUtil::InsertData(
-            db, "INSERT INTO p_titles_names VALUES (5, 'DRAM read bandwidth', 'desc', 0, 'GB/s');");
+            db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('External Traffic Ratio', 'desc', 1, 'Ratio', 3);");
+        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('Numa 0', 'desc', 0, '', 4);");
         DatabaseTestCaseMockUtil::InsertData(
-            db, "INSERT INTO p_titles_names VALUES (6, 'DRAM write bandwidth', 'desc', 0, 'GB/s');");
+            db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('DRAM read bandwidth', 'desc', 0, 'GB/s', 5);");
         DatabaseTestCaseMockUtil::InsertData(
-            db, "INSERT INTO p_titles_names VALUES (7, 'CPU utilization', 'desc', 0, 'Ratio');");
+            db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('DRAM write bandwidth', 'desc', 0, 'GB/s', 6);");
         DatabaseTestCaseMockUtil::InsertData(
-            db, "INSERT INTO p_titles_names VALUES (8, 'PCIe throughput', 'desc', 0, 'GB/s');");
+            db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('CPU utilization', 'desc', 0, 'Ratio', 7);");
+        DatabaseTestCaseMockUtil::InsertData(
+            db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('PCIe throughput', 'desc', 0, 'GB/s', 8);");
     }
 
     void InsertTestLevels(sqlite3 *db) {
-        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO p_levels_hierarchy_names VALUES (1, 2, 3, 0);");
-        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO p_levels_hierarchy_names VALUES (2, 2, 4, 5);");
-        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO p_levels_hierarchy_names VALUES (3, 2, 4, 6);");
-        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO p_levels_hierarchy_names VALUES (4, 2, 4, 7);");
-        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO p_levels_hierarchy_names VALUES (5, 2, 4, 8);");
+        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (2, 3, 0);");
+        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (2, 4, 5);");
+        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (2, 4, 6);");
+        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (2, 4, 7);");
+        DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (2, 4, 8);");
     }
 };
 
 const std::string DbPlatformDatabaseTest::CREATE_TABLE_TITLES_SQL =
-    "CREATE TABLE IF NOT EXISTS p_titles_names (id INTEGER PRIMARY KEY, name TEXT, description TEXT, "
-    "summary_flag INTEGER, measurement_unit TEXT);";
+    "CREATE TABLE IF NOT EXISTS NUMA_TITLES_NAMES (name TEXT, description TEXT, summary_flag INTEGER, "
+    "measurement_unit TEXT, unique_id INTEGER);";
 
 const std::string DbPlatformDatabaseTest::CREATE_TABLE_LEVELS_SQL =
-    "CREATE TABLE IF NOT EXISTS p_levels_hierarchy_names (id INTEGER PRIMARY KEY, title0_id INTEGER, "
-    "title1_id INTEGER, title2_id INTEGER);";
+    "CREATE TABLE IF NOT EXISTS NUMA_LEVELS_HIERARCHY_NAMES (title0_id INTEGER, title1_id INTEGER, "
+    "title2_id INTEGER);";
 
 const std::string DbPlatformDatabaseTest::CREATE_TABLE_METRICS_SQL =
-    "CREATE TABLE IF NOT EXISTS p_metrics (id INTEGER PRIMARY KEY, ts INTEGER, value REAL, levels_id INTEGER);";
+    "CREATE TABLE IF NOT EXISTS NUMA_METRICS (ts INTEGER, value REAL, levels_id INTEGER);";
 
 const std::string DbPlatformDatabaseTest::CREATE_TABLE_SCALING_SQL =
-    "CREATE TABLE IF NOT EXISTS p_scaling_values (id INTEGER PRIMARY KEY, level_id INTEGER, max_value REAL);";
+    "CREATE TABLE IF NOT EXISTS NUMA_SCALING_VALUES (id INTEGER PRIMARY KEY, level_id INTEGER, max_value REAL);";
 
 TEST_F(DbPlatformDatabaseTest, QueryLevelData) {
     std::recursive_mutex testMutex;
@@ -152,12 +153,9 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformMetricsSortedByTs) {
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_TITLES_SQL);
     InsertTestTitles(db);
     InsertTestLevels(db);
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (1, 300, 75.5, 2);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (2, 100, 50.0, 2);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (3, 200, 60.0, 3);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (300, 75.5, 2);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (100, 50.0, 2);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (200, 60.0, 3);");
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformMetric> metrics;
@@ -211,16 +209,14 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataNoFilters) {
     DatabaseTestCaseMockUtil::OpenDB(db);
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_METRICS_SQL);
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_SCALING_SQL);
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (100, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (200, 60.0, 1);");
     DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (1, 100, 50.0, 1);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (2, 200, 60.0, 1);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_scaling_values (id, level_id, max_value) VALUES (1, 5, 3.0);");
+        db, "INSERT INTO NUMA_SCALING_VALUES (id, level_id, max_value) VALUES (1, 5, 3.0);");
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
-    bool result = database.QueryPlatformCounterData(1, 0, 0, dataList);
+    bool result = database.QueryPlatformCounterData(1, 0, 0, 0, dataList);
 
     EXPECT_TRUE(result);
     const size_t expectSize = 2;
@@ -236,23 +232,40 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataFilterByLevelId) {
     DatabaseTestCaseMockUtil::OpenDB(db);
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_METRICS_SQL);
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_SCALING_SQL);
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (100, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (200, 60.0, 2);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (300, 70.0, 2);");
     DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (1, 100, 50.0, 1);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (2, 200, 60.0, 2);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (3, 300, 70.0, 2);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_scaling_values (id, level_id, max_value) VALUES (1, 2, 100.0);");
+        db, "INSERT INTO NUMA_SCALING_VALUES (id, level_id, max_value) VALUES (1, 2, 100.0);");
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
-    bool result = database.QueryPlatformCounterData(2, 0, 0, dataList);
+    bool result = database.QueryPlatformCounterData(2, 0, 0, 0, dataList);
 
     EXPECT_TRUE(result);
     const size_t expectSize = 2;
     ASSERT_EQ(dataList.size(), expectSize);
     EXPECT_DOUBLE_EQ(dataList[0].value, 60.0);
+}
+
+TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataUsesRelativeTimelineRange) {
+    std::recursive_mutex testMutex;
+    MockPlatformDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_METRICS_SQL);
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (1000, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (1100, 60.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (1200, 70.0, 1);");
+    database.SetDbPtr(db);
+
+    std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
+    bool result = database.QueryPlatformCounterData(1, 100, 200, 1000, dataList);
+
+    EXPECT_TRUE(result);
+    ASSERT_EQ(dataList.size(), 2U);
+    EXPECT_EQ(dataList[0].timestamp, 1100U);
+    EXPECT_EQ(dataList[1].timestamp, 1200U);
 }
 
 TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataFilterNonExistentLevelId) {
@@ -262,15 +275,41 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataFilterNonExistentLevelId)
     DatabaseTestCaseMockUtil::OpenDB(db);
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_METRICS_SQL);
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_SCALING_SQL);
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (1, 100, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (100, 50.0, 1);");
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
-    bool result = database.QueryPlatformCounterData(99, 0, 0, dataList);
+    bool result = database.QueryPlatformCounterData(99, 0, 0, 0, dataList);
 
     EXPECT_TRUE(result);
     EXPECT_EQ(dataList.size(), 0);
+}
+
+TEST_F(DbPlatformDatabaseTest, QueryUnitCounterUsesTraceTimeOrigin) {
+    std::recursive_mutex testMutex;
+    MockPlatformDatabase database(testMutex);
+    sqlite3 *db = nullptr;
+    DatabaseTestCaseMockUtil::OpenDB(db);
+    DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_TITLES_SQL);
+    DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_LEVELS_SQL);
+    DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_METRICS_SQL);
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_TITLES_NAMES VALUES ('Metric', 'desc', 1, 'Ratio', 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (1, 0, 0);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (2000, 1.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (2100, 2.0, 1);");
+    database.SetDbPtr(db);
+
+    Dic::Protocol::UnitCounterParams params;
+    params.threadId = "1";
+    params.startTime = 900;
+    params.endTime = 1200;
+    std::vector<Dic::Protocol::UnitCounterData> dataList;
+    const bool result = database.QueryUnitCounter(params, 1000, dataList);
+
+    ASSERT_TRUE(result);
+    ASSERT_EQ(dataList.size(), 2U);
+    EXPECT_EQ(dataList[0].timestamp, 1000U);
+    EXPECT_EQ(dataList[1].timestamp, 1100U);
 }
 
 TEST_F(DbPlatformDatabaseTest, QueryUnitCounterBasic) {
@@ -283,10 +322,8 @@ TEST_F(DbPlatformDatabaseTest, QueryUnitCounterBasic) {
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_TITLES_SQL);
     InsertTestTitles(db);
     InsertTestLevels(db);
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (1, 100, 50.0, 1);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (2, 200, 60.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (100, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (200, 60.0, 1);");
     database.SetDbPtr(db);
 
     Dic::Protocol::UnitCounterParams params;
@@ -295,15 +332,15 @@ TEST_F(DbPlatformDatabaseTest, QueryUnitCounterBasic) {
     params.threadId = "1";
     params.startTime = 0;
     params.endTime = 0;
-    const uint64_t minTimestamp = 0;
+    const uint64_t minTimestamp = 100;
     std::vector<Dic::Protocol::UnitCounterData> dataList;
     bool result = database.QueryUnitCounter(params, minTimestamp, dataList);
 
     EXPECT_TRUE(result);
     const size_t expectSize = 2;
     ASSERT_EQ(dataList.size(), expectSize);
-    EXPECT_EQ(dataList[0].timestamp, 100);
-    EXPECT_EQ(dataList[1].timestamp, 200);
+    EXPECT_EQ(dataList[0].timestamp, 0);
+    EXPECT_EQ(dataList[1].timestamp, 100);
 }
 
 TEST_F(DbPlatformDatabaseTest, QueryUnitCounterDeduplicatesConsecutiveSameValues) {
@@ -316,28 +353,25 @@ TEST_F(DbPlatformDatabaseTest, QueryUnitCounterDeduplicatesConsecutiveSameValues
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_TITLES_SQL);
     InsertTestTitles(db);
     InsertTestLevels(db);
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (1, 100, 50.0, 1);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (2, 200, 50.0, 1);");
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (3, 300, 70.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (100, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (200, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (300, 70.0, 1);");
     database.SetDbPtr(db);
 
     Dic::Protocol::UnitCounterParams params;
     params.rankId = "0";
     params.threadName = "External Traffic Ratio";
     params.threadId = "1";
-    const uint64_t minTimestamp = 0;
+    const uint64_t minTimestamp = 100;
     std::vector<Dic::Protocol::UnitCounterData> dataList;
     bool result = database.QueryUnitCounter(params, minTimestamp, dataList);
 
     EXPECT_TRUE(result);
     const size_t expectSize = 2;
     ASSERT_EQ(dataList.size(), expectSize);
-    EXPECT_EQ(dataList[0].timestamp, 100);
+    EXPECT_EQ(dataList[0].timestamp, 0);
     EXPECT_EQ(dataList[0].valueJsonStr, "{\"Ratio\":50.000000}");
-    EXPECT_EQ(dataList[1].timestamp, 300);
+    EXPECT_EQ(dataList[1].timestamp, 200);
     EXPECT_EQ(dataList[1].valueJsonStr, "{\"Ratio\":70.000000}");
 }
 
@@ -351,8 +385,7 @@ TEST_F(DbPlatformDatabaseTest, QueryUnitCounterInvalidThreadId) {
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_TITLES_SQL);
     InsertTestTitles(db);
     InsertTestLevels(db);
-    DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_metrics (id, ts, value, levels_id) VALUES (1, 100, 50.0, 1);");
+    DatabaseTestCaseMockUtil::InsertData(db, "INSERT INTO NUMA_METRICS (ts, value, levels_id) VALUES (100, 50.0, 1);");
     database.SetDbPtr(db);
 
     Dic::Protocol::UnitCounterParams params;
@@ -373,11 +406,11 @@ TEST_F(DbPlatformDatabaseTest, QueryScalingValues) {
     DatabaseTestCaseMockUtil::OpenDB(db);
     DatabaseTestCaseMockUtil::CreateTable(db, CREATE_TABLE_SCALING_SQL);
     DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_scaling_values (id, level_id, max_value) VALUES (1, 1, 10.0);");
+        db, "INSERT INTO NUMA_SCALING_VALUES (id, level_id, max_value) VALUES (1, 1, 10.0);");
     DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_scaling_values (id, level_id, max_value) VALUES (2, 2, 20.0);");
+        db, "INSERT INTO NUMA_SCALING_VALUES (id, level_id, max_value) VALUES (2, 2, 20.0);");
     DatabaseTestCaseMockUtil::InsertData(
-        db, "INSERT INTO p_scaling_values (id, level_id, max_value) VALUES (3, 3, 100.0);");
+        db, "INSERT INTO NUMA_SCALING_VALUES (id, level_id, max_value) VALUES (3, 3, 100.0);");
     database.SetDbPtr(db);
 
     Dic::Module::FullDb::ScalingValueMap scalingValues;
@@ -387,4 +420,30 @@ TEST_F(DbPlatformDatabaseTest, QueryScalingValues) {
     const size_t expectSize = 3;
     ASSERT_EQ(scalingValues.size(), expectSize);
     EXPECT_DOUBLE_EQ(scalingValues[3], 100.0);
+}
+TEST_F(DbPlatformDatabaseTest, DetectsOnlyCompletePlatformTimelineTables) {
+    for (const bool complete : {false, true}) {
+        std::recursive_mutex mutex;
+        auto database = std::make_shared<MockPlatformDatabase>(mutex);
+        sqlite3 *sqlite = nullptr;
+        DatabaseTestCaseMockUtil::OpenDB(sqlite);
+        for (const auto &sql : {CREATE_TABLE_TITLES_SQL, CREATE_TABLE_LEVELS_SQL, CREATE_TABLE_METRICS_SQL}) {
+            DatabaseTestCaseMockUtil::CreateTable(sqlite, sql);
+        }
+        if (complete) {
+            DatabaseTestCaseMockUtil::CreateTable(sqlite, CREATE_TABLE_SCALING_SQL);
+        }
+        database->SetDbPtr(sqlite);
+        EXPECT_EQ(Dic::Module::FullDb::HasPlatformTimelineData(database), complete);
+    }
+}
+
+TEST_F(DbPlatformDatabaseTest, BuildsStableEmbeddedPlatformRankId) {
+    constexpr const char *traceRankId = "msprof0_-1";
+    const auto platformRankId = Dic::Module::FullDb::BuildEmbeddedPlatformRankId(traceRankId);
+    EXPECT_EQ(platformRankId, "msprof0_-1#platform");
+    EXPECT_TRUE(Dic::Module::FullDb::IsEmbeddedPlatformRankId(platformRankId));
+    EXPECT_FALSE(Dic::Module::FullDb::IsEmbeddedPlatformRankId(traceRankId));
+    EXPECT_EQ(Dic::Module::FullDb::GetTraceRankIdFromEmbeddedPlatformRankId(platformRankId), traceRankId);
+    EXPECT_EQ(Dic::Module::FullDb::GetTraceRankIdFromEmbeddedPlatformRankId(traceRankId), traceRankId);
 }

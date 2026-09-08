@@ -161,6 +161,7 @@ void SetBodyAtt(
     JsonUtil::AddMember(body, "isIpynb", response.body.isIpynb, allocator);
     JsonUtil::AddMember(body, "isPending", response.body.isPending, allocator);
     JsonUtil::AddMember(body, "hasCachelineRecords", response.body.hasCachelineRecords, allocator);
+    JsonUtil::AddMember(body, "hasNumaData", response.body.hasNumaData, allocator);
     JsonUtil::AddMember(body, "instrVersion", response.body.version, allocator);
     JsonUtil::AddMember(body, "isLeaks", response.body.isLeaks, allocator);
     JsonUtil::AddMember(body, "isIE", response.body.isIE, allocator);

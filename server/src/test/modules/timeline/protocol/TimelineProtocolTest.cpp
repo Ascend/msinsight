@@ -696,6 +696,19 @@ TEST_F(ProtocolTest, OneKernelResponseIncludesMetaType) {
     EXPECT_EQ(std::string(json.value()["body"]["metaType"].GetString()), "PYTORCH_API_PYTHON_STACK");
 }
 
+TEST_F(ProtocolTest, ImportActionResponseIncludesNumaData) {
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::Protocol::ImportActionResponse response;
+    response.body.hasNumaData = true;
+
+    const auto json = timelineProtocol.ToJson(response, error);
+    ASSERT_TRUE(json && (*json).HasMember("body"));
+    ASSERT_TRUE((*json)["body"].HasMember("hasNumaData"));
+    EXPECT_TRUE((*json)["body"]["hasNumaData"].GetBool());
+}
+
 TEST_F(ProtocolTest, ToSystemViewOverallResponseTest) {
     Dic::Protocol::TimelineProtocol timelineProtocol;
     timelineProtocol.Register();

@@ -340,7 +340,16 @@ std::shared_ptr<Platform::VirtualPlatformDataBase> DataBaseManager::CreatePlatfo
     std::unique_lock lock(mutex);
     std::string fileId = dbPath;
     databasePathSet.emplace(dbPath);
-    SetRankIdFileIdMapping(rankId, fileId);
+    // Platform 可以是同一 Insight 主库上的逻辑数据源，只新增正向别名，避免覆盖 Trace 的 fileId -> rankId 映射。
+    auto rankMapping = rankId2FileIdMap.find(rankId);
+    if (rankMapping == rankId2FileIdMap.end() ||
+        RankLaneMergeCoordinator::NormalizeSourceFileId(fileId) <
+            RankLaneMergeCoordinator::NormalizeSourceFileId(rankMapping->second)) {
+        rankId2FileIdMap[rankId] = fileId;
+    }
+    if (fileIdToRankIdMap.count(fileId) == 0) {
+        fileIdToRankIdMap[fileId] = rankId;
+    }
 
     if (platformDatabaseMap.count(fileId) == 0) {
         std::recursive_mutex &dbMutex = GetDbMutex(fileId);
@@ -817,6 +826,10 @@ void DataBaseManager::SetRepresentativeSource(const std::string &rankId, const s
         return;
     }
     std::lock_guard<std::recursive_mutex> lock(mutex);
+    if (FullDb::IsEmbeddedPlatformRankId(rankId)) {
+        rankId2FileIdMap[rankId] = fileId;
+        return;
+    }
     RegisterRankSource(rankId, fileId);
     rankId2FileIdMap[rankId] = fileId;
 }

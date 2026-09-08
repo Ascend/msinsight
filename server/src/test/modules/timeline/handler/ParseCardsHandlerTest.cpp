@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include "DbPlatformDataBase.h"
 #include "HandlerTest.cpp"
 #include "ParseCardsHandler.h"
 #include "ParserStatusManager.h"
@@ -32,4 +33,23 @@ TEST_F(ParseCardsHandlerTest, ParseCardsHandlerTestCardFilePathIsEmpty) {
     Module::Timeline::ParserStatusManager::Instance().SetPendingStatus("card2",
         std::make_pair<ProjectTypeEnum, std::vector<std::string>>(ProjectTypeEnum::TRACE, {"invalid filePath"}));
     EXPECT_EQ(parseCardsHandler.HandleRequest(std::move(requestPtr)), true);
+}
+
+TEST_F(ParseCardsHandlerTest, EmbeddedPlatformCardStartsPendingTraceDatabaseParse) {
+    auto &statusManager = Module::Timeline::ParserStatusManager::Instance();
+    statusManager.ClearAllParserStatus();
+    const std::string traceRankId = "rank0";
+    const std::string platformRankId = Dic::Module::FullDb::BuildEmbeddedPlatformRankId(traceRankId);
+    statusManager.SetPendingStatus(traceRankId, {ProjectTypeEnum::DB, {"missing.db"}});
+
+    auto requestPtr = std::make_unique<Dic::Protocol::ParseCardsRequest>();
+    requestPtr->params.cards = {platformRankId};
+    requestPtr->params.fileIds = {"missing.db"};
+
+    Dic::Module::Timeline::ParseCardsHandler parseCardsHandler;
+    EXPECT_TRUE(parseCardsHandler.HandleRequest(std::move(requestPtr)));
+    EXPECT_EQ(statusManager.GetParserStatus(traceRankId), Module::Timeline::ParserStatus::INIT);
+    EXPECT_EQ(statusManager.GetParserStatus(Dic::Module::FullDb::BuildEmbeddedPlatformRankId(platformRankId)),
+        Module::Timeline::ParserStatus::UN_KNOW);
+    statusManager.ClearAllParserStatus();
 }

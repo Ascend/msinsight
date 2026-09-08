@@ -29,11 +29,65 @@
 #include "ProjectParserFactory.h"
 #include "FileUtil.h"
 #include "TableDefs.h"
+#include "TraceTime.h"
 
 using namespace Dic;
 using namespace Dic::Module;
 
 class ParserFactoryTest : public ::testing::Test {};
+
+class PlatformParseSuccessEventTest : public ::testing::Test {
+  protected:
+    class TestableProjectParserBase : public ProjectParserBase {
+      public:
+        using ProjectParserBase::SendPlatformParseSuccessEvent;
+    };
+
+    void SetUp() override {
+        databasePath = FileUtil::SplicePath(::testing::TempDir(), "platform-parse-success-event.db");
+        std::remove(databasePath.c_str());
+        sqlite3 *database = nullptr;
+        ASSERT_EQ(sqlite3_open(databasePath.c_str(), &database), SQLITE_OK);
+        ASSERT_EQ(sqlite3_exec(database,
+                      "CREATE TABLE NUMA_TITLES_NAMES (name TEXT, description TEXT, summary_flag INTEGER, "
+                      "measurement_unit TEXT, unique_id INTEGER);"
+                      "CREATE TABLE NUMA_LEVELS_HIERARCHY_NAMES "
+                      "(title0_id INTEGER, title1_id INTEGER, title2_id INTEGER);"
+                      "CREATE TABLE NUMA_METRICS (ts INTEGER, value REAL, levels_id INTEGER);"
+                      "CREATE TABLE NUMA_SCALING_VALUES (id INTEGER PRIMARY KEY, level_id INTEGER, max_value REAL);"
+                      "INSERT INTO NUMA_TITLES_NAMES VALUES ('Metric', 'desc', 1, 'Ratio', 1);"
+                      "INSERT INTO NUMA_LEVELS_HIERARCHY_NAMES VALUES (1, 0, 0);"
+                      "INSERT INTO NUMA_METRICS VALUES (100, 50.0, 1);"
+                      "INSERT INTO NUMA_METRICS VALUES (30100, 60.0, 1);"
+                      "INSERT INTO NUMA_SCALING_VALUES VALUES (1, 1, 100.0);",
+                      nullptr, nullptr, nullptr),
+            SQLITE_OK);
+        ASSERT_EQ(sqlite3_close(database), SQLITE_OK);
+
+        auto platform = Timeline::DataBaseManager::Instance().CreatePlatformDataBase(rankId, databasePath);
+        ASSERT_NE(platform, nullptr);
+        ASSERT_TRUE(platform->OpenDb(databasePath, false));
+        Timeline::TraceTime::Instance().Reset();
+        Timeline::TraceTime::Instance().UpdateTime(10000, 20000);
+        Timeline::TraceTime::Instance().UpdateCardTimeDuration("trace-rank", 10000, 20000);
+    }
+
+    void TearDown() override {
+        Timeline::DataBaseManager::Instance().Clear();
+        Timeline::TraceTime::Instance().Reset();
+        std::remove(databasePath.c_str());
+    }
+
+    const std::string rankId = "trace-rank#platform";
+    std::string databasePath;
+};
+
+TEST_F(PlatformParseSuccessEventTest, DoesNotApplyNumaClockToGlobalTraceTime) {
+    PlatformParseSuccessEventTest::TestableProjectParserBase::SendPlatformParseSuccessEvent(rankId, databasePath);
+
+    EXPECT_EQ(Timeline::TraceTime::Instance().GetStartTime(), 10000U);
+    EXPECT_EQ(Timeline::TraceTime::Instance().GetDuration(), 10000U);
+}
 
 class SearchGroupedAscendHardwareThreadsTest : public ::testing::Test {
   protected:

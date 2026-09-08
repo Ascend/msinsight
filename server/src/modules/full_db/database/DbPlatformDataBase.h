@@ -29,6 +29,20 @@ namespace Dic {
 namespace Module {
 namespace FullDb {
 
+/**
+ * 判断数据库是否包含 Timeline 展示 Platform Metrics 所需的四张表。
+ * Platform Metrics 仅从已经合并这些表的 Insight 主库读取。
+ */
+bool HasPlatformTimelineData(const std::shared_ptr<Database> &database);
+
+/**
+ * 为 Insight 主库中的 Platform 数据生成独立逻辑卡片 ID。
+ * 物理数据库仍与 Trace 卡片共用，逻辑 ID 用于隔离卡片和 Counter 请求。
+ */
+std::string BuildEmbeddedPlatformRankId(const std::string &traceRankId);
+bool IsEmbeddedPlatformRankId(const std::string &rankId);
+std::string GetTraceRankIdFromEmbeddedPlatformRankId(const std::string &rankId);
+
 struct LevelData {
     int64_t levelId = 0;
     int64_t title0Id = 0;
@@ -68,8 +82,8 @@ class DbPlatformDataBase : public Platform::VirtualPlatformDataBase {
     bool QueryLevelData(LevelDataMap &levels);
     bool QueryTitleData(TitleDataMap &titles);
     bool QueryPlatformMetrics(std::vector<PlatformMetric> &metrics);
-    bool QueryPlatformCounterData(
-        int64_t levelId, uint64_t startTime, uint64_t endTime, std::vector<PlatformCounterData> &dataList);
+    bool QueryPlatformCounterData(int64_t levelId, uint64_t startTime, uint64_t endTime, uint64_t minTimestamp,
+        std::vector<PlatformCounterData> &dataList);
     bool QueryUnitCounter(Dic::Protocol::UnitCounterParams &params, uint64_t minTimestamp,
         std::vector<Dic::Protocol::UnitCounterData> &dataList);
     bool QueryMeasurementUnit(int64_t levelId, std::string &measurementUnit);

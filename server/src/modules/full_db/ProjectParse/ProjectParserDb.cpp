@@ -31,6 +31,7 @@
 #include "ProjectExplorerManager.h"
 #include "ProjectParserJson.h"
 #include "ProjectAnalyze.h"
+#include "DbPlatformDataBase.h"
 #include "ProjectParserDb.h"
 #include "RankLaneMergeCoordinator.h"
 #include "RankOverlapStore.h"
@@ -135,7 +136,12 @@ void ProjectParserDb::SetHostInfo(
         std::string fileId;
         std::string normalizedFileId;
     };
+    struct PlatformActionSource {
+        Action action;
+        std::string normalizedFileId;
+    };
     std::map<std::string, RankActionSource> rankActions;
+    std::map<std::string, PlatformActionSource> platformActions;
     for (auto &hostInfo : hostInfoMap) {
         for (auto &ranks : hostInfo.second) {
             for (auto &rank : ranks.second) {
@@ -147,11 +153,40 @@ void ProjectParserDb::SetHostInfo(
                     rankActions[rank] = {rankName, hostInfo.first, ranks.first, normalizedFileId};
                 }
             }
+            if (ranks.second.empty()) {
+                continue;
+            }
+
+            auto database = DataBaseManager::Instance().GetTraceDatabaseByFileId(ranks.first);
+            if (!FullDb::HasPlatformTimelineData(database)) {
+                continue;
+            }
+
+            // 合并主库只增加一个逻辑 Platform 卡片，物理路径仍指向当前 Insight 主库。
+            const std::string normalizedFileId = RankLaneMergeCoordinator::NormalizeSourceFileId(ranks.first);
+            Action platformAction;
+            platformAction.cardName = "Platform Metrics";
+            platformAction.cluster = TrackInfoManager::Instance().GetClusterByFileId(ranks.first);
+            const std::string platformRankId = FullDb::BuildEmbeddedPlatformRankId(ranks.second.front());
+            platformAction.rankId = platformRankId;
+            platformAction.host = hostInfo.first.empty() ? "" : hostInfo.first.substr(0, hostInfo.first.length() - 1);
+            platformAction.result = true;
+            platformAction.fileId = ranks.first;
+            platformAction.projectType = projectType;
+            platformAction.cardPath = "Directory: " + FileUtil::GetRankIdFromPath(ranks.first);
+            platformAction.dataPathList.push_back(FileUtil::GetParentPath(ranks.first));
+            auto existing = platformActions.find(platformRankId);
+            if (existing == platformActions.end() || normalizedFileId < existing->second.normalizedFileId) {
+                platformActions[platformRankId] = PlatformActionSource{std::move(platformAction), normalizedFileId};
+            }
         }
     }
     for (const auto &item : rankActions) {
         const auto &action = item.second;
         SetBaseActionOfResponse(response, action.rankName, action.host, action.fileId, projectType);
+    }
+    for (auto &item : platformActions) {
+        response.body.result.emplace_back(std::move(item.second.action));
     }
     bool isPendingParse = rankActions.size() >= PENDIND_CRITICAL_VALUE;
     response.body.isPending = isPendingParse;
@@ -216,6 +251,8 @@ void ProjectParserDb::GetReportFilesOneFile(const Dic::Module::Global::ProjectEx
     }
     auto host = database->QueryHostInfo();
     auto rankList = database->QueryRankId();
+    const bool hasPlatformData = FullDb::HasPlatformTimelineData(database);
+    bool platformSourceRegistered = false;
     for (auto rank : rankList) {
         // 过滤-1的rankId, cann层感知不到rankId时用-1填充，暂时过滤，后续合并
         if (rank == "-1" && rankList.size() > 1) {
@@ -238,7 +275,12 @@ void ProjectParserDb::GetReportFilesOneFile(const Dic::Module::Global::ProjectEx
         hostMap[host][file].push_back(rank);
         DataBaseManager::Instance().SetDbPathMapping(host + rank, file, host + "Host");
         DataBaseManager::Instance().SetRankIdFileIdMapping(host + rank, file);
-        RankLaneMergeCoordinator::Instance().RegisterSource(host + rank, file);
+        auto &coordinator = RankLaneMergeCoordinator::Instance();
+        coordinator.RegisterSource(host + rank, file);
+        if (hasPlatformData && !platformSourceRegistered) {
+            coordinator.RegisterSource(FullDb::BuildEmbeddedPlatformRankId(host + rank), file);
+            platformSourceRegistered = true;
+        }
         ServerLog::Info("Registered rank lane source. rankId:", host + rank, ", fileId:", file);
         TrackInfoManager::Instance().UpdateHost(host + rank, host);
         TrackInfoManager::Instance().UpdateDeviceMap(host + rank, rankIdDeviceMap);
@@ -291,6 +333,11 @@ void ProjectParserDb::ParseRankEndCallBack(
     }
     ServerLog::Info("Selected representative rank lane source. rankId:", rankId, ", fileId:", representative);
     DataBaseManager::Instance().SetRepresentativeSource(rankId, representative);
+    if (FullDb::IsEmbeddedPlatformRankId(rankId)) {
+        ParseEndCallBack(rankId, representative, true, "");
+        coordinator.MarkRankEventEmitted(rankId);
+        return;
+    }
     const bool requiresRankMerge = coordinator.GetRegisteredSourceCount(rankId) > 1;
     if (requiresRankMerge && !FinalizeRankOverlap(rankId, representative, coordinator.GetSuccessfulSources(rankId))) {
         coordinator.MarkRankFinalizationFailed(rankId);
@@ -411,10 +458,6 @@ std::vector<std::string> ProjectParserDb::GetParseFileByImportFile(const std::st
     }
     std::vector<std::string> res;
     for (const auto &item : reportFiles) {
-        res.push_back(FileUtil::GetParentPath(item));
-    }
-    std::vector<std::string> platformFiles = FileUtil::FindFilesWithFilter(importFile, std::regex(platformDBReg));
-    for (const auto &item : platformFiles) {
         res.push_back(FileUtil::GetParentPath(item));
     }
     return res;
@@ -621,6 +664,9 @@ bool ProjectParserDb::IsThreadingAnalysisDbFile(const std::string &filePath) {
 std::vector<std::string> ProjectParserDb::GetDbFilesInDir(const std::string &filePath) {
     std::vector<std::string> dbFiles;
     if (!FileUtil::IsFolder(filePath)) {
+        if (FileUtil::GetFileName(filePath) == "platform.db") {
+            return dbFiles;
+        }
         dbFiles.emplace_back(filePath);
         if (std::regex_match(FileUtil::GetFileName(filePath), std::regex(npumonitorDBReg))) {
             DataBaseManager::Instance().SetFileType(FileType::PYTORCH, filePath);
@@ -630,8 +676,7 @@ std::vector<std::string> ProjectParserDb::GetDbFilesInDir(const std::string &fil
     }
     // 静态初始化，避免重复调用时正则编译开销
     static std::unordered_multimap<FileType, std::regex> dbRegex = {{FileType::PYTORCH, std::regex{pytorchDBReg}},
-        {FileType::PLATFORM, std::regex{platformDBReg}}, {FileType::PYTORCH, std::regex{mindsporeDBReg}},
-        {FileType::MS_PROF, std::regex{msprofDBReg}}};
+        {FileType::PYTORCH, std::regex{mindsporeDBReg}}, {FileType::MS_PROF, std::regex{msprofDBReg}}};
     for (const auto &pair : dbRegex) {
         FileType type = pair.first;
         auto &dbRegx = pair.second;

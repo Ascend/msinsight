@@ -19,6 +19,7 @@
 #include "WsSessionManager.h"
 #include "ParserStatusManager.h"
 #include "FullDbParser.h"
+#include "DbPlatformDataBase.h"
 #include "JsonFileParserManager.h"
 #include "ParseCardsHandler.h"
 
@@ -27,24 +28,30 @@ using namespace Dic;
 using namespace Dic::Server;
 bool Dic::Module::Timeline::ParseCardsHandler::HandleRequest(std::unique_ptr<Protocol::Request> requestPtr) {
     ParseCardsRequest &request = dynamic_cast<ParseCardsRequest &>(*requestPtr.get());
+    std::set<std::string> scheduledCards;
     for (size_t i = 0; i < request.params.cards.size() && i < request.params.fileIds.size(); i++) {
-        std::string item = request.params.cards[i];
+        const std::string &item = request.params.cards[i];
+        const std::string parseRankId = FullDb::GetTraceRankIdFromEmbeddedPlatformRankId(item);
+        if (!scheduledCards.emplace(parseRankId).second) {
+            continue;
+        }
         std::pair<ProjectTypeEnum, std::vector<std::string>> filePathPair =
-            ParserStatusManager::Instance().QueryPendingFilePath(item);
+            ParserStatusManager::Instance().QueryPendingFilePath(parseRankId);
         if (std::empty(filePathPair.second)) {
             ServerLog::Warn("Parse cards file path is empty. card: %", item);
             continue;
         }
         if (filePathPair.first == ProjectTypeEnum::ACLGRAPH_DEBUG) {
             JsonFileParserManager::GetACLGraphDebugParser().Parse(
-                filePathPair.second, item, "", request.params.fileIds[i]);
+                filePathPair.second, parseRankId, "", request.params.fileIds[i]);
             continue;
         }
         if (filePathPair.first == ProjectTypeEnum::TRACE) {
-            JsonFileParserManager::GetTraceFileParser().Parse(filePathPair.second, item, "", request.params.fileIds[i]);
+            JsonFileParserManager::GetTraceFileParser().Parse(
+                filePathPair.second, parseRankId, "", request.params.fileIds[i]);
             continue;
         }
-        FullDb::FullDbParser::Instance().Parse({item}, filePathPair.second[0]);
+        FullDb::FullDbParser::Instance().Parse({parseRankId}, filePathPair.second[0]);
     }
     std::unique_ptr<ParseCardsResponse> responsePtr = std::make_unique<ParseCardsResponse>();
     ParseCardsResponse &response = *responsePtr.get();

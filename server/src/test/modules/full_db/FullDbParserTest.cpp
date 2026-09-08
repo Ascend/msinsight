@@ -15,31 +15,63 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
+
 #include <gtest/gtest.h>
+
 #include "DataBaseManager.h"
+#define private public
 #include "FullDbParser.h"
+#undef private
 #include "ParserStatusManager.h"
 
-using namespace Dic::Module;
-using namespace Dic::Module::FullDb;
-using namespace Dic::Module::Timeline;
+namespace Dic::Module::FullDb {
+namespace {
+namespace fs = std::filesystem;
+using namespace Timeline;
 
 class FullDbParserTest : public ::testing::Test {
   protected:
     void SetUp() override { ResetParserState(); }
-    void TearDown() override { ResetParserState(); }
+
+    void TearDown() override {
+        ResetParserState();
+        if (!temporaryDb_.empty()) {
+            fs::remove(temporaryDb_);
+        }
+    }
 
     void ResetParserState() {
         FullDbParser::Instance().FileParser::Reset();
         DataBaseManager::Instance().Clear();
         ParserStatusManager::Instance().ClearAllParserStatus();
     }
+
+    fs::path temporaryDb_;
 };
 
-TEST_F(FullDbParserTest, PlatformOpenFailureCompletesEveryRankWithFailure) {
+TEST_F(FullDbParserTest, ReusesAlreadyOpenedPlatformDatabase) {
+    temporaryDb_ = fs::path(::testing::TempDir()) / "full-db-parser-platform.db";
+    fs::remove(temporaryDb_);
+    const std::string databasePath = temporaryDb_.string();
+    auto &manager = DataBaseManager::Instance();
+    auto alreadyOpenedDatabase = manager.CreatePlatformDataBase("numa:" + databasePath, databasePath);
+    ASSERT_NE(alreadyOpenedDatabase, nullptr);
+    ASSERT_TRUE(alreadyOpenedDatabase->OpenDb(databasePath, false));
+
+    EXPECT_TRUE(FullDbParser::InitPlatform("platform-rank", databasePath));
+
+    auto databaseByPlatformRank = manager.GetPlatformDatabaseByRankId("platform-rank");
+    ASSERT_NE(databaseByPlatformRank, nullptr);
+    EXPECT_EQ(databaseByPlatformRank, alreadyOpenedDatabase);
+    EXPECT_TRUE(databaseByPlatformRank->IsOpen());
+}
+
+TEST_F(FullDbParserTest, DoesNotInitializeStandalonePlatformDatabase) {
     const std::string invalidDbPath = ::testing::TempDir();
     const std::vector<std::string> rankIds = {"platform-rank-0", "platform-rank-1"};
     auto &databaseManager = DataBaseManager::Instance();
@@ -49,25 +81,19 @@ TEST_F(FullDbParserTest, PlatformOpenFailureCompletesEveryRankWithFailure) {
         ParserStatusManager::Instance().SetParserStatus(rankId, ParserStatus::INIT);
     }
 
-    struct CallbackResult {
-        std::string rankId;
-        std::string fileId;
-        bool result;
-    };
-    std::vector<CallbackResult> callbackResults;
+    size_t callbackCount = 0;
     std::function<void(const std::string, const std::string, bool, const std::string)> callback =
-        [&callbackResults](const std::string rankId, const std::string fileId, bool result, const std::string) {
-            callbackResults.push_back({rankId, fileId, result});
-        };
+        [&callbackCount](const std::string, const std::string, bool, const std::string) { ++callbackCount; };
     FullDbParser::Instance().SetParseEndCallBack(callback);
 
     FullDbParser::InitOpenDb(invalidDbPath, rankIds);
 
-    ASSERT_EQ(callbackResults.size(), rankIds.size());
-    for (size_t index = 0; index < rankIds.size(); ++index) {
-        EXPECT_EQ(callbackResults[index].rankId, rankIds[index]);
-        EXPECT_EQ(callbackResults[index].fileId, invalidDbPath);
-        EXPECT_FALSE(callbackResults[index].result);
-        EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(rankIds[index]), ParserStatus::FINISH_ALL);
+    EXPECT_EQ(callbackCount, 0U);
+    for (const auto &rankId : rankIds) {
+        EXPECT_EQ(databaseManager.GetPlatformDatabaseByRankId(rankId), nullptr);
+        EXPECT_EQ(ParserStatusManager::Instance().GetParserStatus(rankId), ParserStatus::INIT);
     }
 }
+
+} // namespace
+} // namespace Dic::Module::FullDb
