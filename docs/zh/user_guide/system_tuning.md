@@ -549,6 +549,11 @@ MindStudio Insight工具支持导入TEXT格式（CSV/JSON文件）和DB格式（
     <td class="tg-0pky">Step Trace</td>
     <td class="tg-0pky">迭代轨迹数据。仅step_trace_*.json文件存在时展示该泳道。</td>
   </tr>
+  <tr>
+    <td class="tg-0pky">DPU / DPU &lt;id&gt;</td>
+    <td class="tg-0pky">DPU Stream &lt;id&gt;</td>
+    <td class="tg-0pky">DPU任务根据globalTid挂载到对应的Thread下，与CANN等泳道平级，并按DPU / DPU &lt;id&gt; / DPU Stream &lt;id&gt;层级展示任务执行区间；选中任务后，可在数据窗格查看任务详情。支持按任务名称进行全局搜索、锁定范围搜索，并从搜索结果定位到对应任务。仅db格式文件支持展示此泳道。</td>
+  </tr>
     <tr>
     <td class="tg-0pky">CCU</td>
     <td class="tg-0pky">Communication</td>

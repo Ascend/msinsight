@@ -238,6 +238,46 @@ const createHostTree = (): InsightMetaData<'card'> => ({
                         rankList: [],
                     },
                 }],
+            }, {
+                type: 'label',
+                dataSource,
+                metadata: {
+                    cardId: 'rank0',
+                    dbPath: 'rank0.db',
+                    dataSource,
+                    processId: 'global-tid-200',
+                    processName: 'DPU',
+                    metaType: 'DPU',
+                    label: '',
+                },
+                children: [{
+                    type: 'process',
+                    dataSource,
+                    metadata: {
+                        cardId: 'rank0',
+                        dbPath: 'rank0.db',
+                        dataSource,
+                        processId: 'DPU_global-tid-200_0',
+                        processName: 'DPU 0',
+                        metaType: 'DPU',
+                    },
+                    children: [{
+                        type: 'thread',
+                        dataSource,
+                        metadata: {
+                            cardId: 'rank0',
+                            dbPath: 'rank0.db',
+                            dataSource,
+                            processId: 'DPU_global-tid-200_0',
+                            processName: '',
+                            threadId: '0',
+                            threadName: 'DPU Stream 0',
+                            metaType: 'DPU',
+                            groupNameValue: '',
+                            rankList: [],
+                        },
+                    }],
+                }],
             }],
         }],
     }],
@@ -327,11 +367,12 @@ describe('timeline unit metadata expansion', () => {
 
         expect(cardUnit.children).toHaveLength(1);
         const threadUnit = cardUnit.children?.[0].children?.[0];
-        expect(threadUnit?.children).toHaveLength(3);
+        expect(threadUnit?.children).toHaveLength(4);
 
         const pytorch = threadUnit?.children?.find(unit => unit.name === 'Thread' && unit.metadata.threadName === 'PyTorch');
         const cann = threadUnit?.children?.find(unit => unit.name === 'Label' && unit.metadata.processName === 'CANN');
         const mstx = threadUnit?.children?.find(unit => unit.name === 'Process' && unit.metadata.processName === 'MSTX');
+        const dpu = threadUnit?.children?.find(unit => unit.name === 'Label' && unit.metadata.processName === 'DPU');
 
         expect(pytorch).toBeDefined();
         expect(pytorch?.children).toBeUndefined();
@@ -339,6 +380,14 @@ describe('timeline unit metadata expansion', () => {
         expect(cann?.children?.[0].metadata.threadName).toBe('acl');
         expect(mstx?.children).toHaveLength(1);
         expect(mstx?.children?.[0].metadata.threadName).toBe('domain 0');
+        expect(dpu?.children).toHaveLength(1);
+        expect(dpu?.children?.[0].metadata.processName).toBe('DPU 0');
+        expect(dpu?.children?.[0].children).toHaveLength(1);
+        expect(dpu?.children?.[0].children?.[0].metadata.processId).toBe('DPU_global-tid-200_0');
+        expect(dpu?.children?.[0].children?.[0].metadata.processName).toBe('DPU 0');
+        expect(dpu?.children?.[0].children?.[0].metadata.metaType).toBe('DPU');
+        expect(dpu?.children?.[0].children?.[0].metadata.threadId).toBe('0');
+        expect(dpu?.children?.[0].children?.[0].metadata.threadName).toBe('DPU Stream 0');
     });
 
     it('creates an LLC Cache lane under every Process and Thread group', () => {

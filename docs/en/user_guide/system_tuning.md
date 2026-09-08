@@ -233,6 +233,11 @@ The following table describes the unit information displayed on the **Timeline**
     <td class="tg-0pky">Step trace data. This unit is displayed only when the **step_trace_*.json** file exists.</td>
   </tr>
   <tr>
+    <td class="tg-0pky">DPU / DPU &lt;id&gt;</td>
+    <td class="tg-0pky">DPU Stream &lt;id&gt;</td>
+    <td class="tg-0pky">DPU tasks are attached to the corresponding Thread by globalTid, at the same level as CANN, and display task execution intervals in the DPU / DPU &lt;id&gt; / DPU Stream &lt;id&gt; hierarchy. After selecting a task, you can view its details in the data pane. Global and locked-range searches by task name support navigation to the matching tasks. These units can be displayed only in DB files. </td>
+  </tr>
+  <tr>
     <td class="tg-0pky">Low Power</td>
     <td class="tg-0pky">-</td>
     <td class="tg-0pky">Low-power data, including power consumption, bandwidth, frequency, temperature, and other metrics, is presented through dynamic frequency scaling curves to accurately identify frequency changes during operator execution.<br>This unit displays only the profile data exported from the <term>Ascend 950PR/Ascend 950DT</term>.</td>

@@ -60,6 +60,12 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
                          "startNs - minTime.value as startTime, endNs - startNs as duration, "
                          "0 as depth, ccu.ROWID as id from " + TABLE_CCU +
                          " ccu join minTime join ids on ids.id = ccu.name where ccu.deviceId = ?";
+    const std::string dpuSql =
+        "select opName as name, 'DPU_' || globalTid || '_' || dpuDeviceId as pid, 'DPU' as metaType, "
+        "streamId as tid, startNs - minTime.value as startTime, endNs - startNs as duration, "
+        "0 as depth, dpu.ROWID as id from " + TABLE_DPU_TASK +
+        " dpu join minTime join ids on ids.id = dpu.opName "
+        "where globalTid is not null and dpuDeviceId is not null and streamId is not null";
     sql = "with ids as (" + nameMatch +
           "), minTime as (select ? as value), "
           " tasks as (select ROWID, globalTaskId, taskType, 'Ascend Hardware' as pid, streamId as tid, connectionId, "
@@ -75,7 +81,8 @@ std::string DbTraceDataBase::GetSearchSliceNameSql(bool isMatchExact, bool isMat
           " join ids on ids.id = coalesce(compute.name, schedule.name, main.taskType) "
           " union ALL select name, pid, pid as meatType, tid, startTime, duration, depth, com.id from com "
           " join ids on ids.id = com.name union ALL " +
-          ccuSql + " union ALL " + comSql + " union ALL " + hostSql + ") allNames " + orderBy + " LIMIT 1 OFFSET ?";
+          ccuSql + " union ALL " + comSql + " union ALL " + hostSql + " union ALL " + dpuSql +
+          ") allNames " + orderBy + " LIMIT 1 OFFSET ?";
     return sql;
 }
 
@@ -134,7 +141,12 @@ std::string DbTraceDataBase::GetSearchAllSlicesDetailsSql(const SearchSliceSqlPa
           "PYTORCH_API JOIN minTime "
           "UNION ALL SELECT '' AS deviceId, name, globalTid AS pid, 'HOST' AS metaType, 'OSRT_API' AS tid, "
           "startNs - minTime.value AS startTime, endNs - startNs AS duration, 0 AS depth, osrt.ROWID AS id FROM " +
-          TABLE_OSRT_API + " osrt JOIN minTime) allNames join ids on ids.id = allNames.name" + filterJoin + orderBy +
+          TABLE_OSRT_API + " osrt JOIN minTime "
+          "UNION ALL SELECT '' AS deviceId, opName AS name, 'DPU_' || globalTid || '_' || dpuDeviceId AS pid, "
+          "'DPU' AS metaType, streamId AS tid, startNs - minTime.value AS startTime, "
+          "endNs - startNs AS duration, 0 AS depth, dpu.ROWID AS id FROM " + TABLE_DPU_TASK +
+          " dpu JOIN minTime WHERE globalTid IS NOT NULL AND dpuDeviceId IS NOT NULL AND streamId IS NOT NULL "
+          ") allNames join ids on ids.id = allNames.name" + filterJoin + orderBy +
           " LIMIT ? OFFSET ?";
     return sql;
 }
@@ -156,6 +168,8 @@ std::string DbTraceDataBase::GetSearchSliceNameCountSql(const SearchSliceSqlPara
                           TABLE_MSTX_EVENTS + " union all select name from  " + TABLE_API +
                           " UNION ALL SELECT name FROM " + TABLE_OSRT_API;
     std::string ccuSql = "select name from " + TABLE_CCU + " where deviceId = ?";
+    const std::string dpuSql = "select opName as name from " + TABLE_DPU_TASK +
+        " where globalTid is not null and dpuDeviceId is not null and streamId is not null";
 
     std::string communicationOpSql;
     if (!TraceDatabaseHelper::IsDeviceIdUnique(params.rankId)) {
@@ -186,7 +200,8 @@ std::string DbTraceDataBase::GetSearchSliceNameCountSql(const SearchSliceSqlPara
           " left join schedule ON main.globalTaskId = schedule.globalTaskId"
           "    union ALL select name from com "
           "    union ALL " +
-          communicationOpSql + " union ALL " + ccuSql + " union ALL " + hostSql + ") allNames join ids on id = allNames.name" + filterJoin + ";";
+          communicationOpSql + " union ALL " + ccuSql + " union ALL " + hostSql + " union ALL " + dpuSql +
+          ") allNames join ids on ids.id = allNames.name" + filterJoin + ";";
     return sql;
 }
 
@@ -268,6 +283,11 @@ std::string DbTraceDataBase::GetSingleSearchCountLockRangeSql(const SearchCountP
                   " s on main.globalTaskId = s.globalTaskId WHERE main.deviceId = ? AND main.streamId = ? AND "
                   "main.startNs >= ? AND main.endNs <= ?) hadware  join ids on id = hadware.name" +
                   filterSuffix + " ";
+    } else if (type == PROCESS_TYPE::DPU) {
+        filterSuffix += filterJoin.empty() ? "" : "dpu.name";
+        tempSql = "SELECT count(1) as count FROM (SELECT opName as name from " + TABLE_DPU_TASK +
+            " WHERE ('DPU_' || globalTid || '_' || dpuDeviceId) = ? AND streamId = ? "
+            "AND startNs >= ? AND endNs <= ?) dpu join ids on ids.id = dpu.name" + filterSuffix + " ";
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
             filterSuffix += filterJoin.empty() ? "" : "op.name";

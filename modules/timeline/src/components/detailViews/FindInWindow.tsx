@@ -355,10 +355,10 @@ const searchData = async(pages: any, sorters: {field: string;order: string}, pro
     };
 };
 
-const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptimizer: string }, props: FindDetailProps): Promise<void> => {
+export const handleFindSelected = async(rowData: SearchAllSlicesDetails & { originOptimizer: string }, props: FindDetailProps): Promise<void> => {
     const queryName = rowData.name ?? rowData.originOptimizer;
-    const res = rowData.metaType === 'CCU'
-        ? { id: rowData.id, threadId: rowData.tid, pid: rowData.pid, depth: rowData.depth, metaType: 'CCU' }
+    const res = rowData.metaType === 'CCU' || rowData.metaType === 'DPU'
+        ? { id: rowData.id, threadId: rowData.tid, pid: rowData.pid, depth: rowData.depth, metaType: rowData.metaType }
         : await queryOneKernel({
             rankId: rowData.rankId,
             dbPath: rowData.dbPath,

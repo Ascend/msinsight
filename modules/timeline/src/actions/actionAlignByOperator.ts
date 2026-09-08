@@ -136,7 +136,10 @@ const isOperatorAlignVisible = (session: Session): boolean => {
     if (session.isSimulation || session.isIE) {
         return false;
     }
-    return Boolean(session.selectedData?.name) && getSelectedUnit(session) !== undefined;
+    const selectedUnit = getSelectedUnit(session);
+    const selectedMetaType = session.selectedData?.metaType ??
+        (selectedUnit?.metadata as Partial<ThreadMetaData> | undefined)?.metaType;
+    return selectedMetaType !== 'DPU' && Boolean(session.selectedData?.name) && selectedUnit !== undefined;
 };
 
 export const actionAlignByOperatorLeft = register({

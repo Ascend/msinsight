@@ -155,6 +155,14 @@ describe('automatic alignment menu', () => {
         expect(actionAlignByOperatorRight).not.toHaveProperty('subMenus');
     });
 
+    it('hides operator alignment for DPU tasks', () => {
+        const currentSession = createActionSession('DPU');
+
+        expect(actionAlignByOperator.visible?.(currentSession)).toBe(false);
+        expect(actionAlignByOperatorLeft.visible?.(currentSession)).toBe(false);
+        expect(actionAlignByOperatorRight.visible?.(currentSession)).toBe(false);
+    });
+
     it('runs left alignment directly for the selected Host side', async () => {
         const currentSession = createActionSession('CANN_API');
 

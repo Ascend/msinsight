@@ -297,6 +297,8 @@ class DbTraceDataBase : public VirtualTraceDatabase {
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     bool QueryCcuOperatorMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+    bool QueryDpuOperatorMetadata(
+        const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     bool GenerateOverlapAnalysisMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
     bool QueryCounterMetadata(const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
@@ -412,6 +414,7 @@ class DbTraceDataBase : public VirtualTraceDatabase {
     using SliceDetailKey = std::pair<SliceTableType, uint64_t>;
     using SliceDetailMap = std::map<SliceDetailKey, Protocol::SearchAllSlices>;
 
+    void SetDpuSearchSliceDepth(Protocol::SearchAllSlices &slice);
     static std::string GetSliceDetailSql(SliceTableType type, uint64_t minTimestamp, const std::string& idList);
     static std::string BuildIdList(const std::vector<uint64_t>& ids);
     void FillSearchAllSlices(const LightSliceCache& cache, const Protocol::SearchAllSliceParams& params,

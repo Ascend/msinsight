@@ -314,6 +314,8 @@ std::string TraceDatabaseHelper::GetQueryThreadSameOperatorsDetailsHeadSql(
             return GetOverlapAnalysisSameNameDetailSql(overlapType);
         case PROCESS_TYPE::CCU:
             return GetCcuSameNameDetailSql(tidListStr);
+        case PROCESS_TYPE::DPU:
+            return GetDpuSameNameDetailSql(params.pidList, params.tidList);
         default:
             return "";
     }
@@ -342,6 +344,12 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryLabelTracesSummary(co
                   " AND startNs BETWEEN ( ? + ? ) AND ( ? + ? ) ORDER BY start_time;";
             return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, requestParams.processId,
                 requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp);
+        case PROCESS_TYPE::DPU:
+            sql = "SELECT startNs - ? AS start_time, endNs - startNs AS duration, endNs - ? AS end_time "
+                  "FROM " + TABLE_DPU_TASK + " WHERE CAST(globalTid AS TEXT) = ? "
+                  "AND startNs BETWEEN (? + ?) AND (? + ?) ORDER BY start_time;";
+            return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, requestParams.processId,
+                requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp);
         default:
             throw DatabaseException("unsupported type while query label trace summary!");
     }
@@ -358,6 +366,8 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryProcessTracesSummary(
             return QueryCommunicationTracesSummary(rankId, minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::CCU:
             return QueryCcuTracesSummary(rankId, minTimestamp, stmt, requestParams);
+        case PROCESS_TYPE::DPU:
+            return QueryDpuTracesSummary(minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::OVERLAP_ANALYSIS:
             return QueryOverlapTracesSummary(rankId, minTimestamp, stmt, requestParams);
         case PROCESS_TYPE::PROCESS:
@@ -418,6 +428,18 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCcuTracesSummary(cons
                         requestParams.endTime);
 }
 
+std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryDpuTracesSummary(uint64_t minTimestamp,
+    std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams)
+{
+    const std::string sql = "SELECT startNs - ? AS start_time, endNs - startNs AS duration, "
+        "endNs - ? AS end_time FROM " + TABLE_DPU_TASK +
+        " WHERE ('DPU_' || CAST(globalTid AS TEXT) || '_' || CAST(dpuDeviceId AS TEXT)) = ? "
+        "AND start_time >= ? AND start_time <= ? "
+        "ORDER BY startNs;";
+    return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, requestParams.processId,
+        requestParams.startTime, requestParams.endTime);
+}
+
 std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryOverlapTracesSummary(const std::string& rankId, uint64_t minTimestamp,
     std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams)
 {
@@ -430,7 +452,7 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryOverlapTracesSummary(
 std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCANNTracesSummary(const std::string& rankId, uint64_t minTimestamp,
     std::unique_ptr<SqlitePreparedStatement> &stmt, const Protocol::UnitThreadTracesSummaryParams &requestParams)
 {
-    // 这个方法作用是查询Thread *泳道的缩略图，所以会查询CANN PyTorch MSTX OSRT数据
+    // 这个方法作用是查询Thread *泳道的缩略图，所以会查询CANN PyTorch MSTX OSRT DPU数据
     std::string  sql = "SELECT startNs - ? as start_time, endNs - startNs as duration, endNs - ? as end_time "
         " FROM " + TABLE_CANN_API + " WHERE globalTid = ? AND startNs BETWEEN ( ? + ? ) AND ( ? + ? ) "
         " UNION ALL SELECT startNs - ? as start_time,endNs - startNs as duration,"
@@ -440,8 +462,12 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryCANNTracesSummary(con
         + TABLE_MSTX_EVENTS + " WHERE globalTid = ? AND startNs BETWEEN ( ? + ? ) AND ( ? + ? )"
         " UNION ALL SELECT startNs - ? AS start_time, endNs - startNs AS duration, endNs - ? AS end_time FROM " +
         TABLE_OSRT_API + " WHERE globalTid = ? AND startNs BETWEEN ( ? + ? ) AND ( ? + ? )"
+        " UNION ALL SELECT startNs - ? AS start_time, endNs - startNs AS duration, endNs - ? AS end_time FROM " +
+        TABLE_DPU_TASK + " WHERE CAST(globalTid AS TEXT) = ? AND startNs BETWEEN ( ? + ? ) AND ( ? + ? )"
         " ORDER BY start_time;";
     return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, requestParams.processId,
+                        requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp,
+                        minTimestamp, minTimestamp, requestParams.processId,
                         requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp,
                         minTimestamp, minTimestamp, requestParams.processId,
                         requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp,
@@ -473,8 +499,12 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryProcessUnitTracesSumm
          + TABLE_MSTX_EVENTS + " WHERE (globalTid >> 32) = ? AND startNs BETWEEN ( ? + ? ) AND ( ? + ? )"
          " UNION ALL SELECT startNs - ? AS start_time, endNs - startNs AS duration, endNs - ? AS end_time FROM " +
          TABLE_OSRT_API + " WHERE (globalTid >> 32) = ? AND startNs BETWEEN ( ? + ? ) AND ( ? + ? )"
+         " UNION ALL SELECT startNs - ? AS start_time, endNs - startNs AS duration, endNs - ? AS end_time FROM " +
+         TABLE_DPU_TASK + " WHERE (globalTid >> 32) = ? AND startNs BETWEEN ( ? + ? ) AND ( ? + ? )"
         " ORDER BY start_time;";
     return ExecuteQuery(stmt, sql, minTimestamp, minTimestamp, pid,
+                        requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp,
+                        minTimestamp, minTimestamp, pid,
                         requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp,
                         minTimestamp, minTimestamp, pid,
                         requestParams.startTime, minTimestamp, requestParams.endTime, minTimestamp,
@@ -532,6 +562,8 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QueryThreadsByPid(std::uni
             return ExecuteQuery(stmt, OSRT_API_THREADS_BY_PID, metaData.pid, startTime, endTime);
         case PROCESS_TYPE::CCU:
             return ExecuteQuery(stmt, CCU_THREADS_BY_PID, metaData.tid, startTime, endTime);
+        case PROCESS_TYPE::DPU:
+            return ExecuteQuery(stmt, DPU_THREADS_BY_PID, metaData.pid, metaData.tid, startTime, endTime);
         default:
             throw DatabaseException("unsupported type!");
     }
@@ -1886,8 +1918,8 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, c
         filterSuffix += filterJoin.empty() ? "" : "api.name";
         std::string tidSql = item.isPythonStack ? "'python_stack:' || api.globalTid" : "'pytorch'";
         std::string pythonFunctionFilter = item.isPythonStack ? " AND api.type = 50003 " : " AND api.type != 50003 ";
-        tempSql = " SELECT api.ROWID as id, " + tidSql +
-            " as tid, api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
+        tempSql = " SELECT api.ROWID as id, api.globalTid as pid, " + tidSql +
+            " as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, "
             "'' as deviceId, ids.value as value from " + TABLE_API +
             "  api join ids on ids.id = api.name" + filterSuffix +
             " WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? " + pythonFunctionFilter;
@@ -1907,7 +1939,7 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, c
             " WHERE globalTid = ? AND startNs >= ? AND endNs <= ? ";
     } else if (type == PROCESS_TYPE::OSRT_API) {
         filterSuffix += filterJoin.empty() ? "" : "osrt.name";
-        tempSql = " SELECT osrt.ROWID AS id, 'OSRT_API' AS tid, osrt.globalTid AS pid, osrt.startNs AS timestamp, "
+        tempSql = " SELECT osrt.ROWID AS id, osrt.globalTid AS pid, 'OSRT_API' AS tid, osrt.startNs AS timestamp, "
             "osrt.endNs AS endTime, 0 AS depth, '' AS deviceId, ids.value AS value FROM " + TABLE_OSRT_API +
             "  osrt JOIN ids ON ids.id = osrt.name" + filterSuffix +
             " WHERE osrt.globalTid = ? AND osrt.startNs >= ? AND osrt.endNs <= ? ";
@@ -1930,6 +1962,15 @@ std::string TraceDatabaseHelper::GetSingleLockRangeSql(const TrackQuery &item, c
             "timestamp, ccu.endNs as endTime, 0 as depth, ccu.deviceId as deviceId, ids.value as value FROM " +
             TABLE_CCU + " ccu join ids on ids.id = ccu.name" + filterSuffix +
             " WHERE ccu.deviceId = ? AND ccu.startNs >= ? AND ccu.endNs <= ? ";
+    } else if (type == PROCESS_TYPE::DPU) {
+        filterSuffix += filterJoin.empty() ? "" : "dpu.opName";
+        tempSql = " SELECT dpu.ROWID as id, 'DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || "
+            "CAST(dpu.dpuDeviceId AS TEXT) as pid, dpu.streamId as tid, dpu.startNs as timestamp, "
+            "dpu.endNs as endTime, 0 as depth, '' as deviceId, ids.value as value FROM " +
+            TABLE_DPU_TASK + " dpu join ids on ids.id = dpu.opName" + filterSuffix +
+            " WHERE dpu.globalTid IS NOT NULL AND dpu.dpuDeviceId IS NOT NULL AND dpu.streamId IS NOT NULL "
+            "AND ('DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || CAST(dpu.dpuDeviceId AS TEXT)) = ? "
+            "AND dpu.streamId = ? AND dpu.startNs >= ? AND dpu.endNs <= ? ";
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(item.threadId, "group")) {
             filterSuffix += filterJoin.empty() ? "" : "op.opName";
@@ -1971,7 +2012,7 @@ void TraceDatabaseHelper::BindSearchAllSliceSingleTrack(std::unique_ptr<SqlitePr
     PROCESS_TYPE type = STR_TO_ENUM<PROCESS_TYPE>(item.metaType).value();
     if (type == PROCESS_TYPE::API) {
         stmt->BindParams(item.processId, item.startTime, item.endTime);
-    } else if (type == PROCESS_TYPE::CANN_API) {
+    } else if (type == PROCESS_TYPE::CANN_API || type == PROCESS_TYPE::DPU) {
         stmt->BindParams(item.processId, item.threadId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::MS_TX) {
         stmt->BindParams(item.processId, item.startTime, item.endTime);
@@ -2037,8 +2078,8 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
             "'" + PythonStackHelper::GetPythonStackMetaType() + "'" : "'PYTORCH_API'";
         std::string pythonFunctionFilter = singleQuery.isPythonStack ? " AND api.type = 50003 " :
             " AND api.type != 50003 ";
-        tempSql = " SELECT api.ROWID as id, " + tidSql +
-            " as tid, api.globalTid as pid, api.startNs as timestamp, api.endNs as endTime, api.depth, " +
+        tempSql = " SELECT api.ROWID as id, api.globalTid as pid, " + tidSql +
+            " as tid, api.startNs as timestamp, api.endNs as endTime, api.depth, " +
             metaTypeSql + " as metaType from " + TABLE_API +
             "  api join ids on ids.id = api.name WHERE api.globalTid = ? AND api.startNs >= ? AND api.endNs <= ? " +
             pythonFunctionFilter;
@@ -2052,7 +2093,7 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
             "mstx.endNs as endTime, mstx.depth, 'MSTX_EVENTS' as metaType from " + TABLE_MSTX_EVENTS +
             "  mstx join ids on ids.id = mstx.message WHERE globalTid = ? AND startNs >= ? AND endNs <= ? ";
     } else if (type == PROCESS_TYPE::OSRT_API) {
-        tempSql = " SELECT osrt.ROWID AS id, 'OSRT_API' AS tid, osrt.globalTid AS pid, osrt.startNs AS timestamp, "
+        tempSql = " SELECT osrt.ROWID AS id, osrt.globalTid AS pid, 'OSRT_API' AS tid, osrt.startNs AS timestamp, "
             "osrt.endNs AS endTime, 0 AS depth, 'OSRT_API' as metaType FROM " + TABLE_OSRT_API +
             "  osrt JOIN ids ON ids.id = osrt.name WHERE osrt.globalTid = ? AND osrt.startNs >= ? AND osrt.endNs <= ? ";
     } else if (type == PROCESS_TYPE::ASCEND_HARDWARE) {
@@ -2072,6 +2113,14 @@ std::string TraceDatabaseHelper::GetSingleSearchNameWithLockRangeSql(const std::
             "ccu.endNs as endTime, 0 as depth, 'CCU' as metaType from " + TABLE_CCU +
             " ccu join ids on ids.id = ccu.name WHERE ccu.deviceId = ? AND ccu.startNs >= ? "
             "AND ccu.endNs <= ? ";
+    } else if (type == PROCESS_TYPE::DPU) {
+        tempSql = " SELECT dpu.ROWID as id, 'DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || "
+            "CAST(dpu.dpuDeviceId AS TEXT) as pid, dpu.streamId as tid, dpu.startNs as timestamp, "
+            "dpu.endNs as endTime, 0 as depth, 'DPU' as metaType FROM " + TABLE_DPU_TASK +
+            " dpu join ids on ids.id = dpu.opName WHERE dpu.globalTid IS NOT NULL "
+            "AND dpu.dpuDeviceId IS NOT NULL AND dpu.streamId IS NOT NULL "
+            "AND ('DPU_' || CAST(dpu.globalTid AS TEXT) || '_' || CAST(dpu.dpuDeviceId AS TEXT)) = ? "
+            "AND dpu.streamId = ? AND dpu.startNs >= ? AND dpu.endNs <= ? ";
     } else if (type == PROCESS_TYPE::HCCL) {
         if (StringUtil::EndWith(singleQuery.threadId, "group")) {
             tempSql = " SELECT op.opId as id, 'HCCL' as pid, op.groupName||'group' as tid, op.startNs as "
@@ -2106,7 +2155,7 @@ void TraceDatabaseHelper::BindSearchNameWithLockRangeStmt(std::unique_ptr<Sqlite
     PROCESS_TYPE type = STR_TO_ENUM<PROCESS_TYPE>(item.metaType).value();
     if (type == PROCESS_TYPE::API) {
         stmt->BindParams(item.processId, item.startTime, item.endTime);
-    } else if (type == PROCESS_TYPE::CANN_API) {
+    } else if (type == PROCESS_TYPE::CANN_API || type == PROCESS_TYPE::DPU) {
         stmt->BindParams(item.processId, item.threadId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::MS_TX) {
         stmt->BindParams(item.processId, item.startTime, item.endTime);
@@ -2153,7 +2202,7 @@ void TraceDatabaseHelper::BindSingleTrackStmt(const SearchCountParams &params,
     PROCESS_TYPE type = STR_TO_ENUM<PROCESS_TYPE>(item.metaType).value();
     if (type == PROCESS_TYPE::API) {
         stmt->BindParams(item.processId, item.startTime, item.endTime);
-    } else if (type == PROCESS_TYPE::CANN_API) {
+    } else if (type == PROCESS_TYPE::CANN_API || type == PROCESS_TYPE::DPU) {
         stmt->BindParams(item.processId, item.threadId, item.startTime, item.endTime);
     } else if (type == PROCESS_TYPE::MS_TX) {
         stmt->BindParams(item.processId, item.startTime, item.endTime);
