@@ -1,0 +1,13 @@
+export const SOCKET_WIDTH = 300;
+export const SOCKET_HEIGHT = 320;
+export const SOCKET_ROW_GAP = 60;
+export const NUMA_TOP_OFFSET = 90;
+export const NUMA_VERTICAL_SPAN = 140;
+export const NUMA_WIDTH = 180;
+export const NUMA_HEIGHT = 60;
+export const MEMORY_WIDTH = 54;
+export const MEMORY_HEIGHT = 56;
+export const DEFAULT_SOCKET_COLUMNS = 2;
+export const SOCKET_START_X = 150;
+export const SOCKET_COLUMN_STEP = 540;
+export const MIN_DIAGRAM_WIDTH = 1140;
