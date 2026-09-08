@@ -84,9 +84,16 @@ interface TransformPayload {
     transform: RenderOptions['transform'];
 };
 
+interface AllocationLineVisibility {
+    reservedLine: boolean;
+    processUsedLine: boolean;
+    deviceUsedLine: boolean;
+}
+
 interface BlockGraphLayerVisibility {
     blocks: boolean;
     overview: boolean;
+    allocationLines?: AllocationLineVisibility;
 }
 
 interface SetBlockGraphLayerVisibilityPayload {

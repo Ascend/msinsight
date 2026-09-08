@@ -18,7 +18,7 @@
 
 import { getColorStringByAddr, getDimmedColorStringByAddr } from '@/leaksWorker/tools/color';
 import { BlockDataOPFS, getPointFromPathData } from '../../tools/BlockDataOPFS';
-import { ALLOCATION_LINE_STYLES } from '../allocationLineStyles';
+import { ALLOCATION_LINE_STYLES, isAllocationLineVisible } from '../allocationLineStyles';
 
 export class Painter {
     readonly canvas: HTMLCanvasElement;
@@ -113,7 +113,7 @@ export class Painter {
             if (shouldCancel()) {
                 return;
             }
-            if (visibility.overview) this.renderAllocationLines(options);
+            if (visibility.overview) this.renderAllocationLines(options, visibility.allocationLines);
             if (visibility.blocks) {
                 this.renderData(this.highlightData, options);
                 this.renderData(this.highlightData, options, true);
@@ -123,8 +123,11 @@ export class Painter {
         }
     }
 
-    renderAllocationLines(options: RenderOptions): void {
+    renderAllocationLines(options: RenderOptions, lineVisibility?: AllocationLineVisibility): void {
         ALLOCATION_LINE_STYLES.forEach(style => {
+            if (!isAllocationLineVisible(lineVisibility, style.key)) {
+                return;
+            }
             this.renderAllocationLine(this.allocationLines[style.key], style, options);
         });
     }

@@ -33,3 +33,16 @@ export const ALLOCATION_LINE_STYLES = [
     PROCESS_USED_LINE_STYLE,
     DEVICE_USED_LINE_STYLE,
 ] as const;
+
+export type AllocationLineKey = typeof ALLOCATION_LINE_STYLES[number]['key'];
+
+export const DEFAULT_ALLOCATION_LINE_VISIBILITY: AllocationLineVisibility = {
+    reservedLine: true,
+    processUsedLine: true,
+    deviceUsedLine: true,
+};
+
+export const isAllocationLineVisible = (
+    visibility: AllocationLineVisibility | undefined,
+    key: AllocationLineKey,
+): boolean => visibility?.[key] !== false;

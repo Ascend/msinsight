@@ -90,6 +90,11 @@ jest.mock('../tools', () => {
 });
 
 const theme = { bgColorCommon: '#fff', bgColorLight: '#f5f5f5', borderColor: '#ccc', textColorPrimary: '#111' } as any;
+const DEFAULT_ALLOCATION_LINES = {
+    reservedLine: true,
+    processUsedLine: true,
+    deviceUsedLine: true,
+};
 
 describe('MemoryBlockDiagram Block Flag shortcut', () => {
     beforeEach(() => {
@@ -161,7 +166,7 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         expect(view.queryByTestId('block-hover-item')).toBeNull();
         expect(view.queryByTestId('blockMarkerShortcutHint')).toBeNull();
         expect(blockWorker.workerSetBlockGraphLayerVisibility).toHaveBeenLastCalledWith({
-            visibility: { blocks: false, overview: true },
+            visibility: { blocks: false, overview: true, allocationLines: DEFAULT_ALLOCATION_LINES },
         });
 
         jest.clearAllMocks();
@@ -211,6 +216,40 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         expect(view.queryByTestId('allocationLineLegend')).toBeNull();
     });
 
+    it('toggles allocation line visibility from the legend without hiding the overview layer', () => {
+        const session = new Session();
+        session.module = 'memsnapshot'; session.fileHash = 'snapshot'; session.deviceId = '0'; session.eventType = 'malloc';
+        session.allocationData.allocationLineAvailability = {
+            reservedLine: true,
+            processUsedLine: true,
+            deviceUsedLine: true,
+        };
+        const view = render(<ThemeProvider theme={theme}><MemoryBlockDiagram session={session} /></ThemeProvider>);
+        const blockWorker = jest.requireMock('@/leaksWorker/blockWorker/worker') as {
+            workerSetBlockGraphLayerVisibility: jest.Mock;
+        };
+        const reservedLegend = view.getByTestId('allocationLineLegend-reservedLine');
+
+        expect(reservedLegend.getAttribute('aria-pressed')).toBe('true');
+        fireEvent.click(reservedLegend);
+
+        expect(reservedLegend.getAttribute('aria-pressed')).toBe('false');
+        expect(view.getByTestId('blockDiagramSection').getAttribute('data-overview-layer-visible')).toBe('true');
+        expect(blockWorker.workerSetBlockGraphLayerVisibility).toHaveBeenLastCalledWith({
+            visibility: {
+                blocks: true,
+                overview: true,
+                allocationLines: { ...DEFAULT_ALLOCATION_LINES, reservedLine: false },
+            },
+        });
+
+        fireEvent.click(reservedLegend);
+        expect(reservedLegend.getAttribute('aria-pressed')).toBe('true');
+        expect(blockWorker.workerSetBlockGraphLayerVisibility).toHaveBeenLastCalledWith({
+            visibility: { blocks: true, overview: true, allocationLines: DEFAULT_ALLOCATION_LINES },
+        });
+    });
+
     it('labels the reserved allocation line as host used for HOST event types', () => {
         const session = new Session();
         session.module = 'leaks'; session.fileHash = 'host'; session.deviceId = 'cpu'; session.eventType = 'HOST';
@@ -230,6 +269,11 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
     it('restores MemScope lifecycle view state when the imported data context changes', () => {
         const session = new Session();
         session.module = 'memsnapshot'; session.fileHash = 'snapshot-a'; session.deviceId = '0'; session.eventType = 'malloc';
+        session.allocationData.allocationLineAvailability = {
+            reservedLine: true,
+            processUsedLine: true,
+            deviceUsedLine: true,
+        };
         runInAction(() => {
             session.leaksWorkerInfo.hoverItem = {
                 id: 42,
@@ -248,6 +292,7 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
             workerTransform: jest.Mock;
         };
 
+        fireEvent.click(view.getByTestId('allocationLineLegend-reservedLine'));
         fireEvent.click(view.getByTestId('toggle-block-layer'));
         fireEvent.click(view.getByTestId('toggle-overview-layer'));
         fireEvent.click(view.getByTestId('toggle-marker-layer'));
@@ -273,8 +318,9 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
         expect(section.getAttribute('data-overview-layer-visible')).toBe('true');
         expect(section.getAttribute('data-marker-layer-visible')).toBe('true');
         expect(view.getByTestId('mock-lifecycle-toolbar').getAttribute('data-zoom-mode')).toBe('proportional');
+        expect(view.getByTestId('allocationLineLegend-reservedLine').getAttribute('aria-pressed')).toBe('true');
         expect(blockWorker.workerSetBlockGraphLayerVisibility).toHaveBeenLastCalledWith({
-            visibility: { blocks: true, overview: true },
+            visibility: { blocks: true, overview: true, allocationLines: DEFAULT_ALLOCATION_LINES },
         });
         expect(blockWorker.workerTransform).toHaveBeenLastCalledWith({
             transform: { x: 0, y: 0, scaleX: 1, scaleY: 1 },
@@ -299,7 +345,7 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
 
         expect(view.getByTestId('blockDiagramSection').getAttribute('data-overview-layer-visible')).toBe('true');
         expect(blockWorker.workerSetBlockGraphLayerVisibility).toHaveBeenLastCalledWith({
-            visibility: { blocks: true, overview: true },
+            visibility: { blocks: true, overview: true, allocationLines: DEFAULT_ALLOCATION_LINES },
         });
         expect(blockWorker.workerTransform).toHaveBeenLastCalledWith({
             transform: { x: 0, y: 0, scaleX: 1, scaleY: 1 },
