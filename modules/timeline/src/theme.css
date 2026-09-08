@@ -19,6 +19,8 @@
 .theme_dark .ant-pagination{
     color:white;
 }
+.theme_dark .ant-message-notice-content{ background: var(--mi-bg-color); color: var(--mi-text-color-primary); }
+.theme_dark .ant-message-custom-content > span{ color: var(--mi-text-color-primary); }
 
 .theme_dark .ant-notification-notice{
     background: var(--grey85);

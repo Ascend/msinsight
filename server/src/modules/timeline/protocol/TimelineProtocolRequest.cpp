@@ -22,6 +22,19 @@
 
 namespace Dic {
 namespace Protocol {
+static size_t Utf8CodePointLength(const std::string &value) {
+    return static_cast<size_t>(std::count_if(
+        value.begin(), value.end(), [](unsigned char character) { return (character & 0xC0U) != 0x80U; }));
+}
+
+static bool IsBlank(const std::string &value) { return value.find_first_not_of(" \t\n\r\f\v") == std::string::npos; }
+
+static std::string TrimAsciiWhitespace(const std::string &value) {
+    const auto first = value.find_first_not_of(" \t\n\r\f\v");
+    const auto last = value.find_last_not_of(" \t\n\r\f\v");
+    return first == std::string::npos ? "" : value.substr(first, last - first + 1);
+}
+
 void KernelDetailsParams::Check(uint64_t minTime, std::string &error) const {
     if (current == 0) {
         error = "current is invalid";
@@ -89,6 +102,12 @@ bool EventsViewParams::CheckParams(uint64_t minTime, std::string &warnMsg) const
 }
 
 bool SystemViewOverallReqParam::CheckParams(uint64_t minTime, std::string &errMsg) const {
+    constexpr size_t maxRuleCount = 50;
+    constexpr size_t maxKeywordCount = 20;
+    constexpr size_t maxCategoryLength = 50;
+    constexpr size_t maxKeywordsTextLength = 200;
+    static const std::set<std::string> builtInCategoryNames = {"Computing Time", "Paged Attention", "SDMA",
+        "Flash Attention", "Matmul", "Conv", "Other Cube", "Other Vector", "Other"};
     if (page.pageSize == 0) {
         errMsg = "Failed to check page parameter. Page size cannot be zero.";
         return false;
@@ -104,6 +123,36 @@ bool SystemViewOverallReqParam::CheckParams(uint64_t minTime, std::string &errMs
     if (endTime > UINT64_MAX - minTime) {
         errMsg = "system view overall end time is invalid";
         return false;
+    }
+    if (customClassificationRules.size() > maxRuleCount) {
+        errMsg = "Too many custom classification rules.";
+        return false;
+    }
+    std::set<std::string> customCategoryNames;
+    for (const auto &rule : customClassificationRules) {
+        if (IsBlank(rule.category) || builtInCategoryNames.count(TrimAsciiWhitespace(rule.category)) > 0 ||
+            Utf8CodePointLength(rule.category) > maxCategoryLength || rule.keywords.empty() ||
+            rule.keywords.size() > maxKeywordCount) {
+            errMsg = "Invalid custom classification rule.";
+            return false;
+        }
+        if (!customCategoryNames.insert(TrimAsciiWhitespace(rule.category)).second) {
+            errMsg = "Duplicate custom classification category.";
+            return false;
+        }
+        size_t keywordsTextLength = rule.keywords.size() - 1; // Comma separators between normalized keywords.
+        for (const auto &keyword : rule.keywords) {
+            if (IsBlank(keyword)) {
+                errMsg = "Invalid custom classification keyword.";
+                return false;
+            }
+            if (keywordsTextLength > maxKeywordsTextLength ||
+                Utf8CodePointLength(keyword) > maxKeywordsTextLength - keywordsTextLength) {
+                errMsg = "Custom classification keywords are too long.";
+                return false;
+            }
+            keywordsTextLength += Utf8CodePointLength(keyword);
+        }
     }
     return true;
 }

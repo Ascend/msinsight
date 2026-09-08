@@ -21,19 +21,27 @@ export enum LocalStorageKey {
     LANGUAGE = 'language',
     THEME = 'theme',
     LAST_FILE_PATH = 'last_file_path',
+    OVERALL_METRICS_CLASSIFICATION_RULES = 'overall_metrics_classification_rules',
 }
 
 class LocalStorageService {
     getItem(key: LocalStorageKey): any {
-        const item = localStorage.getItem(key);
-        return item !== null ? safeJSONParse(item) : null;
-    }
-
-    setItem(key: LocalStorageKey, value: any): void {
         try {
-            localStorage.setItem(key, JSON.stringify(value));
+            const item = localStorage.getItem(key);
+            return item !== null ? safeJSONParse(item) : null;
         } catch (error) {
             console.log(error);
+            return null;
+        }
+    }
+
+    setItem(key: LocalStorageKey, value: any): boolean {
+        try {
+            localStorage.setItem(key, JSON.stringify(value));
+            return true;
+        } catch (error) {
+            console.log(error);
+            return false;
         }
     }
 

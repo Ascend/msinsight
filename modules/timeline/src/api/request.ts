@@ -52,7 +52,10 @@ export const parseCards = async(param: ParseCardsParam): Promise<any> => {
 };
 
 // 获取system view综合指标列表
-export const getOverallMetrics = async (params: GetOverallMetricsParams): Promise<GetOverallMetricsResult> => {
+export const getOverallMetrics = async (
+    params: GetOverallMetricsParams,
+    signal?: AbortSignal,
+): Promise<GetOverallMetricsResult> => {
     const res = await window.requestData('systemView/overall', params, 'timeline', { silent: true });
     // 递归设置 categoryList 字段
     const maxDepth = 10;
@@ -73,15 +76,36 @@ export const getOverallMetrics = async (params: GetOverallMetricsParams): Promis
         addCatField(res.data);
         return res;
     }
-    return new Promise((resolve) => {
-        connector.addListener('OverallMetrics', async (e) => {
+    return new Promise((resolve, reject) => {
+        let listener: ReturnType<typeof connector.addListener> | undefined;
+        const cleanup = (): void => {
+            if (listener) {
+                connector.removeListener(listener);
+                listener = undefined;
+            }
+            signal?.removeEventListener('abort', abort);
+        };
+        const abort = (): void => {
+            cleanup();
+            reject(new Error('Overall metrics request cancelled.'));
+        };
+        listener = connector.addListener('OverallMetrics', async (e) => {
             if (e?.data?.body?.data?.dbId !== params.dbPath) {
                 return;
             }
-            const result = await window.requestData('systemView/overall', params, 'timeline', { silent: true });
-            addCatField(result.data);
-            resolve(result);
+            cleanup();
+            try {
+                const result = await window.requestData('systemView/overall', params, 'timeline', { silent: true });
+                addCatField(result.data);
+                resolve(result);
+            } catch (error) {
+                reject(error);
+            }
         });
+        signal?.addEventListener('abort', abort, { once: true });
+        if (signal?.aborted) {
+            abort();
+        }
     });
 };
 

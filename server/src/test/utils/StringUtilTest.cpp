@@ -444,8 +444,8 @@ TEST(StringUtil, Join4SqlGroupSkipsEmptyItems) {
 }
 
 TEST(StringUtil, ContainsIgnoreCaseAndToLower) {
-    EXPECT_EQ(StringUtil::ToLower("Rank_Device-01"), "rank_device-01");
-    EXPECT_TRUE(StringUtil::ContainsIgnoreCase("Rank_Device-01", "device"));
+    EXPECT_EQ(StringUtil::ToLower("Rank_\xF0\x9F\x98\x80"), "rank_\xF0\x9F\x98\x80");
+    EXPECT_TRUE(StringUtil::ContainsIgnoreCase("Rank_\xF0\x9F\x98\x80", "RANK_\xF0\x9F\x98\x80"));
     EXPECT_TRUE(StringUtil::ContainsIgnoreCase("Rank_Device-01", "RANK"));
     EXPECT_FALSE(StringUtil::ContainsIgnoreCase("Rank_Device-01", "host"));
     EXPECT_TRUE(StringUtil::ContainAnyOfSubStr("rank_device", {"host", "device"}));

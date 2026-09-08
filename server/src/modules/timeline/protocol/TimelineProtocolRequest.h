@@ -386,6 +386,12 @@ struct CreateCurveRequest : public Request {
     CreateCurveParams params;
 };
 
+struct CustomClassificationRule {
+    std::string category;
+    std::vector<std::string> keywords;
+    bool splitByDirection = true;
+};
+
 struct SystemViewOverallReqParam {
     std::string rankId;
     std::string deviceId;
@@ -395,6 +401,7 @@ struct SystemViewOverallReqParam {
     PageParam page{};
     uint64_t startTime = 0; // time range analysis mode while startTime not equal to endTime
     uint64_t endTime = 0; // time range analysis mode while startTime not equal to endTime
+    std::vector<CustomClassificationRule> customClassificationRules;
     bool CheckParams(uint64_t minTime, std::string &errMsg) const;
 };
 

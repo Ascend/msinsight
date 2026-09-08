@@ -863,6 +863,11 @@ std::optional<document_t> ToResponseJson<SystemViewOverallResponse>(const System
     JsonUtil::AddMember(body, "pageSize", response.pageParam.pageSize, allocator);
     JsonUtil::AddMember(body, "current", response.pageParam.current, allocator);
     JsonUtil::AddMember(body, "isLoading", response.isLoading, allocator);
+    json_t unmatchedKeywords(kArrayType);
+    for (const auto &keyword : response.unmatchedCustomClassificationKeywords) {
+        unmatchedKeywords.PushBack(json_t().SetString(keyword.c_str(), allocator), allocator);
+    }
+    JsonUtil::AddMember(body, "unmatchedCustomClassificationKeywords", unmatchedKeywords, allocator);
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }

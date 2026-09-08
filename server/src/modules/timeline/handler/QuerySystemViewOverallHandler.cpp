@@ -49,14 +49,16 @@ bool QuerySystemViewOverallHandler::HandleRequest(std::unique_ptr<Protocol::Requ
         SendResponse(std::move(responsePtr), false, error);
         return false;
     }
-    // query cache, while not time range analysis
-    std::vector<SystemViewOverallRes> overallDetails =
-        SystemViewOverallCacheManager::Instance().GetOverallData(request.fileId);
     // startTime = endTime代表未开启按时间范围分析，不等则代表开启按时间范围分析
-    if (!overallDetails.empty() && request.params.startTime == request.params.endTime) {
+    const bool useCache =
+        request.params.startTime == request.params.endTime && request.params.customClassificationRules.empty();
+    std::vector<SystemViewOverallRes> overallDetails = useCache
+        ? SystemViewOverallCacheManager::Instance().GetOverallData(request.fileId)
+        : std::vector<SystemViewOverallRes>{};
+    if (!overallDetails.empty() && useCache) {
         response.details = overallDetails;
     } else if (CalOverallData(request, response, error, database)) {
-        if (request.params.startTime == request.params.endTime) { // set cache while not time range analysis
+        if (useCache) { // Custom rules produce request-specific classification results.
             SystemViewOverallCacheManager::Instance().SetOverallData(request.fileId, response.details);
         }
     } else {
@@ -103,9 +105,11 @@ bool QuerySystemViewOverallHandler::CalOverallData(SystemViewOverallRequest &req
     }
     if (!overallHelper.kernelEvents.empty()) {
         // 若kernel details含有效pmu数据，则进行Computing Overall统计，否则跳过Computing拆解
-        overallHelper.CategorizeComputingEvents();
+        overallHelper.CategorizeComputingEvents(request.params.customClassificationRules);
         overallHelper.AggregateComputingOverallMetrics(response.details);
     }
+    response.unmatchedCustomClassificationKeywords =
+        overallHelper.GetUnmatchedCustomClassificationKeywords(request.params.customClassificationRules);
     // Communication拆解
     repoPtr->QueryCommunicationOverlapOverallInfos(request.params, overallHelper, response.details, database);
     return true;

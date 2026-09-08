@@ -38,12 +38,12 @@ class SystemViewOverallTextRepo : public SystemViewOverallRepoInterface {
 
   private:
     static bool CheckDataForSystemViewOverall(const std::shared_ptr<VirtualTraceDatabase> &database);
-    static std::map<uint64_t, uint64_t> QueryFlowDict(const Protocol::SystemViewOverallReqParam &requestParams,
+    static std::map<uint64_t, FlowStartInfo> QueryFlowDict(const Protocol::SystemViewOverallReqParam &requestParams,
         const std::shared_ptr<VirtualTraceDatabase> &database);
     static std::vector<CpuCubeOpInfo> QueryCpuCubeOp(const Protocol::SystemViewOverallReqParam &requestParams,
         const std::shared_ptr<VirtualTraceDatabase> &database);
     static std::vector<OverallTmpInfo> QueryKernelEventsForSystemViewOverall(
-        const Protocol::SystemViewOverallReqParam &requestParams, const std::map<uint64_t, uint64_t> &flowDict,
+        const Protocol::SystemViewOverallReqParam &requestParams, const std::map<uint64_t, FlowStartInfo> &flowDict,
         const std::shared_ptr<VirtualTraceDatabase> &database);
     static void QueryBwdTrackIdForComputingOverall(
         uint64_t &bwdTrackId, const std::shared_ptr<VirtualTraceDatabase> &database);

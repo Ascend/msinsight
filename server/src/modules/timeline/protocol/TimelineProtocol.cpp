@@ -24,6 +24,45 @@
 
 namespace Dic {
 namespace Protocol {
+namespace {
+bool ParseCustomClassificationRules(
+    const json_t &params, std::vector<CustomClassificationRule> &rules, std::string &error) {
+    if (!params.HasMember("customClassificationRules")) {
+        return true;
+    }
+    const auto &rulesJson = params["customClassificationRules"];
+    if (!rulesJson.IsArray()) {
+        error = "Custom classification rules must be an array.";
+        return false;
+    }
+    for (const auto &ruleJson : rulesJson.GetArray()) {
+        if (!ruleJson.IsObject() || !ruleJson.HasMember("category") || !ruleJson["category"].IsString() ||
+            !ruleJson.HasMember("keywords") || !ruleJson["keywords"].IsArray()) {
+            error = "Invalid custom classification rule.";
+            return false;
+        }
+        CustomClassificationRule rule;
+        rule.category = ruleJson["category"].GetString();
+        if (ruleJson.HasMember("splitByDirection")) {
+            if (!ruleJson["splitByDirection"].IsBool()) {
+                error = "Custom classification splitByDirection must be a boolean.";
+                return false;
+            }
+            rule.splitByDirection = ruleJson["splitByDirection"].GetBool();
+        }
+        for (const auto &keyword : ruleJson["keywords"].GetArray()) {
+            if (!keyword.IsString()) {
+                error = "Custom classification keywords must be strings.";
+                return false;
+            }
+            rule.keywords.emplace_back(keyword.GetString());
+        }
+        rules.emplace_back(std::move(rule));
+    }
+    return true;
+}
+}
+
 void TimelineProtocol::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_IMPORT_ACTION, ToImportActionRequest);
     jsonToReqFactory.emplace(REQ_RES_PARSE_CARDS, ToParseCardsRequest);
@@ -711,6 +750,9 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewOverallRequest(const Dic:
     JsonUtil::SetByJsonKeyValue(reqPtr->params.page.pageSize, json["params"], "pageSize");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
+    if (!ParseCustomClassificationRules(json["params"], reqPtr->params.customClassificationRules, error)) {
+        return nullptr;
+    }
     return reqPtr;
 }
 
@@ -735,6 +777,9 @@ std::unique_ptr<Request> TimelineProtocol::ToSystemViewOverallMoreDetailsRequest
     JsonUtil::SetByJsonKeyValue(reqPtr->params.page.pageSize, json["params"], "pageSize");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
+    if (!ParseCustomClassificationRules(json["params"], reqPtr->params.customClassificationRules, error)) {
+        return nullptr;
+    }
     return reqPtr;
 }
 

@@ -65,8 +65,8 @@ bool SystemViewOverallTextRepo::QueryDataForComputingOverallMetric(
     if (!CheckDataForSystemViewOverall(database)) {
         return true;
     }
-    // <key: flow end time, value: flow start time>
-    std::map<uint64_t, uint64_t> flowDict = QueryFlowDict(requestParams, database);
+    // <key: flow end time, value: Host-side flow start time and track id>
+    std::map<uint64_t, FlowStartInfo> flowDict = QueryFlowDict(requestParams, database);
     computeHelper.cpuCubeOps = QueryCpuCubeOp(requestParams, database);
     computeHelper.kernelEvents = QueryKernelEventsForSystemViewOverall(requestParams, flowDict, database);
 
@@ -96,9 +96,9 @@ bool SystemViewOverallTextRepo::CheckDataForSystemViewOverall(const std::shared_
 /**
  * Npu层算子正确拆解依赖于下发该算子的Python API，两者依靠连线关联。对于async_npu类型连线，其s端（即start）在Python侧，
  * f端（即final）在NPU侧
- * @return 下发连线信息std::map<uint64_t, uint64_t> flowDict，其中key：end，value：start
+ * @return 下发连线信息flowDict，其中key：end，value：Host侧start及track id
  */
-std::map<uint64_t, uint64_t> SystemViewOverallTextRepo::QueryFlowDict(
+std::map<uint64_t, FlowStartInfo> SystemViewOverallTextRepo::QueryFlowDict(
     const Protocol::SystemViewOverallReqParam &requestParams, const std::shared_ptr<VirtualTraceDatabase> &database) {
     uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     std::string timeCondSql;
@@ -109,6 +109,7 @@ std::map<uint64_t, uint64_t> SystemViewOverallTextRepo::QueryFlowDict(
     // 即(p.pid & 0x1f) = deviceID。而Python侧pid并不满足这一规律。因此需在Having处按组过滤，而不能在where处过滤，
     // 否则所有s端都会被过滤掉。
     std::string sql = "select max(case when f.type = 's' then f.timestamp end) as start, "
+                      "max(case when f.type = 's' then f.track_id end) as start_track_id, "
                       "max(case when f.type = 'f' then f.timestamp end) "
                       " as end from " +
         FLOW_TABLE +
@@ -131,14 +132,14 @@ std::map<uint64_t, uint64_t> SystemViewOverallTextRepo::QueryFlowDict(
     if (requestParams.startTime != requestParams.endTime) { // time range analysis
         stmt->BindParams(requestParams.startTime + minTimestamp, requestParams.endTime + minTimestamp);
     }
-    std::map<uint64_t, uint64_t> flowDict;
+    std::map<uint64_t, FlowStartInfo> flowDict;
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
         ServerLog::Error("Failed to query flow dictionary for system view overall.");
         return {};
     }
     while (resultSet->Next()) {
-        flowDict[resultSet->GetUint64("end")] = resultSet->GetUint64("start");
+        flowDict[resultSet->GetUint64("end")] = {resultSet->GetUint64("start"), resultSet->GetUint64("start_track_id")};
     }
     return flowDict;
 }
@@ -152,7 +153,7 @@ std::vector<CpuCubeOpInfo> SystemViewOverallTextRepo::QueryCpuCubeOp(
     }
     std::string sql = "select timestamp as start, end_time as end, name, track_id "
                       " from slice where cat = 'cpu_op' " +
-        timeCondSql + " order by start;";
+        timeCondSql + " order by start, end_time;";
     auto stmt = database->CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to query cpu cube operators for system view overall.");
@@ -170,7 +171,7 @@ std::vector<CpuCubeOpInfo> SystemViewOverallTextRepo::QueryCpuCubeOp(
     while (resultSet->Next()) {
         CpuCubeOpInfo cubeOp;
         cubeOp.pythonApi = resultSet->GetString("name");
-        cubeOp.CheckCubeOp();
+        cubeOp.CheckCubeOp(requestParams.customClassificationRules);
         if (cubeOp.isCubeOp) {
             cubeOp.start = resultSet->GetUint64("start");
             cubeOp.end = resultSet->GetUint64("end");
@@ -182,7 +183,7 @@ std::vector<CpuCubeOpInfo> SystemViewOverallTextRepo::QueryCpuCubeOp(
 }
 
 std::vector<OverallTmpInfo> SystemViewOverallTextRepo::QueryKernelEventsForSystemViewOverall(
-    const Protocol::SystemViewOverallReqParam &requestParams, const std::map<uint64_t, uint64_t> &flowDict,
+    const Protocol::SystemViewOverallReqParam &requestParams, const std::map<uint64_t, FlowStartInfo> &flowDict,
     const std::shared_ptr<VirtualTraceDatabase> &database) {
     uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     std::string timeCondSql;
@@ -221,7 +222,8 @@ std::vector<OverallTmpInfo> SystemViewOverallTextRepo::QueryKernelEventsForSyste
         kernelEvent.startTime = resultSet->GetUint64("startTime");
         auto it = flowDict.find(kernelEvent.startTime);
         if (it != flowDict.end()) {
-            kernelEvent.flowStartTime = it->second;
+            kernelEvent.flowStartTime = it->second.time;
+            kernelEvent.flowStartTrackId = it->second.trackId;
         }
         kernelEvent.duration = resultSet->GetDouble("duration");
         kernelEvent.aicoreTime = NumberUtil::StringToDouble(resultSet->GetString("aicore_time_us_"));

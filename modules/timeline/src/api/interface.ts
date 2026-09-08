@@ -108,11 +108,18 @@ export interface ParseCardsParam {
 }
 
 // getOverallMetrics
+export interface CustomClassificationRule {
+    category: string;
+    keywords: string[];
+    splitByDirection: boolean;
+}
+
 export interface GetOverallMetricsParams extends PaginationParams {
     rankId: string;
     dbPath: string;
     startTime: number;
     endTime: number;
+    customClassificationRules?: CustomClassificationRule[];
 }
 
 export interface GetOverallMetricsResultItem {
@@ -131,6 +138,7 @@ export interface GetOverallMetricsResultItem {
 
 export interface GetOverallMetricsResult extends PaginationModel {
     data: GetOverallMetricsResultItem[];
+    unmatchedCustomClassificationKeywords: string[];
 }
 
 // getOverallMetricsMoreList
@@ -143,6 +151,7 @@ export interface GetOverallMetricsMoreListParams extends PaginationParams {
     name?: string;
     startTime: number;
     endTime: number;
+    customClassificationRules?: CustomClassificationRule[];
 }
 
 // 综合指标详细算子列表项

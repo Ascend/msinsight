@@ -106,8 +106,8 @@ bool SystemViewOverallDbRepo::QueryDataForComputingOverallMetric(
         return false;
     }
     int deviceId = StringUtil::StringToInt(requestParams.deviceId);
-    // <key: flow end time, value: flow start time>
-    std::map<uint64_t, uint64_t> flowDict = QueryFlowDict(requestParams, database, deviceId);
+    // <key: flow end time, value: Host-side flow start time and track id>
+    std::map<uint64_t, FlowStartInfo> flowDict = QueryFlowDict(requestParams, database, deviceId);
     computeHelper.cpuCubeOps = QueryCpuCubeOp(requestParams, database);
     computeHelper.kernelEvents = QueryKernelEventsForSystemViewOverall(requestParams, database, flowDict, deviceId);
 
@@ -158,7 +158,7 @@ bool SystemViewOverallDbRepo::GetTmpTableForOverall(const std::shared_ptr<Virtua
     return true;
 }
 
-std::map<uint64_t, uint64_t> SystemViewOverallDbRepo::QueryFlowDict(
+std::map<uint64_t, FlowStartInfo> SystemViewOverallDbRepo::QueryFlowDict(
     const Protocol::SystemViewOverallReqParam &requestParams, const std::shared_ptr<VirtualTraceDatabase> &database,
     int deviceId) {
     uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
@@ -166,7 +166,8 @@ std::map<uint64_t, uint64_t> SystemViewOverallDbRepo::QueryFlowDict(
     if (requestParams.startTime != requestParams.endTime) {
         timeCondSql += " AND t.startNs >= ? AND pa.startNs <= ? ";
     }
-    std::string sql = "select t.startNs as flowEnd, pa.startNs as flowStart from TASK t join "
+    std::string sql = "select t.startNs as flowEnd, pa.startNs as flowStart, pa.globalTid as flowStartTrackId "
+                      "from TASK t join "
                       " asyncNpuConnect asyncConn on asyncConn.connectionId = t.connectionId join PYTORCH_API pa on "
                       "pa.connectionId = asyncConn.id "
                       " where t.deviceId = ? " +
@@ -185,9 +186,10 @@ std::map<uint64_t, uint64_t> SystemViewOverallDbRepo::QueryFlowDict(
         ServerLog::Error("Failed to execute query while querying flow dictionary for system view overall.");
         return {};
     }
-    std::map<uint64_t, uint64_t> flowDict;
+    std::map<uint64_t, FlowStartInfo> flowDict;
     while (resultSet->Next()) {
-        flowDict[resultSet->GetUint64("flowEnd")] = resultSet->GetUint64("flowStart");
+        flowDict[resultSet->GetUint64("flowEnd")] = {
+            resultSet->GetUint64("flowStart"), resultSet->GetUint64("flowStartTrackId")};
     }
     return flowDict;
 }
@@ -206,7 +208,7 @@ std::vector<CpuCubeOpInfo> SystemViewOverallDbRepo::QueryCpuCubeOp(
     std::string sql =
         "select pa.startNs as start, pa.endNs as end, pa.name, pa.globalTid as "
         " track_id from PYTORCH_API pa join ENUM_API_TYPE apiT on pa.type = apiT.id where apiT.name = 'op' " +
-        timeCondSql + " ;";
+        timeCondSql + " order by pa.startNs, pa.endNs;";
     auto stmt = database->CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         ServerLog::Error("Failed to prepare sql while querying cpu cube operators for system view overall.");
@@ -228,7 +230,7 @@ std::vector<CpuCubeOpInfo> SystemViewOverallDbRepo::QueryCpuCubeOp(
             ServerLog::Warn("Get empty python api when query cpu cube operators for system view overall. name: %",
                 resultSet->GetString("name"));
         }
-        cubeOp.CheckCubeOp();
+        cubeOp.CheckCubeOp(requestParams.customClassificationRules);
         if (cubeOp.isCubeOp) {
             cubeOp.start = resultSet->GetUint64("start");
             cubeOp.end = resultSet->GetUint64("end");
@@ -241,7 +243,7 @@ std::vector<CpuCubeOpInfo> SystemViewOverallDbRepo::QueryCpuCubeOp(
 
 std::vector<OverallTmpInfo> SystemViewOverallDbRepo::QueryKernelEventsForSystemViewOverall(
     const Protocol::SystemViewOverallReqParam &requestParams, const std::shared_ptr<VirtualTraceDatabase> &database,
-    const std::map<uint64_t, uint64_t> &flowDict, int deviceId) {
+    const std::map<uint64_t, FlowStartInfo> &flowDict, int deviceId) {
     uint64_t minTimestamp = TraceTime::Instance().GetStartTime();
     std::string timeCondSql;
     if (requestParams.startTime != requestParams.endTime) {
@@ -282,7 +284,8 @@ std::vector<OverallTmpInfo> SystemViewOverallDbRepo::QueryKernelEventsForSystemV
         kernelEvent.startTime = resultSet->GetUint64("startTime");
         auto it = flowDict.find(kernelEvent.startTime);
         if (it != flowDict.end()) {
-            kernelEvent.flowStartTime = it->second;
+            kernelEvent.flowStartTime = it->second.time;
+            kernelEvent.flowStartTrackId = it->second.trackId;
         }
         kernelEvent.duration = resultSet->GetDouble("duration");
         kernelEvent.cubeTime = resultSet->GetDouble("cubeTime");
