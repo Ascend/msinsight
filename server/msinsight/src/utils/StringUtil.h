@@ -403,7 +403,9 @@ class StringUtil {
 
     static std::string ToLower(const std::string &input) {
         std::string lowerInput = input;
-        std::transform(lowerInput.begin(), lowerInput.end(), lowerInput.begin(), ::tolower);
+        std::transform(lowerInput.begin(), lowerInput.end(), lowerInput.begin(), [](unsigned char character) {
+            return static_cast<char>(character >= 'A' && character <= 'Z' ? character + ('a' - 'A') : character);
+        });
         return lowerInput;
     }
 

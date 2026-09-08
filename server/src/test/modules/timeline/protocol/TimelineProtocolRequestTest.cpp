@@ -189,6 +189,44 @@ TEST_F(TimelineProtocolRequestTest, SystemViewOverallReqParams) {
     params.endTime = 1;
     res = params.CheckParams(0, msg);
     EXPECT_EQ(res, false);
+    params.startTime = 0;
+    params.endTime = 0;
+    params.customClassificationRules.resize(51, {"Custom", {"keyword"}});
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules = {{"RMSNorm", {}}};
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].keywords = std::vector<std::string>(20, "rms_norm");
+    EXPECT_TRUE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].keywords.emplace_back("rms_norm");
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].keywords = {"rms_norm"};
+    params.customClassificationRules.push_back({" RMSNorm ", {"other"}, false});
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    EXPECT_EQ(msg, "Duplicate custom classification category.");
+    params.customClassificationRules[1].category = "rmsnorm";
+    EXPECT_TRUE(params.CheckParams(0, msg));
+    params.customClassificationRules.resize(1);
+    params.customClassificationRules[0].category = " \t";
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].category = "Matmul";
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].category = " \tMatmul\n";
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].category = "RMSNorm";
+    params.customClassificationRules[0].keywords = {" \n"};
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].keywords = {std::string(200, 'a')};
+    EXPECT_TRUE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].keywords = {std::string(100, 'a'), std::string(100, 'b')};
+    EXPECT_FALSE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].keywords = {"custom"};
+    params.customClassificationRules[0].category.clear();
+    for (size_t i = 0; i < 50; i++) {
+        params.customClassificationRules[0].category += "\xE5\x88\x86";
+    }
+    EXPECT_TRUE(params.CheckParams(0, msg));
+    params.customClassificationRules[0].category += "\xE5\x88\x86";
+    EXPECT_FALSE(params.CheckParams(0, msg));
 }
 
 TEST_F(TimelineProtocolRequestTest, TestUnitThreadsOperatorsParams) {

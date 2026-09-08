@@ -93,7 +93,7 @@ void QueryOverallMoreDetailsHandler::GetComputingOverallMetricDetails(
     }
     if (!overallHelper.kernelEvents.empty()) {
         overallHelper.needResponse = true;
-        overallHelper.CategorizeComputingEvents(); // 分类kernelEvents
+        overallHelper.CategorizeComputingEvents(params.customClassificationRules); // 分类kernelEvents
         // 按入参请求过滤kernelEvents, 去除一级目录
         std::vector<std::string> tempList(params.categoryList.begin() + 1, params.categoryList.end());
         std::vector<SameOperatorsDetails> filteredEvents =

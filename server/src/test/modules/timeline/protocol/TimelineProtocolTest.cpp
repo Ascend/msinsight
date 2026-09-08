@@ -25,6 +25,55 @@
 
 class TimelineProtocolTest : ProtocolTest {};
 
+TEST_F(ProtocolTest, ToSystemViewOverallRequestWithCustomClassificationRules) {
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::document_t json;
+    json.Parse(R"({"id":1,"moduleName":"timeline","type":"request","command":"systemView/overall","params":{
+        "rankId":"0","current":1,"pageSize":10,"customClassificationRules":[{
+            "category":"RMSNorm","keywords":["rms_norm","rmsnorm"],"splitByDirection":false}]}})");
+
+    auto request = timelineProtocol.FromJson(json, error);
+
+    ASSERT_NE(request, nullptr);
+    auto *overallRequest = dynamic_cast<Dic::Protocol::SystemViewOverallRequest *>(request.get());
+    ASSERT_NE(overallRequest, nullptr);
+    ASSERT_EQ(overallRequest->params.customClassificationRules.size(), 1);
+    EXPECT_EQ(overallRequest->params.customClassificationRules[0].category, "RMSNorm");
+    EXPECT_EQ(overallRequest->params.customClassificationRules[0].keywords.size(), 2);
+    EXPECT_FALSE(overallRequest->params.customClassificationRules[0].splitByDirection);
+    json.Parse(
+        R"({"id":1,"moduleName":"timeline","type":"request","command":"systemView/overall","params":{"customClassificationRules":{}}})");
+    EXPECT_EQ(timelineProtocol.FromJson(json, error), nullptr);
+    json.Parse(
+        R"({"id":1,"moduleName":"timeline","type":"request","command":"systemView/overall","params":{"customClassificationRules":[{"category":"Custom","keywords":[1]}]}})");
+    EXPECT_EQ(timelineProtocol.FromJson(json, error), nullptr);
+    json.Parse(
+        R"({"id":1,"moduleName":"timeline","type":"request","command":"systemView/overall","params":{"customClassificationRules":[{"category":"Custom","keywords":["x"],"splitByDirection":"true"}]}})");
+    EXPECT_EQ(timelineProtocol.FromJson(json, error), nullptr);
+}
+
+TEST_F(ProtocolTest, ToSystemViewOverallMoreDetailsRequestWithCustomClassificationRules) {
+    Dic::Protocol::TimelineProtocol timelineProtocol;
+    timelineProtocol.Register();
+    std::string error;
+    Dic::document_t json;
+    json.Parse(R"({"id":1,"moduleName":"timeline","type":"request","command":"systemView/overall/more/details",
+        "params":{"rankId":"0","current":1,"pageSize":10,"categoryList":["Computing Time","RMSNorm"],
+        "customClassificationRules":[{"category":"RMSNorm","keywords":["rms_norm"]}]}})");
+
+    auto request = timelineProtocol.FromJson(json, error);
+
+    ASSERT_NE(request, nullptr);
+    auto *detailsRequest = dynamic_cast<Dic::Protocol::SystemViewOverallMoreDetailsRequest *>(request.get());
+    ASSERT_NE(detailsRequest, nullptr);
+    ASSERT_EQ(detailsRequest->params.customClassificationRules.size(), 1);
+    EXPECT_EQ(detailsRequest->params.customClassificationRules[0].category, "RMSNorm");
+    EXPECT_EQ(detailsRequest->params.customClassificationRules[0].keywords, (std::vector<std::string>{"rms_norm"}));
+    EXPECT_TRUE(detailsRequest->params.customClassificationRules[0].splitByDirection);
+}
+
 TEST_F(ProtocolTest, ToImportActionRequestTest) {
     const uint64_t tempId = 89;
     Dic::Protocol::TimelineProtocol timelineProtocol;
@@ -659,6 +708,7 @@ TEST_F(ProtocolTest, ToSystemViewOverallResponseTest) {
                 {1.0, 30, 3, 4.0, 5.0, 3.0, "matmal", {}}}},
         {2.0, 40, 5, 4.0, 5.0, 3.0, "communication", {}},
     };
+    response.unmatchedCustomClassificationKeywords = {"missing_keyword"};
     response.pageParam.total = response.details.size();
 
     std::optional<Dic::document_t> jsonOptional = timelineProtocol.ToJson(response, error);
@@ -667,6 +717,9 @@ TEST_F(ProtocolTest, ToSystemViewOverallResponseTest) {
     EXPECT_EQ(jsonOptional.value()["body"].HasMember("data"), true);
     EXPECT_EQ(jsonOptional.value()["body"]["data"].IsArray(), true);
     EXPECT_EQ(jsonOptional.value()["body"]["data"].Size(), response.details.size());
+    ASSERT_TRUE(jsonOptional.value()["body"].HasMember("unmatchedCustomClassificationKeywords"));
+    EXPECT_EQ(std::string(jsonOptional.value()["body"]["unmatchedCustomClassificationKeywords"][0].GetString()),
+        "missing_keyword");
     size_t i = 0;
     for (auto &item : jsonOptional.value()["body"]["data"].GetArray()) {
         EXPECT_EQ(item["name"].GetString(), response.details[i].name);

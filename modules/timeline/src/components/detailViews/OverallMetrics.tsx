@@ -19,6 +19,7 @@
 import { observer } from 'mobx-react';
 import { fetchColumnFilterProps, ResizeTable } from '@insight/lib/resize';
 import type { ColumnsType } from 'antd/es/table';
+import { message, Tag } from 'antd';
 import { DragDirection, useDraggableContainer } from '@insight/lib';
 import React, { useEffect, useRef, useState } from 'react';
 import { ChartErrorBoundary } from '../error/ChartErrorBoundary';
@@ -26,6 +27,7 @@ import { MoreContainer, StyledMoreCard } from '../BottomPanel';
 import { store } from '../../store';
 import { getOverallMetrics, getOverallMetricsMoreList } from '../../api/request';
 import type {
+    CustomClassificationRule,
     GetOverallMetricsMoreListResultItem,
     GetOverallMetricsResultItem,
 } from '../../api/interface';
@@ -41,9 +43,31 @@ import { StyledEmpty } from '@insight/lib/utils';
 import type { SelectContentViewProps } from './SystemView';
 import { getTimeOffset } from '../../insight/units/utils';
 import { ResponseValidator } from '../../utils/response-validator';
+import { ClassificationRules, loadClassificationRules } from './ClassificationRules';
 
-export const overallMetricsColumns = (t: TFunction): ColumnsType<GetOverallMetricsResultItem> => [
-    { title: t('Category'), dataIndex: 'name', ellipsis: true },
+export const overallMetricsColumns = (
+    t: TFunction, classificationRules?: React.ReactNode, customCategoryNames: ReadonlySet<string> = new Set(),
+    classificationT: TFunction = t,
+): ColumnsType<GetOverallMetricsResultItem> => [
+    {
+        key: JSON.stringify([...customCategoryNames]),
+        title: t('Category'),
+        dataIndex: 'name',
+        ellipsis: true,
+        render: (name: string, record: GetOverallMetricsResultItem): React.ReactNode => {
+            const isComputing = name === 'Computing Time' && record.level === 1;
+            const isCustomCategory = record.level === 2 && record.categoryList?.[0] === 'Computing Time' &&
+                customCategoryNames.has(name);
+            if (!isComputing && !isCustomCategory) {
+                return name;
+            }
+            return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span>{name}</span>
+                {isComputing && classificationRules}
+                {isCustomCategory && <Tag color="blue" style={{ marginRight: 0, padding: '0 4px', fontSize: 10, lineHeight: '14px' }}>{classificationT('Custom Badge')}</Tag>}
+            </span>;
+        },
+    },
     { title: t('Total Time(us)'), dataIndex: 'totalTime' },
     {
         title: t('Time Ratio'),
@@ -80,20 +104,33 @@ interface OverallMetricsTableProps extends SelectContentViewProps {
     session: Session;
     selectedRow?: GetOverallMetricsResultItem | null;
     setSelectedRow: (row: GetOverallMetricsResultItem | null) => void;
+    customClassificationRules: CustomClassificationRule[];
+    classificationRulesTrigger: React.ReactNode;
+    onDataLoaded: (rules: CustomClassificationRule[], unmatchedKeywords: string[]) => void;
 }
 
-const OverallMetricsTable = observer(({ bottomHeight, card, session, selectedRow, setSelectedRow }: OverallMetricsTableProps) => {
+const OverallMetricsTable = observer(({
+    bottomHeight, card, session, selectedRow, setSelectedRow, customClassificationRules,
+    classificationRulesTrigger, onDataLoaded,
+}: OverallMetricsTableProps) => {
     const defaultPage = { current: 1, pageSize: 10, total: 0 };
     const [tableData, setTableData] = useState<GetOverallMetricsResultItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [page, setPage] = useState(defaultPage);
+    const requestVersionRef = useRef(0);
+    const requestAbortRef = useRef<AbortController>();
     const cardPhase = session.units.find((unit) => (unit.metadata as CardMetaData).cardId === card.cardId)?.phase;
     const { t } = useTranslation('timeline', { keyPrefix: 'tableHead' });
+    const { t: classificationT } = useTranslation('timeline', { keyPrefix: 'classificationRules' });
 
     async function getOverallMetricsData(): Promise<void> {
         if (!card || card.cardId === '') {
             return;
         }
+        const requestVersion = ++requestVersionRef.current;
+        requestAbortRef.current?.abort();
+        const requestController = new AbortController();
+        requestAbortRef.current = requestController;
         setLoading(true);
         try {
             const rankId = card.cardId;
@@ -103,28 +140,39 @@ const OverallMetricsTable = observer(({ bottomHeight, card, session, selectedRow
             let endTime = session.timeAnalysisRange?.[1] ?? 0;
             endTime = endTime < 0 ? 0 : endTime;
             const timestampoffset = getTimeOffset(session, card);
-            const { data, count: total } = await getOverallMetrics({
+            const { data, count: total, unmatchedCustomClassificationKeywords } = await getOverallMetrics({
                 rankId,
                 dbPath,
                 pageSize: page.pageSize,
                 current: page.current,
                 startTime: Math.floor(startTime + timestampoffset),
                 endTime: Math.ceil(endTime + timestampoffset),
-            });
+                customClassificationRules,
+            }, requestController.signal);
+            if (requestVersion !== requestVersionRef.current) {
+                return;
+            }
             setPage({ ...page, total });
-            setTableData(data ?? []);
-            setLoading(false);
+            const metricsData = data ?? [];
+            setTableData(metricsData);
+            onDataLoaded(customClassificationRules, unmatchedCustomClassificationKeywords ?? []);
         } catch (e) {
-            setLoading(false);
+            if (requestVersion !== requestVersionRef.current) {
+                return;
+            }
             setTableData([]);
             setPage(defaultPage);
+        } finally {
+            if (requestVersion === requestVersionRef.current) {
+                setLoading(false);
+            }
         }
     }
 
     useEffect(() => {
         getOverallMetricsData();
         setSelectedRow(null);
-    }, [card.cardId, session.timeAnalysisRange]);
+    }, [card.cardId, session.timeAnalysisRange, customClassificationRules]);
 
     useEffect(() => {
         if (cardPhase === 'download') {
@@ -132,10 +180,16 @@ const OverallMetricsTable = observer(({ bottomHeight, card, session, selectedRow
         }
     }, [cardPhase, session.timeAnalysisRange]);
 
+    useEffect(() => () => {
+        requestVersionRef.current++;
+        requestAbortRef.current?.abort();
+    }, []);
+
     return <ResizeTable
         rowKey={'id'}
         dataSource={tableData}
-        columns={overallMetricsColumns(t)}
+        columns={overallMetricsColumns(t, classificationRulesTrigger,
+            new Set(customClassificationRules.map(rule => rule.category)), classificationT)}
         loading={loading}
         scroll={{ y: bottomHeight - 146 }}
         pagination={getPageData(page, setPage)}
@@ -159,8 +213,9 @@ const OverallMetricsTable = observer(({ bottomHeight, card, session, selectedRow
 
 interface OverallMetricsMoreProps extends SelectContentViewProps {
     selectedRow?: GetOverallMetricsResultItem | null;
+    customClassificationRules: CustomClassificationRule[];
 }
-const OverallMetricsMoreTable = observer(({ card, session, selectedRow, bottomHeight }: OverallMetricsMoreProps) => {
+const OverallMetricsMoreTable = observer(({ card, session, selectedRow, bottomHeight, customClassificationRules }: OverallMetricsMoreProps) => {
     const [selectedRowId, setSelectedRowId] = useState<string>();
     const { t } = useTranslation('timeline', { keyPrefix: 'tableHead' });
 
@@ -168,6 +223,7 @@ const OverallMetricsMoreTable = observer(({ card, session, selectedRow, bottomHe
         session,
         card,
         selectedRow,
+        customClassificationRules,
     });
 
     const rowEvents = (record: GetOverallMetricsMoreListResultItem): React.HTMLAttributes<any> => {
@@ -213,7 +269,7 @@ const OverallMetricsMoreTable = observer(({ card, session, selectedRow, bottomHe
     ></ResizeTable>;
 });
 
-export type MetricsMoreUpdaterType = ({ session, card, selectedRow }: Pick<OverallMetricsMoreProps, 'session' | 'card' | 'selectedRow'>) => ({
+export type MetricsMoreUpdaterType = ({ session, card, selectedRow, customClassificationRules }: Pick<OverallMetricsMoreProps, 'session' | 'card' | 'selectedRow' | 'customClassificationRules'>) => ({
     page: PageType;
     setPage: (args: PageType) => void;
     sorter: SorterResult<GetOverallMetricsMoreListResultItem>;
@@ -223,7 +279,7 @@ export type MetricsMoreUpdaterType = ({ session, card, selectedRow }: Pick<Overa
     tableData: GetOverallMetricsMoreListResultItem[];
 });
 
-const useMetricsMoreUpdater: MetricsMoreUpdaterType = ({ session, card, selectedRow }) => {
+const useMetricsMoreUpdater: MetricsMoreUpdaterType = ({ session, card, selectedRow, customClassificationRules }) => {
     const defaultPage = { current: 1, pageSize: 10, total: 0 };
     const defaultSorter: SorterResult<GetOverallMetricsMoreListResultItem> = { field: 'duration', order: 'descend' };
     const [page, setPage] = useState<PageType>(defaultPage);
@@ -257,6 +313,7 @@ const useMetricsMoreUpdater: MetricsMoreUpdaterType = ({ session, card, selected
             current: page.current,
             startTime: Math.floor(startTime + timestampoffset),
             endTime: Math.ceil(endTime + timestampoffset),
+            customClassificationRules,
         }).finally(() => {
             setLoading(false);
         });
@@ -264,7 +321,7 @@ const useMetricsMoreUpdater: MetricsMoreUpdaterType = ({ session, card, selected
             page: { ...page, pageSize, current, total },
             data: sameOperatorsDetails.map(item => ({ ...item, startTime: getDetailTimeDisplay(item.timestamp) })) ?? [],
         };
-    }, [card?.cardId, card?.dbPath, filters.name, sorter.order, sorter.field, page.pageSize, page.current, session.timeAnalysisRange]);
+    }, [card?.cardId, card?.dbPath, filters.name, sorter.order, sorter.field, page.pageSize, page.current, session.timeAnalysisRange, customClassificationRules]);
 
     useEffect(() => {
         isMountedRef.current = true;
@@ -315,13 +372,45 @@ export const OverallMetrics = observer((props: SelectContentViewProps) => {
     const [view] = useDraggableContainer({ dragDirection: DragDirection.RIGHT, draggableWH: 400 });
     // 定义并初始化selectedRow状态，用于存储选中的行数据
     const [selectedRow, setSelectedRow] = useState<GetOverallMetricsResultItem | null>();
-    const { t } = useTranslation();
+    const [customClassificationRules, setCustomClassificationRules] = useState<CustomClassificationRule[]>(loadClassificationRules);
+    const pendingValidationRules = useRef<CustomClassificationRule[] | null>(null);
+    const { t } = useTranslation('timeline');
+    const applyClassificationRules = (rules: CustomClassificationRule[]): void => {
+        pendingValidationRules.current = rules.length > 0 ? rules : null;
+        setCustomClassificationRules(rules);
+    };
+    const validateClassificationRules = (
+        requestedRules: CustomClassificationRule[], unmatchedKeywords: string[],
+    ): void => {
+        if (pendingValidationRules.current !== requestedRules) {
+            return;
+        }
+        pendingValidationRules.current = null;
+        const unmatchedKeywordSet = new Set(unmatchedKeywords);
+        const unmatchedRuleDescriptions = requestedRules.map(rule => {
+            const ruleUnmatchedKeywords = [...new Set(rule.keywords.filter(keyword => unmatchedKeywordSet.has(keyword)))];
+            return ruleUnmatchedKeywords.length === 0
+                ? ''
+                : `{${t('classificationRules.No Match Rule', {
+                    category: rule.category,
+                    keywords: ruleUnmatchedKeywords.join(t('classificationRules.Keyword Separator')),
+                })}}`;
+        }).filter(Boolean);
+        if (unmatchedRuleDescriptions.length > 0) {
+            message.warning(t('classificationRules.No Match', {
+                rules: unmatchedRuleDescriptions.join(t('classificationRules.No Match Rule Separator')),
+            }));
+        }
+    };
 
     return props.card !== undefined && props.card.cardId !== ''
         ? view({
             mainContainer: session !== undefined
                 ? <OverallMetricsTable {...props} selectedRow={selectedRow} setSelectedRow={setSelectedRow}
-                    session={session}/>
+                    session={session} customClassificationRules={customClassificationRules}
+                    classificationRulesTrigger={<ClassificationRules
+                        rules={customClassificationRules} onApply={applyClassificationRules}/>}
+                    onDataLoaded={validateClassificationRules}/>
                 : <></>,
             draggableContainer: <StyledMoreCard
                 className="moreContainer"
@@ -329,7 +418,8 @@ export const OverallMetrics = observer((props: SelectContentViewProps) => {
                 bordered={false}>
                 <ChartErrorBoundary className={'more-error'}>
                     <MoreContainer>
-                        {session && <OverallMetricsMoreTable {...props} session={session} selectedRow={selectedRow}/>}
+                        {session && <OverallMetricsMoreTable {...props} session={session} selectedRow={selectedRow}
+                            customClassificationRules={customClassificationRules}/>}
                     </MoreContainer>
                 </ChartErrorBoundary>
             </StyledMoreCard>,

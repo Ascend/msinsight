@@ -15,6 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+#include <algorithm>
 #include <gtest/gtest.h>
 #include "FileUtil.h"
 #include "ParamsParser.h"
@@ -22,6 +23,9 @@
 #include "JsonFileParserManager.h"
 #include "KernelParse.h"
 #include "ParserStatusManager.h"
+#include "DataEngine.h"
+#include "RepositoryFactory.h"
+#include "RenderEngine.h"
 #include "TraceTime.h"
 #include "SystemViewOverallRepoFactory.h"
 #include "TraceDatabaseSqlConst.h"
@@ -35,6 +39,10 @@ class SystemViewOverallTextRepoTest : public ::testing::Test {
     static void SetUpTestSuite() {
         // Repo Factory
         SystemViewOverallRepoFactory::Instance();
+        auto repositoryFactory = RepositoryFactory::Instance();
+        auto dataEngine = DataEngine::Instance();
+        dataEngine->SetRepositoryFactory(repositoryFactory);
+        RenderEngine::Instance()->SetDataEngineInterface(dataEngine);
         // database
         std::string currPath = Dic::FileUtil::GetCurrPath();
         const ParamsOption &option = ParamsParser::Instance().GetOption();
@@ -186,7 +194,13 @@ TEST_F(SystemViewOverallTextRepoTest, QueryDataForComputingOverallMetricTestWith
     bool result = repoPtr->QueryDataForComputingOverallMetric(requestParams, computeHelper, database);
     EXPECT_EQ(result, true);
     EXPECT_EQ(computeHelper.cpuCubeOps.size(), 24); // 24
+    EXPECT_TRUE(std::is_sorted(computeHelper.cpuCubeOps.begin(), computeHelper.cpuCubeOps.end(),
+        [](const CpuCubeOpInfo &left, const CpuCubeOpInfo &right) {
+            return left.start < right.start || (left.start == right.start && left.end < right.end);
+        }));
     EXPECT_EQ(computeHelper.kernelEvents.size(), 185); // 185
+    EXPECT_TRUE(std::all_of(computeHelper.kernelEvents.begin(), computeHelper.kernelEvents.end(),
+        [](const OverallTmpInfo &event) { return event.flowStartTime == 0 || event.flowStartTrackId != 0; }));
     EXPECT_EQ(computeHelper.bwdTrackId, 2); // 2
     computeHelper.CategorizeComputingEvents();
     computeHelper.AggregateComputingOverallMetrics(details);

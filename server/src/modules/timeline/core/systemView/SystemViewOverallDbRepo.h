@@ -50,13 +50,13 @@ class SystemViewOverallDbRepo : public SystemViewOverallRepoInterface {
         BindParamsForGMAndCS bindParamsForGmAndCs);
     static bool CheckDataForSystemViewOverall(const std::shared_ptr<VirtualTraceDatabase> &database);
     static bool GetTmpTableForOverall(const std::shared_ptr<VirtualTraceDatabase> &database);
-    static std::map<uint64_t, uint64_t> QueryFlowDict(const Protocol::SystemViewOverallReqParam &requestParams,
+    static std::map<uint64_t, FlowStartInfo> QueryFlowDict(const Protocol::SystemViewOverallReqParam &requestParams,
         const std::shared_ptr<VirtualTraceDatabase> &database, int deviceId);
     std::vector<CpuCubeOpInfo> QueryCpuCubeOp(const Protocol::SystemViewOverallReqParam &requestParams,
         const std::shared_ptr<VirtualTraceDatabase> &database);
     std::vector<OverallTmpInfo> QueryKernelEventsForSystemViewOverall(
         const Protocol::SystemViewOverallReqParam &requestParams, const std::shared_ptr<VirtualTraceDatabase> &database,
-        const std::map<uint64_t, uint64_t> &flowDict, int deviceId);
+        const std::map<uint64_t, FlowStartInfo> &flowDict, int deviceId);
     static void QueryBwdTrackIdForComputingOverall(
         const std::shared_ptr<VirtualTraceDatabase> &database, uint64_t &bwdTrackId);
     std::string GetOrUpdateStringCacheValue(

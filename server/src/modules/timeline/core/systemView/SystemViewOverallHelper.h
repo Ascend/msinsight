@@ -19,11 +19,14 @@
 #ifndef PROFILER_SERVER_SYSTEMVIEWOVERALLHELPER_H
 #define PROFILER_SERVER_SYSTEMVIEWOVERALLHELPER_H
 
+#include <algorithm>
+#include <cctype>
 #include <string>
 #include <vector>
 #include "StringUtil.h"
 #include "ServerLog.h"
 #include "TimelineProtocolResponse.h"
+#include "TimelineProtocolRequest.h"
 
 using namespace Dic::Protocol;
 namespace Dic::Module::Timeline {
@@ -52,6 +55,7 @@ const std::vector<std::string> OVERALL_FLASH_MASK = {
 const std::vector<std::string> OVERALL_MATMUL_MASK = {"aten::addmm", "aten::bmm", "aten::mm", "aten::matmul"};
 const std::string OVERALL_CONV_MASK = "aten::conv";
 const std::vector<std::string> OVERALL_BWD_MASK = {"bwd", "backward", "back", "grad"};
+const std::vector<std::string> OVERALL_CUSTOM_BWD_MASK = {"backward", "bwd", "grad"};
 
 // 按算子名称opName或类型opType过滤NPU算子
 const std::string OVERALL_PAGED_ATTENTION_OP_MASK = "pagedattention";
@@ -63,19 +67,40 @@ const std::string OVERALL_MATMUL_OP_MASK = "matmul";
 const std::vector<std::string> OVERALL_BWD_OP_MASK = {"bwd", "grad"};
 const std::vector<std::string> OVERALL_TRANS_MASK = {"cast", "transdata", "transpose"};
 
+struct FlowStartInfo {
+    uint64_t time{};
+    uint64_t trackId{};
+};
+
+// 历史命名：CpuCubeOpInfo/cubeOp 表示参与 Computing 分类的 Host API 候选，不代表关联 Kernel 最终为 Cube。
 struct CpuCubeOpInfo {
     std::string pythonApi;
-    bool isCubeOp = false;
+    bool isCubeOp = false; // 是否保留为 Host 候选
+    bool isBuiltInOp = false; // 是否由内置规则命中，用于保证关联优先级
+    size_t customRuleIndex{};
     uint64_t trackId{};
     uint64_t start{};
     uint64_t end{};
 
-    void CheckCubeOp() {
+    // 历史命名：CheckCubeOp 实际判断是否保留该 Host 候选；内置候选额外记录来源。
+    void CheckCubeOp(const std::vector<CustomClassificationRule> &customRules) {
         std::string nameLower = StringUtil::ToLower(pythonApi);
         if (StringUtil::ContainAnyOfSubStr(nameLower, OVERALL_FLASH_MASK) || // Flash Attention相关api
             StringUtil::ContainAnyOfSubStr(nameLower, OVERALL_MATMUL_MASK) || // Matmul相关api
             StringUtil::StartWith(nameLower, OVERALL_CONV_MASK)) { // Conv相关api
             isCubeOp = true;
+            isBuiltInOp = true;
+            return;
+        }
+        for (size_t ruleIndex = 0; ruleIndex < customRules.size(); ruleIndex++) {
+            const auto &rule = customRules[ruleIndex];
+            if (std::any_of(rule.keywords.begin(), rule.keywords.end(), [&nameLower](const std::string &keyword) {
+                    return !keyword.empty() && StringUtil::Contains(nameLower, StringUtil::ToLower(keyword));
+                })) {
+                isCubeOp = true;
+                customRuleIndex = ruleIndex;
+                return;
+            }
         }
     }
 };
@@ -88,6 +113,7 @@ struct OverallTmpInfo {
     uint64_t startTime{};
     double duration{};
     uint64_t flowStartTime{};
+    uint64_t flowStartTrackId{};
     double cubeTime{};
     double aicoreTime{};
     double macTime{};
@@ -104,7 +130,7 @@ struct OverallTmpInfo {
 
     bool operator<(const OverallTmpInfo &other) const { return flowStartTime < other.flowStartTime; }
 
-    void GetKernelCategories() {
+    void GetKernelCategories(const std::vector<CustomClassificationRule> &customRules) {
         std::string lowOpName = StringUtil::ToLower(opName);
         std::string lowOpType = StringUtil::ToLower(opType);
         std::string lowPy = StringUtil::ToLower(pythonApi);
@@ -114,8 +140,8 @@ struct OverallTmpInfo {
             StringUtil::Contains(lowOpName, OVERALL_TENSOR_MOVE_OP_MASK)) {
             categoryList.emplace_back(OVERALL_CAT_SDMA);
             categoryList.emplace_back(OVERALL_CAT_TENSOR_MOVE);
-        } else if (flowStartTime != 0 && !pythonApi.empty()) {
-            GetCategoriesByCpuOp(lowPy);
+        } else if (flowStartTime != 0 && !pythonApi.empty() && GetCategoriesByCpuOp(lowPy)) {
+            return;
         } else if (StringUtil::Contains(lowOpType, OVERALL_FLASH_ATTENTION_OP_MASK)) {
             categoryList.emplace_back(OVERALL_CAT_FLASH);
             GetFwdBwdByOpType(lowOpType);
@@ -127,6 +153,8 @@ struct OverallTmpInfo {
         } else if (StringUtil::Contains(lowOpType, OVERALL_MATMUL_OP_MASK)) {
             categoryList.emplace_back(OVERALL_CAT_MATMUL);
             categoryList.emplace_back(OVERALL_CAT_CUBE);
+        } else if (!lowPy.empty() && GetCustomCategoriesByCpuOp(lowPy, customRules)) {
+            return;
         } else if (macTime > 0 || aicoreTime > 0 || cubeTime > 0) {
             categoryList.emplace_back(OVERALL_CAT_OTHER_CUBE);
         } else {
@@ -139,20 +167,20 @@ struct OverallTmpInfo {
         }
     }
 
-    void GetCategoriesByCpuOp(const std::string &lowPy) {
+    bool GetCategoriesByCpuOp(const std::string &lowPy) {
         // flash attention相关 api
         if (StringUtil::ContainAnyOfSubStr(lowPy, OVERALL_FLASH_MASK)) {
             categoryList.emplace_back(OVERALL_CAT_FLASH);
             GetFwdBwd(lowPy);
             GetCubeVec();
-            return;
+            return true;
         }
 
         // matmul相关 api
         if (StringUtil::ContainAnyOfSubStr(lowPy, OVERALL_MATMUL_MASK)) {
             categoryList.emplace_back(OVERALL_CAT_MATMUL);
             GetCubeVec();
-            return;
+            return true;
         }
 
         // conv相关 api
@@ -160,8 +188,26 @@ struct OverallTmpInfo {
             categoryList.emplace_back(OVERALL_CAT_CONV);
             GetFwdBwdByTid(lowPy);
             GetCubeVec();
-            return;
+            return true;
         }
+        return false;
+    }
+
+    bool GetCustomCategoriesByCpuOp(
+        const std::string &lowPy, const std::vector<CustomClassificationRule> &customRules) {
+        for (const auto &rule : customRules) {
+            if (std::any_of(rule.keywords.begin(), rule.keywords.end(), [&lowPy](const std::string &keyword) {
+                    return !keyword.empty() && StringUtil::Contains(lowPy, StringUtil::ToLower(keyword));
+                })) {
+                categoryList.emplace_back(rule.category);
+                if (rule.splitByDirection) {
+                    GetCustomFwdBwdByTid(lowPy);
+                }
+                GetCubeVec();
+                return true;
+            }
+        }
+        return false;
     }
 
     void GetFwdBwd(const std::string &lowPy) {
@@ -179,6 +225,30 @@ struct OverallTmpInfo {
         } else {
             GetFwdBwd(lowPy);
         }
+    }
+
+    static bool ContainsBoundedMarker(const std::string &value, const std::string &marker) {
+        size_t pos = value.find(marker);
+        while (pos != std::string::npos) {
+            const size_t end = pos + marker.size();
+            const bool leftBoundary = pos == 0 || !std::isalnum(static_cast<unsigned char>(value[pos - 1]));
+            const bool rightBoundary = end == value.size() || !std::isalnum(static_cast<unsigned char>(value[end]));
+            if (leftBoundary && rightBoundary) {
+                return true;
+            }
+            pos = value.find(marker, pos + 1);
+        }
+        return false;
+    }
+
+    void GetCustomFwdBwdByTid(const std::string &lowPy) {
+        if (isInBwdTrack ||
+            std::any_of(OVERALL_CUSTOM_BWD_MASK.begin(), OVERALL_CUSTOM_BWD_MASK.end(),
+                [&lowPy](const std::string &marker) { return ContainsBoundedMarker(lowPy, marker); })) {
+            categoryList.emplace_back(OVERALL_CAT_BACKWARD);
+            return;
+        }
+        categoryList.emplace_back(OVERALL_CAT_FORWARD);
     }
 
     void GetFwdBwdByOpType(const std::string &lowOpType) {
@@ -208,7 +278,9 @@ class SystemViewOverallHelper {
     double e2eTime{};
     // 每行结果返回一个唯一id
     uint32_t idCounter{};
-    void CategorizeComputingEvents();
+    void CategorizeComputingEvents(const std::vector<CustomClassificationRule> &customRules = {});
+    std::vector<std::string> GetUnmatchedCustomClassificationKeywords(
+        const std::vector<CustomClassificationRule> &customRules) const;
     std::vector<SameOperatorsDetails> FilterComputingEventsByCategory(
         const std::vector<std::string> &expectList, uint64_t minTimeStamp, const std::string &opName);
     void AggregateComputingOverallMetrics(std::vector<SystemViewOverallRes> &responseBody);

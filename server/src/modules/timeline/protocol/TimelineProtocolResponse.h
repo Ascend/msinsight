@@ -440,6 +440,7 @@ struct CommunicationSummaryInfoByGroup {
 struct SystemViewOverallResponse : public Response {
     SystemViewOverallResponse() : Response(REQ_RES_SYSTEM_VIEW_OVERALL) {}
     std::vector<SystemViewOverallRes> details;
+    std::vector<std::string> unmatchedCustomClassificationKeywords;
     PageParam pageParam;
     bool isLoading = false;
 };

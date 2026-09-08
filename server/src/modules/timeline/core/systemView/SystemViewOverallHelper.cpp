@@ -17,33 +17,90 @@
  */
 
 #include "SystemViewOverallHelper.h"
+#include <unordered_map>
 
 using namespace Dic::Server;
 namespace Dic::Module::Timeline {
-void SystemViewOverallHelper::CategorizeComputingEvents() {
-    size_t cpuCubeOpsIndex = 0;
+void SystemViewOverallHelper::CategorizeComputingEvents(const std::vector<CustomClassificationRule> &customRules) {
+    struct CandidateCursor {
+        std::vector<const CpuCubeOpInfo *> ops;
+        size_t index{};
+    };
+    struct TrackCandidates {
+        CandidateCursor builtIn;
+        std::vector<CandidateCursor> customByRule;
+    };
+    std::unordered_map<uint64_t, TrackCandidates> candidatesByTrack;
+    for (const auto &cpuOp : cpuCubeOps) {
+        auto &trackCandidates = candidatesByTrack[cpuOp.trackId];
+        if (cpuOp.isBuiltInOp) {
+            trackCandidates.builtIn.ops.push_back(&cpuOp);
+        } else {
+            trackCandidates.customByRule.resize(customRules.size());
+            trackCandidates.customByRule[cpuOp.customRuleIndex].ops.push_back(&cpuOp);
+        }
+    }
+    auto findAssociatedOp = [](CandidateCursor &cursor, uint64_t flowStartTime) -> const CpuCubeOpInfo * {
+        while (cursor.index < cursor.ops.size() && cursor.ops[cursor.index]->end < flowStartTime) {
+            cursor.index++;
+        }
+        if (cursor.index >= cursor.ops.size()) {
+            return nullptr;
+        }
+        const auto *cpuOp = cursor.ops[cursor.index];
+        return cpuOp->start <= flowStartTime ? cpuOp : nullptr;
+    };
     for (auto &kernelEvent : kernelEvents) {
         if (kernelEvent.flowStartTime == 0) {
-            kernelEvent.GetKernelCategories();
+            kernelEvent.GetKernelCategories(customRules);
             continue;
         }
         // 根据flow start time寻找kernel event对应的python api
         // 注意这里寻找的不是flow start相连的api本身，而是所对应的上层api（方便后续按api名称过滤）
-        while (cpuCubeOpsIndex < cpuCubeOps.size() && cpuCubeOps[cpuCubeOpsIndex].end < kernelEvent.flowStartTime) {
-            cpuCubeOpsIndex++;
+        const CpuCubeOpInfo *curOp = nullptr;
+        auto trackIt = candidatesByTrack.find(kernelEvent.flowStartTrackId);
+        if (trackIt != candidatesByTrack.end()) {
+            curOp = findAssociatedOp(trackIt->second.builtIn, kernelEvent.flowStartTime);
+            if (curOp == nullptr) {
+                for (auto &customCandidates : trackIt->second.customByRule) {
+                    curOp = findAssociatedOp(customCandidates, kernelEvent.flowStartTime);
+                    if (curOp != nullptr) {
+                        break;
+                    }
+                }
+            }
         }
-        if (cpuCubeOpsIndex < cpuCubeOps.size() && cpuCubeOps[cpuCubeOpsIndex].start <= kernelEvent.flowStartTime) {
-            CpuCubeOpInfo curOp = cpuCubeOps[cpuCubeOpsIndex];
-            kernelEvent.pythonApi = curOp.pythonApi;
-            kernelEvent.isInBwdTrack = (curOp.trackId == bwdTrackId);
+        if (curOp != nullptr) {
+            kernelEvent.pythonApi = curOp->pythonApi;
+            kernelEvent.isInBwdTrack = (curOp->trackId == bwdTrackId);
         }
-        kernelEvent.GetKernelCategories();
+        kernelEvent.GetKernelCategories(customRules);
     }
     if (kernelEvents.empty()) {
         ServerLog::Warn(
             "No valid kernels found when querying computing data in system view overall. Please ensure "
             "that the profiling data is set to level 1 or higher and aic_metrics is set to PipeUtilization.");
     }
+}
+
+std::vector<std::string> SystemViewOverallHelper::GetUnmatchedCustomClassificationKeywords(
+    const std::vector<CustomClassificationRule> &customRules) const {
+    std::vector<std::string> unmatchedKeywords;
+    if (kernelEvents.empty()) {
+        return unmatchedKeywords;
+    }
+    for (const auto &rule : customRules) {
+        for (const auto &keyword : rule.keywords) {
+            bool matched =
+                std::any_of(kernelEvents.begin(), kernelEvents.end(), [&keyword](const OverallTmpInfo &event) {
+                    return !event.pythonApi.empty() && StringUtil::ContainsIgnoreCase(event.pythonApi, keyword);
+                });
+            if (!matched) {
+                unmatchedKeywords.emplace_back(keyword);
+            }
+        }
+    }
+    return unmatchedKeywords;
 }
 
 std::vector<SameOperatorsDetails> SystemViewOverallHelper::FilterComputingEventsByCategory(
@@ -94,9 +151,11 @@ void SystemViewOverallHelper::AggregateComputingOverallMetrics(std::vector<Syste
     }
     std::sort(responseBody[0].children.begin(), responseBody[0].children.end(), CompareByName);
     double otherComputingTime = responseBody[0].totalTime;
-    for (auto &item : responseBody[0].children) {
+    for (const auto &item : responseBody[0].children) {
         otherComputingTime -= item.totalTime;
     }
+    constexpr int decimalPlaces = 2;
+    otherComputingTime = NumberUtil::DoubleReservedNDigits(otherComputingTime, decimalPlaces);
     if (otherComputingTime > 0) {
         SystemViewOverallRes tempRes;
         tempRes.totalTime = otherComputingTime;
