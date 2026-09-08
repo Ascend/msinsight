@@ -10,3 +10,4 @@ packages:
   - 'timeline'
   - 'reinforcement-learning'
   - 'memory-on-chip'
+  - 'numa'

@@ -20,6 +20,14 @@ import { runInAction } from 'mobx';
 import { register } from './register';
 import type { Session } from '../entity/session';
 import { checkCardIsIE } from './actionGenerateCurve';
+import connector from '../connection';
+
+const syncTimeAnalysisRange = (session: Session): void => {
+    connector.send({
+        event: 'updateSession',
+        body: { timeAnalysisRange: session.timeAnalysisRange ?? null },
+    });
+};
 
 const timeRangeAnalysisMenuVisible = (session: Session): boolean => {
     // Ftrace 数据暂时不支持时间范围分析
@@ -67,6 +75,7 @@ const timeRangeAnalysis = (session: Session): void => {
             session.mMaskRange = [session.selectedRange[0], session.selectedRange[1]];
         }
     });
+    syncTimeAnalysisRange(session);
 };
 
 const removeTimeRangeAnalysis = (session: Session): void => {
@@ -77,6 +86,7 @@ const removeTimeRangeAnalysis = (session: Session): void => {
         session.mKeyRender = false;
         session.mMaskRange = [];
     });
+    syncTimeAnalysisRange(session);
 };
 
 const timeRangeAnalysisAndZoomIn = (session: Session): void => {
@@ -100,6 +110,7 @@ const timeRangeAnalysisAndZoomIn = (session: Session): void => {
             session.mMaskRange = [session.selectedRange[0], session.selectedRange[1]];
         }
     });
+    syncTimeAnalysisRange(session);
 };
 
 const applyTimeRangeAnalysis = (session: Session): void => {
@@ -120,6 +131,7 @@ const applyTimeRangeAnalysis = (session: Session): void => {
             session.mMaskRange = [selectedData.startTime, selectedData.startTime + selectedData.duration];
         }
     });
+    syncTimeAnalysisRange(session);
 };
 
 export const actionTimeRangeAnalysis = register({

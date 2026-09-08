@@ -126,6 +126,7 @@ export interface ImportResultBody {
     isMultiDevice: boolean; // 判断是否是单Host多Device项目
     children: ImportTreeInfo[];
     isIE: boolean;
+    hasNumaData: boolean;
 }
 
 export interface ImportRankInfo {

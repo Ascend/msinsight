@@ -42,6 +42,14 @@ export const updateSessionHandler = (e: NotificationMessage): void => {
         session.timelinePageInfo.unitCount = updateState.unitcount;
     }
 
+    if (updateState.timeAnalysisRange !== undefined) {
+        connector.send({
+            event: 'updateSession',
+            body: { timeAnalysisRange: session.timeAnalysisRange },
+            to: 'NUMA',
+        });
+    }
+
     setTimeout(() => {
         const isSend =
             (updateState.parseCompleted !== undefined ||
@@ -77,7 +85,10 @@ export const updateSession = (receiver: Record<string, any>): Record<string, any
         // 1.receiver的字段key在session中存在
         // 2.receiver[key]的类型（例如string、boolean)与session[key]也相同，或者session[key]当前为null
         const isSameType = Object.prototype.toString.call(receiver[key]) === Object.prototype.toString.call(session[key as keyof Session]);
-        const valid = sessionPropKeys.includes(key) && (isSameType || session[key as keyof Session] === null);
+        const isTimeAnalysisRange = key === 'timeAnalysisRange' &&
+            (receiver[key] === null || (Array.isArray(receiver[key]) && receiver[key].length === 2));
+        const valid = sessionPropKeys.includes(key) &&
+            (isSameType || session[key as keyof Session] === null || isTimeAnalysisRange);
         if (valid) {
             Object.assign(updateState, { [key]: receiver[key] });
         } else {

@@ -11,6 +11,7 @@ const SYNC_CONFIG = [
     { folder: 'operator', targetName: 'Operator' },
     { folder: 'statistic', targetName: 'Statistic' },
     { folder: 'timeline', targetName: 'Timeline' },
+    { folder: 'numa', targetName: 'NUMA' },
 ];
 
 const __dirname = path.resolve();

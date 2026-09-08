@@ -43,6 +43,7 @@ MODULES_MAP = {
     'leaks': 'Leaks',
     'memory-on-chip': 'MemoryOnChip',
     'timeline': 'Timeline',
+    'numa': 'NUMA',
 }
 
 BUILD_PROCESS_COUNT = 3
