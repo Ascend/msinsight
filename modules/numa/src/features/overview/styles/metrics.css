@@ -1,0 +1,69 @@
+.metric-strip {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.metric-card {
+    min-height: 54px;
+    padding: 8px 10px;
+    color: var(--text);
+    text-align: left;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface);
+    cursor: pointer;
+}
+
+.metric-card:hover,
+.metric-card:focus-visible {
+    border-color: var(--primary);
+    background: var(--surface-hover);
+    outline: none;
+}
+
+.metric-card span,
+.metric-card strong {
+    display: block;
+}
+
+.metric-card span {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.metric-card .metric-label-with-help,
+.detail-row .metric-label-with-help {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    gap: 4px;
+}
+
+.metric-card .metric-label-with-help > span:first-child,
+.detail-row .metric-label-with-help > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.metric-card .metric-help,
+.detail-row .metric-help {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    padding: 0;
+    cursor: help;
+}
+
+.metric-card strong {
+    margin-top: 5px;
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0;
+}
