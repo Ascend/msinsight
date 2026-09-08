@@ -1,0 +1,155 @@
+.numa-diagram {
+    display: block;
+    flex: 0 0 auto;
+    max-width: none;
+    max-height: none;
+    margin: 0 auto;
+}
+
+.diagram-bg {
+    fill: var(--surface);
+}
+
+.socket,
+.numa-node,
+.memory-node,
+.connection {
+    cursor: pointer;
+}
+
+.socket > rect {
+    fill: var(--socket);
+    stroke: var(--border-strong);
+    stroke-width: 1;
+    transition: fill 120ms ease, stroke 120ms ease;
+}
+
+.socket:hover > rect,
+.socket.selected > rect {
+    fill: var(--primary-soft);
+    stroke: var(--primary);
+    stroke-width: 2;
+}
+
+.socket-title {
+    fill: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.socket-impact {
+    fill: var(--muted);
+    font-size: 11px;
+    font-weight: 400;
+    pointer-events: none;
+}
+
+.numa-node rect {
+    fill: var(--numa);
+    stroke: var(--primary);
+    stroke-width: 1;
+    transition: fill 120ms ease, stroke 120ms ease;
+}
+
+.numa-node:hover rect,
+.numa-node.selected rect {
+    fill: var(--primary);
+    stroke: var(--primary);
+    stroke-width: 2;
+}
+
+.numa-title {
+    fill: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+}
+
+.numa-value {
+    fill: var(--muted);
+    font-size: 9px;
+    pointer-events: none;
+}
+
+.numa-node:hover .numa-title,
+.numa-node.selected .numa-title,
+.numa-node:hover .numa-value,
+.numa-node.selected .numa-value {
+    fill: #ffffff;
+}
+
+.memory-node rect {
+    fill: var(--dram);
+    stroke: var(--border-strong);
+    stroke-width: 1;
+    transition: fill 120ms ease, stroke 120ms ease;
+}
+
+.memory-node:hover rect,
+.memory-node.selected rect {
+    fill: var(--primary-soft);
+    stroke: var(--primary);
+    stroke-width: 2;
+}
+
+.memory-node text {
+    fill: var(--text);
+    font-size: 10px;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.connection-line {
+    stroke: var(--line);
+    stroke-width: 2;
+    opacity: 0.8;
+    transition: stroke 120ms ease, stroke-width 120ms ease;
+}
+
+.connection.socket .connection-line {
+    stroke-width: 2;
+    opacity: 0.55;
+}
+
+.connection:hover .connection-line,
+.connection.selected .connection-line {
+    stroke: var(--primary);
+    stroke-width: 3;
+    opacity: 1;
+}
+
+.connection-hit {
+    stroke: transparent;
+    stroke-width: 18;
+}
+
+.connection-metric-label {
+    fill: var(--muted);
+    stroke: var(--surface);
+    stroke-width: 3px;
+    paint-order: stroke;
+    stroke-linejoin: round;
+    font-size: 10px;
+    font-weight: 500;
+    pointer-events: none;
+}
+
+.connection-metric-arrow {
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.connection:hover .connection-metric-label,
+.connection.selected .connection-metric-label {
+    fill: var(--primary);
+}
+
+.arrow-marker {
+    fill: var(--line);
+}
+
+.connection:hover .arrow-marker,
+.connection.selected .arrow-marker {
+    fill: var(--primary);
+}
