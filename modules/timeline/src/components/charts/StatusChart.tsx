@@ -132,7 +132,10 @@ export const StatusChart = observer(({
     const canvas = useRef<HTMLCanvasElement>(null);
     const { action: drawExt = (): void => { }, triggers = [] } = decorator?.(session, metadata) ?? {};
 
-    const dataState = useData({ session, mapFunc, unit, metadata, width, processor: zipStatusData });
+    // Summary data covers the whole trace; zoom only needs to redraw it with the new domain.
+    const dataState = useData({
+        session, mapFunc, unit, metadata, width, processor: zipStatusData, refetchOnDomainChange: false,
+    });
     const rangeAndDomain = useRangeAndDomain(session, width, margin);
 
     const mousePosX = useHoverPosX(canvasContainer);
@@ -167,7 +170,7 @@ export const StatusChart = observer(({
         draw({ ctx, data: dataState, xScale, yScale, theme, startY });
         drawExt({
             context: ctx,
-            draw: (data, scaleX, scaleY) => draw({ ctx, data: data, xScale: scaleX, yScale: scaleY, theme, startY }),
+            draw: (data, scaleX, scaleY) => draw({ ctx, data, xScale: scaleX, yScale: scaleY, theme, startY }),
             findAll: (condition) => dataState.filter(condition),
         }, xScale, yScale, theme);
     }, [dataState, rangeAndDomain, ...triggers, theme, unit.isExpanded]);

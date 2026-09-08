@@ -804,6 +804,14 @@ export function drawForegroundTargetLayer(target: ForegroundTarget | null | unde
     return targetItem;
 }
 
+function isCounterOnlyUnit(unit: InsightUnit): boolean {
+    if (unit.name === 'Counter') {
+        return true;
+    }
+    const children = unit.children;
+    return children !== undefined && children.length > 0 && children.every(isCounterOnlyUnit);
+}
+
 async function createSummaryChart<T extends ProcessMetaData | LabelMetaData>(
     metaData: T,
     session: Session,
@@ -826,12 +834,12 @@ async function createSummaryChart<T extends ProcessMetaData | LabelMetaData>(
 
     const requestKey = createStatusParam('unit/threadTracesSummary', requestParam);
     try {
-        // Counter类型泳道去除无效缩略图请求
-        if (unit !== undefined && unit?.children?.[0].name === 'Counter') {
+        // 仅包含 Counter 的层级不支持缩略图，跳过无效请求
+        if (unit !== undefined && isCounterOnlyUnit(unit)) {
             return [];
         }
         if (unit !== undefined) {
-            unit.isSummaryLoading = true;
+            runInAction(() => { unit.isSummaryLoading = true; });
         }
         const hardwareDbPaths = metaData.metaType === 'Ascend Hardware' ? getHardwareSummaryDbPaths(unit) : [];
         if (hardwareDbPaths.length > 1) {
@@ -847,15 +855,9 @@ async function createSummaryChart<T extends ProcessMetaData | LabelMetaData>(
                     return [];
                 }
             }));
-            if (unit !== undefined) {
-                unit.isSummaryLoading = false;
-            }
             return mergeSummaryStatusData(sourceData.flat());
         }
         const request: any = await session.simpleCache.tryFetchFromCache('unit/threadTracesSummary', requestKey, requestParam);
-        if (unit !== undefined) {
-            unit.isSummaryLoading = false;
-        }
         const resProcess = (result: any): StatusData[] => {
             if (result === undefined) {
                 return [];
@@ -889,6 +891,10 @@ async function createSummaryChart<T extends ProcessMetaData | LabelMetaData>(
         return resProcess(request);
     } catch (e) {
         return [];
+    } finally {
+        if (unit !== undefined) {
+            runInAction(() => { unit.isSummaryLoading = false; });
+        }
     }
 }
 
