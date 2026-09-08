@@ -77,7 +77,11 @@ import {
     type LifecycleGraphLayer,
     type LifecycleGraphLayerVisibility,
 } from './LifecycleGraphLayerPanel';
-import { ALLOCATION_LINE_STYLES } from '../../leaksWorker/blockWorker/allocationLineStyles';
+import {
+    ALLOCATION_LINE_STYLES,
+    DEFAULT_ALLOCATION_LINE_VISIBILITY,
+    type AllocationLineKey,
+} from '../../leaksWorker/blockWorker/allocationLineStyles';
 import { isHostMemoryEventType } from '../../utils/utils';
 
 const BASE_MOVE_STEP = 5;
@@ -140,15 +144,25 @@ const AllocationLineLegend = styled.div`
     border: 1px solid ${(props): string => props.theme.borderColorLight};
     border-radius: 4px;
     box-shadow: ${(props): string => props.theme.boxShadow};
-    pointer-events: none;
     user-select: none;
 `;
 
-const AllocationLineLegendItem = styled.span`
+const AllocationLineLegendItem = styled.button<{ $visible: boolean }>`
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    line-height: inherit;
     white-space: nowrap;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    opacity: ${(props): number => props.$visible ? 1 : 0.4};
+
+    &:hover { opacity: ${(props): number => props.$visible ? 0.75 : 0.55}; }
+    &:focus-visible { outline: 2px solid ${(props): string => props.theme.primaryColor}; outline-offset: 2px; }
 `;
 
 const AllocationLineLegendMark = styled.span<{ $color: string }>`
@@ -221,6 +235,9 @@ export const MemoryBlockDiagram = observer(({
     const [layerVisibility, setLayerVisibility] = useState<LifecycleGraphLayerVisibility>({
         ...DEFAULT_LAYER_VISIBILITY,
     });
+    const [allocationLineVisibility, setAllocationLineVisibility] = useState<AllocationLineVisibility>({
+        ...DEFAULT_ALLOCATION_LINE_VISIBILITY,
+    });
     const visibleAllocationLineStyles = ALLOCATION_LINE_STYLES.filter(
         style => session.allocationData.allocationLineAvailability?.[style.key] === true,
     ).map(style => (
@@ -230,6 +247,7 @@ export const MemoryBlockDiagram = observer(({
             : style
     ));
     const layerVisibilityRef = useRef(layerVisibility);
+    const allocationLineVisibilityRef = useRef(allocationLineVisibility);
     const isDragging = useRef(false);
     const isClick = useRef(false);
     const dragStartPoint = useRef({ x: 0, y: 0 });
@@ -281,6 +299,19 @@ export const MemoryBlockDiagram = observer(({
         workerSetMarkerHoverHighlight({ active: false });
     };
 
+    const publishCanvasLayerVisibility = (
+        layers: LifecycleGraphLayerVisibility = layerVisibilityRef.current,
+        allocationLines: AllocationLineVisibility = allocationLineVisibilityRef.current,
+    ): void => {
+        workerSetBlockGraphLayerVisibility({
+            visibility: {
+                blocks: layers.blocks,
+                overview: layers.overview,
+                allocationLines,
+            },
+        });
+    };
+
     const toggleLayerVisibility = (layer: LifecycleGraphLayer): void => {
         const next = { ...layerVisibilityRef.current, [layer]: !layerVisibilityRef.current[layer] };
         layerVisibilityRef.current = next;
@@ -289,12 +320,22 @@ export const MemoryBlockDiagram = observer(({
             clearBlockHover();
         }
         if (layer === 'blocks' || layer === 'overview') {
-            workerSetBlockGraphLayerVisibility({ visibility: { blocks: next.blocks, overview: next.overview } });
+            publishCanvasLayerVisibility(next);
         }
         if (layer === 'markers' && !next.markers) {
             closeMarkerManagement();
             workerSetMarkerHoverHighlight({ active: false });
         }
+    };
+
+    const toggleAllocationLineVisibility = (key: AllocationLineKey): void => {
+        const next = {
+            ...allocationLineVisibilityRef.current,
+            [key]: !allocationLineVisibilityRef.current[key],
+        };
+        allocationLineVisibilityRef.current = next;
+        setAllocationLineVisibility(next);
+        publishCanvasLayerVisibility(layerVisibilityRef.current, next);
     };
 
     const createMemoryMarker = (
@@ -639,16 +680,14 @@ export const MemoryBlockDiagram = observer(({
         }
         previousDataContextKeyRef.current = lifecycleDataContextKey;
         const defaultLayerVisibility = { ...DEFAULT_LAYER_VISIBILITY };
+        const defaultAllocationLineVisibility = { ...DEFAULT_ALLOCATION_LINE_VISIBILITY };
         layerVisibilityRef.current = defaultLayerVisibility;
+        allocationLineVisibilityRef.current = defaultAllocationLineVisibility;
         setLayerVisibility(defaultLayerVisibility);
+        setAllocationLineVisibility(defaultAllocationLineVisibility);
         xZoomModeRef.current = DEFAULT_X_ZOOM_MODE;
         setXZoomMode(DEFAULT_X_ZOOM_MODE);
-        workerSetBlockGraphLayerVisibility({
-            visibility: {
-                blocks: defaultLayerVisibility.blocks,
-                overview: defaultLayerVisibility.overview,
-            },
-        });
+        publishCanvasLayerVisibility(defaultLayerVisibility, defaultAllocationLineVisibility);
         resetTransform();
         closeMarkerManagement();
         clearBlockHover();
@@ -821,10 +860,23 @@ export const MemoryBlockDiagram = observer(({
                 />
                 {layerVisibility.overview && visibleAllocationLineStyles.length > 0
                     ? <AllocationLineLegend data-testid="allocationLineLegend">
-                        {visibleAllocationLineStyles.map(style => <AllocationLineLegendItem key={style.key}>
-                            <AllocationLineLegendMark $color={style.color} aria-hidden="true" />
-                            <span>{t(style.labelKey)}</span>
-                        </AllocationLineLegendItem>)}
+                        {visibleAllocationLineStyles.map(style => {
+                            const visible = allocationLineVisibility[style.key];
+                            return <AllocationLineLegendItem
+                                key={style.key}
+                                type="button"
+                                $visible={visible}
+                                aria-pressed={visible}
+                                data-testid={`allocationLineLegend-${style.key}`}
+                                onClick={(event): void => {
+                                    event.stopPropagation();
+                                    toggleAllocationLineVisibility(style.key);
+                                }}
+                            >
+                                <AllocationLineLegendMark $color={style.color} aria-hidden="true" />
+                                <span>{t(style.labelKey)}</span>
+                            </AllocationLineLegendItem>;
+                        })}
                     </AllocationLineLegend>
                     : <></>}
                 <MarkLineBlock session={session} />

@@ -77,6 +77,14 @@ describe('lifecycle graph layer rendering', () => {
         painter.renderAllocationLines(OPTIONS);
 
         expect(context.stroke).toHaveBeenCalledTimes(3);
+
+        context.stroke.mockClear();
+        painter.renderAllocationLines(OPTIONS, {
+            reservedLine: false,
+            processUsedLine: true,
+            deviceUsedLine: false,
+        });
+        expect(context.stroke).toHaveBeenCalledTimes(1);
     });
 
     it('renders WebGL programs only for visible layers', () => {
@@ -122,12 +130,26 @@ describe('lifecycle graph layer rendering', () => {
         expect(deviceUsed.render).toHaveBeenCalledTimes(1);
 
         overview.render.mockClear();
+        processUsed.render.mockClear();
+        deviceUsed.render.mockClear();
         painter.render(OPTIONS, { blocks: true, overview: false });
         expect(blocks.render).toHaveBeenCalledTimes(1);
         expect(highlighted.render).toHaveBeenCalledTimes(1);
         expect(outlined.render).toHaveBeenCalledTimes(1);
         expect(overview.render).not.toHaveBeenCalled();
-        expect(processUsed.render).toHaveBeenCalledTimes(1);
+        expect(processUsed.render).not.toHaveBeenCalled();
+        expect(deviceUsed.render).not.toHaveBeenCalled();
+
+        overview.render.mockClear();
+        processUsed.render.mockClear();
+        deviceUsed.render.mockClear();
+        painter.render(OPTIONS, {
+            blocks: false,
+            overview: true,
+            allocationLines: { reservedLine: true, processUsedLine: false, deviceUsedLine: true },
+        });
+        expect(overview.render).toHaveBeenCalledTimes(1);
+        expect(processUsed.render).not.toHaveBeenCalled();
         expect(deviceUsed.render).toHaveBeenCalledTimes(1);
     });
 });

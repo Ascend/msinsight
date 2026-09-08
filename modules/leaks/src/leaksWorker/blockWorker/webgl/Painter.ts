@@ -21,9 +21,11 @@ import { MemoryBlockBorderProgram } from './programs/MemoryBlockBorderProgram';
 import { ReservedLineProgram } from './programs/ReservedLineProgram';
 import shaders from './shaders';
 import {
+    ALLOCATION_LINE_STYLES,
     DEVICE_USED_LINE_STYLE,
     PROCESS_USED_LINE_STYLE,
     RESERVED_LINE_STYLE,
+    isAllocationLineVisible,
 } from '../allocationLineStyles';
 
 export class Painter {
@@ -149,9 +151,16 @@ export class Painter {
             this.memoryBlockBorderHightlightProgram?.render(options);
         }
         if (visibility.overview) {
-            this.reservedLineProgram?.render(options);
-            this.processUsedLineProgram?.render(options);
-            this.deviceUsedLineProgram?.render(options);
+            const linePrograms = {
+                reservedLine: this.reservedLineProgram,
+                processUsedLine: this.processUsedLineProgram,
+                deviceUsedLine: this.deviceUsedLineProgram,
+            };
+            ALLOCATION_LINE_STYLES.forEach(style => {
+                if (isAllocationLineVisible(visibility.allocationLines, style.key)) {
+                    linePrograms[style.key]?.render(options);
+                }
+            });
         }
         gl.disable(gl.BLEND);
     }
