@@ -291,7 +291,10 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                                 session.eventType = value;
                             });
                         }}
-                        options={session.typeOpts}
+                        options={session.typeOpts.map((option: { label: string | number; value: string | number }) => ({
+                            ...option,
+                            label: option.value === 'BLOCK' ? 'PTA_BLOCK' : option.label,
+                        }))}
                     />
                     {session.module === 'memsnapshot' ? <PotentialLeakStats session={session} /> : <></>}
                     <div id="barContent" style={{ overflow: 'hidden', padding: 0, position: 'relative' }}>
