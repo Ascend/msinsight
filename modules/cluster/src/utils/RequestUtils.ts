@@ -33,6 +33,9 @@ import {
 } from './interface';
 import { createCancelableApi, createSmartDebounceRequestFunc } from '@insight/lib/utils';
 import { store } from '../store';
+import type { AnalysisChartData, OperatorTimeInfo } from '../components/communication/CommunicationTimeAnalysisChart';
+import type { DataItem } from '../components/communication/CommunicationTimeChart';
+import type { CommunicationAdvice } from '../components/communication/CommunicationDuration/AdviceLabel';
 
 type ParamsWithClusterPath<T> = T & {
     clusterPath?: string;
@@ -112,8 +115,64 @@ interface CommunicationDurationParams {
     baselineGroupIdHash: string;
 }
 
-export const queryCommunication = async(param: CommunicationDurationParams): Promise<any> => {
-    return window.requestData('communication/duration/list', withClusterPath(param));
+const COMMUNICATION_DURATION_LIST_PAGE_SIZE = 1000;
+
+export interface CommunicationDurationResponse {
+    items: DataItem[];
+    advice: CommunicationAdvice[];
+    total?: number;
+}
+
+const validateDurationPage = (
+    page: CommunicationDurationResponse,
+    expectedTotal: number,
+    currentPage: number,
+    firstPage: CommunicationDurationResponse,
+): void => {
+    const offset = (currentPage - 1) * COMMUNICATION_DURATION_LIST_PAGE_SIZE;
+    const expectedLength = Math.min(COMMUNICATION_DURATION_LIST_PAGE_SIZE, Math.max(0, expectedTotal - offset));
+    if (page.total !== expectedTotal || !Array.isArray(page.items) || page.items.length !== expectedLength ||
+        !Array.isArray(page.advice) || JSON.stringify(page.advice) !== JSON.stringify(firstPage.advice)) {
+        throw new Error('Communication duration pagination metadata changed while loading');
+    }
+};
+
+export const queryCommunication = async(
+    param: CommunicationDurationParams,
+    isLatestRequest: () => boolean = () => true,
+): Promise<CommunicationDurationResponse | undefined> => {
+    let currentPage = 1;
+    let firstPage: CommunicationDurationResponse | undefined;
+    const mergedItems: DataItem[] = [];
+    for (;;) {
+        const page = await window.requestData('communication/duration/list', withClusterPath({
+            ...param,
+            currentPage,
+            pageSize: COMMUNICATION_DURATION_LIST_PAGE_SIZE,
+        })) as CommunicationDurationResponse;
+        if (!isLatestRequest()) {
+            return undefined;
+        }
+        if (firstPage === undefined) {
+            firstPage = page;
+            if (page.total === undefined) {
+                return page;
+            }
+            if (!Number.isSafeInteger(page.total) || page.total < 0 || !Array.isArray(page.advice)) {
+                throw new Error('Invalid communication duration pagination metadata');
+            }
+        }
+        const expectedTotal = firstPage.total;
+        if (expectedTotal === undefined) {
+            return firstPage;
+        }
+        validateDurationPage(page, expectedTotal, currentPage, firstPage);
+        mergedItems.push(...page.items);
+        if (mergedItems.length >= expectedTotal) {
+            return { items: mergedItems, advice: firstPage.advice };
+        }
+        currentPage++;
+    }
 };
 
 /**
@@ -132,8 +191,62 @@ export const queryCommunicationExpertAdvisor = async(): Promise<any> => {
  * @param {number[]} rankIds
  * @param {string} operatorName 算子名
  */
-export const queryCommunicationOperatorLists = async(param: CommunicationDurationParams): Promise<any> => {
-    return window.requestData('communication/operatorLists', withClusterPath(param));
+const COMMUNICATION_OPERATOR_LIST_PAGE_SIZE = 1000;
+
+export interface CommunicationOperatorListsResponse extends AnalysisChartData {
+    total?: number;
+}
+
+const validateOperatorListPage = (
+    page: CommunicationOperatorListsResponse,
+    expectedTotal: number,
+    currentPage: number,
+    firstPage: CommunicationOperatorListsResponse,
+): void => {
+    const offset = (currentPage - 1) * COMMUNICATION_OPERATOR_LIST_PAGE_SIZE;
+    const expectedLength = Math.min(COMMUNICATION_OPERATOR_LIST_PAGE_SIZE, Math.max(0, expectedTotal - offset));
+    if (page.total !== expectedTotal || page.minTime !== firstPage.minTime || page.maxTime !== firstPage.maxTime ||
+        !Array.isArray(page.data) || page.data.length !== expectedLength) {
+        throw new Error('Communication operator pagination metadata changed while loading');
+    }
+};
+
+export const queryCommunicationOperatorLists = async(
+    param: CommunicationDurationParams,
+    isLatestRequest: () => boolean = () => true,
+): Promise<CommunicationOperatorListsResponse | undefined> => {
+    let currentPage = 1;
+    let firstPage: CommunicationOperatorListsResponse | undefined;
+    const mergedData: OperatorTimeInfo[] = [];
+    for (;;) {
+        const page = await window.requestData('communication/operatorLists', withClusterPath({
+            ...param,
+            currentPage,
+            pageSize: COMMUNICATION_OPERATOR_LIST_PAGE_SIZE,
+        })) as CommunicationOperatorListsResponse;
+        if (!isLatestRequest()) {
+            return undefined;
+        }
+        if (firstPage === undefined) {
+            firstPage = page;
+            if (page.total === undefined) {
+                return page;
+            }
+            if (!Number.isSafeInteger(page.total) || page.total < 0) {
+                throw new Error('Invalid communication operator pagination total');
+            }
+        }
+        const expectedTotal = firstPage.total;
+        if (expectedTotal === undefined) {
+            return firstPage;
+        }
+        validateOperatorListPage(page, expectedTotal, currentPage, firstPage);
+        mergedData.push(...page.data);
+        if (mergedData.length >= expectedTotal) {
+            return { minTime: firstPage.minTime, maxTime: firstPage.maxTime, data: mergedData };
+        }
+        currentPage++;
+    }
 };
 
 /**
