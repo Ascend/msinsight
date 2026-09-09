@@ -98,9 +98,12 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
         setDurationLoading(true);
         const requestConditions = { ...newConditions, isCompare: session.isCompare };
 
-        void queryCommunicationOperatorLists(requestConditions)
+        void queryCommunicationOperatorLists(
+            requestConditions,
+            () => operatorRequestId === latestOperatorRequestId.current,
+        )
             .then(data => {
-                if (operatorRequestId === latestOperatorRequestId.current) {
+                if (data !== undefined && operatorRequestId === latestOperatorRequestId.current) {
                     setShowData(previousData => ({ ...previousData, analysisChartData: data }));
                 }
             })
@@ -111,9 +114,12 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
                 }
             });
 
-        void queryCommunication(requestConditions)
+        void queryCommunication(
+            requestConditions,
+            () => durationRequestId === latestDurationRequestId.current,
+        )
             .then(res => {
-                if (durationRequestId === latestDurationRequestId.current) {
+                if (res !== undefined && durationRequestId === latestDurationRequestId.current) {
                     setShowData(previousData => ({ ...previousData, ...parseDurationData(res, session.isCompare) }));
                 }
             })
@@ -128,13 +134,16 @@ const CommunicationAnalysis = observer(({ session, active = true }: { session: S
     const handleOperatorAlignment = (targetOperator?: ClickOperatorItem): void => {
         const requestId = ++latestOperatorRequestId.current;
         setOperatorLoading(true);
-        void queryCommunicationOperatorLists({
-            ...conditions,
-            targetOperatorName: targetOperator?.name ?? '',
-            isCompare: session.isCompare,
-        })
+        void queryCommunicationOperatorLists(
+            {
+                ...conditions,
+                targetOperatorName: targetOperator?.name ?? '',
+                isCompare: session.isCompare,
+            },
+            () => requestId === latestOperatorRequestId.current,
+        )
             .then(data => {
-                if (requestId === latestOperatorRequestId.current) {
+                if (data !== undefined && requestId === latestOperatorRequestId.current) {
                     setShowData(previousData => ({ ...previousData, analysisChartData: data }));
                 }
             })
