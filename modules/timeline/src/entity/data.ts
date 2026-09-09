@@ -712,11 +712,22 @@ export interface CounterMetaData extends MetaDataInnerBase {
     dataType: string[];
 }
 
+export interface ThreadSource {
+    cardId: string;
+    dbPath: string;
+    processId?: string;
+    threadId: string;
+    threadName: string;
+    sourceLabel?: string;
+    metaType?: string;
+}
+
 export interface ThreadMetaData extends MetaDataInnerBase {
     processId?: string;
     processName?: string;
     threadId: string;
     threadIdList?: string[];
+    threadSourceList?: ThreadSource[];
     threadName: string;
     sourceLabel?: string;
     groupNameValue: string;

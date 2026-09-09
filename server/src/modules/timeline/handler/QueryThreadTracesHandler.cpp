@@ -90,7 +90,7 @@ bool QueryThreadTracesHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
 std::string QueryThreadTracesHandler::GetRequestKey(Request &requestPtr) {
     UnitThreadTracesRequest &request = dynamic_cast<UnitThreadTracesRequest &>(requestPtr);
     std::vector<std::string> keyContentList = {request.command, request.params.cardId, request.params.dbPath,
-        request.params.processId, request.params.threadId};
+        request.params.processId, request.params.threadId, StringUtil::join(request.params.threadIdList, ",")};
     return StringUtil::join(keyContentList, "_");
 }
 

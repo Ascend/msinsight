@@ -28,6 +28,7 @@ import type {
 } from '../../entity/insight';
 import type { ForegroundTarget, MapValueOfLinkLines, SearchData, SelectedDataType, Session } from '../../entity/session';
 import { hashToNumber } from '../../utils/colorUtils';
+import { logger } from '../../utils/Logger';
 import type {
     AscendSliceDetail,
     CardMetaData,
@@ -516,15 +517,64 @@ export const ThreadUnit = unit<ThreadMetaData>({
             const requestParams = getThreadTracesRequestParams(session, threadMetaData, timestampOffset);
             try {
                 thisUnit.isTraceLoading = true;
-                const request = await window.request(requestParams.dataSource as DataSource, { command: 'unit/threadTraces', params: requestParams }, { silent: true }).finally(() => {
+                const sources = threadMetaData.threadSourceList ?? [{
+                    cardId: threadMetaData.cardId ?? '',
+                    dbPath: threadMetaData.dbPath ?? '',
+                    processId: threadMetaData.processId,
+                    threadId: threadMetaData.threadId,
+                    threadName: threadMetaData.threadName,
+                    metaType: threadMetaData.metaType,
+                }];
+                const requests: any[] = await Promise.all(sources.map(async source => {
+                    try {
+                        return await window.request(
+                            (source.dbPath === '' ? threadMetaData.dataSource : source.dbPath) as DataSource,
+                            {
+                                command: 'unit/threadTraces',
+                                params: {
+                                    ...requestParams,
+                                    cardId: source.cardId,
+                                    dbPath: source.dbPath,
+                                    processId: source.processId,
+                                    threadId: source.threadId,
+                                    threadIdList: undefined,
+                                    metaType: source.metaType ?? threadMetaData.metaType,
+                                },
+                            }, { silent: true },
+                        );
+                    } catch (error) {
+                        logger('ThreadUnit', `Failed to load merged stream ${source.threadId} from ${source.dbPath}: ${String(error)}`, 'warn');
+                        return undefined;
+                    }
+                })).finally(() => {
                     thisUnit.isTraceLoading = false;
                 });
-
-                if (request === undefined) {
+                const validRequests = requests.map((request, index) => ({ request, index }))
+                    .filter((item): item is { request: any; index: number } => item.request !== undefined);
+                if (validRequests.length === 0) {
                     return [];
                 }
-
-                const { data: threadTraceList, maxDepth, currentMaxDepth, havePythonFunction } = request;
+                const sourceData = validRequests.flatMap(item => (item.request.data ?? []).flatMap((row: any[]) => row.map((data: any) => ({
+                    ...data,
+                    dbPath: sources[item.index].dbPath,
+                    threadId: data.threadId ?? sources[item.index].threadId,
+                }))));
+                const sortedData = sourceData.slice().sort((first: any, second: any) => {
+                    if (first.startTime !== second.startTime) { return first.startTime - second.startTime; }
+                    return (first.duration ?? 0) - (second.duration ?? 0);
+                });
+                const depthEndTimes: number[] = [];
+                sortedData.forEach(data => {
+                    const endTime = data.startTime + data.duration;
+                    let depth = depthEndTimes.findIndex(end => end <= data.startTime);
+                    if (depth === -1) { depth = depthEndTimes.length; }
+                    depthEndTimes[depth] = endTime;
+                    data.depth = depth;
+                });
+                const maxDepth = depthEndTimes.length;
+                const currentMaxDepth = maxDepth;
+                const havePythonFunction = validRequests.some(item => item.request.havePythonFunction);
+                const threadTraceList = depthEndTimes.map((_, depth) => sortedData.filter(data => data.depth === depth));
 
                 if (thisUnit) {
                     let activeMaxDepth = session.autoAdjustUnitHeight ? currentMaxDepth : maxDepth;
