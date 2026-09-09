@@ -19,7 +19,7 @@
 import { runInAction } from 'mobx';
 import { register } from './register';
 import type { Session } from '../entity/session';
-import { ThreadMetaData } from '../entity/data';
+import { ThreadMetaData, type ThreadSource } from '../entity/data';
 import { type ChartDesc, InsightUnit, UnitHeight } from '../entity/insight';
 import { message } from 'antd';
 import type { StackStatusConfig } from '../entity/chart';
@@ -84,7 +84,7 @@ const canMergeUnitList = (units: InsightUnit[]): boolean => {
     return threadIds.length > 0 && !unitParent.children.some(unit => hasSameThreadIds(unit, threadIds));
 };
 
-const getThreadNameList = (threadIds: string[], firstUnit: InsightUnit): string[] => {
+export const getThreadNameList = (threadIds: string[], firstUnit: InsightUnit): string[] => {
     const childrenUnits = firstUnit.parent?.children ?? [];
     const threadMap = new Map<string, ThreadMetaData>();
 
@@ -95,10 +95,38 @@ const getThreadNameList = (threadIds: string[], firstUnit: InsightUnit): string[
         }
     }
 
-    return threadIds.sort().map(threadId => {
+    return [...threadIds].sort((first, second) => Number(first) - Number(second)).map(threadId => {
         const meta = threadMap.get(threadId);
-        return meta?.threadName?.replace(/^Stream\s*/, '') ?? '';
+        return meta?.threadName?.replace(/^Stream\s*/, '') ?? threadId;
     });
+};
+
+const extractThreadSources = (units: InsightUnit[]): ThreadSource[] => units.flatMap(unit => {
+    const metadata = unit.metadata as ThreadMetaData;
+    return metadata.threadSourceList ?? [{
+        cardId: metadata.cardId ?? '',
+        dbPath: metadata.dbPath ?? '',
+        processId: metadata.processId,
+        threadId: metadata.threadId,
+        threadName: metadata.threadName,
+        sourceLabel: metadata.sourceLabel,
+        metaType: metadata.metaType,
+    }];
+});
+
+export const getMergedThreadDisplayName = (sources: ThreadSource[], legacyNameList: string[]): string => {
+    const sourceLabels = Array.from(new Set(sources.map(source => source.sourceLabel).filter(Boolean)));
+    const dbPaths = new Set(sources.map(source => source.dbPath).filter(Boolean));
+    const isMultiThreadSource = sourceLabels.length > 0 || dbPaths.size > 1;
+    const legacyName = `Stream Merged (${legacyNameList.join(', ')})`;
+    if (!isMultiThreadSource) {
+        return legacyName;
+    }
+    if (sourceLabels.length === 1) {
+        return `${legacyName} [${sourceLabels[0]}]`;
+    }
+    const threadSummary = sourceLabels.length > 0 ? ` [${sourceLabels.join(', ')}]` : '';
+    return `Stream Merged [${sources.length}]${threadSummary}`;
 };
 
 const getMergedUnitMetaData = (selectedUnits: InsightUnit[]): ThreadMetaData => {
@@ -107,12 +135,15 @@ const getMergedUnitMetaData = (selectedUnits: InsightUnit[]): ThreadMetaData => 
 
     const threadIdList = extractThreadIds(selectedUnits);
     const threadNameList = getThreadNameList(threadIdList, firstUnit);
+    const threadSourceList = extractThreadSources(selectedUnits);
 
     return {
         ...firstMeta,
         threadIdList,
+        threadSourceList,
+        sourceLabel: undefined,
         threadId: '',
-        threadName: `Stream Merged (${threadNameList.join(', ')})`,
+        threadName: getMergedThreadDisplayName(threadSourceList, threadNameList),
     };
 };
 
