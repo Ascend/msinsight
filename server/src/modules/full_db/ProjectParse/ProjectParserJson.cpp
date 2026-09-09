@@ -37,6 +37,7 @@
 #include "ParseUnitManager.h"
 #include "TrackInfoManager.h"
 #include "JsonFileProcess.h"
+#include "ProjectParserPytorchTrace.h"
 
 namespace Dic::Module {
 using namespace Timeline;
@@ -597,13 +598,23 @@ void ProjectParserJson::ParserSingleCardBaseline(
     }
     // 判断项目类型，如果是算子调优数据，则直接解析
     auto projectTypeEnum = static_cast<ProjectTypeEnum>(projectInfos.projectType);
-    // 创建db连接池
+    // 创建db连接池：优先复用导入时写入的 fileId，避免基线库路径和导入不一致。
+    // .pt.trace.json 不能走 GetSingleFileIdWithDb，StemFile 会在第一个 '.' 截断。
     std::string dbPath;
-    // 设置单个json文件作为基线时，db文件名设置为`${该文件名称}_mindstudio_insight_data.db`，和导入单个json的db文件名保持一致
-    // 否则设置单个json作为基线，系统视图卡序号下拉框不会显示基线卡
-    if (StringUtil::EndWith(filePath, ".json")) {
+    auto parseFileInfo = std::find_if(projectInfos.subParseFileInfo.begin(), projectInfos.subParseFileInfo.end(),
+        [&filePath](const auto &item) { return item && item->parseFilePath == filePath && !item->fileId.empty(); });
+    if (parseFileInfo != projectInfos.subParseFileInfo.end()) {
+        dbPath = (*parseFileInfo)->fileId;
+    }
+    // fileId 未命中时再按路径推导。单 json 基线必须带文件名，否则系统视图卡序号下拉框不显示基线卡。
+    if (dbPath.empty() && projectTypeEnum == ProjectTypeEnum::PYTORCH_TRACE) {
+        const std::string ptFile = ProjectParserPytorchTrace::IsPytorchTraceFile(filePath) ? filePath : jsonFiles[0];
+        dbPath = FileUtil::IsFolder(projectInfos.fileName)
+            ? FileUtil::SplicePath(FileUtil::GetParentPath(ptFile), DATABASE_FILE_NAME)
+            : ProjectParserPytorchTrace::GetDirectFileDbPath(ptFile);
+    } else if (dbPath.empty() && StringUtil::EndWith(filePath, ".json")) {
         dbPath = FileUtil::GetSingleFileIdWithDb(filePath);
-    } else {
+    } else if (dbPath.empty()) {
         dbPath = FileUtil::GetDbPath(jsonFiles[0]);
     }
     bool isParsed = DataBaseManager::Instance().IsContainDatabasePath(dbPath);

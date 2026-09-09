@@ -226,6 +226,13 @@ std::optional<ProjectExplorerInfo> ImportActionHandler::BuildProjectInfo(
     ProjectTypeEnum projectType = projectParser->GetProjectType(importPath);
     // 获取文件列表
     std::vector<std::string> tempFiles = projectParser->GetParseFileByImportFile(importPath, warnMsg);
+    // PT Trace解析器使用空列表表示拒绝多PT文件或PT与普通Trace混合导入。
+    // 此处仅限定PT Trace类型，避免改变其他解析器既有的空列表语义。
+    if (allocType == ParserType::PYTORCH_TRACE_JSON && tempFiles.empty()) {
+        ModuleRequestHandler::SetRequestContextError(
+            {.code = static_cast<int>(Dic::Common::ErrorCode::IMPORT_FILE_OTHER_TYPE), .message = warnMsg});
+        return std::nullopt;
+    }
     std::vector<std::string> parseFileList = tempFiles;
     bool isNotCluster = parseFileList.size() == 1 && !ClusterFileParser::CheckIsCluster(parseFileList[0]);
     // 如果未发生异常（warnMsg为空）或集群数据（容忍异常），进行错误重置，否则返回前端

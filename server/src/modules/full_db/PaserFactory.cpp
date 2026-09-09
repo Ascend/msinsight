@@ -51,6 +51,7 @@
 #include "FullDbEnumUtil.h"
 #include "ProjectParserTriton.h"
 #include "ProjectParserFtrace.h"
+#include "ProjectParserPytorchTrace.h"
 #include "DbPlatformDataBase.h"
 
 // clang-format off
@@ -106,6 +107,10 @@ std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::strin
     if (!FileUtil::IsFolder(path) && ProjectParserJson::IsACLGraphDebugJSON(path)) {
         return std::make_pair(path, ParserType::ACLGRPAH_DEBUG_JSON);
     }
+    // 单文件 *.pt.trace.json 也以 .json 结尾，必须在 ExistJsonFormatFile 之前拦下，否则会进通用 JSON。
+    if (!FileUtil::IsFolder(path) && ProjectParserPytorchTrace::IsPytorchTraceFile(path)) {
+        return std::make_pair(path, ParserType::PYTORCH_TRACE_JSON);
+    }
     if (FileUtil::FindIfDbTypeByRegex(path, std::regex(traceViewReg), std::regex(DB_REG))) {
         return std::make_pair(path, ParserType::DB);
     }
@@ -117,6 +122,11 @@ std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::strin
     }
     if (FileUtil::FindIfDbTypeByRegex(path, std::regex(traceViewReg), std::regex(npumonitorDBReg))) {
         return std::make_pair(path, ParserType::DB_NPUMONITOR);
+    }
+    // PT 放在通用 db/json 之后，避免目录里残留 *.pt.trace.json 抢走 CANN/DB 导入。
+    // HasPytorchTraceFile 与 GetParseFileByImportFile 同规则（恰好一个且不与普通 trace 混放），仍递归以支持多层目录。
+    if (ProjectParserPytorchTrace::HasPytorchTraceFile(path)) {
+        return std::make_pair(path, ParserType::PYTORCH_TRACE_JSON);
     }
     return std::make_pair(path, ParserType::OTHER);
 }
@@ -153,6 +163,9 @@ std::shared_ptr<ProjectParserBase> ParserFactory::GetProjectParser(ParserType al
         break;
     case ParserType::DB_FTRACE:
         alloc = std::make_shared<ProjectParserFtrace>();
+        break;
+    case ParserType::PYTORCH_TRACE_JSON:
+        alloc = std::make_shared<ProjectParserPytorchTrace>();
         break;
     default:
         alloc = std::make_shared<ProjectParserBase>();
