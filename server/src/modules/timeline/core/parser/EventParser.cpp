@@ -23,6 +23,7 @@
 #include "SimulationSliceCacheManager.h"
 #include "FileReader.h"
 #include "JsonParseMemPool.h"
+#include "JsonUtil.h"
 #include "EventParser.h"
 
 namespace Dic {
@@ -79,6 +80,11 @@ bool EventParser::Parse(int64_t startPosition, int64_t endPosition) {
         return false;
     }
 
+    struct TimestampOffsetScope {
+        explicit TimestampOffsetScope(int64_t ns) { EventUtil::SetTimestampOffsetNs(ns); }
+        ~TimestampOffsetScope() { EventUtil::SetTimestampOffsetNs(0); }
+    };
+    TimestampOffsetScope timestampOffset(EventUtil::ReadBaseTimeNanosecondsFromFile(filePath));
     for (auto &event : doc.GetArray()) {
         if (ParserStatusManager::Instance().GetParserStatus(fileId) != ParserStatus::RUNNING) {
             return false;
@@ -111,6 +117,22 @@ void EventParser::EventHandle(const json_t &json) {
     }
     if (type.empty()) {
         return;
+    }
+    if (type == "i" || type == "I") {
+        if (JsonUtil::GetString(json, "name") == "[memory]") {
+            Trace::Event *counter = EventUtil::TryToCpuTensorAllocatedCounter(json);
+            if (counter != nullptr) {
+                parseCount++;
+                CounterEventsHandle(counter);
+            } else {
+                ignoreCount++;
+            }
+            return;
+        }
+        if (type == "i") {
+            ignoreCount++;
+            return;
+        }
     }
     if (eventHandleMap.count(type) > 0) {
         parseCount++;

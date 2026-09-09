@@ -17,12 +17,55 @@
  */
 
 #include "pch.h"
+#include "SafeFile.h"
 #include "EventUtil.h"
+#include "ServerLog.h"
 
 namespace Dic {
 namespace Module {
 namespace Timeline {
 using namespace Server;
+namespace {
+thread_local int64_t g_timestampOffsetNs = 0;
+
+bool IsSuccessfulZeroTimestamp(const EventUtil::json_t &json) {
+    if (!json.HasMember("ts") || json["ts"].IsNull()) {
+        return false;
+    }
+    const auto &tsVal = json["ts"];
+    if (tsVal.IsNumber()) {
+        return tsVal.GetDouble() == 0;
+    }
+    if (tsVal.IsString()) {
+        const char *ts = tsVal.GetString();
+        return ts != nullptr && ts[0] == '0';
+    }
+    return false;
+}
+
+int64_t AddTimestampOffset(int64_t ts, int64_t offset) {
+    if (offset > 0 && ts > INT64_MAX - offset) {
+        ServerLog::Warn("Skip timestamp offset due to overflow. ts:", ts, ", offset:", offset);
+        return ts;
+    }
+    if (offset < 0 && ts < INT64_MIN - offset) {
+        ServerLog::Warn("Skip timestamp offset due to overflow. ts:", ts, ", offset:", offset);
+        return ts;
+    }
+    return ts + offset;
+}
+
+int64_t ConvertTsToNs(const EventUtil::json_t &json) {
+    int64_t ts = NumberUtil::ConvertUsStrToNanoseconds(JsonUtil::GetDumpString(json, "ts"));
+    if (g_timestampOffsetNs == 0) {
+        return ts;
+    }
+    if (ts == 0 && !IsSuccessfulZeroTimestamp(json)) {
+        return 0;
+    }
+    return AddTimestampOffset(ts, g_timestampOffsetNs);
+}
+} // namespace
 EventUtil::EventUtil() { Register(); }
 
 EventUtil::~EventUtil() { UnRegister(); }
@@ -74,7 +117,7 @@ std::optional<EventUtil::JsonToEventFunc> EventUtil::GetJsonToEventFunc(const st
 Trace::Event *EventUtil::ToSliceEvent(const json_t &json) {
     thread_local static std::shared_ptr<Slice> event = std::make_shared<Slice>();
     event->type = Type(json);
-    event->ts = NumberUtil::ConvertUsStrToNanoseconds(JsonUtil::GetDumpString(json, "ts"));
+    event->ts = ConvertTsToNs(json);
     event->dur = NumberUtil::ConvertUsStrToNanoseconds(JsonUtil::GetDumpString(json, "dur"));
     event->name = JsonUtil::GetString(json, "name");
     event->tid = JsonUtil::GetDumpString(json, "tid");
@@ -144,7 +187,7 @@ Trace::Event *EventUtil::ToMetaDataEvent(const json_t &json) {
 Trace::Event *EventUtil::ToFlowEvent(const json_t &json) {
     thread_local static std::shared_ptr<Flow> event = std::make_shared<Flow>();
     event->type = Type(json);
-    event->ts = NumberUtil::ConvertUsStrToNanoseconds(JsonUtil::GetDumpString(json, "ts"));
+    event->ts = ConvertTsToNs(json);
     event->tid = JsonUtil::GetDumpString(json, "tid");
     event->pid = JsonUtil::GetDumpString(json, "pid");
     event->flowId = JsonUtil::GetDumpString(json, "id");
@@ -163,10 +206,92 @@ Trace::Event *EventUtil::ToCounterEvent(const json_t &json) {
     }
     event->pid = JsonUtil::GetDumpString(json, "pid");
     event->tid = JsonUtil::GetDumpString(json, "name");
-    event->ts = NumberUtil::ConvertUsStrToNanoseconds(JsonUtil::GetDumpString(json, "ts"));
+    event->ts = ConvertTsToNs(json);
     event->cat = JsonUtil::GetOptionalString(json, "cat");
     event->args = JsonUtil::GetDumpString(json, "args");
     return event.get();
+}
+
+Trace::Event *EventUtil::TryToCpuTensorAllocatedCounter(const json_t &json) {
+    constexpr const char *kMemoryEventName = "[memory]";
+    constexpr const char *kLaneName = "CPU Tensor Allocated";
+    constexpr int64_t kCpuDeviceType = 0;
+    if (JsonUtil::GetString(json, "name") != kMemoryEventName) {
+        return nullptr;
+    }
+    if (!json.HasMember("args") || !json["args"].IsObject()) {
+        return nullptr;
+    }
+    const auto &args = json["args"];
+    if (!args.HasMember("Total Allocated")) {
+        return nullptr;
+    }
+    if (args.HasMember("Device Type") && JsonUtil::GetInteger(args, "Device Type") != kCpuDeviceType) {
+        return nullptr;
+    }
+    thread_local static std::shared_ptr<Counter> event = std::make_shared<Counter>();
+    event->type = Type(json);
+    event->name = kLaneName;
+    event->tid = kLaneName;
+    event->pid = JsonUtil::GetDumpString(json, "pid");
+    event->ts = ConvertTsToNs(json);
+    event->cat = JsonUtil::GetOptionalString(json, "cat");
+    event->args = "{\"Allocated (B)\":" + std::to_string(JsonUtil::GetInteger(args, "Total Allocated")) + "}";
+    return event.get();
+}
+
+void EventUtil::SetTimestampOffsetNs(int64_t ns) { g_timestampOffsetNs = ns; }
+
+int64_t EventUtil::ParseBaseTimeNanoseconds(std::string_view header) {
+    constexpr std::string_view kKey = "\"baseTimeNanoseconds\"";
+    const size_t keyPos = header.find(kKey);
+    if (keyPos == std::string_view::npos) {
+        return 0;
+    }
+    size_t pos = keyPos + kKey.size();
+    while (pos < header.size() &&
+        (header[pos] == ' ' || header[pos] == '\t' || header[pos] == ':' || header[pos] == '"' || header[pos] == '\r' ||
+            header[pos] == '\n')) {
+        ++pos;
+    }
+    if (pos >= header.size() || header[pos] < '0' || header[pos] > '9') {
+        return 0;
+    }
+    int64_t value = 0;
+    while (pos < header.size() && header[pos] >= '0' && header[pos] <= '9') {
+        const int digit = header[pos] - '0';
+        if (value > (INT64_MAX - digit) / 10) {
+            return 0;
+        }
+        value = value * 10 + digit;
+        ++pos;
+    }
+    return value;
+}
+
+int64_t EventUtil::ReadBaseTimeNanosecondsFromFile(const std::string &filePath) {
+    std::ifstream file = OpenReadFileSafely(filePath, std::ios::in | std::ios::binary);
+    if (!file.is_open()) {
+        return 0;
+    }
+    constexpr size_t kChunkSize = 4096;
+    constexpr size_t kMaxHeaderBytes = 256 * 1024;
+    std::string header;
+    header.reserve(kChunkSize);
+    while (file && header.size() < kMaxHeaderBytes) {
+        char buffer[kChunkSize];
+        file.read(buffer, sizeof(buffer));
+        const auto readCount = file.gcount();
+        if (readCount <= 0) {
+            break;
+        }
+        header.append(buffer, static_cast<size_t>(readCount));
+        if (header.find("\"baseTimeNanoseconds\"") != std::string::npos ||
+            header.find("\"traceEvents\"") != std::string::npos) {
+            break;
+        }
+    }
+    return ParseBaseTimeNanoseconds(header);
 }
 } // end of namespace Timeline
 } // end of namespace Module
