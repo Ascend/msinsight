@@ -135,9 +135,14 @@ bool DbPlatformDataBase::QueryPlatformMetrics(std::vector<PlatformMetric> &metri
     return true;
 }
 
-bool DbPlatformDataBase::QueryPlatformCounterData(int64_t levelId, uint64_t startTime, uint64_t endTime,
-    uint64_t minTimestamp, std::vector<PlatformCounterData> &dataList) {
-    if (startTime > UINT64_MAX - minTimestamp || endTime > UINT64_MAX - minTimestamp) {
+bool DbPlatformDataBase::QueryPlatformCounterData(
+    int64_t levelId, uint64_t startTime, uint64_t endTime, std::vector<PlatformCounterData> &dataList) {
+    uint64_t metricMinTimestamp = 0;
+    if (!QueryMetricTimeOrigin(metricMinTimestamp)) {
+        ServerLog::Error("QueryPlatformCounterData - QueryMetricTimeOrigin failed");
+        return false;
+    }
+    if (startTime > UINT64_MAX - metricMinTimestamp || endTime > UINT64_MAX - metricMinTimestamp) {
         ServerLog::Error("QueryPlatformCounterData - time range overflows timestamp origin");
         return false;
     }
@@ -155,7 +160,7 @@ bool DbPlatformDataBase::QueryPlatformCounterData(int64_t levelId, uint64_t star
     }
 
     if (startTime != endTime) {
-        stmt->BindParams(levelId, minTimestamp + startTime, minTimestamp + endTime);
+        stmt->BindParams(levelId, metricMinTimestamp + startTime, metricMinTimestamp + endTime);
     } else {
         stmt->BindParams(levelId);
     }
@@ -174,6 +179,31 @@ bool DbPlatformDataBase::QueryPlatformCounterData(int64_t levelId, uint64_t star
     }
 
     ServerLog::Info("QueryPlatformCounterData - got ", dataList.size(), " rows");
+    return true;
+}
+
+bool DbPlatformDataBase::QueryMetricTimeOrigin(uint64_t &metricMinTimestamp) {
+    std::lock_guard<std::recursive_mutex> lock(mutex);
+    if (hasMetricTimeOrigin) {
+        metricMinTimestamp = metricTimeOrigin;
+        return true;
+    }
+
+    const std::string sql = "SELECT MIN(ts) AS min_ts FROM NUMA_METRICS";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        ServerLog::Error("QueryMetricTimeOrigin - CreatPreparedStatement failed");
+        return false;
+    }
+    auto resultSet = stmt->ExecuteQuery();
+    if (resultSet == nullptr || !resultSet->Next()) {
+        ServerLog::Error("QueryMetricTimeOrigin - ExecuteQuery failed");
+        return false;
+    }
+
+    metricTimeOrigin = resultSet->GetUint64("min_ts");
+    metricMinTimestamp = metricTimeOrigin;
+    hasMetricTimeOrigin = true;
     return true;
 }
 
@@ -259,6 +289,7 @@ bool DbPlatformDataBase::QueryUnitCounter(Dic::Protocol::UnitCounterParams &para
     std::vector<Dic::Protocol::UnitCounterData> &dataList) {
     ServerLog::Info("DbPlatformDataBase::QueryUnitCounter - metric: ", params.threadName,
         ", threadId: ", params.threadId, ", startTime: ", params.startTime, ", endTime: ", params.endTime);
+    static_cast<void>(minTimestamp);
 
     int64_t levelId = -1;
     if (!params.threadId.empty()) {
@@ -271,8 +302,14 @@ bool DbPlatformDataBase::QueryUnitCounter(Dic::Protocol::UnitCounterParams &para
         }
     }
 
+    uint64_t metricMinTimestamp = 0;
+    if (!QueryMetricTimeOrigin(metricMinTimestamp)) {
+        ServerLog::Error("DbPlatformDataBase::QueryUnitCounter - QueryMetricTimeOrigin failed");
+        return false;
+    }
+
     std::vector<PlatformCounterData> counterData;
-    if (!QueryPlatformCounterData(levelId, params.startTime, params.endTime, minTimestamp, counterData)) {
+    if (!QueryPlatformCounterData(levelId, params.startTime, params.endTime, counterData)) {
         ServerLog::Error("DbPlatformDataBase::QueryUnitCounter - QueryPlatformCounterData failed");
         return false;
     }
@@ -300,7 +337,7 @@ bool DbPlatformDataBase::QueryUnitCounter(Dic::Protocol::UnitCounterParams &para
         }
         lastValue = curValue;
         Dic::Protocol::UnitCounterData data;
-        data.timestamp = item.timestamp >= minTimestamp ? item.timestamp - minTimestamp : 0;
+        data.timestamp = item.timestamp >= metricMinTimestamp ? item.timestamp - metricMinTimestamp : 0;
         data.valueJsonStr = "{" + escapedMeasurementUnit + ":" + std::to_string(curValue) + "}";
         dataList.emplace_back(data);
     }

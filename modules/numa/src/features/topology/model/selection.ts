@@ -2,7 +2,6 @@ import type { TFunction } from 'i18next';
 import type { Connection, SelectedItem, SocketNode } from '@/entities/numa/types';
 
 const NUMA_DETAIL_METRIC_KEYS = [
-    'externalImpact',
     'llcTraffic',
     'innerRead',
     'totalRead',

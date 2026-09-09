@@ -90,6 +90,8 @@ export class NumaStore {
 
         const requestSequence = ++this.requestSequence;
         this.lastRequestKey = requestKey;
+        this.data = null;
+        this.selected = null;
         this.loading = true;
         this.error = '';
         try {

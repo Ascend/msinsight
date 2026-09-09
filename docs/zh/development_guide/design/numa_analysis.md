@@ -26,7 +26,7 @@
 本文覆盖 MindStudio Insight 中NUMA分析相关的开发设计说明，重点包括：
 
 1. NUMA架构图：NUMA架构图展示，可展示节点、链路信息详情。
-2. Platform Metric可视化：支持DRAM Write Bandwidth、Cross Socket Read Bandwidth、Cross SCCL、Total Read BandWidth、Total Read BandWidth、LLC BandWidth、Inner Read BandWidth、Total External Traffic Impact、External Traffic Impact(Socket level)、External Traffic Impact(Node level)指标呈现。
+2. Platform Metric可视化：支持DRAM Write Bandwidth、Cross Socket Read Bandwidth、Cross SCCL、Total Read BandWidth、LLC BandWidth、Inner Read BandWidth等指标呈现。
 3. 线程分析：支持线程分析图展示，包括active、sync wait、preemption三种状态统计
 4. 命中率分析：支持LLC缺失率/命中率（每线程）分析
 
@@ -153,7 +153,7 @@ TimeLine中增加泳道支持Platform Metric、线程数据、命中率数据呈
 
 TimeLine页面可展示：
 
-- Platform Metric可视化：支持DRAM Write Bandwidth、Cross Socket Read Bandwidth、Cross SCCL、Total Read BandWidth、Total Read BandWidth、LLC BandWidth、Inner Read BandWidth、Total External Traffic Impact、External Traffic Impact(Socket level)、External Traffic Impact(Node level)指标呈现。
+- Platform Metric可视化：支持DRAM Write Bandwidth、Cross Socket Read Bandwidth、Cross SCCL、Total Read BandWidth、LLC BandWidth、Inner Read BandWidth等指标呈现。
 - 线程分析：支持线程分析图展示，包括active、sync wait、preemption三种状态统计
 - 命中率分析：支持LLC缺失率/命中率（每线程）分析
 

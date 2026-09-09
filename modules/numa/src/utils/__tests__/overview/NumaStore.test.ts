@@ -52,6 +52,26 @@ describe('NumaStore', () => {
         expect(store.data).toEqual(overview(200));
     });
 
+    it('clears previous data and selection while reloading a new request', async () => {
+        const next = deferred<NumaOverview>();
+        const loader = jest.fn()
+            .mockResolvedValueOnce(overview(100))
+            .mockReturnValueOnce(next.promise);
+        const store = new NumaStore(loader);
+        await store.switchDirectory({ rankId: 'rank-0', selectedFilePath: 'first' });
+        store.select({ kind: 'socket', id: 'socket-0', title: 'Socket 0', description: '', metrics: [] });
+
+        const reload = store.switchDirectory({ rankId: 'rank-0', selectedFilePath: 'second' });
+
+        expect(store.data).toBeNull();
+        expect(store.selected).toBeNull();
+        expect(store.loading).toBe(true);
+
+        next.resolve(overview(200));
+        await reload;
+        expect(store.data).toEqual(overview(200));
+    });
+
     it.each(['reset', 'incomplete directory'])('invalidates an in-flight request after %s', async (action) => {
         const pending = deferred<NumaOverview>();
         const store = new NumaStore(() => pending.promise);

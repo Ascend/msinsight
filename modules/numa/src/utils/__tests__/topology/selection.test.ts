@@ -17,7 +17,7 @@ describe('topology selection', () => {
             kind: 'numa',
             id: 'numa-0',
             title: 'NUMA Node 0 / Socket 0',
-            metrics: [numa.metrics[0], numa.metrics[5], numa.metrics[3], numa.metrics[2], numa.metrics[1]],
+            metrics: [numa.metrics[4], numa.metrics[2], numa.metrics[1], numa.metrics[0]],
         });
         expect(selectedItemForConnection(connection)).toEqual({
             kind: 'connection',
@@ -31,7 +31,6 @@ describe('topology selection', () => {
     it('omits unavailable NUMA detail metrics without changing order', () => {
         const socket = numaOverviewFixture.sockets[0];
         expect(selectedItemForNuma(socket.numas[1], socket, t).metrics.map(({ key }) => key)).toEqual([
-            'externalImpact',
             'crossSocketRead',
         ]);
     });

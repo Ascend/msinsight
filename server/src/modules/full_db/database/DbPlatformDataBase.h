@@ -82,14 +82,20 @@ class DbPlatformDataBase : public Platform::VirtualPlatformDataBase {
     bool QueryLevelData(LevelDataMap &levels);
     bool QueryTitleData(TitleDataMap &titles);
     bool QueryPlatformMetrics(std::vector<PlatformMetric> &metrics);
-    bool QueryPlatformCounterData(int64_t levelId, uint64_t startTime, uint64_t endTime, uint64_t minTimestamp,
-        std::vector<PlatformCounterData> &dataList);
+    bool QueryPlatformCounterData(
+        int64_t levelId, uint64_t startTime, uint64_t endTime, std::vector<PlatformCounterData> &dataList);
     bool QueryUnitCounter(Dic::Protocol::UnitCounterParams &params, uint64_t minTimestamp,
         std::vector<Dic::Protocol::UnitCounterData> &dataList);
     bool QueryMeasurementUnit(int64_t levelId, std::string &measurementUnit);
     bool QueryScalingValuesData(ScalingValueMap &scalingValueMap);
 
     static void Reset();
+
+  private:
+    bool QueryMetricTimeOrigin(uint64_t &metricMinTimestamp);
+
+    bool hasMetricTimeOrigin = false;
+    uint64_t metricTimeOrigin = 0;
 };
 
 }

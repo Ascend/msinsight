@@ -59,6 +59,20 @@ describe('connection metric labels', () => {
         expect(memoryLabels.map(({ text }) => text)).toEqual(['← --', '-- →']);
     });
 
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])(
+        'renders a placeholder for non-finite metric values (%s)',
+        value => {
+            const labels = buildConnectionMetricLabels(
+                connection('numa', [metric('crossScclRead', value)]),
+                { x: 0, y: 0 },
+                { x: 0, y: 100 },
+                false,
+            );
+
+            expect(labels[0].text).toBe('--');
+        },
+    );
+
     it('separates crossing labels and caps their text length', () => {
         const labels = buildConnectionMetricLabels(connection('socket', [
             metric('sourceToTarget', 123456789),

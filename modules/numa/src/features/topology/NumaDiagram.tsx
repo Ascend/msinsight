@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatMetric, formatMetricValue } from '@/entities/numa/formatters';
+import { formatMetric } from '@/entities/numa/formatters';
 import type { Connection, Metric, NumaOverview, SelectedItem, SocketNode as SocketNodeData } from '@/entities/numa/types';
 import { ConnectionLine } from './components/ConnectionLine';
 import { MemoryNode } from './components/MemoryNode';
@@ -116,15 +116,9 @@ export const NumaDiagram: React.FC<Props> = ({
 
             {layouts.map((layout) => {
                 const memoryOnLeft = layout.column % 2 === 0;
-                const externalImpact = findMetric(layout.socket.metrics, 'externalImpact');
                 return (
                     <g key={layout.socket.id}>
                         <text x={layout.x + 24} y={layout.y + 34} className="socket-title">{layout.socket.name}</text>
-                        {externalImpact && (
-                            <text x={layout.x + layout.width - 24} y={layout.y + 34} className="socket-impact" textAnchor="end">
-                                {formatMetricValue(externalImpact.value, externalImpact.unit)}
-                            </text>
-                        )}
 
                         {layout.socket.numas.map((numa) => {
                             const point = layout.numaPoints.get(numa.id) as Point;
