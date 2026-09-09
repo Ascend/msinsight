@@ -15,19 +15,21 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { QuestionCircleOutlined } from '@ant-design/icons';
 import styled from '@emotion/styled';
-import { Drawer, message } from 'antd';
+import { Drawer, type InputProps, message, Modal } from 'antd';
+import { isEqual } from 'lodash';
 import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Alert, Button, Input, InputNumber, PasswordInput } from '@insight/lib/components';
+import { Alert, Button, Input, InputNumber, PasswordInput, Tooltip } from '@insight/lib/components';
 import { copyToClipboard } from '@insight/lib/utils';
+import { agentKindLogo } from '../agentBrand';
 import { fetchAgentConfig, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
 import addIcon from '../icons/add.svg';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import backIcon from '../icons/back.svg';
-import agentLogo from '../icons/logo.png';
 import deleteIcon from '../icons/delete.svg';
 import copyIcon from '../icons/copy.svg';
 
@@ -47,6 +49,22 @@ const Container = styled.div`
 
     .settings-drawer .ant-drawer-content {
         background: ${(props): string => props.theme.bgColor};
+    }
+
+    .settings-confirm .ant-modal-content,
+    .settings-confirm .ant-modal-header {
+        background: ${(props): string => props.theme.bgColor};
+    }
+
+    .settings-confirm .ant-modal-title,
+    .settings-confirm .ant-modal-body,
+    .settings-confirm .ant-modal-close {
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+
+    .settings-confirm .ant-modal-header,
+    .settings-confirm .ant-modal-footer {
+        border-color: ${(props): string => props.theme.borderColor};
     }
 
     .settings-drawer.ant-drawer-right {
@@ -109,8 +127,13 @@ const Container = styled.div`
     }
 
     .settings-layout {
+        width: 100%;
         height: 100%;
+        min-width: 0;
         min-height: 0;
+        margin: 0;
+        border: 0;
+        padding: 0;
         display: grid;
         grid-template-rows: minmax(0, 1fr) auto;
     }
@@ -337,10 +360,33 @@ const Container = styled.div`
     }
 
     .script-config-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         color: ${(props): string => props.theme.textColorPrimary};
         font-size: 14px;
         font-weight: 400;
         line-height: 20px;
+    }
+
+    .script-help-button {
+        width: 20px;
+        height: 20px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: ${(props): string => props.theme.borderRadiusCircle};
+        padding: 0;
+        background: transparent;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 14px;
+        line-height: 1;
+        cursor: pointer;
+    }
+
+    .script-help-button:hover {
+        color: ${(props): string => props.theme.primaryColor};
     }
 
     .script-config-actions {
@@ -590,6 +636,20 @@ const Container = styled.div`
         color: ${(props): string => props.theme.dangerColor};
     }
 
+    .field-control {
+        min-width: 0;
+        display: grid;
+        gap: 4px;
+    }
+
+    .settings-input[aria-invalid='true'],
+    .settings-input[aria-invalid='true']:hover,
+    .settings-input[aria-invalid='true']:focus,
+    .script-editor-shell[aria-invalid='true'] {
+        border-color: ${(props): string => props.theme.dangerColor};
+        box-shadow: none;
+    }
+
     .toggle-button {
         width: 26px;
         height: 26px;
@@ -632,6 +692,8 @@ const EMPTY_DRAFT = (): DraftAgent => ({
     saveAndSwitch: false,
 });
 
+type SettingsNavigation = { type: 'select'; agentName: string } | { type: 'create' } | { type: 'close' };
+
 export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpen = false, onOpenChange }: AgentSettingsDialogProps): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const { applyAgentConfigSnapshot, pendingPrompt } = useChatState();
@@ -639,6 +701,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     const open = controlledOpen ?? internalOpen;
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
+    const savingRef = useRef(false);
     const [snapshot, setSnapshot] = useState<AgentConfigSnapshot | null>(null);
     const initialSnapshotRef = useRef<AgentConfigSnapshot | null>(null);
     const panelRef = useRef<HTMLDivElement | null>(null);
@@ -651,6 +714,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     const [scriptError, setScriptError] = useState<string | null>(null);
     const [panelScrollState, setPanelScrollState] = useState({ hasContentAbove: false, hasContentBelow: false });
     const [error, setError] = useState<string | null>(null);
+    const [pendingNavigation, setPendingNavigation] = useState<SettingsNavigation | null>(null);
+    const [validationAttempted, setValidationAttempted] = useState(false);
+    const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
 
     const setOpen = (nextOpen: boolean): void => {
         if (controlledOpen === undefined) setInternalOpen(nextOpen);
@@ -669,6 +735,12 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         if (!open) return;
         setLoading(true);
         setError(null);
+        setPendingNavigation(null);
+        setValidationAttempted(false);
+        setTouchedFields({});
+        setScriptError(null);
+        setSnapshot(null);
+        initialSnapshotRef.current = null;
         setSaveAndSwitchSelected(false);
         setDraftAgent(createOnOpen ? EMPTY_DRAFT() : null);
         setShowAdvanced(false);
@@ -713,6 +785,13 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
 
     const editingAgent = draftAgent ?? activeAgent;
     const isCreatingAgent = Boolean(draftAgent);
+    const draftChanged = Boolean(draftAgent && !isEqual(draftAgent, EMPTY_DRAFT()));
+    const hasUnsavedChanges = Boolean(snapshot && initialSnapshotRef.current && (
+        !isEqual(snapshot, initialSnapshotRef.current) ||
+        draftChanged ||
+        (saveAndSwitchSelected && selectedAgentName !== snapshot.activeAgentName) ||
+        (configMode === 'script' && scriptError)
+    ));
 
     const getBuiltinScriptConfig = (): Record<string, unknown> => {
         const { provider = '', model = '', baseUrl = '', apiKey = '' } = snapshot?.builtinAgent ?? {};
@@ -793,6 +872,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     };
 
     const switchConfigMode = (mode: 'form' | 'script'): void => {
+        if (mode === configMode) return;
         if (mode === 'script') resetScriptValue();
         if (mode === 'form' && scriptError) return;
         setConfigMode(mode);
@@ -810,27 +890,49 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         await copyToClipboard(scriptValue);
     };
 
-    const selectAgent = (agentName: string): void => {
+    const navigate = (destination: SettingsNavigation, source: AgentConfigSnapshot | null = snapshot): void => {
+        setPendingNavigation(null);
+        setError(null);
+        setValidationAttempted(false);
+        setTouchedFields({});
+        setScriptError(null);
+        setSaveAndSwitchSelected(false);
+        if (destination.type === 'close') {
+            setOpen(false);
+            return;
+        }
+        if (destination.type === 'create') {
+            const emptyDraft = EMPTY_DRAFT();
+            setDraftAgent(emptyDraft);
+            if (configMode === 'script') {
+                setScriptValue(JSON.stringify(getExternalScriptConfig({ ...emptyDraft, env: {} }, true), null, 2));
+            }
+            return;
+        }
+        const { agentName } = destination;
         if (configMode === 'script') {
+            const { provider = '', model = '', baseUrl = '', apiKey = '' } = source?.builtinAgent ?? {};
             const nextConfig = agentName === 'msinsight-native'
-                ? getBuiltinScriptConfig()
-                : getExternalScriptConfig(snapshot?.agentServers.find((agent) => agent.name === agentName) ?? { command: '', args: [], env: {} }, false);
+                ? { provider, model, baseUrl, apiKey }
+                : getExternalScriptConfig(source?.agentServers.find((agent) => agent.name === agentName) ?? { command: '', args: [], env: {} }, false);
             setScriptValue(JSON.stringify(nextConfig, null, 2));
-            setScriptError(null);
         }
         setDraftAgent(null);
         setSelectedAgentName(agentName);
-        setSaveAndSwitchSelected(false);
     };
 
-    const createAgent = (): void => {
-        const emptyDraft = EMPTY_DRAFT();
-        if (configMode === 'script') {
-            setScriptValue(JSON.stringify(getExternalScriptConfig({ ...emptyDraft, env: {} }, true), null, 2));
-            setScriptError(null);
-        }
-        setDraftAgent(emptyDraft);
-        setSaveAndSwitchSelected(false);
+    const requestNavigation = (destination: SettingsNavigation): void => {
+        if (savingRef.current || pendingNavigation) return;
+        if (destination.type === 'select' && !draftAgent && destination.agentName === selectedAgentName) return;
+        if (hasUnsavedChanges) setPendingNavigation(destination);
+        else navigate(destination);
+    };
+
+    const discardAndNavigate = (): void => {
+        if (!pendingNavigation || savingRef.current) return;
+        const restored = initialSnapshotRef.current;
+        setSnapshot(restored);
+        navigate(pendingNavigation, restored);
     };
 
     const extraPaths = snapshot?.sessionConfig.defaultAllowlist.extraPaths ?? [];
@@ -867,29 +969,45 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         updateActiveAgent((agent) => ({ ...agent, env: Object.fromEntries(nextEntries) }));
     };
 
-    const validateSnapshot = ({ agentDefinitionsChanged, builtinValidationRequired }: { agentDefinitionsChanged: boolean; builtinValidationRequired: boolean }): string | null => {
-        if (!snapshot || (!editingAgent && !isBuiltinSelected)) return t('settingsNotLoaded');
-        if (pendingPrompt) return t('agentBusy');
-        if (builtinValidationRequired) {
-            if (!snapshot.builtinAgent.provider.trim()) return t('providerRequired');
-            if (!snapshot.builtinAgent.model.trim()) return t('modelRequired');
-            if (!snapshot.builtinAgent.baseUrl.trim()) return t('baseUrlRequired');
-        }
-        if (!agentDefinitionsChanged) return null;
-        if (!editingAgent) return t('settingsNotLoaded');
-        if (!editingAgent.command.trim()) return t('commandRequired');
-        if (editingAgent.args.some((arg) => !String(arg).trim())) return t('argsRequired');
+    const fieldErrors: Record<string, string> = {};
+    if (isBuiltinSelected && snapshot) {
+        if (!snapshot.builtinAgent.provider.trim()) fieldErrors['builtin-provider'] = t('providerRequired');
+        if (!snapshot.builtinAgent.model.trim()) fieldErrors['builtin-model'] = t('modelRequired');
+        if (!snapshot.builtinAgent.baseUrl.trim()) fieldErrors['builtin-base-url'] = t('baseUrlRequired');
+    } else if (editingAgent) {
         if (draftAgent) {
-            if (!draftAgent.name.trim()) return t('newAgentNameRequired');
-            if (snapshot.agentServers.some((agent) => agent.name === draftAgent.name.trim()) || draftAgent.name.trim() === 'msinsight-native') {
-                return t('agentNameUnique');
+            if (!draftAgent.name.trim()) fieldErrors['new-agent-name'] = t('newAgentNameRequired');
+            else if (snapshot?.agentServers.some((agent) => agent.name === draftAgent.name.trim()) === true || draftAgent.name.trim() === 'msinsight-native') {
+                fieldErrors['new-agent-name'] = t('agentNameUnique');
             }
-            if (draftAgent.env.some((entry) => !entry.key.trim())) return t('envKeysRequired');
-        } else if (Object.keys(activeAgent?.env ?? {}).some((key) => !String(key).trim())) {
-            return t('envKeysRequired');
         }
-        return null;
+        if (!editingAgent.command.trim()) fieldErrors['agent-command'] = t('commandRequired');
+        editingAgent.args.forEach((arg, index) => {
+            if (!arg.trim()) fieldErrors[`agent-arg-${index}`] = t('argsRequired');
+        });
+        envEntries.forEach(([key], index) => {
+            if (!key.trim()) fieldErrors[`agent-env-${index}`] = t('envKeysRequired');
+        });
+    }
+
+    const getFieldError = (field: string): string | undefined => (validationAttempted || touchedFields[field]) ? fieldErrors[field] : undefined;
+    const fieldProps = (field: string): InputProps => ({
+        'aria-invalid': Boolean(getFieldError(field)),
+        'aria-describedby': getFieldError(field) ? `${field}-error` : undefined,
+        status: getFieldError(field) ? 'error' as const : undefined,
+        onBlur: () => setTouchedFields((current) => ({ ...current, [field]: true })),
+    });
+    const renderFieldError = (field: string): React.ReactNode => {
+        const fieldError = getFieldError(field);
+        return fieldError ? <div className="error" id={`${field}-error`} role="alert">{fieldError}</div> : null;
     };
+    const scriptValidationErrors = validationAttempted ? Object.values(fieldErrors) : [];
+    const scriptHasError = Boolean(scriptError) || scriptValidationErrors.length > 0;
+    const scriptConfigHelp = isBuiltinSelected
+        ? t('builtinScriptConfigHelp')
+        : isCreatingAgent
+            ? t('newAgentScriptConfigHelp')
+            : t('agentScriptConfigHelp');
 
     const buildSavePayload = (): AgentConfigSnapshot | null => {
         if (!snapshot) return null;
@@ -900,7 +1018,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         }));
         let activeAgentName = saveAndSwitchSelected && selectedAgentName ? selectedAgentName : snapshot.activeAgentName;
         const agentServers = [...normalizedActive];
-        if (draftAgent) {
+        if (draftAgent && draftChanged) {
             const newAgent = {
                 name: draftAgent.name.trim(),
                 command: draftAgent.command.trim(),
@@ -924,31 +1042,33 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         };
     };
 
-    const handleSave = async (): Promise<void> => {
+    const handleSave = async (destination: SettingsNavigation = { type: 'close' }): Promise<void> => {
+        if (savingRef.current || pendingPrompt || !hasUnsavedChanges) return;
+        setPendingNavigation(null);
+        setError(null);
+        setValidationAttempted(true);
         if (configMode === 'script' && scriptError) {
-            setError(scriptError);
             return;
         }
         const payload = buildSavePayload();
         const initialSnapshot = initialSnapshotRef.current;
         if (!payload || !initialSnapshot) return;
-        const agentServersChanged = JSON.stringify({
-            activeAgentName: payload.activeAgentName,
-            agentServers: payload.agentServers,
-        }) !== JSON.stringify({
-            activeAgentName: initialSnapshot.activeAgentName,
-            agentServers: initialSnapshot.agentServers,
-        });
-        const builtinAgentChanged = JSON.stringify(payload.builtinAgent) !== JSON.stringify(initialSnapshot.builtinAgent);
-        const agentDefinitionsChanged = JSON.stringify(payload.agentServers) !== JSON.stringify(initialSnapshot.agentServers);
-        const sessionConfigChanged = JSON.stringify(payload.sessionConfig) !== JSON.stringify(initialSnapshot.sessionConfig);
+        const agentDefinitionsChanged = !isEqual(payload.agentServers, initialSnapshot.agentServers);
+        const agentServersChanged = agentDefinitionsChanged || payload.activeAgentName !== initialSnapshot.activeAgentName;
+        const builtinAgentChanged = !isEqual(payload.builtinAgent, initialSnapshot.builtinAgent);
+        const sessionConfigChanged = !isEqual(payload.sessionConfig, initialSnapshot.sessionConfig);
         const builtinValidationRequired = builtinAgentChanged
             || (payload.activeAgentName === 'msinsight-native' && payload.activeAgentName !== initialSnapshot.activeAgentName);
-        const validationError = validateSnapshot({ agentDefinitionsChanged, builtinValidationRequired });
-        if (validationError) {
-            setError(validationError);
+        const validationRequired = isBuiltinSelected ? builtinValidationRequired : agentDefinitionsChanged;
+        if (validationRequired && Object.keys(fieldErrors).length) {
+            requestAnimationFrame(() => {
+                const invalidField = panelRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]');
+                invalidField?.scrollIntoView?.({ block: 'nearest' });
+                invalidField?.focus();
+            });
             return;
         }
+        savingRef.current = true;
         setSaving(true);
         setError(null);
         try {
@@ -972,7 +1092,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             initialSnapshotRef.current = savedSnapshot;
             await applyAgentConfigSnapshot(savedSnapshot);
             setDraftAgent(null);
-            setOpen(false);
+            navigate(destination, savedSnapshot);
             message.success(t('settingsSaved'));
         } catch (nextError) {
             if (isBackendUnavailableError(nextError)) {
@@ -982,6 +1102,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             setError(errorMessage);
             message.error(errorMessage);
         } finally {
+            savingRef.current = false;
             setSaving(false);
         }
     };
@@ -989,18 +1110,36 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     return (
         <Container>
             {trigger ? <span className="settings-trigger" onClick={() => setOpen(true)}>{trigger}</span> : null}
+            {pendingNavigation && <Modal
+                className="settings-confirm"
+                footer={[
+                    <Button key="cancel" onClick={() => setPendingNavigation(null)} size="small">{t('cancel')}</Button>,
+                    <Button key="discard" onClick={discardAndNavigate} size="small">{t('discardChanges')}</Button>,
+                    <Button disabled={pendingPrompt || saving} key="save" onClick={() => { void handleSave(pendingNavigation); }} size="small" type="primary">{t('saveChanges')}</Button>,
+                ]}
+                getContainer={false}
+                maskClosable={false}
+                onCancel={() => setPendingNavigation(null)}
+                open
+                title={t('unsavedChangesTitle')}
+                zIndex={1100}
+            >
+                <p>{t('unsavedChangesDescription', { name: draftAgent ? draftAgent.name.trim() || t('newAgent') : isBuiltinSelected ? t('builtinAgentCardName') : selectedAgentName })}</p>
+                {snapshot && !isEqual(snapshot.sessionConfig, initialSnapshotRef.current?.sessionConfig) && <p>{t('unsavedSessionChanges')}</p>}
+            </Modal>}
             <Drawer
                 className={`settings-drawer${panelScrollState.hasContentAbove ? ' content-scrolled' : ''}`}
                 closable={false}
                 getContainer={false}
+                keyboard={!saving && !pendingNavigation}
                 mask
-                maskClosable
-                onClose={() => setOpen(false)}
+                maskClosable={!saving && !pendingNavigation}
+                onClose={() => requestNavigation({ type: 'close' })}
                 open={open}
                 placement="right"
                 title={(
                     <div className="settings-header">
-                        <button aria-label={t('back')} className="settings-back" onClick={() => setOpen(false)} type="button">
+                        <button aria-label={t('back')} className="settings-back" disabled={saving} onClick={() => requestNavigation({ type: 'close' })} type="button">
                             <img alt="" src={backIcon} />
                         </button>
                         <span>{t('agentRuntimeSettings')}</span>
@@ -1008,7 +1147,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 )}
                 width="100%"
             >
-                <div className="settings-layout">
+                <fieldset className="settings-layout" disabled={saving || loading}>
                     <div className="panel" onScroll={(event) => updatePanelScrollState(event.currentTarget)} ref={panelRef}>
                     {loading ? <div className="hint">{t('loadingSettings')}</div> : null}
                     {pendingPrompt ? (
@@ -1024,11 +1163,11 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                     <button
                                         aria-pressed={isBuiltinSelected}
                                         className={`agent-card${isBuiltinSelected ? ' selected' : ''}`}
-                                        onClick={() => selectAgent('msinsight-native')}
+                                        onClick={() => requestNavigation({ type: 'select', agentName: 'msinsight-native' })}
                                         title={t('builtinAgentCardName')}
                                         type="button"
                                     >
-                                        <span className="agent-card-icon logo"><img alt="" src={agentLogo} /></span>
+                                        <AgentCardIcon name="msinsight-native" provider={snapshot.builtinAgent.provider} />
                                         <span className="agent-card-name">{t('builtinAgentCardName')}</span>
                                     </button>
                                     {snapshot.agentServers.map((agent) => {
@@ -1037,19 +1176,19 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                             aria-pressed={selected}
                                             className={`agent-card${selected ? ' selected' : ''}`}
                                             key={agent.name}
-                                            onClick={() => selectAgent(agent.name)}
+                                            onClick={() => requestNavigation({ type: 'select', agentName: agent.name })}
                                             title={agent.name}
                                             type="button"
                                         >
-                                            <span className="agent-card-icon">{agent.name.trim().charAt(0) || 'A'}</span>
+                                            <AgentCardIcon command={agent.command} name={agent.name} />
                                             <span className="agent-card-name">{agent.name}</span>
                                         </button>;
                                     })}
                                     {isCreatingAgent ? <button aria-pressed="true" className="agent-card selected" type="button">
-                                        <span className="agent-card-icon logo"><img alt="" src={agentLogo} /></span>
+                                        <AgentCardIcon command={draftAgent?.command} name={draftAgent?.name} />
                                         <span className="agent-card-name">{draftAgent?.name.trim() || t('newAgent')}</span>
                                     </button> : null}
-                                    <button className="agent-card add-card" onClick={createAgent} type="button">
+                                    <button className="agent-card add-card" onClick={() => requestNavigation({ type: 'create' })} type="button">
                                         <span aria-hidden="true" className="add-icon" />
                                         <span className="agent-card-name">{t('addAgent')}</span>
                                     </button>
@@ -1079,7 +1218,10 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                 {isCreatingAgent ? (
                                     <div className="row">
                                         <label htmlFor="new-agent-name">{t('newAgentName')}</label>
-                                        <Input className="settings-input" id="new-agent-name" onChange={(event) => setDraftAgent((current) => current ? { ...current, name: event.target.value } : current)} type="text" value={draftAgent?.name ?? ''} />
+                                        <div className="field-control">
+                                            <Input {...fieldProps('new-agent-name')} className="settings-input" id="new-agent-name" onChange={(event) => setDraftAgent((current) => current ? { ...current, name: event.target.value } : current)} type="text" value={draftAgent?.name ?? ''} />
+                                            {renderFieldError('new-agent-name')}
+                                        </div>
                                     </div>
                                 ) : <div className="row">
                                     <label htmlFor="agent-name">{t('agentName')}</label>
@@ -1088,15 +1230,15 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                 {isBuiltinSelected ? <>
                                 <div className="row">
                                     <label htmlFor="builtin-provider">{t('provider')}</label>
-                                    <Input className="settings-input" id="builtin-provider" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, provider: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.provider} />
+                                    <div className="field-control"><Input {...fieldProps('builtin-provider')} className="settings-input" id="builtin-provider" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, provider: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.provider} />{renderFieldError('builtin-provider')}</div>
                                 </div>
                                 <div className="row">
                                     <label htmlFor="builtin-model">{t('model')}</label>
-                                    <Input className="settings-input" id="builtin-model" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.model} />
+                                    <div className="field-control"><Input {...fieldProps('builtin-model')} className="settings-input" id="builtin-model" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, model: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.model} />{renderFieldError('builtin-model')}</div>
                                 </div>
                                 <div className="row">
                                     <label htmlFor="builtin-base-url">{t('baseUrl')}</label>
-                                    <Input className="settings-input" id="builtin-base-url" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, baseUrl: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.baseUrl} />
+                                    <div className="field-control"><Input {...fieldProps('builtin-base-url')} className="settings-input" id="builtin-base-url" onChange={(event) => setSnapshot((current) => current ? ({ ...current, builtinAgent: { ...current.builtinAgent, baseUrl: event.target.value } }) : current)} type="text" value={snapshot.builtinAgent.baseUrl} />{renderFieldError('builtin-base-url')}</div>
                                 </div>
                                 <div className="row">
                                     <label htmlFor="builtin-api-key">{t('apiKey')}</label>
@@ -1105,7 +1247,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                 </> : editingAgent ? <>
                                 <div className="row">
                                     <label htmlFor="agent-command">{t('command')}</label>
-                                    <Input className="settings-input" id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={editingAgent.command} />
+                                    <div className="field-control"><Input {...fieldProps('agent-command')} className="settings-input" id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={editingAgent.command} />{renderFieldError('agent-command')}</div>
                                 </div>
                                 <div className="row">
                                     <div className="extra-path-header">
@@ -1118,8 +1260,10 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                     {!editingAgent.args.length ? <div className="path-empty">{t('noArgs')}</div> : null}
                                     {editingAgent.args.map((arg, index) => (
                                         <div className="path-row" key={`arg-${index}`}>
+                                            <div className="field-control">
                                             <Input
                                                 aria-label={t('argLabel', { index: index + 1 })}
+                                                {...fieldProps(`agent-arg-${index}`)}
                                                 className="settings-input"
                                                 onChange={(event) => updateEditingAgent((agent) => ({
                                                     ...agent,
@@ -1128,6 +1272,8 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                                 type="text"
                                                 value={arg}
                                             />
+                                            {renderFieldError(`agent-arg-${index}`)}
+                                            </div>
                                             <button aria-label={t('removeArg', { index: index + 1 })} className="path-remove" onClick={() => updateEditingAgent((agent) => ({ ...agent, args: agent.args.filter((_, itemIndex) => itemIndex !== index) }))} title={t('removeArg', { index: index + 1 })} type="button">
                                                 <span aria-hidden="true" className="path-remove-icon" />
                                             </button>
@@ -1145,14 +1291,18 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                     {!envEntries.length ? <div className="path-empty">{t('noEnvEntries')}</div> : null}
                                     {envEntries.map(([key, value], index) => (
                                         <div className="env-row" key={`env-${index}`}>
+                                            <div className="field-control">
                                             <Input
                                                 aria-label={t('envKeyLabel', { index: index + 1 })}
+                                                {...fieldProps(`agent-env-${index}`)}
                                                 className="settings-input"
                                                 onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => [currentIndex === index ? event.target.value : entry[0], entry[1]]))}
                                                 placeholder={t('envKeyPlaceholder')}
                                                 type="text"
                                                 value={key}
                                             />
+                                            {renderFieldError(`agent-env-${index}`)}
+                                            </div>
                                             <Input
                                                 aria-label={t('envValueLabel', { index: index + 1 })}
                                                 className="settings-input"
@@ -1169,9 +1319,20 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                 </div>
                                 </> : null}
                                 </> : <div className="script-config-panel" role="tabpanel">
-                                    <div className="script-editor-shell">
+                                    <div aria-describedby={scriptHasError ? 'agent-script-error' : undefined} aria-invalid={scriptHasError} className="script-editor-shell" tabIndex={-1}>
                                         <div className="script-config-toolbar">
-                                            <span className="script-config-label">JSON</span>
+                                            <span className="script-config-label">
+                                                JSON
+                                                <Tooltip placement="right" title={scriptConfigHelp} zIndex={1200}>
+                                                    <button
+                                                        aria-label={t('scriptConfigHelp')}
+                                                        className="script-help-button"
+                                                        type="button"
+                                                    >
+                                                        <QuestionCircleOutlined />
+                                                    </button>
+                                                </Tooltip>
+                                            </span>
                                             <div className="script-config-actions">
                                                 <button className="script-format-button" onClick={formatScriptValue} type="button">{t('formatJson')}</button>
                                                 <button
@@ -1188,10 +1349,12 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                             </div>
                                         </div>
                                         <Suspense fallback={<div className="hint">{t('loadingEditor')}</div>}>
-                                            <JsonEditor ariaLabel={t('scriptConfig')} onChange={applyScriptValue} value={scriptValue} />
+                                            <JsonEditor ariaLabel={t('scriptConfig')} onChange={applyScriptValue} readOnly={saving} value={scriptValue} />
                                         </Suspense>
                                     </div>
-                                    {scriptError ? <div className="script-error" role="alert">{scriptError}</div> : null}
+                                    {scriptHasError && <div className="script-error" id="agent-script-error" role="alert">
+                                        {scriptError ?? scriptValidationErrors.map((fieldError, index) => <div key={index}>{fieldError}</div>)}
+                                    </div>}
                                 </div>}
                             </div>
                             <div className="section session-section">
@@ -1301,12 +1464,28 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                             <span>{t('saveAndSwitchSelectedAgent')}</span>
                         </label>}
                         <div className="settings-footer-actions">
-                            <Button onClick={() => setOpen(false)} size="small" type="default">{t('cancel')}</Button>
-                            <Button disabled={pendingPrompt || saving} onClick={() => { handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
+                            <Button disabled={saving} onClick={() => requestNavigation({ type: 'close' })} size="small" type="default">{t('cancel')}</Button>
+                            <Button disabled={pendingPrompt || saving || !hasUnsavedChanges} onClick={() => { void handleSave(); }} size="small" type="primary">{saving ? t('saving') : t('save')}</Button>
                         </div>
                     </div> : null}
-                </div>
+                </fieldset>
             </Drawer>
         </Container>
     );
+};
+
+const AgentCardIcon = ({
+    command,
+    name,
+    provider,
+}: {
+    command?: string;
+    name?: string;
+    provider?: string;
+}): JSX.Element => {
+    const logo = agentKindLogo({ command, name, provider });
+    if (logo) {
+        return <span className="agent-card-icon logo"><img alt="" src={logo} /></span>;
+    }
+    return <span className="agent-card-icon">{name?.trim().charAt(0) || 'A'}</span>;
 };

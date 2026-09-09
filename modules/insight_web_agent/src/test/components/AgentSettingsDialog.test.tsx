@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { fetchAgentConfig, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../../api';
 import { useChatState } from '../../hooks/useChatState';
@@ -23,7 +23,8 @@ import { AgentSettingsDialog } from '../../components/AgentSettingsDialog';
 import { ChatPanel } from '../../components/ChatPanel';
 
 jest.mock('antd', () => ({
-    Drawer: ({ children, open, title }: any) => open ? <section aria-label="Agent Settings"><h2>{title}</h2>{children}</section> : null,
+    Drawer: ({ children, onClose, open, title }: any) => open ? <section aria-label="Agent Settings"><h2>{title}</h2><button aria-label="Close drawer" onClick={onClose} />{children}</section> : null,
+    Modal: ({ children, footer, open, title }: any) => open ? <section aria-label={title} role="dialog">{children}{footer}</section> : null,
     message: {
         error: jest.fn(),
         success: jest.fn(),
@@ -42,6 +43,12 @@ jest.mock('@insight/lib/components', () => ({
             {options.map((option: any) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
     ),
+    Tooltip: ({ children, title }: any) => (
+        <span>
+            {children}
+            {title ? <span role="tooltip">{title}</span> : null}
+        </span>
+    ),
 }), { virtual: true });
 
 jest.mock('@insight/lib/icon/Icon', () => ({
@@ -53,6 +60,7 @@ jest.mock('../../api', () => ({
     saveAgentServersConfig: jest.fn(),
     saveAgentSessionConfig: jest.fn(),
     saveBuiltinAgentConfig: jest.fn(),
+    isBackendUnavailableError: () => false,
 }));
 
 jest.mock('../../hooks/useChatState', () => ({
@@ -109,21 +117,227 @@ const renderChatPanelWithSettings = (): void => {
 
 beforeEach(() => {
     mockUseChatState.mockReturnValue({
+        sessions: [],
         messages: [],
         messagesRef: { current: null },
+        notices: [],
         pendingPrompt: false,
         respondToPermission: jest.fn(),
         applyAgentConfigSnapshot: jest.fn(),
     });
-    const freshSnapshot = JSON.parse(JSON.stringify(snapshot));
+    let freshSnapshot = JSON.parse(JSON.stringify(snapshot));
     mockFetchAgentConfig.mockResolvedValue(freshSnapshot);
-    mockSaveAgentServersConfig.mockResolvedValue({ ok: true, snapshot: freshSnapshot });
-    mockSaveAgentSessionConfig.mockResolvedValue({ ok: true, snapshot: freshSnapshot });
-    mockSaveBuiltinAgentConfig.mockResolvedValue({ ok: true, snapshot: freshSnapshot });
+    mockSaveAgentServersConfig.mockImplementation(async (config) => {
+        freshSnapshot = { ...freshSnapshot, ...config };
+        return { ok: true, snapshot: freshSnapshot };
+    });
+    mockSaveAgentSessionConfig.mockImplementation(async (sessionConfig) => {
+        freshSnapshot = { ...freshSnapshot, sessionConfig };
+        return { ok: true, snapshot: freshSnapshot };
+    });
+    mockSaveBuiltinAgentConfig.mockImplementation(async (builtinAgent) => {
+        freshSnapshot = { ...freshSnapshot, builtinAgent };
+        return { ok: true, snapshot: freshSnapshot };
+    });
 });
 
 afterEach(() => {
     jest.clearAllMocks();
+});
+
+const openSettings = async (): Promise<void> => {
+    render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
+    await screen.findByLabelText('Command');
+};
+
+test('save is disabled until config changes, and disabled again when edits are reverted', async () => {
+    await openSettings();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'updated' } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'opencode' } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    await screen.findByRole('textbox', { name: 'Script configuration' });
+    fireEvent.click(screen.getByRole('button', { name: 'Format' }));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText('Save and switch to selected agent'));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+});
+
+test('an untouched new agent is clean, and session-only save does not create an empty agent', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Session Config' }));
+    fireEvent.change(screen.getByLabelText('Request timeout'), { target: { value: '40000' } });
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(mockSaveAgentSessionConfig).toHaveBeenCalledTimes(1));
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
+});
+
+test.each(['MS Insight_Native', 'Add agent'])('asks before %s and can cancel or discard the edits', async (destination) => {
+    await openSettings();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'unsaved-command' } });
+    fireEvent.click(screen.getByRole('button', { name: /OpenCode/ }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: destination }));
+    const modal = screen.getByRole('dialog');
+    expect(modal).toHaveTextContent('Do you want to save your changes to OpenCode?');
+    fireEvent.click(within(modal).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByLabelText('Command')).toHaveValue('unsaved-command');
+    fireEvent.click(screen.getByRole('button', { name: destination }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: "Don't save" }));
+    fireEvent.click(screen.getByRole('button', { name: /OpenCode/ }));
+    expect(screen.getByLabelText('Command')).toHaveValue('opencode');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
+});
+
+test.each(['MS Insight_Native', 'Add agent'])('saves the current agent before continuing to %s', async (destination) => {
+    await openSettings();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'saved-command' } });
+    fireEvent.click(screen.getByRole('button', { name: destination }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByLabelText('Agent name')).toHaveValue(destination === 'Add agent' ? '' : 'MS Insight_Native'));
+    expect(screen.getByText('Agent Configuration')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: /OpenCode/ }));
+    expect(screen.getByLabelText('Command')).toHaveValue('saved-command');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+});
+
+test('preserves new agent drafts when cancelling and saves a draft before adding another', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Claude' } });
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'claude' } });
+    fireEvent.click(screen.getByRole('button', { name: /OpenCode/ }));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Do you want to save your changes to Claude?');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByLabelText('Agent name')).toHaveValue('Claude');
+    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(screen.getByLabelText('Agent name')).toHaveValue(''));
+    expect(screen.getByRole('button', { name: /Claude/ })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+});
+
+test.each(['Back', 'Cancel', 'Close drawer'])('protects unsaved changes on %s', async (closeButton) => {
+    await openSettings();
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'unsaved-command' } });
+    fireEvent.click(screen.getByRole('button', { name: closeButton }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByLabelText('Command')).toHaveValue('unsaved-command');
+    fireEvent.click(screen.getByRole('button', { name: closeButton }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: "Don't save" }));
+    expect(screen.queryByText('Agent Configuration')).not.toBeInTheDocument();
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
+});
+
+test('failed validation stops navigation and shows errors beside each invalid field', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'OpenCode' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add arg' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Add env entry' }));
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    for (const label of ['Agent name', 'Command', 'Arg 1', 'Env key 1']) {
+        const input = screen.getByLabelText(label);
+        expect(input).toHaveAttribute('aria-invalid', 'true');
+        const error = document.getElementById(input.getAttribute('aria-describedby') ?? '');
+        expect(error).toBeVisible();
+        expect(input.parentElement).toContainElement(error);
+    }
+    fireEvent.change(screen.getByLabelText('Agent name'), { target: { value: 'Claude' } });
+    expect(screen.getByLabelText('Agent name')).toHaveAttribute('aria-invalid', 'false');
+    expect(screen.queryByText('Agent name must be unique.')).not.toBeInTheDocument();
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
+});
+
+test('builtin required fields validate on blur and clear after correction', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    for (const label of ['Provider', 'Model', 'Base URL']) {
+        const input = screen.getByLabelText(label);
+        fireEvent.change(input, { target: { value: '' } });
+        fireEvent.blur(input);
+        expect(input).toHaveAttribute('aria-invalid', 'true');
+        fireEvent.change(input, { target: { value: 'corrected' } });
+        expect(input).toHaveAttribute('aria-invalid', 'false');
+    }
+});
+
+test('script configuration shows a format help example for the current agent type', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    expect(await screen.findByRole('button', { name: 'View script configuration format' })).toBeVisible();
+    expect(screen.getByRole('tooltip')).toHaveTextContent('"command": "claude"');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('"args": ["acp"]');
+
+    fireEvent.click(screen.getByRole('button', { name: 'MS Insight_Native' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('"provider": "openai"');
+    expect(screen.getByRole('tooltip')).not.toHaveTextContent('"command": "claude"');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    expect(screen.getByRole('tooltip')).toHaveTextContent('"name": "Claude"');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('"command": "claude"');
+});
+
+test('invalid JSON is preserved when cancelling navigation and cannot bypass save validation', async () => {
+    await openSettings();
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    const editor = await screen.findByRole('textbox', { name: 'Script configuration' });
+    fireEvent.change(editor, { target: { value: '{ invalid' } });
+    fireEvent.click(screen.getByRole('tab', { name: 'Script configuration' }));
+    expect(editor).toHaveValue('{ invalid');
+    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(editor).toHaveValue('{ invalid');
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByRole('alert').closest('.script-config-panel')).not.toBeNull();
+    expect(mockSaveAgentServersConfig).not.toHaveBeenCalled();
+    fireEvent.change(editor, { target: { value: JSON.stringify({ command: '', args: [], env: {} }) } });
+    expect(screen.getByRole('alert')).toHaveTextContent('Command cannot be empty.');
+    fireEvent.change(editor, { target: { value: JSON.stringify({ command: 'opencode', args: ['acp'], env: { ACP_DEBUG: '1' } }) } });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
+});
+
+test('failed save retains the current agent and edits for retry', async () => {
+    await openSettings();
+    mockSaveAgentServersConfig.mockRejectedValueOnce(new Error('Save failed'));
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add agent' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Save changes' }));
+    expect(await screen.findByText('Save failed')).toBeVisible();
+    expect(screen.getByLabelText('Command')).toHaveValue('updated');
+    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'New agent' })).not.toBeInTheDocument();
+});
+
+test('prevents editing or leaving the form while save is in flight', async () => {
+    await openSettings();
+    let finishSave: (result: unknown) => void = () => {};
+    mockSaveAgentServersConfig.mockReturnValueOnce(new Promise((resolve) => { finishSave = resolve; }));
+    fireEvent.change(screen.getByLabelText('Command'), { target: { value: 'updated' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByLabelText('Command')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Add agent' })).toBeDisabled();
+    fireEvent.click(screen.getByRole('button', { name: 'Close drawer' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Agent Configuration')).toBeVisible();
+    await act(async () => { finishSave({ ok: true }); });
+    expect(screen.queryByText('Agent Configuration')).not.toBeInTheDocument();
+    expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1);
 });
 
 test('settings entry opens and displays current config snapshot', async () => {
@@ -284,6 +498,7 @@ test('adds and removes multiple extra path rows before save', async () => {
 
 test('shows a clear busy message and disables save while a prompt is in flight', async () => {
     mockUseChatState.mockReturnValue({
+        sessions: [],
         messages: [],
         messagesRef: { current: null },
         pendingPrompt: true,
@@ -307,6 +522,7 @@ test('settings save and reload keep the messages list untouched', async () => {
     let applyMock = jest.fn();
     let currentMessages: typeof existingMessages = existingMessages;
     mockUseChatState.mockImplementation(() => ({
+        sessions: [],
         messages: currentMessages,
         messagesRef: { current: null },
         pendingPrompt: false,

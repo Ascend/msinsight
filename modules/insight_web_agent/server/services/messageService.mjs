@@ -20,7 +20,12 @@ export const appendChunk = ({ eventBus, state }, sessionId, role, type, delta) =
     if (!message) return;
     const block = message.content.at(-1);
     if (!block || block.type !== type) {
-        const nextBlock = { id: crypto.randomUUID(), type, text: delta };
+        const nextBlock = {
+            id: crypto.randomUUID(),
+            type,
+            text: delta,
+            ...(type === "thinking" ? { startedAt: Date.now() } : {}),
+        };
         message.content.push(nextBlock);
         eventBus.broadcast({ type: "message_content_added", sessionId, id: message.id, block: nextBlock });
         return;

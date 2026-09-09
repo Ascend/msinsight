@@ -63,7 +63,7 @@ export interface ActionItem {
 
 export type MessageContentBlock =
     | { id: string; type: 'text'; text: string }
-    | { id: string; type: 'thinking'; text: string }
+    | { id: string; type: 'thinking'; text: string; startedAt?: number; durationMs?: number }
     | { id: string; type: 'tool'; toolCall: ToolCallItem };
 
 export interface ChatMessage {
@@ -233,6 +233,13 @@ export interface AgentCapabilities {
     };
 }
 
+export interface ConversationNotice {
+    id: string;
+    type: 'model_switch';
+    model: string;
+    afterMessageId?: string;
+}
+
 export interface SessionRecord {
     sessionId: string;
     messages: ChatMessage[];
@@ -240,6 +247,7 @@ export interface SessionRecord {
     loaded: boolean;
     pendingPrompt: boolean;
     queuedPrompts: QueuedPrompt[];
+    notices?: ConversationNotice[];
     status: SessionStatus;
 }
 

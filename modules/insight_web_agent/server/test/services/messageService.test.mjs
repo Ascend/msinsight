@@ -84,6 +84,20 @@ test("consecutive text deltas merge until another content type starts", () => {
     ]);
 });
 
+test("thinking blocks retain their start time for the execution timeline", () => {
+    const state = createRuntimeState();
+    state.sessionContexts.set("session-1", buildSessionContext());
+
+    appendContentBlock({ eventBus: { broadcast: () => {} }, state }, "session-1", "assistant", {
+        type: "text",
+        text: "reasoning",
+    }, "thinking");
+
+    const block = state.sessionContexts.get("session-1").messages[0].content[0];
+    assert.equal(block.type, "thinking");
+    assert.equal(typeof block.startedAt, "number");
+});
+
 test("appendContentBlock ignores hidden context resources", () => {
     const state = createRuntimeState();
     state.sessionContexts.set("session-1", buildSessionContext());

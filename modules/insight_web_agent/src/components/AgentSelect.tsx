@@ -240,12 +240,6 @@ const Container = styled.div`
         margin-top: 8px;
         padding: 0 8px;
     }
-
-    .agent-select-footer > *,
-    .agent-select-footer > * > *,
-    .agent-select-footer > * > * > * {
-        width: 100%;
-    }
 `;
 
 export const AgentSelect = ({

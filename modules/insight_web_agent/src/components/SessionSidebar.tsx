@@ -20,12 +20,13 @@ import { ToolOutlined } from '@ant-design/icons';
 import React, { useRef, useState } from 'react';
 import { Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
+import { agentKindLogo } from '../agentBrand';
 import { requestHostClose } from '../connection';
 import { useChatState } from '../hooks/useChatState';
 import closeIcon from '../icons/close.svg';
 import historyIcon from '../icons/history-session.svg';
-import logo from '../icons/logo.png';
 import newSessionIcon from '../icons/new-session.svg';
+import refreshIcon from '../icons/refresh.svg';
 import settingsIcon from '../icons/settings.svg';
 import statusDotIcon from '../icons/status-dot.svg';
 import type { AvailableCapability } from '../types';
@@ -167,7 +168,7 @@ const AgentAvatar = styled.span`
     font-weight: 600;
     text-transform: uppercase;
 
-    &.native {
+    &.logo {
         border-radius: 0;
         background: transparent;
     }
@@ -179,9 +180,19 @@ const AgentAvatar = styled.span`
     }
 `;
 
-const AddAgentButton = styled.button`
-    width: 100%;
+const AgentSelectActions = styled.div`
+    display: flex;
+    gap: 8px;
+`;
+
+const AgentSelectActionButton = styled.button`
+    flex: 1 1 0;
+    min-width: 0;
     height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
     border: 1px solid ${(props): string => props.theme.borderColorLighter};
     border-radius: ${(props): string => props.theme.borderRadiusLarge};
     background: transparent;
@@ -189,9 +200,23 @@ const AddAgentButton = styled.button`
     font-size: 14px;
     cursor: pointer;
 
-    &:hover {
+    .refresh-icon {
+        width: 16px;
+        height: 16px;
+        flex: 0 0 16px;
+        background: currentColor;
+        -webkit-mask: url(${refreshIcon}) center / contain no-repeat;
+        mask: url(${refreshIcon}) center / contain no-repeat;
+    }
+
+    &:hover:not(:disabled) {
         border-color: ${(props): string => props.theme.primaryColor};
         color: ${(props): string => props.theme.primaryColor};
+    }
+
+    &:disabled {
+        color: ${(props): string => props.theme.textColorDisabled};
+        cursor: not-allowed;
     }
 `;
 
@@ -207,6 +232,8 @@ export const SessionSidebar = (): JSX.Element => {
         sessions,
         selectSession,
         setAgent,
+        refreshAgents,
+        agentDiscoveryLoading,
     } = useChatState();
     const [open, setOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
@@ -225,7 +252,21 @@ export const SessionSidebar = (): JSX.Element => {
                 <AgentSelect
                     className="agent-picker"
                     footer={(
-                        <AddAgentButton onClick={() => openSettings(true)} type="button">{t('addAgent')}</AddAgentButton>
+                        <AgentSelectActions>
+                            <AgentSelectActionButton onClick={() => openSettings(true)} type="button">
+                                {t('addAgent')}
+                            </AgentSelectActionButton>
+                            <AgentSelectActionButton
+                                aria-label={t('refreshAgents')}
+                                disabled={agentDiscoveryLoading}
+                                onClick={() => { refreshAgents(); }}
+                                title={t('refreshAgents')}
+                                type="button"
+                            >
+                                <span aria-hidden="true" className="refresh-icon" />
+                                {t('refresh')}
+                            </AgentSelectActionButton>
+                        </AgentSelectActions>
                     )}
                     onChange={(value) => {
                         setAgent(value);
@@ -311,9 +352,9 @@ const CapabilityIndicator = ({ capabilities }: { capabilities: AvailableCapabili
 };
 
 const getAgentIcon = (agentName: string): JSX.Element => {
-    const normalizedName = agentName.toLowerCase();
-    if (normalizedName === 'msinsight-native' || normalizedName.includes('insight')) {
-        return <AgentAvatar className="native"><img alt="" src={logo} /></AgentAvatar>;
+    const logo = agentKindLogo({ name: agentName });
+    if (logo) {
+        return <AgentAvatar className="logo"><img alt="" src={logo} /></AgentAvatar>;
     }
     return <AgentAvatar>{agentName.slice(0, 1)}</AgentAvatar>;
 };

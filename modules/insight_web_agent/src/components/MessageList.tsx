@@ -19,10 +19,10 @@ import styled from '@emotion/styled';
 import type { TFunction } from 'i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ChatMessage, MessageContentBlock, PermissionDecision, ToolCallItem } from '../types';
+import type { ChatMessage, ConversationNotice, MessageContentBlock, PermissionDecision, ToolCallItem } from '../types';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import { ActionBlock } from './ActionBlock';
 import { parseActionMarkup } from './actionMarkup';
@@ -61,6 +61,7 @@ const Container = styled.div`
         line-height: 1.5;
         text-align: center;
     }
+
 
     .message {
         box-sizing: border-box;
@@ -108,9 +109,9 @@ const Container = styled.div`
         gap: 8px;
         overflow: hidden;
         border: 0;
-        border-radius: 16px;
+        border-radius: 16px 0 16px 16px;
         padding: 12px 16px;
-        background: ${(props): string => props.theme.mode === 'dark' ? props.theme.primaryColorLight3 : props.theme.primaryColorLight4};
+        background: ${(props): string => props.theme.agentUserMessageBackgroundColor};
     }
 
     .message.user:not(.overflowing) {
@@ -178,7 +179,7 @@ const Container = styled.div`
         background: linear-gradient(
             to bottom,
             transparent,
-            ${(props): string => props.theme.mode === 'dark' ? props.theme.primaryColorLight3 : props.theme.primaryColorLight4}
+            ${(props): string => props.theme.agentUserMessageBackgroundColor}
         );
         content: "";
     }
@@ -189,34 +190,55 @@ const Container = styled.div`
         background: transparent;
     }
 
-    .answer-meta,
-    .answer-meta-details {
+    .thinking-summary,
+    .thinking-timeline {
         min-width: 0;
         max-width: 100%;
         margin-bottom: 16px;
         color: ${(props): string => props.theme.textColorSecondary};
-        font-size: 12px;
+        font-size: 14px;
         overflow-wrap: anywhere;
     }
 
-    .answer-meta-details summary {
+    .thinking-summary {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .thinking-timeline > summary {
         width: fit-content;
         display: flex;
         align-items: center;
-        gap: 4px;
-        border-radius: ${(props): string => props.theme.borderRadiusBase};
-        padding: 2px 4px;
+        gap: 8px;
         cursor: pointer;
         list-style: none;
+        user-select: none;
     }
 
-    .answer-meta-details summary::-webkit-details-marker {
+    .thinking-sparkle {
+        display: inline-flex;
+        align-items: center;
+        flex: 0 0 auto;
+    }
+
+    .thinking-sparkle::before {
+        width: 8px;
+        height: 8px;
+        border-radius: ${(props): string => props.theme.borderRadiusCircle};
+        background: rgba(75, 112, 247, 1);
+        content: "";
+        animation: pulse 1s ease-in-out infinite;
+    }
+
+    .thinking-timeline > summary::-webkit-details-marker {
         display: none;
     }
 
-    .thinking-chevron {
-        width: 14px;
-        height: 14px;
+    .thinking-chevron,
+    .timeline-tool-chevron {
+        width: 16px;
+        height: 16px;
         flex: 0 0 auto;
         background: currentColor;
         -webkit-mask: url(${arrowDownIcon}) center / contain no-repeat;
@@ -225,32 +247,183 @@ const Container = styled.div`
         transition: transform 0.18s ease;
     }
 
-    .answer-meta-details[open] .thinking-chevron {
+    .timeline-tool-chevron {
+        width: 12px;
+        height: 12px;
+        margin-top: 3px;
+    }
+
+    .thinking-timeline[open] > summary .thinking-chevron,
+    .timeline-tool-details[open] > summary .timeline-tool-chevron {
         transform: rotate(0deg);
     }
 
-    .thinking-content {
-        margin-top: 6px;
-        padding-left: 18px;
-        border-left: 2px solid ${(props): string => props.theme.borderColor};
+    .thinking-summary-label,
+    .timeline-title {
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-weight: 500;
     }
 
-    .thinking-indicator {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        margin-top: 10px;
+    .thinking-summary-duration,
+    .timeline-duration {
         color: ${(props): string => props.theme.textColorSecondary};
-        font-size: 12px;
+        white-space: nowrap;
     }
 
-    .thinking-indicator::before {
+    .thinking-timeline[open] > .timeline-list {
+        margin-top: 14px;
+    }
+
+    .timeline-list {
+        position: relative;
+        display: grid;
+        gap: 0;
+        padding-left: 30px;
+    }
+
+    .timeline-item {
+        position: relative;
+        min-width: 0;
+        padding: 0 0 20px;
+    }
+
+    .timeline-item:last-child {
+        padding-bottom: 0;
+    }
+
+    .timeline-item:not(:last-child)::before {
+        position: absolute;
+        top: calc((1.5em + 8px) / 2 + 3px);
+        bottom: calc((8px - 1.5em) / 2 + 3px);
+        left: -23px;
+        width: 1px;
+        background: ${(props): string => props.theme.borderColor};
+        content: "";
+    }
+
+    .timeline-marker {
+        position: absolute;
+        z-index: 1;
+        top: calc((1.5em - 8px) / 2);
+        left: -27px;
         width: 8px;
         height: 8px;
         border-radius: ${(props): string => props.theme.borderRadiusCircle};
-        background: ${(props): string => props.theme.primaryColor};
-        content: "";
-        animation: pulse 1s ease-in-out infinite;
+        background: rgba(191, 191, 191, 1);
+    }
+
+    .timeline-item.active .timeline-marker {
+        background: ${(props): string => props.theme.successColor};
+        animation: pulse 1.2s ease-in-out infinite;
+    }
+
+    .timeline-item.failed .timeline-marker {
+        background: ${(props): string => props.theme.dangerColor};
+    }
+
+    .timeline-heading {
+        min-width: 0;
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 0 12px;
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 14px;
+        line-height: 1.5;
+    }
+
+    .timeline-body {
+        margin-top: 6px;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 14px;
+        line-height: 1.7;
+    }
+
+    .timeline-body.rich-text {
+        display: grid;
+        gap: 6px;
+    }
+
+    .thinking-content {
+        color: rgba(119, 119, 119, 1);
+        font-size: 14px;
+        font-weight: 400;
+    }
+
+    .thinking-content :where(strong, b) {
+        font-weight: 400;
+    }
+
+    .timeline-item.thinking .timeline-title {
+        color: rgba(119, 119, 119, 1);
+        font-size: 14px;
+        font-weight: 400;
+    }
+
+    .timeline-item.tool .timeline-title {
+        font-weight: 400;
+    }
+
+    .timeline-tool-details {
+        margin-top: 2px;
+    }
+
+    .timeline-tool-details > summary {
+        width: fit-content;
+        max-width: 100%;
+        display: flex;
+        align-items: flex-start;
+        gap: 4px;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+        color: ${(props): string => props.theme.textColorSecondary};
+    }
+
+    .timeline-tool-details > summary::-webkit-details-marker {
+        display: none;
+    }
+
+    .timeline-tool-details > summary:hover,
+    .timeline-tool-details > summary:hover .timeline-tool-target {
+        color: ${(props): string => props.theme.textColorPrimary};
+    }
+
+    .timeline-tool-target {
+        min-width: 0;
+        margin-top: 2px;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+        font-size: 12px;
+        line-height: 18px;
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+    }
+
+    .timeline-tool-details > summary .timeline-tool-target {
+        margin-top: 0;
+    }
+
+    .timeline-tool-sections {
+        display: grid;
+        gap: 8px;
+        margin: 6px 0 0 16px;
+    }
+
+    .timeline-answer .timeline-title,
+    .timeline-item.analyzing .timeline-title {
+        font-weight: 400;
+    }
+
+    .model-retry-alert {
+        margin-top: 10px;
+        border: 1px solid ${(props): string => props.theme.warningColor};
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        padding: 8px 12px;
+        background: ${(props): string => props.theme.warningColorLight5};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font-size: 12px;
+        line-height: 1.5;
     }
 
     .rich-text {
@@ -415,7 +588,7 @@ const Container = styled.div`
 
     .tool-name {
         min-width: 0;
-        font-weight: 700;
+        font-weight: 400;
         overflow-wrap: anywhere;
     }
 
@@ -557,57 +730,108 @@ const Container = styled.div`
 
 interface MessageListProps {
     messages: ChatMessage[];
+    notices?: ConversationNotice[];
     pendingPrompt: boolean;
     onPermissionDecision: (sessionId: string, requestId: string, decision: PermissionDecision) => Promise<void>;
 }
 
-export const MessageList = ({ messages, pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
+export const MessageList = ({ messages, notices = [], pendingPrompt, onPermissionDecision }: MessageListProps): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
     const now = useToolClock(pendingPrompt);
     if (!messages.length) {
-        return <Container><div className="empty">{t('noLocalMessages')}</div></Container>;
+        return <Container>
+            <div className="empty">{t('noLocalMessages')}</div>
+            {notices.map((notice) => <ModelSwitchNotice key={notice.id} notice={notice} />)}
+        </Container>;
     }
+
+    const messageIds = new Set(messages.map((message) => message.id));
+    const leadingNotices = notices.filter((notice) => !notice.afterMessageId);
+    const trailingNotices = notices.filter((notice) => Boolean(notice.afterMessageId) && !messageIds.has(notice.afterMessageId as string));
 
     return (
         <Container>
+            {leadingNotices.map((notice) => <ModelSwitchNotice key={notice.id} notice={notice} />)}
             {groupMessagesIntoTurns(messages).map((turn) => (
                 <section className="message-turn" key={turn[0].message.id}>
                     {turn.map(({ message, index }) => {
-                        if (isHiddenPermissionMessage(message)) return null;
+                        const attachedNotices = notices.filter((notice) => notice.afterMessageId === message.id).map((notice) => (
+                            <ModelSwitchNotice key={notice.id} notice={notice} />
+                        ));
+                        if (isHiddenPermissionMessage(message)) {
+                            return attachedNotices.length ? <Fragment key={message.id}>{attachedNotices}</Fragment> : null;
+                        }
                         if (message.role === 'user') {
-                            return <UserPromptCard key={message.id} message={message} />;
+                            return (
+                                <Fragment key={message.id}>
+                                    <UserPromptCard message={message} />
+                                    {attachedNotices}
+                                </Fragment>
+                            );
                         }
                         return (
-                            <article className={`message ${message.role}`} key={message.id}>
-                                <AnswerMeta message={message} now={now} />
-                                {message.content.filter((block) => block.type !== 'thinking').map((block) => <ContentBlock
-                                    allowActions={message.role === 'assistant'}
-                                    block={block}
-                                    key={block.id}
-                                    streaming={isStreamingAssistantMessage(messages, index, pendingPrompt)}
-                                />)}
+                            <Fragment key={message.id}>
+                            <article className={`message ${message.role}`}>
+                                <AssistantContent
+                                    index={index}
+                                    message={message}
+                                    messages={messages}
+                                    now={now}
+                                    pendingPrompt={pendingPrompt}
+                                />
                                 {message.permission
                                     ? <PermissionCard message={message} onDecision={onPermissionDecision} />
                                     : null}
-                                {message.activity === 'analyzing_tool_results'
-                                    ? <div className="thinking-indicator">{t('analyzingToolResults')}</div>
-                                    : null}
                                 {typeof message.activity === 'object' && message.activity.type === 'model_retry'
-                                    ? <div className="thinking-indicator">{t('modelRetrying', {
-                                        attempt: message.activity.attempt,
-                                        maxAttempts: message.activity.maxAttempts,
-                                        wait: formatRetryWait(message.activity.retryAfterSeconds, t),
-                                    })}</div>
-                                    : null}
-                                {isThinkingMessage(messages, index, pendingPrompt)
-                                    ? <div className="thinking-indicator">{t('thinking')}</div>
+                                    ? <div className="model-retry-alert" role="status">
+                                        {t('modelRetrying', {
+                                            attempt: message.activity.attempt,
+                                            maxAttempts: message.activity.maxAttempts,
+                                            wait: formatRetryWait(message.activity.retryAfterSeconds, t),
+                                        })}
+                                    </div>
                                     : null}
                             </article>
+                            {attachedNotices}
+                            </Fragment>
                         );
                     })}
                 </section>
             ))}
+            {trailingNotices.map((notice) => <ModelSwitchNotice key={notice.id} notice={notice} />)}
         </Container>
+    );
+};
+
+const ModelSwitchNoticeShell = styled.div`
+    width: 100%;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(16px, 1fr) auto minmax(16px, 1fr);
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    color: ${(props): string => props.theme.textColorSecondary};
+    font-size: 12px;
+    line-height: 18px;
+
+    .model-switch-wave {
+        height: 6px;
+        background: currentColor;
+        opacity: 0.4;
+        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath fill='none' stroke='black' stroke-width='1' d='M0 3 Q 3 0 6 3 T 12 3'/%3E%3C/svg%3E") center / 12px 6px repeat-x;
+        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='6' viewBox='0 0 12 6'%3E%3Cpath fill='none' stroke='black' stroke-width='1' d='M0 3 Q 3 0 6 3 T 12 3'/%3E%3C/svg%3E") center / 12px 6px repeat-x;
+    }
+`;
+
+export const ModelSwitchNotice = ({ notice }: { notice: ConversationNotice }): JSX.Element => {
+    const { t } = useTranslation('insightWebAgent');
+    return (
+        <ModelSwitchNoticeShell className="model-switch-notice" role="status">
+            <span aria-hidden="true" className="model-switch-wave" />
+            <span>{t('modelSwitched', { model: notice.model })}</span>
+            <span aria-hidden="true" className="model-switch-wave" />
+        </ModelSwitchNoticeShell>
     );
 };
 
@@ -693,30 +917,236 @@ const ContentBlock = ({ allowActions, block, streaming }: { allowActions: boolea
     return <ToolCalls toolCalls={[block.toolCall]} />;
 };
 
-const AnswerMeta = ({ message, now }: { message: ChatMessage; now: number }): JSX.Element | null => {
+const AssistantContent = ({
+    index,
+    message,
+    messages,
+    now,
+    pendingPrompt,
+}: {
+    index: number;
+    message: ChatMessage;
+    messages: ChatMessage[];
+    now: number;
+    pendingPrompt: boolean;
+}): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
-    const thinkingBlocks = message.content.filter((block): block is Extract<MessageContentBlock, { type: 'thinking' }> => block.type === 'thinking');
-    const label = message.startedAt === undefined
-        ? t('thinkingProcess')
-        : t('answerDuration', { duration: formatDuration(message.durationMs ?? now - message.startedAt) });
+    const beforeTimeline: JSX.Element[] = [];
+    const afterTimeline: JSX.Element[] = [];
+    const timelineEntries: TimelineEntry[] = [];
+    const streaming = isStreamingAssistantMessage(messages, index, pendingPrompt);
+    const analyzing = message.activity === 'analyzing_tool_results';
+    let timelineStarted = false;
 
-    if (!thinkingBlocks.length) {
-        return message.startedAt === undefined ? null : <div className="answer-meta">{label}</div>;
+    message.content.forEach((block) => {
+        if (block.type === 'thinking') {
+            timelineStarted = true;
+            timelineEntries.push({ type: 'thinking', block });
+            return;
+        }
+        if (block.type === 'tool') {
+            timelineStarted = true;
+            timelineEntries.push({ type: 'tool', block });
+            return;
+        }
+        const element = (
+            <ContentBlock
+                allowActions={message.role === 'assistant'}
+                block={block}
+                key={block.id}
+                streaming={streaming}
+            />
+        );
+        (timelineStarted ? afterTimeline : beforeTimeline).push(element);
+    });
+
+    if (!timelineEntries.length) {
+        return <>
+            <AnswerMeta inProgress={streaming} message={message} now={now} />
+            {beforeTimeline}
+        </>;
     }
 
+    return <>
+        {beforeTimeline}
+        <ThinkingTimeline
+            analyzing={analyzing}
+            entries={timelineEntries}
+            message={message}
+            now={now}
+            open={streaming}
+            showAnswerMarker={afterTimeline.length > 0}
+            t={t}
+        />
+        {afterTimeline}
+    </>;
+};
+
+type ThinkingBlock = Extract<MessageContentBlock, { type: 'thinking' }>;
+type ToolBlock = Extract<MessageContentBlock, { type: 'tool' }>;
+type TimelineEntry = { type: 'thinking'; block: ThinkingBlock } | { type: 'tool'; block: ToolBlock };
+
+const ThinkingTimeline = ({
+    analyzing,
+    entries,
+    message,
+    now,
+    open: expanded,
+    showAnswerMarker,
+    t,
+}: {
+    analyzing: boolean;
+    entries: TimelineEntry[];
+    message: ChatMessage;
+    now: number;
+    open: boolean;
+    showAnswerMarker: boolean;
+    t: TFunction;
+}): JSX.Element => {
+    const [open, setOpen] = useState(expanded);
+    useEffect(() => setOpen(expanded), [expanded]);
+    const totalDuration = message.startedAt === undefined
+        ? undefined
+        : formatDuration(message.durationMs ?? now - message.startedAt);
+    const showAnalyzing = analyzing && !showAnswerMarker;
+    const activeIndex = showAnalyzing ? -1 : entries.reduce((last, entry, entryIndex) => {
+        if (entry.type === 'tool' && entry.block.toolCall.status === 'in_progress') return entryIndex;
+        if (expanded && entry.type === 'thinking' && entryIndex === entries.length - 1 && !showAnswerMarker) return entryIndex;
+        return last;
+    }, -1);
+
     return (
-        <details className="answer-meta-details">
+        <details className="thinking-timeline answer-meta-details" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
             <summary>
-                <span>{label}</span>
+                {expanded ? <ThinkingSparkle /> : null}
+                <span>{thinkingStatusLabel(expanded, totalDuration, t)}</span>
                 <span aria-hidden="true" className="thinking-chevron" />
             </summary>
-            <div className="thinking-content rich-text">
-                {thinkingBlocks.map((block) => (
-                    <ReactMarkdown components={markdownComponents} key={block.id} remarkPlugins={[remarkGfm]}>{block.text}</ReactMarkdown>
+            <div className="timeline-list">
+                {entries.map((entry, entryIndex) => (
+                    <TimelineNode
+                        active={entryIndex === activeIndex}
+                        duration={timelineEntryDuration(entries, entryIndex, message, now, entryIndex === activeIndex)}
+                        entry={entry}
+                        key={entry.block.id}
+                        t={t}
+                    />
                 ))}
+                {showAnalyzing
+                    ? (
+                        <div className="timeline-item analyzing active">
+                            <span aria-hidden="true" className="timeline-marker" />
+                            <div className="timeline-heading"><span className="timeline-title">{t('analyzingToolResults')}</span></div>
+                        </div>
+                    )
+                    : null}
+                {showAnswerMarker
+                    ? (
+                        <div className="timeline-item timeline-answer">
+                            <span aria-hidden="true" className="timeline-marker" />
+                            <div className="timeline-heading"><span className="timeline-title">{t('thinkingAnswering')}</span></div>
+                        </div>
+                    )
+                    : null}
             </div>
         </details>
     );
+};
+
+const TimelineNode = ({
+    active,
+    duration,
+    entry,
+    t,
+}: {
+    active: boolean;
+    duration?: string;
+    entry: TimelineEntry;
+    t: TFunction;
+}): JSX.Element => {
+    if (entry.type === 'thinking') {
+        return (
+            <div className={`timeline-item thinking ${active ? 'active' : 'completed'}`}>
+                <span aria-hidden="true" className="timeline-marker" />
+                <div className="timeline-heading">
+                    <span className="timeline-title">{t(active ? 'thinking' : 'thinkingCompleted')}</span>
+                    {duration ? <span className="timeline-duration">{duration}</span> : null}
+                </div>
+                <div className="timeline-body rich-text thinking-content">
+                    <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{entry.block.text}</ReactMarkdown>
+                </div>
+            </div>
+        );
+    }
+
+    const toolCall = entry.block.toolCall;
+    const target = toolCallTarget(toolCall.input);
+    const outputLabel = t(toolCall.status === 'failed' ? 'toolError' : 'toolOutput');
+    const hasDetails = Boolean(toolCall.input || toolCall.output);
+    return (
+        <div className={`timeline-item tool ${toolCall.status === 'failed' ? 'failed' : active ? 'active' : 'completed'}`}>
+            <span aria-hidden="true" className="timeline-marker" />
+            <div className="timeline-heading">
+                <span className="timeline-title">{toolCallSummary(toolCall, t)}</span>
+                {duration ? <span className="timeline-duration">{duration}</span> : null}
+            </div>
+            {hasDetails
+                ? (
+                    <details className="timeline-tool-details">
+                        <summary>
+                            <span aria-hidden="true" className="timeline-tool-chevron" />
+                            <span className="timeline-tool-target">⎿ {target ?? (toolCall.input ? t('toolInput') : outputLabel)}</span>
+                        </summary>
+                        <div className="timeline-tool-sections">
+                            {toolCall.input ? <ToolSection label={t('toolInput')} value={toolCall.input} /> : null}
+                            {toolCall.output ? <ToolSection label={outputLabel} value={toolCall.output} /> : null}
+                        </div>
+                    </details>
+                )
+                : target
+                    ? <div className="timeline-tool-target">⎿ {target}</div>
+                    : null}
+        </div>
+    );
+};
+
+const timelineEntryDuration = (entries: TimelineEntry[], index: number, message: ChatMessage, now: number, active: boolean): string | undefined => {
+    const entry = entries[index];
+    if (entry.type === 'tool') return formatToolDuration(entry.block.toolCall, now);
+    if (entry.block.startedAt === undefined) return undefined;
+    if (active) return formatDuration(now - entry.block.startedAt);
+    const nextStartedAt = entries.slice(index + 1).map(getTimelineEntryStartedAt).find((startedAt): startedAt is number => startedAt !== undefined);
+    if (nextStartedAt !== undefined) return formatDuration(nextStartedAt - entry.block.startedAt);
+    if (message.startedAt !== undefined && message.durationMs !== undefined) {
+        return formatDuration(message.startedAt + message.durationMs - entry.block.startedAt);
+    }
+    return undefined;
+};
+
+const getTimelineEntryStartedAt = (entry: TimelineEntry): number | undefined => (
+    entry.type === 'thinking' ? entry.block.startedAt : entry.block.toolCall.startedAt
+);
+
+const AnswerMeta = ({ inProgress = false, message, now }: { inProgress?: boolean; message: ChatMessage; now: number }): JSX.Element | null => {
+    const { t } = useTranslation('insightWebAgent');
+    const label = thinkingStatusLabel(
+        inProgress,
+        message.startedAt === undefined ? undefined : formatDuration(message.durationMs ?? now - message.startedAt),
+        t,
+    );
+    return message.startedAt === undefined ? null : (
+        <div className="thinking-summary">
+            {inProgress ? <ThinkingSparkle /> : null}
+            <span>{label}</span>
+        </div>
+    );
+};
+
+const ThinkingSparkle = (): JSX.Element => <span aria-hidden="true" className="thinking-sparkle" />;
+
+const thinkingStatusLabel = (inProgress: boolean, duration: string | undefined, t: TFunction): string => {
+    const status = t(inProgress ? 'thinking' : 'thinkingCompleted');
+    return duration ? `${status} ${duration}` : status;
 };
 
 const isHiddenPermissionMessage = (message: ChatMessage): boolean => {
@@ -730,15 +1160,19 @@ const ToolCalls = ({ toolCalls }: { toolCalls: ToolCallItem[] }): JSX.Element =>
     const now = useToolClock(hasRunningTool);
     return (
         <div className="tool-calls">
-            {toolCalls.map((toolCall) => (
-                <details className={`tool-call ${toolCall.status}`} key={toolCall.toolCallId}>
+            {toolCalls.map((toolCall) => {
+                const duration = formatToolDuration(toolCall, now);
+                return <details className={`tool-call ${toolCall.status}`} key={toolCall.toolCallId}>
                     <summary>
                         <span className="tool-status" />
                         <span className="tool-summary">
                             <span className="tool-name">{toolCallSummary(toolCall, t)}</span>
                             {toolCallTarget(toolCall.input) ? <span className="tool-target">⎿ {toolCallTarget(toolCall.input)}</span> : null}
                         </span>
-                        <span className="tool-state">{toolCallState(toolCall, t)} · {formatToolDuration(toolCall, now)}</span>
+                        <span className="tool-state">
+                            {toolCallState(toolCall, t)}
+                            {duration ? ` · ${duration}` : null}
+                        </span>
                     </summary>
                     {toolCall.input || toolCall.output ? (
                         <div className="tool-details">
@@ -746,8 +1180,8 @@ const ToolCalls = ({ toolCalls }: { toolCalls: ToolCallItem[] }): JSX.Element =>
                             {toolCall.output ? <ToolSection label={toolCall.status === 'failed' ? t('toolError') : t('toolOutput')} value={toolCall.output} /> : null}
                         </div>
                     ) : null}
-                </details>
-            ))}
+                </details>;
+            })}
         </div>
     );
 };
@@ -780,15 +1214,22 @@ const formatRetryWait = (seconds: number | undefined, t: TFunction): string => {
         : t('modelRetryWaitMinutes', { count: minutes });
 };
 
-const formatToolDuration = (toolCall: ToolCallItem, now: number): string => formatDuration(
-    toolCall.status === 'in_progress' ? now - (toolCall.startedAt ?? now) : toolCall.durationMs ?? 0,
-);
+const formatToolDuration = (toolCall: ToolCallItem, now: number): string | undefined => {
+    const duration = toolCall.status === 'in_progress'
+        ? now - (toolCall.startedAt ?? now)
+        : toolCall.durationMs;
+    return duration === undefined ? undefined : formatDuration(duration);
+};
 
 const formatDuration = (value: number): string => {
     const durationMs = Math.max(0, value);
     if (durationMs < 1000) return `${durationMs}ms`;
     if (durationMs < 10000) return `${(durationMs / 1000).toFixed(1)}s`;
-    return `${Math.round(durationMs / 1000)}s`;
+    const totalSeconds = Math.round(durationMs / 1000);
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}m${String(seconds).padStart(2, '0')}s`;
 };
 
 const toolCallState = (toolCall: ToolCallItem, t: TFunction): string => {
@@ -936,15 +1377,4 @@ const isStreamingAssistantMessage = (messages: ChatMessage[], index: number, pen
     const message = messages[index];
     if (!pendingPrompt || message.role !== 'assistant' || message.permission) return false;
     return !messages.slice(index + 1).some(item => item.role === 'assistant' && !item.permission);
-};
-
-const isThinkingMessage = (messages: ChatMessage[], index: number, pendingPrompt: boolean): boolean => {
-    if (!pendingPrompt) return false;
-    const message = messages[index];
-    const hasAnswerContent = message.content.some((block) => block.type === 'text' && block.text.trim());
-    return message.role === 'assistant' &&
-        index === messages.length - 1 &&
-        !message.permission &&
-        !message.activity &&
-        !hasAnswerContent;
 };
