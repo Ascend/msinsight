@@ -28,6 +28,7 @@ import { getFuncNewData, getBarNewData, getBlockTableData, getEventTableData, ge
 import { convertNanoseconds, isHostMemoryEventType } from '../utils/utils';
 import { MemoryBlockDiagram } from './leaks/MemoryBlockDiagram';
 import { getInitialZoomDomain } from './leaks/zoomDomain';
+import { constrainLifecycleRange, getLifecycleZoomLimits } from './leaks/lifecycleNavigation';
 import MemoryDataZoom from './MemoryDataZoom';
 import { workerTransform } from '@/leaksWorker/blockWorker/worker';
 import { MemoryStateDiagram } from './leaks/MemoryStateDiagram';
@@ -123,12 +124,22 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         if (!isValidRange(range)) {
             return;
         }
-        // 缩略轴已经由用户直接操作，不需要再通过 selectedRange 反向设置一次滑块位置。
-        scheduleRangeChange(range, false);
-
         const { sizeInfo, renderOptions } = session.leaksWorkerInfo;
-        const newScale = range[1] - range[0] === 0 ? Number.MAX_SAFE_INTEGER : (sizeInfo.maxTimestamp - sizeInfo.minTimestamp) / (range[1] - range[0]);
-        const newX = -(range[0] - sizeInfo.minTimestamp) * renderOptions.zoom.x * newScale;
+        const limits = getLifecycleZoomLimits(renderOptions.viewport, renderOptions.zoom, sizeInfo.minSize);
+        const actualRange = constrainLifecycleRange(range, [sizeInfo.minTimestamp, sizeInfo.maxTimestamp], limits.scaleX);
+        if (actualRange === null || !isValidRange(actualRange) || renderOptions.zoom.x <= 0 ||
+            !Number.isFinite(renderOptions.zoom.x)) {
+            return;
+        }
+        // Reflect an expanded range in the overview and dependent queries as well.
+        const adjusted = !isSameRange(range, actualRange);
+        scheduleRangeChange(actualRange, adjusted);
+        if (adjusted) {
+            // A repeated selection can hit the same limit after the slider moved.
+            setSelectedRange(actualRange);
+        }
+        const newScale = (sizeInfo.maxTimestamp - sizeInfo.minTimestamp) / (actualRange[1] - actualRange[0]);
+        const newX = -(actualRange[0] - sizeInfo.minTimestamp) * renderOptions.zoom.x * newScale;
         const transform = { x: newX, y: 0, scaleX: newScale, scaleY: 1 };
 
         runInAction(() => {

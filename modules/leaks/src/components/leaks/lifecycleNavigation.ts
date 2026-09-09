@@ -57,6 +57,50 @@ export interface LifecycleGraphViewport {
 
 const clamp = (value: number, min: number, max: number): number => Math.min(Math.max(value, min), max);
 
+export interface LifecycleZoomLimits {
+    scaleX: number;
+    scaleY: number;
+}
+
+// Float32 has 24 significant bits. Reserve rounding headroom for the shader's
+// products and cancellation against translation, keeping pixel values below 2^20.
+const MAX_LIFECYCLE_PIXEL_MAGNITUDE = 2 ** 20;
+
+export const getLifecycleZoomLimits = (
+    viewport: LifecycleGraphViewport,
+    zoom: { x: number; y: number; offset: number },
+    minSize = 0,
+): LifecycleZoomLimits => {
+    const limit = (extent: number): number => Number.isFinite(extent) && extent > 0
+        ? Math.max(1, MAX_LIFECYCLE_PIXEL_MAGNITUDE / extent)
+        : 1;
+    // Linked time ranges use integer timestamps; memory coordinates use bytes.
+    const resolutionLimit = (extent: number, zoomFactor: number): number =>
+        Number.isFinite(zoomFactor) && zoomFactor > 0 && Number.isFinite(extent) && extent > 0
+            ? Math.max(1, extent / zoomFactor)
+            : 1;
+    return {
+        scaleX: Math.min(limit(Math.abs(zoom.offset * zoom.x) + viewport.width), resolutionLimit(viewport.width, zoom.x)),
+        scaleY: Math.min(limit(Math.abs(minSize * zoom.y) + viewport.height), resolutionLimit(viewport.height, zoom.y)),
+    };
+};
+
+export const constrainLifecycleRange = (
+    range: [number, number],
+    domain: [number, number],
+    maxScale: number,
+): [number, number] | null => {
+    const total = domain[1] - domain[0];
+    const requested = range[1] - range[0];
+    if (![...range, ...domain, maxScale, total, requested].every(Number.isFinite) ||
+        total <= 0 || requested <= 0 || maxScale < 1) {
+        return null;
+    }
+    const span = Math.min(total, Math.max(requested, 1, total / maxScale));
+    const start = clamp(range[0] - (span - requested) / 2, domain[0], domain[1] - span);
+    return [start, start + span];
+};
+
 export const calculateLifecycleZoomTransform = ({
     transform,
     viewport,
@@ -65,6 +109,7 @@ export const calculateLifecycleZoomTransform = ({
     direction,
     onlyScaleX,
     zoomStep = 0.1,
+    limits,
 }: {
     transform: LifecycleGraphTransform;
     viewport: LifecycleGraphViewport;
@@ -73,13 +118,27 @@ export const calculateLifecycleZoomTransform = ({
     direction: 1 | -1;
     onlyScaleX: boolean;
     zoomStep?: number;
+    limits?: LifecycleZoomLimits;
 }): LifecycleGraphTransform => {
+    if (![transform.x, transform.y, transform.scaleX, transform.scaleY,
+        viewport.width, viewport.height, anchorX, anchorY, zoomStep].every(Number.isFinite) ||
+        transform.scaleX <= 0 || transform.scaleY <= 0 || viewport.width <= 0 || viewport.height <= 0 || zoomStep <= 0) {
+        return { ...transform };
+    }
     const originalContentX = (anchorX - transform.x) / transform.scaleX;
     const originalContentY = (anchorY - transform.y) / transform.scaleY;
     const baseScale = onlyScaleX ? transform.scaleX : Math.max(transform.scaleX, transform.scaleY);
-    const dynamicStep = zoomStep * (Math.abs(baseScale - 1) + 1);
-    const scaleX = Math.max(0.1, transform.scaleX + direction * dynamicStep);
-    const scaleY = onlyScaleX ? transform.scaleY : Math.max(0.1, transform.scaleY + direction * dynamicStep);
+    let delta = direction * zoomStep * (Math.abs(baseScale - 1) + 1);
+    if (limits !== undefined && direction > 0) {
+        delta = Math.min(delta, Math.max(0, limits.scaleX - transform.scaleX),
+            onlyScaleX ? Infinity : Math.max(0, limits.scaleY - transform.scaleY));
+    }
+    const scaleX = Math.max(0.1, transform.scaleX + delta);
+    const scaleY = onlyScaleX ? transform.scaleY : Math.max(0.1, transform.scaleY + delta);
+    if (scaleX === transform.scaleX && scaleY === transform.scaleY) {
+        // Session transforms may be MobX proxies; Worker messages need plain data.
+        return { ...transform };
+    }
 
     return {
         x: clamp(anchorX - originalContentX * scaleX, -viewport.width * scaleX, viewport.width),

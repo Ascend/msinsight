@@ -53,6 +53,7 @@ import { OneToOneOutlined } from '@ant-design/icons';
 import {
     calculateLifecyclePanTransform,
     calculateLifecycleZoomTransform,
+    getLifecycleZoomLimits,
     getLifecycleMarkerBaseline,
     isEditableKeyboardTarget,
     isLifecycleHostZoomShortcut,
@@ -426,6 +427,8 @@ export const MemoryBlockDiagram = observer(({
         const direction = ev.deltaY > 0 ? -1 : 1; // -1: 缩小, +1: 放大
         const transform = calculateLifecycleZoomTransform({
             transform: currentTransform,
+            limits: getLifecycleZoomLimits(session.leaksWorkerInfo.renderOptions.viewport,
+                session.leaksWorkerInfo.renderOptions.zoom, session.leaksWorkerInfo.sizeInfo.minSize),
             viewport: { width: rect.width, height: rect.height },
             anchorX: mouseX,
             anchorY: mouseY,
@@ -565,6 +568,8 @@ export const MemoryBlockDiagram = observer(({
             const currentTransform = session.leaksWorkerInfo.renderOptions.transform;
             const transform = calculateLifecycleZoomTransform({
                 transform: currentTransform,
+                limits: getLifecycleZoomLimits(session.leaksWorkerInfo.renderOptions.viewport,
+                    session.leaksWorkerInfo.renderOptions.zoom, session.leaksWorkerInfo.sizeInfo.minSize),
                 viewport: { width: rect.width, height: rect.height },
                 anchorX: mouseX,
                 anchorY: mouseY,
@@ -622,6 +627,8 @@ export const MemoryBlockDiagram = observer(({
             const pointer = lastPointerPosition.current;
             const transform = calculateLifecycleZoomTransform({
                 transform: currentTransform,
+                limits: getLifecycleZoomLimits(session.leaksWorkerInfo.renderOptions.viewport,
+                    session.leaksWorkerInfo.renderOptions.zoom, session.leaksWorkerInfo.sizeInfo.minSize),
                 viewport: { width: rect.width, height: rect.height },
                 anchorX: pointer?.x ?? rect.width / 2,
                 anchorY: pointer === null ? rect.height / 2 : rect.height - pointer.y,
