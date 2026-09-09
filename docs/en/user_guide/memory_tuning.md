@@ -12,7 +12,7 @@ Based on the visualization of the memory allocation and release lifetime, the to
 
 Based on the visualization of the memory allocation and release lifetime, the tool locates and tunes memory fragmentation problems based on the **memory pool allocation status**.
 
->[!NOTE]NOTE 
+>[!NOTE]NOTE
 The PyTorch Snapshot function is referred to as the memory snapshot function in this document.
 
 ## Preparations
@@ -105,13 +105,13 @@ PyTorch Memory Snapshot is a memory snapshot function provided by PyTorch. It is
 
 **Common Memory Problems**
 
-  - Memory leak, overflow, or reallocation: During model training or inference, the memory usage keeps increasing step by step or request by request until an avalanche occurs (APP or PTA reserved memory suddenly decreases after reaching a certain point) or out of memory (OOM) occurs. 
+  - Memory leak, overflow, or reallocation: During model training or inference, the memory usage keeps increasing step by step or request by request until an avalanche occurs (APP or PTA reserved memory suddenly decreases after reaching a certain point) or out of memory (OOM) occurs.
 
   - Memory fragmentation: During model training, there is a large gap between the operator reservation and operator allocation curves.
 
   - Peak memory tuning: During model training, the peak memory needs to be analyzed to determine which operators or tensors cause the peak memory. Then evaluate whether the memory peak can be reduced by adjusting the allocation order of tensors or the execution order of operators.
 
->[!NOTE]NOTE 
+>[!NOTE]NOTE
 The preceding common memory problems occur when the memory tab page is displayed on the **System Tuning** page after profile data is collected.
 
 ## Memory Details
@@ -126,12 +126,12 @@ During memory tuning, MindStudio Insight displays the memory status through the 
 
 The memory details (msMemScope) page consists of the call stack flame graph (area 1), memory block lifetime graph (area 2), memory details disassembly diagram (area 3), and memory details table (area 4), as shown in [**Figure 1** Memory details page](#memory-details-page).
 
-**Figure 1** Memory details page <a id="memory-details-page"></a> 
+**Figure 1** Memory details page <a id="memory-details-page"></a>
 ![**Figure 1** Memory details page](./figures/memory_tuning/memory_details_interface_1.png "Memory details page")
 
 - Area 1: In the function stack flame graph, you can select a thread ID to display the corresponding Python stack graph. To highlight functions, enter function names in the **Search** text box or select function names from the drop-down list.
 
-  > [!NOTE]NOTE 
+  > [!NOTE]NOTE
   > By default, the **Allow Trim** option is selected in this area. In this state, the tool compresses data without affecting the overall data display, improving the tool usability.
 
 - Area 2: The memory block lifetime graph displays the memory allocation/release line graph and memory block graph. You can select a color block in the memory block chart to view details about the memory block. You can also select a device ID and type to view the corresponding memory block lifetime graph.
@@ -153,7 +153,7 @@ In the call stack flame graph and memory block lifetime graph of MindStudio Insi
 
     The background of the zoom slider in the trend chart of MindStudio Insight displays the trend of the memory usage (Operator Allocated) in the overall time range, and intuitively displays the memory usage trend in the selected time range.
 
-    >[!NOTE]NOTE 
+    >[!NOTE]NOTE
     The Operator Allocated curve indicates the change trend of the allocated memory collected when the operator allocates or releases the memory. It represents the total allocated memory of all operators.
 
 2. Diversified operations on the time domain:
@@ -166,6 +166,8 @@ In the call stack flame graph and memory block lifetime graph of MindStudio Insi
 
 The memory block lifetime graph and memory details disassembly diagram can be moved by dragging and zoomed in or out by scrolling.
 
+The memory block lifetime graph limits magnification according to viewport size and data-coordinate precision. Further zoom-in input keeps the view unchanged at this limit; zoom-out and reset remain available. An overview selection that is too narrow expands to a stable range and synchronizes the linked views.
+
 **Memory details disassembly diagram**
 
 When you hover the mouse pointer over the call stack flame graph or memory block lifetime graph, a timeline is displayed. In the memory block lifetime graph area, click the timeline to view the memory details disassembly diagram at the corresponding time point below the memory block lifetime graph, helping you view the memory usage. The content displayed in Memory Details Disassembly Diagram varies depending on the selected type.
@@ -174,15 +176,15 @@ To view a specified memory layer, click the layer bar below Memory Details Disas
 
 - When the type is set to HAL, Memory Details Disassembly Diagram displays only the memory data classified at the CANN layer, as shown in [**Figure 2** Memory details disassembly diagram at the CANN layer](#memory-details-disassembly-diagram-at-the-cann-layer).
 
-    **Figure 2** Memory details disassembly diagram at the CANN layer <a id="memory-details-disassembly-diagram-at-the-cann-layer"></a> 
+    **Figure 2** Memory details disassembly diagram at the CANN layer <a id="memory-details-disassembly-diagram-at-the-cann-layer"></a>
     ![**Figure 2** Memory details disassembly diagram at the CANN layer](./figures/memory_tuning/cann_memory_breakdown_1.png "Memory details disassembly diagram at the CANN layer")
 
 - If **Type** is set to a value other than **HAL**, Memory Details Disassembly Diagram displays the memory type and layer of the memory pool on the corresponding framework. For example, if **Type** is set to PTA, Memory Details Disassembly Diagram displays only the memory information of the PTA framework, as shown in [**Figure 3** Memory details disassembly diagram of the PTA framework](#memory-details-disassembly-diagram-of-the-pta-framework).
 
-    **Figure 3** Memory details disassembly diagram of the PTA framework <a id="memory-details-disassembly-diagram-of-the-pta-framework"></a> 
+    **Figure 3** Memory details disassembly diagram of the PTA framework <a id="memory-details-disassembly-diagram-of-the-pta-framework"></a>
     ![**Figure 3** Memory details disassembly diagram of the PTA framework](./figures/memory_tuning/pta_framework_memory_breakdown_1.png "Memory details disassembly diagram of the PTA framework")
 
-> [!NOTE]NOTE 
+> [!NOTE]NOTE
 > You can drag the Memory Details Disassembly Diagram leftward, rightward, upward, and downward, and zoom in or out the diagram.
 >
 > - Place the cursor on the diagram and hold down the left mouse button to drag the diagram left, right, up, or down.
@@ -191,9 +193,9 @@ To view a specified memory layer, click the layer bar below Memory Details Disas
 **Memory Details** <a id="memory-details"></a>
 
 The **Memory Details Table** area displays memory details by **Block View** and **Event View**. By default, all memory information is displayed.
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > The memory details are hidden by default. To view the details, click the expand button to display the memory details. If you do not need to view the memory details, click the collapse button to hide the memory details.
-> 
+>
 > Filter is supported for the **Size**, **Malloc Timestamp**, and **Free Timestamp** fields in **Block View**, and the **Timestam**p field in **Event View**. After you click ![](./figures/memory_tuning/zh-cn_image_0000002532040401.png), you can enter integers between **0** and the value displayed in the table to set the minimum and maximum values of the filter range.
 
 - **Block View**: displays detailed information about memory blocks, as shown in [**Figure 4** Block View](#block-view). For details about the fields, see [**Table 1** Block View fields](#block-view-fields).
@@ -202,7 +204,7 @@ The **Memory Details Table** area displays memory details by **Block View** and 
 
     To filter inefficient memory blocks, you can click **Filter Inefficient Memory Blocks** in the upper right corner of the **Block View** table, and set thresholds for early request, delayed release, or long idle period.
 
-    **Figure 4** Block View <a id="block-view"></a> 
+    **Figure 4** Block View <a id="block-view"></a>
     ![**Figure 4** Block View](./figures/memory_tuning/memory_block_view_1.png "Block View")
 
     **Table 1** Block View fields <a id="block-view-fields"></a>
@@ -223,7 +225,7 @@ The **Memory Details Table** area displays memory details by **Block View** and 
     | |Attr|Extended attributes:<br> - **allocation_id**: ID for the request, access, or release sequence of a memory block. It uniquely identifies a group of memory events.<br> - **lazy_used**: early request. The value can be **true** or **false**. **true** indicates that the scenario has been detected.<br> - **delayed_free**: delayed release. The value can be **true** or **false**. **true** indicates that the scenario has been detected.<br> - **long_Idle**: long idle period. The value can be **true** or **false**. **true** indicates that the scenario has been detected.|
 
   > [!NOTE]NOTE
-  > 
+  >
   > - If the imported data is collected by the msMemScope tool of a version earlier than MindStudio 8.2.RC1 or no access event is collected, **allocation\_id** is displayed as **0**, **First Access Timestamp\(ns\)** and **Last Access Timestamp\(ns\)** are displayed as **-1**, and **Max Access Interval\(ns\)** is displayed as **0**.
   > - Currently, the msMemScope tool can collect memory access events only in the ATB and Ascend Extension for PyTorch operator scenarios. Therefore, **First Access Timestamp\(ns\)**, **Last Access Timestamp\(ns\)**, and **Max Access Interval\(ns\)** are available only in these scenarios. In other scenarios, **First Access Timestamp\(ns\)** and **Last Access Timestamp\(ns\)** are displayed as **-1**, and **Max Access Interval\(ns\)** is displayed as **0**.
 
@@ -231,7 +233,7 @@ The **Memory Details Table** area displays memory details by **Block View** and 
 
     When you select different device IDs in the memory block lifetime graph, the information displayed in the event view is updated accordingly. When you select a specific area in the memory block lifetime graph, the information in the event view is also updated, displaying all memory events within the selected time range.
 
-    **Figure 5** Event View <a id="event-view"></a> 
+    **Figure 5** Event View <a id="event-view"></a>
     ![**Figure 5** Event View](./figures/memory_tuning/memory_event_view_1.png "Event View")
 
     **Table 2** Event View fields <a id="event-view-fields"></a>
@@ -250,14 +252,14 @@ The **Memory Details Table** area displays memory details by **Block View** and 
     | |Call Stack(Python)|Python call stack. This field is displayed only when the information is collected.|
     | |Call Stack(C)|C call stack. This field is displayed only when the information is collected.|
 
-    > [!NOTE]NOTE  
+    > [!NOTE]NOTE
     > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/user_guide/memory_profile.md#collection-via-cli)" in *msMemScope Memory Collection*.
 
 - **Slice Detail**: displays details about the memory block, as shown in [**Figure 6** Slice Detail](#Slice Detail).
 
     When you click the view of any time point in the memory block lifetime graph, the displayed information in the **Slice Detail** area is updated accordingly.
 
-    **Figure 6** Slice Detail <a id="Slice Detail"></a> 
+    **Figure 6** Slice Detail <a id="Slice Detail"></a>
     ![](./figures/memory_tuning/memory_select_detail_1.png "Slice Detail")
 
 ### PyTorch Snapshot Data Memory Details (Memory Snapshot)
@@ -270,7 +272,7 @@ Based on the visualization of the memory allocation and release lifetime, the to
 
 The **PyTorch Snapshot** page consists of the memory block lifetime graph (area 1), memory pool status graph (area 2), and memory details table (area 3), as shown in [**Figure 1** PyTorch Snapshot](#pytorch-snapshot).
 
-**Figure 1** PyTorch Snapshot <a id="pytorch-snapshot"></a> 
+**Figure 1** PyTorch Snapshot <a id="pytorch-snapshot"></a>
 ![**Figure 1** PyTorch Snapshot](./figures/memory_tuning/memory_pytorch_snapshot_details_interface_1.png "PyTorch Snapshot")
 
 - Area 1: The memory block lifetime graph displays the memory allocation/release line graph and memory block graph. You can select a color block in the memory block chart to view details about the memory block.
@@ -292,7 +294,7 @@ In the memory block lifetime graph of MindStudio Insight, you can select a range
 
     The background of the zoom slider in the memory snapshot trend chart of MindStudio Insight displays the trend chart of the memory usage (Operator Allocated) in the overall time range, intuitively showing the trend of the entire memory usage in the selected time range.
 
-    >[!NOTE]NOTE 
+    >[!NOTE]NOTE
     The Operator Allocated curve indicates the change trend of the allocated memory collected when the operator allocates or releases the memory. It represents the total allocated memory of all operators.
 
 2. Diversified operations on the time domain:
@@ -309,23 +311,23 @@ The memory block lifetime graph and memory pool status graph can be moved by dra
 
 When you hover the mouse pointer over the memory block lifetime graph, click a memory block. The event overview and memory pool status graph at the corresponding time point are displayed below the memory block lifetime graph. You can also search for the corresponding address to accurately locate the event details, as shown in [**Figure 2** Memory pool status graph](#memory-pool-status-graph).
 
->[!NOTE]NOTE 
+>[!NOTE]NOTE
 If the memory pool status is not updated after you click a memory block, no allocation event is collected for the memory block in the lifetime.
 
-**Figure 2** Memory pool status graph <a id="memory-pool-status-graph"></a> 
+**Figure 2** Memory pool status graph <a id="memory-pool-status-graph"></a>
     ![**Figure 2** Memory pool status graph](./figures/memory_tuning/memory_pytorch_snapshot_pool_status_1.png "Memory pool status graph")
 
 **Memory Snapshot Details** <a id="memory-snapshot-details"></a>
 
 The memory details include the slice detail and system view. The slice detail displays the details of the event. In the system view, the memory block view and memory event view are used to display memory details. By default, all memory-related information is displayed.
-> [!NOTE]NOTE  
+> [!NOTE]NOTE
 > The memory details are hidden by default. To view the details, click the expand button to display the memory details. If you do not need to view the memory details, click the collapse button to hide the memory details.
-> 
+>
 > For the **Size(bytes)** and **Requested Size(bytes)** fields in the memory block view, and the **Size(bytes)**, **Allocated(bytes)**, **Active(bytes)**, and **Reserved(bytes)** fields in the memory event view, you can click ![](./figures/memory_tuning/zh-cn_image_0000002532040401.png) to enter the minimum and maximum values for range filtering.
 
 - **Block View**: displays detailed information about memory blocks, as shown in [**Figure 3** Block View](#block-view). For details about the fields, see [**Table 1** Block View fields](#block-view-fields).
 
-    **Figure 3** Block View <a id="block-view"></a> 
+    **Figure 3** Block View <a id="block-view"></a>
     ![**Figure 3** Block View](./figures/memory_tuning/memory_pytorch_snapshot_block_view_1.png "Block View")
 
     **Table 1** Block View fields <a id="block-view-fields"></a>
@@ -341,7 +343,7 @@ The memory details include the slice detail and system view. The slice detail di
     |Free Event ID|Optional|ID of the memory block release completion event.|Integer|2|Unique ID of the memory block release completion event. The value `-1` indicates that the memory block release completion event is not recorded in the memory snapshot collection lifetime.|
 
   > [!NOTE]NOTE
-  > 
+  >
   > - If the imported data is collected by the msMemScope tool of a version earlier than MindStudio 8.2.RC1 or no access event is collected, **allocation\_id** is displayed as **0**, **First Access Timestamp\(ns\)** and **Last Access Timestamp\(ns\)** are displayed as **-1**, and **Max Access Interval\(ns\)** is displayed as **0**.
   > - Currently, the msMemScope tool can collect memory access events only in the ATB and Ascend Extension for PyTorch operator scenarios. Therefore, **First Access Timestamp\(ns\)**, **Last Access Timestamp\(ns\)**, and **Max Access Interval\(ns\)** are available only in these scenarios. In other scenarios, **First Access Timestamp\(ns\)** and **Last Access Timestamp\(ns\)** are displayed as **-1**, and **Max Access Interval\(ns\)** is displayed as **0**.
 
@@ -349,7 +351,7 @@ The memory details include the slice detail and system view. The slice detail di
 
     When you select different device IDs in the memory block lifetime graph, the information displayed in the event view is updated accordingly. When you select a specific area in the memory block lifetime graph, the information in the event view is also updated, displaying all memory events within the selected time range.
 
-    **Figure 4** Event View <a id="event-view"></a> 
+    **Figure 4** Event View <a id="event-view"></a>
     ![ **Figure 4** Event View](./figures/memory_tuning/memory_pytorch_snapshot_event_view_1.png "Event View")
 
     **Table 2** Event View fields <a id="event-view-fields"></a>
@@ -366,14 +368,14 @@ The memory details include the slice detail and system view. The slice detail di
     |Reserved(bytes)|Required|Total size of reserved memory in the PTA memory pool after the event occurs, in bytes.|Floating point number|12.5|The value is the total size of all memory segments, indicating the size of memory that is actually allocated from the driver and reserved in the PTA memory pool when the event occurs.|
     |Call Stack|Optional|Call stack of a memory event.|String|`/home/xxx/test/demo.py: 60 main`|Call stack of a memory event, which displays the call stack triggered when the memory event occurs. If the value is empty, the possible causes are as follows:<br><ul><li>Stacks are not enabled when `_record_memory_history` is called.</li><br><li>The event occurs in autograd during backward propagation, and there may be no call stack information.</li></ul>|
 
-    > [!NOTE]NOTE  
+    > [!NOTE]NOTE
     > For details about the values of **Event**, **Event Type**, and **Name** fields, see the description of the **msmemscope\_dump\_\{timestamp\}.csv** result file in section "[Collection via CLI](https://gitcode.com/Ascend/msmemscope/blob/master/docs/en/user_guide/memory_profile.md#collection-via-cli)" in *msMemScope Memory Collection*.
 
 - **Slice Detail**: displays details about the memory block, as shown in [**Figure 5** Slice Detail](#slice-detail). For details about the fields, see [**Table 3** Slice Detail fields](#slice-detail-fields).
 
     When you click the view of any time point in the memory block lifetime graph, the displayed information in the **Slice Detail** area is updated accordingly.
 
-    **Figure 5** Slice Detail <a id="slice-detail"></a> 
+    **Figure 5** Slice Detail <a id="slice-detail"></a>
     ![**Figure 5** Slice Detail](./figures/memory_tuning/memory_pytorch_snapshot_select_detail_1.png "Slice Detail")
 
     **Table 3** Slice Detail fields <a id="slice-detail-fields"></a>
@@ -478,11 +480,11 @@ The following collects memory leak data.
     model = resnet50(pretrained=False, num_classes=10).to(device)  # Load the model.
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)  # Define the optimizer.
     loss_fn = torch.nn.CrossEntropyLoss()  # Define the loss function.
-    
+
     # Enable the collection of Python function call data.
     msmemscope.tracer.start()
     train(model, optimizer, loss_fn, device, steps=3)  # Start training.
-    
+
     # Disable the collection of Python function call data.
     msmemscope.tracer.stop()
     ```
@@ -505,25 +507,25 @@ The following collects memory leak data.
 
     As shown in [**Figure 1** Unreleased memory blocks](#unreleased-memory-blocks), there is still an unreleased memory block when step 2 ends.
 
-    **Figure 1** Unreleased memory blocks <a id="unreleased-memory-blocks"></a> 
+    **Figure 1** Unreleased memory blocks <a id="unreleased-memory-blocks"></a>
     ![**Figure 1** Unreleased memory blocks](./figures/memory_tuning/unreleased_memory_blocks_1.png "Unreleased memory blocks")
 
 3. The call stack flame graph shows that the memory block comes from a tensor object and is allocated before the forward propagation starts, as shown in [**Figure 2** Tensor object](#Tensor object)
 
-    **Figure 2** Tensor object <a id="Tensor object"></a> 
+    **Figure 2** Tensor object <a id="Tensor object"></a>
     ![](./figures/memory_tuning/tensor_object_1.png "Tensor object")
 
 4. When cross-referencing the `leaks\_mem` segment against the memory details disassembly diagram, a clear increasing trend is detected within the segment. From step 1, the memory usage of the `leaks\_mem` segment is 40 MB for the first time, as shown in [**Figure 3** Checking the memory usage in step 1] (#checking-the-memory-usage-in-step-1).
 
-    **Figure 3** Checking the memory usage in step 1 <a id="checking-the-memory-usage-in-step-1"></a> 
+    **Figure 3** Checking the memory usage in step 1 <a id="checking-the-memory-usage-in-step-1"></a>
     ![**Figure 3** Checking the memory usage in step 1](./figures/memory_tuning/view_step1_memory_usage_1.png "Checking the memory usage in step 1")
 
     As shown in [**Figure 4** Checking the memory usage in step 2](#checking-the-memory-usage-in-step-2), the `leaks_mem` memory usage in step 2 increases from 40 MB to 80 MB.
 
-    **Figure 4** Checking the memory usage in step 2 <a id="checking-the-memory-usage-in-step-2"></a> 
+    **Figure 4** Checking the memory usage in step 2 <a id="checking-the-memory-usage-in-step-2"></a>
     ![**Figure 4** Checking the memory usage in step 2](./figures/memory_tuning/view_step2_memory_usage_1.png "Checking the memory usage in step 2")
 
     As shown in [**Figure 5** Checking the memory usage in step 3](#checking-the-memory-usage-in-step-3), the `leaks_mem` memory usage in step 3 increases from 80 MB to 120 MB.
 
-    **Figure 5** Checking the memory usage in step 3 <a id="checking-the-memory-usage-in-step-3"></a> 
+    **Figure 5** Checking the memory usage in step 3 <a id="checking-the-memory-usage-in-step-3"></a>
     ![**Figure 5** Checking the memory usage in step 3](./figures/memory_tuning/view_step3_memory_usage_1.png "Checking the memory usage in step 3")
