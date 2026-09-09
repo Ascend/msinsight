@@ -56,6 +56,18 @@ TEST_F(HandlerTest, QueryCommunicationOperatorListsWithExeSqlFail) {
     EXPECT_EQ(result, true);
 }
 
+TEST_F(HandlerTest, QueryCommunicationOperatorListsRejectsOversizedPage) {
+    auto request = std::make_unique<DurationListRequest>();
+    request->params.iterationId = "1";
+    request->params.operatorName = "opName";
+    request->params.stage = "1";
+    request->params.clusterPath = "test";
+    request->params.currentPage = 1;
+    request->params.pageSize = Dic::MAX_PAGESIZE + 1;
+    CommunicationOperatorListsHandler handler;
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+}
+
 TEST_F(HandlerTest, QueryBandwidthHandlerParamError) {
     auto request = std::make_unique<BandwidthDataRequest>();
     request->params.iterationId = ";";
@@ -219,6 +231,18 @@ TEST_F(HandlerTest, DurationListHandlerExecSqlFailed) {
     DurationListHandler handler;
     bool result = handler.HandleRequest(std::move(request));
     EXPECT_TRUE(result);
+}
+
+TEST_F(HandlerTest, DurationListHandlerRejectsOversizedPage) {
+    auto request = std::make_unique<DurationListRequest>();
+    request->params.clusterPath = "test";
+    request->params.iterationId = "0";
+    request->params.operatorName = "op detail";
+    request->params.stage = "0";
+    request->params.currentPage = 1;
+    request->params.pageSize = Dic::MAX_PAGESIZE + 1;
+    DurationListHandler handler;
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
 }
 
 TEST_F(HandlerTest, CommunicationSlowRankAnalysisHandlerExecSqlFailed) {

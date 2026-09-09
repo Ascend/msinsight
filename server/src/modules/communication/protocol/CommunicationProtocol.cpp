@@ -178,6 +178,8 @@ std::unique_ptr<Request> CommunicationProtocol::ToDurationRequest(const json_t &
     JsonUtil::SetByJsonKeyValue(reqPtr->params.baselineGroupIdHash, json["params"], "baselineGroupIdHash");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.groupIdHash, json["params"], "groupIdHash");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.clusterPath, json["params"], "clusterPath");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.currentPage, json["params"], "currentPage");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.pageSize, json["params"], "pageSize");
     return reqPtr;
 }
 

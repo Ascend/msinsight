@@ -19,8 +19,9 @@
 #ifndef DIC_COMMUNICATION_PROTOCOL_COMMUNICATION_RESPONSE_H
 #define DIC_COMMUNICATION_PROTOCOL_COMMUNICATION_RESPONSE_H
 
-#include <vector>
+#include <algorithm>
 #include <cfloat>
+#include <vector>
 #include "GlobalDefs.h"
 #include "ProtocolDefs.h"
 #include "NumberUtil.h"
@@ -184,6 +185,39 @@ struct BandwidthStatistic {
 struct DurationListsResponseBody {
     std::vector<Duration> durationList;
     std::vector<BandwidthStatistic> bwStatistics{};
+    uint64_t total = 0;
+    bool paginated = false;
+
+    void Paginate(int64_t currentPage, int64_t pageSize) {
+        if (currentPage == 0 && pageSize == 0) {
+            return;
+        }
+        paginated = true;
+        total = durationList.size();
+        const uint64_t offset = static_cast<uint64_t>(currentPage - 1) * static_cast<uint64_t>(pageSize);
+        if (offset >= durationList.size()) {
+            durationList.clear();
+            return;
+        }
+        const size_t begin = static_cast<size_t>(offset);
+        const size_t end = std::min(durationList.size(), begin + static_cast<size_t>(pageSize));
+        durationList = std::vector<Duration>(durationList.begin() + begin, durationList.begin() + end);
+    }
+
+    void SetPageFrom(const DurationListsResponseBody &source, int64_t currentPage, int64_t pageSize) {
+        durationList.clear();
+        paginated = true;
+        total = source.durationList.size();
+        bwStatistics = source.bwStatistics;
+        const uint64_t offset = static_cast<uint64_t>(currentPage - 1) * static_cast<uint64_t>(pageSize);
+        if (offset >= source.durationList.size()) {
+            return;
+        }
+        const size_t begin = static_cast<size_t>(offset);
+        const size_t end = std::min(source.durationList.size(), begin + static_cast<size_t>(pageSize));
+        durationList.assign(source.durationList.begin() + static_cast<std::ptrdiff_t>(begin),
+            source.durationList.begin() + static_cast<std::ptrdiff_t>(end));
+    }
 };
 
 struct DurationResponse : public Response {
@@ -194,9 +228,38 @@ struct DurationResponse : public Response {
 struct OperatorListsResponseBody {
     uint64_t minTime = UINT64_MAX;
     uint64_t maxTime = 0;
+    uint64_t total = 0;
+    bool paginated = false;
     std::vector<std::string> rankLists;
     std::vector<std::string> dbPathList;
     std::vector<CompareData<std::vector<OperatorTimeItem>>> opLists;
+
+    void Paginate(int64_t currentPage, int64_t pageSize) {
+        if (currentPage == 0 && pageSize == 0) {
+            return;
+        }
+        paginated = true;
+        total = rankLists.size();
+        const uint64_t offset = static_cast<uint64_t>(currentPage - 1) * static_cast<uint64_t>(pageSize);
+        PaginateVector(rankLists, offset, pageSize);
+        PaginateVector(dbPathList, offset, pageSize);
+        PaginateVector(opLists, offset, pageSize);
+    }
+
+    void SetPageFrom(const OperatorListsResponseBody &source, int64_t currentPage, int64_t pageSize) {
+        rankLists.clear();
+        dbPathList.clear();
+        opLists.clear();
+        minTime = source.minTime;
+        maxTime = source.maxTime;
+        paginated = true;
+        total = source.rankLists.size();
+        const uint64_t offset = static_cast<uint64_t>(currentPage - 1) * static_cast<uint64_t>(pageSize);
+        CopyPage(source.rankLists, rankLists, offset, pageSize);
+        CopyPage(source.dbPathList, dbPathList, offset, pageSize);
+        CopyPage(source.opLists, opLists, offset, pageSize);
+    }
+
     // 此方法为了所有色块能同屏展示
     void AdjustTime(const std::string &operatorName) {
         std::vector<std::pair<uint64_t, uint64_t>> timeDurations = MergeTimeDuration();
@@ -210,6 +273,29 @@ struct OperatorListsResponseBody {
     }
 
   private:
+    template <typename T>
+    static void CopyPage(const std::vector<T> &source, std::vector<T> &destination, uint64_t offset, int64_t pageSize) {
+        if (offset >= source.size()) {
+            return;
+        }
+        const size_t begin = static_cast<size_t>(offset);
+        const size_t end = std::min(source.size(), begin + static_cast<size_t>(pageSize));
+        destination.assign(
+            source.begin() + static_cast<std::ptrdiff_t>(begin), source.begin() + static_cast<std::ptrdiff_t>(end));
+    }
+
+    template <typename T> static void PaginateVector(std::vector<T> &values, uint64_t offset, int64_t pageSize) {
+        if (offset >= values.size()) {
+            values.clear();
+            return;
+        }
+        const size_t begin = static_cast<size_t>(offset);
+        const size_t end = std::min(values.size(), begin + static_cast<size_t>(pageSize));
+        std::vector<T> page(std::make_move_iterator(values.begin() + static_cast<std::ptrdiff_t>(begin)),
+            std::make_move_iterator(values.begin() + static_cast<std::ptrdiff_t>(end)));
+        values = std::move(page);
+    }
+
     void AdjustTimeByName(const std::string &operatorName) {
         std::map<size_t, uint64_t> offsetMap;
         uint64_t maxEndTime = 0;
@@ -289,19 +375,20 @@ struct OperatorListsResponseBody {
 
     std::vector<std::pair<uint64_t, uint64_t>> MergeTimeDuration() {
         std::vector<std::pair<uint64_t, uint64_t>> timeDurations;
-        for (auto &opList : opLists) {
+        timeDurations.reserve(opLists.size() * 2);
+        for (const auto &opList : opLists) {
             if (!opList.baseline.empty()) {
                 const uint64_t min = opList.baseline.front().startTime;
                 const uint64_t max = opList.baseline.back().startTime + opList.baseline.back().elapseTime;
-                UpdateTimeDurations(min, max, timeDurations);
+                timeDurations.emplace_back(min, max);
             }
             if (!opList.compare.empty()) {
                 const uint64_t min = opList.compare.front().startTime;
                 const uint64_t max = opList.compare.back().startTime + opList.compare.back().elapseTime;
-                UpdateTimeDurations(min, max, timeDurations);
+                timeDurations.emplace_back(min, max);
             }
         }
-        return timeDurations;
+        return MergeSortedTimeDurations(std::move(timeDurations));
     }
 
     std::map<size_t, uint64_t> ComputeOffset(const std::vector<std::pair<uint64_t, uint64_t>> &timeDurations) {
@@ -325,30 +412,34 @@ struct OperatorListsResponseBody {
         return offsetMap;
     }
 
-    static void UpdateTimeDurations(
-        uint64_t min, uint64_t max, std::vector<std::pair<uint64_t, uint64_t>> &timeDurations) {
-        std::pair<uint64_t, uint64_t> cardGroup = {min, max};
-        auto it = lower_bound(timeDurations.begin(), timeDurations.end(), cardGroup);
-        timeDurations.insert(it, cardGroup);
-        std::vector<std::pair<uint64_t, uint64_t>> mergeDurations;
-        // 遍历现有的区间，进行合并
-        for (const auto &item : timeDurations) {
-            // 如果mergedIntervals为空，或者当前区间与最后一个合并区间不重叠
-            if (mergeDurations.empty() || mergeDurations.back().second < item.first) {
-                mergeDurations.push_back(item);
+    static std::vector<std::pair<uint64_t, uint64_t>> MergeSortedTimeDurations(
+        std::vector<std::pair<uint64_t, uint64_t>> timeDurations) {
+        if (timeDurations.empty()) {
+            return timeDurations;
+        }
+        std::sort(timeDurations.begin(), timeDurations.end());
+        size_t mergedEnd = 0;
+        for (size_t current = 1; current < timeDurations.size(); ++current) {
+            if (timeDurations[mergedEnd].second < timeDurations[current].first) {
+                ++mergedEnd;
+                timeDurations[mergedEnd] = timeDurations[current];
             } else {
-                // 否则，存在交集，合并当前区间和最后一个合并区间
-                mergeDurations.back().second = std::max(mergeDurations.back().second, item.second);
+                timeDurations[mergedEnd].second =
+                    std::max(timeDurations[mergedEnd].second, timeDurations[current].second);
             }
         }
-        timeDurations = mergeDurations;
+        timeDurations.resize(mergedEnd + 1);
+        return timeDurations;
     }
 
     uint64_t ComputeTargetOffset(
         uint64_t min, uint64_t max, const std::vector<std::pair<uint64_t, uint64_t>> &timeDurations) const {
-        for (const auto &item : timeDurations) {
-            if (item.first <= min && item.second >= max) {
-                max = item.second;
+        auto interval = std::upper_bound(timeDurations.begin(), timeDurations.end(), min,
+            [](uint64_t value, const std::pair<uint64_t, uint64_t> &item) { return value < item.first; });
+        if (interval != timeDurations.begin()) {
+            --interval;
+            if (interval->second >= max) {
+                max = interval->second;
             }
         }
         if (max < maxTime) {
