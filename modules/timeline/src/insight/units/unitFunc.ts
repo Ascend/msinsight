@@ -29,6 +29,7 @@ import type {
 import type { StatusData } from '../../entity/chart';
 import { UnitHeight } from '../../entity/insight';
 import type { ChartDesc, InsightUnit } from '../../entity/insight';
+import { OFFSET_SIDE } from './offset';
 import {
     CounterUnit,
     ProcessUnit,
@@ -45,6 +46,30 @@ const THREADING_ANALYSIS_META_TYPE = 'THREADING_ANALYSIS';
 const parentMetaDataTree = new Map();
 
 const MAX_RECURSIVE_COUNT = 10;
+
+function containsPythonStack(metaData: InsightMetaData<keyof MetaDataEnumType>): boolean {
+    return metaData.metadata.metaType === 'PYTORCH_API_PYTHON_STACK' ||
+        (metaData.children?.some(child => containsPythonStack(child)) ?? false);
+}
+
+function inheritOffsetSide(
+    metaData: MetaDataInnerBase,
+    parentMetaData: MetaDataInnerBase,
+    subtreeOffsetSide?: typeof OFFSET_SIDE.HOST,
+): void {
+    if (subtreeOffsetSide !== undefined || metaData.metaType === 'PYTORCH_API_PYTHON_STACK') {
+        metaData.offsetSide = OFFSET_SIDE.HOST;
+    } else if (parentMetaData.offsetSide !== undefined) {
+        metaData.offsetSide = parentMetaData.offsetSide;
+    } else if (metaData.metaType === 'NPU_METRICS') {
+        metaData.offsetSide = OFFSET_SIDE.DEVICE;
+    } else if (metaData.metaType === 'CPU_METRICS') {
+        metaData.offsetSide = OFFSET_SIDE.HOST;
+    } else if (metaData.metaType === undefined || metaData.metaType === '') {
+        metaData.offsetSide = OFFSET_SIDE.DEVICE;
+    }
+}
+
 export function recursiveExpandUnit<T extends keyof MetaDataEnumType>(metaDataList: Array<InsightMetaData<T>>, parentUnit: InsightUnit, depth: number = 0): void {
     if (depth >= MAX_RECURSIVE_COUNT || metaDataList === undefined || parentUnit === undefined) {
         return;
@@ -55,7 +80,8 @@ export function recursiveExpandUnit<T extends keyof MetaDataEnumType>(metaDataLi
         if (existingUnit) {
             recursiveExpandUnit(metaData.children ?? [], existingUnit, depth + 1);
         } else {
-            const newUnit = newLane(metaData, parentUnit.metadata);
+            const subtreeOffsetSide = containsPythonStack(metaData) ? OFFSET_SIDE.HOST : undefined;
+            const newUnit = newLane(metaData, parentUnit.metadata, subtreeOffsetSide);
             if (newUnit !== undefined) {
                 parentUnit.children = parentUnit.children ?? [];
                 parentUnit.children.push(newUnit);
@@ -155,7 +181,11 @@ function handleChildren<T extends keyof MetaDataEnumType>(processInfo: InsightMe
     });
 };
 
-function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): InsightUnit | undefined {
+function newLane(
+    insightMetaData: InsightMetaData<any>,
+    parentMetaData: any,
+    subtreeOffsetSide?: typeof OFFSET_SIDE.HOST,
+): InsightUnit | undefined {
     switch (insightMetaData.type) {
         case 'label': {
             const parentMetaDataFromTree = parentMetaDataTree.get(insightMetaData.metadata);
@@ -163,6 +193,7 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
                 insightMetaData.metadata.processId, insightMetaData.metadata.processName);
             meta.dataSource = parentMetaDataFromTree.dataSource;
             meta.metaType = insightMetaData.metadata.metaType;
+            inheritOffsetSide(meta, parentMetaData, subtreeOffsetSide);
             return new LabelUnit(meta);
         }
         case 'process': {
@@ -171,6 +202,7 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.label = insightMetaData.metadata.label;
             meta.metaType = insightMetaData.metadata.metaType;
+            inheritOffsetSide(meta, parentMetaData, subtreeOffsetSide);
             meta.bucketWidthNs = insightMetaData.metadata.bucketWidthNs;
             return meta.metaType === THREADING_ANALYSIS_META_TYPE
                 ? new ThreadingProcessUnit(meta)
@@ -182,6 +214,7 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
                 insightMetaData.metadata.threadId, insightMetaData.metadata.threadName);
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.metaType = insightMetaData.metadata.metaType;
+            inheritOffsetSide(meta, parentMetaData, subtreeOffsetSide);
             meta.sourceLabel = insightMetaData.metadata.sourceLabel;
             meta.groupNameValue = insightMetaData.metadata.groupNameValue;
             meta.rankList = insightMetaData.metadata.rankList;
@@ -225,6 +258,7 @@ function newLane(insightMetaData: InsightMetaData<any>, parentMetaData: any): In
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.dataType = insightMetaData.metadata.dataType;
             meta.metaType = insightMetaData.metadata.metaType;
+            inheritOffsetSide(meta, parentMetaData, subtreeOffsetSide);
             meta.headerTooltip = insightMetaData.metadata.headerTooltip;
             meta.maxValue = insightMetaData.metadata.maxValue;
             return new CounterUnit(meta);

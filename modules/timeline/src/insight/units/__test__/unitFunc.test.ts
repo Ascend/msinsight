@@ -351,11 +351,120 @@ describe('timeline unit metadata expansion', () => {
         expect(cardUnit.children).toHaveLength(1);
         const npuMetrics = cardUnit.children?.[0];
         expect(npuMetrics?.name).toBe('Label');
+        expect(npuMetrics?.metadata.offsetSide).toBe('device');
         expect(npuMetrics?.children).toHaveLength(1);
         const hbm = npuMetrics?.children?.[0];
         expect(hbm?.name).toBe('Label');
+        expect(hbm?.metadata.offsetSide).toBe('device');
         expect(hbm?.children).toHaveLength(1);
         expect(hbm?.children?.[0].name).toBe('Counter');
+        expect(hbm?.children?.[0].metadata.offsetSide).toBe('device');
+    });
+
+    it('keeps the CPU Metrics hierarchy on the host side', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createNpuMetricsTree();
+        const cpuMetrics = metadataTree.children?.[0];
+        if (cpuMetrics !== undefined) {
+            cpuMetrics.metadata.processId = '__cpu_metrics__';
+            cpuMetrics.metadata.processName = 'CPU Metrics';
+            cpuMetrics.metadata.metaType = 'CPU_METRICS';
+        }
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        const cpuMetricsUnit = cardUnit.children?.[0];
+        expect(cpuMetricsUnit?.metadata.offsetSide).toBe('host');
+        expect(cpuMetricsUnit?.children?.[0].metadata.offsetSide).toBe('host');
+        expect(cpuMetricsUnit?.children?.[0].children?.[0].metadata.offsetSide).toBe('host');
+    });
+
+    it('keeps only the Python lane on the host side for Text metadata', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = {
+            type: 'card',
+            dataSource,
+            metadata: cardUnit.metadata,
+            children: [{
+                type: 'process',
+                dataSource,
+                metadata: {
+                    cardId: 'rank0',
+                    dbPath: 'rank0.db',
+                    dataSource,
+                    processId: '100',
+                    processName: 'python',
+                    metaType: '',
+                },
+                children: [{
+                    type: 'thread',
+                    dataSource,
+                    metadata: {
+                        cardId: 'rank0',
+                        dbPath: 'rank0.db',
+                        dataSource,
+                        processId: '100',
+                        processName: 'python',
+                        threadId: '101',
+                        threadName: 'Main',
+                        metaType: 'TEXT',
+                    },
+                    children: [{
+                        type: 'thread',
+                        dataSource,
+                        metadata: {
+                            cardId: 'rank0',
+                            dbPath: 'rank0.db',
+                            dataSource,
+                            processId: '100',
+                            processName: 'python',
+                            threadId: 'python_stack:text:101',
+                            threadName: 'Python Stack 101',
+                            metaType: 'PYTORCH_API_PYTHON_STACK',
+                        },
+                    }],
+                }],
+            }],
+        } as unknown as InsightMetaData<'card'>;
+        metadataTree.children?.push({
+            type: 'process',
+            dataSource,
+            metadata: {
+                cardId: 'rank0',
+                dbPath: 'rank0.db',
+                dataSource,
+                processId: '200',
+                processName: 'other',
+                metaType: '',
+            },
+            children: [{
+                type: 'thread',
+                dataSource,
+                metadata: {
+                    cardId: 'rank0',
+                    dbPath: 'rank0.db',
+                    dataSource,
+                    processId: '200',
+                    processName: 'other',
+                    threadId: '201',
+                    threadName: 'Worker',
+                    metaType: 'TEXT',
+                },
+            }],
+        });
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        const processUnit = cardUnit.children?.[0];
+        const threadUnit = processUnit?.children?.[0];
+        const pythonUnit = threadUnit?.children?.[0];
+        expect(processUnit?.metadata.offsetSide).toBe('host');
+        expect(threadUnit?.metadata.offsetSide).toBe('host');
+        expect(pythonUnit?.metadata.offsetSide).toBe('host');
+        expect(cardUnit.children?.[1].metadata.offsetSide).toBe('device');
+        expect(cardUnit.children?.[1].children?.[0].metadata.offsetSide).toBe('device');
     });
 
     it('keeps host lanes with the same process id separated during metadata expansion', () => {
@@ -375,8 +484,10 @@ describe('timeline unit metadata expansion', () => {
         const dpu = threadUnit?.children?.find(unit => unit.name === 'Label' && unit.metadata.processName === 'DPU');
 
         expect(pytorch).toBeDefined();
+        expect(pytorch?.metadata.offsetSide).toBeUndefined();
         expect(pytorch?.children).toBeUndefined();
         expect(cann?.children).toHaveLength(1);
+        expect(cann?.children?.[0].metadata.offsetSide).toBeUndefined();
         expect(cann?.children?.[0].metadata.threadName).toBe('acl');
         expect(mstx?.children).toHaveLength(1);
         expect(mstx?.children?.[0].metadata.threadName).toBe('domain 0');
