@@ -92,7 +92,7 @@ export function getCardSideOffset(session: Session, cardId: string, side: Offset
 
 export function getTimeOffset(
     session: Session,
-    metadata: { cardId?: string; processId?: string; metaType?: string },
+    metadata: { cardId?: string; processId?: string; metaType?: string; offsetSide?: OffsetSide },
     units: InsightUnit[] = [],
     timestampOffset?: Record<string, number>,
     cardIdIndex?: CardIdIndex,
@@ -102,7 +102,7 @@ export function getTimeOffset(
     }
     const key = getCardOffsetKey(session, {
         cardId: metadata.cardId,
-        side: getOffsetSide(metadata.metaType),
+        side: metadata.offsetSide ?? getOffsetSide(metadata.metaType),
     }, units, cardIdIndex);
     return (timestampOffset ?? session.unitsConfig.offsetConfig.timestampOffset)[key] ?? 0;
 }
