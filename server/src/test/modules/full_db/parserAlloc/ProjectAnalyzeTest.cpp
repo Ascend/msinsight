@@ -38,3 +38,16 @@ TEST_F(ProjectAnalyzeTest, ProjectAnalyzeRegister) {
         ProjectAnalyze::Instance().ProjectExportInfoBuild(type, {"test"}, projectInfo);
     }
 }
+
+TEST_F(ProjectAnalyzeTest, PytorchTraceProjectBuilderRegistration) {
+    const std::string filePath = "trace.pt.trace.json";
+    ProjectExplorerInfo projectInfo;
+    projectInfo.fileName = filePath;
+    projectInfo.projectType = static_cast<int64_t>(ProjectTypeEnum::PYTORCH_TRACE);
+
+    ProjectAnalyze::Instance().ProjectExportInfoBuild(ParserType::PYTORCH_TRACE_JSON, {filePath}, projectInfo);
+
+    ASSERT_EQ(projectInfo.subParseFileInfo.size(), 1);
+    EXPECT_EQ(projectInfo.subParseFileInfo[0]->parseFilePath, filePath);
+    EXPECT_EQ(projectInfo.subParseFileInfo[0]->projectType, static_cast<int64_t>(ProjectTypeEnum::PYTORCH_TRACE));
+}

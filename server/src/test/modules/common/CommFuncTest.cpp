@@ -29,6 +29,7 @@ TEST_F(CommFuncTest, CastParserTypeToStr) {
     EXPECT_EQ(CastParserTypeToStr(ParserType::OTHER), "OTHER");
     EXPECT_EQ(CastParserTypeToStr(ParserType::BIN), "BIN");
     EXPECT_EQ(CastParserTypeToStr(ParserType::DB), "DB");
+    EXPECT_EQ(CastParserTypeToStr(ParserType::PYTORCH_TRACE_JSON), "PYTORCH_TRACE_JSON");
 }
 
 TEST_F(CommFuncTest, CastParseFileTypeToStr) {

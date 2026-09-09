@@ -22,19 +22,79 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <atomic>
+#include <filesystem>
+#include <fstream>
 #include <gtest/gtest.h>
 #include <sqlite3.h>
 #include "DataBaseManager.h"
 #include "GlobalDefs.h"
 #include "ProjectParserFactory.h"
+#include "ProjectParserPytorchTrace.h"
 #include "FileUtil.h"
 #include "TableDefs.h"
 #include "TraceTime.h"
+#include "TestSuit.h"
 
 using namespace Dic;
 using namespace Dic::Module;
 
-class ParserFactoryTest : public ::testing::Test {};
+class ParserFactoryTest : public ::testing::Test {
+  protected:
+    std::vector<std::string> tempDirectories;
+
+    std::string CreateTempDirectoryWithFiles(const std::vector<std::string> &fileNames) {
+        const ::testing::TestInfo *testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+        const std::string directory = Dic::FileUtil::SplicePath(
+            ::testing::TempDir(), std::string(testInfo->name()) + "_" + std::to_string(std::rand()));
+        if (!std::filesystem::create_directories(directory)) {
+            return "";
+        }
+        tempDirectories.push_back(directory);
+        for (const auto &fileName : fileNames) {
+            std::ofstream file(Dic::FileUtil::SplicePath(directory, fileName));
+            if (!file.is_open()) {
+                return "";
+            }
+            file << R"({"traceEvents":[]})";
+        }
+        return directory;
+    }
+
+    std::string CreateStableTempDirectoryWithFiles(const std::vector<std::string> &fileNames) {
+        const ::testing::TestInfo *testInfo = ::testing::UnitTest::GetInstance()->current_test_info();
+        static std::atomic<int> seq{0};
+        std::string directory;
+        for (int i = 0; i < 8; ++i) {
+            const std::string candidate = Dic::FileUtil::SplicePath(
+                ::testing::TempDir(), std::string(testInfo->name()) + "_" + std::to_string(seq.fetch_add(1)));
+            std::error_code ec;
+            if (std::filesystem::create_directories(candidate, ec)) {
+                directory = candidate;
+                break;
+            }
+        }
+        if (directory.empty()) {
+            return "";
+        }
+        tempDirectories.push_back(directory);
+        for (const auto &fileName : fileNames) {
+            std::ofstream file(Dic::FileUtil::SplicePath(directory, fileName));
+            if (!file.is_open()) {
+                return "";
+            }
+            file << R"({"traceEvents":[]})";
+        }
+        return directory;
+    }
+
+    void TearDown() override {
+        for (const auto &directory : tempDirectories) {
+            std::filesystem::remove_all(directory);
+        }
+        tempDirectories.clear();
+    }
+};
 
 class PlatformParseSuccessEventTest : public ::testing::Test {
   protected:
@@ -302,6 +362,83 @@ TEST_F(ParserFactoryTest, GetImportTypeTextTest) {
     const std::string rmCommand = "rm -rf " + pathList1;
     system(rmCommand.c_str());
 #endif
+}
+
+TEST_F(ParserFactoryTest, GetImportTypePytorchTraceSampleFileAndDirectoryTest) {
+    const std::string filePath =
+        TestSuit::GetTestDataFile("torchnpu", "msprof_3466812.1787275553016492530.pt.trace.json");
+    const std::string directory = TestSuit::GetTestDataFile("torchnpu");
+    EXPECT_EQ(ParserFactory::GetImportType(filePath).second, ParserType::PYTORCH_TRACE_JSON);
+    EXPECT_EQ(ParserFactory::GetImportType(directory).second, ParserType::PYTORCH_TRACE_JSON);
+    ProjectParserPytorchTrace parser;
+    std::string error;
+    auto files = parser.GetParseFileByImportFile(directory, error);
+    ASSERT_EQ(files.size(), 1);
+    EXPECT_EQ(files[0], filePath);
+    EXPECT_TRUE(error.empty());
+}
+
+TEST_F(ParserFactoryTest, GetImportTypePytorchTraceFileTest) {
+    const std::string fileName = "msprof_3466812.1787275553016492530.pt.trace.json";
+    const std::string directory = CreateTempDirectoryWithFiles({fileName});
+    ASSERT_FALSE(directory.empty());
+    const std::string filePath = Dic::FileUtil::SplicePath(directory, fileName);
+
+    EXPECT_EQ(ParserFactory::GetImportType(filePath).second, ParserType::PYTORCH_TRACE_JSON);
+    EXPECT_NE(std::dynamic_pointer_cast<ProjectParserPytorchTrace>(
+                  ParserFactory::GetProjectParser(ParserType::PYTORCH_TRACE_JSON)),
+        nullptr);
+}
+
+TEST_F(ParserFactoryTest, GetImportTypePytorchTraceDirectoryTest) {
+    const std::string directory = CreateTempDirectoryWithFiles({"msprof_3466812.1787275553016492530.pt.trace.json"});
+    ASSERT_FALSE(directory.empty());
+
+    EXPECT_EQ(ParserFactory::GetImportType(directory).second, ParserType::PYTORCH_TRACE_JSON);
+}
+
+TEST_F(ParserFactoryTest, MixedPytorchTraceAndJsonRoutesToGenericJsonTest) {
+    const std::string directory =
+        CreateTempDirectoryWithFiles({"first.pt.trace.json", "second.pt.trace.json", "trace_view.json"});
+    ASSERT_FALSE(directory.empty());
+
+    EXPECT_EQ(ParserFactory::GetImportType(directory).second, ParserType::JSON);
+}
+
+TEST_F(ParserFactoryTest, GetImportTypeInsightDbBesidePytorchTraceStillRoutesToPytorchTest) {
+    const std::string directory =
+        CreateStableTempDirectoryWithFiles({"trace.pt.trace.json", "mindstudio_insight_data.db"});
+    ASSERT_FALSE(directory.empty());
+
+    EXPECT_EQ(ParserFactory::GetImportType(directory).second, ParserType::PYTORCH_TRACE_JSON);
+}
+
+TEST_F(ParserFactoryTest, GetImportTypeProfilerDbWinsOverPytorchTraceTest) {
+    const std::string directory = CreateStableTempDirectoryWithFiles({"trace.pt.trace.json", "msprof_1.db"});
+    ASSERT_FALSE(directory.empty());
+
+    EXPECT_EQ(ParserFactory::GetImportType(directory).second, ParserType::DB);
+}
+
+TEST_F(ParserFactoryTest, GetImportTypeMultiplePytorchTraceOnlyRoutesToOtherTest) {
+    const std::string directory = CreateTempDirectoryWithFiles({"first.pt.trace.json", "second.pt.trace.json"});
+    ASSERT_FALSE(directory.empty());
+
+    EXPECT_EQ(ParserFactory::GetImportType(directory).second, ParserType::OTHER);
+}
+
+TEST_F(ParserFactoryTest, GetImportTypePytorchTraceNestedFileTest) {
+    const std::string directory = CreateStableTempDirectoryWithFiles({});
+    ASSERT_FALSE(directory.empty());
+    const std::string nested = Dic::FileUtil::SplicePath(directory, "rank_0");
+    std::error_code ec;
+    ASSERT_TRUE(std::filesystem::create_directories(nested, ec));
+    std::ofstream file(Dic::FileUtil::SplicePath(nested, "trace.pt.trace.json"));
+    ASSERT_TRUE(file.is_open());
+    file << R"({"traceEvents":[]})";
+    file.close();
+
+    EXPECT_EQ(ParserFactory::GetImportType(directory).second, ParserType::PYTORCH_TRACE_JSON);
 }
 
 TEST_F(ParserFactoryTest, GetImportTypeTextClusterTest) {

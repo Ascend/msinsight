@@ -45,6 +45,7 @@ const std::string PROFILER_INFO_FILE_REG = R"(^profiler_info_[0-9]{1,5}.json$)";
 const std::string PROFILER_METADATA_FILE = "profiler_metadata.json";
 
 const std::string JSON_FILE_SUFFIX = ".json";
+const std::string PT_TRACE_JSON_SUFFIX = ".pt.trace.json";
 const std::string DB_FILE_SUFFIX = ".db";
 
 const std::string DATABASE_FILE_NAME = "mindstudio_insight_data.db";

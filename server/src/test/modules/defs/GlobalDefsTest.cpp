@@ -28,3 +28,17 @@ TEST_F(GlobalDefsTest, isFileConflict) {
     EXPECT_TRUE(isFileConflict(typeEnumIPYNB, typeEnumDB));
     EXPECT_FALSE(isFileConflict(typeEnumDB, typeEnumDB));
 }
+
+TEST_F(GlobalDefsTest, PytorchTraceTypeMapping) {
+    EXPECT_EQ(static_cast<int>(ParserType::PYTORCH_TRACE_JSON), 11);
+    EXPECT_EQ(static_cast<int>(ProjectTypeEnum::PYTORCH_TRACE), 14);
+    EXPECT_EQ(coverProjectTypeToParserType(ProjectTypeEnum::PYTORCH_TRACE), ParserType::PYTORCH_TRACE_JSON);
+}
+
+TEST_F(GlobalDefsTest, PytorchTraceComparisonCompatibility) {
+    EXPECT_TRUE(IsSupportCompareType(ProjectTypeEnum::PYTORCH_TRACE));
+    EXPECT_TRUE(IsComparable(ProjectTypeEnum::PYTORCH_TRACE, ProjectTypeEnum::PYTORCH_TRACE));
+    EXPECT_FALSE(isFileConflict(ProjectTypeEnum::PYTORCH_TRACE, ProjectTypeEnum::PYTORCH_TRACE));
+    EXPECT_TRUE(isFileConflict(ProjectTypeEnum::PYTORCH_TRACE, ProjectTypeEnum::TRACE));
+    EXPECT_FALSE(IsComparable(ProjectTypeEnum::PYTORCH_TRACE, ProjectTypeEnum::TRACE));
+}

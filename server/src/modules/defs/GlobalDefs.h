@@ -45,6 +45,7 @@ enum class ParserType {
     PKL_MEM_SNAPSHOT = 8,
     TRITON_MEMORY = 9,
     DB_FTRACE = 10,
+    PYTORCH_TRACE_JSON = 11,
     OTHER = 20
 };
 
@@ -56,6 +57,8 @@ inline std::string CastParserTypeToStr(ParserType type) {
         return "BIN";
     case ParserType::JSON:
         return "JSON";
+    case ParserType::PYTORCH_TRACE_JSON:
+        return "PYTORCH_TRACE_JSON";
     case ParserType::OTHER:
         return "OTHER";
     default:
@@ -78,6 +81,7 @@ enum class ProjectTypeEnum {
     PKL_MEM_SNAPSHOT = 11,
     TRITON = 12,
     DB_FTRACE = 13,
+    PYTORCH_TRACE = 14,
     OTHER = 100
 };
 
@@ -90,6 +94,7 @@ inline std::vector<ProjectTypeEnum> projectTypeSupportCompare = {
     ProjectTypeEnum::DB_CLUSTER,
     ProjectTypeEnum::BIN,
     ProjectTypeEnum::DB_FTRACE,
+    ProjectTypeEnum::PYTORCH_TRACE,
 };
 
 static inline bool IsSupportCompareType(ProjectTypeEnum projectTypeEnum) {
@@ -102,7 +107,8 @@ static inline bool IsSupportCompareType(ProjectTypeEnum projectTypeEnum) {
 
 inline std::unordered_map<ProjectTypeEnum, uint8_t> projectTypeGroup = {{ProjectTypeEnum::DB, 1},
     {ProjectTypeEnum::TEXT_CLUSTER, 2}, {ProjectTypeEnum::SIMULATION, 3}, {ProjectTypeEnum::TRACE, 2},
-    {ProjectTypeEnum::DB_CLUSTER, 1}, {ProjectTypeEnum::DB_NPUMONITOR, 1}, {ProjectTypeEnum::DB_FTRACE, 1}};
+    {ProjectTypeEnum::DB_CLUSTER, 1}, {ProjectTypeEnum::DB_NPUMONITOR, 1}, {ProjectTypeEnum::DB_FTRACE, 1},
+    {ProjectTypeEnum::PYTORCH_TRACE, 4}};
 
 static inline ParserType coverProjectTypeToParserType(ProjectTypeEnum projectTypeEnum) {
     switch (projectTypeEnum) {
@@ -126,6 +132,8 @@ static inline ParserType coverProjectTypeToParserType(ProjectTypeEnum projectTyp
         return ParserType::TRITON_MEMORY;
     case ProjectTypeEnum::DB_FTRACE:
         return ParserType::DB_FTRACE;
+    case ProjectTypeEnum::PYTORCH_TRACE:
+        return ParserType::PYTORCH_TRACE_JSON;
     default:
         return ParserType::JSON;
     }
