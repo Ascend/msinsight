@@ -104,6 +104,11 @@ const Container = styled.section`
         animation: welcome-rise 0.42s ease-out both;
     }
 
+    .guide-card:hover {
+        border: 1px solid rgba(46, 83, 250, 1);
+        background: linear-gradient(201.64deg, rgba(110, 170, 255, 0.15) 13.834%, rgba(204, 98, 255, 0.04) 99.53%), rgba(0, 0, 0, 0.03);
+    }
+
     .guide-card:nth-of-type(2) { animation-delay: 0.08s; }
     .guide-card:nth-of-type(3) { animation-delay: 0.12s; }
 

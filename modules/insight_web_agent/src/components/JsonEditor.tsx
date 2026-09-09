@@ -43,9 +43,18 @@ const EditorContainer = styled.div`
     }
 
     .cm-activeLine,
-    .cm-activeLineGutter,
-    .cm-selectionBackground {
-        background: ${(props): string => props.theme.bgColorDark} !important;
+    .cm-activeLineGutter {
+        background: ${(props): string => props.theme.mode === 'dark'
+        ? props.theme.primaryColorLight3
+        : props.theme.primaryColorLight4} !important;
+    }
+
+    .cm-selectionBackground,
+    .cm-focused .cm-selectionBackground,
+    .cm-content ::selection {
+        background: ${(props): string => props.theme.mode === 'dark'
+        ? 'rgba(50, 145, 254, 0.38)'
+        : 'rgba(0, 119, 255, 0.22)'} !important;
     }
 
     .cm-focused {
@@ -63,9 +72,10 @@ interface JsonEditorProps {
     value: string;
     onChange: (value: string) => void;
     ariaLabel: string;
+    readOnly?: boolean;
 }
 
-export const JsonEditor = ({ value, onChange, ariaLabel }: JsonEditorProps): JSX.Element => {
+export const JsonEditor = ({ value, onChange, ariaLabel, readOnly = false }: JsonEditorProps): JSX.Element => {
     const theme = useTheme();
     return <EditorContainer>
         <CodeMirror
@@ -81,6 +91,7 @@ export const JsonEditor = ({ value, onChange, ariaLabel }: JsonEditorProps): JSX
             extensions={[json()]}
             height="320px"
             onChange={onChange}
+            readOnly={readOnly}
             theme={theme.mode}
             value={value}
         />

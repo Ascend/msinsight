@@ -15,9 +15,11 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { ThemeProvider } from '@emotion/react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { themeInstance } from '@insight/lib/theme';
 
 const mockExecuteFrontendCommand = jest.fn();
 
@@ -98,7 +100,119 @@ test('renders assistant content blocks in text-tool-text order', () => {
     />);
 
     const message = document.querySelector('.message') as HTMLElement;
-    expect(Array.from(message.children).slice(0, 3).map((node) => node.className)).toEqual(['rich-text', 'tool-calls', 'rich-text']);
+    expect(Array.from(message.children).slice(0, 3).map((node) => node.className)).toEqual(['rich-text', 'thinking-timeline answer-meta-details', 'rich-text']);
+});
+
+test('keeps thinking and tool calls in their original execution order', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-interleaved',
+            role: 'assistant',
+            content: [
+                { id: 'thinking-1', type: 'thinking', text: 'Plan the lookup.' },
+                { id: 'call-1', type: 'tool', toolCall: { toolCallId: 'call-1', name: 'rag_retrieve', status: 'completed', output: 'first result' } },
+                { id: 'thinking-2', type: 'thinking', text: 'Use the first result.' },
+                { id: 'call-2', type: 'tool', toolCall: { toolCallId: 'call-2', name: 'rag_retrieve', status: 'completed', output: 'second result' } },
+                { id: 'text-1', type: 'text', text: 'Final answer.' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const message = document.querySelector('.message') as HTMLElement;
+    expect(Array.from(message.children).map((node) => node.className)).toEqual(['thinking-timeline answer-meta-details', 'rich-text']);
+    expect(message.querySelectorAll('.timeline-item')).toHaveLength(5);
+    expect(message.querySelectorAll('.timeline-item.completed')).toHaveLength(4);
+    expect(Array.from(message.querySelectorAll('.timeline-title')).map((node) => node.textContent)).toEqual([
+        'Thought completed',
+        'rag_retrieve completed',
+        'Thought completed',
+        'rag_retrieve completed',
+        'Thought completed, starting answer:',
+    ]);
+});
+
+test('shows per-step durations when thinking timestamps and tool durations are available', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-timed-timeline',
+            role: 'assistant',
+            startedAt: 1000,
+            durationMs: 13000,
+            content: [
+                { id: 'thinking-1', type: 'thinking', text: 'Plan', startedAt: 1000 },
+                { id: 'call-1', type: 'tool', toolCall: { toolCallId: 'call-1', name: 'Read', status: 'completed', startedAt: 3000, durationMs: 5000, output: 'done' } },
+                { id: 'thinking-2', type: 'thinking', text: 'Answer', startedAt: 8000 },
+                { id: 'text-1', type: 'text', text: 'Final answer.' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(Array.from(document.querySelectorAll('.timeline-duration')).map((node) => node.textContent)).toEqual(['2.0s', '5.0s', '6.0s']);
+});
+
+test('keeps tool call output collapsed until the output row is expanded', async () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-collapsed-tool',
+            role: 'assistant',
+            content: [
+                {
+                    id: 'call-1',
+                    type: 'tool',
+                    toolCall: {
+                        toolCallId: 'call-1',
+                        name: 'Read',
+                        status: 'completed',
+                        input: '{"path":"/tmp/example.ts"}',
+                        output: 'file contents',
+                    },
+                },
+                { id: 'text-1', type: 'text', text: 'Final answer.' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const timeline = document.querySelector('.thinking-timeline') as HTMLDetailsElement;
+    await userEvent.click(timeline.querySelector('summary') as HTMLElement);
+
+    const toolItem = timeline.querySelector('.timeline-item.tool') as HTMLElement;
+    const toolDetails = toolItem.querySelector('.timeline-tool-details') as HTMLDetailsElement;
+    expect(toolDetails.querySelector('.timeline-tool-target')).toHaveTextContent('/tmp/example.ts');
+    expect(toolDetails).not.toHaveAttribute('open');
+    expect(Array.from(toolDetails.querySelectorAll('.tool-section')).map((node) => node.textContent)).toEqual([
+        'Input{"path":"/tmp/example.ts"}',
+        'Outputfile contents',
+    ]);
+
+    await userEvent.click(toolDetails.querySelector('.timeline-tool-target') as HTMLElement);
+    expect(toolDetails).toHaveAttribute('open');
+    expect(timeline).toHaveAttribute('open');
+});
+
+test('marks a failed tool call with a red timeline marker', async () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-failed-tool',
+            role: 'assistant',
+            content: [{
+                id: 'call-1',
+                type: 'tool',
+                toolCall: { toolCallId: 'call-1', name: 'Read', status: 'failed', output: 'not found' },
+            }],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    const toolItem = document.querySelector('.timeline-item.tool') as HTMLElement;
+    expect(toolItem).toHaveClass('failed');
+    expect(getComputedStyle(toolItem.querySelector('.timeline-marker') as HTMLElement).backgroundColor).not.toBe('rgba(191, 191, 191, 1)');
 });
 
 test('renders a valid action from assistant XML text', () => {
@@ -294,6 +408,38 @@ test('wraps long markdown text and inline code inside the message width', () => 
     expect(getComputedStyle(inlineCode).overflowWrap).toBe('anywhere');
 });
 
+test('styles sent user messages from the theme token and keeps a square top-right corner', () => {
+    const { rerender } = render(<ThemeProvider theme={themeInstance.getTheme().light}>
+        <MessageList
+            messages={[{
+                id: 'user-style',
+                role: 'user',
+                content: [{ id: 'text-1', type: 'text', text: 'Hello' }],
+            }]}
+            onPermissionDecision={noopPermissionDecision}
+            pendingPrompt={false}
+        />
+    </ThemeProvider>);
+
+    const message = document.querySelector('.message.user') as HTMLElement;
+    expect(getComputedStyle(message).backgroundColor).toBe('rgb(237, 243, 254)');
+    expect(getComputedStyle(message).borderRadius).toBe('16px 0 16px 16px');
+
+    rerender(<ThemeProvider theme={themeInstance.getTheme().dark}>
+        <MessageList
+            messages={[{
+                id: 'user-style',
+                role: 'user',
+                content: [{ id: 'text-1', type: 'text', text: 'Hello' }],
+            }]}
+            onPermissionDecision={noopPermissionDecision}
+            pendingPrompt={false}
+        />
+    </ThemeProvider>);
+
+    expect(getComputedStyle(message).backgroundColor).toBe('rgb(33, 61, 91)');
+});
+
 test('keeps user prompts sticky and expands overflowing content', async () => {
     const onOuterWheel = jest.fn();
     render(<div onWheel={onOuterWheel}>
@@ -367,10 +513,11 @@ test('shows completed thinking time before the assistant answer', () => {
     />);
 
     const message = document.querySelector('.message.assistant') as HTMLElement;
-    const duration = screen.getByText('Elapsed 126s');
+    const duration = screen.getByText('Thought completed 2m06s');
     const richText = message.querySelector('.rich-text') as HTMLElement;
 
-    expect(message.firstElementChild).toBe(duration);
+    expect(message.firstElementChild).toHaveClass('thinking-summary');
+    expect(message.firstElementChild).toContainElement(duration);
     expect(duration.compareDocumentPosition(richText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(getComputedStyle(message).borderTopWidth).toBe('0px');
     expect(getComputedStyle(message).backgroundColor).toBe('transparent');
@@ -391,10 +538,11 @@ test('updates the elapsed time while the assistant is thinking', () => {
         pendingPrompt
     />);
 
-    expect(screen.getByText('Elapsed 4.0s')).toBeInTheDocument();
+    expect(screen.getByText('Thinking 4.0s')).toBeInTheDocument();
+    expect(document.querySelector('.thinking-sparkle')).toBeInTheDocument();
 
     act(() => jest.advanceTimersByTime(1000));
-    expect(screen.getByText('Elapsed 5.0s')).toBeInTheDocument();
+    expect(screen.getByText('Thinking 5.0s')).toBeInTheDocument();
 
     jest.useRealTimers();
 });
@@ -411,8 +559,65 @@ test('hides the thinking indicator once answer text starts streaming', () => {
         pendingPrompt
     />);
 
-    expect(screen.queryByText('Thinking...')).not.toBeInTheDocument();
-    expect(screen.getByText('Elapsed 1.0s')).toBeInTheDocument();
+    expect(screen.queryByText('Thinking')).not.toBeInTheDocument();
+    expect(screen.getByText('Thinking 1.0s')).toBeInTheDocument();
+});
+
+test('does not render a second thinking status under the assistant message', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-waiting',
+            role: 'assistant',
+            content: [],
+            startedAt: 1000,
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    expect(document.querySelectorAll('.thinking-summary')).toHaveLength(1);
+    expect(document.querySelector('.thinking-indicator')).not.toBeInTheDocument();
+    expect(screen.queryByText('Thinking')).not.toBeInTheDocument();
+});
+
+test('shows tool-result analysis as the last live timeline step', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-analyzing',
+            role: 'assistant',
+            activity: 'analyzing_tool_results',
+            content: [
+                { id: 'call-1', type: 'tool', toolCall: { toolCallId: 'call-1', name: 'Read', status: 'completed', output: 'done' } },
+            ],
+            startedAt: 1000,
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    expect(document.querySelector('.thinking-indicator')).not.toBeInTheDocument();
+    const analyzing = document.querySelector('.timeline-item.analyzing') as HTMLElement;
+    expect(analyzing).toHaveClass('active');
+    expect(analyzing).toHaveTextContent('Analyzing tool results...');
+});
+
+test('renders a rate-limit retry as an alert instead of a thinking indicator', () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-retry',
+            role: 'assistant',
+            activity: { type: 'model_retry', attempt: 2, maxAttempts: 5, retryAfterSeconds: 8 },
+            content: [],
+            startedAt: 1000,
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    expect(document.querySelector('.thinking-indicator')).not.toBeInTheDocument();
+    expect(document.querySelector('.model-retry-alert')).toHaveTextContent(
+        'The model service is rate limited. Request 2/5 is in progress; recovery is expected in 8 seconds...',
+    );
 });
 
 test('shows historical thinking content collapsed by default', async () => {
@@ -429,15 +634,42 @@ test('shows historical thinking content collapsed by default', async () => {
         pendingPrompt={false}
     />);
 
-    const details = screen.getByText('Thinking process').closest('details') as HTMLDetailsElement;
+    const details = document.querySelector('.thinking-timeline') as HTMLDetailsElement;
     expect(details).not.toHaveAttribute('open');
     expect(details.querySelector('.thinking-content')).toBeInTheDocument();
 
-    await userEvent.click(screen.getByText('Thinking process'));
+    await userEvent.click(details.querySelector('summary') as HTMLElement);
     expect(details).toHaveAttribute('open');
 });
 
-test('uses the elapsed time as the thinking details toggle when duration is available', async () => {
+test('expands thinking while the assistant is working and collapses it after completion', () => {
+    const message = {
+        id: 'assistant-live-thinking',
+        role: 'assistant' as const,
+        content: [{ id: 'thinking-1', type: 'thinking' as const, text: 'Live reasoning' }],
+        startedAt: 1000,
+    };
+    const { rerender } = render(<MessageList
+        messages={[message]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt
+    />);
+
+    const details = document.querySelector('.answer-meta-details') as HTMLDetailsElement;
+    expect(details).toHaveAttribute('open');
+    expect(details.querySelector('.thinking-sparkle')).toBeInTheDocument();
+
+    rerender(<MessageList
+        messages={[{ ...message, durationMs: 5000 }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(details).not.toHaveAttribute('open');
+    expect(details.querySelector('.thinking-sparkle')).not.toBeInTheDocument();
+});
+
+test('uses the completed thinking status as the details toggle when duration is available', async () => {
     render(<MessageList
         messages={[{
             id: 'assistant-with-duration-and-thinking',
@@ -453,13 +685,86 @@ test('uses the elapsed time as the thinking details toggle when duration is avai
         pendingPrompt={false}
     />);
 
-    expect(screen.queryByText('Thinking process')).not.toBeInTheDocument();
-    const details = screen.getByText('Elapsed 5.0s').closest('details') as HTMLDetailsElement;
+    expect(screen.queryByText('Thinking')).not.toBeInTheDocument();
+    const details = document.querySelector('.thinking-timeline') as HTMLDetailsElement;
     expect(details.querySelector('.thinking-chevron')).toBeInTheDocument();
     expect(details).not.toHaveAttribute('open');
 
-    await userEvent.click(screen.getByText('Elapsed 5.0s'));
+    await userEvent.click(details.querySelector('summary') as HTMLElement);
     expect(details).toHaveAttribute('open');
+});
+
+test('vertically centers timeline markers on the first line of the title', async () => {
+    render(<MessageList
+        messages={[{
+            id: 'assistant-marker-alignment',
+            role: 'assistant',
+            content: [
+                { id: 'thinking-1', type: 'thinking', text: 'Reasoning details' },
+                { id: 'text-1', type: 'text', text: 'Answer text' },
+            ],
+        }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const details = document.querySelector('.thinking-timeline') as HTMLDetailsElement;
+    await userEvent.click(details.querySelector('summary') as HTMLElement);
+
+    const item = details.querySelector('.timeline-item.thinking') as HTMLElement;
+    const marker = item.querySelector('.timeline-marker') as HTMLElement;
+    const heading = item.querySelector('.timeline-heading') as HTMLElement;
+
+    expect(getComputedStyle(heading).fontSize).toBe('14px');
+    expect(getComputedStyle(heading).lineHeight).toBe('1.5');
+    expect(getComputedStyle(marker).width).toBe('8px');
+    expect(getComputedStyle(marker).height).toBe('8px');
+});
+
+test('shows a model switch notice at the conversation bottom when there are no messages', () => {
+    render(<MessageList
+        messages={[]}
+        notices={[{ id: 'notice-1', type: 'model_switch', model: 'GLM-4.7' }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('Switched model: GLM-4.7');
+});
+
+test('keeps a model switch notice after the message that was current when the model changed', () => {
+    render(<MessageList
+        messages={[
+            { id: 'user-1', role: 'user', content: [{ id: 'user-text-1', type: 'text', text: 'first question' }] },
+            { id: 'assistant-1', role: 'assistant', content: [{ id: 'text-1', type: 'text', text: 'first answer' }] },
+            { id: 'user-2', role: 'user', content: [{ id: 'user-text-2', type: 'text', text: 'second question' }] },
+        ]}
+        notices={[{ id: 'notice-1', type: 'model_switch', model: 'GLM-4.7', afterMessageId: 'assistant-1' }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const turns = document.querySelectorAll('.message-turn');
+    expect(turns).toHaveLength(2);
+    expect(turns[0].querySelector('[role="status"]')).toHaveTextContent('Switched model: GLM-4.7');
+    expect(turns[1].querySelector('[role="status"]')).toBeNull();
+    const assistant = turns[0].querySelector('.message.assistant') as HTMLElement;
+    const notice = turns[0].querySelector('[role="status"]') as HTMLElement;
+    expect(assistant.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+test('places an unanchored model switch notice before later messages', () => {
+    render(<MessageList
+        messages={[{ id: 'user-1', role: 'user', content: [{ id: 'user-text-1', type: 'text', text: 'hello' }] }]}
+        notices={[{ id: 'notice-1', type: 'model_switch', model: 'GLM-4.7' }]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    />);
+
+    const status = screen.getByRole('status');
+    const prompt = document.querySelector('.user-prompt-sticky') as HTMLElement;
+    expect(status.compareDocumentPosition(prompt) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(status).toHaveTextContent('Switched model: GLM-4.7');
 });
 
 test('keeps wide code blocks and tables horizontally scrollable inside their own blocks', () => {

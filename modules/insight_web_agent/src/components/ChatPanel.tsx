@@ -18,7 +18,7 @@
 import styled from '@emotion/styled';
 import { useChatState } from '../hooks/useChatState';
 import { Composer } from './Composer';
-import { MessageList } from './MessageList';
+import { MessageList, ModelSwitchNotice } from './MessageList';
 import { WelcomePanel } from './WelcomePanel';
 
 const Container = styled.section`
@@ -79,10 +79,27 @@ const Container = styled.section`
         min-width: 0;
     }
 
+    .welcome-stack {
+        height: 100%;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .welcome-stack > :first-child {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+
+    .welcome-notices {
+        flex: 0 0 auto;
+        padding: 0 16px 8px;
+    }
+
 `;
 
 export const ChatPanel = (): JSX.Element => {
-    const { currentSessionId, isDraftSession, messages, messagesRef, pendingPrompt, respondToPermission, sessions } = useChatState();
+    const { currentSessionId, isDraftSession, messages, messagesRef, notices = [], pendingPrompt, respondToPermission, sessions } = useChatState();
     const currentTitle = isDraftSession
         ? undefined
         : sessions.find((session) => session.sessionId === currentSessionId)?.title?.trim();
@@ -95,9 +112,19 @@ export const ChatPanel = (): JSX.Element => {
             <div className="conversation-content">
                 {messages.length
                     ? <section className="messages" ref={messagesRef}>
-                        <MessageList messages={messages} pendingPrompt={pendingPrompt} onPermissionDecision={respondToPermission} />
+                        <MessageList
+                            messages={messages}
+                            notices={notices}
+                            pendingPrompt={pendingPrompt}
+                            onPermissionDecision={respondToPermission}
+                        />
                     </section>
-                    : <WelcomePanel />}
+                    : <div className="welcome-stack">
+                        <WelcomePanel />
+                        {notices.length
+                            ? <div className="welcome-notices">{notices.map((notice) => <ModelSwitchNotice key={notice.id} notice={notice} />)}</div>
+                            : null}
+                    </div>}
             </div>
             <div className="composer-slot"><Composer /></div>
         </Container>

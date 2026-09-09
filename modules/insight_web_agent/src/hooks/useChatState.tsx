@@ -30,7 +30,7 @@ import { toCommandError } from '@insight/lib/FrontendAgentCommand';
 import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
 import { apiUrl } from '../env';
-import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
+import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem, AppState, AvailableCapability, AvailableCommand, AvailableSkill, ChatMessage, ConfigOption, ConfigOptionValue, ConversationNotice, ImageAttachment, MessageContentBlock, PermissionDecision, QueuedPrompt, ServerEvent, SessionItem, SessionRecord, SessionStatus } from '../types';
 
 interface ChatStateValue {
     configOptions: ConfigOption[];
@@ -50,6 +50,7 @@ interface ChatStateValue {
     images: ImageAttachment[];
     isDraftSession?: boolean;
     messages: ChatMessage[];
+    notices: ConversationNotice[];
     messagesRef: RefObject<HTMLDivElement>;
     pendingPrompt: boolean;
     queuedCount: number;
@@ -94,6 +95,7 @@ interface ChatState {
     sessions: SessionItem[];
     sessionRecords: Record<string, SessionRecord>;
     draftQueuedPrompts: QueuedPrompt[];
+    draftNotices: ConversationNotice[];
 }
 
 export const resolveAppliedAgentChange = (
@@ -122,6 +124,7 @@ const initialState: ChatState = {
     availableCapabilities: [],
     sessionRecords: {},
     draftQueuedPrompts: [],
+    draftNotices: [],
 };
 
 const ChatStateContext = createContext<ChatStateValue | null>(null);
@@ -212,6 +215,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     draftMessages: [],
                     draftPendingPrompt: false,
                     draftQueuedPrompts: [],
+                    draftNotices: [],
                     sessions: [],
                     sessionRecords: {},
                 };
@@ -284,6 +288,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     draftMessages: activeMessages(current),
                     draftPendingPrompt: false,
                     draftQueuedPrompts: [],
+                    draftNotices: [],
                     sessions: [],
                     sessionRecords: {},
                 };
@@ -495,7 +500,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     useEffect(() => {
         messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight });
-    }, [state.activeSessionId, state.isDraftSession, activeMessages(state)]);
+    }, [state.activeSessionId, state.isDraftSession, activeMessages(state), activeNotices(state)]);
 
     useEffect(() => {
         const nextPrompt = getNextQueuedPrompt(state);
@@ -539,6 +544,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             draftMessages: [],
             draftPendingPrompt: false,
             draftQueuedPrompts: [],
+            draftNotices: [],
         }));
     };
 
@@ -683,15 +689,24 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     const updateModel = async (model: string): Promise<void> => {
         if (!model || activePendingPrompt(state)) return;
+        const currentModel = getModelConfig(getActiveConfigOptions(state))?.currentValue;
+        if (model === currentModel) return;
+        const modelLabel = resolveModelLabel(getActiveConfigOptions(state), model);
         try {
             const response = await setSessionModel(model, state.activeSessionId);
             setState((current) => {
-                if (!current.activeSessionId) {
-                    return { ...current, configOptions: response.configOptions ?? current.configOptions };
+                const notice = createModelSwitchNotice(modelLabel, activeMessages(current));
+                if (!current.activeSessionId || current.isDraftSession) {
+                    return {
+                        ...current,
+                        configOptions: response.configOptions ?? current.configOptions,
+                        draftNotices: [...current.draftNotices, notice],
+                    };
                 }
                 const record = {
                     ...getSessionRecord(current, current.activeSessionId),
                     configOptions: response.configOptions ?? getActiveConfigOptions(current),
+                    notices: [...(getSessionRecord(current, current.activeSessionId).notices ?? []), notice],
                 };
                 return {
                     ...current,
@@ -746,6 +761,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 draftMessages: [],
                 draftPendingPrompt: false,
                 draftQueuedPrompts: [],
+                draftNotices: [],
                 sessions: [],
                 sessionRecords: {},
                 configOptions: response.configOptions ?? [],
@@ -819,6 +835,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 draftMessages: activeMessages(current),
                 draftPendingPrompt: false,
                 draftQueuedPrompts: [],
+                draftNotices: [],
                 sessions: [],
                 sessionRecords: {},
             };
@@ -842,6 +859,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         images,
         isDraftSession: state.isDraftSession,
         messages: activeMessages(state),
+        notices: activeNotices(state),
         messagesRef,
         pendingPrompt: activePendingPrompt(state),
         queuedCount: activeQueuedCount(state),
@@ -884,6 +902,7 @@ const getSessionRecord = (state: ChatState, sessionId: string): SessionRecord =>
         loaded: false,
         pendingPrompt: false,
         queuedPrompts: [],
+        notices: [],
         status: 'idle',
     };
 };
@@ -891,6 +910,35 @@ const getSessionRecord = (state: ChatState, sessionId: string): SessionRecord =>
 const activeMessages = (state: ChatState): ChatMessage[] => {
     if (state.isDraftSession || !state.activeSessionId) return state.draftMessages;
     return getSessionRecord(state, state.activeSessionId).messages;
+};
+
+const activeNotices = (state: ChatState): ConversationNotice[] => {
+    if (state.isDraftSession || !state.activeSessionId) return state.draftNotices;
+    return getSessionRecord(state, state.activeSessionId).notices ?? [];
+};
+
+export const createModelSwitchNotice = (model: string, messages: ChatMessage[]): ConversationNotice => ({
+    id: crypto.randomUUID(),
+    type: 'model_switch',
+    model,
+    afterMessageId: messages.at(-1)?.id,
+});
+
+export const resolveModelLabel = (configOptions: ConfigOption[], model: string): string => {
+    const option = flattenConfigValues(getModelConfig(configOptions)?.options ?? []).find((item) => item.value === model);
+    return option?.name || model;
+};
+
+const getModelConfig = (configOptions: ConfigOption[]): ConfigOption | undefined => {
+    return configOptions.find((option) => option.category === 'model')
+        ?? configOptions.find((option) => option.id.toLowerCase().includes('model'));
+};
+
+const flattenConfigValues = (options: ConfigOptionValue[]): ConfigOptionValue[] => {
+    return options.flatMap((option) => {
+        if (Array.isArray(option.options)) return flattenConfigValues(option.options);
+        return option.value ? [option] : [];
+    });
 };
 
 const activePendingPrompt = (state: ChatState): boolean => {
@@ -1079,6 +1127,7 @@ const applyPromptSessionResult = (
             loaded: true,
             pendingPrompt: true,
             status: 'working' as SessionStatus,
+            notices: state.isDraftSession ? state.draftNotices : existingRecord.notices,
         },
     };
 
@@ -1088,6 +1137,7 @@ const applyPromptSessionResult = (
         activeSessionId: state.isDraftSession ? sessionId : state.activeSessionId,
         isDraftSession: state.isDraftSession ? false : state.isDraftSession,
         draftPendingPrompt: false,
+        draftNotices: state.isDraftSession ? [] : state.draftNotices,
         sessionRecords,
         sessions: mergeSessionStatuses(sessions, sessionRecords),
     };
@@ -1214,6 +1264,7 @@ const getOptimisticDeleteState = (state: ChatState, deletedSession: SessionItem)
             isDraftSession: true,
             draftMessages: [],
             draftPendingPrompt: false,
+            draftNotices: [],
             sessions,
             sessionRecords,
         };
