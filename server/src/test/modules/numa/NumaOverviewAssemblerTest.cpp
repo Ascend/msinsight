@@ -30,15 +30,13 @@ const Protocol::NumaConnectionData *Connection(const NumaOverviewData &result, c
 
 std::vector<NumaMetricRecord> CompleteRecords() {
     return {
-        Record(1, 0, "Total External Traffic Impact", "", "Total External Traffic Impact", 12, "%"),
-        Record(2, 1, "Socket 0", "External Traffic Impact", "External Traffic Impact", 5, "%"),
-        Record(3, 2, "Socket 0", "NUMA Node 0", "Cross Socket Read Bandwidth", 2),
-        Record(4, 2, "Socket 0", "NUMA Node 0", "Cross SCCL Read Bandwidth", 3),
-        Record(5, 2, "Socket 0", "NUMA Node 0", "DRAM Read Bandwidth", 4, "GB/s"),
-        Record(6, 2, "Socket 0", "NUMA Node 1", "Cross SCCL Read Bandwidth", 5),
-        Record(7, 2, "Socket 0", "NUMA Node 1", "DRAM Write Bandwidth", 6, "GB/s"),
-        Record(8, 2, "Socket 1", "Cross Socket Bandwidth", "Outgoing to Socket 0", 7, "GB/s"),
-        Record(9, 2, "Socket 1", "NUMA Node 2", "Total Read Bandwidth", 8),
+        Record(1, 2, "Socket 0", "NUMA Node 0", "Cross Socket Read Bandwidth", 2),
+        Record(2, 2, "Socket 0", "NUMA Node 0", "Cross SCCL Read Bandwidth", 3),
+        Record(3, 2, "Socket 0", "NUMA Node 0", "DRAM Read Bandwidth", 4, "GB/s"),
+        Record(4, 2, "Socket 0", "NUMA Node 1", "Cross SCCL Read Bandwidth", 5),
+        Record(5, 2, "Socket 0", "NUMA Node 1", "DRAM Write Bandwidth", 6, "GB/s"),
+        Record(6, 2, "Socket 1", "Cross Socket Bandwidth", "Outgoing to Socket 0", 7, "GB/s"),
+        Record(7, 2, "Socket 1", "NUMA Node 2", "Total Read Bandwidth", 8),
     };
 }
 } // namespace

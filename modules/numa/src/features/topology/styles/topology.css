@@ -38,13 +38,6 @@
     pointer-events: none;
 }
 
-.socket-impact {
-    fill: var(--muted);
-    font-size: 11px;
-    font-weight: 400;
-    pointer-events: none;
-}
-
 .numa-node rect {
     fill: var(--numa);
     stroke: var(--primary);

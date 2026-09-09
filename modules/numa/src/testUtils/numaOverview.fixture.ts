@@ -8,7 +8,6 @@ const numa = (id: number): NumaNode => ({
     name: `NUMA Node ${id}`,
     metrics: id === 0
         ? [
-            createMetric('externalImpact', 10, '%'),
             createMetric('crossSocketRead', 1),
             { ...createMetric('totalRead', 4), label: 'Vendor Total Read Traffic' },
             createMetric('innerRead', 3),
@@ -16,7 +15,6 @@ const numa = (id: number): NumaNode => ({
             createMetric('llcTraffic', 5, 'GB'),
         ]
         : [
-            createMetric('externalImpact', 10 + id, '%'),
             createMetric('crossSocketRead', 1),
             createMetric('dramRead', 2, 'GB'),
         ],
@@ -24,7 +22,7 @@ const numa = (id: number): NumaNode => ({
 const socket = (id: number): SocketNode => ({
     id,
     name: `Socket ${id}`,
-    metrics: [createMetric('externalImpact', 20 + id * 10, '%'), createMetric('crossSocketRead', 2)],
+    metrics: [createMetric('crossSocketRead', 2)],
     numas: [numa(id * 2), numa(id * 2 + 1)],
 });
 export const numaOverviewFixture: NumaOverview = {

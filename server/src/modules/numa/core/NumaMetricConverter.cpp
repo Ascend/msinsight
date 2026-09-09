@@ -31,8 +31,6 @@ std::string NormalizeMetricName(const std::string &name) {
 
 std::string MetricKey(const std::string &name) {
     static const std::map<std::string, std::string> keys = {
-        {"External Traffic Impact", "externalImpact"},
-        {"Total External Traffic Impact", "totalExternalImpact"},
         {"Cross Socket Read Bandwidth", "crossSocketRead"},
         {"Cross SCCL Read Bandwidth", "crossScclRead"},
         {"Total Read Bandwidth", "totalRead"},

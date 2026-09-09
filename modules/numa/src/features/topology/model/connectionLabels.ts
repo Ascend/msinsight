@@ -23,7 +23,9 @@ function subtract(left: Point, right: Point): Point {
 }
 
 function metricValue(metric: Metric | undefined): string {
-    return metric?.hasValue === false || metric === undefined ? '--' : formatMetricValue(metric.value, metric.unit);
+    return metric === undefined || metric.hasValue === false || !Number.isFinite(metric.value)
+        ? '--'
+        : formatMetricValue(metric.value, metric.unit);
 }
 
 function usesForwardTextOrder(tangent: Point): boolean {

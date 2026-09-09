@@ -19,8 +19,6 @@ NumaMetricRecord Record(const std::string &name, const std::string &unit = "GOps
 
 TEST(NumaMetricConverterTest, MapsOnlyExactDatabaseMetricNames) {
     const std::vector<std::tuple<std::string, std::string, std::string>> cases = {
-        {"External Traffic Impact", "externalImpact", "External Traffic Impact"},
-        {"Total External Traffic Impact", "totalExternalImpact", "Total External Traffic Impact"},
         {"Cross Socket Read Bandwidth", "crossSocketRead", "Cross Socket Read Traffic"},
         {"Cross SCCL Read Bandwidth", "crossScclRead", "Cross SCCL Read Traffic"},
         {"Total Read Bandwidth", "totalRead", "Total Read Traffic"},

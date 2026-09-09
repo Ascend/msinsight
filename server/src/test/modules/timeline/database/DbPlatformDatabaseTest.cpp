@@ -216,7 +216,7 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataNoFilters) {
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
-    bool result = database.QueryPlatformCounterData(1, 0, 0, 0, dataList);
+    bool result = database.QueryPlatformCounterData(1, 0, 0, dataList);
 
     EXPECT_TRUE(result);
     const size_t expectSize = 2;
@@ -240,7 +240,7 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataFilterByLevelId) {
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
-    bool result = database.QueryPlatformCounterData(2, 0, 0, 0, dataList);
+    bool result = database.QueryPlatformCounterData(2, 0, 0, dataList);
 
     EXPECT_TRUE(result);
     const size_t expectSize = 2;
@@ -248,7 +248,7 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataFilterByLevelId) {
     EXPECT_DOUBLE_EQ(dataList[0].value, 60.0);
 }
 
-TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataUsesRelativeTimelineRange) {
+TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataUsesRelativeMetricRange) {
     std::recursive_mutex testMutex;
     MockPlatformDatabase database(testMutex);
     sqlite3 *db = nullptr;
@@ -260,7 +260,7 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataUsesRelativeTimelineRange
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
-    bool result = database.QueryPlatformCounterData(1, 100, 200, 1000, dataList);
+    bool result = database.QueryPlatformCounterData(1, 100, 200, dataList);
 
     EXPECT_TRUE(result);
     ASSERT_EQ(dataList.size(), 2U);
@@ -279,13 +279,13 @@ TEST_F(DbPlatformDatabaseTest, QueryPlatformCounterDataFilterNonExistentLevelId)
     database.SetDbPtr(db);
 
     std::vector<Dic::Module::FullDb::PlatformCounterData> dataList;
-    bool result = database.QueryPlatformCounterData(99, 0, 0, 0, dataList);
+    bool result = database.QueryPlatformCounterData(99, 0, 0, dataList);
 
     EXPECT_TRUE(result);
     EXPECT_EQ(dataList.size(), 0);
 }
 
-TEST_F(DbPlatformDatabaseTest, QueryUnitCounterUsesTraceTimeOrigin) {
+TEST_F(DbPlatformDatabaseTest, QueryUnitCounterUsesMetricTimeOrigin) {
     std::recursive_mutex testMutex;
     MockPlatformDatabase database(testMutex);
     sqlite3 *db = nullptr;
@@ -301,15 +301,15 @@ TEST_F(DbPlatformDatabaseTest, QueryUnitCounterUsesTraceTimeOrigin) {
 
     Dic::Protocol::UnitCounterParams params;
     params.threadId = "1";
-    params.startTime = 900;
-    params.endTime = 1200;
+    params.startTime = 0;
+    params.endTime = 200;
     std::vector<Dic::Protocol::UnitCounterData> dataList;
     const bool result = database.QueryUnitCounter(params, 1000, dataList);
 
     ASSERT_TRUE(result);
     ASSERT_EQ(dataList.size(), 2U);
-    EXPECT_EQ(dataList[0].timestamp, 1000U);
-    EXPECT_EQ(dataList[1].timestamp, 1100U);
+    EXPECT_EQ(dataList[0].timestamp, 0U);
+    EXPECT_EQ(dataList[1].timestamp, 100U);
 }
 
 TEST_F(DbPlatformDatabaseTest, QueryUnitCounterBasic) {
