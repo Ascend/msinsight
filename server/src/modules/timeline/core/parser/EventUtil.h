@@ -20,6 +20,7 @@
 #define PROFILER_SERVER_EVENT_UTIL_H
 
 #include <string>
+#include <string_view>
 #include <map>
 #include <optional>
 #include <memory>
@@ -40,6 +41,10 @@ class EventUtil {
     using json_t = rapidjson::Value;
     static std::string Type(const json_t &json);
     Trace::Event *FromJson(const json_t &json, const std::string &type);
+    static Trace::Event *TryToCpuTensorAllocatedCounter(const json_t &json);
+    static void SetTimestampOffsetNs(int64_t ns);
+    static int64_t ParseBaseTimeNanoseconds(std::string_view header);
+    static int64_t ReadBaseTimeNanosecondsFromFile(const std::string &filePath);
 
   private:
     EventUtil();

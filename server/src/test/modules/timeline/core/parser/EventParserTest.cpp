@@ -17,6 +17,8 @@
  */
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <cstdint>
+#include <fstream>
 #include "TextTraceDatabase.h"
 #include "../../../defaultMock/MockFileReader.h"
 #include "EventParser.h"
@@ -27,9 +29,13 @@
 #include "ThreadTable.h"
 #include "ProcessTable.h"
 #include "FlowTable.h"
+#include "CounterTable.h"
 #include "EventUtil.h"
+#include "NumberUtil.h"
 #include "JsonUtil.h"
+#include "FileUtil.h"
 #include "TrackInfoManager.h"
+#include "TestSuit.h"
 using ::testing::ByMove;
 using ::testing::Return;
 using namespace Dic::Module::Timeline;
@@ -66,6 +72,7 @@ class EventParserTest : public ::testing::Test {
         ParserStatusManager::Instance().ClearAllParserStatus();
         SimulationSliceCacheManager::Instance().ClearAll();
         TrackInfoManager::Instance().Reset();
+        EventUtil::SetTimestampOffsetNs(0);
     }
 };
 
@@ -1212,4 +1219,257 @@ TEST_F(EventParserTest, TestSET_FLAGSimulationPhIsBParse) {
         .Select(ThreadColumn::THREAD_SORT_INDEX)
         .ExcuteQuery(dbPtr, threadPOS);
     EXPECT_EQ(threadPOS.size(), expectSize);
+}
+
+TEST_F(EventParserTest, TestTryToCpuTensorAllocatedCounter) {
+    document_t json;
+    json.Parse(R"({"ph":"i","name":"[memory]","pid":3466812,"tid":3466812,"ts":1,
+        "cat":"cpu_instant_event","args":{"Total Allocated":4,"Device Type":0}})");
+    auto event = EventUtil::TryToCpuTensorAllocatedCounter(json);
+    ASSERT_NE(event, nullptr);
+    auto &counter = dynamic_cast<Trace::Counter &>(*event);
+    EXPECT_EQ(counter.name, "CPU Tensor Allocated");
+    EXPECT_EQ(counter.tid, "CPU Tensor Allocated");
+    EXPECT_EQ(counter.pid, "3466812");
+    EXPECT_EQ(counter.cat.value_or(""), "cpu_instant_event");
+    EXPECT_EQ(counter.args, "{\"Allocated (B)\":4}");
+}
+
+TEST_F(EventParserTest, TestTryToCpuTensorAllocatedCounterSkipNonCpuOrInvalid) {
+    document_t npu;
+    npu.Parse(R"({"ph":"i","name":"[memory]","pid":1,"ts":1,"args":{"Total Allocated":8,"Device Type":20}})");
+    EXPECT_EQ(EventUtil::TryToCpuTensorAllocatedCounter(npu), nullptr);
+
+    document_t noAllocated;
+    noAllocated.Parse(R"({"ph":"i","name":"[memory]","pid":1,"ts":1,"args":{"Device Type":0}})");
+    EXPECT_EQ(EventUtil::TryToCpuTensorAllocatedCounter(noAllocated), nullptr);
+
+    document_t otherInstant;
+    otherInstant.Parse(R"({"ph":"i","name":"Iteration Start","pid":1,"ts":1,"args":{"Total Allocated":4}})");
+    EXPECT_EQ(EventUtil::TryToCpuTensorAllocatedCounter(otherInstant), nullptr);
+}
+
+TEST_F(EventParserTest, TestParseCpuTensorAllocatedMemoryInstant) {
+    const std::string jsonContent = R"([
+        {"name":"[memory]","ph":"i","cat":"cpu_instant_event","pid":3466812,"tid":3466812,
+            "ts":4307764835124.018,"args":{"Bytes":4,"Total Allocated":4,"Total Reserved":0,
+            "Device Id":-1,"Device Type":0,"Addr":1,"finished":false,"Ev Idx":723}},
+        {"name":"[memory]","ph":"i","cat":"cpu_instant_event","pid":3466812,"tid":3466812,
+            "ts":4307764835125.018,"args":{"Bytes":-4,"Total Allocated":0,"Total Reserved":0,
+            "Device Id":-1,"Device Type":0,"Addr":1,"finished":false,"Ev Idx":724}},
+        {"name":"[memory]","ph":"i","pid":3466812,"tid":3466812,"ts":4307764835126.018,
+            "args":{"Total Allocated":1024,"Device Type":20}},
+        {"name":"Iteration Start","ph":"i","pid":3466812,"tid":3466812,"ts":4307764835120.0},
+        {"name":"[memory]","ph":"I","cat":"cpu_instant_event","pid":3466812,"tid":3466812,
+            "ts":4307764835127.018,"args":{"Total Allocated":8,"Device Type":0}},
+        {"name":"Other Instant","ph":"I","pid":3466812,"tid":3466812,"ts":4307764835128.0},
+        {"name":"[memory]","ph":"I","pid":3466812,"tid":3466812,"ts":4307764835129.0}
+    ])";
+    sqlite3 *dbPtr = nullptr;
+    ParserStatusManager::Instance().SetParserStatus(fileId, ParserStatus::RUNNING);
+    EXPECT_CALL(*mockFileReader, ReadJsonArray(filePath, startPosition, endPosition)).WillOnce(Return(jsonContent));
+    Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    mockDatabase->SetDbPtr(dbPtr);
+    mockDatabase->CreateTable();
+    EventParserMock eventParserMock(filePath, fileId, mockDatabase);
+    eventParserMock.SetFileReaderAndDatabase(std::move(mockFileReader));
+    eventParserMock.Parse(startPosition, endPosition);
+
+    Dic::Module::Timeline::CounterTable counterTable;
+    std::vector<CounterPO> counterPOs;
+    counterTable.Select(CounterColumn::NAME, CounterColumn::PID)
+        .Select(CounterColumn::TIMESTAMP, CounterColumn::CAT)
+        .Select(CounterColumn::ARGS)
+        .OrderBy(CounterColumn::TIMESTAMP, TableOrder::ASC)
+        .ExcuteQuery(dbPtr, counterPOs);
+    ASSERT_EQ(counterPOs.size(), 3);
+    EXPECT_EQ(counterPOs[0].name, "CPU Tensor Allocated");
+    EXPECT_EQ(counterPOs[0].pid, "3466812");
+    EXPECT_EQ(counterPOs[0].cat, "cpu_instant_event");
+    EXPECT_EQ(counterPOs[0].args, "{\"Allocated (B)\":4}");
+    EXPECT_EQ(counterPOs[1].args, "{\"Allocated (B)\":0}");
+    EXPECT_EQ(counterPOs[2].args, "{\"Allocated (B)\":8}");
+
+    Dic::Module::Timeline::SliceTable otherSliceTable;
+    std::vector<SlicePO> otherSlicePOs;
+    otherSliceTable.Select(SliceColumn::NAME).ExcuteQuery(dbPtr, otherSlicePOs);
+    ASSERT_EQ(otherSlicePOs.size(), 1);
+    EXPECT_EQ(otherSlicePOs[0].name, "Other Instant");
+
+    Dic::Module::Timeline::ThreadTable counterThreadTable;
+    std::vector<ThreadPO> counterThreadPOs;
+    counterThreadTable.Select(ThreadColumn::TID, ThreadColumn::THREAD_NAME).ExcuteQuery(dbPtr, counterThreadPOs);
+    bool hasCounterLane = false;
+    for (const auto &thread : counterThreadPOs) {
+        if (thread.threadName == "CPU Tensor Allocated") {
+            hasCounterLane = true;
+            EXPECT_EQ(thread.tid, "CPU Tensor Allocated");
+        }
+    }
+    EXPECT_TRUE(hasCounterLane);
+}
+
+TEST_F(EventParserTest, TestParseBaseTimeNanoseconds) {
+    EXPECT_EQ(EventUtil::ParseBaseTimeNanoseconds(R"({"schemaVersion":1})"), 0);
+    EXPECT_EQ(EventUtil::ParseBaseTimeNanoseconds(
+                  R"({"displayTimeUnit":"ms","baseTimeNanoseconds":1782967788000000000,"traceEvents":[]})"),
+        1782967788000000000);
+    EXPECT_EQ(EventUtil::ParseBaseTimeNanoseconds(R"("baseTimeNanoseconds": "1000")"), 1000);
+    EXPECT_EQ(EventUtil::ReadBaseTimeNanosecondsFromFile("not_exist_base_time.json"), 0);
+}
+
+TEST_F(EventParserTest, TestReadBaseTimeNanosecondsFromTorchNpuSample) {
+    const std::string sample =
+        TestSuit::GetTestDataFile("torchnpu", "msprof_3466812.1787275553016492530.pt.trace.json");
+    EXPECT_EQ(EventUtil::ReadBaseTimeNanosecondsFromFile(sample), 1782967788000000000);
+}
+
+TEST_F(EventParserTest, TestTorchNpuTsAddsBaseTimeOffset) {
+    EventUtil::SetTimestampOffsetNs(1782967788000000000);
+    document_t sliceJson;
+    sliceJson.Parse(R"({"ph":"X","ts":4307764835124.018,"dur":1,"name":"k","pid":1,"tid":1})");
+    auto *sliceEvent = EventUtil::Instance().FromJson(sliceJson, "X");
+    ASSERT_NE(sliceEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Slice &>(*sliceEvent).ts,
+        NumberUtil::ConvertUsStrToNanoseconds("4307764835124.018") + 1782967788000000000);
+
+    document_t memoryJson;
+    memoryJson.Parse(R"({"ph":"i","name":"[memory]","pid":1,"ts":4307764835124.018,
+        "args":{"Total Allocated":4,"Device Type":0}})");
+    auto *counterEvent = EventUtil::TryToCpuTensorAllocatedCounter(memoryJson);
+    ASSERT_NE(counterEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Counter &>(*counterEvent).ts,
+        NumberUtil::ConvertUsStrToNanoseconds("4307764835124.018") + 1782967788000000000);
+    EventUtil::SetTimestampOffsetNs(0);
+}
+
+TEST_F(EventParserTest, TestTorchNpuTsZeroAppliesBaseTimeOffset) {
+    const int64_t offset = 1782967788000000000;
+    EventUtil::SetTimestampOffsetNs(offset);
+
+    document_t sliceJson;
+    sliceJson.Parse(R"({"ph":"X","ts":0,"dur":1,"name":"k","pid":1,"tid":1})");
+    auto *sliceEvent = EventUtil::Instance().FromJson(sliceJson, "X");
+    ASSERT_NE(sliceEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Slice &>(*sliceEvent).ts, offset);
+
+    document_t sliceZeroStrJson;
+    sliceZeroStrJson.Parse(R"({"ph":"X","ts":"0","dur":1,"name":"k","pid":1,"tid":1})");
+    auto *sliceZeroStrEvent = EventUtil::Instance().FromJson(sliceZeroStrJson, "X");
+    ASSERT_NE(sliceZeroStrEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Slice &>(*sliceZeroStrEvent).ts, offset);
+
+    document_t flowJson;
+    flowJson.Parse(R"({"ph":"s","ts":0,"name":"f","pid":1,"tid":1,"id":1})");
+    auto *flowEvent = EventUtil::Instance().FromJson(flowJson, "s");
+    ASSERT_NE(flowEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Flow &>(*flowEvent).ts, offset);
+
+    document_t counterJson;
+    counterJson.Parse(R"({"ph":"C","ts":0,"name":"cpu","pid":1,"args":{"v":1}})");
+    auto *counterEvent = EventUtil::Instance().FromJson(counterJson, "C");
+    ASSERT_NE(counterEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Counter &>(*counterEvent).ts, offset);
+
+    document_t memoryJson;
+    memoryJson.Parse(R"({"ph":"i","name":"[memory]","pid":1,"ts":0,"args":{"Total Allocated":4,"Device Type":0}})");
+    auto *memoryEvent = EventUtil::TryToCpuTensorAllocatedCounter(memoryJson);
+    ASSERT_NE(memoryEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Counter &>(*memoryEvent).ts, offset);
+
+    document_t missingTs;
+    missingTs.Parse(R"({"ph":"X","dur":1,"name":"k","pid":1,"tid":1})");
+    auto *missingTsEvent = EventUtil::Instance().FromJson(missingTs, "X");
+    ASSERT_NE(missingTsEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Slice &>(*missingTsEvent).ts, 0);
+
+    document_t nullTs;
+    nullTs.Parse(R"({"ph":"X","ts":"null","dur":1,"name":"k","pid":1,"tid":1})");
+    auto *nullTsEvent = EventUtil::Instance().FromJson(nullTs, "X");
+    ASSERT_NE(nullTsEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Slice &>(*nullTsEvent).ts, 0);
+    EventUtil::SetTimestampOffsetNs(0);
+}
+
+TEST_F(EventParserTest, TestTimestampOffsetOverflowKeepsRelativeTs) {
+    EventUtil::SetTimestampOffsetNs(INT64_MAX);
+    document_t sliceJson;
+    sliceJson.Parse(R"({"ph":"X","ts":1,"dur":1,"name":"k","pid":1,"tid":1})");
+    auto *sliceEvent = EventUtil::Instance().FromJson(sliceJson, "X");
+    ASSERT_NE(sliceEvent, nullptr);
+    EXPECT_EQ(dynamic_cast<Trace::Slice &>(*sliceEvent).ts, NumberUtil::ConvertUsStrToNanoseconds("1"));
+    EventUtil::SetTimestampOffsetNs(0);
+}
+
+TEST_F(EventParserTest, TestParseAppliesBaseTimeNanosecondsToSliceAndMemory) {
+    const std::string headerPath = Dic::FileUtil::SplicePath(::testing::TempDir(), "pt_base_time_header.json");
+    {
+        std::ofstream out(headerPath);
+        out << R"({"schemaVersion":1,"displayTimeUnit":"ms","baseTimeNanoseconds":1782967788000000000,"traceEvents":[]})";
+    }
+    const std::string jsonContent = R"([
+        {"name":"aten::add","ph":"X","pid":1,"tid":1,"ts":4307764835124.018,"dur":1},
+        {"name":"[memory]","ph":"i","pid":1,"tid":1,"ts":4307764835125.018,
+            "args":{"Total Allocated":4,"Device Type":0}}
+    ])";
+    sqlite3 *dbPtr = nullptr;
+    ParserStatusManager::Instance().SetParserStatus(fileId, ParserStatus::RUNNING);
+    EXPECT_CALL(*mockFileReader, ReadJsonArray(headerPath, startPosition, endPosition)).WillOnce(Return(jsonContent));
+    Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    mockDatabase->SetDbPtr(dbPtr);
+    mockDatabase->CreateTable();
+    EventParserMock eventParserMock(headerPath, fileId, mockDatabase);
+    eventParserMock.SetFileReaderAndDatabase(std::move(mockFileReader));
+    eventParserMock.Parse(startPosition, endPosition);
+    std::remove(headerPath.c_str());
+    const int64_t baseTimeNs = 1782967788000000000;
+
+    Dic::Module::Timeline::SliceTable sliceTable;
+    std::vector<SlicePO> slicePOs;
+    sliceTable.Select(SliceColumn::NAME, SliceColumn::TIMESTAMP).ExcuteQuery(dbPtr, slicePOs);
+    ASSERT_EQ(slicePOs.size(), 1);
+    EXPECT_EQ(slicePOs[0].timestamp, NumberUtil::ConvertUsStrToNanoseconds("4307764835124.018") + baseTimeNs);
+
+    Dic::Module::Timeline::CounterTable counterTable;
+    std::vector<CounterPO> counterPOs;
+    counterTable.Select(CounterColumn::NAME, CounterColumn::TIMESTAMP).ExcuteQuery(dbPtr, counterPOs);
+    ASSERT_EQ(counterPOs.size(), 1);
+    EXPECT_EQ(counterPOs[0].timestamp, NumberUtil::ConvertUsStrToNanoseconds("4307764835125.018") + baseTimeNs);
+}
+
+TEST_F(EventParserTest, TestParseAppliesBaseTimeToZeroSliceAndMemory) {
+    const std::string headerPath = Dic::FileUtil::SplicePath(::testing::TempDir(), "pt_base_time_zero_ts.json");
+    {
+        std::ofstream out(headerPath);
+        out << R"({"schemaVersion":1,"displayTimeUnit":"ms","baseTimeNanoseconds":1782967788000000000,"traceEvents":[]})";
+    }
+    const std::string jsonContent = R"([
+        {"name":"aten::add","ph":"X","pid":1,"tid":1,"ts":0,"dur":1},
+        {"name":"[memory]","ph":"i","pid":1,"tid":1,"ts":0,
+            "args":{"Total Allocated":4,"Device Type":0}}
+    ])";
+    sqlite3 *dbPtr = nullptr;
+    ParserStatusManager::Instance().SetParserStatus(fileId, ParserStatus::RUNNING);
+    EXPECT_CALL(*mockFileReader, ReadJsonArray(headerPath, startPosition, endPosition)).WillOnce(Return(jsonContent));
+    Dic::Global::PROFILER::MockUtil::DatabaseTestCaseMockUtil::OpenDB(dbPtr);
+    mockDatabase->SetDbPtr(dbPtr);
+    mockDatabase->CreateTable();
+    EventParserMock eventParserMock(headerPath, fileId, mockDatabase);
+    eventParserMock.SetFileReaderAndDatabase(std::move(mockFileReader));
+    eventParserMock.Parse(startPosition, endPosition);
+    std::remove(headerPath.c_str());
+    const int64_t baseTimeNs = 1782967788000000000;
+
+    Dic::Module::Timeline::SliceTable sliceTable;
+    std::vector<SlicePO> slicePOs;
+    sliceTable.Select(SliceColumn::NAME, SliceColumn::TIMESTAMP).ExcuteQuery(dbPtr, slicePOs);
+    ASSERT_EQ(slicePOs.size(), 1);
+    EXPECT_EQ(slicePOs[0].timestamp, baseTimeNs);
+
+    Dic::Module::Timeline::CounterTable counterTable;
+    std::vector<CounterPO> counterPOs;
+    counterTable.Select(CounterColumn::NAME, CounterColumn::TIMESTAMP).ExcuteQuery(dbPtr, counterPOs);
+    ASSERT_EQ(counterPOs.size(), 1);
+    EXPECT_EQ(counterPOs[0].name, "CPU Tensor Allocated");
+    EXPECT_EQ(counterPOs[0].timestamp, baseTimeNs);
 }
