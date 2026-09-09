@@ -137,7 +137,7 @@
     "xZoomWheelHelp": "Horizontal zoom",
     "memoryBlockLayer": "Memory blocks",
     "memoryOverviewLayer": "Memory usage lines",
-    "reservedLineLegend": "Reserved",
+    "reservedLineLegend": "PTA Reserved",
     "hostUsedLineLegend": "Host Accumulated Used",
     "processUsedLineLegend": "Process Used",
     "deviceUsedLineLegend": "Device Used",

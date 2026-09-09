@@ -11,7 +11,7 @@
     "CANN_Total_Memory_Allocation": "CANN",
     "ATB_Reserved": "ATB预留",
     "MindSpore_Reserved": "MindSpore预留",
-    "PTA_Reserved": "PTA预留",
+    "PTA_Reserved": "PTA缓存池大小",
     "PTA_Operator": "算子占用",
     "PTA_Model": "模型占用",
     "Optimizer": "优化器",
