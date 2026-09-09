@@ -20,6 +20,7 @@
 #include <GlobalDefs.h>
 #include "ProtocolDefs.h"
 #include "CommunicationProtocol.h"
+#include "CommunicationProtocolRequest.h"
 #include "CommunicationProtocolResponse.h"
 
 using namespace Dic::Protocol;
@@ -200,6 +201,22 @@ TEST_F(CommunicationProtocolUtilTest, ToDurationRequestNormalTestWithTargetOpera
     EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
 }
 
+TEST_F(CommunicationProtocolUtilTest, ToOperatorListsRequestWithPagination) {
+    std::string reqJson = R"({"id": 1, "moduleName": "communication", "type": "request", "resultCallbackId": 0,
+        "command": "communication/operatorLists", "params": {"iterationId": "1", "operatorName": "AllReduce",
+        "stage": "forward", "pgName": "test", "isCompare": false, "baselineIterationId": "",
+        "clusterPath": "/data", "groupIdHash": "hash123", "baselineGroupIdHash": "",
+        "currentPage": 2, "pageSize": 256}})";
+    Dic::document_t json;
+    json.Parse(reqJson.c_str());
+    std::string err;
+    auto result = protocol.FromJson(json, err);
+    ASSERT_NE(result, nullptr);
+    auto &request = dynamic_cast<DurationListRequest &>(*result);
+    EXPECT_EQ(request.params.currentPage, 2);
+    EXPECT_EQ(request.params.pageSize, 256);
+}
+
 TEST_F(CommunicationProtocolUtilTest, ToDurationRequestLackIdTestReturnNull) {
     std::string reqJson = R"({"moduleName": "communication", "type": "request", "resultCallbackId": 0,
         "command": "communication/duration/list", "params": {"iterationId": 1}})";
@@ -305,6 +322,63 @@ TEST_F(CommunicationProtocolUtilTest, ToMatrixListRequestNormalTest) {
     EXPECT_EQ(result->moduleName, MODULE_COMMUNICATION);
 }
 
+TEST_F(CommunicationProtocolUtilTest, ToDurationListResponseKeepsLegacyShape) {
+    Dic::Protocol::DurationResponse response;
+    response.body.durationList.emplace_back();
+    std::string err;
+
+    auto jsonOptional = protocol.ToJson(response, err);
+
+    ASSERT_TRUE(jsonOptional.has_value());
+    EXPECT_TRUE(jsonOptional.value()["body"].HasMember("items"));
+    EXPECT_TRUE(jsonOptional.value()["body"].HasMember("advice"));
+    EXPECT_FALSE(jsonOptional.value()["body"].HasMember("total"));
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToPaginatedDurationListResponseIncludesTotal) {
+    Dic::Protocol::DurationResponse response;
+    response.body.paginated = true;
+    response.body.total = 10;
+    std::string err;
+
+    auto jsonOptional = protocol.ToJson(response, err);
+
+    ASSERT_TRUE(jsonOptional.has_value());
+    EXPECT_EQ(jsonOptional.value()["body"]["total"].GetUint64(), 10);
+}
+
+TEST_F(CommunicationProtocolUtilTest, MaximumDurationListPageStaysBelowProxyMessageLimit) {
+    Dic::Protocol::DurationResponse response;
+    response.body.paginated = true;
+    response.body.total = Dic::MAX_PAGESIZE;
+    const std::string wideRank(500, 'r');
+    const std::string widePath(500, 'p');
+    const double wideValue = std::numeric_limits<double>::max();
+    DurationData durationData{wideValue, wideValue, wideValue, wideValue, wideValue, wideValue, wideValue, wideValue,
+        wideValue, wideValue, wideValue, wideValue};
+    for (int rank = 0; rank < Dic::MAX_PAGESIZE; ++rank) {
+        Duration duration;
+        duration.rankId = wideRank + std::to_string(rank);
+        duration.dbPath = widePath;
+        duration.durationData.compare = durationData;
+        duration.durationData.baseline = durationData;
+        duration.durationData.diff = durationData;
+        response.body.durationList.push_back(std::move(duration));
+    }
+    response.body.bwStatistics.push_back({"SDMA", wideValue, wideValue, wideValue, wideValue, wideValue});
+    response.body.bwStatistics.push_back({"RDMA", wideValue, wideValue, wideValue, wideValue, wideValue});
+    std::string err;
+
+    auto jsonOptional = protocol.ToJson(response, err);
+
+    ASSERT_TRUE(jsonOptional.has_value());
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    jsonOptional->Accept(writer);
+    constexpr size_t PROXY_MESSAGE_LIMIT = 10 * 1024 * 1024;
+    EXPECT_LT(buffer.GetSize(), PROXY_MESSAGE_LIMIT);
+}
+
 TEST_F(CommunicationProtocolUtilTest, ToOperatorListResponseTest) {
     const std::string KEY_MIN_TIME = "minTime";
     const std::string KEY_MAX_TIME = "maxTime";
@@ -322,6 +396,50 @@ TEST_F(CommunicationProtocolUtilTest, ToOperatorListResponseTest) {
     std::optional<Dic::document_t> jsonOptional = protocol.ToJson(response, err);
     EXPECT_EQ(jsonOptional.value()["body"][KEY_MIN_TIME.c_str()], response.body.minTime);
     EXPECT_EQ(jsonOptional.value()["body"][KEY_MAX_TIME.c_str()], response.body.maxTime);
+    EXPECT_FALSE(jsonOptional.value()["body"].HasMember("total"));
+}
+
+TEST_F(CommunicationProtocolUtilTest, ToPaginatedOperatorListResponseIncludesTotal) {
+    Dic::Protocol::OperatorListsResponse response;
+    std::string err;
+    response.body.paginated = true;
+    response.body.total = 10;
+    auto jsonOptional = protocol.ToJson(response, err);
+    ASSERT_TRUE(jsonOptional.has_value());
+    EXPECT_EQ(jsonOptional.value()["body"]["total"].GetUint64(), 10);
+}
+
+TEST_F(CommunicationProtocolUtilTest, MaximumOperatorListPageStaysBelowProxyMessageLimit) {
+    Dic::Protocol::OperatorListsResponse response;
+    response.body.paginated = true;
+    response.body.total = Dic::MAX_PAGESIZE;
+    response.body.minTime = 0;
+    response.body.maxTime = std::numeric_limits<uint64_t>::max();
+    const std::string wideName(500, 'n');
+    const std::string widePath(500, 'p');
+    constexpr int OPERATORS_PER_SIDE = 8;
+    for (int rank = 0; rank < Dic::MAX_PAGESIZE; ++rank) {
+        response.body.rankLists.push_back(std::to_string(rank));
+        response.body.dbPathList.push_back(widePath);
+        CompareData<std::vector<OperatorTimeItem>> data;
+        for (int index = 0; index < OPERATORS_PER_SIDE; ++index) {
+            const OperatorTimeItem item{
+                wideName, std::numeric_limits<uint64_t>::max(), std::numeric_limits<uint64_t>::max()};
+            data.compare.push_back(item);
+            data.baseline.push_back(item);
+        }
+        response.body.opLists.push_back(std::move(data));
+    }
+
+    std::string err;
+    auto jsonOptional = protocol.ToJson(response, err);
+    ASSERT_TRUE(jsonOptional.has_value());
+    rapidjson::StringBuffer buffer;
+    rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+    jsonOptional->Accept(writer);
+
+    constexpr size_t PROXY_MESSAGE_LIMIT = 10 * 1024 * 1024;
+    EXPECT_LT(buffer.GetSize(), PROXY_MESSAGE_LIMIT);
 }
 
 TEST_F(CommunicationProtocolUtilTest, ToCommunicationAdvisorResponseEmptyDataTest) {

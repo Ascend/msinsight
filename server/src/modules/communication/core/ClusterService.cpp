@@ -16,9 +16,16 @@
  * -------------------------------------------------------------------------
  */
 
-#include <vector>
-#include <set>
+#include <chrono>
+#include <condition_variable>
 #include <map>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <set>
+#include <thread>
+#include <unordered_map>
+#include <vector>
 #include "DataBaseManager.h"
 #include "ServerLog.h"
 #include "CollectionUtil.h"
@@ -33,6 +40,162 @@ namespace Module {
 namespace Communication {
 using namespace Dic::Server;
 using namespace Dic::Module::Global;
+
+namespace {
+using CacheClock = std::chrono::steady_clock;
+constexpr auto PAGINATION_CACHE_TTL = std::chrono::seconds(60);
+
+struct CommunicationListQueryKey {
+    std::string iterationId;
+    std::vector<std::string> rankList;
+    std::string operatorName;
+    std::string stage;
+    std::string targetOperatorName;
+    bool isCompare = false;
+    std::string baselineIterationId;
+    std::string pgName;
+    std::string clusterPath;
+    std::string groupIdHash;
+    std::string baselineGroupIdHash;
+    std::string baselineClusterPath;
+
+    bool operator==(const CommunicationListQueryKey &other) const {
+        return iterationId == other.iterationId && rankList == other.rankList && operatorName == other.operatorName &&
+            stage == other.stage && targetOperatorName == other.targetOperatorName && isCompare == other.isCompare &&
+            baselineIterationId == other.baselineIterationId && pgName == other.pgName &&
+            clusterPath == other.clusterPath && groupIdHash == other.groupIdHash &&
+            baselineGroupIdHash == other.baselineGroupIdHash && baselineClusterPath == other.baselineClusterPath;
+    }
+};
+
+CommunicationListQueryKey MakeQueryKey(
+    const Protocol::DurationListParams &params, const std::string &baselineClusterPath) {
+    CommunicationListQueryKey key{params.iterationId, params.rankList, params.operatorName, params.stage,
+        params.targetOperatorName, params.isCompare, params.baselineIterationId, params.pgName, params.clusterPath,
+        params.groupIdHash, params.baselineGroupIdHash, baselineClusterPath};
+    return key;
+}
+
+template <typename Body> class PaginationResultCache {
+  public:
+    PaginationResultCache() : cleanupThread_([this] { CleanupLoop(); }) {}
+
+    ~PaginationResultCache() {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            stop_ = true;
+            ClearLocked();
+        }
+        cleanupCondition_.notify_one();
+        if (cleanupThread_.joinable()) {
+            cleanupThread_.join();
+        }
+    }
+
+    PaginationResultCache(const PaginationResultCache &) = delete;
+    PaginationResultCache &operator=(const PaginationResultCache &) = delete;
+
+    std::shared_ptr<const Body> Get(const CommunicationListQueryKey &key, uint64_t &generation) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (body_ != nullptr && CacheClock::now() >= expiresAt_) {
+            ClearLocked();
+        }
+        if (!key_.has_value() || !(key_.value() == key)) {
+            key_ = key;
+            body_.reset();
+            expiresAt_ = CacheClock::time_point{};
+            ++generation_;
+            cleanupCondition_.notify_one();
+        }
+        generation = generation_;
+        return body_;
+    }
+
+    std::shared_ptr<const Body> Store(
+        const CommunicationListQueryKey &key, uint64_t generation, std::shared_ptr<Body> body) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::shared_ptr<const Body> result = std::move(body);
+        if (key_.has_value() && key_.value() == key && generation_ == generation) {
+            body_ = result;
+            expiresAt_ = CacheClock::now() + PAGINATION_CACHE_TTL;
+            cleanupCondition_.notify_one();
+        }
+        return result;
+    }
+
+    void EraseIfMatches(const CommunicationListQueryKey &key, const std::shared_ptr<const Body> &body) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (key_.has_value() && key_.value() == key && body_ == body) {
+            ClearLocked();
+            cleanupCondition_.notify_one();
+        }
+    }
+
+  private:
+    void CleanupLoop() {
+        std::unique_lock<std::mutex> lock(mutex_);
+        while (!stop_) {
+            if (!key_.has_value() || body_ == nullptr) {
+                cleanupCondition_.wait(lock, [this] { return stop_ || (key_.has_value() && body_ != nullptr); });
+                continue;
+            }
+            const CacheClock::time_point expiresAt = expiresAt_;
+            const uint64_t generation = generation_;
+            cleanupCondition_.wait_until(lock, expiresAt, [this, expiresAt, generation] {
+                return stop_ || !key_.has_value() || expiresAt_ != expiresAt || generation_ != generation;
+            });
+            if (!stop_ && key_.has_value() && CacheClock::now() >= expiresAt_) {
+                ClearLocked();
+            }
+        }
+    }
+
+    void ClearLocked() {
+        key_.reset();
+        body_.reset();
+        expiresAt_ = CacheClock::time_point{};
+    }
+
+    std::mutex mutex_;
+    std::condition_variable cleanupCondition_;
+    std::optional<CommunicationListQueryKey> key_;
+    std::shared_ptr<const Body> body_;
+    CacheClock::time_point expiresAt_{};
+    uint64_t generation_ = 0;
+    bool stop_ = false;
+    std::thread cleanupThread_;
+};
+
+std::unordered_map<std::string, std::string> BuildRankToFileIdMap(const std::string &clusterPath) {
+    const auto rankToFileId = FullDb::TrackInfoManager::Instance().GetRankIdToFileIdByClusterDb(clusterPath);
+    std::unordered_map<std::string, std::string> normalizedRankToFileId;
+    normalizedRankToFileId.reserve(rankToFileId.size());
+    for (const auto &[rank, fileId] : rankToFileId) {
+        const auto rankParts = StringUtil::Split(rank, " ");
+        if (rankParts.size() == 1) {
+            normalizedRankToFileId.emplace(rankParts[0], fileId);
+        } else if (rankParts.size() == 2) {
+            normalizedRankToFileId.emplace(rankParts[1], fileId);
+        }
+    }
+    return normalizedRankToFileId;
+}
+
+std::string GetFileIdByRank(
+    const std::unordered_map<std::string, std::string> &rankToFileId, const std::string &rankId) {
+    const auto fileId = rankToFileId.find(rankId);
+    return fileId == rankToFileId.end() ? "" : fileId->second;
+}
+
+PaginationResultCache<Protocol::OperatorListsResponseBody> operatorListCache;
+PaginationResultCache<Protocol::DurationListsResponseBody> durationListCache;
+
+bool IsLastPage(uint64_t total, int64_t currentPage, int64_t pageSize) {
+    const uint64_t offset = static_cast<uint64_t>(currentPage - 1) * static_cast<uint64_t>(pageSize);
+    return offset >= total || static_cast<uint64_t>(pageSize) >= total - offset;
+}
+} // namespace
+
 void ClusterService::QueryIterations(
     const Protocol::IterationsRequest &request, Protocol::IterationsOrRanksResponse &response) {
     auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(request.params.clusterPath);
@@ -289,36 +452,58 @@ void ClusterService::MergeOperatorList(Protocol::OperatorListsResponseBody &body
 
 void ClusterService::QueryOperatorList(
     Protocol::DurationListParams &params, Protocol::OperatorListsResponseBody &body) {
-    auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
-    std::vector<OperatorTimeDo> compareOperatorTimeList;
-    std::vector<OperatorTimeDo> baselineOperatorTimeList;
-    Protocol::DurationListParams compareParams(params);
-    if (database == nullptr || !database->QueryOperatorList(compareParams, compareOperatorTimeList)) {
-        ServerLog::Error("Failed to get compare operator list response data.");
-    }
-
-    if (params.isCompare) {
-        Protocol::DurationListParams baselineParams(params);
-        baselineParams.iterationId = params.baselineIterationId;
-        baselineParams.groupIdHash = params.baselineGroupIdHash;
-        auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(
-            BaselineManager::Instance().GetBaseLineClusterPath());
-        if (baselineDatabase == nullptr ||
-            !baselineDatabase->QueryOperatorList(baselineParams, baselineOperatorTimeList)) {
-            ServerLog::Error("Failed to get baseline operator response data.");
+    const std::string baselineClusterPath =
+        params.isCompare ? BaselineManager::Instance().GetBaseLineClusterPath() : "";
+    auto buildResult = [&params, &baselineClusterPath](Protocol::OperatorListsResponseBody &result) {
+        auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
+        std::vector<OperatorTimeDo> compareOperatorTimeList;
+        std::vector<OperatorTimeDo> baselineOperatorTimeList;
+        Protocol::DurationListParams compareParams(params);
+        if (database == nullptr || !database->QueryOperatorList(compareParams, compareOperatorTimeList)) {
+            ServerLog::Error("Failed to get compare operator list response data.");
         }
+
+        if (params.isCompare) {
+            Protocol::DurationListParams baselineParams(params);
+            baselineParams.iterationId = params.baselineIterationId;
+            baselineParams.groupIdHash = params.baselineGroupIdHash;
+            auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(baselineClusterPath);
+            if (baselineDatabase == nullptr ||
+                !baselineDatabase->QueryOperatorList(baselineParams, baselineOperatorTimeList)) {
+                ServerLog::Error("Failed to get baseline operator response data.");
+            }
+        }
+
+        MergeOperatorList(result, compareOperatorTimeList, baselineOperatorTimeList, params.targetOperatorName);
+        const auto rankToFileId = BuildRankToFileIdMap(params.clusterPath);
+        result.dbPathList.reserve(result.rankLists.size());
+        for (const auto &item : result.rankLists) {
+            result.dbPathList.push_back(GetFileIdByRank(rankToFileId, item));
+        }
+    };
+
+    if (params.currentPage == 0 && params.pageSize == 0) {
+        buildResult(body);
+        return;
     }
 
-    MergeOperatorList(body, compareOperatorTimeList, baselineOperatorTimeList, params.targetOperatorName);
-    for (const auto &item : body.rankLists) {
-        std::string traceDb =
-            FullDb::TrackInfoManager::Instance().GetFileIdByClusterDbAndRankId(params.clusterPath, item);
-        body.dbPathList.push_back(traceDb);
+    const CommunicationListQueryKey key = MakeQueryKey(params, baselineClusterPath);
+    uint64_t cacheGeneration = 0;
+    std::shared_ptr<const Protocol::OperatorListsResponseBody> fullBody = operatorListCache.Get(key, cacheGeneration);
+    if (fullBody == nullptr) {
+        auto newBody = std::make_shared<Protocol::OperatorListsResponseBody>();
+        buildResult(*newBody);
+        fullBody = operatorListCache.Store(key, cacheGeneration, std::move(newBody));
+    }
+    body.SetPageFrom(*fullBody, params.currentPage, params.pageSize);
+    if (IsLastPage(body.total, params.currentPage, params.pageSize)) {
+        operatorListCache.EraseIfMatches(key, fullBody);
     }
 }
 
 void ClusterService::MergeDurationData(Protocol::DurationListsResponseBody &body, std::vector<DurationDo> &compare,
     std::vector<DurationDo> &baseline, const std::string &clusterPath) {
+    const auto rankToFileId = BuildRankToFileIdMap(clusterPath);
     std::set<std::string> rankIdSet;
     std::map<std::string, Protocol::DurationData> compareMap;
     for (const auto &item : compare) {
@@ -334,7 +519,7 @@ void ClusterService::MergeDurationData(Protocol::DurationListsResponseBody &body
     for (const auto &item : rankIdSet) {
         Protocol::Duration duration;
         duration.rankId = item;
-        duration.dbPath = FullDb::TrackInfoManager::Instance().GetFileIdByClusterDbAndRankId(clusterPath, item);
+        duration.dbPath = GetFileIdByRank(rankToFileId, item);
         if (compareMap.count(item) != 0) {
             duration.durationData.compare = compareMap[item];
         }
@@ -394,28 +579,49 @@ void ClusterService::CalBandwidthData(
 
 void ClusterService::QueryDurationList(
     Protocol::DurationListParams &params, Protocol::DurationListsResponseBody &body) {
-    auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
-    std::vector<DurationDo> compareDurationDoList;
-    std::vector<DurationDo> baselineDurationDoList;
-    Protocol::DurationListParams compareParams(params);
-    if (database == nullptr || !database->QueryDurationList(compareParams, compareDurationDoList)) {
-        ServerLog::Error("Failed to get compare during list response data.");
-    }
-
-    if (params.isCompare) {
-        Protocol::DurationListParams baselineParams(params);
-        baselineParams.iterationId = params.baselineIterationId;
-        baselineParams.groupIdHash = params.baselineGroupIdHash;
-        auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(
-            BaselineManager::Instance().GetBaseLineClusterPath());
-        if (baselineDatabase == nullptr ||
-            !baselineDatabase->QueryDurationList(baselineParams, baselineDurationDoList)) {
-            ServerLog::Error("Failed to get baseline during response data.");
+    const std::string baselineClusterPath =
+        params.isCompare ? BaselineManager::Instance().GetBaseLineClusterPath() : "";
+    auto buildResult = [&params, &baselineClusterPath](Protocol::DurationListsResponseBody &result) {
+        auto database = Timeline::DataBaseManager::Instance().GetClusterDatabase(params.clusterPath);
+        std::vector<DurationDo> compareDurationDoList;
+        std::vector<DurationDo> baselineDurationDoList;
+        Protocol::DurationListParams compareParams(params);
+        if (database == nullptr || !database->QueryDurationList(compareParams, compareDurationDoList)) {
+            ServerLog::Error("Failed to get compare during list response data.");
         }
+
+        if (params.isCompare) {
+            Protocol::DurationListParams baselineParams(params);
+            baselineParams.iterationId = params.baselineIterationId;
+            baselineParams.groupIdHash = params.baselineGroupIdHash;
+            auto baselineDatabase = Timeline::DataBaseManager::Instance().GetClusterDatabase(baselineClusterPath);
+            if (baselineDatabase == nullptr ||
+                !baselineDatabase->QueryDurationList(baselineParams, baselineDurationDoList)) {
+                ServerLog::Error("Failed to get baseline during response data.");
+            }
+        }
+
+        MergeDurationData(result, compareDurationDoList, baselineDurationDoList, params.clusterPath);
+        CalBandwidthData(result, compareDurationDoList);
+    };
+
+    if (params.currentPage == 0 && params.pageSize == 0) {
+        buildResult(body);
+        return;
     }
 
-    MergeDurationData(body, compareDurationDoList, baselineDurationDoList, params.clusterPath);
-    CalBandwidthData(body, compareDurationDoList);
+    const CommunicationListQueryKey key = MakeQueryKey(params, baselineClusterPath);
+    uint64_t cacheGeneration = 0;
+    std::shared_ptr<const Protocol::DurationListsResponseBody> fullBody = durationListCache.Get(key, cacheGeneration);
+    if (fullBody == nullptr) {
+        auto newBody = std::make_shared<Protocol::DurationListsResponseBody>();
+        buildResult(*newBody);
+        fullBody = durationListCache.Store(key, cacheGeneration, std::move(newBody));
+    }
+    body.SetPageFrom(*fullBody, params.currentPage, params.pageSize);
+    if (IsLastPage(body.total, params.currentPage, params.pageSize)) {
+        durationListCache.EraseIfMatches(key, fullBody);
+    }
 }
 
 bool ClusterService::AnalyzeCommunicationSlowRanks(

@@ -34,7 +34,7 @@ bool CommunicationOperatorListsHandler::HandleRequest(std::unique_ptr<Protocol::
     SetBaseResponse(request, response);
     // check request parameters
     std::string errorMsg;
-    if (!request.params.CheckParams(errorMsg)) {
+    if (!request.params.CheckParams(errorMsg) || !request.params.CheckPaginationParams(errorMsg)) {
         SetCommunicationError(ErrorCode::PARAMS_ERROR);
         SendResponse(std::move(responsePtr), false);
         return false;

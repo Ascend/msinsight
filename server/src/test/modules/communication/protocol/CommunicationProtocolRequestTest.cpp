@@ -99,6 +99,23 @@ TEST_F(CommunicationProtocolRequestTest, DurationListParamsTest) {
     EXPECT_EQ(param3.CheckParams(msg), false);
 }
 
+TEST_F(CommunicationProtocolRequestTest, DurationListPaginationParamsTest) {
+    Dic::Protocol::DurationListParams params;
+    std::string msg;
+    EXPECT_TRUE(params.CheckPaginationParams(msg));
+
+    params.currentPage = 1;
+    params.pageSize = 256;
+    EXPECT_TRUE(params.CheckPaginationParams(msg));
+
+    params.pageSize = 0;
+    EXPECT_FALSE(params.CheckPaginationParams(msg));
+
+    params.currentPage = 1;
+    params.pageSize = Dic::MAX_PAGESIZE + 1;
+    EXPECT_FALSE(params.CheckPaginationParams(msg));
+}
+
 TEST_F(CommunicationProtocolRequestTest, MatrixGroupParamTest) {
     Dic::Protocol::MatrixGroupParam param1 = {";", "1"};
     std::string msg;

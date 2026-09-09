@@ -287,6 +287,8 @@ struct DurationListParams {
     std::string clusterPath;
     std::string groupIdHash;
     std::string baselineGroupIdHash;
+    int64_t currentPage{};
+    int64_t pageSize{};
     bool CheckParams(std::string &errorMsg) const {
         std::string paramError;
         if (!CheckStrParamValidEmptyAllowed(this->iterationId, paramError)) {
@@ -324,6 +326,20 @@ struct DurationListParams {
         return true;
     }
 
+    bool CheckPaginationParams(std::string &errorMsg) const {
+        if (currentPage == 0 && pageSize == 0) {
+            return true;
+        }
+        if (!CheckPageValid(pageSize, currentPage, errorMsg)) {
+            return false;
+        }
+        if (currentPage - 1 > INT64_MAX / pageSize) {
+            errorMsg = "current page exceeds the maximum pagination offset";
+            return false;
+        }
+        return true;
+    }
+
     DurationListParams() = default;
     DurationListParams(const DurationListParams &params) {
         this->iterationId = params.iterationId;
@@ -335,6 +351,8 @@ struct DurationListParams {
             this->rankList.push_back(item);
         }
         this->groupIdHash = params.groupIdHash;
+        this->currentPage = params.currentPage;
+        this->pageSize = params.pageSize;
     }
     DurationListParams &operator=(const DurationListParams &params) = delete;
 };

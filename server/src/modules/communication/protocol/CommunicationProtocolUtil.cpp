@@ -189,6 +189,9 @@ template <> std::optional<document_t> ToResponseJson<DurationResponse>(const Dur
     }
     JsonUtil::AddMember(body, "items", items, allocator);
     JsonUtil::AddMember(body, "advice", adviceJson, allocator);
+    if (response.body.paginated) {
+        JsonUtil::AddMember(body, "total", response.body.total, allocator);
+    }
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }
@@ -227,6 +230,9 @@ template <> std::optional<document_t> ToResponseJson<OperatorListsResponse>(cons
     JsonUtil::AddMember(body, "data", dataArray, allocator);
     JsonUtil::AddMember(body, "minTime", response.body.minTime, allocator);
     JsonUtil::AddMember(body, "maxTime", response.body.maxTime, allocator);
+    if (response.body.paginated) {
+        JsonUtil::AddMember(body, "total", response.body.total, allocator);
+    }
     JsonUtil::AddMember(json, "body", body, allocator);
     return std::optional<document_t>{std::move(json)};
 }

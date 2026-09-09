@@ -199,6 +199,18 @@ TEST_F(ClusterServiceTest, QueryOperatorListSuccess) {
     EXPECT_EQ(body.minTime, expectMinTime);
     EXPECT_EQ(body.opLists[0].compare.size(), NUMBER_ONE);
     EXPECT_EQ(body.opLists[0].baseline.size(), NUMBER_ONE);
+
+    params.currentPage = 2;
+    params.pageSize = 1;
+    Dic::Protocol::OperatorListsResponseBody pagedBody;
+    ClusterService::QueryOperatorList(params, pagedBody);
+    EXPECT_TRUE(pagedBody.paginated);
+    EXPECT_EQ(pagedBody.total, body.opLists.size());
+    ASSERT_EQ(pagedBody.opLists.size(), NUMBER_ONE);
+    EXPECT_EQ(pagedBody.minTime, body.minTime);
+    EXPECT_EQ(pagedBody.maxTime, body.maxTime);
+    EXPECT_EQ(pagedBody.opLists[0].compare[0].startTime, body.opLists[1].compare[0].startTime);
+    EXPECT_EQ(pagedBody.opLists[0].baseline[0].startTime, body.opLists[1].baseline[0].startTime);
     Clear();
 }
 
@@ -213,6 +225,87 @@ TEST_F(ClusterServiceTest, QueryOperatorListFailWithoutDb) {
     Dic::Protocol::OperatorListsResponseBody body;
     ClusterService::QueryOperatorList(params, body);
     EXPECT_EQ(body.opLists.size(), NUMBER_ZERO);
+}
+
+TEST_F(ClusterServiceTest, QueryOperatorListReusesFullResultForSubsequentPage) {
+    InitParser(filePath);
+    Dic::Protocol::DurationListParams params;
+    params.operatorName = "hcom_broadcast__483_1";
+    params.iterationId = "2";
+    params.groupIdHash = "9350434047717501483";
+    params.clusterPath = filePath;
+    params.currentPage = 1;
+    params.pageSize = 1;
+    Dic::Protocol::OperatorListsResponseBody firstPage;
+    ClusterService::QueryOperatorList(params, firstPage);
+    ASSERT_EQ(firstPage.total, NUMBER_TWO);
+    ASSERT_EQ(firstPage.opLists.size(), NUMBER_ONE);
+
+    Clear();
+    params.currentPage = 2;
+    Dic::Protocol::OperatorListsResponseBody secondPage;
+    ClusterService::QueryOperatorList(params, secondPage);
+
+    EXPECT_EQ(secondPage.total, NUMBER_TWO);
+    ASSERT_EQ(secondPage.opLists.size(), NUMBER_ONE);
+    EXPECT_EQ(secondPage.rankLists[0], "1");
+    EXPECT_EQ(secondPage.minTime, firstPage.minTime);
+    EXPECT_EQ(secondPage.maxTime, firstPage.maxTime);
+}
+
+TEST_F(ClusterServiceTest, QueryOperatorListReusesComparisonResultForSubsequentPage) {
+    InitParser(filePath);
+    InitParser(baselineFilePath);
+    Dic::Protocol::DurationListParams params;
+    params.operatorName = "hcom_broadcast__483_1";
+    params.iterationId = "2";
+    params.groupIdHash = "9350434047717501483";
+    params.baselineGroupIdHash = "9350434047717501483";
+    params.baselineIterationId = "2";
+    params.isCompare = true;
+    params.clusterPath = filePath;
+    params.currentPage = 1;
+    params.pageSize = 1;
+    BaselineManager::Instance().SetBaselineClusterPath(baselineFilePath);
+    Dic::Protocol::OperatorListsResponseBody firstPage;
+    ClusterService::QueryOperatorList(params, firstPage);
+    ASSERT_EQ(firstPage.total, NUMBER_TWO);
+    ASSERT_EQ(firstPage.opLists.size(), NUMBER_ONE);
+
+    Clear();
+    params.currentPage = 2;
+    Dic::Protocol::OperatorListsResponseBody secondPage;
+    ClusterService::QueryOperatorList(params, secondPage);
+
+    EXPECT_EQ(secondPage.total, NUMBER_TWO);
+    ASSERT_EQ(secondPage.opLists.size(), NUMBER_ONE);
+    EXPECT_EQ(secondPage.rankLists[0], "1");
+    EXPECT_EQ(secondPage.minTime, firstPage.minTime);
+    EXPECT_EQ(secondPage.maxTime, firstPage.maxTime);
+    EXPECT_FALSE(secondPage.opLists[0].compare.empty());
+    EXPECT_FALSE(secondPage.opLists[0].baseline.empty());
+}
+
+TEST_F(ClusterServiceTest, QueryOperatorListDoesNotReuseResultAfterFilterChanges) {
+    InitParser(filePath);
+    Dic::Protocol::DurationListParams params;
+    params.operatorName = "hcom_broadcast__483_1";
+    params.iterationId = "2";
+    params.groupIdHash = "9350434047717501483";
+    params.clusterPath = filePath;
+    params.currentPage = 1;
+    params.pageSize = 1;
+    Dic::Protocol::OperatorListsResponseBody firstPage;
+    ClusterService::QueryOperatorList(params, firstPage);
+    ASSERT_EQ(firstPage.total, NUMBER_TWO);
+
+    Clear();
+    params.targetOperatorName = "different-target";
+    Dic::Protocol::OperatorListsResponseBody changedFilterPage;
+    ClusterService::QueryOperatorList(params, changedFilterPage);
+
+    EXPECT_EQ(changedFilterPage.total, NUMBER_ZERO);
+    EXPECT_TRUE(changedFilterPage.opLists.empty());
 }
 
 TEST_F(ClusterServiceTest, QueryDurationListSuccess) {
@@ -238,6 +331,37 @@ TEST_F(ClusterServiceTest, QueryDurationListSuccess) {
     Clear();
 }
 
+TEST_F(ClusterServiceTest, QueryDurationListPaginationKeepsGlobalBandwidthStatistics) {
+    InitParser(filePath);
+    InitParser(baselineFilePath);
+    Dic::Protocol::DurationListParams params;
+    params.operatorName = "hcom_broadcast__483_1";
+    params.iterationId = "2";
+    params.groupIdHash = "9350434047717501483";
+    params.baselineGroupIdHash = "9350434047717501483";
+    params.baselineIterationId = "2";
+    params.isCompare = true;
+    params.clusterPath = filePath;
+    BaselineManager::Instance().SetBaselineClusterPath(baselineFilePath);
+    Dic::Protocol::DurationListsResponseBody fullBody;
+    ClusterService::QueryDurationList(params, fullBody);
+
+    params.currentPage = 2;
+    params.pageSize = 1;
+    Dic::Protocol::DurationListsResponseBody pagedBody;
+    ClusterService::QueryDurationList(params, pagedBody);
+
+    EXPECT_EQ(pagedBody.total, fullBody.durationList.size());
+    ASSERT_EQ(pagedBody.durationList.size(), NUMBER_ONE);
+    EXPECT_EQ(pagedBody.durationList[0].rankId, fullBody.durationList[1].rankId);
+    ASSERT_EQ(pagedBody.bwStatistics.size(), fullBody.bwStatistics.size());
+    EXPECT_EQ(pagedBody.bwStatistics[0].avgBw, fullBody.bwStatistics[0].avgBw);
+    EXPECT_EQ(pagedBody.bwStatistics[0].maxBw, fullBody.bwStatistics[0].maxBw);
+    EXPECT_EQ(pagedBody.bwStatistics[0].minBw, fullBody.bwStatistics[0].minBw);
+    EXPECT_EQ(pagedBody.bwStatistics[0].allTime, fullBody.bwStatistics[0].allTime);
+    Clear();
+}
+
 TEST_F(ClusterServiceTest, QueryDurationListFailWithoutDb) {
     Clear();
     Dic::Protocol::DurationListParams params;
@@ -250,6 +374,66 @@ TEST_F(ClusterServiceTest, QueryDurationListFailWithoutDb) {
     Dic::Protocol::DurationListsResponseBody body;
     ClusterService::QueryDurationList(params, body);
     EXPECT_EQ(body.durationList.size(), NUMBER_ZERO);
+}
+
+TEST_F(ClusterServiceTest, QueryDurationListReusesFullResultForSubsequentPage) {
+    InitParser(filePath);
+    Dic::Protocol::DurationListParams params;
+    params.operatorName = "hcom_broadcast__483_1";
+    params.iterationId = "2";
+    params.groupIdHash = "9350434047717501483";
+    params.clusterPath = filePath;
+    params.currentPage = 1;
+    params.pageSize = 1;
+    Dic::Protocol::DurationListsResponseBody firstPage;
+    ClusterService::QueryDurationList(params, firstPage);
+    ASSERT_EQ(firstPage.total, NUMBER_TWO);
+    ASSERT_EQ(firstPage.durationList.size(), NUMBER_ONE);
+
+    Clear();
+    params.currentPage = 2;
+    Dic::Protocol::DurationListsResponseBody secondPage;
+    ClusterService::QueryDurationList(params, secondPage);
+
+    EXPECT_EQ(secondPage.total, NUMBER_TWO);
+    ASSERT_EQ(secondPage.durationList.size(), NUMBER_ONE);
+    EXPECT_EQ(secondPage.durationList[0].rankId, "1");
+    ASSERT_EQ(secondPage.bwStatistics.size(), firstPage.bwStatistics.size());
+    EXPECT_EQ(secondPage.bwStatistics[0].type, firstPage.bwStatistics[0].type);
+    EXPECT_EQ(secondPage.bwStatistics[0].avgBw, firstPage.bwStatistics[0].avgBw);
+}
+
+TEST_F(ClusterServiceTest, QueryDurationListReusesComparisonResultForSubsequentPage) {
+    InitParser(filePath);
+    InitParser(baselineFilePath);
+    Dic::Protocol::DurationListParams params;
+    params.operatorName = "hcom_broadcast__483_1";
+    params.iterationId = "2";
+    params.groupIdHash = "9350434047717501483";
+    params.baselineGroupIdHash = "9350434047717501483";
+    params.baselineIterationId = "2";
+    params.isCompare = true;
+    params.clusterPath = filePath;
+    params.currentPage = 1;
+    params.pageSize = 1;
+    BaselineManager::Instance().SetBaselineClusterPath(baselineFilePath);
+    Dic::Protocol::DurationListsResponseBody firstPage;
+    ClusterService::QueryDurationList(params, firstPage);
+    ASSERT_EQ(firstPage.total, NUMBER_TWO);
+    ASSERT_EQ(firstPage.durationList.size(), NUMBER_ONE);
+
+    Clear();
+    params.currentPage = 2;
+    Dic::Protocol::DurationListsResponseBody secondPage;
+    ClusterService::QueryDurationList(params, secondPage);
+
+    EXPECT_EQ(secondPage.total, NUMBER_TWO);
+    ASSERT_EQ(secondPage.durationList.size(), NUMBER_ONE);
+    EXPECT_EQ(secondPage.durationList[0].rankId, "1");
+    EXPECT_GT(secondPage.durationList[0].durationData.compare.elapseTime, 0);
+    EXPECT_GT(secondPage.durationList[0].durationData.baseline.elapseTime, 0);
+    ASSERT_EQ(secondPage.bwStatistics.size(), firstPage.bwStatistics.size());
+    EXPECT_EQ(secondPage.bwStatistics[0].avgBw, firstPage.bwStatistics[0].avgBw);
 }
 
 // operatorName不为Total Op Info时，无专家建议
