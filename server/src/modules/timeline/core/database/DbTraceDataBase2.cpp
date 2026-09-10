@@ -22,6 +22,7 @@
 #include "CounterEventHelper.h"
 #include "HardWareRepo.h"
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <sstream>
 
@@ -59,8 +60,11 @@ bool DbTraceDataBase::QueryUnitCounter(
         if (params.metricGroup == THREADING_LLC_METRIC_GROUP) {
             return QueryThreadingAnalysisLlcCounter(params, minTimestamp, dataList);
         }
-        ServerLog::Error("Threading counter metric group % is not supported.", params.metricGroup);
-        return false;
+        if (!params.metricGroup.empty() && params.metricGroup != THREADING_STATE_METRIC_GROUP) {
+            ServerLog::Error("Threading counter metric group % is not supported.", params.metricGroup);
+            return false;
+        }
+        return QueryThreadingAnalysisCounter(params, minTimestamp, dataList);
     }
     auto stmt = CreatPreparedStatement();
     if (stmt == nullptr) {
@@ -112,19 +116,95 @@ bool DbTraceDataBase::QueryUnitCounter(
     return true;
 }
 
+bool DbTraceDataBase::QueryThreadingAnalysisCounter(const Protocol::UnitCounterParams &params, uint64_t minTimestamp,
+    std::vector<Protocol::UnitCounterData> &dataList) {
+    if (params.pid.empty() || params.threadId.empty()) {
+        return false;
+    }
+    const auto tables = GetThreadingAnalysisTables();
+    if (!tables.IsValid()) {
+        return false;
+    }
+    const std::string metricTablesSql = " FROM " + tables.metric + " m JOIN " + tables.metricDesc +
+        " d ON d.id = m.desc_id JOIN " + tables.thread + " t ON t.id = m.tid_id JOIN " + tables.process +
+        " p ON p.id = t.process_id";
+    const std::string sql = "WITH metric_data AS ("
+                            " SELECT m.ts, m.value, LOWER(d.name) AS metricName,"
+                            " CAST((m.ts - ?) / ? AS INTEGER) AS bucketId" +
+        metricTablesSql +
+        " WHERE p.pid = CAST(? AS INTEGER) AND t.tid = CAST(? AS INTEGER) AND m.ts >= ? AND m.ts <= ? "
+        " AND LOWER(d.name) IN ('active time', 'wait time', 'preemption time', 'unknown time') "
+        ") SELECT MIN(ts) - ? AS startTime,"
+        " SUM(CASE WHEN metricName = 'active time' THEN value ELSE 0 END) AS activeNs,"
+        " SUM(CASE WHEN metricName = 'wait time' THEN value ELSE 0 END) AS syncWaitNs,"
+        " SUM(CASE WHEN metricName = 'preemption time' THEN value ELSE 0 END) AS preemptionNs,"
+        " SUM(CASE WHEN metricName = 'unknown time' THEN value ELSE 0 END) AS unknownNs"
+        " FROM metric_data GROUP BY bucketId"
+        " HAVING COUNT(DISTINCT CASE WHEN value IS NOT NULL THEN metricName END) = 4"
+        " AND COUNT(*) = COUNT(value) AND MIN(value) >= 0 AND SUM(value) >= 1"
+        " AND SUM(value) < 9223372036854775807"
+        " ORDER BY MIN(ts)";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        return false;
+    }
+    const uint64_t absoluteStart = minTimestamp + params.startTime;
+    const uint64_t absoluteEnd = minTimestamp + params.endTime;
+    auto resultSet = stmt->ExecuteQuery(minTimestamp, THREADING_TIMESTAMP_TOLERANCE_NS, params.pid, params.threadId,
+        absoluteStart, absoluteEnd, minTimestamp);
+    if (resultSet == nullptr) {
+        return false;
+    }
+    const auto widths = QueryThreadingAnalysisBucketWidths(minTimestamp, params.pid, params.threadId);
+    const auto width = widths.find({params.pid, params.threadId});
+    if (width == widths.end()) {
+        return true;
+    }
+    const uint64_t bucketWidthNs = width->second;
+
+    while (resultSet->Next()) {
+        const double activeNs = resultSet->GetDouble("activeNs");
+        const double syncWaitNs = resultSet->GetDouble("syncWaitNs");
+        const double preemptionNs = resultSet->GetDouble("preemptionNs");
+        const double unknownNs = resultSet->GetDouble("unknownNs");
+        const double totalNs = activeNs + syncWaitNs + preemptionNs + unknownNs;
+        if (totalNs <= 0) {
+            continue;
+        }
+        constexpr double nanosecondsPerSecond = 1000000000.0;
+        std::ostringstream value;
+        value << std::fixed << std::setprecision(6) << "{\"Active\":" << activeNs * 100.0 / totalNs
+              << ",\"Sync Wait\":" << syncWaitNs * 100.0 / totalNs
+              << ",\"Preemption\":" << preemptionNs * 100.0 / totalNs << ",\"Unknown\":" << unknownNs * 100.0 / totalNs
+              << ",\"activeSeconds\":" << activeNs / nanosecondsPerSecond
+              << ",\"syncWaitSeconds\":" << syncWaitNs / nanosecondsPerSecond
+              << ",\"preemptionSeconds\":" << preemptionNs / nanosecondsPerSecond
+              << ",\"unknownSeconds\":" << unknownNs / nanosecondsPerSecond << ",\"bucketWidthNs\":" << bucketWidthNs
+              << "}";
+        Protocol::UnitCounterData item;
+        item.timestamp = resultSet->GetUint64("startTime");
+        item.valueJsonStr = value.str();
+        dataList.emplace_back(std::move(item));
+    }
+    return true;
+}
+
 bool DbTraceDataBase::QueryThreadingAnalysisLlcCounter(const Protocol::UnitCounterParams &params, uint64_t minTimestamp,
     std::vector<Protocol::UnitCounterData> &dataList) {
     if (params.pid.empty() || params.threadId.empty()) {
         return false;
     }
-    const std::string sql =
-        "WITH metric_data AS ("
-        " SELECT m.ts, m.value, REPLACE(LOWER(TRIM(d.name)), '_', ' ') AS metricName,"
-        " CAST((m.ts - ?) / ? AS INTEGER) AS bucketId"
-        " FROM p_core_metric m"
-        " JOIN p_core_metric_desc d ON d.id = m.desc_id"
-        " JOIN p_thread t ON t.id = m.tid_id"
-        " JOIN p_process p ON p.id = t.process_id"
+    const auto tables = GetThreadingAnalysisTables();
+    if (!tables.IsValid()) {
+        return false;
+    }
+    const std::string metricTablesSql = " FROM " + tables.metric + " m JOIN " + tables.metricDesc +
+        " d ON d.id = m.desc_id JOIN " + tables.thread + " t ON t.id = m.tid_id JOIN " + tables.process +
+        " p ON p.id = t.process_id";
+    const std::string sql = "WITH metric_data AS ("
+                            " SELECT m.ts, m.value, REPLACE(LOWER(TRIM(d.name)), '_', ' ') AS metricName,"
+                            " CAST((m.ts - ?) / ? AS INTEGER) AS bucketId" +
+        metricTablesSql +
         " WHERE p.pid = CAST(? AS INTEGER) AND t.tid = CAST(? AS INTEGER) AND m.ts >= ? AND m.ts <= ? "
         " AND REPLACE(LOWER(TRIM(d.name)), '_', ' ') IN "
         " ('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits',"
@@ -146,7 +226,12 @@ bool DbTraceDataBase::QueryThreadingAnalysisLlcCounter(const Protocol::UnitCount
     if (resultSet == nullptr) {
         return false;
     }
-    const uint64_t bucketWidthNs = QueryThreadingAnalysisLlcBucketWidth();
+    uint64_t bucketWidthNs = QueryThreadingAnalysisLlcBucketWidth();
+    if (bucketWidthNs == 0) {
+        const auto widths = QueryThreadingAnalysisBucketWidths(minTimestamp, params.pid, params.threadId);
+        const auto width = widths.find({params.pid, params.threadId});
+        bucketWidthNs = width == widths.end() ? 0 : width->second;
+    }
     while (resultSet->Next()) {
         const double hits = std::max(0.0, resultSet->GetDouble("hits"));
         const double misses = std::max(0.0, resultSet->GetDouble("misses"));

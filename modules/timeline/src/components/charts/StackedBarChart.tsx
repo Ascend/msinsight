@@ -30,6 +30,7 @@ import {
     getSeamlessBarBounds,
     type BarTimestampPosition,
 } from './barBounds';
+import { findContinuousPoint, smoothContinuousValues, splitContinuousSegments } from './continuousArea';
 
 type ScaleTypeDefinition = Record<ScaleType, d3.ScaleContinuousNumeric<number, number>>;
 
@@ -78,6 +79,36 @@ interface DrawAreaArgs {
     barWidthPix?: number;
     barTimestampPosition: BarTimestampPosition;
     palette: StackedBarChartProps['palette'];
+};
+
+const getAccumulatedValue = (data: Data, stateIndex: number): number => {
+    return data.values.slice(0, stateIndex + 1).reduce((sum, value) => sum + value, 0);
+};
+
+const drawContinuousArea = ({
+    ctx, dataList, minHeight, xScale, palette, yScale, barWidthStamp,
+}: DrawAreaArgs): void => {
+    if (palette === undefined) {
+        return;
+    }
+    splitContinuousSegments(dataList, barWidthStamp).forEach((segment) => {
+        const smoothedSegment = smoothContinuousValues(segment);
+        const last = smoothedSegment[smoothedSegment.length - 1];
+        const points = [...smoothedSegment, { ...last, timestamp: last.timestamp + barWidthStamp }];
+        palette.forEach((color, stateIndex) => {
+            const area = d3.area<Data>()
+                .x(data => xScale(data.timestamp))
+                .y0(data => yScale(stateIndex === 0 ? minHeight : getAccumulatedValue(data, stateIndex - 1)))
+                .y1(data => yScale(getAccumulatedValue(data, stateIndex)))
+                .curve(d3.curveMonotoneX)
+                .context(ctx);
+            ctx.beginPath();
+            area(points);
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 1;
+            ctx.fill();
+        });
+    });
 };
 
 const getThisDrawWidth = (index: number, data: Data[], xScale: (x: number) => number, domainStart: number): number => {
@@ -150,11 +181,12 @@ interface DrawArgs {
     barWidth?: number | string;
     barWidthStamp: number;
     barTimestampPosition: BarTimestampPosition;
+    renderStyle: 'bars' | 'continuousArea';
 };
 const draw = ({
     ctx, data, height, yScaleType, rangeAndDomain,
     radius, valueRange, autoScaleHeadroom, auxiliaryValue, barWidth, palette, barWidthStamp,
-    barTimestampPosition,
+    barTimestampPosition, renderStyle,
 }: DrawArgs): void => {
     if (palette === undefined) {
         return;
@@ -188,8 +220,7 @@ const draw = ({
     }
     const yScale = getScale[yScaleType].range([height, 0]).domain([minHeight, maxHeight]) as Scale;
     if (auxiliaryValue !== undefined && auxiliaryValue !== 0) { drawAuxiliaryLine(ctx, yScale, auxiliaryValue, rangeAndDomain[0][1]); }
-    // draw line and area
-    drawArea({
+    const drawArgs = {
         ctx,
         dataList: data,
         minHeight,
@@ -201,7 +232,12 @@ const draw = ({
         barWidthPix,
         barTimestampPosition,
         palette,
-    });
+    };
+    if (renderStyle === 'continuousArea') {
+        drawContinuousArea(drawArgs);
+    } else {
+        drawArea(drawArgs);
+    }
 };
 
 type ToolTipData = [ Data, number ];
@@ -242,6 +278,17 @@ const findDataByX = (
     return [selectedData, xScale(selectedData.timestamp)];
 };
 
+const findContinuousDataByX = (
+    mousePosX: number | undefined, data: Data[], rangeAndDomain: Array<[number, number]>, barWidthStamp: number,
+): ToolTipData | undefined => {
+    if (rangeAndDomain.length === 0 || data.length === 0 || mousePosX === undefined) { return undefined; }
+    const reverseXScale = d3.scaleLinear().range([rangeAndDomain[1][0], rangeAndDomain[1][1]])
+        .domain([rangeAndDomain[0][0], rangeAndDomain[0][1]]).clamp(false) as Scale;
+    const mouseTimestamp = reverseXScale(mousePosX);
+    const selectedData = findContinuousPoint(mouseTimestamp, data, barWidthStamp);
+    return selectedData === undefined ? undefined : [selectedData, mousePosX];
+};
+
 const isTooltipXInDomain = (data: ToolTipData, session: Session): boolean => {
     const domainRange = session.domainRange;
     return data[0].timestamp > domainRange.domainStart && data[0].timestamp < domainRange.domainEnd;
@@ -276,7 +323,7 @@ export const StackedBarChart = observer(({
     margin, session, mapFunc, palette, unit,
     valueRange, barWidth, radius, yScaleType, auxiliaryValue, autoScaleHeadroom = 2,
     barTimestampPosition = 'center',
-    renderTooltip, width, height, metadata,
+    renderTooltip, width, height, metadata, renderStyle = 'bars',
 }: StackedBarChartProps) => {
     const canvasContainer = useRef<HTMLDivElement>(null);
     const canvas = useRef<HTMLCanvasElement>(null);
@@ -296,10 +343,10 @@ export const StackedBarChart = observer(({
     const mousePosX = useHoverPosX(canvasContainer);
     const theme = useTheme();
     const defaultPalette = ['#4183a2', '#549251', '#b09239', '#bb5f43', theme.colorPalette.otherColor];
-    const hoveredData = React.useMemo(
-        () => findDataByX(mousePosX, data, rangeAndDomain, barWidthStamp, barTimestampPosition),
-        [mousePosX, data, rangeAndDomain, barWidthStamp, barTimestampPosition],
-    );
+    const hoveredData = React.useMemo(() => renderStyle === 'continuousArea'
+        ? findContinuousDataByX(mousePosX, data, rangeAndDomain, barWidthStamp)
+        : findDataByX(mousePosX, data, rangeAndDomain, barWidthStamp, barTimestampPosition),
+    [mousePosX, data, rangeAndDomain, renderStyle, barWidthStamp, barTimestampPosition]);
     useBatchedRender(() => {
         const isCanvasInvalid = canvasContainer.current === null || canvas.current === null || rangeAndDomain.length === 0 ||
             canvas.current.width === 0 || canvas.current.height === 0;
@@ -321,18 +368,15 @@ export const StackedBarChart = observer(({
             palette: drawPalette,
             barWidthStamp,
             barTimestampPosition,
+            renderStyle,
         });
     }, [
-        data,
-        rangeAndDomain,
-        valueRange,
-        autoScaleHeadroom,
-        barWidthStamp,
-        barTimestampPosition,
+        data, rangeAndDomain, valueRange, renderStyle, autoScaleHeadroom,
+        barWidthStamp, barTimestampPosition,
     ]);
 
     const tooltipProp: TooltipProps<ToolTipData, Data[]> = {
-        data: (hoveredData !== undefined && !isTooltipXInDomain(hoveredData, session) &&
+        data: (renderStyle !== 'continuousArea' && hoveredData !== undefined && !isTooltipXInDomain(hoveredData, session) &&
          !isHoverPosOnBar(hoveredData, barWidthStamp, rangeAndDomain, mousePosX ?? 0, barTimestampPosition))
             ? undefined
             : hoveredData,

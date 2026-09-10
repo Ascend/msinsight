@@ -167,6 +167,7 @@ export interface StackBarConfig {
     valueRange?: [ number, number ] ;
     palette?: string[];
     autoScaleHeadroom?: number;
+    renderStyle?: 'bars' | 'continuousArea';
 };
 
 export interface StatusConfig {

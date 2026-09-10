@@ -96,6 +96,21 @@ class ParserFactoryTest : public ::testing::Test {
     }
 };
 
+TEST_F(ParserFactoryTest, GetImportTypeStandardDbFileWithoutHostCoreTables) {
+    const auto uniqueId = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const auto path =
+        FileUtil::SplicePath(::testing::TempDir(), "ascend_pytorch_profiler_" + uniqueId.substr(0, 12) + ".db");
+    sqlite3 *database = nullptr;
+    ASSERT_EQ(sqlite3_open(path.c_str(), &database), SQLITE_OK);
+    EXPECT_EQ(
+        sqlite3_exec(database, "CREATE TABLE PYTORCH_API (globalTid INTEGER);", nullptr, nullptr, nullptr), SQLITE_OK);
+    EXPECT_EQ(sqlite3_close(database), SQLITE_OK);
+    const auto result = ParserFactory::GetImportType(path);
+    EXPECT_EQ(result.first, path);
+    EXPECT_EQ(result.second, ParserType::DB);
+    std::remove(path.c_str());
+}
+
 class PlatformParseSuccessEventTest : public ::testing::Test {
   protected:
     class TestableProjectParserBase : public ProjectParserBase {
