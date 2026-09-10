@@ -74,6 +74,14 @@ import { GetUnitFlowsParams, OpData } from '../../api/interface';
 import connector from '../../connection';
 import { getCounterLaneDisplayName, getCounterLegend, getCounterSeriesMode } from './counterUnit';
 import {
+    getThreadingBucketWidthNs,
+    mapThreadingCounterData,
+    THREADING_STATE_COLORS,
+    type ThreadingCounterData,
+    type ThreadingStackedBarData,
+} from './threadingAnalysis';
+import { ThreadingTooltip } from './ThreadingTooltip';
+import {
     DEFAULT_LLC_BUCKET_WIDTH_NS,
     getLlcBucketWidthNs,
     LLC_CACHE_COLORS,
@@ -425,6 +433,44 @@ export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow:
     setLinkLinesMap('to');
 }
 
+const ThreadingStateChart: ChartDesc<ChartType> = chart({
+    type: 'stackedBar',
+    height: UnitHeight.UPPER,
+    mapFunc: async (session: Session, metadata: unknown) => {
+        const threadingMetadata = metadata as CounterMetaData;
+        const timestampOffset = getTimeOffset(session, threadingMetadata);
+        const requestParam = {
+            rankId: threadingMetadata.cardId,
+            dbPath: threadingMetadata.dbPath,
+            pid: threadingMetadata.processId,
+            threadName: threadingMetadata.threadName ?? '',
+            threadId: threadingMetadata.threadId ?? '',
+            metaType: threadingMetadata.metaType,
+            metricGroup: threadingMetadata.metricGroup,
+            startTime: Math.floor(Math.max(0, timestampOffset)),
+            endTime: Math.ceil(Math.max(0, (session.endTimeAll ?? 0) + timestampOffset)),
+            dataSource: threadingMetadata.dataSource,
+            timePerPx: session.domain.timePerPx,
+        };
+        const requestKey = createCounterParam('unit/counter', requestParam);
+        const data = await session.simpleCache.fetchRawCounterData(requestKey, requestParam);
+        return mapThreadingCounterData(data as ThreadingCounterData[], timestampOffset,
+            getThreadingBucketWidthNs(threadingMetadata.bucketWidthNs));
+    },
+    config: (session: Session, metadata: unknown) => ({
+        radius: 0,
+        yScaleType: 'linear',
+        barWidth: getThreadingBucketWidthNs((metadata as CounterMetaData).bucketWidthNs),
+        valueRange: [0, 100],
+        palette: THREADING_STATE_COLORS,
+        renderStyle: 'continuousArea',
+    }),
+    renderTooltip: (rawData) => {
+        const data = rawData as ThreadingStackedBarData;
+        return <ThreadingTooltip data={data}/>;
+    },
+});
+
 const LlcCacheChart: ChartDesc<ChartType> = chart({
     type: 'stackedBar',
     height: UnitHeight.UPPER,
@@ -462,6 +508,7 @@ const LlcCacheChart: ChartDesc<ChartType> = chart({
         barTimestampPosition: 'start',
         palette: LLC_CACHE_COLORS,
         autoScaleHeadroom: 1.05,
+        renderStyle: 'bars',
     }),
     renderTooltip: (rawData) => <LlcCacheTooltip data={rawData as LlcCacheStackedBarData}/>,
 });
@@ -484,6 +531,15 @@ export const ThreadingThreadUnit = unit<ThreadMetaData>({
             ? `${metadata.threadName}_${metadata.processName} (${metadata.processId})_${metadata.cardId}`
             : metadata.threadName;
     },
+});
+
+export const ThreadingStateUnit = unit<CounterMetaData>({
+    name: 'Thread State',
+    pinType: 'copied',
+    collapsible: false,
+    description: 'Active / Sync Wait / Preemption / Unknown',
+    chart: ThreadingStateChart,
+    renderInfo: () => 'Thread State',
 });
 
 export const ThreadingLlcCacheUnit = unit<CounterMetaData>({

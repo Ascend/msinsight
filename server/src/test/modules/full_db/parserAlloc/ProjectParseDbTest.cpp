@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 #include <gtest/gtest.h>
+#include <chrono>
 #include <vector>
 #include "ProjectParserFactory.h"
 #include "ProjectParserDb.h"
@@ -118,6 +119,39 @@ class ProjectParserDbTest : public testing::Test {
 
     std::vector<fs::path> temporaryFiles_;
 };
+
+TEST_F(ProjectParserDbTest, SingleFileImportPreservesDatabasePath) {
+    const fs::path directory = fs::temp_directory_path() /
+        ("msinsight-single-db-import-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+    ASSERT_TRUE(fs::create_directory(directory));
+    temporaryFiles_.push_back(directory);
+    const fs::path databasePath = directory / "ascend_pytorch_profiler.db";
+    sqlite3 *database = nullptr;
+    ASSERT_EQ(sqlite3_open(databasePath.string().c_str(), &database), SQLITE_OK);
+    ASSERT_EQ(sqlite3_close(database), SQLITE_OK);
+
+    ProjectParserDbTestHelper parser;
+    std::string error;
+    const auto files = parser.GetParseFileByImportFile(databasePath.string(), error);
+    ASSERT_EQ(files.size(), 1U);
+    EXPECT_EQ(files.front(), databasePath.string());
+    EXPECT_TRUE(error.empty());
+    EXPECT_EQ(parser.GetDbFilesInDirHelper(files.front()), files);
+
+    ProjectExplorerInfo project;
+    project.fileName = databasePath.string();
+    project.projectName = "single-db-import";
+    project.projectType = static_cast<int64_t>(ProjectTypeEnum::DB);
+    parser.BuildProjectExploreInfo(project, files);
+    ASSERT_EQ(project.subParseFileInfo.size(), 1U);
+    EXPECT_EQ(project.subParseFileInfo.front()->parseFilePath, databasePath.string());
+    EXPECT_EQ(project.subParseFileInfo.front()->fileId, databasePath.string());
+
+    const auto directories = parser.GetParseFileByImportFile(directory.string(), error);
+    ASSERT_EQ(directories.size(), 1U);
+    EXPECT_EQ(directories.front(), directory.string());
+    EXPECT_EQ(parser.GetDbFilesInDirHelper(directories.front()), files);
+}
 
 TEST_F(ProjectParserDbTest, multiDeivce) {
     std::string path = GetMultiDeviceTestDataPath();

@@ -54,7 +54,31 @@ DbTraceDataBase::~DbTraceDataBase() {
 }
 
 bool DbTraceDataBase::IsThreadingAnalysisDatabase() {
-    return CheckTablesExist({"p_process", "p_thread", "p_core_metric_desc", "p_core_metric"});
+    return GetThreadingAnalysisTables().IsValid();
+}
+
+DbTraceDataBase::ThreadingAnalysisTables DbTraceDataBase::GetThreadingAnalysisTables() {
+    constexpr const char *hostProcessTable = "HOST_CORE_PROCESS";
+    constexpr const char *hostThreadTable = "HOST_CORE_THREAD";
+    constexpr const char *hostMetricTable = "HOST_CORE_METRIC";
+    constexpr const char *hostMetricDescTable = "HOST_CORE_METIRC_DESC";
+    constexpr const char *hostMetricDescTableStandardSpelling = "HOST_CORE_METRIC_DESC";
+    std::vector<std::string> tableNames;
+    if (!GetTableList(tableNames)) {
+        return {};
+    }
+    const auto hasTable = [&tableNames](const char *name) {
+        return std::find(tableNames.begin(), tableNames.end(), name) != tableNames.end();
+    };
+    if (hasTable(hostProcessTable) && hasTable(hostThreadTable) && hasTable(hostMetricTable)) {
+        if (hasTable(hostMetricDescTable)) {
+            return {hostProcessTable, hostThreadTable, hostMetricDescTable, hostMetricTable};
+        }
+        if (hasTable(hostMetricDescTableStandardSpelling)) {
+            return {hostProcessTable, hostThreadTable, hostMetricDescTableStandardSpelling, hostMetricTable};
+        }
+    }
+    return {};
 }
 
 bool DbTraceDataBase::HasStandardTimelineData() {
@@ -154,9 +178,70 @@ bool DbTraceDataBase::QueryUnitsMetadata(
     return hasThreadingAnalysis ? QueryThreadingAnalysisMetadata(fileId, metaData) : false;
 }
 
-bool DbTraceDataBase::HasThreadingAnalysisLlcMetrics() {
+DbTraceDataBase::ThreadingBucketWidths DbTraceDataBase::QueryThreadingAnalysisBucketWidths(
+    uint64_t minTimestamp, const std::string &pid, const std::string &threadId) {
+    const auto tables = GetThreadingAnalysisTables();
+    if (!tables.IsValid()) {
+        return {};
+    }
     const std::string sql =
-        "SELECT 1 FROM p_core_metric_desc d "
+        "SELECT p.pid AS processId, t.tid AS threadId, MIN(m.ts) AS ts, SUM(m.value) AS duration, "
+        "COUNT(DISTINCT LOWER(d.name)) = 4 AND COUNT(*) = COUNT(m.value) "
+        "AND MIN(m.value) >= 0 AND SUM(m.value) > 0 AS complete "
+        "FROM " + tables.metric + " m JOIN " + tables.thread + " t ON t.id = m.tid_id "
+        "JOIN " + tables.metricDesc + " d ON d.id = m.desc_id "
+        "JOIN " + tables.process + " p ON p.id = t.process_id "
+        "WHERE (? = '' OR p.pid = CAST(? AS INTEGER)) AND (? = '' OR t.tid = CAST(? AS INTEGER)) "
+        "AND LOWER(d.name) IN ('active time', 'wait time', 'preemption time', 'unknown time') "
+        "GROUP BY p.pid, t.tid, CAST((m.ts - ?) / ? AS INTEGER) ORDER BY p.pid, t.tid, MIN(m.ts)";
+    auto stmt = CreatPreparedStatement(sql);
+    if (stmt == nullptr) {
+        return {};
+    }
+    auto resultSet = stmt->ExecuteQuery(pid, pid, threadId, threadId, minTimestamp, THREADING_TIMESTAMP_TOLERANCE_NS);
+    if (resultSet == nullptr) {
+        return {};
+    }
+    struct SamplingInfo {
+        std::vector<uint64_t> durations;
+        uint64_t previous = 0;
+        uint64_t minGap = UINT64_MAX;
+        bool hasPrevious = false;
+    };
+    std::map<std::pair<std::string, std::string>, SamplingInfo> sampling;
+    while (resultSet->Next()) {
+        auto &info = sampling[{resultSet->GetString("processId"), resultSet->GetString("threadId")}];
+        const uint64_t ts = resultSet->GetUint64("ts");
+        if (info.hasPrevious && ts > info.previous) {
+            info.minGap = std::min(info.minGap, ts - info.previous);
+        }
+        info.previous = ts;
+        info.hasPrevious = true;
+        const double duration = resultSet->GetDouble("duration");
+        if (resultSet->GetUint64("complete") > 0 && duration >= 1 && duration < static_cast<double>(INT64_MAX)) {
+            info.durations.push_back(static_cast<uint64_t>(duration));
+        }
+    }
+    ThreadingBucketWidths widths;
+    for (auto &[identity, info] : sampling) {
+        if (info.durations.empty()) {
+            continue;
+        }
+        // Use normalized same-thread intervals; a missing sample must not enlarge the bucket across a gap.
+        auto median = info.durations.begin() + info.durations.size() / 2;
+        std::nth_element(info.durations.begin(), median, info.durations.end());
+        widths[identity] = std::min(info.minGap, *median);
+    }
+    return widths;
+}
+
+bool DbTraceDataBase::HasThreadingAnalysisLlcMetrics() {
+    const auto tables = GetThreadingAnalysisTables();
+    if (!tables.IsValid()) {
+        return false;
+    }
+    const std::string sql =
+        "SELECT 1 FROM " + tables.metricDesc + " d "
         "WHERE REPLACE(LOWER(TRIM(d.name)), '_', ' ') IN "
         "('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits', "
         "'llc miss', 'llc misses', 'llc cache miss', 'llc cache misses') LIMIT 1";
@@ -169,14 +254,18 @@ bool DbTraceDataBase::HasThreadingAnalysisLlcMetrics() {
 }
 
 uint64_t DbTraceDataBase::QueryThreadingAnalysisLlcBucketWidth() {
+    const auto tables = GetThreadingAnalysisTables();
+    if (!tables.IsValid()) {
+        return 0;
+    }
     const std::string metricFilter =
         "REPLACE(LOWER(TRIM(d.name)), '_', ' ') IN "
         "('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits', "
         "'llc miss', 'llc misses', 'llc cache miss', 'llc cache misses')";
     const std::string sql =
         "WITH llc_samples AS ("
-        " SELECT DISTINCT m.tid_id, m.ts FROM p_core_metric m "
-        " JOIN p_core_metric_desc d ON d.id = m.desc_id WHERE " + metricFilter +
+        " SELECT DISTINCT m.tid_id, m.ts FROM " + tables.metric + " m "
+        " JOIN " + tables.metricDesc + " d ON d.id = m.desc_id WHERE " + metricFilter +
         "), llc_gaps AS ("
         " SELECT ts - LAG(ts) OVER (PARTITION BY tid_id ORDER BY ts) AS gap FROM llc_samples"
         ") SELECT MIN(gap) AS bucketWidth FROM llc_gaps WHERE gap > 0";
@@ -190,18 +279,25 @@ uint64_t DbTraceDataBase::QueryThreadingAnalysisLlcBucketWidth() {
 
 bool DbTraceDataBase::QueryThreadingAnalysisMetadata(
     const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData) {
+    const auto tables = GetThreadingAnalysisTables();
+    if (!tables.IsValid()) {
+        return false;
+    }
+    const auto stateWidths = QueryThreadingAnalysisBucketWidths(TraceTime::Instance().GetStartTime());
     const bool hasLlcMetrics = HasThreadingAnalysisLlcMetrics();
     const uint64_t llcBucketWidthNs = hasLlcMetrics ? QueryThreadingAnalysisLlcBucketWidth() : 0;
-    const bool hasGlobalTid = CheckColumnExist("p_thread", "global_tid");
-    const std::string hostGlobalTidColumn = hasGlobalTid ? "CAST(t.global_tid AS TEXT)" : "''";
+    const bool hasGlobalTid = CheckColumnExist(tables.thread, "global_tid");
+    const bool hasCamelCaseGlobalTid = !hasGlobalTid && CheckColumnExist(tables.thread, "globalTid");
+    const std::string hostGlobalTidColumn = hasGlobalTid ? "CAST(t.global_tid AS TEXT)" :
+        (hasCamelCaseGlobalTid ? "CAST(t.globalTid AS TEXT)" : "''");
     const std::string sql =
         "SELECT p.id AS processRowId, p.pid AS processId, p.name AS processName, "
         "t.tid AS threadId, t.name AS threadName, " + hostGlobalTidColumn + " AS hostGlobalTid, "
-        "EXISTS(SELECT 1 FROM p_core_metric lm JOIN p_core_metric_desc ld ON ld.id = lm.desc_id "
+        "EXISTS(SELECT 1 FROM " + tables.metric + " lm JOIN " + tables.metricDesc + " ld ON ld.id = lm.desc_id "
         "WHERE lm.tid_id = t.id AND REPLACE(LOWER(TRIM(ld.name)), '_', ' ') IN "
         "('llc hit', 'llc hits', 'llc cache hit', 'llc cache hits', "
         "'llc miss', 'llc misses', 'llc cache miss', 'llc cache misses')) AS hasLlc "
-        "FROM p_process p JOIN p_thread t ON t.process_id = p.id ORDER BY p.id, t.id";
+        "FROM " + tables.process + " p JOIN " + tables.thread + " t ON t.process_id = p.id ORDER BY p.id, t.id";
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
         return false;
@@ -213,7 +309,7 @@ bool DbTraceDataBase::QueryThreadingAnalysisMetadata(
 
     std::map<std::string, Protocol::UnitTrack *> hostThreadsByGlobalTid;
     const std::string hostProcessMetaType = ENUM_TO_STR(PROCESS_TYPE::PROCESS).value_or("");
-    if (hasGlobalTid) {
+    if (hasGlobalTid || hasCamelCaseGlobalTid) {
         for (auto &unit : metaData) {
             if (unit == nullptr || unit->metaData.metaType != hostProcessMetaType) {
                 continue;
@@ -254,13 +350,25 @@ bool DbTraceDataBase::QueryThreadingAnalysisMetadata(
         thread->metaData.threadId = threadId;
         thread->metaData.threadName = threadName;
 
+        const auto stateWidth = stateWidths.find({processId, threadId});
+        const uint64_t bucketWidthNs = stateWidth == stateWidths.end() ? 0 : stateWidth->second;
+        if (bucketWidthNs > 0) {
+            auto threadState = GenerateBaseUnitTrack(
+                "counter", fileId, processId, processName, THREADING_ANALYSIS_META_TYPE);
+            threadState->metaData.threadId = threadId;
+            threadState->metaData.threadName = "Thread State";
+            threadState->metaData.metricGroup = THREADING_STATE_METRIC_GROUP;
+            threadState->metaData.bucketWidthNs = bucketWidthNs;
+            threadState->metaData.dataType = {"Active", "Sync Wait", "Preemption", "Unknown"};
+            thread->children.emplace_back(std::move(threadState));
+        }
         if (hasLlcMetrics && resultSet->GetUint64("hasLlc") > 0) {
             auto llcCache = GenerateBaseUnitTrack(
                 "counter", fileId, processId, processName, THREADING_ANALYSIS_META_TYPE);
             llcCache->metaData.threadId = threadId;
             llcCache->metaData.threadName = "LLC Cache";
             llcCache->metaData.metricGroup = THREADING_LLC_METRIC_GROUP;
-            llcCache->metaData.bucketWidthNs = llcBucketWidthNs;
+            llcCache->metaData.bucketWidthNs = llcBucketWidthNs == 0 ? bucketWidthNs : llcBucketWidthNs;
             llcCache->metaData.dataType = {"LLC Hits", "LLC Misses"};
             thread->children.emplace_back(std::move(llcCache));
         }
@@ -306,7 +414,12 @@ bool DbTraceDataBase::QueryExtremumTimestamp(uint64_t &min, uint64_t &max) {
     if (!IsThreadingAnalysisDatabase() || HasStandardTimelineData()) {
         return true;
     }
-    auto stmt = CreatPreparedStatement("SELECT MIN(start_ts) AS minTs, MAX(end_ts) AS maxTs FROM p_process");
+    const auto tables = GetThreadingAnalysisTables();
+    if (!tables.IsValid()) {
+        return false;
+    }
+    auto stmt = CreatPreparedStatement(
+        "SELECT MIN(start_ts) AS minTs, MAX(end_ts) AS maxTs FROM " + tables.process);
     if (stmt == nullptr) {
         return false;
     }

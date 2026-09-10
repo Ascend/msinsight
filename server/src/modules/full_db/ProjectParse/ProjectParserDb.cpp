@@ -458,7 +458,7 @@ std::vector<std::string> ProjectParserDb::GetParseFileByImportFile(const std::st
     }
     std::vector<std::string> res;
     for (const auto &item : reportFiles) {
-        res.push_back(FileUtil::GetParentPath(item));
+        res.push_back(FileUtil::IsRegularFile(importFile) ? item : FileUtil::GetParentPath(item));
     }
     return res;
 }

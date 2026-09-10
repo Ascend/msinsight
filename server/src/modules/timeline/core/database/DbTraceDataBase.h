@@ -306,12 +306,29 @@ class DbTraceDataBase : public VirtualTraceDatabase {
         const PROCESS_TYPE &type, std::string &processName, std::string &metaType, std::string &sql);
 
     static constexpr const char *THREADING_ANALYSIS_META_TYPE = "THREADING_ANALYSIS";
+    static constexpr const char *THREADING_STATE_METRIC_GROUP = "thread_state";
     static constexpr const char *THREADING_LLC_METRIC_GROUP = "llc_cache";
     static constexpr uint64_t THREADING_TIMESTAMP_TOLERANCE_NS = 10000000;
+    struct ThreadingAnalysisTables {
+        std::string process;
+        std::string thread;
+        std::string metricDesc;
+        std::string metric;
+
+        bool IsValid() const {
+            return !process.empty() && !thread.empty() && !metricDesc.empty() && !metric.empty();
+        }
+    };
+    ThreadingAnalysisTables GetThreadingAnalysisTables();
     bool QueryThreadingAnalysisMetadata(
         const std::string &fileId, std::vector<std::unique_ptr<Protocol::UnitTrack>> &metaData);
+    bool QueryThreadingAnalysisCounter(const Protocol::UnitCounterParams &params, uint64_t minTimestamp,
+        std::vector<Protocol::UnitCounterData> &dataList);
     bool QueryThreadingAnalysisLlcCounter(const Protocol::UnitCounterParams &params, uint64_t minTimestamp,
         std::vector<Protocol::UnitCounterData> &dataList);
+    using ThreadingBucketWidths = std::map<std::pair<std::string, std::string>, uint64_t>;
+    ThreadingBucketWidths QueryThreadingAnalysisBucketWidths(uint64_t minTimestamp,
+        const std::string &pid = "", const std::string &threadId = "");
     uint64_t QueryThreadingAnalysisLlcBucketWidth();
     bool HasThreadingAnalysisLlcMetrics();
 

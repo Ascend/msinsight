@@ -37,9 +37,11 @@ import {
     LabelUnit,
     ThreadingProcessUnit,
     ThreadingLlcCacheUnit,
+    ThreadingStateUnit,
     ThreadingThreadUnit,
 } from './AscendUnit';
 import { LLC_CACHE_METRIC_GROUP } from './llcCache';
+import { THREADING_STATE_METRIC_GROUP } from './threadingAnalysis';
 
 const THREADING_ANALYSIS_META_TYPE = 'THREADING_ANALYSIS';
 
@@ -248,7 +250,7 @@ function newLane(
                 meta.metricGroup = insightMetaData.metadata.metricGroup;
                 return meta.metricGroup === LLC_CACHE_METRIC_GROUP
                     ? new ThreadingLlcCacheUnit(meta)
-                    : undefined;
+                    : meta.metricGroup === THREADING_STATE_METRIC_GROUP ? new ThreadingStateUnit(meta) : undefined;
             }
             const grandParentMetaData = parentMetaDataTree.get(parentMetaDataTree.get(insightMetaData.metadata));
             const meta = generateMetaData<CounterMetaData>({ cardId: grandParentMetaData.cardId, dbPath: grandParentMetaData.dbPath },

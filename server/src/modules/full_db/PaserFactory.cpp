@@ -111,7 +111,8 @@ std::pair<std::string, ParserType> ParserFactory::GetImportType(const std::strin
     if (!FileUtil::IsFolder(path) && ProjectParserPytorchTrace::IsPytorchTraceFile(path)) {
         return std::make_pair(path, ParserType::PYTORCH_TRACE_JSON);
     }
-    if (FileUtil::FindIfDbTypeByRegex(path, std::regex(traceViewReg), std::regex(DB_REG))) {
+    if ((!FileUtil::IsFolder(path) && std::regex_match(filename, std::regex(DB_REG))) ||
+        FileUtil::FindIfDbTypeByRegex(path, std::regex(traceViewReg), std::regex(DB_REG))) {
         return std::make_pair(path, ParserType::DB);
     }
     if (ProjectParserDb::IsThreadingAnalysisDbFile(path)) {
