@@ -16,44 +16,62 @@
  * -------------------------------------------------------------------------
  */
 import logoClaude from './icons/logo-claude.svg';
-import logoDeepseek from './icons/logo-deepseek.svg';
 import logoInsight from './icons/logo-insight.svg';
 import logoOpenai from './icons/logo-openai.svg';
-import logoPangu from './icons/logo-pangu.svg';
+import logoOpenaiDark from './icons/logo-openai-dark.svg';
+import logoOpencode from './icons/logo-opencode.svg';
+import logoOpencodeDark from './icons/logo-opencode-dark.svg';
+import logoTrae from './icons/logo-trae.svg';
 
-export type AgentKind = 'insight' | 'claude' | 'deepseek' | 'pangu' | 'openai';
+export type AgentKind = 'insight' | 'opencode' | 'claude' | 'codex' | 'trae';
 
-export const AGENT_KIND_LOGOS: Record<AgentKind, string> = {
-    insight: logoInsight,
-    claude: logoClaude,
-    deepseek: logoDeepseek,
-    pangu: logoPangu,
-    openai: logoOpenai,
+export type AgentLogoAsset = {
+    src: string;
+    darkSrc?: string;
 };
 
-const KIND_PATTERNS: Array<{ kind: AgentKind; pattern: RegExp }> = [
-    { kind: 'insight', pattern: /msinsight|mindstudio|insight/i },
-    { kind: 'pangu', pattern: /pangu|盘古/i },
-    { kind: 'deepseek', pattern: /deepseek/i },
-    { kind: 'claude', pattern: /claude|anthropic/i },
-    { kind: 'openai', pattern: /openai|chatgpt|\bcodex\b/i },
+export const AGENT_KIND_LOGOS: Record<AgentKind, AgentLogoAsset> = {
+    insight: { src: logoInsight },
+    opencode: { src: logoOpencode, darkSrc: logoOpencodeDark },
+    claude: { src: logoClaude },
+    codex: { src: logoOpenai, darkSrc: logoOpenaiDark },
+    trae: { src: logoTrae },
+};
+
+const BRANDED_AGENT_KINDS: Array<{ kind: AgentKind; name: string }> = [
+    { kind: 'insight', name: 'msinsight-native' },
+    { kind: 'opencode', name: 'OpenCode(auto)' },
+    { kind: 'claude', name: 'Claude Code(auto)' },
+    { kind: 'codex', name: 'Codex(auto)' },
+    { kind: 'trae', name: 'Trae(auto)' },
 ];
+
+const normalizeAgentName = (name: string) => name.trim().toLowerCase();
 
 export const resolveAgentKind = ({
     name = '',
-    command = '',
-    provider = '',
 }: {
     name?: string;
-    command?: string;
-    provider?: string;
 } = {}): AgentKind | undefined => {
-    const commandBase = command.trim().split(/[/\\]/).pop() ?? '';
-    const sources = [provider, commandBase, name];
-    return KIND_PATTERNS.find(({ pattern }) => sources.some((source) => pattern.test(source)))?.kind;
+    const normalizedName = normalizeAgentName(name);
+    if (!normalizedName) return undefined;
+    return BRANDED_AGENT_KINDS.find((entry) => normalizeAgentName(entry.name) === normalizedName)?.kind;
 };
 
-export const agentKindLogo = (input?: Parameters<typeof resolveAgentKind>[0]): string | undefined => {
+export const agentKindLogoAsset = (input?: Parameters<typeof resolveAgentKind>[0]): AgentLogoAsset | undefined => {
     const kind = resolveAgentKind(input);
     return kind ? AGENT_KIND_LOGOS[kind] : undefined;
 };
+
+export const agentKindLogoSrc = (
+    input: Parameters<typeof resolveAgentKind>[0] | undefined,
+    mode: 'light' | 'dark',
+): string | undefined => {
+    const logo = agentKindLogoAsset(input);
+    if (!logo) return undefined;
+    return mode === 'dark' && logo.darkSrc ? logo.darkSrc : logo.src;
+};
+
+export const agentKindLogo = (input?: Parameters<typeof resolveAgentKind>[0]): string | undefined => (
+    agentKindLogoAsset(input)?.src
+);

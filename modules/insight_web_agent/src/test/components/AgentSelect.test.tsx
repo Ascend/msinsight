@@ -39,6 +39,27 @@ test('opens the agent list and selects an option', async () => {
     expect(screen.queryByText('Switch Agent')).not.toBeInTheDocument();
 });
 
+test('does not select a disabled option', async () => {
+    const onChange = jest.fn();
+    render(
+        <AgentSelect
+            onChange={onChange}
+            options={[
+                { value: 'native', label: 'MS Insight_Native' },
+                { value: 'missing', label: 'OpenCode(auto) (Unavailable)', disabled: true },
+            ]}
+            title="Switch Agent"
+            value="native"
+        />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /MS Insight_Native/i }));
+    fireEvent.click(await screen.findByRole('option', { name: /OpenCode\(auto\)/i }));
+
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole('option', { name: /OpenCode\(auto\)/i })).toBeDisabled();
+});
+
 test('supports keyboard selection and renders the footer', async () => {
     const onChange = jest.fn();
     render(

@@ -19,6 +19,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { withAgentIdentity } from "../services/agentIdentityService.mjs";
+import { presentRunnableAgentServers, resolveAgentServer } from "../services/agentDiscoveryService.mjs";
 import { fixedRagPaths } from "../services/rag/runtimePaths.mjs";
 import { initLogger } from "../utils/logger.mjs";
 import { loadCapabilityCenterConfig } from "./capabilityCenterConfig.mjs";
@@ -308,7 +309,10 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
     }, "builtin");
     const agentServers = [builtinAgentServer, ...configuredAgentServers];
     const requestedActiveAgentName = env.ACP_AGENT ?? agentServersConfig.activeAgent ?? agentServers[0]?.name;
-    const agentServer = agentServers.find((server) => server.name === requestedActiveAgentName) ?? agentServers[0];
+    const agentServer = resolveAgentServer(
+        requestedActiveAgentName,
+        presentRunnableAgentServers({ configured: agentServers }),
+    ) ?? agentServers[0];
     const port = normalizePort(cliOptions.port ?? env.PORT, 9090);
     const host = normalizeHost(cliOptions.host ?? env.HOST, "127.0.0.1");
     const capabilityToken = String(env.ACP_CAPABILITY_TOKEN ?? "").trim();

@@ -136,6 +136,7 @@ export interface ConfigOption {
 
 export interface AgentServerItem {
     name: string;
+    available?: boolean;
 }
 
 export interface AgentConfigServer {
@@ -166,9 +167,18 @@ export interface AgentSessionConfig {
     };
 }
 
+export interface AgentCatalogConfig {
+    name: string;
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+    available: boolean;
+}
+
 export interface AgentConfigSnapshot {
     activeAgentName: string;
     agentServers: AgentConfigServer[];
+    catalogAgents?: AgentCatalogConfig[];
     builtinAgent: BuiltinAgentConfig;
     sessionConfig: AgentSessionConfig;
 }

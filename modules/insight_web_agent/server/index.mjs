@@ -28,7 +28,7 @@ import { config, reloadConfig, saveActiveAgent } from "./config/index.mjs";
 import { createAcpAdapter } from "./infrastructure/acpAdapter.mjs";
 import { createAuditLogger } from "./observability/auditLogger.mjs";
 import { createAgentConfigService } from "./services/agentConfigService.mjs";
-import { agentConfigForLog, discoverAgents, mergeAgentServers, sameAgentLaunch } from "./services/agentDiscoveryService.mjs";
+import { agentConfigForLog, discoverAgents, presentListedAgentServers, presentRunnableAgentServers, resolveAgentServer, sameAgentLaunch } from "./services/agentDiscoveryService.mjs";
 import { agentLaunchKey } from "./services/agentIdentityService.mjs";
 import { createChatService } from "./services/chatService.mjs";
 import { createContextAssembler } from "./services/contextAssembler.mjs";
@@ -192,8 +192,18 @@ const pageContextService = createPageContextService({ eventBus });
 let chatService;
 let activeAgentServer = config.agentServer;
 let discoveredAgentServers = [];
-const availableAgentServers = () => mergeAgentServers(discoveredAgentServers, config.agentServers);
-resetRuntimeForAgent(state, { agentServers: availableAgentServers(), activeAgentName: activeAgentServer.name });
+const availableAgentServers = () => presentRunnableAgentServers({
+    discovered: discoveredAgentServers,
+    configured: config.agentServers,
+});
+const listedAgentServers = () => presentListedAgentServers({
+    discovered: discoveredAgentServers,
+    configured: config.agentServers,
+});
+const syncListedAgentServers = () => {
+    state.agentServers = listedAgentServers();
+};
+resetRuntimeForAgent(state, { agentServers: listedAgentServers(), activeAgentName: activeAgentServer.name });
 const permissionService = createPermissionService({ state, eventBus, config, timeoutMs: config.permissionRequestTimeoutMs });
 activeAcpClient = createActiveAcpAdapter(activeAgentServer, sharedWorkspacePath);
 
@@ -271,14 +281,14 @@ const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, relo
             config.cwd = sharedWorkspacePath;
         }
         const requestedAgentName = String(activeAgentName ?? config.activeAgentName ?? "").trim();
-        const nextAgentServer = availableAgentServers().find((server) => server.name === requestedAgentName) ?? config.agentServer;
+        const nextAgentServer = resolveAgentServer(requestedAgentName, availableAgentServers());
         if (!nextAgentServer) throw new Error("agent is unavailable");
 
         nextClient = createActiveAcpAdapter(nextAgentServer, sharedWorkspacePath, { autoConnect: false });
         stagedAcpMessageBuffers.set(nextClient, nextClientMessages);
         permissionService.updateTimeout(config.permissionRequestTimeoutMs);
         permissionService.resetRuntime();
-        resetRuntimeForAgent(state, { agentServers: availableAgentServers(), activeAgentName: nextAgentServer.name });
+        resetRuntimeForAgent(state, { agentServers: listedAgentServers(), activeAgentName: nextAgentServer.name });
         state.activeContext = previousState.activeContext;
         nextClient.connect();
         await chatService.initialize({ targetAdapter: nextClient, broadcast: false, refreshSessions: false });
@@ -287,9 +297,14 @@ const reloadRuntime = async ({ activeAgentName, persistActiveAgent = false, relo
         stagedAcpMessageBuffers.delete(nextClient);
         activeAcpClient = nextClient;
         activeAgentServer = nextAgentServer;
+        config.agentServer = nextAgentServer;
+        config.activeAgentName = nextAgentServer.name;
         for (const message of nextClientMessages) chatService?.handleAcpNotification(message);
         await sessionService.refreshSessions();
-        if (persistActiveAgent) saveActiveAgent(nextAgentServer.name);
+        if (persistActiveAgent) {
+            saveActiveAgent(nextAgentServer.name);
+            config.requestedActiveAgentName = nextAgentServer.name;
+        }
         try {
             await previousClient.disconnect();
         } catch (disconnectError) {
@@ -358,14 +373,14 @@ const refreshDiscoveredAgents = async () => {
             discoveredAgentServers = discovery.agentServers;
 
             const nextServers = availableAgentServers();
-            const requestedAgent = nextServers.find(({ name }) => name === config.requestedActiveAgentName);
             const currentAgent = nextServers.find(({ name }) => name === activeAgentServer.name);
-            const nextAgent = requestedAgent ?? currentAgent ?? config.agentServer;
+            const requestedAgent = resolveAgentServer(config.requestedActiveAgentName, nextServers);
+            const nextAgent = currentAgent ?? requestedAgent ?? config.agentServer;
             if (nextAgent && (nextAgent.name !== activeAgentServer.name || !sameAgentLaunch(nextAgent, activeAgentServer))) {
                 await reloadRuntime({ activeAgentName: nextAgent.name, broadcast: false });
                 runtimeChanged = true;
             } else {
-                state.agentServers = nextServers;
+                syncListedAgentServers();
             }
 
             console.log(`ACP agent refresh completed: available=${discoveredAgentServers.map(({ name }) => name).join(", ") || "none"}`);
@@ -375,11 +390,11 @@ const refreshDiscoveredAgents = async () => {
             discoveredAgentServers = previousDiscovered;
             restoreRuntimeConfig(previousConfig);
             permissionService.updateTimeout(config.permissionRequestTimeoutMs);
-            state.agentServers = availableAgentServers();
+            syncListedAgentServers();
             throw error;
         } finally {
             state.agentDiscoveryLoading = false;
-            state.agentServers = availableAgentServers();
+            syncListedAgentServers();
             eventBus.broadcast({ type: "agent_discovery_completed", runtimeChanged });
         }
     };
@@ -400,7 +415,7 @@ const agentService = {
     list() {
         return {
             activeAgentName: activeAgentServer.name,
-            agentServers: availableAgentServers().map(({ name }) => ({ name })),
+            agentServers: listedAgentServers().map(({ name, available }) => ({ name, available })),
             discoveryLoading: state.agentDiscoveryLoading,
         };
     },
@@ -413,7 +428,7 @@ const agentService = {
                 409,
             );
         }
-        const nextAgentServer = availableAgentServers().find((server) => server.name === String(name ?? "").trim());
+        const nextAgentServer = resolveAgentServer(String(name ?? "").trim(), availableAgentServers());
         if (!nextAgentServer) {
             return errorResult(
                 "agent_unavailable",
@@ -462,14 +477,8 @@ const agentService = {
 const agentConfigService = createAgentConfigService({
     rootDir: config.rootDir,
     state,
-    beforeReload: async (snapshot) => {
-        const previousDiscovered = discoveredAgentServers;
-        const configuredKeys = new Set(snapshot.agentServers.map(agentLaunchKey));
-        discoveredAgentServers = discoveredAgentServers.filter((agent) => !configuredKeys.has(agentLaunchKey(agent)));
-        return () => {
-            discoveredAgentServers = previousDiscovered;
-        };
-    },
+    getDiscoveredAgents: () => discoveredAgentServers,
+    getConfiguredAgents: () => config.configuredAgentServers,
     reloadRuntime: async (snapshot) => reloadRuntime({ activeAgentName: snapshot.activeAgentName, reloadFromDisk: true }),
 });
 
@@ -552,8 +561,8 @@ if (listening && !shuttingDown && autoDiscoveryEnabled) {
         const discovery = await discoverAgents({ cwd: config.cwd, excludedLaunchKeys });
         logAgentDiscoveryResults("discovery", discovery.results);
         discoveredAgentServers = discovery.agentServers;
-        state.agentServers = availableAgentServers();
-        const discoveredActive = discoveredAgentServers.find(({ name }) => name === config.requestedActiveAgentName);
+        syncListedAgentServers();
+        const discoveredActive = resolveAgentServer(config.requestedActiveAgentName, availableAgentServers());
         if (discoveredActive && !sameAgentLaunch(discoveredActive, activeAgentServer)) {
             await reloadRuntime({ activeAgentName: discoveredActive.name, broadcast: false });
         } else {
@@ -566,7 +575,7 @@ if (listening && !shuttingDown && autoDiscoveryEnabled) {
         await chatService.initialize({ broadcast: false });
     } finally {
         state.agentDiscoveryLoading = false;
-        state.agentServers = availableAgentServers();
+        syncListedAgentServers();
         eventBus.broadcast({ type: "agent_discovery_completed", runtimeChanged: true });
     }
 } else if (listening && !shuttingDown) {

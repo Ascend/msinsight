@@ -26,6 +26,7 @@ import {
     type RefObject,
 } from 'react';
 import { message } from 'antd';
+import { t } from 'i18next';
 import { toCommandError } from '@insight/lib/FrontendAgentCommand';
 import { cancelPrompt, claimFrontendCommand, deleteSession, fetchAgents, fetchSessions, fetchState, isBackendUnavailableError, loadSession, refreshAgents as requestAgentRefresh, respondFrontendCommand, respondPermission, sendPrompt, setSessionMode, setSessionModel, switchAgent } from '../api';
 import { cancelFrontendCommand, executeFrontendCommand } from '../bridge/frontendAgentCommandTransport';
@@ -749,7 +750,11 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     };
 
     const updateAgent = async (name: string): Promise<void> => {
-        if (!name || name === state.activeAgentName || activePendingPrompt(state)) return;
+        if (!name || name === state.activeAgentName) return;
+        if (activePendingPrompt(state)) {
+            message.error(t('agentSwitchBusy', { ns: 'insightWebAgent' }));
+            return;
+        }
         setState((current) => ({ ...current, switchingAgent: true }));
         try {
             const response = await switchAgent(name);

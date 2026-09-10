@@ -115,7 +115,9 @@ const Container = styled.div`
     }
 
     .agent-select-trigger-icon img,
-    .agent-select-option-icon img {
+    .agent-select-trigger-icon [data-agent-icon],
+    .agent-select-option-icon img,
+    .agent-select-option-icon [data-agent-icon] {
         width: 100%;
         height: 100%;
         object-fit: contain;
@@ -417,9 +419,10 @@ export const AgentSelect = ({
                                 onClick={() => closeAndSelect(option)}
                                 onMouseEnter={() => setFocusedIndex(index)}
                                 role="option"
+                                title={option.title}
                                 type="button"
                             >
-                                {option.icon ? <span className="agent-select-option-icon">{option.icon}</span> : null}
+                                {option.icon ? <span aria-hidden="true" className="agent-select-option-icon">{option.icon}</span> : null}
                                 <span
                                     className="agent-select-label"
                                     title={option.title ?? (typeof option.label === 'string' ? option.label : undefined)}
@@ -454,7 +457,7 @@ export const AgentSelect = ({
                 ref={triggerRef}
                 type="button"
             >
-                {selectedOption?.icon ? <span className="agent-select-trigger-icon">{selectedOption.icon}</span> : null}
+                {selectedOption?.icon ? <span aria-hidden="true" className="agent-select-trigger-icon">{selectedOption.icon}</span> : null}
                 <span className="agent-select-label" title={selectedTitle}>{selectedOption?.label ?? placeholder}</span>
                 <img aria-hidden="true" className="agent-select-arrow" src={arrowDownIcon} />
             </button>

@@ -23,7 +23,9 @@ import React, { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'rea
 import { useTranslation } from 'react-i18next';
 import { Alert, Button, Input, InputNumber, PasswordInput, Tooltip } from '@insight/lib/components';
 import { copyToClipboard } from '@insight/lib/utils';
-import { agentKindLogo } from '../agentBrand';
+import { resolveAgentKind } from '../agentBrand';
+import { AgentKindIcon } from './AgentKindIcon';
+import { uniqueCopiedAgentName } from '../copiedAgentName';
 import { fetchAgentConfig, isBackendUnavailableError, saveAgentServersConfig, saveAgentSessionConfig, saveBuiltinAgentConfig } from '../api';
 import { useChatState } from '../hooks/useChatState';
 import type { AgentConfigSnapshot } from '../types';
@@ -255,9 +257,11 @@ const Container = styled.div`
     .agent-card-icon.logo {
         border-radius: 0;
         background: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
     }
 
-    .agent-card-icon img {
+    .agent-card-icon img,
+    .agent-card-icon [data-agent-icon] {
         width: 26px;
         height: 26px;
         object-fit: contain;
@@ -274,8 +278,25 @@ const Container = styled.div`
         white-space: nowrap;
     }
 
+    .agent-card.unavailable {
+        opacity: 0.72;
+    }
+
     .agent-card.add-card {
         color: ${(props): string => props.theme.textColorPrimary};
+    }
+
+    .copy-agent-button {
+        width: fit-content;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border: 0;
+        padding: 2px 0;
+        background: transparent;
+        color: ${(props): string => props.theme.primaryColor};
+        font-size: 14px;
+        cursor: pointer;
     }
 
     .add-icon {
@@ -545,12 +566,20 @@ const Container = styled.div`
         gap: 8px;
     }
 
+    .path-row.readonly {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
     .env-row {
         min-width: 0;
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 28px;
         align-items: center;
         gap: 8px;
+    }
+
+    .env-row.readonly {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
 
     .path-remove {
@@ -692,7 +721,13 @@ const EMPTY_DRAFT = (): DraftAgent => ({
     saveAndSwitch: false,
 });
 
-type SettingsNavigation = { type: 'select'; agentName: string } | { type: 'create' } | { type: 'close' };
+type SettingsNavigation = { type: 'select'; agentName: string } | { type: 'create' } | { type: 'copy' } | { type: 'close' };
+
+const findExternalAgent = (source: AgentConfigSnapshot | null | undefined, agentName: string | null | undefined) => {
+    if (!source || !agentName) return undefined;
+    return source.catalogAgents?.find((agent) => agent.name === agentName)
+        ?? source.agentServers.find((agent) => agent.name === agentName);
+};
 
 export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpen = false, onOpenChange }: AgentSettingsDialogProps): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
@@ -751,9 +786,9 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                 const nextSnapshot = await fetchAgentConfig();
                 setSnapshot(nextSnapshot);
                 initialSnapshotRef.current = nextSnapshot;
-                const editableActiveAgent = nextSnapshot.activeAgentName === 'msinsight-native'
-                    || nextSnapshot.agentServers.some((agent) => agent.name === nextSnapshot.activeAgentName);
-                setSelectedAgentName(editableActiveAgent ? nextSnapshot.activeAgentName : 'msinsight-native');
+                const selectableActiveAgent = nextSnapshot.activeAgentName === 'msinsight-native'
+                    || Boolean(findExternalAgent(nextSnapshot, nextSnapshot.activeAgentName));
+                setSelectedAgentName(selectableActiveAgent ? nextSnapshot.activeAgentName : 'msinsight-native');
                 if (createOnOpen) setDraftAgent(EMPTY_DRAFT());
             } catch (nextError) {
                 setError(nextError instanceof Error ? nextError.message : String(nextError));
@@ -770,12 +805,13 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         return () => cancelAnimationFrame(frame);
     }, [configMode, draftAgent, loading, open, showAdvanced, snapshot]);
 
-    const activeAgent = useMemo(() => {
-        if (!snapshot) return undefined;
-        return snapshot.agentServers.find((agent) => agent.name === (selectedAgentName ?? snapshot.activeAgentName));
-    }, [selectedAgentName, snapshot]);
+    const activeAgent = useMemo(() => findExternalAgent(snapshot, selectedAgentName ?? snapshot?.activeAgentName), [selectedAgentName, snapshot]);
 
     const isBuiltinSelected = !draftAgent && selectedAgentName === 'msinsight-native';
+    const catalogAgent = snapshot?.catalogAgents?.find((agent) => agent.name === selectedAgentName);
+    const isCatalogSelected = Boolean(catalogAgent) && !draftAgent;
+    const isReadOnlyAgent = isCatalogSelected;
+    const isCatalogAvailable = catalogAgent?.available === true;
 
     const envEntries = useMemo<Array<[string, string]>>(() => {
         if (draftAgent) return draftAgent.env.map((entry) => [entry.key, entry.value]);
@@ -824,6 +860,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
     };
 
     const applyScriptValue = (value: string): void => {
+        if (isReadOnlyAgent) return;
         setScriptValue(value);
         try {
             const parsed: unknown = JSON.parse(value);
@@ -909,12 +946,38 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
             }
             return;
         }
+        if (destination.type === 'copy') {
+            const sourceAgent = findExternalAgent(source, selectedAgentName);
+            if (!sourceAgent) return;
+            const takenNames = [
+                ...(source?.catalogAgents ?? []).map((agent) => agent.name),
+                ...(source?.agentServers ?? []).map((agent) => agent.name),
+            ];
+            const copiedEnv = Object.entries(sourceAgent.env ?? {}).map(([key, value]) => ({ key, value }));
+            const copiedDraft: DraftAgent = {
+                name: uniqueCopiedAgentName(sourceAgent.name, takenNames),
+                command: sourceAgent.command,
+                args: [...sourceAgent.args],
+                env: copiedEnv,
+                saveAndSwitch: false,
+            };
+            setDraftAgent(copiedDraft);
+            if (configMode === 'script') {
+                setScriptValue(JSON.stringify(getExternalScriptConfig({
+                    name: copiedDraft.name,
+                    command: copiedDraft.command,
+                    args: copiedDraft.args,
+                    env: Object.fromEntries(copiedEnv.map(({ key, value }) => [key, value])),
+                }, true), null, 2));
+            }
+            return;
+        }
         const { agentName } = destination;
         if (configMode === 'script') {
             const { provider = '', model = '', baseUrl = '', apiKey = '' } = source?.builtinAgent ?? {};
             const nextConfig = agentName === 'msinsight-native'
                 ? { provider, model, baseUrl, apiKey }
-                : getExternalScriptConfig(source?.agentServers.find((agent) => agent.name === agentName) ?? { command: '', args: [], env: {} }, false);
+                : getExternalScriptConfig(findExternalAgent(source, agentName) ?? { command: '', args: [], env: {} }, false);
             setScriptValue(JSON.stringify(nextConfig, null, 2));
         }
         setDraftAgent(null);
@@ -974,10 +1037,14 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
         if (!snapshot.builtinAgent.provider.trim()) fieldErrors['builtin-provider'] = t('providerRequired');
         if (!snapshot.builtinAgent.model.trim()) fieldErrors['builtin-model'] = t('modelRequired');
         if (!snapshot.builtinAgent.baseUrl.trim()) fieldErrors['builtin-base-url'] = t('baseUrlRequired');
-    } else if (editingAgent) {
+    } else if (editingAgent && !isReadOnlyAgent) {
         if (draftAgent) {
             if (!draftAgent.name.trim()) fieldErrors['new-agent-name'] = t('newAgentNameRequired');
-            else if (snapshot?.agentServers.some((agent) => agent.name === draftAgent.name.trim()) === true || draftAgent.name.trim() === 'msinsight-native') {
+            else if (
+                snapshot?.agentServers.some((agent) => agent.name === draftAgent.name.trim()) === true
+                || snapshot?.catalogAgents?.some((agent) => agent.name === draftAgent.name.trim()) === true
+                || draftAgent.name.trim() === 'msinsight-native'
+            ) {
                 fieldErrors['new-agent-name'] = t('agentNameUnique');
             }
         }
@@ -1167,25 +1234,26 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                         title={t('builtinAgentCardName')}
                                         type="button"
                                     >
-                                        <AgentCardIcon name="msinsight-native" provider={snapshot.builtinAgent.provider} />
+                                        <AgentCardIcon name="msinsight-native" />
                                         <span className="agent-card-name">{t('builtinAgentCardName')}</span>
                                     </button>
-                                    {snapshot.agentServers.map((agent) => {
+                                    {([...snapshot.catalogAgents ?? [], ...snapshot.agentServers]).map((agent) => {
                                         const selected = !isCreatingAgent && selectedAgentName === agent.name;
+                                        const unavailable = 'available' in agent && agent.available === false;
                                         return <button
                                             aria-pressed={selected}
-                                            className={`agent-card${selected ? ' selected' : ''}`}
+                                            className={`agent-card${selected ? ' selected' : ''}${unavailable ? ' unavailable' : ''}`}
                                             key={agent.name}
                                             onClick={() => requestNavigation({ type: 'select', agentName: agent.name })}
-                                            title={agent.name}
+                                            title={unavailable ? t('unavailableAgentHint') : agent.name}
                                             type="button"
                                         >
-                                            <AgentCardIcon command={agent.command} name={agent.name} />
-                                            <span className="agent-card-name">{agent.name}</span>
+                                            <AgentCardIcon name={agent.name} />
+                                            <span className="agent-card-name">{unavailable ? t('unavailableAgentLabel', { name: agent.name }) : agent.name}</span>
                                         </button>;
                                     })}
                                     {isCreatingAgent ? <button aria-pressed="true" className="agent-card selected" type="button">
-                                        <AgentCardIcon command={draftAgent?.command} name={draftAgent?.name} />
+                                        <AgentCardIcon name={draftAgent?.name} />
                                         <span className="agent-card-name">{draftAgent?.name.trim() || t('newAgent')}</span>
                                     </button> : null}
                                     <button className="agent-card add-card" onClick={() => requestNavigation({ type: 'create' })} type="button">
@@ -1194,6 +1262,12 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                     </button>
                                 </div>
                                 {isBuiltinSelected ? <Alert message={t('builtinAgentHint')} /> : null}
+                                {isCatalogSelected ? <Alert message={isCatalogAvailable ? t('discoveredAgentHint') : t('discoveredAgentUnavailableHint')} /> : null}
+                                {isCatalogSelected ? (
+                                    <button className="copy-agent-button" onClick={() => requestNavigation({ type: 'copy' })} type="button">
+                                        {t('copyAgentConfig')}
+                                    </button>
+                                ) : null}
                                 <div aria-label={t('configMode')} className="config-tabs" role="tablist">
                                     <button
                                         aria-selected={configMode === 'form'}
@@ -1247,19 +1321,19 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                 </> : editingAgent ? <>
                                 <div className="row">
                                     <label htmlFor="agent-command">{t('command')}</label>
-                                    <div className="field-control"><Input {...fieldProps('agent-command')} className="settings-input" id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} type="text" value={editingAgent.command} />{renderFieldError('agent-command')}</div>
+                                    <div className="field-control"><Input {...fieldProps('agent-command')} className="settings-input" id="agent-command" onChange={(event) => updateEditingAgent((agent) => ({ ...agent, command: event.target.value }))} readOnly={isReadOnlyAgent} type="text" value={editingAgent.command} />{renderFieldError('agent-command')}</div>
                                 </div>
                                 <div className="row">
                                     <div className="extra-path-header">
                                         <label>{t('args')}</label>
-                                        <button className="path-add" onClick={() => updateEditingAgent((agent) => ({ ...agent, args: [...agent.args, ''] }))} type="button">
+                                        {isReadOnlyAgent ? null : <button className="path-add" onClick={() => updateEditingAgent((agent) => ({ ...agent, args: [...agent.args, ''] }))} type="button">
                                             <span aria-hidden="true" className="path-add-icon" />
                                             <span>{t('addArg')}</span>
-                                        </button>
+                                        </button>}
                                     </div>
                                     {!editingAgent.args.length ? <div className="path-empty">{t('noArgs')}</div> : null}
                                     {editingAgent.args.map((arg, index) => (
-                                        <div className="path-row" key={`arg-${index}`}>
+                                        <div className={`path-row${isReadOnlyAgent ? ' readonly' : ''}`} key={`arg-${index}`}>
                                             <div className="field-control">
                                             <Input
                                                 aria-label={t('argLabel', { index: index + 1 })}
@@ -1269,28 +1343,29 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                                     ...agent,
                                                     args: agent.args.map((item, itemIndex) => itemIndex === index ? event.target.value : item),
                                                 }))}
+                                                readOnly={isReadOnlyAgent}
                                                 type="text"
                                                 value={arg}
                                             />
                                             {renderFieldError(`agent-arg-${index}`)}
                                             </div>
-                                            <button aria-label={t('removeArg', { index: index + 1 })} className="path-remove" onClick={() => updateEditingAgent((agent) => ({ ...agent, args: agent.args.filter((_, itemIndex) => itemIndex !== index) }))} title={t('removeArg', { index: index + 1 })} type="button">
+                                            {isReadOnlyAgent ? null : <button aria-label={t('removeArg', { index: index + 1 })} className="path-remove" onClick={() => updateEditingAgent((agent) => ({ ...agent, args: agent.args.filter((_, itemIndex) => itemIndex !== index) }))} title={t('removeArg', { index: index + 1 })} type="button">
                                                 <span aria-hidden="true" className="path-remove-icon" />
-                                            </button>
+                                            </button>}
                                         </div>
                                     ))}
                                 </div>
                                 <div className="row">
                                     <div className="extra-path-header">
                                         <label>{t('env')}</label>
-                                        <button className="path-add" onClick={() => updateEditingEnv([...envEntries, ['', '']])} type="button">
+                                        {isReadOnlyAgent ? null : <button className="path-add" onClick={() => updateEditingEnv([...envEntries, ['', '']])} type="button">
                                             <span aria-hidden="true" className="path-add-icon" />
                                             <span>{t('addEnvEntry')}</span>
-                                        </button>
+                                        </button>}
                                     </div>
                                     {!envEntries.length ? <div className="path-empty">{t('noEnvEntries')}</div> : null}
                                     {envEntries.map(([key, value], index) => (
-                                        <div className="env-row" key={`env-${index}`}>
+                                        <div className={`env-row${isReadOnlyAgent ? ' readonly' : ''}`} key={`env-${index}`}>
                                             <div className="field-control">
                                             <Input
                                                 aria-label={t('envKeyLabel', { index: index + 1 })}
@@ -1298,6 +1373,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                                 className="settings-input"
                                                 onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => [currentIndex === index ? event.target.value : entry[0], entry[1]]))}
                                                 placeholder={t('envKeyPlaceholder')}
+                                                readOnly={isReadOnlyAgent}
                                                 type="text"
                                                 value={key}
                                             />
@@ -1308,12 +1384,13 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                                 className="settings-input"
                                                 onChange={(event) => updateEditingEnv(envEntries.map((entry, currentIndex) => currentIndex === index ? [entry[0], event.target.value] : entry))}
                                                 placeholder={t('envValuePlaceholder')}
+                                                readOnly={isReadOnlyAgent}
                                                 type="text"
                                                 value={value}
                                             />
-                                            <button aria-label={t('removeEnv', { index: index + 1 })} className="path-remove" onClick={() => updateEditingEnv(envEntries.filter((_, currentIndex) => currentIndex !== index))} title={t('removeEnv', { index: index + 1 })} type="button">
+                                            {isReadOnlyAgent ? null : <button aria-label={t('removeEnv', { index: index + 1 })} className="path-remove" onClick={() => updateEditingEnv(envEntries.filter((_, currentIndex) => currentIndex !== index))} title={t('removeEnv', { index: index + 1 })} type="button">
                                                 <span aria-hidden="true" className="path-remove-icon" />
-                                            </button>
+                                            </button>}
                                         </div>
                                     ))}
                                 </div>
@@ -1334,7 +1411,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                                 </Tooltip>
                                             </span>
                                             <div className="script-config-actions">
-                                                <button className="script-format-button" onClick={formatScriptValue} type="button">{t('formatJson')}</button>
+                                                <button className="script-format-button" disabled={isReadOnlyAgent} onClick={formatScriptValue} type="button">{t('formatJson')}</button>
                                                 <button
                                                     aria-label={t('copyJson')}
                                                     className="script-copy-button"
@@ -1349,7 +1426,7 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                                             </div>
                                         </div>
                                         <Suspense fallback={<div className="hint">{t('loadingEditor')}</div>}>
-                                            <JsonEditor ariaLabel={t('scriptConfig')} onChange={applyScriptValue} readOnly={saving} value={scriptValue} />
+                                            <JsonEditor ariaLabel={t('scriptConfig')} onChange={applyScriptValue} readOnly={saving || isReadOnlyAgent} value={scriptValue} />
                                         </Suspense>
                                     </div>
                                     {scriptHasError && <div className="script-error" id="agent-script-error" role="alert">
@@ -1460,7 +1537,12 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                             <input checked={draftAgent?.saveAndSwitch ?? false} onChange={(event) => setDraftAgent((current) => current ? { ...current, saveAndSwitch: event.target.checked } : current)} type="checkbox" />
                             <span>{t('saveAndSwitchThisAgent')}</span>
                         </label> : <label className="check-row">
-                            <input checked={saveAndSwitchSelected} onChange={(event) => setSaveAndSwitchSelected(event.target.checked)} type="checkbox" />
+                            <input
+                                checked={saveAndSwitchSelected}
+                                disabled={isCatalogSelected && !isCatalogAvailable}
+                                onChange={(event) => setSaveAndSwitchSelected(event.target.checked)}
+                                type="checkbox"
+                            />
                             <span>{t('saveAndSwitchSelectedAgent')}</span>
                         </label>}
                         <div className="settings-footer-actions">
@@ -1475,17 +1557,12 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
 };
 
 const AgentCardIcon = ({
-    command,
     name,
-    provider,
 }: {
-    command?: string;
     name?: string;
-    provider?: string;
 }): JSX.Element => {
-    const logo = agentKindLogo({ command, name, provider });
-    if (logo) {
-        return <span className="agent-card-icon logo"><img alt="" src={logo} /></span>;
+    if (resolveAgentKind({ name })) {
+        return <span aria-hidden="true" className="agent-card-icon logo"><AgentKindIcon name={name} /></span>;
     }
-    return <span className="agent-card-icon">{name?.trim().charAt(0) || 'A'}</span>;
+    return <span aria-hidden="true" className="agent-card-icon">{name?.trim().charAt(0) || 'A'}</span>;
 };

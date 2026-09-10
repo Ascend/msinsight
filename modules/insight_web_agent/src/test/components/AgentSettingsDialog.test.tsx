@@ -496,6 +496,37 @@ test('adds and removes multiple extra path rows before save', async () => {
     ]);
 });
 
+test('shows auto-detected agents as read-only and copies them into a custom draft', async () => {
+    mockFetchAgentConfig.mockResolvedValue({
+        ...snapshot,
+        catalogAgents: [
+            { name: 'OpenCode(auto)', command: 'opencode', args: ['acp'], env: {}, available: true },
+            { name: 'Claude Code(auto)', command: 'claude-agent-acp', args: [], env: {}, available: false },
+        ],
+    });
+
+    render(<AgentSettingsDialog trigger={<button type="button">Open settings</button>} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }));
+    await screen.findByText('Agent Configuration');
+
+    fireEvent.click(await screen.findByRole('button', { name: /Claude Code\(auto\) \(Unavailable\)/ }));
+    expect(screen.getByRole('alert')).toHaveTextContent('This agent was not detected, so it cannot be switched to or edited.');
+    expect(screen.getByLabelText('Command')).toHaveValue('claude-agent-acp');
+    expect(screen.getByLabelText('Command')).toHaveProperty('readOnly', true);
+    expect(screen.queryByRole('button', { name: 'Add arg' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Save and switch to selected agent')).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Copy as custom agent' }));
+    expect(screen.getByLabelText('Agent name')).toHaveValue('Claude Code');
+    expect(screen.getByLabelText('Command')).toHaveProperty('readOnly', false);
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mockSaveAgentServersConfig).toHaveBeenCalledTimes(1));
+    expect(mockSaveAgentServersConfig.mock.calls[0][0].agentServers).toEqual(expect.arrayContaining([
+        expect.objectContaining({ name: 'Claude Code', command: 'claude-agent-acp' }),
+    ]));
+});
+
 test('shows a clear busy message and disables save while a prompt is in flight', async () => {
     mockUseChatState.mockReturnValue({
         sessions: [],

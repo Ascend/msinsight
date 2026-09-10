@@ -25,6 +25,19 @@ import {
     snapshotRuntimeState,
 } from "../../state/runtimeState.mjs";
 
+test("publicState exposes agent availability for the picker", () => {
+    const state = createRuntimeState();
+    state.agentServers = [
+        { name: "OpenCode(auto)", available: false },
+        { name: "Stable", available: true },
+    ];
+
+    assert.deepEqual(publicState(state).agentServers, [
+        { name: "OpenCode(auto)", available: false },
+        { name: "Stable", available: true },
+    ]);
+});
+
 test("publicState exposes only model-visible capability metadata", () => {
     const state = createRuntimeState();
     state.availableCapabilities = [{
