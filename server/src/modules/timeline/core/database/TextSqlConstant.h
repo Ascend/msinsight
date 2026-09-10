@@ -18,6 +18,7 @@
 
 #ifndef PROFILER_SERVER_TEXTSQLCONSTANT_H
 #define PROFILER_SERVER_TEXTSQLCONSTANT_H
+#include <algorithm>
 #include <string>
 #include <utility>
 #include "StringUtil.h"
@@ -182,19 +183,26 @@ public:
     }
     static std::string GetQueryLayerDataSql(std::vector<std::string> layers,  const std::string &timeCondSql)
     {
+        const bool isCommunication = std::find(layers.begin(), layers.end(), "hccl") != layers.end() ||
+            std::find(layers.begin(), layers.end(), "communication") != layers.end();
+        const std::string operatorFilter = isCommunication ? " AND t.thread_name LIKE 'Group%' " : "";
+        const std::string distinctName = isCommunication
+            ? "case when instr(name, '__') > 0 then substr(name, 1, instr(name, '__') - 1) else name end"
+            : "name";
         const auto layerStr = StringUtil::Join4SqlGroup(std::move(layers));
         if (layerStr.find("python") != std::string::npos || layerStr.find("cann") != std::string::npos) {
             return "SELECT sum(case when name != 'Communication' then duration else 0 end) "
-                "AS totalTime, count(distinct name) FROM slice "
+                "AS totalTime, count(distinct " + distinctName + ") AS operatorCount FROM slice "
                 "WHERE lower(name) LIKE lower(?) and slice.track_id IN "
                 "( SELECT track_id FROM process JOIN thread t ON process.pid = t.pid "
                 " WHERE lower(process_name) in ("+ layerStr +") ) " + timeCondSql;
         }
         return "SELECT sum(case when name != 'Communication' then duration else 0 end) "
-                "AS totalTime, count(distinct name) FROM slice "
+                "AS totalTime, count(distinct " + distinctName + ") AS operatorCount FROM slice "
                 "WHERE lower(name) LIKE lower(?) and slice.track_id IN "
                 "( SELECT track_id FROM process JOIN thread t ON process.pid = t.pid "
-                " WHERE (process.pid & 0x1f) = ? AND lower(process_name) in ("+ layerStr +") ) " + timeCondSql;
+                " WHERE (process.pid & 0x1f) = ? AND lower(process_name) in ("+ layerStr +") " +
+                operatorFilter + ") " + timeCondSql;
     }
     static std::string GetQueryPythonViewDataSql(const std::string &order, const std::string &orderByField,
         std::vector<std::string> layers, const std::string &timeCondSql)
@@ -205,6 +213,12 @@ public:
         } else {
             orderBy = " ORDER BY " + orderByField + " ASC";
         }
+        const bool isCommunication = std::find(layers.begin(), layers.end(), "hccl") != layers.end() ||
+            std::find(layers.begin(), layers.end(), "communication") != layers.end();
+        const std::string operatorFilter = isCommunication ? " AND t.thread_name LIKE 'Group%' " : "";
+        const std::string selectedName = isCommunication
+            ? "case when instr(name, '__') > 0 then substr(name, 1, instr(name, '__') - 1) else name end"
+            : "name";
         const auto layerStr = StringUtil::Join4SqlGroup(std::move(layers));
         if (layerStr.find("python") != std::string::npos || layerStr.find("cann") != std::string::npos) {
             return "SELECT name, ROUND(cast(sum(duration) as double) * 100 / ?, 2) as "
@@ -216,14 +230,15 @@ public:
                 "WHERE lower(process_name) in (" + layerStr + ")) " + timeCondSql +
                 "GROUP BY name " + orderBy + " limit ? offset ?";
         }
-        return "SELECT name, ROUND(cast(sum(duration) as double) * 100 / ?, 2) as "
+        return "SELECT " + selectedName + " as name, ROUND(cast(sum(duration) as double) * 100 / ?, 2) as "
             "time, sum(duration) / 1000.0 as totalTime, count(1) as numberCalls, "
             "ROUND(avg(duration) / 1000.0, 4) as avg, "
             "min(duration) / 1000.0 as min, max(duration) / 1000.0 as max "
             "FROM slice WHERE lower(name) LIKE lower(?) AND slice.track_id IN ( SELECT track_id "
             "FROM process JOIN thread t ON process.pid = t.pid "
-            "WHERE (process.pid & 0x1f) = ? AND lower(process_name) in (" + layerStr + ")) " + timeCondSql +
-            "GROUP BY name " + orderBy + " limit ? offset ?";
+            "WHERE (process.pid & 0x1f) = ? AND lower(process_name) in (" + layerStr + ") " +
+            operatorFilter + ") " + timeCondSql +
+            "GROUP BY " + selectedName + " " + orderBy + " limit ? offset ?";
     }
 
     static std::string GetQueryPythonViewTraceDataSql(const std::string &order, const std::string &orderByField,
@@ -235,6 +250,9 @@ public:
         } else {
             orderBy = " ORDER BY " + orderByField + " ASC";
         }
+        const bool isCommunication = std::find(layers.begin(), layers.end(), "hccl") != layers.end() ||
+            std::find(layers.begin(), layers.end(), "communication") != layers.end();
+        const std::string operatorFilter = isCommunication ? " AND t.thread_name LIKE 'Group%' " : "";
         const auto layerStr = StringUtil::Join4SqlGroup(std::move(layers));
         if (layerStr.find("python") != std::string::npos || layerStr.find("cann") != std::string::npos) {
             return "SELECT name, timestamp - ? as startTime, duration / 1000.0 as duration, "
@@ -248,7 +266,8 @@ public:
             "count(*) over() as total "
             "FROM slice WHERE lower(name) LIKE lower(?) AND slice.track_id IN ( SELECT track_id "
             "FROM process JOIN thread t ON process.pid = t.pid "
-            "WHERE (process.pid & 0x1f) = ? AND lower(process_name) in (" + layerStr + ")) " + timeCondSql +
+            "WHERE (process.pid & 0x1f) = ? AND lower(process_name) in (" + layerStr + ") " +
+            operatorFilter + ") " + timeCondSql +
             orderBy + " limit ? offset ?";
     }
 
@@ -299,6 +318,9 @@ public:
             "input_shapes AS inputShapes, input_data_types AS inputDataTypes, input_formats AS inputFormats, "
             "output_shapes AS outputShapes, output_data_types AS outputDataTypes, "
             "output_formats AS outputFormats FROM kernel_detail WHERE deviceId = ? ";
+        if (requestParams.computingOnly) {
+            sql += " AND lower(accelerator_core) NOT IN ('hccl', 'communication') ";
+        }
         if (requestParams.startTime != requestParams.endTime) {
             sql += " AND (start_time + duration*1000) >= ? AND start_time <= ? ";
         }
@@ -313,6 +335,7 @@ public:
         sql += coreTypes + orderBy + " limit ? offset ?";
         return sql;
     }
+
     static std::string GetThreadSameOperatorsDetailsSql(const std::string &order, const std::string &orderByField,
         const std::vector<uint64_t> &trackIdList, const std::string &pythonFunctionFilterSql = "")
     {

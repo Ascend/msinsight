@@ -72,6 +72,10 @@ void BuildKernelOverallResult(const std::vector<KernelDetailOverallRecord> &reco
     uint32_t current, uint32_t pageSize) {
     std::vector<KernelOverallRes> result;
     result.reserve(records.size());
+    double totalDuration = 0;
+    for (const auto &record : records) {
+        totalDuration += record.totalDuration;
+    }
     for (const auto &record : records) {
         KernelOverallRes res;
         res.key = BuildKernelOverallResponseKey(record.type, record.acceleratorCore);
@@ -79,6 +83,8 @@ void BuildKernelOverallResult(const std::vector<KernelDetailOverallRecord> &reco
         res.acceleratorCore = record.acceleratorCore;
         res.number = record.count;
         res.totalTime = record.totalDuration;
+        res.ratio =
+            totalDuration > 0 ? NumberUtil::DoubleReservedNDigits(record.totalDuration * 100 / totalDuration, 2) : 0;
         res.avgTime = NumberUtil::DoubleReservedNDigits(record.avgDuration, 2);
         res.minTime = record.minDuration;
         res.maxTime = record.maxDuration;

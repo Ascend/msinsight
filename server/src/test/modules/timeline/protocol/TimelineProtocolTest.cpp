@@ -492,11 +492,15 @@ TEST_F(ProtocolTest, ToKernelDetailRequest) {
     timelineProtocol.FromJson(json, error);
 
     Dic::json_t params(Dic::kObjectType);
+    Dic::JsonUtil::AddMember(params, "computingOnly", true, allocator);
     Dic::JsonUtil::AddMember(json, "id", tempId, allocator);
     Dic::JsonUtil::AddMember(json, "moduleName", "hhh", allocator);
     Dic::JsonUtil::AddMember(json, "params", params, allocator);
-    unsigned int id = timelineProtocol.FromJson(json, error).get()->id;
-    EXPECT_EQ(id, tempId);
+    auto request = timelineProtocol.FromJson(json, error);
+    auto *kernelDetailsRequest = dynamic_cast<Dic::Protocol::KernelDetailsRequest *>(request.get());
+    ASSERT_NE(kernelDetailsRequest, nullptr);
+    EXPECT_EQ(kernelDetailsRequest->id, tempId);
+    EXPECT_TRUE(kernelDetailsRequest->params.computingOnly);
 }
 TEST_F(ProtocolTest, ToOneKernelRequest) {
     const uint64_t tempId = 89;

@@ -897,9 +897,11 @@ bool DbTraceDataBase::QueryKernelDetailData(const Protocol::KernelDetailsParams 
         Server::ServerLog::Error("Fail to prepare sql to query kernel detail data.");
         return false;
     }
-    for (const auto &filter : requestParams.filters) { // 第一次绑定filter
-        std::string bindFilter = "%" + filter.second + "%";
-        stmt->BindParams(bindFilter);
+    if (!requestParams.computingOnly) {
+        for (const auto &filter : requestParams.filters) {
+            std::string bindFilter = "%" + filter.second + "%";
+            stmt->BindParams(bindFilter);
+        }
     }
     stmt->BindParams(StringUtil::StringToInt(requestParams.deviceId));
     for (const auto &filter : requestParams.filters) { // 第二次绑定filter

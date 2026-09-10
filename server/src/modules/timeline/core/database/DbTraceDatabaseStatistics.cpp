@@ -23,11 +23,15 @@ std::string DbTraceDataBase::GetKernelDetailSql(
     const KernelDetailsParams &requestParams, const std::string &blockNumColumnName) {
     try {
         std::ostringstream sqlStream;
-        sqlStream << "with nameIds as (select id, value as realName from STRING_IDS),\n"
-                  << GetKernelDetailSqlWithHCCL(requestParams, blockNumColumnName) << ",\n" // 第一次绑定 filter.second
-                  << GetKernelDetailSqlWithoutHCCL(requestParams, blockNumColumnName)
-                  << ",\n" // 第二次绑定 filter.second
-                  << "main_tmp as (select * from main_hccl UNION ALL select * from main_other), "
+        sqlStream << "with nameIds as (select id, value as realName from STRING_IDS),\n";
+        if (!requestParams.computingOnly) {
+            sqlStream << GetKernelDetailSqlWithHCCL(requestParams, blockNumColumnName) << ",\n";
+        }
+        sqlStream << GetKernelDetailSqlWithoutHCCL(requestParams, blockNumColumnName) << ",\n"
+                  << "main_tmp as ("
+                  << (requestParams.computingOnly ? "select * from main_other"
+                                                  : "select * from main_hccl UNION ALL select * from main_other")
+                  << "), "
                   << "main as (SELECT ROWID as id, name, type, acceleratorCore, startTime,\n"
                   << "duration, waitTime, " + blockNumColumnName + ", inputShapes, inputDataTypes, inputFormats,\n"
                   << "outputShapes, outputDataTypes, outputFormats, taskId FROM main_tmp \n";

@@ -18,6 +18,7 @@
 
 #include <gtest/gtest.h>
 #include <algorithm>
+#include <set>
 #include "TimelineProtocolRequest.h"
 #include "DataBaseManager.h"
 #include "../../TestSuit.h"
@@ -86,6 +87,36 @@ TEST_F(TestSuit, QuerySystemViewTraceDataWithHCCL) {
     EXPECT_EQ(responseBody.pageSize, PAGE);
     EXPECT_EQ(responseBody.currentPage, 1);
     EXPECT_EQ(responseBody.systemViewDetail.size(), PAGE);
+    EXPECT_TRUE(std::all_of(responseBody.systemViewDetail.begin(), responseBody.systemViewDetail.end(),
+        [](const auto &item) { return item.name.rfind("hcom_", 0) == 0; }));
+}
+
+TEST_F(TestSuit, QuerySystemViewSummaryGroupsCommunicationOperatorTypes) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::SystemViewParams requestParams;
+    Dic::Protocol::SystemViewBody responseBody;
+    requestParams.rankId = "0";
+    requestParams.deviceId = "24";
+    requestParams.layer = "HCCL";
+    requestParams.current = 1;
+    requestParams.order = "descend";
+    requestParams.orderBy = "totalTime";
+    requestParams.pageSize = 10;
+
+    database->QuerySystemViewData(requestParams, responseBody, 0);
+
+    ASSERT_EQ(responseBody.systemViewDetail.size(), 5);
+    std::set<std::string> actualNames;
+    for (const auto &item : responseBody.systemViewDetail) {
+        actualNames.insert(item.name);
+    }
+    const std::set<std::string> expectedNames = {
+        "hcom_allReduce", "hcom_reduceScatter", "hcom_allGather", "hcom_broadcast", "hcom_send"};
+    EXPECT_EQ(actualNames, expectedNames);
+    const auto allReduce = std::find_if(responseBody.systemViewDetail.begin(), responseBody.systemViewDetail.end(),
+        [](const auto &item) { return item.name == "hcom_allReduce"; });
+    ASSERT_NE(allReduce, responseBody.systemViewDetail.end());
+    EXPECT_EQ(allReduce->numberCalls, 6);
 }
 
 TEST_F(TestSuit, QuerySystemViewTraceDataWithCommunication) {
@@ -105,6 +136,8 @@ TEST_F(TestSuit, QuerySystemViewTraceDataWithCommunication) {
     EXPECT_EQ(responseBody.pageSize, PAGE);
     EXPECT_EQ(responseBody.currentPage, 1);
     EXPECT_EQ(responseBody.systemViewDetail.size(), PAGE);
+    EXPECT_TRUE(std::all_of(responseBody.systemViewDetail.begin(), responseBody.systemViewDetail.end(),
+        [](const auto &item) { return item.name.rfind("hcom_", 0) == 0; }));
 }
 
 TEST_F(TestSuit, QuerySystemViewTraceDataWithSearchName) {
@@ -256,8 +289,9 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithHCCL) {
     requestParams.layer = "HCCL";
     const uint64_t minTimestamp = 0;
     const Dic::Module::Timeline::LayerStatData &data = database->QueryLayerData(requestParams, "%%", minTimestamp, "");
-    int expectSize = 449202040;
+    int expectSize = 153601326;
     EXPECT_EQ(lround(data.allOperatorTime), expectSize);
+    EXPECT_EQ(data.total, 5U);
 }
 
 TEST_F(TestSuit, QueryLayerOperatorTimeWithCommunication) {
@@ -268,8 +302,9 @@ TEST_F(TestSuit, QueryLayerOperatorTimeWithCommunication) {
     requestParams.layer = "COMMUNICATION";
     const uint64_t minTimestamp = 0;
     const Dic::Module::Timeline::LayerStatData &data = database->QueryLayerData(requestParams, "%%", minTimestamp, "");
-    int expectSize = 449202040;
+    int expectSize = 153601326;
     EXPECT_EQ(lround(data.allOperatorTime), expectSize);
+    EXPECT_EQ(data.total, 5U);
 }
 
 TEST_F(TestSuit, QueryLayerOperatorTimeWithOverlap) {
@@ -308,6 +343,25 @@ TEST_F(TestSuit, QueryKernelDetailData) {
     EXPECT_EQ(responseBody.count, expectSize);
 }
 
+TEST_F(TestSuit, QueryComputingKernelDetailDataExcludesCommunicationOperators) {
+    auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
+    Dic::Protocol::KernelDetailsParams requestParams;
+    Dic::Protocol::KernelDetailsBody responseBody;
+    requestParams.deviceId = "0";
+    requestParams.current = 1;
+    requestParams.order = "descend";
+    requestParams.orderBy = "name";
+    requestParams.pageSize = 100;
+    requestParams.rankId = "0";
+    requestParams.computingOnly = true;
+
+    database->QueryKernelDetailData(requestParams, responseBody, 0);
+
+    EXPECT_EQ(responseBody.count, 16);
+    EXPECT_TRUE(std::all_of(responseBody.kernelDetails.begin(), responseBody.kernelDetails.end(),
+        [](const auto &item) { return item.acceleratorCore != "HCCL" && item.acceleratorCore != "COMMUNICATION"; }));
+}
+
 TEST_F(TestSuit, QueryTotalKernel) {
     auto database = Dic::Module::Timeline::DataBaseManager::Instance().GetTraceDatabaseByRankId("0");
     Dic::Protocol::KernelDetailsParams requestParams;
@@ -340,8 +394,10 @@ TEST_F(TestSuit, QueryKernelDetailDataWithCoreType) {
     requestParams.searchName = "";
     requestParams.deviceId = "0";
     database->QueryKernelDetailData(requestParams, responseBody, 0);
-    int expectSize = 0;
+    int expectSize = 4;
     EXPECT_EQ(responseBody.count, expectSize);
+    EXPECT_TRUE(std::all_of(responseBody.kernelDetails.begin(), responseBody.kernelDetails.end(),
+        [](const auto &item) { return item.acceleratorCore == "AI_CORE"; }));
 }
 
 TEST_F(TestSuit, QueryKernelDepthAndThread) {

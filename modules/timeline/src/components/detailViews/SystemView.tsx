@@ -520,7 +520,7 @@ export const BaseSummary = observer((props: BaseSummaryProps) => {
 
     if (isStats || isTrace) {
         columns = [{
-            title: t('Name'),
+            title: t(isStats && props.layerType === 'HCCL' ? 'Type' : 'Name'),
             dataIndex: 'name',
             ...getDefaultColumData('name'),
             ...getColumnSearchProps({ dataIndex: 'name', setSearchText, searchText, setSearchedColumn, searchedColumn }),

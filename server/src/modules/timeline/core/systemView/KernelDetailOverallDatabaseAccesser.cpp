@@ -91,6 +91,7 @@ bool KernelDetailOverallDatabaseAccesser::QueryAllKernelDetails(uint64_t startTi
     params.endTime = endTime;
     params.deviceId = deviceId;
     params.coreType = coreType;
+    params.computingOnly = true;
 
     return database_->QueryKernelDetailData(params, body, minTimestamp);
 }
@@ -181,6 +182,9 @@ KernelDetailOverallDatabaseAccesser::OverallSortField KernelDetailOverallDatabas
     }
     if (orderBy == "maxTime") {
         return OverallSortField::MAX_TIME;
+    }
+    if (orderBy == "ratio") {
+        return OverallSortField::TOTAL_TIME;
     }
     return OverallSortField::TOTAL_TIME;
 }

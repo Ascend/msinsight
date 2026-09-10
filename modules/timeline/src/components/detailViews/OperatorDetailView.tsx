@@ -37,6 +37,7 @@ interface OpStatisticRecord {
     acceleratorCore: string;
     number: number;
     totalTime: number;
+    ratio: number;
     avgTime: number;
     maxTime: number;
     minTime: number;
@@ -115,10 +116,17 @@ interface SorterConfig {
 
 const useOpTypeColumns = (t: TFunction): any[] => {
     return [
-        { title: t('Type'), dataIndex: 'type', sorter: true, ellipsis: true, ...fetchColumnFilterProps('name', 'Type') },
+        { title: t('Type'), dataIndex: 'type', sorter: true, ellipsis: true, ...fetchColumnFilterProps('type', 'Type') },
         { title: t('AcceleratorCore'), dataIndex: 'acceleratorCore', sorter: true, ellipsis: true, ...fetchColumnFilterProps('accCore', 'AcceleratorCore') },
         { title: t('Count'), dataIndex: 'number', sorter: true, ellipsis: true },
         { title: `${t('TotalTime')}(μs)`, dataIndex: 'totalTime', sorter: true, ellipsis: true },
+        {
+            title: `${t('TimeRatio')}(%)`,
+            dataIndex: 'ratio',
+            sorter: true,
+            ellipsis: true,
+            render: (ratio: number): string => ratio.toFixed(2),
+        },
         { title: `${t('AvgTime')}(μs)`, dataIndex: 'avgTime', sorter: true, ellipsis: true },
         { title: `${t('MaxTime')}(μs)`, dataIndex: 'maxTime', sorter: true, ellipsis: true },
         { title: `${t('MinTime')}(μs)`, dataIndex: 'minTime', sorter: true, ellipsis: true },
@@ -192,6 +200,7 @@ const OperatorSubTable = observer(({ cardId, dbPath, opType, session, card }: Op
             startTime: Math.floor(startTime + timestampOffset),
             endTime: Math.ceil(endTime + timestampOffset),
             coreType: '',
+            computingOnly: true,
             filterCondition: filterTypes,
         }).then(res => {
             const data: OpDetailRecord[] = res.kernelDetails ?? [];

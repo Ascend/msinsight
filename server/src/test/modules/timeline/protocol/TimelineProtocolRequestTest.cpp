@@ -278,6 +278,9 @@ TEST_F(TimelineProtocolRequestTest, KernelOverallParams) {
     params.orderBy = "acceleratorCore";
     EXPECT_EQ(params.CheckParams(0, errorMsg), true);
 
+    params.orderBy = "ratio";
+    EXPECT_EQ(params.CheckParams(0, errorMsg), true);
+
     params.orderBy = "invalid";
     EXPECT_EQ(params.CheckParams(0, errorMsg), false);
 

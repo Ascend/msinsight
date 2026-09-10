@@ -110,7 +110,7 @@ std::optional<std::string> TraceDatabaseHelper::QueryConnectionId(std::unique_pt
 }
 
 std::string TraceDatabaseHelper::GetSystemViewSqlByLayer(const std::string &layer, const std::string &rankId,
-    const std::string &timeCondSql, bool excludeMstx)
+    const std::string &timeCondSql, bool excludeMstx, bool summarizeCommunicationType)
 {
     std::string mainSql;
     if (layer == "Ascend Hardware") {
@@ -132,24 +132,25 @@ std::string TraceDatabaseHelper::GetSystemViewSqlByLayer(const std::string &laye
                   "  left join nameIds c on schedule.name = c.id"
                    "  where deviceId = ? " + excludeMstxConditionSql + timeCondSql + " ),";
     } else if (layer == "HCCL" || layer == "COMMUNICATION") {
+        const std::string opName = summarizeCommunicationType
+            ? "case when instr(realName, '__') > 0 then substr(realName, 1, instr(realName, '__') - 1) "
+              "else realName end"
+            : "realName";
         std::string comSql;
         if (IsDeviceIdUnique(rankId)) {
-            comSql = " select realName as name, op.endNs - op.startNs as duration, op.startNs as startNs, "
+            comSql = " select " + opName + " as name, op.endNs - op.startNs as duration, op.startNs as startNs, "
                     "  op.endNs as endNs from COMMUNICATION_OP op join nameIds on op.opName = id join rankId"
                     "  group by opId";
         } else {
-            comSql = "select realName as name, op.endNs - op.startNs as duration, op.startNs as startNs, "
+            comSql = "select " + opName + " as name, op.endNs - op.startNs as duration, op.startNs as startNs, "
                      "  op.endNs as endNs from COMMUNICATION_OP op join nameIds on op.opName = id join rankId"
                      "  join TASK task on task.connectionId = op.connectionId"
                      "  where task.deviceId = rankId.deviceId group by opId";
         }
         mainSql = "with nameIds as ( select id, value as realName from STRING_IDS where lower(value) like ?), "
                   "     rankId as (select ? as deviceId),\n"
-                  "  main_raw as (select realName as name, endNs - startNs as duration, startNs, endNs "
-                  "  from TASK task join rankId join COMMUNICATION_TASK_INFO info "
-                  "  on info.globalTaskId = task.globalTaskId join nameIds on info.taskType = id "
-                  "  where task.deviceId = rankId.deviceId "
-                  "  UNION ALL " + comSql + "), main AS ( SELECT * FROM main_raw WHERE 1=1 " + timeCondSql + " ), ";
+                  "  main_raw as (" + comSql + "), "
+                  "  main AS (SELECT * FROM main_raw WHERE 1=1 " + timeCondSql + " ), ";
     } else if (layer == "CANN") {
         mainSql = "with nameIds as ( select id, value as realName from STRING_IDS where lower(value) like ?), "
                   " tmp as (select globalPid from TASK where deviceId = ? group by globalPid), "
@@ -191,7 +192,8 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QuerySystemViewData(
      "sum(duration) / 1000.0 as totalTime, count(1) as numberCalls, round(avg(duration) / 1000.0, 2) as avg, "
      "min(duration) / 1000.0 as min, max(duration) / 1000.0 as max, total.num from main join total where main.name != '' group by name ";
     auto limitSql = " limit ? offset ?";
-    std::string mainSql = GetSystemViewSqlByLayer(requestParams.layer, requestParams.rankId, timeCondSql, true);
+    std::string mainSql = GetSystemViewSqlByLayer(
+        requestParams.layer, requestParams.rankId, timeCondSql, true, true);
     if (requestParams.startTime == requestParams.endTime) {
         return ExecuteQuery(stmt, mainSql + sql + orderBy + limitSql, searchName, rankId,
                             requestParams.pageSize, (requestParams.current - 1) * requestParams.pageSize);
@@ -222,7 +224,8 @@ std::unique_ptr<SqliteResultSet> TraceDatabaseHelper::QuerySystemViewTraceData(
                 "count(name) as num from main where name != '') "
                 "select name, startNs as startTime, round(duration/1000.0, 3) as duration, num from main join total where main.name != ''";
     auto limitSql = " limit ? offset ?";
-    std::string mainSql = GetSystemViewSqlByLayer(requestParams.layer, requestParams.rankId, timeCondSql, false);
+    std::string mainSql = GetSystemViewSqlByLayer(
+        requestParams.layer, requestParams.rankId, timeCondSql, false, false);
     if (requestParams.startTime == requestParams.endTime) {
         return ExecuteQuery(stmt, mainSql + sql + orderBy + limitSql, searchName, rankId,
                             requestParams.pageSize, (requestParams.current - 1) * requestParams.pageSize);

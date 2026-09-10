@@ -50,7 +50,7 @@ test.describe('Operator(Joint)', () => {
     test.afterEach(async ({ page, ws }) => {
         await clearAllData(page, ws);
     });
-    
+
     test('filters_Show', async ({ page, operatorPage }) => {
         const { operatorFrame } = operatorPage;
         await expect(operatorFrame.getByText('Group By')).toBeVisible();

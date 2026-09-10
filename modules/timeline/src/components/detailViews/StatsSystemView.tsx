@@ -140,6 +140,7 @@ const KernelDetails = observer((props: SelectContentViewProps) => {
                 startTime: Math.floor(startTime + timestampOffset),
                 endTime: Math.ceil(endTime + timestampOffset),
                 coreType: '',
+                computingOnly: true,
                 filterCondition: filterTypes,
             });
 

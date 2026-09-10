@@ -555,6 +555,7 @@ std::unique_ptr<Request> TimelineProtocol::ToKernelDetailRequest(const json_t &j
     JsonUtil::SetByJsonKeyValue(reqPtr->params.pageSize, json["params"], "pageSize");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.coreType, json["params"], "coreType");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.searchName, json["params"], "searchName");
+    JsonUtil::SetByJsonKeyValue(reqPtr->params.computingOnly, json["params"], "computingOnly");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.startTime, json["params"], "startTime");
     JsonUtil::SetByJsonKeyValue(reqPtr->params.endTime, json["params"], "endTime");
     if (json["params"].HasMember("filterCondition") && json["params"]["filterCondition"].IsArray()) {

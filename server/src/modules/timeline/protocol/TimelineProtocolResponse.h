@@ -699,6 +699,7 @@ struct KernelOverallRes {
     std::string type;
     std::string acceleratorCore;
     double totalTime{};
+    double ratio{};
     uint32_t number{};
     double avgTime{};
     double minTime{};
