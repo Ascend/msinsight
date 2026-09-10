@@ -25,12 +25,12 @@ enum HWND__ {}
 const MB_ICONERROR: u32 = 0x00000010;
 
 extern "system" {
-    /// Displays a modal dialog box that contains a system icon, 
-    /// a set of buttons, and a brief application-specific message, 
+    /// Displays a modal dialog box that contains a system icon,
+    /// a set of buttons, and a brief application-specific message,
     /// such as status or error information.
     /// The message box returns an integer value
     /// that indicates which button the user clicked.
-    /// 
+    ///
     /// ### FFI Signature
     /// ```c++
     /// int MessageBoxA(
@@ -65,21 +65,25 @@ pub fn show_webview_err_message() {
     }
 
     let message = format!("Please install from {}", runtime_url);
-    let title = "Missing Dependencies";
+    show_error_message("Missing Dependencies", &message);
+}
+
+#[cfg(windows)]
+pub fn show_error_message(title: &str, message: &str) {
     let message = CString::new(message).expect("CString::new failed");
     let title = CString::new(title).expect("CString::new failed");
     /// # Safety
-    /// 
+    ///
     /// This FFI call requires the following invariants to be upheld:
-    /// 
+    ///
     /// ## Parameters Safety
     /// 1. `hWnd` - Null pointer is explicitly passed as we don't need a parent window
-    /// 2. `lpText` - 
+    /// 2. `lpText` -
     ///    - Pointer must remain valid for the duration of the call
     ///    - `CString` ensures proper null-terminated UTF-8 encoding
-    /// 3. `lpCaption` - 
+    /// 3. `lpCaption` -
     ///    - Same safety guarantees as `lpText`
-    /// 
+    ///
     /// ## Memory Safety
     /// - Both `CString` instances will be dropped after this function call returns.
     unsafe {

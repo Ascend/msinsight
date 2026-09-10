@@ -472,3 +472,30 @@ TEXT JSON/CSV 文件 + analysis.db + 缺少 ascend_pytorch_profiler_<rank_id>.db
 在该结构下，MindStudio Insight 会按 TEXT 格式导入，但 msprof-analyze 26.1.0 会根据 `analysis.db` 按 DB 格式生成集群分析结果，导致 Communication 页面读取的文件格式与实际生成结果不一致。
 
 若发现该目录结构，请优先重新获取完整 Profiling 数据。若确认需要按纯 TEXT 格式使用，请先备份原始数据，再在数据副本中移出 `analysis.db`，清理此前生成的 `cluster_analysis_output` 和 `cluster.db` 后重新导入。
+
+<a id="faq-no-available-port"></a>
+
+## 21. 启动后无窗口、无提示即退出怎么办？
+
+**问题现象**
+
+双击或从桌面启动 MindStudio Insight 后，应用没有显示主窗口，进程随即退出。端口不可用时会弹出 Startup Failed 提示框（Windows 为系统错误框，macOS 为系统对话框，Linux 在已安装 zenity、kdialog 或 xmessage 时弹出）。从终端启动时，标准错误中可能出现：
+
+```text
+No available port between 9000 and 9100
+```
+
+**原因分析**
+
+MindStudio Insight 桌面端需要在 `127.0.0.1:9000~9100` 中分配本机前后端通信端口。Windows 排除端口范围（常见于 Hyper-V、WinNAT、WSL、Docker）覆盖该区间，或其它进程占满该区间时，无法分配端口。桌面端不支持通过配置项更改该端口范围。
+
+**解决方案**
+
+1. 在 Windows 命令提示符或 PowerShell 中执行：
+
+    ```shell
+    netsh interface ipv4 show excludedportrange protocol=tcp
+    ```
+
+2. 若输出中存在覆盖 `9000–9100` 的排除范围，清理或调整该范围，或停用占用该范围的 Hyper-V / WinNAT / Docker / WSL 相关服务后重试。
+3. Linux / macOS 上请释放 `9000–9100` 中被占用的端口后重试。
