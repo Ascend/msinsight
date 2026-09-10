@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { webcrypto } from 'crypto';
 import '@testing-library/jest-dom';
 import * as api from '../../api';
 import { ChatStateProvider, useChatState } from '../../hooks/useChatState';
@@ -134,6 +135,7 @@ interface FakeEventSourceInstance {
 }
 
 const fakeEventSourceInstances: FakeEventSourceInstance[] = [];
+const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
 
 function FakeEventSource(this: FakeEventSourceInstance, url: string): void {
     this.url = url;
@@ -157,6 +159,7 @@ const ChatStateProbe = (): JSX.Element => {
 };
 
 beforeEach(() => {
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: webcrypto });
     fakeEventSourceInstances.length = 0;
     (globalThis as any).EventSource = FakeEventSource;
     (HTMLElement.prototype as any).scrollTo = jest.fn();
@@ -186,7 +189,154 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+    if (originalCrypto) Object.defineProperty(globalThis, 'crypto', originalCrypto);
+    else Reflect.deleteProperty(globalThis, 'crypto');
     jest.clearAllMocks();
+    jest.restoreAllMocks();
+});
+
+test('loads welcome pickers before the first prompt and preserves draft mode when changing models', async () => {
+    const configOptions = [
+        { id: 'mode', category: 'mode', type: 'select', currentValue: 'default', options: [
+            { value: 'default', name: 'Agent' }, { value: 'plan', name: 'Plan' },
+        ] },
+        { id: 'model', category: 'model', type: 'select', currentValue: 'model-a', options: [
+            { value: 'model-a', name: 'Model A' }, { value: 'model-b', name: 'Model B' },
+        ] },
+    ];
+    mockFetchSessions.mockResolvedValue([]);
+    mockFetchAgents.mockResolvedValue({ activeAgentName: 'OpenCode', agentServers: [{ name: 'OpenCode' }], discoveryLoading: false });
+    mockFetchState.mockResolvedValue({ initialized: false, activeAgentName: 'OpenCode', configOptions: [] });
+    render(<ChatStateProvider><ChatPanel /></ChatStateProvider>);
+
+    await waitFor(() => expect(mockFetchAgents).toHaveBeenCalled());
+    expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled();
+
+    const readyState = { initialized: true, activeAgentName: 'OpenCode', configOptions };
+    mockFetchState.mockResolvedValue(readyState);
+    act(() => fakeEventSourceInstances[0].emit({ type: 'state', state: readyState }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Agent' })).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Model A' })).toBeEnabled();
+    expect(mockSendPrompt).not.toHaveBeenCalled();
+    expect(api.createSession).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Agent' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Plan' }));
+    expect(api.setSessionMode).not.toHaveBeenCalled();
+
+    const modelResponse = { configOptions: configOptions.map((option) => option.id === 'model' ? { ...option, currentValue: 'model-b' } : option) };
+    (api.setSessionModel as jest.Mock).mockResolvedValue(modelResponse);
+    fireEvent.click(screen.getByRole('button', { name: 'Model A' }));
+    fireEvent.click(await screen.findByRole('option', { name: 'Model B' }));
+    await waitFor(() => expect(api.setSessionModel).toHaveBeenCalledWith('model-b', undefined));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Model B' })).toBeEnabled());
+    act(() => fakeEventSourceInstances[0].emit({ type: 'state', state: { ...readyState, ...modelResponse } }));
+    expect(screen.getByRole('button', { name: 'Plan' })).toBeEnabled();
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledWith('hello', true, undefined, [], 'plan', undefined, undefined));
+
+    act(() => fakeEventSourceInstances[0].emit({ type: 'state', state: { ...readyState, activeAgentName: 'Claude' } }));
+    expect(screen.getByRole('button', { name: 'Agent' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Plan' })).not.toBeInTheDocument();
+});
+
+test.each([
+    [false, false],
+    [true, false],
+    [true, true],
+])('freezes thinking time at the first answer while streaming continues (timeline: %s, first text via delta: %s)', async (withTimeline, firstTextViaDelta) => {
+    const sessionId = 'session-open';
+    mockSendPrompt.mockResolvedValueOnce({ ok: true, sessionId });
+    render(<ChatStateProvider><ChatPanel /></ChatStateProvider>);
+    await screen.findByText(previousAssistantReply);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'analyze data' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
+
+    let now = 1000;
+    jest.spyOn(Date, 'now').mockImplementation(() => now);
+    const events = fakeEventSourceInstances[0];
+    act(() => {
+        events.emit({ type: 'message_added', sessionId, message: { id: 'timed-reply', role: 'assistant', content: [] } });
+        events.emit({ type: 'prompt_status', sessionId, pendingPrompt: true });
+    });
+    now = 4000;
+    act(() => {
+        if (withTimeline) {
+            events.emit({ type: 'message_content_added', sessionId, id: 'timed-reply', block: { id: 'thought', type: 'thinking', text: 'Inspecting data', startedAt: 1000 } });
+        }
+        if (firstTextViaDelta) {
+            events.emit({ type: 'message_content_added', sessionId, id: 'timed-reply', block: { id: 'answer', type: 'text', text: ' ' } });
+        }
+    });
+    expect(document.querySelector('.thinking-sparkle')).toBeInTheDocument();
+
+    now = 6000;
+    act(() => {
+        events.emit(firstTextViaDelta
+            ? { type: 'message_content_delta', sessionId, id: 'timed-reply', blockId: 'answer', blockType: 'text', delta: 'First answer' }
+            : { type: 'message_content_added', sessionId, id: 'timed-reply', block: { id: 'answer', type: 'text', text: 'First answer' } });
+    });
+    expect(screen.getByText('Thought completed 5.0s')).toBeVisible();
+    expect(document.querySelector('.thinking-sparkle')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
+
+    now = 9000;
+    act(() => events.emit({ type: 'message_content_delta', sessionId, id: 'timed-reply', blockId: 'answer', blockType: 'text', delta: ' continues streaming' }));
+    expect(screen.getByText(/First answer continues streaming/)).toBeVisible();
+    expect(screen.getByText('Thought completed 5.0s')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
+
+    now = 12000;
+    act(() => events.emit({ type: 'prompt_status', sessionId, pendingPrompt: false }));
+    expect(screen.getByText('Thought completed 5.0s')).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+});
+
+test.each([
+    [true, true],
+    [true, false],
+    [false, true],
+    [false, false],
+])('ends thinking after a configuration error (new session: %s, completion before HTTP response: %s)', async (newSession, completionFirst) => {
+    const sessionId = newSession ? 'new-session' : 'session-open';
+    if (newSession) mockFetchSessions.mockResolvedValue([]);
+    let resolvePrompt!: (value: { ok: boolean; sessionId: string }) => void;
+    mockSendPrompt.mockImplementationOnce(() => new Promise((resolve) => { resolvePrompt = resolve; }));
+    render(<ChatStateProvider><ChatPanel /><ChatStateProbe /></ChatStateProvider>);
+    if (newSession) {
+        await waitFor(() => expect(mockFetchSessions).toHaveBeenCalled());
+    } else {
+        await screen.findByText(previousAssistantReply);
+    }
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'analyze data' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
+
+    const error = 'Error: AI SDK runtime is not configured. Set MSINSIGHT_NATIVE_API_KEY.';
+    const finishPrompt = (): void => {
+        const events = fakeEventSourceInstances[0];
+        events.emit({ type: 'message_added', sessionId, message: { id: 'request-1', role: 'user', content: [{ id: 'request-text', type: 'text', text: 'analyze data' }] } });
+        events.emit({ type: 'message_added', sessionId, message: { id: 'reply-1', role: 'assistant', content: [] } });
+        events.emit({ type: 'prompt_status', sessionId, pendingPrompt: true });
+        events.emit({ type: 'message_content_added', sessionId, id: 'reply-1', block: { id: 'error-1', type: 'text', text: error } });
+        events.emit({ type: 'prompt_status', sessionId, pendingPrompt: false });
+    };
+    if (completionFirst) act(finishPrompt);
+    await act(async () => { resolvePrompt({ ok: true, sessionId }); });
+    if (!completionFirst) {
+        expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
+        act(finishPrompt);
+    }
+
+    expect(await screen.findByText(error)).toBeVisible();
+    expect(screen.queryByText(/^Thinking(?:\s|$)/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'retry after configuring' } });
+    expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
 });
 
 test('settings save success preserves visible messages, applies agent state from a backend event, and avoids the stale session', async () => {
@@ -226,7 +376,7 @@ test('settings save success preserves visible messages, applies agent state from
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
-    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after event reload', true, undefined, [], undefined);
+    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after event reload', true, undefined, [], undefined, undefined, undefined);
 });
 
 test('settings save-and-switch preserves visible messages, refreshes agent state, and does not send the next prompt to the stale session', async () => {
@@ -257,5 +407,5 @@ test('settings save-and-switch preserves visible messages, refreshes agent state
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
 
     await waitFor(() => expect(mockSendPrompt).toHaveBeenCalledTimes(1));
-    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after reload', true, undefined, [], undefined);
+    expect(mockSendPrompt).toHaveBeenCalledWith('prompt after reload', true, undefined, [], undefined, undefined, undefined);
 });

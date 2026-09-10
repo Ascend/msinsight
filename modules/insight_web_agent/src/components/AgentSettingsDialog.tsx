@@ -215,6 +215,7 @@ const Container = styled.div`
     }
 
     .agent-card {
+        position: relative;
         min-width: 0;
         display: flex;
         flex-direction: column;
@@ -237,6 +238,25 @@ const Container = styled.div`
     .agent-card.selected {
         border-color: ${(props): string => props.theme.primaryColor};
         box-shadow: inset 0 0 0 1px ${(props): string => props.theme.primaryColor};
+    }
+
+    .agent-card-system-badge {
+        position: absolute;
+        top: 0;
+        right: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 20px;
+        padding: 0 8px;
+        border-radius: 0 calc(${(props): string => props.theme.borderRadiusLarge} - 1px) 0 8px;
+        background: linear-gradient(270deg, rgba(247, 191, 31, 1) 0%, rgba(247, 132, 31, 1) 100%);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 20px;
+        white-space: nowrap;
+        pointer-events: none;
     }
 
     .agent-card-icon {
@@ -1228,12 +1248,14 @@ export const AgentSettingsDialog = ({ trigger, open: controlledOpen, createOnOpe
                             <div className="section">
                                 <div aria-label={t('agentToEdit')} className="agent-grid" role="group">
                                     <button
+                                        aria-label={t('builtinAgentCardName')}
                                         aria-pressed={isBuiltinSelected}
                                         className={`agent-card${isBuiltinSelected ? ' selected' : ''}`}
                                         onClick={() => requestNavigation({ type: 'select', agentName: 'msinsight-native' })}
                                         title={t('builtinAgentCardName')}
                                         type="button"
                                     >
+                                        <span className="agent-card-system-badge">{t('systemAgentBadge')}</span>
                                         <AgentCardIcon name="msinsight-native" />
                                         <span className="agent-card-name">{t('builtinAgentCardName')}</span>
                                     </button>

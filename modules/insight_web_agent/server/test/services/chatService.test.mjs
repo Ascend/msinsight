@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { createChatService, createPromptContent } from "../../services/chatService.mjs";
 import { createContextAssembler } from "../../services/contextAssembler.mjs";
@@ -117,7 +118,7 @@ test("initialize publishes only Skill metadata reported by the Runtime", async (
             },
         },
         eventBus: { broadcast: () => {} },
-        sessionService: { refreshSessions: async () => {}, broadcastState: () => {} },
+        sessionService: { loadConfigOptions: async () => {}, refreshSessions: async () => {}, broadcastState: () => {} },
         state,
     });
 
@@ -294,7 +295,7 @@ const modeConfig = (currentValue) => ({
     ],
 });
 
-const createPromptTestService = (systemPrompt = "", promptRequest, ragService) => {
+const createPromptTestService = (systemPrompt = "", promptRequest, ragService, memoryTuningPrompt = "") => {
     const calls = [];
     const events = [];
     const state = createRuntimeState();
@@ -329,6 +330,7 @@ const createPromptTestService = (systemPrompt = "", promptRequest, ragService) =
         contextAssembler: createContextAssembler({ state }),
         ragService,
         systemPrompt,
+        memoryTuningPrompt,
     });
 
     return { service, calls, events, state };
@@ -347,3 +349,54 @@ const waitForPromptCall = async (calls, count) => {
         await new Promise((resolve) => setTimeout(resolve, 0));
     }
 };
+
+test("memory preset attaches the Markdown to hidden system context without exposing it in messages", async () => {
+    const memoryPrompt = readFileSync(new URL("../../../prompts/memory-tuning-assistant.md", import.meta.url), "utf8").trim();
+    const { service, calls, events, state } = createPromptTestService("Host instructions", undefined, undefined, memoryPrompt);
+    const text = "使用内存分析助手帮我分析当前数据";
+
+    const result = await service.prompt(text, { sessionId: "session-1", promptPreset: "memory-tuning-assistant" });
+    assert.equal(result.ok, true);
+    await waitForPromptCompletion(state);
+
+    const prompt = calls.find((call) => call.method === "session/prompt").params.prompt;
+    assert.equal(prompt[0].resource.uri, "insight-system-prompt://project");
+    assert.equal(prompt[0].resource.text, `<context ref="insight-system-prompt://project"/>\nHost instructions\n\n${memoryPrompt}`);
+    assert.equal(prompt[1].resource.uri, "insight-hidden-context://project");
+    assert.deepEqual(prompt.filter((block) => block.type === "text"), [{ type: "text", text }]);
+    const user = events.find((event) => event.type === "message_added" && event.message.role === "user").message;
+    assert.equal(user.content.length, 1);
+    assert.equal(user.content[0].text, text);
+    assert.equal(JSON.stringify(events).includes("pt-snap"), false);
+    assert.equal(JSON.stringify(state.sessionContexts.get("session-1").messages).includes("pt-snap"), false);
+
+    await service.prompt("ordinary follow-up", { sessionId: "session-1" });
+    await waitForPromptCompletion(state);
+    const next = calls.filter((call) => call.method === "session/prompt")[1].params.prompt;
+    assert.equal(next[0].resource.text, '<context ref="insight-system-prompt://project"/>\nHost instructions');
+});
+
+test("rejects unknown presets and missing memory instructions before sending a prompt", async () => {
+    const { service, calls, events } = createPromptTestService();
+    for (const promptPreset of ["../../private", "memory-tuning-assistant"]) {
+        const result = await service.prompt("analyze", { sessionId: "session-1", promptPreset });
+        assert.equal(result.status, promptPreset === "memory-tuning-assistant" ? 503 : 400);
+    }
+    assert.equal(calls.length, 0);
+    assert.equal(events.length, 0);
+});
+
+test("immediate runtime configuration errors end the prompt and clear agent activity", async () => {
+    const error = "AI SDK runtime is not configured. Set MSINSIGHT_NATIVE_API_KEY.";
+    const { service, events, state } = createPromptTestService("", async () => { throw new Error(error); });
+
+    await service.prompt("analyze data", { sessionId: "session-1" });
+    await waitForPromptCompletion(state);
+
+    const session = state.sessionContexts.get("session-1");
+    assert.equal(session.pendingPrompt, false);
+    const assistant = session.messages.find((message) => message.role === "assistant");
+    assert.equal(assistant.activity, undefined);
+    assert.equal(assistant.content[0].text, `Error: ${error}`);
+    assert.deepEqual(events.filter((event) => event.type === "prompt_status").map((event) => event.pendingPrompt), [true, false]);
+});

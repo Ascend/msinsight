@@ -8,7 +8,7 @@
  */
 import { strict as assert } from "node:assert";
 import { execFile } from "node:child_process";
-import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,7 +22,7 @@ const configModuleUrl = new URL("../../config/index.mjs", import.meta.url).href;
 const loadConfigInChild = (rootDir, env = {}, resourceDir = moduleRoot) => execFileAsync(process.execPath, [
     "--input-type=module",
     "--eval",
-    "const { config } = await import(process.env.TEST_CONFIG_MODULE_URL); process.stdout.write(JSON.stringify({ activeAgentName: config.activeAgentName, configuredCapabilities: config.configuredCapabilities }));",
+    "const { config } = await import(process.env.TEST_CONFIG_MODULE_URL); process.stdout.write(JSON.stringify({ activeAgentName: config.activeAgentName, configuredCapabilities: config.configuredCapabilities, memoryTuningPrompt: config.memoryTuningPrompt }));",
 ], {
     cwd: dirname(fileURLToPath(import.meta.url)),
     env: {
@@ -47,6 +47,16 @@ test("Node startup creates missing ACP configuration files", async (t) => {
     assert.equal(nativeConfig.name, undefined);
     const bundledNativeConfig = JSON.parse(await readFile(join(moduleRoot, "msinsight-native.json"), "utf8"));
     assert.equal(nativeConfig.model, bundledNativeConfig.model);
+});
+
+test("loads the memory assistant prompt from the runtime resource directory", async (t) => {
+    const rootDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-user-"));
+    const resourceDir = await mkdtemp(join(tmpdir(), "insight-memory-prompt-resource-"));
+    t.after(() => Promise.all([rootDir, resourceDir].map((path) => rm(path, { recursive: true, force: true }))));
+    await mkdir(join(resourceDir, "prompts"));
+    await writeFile(join(resourceDir, "prompts", "memory-tuning-assistant.md"), "\ufeffMemory assistant instructions\r\n", "utf8");
+    const { stdout } = await loadConfigInChild(rootDir, {}, resourceDir);
+    assert.equal(JSON.parse(stdout.trim()).memoryTuningPrompt, "Memory assistant instructions");
 });
 
 test("Node startup resolves configured CLI capabilities from PATH", async (t) => {

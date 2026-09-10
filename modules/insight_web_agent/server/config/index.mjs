@@ -238,13 +238,13 @@ const loadRuntimeConfigBundle = (rootDir, env) => {
 
 const readRuntimeConfigBundle = (rootDir, env) => loadRuntimeConfigBundle(rootDir, env);
 
-const loadSystemPrompt = (resourceDir) => {
-    const filePath = join(resourceDir, "prompts", "system.md");
+const loadPrompt = (resourceDir, fileName) => {
+    const filePath = join(resourceDir, "prompts", fileName);
     if (!existsSync(filePath)) return "";
     try {
         return readFileSync(filePath, "utf8").replace(/^﻿/, "").trim();
     } catch (error) {
-        console.warn(`Failed to load system prompt ${filePath}: ${error.message}`);
+        console.warn(`Failed to load prompt ${filePath}: ${error.message}`);
         return "";
     }
 };
@@ -349,7 +349,8 @@ const createRuntimeConfig = (rootDir, resourceDir, env, startupCapabilities) => 
         cwd: env.ACP_CWD ?? join(rootDir, "agent-workspace"),
         debug: env.ACP_DEBUG === "1",
         defaultModel: env.ACP_MODEL,
-        systemPrompt: loadSystemPrompt(resourceDir),
+        systemPrompt: loadPrompt(resourceDir, "system.md"),
+        memoryTuningPrompt: loadPrompt(resourceDir, "memory-tuning-assistant.md"),
         requestTimeoutMs,
         promptRequestTimeoutMs,
         permissionRequestTimeoutMs,

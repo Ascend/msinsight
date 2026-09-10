@@ -16,7 +16,9 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
+import { useTranslation } from 'react-i18next';
 import { useChatState } from '../hooks/useChatState';
+import { useChatScroll } from '../hooks/useChatScroll';
 import { Composer } from './Composer';
 import { MessageList, ModelSwitchNotice } from './MessageList';
 import { WelcomePanel } from './WelcomePanel';
@@ -58,6 +60,7 @@ const Container = styled.section`
     }
 
     .messages {
+        isolation: isolate;
         height: 100%;
         min-height: 0;
         display: flex;
@@ -69,9 +72,91 @@ const Container = styled.section`
     }
 
     .conversation-content {
+        position: relative;
         grid-row: 2;
         min-height: 0;
         overflow: hidden;
+    }
+
+    .messages-content {
+        flex-shrink: 0;
+        min-width: 0;
+    }
+
+    .scroll-to-latest {
+        position: absolute;
+        z-index: 2;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 1px solid ${(props): string => props.theme.mode === 'dark' ? props.theme.borderColor : 'rgba(243, 243, 243, 1)'};
+        border-radius: 50%;
+        background: ${(props): string => props.theme.mode === 'dark' ? props.theme.bgColorLight : 'rgba(255, 255, 255, 1)'};
+        color: ${(props): string => props.theme.textColorPrimary};
+        box-shadow: 0 4px 12px 0 ${(props): string => props.theme.mode === 'dark' ? 'rgba(0, 0, 0, 0.36)' : 'rgba(0, 0, 0, 0.16)'};
+        cursor: pointer;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition: opacity 160ms ease, visibility 0s linear 160ms;
+    }
+
+    .scroll-to-latest[data-visible='true'] {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transition-delay: 0s;
+    }
+
+    .latest-output-dots {
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        height: 16px;
+    }
+
+    .latest-output-dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: currentColor;
+        animation: latest-dot-wave 1100ms ease-in-out infinite;
+        animation-play-state: paused;
+    }
+
+    .latest-output-dot:nth-child(2) { animation-delay: -160ms; }
+    .latest-output-dot:nth-child(3) { animation-delay: -320ms; }
+
+    .scroll-to-latest[data-visible='true'] .latest-output-dot { animation-play-state: running; }
+
+    @keyframes latest-dot-wave {
+        0%, 100% { opacity: 0.65; transform: translateY(2px); }
+        50% { opacity: 0.35; transform: translateY(-2px); }
+    }
+
+    @keyframes latest-dot-pulse {
+        0%, 100% { opacity: 0.65; }
+        50% { opacity: 0.35; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .scroll-to-latest { transition: none; }
+        .latest-output-dot { animation-name: latest-dot-pulse; }
+    }
+
+    .scroll-to-latest:hover {
+        border-color: ${(props): string => props.theme.borderColorHover};
+    }
+
+    .scroll-to-latest:focus-visible {
+        outline: 2px solid currentColor;
+        outline-offset: 2px;
     }
 
     .composer-slot {
@@ -99,10 +184,15 @@ const Container = styled.section`
 `;
 
 export const ChatPanel = (): JSX.Element => {
-    const { currentSessionId, isDraftSession, messages, messagesRef, notices = [], pendingPrompt, respondToPermission, sessions } = useChatState();
+    const { t } = useTranslation('insightWebAgent');
+    const { currentSessionId, isDraftSession, messages, messagesRef, notices = [], pendingPrompt, respondToPermission, sessions, scrollToLatestRequest = 0 } = useChatState();
+    const { contentRef, showLatest, onScroll, onWheel, scrollToLatest } = useChatScroll({
+        containerRef: messagesRef, messages, notices, sessionId: currentSessionId, isDraftSession, scrollRequest: scrollToLatestRequest,
+    });
     const currentTitle = isDraftSession
         ? undefined
         : sessions.find((session) => session.sessionId === currentSessionId)?.title?.trim();
+    const latestVisible = messages.length > 0 && showLatest;
 
     return (
         <Container>
@@ -111,13 +201,15 @@ export const ChatPanel = (): JSX.Element => {
             </div>
             <div className="conversation-content">
                 {messages.length
-                    ? <section className="messages" ref={messagesRef}>
-                        <MessageList
-                            messages={messages}
-                            notices={notices}
-                            pendingPrompt={pendingPrompt}
-                            onPermissionDecision={respondToPermission}
-                        />
+                    ? <section className="messages" ref={messagesRef} onScroll={onScroll} onWheel={onWheel}>
+                        <div className="messages-content" ref={contentRef}>
+                            <MessageList
+                                messages={messages}
+                                notices={notices}
+                                pendingPrompt={pendingPrompt}
+                                onPermissionDecision={respondToPermission}
+                            />
+                        </div>
                     </section>
                     : <div className="welcome-stack">
                         <WelcomePanel />
@@ -125,6 +217,24 @@ export const ChatPanel = (): JSX.Element => {
                             ? <div className="welcome-notices">{notices.map((notice) => <ModelSwitchNotice key={notice.id} notice={notice} />)}</div>
                             : null}
                     </div>}
+                <button
+                    className="scroll-to-latest"
+                    data-visible={latestVisible}
+                    aria-label={t('scrollToLatest')}
+                    aria-hidden={!latestVisible}
+                    disabled={!latestVisible}
+                    tabIndex={latestVisible ? 0 : -1}
+                    onClick={scrollToLatest}
+                    type="button"
+                >
+                    {pendingPrompt ? <span className="latest-output-dots" aria-hidden="true">
+                        <span className="latest-output-dot" />
+                        <span className="latest-output-dot" />
+                        <span className="latest-output-dot" />
+                    </span> : <svg aria-hidden="true" width="16" height="16" viewBox="0 0 20 20" fill="none">
+                        <path d="M10 3v14m-6-6 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>}
+                </button>
             </div>
             <div className="composer-slot"><Composer /></div>
         </Container>

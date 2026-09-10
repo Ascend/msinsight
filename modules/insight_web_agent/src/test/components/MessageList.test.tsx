@@ -548,19 +548,26 @@ test('updates the elapsed time while the assistant is thinking', () => {
 });
 
 test('hides the thinking indicator once answer text starts streaming', () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(2000);
     render(<MessageList
         messages={[{
             id: 'assistant-streaming-answer',
             role: 'assistant',
             content: [{ id: 'answer-1', type: 'text', text: 'Partial answer' }],
-            startedAt: Date.now() - 1000,
+            startedAt: 1000,
+            durationMs: 1000,
         }]}
         onPermissionDecision={noopPermissionDecision}
         pendingPrompt
     />);
 
-    expect(screen.queryByText('Thinking')).not.toBeInTheDocument();
-    expect(screen.getByText('Thinking 1.0s')).toBeInTheDocument();
+    expect(screen.queryByText(/^Thinking/)).not.toBeInTheDocument();
+    expect(document.querySelector('.thinking-sparkle')).not.toBeInTheDocument();
+    expect(screen.getByText('Thought completed 1.0s')).toBeInTheDocument();
+    act(() => jest.advanceTimersByTime(2000));
+    expect(screen.getByText('Thought completed 1.0s')).toBeInTheDocument();
+    jest.useRealTimers();
 });
 
 test('does not render a second thinking status under the assistant message', () => {
