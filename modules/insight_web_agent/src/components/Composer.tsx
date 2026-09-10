@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
-import { useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowUpOutlined } from '@ant-design/icons';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -404,23 +404,43 @@ const Container = styled.div`
 
 export const Composer = (): JSX.Element => {
     const isComposingRef = useRef(false);
+    const commandMenuRef = useRef<HTMLDivElement>(null);
+    const activeCommandRef = useRef<HTMLButtonElement>(null);
+    const commandMenuId = useId();
+    const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
     const [queueExpanded, setQueueExpanded] = useState(true);
     const { t } = useTranslation('insightWebAgent');
-    const { addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, configOptions, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
+    const { addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, composerRef, configOptions, configOptionsLoading, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
     const modelConfig = getModelConfig(configOptions);
     const modelOptions = flattenConfigValues(modelConfig?.options ?? []);
     const modeConfig = getModeConfig(configOptions);
     const modeOptions = flattenConfigValues(modeConfig?.options ?? []);
-    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt, setModel);
-    const modePicker = createConfigPicker(modeConfig, modeOptions, pendingPrompt, setMode);
+    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt || configOptionsLoading, setModel);
+    const modePicker = createConfigPicker(modeConfig, modeOptions, pendingPrompt || configOptionsLoading, setMode);
     const commandQuery = getCommandQuery(input);
     const commandMatches = getCompletionMatches(availableCommands, availableSkills, commandQuery);
     const showCommandMenu = commandQuery !== undefined && commandMatches.length > 0;
+    const commandMatchesKey = JSON.stringify(commandMatches.map((item) => [item.kind, item.name]));
+    const activeCommandIndex = Math.min(selectedCommandIndex, Math.max(0, commandMatches.length - 1));
+    useEffect(() => {
+        setSelectedCommandIndex(0);
+    }, [commandQuery, commandMatchesKey]);
+    useEffect(() => {
+        const menu = commandMenuRef.current;
+        const item = activeCommandRef.current;
+        if (!menu || !item) return;
+        if (item.offsetTop < menu.scrollTop) menu.scrollTop = item.offsetTop;
+        else if (item.offsetTop + item.offsetHeight > menu.scrollTop + menu.clientHeight) {
+            menu.scrollTop = item.offsetTop + item.offsetHeight - menu.clientHeight;
+        }
+    }, [activeCommandIndex, commandMatchesKey]);
+    const hasDraft = Boolean(input.trim() || images.length);
+    const showStop = pendingPrompt && !hasDraft;
     const insertCompletion = (item: CompletionItem): void => {
         setInput(`/${item.name} `);
     };
     const submitOrCancel = (): void => {
-        if (pendingPrompt) {
+        if (showStop) {
             cancelMessage();
             return;
         }
@@ -430,10 +450,17 @@ export const Composer = (): JSX.Element => {
     const handleKeyDown = (event: any) => {
         const isPlainEnter = event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey;
         const isComposing = isComposingRef.current || event.nativeEvent?.isComposing || event.isComposing;
-        if (isComposing && event.key === 'Enter') return;
-        if (showCommandMenu && (event.key === 'Tab' || isPlainEnter)) {
+        if (isComposing) return;
+        const isPlainArrow = !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey;
+        if (showCommandMenu && isPlainArrow && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
             event.preventDefault();
-            insertCompletion(commandMatches[0]);
+            const direction = event.key === 'ArrowDown' ? 1 : -1;
+            setSelectedCommandIndex((activeCommandIndex + direction + commandMatches.length) % commandMatches.length);
+            return;
+        }
+        if (showCommandMenu && ((event.key === 'Tab' && !event.shiftKey) || isPlainEnter)) {
+            event.preventDefault();
+            insertCompletion(commandMatches[activeCommandIndex]);
             return;
         }
         if (event.key === 'Escape' && pendingPrompt) {
@@ -489,10 +516,22 @@ export const Composer = (): JSX.Element => {
             <div className={`composer-box${images.length ? ' has-attachments' : ''}`}>
                 <div className="command-wrap">
                     {showCommandMenu ? (
-                        <div className="command-menu">
+                        <div className="command-menu" id={commandMenuId} ref={commandMenuRef} role="listbox" aria-label={t('agentCommands')}>
                             <div className="command-title">{t('agentCommands')}</div>
                             {commandMatches.map((item, index) => (
-                                <button className={`command-item${index === 0 ? ' active' : ''}`} key={`${item.kind}-${item.name}`} onClick={() => insertCompletion(item)} type="button">
+                                <button
+                                    className={`command-item${index === activeCommandIndex ? ' active' : ''}`}
+                                    id={`${commandMenuId}-${index}`}
+                                    key={`${item.kind}-${item.name}`}
+                                    ref={index === activeCommandIndex ? activeCommandRef : undefined}
+                                    role="option"
+                                    aria-selected={index === activeCommandIndex}
+                                    tabIndex={-1}
+                                    onMouseMove={() => setSelectedCommandIndex(index)}
+                                    onMouseDown={(event) => event.preventDefault()}
+                                    onClick={() => insertCompletion(item)}
+                                    type="button"
+                                >
                                     <span className="command-name">{item.name}</span>
                                     {item.description ? <span className="command-description">{item.kind === 'skill' ? t('skillDescription', { description: item.description }) : item.description}</span> : null}
                                 </button>
@@ -500,6 +539,10 @@ export const Composer = (): JSX.Element => {
                         </div>
                     ) : null}
                     <textarea
+                        ref={composerRef}
+                        aria-autocomplete={showCommandMenu ? 'list' : undefined}
+                        aria-controls={showCommandMenu ? commandMenuId : undefined}
+                        aria-activedescendant={showCommandMenu ? `${commandMenuId}-${activeCommandIndex}` : undefined}
                         onChange={(event) => setInput(event.target.value)}
                         onCompositionEnd={() => { isComposingRef.current = false; }}
                         onCompositionStart={() => { isComposingRef.current = true; }}
@@ -521,20 +564,25 @@ export const Composer = (): JSX.Element => {
                     </div>
                 ) : null}
                 <div className="actions">
+                    {configOptionsLoading && !modePicker && !modelPicker ? (
+                        <div className="model-picker" role="status" aria-live="polite">
+                            <AgentSelect className="config-picker" compact disabled options={[]} onChange={() => {}} placeholder={t('loading')} placement="top" />
+                        </div>
+                    ) : null}
                     {modePicker ? <div className="model-picker">{modePicker}</div> : null}
                     <div className="model-picker">
                         {modelPicker}
                     </div>
                     <span className="shortcut-hint" />
                     <button
-                        aria-label={pendingPrompt ? t('cancel') : t('send')}
-                        className={`send-button${pendingPrompt ? ' executing' : ''}`}
-                        disabled={!pendingPrompt && !input.trim() && !images.length}
+                        aria-label={showStop ? t('cancel') : t('send')}
+                        className={`send-button${showStop ? ' executing' : ''}`}
+                        disabled={!showStop && !hasDraft}
                         onClick={submitOrCancel}
-                        title={pendingPrompt ? t('cancel') : t('send')}
+                        title={showStop ? t('cancel') : t('send')}
                         type="button"
                     >
-                        {pendingPrompt ? <img alt="" aria-hidden="true" src={stopIcon} /> : <ArrowUpOutlined />}
+                        {showStop ? <img alt="" aria-hidden="true" src={stopIcon} /> : <ArrowUpOutlined />}
                     </button>
                 </div>
             </div>

@@ -360,8 +360,16 @@ const Container = styled.div`
         font-weight: 400;
     }
 
+    .timeline-item.tool .timeline-heading {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: start;
+    }
+
     .timeline-item.tool .timeline-title {
+        min-width: 0;
         font-weight: 400;
+        overflow-wrap: anywhere;
     }
 
     .timeline-tool-details {
@@ -1005,21 +1013,22 @@ const ThinkingTimeline = ({
 }): JSX.Element => {
     const [open, setOpen] = useState(expanded);
     useEffect(() => setOpen(expanded), [expanded]);
+    const thinking = expanded && message.durationMs === undefined;
     const totalDuration = message.startedAt === undefined
         ? undefined
         : formatDuration(message.durationMs ?? now - message.startedAt);
     const showAnalyzing = analyzing && !showAnswerMarker;
     const activeIndex = showAnalyzing ? -1 : entries.reduce((last, entry, entryIndex) => {
         if (entry.type === 'tool' && entry.block.toolCall.status === 'in_progress') return entryIndex;
-        if (expanded && entry.type === 'thinking' && entryIndex === entries.length - 1 && !showAnswerMarker) return entryIndex;
+        if (thinking && entry.type === 'thinking' && entryIndex === entries.length - 1 && !showAnswerMarker) return entryIndex;
         return last;
     }, -1);
 
     return (
         <details className="thinking-timeline answer-meta-details" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
             <summary>
-                {expanded ? <ThinkingSparkle /> : null}
-                <span>{thinkingStatusLabel(expanded, totalDuration, t)}</span>
+                {thinking ? <ThinkingSparkle /> : null}
+                <span>{thinkingStatusLabel(thinking, totalDuration, t)}</span>
                 <span aria-hidden="true" className="thinking-chevron" />
             </summary>
             <div className="timeline-list">
@@ -1088,7 +1097,10 @@ const TimelineNode = ({
             <span aria-hidden="true" className="timeline-marker" />
             <div className="timeline-heading">
                 <span className="timeline-title">{toolCallSummary(toolCall, t)}</span>
-                {duration ? <span className="timeline-duration">{duration}</span> : null}
+                <span className="tool-state">
+                    {toolCallState(toolCall, t)}
+                    {duration ? <> · <span className="timeline-duration">{duration}</span></> : null}
+                </span>
             </div>
             {hasDetails
                 ? (
@@ -1129,14 +1141,15 @@ const getTimelineEntryStartedAt = (entry: TimelineEntry): number | undefined => 
 
 const AnswerMeta = ({ inProgress = false, message, now }: { inProgress?: boolean; message: ChatMessage; now: number }): JSX.Element | null => {
     const { t } = useTranslation('insightWebAgent');
+    const thinking = inProgress && message.durationMs === undefined;
     const label = thinkingStatusLabel(
-        inProgress,
+        thinking,
         message.startedAt === undefined ? undefined : formatDuration(message.durationMs ?? now - message.startedAt),
         t,
     );
     return message.startedAt === undefined ? null : (
         <div className="thinking-summary">
-            {inProgress ? <ThinkingSparkle /> : null}
+            {thinking ? <ThinkingSparkle /> : null}
             <span>{label}</span>
         </div>
     );

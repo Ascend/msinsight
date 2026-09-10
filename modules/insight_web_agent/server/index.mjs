@@ -250,6 +250,7 @@ chatService = createChatService({
     frontendCommandService,
     permissionService,
     systemPrompt: config.systemPrompt,
+    memoryTuningPrompt: config.memoryTuningPrompt,
 });
 
 const cloneRuntimeConfig = () => ({

@@ -203,10 +203,11 @@ export const sendPrompt = (
     images: ImageAttachment[] = [],
     mode?: string,
     pageObservation?: Record<string, unknown>,
+    promptPreset?: 'memory-tuning-assistant',
 ): Promise<PromptResponse> => {
     return requestJson<PromptResponse>('/api/prompt', {
         method: 'POST',
-        body: JSON.stringify({ text, newSession, sessionId, images, mode, pageObservation }),
+        body: JSON.stringify({ text, newSession, sessionId, images, mode, pageObservation, promptPreset }),
     });
 };
 

@@ -22,6 +22,7 @@ import { errorCause, errorResult } from "./errorResult.mjs";
 
 export const createSessionService = ({ acpClient, config, eventBus, state, sessionManager, capabilitySessionIntegration }) => {
     let mutationQueue = Promise.resolve();
+    const configSessionIds = new Set();
 
     const getAgentCwd = () => config.cwd;
     const manager = sessionManager ?? {
@@ -81,7 +82,7 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
 
         console.log(`Listing remote sessions: cwd=${getAgentCwd()}`);
         const response = await acpClient.request("session/list", { cwd: getAgentCwd() });
-        const remoteSessions = response.sessions ?? [];
+        const remoteSessions = (response.sessions ?? []).filter((session) => !configSessionIds.has(session.sessionId));
         const remoteIds = new Set(remoteSessions.map((session) => session.sessionId));
         state.sessions = [
             ...remoteSessions.map((session) => ({
@@ -103,22 +104,31 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
         }
     };
 
-    const loadConfigOptions = async () => {
+    const loadConfigOptions = async ({ targetAdapter = acpClient, broadcast = true } = {}) => {
         if (state.configOptions.length) return state.configOptions;
 
         try {
             console.log("Loading config options with temporary session");
-            const session = await acpClient.request("session/new", {
+            const session = await targetAdapter.request("session/new", {
                 cwd: getAgentCwd(),
                 additionalDirectories: [],
                 mcpServers: [],
             });
-            setConfigOptions({ eventBus, state }, session?.configOptions ?? [], null);
+            // Some agents cannot delete sessions; keep configuration probes out of the sidebar.
+            if (session?.sessionId) configSessionIds.add(session.sessionId);
+            state.configOptions = session?.configOptions ?? session?.config_options ?? [];
+            const modelConfig = getModelConfig(state);
+            const preferredModel = modelConfig && normalizeModelValue(modelConfig, state.preferredModel ?? config.defaultModel);
+            if (preferredModel) {
+                state.configOptions = state.configOptions.map((option) => option.id === modelConfig.id
+                    ? { ...option, currentValue: preferredModel }
+                    : option);
+            }
+            if (broadcast) setConfigOptions({ eventBus, state }, state.configOptions, null);
 
             if (session?.sessionId) {
                 console.log(`Cleaning up temporary config session: sessionId=${session.sessionId}`);
-                await cleanupSession(session.sessionId);
-                await refreshSessions();
+                await cleanupSession(session.sessionId, targetAdapter);
             }
         } catch (error) {
             console.warn(`Failed to load config options: ${error.message}`);
@@ -424,9 +434,9 @@ export const createSessionService = ({ acpClient, config, eventBus, state, sessi
             }));
     };
 
-    const cleanupSession = async (sessionId) => {
+    const cleanupSession = async (sessionId, targetAdapter = acpClient) => {
         if (!supportsSessionDelete(state)) return;
-        await acpClient.request("session/delete", { sessionId });
+        await targetAdapter.request("session/delete", { sessionId });
     };
 
     const configOptionErrorStatus = (message) => {

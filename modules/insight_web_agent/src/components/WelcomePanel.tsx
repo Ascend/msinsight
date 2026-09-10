@@ -150,14 +150,14 @@ const Container = styled.section`
 `;
 
 const guides = [
-    { icon: guideOne, title: 'memoryGuideTitle', description: 'memoryGuideDescription' },
-    { icon: guideTwo, title: 'slowGuideTitle', description: 'slowGuideDescription' },
-    { icon: guideThree, title: 'ragGuideTitle', description: 'ragGuideDescription' },
+    { icon: guideOne, title: 'memoryGuideTitle', description: 'memoryGuideDescription', prompt: 'memoryGuidePrompt', promptPreset: 'memory-tuning-assistant' },
+    { icon: guideTwo, title: 'slowGuideTitle', description: 'slowGuideDescription', prompt: 'slowGuidePrompt', promptPreset: undefined },
+    { icon: guideThree, title: 'ragGuideTitle', description: 'ragGuideDescription', prompt: 'ragGuidePrompt', promptPreset: undefined },
 ] as const;
 
 export const WelcomePanel = (): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
-    const { setInput } = useChatState();
+    const { selectWelcomePrompt } = useChatState();
 
     return <Container>
         <div className="welcome-content">
@@ -165,7 +165,7 @@ export const WelcomePanel = (): JSX.Element => {
             <img className="welcome-logo" src={logo} alt="" />
             <h1 className="welcome-title">{t('welcomeTitle')}</h1>
             <div className="guide-list">
-                {guides.map((guide) => <button className="guide-card" key={guide.title} onClick={() => setInput(t(guide.description))} type="button">
+                {guides.map((guide) => <button className="guide-card" key={guide.title} onClick={() => selectWelcomePrompt(t(guide.prompt), guide.promptPreset)} type="button">
                     <img className="guide-icon" src={guide.icon} alt="" />
                     <div className="guide-copy">
                         <div className="guide-title">{t(guide.title)}</div>

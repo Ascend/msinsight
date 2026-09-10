@@ -20,7 +20,7 @@ import { setAgentCapabilities } from "./capabilityService.mjs";
 import { appendChunk, appendContentBlock, setAgentActivity, setLocalTitle, upsertToolCall } from "./messageService.mjs";
 import { errorCause, errorResult } from "./errorResult.mjs";
 
-export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "" }) => {
+export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionService, state, sessionManager, contextAssembler, frontendCommandService, permissionService, systemPrompt = "", memoryTuningPrompt = "" }) => {
     const adapter = acpAdapter ?? acpClient;
     const serviceContext = { eventBus, state };
 
@@ -37,7 +37,6 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 clientInfo: { name: "insight-web-agent", version: "0.1.0" },
             });
             console.log(JSON.stringify(init));
-            state.initialized = true;
             state.agentError = undefined;
             state.agentInfo = init.agentInfo ?? init.agent_info;
             setAgentCapabilities(
@@ -47,6 +46,8 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             );
             const runtimeSkills = init._meta?.["msinsight.dev/skills"] ?? init.meta?.skills;
             state.availableSkills = normalizeAvailableSkills(runtimeSkills);
+            await sessionService.loadConfigOptions({ targetAdapter, broadcast: false });
+            state.initialized = true;
             if (refreshSessions) await sessionService.refreshSessions();
             if (broadcast) sessionService.broadcastState();
             console.log(`Connected to ${init.agentInfo?.name ?? "ACP agent"} ${init.agentInfo?.version ?? ""}`.trim());
@@ -61,6 +62,14 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
     const prompt = async (text, options = {}) => {
         const promptText = String(text ?? "").trim();
         const images = normalizeImages(options.images);
+        if (options.promptPreset !== undefined && options.promptPreset !== "memory-tuning-assistant") {
+            return errorResult("invalid_prompt_preset", "Unknown prompt preset", 400);
+        }
+        const assistantPrompt = options.promptPreset === "memory-tuning-assistant" ? memoryTuningPrompt.trim() : "";
+        if (options.promptPreset && !assistantPrompt) {
+            return errorResult("prompt_preset_unavailable", "The memory analysis assistant prompt is unavailable", 503);
+        }
+        const hostPrompt = [systemPrompt, assistantPrompt].filter(Boolean).join("\n\n");
         if (!promptText && !images.length) {
             console.warn("Prompt rejected: message is empty");
             return errorResult("empty_prompt", "Enter a message or attach an image before sending", 400);
@@ -123,7 +132,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             eventBus.broadcast({ type: "message_added", sessionId, message: assistant });
             eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: true });
 
-            runPrompt(sessionId, promptText, images, hiddenContext, assistant);
+            runPrompt(sessionId, promptText, images, hiddenContext, assistant, hostPrompt);
             sessionService.refreshSessions();
             return { ok: true, sessionId };
         } catch (error) {
@@ -145,12 +154,12 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         }
     };
 
-    const runPrompt = async (sessionId, promptText, images, hiddenContext, assistant) => {
+    const runPrompt = async (sessionId, promptText, images, hiddenContext, assistant, hostPrompt) => {
         try {
             console.log(`Prompt execution started: sessionId=${sessionId}, textLength=${promptText.length}, images=${images.length}, hiddenContext=${Boolean(hiddenContext)}`);
             await adapter.request("session/prompt", {
                 sessionId,
-                prompt: createPromptContent(promptText, images, hiddenContext, systemPrompt),
+                prompt: createPromptContent(promptText, images, hiddenContext, hostPrompt),
             });
             console.log(`Prompt execution completed: sessionId=${sessionId}`);
 

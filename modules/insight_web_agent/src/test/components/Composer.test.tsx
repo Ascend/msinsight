@@ -59,12 +59,25 @@ const renderComposer = (overrides: Record<string, unknown> = {}) => {
         ...overrides,
     };
     mockUseChatState.mockReturnValue(state);
-    render(<Composer />);
-    return state;
+    const view = render(<Composer />);
+    return { ...state, rerender: view.rerender };
 };
 
 afterEach(() => {
     jest.clearAllMocks();
+});
+
+test('shows a disabled loading picker while welcome configuration is being loaded', () => {
+    renderComposer({ configOptionsLoading: true });
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading...');
+    expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled();
+});
+
+test('does not keep a loading picker for an agent without configuration options', () => {
+    renderComposer({ configOptionsLoading: false });
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
 });
 
 test('does not send or prevent Enter while IME composition is active', () => {
@@ -112,14 +125,95 @@ test('uses Enter to insert command completion without sending when not composing
     expect(state.sendMessage).not.toHaveBeenCalled();
 });
 
+const commandOptions = {
+    input: '/',
+    availableSkills: [{ name: 'analyze-memory' }],
+    availableCommands: [{ name: 'help' }, { name: 'status' }],
+};
+
+test.each(['Enter', 'Tab'])('uses arrow navigation and %s to insert the highlighted completion', (key) => {
+    const state = renderComposer(commandOptions);
+    const input = screen.getByRole('textbox');
+    input.focus();
+    expect(screen.getByRole('option', { name: 'analyze-memory' })).toHaveAttribute('aria-selected', 'true');
+    expect(fireEvent.keyDown(input, { key: 'ArrowDown' })).toBe(false);
+    const selected = screen.getByRole('option', { name: 'help' });
+    expect(selected).toHaveClass('active');
+    expect(input).toHaveAttribute('aria-activedescendant', selected.id);
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input, { key });
+    expect(state.setInput).toHaveBeenCalledWith('/help ');
+    expect(state.sendMessage).not.toHaveBeenCalled();
+});
+
+test('wraps arrow navigation at both ends and scrolls only the command menu', () => {
+    renderComposer(commandOptions);
+    const input = screen.getByRole('textbox');
+    const menu = screen.getByRole('listbox');
+    Object.defineProperty(menu, 'clientHeight', { value: 70 });
+    screen.getAllByRole('option').forEach((option, index) => {
+        Object.defineProperties(option, { offsetTop: { value: index * 50 }, offsetHeight: { value: 50 } });
+    });
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    expect(screen.getByRole('option', { name: 'status' })).toHaveAttribute('aria-selected', 'true');
+    expect(menu.scrollTop).toBe(80);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(screen.getByRole('option', { name: 'analyze-memory' })).toHaveAttribute('aria-selected', 'true');
+    expect(menu.scrollTop).toBe(0);
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    expect(menu.scrollTop).toBe(30);
+});
+
+test('resets the highlight when filtering or reopening the command menu', () => {
+    const state = renderComposer(commandOptions);
+    const input = screen.getByRole('textbox');
+    fireEvent.keyDown(input, { key: 'ArrowUp' });
+    mockUseChatState.mockReturnValue({ ...state, input: '/he' });
+    state.rerender(<Composer />);
+    expect(screen.getByRole('option', { name: 'help' })).toHaveAttribute('aria-selected', 'true');
+    mockUseChatState.mockReturnValue({ ...state, input: '/help ' });
+    state.rerender(<Composer />);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    mockUseChatState.mockReturnValue({ ...state, input: '/' });
+    state.rerender(<Composer />);
+    expect(screen.getByRole('option', { name: 'analyze-memory' })).toHaveAttribute('aria-selected', 'true');
+});
+
+test('keeps mouse highlighting and keyboard confirmation in sync', () => {
+    const state = renderComposer(commandOptions);
+    fireEvent.mouseMove(screen.getByRole('option', { name: 'status' }));
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+    expect(state.setInput).toHaveBeenCalledWith('/status ');
+});
+
+test('leaves arrows and confirmation keys to IME while composing', () => {
+    const state = renderComposer(commandOptions);
+    const input = screen.getByRole('textbox');
+    fireEvent.compositionStart(input);
+    for (const key of ['ArrowDown', 'ArrowUp', 'Enter', 'Tab']) {
+        expect(fireEvent.keyDown(input, { key })).toBe(true);
+    }
+    expect(screen.getByRole('option', { name: 'analyze-memory' })).toHaveAttribute('aria-selected', 'true');
+    expect(state.setInput).not.toHaveBeenCalled();
+    expect(state.sendMessage).not.toHaveBeenCalled();
+});
+
+test('preserves normal arrow keys when there are no command matches', () => {
+    renderComposer({ ...commandOptions, input: '/not-found' });
+    const input = screen.getByRole('textbox');
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(fireEvent.keyDown(input, { key: 'ArrowDown' })).toBe(true);
+    expect(fireEvent.keyDown(input, { key: 'ArrowUp' })).toBe(true);
+});
+
 test('shows the command placeholder', () => {
     renderComposer();
 
     expect(screen.getByPlaceholderText('Type / to use a command')).toBeVisible();
 });
 
-test('shows the stop icon and cancels while a prompt is running', () => {
-    const state = renderComposer({ pendingPrompt: true });
+test.each(['', '   '])('shows the stop icon and cancels while running with empty input %j', (input) => {
+    const state = renderComposer({ pendingPrompt: true, input });
     const cancelButton = screen.getByRole('button', { name: 'Cancel' });
 
     expect(cancelButton).toHaveClass('executing');
@@ -128,6 +222,20 @@ test('shows the stop icon and cancels while a prompt is running', () => {
 
     expect(state.cancelMessage).toHaveBeenCalledTimes(1);
     expect(state.sendMessage).not.toHaveBeenCalled();
+});
+
+test.each([
+    { input: 'next question', images: [] },
+    { input: '', images: [{ id: 'image-1', name: 'snapshot.png', mimeType: 'image/png', data: 'aW1hZ2U=' }] },
+])('sends a draft instead of cancelling the running prompt: %j', (draft) => {
+    const state = renderComposer({ pendingPrompt: true, ...draft });
+    const sendButton = screen.getByRole('button', { name: 'Send' });
+    expect(sendButton).toBeEnabled();
+    expect(sendButton).not.toHaveClass('executing');
+    expect(sendButton.querySelector('img[src="stop.svg"]')).not.toBeInTheDocument();
+    fireEvent.click(sendButton);
+    expect(state.sendMessage).toHaveBeenCalledTimes(1);
+    expect(state.cancelMessage).not.toHaveBeenCalled();
 });
 
 test('expands, collapses, and removes queued prompts', () => {

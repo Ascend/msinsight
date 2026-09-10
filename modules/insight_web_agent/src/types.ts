@@ -272,6 +272,7 @@ export interface QueuedPrompt {
     text: string;
     images: ImageAttachment[];
     mode?: string;
+    promptPreset?: 'memory-tuning-assistant';
 }
 
 export type ServerEvent =

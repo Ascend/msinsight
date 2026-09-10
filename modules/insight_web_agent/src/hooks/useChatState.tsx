@@ -35,6 +35,7 @@ import type { AgentCapabilities, AgentConfigSnapshot, AgentInfo, AgentServerItem
 
 interface ChatStateValue {
     configOptions: ConfigOption[];
+    configOptionsLoading: boolean;
     agentServers: AgentServerItem[];
     activeAgentName?: string;
     agentInfo?: AgentInfo;
@@ -53,6 +54,7 @@ interface ChatStateValue {
     messages: ChatMessage[];
     notices: ConversationNotice[];
     messagesRef: RefObject<HTMLDivElement>;
+    scrollToLatestRequest: number;
     pendingPrompt: boolean;
     queuedCount: number;
     queuedPrompts: QueuedPrompt[];
@@ -63,6 +65,8 @@ interface ChatStateValue {
     cancelMessage: () => Promise<void>;
     selectSession: (session: SessionItem) => Promise<void>;
     setInput: (value: string) => void;
+    selectWelcomePrompt: (text: string, promptPreset?: QueuedPrompt['promptPreset']) => void;
+    composerRef: RefObject<HTMLTextAreaElement>;
     addImages: (images: ImageAttachment[]) => void;
     removeImage: (id: string) => void;
     clearQueuedPrompts: () => void;
@@ -139,9 +143,26 @@ const showError = (error: unknown): void => {
 
 export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.Element => {
     const [state, setState] = useState<ChatState>(initialState);
-    const [input, setInput] = useState('');
+    const [draft, setDraft] = useState<{ text: string; promptPreset?: QueuedPrompt['promptPreset'] }>({ text: '' });
+    const input = draft.text;
+    const setInput = (text: string): void => {
+        setDraft((current) => ({ text, promptPreset: text.trim() ? current.promptPreset : undefined }));
+    };
+    const composerRef = useRef<HTMLTextAreaElement>(null);
+    const [inputFocusRequest, setInputFocusRequest] = useState(0);
+    const selectWelcomePrompt = (text: string, promptPreset?: QueuedPrompt['promptPreset']): void => {
+        setDraft({ text, promptPreset });
+        setInputFocusRequest((current) => current + 1);
+    };
+    useEffect(() => {
+        const textarea = composerRef.current;
+        if (!inputFocusRequest || !textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }, [inputFocusRequest]);
     const [images, setImages] = useState<ImageAttachment[]>([]);
     const messagesRef = useRef<HTMLDivElement>(null);
+    const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0);
     const stateRef = useRef(state);
     const queuedPromptInFlightRef = useRef(false);
     const frontendCommandsRef = useRef(new Set<string>());
@@ -286,6 +307,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                     ...nextState,
                     activeSessionId: undefined,
                     isDraftSession: true,
+                    draftMode: undefined,
                     draftMessages: activeMessages(current),
                     draftPendingPrompt: false,
                     draftQueuedPrompts: [],
@@ -300,7 +322,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         if (event.type === 'message_added' && event.sessionId) {
             updateSessionRecord(event.sessionId, (record) => ({
                 ...record,
-                messages: [...record.messages, event.message],
+                messages: [...record.messages, finishThinkingOnAnswer(event.message)],
                 loaded: true,
             }));
             return;
@@ -310,7 +332,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             updateSessionRecord(event.sessionId, (record) => ({
                 ...record,
                 messages: record.messages.map((message) => message.id === event.id
-                    ? { ...message, content: appendContentBlock(message.content, event.block) }
+                    ? finishThinkingOnAnswer({ ...message, content: appendContentBlock(message.content, event.block) })
                     : message),
                 loaded: true,
             }));
@@ -321,7 +343,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             updateSessionRecord(event.sessionId, (record) => ({
                 ...record,
                 messages: record.messages.map((message) => message.id === event.id
-                    ? { ...message, content: appendContentDelta(message.content, event) }
+                    ? finishThinkingOnAnswer({ ...message, content: appendContentDelta(message.content, event) })
                     : message),
                 loaded: true,
             }));
@@ -485,7 +507,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     }, []);
 
     useEffect(() => {
-        if (state.agentDiscoveryLoading) return;
+        if (state.agentDiscoveryLoading || !state.initialized) return;
         if (initialSessionInitializedRef.current) return;
         initialSessionInitializedRef.current = true;
         const initialize = async (): Promise<void> => {
@@ -497,11 +519,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             }
         };
         initialize();
-    }, [state.agentDiscoveryLoading]);
-
-    useEffect(() => {
-        messagesRef.current?.scrollTo({ top: messagesRef.current.scrollHeight });
-    }, [state.activeSessionId, state.isDraftSession, activeMessages(state), activeNotices(state)]);
+    }, [state.agentDiscoveryLoading, state.initialized]);
 
     useEffect(() => {
         const nextPrompt = getNextQueuedPrompt(state);
@@ -556,6 +574,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     const selectSessionById = async (sessionId: string): Promise<void> => {
         if (sessionId === stateRef.current.activeSessionId) return;
+        setDraft((current) => ({ text: current.text }));
 
         const existingRecord = stateRef.current.sessionRecords[sessionId];
         setState((current) => ({
@@ -613,8 +632,9 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         const text = input.trim();
         const promptImages = images;
         if (!text && !promptImages.length) return;
+        setScrollToLatestRequest((current) => current + 1);
         if (activePendingPrompt(state)) {
-            queuePrompt({ text, images: promptImages });
+            queuePrompt({ text, images: promptImages, promptPreset: draft.promptPreset });
             setInput('');
             setImages([]);
             return;
@@ -622,7 +642,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
         setInput('');
         setImages([]);
-        await sendPromptNow({ text, images: promptImages, mode: state.isDraftSession ? state.draftMode : undefined }, state.isDraftSession, state.activeSessionId);
+        await sendPromptNow({ text, images: promptImages, mode: state.isDraftSession ? state.draftMode : undefined, promptPreset: draft.promptPreset }, state.isDraftSession, state.activeSessionId);
     };
 
     const queuePrompt = (prompt: QueuedPrompt): void => {
@@ -651,7 +671,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         setState((current) => markPromptStarted(current, prompt, isDraftSession, sessionId, optimisticSession));
 
         try {
-            const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode);
+            const body = await sendPrompt(prompt.text, isDraftSession, sessionId, prompt.images, prompt.mode, undefined, prompt.promptPreset);
             setState((current) => applyPromptSessionResult(current, prompt, optimisticSession, body.sessionId));
         } catch (error) {
             setState((current) => markPromptFailed(current, optimisticSession, sessionId));
@@ -727,7 +747,6 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
             setState((current) => ({
                 ...current,
                 draftMode: mode,
-                configOptions: updateConfigCurrentValue(current.configOptions, getModeConfig(current.configOptions)?.id, mode),
             }));
             return;
         }
@@ -837,6 +856,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
                 ...nextState,
                 activeSessionId: undefined,
                 isDraftSession: true,
+                draftMode: undefined,
                 draftMessages: activeMessages(current),
                 draftPendingPrompt: false,
                 draftQueuedPrompts: [],
@@ -849,6 +869,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     const value = useMemo<ChatStateValue>(() => ({
         configOptions: getActiveConfigOptions(state),
+        configOptionsLoading: !state.agentError && (state.switchingAgent || state.agentDiscoveryLoading || state.initialized !== true),
         agentServers: state.agentServers,
         activeAgentName: state.activeAgentName,
         agentInfo: state.agentInfo,
@@ -866,6 +887,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         messages: activeMessages(state),
         notices: activeNotices(state),
         messagesRef,
+        scrollToLatestRequest,
         pendingPrompt: activePendingPrompt(state),
         queuedCount: activeQueuedCount(state),
         queuedPrompts: activeQueuedPrompts(state),
@@ -876,6 +898,8 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         cancelMessage,
         selectSession: handleSelectSession,
         setInput,
+        selectWelcomePrompt,
+        composerRef,
         addImages,
         removeImage,
         clearQueuedPrompts,
@@ -886,7 +910,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         refreshAgents,
         applyAgentConfigSnapshot,
         respondToPermission,
-    }), [images, input, state]);
+    }), [images, draft, state, scrollToLatestRequest]);
 
     return <ChatStateContext.Provider value={value}>{children}</ChatStateContext.Provider>;
 };
@@ -952,7 +976,11 @@ const activePendingPrompt = (state: ChatState): boolean => {
 };
 
 const getActiveConfigOptions = (state: ChatState): ConfigOption[] => {
-    if (state.isDraftSession || !state.activeSessionId) return state.configOptions;
+    if (state.isDraftSession || !state.activeSessionId) {
+        return state.draftMode
+            ? updateConfigCurrentValue(state.configOptions, getModeConfig(state.configOptions)?.id, state.draftMode)
+            : state.configOptions;
+    }
     return getSessionRecord(state, state.activeSessionId).configOptions ?? state.configOptions;
 };
 
@@ -1076,7 +1104,14 @@ const updateToolContent = (content: MessageContentBlock[], toolCall: Extract<Mes
         : block);
 };
 
-const markLastAssistantStarted = (messages: ChatMessage[]): ChatMessage[] => updateLastAssistant(messages, (message) => (
+const finishThinkingOnAnswer = (message: ChatMessage): ChatMessage => {
+    if (message.role !== 'assistant' || message.startedAt === undefined || message.durationMs !== undefined) return message;
+    if (!message.content.some((block) => block.type === 'text' && block.text.trim())) return message;
+    // Freeze thinking time at the first answer text; the response can keep streaming.
+    return { ...message, durationMs: Math.max(0, Date.now() - message.startedAt) };
+};
+
+const markLastAssistantStarted = (messages: ChatMessage[]): ChatMessage[] => updateLastAssistant(messages, (message) => finishThinkingOnAnswer(
     message.startedAt === undefined ? { ...message, startedAt: Date.now() } : message
 ));
 
@@ -1125,13 +1160,15 @@ const applyPromptSessionResult = (
     if (!sessionId) return state;
 
     const existingRecord = getSessionRecord(state, sessionId);
+    // A fast reply can finish through SSE before the HTTP acknowledgement arrives.
+    const alreadyFinished = existingRecord.status === 'completed' || existingRecord.status === 'error';
     const sessionRecords = {
         ...state.sessionRecords,
         [sessionId]: {
             ...existingRecord,
             loaded: true,
-            pendingPrompt: true,
-            status: 'working' as SessionStatus,
+            pendingPrompt: !alreadyFinished,
+            status: alreadyFinished ? existingRecord.status : 'working' as SessionStatus,
             notices: state.isDraftSession ? state.draftNotices : existingRecord.notices,
         },
     };
