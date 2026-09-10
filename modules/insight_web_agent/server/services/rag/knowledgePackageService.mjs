@@ -24,8 +24,19 @@ import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import lockfile from "proper-lockfile";
 import yauzl from "yauzl";
 import { canonicalJsonBytes } from "./wire/canonicalJson.mjs";
-import { KB_ID, PACKAGE_MEMBERS, validatePackageMemberBytes } from "./wire/packageContracts.mjs";
-import { parseCanonicalJson } from "./wire/strictJsonParser.mjs";
+import { KB_ID, SUPPORTED_PACKAGE_SCHEMA_VERSIONS, validateSharedMembers } from "./wire/packageContracts.mjs";
+import {
+    PACKAGE_V5_FIXED_MEMBERS,
+    PACKAGE_V5_METADATA_MEMBERS,
+    PACKAGE_V5_PAYLOAD_PREFIX,
+    PACKAGE_V5_SUFFIX_MEMBERS,
+    validateBundleChecksums,
+    validateBundleClosure,
+    validateBundleRecords,
+    validateManifestBundle,
+} from "./wire/packageBundleContracts.mjs";
+import { detectOverriddenSkills, installBundleToWorkspace, stageBundleForWorkspace } from "./bundleWorkspace.mjs";
+import { parseCanonicalJson, parseCanonicalJsonl } from "./wire/strictJsonParser.mjs";
 import { loadEmbeddingModelContract } from "./embeddingRuntime.mjs";
 import { loadKnowledgePack, readActiveKnowledgePointer, readInstallRecord } from "./knowledgePackLoader.mjs";
 import { loadRuntimeContract } from "./runtimeContract.mjs";
@@ -33,12 +44,13 @@ import { loadRuntimeContract } from "./runtimeContract.mjs";
 const MAX_ARCHIVE_BYTES = 512 * 1024 * 1024;
 const MAX_MEMBER_BYTES = 512 * 1024 * 1024;
 const MAX_UNCOMPRESSED_BYTES = 1024 * 1024 * 1024;
-const ARCHIVE_NAME = "knowledge-pack-v4.zip";
-const SIDECAR_NAME = "knowledge-pack-v4.zip.sha256";
+const ARCHIVE_NAME = "knowledge-pack-v5.zip";
+const SIDECAR_NAME = "knowledge-pack-v5.zip.sha256";
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const ZIP_LOCAL_SIGNATURE = 0x04034b50;
 const ZIP_EOCD_SIGNATURE = 0x06054b50;
 const ZIP_UNIX_REGULAR_0644 = 0o100644;
+const ZIP_UNIX_REGULAR_0755 = 0o100755;
 const ZIP_VERSION_MADE_BY = 0x0314;
 const ZIP_VERSION_NEEDED = 20;
 const ZIP_DOS_DATE_1980_01_01 = 33;
@@ -102,11 +114,12 @@ export const createKnowledgePackageService = ({
         }
         const sourceArchive = await requireSourceFile(packPath, ARCHIVE_NAME, "pack_missing", "pack_unreadable");
         const sourceSidecar = await requireSourceFile(sidecarPath, SIDECAR_NAME, "sidecar_missing", "sidecar_invalid");
+        const names = archiveNamesForHandoff(packPath, sidecarPath);
         const { modelContract, runtimeContract } = await dependencies();
         const transaction = safeChildDirectory(join(root, ".staging"), sanitizeId(tempId()));
         const packageStage = join(transaction, "package");
-        const stagedArchive = join(transaction, ARCHIVE_NAME);
-        const stagedSidecar = join(transaction, SIDECAR_NAME);
+        const stagedArchive = join(transaction, names.archive);
+        const stagedSidecar = join(transaction, names.sidecar);
         await ensurePrivateDirectory(join(root, ".staging"));
         await mkdir(transaction, { recursive: false, mode: 0o700 });
         try {
@@ -131,24 +144,28 @@ export const createKnowledgePackageService = ({
                 return importResult("already_imported", validated, existing.installMode);
             }
             await mkdir(packageStage, { recursive: false, mode: 0o700 });
-            for (const name of PACKAGE_MEMBERS) await writeDurableFile(join(packageStage, name), validated.members.get(name));
-            await rename(stagedArchive, join(packageStage, ARCHIVE_NAME));
-            await rename(stagedSidecar, join(packageStage, SIDECAR_NAME));
-            const fileNames = [ARCHIVE_NAME, SIDECAR_NAME, ...PACKAGE_MEMBERS];
+            const installedNames = [...PACKAGE_V5_FIXED_MEMBERS];
+            for (const name of installedNames) {
+                await writeDurableFile(join(packageStage, name), validated.members.get(name));
+            }
+            await rename(stagedArchive, join(packageStage, names.archive));
+            await rename(stagedSidecar, join(packageStage, names.sidecar));
+            const fileNames = [names.archive, names.sidecar, ...installedNames];
             const files = await Promise.all(
                 fileNames.map((name) => fingerprintInstalledFile(packageStage, name)),
             );
             const install = {
-                schemaVersion: "1.0",
+                schemaVersion: "1.1",
                 kbId: KB_ID,
                 kbVersion: version,
                 installMode,
                 package: { sha256: validated.sha256, sizeBytes: validated.sizeBytes },
                 runtimeContractSha256: validated.pack.contract.contractSha256,
                 memberSha256: Object.fromEntries(
-                    PACKAGE_MEMBERS.map((name) => [name, sha256(validated.members.get(name))]),
+                    validated.memberNames.map((name) => [name, sha256(validated.members.get(name))]),
                 ),
                 files,
+                bundle: validated.bundleInstallRecord,
             };
             await writeDurableFile(join(packageStage, "install.json"), canonicalJsonBytes(install));
             try {
@@ -168,7 +185,7 @@ export const createKnowledgePackageService = ({
     };
     const importPackage = (packPath, options) => withLifecycleLock(root, () => importPackageUnlocked(packPath, options));
 
-    const activateUnlocked = async (kbVersion, { sha256: expectedSha256 } = {}) => {
+    const activateUnlocked = async (kbVersion, { sha256: expectedSha256, agentWorkspacePath } = {}) => {
         const version = validateVersion(kbVersion);
         const target = safeChildDirectory(root, version);
         const install = await readInstallRecord(target).catch((error) => {
@@ -179,9 +196,14 @@ export const createKnowledgePackageService = ({
         }
         const { modelContract, runtimeContract } = await dependencies();
         const pack = await loadInstalledAndVerify(target, install, { modelContract, runtimeContract, validateArchive, loadInstalledPack });
+        const bundle = await installPackageBundle({
+            install,
+            pack,
+            agentWorkspacePath,
+        });
         const current = await readOptionalPointer(root);
         if (current?.active.kbVersion === version && current.active.sha256 === install.package.sha256) {
-            return { status: "already_active", active: current.active, previous: current.previous };
+            return { status: "already_active", active: current.active, previous: current.previous, bundle };
         }
         const next = {
             schemaVersion: "4.0",
@@ -195,6 +217,7 @@ export const createKnowledgePackageService = ({
             previous: next.previous,
             chunks: pack.chunks.length,
             installMode: install.installMode,
+            bundle,
         };
     };
     const activate = (kbVersion, options) => withLifecycleLock(root, () => activateUnlocked(kbVersion, options));
@@ -244,26 +267,42 @@ export const createKnowledgePackageService = ({
 export const validatePackageArchive = async ({ archivePath, sidecarPath, modelContract, runtimeContract }) => {
     const archive = await requireRegularFile(archivePath, "pack_unreadable", "Knowledge package ZIP");
     const sidecar = await requireRegularFile(sidecarPath, "sidecar_invalid", "Knowledge package SHA-256 sidecar");
-    if (basename(archive) !== ARCHIVE_NAME || basename(sidecar) !== SIDECAR_NAME) {
+    const archiveBase = basename(archive);
+    const sidecarBase = basename(sidecar);
+    if (archiveBase !== ARCHIVE_NAME || sidecarBase !== SIDECAR_NAME) {
         throw new KnowledgePackageError("sidecar_invalid", `Knowledge package handoff files must be named ${ARCHIVE_NAME} and ${SIDECAR_NAME}`);
     }
     const sizeBytes = (await lstat(archive)).size;
     if (sizeBytes <= 0 || sizeBytes > MAX_ARCHIVE_BYTES) throw new KnowledgePackageError("archive_too_large", "Knowledge package ZIP is outside the permitted size range");
-    const expectedSha256 = parseSidecar(await readFile(sidecar));
+    const expectedSha256 = parseSidecar(await readFile(sidecar), ARCHIVE_NAME);
     const actualSha256 = await sha256File(archive);
     if (actualSha256 !== expectedSha256) throw new KnowledgePackageError("package_sha256_mismatch", "Knowledge package ZIP does not match its SHA-256 sidecar");
-    const { entries, members } = await readArchive(archive, sizeBytes);
-    await validateLocalHeaders(archive, sizeBytes, entries);
+    return validatePackageArchiveV5({ archive, sidecar, sizeBytes, modelContract, runtimeContract });
+};
+
+const validatePackageArchiveV5 = async ({ archive, sidecar, sizeBytes, modelContract, runtimeContract }) => {
+    const { entries, members } = await readArchiveV5(archive, sizeBytes);
+    await validateLocalHeadersV5(archive, sizeBytes, entries);
     let pack;
     try {
-        pack = validatePackageMemberBytes({ members, runtimeContract, modelContract });
+        pack = validatePackageV5MemberBytes({ members, runtimeContract, modelContract });
     } catch (error) {
         throw normalizeError(error);
     }
-    return { archivePath: archive, sidecarPath: sidecar, sha256: actualSha256, sizeBytes, members, pack };
+    const memberNames = entries.map(({ fileName }) => fileName);
+    return {
+        archivePath: archive,
+        sidecarPath: sidecar,
+        sha256: await sha256File(archive),
+        sizeBytes,
+        members,
+        memberNames,
+        pack,
+        bundleInstallRecord: pack.bundleInstallRecord,
+    };
 };
 
-const readArchive = (archive, sizeBytes) => new Promise((resolvePromise, rejectPromise) => {
+const readArchiveV5 = (archive, sizeBytes) => new Promise((resolvePromise, rejectPromise) => {
     yauzl.open(archive, {
         autoClose: true,
         decodeStrings: true,
@@ -273,9 +312,10 @@ const readArchive = (archive, sizeBytes) => new Promise((resolvePromise, rejectP
     }, (openError, zipFile) => {
         if (openError) return rejectPromise(new KnowledgePackageError("invalid_archive", `Unable to open knowledge package ZIP: ${openError.message}`, { cause: openError }));
         if (zipFile.comment) return rejectAndClose(zipFile, rejectPromise, new KnowledgePackageError("invalid_archive", "Knowledge package ZIP comment must be empty"));
-        if (zipFile.entryCount !== PACKAGE_MEMBERS.length) return rejectAndClose(zipFile, rejectPromise, new KnowledgePackageError("invalid_archive_entries", `Knowledge package ZIP must contain exactly ${PACKAGE_MEMBERS.length} members`));
         const entries = [];
         const members = new Map();
+        const names = new Set();
+        const folded = new Set();
         let total = 0;
         let settled = false;
         const fail = (error) => {
@@ -288,8 +328,9 @@ const readArchive = (archive, sizeBytes) => new Promise((resolvePromise, rejectP
         zipFile.on("entry", (entry) => {
             void (async () => {
                 try {
-                    const expectedName = PACKAGE_MEMBERS[entries.length];
-                    validateCentralEntry(entry, expectedName);
+                    validateCentralEntryV5(entry, entries.length, names, folded);
+                    names.add(entry.fileName);
+                    folded.add(entry.fileName.toLowerCase());
                     total += entry.uncompressedSize;
                     if (total > MAX_UNCOMPRESSED_BYTES) throw new KnowledgePackageError("archive_too_large", "Knowledge package ZIP exceeds the uncompressed size limit");
                     entries.push(entry);
@@ -303,7 +344,13 @@ const readArchive = (archive, sizeBytes) => new Promise((resolvePromise, rejectP
         zipFile.on("end", () => {
             if (settled) return;
             settled = true;
-            if (entries.length !== PACKAGE_MEMBERS.length || sizeBytes !== zipFile.fileSize) {
+            try {
+                assertV5MemberPlan([...members.keys()]);
+            } catch (error) {
+                rejectPromise(normalizeError(error));
+                return;
+            }
+            if (entries.length !== members.size || sizeBytes !== zipFile.fileSize) {
                 rejectPromise(new KnowledgePackageError("invalid_archive", "Knowledge package ZIP directory is incomplete"));
                 return;
             }
@@ -313,9 +360,27 @@ const readArchive = (archive, sizeBytes) => new Promise((resolvePromise, rejectP
     });
 });
 
-const validateCentralEntry = (entry, expectedName) => {
-    if (entry.fileName !== expectedName || entry.fileName !== basename(entry.fileName) || /[\\/:\0]/.test(entry.fileName)) {
-        throw new KnowledgePackageError("invalid_archive_entries", "Knowledge package ZIP members do not use the fixed Package v4 order");
+const validateCentralEntryV5 = (entry, index, names, folded) => {
+    const name = entry.fileName;
+    if (names.has(name)) throw new KnowledgePackageError("invalid_archive_entries", "Knowledge package ZIP contains duplicate members");
+    if (folded.has(name.toLowerCase())) throw new KnowledgePackageError("invalid_archive_entries", "Knowledge package ZIP contains case-fold-colliding members");
+    if (!name || name.startsWith("/") || /[\\:\0]/.test(name) || name.split("/").some((part) => !part || part === "." || part === "..")) {
+        throw new KnowledgePackageError("invalid_archive_entries", `Knowledge package ZIP member name is unsafe: ${name}`);
+    }
+    const fixed = PACKAGE_V5_FIXED_MEMBERS.includes(name);
+    if (!fixed && (!name.startsWith(PACKAGE_V5_PAYLOAD_PREFIX) || name.endsWith("/"))) {
+        throw new KnowledgePackageError("invalid_archive_entries", `Knowledge package ZIP member is not a fixed member or Bundle payload file: ${name}`);
+    }
+    const metadataCount = PACKAGE_V5_METADATA_MEMBERS.length;
+    if (index < metadataCount) {
+        if (name !== PACKAGE_V5_METADATA_MEMBERS[index]) {
+            throw new KnowledgePackageError("invalid_archive_entries", "Knowledge package ZIP members do not use the fixed Package v5 order");
+        }
+    } else if (!fixed) {
+        const previous = [...names].filter((existing) => !PACKAGE_V5_FIXED_MEMBERS.includes(existing)).pop();
+        if (previous !== undefined && compareCodePoints(name, previous) <= 0) {
+            throw new KnowledgePackageError("invalid_archive_entries", "Knowledge package ZIP payload members are not sorted");
+        }
     }
     if (entry.versionMadeBy !== ZIP_VERSION_MADE_BY
         || entry.versionNeededToExtract !== ZIP_VERSION_NEEDED
@@ -324,35 +389,36 @@ const validateCentralEntry = (entry, expectedName) => {
         || entry.lastModFileTime !== 0
         || entry.lastModFileDate !== ZIP_DOS_DATE_1980_01_01
         || entry.internalFileAttributes !== 0
-        || (entry.externalFileAttributes >>> 16) !== ZIP_UNIX_REGULAR_0644
         || entry.extraFieldLength !== 0
         || entry.fileComment !== "") {
-        throw new KnowledgePackageError("invalid_archive", `Knowledge package ZIP metadata is noncanonical: ${expectedName}`);
+        throw new KnowledgePackageError("invalid_archive", `Knowledge package ZIP metadata is noncanonical: ${name}`);
+    }
+    const mode = entry.externalFileAttributes >>> 16;
+    const expected = fixed ? [ZIP_UNIX_REGULAR_0644] : [ZIP_UNIX_REGULAR_0644, ZIP_UNIX_REGULAR_0755];
+    if (!expected.includes(mode)) {
+        throw new KnowledgePackageError("invalid_archive", `Knowledge package ZIP member mode is invalid: ${name}`);
     }
     if (entry.uncompressedSize < 0 || entry.uncompressedSize > MAX_MEMBER_BYTES) {
-        throw new KnowledgePackageError("archive_too_large", `Knowledge package ZIP member exceeds the size limit: ${expectedName}`);
+        throw new KnowledgePackageError("archive_too_large", `Knowledge package ZIP member exceeds the size limit: ${name}`);
     }
 };
 
-const readEntry = (zipFile, entry) => new Promise((resolvePromise, rejectPromise) => {
-    zipFile.openReadStream(entry, (error, stream) => {
-        if (error) return rejectPromise(new KnowledgePackageError("invalid_archive", `Unable to read ZIP member ${entry.fileName}`, { cause: error }));
-        const chunks = [];
-        let length = 0;
-        stream.on("data", (chunk) => {
-            length += chunk.length;
-            if (length > MAX_MEMBER_BYTES) stream.destroy(new KnowledgePackageError("archive_too_large", `ZIP member exceeds the size limit: ${entry.fileName}`));
-            else chunks.push(chunk);
-        });
-        stream.on("error", rejectPromise);
-        stream.on("end", () => {
-            if (length !== entry.uncompressedSize) return rejectPromise(new KnowledgePackageError("invalid_archive", `ZIP member size mismatch: ${entry.fileName}`));
-            resolvePromise(Buffer.concat(chunks, length));
-        });
-    });
-});
+const assertV5MemberPlan = (names) => {
+    // Metadata order is already enforced per entry during streaming; only the
+    // total length and the trailing suffix order need a final check here.
+    const suffixCount = PACKAGE_V5_SUFFIX_MEMBERS.length;
+    if (names.length < PACKAGE_V5_METADATA_MEMBERS.length + suffixCount) {
+        throw new KnowledgePackageError("invalid_archive_entries", "Knowledge package ZIP members do not use the fixed Package v5 order");
+    }
+    const tail = names.slice(names.length - suffixCount);
+    for (let index = 0; index < suffixCount; index += 1) {
+        if (tail[index] !== PACKAGE_V5_SUFFIX_MEMBERS[index]) {
+            throw new KnowledgePackageError("invalid_archive_entries", "Knowledge package ZIP members do not use the fixed Package v5 order");
+        }
+    }
+};
 
-const validateLocalHeaders = async (archive, sizeBytes, entries) => {
+const validateLocalHeadersV5 = async (archive, sizeBytes, entries) => {
     const handle = await open(archive, "r");
     try {
         const eocd = Buffer.alloc(22);
@@ -360,8 +426,8 @@ const validateLocalHeaders = async (archive, sizeBytes, entries) => {
         if (eocd.readUInt32LE(0) !== ZIP_EOCD_SIGNATURE
             || eocd.readUInt16LE(4) !== 0
             || eocd.readUInt16LE(6) !== 0
-            || eocd.readUInt16LE(8) !== PACKAGE_MEMBERS.length
-            || eocd.readUInt16LE(10) !== PACKAGE_MEMBERS.length
+            || eocd.readUInt16LE(8) !== entries.length
+            || eocd.readUInt16LE(10) !== entries.length
             || eocd.readUInt16LE(20) !== 0) {
             throw new KnowledgePackageError("invalid_archive", "Knowledge package ZIP EOCD is noncanonical");
         }
@@ -401,16 +467,126 @@ const validateLocalHeaders = async (archive, sizeBytes, entries) => {
     }
 };
 
+export const validatePackageV5MemberBytes = ({ members, runtimeContract, modelContract }) => {
+    const manifest = parseCanonicalMember(members, "manifest.json", "manifest");
+    if (manifest.schemaVersion !== "5.0") {
+        throw new KnowledgePackageError("unsupported_package_schema", "Knowledge package manifest schemaVersion must be 5.0");
+    }
+    if (manifest.kbVersion === undefined) throw new KnowledgePackageError("package_semantics_invalid", "Knowledge package manifest kbVersion is invalid");
+    const bundle = validateBundleRecords({
+        skills: members.get("skills.jsonl"),
+        mcps: members.get("mcps.jsonl"),
+        files: members.get("bundle-files.jsonl"),
+        skips: members.get("bundle-skips.jsonl"),
+    });
+    const checksums = parseCanonicalMember(members, "checksums.json", "checksums");
+    validateBundleChecksums(checksums, members);
+    const payload = {};
+    for (const [name, data] of members) {
+        if (name.startsWith(PACKAGE_V5_PAYLOAD_PREFIX)) payload[name] = data;
+    }
+    const closure = validateBundleClosure({ ...bundle, payload, manifestBundle: manifest.bundle });
+    const sources = parseCanonicalMember(members, "sources.jsonl", "sources");
+    const documents = parseCanonicalMember(members, "documents.jsonl", "documents");
+    const chunks = parseCanonicalMember(members, "chunks.jsonl", "chunks");
+    const bm25 = parseCanonicalMember(members, "bm25.json", "bm25");
+    const shared = validateSharedMembers({
+        manifest,
+        sources,
+        documents,
+        chunks,
+        vectors: members.get("vectors.f32"),
+        domainDictionaryBytes: members.get("bm25-domain-dict.txt"),
+        bm25,
+        runtimeContract,
+        modelContract,
+        expectedSchemaVersion: "5.0",
+        runtimeSchemaVersions: [...SUPPORTED_PACKAGE_SCHEMA_VERSIONS],
+    });
+    validateManifestBundle(manifest.bundle, { ...bundle, payload });
+    return {
+        ...shared,
+        buildAuditBytes: members.get("build-audit.json"),
+        checksums,
+        bundle,
+        closure,
+        manifestBundle: manifest.bundle,
+        payload,
+        contract: runtimeContract,
+        bundleInstallRecord: buildBundleInstallRecord(closure, manifest),
+    };
+};
+
+const buildBundleInstallRecord = (closure, manifest) => {
+    void manifest;
+    // One record per package path is guaranteed by bundle validation, so each
+    // tool path is seen exactly once here; owners simply merge per record.
+    const tools = new Map();
+    for (const record of closure.files) {
+        const owners = record.owners.filter(({ kind }) => kind === "skill-tool").map(({ id }) => id);
+        if (!owners.length) continue;
+        tools.set(record.sourcePath, { path: record.sourcePath, ownerSkillIds: [...new Set(owners)].sort() });
+    }
+    return {
+        status: closure.status,
+        skills: closure.skills.map(({ name, sourceId, rootPath, entryPath, description }) => ({ name, sourceId, rootPath, entryPath, description })),
+        mcps: closure.mcps.map((mcp) => ({
+            name: mcp.name,
+            sourceId: mcp.sourceId,
+            rootPath: mcp.rootPath,
+            entryPath: mcp.entryPath,
+            runtime: mcp.runtime,
+            transport: mcp.transport,
+            arguments: [...mcp.arguments],
+            environment: [...mcp.environment],
+        })),
+        tools: [...tools.values()],
+        skipped: closure.skips.map(({ kind, id, rootPath, reasonCode }) => ({ kind, id, rootPath, reasonCode })),
+        overridden: detectOverriddenSkills(closure.skills),
+    };
+};
+
+const parseCanonicalMember = (members, name, label) => {
+    const data = members.get(name);
+    if (!Buffer.isBuffer(data)) throw new KnowledgePackageError("invalid_archive", `Knowledge package member is not bytes: ${name}`);
+    try {
+        return name.endsWith(".jsonl") ? parseCanonicalJsonl(data, label) : parseCanonicalJson(data, label);
+    } catch (error) {
+        throw normalizeError(error);
+    }
+};
+
+const compareCodePoints = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
+
+const readEntry = (zipFile, entry) => new Promise((resolvePromise, rejectPromise) => {
+    zipFile.openReadStream(entry, (error, stream) => {
+        if (error) return rejectPromise(new KnowledgePackageError("invalid_archive", `Unable to read ZIP member ${entry.fileName}`, { cause: error }));
+        const chunks = [];
+        let length = 0;
+        stream.on("data", (chunk) => {
+            length += chunk.length;
+            if (length > MAX_MEMBER_BYTES) stream.destroy(new KnowledgePackageError("archive_too_large", `ZIP member exceeds the size limit: ${entry.fileName}`));
+            else chunks.push(chunk);
+        });
+        stream.on("error", rejectPromise);
+        stream.on("end", () => {
+            if (length !== entry.uncompressedSize) return rejectPromise(new KnowledgePackageError("invalid_archive", `ZIP member size mismatch: ${entry.fileName}`));
+            resolvePromise(Buffer.concat(chunks, length));
+        });
+    });
+});
+
 const readExactly = async (handle, buffer, position) => {
     const { bytesRead } = await handle.read(buffer, 0, buffer.length, position);
     if (bytesRead !== buffer.length) throw new KnowledgePackageError("invalid_archive", "Knowledge package ZIP is truncated");
 };
 
-const parseSidecar = (bytes) => {
-    const expectedLength = 64 + 2 + ARCHIVE_NAME.length + 1;
+const parseSidecar = (bytes, expectedName) => {
+    const expectedLength = 64 + 2 + expectedName.length + 1;
     if (bytes.length !== expectedLength) throw new KnowledgePackageError("sidecar_invalid", "Knowledge package SHA-256 sidecar has an invalid length");
     const text = bytes.toString("ascii");
-    const match = /^([0-9a-f]{64})  knowledge-pack-v4\.zip\n$/.exec(text);
+    const escapedName = expectedName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = new RegExp(`^([0-9a-f]{64})  ${escapedName}\\n$`).exec(text);
     if (!match || !SHA256_RE.test(match[1])) throw new KnowledgePackageError("sidecar_invalid", "Knowledge package SHA-256 sidecar is noncanonical");
     return match[1];
 };
@@ -601,6 +777,13 @@ const validateVersion = (value) => {
 
 const pointerEntry = (kbVersion, digest) => ({ kbVersion, sha256: digest, directory: kbVersion });
 
+const archiveNamesForHandoff = (packPath, sidecarPath) => {
+    if (basename(String(packPath)) === ARCHIVE_NAME && basename(String(sidecarPath)) === SIDECAR_NAME) {
+        return { archive: ARCHIVE_NAME, sidecar: SIDECAR_NAME, schemaVersion: "5.0" };
+    }
+    throw new KnowledgePackageError("sidecar_invalid", `Knowledge package handoff files must be named ${ARCHIVE_NAME} and ${SIDECAR_NAME}`);
+};
+
 const importResult = (status, validated, installMode) => ({
     status,
     version: validated.pack.manifest.kbVersion,
@@ -610,6 +793,36 @@ const importResult = (status, validated, installMode) => ({
     chunks: validated.pack.chunks.length,
     installMode,
 });
+
+const installPackageBundle = async ({ install, pack, agentWorkspacePath }) => {
+    if (pack.manifest?.schemaVersion !== "5.0" || !install.bundle) {
+        return { status: "absent", skills: [], mcps: [], tools: [], skipped: [], overridden: [], workspace: "no_bundle" };
+    }
+    if (agentWorkspacePath === undefined) {
+        return {
+            status: install.bundle.status,
+            skills: install.bundle.skills.map(({ name }) => name),
+            mcps: install.bundle.mcps.map(({ name }) => name),
+            tools: install.bundle.tools.map(({ path }) => path),
+            skipped: install.bundle.skipped,
+            overridden: install.bundle.overridden,
+            workspace: "skipped_no_workspace",
+        };
+    }
+    const staged = await stageBundleForWorkspace({
+        skills: pack.bundle.skills,
+        mcps: pack.bundle.mcps,
+        files: pack.bundle.files,
+        skips: pack.bundle.skips,
+        payload: pack.payload,
+    });
+    const installed = await installBundleToWorkspace({ staged, agentWorkspacePath, platform: process.platform });
+    return {
+        status: install.bundle.status,
+        ...installed,
+        workspace: "installed",
+    };
+};
 
 const installModeForImportMode = (mode) => ({
     development: "development-local",

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
 
-VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)-rag-dev\.([1-9]\d*)$")
+VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:-rag-dev\.|-beta-v)([1-9]\d*)$")
 PRODUCT_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 KB_VERSION_RE = re.compile(r"^\d{2}\.[012]\.[1-9]\d*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -28,7 +28,9 @@ class DevelopmentVersion:
     def parse(cls, value: str) -> "DevelopmentVersion":
         match = VERSION_RE.fullmatch(value)
         if match is None:
-            raise ValueError("development version must use MAJOR.MINOR.PATCH-rag-dev.SERIAL")
+            raise ValueError(
+                "development version must use MAJOR.MINOR.PATCH-rag-dev.SERIAL or MAJOR.MINOR.PATCH-beta-vSERIAL"
+            )
         major, minor, patch, serial = match.groups()
         return cls(value, f"{int(major)}.{int(minor)}.{int(patch)}.{int(serial)}")
 
@@ -110,12 +112,12 @@ def validate_rag_arguments(
 def preflight_rag_inputs(pack: Path, sidecar: Path, model_dir: Path) -> RagInputFacts:
     archive = _regular_file(pack, "Package")
     digest = _sha256_file(archive)
-    expected_sidecar = f"{digest}  knowledge-pack-v4.zip\n".encode("ascii")
+    expected_sidecar = f"{digest}  knowledge-pack-v5.zip\n".encode("ascii")
     sidecar_path = _regular_file(sidecar, "sidecar")
-    if sidecar_path.name != "knowledge-pack-v4.zip.sha256" or sidecar_path.read_bytes() != expected_sidecar:
+    if sidecar_path.name != "knowledge-pack-v5.zip.sha256" or sidecar_path.read_bytes() != expected_sidecar:
         raise ValueError("Package sidecar is noncanonical or divergent")
-    if archive.name != "knowledge-pack-v4.zip":
-        raise ValueError("Package basename must be knowledge-pack-v4.zip")
+    if archive.name != "knowledge-pack-v5.zip":
+        raise ValueError("Package basename must be knowledge-pack-v5.zip")
     model = Path(model_dir)
     if model.is_symlink() or not model.is_dir():
         raise ValueError("model directory must be a regular directory")

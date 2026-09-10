@@ -81,8 +81,13 @@ test("bundled RAG is preactivated and passes lifecycle verify", {
     assert.equal(["development", "product-bundled"].includes(metadata.mode), true);
     assert.equal(metadata.releaseEligible, metadata.mode === "product-bundled");
     if (metadata.mode === "development") {
-        assert.equal(metadata.productVersion, "26.1.1-rag-dev.1");
-        assert.equal(metadata.peNumericVersion, "26.1.1.1");
+        // Pinned to the current development build version; bump together with
+        // the build version for each new dev/beta installer (dev.1 carried KB
+        // 26.1.3, 26.2.0-beta-v1 carried KB 26.1.5, beta-v2 adds pre-seeded
+        // skills, beta-v3 was superseded before install, beta-v4 adds pip
+        // cluster-analysis dependencies).
+        assert.equal(metadata.productVersion, "26.2.0-beta-v4");
+        assert.equal(metadata.peNumericVersion, "26.2.0.4");
     }
     assert.equal(metadata.consumerAcceptanceEvaluated, false);
     assert.equal(metadata.promotionEvaluated, false);

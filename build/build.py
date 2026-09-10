@@ -434,6 +434,31 @@ def copy_resource_in_jupyterlab(plugin_path):
     assemble_profiler_runtime(profiler_path)
 
 
+def seed_default_workspace_skills(preview_dir: str) -> int:
+    """Pre-seed the default agent workspace with the merged product skills.
+
+    The shipped install tree carries exactly one copy per skill name (Bundle
+    records win); first-start sync replays the same bytes idempotently.
+    """
+    source = os.path.join(
+        preview_dir, 'resources', 'profiler', 'server', 'insight_web_agent', 'skills'
+    )
+    target = os.path.join(
+        preview_dir, '.mindstudio_insight', 'agent-workspace', '.agents', 'skills'
+    )
+    if not os.path.isdir(source):
+        logging.error('Product skills source is absent: %s', source)
+        return 1
+    if os.path.exists(target):
+        shutil.rmtree(target)
+    shutil.copytree(source, target)
+    names = sorted(
+        entry for entry in os.listdir(target) if os.path.isdir(os.path.join(target, entry))
+    )
+    logging.info('Seeded default workspace skills: count=%d', len(names))
+    return 0
+
+
 def build_package(version, os_name, offline=False):
     os.putenv('CARGO_REGISTRY', 'https://mirrors.tuna.tsinghua.edu.cn/git/crates.io-index')
     if os.getenv('BEPHOME') is not None:  # 规避目前cargo不能跑bep问题
@@ -456,6 +481,8 @@ def build_package(version, os_name, offline=False):
     profiler_path = os.path.join(preview_dir, resource_dir, 'profiler')
     os.mkdir(profiler_path, 0o750)
     assemble_profiler_runtime(profiler_path)
+    if seed_default_workspace_skills(preview_dir) != 0:
+        return 1
     # 在macos下使用cargo bundle --release直接构建为app
     if platform.system() == Const.MAC_OS:
         cmd_list = [Const.CARGO, 'bundle', '--release']

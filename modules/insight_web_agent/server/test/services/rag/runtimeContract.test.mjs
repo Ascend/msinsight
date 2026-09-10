@@ -25,8 +25,9 @@ test("one stable runtime contract contains no producer Profile, model, or Audit 
     const serialized = JSON.stringify(loaded.contract);
 
     assert.match(loaded.contract.contractSha256, /^[0-9a-f]{64}$/);
-    assert.equal(loaded.contract.packageSchemaVersion, "4.0");
+    assert.equal(loaded.contract.packageSchemaVersion, "5.0");
     assert.equal(loaded.contract.packageMembers.includes("bm25-domain-dict.txt"), true);
+    assert.equal(loaded.contract.packageMembers.includes("skills.jsonl"), true);
     assert.equal("sharedAssets" in loaded.contract, false);
     for (const forbidden of [
         "profileId",
@@ -61,6 +62,7 @@ test("runtime contract exact fields and local safety limits are fixed", async ()
     for (const mutate of [
         (value) => { value.future = true; },
         (value) => { value.packageSchemaVersion = "3.0"; },
+        (value) => { value.packageSchemaVersion = "4.0"; },
         (value) => { value.embedding.dimension = 384; },
         (value) => { value.resourceLimits.maxArchiveBytes = 0; },
         (value) => { value.packageMembers.pop(); },

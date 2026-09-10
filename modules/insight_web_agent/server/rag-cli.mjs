@@ -13,8 +13,8 @@ import { fixedRagPaths } from "./services/rag/runtimePaths.mjs";
 
 const USAGE = [
     "Usage:",
-    "  mindstudio-insight-rag import --mode development --pack <knowledge-pack-v4.zip> [--sidecar <knowledge-pack-v4.zip.sha256>]",
-    "  mindstudio-insight-rag activate --version <YY.release.revision> --sha256 <digest>",
+    "  mindstudio-insight-rag import --mode development --pack <knowledge-pack-v5.zip> [--sidecar <pack>.sha256>]",
+    "  mindstudio-insight-rag activate --version <YY.release.revision> --sha256 <digest> [--agent-workspace <path>]",
     "  mindstudio-insight-rag verify",
     "  mindstudio-insight-rag rollback",
     "  mindstudio-insight-rag status",
@@ -40,7 +40,10 @@ export const run = async ({
             sidecarPath: command.sidecar ?? `${command.pack}.sha256`,
         });
     } else if (command.type === "activate") {
-        result = await packageService.activate(command.version, { sha256: command.sha256 });
+        result = await packageService.activate(command.version, {
+            sha256: command.sha256,
+            ...(command.agentWorkspace === undefined ? {} : { agentWorkspacePath: command.agentWorkspace }),
+        });
     } else if (command.type === "verify") {
         result = await packageService.verify();
     } else if (command.type === "rollback") {
@@ -58,7 +61,7 @@ const parseCommand = (args) => {
     if (!["import", "activate", "verify", "rollback", "status"].includes(type)) throw new Error(USAGE);
     const allowedOptions = {
         import: ["mode", "pack", "sidecar"],
-        activate: ["version", "sha256"],
+        activate: ["version", "sha256", "agent-workspace"],
         verify: [],
         rollback: [],
         status: [],
@@ -74,6 +77,7 @@ const parseCommand = (args) => {
             type,
             version: required(options, "version"),
             sha256: required(options, "sha256"),
+            agentWorkspace: options["agent-workspace"],
         };
     }
     return { type };

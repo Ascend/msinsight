@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "packageSchemaVersion": "4.0",
+  "packageSchemaVersion": "5.0",
   "packageMembers": [
     "manifest.json",
     "sources.jsonl",
@@ -9,6 +9,10 @@
     "vectors.f32",
     "bm25-domain-dict.txt",
     "bm25.json",
+    "skills.jsonl",
+    "mcps.jsonl",
+    "bundle-files.jsonl",
+    "bundle-skips.jsonl",
     "build-audit.json",
     "checksums.json"
   ],

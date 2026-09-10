@@ -23,7 +23,9 @@ test("RAG CLI help exposes development lifecycle without seed or data-root contr
     assert.equal(await run({ args: ["--help"], output: captured.logger }), 0);
 
     assert.match(captured.lines[0], /--mode development/);
-    assert.match(captured.lines[0], /knowledge-pack-v4\.zip/);
+    assert.doesNotMatch(captured.lines[0], /knowledge-pack-v4\.zip/);
+    assert.match(captured.lines[0], /knowledge-pack-v5\.zip/);
+    assert.match(captured.lines[0], /--agent-workspace/);
     assert.doesNotMatch(captured.lines[0], /provision-seed|--data-dir|--mode release/);
 });
 
@@ -38,16 +40,16 @@ test("RAG CLI imports development Package with adjacent canonical sidecar", asyn
     };
 
     await run({
-        args: ["import", "--mode", "development", "--pack", "C:/handoff/knowledge-pack-v4.zip"],
+        args: ["import", "--mode", "development", "--pack", "C:/handoff/knowledge-pack-v5.zip"],
         output: captured.logger,
         service,
     });
 
     assert.deepEqual(calls, [{
-        pack: "C:/handoff/knowledge-pack-v4.zip",
+        pack: "C:/handoff/knowledge-pack-v5.zip",
         options: {
             mode: "development",
-            sidecarPath: "C:/handoff/knowledge-pack-v4.zip.sha256",
+            sidecarPath: "C:/handoff/knowledge-pack-v5.zip.sha256",
         },
     }]);
 });
@@ -83,6 +85,26 @@ test("RAG CLI activate, status, verify, and rollback require no data-root option
         ["status"],
         ["verify"],
         ["rollback"],
+    ]);
+});
+
+test("RAG CLI activate forwards the optional agent workspace", async () => {
+    const calls = [];
+    const service = {
+        async activate(version, options) {
+            calls.push(["activate", version, options]);
+            return { status: "activated" };
+        },
+    };
+
+    await run({
+        args: ["activate", "--version", "26.1.1", "--sha256", "a".repeat(64), "--agent-workspace", "C:/workspace"],
+        service,
+        output: { log() {} },
+    });
+
+    assert.deepEqual(calls, [
+        ["activate", "26.1.1", { sha256: "a".repeat(64), agentWorkspacePath: "C:/workspace" }],
     ]);
 });
 

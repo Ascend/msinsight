@@ -120,6 +120,15 @@ Section "MindStudio Insight" Secascend_insight
     Abort
   ${EndIf}
 
+  ; Replace pre-seeded skill trees wholesale: the Package allowlist is
+  ; authoritative and Bundle records win, so stale skills must not survive.
+  ClearErrors
+  RMDir /r "$INSTDIR\resources\profiler\server\insight_web_agent\skills"
+  RMDir /r "$INSTDIR\.mindstudio_insight\agent-workspace\.agents\skills"
+  ${If} ${Errors}
+    Abort
+  ${EndIf}
+
   ; Remove Start Menu shortcut
   Delete "$DESKTOP\MindStudio Insight.lnk"
   Delete "$DESKTOP\Ascend Insight.lnk"
@@ -130,6 +139,8 @@ Section "MindStudio Insight" Secascend_insight
   File /r "MindStudio-Insight.exe"
   SetOutPath $INSTDIR\resources
   File /r "resources\*"
+  SetOutPath $INSTDIR\.mindstudio_insight\agent-workspace\.agents\skills
+  File /r ".mindstudio_insight\agent-workspace\.agents\skills\*.*"
   SetOutPath $INSTDIR\config
   File /r "config\*"
   ${If} ${Errors}

@@ -11,3 +11,5 @@ pandas==2.3.2
 PyYaml==6.0.3
 colorama==0.4.6
 tqdm==4.67.3
+pt-snap-cli==0.2.0
+msprof_analyze==26.1.0

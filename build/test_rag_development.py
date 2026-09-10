@@ -27,7 +27,10 @@ def test_development_version_maps_string_to_exact_pe_numeric_identity() -> None:
 
     assert version.product == "26.1.1-rag-dev.1"
     assert version.pe_numeric == "26.1.1.1"
-    for invalid in ["26.1.1", "26.1.1-rag-dev.0", "26.1-rag-dev.1", "26.1.1-rag-dev.01"]:
+    beta = DevelopmentVersion.parse("26.2.0-beta-v1")
+    assert beta.product == "26.2.0-beta-v1"
+    assert beta.pe_numeric == "26.2.0.1"
+    for invalid in ["26.1.1", "26.1.1-rag-dev.0", "26.1-rag-dev.1", "26.1.1-rag-dev.01", "26.2.0-beta-v0", "26.2.0-beta-1"]:
         with pytest.raises(ValueError):
             DevelopmentVersion.parse(invalid)
 
@@ -42,8 +45,8 @@ def test_product_version_maps_plain_release_to_stable_pe_identity() -> None:
 
 
 def test_rag_arguments_are_all_or_none_and_reject_forbidden_values(tmp_path: Path) -> None:
-    pack = tmp_path / "knowledge-pack-v4.zip"
-    sidecar = tmp_path / "knowledge-pack-v4.zip.sha256"
+    pack = tmp_path / "knowledge-pack-v5.zip"
+    sidecar = tmp_path / "knowledge-pack-v5.zip.sha256"
     model = tmp_path / "model"
     model.mkdir()
 
@@ -87,7 +90,7 @@ def test_rag_arguments_are_all_or_none_and_reject_forbidden_values(tmp_path: Pat
 def test_preflight_binds_exact_package_sidecar_before_output(tmp_path: Path) -> None:
     import zipfile
 
-    pack = tmp_path / "knowledge-pack-v4.zip"
+    pack = tmp_path / "knowledge-pack-v5.zip"
     with zipfile.ZipFile(pack, "w") as archive:
         archive.writestr(
             "manifest.json",
@@ -100,8 +103,8 @@ def test_preflight_binds_exact_package_sidecar_before_output(tmp_path: Path) -> 
             ),
         )
     digest = hashlib.sha256(pack.read_bytes()).hexdigest()
-    sidecar = tmp_path / "knowledge-pack-v4.zip.sha256"
-    sidecar.write_bytes(f"{digest}  knowledge-pack-v4.zip\n".encode())
+    sidecar = tmp_path / "knowledge-pack-v5.zip.sha256"
+    sidecar.write_bytes(f"{digest}  knowledge-pack-v5.zip\n".encode())
     model = tmp_path / "model"
     model.mkdir()
     (model / "model-manifest.json").write_text("{}", encoding="utf-8")
@@ -111,7 +114,7 @@ def test_preflight_binds_exact_package_sidecar_before_output(tmp_path: Path) -> 
     assert facts.package_sha256 == digest
     assert facts.kb_version == "26.1.2"
     assert facts.source_set_id == "ss_" + "1" * 64
-    sidecar.write_bytes(f"{'0' * 64}  knowledge-pack-v4.zip\n".encode())
+    sidecar.write_bytes(f"{'0' * 64}  knowledge-pack-v5.zip\n".encode())
     with pytest.raises(ValueError):
         preflight_rag_inputs(pack, sidecar, model)
 

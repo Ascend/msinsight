@@ -20,32 +20,43 @@ import { createHash } from "node:crypto";
 import { lstat, readFile, readdir } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { loadRuntimeContract } from "./runtimeContract.mjs";
-import { PACKAGE_MEMBERS, validatePackageMemberBytes } from "./wire/packageContracts.mjs";
+import yauzl from "yauzl";
+import { PACKAGE_V5_PAYLOAD_PREFIX, validateBundleRecords } from "./wire/packageBundleContracts.mjs";
+import { PACKAGE_V5_METADATA_MEMBERS, PACKAGE_V5_SUFFIX_MEMBERS } from "./wire/packageBundleContracts.mjs";
 import { parseCanonicalJson } from "./wire/strictJsonParser.mjs";
 
-export const REQUIRED_PACKAGE_FILES = PACKAGE_MEMBERS;
+export const REQUIRED_PACKAGE_FILES = Object.freeze([...PACKAGE_V5_METADATA_MEMBERS, ...PACKAGE_V5_SUFFIX_MEMBERS]);
 const INSTALL_FILE = "install.json";
-const ARCHIVE_FILE = "knowledge-pack-v4.zip";
-const SIDECAR_FILE = "knowledge-pack-v4.zip.sha256";
-const INSTALLED_FILES = new Set([...PACKAGE_MEMBERS, INSTALL_FILE, ARCHIVE_FILE, SIDECAR_FILE]);
-const FINGERPRINT_FILES = [ARCHIVE_FILE, SIDECAR_FILE, ...PACKAGE_MEMBERS];
+const ARCHIVE_FILE = "knowledge-pack-v5.zip";
+const SIDECAR_FILE = "knowledge-pack-v5.zip.sha256";
+const PACKAGE_V5_FIXED_FILES = REQUIRED_PACKAGE_FILES;
+const INSTALLED_FILES = new Set([...PACKAGE_V5_FIXED_FILES, INSTALL_FILE, ARCHIVE_FILE, SIDECAR_FILE]);
+const FINGERPRINT_FILES = [ARCHIVE_FILE, SIDECAR_FILE, ...PACKAGE_V5_FIXED_FILES];
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
 export const loadKnowledgePack = async (kbDir, { runtimeDir, runtimeContract, modelContract, install } = {}) => {
     const directory = resolveRequiredDirectory(kbDir, "knowledge directory");
     await ensureDirectory(directory);
+    await ensureRegularFile(join(directory, "manifest.json"), "manifest.json");
+    const manifestSchema = peekManifestSchemaVersion(await readFile(join(directory, "manifest.json")));
+    const memberNames = PACKAGE_V5_FIXED_FILES;
     const entries = await readdir(directory, { withFileTypes: true });
     const names = new Set(entries.map(({ name }) => name));
-    for (const name of PACKAGE_MEMBERS) {
+    for (const name of memberNames) {
         if (!names.has(name)) throw codedError("pack_unreadable", `RAG knowledge file does not exist: ${name}`);
         await ensureRegularFile(join(directory, name), name);
     }
-    const members = new Map(await Promise.all(PACKAGE_MEMBERS.map(async (name) => [name, await readFile(join(directory, name))])));
+    const members = new Map(await Promise.all(memberNames.map(async (name) => [name, await readFile(join(directory, name))])));
     if (install) await validateInstalledFingerprints(directory, members, install);
     const loadedRuntime = runtimeContract ?? (await loadRuntimeContract(runtimeDir)).contract;
+    const { validatePackageV5MemberBytes } = await import("./knowledgePackageService.mjs");
     return {
         kbDir: directory,
-        ...validatePackageMemberBytes({ members, runtimeContract: loadedRuntime, modelContract }),
+        ...validatePackageV5MemberBytes({
+            members: await withInstalledPayload(directory, members, manifestSchema),
+            runtimeContract: loadedRuntime,
+            modelContract,
+        }),
     };
 };
 
@@ -80,13 +91,14 @@ export const readInstallRecord = async (kbDir) => {
     await ensureRegularFile(path, INSTALL_FILE);
     const install = parseCanonicalJson(await readFile(path), INSTALL_FILE);
     validateInstallRecord(install);
+    const closure = INSTALLED_FILES;
     const entries = await readdir(kbDir, { withFileTypes: true });
     for (const entry of entries) {
-        if (!INSTALLED_FILES.has(entry.name) || !entry.isFile()) {
+        if (!closure.has(entry.name) || !entry.isFile()) {
             throw codedError("pack_unreadable", "Installed RAG package contains an unexpected or non-file entry");
         }
     }
-    if (entries.length !== INSTALLED_FILES.size) throw codedError("pack_unreadable", "Installed RAG package file closure is incomplete");
+    if (entries.length !== closure.size) throw codedError("pack_unreadable", "Installed RAG package file closure is incomplete");
     return install;
 };
 
@@ -110,7 +122,7 @@ const validatePointerEntry = (entry, label) => {
 };
 
 const validateInstallRecord = (install) => {
-    exactKeys(install, [
+    const baseKeys = [
         "files",
         "installMode",
         "kbId",
@@ -119,23 +131,23 @@ const validateInstallRecord = (install) => {
         "package",
         "runtimeContractSha256",
         "schemaVersion",
-    ], "install record");
-    if (install.schemaVersion !== "1.0" || install.kbId !== "mindstudio-insight-ascend" || !/^\d{2}\.[012]\.[1-9]\d*$/.test(install.kbVersion)) {
+    ];
+    exactKeys(install, [...baseKeys, "bundle"], "install record");
+    if (install.schemaVersion !== "1.1" || install.kbId !== "mindstudio-insight-ascend" || !/^\d{2}\.[012]\.[1-9]\d*$/.test(install.kbVersion)) {
         throw codedError("pack_unreadable", "Installed RAG package identity is invalid");
     }
+    validateInstallBundle(install.bundle);
     if (!SHA256_RE.test(install.runtimeContractSha256)) throw codedError("pack_unreadable", "Installed RAG runtime contract digest is invalid");
     if (!["development-local", "product-bundled"].includes(install.installMode)) throw codedError("pack_unreadable", "Installed RAG mode is invalid");
     exactKeys(install.package, ["sha256", "sizeBytes"], "install package identity");
     if (!SHA256_RE.test(install.package.sha256) || !Number.isSafeInteger(install.package.sizeBytes) || install.package.sizeBytes <= 0) {
         throw codedError("pack_unreadable", "Installed RAG package digest or size is invalid");
     }
-    exactKeys(install.memberSha256, [...PACKAGE_MEMBERS].sort(), "install member SHA-256");
-    for (const digest of Object.values(install.memberSha256)) {
-        if (!SHA256_RE.test(digest)) throw codedError("pack_unreadable", "Installed RAG member digest is invalid");
-    }
-    if (!Array.isArray(install.files) || install.files.length !== FINGERPRINT_FILES.length) throw codedError("pack_unreadable", "Installed RAG file fingerprints are invalid");
+    validateInstallMemberDigests(install);
+    const fingerprintFiles = FINGERPRINT_FILES;
+    if (!Array.isArray(install.files) || install.files.length !== fingerprintFiles.length) throw codedError("pack_unreadable", "Installed RAG file fingerprints are invalid");
     const names = install.files.map(({ name }) => name);
-    if (names.some((name, index) => name !== FINGERPRINT_FILES[index])) throw codedError("pack_unreadable", "Installed RAG file fingerprints are not ordered");
+    if (names.some((name, index) => name !== fingerprintFiles[index])) throw codedError("pack_unreadable", "Installed RAG file fingerprints are not ordered");
     for (const file of install.files) {
         exactKeys(file, ["mtimeNs", "name", "sizeBytes"], "install file fingerprint");
         if (!Number.isSafeInteger(file.sizeBytes)
@@ -145,9 +157,138 @@ const validateInstallRecord = (install) => {
     }
 };
 
+const validateInstallMemberDigests = (install) => {
+    // Key order is already enforced by canonical JSON parsing; only the fixed
+    // subset and digest shapes are re-checked here.
+    for (const digest of Object.values(install.memberSha256)) {
+        if (!SHA256_RE.test(digest)) throw codedError("pack_unreadable", "Installed RAG member digest is invalid");
+    }
+    for (const name of PACKAGE_V5_FIXED_FILES) {
+        if (!Object.hasOwn(install.memberSha256, name)) throw codedError("pack_unreadable", `Installed RAG member digest is missing: ${name}`);
+    }
+};
+
+const validateInstallBundle = (bundle) => {
+    exactKeys(bundle, ["mcps", "overridden", "skills", "skipped", "status", "tools"], "install bundle record");
+    if (!["complete", "partial", "empty"].includes(bundle.status)) throw codedError("pack_unreadable", "Installed RAG bundle status is invalid");
+    if (!Array.isArray(bundle.skills) || !Array.isArray(bundle.mcps) || !Array.isArray(bundle.tools) || !Array.isArray(bundle.skipped) || !Array.isArray(bundle.overridden)) {
+        throw codedError("pack_unreadable", "Installed RAG bundle record is invalid");
+    }
+    for (const skill of bundle.skills) {
+        exactKeys(skill, ["description", "entryPath", "name", "rootPath", "sourceId"], "install bundle skill");
+        if (!skill.name || !skill.sourceId || !skill.rootPath || !skill.entryPath) throw codedError("pack_unreadable", "Installed RAG bundle skill is invalid");
+    }
+    for (const mcp of bundle.mcps) {
+        exactKeys(mcp, ["arguments", "entryPath", "environment", "name", "rootPath", "runtime", "sourceId", "transport"], "install bundle MCP");
+        if (!mcp.name || !mcp.sourceId || !mcp.rootPath || !mcp.entryPath) throw codedError("pack_unreadable", "Installed RAG bundle MCP is invalid");
+        if (!Array.isArray(mcp.arguments) || !Array.isArray(mcp.environment)) throw codedError("pack_unreadable", "Installed RAG bundle MCP is invalid");
+        if (mcp.environment.some((entry) => typeof entry !== "string" || entry.includes("="))) {
+            throw codedError("pack_unreadable", "Installed RAG bundle MCP environment must name variables only");
+        }
+    }
+    for (const tool of bundle.tools) {
+        exactKeys(tool, ["ownerSkillIds", "path"], "install bundle tool");
+        if (!tool.path || !Array.isArray(tool.ownerSkillIds)) throw codedError("pack_unreadable", "Installed RAG bundle tool is invalid");
+    }
+    for (const skip of bundle.skipped) {
+        exactKeys(skip, ["id", "kind", "reasonCode", "rootPath"], "install bundle skip");
+        if (!["skill", "mcp", "skill-tool"].includes(skip.kind) || !skip.id || !skip.reasonCode) {
+            throw codedError("pack_unreadable", "Installed RAG bundle skip is invalid");
+        }
+    }
+    for (const name of bundle.overridden) {
+        if (typeof name !== "string" || !name) throw codedError("pack_unreadable", "Installed RAG bundle override is invalid");
+    }
+};
+
+const withInstalledPayload = async (directory, members, manifestSchema) => {
+    void manifestSchema;
+    const full = new Map(members);
+    const payloadNames = (await readInstalledPayloadNames(directory, ARCHIVE_FILE)).filter((name) =>
+        name.startsWith(PACKAGE_V5_PAYLOAD_PREFIX),
+    );
+    for (const name of payloadNames) {
+        full.set(name, await readInstalledPayloadMember(directory, ARCHIVE_FILE, name));
+    }
+    return full;
+};
+
+const MAX_INSTALLED_PAYLOAD_BYTES = 512 * 1024 * 1024;
+
+const readInstalledPayloadNames = (directory, archiveName) => new Promise((resolvePromise, rejectPromise) => {
+    yauzl.open(join(directory, archiveName), { autoClose: true, decodeStrings: true, lazyEntries: true }, (openError, zipFile) => {
+        if (openError) return rejectPromise(codedError("pack_unreadable", `Installed RAG archive is unavailable: ${openError.message}`));
+        const names = [];
+        zipFile.on("error", (error) => rejectPromise(codedError("pack_unreadable", `Installed RAG archive is unavailable: ${error.message}`)));
+        zipFile.on("entry", (entry) => {
+            names.push(entry.fileName);
+            zipFile.readEntry();
+        });
+        zipFile.on("end", () => {
+            zipFile.close();
+            resolvePromise(names);
+        });
+        zipFile.readEntry();
+    });
+});
+
+const readInstalledPayloadMember = (directory, archiveName, name) => new Promise((resolvePromise, rejectPromise) => {
+    yauzl.open(join(directory, archiveName), { autoClose: true, decodeStrings: true, lazyEntries: true }, (openError, zipFile) => {
+        if (openError) return rejectPromise(codedError("pack_unreadable", `Installed RAG archive is unavailable: ${openError.message}`));
+        let settled = false;
+        const fail = (error) => {
+            if (settled) return;
+            settled = true;
+            zipFile.close();
+            rejectPromise(error);
+        };
+        zipFile.on("error", fail);
+        zipFile.on("entry", (entry) => {
+            if (entry.fileName !== name) {
+                zipFile.readEntry();
+                return;
+            }
+            zipFile.openReadStream(entry, (streamError, stream) => {
+                if (streamError) return fail(codedError("pack_unreadable", `Installed RAG member is unavailable: ${name}`));
+                const chunks = [];
+                let length = 0;
+                stream.on("data", (chunk) => {
+                    length += chunk.length;
+                    if (length > MAX_INSTALLED_PAYLOAD_BYTES) stream.destroy(codedError("pack_unreadable", `Installed RAG member exceeds the size limit: ${name}`));
+                    else chunks.push(chunk);
+                });
+                stream.on("error", fail);
+                stream.on("end", () => {
+                    if (settled) return;
+                    settled = true;
+                    zipFile.close();
+                    resolvePromise(Buffer.concat(chunks, length));
+                });
+            });
+        });
+        zipFile.on("end", () => fail(codedError("pack_unreadable", `Installed RAG member is missing: ${name}`)));
+        zipFile.readEntry();
+    });
+});
+
+const peekManifestSchemaVersion = (bytes) => {
+    let manifest;
+    try {
+        manifest = parseCanonicalJson(bytes, "manifest.json");
+    } catch {
+        throw codedError("pack_unreadable", "Installed RAG manifest is not readable");
+    }
+    if (manifest.schemaVersion !== "5.0") {
+        throw codedError("pack_unreadable", "Installed RAG manifest schemaVersion must be 5.0");
+    }
+    return "5.0";
+};
+
 const validateInstalledFingerprints = async (directory, members, install) => {
+    const fingerprintFiles = FINGERPRINT_FILES;
+    const memberFiles = PACKAGE_V5_FIXED_FILES;
     const expectedFiles = new Map(install.files.map((file) => [file.name, file]));
-    for (const name of FINGERPRINT_FILES) {
+    for (const name of fingerprintFiles) {
         const expected = expectedFiles.get(name);
         const info = await lstat(join(directory, name), { bigint: true });
         if (info.isSymbolicLink()
@@ -157,7 +298,7 @@ const validateInstalledFingerprints = async (directory, members, install) => {
             throw codedError("checksum_mismatch", `Installed RAG file fingerprint changed: ${name}`);
         }
     }
-    for (const name of PACKAGE_MEMBERS) {
+    for (const name of memberFiles) {
         const bytes = members.get(name);
         if (createHash("sha256").update(bytes).digest("hex") !== install.memberSha256[name]) {
             throw codedError("checksum_mismatch", `Installed RAG member no longer matches install.json: ${name}`);
