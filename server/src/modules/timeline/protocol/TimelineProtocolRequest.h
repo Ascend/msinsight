@@ -530,6 +530,7 @@ struct KernelDetailsParams {
     std::string deviceId;
     std::string coreType;
     std::string searchName;
+    bool computingOnly = false;
     std::vector<std::pair<std::string, std::string>> filters;
     void Check(uint64_t minTime, std::string &error) const;
 };

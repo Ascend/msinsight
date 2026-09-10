@@ -48,6 +48,7 @@ TEST(BuildKernelOverallResultTest, BuildsAcceleratorCoreColumnAndUniqueKey) {
     EXPECT_EQ(response.details[0].acceleratorCore, "AI_CORE");
     EXPECT_EQ(response.details[0].number, 2U);
     EXPECT_DOUBLE_EQ(response.details[0].totalTime, 30.0);
+    EXPECT_DOUBLE_EQ(response.details[0].ratio, 85.71);
     EXPECT_DOUBLE_EQ(response.details[0].avgTime, 15.0);
     EXPECT_DOUBLE_EQ(response.details[0].minTime, 10.0);
     EXPECT_DOUBLE_EQ(response.details[0].maxTime, 20.0);
@@ -55,6 +56,7 @@ TEST(BuildKernelOverallResultTest, BuildsAcceleratorCoreColumnAndUniqueKey) {
     EXPECT_EQ(response.details[1].key, "6:MatMul|14:AI_VECTOR_CORE");
     EXPECT_EQ(response.details[1].type, "MatMul");
     EXPECT_EQ(response.details[1].acceleratorCore, "AI_VECTOR_CORE");
+    EXPECT_DOUBLE_EQ(response.details[1].ratio, 14.29);
 }
 
 TEST(BuildKernelOverallResultTest, EmptyTypeAndAcceleratorCoreAreKeptInKey) {

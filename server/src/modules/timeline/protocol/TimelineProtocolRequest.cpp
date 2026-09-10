@@ -268,7 +268,7 @@ bool KernelOverallRequest::Params::CheckParams(uint64_t minTime, std::string &er
         return false;
     }
     if (orderBy != "type" && orderBy != "acceleratorCore" && orderBy != "number" && orderBy != "totalTime" &&
-        orderBy != "avgTime" && orderBy != "minTime" && orderBy != "maxTime") {
+        orderBy != "avgTime" && orderBy != "minTime" && orderBy != "maxTime" && orderBy != "ratio") {
         errMsg = "kernel overall orderBy is invalid";
         return false;
     }

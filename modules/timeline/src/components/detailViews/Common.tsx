@@ -235,9 +235,9 @@ export const statsSystemViewItems: SystemViewItem[] = [
     { name: 'Communication Summary', tips: 'CommunicationSummaryTips' },
     { name: 'Communication Trace', tips: 'CommunicationTraceTips' },
     { name: 'Overlap Analysis', tips: 'OverlapAnalysisTips' },
-    { name: 'Kernel E2E Time', tips: 'KernelE2ETimeTips' },
+    { name: 'Kernel Dispatch Duration Breakdown', tips: 'KernelE2ETimeTips' },
     { name: 'Kernel Details', tips: 'KernelDetailsTips' },
-    { name: 'Operator Details', tips: 'OperatorDetailsTips' },
+    { name: 'Kernel Summary', tips: 'KernelSummaryTips' },
     { name: 'Memcpy Overall' },
     { name: KERNEL_MFU_VIEW_NAME, tips: 'KernelMfuTips' },
     { name: 'Ftrace Task Summary' },
@@ -344,7 +344,7 @@ export const queryTableDataDetails = async (param: {
 
 export const queryKernelDetails = async (param: {
     rankId: string; dbPath: string; pageSize: number; current: number; orderBy: string; order: string;
-    startTime: number; endTime: number; coreType: string; filterCondition: string[];
+    startTime: number; endTime: number; coreType: string; filterCondition: string[]; computingOnly?: boolean;
 }): Promise<any> => {
     return window.requestData('unit/kernelDetails', param, 'timeline');
 };

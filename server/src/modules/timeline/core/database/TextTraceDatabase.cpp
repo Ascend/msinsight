@@ -1777,7 +1777,7 @@ LayerStatData TextTraceDatabase::QueryLayerData(const Protocol::SystemViewParams
     }
     if (resultSet->Next()) {
         layerStatData.allOperatorTime = resultSet->GetDouble("totalTime");
-        layerStatData.total = resultSet->GetUint64("count(distinct name)");
+        layerStatData.total = resultSet->GetUint64("operatorCount");
     }
     return layerStatData;
 }
@@ -1811,19 +1811,22 @@ uint64_t TextTraceDatabase::QueryTotalKernel(
         "    input_shapes AS inputShapes, input_data_types AS inputDataTypes, input_formats AS inputFormats, "
         "    output_shapes AS outputShapes, output_data_types AS outputDataTypes, "
         "    output_formats AS outputFormats FROM kernel_detail WHERE deviceId = ? ";
+    if (requestParams.computingOnly) {
+        sql += " AND lower(accelerator_core) NOT IN ('hccl', 'communication') ";
+    }
     if (requestParams.startTime != requestParams.endTime) {
         sql += " AND (start_time + duration*1000) >= ? AND start_time <= ? ";
     }
-    sql += ") subquery ";
+    sql += ") subquery WHERE 1=1 ";
     for (const auto &filter : requestParams.filters) {
         if (!StringUtil::CheckSqlValid(filter.first)) {
             Server::ServerLog::Error("There is an SQL injection attack on this parameter. param: filter");
             return total;
         }
-        sql += " WHERE lower(" + filter.first + ") LIKE lower(?) ";
+        sql += " AND lower(" + filter.first + ") LIKE lower(?) ";
     }
     if (!requestParams.coreType.empty()) {
-        sql += " AND accelerator_core = ? ";
+        sql += " AND acceleratorCore = ? ";
     }
     auto stmt = CreatPreparedStatement(sql);
     if (stmt == nullptr) {
@@ -1832,14 +1835,14 @@ uint64_t TextTraceDatabase::QueryTotalKernel(
     }
     stmt->BindParams(requestParams.deviceId);
     if (requestParams.startTime != requestParams.endTime) {
-        stmt->BindParams(requestParams.startTime, requestParams.endTime);
-    }
-    if (!requestParams.coreType.empty()) {
-        stmt->BindParams(requestParams.coreType);
+        stmt->BindParams(requestParams.startTime + minTimestamp, requestParams.endTime + minTimestamp);
     }
     for (const auto &filter : requestParams.filters) {
         std::string bindFilter = "%" + filter.second + "%";
         stmt->BindParams(bindFilter);
+    }
+    if (!requestParams.coreType.empty()) {
+        stmt->BindParams(requestParams.coreType);
     }
     auto resultSet = stmt->ExecuteQuery();
     if (resultSet == nullptr) {
@@ -1874,12 +1877,12 @@ bool TextTraceDatabase::QueryKernelDetailData(const Protocol::KernelDetailsParam
     if (requestParams.startTime != requestParams.endTime) {
         stmt->BindParams(requestParams.startTime + minTimestamp, requestParams.endTime + minTimestamp);
     }
-    if (!requestParams.coreType.empty()) {
-        stmt->BindParams(requestParams.coreType);
-    }
     for (const auto &filter : requestParams.filters) {
         std::string bindFilter = "%" + filter.second + "%";
         stmt->BindParams(bindFilter);
+    }
+    if (!requestParams.coreType.empty()) {
+        stmt->BindParams(requestParams.coreType);
     }
     auto resultSet = stmt->ExecuteQuery(requestParams.pageSize, offset);
     if (resultSet == nullptr) {

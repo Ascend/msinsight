@@ -1001,6 +1001,7 @@ template <> std::optional<document_t> ToResponseJson<KernelOverallResponse>(cons
         JsonUtil::AddMember(detail, "type", item.type, allocator);
         JsonUtil::AddMember(detail, "acceleratorCore", item.acceleratorCore, allocator);
         JsonUtil::AddMember(detail, "totalTime", item.totalTime, allocator);
+        JsonUtil::AddMember(detail, "ratio", item.ratio, allocator);
         JsonUtil::AddMember(detail, "number", item.number, allocator);
         JsonUtil::AddMember(detail, "avgTime", item.avgTime, allocator);
         JsonUtil::AddMember(detail, "minTime", item.minTime, allocator);

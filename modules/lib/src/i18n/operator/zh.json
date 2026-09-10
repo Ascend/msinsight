@@ -34,6 +34,7 @@
       "AcceleratorCore": "加速器核",
       "Count": "数量",
       "TotalTime": "总耗时",
+      "TimeRatio": "耗时占比",
       "AvgTime": "平均耗时",
       "MaxTime": "最大耗时",
       "MinTime": "最小耗时",

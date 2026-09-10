@@ -34,6 +34,7 @@
       "AcceleratorCore": "Accelerator Core",
       "Count": "Count",
       "TotalTime": "Total Time",
+      "TimeRatio": "Time Ratio",
       "AvgTime": "Avg Time",
       "MaxTime": "Max Time",
       "MinTime": "Min Time",
