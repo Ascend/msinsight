@@ -18,6 +18,7 @@
 import { randomUUID } from "node:crypto";
 import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { presentCatalogAgents } from "./agentDiscoveryService.mjs";
 import { agentLaunchKey, BUILTIN_AGENT_NAME } from "./agentIdentityService.mjs";
 
 const AGENT_CONFIG_FILE = "agent-servers.json";
@@ -27,7 +28,15 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 const DEFAULT_PROMPT_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PERMISSION_TIMEOUT_MS = 5 * 60 * 1000;
 
-export const createAgentConfigService = ({ rootDir, state, beforeReload, reloadRuntime, tempId = randomUUID } = {}) => {
+export const createAgentConfigService = ({
+    rootDir,
+    state,
+    beforeReload,
+    reloadRuntime,
+    tempId = randomUUID,
+    getDiscoveredAgents,
+    getConfiguredAgents,
+} = {}) => {
     const agentConfigPath = join(rootDir, AGENT_CONFIG_FILE);
     const sessionConfigPath = join(rootDir, SESSION_CONFIG_FILE);
     const nativeConfigPath = join(rootDir, NATIVE_CONFIG_FILE);
@@ -38,13 +47,23 @@ export const createAgentConfigService = ({ rootDir, state, beforeReload, reloadR
             readOptionalJson(sessionConfigPath),
             readJson(nativeConfigPath),
         ]);
-        return normalizeSnapshot(agentConfig, sessionConfig, builtinAgent);
+        return withCatalogAgents(normalizeSnapshot(agentConfig, sessionConfig, builtinAgent));
     };
+
+    const catalogAgents = () => presentCatalogAgents({
+        discovered: getDiscoveredAgents?.() ?? [],
+        configured: getConfiguredAgents?.() ?? [],
+    });
+
+    const withCatalogAgents = (snapshot) => ({
+        ...snapshot,
+        catalogAgents: catalogAgents(),
+    });
 
     const saveAgentServers = async (input) => {
         const currentSnapshot = await readSnapshot();
         if (isBusy(state)) return structuredError("agent_busy", "Agent is busy", 409);
-        const validation = validateAgentConfig(input, currentSnapshot);
+        const validation = validateAgentConfig(input, currentSnapshot, catalogAgents());
         if (validation.error) return validation;
         return saveSection({
             path: agentConfigPath,
@@ -157,18 +176,16 @@ const normalizeTimeout = (value, fallback) => {
     return Number.isFinite(timeout) && timeout > 0 ? timeout : fallback;
 };
 
-const validateAgentConfig = (input, currentSnapshot) => {
+const validateAgentConfig = (input, currentSnapshot, catalogAgents = []) => {
     if (!input || typeof input !== "object" || Array.isArray(input)) return structuredError("validation_failed", "agent config must be an object", 400);
     const errors = [];
     const agentServers = validateAgentServers(input.agentServers, currentSnapshot, errors);
-    const activeAgentName = String(input.activeAgentName ?? "").trim();
-    if (!activeAgentName) errors.push({ field: "activeAgentName", message: "active agent is required" });
-    if (activeAgentName
-        && activeAgentName !== BUILTIN_AGENT_NAME
-        && !isDiscoveredAgentName(activeAgentName)
-        && !agentServers.some((server) => server.name === activeAgentName)) {
-        errors.push({ field: "activeAgentName", message: "active agent must reference a configured agent" });
-    }
+    const activeAgentName = resolvePersistedActiveAgentName(
+        String(input.activeAgentName ?? "").trim(),
+        agentServers,
+        catalogAgents,
+        errors,
+    );
     const duplicateLaunch = findLaunchDuplicate(agentServers);
 
     if (errors.length) return structuredError("validation_failed", errors[0].message, 400, { details: errors });
@@ -259,6 +276,24 @@ const findLaunchDuplicate = (servers) => {
         seen.set(key, server);
     }
     return undefined;
+};
+
+const resolvePersistedActiveAgentName = (requestedName, agentServers, catalogAgents, errors) => {
+    if (!requestedName) {
+        errors.push({ field: "activeAgentName", message: "active agent is required" });
+        return requestedName;
+    }
+    if (requestedName === BUILTIN_AGENT_NAME || agentServers.some((server) => server.name === requestedName)) {
+        return requestedName;
+    }
+    const catalogAgent = catalogAgents.find((agent) => agent.name === requestedName);
+    if (!catalogAgent) {
+        errors.push({ field: "activeAgentName", message: "active agent must reference a configured agent" });
+        return requestedName;
+    }
+    if (catalogAgent.available) return requestedName;
+    errors.push({ field: "activeAgentName", message: "active agent must reference an available discovered agent" });
+    return requestedName;
 };
 
 const isDiscoveredAgentName = (name) => /\(auto\)$/i.test(String(name ?? "").trim());

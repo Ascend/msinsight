@@ -15,22 +15,35 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import { resolveAgentKind } from '../agentBrand';
+import { agentKindLogoAsset, agentKindLogoSrc, resolveAgentKind } from '../agentBrand';
 
-test('resolves known agent types from name, command, or provider', () => {
-    expect(resolveAgentKind({ name: 'MS Insight_Native' })).toBe('insight');
+test('resolves logos for the built-in agent and the four auto-discovered catalog agents', () => {
     expect(resolveAgentKind({ name: 'msinsight-native' })).toBe('insight');
+    expect(resolveAgentKind({ name: 'OpenCode(auto)' })).toBe('opencode');
     expect(resolveAgentKind({ name: 'Claude Code(auto)' })).toBe('claude');
-    expect(resolveAgentKind({ command: '/usr/local/bin/claude-agent-acp' })).toBe('claude');
-    expect(resolveAgentKind({ name: 'DeepSeek' })).toBe('deepseek');
-    expect(resolveAgentKind({ name: '盘古大模型' })).toBe('pangu');
-    expect(resolveAgentKind({ command: 'pangu-acp' })).toBe('pangu');
-    expect(resolveAgentKind({ provider: 'openai' })).toBe('openai');
-    expect(resolveAgentKind({ name: 'Codex(auto)', command: 'codex-acp' })).toBe('openai');
+    expect(resolveAgentKind({ name: 'Codex(auto)' })).toBe('codex');
+    expect(resolveAgentKind({ name: 'Trae(auto)' })).toBe('trae');
+    expect(resolveAgentKind({ name: ' claude code(auto) ' })).toBe('claude');
 });
 
-test('does not invent a type for unknown or OpenCode agents', () => {
-    expect(resolveAgentKind({ name: 'OpenCode', command: 'opencode' })).toBeUndefined();
-    expect(resolveAgentKind({ name: 'Custom Agent', command: 'my-agent' })).toBeUndefined();
+test('uses light and dark SVGs for OpenCode and Codex, and a fixed colorful logo for Claude, Trae, and Insight', () => {
+    expect(agentKindLogoAsset({ name: 'msinsight-native' })?.darkSrc).toBeUndefined();
+    expect(agentKindLogoAsset({ name: 'Claude Code(auto)' })?.darkSrc).toBeUndefined();
+    expect(agentKindLogoAsset({ name: 'Trae(auto)' })?.darkSrc).toBeUndefined();
+    expect(agentKindLogoAsset({ name: 'OpenCode(auto)' })?.darkSrc).toBeDefined();
+    expect(agentKindLogoAsset({ name: 'Codex(auto)' })?.darkSrc).toBeDefined();
+    expect(agentKindLogoSrc({ name: 'OpenCode(auto)' }, 'light')).not.toBe(agentKindLogoSrc({ name: 'OpenCode(auto)' }, 'dark'));
+    expect(agentKindLogoSrc({ name: 'Codex(auto)' }, 'light')).not.toBe(agentKindLogoSrc({ name: 'Codex(auto)' }, 'dark'));
+    expect(agentKindLogoSrc({ name: 'Claude Code(auto)' }, 'light')).toBe(agentKindLogoSrc({ name: 'Claude Code(auto)' }, 'dark'));
+    expect(agentKindLogoSrc({ name: 'Trae(auto)' }, 'light')).toBe(agentKindLogoSrc({ name: 'Trae(auto)' }, 'dark'));
+});
+
+test('does not match copies or similar names', () => {
+    expect(resolveAgentKind({ name: 'OpenCode' })).toBeUndefined();
+    expect(resolveAgentKind({ name: 'Claude Code' })).toBeUndefined();
+    expect(resolveAgentKind({ name: 'MS Insight_Native' })).toBeUndefined();
+    expect(resolveAgentKind({ name: 'DeepSeek' })).toBeUndefined();
+    expect(resolveAgentKind({ name: '盘古大模型' })).toBeUndefined();
+    expect(resolveAgentKind({ name: 'Custom Agent' })).toBeUndefined();
     expect(resolveAgentKind({})).toBeUndefined();
 });

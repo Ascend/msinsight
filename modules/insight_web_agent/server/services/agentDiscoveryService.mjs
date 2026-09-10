@@ -87,6 +87,66 @@ export const mergeAgentServers = (discovered = [], configured = []) => {
     return [...discovered, ...configured.filter((agent) => !discoveredKeys.has(agentLaunchKey(agent)))];
 };
 
+export const presentRunnableAgentServers = ({
+    catalog = ACP_AGENT_CATALOG,
+    discovered = [],
+    configured = [],
+} = {}) => {
+    const catalogRunners = presentCatalogAgents({ catalog, discovered, configured })
+        .filter((agent) => agent.available)
+        .map((agent) => withAgentIdentity({
+            name: agent.name,
+            command: agent.command,
+            args: agent.args,
+            env: agent.env,
+        }, "discovered"));
+    return [...catalogRunners, ...configured];
+};
+
+export const presentCatalogAgents = ({
+    catalog = ACP_AGENT_CATALOG,
+    discovered = [],
+    configured = [],
+} = {}) => {
+    const discoveredByLaunch = new Map(discovered.map((agent) => [agentLaunchKey(agent), agent]));
+    const configuredKeys = new Set(configured.map(agentLaunchKey));
+    return catalog.map(({ config }) => {
+        const launchKey = agentLaunchKey(config);
+        const discoveredAgent = discoveredByLaunch.get(launchKey);
+        return {
+            name: config.name,
+            command: discoveredAgent?.command ?? config.command,
+            args: [...(discoveredAgent?.args ?? config.args ?? [])],
+            env: { ...(discoveredAgent?.env ?? config.env ?? {}) },
+            available: Boolean(discoveredAgent) || configuredKeys.has(launchKey),
+        };
+    });
+};
+
+export const presentListedAgentServers = ({
+    catalog = ACP_AGENT_CATALOG,
+    discovered = [],
+    configured = [],
+} = {}) => {
+    const catalogItems = presentCatalogAgents({ catalog, discovered, configured }).map((agent) => ({
+        name: agent.name,
+        available: agent.available,
+        kind: "discovered",
+    }));
+    const configuredItems = configured.map((agent) => ({
+        name: agent.name,
+        available: true,
+        kind: agent.kind ?? (agent.name === "msinsight-native" ? "builtin" : "configured"),
+    }));
+    return [...catalogItems, ...configuredItems];
+};
+
+export const resolveAgentServer = (requestedName, servers = []) => {
+    const name = String(requestedName ?? "").trim();
+    if (!name) return undefined;
+    return servers.find((server) => server.name === name);
+};
+
 export const sameAgentLaunch = (left, right) => left?.command === right?.command
     && JSON.stringify(left?.args ?? []) === JSON.stringify(right?.args ?? [])
     && JSON.stringify(left?.env ?? {}) === JSON.stringify(right?.env ?? {});

@@ -63,11 +63,16 @@ export const getSessionContext = (state, sessionId) => {
     return context;
 };
 
+const publicAgentServers = (agentServers = []) => agentServers.map((agent) => ({
+    name: agent.name,
+    available: agent.available !== false,
+}));
+
 export const publicState = (state) => ({
     initialized: state.initialized,
     configOptions: state.configOptions,
     activeAgentName: state.activeAgentName,
-    agentServers: state.agentServers.map(({ name }) => ({ name })),
+    agentServers: publicAgentServers(state.agentServers),
     discoveryLoading: state.agentDiscoveryLoading,
     agentInfo: state.agentInfo,
     agentError: state.agentError,

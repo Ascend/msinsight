@@ -20,7 +20,8 @@ import { ToolOutlined } from '@ant-design/icons';
 import React, { useRef, useState } from 'react';
 import { Tooltip } from '@insight/lib/components';
 import { useTranslation } from 'react-i18next';
-import { agentKindLogo } from '../agentBrand';
+import { resolveAgentKind } from '../agentBrand';
+import { AgentKindIcon } from './AgentKindIcon';
 import { requestHostClose } from '../connection';
 import { useChatState } from '../hooks/useChatState';
 import closeIcon from '../icons/close.svg';
@@ -171,9 +172,11 @@ const AgentAvatar = styled.span`
     &.logo {
         border-radius: 0;
         background: transparent;
+        color: ${(props): string => props.theme.textColorPrimary};
     }
 
-    img {
+    img,
+    [data-agent-icon] {
         width: 100%;
         height: 100%;
         object-fit: contain;
@@ -273,8 +276,10 @@ export const SessionSidebar = (): JSX.Element => {
                     }}
                     options={agentServers.map((agent) => ({
                         value: agent.name,
-                        label: agent.name,
+                        label: agent.available === false ? t('unavailableAgentLabel', { name: agent.name }) : agent.name,
+                        title: agent.available === false ? t('unavailableAgentHint') : agent.name,
                         icon: getAgentIcon(agent.name),
+                        disabled: agent.available === false,
                     }))}
                     placeholder={t('defaultAgent')}
                     title={t('switchAgent')}
@@ -352,9 +357,8 @@ const CapabilityIndicator = ({ capabilities }: { capabilities: AvailableCapabili
 };
 
 const getAgentIcon = (agentName: string): JSX.Element => {
-    const logo = agentKindLogo({ name: agentName });
-    if (logo) {
-        return <AgentAvatar className="logo"><img alt="" src={logo} /></AgentAvatar>;
+    if (resolveAgentKind({ name: agentName })) {
+        return <AgentAvatar aria-hidden="true" className="logo"><AgentKindIcon name={agentName} /></AgentAvatar>;
     }
-    return <AgentAvatar>{agentName.slice(0, 1)}</AgentAvatar>;
+    return <AgentAvatar aria-hidden="true">{agentName.slice(0, 1)}</AgentAvatar>;
 };
