@@ -69,6 +69,7 @@ import { safeJSONParse } from '@insight/lib/utils';
 import { SorterResult } from 'antd/lib/table/interface';
 import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
 import { findOperatorUnit } from '../../utils/operatorUnit';
+import { getSelectedThreadId } from '../../utils/selectionContext';
 import { getUnitFlows, queryAllSameOperatorsDuration } from '../../api/request';
 import { GetUnitFlowsParams, OpData } from '../../api/interface';
 import connector from '../../connection';
@@ -583,6 +584,12 @@ export const ThreadUnit = unit<ThreadMetaData>({
                 }];
                 const requests: any[] = await Promise.all(sources.map(async source => {
                     try {
+                        if (threadMetaData.threadSourceList === undefined) {
+                            return await window.request(
+                                threadMetaData.dataSource,
+                                { command: 'unit/threadTraces', params: requestParams }, { silent: true },
+                            );
+                        }
                         return await window.request(
                             (source.dbPath === '' ? threadMetaData.dataSource : source.dbPath) as DataSource,
                             {
@@ -610,27 +617,32 @@ export const ThreadUnit = unit<ThreadMetaData>({
                 if (validRequests.length === 0) {
                     return [];
                 }
-                const sourceData = validRequests.flatMap(item => (item.request.data ?? []).flatMap((row: any[]) => row.map((data: any) => ({
-                    ...data,
-                    dbPath: sources[item.index].dbPath,
-                    threadId: data.threadId ?? sources[item.index].threadId,
-                }))));
-                const sortedData = sourceData.slice().sort((first: any, second: any) => {
-                    if (first.startTime !== second.startTime) { return first.startTime - second.startTime; }
-                    return (first.duration ?? 0) - (second.duration ?? 0);
-                });
-                const depthEndTimes: number[] = [];
-                sortedData.forEach(data => {
-                    const endTime = data.startTime + data.duration;
-                    let depth = depthEndTimes.findIndex(end => end <= data.startTime);
-                    if (depth === -1) { depth = depthEndTimes.length; }
-                    depthEndTimes[depth] = endTime;
-                    data.depth = depth;
-                });
-                const maxDepth = depthEndTimes.length;
-                const currentMaxDepth = maxDepth;
-                const havePythonFunction = validRequests.some(item => item.request.havePythonFunction);
-                const threadTraceList = depthEndTimes.map((_, depth) => sortedData.filter(data => data.depth === depth));
+                // Single lanes use the backend's canonical depths for call stacks, flows and jumps.
+                // Only explicit merged sources need a shared frontend layout.
+                let { data: threadTraceList, maxDepth, currentMaxDepth, havePythonFunction } = validRequests[0].request;
+                if (threadMetaData.threadSourceList !== undefined) {
+                    const sourceData = validRequests.flatMap(item => (item.request.data ?? []).flatMap((row: any[]) => row.map((data: any) => ({
+                        ...data,
+                        dbPath: sources[item.index].dbPath,
+                        threadId: data.threadId ?? sources[item.index].threadId,
+                    }))));
+                    const sortedData = sourceData.slice().sort((first: any, second: any) => {
+                        if (first.startTime !== second.startTime) { return first.startTime - second.startTime; }
+                        return (first.duration ?? 0) - (second.duration ?? 0);
+                    });
+                    const depthEndTimes: number[] = [];
+                    sortedData.forEach(data => {
+                        const endTime = data.startTime + data.duration;
+                        let depth = depthEndTimes.findIndex(end => end <= data.startTime);
+                        if (depth === -1) { depth = depthEndTimes.length; }
+                        depthEndTimes[depth] = endTime;
+                        data.depth = depth;
+                    });
+                    maxDepth = depthEndTimes.length;
+                    currentMaxDepth = maxDepth;
+                    havePythonFunction = validRequests.some(item => item.request.havePythonFunction);
+                    threadTraceList = depthEndTimes.map((_, depth) => sortedData.filter(data => data.depth === depth));
+                }
 
                 if (thisUnit) {
                     let activeMaxDepth = session.autoAdjustUnitHeight ? currentMaxDepth : maxDepth;
@@ -661,7 +673,7 @@ export const ThreadUnit = unit<ThreadMetaData>({
                         type: data.name,
                         color: uintColor,
                         depth: data.depth,
-                        threadId: data.threadId,
+                        threadId: getSelectedThreadId(threadMetaData, data.threadId),
                         cardId: threadMetaData.cardId,
                         dbPath: threadMetaData.dbPath,
                         cname: data.cname,

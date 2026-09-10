@@ -92,6 +92,32 @@ describe('jumpToUnitOperator', () => {
         (calculateDomainRange as jest.Mock).mockReturnValue([80, 140]);
     });
 
+    it.each([
+        ['python_stack:100', '100', 'Python Stack 100'],
+        ['python_stack:text:100', 'Python Stack 100', 'Python Stack 100'],
+    ])('normalizes a Python Stack result alias to virtual lane %s', (threadId, tid, threadName) => {
+        const metadata = {
+            cardId: '0',
+            dbPath: 'trace.db',
+            processId: '200',
+            threadId,
+            threadName,
+            metaType: 'PYTORCH_API_PYTHON_STACK',
+        } as ThreadMetaData;
+        const target = new ThreadUnit(metadata) as InsightUnit;
+        jumpToUnitOperator({ ...OP_DETAIL, pid: '200', tid, metaType: metadata.metaType });
+
+        const selectedSession = store.sessionStore.activeSession as Session;
+        expect(selectedSession.locateUnit?.target(target)).toBe(true);
+        selectedSession.locateUnit?.onSuccess(target);
+
+        expect(selectedSession.selectedData).toEqual(expect.objectContaining({
+            threadId, processId: '200', metaType: 'PYTORCH_API_PYTHON_STACK',
+        }));
+        expect(selectedSession.selectedDataUnit).toBe(target);
+        expect(selectedSession.foregroundTarget?.tid).toBe(threadId);
+    });
+
     it('preserves the source slice and foreground target when jumping into a merged unit', () => {
         const mergedUnit = createMergedUnit();
         const siblingMergedUnit = new ThreadUnit({

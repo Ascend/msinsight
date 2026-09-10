@@ -18,6 +18,12 @@
 
 import type { InsightUnit } from '../entity/insight';
 import type { Session } from '../entity/session';
+import type { ThreadMetaData } from '../entity/data';
+
+/** Keep virtual lane identity; merged lanes have no threadId and use each slice's source thread. */
+export const getSelectedThreadId = (metadata: Pick<ThreadMetaData, 'threadId'>, sliceThreadId?: string): string => {
+    return metadata.threadId || (sliceThreadId ?? '');
+};
 
 /**
  * Returns the lane that owns the currently selected slice.

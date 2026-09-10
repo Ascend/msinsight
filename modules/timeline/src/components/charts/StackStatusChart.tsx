@@ -29,6 +29,7 @@ import { useBatchedRender, useClick, useData, useHoverPos, useRangeAndDomain } f
 import { TooltipComponent, type TooltipProps } from './TooltipComp';
 import type { ThreadMetaData } from '../../entity/data';
 import { Spin } from 'antd';
+import { getSelectedThreadId } from '../../utils/selectionContext';
 
 type StackStatusChartProps = ChartProps<'stackStatus'>;
 type OverflowType = 'hidden' | 'ellipsis';
@@ -281,8 +282,7 @@ const mouseUpFunc = ({ e, datasState, rangeAndDomain, rowHeight, session, unit, 
         session.selectedData = clickedData
             ? {
                 ...clickedData,
-                // Merged lanes have an empty metadata.threadId. Keep the exact TASK thread selected.
-                threadId: clickedData.threadId ?? (metadata as ThreadMetaData).threadId ?? '',
+                threadId: getSelectedThreadId(metadata as ThreadMetaData, clickedData.threadId),
                 processId: (metadata as ThreadMetaData).processId ?? '',
                 timestamp: clickedData.originalStartTime as number,
                 metaType: (metadata as ThreadMetaData).metaType ?? '',

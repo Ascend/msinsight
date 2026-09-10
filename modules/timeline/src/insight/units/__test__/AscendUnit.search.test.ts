@@ -16,10 +16,13 @@
  * -------------------------------------------------------------------------
  */
 
-import type { ChartHandle, Scale, StackStatusData } from '../../../entity/chart';
+import type { ChartHandle, Scale, StackStatusConfig, StackStatusData } from '../../../entity/chart';
 import type { LabelMetaData, ThreadMetaData } from '../../../entity/data';
-import type { ChartDesc, InsightUnit } from '../../../entity/insight';
+import type { ChartDesc, InsightUnit, SingleDataDesc } from '../../../entity/insight';
+import type { ReactElement } from 'react';
+import type { Theme } from '@emotion/react';
 import type { ForegroundTarget, SearchData, Session } from '../../../entity/session';
+import { renderRadiusBorder } from '../../../components/details/utils';
 import {
     drawForegroundTargetLayer,
     drawSearchResultLayers,
@@ -27,6 +30,7 @@ import {
     isForegroundTargetSlice,
     isSearchMatched,
     LabelUnit,
+    ThreadUnit,
 } from '../AscendUnit';
 
 jest.mock('@insight/lib/resize', () => ({
@@ -317,6 +321,126 @@ const createSummarySession = (tryFetchFromCache: jest.Mock): Session => ({
     unitsConfig: { offsetConfig: { timestampOffset: {} } },
     simpleCache: { tryFetchFromCache },
 } as unknown as Session);
+
+describe('ThreadUnit trace layout', () => {
+    const dataSource: DataSource = { remote: 'local', port: 9000, projectName: 'test', dataPath: [], projectPath: [], children: [] };
+    const createSession = (autoAdjustUnitHeight = false): Session => ({
+        units: [],
+        domain: { timePerPx: 1 },
+        domainRange: { domainStart: 0, domainEnd: 1000 },
+        unitsConfig: { offsetConfig: { timestampOffset: {} }, filterConfig: { pythonFunction: {} } },
+        autoAdjustUnitHeight,
+    } as unknown as Session);
+
+    it.each([
+        ['PYTORCH_API_PYTHON_STACK', 'python_stack:text:123', false, 8],
+        ['PYTORCH_API_PYTHON_STACK', 'python_stack:100', true, 3],
+        ['PYTORCH_API', 'pytorch', false, 8],
+        ['Ascend Hardware', '2', true, 3],
+    ] as Array<[string, string, boolean, number]>)('preserves backend depths and height for %s (%s)', async (metaType, threadId, autoAdjust, expectedDepth) => {
+        const metadata = { ...MERGED_METADATA, metaType, threadId, threadIdList: undefined } as ThreadMetaData;
+        metadata.dataSource = dataSource;
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const parent = createStackStatusData({ id: 'parent', startTime: 100, duration: 80, depth: 0 });
+        const child = createStackStatusData({ id: 'child', startTime: 100, duration: 20, depth: 2 });
+        const request = jest.fn().mockResolvedValue({ data: [[parent], [], [child]], maxDepth: 8, currentMaxDepth: 3 });
+        window.request = request;
+
+        const result = await chart.mapFunc(createSession(autoAdjust), metadata, unit);
+
+        expect(result).toEqual([
+            [expect.objectContaining({ id: 'parent', depth: 0 })], [], [expect.objectContaining({ id: 'child', depth: 2 })],
+        ]);
+        expect((chart.config as StackStatusConfig).maxDepth).toBe(expectedDepth);
+        expect(request).toHaveBeenCalledWith(metadata.dataSource, {
+            command: 'unit/threadTraces', params: expect.objectContaining({ threadId }),
+        }, { silent: true });
+        expect(unit.isTraceLoading).toBe(false);
+    });
+
+    it('keeps the thread list when the backend handles a merged lane', async () => {
+        const metadata = { ...MERGED_METADATA, dataSource };
+        const unit = new ThreadUnit(metadata);
+        const request = jest.fn().mockResolvedValue({ data: [], maxDepth: 0, currentMaxDepth: 0 });
+        window.request = request;
+
+        await (unit.chart as ChartDesc<'stackStatus'>).mapFunc(createSession(), metadata, unit);
+
+        expect(request).toHaveBeenCalledWith(metadata.dataSource, {
+            command: 'unit/threadTraces', params: expect.objectContaining({ threadIdList: ['2', '8'] }),
+        }, { silent: true });
+    });
+
+    it.each([
+        ['python_stack:text:1704908', '1704908'],
+        ['python_stack:100', 'pytorch'],
+    ])('preserves %s through rendering, selection highlighting and the detail request', async (threadId, rawThreadId) => {
+        const metadata = {
+            ...MERGED_METADATA,
+            metaType: 'PYTORCH_API_PYTHON_STACK',
+            threadId,
+            threadIdList: undefined,
+            dataSource,
+        };
+        const unit = new ThreadUnit(metadata);
+        const chart = unit.chart as ChartDesc<'stackStatus'>;
+        const testSession = createSession();
+        const detailResult = { title: 'python function', duration: 20, args: '{"Python id": 1}', rawStartTime: '100' };
+        const request = jest.fn().mockResolvedValueOnce({
+            data: [[createStackStatusData({ startTime: 100, threadId: rawThreadId })]], maxDepth: 1, currentMaxDepth: 1,
+        }).mockResolvedValueOnce({ data: detailResult });
+        window.request = request;
+
+        const [[slice]] = await chart.mapFunc(testSession, metadata, unit);
+        expect(slice.threadId).toBe(threadId);
+        testSession.selectedData = { ...slice, threadId: slice.threadId ?? '', processId: metadata.processId ?? '', metaType: metadata.metaType };
+        testSession.selectedDataUnit = unit;
+        const ctx = {} as CanvasRenderingContext2D;
+        await chart.decorator?.(testSession, metadata).action?.(
+            { context: ctx } as ChartHandle<'stackStatus'>, value => value, value => value,
+            { textColorPrimary: 'black' } as Theme,
+        );
+        expect(renderRadiusBorder).toHaveBeenCalledWith(expect.objectContaining({ ctx, depth: slice.depth }));
+
+        const Detail = unit.bottomPanelRender?.(testSession, metadata)[0].Detail;
+        const panel = Detail?.({ session: testSession, height: 300 }) as ReactElement<{
+            detail: SingleDataDesc<Record<string, unknown>, ThreadMetaData>;
+        }>;
+        const result = await panel.props.detail.fetchData?.(testSession, metadata);
+
+        expect(request).toHaveBeenLastCalledWith(metadata.dataSource, {
+            command: 'unit/threadDetail',
+            params: expect.objectContaining({
+                tid: threadId, metaType: metadata.metaType, id: slice.id, startTime: 100, depth: slice.depth,
+            }),
+        });
+        expect(result).toMatchObject(detailResult);
+        expect(testSession.selectedData.rawStartTime).toBe('100');
+    });
+
+    it('lays out overlapping slices from explicit merged sources', async () => {
+        const metadata: ThreadMetaData = {
+            ...MERGED_METADATA,
+            threadSourceList: ['2', '8'].map(threadId => ({
+                cardId: '0', dbPath: 'trace.db', processId: '3513236896', threadId, threadName: `Stream ${threadId}`,
+            })),
+        };
+        const unit = new ThreadUnit(metadata);
+        const request = jest.fn().mockImplementation(async (_source, { params }) => ({
+            data: [[createStackStatusData({ id: params.threadId, startTime: 100, depth: 0, threadId: params.threadId })]],
+        }));
+        window.request = request;
+
+        const result = await (unit.chart as ChartDesc<'stackStatus'>).mapFunc(createSession(), metadata, unit);
+
+        expect(result).toEqual([
+            [expect.objectContaining({ id: '2', threadId: '2', depth: 0 })],
+            [expect.objectContaining({ id: '8', threadId: '8', depth: 1 })],
+        ]);
+        expect(request).toHaveBeenCalledTimes(2);
+    });
+});
 
 function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
     let resolvePromise = (_value: T): void => {};
