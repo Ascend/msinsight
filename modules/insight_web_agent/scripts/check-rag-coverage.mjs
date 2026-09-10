@@ -20,11 +20,13 @@ export const COVERAGE_GROUPS = Object.freeze({
         "server/services/rag/wire/strictJsonParser.mjs",
         "server/services/rag/wire/canonicalJson.mjs",
         "server/services/rag/wire/packageContracts.mjs",
+        "server/services/rag/wire/packageBundleContracts.mjs",
         "server/services/rag/runtimeContract.mjs",
     ]),
     "loader/receiver": Object.freeze([
         "server/services/rag/knowledgePackageService.mjs",
         "server/services/rag/knowledgePackLoader.mjs",
+        "server/services/rag/bundleWorkspace.mjs",
     ]),
     lifecycle: Object.freeze([
         "server/services/rag/knowledgePackageService.mjs",

@@ -41,8 +41,9 @@ try {
         assert.doesNotMatch(path, /^(rag-seed|docs)(\/|$)/i);
         assert.doesNotMatch(path, /^rag-data\/(previous|backup)(\/|$)/i);
         assert.doesNotMatch(path, /(^|\/)knowledge-pack\.zip(?:\.sha256)?$/i);
-        if (/knowledge-pack-v4\.zip(?:\.sha256)?$/i.test(path)) {
-            assert.match(path, /^rag-data\/\d{2}\.[012]\.[1-9]\d*\/knowledge-pack-v4\.zip(?:\.sha256)?$/);
+        assert.doesNotMatch(path, /(^|\/)knowledge-pack-v4\.zip(?:\.sha256)?$/i);
+        if (/knowledge-pack-v5\.zip(?:\.sha256)?$/i.test(path)) {
+            assert.match(path, /^rag-data\/\d{2}\.[012]\.[1-9]\d*\/knowledge-pack-v5\.zip(?:\.sha256)?$/);
         }
     }
     const metadata = JSON.parse(readFileSync(join(bundle, "rag-build-mode.json"), "utf8"));

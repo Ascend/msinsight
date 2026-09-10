@@ -9,7 +9,7 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { PACKAGE_MEMBERS } from "./wire/packageContracts.mjs";
+import { PACKAGE_V5_FIXED_MEMBERS } from "./wire/packageBundleContracts.mjs";
 
 export const loadRuntimeContract = async (runtimeDir) => {
     const root = resolveRequiredDirectory(runtimeDir);
@@ -36,8 +36,8 @@ export const validateRuntimeContract = (contract) => {
             "schemaVersion",
         ])
         || contract.schemaVersion !== "1.0"
-        || contract.packageSchemaVersion !== "4.0"
-        || !exactArray(contract.packageMembers, PACKAGE_MEMBERS)) {
+        || contract.packageSchemaVersion !== "5.0"
+        || !exactArray(contract.packageMembers, PACKAGE_V5_FIXED_MEMBERS)) {
         throw new Error("RAG runtime contract identity is invalid");
     }
     const expectedLimits = {

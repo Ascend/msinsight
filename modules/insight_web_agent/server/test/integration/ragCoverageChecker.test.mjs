@@ -22,7 +22,13 @@ test("coverage checker freezes amended consumer group membership", () => {
         "server/services/rag/wire/strictJsonParser.mjs",
         "server/services/rag/wire/canonicalJson.mjs",
         "server/services/rag/wire/packageContracts.mjs",
+        "server/services/rag/wire/packageBundleContracts.mjs",
         "server/services/rag/runtimeContract.mjs",
+    ]);
+    assert.deepEqual(COVERAGE_GROUPS["loader/receiver"], [
+        "server/services/rag/knowledgePackageService.mjs",
+        "server/services/rag/knowledgePackLoader.mjs",
+        "server/services/rag/bundleWorkspace.mjs",
     ]);
 });
 

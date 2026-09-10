@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import lockfile from "proper-lockfile";
 import { canonicalJsonBytes } from "../../../services/rag/wire/canonicalJson.mjs";
-import { CHECKSUM_MEMBERS } from "../../../services/rag/wire/packageContracts.mjs";
+import { PACKAGE_V5_FIXED_MEMBERS } from "../../../services/rag/wire/packageBundleContracts.mjs";
 import {
     createKnowledgePackageService,
     fingerprintInstalledFile,
@@ -27,17 +27,19 @@ import {
     validateActivePointer,
 } from "../../../services/rag/knowledgePackLoader.mjs";
 import {
-    createCanonicalZip,
-    createPackageV4Members,
     MODEL_CONTRACT,
-    RUNTIME_CONTRACT,
     sha256,
-    writePackageV4Handoff,
-} from "./packageV4Fixture.mjs";
+} from "./packageFixture.mjs";
+import {
+    createPackageV5Members,
+    emptyBundleVector,
+    RUNTIME_CONTRACT_V5,
+    writePackageV5Handoff,
+} from "./packageBundleFixture.mjs";
 
 test("import is non-activating and repeated import validates the immutable installed package", async () => {
     const fixture = await createFixture();
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     const service = createService(fixture);
 
     const imported = await service.importPackage(handoff.archivePath, { mode: "development", sidecarPath: handoff.sidecarPath });
@@ -53,19 +55,19 @@ test("import is non-activating and repeated import validates the immutable insta
     assert.equal("profileSha256" in install, false);
     assert.equal("buildScope" in install, false);
     assert.equal(install.installMode, "development-local");
-    assert.equal(install.files.length, 2 + createPackageV4Members().size);
+    assert.equal(install.files.length, 2 + PACKAGE_V5_FIXED_MEMBERS.length);
     assert.deepEqual(install.files.map(({ name }) => name), [
-        "knowledge-pack-v4.zip",
-        "knowledge-pack-v4.zip.sha256",
-        ...createPackageV4Members().keys(),
+        "knowledge-pack-v5.zip",
+        "knowledge-pack-v5.zip.sha256",
+        ...PACKAGE_V5_FIXED_MEMBERS,
     ]);
     assert.ok(install.files.every(({ sizeBytes, mtimeNs }) => Number.isSafeInteger(sizeBytes) && /^\d+$/.test(mtimeNs)));
-    assert.deepEqual(Object.keys(install.memberSha256), [...createPackageV4Members().keys()].sort());
+    assert.deepEqual(Object.keys(install.memberSha256), [...handoff.members.keys()].sort());
 });
 
 test("activate and verify bind the exact installed package identity and are idempotent", async () => {
     const fixture = await createFixture();
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     const service = createService(fixture);
     await service.importPackage(handoff.archivePath, { mode: "development", sidecarPath: handoff.sidecarPath });
 
@@ -98,8 +100,8 @@ test("activate and verify bind the exact installed package identity and are idem
 
 test("activation retains one previous package and rollback atomically swaps the pointers", async () => {
     const fixture = await createFixture();
-    const first = await writePackageV4Handoff(fixture.handoffs, { directory: "first", kbVersion: "26.1.1" });
-    const second = await writePackageV4Handoff(fixture.handoffs, { directory: "second", kbVersion: "26.1.2" });
+    const first = await writePackageV5Handoff(fixture.handoffs, { directory: "first", kbVersion: "26.1.1" });
+    const second = await writePackageV5Handoff(fixture.handoffs, { directory: "second", kbVersion: "26.1.2" });
     const service = createService(fixture);
     await service.importPackage(first.archivePath, { mode: "development", sidecarPath: first.sidecarPath });
     await service.activate("26.1.1", { sha256: first.digest });
@@ -120,8 +122,8 @@ test("activation retains one previous package and rollback atomically swaps the 
 
 test("rollback without a previous package fails and damaged previous bytes never change active.json", async () => {
     const fixture = await createFixture();
-    const first = await writePackageV4Handoff(fixture.handoffs, { directory: "first", kbVersion: "26.1.1" });
-    const second = await writePackageV4Handoff(fixture.handoffs, { directory: "second", kbVersion: "26.1.2" });
+    const first = await writePackageV5Handoff(fixture.handoffs, { directory: "first", kbVersion: "26.1.1" });
+    const second = await writePackageV5Handoff(fixture.handoffs, { directory: "second", kbVersion: "26.1.2" });
     const service = createService(fixture);
     await service.importPackage(first.archivePath, { mode: "development", sidecarPath: first.sidecarPath });
     await service.activate("26.1.1", { sha256: first.digest });
@@ -130,7 +132,7 @@ test("rollback without a previous package fails and damaged previous bytes never
     await service.activate("26.1.2", { sha256: second.digest });
     const pointerPath = join(fixture.ragDataDir, "active.json");
     const before = await readFile(pointerPath);
-    await writeFile(join(fixture.ragDataDir, "26.1.1", "knowledge-pack-v4.zip"), Buffer.from("damaged"));
+    await writeFile(join(fixture.ragDataDir, "26.1.1", "knowledge-pack-v5.zip"), Buffer.from("damaged"));
 
     await assert.rejects(service.rollback(), errorCode("package_sha256_mismatch"));
 
@@ -139,8 +141,11 @@ test("rollback without a previous package fails and damaged previous bytes never
 
 test("same version with different canonical bytes is a permanent version conflict", async () => {
     const fixture = await createFixture();
-    const first = await writePackageV4Handoff(fixture.handoffs, { directory: "first", builderVersion: "0.1.0" });
-    const second = await writePackageV4Handoff(fixture.handoffs, { directory: "second", builderVersion: "0.1.1" });
+    const first = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
+    const second = await writePackageV5Handoff(fixture.handoffs, {
+        directory: "second",
+        members: createPackageV5Members({ bundle: emptyBundleVector() }),
+    });
     const service = createService(fixture);
     await service.importPackage(first.archivePath, { mode: "development", sidecarPath: first.sidecarPath });
 
@@ -152,7 +157,7 @@ test("same version with different canonical bytes is a permanent version conflic
 
 test("service rejects unknown import modes and exposes no seed provision operation", async () => {
     const fixture = await createFixture();
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     const service = createService(fixture);
 
     await assert.rejects(
@@ -162,12 +167,9 @@ test("service rejects unknown import modes and exposes no seed provision operati
     assert.equal(service.provisionSeed, undefined);
 });
 
-test("all-enabled Package still installs only as development-local", async () => {
+test("v5 Package installs only as development-local", async () => {
     const fixture = await createFixture();
-    const handoff = await writePackageV4Handoff(fixture.handoffs, {
-        directory: "all-enabled",
-        members: createPackageV4Members({ buildScopeMode: "all-enabled" }),
-    });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     const service = createService(fixture);
 
     await service.importPackage(handoff.archivePath, {
@@ -184,7 +186,7 @@ test("all-enabled Package still installs only as development-local", async () =>
 
 test("product-bundled import records a release install without opening the CLI mode", async () => {
     const fixture = await createFixture();
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "product" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "product" });
     const service = createService(fixture);
 
     const imported = await service.importPackage(handoff.archivePath, {
@@ -202,7 +204,7 @@ test("product-bundled import records a release install without opening the CLI m
 
 test("all lifecycle mutations reject immediately while another process owns the sentinel lock", async () => {
     const fixture = await createFixture();
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     await mkdir(fixture.ragDataDir, { recursive: true });
     const sentinel = join(fixture.ragDataDir, ".lifecycle");
     await writeFile(sentinel, "");
@@ -226,7 +228,7 @@ test("unwritable fixed data root fails as rag_data_unwritable without fallback",
         modelDir: fixture.modelDir,
         runtimeDir: fixture.runtimeDir,
         loadModelContract: async () => ({ modelDir: fixture.modelDir, manifest: MODEL_CONTRACT }),
-        loadRuntime: async () => RUNTIME_CONTRACT,
+        loadRuntime: async () => RUNTIME_CONTRACT_V5,
     });
 
     await assert.rejects(
@@ -236,34 +238,9 @@ test("unwritable fixed data root fails as rag_data_unwritable without fallback",
     await assert.rejects(readFile(join(fixture.root, "rag-data")), { code: "ENOENT" });
 });
 
-test("archive validation rejects noncanonical sidecars, member order, metadata, and ZIP comments", async () => {
-    const fixture = await createFixture();
-    const cases = [
-        { name: "sidecar", sidecarBytes: Buffer.from(`${"A".repeat(64)}  knowledge-pack-v4.zip\n`, "ascii"), code: "sidecar_invalid" },
-        { name: "order", zipOptions: { names: [...createPackageV4Members().keys()].reverse() }, code: "invalid_archive_entries" },
-        { name: "timestamp", zipOptions: { lastModTime: 1 }, code: "invalid_archive" },
-        { name: "comment", zipOptions: { comment: Buffer.from("comment") }, code: "invalid_archive" },
-    ];
-    for (const item of cases) {
-        const members = createPackageV4Members();
-        const archive = createCanonicalZip(members, item.zipOptions);
-        const directory = join(fixture.handoffs, item.name);
-        await mkdir(directory, { recursive: true });
-        const archivePath = join(directory, "knowledge-pack-v4.zip");
-        const sidecarPath = join(directory, "knowledge-pack-v4.zip.sha256");
-        await writeFile(archivePath, archive);
-        await writeFile(sidecarPath, item.sidecarBytes ?? `${sha256(archive)}  knowledge-pack-v4.zip\n`);
-        await assert.rejects(
-            validatePackageArchive({ archivePath, sidecarPath, modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
-            errorCode(item.code),
-            item.name,
-        );
-    }
-});
-
 test("active loader binds extracted members to install.json and rejects post-install tampering", async () => {
     const fixture = await createFixture();
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     const service = createService(fixture);
     await service.importPackage(handoff.archivePath, { mode: "development", sidecarPath: handoff.sidecarPath });
     await service.activate("26.1.1", { sha256: handoff.digest });
@@ -273,19 +250,19 @@ test("active loader binds extracted members to install.json and rejects post-ins
     await writeFile(chunkPath, changed);
 
     await assert.rejects(
-        loadActiveKnowledgePack(fixture.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        loadActiveKnowledgePack(fixture.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("checksum_mismatch"),
     );
 });
 
 test("active loader allows transport-only mtime drift after content-preserving extraction", async (t) => {
     const fixture = await createActivatedFixture(t);
-    const archive = join(fixture.ragDataDir, "26.1.1", "knowledge-pack-v4.zip");
+    const archive = join(fixture.ragDataDir, "26.1.1", "knowledge-pack-v5.zip");
     await utimes(archive, new Date("2000-01-01T00:00:00Z"), new Date("2000-01-01T00:00:00Z"));
 
     const pack = await loadActiveKnowledgePack(fixture.ragDataDir, {
         modelContract: MODEL_CONTRACT,
-        runtimeContract: RUNTIME_CONTRACT,
+        runtimeContract: RUNTIME_CONTRACT_V5,
     });
 
     assert.equal(pack.manifest.kbVersion, "26.1.1");
@@ -299,7 +276,7 @@ test("active loader rejects size-changing file tampering before member parsing",
     await assert.rejects(
         loadActiveKnowledgePack(fixture.ragDataDir, {
             modelContract: MODEL_CONTRACT,
-            runtimeContract: RUNTIME_CONTRACT,
+            runtimeContract: RUNTIME_CONTRACT_V5,
         }),
         errorCode("checksum_mismatch"),
     );
@@ -327,7 +304,7 @@ test("active loader rejects pointer and install identity mutations", async (t) =
         await assert.rejects(
             loadActiveKnowledgePack(fixture.ragDataDir, {
                 modelContract: MODEL_CONTRACT,
-                runtimeContract: RUNTIME_CONTRACT,
+                runtimeContract: RUNTIME_CONTRACT_V5,
             }),
         );
     }
@@ -337,7 +314,7 @@ test("active loader rejects unexpected, missing, and non-file installed members"
     const unexpected = await createActivatedFixture(t);
     await writeFile(join(unexpected.ragDataDir, "26.1.1", "unexpected.txt"), "unexpected");
     await assert.rejects(
-        loadActiveKnowledgePack(unexpected.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        loadActiveKnowledgePack(unexpected.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("pack_unreadable"),
     );
 
@@ -345,7 +322,7 @@ test("active loader rejects unexpected, missing, and non-file installed members"
     t.after(() => rm(missingFixture.root, { recursive: true, force: true }));
     const missingRoot = join(missingFixture.root, "missing-rag-data");
     await assert.rejects(
-        loadActiveKnowledgePack(missingRoot, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        loadActiveKnowledgePack(missingRoot, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("pack_unreadable"),
     );
 
@@ -354,7 +331,7 @@ test("active loader rejects unexpected, missing, and non-file installed members"
     await rm(manifest);
     await mkdir(manifest);
     await assert.rejects(
-        loadActiveKnowledgePack(nonFile.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        loadActiveKnowledgePack(nonFile.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("pack_unreadable"),
     );
 });
@@ -377,28 +354,28 @@ test("service normalizes missing handoffs, bad versions, and invalid lifecycle s
 test("archive validator rejects wrong names, sidecar length, and SHA mismatch", async (t) => {
     const fixture = await createFixture();
     t.after(() => rm(fixture.root, { recursive: true, force: true }));
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     await assert.rejects(validatePackageArchive({
         archivePath: handoff.archivePath,
         sidecarPath: join(fixture.handoffs, "first", "wrong-name.sha256"),
         modelContract: MODEL_CONTRACT,
-        runtimeContract: RUNTIME_CONTRACT,
+        runtimeContract: RUNTIME_CONTRACT_V5,
     }), errorCode("sidecar_invalid"));
 
-    const shortSidecar = join(fixture.handoffs, "first", "knowledge-pack-v4.zip.sha256");
+    const shortSidecar = join(fixture.handoffs, "first", "knowledge-pack-v5.zip.sha256");
     await writeFile(shortSidecar, "short\n");
     await assert.rejects(validatePackageArchive({
         archivePath: handoff.archivePath,
         sidecarPath: shortSidecar,
         modelContract: MODEL_CONTRACT,
-        runtimeContract: RUNTIME_CONTRACT,
+        runtimeContract: RUNTIME_CONTRACT_V5,
     }), errorCode("sidecar_invalid"));
-    await writeFile(shortSidecar, `${"0".repeat(64)}  knowledge-pack-v4.zip\n`);
+    await writeFile(shortSidecar, `${"0".repeat(64)}  knowledge-pack-v5.zip\n`);
     await assert.rejects(validatePackageArchive({
         archivePath: handoff.archivePath,
         sidecarPath: shortSidecar,
         modelContract: MODEL_CONTRACT,
-        runtimeContract: RUNTIME_CONTRACT,
+        runtimeContract: RUNTIME_CONTRACT_V5,
     }), errorCode("package_sha256_mismatch"));
 });
 
@@ -409,7 +386,7 @@ test("active loader binds manifest, runtime contract, and member digests indepen
         manifest.kbVersion = "26.1.2";
     });
     await assert.rejects(
-        loadActiveKnowledgePack(manifestMismatch.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        loadActiveKnowledgePack(manifestMismatch.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("active_pointer_invalid"),
     );
 
@@ -418,7 +395,7 @@ test("active loader binds manifest, runtime contract, and member digests indepen
         install.runtimeContractSha256 = "0".repeat(64);
     });
     await assert.rejects(
-        loadActiveKnowledgePack(contractMismatch.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        loadActiveKnowledgePack(contractMismatch.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("active_pointer_invalid"),
     );
 
@@ -427,7 +404,7 @@ test("active loader binds manifest, runtime contract, and member digests indepen
         install.memberSha256["manifest.json"] = "0".repeat(64);
     });
     await assert.rejects(
-        loadActiveKnowledgePack(memberMismatch.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        loadActiveKnowledgePack(memberMismatch.ragDataDir, { modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("checksum_mismatch"),
     );
 });
@@ -522,7 +499,7 @@ test("service status, pointer, staging, target, and transaction errors fail clos
 
     const blockedTarget = await createFixture();
     t.after(() => rm(blockedTarget.root, { recursive: true, force: true }));
-    const handoff = await writePackageV4Handoff(blockedTarget.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(blockedTarget.handoffs, { directory: "first" });
     await mkdir(blockedTarget.ragDataDir, { recursive: true });
     await writeFile(join(blockedTarget.ragDataDir, "26.1.1"), "not-a-directory");
     await assert.rejects(
@@ -532,13 +509,13 @@ test("service status, pointer, staging, target, and transaction errors fail clos
 
     const invalidTransaction = await createFixture();
     t.after(() => rm(invalidTransaction.root, { recursive: true, force: true }));
-    const transactionHandoff = await writePackageV4Handoff(invalidTransaction.handoffs, { directory: "first" });
+    const transactionHandoff = await writePackageV5Handoff(invalidTransaction.handoffs, { directory: "first" });
     const service = createKnowledgePackageService({
         ragDataDir: invalidTransaction.ragDataDir,
         modelDir: invalidTransaction.modelDir,
         runtimeDir: invalidTransaction.runtimeDir,
         loadModelContract: async () => ({ manifest: MODEL_CONTRACT }),
-        loadRuntime: async () => RUNTIME_CONTRACT,
+        loadRuntime: async () => RUNTIME_CONTRACT_V5,
         tempId: () => "***",
     });
     await assert.rejects(
@@ -571,27 +548,30 @@ test("installed verification rejects archive and extracted identity drift", asyn
     await assert.rejects(extractedService.activate("26.1.1"), errorCode("pack_unreadable"));
 });
 
-test("archive validator normalizes Package semantic failures and rejects wrong basenames", async (t) => {
+test("archive validator rejects non-v5 manifest schema and wrong basenames", async (t) => {
     const fixture = await createFixture();
     t.after(() => rm(fixture.root, { recursive: true, force: true }));
     const directory = join(fixture.handoffs, "semantic");
     await mkdir(directory, { recursive: true });
-    const members = createPackageV4Members();
+    const members = createPackageV5Members();
     const manifest = JSON.parse(members.get("manifest.json"));
     manifest.schemaVersion = "3.0";
     members.set("manifest.json", canonicalJsonBytes(manifest));
+    const digests = {};
+    for (const name of [...members.keys()].sort()) digests[name] = sha256(members.get(name));
     members.set("checksums.json", canonicalJsonBytes({
         schemaVersion: "4.0",
         algorithm: "sha256",
-        files: Object.fromEntries(CHECKSUM_MEMBERS.map((name) => [name, sha256(members.get(name))])),
+        files: digests,
     }));
-    const archive = createCanonicalZip(members);
-    const archivePath = join(directory, "knowledge-pack-v4.zip");
-    const sidecarPath = join(directory, "knowledge-pack-v4.zip.sha256");
+    const { createCanonicalZip } = await import("./packageFixture.mjs");
+    const archive = createCanonicalZip(members, { names: [...members.keys()] });
+    const archivePath = join(directory, "knowledge-pack-v5.zip");
+    const sidecarPath = join(directory, "knowledge-pack-v5.zip.sha256");
     await writeFile(archivePath, archive);
-    await writeFile(sidecarPath, `${sha256(archive)}  knowledge-pack-v4.zip\n`);
+    await writeFile(sidecarPath, `${sha256(archive)}  knowledge-pack-v5.zip\n`);
     await assert.rejects(
-        validatePackageArchive({ archivePath, sidecarPath, modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        validatePackageArchive({ archivePath, sidecarPath, modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("unsupported_package_schema"),
     );
 
@@ -600,7 +580,7 @@ test("archive validator normalizes Package semantic failures and rejects wrong b
     await copyFile(archivePath, wrongArchive);
     await copyFile(sidecarPath, wrongSidecar);
     await assert.rejects(
-        validatePackageArchive({ archivePath: wrongArchive, sidecarPath: wrongSidecar, modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+        validatePackageArchive({ archivePath: wrongArchive, sidecarPath: wrongSidecar, modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
         errorCode("sidecar_invalid"),
     );
 });
@@ -608,7 +588,9 @@ test("archive validator normalizes Package semantic failures and rejects wrong b
 test("archive validator rejects oversized metadata, prefixes, and local-header drift", async (t) => {
     const fixture = await createFixture();
     t.after(() => rm(fixture.root, { recursive: true, force: true }));
-    const canonical = createCanonicalZip(createPackageV4Members());
+    const { createCanonicalZip } = await import("./packageFixture.mjs");
+    const v5members = createPackageV5Members();
+    const canonical = createCanonicalZip(v5members, { names: [...v5members.keys()] });
     const eocd = canonical.length - 22;
     const centralOffset = canonical.readUInt32LE(eocd + 16);
     const oversized = Buffer.from(canonical);
@@ -632,12 +614,12 @@ test("archive validator rejects oversized metadata, prefixes, and local-header d
     ]) {
         const directory = join(fixture.handoffs, name);
         await mkdir(directory, { recursive: true });
-        const archivePath = join(directory, "knowledge-pack-v4.zip");
-        const sidecarPath = join(directory, "knowledge-pack-v4.zip.sha256");
+        const archivePath = join(directory, "knowledge-pack-v5.zip");
+        const sidecarPath = join(directory, "knowledge-pack-v5.zip.sha256");
         await writeFile(archivePath, archive);
-        await writeFile(sidecarPath, `${sha256(archive)}  knowledge-pack-v4.zip\n`);
+        await writeFile(sidecarPath, `${sha256(archive)}  knowledge-pack-v5.zip\n`);
         await assert.rejects(
-            validatePackageArchive({ archivePath, sidecarPath, modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT }),
+            validatePackageArchive({ archivePath, sidecarPath, modelContract: MODEL_CONTRACT, runtimeContract: RUNTIME_CONTRACT_V5 }),
             (error) => ["archive_too_large", "invalid_archive"].includes(error?.code),
             name,
         );
@@ -668,7 +650,7 @@ test("service normalizes injected coded, permission, and unknown receiver failur
     ]) {
         const fixture = await createFixture();
         t.after(() => rm(fixture.root, { recursive: true, force: true }));
-        const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+        const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
         const service = createInjectedService(fixture, {
             validateArchive: async () => { throw error; },
         });
@@ -687,6 +669,89 @@ test("service constructor requires all three fixed runtime paths", () => {
     ]) assert.throws(() => createKnowledgePackageService(options), errorCode("configuration_error"));
 });
 
+test("v5 import rejects legacy v4 handoff names before reading any bytes", async (t) => {
+    const fixture = await createFixture();
+    t.after(() => rm(fixture.root, { recursive: true, force: true }));
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
+    const directory = join(fixture.handoffs, "legacy");
+    await mkdir(directory, { recursive: true });
+    const archivePath = join(directory, "knowledge-pack-v4.zip");
+    const sidecarPath = join(directory, "knowledge-pack-v4.zip.sha256");
+    await copyFile(handoff.archivePath, archivePath);
+    await writeFile(sidecarPath, Buffer.from(`${handoff.digest}  knowledge-pack-v4.zip\n`, "ascii"));
+
+    await assert.rejects(
+        createService(fixture).importPackage(archivePath, { mode: "development", sidecarPath }),
+        errorCode("sidecar_invalid"),
+    );
+});
+
+test("v5 import rejects truncated suffix, corrupt members, and zip comments", async (t) => {
+    const { createCanonicalZip } = await import("./packageFixture.mjs");
+    const writeMutant = async (label, members, names, options = {}) => {
+        const archive = createCanonicalZip(members, { names, ...options });
+        const directory = join((await createFixtureWithRoot(t)).handoffs, label);
+        await mkdir(directory, { recursive: true });
+        const archivePath = join(directory, "knowledge-pack-v5.zip");
+        await writeFile(archivePath, archive);
+        await writeFile(join(directory, "knowledge-pack-v5.zip.sha256"), Buffer.from(`${sha256(archive)}  knowledge-pack-v5.zip\n`, "ascii"));
+        return { archivePath, directory };
+    };
+    const fixture = await createFixture();
+    t.after(() => rm(fixture.root, { recursive: true, force: true }));
+    const service = createService(fixture);
+    const namesOf = (members) => [...members.keys()];
+
+    const truncated = createPackageV5Members();
+    const truncatedNames = namesOf(truncated).filter((name) => name !== "checksums.json");
+    const truncatedCase = await writeMutant("truncated", truncated, truncatedNames);
+    await assert.rejects(
+        service.importPackage(truncatedCase.archivePath, { mode: "development", sidecarPath: join(truncatedCase.directory, "knowledge-pack-v5.zip.sha256") }),
+        errorCode("invalid_archive_entries"),
+    );
+
+    const corrupt = createPackageV5Members();
+    corrupt.set("manifest.json", Buffer.from("not-json\n", "utf8"));
+    const digests = {};
+    for (const name of namesOf(corrupt).sort()) digests[name] = sha256(corrupt.get(name));
+    corrupt.set("checksums.json", canonicalJsonBytes({ schemaVersion: "4.0", algorithm: "sha256", files: digests }));
+    const corruptCase = await writeMutant("corrupt", corrupt, namesOf(corrupt));
+    await assert.rejects(
+        service.importPackage(corruptCase.archivePath, { mode: "development", sidecarPath: join(corruptCase.directory, "knowledge-pack-v5.zip.sha256") }),
+        errorCode("strict_json_invalid"),
+    );
+
+    const commented = createPackageV5Members();
+    const commentedCase = await writeMutant("commented", commented, namesOf(commented), { comment: Buffer.from("comment") });
+    await assert.rejects(
+        service.importPackage(commentedCase.archivePath, { mode: "development", sidecarPath: join(commentedCase.directory, "knowledge-pack-v5.zip.sha256") }),
+        errorCode("invalid_archive"),
+    );
+});
+
+test("activate tolerates an absent bundle record from a legacy receiver pack", async (t) => {
+    const fixture = await createActivatedFixture(t);
+    const install = JSON.parse(await readFile(join(fixture.ragDataDir, "26.1.1", "install.json"), "utf8"));
+    const service = createInjectedService(fixture, {
+        loadInstalledPack: async () => ({
+            manifest: { kbVersion: "26.1.1", schemaVersion: "4.0" },
+            contract: { contractSha256: install.runtimeContractSha256 },
+            chunks: [],
+        }),
+    });
+
+    const activated = await service.activate("26.1.1");
+
+    assert.equal(activated.bundle.status, "absent");
+    assert.equal(activated.bundle.workspace, "no_bundle");
+});
+
+const createFixtureWithRoot = async (t) => {
+    const fixture = await createFixture();
+    t.after(() => rm(fixture.root, { recursive: true, force: true }));
+    return fixture;
+};
+
 const createFixture = async () => {
     const root = await mkdtemp(join(tmpdir(), "msinsight-rag-lifecycle-"));
     return {
@@ -703,14 +768,14 @@ const createService = (fixture) => createKnowledgePackageService({
     modelDir: fixture.modelDir,
     runtimeDir: fixture.runtimeDir,
     loadModelContract: async () => ({ modelDir: fixture.modelDir, manifest: MODEL_CONTRACT }),
-    loadRuntime: async () => RUNTIME_CONTRACT,
+    loadRuntime: async () => RUNTIME_CONTRACT_V5,
     logger: { info: () => {} },
 });
 
 const createActivatedFixture = async (t) => {
     const fixture = await createFixture();
     t.after(() => rm(fixture.root, { recursive: true, force: true }));
-    const handoff = await writePackageV4Handoff(fixture.handoffs, { directory: "first" });
+    const handoff = await writePackageV5Handoff(fixture.handoffs, { directory: "first" });
     const service = createService(fixture);
     await service.importPackage(handoff.archivePath, { mode: "development", sidecarPath: handoff.sidecarPath });
     await service.activate("26.1.1", { sha256: handoff.digest });
@@ -722,7 +787,7 @@ const createInjectedService = (fixture, overrides) => createKnowledgePackageServ
     modelDir: fixture.modelDir,
     runtimeDir: fixture.runtimeDir,
     loadModelContract: async () => ({ manifest: MODEL_CONTRACT }),
-    loadRuntime: async () => RUNTIME_CONTRACT,
+    loadRuntime: async () => RUNTIME_CONTRACT_V5,
     ...overrides,
 });
 

@@ -9,11 +9,12 @@
 import { build } from "esbuild";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { copyFile, cp, mkdir, rename, rm } from "node:fs/promises";
+import { copyFile, cp, mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createKnowledgePackageService, validatePackageArchive } from "../server/services/rag/knowledgePackageService.mjs";
+import { stageBundleForWorkspace } from "../server/services/rag/bundleWorkspace.mjs";
 import { loadEmbeddingModelContract } from "../server/services/rag/embeddingRuntime.mjs";
 import { writeNativeRuntimeManifest } from "../server/services/rag/nativeRuntimeManifest.mjs";
 import { resolveRagTarget } from "../server/services/rag/platformSupport.mjs";
@@ -73,6 +74,7 @@ async function assembleBundle(target, buildOptions, preflightResult) {
     await copyPlatformRagDependencies(target, buildOptions.target);
     if (buildOptions.mode !== "code-only") {
         await assembleBundledRag(target, buildOptions, preflightResult);
+        await mergeBundleSkillsIntoProductSkills(target, preflightResult);
         await writeNativeRuntimeManifest({
             bundleRoot: target,
             runtimeDir: join(target, "rag-runtime"),
@@ -144,7 +146,6 @@ async function assembleBundledRag(target, options, preflightResult) {
         throw new Error("Preactivated RAG install mode is invalid");
     }
 }
-
 async function copyReviewedModel({ modelDir, manifest }, target) {
     const files = ["model-manifest.json", ...Object.keys(manifest.fileDigests)];
     for (const relativeFile of files) {
@@ -152,6 +153,41 @@ async function copyReviewedModel({ modelDir, manifest }, target) {
         await mkdir(dirname(destination), { recursive: true });
         await copyFile(join(modelDir, relativeFile), destination);
     }
+}
+
+/**
+ * Materialize reviewed Bundle skills into the product skills directory.
+ *
+ * The install tree keeps exactly one copy per skill name; Bundle records win
+ * over static product skills on collision so the shipped set always matches
+ * the gated Package. Overridden names are reported as build evidence.
+ */
+async function mergeBundleSkillsIntoProductSkills(target, preflightResult) {
+    const { pack, members } = preflightResult.validated;
+    const payload = {};
+    for (const [name, data] of members) {
+        if (name.startsWith("bundles/")) payload[name] = data;
+    }
+    const staged = await stageBundleForWorkspace({
+        skills: pack.bundle.skills,
+        mcps: pack.bundle.mcps,
+        files: pack.bundle.files,
+        skips: pack.bundle.skips,
+        payload,
+    });
+    const productSkills = join(target, "skills");
+    const overridden = [];
+    for (const [name, tree] of staged.skillFiles) {
+        const destination = join(productSkills, name);
+        if (existsSync(destination)) overridden.push(name);
+        await rm(destination, { recursive: true, force: true });
+        for (const [relativePath, file] of tree) {
+            const filePath = join(destination, ...relativePath.split("/"));
+            await mkdir(dirname(filePath), { recursive: true });
+            await writeFile(filePath, file.data);
+        }
+    }
+    console.log(`Bundle skills merged into product skills: installed=${staged.skillFiles.size} overridden=[${[...overridden].sort().join(", ")}]`);
 }
 
 async function publishBundle(stagingDirectory) {

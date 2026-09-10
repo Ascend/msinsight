@@ -7,11 +7,26 @@
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
 import { deflateRawSync } from "node:zlib";
 import { canonicalJsonBytes } from "../../../services/rag/wire/canonicalJson.mjs";
-import { CHECKSUM_MEMBERS, PACKAGE_MEMBERS } from "../../../services/rag/wire/packageContracts.mjs";
+import { PACKAGE_V5_FIXED_MEMBERS } from "../../../services/rag/wire/packageBundleContracts.mjs";
+
+// Knowledge-base member shapes frozen from the v4 wire: Package v5 reuses
+// these byte-identical members and only adds Bundle records plus the
+// bundles/ payload. Builders below produce the shared knowledge subset that
+// v5 fixtures upgrade with Bundle overlays.
+const KNOWLEDGE_MEMBERS = Object.freeze([
+    "manifest.json",
+    "sources.jsonl",
+    "documents.jsonl",
+    "chunks.jsonl",
+    "vectors.f32",
+    "bm25-domain-dict.txt",
+    "bm25.json",
+    "build-audit.json",
+    "checksums.json",
+]);
+const KNOWLEDGE_CHECKSUM_MEMBERS = Object.freeze(KNOWLEDGE_MEMBERS.filter((name) => name !== "checksums.json").sort());
 
 export const MODEL_CONTRACT = Object.freeze({
     schemaVersion: "1.0",
@@ -86,8 +101,8 @@ const RETRIEVAL_CONTRACT = {
 
 export const RUNTIME_CONTRACT = Object.freeze({
     schemaVersion: "1.0",
-    packageSchemaVersion: "4.0",
-    packageMembers: PACKAGE_MEMBERS,
+    packageSchemaVersion: "5.0",
+    packageMembers: PACKAGE_V5_FIXED_MEMBERS,
     resourceLimits: {
         maxArchiveBytes: 512 * 1024 * 1024,
         maxMemberBytes: 512 * 1024 * 1024,
@@ -375,30 +390,18 @@ export const createPackageV4Members = ({
     members.set("checksums.json", canonicalJsonBytes({
         schemaVersion: "4.0",
         algorithm: "sha256",
-        files: Object.fromEntries(CHECKSUM_MEMBERS.map((name) => [name, sha256(members.get(name))])),
+        files: Object.fromEntries(KNOWLEDGE_CHECKSUM_MEMBERS.map((name) => [name, sha256(members.get(name))])),
     }));
     return members;
 };
 
-export const writePackageV4Handoff = async (root, options = {}) => {
-    const handoffDir = join(root, options.directory ?? options.kbVersion ?? "26.1.1");
-    await mkdir(handoffDir, { recursive: true });
-    const members = options.members ?? createPackageV4Members(options);
-    const archive = createCanonicalZip(members, options.zipOptions);
-    const digest = sha256(archive);
-    const archivePath = join(handoffDir, "knowledge-pack-v4.zip");
-    const sidecarPath = join(handoffDir, "knowledge-pack-v4.zip.sha256");
-    await writeFile(archivePath, archive);
-    await writeFile(sidecarPath, options.sidecarBytes ?? Buffer.from(`${digest}  knowledge-pack-v4.zip\n`, "ascii"));
-    return { archive, archivePath, sidecarPath, digest, members, handoffDir };
-};
-
 export const createCanonicalZip = (members, {
-    names = PACKAGE_MEMBERS,
+    names = [...PACKAGE_V5_FIXED_MEMBERS],
     comment = Buffer.alloc(0),
     lastModTime = 0,
     lastModDate = 33,
     externalAttributes = 0o100644 << 16,
+    externalAttributesByName,
 } = {}) => {
     const locals = [];
     const central = [];
@@ -406,6 +409,7 @@ export const createCanonicalZip = (members, {
     for (const name of names) {
         const payload = Buffer.from(members.get(name) ?? Buffer.from("unexpected", "utf8"));
         const fileName = Buffer.from(name, "utf8");
+        const mode = externalAttributesByName?.[name] ?? externalAttributes;
         const compressed = deflateRawSync(payload, { level: 9 });
         const crc = crc32(payload);
         const local = Buffer.concat([
@@ -416,7 +420,7 @@ export const createCanonicalZip = (members, {
         central.push(Buffer.concat([
             u32(0x02014b50), u16(0x0314), u16(20), u16(0), u16(8), u16(lastModTime), u16(lastModDate),
             u32(crc), u32(compressed.length), u32(payload.length), u16(fileName.length), u16(0), u16(0),
-            u16(0), u16(0), u32(externalAttributes), u32(offset), fileName,
+            u16(0), u16(0), u32(mode), u32(offset), fileName,
         ]));
         offset += local.length;
     }

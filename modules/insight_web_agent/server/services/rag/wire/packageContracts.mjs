@@ -11,19 +11,10 @@ import { parseCanonicalJson, parseCanonicalJsonl, strictObjectKeys } from "./str
 
 export const PACKAGE_SCHEMA_VERSION = "4.0";
 export const KB_ID = "mindstudio-insight-ascend";
-export const PACKAGE_MEMBERS = Object.freeze([
-    "manifest.json",
-    "sources.jsonl",
-    "documents.jsonl",
-    "chunks.jsonl",
-    "vectors.f32",
-    "bm25-domain-dict.txt",
-    "bm25.json",
-    "build-audit.json",
-    "checksums.json",
-]);
-export const CHECKSUM_MEMBERS = Object.freeze(PACKAGE_MEMBERS.filter((name) => name !== "checksums.json").sort());
-
+// Knowledge member wire version (manifest envelope excluded): BM25 and
+// checksums members keep the frozen 4.0 shape inside Package v5. Only the
+// v5 envelope is accepted; there is no v4 package path anymore.
+export const SUPPORTED_PACKAGE_SCHEMA_VERSIONS = Object.freeze(["5.0"]);
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const SOURCE_ID_RE = /^[^/\\:\0]+\/[^/\\:\0]+$/;
 const PROJECT_ID_RE = /^[^/\\:\0]+$/;
@@ -42,25 +33,27 @@ export class PackageContractError extends Error {
     }
 }
 
-export const validatePackageMemberBytes = ({ members, runtimeContract, modelContract }) => {
-    requireMemberSet(members);
-    const checksums = parseCanonicalJson(members.get("checksums.json"), "checksums.json");
-    validateChecksums(checksums, members);
-    const manifest = parseCanonicalJson(members.get("manifest.json"), "manifest.json");
-    const sources = parseCanonicalJsonl(members.get("sources.jsonl"), "sources.jsonl");
-    const documents = parseCanonicalJsonl(members.get("documents.jsonl"), "documents.jsonl");
-    const chunks = parseCanonicalJsonl(members.get("chunks.jsonl"), "chunks.jsonl");
-    const domainDictionaryBytes = members.get("bm25-domain-dict.txt");
+export const validateSharedMembers = ({
+    manifest,
+    sources,
+    documents,
+    chunks,
+    vectors,
+    domainDictionaryBytes,
+    bm25,
+    runtimeContract,
+    modelContract,
+    expectedSchemaVersion,
+    runtimeSchemaVersions = [expectedSchemaVersion],
+}) => {
     const domainDictionary = validateDomainDictionary(domainDictionaryBytes);
-    const bm25 = parseCanonicalJson(members.get("bm25.json"), "bm25.json");
-    const buildAuditBytes = members.get("build-audit.json");
     validateLocalRuntime(runtimeContract, modelContract);
-    validateManifest(manifest, runtimeContract, sha256(domainDictionaryBytes));
+    validateManifest(manifest, runtimeContract, sha256(domainDictionaryBytes), expectedSchemaVersion, runtimeSchemaVersions);
     validateSources(sources);
     validateDocuments(documents, sources);
     validateChunks(chunks, documents, sources);
-    const vectors = validateVectors(
-        members.get("vectors.f32"),
+    const validatedVectors = validateVectors(
+        vectors,
         runtimeContract.embedding.dimension,
         chunks.length,
     );
@@ -70,33 +63,20 @@ export const validatePackageMemberBytes = ({ members, runtimeContract, modelCont
         sources,
         documents,
         chunks,
-        vectors,
+        vectors: validatedVectors,
         domainDictionary,
         bm25,
-        buildAuditBytes,
-        checksums,
-        contract: runtimeContract,
         ...buildIndexes(sources, documents, chunks),
     };
 };
 
-const validateChecksums = (checksums, members) => {
-    exactObject(checksums, ["algorithm", "files", "schemaVersion"], "checksums.json");
-    equal(checksums.schemaVersion, PACKAGE_SCHEMA_VERSION, "checksums schemaVersion");
-    equal(checksums.algorithm, "sha256", "checksums algorithm");
-    object(checksums.files, "checksums files");
-    exactKeys(strictObjectKeys(checksums.files), CHECKSUM_MEMBERS, "checksums files");
-    for (const name of CHECKSUM_MEMBERS) {
-        sha256String(checksums.files[name], `checksums ${name}`);
-        if (sha256(members.get(name)) !== checksums.files[name]) fail("checksum_mismatch", `Package checksum mismatch: ${name}`);
-    }
-};
-
-const validateManifest = (manifest, runtimeContract, domainDictionarySha256) => {
+const validateManifest = (manifest, runtimeContract, domainDictionarySha256, expectedSchemaVersion = "5.0", runtimeSchemaVersions = [expectedSchemaVersion]) => {
     object(manifest, "manifest");
-    equal(manifest.schemaVersion, PACKAGE_SCHEMA_VERSION, "manifest schemaVersion", "unsupported_package_schema");
+    equal(manifest.schemaVersion, expectedSchemaVersion, "manifest schemaVersion", "unsupported_package_schema");
     stringMatch(manifest.kbVersion, KB_VERSION_RE, "manifest kbVersion");
-    equal(runtimeContract.packageSchemaVersion, PACKAGE_SCHEMA_VERSION, "runtime Package schema", "package_contract_unsupported");
+    if (!runtimeSchemaVersions.includes(runtimeContract.packageSchemaVersion)) {
+        fail("package_contract_unsupported", "runtime Package schema is not supported");
+    }
     object(manifest.retrieval, "manifest retrieval");
     object(manifest.retrieval.keyword, "manifest keyword retrieval");
     equal(manifest.retrieval.keyword.tokenizer, runtimeContract.retrieval.bm25Tokenizer, "manifest BM25 tokenizer");
@@ -288,12 +268,6 @@ const buildIndexes = (sources, documents, chunks) => {
     return { sourceById, documentById, chunkById, chunksByDocId, chunksByFaqId };
 };
 
-const requireMemberSet = (members) => {
-    if (!(members instanceof Map)) fail("invalid_archive_entries", "Package members must be supplied as a Map");
-    exactKeys([...members.keys()], PACKAGE_MEMBERS, "Package members");
-    for (const [name, value] of members) if (!Buffer.isBuffer(value)) fail("invalid_archive", `Package member is not bytes: ${name}`);
-};
-
 const exactObject = (value, keys, label) => {
     object(value, label);
     exactKeys([...strictObjectKeys(value)].sort(compareCodePoints), [...keys].sort(compareCodePoints), label);
@@ -301,7 +275,7 @@ const exactObject = (value, keys, label) => {
 
 const exactKeys = (actual, expected, label) => {
     if (actual.length !== expected.length || actual.some((value, index) => value !== expected[index])) {
-        fail("package_semantics_invalid", `${label} fields do not match the Package v4 contract`);
+        fail("package_semantics_invalid", `${label} fields do not match the Package contract`);
     }
 };
 
@@ -310,7 +284,7 @@ const object = (value, label) => {
 };
 
 const equal = (actual, expected, label, code = "package_semantics_invalid") => {
-    if (actual !== expected) fail(code, `${label} does not match the Package v4 contract`);
+    if (actual !== expected) fail(code, `${label} does not match the Package contract`);
 };
 
 const nonEmptyString = (value, label) => {
