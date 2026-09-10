@@ -16,6 +16,12 @@ verl训练任务在PPO/RLHF等场景中，显存压力通常集中在rollout生�
 
 ## Snapshot数据采集
 
+### 验证环境与显存说明
+
+本文中的单卡7B示例命令和后续snapshot分析案例，已在单卡Ascend 910B2（HBM 64 GiB）环境中验证。命令中的模型、数据集和输出目录均为示例配置，请根据实际环境替换，不能不加调整地直接用于其他设备。
+
+对于Ascend 910B4等HBM 32 GiB设备，不建议直接复制单卡7B命令运行，否则可能因模型、batch size和rollout等配置叠加导致显存不足。建议先使用更小规模的模型（例如0.5B），并根据设备剩余显存降低`data.train_batch_size`、`actor_rollout_ref.rollout.n`以及相关micro batch参数，再验证snapshot采集和分析链路。具体参数需要结合实际模型、输入长度和训练任务调整。
+
 ### 采集参数说明
 
 verl中开启memory snapshot采集的核心参数如下：
@@ -39,14 +45,14 @@ verl中开启memory snapshot采集的核心参数如下：
 ```bash
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/home/chenyan/verl_data/train.parquet \
-    data.val_files=/home/chenyan/verl_data/test.parquet \
+    data.train_files=/path/to/verl_data/train.parquet \
+    data.val_files=/path/to/verl_data/test.parquet \
     data.train_batch_size=16 \
     data.max_prompt_length=512 \
     data.max_response_length=128 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
-    actor_rollout_ref.model.path=/data/models/Qwen/Qwen2.5-7B-Instruct \
+    actor_rollout_ref.model.path=/path/to/models/Qwen/Qwen2.5-7B-Instruct \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
@@ -58,13 +64,13 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.total_epochs=1 \
-    trainer.default_local_dir=/home/chenyan/verl_outputs \
+    trainer.default_local_dir=/path/to/verl_outputs \
     trainer.device=npu \
     global_profiler.tool=torch_memory \
     actor_rollout_ref.actor.profiler.ranks='[0]' \
     actor_rollout_ref.actor.profiler.enable=True \
     global_profiler.steps=[1,2,3,4,5,6,7,8,9,10] \
-    global_profiler.save_path=/home/chenyan/verl_outputs/mem_snapshots_single \
+    global_profiler.save_path=/path/to/verl_outputs/mem_snapshots_single \
     global_profiler.global_tool_config.torch_memory.trace_alloc_max_entries=100000 \
     global_profiler.global_tool_config.torch_memory.stack_depth=32
 ```
@@ -76,14 +82,14 @@ python3 -m verl.trainer.main_ppo \
 ```bash
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/home/chenyan/verl_data/train.parquet \
-    data.val_files=/home/chenyan/verl_data/test.parquet \
+    data.train_files=/path/to/verl_data/train.parquet \
+    data.val_files=/path/to/verl_data/test.parquet \
     data.train_batch_size=16 \
     data.max_prompt_length=512 \
     data.max_response_length=128 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
-    actor_rollout_ref.model.path=/data/models/Qwen/Qwen2.5-7B-Instruct \
+    actor_rollout_ref.model.path=/path/to/models/Qwen/Qwen2.5-7B-Instruct \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
@@ -95,13 +101,13 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.total_epochs=1 \
-    trainer.default_local_dir=/home/chenyan/verl_outputs \
+    trainer.default_local_dir=/path/to/verl_outputs \
     trainer.device=npu \
     global_profiler.tool=torch_memory \
     actor_rollout_ref.actor.profiler.ranks='[0,1]' \
     actor_rollout_ref.actor.profiler.enable=True \
     global_profiler.steps=[1,2,3,4,5,6,7,8,9,10] \
-    global_profiler.save_path=/home/chenyan/verl_outputs/mem_snapshots_selected_ranks \
+    global_profiler.save_path=/path/to/verl_outputs/mem_snapshots_selected_ranks \
     global_profiler.global_tool_config.torch_memory.trace_alloc_max_entries=100000 \
     global_profiler.global_tool_config.torch_memory.stack_depth=32
 ```
@@ -113,14 +119,14 @@ python3 -m verl.trainer.main_ppo \
 ```bash
 python3 -m verl.trainer.main_ppo \
     algorithm.adv_estimator=grpo \
-    data.train_files=/home/chenyan/verl_data/train.parquet \
-    data.val_files=/home/chenyan/verl_data/test.parquet \
+    data.train_files=/path/to/verl_data/train.parquet \
+    data.val_files=/path/to/verl_data/test.parquet \
     data.train_batch_size=16 \
     data.max_prompt_length=512 \
     data.max_response_length=128 \
     data.filter_overlong_prompts=True \
     data.truncation=error \
-    actor_rollout_ref.model.path=/data/models/Qwen/Qwen2.5-7B-Instruct \
+    actor_rollout_ref.model.path=/path/to/models/Qwen/Qwen2.5-7B-Instruct \
     actor_rollout_ref.actor.ppo_mini_batch_size=8 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=2 \
     actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=4 \
@@ -132,13 +138,13 @@ python3 -m verl.trainer.main_ppo \
     trainer.n_gpus_per_node=4 \
     trainer.nnodes=1 \
     trainer.total_epochs=1 \
-    trainer.default_local_dir=/home/chenyan/verl_outputs \
+    trainer.default_local_dir=/path/to/verl_outputs \
     trainer.device=npu \
     global_profiler.tool=torch_memory \
     actor_rollout_ref.actor.profiler.all_ranks=True \
     actor_rollout_ref.actor.profiler.enable=True \
     global_profiler.steps=[1,2,3,4,5,6,7,8,9,10] \
-    global_profiler.save_path=/home/chenyan/verl_outputs/mem_snapshots_all_ranks \
+    global_profiler.save_path=/path/to/verl_outputs/mem_snapshots_all_ranks \
     global_profiler.global_tool_config.torch_memory.trace_alloc_max_entries=100000 \
     global_profiler.global_tool_config.torch_memory.stack_depth=32
 ```
