@@ -39,6 +39,20 @@ import { LifecycleGraphInteractionGuide } from './LifecycleGraphInteractionGuide
 
 export type LifecycleZoomMode = 'proportional' | 'horizontal';
 
+const ZoomModeTip = styled(GraphShortcutTip)`
+    max-width: calc(100vw - 48px);
+`;
+
+const ZoomModeTitle = styled(GraphShortcutTitle)`
+    flex-wrap: wrap;
+    white-space: normal;
+`;
+
+const ZoomModeRow = styled(GraphShortcutRow)`
+    flex-wrap: wrap;
+    white-space: normal;
+`;
+
 export const LifecycleZoomModeIcon = ({ zoomMode }: { zoomMode: LifecycleZoomMode }): JSX.Element =>
     zoomMode === 'proportional'
         ? <ExpandAltOutlined data-testid="proportionalZoomIcon" />
@@ -51,26 +65,26 @@ export const LifecycleZoomModeTooltip = ({ zoomMode }: { zoomMode: LifecycleZoom
         : t('switchToProportionalZoom');
     const currentModeLabel = zoomMode === 'proportional' ? t('equalZoomHelp') : t('xZoomWheelHelp');
 
-    return <GraphShortcutTip>
-        <GraphShortcutTitle>
+    return <ZoomModeTip>
+        <ZoomModeTitle>
             {switchLabel}
             <GraphShortcutActions><GraphKeycap>H</GraphKeycap></GraphShortcutActions>
-        </GraphShortcutTitle>
-        <GraphShortcutRow>
+        </ZoomModeTitle>
+        <ZoomModeRow>
             <span>{t('currentZoomMode')}</span>
             <GraphWheelCombo><GraphWheelIcon /><span>{currentModeLabel}</span></GraphWheelCombo>
-        </GraphShortcutRow>
-        <GraphShortcutRow>
+        </ZoomModeRow>
+        <ZoomModeRow>
             <span>{t('xZoomWheelHelp')}</span>
             <GraphShortcutActions><GraphKeycap>W</GraphKeycap><span>/</span><GraphKeycap>S</GraphKeycap></GraphShortcutActions>
-        </GraphShortcutRow>
-        <GraphShortcutRow>
+        </ZoomModeRow>
+        <ZoomModeRow>
             <span>{t('equalZoomHelp')}</span>
             <GraphShortcutActions>
                 <GraphKeycap>Ctrl</GraphKeycap><span>+</span><GraphKeycap>W</GraphKeycap><span>/</span><GraphKeycap>S</GraphKeycap>
             </GraphShortcutActions>
-        </GraphShortcutRow>
-    </GraphShortcutTip>;
+        </ZoomModeRow>
+    </ZoomModeTip>;
 };
 
 interface LifecycleGraphToolbarProps {
