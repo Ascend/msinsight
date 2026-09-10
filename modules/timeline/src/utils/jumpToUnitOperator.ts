@@ -26,6 +26,7 @@ import type { OpDetail } from '../api/interface';
 import { store } from '../store';
 import { InsightUnit } from '../entity/insight';
 import { isOperatorMetadata } from './operatorUnit';
+import { getSelectedThreadId } from './selectionContext';
 
 /**
  * 在泳道中选中特定算子
@@ -53,7 +54,7 @@ const jumpToUnitOperator = (opDetail: OpDetail): void => {
                 isOperatorMetadata(unit.metadata, { cardId: cid, pid, tid, metaType }),
             onSuccess: (unit): void => {
                 const unitMetaData = unit.metadata as ThreadMetaData;
-                const normalizedThreadId = tid ?? unitMetaData.threadId;
+                const normalizedThreadId = getSelectedThreadId(unitMetaData, tid);
                 const normalizedProcessId = unitMetaData.processId ?? pid;
                 const normalizedCardId = unitMetaData.cardId ?? cid;
                 const normalizedDbPath = unitMetaData.dbPath ?? dbPath ?? '';
