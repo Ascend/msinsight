@@ -89,6 +89,22 @@ export interface CardRankInfo {
     index?: number;
 }
 
+export interface MemSnapshotSliceInfo {
+    index: number;
+    startEventId: number;
+    endEventId: number;
+    ready: boolean;
+}
+
+export interface MemSnapshotDeviceSliceInfo {
+    eventCount: number;
+    sliceCount: number;
+    readySlices: number[];
+    slices: MemSnapshotSliceInfo[];
+}
+
+export type MemSnapshotSlices = Record<string, MemSnapshotDeviceSliceInfo>;
+
 export const DEFAULT_ACTIVE_DATASOURCE: ActiveDataSource = { ...GLOBAL_HOST, projectName: '', projectPath: [], children: [], selectedFileType: 'UNKNOWN', selectedFilePath: '' };
 
 export class Session {
@@ -129,6 +145,11 @@ export class Session {
     threadIds: number[] = [];
     module: string = '';
     fileHash: string = '';
+    snapshotParsingComplete: boolean = true;
+    snapshotSlices: MemSnapshotSlices = {};
+    memSnapshotParseLoading: boolean = false;
+    memSnapshotParseProgress: number = 0;
+    memSnapshotParseFileId: string = '';
     // triton数据解析完成
     tritonParsed: boolean = false;
     // 模块数据-算子调优
@@ -271,6 +292,11 @@ export class Session {
         this.threadIds = [];
         this.module = '';
         this.fileHash = '';
+        this.snapshotParsingComplete = true;
+        this.snapshotSlices = {};
+        this.memSnapshotParseLoading = false;
+        this.memSnapshotParseProgress = 0;
+        this.memSnapshotParseFileId = '';
     }
 
     // 数据源管理

@@ -181,3 +181,32 @@ TEST_F(DataBaseManagerTest, PlatformRepresentativeDoesNotDependOnRegistrationOrd
 
     EXPECT_EQ(databaseManager.GetFileIdByRankId("rank0#platform"), "a.db");
 }
+
+TEST_F(DataBaseManagerTest, ClearMemSnapshotDefersClosingDatabaseHeldByRequest) {
+    const std::string dbPath = MakeTempDbPath("DataBaseManagerTest_clear_mem_snapshot_");
+    auto &databaseManager = DataBaseManager::Instance();
+    auto database = databaseManager.GetMemSnapshotDatabase(dbPath);
+    ASSERT_NE(database, nullptr);
+    ASSERT_TRUE(database->OpenDb(dbPath, false));
+
+    databaseManager.Clear(DatabaseType::MEM_SNAPSHOT);
+
+    // 活跃请求仍持有连接时延迟关闭，避免在查询过程中关闭 SQLite 句柄。
+    EXPECT_TRUE(database->IsOpen());
+    database.reset();
+    EXPECT_EQ(std::remove(dbPath.c_str()), 0);
+}
+
+TEST_F(DataBaseManagerTest, ClearAllDefersClosingMemSnapshotDatabaseHeldByRequest) {
+    const std::string dbPath = MakeTempDbPath("DataBaseManagerTest_clear_all_mem_snapshot_");
+    auto &databaseManager = DataBaseManager::Instance();
+    auto database = databaseManager.GetMemSnapshotDatabase(dbPath);
+    ASSERT_NE(database, nullptr);
+    ASSERT_TRUE(database->OpenDb(dbPath, false));
+
+    databaseManager.Clear();
+
+    EXPECT_TRUE(database->IsOpen());
+    database.reset();
+    EXPECT_EQ(std::remove(dbPath.c_str()), 0);
+}

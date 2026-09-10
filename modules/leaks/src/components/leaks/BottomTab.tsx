@@ -42,7 +42,7 @@ export const BottomTab = observer(({ session }: { session: Session }): JSX.Eleme
     const [activeTab, setActiveTab] = useState('sliceDetail');
     const theme: Theme = useTheme();
     const autoExpandedKeysRef = useRef(new Set<string>());
-    const detailContextKey = `${session.module}_${session.deviceId}_${session.eventType}`;
+    const detailContextKey = `${session.module}_${session.deviceId}_${session.eventType}_${session.selectedSliceIndex}`;
 
     useEffect(() => {
         if (session.leaksWorkerInfo.clickItem !== null || session.stateWorkerInfo.clickItem !== null || session.clickEventItem !== null) {
@@ -631,7 +631,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
     };
 
     const getSnapshotDetailData = async (type: string, id: number, deviceId: string): Promise<SnapshotDetailData> => {
-        return getSnapshotDetail({ type, id, deviceId });
+        return getSnapshotDetail({ type, id, deviceId, sliceIndex: session.selectedSliceIndex });
     };
 
     const normalizeStateBlockDetailData = (detailData: SnapshotDetailData, stateSelection: StateDataHoverResult): SnapshotDetailData => {
@@ -685,27 +685,6 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             return [...tabs, tab];
         });
         setActiveDetailTabKey(tab.key);
-    };
-
-    const upsertNoFramesStateTab = (stateSelection: StateDataHoverResult): void => {
-        const { type, data } = stateSelection;
-        const block = data.blocks[0];
-        const tabKeyParts = [
-            type,
-            data.address,
-            data.stream,
-            data.offsetX,
-            block?.offset ?? '',
-            block?.size ?? data.size,
-        ];
-        upsertDetailTab({
-            key: `snapshot_state_no_frames_${tabKeyParts.map(String).join('_')}`,
-            label: type === 'segment' ? formatSegmentTabLabel(data.allocOrMapEventId) : t('exceptionBlock'),
-            kind: type === 'segment' ? 'stateSegment' : 'stateBlock',
-            detailData: {},
-            state: stateSelection,
-            selection: { type: 'state', state: stateSelection },
-        }, { activate: true });
     };
 
     const applyTabSelection = (tab: SliceDetailTab | undefined): void => {
@@ -1325,6 +1304,7 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
                 eventId,
                 segmentAddress: data.address,
                 stream: data.stream,
+                sliceIndex: session.selectedSliceIndex,
             }).then(result => {
                 if (cancelled || session.deviceId !== requestDeviceId || detailContextKeyRef.current !== requestDetailContextKey) {
                     return;
@@ -1356,9 +1336,19 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
                 cancelled = true;
             };
         }
-        const id = data.blocks[0]?.id ?? -1;
-        if (id < 0) {
-            upsertNoFramesStateTab(stateSelection);
+        const hoveredBlock = data.blocks[0];
+        const id = hoveredBlock?.id;
+        if (typeof id !== 'number') {
+            const eventId = data.eventId ?? session.stateWorkerInfo.eventId;
+            upsertDetailTab({
+                key: `snapshot_state_${eventId}_${data.address}_${hoveredBlock?.offset ?? 0}_${hoveredBlock?.size ?? 0}`,
+                label: t('block'),
+                kind: 'stateBlock',
+                loading: false,
+                detailData: normalizeStateBlockDetailData({}, stateSelection),
+                state: stateSelection,
+                selection: { type: 'state', state: stateSelection },
+            }, { activate: true });
             return;
         }
         let cancelled = false;

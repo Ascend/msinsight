@@ -45,33 +45,47 @@ bool QueryMemSnapshotAllocationHandler::HandleRequest(std::unique_ptr<Protocol::
         SendResponse(std::move(responsePtr), false, errorMsg);
         return false;
     }
-    const auto memoryDatabase = GetMemSnapshotDatabaseByRequest(request);
-    if (memoryDatabase == nullptr) {
+    const auto resolved = ResolveMemSnapshotRequest(request, request.params.deviceId, request.params.sliceIndex);
+    const auto memoryDatabase = resolved.database;
+    if (memoryDatabase == nullptr || !memoryDatabase->IsOpen()) {
         errorMsg = "Get memsnapshot database failed when querying allocations.";
         Server::ServerLog::Error(errorMsg);
         SendResponse(std::move(responsePtr), false, errorMsg);
         return false;
     }
-    std::vector<Protocol::AllocationRecord> records;
-    memoryDatabase->QueryMemoryAllocations(request.params.deviceId, records);
-    if (records.empty()) {
-        Server::ServerLog::Warn("Query memory records: empty data.");
-        if (request.params.pageSize > 0) {
-            response.paginated = true;
+    const auto slice = resolved.slice;
+    if (slice.has_value()) {
+        if (!memoryDatabase->QueryMemoryAllocationOverviewCache(request.params.deviceId, response.allocations) ||
+            !memoryDatabase->QueryMemoryAllocationCacheMaxSize(request.params.deviceId, response.maxSize)) {
+            errorMsg = "Failed to query precomputed memory allocation overview.";
+            Server::ServerLog::Error(errorMsg);
+            SendResponse(std::move(responsePtr), false, errorMsg);
+            return false;
         }
-        SendResponse(std::move(responsePtr), true);
-        return true;
+    } else {
+        // 兼容未分窗的旧版数据库；新分窗产物只读取解析阶段生成的抽样结果。
+        std::vector<Protocol::AllocationRecord> records;
+        memoryDatabase->QueryMemoryAllocations(request.params.deviceId, records);
+        if (records.empty()) {
+            Server::ServerLog::Warn("Query memory records: empty data.");
+        } else {
+            response.allocations = MemSnapshotAllocationDataProcessor::ExtractAllocationTurningPoints(records);
+            for (const auto &record : records) {
+                response.maxSize = std::max(response.maxSize, std::max(record.allocated, record.reserved));
+            }
+        }
     }
-    response.allocations = MemSnapshotAllocationDataProcessor::ExtractAllocationTurningPoints(records);
-    response.reservedLine = MemSnapshotAllocationDataProcessor::CompressReservedLine(records);
     response.minEventId = 0;
-    response.maxEventId = memoryDatabase->GetDeviceMaxEntryId(request.params.deviceId);
+    const int64_t maxEventId = memoryDatabase->GetDeviceMaxEntryId(request.params.deviceId);
+    response.maxEventId = ToNonNegativeEventId(maxEventId);
     if (request.params.pageSize > 0) {
         response.paginated = true;
         response.allocationsTotal = response.allocations.size();
-        response.reservedLineTotal = response.reservedLine.size();
         Paginate(response.allocations, request.params);
-        Paginate(response.reservedLine, request.params);
+    }
+    if (slice.has_value()) {
+        response.minEventId = static_cast<uint64_t>(slice->startEventId);
+        response.maxEventId = static_cast<uint64_t>(slice->endEventId);
     }
     SendResponse(std::move(responsePtr), true);
     return true;

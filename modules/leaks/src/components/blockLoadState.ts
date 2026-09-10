@@ -22,15 +22,17 @@ interface MemoryBlockContext {
     fileHash: string;
     module: string;
     loadedMemoryBlockContextKey: string;
+    selectedSliceIndex?: number;
 }
 
 export const createMemoryBlockContextKey = (
-    context: Pick<MemoryBlockContext, 'fileHash' | 'module' | 'deviceId' | 'eventType'>,
+    context: Pick<MemoryBlockContext, 'fileHash' | 'module' | 'deviceId' | 'eventType' | 'selectedSliceIndex'>,
 ): string => JSON.stringify([
     context.fileHash,
     context.module,
     context.deviceId,
     context.eventType,
+    context.selectedSliceIndex ?? -1,
 ]);
 
 export const isMemoryBlockLoadReady = (context: MemoryBlockContext): boolean => (

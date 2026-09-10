@@ -33,6 +33,7 @@ struct MemSnapshotLeakStatsParams {
     uint64_t startEventIdx{0};
     uint64_t endEventIdx{0};
     std::string deviceId;
+    int sliceIndex{-1};
 
     bool CommonCheck(std::string &errorMsg) const {
         if (startEventIdx > endEventIdx) {
@@ -61,6 +62,7 @@ struct MemSnapshotBlockParams : public CommonTableParams {
     uint64_t maxSize{0};
     std::string deviceId;
     std::string eventType;
+    int sliceIndex{-1};
     // 标识是否仅请求start、end区间内申请或释放的block
     bool onlyAllocOrFreeInRange{false};
     bool onlyUnreleasedInRange{false};
@@ -125,10 +127,11 @@ struct MemSnapshotBlockParams : public CommonTableParams {
 };
 
 struct MemSnapshotAllocationParams : public PaginationParam {
-    // allocations 与 reservedLine 同页最坏序列化显著低于代理 10 MiB 上限。
+    // 单条趋势接口在最大分页下的序列化结果低于代理 10 MiB 上限。
     static constexpr int64_t MAX_PAGE_SIZE = 30000;
     std::string deviceId;
     std::string eventType;
+    int sliceIndex{-1};
 
     MemSnapshotAllocationParams() = default;
 
@@ -164,6 +167,7 @@ struct MemSnapshotEventParams : public CommonTableParams {
     uint64_t startEventIdx{0};
     uint64_t endEventIdx{0};
     std::string deviceId;
+    int sliceIndex{-1};
 
     bool CommonCheck(std::string &errorMsg) const {
         if (startEventIdx > endEventIdx) {
@@ -200,6 +204,7 @@ struct MemSnapshotLeakStatsRequest : Request {
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.startEventIdx, param_json, "startTimestamp");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.endEventIdx, param_json, "endTimestamp");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceIndex, param_json, "sliceIndex");
         return reqPtr;
     }
 };
@@ -229,6 +234,7 @@ struct MemSnapshotBlocksRequest : Request {
         JsonUtil::SetByJsonKeyValue(reqPtr->params.maxSize, param_json, "maxSize");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.eventType, param_json, "eventType");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceIndex, param_json, "sliceIndex");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.onlyUnreleasedInRange, param_json, "onlyUnreleasedInRange");
         if (reqPtr->isTable) {
             if (!reqPtr->params.SetFromJson(param_json, BlockTableColumn::FIELD_FULL_COLUMNS, error)) {
@@ -263,6 +269,7 @@ struct MemSnapshotEventsRequest : Request {
         const json_t &param_json = json["params"];
         JsonUtil::SetByJsonKeyValue(reqPtr->isTable, param_json, "isTable");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceIndex, param_json, "sliceIndex");
         // 仅在table场景下
         if (reqPtr->isTable) {
             // 为兼容memscope数据请求的开始、结束时间戳，此处api仍然接收为startTimestamp、endTimestamp，但内部转换为事件索引
@@ -300,6 +307,33 @@ struct MemSnapshotAllocationsRequest : Request {
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.eventType, param_json, "eventType");
         reqPtr->params.SetPaginationParamFromJson(param_json);
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceIndex, param_json, "sliceIndex");
+        return reqPtr;
+    }
+};
+
+struct MemSnapshotAllocationLinesRequest : Request {
+    MemSnapshotAllocationLinesRequest() : Request(REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES) {}
+    MemSnapshotAllocationParams params;
+
+    static std::unique_ptr<Request> FromJson(const json_t &json, std::string &error) {
+        std::unique_ptr<MemSnapshotAllocationLinesRequest> reqPtr =
+            std::make_unique<MemSnapshotAllocationLinesRequest>();
+        if (!ProtocolUtil::SetRequestBaseInfo(*reqPtr, json)) {
+            error = "Failed to set request base info, command is: " + reqPtr->command;
+            return nullptr;
+        }
+        if (!json.HasMember("params") || !json["params"].HasMember("deviceId") ||
+            !json["params"].HasMember("eventType")) {
+            error = "Request[requestId=" + std::to_string(reqPtr->id) +
+                "] json lacks member params or deviceId or eventType.";
+            return nullptr;
+        }
+        const json_t &paramJson = json["params"];
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, paramJson, "deviceId");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.eventType, paramJson, "eventType");
+        reqPtr->params.SetPaginationParamFromJson(paramJson);
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceIndex, paramJson, "sliceIndex");
         return reqPtr;
     }
 };
@@ -314,6 +348,7 @@ struct MemSnapshotDetailParams {
     bool hasEventId{false};
     bool hasSegmentAddress{false};
     bool hasStream{false};
+    int sliceIndex{-1};
 
     bool CommonCheck(std::string &errorMsg) const {
         if (!CheckStrParamValid(deviceId, errorMsg)) {
@@ -368,6 +403,7 @@ struct MemSnapshotDetailRequest : Request {
         JsonUtil::SetByJsonKeyValue(reqPtr->params.eventId, param_json, "eventId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.segmentAddress, param_json, "segmentAddress");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.stream, param_json, "stream");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceIndex, param_json, "sliceIndex");
         return reqPtr;
     }
 };
@@ -375,6 +411,7 @@ struct MemSnapshotDetailRequest : Request {
 struct MemSnapshotStateParams {
     uint64_t eventId{0};
     std::string deviceId;
+    int sliceIndex{-1};
 
     bool CommonCheck(std::string &errorMsg) const {
         if (!CheckStrParamValid(deviceId, errorMsg)) {
@@ -408,6 +445,7 @@ struct MemSnapshotStateRequest : Request {
         const json_t &param_json = json["params"];
         JsonUtil::SetByJsonKeyValue(reqPtr->params.eventId, param_json, "eventId");
         JsonUtil::SetByJsonKeyValue(reqPtr->params.deviceId, param_json, "deviceId");
+        JsonUtil::SetByJsonKeyValue(reqPtr->params.sliceIndex, param_json, "sliceIndex");
         return reqPtr;
     }
 };

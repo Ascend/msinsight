@@ -178,11 +178,13 @@ const std::string REQ_RES_TRITON_MEMORY_USAGE = "Triton/memory/usage";
 // memsnapshot Request
 const std::string REQ_RES_MEM_SNAPSHOT_BLOCKS = "Memory/snapshot/blocks";
 const std::string REQ_RES_MEM_SNAPSHOT_ALLOCATIONS = "Memory/snapshot/allocations";
+const std::string REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES = "Memory/snapshot/allocationLines";
 const std::string REQ_RES_MEM_SNAPSHOT_EVENTS = "Memory/snapshot/events";
 const std::string REQ_RES_MEM_SNAPSHOT_DETAIL = "Memory/snapshot/detail";
 const std::string REQ_RES_MEM_SNAPSHOT_STATE = "Memory/snapshot/state";
 const std::string REQ_RES_MEM_SNAPSHOT_LEAK_STATS = "Memory/snapshot/leakStats";
 const std::string EVENT_PARSE_MEM_SNAPSHOT_PROGRESS = "parse/memSnapshotProgress";
+const std::string EVENT_PARSE_MEM_SNAPSHOT_SLICE_READY = "parse/memSnapshotSliceReady";
 
 // Operator Request
 const std::string REQ_RES_OPERATOR_CATEGORY_INFO = "operator/category";

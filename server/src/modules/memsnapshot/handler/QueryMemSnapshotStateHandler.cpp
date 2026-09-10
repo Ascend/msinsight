@@ -45,15 +45,15 @@ bool QueryMemSnapshotStateHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const auto database = GetMemSnapshotDatabaseByRequest(request);
+    const auto database = GetMemSnapshotDatabaseByRequest(request, request.params.deviceId, request.params.sliceIndex);
     if (database == nullptr || !database->IsOpen()) {
         errMsg = LOG_TAG + "Failed to query state: get database connection failed";
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
     auto segments = MemSnapshotService::GetSegmentsByEventId(request.params.eventId, request.params.deviceId, database);
-    MemSnapshotStateCache::Put(
-        GetMemSnapshotDataKey(request), request.params.deviceId, request.params.eventId, segments);
+    MemSnapshotStateCache::Put(GetMemSnapshotStateCacheKey(request, request.params.deviceId, request.params.sliceIndex),
+        request.params.deviceId, request.params.eventId, segments);
     BuildSegmentsStateInfoFromSegments(segments, response.segments);
     SendResponse(std::move(responsePtr), true);
     return true;

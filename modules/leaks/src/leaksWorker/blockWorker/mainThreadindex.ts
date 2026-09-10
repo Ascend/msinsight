@@ -66,6 +66,7 @@ export class MainThreadRender {
     blockDataOPFS: BlockDataOPFS;
     readonly temporaryBlockDataStorageKey: string;
     allocationLines: AllocationLineData = { reservedLine: [], processUsedLine: [], deviceUsedLine: [] };
+    blockGraphGlobalMaxSize: number = 0;
     transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     viewport: RenderOptions['viewport'] = { width: 0, height: 0 };
     zoom: RenderOptions['zoom'] = { x: 1, y: 1, offset: 0 };
@@ -99,6 +100,7 @@ export class MainThreadRender {
             const maxSize = Math.max(
                 this.memoryBlockMetadata.maxSize,
                 this.memoryBlockMetadata.reservedSizeMax ?? this.memoryBlockMetadata.maxSize,
+                this.blockGraphGlobalMaxSize,
             );
             return {
                 maxTimestamp: this.memoryBlockMetadata.maxTimestamp,
@@ -108,7 +110,11 @@ export class MainThreadRender {
             };
         }
         if (this.memoryBlockData) {
-            const maxSize = Math.max(this.memoryBlockData.maxSize, this.memoryBlockData.reservedSizeMax ?? this.memoryBlockData.maxSize);
+            const maxSize = Math.max(
+                this.memoryBlockData.maxSize,
+                this.memoryBlockData.reservedSizeMax ?? this.memoryBlockData.maxSize,
+                this.blockGraphGlobalMaxSize,
+            );
             return {
                 maxTimestamp: this.memoryBlockData.maxTimestamp,
                 minTimestamp: this.memoryBlockData.minTimestamp,
@@ -188,7 +194,7 @@ export class MainThreadRender {
     private updateMetadataView(metadata: BlockGraphMetadata, generation: number): void {
         this.memoryBlockMetadata = this.applyAllocationLinesOverride(metadata, generation);
         this.allocationLines = this.resolveAllocationLines(generation, this.memoryBlockMetadata.reservedLine ?? []);
-        this.zoom = getZoom(this.memoryBlockMetadata, this.canvas);
+        this.zoom = getZoom(this.memoryBlockMetadata, this.canvas, this.blockGraphGlobalMaxSize);
         runInAction(() => {
             this.session.leaksWorkerInfo.sizeInfo = this.getSizeInfo();
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
@@ -288,33 +294,44 @@ export class MainThreadRender {
             return true;
         }
         const progressiveState: ProgressiveRenderState = { enabled: false, framePublished: false, lastBatch: 0 };
-        const builtMetadata = await buildBlockViewPathAndWriteToOPFS(payload.data, this.blockDataOPFS, {
-            generation: payload.generation,
-            shouldCancel,
-            onGraphMetadataReady: metadata => {
-                this.updateMetadataView(metadata, payload.generation);
-                progressiveState.enabled = Number.isFinite(this.zoom.x) && Number.isFinite(this.zoom.y);
-            },
-            onStorageReady: async () => {
-                await this.blockDataOPFS.tryMarkCacheBuilding(fileHash);
-                await this.initializeProgressiveStorage(payload.generation);
-            },
-            onBatchesCommitted: (_startBatch, endBatch, progress) =>
-                this.renderProgressiveBatch(payload.generation, endBatch, progress, progressiveState, shouldCancel),
-        });
-        this.memoryBlockMetadata = this.applyAllocationLinesOverride(builtMetadata, payload.generation);
-        if (shouldCancel()) {
-            throw new BlockPathBuildCancelledError();
+        try {
+            const builtMetadata = await buildBlockViewPathAndWriteToOPFS(payload.data, this.blockDataOPFS, {
+                generation: payload.generation,
+                shouldCancel,
+                onGraphMetadataReady: metadata => {
+                    this.updateMetadataView(metadata, payload.generation);
+                    progressiveState.enabled = Number.isFinite(this.zoom.x) && Number.isFinite(this.zoom.y);
+                },
+                onStorageReady: async () => {
+                    await this.blockDataOPFS.tryMarkCacheBuilding(fileHash);
+                    await this.initializeProgressiveStorage(payload.generation);
+                },
+                onBatchesCommitted: (_startBatch, endBatch, progress) =>
+                    this.renderProgressiveBatch(payload.generation, endBatch, progress, progressiveState, shouldCancel),
+            });
+            this.memoryBlockMetadata = this.applyAllocationLinesOverride(builtMetadata, payload.generation);
+            if (shouldCancel()) {
+                throw new BlockPathBuildCancelledError();
+            }
+            await this.blockDataOPFS.trySaveCompleteCache(fileHash, builtMetadata);
+            this.updateMetadataView(this.memoryBlockMetadata, payload.generation);
+            await this.renderer?.setDataFromOPFS(
+                this.blockDataOPFS,
+                this.memoryBlockMetadata.batchCount,
+                this.allocationLines,
+                false,
+            );
+            return true;
+        } catch (error) {
+            if (error instanceof BlockPathBuildCancelledError) {
+                try {
+                    await this.blockDataOPFS.removeStorage();
+                } catch {
+                    // 清理失败不应覆盖原始取消状态，残留 building 缓存会在下次加载时继续失效重建。
+                }
+            }
+            throw error;
         }
-        await this.blockDataOPFS.trySaveCompleteCache(fileHash, builtMetadata);
-        this.updateMetadataView(this.memoryBlockMetadata, payload.generation);
-        await this.renderer?.setDataFromOPFS(
-            this.blockDataOPFS,
-            this.memoryBlockMetadata.batchCount,
-            this.allocationLines,
-            false,
-        );
-        return true;
     }
 
     private setMemoryBlockDataInMemory(payload: Omit<SetMemoryBlocksDataPayload, 'type'>): void {
@@ -323,7 +340,7 @@ export class MainThreadRender {
         const renderData = isPackedRenderData(payload.data) ? unpackRenderData(payload.data) : payload.data;
         this.memoryBlockData = buildBlockViewPath(renderData);
         this.allocationLines = this.resolveAllocationLines(payload.generation, this.memoryBlockData.reservedLine ?? []);
-        this.zoom = getZoom(this.memoryBlockData, this.canvas);
+        this.zoom = getZoom(this.memoryBlockData, this.canvas, this.blockGraphGlobalMaxSize);
         runInAction(() => {
             this.session.leaksWorkerInfo.sizeInfo = this.getSizeInfo();
             this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
@@ -449,11 +466,11 @@ export class MainThreadRender {
         if (this.memoryBlockMetadata) {
             this.memoryBlockMetadata.reservedLine = lines.reservedLine;
             this.memoryBlockMetadata.reservedSizeMax = allocationLineSizeMax;
-            this.zoom = getZoom(this.memoryBlockMetadata, this.canvas);
+            this.zoom = getZoom(this.memoryBlockMetadata, this.canvas, this.blockGraphGlobalMaxSize);
         } else if (this.memoryBlockData) {
             this.memoryBlockData.reservedLine = lines.reservedLine;
             this.memoryBlockData.reservedSizeMax = allocationLineSizeMax;
-            this.zoom = getZoom(this.memoryBlockData, this.canvas);
+            this.zoom = getZoom(this.memoryBlockData, this.canvas, this.blockGraphGlobalMaxSize);
         } else {
             return;
         }
@@ -470,6 +487,23 @@ export class MainThreadRender {
         );
     }
 
+    setBlockGraphGlobalMaxSizeHandler(payload: Omit<SetBlockGraphGlobalMaxSizePayload, 'type'>): void {
+        this.blockGraphGlobalMaxSize = Math.max(0, payload.maxSize);
+        const zoomSource = this.useOpfs ? this.memoryBlockMetadata : this.memoryBlockData;
+        if (!zoomSource) {
+            return;
+        }
+        this.zoom = getZoom(zoomSource, this.canvas, this.blockGraphGlobalMaxSize);
+        if (!Number.isFinite(this.zoom.x) || !Number.isFinite(this.zoom.y)) {
+            return;
+        }
+        runInAction(() => {
+            this.session.leaksWorkerInfo.sizeInfo = this.getSizeInfo();
+            this.session.leaksWorkerInfo.renderOptions.zoom = this.zoom;
+        });
+        this.renderer?.setZoom(this.zoom);
+    }
+
     resizeCanvasHandler(payload: Omit<ResizeCanvasPayload, 'type'>): void {
         this.viewport = { width: payload.width, height: payload.height };
         this.renderer?.updateCanvasSize(this.viewport);
@@ -483,7 +517,7 @@ export class MainThreadRender {
         if (!zoomSource) {
             return;
         }
-        this.zoom = getZoom(zoomSource, this.canvas);
+        this.zoom = getZoom(zoomSource, this.canvas, this.blockGraphGlobalMaxSize);
         this.renderer?.setZoom(this.zoom);
     }
 
@@ -558,6 +592,9 @@ export class MainThreadRender {
 
     async selectItemHandler(payload: Omit<SelectBlockItemPayload, 'type'>): Promise<void> {
         this.clickItem = payload.item;
+        if (this.useOpfs && this.blockDataOPFS && this.clickItem !== null) {
+            this.clickItem = await this.blockDataOPFS.findBlockById(this.clickItem.id) ?? this.clickItem;
+        }
         await this.renderHighlightData();
         runInAction(() => {
             this.session.leaksWorkerInfo.clickItem = this.clickItem;
@@ -622,6 +659,7 @@ export class MainThreadRender {
         };
         this.memoryBlockMetadata = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, batchCount: 0 };
         this.allocationLines = { reservedLine: [], processUsedLine: [], deviceUsedLine: [] };
+        this.blockGraphGlobalMaxSize = 0;
         this.transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
         this.zoom = { x: 1, y: 1, offset: 0 };
         this.hoverItem = null;

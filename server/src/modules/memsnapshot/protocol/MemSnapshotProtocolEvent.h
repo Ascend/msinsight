@@ -19,6 +19,7 @@
 #include "JsonUtil.h"
 #include "ProtocolDefs.h"
 #include "ProtocolMessage.h"
+#include "MemScopeProtocolEvent.h"
 
 #ifndef PROFILER_SERVER_MEM_SNAPSHOT_PROTOCOL_EVENT_H
 #define PROFILER_SERVER_MEM_SNAPSHOT_PROTOCOL_EVENT_H
@@ -39,6 +40,36 @@ struct MemSnapshotParseProgressEvent : public JsonEvent {
         json_t jsonBody(kObjectType);
         JsonUtil::AddMember(jsonBody, "fileId", body.fileId, allocator);
         JsonUtil::AddMember(jsonBody, "progress", body.progress, allocator);
+        JsonUtil::AddMember(json, "body", jsonBody, allocator);
+        return std::optional<document_t>{std::move(json)};
+    }
+};
+
+struct MemSnapshotSliceReadyEventBody {
+    std::string fileId;
+    std::string fileHash;
+    std::string deviceId;
+    MemSnapshotSliceEventInfo slice;
+};
+
+struct MemSnapshotSliceReadyEvent : public JsonEvent {
+    MemSnapshotSliceReadyEvent() : JsonEvent(EVENT_PARSE_MEM_SNAPSHOT_SLICE_READY) {}
+    MemSnapshotSliceReadyEventBody body;
+
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
+        document_t json(kObjectType);
+        auto &allocator = json.GetAllocator();
+        ProtocolUtil::SetEventJsonBaseInfo(*this, json);
+        json_t jsonBody(kObjectType);
+        json_t sliceJson(kObjectType);
+        JsonUtil::AddMember(jsonBody, "fileId", body.fileId, allocator);
+        JsonUtil::AddMember(jsonBody, "fileHash", body.fileHash, allocator);
+        JsonUtil::AddMember(jsonBody, "deviceId", body.deviceId, allocator);
+        JsonUtil::AddMember(sliceJson, "index", body.slice.index, allocator);
+        JsonUtil::AddMember(sliceJson, "startEventId", body.slice.startEventId, allocator);
+        JsonUtil::AddMember(sliceJson, "endEventId", body.slice.endEventId, allocator);
+        JsonUtil::AddMember(sliceJson, "ready", body.slice.ready, allocator);
+        JsonUtil::AddMember(jsonBody, "slice", sliceJson, allocator);
         JsonUtil::AddMember(json, "body", jsonBody, allocator);
         return std::optional<document_t>{std::move(json)};
     }

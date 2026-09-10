@@ -18,6 +18,7 @@
 
 #include "MemSnapshotDatabase.h"
 #include "DataBaseManager.h"
+#include "MemSnapshotAllocationDataProcessor.h"
 #include "ServerLog.h"
 
 namespace Dic::Module::FullDb {
@@ -47,6 +48,11 @@ bool MemSnapshotDatabase::OpenDbReadOnly(const std::string &dbPath) {
         Server::ServerLog::Warn(LOG_TAG + "The database connection has been opened. Nothing to do.");
         return true;
     }
+    blockTableNames.clear();
+    traceEntryTableNames.clear();
+    deviceMaxEntryIdMap.clear();
+    tableDictionaryMap.clear();
+    blockIdRangeMap.clear();
     if (!Database::OpenDb(dbPath, false)) {
         Server::ServerLog::Error(LOG_TAG + "Failed to open snapshot db with path: %.", dbPath);
         return false;
@@ -54,11 +60,13 @@ bool MemSnapshotDatabase::OpenDbReadOnly(const std::string &dbPath) {
     // 检查必要表
     if (!CheckAllTableExist()) {
         Server::ServerLog::Error(LOG_TAG + "Failed to check all table exists.");
+        CloseDb();
         return false;
     }
     // 初始化db实例上下文
     if (!InitContext()) {
         Server::ServerLog::Error(LOG_TAG + "Failed to initialize snapshot database context.");
+        CloseDb();
         return false;
     }
     return true;
@@ -293,12 +301,6 @@ void MemSnapshotDatabase::QueryBlockIdRangeByDeviceIdLazy(
 
 void MemSnapshotDatabase::Reset() {
     Server::ServerLog::Info(LOG_TAG + "MemSnapshot db reset.");
-    auto databaseList = Timeline::DataBaseManager::Instance().GetAllMemSnapshotDatabase();
-    for (auto &db : databaseList) {
-        if (db != nullptr && db->IsOpen()) {
-            db->CloseDb();
-        }
-    }
     Timeline::DataBaseManager::Instance().Clear(Timeline::DatabaseType::MEM_SNAPSHOT);
 }
 
@@ -565,8 +567,10 @@ std::string MemSnapshotDatabase::BuildQueryBlocksTableConditionSqlByParams(
     // 构造事件索引范围参数
     if (params.onlyUnreleasedInRange) {
         eventIdxRangeCondition = true;
-        conditionSql.append(StringUtil::FormatString(" AND ({} BETWEEN ? AND ?) AND ({} < 0 OR {} > ?) ",
-            BlockTableColumn::ALLOC_EVENT_ID, BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID));
+        // 与生命周期图一致：包含跨窗/负 ID 申请、且在窗口结束时仍未释放的块。
+        conditionSql.append(StringUtil::FormatString(" AND ({} < 0 OR {} <= ?) AND ({} < 0 OR {} > ?) ",
+            BlockTableColumn::ALLOC_EVENT_ID, BlockTableColumn::ALLOC_EVENT_ID, BlockTableColumn::FREE_EVENT_ID,
+            BlockTableColumn::FREE_EVENT_ID));
     } else if (params.endEventIdx >= params.startEventIdx && params.endEventIdx > 0) {
         eventIdxRangeCondition = true;
         // allocEventId < 0 时视为无限小，freeEventId < 0 时视为无限大
@@ -611,7 +615,6 @@ sqlite3_stmt *MemSnapshotDatabase::BuildQueryBlocksTableByQueryParamsAndBindPara
     // 绑定事件索引范围参数
     if (eventIdxRangeCondition) {
         if (paramsCopy.onlyUnreleasedInRange) {
-            sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.startEventIdx);
             sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.endEventIdx);
             sqlite3_bind_int64(stmt, bindIdx++, paramsCopy.endEventIdx);
         } else {
@@ -636,10 +639,10 @@ bool MemSnapshotDatabase::QueryPotentialLeakStats(
     std::string querySql = "SELECT COALESCE(SUM(ROUND({} / 1024.0, 3)), 0), "
                            "COALESCE(ROUND(MAX({}) / 1024.0, 3), 0), "
                            "COALESCE(ROUND(MIN({}) / 1024.0, 3), 0) FROM {} "
-                           "WHERE {} BETWEEN ? AND ? AND ({} < 0 OR {} > ?)";
+                           "WHERE ({} < 0 OR {} <= ?) AND ({} < 0 OR {} > ?)";
     querySql = StringUtil::FormatString(querySql, BlockTableColumn::SIZE, BlockTableColumn::SIZE,
         BlockTableColumn::SIZE, GetBlockTableNameByDeviceId(queryParams.deviceId), BlockTableColumn::ALLOC_EVENT_ID,
-        BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID);
+        BlockTableColumn::ALLOC_EVENT_ID, BlockTableColumn::FREE_EVENT_ID, BlockTableColumn::FREE_EVENT_ID);
     sqlite3_stmt *stmt = nullptr;
     int result = sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr);
     if (result != SQLITE_OK) {
@@ -649,7 +652,6 @@ bool MemSnapshotDatabase::QueryPotentialLeakStats(
         return false;
     }
     int bindIdx = bindStartIndex;
-    sqlite3_bind_int64(stmt, bindIdx++, queryParams.startEventIdx);
     sqlite3_bind_int64(stmt, bindIdx++, queryParams.endEventIdx);
     sqlite3_bind_int64(stmt, bindIdx++, queryParams.endEventIdx);
     if (sqlite3_step(stmt) == SQLITE_ROW) {
@@ -707,6 +709,197 @@ void MemSnapshotDatabase::QueryMemoryAllocations(const std::string &deviceId, st
         records.emplace_back(timestamp, allocated, reserved);
     }
     sqlite3_finalize(stmt);
+}
+
+std::string MemSnapshotDatabase::GetMemoryAllocationCacheTableName(const std::string &deviceId) {
+    return memoryAllocationCacheTablePrefix + deviceId;
+}
+
+bool MemSnapshotDatabase::QueryMemoryAllocationCache(const std::string &deviceId,
+    std::vector<AllocationRecordDTO> &allocations, std::vector<ReservedRecordDTO> &reservedLine) {
+    const auto tableName = GetMemoryAllocationCacheTableName(deviceId);
+    const auto querySql =
+        StringUtil::FormatString("SELECT lineType, timestamp, size FROM {} ORDER BY lineType, timestamp", tableName);
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        Server::ServerLog::Error(LOG_TAG + "Failed to query memory allocation cache, error: ", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const int lineType = sqlite3_column_int(stmt, 0);
+        const int64_t timestamp = sqlite3_column_int64(stmt, 1);
+        const uint64_t size = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, 2));
+        if (lineType == ALLOCATION_LINE_TYPE) {
+            allocations.emplace_back(timestamp, size);
+        } else if (lineType == RESERVED_LINE_TYPE) {
+            reservedLine.emplace_back(timestamp, size);
+        }
+    }
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool MemSnapshotDatabase::QueryMemoryAllocationOverviewCache(
+    const std::string &deviceId, std::vector<AllocationRecordDTO> &allocations) {
+    const auto querySql =
+        StringUtil::FormatString("SELECT timestamp, size FROM {} WHERE lineType = ? ORDER BY timestamp",
+            GetMemoryAllocationCacheTableName(deviceId));
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        Server::ServerLog::Error(
+            LOG_TAG + "Failed to query memory allocation overview cache, error: ", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, ALLOCATION_LINE_TYPE);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        allocations.emplace_back(
+            sqlite3_column_int64(stmt, 0), NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, 1)));
+    }
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool MemSnapshotDatabase::QueryMemoryAllocationLineCache(
+    const std::string &deviceId, std::vector<ReservedRecordDTO> &reservedLine) {
+    const auto querySql =
+        StringUtil::FormatString("SELECT timestamp, size FROM {} WHERE lineType = ? ORDER BY timestamp",
+            GetMemoryAllocationCacheTableName(deviceId));
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        Server::ServerLog::Error(LOG_TAG + "Failed to query memory allocation line cache, error: ", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    sqlite3_bind_int(stmt, 1, RESERVED_LINE_TYPE);
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        reservedLine.emplace_back(
+            sqlite3_column_int64(stmt, 0), NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, 1)));
+    }
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool MemSnapshotDatabase::QueryMemoryAllocationCacheMaxSize(const std::string &deviceId, uint64_t &maxSize) {
+    const auto querySql =
+        StringUtil::FormatString("SELECT MAX(size) FROM {}", GetMemoryAllocationCacheTableName(deviceId));
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(db, querySql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        Server::ServerLog::Error(
+            LOG_TAG + "Failed to query memory allocation cache max size, error: ", sqlite3_errmsg(db));
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        maxSize = NumberUtil::Int64ToUint64(sqlite3_column_int64(stmt, 0));
+    }
+    sqlite3_finalize(stmt);
+    return true;
+}
+
+bool MemSnapshotDatabase::HasCompleteMemoryAllocationCache(const std::string &deviceId) {
+    if (!CheckTableExist(GetMemoryAllocationCacheTableName(deviceId))) {
+        return false;
+    }
+    std::vector<AllocationRecordDTO> allocations;
+    std::vector<ReservedRecordDTO> reservedLine;
+    return QueryMemoryAllocationCache(deviceId, allocations, reservedLine) && !allocations.empty() &&
+        !reservedLine.empty();
+}
+
+bool MemSnapshotDatabase::HasMemoryAllocationCache(const std::string &dbPath, const std::string &deviceId) {
+    std::recursive_mutex sqlMutex;
+    MemSnapshotDatabase database(sqlMutex);
+    if (!database.OpenDb(dbPath, false)) {
+        return false;
+    }
+    return database.HasCompleteMemoryAllocationCache(deviceId);
+}
+
+bool MemSnapshotDatabase::BuildMemoryAllocationCache(const std::string &dbPath, const std::string &deviceId) {
+    std::recursive_mutex sqlMutex;
+    MemSnapshotDatabase database(sqlMutex);
+    if (!database.OpenDb(dbPath, false)) {
+        return false;
+    }
+    const auto tableName = GetMemoryAllocationCacheTableName(deviceId);
+    if (database.HasCompleteMemoryAllocationCache(deviceId)) {
+        return true;
+    }
+    if (database.CheckTableExist(tableName) &&
+        !database.ExecSql(StringUtil::FormatString("DROP TABLE IF EXISTS {}", tableName))) {
+        return false;
+    }
+
+    std::vector<AllocationRecord> records;
+    database.QueryMemoryAllocations(deviceId, records);
+    if (records.empty()) {
+        Server::ServerLog::Error(LOG_TAG + "Cannot build memory allocation cache from empty records.");
+        return false;
+    }
+    const auto allocations = MemSnapshotAllocationDataProcessor::ExtractAllocationTurningPoints(records);
+    const auto reservedLine = MemSnapshotAllocationDataProcessor::CompressReservedLine(records);
+    if (allocations.empty() || reservedLine.empty()) {
+        Server::ServerLog::Error(
+            LOG_TAG + "Cannot build memory allocation cache without allocation and reserved lines.");
+        return false;
+    }
+    if (!database.StartTransaction()) {
+        return false;
+    }
+    const auto createSql = StringUtil::FormatString(
+        "CREATE TABLE {} (lineType INTEGER NOT NULL, timestamp INTEGER NOT NULL, size INTEGER NOT NULL, "
+        "PRIMARY KEY (lineType, timestamp)) WITHOUT ROWID",
+        tableName);
+    if (!database.ExecSql(createSql)) {
+        database.RollbackTransaction();
+        return false;
+    }
+    const auto insertSql =
+        StringUtil::FormatString("INSERT INTO {} (lineType, timestamp, size) VALUES (?, ?, ?)", tableName);
+    sqlite3_stmt *stmt = nullptr;
+    if (sqlite3_prepare_v2(database.db, insertSql.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        Server::ServerLog::Error(
+            LOG_TAG + "Failed to prepare memory allocation cache insert, error: ", sqlite3_errmsg(database.db));
+        sqlite3_finalize(stmt);
+        database.RollbackTransaction();
+        return false;
+    }
+    const auto insertRecord = [&database, stmt](const int lineType, const int64_t timestamp, const uint64_t size) {
+        sqlite3_reset(stmt);
+        sqlite3_clear_bindings(stmt);
+        sqlite3_bind_int(stmt, 1, lineType);
+        sqlite3_bind_int64(stmt, 2, timestamp);
+        sqlite3_bind_int64(stmt, 3, static_cast<int64_t>(size));
+        if (sqlite3_step(stmt) != SQLITE_DONE) {
+            Server::ServerLog::Error(
+                LOG_TAG + "Failed to insert memory allocation cache, error: ", sqlite3_errmsg(database.db));
+            return false;
+        }
+        return true;
+    };
+    bool success = true;
+    for (const auto &record : allocations) {
+        success = insertRecord(ALLOCATION_LINE_TYPE, record.timestamp, record.totalSize);
+        if (!success) {
+            break;
+        }
+    }
+    if (success) {
+        for (const auto &record : reservedLine) {
+            success = insertRecord(RESERVED_LINE_TYPE, record.timestamp, record.reservedSize);
+            if (!success) {
+                break;
+            }
+        }
+    }
+    sqlite3_finalize(stmt);
+    if (!success) {
+        database.RollbackTransaction();
+        return false;
+    }
+    return database.EndTransaction();
 }
 
 int64_t MemSnapshotDatabase::QueryTraceEntriesTable(

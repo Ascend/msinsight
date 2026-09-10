@@ -24,6 +24,8 @@ import {
     parseTritonSuccessHandler,
     parseOperatorSuccessHandler,
     profilingExpertDataParsedHandler,
+    parseMemSnapshotSliceReadyHandler,
+    parseMemSnapshotProgressHandler,
 } from './interceptorHandler';
 
 const MEMORY_COMPLETED = 'parse/memoryCompleted';
@@ -32,6 +34,8 @@ const LEAKS_COMPLETED = 'parse/leaksMemoryCompleted';
 const TRITON_COMPLETED = 'parse/tritonCompleted';
 const OPERATOR_COMPLETED = 'parse/operatorCompleted';
 const PARSE_HEATMAP_COMPLETED = 'parse/heatmapCompleted';
+const MEM_SNAPSHOT_PROGRESS = 'parse/memSnapshotProgress';
+const MEM_SNAPSHOT_SLICE_READY = 'parse/memSnapshotSliceReady';
 
 export type ResponseType = ImportActionResponse;
 export const INTERCEPTOR_HANDLERS: Record<string, ResponseInterceptor<ResponseType>> = {};
@@ -42,6 +46,8 @@ export const NOTIFICATION_INTERCEPTOR_HANDLERS: Record<string, NotificationInter
     [TRITON_COMPLETED]: parseTritonSuccessHandler,
     [OPERATOR_COMPLETED]: parseOperatorSuccessHandler,
     [PARSE_HEATMAP_COMPLETED]: profilingExpertDataParsedHandler,
+    [MEM_SNAPSHOT_PROGRESS]: parseMemSnapshotProgressHandler,
+    [MEM_SNAPSHOT_SLICE_READY]: parseMemSnapshotSliceReadyHandler,
 };
 
 export const NOTIFICATION_STATISTIC_HANDLERS: Record<string, NotificationInterceptor<any>> = {

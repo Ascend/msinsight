@@ -203,6 +203,31 @@ TEST_F(MemSnapshotProtocolTest, BlocksViewSafeMaximumStaysBelowProxyMessageLimit
     EXPECT_LT(buffer.GetSize(), PROXY_MESSAGE_LIMIT);
 }
 
+TEST_F(MemSnapshotProtocolTest, BlocksViewKeepsOriginalEventIdsWhenClippingDrawRange) {
+    Dic::Protocol::MemSnapshotBlocksResponse response;
+    response.isTable = false;
+    response.minTimestamp = 100;
+    response.maxTimestamp = 200;
+    Dic::Protocol::BlockViewItemDTO block;
+    block.id = 7;
+    block.address = 42;
+    block.size = 8;
+    block.allocEventId = 10;
+    block.freeEventId = -1;
+    response.viewBlocks.push_back(block);
+
+    const auto json = response.ToJson();
+    ASSERT_TRUE(json.has_value());
+    const auto &body = (*json)["body"];
+    ASSERT_TRUE(body.HasMember("blocks") && body["blocks"].IsArray());
+    ASSERT_EQ(body["blocks"].Size(), 1u);
+    const auto &item = body["blocks"][0];
+    EXPECT_EQ(item["_startTimestamp"].GetInt64(), 100);
+    EXPECT_EQ(item["_endTimestamp"].GetInt64(), 200);
+    EXPECT_EQ(item["allocEventId"].GetInt64(), 10);
+    EXPECT_EQ(item["freeEventId"].GetInt64(), -1);
+}
+
 TEST_F(MemSnapshotProtocolTest, BlocksViewTableCheckUnaffectedByRelaxedCheck) {
     std::string errMsg;
     Dic::Protocol::MemSnapshotBlockParams params;
@@ -412,13 +437,9 @@ TEST_F(MemSnapshotProtocolTest, AllocationsSafeMaximumStaysBelowProxyMessageLimi
     Dic::Protocol::MemSnapshotAllocationsResponse response;
     response.paginated = true;
     response.allocationsTotal = Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE;
-    response.reservedLineTotal = Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE;
     const Dic::Protocol::AllocationRecordDTO allocation(
         std::numeric_limits<int64_t>::max(), std::numeric_limits<uint64_t>::max());
-    const Dic::Protocol::ReservedRecordDTO reserved(
-        std::numeric_limits<int64_t>::max(), std::numeric_limits<uint64_t>::max());
     response.allocations.assign(Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE, allocation);
-    response.reservedLine.assign(Dic::Protocol::MemSnapshotAllocationParams::MAX_PAGE_SIZE, reserved);
 
     const auto json = response.ToJson();
     ASSERT_TRUE(json.has_value());
@@ -428,6 +449,33 @@ TEST_F(MemSnapshotProtocolTest, AllocationsSafeMaximumStaysBelowProxyMessageLimi
 
     constexpr size_t PROXY_MESSAGE_LIMIT = 10 * 1024 * 1024;
     EXPECT_LT(buffer.GetSize(), PROXY_MESSAGE_LIMIT);
+}
+
+TEST_F(MemSnapshotProtocolTest, BuildAllocationLinesRequestFromJson) {
+    const std::string jsonStr = R"({
+        "id": 26,
+        "moduleName": "leaks",
+        "type": "request",
+        "command": "Memory/snapshot/allocationLines",
+        "projectName": "/home/test/data/memsnapshot/test.db",
+        "params": {
+            "deviceId": "1",
+            "eventType": "BLOCK",
+            "sliceIndex": 2,
+            "currentPage": 1,
+            "pageSize": 30000
+        }
+    })";
+    std::string errMsg;
+    const auto json = JsonUtil::TryParse(jsonStr, errMsg);
+    ASSERT_TRUE(json.has_value());
+    auto requestPtr = Dic::Protocol::MemSnapshotAllocationLinesRequest::FromJson(json.value(), errMsg);
+    ASSERT_NE(requestPtr, nullptr);
+    const auto &request = dynamic_cast<Dic::Protocol::MemSnapshotAllocationLinesRequest &>(*requestPtr);
+    EXPECT_TRUE(request.params.CommonCheck(errMsg));
+    EXPECT_EQ(request.params.deviceId, "1");
+    EXPECT_EQ(request.params.eventType, "BLOCK");
+    EXPECT_EQ(request.params.sliceIndex, 2);
 }
 
 TEST_F(MemSnapshotProtocolTest, BlocksParamsCommonCheckInvalidMinSize) {
@@ -889,4 +937,30 @@ TEST_F(MemSnapshotProtocolTest, BlocksRequestInvalidEndIdx) {
     auto &request = dynamic_cast<Dic::Protocol::MemSnapshotBlocksRequest &>(*requestPtr);
     EXPECT_FALSE(request.params.CommonCheck(errMsg));
     EXPECT_FALSE(errMsg.empty());
+}
+
+TEST_F(MemSnapshotProtocolTest, SnapshotRequestsAcceptSliceIndex) {
+    const std::string jsonStr = R"({
+        "id": 41,
+        "moduleName": "leaks",
+        "type": "request",
+        "command": "Memory/snapshot/allocations",
+        "fileId": "/home/test/data/snapshot.pkl",
+        "params": {
+            "deviceId": "0",
+            "eventType": "BLOCK",
+            "sliceIndex": 3,
+            "currentPage": 2,
+            "pageSize": 30000
+        }
+    })";
+    std::string errMsg;
+    auto json = JsonUtil::TryParse(jsonStr, errMsg);
+    ASSERT_TRUE(json.has_value());
+    auto requestPtr = Dic::Protocol::MemSnapshotAllocationsRequest::FromJson(json.value(), errMsg);
+    ASSERT_NE(requestPtr, nullptr);
+    auto &request = dynamic_cast<Dic::Protocol::MemSnapshotAllocationsRequest &>(*requestPtr);
+    EXPECT_EQ(request.params.sliceIndex, 3);
+    EXPECT_EQ(request.params.currentPage, 2);
+    EXPECT_EQ(request.params.pageSize, 30000);
 }

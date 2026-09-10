@@ -22,6 +22,7 @@ import { Modal } from 'antd';
 import { errorCenter, WsError, ErrorCode } from '@insight/lib/utils';
 import { connectRemote } from '../server';
 import { store } from '../../store';
+import { shouldForwardPendingImportCompletion } from '../../utils/filePath';
 import { runInAction } from 'mobx';
 import i18n from '@insight/lib/i18n';
 import { WebviewSocket } from '@/vscode-adapter/WebviewSocket';
@@ -232,7 +233,7 @@ export class Connection {
         if (!isResponse(msg)) {
             if (msg.event === 'parse/leaksMemoryCompleted') {
                 const { toBeActivedProject } = store.sessionStore.activeSession;
-                if (toBeActivedProject !== undefined && toBeActivedProject.selectedFilePath !== msg.body.dbPath) {
+                if (!shouldForwardPendingImportCompletion(toBeActivedProject, msg.body?.dbPath)) {
                     console.warn(`event #${msg.event} has been abandoned`);
                     return;
                 }

@@ -72,12 +72,12 @@ const BaseMISelect = <T extends DefaultOptionType>(props: MISelectProps<T>): JSX
         {Array.isArray(options) && options.map(option =>
             optionRender
                 ? (
-                    <Select.Option key={option.value} value={option.value} label={option.label}>
+                    <Select.Option key={option.value} value={option.value} label={option.label} disabled={option.disabled}>
                         {optionRender(option as T)}
                     </Select.Option>
                 )
                 : (
-                    <Select.Option key={option.value} value={option.value} label={option.label}>
+                    <Select.Option key={option.value} value={option.value} label={option.label} disabled={option.disabled}>
                         {option.label}
                     </Select.Option>
                 ),

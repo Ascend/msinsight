@@ -27,6 +27,7 @@ import { Session } from '../entity/session';
 import { getEventTableData } from './dataHandler';
 import { generateJsonShow } from '../utils/utils';
 import { isMemoryBlockLoadReady } from './blockLoadState';
+import { applyMemSnapshotEventLocate } from '../utils/memSnapshotSlices';
 
 const DEFAULT_TABLE_HEIGHT = 400;
 const TABLE_CHROME_HEIGHT = 88;
@@ -117,7 +118,7 @@ const getTableColumns = (t: TFunction, session: Session): any => {
                         onClick={(): void => {
                             if (!isValidLocateId(eventId)) return;
                             runInAction(() => {
-                                session.pendingEventLocate = { eventId: eventId as number, deviceId: session.deviceId };
+                                applyMemSnapshotEventLocate(session, eventId as number, session.deviceId);
                             });
                         }}
                     >

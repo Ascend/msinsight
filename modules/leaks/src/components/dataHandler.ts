@@ -20,10 +20,11 @@ import {
     workerSetMemoryBlockData,
     workerSetAllocationLines,
     workerTransform,
+    workerDestroy,
 } from '@/leaksWorker/blockWorker/worker';
 import {
     getMemoryDetailData, getFuncData, getBlockDetails, getEventDetails,
-    FuncParam, type AllocationData, type BlockParam, EventParam, type GraphParam,
+    FuncParam, type AllocationData, type AllocationLineData, type BlockParam, EventParam, type GraphParam,
     ThreShold,
     getBlocksGraphData,
     getLeaksAllocationsData,
@@ -31,6 +32,7 @@ import {
     getSnapshotBlockTable,
     getSnapshotEvent,
     getSnapshotAllocations,
+    getSnapshotAllocationLines,
     getSnapshotLeakStats,
 } from '../utils/RequestUtils';
 import { message } from 'antd';
@@ -39,10 +41,91 @@ import { ensureOpfsFallbackApproval, ensureOpfsOrWaitForFallbackApproval } from 
 import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from './blockLoadState';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
-const barDataRequestSeqMap = new WeakMap<object, number>();
 
-const createBlockPathCacheHash = (fileHash: string, deviceId: string, eventType: string): string =>
-    fileHash ? `${fileHash}-${deviceId}-${eventType}` : '';
+const getAllocationDataMaxSize = (data: AllocationData): number => {
+    let maxSize = data.maxSize ?? 0;
+    data.allocations.forEach(item => { maxSize = Math.max(maxSize, item.totalSize); });
+    data.reservedLine?.forEach(item => { maxSize = Math.max(maxSize, item.reservedSize); });
+    data.processUsedLine?.forEach(item => { maxSize = Math.max(maxSize, item.processUsed); });
+    data.deviceUsedLine?.forEach(item => { maxSize = Math.max(maxSize, item.deviceUsed); });
+    return maxSize;
+};
+
+const updateSnapshotGlobalMaxSize = (
+    session: any,
+    deviceId: string,
+    eventType: string,
+    maxSize: number,
+): void => {
+    const globalMaxSizes = session.snapshotGlobalMaxSizes ?? {};
+    const currentMaxSize = globalMaxSizes[deviceId]?.[eventType] ?? 0;
+    const nextMaxSize = Math.max(currentMaxSize, maxSize);
+    if (nextMaxSize === currentMaxSize) {
+        return;
+    }
+    runInAction(() => {
+        session.snapshotGlobalMaxSizes = {
+            ...globalMaxSizes,
+            [deviceId]: {
+                ...(globalMaxSizes[deviceId] ?? {}),
+                [eventType]: nextMaxSize,
+            },
+        };
+    });
+};
+const barDataRequestSeqMap = new WeakMap<object, number>();
+const blockTableRequestSeqMap = new WeakMap<object, number>();
+const eventTableRequestSeqMap = new WeakMap<object, number>();
+const overviewPrefetchMap = new WeakMap<object, Map<string, Promise<AllocationData | undefined>>>();
+const OVERVIEW_PRELOAD_CONCURRENCY = 2;
+let overviewPreloadActiveCount = 0;
+const overviewPreloadWaiters: Array<() => void> = [];
+
+const acquireOverviewPreloadSlot = async (): Promise<void> => {
+    if (overviewPreloadActiveCount < OVERVIEW_PRELOAD_CONCURRENCY) {
+        overviewPreloadActiveCount += 1;
+        return;
+    }
+    await new Promise<void>(resolve => {
+        overviewPreloadWaiters.push(resolve);
+    });
+    overviewPreloadActiveCount += 1;
+};
+
+const releaseOverviewPreloadSlot = (): void => {
+    overviewPreloadActiveCount = Math.max(0, overviewPreloadActiveCount - 1);
+    const next = overviewPreloadWaiters.shift();
+    if (next !== undefined) {
+        next();
+    }
+};
+
+const createBlockPathCacheHash = (fileHash: string, deviceId: string, eventType: string, sliceIndex: number): string =>
+    fileHash ? `${fileHash}-${deviceId}-${eventType}-${sliceIndex}` : '';
+
+const getSnapshotSliceRequestOrder = (readySlices: number[], selectedSliceIndex: number): number[] => {
+    const descendingSlices = [...readySlices].sort((left, right) => right - left);
+    const preferredSlice = readySlices.includes(selectedSliceIndex) ? selectedSliceIndex : descendingSlices[0];
+    if (preferredSlice === undefined) {
+        return [];
+    }
+    return [preferredSlice, ...descendingSlices.filter(sliceIndex => sliceIndex !== preferredSlice)];
+};
+
+const clearMemSnapshotWindowData = (session: any): void => {
+    session.blocksTableData = [];
+    session.blocksTotal = 0;
+    session.eventsTableData = [];
+    session.eventsTotal = 0;
+    session.leakStats = {
+        totalSize: 0,
+        maxSize: 0,
+        minSize: 0,
+        loading: false,
+        error: false,
+        requestId: (session.leakStats?.requestId ?? 0) + 1,
+    };
+};
 
 export const getFuncNewData = async (
     session: any,
@@ -168,8 +251,7 @@ const ALLOCATIONS_PAGE_SIZE = 30000;
 type SnapshotAllocationPage = AllocationData;
 
 const validateAllocationTotal = (total: SnapshotAllocationPage['total']): void => {
-    if (total === undefined || total === null || !Number.isSafeInteger(total.allocations) || total.allocations < 0 ||
-        !Number.isSafeInteger(total.reservedLine) || total.reservedLine < 0) {
+    if (total === undefined || total === null || !Number.isSafeInteger(total.allocations) || total.allocations < 0) {
         throw new Error('Invalid allocations pagination total');
     }
 };
@@ -187,7 +269,6 @@ const fetchSnapshotAllocationsPaginated = async (
     let firstPage: SnapshotAllocationPage | undefined;
     let expectedTotal: NonNullable<SnapshotAllocationPage['total']> | undefined;
     const allocationChunks: Array<AllocationData['allocations']> = [];
-    const reservedLineChunks: Array<NonNullable<AllocationData['reservedLine']>> = [];
     for (;;) {
         const page = await getSnapshotAllocations({ ...baseParam, currentPage, pageSize: ALLOCATIONS_PAGE_SIZE });
         if (!isLatestRequest()) {
@@ -201,19 +282,15 @@ const fetchSnapshotAllocationsPaginated = async (
             validateAllocationTotal(page.total);
             expectedTotal = page.total;
         } else if (page.total?.allocations !== expectedTotal?.allocations ||
-            page.total?.reservedLine !== expectedTotal?.reservedLine ||
             page.minTimestamp !== firstPage.minTimestamp || page.maxTimestamp !== firstPage.maxTimestamp) {
             throw new Error('Allocations pagination metadata changed while loading');
         }
-        const reservedLine = page.reservedLine ?? [];
-        if (!Array.isArray(page.allocations) || !Array.isArray(reservedLine) || expectedTotal === undefined ||
-            page.allocations.length !== getExpectedPageLength(expectedTotal.allocations, currentPage) ||
-            reservedLine.length !== getExpectedPageLength(expectedTotal.reservedLine, currentPage)) {
+        if (!Array.isArray(page.allocations) || expectedTotal === undefined ||
+            page.allocations.length !== getExpectedPageLength(expectedTotal.allocations, currentPage)) {
             throw new Error('Allocations pagination returned an unexpected page length');
         }
         allocationChunks.push(page.allocations);
-        reservedLineChunks.push(reservedLine);
-        if (currentPage * ALLOCATIONS_PAGE_SIZE >= Math.max(expectedTotal.allocations, expectedTotal.reservedLine)) {
+        if (currentPage * ALLOCATIONS_PAGE_SIZE >= expectedTotal.allocations) {
             break;
         }
         currentPage++;
@@ -221,16 +298,77 @@ const fetchSnapshotAllocationsPaginated = async (
     const merged: SnapshotAllocationPage = {
         ...firstPage,
         allocations: allocationChunks.flat(),
+    };
+    delete merged.total;
+    return merged;
+};
+
+type SnapshotAllocationLinePage = AllocationLineData;
+
+const fetchSnapshotAllocationLinesPaginated = async (
+    baseParam: GraphParam,
+    isLatestRequest: () => boolean,
+): Promise<AllocationLineData> => {
+    let currentPage = 1;
+    let firstPage: SnapshotAllocationLinePage | undefined;
+    let expectedTotal = 0;
+    const reservedLineChunks: Array<NonNullable<AllocationLineData['reservedLine']>> = [];
+    for (;;) {
+        const page = await getSnapshotAllocationLines({ ...baseParam, currentPage, pageSize: ALLOCATIONS_PAGE_SIZE });
+        if (!isLatestRequest()) {
+            throw SNAPSHOT_PAGINATION_SUPERSEDED;
+        }
+        if (firstPage === undefined) {
+            firstPage = page;
+            if (page.total === undefined) {
+                return page;
+            }
+            if (!Number.isSafeInteger(page.total.reservedLine) || page.total.reservedLine < 0) {
+                throw new Error('Invalid allocation lines pagination total');
+            }
+            expectedTotal = page.total.reservedLine;
+        } else if (page.total?.reservedLine !== expectedTotal || page.minTimestamp !== firstPage.minTimestamp ||
+            page.maxTimestamp !== firstPage.maxTimestamp) {
+            throw new Error('Allocation lines pagination metadata changed while loading');
+        }
+        const reservedLine = page.reservedLine ?? [];
+        if (!Array.isArray(reservedLine) ||
+            reservedLine.length !== getExpectedPageLength(expectedTotal, currentPage)) {
+            throw new Error('Allocation lines pagination returned an unexpected page length');
+        }
+        reservedLineChunks.push(reservedLine);
+        if (currentPage * ALLOCATIONS_PAGE_SIZE >= expectedTotal) {
+            break;
+        }
+        currentPage++;
+    }
+    const merged: SnapshotAllocationLinePage = {
+        ...firstPage,
         reservedLine: reservedLineChunks.flat(),
     };
     delete merged.total;
     return merged;
 };
 
-export const getBarNewData = async (session: any, startTimestamp?: number, endTimestamp?: number): Promise<void> => {
+export const getBarNewData = async (session: any): Promise<void> => {
     const requestSeq = (barDataRequestSeqMap.get(session) ?? 0) + 1;
     barDataRequestSeqMap.set(session, requestSeq);
+    blockTableRequestSeqMap.set(session, (blockTableRequestSeqMap.get(session) ?? 0) + 1);
+    eventTableRequestSeqMap.set(session, (eventTableRequestSeqMap.get(session) ?? 0) + 1);
     const isLatestRequest = (): boolean => barDataRequestSeqMap.get(session) === requestSeq;
+    const selectedSlice = session.snapshotSlices[session.deviceId]?.slices[session.selectedSliceIndex];
+    if (session.module === 'memsnapshot' && selectedSlice?.ready !== true) {
+        workerDestroy();
+        runInAction(() => {
+            session.blockData = { blocks: [], minSize: 0, maxSize: 0, minTimestamp: 0, maxTimestamp: 0 };
+            session.allocationData = { allocations: [], minTimestamp: 0, maxTimestamp: 0 };
+            session.loadingBlocks = false;
+            session.loadingOverview = false;
+            session.loadedMemoryBlockContextKey = '';
+            clearMemSnapshotWindowData(session);
+        });
+        return;
+    }
     if (session.module === 'memsnapshot') {
         await ensureOpfsOrWaitForFallbackApproval();
         if (!isLatestRequest()) {
@@ -254,20 +392,60 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         session.progressiveTotalEventCount = 0;
         session.progressiveFirstRenderedBatchCount = 0;
         session.progressiveFirstRenderedInstanceCount = 0;
+        if (session.module === 'memsnapshot') {
+            clearMemSnapshotWindowData(session);
+        }
     });
     delete (globalThis as {
         __LEAKS_PROGRESSIVE_RENDER_METRICS__?: ProgressiveRenderMetrics;
     }).__LEAKS_PROGRESSIVE_RENDER_METRICS__;
     let requestActive = true;
     try {
-        const param: BlockParam = { deviceId: session.deviceId, relativeTime: true, eventType: session.eventType, isTable: false };
-        const cacheFileHash = createBlockPathCacheHash(session.fileHash, param.deviceId, param.eventType);
-        const loadAllocation = async (): Promise<void> => {
-            const allocationData = session.module === 'memsnapshot'
-                ? await fetchSnapshotAllocationsPaginated(param, isLatestRequest)
-                : await getLeaksAllocationsData(param);
-            if (!requestActive || !isLatestRequest()) {
+        const param: BlockParam = {
+            deviceId: session.deviceId,
+            relativeTime: true,
+            eventType: session.eventType,
+            isTable: false,
+            sliceIndex: session.module === 'memsnapshot' ? session.selectedSliceIndex : undefined,
+        };
+        const cacheFileHash = createBlockPathCacheHash(
+            session.snapshotParsingComplete !== false && !session.memSnapshotCacheRefreshPending ? session.fileHash : '',
+            param.deviceId,
+            param.eventType,
+            session.selectedSliceIndex,
+        );
+        // memscope 未拆 allocationLines 接口，折线仍在 Memory/leaks/allocations 中。
+        // worker 按 generation 接受折线；必须在 cache hit / setMemoryBlockData 抬升 generation 之后再下发。
+        const publishAllocationLines = (
+            lines: Parameters<typeof workerSetAllocationLines>[0] | undefined,
+        ): void => {
+            if (!requestActive || !isLatestRequest() || lines === undefined) {
                 return;
+            }
+            workerSetAllocationLines(lines);
+        };
+        const loadAllocation = async (): Promise<Parameters<typeof workerSetAllocationLines>[0] | undefined> => {
+            let allocationData: AllocationData;
+            if (session.module === 'memsnapshot') {
+                const cachedOverview = session.sliceOverviewData[param.deviceId]?.[param.sliceIndex ?? -1];
+                const [overview, lines] = await Promise.all([
+                    cachedOverview ?? fetchSnapshotAllocationsPaginated(param, isLatestRequest),
+                    fetchSnapshotAllocationLinesPaginated(param, isLatestRequest),
+                ]);
+                allocationData = { ...overview, ...lines, allocations: overview.allocations };
+            } else {
+                allocationData = await getLeaksAllocationsData(param);
+            }
+            if (!requestActive || !isLatestRequest()) {
+                return undefined;
+            }
+            if (session.module === 'memsnapshot') {
+                updateSnapshotGlobalMaxSize(
+                    session,
+                    param.deviceId,
+                    param.eventType,
+                    getAllocationDataMaxSize(allocationData),
+                );
             }
             const { reservedLine, processUsedLine, deviceUsedLine, ...allocationResult } = allocationData;
             runInAction(() => {
@@ -282,9 +460,21 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
                 if (allocationResult.allocations.length === 0) {
                     session.loadingOverview = false;
                 }
+                if (session.module === 'memsnapshot') {
+                    session.sliceOverviewData = {
+                        ...session.sliceOverviewData,
+                        [session.deviceId]: {
+                            ...(session.sliceOverviewData[session.deviceId] ?? {}),
+                            [session.selectedSliceIndex]: allocationResult,
+                        },
+                    };
+                }
             });
-            if (isLatestRequest()) {
-                workerSetAllocationLines({ reservedLine, processUsedLine, deviceUsedLine });
+            return { reservedLine, processUsedLine, deviceUsedLine };
+        };
+        const preloadRemainingOverviews = (): void => {
+            if (session.module === 'memsnapshot' && session.snapshotParsingComplete !== false && isLatestRequest()) {
+                void preloadSnapshotSliceOverviews(session);
             }
         };
         const transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
@@ -305,15 +495,16 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             }
         }
         if (cacheStatus === 'hit') {
-            await loadAllocation();
-            if (isLatestRequest()) {
-                runInAction(() => {
-                    session.loadingBlocks = false;
-                    session.loadedMemoryBlockContextKey = blockContextKey;
-                });
-            }
+            runInAction(() => {
+                session.loadingBlocks = false;
+                session.loadedMemoryBlockContextKey = blockContextKey;
+            });
+            publishAllocationLines(await loadAllocation());
+            preloadRemainingOverviews();
             return;
         }
+        const allocationTask = loadAllocation();
+        void allocationTask.catch(() => undefined);
         const blockData = session.module === 'memsnapshot'
             ? await fetchSnapshotViewBlocksPaginated(param, isLatestRequest)
             : await getBlocksRequest(param); // leaks（Memory/leaks/blocks）保持单次请求
@@ -321,7 +512,8 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             return;
         }
         const blockRenderTask = workerSetMemoryBlockData({ data: blockData, fileHash: cacheFileHash });
-        await Promise.all([blockRenderTask, loadAllocation()]);
+        publishAllocationLines(await allocationTask);
+        await blockRenderTask;
         if (!isLatestRequest()) {
             return;
         }
@@ -329,6 +521,7 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
             session.loadingBlocks = false;
             session.loadedMemoryBlockContextKey = blockContextKey;
         });
+        preloadRemainingOverviews();
     } catch (error: any) {
         // 分片拉取被新请求取代：静默作废，loading 等状态由新请求管理
         if (error === SNAPSHOT_PAGINATION_SUPERSEDED) {
@@ -345,6 +538,109 @@ export const getBarNewData = async (session: any, startTimestamp?: number, endTi
         }
     }
 };
+
+export const preloadSnapshotSliceOverviews = async (
+    session: any,
+    includeSelected: boolean = false,
+): Promise<AllocationData | undefined> => {
+    if (session.module !== 'memsnapshot' || session.deviceId === '') {
+        return;
+    }
+    const deviceId = session.deviceId;
+    const eventType = session.eventType;
+    const fileHash = session.fileHash;
+    const deviceSlices = session.snapshotSlices[deviceId];
+    if (!deviceSlices) {
+        return;
+    }
+    let pending = overviewPrefetchMap.get(session);
+    if (pending === undefined) {
+        pending = new Map<string, Promise<AllocationData | undefined>>();
+        overviewPrefetchMap.set(session, pending);
+    }
+    const requestOrder = getSnapshotSliceRequestOrder(deviceSlices.readySlices, session.selectedSliceIndex);
+    const currentSliceIndex = session.selectedSliceIndex >= 0 ? session.selectedSliceIndex : requestOrder[0];
+    const existingTasks: Array<Promise<{ sliceIndex: number; allocationData?: AllocationData }>> = [];
+    const pendingSlices: number[] = [];
+    for (const sliceIndex of requestOrder) {
+        if (!includeSelected && (sliceIndex === currentSliceIndex || sliceIndex === session.selectedSliceIndex)) {
+            continue;
+        }
+        const key = `${fileHash}:${deviceId}:${eventType}:${sliceIndex}`;
+        const hasCurrentGlobalMax = session.snapshotGlobalMaxSizes?.[deviceId]?.[eventType] !== undefined;
+        if (hasCurrentGlobalMax && session.sliceOverviewData[deviceId]?.[sliceIndex] !== undefined) {
+            continue;
+        }
+        const existingTask = pending?.get(key);
+        if (existingTask !== undefined) {
+            existingTasks.push(existingTask.then(allocationData => ({ sliceIndex, allocationData })));
+            continue;
+        }
+        pendingSlices.push(sliceIndex);
+    }
+    const fetchedTasks = pendingSlices.map(sliceIndex => {
+        const key = `${fileHash}:${deviceId}:${eventType}:${sliceIndex}`;
+        const task = (async (): Promise<AllocationData | undefined> => {
+            await acquireOverviewPreloadSlot();
+            try {
+                const allocationData = await fetchSnapshotAllocationsPaginated(
+                    { deviceId, eventType, sliceIndex },
+                    () => session.fileHash === fileHash && session.deviceIds?.[deviceId] !== undefined &&
+                        session.eventType === eventType,
+                );
+                if (session.fileHash !== fileHash || session.deviceIds?.[deviceId] === undefined ||
+                    session.eventType !== eventType) {
+                    return undefined;
+                }
+                return allocationData;
+            } catch {
+                // 单个分片趋势预加载失败不影响当前窗口，后续选中该分片时仍会正常请求。
+                return undefined;
+            } finally {
+                pending?.delete(key);
+                releaseOverviewPreloadSlot();
+            }
+        })();
+        pending?.set(key, task);
+        return task.then(allocationData => ({ sliceIndex, allocationData }));
+    });
+    const results = [...await Promise.all(existingTasks), ...await Promise.all(fetchedTasks)];
+    if (session.fileHash !== fileHash || session.deviceIds?.[deviceId] === undefined || session.eventType !== eventType) {
+        return undefined;
+    }
+    const fetchedOverviews: Record<number, AllocationData> = {};
+    for (const result of results) {
+        if (result.allocationData !== undefined) {
+            fetchedOverviews[result.sliceIndex] = result.allocationData;
+        }
+    }
+    if (Object.keys(fetchedOverviews).length > 0) {
+        runInAction(() => {
+            session.sliceOverviewData = {
+                ...session.sliceOverviewData,
+                [deviceId]: {
+                    ...(session.sliceOverviewData[deviceId] ?? {}),
+                    ...fetchedOverviews,
+                },
+            };
+        });
+    }
+    let selectedAllocationData: AllocationData | undefined;
+    let prefetchedMaxSize = session.snapshotGlobalMaxSizes?.[deviceId]?.[eventType] ?? 0;
+    for (const sliceIndex of requestOrder) {
+        const cachedData = session.sliceOverviewData[deviceId]?.[sliceIndex];
+        if (cachedData === undefined) {
+            continue;
+        }
+        prefetchedMaxSize = Math.max(prefetchedMaxSize, getAllocationDataMaxSize(cachedData));
+        if (sliceIndex === session.selectedSliceIndex) {
+            selectedAllocationData = cachedData;
+        }
+    }
+    updateSnapshotGlobalMaxSize(session, deviceId, eventType, prefetchedMaxSize);
+    return selectedAllocationData;
+};
+
 export const getNewDetailData = async (session: any): Promise<void> => {
     try {
         const memoryDatas = await getMemoryDetailData(session.deviceId, session.memoryStamp, session.eventType);
@@ -387,6 +683,9 @@ const handleThreshold = (blockParam: any, session: any): void => {
     });
 };
 export const getBlockTableData = async (session: any): Promise<void> => {
+    const requestSeq = (blockTableRequestSeqMap.get(session) ?? 0) + 1;
+    blockTableRequestSeqMap.set(session, requestSeq);
+    const isLatestRequest = (): boolean => blockTableRequestSeqMap.get(session) === requestSeq;
     const request = session.module === 'leaks' ? getBlockDetails : getSnapshotBlockTable;
     try {
         const currentPage = session.blocksCurrentPage;
@@ -400,6 +699,7 @@ export const getBlockTableData = async (session: any): Promise<void> => {
             endTimestamp: session.maxTime,
             currentPage,
             pageSize,
+            sliceIndex: session.module === 'memsnapshot' ? session.selectedSliceIndex : undefined,
         };
         if (session.blocksOrder !== '') {
             blockParam.desc = session.blocksOrder;
@@ -419,6 +719,7 @@ export const getBlockTableData = async (session: any): Promise<void> => {
         }
         handleThreshold(blockParam, session);
         const blockTableData = await request(blockParam);
+        if (!isLatestRequest()) return;
         const maxPage = Math.max(Math.ceil(blockTableData.total / pageSize), 1);
         if (currentPage > maxPage) {
             runInAction(() => {
@@ -432,7 +733,7 @@ export const getBlockTableData = async (session: any): Promise<void> => {
             session.blocksTotal = blockTableData.total;
         });
     } catch (error: any) {
-        message.error(error.message);
+        if (isLatestRequest()) message.error(error.message);
     }
 };
 export const getPotentialLeakStats = async (session: any, range?: [number, number]): Promise<void> => {
@@ -440,10 +741,12 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
     const endTimestamp = range?.[1] ?? session.maxTime;
     if (session.module !== 'memsnapshot' || session.deviceId === '' || endTimestamp === 0 || endTimestamp === undefined) return;
     const deviceId = session.deviceId;
+    const sliceIndex = session.selectedSliceIndex;
     const requestId = session.leakStats.requestId + 1;
     const isLatestRequest = (): boolean => (
         session.module === 'memsnapshot' &&
         session.deviceId === deviceId &&
+        session.selectedSliceIndex === sliceIndex &&
         session.minTime === startTimestamp &&
         session.maxTime === endTimestamp &&
         session.leakStats.requestId === requestId
@@ -458,6 +761,7 @@ export const getPotentialLeakStats = async (session: any, range?: [number, numbe
             deviceId,
             startTimestamp,
             endTimestamp,
+            sliceIndex,
         });
         runInAction(() => {
             if (!isLatestRequest()) return;
@@ -480,6 +784,9 @@ export const getEventTableData = async (session: any): Promise<void> => {
         });
         return;
     }
+    const requestSeq = (eventTableRequestSeqMap.get(session) ?? 0) + 1;
+    eventTableRequestSeqMap.set(session, requestSeq);
+    const isLatestRequest = (): boolean => eventTableRequestSeqMap.get(session) === requestSeq;
     const request = session.module === 'leaks' ? getEventDetails : getSnapshotEvent;
     try {
         const currentPage = session.eventsCurrentPage;
@@ -492,6 +799,7 @@ export const getEventTableData = async (session: any): Promise<void> => {
             currentPage,
             pageSize,
             isTable: true,
+            sliceIndex: session.module === 'memsnapshot' ? session.selectedSliceIndex : undefined,
         };
         if (session.eventsOrder !== '') {
             eventParam.desc = session.eventsOrder;
@@ -504,6 +812,7 @@ export const getEventTableData = async (session: any): Promise<void> => {
             eventParam.rangeFilters = session.eventsRangeFilters;
         }
         const eventTableData = await request(eventParam);
+        if (!isLatestRequest()) return;
         const maxPage = Math.max(Math.ceil(eventTableData.total / pageSize), 1);
         if (currentPage > maxPage) {
             runInAction(() => {
@@ -517,6 +826,6 @@ export const getEventTableData = async (session: any): Promise<void> => {
             session.eventsTotal = eventTableData.total;
         });
     } catch (error: any) {
-        message.error(error.message);
+        if (isLatestRequest()) message.error(error.message);
     }
 };

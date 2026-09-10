@@ -41,6 +41,7 @@ export interface Block {
 export interface AllocationData {
     minTimestamp: number;
     maxTimestamp: number;
+    maxSize?: number;
     allocations: Allocation[];
     reservedLine?: ReservedPoint[];
     processUsedLine?: ProcessUsedPoint[];
@@ -49,7 +50,17 @@ export interface AllocationData {
 }
 export interface AllocationPaginationTotal {
     allocations: number;
+}
+export interface AllocationLinePaginationTotal {
     reservedLine: number;
+}
+export interface AllocationLineData {
+    minTimestamp: number;
+    maxTimestamp: number;
+    reservedLine?: ReservedPoint[];
+    processUsedLine?: ProcessUsedPoint[];
+    deviceUsedLine?: DeviceUsedPoint[];
+    total?: AllocationLinePaginationTotal;
 }
 export interface Allocation {
     id?: number;
@@ -76,6 +87,7 @@ export interface GraphParam {
     endTimestamp?: number;
     currentPage?: number;
     pageSize?: number;
+    sliceIndex?: number;
 }
 export interface FuncParam {
     deviceId: string;
@@ -107,11 +119,13 @@ export interface BlockParam {
     longIdleThreshold?: ThreShold;
     onlyInefficient?: boolean;
     onlyUnreleasedInRange?: boolean;
+    sliceIndex?: number;
 }
 export interface LeakStatsParam {
     deviceId: string;
     startTimestamp: number;
     endTimestamp: number;
+    sliceIndex?: number;
 }
 export interface LeakStatsData {
     totalSize: number;
@@ -132,6 +146,7 @@ export interface EventParam {
     isTable?: boolean;
     startEventIdx?: number;
     endEventIdx?: number;
+    sliceIndex?: number;
 }
 export interface DetailData {
     size: number;
@@ -205,6 +220,10 @@ export const getSnapshotAllocations = async (params: GraphParam): Promise<Alloca
     return window.request({ command: 'Memory/snapshot/allocations', params: { ...params } });
 };
 
+export const getSnapshotAllocationLines = async (params: GraphParam): Promise<AllocationLineData> => {
+    return window.request({ command: 'Memory/snapshot/allocationLines', params: { ...params } });
+};
+
 /**
  * 获取内存拆解详情
  * @param params 查询条件
@@ -265,7 +284,7 @@ export const getSnapshotEvent = async (params: EventParam): Promise<EventsTableD
     return window.request({ command: 'Memory/snapshot/events', params: { ...params } });
 };
 
-export const getMemoryStateData = async (params: { eventId: number; deviceId: string }): Promise<{ segments: Segment[] }> => {
+export const getMemoryStateData = async (params: { eventId: number; deviceId: string; sliceIndex?: number }): Promise<{ segments: Segment[] }> => {
     return window.request({ command: 'Memory/snapshot/state', params: { ...params } });
 };
 
@@ -276,6 +295,7 @@ export const getSnapshotDetail = async (params: {
     eventId?: number;
     segmentAddress?: string;
     stream?: number;
+    sliceIndex?: number;
 }): Promise<{ [key: string]: any }> => {
     return window.request({ command: 'Memory/snapshot/detail', params: { ...params } });
 };

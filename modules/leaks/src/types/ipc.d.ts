@@ -37,6 +37,12 @@ interface LoadMemoryBlockCachePayload {
     fileHash?: string;
 };
 
+interface RemoveMemoryBlockCachesPayload {
+    type: 'removeMemoryBlockCaches';
+    requestId: number;
+    fileHash: string;
+}
+
 type BlockPathCacheLoadStatus = 'hit' | 'miss' | 'transient' | 'unavailable';
 type OpfsAvailabilityStatus = 'available' | 'transient' | 'unavailable';
 
@@ -51,6 +57,11 @@ interface SetAllocationLinesPayload {
     reservedLine?: ReservedLinePoint[];
     processUsedLine?: ProcessUsedLinePoint[];
     deviceUsedLine?: DeviceUsedLinePoint[];
+};
+
+interface SetBlockGraphGlobalMaxSizePayload {
+    type: 'setBlockGraphGlobalMaxSize';
+    maxSize: number;
 };
 
 interface ReservedLinePoint {
@@ -149,8 +160,10 @@ type Payload =
     | InitCanvasPayload
     | CheckOpfsAvailabilityPayload
     | LoadMemoryBlockCachePayload
+    | RemoveMemoryBlockCachesPayload
     | SetMemoryBlocksDataPayload
     | SetAllocationLinesPayload
+    | SetBlockGraphGlobalMaxSizePayload
     | ResizeCanvasPayload
     | TransformPayload
     | SetBlockGraphLayerVisibilityPayload

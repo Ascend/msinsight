@@ -95,7 +95,6 @@ class DataBaseManager {
     std::shared_ptr<FullDb::MemScopeDatabase> GetMemScopeDatabase(const std::string &fileId);
     std::shared_ptr<FullDb::MemSnapshotDatabase> GetMemSnapshotDatabase(const std::string &fileId);
     std::vector<FullDb::MemScopeDatabase *> GetAllMemScopeDatabase();
-    std::vector<FullDb::MemSnapshotDatabase *> GetAllMemSnapshotDatabase();
     std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseByRankId(const std::string &rankId);
     std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseWithCluster(
         const std::string &cluster, const std::string &rankId);

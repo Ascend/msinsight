@@ -36,12 +36,14 @@ bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const auto database = GetMemSnapshotDatabaseByRequest(request);
+    const auto resolved = ResolveMemSnapshotRequest(request, request.params.deviceId, request.params.sliceIndex);
+    const auto database = resolved.database;
     if (database == nullptr || !database->IsOpen()) {
         errMsg = LOG_TAG + "Failed to query blocks: get database connection failed";
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
+    const auto slice = resolved.slice;
     if (request.isTable) {
         const int64_t total = database->QueryBlocksTable(request.params, response.tableBlocks);
         if (total < 0) {
@@ -50,7 +52,7 @@ bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Reque
             return false;
         }
         response.total = static_cast<uint64_t>(total);
-        response.maxTimestamp = database->GetDeviceMaxEntryId(request.params.deviceId);
+        response.maxTimestamp = ToNonNegativeEventId(database->GetDeviceMaxEntryId(request.params.deviceId));
         BuildBlockTableResponseColumnsBounds(request.params.deviceId, database, response.rangeFiltersBoundsMap);
     } else {
         int64_t total = -1;
@@ -70,7 +72,13 @@ bool QueryMemSnapshotBlockHandler::HandleRequest(std::unique_ptr<Protocol::Reque
             return false;
         }
         response.total = static_cast<uint64_t>(total);
-        response.maxTimestamp = database->GetDeviceMaxEntryId(request.params.deviceId);
+        response.maxTimestamp = ToNonNegativeEventId(database->GetDeviceMaxEntryId(request.params.deviceId));
+    }
+    if (slice.has_value()) {
+        response.minTimestamp = static_cast<uint64_t>(slice->startEventId);
+        // 单事件窗 start==end 时给非零显示跨度，避免前端 getZoom 除零。
+        response.maxTimestamp = slice->endEventId > slice->startEventId ? static_cast<uint64_t>(slice->endEventId)
+                                                                        : static_cast<uint64_t>(slice->endEventId) + 1;
     }
     SendResponse(std::move(responsePtr), true);
     return true;

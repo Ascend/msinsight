@@ -97,7 +97,7 @@ export const normalizeLeaksFileHash = (fileHash: unknown): string => {
         return '';
     }
     const normalized = fileHash.trim().toLowerCase();
-    return /^[0-9a-f]{64}(?:-[a-z0-9_-]+){0,2}$/.test(normalized) ? normalized : '';
+    return /^[0-9a-f]{64}(?:-[a-z0-9_-]+){0,3}$/.test(normalized) ? normalized : '';
 };
 
 export const createBlockPathCacheStorageKey = (fileHash: string, mainThread: boolean = false): string =>

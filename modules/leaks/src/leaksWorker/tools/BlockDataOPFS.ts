@@ -34,7 +34,8 @@ const CACHE_MANIFEST_VERSION = 1;
 const MAX_PERSISTENT_CACHE_COUNT = 10;
 const MAX_HIT_TEST_CACHE_BYTES = 8 * 1024 * 1024;
 const CACHE_DIRECTORY_PATTERN =
-    /^block-data-(?:main|main-thread)-cache-(.+)-([0-9a-f]{64}(?:-[a-z0-9_-]+){0,2})$/;
+    /^block-data-(?:main|main-thread)-cache-(.+)-([0-9a-f]{64}(?:-[a-z0-9_-]+){0,3})$/;
+const getSourceFileHash = (cacheHash: string): string => cacheHash.slice(0, 64);
 
 const isMissingEntryError = (error: unknown): boolean =>
     typeof error === 'object' && error !== null && 'name' in error && error.name === 'NotFoundError';
@@ -48,6 +49,11 @@ export interface PackedBlockPath {
     pathLength: number;
     pathStartTimestamp: number;
     pathEndTimestamp: number;
+}
+
+export interface PackedBlockData {
+    block: Block;
+    packedPath: PackedBlockPath;
 }
 
 interface PendingBlock {
@@ -117,6 +123,11 @@ interface BlockDataStorageResult {
 }
 
 export class BlockDataOPFS {
+    private static readonly activePersistentCaches = new Map<string, number>();
+    private static readonly storageOperationQueues = new Map<string, Promise<void>>();
+    // 最近分窗保留已解析的 manifest，切换回来时避免重复解析体积较大的块元数据 JSON。
+    private static readonly parsedManifestCache = new Map<string, CompleteBlockDataCacheManifest>();
+    private static readonly maxParsedManifestCount = 2;
     private readonly storageKey: string;
     private dirHandle: FileSystemDirectoryHandle | null = null;
     private pathHandle: SyncHandle | null = null;
@@ -129,6 +140,7 @@ export class BlockDataOPFS {
     private pendingPathPoints: number = 0;
     private storedPathBytes: number = 0;
     private readonly hitTestCache: Map<number, BatchData> = new Map();
+    private readonly blockIdBatchIndices = new Map<number, number[]>();
     private hitTestCacheBytes: number = 0;
     private dataVersion: number = 0;
     private cacheAccessFailed: boolean = false;
@@ -160,9 +172,55 @@ export class BlockDataOPFS {
         directoryName: string,
     ): Promise<void> {
         try {
-            await root.removeEntry?.(directoryName, { recursive: true });
-        } catch {
-            // 其它渲染实例可能已经删除了同一个缓存目录。
+            if (!root.removeEntry) {
+                throw new Error('OPFS cache removal is not supported.');
+            }
+            await root.removeEntry(directoryName, { recursive: true });
+        } catch (error) {
+            // 多个渲染实例并发清理时，目录可能已经被其它实例删除。
+            if (typeof error === 'object' && error !== null && 'name' in error && error.name === 'NotFoundError') {
+                return;
+            }
+            throw error;
+        }
+    }
+
+    static protectPersistentCache(fileHash: unknown): () => void {
+        const normalizedHash = normalizeLeaksFileHash(fileHash);
+        if (!normalizedHash) {
+            return () => undefined;
+        }
+        this.activePersistentCaches.set(normalizedHash, (this.activePersistentCaches.get(normalizedHash) ?? 0) + 1);
+        return () => {
+            const remaining = (this.activePersistentCaches.get(normalizedHash) ?? 1) - 1;
+            if (remaining > 0) {
+                this.activePersistentCaches.set(normalizedHash, remaining);
+            } else {
+                this.activePersistentCaches.delete(normalizedHash);
+            }
+        };
+    }
+
+    static async withStorageOperationLock<T>(fileHash: unknown, operation: () => Promise<T>): Promise<T> {
+        const storageKey = normalizeLeaksFileHash(fileHash);
+        if (!storageKey) {
+            return operation();
+        }
+        const previousOperation = this.storageOperationQueues.get(storageKey) ?? Promise.resolve();
+        let releaseCurrentOperation: () => void = () => undefined;
+        const currentOperation = new Promise<void>(resolve => {
+            releaseCurrentOperation = resolve;
+        });
+        const operationQueue = previousOperation.catch(() => undefined).then(() => currentOperation);
+        this.storageOperationQueues.set(storageKey, operationQueue);
+        await previousOperation.catch(() => undefined);
+        try {
+            return await operation();
+        } finally {
+            releaseCurrentOperation();
+            if (this.storageOperationQueues.get(storageKey) === operationQueue) {
+                this.storageOperationQueues.delete(storageKey);
+            }
         }
     }
 
@@ -234,6 +292,9 @@ export class BlockDataOPFS {
                 }
             }
             if (!this.isCompleteCacheState(state, directoryFileHash)) {
+                if (this.activePersistentCaches.has(directoryFileHash)) {
+                    continue;
+                }
                 await this.removeCacheDirectory(root, directoryName);
                 continue;
             }
@@ -244,27 +305,42 @@ export class BlockDataOPFS {
             });
         }
 
-        const latestAccessByHash = new Map<string, number>();
-        for (const entry of completeEntries) {
-            latestAccessByHash.set(
-                entry.fileHash,
-                Math.max(latestAccessByHash.get(entry.fileHash) ?? 0, entry.lastAccessedAt),
-            );
-        }
+        const pinnedHashes = new Set<string>();
         if (currentFileHash) {
-            // 将当前正在导入的数据视为最近打开的缓存候选项。
-            latestAccessByHash.delete(currentFileHash);
-            latestAccessByHash.set(currentFileHash, Date.now());
+            pinnedHashes.add(currentFileHash);
         }
-        const retainedHashes = new Set(
-            [...latestAccessByHash.entries()]
-                .sort((first, second) => second[1] - first[1])
-                .slice(0, Math.max(0, maxCacheCount))
-                .map(([fileHash]) => fileHash),
-        );
+        for (const activeFileHash of this.activePersistentCaches.keys()) {
+            pinnedHashes.add(activeFileHash);
+        }
+        const retainedHashes = new Set(pinnedHashes);
+        const unpinnedEntries = completeEntries
+            .filter(entry => !pinnedHashes.has(entry.fileHash))
+            .sort((first, second) => second.lastAccessedAt - first.lastAccessedAt);
+        const remainingSlots = Math.max(0, maxCacheCount - retainedHashes.size);
+        unpinnedEntries.slice(0, remainingSlots).forEach(entry => retainedHashes.add(entry.fileHash));
         await Promise.all(completeEntries
             .filter(entry => !retainedHashes.has(entry.fileHash))
             .map(entry => this.removeCacheDirectory(root, entry.directoryName)));
+    }
+
+    static async removePersistentCachesBySourceHash(fileHash: unknown): Promise<void> {
+        const normalizedHash = normalizeLeaksFileHash(fileHash);
+        if (!normalizedHash) {
+            return;
+        }
+        const sourceFileHash = getSourceFileHash(normalizedHash);
+        const root = await getLeaksOpfsRoot();
+        if (!root) {
+            return;
+        }
+        const removals: Array<Promise<void>> = [];
+        for await (const directoryName of root.keys()) {
+            const match = CACHE_DIRECTORY_PATTERN.exec(directoryName);
+            if (match && getSourceFileHash(match[2]) === sourceFileHash) {
+                removals.push(this.removeCacheDirectory(root, directoryName));
+            }
+        }
+        await Promise.all(removals);
     }
 
     async init(): Promise<boolean> {
@@ -282,6 +358,7 @@ export class BlockDataOPFS {
         this.pathHandle = null;
         this.asyncHandles.clear();
         this.blockMetas.clear();
+        this.blockIdBatchIndices.clear();
         this.batchCount = 0;
         this.batchTimeRanges = [];
         this.batchPathRanges = [];
@@ -298,6 +375,7 @@ export class BlockDataOPFS {
     }
 
     async removeStorage(): Promise<void> {
+        BlockDataOPFS.parsedManifestCache.delete(this.storageKey);
         this.resetMemoryState();
         const root = await getLeaksOpfsRoot();
         if (root?.removeEntry) {
@@ -311,6 +389,7 @@ export class BlockDataOPFS {
     }
 
     async clear(): Promise<void> {
+        BlockDataOPFS.parsedManifestCache.delete(this.storageKey);
         const previousBatchCount = this.batchCount;
         this.resetMemoryState();
         if (this.dirHandle?.removeEntry) {
@@ -396,6 +475,7 @@ export class BlockDataOPFS {
     }
 
     async markCacheBuilding(fileHash: string): Promise<void> {
+        BlockDataOPFS.parsedManifestCache.delete(this.storageKey);
         await this.writeCacheState(fileHash, 'building');
         await this.writeManifest({
             version: CACHE_MANIFEST_VERSION,
@@ -407,7 +487,7 @@ export class BlockDataOPFS {
     async saveCompleteCache(fileHash: string, metadata: BlockGraphMetadata): Promise<void> {
         await this.flush();
         const lastAccessedAt = Date.now();
-        await this.writeManifest({
+        const manifest: CompleteBlockDataCacheManifest = {
             version: CACHE_MANIFEST_VERSION,
             fileHash,
             status: 'complete',
@@ -418,8 +498,31 @@ export class BlockDataOPFS {
             batchPathRanges: this.batchPathRanges,
             blockMetas: Array.from({ length: this.batchCount }, (_, index) => this.blockMetas.get(index) ?? []),
             storedPathBytes: this.storedPathBytes,
-        });
+        };
+        await this.writeManifest(manifest);
+        BlockDataOPFS.cacheParsedManifest(this.storageKey, manifest);
         await this.writeCacheState(fileHash, 'complete', lastAccessedAt);
+    }
+
+    private static cacheParsedManifest(storageKey: string, manifest: CompleteBlockDataCacheManifest): void {
+        this.parsedManifestCache.delete(storageKey);
+        this.parsedManifestCache.set(storageKey, manifest);
+        while (this.parsedManifestCache.size > this.maxParsedManifestCount) {
+            const oldestStorageKey = this.parsedManifestCache.keys().next().value;
+            if (oldestStorageKey === undefined) {
+                break;
+            }
+            this.parsedManifestCache.delete(oldestStorageKey);
+        }
+    }
+
+    private static getParsedManifest(storageKey: string, fileHash: string): CompleteBlockDataCacheManifest | null {
+        const manifest = this.parsedManifestCache.get(storageKey);
+        if (!manifest || manifest.fileHash !== fileHash) {
+            return null;
+        }
+        this.cacheParsedManifest(storageKey, manifest);
+        return manifest;
     }
 
     private isCompleteManifest(
@@ -501,17 +604,28 @@ export class BlockDataOPFS {
     async loadCompleteCache(fileHash: string): Promise<BlockGraphMetadata | null> {
         this.resetMemoryState();
         this.cacheAccessFailed = false;
-        const manifest = await this.readManifest();
-        if (!manifest || !this.isCompleteManifest(manifest, fileHash) ||
-            !await this.validateStoredPaths(manifest)) {
+        if (!this.dirHandle && !await this.init()) {
+            return null;
+        }
+        const parsedManifest = BlockDataOPFS.getParsedManifest(this.storageKey, fileHash);
+        const storedManifest = parsedManifest ?? await this.readManifest();
+        const manifest = parsedManifest ?? (
+            storedManifest && this.isCompleteManifest(storedManifest, fileHash) ? storedManifest : null
+        );
+        if (!manifest || !await this.validateStoredPaths(manifest)) {
+            BlockDataOPFS.parsedManifestCache.delete(this.storageKey);
             this.resetMemoryState();
             return null;
         }
+        BlockDataOPFS.cacheParsedManifest(this.storageKey, manifest);
         this.batchCount = manifest.batchCount;
         this.batchTimeRanges = manifest.batchTimeRanges;
         this.batchPathRanges = manifest.batchPathRanges;
         this.storedPathBytes = manifest.storedPathBytes;
-        manifest.blockMetas.forEach((metas, index) => this.blockMetas.set(index, metas));
+        manifest.blockMetas.forEach((metas, index) => {
+            this.blockMetas.set(index, metas);
+            this.indexBlockMetas(index, metas);
+        });
         try {
             await this.writeCacheState(fileHash, 'complete');
         } catch {
@@ -569,8 +683,8 @@ export class BlockDataOPFS {
 
     async findBlockById(blockId: number): Promise<Block | null> {
         const fragments: Block[] = [];
-        for (let i = 0; i < this.batchCount; i++) {
-            const metas = this.blockMetas.get(i);
+        for (const batchIndex of this.blockIdBatchIndices.get(blockId) ?? []) {
+            const metas = this.blockMetas.get(batchIndex);
             if (!metas) {
                 continue;
             }
@@ -578,7 +692,7 @@ export class BlockDataOPFS {
             if (matchingMetas.length === 0) {
                 continue;
             }
-            const batchData = await this.readBatchAsync(i);
+            const batchData = await this.readBatchAsync(batchIndex);
             if (!batchData) {
                 continue;
             }
@@ -586,22 +700,20 @@ export class BlockDataOPFS {
                 fragments.push(blockFromMeta(meta, batchData.pathData));
             }
         }
-        if (fragments.length === 0) {
-            return null;
-        }
-        fragments.sort((a, b) => (a.path[0]?.[0] ?? 0) - (b.path[0]?.[0] ?? 0));
-        const path: Array<[number, number]> = [];
-        for (const fragment of fragments) {
-            for (const point of fragment.path) {
-                const lastPoint = path[path.length - 1];
-                if (lastPoint?.[0] === point[0] && lastPoint[1] === point[1]) {
-                    continue;
-                }
-                path.push(point);
+        return mergeBlockPathFragments(fragments);
+    }
+
+    private indexBlockMetas(batchIndex: number, metas: BlockMeta[]): void {
+        for (const meta of metas) {
+            const batches = this.blockIdBatchIndices.get(meta.id);
+            if (batches === undefined) {
+                this.blockIdBatchIndices.set(meta.id, [batchIndex]);
+                continue;
+            }
+            if (batches[batches.length - 1] !== batchIndex) {
+                batches.push(batchIndex);
             }
         }
-        const firstFragment = fragments[0];
-        return { ...firstFragment, path };
     }
 
     private getPathFileName(index: number): string {
@@ -730,6 +842,7 @@ export class BlockDataOPFS {
         this.batchTimeRanges[index] = { minStartTimestamp, maxEndTimestamp };
         this.batchPathRanges[index] = { byteOffset, byteLength: pathBuffer.byteLength };
         this.blockMetas.set(index, metas);
+        this.indexBlockMetas(index, metas);
         this.storedPathBytes += pathBuffer.byteLength;
         for (const pendingBlock of blocks) {
             pendingBlock.block.path = [];
@@ -792,6 +905,7 @@ export class BlockDataOPFS {
         await writable.close();
         this.batchTimeRanges[index] = { minStartTimestamp, maxEndTimestamp };
         this.blockMetas.set(index, metas);
+        this.indexBlockMetas(index, metas);
         this.storedPathBytes += pathBuffer.byteLength;
         for (const pendingBlock of blocks) {
             pendingBlock.block.path = [];
@@ -818,20 +932,36 @@ export class BlockDataOPFS {
         });
     }
 
+    async addPackedBlocks(blocks: readonly PackedBlockData[]): Promise<void> {
+        await this.addPendingBlocks(blocks.map(({ block, packedPath }) => ({
+            block,
+            packedPath,
+            pathLength: packedPath.pathLength,
+            pathStartTimestamp: packedPath.pathStartTimestamp,
+            pathEndTimestamp: packedPath.pathEndTimestamp,
+        })));
+    }
+
     private async addPendingBlock(pendingBlock: PendingBlock): Promise<void> {
-        const pathPoints = pendingBlock.pathLength;
-        if (pathPoints > this.maxBatchPathPoints) {
-            throw new RangeError(`Block path exceeds the hard batch limit: ${pathPoints}`);
-        }
-        if (this.pendingBlocks.length > 0 &&
-            (this.pendingBlocks.length >= this.batchSize ||
-                this.pendingPathPoints + pathPoints > this.maxBatchPathPoints)) {
-            await this.writePendingBlocks();
-        }
-        this.pendingBlocks.push(pendingBlock);
-        this.pendingPathPoints += pathPoints;
-        if (this.pendingBlocks.length >= this.batchSize || this.pendingPathPoints >= this.maxBatchPathPoints) {
-            await this.writePendingBlocks();
+        await this.addPendingBlocks([pendingBlock]);
+    }
+
+    private async addPendingBlocks(pendingBlocks: readonly PendingBlock[]): Promise<void> {
+        for (const pendingBlock of pendingBlocks) {
+            const pathPoints = pendingBlock.pathLength;
+            if (pathPoints > this.maxBatchPathPoints) {
+                throw new RangeError(`Block path exceeds the hard batch limit: ${pathPoints}`);
+            }
+            if (this.pendingBlocks.length > 0 &&
+                (this.pendingBlocks.length >= this.batchSize ||
+                    this.pendingPathPoints + pathPoints > this.maxBatchPathPoints)) {
+                await this.writePendingBlocks();
+            }
+            this.pendingBlocks.push(pendingBlock);
+            this.pendingPathPoints += pathPoints;
+            if (this.pendingBlocks.length >= this.batchSize || this.pendingPathPoints >= this.maxBatchPathPoints) {
+                await this.writePendingBlocks();
+            }
         }
     }
 
@@ -871,6 +1001,55 @@ export class BlockDataOPFS {
             };
         }
         return null;
+    }
+
+    readBatchRange(startIndex: number, endIndex: number, target?: Float32Array): BatchData[] {
+        if (!this.isWorker || !this.pathHandle || startIndex < 0 || endIndex <= startIndex ||
+            endIndex > this.batchCount) {
+            return [];
+        }
+        const firstRange = this.batchPathRanges[startIndex];
+        const lastRange = this.batchPathRanges[endIndex - 1];
+        if (!firstRange || !lastRange) {
+            return [];
+        }
+        const byteEnd = lastRange.byteOffset + lastRange.byteLength;
+        const byteLength = byteEnd - firstRange.byteOffset;
+        if (byteLength <= 0) {
+            return [];
+        }
+        for (let index = startIndex; index < endIndex; index++) {
+            const range = this.batchPathRanges[index];
+            const metas = this.blockMetas.get(index);
+            if (!range || !metas || (index > startIndex &&
+                range.byteOffset !== this.batchPathRanges[index - 1].byteOffset +
+                this.batchPathRanges[index - 1].byteLength)) {
+                return [];
+            }
+        }
+        const buffer = target !== undefined && target.buffer.byteLength >= byteLength
+            ? target.buffer
+            : new ArrayBuffer(byteLength);
+        const bytesRead = this.pathHandle.read(
+            new Uint8Array(buffer, 0, byteLength),
+            { at: firstRange.byteOffset },
+        );
+        if (bytesRead !== byteLength) {
+            return [];
+        }
+        const batches: BatchData[] = [];
+        for (let index = startIndex; index < endIndex; index++) {
+            const range = this.batchPathRanges[index];
+            batches.push({
+                metas: this.blockMetas.get(index) ?? [],
+                pathData: new Float32Array(
+                    buffer,
+                    range.byteOffset - firstRange.byteOffset,
+                    range.byteLength / Float32Array.BYTES_PER_ELEMENT,
+                ),
+            });
+        }
+        return batches;
     }
 
     async readBatchAsync(index: number, target?: Float32Array): Promise<BatchData | null> {
@@ -976,14 +1155,16 @@ export class BlockDataOPFS {
         }
     }
 
-    async trySaveCompleteCache(fileHash: string, metadata: BlockGraphMetadata): Promise<void> {
+    async trySaveCompleteCache(fileHash: string, metadata: BlockGraphMetadata): Promise<boolean> {
         if (!fileHash) {
-            return;
+            return false;
         }
         try {
             await this.saveCompleteCache(fileHash, metadata);
+            return true;
         } catch {
             // 未生成完整 manifest 时，下一次导入会重新构建缓存。
+            return false;
         }
     }
 }
@@ -991,6 +1172,24 @@ export class BlockDataOPFS {
 export const getPointFromPathData = (pathData: Float32Array, pathOffset: number, pointIndex: number): [number, number] => {
     const idx = (pathOffset + pointIndex) * 2;
     return [pathData[idx], pathData[idx + 1]];
+};
+
+export const mergeBlockPathFragments = (fragments: Block[]): Block | null => {
+    if (fragments.length === 0) {
+        return null;
+    }
+    fragments.sort((a, b) => (a.path[0]?.[0] ?? 0) - (b.path[0]?.[0] ?? 0));
+    const path: Array<[number, number]> = [];
+    for (const fragment of fragments) {
+        for (const point of fragment.path) {
+            const lastPoint = path[path.length - 1];
+            if (lastPoint?.[0] === point[0] && lastPoint[1] === point[1]) {
+                continue;
+            }
+            path.push(point);
+        }
+    }
+    return { ...fragments[0], path };
 };
 
 export const blockFromMeta = (meta: BlockMeta, pathData: Float32Array): Block => {

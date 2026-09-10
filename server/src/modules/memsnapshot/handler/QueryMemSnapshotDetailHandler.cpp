@@ -40,7 +40,7 @@ bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Requ
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const auto database = GetMemSnapshotDatabaseByRequest(request);
+    const auto database = GetMemSnapshotDatabaseByRequest(request, request.params.deviceId, request.params.sliceIndex);
     if (database == nullptr || !database->IsOpen()) {
         errMsg = LOG_TAG + "Failed to query detail: get database connection failed";
         SendResponse(std::move(responsePtr), false, errMsg);
@@ -56,10 +56,11 @@ bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Requ
             return false;
         }
         auto blockDetail = std::make_unique<BlockDetailDTO>(block.value());
-        BuildBlockDetailDTO(*blockDetail, request.params.deviceId, database);
+        BuildBlockDetailDTO(*blockDetail, request, database);
         response.detail = std::move(blockDetail);
     } else if (request.params.type == DETAIL_TYPE_EVENT) {
-        auto event = database->QueryTraceEntryById(request.params.id, request.params.deviceId);
+        auto event = QueryTraceEntryByIdAcrossSlices(
+            request, request.params.deviceId, request.params.sliceIndex, request.params.id, database);
         if (!event.has_value()) {
             errMsg =
                 LOG_TAG + "Failed to query event detail: event not found with id " + std::to_string(request.params.id);
@@ -80,23 +81,27 @@ bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Requ
     return true;
 }
 
-void QueryMemSnapshotDetailHandler::BuildBlockDetailDTO(BlockDetailDTO &blockDetail, const std::string &deviceId,
-    const std::shared_ptr<FullDb::MemSnapshotDatabase> &database) {
-    if (blockDetail.allocEventId > 0) {
-        if (auto allocEntry = database->QueryTraceEntryById(blockDetail.allocEventId, deviceId);
+void QueryMemSnapshotDetailHandler::BuildBlockDetailDTO(BlockDetailDTO &blockDetail,
+    const Protocol::MemSnapshotDetailRequest &request, const std::shared_ptr<FullDb::MemSnapshotDatabase> &database) {
+    const auto &deviceId = request.params.deviceId;
+    // allocEventId < 0 是跨分窗截断占位（dump_left_boundary 写入 -1），与 mock 段事件负 ID 重叠。
+    if (blockDetail.allocEventId >= 0) {
+        if (auto allocEntry = QueryTraceEntryByIdAcrossSlices(
+                request, deviceId, request.params.sliceIndex, blockDetail.allocEventId, database);
             allocEntry.has_value()) {
             blockDetail.allocEvent = std::make_optional<TraceEntryDetailDTO>(allocEntry.value());
         }
+        if (auto freeRequestEntry = database->QueryFreeRequestedTraceEntryByBlock(blockDetail, deviceId);
+            freeRequestEntry.has_value()) {
+            blockDetail.freeRequestedEvent = std::make_optional<TraceEntryDetailDTO>(freeRequestEntry.value());
+        }
     }
     if (blockDetail.freeEventId > 0) {
-        if (auto freeCompletedEntry = database->QueryTraceEntryById(blockDetail.freeEventId, deviceId);
+        if (auto freeCompletedEntry = QueryTraceEntryByIdAcrossSlices(
+                request, deviceId, request.params.sliceIndex, blockDetail.freeEventId, database);
             freeCompletedEntry.has_value()) {
             blockDetail.freeCompletedEvent = std::make_optional<TraceEntryDetailDTO>(freeCompletedEntry.value());
         }
-    }
-    if (auto freeRequestEntry = database->QueryFreeRequestedTraceEntryByBlock(blockDetail, deviceId);
-        freeRequestEntry.has_value()) {
-        blockDetail.freeRequestedEvent = std::make_optional<TraceEntryDetailDTO>(freeRequestEntry.value());
     }
 }
 
@@ -109,7 +114,7 @@ std::unique_ptr<Protocol::SegmentDetailDTO> QueryMemSnapshotDetailHandler::Build
         return nullptr;
     }
 
-    const auto dataKey = GetMemSnapshotDataKey(request);
+    const auto dataKey = GetMemSnapshotStateCacheKey(request, request.params.deviceId, request.params.sliceIndex);
     auto cachedSegments = MemSnapshotStateCache::Get(dataKey, request.params.deviceId, request.params.eventId);
     std::vector<Segment> segments;
     if (cachedSegments.has_value()) {
@@ -129,11 +134,10 @@ std::unique_ptr<Protocol::SegmentDetailDTO> QueryMemSnapshotDetailHandler::Build
 
     auto segmentDetail =
         std::make_unique<Protocol::SegmentDetailDTO>(*segmentIter, ComputeSegmentSummary(*segmentIter));
-    if (segmentIter->allocOrMapEventId >= 0) {
-        if (auto event = database->QueryTraceEntryById(segmentIter->allocOrMapEventId, request.params.deviceId);
-            event.has_value()) {
-            segmentDetail->allocOrMapEvent = std::make_optional<TraceEntryDetailDTO>(event.value());
-        }
+    if (auto event = QueryTraceEntryByIdAcrossSlices(
+            request, request.params.deviceId, request.params.sliceIndex, segmentIter->allocOrMapEventId, database);
+        event.has_value()) {
+        segmentDetail->allocOrMapEvent = std::make_optional<TraceEntryDetailDTO>(event.value());
     }
     return segmentDetail;
 }

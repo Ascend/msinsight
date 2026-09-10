@@ -117,7 +117,10 @@ describe('lifecycleMemoryMarkers', () => {
         session.module = 'memsnapshot';
         session.eventType = 'malloc';
         session.deviceId = '0';
+        session.selectedSliceIndex = 0;
         session.addLifecycleMemoryMarker(128, 'device-0');
+        session.selectedSliceIndex = 1;
+        expect(session.getLifecycleMemoryMarkers().map(marker => marker.id)).toEqual(['device-0']);
         session.deviceId = '1';
         session.addLifecycleMemoryMarker(256, 'device-1');
         session.deviceId = '0';

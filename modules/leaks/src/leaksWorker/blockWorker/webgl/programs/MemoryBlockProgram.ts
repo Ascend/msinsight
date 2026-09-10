@@ -21,6 +21,8 @@ import { BatchOPFS } from '@/leaksWorker/tools/BatchOPFS';
 import { BlockDataOPFS } from '@/leaksWorker/tools/BlockDataOPFS';
 import { Program } from './Program';
 
+const OPFS_BATCH_READ_GROUP_SIZE = 16;
+
 export class MemoryBlockProgram extends Program {
     readonly isHighlight: boolean;
     private dimBase: boolean = false;
@@ -244,11 +246,7 @@ export class MemoryBlockProgram extends Program {
             renderBatchLength += 6;
         };
 
-        for (const batchIndex of batchIndices) {
-            const batchData = blockDataOPFS.readBatch(batchIndex, this.sourceReadBuffer);
-            if (!batchData) {
-                continue;
-            }
+        const renderBatchData = (batchData: BatchData): void => {
             this.sourceReadBuffer = batchData.pathData;
             const { metas, pathData } = batchData;
             for (const meta of metas) {
@@ -312,6 +310,30 @@ export class MemoryBlockProgram extends Program {
                     appendRenderSegment(x1, y1, x2, y2, meta.size, colorIndex);
                 }
             }
+        };
+        for (let cursor = 0; cursor < batchIndices.length;) {
+            const startBatchIndex = batchIndices[cursor];
+            let endCursor = cursor + 1;
+            while (endCursor < batchIndices.length && endCursor - cursor < OPFS_BATCH_READ_GROUP_SIZE &&
+                batchIndices[endCursor] === batchIndices[endCursor - 1] + 1) {
+                endCursor++;
+            }
+            const groupedBatches = blockDataOPFS.readBatchRange(
+                startBatchIndex,
+                batchIndices[endCursor - 1] + 1,
+                this.sourceReadBuffer,
+            );
+            if (groupedBatches.length > 0) {
+                groupedBatches.forEach(renderBatchData);
+            } else {
+                for (let index = cursor; index < endCursor; index++) {
+                    const batchData = blockDataOPFS.readBatch(batchIndices[index], this.sourceReadBuffer);
+                    if (batchData) {
+                        renderBatchData(batchData);
+                    }
+                }
+            }
+            cursor = endCursor;
         }
         flushRenderBatch();
         return renderedInstanceCount;

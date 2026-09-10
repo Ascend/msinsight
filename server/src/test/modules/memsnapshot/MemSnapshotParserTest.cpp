@@ -14,11 +14,13 @@
  * See the Mulan PSL v2 for more details.
  * ------------------------------------------------------------------------- */
 
+#include <fstream>
 #include <gtest/gtest.h>
-#include <filesystem>
-#include "StringUtil.h"
-#include "../TestSuit.h"
+#include "FileUtil.h"
 #include "MemSnapshotParser.h"
+#include "MemSnapshotDatabase.h"
+#include "MemSnapshotSliceService.h"
+#include "sqlite3.h"
 
 using namespace Dic::Module;
 using namespace Dic;
@@ -26,41 +28,30 @@ using namespace Dic;
 class MemSnapshotParserTest : public ::testing::Test {
   public:
     static void SetUpTestSuite() {
-        // 创建临时测试目录
-        testDir = TestSuit::GetTestDataFile("snapshot");
+        testPicklePath = FileUtil::SplicePath(::testing::TempDir(), "mem_snapshot_parser_test.pkl");
+        testLogPath = FileUtil::SplicePath(::testing::TempDir(), "mem_snapshot_parser_test.log");
+        testOutputDbPath = MemSnapshotSliceService::GetArtifactDirectory(testPicklePath);
 
-        // 创建测试pickle文件路径
-        testPicklePath = testDir + "snapshot_invalid.pkl";
-        testLogPath = testDir + "snapshot_invalid.log";
-        testOutputDbPath = testDir + "snapshot_invalid.pkl.db";
-
-        // 创建空的测试pickle文件
         std::ofstream pickleFile(testPicklePath);
         pickleFile.close();
 
-        // 获取解析器实例
         parser = &MemSnapshotParser::Instance();
         ASSERT_TRUE(parser != nullptr);
     }
 
     static void TearDownTestSuite() {
-        // 重置解析器
         parser->Reset();
-
-        // 删除临时文件
         FileUtil::RemoveFile(testPicklePath);
-        FileUtil::RemoveFile(testOutputDbPath);
+        fs::remove_all(testOutputDbPath);
     }
 
   protected:
-    static std::string testDir;
     static std::string testPicklePath;
     static std::string testLogPath;
     static std::string testOutputDbPath;
     static MemSnapshotParser *parser;
 };
 
-std::string MemSnapshotParserTest::testDir;
 std::string MemSnapshotParserTest::testPicklePath;
 std::string MemSnapshotParserTest::testLogPath;
 std::string MemSnapshotParserTest::testOutputDbPath;
@@ -120,22 +111,71 @@ TEST_F(MemSnapshotParserTest, CheckIfParsingNeed) {
     parser->Reset();
 
     // 设置测试上下文
-    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath);
+    const std::string fileHash = parser->CalculateFileHash(testPicklePath);
+    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, fileHash);
 
     // 由于输出数据库文件不存在，应该需要解析
     bool needParse = parser->CheckIfParsingNeed(parser->GetParseContext());
     EXPECT_TRUE(needParse);
 
-    // 创建一个空的输出数据库文件
-    std::ofstream dbFile(testOutputDbPath);
-    dbFile.close();
+    const auto deviceDir = fs::path(testOutputDbPath) / "device_0";
+    fs::create_directories(deviceDir);
+    const auto sliceDbPath = deviceDir / "slice_00000.db";
+    sqlite3 *sliceDb = nullptr;
+    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(sliceDb,
+                  "CREATE TABLE dictionary (`table` TEXT, `column` TEXT, `key` TEXT, `value` TEXT);"
+                  "CREATE TABLE block_0 (`id` INTEGER PRIMARY KEY, `address` INTEGER, `size` INTEGER, "
+                  "`requestedSize` INTEGER, `state` INTEGER DEFAULT 99, `allocEventId` INTEGER, `freeEventId` INTEGER);"
+                  "CREATE TABLE trace_entry_0 (`id` INTEGER PRIMARY KEY, `action` INTEGER, `address` INTEGER, `size` "
+                  "INTEGER, `stream` INTEGER, `allocated` INTEGER, `active` INTEGER, `reserved` INTEGER, `callstack` "
+                  "TEXT);"
+                  "INSERT INTO trace_entry_0 VALUES (0, 0, 0, 0, 0, 10, 10, 20, '');",
+                  nullptr, nullptr, nullptr),
+        SQLITE_OK);
+    sqlite3_close(sliceDb);
+    ASSERT_TRUE(Dic::Module::FullDb::MemSnapshotDatabase::BuildMemoryAllocationCache(sliceDbPath.string(), "0"));
+    std::ofstream manifest(MemSnapshotSliceService::GetManifestPath(testPicklePath), std::ios::trunc);
+    manifest << R"({"schemaVersion":1,"status":"complete","sourceFile":"snapshot_invalid.pkl","cacheHash":")"
+             << fileHash
+             << R"(","eventsPerSlice":100,"devices":{"0":{"eventCount":1,"sliceCount":1,)"
+                R"("readySlices":[0],"slices":[{"index":0,"startEventId":0,"endEventId":0,)"
+                R"("file":"device_0/slice_00000.db","ready":true}]}}})";
+    manifest.close();
 
-    // 再次检查，由于数据库文件存在但未打开，仍需要解析
-    needParse = parser->CheckIfParsingNeed(parser->GetParseContext());
-    EXPECT_TRUE(needParse);
+    EXPECT_FALSE(parser->CheckIfParsingNeed(parser->GetParseContext()));
 
-    // 清理测试文件
-    FileUtil::RemoveFile(testOutputDbPath);
+    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(sliceDb, "DROP TABLE memory_allocation_cache_v1_0", nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_close(sliceDb);
+    // 缺 cache 时可从源表现场重建，无需重新解析 pickle
+    EXPECT_FALSE(parser->CheckIfParsingNeed(parser->GetParseContext()));
+    ASSERT_TRUE(Dic::Module::FullDb::MemSnapshotDatabase::HasMemoryAllocationCache(sliceDbPath.string(), "0"));
+
+    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
+    ASSERT_EQ(sqlite3_exec(sliceDb, "DROP TABLE block_0", nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_close(sliceDb);
+    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
+    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
+    ASSERT_EQ(
+        sqlite3_exec(sliceDb, "CREATE TABLE block_0 (id INTEGER PRIMARY KEY)", nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_close(sliceDb);
+
+    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, "changed-hash");
+    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
+
+    parser->GetParseContext().Reset(testPicklePath, testLogPath, testOutputDbPath, fileHash);
+    fs::remove(sliceDbPath);
+    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
+
+    ASSERT_EQ(sqlite3_open(sliceDbPath.string().c_str(), &sliceDb), SQLITE_OK);
+    sqlite3_close(sliceDb);
+    std::ofstream invalidManifest(MemSnapshotSliceService::GetManifestPath(testPicklePath), std::ios::trunc);
+    invalidManifest << R"({"schemaVersion":1,"status":"complete"})";
+    invalidManifest.close();
+    EXPECT_TRUE(parser->CheckIfParsingNeed(parser->GetParseContext()));
+
+    fs::remove_all(testOutputDbPath);
 }
 
 TEST_F(MemSnapshotParserTest, CalculateFileHashTracksFileContent) {
@@ -162,5 +202,5 @@ TEST_F(MemSnapshotParserTest, CalculateFileHashIncludesParserSalt) {
     }
     // This value changes when MEM_SNAPSHOT_PARSER_HASH_SALT changes.
     EXPECT_EQ(
-        "811046db6def4f1c5e2ede99b96c23b47221722af51c0484d2251c38bc8f3718", parser->CalculateFileHash(testPicklePath));
+        "adaad4452d193309891d52c7803603f11ef9a73aae9d8fce35df9b22891cb1be", parser->CalculateFileHash(testPicklePath));
 }

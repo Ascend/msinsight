@@ -32,6 +32,8 @@ using namespace Dic::Module::MemSnapshot;
 class MemSnapshotDatabase : public Database {
   public:
     explicit MemSnapshotDatabase(std::recursive_mutex &sqlMutex) : Database(sqlMutex) {};
+    explicit MemSnapshotDatabase(std::shared_ptr<std::recursive_mutex> sqlMutex)
+        : Database(*sqlMutex), sqlMutexHandle(std::move(sqlMutex)) {};
     bool CheckAllTableExist();
     bool OpenDbReadOnly(const std::string &dbPath);
 
@@ -55,6 +57,13 @@ class MemSnapshotDatabase : public Database {
     // 查询内存记录（allocated/reserved/active）用于内存总量曲线
     void QueryMemoryRecords(const MemSnapshotAllocationParams &queryParams, std::vector<MemoryRecord> &records);
     void QueryMemoryAllocations(const std::string &deviceId, std::vector<AllocationRecord> &records);
+    bool QueryMemoryAllocationCache(const std::string &deviceId, std::vector<AllocationRecordDTO> &allocations,
+        std::vector<ReservedRecordDTO> &reservedLine);
+    bool QueryMemoryAllocationOverviewCache(const std::string &deviceId, std::vector<AllocationRecordDTO> &allocations);
+    bool QueryMemoryAllocationLineCache(const std::string &deviceId, std::vector<ReservedRecordDTO> &reservedLine);
+    bool QueryMemoryAllocationCacheMaxSize(const std::string &deviceId, uint64_t &maxSize);
+    static bool BuildMemoryAllocationCache(const std::string &dbPath, const std::string &deviceId);
+    static bool HasMemoryAllocationCache(const std::string &dbPath, const std::string &deviceId);
     // 查询trace_entry表格数据，支持分页、过滤、排序等
     int64_t QueryTraceEntriesTable(
         const MemSnapshotEventParams &queryParams, std::vector<TraceEntryTableItemDTO> &entries);
@@ -86,6 +95,8 @@ class MemSnapshotDatabase : public Database {
     void QueryBlockIdRangeByDeviceIdLazy(const std::string &deviceId, int64_t &minBlockId, int64_t &maxBlockId);
 
   private:
+    // 数据库可能在管理器清理后仍被请求持有，需要同步延长其互斥锁生命周期。
+    std::shared_ptr<std::recursive_mutex> sqlMutexHandle;
     static inline const std::string LOG_TAG = "[MemSnapshotDb] ";
     // issue #116中，为支持多device的场景，block和trace_entry表的table_name需要增加deviceId后缀
     const std::string blockTablePrefix = "block_";
@@ -93,6 +104,10 @@ class MemSnapshotDatabase : public Database {
     const std::string traceEntryTablePrefix = "trace_entry_";
     std::vector<std::string> traceEntryTableNames;
     const std::string dictionaryTable = "dictionary";
+    // 抽样算法或落盘结构变化时升级版本，缓存完整性校验会让旧产物重新解析。
+    static inline const std::string memoryAllocationCacheTablePrefix = "memory_allocation_cache_v1_";
+    static constexpr int ALLOCATION_LINE_TYPE = 0;
+    static constexpr int RESERVED_LINE_TYPE = 1;
     std::map<std::string, int64_t> deviceMaxEntryIdMap;
     std::map<std::string, std::map<int, std::string>> tableDictionaryMap;
     std::map<std::string, std::pair<int64_t, int64_t>> blockIdRangeMap;
@@ -106,6 +121,8 @@ class MemSnapshotDatabase : public Database {
     bool InitTableDictionaryMap();
     bool InitDeviceIdsAndMaxEntryIdMap();
     bool InitContext();
+    static std::string GetMemoryAllocationCacheTableName(const std::string &deviceId);
+    bool HasCompleteMemoryAllocationCache(const std::string &deviceId);
     template <typename T = Block> T QueryBlockByStep(sqlite3_stmt *stmt, int startIdx = 0);
     BlockTableItemDTO QueryBlockTableItemByStep(sqlite3_stmt *stmt);
     TraceEntry QueryTraceEntryByStep(sqlite3_stmt *stmt, int startIdx = 0);

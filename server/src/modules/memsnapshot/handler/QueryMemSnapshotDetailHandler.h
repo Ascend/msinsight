@@ -30,7 +30,7 @@ class QueryMemSnapshotDetailHandler : public MemSnapshotRequestHandler {
 
   private:
     static inline const std::string LOG_TAG = "[MemSnapshotDetailHandler] ";
-    static void BuildBlockDetailDTO(BlockDetailDTO &blockDetail, const std::string &deviceId,
+    static void BuildBlockDetailDTO(BlockDetailDTO &blockDetail, const Protocol::MemSnapshotDetailRequest &request,
         const std::shared_ptr<FullDb::MemSnapshotDatabase> &database);
     static std::unique_ptr<Protocol::SegmentDetailDTO> BuildSegmentDetailDTO(
         const Protocol::MemSnapshotDetailRequest &request, const std::shared_ptr<FullDb::MemSnapshotDatabase> &database,
