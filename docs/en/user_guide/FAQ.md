@@ -17,7 +17,7 @@ The **WebView2Runtime** file required for running the program is missing.
 1. Click [here](https://developer.microsoft.com/en-US/microsoft-edge/webview2/#download-section) to go to the Microsoft official website.
 2. Download the x64 installation package for Evergreen Standalone Installer, as shown in [**Figure 1** WebView2 installation package](#webview2-installation-package).
 
-    **Figure 1** WebView2 installation package <a id="webview2-installation-package"></a>   
+    **Figure 1** WebView2 installation package <a id="webview2-installation-package"></a>
     ![**Figure 1** WebView2 installation package](./figures/FAQ/webview2_installer_1.png "WebView2 installation package")
 
 3. After the installation is complete, run MindStudio Insight again.
@@ -70,7 +70,7 @@ Solution 1:
 1. On the menu bar of the remote login tool, choose **Settings** \> **Configuration**. MobaXterm is used as an example.
 2. Click the **X11** tab and select **disable "copy on select"** for Clipboard, as shown in [**Figure 1** MobaXterm Configuration](#mobaxterm-configuration).
 
-    **Figure 1** MobaXterm Configuration <a id="mobaxterm-configuration"></a> 
+    **Figure 1** MobaXterm Configuration <a id="mobaxterm-configuration"></a>
     ![**Figure 1** MobaXterm Configuration](./figures/FAQ/MobaXterm-Configuration.png "MobaXterm-Configuration")
 
 3. Click **OK**.
@@ -95,7 +95,7 @@ MindStudio Insight allows you to import only local drive directories. Network dr
 1. Open the **File Explorer** on the computer.
 2. Choose **This PC** \> **Map Network Drive**. The **Map Network Drive** dialog box is displayed, as shown in [**Figure 1** Map Network Drive](#map-network-drive).
 
-    **Figure 1** Map Network Drive <a id="map-network-drive"></a> 
+    **Figure 1** Map Network Drive <a id="map-network-drive"></a>
     ![**Figure 1** Map Network Drive](./figures/FAQ/map_network_drive_1.png "Map Network Drive")
 
 3. Select the drive letter from the **Drive** drop-down list.
@@ -136,7 +136,7 @@ When MindStudio Insight is installed in the Windows OS and **Run MindStudio Insi
 
 When MindStudio Insight is started in X11 or VNC mode in the Linux OS, the MindStudio Insight GUI is blank and the error message "cannot open shared object file swrast\_dri.so" is displayed, as shown in [**Figure 1** Error message](#error-message).
 
-**Figure 1** Error message <a id="error-message"></a> 
+**Figure 1** Error message <a id="error-message"></a>
 ![**Figure 1** Error message](./figures/FAQ/error_screenshot_1.png "Error message")
 
 **Possible Causes**
@@ -159,7 +159,7 @@ The dependency may be missing.
 
 When MindStudio Insight is started in VNC mode in the Linux OS, the error message "Oh no! Something has gone wrong" is displayed, as shown in [**Figure 1** Error message](#error-message).
 
-**Figure 1** Error message <a id="error-message"></a> 
+**Figure 1** Error message <a id="error-message"></a>
 ![**Figure 1** Error message](./figures/FAQ/error_message_1.png "Error message")
 
 **Possible Causes**
@@ -248,3 +248,28 @@ export WEBKIT_DISABLE_COMPOSITING_MODE=1
 unset https_proxy
 unset http_proxy
 ```
+
+## MindStudio Insight Exits Immediately After Startup
+
+**Symptom**
+
+After you start MindStudio Insight from the desktop, the main window is not displayed and the process exits. When no port is available, a **Startup Failed** dialog is displayed (a system error box on Windows, a system dialog on macOS, and zenity, kdialog, or xmessage on Linux when one of these tools is installed). If you start the application from a terminal, the standard error output may contain:
+
+```text
+No available port between 9000 and 9100
+```
+
+**Possible Causes**
+
+The MindStudio Insight desktop application needs a local frontend-backend communication port in the range `127.0.0.1:9000-9100`. Windows excluded port ranges (commonly created by Hyper-V, WinNAT, WSL, or Docker) or other processes occupying the range can block every candidate port. The desktop application does not support configuring another port range.
+
+**Solution**
+
+1. On Windows, run the following command in Command Prompt or PowerShell:
+
+    ```shell
+    netsh interface ipv4 show excludedportrange protocol=tcp
+    ```
+
+2. If the output contains a range that covers `9000-9100`, clear or adjust that excluded range, or stop the Hyper-V, WinNAT, Docker, or WSL service that reserved the range, and then retry.
+3. On Linux or macOS, free a port in `9000-9100` and retry.

@@ -18,15 +18,18 @@
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-use std::{
-    env,
-    env::current_exe,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener},
-    path::PathBuf,
-    process::Command,
-};
+use std::{env, env::current_exe, path::PathBuf, process::Command};
 
-use crate::webview;
+#[cfg(target_os = "linux")]
+use crate::local_port::dialog_tool_was_shown;
+use crate::{
+    local_port::{
+        find_first_available_port, no_available_port_dialog_message,
+        no_available_port_stderr, FRONTEND_BACKEND_PORT_END,
+        FRONTEND_BACKEND_PORT_START, NO_AVAILABLE_PORT_DIALOG_TITLE,
+    },
+    webview,
+};
 
 const SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "profiler_server"];
@@ -136,28 +139,6 @@ fn eq_prefix(lhs: &PathBuf, rhs: &PathBuf) -> bool {
     }
 }
 
-fn find_first_available_port(start: u16, end: u16) -> Option<u16> {
-    // 探测系统是否支持 IPv6 loopback 绑定：若不支持则仅检测 IPv4，避免在禁用 IPv6 的环境失效
-    let ipv6_capable =
-        TcpListener::bind(SocketAddrV6::new(Ipv6Addr::LOCALHOST, 0, 0, 0)).is_ok();
-
-    for port in start..=end {
-        let v4_ok = TcpListener::bind(SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), port))
-            .is_ok();
-        // IPv6 不可用时跳过 v6 检测，等价于仅检测 IPv4，保证兼容性
-        let v6_ok = if ipv6_capable {
-            TcpListener::bind(SocketAddrV6::new(Ipv6Addr::LOCALHOST, port, 0, 0)).is_ok()
-        } else {
-            true
-        };
-        if v4_ok && v6_ok {
-            return Some(port);
-        }
-    }
-
-    None
-}
-
 pub static mut PID: u32 = u32::MAX;
 
 pub fn main() {
@@ -213,8 +194,18 @@ pub fn main() {
         return;
     }
 
-    let Some(port) = find_first_available_port(9000, 9100) else {
-        eprintln!("No available port between 9000 and 9100");
+    let Some(port) = find_first_available_port(
+        FRONTEND_BACKEND_PORT_START,
+        FRONTEND_BACKEND_PORT_END,
+    ) else {
+        eprintln!(
+            "{}",
+            no_available_port_stderr(
+                FRONTEND_BACKEND_PORT_START,
+                FRONTEND_BACKEND_PORT_END
+            )
+        );
+        show_no_available_port_alert();
         return;
     };
 
@@ -229,4 +220,67 @@ pub fn main() {
         run_server(&root_path, &cache_path, port);
         webview::run_event_loop(eventloop, webview, window)
     }
+}
+
+fn show_no_available_port_alert() {
+    let title = NO_AVAILABLE_PORT_DIALOG_TITLE;
+    let message = no_available_port_dialog_message(
+        FRONTEND_BACKEND_PORT_START,
+        FRONTEND_BACKEND_PORT_END,
+    );
+
+    #[cfg(windows)]
+    webview::webview2err::show_error_message(title, &message);
+
+    #[cfg(target_os = "macos")]
+    show_macos_error_dialog(title, &message);
+
+    #[cfg(target_os = "linux")]
+    show_linux_error_dialog(title, &message);
+}
+
+#[cfg(target_os = "macos")]
+fn apple_script_literal(text: &str) -> String {
+    let escaped = text.replace('\\', "\\\\").replace('"', "\\\"");
+    format!("\"{}\"", escaped.replace('\n', "\" & return & \""))
+}
+
+#[cfg(target_os = "macos")]
+fn show_macos_error_dialog(title: &str, message: &str) {
+    let script = format!(
+        "display dialog {} with title {} buttons {{\"OK\"}} \
+         default button \"OK\" with icon stop",
+        apple_script_literal(message),
+        apple_script_literal(title),
+    );
+    let _ = Command::new("osascript").arg("-e").arg(script).status();
+}
+
+#[cfg(target_os = "linux")]
+fn dialog_tool_started(command: &mut Command) -> bool {
+    dialog_tool_was_shown(command.status())
+}
+
+#[cfg(target_os = "linux")]
+fn show_linux_error_dialog(title: &str, message: &str) {
+    if dialog_tool_started(Command::new("zenity").args([
+        "--error",
+        "--title",
+        title,
+        "--text",
+        message,
+        "--no-markup",
+        "--width=480",
+    ])) {
+        return;
+    }
+    if dialog_tool_started(
+        Command::new("kdialog")
+            .args(["--title", title, "--error", message]),
+    ) {
+        return;
+    }
+    let _ = Command::new("xmessage")
+        .args(["-center", "-title", title, message])
+        .status();
 }

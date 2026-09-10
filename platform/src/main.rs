@@ -19,6 +19,8 @@
 #![windows_subsystem = "windows"]
 #![allow(non_snake_case)]
 
+#[cfg(any(all(not(debug_assertions), feature = "default"), test))]
+mod local_port;
 #[cfg(all(not(debug_assertions), feature = "default"))]
 mod default;
 #[cfg(all(not(debug_assertions), feature = "default", any(target_os = "windows", target_os = "macos")))]
