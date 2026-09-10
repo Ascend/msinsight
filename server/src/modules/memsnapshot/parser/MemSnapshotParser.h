@@ -45,6 +45,9 @@ struct MemSnapshotParserContext {
     std::string GetLogPath() const;
     std::string GetOutputDbPath() const;
     std::string GetFileHash() const;
+    bool IsInitialSuccessSent() const;
+    bool WasInitialSuccessSentWhileBuilding() const;
+    void MarkInitialSuccessSent(bool parsingComplete);
     ParserState GetState() const;
     void SetState(const ParserState &newState);
     uint8_t GetProgress() const;
@@ -60,6 +63,8 @@ struct MemSnapshotParserContext {
     ParserState state{ParserState::INIT};
     std::string workDir{};
     uint8_t progress{0}; // 百分制进度
+    bool initialSuccessSent{false};
+    bool initialSuccessSentWhileBuilding{false};
 
     mutable std::shared_mutex _mutex{};
 };
@@ -88,7 +93,9 @@ class MemSnapshotParser {
     // 解析完成回调方法之一，用于二次检查db结果并设置解析结果db版本
     bool TryOpenParsingResultDbAndSetVersion() const;
     // 构造解析响应事件
-    std::unique_ptr<MemScopeParseSuccessEvent> BuildParseSuccessEventFromContext() const;
+    std::unique_ptr<MemScopeParseSuccessEvent> BuildParseSuccessEventFromContext(
+        const std::unordered_set<std::string> *preparedSlices = nullptr) const;
+    static void SendReadySliceEvents(std::unordered_set<std::string> &notifiedSlices);
     std::unique_ptr<ParseFailEvent> BuildParseFailEventFromContext(const std::string &errMsg) const;
     std::unique_ptr<ThreadPool> _threadPool;
     MemSnapshotParserContext parseContext = MemSnapshotParserContext();

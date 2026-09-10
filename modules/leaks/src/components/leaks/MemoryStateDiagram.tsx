@@ -305,6 +305,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
                 deviceId: session.deviceId,
                 currentPage,
                 pageSize,
+                sliceIndex: session.selectedSliceIndex,
             });
 
             if (requestId !== currentRequestId) {
@@ -369,7 +370,11 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         const requestRowIndex = currentSelectRow;
         const requestEventId = currentRow.id;
         const requestDeviceId = session.deviceId;
-        getMemoryStateData({ eventId: requestEventId, deviceId: requestDeviceId }).then(data => {
+        getMemoryStateData({
+            eventId: requestEventId,
+            deviceId: requestDeviceId,
+            sliceIndex: session.selectedSliceIndex,
+        }).then(data => {
             if (deviceIdRef.current !== requestDeviceId || currentSelectRowRef.current !== requestRowIndex ||
                 dataSourceRef.current[requestRowIndex]?.id !== requestEventId) {
                 return;
@@ -395,7 +400,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         workerSetMemoryStateData({ data: [] });
         if (!blockLoadReady) return;
         getAllEventListData(session);
-    }, [session.deviceId, deviceIdsSignature, blockLoadReady]);
+    }, [session.deviceId, session.selectedSliceIndex, deviceIdsSignature, blockLoadReady]);
 
     useEffect(() => {
         const result = getMatchedIndexes();
@@ -449,6 +454,18 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
             return;
         }
         const targetId = target.eventId;
+        const currentSlice = session.snapshotSlices[session.deviceId]?.slices[session.selectedSliceIndex];
+        if (currentSlice !== undefined &&
+            (targetId < currentSlice.startEventId || targetId > currentSlice.endEventId)) {
+            return;
+        }
+        if (dataSource.length > 0 && currentSlice !== undefined) {
+            const listMatchesCurrentSlice = dataSource.some(item =>
+                item.id >= currentSlice.startEventId && item.id <= currentSlice.endEventId);
+            if (!listMatchesCurrentSlice) {
+                return;
+            }
+        }
         const index = dataSource.findIndex(item => item.id === targetId);
         if (index < 0) {
             if (dataTotal !== 0 && dataSource.length >= dataTotal) {
@@ -466,7 +483,7 @@ const EventList = observer(({ session }: { session: Session }): JSX.Element => {
         runInAction(() => {
             session.pendingEventLocate = null;
         });
-    }, [session.pendingEventLocate, session.deviceId, dataSource.length, dataTotal]);
+    }, [session.pendingEventLocate, session.deviceId, session.selectedSliceIndex, dataSource.length, dataTotal]);
 
     useEffect(() => {
         if (session.deviceId === '') return;

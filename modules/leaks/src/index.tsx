@@ -90,7 +90,12 @@ export function getInitStatus(): void {
         event: 'getParseStatus',
         body: {
             from: 'Leaks',
-            requests: ['language', 'theme', 'fileHash', 'module', 'deviceIds', 'threadIds'],
+            requests: [
+                'language', 'theme',
+                'memSnapshotParseFileId', 'memSnapshotParseLoading', 'memSnapshotParseProgress',
+                'fileHash', 'module', 'deviceIds', 'threadIds',
+                'snapshotParsingComplete', 'snapshotSlices', 'dbPath', 'directory',
+            ],
         },
     });
 }

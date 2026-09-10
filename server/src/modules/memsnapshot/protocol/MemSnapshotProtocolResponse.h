@@ -92,15 +92,16 @@ struct MemSnapshotBlocksResponse : public JsonResponse {
             }
         } else {
             for (auto &block : viewBlocks) {
-                if (block.allocEventId >= 0 && block.freeEventId >= 0) {
-                    auto blockJson = block.ToJson(allocator);
-                    jsonBlocks.PushBack(blockJson, allocator);
-                    continue;
-                }
                 auto tmpBlock = BlockViewItemDTO(block);
-                tmpBlock.allocEventId = block.allocEventId < 0 ? 0 : block.allocEventId;
-                // maxTimestamp取自最大事件ID，不可能超过INT64_MAX，此处无溢出风险
-                tmpBlock.freeEventId = block.freeEventId < 0 ? static_cast<int64_t>(maxTimestamp) : block.freeEventId;
+                tmpBlock.originalAllocEventId = block.allocEventId;
+                tmpBlock.originalFreeEventId = block.freeEventId;
+                // 跨分片块只在当前窗口内绘制；真实申请/释放事件号仍通过 allocEventId/freeEventId 返回。
+                tmpBlock.allocEventId = block.allocEventId < static_cast<int64_t>(minTimestamp)
+                    ? static_cast<int64_t>(minTimestamp)
+                    : block.allocEventId;
+                tmpBlock.freeEventId = block.freeEventId < 0 || block.freeEventId > static_cast<int64_t>(maxTimestamp)
+                    ? static_cast<int64_t>(maxTimestamp)
+                    : block.freeEventId;
                 auto blockJson = tmpBlock.ToJson(allocator);
                 jsonBlocks.PushBack(blockJson, allocator);
             }
@@ -158,11 +159,10 @@ struct MemSnapshotAllocationsResponse : public JsonResponse {
     MemSnapshotAllocationsResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_ALLOCATIONS) {}
     uint64_t minEventId{0};
     uint64_t maxEventId{0};
+    uint64_t maxSize{0};
     uint64_t allocationsTotal{0};
-    uint64_t reservedLineTotal{0};
     bool paginated{false};
     std::vector<AllocationRecordDTO> allocations;
-    std::vector<ReservedRecordDTO> reservedLine;
 
     [[nodiscard]] std::optional<document_t> ToJson() const override {
         document_t json(kObjectType);
@@ -170,22 +170,47 @@ struct MemSnapshotAllocationsResponse : public JsonResponse {
         ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
         json_t body(kObjectType);
         json_t allocationsJson(kArrayType);
-        json_t reservedLineJson(kArrayType);
         JsonUtil::AddMember(body, "minTimestamp", minEventId, allocator);
         JsonUtil::AddMember(body, "maxTimestamp", maxEventId, allocator);
+        JsonUtil::AddMember(body, "maxSize", maxSize, allocator);
         if (paginated) {
             json_t totalJson(kObjectType);
             JsonUtil::AddMember(totalJson, "allocations", allocationsTotal, allocator);
-            JsonUtil::AddMember(totalJson, "reservedLine", reservedLineTotal, allocator);
             JsonUtil::AddMember(body, "total", totalJson, allocator);
         }
         for (const auto &record : allocations) {
             allocationsJson.PushBack(record.ToJson(allocator), allocator);
         }
+        JsonUtil::AddMember(body, "allocations", allocationsJson, allocator);
+        JsonUtil::AddMember(json, "body", body, allocator);
+        return std::optional<document_t>{std::move(json)};
+    }
+};
+
+struct MemSnapshotAllocationLinesResponse : public JsonResponse {
+    MemSnapshotAllocationLinesResponse() : JsonResponse(REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES) {}
+    uint64_t minEventId{0};
+    uint64_t maxEventId{0};
+    uint64_t reservedLineTotal{0};
+    bool paginated{false};
+    std::vector<ReservedRecordDTO> reservedLine;
+
+    [[nodiscard]] std::optional<document_t> ToJson() const override {
+        document_t json(kObjectType);
+        auto &allocator = json.GetAllocator();
+        ProtocolUtil::SetResponseJsonBaseInfo(*this, json);
+        json_t body(kObjectType);
+        json_t reservedLineJson(kArrayType);
+        JsonUtil::AddMember(body, "minTimestamp", minEventId, allocator);
+        JsonUtil::AddMember(body, "maxTimestamp", maxEventId, allocator);
+        if (paginated) {
+            json_t totalJson(kObjectType);
+            JsonUtil::AddMember(totalJson, "reservedLine", reservedLineTotal, allocator);
+            JsonUtil::AddMember(body, "total", totalJson, allocator);
+        }
         for (const auto &record : reservedLine) {
             reservedLineJson.PushBack(record.ToJson(allocator), allocator);
         }
-        JsonUtil::AddMember(body, "allocations", allocationsJson, allocator);
         JsonUtil::AddMember(body, "reservedLine", reservedLineJson, allocator);
         JsonUtil::AddMember(json, "body", body, allocator);
         return std::optional<document_t>{std::move(json)};

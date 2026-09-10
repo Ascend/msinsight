@@ -23,6 +23,7 @@ const createContext = (): any => ({
     module: 'memsnapshot',
     deviceId: '0',
     eventType: 'BLOCK',
+    selectedSliceIndex: 0,
     loadedMemoryBlockContextKey: '',
 });
 
@@ -33,6 +34,13 @@ describe('memory block load state', () => {
         expect(isMemoryBlockLoadReady(context)).toBe(true);
 
         context.deviceId = '1';
+        expect(isMemoryBlockLoadReady(context)).toBe(false);
+    });
+
+    it('does not reuse the loaded state across snapshot slices', () => {
+        const context = createContext();
+        context.loadedMemoryBlockContextKey = createMemoryBlockContextKey(context);
+        context.selectedSliceIndex = 1;
         expect(isMemoryBlockLoadReady(context)).toBe(false);
     });
 

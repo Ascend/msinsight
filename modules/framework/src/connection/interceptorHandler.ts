@@ -22,6 +22,7 @@ import { type DataSource } from '@/centralServer/websocket/defs';
 import { updateSession } from '@/connection/notificationHandler';
 import { store } from '@/store';
 import type { CardRankInfo, RankInfo } from '@/entity/session';
+import { isActiveSnapshotSourceFile } from '../utils/filePath';
 
 interface ImportActionBody {
     result: Array<{ rankId: string; dataPathList: string[] }>;
@@ -64,11 +65,50 @@ interface ParseLeaksNotification {
     dbPath: string;
     module: string;
     fileHash?: string;
+    snapshotParsingComplete?: boolean;
+    snapshotSlices?: Record<string, unknown>;
 }
 
 interface ParseHeatmapNotification {
     parseResult: boolean;
 }
+
+interface ParseMemSnapshotSliceReadyNotification {
+    fileId?: string;
+    fileHash?: string;
+    deviceId: string;
+    slice: {
+        index: number;
+        startEventId: number;
+        endEventId: number;
+        ready: boolean;
+    };
+}
+
+interface ParseMemSnapshotProgressNotification {
+    fileId?: string;
+    progress?: number;
+}
+
+const clampMemSnapshotParseProgress = (progress: unknown): number => {
+    if (typeof progress !== 'number' || Number.isNaN(progress)) {
+        return 0;
+    }
+    return Math.min(100, Math.max(0, Math.round(progress)));
+};
+
+const areAllMemSnapshotSlicesReady = (
+    snapshotSlices: Record<string, { slices?: Array<{ ready?: boolean }>; sliceCount?: number }>,
+): boolean => {
+    const devices = Object.values(snapshotSlices);
+    return devices.length > 0 && devices.every(device =>
+        (device.slices?.length ?? 0) === (device.sliceCount ?? 0) &&
+        (device.slices ?? []).every(slice => slice.ready === true),
+    );
+};
+
+const isActiveDataSourceFile = (filePath: string): boolean =>
+    isActiveSnapshotSourceFile(store.sessionStore.activeSession, filePath);
 
 export const parseMemorySuccessHandler: NotificationInterceptor<ParseMemoryNotification> = (data): void => {
     const session = store.sessionStore.activeSession;
@@ -127,17 +167,76 @@ export const parseStatisticSuccessHandler: NotificationInterceptor<ParseStatisti
 };
 
 export const parseLeaksSuccessHandler: NotificationInterceptor<ParseLeaksNotification> = (data): void => {
-    updateSession({
+    if (data.module === 'memsnapshot' && !isActiveDataSourceFile(data.dbPath)) {
+        return;
+    }
+    const snapshotParsingComplete = data.snapshotParsingComplete ?? true;
+    const snapshotSlices = data.snapshotSlices ?? {};
+    const parseUpdate: Record<string, unknown> = {
         deviceIds: data.deviceIds,
         threadIds: data.threadIds,
         dbPath: data.dbPath,
         module: data.module,
         fileHash: data.fileHash ?? '',
-    });
+        snapshotParsingComplete,
+        snapshotSlices,
+    };
+    if (data.module === 'memsnapshot') {
+        const allSlicesReady = areAllMemSnapshotSlicesReady(
+            snapshotSlices as Record<string, { slices?: Array<{ ready?: boolean }>; sliceCount?: number }>,
+        );
+        parseUpdate.memSnapshotParseFileId = data.dbPath;
+        parseUpdate.memSnapshotParseLoading = !(snapshotParsingComplete && allSlicesReady);
+        if (snapshotParsingComplete && allSlicesReady) {
+            parseUpdate.memSnapshotParseProgress = 100;
+        }
+    } else {
+        parseUpdate.memSnapshotParseLoading = false;
+        parseUpdate.memSnapshotParseProgress = 0;
+        parseUpdate.memSnapshotParseFileId = '';
+    }
+    updateSession(parseUpdate);
 };
 
 export const parseTritonSuccessHandler: NotificationInterceptor<ParseLeaksNotification> = (): void => {
     updateSession({ tritonParsed: true });
+};
+
+export const parseMemSnapshotProgressHandler: NotificationInterceptor<ParseMemSnapshotProgressNotification> = (data): void => {
+    const session = store.sessionStore.activeSession;
+    const fileId = data.fileId ?? '';
+    if (!session || !isActiveDataSourceFile(fileId)) {
+        return;
+    }
+    updateSession({
+        memSnapshotParseFileId: fileId,
+        memSnapshotParseLoading: true,
+        memSnapshotParseProgress: Math.max(session.memSnapshotParseProgress, clampMemSnapshotParseProgress(data.progress)),
+    });
+};
+
+export const parseMemSnapshotSliceReadyHandler: NotificationInterceptor<ParseMemSnapshotSliceReadyNotification> = (data): void => {
+    const session = store.sessionStore.activeSession;
+    if (!session || !isActiveDataSourceFile(data.fileId ?? '') || !data.fileHash || !session.fileHash ||
+        data.fileHash !== session.fileHash) {
+        return;
+    }
+    const device = session.snapshotSlices[data.deviceId];
+    if (!device || data.slice.index < 0 || data.slice.index >= device.sliceCount) {
+        return;
+    }
+    runInAction(() => {
+        if (session.deviceIds[data.deviceId] === undefined) {
+            session.deviceIds = { ...session.deviceIds, [data.deviceId]: ['BLOCK'] };
+        }
+        device.slices[data.slice.index] = { ...data.slice };
+        device.readySlices = [...new Set([...device.readySlices, data.slice.index])].sort((a, b) => a - b);
+        session.snapshotSlices = { ...session.snapshotSlices, [data.deviceId]: { ...device } };
+        if (session.snapshotParsingComplete && areAllMemSnapshotSlicesReady(session.snapshotSlices)) {
+            session.memSnapshotParseLoading = false;
+            session.memSnapshotParseProgress = 100;
+        }
+    });
 };
 
 export const profilingExpertDataParsedHandler: NotificationInterceptor<ParseHeatmapNotification> = (data): void => {

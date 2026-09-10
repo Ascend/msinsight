@@ -161,40 +161,51 @@ class SimulateDeviceSnapshot(HookerRegistry):
     def unregister_allocator_hooker(self, hooker_id: int):
         self.simulated_allocator.unregister_hooker(hooker_id)
 
-    def replay(self) -> bool:
-        """
-        开始仿真回放内存事件
-        """
-        # 倒序遍历
-        total_size = len(self.device_snapshot.trace_entries)
-        self._replay_logger.info("Replaying %s entries in snapshot...", total_size)
-        progress_update_point = [0.25, 0.5, 0.75]
-        while self.device_snapshot.trace_entries:
+    def replay_until(self, min_event_idx: int = 0, on_event_processed=None) -> bool:
+        """倒序回放到指定事件边界，保留更早事件和当前分配器状态供后续分片继续使用。"""
+        while self.device_snapshot.trace_entries and self.device_snapshot.trace_entries[-1].idx >= min_event_idx:
+            event = self.device_snapshot.trace_entries[-1]
             for hooker in self.hookers.values():
-                if hooker and not hooker.pre_undo_event(self.device_snapshot.trace_entries[-1], self.device_snapshot):
+                if hooker and not hooker.pre_undo_event(event, self.device_snapshot):
                     self._replay_logger.error(
                         "An interruption occurred during the replay of the single event pre hook."
                     )
                     return False
-            event = self.device_snapshot.trace_entries[-1]
             self.simulated_allocator_context.set_current_undo_event(event)
             if not self.replay_executor.execute(event):
                 self._replay_logger.error("An interruption occurred during the replay of the single event.")
                 return False
             self.device_snapshot.trace_entries.pop()
-            current_size = len(self.device_snapshot.trace_entries)
-            if progress_update_point and progress_update_point[-1] * total_size >= current_size:
-                self._replay_logger.info(
-                    "%s%% of entries have been processed, %s entries remain.",
-                    (1 - progress_update_point[-1]) * 100,
-                    current_size,
-                )
-                progress_update_point.pop()
+            if on_event_processed is not None:
+                on_event_processed()
             for hooker in self.hookers.values():
                 if hooker and not hooker.post_undo_event(event, self.device_snapshot):
                     self._replay_logger.error(
                         "An interruption occurred during the replay of the single event post hook."
                     )
                     return False
+        return True
+
+    def replay(self) -> bool:
+        """回放全部内存事件，并按每 1% 输出一次解析进度。"""
+        total_size = len(self.device_snapshot.trace_entries)
+        processed = 0
+        last_progress = 0
+        self._replay_logger.info("Replaying %s entries in snapshot...", total_size)
+
+        def report_progress():
+            nonlocal processed, last_progress
+            processed += 1
+            progress = 100 if total_size == 0 else processed * 100 // total_size
+            while last_progress < progress:
+                last_progress += 1
+                self._replay_logger.info(
+                    "%s%% of entries have been processed, %s entries remain.",
+                    last_progress,
+                    total_size - processed,
+                )
+
+        if not self.replay_until(0, report_progress):
+            return False
         self._replay_logger.info("All events have been successfully replayed.")
         return True

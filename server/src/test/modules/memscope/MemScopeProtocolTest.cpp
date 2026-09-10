@@ -28,14 +28,41 @@ class MemScopeProtocolTest : public ::testing::Test {
     static void TearDownTestSuite() {}
 };
 
-TEST_F(MemScopeProtocolTest, ParseSuccessEventContainsFileHash) {
+TEST_F(MemScopeProtocolTest, MemScopeParseSuccessEventDoesNotContainSnapshotState) {
     Dic::Protocol::MemScopeParseSuccessEvent event;
+    event.body.module = "leaks";
     event.body.fileHash = "0123456789abcdef";
+    event.body.snapshotParsingComplete = false;
     const auto json = event.ToJson();
     ASSERT_TRUE(json.has_value());
     ASSERT_TRUE(json->HasMember("body"));
     ASSERT_TRUE((*json)["body"].HasMember("fileHash"));
     EXPECT_STREQ((*json)["body"]["fileHash"].GetString(), "0123456789abcdef");
+    EXPECT_FALSE((*json)["body"].HasMember("snapshotParsingComplete"));
+    EXPECT_FALSE((*json)["body"].HasMember("snapshotSlices"));
+}
+
+TEST_F(MemScopeProtocolTest, ParseSuccessEventContainsSnapshotSlices) {
+    Dic::Protocol::MemScopeParseSuccessEvent event;
+    event.body.module = "memsnapshot";
+    event.body.snapshotParsingComplete = false;
+    Dic::Protocol::MemSnapshotDeviceSliceEventInfo device;
+    device.eventCount = 200;
+    device.sliceCount = 2;
+    device.readySlices = {1};
+    device.slices = {{0, 0, 99, false}, {1, 100, 199, true}};
+    event.body.snapshotSlices.emplace("0", device);
+
+    const auto json = event.ToJson();
+    ASSERT_TRUE(json.has_value());
+    ASSERT_TRUE((*json)["body"].HasMember("snapshotParsingComplete"));
+    EXPECT_FALSE((*json)["body"]["snapshotParsingComplete"].GetBool());
+    const auto &snapshotSlices = (*json)["body"]["snapshotSlices"];
+    ASSERT_TRUE(snapshotSlices.HasMember("0"));
+    EXPECT_EQ(snapshotSlices["0"]["sliceCount"].GetInt(), 2);
+    EXPECT_EQ(snapshotSlices["0"]["readySlices"][0].GetInt(), 1);
+    EXPECT_FALSE(snapshotSlices["0"]["slices"][0]["ready"].GetBool());
+    EXPECT_TRUE(snapshotSlices["0"]["slices"][1]["ready"].GetBool());
 }
 
 TEST_F(MemScopeProtocolTest, BuildEventTableRequestFromJson) {

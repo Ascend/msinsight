@@ -15,10 +15,8 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
-from .defs import (
-    EventFieldDefs,
-    BlockFieldDefs
-)
+
+from .defs import EventFieldDefs, BlockFieldDefs
 
 from base import TraceEntry, Block
 
@@ -53,17 +51,20 @@ def event2record(event: TraceEntry, allocated: int = 0, active: int = 0, reserve
         EventFieldDefs.ALLOCATED: allocated,
         EventFieldDefs.ACTIVE: active,
         EventFieldDefs.RESERVED: reserved,
-        EventFieldDefs.CALLSTACK: event.get_callstack()
+        EventFieldDefs.CALLSTACK: event.get_callstack(),
     }
 
 
-def block2record(block: Block) -> dict:
+def block2record(block: Block, *, block_id: int = None, alloc_event_id: int = None) -> dict:
+    resolved_alloc_event_id = block.alloc_event_idx if alloc_event_id is None else alloc_event_id
     return {
-        BlockFieldDefs.ID: block.alloc_event_idx if block.alloc_event_idx is not None else next_default_block_id(),
+        BlockFieldDefs.ID: block_id
+        if block_id is not None
+        else (block.alloc_event_idx if block.alloc_event_idx is not None else next_default_block_id()),
         BlockFieldDefs.ADDR: block.address,
         BlockFieldDefs.SIZE: block.size,
         BlockFieldDefs.REQUESTED_SIZE: block.requested_size,
         BlockFieldDefs.STATE: block.state,
-        BlockFieldDefs.ALLOC_EVENT_ID: block.alloc_event_idx if block.alloc_event_idx is not None else -1,
+        BlockFieldDefs.ALLOC_EVENT_ID: resolved_alloc_event_id if resolved_alloc_event_id is not None else -1,
         BlockFieldDefs.FREE_EVENT_ID: block.free_event_idx if block.free_event_idx is not None else -1,
     }

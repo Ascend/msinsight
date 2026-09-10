@@ -19,6 +19,7 @@ import { isWebGL2Supported } from '../tools/detection';
 import { checkLeaksOpfsAvailability } from '../tools/opfsConfig';
 import { getPackedRenderDataTransferList, packRenderData } from '../tools/packedBlockData';
 import { MainThreadRender } from './mainThreadindex';
+import { BlockDataOPFS } from '../tools/BlockDataOPFS';
 
 declare const module: {
     hot?: {
@@ -36,6 +37,8 @@ const pendingCacheLoads = new Map<number, {
 }>();
 const pendingOpfsProbes = new Map<number, (status: OpfsAvailabilityStatus) => void>();
 let opfsProbeRequestId = 0;
+const pendingCacheRemovals = new Map<number, { resolve: () => void; reject: (error: Error) => void }>();
+let cacheRemovalRequestId = 0;
 
 export const isCurrentBlockWorkerGeneration = (generation: number | undefined): boolean =>
     generation === undefined || generation === workerGeneration;
@@ -54,6 +57,10 @@ module.hot?.dispose(() => {
         resolve('transient');
     }
     pendingOpfsProbes.clear();
+    for (const pending of pendingCacheRemovals.values()) {
+        pending.reject(new Error('Block worker replaced by hot reload'));
+    }
+    pendingCacheRemovals.clear();
 });
 
 BlockWorker.addEventListener('message', (event: MessageEvent<{
@@ -64,6 +71,18 @@ BlockWorker.addEventListener('message', (event: MessageEvent<{
     requestId?: number;
     availabilityStatus?: OpfsAvailabilityStatus;
 }>): void => {
+    if (event.data.type === 'blockPathCacheRemovalCompleted' && event.data.requestId !== undefined) {
+        pendingCacheRemovals.get(event.data.requestId)?.resolve();
+        pendingCacheRemovals.delete(event.data.requestId);
+        return;
+    }
+    if (event.data.type === 'blockPathCacheRemovalFailed' && event.data.requestId !== undefined) {
+        pendingCacheRemovals.get(event.data.requestId)?.reject(
+            new Error(event.data.error ?? 'Block worker cache removal failed'),
+        );
+        pendingCacheRemovals.delete(event.data.requestId);
+        return;
+    }
     if (event.data.type === 'opfsAvailabilityChecked' && event.data.requestId !== undefined) {
         pendingOpfsProbes.get(event.data.requestId)?.(event.data.availabilityStatus ?? 'transient');
         pendingOpfsProbes.delete(event.data.requestId);
@@ -145,12 +164,23 @@ const WorkerBackend = {
         );
         return completion;
     },
+    removeMemoryBlockCaches({ fileHash }: { fileHash: string }): Promise<void> {
+        const requestId = ++cacheRemovalRequestId;
+        const completion = new Promise<void>((resolve, reject) => {
+            pendingCacheRemovals.set(requestId, { resolve, reject });
+        });
+        BlockWorker.postMessage({ type: 'removeMemoryBlockCaches', requestId, fileHash } as RemoveMemoryBlockCachesPayload);
+        return completion;
+    },
     setAllocationLines(lines: Omit<SetAllocationLinesPayload, 'type' | 'generation'>): void {
         BlockWorker.postMessage({
             type: 'setAllocationLines',
             generation: workerGeneration,
             ...lines,
         } as SetAllocationLinesPayload);
+    },
+    setBlockGraphGlobalMaxSize({ maxSize }: Omit<SetBlockGraphGlobalMaxSizePayload, 'type'>): void {
+        BlockWorker.postMessage({ type: 'setBlockGraphGlobalMaxSize', maxSize } as SetBlockGraphGlobalMaxSizePayload);
     },
     resizeCanvas({ width, height }: Omit<ResizeCanvasPayload, 'type'>): void {
         BlockWorker.postMessage({ type: 'resizeCanvas', width, height });
@@ -222,11 +252,21 @@ const MainThreadBackend = {
         mainThreadLoadQueue = task.catch(() => undefined);
         return task;
     },
+    async removeMemoryBlockCaches({ fileHash }: { fileHash: string }): Promise<void> {
+        const task = mainThreadLoadQueue.then(async () => {
+            await BlockDataOPFS.removePersistentCachesBySourceHash(fileHash);
+        });
+        mainThreadLoadQueue = task.catch(() => undefined);
+        await task;
+    },
     setAllocationLines(lines: Omit<SetAllocationLinesPayload, 'type' | 'generation'>): void {
         mainThreadRender.setAllocationLinesHandler({
             generation: mainThreadGeneration,
             ...lines,
         });
+    },
+    setBlockGraphGlobalMaxSize(payload: Omit<SetBlockGraphGlobalMaxSizePayload, 'type'>): void {
+        mainThreadRender.setBlockGraphGlobalMaxSizeHandler(payload);
     },
     resizeCanvas({ width, height }: Omit<ResizeCanvasPayload, 'type'>): void {
         mainThreadRender.resizeCanvasHandler({ width, height });
@@ -265,14 +305,17 @@ const MainThreadBackend = {
 };
 
 // 自动选择后端
-const backend = isWebGL2Supported() ? WorkerBackend : MainThreadBackend;
+export const isWorkerBlockRenderer = isWebGL2Supported();
+const backend = isWorkerBlockRenderer ? WorkerBackend : MainThreadBackend;
 
 // 导出统一接口
 export const workerInitCanvas = backend.initCanvas;
 export const workerCheckOpfsAvailability = backend.checkOpfsAvailability;
 export const workerLoadMemoryBlockCache = backend.loadMemoryBlockCache;
 export const workerSetMemoryBlockData = backend.setMemoryBlockData;
+export const workerRemoveMemoryBlockCaches = backend.removeMemoryBlockCaches;
 export const workerSetAllocationLines = backend.setAllocationLines;
+export const workerSetBlockGraphGlobalMaxSize = backend.setBlockGraphGlobalMaxSize;
 export const workerResizeCanvas = backend.resizeCanvas;
 export const workerTransform = backend.transform;
 export const workerSetBlockGraphLayerVisibility = backend.setBlockGraphLayerVisibility;

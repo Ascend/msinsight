@@ -44,6 +44,7 @@ let memoryBlockData: RenderData | undefined;
 let memoryBlockMetadata: BlockGraphMetadata | undefined;
 let blockDataOPFS: BlockDataOPFS;
 let allocationLines: AllocationLineData = { reservedLine: [], processUsedLine: [], deviceUsedLine: [] };
+let blockGraphGlobalMaxSize = 0;
 let transform: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 let viewport: RenderOptions['viewport'];
 let zoom: RenderOptions['zoom'];
@@ -57,6 +58,7 @@ let latestDataGeneration = 0;
 let activeDataGeneration = 0;
 let storageReadyGeneration = 0;
 let dataLoadQueue: Promise<void> = Promise.resolve();
+let cacheMaintenanceQueue: Promise<void> = Promise.resolve();
 let hoverSearchVersion = 0;
 let useTemporaryStorageForNextBuild = false;
 const opfsRuntimeId = createLeaksOpfsRuntimeId();
@@ -73,6 +75,7 @@ const waitForInitialization = async (): Promise<void> => {
         throw initializationError;
     }
 };
+
 let allocationLinesOverride: {
     generation: number;
     lines: AllocationLineData;
@@ -142,7 +145,11 @@ const isSamePathFragment = (first: Block | null, second: Block | null): boolean 
 
 const getSizeInfo = (): { maxTimestamp: number; minTimestamp: number; maxSize: number; minSize: number } => {
     if (useOpfs && memoryBlockMetadata) {
-        const maxSize = Math.max(memoryBlockMetadata.maxSize, memoryBlockMetadata.reservedSizeMax ?? memoryBlockMetadata.maxSize);
+        const maxSize = Math.max(
+            memoryBlockMetadata.maxSize,
+            memoryBlockMetadata.reservedSizeMax ?? memoryBlockMetadata.maxSize,
+            blockGraphGlobalMaxSize,
+        );
         return {
             maxTimestamp: memoryBlockMetadata.maxTimestamp,
             minTimestamp: memoryBlockMetadata.minTimestamp,
@@ -151,7 +158,11 @@ const getSizeInfo = (): { maxTimestamp: number; minTimestamp: number; maxSize: n
         };
     }
     if (memoryBlockData) {
-        const maxSize = Math.max(memoryBlockData.maxSize, memoryBlockData.reservedSizeMax ?? memoryBlockData.maxSize);
+        const maxSize = Math.max(
+            memoryBlockData.maxSize,
+            memoryBlockData.reservedSizeMax ?? memoryBlockData.maxSize,
+            blockGraphGlobalMaxSize,
+        );
         return {
             maxTimestamp: memoryBlockData.maxTimestamp,
             minTimestamp: memoryBlockData.minTimestamp,
@@ -219,7 +230,7 @@ const resetMemoryBlockDataState = (generation: number): void => {
 const updateMetadataView = (metadata: BlockGraphMetadata, generation: number): void => {
     memoryBlockMetadata = applyAllocationLinesOverride(metadata, generation);
     allocationLines = resolveAllocationLines(generation, memoryBlockMetadata.reservedLine ?? []);
-    zoom = getZoom(memoryBlockMetadata, canvas);
+    zoom = getZoom(memoryBlockMetadata, canvas, blockGraphGlobalMaxSize);
     self.postMessage({ type: 'dataInfo', sizeInfo: getSizeInfo(), zoom, generation });
     renderer?.setZoom(zoom, false);
 };
@@ -280,72 +291,91 @@ const renderProgressiveBatch = async (
 const setMemoryBlockDataFromOPFS = async (
     payload: SetMemoryBlocksDataPayload,
     shouldCancel: () => boolean,
-): Promise<boolean> => {
-    useOpfs = true;
-    memoryBlockData = undefined;
-    const forceTemporaryStorage = useTemporaryStorageForNextBuild;
-    useTemporaryStorageForNextBuild = false;
-    const storage = await selectBlockDataStorage(forceTemporaryStorage ? undefined : payload.fileHash);
-    if (!storage.available) {
-        useOpfs = false;
-        if (isLeaksOpfsEnabled()) {
-            throw new Error('Temporary OPFS storage is unavailable');
-        }
-        return false;
-    }
-    const { fileHash } = storage;
-    memoryBlockMetadata = getInitialBlockGraphMetadata(payload.data);
-    allocationLines = resolveAllocationLines(payload.generation, memoryBlockMetadata.reservedLine ?? []);
-    const cachedMetadata = await blockDataOPFS.loadCompleteCacheForBuild(fileHash);
-    if (cachedMetadata) {
-        if (shouldCancel()) {
-            throw new BlockPathBuildCancelledError();
-        }
-        storageReadyGeneration = payload.generation;
-        updateMetadataView(cachedMetadata, payload.generation);
-        await renderer?.setDataFromOPFS(
-            blockDataOPFS,
-            cachedMetadata.batchCount,
-            allocationLines,
-            false,
-        );
-        return true;
-    }
-    const progressiveState: ProgressiveRenderState = {
-        enabled: false,
-        framePublished: false,
-        sliceStartedAt: getNow(),
-    };
-    const builtMetadata = await buildBlockViewPathAndWriteToOPFS(payload.data, blockDataOPFS, {
-        generation: payload.generation,
-        shouldCancel,
-        onGraphMetadataReady: metadata => {
-            updateMetadataView(metadata, payload.generation);
-            progressiveState.enabled = Number.isFinite(zoom.x) && Number.isFinite(zoom.y);
-        },
-        onStorageReady: async () => {
-            await blockDataOPFS.tryMarkCacheBuilding(fileHash);
-            await initializeProgressiveStorage(payload.generation);
-        },
-        onBatchesCommitted: (startBatch, endBatch, progress) =>
-            renderProgressiveBatch(
-                payload.generation,
-                startBatch,
-                endBatch,
-                progress,
-                progressiveState,
-                shouldCancel,
-            ),
-    });
-    memoryBlockMetadata = applyAllocationLinesOverride(builtMetadata, payload.generation);
+): Promise<boolean> => BlockDataOPFS.withStorageOperationLock(payload.fileHash, async () => {
     if (shouldCancel()) {
         throw new BlockPathBuildCancelledError();
     }
-    await blockDataOPFS.trySaveCompleteCache(fileHash, builtMetadata);
-    updateMetadataView(memoryBlockMetadata, payload.generation);
-    await renderer?.setDataFromOPFS(blockDataOPFS, memoryBlockMetadata.batchCount, allocationLines, false);
-    return true;
-};
+    const releaseCacheProtection = BlockDataOPFS.protectPersistentCache(payload.fileHash);
+    try {
+        useOpfs = true;
+        memoryBlockData = undefined;
+        const forceTemporaryStorage = useTemporaryStorageForNextBuild;
+        useTemporaryStorageForNextBuild = false;
+        const storage = await selectBlockDataStorage(forceTemporaryStorage ? undefined : payload.fileHash);
+        if (!storage.available) {
+            useOpfs = false;
+            if (isLeaksOpfsEnabled()) {
+                throw new Error('Temporary OPFS storage is unavailable');
+            }
+            return false;
+        }
+        const { fileHash } = storage;
+        memoryBlockMetadata = getInitialBlockGraphMetadata(payload.data);
+        allocationLines = resolveAllocationLines(payload.generation, memoryBlockMetadata.reservedLine ?? []);
+        const cachedMetadata = await blockDataOPFS.loadCompleteCacheForBuild(fileHash);
+        if (cachedMetadata) {
+            if (shouldCancel()) {
+                throw new BlockPathBuildCancelledError();
+            }
+            storageReadyGeneration = payload.generation;
+            updateMetadataView(cachedMetadata, payload.generation);
+            await renderer?.setDataFromOPFS(
+                blockDataOPFS,
+                cachedMetadata.batchCount,
+                allocationLines,
+                false,
+            );
+            return true;
+        }
+        const progressiveState: ProgressiveRenderState = {
+            enabled: false,
+            framePublished: false,
+            sliceStartedAt: getNow(),
+        };
+        try {
+            const builtMetadata = await buildBlockViewPathAndWriteToOPFS(payload.data, blockDataOPFS, {
+                generation: payload.generation,
+                shouldCancel,
+                onGraphMetadataReady: metadata => {
+                    updateMetadataView(metadata, payload.generation);
+                    progressiveState.enabled = Number.isFinite(zoom.x) && Number.isFinite(zoom.y);
+                },
+                onStorageReady: async () => {
+                    await blockDataOPFS.tryMarkCacheBuilding(fileHash);
+                    await initializeProgressiveStorage(payload.generation);
+                },
+                onBatchesCommitted: (startBatch, endBatch, progress) =>
+                    renderProgressiveBatch(
+                        payload.generation,
+                        startBatch,
+                        endBatch,
+                        progress,
+                        progressiveState,
+                        shouldCancel,
+                    ),
+            });
+            memoryBlockMetadata = applyAllocationLinesOverride(builtMetadata, payload.generation);
+            if (shouldCancel()) {
+                throw new BlockPathBuildCancelledError();
+            }
+            await blockDataOPFS.trySaveCompleteCache(fileHash, builtMetadata);
+            updateMetadataView(memoryBlockMetadata, payload.generation);
+            await renderer?.setDataFromOPFS(blockDataOPFS, memoryBlockMetadata.batchCount, allocationLines, false);
+            return true;
+        } catch (error) {
+            if (error instanceof BlockPathBuildCancelledError) {
+                try {
+                    await blockDataOPFS.removeStorage();
+                } catch {
+                    // 清理失败不应覆盖原始取消状态，残留 building 缓存会在下次加载时继续失效重建。
+                }
+            }
+            throw error;
+        }
+    } finally {
+        releaseCacheProtection();
+    }
+});
 
 const setMemoryBlockDataInMemory = async (payload: SetMemoryBlocksDataPayload): Promise<void> => {
     useOpfs = false;
@@ -353,7 +383,7 @@ const setMemoryBlockDataInMemory = async (payload: SetMemoryBlocksDataPayload): 
     const renderData = isPackedRenderData(payload.data) ? unpackRenderData(payload.data) : payload.data;
     memoryBlockData = buildBlockViewPath(renderData);
     allocationLines = resolveAllocationLines(payload.generation, memoryBlockData.reservedLine ?? []);
-    zoom = getZoom(memoryBlockData, canvas);
+    zoom = getZoom(memoryBlockData, canvas, blockGraphGlobalMaxSize);
     self.postMessage({ type: 'dataInfo', sizeInfo: getSizeInfo(), zoom, generation: payload.generation });
     renderer?.setZoom(zoom, false);
     await renderer?.setData(memoryBlockData.blocks, allocationLines);
@@ -380,45 +410,50 @@ const loadMemoryBlockCacheHandler = async (
     shouldCancel: () => boolean,
 ): Promise<BlockPathCacheLoadStatus> => {
     await waitForInitialization();
-    useTemporaryStorageForNextBuild = false;
-    if (!isLeaksOpfsEnabled()) {
-        return 'unavailable';
-    }
-    const storage = await selectBlockDataStorage(payload.fileHash);
-    if (!storage.available) {
-        if (isLeaksOpfsEnabled()) {
-            useTemporaryStorageForNextBuild = true;
-            return 'transient';
+    return BlockDataOPFS.withStorageOperationLock(payload.fileHash, async () => {
+        if (shouldCancel()) {
+            throw new BlockPathBuildCancelledError();
         }
-        return 'unavailable';
-    }
-    if (!storage.fileHash) {
-        return 'miss';
-    }
-    const { fileHash } = storage;
-    const cachedMetadata = await blockDataOPFS.loadCompleteCache(fileHash);
-    if (!cachedMetadata) {
-        const cacheAccessFailed = blockDataOPFS.consumeCacheAccessFailure();
-        useTemporaryStorageForNextBuild = cacheAccessFailed;
+        useTemporaryStorageForNextBuild = false;
         if (!isLeaksOpfsEnabled()) {
             return 'unavailable';
         }
-        return cacheAccessFailed ? 'transient' : 'miss';
-    }
-    if (shouldCancel()) {
-        throw new BlockPathBuildCancelledError();
-    }
-    resetMemoryBlockDataState(payload.generation);
-    useOpfs = true;
-    memoryBlockData = undefined;
-    storageReadyGeneration = payload.generation;
-    updateMetadataView(cachedMetadata, payload.generation);
-    await renderer?.setDataFromOPFS(blockDataOPFS, cachedMetadata.batchCount, allocationLines, false);
-    if (shouldCancel()) {
-        throw new BlockPathBuildCancelledError();
-    }
-    await completeMemoryBlockDataRender(payload);
-    return 'hit';
+        const storage = await selectBlockDataStorage(payload.fileHash);
+        if (!storage.available) {
+            if (isLeaksOpfsEnabled()) {
+                useTemporaryStorageForNextBuild = true;
+                return 'transient';
+            }
+            return 'unavailable';
+        }
+        if (!storage.fileHash) {
+            return 'miss';
+        }
+        const { fileHash } = storage;
+        const cachedMetadata = await blockDataOPFS.loadCompleteCache(fileHash);
+        if (!cachedMetadata) {
+            const cacheAccessFailed = blockDataOPFS.consumeCacheAccessFailure();
+            useTemporaryStorageForNextBuild = cacheAccessFailed;
+            if (!isLeaksOpfsEnabled()) {
+                return 'unavailable';
+            }
+            return cacheAccessFailed ? 'transient' : 'miss';
+        }
+        if (shouldCancel()) {
+            throw new BlockPathBuildCancelledError();
+        }
+        resetMemoryBlockDataState(payload.generation);
+        useOpfs = true;
+        memoryBlockData = undefined;
+        storageReadyGeneration = payload.generation;
+        updateMetadataView(cachedMetadata, payload.generation);
+        await renderer?.setDataFromOPFS(blockDataOPFS, cachedMetadata.batchCount, allocationLines, false);
+        if (shouldCancel()) {
+            throw new BlockPathBuildCancelledError();
+        }
+        await completeMemoryBlockDataRender(payload);
+        return 'hit';
+    });
 };
 
 const setMemoryBlockDataHandler = async (
@@ -463,11 +498,11 @@ const setAllocationLinesHandler = (payload: SetAllocationLinesPayload): void => 
     if (memoryBlockMetadata) {
         memoryBlockMetadata.reservedLine = lines.reservedLine;
         memoryBlockMetadata.reservedSizeMax = allocationLineSizeMax;
-        zoom = getZoom(memoryBlockMetadata, canvas);
+        zoom = getZoom(memoryBlockMetadata, canvas, blockGraphGlobalMaxSize);
     } else if (memoryBlockData) {
         memoryBlockData.reservedLine = lines.reservedLine;
         memoryBlockData.reservedSizeMax = allocationLineSizeMax;
-        zoom = getZoom(memoryBlockData, canvas);
+        zoom = getZoom(memoryBlockData, canvas, blockGraphGlobalMaxSize);
     } else {
         return;
     }
@@ -479,6 +514,20 @@ const setAllocationLinesHandler = (payload: SetAllocationLinesPayload): void => 
         !useOpfs || storageReadyGeneration === payload.generation,
     );
     self.postMessage({ type: 'dataInfo', sizeInfo: getSizeInfo(), zoom, generation: payload.generation });
+};
+
+const setBlockGraphGlobalMaxSizeHandler = (payload: SetBlockGraphGlobalMaxSizePayload): void => {
+    blockGraphGlobalMaxSize = Math.max(0, payload.maxSize);
+    const zoomSource = useOpfs ? memoryBlockMetadata : memoryBlockData;
+    if (!zoomSource) {
+        return;
+    }
+    zoom = getZoom(zoomSource, canvas, blockGraphGlobalMaxSize);
+    if (!Number.isFinite(zoom.x) || !Number.isFinite(zoom.y)) {
+        return;
+    }
+    renderer?.setZoom(zoom);
+    self.postMessage({ type: 'dataInfo', sizeInfo: getSizeInfo(), zoom, generation: activeDataGeneration });
 };
 
 const resizeCanvasHandler = (payload: ResizeCanvasPayload): void => {
@@ -494,7 +543,7 @@ const resizeCanvasHandler = (payload: ResizeCanvasPayload): void => {
     if (!zoomSource) {
         return;
     }
-    zoom = getZoom(zoomSource, canvas);
+    zoom = getZoom(zoomSource, canvas, blockGraphGlobalMaxSize);
     self.postMessage({ type: 'dataInfo', sizeInfo: getSizeInfo(), zoom });
     renderer?.setZoom(zoom);
 };
@@ -560,6 +609,9 @@ const clickItemHandler = async (payload: ClickItemPayload): Promise<void> => {
 
 const selectItemHandler = async (payload: SelectBlockItemPayload): Promise<void> => {
     clickItem = payload.item;
+    if (useOpfs && blockDataOPFS && clickItem !== null) {
+        clickItem = await blockDataOPFS.findBlockById(clickItem.id) ?? clickItem;
+    }
     await renderHighlightData();
     self.postMessage({ type: 'clickItemResult', result: clickItem, selectionVersion: payload.selectionVersion });
 };
@@ -612,6 +664,7 @@ const destroyHandler = async (): Promise<void> => {
     memoryBlockData = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, blocks: [] };
     memoryBlockMetadata = { maxTimestamp: 0, minTimestamp: 0, maxSize: 0, minSize: 0, batchCount: 0 };
     allocationLines = { reservedLine: [], processUsedLine: [], deviceUsedLine: [] };
+    blockGraphGlobalMaxSize = 0;
     transform = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
     zoom = { x: 1, y: 1, offset: 0 };
     hoverItem = null;
@@ -638,6 +691,7 @@ const destroyHandler = async (): Promise<void> => {
 const Handlers: PayloadHandlers = {
     initCanvas: initCanvasHandler,
     setAllocationLines: setAllocationLinesHandler,
+    setBlockGraphGlobalMaxSize: setBlockGraphGlobalMaxSizeHandler,
     resizeCanvas: resizeCanvasHandler,
     transform: transformHandler,
     setBlockGraphLayerVisibility: setBlockGraphLayerVisibilityHandler,
@@ -708,6 +762,26 @@ self.onmessage = (ev: MessageEvent<Payload>): void => {
                 // eslint-disable-next-line no-console
                 console.error('Block worker data load error:', error);
                 self.postMessage({ type: 'renderFailed', generation, error: String(error) });
+            }
+        });
+        return;
+    }
+    if (payload.type === 'removeMemoryBlockCaches') {
+        cacheMaintenanceQueue = cacheMaintenanceQueue.catch(() => undefined).then(async () => {
+            try {
+                let foregroundQueue: Promise<void>;
+                do {
+                    foregroundQueue = dataLoadQueue;
+                    await foregroundQueue.catch(() => undefined);
+                } while (foregroundQueue !== dataLoadQueue);
+                await BlockDataOPFS.removePersistentCachesBySourceHash(payload.fileHash);
+                self.postMessage({ type: 'blockPathCacheRemovalCompleted', requestId: payload.requestId });
+            } catch (error) {
+                self.postMessage({
+                    type: 'blockPathCacheRemovalFailed',
+                    requestId: payload.requestId,
+                    error: String(error),
+                });
             }
         });
         return;

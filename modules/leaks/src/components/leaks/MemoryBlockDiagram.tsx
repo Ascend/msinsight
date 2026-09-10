@@ -124,6 +124,8 @@ const ProgressiveLoadingStatus = styled.div`
 `;
 
 const LifecycleCanvas = styled.canvas`
+    display: block;
+    width: 100%;
     image-rendering: pixelated;
     touch-action: none;
     outline: none;
@@ -229,6 +231,7 @@ export const MemoryBlockDiagram = observer(({
     const [xZoomMode, setXZoomMode] = useState(DEFAULT_X_ZOOM_MODE);
     const xZoomModeRef = useRef(DEFAULT_X_ZOOM_MODE);
     const lifecycleDataContextKey = session.getLifecycleMemoryMarkerContextKey();
+    const lifecycleGraphDataContextKey = `${lifecycleDataContextKey}:${session.selectedSliceIndex}`;
     const previousDataContextKeyRef = useRef<string | null>(null);
     const [markerManagerContextKey, setMarkerManagerContextKey] = useState<string | null>(null);
     const markerManagerOpen = markerManagerContextKey === lifecycleDataContextKey;
@@ -262,7 +265,7 @@ export const MemoryBlockDiagram = observer(({
         ))
         : 0;
     const pointerInsideCurrentData = pointerInsidePlot &&
-        previousDataContextKeyRef.current === lifecycleDataContextKey;
+        previousDataContextKeyRef.current === lifecycleGraphDataContextKey;
     const hoveredBlockBaseline = pointerInsideCurrentData && session.module === 'memsnapshot' &&
         layerVisibility.blocks && layerVisibility.markers
         ? getLifecycleMarkerBaseline(session.leaksWorkerInfo.hoverItem)
@@ -682,10 +685,10 @@ export const MemoryBlockDiagram = observer(({
     }, [xZoomMode]);
 
     useEffect(() => {
-        if (previousDataContextKeyRef.current === lifecycleDataContextKey) {
+        if (previousDataContextKeyRef.current === lifecycleGraphDataContextKey) {
             return;
         }
-        previousDataContextKeyRef.current = lifecycleDataContextKey;
+        previousDataContextKeyRef.current = lifecycleGraphDataContextKey;
         const defaultLayerVisibility = { ...DEFAULT_LAYER_VISIBILITY };
         const defaultAllocationLineVisibility = { ...DEFAULT_ALLOCATION_LINE_VISIBILITY };
         layerVisibilityRef.current = defaultLayerVisibility;
@@ -698,7 +701,7 @@ export const MemoryBlockDiagram = observer(({
         resetTransform();
         closeMarkerManagement();
         clearBlockHover();
-    }, [lifecycleDataContextKey]);
+    }, [lifecycleGraphDataContextKey]);
     const renderResetTooltip = (): JSX.Element => <GraphShortcutTip>
         <GraphShortcutTitle>
             {t('resetView')}
@@ -926,22 +929,20 @@ export const MemoryBlockDiagram = observer(({
                     ? <ProgressiveLoadingStatus
                         data-testid="progressiveBlockLoading"
                         role="progressbar"
-                        aria-label={t('parsing')}
+                        aria-label={t('rendering')}
                         aria-valuemin={0}
                         aria-valuemax={100}
                         aria-valuenow={progressiveRenderPercent}
                     >
                         <Spin size="small" />
-                        <span>{`${progressiveRenderPercent}%`}</span>
+                        <span>{`${t('rendering')} ${progressiveRenderPercent}%`}</span>
                     </ProgressiveLoadingStatus>
                     : <></>}
                 <Loading
                     style={{
                         position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
+                        inset: 0,
+                        boxSizing: 'border-box',
                         background: session.progressiveBlocksVisible ? 'transparent' : undefined,
                     }}
                     loading={session.loadingBlocks && !session.progressiveBlocksVisible}

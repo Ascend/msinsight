@@ -36,13 +36,19 @@ struct MemSnapshotLeakStatsDTO {
  * @brief 内存生命周期图-内存块项
  */
 struct BlockViewItemDTO : public JsonSerializable, Block {
+    int64_t originalAllocEventId{-1};
+    int64_t originalFreeEventId{-1};
+
     [[nodiscard]] json_t ToJson(RAPIDJSON_DEFAULT_ALLOCATOR &allocator) const override {
         json_t json(kObjectType);
         JsonUtil::AddMember(json, "id", id, allocator);
         JsonUtil::AddMember(json, "addr", std::to_string(address), allocator);
         JsonUtil::AddMember(json, "size", size, allocator);
+        // 生命周期图只按当前窗口裁剪绘制区间；原始申请/释放事件号与块表保持一致。
         JsonUtil::AddMember(json, "_startTimestamp", allocEventId, allocator);
         JsonUtil::AddMember(json, "_endTimestamp", freeEventId, allocator);
+        JsonUtil::AddMember(json, "allocEventId", originalAllocEventId, allocator);
+        JsonUtil::AddMember(json, "freeEventId", originalFreeEventId, allocator);
         return json;
     }
 };

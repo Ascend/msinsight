@@ -16,7 +16,13 @@
  * -------------------------------------------------------------------------
  */
 
-import { BlockDataOPFS, blockFromMeta, getPointFromPathData, type PackedBlockPath } from './BlockDataOPFS';
+import {
+    BlockDataOPFS,
+    blockFromMeta,
+    getPointFromPathData,
+    type PackedBlockData,
+    type PackedBlockPath,
+} from './BlockDataOPFS';
 import { isPackedRenderData } from './packedBlockData';
 
 const processAllocationLine = <T extends { timestamp: number }>(points: T[] | undefined, valueKey: keyof T): {
@@ -53,10 +59,12 @@ export const processAllocationLines = (payload: Omit<SetAllocationLinesPayload, 
 export const getZoom = (
     data: RenderData | BlockGraphMetadata,
     canvas: OffscreenCanvas | HTMLCanvasElement,
+    globalMaxSize: number = 0,
 ): RenderOptions['zoom'] => {
-    const maxSize = Math.max(data.maxSize, data.reservedSizeMax ?? data.maxSize);
+    const maxSize = Math.max(data.maxSize, data.reservedSizeMax ?? data.maxSize, globalMaxSize);
+    const timeSpan = data.maxTimestamp - data.minTimestamp;
     return {
-        x: canvas.width / (data.maxTimestamp - data.minTimestamp),
+        x: canvas.width / (timeSpan > 0 ? timeSpan : 1),
         y: canvas.height / (maxSize - data.minSize),
         offset: data.minTimestamp,
     };
@@ -433,7 +441,7 @@ export const searchBlockDataByPointFromOPFS = async (
         }
         const result = searchBlockDataInBatch(batchData, x, y, zoom, minHitWidth);
         if (result) {
-            return result;
+            return await blockDataOPFS.findBlockById(result.id) ?? result;
         }
     }
 
@@ -452,7 +460,11 @@ export const searchBlockDataByPointFromOPFS = async (
         }
         snapCandidates.push(...searchBlockSnapInBatch(batchData, absoluteX, y, minHitWidth, snapHitWidth, batchIndex));
     }
-    return pickUniqueSnapMeta(snapCandidates);
+    const snapped = pickUniqueSnapMeta(snapCandidates);
+    if (snapped === null) {
+        return null;
+    }
+    return await blockDataOPFS.findBlockById(snapped.id) ?? snapped;
 };
 // 射线法计算点是否在四边形（矩形/平行四边形）范围内
 const isPointInExtrudedSegment = (px: number, py: number, sx1: number, sy1: number, sx2: number, sy2: number, h: number): boolean => {
@@ -517,6 +529,8 @@ const BUILD_YIELD_INTERVAL = 4096;
 const BUILD_YIELD_BUDGET_MS = 8;
 const PROGRESSIVE_BOOTSTRAP_FRAGMENT_LIMIT = 64;
 const PROGRESSIVE_BOOTSTRAP_PATH_POINT_LIMIT = 8192;
+const PATH_FRAGMENT_QUEUE_LIMIT = 512;
+const PATH_FRAGMENT_QUEUE_POINT_LIMIT = 131072;
 
 export class BlockPathBuildCancelledError extends Error {
     constructor() {
@@ -731,6 +745,90 @@ const yieldToWorkerEventLoop = async (): Promise<void> => {
     await new Promise<void>(resolve => setTimeout(resolve, 0));
 };
 
+const EVENT_SORT_CHUNK_SIZE = 32768;
+const EVENT_SORT_YIELD_INTERVAL = 65536;
+
+const sortEventsByTime = async (
+    events: Uint32Array,
+    getEventTime: (event: number) => number,
+    assertNotCancelled: () => void,
+): Promise<void> => {
+    const compareEvents = (left: number, right: number): number =>
+        getEventTime(left) - getEventTime(right) || left - right;
+    for (let start = 0; start < events.length; start += EVENT_SORT_CHUNK_SIZE) {
+        events.subarray(start, Math.min(start + EVENT_SORT_CHUNK_SIZE, events.length)).sort(compareEvents);
+        await yieldToWorkerEventLoop();
+        assertNotCancelled();
+    }
+    let source = events;
+    let target = new Uint32Array(events.length);
+    for (let width = EVENT_SORT_CHUNK_SIZE; width < events.length; width *= 2) {
+        let operations = 0;
+        for (let start = 0; start < events.length; start += width * 2) {
+            const middle = Math.min(start + width, events.length);
+            const end = Math.min(start + width * 2, events.length);
+            let left = start;
+            let right = middle;
+            let output = start;
+            while (left < middle || right < end) {
+                if (right >= end || (left < middle && compareEvents(source[left], source[right]) <= 0)) {
+                    target[output++] = source[left++];
+                } else {
+                    target[output++] = source[right++];
+                }
+                if (++operations % EVENT_SORT_YIELD_INTERVAL === 0) {
+                    await yieldToWorkerEventLoop();
+                    assertNotCancelled();
+                }
+            }
+        }
+        [source, target] = [target, source];
+        await yieldToWorkerEventLoop();
+        assertNotCancelled();
+    }
+    if (source !== events) {
+        events.set(source);
+    }
+};
+
+const isLegacyMissingWindowBounds = (minTimestamp: number, maxTimestamp: number): boolean =>
+    minTimestamp === 0 && maxTimestamp === 0;
+
+const resolveBlockViewWindow = (
+    blockView: Pick<RenderData, 'minTimestamp' | 'maxTimestamp'>,
+    source: {
+        blockCount: number;
+        getStart: (blockIndex: number) => number;
+        getEnd: (blockIndex: number) => number;
+    },
+): { minTimestamp: number; maxTimestamp: number } => {
+    let windowMinTimestamp = Number.isFinite(blockView.minTimestamp) ? blockView.minTimestamp : 0;
+    const hasFiniteMax = Number.isFinite(blockView.maxTimestamp);
+    const isLegacyMissingBounds = hasFiniteMax &&
+        isLegacyMissingWindowBounds(windowMinTimestamp, blockView.maxTimestamp);
+    let windowMaxTimestamp = hasFiniteMax && !isLegacyMissingBounds && blockView.maxTimestamp >= windowMinTimestamp
+        ? (blockView.maxTimestamp > windowMinTimestamp ? blockView.maxTimestamp : windowMinTimestamp + 1)
+        : Number.POSITIVE_INFINITY;
+    // 旧 MemScope blocks 响应不包含有效窗口边界，需要保持与原内存路径算法一致，从块事件中推导。
+    if (!Number.isFinite(windowMaxTimestamp)) {
+        let derivedMinTimestamp = Number.POSITIVE_INFINITY;
+        let derivedMaxTimestamp = Number.NEGATIVE_INFINITY;
+        for (let blockIndex = 0; blockIndex < source.blockCount; blockIndex++) {
+            const startTimestamp = source.getStart(blockIndex);
+            const endTimestamp = source.getEnd(blockIndex);
+            derivedMinTimestamp = Math.min(derivedMinTimestamp, startTimestamp, endTimestamp);
+            derivedMaxTimestamp = Math.max(derivedMaxTimestamp, startTimestamp, endTimestamp);
+        }
+        if (Number.isFinite(derivedMinTimestamp) && Number.isFinite(derivedMaxTimestamp)) {
+            windowMinTimestamp = derivedMinTimestamp;
+            windowMaxTimestamp = derivedMaxTimestamp > derivedMinTimestamp
+                ? derivedMaxTimestamp
+                : derivedMinTimestamp + 1;
+        }
+    }
+    return { minTimestamp: windowMinTimestamp, maxTimestamp: windowMaxTimestamp };
+};
+
 export const buildBlockViewPathAndWriteToOPFS = async (
     blockView: RenderData | PackedRenderData,
     blockDataOPFS: BlockDataOPFS,
@@ -778,19 +876,34 @@ export const buildBlockViewPathAndWriteToOPFS = async (
         return { ...emptyMetadata, metrics };
     }
 
-    const eventCount = blockCount * 2;
-    const sortedEvents = new Uint32Array(eventCount);
+    const windowBounds = resolveBlockViewWindow(blockView, source);
+    const windowMinTimestamp = windowBounds.minTimestamp;
+    const windowMaxTimestamp = windowBounds.maxTimestamp;
+    const eventBuffer = new Uint32Array(blockCount * 2);
+    let eventCount = 0;
     for (let blockIndex = 0; blockIndex < blockCount; blockIndex++) {
-        sortedEvents[blockIndex * 2] = blockIndex * 2 + MemoryEventAction.Malloc;
-        sortedEvents[blockIndex * 2 + 1] = blockIndex * 2 + MemoryEventAction.Free;
+        eventBuffer[eventCount++] = blockIndex * 2 + MemoryEventAction.Malloc;
+        // 右边界上的释放只决定块在窗口末端的收口。逐条回放会让大量跨窗块在同一时间戳
+        // 反复遍历活动链表，产生近似 O(n^2) 的无效计算，统一在末尾收口即可。
+        const endTimestamp = source.getEnd(blockIndex);
+        if (endTimestamp >= windowMinTimestamp && endTimestamp < windowMaxTimestamp) {
+            eventBuffer[eventCount++] = blockIndex * 2 + MemoryEventAction.Free;
+        }
+        if (blockIndex > 0 && blockIndex % EVENT_SORT_YIELD_INTERVAL === 0) {
+            await yieldToWorkerEventLoop();
+            assertNotCancelled();
+        }
     }
+    const sortedEvents = eventBuffer.subarray(0, eventCount);
     const getEventTime = (event: number): number => event % 2 === MemoryEventAction.Malloc
-        ? source.getStart(Math.floor(event / 2))
-        : source.getEnd(Math.floor(event / 2));
-    sortedEvents.sort((a, b) => getEventTime(a) - getEventTime(b) || a - b);
+        ? Math.max(source.getStart(Math.floor(event / 2)), windowMinTimestamp)
+        : Math.min(source.getEnd(Math.floor(event / 2)), windowMaxTimestamp);
+    await sortEventsByTime(sortedEvents, getEventTime, assertNotCancelled);
 
-    const maxTimestamp = getEventTime(sortedEvents[eventCount - 1]);
-    const minTimestamp = getEventTime(sortedEvents[0]);
+    const maxTimestamp = Number.isFinite(windowMaxTimestamp)
+        ? windowMaxTimestamp
+        : getEventTime(sortedEvents[eventCount - 1]);
+    const minTimestamp = windowMinTimestamp;
     const minSize = 0;
     let currentPreviewSize = 0;
     let maxSize = 0;
@@ -841,9 +954,9 @@ export const buildBlockViewPathAndWriteToOPFS = async (
     let currentTotalSize = 0;
     let operationCount = 0;
     let pathSliceStartedAt = getNow();
-    let bootstrapFragmentCount = 0;
-    let bootstrapPathPoints = 0;
     let processedEventCount = 0;
+    let queuedPathPoints = 0;
+    const queuedPathFragments: PackedBlockData[] = [];
 
     await blockDataOPFS.clear();
     assertNotCancelled();
@@ -869,28 +982,38 @@ export const buildBlockViewPathAndWriteToOPFS = async (
         size: source.getSize(blockIndex),
         path: [],
     });
-    const writePathFragment = async (blockIndex: number, fragment: PackedBlockPath): Promise<void> => {
+    const flushQueuedPathFragments = async (): Promise<void> => {
+        if (queuedPathFragments.length === 0) {
+            return;
+        }
         const previousBatchCount = blockDataOPFS.getBatchCount();
-        await blockDataOPFS.addPackedBlock(createBlock(blockIndex), fragment);
-        persistedPathPoints += fragment.pathLength;
+        const fragments = queuedPathFragments.splice(0);
+        queuedPathPoints = 0;
+        await blockDataOPFS.addPackedBlocks(fragments);
         if (previousBatchCount === 0 && blockDataOPFS.getBatchCount() === 0) {
-            bootstrapFragmentCount++;
-            bootstrapPathPoints += fragment.pathLength;
-            if (bootstrapFragmentCount >= PROGRESSIVE_BOOTSTRAP_FRAGMENT_LIMIT ||
-                bootstrapPathPoints >= PROGRESSIVE_BOOTSTRAP_PATH_POINT_LIMIT) {
-                await blockDataOPFS.flush();
-            }
+            await blockDataOPFS.flush();
         }
         await notifyCommittedBatches(previousBatchCount);
     };
-    const flushActivePath = async (blockIndex: number, path: CompactBlockPath): Promise<void> => {
+    const queuePathFragment = (blockIndex: number, fragment: PackedBlockPath): boolean => {
+        queuedPathFragments.push({ block: createBlock(blockIndex), packedPath: fragment });
+        queuedPathPoints += fragment.pathLength;
+        persistedPathPoints += fragment.pathLength;
+        const isBootstrap = blockDataOPFS.getBatchCount() === 0;
+        return queuedPathFragments.length >= (isBootstrap
+            ? PROGRESSIVE_BOOTSTRAP_FRAGMENT_LIMIT
+            : PATH_FRAGMENT_QUEUE_LIMIT) || queuedPathPoints >= (isBootstrap
+            ? PROGRESSIVE_BOOTSTRAP_PATH_POINT_LIMIT
+            : PATH_FRAGMENT_QUEUE_POINT_LIMIT);
+    };
+    const flushActivePath = (blockIndex: number, path: CompactBlockPath): boolean => {
         const previousLength = path.pathLength;
         const fragment = path.drainFragment();
         if (!fragment) {
-            return;
+            return false;
         }
         activePathPoints -= previousLength - path.pathLength;
-        await writePathFragment(blockIndex, fragment);
+        return queuePathFragment(blockIndex, fragment);
     };
     const addPathPoint = (
         blockIndex: number,
@@ -898,7 +1021,7 @@ export const buildBlockViewPathAndWriteToOPFS = async (
         time: number,
         size: number,
         flushAllowed: boolean = true,
-    ): Promise<void> | null => {
+    ): boolean => {
         const previousLength = path.pathLength;
         path.addPoint(time, size);
         activePathPoints += path.pathLength - previousLength;
@@ -907,17 +1030,19 @@ export const buildBlockViewPathAndWriteToOPFS = async (
             (path.pathLength >= maxPointsPerBlock || activePathPoints >= maxActivePathPoints)) {
             return flushActivePath(blockIndex, path);
         }
-        return null;
+        return false;
     };
-    const writeBlock = async (blockIndex: number, path: CompactBlockPath): Promise<void> => {
+    const writeBlock = (blockIndex: number, path: CompactBlockPath): boolean => {
         const pathLength = path.pathLength;
         const fragment = path.detach();
+        let shouldFlush = false;
         if (fragment.pathLength > 0) {
-            await writePathFragment(blockIndex, fragment);
+            shouldFlush = queuePathFragment(blockIndex, fragment);
         }
         activePathPoints -= pathLength;
         paths[blockIndex] = null;
         source.release(blockIndex);
+        return shouldFlush;
     };
 
     for (let eventIndex = 0; eventIndex < eventCount; eventIndex++) {
@@ -941,9 +1066,8 @@ export const buildBlockViewPathAndWriteToOPFS = async (
             topBlock = blockIndex;
             activeBlockCount++;
             maxActiveBlocks = Math.max(maxActiveBlocks, activeBlockCount);
-            const flushPromise = addPathPoint(blockIndex, path, time, currentTotalSize);
-            if (flushPromise) {
-                await flushPromise;
+            if (addPathPoint(blockIndex, path, time, currentTotalSize)) {
+                await flushQueuedPathFragments();
             }
             currentTotalSize += source.getSize(blockIndex);
             maxSize = currentTotalSize > maxSize ? currentTotalSize : maxSize;
@@ -965,16 +1089,14 @@ export const buildBlockViewPathAndWriteToOPFS = async (
             }
             const lastSize = path.getLastSize();
             const isFreedBlock = activeIndex === blockIndex;
-            const firstFlush = addPathPoint(activeIndex, path, time, lastSize, !isFreedBlock);
-            if (firstFlush) {
-                await firstFlush;
+            if (addPathPoint(activeIndex, path, time, lastSize, !isFreedBlock)) {
+                await flushQueuedPathFragments();
             }
             if (isFreedBlock) {
                 break;
             }
-            const secondFlush = addPathPoint(activeIndex, path, time + 1, lastSize - freeSize);
-            if (secondFlush) {
-                await secondFlush;
+            if (addPathPoint(activeIndex, path, time + 1, lastSize - freeSize)) {
+                await flushQueuedPathFragments();
             }
             activeIndex = previousBlock[activeIndex];
         }
@@ -996,7 +1118,9 @@ export const buildBlockViewPathAndWriteToOPFS = async (
         activeBlockCount--;
         const freedPath = paths[blockIndex];
         if (freedPath) {
-            await writeBlock(blockIndex, freedPath);
+            if (writeBlock(blockIndex, freedPath)) {
+                await flushQueuedPathFragments();
+            }
         }
         processedEventCount = eventIndex + 1;
     }
@@ -1010,12 +1134,15 @@ export const buildBlockViewPathAndWriteToOPFS = async (
         currentTotalSize -= source.getSize(activeIndex);
         if (path) {
             addPathPoint(activeIndex, path, maxTimestamp, currentTotalSize, false);
-            await writeBlock(activeIndex, path);
+            if (writeBlock(activeIndex, path)) {
+                await flushQueuedPathFragments();
+            }
         }
         activeIndex = lowerBlock;
     }
 
     assertNotCancelled();
+    await flushQueuedPathFragments();
     const previousBatchCount = blockDataOPFS.getBatchCount();
     await blockDataOPFS.flush();
     await notifyCommittedBatches(previousBatchCount);

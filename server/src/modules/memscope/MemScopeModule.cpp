@@ -24,6 +24,7 @@
 #include "QueryMemScopeEventHandler.h"
 #include "QueryMemSnapshotBlockHandler.h"
 #include "QueryMemSnapshotAllocationHandler.h"
+#include "QueryMemSnapshotAllocationLinesHandler.h"
 #include "QueryMemSnapshotEventHandler.h"
 #include "QueryMemSnapshotDetailHandler.h"
 #include "QueryMemSnapshotStateHandler.h"
@@ -46,6 +47,8 @@ void MemScopeModule::RegisterRequestHandlers() {
     requestHandlerMap.emplace(REQ_RES_MEM_SCOPE_EVENTS, std::make_unique<QueryMemScopeEventHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_BLOCKS, std::make_unique<QueryMemSnapshotBlockHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_ALLOCATIONS, std::make_unique<QueryMemSnapshotAllocationHandler>());
+    requestHandlerMap.emplace(
+        REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES, std::make_unique<QueryMemSnapshotAllocationLinesHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_EVENTS, std::make_unique<QueryMemSnapshotEventHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_DETAIL, std::make_unique<QueryMemSnapshotDetailHandler>());
     requestHandlerMap.emplace(REQ_RES_MEM_SNAPSHOT_STATE, std::make_unique<QueryMemSnapshotStateHandler>());

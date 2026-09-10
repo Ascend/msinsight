@@ -30,7 +30,7 @@ bool QueryMemSnapshotLeakStatsHandler::HandleRequest(std::unique_ptr<Protocol::R
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const auto database = GetMemSnapshotDatabaseByRequest(request);
+    const auto database = GetMemSnapshotDatabaseByRequest(request, request.params.deviceId, request.params.sliceIndex);
     if (database == nullptr || !database->IsOpen()) {
         errMsg = LOG_TAG + "Failed to query leak stats: get database connection failed";
         SendResponse(std::move(responsePtr), false, errMsg);

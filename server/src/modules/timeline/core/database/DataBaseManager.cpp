@@ -392,6 +392,7 @@ std::vector<Platform::VirtualPlatformDataBase *> DataBaseManager::GetAllPlatform
 void DataBaseManager::Clear()
 {
     std::vector<std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailPools;
+    std::vector<std::shared_ptr<FullDb::MemSnapshotDatabase>> memSnapshotDatabases;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     traceDatabaseMap.clear();
     memoryDatabaseMap.clear();
@@ -409,6 +410,10 @@ void DataBaseManager::Clear()
     host2DbPath.clear();
     databasePathSet.clear();
     memScopeDatabaseMap.clear();
+    for (auto &item : memSnapshotDatabaseMap) {
+        memSnapshotDatabases.emplace_back(std::move(item.second));
+    }
+    memSnapshotDatabaseMap.clear();
     rankId2FileIdMap.clear();
     rankId2SourceFileIdsMap.clear();
     fileIdToRankIdMap.clear();
@@ -419,11 +424,13 @@ void DataBaseManager::Clear()
     SearchSliceCacheManager::Instance().clearAll();
     lock.unlock();
     communicationDetailPools.clear();
+    memSnapshotDatabases.clear();
 }
 
 void DataBaseManager::Clear(DatabaseType type)
 {
     std::vector<std::shared_ptr<DBConnectionPool<VirtualClusterDatabase>>> communicationDetailPools;
+    std::vector<std::shared_ptr<FullDb::MemSnapshotDatabase>> memSnapshotDatabases;
     std::unique_lock<std::recursive_mutex> lock(mutex);
     switch (type) {
         case DatabaseType::TRACE:
@@ -447,6 +454,10 @@ void DataBaseManager::Clear(DatabaseType type)
             memScopeDatabaseMap.clear();
             break;
         case DatabaseType::MEM_SNAPSHOT:
+            for (auto &item : memSnapshotDatabaseMap) {
+                memSnapshotDatabases.emplace_back(std::move(item.second));
+                dbMutexMap.erase(item.first);
+            }
             memSnapshotDatabaseMap.clear();
             break;
         case DatabaseType::PLATFORM:
@@ -457,6 +468,8 @@ void DataBaseManager::Clear(DatabaseType type)
     }
     lock.unlock();
     communicationDetailPools.clear();
+    // 仍被请求持有的数据库由最后一个 shared_ptr 负责关闭，避免查询过程中关闭连接。
+    memSnapshotDatabases.clear();
 }
 
 void DataBaseManager::EraseClusterDb(const std::string &uniqueKey)
@@ -769,8 +782,8 @@ std::shared_ptr<FullDb::MemSnapshotDatabase> DataBaseManager::GetMemSnapshotData
     }
     // 未找到时默认创建新实例
     if (memSnapshotDatabaseMap.find(fileId) == memSnapshotDatabaseMap.end()) {
-        std::recursive_mutex &dbMutex = GetDbMutex(fileId);
-        memSnapshotDatabaseMap.emplace(fileId, std::make_unique<FullDb::MemSnapshotDatabase>(dbMutex));
+        auto dbMutex = GetDbMutexHandle(fileId);
+        memSnapshotDatabaseMap.emplace(fileId, std::make_unique<FullDb::MemSnapshotDatabase>(std::move(dbMutex)));
     }
     return memSnapshotDatabaseMap[fileId];
 }
@@ -782,15 +795,6 @@ std::vector<FullDb::MemScopeDatabase*> DataBaseManager::GetAllMemScopeDatabase()
     memScopeDatabases.reserve(memScopeDatabaseMap.size());
     for (auto& database : memScopeDatabaseMap) { memScopeDatabases.emplace_back(database.second.get()); }
     return memScopeDatabases;
-}
-
-std::vector<FullDb::MemSnapshotDatabase*> DataBaseManager::GetAllMemSnapshotDatabase()
-{
-    std::unique_lock<std::recursive_mutex> lock(mutex);
-    std::vector<FullDb::MemSnapshotDatabase*> memSnapshotDatabases;
-    memSnapshotDatabases.reserve(memSnapshotDatabaseMap.size());
-    for (auto& database : memSnapshotDatabaseMap) { memSnapshotDatabases.emplace_back(database.second.get()); }
-    return memSnapshotDatabases;
 }
 
 std::string DataBaseManager::GetAnyTraceDatabaseId()

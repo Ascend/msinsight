@@ -27,6 +27,7 @@ import { Tooltip } from '@insight/lib/components';
 import { Session } from '../entity/session';
 import { getBlockTableData } from './dataHandler';
 import { generateJsonShow } from '../utils/utils';
+import { applyMemSnapshotEventLocate } from '../utils/memSnapshotSlices';
 
 const DEFAULT_TABLE_HEIGHT = 400;
 const TABLE_CHROME_HEIGHT = 88;
@@ -100,7 +101,7 @@ const columnRender = (col: any, text: string, record: any, t: TFunction, session
     const locateEvent = (eventId: number | null): void => {
         if (!isValidEventId(eventId)) return;
         runInAction(() => {
-            session.pendingEventLocate = { eventId: eventId as number, deviceId: session.deviceId };
+            applyMemSnapshotEventLocate(session, eventId as number, session.deviceId);
         });
     };
     if (isBlockIdColumn(col)) {

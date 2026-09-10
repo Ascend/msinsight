@@ -39,13 +39,14 @@ bool QueryMemSnapshotEventHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const auto database = GetMemSnapshotDatabaseByRequest(request);
+    const auto resolved = ResolveMemSnapshotRequest(request, request.params.deviceId, request.params.sliceIndex);
+    const auto database = resolved.database;
     if (database == nullptr || !database->IsOpen()) {
         errMsg = LOG_TAG + "Failed to query events: get database connection failed";
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const int64_t total = request.isTable
+    int64_t total = request.isTable
         ? database->QueryTraceEntriesTable(request.params, response.tableEntries)
         : database->QueryTraceEntriesList(request.params, request.params.deviceId, response.listEntries);
     if (total < 0) {
@@ -53,8 +54,17 @@ bool QueryMemSnapshotEventHandler::HandleRequest(std::unique_ptr<Protocol::Reque
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
+    const auto slice = resolved.slice;
+    if (slice.has_value()) {
+        if (!request.isTable) {
+            total = slice->endEventId - slice->startEventId + 1;
+        }
+        response.minTimestamp = static_cast<uint64_t>(slice->startEventId);
+        response.maxTimestamp = static_cast<uint64_t>(slice->endEventId);
+    } else {
+        response.maxTimestamp = ToNonNegativeEventId(database->GetDeviceMaxEntryId(request.params.deviceId));
+    }
     response.total = static_cast<uint64_t>(total);
-    response.maxTimestamp = database->GetDeviceMaxEntryId(request.params.deviceId);
     SendResponse(std::move(responsePtr), true);
     return true;
 }

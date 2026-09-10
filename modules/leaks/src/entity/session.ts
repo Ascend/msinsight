@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { makeAutoObservable } from 'mobx';
-import { type BlocksTableData, EvenItem, EventsTableData, ThreShold } from '../utils/RequestUtils';
+import { type AllocationData, type BlocksTableData, EvenItem, EventsTableData, ThreShold } from '../utils/RequestUtils';
 import { type MenuItemModel } from '../components/ContextMenu';
 import {
     addLifecycleMemoryMarker,
@@ -39,6 +39,20 @@ interface ContextMenu {
 interface MarkStamps {
     first: number;
     last: number;
+}
+
+export interface MemSnapshotSliceInfo {
+    index: number;
+    startEventId: number;
+    endEventId: number;
+    ready: boolean;
+}
+
+export interface MemSnapshotDeviceSliceInfo {
+    eventCount: number;
+    sliceCount: number;
+    readySlices: number[];
+    slices: MemSnapshotSliceInfo[];
 }
 
 export const LEAKS_WORKER_INFO_DEFAULT = {
@@ -199,7 +213,14 @@ export class Session {
     memSnapshotParseLoading: boolean = false;
     memSnapshotParseProgress: number = 0;
     memSnapshotParseFileId: string = '';
+    dbPath: string = '';
     fileHash: string = '';
+    snapshotParsingComplete: boolean = true;
+    memSnapshotCacheRefreshPending: boolean = false;
+    snapshotSlices: Record<string, MemSnapshotDeviceSliceInfo> = {};
+    selectedSliceIndex: number = -1;
+    sliceOverviewData: Record<string, Record<number, AllocationData>> = {};
+    snapshotGlobalMaxSizes: Record<string, Record<string, number>> = {};
     lifecycleMemoryMarkers: Map<string, LifecycleMemoryMarker[]> = new Map();
     lifecycleMemoryMarkerOrdinals: Map<string, number> = new Map();
 

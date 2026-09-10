@@ -136,7 +136,7 @@ describe('MemoryBlockDiagram Block Flag shortcut', () => {
     it('disables block hit interactions while the block layer is hidden and restores them when shown', () => {
         const session = new Session();
         session.module = 'memsnapshot'; session.fileHash = 'snapshot'; session.deviceId = '0'; session.eventType = 'malloc';
-        const hoveredBlock = {
+        const hoveredBlock: Block = {
             id: 42,
             addr: '0x2a',
             _startTimestamp: 0,

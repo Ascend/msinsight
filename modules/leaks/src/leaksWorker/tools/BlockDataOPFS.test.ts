@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 
-import { BlockDataOPFS } from './BlockDataOPFS';
+import { BlockDataOPFS, mergeBlockPathFragments } from './BlockDataOPFS';
 import { isLeaksOpfsEnabled } from './opfsConfig';
 import { TextDecoder, TextEncoder } from 'util';
 
@@ -71,6 +71,7 @@ class FakeSyncAccessHandle {
 
 class FakeFileHandle {
     getFileError: Error | null = null;
+    getFileCalls = 0;
 
     constructor(readonly store: FakeFileStore) {}
 
@@ -95,6 +96,7 @@ class FakeFileHandle {
     }
 
     async getFile(): Promise<File> {
+        this.getFileCalls++;
         if (this.getFileError) {
             throw this.getFileError;
         }
@@ -214,6 +216,36 @@ describe('BlockDataOPFS persistent cache', () => {
         return JSON.parse(new TextDecoder().decode(await file.arrayBuffer())) as T;
     };
 
+    it('reconstructs the full path from flushed fragments of the same block', async () => {
+        const cache = new BlockDataOPFS(STORAGE_KEY, 1);
+        await cache.init();
+        await cache.addBlock({
+            id: 7,
+            addr: '0x1000',
+            _startTimestamp: 0,
+            _endTimestamp: 20,
+            size: 16,
+            path: [[0, 10], [5, 10]],
+        });
+        await cache.addBlock({
+            id: 7,
+            addr: '0x1000',
+            _startTimestamp: 0,
+            _endTimestamp: 20,
+            size: 16,
+            path: [[5, 10], [12, 30], [20, 30]],
+        });
+        await cache.flush();
+
+        await expect(cache.findBlockById(7)).resolves.toMatchObject({
+            id: 7,
+            addr: '0x1000',
+            size: 16,
+            path: [[0, 10], [5, 10], [12, 30], [20, 30]],
+        });
+        cache.dispose();
+    });
+
     it('restores a complete cache and its block metadata', async () => {
         await writeCompleteCache();
 
@@ -225,6 +257,55 @@ describe('BlockDataOPFS persistent cache', () => {
         expect(batch?.metas).toHaveLength(1);
         expect(batch?.metas[0]).toMatchObject({ id: 7, addr: '0x1000', pathLength: 3 });
         expect(Array.from(batch?.pathData ?? [])).toEqual([1, 0, 2, 16, 3, 0]);
+        await expect(restored.findBlockById(7)).resolves.toMatchObject({
+            id: 7,
+            path: [[1, 0], [2, 16], [3, 0]],
+        });
+    });
+
+    it('restores fragment batch indices so highlight can rebuild the full path', async () => {
+        const cache = new BlockDataOPFS(STORAGE_KEY, 1);
+        await cache.init();
+        await cache.addBlock({
+            id: 7,
+            addr: '0x1000',
+            _startTimestamp: 0,
+            _endTimestamp: 20,
+            size: 16,
+            path: [[0, 10], [5, 10]],
+        });
+        await cache.addBlock({
+            id: 7,
+            addr: '0x1000',
+            _startTimestamp: 0,
+            _endTimestamp: 20,
+            size: 16,
+            path: [[5, 10], [20, 30]],
+        });
+        await cache.saveCompleteCache(FILE_HASH, {
+            ...METADATA,
+            minTimestamp: 0,
+            maxTimestamp: 20,
+            batchCount: 2,
+        });
+        cache.dispose();
+
+        const restored = new BlockDataOPFS(STORAGE_KEY);
+        await restored.loadCompleteCache(FILE_HASH);
+        await expect(restored.findBlockById(7)).resolves.toMatchObject({
+            path: [[0, 10], [5, 10], [20, 30]],
+        });
+    });
+
+    it('reuses a recently parsed manifest when reopening a cache', async () => {
+        await writeCompleteCache();
+        const directory = root.directories.get(`block-data-${STORAGE_KEY}`);
+        const manifestFile = directory?.files.get('cache-manifest.json');
+
+        const restored = new BlockDataOPFS(STORAGE_KEY);
+        await expect(restored.loadCompleteCache(FILE_HASH)).resolves.toEqual(METADATA);
+
+        expect(manifestFile?.getFileCalls).toBe(0);
     });
 
     it('rejects a cache whose manifest is still building', async () => {
@@ -259,6 +340,8 @@ describe('BlockDataOPFS persistent cache', () => {
 
     it('treats a persistent cache file access error as a one-time cache failure', async () => {
         await writeCompleteCache();
+        await writeCompleteCache('b'.repeat(64), `main-cache-v1-${'b'.repeat(64)}`);
+        await writeCompleteCache('c'.repeat(64), `main-cache-v1-${'c'.repeat(64)}`);
         const directory = root.directories.get(`block-data-${STORAGE_KEY}`);
         const manifestFile = directory?.files.get('cache-manifest.json');
         if (!manifestFile) {
@@ -340,6 +423,90 @@ describe('BlockDataOPFS persistent cache', () => {
         expect(root.directories.has(`block-data-main-cache-v1-${interruptedHash}`)).toBe(false);
     });
 
+    it('evicts cold slice caches from the same source file independently', async () => {
+        const slice0Hash = `${FILE_HASH}-0-block-0`;
+        const slice1Hash = `${FILE_HASH}-0-block-1`;
+        await writeCompleteCache(slice0Hash, `main-cache-v1-${slice0Hash}`);
+        await writeCompleteCache(slice1Hash, `main-cache-v1-${slice1Hash}`);
+
+        await BlockDataOPFS.prunePersistentCaches(slice1Hash, 1);
+
+        expect(root.directories.has(`block-data-main-cache-v1-${slice0Hash}`)).toBe(false);
+        expect(root.directories.has(`block-data-main-cache-v1-${slice1Hash}`)).toBe(true);
+    });
+
+    it('removes every device and slice cache belonging to one source file', async () => {
+        const slice0Hash = `${FILE_HASH}-0-block-0`;
+        const slice1Hash = `${FILE_HASH}-1-block-1`;
+        const otherHash = `${'b'.repeat(64)}-0-block-0`;
+        await writeCompleteCache(slice0Hash, `main-cache-v1-${slice0Hash}`);
+        await writeCompleteCache(slice1Hash, `main-cache-v1-${slice1Hash}`);
+        await writeCompleteCache(otherHash, `main-cache-v1-${otherHash}`);
+
+        await BlockDataOPFS.removePersistentCachesBySourceHash(FILE_HASH);
+
+        expect(root.directories.has(`block-data-main-cache-v1-${slice0Hash}`)).toBe(false);
+        expect(root.directories.has(`block-data-main-cache-v1-${slice1Hash}`)).toBe(false);
+        expect(root.directories.has(`block-data-main-cache-v1-${otherHash}`)).toBe(true);
+    });
+
+    it('reports a persistent cache removal failure to the caller', async () => {
+        await writeCompleteCache(FILE_HASH, STORAGE_KEY);
+        const removalError = new Error('Access denied');
+        removalError.name = 'NotAllowedError';
+        jest.spyOn(root, 'removeEntry').mockRejectedValue(removalError);
+
+        await expect(BlockDataOPFS.removePersistentCachesBySourceHash(FILE_HASH)).rejects.toThrow('Access denied');
+    });
+
+    it('does not prune a cache that is actively being built', async () => {
+        const buildingHash = 'b'.repeat(64);
+        const building = new BlockDataOPFS(`main-cache-v1-${buildingHash}`);
+        await building.init();
+        await building.markCacheBuilding(buildingHash);
+        building.dispose();
+        const releaseProtection = BlockDataOPFS.protectPersistentCache(buildingHash);
+
+        try {
+            await BlockDataOPFS.prunePersistentCaches(FILE_HASH);
+            expect(root.directories.has(`block-data-main-cache-v1-${buildingHash}`)).toBe(true);
+        } finally {
+            releaseProtection();
+        }
+
+        await BlockDataOPFS.prunePersistentCaches(FILE_HASH);
+        expect(root.directories.has(`block-data-main-cache-v1-${buildingHash}`)).toBe(false);
+    });
+
+    it('serializes operations that target the same persistent cache', async () => {
+        const events: string[] = [];
+        let releaseFirst: () => void = () => undefined;
+        let notifyFirstStarted: () => void = () => undefined;
+        const firstStarted = new Promise<void>(resolve => {
+            notifyFirstStarted = resolve;
+        });
+        const firstGate = new Promise<void>(resolve => {
+            releaseFirst = resolve;
+        });
+        const first = BlockDataOPFS.withStorageOperationLock(FILE_HASH, async () => {
+            events.push('first-start');
+            notifyFirstStarted();
+            await firstGate;
+            events.push('first-end');
+        });
+        await firstStarted;
+        const second = BlockDataOPFS.withStorageOperationLock(FILE_HASH, async () => {
+            events.push('second-start');
+        });
+
+        await Promise.resolve();
+        expect(events).toEqual(['first-start']);
+        releaseFirst();
+        await Promise.all([first, second]);
+
+        expect(events).toEqual(['first-start', 'first-end', 'second-start']);
+    });
+
     it('removes caches created by an outdated frontend cache version', async () => {
         await writeCompleteCache(FILE_HASH, `main-cache-v0-${FILE_HASH}`);
 
@@ -395,5 +562,30 @@ describe('BlockDataOPFS persistent cache', () => {
         await expect(result.blockDataOPFS.removeStorage()).resolves.toBeUndefined();
         expect(getDirectory.mock.calls.length).toBeGreaterThan(attemptsAfterPrepare);
         warn.mockRestore();
+    });
+});
+
+describe('mergeBlockPathFragments', () => {
+    it('joins flushed fragments and drops the duplicated join point', () => {
+        expect(mergeBlockPathFragments([
+            {
+                id: 7,
+                addr: '0x1000',
+                _startTimestamp: 0,
+                _endTimestamp: 20,
+                size: 16,
+                path: [[12, 30], [20, 30]],
+            },
+            {
+                id: 7,
+                addr: '0x1000',
+                _startTimestamp: 0,
+                _endTimestamp: 20,
+                size: 16,
+                path: [[0, 10], [5, 10], [12, 30]],
+            },
+        ])).toMatchObject({
+            path: [[0, 10], [5, 10], [12, 30], [20, 30]],
+        });
     });
 });

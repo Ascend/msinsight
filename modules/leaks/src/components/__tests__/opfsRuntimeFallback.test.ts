@@ -33,8 +33,11 @@ jest.mock('../../utils/RequestUtils', () => ({
 jest.mock('@/leaksWorker/blockWorker/worker', () => ({
     workerLoadMemoryBlockCache: jest.fn(),
     workerSetMemoryBlockData: jest.fn(),
-    workerSetReservedLine: jest.fn(),
+    workerSetAllocationLines: jest.fn(),
     workerTransform: jest.fn(),
+    workerDestroy: jest.fn(),
+    isWorkerBlockRenderer: true,
+    workerCheckOpfsAvailability: jest.fn(),
 }), { virtual: true });
 jest.mock('../opfsFallback', () => ({
     ensureOpfsFallbackApproval: jest.fn(),
@@ -52,6 +55,16 @@ const createSession = (): any => ({
     deviceId: '0',
     eventType: 'BLOCK',
     fileHash: 'a'.repeat(64),
+    selectedSliceIndex: 0,
+    snapshotSlices: {
+        0: {
+            eventCount: 100,
+            sliceCount: 1,
+            readySlices: [0],
+            slices: [{ index: 0, startEventId: 0, endEventId: 99, ready: true }],
+        },
+    },
+    sliceOverviewData: {},
     leaksWorkerInfo: { renderOptions: {} },
 });
 

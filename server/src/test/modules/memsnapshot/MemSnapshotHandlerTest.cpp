@@ -23,6 +23,7 @@
 #include "QueryMemSnapshotBlockHandler.h"
 #include "QueryMemSnapshotEventHandler.h"
 #include "QueryMemSnapshotAllocationHandler.h"
+#include "QueryMemSnapshotAllocationLinesHandler.h"
 #include "QueryMemSnapshotDetailHandler.h"
 #include "QueryMemSnapshotLeakStatsHandler.h"
 #include "DataBaseManager.h"
@@ -239,6 +240,41 @@ TEST_F(MemSnapshotHandlerTest, QueryAllocationsRejectsOversizedPage) {
     requestPtr->params.pageSize = MemSnapshotAllocationParams::MAX_PAGE_SIZE + 1;
 
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+}
+
+TEST_F(MemSnapshotHandlerTest, QueryAllocationLinesWithValidParams) {
+    QueryMemSnapshotAllocationLinesHandler handler;
+    auto requestPtr = std::make_unique<MemSnapshotAllocationLinesRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->projectName = testDbPath;
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.eventType = "BLOCK";
+
+    EXPECT_TRUE(handler.HandleRequest(std::move(requestPtr)));
+}
+
+TEST_F(MemSnapshotHandlerTest, QueryAllocationsRejectsClosedDatabase) {
+    auto snapshotDb = DataBaseManager::Instance().GetMemSnapshotDatabase(testDbPath);
+    ASSERT_TRUE(snapshotDb != nullptr);
+    snapshotDb->CloseDb();
+
+    QueryMemSnapshotAllocationHandler handler;
+    auto requestPtr = std::make_unique<MemSnapshotAllocationsRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->projectName = testDbPath;
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.eventType = "BLOCK";
+    EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+
+    QueryMemSnapshotAllocationLinesHandler linesHandler;
+    auto linesRequest = std::make_unique<MemSnapshotAllocationLinesRequest>();
+    linesRequest->moduleName = MODULE_MEM_SCOPE;
+    linesRequest->projectName = testDbPath;
+    linesRequest->params.deviceId = "0";
+    linesRequest->params.eventType = "BLOCK";
+    EXPECT_FALSE(linesHandler.HandleRequest(std::move(linesRequest)));
+
+    ASSERT_TRUE(snapshotDb->OpenDbReadOnly(testDbPath));
 }
 
 // ============== QueryMemSnapshotLeakStatsHandler Tests ==============

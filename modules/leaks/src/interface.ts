@@ -26,18 +26,23 @@ import {
     parseProgressHandler,
     importRemoteHandler,
     frameLoadedHandler,
+    parseSliceReadyHandler,
+    switchDirectoryHandler,
 } from './connection/handler';
 
 const PARSECOMPLETED = 'parse/leaksMemoryCompleted';
 const PARSEFAIL = 'parse/fail';
 const PARSE_MEM_SNAPSHOT_PROGRESS = 'parse/memSnapshotProgress';
+const PARSE_MEM_SNAPSHOT_SLICE_READY = 'parse/memSnapshotSliceReady';
 export const NOTIFICATION_HANDLERS: Record<string, NotificationHandler> = {
     setTheme,
     updateSession: updateSessionHandler,
     switchLanguage: switchLanguageHandler,
     'frame/loaded': frameLoadedHandler,
+    switchDirectory: switchDirectoryHandler,
     'remote/import': importRemoteHandler,
     [PARSE_MEM_SNAPSHOT_PROGRESS]: parseProgressHandler,
+    [PARSE_MEM_SNAPSHOT_SLICE_READY]: parseSliceReadyHandler,
     [PARSECOMPLETED]: parseCompletedHandler,
     [PARSEFAIL]: parseFailHandler,
     'remote/remove': removeRemoteHandler,

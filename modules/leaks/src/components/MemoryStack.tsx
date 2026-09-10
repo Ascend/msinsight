@@ -21,19 +21,32 @@ import { useTranslation } from 'react-i18next';
 import { observer } from 'mobx-react';
 import { runInAction } from 'mobx';
 import type { CheckboxChangeEvent } from 'antd/lib/checkbox';
+import { message } from 'antd';
 import MemorySliceChart from './MemorySliceChart';
 import MemoryFunctionCall from './MemoryFunctionCall';
 import { Label } from './Common';
-import { getFuncNewData, getBarNewData, getBlockTableData, getEventTableData, getPotentialLeakStats } from './dataHandler';
+import {
+    getFuncNewData,
+    getBarNewData,
+    getBlockTableData,
+    getEventTableData,
+    getPotentialLeakStats,
+    preloadSnapshotSliceOverviews,
+} from './dataHandler';
 import { convertNanoseconds, isHostMemoryEventType } from '../utils/utils';
 import { MemoryBlockDiagram } from './leaks/MemoryBlockDiagram';
 import { getInitialZoomDomain } from './leaks/zoomDomain';
 import { constrainLifecycleRange, getLifecycleZoomLimits } from './leaks/lifecycleNavigation';
 import MemoryDataZoom from './MemoryDataZoom';
-import { workerTransform } from '@/leaksWorker/blockWorker/worker';
+import {
+    workerRemoveMemoryBlockCaches,
+    workerSetBlockGraphGlobalMaxSize,
+    workerTransform,
+} from '@/leaksWorker/blockWorker/worker';
 import { MemoryStateDiagram } from './leaks/MemoryStateDiagram';
 import PotentialLeakStats from './PotentialLeakStats';
 import { debounce, type DebouncedFunc } from 'lodash';
+import MemSnapshotSliceOverview from './MemSnapshotSliceOverview';
 
 type TransformChangeSource = 'wheel' | 'keyboard' | 'drag';
 const isValidRange = (range: [number, number]): boolean => Number.isFinite(range[0]) && Number.isFinite(range[1]) && range[0] < range[1];
@@ -64,6 +77,8 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     const debouncedFuncRangeRef = useRef<DebouncedFunc<(range: [number, number]) => void> | null>(null);
     const debouncedCommitRangeRef = useRef<DebouncedFunc<(range: [number, number]) => void> | null>(null);
     const funcRangeRequestSeqRef = useRef(0);
+    const deviceSlices = session.snapshotSlices[session.deviceId];
+    const readySlicesSignature = JSON.stringify(deviceSlices?.readySlices ?? []);
 
     const commitSessionRange = (range: [number, number]): void => {
         runInAction(() => {
@@ -131,9 +146,10 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
             !Number.isFinite(renderOptions.zoom.x)) {
             return;
         }
+        // snapshot 使用手写 DOM 滑块，需要保留选区状态以同步滑块位置和宽度。
         // Reflect an expanded range in the overview and dependent queries as well.
         const adjusted = !isSameRange(range, actualRange);
-        scheduleRangeChange(actualRange, adjusted);
+        scheduleRangeChange(actualRange, adjusted || session.module === 'memsnapshot');
         if (adjusted) {
             // A repeated selection can hit the same limit after the slider moved.
             setSelectedRange(actualRange);
@@ -171,15 +187,24 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     useEffect(() => {
         const newIdOpts = Object.keys(session.deviceIds).map((id: string) => ({ label: id, value: id }));
         if (newIdOpts.length > 0) {
-            const newTypeOpts = session.deviceIds[newIdOpts[0].value].map((type: string) => ({ label: type, value: type }));
+            const nextDeviceId = newIdOpts.some((option: { value: string }) => option.value === session.deviceId)
+                ? session.deviceId
+                : newIdOpts[0].value;
+            const newTypeOpts = session.deviceIds[nextDeviceId].map((type: string) => ({ label: type, value: type }));
             const newThreadOpts = session.threadIds.map((thread: number) => ({ label: thread, value: thread }));
+            const nextEventType = newTypeOpts.some((option: { value: string }) => option.value === session.eventType)
+                ? session.eventType
+                : newTypeOpts[0].value;
+            const nextThreadId = newThreadOpts.some((option: { value: number }) => option.value === session.threadId)
+                ? session.threadId
+                : newThreadOpts[0]?.value ?? '';
             runInAction(() => {
                 session.deviceIdOpts = newIdOpts;
                 session.typeOpts = newTypeOpts;
                 session.threadOps = newThreadOpts;
-                session.deviceId = newIdOpts[0].value;
-                session.eventType = newTypeOpts[0].value;
-                session.threadId = newThreadOpts[0]?.value ?? '';
+                session.deviceId = nextDeviceId;
+                session.eventType = nextEventType;
+                session.threadId = nextThreadId;
             });
         }
         return () => {
@@ -191,8 +216,78 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
         debouncedFuncRangeRef.current?.cancel();
         selectedRangeRef.current = undefined;
         setSelectedRange(undefined);
-        getBarNewData(session);
-    }, [session.deviceId, session.eventType, session.threadId]);
+        void getBarNewData(session);
+    }, [session.deviceId, session.eventType, session.threadId, session.selectedSliceIndex]);
+
+    useEffect(() => {
+        if (session.module !== 'memsnapshot' || session.deviceId === '' || !deviceSlices) {
+            return;
+        }
+        if (!deviceSlices.readySlices.includes(session.selectedSliceIndex)) {
+            const nextSlice = deviceSlices.readySlices.length > 0 ? Math.max(...deviceSlices.readySlices) : -1;
+            runInAction(() => {
+                session.selectedSliceIndex = nextSlice;
+            });
+        }
+        // 新分窗就绪时只补齐全局缩略趋势，不刷新当前分窗。
+        void preloadSnapshotSliceOverviews(session);
+    }, [session.module, session.deviceId, session.eventType, readySlicesSignature,
+        session.snapshotParsingComplete, session.memSnapshotCacheRefreshPending]);
+
+    useEffect(() => {
+        if (session.memSnapshotParseLoading || !session.memSnapshotCacheRefreshPending ||
+            session.module !== 'memsnapshot' ||
+            session.deviceId === '' || session.selectedSliceIndex < 0) {
+            return;
+        }
+        const refreshFinalizedSnapshot = async (): Promise<void> => {
+            const fileHash = session.fileHash;
+            let cacheRemovalSucceeded = false;
+            try {
+                try {
+                    await workerRemoveMemoryBlockCaches({ fileHash });
+                    cacheRemovalSucceeded = true;
+                } catch (error) {
+                    message.error(error instanceof Error ? error.message : String(error));
+                }
+                if (session.fileHash !== fileHash || session.module !== 'memsnapshot') {
+                    return;
+                }
+                if (cacheRemovalSucceeded) {
+                    runInAction(() => {
+                        session.memSnapshotCacheRefreshPending = false;
+                    });
+                }
+                // 所有反插和完整性校验结束后，再统一刷新一次当前分窗。
+                // 删除缓存失败时先保持 pending，让本次 getBarNewData 绕过过期 OPFS 缓存。
+                debouncedFuncRangeRef.current?.cancel();
+                selectedRangeRef.current = undefined;
+                setSelectedRange(undefined);
+                await getBarNewData(session);
+            } finally {
+                if (session.fileHash === fileHash && session.module === 'memsnapshot') {
+                    runInAction(() => {
+                        session.memSnapshotCacheRefreshPending = false;
+                    });
+                }
+            }
+        };
+        void refreshFinalizedSnapshot();
+    }, [
+        session.memSnapshotParseLoading,
+        session.memSnapshotCacheRefreshPending,
+        session.module,
+        session.deviceId,
+        session.selectedSliceIndex,
+        session.fileHash,
+    ]);
+
+    const snapshotGlobalMaxSize = session.snapshotGlobalMaxSizes[session.deviceId]?.[session.eventType] ?? 0;
+    useEffect(() => {
+        workerSetBlockGraphGlobalMaxSize({
+            maxSize: session.module === 'memsnapshot' ? snapshotGlobalMaxSize : 0,
+        });
+    }, [session.module, session.fileHash, session.deviceId, session.eventType, snapshotGlobalMaxSize]);
 
     useEffect(() => {
         setZoomData(session.allocationData.allocations.map((item: any) => ([item.timestamp, item.totalSize])));
@@ -326,15 +421,31 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
                             }}
                             onTransformChange={syncDataZoomRange}
                         />
-                        <MemoryDataZoom
-                            module={session.module}
-                            offsetLeft={95}
-                            offsetRight={105}
-                            dataSource={zoomData}
-                            minTime={zoomMinTime}
-                            maxTime={zoomMaxTime}
-                            selectedRange={selectedRange}
-                            selectedZoomChange={selectedZoomChange} />
+                        {session.module === 'memsnapshot' && deviceSlices
+                            ? <MemSnapshotSliceOverview
+                                deviceSlices={deviceSlices}
+                                overviewData={session.sliceOverviewData[session.deviceId] ?? {}}
+                                selectedSliceIndex={session.selectedSliceIndex}
+                                selectedRange={selectedRange}
+                                onSelectSlice={(sliceIndex): void => {
+                                    if (deviceSlices.slices[sliceIndex]?.ready !== true) {
+                                        return;
+                                    }
+                                    runInAction(() => {
+                                        session.selectedSliceIndex = sliceIndex;
+                                    });
+                                }}
+                                onRangeChange={selectedZoomChange}
+                            />
+                            : <MemoryDataZoom
+                                module={session.module}
+                                offsetLeft={95}
+                                offsetRight={105}
+                                dataSource={zoomData}
+                                minTime={zoomMinTime}
+                                maxTime={zoomMaxTime}
+                                selectedRange={selectedRange}
+                                selectedZoomChange={selectedZoomChange} />}
                     </div>
                 </CollapsiblePanel>
             </div>

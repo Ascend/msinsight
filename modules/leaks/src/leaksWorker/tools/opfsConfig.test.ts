@@ -52,6 +52,14 @@ describe('OPFS block path cache configuration', () => {
         expect(normalizeLeaksFileHash(device0Segment)).not.toBe(normalizeLeaksFileHash(device0Block));
     });
 
+    it('accepts a cache hash containing device, event type, and slice index', () => {
+        const fileHash = 'a'.repeat(64);
+        expect(normalizeLeaksFileHash(`${fileHash}-0-BLOCK-3`)).toBe(`${fileHash}-0-block-3`);
+        expect(normalizeLeaksFileHash(`${fileHash}-0-BLOCK-4`)).not.toBe(
+            normalizeLeaksFileHash(`${fileHash}-0-BLOCK-3`),
+        );
+    });
+
     it('probes directory and asynchronous file writes', async () => {
         const storageDescriptor = Object.getOwnPropertyDescriptor(navigator, 'storage');
         const writable = {
@@ -239,5 +247,4 @@ describe('OPFS block path cache configuration', () => {
             }
         }
     });
-
 });

@@ -37,6 +37,8 @@ void MemScopeProtocolUtil::RegisterJsonToRequestFuncs() {
     jsonToReqFactory.emplace(REQ_RES_MEM_SNAPSHOT_BLOCKS, ProtocolUtil::BuildRequestFromJson<MemSnapshotBlocksRequest>);
     jsonToReqFactory.emplace(
         REQ_RES_MEM_SNAPSHOT_ALLOCATIONS, ProtocolUtil::BuildRequestFromJson<MemSnapshotAllocationsRequest>);
+    jsonToReqFactory.emplace(
+        REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES, ProtocolUtil::BuildRequestFromJson<MemSnapshotAllocationLinesRequest>);
     jsonToReqFactory.emplace(REQ_RES_MEM_SNAPSHOT_EVENTS, ProtocolUtil::BuildRequestFromJson<MemSnapshotEventsRequest>);
     jsonToReqFactory.emplace(REQ_RES_MEM_SNAPSHOT_DETAIL, ProtocolUtil::BuildRequestFromJson<MemSnapshotDetailRequest>);
     jsonToReqFactory.emplace(REQ_RES_MEM_SNAPSHOT_STATE, ProtocolUtil::BuildRequestFromJson<MemSnapshotStateRequest>);
@@ -52,6 +54,7 @@ void MemScopeProtocolUtil::RegisterResponseToJsonFuncs() {
     resToJsonFactory.emplace(REQ_RES_MEM_SCOPE_EVENTS, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_BLOCKS, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_ALLOCATIONS, ProtocolUtil::CommonResponseToJson);
+    resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_ALLOCATION_LINES, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_EVENTS, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_DETAIL, ProtocolUtil::CommonResponseToJson);
     resToJsonFactory.emplace(REQ_RES_MEM_SNAPSHOT_STATE, ProtocolUtil::CommonResponseToJson);
@@ -63,5 +66,6 @@ void MemScopeProtocolUtil::RegisterEventToJsonFuncs() {
     eventToJsonFactory.emplace(EVENT_MODULE_RESET, TimelineProtocol::ToModuleResetEventJson);
     eventToJsonFactory.emplace(EVENT_ALL_SUCCESS, TimelineProtocol::ToAllSuccessEventJson);
     eventToJsonFactory.emplace(EVENT_PARSE_MEM_SNAPSHOT_PROGRESS, ProtocolUtil::CommonEventToJson);
+    eventToJsonFactory.emplace(EVENT_PARSE_MEM_SNAPSHOT_SLICE_READY, ProtocolUtil::CommonEventToJson);
 }
 } // end of namespace Dic::Protocol
