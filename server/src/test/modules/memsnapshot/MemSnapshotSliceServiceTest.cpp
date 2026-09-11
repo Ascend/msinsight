@@ -129,7 +129,14 @@ TEST_F(MemSnapshotSliceServiceTest, RejectsSlicePathOutsideArtifactDirectory) {
     slice.file = "device_0/slice_00000.db";
     const auto resolvedPath = MemSnapshotSliceService::ResolveSliceDbPath(snapshotPath, slice);
     EXPECT_FALSE(resolvedPath.empty());
-    EXPECT_EQ(resolvedPath, FileUtil::SplicePath(artifactPath, slice.file));
+    EXPECT_EQ(resolvedPath, FileUtil::SplicePath(artifactPath, "device_0", "slice_00000.db"));
+#ifdef _WIN32
+    EXPECT_EQ(resolvedPath.find('/'), std::string::npos);
+#endif
+
+    slice.file = "device_0\\slice_00000.db";
+    EXPECT_EQ(MemSnapshotSliceService::ResolveSliceDbPath(snapshotPath, slice),
+        FileUtil::SplicePath(artifactPath, "device_0", "slice_00000.db"));
 }
 
 TEST_F(MemSnapshotSliceServiceTest, RejectsMalformedManifest) {
