@@ -20,6 +20,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import { themeInstance } from '@insight/lib/theme';
+import type { ChatMessage } from '../../types';
 
 const mockExecuteFrontendCommand = jest.fn();
 
@@ -100,7 +101,8 @@ test('renders assistant content blocks in text-tool-text order', () => {
     />);
 
     const message = document.querySelector('.message') as HTMLElement;
-    expect(Array.from(message.children).slice(0, 3).map((node) => node.className)).toEqual(['rich-text', 'thinking-timeline answer-meta-details', 'rich-text']);
+    expect(Array.from(message.children).slice(0, 3).map((node) => node.className)).toEqual(['thinking-timeline answer-meta-details', 'rich-text']);
+    expect(message.querySelector('.timeline-item.progress')).toBeInTheDocument();
 });
 
 test('keeps thinking and tool calls in their original execution order', () => {
@@ -122,14 +124,13 @@ test('keeps thinking and tool calls in their original execution order', () => {
 
     const message = document.querySelector('.message') as HTMLElement;
     expect(Array.from(message.children).map((node) => node.className)).toEqual(['thinking-timeline answer-meta-details', 'rich-text']);
-    expect(message.querySelectorAll('.timeline-item')).toHaveLength(5);
+    expect(message.querySelectorAll('.timeline-item')).toHaveLength(4);
     expect(message.querySelectorAll('.timeline-item.completed')).toHaveLength(4);
     expect(Array.from(message.querySelectorAll('.timeline-title')).map((node) => node.textContent)).toEqual([
         'Thought completed',
         'rag_retrieve completed',
         'Thought completed',
         'rag_retrieve completed',
-        'Thought completed, starting answer:',
     ]);
 });
 
@@ -440,6 +441,41 @@ test('styles sent user messages from the theme token and keeps a square top-righ
     expect(getComputedStyle(message).backgroundColor).toBe('rgb(33, 61, 91)');
 });
 
+test('shows the prompt fade only while the prompt is pinned above scrolling content', () => {
+    render(<div className="messages"><MessageList
+        messages={[
+            { id: 'user-fade', role: 'user', content: [{ id: 'question', type: 'text', text: 'Question' }] },
+            { id: 'assistant-fade', role: 'assistant', content: [{ id: 'answer', type: 'text', text: 'Answer' }] },
+        ]}
+        onPermissionDecision={noopPermissionDecision}
+        pendingPrompt={false}
+    /></div>);
+    const scroller = document.querySelector('.messages') as HTMLElement;
+    const turn = document.querySelector('.message-turn') as HTMLElement;
+    const sticky = document.querySelector('.user-prompt-sticky') as HTMLElement;
+    const fade = document.querySelector('.user-prompt-fade') as HTMLElement;
+    jest.spyOn(scroller, 'getBoundingClientRect').mockReturnValue({ top: 100 } as DOMRect);
+    const turnRect = jest.spyOn(turn, 'getBoundingClientRect').mockReturnValue({ top: 100 } as DOMRect);
+    const stickyRect = jest.spyOn(sticky, 'getBoundingClientRect').mockReturnValue({ bottom: 180 } as DOMRect);
+
+    fireEvent.scroll(scroller);
+    expect(getComputedStyle(fade).visibility).toBe('hidden');
+    expect(parseFloat(getComputedStyle(sticky).marginBottom) || 0).toBe(0);
+
+    turnRect.mockReturnValue({ top: 80 } as DOMRect);
+    fireEvent.scroll(scroller);
+    expect(getComputedStyle(fade).visibility).toBe('visible');
+
+    turnRect.mockReturnValue({ top: 100 } as DOMRect);
+    fireEvent.scroll(scroller);
+    expect(getComputedStyle(fade).visibility).toBe('hidden');
+
+    turnRect.mockReturnValue({ top: -200 } as DOMRect);
+    stickyRect.mockReturnValue({ bottom: 90 } as DOMRect);
+    fireEvent.scroll(scroller);
+    expect(getComputedStyle(fade).visibility).toBe('hidden');
+});
+
 test('keeps user prompts sticky and expands overflowing content', async () => {
     const onOuterWheel = jest.fn();
     render(<div onWheel={onOuterWheel}>
@@ -513,7 +549,7 @@ test('shows completed thinking time before the assistant answer', () => {
     />);
 
     const message = document.querySelector('.message.assistant') as HTMLElement;
-    const duration = screen.getByText('Thought completed 2m06s');
+    const duration = screen.getByText('Time taken 2m06s');
     const richText = message.querySelector('.rich-text') as HTMLElement;
 
     expect(message.firstElementChild).toHaveClass('thinking-summary');
@@ -523,7 +559,7 @@ test('shows completed thinking time before the assistant answer', () => {
     expect(getComputedStyle(message).backgroundColor).toBe('transparent');
 });
 
-test('updates the elapsed time while the assistant is thinking', () => {
+test('keeps the processing title while a reasoning block is active', () => {
     jest.useFakeTimers();
     jest.setSystemTime(5000);
 
@@ -531,23 +567,23 @@ test('updates the elapsed time while the assistant is thinking', () => {
         messages={[{
             id: 'assistant-thinking',
             role: 'assistant',
-            content: [],
+            content: [{ id: 'reasoning', type: 'thinking', text: 'Reasoning', startedAt: 1000 }],
             startedAt: 1000,
         }]}
         onPermissionDecision={noopPermissionDecision}
         pendingPrompt
     />);
 
-    expect(screen.getByText('Thinking 4.0s')).toBeInTheDocument();
+    expect(screen.getByText('Processing for 4.0s')).toBeInTheDocument();
     expect(document.querySelector('.thinking-sparkle')).toBeInTheDocument();
 
     act(() => jest.advanceTimersByTime(1000));
-    expect(screen.getByText('Thinking 5.0s')).toBeInTheDocument();
+    expect(screen.getByText('Processing for 5.0s')).toBeInTheDocument();
 
     jest.useRealTimers();
 });
 
-test('hides the thinking indicator once answer text starts streaming', () => {
+test('continues processing time while answer text streams', () => {
     jest.useFakeTimers();
     jest.setSystemTime(2000);
     render(<MessageList
@@ -563,10 +599,10 @@ test('hides the thinking indicator once answer text starts streaming', () => {
     />);
 
     expect(screen.queryByText(/^Thinking/)).not.toBeInTheDocument();
-    expect(document.querySelector('.thinking-sparkle')).not.toBeInTheDocument();
-    expect(screen.getByText('Thought completed 1.0s')).toBeInTheDocument();
+    expect(document.querySelector('.thinking-sparkle')).toBeInTheDocument();
+    expect(screen.getByText('Processing for 1.0s')).toBeInTheDocument();
     act(() => jest.advanceTimersByTime(2000));
-    expect(screen.getByText('Thought completed 1.0s')).toBeInTheDocument();
+    expect(screen.getByText('Processing for 3.0s')).toBeInTheDocument();
     jest.useRealTimers();
 });
 
@@ -794,4 +830,54 @@ test('keeps wide code blocks and tables horizontally scrollable inside their own
     expect(getComputedStyle(preCode).whiteSpace).toBe('pre');
     expect(getComputedStyle(table).maxWidth).toBe('100%');
     expect(getComputedStyle(table).overflowX).toBe('auto');
+});
+
+
+test('keeps narration between tools in order and completes only when the turn ends', () => {
+    const message: ChatMessage = {
+        id: 'multi-step', role: 'assistant', startedAt: 1000, durationMs: 1000,
+        content: [
+            { id: 'reason-1', type: 'thinking', text: 'Plan', startedAt: 1000 },
+            { id: 'narration', type: 'text', text: 'I will inspect the profiling files.', startedAt: 2000 },
+        ],
+    };
+    const { rerender } = render(<MessageList messages={[message]} pendingPrompt onPermissionDecision={noopPermissionDecision} />);
+    expect(document.querySelector('.thinking-timeline > summary')).toHaveTextContent('Processing for ');
+    expect(document.querySelector('.timeline-answer')).not.toBeInTheDocument();
+
+    message.content.push({ id: 'tool', type: 'tool', toolCall: { toolCallId: 'tool', name: 'Read', status: 'in_progress', startedAt: 3000 } });
+    rerender(<MessageList messages={[{ ...message }]} pendingPrompt onPermissionDecision={noopPermissionDecision} />);
+    const details = document.querySelector('.thinking-timeline') as HTMLDetailsElement;
+    expect(details).toHaveAttribute('open');
+    expect(Array.from(details.querySelectorAll('.timeline-item')).map((node) => node.classList[1])).toEqual(['thinking', 'progress', 'tool']);
+    expect(details.querySelector('.tool')).toHaveClass('active');
+    expect(details.querySelector('summary')).not.toHaveTextContent('Analysis completed');
+
+    message.content[2] = { id: 'tool', type: 'tool', toolCall: { toolCallId: 'tool', name: 'Read', status: 'completed', startedAt: 3000, durationMs: 2000 } };
+    message.content.push({ id: 'reason-2', type: 'thinking', text: 'Compare ranks', startedAt: 5000 });
+    message.content.push({ id: 'answer', type: 'text', text: 'Final analysis', startedAt: 7000 });
+    rerender(<MessageList messages={[{ ...message }]} pendingPrompt onPermissionDecision={noopPermissionDecision} />);
+    expect(details.querySelector('summary')).toHaveTextContent('Processing for ');
+    expect(details).toHaveAttribute('open');
+
+    rerender(<MessageList messages={[{ ...message, completionStatus: 'completed', completedAt: 8000 }]} pendingPrompt={false} onPermissionDecision={noopPermissionDecision} />);
+    expect(details).not.toHaveAttribute('open');
+    expect(details.querySelector('summary')).toHaveTextContent('Time taken 7.0s');
+    expect(details.nextElementSibling).toHaveClass('rich-text');
+    expect(document.querySelector('.timeline-answer')).not.toBeInTheDocument();
+});
+
+test.each([['completed', 'Time taken 2.0s'], ['failed', 'Analysis failed · Time taken 2.0s'], ['cancelled', 'Analysis stopped · Time taken 2.0s']] as const)('freezes processing time after the turn is %s', (completionStatus, label) => {
+    jest.useFakeTimers();
+    jest.setSystemTime(3000);
+    const message: ChatMessage = {
+        id: 'terminated', role: 'assistant', startedAt: 1000, completedAt: 3000, completionStatus,
+        content: [{ id: 'reason', type: 'thinking', text: 'Reasoning', startedAt: 1000 }],
+    };
+    const { rerender } = render(<MessageList messages={[message]} pendingPrompt={false} onPermissionDecision={noopPermissionDecision} />);
+    expect(document.querySelector('.thinking-timeline > summary')).toHaveTextContent(label);
+    act(() => jest.advanceTimersByTime(5000));
+    rerender(<MessageList messages={[{ ...message }]} pendingPrompt={false} onPermissionDecision={noopPermissionDecision} />);
+    expect(document.querySelector('.thinking-timeline > summary')).toHaveTextContent(label);
+    jest.useRealTimers();
 });

@@ -247,7 +247,7 @@ test.each([
     [false, false],
     [true, false],
     [true, true],
-])('freezes thinking time at the first answer while streaming continues (timeline: %s, first text via delta: %s)', async (withTimeline, firstTextViaDelta) => {
+])('counts processing time through the final output (timeline: %s, first text via delta: %s)', async (withTimeline, firstTextViaDelta) => {
     const sessionId = 'session-open';
     mockSendPrompt.mockResolvedValueOnce({ ok: true, sessionId });
     render(<ChatStateProvider><ChatPanel /></ChatStateProvider>);
@@ -280,19 +280,19 @@ test.each([
             ? { type: 'message_content_delta', sessionId, id: 'timed-reply', blockId: 'answer', blockType: 'text', delta: 'First answer' }
             : { type: 'message_content_added', sessionId, id: 'timed-reply', block: { id: 'answer', type: 'text', text: 'First answer' } });
     });
-    expect(screen.getByText('Thought completed 5.0s')).toBeVisible();
-    expect(document.querySelector('.thinking-sparkle')).not.toBeInTheDocument();
+    expect(screen.getByText('Processing for 5.0s')).toBeVisible();
+    expect(document.querySelector('.thinking-sparkle')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
 
     now = 9000;
     act(() => events.emit({ type: 'message_content_delta', sessionId, id: 'timed-reply', blockId: 'answer', blockType: 'text', delta: ' continues streaming' }));
     expect(screen.getByText(/First answer continues streaming/)).toBeVisible();
-    expect(screen.getByText('Thought completed 5.0s')).toBeVisible();
+    expect(screen.getByText('Processing for 8.0s')).toBeVisible();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeVisible();
 
     now = 12000;
     act(() => events.emit({ type: 'prompt_status', sessionId, pendingPrompt: false }));
-    expect(screen.getByText('Thought completed 5.0s')).toBeVisible();
+    expect(screen.getByText('Time taken 11s')).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
 });
 

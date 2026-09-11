@@ -121,7 +121,7 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
                 setLocalTitle(state, sessionId, displayText);
             }
 
-            const assistant = { id: crypto.randomUUID(), role: "assistant", content: [] };
+            const assistant = { id: crypto.randomUUID(), role: "assistant", content: [], startedAt: Date.now() };
             const userMessage = {
                 id: crypto.randomUUID(),
                 role: "user",
@@ -170,12 +170,20 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
             }
         } catch (error) {
             console.error(`Prompt execution failed: sessionId=${sessionId}, error=${error.message}`);
-            appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${error.message}`);
+            if (assistant.completionStatus !== "cancelled") {
+                assistant.completionStatus = "failed";
+                appendChunk(serviceContext, sessionId, "assistant", "text", `Error: ${error.message}`);
+            }
         } finally {
+            assistant.completionStatus ??= "completed";
+            assistant.completedAt ??= Date.now();
             const sessionContext = getSessionContext(state, sessionId);
-            setAgentActivity(serviceContext, sessionId, undefined);
-            sessionContext.pendingPrompt = false;
-            eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false });
+            // Cancellation already ended this turn; a late result must not end a newer prompt.
+            if (assistant.completionStatus !== "cancelled") {
+                setAgentActivity(serviceContext, sessionId, undefined);
+                sessionContext.pendingPrompt = false;
+                eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false, completionStatus: assistant.completionStatus, completedAt: assistant.completedAt });
+            }
         }
     };
 
@@ -186,6 +194,12 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         }
         frontendCommandService?.cancelSession?.(sessionId);
         permissionService?.rejectSessionRequests?.(sessionId, "invalidated");
+        const sessionContext = getSessionContext(state, sessionId);
+        const assistant = sessionContext.messages.findLast((message) => message.role === "assistant" && !message.permission);
+        if (assistant && sessionContext.pendingPrompt) {
+            assistant.completionStatus = "cancelled";
+            assistant.completedAt = Date.now();
+        }
         try {
             if (adapter.notify) adapter.notify("session/cancel", { sessionId });
             else await adapter.request("session/cancel", { sessionId });
@@ -193,10 +207,9 @@ export const createChatService = ({ acpAdapter, acpClient, eventBus, sessionServ
         } catch (error) {
             console.warn(`Failed to cancel session ${sessionId} with ACP: ${error.message}`);
         }
-        const sessionContext = getSessionContext(state, sessionId);
         setAgentActivity(serviceContext, sessionId, undefined);
         sessionContext.pendingPrompt = false;
-        eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false });
+        eventBus.broadcast({ type: "prompt_status", sessionId, pendingPrompt: false, completionStatus: assistant?.completionStatus, completedAt: assistant?.completedAt });
         return { ok: true };
     };
 
