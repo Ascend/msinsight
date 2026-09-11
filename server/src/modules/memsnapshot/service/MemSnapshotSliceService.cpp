@@ -131,6 +131,27 @@ bool ContainsParentDirectory(const std::string &file) {
     return false;
 }
 
+// Manifest stores POSIX-style relative paths such as "device_0/slice_00000.db".
+// FileUtil::SplicePath() does not split the relative argument, so Windows would
+// produce "...\msinsight\device_0/slice_00000.db". ConvertToLongPathW() then prefixes
+// "\\?\", which stops treating '/' as a separator and CheckPathSecurity fails.
+std::string JoinUnderDirectory(const std::string &root, const std::string &relativePath) {
+    std::string path = root;
+    size_t start = 0;
+    while (start <= relativePath.size()) {
+        const size_t end = std::min(relativePath.find_first_of("/\\", start), relativePath.size());
+        const std::string component = relativePath.substr(start, end - start);
+        if (!component.empty() && component != ".") {
+            path = FileUtil::SplicePath(path, component);
+        }
+        if (end == relativePath.size()) {
+            break;
+        }
+        start = end + 1;
+    }
+    return path;
+}
+
 std::mutex g_manifestCacheMutex;
 std::unordered_map<std::string, ManifestCacheEntry> g_manifestCache;
 
@@ -264,7 +285,7 @@ std::string MemSnapshotSliceService::ResolveSliceDbPath(
     if (IsAbsoluteSliceFile(sliceInfo.file) || ContainsParentDirectory(sliceInfo.file)) {
         return "";
     }
-    return FileUtil::SplicePath(GetArtifactDirectory(snapshotPath), sliceInfo.file);
+    return JoinUnderDirectory(GetArtifactDirectory(snapshotPath), sliceInfo.file);
 }
 
 std::string MemSnapshotSliceService::BuildDatabaseKey(
