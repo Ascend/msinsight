@@ -62,7 +62,7 @@ export interface ActionItem {
 }
 
 export type MessageContentBlock =
-    | { id: string; type: 'text'; text: string }
+    | { id: string; type: 'text'; text: string; startedAt?: number }
     | { id: string; type: 'thinking'; text: string; startedAt?: number; durationMs?: number }
     | { id: string; type: 'tool'; toolCall: ToolCallItem };
 
@@ -74,6 +74,8 @@ export interface ChatMessage {
     pending?: boolean;
     startedAt?: number;
     durationMs?: number;
+    completionStatus?: 'completed' | 'failed' | 'cancelled';
+    completedAt?: number;
     permission?: PermissionRequestItem;
 }
 
@@ -288,6 +290,6 @@ export type ServerEvent =
     | { type: 'config_options'; sessionId?: string; configOptions: ConfigOption[] }
     | { type: 'permission_request'; sessionId: string; requestId: string; kind?: 'filesystem' | 'bash' | 'tool'; title?: string; target?: string; path?: string; details?: Record<string, unknown>; actions: PermissionDecision[] }
     | { type: 'permission_resolved'; sessionId: string; requestId: string; state: Exclude<PermissionState, 'pending'> }
-    | { type: 'prompt_status'; sessionId?: string; pendingPrompt: boolean }
+    | { type: 'prompt_status'; sessionId?: string; pendingPrompt: boolean; completionStatus?: ChatMessage['completionStatus']; completedAt?: number }
     | { type: 'frontend_command_request'; requestId: string; sessionId?: string; command: string; args: Record<string, unknown>; deadline: number }
     | { type: 'frontend_command_cancel'; requestId: string; reason?: string };

@@ -72,15 +72,29 @@ const Container = styled.section`
     }
 
     .conversation-content {
+        --composer-fade-height: 48px;
         position: relative;
         grid-row: 2;
         min-height: 0;
         overflow: hidden;
     }
 
+    .conversation-content.has-messages::after {
+        content: "";
+        position: absolute;
+        z-index: 1;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        height: var(--composer-fade-height);
+        background: linear-gradient(to bottom, transparent, ${(props): string => props.theme.bgColor});
+        pointer-events: none;
+    }
+
     .messages-content {
         flex-shrink: 0;
         min-width: 0;
+        padding-bottom: var(--composer-fade-height);
     }
 
     .scroll-to-latest {
@@ -199,7 +213,7 @@ export const ChatPanel = (): JSX.Element => {
             <div className="session-title-slot">
                 {currentTitle ? <div className="session-title" title={currentTitle}>{currentTitle}</div> : null}
             </div>
-            <div className="conversation-content">
+            <div className={`conversation-content${messages.length ? ' has-messages' : ''}`}>
                 {messages.length
                     ? <section className="messages" ref={messagesRef} onScroll={onScroll} onWheel={onWheel}>
                         <div className="messages-content" ref={contentRef}>

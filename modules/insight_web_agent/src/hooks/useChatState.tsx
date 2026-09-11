@@ -383,9 +383,9 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         if (event.type === 'prompt_status' && event.sessionId) {
             updateSessionRecord(event.sessionId, (record) => ({
                 ...record,
-                messages: event.pendingPrompt ? markLastAssistantStarted(record.messages) : markLastAssistantComplete(record.messages),
+                messages: event.pendingPrompt ? markLastAssistantStarted(record.messages) : markLastAssistantComplete(record.messages, event.completionStatus, event.completedAt),
                 pendingPrompt: event.pendingPrompt,
-                status: event.pendingPrompt ? 'working' : 'completed',
+                status: event.pendingPrompt ? 'working' : event.completionStatus === 'failed' ? 'error' : 'completed',
             }));
             return;
         }
@@ -1105,20 +1105,27 @@ const updateToolContent = (content: MessageContentBlock[], toolCall: Extract<Mes
 };
 
 const finishThinkingOnAnswer = (message: ChatMessage): ChatMessage => {
-    if (message.role !== 'assistant' || message.startedAt === undefined || message.durationMs !== undefined) return message;
-    if (!message.content.some((block) => block.type === 'text' && block.text.trim())) return message;
-    // Freeze thinking time at the first answer text; the response can keep streaming.
-    return { ...message, durationMs: Math.max(0, Date.now() - message.startedAt) };
+    if (message.role !== 'assistant') return message;
+    const now = Date.now();
+    const content = message.content.map((block) => block.type === 'text' && block.text.trim() && block.startedAt === undefined
+        ? { ...block, startedAt: now } : block);
+    if (message.startedAt === undefined || message.durationMs !== undefined || !content.some((block) => block.type === 'text' && block.text.trim())) {
+        return { ...message, content };
+    }
+    // Preserve first-output latency without treating it as completion of the agent turn.
+    return { ...message, content, durationMs: Math.max(0, now - message.startedAt) };
 };
 
 const markLastAssistantStarted = (messages: ChatMessage[]): ChatMessage[] => updateLastAssistant(messages, (message) => finishThinkingOnAnswer(
     message.startedAt === undefined ? { ...message, startedAt: Date.now() } : message
 ));
 
-const markLastAssistantComplete = (messages: ChatMessage[]): ChatMessage[] => updateLastAssistant(messages, (message) => ({
+const markLastAssistantComplete = (messages: ChatMessage[], completionStatus?: ChatMessage['completionStatus'], completedAt = Date.now()): ChatMessage[] => updateLastAssistant(messages, (message) => ({
     ...message,
     pending: false,
     activity: undefined,
+    completionStatus: completionStatus ?? message.completionStatus ?? 'completed',
+    completedAt: message.completedAt ?? completedAt,
     durationMs: message.durationMs ?? (message.startedAt === undefined ? undefined : Date.now() - message.startedAt),
 }));
 
@@ -1235,7 +1242,7 @@ const markPromptFailed = (
         ...state.sessionRecords,
         [sessionId]: {
             ...record,
-            messages: markLastAssistantComplete(record.messages),
+            messages: markLastAssistantComplete(record.messages, 'failed'),
             pendingPrompt: false,
             status: 'error' as SessionStatus,
         },
@@ -1261,7 +1268,7 @@ const markPromptCancelled = (state: ChatState, sessionId: string | undefined): C
         ...state.sessionRecords,
         [sessionId]: {
             ...record,
-            messages: markLastAssistantComplete(record.messages),
+            messages: markLastAssistantComplete(record.messages, 'cancelled'),
             pendingPrompt: false,
             queuedPrompts: [],
             status: 'idle' as SessionStatus,

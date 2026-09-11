@@ -82,3 +82,84 @@ test('supports keyboard selection and renders the footer', async () => {
     fireEvent.click(trigger);
     await waitFor(() => expect(screen.getByRole('button', { name: 'Add Agent' })).toBeVisible());
 });
+
+const modelOptions = [
+    { value: 'provider/alpha', label: 'Alpha' },
+    { value: 'provider/beta-disabled', label: 'Beta unavailable', disabled: true },
+    { value: 'provider/beta-fast', label: 'Beta Fast' },
+    { value: 'other/beta-pro', label: 'Beta Pro' },
+];
+const modelSearch = { placeholder: 'Search models', noResultsText: 'No matching models' };
+
+test('searches model labels and identifiers and selects from filtered enabled options', async () => {
+    const onChange = jest.fn();
+    render(<AgentSelect dropdownWidth={320} onChange={onChange} options={modelOptions} search={modelSearch} value="provider/alpha" />);
+    const trigger = screen.getByRole('button', { name: 'Alpha' });
+    fireEvent.click(trigger);
+    const input = await screen.findByRole('combobox', { name: 'Search models' });
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(input.closest('.agent-select-dropdown')).toHaveStyle({ width: '320px' });
+
+    fireEvent.change(input, { target: { value: ' PROVIDER/ ' } });
+    expect(screen.getAllByRole('option')).toHaveLength(3);
+    fireEvent.change(input, { target: { value: 'bEtA' } });
+    expect(screen.queryByRole('option', { name: 'Alpha' })).not.toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Beta Fast' })).toHaveClass('focused');
+    expect(onChange).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: true });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('other/beta-pro');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+});
+
+test('shows an empty search result without selecting and resets search after closing', async () => {
+    const onChange = jest.fn();
+    render(<AgentSelect onChange={onChange} options={modelOptions} search={modelSearch} value="provider/alpha" />);
+    const trigger = screen.getByRole('button', { name: 'Alpha' });
+    fireEvent.click(trigger);
+    const input = await screen.findByRole('combobox');
+    await waitFor(() => expect(input).toHaveFocus());
+    fireEvent.change(input, { target: { value: 'missing-model' } });
+    expect(screen.getByRole('status')).toHaveTextContent('No matching models');
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    expect(onChange).not.toHaveBeenCalled();
+    expect(input).not.toHaveAttribute('aria-activedescendant');
+
+    fireEvent.keyDown(input, { key: 'Escape' });
+    expect(trigger).toHaveFocus();
+    fireEvent.click(trigger);
+    expect(await screen.findByRole('combobox')).toHaveValue('');
+    expect(screen.getAllByRole('option')).toHaveLength(4);
+});
+
+test('clearing search scrolls back to the selected model even when its index is unchanged', async () => {
+    const onChange = jest.fn();
+    const models = Array.from({ length: 12 }, (_, index) => ({ value: `model-${index}`, label: `Model ${index}` }));
+    render(<AgentSelect onChange={onChange} options={models} search={modelSearch} value="model-10" />);
+    fireEvent.click(screen.getByRole('button', { name: 'Model 10' }));
+    const input = await screen.findByRole('combobox');
+    await waitFor(() => expect(input).toHaveFocus());
+    const list = screen.getByRole('listbox');
+    const selected = screen.getByRole('option', { name: 'Model 10' });
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 56 });
+    Object.defineProperty(selected, 'offsetHeight', { configurable: true, value: 28 });
+    jest.spyOn(list, 'getBoundingClientRect').mockImplementation(() => ({ top: 100 } as DOMRect));
+    jest.spyOn(selected, 'getBoundingClientRect').mockImplementation(() => ({ top: 380 - list.scrollTop } as DOMRect));
+
+    // All models match, so clearing the query changes neither the count nor the selected index.
+    fireEvent.change(input, { target: { value: 'model' } });
+    await waitFor(() => expect(list.scrollTop).toBe(252));
+    list.scrollTop = 0;
+    fireEvent.change(input, { target: { value: '' } });
+
+    await waitFor(() => expect(list.scrollTop).toBe(252));
+    expect(selected).toHaveClass('focused');
+    expect(selected).toHaveAttribute('aria-selected', 'true');
+    expect(input).toHaveFocus();
+    expect(onChange).not.toHaveBeenCalled();
+});

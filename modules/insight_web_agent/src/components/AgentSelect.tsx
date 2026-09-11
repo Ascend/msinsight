@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
-import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { CSSProperties, KeyboardEvent, ReactNode } from 'react';
 import arrowDownIcon from '../icons/arrow-down.svg';
@@ -40,6 +40,10 @@ interface AgentSelectProps {
     className?: string;
     disabled?: boolean;
     compact?: boolean;
+    triggerIcon?: ReactNode;
+    showArrow?: boolean;
+    dropdownWidth?: number;
+    search?: { placeholder: string; noResultsText: string };
     placement?: 'top' | 'bottom';
 }
 
@@ -150,6 +154,8 @@ const Container = styled.div`
 
     .agent-select-dropdown {
         width: 240px;
+        max-width: calc(100vw - 16px);
+        box-sizing: border-box;
         position: fixed;
         z-index: 1000;
         display: grid;
@@ -170,6 +176,33 @@ const Container = styled.div`
         color: ${(props): string => props.theme.textColorSecondary};
         font-size: 12px;
         line-height: 20px;
+    }
+
+    .agent-select-search {
+        min-width: 0;
+        margin: 0 4px 8px;
+        padding: 6px 8px;
+        border: 1px solid ${(props): string => props.theme.borderColor};
+        border-radius: ${(props): string => props.theme.borderRadiusSmall};
+        background: ${(props): string => props.theme.bgColor};
+        color: ${(props): string => props.theme.textColorPrimary};
+        font: inherit;
+        font-size: 13px;
+    }
+
+    .agent-select-search::placeholder {
+        color: ${(props): string => props.theme.textColorSecondary};
+    }
+
+    .agent-select-search:focus {
+        outline: none;
+        border-color: ${(props): string => props.theme.primaryColor};
+    }
+
+    .agent-select-empty {
+        padding: 12px 8px;
+        color: ${(props): string => props.theme.textColorSecondary};
+        font-size: 13px;
     }
 
     .agent-select-options {
@@ -254,19 +287,48 @@ export const AgentSelect = ({
     className,
     disabled = false,
     compact = false,
+    triggerIcon,
+    showArrow = true,
+    dropdownWidth = 240,
+    search,
     placement = 'bottom',
 }: AgentSelectProps): JSX.Element => {
     const [open, setOpen] = useState(false);
+    const [query, setQuery] = useState('');
     const [focusedIndex, setFocusedIndex] = useState(-1);
     const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const triggerRef = useRef<HTMLButtonElement>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
     const optionsRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
     const listboxId = useId();
     const selectedOption = options.find((option) => option.value === value);
+    const displayedIcon = triggerIcon ?? selectedOption?.icon;
     const selectedTitle = selectedOption?.title
         ?? (typeof selectedOption?.label === 'string' ? selectedOption.label : undefined);
+    const searchable = Boolean(search);
+    const positioned = Boolean(dropdownPosition);
+    const visibleOptions = useMemo(() => {
+        const keyword = searchable ? query.trim().toLowerCase() : '';
+        return keyword ? options.filter((option) => [option.value, option.title, typeof option.label === 'string' ? option.label : '']
+            .some((text) => text?.toLowerCase().includes(keyword))) : options;
+    }, [options, query, searchable]);
+
+    useEffect(() => {
+        if (!open) setQuery('');
+    }, [open]);
+
+    useEffect(() => {
+        if (open && searchable && positioned) searchRef.current?.focus({ preventScroll: true });
+    }, [open, searchable, positioned]);
+
+    useEffect(() => {
+        if (!open || !searchable) return;
+        const selectedIndex = visibleOptions.findIndex((option) => option.value === value && !option.disabled);
+        setFocusedIndex(selectedIndex >= 0 ? selectedIndex : visibleOptions.findIndex((option) => !option.disabled));
+        if (optionsRef.current) optionsRef.current.scrollTop = 0;
+    }, [open, searchable, visibleOptions, value]);
 
     useEffect(() => {
         if (!open) return;
@@ -338,15 +400,16 @@ export const AgentSelect = ({
             window.removeEventListener('scroll', updatePosition, true);
             resizeObserver?.disconnect();
         };
-    }, [footer, open, options.length, placement, title]);
+    }, [footer, open, visibleOptions.length, placement, title, dropdownWidth, searchable]);
 
     useEffect(() => {
         if (!open || !dropdownPosition) return;
         const frameId = requestAnimationFrame(() => {
             const optionsElement = optionsRef.current;
-            const selectedElement = optionsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+            const selectedElement = optionsRef.current?.querySelector<HTMLElement>('.focused')
+                ?? optionsRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
             if (!optionsElement || !selectedElement) return;
-            const optionTop = selectedElement.offsetTop;
+            const optionTop = selectedElement.getBoundingClientRect().top - optionsElement.getBoundingClientRect().top + optionsElement.scrollTop;
             const optionBottom = optionTop + selectedElement.offsetHeight;
             if (optionTop < optionsElement.scrollTop) optionsElement.scrollTop = optionTop;
             if (optionBottom > optionsElement.scrollTop + optionsElement.clientHeight) {
@@ -354,29 +417,40 @@ export const AgentSelect = ({
             }
         });
         return () => cancelAnimationFrame(frameId);
-    }, [dropdownPosition, open, value]);
+    }, [dropdownPosition, focusedIndex, open, value, visibleOptions]);
 
     const closeAndSelect = (option: AgentSelectOption): void => {
         if (option.disabled) return;
         onChange(option.value);
         setOpen(false);
+        triggerRef.current?.focus({ preventScroll: true });
     };
 
     const moveFocus = (offset: number): void => {
-        if (!options.length) return;
+        if (!visibleOptions.length) return;
         let nextIndex = focusedIndex;
-        for (let count = 0; count < options.length; count += 1) {
-            nextIndex = (nextIndex + offset + options.length) % options.length;
-            if (!options[nextIndex].disabled) {
+        for (let count = 0; count < visibleOptions.length; count += 1) {
+            nextIndex = nextIndex < 0 ? (offset > 0 ? 0 : visibleOptions.length - 1)
+                : (nextIndex + offset + visibleOptions.length) % visibleOptions.length;
+            if (!visibleOptions[nextIndex].disabled) {
                 setFocusedIndex(nextIndex);
                 return;
             }
         }
     };
 
-    const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
+    const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
+        if (event.nativeEvent.isComposing) return;
         if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
             setOpen(false);
+            triggerRef.current?.focus({ preventScroll: true });
+            return;
+        }
+        if (event.key === 'Tab' && event.target === searchRef.current) {
+            setOpen(false);
+            triggerRef.current?.focus({ preventScroll: true });
             return;
         }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -385,9 +459,9 @@ export const AgentSelect = ({
             moveFocus(event.key === 'ArrowDown' ? 1 : -1);
             return;
         }
-        if (event.key === 'Enter' && open && focusedIndex >= 0) {
+        if (event.key === 'Enter' && open) {
             event.preventDefault();
-            closeAndSelect(options[focusedIndex]);
+            if (visibleOptions[focusedIndex]) closeAndSelect(visibleOptions[focusedIndex]);
         }
     };
 
@@ -397,17 +471,31 @@ export const AgentSelect = ({
 
     const dropdown = open ? createPortal(
         <Container>
-            <div className="agent-select-dropdown" ref={dropdownRef} style={dropdownStyle}>
+            <div className="agent-select-dropdown" ref={dropdownRef} style={{ ...dropdownStyle, width: dropdownWidth }}>
                 {title ? <div className="agent-select-title">{title}</div> : null}
+                {search ? <input
+                    aria-label={search.placeholder}
+                    aria-controls={listboxId}
+                    aria-expanded="true"
+                    aria-autocomplete="list"
+                    aria-activedescendant={visibleOptions[focusedIndex] ? `${listboxId}-${focusedIndex}` : undefined}
+                    className="agent-select-search"
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={search.placeholder}
+                    ref={searchRef}
+                    role="combobox"
+                    value={query}
+                /> : null}
                 <div
-                    aria-activedescendant={focusedIndex >= 0 ? `${listboxId}-${focusedIndex}` : undefined}
+                    aria-activedescendant={visibleOptions[focusedIndex] ? `${listboxId}-${focusedIndex}` : undefined}
                     className="agent-select-options"
                     id={listboxId}
                     ref={optionsRef}
                     role="listbox"
                     style={dropdownPosition ? { maxHeight: dropdownPosition.maxOptionsHeight } : undefined}
                 >
-                    {options.map((option, index) => {
+                    {visibleOptions.map((option, index) => {
                         const selected = option.value === value;
                         return (
                             <button
@@ -418,6 +506,7 @@ export const AgentSelect = ({
                                 key={option.value}
                                 onClick={() => closeAndSelect(option)}
                                 onMouseEnter={() => setFocusedIndex(index)}
+                                onMouseDown={searchable ? (event) => event.preventDefault() : undefined}
                                 role="option"
                                 title={option.title}
                                 type="button"
@@ -434,6 +523,7 @@ export const AgentSelect = ({
                         );
                     })}
                 </div>
+                {search && !visibleOptions.length ? <div className="agent-select-empty" role="status">{search.noResultsText}</div> : null}
                 {footer ? <div className="agent-select-footer" onClick={() => setOpen(false)}>{footer}</div> : null}
             </div>
         </Container>,
@@ -457,9 +547,9 @@ export const AgentSelect = ({
                 ref={triggerRef}
                 type="button"
             >
-                {selectedOption?.icon ? <span aria-hidden="true" className="agent-select-trigger-icon">{selectedOption.icon}</span> : null}
+                {displayedIcon ? <span aria-hidden="true" className="agent-select-trigger-icon">{displayedIcon}</span> : null}
                 <span className="agent-select-label" title={selectedTitle}>{selectedOption?.label ?? placeholder}</span>
-                <img aria-hidden="true" className="agent-select-arrow" src={arrowDownIcon} />
+                {showArrow ? <img aria-hidden="true" className="agent-select-arrow" src={arrowDownIcon} /> : null}
             </button>
             {dropdown}
         </Container>

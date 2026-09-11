@@ -16,7 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import styled from '@emotion/styled';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowUpOutlined } from '@ant-design/icons';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -25,20 +25,22 @@ import { useChatState } from '../hooks/useChatState';
 import arrowDownIcon from '../icons/arrow-down.svg';
 import closeIcon from '../icons/close.svg';
 import stopIcon from '../icons/stop.svg';
+import agentIcon from '../icons/agent.svg';
+import modelIcon from '../icons/model.svg';
 import { AgentSelect } from './AgentSelect';
 
 const Container = styled.div`
     display: grid;
     gap: 8px;
-    padding: 18px 16px 16px;
+    padding: 0 16px 16px;
     background: ${(props): string => props.theme.bgColor};
 
     .composer-box {
         position: relative;
         z-index: 1;
-        height: 124px;
+        min-height: 124px;
         display: grid;
-        grid-template-rows: minmax(0, 1fr) auto;
+        grid-template-rows: auto auto;
         gap: 10px;
         border: 1px solid transparent;
         border-radius: 22px;
@@ -53,9 +55,7 @@ const Container = styled.div`
     }
 
     .composer-box.has-attachments {
-        height: auto;
-        min-height: 180px;
-        grid-template-rows: minmax(40px, 1fr) auto auto;
+        grid-template-rows: auto auto auto;
     }
 
     .attachments {
@@ -244,9 +244,11 @@ const Container = styled.div`
     }
 
     textarea {
+        display: block;
         width: 100%;
-        height: 100%;
-        min-height: 0;
+        box-sizing: border-box;
+        min-height: 60px;
+        max-height: 160px;
         resize: none;
         border: 0;
         padding: 0;
@@ -254,6 +256,7 @@ const Container = styled.div`
         color: ${(props): string => props.theme.textColorPrimary};
         font: inherit;
         font-size: 14px;
+        line-height: 20px;
         outline: none;
     }
 
@@ -350,6 +353,21 @@ const Container = styled.div`
         line-height: 20px;
     }
 
+    .config-picker .agent-select-trigger-icon {
+        width: 16px;
+        height: 16px;
+        flex-basis: 16px;
+    }
+
+    .config-picker-icon {
+        width: 100%;
+        height: 100%;
+        background: currentColor;
+        mask-size: contain;
+        mask-repeat: no-repeat;
+        mask-position: center;
+    }
+
     .shortcut-hint {
         flex: 1 1 auto;
     }
@@ -411,12 +429,35 @@ export const Composer = (): JSX.Element => {
     const [queueExpanded, setQueueExpanded] = useState(true);
     const { t } = useTranslation('insightWebAgent');
     const { addImages, availableCommands, availableSkills, cancelMessage, clearQueuedPrompts, composerRef, configOptions, configOptionsLoading, images, input, pendingPrompt, queuedCount, queuedPrompts, removeImage, removeQueuedPrompt, sendMessage, setInput, setMode, setModel } = useChatState();
+    useLayoutEffect(() => {
+        const textarea = composerRef?.current;
+        if (!textarea) return undefined;
+        const resize = (): void => {
+            textarea.style.height = 'auto';
+            const { minHeight, maxHeight } = getComputedStyle(textarea);
+            const height = Math.max(parseFloat(minHeight), Math.min(textarea.scrollHeight, parseFloat(maxHeight)));
+            textarea.style.height = `${height}px`;
+            textarea.style.overflowY = textarea.scrollHeight > height ? 'auto' : 'hidden';
+        };
+        resize();
+        if (typeof ResizeObserver === 'undefined') return undefined;
+        let previousWidth = textarea.clientWidth;
+        const observer = new ResizeObserver(() => {
+            if (textarea.clientWidth === previousWidth) return;
+            previousWidth = textarea.clientWidth;
+            resize();
+        });
+        observer.observe(textarea);
+        return () => observer.disconnect();
+    }, [composerRef, input]);
     const modelConfig = getModelConfig(configOptions);
     const modelOptions = flattenConfigValues(modelConfig?.options ?? []);
     const modeConfig = getModeConfig(configOptions);
     const modeOptions = flattenConfigValues(modeConfig?.options ?? []);
-    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt || configOptionsLoading, setModel);
-    const modePicker = createConfigPicker(modeConfig, modeOptions, pendingPrompt || configOptionsLoading, setMode);
+    const modelPicker = createConfigPicker(modelConfig, modelOptions, pendingPrompt || configOptionsLoading, setModel, modelIcon, {
+        placeholder: t('searchModels'), noResultsText: t('noMatchingModels'),
+    });
+    const modePicker = createConfigPicker(modeConfig, modeOptions, pendingPrompt || configOptionsLoading, setMode, agentIcon);
     const commandQuery = getCommandQuery(input);
     const commandMatches = getCompletionMatches(availableCommands, availableSkills, commandQuery);
     const showCommandMenu = commandQuery !== undefined && commandMatches.length > 0;
@@ -566,7 +607,7 @@ export const Composer = (): JSX.Element => {
                 <div className="actions">
                     {configOptionsLoading && !modePicker && !modelPicker ? (
                         <div className="model-picker" role="status" aria-live="polite">
-                            <AgentSelect className="config-picker" compact disabled options={[]} onChange={() => {}} placeholder={t('loading')} placement="top" />
+                            <AgentSelect className="config-picker" compact disabled options={[]} onChange={() => {}} placeholder={t('loading')} placement="top" showArrow={false} />
                         </div>
                     ) : null}
                     {modePicker ? <div className="model-picker">{modePicker}</div> : null}
@@ -654,6 +695,8 @@ const createConfigPicker = (
     options: ConfigOptionValue[],
     disabled: boolean,
     onChange: (value: string) => Promise<void>,
+    icon: string,
+    search?: { placeholder: string; noResultsText: string },
 ): JSX.Element | null => {
     if (!config?.currentValue || !options.length) return null;
     return (
@@ -666,6 +709,10 @@ const createConfigPicker = (
             }}
             options={options.map((option) => ({ value: option.value, label: option.name || option.value }))}
             placement="top"
+            triggerIcon={<span className="config-picker-icon" style={{ maskImage: `url(${icon})`, WebkitMaskImage: `url(${icon})` }} />}
+            showArrow={false}
+            dropdownWidth={search ? 320 : 180}
+            search={search}
             value={config.currentValue}
         />
     );

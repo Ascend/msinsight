@@ -79,25 +79,22 @@ const Container = styled.div`
         top: 0;
         z-index: 4;
         min-width: 0;
-    }
-
-    .user-prompt-sticky::before,
-    .user-prompt-sticky::after {
-        position: absolute;
-        top: 0;
-        width: 16px;
-        height: 16px;
         background: ${(props): string => props.theme.bgColor};
-        pointer-events: none;
-        content: "";
     }
 
-    .user-prompt-sticky::before {
-        left: 0;
-    }
-
-    .user-prompt-sticky::after {
+    .user-prompt-fade {
+        visibility: hidden;
+        position: absolute;
+        top: 100%;
         right: 0;
+        left: 0;
+        height: 46px;
+        background: linear-gradient(180deg, ${(props): string => props.theme.bgColor} -1.275%, transparent 148.726%);
+        pointer-events: none;
+    }
+
+    .user-prompt-sticky.stuck .user-prompt-fade {
+        visibility: visible;
     }
 
     .message.user {
@@ -312,13 +309,19 @@ const Container = styled.div`
         background: rgba(191, 191, 191, 1);
     }
 
-    .timeline-item.active .timeline-marker {
-        background: ${(props): string => props.theme.successColor};
-        animation: pulse 1.2s ease-in-out infinite;
-    }
-
     .timeline-item.failed .timeline-marker {
         background: ${(props): string => props.theme.dangerColor};
+    }
+
+    .timeline-list.processing > .timeline-item:last-child > .timeline-marker {
+        background: ${(props): string => props.theme.primaryColor};
+        animation: pulse 1.6s ease-in-out infinite;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .timeline-list.processing > .timeline-item:last-child > .timeline-marker {
+            animation: none;
+        }
     }
 
     .timeline-heading {
@@ -370,6 +373,11 @@ const Container = styled.div`
         min-width: 0;
         font-weight: 400;
         overflow-wrap: anywhere;
+    }
+
+    .timeline-item.tool .tool-state {
+        font-size: 12px;
+        line-height: 21px;
     }
 
     .timeline-tool-details {
@@ -855,9 +863,33 @@ const COLLAPSED_PROMPT_HEIGHT = 65;
 
 const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
+    const stickyRef = useRef<HTMLDivElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
+    const [stuck, setStuck] = useState(false);
     const [expanded, setExpanded] = useState(false);
     const [overflowing, setOverflowing] = useState(false);
+
+    useEffect(() => {
+        const sticky = stickyRef.current;
+        const turn = sticky?.closest('.message-turn');
+        const scroller = sticky?.closest('.messages');
+        if (!sticky || !turn || !scroller) return undefined;
+        const measure = (): void => {
+            const top = scroller.getBoundingClientRect().top + scroller.clientTop;
+            setStuck(turn.getBoundingClientRect().top < top - 0.5 && sticky.getBoundingClientRect().bottom > top);
+        };
+        measure();
+        scroller.addEventListener('scroll', measure, { passive: true });
+        window.addEventListener('resize', measure);
+        const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure);
+        observer?.observe(turn);
+        observer?.observe(scroller);
+        return () => {
+            scroller.removeEventListener('scroll', measure);
+            window.removeEventListener('resize', measure);
+            observer?.disconnect();
+        };
+    }, []);
 
     useEffect(() => {
         const content = contentRef.current;
@@ -888,7 +920,7 @@ const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
 
     const className = `message user${overflowing ? ' overflowing' : ''}${expanded ? ' expanded' : ''}`;
     return (
-        <div className="user-prompt-sticky">
+        <div className={`user-prompt-sticky${stuck ? ' stuck' : ''}`} ref={stickyRef}>
             <article className={className}>
                 {overflowing ? (
                     <button
@@ -906,6 +938,7 @@ const UserPromptCard = ({ message }: { message: ChatMessage }): JSX.Element => {
                     </div>
                 </div>
             </article>
+            <span aria-hidden="true" className="user-prompt-fade" />
         </div>
     );
 };
@@ -939,60 +972,32 @@ const AssistantContent = ({
     pendingPrompt: boolean;
 }): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
-    const beforeTimeline: JSX.Element[] = [];
-    const afterTimeline: JSX.Element[] = [];
-    const timelineEntries: TimelineEntry[] = [];
     const streaming = isStreamingAssistantMessage(messages, index, pendingPrompt);
-    const analyzing = message.activity === 'analyzing_tool_results';
-    let timelineStarted = false;
-
-    message.content.forEach((block) => {
-        if (block.type === 'thinking') {
-            timelineStarted = true;
-            timelineEntries.push({ type: 'thinking', block });
-            return;
-        }
-        if (block.type === 'tool') {
-            timelineStarted = true;
-            timelineEntries.push({ type: 'tool', block });
-            return;
-        }
-        const element = (
-            <ContentBlock
-                allowActions={message.role === 'assistant'}
-                block={block}
-                key={block.id}
-                streaming={streaming}
-            />
-        );
-        (timelineStarted ? afterTimeline : beforeTimeline).push(element);
-    });
-
-    if (!timelineEntries.length) {
-        return <>
-            <AnswerMeta inProgress={streaming} message={message} now={now} />
-            {beforeTimeline}
-        </>;
-    }
+    const lastProcessIndex = message.content.reduce((last, block, blockIndex) => block.type !== 'text' ? blockIndex : last, -1);
+    // Text followed by more reasoning or tools is progress narration, not the final answer.
+    const timelineEntries = message.content.slice(0, lastProcessIndex + 1);
+    const answerBlocks = message.content.slice(lastProcessIndex + 1);
 
     return <>
-        {beforeTimeline}
-        <ThinkingTimeline
-            analyzing={analyzing}
+        {timelineEntries.length ? <ThinkingTimeline
+            analyzing={message.activity === 'analyzing_tool_results'}
             entries={timelineEntries}
             message={message}
             now={now}
             open={streaming}
-            showAnswerMarker={afterTimeline.length > 0}
+            hasTrailingText={answerBlocks.some((block) => block.type === 'text' && block.text.trim())}
             t={t}
-        />
-        {afterTimeline}
+        /> : <AnswerMeta inProgress={streaming} message={message} now={now} />}
+        {answerBlocks.map((block) => <ContentBlock
+            allowActions={message.role === 'assistant'}
+            block={block}
+            key={block.id}
+            streaming={streaming}
+        />)}
     </>;
 };
 
-type ThinkingBlock = Extract<MessageContentBlock, { type: 'thinking' }>;
-type ToolBlock = Extract<MessageContentBlock, { type: 'tool' }>;
-type TimelineEntry = { type: 'thinking'; block: ThinkingBlock } | { type: 'tool'; block: ToolBlock };
+type TimelineEntry = MessageContentBlock;
 
 const ThinkingTimeline = ({
     analyzing,
@@ -1000,7 +1005,7 @@ const ThinkingTimeline = ({
     message,
     now,
     open: expanded,
-    showAnswerMarker,
+    hasTrailingText,
     t,
 }: {
     analyzing: boolean;
@@ -1008,19 +1013,17 @@ const ThinkingTimeline = ({
     message: ChatMessage;
     now: number;
     open: boolean;
-    showAnswerMarker: boolean;
+    hasTrailingText: boolean;
     t: TFunction;
 }): JSX.Element => {
     const [open, setOpen] = useState(expanded);
     useEffect(() => setOpen(expanded), [expanded]);
-    const thinking = expanded && message.durationMs === undefined;
-    const totalDuration = message.startedAt === undefined
-        ? undefined
-        : formatDuration(message.durationMs ?? now - message.startedAt);
-    const showAnalyzing = analyzing && !showAnswerMarker;
+    const thinking = expanded;
+    const totalDuration = processingDuration(message, now, expanded);
+    const showAnalyzing = expanded && analyzing && !hasTrailingText;
     const activeIndex = showAnalyzing ? -1 : entries.reduce((last, entry, entryIndex) => {
-        if (entry.type === 'tool' && entry.block.toolCall.status === 'in_progress') return entryIndex;
-        if (thinking && entry.type === 'thinking' && entryIndex === entries.length - 1 && !showAnswerMarker) return entryIndex;
+        if (expanded && entry.type === 'tool' && entry.toolCall.status === 'in_progress') return entryIndex;
+        if (thinking && entry.type === 'thinking' && entryIndex === entries.length - 1 && !hasTrailingText) return entryIndex;
         return last;
     }, -1);
 
@@ -1028,16 +1031,16 @@ const ThinkingTimeline = ({
         <details className="thinking-timeline answer-meta-details" onToggle={(event) => setOpen(event.currentTarget.open)} open={open}>
             <summary>
                 {thinking ? <ThinkingSparkle /> : null}
-                <span>{thinkingStatusLabel(thinking, totalDuration, t)}</span>
+                <span>{analysisStatusLabel(expanded, message, totalDuration, t)}</span>
                 <span aria-hidden="true" className="thinking-chevron" />
             </summary>
-            <div className="timeline-list">
+            <div className={`timeline-list${expanded ? ' processing' : ''}`}>
                 {entries.map((entry, entryIndex) => (
                     <TimelineNode
                         active={entryIndex === activeIndex}
                         duration={timelineEntryDuration(entries, entryIndex, message, now, entryIndex === activeIndex)}
                         entry={entry}
-                        key={entry.block.id}
+                        key={entry.id}
                         t={t}
                     />
                 ))}
@@ -1046,14 +1049,6 @@ const ThinkingTimeline = ({
                         <div className="timeline-item analyzing active">
                             <span aria-hidden="true" className="timeline-marker" />
                             <div className="timeline-heading"><span className="timeline-title">{t('analyzingToolResults')}</span></div>
-                        </div>
-                    )
-                    : null}
-                {showAnswerMarker
-                    ? (
-                        <div className="timeline-item timeline-answer">
-                            <span aria-hidden="true" className="timeline-marker" />
-                            <div className="timeline-heading"><span className="timeline-title">{t('thinkingAnswering')}</span></div>
                         </div>
                     )
                     : null}
@@ -1073,6 +1068,10 @@ const TimelineNode = ({
     entry: TimelineEntry;
     t: TFunction;
 }): JSX.Element => {
+    if (entry.type === 'text') return <div className="timeline-item progress completed">
+        <span aria-hidden="true" className="timeline-marker" />
+        <ContentBlock allowActions block={entry} streaming={false} />
+    </div>;
     if (entry.type === 'thinking') {
         return (
             <div className={`timeline-item thinking ${active ? 'active' : 'completed'}`}>
@@ -1082,13 +1081,13 @@ const TimelineNode = ({
                     {duration ? <span className="timeline-duration">{duration}</span> : null}
                 </div>
                 <div className="timeline-body rich-text thinking-content">
-                    <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{entry.block.text}</ReactMarkdown>
+                    <ReactMarkdown components={markdownComponents} remarkPlugins={[remarkGfm]}>{entry.text}</ReactMarkdown>
                 </div>
             </div>
         );
     }
 
-    const toolCall = entry.block.toolCall;
+    const toolCall = entry.toolCall;
     const target = toolCallTarget(toolCall.input);
     const outputLabel = t(toolCall.status === 'failed' ? 'toolError' : 'toolOutput');
     const hasDetails = Boolean(toolCall.input || toolCall.output);
@@ -1122,31 +1121,32 @@ const TimelineNode = ({
     );
 };
 
+const thinkingBlockDuration = (entries: TimelineEntry[], index: number, message: ChatMessage, now: number, active: boolean): number | undefined => {
+    const entry = entries[index];
+    if (entry.type !== 'thinking') return undefined;
+    if (entry.durationMs !== undefined) return entry.durationMs;
+    if (entry.startedAt === undefined) return undefined;
+    const nextStartedAt = entries.slice(index + 1).map(getTimelineEntryStartedAt).find((startedAt): startedAt is number => startedAt !== undefined);
+    const end = nextStartedAt ?? (active ? now : message.completedAt ??
+        (message.startedAt !== undefined && message.durationMs !== undefined ? message.startedAt + message.durationMs : undefined));
+    return end !== undefined && end >= entry.startedAt ? end - entry.startedAt : undefined;
+};
+
 const timelineEntryDuration = (entries: TimelineEntry[], index: number, message: ChatMessage, now: number, active: boolean): string | undefined => {
     const entry = entries[index];
-    if (entry.type === 'tool') return formatToolDuration(entry.block.toolCall, now);
-    if (entry.block.startedAt === undefined) return undefined;
-    if (active) return formatDuration(now - entry.block.startedAt);
-    const nextStartedAt = entries.slice(index + 1).map(getTimelineEntryStartedAt).find((startedAt): startedAt is number => startedAt !== undefined);
-    if (nextStartedAt !== undefined) return formatDuration(nextStartedAt - entry.block.startedAt);
-    if (message.startedAt !== undefined && message.durationMs !== undefined) {
-        return formatDuration(message.startedAt + message.durationMs - entry.block.startedAt);
-    }
-    return undefined;
+    if (entry.type === 'tool') return formatToolDuration(entry.toolCall, now);
+    const duration = thinkingBlockDuration(message.content, message.content.findIndex((block) => block.id === entry.id), message, now, active);
+    return duration === undefined ? undefined : formatDuration(duration);
 };
 
 const getTimelineEntryStartedAt = (entry: TimelineEntry): number | undefined => (
-    entry.type === 'thinking' ? entry.block.startedAt : entry.block.toolCall.startedAt
+    entry.type === 'tool' ? entry.toolCall.startedAt : entry.startedAt
 );
 
 const AnswerMeta = ({ inProgress = false, message, now }: { inProgress?: boolean; message: ChatMessage; now: number }): JSX.Element | null => {
     const { t } = useTranslation('insightWebAgent');
-    const thinking = inProgress && message.durationMs === undefined;
-    const label = thinkingStatusLabel(
-        thinking,
-        message.startedAt === undefined ? undefined : formatDuration(message.durationMs ?? now - message.startedAt),
-        t,
-    );
+    const thinking = inProgress;
+    const label = analysisStatusLabel(inProgress, message, processingDuration(message, now, inProgress), t);
     return message.startedAt === undefined ? null : (
         <div className="thinking-summary">
             {thinking ? <ThinkingSparkle /> : null}
@@ -1157,9 +1157,23 @@ const AnswerMeta = ({ inProgress = false, message, now }: { inProgress?: boolean
 
 const ThinkingSparkle = (): JSX.Element => <span aria-hidden="true" className="thinking-sparkle" />;
 
-const thinkingStatusLabel = (inProgress: boolean, duration: string | undefined, t: TFunction): string => {
-    const status = t(inProgress ? 'thinking' : 'thinkingCompleted');
-    return duration ? `${status} ${duration}` : status;
+const analysisStatusLabel = (inProgress: boolean, message: ChatMessage, duration: string | undefined, t: TFunction): string => {
+    if (inProgress) return t('analysisInProgress', { duration: duration ?? formatDuration(0) });
+    const elapsed = duration ? t('thinkingDuration', { duration }) : undefined;
+    if (message.completionStatus === 'failed' || message.completionStatus === 'cancelled') {
+        const status = t(message.completionStatus === 'failed' ? 'analysisFailed' : 'analysisCancelled');
+        return elapsed ? `${status} · ${elapsed}` : status;
+    }
+    return elapsed ?? t('analysisCompleted');
+};
+
+const processingDuration = (message: ChatMessage, now: number, inProgress: boolean): string | undefined => {
+    const end = message.completedAt ?? (inProgress ? now : undefined);
+    if (message.startedAt !== undefined && end !== undefined) {
+        return formatDuration(end - message.startedAt);
+    }
+    // Older messages may only have the recorded first-output duration.
+    return message.durationMs === undefined ? undefined : formatDuration(message.durationMs);
 };
 
 const isHiddenPermissionMessage = (message: ChatMessage): boolean => {
@@ -1214,7 +1228,7 @@ const useToolClock = (enabled: boolean): number => {
         const timer = window.setInterval(() => setNow(Date.now()), 1000);
         return () => window.clearInterval(timer);
     }, [enabled]);
-    return now;
+    return enabled ? Date.now() : now;
 };
 
 const formatRetryWait = (seconds: number | undefined, t: TFunction): string => {

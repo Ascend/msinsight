@@ -16,6 +16,7 @@
  * -------------------------------------------------------------------------
  */
 import { fireEvent, render, screen } from '@testing-library/react';
+import { createRef } from 'react';
 import '@testing-library/jest-dom';
 import { useChatState } from '../../hooks/useChatState';
 import { Composer } from '../../components/Composer';
@@ -44,6 +45,7 @@ const renderComposer = (overrides: Record<string, unknown> = {}) => {
         availableSkills: [],
         cancelMessage: jest.fn(),
         clearQueuedPrompts: jest.fn(),
+        composerRef: createRef<HTMLTextAreaElement>(),
         configOptions: [],
         images: [],
         input: 'hello',
@@ -65,6 +67,30 @@ const renderComposer = (overrides: Record<string, unknown> = {}) => {
 
 afterEach(() => {
     jest.clearAllMocks();
+});
+
+test('grows with the draft up to eight lines and shrinks after clearing it', () => {
+    const state = renderComposer({ input: '' });
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toHaveStyle({ height: '60px', overflowY: 'hidden' });
+
+    let contentHeight = 100;
+    Object.defineProperty(textarea, 'scrollHeight', { configurable: true, get: () => contentHeight });
+    mockUseChatState.mockReturnValue({ ...state, input: 'line\n'.repeat(4) + 'line' });
+    state.rerender(<Composer />);
+    expect(textarea).toHaveStyle({ height: '100px', overflowY: 'hidden' });
+
+    contentHeight = 200;
+    const longDraft = 'line\n'.repeat(9) + 'line';
+    mockUseChatState.mockReturnValue({ ...state, input: longDraft });
+    state.rerender(<Composer />);
+    expect(textarea).toHaveStyle({ height: '160px', overflowY: 'auto' });
+    expect(textarea).toHaveValue(longDraft);
+
+    contentHeight = 20;
+    mockUseChatState.mockReturnValue({ ...state, input: '' });
+    state.rerender(<Composer />);
+    expect(textarea).toHaveStyle({ height: '60px', overflowY: 'hidden' });
 });
 
 test('shows a disabled loading picker while welcome configuration is being loaded', () => {

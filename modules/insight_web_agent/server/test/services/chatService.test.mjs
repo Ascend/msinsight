@@ -264,6 +264,7 @@ test("prompt completion clears the current agent activity", async () => {
 
     assert.equal(state.sessionContexts.get("session-1").messages.at(-1).activity, undefined);
     assert.equal(events.filter((event) => event.type === "message_activity").at(-1).activity, undefined);
+    assert.equal(events.filter((event) => event.type === "prompt_status").at(-1).completionStatus, "completed");
 });
 
 test("prompt and hidden context do not invoke or embed RAG automatically", async () => {
@@ -398,5 +399,29 @@ test("immediate runtime configuration errors end the prompt and clear agent acti
     const assistant = session.messages.find((message) => message.role === "assistant");
     assert.equal(assistant.activity, undefined);
     assert.equal(assistant.content[0].text, `Error: ${error}`);
+    assert.equal(assistant.completionStatus, "failed");
+    assert.equal(events.filter((event) => event.type === "prompt_status").at(-1).completionStatus, "failed");
     assert.deepEqual(events.filter((event) => event.type === "prompt_status").map((event) => event.pendingPrompt), [true, false]);
+});
+
+test("cancelling a turn preserves its stopped state when the old request finishes during a new turn", async () => {
+    const finish = [];
+    const { service, state, events } = createPromptTestService("", () => new Promise((resolve) => finish.push(resolve)));
+    await service.prompt("first", { sessionId: "session-1" });
+    service.handleAcpNotification({ method: "session/update", params: { sessionId: "session-1", update: {
+        kind: "agent_message_chunk", content: { type: "text", text: "Inspecting files" },
+    } } });
+    const firstAssistant = state.sessionContexts.get("session-1").messages.at(-1);
+    await service.cancel("session-1");
+    assert.equal(firstAssistant.completionStatus, "cancelled");
+    assert.equal(events.filter((event) => event.type === "prompt_status").at(-1).completionStatus, "cancelled");
+
+    await service.prompt("second", { sessionId: "session-1" });
+    finish[0]({ stopReason: "cancelled" });
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(state.sessionContexts.get("session-1").pendingPrompt, true);
+    assert.equal(events.filter((event) => event.type === "prompt_status").at(-1).pendingPrompt, true);
+    assert.equal(firstAssistant.completionStatus, "cancelled");
+    finish[1]({ stopReason: "end_turn" });
+    await waitForPromptCompletion(state);
 });
