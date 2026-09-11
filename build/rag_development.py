@@ -18,6 +18,15 @@ PRODUCT_VERSION_RE = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
 KB_VERSION_RE = re.compile(r"^\d{2}\.[012]\.[1-9]\d*$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
+# Canonical Package wire identity. This single constant is the only place in
+# this repo that names the deliverable: producer emits exactly this basename
+# (package_filename_for_schema_version), the consumer requires it
+# (ARCHIVE_NAME), and the sidecar binds sha256 to it. An upstream rename is a
+# wire-protocol change — it must update all three repos plus the literal pins
+# in build/test_rag_development.py, never silently pass here.
+PACKAGE_FILENAME = "knowledge-pack-v5.zip"
+PACKAGE_SIDECAR_SUFFIX = ".sha256"
+
 
 @dataclass(frozen=True)
 class DevelopmentVersion:
@@ -112,12 +121,12 @@ def validate_rag_arguments(
 def preflight_rag_inputs(pack: Path, sidecar: Path, model_dir: Path) -> RagInputFacts:
     archive = _regular_file(pack, "Package")
     digest = _sha256_file(archive)
-    expected_sidecar = f"{digest}  knowledge-pack-v5.zip\n".encode("ascii")
+    expected_sidecar = f"{digest}  {PACKAGE_FILENAME}\n".encode("ascii")
     sidecar_path = _regular_file(sidecar, "sidecar")
-    if sidecar_path.name != "knowledge-pack-v5.zip.sha256" or sidecar_path.read_bytes() != expected_sidecar:
+    if sidecar_path.name != f"{PACKAGE_FILENAME}{PACKAGE_SIDECAR_SUFFIX}" or sidecar_path.read_bytes() != expected_sidecar:
         raise ValueError("Package sidecar is noncanonical or divergent")
-    if archive.name != "knowledge-pack-v5.zip":
-        raise ValueError("Package basename must be knowledge-pack-v5.zip")
+    if archive.name != PACKAGE_FILENAME:
+        raise ValueError(f"Package basename must be {PACKAGE_FILENAME}")
     model = Path(model_dir)
     if model.is_symlink() or not model.is_dir():
         raise ValueError("model directory must be a regular directory")

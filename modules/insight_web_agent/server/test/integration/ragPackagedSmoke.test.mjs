@@ -85,9 +85,11 @@ test("bundled RAG is preactivated and passes lifecycle verify", {
         // the build version for each new dev/beta installer (dev.1 carried KB
         // 26.1.3, 26.2.0-beta-v1 carried KB 26.1.5, beta-v2 adds pre-seeded
         // skills, beta-v3 was superseded before install, beta-v4 adds pip
-        // cluster-analysis dependencies).
-        assert.equal(metadata.productVersion, "26.2.0-beta-v4");
-        assert.equal(metadata.peNumericVersion, "26.2.0.4");
+        // cluster-analysis dependencies, beta-v5 was superseded (missing
+        // msprof_analyze), beta-v6 completed all 15 pip packages, and beta-v7
+        // carries RAG 26.1.6 without ascend-npu-snapshot-analyzer).
+        assert.equal(metadata.productVersion, "26.2.0-beta-v7");
+        assert.equal(metadata.peNumericVersion, "26.2.0.7");
     }
     assert.equal(metadata.consumerAcceptanceEvaluated, false);
     assert.equal(metadata.promotionEvaluated, false);
