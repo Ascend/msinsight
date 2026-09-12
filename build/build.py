@@ -280,7 +280,7 @@ def build_jupyterlab(jupyterlab_version, os_name):
             '--timeout',
             '120',
             '-i',
-            'https://pypi.org/simple',
+            os.environ.get('PIP_INDEX_URL', 'https://pypi.org/simple'),
             '-r',
             requirements_path,
         ],

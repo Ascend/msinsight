@@ -21,11 +21,7 @@ See the Mulan PSL v2 for more details.
 
 from pathlib import Path
 import json
-from jupyter_packaging import (
-    wrap_installers,
-    npm_builder,
-    get_data_files
-)
+from jupyter_packaging import wrap_installers, npm_builder, get_data_files
 import setuptools
 
 HERE = Path(__file__).parent.resolve()
@@ -33,8 +29,8 @@ HERE = Path(__file__).parent.resolve()
 # The name of the project
 PROJECT_NAME = "mindstudio_insight_jupyterlab"
 
-lab_path = (HERE / PROJECT_NAME / "labextension")
-config_path = (HERE / "jupyter-config" / "server-config")
+lab_path = HERE / PROJECT_NAME / "labextension"
+config_path = HERE / "jupyter-config" / "server-config"
 
 # Representative files that should exist after a successful build
 jstargets = [
@@ -45,7 +41,7 @@ jstargets = [
 data_files_spec = [
     (f"share/jupyter/labextensions/@MindStudio/{PROJECT_NAME}", str(lab_path), "**/*"),
     (f"share/jupyter/labextensions/@MindStudio/{PROJECT_NAME}", str(HERE), "install.json"),
-    (f"etc/jupyter/jupyter_server_config.d", str(config_path), "mindstudio_insight_jupyterlab.json")
+    ("etc/jupyter/jupyter_server_config.d", str(config_path), "mindstudio_insight_jupyterlab.json"),
 ]
 data_files = get_data_files(data_files_spec)
 
@@ -53,12 +49,10 @@ data_files = get_data_files(data_files_spec)
 builder = npm_builder(HERE, build_cmd="build:prod", npm=["npm"])
 
 # 使用 wrap_installers 代替 create_cmdclass
-cmdclass = wrap_installers(
-    pre_dist=builder,
-    ensured_targets=jstargets
-)
+cmdclass = wrap_installers(pre_dist=builder, ensured_targets=jstargets)
 
-long_description = (HERE / "README.md").read_text()
+long_description_path = HERE / "README.md"
+long_description = long_description_path.read_text() if long_description_path.exists() else ""
 
 # Get the package info from package.json
 pkg_json = json.loads((HERE / "package.json").read_bytes())
@@ -92,9 +86,9 @@ setup_args = dict(
     entry_points={
         'console_scripts': [
             'mindstudio-insight-jupyterlab = mindstudio_insight_jupyterlab.application:main',
-         ],
+        ],
         'jupyter_serverextension': [
-            'mindstudio-insight-jupyterlab = mindstudio_insight_jupyterlab.mindstudio_insight_jupyterlab:' \
+            'mindstudio-insight-jupyterlab = mindstudio_insight_jupyterlab.mindstudio_insight_jupyterlab:'
             'load_jupyter_server_extension',
         ],
     },
@@ -114,4 +108,3 @@ setup_args = dict(
 
 if __name__ == "__main__":
     setuptools.setup(**setup_args)
-
