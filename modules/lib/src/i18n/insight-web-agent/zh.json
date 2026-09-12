@@ -4,6 +4,33 @@
     "nodeBackendUnavailableTitle": "Node.js 运行环境不可用",
     "nodeBackendUnavailableDescription": "未能连接本地 Node.js 服务。通常是当前环境未安装 Node.js，或后台服务启动失败。",
     "nodeBackendUnavailableAction": "请安装 Node.js 22.14.0 或更高版本，然后重新打开工具；如果已经安装，请检查后台启动日志。",
+    "acpUnavailable": {
+      "missingNode": {
+        "title": "Node.js 运行环境不可用",
+        "description": "当前环境未找到可用于 Agent 服务的 Node.js。",
+        "action": "请安装 Node.js 22.14.0 或更高版本，然后重新打开工具。"
+      },
+      "unsupportedNode": {
+        "title": "Node.js 版本过低",
+        "description": "已检测到 Node.js {{version}}，但 Agent 服务需要 22.14.0 或更高版本。",
+        "action": "请升级 Node.js 后重新打开工具。"
+      },
+      "startFailed": {
+        "title": "Agent 服务启动失败",
+        "description": "已找到可用的 Node.js，但本地 Agent 服务未能启动。",
+        "action": "请查看后台启动日志，确认端口未被占用后重试。"
+      },
+      "starting": {
+        "title": "Agent 服务启动中",
+        "description": "正在等待本地 Agent 服务就绪。",
+        "action": "请稍候，服务就绪后会自动连接。"
+      },
+      "unreachable": {
+        "title": "无法连接 Agent 服务",
+        "description": "本地 Agent 服务当前无法访问。",
+        "action": "请查看后台启动日志，或稍后重试。"
+      }
+    },
     "nodeDownloadAddress": "Node.js 下载地址：",
     "nodeDownloadUrl": "https://nodejs.org/zh-cn/download",
     "dismiss": "关闭",

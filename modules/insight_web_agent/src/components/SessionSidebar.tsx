@@ -249,6 +249,17 @@ export const SessionSidebar = (): JSX.Element => {
         setSettingsOpen(true);
     };
 
+    const getOptions = () => {
+        return agentServers.filter(agent => agent.available)
+            .map((agent) => ({
+                value: agent.name,
+                label: agent.available === false ? t('unavailableAgentLabel', { name: agent.name }) : agent.name,
+                title: agent.available === false ? t('unavailableAgentHint') : agent.name,
+                icon: getAgentIcon(agent.name),
+                disabled: agent.available === false,
+            }))
+    };
+
     return (
         <Container>
             <div className="agent-brand">
@@ -274,13 +285,7 @@ export const SessionSidebar = (): JSX.Element => {
                     onChange={(value) => {
                         setAgent(value);
                     }}
-                    options={agentServers.map((agent) => ({
-                        value: agent.name,
-                        label: agent.available === false ? t('unavailableAgentLabel', { name: agent.name }) : agent.name,
-                        title: agent.available === false ? t('unavailableAgentHint') : agent.name,
-                        icon: getAgentIcon(agent.name),
-                        disabled: agent.available === false,
-                    }))}
+                    options={getOptions()}
                     placeholder={t('defaultAgent')}
                     title={t('switchAgent')}
                     value={activeAgentName}

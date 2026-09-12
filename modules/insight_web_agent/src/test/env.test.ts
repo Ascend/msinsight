@@ -55,3 +55,14 @@ test('local development uses its configured capability token', () => {
     expect(resolveCapabilityToken('?capabilityToken=runtime-token', 'development', 'local-token')).toBe('runtime-token');
     expect(resolveCapabilityToken('', 'production', 'local-token')).toBe('');
 });
+
+test('ACP runtime status prefers the host query and does not assume a missing Node binary', () => {
+    const { resolveAcpRuntimeStatus } = require('../acpStatus');
+
+    expect(resolveAcpRuntimeStatus('?acpStatus=missing-node', 'production', false)).toBe('missing-node');
+    expect(resolveAcpRuntimeStatus('?acpStatus=start-failed', 'production', false)).toBe('start-failed');
+    expect(resolveAcpRuntimeStatus('?acpPort=9090&capabilityToken=token', 'production', false)).toBe('ready');
+    expect(resolveAcpRuntimeStatus('', 'development', false)).toBe('ready');
+    expect(resolveAcpRuntimeStatus('', 'production', true)).toBe('ready');
+    expect(resolveAcpRuntimeStatus('', 'production', false)).toBe('start-failed');
+});

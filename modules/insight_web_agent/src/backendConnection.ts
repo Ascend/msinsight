@@ -7,12 +7,16 @@
  * -------------------------------------------------------------------------
  */
 
+import type { AcpUnavailableReason } from './acpStatus';
+
 export interface BackendConnectionFailure {
     url: string;
     cause?: string;
+    status?: AcpUnavailableReason;
+    nodeVersion?: string;
 }
 
-type BackendConnectionListener = (failure: BackendConnectionFailure) => void;
+type BackendConnectionListener = (failure: BackendConnectionFailure | undefined) => void;
 
 const listeners = new Set<BackendConnectionListener>();
 let lastFailure: BackendConnectionFailure | undefined;
@@ -26,13 +30,15 @@ export const reportBackendUnavailable = (failure: BackendConnectionFailure): voi
 };
 
 export const reportBackendAvailable = (): void => {
+    if (!lastFailure) {
+        return;
+    }
     lastFailure = undefined;
+    listeners.forEach((listener) => listener(undefined));
 };
 
 export const subscribeBackendUnavailable = (listener: BackendConnectionListener): (() => void) => {
     listeners.add(listener);
-    if (lastFailure) {
-        listener(lastFailure);
-    }
+    listener(lastFailure);
     return () => listeners.delete(listener);
 };

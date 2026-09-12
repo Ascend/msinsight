@@ -56,6 +56,15 @@ test("requires the capability for all API routes including SSE", async (t) => {
     assert.equal(fixture.sseConnections(), 1);
 });
 
+test("exposes an unauthenticated health endpoint for host ready checks", async (t) => {
+    const fixture = await startFixture();
+    t.after(() => fixture.server.close());
+
+    const response = await fetch(`${fixture.url}/api/health`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, status: "ready" });
+});
+
 test("emits CORS only for the explicit allowed origin and rejects other origins", async (t) => {
     const fixture = await startFixture();
     t.after(() => fixture.server.close());

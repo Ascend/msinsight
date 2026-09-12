@@ -15,6 +15,8 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import { resolveAcpRuntimeStatus } from './acpStatus';
+
 declare const process: {
     readonly env: {
         readonly NODE_ENV?: 'development' | 'production' | 'test';
@@ -28,7 +30,14 @@ declare global {
     }
 }
 
-const acpPort = new URLSearchParams(window.location.search).get('acpPort');
+const searchParams = new URLSearchParams(window.location.search);
+const acpPort = searchParams.get('acpPort');
+export const ACP_NODE_VERSION = searchParams.get('acpNodeVersion') || '';
+export const ACP_STATUS = resolveAcpRuntimeStatus(
+    window.location.search,
+    process.env.NODE_ENV,
+    Boolean(window.__ACP_API_BASE__),
+);
 export const resolveCapabilityToken = (
     search: string = window.location.search,
     nodeEnv: string | undefined = process.env.NODE_ENV,
@@ -37,14 +46,10 @@ export const resolveCapabilityToken = (
     || (nodeEnv === 'development' ? developmentToken ?? '' : '');
 
 const capabilityToken = resolveCapabilityToken();
-const jupyterlabProxy = new URLSearchParams(window.location.search).get('jupyterlabProxy') === 'true';
+const jupyterlabProxy = searchParams.get('jupyterlabProxy') === 'true';
 const defaultApiBase = process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:9090' : '';
 
 type AcpLocation = Pick<Location, 'host' | 'hostname' | 'pathname' | 'protocol'>;
-
-if (process.env.NODE_ENV !== 'development' && (!window.__ACP_API_BASE__ && !acpPort || !capabilityToken)) {
-    throw new Error('Missing required ACP connection parameters.');
-}
 
 const resolveAcpApiBase = (): string => {
     if (window.__ACP_API_BASE__) return window.__ACP_API_BASE__;

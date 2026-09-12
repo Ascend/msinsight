@@ -18,8 +18,9 @@
 import type { AgentConfigSaveResult, AgentConfigServer, AgentConfigSnapshot, AgentServerItem, AgentSessionConfig, AppState, BuiltinAgentConfig, ChatMessage, ConfigOption, ImageAttachment, PermissionDecision, SessionConfigUpdateResult, SessionItem } from './types';
 import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
-import { apiUrl } from './env';
+import { apiUrl, ACP_STATUS, ACP_NODE_VERSION } from './env';
 import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
+import type { AcpUnavailableReason } from './acpStatus';
 
 interface PromptResponse {
     ok?: boolean;
@@ -83,22 +84,67 @@ export const isBackendUnavailableError = (error: unknown): error is ApiRequestEr
     error instanceof ApiRequestError && error.status === undefined
 );
 
+const CONNECT_RETRY_DELAYS_MS = ACP_STATUS === 'starting' ? [400, 800, 1600, 3000] : [400, 800, 1600];
+
+const shouldRetryConnection = (): boolean => ACP_STATUS === 'ready' || ACP_STATUS === 'starting';
+
+const connectionFailureStatus = (): AcpUnavailableReason => {
+    if (ACP_STATUS === 'ready') {
+        return 'unreachable';
+    }
+    return ACP_STATUS;
+};
+
+const isAbortError = (error: unknown): boolean => (
+    (error instanceof DOMException && error.name === 'AbortError')
+    || (error instanceof Error && error.name === 'AbortError')
+);
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+});
+
+const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> => {
+    const delays = shouldRetryConnection() ? CONNECT_RETRY_DELAYS_MS : [];
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= delays.length; attempt += 1) {
+        try {
+            return await fetch(url, {
+                ...init,
+                headers: {
+                    ...(init?.body ? { 'content-type': 'application/json' } : {}),
+                    ...init?.headers,
+                },
+            });
+        } catch (error) {
+            lastError = error;
+            if (isAbortError(error) || attempt === delays.length) {
+                throw error;
+            }
+            await sleep(delays[attempt]);
+        }
+    }
+    throw lastError;
+};
+
 const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
     const url = apiUrl(path);
     let response: Response;
     try {
-        response = await fetch(url, {
-            ...init,
-            headers: {
-                ...(init?.body ? { 'content-type': 'application/json' } : {}),
-                ...init?.headers,
-            },
-        });
+        response = await fetchBackend(url, init);
         reportBackendAvailable();
     } catch (error) {
+        if (isAbortError(error)) {
+            throw error;
+        }
         const cause = error instanceof Error ? error.message : String(error);
-        reportBackendUnavailable({ url: safeEndpoint(url), cause });
-        throw new ApiRequestError(`Unable to connect to the Node.js backend: ${cause}`, undefined, path);
+        reportBackendUnavailable({
+            url: safeEndpoint(url),
+            cause,
+            status: connectionFailureStatus(),
+            nodeVersion: ACP_NODE_VERSION,
+        });
+        throw new ApiRequestError(`Unable to connect to the Agent backend: ${cause}`, undefined, path);
     }
 
     const rawBody = await response.text();

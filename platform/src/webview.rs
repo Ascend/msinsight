@@ -36,6 +36,27 @@ use wry::{
 };
 const MIMETYPE_HTML: &str = "text/html";
 
+fn frontend_index_url(
+    port: u16,
+    acp_port: u16,
+    capability_token: &str,
+    acp_status: &str,
+    acp_node_version: &str,
+) -> String {
+    let mut url = format!(
+        "wry://localhost/resources/profiler/frontend/index.html?port={port}&acpStatus={acp_status}"
+    );
+    if acp_status == "ready" && acp_port != 0 {
+        url.push_str(&format!(
+            "&acpPort={acp_port}&acpCapabilityToken={capability_token}"
+        ));
+    }
+    if !acp_node_version.is_empty() {
+        url.push_str(&format!("&acpNodeVersion={acp_node_version}"));
+    }
+    url
+}
+
 fn create_webview(
     window: &Window,
     cache_path: Arc<PathBuf>,
@@ -43,6 +64,8 @@ fn create_webview(
     port: u16,
     acp_port: u16,
     capability_token: &str,
+    acp_status: &str,
+    acp_node_version: &str,
     proxy: Arc<EventLoopProxy<PathBuf>>,
 ) -> wry::Result<WebView> {
     // Wry only borrows Window in newer versions; run_event_loop owns it later.
@@ -58,7 +81,7 @@ fn create_webview(
 
             build_protocol_response(200, mimetype, content)
         })
-        .with_url(format!("wry://localhost/resources/profiler/frontend/index.html?port={}&acpPort={}&acpCapabilityToken={}", port, acp_port, capability_token).as_str())?
+        .with_url(frontend_index_url(port, acp_port, capability_token, acp_status, acp_node_version).as_str())?
         .with_file_drop_handler(move |ev| {
             match ev {
                 FileDropEvent::Dropped { paths, .. } => {
@@ -245,6 +268,8 @@ pub fn run_script(
     port: u16,
     acp_port: u16,
     capability_token: &str,
+    acp_status: &str,
+    acp_node_version: &str,
 ) -> wry::Result<(EventLoop<PathBuf>, WebView, Window)> {
     let event_loop = EventLoopBuilder::<PathBuf>::with_user_event().build();
 
@@ -269,7 +294,7 @@ pub fn run_script(
     #[cfg(windows)]
     set_windows_icon(&window, root_path);
 
-    let webview = create_webview(&window, log_path, resource_path, port, acp_port, capability_token, proxy)?;
+    let webview = create_webview(&window, log_path, resource_path, port, acp_port, capability_token, acp_status, acp_node_version, proxy)?;
 
     Ok((event_loop, webview, window))
 }

@@ -58,6 +58,14 @@ export const createApp = ({ agentService, eventBus, chatService, sessionService,
                 }), 403);
             }
             const requestPath = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`).pathname;
+            if (requestPath === "/api/health") {
+                if (req.method === "OPTIONS") {
+                    res.writeHead(204);
+                    res.end();
+                    return;
+                }
+                return json(res, { ok: true, status: "ready" }, 200);
+            }
             if (requestPath.startsWith("/api/")
                 && requestPath !== "/api/capabilities/invoke"
                 && !hasValidCapability(req, capabilityToken)) {

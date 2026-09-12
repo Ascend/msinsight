@@ -4,6 +4,33 @@
     "nodeBackendUnavailableTitle": "Node.js runtime unavailable",
     "nodeBackendUnavailableDescription": "The local Node.js service could not be reached. Node.js may not be installed, or the backend may have failed to start.",
     "nodeBackendUnavailableAction": "Install Node.js 22.14.0 or later and reopen the tool. If Node.js is already installed, check the backend startup log.",
+    "acpUnavailable": {
+      "missingNode": {
+        "title": "Node.js runtime unavailable",
+        "description": "No Node.js runtime was found for the Agent service.",
+        "action": "Install Node.js 22.14.0 or later and reopen the tool."
+      },
+      "unsupportedNode": {
+        "title": "Node.js version is too old",
+        "description": "Found Node.js {{version}}, but the Agent service requires 22.14.0 or later.",
+        "action": "Upgrade Node.js and reopen the tool."
+      },
+      "startFailed": {
+        "title": "Agent service failed to start",
+        "description": "A compatible Node.js runtime was found, but the local Agent service did not start.",
+        "action": "Check the backend startup log and confirm the port is not in use."
+      },
+      "starting": {
+        "title": "Agent service is starting",
+        "description": "Waiting for the local Agent service to become ready.",
+        "action": "Please wait. The session will connect automatically."
+      },
+      "unreachable": {
+        "title": "Unable to reach the Agent service",
+        "description": "The local Agent service is currently unreachable.",
+        "action": "Check the backend startup log, or retry later."
+      }
+    },
     "nodeDownloadAddress": "Node.js download URL:",
     "nodeDownloadUrl": "https://nodejs.org/en/download",
     "dismiss": "Close",

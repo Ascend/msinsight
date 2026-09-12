@@ -104,17 +104,28 @@ export function getMindStudioInstanceUrl(
     port: string,
     profilerServerId: string,
     acpPort?: string,
-    acpCapabilityToken?: string
+    acpCapabilityToken?: string,
+    acpStatus?: string,
+    acpNodeVersion?: string
 ): string {
     const url = URLExt.join(baseUrl, MINDSTUDIO_URL);
-    const acpPortParam = acpPort
-        ? `&acpPort=${encodeURIComponent(acpPort)}`
-        : '';
-    const capabilityParam = acpCapabilityToken
-        ? `&acpCapabilityToken=${encodeURIComponent(acpCapabilityToken)}`
-        : '';
+    const params = new URLSearchParams();
     if (proxy) {
-        return `${url}?jupyterlabProxy=true&port=${port}&profilerServerId=${profilerServerId}${acpPortParam}${capabilityParam}`;
+        params.set('jupyterlabProxy', 'true');
     }
-    return `${url}?port=${port}&profilerServerId=${profilerServerId}${acpPortParam}${capabilityParam}`;
+    params.set('port', port);
+    params.set('profilerServerId', profilerServerId);
+    if (acpStatus) {
+        params.set('acpStatus', acpStatus);
+    }
+    if (acpPort) {
+        params.set('acpPort', acpPort);
+    }
+    if (acpCapabilityToken) {
+        params.set('acpCapabilityToken', acpCapabilityToken);
+    }
+    if (acpNodeVersion) {
+        params.set('acpNodeVersion', acpNodeVersion);
+    }
+    return `${url}?${params.toString()}`;
 }
