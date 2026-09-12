@@ -23,7 +23,7 @@ See the Mulan PSL v2 for more details.
 import os
 import subprocess
 
-from build import init_log, log_output
+from build import init_log, log_output  # pylint: disable=no-name-in-module
 
 BUILD_DIR = os.path.dirname(os.path.abspath(__file__))
 HOME_DIR = os.path.dirname(BUILD_DIR)
@@ -55,7 +55,20 @@ def download_3rd_party():
     for source in OPEN_SOURCE:
         if os.path.exists(os.path.join(THIRD_PARTY_DIR, source[0])):
             continue
-        download_cmd = ['git', 'clone', '-b', source[1], source[2], source[0], '--depth=1']
+        # Persist LF-only checkout behavior in each dependency repository. This
+        # keeps fixed-commit integrity checks stable under Git for Windows,
+        # where the user-level core.autocrlf setting is commonly true.
+        download_cmd = [
+            'git',
+            'clone',
+            '--config',
+            'core.autocrlf=false',
+            '-b',
+            source[1],
+            source[2],
+            source[0],
+            '--depth=1',
+        ]
         with subprocess.Popen(download_cmd, cwd=THIRD_PARTY_DIR, stdout=subprocess.PIPE) as output:
             log_output(output)
 
