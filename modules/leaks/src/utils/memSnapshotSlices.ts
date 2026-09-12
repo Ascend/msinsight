@@ -28,6 +28,22 @@ export const resolveMemSnapshotSliceIndexByEventId = (
         slice.ready && eventId >= slice.startEventId && eventId <= slice.endEventId)?.index;
 };
 
+export const isMemSnapshotSliceReadyForQuery = (session: {
+    module?: string;
+    deviceId?: string;
+    selectedSliceIndex?: number;
+    snapshotSlices?: Record<string, { slices?: Array<{ ready?: boolean }> } | undefined>;
+}): boolean => {
+    if (session.module !== 'memsnapshot') {
+        return true;
+    }
+    const sliceIndex = session.selectedSliceIndex ?? -1;
+    if (sliceIndex < 0 || session.deviceId === undefined || session.deviceId === '') {
+        return false;
+    }
+    return session.snapshotSlices?.[session.deviceId]?.slices?.[sliceIndex]?.ready === true;
+};
+
 export const getPreferredMemSnapshotDeviceSlices = (
     snapshotSlices: Record<string, MemSnapshotDeviceSliceInfo | undefined>,
     deviceId: string,

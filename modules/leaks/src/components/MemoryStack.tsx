@@ -314,10 +314,17 @@ const MemoryStack = observer(({ session }: { session: any }): React.ReactElement
     ]);
 
     useEffect(() => {
-        // Leak stats should only follow the committed session range. Data source refreshes
-        // during project switching must not trigger the snapshot-only stats API directly.
+        if (session.module === 'memsnapshot' && session.selectedSliceIndex < 0) {
+            debouncedFuncRangeRef.current?.cancel();
+            debouncedCommitRangeRef.current?.cancel();
+        }
+    }, [session.module, session.selectedSliceIndex, session.memSnapshotParseFileId]);
+
+    useEffect(() => {
+        // Leak stats should only follow the committed session range after the selected
+        // snapshot slice is ready. Importing a new pickle must not query the unfinished db.
         getPotentialLeakStats(session);
-    }, [session.module, session.deviceId, session.minTime, session.maxTime]);
+    }, [session.module, session.deviceId, session.minTime, session.maxTime, session.selectedSliceIndex]);
 
     useEffect(() => {
         return () => {

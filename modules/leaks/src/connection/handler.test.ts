@@ -188,6 +188,10 @@ describe('memsnapshot parse progress handlers', () => {
         session.fileHash = 'old-hash';
         session.snapshotParsingComplete = true;
 
+        session.minTime = 50;
+        session.maxTime = 80;
+        session.deviceId = '0';
+
         switchDirectoryHandler({ selectedFilePath: 'C:\\data\\new.pickle' });
 
         expect(session.memSnapshotParseLoading).toBe(true);
@@ -197,6 +201,9 @@ describe('memsnapshot parse progress handlers', () => {
         expect(session.snapshotSlices).toEqual({});
         expect(session.snapshotParsingComplete).toBe(false);
         expect(session.fileHash).toBe('');
+        expect(session.minTime).toBe(0);
+        expect(session.maxTime).toBe(0);
+        expect(session.deviceId).toBe('');
     });
 
     it('keeps overall parse progress when switching to the same snapshot file', () => {
@@ -225,6 +232,11 @@ describe('memsnapshot parse progress handlers', () => {
         session.fileHash = 'old-hash';
         session.snapshotParsingComplete = true;
 
+        session.minTime = 100;
+        session.maxTime = 200;
+        session.deviceId = '0';
+        session.clickEventItem = { id: 1 } as any;
+
         importRemoteHandler({ selectedFilePath: 'C:\\data\\snapshot.pickle' });
 
         expect(session.memSnapshotParseLoading).toBe(true);
@@ -234,6 +246,12 @@ describe('memsnapshot parse progress handlers', () => {
         expect(session.snapshotSlices).toEqual({});
         expect(session.snapshotParsingComplete).toBe(false);
         expect(session.fileHash).toBe('');
+        expect(session.minTime).toBe(0);
+        expect(session.maxTime).toBe(0);
+        expect(session.deviceId).toBe('');
+        expect(session.clickEventItem).toBeNull();
+        expect(session.leakStats.error).toBe(false);
+        expect(session.leakStats.loading).toBe(false);
     });
 
     it('hydrates overall parse progress from the framework session', () => {

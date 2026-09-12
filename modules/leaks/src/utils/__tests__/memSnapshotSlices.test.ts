@@ -9,6 +9,7 @@
 import {
     applyMemSnapshotEventLocate,
     getPreferredMemSnapshotDeviceSlices,
+    isMemSnapshotSliceReadyForQuery,
     resolveMemSnapshotSliceIndexByEventId,
 } from '../memSnapshotSlices';
 import type { MemSnapshotDeviceSliceInfo } from '@/entity/session';
@@ -41,6 +42,28 @@ describe('memSnapshotSlices', () => {
         expect(getPreferredMemSnapshotDeviceSlices(snapshotSlices, 'missing')).toBe(
             snapshotSlices[Object.keys(snapshotSlices)[0]],
         );
+    });
+
+    it('does not treat a snapshot query as ready until the selected slice is ready', () => {
+        expect(isMemSnapshotSliceReadyForQuery({ module: 'leaks', deviceId: '0', selectedSliceIndex: -1 })).toBe(true);
+        expect(isMemSnapshotSliceReadyForQuery({
+            module: 'memsnapshot',
+            deviceId: '0',
+            selectedSliceIndex: -1,
+            snapshotSlices: { 0: deviceSlices },
+        })).toBe(false);
+        expect(isMemSnapshotSliceReadyForQuery({
+            module: 'memsnapshot',
+            deviceId: '0',
+            selectedSliceIndex: 0,
+            snapshotSlices: {},
+        })).toBe(false);
+        expect(isMemSnapshotSliceReadyForQuery({
+            module: 'memsnapshot',
+            deviceId: '0',
+            selectedSliceIndex: 1,
+            snapshotSlices: { 0: deviceSlices },
+        })).toBe(true);
     });
 
     it('switches the selected slice before locating a cross-window event', () => {

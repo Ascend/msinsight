@@ -39,6 +39,7 @@ import { message } from 'antd';
 import { runInAction } from 'mobx';
 import { ensureOpfsFallbackApproval, ensureOpfsOrWaitForFallbackApproval } from './opfsFallback';
 import { createMemoryBlockContextKey, isMemoryBlockLoadReady } from './blockLoadState';
+import { isMemSnapshotSliceReadyForQuery } from '../utils/memSnapshotSlices';
 
 const funcDataRequestSeqMap = new WeakMap<object, number>();
 
@@ -133,6 +134,9 @@ export const getFuncNewData = async (
     endTimestamp?: number,
     shouldApply: () => boolean = () => true,
 ): Promise<void> => {
+    if (!isMemSnapshotSliceReadyForQuery(session)) {
+        return;
+    }
     const requestSeq = (funcDataRequestSeqMap.get(session) ?? 0) + 1;
     funcDataRequestSeqMap.set(session, requestSeq);
     const isLatestRequest = (): boolean => funcDataRequestSeqMap.get(session) === requestSeq && shouldApply();
@@ -356,8 +360,7 @@ export const getBarNewData = async (session: any): Promise<void> => {
     blockTableRequestSeqMap.set(session, (blockTableRequestSeqMap.get(session) ?? 0) + 1);
     eventTableRequestSeqMap.set(session, (eventTableRequestSeqMap.get(session) ?? 0) + 1);
     const isLatestRequest = (): boolean => barDataRequestSeqMap.get(session) === requestSeq;
-    const selectedSlice = session.snapshotSlices[session.deviceId]?.slices[session.selectedSliceIndex];
-    if (session.module === 'memsnapshot' && selectedSlice?.ready !== true) {
+    if (!isMemSnapshotSliceReadyForQuery(session)) {
         workerDestroy();
         runInAction(() => {
             session.blockData = { blocks: [], minSize: 0, maxSize: 0, minTimestamp: 0, maxTimestamp: 0 };
@@ -683,6 +686,9 @@ const handleThreshold = (blockParam: any, session: any): void => {
     });
 };
 export const getBlockTableData = async (session: any): Promise<void> => {
+    if (!isMemSnapshotSliceReadyForQuery(session)) {
+        return;
+    }
     const requestSeq = (blockTableRequestSeqMap.get(session) ?? 0) + 1;
     blockTableRequestSeqMap.set(session, requestSeq);
     const isLatestRequest = (): boolean => blockTableRequestSeqMap.get(session) === requestSeq;
@@ -739,7 +745,10 @@ export const getBlockTableData = async (session: any): Promise<void> => {
 export const getPotentialLeakStats = async (session: any, range?: [number, number]): Promise<void> => {
     const startTimestamp = range?.[0] ?? session.minTime;
     const endTimestamp = range?.[1] ?? session.maxTime;
-    if (session.module !== 'memsnapshot' || session.deviceId === '' || endTimestamp === 0 || endTimestamp === undefined) return;
+    if (session.module !== 'memsnapshot' || session.deviceId === '' || endTimestamp === 0 ||
+        endTimestamp === undefined || !isMemSnapshotSliceReadyForQuery(session)) {
+        return;
+    }
     const deviceId = session.deviceId;
     const sliceIndex = session.selectedSliceIndex;
     const requestId = session.leakStats.requestId + 1;

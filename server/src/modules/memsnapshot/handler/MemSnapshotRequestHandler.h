@@ -84,6 +84,15 @@ class MemSnapshotRequestHandler : public ModuleRequestHandler {
         return resolved;
     }
 
+    static inline bool HasOpenMemSnapshotDatabase(const MemSnapshotResolvedRequest &resolved) {
+        return resolved.database != nullptr && resolved.database->IsOpen();
+    }
+
+    // Manifest 尚未写出或目标分窗未就绪时，查询早于解析，不应报成连库失败。
+    static inline bool IsMemSnapshotQueryPending(const MemSnapshotResolvedRequest &resolved) {
+        return !HasOpenMemSnapshotDatabase(resolved) && !resolved.slice.has_value();
+    }
+
     static inline std::shared_ptr<FullDb::MemSnapshotDatabase> GetMemSnapshotDatabaseByRequest(
         const Protocol::Request &request, const std::string &deviceId, int sliceIndex) {
         return ResolveMemSnapshotRequest(request, deviceId, sliceIndex).database;

@@ -305,6 +305,32 @@ TEST_F(MemSnapshotHandlerTest, QueryLeakStatsWithInvalidEventIdxRange) {
     EXPECT_FALSE(result);
 }
 
+TEST_F(MemSnapshotHandlerTest, QueryLeakStatsWhileManifestMissingReturnsEmptySuccess) {
+    QueryMemSnapshotLeakStatsHandler handler;
+    std::unique_ptr<MemSnapshotLeakStatsRequest> requestPtr = std::make_unique<MemSnapshotLeakStatsRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->fileId = "C:\\\\data\\\\pickle\\\\missing.pickle";
+    requestPtr->params.deviceId = "0";
+    requestPtr->params.startEventIdx = 0;
+    requestPtr->params.endEventIdx = 100;
+
+    bool result = handler.HandleRequest(std::move(requestPtr));
+    EXPECT_TRUE(result);
+}
+
+TEST_F(MemSnapshotHandlerTest, QueryDetailWhileManifestMissingReturnsEmptySuccess) {
+    QueryMemSnapshotDetailHandler handler;
+    std::unique_ptr<MemSnapshotDetailRequest> requestPtr = std::make_unique<MemSnapshotDetailRequest>();
+    requestPtr->moduleName = MODULE_MEM_SCOPE;
+    requestPtr->fileId = "C:\\\\data\\\\pickle\\\\missing.pickle";
+    requestPtr->params.type = "block";
+    requestPtr->params.id = 1;
+    requestPtr->params.deviceId = "0";
+
+    bool result = handler.HandleRequest(std::move(requestPtr));
+    EXPECT_TRUE(result);
+}
+
 // ============== QueryMemSnapshotDetailHandler Tests ==============
 
 TEST_F(MemSnapshotHandlerTest, QueryBlockDetailWithValidParams) {
