@@ -21,17 +21,20 @@ use std::os::windows::process::CommandExt;
 use std::{
     env,
     env::current_exe,
-    ffi::OsStr,
-    net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6, TcpListener},
+    net::{
+        Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, TcpListener,
+        TcpStream,
+    },
     path::PathBuf,
-    process::Command,
+    process::{Command, Stdio},
+    thread,
+    time::{Duration, Instant},
 };
 #[cfg(target_os = "macos")]
 use std::{
+    ffi::OsStr,
     io::{self, Read},
-    process::{Child, Stdio},
-    thread,
-    time::{Duration, Instant},
+    process::Child,
 };
 
 use crate::webview;
@@ -41,8 +44,33 @@ const SERVER_RELATIVE_LIST: [&str; 4] =
 const ACP_SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "insight_web_agent"];
 const MINIMUM_NODE_VERSION: (u32, u32, u32) = (22, 14, 0);
+const ACP_READY_TIMEOUT: Duration = Duration::from_secs(12);
 #[cfg(windows)]
 const NO_WINDOW_FLAG: u32 = 0x08000000;
+
+struct AcpLaunch {
+    status: &'static str,
+    port: u16,
+    token: String,
+    node_version: String,
+}
+
+impl AcpLaunch {
+    fn failed(status: &'static str, node_version: String) -> Self {
+        Self {
+            status,
+            port: 0,
+            token: String::new(),
+            node_version,
+        }
+    }
+}
+
+enum NodeResolve {
+    Found((u32, u32, u32)),
+    Missing,
+    Unsupported(String),
+}
 
 fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
     let mut server_path = root_path.to_path_buf();
@@ -186,20 +214,6 @@ fn run_acp_server(
     }
 }
 
-fn node_version_supported() -> bool {
-    let Ok(output) = Command::new("node").arg("--version").output() else {
-        eprintln!("Node executable was not found in PATH");
-        return false;
-    };
-    let version = String::from_utf8_lossy(&output.stdout);
-    let supported = output.status.success() && parse_node_version(&version)
-        .is_some_and(|version| version >= MINIMUM_NODE_VERSION);
-    if !supported {
-        eprintln!("ACP requires Node.js 22.14.0 or later");
-    }
-    supported
-}
-
 fn parse_node_version(version: &str) -> Option<(u32, u32, u32)> {
     let parts: Vec<u32> = version
         .trim()
@@ -209,6 +223,119 @@ fn parse_node_version(version: &str) -> Option<(u32, u32, u32)> {
         .filter_map(|part| part.parse().ok())
         .collect();
     (parts.len() == 3).then(|| (parts[0], parts[1], parts[2]))
+}
+
+fn format_node_version(version: (u32, u32, u32)) -> String {
+    format!("{}.{}.{}", version.0, version.1, version.2)
+}
+
+fn inspect_node_runtime() -> NodeResolve {
+    let Ok(output) = Command::new("node").arg("--version").output() else {
+        eprintln!("Node executable was not found in PATH");
+        return NodeResolve::Missing;
+    };
+    if !output.status.success() {
+        eprintln!("Node executable was not found in PATH");
+        return NodeResolve::Missing;
+    }
+    let version = String::from_utf8_lossy(&output.stdout);
+    match parse_node_version(&version) {
+        Some(parsed) if parsed >= MINIMUM_NODE_VERSION => NodeResolve::Found(parsed),
+        Some(parsed) => {
+            let formatted = format_node_version(parsed);
+            eprintln!("ACP requires Node.js 22.14.0 or later; found {formatted}");
+            NodeResolve::Unsupported(formatted)
+        }
+        None => {
+            eprintln!("ACP requires Node.js 22.14.0 or later");
+            NodeResolve::Unsupported(String::new())
+        }
+    }
+}
+
+fn wait_for_tcp(port: u16, timeout: Duration) -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let deadline = Instant::now() + timeout;
+    while Instant::now() < deadline {
+        if TcpStream::connect_timeout(&addr, Duration::from_millis(200)).is_ok() {
+            return true;
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+    false
+}
+
+fn kill_pid(pid: u32) {
+    if pid == u32::MAX {
+        return;
+    }
+    let pid = pid.to_string();
+    #[cfg(windows)]
+    {
+        let mut command = Command::new("taskkill");
+        command
+            .arg("/f")
+            .arg("/t")
+            .arg("/pid")
+            .arg(&pid)
+            .creation_flags(NO_WINDOW_FLAG)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        let _ = command.output();
+    }
+    #[cfg(unix)]
+    {
+        let _ = Command::new("kill")
+            .arg("-9")
+            .arg(&pid)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+    }
+}
+
+fn start_acp_sidecar(
+    root_path: &PathBuf,
+    cache_path: &PathBuf,
+    profiler_port: u16,
+) -> AcpLaunch {
+    match inspect_node_runtime() {
+        NodeResolve::Missing => AcpLaunch::failed("missing-node", String::new()),
+        NodeResolve::Unsupported(version) => AcpLaunch::failed("unsupported-node", version),
+        NodeResolve::Found(version) => {
+            let node_version = format_node_version(version);
+            if acp_server_path(root_path).is_none() {
+                eprintln!("ACP node server path does not exist");
+                return AcpLaunch::failed("start-failed", node_version);
+            }
+            let Some(acp_port) =
+                find_first_available_port(profiler_port.saturating_add(1), 9100)
+            else {
+                eprintln!("No available ACP port between 9000 and 9100");
+                return AcpLaunch::failed("start-failed", node_version);
+            };
+            let Some(token) = generate_capability_token() else {
+                return AcpLaunch::failed("start-failed", node_version);
+            };
+            if !run_acp_server(root_path, cache_path, acp_port, &token) {
+                return AcpLaunch::failed("start-failed", node_version);
+            }
+            if !wait_for_tcp(acp_port, ACP_READY_TIMEOUT) {
+                eprintln!("ACP node server did not become ready on port {acp_port}");
+                unsafe {
+                    kill_pid(ACP_PID);
+                    ACP_PID = u32::MAX;
+                }
+                return AcpLaunch::failed("start-failed", node_version);
+            }
+            AcpLaunch {
+                status: "ready",
+                port: acp_port,
+                token,
+                node_version,
+            }
+        }
+    }
 }
 
 fn generate_capability_token() -> Option<String> {
@@ -438,32 +565,34 @@ pub fn main() {
         return;
     };
 
-    let Some(acp_port) = find_first_available_port(port.saturating_add(1), 9100) else {
-        eprintln!("No available ACP port between 9000 and 9100");
-        return;
-    };
-    if !node_version_supported() {
-        return;
-    }
-    let Some(capability_token) = generate_capability_token() else {
-        return;
-    };
-
     if !run_server(&root_path, &cache_path, port) {
         return;
     }
-    if !run_acp_server(&root_path, &cache_path, acp_port, &capability_token) {
-        webview::cleanup::handle_close_requested();
-        return;
-    }
+    let acp = start_acp_sidecar(&root_path, &cache_path, port);
 
     #[cfg(target_os = "linux")]
-    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port, acp_port, &capability_token) {
+    if let Ok((eventloop, webview)) = webview::run_script(
+        &root_path,
+        &cache_path,
+        port,
+        acp.port,
+        &acp.token,
+        acp.status,
+        &acp.node_version,
+    ) {
         webview::run_event_loop(eventloop, webview)
     }
 
     #[cfg(any(target_os = "windows", target_os = "macos"))]
-    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port, acp_port, &capability_token) {
+    if let Ok((eventloop, webview, window)) = webview::run_script(
+        &root_path,
+        &cache_path,
+        port,
+        acp.port,
+        &acp.token,
+        acp.status,
+        &acp.node_version,
+    ) {
         webview::run_event_loop(eventloop, webview, window)
     }
 
@@ -482,13 +611,22 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     use super::wait_for_child_output;
-    use super::{parse_node_version, spawn_profiler_server, MINIMUM_NODE_VERSION};
+    use super::{parse_node_version, spawn_profiler_server, wait_for_tcp, MINIMUM_NODE_VERSION};
 
     #[test]
     fn enforces_node_runtime_floor() {
         assert!(parse_node_version("v22.14.0").unwrap() >= MINIMUM_NODE_VERSION);
         assert!(parse_node_version("v22.13.1").unwrap() < MINIMUM_NODE_VERSION);
         assert_eq!(parse_node_version("not-node"), None);
+    }
+
+    #[test]
+    fn wait_for_tcp_detects_listening_port() {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        assert!(wait_for_tcp(port, std::time::Duration::from_secs(1)));
+        drop(listener);
+        assert!(!wait_for_tcp(port, std::time::Duration::from_millis(200)));
     }
 
     #[test]

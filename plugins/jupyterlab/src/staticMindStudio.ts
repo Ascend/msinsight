@@ -190,7 +190,9 @@ export function startIframeUrl(
                 data.port,
                 data.profilerServerId,
                 data.acpPort,
-                data.acpCapabilityToken
+                data.acpCapabilityToken,
+                data.acpStatus,
+                data.acpNodeVersion
             );
         });
 }

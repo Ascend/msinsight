@@ -9,6 +9,7 @@
 import { Modal } from 'antd';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ACP_STATUS_I18N_KEY, showsNodeDownload, type AcpUnavailableReason } from '../acpStatus';
 import { subscribeBackendUnavailable, type BackendConnectionFailure } from '../backendConnection';
 
 export const BackendUnavailableDialog = (): JSX.Element => {
@@ -16,6 +17,9 @@ export const BackendUnavailableDialog = (): JSX.Element => {
     const [failure, setFailure] = useState<BackendConnectionFailure>();
 
     useEffect(() => subscribeBackendUnavailable(setFailure), []);
+
+    const reason: AcpUnavailableReason = failure?.status ?? 'unreachable';
+    const i18nKey = ACP_STATUS_I18N_KEY[reason];
 
     return (
         <Modal
@@ -25,15 +29,17 @@ export const BackendUnavailableDialog = (): JSX.Element => {
             onCancel={() => setFailure(undefined)}
             onOk={() => setFailure(undefined)}
             open={Boolean(failure)}
-            title={t('nodeBackendUnavailableTitle')}
+            title={t(`acpUnavailable.${i18nKey}.title`)}
         >
-            <p>{t('nodeBackendUnavailableDescription')}</p>
-            <p>{t('nodeBackendUnavailableAction')}</p>
-            <p>
-                <strong>{t('nodeDownloadAddress')}</strong>
-                <br />
-                <code style={{ overflowWrap: 'anywhere', userSelect: 'text' }}>{t('nodeDownloadUrl')}</code>
-            </p>
+            <p>{t(`acpUnavailable.${i18nKey}.description`, { version: failure?.nodeVersion || '' })}</p>
+            <p>{t(`acpUnavailable.${i18nKey}.action`)}</p>
+            {showsNodeDownload(reason) ? (
+                <p>
+                    <strong>{t('nodeDownloadAddress')}</strong>
+                    <br />
+                    <code style={{ overflowWrap: 'anywhere', userSelect: 'text' }}>{t('nodeDownloadUrl')}</code>
+                </p>
+            ) : null}
         </Modal>
     );
 };

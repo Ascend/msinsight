@@ -31,6 +31,7 @@ import shutil
 import socket
 import subprocess  # nosec B404
 import sys
+import time
 import uuid
 
 import psutil
@@ -53,6 +54,11 @@ login_shell_env = None
 acp_capability_tokens = {}
 
 MINIMUM_NODE_VERSION = (22, 14, 0)
+ACP_READY_TIMEOUT_SECONDS = 12
+ACP_STATUS_READY = 'ready'
+ACP_STATUS_MISSING_NODE = 'missing-node'
+ACP_STATUS_UNSUPPORTED_NODE = 'unsupported-node'
+ACP_STATUS_START_FAILED = 'start-failed'
 
 HOST_PATTERN = (
     r"^(?=.{1,261}$)(?:"
@@ -181,20 +187,66 @@ def start_profiler_server():
     return True
 
 
-def _node_version_supported(node_path, env):
+def _acp_result(status, port=None, token=None, node_version=None):
+    return {
+        'status': status,
+        'port': port,
+        'token': token,
+        'nodeVersion': node_version,
+    }
+
+
+def _format_node_version(version):
+    return '.'.join(str(part) for part in version)
+
+
+def parse_node_version(version):
+    match = re.match(r'^v?(\d+)\.(\d+)\.(\d+)', str(version).strip())
+    if not match:
+        return None
+    return tuple(int(part) for part in match.groups())
+
+
+def _node_version(node_path, env):
     try:
         result = subprocess.run(  # nosec B603
             [node_path, '--version'], capture_output=True, text=True, check=True, env=env, timeout=5
         )
-        match = re.match(r'^v?(\d+)\.(\d+)\.(\d+)', result.stdout.strip())
-        return bool(match and tuple(map(int, match.groups())) >= MINIMUM_NODE_VERSION)
+        return parse_node_version(result.stdout)
     except (OSError, subprocess.SubprocessError):
-        return False
+        return None
+
+
+def wait_for_tcp(host, port, timeout=None):
+    if timeout is None:
+        timeout = ACP_READY_TIMEOUT_SECONDS
+    connect_host = '127.0.0.1' if host in ('0.0.0.0', '::', '::0') else host
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((connect_host, port), timeout=0.2):
+                return True
+        except OSError:
+            time.sleep(0.1)
+    return False
 
 
 def start_acp_node_service(allowed_origin):
     global acp_available_port
 
+    env = get_process_env()
+    node_path = shutil.which('node', path=env.get('PATH'))
+    if not node_path:
+        logging.error('Node executable was not found in PATH')
+        return _acp_result(ACP_STATUS_MISSING_NODE)
+
+    version = _node_version(node_path, env)
+    if version is None or version < MINIMUM_NODE_VERSION:
+        node_version = _format_node_version(version) if version else None
+        logging.error('ACP requires Node.js %s or later', _format_node_version(MINIMUM_NODE_VERSION))
+        return _acp_result(ACP_STATUS_UNSUPPORTED_NODE, node_version=node_version)
+
+    node_version = _format_node_version(version)
     try:
         acp_service_dir = os.path.join(
             os.path.dirname(__file__), 'resources', 'profiler', 'server', 'insight_web_agent'
@@ -203,25 +255,16 @@ def start_acp_node_service(allowed_origin):
         acp_entry_path = os.path.join(acp_service_dir, 'index.mjs')
         if not os.path.isfile(acp_entry_path):
             logging.error('ACP node service entry does not exist: %s', acp_entry_path)
-            return None
-
-        env = get_process_env()
-        node_path = shutil.which('node', path=env.get('PATH'))
-        if not node_path:
-            logging.error('Node executable was not found in PATH')
-            return None
-        if not _node_version_supported(node_path, env):
-            logging.error('ACP requires Node.js %s or later', '.'.join(map(str, MINIMUM_NODE_VERSION)))
-            return None
+            return _acp_result(ACP_STATUS_START_FAILED, node_version=node_version)
         if profiler_server_id not in profiler_process:
             logging.error('Cannot start ACP without a running profiler server')
-            return None
+            return _acp_result(ACP_STATUS_START_FAILED, node_version=node_version)
 
         acp_host = get_local_ip()
         selected_port = find_available_port(acp_host, available_port + 1)
         if selected_port is None:
             logging.error('No available ACP port')
-            return None
+            return _acp_result(ACP_STATUS_START_FAILED, node_version=node_version)
 
         capability_token = secrets.token_urlsafe(32)
         env['ACP_CAPABILITY_TOKEN'] = capability_token
@@ -245,12 +288,17 @@ def start_acp_node_service(allowed_origin):
         process = subprocess.Popen(command, **popen_options)  # nosec B603
     except (OSError, subprocess.SubprocessError) as error:
         logging.error('Failed to start ACP node service, because %s', error)
-        return None
+        return _acp_result(ACP_STATUS_START_FAILED, node_version=node_version)
+
+    if not wait_for_tcp(acp_host, selected_port):
+        logging.error('ACP node service did not become ready on port %s', selected_port)
+        _terminate_process(process)
+        return _acp_result(ACP_STATUS_START_FAILED, node_version=node_version)
 
     acp_process[profiler_server_id] = process
     acp_capability_tokens[profiler_server_id] = capability_token
     acp_available_port = selected_port
-    return selected_port
+    return _acp_result(ACP_STATUS_READY, port=selected_port, token=capability_token, node_version=node_version)
 
 
 def get_process_env():
@@ -386,24 +434,19 @@ class IFrameConfigHandler(APIHandler):
 
         started_server_id = profiler_server_id
         allowed_origin = _get_allowed_origin(self.request, getattr(self, 'settings', {}).get('trust_xheaders', False))
-        acp_port = start_acp_node_service(allowed_origin)
-        if acp_port is None:
-            stop_profiler_server(started_server_id)
-            self.set_status(503)
-            self.finish(json.dumps({'error': 'Failed to start ACP node service'}))
-            return
-
-        self.finish(
-            json.dumps(
-                {
-                    'proxy': check_jupyter_server_proxy_installed(),
-                    'port': available_port,
-                    'acpPort': acp_port,
-                    'acpCapabilityToken': acp_capability_tokens[started_server_id],
-                    'profilerServerId': started_server_id,
-                }
-            )
-        )
+        acp = start_acp_node_service(allowed_origin)
+        payload = {
+            'proxy': check_jupyter_server_proxy_installed(),
+            'port': available_port,
+            'profilerServerId': started_server_id,
+            'acpStatus': acp['status'],
+        }
+        if acp.get('nodeVersion'):
+            payload['acpNodeVersion'] = acp['nodeVersion']
+        if acp['status'] == ACP_STATUS_READY:
+            payload['acpPort'] = acp['port']
+            payload['acpCapabilityToken'] = acp['token']
+        self.finish(json.dumps(payload))
 
 
 def _get_allowed_origin(request, trust_xheaders=False):

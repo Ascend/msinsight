@@ -21,6 +21,8 @@ import { SharedConfigProvider } from '@insight/lib/SharedConfigProvider';
 import { GlobalStyles, themeInstance } from '@insight/lib/theme';
 import { useEffect, useState } from 'react';
 import { isBackendUnavailableError, updateContext } from './api';
+import { ACP_NODE_VERSION, ACP_STATUS, apiBase } from './env';
+import { reportBackendUnavailable } from './backendConnection';
 import { notifyHostReady, registerHostEventHandlers, requestHostInitStatus } from './connection';
 import { ChatStateProvider } from './hooks/useChatState';
 import { ChatPage } from './components/ChatPage';
@@ -33,6 +35,13 @@ const App = (): JSX.Element => {
     const [locale, setLocale] = useState<Locale>((i18n.language as Locale) || 'enUS');
 
     useEffect(() => {
+        if (ACP_STATUS !== 'ready') {
+            reportBackendUnavailable({
+                url: apiBase || 'acp',
+                status: ACP_STATUS,
+                nodeVersion: ACP_NODE_VERSION,
+            });
+        }
         const synchronizeContext = async (context: Parameters<typeof updateContext>[0]): Promise<void> => {
             try {
                 await updateContext(context);
