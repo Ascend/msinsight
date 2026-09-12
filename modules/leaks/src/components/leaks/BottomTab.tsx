@@ -26,6 +26,7 @@ import { Session } from '../../entity/session';
 import { observer } from 'mobx-react';
 import styled from '@emotion/styled/macro';
 import { getSnapshotDetail, type EvenItem } from '@/utils/RequestUtils';
+import { isMemSnapshotSliceReadyForQuery } from '@/utils/memSnapshotSlices';
 import { runInAction } from 'mobx';
 import { workerSelectItem as workerSelectBlockItem } from '@/leaksWorker/blockWorker/worker';
 import { workerSelectItem as workerSelectStateItem } from '@/leaksWorker/stateWorker/worker';
@@ -1216,6 +1217,9 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
             }, { activate: true });
             return;
         }
+        if (!isMemSnapshotSliceReadyForQuery(session)) {
+            return;
+        }
         let cancelled = false;
         const requestDeviceId = session.deviceId;
         const requestDetailContextKey = detailContextKeyRef.current;
@@ -1267,6 +1271,9 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
         setNoData(false);
         const stateSelection = cloneStateSelection(session.stateWorkerInfo.clickItem);
         if (stateSelection === null) {
+            return;
+        }
+        if (!isMemSnapshotSliceReadyForQuery(session)) {
             return;
         }
         const { type, data } = stateSelection;
@@ -1402,6 +1409,9 @@ const SliceDetail = observer(({ session, detailContextKey }: { session: Session;
     useEffect(() => {
         setNoData(false);
         if (session.clickEventItem === null) {
+            return;
+        }
+        if (!isMemSnapshotSliceReadyForQuery(session)) {
             return;
         }
         const event = { ...session.clickEventItem };

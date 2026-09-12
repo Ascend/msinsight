@@ -40,8 +40,13 @@ bool QueryMemSnapshotDetailHandler::HandleRequest(std::unique_ptr<Protocol::Requ
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;
     }
-    const auto database = GetMemSnapshotDatabaseByRequest(request, request.params.deviceId, request.params.sliceIndex);
-    if (database == nullptr || !database->IsOpen()) {
+    const auto resolved = ResolveMemSnapshotRequest(request, request.params.deviceId, request.params.sliceIndex);
+    if (IsMemSnapshotQueryPending(resolved)) {
+        SendResponse(std::move(responsePtr), true);
+        return true;
+    }
+    const auto database = resolved.database;
+    if (!HasOpenMemSnapshotDatabase(resolved)) {
         errMsg = LOG_TAG + "Failed to query detail: get database connection failed";
         SendResponse(std::move(responsePtr), false, errMsg);
         return false;

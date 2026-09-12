@@ -191,6 +191,33 @@ const initMemSnapshotParseProgress = (session: any, fileId: string): void => {
 const isMemSnapshotParseReady = (session: any): boolean =>
     session.snapshotParsingComplete && areAllMemSnapshotSlicesReady(session.snapshotSlices);
 
+const resetMemSnapshotQueryState = (session: any): void => {
+    workerDestroy();
+    stateWorkerDestroy();
+    session.minTime = 0;
+    session.maxTime = 0;
+    session.deviceId = '';
+    session.clickEventItem = null;
+    session.pendingEventLocate = null;
+    session.pendingBlockLocateId = null;
+    if (session.leaksWorkerInfo !== undefined) {
+        session.leaksWorkerInfo.clickItem = null;
+        session.leaksWorkerInfo.hoverItem = null;
+    }
+    if (session.stateWorkerInfo !== undefined) {
+        session.stateWorkerInfo.clickItem = null;
+        session.stateWorkerInfo.hoverItem = null;
+    }
+    session.leakStats = {
+        totalSize: 0,
+        maxSize: 0,
+        minSize: 0,
+        loading: false,
+        error: false,
+        requestId: (session.leakStats?.requestId ?? 0) + 1,
+    };
+};
+
 const beginMemSnapshotParse = (session: any, fileId: string, forceReset = false): void => {
     if (isCurrentMemSnapshotParse(session, fileId) && isMemSnapshotParseReady(session)) {
         finishMemSnapshotParseProgress(session);
@@ -205,6 +232,7 @@ const beginMemSnapshotParse = (session: any, fileId: string, forceReset = false)
     session.snapshotSlices = {};
     session.selectedSliceIndex = -1;
     session.fileHash = '';
+    resetMemSnapshotQueryState(session);
     initMemSnapshotParseProgress(session, fileId);
 };
 
