@@ -24,6 +24,11 @@ import {
 import { summarizeMemoryPool, type MemoryPoolSummary } from './memoryPoolSummary';
 import { getSnapshotDetail } from '@/utils/RequestUtils';
 import { toBoundedDetail } from './boundedDetail';
+import {
+    computeVisibleRange,
+    hasLoadedGraphDomain,
+    type VisibleRangeAxis,
+} from '@/components/leaks/visibleRange';
 
 const DEFAULT_TRANSFORM: RenderOptions['transform'] = { x: 0, y: 0, scaleX: 1, scaleY: 1 };
 
@@ -51,6 +56,19 @@ export const registerMemScopeGraphCommands = (client: ModuleAgentCommandClient):
             description: 'Returns bounded lifecycle graph metadata and the selected block without returning block paths or full graph data.',
             inputSchema: emptySchema(),
         }, lifecycleSummary),
+        client.registerCommand({
+            name: 'MemScope.lifecycleGraph.getVisibleRange',
+            title: 'Get visible lifecycle graph data range',
+            description: [
+                'Returns the data-coordinate range covered by the current lifecycle graph window after intersecting it with the loaded graph domain.',
+                'Online leaks values are relative nanoseconds from the dataset minimum (the same raw timestamps as sizeInfo and allocation metadata, not formatTime millisecond labels).',
+                'Snapshot values are closed integer event IDs on the X axis, not worker order or array indexes.',
+                'This is not the full timestampRange, not the selected block, and not the debounced session min/max.',
+                'available is true only when a session exists.',
+                'status is ready with a finite closed visibleRange, unavailable when the viewport, transform, or domain is not computable (visibleRange null), or empty when the window has no domain overlap or no integer event ID (visibleRange null).',
+            ].join(' '),
+            inputSchema: emptySchema(),
+        }, lifecycleVisibleRange),
         client.registerCommand({
             name: 'MemScope.lifecycleGraph.selectBlock',
             title: 'Select a block in the lifecycle graph',
@@ -124,6 +142,41 @@ export const registerMemScopeGraphCommands = (client: ModuleAgentCommandClient):
         }, resetPoolView),
     ];
     return () => unregister.forEach(stop => stop());
+};
+
+const lifecycleVisibleRange = (): JsonObject => {
+    if (!activeSession) return { available: false };
+    const session = activeSession;
+    const info = session.leaksWorkerInfo;
+    const axis: VisibleRangeAxis = session.module === 'memsnapshot' ? 'eventId' : 'timestamp';
+    const { viewport, zoom, transform } = info.renderOptions;
+    const result = computeVisibleRange(
+        { viewport, zoom, transform },
+        {
+            blockMinTimestamp: info.sizeInfo.minTimestamp,
+            blockMaxTimestamp: info.sizeInfo.maxTimestamp,
+            allocationMinTimestamp: session.allocationData.minTimestamp,
+            allocationMaxTimestamp: session.allocationData.maxTimestamp,
+            funcMinTimestamp: session.funcData.minTimestamp,
+            funcMaxTimestamp: session.funcData.maxTimestamp,
+        },
+        axis,
+        hasLoadedGraphDomain({
+            blockMinTimestamp: info.sizeInfo.minTimestamp,
+            blockMaxTimestamp: info.sizeInfo.maxTimestamp,
+            allocationCount: Array.isArray(session.allocationData.allocations)
+                ? session.allocationData.allocations.length
+                : 0,
+            funcTraceCount: Array.isArray(session.funcData.traces) ? session.funcData.traces.length : 0,
+            progressiveTotalEventCount: session.progressiveTotalEventCount,
+        }),
+    );
+    return {
+        available: true,
+        axis,
+        status: result.status,
+        visibleRange: result.visibleRange,
+    };
 };
 
 const lifecycleSummary = (): JsonObject => {
