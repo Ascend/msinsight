@@ -65,6 +65,18 @@ jest.mock('@insight/lib/components', () => ({
             {children}
         </div>
     ),
+    Select: ({ value, onChange, options }) => (
+        <select
+            data-testid="range-flag-select"
+            multiple
+            value={value}
+            onChange={(e) => onChange?.(Array.from(e.target.selectedOptions, option => option.value))}
+        >
+            {(options || []).map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+        </select>
+    ),
 }));
 
 jest.mock('@insight/lib/utils', () => ({
@@ -99,6 +111,7 @@ jest.mock('../LineChart', () => ({
         vAxisTitle,
         graph,
         onSelectionChanged,
+        onZoomBack,
         record,
         isDark,
         isStatic,
@@ -110,9 +123,15 @@ jest.mock('../LineChart', () => ({
             <div data-testid="graph-title">{graph?.title}</div>
             <button
                 data-testid="trigger-selection"
-                onClick={() => onSelectionChanged(1000, 3000)}
+                onClick={() => onSelectionChanged(0, 2)}
             >
                 Trigger Selection
+            </button>
+            <button
+                data-testid="trigger-zoom-back"
+                onClick={() => onZoomBack?.()}
+            >
+                Trigger Zoom Back
             </button>
             <div data-testid="is-dark">{isDark.toString()}</div>
             <div data-testid="is-static">{isStatic.toString()}</div>
@@ -133,6 +152,7 @@ const mockMemorySession = {
     selectedRankId: '',
     groupId: GroupBy.STREAM,
     selectedRange: undefined,
+    selectedRangeStack: [] as Array<{ startTs: number; endTs: number } | undefined>,
     current: 1,
     pageSize: 10,
     searchEventOperatorName: '',
@@ -140,6 +160,22 @@ const mockMemorySession = {
     rankCondition: { options: [], value: 1 },
     rangeFlagList: [],
     getSelectedRankValue: jest.fn(),
+    pushSelectedRangeHistory: jest.fn(function (this: typeof mockMemorySession) {
+        this.selectedRangeStack.push(
+            this.selectedRange ? { ...this.selectedRange } : undefined,
+        );
+    }),
+    popSelectedRangeHistory: jest.fn(function (this: typeof mockMemorySession) {
+        if (this.selectedRangeStack.length === 0) {
+            return false;
+        }
+        this.selectedRange = this.selectedRangeStack.pop();
+        return true;
+    }),
+    clearSelectedRangeHistory: jest.fn(function (this: typeof mockMemorySession) {
+        this.selectedRangeStack = [];
+        this.selectedRange = undefined;
+    }),
 };
 
 // Mock useEffect and useState
@@ -166,6 +202,29 @@ describe('DynamicLineChart', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        (runInAction as jest.Mock).mockImplementation((fn) => fn());
+        mockMemorySession.pushSelectedRangeHistory.mockImplementation(function (this: typeof mockMemorySession) {
+            this.selectedRangeStack.push(
+                this.selectedRange ? { ...this.selectedRange } : undefined,
+            );
+        });
+        mockMemorySession.popSelectedRangeHistory.mockImplementation(function (this: typeof mockMemorySession) {
+            if (this.selectedRangeStack.length === 0) {
+                return false;
+            }
+            this.selectedRange = this.selectedRangeStack.pop();
+            return true;
+        });
+        mockMemorySession.clearSelectedRangeHistory.mockImplementation(function (this: typeof mockMemorySession) {
+            this.selectedRangeStack = [];
+            this.selectedRange = undefined;
+        });
+        mockMemorySession.selectedRankId = '';
+        mockMemorySession.selectedRange = undefined;
+        mockMemorySession.selectedRangeStack = [];
+        mockMemorySession.current = 1;
+        mockMemorySession.pageSize = 10;
+        mockMemorySession.searchEventOperatorName = '';
         mockMemorySession.getSelectedRankValue.mockReturnValue({
             rankInfo: { rankId: 'test-rank' },
             dbPath: '/test/path',
@@ -199,13 +258,8 @@ describe('DynamicLineChart', () => {
         }
 
         const upadteMemorySession = {
+            ...mockMemorySession,
             selectedRankId: '',
-            groupId: GroupBy.STREAM,
-            selectedRange: undefined,
-            current: 1,
-            pageSize: 10,
-            searchEventOperatorName: '',
-            hostCondition: { options: [], value: '' },
             rankCondition: { options: [1], value: 1 },
         };
 
@@ -317,27 +371,54 @@ describe('DynamicLineChart', () => {
         jest.useFakeTimers();
 
         (memoryCurveGet as jest.Mock).mockResolvedValue(mockResponse);
-        const updatedMemorySession = {
-            ...mockMemorySession,
-            selectedRankId: '1',
-            rankCondition: { options: [1], value: 1 },
-            rangeFlagList: [],
-        };
-        jest.spyOn(require('mobx'), 'runInAction');
-        render(<DynamicLineChart {...defaultProps} memorySession={updatedMemorySession}/>);
+        mockMemorySession.selectedRankId = '1';
+        render(<DynamicLineChart {...defaultProps} memorySession={mockMemorySession}/>);
         jest.advanceTimersByTime(300);
 
-        expect(runInAction).toHaveBeenCalled();
+        await waitFor(() => {
+            expect(screen.getByTestId('line-chart')).toBeInTheDocument();
+        });
 
-        // Verify runInAction was called with a function
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        expect(typeof actionFunction).toBe('function');
+        fireEvent.click(screen.getByTestId('trigger-selection'));
+        expect(mockMemorySession.pushSelectedRangeHistory).toHaveBeenCalled();
+        expect(mockMemorySession.selectedRange).toEqual({ startTs: 1000, endTs: 3000 });
+        expect(mockMemorySession.selectedRangeStack).toEqual([undefined]);
+    });
 
-        // Test the action function logic
-        actionFunction();
+    it('pops selected range history on zoom back', async () => {
+        const mockResponse = {
+            title: 'Test Chart',
+            legends: ['stream 1'],
+            lines: [
+                ['1000', '50'],
+                ['2000', '55'],
+                ['3000', '60'],
+                ['4000', '65'],
+            ],
+            rankOffsetNs: 100,
+        };
+        jest.useFakeTimers();
+        (memoryCurveGet as jest.Mock).mockResolvedValue(mockResponse);
+        mockMemorySession.selectedRankId = '1';
 
-        // Since we don't have memoryCurveData in this test, it should set selectedRange to undefined
+        render(<DynamicLineChart {...defaultProps} memorySession={mockMemorySession}/>);
+        jest.advanceTimersByTime(300);
+
+        await waitFor(() => {
+            expect(screen.getByTestId('line-chart')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByTestId('trigger-selection'));
+        fireEvent.click(screen.getByTestId('trigger-zoom-back'));
+
+        expect(mockMemorySession.popSelectedRangeHistory).toHaveBeenCalled();
         expect(mockMemorySession.selectedRange).toBeUndefined();
+        expect(mockMemorySession.selectedRangeStack).toEqual([]);
+    });
+
+    it('clears zoom history when data source changes', () => {
+        render(<DynamicLineChart {...defaultProps} />);
+        expect(mockMemorySession.clearSelectedRangeHistory).toHaveBeenCalled();
     });
 
     it('resets search conditions when isCompare changes', () => {
@@ -358,11 +439,15 @@ describe('DynamicLineChart', () => {
 
         expect(runInAction).toHaveBeenCalled();
 
-        // Verify the reset logic
-        const actionFunction = (runInAction as jest.Mock).mock.calls[0][0];
-        actionFunction();
-
-        expect(mockMemorySession.searchEventOperatorName).toBe('');
+        // Verify the reset logic — find the search-reset action (sets searchEventOperatorName)
+        const actionFunction = (runInAction as jest.Mock).mock.calls
+            .map(call => call[0])
+            .find((fn) => {
+                mockMemorySession.searchEventOperatorName = 'keep';
+                fn();
+                return mockMemorySession.searchEventOperatorName === '';
+            });
+        expect(actionFunction).toBeDefined();
         expect(mockMemorySession.current).toBe(1);
         expect(mockMemorySession.pageSize).toBe(10);
     });
@@ -437,18 +522,12 @@ describe('DynamicLineChart', () => {
 
     describe('onSelectedRangeChanged', () => {
         it('handles invalid range (start > end)', () => {
-            const { container } = render(<DynamicLineChart {...defaultProps} />);
-
-            // Access the component instance to test the function directly
-            // This is a workaround since we can't easily access the inner function
-            // In a real scenario, you might want to refactor to make this more testable
-            expect(runInAction).toHaveBeenCalled();
+            render(<DynamicLineChart {...defaultProps} />);
+            expect(mockMemorySession.clearSelectedRangeHistory).toHaveBeenCalled();
         });
 
         it('handles single data point scenario', () => {
             render(<DynamicLineChart {...defaultProps} />);
-
-            // Similar to above, we test through the integrated flow
             expect(runInAction).toHaveBeenCalled();
         });
     });

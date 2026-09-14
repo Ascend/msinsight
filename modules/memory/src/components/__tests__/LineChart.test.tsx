@@ -220,6 +220,125 @@ describe('LineCharts', () => {
         expect(mockOnSelectionChanged).toHaveBeenCalledWith(0, -1);
     });
 
+    it('should show native dataZoom back button when onZoomBack is not provided', async () => {
+        render(
+            <TestWrapper>
+                <LineChart {...defaultProps} />
+            </TestWrapper>,
+        );
+
+        await waitFor(() => {
+            expect(mockEChartsInstance.setOption).toHaveBeenCalled();
+        });
+
+        const setOptionCall = mockEChartsInstance.setOption.mock.calls[0][0];
+        expect(setOptionCall.toolbox.feature.dataZoom).toBeDefined();
+        expect(setOptionCall.toolbox.feature.dataZoom.icon?.back).not.toBe('none');
+        expect(setOptionCall.toolbox.feature.myZoomBack).toBeUndefined();
+    });
+
+    it('should show custom zoom-back toolbox button that calls onZoomBack', async () => {
+        const mockOnZoomBack = jest.fn();
+
+        render(
+            <TestWrapper>
+                <LineChart {...defaultProps} onZoomBack={mockOnZoomBack} />
+            </TestWrapper>,
+        );
+
+        await waitFor(() => {
+            expect(mockEChartsInstance.setOption).toHaveBeenCalled();
+        });
+
+        const setOptionCall = mockEChartsInstance.setOption.mock.calls[0][0];
+        expect(setOptionCall.toolbox.feature.dataZoom.icon.back).toBe('none');
+        expect(setOptionCall.toolbox.feature.myZoomBack).toBeDefined();
+        expect(setOptionCall.toolbox.feature.myZoomBack.title).toBe('Back');
+        expect(setOptionCall.toolbox.feature.myZoomBack.icon).toBeTruthy();
+
+        setOptionCall.toolbox.feature.myZoomBack.onclick();
+        expect(mockOnZoomBack).toHaveBeenCalled();
+        expect(mockEChartsInstance.dispatchAction).toHaveBeenCalledWith({
+            type: 'takeGlobalCursor',
+            key: 'dataZoomSelect',
+            dataZoomSelectActive: true,
+        });
+    });
+
+    it('should use Chinese title for custom zoom-back button', async () => {
+        mockUseTranslation.mockReturnValue({
+            t: mockT,
+            i18n: { language: 'zh-CN' },
+        });
+        const mockOnZoomBack = jest.fn();
+
+        render(
+            <TestWrapper>
+                <LineChart {...defaultProps} onZoomBack={mockOnZoomBack} />
+            </TestWrapper>,
+        );
+
+        await waitFor(() => {
+            expect(mockEChartsInstance.setOption).toHaveBeenCalled();
+        });
+
+        const setOptionCall = mockEChartsInstance.setOption.mock.calls[0][0];
+        expect(setOptionCall.toolbox.feature.myZoomBack.title).toBe('回退上次状态');
+    });
+
+    it('should fully reset on restore even when onZoomBack is provided', async () => {
+        const mockOnSelectionChanged = jest.fn();
+        const mockOnZoomBack = jest.fn();
+
+        render(
+            <TestWrapper>
+                <LineChart
+                    {...defaultProps}
+                    onSelectionChanged={mockOnSelectionChanged}
+                    onZoomBack={mockOnZoomBack}
+                />
+            </TestWrapper>,
+        );
+
+        await waitFor(() => {
+            expect(mockEChartsInstance.on).toHaveBeenCalledWith('restore', expect.any(Function));
+        });
+
+        const restoreHandler = mockEChartsInstance.on.mock.calls.find(
+            call => call[0] === 'restore',
+        )[1];
+
+        restoreHandler();
+        expect(mockOnSelectionChanged).toHaveBeenCalledWith(0, -1);
+        expect(mockOnZoomBack).not.toHaveBeenCalled();
+    });
+
+    it('should call onZoomBack on contextmenu when provided', async () => {
+        const mockOnZoomBack = jest.fn();
+
+        render(
+            <TestWrapper>
+                <LineChart {...defaultProps} onZoomBack={mockOnZoomBack} />
+            </TestWrapper>,
+        );
+
+        const zrOnCall = mockEChartsInstance.getZr().on.mock.calls.find(
+            call => call[0] === 'contextmenu',
+        );
+        expect(zrOnCall).toBeDefined();
+        zrOnCall[1]();
+
+        expect(mockOnZoomBack).toHaveBeenCalled();
+        expect(mockEChartsInstance.dispatchAction).not.toHaveBeenCalledWith({
+            type: 'restore',
+        });
+        expect(mockEChartsInstance.dispatchAction).toHaveBeenCalledWith({
+            type: 'takeGlobalCursor',
+            key: 'dataZoomSelect',
+            dataZoomSelectActive: true,
+        });
+    });
+
     it('should handle click event for point selection', async () => {
         render(
             <TestWrapper>

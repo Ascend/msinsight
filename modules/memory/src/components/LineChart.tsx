@@ -30,6 +30,11 @@ import type { RangeFlagList } from '../entity/memorySession';
 // 最大不分页的折线图图例数量，超过该数量图例分页展示
 const MAX_PLAIN_LEGENDS_COUNT = 9;
 const SHOW_ALL_SYMBOL_THRESHOLD = 1000;
+/**
+ * ECharts toolbox.dataZoom 内置 back 图标的默认 SVG path（见 echarts DataZoomFeature.getDefaultOption）。
+ * 自定义 toolbox 工具（my*）无法引用内置图标名，只能复用该 path。
+ */
+const ECHARTS_DATA_ZOOM_BACK_ICON = 'M22,1.4L9.9,13.5l12.3,12.3 M10.3,13.5H54.9v44.6 H10.3v-26';
 const ChartDesc = styled.div`
     color: ${(props): string => props.theme.textColor};
     margin-bottom: 24px;
@@ -40,6 +45,8 @@ interface IProps {
     hAxisTitle: string;
     vAxisTitle: string;
     onSelectionChanged?: (start: number, end: number) => void;
+    /** 服务端抽样场景下，右键/工具栏「回退上次状态」逐级回退；不传则沿用客户端 dataZoom back 语义。还原(restore)始终回到全量 */
+    onZoomBack?: () => void;
     record?: any;
     isDark: boolean;
     isStatic: boolean;
@@ -65,9 +72,36 @@ const _getLegendData = (data: string[]): string[] => {
     return tempData;
 };
 
-const _getOriginOption = (props: IProps, theme: Theme): echarts.EChartsOption => {
-    const { isStatic, isDark, hAxisTitle, vAxisTitle } = props;
+const _getZoomBackTitle = (locale: string): string => (
+    locale === 'zh' ? '回退上次状态' : 'Back'
+);
+
+const _getOriginOption = (props: IProps, theme: Theme, locale: string): echarts.EChartsOption => {
+    const { isStatic, isDark, hAxisTitle, vAxisTitle, onZoomBack } = props;
     const legendDatas = _getLegendData(props.graph.columns);
+    // 服务端抽样后图表会重建，ECharts 内置缩放历史为空，原生 back 不会有效显示/工作；
+    // 因此隐藏原生 back，改用自定义 myZoomBack 走业务历史栈。
+    const toolboxFeature: Record<string, unknown> = {
+        dataZoom: {
+            ...(onZoomBack ? { icon: { back: 'none' } } : {}),
+            yAxisIndex: 'none',
+            emphasis: { iconStyle: { textPosition: 'top' } },
+        },
+    };
+    if (onZoomBack) {
+        toolboxFeature.myZoomBack = {
+            show: true,
+            title: _getZoomBackTitle(locale),
+            icon: ECHARTS_DATA_ZOOM_BACK_ICON,
+            onclick: (): void => {
+                onZoomBack();
+            },
+            emphasis: { iconStyle: { textPosition: 'top' } },
+        };
+    }
+    toolboxFeature.restore = {
+        emphasis: { iconStyle: { textPosition: 'top' } },
+    };
     return {
         textStyle: getDefaultChartOptions().textStyle,
         title: { text: '' },
@@ -100,16 +134,7 @@ const _getOriginOption = (props: IProps, theme: Theme): echarts.EChartsOption =>
         xAxis: { type: 'category', boundaryGap: false, name: hAxisTitle },
         yAxis: { type: 'value', name: vAxisTitle, scale: true },
         toolbox: {
-            feature: {
-                dataZoom: {
-                    icon: { back: 'none' },
-                    yAxisIndex: 'none',
-                    emphasis: { iconStyle: { textPosition: 'top' } },
-                },
-                restore: {
-                    emphasis: { iconStyle: { textPosition: 'top' } },
-                },
-            },
+            feature: toolboxFeature as echarts.ToolboxComponentOption['feature'],
             top: 20,
             right: 10,
         },
@@ -223,11 +248,25 @@ const _handleOption = (option: echarts.EChartsOption, graph: Graph, chartWidth: 
 };
 
 const _showGraph = (myChart: echarts.ECharts, selectedPoints: React.MutableRefObject<number[]>,
-    props: IProps, theme: Theme, chartWidth: number): void => {
-    const { graph, onSelectionChanged, rangeFlagData } = props;
+    props: IProps, theme: Theme, chartWidth: number, locale: string): void => {
+    const { graph, onSelectionChanged, onZoomBack, rangeFlagData } = props;
 
-    let option = _getOriginOption(props, theme);
+    let option = _getOriginOption(props, theme, locale);
     option = _handleOption(option, graph, chartWidth, rangeFlagData);
+
+    // 自定义回退按钮点击后保持框选缩放模式（与右键回退一致）
+    const zoomBackFeature = (option.toolbox as { feature?: Record<string, { onclick?: () => void }> } | undefined)
+        ?.feature?.myZoomBack;
+    if (zoomBackFeature && onZoomBack) {
+        zoomBackFeature.onclick = (): void => {
+            onZoomBack();
+            myChart.dispatchAction({
+                type: 'takeGlobalCursor',
+                key: 'dataZoomSelect',
+                dataZoomSelectActive: true,
+            });
+        };
+    }
 
     // 数据量大时，切换主题时setOption会阻塞整体界面主题切换，使用 requestAnimationFrame 优化
     requestAnimationFrame(() => {
@@ -244,7 +283,7 @@ const _showGraph = (myChart: echarts.ECharts, selectedPoints: React.MutableRefOb
     });
 
     myChart.on('restore', () => {
-        // Set startId greater than endId to query all memory events.
+        // 还原：清空缩放，回到全量（与「回退上次状态」逐级回退区分）
         onSelectionChanged?.(0, -1);
     });
 
@@ -264,9 +303,14 @@ const _showGraph = (myChart: echarts.ECharts, selectedPoints: React.MutableRefOb
     });
 
     myChart.getZr().on('contextmenu', () => {
-        myChart.dispatchAction({
-            type: 'restore',
-        });
+        if (onZoomBack) {
+            // 服务端抽样后图表会重建，不能依赖 ECharts 缩放历史，由业务栈逐级回退
+            onZoomBack();
+        } else {
+            myChart.dispatchAction({
+                type: 'restore',
+            });
+        }
         myChart.dispatchAction({
             type: 'takeGlobalCursor',
             key: 'dataZoomSelect',
@@ -351,7 +395,7 @@ export const LineChart: React.FC<IProps> = (props) => {
         element.oncontextmenu = (): boolean => { return false; };
         const chartWidth = graphRef.current.clientWidth - 200;
         const myChart = echarts.init(element, isDark ? 'dark' : 'customed', { locale });
-        _showGraph(myChart, selectedPoints, props, theme, chartWidth);
+        _showGraph(myChart, selectedPoints, props, theme, chartWidth, locale);
 
         setChartObj(myChart);
         return () => {

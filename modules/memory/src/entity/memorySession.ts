@@ -82,6 +82,8 @@ export class MemorySession {
 
     // 中部折线图框选和下方表格联动
     selectedRange?: SelectedRange;
+    // 区域放大历史：每次放大前压入当时的 selectedRange（undefined 表示全量）
+    selectedRangeStack: Array<SelectedRange | undefined> = [];
     staticSelectedRange?: SelectedRange;
 
     // 底部表格筛选条件相关变量
@@ -120,5 +122,30 @@ export class MemorySession {
 
     get selectedRankId(): string {
         return this.getSelectedRankValue().rankInfo.rankId ?? '';
+    }
+
+    /** 框选放大前，将当前区间压入历史栈 */
+    pushSelectedRangeHistory(): void {
+        this.selectedRangeStack.push(
+            this.selectedRange ? { ...this.selectedRange } : undefined,
+        );
+    }
+
+    /**
+     * 右键回退：弹出上一次区间并设为当前 selectedRange。
+     * @returns 是否成功回退（栈为空时返回 false）
+     */
+    popSelectedRangeHistory(): boolean {
+        if (this.selectedRangeStack.length === 0) {
+            return false;
+        }
+        this.selectedRange = this.selectedRangeStack.pop();
+        return true;
+    }
+
+    /** 切换数据源（rank/group/compare）时清空放大历史与当前区间 */
+    clearSelectedRangeHistory(): void {
+        this.selectedRangeStack = [];
+        this.selectedRange = undefined;
     }
 };

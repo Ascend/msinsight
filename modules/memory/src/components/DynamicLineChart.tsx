@@ -16,53 +16,80 @@
  * -------------------------------------------------------------------------
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { observer } from 'mobx-react-lite';
 import { runInAction } from 'mobx';
 import { Spin, CollapsiblePanel, Select } from '@insight/lib/components';
 import { StyledEmpty, customConsole as console } from '@insight/lib/utils';
 import { useTranslation } from 'react-i18next';
-import { Graph, MemoryCurve } from '../entity/memory';
+import { Graph } from '../entity/memory';
 import { LineChart } from './LineChart';
 import { Session } from '../entity/session';
-import { MemorySession, GroupBy, type RangeFlagList } from '../entity/memorySession';
+import { MemorySession, GroupBy, type RangeFlagList, type SelectedRange } from '../entity/memorySession';
 import { memoryCurveGet } from '../utils/RequestUtils';
 import { getTimelineCardOffset } from '../connection/handler';
 import { Label } from './Common';
 import { FlexDiv } from '../utils/styleUtils';
 
+const resolveRangeFromRowIndex = (rows: Graph['rows'], start: number, end: number): SelectedRange | undefined => {
+    if (rows.length <= 1 || start > end) {
+        return undefined;
+    }
+    const startIdx = Math.max(0, Math.min(start, rows.length - 1));
+    const endIdx = Math.max(0, Math.min(end, rows.length - 1));
+    return {
+        startTs: parseFloat(rows[startIdx][0] as string),
+        endTs: parseFloat(rows[endIdx][0] as string),
+    };
+};
+
+const isSameSelectedRange = (a?: SelectedRange, b?: SelectedRange): boolean => {
+    if (a === undefined && b === undefined) {
+        return true;
+    }
+    if (a === undefined || b === undefined) {
+        return false;
+    }
+    return a.startTs === b.startTs && a.endTs === b.endTs;
+};
+
 const DynamicLineChart = observer(({ session, memorySession, isDark }:
 { session: Session; memorySession: MemorySession; isDark: boolean }) => {
     const isCompare: boolean = session.compareRank.isCompare;
-    // 内存曲线数据源
-    const [memoryCurveData, setMemoryCurveData] = useState<MemoryCurve | undefined>(undefined);
     // 内存曲线绘制数据
     const [lineChartData, setLineChartData] = useState<Graph | undefined>(undefined);
     const [curveSpin, setCurveSpin] = useState<boolean>(false);
     const [rangeFlagData, setRangeFlagData] = useState<RangeFlagList[]>([]);
     const [rankOffsetNs, setRankOffsetNs] = useState<number>(0);
+    const requestIdRef = useRef(0);
     const { t } = useTranslation('memory');
 
     const onSelectedRangeChanged = (start: number, end: number): void => {
         runInAction(() => {
-            if (start > end || !memoryCurveData) {
-                memorySession.selectedRange = undefined;
+            if (!lineChartData) {
+                memorySession.clearSelectedRangeHistory();
                 return;
             }
-            const allDataListSet = new Set(memoryCurveData.lines
-                .map(item => {
-                    return parseFloat(item[0] as string);
-                }).sort((a, b) => a - b));
-            if (allDataListSet.size <= 1) {
-                memorySession.selectedRange = undefined;
+            // 还原(restore)：清空历史并回到全量
+            if (start > end) {
+                memorySession.clearSelectedRangeHistory();
                 return;
             }
-            const allDataList = Array.from(allDataListSet);
+            const nextRange = resolveRangeFromRowIndex(lineChartData.rows, start, end);
+            if (nextRange === undefined || isSameSelectedRange(memorySession.selectedRange, nextRange)) {
+                return;
+            }
+            memorySession.pushSelectedRangeHistory();
+            memorySession.selectedRange = nextRange;
+            memorySession.current = 1;
+            memorySession.pageSize = 10;
+        });
+    };
 
-            if (end >= allDataList.length) {
-                memorySession.selectedRange = { startTs: allDataList[start], endTs: allDataList[allDataList.length - 1] };
-            } else {
-                memorySession.selectedRange = { startTs: allDataList[start], endTs: allDataList[end] };
+    const onZoomBack = (): void => {
+        runInAction(() => {
+            if (!memorySession.popSelectedRangeHistory()) {
+                return;
             }
             memorySession.current = 1;
             memorySession.pageSize = 10;
@@ -70,12 +97,15 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
     };
 
     const onMemoryCurveGet = (): void => {
+        const requestId = ++requestIdRef.current;
         setCurveSpin(true);
         const rankValue = memorySession.getSelectedRankValue();
         const start = (memorySession.selectedRange?.startTs ?? '').toString();
         const end = (memorySession.selectedRange?.endTs ?? '').toString();
         memoryCurveGet({ rankId: rankValue.rankInfo.rankId, dbPath: rankValue.dbPath, type: memorySession.groupId, isCompare, start, end }).then((resp) => {
-            setMemoryCurveData(resp);
+            if (requestId !== requestIdRef.current) {
+                return;
+            }
             let columns: string[] = [];
             if (memorySession.groupId === GroupBy.STREAM) {
                 columns = resp.legends?.map(legend => {
@@ -90,6 +120,7 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
                 columns = resp.legends?.map(legend => t(legend));
             }
             if (columns?.length <= 0 || resp.lines?.length <= 0) {
+                setLineChartData(undefined);
                 return;
             }
             setLineChartData({
@@ -99,17 +130,28 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
             });
             setRankOffsetNs(resp.rankOffsetNs);
         }).catch(err => {
+            if (requestId !== requestIdRef.current) {
+                return;
+            }
             console.error(err);
         }).finally(() => {
-            setCurveSpin(false);
+            if (requestId === requestIdRef.current) {
+                setCurveSpin(false);
+            }
         });
     };
+
+    // 切换数据源时清空放大历史，避免跨 rank/group 回退到错误区间
+    useEffect(() => {
+        runInAction(() => {
+            memorySession.clearSelectedRangeHistory();
+        });
+    }, [memorySession.selectedRankId, memorySession.groupId, isCompare, session.isAllMemoryCompletedSwitch]);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             if (memorySession.selectedRankId === '') {
                 setLineChartData(undefined);
-                setMemoryCurveData(undefined);
                 return;
             }
             onMemoryCurveGet();
@@ -140,6 +182,7 @@ const DynamicLineChart = observer(({ session, memorySession, isDark }:
                                 vAxisTitle={t('Memory Usage (MB)')}
                                 graph={lineChartData}
                                 onSelectionChanged={onSelectedRangeChanged}
+                                onZoomBack={onZoomBack}
                                 record={memorySession.selectedRecord}
                                 isDark={isDark}
                                 isStatic={false}
