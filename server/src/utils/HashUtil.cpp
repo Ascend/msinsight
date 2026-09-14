@@ -16,6 +16,7 @@
  */
 
 #include "HashUtil.h"
+#include "FileUtil.h"
 #include <array>
 #include <cstdint>
 #include <fstream>
@@ -123,7 +124,12 @@ class Sha256 {
 }
 
 std::string CalculateFileSha256(const std::string &filePath, std::string_view salt) {
-    std::ifstream file(filePath, std::ios::binary);
+    std::ifstream file;
+#ifdef _WIN32
+    file.open(Dic::FileUtil::ConvertToLongPathW(filePath).c_str(), std::ios::binary);
+#else
+    file.open(filePath, std::ios::binary);
+#endif
     if (!file.is_open()) {
         return "";
     }

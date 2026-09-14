@@ -18,6 +18,7 @@
 
 #include "FileUtil.h"
 #include "PythonUtil.h"
+#include "SafeFile.h"
 #include "DataBaseManager.h"
 #include "HashUtil.h"
 #include "MemSnapshotParser.h"
@@ -26,7 +27,8 @@
 #include "WsSender.h"
 
 #include <chrono>
-#include <system_error>
+#include <cstdint>
+#include <optional>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -37,6 +39,7 @@
 
 namespace Dic::Module {
 using namespace Dic::Module::Timeline;
+using Dic::OpenReadFileSafely;
 constexpr std::string_view MEM_SNAPSHOT_PARSER_HASH_SALT = "mem_snapshot_parser_v2";
 constexpr int MEM_SNAPSHOT_EVENTS_PER_SLICE = 500000;
 
@@ -160,9 +163,11 @@ std::string MemSnapshotParser::CalculateFileHash(const std::string &filePath) {
 }
 
 void MemSnapshotParser::AsyncParseMemSnapshotPickle(const std::string &pickleFilePath) {
-    const std::string outputPath = MemSnapshotSliceService::GetArtifactDirectory(pickleFilePath);
-    const std::string logPath = MemSnapshotSliceService::GetLogPath(pickleFilePath);
-    parseContext.Reset(pickleFilePath, logPath, outputPath, CalculateFileHash(pickleFilePath));
+    const std::string realPicklePath = FileUtil::GetRealPath(pickleFilePath);
+    const std::string &snapshotPath = realPicklePath.empty() ? pickleFilePath : realPicklePath;
+    const std::string outputPath = MemSnapshotSliceService::GetArtifactDirectory(snapshotPath);
+    const std::string logPath = MemSnapshotSliceService::GetLogPath(snapshotPath);
+    parseContext.Reset(snapshotPath, logPath, outputPath, CalculateFileHash(snapshotPath));
     auto traceId = TraceIdManager::GenerateTraceId();
     Server::ServerLog::Info("[Snapshot] Parsing pickle file: %, log file: %, output db file: %.",
         parseContext.GetPicklePath(), parseContext.GetLogPath(), parseContext.GetOutputDbPath());
@@ -199,7 +204,7 @@ bool MemSnapshotParser::CheckIfParsingNeed(const MemSnapshotParserContext &conte
     for (const auto &[deviceId, device] : manifest->devices) {
         for (const auto &slice : device.slices) {
             const auto dbPath = MemSnapshotSliceService::ResolveSliceDbPath(context.GetPicklePath(), slice);
-            if (!slice.ready || dbPath.empty() || !FileUtil::CheckFilePathExist(dbPath)) {
+            if (!slice.ready || dbPath.empty() || !FileUtil::IsFilePathExist(dbPath)) {
                 Server::ServerLog::Info(
                     "[Snapshot] Slice artifact is missing for device %, slice %; the file needs to re-parse.", deviceId,
                     slice.index);
@@ -250,7 +255,7 @@ void MemSnapshotParser::ParseMemSnapshotTask() {
         MemSnapshotSliceService::GetManifestPath(Instance().parseContext.GetPicklePath()),
     };
     for (const auto &path : staleStateFiles) {
-        if (FileUtil::CheckFilePathExist(path) && !FileUtil::RemoveFile(path)) {
+        if (FileUtil::IsFilePathExist(path) && !FileUtil::RemoveFile(path)) {
             Server::ServerLog::Warn("[Snapshot] Failed to remove stale parsing state file: %.", path);
         }
     }
@@ -332,23 +337,28 @@ void MemSnapshotParser::ParseDaemonTask() {
     Server::ServerLog::Info("[Snapshot] Daemon thread started.");
     std::unordered_set<std::string> notifiedSlices;
     std::ifstream progressFile;
-    std::optional<fs::file_time_type> manifestWriteTime;
+    std::optional<uint64_t> manifestWriteTime;
     while (!Instance().parseContext.IsFinished()) {
         if (Instance().parseContext.GetState() != ParserState::Processing) {
             SLEEP(100);
             continue;
         }
         const auto manifestPath = MemSnapshotSliceService::GetManifestPath(Instance().parseContext.GetPicklePath());
-        std::error_code manifestError;
-        const auto currentManifestWriteTime = fs::last_write_time(manifestPath, manifestError);
-        const bool manifestChanged =
-            !manifestWriteTime.has_value() || manifestWriteTime.value() != currentManifestWriteTime;
-        if (!manifestError && manifestChanged) {
-            SendReadySliceEvents(notifiedSlices);
-            manifestWriteTime = currentManifestWriteTime;
+        std::uintmax_t manifestSize = 0;
+        uint64_t currentManifestWriteTime = 0;
+        if (MemSnapshotSliceService::GetFileFingerprint(manifestPath, manifestSize, currentManifestWriteTime)) {
+            const bool manifestChanged =
+                !manifestWriteTime.has_value() || manifestWriteTime.value() != currentManifestWriteTime;
+            if (manifestChanged) {
+                SendReadySliceEvents(notifiedSlices);
+                manifestWriteTime = currentManifestWriteTime;
+            }
         }
         if (!progressFile.is_open()) {
-            progressFile.open(Instance().parseContext.GetLogPath());
+            const auto logPath = Instance().parseContext.GetLogPath();
+            if (FileUtil::IsFilePathExist(logPath)) {
+                progressFile = OpenReadFileSafely(logPath);
+            }
         }
         if (!progressFile.is_open()) {
             // 解析线程可能并未及时创建出日志文件，因此需要等待
@@ -371,7 +381,7 @@ void MemSnapshotParser::ParseDaemonTask() {
     }
     SendReadySliceEvents(notifiedSlices);
     if (Instance().parseContext.GetState() == ParserState::FINISH_SUCCESS) {
-        std::ifstream file(Instance().parseContext.GetLogPath());
+        std::ifstream file = OpenReadFileSafely(Instance().parseContext.GetLogPath());
         if (DoubleCheckSuccessInLogFile(file) && Instance().TryOpenParsingResultDbAndSetVersion()) {
             Instance().parseContext.SetProgress(100);
             Server::ServerLog::Info("Parse thread has successfully finished with double check.");

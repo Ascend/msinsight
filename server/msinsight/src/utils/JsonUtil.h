@@ -24,6 +24,7 @@
 #include <vector>
 #include <algorithm>
 #include <cfloat>
+#include <cstdio>
 #include "rapidjson.h"
 #include "document.h"
 #include "writer.h"
@@ -389,7 +390,11 @@ class JsonUtil {
             Server::ServerLog::Error("Invalid path, can't read json from file, path=", filePath);
             return document;
         }
+#ifdef _WIN32
+        FILE *file = _wfopen(FileUtil::ConvertToLongPathW(filePath).c_str(), L"r");
+#else
         FILE *file = std::fopen(filePath.c_str(), "r");
+#endif
         if (!file) {
             Server::ServerLog::Error("open json file failed, path=", filePath);
             return document;

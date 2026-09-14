@@ -18,6 +18,11 @@
 
 import { createOpfsFallbackGuard } from '../opfsFallbackGuard';
 import { createOpfsFallbackPrompt } from '../opfsFallbackPrompt';
+import {
+    shouldProbeMemSnapshotOpfs,
+    shouldShowMemSnapshotParseOverlay,
+    shouldShowMemSnapshotParseProgress,
+} from '../opfsFallbackVisibility';
 
 describe('OPFS fallback guard', () => {
     it('continues without confirmation when OPFS is available', async () => {
@@ -96,5 +101,21 @@ describe('OPFS fallback guard', () => {
         expect(prompt.getSnapshot()).toBe(false);
         expect(listener).toHaveBeenCalledTimes(2);
         unsubscribe();
+    });
+});
+
+describe('memsnapshot parse overlay vs OPFS prompt', () => {
+    it('probes OPFS while parse is still loading, before the first window is ready', () => {
+        expect(shouldProbeMemSnapshotOpfs('memsnapshot', true, false)).toBe(true);
+        expect(shouldProbeMemSnapshotOpfs('memsnapshot', false, true)).toBe(true);
+        expect(shouldProbeMemSnapshotOpfs('memsnapshot', false, false)).toBe(false);
+        expect(shouldProbeMemSnapshotOpfs('leaks', true, false)).toBe(false);
+    });
+
+    it('hides the 100 percent parse overlay while the OPFS confirmation is visible', () => {
+        expect(shouldShowMemSnapshotParseOverlay(true, false, false)).toBe(true);
+        expect(shouldShowMemSnapshotParseOverlay(true, false, true)).toBe(false);
+        expect(shouldShowMemSnapshotParseProgress(true, true)).toBe(false);
+        expect(shouldShowMemSnapshotParseOverlay(true, true, false)).toBe(false);
     });
 });
