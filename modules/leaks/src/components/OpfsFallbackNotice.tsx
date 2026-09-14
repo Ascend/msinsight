@@ -26,7 +26,7 @@ import { opfsFallbackPrompt } from './opfsFallback';
 const FallbackMask = styled.div`
     position: absolute;
     inset: 16px;
-    z-index: 10;
+    z-index: 20;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -69,13 +69,15 @@ const FallbackActions = styled.div`
     margin-top: 20px;
 `;
 
+export const useOpfsFallbackPromptVisible = (): boolean => useSyncExternalStore(
+    opfsFallbackPrompt.subscribe,
+    opfsFallbackPrompt.getSnapshot,
+    opfsFallbackPrompt.getSnapshot,
+);
+
 const OpfsFallbackNotice = (): React.ReactElement | null => {
     const { t } = useTranslation('leaks');
-    const visible = useSyncExternalStore(
-        opfsFallbackPrompt.subscribe,
-        opfsFallbackPrompt.getSnapshot,
-        opfsFallbackPrompt.getSnapshot,
-    );
+    const visible = useOpfsFallbackPromptVisible();
 
     if (!visible) {
         return null;

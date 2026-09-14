@@ -101,7 +101,7 @@ bool IsDeviceLayoutValid(const MemSnapshotDeviceSliceInfo &deviceInfo, int64_t e
 
 struct ManifestCacheEntry {
     std::uintmax_t fileSize{0};
-    fs::file_time_type writeTime{};
+    uint64_t writeTime{0};
     bool exists{false};
     std::optional<MemSnapshotSliceManifest> manifest;
 };
@@ -207,21 +207,9 @@ std::string MemSnapshotSliceService::GetLogPath(const std::string &snapshotPath)
 
 std::optional<MemSnapshotSliceManifest> MemSnapshotSliceService::LoadManifest(const std::string &snapshotPath) {
     const auto manifestPath = GetManifestPath(snapshotPath);
-    std::error_code error;
-    const bool exists = FileUtil::CheckFilePathExist(manifestPath);
     std::uintmax_t fileSize = 0;
-    fs::file_time_type writeTime{};
-    if (exists) {
-        fileSize = fs::file_size(manifestPath, error);
-        if (error) {
-            fileSize = 0;
-            error.clear();
-        }
-        writeTime = fs::last_write_time(manifestPath, error);
-        if (error) {
-            writeTime = {};
-        }
-    }
+    uint64_t writeTime = 0;
+    const bool exists = GetFileFingerprint(manifestPath, fileSize, writeTime);
     {
         std::lock_guard<std::mutex> lock(g_manifestCacheMutex);
         const auto cached = g_manifestCache.find(snapshotPath);
@@ -291,5 +279,35 @@ std::string MemSnapshotSliceService::ResolveSliceDbPath(
 std::string MemSnapshotSliceService::BuildDatabaseKey(
     const std::string &snapshotPath, const std::string &deviceId, int sliceIndex) {
     return snapshotPath + "#device=" + deviceId + "#slice=" + std::to_string(sliceIndex);
+}
+
+bool MemSnapshotSliceService::GetFileFingerprint(
+    const std::string &path, std::uintmax_t &fileSize, uint64_t &writeTime) {
+#ifdef _WIN32
+    // MinGW std::filesystem treats narrow paths inconsistently; use the same Win32 APIs as FileUtil.
+    WIN32_FILE_ATTRIBUTE_DATA fileData{};
+    const std::wstring wPath = FileUtil::ConvertToLongPathW(path);
+    if (GetFileAttributesExW(wPath.c_str(), GetFileExInfoStandard, &fileData) == 0) {
+        return false;
+    }
+    fileSize = (static_cast<std::uintmax_t>(fileData.nFileSizeHigh) << 32) | fileData.nFileSizeLow;
+    ULARGE_INTEGER modifiedTime{};
+    modifiedTime.HighPart = fileData.ftLastWriteTime.dwHighDateTime;
+    modifiedTime.LowPart = fileData.ftLastWriteTime.dwLowDateTime;
+    writeTime = modifiedTime.QuadPart;
+    return true;
+#else
+    std::error_code error;
+    fileSize = fs::file_size(path, error);
+    if (error) {
+        return false;
+    }
+    const auto currentWriteTime = fs::last_write_time(path, error);
+    if (error) {
+        return false;
+    }
+    writeTime = static_cast<uint64_t>(currentWriteTime.time_since_epoch().count());
+    return true;
+#endif
 }
 } // namespace Dic::Module::MemSnapshot

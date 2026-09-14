@@ -15,7 +15,7 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { observer } from 'mobx-react';
 import { Session } from '../../entity/session';
 import MemoryStack from '../MemoryStack';
@@ -23,7 +23,13 @@ import { BottomTab } from './BottomTab';
 import useWorkerMessage from '@/leaksWorker/useWorkerMessage';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
-import OpfsFallbackNotice from '../OpfsFallbackNotice';
+import OpfsFallbackNotice, { useOpfsFallbackPromptVisible } from '../OpfsFallbackNotice';
+import { ensureOpfsOrWaitForFallbackApproval } from '../opfsFallback';
+import {
+    shouldProbeMemSnapshotOpfs,
+    shouldShowMemSnapshotParseOverlay,
+    shouldShowMemSnapshotParseProgress,
+} from '../opfsFallbackVisibility';
 import { Select } from '@insight/lib/components';
 import { runInAction } from 'mobx';
 
@@ -309,9 +315,23 @@ const index = observer((props: { session: Session }) => {
     const hasReadyWindow = Object.values(session.snapshotSlices).some(
         device => (device?.readySlices?.length ?? 0) > 0,
     );
-    const parseOverlayVisible = session.memSnapshotParseLoading && !hasReadyWindow;
+    const opfsPromptVisible = useOpfsFallbackPromptVisible();
+    const showParseProgress = shouldShowMemSnapshotParseProgress(
+        session.memSnapshotParseLoading, opfsPromptVisible,
+    );
+    const parseOverlayVisible = shouldShowMemSnapshotParseOverlay(
+        session.memSnapshotParseLoading, hasReadyWindow, opfsPromptVisible,
+    );
+
+    useEffect(() => {
+        if (!shouldProbeMemSnapshotOpfs(session.module, session.memSnapshotParseLoading, hasReadyWindow)) {
+            return;
+        }
+        void ensureOpfsOrWaitForFallbackApproval();
+    }, [session.module, session.memSnapshotParseLoading, hasReadyWindow]);
+
     const showWindowToolbar = session.module === 'memsnapshot' && windowOptions.length > 0;
-    const overallParseProgress = session.memSnapshotParseLoading
+    const overallParseProgress = showParseProgress
         ? <OverallParseStatus>
             <ParseLoadingSpinner />
             <span>{t('overallParsing')}</span>
@@ -354,16 +374,15 @@ const index = observer((props: { session: Session }) => {
                         </WindowSelectFrame>
                     </WindowControls>
                 </WindowToolbarRow>
-                {session.memSnapshotParseLoading ? overallParseProgress : <></>}
+                {showParseProgress ? overallParseProgress : <></>}
             </WindowToolbar>
-            : session.memSnapshotParseLoading && hasReadyWindow
+            : showParseProgress && hasReadyWindow
                 ? <StandaloneOverallParse>{overallParseProgress}</StandaloneOverallParse>
                 : <></>}
         <ContentArea>
             <MemoryStack session={session} />
         </ContentArea>
         <BottomTab session={session} />
-        <OpfsFallbackNotice />
         {parseOverlayVisible
             ? <ParseLoadingMask>
                 <ParseLoadingPanel>
@@ -385,6 +404,7 @@ const index = observer((props: { session: Session }) => {
                 </ParseLoadingPanel>
             </ParseLoadingMask>
             : <></>}
+        <OpfsFallbackNotice />
     </LeaksPage>;
 });
 

@@ -34,9 +34,10 @@ std::ifstream OpenReadFileSafely(const std::string &path, std::ios::openmode mod
         return res;
     }
 #ifdef _WIN32
-    tmpPath = FileUtil::ConvertToLongPath(tmpPath);
-#endif
+    res.open(FileUtil::ConvertToLongPathW(tmpPath).c_str(), std::ios::in | mode);
+#else
     res.open(tmpPath, std::ios::in | mode);
+#endif
     return res;
 }
 }

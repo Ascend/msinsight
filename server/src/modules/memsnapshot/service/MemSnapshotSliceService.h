@@ -20,6 +20,7 @@
 #define PROFILER_SERVER_MEM_SNAPSHOT_SLICE_SERVICE_H
 
 #include "pch.h"
+#include <cstdint>
 
 namespace Dic::Module::MemSnapshot {
 constexpr int MEM_SNAPSHOT_SLICE_MANIFEST_SCHEMA_VERSION = 1;
@@ -65,6 +66,7 @@ class MemSnapshotSliceService {
         const MemSnapshotSliceManifest &manifest, const std::string &deviceId, int64_t eventId);
     static std::string ResolveSliceDbPath(const std::string &snapshotPath, const MemSnapshotSliceInfo &sliceInfo);
     static std::string BuildDatabaseKey(const std::string &snapshotPath, const std::string &deviceId, int sliceIndex);
+    static bool GetFileFingerprint(const std::string &path, std::uintmax_t &fileSize, uint64_t &writeTime);
 };
 } // namespace Dic::Module::MemSnapshot
 
