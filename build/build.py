@@ -440,21 +440,15 @@ def seed_default_workspace_skills(preview_dir: str) -> int:
     The shipped install tree carries exactly one copy per skill name (Bundle
     records win); first-start sync replays the same bytes idempotently.
     """
-    source = os.path.join(
-        preview_dir, 'resources', 'profiler', 'server', 'insight_web_agent', 'skills'
-    )
-    target = os.path.join(
-        preview_dir, '.mindstudio_insight', 'agent-workspace', '.agents', 'skills'
-    )
+    source = os.path.join(preview_dir, 'resources', 'profiler', 'server', 'insight_web_agent', 'skills')
+    target = os.path.join(preview_dir, '.mindstudio_insight', 'agent-workspace', '.agents', 'skills')
     if not os.path.isdir(source):
         logging.error('Product skills source is absent: %s', source)
         return 1
     if os.path.exists(target):
         shutil.rmtree(target)
     shutil.copytree(source, target)
-    names = sorted(
-        entry for entry in os.listdir(target) if os.path.isdir(os.path.join(target, entry))
-    )
+    names = sorted(entry for entry in os.listdir(target) if os.path.isdir(os.path.join(target, entry)))
     logging.info('Seeded default workspace skills: count=%d', len(names))
     return 0
 
@@ -970,17 +964,72 @@ def replace_placeholders_in_file(file_path, placeholder, replacement):
         file.truncate()  # 清除文件指针当前位置后面的内容
 
 
+_CARGO_PACKAGE_VERSION_PATTERN = re.compile(
+    r'(?ms)(^\[package\]\s*.*?^version\s*=\s*")[^"]+(")',
+)
+_CARGO_SEMVER_PATTERN = re.compile(
+    r'^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$',
+)
+
+
+def cargo_manifest_version(version):
+    candidate = str(version or '').strip()
+    if _CARGO_SEMVER_PATTERN.fullmatch(candidate):
+        return candidate
+    logging.warning(
+        'Cargo package version %r is invalid; filling default %s',
+        version,
+        Const.DEFAULT_BUILD_VERSION,
+    )
+    return Const.DEFAULT_BUILD_VERSION
+
+
+def fill_cargo_package_version(content: str, version: str) -> str:
+    lines = content.splitlines(keepends=True)
+    in_package = False
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith('[') and stripped.endswith(']'):
+            in_package = stripped == '[package]'
+            continue
+        if not in_package:
+            continue
+        replaced, matched = re.subn(
+            r'^(\s*version\s*=\s*")[^"]+(")',
+            rf'\g<1>{version}\g<2>',
+            line,
+            count=1,
+        )
+        if matched:
+            lines[index] = replaced
+            return ''.join(lines)
+    result = []
+    inserted = False
+    for line in lines:
+        result.append(line)
+        if not inserted and line.strip() == '[package]':
+            newline = '\r\n' if line.endswith('\r\n') else '\n'
+            result.append(f'version = "{version}"{newline}')
+            inserted = True
+    return ''.join(result)
+
+
 def update_cargo_package_version(file_path, version):
+    package_version = cargo_manifest_version(version)
     with open(file_path, 'r', encoding='utf-8') as file:
         content = file.read()
-    updated, count = re.subn(
-        r'(?ms)(^\[package\]\s*.*?^version\s*=\s*")[^"]+("\s*$)',
-        rf'\g<1>{version}\g<2>',
+    updated, count = _CARGO_PACKAGE_VERSION_PATTERN.subn(
+        rf'\g<1>{package_version}\g<2>',
         content,
         count=1,
     )
     if count != 1:
-        raise ValueError(f'Unable to update Cargo package version in {file_path}')
+        logging.warning(
+            'Unable to uniquely match [package] version in %s; filling default %s',
+            file_path,
+            Const.DEFAULT_BUILD_VERSION,
+        )
+        updated = fill_cargo_package_version(content, Const.DEFAULT_BUILD_VERSION)
     with open(file_path, 'w', encoding='utf-8') as file:
         file.write(updated)
 
@@ -1066,7 +1115,12 @@ def resolve_rag_options(build_version, env):
 
 def rag_subprocess_environment(context, base_environment=None):
     environment = dict(os.environ if base_environment is None else base_environment)
-    for name in (*rag_environment_names(), Const.RAG_TARGET_PLATFORM_ENV, Const.RAG_TARGET_ARCH_ENV, Const.RAG_TARGET_LIBC_ENV):
+    for name in (
+        *rag_environment_names(),
+        Const.RAG_TARGET_PLATFORM_ENV,
+        Const.RAG_TARGET_ARCH_ENV,
+        Const.RAG_TARGET_LIBC_ENV,
+    ):
         environment.pop(name, None)
     if context is not None:
         target = rag_target_environment(context.os_tag)
@@ -1220,7 +1274,11 @@ def write_development_bundle_metadata(context: BuildContext):
     except (OSError, ValueError, FileExistsError) as error:
         logging.error('Unable to write final RAG build metadata: %s', error)
         return 1
-    result = exec_command([Const.NODE, 'dist-server/rag-cli.mjs', 'verify'], os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.insight_web_agent_DIR), 'rag_verify')
+    result = exec_command(
+        [Const.NODE, 'dist-server/rag-cli.mjs', 'verify'],
+        os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.insight_web_agent_DIR),
+        'rag_verify',
+    )
     if result != 0:
         return result
     module_path = os.path.join(PROJECT_PATH, Const.MODULES_DIR, Const.insight_web_agent_DIR)
@@ -1239,11 +1297,7 @@ def propagate_final_bundle_metadata(context: BuildContext):
     if context.rag is None:
         return 0
     source = (
-        Path(PROJECT_PATH)
-        / Const.MODULES_DIR
-        / Const.insight_web_agent_DIR
-        / 'dist-server'
-        / 'rag-build-mode.json'
+        Path(PROJECT_PATH) / Const.MODULES_DIR / Const.insight_web_agent_DIR / 'dist-server' / 'rag-build-mode.json'
     )
     destination = (
         Path(PROJECT_PATH)
