@@ -30,7 +30,14 @@ def test_development_version_maps_string_to_exact_pe_numeric_identity() -> None:
     beta = DevelopmentVersion.parse("26.2.0-beta-v1")
     assert beta.product == "26.2.0-beta-v1"
     assert beta.pe_numeric == "26.2.0.1"
-    for invalid in ["26.1.1", "26.1.1-rag-dev.0", "26.1-rag-dev.1", "26.1.1-rag-dev.01", "26.2.0-beta-v0", "26.2.0-beta-1"]:
+    for invalid in [
+        "26.1.1",
+        "26.1.1-rag-dev.0",
+        "26.1-rag-dev.1",
+        "26.1.1-rag-dev.01",
+        "26.2.0-beta-v0",
+        "26.2.0-beta-1",
+    ]:
         with pytest.raises(ValueError):
             DevelopmentVersion.parse(invalid)
 
@@ -239,6 +246,24 @@ def test_top_level_version_helpers_update_string_numeric_and_cargo_identity(tmp_
     assert 'version = "26.1.1-rag-dev.1"' in cargo.read_text(encoding="utf-8")
 
 
+def test_cargo_package_version_fills_default_when_invalid_or_unmatched(tmp_path: Path) -> None:
+    top = load_top_build_module()
+    cargo = tmp_path / "Cargo.toml"
+    cargo.write_text(
+        '[package]\nname = "insight"\nversion = "0.1.0"\n\n[package.metadata.bundle]\nversion = "7.0.RC3"\n',
+        encoding="utf-8",
+    )
+    top.update_cargo_package_version(cargo, "7.0.RC3")
+    content = cargo.read_text(encoding="utf-8")
+    assert 'name = "insight"\nversion = "26.0.0"' in content
+    assert 'version = "7.0.RC3"' in content
+
+    unmatched = tmp_path / "unmatched.toml"
+    unmatched.write_text('[lib]\nname = "insight"\n', encoding="utf-8")
+    top.update_cargo_package_version(unmatched, "26.1.1")
+    assert unmatched.read_text(encoding="utf-8") == '[lib]\nname = "insight"\n'
+
+
 def test_top_level_reads_complete_rag_environment(tmp_path: Path) -> None:
     top = load_top_build_module()
     args = SimpleNamespace(
@@ -379,9 +404,7 @@ def test_mac_rag_bundle_root_supports_only_standard_resources_layout(tmp_path: P
     assert top.verify_mac_packaged_rag(str(app)) is True
 
 
-def test_mac_signing_does_not_deep_resign_native_runtime(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_mac_signing_does_not_deep_resign_native_runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     top = load_top_build_module()
     app = tmp_path / "MindStudioInsight.app"
     bundle = app / "Contents" / "Resources" / "profiler" / "server" / "insight_web_agent"
@@ -455,12 +478,7 @@ def test_package_mac_uses_standard_resources_with_executable_compatibility_link(
     monkeypatch.setattr(top, "verify_mac_packaged_rag", lambda _: True)
     monkeypatch.setattr(top, "build_dmg_for_mac_app", lambda path: Path(path).write_bytes(b"dmg") > 0)
 
-    assert (
-        top.package_mac(
-            str(tmp_path / "out.dmg"), "package_macos_aarch64.dmg", str(preview), str(target)
-        )
-        is True
-    )
+    assert top.package_mac(str(tmp_path / "out.dmg"), "package_macos_aarch64.dmg", str(preview), str(target)) is True
     packaged = preview / top.Const.MAC_OS_APPNAME
     assert (packaged / "Contents" / "Resources" / "python" / "bin" / "python3").is_file()
     assert not (packaged / "Contents" / "Resources" / "profiler" / "server" / "python").exists()
@@ -469,15 +487,7 @@ def test_package_mac_uses_standard_resources_with_executable_compatibility_link(
 
 def test_mac_signing_refreshes_native_runtime_manifest_after_nested_signatures(tmp_path: Path) -> None:
     top = load_top_build_module()
-    bundle = (
-        tmp_path
-        / "MindStudioInsight.app"
-        / "Contents"
-        / "Resources"
-        / "profiler"
-        / "server"
-        / "insight_web_agent"
-    )
+    bundle = tmp_path / "MindStudioInsight.app" / "Contents" / "Resources" / "profiler" / "server" / "insight_web_agent"
     native = bundle / "node_modules" / "onnxruntime-node" / "binding.node"
     native.parent.mkdir(parents=True)
     native.write_bytes(b"signed-native-bytes")
@@ -535,7 +545,12 @@ def test_offline_jupyter_build_checks_preprovisioned_dependencies_without_pip(
 def test_top_level_rejects_removed_rag_options_and_invalid_inputs_before_cleanup() -> None:
     script = Path(__file__).with_name("build.py")
     clean_environment = os.environ.copy()
-    for name in ("MSINSIGHT_RAG_MODE", "MSINSIGHT_RAG_PACKAGE", "MSINSIGHT_RAG_PACKAGE_SHA256", "MSINSIGHT_RAG_MODEL_DIR"):
+    for name in (
+        "MSINSIGHT_RAG_MODE",
+        "MSINSIGHT_RAG_PACKAGE",
+        "MSINSIGHT_RAG_PACKAGE_SHA256",
+        "MSINSIGHT_RAG_MODEL_DIR",
+    ):
         clean_environment.pop(name, None)
     help_result = subprocess.run(
         [str(Path(sys.executable)), str(script), "--help"],
@@ -622,15 +637,15 @@ def test_cleanup_preserves_historical_rag_evidence_and_tracked_test_paths(tmp_pa
 
 
 def test_nsis_uses_forced_crc_and_extraction_errors_without_rag_validation() -> None:
-    installer = (Path(__file__).parents[1] / "platform" / "bundle" / "installer.nsi").read_text(
-        encoding="utf-8"
-    )
+    installer = (Path(__file__).parents[1] / "platform" / "bundle" / "installer.nsi").read_text(encoding="utf-8")
 
     remove = installer.index('RMDir /r "$INSTDIR\\resources\\profiler\\server\\insight_web_agent\\rag-data"')
     copy = installer.index('File /r "resources\\*"')
     extraction_error = installer.index("${If} ${Errors}", copy)
     shortcut = installer.index("CreateShortCut")
-    registry = installer.index('WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MindStudio Insight"')
+    registry = installer.index(
+        'WriteRegStr HKLM "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\MindStudio Insight"'
+    )
 
     assert remove < copy < extraction_error < shortcut < registry
     assert "RequestExecutionLevel admin" in installer
@@ -647,21 +662,15 @@ def test_nsis_uses_forced_crc_and_extraction_errors_without_rag_validation() -> 
 
 def test_development_server_build_uses_prepared_offline_dependencies() -> None:
     top_level = (Path(__file__).parent / "build.py").read_text(encoding="utf-8")
-    server_build = (Path(__file__).parents[1] / "server" / "build" / "build.py").read_text(
+    server_build = (Path(__file__).parents[1] / "server" / "build" / "build.py").read_text(encoding="utf-8")
+    preprocess = (Path(__file__).parents[1] / "server" / "build" / "preprocess_third_party.py").read_text(
         encoding="utf-8"
     )
-    preprocess = (
-        Path(__file__).parents[1] / "server" / "build" / "preprocess_third_party.py"
-    ).read_text(encoding="utf-8")
-    server_library = (
-        Path(__file__).parents[1] / "server" / "msinsight" / "CMakeLists.txt"
-    ).read_text(encoding="utf-8")
-    sqlite_library = (
-        Path(__file__).parents[1] / "server" / "third_party" / "sqlite" / "CMakeLists.txt"
-    ).read_text(encoding="utf-8")
-    server_cmake = (Path(__file__).parents[1] / "server" / "CMakeLists.txt").read_text(
+    server_library = (Path(__file__).parents[1] / "server" / "msinsight" / "CMakeLists.txt").read_text(encoding="utf-8")
+    sqlite_library = (Path(__file__).parents[1] / "server" / "third_party" / "sqlite" / "CMakeLists.txt").read_text(
         encoding="utf-8"
     )
+    server_cmake = (Path(__file__).parents[1] / "server" / "CMakeLists.txt").read_text(encoding="utf-8")
 
     assert "def build_server_offline" in top_level
     assert "preprocess_command.append('--offline')" in top_level
