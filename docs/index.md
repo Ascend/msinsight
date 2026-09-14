@@ -29,6 +29,7 @@
 系统调优 <zh/user_guide/system_tuning>
 算子调优 <zh/user_guide/operator_tuning>
 内存调优 <zh/user_guide/memory_tuning>
+NUMA分析 <zh/user_guide/numa_analysis>
 服务化调优 <zh/user_guide/service_optimization>
 ```
 
