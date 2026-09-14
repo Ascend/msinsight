@@ -56,6 +56,7 @@ MindStudio Insight支持导入性能数据文件，提供时间线视图、内�
 - 支持导入含有ACLGraph构图过程数据的单个json文件。
 - 当导入数据的目录中同时存在单卡数据和集群数据，MindStudio Insight仅支持解析集群数据并进行可视化展示。
 - 支持profiling采集数据（.text格式和.db格式）和ftrace采集数据（.json格式和.db格式）联合导入，先添加其中一个采集方式的数据工程，再从该工程中添加另一个采集方式的数据文件。
+- 支持导入由PyTorch Profiler（基于mspti + kineto插件）采集的NPU数据可视化展示，文件格式为`.pt.trace.json`。针对多卡场景，目前暂不支持将多个文件放入同一目录下批量导入，仅支持“单卡追加导入”，在已导入的单卡`.pt.trace.json`项目中追加导入其他卡的`.pt.trace.json`文件实现数据可视化。
 
 **采集配置与参数说明**
 
@@ -1646,7 +1647,7 @@ MindStudio Insight支持算子统计信息和单个算子详情信息查看。
 
   |中文字段|英文字段|说明|
   |--|--|--|
-  |类别|Category|类别。<br> 可展示多层级信息：<br> 一层级：包含Computing Time（计算时间）、Communication(Not Overlapped) Time（通信时间（未被覆盖））、Free Time（空闲时间）和E2E Time（端到端时间）。<br> 子层级：Computing Time（计算时间）的子层级包括Flash Attention、Conv、Matmul、Cube、Vector等计算流算子的拆解结果。其中，Forward、Backward用于区分前向、反向传播。<br> Communication(Not Overlapped) Time（通信时间（未被覆盖））的子层级为各通信域的分组拆解结果。其中等待时间、传输时间为与通信未被覆盖取交集后的结果。|
+  |类别|Category|类别。<br> 可展示多层级信息：<br> 一层级：包含Computing Time（计算时间）、Communication(Not Overlapped) Time（通信时间（未被覆盖））、Free Time（空闲时间）和E2E Time（端到端时间）。<br> 子层级：Computing Time（计算时间）的子层级包括Flash Attention、Conv、Matmul、Cube、Vector等计算流算子的拆解结果。其中，Forward、Backward用于区分前向、反向传播。支持通过单击类别`Computing Time`后面的![](./figures/system_tuning/comprehensive_metrics_2_entrance.png)添加自定义算子分类规则（上限50条）。<br> Communication(Not Overlapped) Time（通信时间（未被覆盖））的子层级为各通信域的分组拆解结果。其中等待时间、传输时间为与通信未被覆盖取交集后的结果。|
   |总时间(μs)|Total Time(μs)|该类耗时总和。|
   |时间占比|Time Ratio|该类的耗时占比。|
   |数量|Number|该类算子数目。|
