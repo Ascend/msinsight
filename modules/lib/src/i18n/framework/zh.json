@@ -12,6 +12,7 @@
     "DeleteConfirmDescribe": "您确认要删除选中的工程吗?",
     "DeleteProjectConfirmDescribe": "您确认要删除该工程吗?",
     "BaselineDataComparisonDataCannotDeleted": "基线数据和对比数据不允许删除",
+    "SnapshotParsingCannotDelete": "内存快照解析过程中禁止删除",
     "BaselineDataComparisonDataCannotRenamed": "基线数据和对比数据不允许重命名",
     "DeleteItemConfirmDescribe": "您确认要删除该项吗？",
     "Import File Dialog Title": "拖入或按路径导入文件",

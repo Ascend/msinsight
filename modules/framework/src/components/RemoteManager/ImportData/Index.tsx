@@ -29,6 +29,7 @@ import FileExplorer from './FileExplorer';
 import SetBtn from './SetBtn';
 import connector from '@/connection';
 import { removeProjects } from '@/utils/Project';
+import { warnIfLeaksParseBlocksDelete } from '@/utils/leaksParseDeleteGuard';
 
 const ImportContainer = styled.div`
     display: flex;
@@ -120,7 +121,10 @@ const ImportData = observer(({ session, checkedProjectKeys }: IProps) => {
         });
     };
 
-    const deleteSelectedProjects = (): void => {
+    const deleteSelectedProjects = async (): Promise<void> => {
+        if (await warnIfLeaksParseBlocksDelete(session, { projectNames: checkedProjectKeys })) {
+            return;
+        }
         removeProjects(checkedProjectKeys);
     };
 

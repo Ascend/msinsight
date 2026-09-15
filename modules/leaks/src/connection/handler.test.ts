@@ -17,7 +17,9 @@ import {
     switchDirectoryHandler,
     updateSessionHandler,
     hasMultipleMemSnapshotSlices,
+    getLeaksParseStatusHandler,
 } from './handler';
+import connector from '@/connection';
 
 jest.mock('@insight/lib/i18n', () => ({
     __esModule: true,
@@ -30,6 +32,10 @@ jest.mock('@insight/lib', () => ({
 }), { virtual: true });
 jest.mock('@/leaksWorker/blockWorker/worker', () => ({ workerDestroy: jest.fn() }), { virtual: true });
 jest.mock('@/leaksWorker/stateWorker/worker', () => ({ workerDestroy: jest.fn() }), { virtual: true });
+jest.mock('@/connection', () => ({
+    __esModule: true,
+    default: { send: jest.fn() },
+}), { virtual: true });
 jest.mock('@/entity/session', () => ({
     LEAKS_WORKER_INFO_DEFAULT: {},
     MARK_LINE_POSITION_DEFAULT: {},
@@ -628,5 +634,34 @@ describe('memsnapshot parse progress handlers', () => {
         expect(session.memSnapshotParseFileId).toBe('C:\\data\\snapshot.pickle');
         expect(session.snapshotSlices).toEqual({});
         expect(session.snapshotParsingComplete).toBe(false);
+    });
+});
+
+describe('getLeaksParseStatusHandler', () => {
+    const mockedSend = connector.send as jest.MockedFunction<typeof connector.send>;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        store.sessionStore.activeSession = new Session();
+    });
+
+    it('reports incomplete while snapshot parse is loading', () => {
+        const session = store.sessionStore.activeSession as Session;
+        session.memSnapshotParseLoading = true;
+        getLeaksParseStatusHandler({});
+        expect(mockedSend).toHaveBeenCalledWith({
+            event: 'leaksParseStatus',
+            body: { complete: false },
+        });
+    });
+
+    it('reports complete after snapshot parse loading ends', () => {
+        const session = store.sessionStore.activeSession as Session;
+        session.memSnapshotParseLoading = false;
+        getLeaksParseStatusHandler({});
+        expect(mockedSend).toHaveBeenCalledWith({
+            event: 'leaksParseStatus',
+            body: { complete: true },
+        });
     });
 });
