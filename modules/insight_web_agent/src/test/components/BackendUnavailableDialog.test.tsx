@@ -12,7 +12,7 @@ import '@testing-library/jest-dom';
 import type { ReactNode } from 'react';
 import i18n from '@insight/lib/i18n';
 import { BackendUnavailableDialog } from '../../components/BackendUnavailableDialog';
-import { reportBackendAvailable, reportBackendUnavailable } from '../../backendConnection';
+import { clearBackendConnectionFailure, reportBackendAvailable, reportBackendUnavailable } from '../../backendConnection';
 
 jest.mock('antd', () => ({
     Modal: ({ open, title, children }: { open: boolean; title: ReactNode; children: ReactNode }) => (
@@ -21,7 +21,7 @@ jest.mock('antd', () => ({
 }));
 
 afterEach(() => {
-    reportBackendAvailable();
+    clearBackendConnectionFailure();
 });
 
 beforeAll(async () => {
@@ -74,4 +74,18 @@ test('shows the detected Node.js version when it is too old', async () => {
 
     expect(screen.getByRole('dialog')).toHaveTextContent('18.20.0');
     expect(screen.getByRole('dialog')).toHaveTextContent('22.14.0');
+});
+
+test('keeps the missing Node.js dialog open after a later fetch reports available', async () => {
+    render(<BackendUnavailableDialog />);
+    await act(async () => {
+        reportBackendUnavailable({ url: 'acp', status: 'missing-node' });
+    });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    await act(async () => {
+        reportBackendAvailable();
+    });
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
 });

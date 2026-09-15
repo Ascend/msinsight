@@ -7,7 +7,7 @@
  * -------------------------------------------------------------------------
  */
 
-import type { AcpUnavailableReason } from './acpStatus';
+import { isStickyAcpFailure, type AcpUnavailableReason } from './acpStatus';
 
 export interface BackendConnectionFailure {
     url: string;
@@ -30,6 +30,14 @@ export const reportBackendUnavailable = (failure: BackendConnectionFailure): voi
 };
 
 export const reportBackendAvailable = (): void => {
+    if (!lastFailure || isStickyAcpFailure(lastFailure.status)) {
+        return;
+    }
+    lastFailure = undefined;
+    listeners.forEach((listener) => listener(undefined));
+};
+
+export const clearBackendConnectionFailure = (): void => {
     if (!lastFailure) {
         return;
     }

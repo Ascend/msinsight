@@ -25,6 +25,14 @@ export const isAcpRuntimeStatus = (value: string | null | undefined): value is A
     Boolean(value && (ACP_RUNTIME_STATUSES as readonly string[]).includes(value))
 );
 
+export const canAttemptAcpRequest = (status: AcpRuntimeStatus): boolean => (
+    status === 'ready' || status === 'starting'
+);
+
+export const isStickyAcpFailure = (status: AcpUnavailableReason | undefined): boolean => (
+    status === 'missing-node' || status === 'unsupported-node'
+);
+
 export const showsNodeDownload = (reason: AcpUnavailableReason): boolean => (
     reason === 'missing-node' || reason === 'unsupported-node'
 );

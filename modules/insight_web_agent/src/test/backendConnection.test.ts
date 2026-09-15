@@ -7,10 +7,15 @@
  * -------------------------------------------------------------------------
  */
 
-import { reportBackendAvailable, reportBackendUnavailable, subscribeBackendUnavailable } from '../backendConnection';
+import {
+    clearBackendConnectionFailure,
+    reportBackendAvailable,
+    reportBackendUnavailable,
+    subscribeBackendUnavailable,
+} from '../backendConnection';
 
 afterEach(() => {
-    reportBackendAvailable();
+    clearBackendConnectionFailure();
 });
 
 test('reportBackendAvailable notifies subscribers so the dialog can close', () => {
@@ -23,6 +28,22 @@ test('reportBackendAvailable notifies subscribers so the dialog can close', () =
 
     reportBackendAvailable();
     expect(listener).toHaveBeenLastCalledWith(undefined);
+
+    unsubscribe();
+});
+
+test('does not auto-clear a missing or unsupported Node.js failure', () => {
+    const listener = jest.fn();
+    const unsubscribe = subscribeBackendUnavailable(listener);
+
+    reportBackendUnavailable({ url: 'acp', status: 'missing-node' });
+    reportBackendAvailable();
+    expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'missing-node' }));
+
+    clearBackendConnectionFailure();
+    reportBackendUnavailable({ url: 'acp', status: 'unsupported-node', nodeVersion: '18.20.0' });
+    reportBackendAvailable();
+    expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'unsupported-node' }));
 
     unsubscribe();
 });
