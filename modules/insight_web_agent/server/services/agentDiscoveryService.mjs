@@ -35,7 +35,7 @@ export const ACP_AGENT_CATALOG = [
     },
     {
         id: "trae",
-        config: { name: "Trae(auto)", command: "traecli", args: ["serve", "acp"], env: {} },
+        config: { name: "Trae(auto)", command: "traecli", args: ["acp", "serve"], env: {} },
     },
 ];
 

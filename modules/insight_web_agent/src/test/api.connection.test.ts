@@ -14,10 +14,10 @@ jest.mock('../env', () => ({
 }));
 
 import { fetchState } from '../api';
-import { reportBackendAvailable, subscribeBackendUnavailable } from '../backendConnection';
+import { clearBackendConnectionFailure, reportBackendUnavailable, subscribeBackendUnavailable } from '../backendConnection';
 
 afterEach(() => {
-    reportBackendAvailable();
+    clearBackendConnectionFailure();
     jest.restoreAllMocks();
 });
 
@@ -57,5 +57,22 @@ test('closes the unavailable state after a later request succeeds', async () => 
     });
     await fetchState();
     expect(listener).toHaveBeenLastCalledWith(undefined);
+    unsubscribe();
+});
+
+test('does not treat a wry 404 HTML response as the backend coming back', async () => {
+    const listener = jest.fn();
+    const unsubscribe = subscribeBackendUnavailable(listener);
+    reportBackendUnavailable({ url: 'acp', status: 'unreachable' });
+
+    global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        text: async () => '<html>Not Found</html>',
+    }) as unknown as typeof fetch;
+
+    await expect(fetchState()).rejects.toThrow(/invalid JSON response/);
+    expect(listener).toHaveBeenLastCalledWith(expect.objectContaining({ status: 'unreachable' }));
     unsubscribe();
 });

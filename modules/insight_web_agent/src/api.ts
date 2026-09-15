@@ -20,7 +20,7 @@ import { sortByTimeDescending } from '@insight/lib/utils';
 import type { HostContext } from './connection';
 import { apiUrl, ACP_STATUS, ACP_NODE_VERSION } from './env';
 import { reportBackendAvailable, reportBackendUnavailable } from './backendConnection';
-import type { AcpUnavailableReason } from './acpStatus';
+import { canAttemptAcpRequest, type AcpUnavailableReason } from './acpStatus';
 
 interface PromptResponse {
     ok?: boolean;
@@ -86,7 +86,7 @@ export const isBackendUnavailableError = (error: unknown): error is ApiRequestEr
 
 const CONNECT_RETRY_DELAYS_MS = ACP_STATUS === 'starting' ? [400, 800, 1600, 3000] : [400, 800, 1600];
 
-const shouldRetryConnection = (): boolean => ACP_STATUS === 'ready' || ACP_STATUS === 'starting';
+const shouldRetryConnection = (): boolean => canAttemptAcpRequest(ACP_STATUS);
 
 const connectionFailureStatus = (): AcpUnavailableReason => {
     if (ACP_STATUS === 'ready') {
@@ -129,10 +129,18 @@ const fetchBackend = async (url: string, init?: RequestInit): Promise<Response> 
 
 const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
     const url = apiUrl(path);
+    if (!canAttemptAcpRequest(ACP_STATUS)) {
+        reportBackendUnavailable({
+            url: safeEndpoint(url),
+            status: connectionFailureStatus(),
+            nodeVersion: ACP_NODE_VERSION,
+        });
+        throw new ApiRequestError(`Unable to connect to the Agent backend: ${ACP_STATUS}`, undefined, path);
+    }
+
     let response: Response;
     try {
         response = await fetchBackend(url, init);
-        reportBackendAvailable();
     } catch (error) {
         if (isAbortError(error)) {
             throw error;
@@ -168,6 +176,7 @@ const requestJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
             body,
         );
     }
+    reportBackendAvailable();
     return body as T;
 };
 
