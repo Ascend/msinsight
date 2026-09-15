@@ -55,6 +55,7 @@ interface ChatStateValue {
     notices: ConversationNotice[];
     messagesRef: RefObject<HTMLDivElement>;
     scrollToLatestRequest: number;
+    welcomeAnimationRequest: number;
     pendingPrompt: boolean;
     queuedCount: number;
     queuedPrompts: QueuedPrompt[];
@@ -163,6 +164,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
     const [images, setImages] = useState<ImageAttachment[]>([]);
     const messagesRef = useRef<HTMLDivElement>(null);
     const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0);
+    const [welcomeAnimationRequest, setWelcomeAnimationRequest] = useState(0);
     const stateRef = useRef(state);
     const queuedPromptInFlightRef = useRef(false);
     const frontendCommandsRef = useRef(new Set<string>());
@@ -553,6 +555,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
 
     const createDraftSession = async (): Promise<void> => {
         if (activePendingPrompt(stateRef.current)) return;
+        setWelcomeAnimationRequest((current) => current + 1);
         setInput('');
         setImages([]);
         setState((current) => ({
@@ -888,6 +891,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         notices: activeNotices(state),
         messagesRef,
         scrollToLatestRequest,
+        welcomeAnimationRequest,
         pendingPrompt: activePendingPrompt(state),
         queuedCount: activeQueuedCount(state),
         queuedPrompts: activeQueuedPrompts(state),
@@ -910,7 +914,7 @@ export const ChatStateProvider = ({ children }: { children: ReactNode }): JSX.El
         refreshAgents,
         applyAgentConfigSnapshot,
         respondToPermission,
-    }), [images, draft, state, scrollToLatestRequest]);
+    }), [images, draft, state, scrollToLatestRequest, welcomeAnimationRequest]);
 
     return <ChatStateContext.Provider value={value}>{children}</ChatStateContext.Provider>;
 };

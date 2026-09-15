@@ -16,13 +16,19 @@
  * -------------------------------------------------------------------------
  */
 import React from 'react';
+import { keyframes } from '@emotion/react';
 import styled from '@emotion/styled';
+import { Tooltip } from '@insight/lib/components';
 import { InsightBotLogo } from '@insight/lib/icon';
+
+const logoSpin = keyframes`
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+`;
 
 const EntryButton = styled.button`
     display: flex;
     align-items: center;
-    gap: 8px;
     padding: 0;
     border: 0;
     color: ${({ theme }): string => theme.textColorPrimary};
@@ -47,6 +53,16 @@ const EntryButton = styled.button`
         height: 20px;
         object-fit: contain;
     }
+
+    &:hover img {
+        animation: ${logoSpin} 0.6s ease-out;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        &:hover img {
+            animation: none;
+        }
+    }
 `;
 
 interface InsightBotEntryProps {
@@ -55,15 +71,22 @@ interface InsightBotEntryProps {
 }
 
 const InsightBotEntry = ({ active, onClick }: InsightBotEntryProps): JSX.Element => {
-    return <EntryButton
-        type="button"
-        aria-label="Insight Bot"
-        aria-pressed={active}
-        onClick={onClick}
+    return <Tooltip
+        placement="bottomRight"
+        arrowPointAtCenter
+        title="Insight Bot"
+        overlayStyle={{ width: 'max-content', maxWidth: 'calc(100vw - 16px)' }}
+        overlayInnerStyle={{ whiteSpace: 'nowrap' }}
     >
-        <img src={InsightBotLogo} alt="" />
-        <span>Insight Bot</span>
-    </EntryButton>;
+        <EntryButton
+            type="button"
+            aria-label="Insight Bot"
+            aria-pressed={active}
+            onClick={onClick}
+        >
+            <img src={InsightBotLogo} alt="" />
+        </EntryButton>
+    </Tooltip>;
 };
 
 export default InsightBotEntry;

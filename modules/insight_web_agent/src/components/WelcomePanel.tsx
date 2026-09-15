@@ -15,14 +15,15 @@
  * See the Mulan PSL v2 for more details.
  * -------------------------------------------------------------------------
  */
+import React, { useRef } from 'react';
 import styled from '@emotion/styled';
 import { useTranslation } from 'react-i18next';
 import guideOne from '../icons/guide-1.svg';
 import guideTwo from '../icons/guide-2.svg';
 import guideThree from '../icons/guide-3.svg';
-import logo from '../icons/logo.png';
-import welcomeBackground from '../icons/welcome-bg.png';
+import logo from '../icons/logo-insight.svg';
 import { useChatState } from '../hooks/useChatState';
+import { WelcomeDots } from './WelcomeDots';
 
 const Container = styled.section`
     min-height: 0;
@@ -42,15 +43,24 @@ const Container = styled.section`
         margin: auto 0;
     }
 
+    .welcome-heading {
+        position: relative;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        flex-shrink: 0;
+        margin-bottom: 22px;
+    }
+
     .welcome-visual {
         position: absolute;
         z-index: 0;
-        top: -80px;
+        top: 50%;
         left: 50%;
-        width: 361px;
-        height: 388px;
-        transform: translateX(-50%);
-        background: center / 100% 100% no-repeat url(${welcomeBackground});
+        width: min(560px, 92vw);
+        height: min(602px, 92vh);
+        transform: translate(-50%, -50%);
         pointer-events: none;
     }
 
@@ -69,7 +79,7 @@ const Container = styled.section`
     }
 
     .welcome-title {
-        margin: 22px 0 22px;
+        margin: 22px 0 0;
         color: ${(props): string => props.theme.textColorPrimary};
         font-size: 24px;
         font-weight: 600;
@@ -143,9 +153,14 @@ const Container = styled.section`
     }
 
     @media (max-height: 760px) {
-        .welcome-title { margin: 14px 0 16px; }
+        .welcome-heading { margin-bottom: 16px; }
+        .welcome-title { margin-top: 14px; }
         .guide-list { gap: 10px; }
         .guide-card { min-height: 72px; padding: 11px 16px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .welcome-logo, .welcome-title, .guide-card { animation: none; }
     }
 `;
 
@@ -157,13 +172,20 @@ const guides = [
 
 export const WelcomePanel = (): JSX.Element => {
     const { t } = useTranslation('insightWebAgent');
-    const { selectWelcomePrompt } = useChatState();
+    const { selectWelcomePrompt, currentSessionId, isDraftSession, welcomeAnimationRequest } = useChatState();
+    const hitAreaRef = useRef<HTMLElement>(null);
 
-    return <Container>
+    return <Container ref={hitAreaRef}>
         <div className="welcome-content">
-            <div className="welcome-visual" />
-            <img className="welcome-logo" src={logo} alt="" />
-            <h1 className="welcome-title">{t('welcomeTitle')}</h1>
+            <div className="welcome-heading">
+                <WelcomeDots
+                    className="welcome-visual"
+                    hitAreaRef={hitAreaRef}
+                    replayKey={`${isDraftSession ? 'draft' : currentSessionId}:${welcomeAnimationRequest}`}
+                />
+                <img className="welcome-logo" src={logo} alt="" />
+                <h1 className="welcome-title">{t('welcomeTitle')}</h1>
+            </div>
             <div className="guide-list">
                 {guides.map((guide) => <button className="guide-card" key={guide.title} onClick={() => selectWelcomePrompt(t(guide.prompt), guide.promptPreset)} type="button">
                     <img className="guide-icon" src={guide.icon} alt="" />

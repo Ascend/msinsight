@@ -44,7 +44,8 @@ const port: number = Number.parseInt(<string>PARAM_MAP.get('port'));
 const acpPortRaw = PARAM_MAP.get('acpPort');
 const acpPort: number = acpPortRaw ? Number.parseInt(acpPortRaw) : 0;
 const acpCapabilityToken: string = decodeURIComponent(PARAM_MAP.get('acpCapabilityToken') ?? '');
-const acpStatus: string = PARAM_MAP.get('acpStatus') || 'ready';
+const acpStatusRaw = PARAM_MAP.get('acpStatus') ?? 'ready';
+const acpStatus: string = acpStatusRaw === '' ? 'ready' : acpStatusRaw;
 const acpNodeVersion: string = decodeURIComponent(PARAM_MAP.get('acpNodeVersion') ?? '');
 
 const jupyterlabProxy: boolean = PARAM_MAP.get('jupyterlabProxy') === 'true';
