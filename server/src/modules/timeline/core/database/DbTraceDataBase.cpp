@@ -2067,10 +2067,13 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
         return unit != nullptr && unit->metaData.metaType == cannMetaType && unit->type == "label";
     };
     for (auto &process : metaData) {
+        std::vector<std::unique_ptr<Protocol::UnitTrack>> processChildren;
+        processChildren.reserve(process->children.size() + globalTidsWithPythonFunc.size());
         for (auto &child : process->children) {
+            std::unique_ptr<Protocol::UnitTrack> pythonStack;
             if (globalTidsWithPythonFunc.count(child->metaData.processId)) {
-                auto pythonStack = GenerateBaseUnitTrack("thread", fileId, child->metaData.processId,
-                    "", pythonStackMetaType);
+                pythonStack = GenerateBaseUnitTrack("thread", fileId, child->metaData.processId,
+                    child->metaData.processName, pythonStackMetaType);
                 pythonStack->metaData.threadId = Protocol::PYTHON_STACK_THREAD_ID_PREFIX + child->metaData.processId;
                 pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
                 pythonStack->metaData.maxDepth = 1;
@@ -2097,7 +2100,6 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
                 child->children.clear();
                 child->children.insert(child->children.end(), std::make_move_iterator(beforePytorch.begin()),
                     std::make_move_iterator(beforePytorch.end()));
-                child->children.emplace_back(std::move(pythonStack));
                 if (pytorchUnit != nullptr) {
                     child->children.emplace_back(std::move(pytorchUnit));
                 }
@@ -2106,7 +2108,12 @@ void DbTraceDataBase::AddPythonStackMetadata(const std::string &fileId,
                 child->children.insert(child->children.end(), std::make_move_iterator(afterPytorch.begin()),
                     std::make_move_iterator(afterPytorch.end()));
             }
+            processChildren.emplace_back(std::move(child));
+            if (pythonStack != nullptr) {
+                processChildren.emplace_back(std::move(pythonStack));
+            }
         }
+        process->children = std::move(processChildren);
     }
 }
 

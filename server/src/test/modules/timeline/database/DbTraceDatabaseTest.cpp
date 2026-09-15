@@ -1403,16 +1403,24 @@ TEST_F(DbTraceDatabaseTest, TestQueryUnitsMetadataWithMultiplePythonStacks)
     std::vector<std::unique_ptr<Dic::Protocol::UnitTrack>> metaData;
     database.QueryUnitsMetadata("9", metaData);
     ASSERT_EQ(metaData.size(), 1);
-    ASSERT_EQ(metaData[0]->children.size(), 2);
+    ASSERT_EQ(metaData[0]->children.size(), 4);
     std::set<std::string> pythonStackThreadIds;
     std::set<std::string> pythonStackThreadNames;
-    for (const auto &thread : metaData[0]->children) {
-        for (const auto &child : thread->children) {
-            if (child->metaData.metaType == "PYTORCH_API_PYTHON_STACK") {
-                pythonStackThreadIds.emplace(child->metaData.threadId);
-                pythonStackThreadNames.emplace(child->metaData.threadName);
-            }
-        }
+    for (size_t index = 0; index < metaData[0]->children.size(); index += 2) {
+        const auto &thread = metaData[0]->children[index];
+        const auto &pythonStack = metaData[0]->children[index + 1];
+        ASSERT_NE(thread, nullptr);
+        ASSERT_NE(pythonStack, nullptr);
+        EXPECT_EQ(thread->type, "process");
+        EXPECT_EQ(pythonStack->type, "thread");
+        EXPECT_EQ(pythonStack->metaData.metaType, "PYTORCH_API_PYTHON_STACK");
+        EXPECT_EQ(pythonStack->metaData.processId, thread->metaData.processId);
+        EXPECT_EQ(pythonStack->metaData.processName, thread->metaData.processName);
+        EXPECT_TRUE(std::none_of(thread->children.begin(), thread->children.end(), [](const auto &child) {
+            return child->metaData.metaType == "PYTORCH_API_PYTHON_STACK";
+        }));
+        pythonStackThreadIds.emplace(pythonStack->metaData.threadId);
+        pythonStackThreadNames.emplace(pythonStack->metaData.threadName);
     }
     EXPECT_EQ(pythonStackThreadIds, std::set<std::string>({"python_stack:4294967297", "python_stack:4294967298"}));
     EXPECT_EQ(pythonStackThreadNames, std::set<std::string>({"Python Stack 1", "Python Stack 2"}));

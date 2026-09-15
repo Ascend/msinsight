@@ -879,21 +879,28 @@ bool TextTraceDatabase::QueryUnitsMetadata(
         }
         auto pythonThreadIt = pythonThreadMap.find(item.pid);
         if (pythonThreadIt != pythonThreadMap.end()) {
+            std::vector<std::unique_ptr<Protocol::UnitTrack>> processChildren;
+            processChildren.reserve(process->children.size() + pythonThreadIt->second.size());
             for (auto &child : process->children) {
-                if (child->type != "thread" ||
-                    pythonThreadIt->second.count(child->metaData.threadId) == 0) {
-                    continue;
+                std::unique_ptr<UnitTrack> pythonStack;
+                if (child->type == "thread" &&
+                    pythonThreadIt->second.count(child->metaData.threadId) > 0) {
+                    pythonStack = std::make_unique<UnitTrack>();
+                    pythonStack->type = "thread";
+                    pythonStack->metaData.metaType = pythonStackMetaType;
+                    pythonStack->metaData.cardId = fileId;
+                    pythonStack->metaData.processId = item.pid;
+                    pythonStack->metaData.processName = item.name;
+                    pythonStack->metaData.threadId = TEXT_PYTHON_STACK_THREAD_ID_PREFIX + child->metaData.threadId;
+                    pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
+                    pythonStack->metaData.maxDepth = 1;
                 }
-                auto pythonStack = std::make_unique<UnitTrack>();
-                pythonStack->type = "thread";
-                pythonStack->metaData.metaType = pythonStackMetaType;
-                pythonStack->metaData.cardId = fileId;
-                pythonStack->metaData.processId = item.pid;
-                pythonStack->metaData.threadId = TEXT_PYTHON_STACK_THREAD_ID_PREFIX + child->metaData.threadId;
-                pythonStack->metaData.threadName = "Python Stack " + child->metaData.threadId;
-                pythonStack->metaData.maxDepth = 1;
-                child->children.emplace_back(std::move(pythonStack));
+                processChildren.emplace_back(std::move(child));
+                if (pythonStack != nullptr) {
+                    processChildren.emplace_back(std::move(pythonStack));
+                }
             }
+            process->children = std::move(processChildren);
         }
         tempMetaData.emplace_back(std::move(process));
     }

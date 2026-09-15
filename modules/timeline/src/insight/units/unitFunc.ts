@@ -212,7 +212,8 @@ function newLane(
         }
         case 'thread': {
             const meta = generateMetaData<ThreadMetaData>({ cardId: insightMetaData.metadata.cardId, dbPath: insightMetaData.metadata.dbPath ?? parentMetaData.dbPath },
-                (parentMetaData as ProcessMetaData).processId, (parentMetaData as ProcessMetaData).processName,
+                insightMetaData.metadata.processId || (parentMetaData as ProcessMetaData).processId,
+                insightMetaData.metadata.processName || (parentMetaData as ProcessMetaData).processName,
                 insightMetaData.metadata.threadId, insightMetaData.metadata.threadName);
             meta.dataSource = parentMetaDataTree.get(insightMetaData.metadata).dataSource;
             meta.metaType = insightMetaData.metadata.metaType;

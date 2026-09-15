@@ -563,7 +563,10 @@ const recordUnitHeight = (unit: InsightUnit, height: number): void => {
     }
     if (metadata.processId !== undefined) {
         const processKey = getLaneProcessIdentity(metadata.cardId, metadata.processId, metadata.dbPath);
-        heightMap.set(processKey, height);
+        // 保留折叠分组的回退高度，避免被共享 processId 的可见同级泳道（如 Python Stack）覆盖。
+        if (!processIsCol.has(processKey)) {
+            heightMap.set(processKey, height);
+        }
         if (unit.children?.length && unit.collapsible && !unit.isExpanded) {
             processIsCol.set(processKey, true);
         }
