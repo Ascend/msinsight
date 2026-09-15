@@ -28,6 +28,7 @@ import {
     frameLoadedHandler,
     parseSliceReadyHandler,
     switchDirectoryHandler,
+    getLeaksParseStatusHandler,
 } from './connection/handler';
 
 const PARSECOMPLETED = 'parse/leaksMemoryCompleted';
@@ -47,4 +48,5 @@ export const NOTIFICATION_HANDLERS: Record<string, NotificationHandler> = {
     [PARSEFAIL]: parseFailHandler,
     'remote/remove': removeRemoteHandler,
     'remote/reset': removeRemoteHandler,
+    getLeaksParseStatus: getLeaksParseStatusHandler,
 };

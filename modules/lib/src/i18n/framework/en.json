@@ -12,6 +12,7 @@
     "DeleteConfirmDescribe": "Are you sure to delete the selected projects?",
     "DeleteProjectConfirmDescribe": "Are you sure to delete this project?",
     "BaselineDataComparisonDataCannotDeleted": "Baseline data and comparison data cannot be deleted",
+    "SnapshotParsingCannotDelete": "Cannot delete while the memory snapshot is parsing",
     "BaselineDataComparisonDataCannotRenamed": "Baseline data and comparison data cannot be renamed",
     "DeleteItemConfirmDescribe": "Are you sure to delete this item?",
     "Import File Dialog Title": "Drag or import a file by path",

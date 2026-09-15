@@ -25,6 +25,7 @@ import { workerDestroy as stateWorkerDestroy } from '@/leaksWorker/stateWorker/w
 import { LEAKS_WORKER_INFO_DEFAULT, MARK_LINE_POSITION_DEFAULT, STATE_WORKER_INFO_DEFAULT } from '@/entity/session';
 import type { MemSnapshotDeviceSliceInfo } from '@/entity/session';
 import { getPreferredMemSnapshotDeviceSlices } from '../utils/memSnapshotSlices';
+import connector from '@/connection';
 
 interface ImportFileTreeNode {
     filePath?: string;
@@ -603,4 +604,14 @@ export const removeRemoteHandler: NotificationHandler = (data): void => {
 export const parseFailHandler: NotificationHandler = (data): void => {
     errorCenter.handleError(new WsError(ErrorCode.PARSE_FAIL, data.error as string));
     removeRemoteHandler(data);
+};
+
+export const getLeaksParseStatusHandler: NotificationHandler = (): void => {
+    const session = store.sessionStore.activeSession;
+    connector.send({
+        event: 'leaksParseStatus',
+        body: {
+            complete: session?.memSnapshotParseLoading !== true,
+        },
+    });
 };

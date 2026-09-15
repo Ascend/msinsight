@@ -20,6 +20,7 @@ import { observer } from 'mobx-react';
 import { Popconfirm, Tooltip, message } from 'antd';
 import { DeleteIcon } from '@insight/lib/icon';
 import { removeDataPath, removeProject } from '@/utils/Project';
+import { warnIfLeaksParseBlocksDelete } from '@/utils/leaksParseDeleteGuard';
 import { useTranslation } from 'react-i18next';
 import { openLoading } from '@/utils/useLoading';
 import type { Session } from '@/entity/session';
@@ -35,7 +36,10 @@ interface IProps {
 const DeleteConfirm = observer(({ isProject, projectIndex, dataPath, session, projectName }: IProps) => {
     const { t } = useTranslation('framework');
     let isSelectBaseline = false;
-    const confirm = (): void => {
+    const confirm = async (): Promise<void> => {
+        if (await warnIfLeaksParseBlocksDelete(session, { projectName })) {
+            return;
+        }
         if (session?.compareSet) {
             const { compareSet: { baseline, comparison } } = session;
             if (isProject) {
