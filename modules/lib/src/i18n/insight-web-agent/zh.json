@@ -145,7 +145,7 @@
     "newSession": "新会话",
     "openSessions": "打开会话列表",
     "close": "关闭 Insight Bot",
-    "welcomeTitle": "欢迎使用Insight Bot",
+    "welcomeTitle": "欢迎使用 Insight Bot",
     "memoryGuideTitle": "内存优化助手",
     "memoryGuidePrompt": "使用内存分析助手帮我分析当前数据",
     "slowGuidePrompt": "使用快慢卡分析助手帮我分析当前集群数据",

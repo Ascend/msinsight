@@ -26,6 +26,7 @@ import { Composer } from '../../components/Composer';
 jest.mock('antd', () => ({ message: { error: jest.fn() } }));
 jest.mock('@insight/lib/components', () => ({ Select: () => null }), { virtual: true });
 jest.mock('../../env', () => ({ apiUrl: (path: string) => path }));
+jest.mock('../../components/welcomeDotsEffect', () => ({ createWelcomeDotsEffect: jest.fn() }));
 jest.mock('../../api', () => ({
     fetchState: jest.fn(),
     fetchAgents: jest.fn(),
