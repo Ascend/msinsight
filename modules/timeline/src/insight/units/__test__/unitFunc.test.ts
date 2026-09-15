@@ -501,6 +501,38 @@ describe('timeline unit metadata expansion', () => {
         expect(dpu?.children?.[0].children?.[0].metadata.threadName).toBe('DPU Stream 0');
     });
 
+    it('preserves Python Stack identity when it is a sibling of the Thread group', () => {
+        const cardUnit = createCardUnit();
+        const metadataTree = createHostTree();
+        metadataTree.children?.[0].children?.push({
+            type: 'thread',
+            dataSource,
+            metadata: {
+                cardId: 'rank0',
+                dbPath: 'rank0.db',
+                dataSource,
+                processId: 'global-tid-201',
+                processName: 'Thread 201',
+                threadId: 'python_stack:global-tid-201',
+                threadName: 'Python Stack 201',
+                metaType: 'PYTORCH_API_PYTHON_STACK',
+                groupNameValue: '',
+                rankList: [],
+            },
+        });
+
+        updateDataSourceAndParentMetaDataMap(metadataTree, dataSource);
+        recursiveExpandUnit(metadataTree.children ?? [], cardUnit);
+
+        const processUnit = cardUnit.children?.[0];
+        expect(processUnit?.children).toHaveLength(2);
+        const pythonStack = processUnit?.children?.[1];
+        expect(pythonStack?.name).toBe('Thread');
+        expect(pythonStack?.metadata.processId).toBe('global-tid-201');
+        expect(pythonStack?.metadata.processName).toBe('Thread 201');
+        expect(pythonStack?.metadata.threadId).toBe('python_stack:global-tid-201');
+    });
+
     it('creates an LLC Cache lane under every Process and Thread group', () => {
         const cardUnit = createCardUnit();
         const metadataTree = createThreadingTree();
