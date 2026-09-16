@@ -26,10 +26,13 @@ import { renderRadiusBorder } from '../../../components/details/utils';
 import {
     drawForegroundTargetLayer,
     drawSearchResultLayers,
+    buildSingleLinkLines,
     handleLinkLinesMap,
     isForegroundTargetSlice,
     isSearchMatched,
     LabelUnit,
+    normalizeCategoryFlowEvent,
+    normalizeFlowEventSource,
     ThreadUnit,
 } from '../AscendUnit';
 
@@ -121,6 +124,68 @@ describe('AscendUnit link line identity', () => {
 
         expect(flow.from.rankId).toBe('merged-card');
         expect(flow.to.rankId).toBe('merged-card');
+    });
+
+    it('fills missing TEXT flow endpoint sources without overwriting explicit sources', () => {
+        const flow = createFlow();
+        flow.from.rankId = '';
+        flow.from.dbPath = undefined;
+        flow.to.rankId = 'remote-card';
+        flow.to.dbPath = 'remote.db';
+
+        const result = normalizeFlowEventSource(flow, {
+            rankId: 'rank0',
+            dbPath: 'profile.text',
+        });
+
+        expect(result).toMatchObject({
+            from: { rankId: 'rank0', dbPath: 'profile.text' },
+            to: { rankId: 'remote-card', dbPath: 'remote.db' },
+        });
+    });
+
+    it('fills empty endpoint database paths from the request source', () => {
+        const flow = createFlow();
+        flow.from.dbPath = '';
+        flow.to.dbPath = '';
+
+        const result = normalizeFlowEventSource(flow, {
+            rankId: 'rank0',
+            dbPath: 'trace.db',
+        });
+
+        expect(result.from.dbPath).toBe('trace.db');
+        expect(result.to.dbPath).toBe('trace.db');
+    });
+
+    it('maps category endpoint ranks to the requested frontend card identity', () => {
+        const flow = createFlow();
+        flow.from.rankId = 'backend-file-id';
+        flow.to.rankId = 'backend-file-id';
+
+        const result = normalizeCategoryFlowEvent(flow, {
+            rankId: 'host0 0',
+            dbPath: 'trace.db',
+        });
+
+        expect(result.from.rankId).toBe('host0 0');
+        expect(result.to.rankId).toBe('host0 0');
+        expect(result.from.dbPath).toBe('trace.db');
+        expect(result.to.dbPath).toBe('trace.db');
+    });
+
+    it('rebuilds the bidirectional link index from refreshed single-flow data', () => {
+        const session = { mapOfLinkLines: new Map([['stale', {}]]) } as unknown as Session;
+        const flow = createFlow();
+
+        buildSingleLinkLines(session, [{ cat: flow.cat, flows: [flow] }], {
+            rankId: 'rank0',
+            dbPath: 'profile.text',
+        });
+
+        expect(session.mapOfLinkLines.has('stale')).toBe(false);
+        expect(session.mapOfLinkLines.size).toBe(2);
+        expect(Array.from(session.mapOfLinkLines.values()).every(value => value.current.dbPath === 'profile.text')).toBe(true);
     });
 });
 
