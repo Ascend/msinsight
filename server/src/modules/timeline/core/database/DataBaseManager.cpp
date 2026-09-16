@@ -131,16 +131,18 @@ std::string DataBaseManager::GetRankIdByFileId(const std::string &fileId)
     return fileIdToRankIdMap[fileId];
 }
 
-std::shared_ptr<Summary::VirtualSummaryDataBase> DataBaseManager::GetSummaryDatabaseByRankId(const std::string &rankId)
+std::shared_ptr<Summary::VirtualSummaryDataBase> DataBaseManager::GetSummaryDatabaseByRankId(
+    const std::string &rankId, bool logIfMissing)
 {
     std::unique_lock<std::recursive_mutex> lock(mutex);
     std::vector<std::string> ids;
     std::shared_ptr<Summary::VirtualSummaryDataBase> db = nullptr;
     std::string fileId = GetFileIdByRankId(rankId);
-    return GetSummaryDataBaseByFileId(fileId);
+    return GetSummaryDataBaseByFileId(fileId, logIfMissing);
 }
 
-std::shared_ptr<Summary::VirtualSummaryDataBase> DataBaseManager::GetSummaryDataBaseByFileId(const std::string &fileId)
+std::shared_ptr<Summary::VirtualSummaryDataBase> DataBaseManager::GetSummaryDataBaseByFileId(
+    const std::string &fileId, bool logIfMissing)
 {
     std::unique_lock lock(mutex);
     auto it = summaryDatabaseMap.find(fileId);
@@ -148,7 +150,9 @@ std::shared_ptr<Summary::VirtualSummaryDataBase> DataBaseManager::GetSummaryData
         it = summaryDatabaseMap.find(dbFilePathMap[fileId]);
     }
     if (it == summaryDatabaseMap.end()) {
-        ServerLog::Error("Can't find summary database. FileId:", fileId);
+        if (logIfMissing) {
+            ServerLog::Error("Can't find summary database. FileId=%", fileId);
+        }
         return nullptr;
     }
     return it->second;
@@ -875,10 +879,13 @@ void DataBaseManager::UpdateRankIdToDeviceId(const std::string &fileId,
     rankIdToDeviceIdMap[fileId + rankId] = deviceIdTmp;
 }
 
-std::string DataBaseManager::GetDeviceIdFromRankId(const std::string &rankId)
+std::string DataBaseManager::GetDeviceIdFromRankId(const std::string &rankId, bool logIfMissing)
 {
     std::string fileId = GetFileIdByRankId(rankId);
-    return GetDeviceIdByFileIdAndRankId(fileId, rankId);
+    if (logIfMissing) {
+        return GetDeviceIdByFileIdAndRankId(fileId, rankId);
+    }
+    return FindDeviceIdByFileIdAndRankId(fileId, rankId);
 }
 
 std::string DataBaseManager::GetDeviceIdByFileIdAndRankId(

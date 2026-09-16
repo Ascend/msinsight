@@ -214,9 +214,6 @@ class LogUtil {
             case '\\':
                 sanitized += "\\\\";
                 break;
-            case '%':
-                sanitized += "\\%";
-                break;
             case '<':
                 sanitized += "\\<";
                 break;
@@ -240,6 +237,7 @@ class LogUtil {
         return sanitized;
     }
 
+    // Use "%%" for a literal '%' in format strings. '%' in replacement arguments is not parsed again.
     // Function to format the string with multiple parameters
     template <typename... Args> inline std::string FormatString(const std::string &format, Args... args) {
         std::ostringstream oss;
@@ -252,6 +250,11 @@ class LogUtil {
         size_t argIndex = 0;
         while ((pos = format.find('%', start)) != std::string::npos) {
             oss << format.substr(start, pos - start);
+            if (pos + 1 < format.size() && format[pos + 1] == '%') {
+                oss << '%';
+                start = pos + 2;
+                continue;
+            }
             if (argIndex < arr.size()) {
                 oss << arr[argIndex++];
             }
@@ -272,6 +275,11 @@ class LogUtil {
         size_t argIndex = 1;
         while ((pos = format.find('%', start)) != std::string::npos) {
             oss << format.substr(start, pos - start);
+            if (pos + 1 < format.size() && format[pos + 1] == '%') {
+                oss << '%';
+                start = pos + 2;
+                continue;
+            }
             if (argIndex < logStrList.size()) {
                 oss << logStrList[argIndex++];
             }

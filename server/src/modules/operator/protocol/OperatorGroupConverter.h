@@ -42,6 +42,15 @@ class OperatorGroupConverter {
 
     OperatorGroupConverter() {}
 
+    static std::string GetGroupForLog(const std::string &group) {
+        // 日志保留已知分组和空值，未知分组不输出原始请求内容。
+        if (group.empty() || group == "Operator" || group == "Operator Type" || group == "Input Shape" ||
+            group == "Communication Operator" || group == "Communication Operator Type") {
+            return group;
+        }
+        return "unknown";
+    }
+
     static OperatorGroup ToEnum(const std::string &type) {
         InitTypeMap();
         std::map<std::string, OperatorGroupInfo>::const_iterator it = typeMap.find(type);

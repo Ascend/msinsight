@@ -139,13 +139,14 @@ bool QueryOpStatisticInfoHandler::HandleRequest(std::unique_ptr<Protocol::Reques
     OperatorStatisticInfoResponse &response = *responsePtr;
 
     bool rst = false;
-    std::string errorMsg;
-    if ((request.params.topK != 0) && request.params.CommonCheck(errorMsg) &&
+    std::string errorMsg = request.params.topK == 0 ? "topK must not be zero." : "";
+    if (request.params.topK != 0 && request.params.CommonCheck(errorMsg) &&
         request.params.StatisticGroupCheck(errorMsg)) {
         rst = request.params.isCompare
             ? HandleCompareDataRequest(request, dynamic_cast<OperatorStatisticInfoResponse &>(*responsePtr))
             : HandleStatisticcDataRequest(request, dynamic_cast<OperatorStatisticInfoResponse &>(*responsePtr));
     } else {
+        LogInvalidRequest("QueryStatistic", errorMsg);
         SetOperatorError(ErrorCode::PARAMS_ERROR);
     }
     SetBaseResponse(request, response);
@@ -156,38 +157,49 @@ bool QueryOpStatisticInfoHandler::HandleRequest(std::unique_ptr<Protocol::Reques
 bool QueryOpStatisticInfoHandler::HandleCompareDataRequest(
     OperatorStatisticInfoRequest &request, OperatorStatisticInfoResponse &response) {
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
-    auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
-    std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(rankId);
+    auto &databaseManager = Timeline::DataBaseManager::Instance();
+    auto database = databaseManager.GetSummaryDatabaseByRankId(rankId, false);
+    const auto context = GetLogContext(request.params.rankId, request.params.group, request.params.isCompare);
+    std::string deviceId = databaseManager.GetDeviceIdFromRankId(rankId, false);
     if (deviceId.empty()) {
+        LogDeviceUnavailable("QueryStatistic", context);
         SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
         return false;
     }
     request.params.deviceId = deviceId;
     std::vector<Protocol::OperatorStatisticInfoRes> compareRes;
     if (!database) {
-        ServerLog::Warn("[Operator]Not exist compare operator database. Fail get op statistic info.");
+        LogDatabaseUnavailable("QueryStatistic", context);
         return true;
     }
     if (!database->QueryAllOperatorStatisticInfo(request.params, compareRes)) {
-        ServerLog::Error("[Operator]Failed to query current Statistic Info by rankId.");
         SetOperatorError(ErrorCode::QUERY_ALL_STATISTIC_FAILED);
         return false;
     }
     std::string baselineId = Global::BaselineManager::Instance().GetBaselineId();
     if (baselineId == "") {
-        ServerLog::Error("[Operator]Failed to get baseline id.");
+        LogBaselineUnavailable("QueryStatistic", context);
         SetOperatorError(ErrorCode::GET_BASELINE_ID_FAILED);
         return false;
     }
-    auto databaseBaseline = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(baselineId);
+    const auto baselineContext =
+        GetBaselineLogContext(request.params.rankId, FileUtil::GetFileName(baselineId), request.params.group);
+    auto databaseBaseline = databaseManager.GetSummaryDatabaseByRankId(baselineId, false);
     std::vector<Protocol::OperatorStatisticInfoRes> baselineRes;
-    request.params.deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(baselineId);
+    auto baselineParams = request.params;
+    baselineParams.deviceId = databaseManager.GetDeviceIdFromRankId(baselineId, false);
     if (!databaseBaseline) {
-        ServerLog::Warn("[Operator]Not exist baseline operator database. Fail get op statistic info.");
+        LogBaselineDatabaseUnavailable("QueryStatistic", baselineContext);
         return true;
     }
-    if (!databaseBaseline->QueryAllOperatorStatisticInfo(request.params, baselineRes)) {
-        ServerLog::Error("[Operator]Failed to query baseline Statistic Info by baselineId.");
+    if (baselineParams.deviceId.empty()) {
+        LogBaselineDeviceUnavailable("QueryStatistic", baselineContext);
+        SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
+        return false;
+    }
+    // 保留请求中的rankId，并在异常日志中明确标识基线数据源
+    if (!databaseBaseline->QueryAllOperatorStatisticInfo(
+            baselineParams, baselineRes, FileUtil::GetFileName(baselineId))) {
         SetOperatorError(ErrorCode::QUERY_ALL_STATISTIC_FAILED);
         return false;
     }
@@ -207,19 +219,21 @@ bool QueryOpStatisticInfoHandler::HandleCompareDataRequest(
 bool QueryOpStatisticInfoHandler::HandleStatisticcDataRequest(
     OperatorStatisticInfoRequest &request, OperatorStatisticInfoResponse &response) {
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
-    auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
+    auto &databaseManager = Timeline::DataBaseManager::Instance();
+    auto database = databaseManager.GetSummaryDatabaseByRankId(rankId, false);
+    const auto context = GetLogContext(request.params.rankId, request.params.group, request.params.isCompare);
     if (!database) {
-        ServerLog::Warn("[Operator]Not exist operator database. Fail get statistic info.");
+        LogDatabaseUnavailable("QueryStatistic", context);
         return true;
     }
-    std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(rankId);
+    std::string deviceId = databaseManager.GetDeviceIdFromRankId(rankId, false);
     if (deviceId.empty()) {
+        LogDeviceUnavailable("QueryStatistic", context);
         SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
         return false;
     }
     request.params.deviceId = deviceId;
     if (!database->QueryOperatorStatisticInfo(request.params, response)) {
-        ServerLog::Error("[Operator]Failed to query Statistic Info by rankId.");
         SetOperatorError(ErrorCode::QUERY_STATISTIC_FAILED);
         return false;
     }

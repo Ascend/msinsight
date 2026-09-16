@@ -23,6 +23,20 @@ using namespace Dic::Module::Summary;
 using namespace Dic::Module::Memory;
 using namespace Dic;
 
+namespace {
+class ServerLogTestEnvironment : public ::testing::Environment {
+  public:
+    void SetUp() override {
+        const ParamsOption &option = ParamsParser::Instance().GetOption();
+        ServerLog::Initialize(option.logPath, option.logSize, option.logLevel, to_string(option.wsPort));
+    }
+};
+
+// 在其他测试以不同级别创建日志实例前，先完成进程级日志初始化
+::testing::Environment *const serverLogTestEnvironment =
+    ::testing::AddGlobalTestEnvironment(new ServerLogTestEnvironment);
+} // namespace
+
 std::string TestSuit::clusterPath;
 std::string TestSuit::srcTestPath;
 std::string TestSuit::rootTestPath;

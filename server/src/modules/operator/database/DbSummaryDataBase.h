@@ -40,12 +40,13 @@ class DbSummaryDataBase : public Summary::VirtualSummaryDataBase {
         std::vector<Protocol::OperatorDurationRes> &data) override;
     bool QueryOperatorStatisticInfo(
         Protocol::OperatorStatisticReqParams &reqParams, Protocol::OperatorStatisticInfoResponse &response) override;
-    bool QueryAllOperatorStatisticInfo(
-        OperatorStatisticReqParams &reqParams, std::vector<Protocol::OperatorStatisticInfoRes> &res) override;
+    bool QueryAllOperatorStatisticInfo(OperatorStatisticReqParams &reqParams,
+        std::vector<Protocol::OperatorStatisticInfoRes> &res, const std::string &baselineName = "") override;
     bool QueryOperatorDetailInfo(
         Protocol::OperatorStatisticReqParams &reqParams, Protocol::OperatorDetailInfoResponse &response) override;
     bool QueryAllOperatorDetailInfo(Protocol::OperatorStatisticReqParams &reqParams,
-        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level) override;
+        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level,
+        const std::string &baselineName = "") override;
     bool QueryOperatorMoreInfo(
         Protocol::OperatorMoreInfoReqParams &reqParams, Protocol::OperatorMoreInfoResponse &response) override;
     static void ParserEnd(const std::string &rankId, const std::string &fileId, bool result, const std::string &msg);
@@ -54,6 +55,8 @@ class DbSummaryDataBase : public Summary::VirtualSummaryDataBase {
     bool QueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res) override;
 
   private:
+    enum class TableCheckResult { AVAILABLE, MISSING, ERROR };
+
     std::set<std::string> FetchPmuColumnNames();
     std::string GenerateQueryDetailSqlForOperator();
     std::string CreatPMUTmpTableSql(const std::set<std::string> &cols);
@@ -72,7 +75,8 @@ class DbSummaryDataBase : public Summary::VirtualSummaryDataBase {
     bool QueryMoreInfoTotalNum(OperatorMoreInfoReqParams &reqParams, int64_t &total);
     std::string GenerateQueryMoreInfoSql(OperatorMoreInfoReqParams &reqParams);
     std::string GetCommSql(const CommunicationDetailParams &request);
-    bool CheckOperatorTableExist(const std::string &group, const std::string &logInfo);
+    TableCheckResult CheckOperatorTableExist(const std::string &group, const std::string &operation,
+        const std::string &logContext, bool requireComputeTask = true);
 
     const uint32_t maxCategorySize = 50;
 
@@ -93,9 +97,9 @@ class DbSummaryDataBase : public Summary::VirtualSummaryDataBase {
         sqlite3_stmt *stmt, int &index);
     bool GenerateQueryMoreInfoFilters(OperatorMoreInfoReqParams &reqParams, std::string &sql);
     bool ExecSqlGetDetailInfo(std::string sql, Protocol::OperatorStatisticReqParams &reqParams,
-        std::vector<Protocol::OperatorDetailInfoRes> &res);
+        std::vector<Protocol::OperatorDetailInfoRes> &res, const std::string &baselineName = "");
     bool ExecSqlGetStatisticInfo(std::string sql, Protocol::OperatorStatisticReqParams &reqParams,
-        std::vector<Protocol::OperatorStatisticInfoRes> &res);
+        std::vector<Protocol::OperatorStatisticInfoRes> &res, const std::string &baselineName = "");
     bool AddCommunicationOpTableOpTypeIfNotExists();
     OperatorDetailInfoRes GetOperatorDetailRow(sqlite3_stmt *stmt);
     std::string GetGroupNameByIdListStr(const std::string &idListStr);

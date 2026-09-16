@@ -31,26 +31,25 @@ bool QueryOpComputeUnitHandler::HandleRequest(std::unique_ptr<Protocol::Request>
     OperatorComputeUnitInfoResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     if (!CheckRequestParam(request.params)) {
-        ServerLog::Warn("[Operator]Failed to check request parameter in Query Compute Unit Info.");
         SendResponse(std::move(responsePtr), false);
         return false;
     }
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
-    auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
+    auto &databaseManager = Timeline::DataBaseManager::Instance();
+    auto database = databaseManager.GetSummaryDatabaseByRankId(rankId, false);
     if (!database) {
-        ServerLog::Warn("[Operator]Not exist operator database. Fail to get op compute unit info.");
+        LogDatabaseUnavailable("QueryComputeUnit", GetLogContext(request.params.rankId, request.params.group));
         return true;
     }
-    std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(rankId);
+    std::string deviceId = databaseManager.GetDeviceIdFromRankId(rankId, false);
     if (deviceId.empty()) {
-        ServerLog::Error("[Operator]Failed to query Compute Unit Info by empty deviceId.");
+        LogDeviceUnavailable("QueryComputeUnit", GetLogContext(request.params.rankId, request.params.group));
         SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;
     }
     request.params.deviceId = deviceId;
     if (!database->QueryOperatorDurationInfo(request.params, QueryType::COMPUTE_UNIT, response.data)) {
-        ServerLog::Error("[Operator]Failed to query Compute Unit Info by rankId.");
         SetOperatorError(ErrorCode::QUERY_DURATION_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;
@@ -62,7 +61,7 @@ bool QueryOpComputeUnitHandler::HandleRequest(std::unique_ptr<Protocol::Request>
 bool QueryOpComputeUnitHandler::CheckRequestParam(OperatorDurationReqParams params) {
     std::string errMsg;
     if (!params.CommonCheck(errMsg)) {
-        ServerLog::Warn(errMsg);
+        LogInvalidRequest("QueryComputeUnit", errMsg);
         SetOperatorError(ErrorCode::PARAMS_ERROR);
         return false;
     }

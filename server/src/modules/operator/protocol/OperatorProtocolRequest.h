@@ -47,19 +47,19 @@ struct OperatorDurationReqParams {
 
     bool CommonCheck(std::string &errorMsg) {
         if (!CheckStrParamValid(this->rankId, errorMsg)) {
-            errorMsg = StringUtil::StrJoin("[Operator]Failed to check rankId in Query Compute Unit Info.", errorMsg);
+            errorMsg = StringUtil::StrJoin("rankId is invalid. ", errorMsg);
             return false;
         }
         if (!CheckStrParamValidEmptyAllowed(this->deviceId, errorMsg)) {
-            errorMsg = std::string("[Operator]Failed to check deviceId in Query Compute Unit Info.") + errorMsg;
+            errorMsg = std::string("deviceId is invalid. ") + errorMsg;
             return false;
         }
         if (!CheckStrParamValid(this->group, errorMsg)) {
-            errorMsg = std::string("[Operator]Failed to check group in Query Compute Unit Info.") + errorMsg;
+            errorMsg = std::string("group is invalid. ") + errorMsg;
             return false;
         }
         if (this->topK < -1) {
-            errorMsg = std::string("[Operator]Failed to check topK in Query Compute Unit Info.") + errorMsg;
+            errorMsg = "topK must be greater than or equal to -1.";
             return false;
         }
         return true;
@@ -82,30 +82,30 @@ struct OperatorStatisticReqParams {
     bool CommonCheck(std::string &errorMsg) {
         // 查询值 小于-1,是异常值不需要再走查询，减少耗时
         if (this->topK < -1) {
-            errorMsg = "[Operator]Failed to check topK in Query Op Statistic Info.";
+            errorMsg = "topK must be greater than or equal to -1.";
             return false;
         }
         if (!CheckPageValid(this->pageSize, this->current, errorMsg)) {
             return false;
         }
         if (!CheckStrParamValid(rankId, errorMsg)) {
-            errorMsg = std::string("[Operator]Failed to check rankId in Query Op Statistic Info.") + errorMsg;
+            errorMsg = std::string("rankId is invalid. ") + errorMsg;
             return false;
         }
         if (!CheckStrParamValidEmptyAllowed(deviceId, errorMsg)) {
-            errorMsg = std::string("[Operator]Failed to check deviceId in Query Op Statistic Info.") + errorMsg;
+            errorMsg = std::string("deviceId is invalid. ") + errorMsg;
             return false;
         }
         if (!this->orderBy.empty() &&
             !CheckOrderOrFilterColumnValid(this->orderBy, OperatorStatisticView::VALID_ORDER_COLS) &&
             !CheckOrderOrFilterColumnValid(this->orderBy, OperatorDetailsView::VALID_ORDER_COLS)) {
-            errorMsg = "[Operator]Failed to check orderBy in Query Op Statistic Info.";
+            errorMsg = "orderBy is invalid.";
             return false;
         }
         for (auto &filter : this->filters) {
             if (!CheckOrderOrFilterColumnValid(filter.first, OperatorStatisticView::VALID_FILTER_COLS) &&
                 !CheckOrderOrFilterColumnValid(filter.first, OperatorDetailsView::VALID_FILTER_COLS)) {
-                errorMsg = "[Operator]Failed to check filter column in Query Op Statistic Info.";
+                errorMsg = "filter column is invalid.";
                 return false;
             }
         }
@@ -117,7 +117,7 @@ struct OperatorStatisticReqParams {
         if (operatorGroup != OperatorGroupConverter::OperatorGroup::OP_TYPE_GROUP &&
             operatorGroup != OperatorGroupConverter::OperatorGroup::COMMUNICATION_TYPE_GROUP &&
             operatorGroup != OperatorGroupConverter::OperatorGroup::OP_INPUT_SHAPE_GROUP) {
-            errorMsg = "[Operator]Wrong group type in Query Op Statistic Info.";
+            errorMsg = "group is not supported for statistic queries.";
             return false;
         }
         return true;
@@ -142,32 +142,32 @@ struct OperatorMoreInfoReqParams {
 
     bool CommonCheck(std::string &errMsg) const {
         if (!CheckStrParamValid(this->rankId, errMsg)) {
-            errMsg = "[Operator]Failed to check rankId in query op more info." + errMsg;
+            errMsg = "rankId is invalid. " + errMsg;
             return false;
         }
         if (!CheckStrParamValidEmptyAllowed(this->deviceId, errMsg)) {
-            errMsg = "[Operator]Failed to check deviceId in query op more info." + errMsg;
+            errMsg = "deviceId is invalid. " + errMsg;
             return false;
         }
         if (!CheckStrParamValid(this->opName, errMsg) && !CheckStrParamValid(this->opType, errMsg)) {
-            errMsg = "[Operator]Failed to check name and type in query op more info." + errMsg;
+            errMsg = "opName and opType are invalid. " + errMsg;
             return false;
         }
         OperatorGroupConverter::OperatorGroup operatorGroup = Protocol::OperatorGroupConverter::ToEnum(this->group);
         if (operatorGroup != OperatorGroupConverter::OperatorGroup::OP_TYPE_GROUP &&
             operatorGroup != OperatorGroupConverter::OperatorGroup::COMMUNICATION_TYPE_GROUP &&
             operatorGroup != OperatorGroupConverter::OperatorGroup::OP_INPUT_SHAPE_GROUP) {
-            errMsg = "[Operator]Wrong group type in query op more info.";
+            errMsg = "group is not supported for more-info queries.";
             return false;
         }
         if (!this->orderBy.empty() &&
             !CheckOrderOrFilterColumnValid(this->orderBy, OperatorDetailsView::VALID_ORDER_COLS)) {
-            errMsg = "[Operator]Failed to check orderBy in query Op more info.";
+            errMsg = "orderBy is invalid.";
             return false;
         }
         for (auto &filter : this->filters) {
             if (!CheckOrderOrFilterColumnValid(filter.first, OperatorDetailsView::VALID_FILTER_COLS)) {
-                errMsg = "[Operator]Failed to check filter column in query Op more info.";
+                errMsg = "filter column is invalid.";
                 return false;
             }
         }

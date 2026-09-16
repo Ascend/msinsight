@@ -18,11 +18,15 @@
 
 #include <gtest/gtest.h>
 #include <WsSessionManager.h>
+#include "BaselineManager.h"
 #include "BaselineManagerService.h"
 #include "DataBaseManager.h"
 #include "DbSummaryDataBase.h"
 #include "FileUtil.h"
+#include "ModuleRequestHandler.h"
+#include "OperatorErrorManager.h"
 #include "OperatorRequestHandler.h"
+#include "OperatorProtocolResponse.h"
 #include "QueryOpCategoryInfoHandler.h"
 #include "QueryOpComputeUnitHandler.h"
 #include "QueryOpStatisticInfoHandler.h"
@@ -33,6 +37,7 @@
 #include "ProjectExplorerManager.h"
 #include "WsSessionImpl.h"
 #include "RenderEngine.h"
+#include "../OperatorLogTestUtil.h"
 #include "../../../TestSuit.h"
 
 using namespace Dic::Server;
@@ -44,10 +49,41 @@ using namespace Dic::Module::FullDb;
 
 class OperatorRequestHandlerTest : public TestSuit {
   public:
-    static void SetUpTestSuite() {}
+    static void SetUpTestSuite() {
+        capturingSession = std::make_shared<OperatorLogTestUtil::CapturingWsSession>();
+        WsSessionManager::Instance().RemoveSession();
+        WsSessionManager::Instance().AddSession(capturingSession);
+    }
     static void TearDownTestSuite() {
+        WsSessionManager::Instance().RemoveSession();
+        capturingSession.reset();
         DataBaseManager::Instance().Clear();
         BaselineManagerService::ResetBaseline(true);
+    }
+
+    void SetUp() override {
+        capturingSession->Reset();
+        Dic::Module::ModuleRequestHandler::ResetRequestContextError();
+        RemoveEmptyBaselineDb();
+    }
+
+    void TearDown() override {
+        BaselineManager::Instance().Reset();
+        DataBaseManager::Instance().Clear();
+        RemoveEmptyBaselineDb();
+        Dic::Module::ModuleRequestHandler::ResetRequestContextError();
+        capturingSession->Reset();
+    }
+
+    static std::string GetEmptyBaselineDbPath() {
+        return FileUtil::SplicePath(FileUtil::GetCurrPath(), "empty-baseline-db-244.db");
+    }
+
+    static void RemoveEmptyBaselineDb() {
+        const auto path = GetEmptyBaselineDbPath();
+        if (FileUtil::CheckFilePathExist(path)) {
+            EXPECT_TRUE(FileUtil::RemoveFile(path));
+        }
     }
 
     static void InitDbManager() {
@@ -92,12 +128,44 @@ class OperatorRequestHandlerTest : public TestSuit {
         return result;
     }
 
+    static void SetBaselineIdOnly(const std::string &baselineId) {
+        BaselineInfo info;
+        info.rankId = baselineId;
+        BaselineManager::Instance().SetBaselineInfo(info);
+    }
+
+    static void InitBaselineWithoutDevice(const std::string &baselineId) {
+        InitDbManager();
+        const std::string dbPath = TestSuit::GetTestDataFile("full_db", "msprof_0.db");
+        auto database = std::dynamic_pointer_cast<DbSummaryDataBase, Dic::Module::Summary::VirtualSummaryDataBase>(
+            DataBaseManager::Instance().CreateSummaryDatabase(baselineId, dbPath));
+        ASSERT_NE(database, nullptr);
+        ASSERT_TRUE(database->IsOpen() || database->AttachDb(dbPath));
+        SetBaselineIdOnly(baselineId);
+    }
+
+    static std::unique_ptr<Dic::Protocol::OperatorDetailInfoRequest> MakeDetailRequest(
+        const std::string &rankId = "2") {
+        auto request = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
+        request->params = {true, rankId, "", "Operator", -1, 1, 10, "duration", "descend"};
+        return request;
+    }
+
+    template <typename ResponseType>
+    static void ExpectFailureResponse(const ResponseType *response, Dic::Module::Operator::ErrorCode expectedError) {
+        ASSERT_NE(response, nullptr);
+        EXPECT_FALSE(response->result);
+        ASSERT_TRUE(response->error.has_value());
+        EXPECT_EQ(response->error->code, static_cast<int>(expectedError));
+    }
+
     static void ClearProjectExplorerData() {
         ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProject", std::vector<std::string>());
         ProjectExplorerManager::Instance().DeleteProjectAndFilePath("testProjectDb", std::vector<std::string>());
     }
 
   protected:
+    inline static std::shared_ptr<OperatorLogTestUtil::CapturingWsSession> capturingSession;
     inline static std::string testDataDir = TestSuit::GetTestDataFile();
     inline static int retry = 2;
     static ProjectExplorerInfo CreateProjectData(const std::string &projectName, const std::string &fileName,
@@ -138,6 +206,314 @@ class OperatorRequestHandlerTest : public TestSuit {
     }
 };
 
+TEST_F(OperatorRequestHandlerTest, GroupLogContextsPreserveKnownAndEmptyValuesAndHideUnknownValues) {
+    class ContextHandler : public OperatorRequestHandler {
+      public:
+        using OperatorRequestHandler::GetLogContext;
+        using OperatorRequestHandler::GetBaselineLogContext;
+    };
+    const std::vector<std::pair<std::string, std::string>> groups = {{"Operator", "Operator"},
+        {"Operator Type", "Operator Type"}, {"Input Shape", "Input Shape"},
+        {"Communication Operator", "Communication Operator"},
+        {"Communication Operator Type", "Communication Operator Type"}, {"", ""}, {"Unsupported Group", "unknown"},
+        {std::string(1024 * 1024, 'x'), "unknown"}};
+    for (const auto &[group, display] : groups) {
+        SCOPED_TRACE(::testing::Message() << "group size=" << group.size() << ", display=" << display);
+        auto request = MakeDetailRequest("244");
+        request->params.group = group;
+        const std::string context = "rankId=244, group=" + display;
+        EXPECT_TRUE(ContextHandler::GetLogContext(request->params.rankId, request->params.group) == context);
+        for (bool isCompare : {false, true}) {
+            request->params.isCompare = isCompare;
+            const std::string compareContext = context + ", isCompare=" + (isCompare ? "true" : "false");
+            EXPECT_TRUE(ContextHandler::GetLogContext(request->params.rankId, request->params.group,
+                            request->params.isCompare) == compareContext);
+            EXPECT_EQ(request->params.isCompare, isCompare);
+        }
+        EXPECT_TRUE(ContextHandler::GetBaselineLogContext(request->params.rankId, "baseline-244",
+                        request->params.group) == "rankId=244, baselineName=baseline-244, group=" + display);
+        EXPECT_TRUE(request->params.group == group);
+        EXPECT_EQ(request->params.rankId, "244");
+    }
+}
+
+TEST_F(OperatorRequestHandlerTest, DetailUnknownAndLongGroupsLogUnknownWithoutChangingResourceOutcomes) {
+    DataBaseManager::Instance().Clear();
+    QueryOpDetailInfoHandler handler;
+    for (const auto &group : {std::string("Unsupported Group"), std::string(1024 * 1024, 'x')}) {
+        for (bool isCompare : {false, true}) {
+            SCOPED_TRACE(::testing::Message() << "group size=" << group.size() << ", isCompare=" << isCompare);
+            capturingSession->Reset();
+            Dic::Module::ModuleRequestHandler::ResetRequestContextError();
+            auto request = MakeDetailRequest("244");
+            request->params.group = group;
+            request->params.isCompare = isCompare;
+            const auto mark = OperatorLogTestUtil::Mark();
+            EXPECT_EQ(handler.HandleRequest(std::move(request)), !isCompare);
+            const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorDetailInfoResponse>();
+            ASSERT_NE(response, nullptr);
+            if (isCompare) {
+                ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::GET_DEVICE_ID_FAILED);
+            } else {
+                EXPECT_TRUE(response->result);
+                ASSERT_TRUE(response->error.has_value());
+                EXPECT_EQ(response->error->code, Dic::UNKNOW_ERROR);
+                EXPECT_TRUE(response->error->message.empty());
+            }
+            EXPECT_TRUE(response->data.empty());
+            EXPECT_EQ(response->total, 0);
+            OperatorLogTestUtil::ExpectSingleOperatorLog(mark, isCompare ? 0 : 1, isCompare ? 1 : 0, "QueryDetail",
+                isCompare ? "ResolveDevice" : "GetDatabase",
+                {"rankId=244, group=unknown, isCompare=" + std::string(isCompare ? "true" : "false"),
+                    isCompare ? "cause=no device mapping was found" : "cause=no summary database was found",
+                    "suggestion="},
+                {"group=" + group.substr(0, 32)});
+        }
+    }
+}
+
+TEST_F(OperatorRequestHandlerTest, CategoryMissingDeviceMappingLogsSingleError) {
+    DataBaseManager::Instance().Clear();
+    const std::string dbPath = FileUtil::SplicePath(testDataDir, "full_db", "msprof_0.db");
+    DataBaseManager::Instance().SetDataType(DataType::DB, dbPath);
+    ASSERT_NE(DataBaseManager::Instance().CreateSummaryDatabase("244", dbPath), nullptr);
+    QueryOpCategoryInfoHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorCategoryInfoRequest>();
+    request->params.rankId = "244";
+    request->params.group = "Operator";
+    request->params.topK = -1;
+    const auto mark = OperatorLogTestUtil::Mark();
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorCategoryInfoResponse>();
+    ASSERT_NE(response, nullptr);
+    EXPECT_FALSE(response->result);
+    ASSERT_TRUE(response->error.has_value());
+    EXPECT_EQ(response->error->code, static_cast<int>(Dic::Module::Operator::ErrorCode::GET_DEVICE_ID_FAILED));
+    EXPECT_TRUE(response->data.empty());
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryCategory", "ResolveDevice",
+        {"rankId=244", "group=Operator", "cause=no device mapping was found", "suggestion="},
+        {"Don't find deviceId in rankIdToDeviceIdMap"});
+}
+
+TEST_F(OperatorRequestHandlerTest, DetailMissingBaselineDatabaseLogsBasenameOnlyWarn) {
+    InitDbManager();
+    const std::string baselineId = FileUtil::SplicePath(FileUtil::GetCurrPath(), "missing-baseline-db-244");
+    SetBaselineIdOnly(baselineId);
+    QueryOpDetailInfoHandler handler;
+    auto request = MakeDetailRequest();
+    const auto mark = OperatorLogTestUtil::Mark();
+    EXPECT_TRUE(handler.HandleRequest(std::move(request)));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorDetailInfoResponse>();
+    ASSERT_NE(response, nullptr);
+    EXPECT_TRUE(response->result);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryDetail", "GetBaselineDatabase",
+        {"rankId=2", "baselineName=missing-baseline-db-244", "group=Operator",
+            "cause=no baseline summary database was found", "suggestion="},
+        {FileUtil::GetCurrPath()});
+}
+
+TEST_F(OperatorRequestHandlerTest, DetailMissingCurrentDatabaseAndDeviceLogsSingleError) {
+    DataBaseManager::Instance().Clear();
+    QueryOpDetailInfoHandler handler;
+    auto request = MakeDetailRequest("244");
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorDetailInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::GET_DEVICE_ID_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryDetail", "ResolveDevice",
+        {"rankId=244", "group=Operator", "isCompare=true", "cause=no device mapping was found", "suggestion="},
+        {"Operator database is unavailable"});
+}
+
+TEST_F(OperatorRequestHandlerTest, DetailMissingBaselineDeviceReturnsError) {
+    const std::string baselineId = "baseline-without-device-244";
+    InitBaselineWithoutDevice(baselineId);
+    QueryOpDetailInfoHandler handler;
+    auto request = MakeDetailRequest();
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorDetailInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::GET_DEVICE_ID_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryDetail", "ResolveBaselineDevice",
+        {"rankId=2", "baselineName=baseline-without-device-244", "group=Operator",
+            "cause=no baseline device mapping was found", "suggestion="},
+        {});
+}
+
+TEST_F(OperatorRequestHandlerTest, StatisticMissingBaselineDeviceReturnsError) {
+    const std::string baselineId = "statistic-baseline-without-device-244";
+    InitBaselineWithoutDevice(baselineId);
+    QueryOpStatisticInfoHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
+    request->params.rankId = "2";
+    request->params.group = "Operator Type";
+    request->params.topK = -1;
+    request->params.isCompare = true;
+    request->params.pageSize = 10;
+    request->params.current = 1;
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorStatisticInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::GET_DEVICE_ID_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryStatistic", "ResolveBaselineDevice",
+        {"rankId=2", "baselineName=statistic-baseline-without-device-244", "group=Operator Type",
+            "cause=no baseline device mapping was found", "suggestion="},
+        {});
+}
+
+TEST_F(OperatorRequestHandlerTest, DetailBaselineDatabaseFailureUsesBaselineContext) {
+    InitDbManager();
+    const std::string baselineId = "empty-baseline-db-244";
+    const std::string baselinePath = GetEmptyBaselineDbPath();
+    DataBaseManager::Instance().SetDataType(DataType::DB, baselinePath);
+    auto baselineDatabase = std::dynamic_pointer_cast<DbSummaryDataBase, Dic::Module::Summary::VirtualSummaryDataBase>(
+        DataBaseManager::Instance().CreateSummaryDatabase(baselineId, baselinePath));
+    ASSERT_NE(baselineDatabase, nullptr);
+    ASSERT_TRUE(baselineDatabase->CreateDbIfNotExist(baselinePath));
+    ASSERT_TRUE(baselineDatabase->IsOpen() || baselineDatabase->AttachDb(baselinePath));
+    DataBaseManager::Instance().UpdateRankIdToDeviceId(baselinePath, baselineId, "0");
+    SetBaselineIdOnly(baselineId);
+    QueryOpDetailInfoHandler handler;
+    auto request = MakeDetailRequest();
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorDetailInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::QUERY_ALL_DETAIL_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryDetail", "PrepareSql",
+        {"rankId=2", "deviceId=0", "group=Operator", "baselineName=empty-baseline-db-244", "cause=", "suggestion="},
+        {baselinePath});
+}
+
+TEST_F(OperatorRequestHandlerTest, MoreInfoMissingDatabaseLogsSingleError) {
+    DataBaseManager::Instance().Clear();
+    const std::string rankId = "245";
+    const std::string fileId = "missing-operator-db-245";
+    DataBaseManager::Instance().SetRankIdFileIdMapping(rankId, fileId);
+    DataBaseManager::Instance().UpdateRankIdToDeviceId(fileId, rankId, "0");
+    QueryOpMoreInfoHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
+    request->params.rankId = rankId;
+    request->params.group = "Communication Operator Type";
+    request->params.opType = "Mat%Mul";
+    request->params.accCore = "HCCL";
+    const auto mark = OperatorLogTestUtil::Mark();
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ASSERT_NE(response, nullptr);
+    EXPECT_FALSE(response->result);
+    ASSERT_TRUE(response->error.has_value());
+    EXPECT_EQ(response->error->code, static_cast<int>(Dic::Module::Operator::ErrorCode::QUERY_MORE_INFO_FAILED));
+    EXPECT_EQ(response->total, 0);
+    EXPECT_TRUE(response->data.empty());
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryMoreInfo", "GetDatabase",
+        {"rankId=245", "group=Communication Operator Type", "cause=no summary database was found", "suggestion="},
+        {"opType=", "accCore=", "Can't find summary database"});
+}
+
+TEST_F(OperatorRequestHandlerTest, MoreInfoMissingOperatorIdentityLogsSingleValidationWarn) {
+    QueryOpMoreInfoHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
+    request->params.rankId = "244";
+    request->params.group = "Operator Type";
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::PARAMS_ERROR);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryMoreInfo", "ValidateRequest",
+        {"cause=opName and opType are invalid. Parameter is empty.", "suggestion="},
+        {"rankId=", "deviceId=", "group=", "opName=", "opType="});
+}
+
+TEST_F(OperatorRequestHandlerTest, MoreInfoMissingDatabaseAndDeviceLogsDeviceError) {
+    DataBaseManager::Instance().Clear();
+    QueryOpMoreInfoHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
+    request->params.rankId = "246";
+    request->params.group = "Input Shape";
+    request->params.opName = "MatMul";
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::GET_DEVICE_ID_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryMoreInfo", "ResolveDevice",
+        {"rankId=246", "group=Input Shape", "cause=no device mapping was found", "suggestion="},
+        {"opName=", "inputShape=", "accCore=", "Operator database is unavailable"});
+}
+
+TEST_F(OperatorRequestHandlerTest, MoreInfoOptionalTableStatesReturnConsistentResults) {
+    DataBaseManager::Instance().Clear();
+    const std::string rankId = "247";
+    const std::string dbPath = GetEmptyBaselineDbPath();
+    DataBaseManager::Instance().SetDataType(DataType::DB, dbPath);
+    auto database = std::dynamic_pointer_cast<DbSummaryDataBase, Dic::Module::Summary::VirtualSummaryDataBase>(
+        DataBaseManager::Instance().CreateSummaryDatabase(rankId, dbPath));
+    ASSERT_NE(database, nullptr);
+    ASSERT_TRUE(database->CreateDbIfNotExist(dbPath));
+    ASSERT_TRUE(database->IsOpen() || database->AttachDb(dbPath));
+    DataBaseManager::Instance().UpdateRankIdToDeviceId(dbPath, rankId, "0");
+    const auto makeRequest = [&rankId]() {
+        auto request = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
+        request->params = {
+            rankId, "", "Communication Operator Type", 15, "AllReduce", "", "", "HCCL", 1, 10, "", "", {}};
+        return request;
+    };
+
+    QueryOpMoreInfoHandler handler;
+    auto mark = OperatorLogTestUtil::Mark();
+    EXPECT_TRUE(handler.HandleRequest(makeRequest()));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ASSERT_NE(response, nullptr);
+    EXPECT_TRUE(response->result);
+    EXPECT_EQ(response->total, 0);
+    EXPECT_TRUE(response->data.empty());
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryMoreInfo", "CheckTable",
+        {"rankId=247", "deviceId=0", "group=Communication Operator Type", "table=COMMUNICATION_OP",
+            "cause=the communication table is missing", "suggestion="},
+        {});
+
+    ASSERT_TRUE(database->ExecSql(
+        "CREATE TABLE COMMUNICATION_OP (opType INTEGER, opName INTEGER, startNs INTEGER, endNs INTEGER, "
+        "waitNs INTEGER, connectionId INTEGER);"
+        "CREATE TABLE TASK (deviceId INTEGER, connectionId INTEGER);"
+        "CREATE TABLE STRING_IDS (id INTEGER, value TEXT);"));
+    database->CloseDb();
+    ASSERT_TRUE(database->OpenDb(dbPath, false));
+    capturingSession->Reset();
+    Dic::Module::ModuleRequestHandler::ResetRequestContextError();
+    mark = OperatorLogTestUtil::Mark();
+    EXPECT_TRUE(handler.HandleRequest(makeRequest()));
+    response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ASSERT_NE(response, nullptr);
+    EXPECT_TRUE(response->result);
+    EXPECT_EQ(response->total, 0);
+    EXPECT_TRUE(response->data.empty());
+    EXPECT_EQ(OperatorLogTestUtil::Count(OperatorLogTestUtil::ReadSince(mark), "[Operator]"), 0);
+
+    capturingSession->Reset();
+    Dic::Module::ModuleRequestHandler::ResetRequestContextError();
+    database->CloseDb();
+    mark = OperatorLogTestUtil::Mark();
+    EXPECT_FALSE(handler.HandleRequest(makeRequest()));
+    response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::QUERY_MORE_INFO_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryMoreInfo", "CheckTable",
+        {"rankId=247", "deviceId=0", "group=Communication Operator Type", "sqliteCode=" + std::to_string(SQLITE_MISUSE),
+            "cause=database is closed", "suggestion="},
+        {"Optional data is unavailable"});
+}
+
 TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandlerNormalTest) {
     Dic::Module::Operator::QueryOpCategoryInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorCategoryInfoRequest>();
@@ -148,15 +524,22 @@ TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandlerNormalTest) {
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoHandleEmptyRankId) {
+TEST_F(OperatorRequestHandlerTest, QueryOpCategoryInfoDoesNotLogOverlongRankIdValue) {
     Dic::Module::Operator::QueryOpCategoryInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorCategoryInfoRequest>();
-    requestPtr.get()->params.rankId = "";
-    requestPtr.get()->params.group = "Operator";
-    requestPtr.get()->params.topK = -1;
+    requestPtr->params.rankId = "";
+    requestPtr->params.group = "Operator";
+    requestPtr->params.topK = -1;
+    const std::string invalidRankId = std::string(503, 'r') + "\xE4\xB8\xAD" + std::string(100, 'r');
+    requestPtr.get()->params.rankId = invalidRankId;
     requestPtr->fileId = "";
-    std::string errMsg;
-    EXPECT_EQ(false, requestPtr->params.CommonCheck(errMsg));
+    const auto mark = OperatorLogTestUtil::Mark();
+    EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorCategoryInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::PARAMS_ERROR);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryCategory", "ValidateRequest",
+        {"cause=rankId is invalid.", "suggestion="},
+        {"rankId=", "rankIdLength=", "group=", "[truncated]", invalidRankId});
 }
 
 TEST_F(OperatorRequestHandlerTest, QueryOpComputeUnitHandlerNormalTest) {
@@ -167,10 +550,31 @@ TEST_F(OperatorRequestHandlerTest, QueryOpComputeUnitHandlerNormalTest) {
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerNormalTest) {
+TEST_F(OperatorRequestHandlerTest, ComputeUnitInvalidRequestLogsSingleWarn) {
+    Dic::Module::Operator::QueryOpComputeUnitHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorComputeUnitInfoRequest>();
+    request->params.rankId = "244";
+    request->params.group = "Operator";
+    request->params.topK = -2;
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorComputeUnitInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::PARAMS_ERROR);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryComputeUnit", "ValidateRequest",
+        {"cause=topK must be greater than or equal to -1.", "suggestion="}, {"rankId=", "group="});
+}
+
+TEST_F(OperatorRequestHandlerTest, StatisticInvalidRequestLogsSingleWarn) {
     Dic::Module::Operator::QueryOpStatisticInfoHandler handler;
     auto requestPtr = std::make_unique<Dic::Protocol::OperatorStatisticInfoRequest>();
-    ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
+    const auto mark = OperatorLogTestUtil::Mark();
+    EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorStatisticInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::PARAMS_ERROR);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryStatistic", "ValidateRequest",
+        {"cause=topK must not be zero.", "suggestion="}, {"rankId=", "group=", "isCompare="});
 }
 
 TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerCmplTest) {
@@ -219,10 +623,36 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerNormal3Test) {
     ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
 }
 
-TEST_F(OperatorRequestHandlerTest, QueryOpMoreInfoHandlerNormalTest) {
-    Dic::Module::Operator::QueryOpMoreInfoHandler handler;
-    auto requestPtr = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
-    ASSERT_NO_THROW(handler.HandleRequest(std::move(requestPtr)));
+TEST_F(OperatorRequestHandlerTest, QueryOpMoreInfoHandlerReturnsFullDbData) {
+    InitDbManager();
+    QueryOpMoreInfoHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
+    request->params = {"2", "", "Operator Type", 15, "Cast", "", "", "AI_VECTOR_CORE", 1, 10, "", "", {}};
+
+    EXPECT_TRUE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ASSERT_NE(response, nullptr);
+    EXPECT_TRUE(response->result);
+    EXPECT_EQ(response->total, 2);
+    EXPECT_EQ(response->data.size(), 2);
+}
+
+TEST_F(OperatorRequestHandlerTest, MoreInfoInvalidFilterLogsGenerateSqlOnce) {
+    InitDbManager();
+    QueryOpMoreInfoHandler handler;
+    auto request = std::make_unique<Dic::Protocol::OperatorMoreInfoRequest>();
+    request->params = {
+        "2", "", "Operator Type", 15, "Cast", "", "", "AI_VECTOR_CORE", 1, 10, "", "", {{"name", "invalid value"}}};
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(handler.HandleRequest(std::move(request)));
+
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorMoreInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::QUERY_MORE_INFO_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryMoreInfo", "GenerateSql",
+        {"cause=a filter failed SQL validation", "suggestion="},
+        {"rankId=", "group=", "opType=", "invalid value", "[PrepareSql]"});
 }
 
 TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessWhenBaselineIsDbGroupByOperatorType) {
@@ -302,20 +732,18 @@ TEST_F(OperatorRequestHandlerTest, QueryOpStatisticInfoHandlerSuccessGroupByHCCL
 
 // QueryOpDetailInfoHandler 测试
 TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWhenBsesLineIsNotSet) {
+    InitDbManager();
+    BaselineManager::Instance().Reset();
     Dic::Module::Operator::QueryOpDetailInfoHandler handler;
-    auto requestPtr = std::make_unique<Dic::Protocol::OperatorDetailInfoRequest>();
-    requestPtr->params.rankId = "2";
-    requestPtr->params.group = "Operator";
+    auto requestPtr = MakeDetailRequest();
     // topK给一个极大值
     requestPtr->params.topK = 10000000; // 10000000表示topK是一个极大值
-    requestPtr->params.isCompare = true;
-    requestPtr->params.orderBy = "count";
-    requestPtr->params.order = "descend";
-    // 10 表示分页最小是10条
-    requestPtr->params.pageSize = 10;
-    requestPtr->params.current = 1;
-
+    const auto mark = OperatorLogTestUtil::Mark();
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorDetailInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::GET_BASELINE_ID_FAILED);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryDetail", "ResolveBaseline",
+        {"rankId=2", "group=Operator", "isCompare=true", "cause=baseline is not configured", "suggestion="}, {});
 }
 
 // ExportOpDetailsHandler 测试
@@ -493,7 +921,14 @@ TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalPag
     // normal topK 10
     requestPtr->params.topK = 10;
     requestPtr->params.pageSize = MAX_PAGESIZE + 1;
+    requestPtr->params.rankId = "2";
+    requestPtr->params.current = 1;
+    const auto mark = OperatorLogTestUtil::Mark();
     EXPECT_FALSE(handler.HandleRequest(std::move(requestPtr)));
+    const auto *response = capturingSession->GetResponse<Dic::Protocol::OperatorDetailInfoResponse>();
+    ExpectFailureResponse(response, Dic::Module::Operator::ErrorCode::PARAMS_ERROR);
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryDetail", "ValidateRequest",
+        {"cause=pagesize:", "is invalid", "suggestion="}, {"rankId=", "group=", "pageSize="});
 }
 
 TEST_F(OperatorRequestHandlerTest, QueryOpDetailInfoHandlerFailedWithabnormalCurrent) {

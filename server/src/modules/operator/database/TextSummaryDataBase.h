@@ -61,8 +61,8 @@ class TextSummaryDataBase : public VirtualSummaryDataBase {
 
     bool UpdateParseStatus(const std::string &status);
     bool HasFinishedParseLastTime();
-    bool QueryAllOperatorStatisticInfo(
-        OperatorStatisticReqParams &reqParams, std::vector<Protocol::OperatorStatisticInfoRes> &res) override;
+    bool QueryAllOperatorStatisticInfo(OperatorStatisticReqParams &reqParams,
+        std::vector<Protocol::OperatorStatisticInfoRes> &res, const std::string &baselineName = "") override;
 
     bool QueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res) override;
 
@@ -88,7 +88,7 @@ class TextSummaryDataBase : public VirtualSummaryDataBase {
     std::string GenerateQueryStatisticSql(OperatorStatisticReqParams &reqParams);
     std::string GetQueryBaseStaticSql(Protocol::OperatorStatisticReqParams &reqParams);
     bool ExecSqlGetStaticInfo(const std::string &sql, Protocol::OperatorStatisticReqParams &reqParams,
-        std::vector<Protocol::OperatorStatisticInfoRes> &res);
+        std::vector<Protocol::OperatorStatisticInfoRes> &res, const std::string &baselineName = "");
 
     std::string GenerateQueryDetailSql(OperatorStatisticReqParams &reqParams);
 
@@ -111,11 +111,12 @@ class TextSummaryDataBase : public VirtualSummaryDataBase {
     std::string GetQuerySqlNofilter(Protocol::OperatorStatisticReqParams &reqParams, const bool isCommunication,
         const std::string &group, const std::string &name);
     bool ExecSqlGetDetailInfo(std::string sql, Protocol::OperatorStatisticReqParams &reqParams,
-        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level);
+        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level, const std::string &baselineName = "");
     bool ExecSqlGetRes(sqlite3_stmt *stmt, std::vector<Protocol::OperatorDetailInfoRes> &res);
     std::vector<Protocol::OperatorDetailInfoRes> ExecSqlGetMoreInfo(sqlite3_stmt *stmt);
     bool QueryAllOperatorDetailInfo(Protocol::OperatorStatisticReqParams &reqParams,
-        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level) override;
+        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level,
+        const std::string &baselineName = "") override;
 };
 
 } // end of namespace Summary
