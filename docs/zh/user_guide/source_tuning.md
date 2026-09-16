@@ -116,7 +116,7 @@ sequenceDiagram
   CO->>Qout: DeQue output tile
 ```
 
-如果说MTE2搬完很久才开始计算或这计算结束后很久才开始搬运，常见原因有队列同步、buffer数量、stage排布或循环结构不合理
+如果说MTE2搬完很久才开始计算或者计算结束后很久才开始搬运，常见原因有队列同步、buffer数量、stage排布或循环结构不合理
 
 **. 串行 CopyIn / Compute / CopyOut**
 

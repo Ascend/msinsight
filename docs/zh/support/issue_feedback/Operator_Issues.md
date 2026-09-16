@@ -18,7 +18,7 @@
 
 ### 问题描述
 
-调用 `torch_zeros_like` ,NPU上没有相应的操作，是工具没有采集到么还是什么原因，我看API是支持的，这里性能要慢4倍。
+调用 `torch_zeros_like` ,NPU上没有相应的操作，是工具没有采集到还是什么原因，我看API是支持的，这里性能要慢4倍。
 
 ![image.png](figures/Operator_Issues/torch-zeros-like-no-npu-operator.png)
 

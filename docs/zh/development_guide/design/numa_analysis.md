@@ -48,7 +48,7 @@
 ### PyTorch Snapshot 场景
 
 1. 通过msprof采集NUMA数据，采集数据合入db库中
-2. 在 MindStudio Insight 中导入采集数据，参考NUMB架构及各指标变化情况分析问题瓶颈。
+2. 在 MindStudio Insight 中导入采集数据，参考NUMA架构及各指标变化情况分析问题瓶颈。
 
 ## 2.3 约束与限制
 
@@ -83,7 +83,7 @@ MindStudio Insight 是本地分析工具，但输入文件可能包含用户路�
 
 | 数据源 | 数据格式 | 主要展示内容 | 说明 |
 | --- | --- | --- | --- |
-| msProf | .db | NUMN架构图、Platform Metric的10个指标内容、线程分析数据、命中率分析数据 |  |
+| msProf | .db | NUMA架构图、Platform Metric的10个指标内容、线程分析数据、命中率分析数据 |  |
 |        |          |                                                              |      |
 
 ## 3.2 处理流程
@@ -101,7 +101,7 @@ MindStudio Insight 是本地分析工具，但输入文件可能包含用户路�
 
 ## 4.1 设计目标
 
-支持导入NUMA数据，展示NUMA架构图，点击NUAM元素、Socket元素及各链接可在扩展区域展示对应统计信息。
+支持导入NUMA数据，展示NUMA架构图，点击NUMA元素、Socket元素及各链接可在扩展区域展示对应统计信息。
 
 ![image-20260804151855489](./figures/numa_high_level_diagram.png)
 
@@ -119,7 +119,7 @@ NUMA页面可展示：
 
 - NUMA架构图展示
 - 扩展统计信息展示
-- TimeLine页面选择分析的时间区域，可跳转到NUMA页面，页面之统计分析时间区域内的数据。
+- TimeLine页面选择分析的时间区域，可跳转到NUMA页面，页面只统计分析时间区域内的数据。
 
 ## 4.4 待确认事项
 

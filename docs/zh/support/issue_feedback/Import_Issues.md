@@ -165,7 +165,7 @@ GPU 应该没有这些数据生成，因此不能查看 GPU 采集的内存数�
 
 **工具版本：** Insight 8.2.RC1
 
-**问题来源：** 昇腾计算训练开发部部门MinSpeed-MM团队
+**问题来源：** 昇腾计算训练开发部门MinSpeed-MM团队
 
 **模型使用场景：** qwen3vl-30B, 8卡
 
@@ -263,7 +263,7 @@ mstt集群分析时未开启--data_simplification导致，insight不支持未精
 
 ### 问题描述
 
-数据有，单解析nodata
+数据有，但解析nodata
 
 ![](figures/Import_Issues/nodata-1.png)
 

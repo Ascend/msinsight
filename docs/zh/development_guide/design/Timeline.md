@@ -1444,7 +1444,7 @@ RepositoryFactory::RepositoryFactory()
 
 **（2）** 当前端发起特定请求时，首先会通过接口字段在 ModuleManager 中查找对应的Handler，同时查找并调用对应的前端 json 转 Request 数据结构协议转换将前端请求转换成数据结构，方便后续处理。
 
-**（3）** 调用请求处理 Handler 去处理数据，进一步的 Handler 会调用 process 层方法去处理（此处之所以增加 process 层，是因为很多数据并不是直接查询完数据库数据即可，而是需要进一步地处理，这些处理，会在 process 这一层实现。），process 处理层会去相应的数据库中去查询数据，并对查询完的数据进一步分类、排序、过滤等操作，以得到最终的结果，返回给 Handler。
+**（3）** 调用请求处理 Handler 去处理数据，Handler 会调用 process 层方法去处理（此处之所以增加 process 层，是因为很多数据并不是直接查询完数据库数据即可，而是需要进一步地处理，这些处理，会在 process 这一层实现。），process 处理层会去相应的数据库中去查询数据，并对查询完的数据进一步分类、排序、过滤等操作，以得到最终的结果，返回给 Handler。
 
 **（4）** Handler 得到处理数据后，会回到 ModuleManager 中，查找并调用对应的后端 Response 数据结构转前端 json 协议转换方法，将响应组装成 json，返回给前端展示。
 
@@ -1489,7 +1489,7 @@ Advisor 模块涉及 5 个新增的前后端请求/响应消息：
 
 #### 4.8.4 总体概述
 
-对于单卡专家建议，其主体将放置在 Timeline 页签内，可以更加方便的与 Timeline 界面进行联动，帮助开发者更快地找到优化点所处的位置，这与友商的 NVIDIA NSight Systems 的设计一致。具体而言：在“Timeline”页签下，“System View”内新增“Expert System View”选项，总体界面放置于页面下方处。
+对于单卡专家建议，其主体将放置在 Timeline 页签内，可以更加方便地与 Timeline 界面进行联动，帮助开发者更快地找到优化点所处的位置，这与友商的 NVIDIA NSight Systems 的设计一致。具体而言：在“Timeline”页签下，“System View”内新增“Expert System View”选项，总体界面放置于页面下方处。
 
 #### 4.8.5 代码设计
 

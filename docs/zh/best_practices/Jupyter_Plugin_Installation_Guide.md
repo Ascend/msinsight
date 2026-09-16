@@ -28,7 +28,7 @@ MindStudio Insight 提供了基于 jupyter 的插件可供使用，无需从服�
 <h3 id="3.1">3.1 环境准备</h3>
 
 ```bash
-# 1.使用pip安装jupyterlab(python版本大于等于3.8以上不指定版本安装jupyterlab，jupyterlab应当满足jupyterlab>=4,<5的条件)
+# 1.使用pip安装jupyterlab(python版本大于等于3.8不指定版本安装jupyterlab，jupyterlab应当满足jupyterlab>=4,<5的条件)
 $ pip install jupyterlab
 # 2.使用pip安装指定版本jupyterlab，如jupyterlab-4.0.11
 $ pip install jupyterlab==4.0.11

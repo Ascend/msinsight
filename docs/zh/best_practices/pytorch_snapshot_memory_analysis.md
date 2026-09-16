@@ -95,7 +95,7 @@ torch_npu.npu.memory._dump_snapshot("memory_snapshot.pickle")
     ![](./figures/pytorch_snapshot_memory_analysis/snapshot_fragmentation_memory_curve.png "保留内存明显高于实际分配内存")
 
 2. 采集 Snapshot 数据并导入 MindStudio Insight，进入内存详情（PyTorch Snapshot）界面。
-3. 在内存块生命周期图中定位触发内存池扩容的时间点，重点关注 `segment_alloc` 相关事件。查看在一个 Step 的最后一个 `segment alloc` 事件。
+3. 在内存块生命周期图中定位触发内存池扩容的时间点，重点关注 `segment_alloc` 相关事件。查看一个 Step 的最后一个 `segment alloc` 事件。
 4. 单击异常事件，联动查看内存池状态图。
 5. 在内存池状态图中观察内存段内部的空闲区域。如果存在大量分散空闲块，或存在大块空闲区域但仍触发新的 `segment_alloc`，说明内存池复用效率较低。发现在一个 Step 的最后一个 `segment alloc` 事件时已出现了约 10.6G的差距
 
