@@ -3,7 +3,7 @@
 本文回答系统调优场景以下问题：
 
 1. Timeline(时间线)常用泳道与界面有哪些？彼此之间有什么关系？
-2. 什么是Overlap Analysis(覆盖分析)？
+2. 什么是Overlap Analysis（覆盖分析）？
 3. Timeline常用于观察哪些问题？
 
 ## Timeline(时间线)常用泳道与界面有哪些？

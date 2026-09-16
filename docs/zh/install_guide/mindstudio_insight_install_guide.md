@@ -435,7 +435,7 @@ vncserver -localhost -geometry 1920x1080
 
 **端口转发**<a id="端口转发"></a>
 
-通过SSH通道安全的将Linux本地主机服务转发至Windows本地端口。
+通过SSH通道安全地将Linux本地主机服务转发至Windows本地端口。
 
 1. 打开远程登录工具，选择“Tools \> MobaSSHTunnel \(port forwarding\)”。此处以MobaXterm工具为例。
 2. 单击“New SSH Tunnel”，新建一个SSH配置。
@@ -813,7 +813,7 @@ docker logs msinsight
 
 **准备环境**
 
-请准备macOS Ventura 13.5及以上版本macOS系统。
+请准备macOS Ventura 13.5及以上的版本系统。
 
 **安装步骤**
 

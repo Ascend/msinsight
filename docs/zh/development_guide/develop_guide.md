@@ -13,7 +13,7 @@
 │   ├── cluster                        # 概览、通信模块
 │   ├── compute                        # 算子调优模块
 │   ├── framework                      # 前端主框架模块（基础功能）
-│   ├── leaks                          # 内存泄露检查模块
+│   ├── leaks                          # 内存泄漏检查模块
 │   ├── lib                            # 公共库目录
 │   ├── memory                         # 内存模块
 │   ├── memory-on-chip                 # 片上内存模块

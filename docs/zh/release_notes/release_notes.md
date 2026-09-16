@@ -102,7 +102,7 @@ MindStudio Insight 26.0.0 提供昇腾 AI 全流程可视化调优能力，主�
 - **PyTorch 框架 snapshot 分析**: 能够导入和分析 PyTorch Profiler 生成的 snapshot 文件，提供类似于 memory_viz 的内存使用细节查看功能，并且能够处理更大（数十 GB 级）的 snapshot 文件，支持强化学习场景下的内存问题定位。
 - **Triton 片上内存使用过程可视化**: 支持展示 Triton 算子开发过程中 UB 溢出问题的内存情况。
 - **Host-Device 间内存拷贝专项分析**: 内存拷贝按流按类型统计、内存拷贝该流按类型查询详细算子信息、算子点击跳转 timeline 位置。
-- **ACLGraph 的 JSONPrint 输出展示**: 保证相关的 Record 事件和 Wait 事件能同时结束，且 Wait 事件的起始时间应该小于 Record 时间的起始时间，展现从 Record 事件发向 Wait 事件的唤醒信息。
+- **ACLGraph 的 JSONPrint 输出展示**: 保证相关的 Record 事件和 Wait 事件能同时结束，且 Wait 事件的起始时间应该小于 Record 事件的起始时间，展现从 Record 事件发向 Wait 事件的唤醒信息。
 - **ACLGraph 场景下 Stream 合并**: 实现自动合并 Stream 泳道的功能，从而减少前端需要显示的泳道数量。
 - **集成 Python 代替 PyInstaller**: Python 解释器 + 集群分析工具使用的三方库 + 集群分析 Python 脚本。
 
