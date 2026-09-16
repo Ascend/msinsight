@@ -31,26 +31,25 @@ bool QueryOpCategoryInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request
     OperatorCategoryInfoResponse &response = *responsePtr;
     SetBaseResponse(request, response);
     if (!CheckRequestParam(request.params)) {
-        ServerLog::Warn("[Operator]Failed to check request parameter in Query Category Info.");
         SendResponse(std::move(responsePtr), false);
         return false;
     }
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
-    auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
+    auto &databaseManager = Timeline::DataBaseManager::Instance();
+    auto database = databaseManager.GetSummaryDatabaseByRankId(rankId, false);
     if (!database) {
-        ServerLog::Warn("[Operator]Not exist operator database. Fail to get op category info.");
+        LogDatabaseUnavailable("QueryCategory", GetLogContext(request.params.rankId, request.params.group));
         return true;
     }
-    std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(rankId);
+    std::string deviceId = databaseManager.GetDeviceIdFromRankId(rankId, false);
     if (deviceId.empty()) {
-        ServerLog::Error("[Operator]Failed to query Category Info by empty deviceId.");
+        LogDeviceUnavailable("QueryCategory", GetLogContext(request.params.rankId, request.params.group));
         SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;
     }
     request.params.deviceId = deviceId;
     if (!database->QueryOperatorDurationInfo(request.params, QueryType::CATEGORY, response.data)) {
-        ServerLog::Error("[Operator]Failed to query Category Info by rankId.");
         SetOperatorError(ErrorCode::QUERY_DURATION_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;
@@ -62,7 +61,7 @@ bool QueryOpCategoryInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request
 bool QueryOpCategoryInfoHandler::CheckRequestParam(OperatorDurationReqParams params) {
     std::string errMsg;
     if (!params.CommonCheck(errMsg)) {
-        ServerLog::Warn(errMsg);
+        LogInvalidRequest("QueryCategory", errMsg);
         SetOperatorError(ErrorCode::PARAMS_ERROR);
         return false;
     }

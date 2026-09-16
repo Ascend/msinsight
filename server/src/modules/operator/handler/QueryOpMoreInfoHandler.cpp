@@ -19,7 +19,6 @@
 #include "DataBaseManager.h"
 #include "OperatorProtocolRequest.h"
 #include "OperatorProtocolResponse.h"
-#include "OperatorGroupConverter.h"
 #include "WsSessionManager.h"
 #include "OperatorProtocol.h"
 #include "QueryOpMoreInfoHandler.h"
@@ -34,23 +33,27 @@ bool QueryOpMoreInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> re
     SetBaseResponse(request, response);
     std::string errMsg;
     if (!request.params.CommonCheck(errMsg)) {
-        ServerLog::Error("[Operator]Failed to check request parameter in query op more info.%", errMsg);
+        LogInvalidRequest("QueryMoreInfo", errMsg);
         SetOperatorError(ErrorCode::PARAMS_ERROR);
         SendResponse(std::move(responsePtr), false);
         return false;
     }
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
-    auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
-    std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(rankId);
+    auto &databaseManager = Timeline::DataBaseManager::Instance();
+    auto database = databaseManager.GetSummaryDatabaseByRankId(rankId, false);
+    std::string deviceId = databaseManager.GetDeviceIdFromRankId(rankId, false);
+    const auto resourceContext = GetLogContext(request.params.rankId, request.params.group);
     if (deviceId.empty()) {
-        ServerLog::Error("[Operator]Failed to query More Info by empty deviceId.%");
+        LogDeviceUnavailable("QueryMoreInfo", resourceContext);
         SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;
     }
     request.params.deviceId = deviceId;
+    if (!database) {
+        LogDatabaseUnavailable("QueryMoreInfo", resourceContext, true);
+    }
     if (!database || !database->QueryOperatorMoreInfo(request.params, response)) {
-        ServerLog::Error("[Operator]Failed to query More Info by rankId.");
         SetOperatorError(ErrorCode::QUERY_MORE_INFO_FAILED);
         SendResponse(std::move(responsePtr), false);
         return false;

@@ -95,10 +95,12 @@ class DataBaseManager {
     std::shared_ptr<FullDb::MemScopeDatabase> GetMemScopeDatabase(const std::string &fileId);
     std::shared_ptr<FullDb::MemSnapshotDatabase> GetMemSnapshotDatabase(const std::string &fileId);
     std::vector<FullDb::MemScopeDatabase *> GetAllMemScopeDatabase();
-    std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseByRankId(const std::string &rankId);
+    std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseByRankId(
+        const std::string &rankId, bool logIfMissing = true);
     std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDatabaseWithCluster(
         const std::string &cluster, const std::string &rankId);
-    std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDataBaseByFileId(const std::string &fileId);
+    std::shared_ptr<Summary::VirtualSummaryDataBase> GetSummaryDataBaseByFileId(
+        const std::string &fileId, bool logIfMissing = true);
     std::shared_ptr<Summary::VirtualSummaryDataBase> CreateSummaryDatabase(
         const std::string &rankId, const std::string &dbPath);
     std::vector<Summary::VirtualSummaryDataBase *> GetAllSummaryDatabase();
@@ -121,7 +123,7 @@ class DataBaseManager {
     bool ResetBaseline(bool force);
     void SetDbPathMapping(const std::string &rankId, const std::string &dbPath, const std::string &hostId);
     bool IsContainDatabasePath(const std::string &databasePath);
-    std::string GetDeviceIdFromRankId(const std::string &rankId);
+    std::string GetDeviceIdFromRankId(const std::string &rankId, bool logIfMissing = true);
     std::string GetDeviceIdByFileIdAndRankId(const std::string &fileId, const std::string &rankId);
     std::string FindDeviceIdByFileIdAndRankId(const std::string &fileId, const std::string &rankId);
     void RemoveRankIdToDeviceId(const std::string &fileId, const std::string &rankId);

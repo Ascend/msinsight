@@ -17,11 +17,13 @@
  */
 
 #include <gtest/gtest.h>
+#include <utility>
 #include "FileUtil.h"
 #include "TableDefs.h"
 #include "ConstantDefs.h"
 #include "TestSuit.h"
 #include "TextSummaryDataBase.h"
+#include "../OperatorLogTestUtil.h"
 
 using namespace Dic;
 using namespace Dic::Module::Summary;
@@ -52,6 +54,9 @@ class TextSummaryDatabaseTest : public ::testing::Test {
     }
 
     void TearDown() override {
+        if (!g_testDataBase.IsOpen()) {
+            EXPECT_TRUE(g_testDataBase.OpenDb(g_testDbPath, false));
+        }
         g_testDataBase.DropAllTable();
         g_testDataBase.ReleaseStmt();
     }
@@ -77,6 +82,95 @@ TEST_F(TextSummaryDatabaseTest, InitAndReleaseStmtSuccess) {
     EXPECT_EQ(result, true);
     g_testDataBase.ReleaseStmt();
     // Initial失败暂时未构造出来
+}
+
+TEST_F(TextSummaryDatabaseTest, MoreInfoInvalidCurrentLogsSinglePaginationWarn) {
+    Protocol::OperatorMoreInfoReqParams params;
+    params.rankId = "244";
+    params.deviceId = "0";
+    params.group = "Communication Operator Type";
+    params.opType = "MatMul";
+    params.accCore = "AI_CORE";
+    params.current = 0;
+    params.pageSize = 10;
+    Protocol::OperatorMoreInfoResponse response;
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(g_testDataBase.QueryOperatorMoreInfo(params, response));
+
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryMoreInfo", "ValidatePagination",
+        {"currentPage=0", "cause=currentPage must be greater than zero", "suggestion="},
+        {"rankId=", "deviceId=", "group=", "opType=", "accCore=", "pageSize="});
+}
+
+TEST_F(TextSummaryDatabaseTest, MoreInfoClosedDatabaseLogsResourceContextOnly) {
+    Protocol::OperatorMoreInfoReqParams params = {
+        "244", "0", "Operator Type", 15, "SensitiveOpType244", "", "", "SensitiveAccCore244", 1, 10, "", "", {}};
+    Protocol::OperatorMoreInfoResponse response;
+    g_testDataBase.ReleaseStmt();
+    g_testDataBase.CloseDb();
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_FALSE(g_testDataBase.QueryOperatorMoreInfo(params, response));
+
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryMoreInfo", "PrepareSql",
+        {"rankId=244", "deviceId=0", "group=Operator Type", "sqliteCode=" + std::to_string(SQLITE_MISUSE),
+            "cause=database is closed", "suggestion="},
+        {"opType=", "opName=", "inputShape=", "accCore=", "SensitiveOpType244", "SensitiveAccCore244"});
+}
+
+TEST_F(TextSummaryDatabaseTest, DetailClosedDatabasePrepareFailureLogsCauseOnce) {
+    Protocol::OperatorStatisticReqParams params = {true, "244", "0", "Operator Type", 15, 1, 10, "", ""};
+    std::vector<Protocol::OperatorDetailInfoRes> data;
+    std::string level;
+    g_testDataBase.ReleaseStmt();
+    g_testDataBase.CloseDb();
+    VirtualSummaryDataBase &database = g_testDataBase;
+    const std::vector<std::pair<std::string, std::string>> groups = {{"Operator Type", "group=Operator Type,"},
+        {"", "group=,"}, {"Unknown", "group=unknown,"}, {std::string(1024 * 1024, 'x'), "group=unknown,"}};
+    for (const auto &group : groups) {
+        params.group = group.first;
+        const auto mark = OperatorLogTestUtil::Mark();
+        EXPECT_FALSE(database.QueryAllOperatorDetailInfo(params, data, level));
+        EXPECT_TRUE(params.group == group.first);
+        EXPECT_TRUE(data.empty());
+        OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 0, 1, "QueryDetail", "PrepareSql",
+            {"rankId=244", "deviceId=0", group.second, "sqliteCode=" + std::to_string(SQLITE_MISUSE),
+                "cause=database is closed", "suggestion="},
+            {"out of memory", "Failed Check Table", "Failed to get Detail Info", "group=Unknown",
+                std::string(64, 'x')});
+    }
+}
+
+TEST_F(TextSummaryDatabaseTest, UnknownCategoryGroupReturnsFailure) {
+    Protocol::OperatorDurationReqParams params = {"244", "0", "Unknown", 15};
+    std::vector<Protocol::OperatorDurationRes> data;
+
+    for (const auto &group : {std::string("Unknown"), std::string(1024 * 1024, 'x')}) {
+        params.group = group;
+        const auto mark = OperatorLogTestUtil::Mark();
+        EXPECT_FALSE(g_testDataBase.QueryOperatorDurationInfo(params, Protocol::QueryType::CATEGORY, data));
+        EXPECT_TRUE(params.group == group);
+        EXPECT_TRUE(data.empty());
+        OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryCategory", "GenerateSql",
+            {"rankId=244", "group=unknown,", "cause=the operator group is unknown", "suggestion="},
+            {"group=Unknown", std::string(64, 'x')});
+    }
+}
+
+TEST_F(TextSummaryDatabaseTest, DetailInvalidOrderByLogsNormalizedGroupOnly) {
+    Protocol::OperatorStatisticReqParams params = {false, "244", "0", "Unknown", 15, 1, 10, "name;", "ascend"};
+    Protocol::OperatorDetailInfoResponse response;
+    const auto mark = OperatorLogTestUtil::Mark();
+
+    EXPECT_TRUE(g_testDataBase.QueryOperatorDetailInfo(params, response));
+    EXPECT_EQ(params.group, "Unknown");
+    EXPECT_EQ(params.orderBy, "name;");
+    EXPECT_EQ(response.total, 0);
+    EXPECT_TRUE(response.data.empty());
+    OperatorLogTestUtil::ExpectSingleOperatorLog(mark, 1, 0, "QueryDetail", "GenerateSql",
+        {"rankId=244", "group=unknown,", "cause=orderBy failed SQL validation", "suggestion="},
+        {"group=Unknown", "name;"});
 }
 
 TEST_F(TextSummaryDatabaseTest, UpdateParseStatusAndCheckSuccess) {

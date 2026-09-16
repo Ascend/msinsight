@@ -99,7 +99,7 @@ bool QueryOpDetailInfoHandler::HandleRequest(std::unique_ptr<Protocol::Request> 
     OperatorDetailInfoResponse &response = *responsePtr;
     std::string errorMsg;
     if (!request.params.CommonCheck(errorMsg)) {
-        ServerLog::Error(errorMsg);
+        LogInvalidRequest("QueryDetail", errorMsg);
         SetOperatorError(ErrorCode::PARAMS_ERROR);
         SetBaseResponse(request, response);
         SetResponseResult(response, false);
@@ -123,19 +123,22 @@ bool QueryOpDetailInfoHandler::HandleCompareDataRequest(
         return true;
     }
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
-    auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
-    std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(rankId);
+    auto &databaseManager = Timeline::DataBaseManager::Instance();
+    auto database = databaseManager.GetSummaryDatabaseByRankId(rankId, false);
+    const auto context = GetLogContext(request.params.rankId, request.params.group, request.params.isCompare);
+    std::string deviceId = databaseManager.GetDeviceIdFromRankId(rankId, false);
     if (deviceId.empty()) {
+        LogDeviceUnavailable("QueryDetail", context);
+        SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
         return false;
     }
     request.params.deviceId = deviceId;
     std::vector<Protocol::OperatorDetailInfoRes> cmpRes;
     if (!database) {
-        ServerLog::Warn("[Operator]Not exist operator database. Fail get op detail info.");
+        LogDatabaseUnavailable("QueryDetail", context);
         return true;
     }
     if (!database->QueryAllOperatorDetailInfo(request.params, cmpRes, response.level)) {
-        ServerLog::Error("[Operator]Failed to query current detail info by rankId.");
         SetOperatorError(ErrorCode::QUERY_ALL_DETAIL_FAILED);
         return false;
     }
@@ -143,19 +146,28 @@ bool QueryOpDetailInfoHandler::HandleCompareDataRequest(
 
     std::string baselineId = Global::BaselineManager::Instance().GetBaselineId();
     if (baselineId == "") {
-        ServerLog::Error("[Operator]Failed to get baseline id.");
+        LogBaselineUnavailable("QueryDetail", context);
         SetOperatorError(ErrorCode::GET_BASELINE_ID_FAILED);
         return false;
     }
-    auto databaseBaseline = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(baselineId);
+    const auto baselineContext =
+        GetBaselineLogContext(request.params.rankId, FileUtil::GetFileName(baselineId), request.params.group);
+    auto databaseBaseline = databaseManager.GetSummaryDatabaseByRankId(baselineId, false);
     std::vector<Protocol::OperatorDetailInfoRes> baselineRes;
-    request.params.deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(baselineId);
+    auto baselineParams = request.params;
+    baselineParams.deviceId = databaseManager.GetDeviceIdFromRankId(baselineId, false);
     if (!databaseBaseline) {
-        ServerLog::Warn("[Operator]Not exist baseline operator database. Fail get op detail info.");
+        LogBaselineDatabaseUnavailable("QueryDetail", baselineContext);
         return true;
     }
-    if (!databaseBaseline->QueryAllOperatorDetailInfo(request.params, baselineRes, response.level)) {
-        ServerLog::Error("[Operator]Failed to query baseline detail Info by baselineId.");
+    if (baselineParams.deviceId.empty()) {
+        LogBaselineDeviceUnavailable("QueryDetail", baselineContext);
+        SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
+        return false;
+    }
+    // 保留请求中的rankId，并在异常日志中明确标识基线数据源
+    if (!databaseBaseline->QueryAllOperatorDetailInfo(
+            baselineParams, baselineRes, response.level, FileUtil::GetFileName(baselineId))) {
         SetOperatorError(ErrorCode::QUERY_ALL_DETAIL_FAILED);
         return false;
     }
@@ -181,19 +193,21 @@ bool QueryOpDetailInfoHandler::HandleCompareDataRequest(
 bool QueryOpDetailInfoHandler::HandleDetailDataRequest(
     OperatorDetailInfoRequest &request, OperatorDetailInfoResponse &response) {
     std::string rankId = Summary::VirtualSummaryDataBase::GetFileIdFromCombinationId(request.params.rankId);
-    auto database = Timeline::DataBaseManager::Instance().GetSummaryDatabaseByRankId(rankId);
+    auto &databaseManager = Timeline::DataBaseManager::Instance();
+    auto database = databaseManager.GetSummaryDatabaseByRankId(rankId, false);
+    const auto context = GetLogContext(request.params.rankId, request.params.group, request.params.isCompare);
     if (!database) {
-        ServerLog::Warn("[Operator]Not exist operator database. Fail to get op detail info.");
+        LogDatabaseUnavailable("QueryDetail", context);
         return true;
     }
-    std::string deviceId = Timeline::DataBaseManager::Instance().GetDeviceIdFromRankId(rankId);
+    std::string deviceId = databaseManager.GetDeviceIdFromRankId(rankId, false);
     if (deviceId.empty()) {
+        LogDeviceUnavailable("QueryDetail", context);
         SetOperatorError(ErrorCode::GET_DEVICE_ID_FAILED);
         return false;
     }
     request.params.deviceId = deviceId;
     if (!database->QueryOperatorDetailInfo(request.params, response)) {
-        ServerLog::Error("[Operator]Failed to query detail Info by rankId");
         SetOperatorError(ErrorCode::QUERY_DETAIL_FAILED);
         return false;
     }

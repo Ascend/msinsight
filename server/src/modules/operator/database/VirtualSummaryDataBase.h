@@ -25,6 +25,7 @@
 #include "SummaryProtocolRequest.h"
 #include "SummaryProtocolResponse.h"
 #include "OperatorProtocolRequest.h"
+#include "OperatorGroupConverter.h"
 #include "OperatorProtocolResponse.h"
 #include "TableDefs.h"
 #include "NumDefs.h"
@@ -57,12 +58,13 @@ class VirtualSummaryDataBase : public Database {
     virtual bool QueryOperatorDetailInfo(
         Protocol::OperatorStatisticReqParams &reqParams, Protocol::OperatorDetailInfoResponse &response) = 0;
     virtual bool QueryAllOperatorDetailInfo(Protocol::OperatorStatisticReqParams &reqParams,
-        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level) = 0;
+        std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level,
+        const std::string &baselineName = "") = 0;
 
     virtual bool QueryOperatorMoreInfo(
         Protocol::OperatorMoreInfoReqParams &reqParams, Protocol::OperatorMoreInfoResponse &response) = 0;
-    virtual bool QueryAllOperatorStatisticInfo(
-        Protocol::OperatorStatisticReqParams &reqParams, std::vector<Protocol::OperatorStatisticInfoRes> &res) = 0;
+    virtual bool QueryAllOperatorStatisticInfo(Protocol::OperatorStatisticReqParams &reqParams,
+        std::vector<Protocol::OperatorStatisticInfoRes> &res, const std::string &baselineName = "") = 0;
 
     virtual bool QueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res) = 0;
     bool ExecuteQueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res, std::string &sql) {
@@ -139,6 +141,42 @@ class VirtualSummaryDataBase : public Database {
     const std::set<std::string> &GetPmuColumns() const { return pmuColumns_; }
     // kernelparser解析的时候赋值
     std::set<std::string> pmuColumns_;
+
+  protected:
+    template <typename Params>
+    static std::string QueryContext(const Params &params, const std::string &baselineName = "") {
+        auto context = "rankId=" + params.rankId + ", deviceId=" + params.deviceId +
+            ", group=" + Protocol::OperatorGroupConverter::GetGroupForLog(params.group);
+        if (!baselineName.empty()) {
+            context += ", baselineName=" + baselineName;
+        }
+        return context;
+    }
+    template <typename... Context>
+    bool PrepareSql(const std::string &sql, sqlite3_stmt *&stmt, const std::string &operation, const std::string &query,
+        const std::string &source, const Context &...context) {
+        if (!isOpen || db == nullptr) {
+            ServerLog::Error("[Operator][%][PrepareSql] Failed to prepare %. %, sqliteCode=%, "
+                             "cause=database is closed, suggestion=Open the profiling database before retrying.",
+                operation, query, StringUtil::StrJoin(context...), SQLITE_MISUSE);
+            return false;
+        }
+        int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+        if (result == SQLITE_OK && stmt != nullptr) {
+            return true;
+        }
+        if (result == SQLITE_OK) {
+            ServerLog::Error("[Operator][%][PrepareSql] Failed to prepare %. %, sqliteCode=%, "
+                             "cause=the prepared statement is empty, "
+                             "suggestion=Check the generated query and request parameters.",
+                operation, query, StringUtil::StrJoin(context...), result);
+            return false;
+        }
+        ServerLog::Error("[Operator][%][PrepareSql] Failed to prepare %. %, sqliteCode=%, cause=%, "
+                         "suggestion=Check whether % is complete and readable.",
+            operation, query, StringUtil::StrJoin(context...), result, sqlite3_errmsg(db), source);
+        return false;
+    }
 };
 }
 

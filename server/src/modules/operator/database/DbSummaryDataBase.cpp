@@ -162,8 +162,10 @@ std::string DbSummaryDataBase::GetGroupNameByIdListStr(const std::string &idList
 
 bool DbSummaryDataBase::QueryOperatorDurationInfo(Protocol::OperatorDurationReqParams &reqParams,
     Protocol::QueryType type, std::vector<Protocol::OperatorDurationRes> &data) {
-    if (!CheckOperatorTableExist(reqParams.group, "operator duration info")) {
-        return true;
+    const std::string operation = type == Protocol::QueryType::CATEGORY ? "QueryCategory" : "QueryComputeUnit";
+    const auto tableResult = CheckOperatorTableExist(reqParams.group, operation, QueryContext(reqParams));
+    if (tableResult != TableCheckResult::AVAILABLE) {
+        return tableResult == TableCheckResult::MISSING;
     }
     std::string sql;
     if (type == Protocol::QueryType::CATEGORY) {
@@ -171,10 +173,11 @@ bool DbSummaryDataBase::QueryOperatorDurationInfo(Protocol::OperatorDurationReqP
     } else {
         sql = GenerateQueryComputeUnitDurationSql(reqParams);
     }
+    if (sql.empty()) {
+        return false;
+    }
     sqlite3_stmt *stmt = nullptr;
-    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to get Duration Info. Msg: ", sqlite3_errmsg(db), " ", result);
+    if (!PrepareSql(sql, stmt, operation, "the duration query", "the profiling database", QueryContext(reqParams))) {
         return false;
     }
 
@@ -203,11 +206,10 @@ bool DbSummaryDataBase::QueryOperatorDurationInfo(Protocol::OperatorDurationReqP
 }
 
 bool DbSummaryDataBase::ExecSqlGetStatisticInfo(std::string sql, Protocol::OperatorStatisticReqParams &reqParams,
-    std::vector<Protocol::OperatorStatisticInfoRes> &res) {
+    std::vector<Protocol::OperatorStatisticInfoRes> &res, const std::string &baselineName) {
+    const std::string context = QueryContext(reqParams, baselineName);
     sqlite3_stmt *stmt = nullptr;
-    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to get Duration Info. Msg: ", sqlite3_errmsg(db), " ", result);
+    if (!PrepareSql(sql, stmt, "QueryStatistic", "the statistic query", "the profiling database", context)) {
         return false;
     }
     int index = bindStartIndex;
@@ -241,18 +243,17 @@ bool DbSummaryDataBase::ExecSqlGetStatisticInfo(std::string sql, Protocol::Opera
 
 bool DbSummaryDataBase::QueryOperatorStatisticInfo(
     Protocol::OperatorStatisticReqParams &reqParams, Protocol::OperatorStatisticInfoResponse &response) {
-    if (!CheckOperatorTableExist(reqParams.group, "operator statistic info")) {
-        return true;
+    const auto tableResult = CheckOperatorTableExist(reqParams.group, "QueryStatistic", QueryContext(reqParams));
+    if (tableResult != TableCheckResult::AVAILABLE) {
+        return tableResult == TableCheckResult::MISSING;
     }
     reqParams.rangeFilters = ConvertFiltersToRangeFilters(reqParams.filters);
     if (!QueryStatisticTotalNum(reqParams, response.total)) {
-        ServerLog::Error("[Operator]Failed to query total num of statistic info.");
         return false;
     }
     std::string sql = GenerateQueryStatisticSql(reqParams);
     std::vector<Protocol::OperatorStatisticInfoRes> res;
     if (!ExecSqlGetStatisticInfo(sql, reqParams, res)) {
-        ServerLog::Error("Failed to exec query detail sql.");
         return false;
     }
     std::vector<Protocol::OperatorStatisticCmpInfoRes> cmpRes;
@@ -265,12 +266,16 @@ bool DbSummaryDataBase::QueryOperatorStatisticInfo(
     return true;
 }
 
-bool DbSummaryDataBase::QueryAllOperatorStatisticInfo(
-    Protocol::OperatorStatisticReqParams &reqParams, std::vector<Protocol::OperatorStatisticInfoRes> &res) {
+bool DbSummaryDataBase::QueryAllOperatorStatisticInfo(Protocol::OperatorStatisticReqParams &reqParams,
+    std::vector<Protocol::OperatorStatisticInfoRes> &res, const std::string &baselineName) {
+    const std::string context = QueryContext(reqParams, baselineName);
+    const auto tableResult = CheckOperatorTableExist(reqParams.group, "QueryStatistic", context);
+    if (tableResult != TableCheckResult::AVAILABLE) {
+        return tableResult == TableCheckResult::MISSING;
+    }
     reqParams.rangeFilters = ConvertFiltersToRangeFilters(reqParams.filters);
     std::string sql = GenerateQueryStatisticSql(reqParams);
-    if (!ExecSqlGetStatisticInfo(sql, reqParams, res)) {
-        ServerLog::Error("Failed to exec query detail sql.");
+    if (!ExecSqlGetStatisticInfo(sql, reqParams, res, baselineName)) {
         return false;
     }
     return true;
@@ -295,8 +300,9 @@ std::string DbSummaryDataBase::GenerateQueryStatisticSql(Protocol::OperatorStati
     GenerateRangeQueryFiltersSql(reqParams.rangeFilters, sql);
 
     if (!StringUtil::CheckSqlValid(reqParams.orderBy)) {
-        ServerLog::Error("There is an SQL injection attack on the parameter of orderBy"
-                         "to generate query statistic sql.");
+        ServerLog::Warn("[Operator][QueryStatistic][GenerateSql] Invalid orderBy. rankId=%, group=%, "
+                        "cause=orderBy failed SQL validation, suggestion=Use a supported sort column.",
+            reqParams.rankId, OperatorGroupConverter::GetGroupForLog(reqParams.group));
     } else if (!reqParams.orderBy.empty() && !reqParams.order.empty()) {
         sql += " ORDER by " + reqParams.orderBy + " " + (reqParams.order == "ascend" ? "ASC" : "DESC");
     }
@@ -390,9 +396,8 @@ bool DbSummaryDataBase::QueryStatisticTotalNum(Protocol::OperatorStatisticReqPar
         sql = StringUtil::FormatString("SELECT COUNT(*) FROM ({})", sql);
     }
     sqlite3_stmt *stmt = nullptr;
-    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to get Duration Info. Msg: ", sqlite3_errmsg(db), " ", result);
+    if (!PrepareSql(sql, stmt, "QueryStatistic", "the statistic count query", "the profiling database",
+            QueryContext(reqParams))) {
         return false;
     }
     int index = bindStartIndex;
@@ -408,17 +413,16 @@ bool DbSummaryDataBase::QueryStatisticTotalNum(Protocol::OperatorStatisticReqPar
 
 bool DbSummaryDataBase::QueryOperatorDetailInfo(
     Protocol::OperatorStatisticReqParams &reqParams, Protocol::OperatorDetailInfoResponse &response) {
-    if (!CheckOperatorTableExist(reqParams.group, "operator detail info")) {
-        return true;
+    const auto tableResult = CheckOperatorTableExist(reqParams.group, "QueryDetail", QueryContext(reqParams));
+    if (tableResult != TableCheckResult::AVAILABLE) {
+        return tableResult == TableCheckResult::MISSING;
     }
     if (!QueryDetailTotalNum(reqParams, response.total)) {
-        ServerLog::Error("[Operator]Failed to query total num of detail info.");
         return false;
     }
     std::string sql = GenerateQueryDetailSql(reqParams);
     std::vector<Protocol::OperatorDetailInfoRes> sqlRes;
     if (!ExecSqlGetDetailInfo(sql, reqParams, sqlRes)) {
-        ServerLog::Error("Failed to exec query detail sql.");
         return false;
     }
     std::vector<Protocol::OperatorDetailCmpInfoRes> resultData;
@@ -434,13 +438,14 @@ bool DbSummaryDataBase::QueryOperatorDetailInfo(
 }
 
 bool DbSummaryDataBase::QueryAllOperatorDetailInfo(Protocol::OperatorStatisticReqParams &reqParams,
-    std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level) {
-    if (!CheckOperatorTableExist(reqParams.group, "all operator detail info")) {
-        return true;
+    std::vector<Protocol::OperatorDetailInfoRes> &res, std::string &level, const std::string &baselineName) {
+    const std::string context = QueryContext(reqParams, baselineName);
+    const auto tableResult = CheckOperatorTableExist(reqParams.group, "QueryDetail", context);
+    if (tableResult != TableCheckResult::AVAILABLE) {
+        return tableResult == TableCheckResult::MISSING;
     }
     std::string sql = GenerateAllQueryDetailSql(reqParams);
-    if (!ExecSqlGetDetailInfo(sql, reqParams, res)) {
-        ServerLog::Error("Failed to exec query detail sql.");
+    if (!ExecSqlGetDetailInfo(sql, reqParams, res, baselineName)) {
         return false;
     } else {
         level = OperatorGetLevel(res);
@@ -448,31 +453,62 @@ bool DbSummaryDataBase::QueryAllOperatorDetailInfo(Protocol::OperatorStatisticRe
     return true;
 }
 
-bool DbSummaryDataBase::CheckOperatorTableExist(const std::string &group, const std::string &logInfo) {
-    if (OperatorGroupConverter::IsCommunication(group) && !CheckTableExist(TABLE_COMMUNICATION_OP)) {
-        Server::ServerLog::Warn(
-            "Missing table % on querying %, nothing will be done.", TABLE_COMMUNICATION_OP, logInfo);
-        return false;
+DbSummaryDataBase::TableCheckResult DbSummaryDataBase::CheckOperatorTableExist(
+    const std::string &group, const std::string &operation, const std::string &logContext, bool requireComputeTask) {
+    if (!OperatorGroupConverter::IsCommunication(group)) {
+        return TableCheckResult::AVAILABLE;
     }
-
-    if (OperatorGroupConverter::IsCommunication(group) && !CheckTableExist(TABLE_COMPUTE_TASK_INFO)) {
-        Server::ServerLog::Warn(
-            "Missing table % on querying %, nothing will be done.", TABLE_COMPUTE_TASK_INFO, logInfo);
-        return false;
+    std::unique_lock<std::recursive_mutex> lock(mutex);
+    sqlite3_stmt *stmt = nullptr;
+    int code = isOpen ? sqlite3_prepare_v2(db,
+                            "SELECT name FROM sqlite_schema WHERE type='table' "
+                            "AND name IN ('COMMUNICATION_OP','COMPUTE_TASK_INFO');",
+                            -1, &stmt, nullptr)
+                      : SQLITE_MISUSE;
+    bool hasCommunication = false;
+    bool hasComputeTask = false;
+    if (code == SQLITE_OK) {
+        while ((code = sqlite3_step(stmt)) == SQLITE_ROW) {
+            const auto table = sqlite3_column_string(stmt, resultStartIndex);
+            hasCommunication |= table == TABLE_COMMUNICATION_OP;
+            hasComputeTask |= table == TABLE_COMPUTE_TASK_INFO;
+        }
+        if (code == SQLITE_DONE) {
+            code = SQLITE_OK;
+        }
     }
-    return true;
+    if (code != SQLITE_OK) {
+        const std::string cause = isOpen ? sqlite3_errmsg(db) : "database is closed";
+        sqlite3_finalize(stmt);
+        ServerLog::Error("[Operator][%][CheckTable] Failed to inspect optional tables. %, sqliteCode=%, cause=%, "
+                         "suggestion=Check whether the profiling database is open, complete and readable.",
+            operation, logContext, code, cause);
+        return TableCheckResult::ERROR;
+    }
+    sqlite3_finalize(stmt);
+    if (hasCommunication && (!requireComputeTask || hasComputeTask)) {
+        return TableCheckResult::AVAILABLE;
+    }
+    const bool communicationTable = !hasCommunication;
+    const std::string &table = communicationTable ? TABLE_COMMUNICATION_OP : TABLE_COMPUTE_TASK_INFO;
+    ServerLog::Warn("[Operator][%][CheckTable] Optional data is unavailable. %, table=%, cause=the % table is "
+                    "missing, suggestion=Import a complete profiling dataset if % data is required.",
+        operation, logContext, table, communicationTable ? "communication" : "compute task",
+        communicationTable ? "communication" : "operator");
+    return TableCheckResult::MISSING;
 }
 
 bool DbSummaryDataBase::ExecSqlGetDetailInfo(std::string sql, Protocol::OperatorStatisticReqParams &reqParams,
-    std::vector<Protocol::OperatorDetailInfoRes> &res) {
+    std::vector<Protocol::OperatorDetailInfoRes> &res, const std::string &baselineName) {
+    const std::string context = QueryContext(reqParams, baselineName);
     if (sql.empty()) {
-        ServerLog::Error("Failed to generate query statistic sql.");
+        ServerLog::Error("[Operator][QueryDetail][GenerateSql] Failed to generate the detail query. %, "
+                         "cause=the generated query is empty, suggestion=Check the requested group and filter columns.",
+            context);
         return false;
     }
     sqlite3_stmt *stmt = nullptr;
-    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to get Detail Info. Msg:", sqlite3_errmsg(db), " ", result);
+    if (!PrepareSql(sql, stmt, "QueryDetail", "the detail query", "the profiling database", context)) {
         return false;
     }
     uint64_t startTime = Timeline::TraceTime::Instance().GetStartTime();
@@ -538,9 +574,8 @@ bool DbSummaryDataBase::QueryMoreInfoTotalNum(OperatorMoreInfoReqParams &reqPara
     GenerateQueryFiltersSql<OperatorMoreInfoReqParams>(reqParams, sql);
 
     sqlite3_stmt *stmt = nullptr;
-    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to get More Total Num. Msg: ", sqlite3_errmsg(db), " ", result);
+    if (!PrepareSql(sql, stmt, "QueryMoreInfo", "the more-info count query", "the profiling database",
+            QueryContext(reqParams))) {
         return false;
     }
     int index = bindStartIndex;
@@ -601,15 +636,20 @@ std::string DbSummaryDataBase::GenerateQueryMoreInfoSql(OperatorMoreInfoReqParam
 
 bool DbSummaryDataBase::QueryOperatorMoreInfo(
     OperatorMoreInfoReqParams &reqParams, OperatorMoreInfoResponse &response) {
+    const auto tableResult = CheckOperatorTableExist(reqParams.group, "QueryMoreInfo", QueryContext(reqParams), false);
+    if (tableResult != TableCheckResult::AVAILABLE) {
+        return tableResult == TableCheckResult::MISSING;
+    }
     if (!QueryMoreInfoTotalNum(reqParams, response.total)) {
-        ServerLog::Error("[Operator]Failed to query total num of more info.");
         return false;
     }
     std::string sql = GenerateQueryMoreInfoSql(reqParams);
+    if (sql.empty()) {
+        return false;
+    }
     sqlite3_stmt *stmt = nullptr;
-    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to get Op More Info. Msg: ", sqlite3_errmsg(db), " ", result);
+    if (!PrepareSql(
+            sql, stmt, "QueryMoreInfo", "the more-info query", "the profiling database", QueryContext(reqParams))) {
         return false;
     }
     BindSqliteParam(stmt, reqParams);
@@ -733,7 +773,9 @@ std::string DbSummaryDataBase::GetCommSql(const CommunicationDetailParams &reque
 std::string DbSummaryDataBase::GenerateQueryCategoryDurationSql(Protocol::OperatorDurationReqParams &reqParams) {
     OperatorGroupConverter::OperatorGroup operatorGroup = Protocol::OperatorGroupConverter::ToEnum(reqParams.group);
     if (operatorGroup == OperatorGroupConverter::OperatorGroup::UNKNOWN) {
-        ServerLog::Error("Generate query category duration sql failed, unknown operator group.");
+        ServerLog::Warn("[Operator][QueryCategory][GenerateSql] Failed to generate the duration query. rankId=%, "
+                        "group=%, cause=the operator group is unknown, suggestion=Use a supported operator group.",
+            reqParams.rankId, OperatorGroupConverter::GetGroupForLog(reqParams.group));
         return "";
     }
     bool isCommunication = Protocol::OperatorGroupConverter::IsCommunication(reqParams.group);
@@ -827,9 +869,8 @@ bool DbSummaryDataBase::QueryDetailTotalNum(OperatorStatisticReqParams &reqParam
         sql = StringUtil::FormatString("SELECT COUNT(*) FROM ({})", sql);
     }
     sqlite3_stmt *stmt = nullptr;
-    int result = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
-    if (result != SQLITE_OK) {
-        ServerLog::Error("Failed to get Detail Total Num. Msg: ", sqlite3_errmsg(db), " ", result);
+    if (!PrepareSql(
+            sql, stmt, "QueryDetail", "the detail count query", "the profiling database", QueryContext(reqParams))) {
         return false;
     }
     int index = bindStartIndex;
@@ -846,6 +887,9 @@ bool DbSummaryDataBase::QueryDetailTotalNum(OperatorStatisticReqParams &reqParam
 // LCOV_EXCL_BR_STOP
 
 std::set<std::string> DbSummaryDataBase::FetchPmuColumnNames() {
+    if (!isOpen || db == nullptr) {
+        return pmuColumns_;
+    }
     if (!CheckTableExist(TABLE_TASK_PMU_INFO) || !pmuColumns_.empty()) {
         return pmuColumns_;
     }
@@ -878,7 +922,6 @@ std::set<std::string> DbSummaryDataBase::FetchPmuColumnNames() {
         }
         pmuColumns_.insert(colName);
     }
-
     // 释放资源
     sqlite3_finalize(stmt);
     return pmuColumns_;
@@ -961,8 +1004,9 @@ std::string DbSummaryDataBase::GenerateAllQueryDetailSql(OperatorStatisticReqPar
     }
     GenerateQueryFiltersSql<OperatorStatisticReqParams>(reqParams, sql);
     if (!StringUtil::CheckSqlValid(reqParams.orderBy)) {
-        ServerLog::Error("There is an SQL injection attack on the parameter of orderBy"
-                         "to generate all query detail sql.");
+        ServerLog::Warn("[Operator][QueryDetail][GenerateSql] Invalid orderBy. rankId=%, group=%, "
+                        "cause=orderBy failed SQL validation, suggestion=Use a supported sort column.",
+            reqParams.rankId, OperatorGroupConverter::GetGroupForLog(reqParams.group));
     } else if (!reqParams.orderBy.empty() && !reqParams.order.empty()) {
         sql += " ORDER by " + (reqParams.orderBy == "blockNum" ? blockNumColumnName : reqParams.orderBy) + " " +
             (reqParams.order == "ascend" ? "ASC" : "DESC");
@@ -1175,8 +1219,9 @@ template <typename T> void DbSummaryDataBase::BindQueryFilters(T &reqParams, sql
 bool DbSummaryDataBase::GenerateQueryMoreInfoFilters(OperatorMoreInfoReqParams &reqParams, std::string &sql) {
     for (const auto &filter : reqParams.filters) {
         if (!StringUtil::CheckSqlValid(filter.first) || !StringUtil::CheckSqlValid(filter.second)) {
-            ServerLog::Error("There is an SQL injection attack on the parameter of filter"
-                             "to generate query more info filters.");
+            ServerLog::Warn("[Operator][QueryMoreInfo][GenerateSql] Invalid filter. "
+                            "cause=a filter failed SQL validation, "
+                            "suggestion=Use supported filter columns and values.");
             return false;
         }
         sql += " AND " + filter.first + " LIKE '%" + filter.second + "%' ";
