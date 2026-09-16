@@ -85,6 +85,11 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
     server_command.creation_flags(NO_WINDOW_FLAG);
 
     // 通过Rust底座拉起后端时，为本地使用场景，不涉及远程通信，传入--notStrict选项，导入文件时不要求权限和属主校验通过
+    tracing::info!(
+        target: "msinsight_platform",
+        event = "backend_start_requested",
+        port
+    );
     match server_command
         .arg(format!("--wsPort={port}"))
         .arg(format!("--logPath={}", cache_path.display()))
@@ -92,9 +97,23 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
         .spawn()
     {
         Ok(child) => unsafe {
+            tracing::info!(
+                target: "msinsight_platform",
+                event = "backend_started",
+                port,
+                pid = child.id()
+            );
             PID = child.id();
         },
-        _ => eprintln!("Failed to start server"),
+        Err(_) => {
+            tracing::error!(
+                target: "msinsight_platform",
+                event = "backend_start_failed",
+                port,
+                reason = "spawn_failed"
+            );
+            eprintln!("Failed to start server");
+        }
     }
 }
 
@@ -187,7 +206,24 @@ pub fn main() {
         }
     }
 
+    // cache_path 已完成平台修正且目录已创建；此时初始化可保证 Rust 与后端日志共用该目录。
+    // initialize 只安装一次进程级 tracing subscriber，后续各模块直接调用 tracing::* 即会经过
+    // 该 subscriber 过滤并写入，无需重复初始化。
+    // 可选控制句柄只交给当前平台的 WebView；初始化失败时保留 None，维持应用尽力启动的边界。
+    let log_level_control = match crate::logging::initialize(&cache_path) {
+        Ok(control) => Some(control),
+        Err(_) => {
+            eprintln!("Failed to initialize Rust logging");
+            None
+        }
+    };
+    tracing::info!(target: "msinsight_platform", event = "app_start");
+
     if webview::webview_version().is_err() {
+        tracing::error!(
+            target: "msinsight_platform",
+            event = "webview_version_query_failed"
+        );
         #[cfg(windows)]
         webview::webview2err::show_webview_err_message();
 
@@ -198,6 +234,11 @@ pub fn main() {
         FRONTEND_BACKEND_PORT_START,
         FRONTEND_BACKEND_PORT_END,
     ) else {
+        tracing::error!(
+            target: "msinsight_platform",
+            event = "backend_port_unavailable",
+            reason = "no_available_port"
+        );
         eprintln!(
             "{}",
             no_available_port_stderr(
@@ -210,15 +251,53 @@ pub fn main() {
     };
 
     #[cfg(target_os = "linux")]
-    if let Ok((eventloop, webview)) = webview::run_script(&root_path, &cache_path, port) {
-        run_server(&root_path, &cache_path, port);
-        webview::run_event_loop(eventloop, webview)
+    {
+        tracing::info!(target: "msinsight_platform", event = "webview_start");
+        match webview::run_script(
+            &root_path,
+            &cache_path,
+            port,
+            log_level_control,
+        ) {
+            Ok((eventloop, webview)) => {
+                tracing::info!(
+                    target: "msinsight_platform",
+                    event = "webview_created"
+                );
+                run_server(&root_path, &cache_path, port);
+                webview::run_event_loop(eventloop, webview)
+            }
+            Err(_) => tracing::error!(
+                target: "msinsight_platform",
+                event = "webview_start_failed",
+                reason = "build_failed"
+            ),
+        }
     }
 
     #[cfg(any(target_os = "windows", target_os = "macos"))]
-    if let Ok((eventloop, webview, window)) = webview::run_script(&root_path, &cache_path, port) {
-        run_server(&root_path, &cache_path, port);
-        webview::run_event_loop(eventloop, webview, window)
+    {
+        tracing::info!(target: "msinsight_platform", event = "webview_start");
+        match webview::run_script(
+            &root_path,
+            &cache_path,
+            port,
+            log_level_control,
+        ) {
+            Ok((eventloop, webview, window)) => {
+                tracing::info!(
+                    target: "msinsight_platform",
+                    event = "webview_created"
+                );
+                run_server(&root_path, &cache_path, port);
+                webview::run_event_loop(eventloop, webview, window)
+            }
+            Err(_) => tracing::error!(
+                target: "msinsight_platform",
+                event = "webview_start_failed",
+                reason = "build_failed"
+            ),
+        }
     }
 }
 

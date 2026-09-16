@@ -1312,3 +1312,38 @@ git push --force-with-lease origin your-branch-name
 - [help-wanted](https://gitcode.com/Ascend/msinsight/pulls?categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:22796,%22name%22:%22help-wanted%22%257D%255D,%22label%22:%22help-wanted%22%257D%255D&state=opened&scope=all&page=1)
 - [RFC](https://gitcode.com/Ascend/msinsight/issues?state=all&scope=all&page=1&categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:25328,%22name%22:%22rfc%22%257D%255D,%22label%22:%22rfc%22%257D%255D)
 - [Roadmap](https://gitcode.com/Ascend/msinsight/issues?state=all&scope=all&page=1&categorysearch=%255B%257B%22field%22:%22labels%22,%22value%22:%255B%257B%22id%22:22807,%22name%22:%22roadmap%22%257D%255D,%22label%22:%22roadmap%22%257D%255D)
+
+## 6. Rust 平台日志（release/default 桌面端）
+
+以下说明仅适用于 **release + default feature** 的桌面入口。Rust 日志在既有 `cache_path` 创建成功后，使用 `create + append` 模式打开固定文件 `cache_path/msinsight.log`；启动时不会清空或删除已有文件，后续进程产生的日志继续追加在原内容末尾。该文件与 `profiler_server` 日志共享同一个 cache 目录。默认级别为 `INFO`，输出 `INFO`、`WARN`、`ERROR`；`DEBUG` 级别额外输出 `DEBUG`，不会输出 `TRACE`。本次确定采用追加策略，不提供启动覆盖、轮转、压缩或自动清理。
+
+启动时只接受以下两个精确参数：
+
+```text
+--rust-log-level=INFO
+--rust-log-level=DEBUG
+```
+
+参数值非法时安全回退到 `INFO`，且不会暴露原始值；分离写法 `--rust-log-level <LEVEL>` 不支持。
+
+调整级别前，先完全退出 Insight，再带参数重新启动。参数只在新进程启动时读取；macOS 上仅关闭窗口不一定会退出应用，应用仍运行时再次执行 `open` 不能改变当前进程的启动级别。
+
+Windows：在安装目录打开 PowerShell，执行：
+
+```powershell
+.\MindStudio-Insight.exe --rust-log-level=DEBUG
+```
+
+macOS：安装应用后，在终端执行：
+
+```bash
+open -a "MindStudioInsight" --args --rust-log-level=DEBUG
+```
+
+若系统找不到该应用名称，可将 `"MindStudioInsight"` 替换为应用实际的 `.app` 完整路径。恢复 `INFO` 时，完全退出后正常启动，或将上述命令的参数改为 `--rust-log-level=INFO`。
+
+可通过应用中的“在资源管理器中显示日志”打开日志目录。在 `msinsight.log` 末尾的新启动记录中，`event="logging_initialized" level="DEBUG" source="command_line"` 表示 DEBUG 参数已生效。旧启动记录会保留，因此应检查最后一次启动后的日志。
+
+release/default 不额外开启 DevTools。现有 `setRustLogLevel|DEBUG` 和 `setRustLogLevel|INFO` IPC 命令保留，但不提供新的界面入口；日常操作使用上述退出、重启方式。这些级别设置仅影响 Rust 进程，不改变 `profiler_server` 或 C++ 的日志级别。
+
+日志记录白名单事件及固定枚举/数值字段；资源读取成功或失败时，额外记录应用前端静态资源目录下的 `resource_name`，例如 `index.html`、`main.7d331fa9.js`，只包含文件名。目录跳转、非前端资源路径或带异常字符的请求只记录固定值 `<redacted>`。不记录完整或部分目录路径、原始 URL、用户导入的数据文件名、原始 IPC、其他用户输入或错误正文。`backend_started` 仅表示 spawn 成功，不表示进程健康、持续存活或已退出。

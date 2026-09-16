@@ -23,6 +23,8 @@
 mod local_port;
 #[cfg(all(not(debug_assertions), feature = "default"))]
 mod default;
+#[cfg(all(not(debug_assertions), feature = "default"))]
+mod logging;
 #[cfg(all(not(debug_assertions), feature = "default", any(target_os = "windows", target_os = "macos")))]
 mod webview;
 #[cfg(all(not(debug_assertions), feature = "default", target_os = "linux"))]
