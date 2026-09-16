@@ -20,6 +20,7 @@ import { runInAction } from 'mobx';
 import { message } from 'antd';
 import i18n from '@insight/lib/i18n';
 import { register } from './register';
+import { alignToBenchmark } from './actionSetBenchmarkSlice';
 import type { Session } from '../entity/session';
 import type { ThreadMetaData } from '../entity/data';
 import type { InsightUnit } from '../entity/insight';
@@ -112,6 +113,10 @@ async function alignByOperator(
     session: Session,
     alignType: TimelineAlignmentType,
 ): Promise<void> {
+    if (session.benchMarkData !== undefined) {
+        alignToBenchmark(session, alignType === ALIGN_TYPE.LEFT);
+        return;
+    }
     const params = buildRequestParams(session, alignType);
     if (!params) {
         message.warning(i18n.t('timeline:contextMenu.AlignOperatorRawStartNotReady'));
