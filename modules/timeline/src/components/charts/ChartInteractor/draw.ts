@@ -30,8 +30,11 @@ import { ChartDesc, UnitHeight } from '../../../entity/insight';
 import type { InsightUnit } from '../../../entity/insight';
 import {
     getLaneProcessIdentity,
+    getLaneProcessIdentityCandidates,
     getLaneSourceThreadIdentity,
+    getLaneSourceThreadIdentityCandidates,
     getLaneThreadIdentity,
+    getLaneThreadIdentityCandidates,
     type ThreadMetaData,
 } from '../../../entity/data';
 import { buildCardIdIndex, type CardIdIndex, colorPalette } from '../../../insight/units/utils';
@@ -715,10 +718,13 @@ export const drawMEventMask = (props: DrawCanvasArgs): void => {
 export const UNDRAW_HEIGHT = 45 + 2; // 45 指时间轴+旗帜轴的高度之和，2 指 useDraggableContainerEx css 中的 border-top: ${(p): string => p.theme.dividerColor} 2px solid;
 export const getHeight = (session: Session, data: DataBlock, cardId: string, category: string): number | undefined => {
     let height;
-    const threadKey = getLaneThreadIdentity(cardId, data.pid, data.tid, data.dbPath);
-    const processKey = getLaneProcessIdentity(cardId, data.pid, data.dbPath);
+    const threadKeys = getLaneThreadIdentityCandidates(cardId, data.pid, data.tid, data.dbPath);
+    const processKeys = getLaneProcessIdentityCandidates(cardId, data.pid, data.dbPath);
+    const sourceThreadKeys = getLaneSourceThreadIdentityCandidates(cardId, data.tid, data.dbPath);
+    const threadKey = threadKeys.find(key => heightMap.has(key)) ?? threadKeys[0];
+    const processKey = processKeys.find(key => heightMap.has(key)) ?? processKeys[0];
     const unitHeight = heightMap.get(threadKey) ?? sourceThreadHeightMap.get(
-        getLaneSourceThreadIdentity(cardId, data.tid, data.dbPath),
+        sourceThreadKeys.find(key => sourceThreadHeightMap.has(key)) ?? sourceThreadKeys[0],
     );
     let processHeight = heightMap.get(processKey);
     // 卡折叠的情况

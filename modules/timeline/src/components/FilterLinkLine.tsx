@@ -26,11 +26,18 @@ import { CustomButton } from './base/StyledButton';
 import { useTranslation } from 'react-i18next';
 import { StyledEmpty } from './base/StyledEmpty';
 import { action, runInAction } from 'mobx';
-import type { InsightUnit, LinkLine, LinkLines } from '../entity/insight';
-import { CardUnit, ProcessUnit } from '../insight/units/AscendUnit';
+import { type InsightUnit, type LinkLines, ProjectType } from '../entity/insight';
+import { buildSingleLinkLines, CardUnit, normalizeCategoryFlowEvent, ProcessUnit } from '../insight/units/AscendUnit';
 import { customDebounce } from '../utils/customDebounce';
 import { getTimeOffset } from '../insight/units/utils';
-import { CardMetaData, getCardFlowSourceDbPaths, type HostMetaData, ProcessMetaData, ThreadMetaData } from '../entity/data';
+import {
+    CardMetaData,
+    getCardFlowQueryDbPaths,
+    getCardFlowSourceDbPaths,
+    type HostMetaData,
+    ProcessMetaData,
+    ThreadMetaData,
+} from '../entity/data';
 import i18n from '@insight/lib/i18n';
 import { message, Spin } from 'antd';
 import connector from '../connection/index';
@@ -210,11 +217,17 @@ const fetchLinkLineForCard = async (viewedCardIdSet: Set<string>, session: Sessi
 
     try {
         const res = await window.request(dataSource, { command: 'flow/categoryEvents', params });
-        return (res as CategoryEvents).flowDetailList.map(data => ({ ...data, cardId }));
+        return (res as CategoryEvents).flowDetailList.map(data => ({
+            ...normalizeCategoryFlowEvent(data, { rankId: cardId, dbPath }),
+            cardId,
+        }));
     } catch (e) {
         return [];
     }
 };
+
+const isTextProject = (unit: InsightUnit): boolean =>
+    unit.projectType === ProjectType.BIN || unit.projectType === ProjectType.TEXT_CLUSTER || unit.projectType === ProjectType.TRACE;
 /**
  * 查询 host 下打开的卡的连线
  * @param unit
@@ -291,7 +304,7 @@ const useFetchLinkLines = (displayCategories: string[], viewedCardIdSet: Set<str
                         cardLinkLines = await queryLinkLinesForHostCards(unit, viewedCardIdSet, session, config);
                     } else {
                         const sourceDbPaths = getCardFlowSourceDbPaths(unit, cardId);
-                        const queryDbPaths = sourceDbPaths.length > 0 ? sourceDbPaths : [dbPath];
+                        const queryDbPaths = getCardFlowQueryDbPaths(dbPath, sourceDbPaths, isTextProject(unit));
                         const results = await Promise.all(queryDbPaths.map(sourceDbPath =>
                             fetchLinkLineForCard(viewedCardIdSet, session, { ...config, cardId, dbPath: sourceDbPath })));
                         cardLinkLines = results.flat();
@@ -322,7 +335,7 @@ const useGetCategories = (session: Session, isSuspend: boolean): {categories: st
         for (const unit of cardUnitsParsed) {
             const { dataSource, cardId, dbPath } = unit.metadata as CardMetaData;
             const sourceDbPaths = getCardFlowSourceDbPaths(unit, cardId);
-            const queryDbPaths = sourceDbPaths.length > 0 ? sourceDbPaths : [dbPath];
+            const queryDbPaths = getCardFlowQueryDbPaths(dbPath, sourceDbPaths, isTextProject(unit));
             queryDbPaths.forEach(sourceDbPath => {
                 fetchList.push(window.request(dataSource,
                     { command: 'flow/categoryList', params: { rankId: cardId, dbPath: sourceDbPath } }));
@@ -412,21 +425,7 @@ const getSingleFlow = async (session: Session): Promise<void> => {
             isSimulation: session.isSimulation,
         });
         const categoryFlowEvents = raw.unitAllFlows as FlowItem[] ?? [];
-        const newLines: LinkLines = {};
-        for (const categoryFlowEvent of categoryFlowEvents) {
-            const cat = categoryFlowEvent.cat;
-            const singleCatLinkLine: LinkLine = [];
-            for (const flow of categoryFlowEvent.flows) {
-                const singleLine: Record<string, unknown> = {
-                    category: flow.cat,
-                    cardId,
-                    from: flow.from,
-                    to: flow.to,
-                };
-                singleCatLinkLine.push(singleLine);
-            }
-            newLines[cat] = singleCatLinkLine;
-        }
+        const newLines = buildSingleLinkLines(session, categoryFlowEvents, { rankId: cardId, dbPath: dbPath ?? '' });
         runInAction(() => {
             session.singleLinkLine = newLines;
             session.renderTrigger = !session.renderTrigger;

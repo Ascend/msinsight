@@ -772,6 +772,12 @@ export const getLaneProcessIdentity = (cardId: string, processId: string, dbPath
     return [cardId, dbPath, processId].join(SOURCE_SEPARATOR);
 };
 
+export const getLaneProcessIdentityCandidates = (cardId: string, processId: string, dbPath?: string): string[] => {
+    const exactIdentity = getLaneProcessIdentity(cardId, processId, dbPath);
+    const legacyIdentity = getLaneProcessIdentity(cardId, processId);
+    return exactIdentity === legacyIdentity ? [exactIdentity] : [exactIdentity, legacyIdentity];
+};
+
 export const getLaneThreadIdentity = (cardId: string, processId: string, threadId: string, dbPath?: string): string => {
     if (dbPath === undefined || dbPath === '') {
         return `${cardId}-${processId}-${threadId}`;
@@ -779,11 +785,23 @@ export const getLaneThreadIdentity = (cardId: string, processId: string, threadI
     return [cardId, dbPath, processId, threadId].join(SOURCE_SEPARATOR);
 };
 
+export const getLaneThreadIdentityCandidates = (cardId: string, processId: string, threadId: string, dbPath?: string): string[] => {
+    const exactIdentity = getLaneThreadIdentity(cardId, processId, threadId, dbPath);
+    const legacyIdentity = getLaneThreadIdentity(cardId, processId, threadId);
+    return exactIdentity === legacyIdentity ? [exactIdentity] : [exactIdentity, legacyIdentity];
+};
+
 export const getLaneSourceThreadIdentity = (cardId: string, threadId: string, dbPath?: string): string => {
     if (dbPath === undefined || dbPath === '') {
         return `${cardId}-${threadId}`;
     }
     return [cardId, dbPath, threadId].join(SOURCE_SEPARATOR);
+};
+
+export const getLaneSourceThreadIdentityCandidates = (cardId: string, threadId: string, dbPath?: string): string[] => {
+    const exactIdentity = getLaneSourceThreadIdentity(cardId, threadId, dbPath);
+    const legacyIdentity = getLaneSourceThreadIdentity(cardId, threadId);
+    return exactIdentity === legacyIdentity ? [exactIdentity] : [exactIdentity, legacyIdentity];
 };
 
 interface CardSourceNode {
@@ -822,6 +840,13 @@ export const getCardFlowSourceDbPaths = (unit: CardSourceNode, cardId: string): 
     };
     collect(unit);
     return [...dbPaths];
+};
+
+export const getCardFlowQueryDbPaths = (cardDbPath: string, sourceDbPaths: string[], useRankSource = false): string[] => {
+    if (useRankSource) {
+        return [''];
+    }
+    return sourceDbPaths.length > 1 ? sourceDbPaths : [cardDbPath];
 };
 
 export interface ProcessMetaData extends MetaDataInnerBase {

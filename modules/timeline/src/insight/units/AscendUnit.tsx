@@ -71,7 +71,7 @@ import jumpToUnitOperator from '../../utils/jumpToUnitOperator';
 import { findOperatorUnit } from '../../utils/operatorUnit';
 import { getSelectedThreadId } from '../../utils/selectionContext';
 import { getUnitFlows, queryAllSameOperatorsDuration } from '../../api/request';
-import { GetUnitFlowsParams, OpData } from '../../api/interface';
+import { type FlowItem, GetUnitFlowsParams, OpData } from '../../api/interface';
 import connector from '../../connection';
 import { getCounterLaneDisplayName, getCounterLegend, getCounterSeriesMode } from './counterUnit';
 import {
@@ -302,11 +302,6 @@ interface FlowEvent {
     title: string;
 }
 
-interface CategoryFlows {
-    cat: string;
-    flows: FlowEvent[];
-}
-
 interface SliceRectData {
     startTime: number;
     duration: number;
@@ -419,8 +414,9 @@ function isSameUnit(selectedMeta?: SelectedDataType, currentMeta?: ThreadMetaDat
  * @param referFlow
  */
 export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow: { rankId: string; dbPath: string }): void {
-    flow.from = { ...flow.from, ...referFlow };
-    flow.to = { ...flow.to, ...referFlow };
+    const normalizedFlow = normalizeFlowEventSource(flow, referFlow, true);
+    flow.from = normalizedFlow.from;
+    flow.to = normalizedFlow.to;
     const setLinkLinesMap = (lineType: 'from' | 'to'): void => {
         const mKey = getFlowPointIdentity(flow[lineType]);
         const mVal = (session.mapOfLinkLines.get(mKey) ?? { cat: flow.cat, from: [], to: [], current: flow[lineType] }) as MapValueOfLinkLines;
@@ -432,6 +428,52 @@ export function handleLinkLinesMap(session: Session, flow: FlowEvent, referFlow:
     };
     setLinkLinesMap('from');
     setLinkLinesMap('to');
+}
+
+interface FlowSourcePoint {
+    rankId?: string;
+    dbPath?: string;
+}
+
+export function normalizeFlowEventSource<T extends { from: FlowSourcePoint; to: FlowSourcePoint }>(
+    flow: T, referFlow: { rankId: string; dbPath?: string }, forceRankId = false,
+): T {
+    const normalizePoint = <P extends FlowSourcePoint>(point: P): P => ({
+        ...point,
+        rankId: forceRankId || point.rankId === undefined || point.rankId === '' ? referFlow.rankId : point.rankId,
+        dbPath: point.dbPath === undefined || point.dbPath === '' ? referFlow.dbPath : point.dbPath,
+    } as P);
+    return {
+        ...flow,
+        from: normalizePoint(flow.from),
+        to: normalizePoint(flow.to),
+    } as T;
+}
+
+export function normalizeCategoryFlowEvent<T extends { from: FlowSourcePoint; to: FlowSourcePoint }>(
+    flow: T, referFlow: { rankId: string; dbPath?: string },
+): T {
+    return normalizeFlowEventSource(flow, referFlow, true);
+}
+
+export function buildSingleLinkLines(session: Session, categoryFlowEvents: FlowItem[],
+    referFlow: { rankId: string; dbPath: string }): LinkLines {
+    const newLines: LinkLines = {};
+    session.mapOfLinkLines.clear();
+    for (const categoryFlowEvent of categoryFlowEvents) {
+        const singleCatLinkLine: LinkLine = [];
+        for (const flow of categoryFlowEvent.flows) {
+            handleLinkLinesMap(session, flow, referFlow);
+            singleCatLinkLine.push({
+                category: flow.cat,
+                cardId: referFlow.rankId,
+                from: flow.from,
+                to: flow.to,
+            });
+        }
+        newLines[categoryFlowEvent.cat] = singleCatLinkLine;
+    }
+    return newLines;
 }
 
 const ThreadingStateChart: ChartDesc<ChartType> = chart({
@@ -749,24 +791,11 @@ export const ThreadUnit = unit<ThreadMetaData>({
             linkFlow.startTime = timestampOffset + (linkFlow.startTime as number);
             linkFlow.endTime = timestampOffset + (linkFlow.endTime as number);
             const raw = await getUnitFlows(linkFlow as GetUnitFlowsParams);
-            const categoryFlowEvents = raw.unitAllFlows as CategoryFlows[] ?? [];
-            const newLines: LinkLines = {};
-            session.mapOfLinkLines.clear();
-            for (const categoryFlowEvent of categoryFlowEvents) {
-                const cat = categoryFlowEvent.cat;
-                const singleCatLinkLine: LinkLine = [];
-                for (const flow of categoryFlowEvent.flows) {
-                    handleLinkLinesMap(session, flow, { rankId: linkFlow.rankId as string, dbPath: linkFlow.dbPath as string });
-                    const singleLine: Record<string, unknown> = {
-                        category: flow.cat,
-                        cardId: linkFlow.rankId,
-                        from: flow.from,
-                        to: flow.to,
-                    };
-                    singleCatLinkLine.push(singleLine);
-                }
-                newLines[cat] = singleCatLinkLine;
-            }
+            const categoryFlowEvents = raw.unitAllFlows as FlowItem[] ?? [];
+            const newLines = buildSingleLinkLines(session, categoryFlowEvents, {
+                rankId: linkFlow.rankId as string,
+                dbPath: linkFlow.dbPath as string,
+            });
             runInAction(() => {
                 session.drawLineMode = 'single';
                 session.linkLines = {};

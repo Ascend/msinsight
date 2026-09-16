@@ -1,10 +1,14 @@
 import {
     getCardFlowSourceDbPaths,
+    getCardFlowQueryDbPaths,
     getCardSourceDbPaths,
     getFlowPointIdentity,
     getLaneProcessIdentity,
+    getLaneProcessIdentityCandidates,
     getLaneSourceThreadIdentity,
+    getLaneSourceThreadIdentityCandidates,
     getLaneThreadIdentity,
+    getLaneThreadIdentityCandidates,
 } from '../../../entity/data';
 
 describe('flow identity', () => {
@@ -35,6 +39,21 @@ describe('flow identity', () => {
     it('keeps legacy lane keys when database path is missing', () => {
         expect(getLaneProcessIdentity('rank0', '10')).toBe('rank0-10');
         expect(getLaneThreadIdentity('rank0', '10', '20')).toBe('rank0-10-20');
+    });
+
+    it('falls back to legacy lane keys when source-aware metadata is unavailable', () => {
+        expect(getLaneProcessIdentityCandidates('rank0', '10', 'trace.db')).toEqual([
+            getLaneProcessIdentity('rank0', '10', 'trace.db'),
+            getLaneProcessIdentity('rank0', '10'),
+        ]);
+        expect(getLaneThreadIdentityCandidates('rank0', '10', '20', 'trace.db')).toEqual([
+            getLaneThreadIdentity('rank0', '10', '20', 'trace.db'),
+            getLaneThreadIdentity('rank0', '10', '20'),
+        ]);
+        expect(getLaneSourceThreadIdentityCandidates('rank0', '20', 'trace.db')).toEqual([
+            getLaneSourceThreadIdentity('rank0', '20', 'trace.db'),
+            getLaneSourceThreadIdentity('rank0', '20'),
+        ]);
     });
 
     it('identifies a thread within one physical database without requiring its process hierarchy', () => {
@@ -72,5 +91,19 @@ describe('flow identity', () => {
         };
 
         expect(getCardFlowSourceDbPaths(card, 'rank0')).toEqual(['thread-1.db', 'thread-2.db']);
+    });
+
+    it('uses card-level source for single-source flow queries', () => {
+        expect(getCardFlowQueryDbPaths('', ['mindstudio_insight_data.db'])).toEqual(['']);
+        expect(getCardFlowQueryDbPaths('profile.db', ['profile.db'])).toEqual(['profile.db']);
+    });
+
+    it('uses rank-based queries for TEXT projects even when an internal database exists', () => {
+        expect(getCardFlowQueryDbPaths('mindstudio_insight_data.db', ['mindstudio_insight_data.db'], true)).toEqual(['']);
+    });
+
+    it('queries each physical source for multi-source cards', () => {
+        expect(getCardFlowQueryDbPaths('profile.db', ['thread-1.db', 'thread-2.db']))
+            .toEqual(['thread-1.db', 'thread-2.db']);
     });
 });
