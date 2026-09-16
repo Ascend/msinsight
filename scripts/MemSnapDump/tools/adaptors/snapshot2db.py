@@ -25,6 +25,7 @@ import shutil
 import sqlite3
 import time
 from pathlib import Path
+from typing import List, Union
 from simulate import SimulateHooker, SimulateDeviceSnapshot, AllocatorHooker
 from base import DeviceSnapshot, TraceEntry, Block, BlockState
 from tools.adaptors.database import SnapshotDb, block2record, event2record
@@ -93,7 +94,7 @@ def _apply_block_table_updates(db_path: str, sql: str, updates) -> None:
 
 
 class SnapshotDbHandler:
-    def __init__(self, db_path: str, devices: list[int], insert_cache_size: int = 1000):
+    def __init__(self, db_path: str, devices: List[int], insert_cache_size: int = 1000):
         self._closed = False
         self.db_path = db_path
         self.db = None
@@ -166,7 +167,7 @@ class DumpEventHooker(SimulateHooker, AllocatorHooker):
     def __init__(
         self,
         db_path: str,
-        devices: list[int],
+        devices: List[int],
         truncated_blocks,
         dump_cache_size: int = 1000,
     ):
@@ -320,7 +321,7 @@ class SnapshotSliceManifest:
         pickle_file: str,
         cache_hash: str,
         device_traces: list,
-        devices: list[int],
+        devices: List[int],
         events_per_slice: int,
     ):
         self.output_dir = output_dir
@@ -408,7 +409,7 @@ def _create_slice_hooker(
 
 def dump(
     pickle_file: str,
-    output_dir: str | Path,
+    output_dir: Union[str, Path],
     device=None,
     events_per_slice: int = DEFAULT_EVENTS_PER_SLICE,
     cache_hash: str = "",

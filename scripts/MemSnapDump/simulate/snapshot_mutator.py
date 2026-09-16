@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details.
 """
 
 import bisect
+from typing import Optional, Tuple
 
 from base import Block, BlockState, DeviceSnapshot, Segment
 from util import get_logger
@@ -24,7 +25,7 @@ from util import get_logger
 snapshot_mutator_logger = get_logger("ALLOCATOR")
 
 
-def _segment_sort_key(segment: Segment) -> tuple[int, int]:
+def _segment_sort_key(segment: Segment) -> Tuple[int, int]:
     return segment.address, segment.stream
 
 
@@ -46,7 +47,7 @@ def attach_block(snapshot: DeviceSnapshot, segment: Segment, block: Block, inser
         snapshot.total_allocated += block.size
 
 
-def detach_block(snapshot: DeviceSnapshot, block: Block, block_idx: int | None = None) -> bool:
+def detach_block(snapshot: DeviceSnapshot, block: Block, block_idx: Optional[int] = None) -> bool:
     """Detach a block from its owning segment.
 
     Mutates the block, its segment, and snapshot totals in place.
@@ -96,7 +97,7 @@ def insert_segment(snapshot: DeviceSnapshot, segment: Segment):
     snapshot.total_reserved += segment.total_size
 
 
-def remove_segment(snapshot: DeviceSnapshot, segment: Segment, segment_idx: int | None = None):
+def remove_segment(snapshot: DeviceSnapshot, segment: Segment, segment_idx: Optional[int] = None):
     """Remove a segment from the snapshot and decrease reserved memory.
 
     Clears every block's `segment_ptr` and mutates `snapshot.total_reserved`
@@ -197,11 +198,8 @@ def decrease_reserved(snapshot: DeviceSnapshot, size: int):
 def _insert_segment_sorted(snapshot: DeviceSnapshot, segment: Segment) -> int:
     """Insert a segment into `snapshot.segments` while preserving sort order."""
     segments = snapshot.segments
-    idx = bisect.bisect_left(
-        segments,
-        (segment.address, segment.stream),
-        key=_segment_sort_key,
-    )
+    segment_keys = [_segment_sort_key(item) for item in segments]
+    idx = bisect.bisect_left(segment_keys, (segment.address, segment.stream))
     segments.insert(idx, segment)
     return idx
 

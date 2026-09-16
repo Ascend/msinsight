@@ -56,7 +56,7 @@ class SimulateDeviceSnapshot(HookerRegistry):
             len(self.device_snapshot.trace_entries),
             len(self.device_snapshot.segments),
         )
-        self.hookers = dict[int, SimulateHooker]()
+        self.hookers = {}
         self.simulated_allocator_context = AllocatorContext(snapshot=self.device_snapshot)
         self.simulated_allocator = SimulatedCachingAllocator(self.simulated_allocator_context)
         self.replay_executor = ReplayExecutor(self.simulated_allocator, self._replay_logger)

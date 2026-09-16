@@ -18,6 +18,7 @@ See the Mulan PSL v2 for more details.
 
 import bisect
 import copy
+from typing import List, Tuple
 
 from base import Block, BlockState, Segment, TraceEntry
 from util import get_logger
@@ -32,7 +33,7 @@ def _segment_address_key(segment: Segment) -> int:
     return segment.address
 
 
-def _find_adjacent_segment_indices(segments: list[Segment], new_segment: Segment) -> tuple[int, int]:
+def _find_adjacent_segment_indices(segments: List[Segment], new_segment: Segment) -> Tuple[int, int]:
     """Find same-stream segments immediately adjacent to ``new_segment``.
 
     Segment starts are sorted, so binary-search each endpoint and only inspect
@@ -43,7 +44,8 @@ def _find_adjacent_segment_indices(segments: list[Segment], new_segment: Segment
     new_end = new_start + new_segment.total_size
     stream = new_segment.stream
 
-    start_idx = bisect.bisect_left(segments, new_start, key=_segment_address_key)
+    segment_addresses = [_segment_address_key(segment) for segment in segments]
+    start_idx = bisect.bisect_left(segment_addresses, new_start)
     left_adjacent_idx = -1
     for idx in range(start_idx - 1, -1, -1):
         segment = segments[idx]
@@ -54,7 +56,7 @@ def _find_adjacent_segment_indices(segments: list[Segment], new_segment: Segment
             left_adjacent_idx = idx
             break
 
-    end_idx = bisect.bisect_left(segments, new_end, key=_segment_address_key)
+    end_idx = bisect.bisect_left(segment_addresses, new_end)
     right_adjacent_idx = -1
     for idx in range(end_idx, len(segments)):
         segment = segments[idx]

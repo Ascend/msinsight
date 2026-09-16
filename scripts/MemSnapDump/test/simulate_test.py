@@ -24,7 +24,8 @@ from util.logger import suppress_logs, restore_logs
 from simulate import SimulateDeviceSnapshot, SimulateHooker
 from simulate.allocator_context import AllocatorContext
 from simulate.hooker_defs import AllocatorHooker
-from simulate.simulated_caching_allocator import SimulatedCachingAllocator
+from simulate.simulated_caching_allocator import SimulatedCachingAllocator, _find_adjacent_segment_indices
+from simulate.snapshot_mutator import _insert_segment_sorted
 from test.common import valid_segments
 
 test_data_dir = Path(__file__).parent.parent.resolve() / 'test' / 'test-data'
@@ -226,6 +227,30 @@ def _workspace_snapshot_dict():
             ]
         ],
     }
+
+
+class TestPython38BisectCompat(unittest.TestCase):
+    def test_find_adjacent_segment_indices_without_bisect_key(self):
+        left_segment = Segment(address=0, total_size=100, stream=0)
+        right_segment = Segment(address=200, total_size=100, stream=0)
+        segments = [left_segment, right_segment]
+        new_segment = Segment(address=100, total_size=100, stream=0)
+
+        left_idx, right_idx = _find_adjacent_segment_indices(segments, new_segment)
+        self.assertEqual(left_idx, 0)
+        self.assertEqual(right_idx, 1)
+
+    def test_insert_segment_sorted_without_bisect_key(self):
+        snapshot = DeviceSnapshot()
+        snapshot.segments = [
+            Segment(address=0, total_size=100, stream=0),
+            Segment(address=200, total_size=100, stream=0),
+        ]
+        new_segment = Segment(address=100, total_size=100, stream=0)
+
+        idx = _insert_segment_sorted(snapshot, new_segment)
+        self.assertEqual(idx, 1)
+        self.assertEqual([segment.address for segment in snapshot.segments], [0, 100, 200])
 
 
 class TestWorkspaceSnapshotAdapt(unittest.TestCase):
