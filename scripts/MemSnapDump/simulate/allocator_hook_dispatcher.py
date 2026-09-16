@@ -17,6 +17,7 @@ See the Mulan PSL v2 for more details.
 """
 
 import copy
+from typing import Dict
 
 from base import Block, DeviceSnapshot, Segment
 from .hooker_defs import AllocatorHooker
@@ -37,7 +38,7 @@ class HookerRegistry:
 
 class AllocatorHookDispatcher(HookerRegistry):
     def __init__(self):
-        self.hookers: dict[int, AllocatorHooker] = {}
+        self.hookers: Dict[int, AllocatorHooker] = {}
 
     def pre_replay_alloc_block(self, block: Block, snapshot: DeviceSnapshot):
         for hooker in self.hookers.values():

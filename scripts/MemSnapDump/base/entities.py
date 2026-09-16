@@ -16,7 +16,7 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
-from typing import List, Literal, Any, Optional
+from typing import Any, List, Literal, Optional, Tuple, Union
 from dataclasses import dataclass, field
 
 
@@ -40,7 +40,7 @@ class Frame:
         return self._origin if self._origin else {"filename": self.filename, "line": self.line, "name": self.name}
 
 
-def _format_callstack(frames: List[Frame] | List[dict]) -> str:
+def _format_callstack(frames: Union[List[Frame], List[dict]]) -> str:
     if not frames:
         return ""
     if isinstance(frames[0], Frame):
@@ -352,26 +352,47 @@ class DeviceSnapshot:
         }
 
     def find_segment_idx_by_addr(self, addr: int, stream: int = None) -> int:
-        left = 0
-        segments = self.segments
-        right = len(segments) - 1
-        while left <= right:
-            mid = (left + right) // 2
-            if addr < segments[mid].address:
-                right = mid - 1
-            elif addr >= segments[mid].address + segments[mid].total_size:
-                left = mid + 1
-            else:
-                # 地址范围内，如果指定了 stream 还需验证 stream 匹配
-                if stream is not None and segments[mid].stream != stream:
-                    # 同地址按 stream 升序排列，根据大小关系确定搜索方向和 range
-                    step = -1 if stream < segments[mid].stream else 1
-                    end = -1 if step == -1 else len(segments)
-                    for i in range(mid + step, end, step):
-                        if addr < segments[i].address:
-                            break
-                        if addr < segments[i].address + segments[i].total_size and segments[i].stream == stream:
-                            return i
-                    return -1
-                return mid
-        return -1
+        idx, _ = find_overlapping_segment(self, addr, stream)
+        return idx
+
+
+def _scan_overlapping_segments_for_stream(
+    segments: List[Segment], mid: int, addr: int, stream: int
+) -> Tuple[int, Optional[Segment]]:
+    """Scan neighboring overlapping segments to find a stream match."""
+    for i in range(mid - 1, -1, -1):
+        if addr < segments[i].address:
+            break
+        if addr < segments[i].address + segments[i].total_size and segments[i].stream == stream:
+            return i, segments[i]
+    for i in range(mid + 1, len(segments)):
+        if addr < segments[i].address:
+            break
+        if addr < segments[i].address + segments[i].total_size and segments[i].stream == stream:
+            return i, segments[i]
+    return -1, None
+
+
+def find_overlapping_segment(
+    snapshot: DeviceSnapshot, addr: int, stream: Optional[int] = None
+) -> Tuple[int, Optional[Segment]]:
+    """Find the segment whose range overlaps the given address.
+
+    Returns `(idx, segment)` for a containing-range match, otherwise
+    `(-1, None)`. When `stream` is provided, the matched segment must also
+    share that stream.
+    """
+    left = 0
+    segments = snapshot.segments
+    right = len(segments) - 1
+    while left <= right:
+        mid = (left + right) // 2
+        if addr < segments[mid].address:
+            right = mid - 1
+        elif addr >= segments[mid].address + segments[mid].total_size:
+            left = mid + 1
+        else:
+            if stream is not None and segments[mid].stream != stream:
+                return _scan_overlapping_segments_for_stream(segments, mid, addr, stream)
+            return mid, segments[mid]
+    return -1, None

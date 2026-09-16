@@ -14,8 +14,7 @@ EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
 MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
-"""
-"""
+
 日志工具模块
 
 提供日志记录器的创建和配置功能。
@@ -23,7 +22,7 @@ See the Mulan PSL v2 for more details.
 
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 from .file_util import check_dir_valid
 
 _global_log_file: Optional[str] = None
@@ -59,9 +58,7 @@ def set_global_log_file(log_file: str) -> None:
         _global_file_handler.close()
 
     formatter = logging.Formatter(
-        fmt='{asctime} [{levelname:^6}][ {name:^12} ]: {message}',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        style='{'
+        fmt='{asctime} [{levelname:^6}][ {name:^12} ]: {message}', datefmt='%Y-%m-%d %H:%M:%S', style='{'
     )
 
     _global_file_handler = logging.FileHandler(_global_log_file, mode='w', encoding='utf-8')
@@ -71,7 +68,7 @@ def set_global_log_file(log_file: str) -> None:
     _attach_file_handler_to_existing_loggers()
 
 
-_original_levels: dict[str, int] = {}
+_original_levels: Dict[str, int] = {}
 
 
 def suppress_logs():
@@ -134,9 +131,7 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         logger.handlers.clear()
 
     formatter = logging.Formatter(
-        fmt='{asctime} [{levelname:^6}][ {name:^12} ]: {message}',
-        datefmt='%Y-%m-%d %H:%M:%S',
-        style='{'
+        fmt='{asctime} [{levelname:^6}][ {name:^12} ]: {message}', datefmt='%Y-%m-%d %H:%M:%S', style='{'
     )
 
     console_handler = logging.StreamHandler()
@@ -148,4 +143,3 @@ def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         logger.addHandler(_global_file_handler)
 
     return logger
-

@@ -15,10 +15,11 @@ MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
 See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
+
 import os
-import pickle
+import pickle  # nosec B403
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict, Union
 
 
 class SafeUnpickler(pickle.Unpickler):
@@ -97,7 +98,7 @@ def save_dict_to_pickle(data: Dict[Any, Any], path: Path, protocol: int = 4) -> 
         raise OSError(f"Unable to write to file {path}: {e}") from e
 
 
-def check_dir_valid(path: str | Path, need_readable: bool = True, need_writable: bool = True) -> bool:
+def check_dir_valid(path: Union[str, Path], need_readable: bool = True, need_writable: bool = True) -> bool:
     """
         校验目录是否合法, 默认要求可读可写
     :param path: 路径字符串或pathlib.Path对象
@@ -117,7 +118,7 @@ def check_dir_valid(path: str | Path, need_readable: bool = True, need_writable:
     return True
 
 
-def check_file_valid(path: str | Path, need_readable: bool = True, need_writable: bool = False) -> bool:
+def check_file_valid(path: Union[str, Path], need_readable: bool = True, need_writable: bool = False) -> bool:
     """
         校验文件是否合法, 默认要求可读取，不要求可写
     :param path: 路径字符串或pathlib.Path对象

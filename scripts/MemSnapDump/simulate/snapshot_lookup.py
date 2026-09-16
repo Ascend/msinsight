@@ -16,7 +16,10 @@ See the Mulan PSL v2 for more details.
 -------------------------------------------------------------------------
 """
 
+from typing import Optional, Tuple
+
 from base import Block, DeviceSnapshot, Segment
+from base.entities import find_overlapping_segment
 
 
 def is_valid_sub_block(block: Block, addr: int, size: int) -> bool:
@@ -24,7 +27,7 @@ def is_valid_sub_block(block: Block, addr: int, size: int) -> bool:
     return block.address <= addr and addr + size <= block.address + block.size
 
 
-def find_block(segment: Segment, block_addr: int) -> tuple[int, Block | None]:
+def find_block(segment: Segment, block_addr: int) -> Tuple[int, Optional[Block]]:
     """Find the block containing an address inside a segment.
 
     Returns `(idx, block)` when matched, otherwise `(-1, None)`.
@@ -42,49 +45,7 @@ def find_block(segment: Segment, block_addr: int) -> tuple[int, Block | None]:
     return -1, None
 
 
-def _scan_overlapping_segments_for_stream(
-    segments: list[Segment], mid: int, addr: int, stream: int
-) -> tuple[int, Segment | None]:
-    """Scan neighboring overlapping segments to find a stream match."""
-    for i in range(mid - 1, -1, -1):
-        if addr < segments[i].address:
-            break
-        if addr < segments[i].address + segments[i].total_size and segments[i].stream == stream:
-            return i, segments[i]
-    for i in range(mid + 1, len(segments)):
-        if addr < segments[i].address:
-            break
-        if addr < segments[i].address + segments[i].total_size and segments[i].stream == stream:
-            return i, segments[i]
-    return -1, None
-
-
-def find_overlapping_segment(
-    snapshot: DeviceSnapshot, addr: int, stream: int | None = None
-) -> tuple[int, Segment | None]:
-    """Find the segment whose range overlaps the given address.
-
-    Returns `(idx, segment)` for a containing-range match, otherwise
-    `(-1, None)`. When `stream` is provided, the matched segment must also
-    share that stream.
-    """
-    left = 0
-    segments = snapshot.segments
-    right = len(segments) - 1
-    while left <= right:
-        mid = (left + right) // 2
-        if addr < segments[mid].address:
-            right = mid - 1
-        elif addr >= segments[mid].address + segments[mid].total_size:
-            left = mid + 1
-        else:
-            if stream is not None and segments[mid].stream != stream:
-                return _scan_overlapping_segments_for_stream(segments, mid, addr, stream)
-            return mid, segments[mid]
-    return -1, None
-
-
-def find_segment(snapshot: DeviceSnapshot, addr: int, stream: int) -> tuple[int, Segment | None]:
+def find_segment(snapshot: DeviceSnapshot, addr: int, stream: int) -> Tuple[int, Optional[Segment]]:
     """Find the segment whose start address exactly matches the given address.
 
     Returns `(idx, segment)` for an exact start-address and stream match,
@@ -98,7 +59,7 @@ def find_segment(snapshot: DeviceSnapshot, addr: int, stream: int) -> tuple[int,
 
 def find_gap_for_alloc_block(
     snapshot: DeviceSnapshot, event_addr: int, event_size: int, stream: int = None
-) -> tuple[Segment, int] | None:
+) -> Optional[Tuple[Segment, int]]:
     """Find the insertion gap for a block allocation inside a segment.
 
     Returns `(segment, insert_idx)` when a valid gap exists, otherwise `None`.
