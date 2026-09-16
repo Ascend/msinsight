@@ -483,7 +483,7 @@ DbSummaryDataBase::TableCheckResult DbSummaryDataBase::CheckOperatorTableExist(
         ServerLog::Error("[Operator][%][CheckTable] Failed to inspect optional tables. %, sqliteCode=%, cause=%, "
                          "suggestion=Check whether the profiling database is open, complete and readable.",
             operation, logContext, code, cause);
-        return TableCheckResult::ERROR;
+        return TableCheckResult::FAILED;
     }
     sqlite3_finalize(stmt);
     if (hasCommunication && (!requireComputeTask || hasComputeTask)) {
