@@ -55,7 +55,7 @@ class DbSummaryDataBase : public Summary::VirtualSummaryDataBase {
     bool QueryBandwidthContentionMatMulData(std::vector<BandwidthContentionMatMulInfo> &res) override;
 
   private:
-    enum class TableCheckResult { AVAILABLE, MISSING, ERROR };
+    enum class TableCheckResult { AVAILABLE, MISSING, FAILED };
 
     std::set<std::string> FetchPmuColumnNames();
     std::string GenerateQueryDetailSqlForOperator();
