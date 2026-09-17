@@ -18,14 +18,21 @@
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
-use std::{env, env::current_exe, path::PathBuf, process::Command};
+use std::{
+    env,
+    env::current_exe,
+    path::PathBuf,
+    process::{Child, Command},
+    thread,
+    time::{Duration, Instant},
+};
 
 #[cfg(target_os = "linux")]
 use crate::local_port::dialog_tool_was_shown;
 use crate::{
     local_port::{
         find_first_available_port, no_available_port_dialog_message,
-        no_available_port_stderr, FRONTEND_BACKEND_PORT_END,
+        no_available_port_stderr, server_is_ready, FRONTEND_BACKEND_PORT_END,
         FRONTEND_BACKEND_PORT_START, NO_AVAILABLE_PORT_DIALOG_TITLE,
     },
     webview,
@@ -35,6 +42,10 @@ const SERVER_RELATIVE_LIST: [&str; 4] =
     ["resources", "profiler", "server", "profiler_server"];
 #[cfg(windows)]
 const NO_WINDOW_FLAG: u32 = 0x08000000;
+const BACKEND_READY_TIMEOUT: Duration = Duration::from_secs(10);
+const BACKEND_READY_POLL_INTERVAL: Duration = Duration::from_millis(20);
+const BACKEND_START_FAILED_MESSAGE: &str =
+    "MindStudio Insight backend failed to start. Please restart the application.";
 
 fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
     let mut server_path = root_path.to_path_buf();
@@ -75,9 +86,50 @@ fn server_path(root_path: &PathBuf) -> Option<PathBuf> {
     Some(server_path)
 }
 
-fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
-    let binding = server_path(root_path).unwrap();
-    let Some(path) = binding.to_str() else { unreachable!() };
+fn terminate_server(child: &mut Child) {
+    let _ = child.kill();
+    let _ = child.wait();
+    unsafe {
+        PID = u32::MAX;
+    }
+}
+
+struct ServerProcessGuard {
+    child: Child,
+}
+
+impl ServerProcessGuard {
+    fn new(child: Child) -> Self {
+        Self { child }
+    }
+
+    fn child_mut(&mut self) -> &mut Child {
+        &mut self.child
+    }
+}
+
+impl Drop for ServerProcessGuard {
+    fn drop(&mut self) {
+        // Child's Drop does not stop the process, so keep this guard armed
+        // while the WebView is built and throughout the event loop.
+        terminate_server(&mut self.child);
+    }
+}
+
+fn run_server(
+    root_path: &PathBuf,
+    cache_path: &PathBuf,
+    port: u16,
+) -> Option<ServerProcessGuard> {
+    let Some(path) = server_path(root_path) else {
+        tracing::error!(
+            target: "msinsight_platform",
+            event = "backend_start_failed",
+            port,
+            reason = "executable_not_found"
+        );
+        return None;
+    };
 
     let mut server_command = Command::new(path);
 
@@ -90,21 +142,24 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
         event = "backend_start_requested",
         port
     );
-    match server_command
+    let child = match server_command
         .arg(format!("--wsPort={port}"))
         .arg(format!("--logPath={}", cache_path.display()))
         .arg("--notStrict")
         .spawn()
     {
-        Ok(child) => unsafe {
+        Ok(child) => {
             tracing::info!(
                 target: "msinsight_platform",
                 event = "backend_started",
                 port,
                 pid = child.id()
             );
-            PID = child.id();
-        },
+            unsafe {
+                PID = child.id();
+            }
+            child
+        }
         Err(_) => {
             tracing::error!(
                 target: "msinsight_platform",
@@ -113,7 +168,82 @@ fn run_server(root_path: &PathBuf, cache_path: &PathBuf, port: u16) {
                 reason = "spawn_failed"
             );
             eprintln!("Failed to start server");
+            return None;
         }
+    };
+
+    let mut server_process = ServerProcessGuard::new(child);
+    let started = Instant::now();
+    loop {
+        match server_process.child_mut().try_wait() {
+            Ok(Some(status)) => {
+                tracing::error!(
+                    target: "msinsight_platform",
+                    event = "backend_start_failed",
+                    port,
+                    reason = "exited_before_ready",
+                    status = %status
+                );
+                return None;
+            }
+            Err(_) => {
+                tracing::error!(
+                    target: "msinsight_platform",
+                    event = "backend_start_failed",
+                    port,
+                    reason = "status_query_failed"
+                );
+                return None;
+            }
+            Ok(None) => {}
+        }
+
+        if server_is_ready(port) {
+            // A TCP listener alone cannot prove ownership of the port. Check
+            // the spawned backend again before allowing the WebView to start.
+            match server_process.child_mut().try_wait() {
+                Ok(None) => {
+                    tracing::info!(
+                        target: "msinsight_platform",
+                        event = "backend_ready",
+                        port,
+                        elapsed_ms = started.elapsed().as_millis() as u64
+                    );
+                    return Some(server_process);
+                }
+                Ok(Some(status)) => {
+                    tracing::error!(
+                        target: "msinsight_platform",
+                        event = "backend_start_failed",
+                        port,
+                        reason = "exited_after_readiness_probe",
+                        status = %status
+                    );
+                    return None;
+                }
+                Err(_) => {
+                    tracing::error!(
+                        target: "msinsight_platform",
+                        event = "backend_start_failed",
+                        port,
+                        reason = "status_query_failed_after_readiness_probe"
+                    );
+                    return None;
+                }
+            }
+        }
+
+        if started.elapsed() >= BACKEND_READY_TIMEOUT {
+            tracing::error!(
+                target: "msinsight_platform",
+                event = "backend_start_failed",
+                port,
+                reason = "readiness_timeout"
+            );
+            return None;
+        }
+
+        thread::sleep(BACKEND_READY_POLL_INTERVAL);
     }
 }
 
@@ -250,6 +380,11 @@ pub fn main() {
         return;
     };
 
+    let Some(server_process) = run_server(&root_path, &cache_path, port) else {
+        show_backend_start_failed_alert();
+        return;
+    };
+
     #[cfg(target_os = "linux")]
     {
         tracing::info!(target: "msinsight_platform", event = "webview_start");
@@ -264,14 +399,17 @@ pub fn main() {
                     target: "msinsight_platform",
                     event = "webview_created"
                 );
-                run_server(&root_path, &cache_path, port);
+                // Keep cleanup armed while the event loop owns the UI.
+                let _server_process = server_process;
                 webview::run_event_loop(eventloop, webview)
             }
-            Err(_) => tracing::error!(
-                target: "msinsight_platform",
-                event = "webview_start_failed",
-                reason = "build_failed"
-            ),
+            Err(_) => {
+                tracing::error!(
+                    target: "msinsight_platform",
+                    event = "webview_start_failed",
+                    reason = "build_failed"
+                );
+            }
         }
     }
 
@@ -289,33 +427,44 @@ pub fn main() {
                     target: "msinsight_platform",
                     event = "webview_created"
                 );
-                run_server(&root_path, &cache_path, port);
+                // Keep cleanup armed while the event loop owns the UI.
+                let _server_process = server_process;
                 webview::run_event_loop(eventloop, webview, window)
             }
-            Err(_) => tracing::error!(
-                target: "msinsight_platform",
-                event = "webview_start_failed",
-                reason = "build_failed"
-            ),
+            Err(_) => {
+                tracing::error!(
+                    target: "msinsight_platform",
+                    event = "webview_start_failed",
+                    reason = "build_failed"
+                );
+            }
         }
     }
 }
 
 fn show_no_available_port_alert() {
-    let title = NO_AVAILABLE_PORT_DIALOG_TITLE;
     let message = no_available_port_dialog_message(
         FRONTEND_BACKEND_PORT_START,
         FRONTEND_BACKEND_PORT_END,
     );
+    show_startup_alert(&message);
+}
+
+fn show_backend_start_failed_alert() {
+    show_startup_alert(BACKEND_START_FAILED_MESSAGE);
+}
+
+fn show_startup_alert(message: &str) {
+    let title = NO_AVAILABLE_PORT_DIALOG_TITLE;
 
     #[cfg(windows)]
-    webview::webview2err::show_error_message(title, &message);
+    webview::webview2err::show_error_message(title, message);
 
     #[cfg(target_os = "macos")]
-    show_macos_error_dialog(title, &message);
+    show_macos_error_dialog(title, message);
 
     #[cfg(target_os = "linux")]
-    show_linux_error_dialog(title, &message);
+    show_linux_error_dialog(title, message);
 }
 
 #[cfg(target_os = "macos")]
