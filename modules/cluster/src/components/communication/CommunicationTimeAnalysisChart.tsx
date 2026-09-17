@@ -24,7 +24,8 @@ import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { getBaselineName, getCompareName, Loading } from '../Common';
 import { colorPalette, hashToNumber } from '../../utils/colorUtil';
-import { Dropdown } from '@insight/lib/components';
+import { Dropdown, Tooltip } from '@insight/lib/components';
+import { ResetIcon } from '@insight/lib/icon';
 import { type MenuProps, Button, notification, Spin } from 'antd';
 import connector from '../../connection';
 import i18n from '@insight/lib/i18n';
@@ -35,6 +36,7 @@ import { ChartZoomData, ClickOperatorItem, CompareData, FormatterParams } from '
 import { queryTimelineUnitKernelDetail } from '../../utils/RequestUtils';
 import { useEventBus } from '../../utils/eventBus';
 import { shouldShowTailAlignTip } from './tailAlign';
+import { getChartNavigation, navigateCommunicationChart, resetCommunicationChartZoom, type ChartPointer } from './communicationChartNavigation';
 import type { ECharts, InsideDataZoomComponentOption } from 'echarts';
 import {
     buildCommunicationWebGLIndex,
@@ -1058,8 +1060,49 @@ const CommunicationTimeAnalysisChart = observer(({
     // 图表可能在隐藏状态下延迟初始化，初始化时必须读取最新接口数据。
     const latestDataSource = useRef(dataSource);
     latestDataSource.current = dataSource;
+    const pointerRef = useRef<ChartPointer | null>(null);
+    const [keyboardActive, setKeyboardActive] = useState(false);
+    const [isZoomed, setIsZoomed] = useState(false);
+    const { t } = useTranslation('communication');
     // 获取菜单项
     const menuItems = useMenuItems(session, setDropDownVisible, chartInst.current, onAlignmentChange);
+
+    const updateZoomState = React.useCallback((): void => {
+        const zoom = chartInst.current?.getOption().dataZoom as InsideDataZoomComponentOption[] | undefined;
+        setIsZoomed(zoom?.slice(0, 2).some(({ start = 0, end = 100 }) => start > 0 || end < 100) ?? false);
+    }, []);
+    const canResetZoom = isZoomed && !loading;
+    const handleResetZoom = (): void => {
+        const chart = chartInst.current;
+        if (chart && !chart.isDisposed()) {
+            resetCommunicationChartZoom(chart);
+        }
+    };
+
+    const handleChartKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
+        if (event.target !== event.currentTarget || document.activeElement !== event.currentTarget || event.nativeEvent.isComposing || dropDownVisible ||
+            event.ctrlKey || event.metaKey || event.altKey) {
+            return;
+        }
+        if (event.key === 'Escape') {
+            event.stopPropagation();
+            event.currentTarget.blur();
+            return;
+        }
+        const action = getChartNavigation(event.key, event.shiftKey);
+        const chart = chartInst.current;
+        if (!action || loading || !chart || chart.isDisposed()) {
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        navigateCommunicationChart(chart, action, pointerRef.current);
+    };
+
+    const updatePointer = (event: React.PointerEvent<HTMLDivElement>): void => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        pointerRef.current = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    };
 
     /**
      * 同步滚动事件处理函数，用于处理鼠标滚轮缩放时的页面滚动问题。
@@ -1086,6 +1129,7 @@ const CommunicationTimeAnalysisChart = observer(({
             runInAction(() => {
                 consumeCommunicationChartZoomData(session, (zoomData): void => {
                     updateChartData(chartDom, dataSource, session, zoomData);
+                    updateZoomState();
                 });
             });
             setTimeout(() => {
@@ -1093,7 +1137,7 @@ const CommunicationTimeAnalysisChart = observer(({
                 setChartHeight(getChartHeight(dataSource));
             });
         }
-    }, [session]);
+    }, [session, updateZoomState]);
 
     /**
      * 使用useEffect更新图表数据
@@ -1119,6 +1163,7 @@ const CommunicationTimeAnalysisChart = observer(({
         }
         const firstInitChart = (): void => {
             chartInst.current = initChartInstance(dom, setDropDownVisible);
+            chartInst.current?.on('datazoom', updateZoomState);
             // 添加滚轮事件监听
             chartRef.current?.addEventListener('wheel', syncScroll, true);
             updateData(latestDataSource.current);
@@ -1152,10 +1197,11 @@ const CommunicationTimeAnalysisChart = observer(({
         // 清理函数，移除滚轮事件监听
         return (): void => {
             resizeObserver.disconnect();
+            chartInst.current?.off('datazoom', updateZoomState);
             disposeChartInstance(dom); // 清理全局实例记录
             chartRef.current?.removeEventListener('wheel', syncScroll, true);
         };
-    }, [durationFileCompleted, updateData]);
+    }, [durationFileCompleted, updateData, updateZoomState]);
 
     /**
      * 监听并处理慢算子点击事件的函数。
@@ -1241,25 +1287,64 @@ const CommunicationTimeAnalysisChart = observer(({
     });
 
     return durationFileCompleted
-        ? <Dropdown
-            menu={{
-                items: menuItems,
-                onBlur: (e: React.FocusEvent<HTMLUListElement, Element>): void => {
-                    const hasItem = menuItems?.findIndex(item =>
-                        (e.relatedTarget as HTMLElement)?.dataset?.menuId?.includes(item?.key as string)) !== -1;
-                    if (!hasItem) {
-                        setDropDownVisible(false);
-                    }
-                },
-            }}
-            trigger={['contextMenu']}
-            open={dropDownVisible}
-            autoFocus
-        >
-            <Spin spinning={loading} delay={400}>
-                <div ref={chartRef} id={'hccl'} style={{ width: 'calc(100vw - 80px)', height: chartHeight }}></div>
-            </Spin>
-        </Dropdown>
+        ? <div>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '0 16px 8px 24px' }}>
+                <span id="communication-chart-shortcuts" style={{ flex: 1, fontSize: 12, color: 'var(--mi-text-color-tertiary)' }}>
+                    {t(keyboardActive ? 'thumbnailNavigation.activeHint' : 'thumbnailNavigation.focusHint')}
+                </span>
+                <Tooltip title={t('Reset Zoom')}>
+                    <ResetIcon
+                        data-testid="communication-thumbnail-reset-zoom"
+                        disabled={!canResetZoom}
+                        style={{ cursor: canResetZoom ? 'pointer' : 'not-allowed' }}
+                        onClick={canResetZoom ? handleResetZoom : undefined}
+                    />
+                </Tooltip>
+            </div>
+            <Dropdown
+                menu={{
+                    items: menuItems,
+                    onBlur: (e: React.FocusEvent<HTMLUListElement, Element>): void => {
+                        const hasItem = menuItems?.findIndex(item =>
+                            (e.relatedTarget as HTMLElement)?.dataset?.menuId?.includes(item?.key as string)) !== -1;
+                        if (!hasItem) {
+                            setDropDownVisible(false);
+                        }
+                    },
+                }}
+                trigger={['contextMenu']}
+                open={dropDownVisible}
+                autoFocus
+            >
+                <Spin spinning={loading} delay={400}>
+                    <div
+                        ref={chartRef}
+                        id={'hccl'}
+                        className="communication-thumbnail-chart"
+                        role="region"
+                        aria-label={t('sessionTitle.Communication')}
+                        aria-describedby="communication-chart-shortcuts"
+                        aria-keyshortcuts="W S A D Shift+W Shift+S ArrowUp ArrowDown Escape"
+                        tabIndex={0}
+                        onFocus={(event) => setKeyboardActive(event.target === event.currentTarget)}
+                        onBlur={() => { setKeyboardActive(false); pointerRef.current = null; }}
+                        onKeyDown={handleChartKeyDown}
+                        onPointerMove={updatePointer}
+                        onPointerLeave={() => { pointerRef.current = null; }}
+                        onPointerDownCapture={(event) => {
+                            if (event.button === 0 && !(event.target as HTMLElement).closest('input, button, select, textarea, a, [contenteditable="true"]')) {
+                                event.currentTarget.focus({ preventScroll: true });
+                                updatePointer(event);
+                            }
+                        }}
+                        style={{
+                            width: 'calc(100vw - 80px)',
+                            height: chartHeight,
+                        }}
+                    ></div>
+                </Spin>
+            </Dropdown>
+        </div>
         : <div style={{ height: '400px' }}><Loading style={{ margin: '200px auto 0' }}/></div>;
 });
 

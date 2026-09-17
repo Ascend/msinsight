@@ -24,6 +24,11 @@
     "Show in Communication": "在缩略图中显示",
     "Align according to selected operator": "根据选中算子对齐",
     "Restore default state": "恢复默认状态",
+    "thumbnailNavigation": {
+      "focusHint": "点击图表后，可使用键盘快捷操作",
+      "activeHint": "W/S 时间缩放 · A/D 左右移动 · Shift+W/S Rank 缩放 · ↑/↓ 上下移动 · Esc 退出",
+      "help": "先点击图表。W/S 放大或缩小时间轴，A/D 左右移动，Shift+W/S 显示更少或更多 Rank，↑/↓ 按整行上下移动。鼠标在绘图区内时以鼠标位置为缩放中心，否则以视窗中心缩放。支持长按连续操作，Esc 退出键盘操作，重置缩放恢复完整时间范围和全部 Rank。"
+    },
     "sessionTitle": {
       "Communication": "通信算子缩略图",
       "Potential Slow Rank List": "可能的慢卡列表",
